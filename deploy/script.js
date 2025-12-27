@@ -152,20 +152,15 @@ function showToast(message) {
     setTimeout(() => { toast.classList.remove('visible'); }, 3000);
 }
 
-// --- PERSISTENCE: ELIMINAMOS LOCALCACHE YA QUE USAMOS WORKER KV ---
 function clearLocalCache() {
-    // Solo recarga la pagina, la cache real esta en Cloudflare
     alert("La caché del servidor se limpia automáticamente cada 30 min. Recargando...");
     location.reload();
 }
 
-// --- CORE FUNCTIONS (USING WORKER KV) ---
 
-// 1. OBTENER PRECIOS
 async function getPriceValue(itemName, slug) {
     if (!itemName || itemName === "Forma Blueprint") return 0; 
     
-    // Llamada al Worker pidiendo type=price
     const url = `${WORKER_URL}?type=price&q=${slug}`;
     
     try {
@@ -198,13 +193,11 @@ async function processQueue() {
         const task = REQUEST_QUEUE.shift();
         const price = await getPriceValue(task.name, task.slug);
         updatePriceUI(task.el, price);
-        // Pequeño delay para no saturar navegador, aunque el worker es rápido
         await new Promise(r => setTimeout(r, 50)); 
     }
     isProcessingQueue = false;
 }
 
-// 2. OBTENER PERFIL
 async function fetchUserProfile() {
     const username = document.getElementById('usernameInput').value.trim();
     if(!username) return alert("Please enter username");
@@ -213,7 +206,6 @@ async function fetchUserProfile() {
     container.innerHTML = '<div class="price-badge loading" style="width:100%">Loading...</div>';
 
     try {
-        // Llamada al Worker pidiendo type=profile
         const url = `${WORKER_URL}?type=profile&q=${encodeURIComponent(username)}`;
         const res = await fetch(url);
         
@@ -272,19 +264,16 @@ function renderProfileStats(mr, focus, standingObj, isCalc = false) {
     `;
 }
 
-// 3. CARGA DE DATOS AYA (DESDE WORKER KV)
 async function fetchActiveResurgence() {
     try {
         const res = await fetch(`${WORKER_URL}?type=aya`);
         if (!res.ok) return;
         const data = await res.json();
 
-        // Buscamos a Varzia (PrimeVaultTraders) en el WorldState oficial
         if (data.PrimeVaultTraders && Array.isArray(data.PrimeVaultTraders)) {
             data.PrimeVaultTraders.forEach(trader => {
                 if (!trader.Closed && trader.Manifest) {
                     trader.Manifest.forEach(item => {
-                        // ItemType ej: "/Lotus/StoreItems/Types/Game/Projections/T4VoidProjectionC1"
                         if (item.ItemType && item.ItemType.includes("Projections")) {
                             
                             const rawName = item.ItemType.split('/').pop();
@@ -416,7 +405,7 @@ function handleRivenInput() {
 async function fetchRivenAverage(weaponName) {
     if(!weaponName) return;
     let slug = getRivenSlug(weaponName);
-
+    
     const fullUrl = `https://api.warframe.market/v1/auctions/search?type=riven&weapon_url_name=${slug}&sort_by=price_asc&buyout_policy=direct`; 
     
     const box = document.getElementById('riven-avg-box');
@@ -425,26 +414,29 @@ async function fetchRivenAverage(weaponName) {
     valSpan.innerText = '...';
     
     try {
-        // Enrutamos por el worker usando ?path=
-        const res = await fetch(`${WORKER_URL}?path=${encodeURIComponent(fullUrl)}`);
-        if(!res.ok) throw new Error("No data");
+        const res = await fetch(`${WORKER_URL}?type=riven&q=${slug}`);        
+        if(!res.ok) throw new Error("Worker Error");
+        
         const data = await res.json();
-        const payload = data.payload || data;
-        const auctions = payload.auctions || [];
+        
+        const auctions = data.payload?.auctions || [];
+        
         const prices = auctions
             .filter(a => a.visible && a.buyout_price > 0 && a.owner.status !== 'offline')
-            .map(a => a.buyout_price)
-            .slice(0, 20);
+            .map(a => a.buyout_price);
 
         if(prices.length > 0) {
             prices.sort((a,b) => a - b);
-            const mid = Math.floor(prices.length / 2);
-            const median = prices.length % 2 !== 0 ? prices[mid] : (prices[mid - 1] + prices[mid]) / 2;
+            const subset = prices.slice(0, 20);
+            const mid = Math.floor(subset.length / 2);
+            const median = subset.length % 2 !== 0 ? subset[mid] : (subset[mid - 1] + subset[mid]) / 2;
+            
             valSpan.innerText = Math.round(median);
         } else {
             valSpan.innerText = "N/A";
         }
     } catch(e) {
+        console.error("Riven Fetch Error:", e);
         valSpan.innerText = "?";
     }
 }
