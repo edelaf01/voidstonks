@@ -5,7 +5,9 @@ const REQUEST_QUEUE = [];
 let isProcessingQueue = false;
 let debounceTimer;
 
+// --- ESTADO ---
 let currentActiveSet = null; 
+let allRivenNames = [];
 let activeSetParts = []; 
 let completedParts = new Set(); 
 let currentLang = 'es';
@@ -371,22 +373,20 @@ async function downloadRelics() {
 }
 
 async function fetchRivenWeapons() {
-    const list = document.getElementById('rivenWeaponsList');
-    list.innerHTML = "";
     try {
         const responses = await Promise.all(WEAPON_SOURCES.map(url => fetch(url).then(r => r.json())));
         const allWeapons = responses.flat();
         const unique = new Set();
+        
         allWeapons.forEach(item => {
             if (item.name && !unique.has(item.name)) {
                 unique.add(item.name);
-                const opt = document.createElement('option');
-                opt.value = item.name;
-                list.appendChild(opt);
-                const slug = item.name.toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9 ]/g, '').trim().replace(/\s+/g, '_');
-                weaponMap[item.name] = slug;
+                weaponMap[item.name] = getRivenSlug(item.name);
             }
         });
+        
+        allRivenNames = Array.from(unique).sort();
+        
     } catch(e) { console.warn("Riven list failed", e); }
 }
 
@@ -478,12 +478,9 @@ function openRivenMarket() {
 
 function finishLoading() {
     document.getElementById('loading').style.display = 'none';
-    const dl = document.getElementById('relicsList');
-    dl.innerHTML = "";
-    const frag = document.createDocumentFragment();
-    allRelicNames.forEach(n => { const opt = document.createElement('option'); opt.value = n; frag.appendChild(opt); });
-    dl.appendChild(frag);
-    document.getElementById('relicCount').innerText = `${Object.keys(itemsDatabase).length} ${TEXTS[currentLang].countMsg}`;
+    
+    document.getElementById('relicCount').innerText = `${allRelicNames.length} reliquias`;
+    
     document.getElementById('mode-relic').classList.remove('hidden');
 }
 
@@ -544,7 +541,9 @@ function renderSetTracker() {
         nameSpan.className = 't-name';
         nameSpan.innerText = partName.replace(currentActiveSet, '').trim() || partName; 
         if(partName === currentActiveSet) nameSpan.innerText = "Blueprint"; 
+        
         nameSpan.onclick = () => { findRelicForPart(partName); };
+        
         const checkBtn = document.createElement('button');
         checkBtn.className = 't-check';
         checkBtn.innerText = isDone ? t.markUndo : t.markDone;
@@ -562,18 +561,75 @@ function renderSetTracker() {
 
 function findRelicForPart(partName) {
     const relics = itemsDatabase[partName];
-    if (relics && relics.length > 0) {
-        let bestRelic = relics[0].relic;
-        const activeR = relics.find(r => relicStatusDB[r.relic] === 'active');
-        if(activeR) bestRelic = activeR.relic;
-        else {
-            const ayaR = relics.find(r => relicStatusDB[r.relic] === 'aya');
-            if(ayaR) bestRelic = ayaR.relic;
-        }
-        selectedRelic = bestRelic;
-        document.getElementById('relicInput').value = bestRelic;
-        manualRelicUpdate();
-    } else { alert("No hay reliquias conocidas para esta pieza."); }
+    if (!relics || relics.length === 0) {
+        showToast(TEXTS[currentLang].notFound);
+        return;
+    }
+
+    switchTab('relic');
+    
+    document.getElementById('relicInput').value = "";
+    const profitDisp = document.getElementById('relic-profit-display');
+    if(profitDisp) {
+        profitDisp.innerHTML = ""; 
+        profitDisp.classList.remove('loading');
+    }
+    
+    document.getElementById('lbl-content').innerText = `Reliquias para: ${partName}`;
+    
+    const container = document.getElementById('relic-contents');
+    const listDiv = document.getElementById('relic-drops-list');
+    container.style.display = 'block';
+    listDiv.innerHTML = "";
+
+    relics.sort((a,b) => {
+        const sA = relicStatusDB[a.relic] === 'active' ? 2 : (relicStatusDB[a.relic] === 'aya' ? 1 : 0);
+        const sB = relicStatusDB[b.relic] === 'active' ? 2 : (relicStatusDB[b.relic] === 'aya' ? 1 : 0);
+        if(sA !== sB) return sB - sA;
+        return a.relic.localeCompare(b.relic);
+    });
+
+    const t = TEXTS[currentLang];
+    const abbr = t.rarityAbbr;
+
+    const grid = document.createElement('div');
+    grid.className = 'relic-grid';
+    
+    relics.forEach(r => {
+        let rarityLabel = abbr.common;
+        let rarityClass = 'common';
+        if(r.chance <= 5) { rarityLabel = abbr.rare; rarityClass = 'rare'; }
+        else if(r.chance <= 22) { rarityLabel = abbr.uncommon; rarityClass = 'uncommon'; }
+
+        const status = relicStatusDB[r.relic] || 'vaulted';
+        const statusTxt = t[status] || t.vaulted;
+        const tier = r.tier || r.relic.split(' ')[0];
+        const imgUrl = TIER_URLS[tier] || TIER_URLS['Lith'];
+
+        const chip = document.createElement('div');
+        chip.className = `relic-chip ${rarityClass}`;
+        
+        chip.innerHTML = `
+            <div class="relic-chip-header">
+                <span class="relic-name">${r.relic}</span>
+                <img src="${imgUrl}" class="relic-img" alt="${tier}">
+            </div>
+            <div class="chip-footer">
+                <span class="rarity-text ${rarityClass}">${rarityLabel}</span>
+                <span class="status-badge ${status}">${statusTxt}</span>
+            </div>
+        `;
+
+        chip.onclick = () => {
+            document.getElementById('relicInput').value = r.relic;
+            manualRelicUpdate();
+            document.getElementById('lbl-content').innerText = t.lblContent;
+        };
+
+        grid.appendChild(chip);
+    });
+    
+    listDiv.appendChild(grid);
 }
 
 function manualRelicUpdate() { 
@@ -601,7 +657,7 @@ function manualRelicUpdate() {
             else if (item.chance <= 22) { rarityColor = "var(--wf-uncommon)"; rarityLabel = abbr.uncommon; }
             if (isForma) rarityColor = "var(--wf-forma)";
             let nameDisplay = `<span class="component-name">${item.name}</span>`;
-            if(isForma) nameDisplay = `<span style="font-weight:bold; color:var(--wf-forma);">[📦] Forma BP</span>`;
+            if(isForma) nameDisplay = `<span style="font-weight:bold; color:var(--wf-forma);"> Forma BP</span>`;
             else {
                 const slug = getSlug(item.name);
                 const marketUrl = `https://warframe.market/items/${slug}`;
@@ -755,24 +811,28 @@ function createSetCard(title, itemNames, parent, isSingle = false) {
     parent.appendChild(setContainer);
 }
 
-function changeCount(n) { playerCount += n; if(playerCount < 1) playerCount = 1; if(playerCount > 4) playerCount = 4; document.getElementById('countDisplay').innerText = playerCount; generateMessage(); }
+function changeCount(n) { playerCount = Math.max(1, Math.min(4, playerCount + n)); document.getElementById('countDisplay').innerText = playerCount; generateMessage(); }
 function generateMessage() { 
     const rName = selectedRelic || TEXTS[currentLang].defaultRelic;
     const refVal = document.getElementById('refinement').value;
     const refText = document.querySelector(`#refinement option[value="${refVal}"]`).innerText;
     document.getElementById('finalMessage').innerText = `H [${rName}] ${refText} ${playerCount}/4`; 
 }
-function copyText() { 
-    navigator.clipboard.writeText(document.getElementById('finalMessage').innerText);
-    const b = document.getElementById('btn-copy'); const old = b.innerText; b.innerText = TEXTS[currentLang].msgCopied; setTimeout(()=>b.innerText=old, 1500);
-}
+function copyText() { navigator.clipboard.writeText(document.getElementById('finalMessage').innerText); showToast(TEXTS[currentLang].msgCopied); }
+
 function switchTab(mode) {
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     document.getElementById('btn-' + mode).classList.add('active');
     ['relic', 'set', 'riven', 'profile'].forEach(m => document.getElementById('mode-' + m).classList.add('hidden'));
     document.getElementById('mode-' + mode).classList.remove('hidden');
     document.getElementById('footer-relic').style.display = (mode === 'relic') ? 'block' : 'none';
+    
+    // CAMBIO DE TEMA
+    const card = document.getElementById('main-card');
+    card.classList.remove('theme-relic', 'theme-set', 'theme-riven', 'theme-profile');
+    card.classList.add('theme-' + mode);
 }
+
 function changeLanguage() {
     currentLang = document.getElementById('langSelect').value;
     const t = TEXTS[currentLang];
@@ -833,7 +893,7 @@ function openRivenMarket() {
     const inputVal = document.getElementById('rivenWeaponInput').value.trim();
     if(!inputVal) return alert("Please enter a weapon name");
     
-    let slug = getRivenSlug(inputVal); // Use cleaned slug
+    let slug = getRivenSlug(inputVal); 
     
     let url = `https://warframe.market/auctions/search?type=riven&weapon_url_name=${slug}&polarity=any&sort_by=price_asc`;
     
@@ -852,5 +912,98 @@ function openRivenMarket() {
     
     window.open(url, '_blank');
 }
+const relicDropdown = document.getElementById('relicDropdown');
 
+function handleRelicTyping() {
+    const input = document.getElementById('relicInput');
+    const val = input.value.toUpperCase().trim();
+    
+    if (val.length < 1) {
+        relicDropdown.classList.add('hidden');
+        return;
+    }
+
+    const matches = allRelicNames.filter(name => name.toUpperCase().includes(val)).slice(0, 10);
+
+    if (matches.length > 0) {
+        renderRelicDropdown(matches);
+    } else {
+        relicDropdown.classList.add('hidden');
+    }
+
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(manualRelicUpdate, 600);
+}
+const rivenDropdown = document.getElementById('rivenDropdown');
+
+function handleRivenInput() {
+    const input = document.getElementById('rivenWeaponInput');
+    const val = input.value.toUpperCase().trim();
+    
+    if (val.length < 1) {
+        rivenDropdown.classList.add('hidden');
+    } else {
+        const matches = allRivenNames.filter(name => name.toUpperCase().includes(val)).slice(0, 10);
+        if (matches.length > 0) {
+            renderRivenDropdown(matches);
+        } else {
+            rivenDropdown.classList.add('hidden');
+        }
+    }
+
+    if (weaponMap[input.value]) { 
+        fetchRivenAverage(input.value); 
+    } else {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => { 
+            if(val.length > 2) fetchRivenAverage(input.value); 
+        }, 800);
+    }
+}
+
+function renderRivenDropdown(list) {
+    rivenDropdown.innerHTML = '';
+    rivenDropdown.classList.remove('hidden');
+    list.forEach(name => {
+        const item = document.createElement('div');
+        item.className = 'dropdown-item';
+        item.innerText = name;
+        item.onclick = () => selectRivenFromDropdown(name);
+        rivenDropdown.appendChild(item);
+    });
+}
+
+function selectRivenFromDropdown(name) {
+    const input = document.getElementById('rivenWeaponInput');
+    input.value = name;
+    rivenDropdown.classList.add('hidden');
+    fetchRivenAverage(name); 
+}
+function renderRelicDropdown(list) {
+    relicDropdown.innerHTML = '';
+    relicDropdown.classList.remove('hidden');
+
+    list.forEach(name => {
+        const item = document.createElement('div');
+        item.className = 'dropdown-item';
+        item.innerText = name;
+        item.onclick = () => selectRelicFromDropdown(name);
+        relicDropdown.appendChild(item);
+    });
+}
+
+function selectRelicFromDropdown(name) {
+    const input = document.getElementById('relicInput');
+    input.value = name;
+    relicDropdown.classList.add('hidden');
+    
+    manualRelicUpdate();
+}
+
+document.addEventListener('click', (e) => {
+    if (!e.target.closest('.custom-search-container')) {
+        document.getElementById('relicDropdown').classList.add('hidden');
+        document.getElementById('rivenDropdown').classList.add('hidden');
+    }
+});
 init();
