@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <title>VoidStonks - Warframe Market Tool</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -14,16 +13,15 @@
         <div class="header-subtitle" id="txt-header-sub">Optimización de Farm y Mercado</div>
     </header>
 
-    <div class="card">
+    <div class="card" id="main-card">
         <div class="card-top-bar">
             <div class="tabs">
                 <button id="btn-relic" class="tab-btn active" onclick="switchTab('relic')">1. Reliquia</button>
-                <button id="btn-set" class="tab-btn" onclick="switchTab('set')">2. Set</button>
+                <button id="btn-set" class="tab-btn orokin" onclick="switchTab('set')">2. Set</button>
                 <button id="btn-riven" class="tab-btn riven" onclick="switchTab('riven')">3. Riven 🟣</button>
-                <button id="btn-profile" class="tab-btn" onclick="switchTab('profile')">4. Perfil 👤</button>
+                <button id="btn-profile" class="tab-btn profile" onclick="switchTab('profile')">4. Perfil 👤</button>
             </div>
             <div class="integrated-controls">
-                <button id="btnRefresh" class="ctrl-btn" onclick="clearLocalCache()">🧹 Cache</button>
                 <select id="langSelect" class="ctrl-btn" onchange="changeLanguage()">
                     <option value="es">🇪🇸</option>
                     <option value="en">🇬🇧</option>
@@ -40,8 +38,10 @@
             <div id="mode-relic">
                 <div class="form-group">
                     <label id="lbl-relic-name">Nombre de Reliquia</label>
-                    <input class="wf-input" type="text" id="relicInput" list="relicsList" placeholder="Ej: Meso N6" onkeyup="handleRelicTyping()">
-                    <datalist id="relicsList"></datalist>
+                    <div class="custom-search-container">
+                        <input class="wf-input" type="text" id="relicInput" placeholder="Ej: Meso N6" onkeyup="handleRelicTyping()" autocomplete="off">
+                        <div id="relicDropdown" class="custom-dropdown hidden"></div>
+                    </div>
                     <div style="text-align: right; margin-top:5px;">
                         <span id="relicCount" style="font-size: 0.75em; color:#555;">...</span>
                     </div>
@@ -87,16 +87,19 @@
             <div id="mode-set" class="hidden">
                 <div class="form-group">
                     <label id="lbl-search-item">Buscar Item / Set</label>
-                    <input class="wf-input" type="text" id="setItemInput" placeholder="Ej: Xaku, Wisp..." onkeyup="handleSetTyping()" autocomplete="off">
+                    <input class="wf-input orokin-input" type="text" id="setItemInput" placeholder="Ej: Xaku, Wisp..." onkeyup="handleSetTyping()" autocomplete="off">
                 </div>
                 <div id="setResults"></div>
             </div>
 
             <div id="mode-riven" class="hidden">
-                <div class="form-group">
-                    <label id="lbl-riven-weapon">Arma del Riven</label>
-                    <input class="wf-input" type="text" id="rivenWeaponInput" list="rivenWeaponsList" placeholder="Ej: Bramma, Nikana..." style="margin-bottom: 5px;" oninput="handleRivenInput()">
-                    <datalist id="rivenWeaponsList"></datalist>
+               <div class="form-group">
+                <label id="lbl-riven-weapon">Arma del Riven</label>
+                
+                <div class="custom-search-container">
+                    <input class="wf-input riven-input" type="text" id="rivenWeaponInput" placeholder="Ej: Bramma, Nikana..." onkeyup="handleRivenInput()" autocomplete="off">
+                    <div id="rivenDropdown" class="custom-dropdown hidden"></div>
+                </div>
 
                     <div id="riven-avg-box">
                         <span style="font-size:0.8em; color:#bbb; text-transform:uppercase;">Precio Base (Est.)</span><br>
@@ -106,12 +109,12 @@
                     <label id="lbl-riven-stats">Estadísticas (Opcional)</label>
                     <div class="riven-stats-container">
                         <div class="riven-row">
-                            <select id="rivenStat1" class="wf-input riven-stat-select"><option value="">+ Stat 1</option></select>
-                            <select id="rivenStat2" class="wf-input riven-stat-select"><option value="">+ Stat 2</option></select>
-                            <select id="rivenStat3" class="wf-input riven-stat-select"><option value="">+ Stat 3</option></select>
+                            <select id="rivenStat1" class="wf-input riven-input riven-stat-select"><option value="">+ Stat 1</option></select>
+                            <select id="rivenStat2" class="wf-input riven-input riven-stat-select"><option value="">+ Stat 2</option></select>
+                            <select id="rivenStat3" class="wf-input riven-input riven-stat-select"><option value="">+ Stat 3</option></select>
                         </div>
                         <div class="riven-row" style="margin-top:5px;">
-                            <select id="rivenStatNeg" class="wf-input riven-stat-select negative"><option value="">- Negativa (Opcional)</option></select>
+                            <select id="rivenStatNeg" class="wf-input riven-input riven-stat-select negative"><option value="">- Negativa (Opcional)</option></select>
                         </div>
                     </div>
                     <button class="riven-btn" id="btn-riven-search" onclick="openRivenMarket()">🔎 BUSCAR PRECIO</button>
@@ -122,13 +125,13 @@
                 <div class="form-group">
                     <label id="lbl-username">Nombre de Usuario (PC)</label>
                     <div style="display:flex; gap:10px;">
-                        <input class="wf-input" type="text" id="usernameInput" placeholder="Ej: Parcialsobriedad">
+                        <input class="wf-input profile-input" type="text" id="usernameInput" placeholder="Ej: Parcialsobriedad">
                         <button class="ctrl-btn" style="background:var(--wf-blue); color:#000; font-weight:bold;" onclick="fetchUserProfile()">Check</button>
                     </div>
                     <small style="color:#666; margin-top:5px; display:block;">Si la API falla, calcula por MR:</small>
                     <div style="margin-top:5px; display:flex; align-items:center; gap:10px;">
                          <label style="margin:0; width:auto;">MR:</label>
-                         <input class="wf-input" type="number" id="mrInput" min="0" max="34" value="0" style="width:60px; padding:5px;" onchange="calculateCaps()">
+                         <input class="wf-input profile-input" type="number" id="mrInput" min="0" max="34" value="0" style="width:60px; padding:5px;" onchange="calculateCaps()">
                     </div>
                 </div>
                 <div id="profile-data"></div>
