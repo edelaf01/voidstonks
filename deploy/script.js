@@ -1,14 +1,6 @@
-const RELICS_URL = 'https://cdn.jsdelivr.net/gh/WFCD/warframe-drop-data@gh-pages/data/relics.json';
+// --- CONFIGURACIÓN ---
+const WORKER_URL = "https://wf-tool-proxy-worker.edelamf0.workers.dev/";
 
-const WORLDSTATE_API = "https://api.warframestat.us/pc/vaultTrader";
-
-const PROFILE_API_BASE = "https://api.warframestat.us/profile/";
-
-const PROXY_URL = "https://wf-tool-proxy-worker.edelamf0.workers.dev/?path=";
-
-const FORMA_IMG = "https://wiki.warframe.com/images/0/02/Forma.png";
-
-const CACHE_DURATION = 1000 * 60 * 30; 
 const REQUEST_QUEUE = [];
 let isProcessingQueue = false;
 let debounceTimer;
@@ -160,41 +152,27 @@ function showToast(message) {
     setTimeout(() => { toast.classList.remove('visible'); }, 3000);
 }
 
-function getFromCache(slug) {
-    const cached = localStorage.getItem(`wf_price_${slug}`);
-    if (!cached) return null;
-    try {
-        const data = JSON.parse(cached);
-        const now = Date.now();
-        if (now - data.ts > CACHE_DURATION) {
-            localStorage.removeItem(`wf_price_${slug}`); 
-            return null;
-        }
-        return data.price;
-    } catch(e) { return null; }
-}
-
-function saveToCache(slug, price) {
-    const data = { price: price, ts: Date.now() };
-    try { localStorage.setItem(`wf_price_${slug}`, JSON.stringify(data)); } catch(e) {}
-}
-
+// --- PERSISTENCE: ELIMINAMOS LOCALCACHE YA QUE USAMOS WORKER KV ---
 function clearLocalCache() {
-    Object.keys(localStorage).forEach(key => {
-        if(key.startsWith('wf_price_')) localStorage.removeItem(key);
-    });
-    alert("Cache de precios borrada.");
+    // Solo recarga la pagina, la cache real esta en Cloudflare
+    alert("La caché del servidor se limpia automáticamente cada 30 min. Recargando...");
     location.reload();
 }
 
-// --- CORE PRICE FUNCTION ---
+// --- CORE FUNCTIONS (USING WORKER KV) ---
+
+// 1. OBTENER PRECIOS
 async function getPriceValue(itemName, slug) {
     if (!itemName || itemName === "Forma Blueprint") return 0; 
-    const targetPath = `https://api.warframe.market/v2/orders/item/${slug}/top`;
+    
+    // Llamada al Worker pidiendo type=price
+    const url = `${WORKER_URL}?type=price&q=${slug}`;
+    
     try {
-        const res = await fetch(PROXY_URL + encodeURIComponent(targetPath));
-        if (!res.ok) throw new Error("Worker failed");
+        const res = await fetch(url);
+        if (!res.ok) throw new Error("Worker Error");
         const data = await res.json();
+        
         const realData = data.payload ? data.payload : data;
         const sells = realData.orders || realData.data?.sell || []; 
         const active = sells.filter(o => o.user.status === 'ingame' || o.user.status === 'online');
@@ -202,7 +180,6 @@ async function getPriceValue(itemName, slug) {
         const p = active.length > 0 ? active[0].platinum : 0;
         return p;
     } catch (e) { 
-        console.warn("Proxy Error:", e);
         return 0; 
     }
 }
@@ -210,8 +187,6 @@ async function getPriceValue(itemName, slug) {
 async function addToQueue(itemName, element) {
     if (!itemName || itemName === "Forma Blueprint") return;
     const slug = getSlug(itemName);
-    const cachedPrice = getFromCache(slug);
-    if (cachedPrice !== null) { updatePriceUI(element, cachedPrice); return; }
     REQUEST_QUEUE.push({ name: itemName, slug: slug, el: element });
     processQueue();
 }
@@ -222,14 +197,14 @@ async function processQueue() {
     while (REQUEST_QUEUE.length > 0) {
         const task = REQUEST_QUEUE.shift();
         const price = await getPriceValue(task.name, task.slug);
-        saveToCache(task.slug, price);
         updatePriceUI(task.el, price);
-        await new Promise(r => setTimeout(r, 200)); 
+        // Pequeño delay para no saturar navegador, aunque el worker es rápido
+        await new Promise(r => setTimeout(r, 50)); 
     }
     isProcessingQueue = false;
 }
 
-// --- PROFILE LOGIC ---
+// 2. OBTENER PERFIL
 async function fetchUserProfile() {
     const username = document.getElementById('usernameInput').value.trim();
     if(!username) return alert("Please enter username");
@@ -238,8 +213,10 @@ async function fetchUserProfile() {
     container.innerHTML = '<div class="price-badge loading" style="width:100%">Loading...</div>';
 
     try {
-        const url = `${PROFILE_API_BASE}${encodeURIComponent(username)}`;
-        const res = await fetch(PROXY_URL + encodeURIComponent(url));
+        // Llamada al Worker pidiendo type=profile
+        const url = `${WORKER_URL}?type=profile&q=${encodeURIComponent(username)}`;
+        const res = await fetch(url);
+        
         if(!res.ok) throw new Error("API Blocked or User Not Found");
         const data = await res.json();
 
@@ -250,7 +227,7 @@ async function fetchUserProfile() {
             throw new Error("Invalid Data");
         }
     } catch(e) {
-        container.innerHTML = '<div style="color:orange; font-size:0.9em; padding:10px;">API Perfil No Disponible.<br>Usando cálculo manual (MR).</div>';
+        container.innerHTML = '<div style="color:orange; font-size:0.9em; padding:10px;">Perfil no encontrado o privado.<br>Usando calculadora manual.</div>';
         calculateCaps();
     }
 }
@@ -295,37 +272,44 @@ function renderProfileStats(mr, focus, standingObj, isCalc = false) {
     `;
 }
 
+// 3. CARGA DE DATOS AYA (DESDE WORKER KV)
 async function fetchActiveResurgence() {
-    const target = PROXY_URL + encodeURIComponent(WORLDSTATE_API);
-    console.log("🚀 Debug Aya URL:", target);
-
     try {
-        const res = await fetch(target);
-        
-        if (!res.ok) {
-            console.error(`❌ Error Fetch Aya: ${res.status} ${res.statusText}`);
-            return;
-        }
-
+        const res = await fetch(`${WORKER_URL}?type=aya`);
+        if (!res.ok) return;
         const data = await res.json();
-        
-        if (data && data.inventory && Array.isArray(data.inventory)) {
-            data.inventory.forEach(entry => {
-                if (entry.item && entry.item.includes("Relic")) {
-                    const cleanName = entry.item
-                        .replace(" (Intact)", "")
-                        .replace(" Relic", "")
-                        .replace("Void Projection ", "") 
-                        .trim()
-                        .toUpperCase();
-                    
-                    activeResurgenceList.add(cleanName);
+
+        // Buscamos a Varzia (PrimeVaultTraders) en el WorldState oficial
+        if (data.PrimeVaultTraders && Array.isArray(data.PrimeVaultTraders)) {
+            data.PrimeVaultTraders.forEach(trader => {
+                if (!trader.Closed && trader.Manifest) {
+                    trader.Manifest.forEach(item => {
+                        // ItemType ej: "/Lotus/StoreItems/Types/Game/Projections/T4VoidProjectionC1"
+                        if (item.ItemType && item.ItemType.includes("Projections")) {
+                            
+                            const rawName = item.ItemType.split('/').pop();
+                            
+                            let tier = "";
+                            if(rawName.startsWith("T1")) tier = "Lith";
+                            else if(rawName.startsWith("T2")) tier = "Meso";
+                            else if(rawName.startsWith("T3")) tier = "Neo";
+                            else if(rawName.startsWith("T4")) tier = "Axi";
+                            else if(rawName.startsWith("T5")) tier = "Requiem";
+
+                            let code = rawName.replace(/T\d+VoidProjection/, "");
+                            if (code.length === 1 && code.match(/[A-Z]/)) code += "1";
+
+                            if (tier && code) {
+                                const cleanName = `${tier} ${code}`.toUpperCase();
+                                activeResurgenceList.add(cleanName);
+                            }
+                        }
+                    });
                 }
             });
-            console.log("✅ Aya/Resurgence cargado. Items:", activeResurgenceList.size);
         }
     } catch (e) {
-        console.warn("Aya Error (Catch):", e);
+        console.warn("Aya Fetch Error:", e);
     }
 }
 
@@ -336,8 +320,9 @@ async function downloadRelics() {
     await fetchActiveResurgence();
 
     try {
-        const response = await fetch(RELICS_URL);
-        if (!response.ok) throw new Error("Connection error");
+        const response = await fetch(`${WORKER_URL}?type=relics`);
+        
+        if (!response.ok) throw new Error("Worker Error");
         const rawData = await response.json();
         
         let relicsArray = (rawData.relics && Array.isArray(rawData.relics)) ? rawData.relics : [];
@@ -351,7 +336,6 @@ async function downloadRelics() {
 
             const fullName = `${entry.tier} ${entry.relicName}`;
             
-            // Fix Anti-Duplicados
             if (tempNamesSet.has(fullName)) return;
             tempNamesSet.add(fullName);
 
@@ -397,7 +381,6 @@ async function downloadRelics() {
     }
 }
 
-// --- RIVEN LOGIC ---
 async function fetchRivenWeapons() {
     const list = document.getElementById('rivenWeaponsList');
     list.innerHTML = "";
@@ -433,14 +416,17 @@ function handleRivenInput() {
 async function fetchRivenAverage(weaponName) {
     if(!weaponName) return;
     let slug = getRivenSlug(weaponName);
-    const fullUrl = `https://api.warframe.market/v2/auctions/search?type=riven&weapon_url_name=${slug}&sort_by=price_asc&buyout_policy=direct`; 
+
+    const fullUrl = `https://api.warframe.market/v1/auctions/search?type=riven&weapon_url_name=${slug}&sort_by=price_asc&buyout_policy=direct`; 
+    
     const box = document.getElementById('riven-avg-box');
     const valSpan = document.getElementById('riven-avg-value');
     box.style.display = 'block';
     valSpan.innerText = '...';
     
     try {
-        const res = await fetch(PROXY_URL + encodeURIComponent(fullUrl));
+        // Enrutamos por el worker usando ?path=
+        const res = await fetch(`${WORKER_URL}?path=${encodeURIComponent(fullUrl)}`);
         if(!res.ok) throw new Error("No data");
         const data = await res.json();
         const payload = data.payload || data;
@@ -486,16 +472,18 @@ function openRivenMarket() {
     const stat2 = document.getElementById('rivenStat2').value;
     const stat3 = document.getElementById('rivenStat3').value;
     const statNeg = document.getElementById('rivenStatNeg').value;
+    
     let positives = [];
     if(stat1) positives.push(stat1);
     if(stat2) positives.push(stat2);
     if(stat3) positives.push(stat3);
+    
     if(positives.length > 0) url += `&positive_stats=${positives.join(',')}`;
     if(statNeg) url += `&negative_stats=${statNeg}`;
+    
     window.open(url, '_blank');
 }
 
-// --- STANDARD APP LOGIC ---
 function finishLoading() {
     document.getElementById('loading').style.display = 'none';
     const dl = document.getElementById('relicsList');
@@ -853,7 +841,7 @@ function openRivenMarket() {
     const inputVal = document.getElementById('rivenWeaponInput').value.trim();
     if(!inputVal) return alert("Please enter a weapon name");
     
-    let slug = getRivenSlug(inputVal); 
+    let slug = getRivenSlug(inputVal); // Use cleaned slug
     
     let url = `https://warframe.market/auctions/search?type=riven&weapon_url_name=${slug}&polarity=any&sort_by=price_asc`;
     
