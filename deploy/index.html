@@ -1,168 +1,388 @@
 <!DOCTYPE html>
 <html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <title>VoidStonks - Warframe Market Tool</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="styles.css">
-</head>
-<body>
+  <head>
+    <meta charset="UTF-8" />
+    <title>VoidStonks - Warframe Market Tool & Farm Optimizer</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
+    <meta
+      name="description"
+      content="Herramienta avanzada para Warframe. Consulta precios de Rivens, optimiza tus Reliquias y trackea tu progreso de Sets Prime. Maximiza tu Platino con datos de mercado en tiempo real."
+    />
+    <meta
+      name="keywords"
+      content="Warframe, Market, Riven Prices, Relic Tool, Void, Farm, Optimizer, Platinum, Trading, VoidStonks"
+    />
+    <meta name="author" content="Parcialsobriedad" />
+    <meta name="robots" content="index, follow" />
+
+    <link rel="canonical" href="https://voidstonks.com/" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://voidstonks.com/" />
+    <meta
+      property="og:title"
+      content="VoidStonks - Optimización de Farm y Mercado"
+    />
+    <meta
+      property="og:description"
+      content="Consulta precios de Rivens, Reliquias y Sets en tiempo real. Herramienta esencial para traders de Warframe."
+    />
+    <meta
+      property="og:image"
+      content="https://wiki.warframe.com/images/Void_Projections_Icon.png"
+    />
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:url" content="https://voidstonks.com/" />
+    <meta
+      property="twitter:title"
+      content="VoidStonks - Warframe Market Tool"
+    />
+    <meta
+      property="twitter:description"
+      content="Optimiza tu farm de reliquias y consulta precios de Rivens al instante."
+    />
+    <meta
+      property="twitter:image"
+      content="https://wiki.warframe.com/images/Void_Projections_Icon.png"
+    />
+
+    <link rel="stylesheet" href="styles.css" />
+    <link
+      rel="icon"
+      type="image/png"
+      href="https://wiki.warframe.com/images/VoidTraces.png"
+    />
+  </head>
+  <body>
     <header class="site-header">
-        <h1 class="header-title" id="txt-header-title">VOIDSTONKS</h1>
-        <div class="header-subtitle" id="txt-header-sub">Optimización de Farm y Mercado</div>
+      <h1 class="header-title" id="txt-header-title">VOIDSTONKS</h1>
+      <div class="header-subtitle" id="txt-header-sub">
+        Optimización de Farm y Mercado
+      </div>
     </header>
 
     <div class="card" id="main-card">
-        <div class="card-top-bar">
-            <div class="tabs">
-                <button id="btn-relic" class="tab-btn active" onclick="switchTab('relic')">1. Reliquia</button>
-                <button id="btn-set" class="tab-btn orokin" onclick="switchTab('set')">2. Set</button>
-                <button id="btn-riven" class="tab-btn riven" onclick="switchTab('riven')">3. Riven 🟣</button>
-                <button id="btn-profile" class="tab-btn profile" onclick="switchTab('profile')">4. Perfil 👤</button>
+      <div class="card-top-bar">
+        <div class="tabs">
+          <button
+            id="btn-relic"
+            class="tab-btn active"
+            onclick="switchTab('relic')"
+          >
+            1. Reliquia
+          </button>
+          <button
+            id="btn-set"
+            class="tab-btn orokin"
+            onclick="switchTab('set')"
+          >
+            2. Set
+          </button>
+          <button
+            id="btn-riven"
+            class="tab-btn riven"
+            onclick="switchTab('riven')"
+          >
+            3. Riven 🟣
+          </button>
+          <button
+            id="btn-profile"
+            class="tab-btn profile"
+            onclick="switchTab('profile')"
+          >
+            4. Perfil 👤
+          </button>
+        </div>
+        <div class="integrated-controls">
+          <select id="langSelect" class="ctrl-btn" onchange="changeLanguage()">
+            <option value="es">🇪🇸</option>
+            <option value="en">🇬🇧</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="content-area">
+        <div id="loading">
+          <div id="loadingText">Cargando datos...</div>
+          <small>Conectando a base de datos segura...</small>
+        </div>
+
+        <div id="mode-relic">
+          <div class="form-group">
+            <label id="lbl-relic-name">Nombre de Reliquia</label>
+            <div class="custom-search-container">
+              <input
+                class="wf-input"
+                type="text"
+                id="relicInput"
+                placeholder="Ej: Meso N6"
+                onkeyup="handleRelicTyping()"
+                autocomplete="off"
+              />
+              <div id="relicDropdown" class="custom-dropdown hidden"></div>
             </div>
-            <div class="integrated-controls">
-                <select id="langSelect" class="ctrl-btn" onchange="changeLanguage()">
-                    <option value="es">🇪🇸</option>
-                    <option value="en">🇬🇧</option>
+            <div style="text-align: right; margin-top: 5px">
+              <span id="relicCount" style="font-size: 0.75em; color: #555"
+                >...</span
+              >
+            </div>
+          </div>
+
+          <div
+            style="
+              margin-top: 20px;
+              padding-top: 15px;
+              border-top: 1px dashed #333;
+            "
+          >
+            <div
+              style="
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+              "
+            >
+              <div style="flex: 1; margin-right: 10px">
+                <label id="lbl-refinement">Refinamiento</label>
+                <select
+                  id="refinement"
+                  class="wf-input"
+                  onchange="generateMessage()"
+                >
+                  <option value="Rad" data-key="rad">Radiante</option>
+                  <option value="Intact" data-key="intact">Intacta</option>
+                  <option value="Flawless" data-key="flawless">Perfecta</option>
+                  <option value="Exceptional" data-key="exceptional">
+                    Excepcional
+                  </option>
                 </select>
+              </div>
+              <div>
+                <label id="lbl-missing">Faltan</label>
+                <div class="counter-inline">
+                  <button class="c-btn" onclick="changeCount(-1)">-</button>
+                  <span class="c-val" id="countDisplay">1</span>
+                  <button class="c-btn" onclick="changeCount(1)">+</button>
+                </div>
+              </div>
             </div>
+          </div>
+
+          <div id="relic-contents">
+            <div class="total-profit-box">
+              <div class="profit-label" id="lbl-profit">
+                Rentabilidad (Media)
+              </div>
+              <div class="price-badge big loading" id="relic-profit-display">
+                ...
+              </div>
+            </div>
+            <div class="analysis-info">
+              <span id="lbl-content">Contenido:</span>
+            </div>
+            <div id="relic-drops-list"></div>
+
+            <div id="set-tracker">
+              <div class="tracker-title" id="tracker-title">
+                Progreso del Set
+              </div>
+              <div id="tracker-list"></div>
+            </div>
+          </div>
         </div>
 
-        <div class="content-area">
-            <div id="loading">
-                <div id="loadingText">Cargando datos...</div>
-                <small>Conectando a base de datos segura...</small>
-            </div>
-
-            <div id="mode-relic">
-                <div class="form-group">
-                    <label id="lbl-relic-name">Nombre de Reliquia</label>
-                    <div class="custom-search-container">
-                        <input class="wf-input" type="text" id="relicInput" placeholder="Ej: Meso N6" onkeyup="handleRelicTyping()" autocomplete="off">
-                        <div id="relicDropdown" class="custom-dropdown hidden"></div>
-                    </div>
-                    <div style="text-align: right; margin-top:5px;">
-                        <span id="relicCount" style="font-size: 0.75em; color:#555;">...</span>
-                    </div>
-                </div>
-                
-                <div style="margin-top: 20px; padding-top:15px; border-top: 1px dashed #333;">
-                    <div style="display:flex; justify-content: space-between; align-items: center;">
-                        <div style="flex:1; margin-right: 10px;">
-                            <label id="lbl-refinement">Refinamiento</label>
-                            <select id="refinement" class="wf-input" onchange="generateMessage()">
-                                <option value="Rad" data-key="rad">Radiante</option>
-                                <option value="Intact" data-key="intact">Intacta</option>
-                                <option value="Flawless" data-key="flawless">Perfecta</option>
-                                <option value="Exceptional" data-key="exceptional">Excepcional</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label id="lbl-missing">Faltan</label>
-                            <div class="counter-inline">
-                                <button class="c-btn" onclick="changeCount(-1)">-</button>
-                                <span class="c-val" id="countDisplay">1</span>
-                                <button class="c-btn" onclick="changeCount(1)">+</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div id="relic-contents">
-                    <div class="total-profit-box">
-                        <div class="profit-label" id="lbl-profit">Rentabilidad (Media)</div>
-                        <div class="price-badge big loading" id="relic-profit-display">...</div>
-                    </div>
-                    <div class="analysis-info"><span id="lbl-content">Contenido:</span></div>
-                    <div id="relic-drops-list"></div>
-                    
-                    <div id="set-tracker">
-                        <div class="tracker-title" id="tracker-title">Progreso del Set</div>
-                        <div id="tracker-list"></div>
-                    </div>
-                </div>
-            </div>
-
-            <div id="mode-set" class="hidden">
-                <div class="form-group">
-                    <label id="lbl-search-item">Buscar Item / Set</label>
-                    <input class="wf-input orokin-input" type="text" id="setItemInput" placeholder="Ej: Xaku, Wisp..." onkeyup="handleSetTyping()" autocomplete="off">
-                </div>
-                <div id="setResults"></div>
-            </div>
-
-            <div id="mode-riven" class="hidden">
-               <div class="form-group">
-                <label id="lbl-riven-weapon">Arma del Riven</label>
-                
-                <div class="custom-search-container">
-                    <input class="wf-input riven-input" type="text" id="rivenWeaponInput" placeholder="Ej: Bramma, Nikana..." onkeyup="handleRivenInput()" autocomplete="off">
-                    <div id="rivenDropdown" class="custom-dropdown hidden"></div>
-                </div>
-
-                    <div id="riven-avg-box">
-                        <span style="font-size:0.8em; color:#bbb; text-transform:uppercase;">Precio Base (Est.)</span><br>
-                        <span id="riven-avg-value" class="riven-avg-val">...</span> <span style="font-size:0.8em;">pl</span>
-                    </div>
-
-                    <label id="lbl-riven-stats">Estadísticas (Opcional)</label>
-                    <div class="riven-stats-container">
-                        <div class="riven-row">
-                            <select id="rivenStat1" class="wf-input riven-input riven-stat-select"><option value="">+ Stat 1</option></select>
-                            <select id="rivenStat2" class="wf-input riven-input riven-stat-select"><option value="">+ Stat 2</option></select>
-                            <select id="rivenStat3" class="wf-input riven-input riven-stat-select"><option value="">+ Stat 3</option></select>
-                        </div>
-                        <div class="riven-row" style="margin-top:5px;">
-                            <select id="rivenStatNeg" class="wf-input riven-input riven-stat-select negative"><option value="">- Negativa (Opcional)</option></select>
-                        </div>
-                    </div>
-                    <button class="riven-btn" id="btn-riven-search" onclick="openRivenMarket()">🔎 BUSCAR PRECIO</button>
-                </div>
-            </div>
-
-            <div id="mode-profile" class="hidden">
-                <div class="form-group">
-                    <label id="lbl-username">Nombre de Usuario (PC)</label>
-                    <div style="display:flex; gap:10px;">
-                        <input class="wf-input profile-input" type="text" id="usernameInput" placeholder="Ej: Parcialsobriedad">
-                        <button class="ctrl-btn" style="background:var(--wf-blue); color:#000; font-weight:bold;" onclick="fetchUserProfile()">Check</button>
-                    </div>
-                    <small style="color:#666; margin-top:5px; display:block;">Si la API falla, calcula por MR:</small>
-                    <div style="margin-top:5px; display:flex; align-items:center; gap:10px;">
-                         <label style="margin:0; width:auto;">MR:</label>
-                         <input class="wf-input profile-input" type="number" id="mrInput" min="0" max="34" value="0" style="width:60px; padding:5px;" onchange="calculateCaps()">
-                    </div>
-                </div>
-                <div id="profile-data"></div>
-            </div>
-
+        <div id="mode-set" class="hidden">
+          <div class="form-group">
+            <label id="lbl-search-item">Buscar Item / Set</label>
+            <input
+              class="wf-input orokin-input"
+              type="text"
+              id="setItemInput"
+              placeholder="Ej: Xaku, Wisp..."
+              onkeyup="handleSetTyping()"
+              autocomplete="off"
+            />
+          </div>
+          <div id="setResults"></div>
         </div>
 
-        <div id="footer-relic" class="footer-output">
-            <div id="finalMessage" class="message-display">...</div>
-            <button id="btn-copy" class="copy-btn" onclick="copyText()">Copiar Mensaje</button>
+        <div id="mode-riven" class="hidden">
+          <div class="form-group">
+            <label id="lbl-riven-weapon">Arma del Riven</label>
+
+            <div class="custom-search-container">
+              <input
+                class="wf-input riven-input"
+                type="text"
+                id="rivenWeaponInput"
+                placeholder="Ej: Bramma, Nikana..."
+                onkeyup="handleRivenInput()"
+                autocomplete="off"
+              />
+              <div id="rivenDropdown" class="custom-dropdown hidden"></div>
+            </div>
+
+            <div id="riven-avg-box">
+              <span
+                style="font-size: 0.8em; color: #bbb; text-transform: uppercase"
+                >Precio Base (Est.)</span
+              ><br />
+              <span id="riven-avg-value" class="riven-avg-val">...</span>
+              <span style="font-size: 0.8em">pl</span>
+            </div>
+
+            <label id="lbl-riven-stats">Estadísticas (Opcional)</label>
+            <div class="riven-stats-container">
+              <div class="riven-row">
+                <select
+                  id="rivenStat1"
+                  class="wf-input riven-input riven-stat-select"
+                >
+                  <option value="">+ Stat 1</option>
+                </select>
+                <select
+                  id="rivenStat2"
+                  class="wf-input riven-input riven-stat-select"
+                >
+                  <option value="">+ Stat 2</option>
+                </select>
+                <select
+                  id="rivenStat3"
+                  class="wf-input riven-input riven-stat-select"
+                >
+                  <option value="">+ Stat 3</option>
+                </select>
+              </div>
+              <div class="riven-row" style="margin-top: 5px">
+                <select
+                  id="rivenStatNeg"
+                  class="wf-input riven-input riven-stat-select negative"
+                >
+                  <option value="">- Negativa (Opcional)</option>
+                </select>
+              </div>
+            </div>
+            <button
+              class="riven-btn"
+              id="btn-riven-search"
+              onclick="openRivenMarket()"
+            >
+              🔎 BUSCAR PRECIO
+            </button>
+          </div>
         </div>
+
+        <div id="mode-profile" class="hidden">
+          <div class="form-group">
+            <label id="lbl-username">Nombre de Usuario (PC)</label>
+            <div style="display: flex; gap: 10px">
+              <input
+                class="wf-input profile-input"
+                type="text"
+                id="usernameInput"
+                placeholder="Ej: Parcialsobriedad"
+              />
+              <button
+                class="ctrl-btn"
+                style="
+                  background: var(--wf-blue);
+                  color: #000;
+                  font-weight: bold;
+                "
+                onclick="fetchUserProfile()"
+              >
+                Check
+              </button>
+            </div>
+            <small
+              id="txt-mr-label"
+              style="color: #666; margin-top: 5px; display: block"
+              >Si la API falla, calcula por MR:</small
+            >
+            <div
+              style="
+                margin-top: 5px;
+                display: flex;
+                align-items: center;
+                gap: 10px;
+              "
+            >
+              <label style="margin: 0; width: auto">MR:</label>
+              <input
+                class="wf-input profile-input"
+                type="number"
+                id="mrInput"
+                min="0"
+                max="34"
+                value="0"
+                style="width: 60px; padding: 5px"
+                onchange="calculateCaps()"
+              />
+            </div>
+          </div>
+          <div id="profile-data"></div>
+        </div>
+      </div>
+
+      <div id="footer-relic" class="footer-output">
+        <div id="finalMessage" class="message-display">...</div>
+        <button id="btn-copy" class="copy-btn" onclick="copyText()">
+          Copiar Mensaje
+        </button>
+      </div>
     </div>
 
     <div id="error-toast">Error de conexión</div>
 
     <footer class="site-footer">
-        <div class="footer-row">
-            <span id="txt-footer-data">Datos provistos por:</span>
-            <a href="https://warframe.market/" target="_blank" rel="noopener noreferrer" class="footer-link">Warframe Market</a>
-            <span class="footer-separator">|</span>
-            <a href="https://drops.warframestat.us/" target="_blank" rel="noopener noreferrer" class="footer-link">Warframe Drops API</a>
-            <span class="footer-separator">|</span>
-            <a href="https://github.com/WFCD" target="_blank" rel="noopener noreferrer" class="footer-link">WFCD</a>
-        </div>
-        
-        <div class="footer-row" style="margin-top: 10px; font-size: 0.9em;">
-            <span id="txt-contact-label">¿Tienes ideas para mejorar la app?</span>
-            <a href="https://forums.warframe.com/profile/4069424-parcialsobriedad/" target="_blank" rel="noopener noreferrer" class="contact-link" id="txt-contact-link">w/Parcialsobriedad</a>
-        </div>
+      <div class="footer-row">
+        <span id="txt-footer-data"
+          >Herramienta no oficial de Warframe Datos provistos por:</span
+        >
+        <a
+          href="https://warframe.market/"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="footer-link"
+          >Warframe Market</a
+        >
+        <span class="footer-separator">|</span>
+        <a
+          href="https://drops.warframestat.us/"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="footer-link"
+          >Warframe Drops API</a
+        >
+        <span class="footer-separator">|</span>
+        <a
+          href="https://github.com/WFCD"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="footer-link"
+          >WFCD</a
+        >
+      </div>
+
+      <div class="footer-row" style="margin-top: 10px; font-size: 0.9em">
+        <span id="txt-contact-label">¿Tienes ideas para mejorar la app?</span>
+        <a
+          href="https://forums.warframe.com/profile/4069424-parcialsobriedad/"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="contact-link"
+          id="txt-contact-link"
+          >w/Parcialsobriedad</a
+        >
+      </div>
+      <div class="footer-row footer-disclaimer" id="txt-disclaimer">
+        VoidStonks no está afiliado, respaldado ni patrocinado por Digital
+        Extremes Ltd.<br />
+        Warframe™ es una marca registrada de Digital Extremes Ltd.
+      </div>
     </footer>
 
     <script src="script.js"></script>
-</body>
+  </body>
 </html>
