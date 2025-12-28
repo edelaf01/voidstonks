@@ -90,7 +90,11 @@ const TEXTS = {
         btnCheck: "Check",
         lblDailyFocus: "Foco Diario",
         lblStanding: "Reputación Restante",
-        lblTraces: "Max Vestigios"
+        lblTraces: "Max Vestigios",
+        lblRelicFor: "Reliquias para: ",
+        lblRivenNeg: "- Negativa (Opcional)",
+        lblMrCalc: "Si la API falla, calcula por MR:",
+        disclaimer: "VoidStonks no está afiliado, respaldado ni patrocinado por Digital Extremes Ltd.<br>Warframe™ es una marca registrada de Digital Extremes Ltd."
     },
     en: {
         tab1: "1. Relic", tab2: "2. Set / Item", tab3: "3. Riven 🟣", tab4: "4. Profile 👤",
@@ -126,7 +130,12 @@ const TEXTS = {
         btnCheck: "Check",
         lblDailyFocus: "Daily Focus",
         lblStanding: "Daily Standing",
-        lblTraces: "Max Void Traces"
+        lblTraces: "Max Void Traces",
+        lblRelicFor: "Relics for: ",
+        lblRivenNeg: "- Negative (Optional)",
+        lblMrCalc: "If API fails, calc by MR:",
+        disclaimer: "VoidStonks is not affiliated, endorsed, or sponsored by Digital Extremes Ltd.<br>Warframe™ is a registered trademark of Digital Extremes Ltd.",
+        
     }
 };
 
@@ -305,16 +314,40 @@ async function fetchActiveResurgence() {
 }
 
 async function downloadRelics() {
-    const loadEl = document.getElementById('loading');
+const loadEl = document.getElementById('loading');
     loadEl.style.display = 'flex';
     
     await fetchActiveResurgence();
 
+    const CACHE_KEY = 'voidstonks_relics_v1';
+    const CACHE_TIME = 30 * 24 * 60 * 60 * 1000; 
+    
+    const localData = localStorage.getItem(CACHE_KEY);
+    let rawData = null;
+
+    if (localData) {
+        try {
+            const parsed = JSON.parse(localData);
+            if (Date.now() - parsed.timestamp < CACHE_TIME) {
+                console.log("Cargando reliquias desde caché local...");
+                rawData = parsed.data;
+            }
+        } catch(e) { localStorage.removeItem(CACHE_KEY); }
+    }
+
     try {
-        const response = await fetch(`${WORKER_URL}?type=relics`);
-        
-        if (!response.ok) throw new Error("Worker Error");
-        const rawData = await response.json();
+        if (!rawData) {
+            const response = await fetch(`${WORKER_URL}?type=relics`);
+            if (!response.ok) throw new Error("Worker Error");
+            rawData = await response.json();
+            
+            try {
+                localStorage.setItem(CACHE_KEY, JSON.stringify({
+                    timestamp: Date.now(),
+                    data: rawData
+                }));
+            } catch(e) { console.warn("Quota exceeded for localStorage"); }
+        }
         
         let relicsArray = (rawData.relics && Array.isArray(rawData.relics)) ? rawData.relics : [];
         let tempDB = {};
@@ -575,8 +608,7 @@ function findRelicForPart(partName) {
         profitDisp.classList.remove('loading');
     }
     
-    document.getElementById('lbl-content').innerText = `Reliquias para: ${partName}`;
-    
+document.getElementById('lbl-content').innerText = TEXTS[currentLang].lblRelicFor + partName;       
     const container = document.getElementById('relic-contents');
     const listDiv = document.getElementById('relic-drops-list');
     container.style.display = 'block';
@@ -718,6 +750,8 @@ function searchSet() {
 function createSetCard(title, itemNames, parent, isSingle = false) {
     const setContainer = document.createElement('div');
     setContainer.className = 'set-container';
+    
+    // Header del Set
     const header = document.createElement('div');
     header.className = 'set-header';
     let titleSpan;
@@ -732,6 +766,7 @@ function createSetCard(title, itemNames, parent, isSingle = false) {
         titleSpan.innerHTML = `${title} SET<span class="link-icon">↗</span>`;
     } else { titleSpan = document.createElement('span'); titleSpan.innerText = title; }
     header.appendChild(titleSpan);
+    
     if (!isSingle) {
         const setPriceSpan = document.createElement('span');
         setPriceSpan.className = 'price-badge loading';
@@ -740,11 +775,18 @@ function createSetCard(title, itemNames, parent, isSingle = false) {
         addToQueue(title + " Set", setPriceSpan);
     }
     setContainer.appendChild(header);
+
+    // Items del Set
     itemNames.forEach(itemName => {
         if (!isSingle && !itemName.includes(title)) return;
         const relicsInfo = itemsDatabase[itemName] || [];
+        
+        const itemWrapper = document.createElement('div');
+        if(relicsInfo.length > 0) itemWrapper.style.paddingBottom = "10px"; 
+
         const row = document.createElement('div');
-        row.className = 'component-row';
+        row.className = 'component-row'; 
+        
         const compHeader = document.createElement('div');
         compHeader.className = 'component-header';
         let displayName = itemName;
@@ -752,16 +794,32 @@ function createSetCard(title, itemNames, parent, isSingle = false) {
         const slug = getSlug(itemName);
         const marketUrl = `https://warframe.market/items/${slug}`;
         compHeader.innerHTML = `<a href="${marketUrl}" target="_blank" rel="noopener noreferrer" class="market-link"><span class="component-name">${displayName}</span><span class="link-icon">↗</span></a>`;
+        
         const itemPriceSpan = document.createElement('span');
         itemPriceSpan.className = 'price-badge loading';
         itemPriceSpan.innerText = "...";
         addToQueue(itemName, itemPriceSpan);
-        compHeader.appendChild(itemPriceSpan);
-        row.appendChild(compHeader);
+        
+      row.appendChild(compHeader);
+        row.appendChild(itemPriceSpan);
+        
+        if(relicsInfo.length === 0) {
+            const noRelicInfo = document.createElement('div');
+            noRelicInfo.style.color = "#666"; noRelicInfo.style.fontSize = "0.8em"; noRelicInfo.style.fontStyle = "italic";
+            noRelicInfo.innerText = "Vaulted / Baro";
+            row.appendChild(noRelicInfo);
+        }
+
+        itemWrapper.appendChild(row);
+
         if(relicsInfo.length > 0) {
-            const grid = document.createElement('div'); grid.className = 'relic-grid';
+            const grid = document.createElement('div'); 
+            grid.className = 'relic-grid';
+            grid.style.padding = "0 10px"; 
+            
             relicsInfo.sort((a,b) => a.relic.localeCompare(b.relic));
             const abbr = TEXTS[currentLang].rarityAbbr;
+            
             relicsInfo.forEach(info => {
                 const btn = document.createElement('div'); 
                 let rarityClass = 'common'; let rarityLabel = abbr.common;
@@ -774,6 +832,7 @@ function createSetCard(title, itemNames, parent, isSingle = false) {
                 const relicStatus = relicStatusDB[info.relic]; 
                 let statusClass = relicStatus || 'vaulted';
                 let statusText = TEXTS[currentLang][statusClass] || TEXTS[currentLang].vaulted;
+                
                 btn.className = `relic-chip ${rarityClass}`;
                 btn.innerHTML = `
                     <div class="relic-chip-header">
@@ -799,14 +858,10 @@ function createSetCard(title, itemNames, parent, isSingle = false) {
                 };
                 grid.appendChild(btn);
             });
-            row.appendChild(grid);
-        } else {
-            const noRelicInfo = document.createElement('div');
-            noRelicInfo.style.color = "#666"; noRelicInfo.style.fontSize = "0.8em"; noRelicInfo.style.fontStyle = "italic";
-            noRelicInfo.innerText = "Vaulted / Baro";
-            row.appendChild(noRelicInfo);
+            itemWrapper.appendChild(grid);
         }
-        setContainer.appendChild(row);
+        
+        setContainer.appendChild(itemWrapper);
     });
     parent.appendChild(setContainer);
 }
@@ -827,7 +882,6 @@ function switchTab(mode) {
     document.getElementById('mode-' + mode).classList.remove('hidden');
     document.getElementById('footer-relic').style.display = (mode === 'relic') ? 'block' : 'none';
     
-    // CAMBIO DE TEMA
     const card = document.getElementById('main-card');
     card.classList.remove('theme-relic', 'theme-set', 'theme-riven', 'theme-profile');
     card.classList.add('theme-' + mode);
@@ -858,10 +912,11 @@ function changeLanguage() {
     document.getElementById('rivenWeaponInput').placeholder = t.phRivenW;
     document.getElementById('lbl-riven-stats').innerText = t.lblRivenS;
     document.getElementById('btn-riven-search').innerText = t.rivenSearch;
-    
     document.getElementById('lbl-username').innerText = t.lblUser;
     document.querySelector('#mode-profile button').innerText = t.btnCheck;
-    
+    document.getElementById('txt-disclaimer').innerHTML = t.disclaimer;
+    document.getElementById('txt-mr-label').innerText = t.lblMrCalc;
+    document.querySelector('#rivenStatNeg option[value=""]').innerText = t.lblRivenNeg;
     const refSel = document.getElementById('refinement');
     Array.from(refSel.options).forEach(opt => {
         const key = opt.getAttribute('data-key');
@@ -942,23 +997,30 @@ function handleRivenInput() {
     
     if (val.length < 1) {
         rivenDropdown.classList.add('hidden');
-    } else {
-        const matches = allRivenNames.filter(name => name.toUpperCase().includes(val)).slice(0, 10);
-        if (matches.length > 0) {
-            renderRivenDropdown(matches);
-        } else {
-            rivenDropdown.classList.add('hidden');
-        }
+        document.getElementById('riven-avg-box').style.display = 'none';
+        return;
     }
 
-    if (weaponMap[input.value]) { 
-        fetchRivenAverage(input.value); 
+    const matches = allRivenNames.filter(name => name.toUpperCase().includes(val)).slice(0, 10);
+    
+    if (matches.length > 0) {
+        renderRivenDropdown(matches);
     } else {
-        clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(() => { 
-            if(val.length > 2) fetchRivenAverage(input.value); 
-        }, 800);
+        rivenDropdown.classList.add('hidden');
     }
+
+    if (weaponMap[input.value]) {
+        rivenDropdown.classList.add('hidden');
+        fetchRivenAverage(input.value); 
+    }
+}
+
+function selectRivenFromDropdown(name) {
+    const input = document.getElementById('rivenWeaponInput');
+    input.value = name;
+    rivenDropdown.classList.add('hidden');
+    
+    fetchRivenAverage(name);
 }
 
 function renderRivenDropdown(list) {
