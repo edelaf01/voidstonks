@@ -54,7 +54,9 @@
       href="https://wiki.warframe.com/images/VoidTraces.png"
     />
   </head>
+
   <body>
+    <canvas id="void-traces-canvas"></canvas>
     <header class="site-header">
       <h1 class="header-title" id="txt-header-title">VOIDSTONKS</h1>
       <div class="header-subtitle" id="txt-header-sub">
@@ -70,28 +72,48 @@
             class="tab-btn active"
             onclick="switchTab('relic')"
           >
-            1. Reliquia
+            <img src="assets/relic.png" class="tab-icon-img" alt="Relic Icon" />
+            <span id="tab-relic-text">Reliquia</span>
           </button>
+
           <button
             id="btn-set"
             class="tab-btn orokin"
             onclick="switchTab('set')"
           >
-            2. Set
+            <img
+              src="assets/primeparts.png"
+              class="tab-icon-img"
+              alt="Set Icon"
+            />
+            <span id="tab-set-text">Set</span>
           </button>
+
           <button
             id="btn-riven"
             class="tab-btn riven"
             onclick="switchTab('riven')"
           >
-            3. Riven 🟣
+            <img src="assets/riven.png" class="tab-icon-img" alt="Riven Icon" />
+            <span id="tab-riven-text">Riven</span>
           </button>
+
           <button
             id="btn-profile"
             class="tab-btn profile"
             onclick="switchTab('profile')"
           >
-            4. Perfil 👤
+            <img
+              src="assets/profile.png"
+              class="tab-icon-img"
+              alt="Profile Icon"
+            />
+            <span id="tab-profile-text">Perfil</span>
+          </button>
+
+          <button id="btn-lfg" class="tab-btn lfg" onclick="switchTab('lfg')">
+            <img src="assets/lfg.png" class="tab-icon-img" alt="LFG Icon" />
+            <span id="tab-lfg-text">LFG</span>
           </button>
         </div>
         <div class="integrated-controls">
@@ -160,7 +182,18 @@
               </div>
               <div>
                 <label id="lbl-missing">Faltan</label>
-                <div class="counter-inline">
+                <div
+                  class="counter-inline"
+                  style="
+                    width: 100%;
+                    display: flex;
+                    justify-content: center;
+                    gap: 20px;
+                    padding: 10px;
+                    margin: 0;
+                    box-sizing: border-box;
+                  "
+                >
                   <button class="c-btn" onclick="changeCount(-1)">-</button>
                   <span class="c-val" id="countDisplay">1</span>
                   <button class="c-btn" onclick="changeCount(1)">+</button>
@@ -323,6 +356,105 @@
           </div>
           <div id="profile-data"></div>
         </div>
+        <div id="mode-lfg" class="hidden">
+          <div class="form-group">
+            <label id="lbl-lfg-activity">Actividad</label>
+            <div class="custom-search-container" tabindex="0">
+              <div
+                class="wf-input"
+                id="lfgActivityInput"
+                onclick="toggleLfgDropdown()"
+                style="
+                  cursor: pointer;
+                  display: flex;
+                  align-items: center;
+                  justify-content: space-between;
+                "
+              >
+                <span id="lfgSelectedText">Eidolon Hunt</span>
+                <span style="font-size: 0.8em">▼</span>
+              </div>
+              <div id="lfgDropdown" class="custom-dropdown hidden">
+                <div
+                  class="dropdown-item"
+                  onclick="selectLfgOption('eidolon', 'Eidolon Hunt')"
+                >
+                  Eidolon Hunt
+                </div>
+                <div
+                  class="dropdown-item"
+                  onclick="selectLfgOption('profit', 'Profit Taker')"
+                >
+                  Profit Taker
+                </div>
+                <div
+                  class="dropdown-item"
+                  onclick="selectLfgOption('eda', 'Deep Archimedea')"
+                >
+                  Deep Archimedea
+                </div>
+                <div
+                  class="dropdown-item"
+                  onclick="selectLfgOption('archon', 'Archon Hunt')"
+                >
+                  Archon Hunt
+                </div>
+                <div
+                  class="dropdown-item"
+                  onclick="selectLfgOption('sortie', 'Sortie')"
+                >
+                  Sortie
+                </div>
+                <div
+                  class="dropdown-item"
+                  onclick="selectLfgOption('arbi', 'Arbitration')"
+                >
+                  Arbitration
+                </div>
+                <div
+                  class="dropdown-item"
+                  onclick="selectLfgOption('radshare', 'Radshare (Relics)')"
+                >
+                  Radshare (Relics)
+                </div>
+              </div>
+              <input type="hidden" id="lfgActivity" value="eidolon" />
+            </div>
+          </div>
+
+          <div id="lfg-dynamic-options" style="margin-bottom: 15px"></div>
+
+          <div class="form-group">
+            <label id="lbl-lfg-players">Jugadores Necesarios</label>
+            <div
+              class="counter-inline"
+              style="
+                width: 100%;
+                display: flex;
+                justify-content: center;
+                gap: 20px;
+                padding: 10px;
+                margin: 0;
+                box-sizing: border-box;
+              "
+            >
+              <button class="c-btn" onclick="changeLFGCount(-1)">-</button>
+              <span class="c-val" id="lfgCountDisplay">1</span>
+              <button class="c-btn" onclick="changeLFGCount(1)">+</button>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Extra Info</label>
+            <input
+              type="text"
+              id="lfgExtra"
+              class="wf-input"
+              placeholder="+Info"
+              onkeyup="generateLFGMessage()"
+            />
+          </div>
+        </div>
       </div>
 
       <div id="footer-relic" class="footer-output">
@@ -383,6 +515,6 @@
       </div>
     </footer>
 
-    <script src="script.js"></script>
+    <script type="module" src="js/main.js"></script>
   </body>
 </html>
