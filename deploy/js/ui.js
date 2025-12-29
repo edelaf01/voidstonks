@@ -802,6 +802,51 @@ export function calculateCaps() {
   saveAppState();
 }
 
+export async function updateRecommendedMissions(tier) {
+  const container = document.getElementById("relic-contents");
+  if (!container) return;
+
+  let missionDiv = document.getElementById("best-missions-container");
+  if (!missionDiv) {
+    missionDiv = document.createElement("div");
+    missionDiv.id = "best-missions-container";
+    missionDiv.className = "mission-recommendation-box";
+    container.appendChild(missionDiv);
+  }
+
+  const t = TEXTS[state.currentLang];
+  const { fetchBestFissures } = await import("./api.js");
+  const allMissions = await fetchBestFissures();
+
+  const matches = allMissions.filter((m) => {
+    const isTargetTier = m.tier.toLowerCase() === tier.toLowerCase();
+    const isOmniaCompatible = m.isOmnia && tier.toLowerCase() !== "requiem";
+    return isTargetTier || isOmniaCompatible;
+  });
+
+  if (matches.length > 0) {
+    const normal = matches.filter((m) => !m.isSP);
+    const steelPath = matches.filter((m) => m.isSP);
+
+    let html = `<div class="mission-header">${t.lblRecommended} ${tier}</div>`;
+
+    if (normal.length > 0) {
+      html += `<div class="mission-sub-tier">Normal</div>`;
+      normal.forEach((m) => (html += renderMissionRow(m)));
+    }
+
+    if (steelPath.length > 0) {
+      html += `<div class="mission-sub-tier sp" data-tooltip="${t.tooltips.steelPath}">Steel Path (?)</div>`;
+      steelPath.forEach((m) => (html += renderMissionRow(m)));
+    }
+
+    missionDiv.innerHTML = html;
+    missionDiv.style.display = "block";
+  } else {
+    missionDiv.style.display = "none";
+  }
+}
+
 function renderMissionRow(m) {
   const t = TEXTS[state.currentLang];
 
@@ -915,73 +960,4 @@ export function getNakedName(slug) {
     }
   }
   return s;
-}
-let cachedMissions = [];
-export async function initFissures() {
-  const { fetchBestFissures } = await import("./api.js");
-  const list = await fetchBestFissures();
-  cachedMissions = list || [];
-  renderFissures();
-}
-
-export function renderFissures(activeTier = null) {
-  const container = document.getElementById("best-missions-container");
-  if (!container) return;
-
-  if (cachedMissions.length === 0) {
-    container.innerHTML =
-      '<div style="padding:20px; text-align:center; color:#666">No hay fisuras rápidas activas.</div>';
-    return;
-  }
-
-  let html = "";
-
-  const sorted = [...cachedMissions].sort((a, b) => {
-    const aMatch =
-      activeTier &&
-      (a.tier === activeTier || (a.isOmnia && activeTier !== "Requiem"));
-    const bMatch =
-      activeTier &&
-      (b.tier === activeTier || (b.isOmnia && activeTier !== "Requiem"));
-
-    if (aMatch && !bMatch) return -1;
-    if (!aMatch && bMatch) return 1;
-
-    return a.tier.localeCompare(b.tier);
-  });
-
-  sorted.forEach((m) => {
-    let isHighlight = false;
-    if (activeTier) {
-      const tierMatch = m.tier.toLowerCase() === activeTier.toLowerCase();
-      const omniaMatch = m.isOmnia && activeTier.toLowerCase() !== "requiem";
-      if (tierMatch || omniaMatch) isHighlight = true;
-    }
-
-    const omniaTag = m.isOmnia ? `<span class="omnia-tag">OMNIA</span>` : "";
-    const spTag = m.isSP
-      ? `<span style="color:#ff4444; border:1px solid #ff4444; font-size:0.7em; padding:0 2px; border-radius:2px; margin-left:5px;">SP</span>`
-      : "";
-
-    html += `
-            <div class="mission-item ${isHighlight ? "highlight" : ""} ${
-      m.isSP ? "sp-row" : ""
-    }">
-                <div class="m-info">
-                    <div class="m-tier">${m.tier} ${omniaTag} ${spTag}</div>
-                    <div class="m-type">${m.type}</div>
-                    <div class="m-node">${m.node}</div>
-                </div>
-                <div class="m-timer-box">
-                    <span class="m-eta">${m.eta}</span>
-                </div>
-            </div>
-        `;
-  });
-
-  container.innerHTML = html;
-}
-
-export function updateRecommendedMissions(tier) {
-  renderFissures(tier);
 }
