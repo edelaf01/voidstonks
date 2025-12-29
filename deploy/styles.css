@@ -1222,10 +1222,14 @@ option {
   left: -60px;
   width: 60px;
   height: 60px;
-
+  -webkit-tap-highlight-color: transparent;
   background: transparent;
   border: none;
-
+  background: transparent !important;
+  background-color: transparent !important;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
   display: flex;
   align-items: center;
   justify-content: center;
