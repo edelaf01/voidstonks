@@ -235,66 +235,37 @@ async function processQueue() {
   }
   isProcessingQueue = false;
 }
+// --- WORLDSTATE FISSURES ---
 
 export async function fetchBestFissures() {
   try {
-    let res = await fetch(`${WORKER_URL}?type=fissures`);
+    const res = await fetch(`${WORKER_URL}?type=fissures`);
+    if (!res.ok) throw new Error("Error al conectar con el Worldstate");
 
-    if (!res.ok) return [];
-
-    let fissures = await res.json();
-
-    if (!Array.isArray(fissures)) return [];
-
+    const fissures = await res.json();
     const now = new Date();
 
-    const hasExpiredData = fissures.some((f) => new Date(f.expiry) <= now);
-
-    if (hasExpiredData) {
-      console.log(
-        "⚠️ Datos caducados detectados. Pidiendo actualización forzada al Proxy..."
-      );
-
-      res = await fetch(
-        `${WORKER_URL}?type=fissures&refresh=true&_t=${Date.now()}`
-      );
-
-      if (res.ok) {
-        const freshData = await res.json();
-        if (Array.isArray(freshData)) {
-          fissures = freshData;
-          console.log("✅ Datos actualizados correctamente.");
-        }
-      }
-    }
-
+    // Tipos de misión eficientes
     const fastMissions = ["Capture", "Extermination", "Rescue", "Void Cascade"];
 
     return fissures
       .filter(
         (f) =>
           (fastMissions.includes(f.missionType) || f.tier === "Omnia") &&
-          !f.isStorm &&
-          new Date(f.expiry) > now
+          !f.isStorm
       )
       .map((f) => {
-        let timeText = f.eta || "?";
+        const expiryDate = new Date(f.expiry);
+        const diffMs = expiryDate - now;
+        const diffMins = Math.round(diffMs / 60000);
 
-        try {
-          const expiryDate = new Date(f.expiry);
-          const diffMs = expiryDate - now;
-          const diffMins = Math.round(diffMs / 60000);
-
-          if (!isNaN(diffMins)) {
-            if (diffMins > 60) {
-              timeText = `${Math.floor(diffMins / 60)}h ${diffMins % 60}m`;
-            } else if (diffMins > 0) {
-              timeText = `${diffMins}m`;
-            } else {
-              timeText = "Exp";
-            }
-          }
-        } catch (err) {}
+        let timeText = f.eta;
+        if (diffMins > 0) {
+          timeText =
+            diffMins > 60
+              ? `${Math.floor(diffMins / 60)}h ${diffMins % 60}m`
+              : `${diffMins}m`;
+        }
 
         return {
           node: f.node,
