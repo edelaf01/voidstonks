@@ -17,7 +17,6 @@ import {
   calculateCaps,
   renderSetTracker,
   manualRelicUpdate,
-  initFissures,
 } from "./ui.js";
 import { state, loadAppState, saveAppState } from "./state.js";
 
@@ -25,7 +24,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   loadAppState();
 
   initCanvas();
-  initFissures().then(() => console.log("Sidebar de fisuras listo"));
+
   const langSelect = document.getElementById("langSelect");
   if (langSelect) langSelect.value = state.currentLang;
   changeLanguage();
