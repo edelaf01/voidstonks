@@ -63,6 +63,15 @@ window.fetchUserProfile = fetchUserProfile;
 window.calculateCaps = calculateCaps;
 window.toggleLfgDropdown = toggleLfgDropdown;
 window.selectLfgOption = selectLfgOption;
+setTimeout(() => {
+  const disclaimer = document.getElementById("txt-disclaimer");
+  if (disclaimer) {
+    disclaimer.classList.add("fade-out");
 
+    setTimeout(() => {
+      disclaimer.style.display = "none";
+    }, 2000);
+  }
+}, 8000);
 import { generateLFGMessage as genLFG } from "./ui.js";
 window.generateLFGMessage = genLFG;

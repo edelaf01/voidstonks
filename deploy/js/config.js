@@ -14,7 +14,12 @@ export const WEAPON_SOURCES = [
   "https://cdn.jsdelivr.net/gh/WFCD/warframe-items@master/data/json/Melee.json",
   "https://cdn.jsdelivr.net/gh/WFCD/warframe-items@master/data/json/Arch-Gun.json",
 ];
-
+export const DROP_CHANCES = {
+  Intact: { rare: 0.02, uncommon: 0.22, common: 0.76 },
+  Exceptional: { rare: 0.04, uncommon: 0.26, common: 0.7 },
+  Flawless: { rare: 0.06, uncommon: 0.34, common: 0.6 },
+  Rad: { rare: 0.1, uncommon: 0.4, common: 0.5 },
+};
 export const RIVEN_STATS = [
   { slug: "critical_chance", name_en: "Crit Chance", name_es: "Prob. Crítica" },
   { slug: "critical_damage", name_en: "Crit Damage", name_es: "Daño Crítico" },
@@ -57,6 +62,9 @@ export const TEXTS = {
       void_flood: "Inundación del Vacío",
       corruption: "Inundación del Vacío",
     },
+    lblProfit: "Rentabilidad (Media)",
+    lblProfitSolo: "Rentabilidad (Solo)",
+    lblProfitSquad: "Rentabilidad ({n} Jugadores)",
     lblRecommended: "⚡ Fisuras Recomendadas:",
     menuRelic: "Reliquia",
     menuSet: "Set",
@@ -179,6 +187,9 @@ export const TEXTS = {
       void_flood: "Void Flood",
       corruption: "Void Flood",
     },
+    lblProfit: "Profitability (Avg)",
+    lblProfitSolo: "Profitability (Solo)", 
+    lblProfitSquad: "Profitability ({n} Players)",
     lblRecommended: "⚡ Recommended Fissures:",
     menuRelic: "Relic",
     menuSet: "Set",
