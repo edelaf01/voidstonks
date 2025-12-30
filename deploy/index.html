@@ -62,6 +62,16 @@
       <div class="header-subtitle" id="txt-header-sub">
         Optimización de Farm y Mercado
       </div>
+      <div class="header-controls">
+        <select
+          id="langSelect"
+          class="header-lang-btn"
+          onchange="changeLanguage()"
+        >
+          <option value="es">🇪🇸 ES</option>
+          <option value="en">🇬🇧 EN</option>
+        </select>
+      </div>
     </header>
 
     <div class="card" id="main-card">
@@ -116,12 +126,6 @@
             <span id="tab-lfg-text">LFG</span>
           </button>
         </div>
-        <div class="integrated-controls">
-          <select id="langSelect" class="ctrl-btn" onchange="changeLanguage()">
-            <option value="es">🇪🇸</option>
-            <option value="en">🇬🇧</option>
-          </select>
-        </div>
       </div>
 
       <div class="content-area">
@@ -152,6 +156,7 @@
           </div>
 
           <div
+            id="relic-controls-wrapper"
             style="
               margin-top: 20px;
               padding-top: 15px;
@@ -202,7 +207,7 @@
             </div>
           </div>
 
-          <div id="relic-contents">
+          <div id="relic-contents" class="hidden">
             <div class="total-profit-box">
               <div class="profit-label" id="lbl-profit">
                 Rentabilidad (Media)
@@ -426,20 +431,11 @@
 
           <div class="form-group">
             <label id="lbl-lfg-players">Jugadores Necesarios</label>
-            <div
-              class="counter-inline"
-              style="
-                width: 100%;
-                display: flex;
-                justify-content: center;
-                gap: 20px;
-                padding: 10px;
-                margin: 0;
-                box-sizing: border-box;
-              "
-            >
+            <div class="counter-inline">
               <button class="c-btn" onclick="changeLFGCount(-1)">-</button>
+
               <span class="c-val" id="lfgCountDisplay">1</span>
+
               <button class="c-btn" onclick="changeLFGCount(1)">+</button>
             </div>
           </div>
