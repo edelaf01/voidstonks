@@ -63,14 +63,28 @@
         Optimización de Farm y Mercado
       </div>
       <div class="header-controls">
-        <select
-          id="langSelect"
-          class="header-lang-btn"
-          onchange="changeLanguage()"
-        >
-          <option value="es">🇪🇸 ES</option>
-          <option value="en">🇬🇧 EN</option>
-        </select>
+        <div class="lang-custom-container" id="langSelectorWrapper">
+          <div class="lang-trigger" onclick="toggleLangDropdown()">
+            <img
+              id="currentFlag"
+              src="https://flagcdn.com/24x18/es.png"
+              alt="ES"
+            />
+            <span id="currentLangText">ES</span>
+            <span class="arrow-icon">▼</span>
+          </div>
+
+          <div class="lang-options hidden" id="langOptionsList">
+            <div class="lang-option-item" onclick="setLanguageManual('es')">
+              <img src="https://flagcdn.com/24x18/es.png" alt="ES" />
+              <span>Español</span>
+            </div>
+            <div class="lang-option-item" onclick="setLanguageManual('en')">
+              <img src="https://flagcdn.com/24x18/gb.png" alt="EN" />
+              <span>English</span>
+            </div>
+          </div>
+        </div>
       </div>
     </header>
 
@@ -319,7 +333,8 @@
                 class="wf-input profile-input"
                 type="text"
                 id="usernameInput"
-                placeholder="Ej: Parcialsobriedad"
+                disabled
+                placeholder="Ej: Parcialsobriedad // Does not work yet this may be a dead feature check by mr instead down below"
               />
               <button
                 class="ctrl-btn"
@@ -328,9 +343,9 @@
                   color: #000;
                   font-weight: bold;
                 "
-                onclick="fetchUserProfile()"
+                onclick="/*fetchUserProfile()*/"
               >
-                Check
+                NOT WORKING
               </button>
             </div>
             <small

@@ -16,7 +16,10 @@ import {
   selectLfgOption,
   calculateCaps,
   renderSetTracker,
+  toggleLangDropdown,
+  setLanguageManual,
   manualRelicUpdate,
+  generateLFGMessage as genLFG,
 } from "./ui.js";
 import { state, loadAppState, saveAppState } from "./state.js";
 
@@ -73,5 +76,18 @@ setTimeout(() => {
     }, 2000);
   }
 }, 8000);
-import { generateLFGMessage as genLFG } from "./ui.js";
 window.generateLFGMessage = genLFG;
+document.addEventListener("click", (e) => {
+  const wrapper = document.getElementById("langSelectorWrapper");
+  const list = document.getElementById("langOptionsList");
+  if (
+    wrapper &&
+    !wrapper.contains(e.target) &&
+    !list.classList.contains("hidden")
+  ) {
+    list.classList.add("hidden");
+  }
+});
+
+window.toggleLangDropdown = toggleLangDropdown;
+window.setLanguageManual = setLanguageManual;
