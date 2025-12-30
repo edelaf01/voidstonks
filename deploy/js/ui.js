@@ -1,4 +1,4 @@
-import { TEXTS, TIER_URLS, RIVEN_STATS } from "./config.js";
+import { TEXTS, TIER_URLS, RIVEN_STATS, DROP_CHANCES } from "./config.js";
 import { state, saveAppState } from "./state.js";
 import { addToQueue, fetchRivenAverage } from "./api.js";
 
@@ -26,11 +26,9 @@ export function finishLoading() {
     "relicCount"
   ).innerText = `${state.allRelicNames.length} reliquias`;
   document.getElementById("mode-relic").classList.remove("hidden");
-  // Al finalizar carga, si había una reliquia guardada, actualizar UI
   if (state.selectedRelic) manualRelicUpdate();
 }
 
-// --- TABS & LANG ---
 export function switchTab(mode) {
   state.activeTab = mode;
   saveAppState();
@@ -79,13 +77,9 @@ export function changeLanguage() {
     const el = document.getElementById(id);
     if (el) {
       const img = el.querySelector("img");
-
       el.innerHTML = "";
-
       if (img) el.appendChild(img);
-
       el.appendChild(document.createTextNode(" " + text));
-
       el.setAttribute("data-tooltip", tip);
     }
   };
@@ -96,7 +90,6 @@ export function changeLanguage() {
   setTab("btn-profile", t.menuProfile || "Perfil", t.tooltips.tabProfile);
   setTab("btn-lfg", t.menuLfg || "LFG", t.tooltips.tabLfg);
 
-  // Header & Footer
   document.getElementById("txt-header-title").innerText = t.headerTitle;
   document.getElementById("txt-header-sub").innerText = t.headerSub;
   document.getElementById("txt-footer-data").innerText = t.footerData;
@@ -104,7 +97,6 @@ export function changeLanguage() {
   document.getElementById("txt-contact-link").innerText = t.contactLink;
   document.getElementById("txt-disclaimer").innerHTML = t.disclaimer;
 
-  // Mode: Relic
   if (document.getElementById("tab-relic-text"))
     document.getElementById("tab-relic-text").innerText =
       t.menuRelic || "Reliquia";
@@ -115,13 +107,11 @@ export function changeLanguage() {
   document.getElementById("lbl-profit").innerText = t.lblProfit;
   document.getElementById("lbl-content").innerText = t.lblContent;
 
-  // Mode: Set
   if (document.getElementById("tab-set-text"))
     document.getElementById("tab-set-text").innerText = t.menuSet || "Set";
   document.getElementById("lbl-search-item").innerText = t.lblItem;
   document.getElementById("setItemInput").placeholder = t.phItem;
 
-  // Mode: Riven
   if (document.getElementById("tab-riven-text"))
     document.getElementById("tab-riven-text").innerText =
       t.menuRiven || "Riven";
@@ -133,7 +123,6 @@ export function changeLanguage() {
   const statNegOpt = document.querySelector('#rivenStatNeg option[value=""]');
   if (statNegOpt) statNegOpt.innerText = t.lblRivenNeg;
 
-  // Mode: Profile
   if (document.getElementById("tab-profile-text"))
     document.getElementById("tab-profile-text").innerText =
       t.menuProfile || "Perfil";
@@ -141,14 +130,12 @@ export function changeLanguage() {
   document.querySelector("#mode-profile button").innerText = t.btnCheck;
   document.getElementById("txt-mr-label").innerText = t.lblMrCalc;
 
-  // Mode: LFG
   if (document.getElementById("tab-lfg-text"))
     document.getElementById("tab-lfg-text").innerText = t.menuLfg || "LFG";
   document.getElementById("lbl-lfg-activity").innerText = t.lblLfgActivity;
   document.getElementById("lbl-lfg-players").innerText = t.lblLfgPlayers;
   document.getElementById("btn-copy").innerText = t.btnCopy;
 
-  // Refinement Label & Select
   const refLabel = document.getElementById("lbl-refinement");
   if (refLabel) {
     refLabel.innerHTML = `${t.lblRef} <span data-tooltip="${t.tooltips.refinement}" style="cursor:help; opacity:0.7"> (?)</span>`;
@@ -163,7 +150,6 @@ export function changeLanguage() {
     });
   }
 
-  // Dropdowns de LFG
   const lfgItems = document.querySelectorAll("#lfgDropdown .dropdown-item");
   const keys = [
     "eidolon",
@@ -201,7 +187,7 @@ export function changeLanguage() {
 
 // --- MESSAGE GEN ---
 export function changeCount(n) {
-  state.playerCount = Math.max(1, Math.min(3, state.playerCount + n));
+  state.playerCount = Math.max(1, Math.min(4, state.playerCount + n));
   document.getElementById("countDisplay").innerText = state.playerCount;
   generateMessage();
 }
@@ -224,7 +210,10 @@ export function generateMessage() {
     else linkChat = `[Reliquia ${rName}]`;
   }
 
-  const fullMessage = `H ${linkChat} ${refText} ${state.playerCount}/4`;
+  let countText = `${state.playerCount}/4`;
+  if (state.playerCount === 4) countText = "FULL";
+
+  const fullMessage = `H ${linkChat} ${refText} ${countText}`;
   const msgBox = document.getElementById("finalMessage");
   if (msgBox) {
     msgBox.innerText = fullMessage;
@@ -232,6 +221,8 @@ export function generateMessage() {
     msgBox.offsetHeight;
     msgBox.style.animation = "pulse 0.3s ease";
   }
+
+  updateRelicTotal();
 }
 
 export function copyText() {
@@ -256,7 +247,7 @@ export function handleRelicTyping() {
 
   if (val.length < 1) {
     dropdown.classList.add("hidden");
-    if (container) container.style.display = "none";
+    if (container) container.classList.add("hidden");
     state.selectedRelic = "";
     return;
   }
@@ -286,77 +277,110 @@ export function handleRelicTyping() {
 }
 
 export function manualRelicUpdate() {
-  const tier = state.selectedRelic.split(" ")[0];
-  updateRecommendedMissions(tier);
-  state.selectedRelic = document.getElementById("relicInput").value;
-  generateMessage();
-  const listDiv = document.getElementById("relic-drops-list");
-  const profitDisplay = document.getElementById("relic-profit-display");
-  const container = document.getElementById("relic-contents");
+  try {
+    const tier = state.selectedRelic.split(" ")[0];
+    updateRecommendedMissions(tier).catch((err) =>
+      console.error("Error misiones:", err)
+    );
 
-  if (!listDiv || !profitDisplay) return;
+    state.selectedRelic = document.getElementById("relicInput").value;
 
-  listDiv.innerHTML = "";
-  profitDisplay.innerText = "...";
-  profitDisplay.classList.add("loading");
+    generateMessage();
 
-  if (state.selectedRelic && state.relicsDatabase[state.selectedRelic]) {
-    container.style.display = "block";
-    const items = state.relicsDatabase[state.selectedRelic];
-    items.sort((a, b) => b.chance - a.chance);
-    const abbr = TEXTS[state.currentLang].rarityAbbr;
+    const listDiv = document.getElementById("relic-drops-list");
+    const profitDisplay = document.getElementById("relic-profit-display");
+    const container = document.getElementById("relic-contents");
 
-    items.forEach((item) => {
-      const row = document.createElement("div");
-      row.className = "component-row";
-      row.style.display = "flex";
-      row.style.justifyContent = "space-between";
-      row.style.alignItems = "center";
+    if (!listDiv || !profitDisplay || !container) return;
 
-      const isForma = item.name === "Forma Blueprint";
-      let rarityColor = "var(--wf-common)";
-      let rarityLabel = abbr.common;
-      if (item.chance <= 5) {
-        rarityColor = "var(--wf-rare)";
-        rarityLabel = abbr.rare;
-      } else if (item.chance <= 22) {
-        rarityColor = "var(--wf-uncommon)";
-        rarityLabel = abbr.uncommon;
-      }
-      if (isForma) rarityColor = "var(--wf-forma)";
+    listDiv.innerHTML = "";
+    profitDisplay.innerText = "...";
+    profitDisplay.classList.add("loading");
 
-      let nameDisplay = isForma
-        ? `<span style="font-weight:bold; color:var(--wf-forma);"> Forma BP</span>`
-        : `<a href="https://warframe.market/items/${getSlug(
+    if (state.selectedRelic && state.relicsDatabase[state.selectedRelic]) {
+      container.classList.remove("hidden");
+
+      const items = state.relicsDatabase[state.selectedRelic];
+      items.sort((a, b) => b.chance - a.chance);
+      const abbr = TEXTS[state.currentLang].rarityAbbr;
+
+      items.forEach((item) => {
+        const row = document.createElement("div");
+        row.className = "component-row";
+        let rarityTypeCSS = "common";
+        if (item.name === "Forma Blueprint") rarityTypeCSS = "forma";
+        else if (item.chance <= 5) rarityTypeCSS = "rare";
+        else if (item.chance <= 22) rarityTypeCSS = "uncommon";
+        row.style.display = "flex";
+        row.style.justifyContent = "space-between";
+        row.style.alignItems = "center";
+
+        const isUntradable =
+          item.name.includes("Forma Blueprint") ||
+          item.name.includes("Kuva") ||
+          item.name === "Riven Sliver" ||
+          item.name === "Exilus Weapon Adapter Blueprint";
+
+        let rarityColor = "var(--wf-common)";
+        let rarityLabel = abbr.common;
+
+        if (item.chance <= 5) {
+          rarityColor = "var(--wf-rare)";
+          rarityLabel = abbr.rare;
+        } else if (item.chance <= 22) {
+          rarityColor = "var(--wf-uncommon)";
+          rarityLabel = abbr.uncommon;
+        }
+
+        if (isUntradable) rarityColor = "var(--wf-forma)";
+
+        let nameDisplay;
+        if (isUntradable) {
+          nameDisplay = `<span style="font-weight:bold; color:var(--wf-forma);">${item.name.replace(
+            "Blueprint",
+            "BP"
+          )}</span>`;
+        } else {
+          nameDisplay = `<span class="item-interactive" style="cursor:pointer; text-decoration:underline; margin-right:5px;" onclick="window.findRelicsForItem('${
             item.name
-          )}" target="_blank" class="market-link">${
-            item.name
-          }<span class="link-icon">↗</span></a>`;
+          }')">${item.name}</span> 
+             <a href="https://warframe.market/items/${getSlug(
+               item.name
+             )}" target="_blank" class="market-link-icon" style="text-decoration:none">↗</a>`;
+        }
 
-      const badgeContent = isForma
-        ? '0<span style="font-size:0.7em">pl</span>'
-        : "...";
-      const badgeClass = isForma ? "price-badge forma" : "price-badge loading";
+        const badgeContent = isUntradable
+          ? '0<span style="font-size:0.7em">pl</span>'
+          : "...";
 
-      row.innerHTML = `
-                <div style="display:flex; align-items:center; gap:10px;">
-                    <span style="color:${rarityColor}; font-weight:bold; font-size:0.8em; width:25px;">${rarityLabel}</span>
-                    <span style="color:${
-                      isForma ? "#aaa" : "#eee"
-                    }; font-size:0.9em;">${nameDisplay}</span>
-                </div>
-                <div class="${badgeClass}" data-item="${item.name.replace(
-        /"/g,
-        "&quot;"
-      )}">${badgeContent}</div>
-            `;
-      listDiv.appendChild(row);
-      const badge = row.querySelector(".price-badge");
-      if (!isForma) addToQueue(item.name, badge);
-    });
-    updateRelicTotal();
-  } else {
-    container.style.display = "none";
+        const badgeClass = isUntradable
+          ? "price-badge forma"
+          : "price-badge loading";
+
+        row.innerHTML = `
+                  <div style="display:flex; align-items:center; gap:10px;">
+                      <span style="color:${rarityColor}; font-weight:bold; font-size:0.8em; width:25px;">${rarityLabel}</span>
+                      <span style="color:${
+                        isUntradable ? "#aaa" : "#eee"
+                      }; font-size:0.9em;">${nameDisplay}</span>
+                  </div>
+                  <div class="${badgeClass}" data-item="${item.name.replace(
+          /"/g,
+          "&quot;"
+        )}">${badgeContent}</div>
+              `;
+        listDiv.appendChild(row);
+
+        const badge = row.querySelector(".price-badge");
+        if (!isUntradable) {
+          import("./api.js").then((mod) => mod.addToQueue(item.name, badge));
+        }
+      });
+    } else {
+      container.classList.add("hidden");
+    }
+  } catch (e) {
+    console.error("Error en manualRelicUpdate:", e);
   }
 }
 
@@ -370,28 +394,84 @@ export function updatePriceUI(element, price) {
 function updateRelicTotal() {
   if (!state.selectedRelic || !state.relicsDatabase[state.selectedRelic])
     return;
+
   const items = state.relicsDatabase[state.selectedRelic];
   const badges = document.querySelectorAll(
     "#relic-drops-list .price-badge:not(.big)"
   );
-  let total = 0;
-  let pending = false;
-  badges.forEach((div) => {
-    if (div.classList.contains("loading")) pending = true;
-    else {
-      const name = div.getAttribute("data-item");
-      const itemData = items.find((i) => i.name === name);
-      if (itemData) {
-        const p = parseInt(div.innerText) || 0;
-        total += p * (itemData.chance / 100);
-      }
+
+  const refinementInput = document.getElementById("refinement").value;
+  const squadSize = state.playerCount || 1;
+
+  const itemDataWithPrice = items.map((item) => {
+    let rarityType = "common";
+    if (item.chance < 5) rarityType = "rare";
+    else if (item.chance < 20) rarityType = "uncommon";
+
+    let price = 0;
+    const badge = Array.from(badges).find(
+      (b) => b.getAttribute("data-item") === item.name.replace(/"/g, "&quot;")
+    );
+    if (badge) {
+      price = parseInt(badge.innerText) || 0;
     }
+
+    return { ...item, rarityType, price };
   });
+
+  const totalEV = calculateSquadEV(
+    itemDataWithPrice,
+    refinementInput,
+    squadSize
+  );
+
   const disp = document.getElementById("relic-profit-display");
-  disp.innerHTML = `~${total.toFixed(
+  const label = document.getElementById("lbl-profit");
+  const t = TEXTS[state.currentLang];
+  if (squadSize > 1) {
+    label.innerText = t.lblProfitSquad.replace("{n}", squadSize);
+    label.style.color = "var(--wf-blue)";
+  } else {
+    label.innerText = t.lblProfitSolo;
+    label.style.color = "#bbb";
+  }
+
+  disp.innerHTML = `~${totalEV.toFixed(
     1
   )}<span style="font-size:0.7em">pl</span>`;
-  if (!pending) disp.classList.remove("loading");
+
+  const stillLoading = Array.from(badges).some((b) =>
+    b.classList.contains("loading")
+  );
+  if (!stillLoading) disp.classList.remove("loading");
+}
+
+function calculateSquadEV(items, refinement, squadSize) {
+  const rates = DROP_CHANCES[refinement] || DROP_CHANCES.Intact;
+
+  const itemsWithProb = items.map((item) => {
+    let prob = 0;
+    if (item.rarityType === "rare") prob = rates.rare / 1;
+    else if (item.rarityType === "uncommon") prob = rates.uncommon / 2;
+    else prob = rates.common / 3;
+    return { price: item.price, prob: prob };
+  });
+
+  itemsWithProb.sort((a, b) => a.price - b.price);
+
+  let expectedValue = 0;
+  let accumulatedProb = 0;
+
+  for (let item of itemsWithProb) {
+    const nextAccumulatedProb = accumulatedProb + item.prob;
+    const chanceThisIsBest =
+      Math.pow(nextAccumulatedProb, squadSize) -
+      Math.pow(accumulatedProb, squadSize);
+    expectedValue += item.price * chanceThisIsBest;
+    accumulatedProb = nextAccumulatedProb;
+  }
+
+  return expectedValue;
 }
 
 // --- SETS & TRACKER ---
@@ -499,8 +579,10 @@ function createSetCard(title, itemNames, parent, isSingle = false) {
       const grid = document.createElement("div");
       grid.className = "relic-grid";
       grid.style.padding = "0 10px";
+
       relicsInfo.sort((a, b) => a.relic.localeCompare(b.relic));
       const abbr = TEXTS[state.currentLang].rarityAbbr;
+
       relicsInfo.forEach((info) => {
         const btn = document.createElement("div");
         let rc = "common",
@@ -522,17 +604,20 @@ function createSetCard(title, itemNames, parent, isSingle = false) {
           info.relic
         }</span><img src="${
           TIER_URLS[tier] || TIER_URLS.Lith
-        }" class="relic-img"></div>
-                                <div class="chip-footer"><span class="rarity-text ${rc}">${rl}</span><span class="status-badge ${stKey}">${stTxt}</span></div>`;
-        btn.onclick = () => {
+        }" class="relic-img"></div><div class="chip-footer"><span class="rarity-text ${rc}">${rl}</span><span class="status-badge ${stKey}">${stTxt}</span></div>`;
+
+        btn.onclick = (e) => {
+          e.stopPropagation();
           if (!isSingle) activateSetTracker(title, itemNames);
           state.selectedRelic = info.relic;
           document.getElementById("relicInput").value = info.relic;
-          manualRelicUpdate();
-          const ref = document.getElementById("refinement");
-          if (rc === "rare" || rc === "uncommon") ref.value = "Rad";
-          else ref.value = "Intact";
+
+          const refSelect = document.getElementById("refinement");
+          if (rc === "rare" || rc === "uncommon") refSelect.value = "Rad";
+          else refSelect.value = "Intact";
+
           switchTab("relic");
+          manualRelicUpdate();
         };
         grid.appendChild(btn);
       });
@@ -548,6 +633,77 @@ function activateSetTracker(setName, itemsInSet) {
   state.activeSetParts = itemsInSet;
   state.completedParts = new Set();
   renderSetTracker();
+}
+
+function renderRelicsForPartInline(partName, container) {
+  const relics = state.itemsDatabase[partName] || [];
+  container.innerHTML = "";
+
+  if (relics.length === 0) {
+    container.innerHTML = `<div style="padding:10px; color:#666; font-style:italic; font-size:0.9em;">Vaulted / No disponible en reliquias</div>`;
+    return;
+  }
+
+  const grid = document.createElement("div");
+  grid.className = "relic-grid";
+  grid.style.padding = "10px";
+  grid.style.gridTemplateColumns = "repeat(auto-fill, minmax(100px, 1fr))";
+
+  relics.sort((a, b) => a.relic.localeCompare(b.relic));
+  const abbr = TEXTS[state.currentLang].rarityAbbr;
+
+  relics.forEach((info) => {
+    let rc = "common",
+      rl = abbr.common;
+    if (info.chance <= 5) {
+      rc = "rare";
+      rl = abbr.rare;
+    } else if (info.chance <= 22) {
+      rc = "uncommon";
+      rl = abbr.uncommon;
+    }
+
+    const tier = info.tier || info.relic.split(" ")[0];
+    const stKey = state.relicStatusDB[info.relic] || "vaulted";
+
+    const btn = document.createElement("div");
+    btn.className = `relic-chip ${rc}`;
+    btn.style.fontSize = "0.85em";
+
+    btn.innerHTML = `
+      <div class="relic-chip-header">
+        <span class="relic-name">${info.relic}</span>
+        <img src="${
+          TIER_URLS[tier] || TIER_URLS.Lith
+        }" class="relic-img" style="width:20px;">
+      </div>
+      <div class="chip-footer">
+        <span class="rarity-text ${rc}">${rl}</span>
+        <span class="status-badge ${stKey}" style="font-size:0.7em">${
+      stKey === "active" ? "ACT" : "VLT"
+    }</span>
+      </div>
+    `;
+
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      state.selectedRelic = info.relic;
+      document.getElementById("relicInput").value = info.relic;
+
+      const refSelect = document.getElementById("refinement");
+      if (rc === "rare" || rc === "uncommon") refSelect.value = "Rad";
+      else refSelect.value = "Intact";
+
+      manualRelicUpdate();
+      document
+        .getElementById("mode-relic")
+        .scrollIntoView({ behavior: "smooth" });
+    };
+
+    grid.appendChild(btn);
+  });
+
+  container.appendChild(grid);
 }
 
 export function renderSetTracker() {
@@ -566,26 +722,64 @@ export function renderSetTracker() {
   list.innerHTML = "";
 
   state.activeSetParts.forEach((partName) => {
+    const wrapper = document.createElement("div");
+    wrapper.style.marginBottom = "5px";
+
     const isDone = state.completedParts.has(partName);
     const row = document.createElement("div");
     row.className = `tracker-item ${isDone ? "done" : ""}`;
+    row.style.marginBottom = "0";
+
     const nameText =
       partName === state.currentActiveSet
         ? "Blueprint"
         : partName.replace(state.currentActiveSet, "").trim();
 
-    row.innerHTML = `<span class="t-name">${nameText}</span>`;
-    const btn = document.createElement("button");
-    btn.className = "t-check";
-    btn.innerText = isDone ? t.markUndo : t.markDone;
-    btn.onclick = (e) => {
+    const nameSpan = document.createElement("span");
+    nameSpan.className = "t-name item-interactive";
+    nameSpan.innerText = nameText;
+    nameSpan.style.cursor = "pointer";
+    nameSpan.style.textDecoration = "underline dotted #666";
+
+    const btnCheck = document.createElement("button");
+    btnCheck.className = "t-check";
+    btnCheck.innerText = isDone ? t.markUndo : t.markDone;
+    btnCheck.onclick = (e) => {
       e.stopPropagation();
       if (isDone) state.completedParts.delete(partName);
       else state.completedParts.add(partName);
       renderSetTracker();
     };
-    row.appendChild(btn);
-    list.appendChild(row);
+
+    row.appendChild(nameSpan);
+    row.appendChild(btnCheck);
+
+    const drawer = document.createElement("div");
+    drawer.className = "tracker-drawer hidden";
+    drawer.style.background = "rgba(0, 0, 0, 0.3)";
+    drawer.style.border = "1px solid #333";
+    drawer.style.borderTop = "none";
+    drawer.style.borderRadius = "0 0 4px 4px";
+    drawer.style.overflow = "hidden";
+    drawer.style.transition = "all 0.3s ease";
+
+    nameSpan.onclick = (e) => {
+      e.stopPropagation();
+      const isCurrentlyClosed = drawer.classList.contains("hidden");
+      document
+        .querySelectorAll(".tracker-drawer")
+        .forEach((d) => d.classList.add("hidden"));
+      if (isCurrentlyClosed) {
+        drawer.classList.remove("hidden");
+        if (drawer.innerHTML === "") {
+          renderRelicsForPartInline(partName, drawer);
+        }
+      }
+    };
+
+    wrapper.appendChild(row);
+    wrapper.appendChild(drawer);
+    list.appendChild(wrapper);
   });
 }
 
@@ -600,7 +794,6 @@ export function handleRivenInput() {
 
   if (val.length < 1) {
     dropdown.classList.add("hidden");
-    // Ocultar caja si está vacío
     if (statsBox) statsBox.style.display = "none";
     return;
   }
@@ -647,14 +840,16 @@ export function populateRivenSelects() {
 // --- LFG UI ---
 export function changeLFGCount(n) {
   state.lfgCount = Math.max(1, Math.min(3, state.lfgCount + n));
-  document.getElementById("lfgCountDisplay").innerText = state.lfgCount;
+
+  const display = document.getElementById("lfgCountDisplay");
+  if (display) display.innerText = state.lfgCount;
+
   generateLFGMessage();
 }
 
 export function updateLFGUI() {
   const act = document.getElementById("lfgActivity").value;
   const container = document.getElementById("lfg-dynamic-options");
-
   const t = TEXTS[state.currentLang];
   const roles = t.lfgRoles || {};
   const tips = t.tooltips || {};
@@ -673,12 +868,10 @@ export function updateLFGUI() {
                   tips.rotation || "Rotation info"
                 }">(?)</span></label>
                 <select id="lfg-eidolon-runs" class="wf-input" onchange="generateLFGMessage()">
-                    <option value="3x3">${
-                      roles.run3x3
-                    }</option><option value="5x3">${roles.run5x3}</option>
-                    <option value="6x3">${
-                      roles.run6x3
-                    }</option><option value="casual">${roles.casual}</option>
+                    <option value="3x3">${roles.run3x3}</option>
+                    <option value="5x3">${roles.run5x3}</option>
+                    <option value="6x3">${roles.run6x3}</option>
+                    <option value="casual">${roles.casual}</option>
                 </select>
             </div>
             <div class="lfg-grid">
@@ -724,7 +917,6 @@ export function updateLFGUI() {
     }</span>
             </div>`;
   }
-
   generateLFGMessage();
 }
 
@@ -821,23 +1013,26 @@ export function calculateCaps() {
 
 export async function updateRecommendedMissions(tier) {
   const container = document.getElementById("relic-contents");
-  if (!container) return;
-
   let missionDiv = document.getElementById("best-missions-container");
+
   if (!missionDiv) {
     missionDiv = document.createElement("div");
     missionDiv.id = "best-missions-container";
     missionDiv.className = "mission-recommendation-box";
-    container.appendChild(missionDiv);
+    document.body.appendChild(missionDiv);
   }
 
   const t = TEXTS[state.currentLang];
   const { fetchBestFissures } = await import("./api.js");
   const allMissions = await fetchBestFissures();
 
+  let searchTier = tier;
+  if (searchTier.toLowerCase() === "vanguard") searchTier = "Axi";
+
   const matches = allMissions.filter((m) => {
-    const isTargetTier = m.tier.toLowerCase() === tier.toLowerCase();
-    const isOmniaCompatible = m.isOmnia && tier.toLowerCase() !== "requiem";
+    const isTargetTier = m.tier.toLowerCase() === searchTier.toLowerCase();
+    const isOmniaCompatible =
+      m.isOmnia && searchTier.toLowerCase() !== "requiem";
     return isTargetTier || isOmniaCompatible;
   });
 
@@ -845,7 +1040,11 @@ export async function updateRecommendedMissions(tier) {
     const normal = matches.filter((m) => !m.isSP);
     const steelPath = matches.filter((m) => m.isSP);
 
-    let html = `<div class="mission-header">${t.lblRecommended} ${tier}</div>`;
+    let html = `<div id="mission-toggle-btn" class="mission-toggle-btn">
+                    <img src="assets/fissureicon.png" class="toggle-img" alt="Fisuras">
+                  </div>`;
+
+    html += `<div class="mission-header">${t.lblRecommended} ${searchTier}</div>`;
 
     if (normal.length > 0) {
       html += `<div class="mission-sub-tier">Normal</div>`;
@@ -858,18 +1057,23 @@ export async function updateRecommendedMissions(tier) {
     }
 
     missionDiv.innerHTML = html;
+
     missionDiv.style.display = "block";
+
+    const btn = document.getElementById("mission-toggle-btn");
+    if (btn) {
+      btn.onclick = () => {
+        missionDiv.classList.toggle("open");
+      };
+    }
   } else {
     missionDiv.style.display = "none";
   }
 }
-
 function renderMissionRow(m) {
   const t = TEXTS[state.currentLang];
-
   const rawType = m.type.toLowerCase();
   const translatedType = t.modes[rawType] || m.type;
-
   const omniaTag = m.isOmnia
     ? `<span class="omnia-tag big" data-tooltip="${t.tooltips.omnia}">OMNIA</span>`
     : "";
@@ -886,25 +1090,28 @@ function renderMissionRow(m) {
         </div>
     `;
 }
-export function fixTooltipClipping() {
-  const tooltips = document.querySelectorAll("[data-tooltip]");
-  tooltips.forEach((el) => {
-    el.addEventListener("mouseenter", () => {
-      const rect = el.getBoundingClientRect();
-      if (rect.top < 100) {
-        el.classList.add("tip-bottom");
-      } else {
-        el.classList.remove("tip-bottom");
-      }
-    });
+
+/*export function fixTooltipClipping() {
+  document.body.addEventListener("mouseover", (e) => {
+    const target = e.target.closest("[data-tooltip]");
+    if (!target) return;
+
+    const rect = target.getBoundingClientRect();
+    const viewportHeight = window.innerHeight;
+    const viewportWidth = window.innerWidth;
+
+    if (rect.bottom > viewportHeight * 0.6) {
+      target.classList.add("tip-top");
+    } else {
+      target.classList.remove("tip-top");
+    }
   });
-}
+}*/
 export function openRivenMarket() {
   const inputVal = document.getElementById("rivenWeaponInput").value.trim();
   if (!inputVal) return alert("Por favor introduce un nombre de arma");
 
   let slug = getRivenSlug(inputVal);
-
   let url = `https://warframe.market/auctions/search?type=riven&weapon_url_name=${slug}&polarity=any&sort_by=price_asc`;
 
   const stat1 = document.getElementById("rivenStat1").value;
@@ -926,9 +1133,7 @@ export function openRivenMarket() {
 
 export function getRivenSlug(inputVal) {
   const validWeapons = state.allRivenNames || [];
-
   let fullSlug = inputVal.toLowerCase().trim().replace(/\s+/g, "_");
-
   let nakedSlug = getNakedName(fullSlug);
 
   if (nakedSlug === fullSlug) return fullSlug;
@@ -940,7 +1145,6 @@ export function getRivenSlug(inputVal) {
   if (baseExists) {
     return nakedSlug;
   }
-
   return fullSlug;
 }
 
@@ -978,3 +1182,30 @@ export function getNakedName(slug) {
   }
   return s;
 }
+
+window.findRelicsForItem = function (itemName) {
+  const setInput = document.getElementById("setItemInput");
+  if (setInput) {
+    let searchTerm = itemName;
+
+    if (itemName.includes("Prime")) {
+      searchTerm = itemName.split("Prime")[0].trim() + " Prime";
+    } else if (itemName.includes("Vandal")) {
+      searchTerm = itemName.split("Vandal")[0].trim() + " Vandal";
+    } else if (itemName.includes("Wraith")) {
+      searchTerm = itemName.split("Wraith")[0].trim() + " Wraith";
+    } else {
+      searchTerm = itemName.replace("Blueprint", "").trim();
+    }
+
+    setInput.value = searchTerm;
+
+    import("./ui.js").then((mod) => {
+      mod.switchTab("set");
+
+      setInput.focus();
+      const event = new Event("keyup");
+      setInput.dispatchEvent(event);
+    });
+  }
+};

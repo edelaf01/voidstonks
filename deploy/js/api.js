@@ -10,7 +10,6 @@ import {
   getSlug,
 } from "./ui.js";
 
-// Cola de peticiones
 const REQUEST_QUEUE = [];
 let isProcessingQueue = false;
 
@@ -245,33 +244,32 @@ export async function fetchBestFissures() {
     const fissures = await res.json();
     const now = new Date();
 
-    // Tipos de misión eficientes
     const fastMissions = ["Capture", "Extermination", "Rescue", "Void Cascade"];
 
     return fissures
-      .filter(
-        (f) =>
-          (fastMissions.includes(f.missionType) || f.tier === "Omnia") &&
-          !f.isStorm
-      )
+      .filter((f) => {
+        const isValidType = (fastMissions.includes(f.missionType) || f.tier === "Omnia") && !f.isStorm;
+        
+        const expiryDate = new Date(f.expiry);
+        return isValidType && (expiryDate > now);
+      })
       .map((f) => {
         const expiryDate = new Date(f.expiry);
         const diffMs = expiryDate - now;
         const diffMins = Math.round(diffMs / 60000);
 
-        let timeText = f.eta;
-        if (diffMins > 0) {
-          timeText =
-            diffMins > 60
-              ? `${Math.floor(diffMins / 60)}h ${diffMins % 60}m`
-              : `${diffMins}m`;
+        let timeText = "";
+        if (diffMins >= 60) {
+            timeText = `${Math.floor(diffMins / 60)}h ${diffMins % 60}m`;
+        } else {
+            timeText = `${diffMins}m`;
         }
 
         return {
           node: f.node,
           type: f.missionType,
           tier: f.tier,
-          eta: timeText,
+          eta: timeText, 
           isSP: f.isHard === true,
           isOmnia: f.tier === "Omnia",
         };
