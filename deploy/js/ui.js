@@ -47,10 +47,43 @@ export function switchTab(mode) {
 
   const activeEl = document.getElementById("mode-" + mode);
   if (activeEl) activeEl.classList.remove("hidden");
-
+  const msgText = document.getElementById("finalMessage");
+  const copyBtn = document.getElementById("btn-copy");
   const footer = document.getElementById("footer-relic");
-  if (footer) footer.style.display = mode === "profile" ? "none" : "block";
+  if (footer) {
+    if (mode === "relic" || mode === "lfg") {
+      footer.style.display = "block";
+      if (mode === "lfg") {
+        const neonGreen = "#42f56c";
+        footer.style.borderTopColor = neonGreen;
+        footer.style.boxShadow = `0 -10px 30px rgba(66, 245, 108, 0.15)`;
 
+        if (msgText) {
+          msgText.style.color = neonGreen;
+          msgText.style.textShadow = `0 0 10px rgba(66, 245, 108, 0.3)`;
+        }
+        if (copyBtn) {
+          copyBtn.style.borderColor = neonGreen;
+          copyBtn.style.color = neonGreen;
+        }
+      } else {
+        const cyanBlue = "#00e5ff";
+        footer.style.borderTopColor = "#333";
+        footer.style.boxShadow = "none";
+
+        if (msgText) {
+          msgText.style.color = cyanBlue;
+          msgText.style.textShadow = `0 0 10px rgba(0, 229, 255, 0.2)`;
+        }
+        if (copyBtn) {
+          copyBtn.style.borderColor = cyanBlue;
+          copyBtn.style.color = cyanBlue;
+        }
+      }
+    } else {
+      footer.style.display = "none";
+    }
+  }
   const card = document.getElementById("main-card");
   if (card) {
     card.classList.remove(
@@ -68,9 +101,9 @@ export function switchTab(mode) {
 }
 
 export function changeLanguage() {
-  state.currentLang = document.getElementById("langSelect").value;
+  if (!state.currentLang) state.currentLang = "es";
   saveAppState();
-
+  updateLangButtonVisuals(state.currentLang);
   const t = TEXTS[state.currentLang];
 
   const setTab = (id, text, tip) => {
@@ -211,7 +244,7 @@ export function generateMessage() {
   }
 
   let countText = `${state.playerCount}/4`;
-  if (state.playerCount === 4) countText = "FULL";
+  if (state.playerCount === 4) countText = "3/4";
 
   const fullMessage = `H ${linkChat} ${refText} ${countText}`;
   const msgBox = document.getElementById("finalMessage");
@@ -860,8 +893,14 @@ export function updateLFGUI() {
     if (!text) return "";
     return `<div style="margin-bottom:10px; font-size:0.85em; color:#888; border-left:2px solid var(--active-theme-color, var(--wf-blue)); padding-left:8px;">${text}</div>`;
   };
-
-  if (act === "eidolon") {
+  if (act === "eda") {
+    container.innerHTML = `
+            ${createInfo(tips.eda)}
+            <label class="lfg-checkbox-wrapper" style="margin-bottom:10px;">
+                <input type="checkbox" id="lfg-eda-elite" checked onchange="generateLFGMessage()"> 
+                <span class="lfg-label">${roles.elite}</span>
+            </label>`;
+  } else if (act === "eidolon") {
     container.innerHTML = `
             <div style="margin-bottom:10px;">
                 <label style="font-size:0.8em; color:#888; margin-bottom:5px; display:block;">Pace / Ritmo <span data-tooltip="${
@@ -1209,3 +1248,33 @@ window.findRelicsForItem = function (itemName) {
     });
   }
 };
+//--- LANGUAGE SELECTION UI ---
+export function toggleLangDropdown() {
+  const list = document.getElementById("langOptionsList");
+  if (list) list.classList.toggle("hidden");
+}
+
+export function setLanguageManual(langCode) {
+  const langSelect = document.getElementById("langSelect");
+  state.currentLang = langCode;
+
+  saveAppState();
+  changeLanguage();
+
+  updateLangButtonVisuals(langCode);
+
+  document.getElementById("langOptionsList").classList.add("hidden");
+}
+
+function updateLangButtonVisuals(lang) {
+  const img = document.getElementById("currentFlag");
+  const txt = document.getElementById("currentLangText");
+
+  if (lang === "es") {
+    img.src = "https://flagcdn.com/24x18/es.png";
+    txt.innerText = "ES";
+  } else {
+    img.src = "https://flagcdn.com/24x18/gb.png"; // GB para UK
+    txt.innerText = "EN";
+  }
+}
