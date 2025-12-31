@@ -12,13 +12,11 @@ import {
 
 const REQUEST_QUEUE = [];
 let isProcessingQueue = false;
-
+const PRICE_CACHE = new Map();
 // --- RELIC DATA ---
 export async function downloadRelics() {
   const loadEl = document.getElementById("loading");
   if (loadEl) loadEl.style.display = "flex";
-
-  await fetchActiveResurgence();
 
   const CACHE_KEY = "voidstonks_relics_v1";
   const CACHE_TIME = 30 * 24 * 60 * 60 * 1000;
@@ -40,6 +38,7 @@ export async function downloadRelics() {
   try {
     if (!rawData) {
       const response = await fetch(`${WORKER_URL}?type=relics`);
+      await fetchActiveResurgence();
       if (!response.ok) throw new Error("Worker Error");
       rawData = await response.json();
       try {
@@ -48,6 +47,8 @@ export async function downloadRelics() {
           JSON.stringify({ timestamp: Date.now(), data: rawData })
         );
       } catch (e) {}
+    } else {
+      await fetchActiveResurgence();
     }
 
     processRelicData(rawData);
@@ -74,25 +75,26 @@ function processRelicData(rawData) {
 
     if (tempNamesSet.has(fullName)) return;
     tempNamesSet.add(fullName);
+
     const cleanNameUpper = fullName.toUpperCase();
     if (!tempRelicDB[fullName]) tempRelicDB[fullName] = [];
 
-    let status = "vaulted";
-    if (state.activeResurgenceList.has(cleanNameUpper)) status = "aya";
-    else status = "active";
-
-    tempStatusDB[fullName] = status;
+    tempStatusDB[fullName] = state.activeResurgenceList.has(cleanNameUpper)
+      ? "aya"
+      : "active";
 
     if (entry.rewards && Array.isArray(entry.rewards)) {
       entry.rewards.forEach((reward) => {
         const itemName = reward.itemName;
         if (!itemName) return;
+
         if (!tempDB[itemName]) tempDB[itemName] = [];
         tempDB[itemName].push({
           relic: fullName,
           tier: entry.tier,
           chance: reward.chance,
         });
+
         tempRelicDB[fullName].push({
           name: itemName,
           chance: reward.chance,
@@ -125,8 +127,10 @@ async function fetchActiveResurgence() {
               else if (rawName.startsWith("T3")) tier = "Neo";
               else if (rawName.startsWith("T4")) tier = "Axi";
               else if (rawName.startsWith("T5")) tier = "Requiem";
+
               let code = rawName.replace(/T\d+VoidProjection/, "");
               if (code.length === 1 && code.match(/[A-Z]/)) code += "1";
+
               if (tier && code)
                 state.activeResurgenceList.add(`${tier} ${code}`.toUpperCase());
             }
@@ -140,7 +144,6 @@ async function fetchActiveResurgence() {
 }
 
 // --- RIVENS ---
-
 export async function fetchRivenWeapons() {
   try {
     const responses = await Promise.all(
@@ -161,6 +164,7 @@ export async function fetchRivenWeapons() {
     console.warn("Riven list failed", e);
   }
 }
+
 export async function fetchRivenAverage(weaponName) {
   if (!weaponName) return;
   let slug = getRivenSlug(weaponName);
@@ -197,9 +201,13 @@ export async function fetchRivenAverage(weaponName) {
   }
 }
 
-// --- PRICES ---
 export async function getPriceValue(itemName, slug) {
   if (!itemName || itemName === "Forma Blueprint") return 0;
+
+  if (PRICE_CACHE.has(slug)) {
+    return PRICE_CACHE.get(slug);
+  }
+
   try {
     const res = await fetch(`${WORKER_URL}?type=price&q=${slug}`);
     if (!res.ok) throw new Error("Worker Error");
@@ -210,7 +218,12 @@ export async function getPriceValue(itemName, slug) {
       (o) => o.user.status === "ingame" || o.user.status === "online"
     );
     active.sort((a, b) => a.platinum - b.platinum);
-    return active.length > 0 ? active[0].platinum : 0;
+
+    const price = active.length > 0 ? active[0].platinum : 0;
+
+    PRICE_CACHE.set(slug, price);
+
+    return price;
   } catch (e) {
     return 0;
   }
@@ -234,8 +247,8 @@ async function processQueue() {
   }
   isProcessingQueue = false;
 }
-// --- WORLDSTATE FISSURES ---
 
+// --- WORLDSTATE FISSURES ---
 export async function fetchBestFissures() {
   try {
     const res = await fetch(`${WORKER_URL}?type=fissures`);
@@ -243,69 +256,54 @@ export async function fetchBestFissures() {
 
     const fissures = await res.json();
     const now = new Date();
-
     const fastMissions = ["Capture", "Extermination", "Rescue", "Void Cascade"];
 
-    return fissures
-      .filter((f) => {
-        const isValidType = (fastMissions.includes(f.missionType) || f.tier === "Omnia") && !f.isStorm;
-        
-        const expiryDate = new Date(f.expiry);
-        return isValidType && (expiryDate > now);
-      })
-      .map((f) => {
-        const expiryDate = new Date(f.expiry);
+    // Optimización: reduce itera una sola vez para filtrar y transformar
+    return fissures.reduce((acc, f) => {
+      const isValidType =
+        (fastMissions.includes(f.missionType) || f.tier === "Omnia") &&
+        !f.isStorm;
+      const expiryDate = new Date(f.expiry);
+
+      if (isValidType && expiryDate > now) {
         const diffMs = expiryDate - now;
         const diffMins = Math.round(diffMs / 60000);
+        let timeText =
+          diffMins >= 60
+            ? `${Math.floor(diffMins / 60)}h ${diffMins % 60}m`
+            : `${diffMins}m`;
 
-        let timeText = "";
-        if (diffMins >= 60) {
-            timeText = `${Math.floor(diffMins / 60)}h ${diffMins % 60}m`;
-        } else {
-            timeText = `${diffMins}m`;
-        }
-
-        return {
+        acc.push({
           node: f.node,
           type: f.missionType,
           tier: f.tier,
-          eta: timeText, 
+          eta: timeText,
           isSP: f.isHard === true,
           isOmnia: f.tier === "Omnia",
-        };
-      });
+        });
+      }
+      return acc;
+    }, []);
   } catch (e) {
     console.error("Error en Worldstate:", e);
     return [];
   }
 }
-// --- PROFILE ---
-export async function fetchUserProfile() {
-  const username = document.getElementById("usernameInput").value.trim();
-  if (!username) return alert("Please enter username");
-  const container = document.getElementById("profile-data");
-  container.innerHTML =
-    '<div class="price-badge loading" style="width:100%">Loading...</div>';
-
+export async function fetchUserProfile(username, platform) {
   try {
     const res = await fetch(
-      `${WORKER_URL}?type=profile&q=${encodeURIComponent(username)}`
+      `${WORKER_URL}?type=profile&platform=${platform}&user=${encodeURIComponent(
+        username
+      )}`
     );
-    if (!res.ok) throw new Error("API Blocked");
+    if (!res.ok) throw new Error("Worker Error");
     const data = await res.json();
-    if (data && typeof data.masteryRank !== "undefined") {
-      document.getElementById("mrInput").value = data.masteryRank;
-      renderProfileStats(
-        data.masteryRank,
-        data.dailyFocus || 0,
-        data.dailyStanding || {}
-      );
-    } else {
-      throw new Error("Invalid Data");
+    if (data.error) {
+      showToast(TEXTS[state.currentLang].errProfileNotFound);
+      return;
     }
+    renderProfileStats(data.payload);
   } catch (e) {
-    container.innerHTML =
-      '<div style="color:orange;font-size:0.9em;padding:10px;">Perfil no encontrado.<br>Usando calculadora.</div>';
-    calculateCaps();
+    showToast(TEXTS[state.currentLang].errProfileFetch);
   }
 }
