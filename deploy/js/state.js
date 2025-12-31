@@ -1,10 +1,9 @@
 export let state = {
-  currentLang: "es",
+currentLang: "es",
   activeTab: "relic",
   playerCount: 1,
   lfgCount: 1,
   selectedRelic: "",
-
   itemsDatabase: {},
   relicsDatabase: {},
   relicStatusDB: {},
@@ -12,10 +11,11 @@ export let state = {
   allRivenNames: [],
   weaponMap: {},
   activeResurgenceList: new Set(),
-
   currentActiveSet: null,
   activeSetParts: [],
   completedParts: new Set(),
+  lfgPresets: [],
+  inventory: []
 };
 
 export function saveAppState() {
@@ -30,6 +30,7 @@ export function saveAppState() {
     currentActiveSet: state.currentActiveSet,
     activeSetParts: state.activeSetParts,
     completedParts: Array.from(state.completedParts),
+    lfgPresets: state.lfgPresets,
   };
   localStorage.setItem("voidStonks_save", JSON.stringify(data));
 }
@@ -60,7 +61,7 @@ export function loadAppState() {
         state.activeSetParts = data.activeSetParts || [];
         state.completedParts = new Set(data.completedParts || []);
       }
-
+      if (data.lfgPresets) state.lfgPresets = data.lfgPresets;
       return state.activeTab;
     } catch (e) {
       console.warn("Error cargando save:", e);
