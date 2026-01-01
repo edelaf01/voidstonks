@@ -1,81 +1,100 @@
 import { initCanvas } from "./canvas.js";
 import { downloadRelics, fetchRivenWeapons, fetchUserProfile } from "./api.js";
+import { state, loadAppState, saveAppState } from "./state.js";
+import "./scanner.js";
+import {
+  openScanner,
+  closeScanner,
+  captureRelics,
+  handleFileUpload,
+} from "./scanner.js";
 import {
   switchTab,
   changeLanguage,
-  generateMessage,
-  copyText,
-  updateLFGUI,
-  handleRelicTyping,
-  handleSetTyping,
-  handleRivenInput,
-  openRivenMarket,
-  changeCount,
-  changeLFGCount,
-  toggleLfgDropdown,
-  selectLfgOption,
-  calculateCaps,
-  renderSetTracker,
-  toggleLangDropdown,
-  setLanguageManual,
-  manualRelicUpdate,
-  generateLFGMessage as genLFG,
   initSyncPanel,
   initFissurePanel,
   initGlobalTooltipSystem,
   initLFGPresets,
+  manualRelicUpdate,
+  initDisclaimerSystem,
+  setupGlobalClickListeners,
+  renderSetTracker,
+  generateMessage,
+  copyText,
+  changeCount,
+  changeLFGCount,
+  handleRelicTyping,
+  handleSetTyping,
+  handleRivenInput,
+  openRivenMarket,
+  calculateCaps,
+  toggleLfgDropdown,
+  selectLfgOption,
+  toggleLangDropdown,
+  setLanguageManual,
+  generateLFGMessage,
+  toggleInventoryPanel,
+  renderInventory,
+  clearInventory,
 } from "./ui.js";
-import { state, loadAppState, saveAppState } from "./state.js";
-
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
   const urlParams = new URLSearchParams(window.location.search);
   const clipMsg = urlParams.get("clip");
   if (clipMsg) {
-    window.history.replaceState({}, document.title, window.location.pathname);
-    navigator.clipboard
-      .writeText(clipMsg)
-      .then(() => alert(`📋 ¡Copiado!\n\n"${clipMsg}"`))
-      .catch(() => prompt("Copia tu mensaje:", clipMsg));
+    handleClipboardAction(clipMsg);
     return;
   }
 
   loadAppState();
   initCanvas();
+  initDisclaimerSystem();
+  setupGlobalClickListeners();
+  initGlobalTooltipSystem();
+  initSyncPanel();
 
   const langSelect = document.getElementById("langSelect");
   if (langSelect) langSelect.value = state.currentLang;
   changeLanguage();
-
   switchTab(state.activeTab || "relic");
 
-  initFissurePanel();
-  initSyncPanel();
-  initGlobalTooltipSystem();
+  if (state.currentActiveSet) renderSetTracker();
+  if (state.activeTab === "lfg") initLFGPresets();
 
-  const relicsPromise = downloadRelics().then(() => {
-    if (state.selectedRelic) {
+  loadAsyncData();
+});
+
+function handleClipboardAction(msg) {
+  window.history.replaceState({}, document.title, window.location.pathname);
+  navigator.clipboard
+    .writeText(msg)
+    .then(() => alert(`📋 ¡Copiado!\n\n"${msg}"`))
+    .catch(() => prompt("Copia tu mensaje:", msg));
+}
+
+async function loadAsyncData() {
+  try {
+    initFissurePanel().catch(console.error);
+
+    const [relicsResult] = await Promise.allSettled([
+      downloadRelics(),
+      fetchRivenWeapons(),
+    ]);
+
+    if (relicsResult.status === "fulfilled" && state.selectedRelic) {
       const input = document.getElementById("relicInput");
       if (input) input.value = state.selectedRelic;
       manualRelicUpdate();
     }
-  });
-
-  const rivensPromise = fetchRivenWeapons();
-
-  if (state.currentActiveSet) {
-    renderSetTracker();
+  } catch (error) {
+    console.error("Error crítico cargando datos iniciales:", error);
   }
-
-  if (state.activeTab === "lfg") {
-    initLFGPresets();
-  }
-});
+}
 
 document.addEventListener("visibilitychange", () => {
   if (document.hidden) saveAppState();
 });
 
-Object.assign(window, {
+const globalExports = {
   switchTab,
   changeLanguage,
   generateMessage,
@@ -92,55 +111,14 @@ Object.assign(window, {
   selectLfgOption,
   toggleLangDropdown,
   setLanguageManual,
-  generateLFGMessage: genLFG,
-});
+  generateLFGMessage,
+  openScanner,
+  closeScanner,
+  captureRelics,
+  handleFileUpload,
+  toggleInventoryPanel,
+  renderInventory,
+  clearInventory,
+};
 
-document.addEventListener("click", (e) => {
-  const target = e.target;
-
-  const langWrapper = document.getElementById("langSelectorWrapper");
-  const langList = document.getElementById("langOptionsList");
-  if (
-    langWrapper &&
-    !langWrapper.contains(target) &&
-    langList &&
-    !langList.classList.contains("hidden")
-  ) {
-    langList.classList.add("hidden");
-  }
-
-  const lfgList = document.getElementById("lfgDropdown");
-  const lfgTrigger =
-    target.closest("[onclick*='toggleLfgDropdown']") ||
-    target.closest(".custom-select-wrapper");
-  if (lfgList && !lfgList.classList.contains("hidden")) {
-    if (!lfgList.contains(target) && !lfgTrigger) {
-      lfgList.classList.add("hidden");
-    }
-  }
-
-  if (window.innerWidth <= 768) {
-    const closeSidePanel = (panelId, btnId) => {
-      const panel = document.getElementById(panelId);
-      const btn = document.getElementById(btnId);
-      if (panel && panel.classList.contains("open")) {
-        if (!panel.contains(target) && (!btn || !btn.contains(target))) {
-          panel.classList.remove("open");
-        }
-      }
-    };
-
-    closeSidePanel("best-missions-container", "mission-toggle-btn");
-    closeSidePanel("cloud-sync-container", "sync-toggle-btn");
-  }
-});
-
-setTimeout(() => {
-  const disclaimer = document.getElementById("txt-disclaimer");
-  if (disclaimer) {
-    disclaimer.classList.add("fade-out");
-    setTimeout(() => {
-      disclaimer.style.display = "none";
-    }, 2000);
-  }
-}, 8000);
+Object.assign(window, globalExports);

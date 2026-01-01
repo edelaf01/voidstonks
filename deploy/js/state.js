@@ -1,6 +1,6 @@
 // Estado global de la aplicación
 export let state = {
-currentLang: "es",
+  currentLang: "es",
   activeTab: "relic",
   playerCount: 1,
   lfgCount: 1,
@@ -16,7 +16,9 @@ currentLang: "es",
   activeSetParts: [],
   completedParts: new Set(),
   lfgPresets: [],
-  inventory: []
+  inventory: [],
+  invFilterTier: "ALL",
+  invSearchVal: "",
 };
 
 // --- GUARDAR ESTADO ---
@@ -29,11 +31,11 @@ export function saveAppState() {
     lfgActivity: document.getElementById("lfgActivity")?.value || "eidolon",
     username: document.getElementById("usernameInput")?.value || "",
     mr: document.getElementById("mrInput")?.value || 0,
-
     currentActiveSet: state.currentActiveSet,
     activeSetParts: state.activeSetParts,
     completedParts: Array.from(state.completedParts),
     lfgPresets: state.lfgPresets,
+    inventory: state.inventory,
   };
   localStorage.setItem("voidStonks_save", JSON.stringify(data));
 }
@@ -66,10 +68,34 @@ export function loadAppState() {
         state.completedParts = new Set(data.completedParts || []);
       }
       if (data.lfgPresets) state.lfgPresets = data.lfgPresets;
+      if (data.inventory) state.inventory = data.inventory;
       return state.activeTab;
     } catch (e) {
       console.warn("Error cargando save:", e);
     }
   }
   return "relic";
+}
+export function updateInventoryCount(relicName, change) {
+  if (state.inventory.length > 0 && typeof state.inventory[0] === "string") {
+    const newInv = [];
+    state.inventory.forEach((name) => {
+      const existing = newInv.find((i) => i.name === name);
+      if (existing) existing.count++;
+      else newInv.push({ name, count: 1 });
+    });
+    state.inventory = newInv;
+  }
+
+  const itemIndex = state.inventory.findIndex((i) => i.name === relicName);
+
+  if (itemIndex >= 0) {
+    state.inventory[itemIndex].count += change;
+    if (state.inventory[itemIndex].count <= 0) {
+      state.inventory.splice(itemIndex, 1); // Borrar si es 0
+    }
+  } else if (change > 0) {
+    // Añadir nuevo
+    state.inventory.push({ name: relicName, count: change });
+  }
 }

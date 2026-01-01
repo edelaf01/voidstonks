@@ -9,56 +9,13 @@ import {
   getRivenSlug,
   getSlug,
 } from "./ui.js";
-
+const PRICE_QUEUE = [];
 const REQUEST_QUEUE = [];
+let isQueueRunning = false;
+const MEMORY_CACHE = new Map();
 let isProcessingQueue = false;
 const PRICE_CACHE = new Map();
 // --- RELIC DATA ---
-export async function downloadRelics() {
-  const loadEl = document.getElementById("loading");
-  if (loadEl) loadEl.style.display = "flex";
-
-  const CACHE_KEY = "voidstonks_relics_v1";
-  const CACHE_TIME = 30 * 24 * 60 * 60 * 1000;
-
-  let rawData = null;
-  const localData = localStorage.getItem(CACHE_KEY);
-
-  if (localData) {
-    try {
-      const parsed = JSON.parse(localData);
-      if (Date.now() - parsed.timestamp < CACHE_TIME) {
-        rawData = parsed.data;
-      }
-    } catch (e) {
-      localStorage.removeItem(CACHE_KEY);
-    }
-  }
-
-  try {
-    if (!rawData) {
-      const response = await fetch(`${WORKER_URL}?type=relics`);
-      await fetchActiveResurgence();
-      if (!response.ok) throw new Error("Worker Error");
-      rawData = await response.json();
-      try {
-        localStorage.setItem(
-          CACHE_KEY,
-          JSON.stringify({ timestamp: Date.now(), data: rawData })
-        );
-      } catch (e) {}
-    } else {
-      await fetchActiveResurgence();
-    }
-
-    processRelicData(rawData);
-    finishLoading();
-  } catch (error) {
-    console.error(error);
-    showToast(TEXTS[state.currentLang].errLoad);
-    if (loadEl) loadEl.style.display = "none";
-  }
-}
 
 function processRelicData(rawData) {
   let relicsArray =
@@ -144,27 +101,55 @@ async function fetchActiveResurgence() {
 }
 
 // --- RIVENS ---
+
 export async function fetchRivenWeapons() {
+  // Si ya tenemos datos, no hacemos nada
+  if (state.allRivenNames && state.allRivenNames.length > 0) return;
+
+  console.log("Iniciando carga de armas..."); // LOG DE DEBUG
+
   try {
-    const responses = await Promise.all(
-      WEAPON_SOURCES.map((url) => fetch(url).then((r) => r.json()))
+    const response = await fetch(`${WORKER_URL}?type=weapons_list`);
+
+    if (!response.ok) throw new Error("Error en petición al Worker");
+
+    const data = await response.json();
+    console.log("Datos recibidos del Worker:", data); // LOG DE DEBUG
+
+    // Si el worker devuelve array vacío, forzamos error para usar el fallback
+    if (!data.weapons || data.weapons.length === 0) {
+      throw new Error("El Worker devolvió una lista vacía");
+    }
+
+    state.allRivenNames = data.weapons;
+
+    // Crear mapa para búsqueda rápida
+    state.weaponMap = {};
+    state.allRivenNames.forEach(
+      (w) => (state.weaponMap[w.toUpperCase()] = true)
     );
-    const allWeapons = responses.flat();
 
-    const unique = new Set();
-    allWeapons.forEach((item) => {
-      if (item.name) unique.add(item.name);
-    });
-    state.allRivenNames = Array.from(unique).sort();
+    console.log(`✅ ÉXITO: Cargadas ${state.allRivenNames.length} armas.`);
+  } catch (error) {
+    console.error("❌ ERROR cargando armas:", error);
 
-    state.allRivenNames.forEach((name) => {
-      state.weaponMap[name] = getRivenSlug(name);
-    });
-  } catch (e) {
-    console.warn("Riven list failed", e);
+    // FALLBACK: Lista de emergencia si todo falla
+    state.allRivenNames = [
+      "Bramma Kuva",
+      "Nikana Prime",
+      "Rubico Prime",
+      "Torid",
+      "Burston",
+      "Glaive Prime",
+      "Felarx",
+      "Laetum",
+      "Phenmor",
+      "Lex Prime",
+      "Magistar",
+    ];
+    console.log("⚠️ Usando lista de respaldo manual.");
   }
 }
-
 export async function fetchRivenAverage(weaponName) {
   if (!weaponName) return;
   let slug = getRivenSlug(weaponName);
@@ -201,41 +186,6 @@ export async function fetchRivenAverage(weaponName) {
   }
 }
 
-export async function getPriceValue(itemName, slug) {
-  if (!itemName || itemName === "Forma Blueprint") return 0;
-
-  if (PRICE_CACHE.has(slug)) {
-    return PRICE_CACHE.get(slug);
-  }
-
-  try {
-    const res = await fetch(`${WORKER_URL}?type=price&q=${slug}`);
-    if (!res.ok) throw new Error("Worker Error");
-    const data = await res.json();
-    const realData = data.payload ? data.payload : data;
-    const sells = realData.orders || realData.data?.sell || [];
-    const active = sells.filter(
-      (o) => o.user.status === "ingame" || o.user.status === "online"
-    );
-    active.sort((a, b) => a.platinum - b.platinum);
-
-    const price = active.length > 0 ? active[0].platinum : 0;
-
-    PRICE_CACHE.set(slug, price);
-
-    return price;
-  } catch (e) {
-    return 0;
-  }
-}
-
-export async function addToQueue(itemName, element) {
-  if (!itemName || itemName === "Forma Blueprint") return;
-  const slug = getSlug(itemName);
-  REQUEST_QUEUE.push({ name: itemName, slug: slug, el: element });
-  processQueue();
-}
-
 async function processQueue() {
   if (isProcessingQueue || REQUEST_QUEUE.length === 0) return;
   isProcessingQueue = true;
@@ -248,7 +198,6 @@ async function processQueue() {
   isProcessingQueue = false;
 }
 
-// --- WORLDSTATE FISSURES ---
 export async function fetchBestFissures() {
   try {
     const res = await fetch(`${WORKER_URL}?type=fissures`);
@@ -257,8 +206,6 @@ export async function fetchBestFissures() {
     const fissures = await res.json();
     const now = new Date();
     const fastMissions = ["Capture", "Extermination", "Rescue", "Void Cascade"];
-
-    // Optimización: reduce itera una sola vez para filtrar y transformar
     return fissures.reduce((acc, f) => {
       const isValidType =
         (fastMissions.includes(f.missionType) || f.tier === "Omnia") &&
@@ -306,4 +253,218 @@ export async function fetchUserProfile(username, platform) {
   } catch (e) {
     showToast(TEXTS[state.currentLang].errProfileFetch);
   }
+}
+
+export function getPriceValue(itemName, itemSlug) {
+  return new Promise((resolve) => {
+    if (
+      !itemName ||
+      itemName.includes("Forma") ||
+      itemName.includes("Kuva") ||
+      itemName === "Riven Sliver" ||
+      itemName === "Exilus Weapon Adapter Blueprint"
+    ) {
+      resolve(0);
+      return;
+    }
+    if (!itemSlug) {
+      resolve(0);
+      return;
+    }
+
+    // 1. Mirar en RAM
+    if (MEMORY_CACHE.has(itemSlug)) {
+      const cached = MEMORY_CACHE.get(itemSlug);
+      if (cached > 0) {
+        // Solo devolver si es mayor a 0
+        resolve(cached);
+        return;
+      }
+    }
+
+    // 2. Mirar en LocalStorage
+    const stored = localStorage.getItem(`price_${itemSlug}`);
+    if (stored) {
+      const { val, time } = JSON.parse(stored);
+      // VALIDACIÓN: Si vale 0, lo ignoramos para forzar una nueva búsqueda.
+      // Si tiene más de 4 horas, también lo ignoramos.
+      if (val > 0 && Date.now() - time < 14400000) {
+        MEMORY_CACHE.set(itemSlug, val);
+        resolve(val);
+        return;
+      }
+    }
+
+    // 3. Cola de peticiones
+    PRICE_QUEUE.push({ slug: itemSlug, resolve });
+    // Importante: Asegúrate de que processPriceQueue esté definida en el archivo (como te pasé antes)
+    // No usamos isQueueRunning aquí si processPriceQueue se llama recursivamente,
+    // pero si usas el código anterior, mantén la lógica de la cola.
+    if (typeof isQueueRunning !== "undefined" && !isQueueRunning)
+      processPriceQueue();
+    else if (typeof isQueueRunning === "undefined") processPriceQueue();
+  });
+}
+
+export async function downloadRelics() {
+  const loadEl = document.getElementById("loading");
+  if (loadEl) loadEl.style.display = "flex";
+
+  const CACHE_KEY = "voidstonks_relics_v6";
+  const CACHE_TIME = 7 * 24 * 60 * 60 * 1000;
+
+  let rawData = null;
+  const localData = localStorage.getItem(CACHE_KEY);
+
+  if (localData) {
+    try {
+      const parsed = JSON.parse(localData);
+      if (Date.now() - parsed.timestamp < CACHE_TIME) {
+        rawData = parsed.data;
+      }
+    } catch (e) {
+      localStorage.removeItem(CACHE_KEY);
+    }
+  }
+
+  try {
+    if (!rawData) {
+      const response = await fetch(`${WORKER_URL}?type=relics`);
+      if (!response.ok) throw new Error("Worker Error");
+      rawData = await response.json();
+      localStorage.setItem(
+        CACHE_KEY,
+        JSON.stringify({ timestamp: Date.now(), data: rawData })
+      );
+    }
+
+    try {
+      await fetchActiveResurgence();
+    } catch (e) {
+      console.warn("Aya error", e);
+    }
+
+    state.allRelicNames = [];
+    state.relicsDatabase = {};
+    state.itemsDatabase = {};
+    rawData.relics.forEach((r) => {
+      if (r.state === "Intact") {
+        const rName = r.relicName || r.name;
+        const tierName = `${r.tier} ${rName}`;
+        if (!rName || !r.tier) return;
+        state.allRelicNames.push(tierName);
+        state.relicsDatabase[tierName] = r.rewards.map((reward) => ({
+          name: reward.itemName,
+          chance: reward.chance,
+          rarity: reward.rarity,
+        }));
+        r.rewards.forEach((reward) => {
+          const iName = reward.itemName;
+          if (!state.itemsDatabase[iName]) state.itemsDatabase[iName] = [];
+
+          state.itemsDatabase[iName].push({
+            relic: tierName,
+            tier: r.tier,
+            chance: reward.chance,
+          });
+        });
+        const isAya = state.activeResurgenceList.has(tierName.toUpperCase());
+        state.relicStatusDB[tierName] = isAya
+          ? "aya"
+          : r.vaulted
+          ? "vaulted"
+          : "active";
+      }
+    });
+
+    state.allRelicNames.sort();
+    finishLoading();
+  } catch (e) {
+    console.error("Error downloadRelics:", e);
+    showToast("Error cargando base de datos. Recarga.");
+  }
+}
+
+// [En api.js] - Reemplaza la función processPriceQueue existente por esta:
+
+async function processPriceQueue() {
+  // 1. Si la cola está vacía, paramos
+  if (PRICE_QUEUE.length === 0) {
+    isQueueRunning = false;
+    return;
+  }
+
+  isQueueRunning = true;
+
+  // 2. Tomamos SOLO UN elemento (importante para que tu Worker no falle)
+  const task = PRICE_QUEUE.shift();
+
+  try {
+    // 3. Petición GET individual con "truco" para limpiar caché (&v=CACHE_FIX)
+    const targetUrl = `${WORKER_URL}?type=price&q=${task.slug}&v=CACHE_FIX`;
+
+    const res = await fetch(targetUrl);
+
+    let price = 0;
+    if (res.ok) {
+      const data = await res.json();
+      // Soportamos todos los formatos posibles de respuesta
+      if (typeof data === "number") {
+        price = data;
+      } else if (data.price) {
+        price = data.price;
+      } else if (
+        data.payload &&
+        data.payload.orders &&
+        data.payload.orders.length > 0
+      ) {
+        price = data.payload.orders[0].platinum;
+      }
+    }
+
+    // 4. Guardamos el precio y actualizamos la pantalla (resolve)
+    savePriceToCache(task.slug, price);
+    task.resolve(price);
+  } catch (e) {
+    console.warn(`Error obteniendo precio para ${task.slug}:`, e);
+    task.resolve(0); // Si falla, liberamos la tarea con 0 para no atascar la cola
+  }
+
+  // 5. Pausa de seguridad (300ms) y procesamos el siguiente
+  setTimeout(() => processPriceQueue(), 300);
+}
+function savePriceToCache(slug, price) {
+  const data = { val: price, time: Date.now() };
+  MEMORY_CACHE.set(slug, price);
+  try {
+    localStorage.setItem(`price_${slug}`, JSON.stringify(data));
+  } catch (e) {}
+}
+
+/*async function fetchPriceFromWorker(slug) {
+  try {
+    const res = await fetch(`${WORKER_URL}?type=price&q=${slug}`);
+
+    if (res.status === 429) return 0; // Rate Limit
+    if (!res.ok) return 0;
+
+    const data = await res.json();
+
+    // Leer formato optimizado del Worker
+    if (typeof data.price === "number") return data.price;
+
+    // Fallback formato antiguo
+    if (data.payload?.orders?.length > 0)
+      return data.payload.orders[0].platinum;
+
+    return 0;
+  } catch (e) {
+    return 0;
+  }
+}*/
+export function addToQueue(itemName, element) {
+  const slug = getSlug(itemName);
+  getPriceValue(itemName, slug).then((price) => {
+    updatePriceUI(element, price);
+  });
 }
