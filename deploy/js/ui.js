@@ -5,20 +5,38 @@ import {
   DROP_CHANCES,
   WORKER_URL,
 } from "./config.js";
-import { state, saveAppState } from "./state.js";
-import { addToQueue, fetchRivenAverage, fetchBestFissures } from "./api.js";
+import { state, saveAppState, updateInventoryCount } from "./state.js";
+import {
+  addToQueue,
+  fetchRivenAverage,
+  fetchBestFissures,
+  getPriceValue,
+} from "./api.js";
 
 let debounceTimer;
 
 const t = TEXTS[state.currentLang];
 
 export function getSlug(itemName) {
-  return itemName
+  if (!itemName) return "";
+
+  let cleanName = itemName.trim();
+  let slug = cleanName
     .toLowerCase()
     .replace(/&/g, "and")
     .replace(/[^a-z0-9 ]/g, "")
     .trim()
     .replace(/\s+/g, "_");
+
+  const manualFixes = {
+    kompressa_prime_receiver: "kompressa_prime_reciever",
+  };
+
+  if (manualFixes[slug]) {
+    return manualFixes[slug];
+  }
+
+  return slug;
 }
 
 export function showToast(message) {
@@ -45,60 +63,38 @@ export function finishLoading() {
 export function switchTab(mode) {
   state.activeTab = mode;
   saveAppState();
-
   document
     .querySelectorAll(".tab-btn")
     .forEach((b) => b.classList.remove("active"));
-
   const btn = document.getElementById("btn-" + mode);
   if (btn) btn.classList.add("active");
 
-  ["relic", "set", "riven", "profile", "lfg"].forEach((m) => {
-    const el = document.getElementById("mode-" + m);
-    if (el) el.classList.add("hidden");
-  });
+  const mainCard = document.getElementById("main-card");
+  if (mainCard) {
+    mainCard.className = "card";
+    mainCard.classList.add(`theme-${mode}`);
+  }
 
-  const activeEl = document.getElementById("mode-" + mode);
-  if (activeEl) activeEl.classList.remove("hidden");
+  ["relic", "set", "riven", "profile", "lfg"].forEach((m) => {
+    document.getElementById("mode-" + m)?.classList.add("hidden");
+  });
+  document.getElementById("mode-" + mode)?.classList.remove("hidden");
 
   const footer = document.getElementById("footer-relic");
   const msgText = document.getElementById("finalMessage");
 
   if (footer) {
-    if (mode === "relic" || mode === "lfg") {
+    if (mode === "lfg") {
       footer.style.display = "block";
-      if (mode === "lfg") {
-        const neonGreen = "#42f56c";
-        footer.style.borderTopColor = neonGreen;
-        footer.style.boxShadow = `0 -10px 30px rgba(66, 245, 108, 0.15)`;
-        if (msgText) {
-          msgText.style.color = neonGreen;
-          msgText.style.textShadow = `0 0 10px rgba(66, 245, 108, 0.3)`;
-        }
-      } else {
-        const cyanBlue = "#00e5ff";
-        footer.style.borderTopColor = "#333";
-        footer.style.boxShadow = "none";
-        if (msgText) {
-          msgText.style.color = cyanBlue;
-          msgText.style.textShadow = `0 0 10px rgba(0, 229, 255, 0.2)`;
-        }
-      }
+      footer.style.borderTopColor = "#42f56c";
+      if (msgText) msgText.style.color = "#42f56c";
+    } else if (mode === "relic") {
+      footer.style.display = "block";
+      footer.style.borderTopColor = "#333";
+      if (msgText) msgText.style.color = "#00e5ff";
     } else {
       footer.style.display = "none";
     }
-  }
-
-  const card = document.getElementById("main-card");
-  if (card) {
-    card.classList.remove(
-      "theme-relic",
-      "theme-set",
-      "theme-riven",
-      "theme-profile",
-      "theme-lfg"
-    );
-    card.classList.add("theme-" + mode);
   }
 
   if (mode === "lfg") updateLFGUI();
@@ -142,43 +138,30 @@ export function changeLanguage() {
   const disclaimer = document.getElementById("txt-disclaimer");
   if (disclaimer) disclaimer.innerHTML = t.disclaimer;
 
-  setText("tab-relic-text", t.menuRelic || "Reliquia");
   setText("lbl-relic-name", t.lblRelic);
-
   const relicInput = document.getElementById("relicInput");
   if (relicInput) relicInput.placeholder = t.phRelic;
-
   setText("lbl-missing", t.lblMiss);
   setText("lbl-profit", t.lblProfit);
   setText("lbl-content", t.lblContent);
 
-  setText("tab-set-text", t.menuSet || "Set");
   setText("lbl-search-item", t.lblItem);
-
   const setInput = document.getElementById("setItemInput");
   if (setInput) setInput.placeholder = t.phItem;
 
-  setText("tab-riven-text", t.menuRiven || "Riven");
   setText("lbl-riven-weapon", t.lblRivenW);
-
   const rivenInput = document.getElementById("rivenWeaponInput");
   if (rivenInput) rivenInput.placeholder = t.phRivenW;
-
   setText("lbl-riven-stats", t.lblRivenS);
   setText("btn-riven-search", t.rivenSearch);
-
   const statNegOpt = document.querySelector('#rivenStatNeg option[value=""]');
   if (statNegOpt) statNegOpt.innerText = t.lblRivenNeg;
 
-  setText("tab-profile-text", t.menuProfile || "Perfil");
   setText("lbl-username", t.lblUser);
-
   const btnCheck = document.querySelector("#mode-profile button");
   if (btnCheck) btnCheck.innerText = t.btnCheck;
-
   setText("txt-mr-label", t.lblMrCalc);
 
-  setText("tab-lfg-text", t.menuLfg || "LFG");
   setText("lbl-lfg-activity", t.lblLfgActivity);
   setText("lbl-lfg-players", t.lblLfgPlayers);
   setText("btn-copy", t.btnCopy);
@@ -187,7 +170,6 @@ export function changeLanguage() {
   if (refLabel) {
     refLabel.innerHTML = `${t.lblRef} <span data-tooltip="${t.tooltips.refinement}" style="cursor:help; opacity:0.7"> (?)</span>`;
   }
-
   const refSelect = document.getElementById("refinement");
   if (refSelect && t.refs) {
     Array.from(refSelect.options).forEach((opt) => {
@@ -196,22 +178,24 @@ export function changeLanguage() {
     });
   }
 
-  const panelHeader = document.querySelector(".panel-main-header");
-  if (panelHeader) {
-    const textSpan = panelHeader.querySelector("span");
-    if (textSpan) {
-      textSpan.innerText =
-        t.panelFissures || t.lblRecommended || "Fisuras Activas";
-    }
-  }
+  setText("txt-inv-title", t.inventory.title);
+  const invInput = document.getElementById("inv-search-input");
+  if (invInput) invInput.placeholder = t.inventory.searchPlaceholder;
 
+  setText("txt-fissure-title", t.lblFissures || "Fisuras Activas");
+
+  setText("lbl-relic-name", t.lblRelic);
+  if (relicInput) relicInput.placeholder = t.phRelic;
+
+  const guideText = document.getElementById("relic-add-guide");
+  if (guideText) guideText.innerText = t.addGuide;
   const lfgItems = document.querySelectorAll("#lfgDropdown .dropdown-item");
   const keys = [
     "eidolon",
     "profit",
     "eda",
-    "netra",
     "temporal",
+    "netra",
     "archon",
     "sortie",
     "arbi",
@@ -226,18 +210,21 @@ export function changeLanguage() {
   if (t.lfgOpts[currentVal]) setText("lfgSelectedText", t.lfgOpts[currentVal]);
 
   populateRivenSelects();
-
   const modeLfg = document.getElementById("mode-lfg");
   if (modeLfg && !modeLfg.classList.contains("hidden")) updateLFGUI();
-
   if (state.currentActiveSet) renderSetTracker();
   if (state.selectedRelic) manualRelicUpdate();
-
+  const guideIcon = document.getElementById("relic-guide-icon");
+  if (guideIcon) {
+    guideIcon.setAttribute("data-tooltip", t.addGuide);
+  }
   const tier = document.getElementById("relicInput").value.split(" ")[0];
   if (tier && state.selectedRelic) {
     updateRecommendedMissions(tier);
   }
-
+  if (state.selectedRelic) {
+    manualRelicUpdate();
+  }
   generateMessage();
 }
 
@@ -334,7 +321,6 @@ export function manualRelicUpdate() {
   try {
     const relicInput = document.getElementById("relicInput");
     state.selectedRelic = relicInput.value;
-
     const tier = state.selectedRelic.split(" ")[0];
     updateRecommendedMissions(tier).catch((err) =>
       console.error("Error misiones:", err)
@@ -354,7 +340,21 @@ export function manualRelicUpdate() {
 
     if (state.selectedRelic && state.relicsDatabase[state.selectedRelic]) {
       container.classList.remove("hidden");
+      let addBtnContainer = document.getElementById("manual-add-container");
+      if (!addBtnContainer) {
+        addBtnContainer = document.createElement("div");
+        addBtnContainer.id = "manual-add-container";
+        addBtnContainer.style.marginBottom = "15px";
+        addBtnContainer.style.textAlign = "right";
+        listDiv.parentNode.insertBefore(addBtnContainer, listDiv);
+      }
 
+      const t = TEXTS[state.currentLang];
+      addBtnContainer.innerHTML = `
+        <button class="riven-btn" style="padding: 8px 15px; background: var(--wf-blue); color: #000; font-weight:bold;" onclick="window.addCurrentToInv()">
+            + ${t.manualAdd || "Add to Inventory"}
+        </button>
+      `;
       const items = state.relicsDatabase[state.selectedRelic];
       items.sort((a, b) => b.chance - a.chance);
       const abbr = TEXTS[state.currentLang].rarityAbbr;
@@ -850,9 +850,12 @@ export function handleRivenInput() {
     return;
   }
 
-  const matches = state.allRivenNames
+  const source = state.allRivenNames || [];
+
+  const matches = source
     .filter((n) => n.toUpperCase().includes(val))
     .slice(0, 10);
+
   if (matches.length > 0) {
     dropdown.innerHTML = "";
     dropdown.classList.remove("hidden");
@@ -867,9 +870,11 @@ export function handleRivenInput() {
       };
       dropdown.appendChild(item);
     });
-  } else dropdown.classList.add("hidden");
+  } else {
+    dropdown.classList.add("hidden");
+  }
 
-  if (state.weaponMap[input.value]) {
+  if (state.weaponMap && state.weaponMap[input.value]) {
     dropdown.classList.add("hidden");
     fetchRivenAverage(input.value);
   }
@@ -1573,8 +1578,6 @@ export function initSyncPanel() {
   `;
 
   document.body.appendChild(syncDiv);
-
-  startReceiver();
 }
 
 window.toggleSyncPanel = function () {
@@ -1650,12 +1653,12 @@ function startReceiver() {
       const data = await res.json();
       if (res.status === 429) {
         stopReceiver();
-        statusMsg.innerHTML = `<span style="color:#ff4444"> Demasiados intentos. Espera 1 min.</span>`;
+        statusMsg.innerHTML = `<span style="color:#ff4444"> Too many tries , wait for a minute..</span>`;
         return;
       }
       if (!res.ok) {
         stopReceiver();
-        statusMsg.innerHTML = `<span style="color:#ff4444"> Error del servidor. Intenta más tarde.</span>`;
+        statusMsg.innerHTML = `<span style="color:#ff4444"> Server error. Try again later.</span>`;
         return;
       }
       if (data && data.val) {
@@ -1876,3 +1879,298 @@ window.deleteLFGPreset = function (index) {
     renderLFGPresets();
   }
 };
+export function toggleInventoryPanel(forceOpen = false) {
+  const panel = document.getElementById("inventory-container");
+  if (forceOpen) panel.classList.add("open");
+  else panel.classList.toggle("open");
+  if (panel.classList.contains("open")) renderInventory();
+}
+
+export function clearInventory() {
+  if (confirm("Delete all saved relics?")) {
+    state.inventory = [];
+    saveAppState();
+    renderInventory();
+  }
+}
+
+export async function renderInventory() {
+  const list = document.getElementById("inventory-list");
+  if (!list) return;
+
+  list.style.opacity = "0.5";
+  list.style.pointerEvents = "none";
+  list.style.transition = "opacity 0.2s";
+
+  try {
+    if (!state.inventory || state.inventory.length === 0) {
+      list.innerHTML = `<div style="padding:20px; text-align:center; color:#666;">Inventario vacío</div>`;
+      resetLoadingStyle(list);
+      return;
+    }
+
+    const sortMode = document.getElementById("inv-sort")?.value || "recent";
+
+    const filtered = state.inventory.filter((item) => {
+      const name = (typeof item === "string" ? item : item.name).toUpperCase();
+      if (
+        state.invSearchVal &&
+        !name.toLowerCase().includes(state.invSearchVal)
+      )
+        return false;
+      if (state.invFilterTier !== "ALL") {
+        let tier = name.split(" ")[0];
+        if (tier === "VANGUARD") tier = "AXI";
+        if (tier !== state.invFilterTier) return false;
+      }
+      return true;
+    });
+
+    let displayItems = filtered.map((item) =>
+      typeof item === "string" ? { name: item, count: 1 } : item
+    );
+
+    const enrichedItems = await Promise.all(
+      displayItems.map(async (item) => {
+        const stats = (await calculateRelicValue(item.name)) || {
+          intact: 0,
+          rad: 0,
+          ducats: 0,
+        };
+        return { ...item, ...stats };
+      })
+    );
+
+    enrichedItems.sort((a, b) => {
+      if (sortMode === "plat_intact") return b.intact - a.intact;
+      if (sortMode === "plat_rad") return b.rad - a.rad;
+      if (sortMode === "ducats") return b.ducats - a.ducats;
+      return 0;
+    });
+
+    let newHTML = "";
+    enrichedItems.forEach((item) => {
+      const safeName = item.name.replace(/'/g, "\\'").replace(/"/g, "&quot;");
+      const mainPrice = sortMode.includes("rad") ? item.rad : item.intact;
+      const isVaulted = state.relicStatusDB[item.name] === "vaulted";
+
+      newHTML += `
+        <div class="inv-row">
+            <div class="inv-name-group" onclick="selectRelicFromInv('${safeName}')">
+                <div class="inv-name">${item.name}</div>
+                <div class="inv-meta">
+                   <span style="color:${isVaulted ? "#e44" : "#aaa"}">${
+        isVaulted ? "V" : "A"
+      }</span>
+                   <span style="color:var(--wf-gold)">${item.ducats} duc</span>
+                </div>
+            </div>
+            <div class="inv-price-tag">
+                <div>${mainPrice}p</div>
+                <div style="font-size:0.8em; opacity:0.6">x${item.count}</div>
+            </div>
+            <div class="inv-qty-controls">
+                <button class="inv-btn minus" onclick="modifyInv('${safeName}', -1)">−</button>
+                <button class="inv-btn plus" onclick="modifyInv('${safeName}', 1)">+</button>
+            </div>
+        </div>
+      `;
+    });
+
+    list.innerHTML = newHTML;
+  } catch (e) {
+    console.error("Error renderizando inventario:", e);
+    if (list.innerHTML === "") {
+      list.innerHTML = `<div style="color:#d44; padding:10px;">Error de visualización.</div>`;
+    }
+  } finally {
+    resetLoadingStyle(list);
+  }
+}
+
+function resetLoadingStyle(element) {
+  if (!element) return;
+  element.style.opacity = "1";
+  element.style.pointerEvents = "auto";
+}
+window.modifyInv = (name, amount) => {
+  updateInventoryCount(name, amount);
+  saveAppState();
+  renderInventory();
+};
+
+window.selectRelicFromInv = (name) => {
+  const input = document.getElementById("relicInput");
+  if (input) {
+    input.value = name;
+    state.selectedRelic = name;
+
+    switchTab("relic");
+
+    toggleInventoryPanel(false);
+
+    manualRelicUpdate();
+  }
+};
+
+async function calculateRelicValue(relicName) {
+  const drops = state.relicsDatabase[relicName];
+
+  if (!drops) return { intact: 0, rad: 0, ducats: 0 };
+
+  let totalIntact = 0;
+  let totalRad = 0;
+  let avgDucats = 0;
+
+  const promises = drops.map(async (d) => {
+    const slug = getSlug(d.name);
+
+    const price = await getPriceValue(d.name, slug);
+    let ducatValue = 15;
+    if (d.chance < 20) ducatValue = 45;
+    if (d.chance < 5) ducatValue = 100;
+
+    let pIntact = 0.2533;
+    let pRad = 0.1667;
+
+    if (d.chance < 20) {
+      pIntact = 0.11;
+      pRad = 0.2;
+    }
+    if (d.chance < 5) {
+      pIntact = 0.02;
+      pRad = 0.1;
+    }
+
+    return {
+      intactVal: price * pIntact,
+      radVal: price * pRad,
+      ducatVal: ducatValue * pIntact,
+    };
+  });
+
+  const results = await Promise.all(promises);
+
+  results.forEach((res) => {
+    totalIntact += res.intactVal;
+    totalRad += res.radVal;
+    avgDucats += res.ducatVal;
+  });
+
+  return {
+    intact: parseFloat(totalIntact.toFixed(1)),
+    rad: parseFloat(totalRad.toFixed(1)),
+    ducats: Math.round(avgDucats),
+  };
+}
+
+Object.assign(window, {
+  toggleInventoryPanel,
+  renderInventory,
+  clearInventory,
+});
+window.handleInvSearch = (val) => {
+  state.invSearchVal = val.toLowerCase().trim();
+  renderInventory();
+};
+
+window.filterInvTier = (tier) => {
+  state.invFilterTier = tier;
+  document.querySelectorAll(".inv-tier-btn").forEach((btn) => {
+    btn.classList.remove("active");
+    if (
+      btn.innerText === tier ||
+      (tier === "REQUIEM" && btn.innerText === "REQ") ||
+      (tier === "ALL" && btn.innerText === "ALL")
+    ) {
+      btn.classList.add("active");
+    }
+  });
+  renderInventory();
+};
+window.selectRelicFromInv = (name) => {
+  state.selectedRelic = name;
+  const input = document.getElementById("relicInput");
+  if (input) input.value = name;
+
+  switchTab("relic");
+  toggleInventoryPanel(false);
+  manualRelicUpdate();
+};
+window.addCurrentToInv = function () {
+  if (!state.selectedRelic) return;
+
+  updateInventoryCount(state.selectedRelic, 1);
+  saveAppState();
+
+  const t = TEXTS[state.currentLang];
+  const msg =
+    state.currentLang === "es"
+      ? `✅ ${state.selectedRelic} añadida al inventario.`
+      : `✅ ${state.selectedRelic} added to inventory.`;
+
+  showToast(msg);
+
+  const btn = document.querySelector("#manual-add-container button");
+  if (btn) {
+    const originalText = btn.innerText;
+    btn.innerText = "✔ OK";
+    setTimeout(() => (btn.innerText = originalText), 1000);
+  }
+
+  renderInventory();
+};
+
+export function initDisclaimerSystem() {
+  setTimeout(() => {
+    const disclaimer = document.getElementById("txt-disclaimer");
+    if (disclaimer) {
+      disclaimer.classList.add("fade-out");
+      setTimeout(() => {
+        disclaimer.style.display = "none";
+      }, 2000);
+    }
+  }, 8000);
+}
+
+export function setupGlobalClickListeners() {
+  document.addEventListener("click", (e) => {
+    const target = e.target;
+
+    const langWrapper = document.getElementById("langSelectorWrapper");
+    const langList = document.getElementById("langOptionsList");
+    if (
+      langWrapper &&
+      !langWrapper.contains(target) &&
+      langList &&
+      !langList.classList.contains("hidden")
+    ) {
+      langList.classList.add("hidden");
+    }
+
+    const lfgList = document.getElementById("lfgDropdown");
+    const lfgTrigger =
+      target.closest("[onclick*='toggleLfgDropdown']") ||
+      target.closest(".custom-select-wrapper");
+    if (lfgList && !lfgList.classList.contains("hidden")) {
+      if (!lfgList.contains(target) && !lfgTrigger) {
+        lfgList.classList.add("hidden");
+      }
+    }
+
+    if (window.innerWidth <= 768) {
+      const closeSidePanel = (panelId, btnId) => {
+        const panel = document.getElementById(panelId);
+        const btn = document.getElementById(btnId);
+        if (panel && panel.classList.contains("open")) {
+          if (!panel.contains(target) && (!btn || !btn.contains(target))) {
+            panel.classList.remove("open");
+          }
+        }
+      };
+      closeSidePanel("best-missions-container", "mission-toggle-btn");
+      closeSidePanel("cloud-sync-container", "sync-toggle-btn");
+      closeSidePanel("inventory-container", "inv-toggle-btn"); 
+    }
+  });
+}

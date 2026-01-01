@@ -57,6 +57,165 @@
 
   <body>
     <canvas id="void-traces-canvas"></canvas>
+    <div id="ocr-overlay" class="fullscreen-scanner hidden">
+      <div class="ocr-system-header">INVENTORY OCR (RELICS ONLY)</div>
+      <video id="ocr-video" autoplay playsinline class="scanner-video"></video>
+      <canvas id="ocr-canvas" class="hidden"></canvas>
+
+      <div class="scanner-ui">
+        <button onclick="window.closeScanner()" class="scanner-close-btn">
+          ×
+        </button>
+
+        <div class="scanner-guide">
+          <div class="guide-corner tl"></div>
+          <div class="guide-corner tr"></div>
+          <div class="guide-corner bl"></div>
+          <div class="guide-corner br"></div>
+          <div
+            class="scanner-text"
+            style="
+              position: absolute;
+              bottom: -30px;
+              width: 100%;
+              text-align: center;
+            "
+          >
+            AIM YOUR CAMERA TOWARDS THE INVENTORY SCREEN OF YOUR RELICS
+          </div>
+        </div>
+
+        <div class="scanner-controls-bar">
+          <button
+            onclick="document.getElementById('file-upload').click()"
+            class="control-btn small"
+          >
+            📁
+          </button>
+          <input
+            type="file"
+            id="file-upload"
+            accept="image/*"
+            hidden
+            onchange="window.handleFileUpload(this)"
+          />
+
+          <button onclick="window.captureRelics()" class="shutter-btn"></button>
+
+          <button
+            onclick="window.toggleScannedList()"
+            class="control-btn small"
+            style="position: relative"
+          >
+            🎒 <span id="scanned-badge" class="badge-count hidden">0</span>
+          </button>
+        </div>
+      </div>
+
+      <div id="scanned-results-panel" class="results-drawer hidden">
+        <h4
+          style="
+            margin: 0 0 10px 0;
+            color: #fff;
+            text-align: center;
+            border-bottom: 1px solid #333;
+            padding-bottom: 10px;
+          "
+        >
+          DETECTED RELICS
+        </h4>
+        <div id="scanned-list" class="scanned-list-content"></div>
+        <div style="margin-top: 10px; display: flex; gap: 10px">
+          <button
+            onclick="window.confirmScanResults()"
+            class="riven-btn"
+            style="margin: 0; background: var(--wf-green)"
+          >
+            SAVE RELICS ON INVENTORY
+          </button>
+        </div>
+      </div>
+
+      <div id="ocr-loading" class="hidden">
+        <div class="loading-spinner"></div>
+        <p style="margin-top: 10px">Analizando...</p>
+      </div>
+    </div>
+
+    <div id="inventory-container">
+      <div
+        id="inv-toggle-btn"
+        class="mission-toggle-btn"
+        onclick="toggleInventoryPanel()"
+      >
+        <img src="assets/inv.relic.png" class="toggle-img" alt="Inventario" />
+      </div>
+
+      <div class="panel-main-header">
+        <span id="txt-inv-title">Mi Inventario</span>
+        <span
+          class="info-icon"
+          onclick="window.clearInventory()"
+          title="Delete all"
+          >🗑️</span
+        >
+      </div>
+
+      <div
+        class="inventory-controls"
+        style="padding: 10px; display: flex; flex-direction: column; gap: 8px"
+      >
+        <input
+          type="text"
+          id="inv-search-input"
+          class="wf-input"
+          placeholder="Filtrar..."
+          onkeyup="window.handleInvSearch(this.value)"
+          style="padding: 8px; font-size: 0.9em"
+        />
+
+        <div class="inv-tiers-row">
+          <button
+            class="inv-tier-btn active"
+            onclick="window.filterInvTier('ALL')"
+          >
+            ALL
+          </button>
+          <button class="inv-tier-btn" onclick="window.filterInvTier('LITH')">
+            LITH
+          </button>
+          <button class="inv-tier-btn" onclick="window.filterInvTier('MESO')">
+            MESO
+          </button>
+          <button class="inv-tier-btn" onclick="window.filterInvTier('NEO')">
+            NEO
+          </button>
+          <button class="inv-tier-btn" onclick="window.filterInvTier('AXI')">
+            AXI
+          </button>
+          <button
+            class="inv-tier-btn"
+            onclick="window.filterInvTier('REQUIEM')"
+          >
+            REQ
+          </button>
+        </div>
+
+        <select
+          id="inv-sort"
+          class="wf-input"
+          onchange="window.renderInventory()"
+          style="font-size: 0.85em; padding: 5px"
+        >
+          <option value="recent">Recently added</option>
+          <option value="plat_intact">AVG Plat value (intact)</option>
+          <option value="plat_rad">AVG Plat value (radiant)</option>
+          <option value="ducats">Ducats per relic</option>
+        </select>
+      </div>
+
+      <div id="inventory-list" class="fissures-scroll-area"></div>
+    </div>
     <header class="site-header">
       <h1 class="header-title" id="txt-header-title">VOIDSTONKS</h1>
       <div class="header-subtitle" id="txt-header-sub">
@@ -150,25 +309,36 @@
 
         <div id="mode-relic">
           <div class="form-group">
-            <label id="lbl-relic-name">Nombre de Reliquia</label>
-            <div class="custom-search-container">
+            <label>
+              <span id="lbl-relic-name">Nombre de Reliquia</span>
+              <span
+                id="relic-guide-icon"
+                class="info-icon"
+                style="cursor: help; margin-left: 5px"
+                >ℹ️</span
+              >
+            </label>
+
+            <div class="relic-input-wrapper">
               <input
-                class="wf-input"
                 type="text"
                 id="relicInput"
-                placeholder="Ej: Meso N6"
-                onkeyup="handleRelicTyping()"
+                placeholder="Ej: Lith G1..."
                 autocomplete="off"
+                onkeyup="window.handleRelicTyping()"
               />
-              <div id="relicDropdown" class="custom-dropdown hidden"></div>
-            </div>
-            <div style="text-align: right; margin-top: 5px">
-              <span id="relicCount" style="font-size: 0.75em; color: #555"
-                >...</span
+
+              <button
+                class="camera-btn"
+                onclick="window.openScanner()"
+                title="Escanear Inventario"
               >
+                Relic photo scan
+              </button>
+
+              <div id="relicDropdown" class="dropdown-list hidden"></div>
             </div>
           </div>
-
           <div
             id="relic-controls-wrapper"
             style="
@@ -192,11 +362,11 @@
                   onchange="generateMessage()"
                 >
                   <option value="Rad" data-key="rad">Radiante</option>
-                  <option value="Intact" data-key="intact">Intacta</option>
                   <option value="Flawless" data-key="flawless">Perfecta</option>
                   <option value="Exceptional" data-key="exceptional">
                     Excepcional
                   </option>
+                  <option value="Intact" data-key="intact">Intacta</option>
                 </select>
               </div>
               <div>
@@ -243,7 +413,6 @@
             </div>
           </div>
         </div>
-
         <div id="mode-set" class="hidden">
           <div class="form-group">
             <label id="lbl-search-item">Buscar Item / Set</label>
@@ -537,7 +706,7 @@
         Warframe™ es una marca registrada de Digital Extremes Ltd.
       </div>
     </footer>
-
+    <script src="js/tesseract.min.js"></script>
     <script type="module" src="js/main.js"></script>
   </body>
 </html>

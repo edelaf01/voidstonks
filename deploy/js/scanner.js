@@ -1,12 +1,12 @@
-import { state } from "./state.js";
-import { showToast, getSlug } from "./ui.js";
-import { getPriceValue } from "./api.js";
+import { state, saveAppState, updateInventoryCount } from "./state.js";
+import { showToast, toggleInventoryPanel, renderInventory } from "./ui.js";
 
 let videoStream = null;
 let scannedInventory = [];
 
 export async function openScanner() {
-  document.getElementById("ocr-overlay").classList.remove("hidden");
+  const overlay = document.getElementById("ocr-overlay");
+  overlay.classList.remove("hidden");
   startCamera();
 }
 
@@ -20,12 +20,17 @@ async function startCamera() {
   const video = document.getElementById("ocr-video");
   try {
     videoStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: "environment", width: { ideal: 1920 } },
+      video: {
+        facingMode: "environment",
+        width: { ideal: 1920 },
+        height: { ideal: 1080 },
+      },
     });
     video.srcObject = videoStream;
     video.classList.remove("hidden");
   } catch (e) {
-    console.warn("Cámara no disponible, usa Subir Foto");
+    console.warn(e);
+    showToast("Error: No se pudo acceder a la cámara.");
   }
 }
 
@@ -36,27 +41,23 @@ function stopCamera() {
   }
 }
 
-export function handleFileUpload(input) {
-  const file = input.files[0];
-  if (!file) return;
-
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    const img = new Image();
-    img.onload = () => processImageSource(img);
-    img.src = e.target.result;
-  };
-  reader.readAsDataURL(file);
-
-  stopCamera();
-}
-
 export async function captureRelics() {
   const video = document.getElementById("ocr-video");
-  if (videoStream && video.readyState === 4) {
-    processImageSource(video);
-  } else {
-    showToast("Cámara no lista");
+  if (!videoStream || video.readyState < 2) {
+    return showToast("Cámara no lista...");
+  }
+  processImageSource(video);
+}
+
+export function handleFileUpload(input) {
+  if (input.files && input.files[0]) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => processImageSource(img);
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(input.files[0]);
   }
 }
 
@@ -65,43 +66,58 @@ async function processImageSource(source) {
   loading.classList.remove("hidden");
 
   const canvas = document.createElement("canvas");
-  canvas.width = source.videoWidth || source.width;
-  canvas.height = source.videoHeight || source.height;
+  const w = source.videoWidth || source.width;
+  const h = source.videoHeight || source.height;
+  canvas.width = w;
+  canvas.height = h;
   const ctx = canvas.getContext("2d");
-  ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
+  ctx.drawImage(source, 0, 0, w, h);
 
-  preprocessImageForOCR(ctx, canvas.width, canvas.height);
+  const imageData = ctx.getImageData(0, 0, w, h);
+  const data = imageData.data;
+  for (let i = 0; i < data.length; i += 4) {
+    const gray =
+      255 - (data[i] * 0.3 + data[i + 1] * 0.59 + data[i + 2] * 0.11);
+    data[i] = data[i + 1] = data[i + 2] = gray;
+  }
+  ctx.putImageData(imageData, 0, 0);
 
   try {
     const {
       data: { text },
-    } = await Tesseract.recognize(canvas, "eng", {
+    } = await window.Tesseract.recognize(canvas, "eng", {
       tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 ",
     });
 
-    const foundNames = smartParse(text);
+    const found = parseRelicText(text);
 
-    if (foundNames.length > 0) {
-      addToScannedInventory(foundNames);
-      showToast(`✅ ${foundNames.length} reliquias añadidas`);
-      window.toggleScannedList(true);
+    if (found.length > 0) {
+      found.forEach((item) => {
+        if (!scannedInventory.includes(item)) scannedInventory.push(item);
+      });
+      updateResultsUI();
+      showToast(`🔍 ${found.length} reliquias encontradas`);
     } else {
-      showToast("No se detectaron reliquias.");
+      showToast("No se detectó texto claro. Intenta acercarte.");
     }
   } catch (e) {
     console.error(e);
-    showToast("Error OCR");
+    showToast("Error en el reconocimiento.");
   } finally {
     loading.classList.add("hidden");
   }
 }
 
-async function addToScannedInventory(names) {
-  const newItems = names.filter((n) => !scannedInventory.includes(n));
-  scannedInventory = [...scannedInventory, ...newItems];
-
-  updateScannedBadge();
-  renderScannedList();
+function parseRelicText(text) {
+  const clean = text.replace(/\n/g, " ").toUpperCase();
+  const regex = /(LITH|MESO|NEO|AXI|REQUIEM)\s+([A-Z][0-9]+)/g;
+  const found = new Set();
+  let m;
+  while ((m = regex.exec(clean)) !== null) {
+    const tier = m[1].charAt(0) + m[1].slice(1).toLowerCase();
+    found.add(`${tier} ${m[2]}`);
+  }
+  return Array.from(found);
 }
 
 export function toggleScannedList(forceOpen = false) {
@@ -110,132 +126,50 @@ export function toggleScannedList(forceOpen = false) {
   else panel.classList.toggle("hidden");
 }
 
-function updateScannedBadge() {
+function updateResultsUI() {
+  const list = document.getElementById("scanned-list");
   const badge = document.getElementById("scanned-badge");
-  badge.innerText = scannedInventory.length;
-  badge.classList.remove("hidden");
-}
 
-async function renderScannedList() {
-  const container = document.getElementById("scanned-list");
-  container.innerHTML = "";
-
-  for (const relicName of scannedInventory) {
-    const card = document.createElement("div");
-    card.className = "scanned-item-card";
-
-    const stats = await calculateRelicStats(relicName);
-
-    card.innerHTML = `
-            <div>
-                <div style="font-weight:bold; color:#fff;">${relicName}</div>
-                <div style="font-size:0.75em; color:#888;">
-                   ${stats.vaulted ? "VAULTED" : "Active"} • Avg Duc: ${
-      stats.avgDucats
-    }
-                </div>
-            </div>
-            <div style="text-align:right;">
-                <div class="ev-badge">${
-                  stats.evIntact
-                } <span style="font-size:0.7em">pl</span></div>
-                <div style="font-size:0.7em; color:var(--wf-blue);">Rad: ${
-                  stats.evRad
-                }</div>
-            </div>
-        `;
-
-    card.onclick = () => {
-      closeScanner();
-      document.getElementById("relicInput").value = relicName;
-      if (window.manualRelicUpdate) window.manualRelicUpdate();
-    };
-
-    container.appendChild(card);
-  }
-}
-
-async function calculateRelicStats(relicName) {
-  const drops = state.relicsDatabase[relicName];
-
-  if (!drops)
-    return { evIntact: "?", evRad: "?", avgDucats: "?", vaulted: false };
-
-  let evIntact = 0;
-  let evRad = 0;
-  let totalDucats = 0;
-
-  for (const drop of drops) {
-    const price = await getPriceValue(drop.name, getSlug(drop.name));
-
-    let ducats = 15;
-    if (drop.chance < 20) ducats = 45;
-    if (drop.chance < 5) ducats = 100;
-
-    let pIntact = 0.2533;
-    if (drop.chance < 20) pIntact = 0.11;
-    if (drop.chance < 5) pIntact = 0.02;
-
-    let pRad = 0.166;
-    if (drop.chance < 20) pRad = 0.2;
-    if (drop.chance < 5) pRad = 0.1;
-
-    evIntact += price * pIntact;
-    evRad += price * pRad;
-    totalDucats += ducats * pIntact;
+  if (badge) {
+    badge.innerText = scannedInventory.length;
+    badge.classList.remove("hidden");
   }
 
-  return {
-    evIntact: evIntact.toFixed(1),
-    evRad: evRad.toFixed(1),
-    avgDucats: Math.round(totalDucats),
-    vaulted: state.relicStatusDB[relicName] !== "active",
-  };
+  list.innerHTML = "";
+  scannedInventory.forEach((r) => {
+    const d = document.createElement("div");
+    d.className = "scanned-item-card";
+    d.innerHTML = `<span style="color:#fff; font-weight:bold;">${r}</span>`;
+    list.appendChild(d);
+  });
+
+  toggleScannedList(true);
 }
 
-function preprocessImageForOCR(ctx, width, height) {
-  const imageData = ctx.getImageData(0, 0, width, height);
-  const data = imageData.data;
+export function confirmScanResults() {
+  if (scannedInventory.length === 0) return;
 
-  for (let i = 0; i < data.length; i += 4) {
-    const r = data[i];
-    const g = data[i + 1];
-    const b = data[i + 2];
+  let addedCount = 0;
 
-    let gray = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  scannedInventory.forEach((relicName) => {
+    updateInventoryCount(relicName, 1);
+    addedCount++;
+  });
 
-    gray = gray > 100 ? 255 : 0;
+  saveAppState();
+  renderInventory();
 
-    gray = 255 - gray;
+  showToast(`✅ ${addedCount} reliquias añadidas/actualizadas.`);
 
-    data[i] = gray;
-    data[i + 1] = gray;
-    data[i + 2] = gray;
-  }
-  ctx.putImageData(imageData, 0, 0);
+  scannedInventory = [];
+  closeScanner();
+  toggleInventoryPanel(true);
 }
-
-function smartParse(text) {
-  const results = new Set();
-
-  const cleanText = text.replace(/\n/g, " ").replace(/\s+/g, " ").toUpperCase();
-
-  const regex =
-    /(LITH|MESO|NEO|AXI|REQUIEM|OMNIA|L1TH|MES0|NE0|AX1)\s+([A-Z][0-9]{1,2})/g;
-
-  let match;
-  while ((match = regex.exec(cleanText)) !== null) {
-    let tier = match[1];
-    let code = match[2];
-
-    if (tier === "L1TH") tier = "LITH";
-    if (tier === "MES0") tier = "MESO";
-    if (tier === "NE0") tier = "NEO";
-    if (tier === "AX1") tier = "AXI";
-
-    const relicName = tier.charAt(0) + tier.slice(1).toLowerCase() + " " + code;
-    results.add(relicName);
-  }
-
-  return Array.from(results);
-}
+Object.assign(window, {
+  openScanner,
+  closeScanner,
+  captureRelics,
+  handleFileUpload,
+  toggleScannedList,
+  confirmScanResults,
+});

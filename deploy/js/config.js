@@ -58,6 +58,32 @@ export const RIVEN_STATS = [
 
 export const TEXTS = {
   es: {
+    inventory: {
+      title: "Mi Inventario",
+      empty: "Inventario vacío. Usa el escáner.",
+      searchPlaceholder: "Filtrar (Ej: G1)...",
+      sort: {
+        recent: "Recientes",
+        valIntact: "Valor (Intacta)",
+        valRad: "Valor (Radiante)",
+        ducats: "Ducados",
+      },
+      actions: {
+        clear: "Borrar Todo",
+        deleteConfirm: "¿Seguro que quieres borrar todo el inventario?",
+      },
+    },
+    ocr: {
+      cameraTitle: "Escáner de Reliquias",
+      btnCapture: "Capturar",
+      btnUpload: "Subir Foto",
+      btnSave: "GUARDAR EN INVENTARIO",
+      guide: "Apunta a la lista de reliquias",
+      analyzing: "Analizando imagen...",
+      results: "Resultados Detectados",
+      noText: "No se detectó texto claro. Intenta acercarte.",
+      success: "Guardado correctamente.",
+    },
     lfgPresets: {
       title: "Mensajes Guardados",
       btnSave: "GUARDAR PRESET",
@@ -99,6 +125,9 @@ export const TEXTS = {
         "Usa esto para pasar textos (LFG, Compras) del Móvil al PC/Consola sin escribir.",
       placeholder: "Ej: 1234",
     },
+    manualAdd: "Añadir al Inventario",
+    addGuide:
+      "ℹ️ Dos formas de añadir: Manualmente (botón +) o Escáner (Cámara). Las fotos se procesan 100% local en tu dispositivo.",
     lblProfit: "Rentabilidad (Media)",
     lblProfitSolo: "Rentabilidad (Solo)",
     lblProfitSquad: "Rentabilidad ({n} Jugadores)",
@@ -226,6 +255,32 @@ export const TEXTS = {
     },
   },
   en: {
+    inventory: {
+      title: "My Inventory",
+      empty: "Inventory empty. Use scanner.",
+      searchPlaceholder: "Filter (e.g. G1)...",
+      sort: {
+        recent: "Recent",
+        valIntact: "Value (Intact)",
+        valRad: "Value (Radiant)",
+        ducats: "Ducats",
+      },
+      actions: {
+        clear: "Clear All",
+        deleteConfirm: "Are you sure you want to delete all?",
+      },
+    },
+    ocr: {
+      cameraTitle: "Relic Scanner",
+      btnCapture: "Capture",
+      btnUpload: "Upload File",
+      btnSave: "SAVE TO INVENTORY",
+      guide: "Aim at relic list",
+      analyzing: "Analyzing image...",
+      results: "Detected Results",
+      noText: "No clear text detected. Try closer.",
+      success: "Saved successfully.",
+    },
     lfgPresets: {
       title: "Saved Presets",
       btnSave: "SAVE PRESET",
@@ -265,6 +320,9 @@ export const TEXTS = {
       mobile_defense: "Mobile Defense",
       spy: "Spy",
     },
+    manualAdd: "Add relic to Inventory",
+    addGuide:
+      "ℹTwo ways to adD relics: Manually press the add relic to inventory when you select a relic  or Scanner (Camera). Images are processed 100% locally on your device.",
     lblProfit: "Profitability (Avg)",
     lblProfitSolo: "Profitability (Solo)",
     lblProfitSquad: "Profitability ({n} Players)",
