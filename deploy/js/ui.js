@@ -1517,9 +1517,9 @@ export function highlightFissureTier(tier) {
   const normalizedTier = tierKey === "vanguard" ? "axi" : tierKey;
 
   const panel = document.getElementById("best-missions-container");
-  if (panel && !panel.classList.contains("open")) {
+  /*if (panel && !panel.classList.contains("open")) {
     panel.classList.add("open");
-  }
+  }*/ //TODO
 
   document.querySelectorAll(".fissure-group").forEach((group) => {
     const groupTier = group.dataset.tier;
@@ -2134,7 +2134,6 @@ window.addCurrentToInv = function () {
 };
 // En ui.js
 
-// Inicializa el cierre automático del disclaimer
 export function initDisclaimerSystem() {
   setTimeout(() => {
     const disclaimer = document.getElementById("txt-disclaimer");
@@ -2184,7 +2183,33 @@ export function setupGlobalClickListeners() {
       };
       closeSidePanel("best-missions-container", "mission-toggle-btn");
       closeSidePanel("cloud-sync-container", "sync-toggle-btn");
-      closeSidePanel("inventory-container", "inv-toggle-btn"); 
+      closeSidePanel("inventory-container", "inv-toggle-btn");
     }
   });
 }
+document.addEventListener("DOMContentLoaded", () => {
+  const contentArea = document.querySelector(".content-area");
+  const footerRelic = document.getElementById("footer-relic");
+
+  if (!contentArea || !footerRelic) return;
+
+  function checkFooterVisibility() {
+    if (contentArea.scrollHeight <= contentArea.clientHeight) {
+      footerRelic.classList.add("footer-visible");
+      return;
+    }
+
+    const scrollBottom = contentArea.scrollTop + contentArea.clientHeight;
+    const distanceToBottom = contentArea.scrollHeight - scrollBottom;
+
+    if (distanceToBottom < 80) {
+      footerRelic.classList.add("footer-visible");
+    } else {
+      footerRelic.classList.remove("footer-visible");
+    }
+  }
+
+  contentArea.addEventListener("scroll", checkFooterVisibility);
+
+  checkFooterVisibility();
+});
