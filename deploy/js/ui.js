@@ -320,20 +320,23 @@ export function handleRelicTyping() {
   debounceTimer = setTimeout(manualRelicUpdate, 600);
 }
 
+
 export function manualRelicUpdate() {
   try {
     const relicInput = document.getElementById("relicInput");
     state.selectedRelic = relicInput.value;
-    const tier = state.selectedRelic.split(" ")[0];
-    updateRecommendedMissions(tier).catch((err) =>
-      console.error("Error misiones:", err)
-    );
 
-    generateMessage();
+    const tier = state.selectedRelic.split(" ")[0];
+    if (typeof window.updateRecommendedMissions === "function") {
+      window.updateRecommendedMissions(tier).catch((err) => console.error(err));
+    }
+
+    if (typeof window.generateMessage === "function") window.generateMessage();
 
     const listDiv = document.getElementById("relic-drops-list");
     const profitDisplay = document.getElementById("relic-profit-display");
     const container = document.getElementById("relic-contents");
+    const statusBadge = document.getElementById("relic-status-badge");
 
     if (!listDiv || !profitDisplay || !container) return;
 
@@ -343,6 +346,33 @@ export function manualRelicUpdate() {
 
     if (state.selectedRelic && state.relicsDatabase[state.selectedRelic]) {
       container.classList.remove("hidden");
+
+      if (statusBadge) {
+        const status = state.relicStatusDB[state.selectedRelic] || "vaulted";
+
+        statusBadge.className = "badge";
+        statusBadge.style.display = "inline-block"; 
+
+        if (status === "active" || status === "aya") {
+          statusBadge.classList.add(status === "aya" ? "aya" : "active");
+          statusBadge.innerText =
+            status === "aya" ? "AYA (RESURGENCE)" : "ACTIVE";
+
+          const tooltipHTML = getRelicDropTooltip(state.selectedRelic);
+          statusBadge.setAttribute("data-tooltip-html", tooltipHTML);
+          statusBadge.removeAttribute("data-tooltip"); // Borrar tooltip de texto simple
+        } else {
+          statusBadge.classList.add("vaulted");
+          statusBadge.innerText = "VAULTED";
+
+          statusBadge.removeAttribute("data-tooltip-html");
+          statusBadge.setAttribute(
+            "data-tooltip",
+            "Esta reliquia está en la Bóveda (No cae actualmente)."
+          );
+        }
+      }
+
       let addBtnContainer = document.getElementById("manual-add-container");
       if (!addBtnContainer) {
         addBtnContainer = document.createElement("div");
@@ -358,6 +388,7 @@ export function manualRelicUpdate() {
             + ${t.manualAdd || "Add to Inventory"}
         </button>
       `;
+
       const items = state.relicsDatabase[state.selectedRelic];
       items.sort((a, b) => b.chance - a.chance);
       const abbr = TEXTS[state.currentLang].rarityAbbr;
@@ -378,12 +409,19 @@ export function manualRelicUpdate() {
         if (item.chance <= 5) {
           rarityLabel = abbr.rare;
           rarityColor = "var(--wf-rare)";
-        } else if (item.chance <= 22) {
+          row.setAttribute("data-rarity", "rare");
+        } else if (item.chance <= 11) {
           rarityLabel = abbr.uncommon;
           rarityColor = "var(--wf-uncommon)";
+          row.setAttribute("data-rarity", "uncommon");
+        } else {
+          row.setAttribute("data-rarity", "common");
         }
 
-        if (isUntradable) rarityColor = "var(--wf-forma)";
+        if (isUntradable) {
+          rarityColor = "var(--wf-forma)";
+          row.setAttribute("data-rarity", "forma");
+        }
 
         row.style.display = "flex";
         row.style.justifyContent = "space-between";
@@ -583,6 +621,7 @@ function searchSet() {
     );
 }
 
+
 function createSetCard(title, itemNames, parent, isSingle = false) {
   const setContainer = document.createElement("div");
   setContainer.className = "set-container";
@@ -656,12 +695,26 @@ function createSetCard(title, itemNames, parent, isSingle = false) {
         const stKey = state.relicStatusDB[info.relic] || "vaulted";
         const stTxt = TEXTS[state.currentLang][stKey];
 
+        let tooltipAttr = "";
+        if (stKey === "active" || stKey === "aya") {
+            const rawHtml = getRelicDropTooltip(info.relic);
+            const safeHtml = rawHtml.replace(/"/g, '&quot;');
+            tooltipAttr = `data-tooltip-html="${safeHtml}"`;
+        } else {
+            tooltipAttr = `data-tooltip="Esta reliquia está Vaulted"`;
+        }
+
         btn.className = `relic-chip ${rc}`;
-        btn.innerHTML = `<div class="relic-chip-header"><span class="relic-name">${
-          info.relic
-        }</span><img src="${
-          TIER_URLS[tier] || TIER_URLS.Lith
-        }" class="relic-img"></div><div class="chip-footer"><span class="rarity-text ${rc}">${rl}</span><span class="status-badge ${stKey}">${stTxt}</span></div>`;
+        
+        btn.innerHTML = `
+            <div class="relic-chip-header">
+                <span class="relic-name">${info.relic}</span>
+                <img src="${TIER_URLS[tier] || TIER_URLS.Lith}" class="relic-img">
+            </div>
+            <div class="chip-footer">
+                <span class="rarity-text ${rc}">${rl}</span>
+                <span class="status-badge ${stKey}" ${tooltipAttr}>${stTxt}</span>
+            </div>`;
 
         btn.onclick = (e) => {
           e.stopPropagation();
@@ -1172,75 +1225,117 @@ function renderMissionRow(m) {
         </div>
     `;
 }
+
+
 export function initGlobalTooltipSystem() {
   let tooltipEl = document.getElementById("global-tooltip");
+  let closeTimer = null;
+  let currentMode = "simple";
+
   if (!tooltipEl) {
     tooltipEl = document.createElement("div");
     tooltipEl.id = "global-tooltip";
     tooltipEl.className = "global-tooltip hidden";
+    
+    tooltipEl.addEventListener("mouseenter", () => {
+      if (currentMode === "mega" && closeTimer) clearTimeout(closeTimer);
+    });
+    tooltipEl.addEventListener("mouseleave", () => {
+      if (currentMode === "mega") hideTooltip();
+    });
+
     document.body.appendChild(tooltipEl);
   }
 
-  const showTooltip = (e, text) => {
-    if (!text) return;
+  const moveSimpleTooltip = (e) => {
+    const offset = 15;
+    const tWidth = tooltipEl.offsetWidth;
+    const tHeight = tooltipEl.offsetHeight;
+    
+    let left = e.clientX + offset;
+    let top = e.clientY + offset;
 
-    tooltipEl.innerText = text;
-    tooltipEl.classList.remove("hidden");
-
-    const padding = 10;
-    const tipWidth = tooltipEl.offsetWidth;
-    const tipHeight = tooltipEl.offsetHeight;
-    const screenWidth = window.innerWidth;
-    const screenHeight = window.innerHeight;
-
-    let left = e.clientX + padding;
-    let top = e.clientY + padding;
-
-    if (left + tipWidth > screenWidth) {
-      left = e.clientX - tipWidth - padding;
-    }
-
-    if (top + tipHeight > screenHeight) {
-      top = e.clientY - tipHeight - padding;
-    }
-
-    if (left < 0) left = 10;
+    if (left + tWidth > window.innerWidth) left = e.clientX - tWidth - offset;
+    if (top + tHeight > window.innerHeight) top = e.clientY - tHeight - offset;
 
     tooltipEl.style.left = `${left}px`;
     tooltipEl.style.top = `${top}px`;
   };
 
-  const hideTooltip = () => {
-    tooltipEl.classList.add("hidden");
+  const positionMegaTooltip = (target) => {
+    const rect = target.getBoundingClientRect();
+    const tWidth = tooltipEl.offsetWidth;
+    const tHeight = tooltipEl.offsetHeight;
+    const gap = 5;
+
+    let left = rect.right + gap;
+    let top = rect.top;
+
+    if (left + tWidth > window.innerWidth) left = rect.left - tWidth - gap;
+    
+    if (top + tHeight > window.innerHeight) top = rect.bottom - tHeight;
+
+    if (top < 10) top = 10;
+    if (left < 10) left = 10;
+
+    tooltipEl.style.left = `${left}px`;
+    tooltipEl.style.top = `${top}px`;
   };
 
-  document.addEventListener("mouseover", (e) => {
-    const target = e.target.closest("[data-tooltip]");
-    if (target) {
-      showTooltip(e, target.getAttribute("data-tooltip"));
+  const showTooltip = (e, target) => {
+    if (closeTimer) clearTimeout(closeTimer);
+
+    const htmlContent = target.getAttribute("data-tooltip-html");
+    const textContent = target.getAttribute("data-tooltip");
+
+    if (htmlContent) {
+      currentMode = "mega";
+      tooltipEl.innerHTML = htmlContent;
+      tooltipEl.classList.add("mega-mode"); 
+      currentMode = "simple";
+      tooltipEl.innerText = textContent;
+      tooltipEl.classList.remove("mega-mode");
+    } else {
+      return;
     }
+
+    tooltipEl.classList.remove("hidden");
+
+    if (currentMode === "mega") {
+      positionMegaTooltip(target);
+    } else {
+      moveSimpleTooltip(e);
+    }
+  };
+
+  const hideTooltip = () => {
+    if (currentMode === "simple") {
+      tooltipEl.classList.add("hidden");
+    } else {
+      closeTimer = setTimeout(() => {
+        tooltipEl.classList.add("hidden");
+      }, 300);
+    }
+  };
+
+
+  document.addEventListener("mouseover", (e) => {
+    const target = e.target.closest("[data-tooltip], [data-tooltip-html]");
+    if (target) showTooltip(e, target);
   });
 
   document.addEventListener("mousemove", (e) => {
-    const target = e.target.closest("[data-tooltip]");
-    if (target && !tooltipEl.classList.contains("hidden")) {
-      showTooltip(e, target.getAttribute("data-tooltip"));
+    if (currentMode === "simple" && !tooltipEl.classList.contains("hidden")) {
+      moveSimpleTooltip(e);
     }
   });
 
   document.addEventListener("mouseout", (e) => {
-    hideTooltip();
-  });
-
-  document.addEventListener("touchstart", (e) => {
-    const target = e.target.closest("[data-tooltip]");
+    const target = e.target.closest("[data-tooltip], [data-tooltip-html]");
     if (target) {
-      const touch = e.touches[0];
-      showTooltip(
-        { clientX: touch.clientX, clientY: touch.clientY },
-        target.getAttribute("data-tooltip")
-      );
-    } else {
+      if (currentMode === "mega" && e.relatedTarget && e.relatedTarget.closest("#global-tooltip")) {
+        return;
+      }
       hideTooltip();
     }
   });
@@ -2212,4 +2307,45 @@ document.addEventListener("DOMContentLoaded", () => {
   contentArea.addEventListener("scroll", checkFooterVisibility);
 
   checkFooterVisibility();
-});
+}); 
+
+export function getRelicDropTooltip(tierName) {
+  const sources = state.relicSourcesDatabase[tierName];
+
+  if (!sources || sources.length === 0) {
+    return "No hay datos de drop confirmados.";
+  }
+
+  sources.sort((a, b) => b.chance - a.chance);
+
+  let html = `<div class='tooltip-header'>Drops for ${tierName} (${sources.length})</div>`;
+  
+
+  html += "<ul class='tooltip-list'>";
+
+  sources.forEach((s, index) => {
+    let locText = "";
+    
+    if (s.type === "mission") {
+      locText = `<span class="t-loc">${s.location}</span> <span style="color:#888">-</span> ${s.mission} <span class='rot-badge'>${s.rotation}</span>`;
+    } else {
+      let stage = s.rotation.replace("Rotation ", "").replace("Stage ", "St.");
+      locText = `<span class="t-loc">${s.location}</span> <span style="color:#888">-</span> ${s.mission} <span class='rot-badge'>${stage}</span>`;
+    }
+
+    const isTop = index < 5;
+    const rowClass = isTop ? "top-drop" : "";
+    
+    let chanceColor = "#888";
+    if (s.chance > 10) chanceColor = "var(--wf-gold-text)"; 
+    else if (s.chance > 5) chanceColor = "var(--wf-blue)"; 
+
+    html += `<li class="${rowClass}">
+      <div class="t-row">${locText}</div>
+      <span class='drop-chance' style="color:${chanceColor}">${s.chance.toFixed(2)}%</span>
+    </li>`;
+  });
+
+  html += "</ul>";
+  return html;
+}

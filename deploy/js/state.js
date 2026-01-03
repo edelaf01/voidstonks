@@ -4,6 +4,7 @@ export let state = {
   activeTab: "relic",
   playerCount: 1,
   lfgCount: 1,
+  relicSourcesDatabase: {},
   selectedRelic: "",
   itemsDatabase: {},
   relicsDatabase: {},
