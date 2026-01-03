@@ -159,7 +159,7 @@ body {
   margin: 0;
   padding: 0;
   font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-  background-image: url(assets/fondo.png);
+  background-image: url(assets/fondo.jpg);
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
@@ -1115,33 +1115,33 @@ option {
   .site-footer {
     display: none !important;
   }
-#footer-relic {
+  #footer-relic {
     position: fixed !important;
     left: 0 !important;
     width: 100% !important;
-    bottom: 70px !important; 
+    bottom: 70px !important;
     z-index: 4000 !important;
-    
+
     background: #0f1115 !important;
     border-top: 2px solid var(--active-theme-color) !important;
-    box-shadow: 0 -5px 20px rgba(0,0,0,0.8) !important;
+    box-shadow: 0 -5px 20px rgba(0, 0, 0, 0.8) !important;
     padding: 15px 20px !important;
-    
-    transform: translateY(85%); 
+
+    transform: translateY(85%);
     opacity: 0.8;
     transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
-    
+
     border-top-left-radius: 12px;
     border-top-right-radius: 12px;
   }
 
   #footer-relic.footer-visible {
-    transform: translateY(0) !important; 
+    transform: translateY(0) !important;
     opacity: 1;
   }
-  
+
   #footer-relic::before {
-    content: "▼ SCROLL TO SEE/COPY MESSAGE ▼"; 
+    content: "▼ SCROLL TO SEE/COPY MESSAGE ▼";
     position: absolute;
     top: -20px;
     left: 50%;
@@ -1152,13 +1152,13 @@ option {
     opacity: 1;
     transition: opacity 0.2s;
   }
-  
+
   #footer-relic.footer-visible::before {
     opacity: 0;
   }
-  
+
   .content-area {
-    padding-bottom: 120px !important; 
+    padding-bottom: 120px !important;
   }
   #best-missions-container.open {
     right: 0 !important;
@@ -2343,4 +2343,120 @@ option {
   background-color: var(--wf-blue);
   color: #000;
   font-weight: 700;
+}
+.tooltip-header {
+  font-weight: 800;
+  color: var(--wf-gold-text);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  padding-bottom: 5px;
+  margin-bottom: 8px;
+  font-size: 0.95em;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.tooltip-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.tooltip-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 0;
+  font-size: 0.85em;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.1);
+  gap: 15px;
+}
+
+.tooltip-list li:last-child {
+  border-bottom: none;
+}
+
+.t-row {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+
+.t-loc {
+  color: #fff;
+  font-weight: 600;
+}
+
+.rot-badge {
+  display: inline-block;
+  background: rgba(0, 229, 255, 0.15);
+  color: var(--wf-blue);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 0.85em;
+  font-weight: 700;
+  margin-top: 2px;
+  width: fit-content;
+}
+
+.drop-chance {
+  color: var(--wf-green);
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.tooltip-more {
+  margin-top: 5px;
+  font-size: 0.75em;
+  color: #888;
+  text-align: center;
+  font-style: italic;
+}
+#global-tooltip {
+  max-width: 350px;
+  max-height: 400px; 
+  width: max-content;
+  
+  overflow-y: auto; 
+  overflow-x: hidden;
+  
+  pointer-events: auto !important;
+  
+  background: rgba(10, 12, 16, 0.98); 
+  border: 1px solid var(--wf-gold);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+  padding-right: 5px; /
+}
+
+#global-tooltip::-webkit-scrollbar {
+  width: 6px;
+}
+#global-tooltip::-webkit-scrollbar-track {
+  background: rgba(255,255,255,0.05);
+}
+#global-tooltip::-webkit-scrollbar-thumb {
+  background: var(--wf-blue);
+  border-radius: 3px;
+}
+
+.tt-category {
+  background: rgba(255,255,255,0.05);
+  padding: 4px 8px;
+  margin-top: 8px;
+  font-size: 0.75em;
+  font-weight: 800;
+  color: #aaa;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  border-radius: 4px;
+}
+
+.t-loc {
+  font-size: 0.9em;
+  color: #ddd;
+}
+
+.top-drop {
+  background: linear-gradient(90deg, rgba(0,229,255,0.1) 0%, transparent 100%);
+  border-left: 2px solid var(--wf-blue);
+  padding-left: 8px !important;
 }
