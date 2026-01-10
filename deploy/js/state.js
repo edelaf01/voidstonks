@@ -21,24 +21,32 @@ export let state = {
   invFilterTier: "ALL",
   invSearchVal: "",
 };
-
-// --- GUARDAR ESTADO ---
+let saveTimer = null;
 export function saveAppState() {
-  const data = {
-    lang: state.currentLang,
-    // tab: state.activeTab,
-    relicInput: document.getElementById("relicInput")?.value || "",
-    refinement: document.getElementById("refinement")?.value || "Rad",
-    lfgActivity: document.getElementById("lfgActivity")?.value || "eidolon",
-    username: document.getElementById("usernameInput")?.value || "",
-    mr: document.getElementById("mrInput")?.value || 0,
-    currentActiveSet: state.currentActiveSet,
-    activeSetParts: state.activeSetParts,
-    completedParts: Array.from(state.completedParts),
-    lfgPresets: state.lfgPresets,
-    inventory: state.inventory,
-  };
-  localStorage.setItem("voidStonks_save", JSON.stringify(data));
+  if (saveTimer) clearTimeout(saveTimer);
+
+  saveTimer = setTimeout(() => {
+    
+    const data = {
+      lang: state.currentLang,
+      relicInput: document.getElementById("relicInput")?.value || "",
+      refinement: document.getElementById("refinement")?.value || "Rad",
+      lfgActivity: document.getElementById("lfgActivity")?.value || "eidolon",
+      username: document.getElementById("usernameInput")?.value || "",
+      mr: document.getElementById("mrInput")?.value || 0,
+      currentActiveSet: state.currentActiveSet,
+      activeSetParts: state.activeSetParts,
+      completedParts: Array.from(state.completedParts),
+      lfgPresets: state.lfgPresets,
+      inventory: state.inventory,
+    };
+    
+    localStorage.setItem("voidStonks_save", JSON.stringify(data));
+    
+    //console.log("Estado guardado");
+    saveTimer = null; 
+    
+  }, 1000); 
 }
 
 export function loadAppState() {
@@ -93,10 +101,22 @@ export function updateInventoryCount(relicName, change) {
   if (itemIndex >= 0) {
     state.inventory[itemIndex].count += change;
     if (state.inventory[itemIndex].count <= 0) {
-      state.inventory.splice(itemIndex, 1); // Borrar si es 0
+      state.inventory.splice(itemIndex, 1); 
     }
   } else if (change > 0) {
-    // Añadir nuevo
     state.inventory.push({ name: relicName, count: change });
   }
 }
+export function updateInventoryBatch(relicList) {
+  relicList.forEach(relicName => {
+    const itemIndex = state.inventory.findIndex((i) => i.name === relicName);
+    if (itemIndex >= 0) {
+      state.inventory[itemIndex].count += 1;
+    } else {
+      state.inventory.push({ name: relicName, count: 1 });
+    }
+  });
+  
+  state.inventory = state.inventory.filter(i => i.count > 0);
+}
+window.state = state;

@@ -1,9 +1,14 @@
+import { calculateRivenGrade } from "./riven_logic.js";
 import {
   TEXTS,
   TIER_URLS,
   RIVEN_STATS,
   DROP_CHANCES,
   WORKER_URL,
+  RIVEN_BASE_STATS,
+  WEAPON_TYPE_IDX,
+  APP_VERSION,
+  UPDATE_HISTORY_CONTENT,
 } from "./config.js";
 import { state, saveAppState, updateInventoryCount } from "./state.js";
 import {
@@ -11,34 +16,13 @@ import {
   fetchRivenAverage,
   fetchBestFissures,
   getPriceValue,
+  getSlug,
+  getRivenSlug,
 } from "./api.js";
 
 let debounceTimer;
 
 const t = TEXTS[state.currentLang];
-
-// --- UTILS ---
-export function getSlug(itemName) {
-  if (!itemName) return "";
-
-  let cleanName = itemName.trim();
-  let slug = cleanName
-    .toLowerCase()
-    .replace(/&/g, "and")
-    .replace(/[^a-z0-9 ]/g, "")
-    .trim()
-    .replace(/\s+/g, "_");
-
-  const manualFixes = {
-    kompressa_prime_receiver: "kompressa_prime_reciever", // <--- COMENTAR ESTO SI LO ARREGLAN
-  };
-
-  if (manualFixes[slug]) {
-    return manualFixes[slug];
-  }
-
-  return slug;
-}
 
 export function showToast(message) {
   const toast = document.getElementById("error-toast");
@@ -93,11 +77,33 @@ export function switchTab(mode) {
       footer.style.display = "block";
       footer.style.borderTopColor = "#333";
       if (msgText) msgText.style.color = "#00e5ff";
+      else if (tabName === "live") {
+        document.getElementById("mode-live").classList.remove("hidden");
+      }
     } else {
       footer.style.display = "none";
     }
   }
-
+  toggleInventoryPanel(false);
+  const invBtn = document.getElementById("inventory-toggle-btn");
+  if (invBtn) {
+    if (tabId === "relic") {
+      invBtn.classList.remove("hidden");
+      invBtn.style.display = "flex";
+    } else {
+      invBtn.classList.add("hidden");
+      invBtn.style.display = "none";
+    }
+  }
+  const resultsPanel = document.getElementById("scanned-results-panel");
+  if (resultsPanel) {
+    resultsPanel.classList.add("hidden");
+  }
+  const overlay = document.getElementById("ocr-overlay");
+  if (overlay && !overlay.classList.contains("hidden")) {
+    overlay.classList.add("hidden");
+    if (window.closeScanner) window.closeScanner();
+  }
   if (mode === "lfg") updateLFGUI();
   else generateMessage();
 }
@@ -237,36 +243,52 @@ export function changeCount(n) {
 }
 
 export function generateMessage() {
-  const t = TEXTS[state.currentLang];
-  const defaultText = t.defaultRelic;
-  let rName = state.selectedRelic || defaultText;
-  rName = rName.trim();
-
-  const refVal = document.getElementById("refinement").value;
-  const refText =
-    document.querySelector(`#refinement option[value="${refVal}"]`)
-      ?.innerText || refVal;
-
-  let linkChat = "";
-  if (!state.selectedRelic) linkChat = `[${defaultText}]`;
-  else {
-    if (state.currentLang === "en") linkChat = `[${rName} Relic]`;
-    else linkChat = `[Reliquia ${rName}]`;
-  }
-
-  let countText = `${state.playerCount}/4`;
-  if (state.playerCount === 4) countText = "3/4";
-
-  const fullMessage = `H ${linkChat} ${refText} ${countText}`;
-  const msgBox = document.getElementById("finalMessage");
-  if (msgBox) {
-    msgBox.innerText = fullMessage;
-    msgBox.style.animation = "none";
-    msgBox.offsetHeight; // trigger reflow
-    msgBox.style.animation = "pulse 0.3s ease";
-  }
-
-  updateRelicTotal();
+  // Usamos requestAnimationFrame para no bloquear el hilo principal
+  // mientras el menú desplegable se está cerrando.
+  requestAnimationFrame(() => {
+      const t = TEXTS[state.currentLang];
+      const defaultText = t.defaultRelic;
+      let rName = state.selectedRelic || defaultText;
+      rName = rName.trim();
+    
+      // Obtenemos el texto del select visual (o del nativo si no hay visual)
+      // Nota: Si usas el dropdown custom, el valor del select nativo ya está actualizado
+      const refSelect = document.getElementById("refinement");
+      const refVal = refSelect.value;
+      const refText = refSelect.options[refSelect.selectedIndex]?.text || refVal;
+    
+      let linkChat = "";
+      if (!state.selectedRelic) linkChat = `[${defaultText}]`;
+      else {
+        if (state.currentLang === "en") linkChat = `[${rName} Relic]`;
+        else linkChat = `[Reliquia ${rName}]`;
+      }
+    
+      let countText = `${state.playerCount}/4`;
+      if (state.playerCount === 4) countText = "3/4";
+    
+      const fullMessage = `H ${linkChat} ${refText} ${countText}`;
+      const msgBox = document.getElementById("finalMessage");
+      
+      if (msgBox) {
+        // Solo actualizamos el DOM si el texto ha cambiado realmente
+        if (msgBox.innerText !== fullMessage) {
+            msgBox.innerText = fullMessage;
+            
+            // ELIMINADO EL HACK DE .offsetHeight QUE CONGELABA LA PANTALLA
+            // En su lugar, simplemente quitamos y ponemos la clase para animar
+            msgBox.classList.remove("pulse-anim");
+            
+            // Esperamos un micro-tick para re-aplicar la animación sin bloquear
+            setTimeout(() => {
+                msgBox.classList.add("pulse-anim");
+            }, 10);
+        }
+      }
+    
+      // Recalcular precios (ya optimizado en el paso anterior)
+      updateRelicTotal();
+  });
 }
 
 export function copyText() {
@@ -320,7 +342,6 @@ export function handleRelicTyping() {
   debounceTimer = setTimeout(manualRelicUpdate, 600);
 }
 
-
 export function manualRelicUpdate() {
   try {
     const relicInput = document.getElementById("relicInput");
@@ -351,7 +372,7 @@ export function manualRelicUpdate() {
         const status = state.relicStatusDB[state.selectedRelic] || "vaulted";
 
         statusBadge.className = "badge";
-        statusBadge.style.display = "inline-block"; 
+        statusBadge.style.display = "inline-block";
 
         if (status === "active" || status === "aya") {
           statusBadge.classList.add(status === "aya" ? "aya" : "active");
@@ -360,8 +381,7 @@ export function manualRelicUpdate() {
 
           const tooltipHTML = getRelicDropTooltip(state.selectedRelic);
           statusBadge.setAttribute("data-tooltip-html", tooltipHTML);
-          statusBadge.removeAttribute("data-tooltip"); // Borrar tooltip de texto simple
-        } else {
+          statusBadge.removeAttribute("data-tooltip");
           statusBadge.classList.add("vaulted");
           statusBadge.innerText = "VAULTED";
 
@@ -403,23 +423,20 @@ export function manualRelicUpdate() {
           item.name === "Riven Sliver" ||
           item.name === "Exilus Weapon Adapter Blueprint";
 
+        const abbr = TEXTS[state.currentLang].rarityAbbr;
         let rarityLabel = abbr.common;
-        let rarityColor = "var(--wf-common)";
 
         if (item.chance <= 5) {
           rarityLabel = abbr.rare;
-          rarityColor = "var(--wf-rare)";
           row.setAttribute("data-rarity", "rare");
         } else if (item.chance <= 11) {
           rarityLabel = abbr.uncommon;
-          rarityColor = "var(--wf-uncommon)";
           row.setAttribute("data-rarity", "uncommon");
         } else {
           row.setAttribute("data-rarity", "common");
         }
 
         if (isUntradable) {
-          rarityColor = "var(--wf-forma)";
           row.setAttribute("data-rarity", "forma");
         }
 
@@ -429,32 +446,36 @@ export function manualRelicUpdate() {
 
         let nameDisplay;
         if (isUntradable) {
-          nameDisplay = `<span style="font-weight:bold; color:var(--wf-forma);">${item.name.replace(
+          nameDisplay = `<span class="component-name forma">${item.name.replace(
             "Blueprint",
             "BP"
           )}</span>`;
         } else {
-          nameDisplay = `<span class="item-interactive" style="cursor:pointer; text-decoration:underline; margin-right:5px;" onclick="window.findRelicsForItem('${
-            item.name
-          }')">${item.name}</span> 
-             <a href="https://warframe.market/items/${getSlug(
-               item.name
-             )}" target="_blank" class="market-link-icon" style="text-decoration:none">↗</a>`;
+          nameDisplay = `
+            <span class="component-name item-interactive" onclick="window.findRelicsForItem('${
+              item.name
+            }')">
+                ${item.name}
+            </span>
+            <a href="https://warframe.market/items/${getSlug(
+              item.name
+            )}" target="_blank" class="market-link-icon">↗</a>
+          `;
         }
 
         const badgeContent = isUntradable
-          ? '0<span style="font-size:0.7em">pl</span>'
+          ? '0<span class="pl-unit">pl</span>'
           : "...";
         const badgeClass = isUntradable
           ? "price-badge forma"
           : "price-badge loading";
 
         row.innerHTML = `
-            <div style="display:flex; align-items:center; gap:10px;">
-                <span style="color:${rarityColor}; font-weight:bold; font-size:0.8em; width:25px;">${rarityLabel}</span>
-                <span style="color:${
-                  isUntradable ? "#aaa" : "#eee"
-                }; font-size:0.9em;">${nameDisplay}</span>
+            <div class="component-info">
+                <span class="rarity-indicator">${rarityLabel}</span>
+                <span class="name-wrapper">
+                    ${nameDisplay}
+                </span>
             </div>
             <div class="${badgeClass}" data-item="${item.name.replace(
           /"/g,
@@ -463,6 +484,7 @@ export function manualRelicUpdate() {
                 ${badgeContent}
             </div>
         `;
+
         listDiv.appendChild(row);
 
         const badge = row.querySelector(".price-badge");
@@ -540,14 +562,32 @@ function updateRelicTotal() {
   if (!stillLoading) disp.classList.remove("loading");
 }
 
+
+
 function calculateSquadEV(items, refinement, squadSize) {
-  const rates = DROP_CHANCES[refinement] || DROP_CHANCES.Intact;
+
+  const keyMap = {
+    "Rad": "Radiant",
+    "Intact": "Intact",
+    "Exceptional": "Exceptional",
+    "Flawless": "Flawless"
+  };
+
+  const safeKey = keyMap[refinement] || refinement;
+
+  const rates = (DROP_CHANCES && DROP_CHANCES[safeKey]) 
+             || (DROP_CHANCES && DROP_CHANCES.Intact) 
+             || { common: 0.76, uncommon: 0.22, rare: 0.02 };
+
+  if (!items) return 0;
 
   const itemsWithProb = items.map((item) => {
-    let prob = rates.common / 3;
-    if (item.rarityType === "rare") prob = rates.rare / 1;
-    else if (item.rarityType === "uncommon") prob = rates.uncommon / 2;
-    return { price: item.price, prob: prob };
+    let prob = rates.common / 3; 
+    
+    if (item.rarityType === "rare") prob = rates.rare / 1; 
+    else if (item.rarityType === "uncommon") prob = rates.uncommon / 2; 
+
+    return { price: item.price || 0, prob: prob };
   });
 
   itemsWithProb.sort((a, b) => a.price - b.price);
@@ -557,17 +597,17 @@ function calculateSquadEV(items, refinement, squadSize) {
 
   for (let item of itemsWithProb) {
     const nextAccumulatedProb = accumulatedProb + item.prob;
+    
     const chanceThisIsBest =
       Math.pow(nextAccumulatedProb, squadSize) -
       Math.pow(accumulatedProb, squadSize);
+      
     expectedValue += item.price * chanceThisIsBest;
     accumulatedProb = nextAccumulatedProb;
   }
 
   return expectedValue;
 }
-
-// --- SETS & TRACKER ---
 export function handleSetTyping() {
   clearTimeout(debounceTimer);
   debounceTimer = setTimeout(searchSet, 1200);
@@ -620,7 +660,6 @@ function searchSet() {
       createSetCard(itemName, [itemName], container, true)
     );
 }
-
 
 function createSetCard(title, itemNames, parent, isSingle = false) {
   const setContainer = document.createElement("div");
@@ -697,19 +736,21 @@ function createSetCard(title, itemNames, parent, isSingle = false) {
 
         let tooltipAttr = "";
         if (stKey === "active" || stKey === "aya") {
-            const rawHtml = getRelicDropTooltip(info.relic);
-            const safeHtml = rawHtml.replace(/"/g, '&quot;');
-            tooltipAttr = `data-tooltip-html="${safeHtml}"`;
+          const rawHtml = getRelicDropTooltip(info.relic);
+          const safeHtml = rawHtml.replace(/"/g, "&quot;");
+          tooltipAttr = `data-tooltip-html="${safeHtml}"`;
         } else {
-            tooltipAttr = `data-tooltip="Esta reliquia está Vaulted"`;
+          tooltipAttr = `data-tooltip="Esta reliquia está Vaulted"`;
         }
 
         btn.className = `relic-chip ${rc}`;
-        
+
         btn.innerHTML = `
             <div class="relic-chip-header">
                 <span class="relic-name">${info.relic}</span>
-                <img src="${TIER_URLS[tier] || TIER_URLS.Lith}" class="relic-img">
+                <img src="${
+                  TIER_URLS[tier] || TIER_URLS.Lith
+                }" class="relic-img">
             </div>
             <div class="chip-footer">
                 <span class="rarity-text ${rc}">${rl}</span>
@@ -819,41 +860,52 @@ function renderRelicsForPartInline(partName, container) {
 export function renderSetTracker() {
   const container = document.getElementById("set-tracker");
   const list = document.getElementById("tracker-list");
+  const title = document.getElementById("tracker-title");
   const t = TEXTS[state.currentLang];
 
   if (!state.currentActiveSet) {
     container.style.display = "none";
     return;
   }
+
   container.style.display = "block";
-  document.getElementById(
-    "tracker-title"
-  ).innerText = `${t.trackerTitle}: ${state.currentActiveSet}`;
   list.innerHTML = "";
+
+  const setSlug = getSlug(state.currentActiveSet + " Set");
+  const setUrl = `https://warframe.market/items/${setSlug}`;
+
+  title.innerHTML = `
+    ${t.trackerTitle}: 
+    <a href="${setUrl}" target="_blank" class="set-header-link">
+      ${state.currentActiveSet} ↗
+    </a>
+  `;
 
   state.activeSetParts.forEach((partName) => {
     const wrapper = document.createElement("div");
-    wrapper.style.marginBottom = "5px";
-
     const isDone = state.completedParts.has(partName);
+
     const row = document.createElement("div");
     row.className = `tracker-item ${isDone ? "done" : ""}`;
-    row.style.marginBottom = "0";
 
     const nameText =
       partName === state.currentActiveSet
         ? "Blueprint"
         : partName.replace(state.currentActiveSet, "").trim();
 
+    const partSlug = getSlug(partName);
+
     const nameSpan = document.createElement("span");
-    nameSpan.className = "t-name item-interactive";
-    nameSpan.innerText = nameText;
-    nameSpan.style.cursor = "pointer";
-    nameSpan.style.textDecoration = "underline dotted #666";
+    nameSpan.className = "t-name";
+    nameSpan.innerHTML = `
+      ${nameText}
+      <a href="https://warframe.market/items/${partSlug}" target="_blank" class="market-link-icon" onclick="event.stopPropagation()">↗</a>
+    `;
 
     const btnCheck = document.createElement("button");
     btnCheck.className = "t-check";
     btnCheck.innerText = isDone ? t.markUndo : t.markDone;
+
     btnCheck.onclick = (e) => {
       e.stopPropagation();
       if (isDone) state.completedParts.delete(partName);
@@ -866,23 +918,19 @@ export function renderSetTracker() {
 
     const drawer = document.createElement("div");
     drawer.className = "tracker-drawer hidden";
-    drawer.style.background = "rgba(0, 0, 0, 0.3)";
-    drawer.style.border = "1px solid #333";
-    drawer.style.borderTop = "none";
-    drawer.style.borderRadius = "0 0 4px 4px";
-    drawer.style.overflow = "hidden";
-    drawer.style.transition = "all 0.3s ease";
 
-    nameSpan.onclick = (e) => {
-      e.stopPropagation();
+    row.onclick = () => {
       const isCurrentlyClosed = drawer.classList.contains("hidden");
       document
         .querySelectorAll(".tracker-drawer")
         .forEach((d) => d.classList.add("hidden"));
+
       if (isCurrentlyClosed) {
         drawer.classList.remove("hidden");
         if (drawer.innerHTML === "") {
-          renderRelicsForPartInline(partName, drawer);
+          if (window.renderRelicsForPartInline) {
+            window.renderRelicsForPartInline(partName, drawer);
+          }
         }
       }
     };
@@ -893,23 +941,63 @@ export function renderSetTracker() {
   });
 }
 
-// --- RIVEN UI ---
+export function populateRivenSelects(weaponType = "Rifle") {
+  const selects = document.querySelectorAll(".riven-stat-select");
+  const isSpan = state.currentLang === "es";
+
+  const typeIdx = WEAPON_TYPE_IDX[weaponType] ?? 0;
+
+  selects.forEach((sel) => {
+    const savedValue = sel.value;
+
+    while (sel.options.length > 1) sel.remove(1);
+
+    RIVEN_STATS.forEach((stat) => {
+      const baseStatKey =
+        stat.name_en === "Crit Chance"
+          ? "Critical Chance"
+          : stat.name_en === "Crit Damage"
+          ? "Critical Damage"
+          : stat.name_en === "Status Chance"
+          ? "Status Chance"
+          : stat.name_en === "Damage"
+          ? "Damage"
+          : stat.name_en === "Multishot"
+          ? "Multishot"
+          : stat.name_en.split(" / ")[0];
+
+      const baseVal = RIVEN_BASE_STATS[baseStatKey]?.[typeIdx];
+
+      if (baseVal !== 0 && baseVal !== undefined) {
+        let opt = document.createElement("option");
+        opt.value = baseStatKey;
+        opt.innerText = isSpan ? stat.name_es : stat.name_en;
+        sel.appendChild(opt);
+      }
+    });
+
+    const exists = Array.from(sel.options).some((o) => o.value === savedValue);
+    sel.value = exists ? savedValue : "";
+  });
+
+  updateSelectExclusions();
+}
+
 export function handleRivenInput() {
   const input = document.getElementById("rivenWeaponInput");
-  const val = input.value.toUpperCase().trim();
   const dropdown = document.getElementById("rivenDropdown");
-  const statsBox = document.getElementById("riven-avg-box");
+  if (!input || !dropdown) return;
 
-  saveAppState();
+  const val = input.value.toUpperCase().trim();
 
-  if (val.length < 1) {
-    dropdown.classList.add("hidden");
-    if (statsBox) statsBox.style.display = "none";
-    return;
+  if (
+    (!state.allRivenNames || state.allRivenNames.length === 0) &&
+    state.weaponMap
+  ) {
+    state.allRivenNames = Object.keys(state.weaponMap).sort();
   }
 
   const source = state.allRivenNames || [];
-
   const matches = source
     .filter((n) => n.toUpperCase().includes(val))
     .slice(0, 10);
@@ -917,42 +1005,74 @@ export function handleRivenInput() {
   if (matches.length > 0) {
     dropdown.innerHTML = "";
     dropdown.classList.remove("hidden");
+
     matches.forEach((name) => {
       const item = document.createElement("div");
       item.className = "dropdown-item";
       item.innerText = name;
+
       item.onclick = () => {
+        console.log(`🖱️ [LOG]: Click detectado en: "${name}"`);
+
         input.value = name;
         dropdown.classList.add("hidden");
+
+        const weaponData = state.weaponMap[name];
+        console.log(
+          `📊 [LOG]: Datos en state.weaponMap["${name}"]:`,
+          weaponData
+        );
+
+        if (weaponData) {
+          const dispoDisplay = document.getElementById("riven-dispo-display");
+          if (dispoDisplay) {
+            const displayValue = parseFloat(weaponData.d).toFixed(2);
+            dispoDisplay.innerHTML = `Riven disposition: <b style="color:var(--wf-gold-text)">${displayValue}</b>`;
+          } else {
+            /*
+              " No se encontró el elemento 'riven-dispo-display' en el HTML."
+            */
+          }
+
+          populateRivenSelects(weaponData.t);
+        } else {
+          /*Error  state.weaponMap no tiene datos para name
+           */
+        }
+
         fetchRivenAverage(name);
       };
+
       dropdown.appendChild(item);
     });
   } else {
     dropdown.classList.add("hidden");
   }
-
-  if (state.weaponMap && state.weaponMap[input.value]) {
-    dropdown.classList.add("hidden");
-    fetchRivenAverage(input.value);
-  }
 }
 
-export function populateRivenSelects() {
-  const selects = document.querySelectorAll(".riven-stat-select");
-  const isSpan = state.currentLang === "es";
-  selects.forEach((sel) => {
-    while (sel.options.length > 1) sel.remove(1);
-    RIVEN_STATS.forEach((stat) => {
-      let opt = document.createElement("option");
-      opt.value = stat.slug;
-      opt.innerText = isSpan ? stat.name_es : stat.name_en;
-      sel.appendChild(opt);
+export function updateSelectExclusions() {
+  const selects = Array.from(document.querySelectorAll(".riven-stat-select"));
+  const selectedValues = selects.map((s) => s.value).filter((v) => v !== "");
+
+  selects.forEach((currentSelect) => {
+    const myValue = currentSelect.value;
+
+    Array.from(currentSelect.options).forEach((option) => {
+      if (option.value === "") return;
+
+      if (selectedValues.includes(option.value) && option.value !== myValue) {
+        option.hidden = true;
+        option.style.display = "none";
+      } else {
+        option.hidden = false;
+        option.style.display = "";
+      }
     });
   });
+
+  if (typeof updateGradingUI === "function") updateGradingUI();
 }
 
-// --- LFG UI ---
 export function changeLFGCount(n) {
   state.lfgCount = Math.max(1, Math.min(3, state.lfgCount + n));
   const display = document.getElementById("lfgCountDisplay");
@@ -1184,15 +1304,25 @@ export function calculateCaps() {
   renderProfileStats(mr, focusCap, mockStanding, true);
   saveAppState();
 }
-
+let fissureLoadPromise = null;
 export async function updateRecommendedMissions(tier) {
   const listArea = document.getElementById("fissures-list-area");
+  
   if (!listArea || listArea.children.length === 0) {
-    await initFissurePanel();
+    
+    if (!fissureLoadPromise) {
+      fissureLoadPromise = initFissurePanel().then(() => {
+          // fissureLoadPromise = null; 
+      });
+    } else {
+      //en curso
+    }
+
+    await fissureLoadPromise;
   }
+
   highlightFissureTier(tier);
 }
-
 function renderMissionRow(m) {
   const t = TEXTS[state.currentLang];
 
@@ -1226,7 +1356,6 @@ function renderMissionRow(m) {
     `;
 }
 
-
 export function initGlobalTooltipSystem() {
   let tooltipEl = document.getElementById("global-tooltip");
   let closeTimer = null;
@@ -1236,7 +1365,7 @@ export function initGlobalTooltipSystem() {
     tooltipEl = document.createElement("div");
     tooltipEl.id = "global-tooltip";
     tooltipEl.className = "global-tooltip hidden";
-    
+
     tooltipEl.addEventListener("mouseenter", () => {
       if (currentMode === "mega" && closeTimer) clearTimeout(closeTimer);
     });
@@ -1251,7 +1380,7 @@ export function initGlobalTooltipSystem() {
     const offset = 15;
     const tWidth = tooltipEl.offsetWidth;
     const tHeight = tooltipEl.offsetHeight;
-    
+
     let left = e.clientX + offset;
     let top = e.clientY + offset;
 
@@ -1272,7 +1401,7 @@ export function initGlobalTooltipSystem() {
     let top = rect.top;
 
     if (left + tWidth > window.innerWidth) left = rect.left - tWidth - gap;
-    
+
     if (top + tHeight > window.innerHeight) top = rect.bottom - tHeight;
 
     if (top < 10) top = 10;
@@ -1291,11 +1420,13 @@ export function initGlobalTooltipSystem() {
     if (htmlContent) {
       currentMode = "mega";
       tooltipEl.innerHTML = htmlContent;
-      tooltipEl.classList.add("mega-mode"); 
+      tooltipEl.classList.add("mega-mode");
+    } else if (textContent) {
       currentMode = "simple";
       tooltipEl.innerText = textContent;
       tooltipEl.classList.remove("mega-mode");
     } else {
+      //No content
       return;
     }
 
@@ -1318,7 +1449,6 @@ export function initGlobalTooltipSystem() {
     }
   };
 
-
   document.addEventListener("mouseover", (e) => {
     const target = e.target.closest("[data-tooltip], [data-tooltip-html]");
     if (target) showTooltip(e, target);
@@ -1333,7 +1463,11 @@ export function initGlobalTooltipSystem() {
   document.addEventListener("mouseout", (e) => {
     const target = e.target.closest("[data-tooltip], [data-tooltip-html]");
     if (target) {
-      if (currentMode === "mega" && e.relatedTarget && e.relatedTarget.closest("#global-tooltip")) {
+      if (
+        currentMode === "mega" &&
+        e.relatedTarget &&
+        e.relatedTarget.closest("#global-tooltip")
+      ) {
         return;
       }
       hideTooltip();
@@ -1342,7 +1476,7 @@ export function initGlobalTooltipSystem() {
 }
 export function openRivenMarket() {
   const inputVal = document.getElementById("rivenWeaponInput").value.trim();
-  if (!inputVal) return alert("Por favor introduce un nombre de arma");
+  //if (!inputVal) return alert("Por favor introduce un nombre de arma");
 
   let slug = getRivenSlug(inputVal);
   let url = `https://warframe.market/auctions/search?type=riven&weapon_url_name=${slug}&polarity=any&sort_by=price_asc`;
@@ -1363,7 +1497,7 @@ export function openRivenMarket() {
   window.open(url, "_blank");
 }
 
-export function getRivenSlug(inputVal) {
+/*export function getRivenSlug(inputVal) {
   const validWeapons = state.allRivenNames || [];
   let fullSlug = inputVal.toLowerCase().trim().replace(/\s+/g, "_");
   let nakedSlug = getNakedName(fullSlug);
@@ -1375,7 +1509,7 @@ export function getRivenSlug(inputVal) {
   );
 
   return baseExists ? nakedSlug : fullSlug;
-}
+}*/
 
 export function getNakedName(slug) {
   let s = slug;
@@ -1433,7 +1567,6 @@ window.findRelicsForItem = function (itemName) {
   }
 };
 
-//--- LANGUAGE SELECTION UI ---
 export function toggleLangDropdown() {
   const list = document.getElementById("langOptionsList");
   if (list) list.classList.toggle("hidden");
@@ -1517,7 +1650,6 @@ export async function initFissurePanel() {
     Omnia: [],
   };
 
-  // Agrupar misiones
   allMissions.forEach((m) => {
     let tName = m.tier;
     if (tName === "Vanguard") tName = "Axi";
@@ -1608,7 +1740,6 @@ export function highlightFissureTier(tier) {
   if (!tier) return;
   const tierKey = tier.toLowerCase();
 
-  // Normalizar Vanguard a Axi para propósitos visuales
   const normalizedTier = tierKey === "vanguard" ? "axi" : tierKey;
 
   const panel = document.getElementById("best-missions-container");
@@ -1719,8 +1850,6 @@ window.switchSyncTab = function (mode) {
     stopReceiver();
   }
 };
-
-// --- LÓGICA INTERNA ---
 
 function stopReceiver() {
   if (syncInterval) clearInterval(syncInterval);
@@ -2000,98 +2129,132 @@ export function clearInventory() {
   }
 }
 
+let inventoryPriceUpdateInterval = null;
+
 export async function renderInventory() {
   const list = document.getElementById("inventory-list");
   if (!list) return;
 
-  list.style.opacity = "0.5";
-  list.style.pointerEvents = "none";
-  list.style.transition = "opacity 0.2s";
+  list.classList.remove("inventory-loading");
 
-  try {
-    if (!state.inventory || state.inventory.length === 0) {
-      list.innerHTML = `<div style="padding:20px; text-align:center; color:#666;">Inventario vacío</div>`;
-      resetLoadingStyle(list);
-      return;
-    }
-
-    const sortMode = document.getElementById("inv-sort")?.value || "recent";
-
-    const filtered = state.inventory.filter((item) => {
-      const name = (typeof item === "string" ? item : item.name).toUpperCase();
-      if (
-        state.invSearchVal &&
-        !name.toLowerCase().includes(state.invSearchVal)
-      )
-        return false;
-      if (state.invFilterTier !== "ALL") {
-        let tier = name.split(" ")[0];
-        if (tier === "VANGUARD") tier = "AXI";
-        if (tier !== state.invFilterTier) return false;
-      }
-      return true;
-    });
-
-    let displayItems = filtered.map((item) =>
-      typeof item === "string" ? { name: item, count: 1 } : item
-    );
-
-    const enrichedItems = await Promise.all(
-      displayItems.map(async (item) => {
-        const stats = (await calculateRelicValue(item.name)) || {
-          intact: 0,
-          rad: 0,
-          ducats: 0,
-        };
-        return { ...item, ...stats };
-      })
-    );
-
-    enrichedItems.sort((a, b) => {
-      if (sortMode === "plat_intact") return b.intact - a.intact;
-      if (sortMode === "plat_rad") return b.rad - a.rad;
-      if (sortMode === "ducats") return b.ducats - a.ducats;
-      return 0;
-    });
-
-    let newHTML = "";
-    enrichedItems.forEach((item) => {
-      const safeName = item.name.replace(/'/g, "\\'").replace(/"/g, "&quot;");
-      const mainPrice = sortMode.includes("rad") ? item.rad : item.intact;
-      const isVaulted = state.relicStatusDB[item.name] === "vaulted";
-
-      newHTML += `
-        <div class="inv-row">
-            <div class="inv-name-group" onclick="selectRelicFromInv('${safeName}')">
-                <div class="inv-name">${item.name}</div>
-                <div class="inv-meta">
-                   <span style="color:${isVaulted ? "#e44" : "#aaa"}">${
-        isVaulted ? "V" : "A"
-      }</span>
-                   <span style="color:var(--wf-gold)">${item.ducats} duc</span>
-                </div>
-            </div>
-            <div class="inv-price-tag">
-                <div>${mainPrice}p</div>
-                <div style="font-size:0.8em; opacity:0.6">x${item.count}</div>
-            </div>
-            <div class="inv-qty-controls">
-                <button class="inv-btn minus" onclick="modifyInv('${safeName}', -1)">−</button>
-                <button class="inv-btn plus" onclick="modifyInv('${safeName}', 1)">+</button>
-            </div>
-        </div>
-      `;
-    });
-
-    list.innerHTML = newHTML;
-  } catch (e) {
-    console.error("Error renderizando inventario:", e);
-    if (list.innerHTML === "") {
-      list.innerHTML = `<div style="color:#d44; padding:10px;">Error de visualización.</div>`;
-    }
-  } finally {
-    resetLoadingStyle(list);
+  if (!state.inventory || state.inventory.length === 0) {
+    list.innerHTML = `<div style="padding:20px; text-align:center; color:#666;">Inventory empty</div>`;
+    return;
   }
+
+  const sortMode = document.getElementById("inv-sort")?.value || "recent";
+
+  const filtered = state.inventory.filter((item) => {
+    const name = (typeof item === "string" ? item : item.name).toUpperCase();
+    if (
+      state.invSearchVal &&
+      !name.toLowerCase().includes(state.invSearchVal.toLowerCase())
+    )
+      return false;
+    if (state.invFilterTier !== "ALL") {
+      let tier = name.split(" ")[0];
+      if (tier === "VANGUARD") tier = "AXI";
+      if (tier !== state.invFilterTier) return false;
+    }
+    return true;
+  });
+
+  const fragment = document.createDocumentFragment();
+
+  filtered.forEach((item) => {
+    const itemName = typeof item === "string" ? item : item.name;
+    const count = item.count || 1;
+    const isVaulted = state.relicStatusDB[itemName] === "vaulted";
+    const safeId = itemName.replace(/[^a-zA-Z0-9]/g, "");
+
+    const row = document.createElement("div");
+    row.className = "inv-row";
+    row.dataset.relic = itemName;
+
+    row.innerHTML = `
+          <div class="inv-name-group" onclick="selectRelicFromInv('${itemName.replace(
+            /'/g,
+            "\\'"
+          )}')">
+              <div class="inv-name">${itemName}</div>
+              <div class="inv-meta">
+                 <span style="color:${isVaulted ? "#e44" : "#aaa"}">${
+      isVaulted ? "V" : "A"
+    }</span>
+                 <span id="duc-${safeId}" style="color:var(--wf-gold)">... duc</span>
+              </div>
+          </div>
+          <div class="inv-price-tag">
+              <div id="price-${safeId}" class="price-loading">...p</div>
+              <div style="font-size:0.8em; opacity:0.6">x${count}</div>
+          </div>
+          <div class="inv-qty-controls">
+              <button class="inv-btn minus" onclick="modifyInv('${itemName.replace(
+                /'/g,
+                "\\'"
+              )}', -1)">−</button>
+              <button class="inv-btn plus" onclick="modifyInv('${itemName.replace(
+                /'/g,
+                "\\'"
+              )}', 1)">+</button>
+          </div>
+    `;
+    fragment.appendChild(row);
+  });
+
+  list.innerHTML = "";
+  list.appendChild(fragment);
+
+  triggerPriceFetch(filtered);
+}
+
+async function triggerPriceFetch(relicList) {
+  if (inventoryPriceUpdateInterval) clearInterval(inventoryPriceUpdateInterval);
+
+  const { addToQueue } = await import("./api.js");
+
+  relicList.forEach((item) => {
+    const rName = typeof item === "string" ? item : item.name;
+    const drops = state.relicsDatabase[rName];
+
+    if (drops) {
+      drops.forEach((drop) => {
+        const dummyBadge = document.createElement("div");
+        addToQueue(drop.name, dummyBadge);
+      });
+    }
+  });
+
+  let attempts = 0;
+  inventoryPriceUpdateInterval = setInterval(async () => {
+    attempts++;
+    const rows = document.querySelectorAll(".inv-row");
+
+    for (const row of rows) {
+      const rName = row.dataset.relic;
+      const safeId = rName.replace(/[^a-zA-Z0-9]/g, "");
+      const priceEl = document.getElementById(`price-${safeId}`);
+      const ducEl = document.getElementById(`duc-${safeId}`);
+
+      if (!priceEl) continue;
+
+      const stats = await calculateRelicValue(rName);
+
+      if (stats.intact > 0 || attempts > 10) {
+        if (priceEl.innerText !== `${stats.intact}p`) {
+          priceEl.innerText = `${stats.intact}p`;
+          priceEl.classList.remove("price-loading");
+          priceEl.style.color = "#42f56c";
+          setTimeout(() => (priceEl.style.color = ""), 1000);
+        }
+        if (ducEl) ducEl.innerText = `${stats.ducats} duc`;
+      }
+    }
+
+    if (attempts > 15) {
+      clearInterval(inventoryPriceUpdateInterval);
+    }
+  }, 1000);
 }
 
 function resetLoadingStyle(element) {
@@ -2171,16 +2334,6 @@ async function calculateRelicValue(relicName) {
   };
 }
 
-Object.assign(window, {
-  toggleInventoryPanel,
-  renderInventory,
-  clearInventory,
-});
-window.handleInvSearch = (val) => {
-  state.invSearchVal = val.toLowerCase().trim();
-  renderInventory();
-};
-
 window.filterInvTier = (tier) => {
   state.invFilterTier = tier;
   document.querySelectorAll(".inv-tier-btn").forEach((btn) => {
@@ -2213,8 +2366,8 @@ window.addCurrentToInv = function () {
   const t = TEXTS[state.currentLang];
   const msg =
     state.currentLang === "es"
-      ? `✅ ${state.selectedRelic} añadida al inventario.`
-      : `✅ ${state.selectedRelic} added to inventory.`;
+      ? ` ${state.selectedRelic} añadida al inventario.`
+      : ` ${state.selectedRelic} added to inventory.`;
 
   showToast(msg);
 
@@ -2227,7 +2380,6 @@ window.addCurrentToInv = function () {
 
   renderInventory();
 };
-// En ui.js
 
 export function initDisclaimerSystem() {
   setTimeout(() => {
@@ -2307,7 +2459,7 @@ document.addEventListener("DOMContentLoaded", () => {
   contentArea.addEventListener("scroll", checkFooterVisibility);
 
   checkFooterVisibility();
-}); 
+});
 
 export function getRelicDropTooltip(tierName) {
   const sources = state.relicSourcesDatabase[tierName];
@@ -2319,13 +2471,12 @@ export function getRelicDropTooltip(tierName) {
   sources.sort((a, b) => b.chance - a.chance);
 
   let html = `<div class='tooltip-header'>Drops for ${tierName} (${sources.length})</div>`;
-  
 
   html += "<ul class='tooltip-list'>";
 
   sources.forEach((s, index) => {
     let locText = "";
-    
+
     if (s.type === "mission") {
       locText = `<span class="t-loc">${s.location}</span> <span style="color:#888">-</span> ${s.mission} <span class='rot-badge'>${s.rotation}</span>`;
     } else {
@@ -2335,17 +2486,321 @@ export function getRelicDropTooltip(tierName) {
 
     const isTop = index < 5;
     const rowClass = isTop ? "top-drop" : "";
-    
+
     let chanceColor = "#888";
-    if (s.chance > 10) chanceColor = "var(--wf-gold-text)"; 
-    else if (s.chance > 5) chanceColor = "var(--wf-blue)"; 
+    if (s.chance > 10) chanceColor = "var(--wf-gold-text)";
+    else if (s.chance > 5) chanceColor = "var(--wf-blue)";
 
     html += `<li class="${rowClass}">
       <div class="t-row">${locText}</div>
-      <span class='drop-chance' style="color:${chanceColor}">${s.chance.toFixed(2)}%</span>
+      <span class='drop-chance' style="color:${chanceColor}">${s.chance.toFixed(
+      2
+    )}%</span>
     </li>`;
   });
 
   html += "</ul>";
   return html;
 }
+
+export function renderRivenGradingUI(weaponName, statsArray) {
+  const weaponData = state.weaponMap[weaponName];
+  const disposition = weaponData ? weaponData.disposition : 1.0;
+  const weaponType = weaponData ? weaponData.type : "Rifle";
+
+  const buffCount = statsArray.filter((s) => s.value > 0).length;
+  const hasCurse = statsArray.some((s) => s.value < 0);
+
+  let html = `<div class="riven-grading-box">`;
+  html += `<h4>Grading: ${weaponName} (Disp: ${disposition})</h4>`;
+
+  statsArray.forEach((stat) => {
+    const isCurse = stat.value < 0;
+    const result = calculateRivenGrade(
+      weaponType,
+      disposition,
+      stat.name,
+      stat.value,
+      isCurse,
+      buffCount,
+      hasCurse
+    );
+
+    const colorClass =
+      result.percentage > 90
+        ? "grade-s"
+        : result.percentage > 50
+        ? "grade-b"
+        : "grade-f";
+
+    html += `
+            <div class="grade-row">
+                <span class="stat-name">${stat.name}</span>
+                <span class="stat-val">${stat.value}%</span>
+                <div class="grade-bar-container">
+                    <div class="grade-bar ${colorClass}" style="width: ${result.percentage}%"></div>
+                </div>
+                <span class="grade-badge ${colorClass}">${result.grade}</span>
+                <span class="grade-range">Range: ${result.min}% - ${result.max}%</span>
+            </div>
+        `;
+  });
+  html += `</div>`;
+
+  return html;
+}
+
+export function openGradingModal() {
+  const weaponInput = document.getElementById("rivenWeaponInput");
+  const weaponName = weaponInput.value.trim();
+
+  if (!weaponName || !state.weaponMap[weaponName]) {
+    alert("Please select a valid weapon on the field above.");
+    return;
+  }
+
+  const weaponData = state.weaponMap[weaponName];
+
+  document.getElementById(
+    "g-weapon-name"
+  ).innerHTML = `${weaponName} <span style="color:#888; font-weight:normal; font-size:0.8em;">(Disp: ${weaponData.d})</span>`;
+  document.getElementById("grading-modal").classList.remove("hidden");
+
+  resetGradingInputs();
+
+  populateRivenSelects(weaponData.t);
+
+  document.getElementById("row-stat3").classList.add("hidden");
+  document.getElementById("row-statNeg").classList.add("hidden");
+  document.getElementById("btn-add-pos").style.display = "block";
+  document.getElementById("btn-add-neg").style.display = "block";
+  document.getElementById("grading-modal-results").classList.add("hidden");
+}
+
+export function closeGradingModal() {
+  document.getElementById("grading-modal").classList.add("hidden");
+}
+
+export function showGradingRow(rowId) {
+  document.getElementById(rowId).classList.remove("hidden");
+
+  if (rowId === "row-stat3")
+    document.getElementById("btn-add-pos").style.display = "none";
+  if (rowId === "row-statNeg")
+    document.getElementById("btn-add-neg").style.display = "none";
+}
+
+export function removeGradingRow(rowId) {
+  const row = document.getElementById(rowId);
+  row.classList.add("hidden");
+
+  row.querySelector("select").value = "";
+  row.querySelector("input").value = "";
+
+  if (rowId === "row-stat3")
+    document.getElementById("btn-add-pos").style.display = "block";
+  if (rowId === "row-statNeg")
+    document.getElementById("btn-add-neg").style.display = "block";
+
+  calculateModalGrade();
+}
+
+function resetGradingInputs() {
+  const inputs = document.querySelectorAll(
+    "#grading-modal input, #grading-modal select"
+  );
+  inputs.forEach((i) => {
+    if (i.id === "g-rank") i.value = "8";
+    else i.value = "";
+  });
+}
+
+export function calculateModalGrade() {
+  const weaponName = document.getElementById("rivenWeaponInput").value.trim();
+  if (!weaponName || !state.weaponMap[weaponName]) return;
+
+  const weaponData = state.weaponMap[weaponName];
+  const currentRank = parseInt(document.getElementById("g-rank").value || "8");
+  const scaleFactor = 9 / (currentRank + 1);
+  const resultsDiv = document.getElementById("grading-modal-results");
+
+  const stats = [];
+
+  const readModalRow = (selId, valId, isNeg) => {
+    const sel = document.getElementById(selId);
+    const valInput = document.getElementById(valId);
+
+    if (sel.offsetParent !== null && sel.value && valInput.value) {
+      let val = parseFloat(valInput.value);
+      if (isNaN(val)) return;
+      if (isNeg) val = -Math.abs(val);
+
+      stats.push({
+        name: sel.value,
+        value: val,
+        projected: val * scaleFactor,
+        isPenaltySlot: isNeg,
+      });
+    }
+  };
+
+  readModalRow("g-stat1", "g-val1", false);
+  readModalRow("g-stat2", "g-val2", false);
+  readModalRow("g-stat3", "g-val3", false);
+  readModalRow("g-statNeg", "g-valNeg", true);
+
+  if (stats.length === 0) {
+    resultsDiv.classList.add("hidden");
+    return;
+  }
+
+  resultsDiv.classList.remove("hidden");
+  let html = "";
+
+  stats.forEach((stat) => {
+    const result = calculateRivenGrade(
+      weaponData,
+      stat.name,
+      stat.projected,
+      stats
+    );
+
+    let colorClass = "grade-f";
+    if (["SSS", "S+", "S"].includes(result.grade)) colorClass = "grade-s";
+    else if (["A+", "A"].includes(result.grade)) colorClass = "grade-a";
+    else if (["B+", "B"].includes(result.grade)) colorClass = "grade-b";
+
+    html += `
+        <div class="grade-card" style="background: rgba(0,0,0,0.3);">
+            <div class="grade-badge-large ${colorClass}">${result.grade}</div>
+            <div class="grade-info">
+                <div class="grade-stat-name">${stat.name}</div>
+                <div class="grade-values">
+                    Valor: <span style="color:#fff">${Math.abs(
+                      stat.value
+                    )}%</span>
+                    <span class="grade-range" style="font-size:0.8em"> / Ideal: ${
+                      result.range
+                    }</span>
+                </div>
+                <div class="grade-track">
+                    <div class="grade-fill ${colorClass}" style="width: ${
+      result.pct
+    }%"></div>
+                </div>
+            </div>
+        </div>
+      `;
+  });
+
+  resultsDiv.innerHTML = html;
+}
+
+export async function checkUpdates() {
+  const lastSeenVersion = localStorage.getItem("last_seen_version");
+  const currentVersionStr = String(APP_VERSION);
+
+  if (lastSeenVersion !== currentVersionStr) {
+    const container = document.getElementById("update-history-content");
+    if (container) {
+      container.innerHTML = UPDATE_HISTORY_CONTENT;
+      document.getElementById("update-modal").classList.remove("hidden");
+    }
+  }
+}
+export function closeUpdateModal() {
+  document.getElementById("update-modal").classList.add("hidden");
+  localStorage.setItem("last_seen_version", String(APP_VERSION));
+  console.log("Versión guardada con éxito:", APP_VERSION);
+}
+export function exportInventory() {
+  if (!state.inventory || state.inventory.length === 0) {
+    return showToast("Relic inventory is empty.");
+  }
+
+  try {
+    const dataStr = JSON.stringify(state.inventory, null, 2);
+
+    const blob = new Blob([dataStr], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `voidstonks_inv_${new Date().toISOString().slice(0, 10)}.json`;
+
+    document.body.appendChild(a);
+    a.click();
+
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    showToast("Inventory downloaded");
+  } catch (e) {
+    console.error("Error exportando:", e);
+    showToast("Error exporting file.");
+  }
+}
+
+export function importInventory() {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = ".json";
+
+  input.onchange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const data = JSON.parse(event.target.result);
+
+        if (Array.isArray(data)) {
+          if (
+            confirm(
+              `Archivo cargado con ${data.length} items.\n\nThis will overwrite your current relic inventory are you sure?`
+            )
+          ) {
+            state.inventory = data;
+            saveAppState();
+            renderInventory();
+            showToast("Sucessfuly updated relic inventory.");
+          }
+        } else {
+          showToast("File has inccorrect format: ERROR");
+        }
+      } catch (err) {
+        console.error(err);
+        showToast("Error reading JSON file.");
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  input.click();
+}
+Object.assign(window, {
+  openGradingModal,
+  calculateModalGrade,
+  closeGradingModal,
+  showGradingRow,
+  removeGradingRow,
+  toggleInventoryPanel,
+  renderInventory,
+  clearInventory,
+  showToast,
+  finishLoading,
+  closeUpdateModal,
+  exportInventory,
+  importInventory,
+  updatePriceUI: (element, price) => {
+    if (!element) return;
+    element.classList.remove("loading");
+    element.innerHTML = `${price}<span style="font-size:0.7em">pl</span>`;
+    if (document.getElementById("relic-profit-display")) updateRelicTotal();
+  },
+});
+window.handleInvSearch = (val) => {
+  state.invSearchVal = val.toLowerCase().trim();
+  renderInventory();
+};

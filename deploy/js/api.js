@@ -1,21 +1,32 @@
-import { WORKER_URL, WEAPON_SOURCES, TEXTS } from "./config.js";
+import { WORKER_URL, TEXTS } from "./config.js";
 import { state } from "./state.js";
-import {
-  updatePriceUI,
-  showToast,
-  renderProfileStats,
-  calculateCaps,
-  finishLoading,
-  getRivenSlug,
-  getSlug,
-} from "./ui.js";
-const PRICE_QUEUE = [];
-const REQUEST_QUEUE = [];
-let isQueueRunning = false;
+
 const MEMORY_CACHE = new Map();
-let isProcessingQueue = false;
-const PRICE_CACHE = new Map();
-// --- RELIC DATA ---
+const PENDING_REQUESTS = new Map(); 
+let activeRequests = 0;
+const MAX_CONCURRENT = 5; 
+
+export function getSlug(itemName) {
+  if (!itemName) return "";
+  let cleanName = itemName.trim().replace(/&/g, "and");
+  let slug = cleanName
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]/g, "")
+    .trim()
+    .replace(/\s+/g, "_");
+  const manualFixes = { kompressa_prime_receiver: "kompressa_prime_reciever" };
+  return manualFixes[slug] || slug;
+}
+
+export function getRivenSlug(inputVal) {
+  let s = inputVal.toLowerCase().trim().replace(/\s+/g, "_");
+  const prefixes = ["coda_", "kuva_", "tenet_", "mk1_", "prisma_", "dex_"];
+  const suffixes = ["_prime", "_vandal", "_wraith"];
+  for (let pre of prefixes) if (s.startsWith(pre)) s = s.replace(pre, "");
+  for (let suf of suffixes) if (s.endsWith(suf)) s = s.replace(suf, "");
+  return s;
+}
+
 
 function processRelicData(rawData) {
   let relicsArray =
@@ -100,50 +111,66 @@ async function fetchActiveResurgence() {
   }
 }
 
-// --- RIVENS ---
-
 export async function fetchRivenWeapons() {
-  if (state.allRivenNames && state.allRivenNames.length > 0) return;
-
-  //console.log("Iniciando carga de armas...");
-
+  const CACHE_KEY = "voidstonkscache_fix_v1";
   try {
-    const response = await fetch(`${WORKER_URL}?type=weapons_list`);
+    const cached = await dbHelper.get(CACHE_KEY);
 
-    if (!response.ok) throw new Error("Error en petición al Worker");
-
-    const data = await response.json();
-    //console.log("Datos recibidos del Worker:", data);
-
-    if (!data.weapons || data.weapons.length === 0) {
-      throw new Error("El Worker devolvió una lista vacía");
+    if (cached && cached.data && Object.keys(cached.data).length > 100) {
+      console.log(
+        ` Armas cargadas de caché: ${Object.keys(cached.data).length}`
+      );
+      state.weaponMap = cached.data;
+      state.allRivenNames = Object.keys(state.weaponMap).sort();
+      return;
     }
 
-    state.allRivenNames = data.weapons;
+    console.log("⬇️ Descargando armas desde el Worker...");
+    const res = await fetch(`${WORKER_URL}?type=weapons_list`);
+    const data = await res.json();
 
-    state.weaponMap = {};
-    state.allRivenNames.forEach(
-      (w) => (state.weaponMap[w.toUpperCase()] = true)
-    );
+    console.log("📦 [LOG]: Datos crudos recibidos del Worker:", data);
+    let rawWeapons = data.weapons || data;
+    let finalMap = {};
 
-    //console.log(`✅ ÉXITO: Cargadas ${state.allRivenNames.length} armas.`);
-  } catch (error) {
-    // console.error("❌ ERROR cargando armas:", error);
+    if (typeof rawWeapons === "object" && !Array.isArray(rawWeapons)) {
 
-    state.allRivenNames = [
-      "Bramma Kuva",
-      "Nikana Prime",
-      "Rubico Prime",
-      "Torid",
-      "Burston",
-      "Glaive Prime",
-      "Felarx",
-      "Laetum",
-      "Phenmor",
-      "Lex Prime",
-      "Magistar",
-    ];
-    console.log("⚠️ Usando lista de respaldo manual.");
+      Object.keys(rawWeapons).forEach((name) => {
+        const item = rawWeapons[name];
+
+        const realDispo = item.omegaAttenuation || item.d || 1.0;
+        const realType = item.type || item.t || "Rifle";
+
+        finalMap[name] = {
+          d: parseFloat(realDispo),
+          t: realType,
+        };
+      });
+    } else if (Array.isArray(rawWeapons)) {
+      rawWeapons.forEach((item) => {
+        const name = item.name || item;
+        finalMap[name] = {
+          d: parseFloat(item.omegaAttenuation || item.d || 1.0),
+          t: item.type || item.t || "Rifle",
+        };
+      });
+    }
+
+    if (Object.keys(finalMap).length === 0)
+      throw new Error("Mapa de armas vacío");
+
+    state.weaponMap = finalMap;
+    state.allRivenNames = Object.keys(state.weaponMap).sort();
+
+    console.log(` ÉXITO: ${state.allRivenNames.length} armas listas.`);
+
+    await dbHelper.set(CACHE_KEY, {
+      timestamp: Date.now(),
+      data: state.weaponMap,
+    });
+  } catch (e) {
+    //console.error(" Error recuperando armas:", e);
+    state.allRivenNames = [];
   }
 }
 export async function fetchRivenAverage(weaponName) {
@@ -183,15 +210,51 @@ export async function fetchRivenAverage(weaponName) {
 }
 
 async function processQueue() {
-  if (isProcessingQueue || REQUEST_QUEUE.length === 0) return;
-  isProcessingQueue = true;
-  while (REQUEST_QUEUE.length > 0) {
-    const task = REQUEST_QUEUE.shift();
-    const price = await getPriceValue(task.name, task.slug);
-    updatePriceUI(task.el, price);
-    await new Promise((r) => setTimeout(r, 50));
+  batchTimer = null;
+
+  // Sacamos todos los slugs únicos que están esperando
+  const slugsToFetch = Array.from(PENDING_REQUESTS.keys());
+  if (slugsToFetch.length === 0) return;
+
+  // Limpiamos la cola actual para permitir nuevas peticiones mientras procesamos estas
+  // (Clonamos el mapa actual para procesarlo y reseteamos el global)
+  const currentBatch = new Map(PENDING_REQUESTS);
+  PENDING_REQUESTS.clear();
+
+  try {
+    
+    // Llamamos a TU Worker al endpoint 'prices_batch'
+    const url = `${WORKER_URL}?type=prices_batch&q=${slugsToFetch.join(",")}`;
+    const res = await fetch(url);
+    const data = await res.json(); // Tu worker devuelve { "chroma_prime_set": 120, ... }
+
+    // Procesamos resultados
+    slugsToFetch.forEach((slug) => {
+      const price = data[slug] || 0; // Si no viene, asumimos 0
+      
+      // A. Guardar en Caché
+      if (price > 0) {
+        MEMORY_CACHE.set(slug, price);
+        localStorage.setItem(`price_${slug}`, JSON.stringify({
+          val: price,
+          time: Date.now()
+        }));
+      }
+
+      // B. Resolver todas las promesas que esperaban este ítem
+      const resolvers = currentBatch.get(slug);
+      if (resolvers) {
+        resolvers.forEach((resolveFunc) => resolveFunc(price));
+      }
+    });
+
+  } catch (err) {
+    console.error("Batch fetch failed:", err);
+    // En caso de error, resolvemos todo a 0 para no bloquear la app
+    currentBatch.forEach((resolvers) => {
+      resolvers.forEach((resolveFunc) => resolveFunc(0));
+    });
   }
-  isProcessingQueue = false;
 }
 
 export async function fetchBestFissures() {
@@ -231,7 +294,7 @@ export async function fetchBestFissures() {
     console.error("Error en Worldstate:", e);
     return [];
   }
-}
+} 
 export async function fetchUserProfile(username, platform) {
   try {
     const res = await fetch(
@@ -242,19 +305,28 @@ export async function fetchUserProfile(username, platform) {
     if (!res.ok) throw new Error("Worker Error");
     const data = await res.json();
     if (data.error) {
-      showToast(TEXTS[state.currentLang].errProfileNotFound);
+      if (window.showToast)
+        window.showToast(TEXTS[state.currentLang].errProfileNotFound);
       return;
     }
-    renderProfileStats(data.payload);
+    if (window.renderProfileStats) window.renderProfileStats(data.payload);
   } catch (e) {
     showToast(TEXTS[state.currentLang].errProfileFetch);
   }
 }
+const PRICE_CACHE_DURATION = 4 * 60 * 60 * 1000;
+
+
+
+
+let batchTimer = null;
+
+const CACHE_TTL = 1440; 
 
 export function getPriceValue(itemName, itemSlug) {
   return new Promise((resolve) => {
     if (
-      !itemName ||
+      !itemName || !itemSlug ||
       itemName.includes("Forma") ||
       itemName.includes("Kuva") ||
       itemName === "Riven Sliver" ||
@@ -263,35 +335,36 @@ export function getPriceValue(itemName, itemSlug) {
       resolve(0);
       return;
     }
-    if (!itemSlug) {
-      resolve(0);
-      return;
-    }
 
     if (MEMORY_CACHE.has(itemSlug)) {
-      const cached = MEMORY_CACHE.get(itemSlug);
-      if (cached > 0) {
-        resolve(cached);
-        return;
-      }
+      resolve(MEMORY_CACHE.get(itemSlug));
+      return;
     }
 
     const stored = localStorage.getItem(`price_${itemSlug}`);
     if (stored) {
-      const { val, time } = JSON.parse(stored);
-
-      if (val > 0 && Date.now() - time < 14400000) {
-        MEMORY_CACHE.set(itemSlug, val);
-        resolve(val);
-        return;
+      try {
+        const { val, time } = JSON.parse(stored);
+        if (val >= 0 && Date.now() - time < CACHE_TTL) {
+          MEMORY_CACHE.set(itemSlug, val);
+          resolve(val);
+          return;
+        }
+      } catch (e) {
+        localStorage.removeItem(`price_${itemSlug}`);
       }
     }
 
-    PRICE_QUEUE.push({ slug: itemSlug, resolve });
+    if (PENDING_REQUESTS.has(itemSlug)) {
+      PENDING_REQUESTS.get(itemSlug).push(resolve);
+      return;
+    }
 
-    if (typeof isQueueRunning !== "undefined" && !isQueueRunning)
-      processPriceQueue();
-    else if (typeof isQueueRunning === "undefined") processPriceQueue();
+    PENDING_REQUESTS.set(itemSlug, [resolve]);
+
+    if (!batchTimer) {
+      batchTimer = setTimeout(processQueue, 50);
+    }
   });
 }
 
@@ -299,86 +372,86 @@ export async function downloadRelics() {
   const loadEl = document.getElementById("loading");
   if (loadEl) loadEl.style.display = "flex";
 
-  const CACHE_KEY = "voidstonks_full_data_v3";
-  const CACHE_TIME = 48 * 60 * 60 * 1000; // 48 Horas
+  const CACHE_KEY = "voidstonks_weapons_v6_full_data";
+  const CACHE_TIME = 48 * 60 * 60 * 1000;
 
   let rawData = null;
 
-  // 1. INTENTAR CARGAR DE INDEXEDDB
   try {
-    const cachedRecord = await dbHelper.get(CACHE_KEY);
-    if (cachedRecord) {
-      if (Date.now() - cachedRecord.timestamp < CACHE_TIME) {
-        rawData = cachedRecord.data;
-        console.log("Cargando datos masivos desde IndexedDB.");
-      } else {
-        console.log("Caché expirada.");
-        await dbHelper.delete(CACHE_KEY);
-      }
-    }
-  } catch (e) {
-    console.warn("Error leyendo IndexedDB:", e);
-  }
-
-  // 2. SI NO HAY CACHÉ, DESCARGAR DEL WORKER
-  try {
-    if (!rawData) {
-      const response = await fetch(`${WORKER_URL}?type=allData`);
-      if (!response.ok) throw new Error("Worker Error al bajar allData");
-
-      rawData = await response.json();
-
-      try {
-        await dbHelper.set(CACHE_KEY, { timestamp: Date.now(), data: rawData });
-        console.log("Datos guardados en IndexedDB correctamente.");
-      } catch (dbError) {
-        console.error("No se pudo guardar en DB:", dbError);
-      }
-    }
-
     try {
-      await fetchActiveResurgence();
+      const cachedRecord = await dbHelper.get(CACHE_KEY);
+      if (cachedRecord && Date.now() - cachedRecord.timestamp < CACHE_TIME) {
+        rawData = cachedRecord.data;
+        console.log("Cargando desde caché local.");
+      }
     } catch (e) {
-      console.warn("Aya error (fetchActiveResurgence)", e);
+      console.warn("Cache local ignorada:", e);
     }
+
+    if (!rawData) {
+      console.log("Descargando del servidor...");
+
+      const [relicsRes, missionsRes, bountiesRes] = await Promise.all([
+        fetch(`${WORKER_URL}?type=relics_opt`),
+        fetch(`${WORKER_URL}?type=missions_opt`),
+        fetch(`${WORKER_URL}?type=bounties_opt`),
+      ]);
+
+      if (!relicsRes.ok || !missionsRes.ok || !bountiesRes.ok) {
+        throw new Error("Worker Error (Partial)");
+      }
+
+      const rData = await relicsRes.json();
+      const mData = await missionsRes.json();
+      const bData = await bountiesRes.json();
+
+      rawData = {
+        relics: rData.relics || [],
+        missionRewards: mData.missionRewards || {},
+        cetusBountyRewards: bData.cetus || [],
+        solarisBountyRewards: bData.solaris || [],
+        zarimanRewards: bData.zariman || [],
+        deimosRewards: bData.deimos || [],
+      };
+
+      await dbHelper.set(CACHE_KEY, { timestamp: Date.now(), data: rawData });
+    }
+
+    fetchActiveResurgence().catch(console.warn);
 
     const activeDropsSet = new Set();
-    state.relicSourcesDatabase = {}; 
+    state.relicSourcesDatabase = {};
 
     const cleanRelicName = (name) => name.replace(" Relic", "").trim();
-
     const addSource = (relicFull, sourceData) => {
       const name = cleanRelicName(relicFull);
-      if (!state.relicSourcesDatabase[name]) {
+      if (!state.relicSourcesDatabase[name])
         state.relicSourcesDatabase[name] = [];
-      }
       state.relicSourcesDatabase[name].push(sourceData);
     };
 
     if (rawData.missionRewards) {
       for (const planet in rawData.missionRewards) {
         for (const node in rawData.missionRewards[planet]) {
-          const nodeData = rawData.missionRewards[planet][node];
+          const d = rawData.missionRewards[planet][node];
+          if (d.rewards) {
+            for (const rot in d.rewards) {
+              const rewardsList = d.rewards[rot];
+              if (!Array.isArray(rewardsList)) continue;
 
-          if (nodeData.rewards) {
-            Object.keys(nodeData.rewards).forEach((rot) => {
-              const pool = nodeData.rewards[rot];
-              if (Array.isArray(pool)) {
-                pool.forEach((item) => {
-                  if (item.itemName && item.itemName.includes("Relic")) {
-                    activeDropsSet.add(item.itemName);
-
-                    addSource(item.itemName, {
-                      type: "mission",
-                      location: `${node} (${planet})`,
-                      mission: nodeData.gameMode,
-                      rotation: rot,
-                      chance: item.chance,
-                    });
-                  }
-                });
-              }
-            });
+              rewardsList.forEach((i) => {
+                if (i.itemName && i.itemName.includes("Relic")) {
+                  activeDropsSet.add(i.itemName);
+                  addSource(i.itemName, {
+                    type: "mission",
+                    location: `${node} (${planet})`,
+                    mission: d.gameMode,
+                    rotation: rot,
+                    chance: i.chance,
+                  });
+                }
+              });
+            }
           }
         }
       }
@@ -388,91 +461,82 @@ export async function downloadRelics() {
       { data: rawData.cetusBountyRewards, name: "Cetus" },
       { data: rawData.solarisBountyRewards, name: "Fortuna" },
       { data: rawData.zarimanRewards, name: "Zariman" },
-      { data: rawData.deimosRewards, name: "Necralisk (Deimos)" },
+      { data: rawData.deimosRewards, name: "Deimos" },
     ];
 
-    bountySources.forEach((source) => {
-      if (Array.isArray(source.data)) {
-        source.data.forEach((bounty) => {
-          if (bounty.rewards) {
-            Object.keys(bounty.rewards).forEach((stageKey) => {
-              const pool = bounty.rewards[stageKey];
-              if (Array.isArray(pool)) {
-                pool.forEach((item) => {
-                  if (item.itemName && item.itemName.includes("Relic")) {
-                    activeDropsSet.add(item.itemName);
+    bountySources.forEach((src) => {
+      if (Array.isArray(src.data)) {
+        src.data.forEach((b) => {
+          if (b.rewards) {
+            for (const stage in b.rewards) {
+              const rewardsList = b.rewards[stage];
+              if (!Array.isArray(rewardsList)) continue;
 
-                    addSource(item.itemName, {
-                      type: "bounty",
-                      location: `${source.name} Bounty`,
-                      mission: bounty.bountyLevel || "Contrato",
-                      rotation: stageKey,
-                      chance: item.chance,
-                    });
-                  }
-                });
-              }
-            });
+              rewardsList.forEach((i) => {
+                if (i.itemName && i.itemName.includes("Relic")) {
+                  activeDropsSet.add(i.itemName);
+                  addSource(i.itemName, {
+                    type: "bounty",
+                    location: `${src.name} Bounty`,
+                    mission: b.bountyLevel || "Contrato",
+                    rotation: stage,
+                    chance: i.chance,
+                  });
+                }
+              });
+            }
           }
         });
       }
     });
 
-    Object.keys(state.relicSourcesDatabase).forEach((key) => {
-      state.relicSourcesDatabase[key].sort((a, b) => b.chance - a.chance);
-    });
-
     state.allRelicNames = [];
     state.relicsDatabase = {};
     state.itemsDatabase = {};
+    state.relicStatusDB = {};
 
-    const relicsList = rawData.relics || [];
+    if (rawData.relics) {
+      rawData.relics.forEach((r) => {
+        if (r.state !== "Intact") return;
 
-    relicsList.forEach((r) => {
-      if (r.state === "Intact") {
         const rName = r.relicName || r.name;
         if (!rName || !r.tier) return;
 
         const tierName = `${r.tier} ${rName}`;
-        const fullNameRelic = `${tierName} Relic`;
-
         state.allRelicNames.push(tierName);
 
-        state.relicsDatabase[tierName] = r.rewards.map((reward) => ({
-          name: reward.itemName,
-          chance: reward.chance,
-          rarity: reward.rarity,
+        state.relicsDatabase[tierName] = r.rewards.map((rw) => ({
+          name: rw.itemName,
+          chance: rw.chance,
+          rarity: rw.rarity,
         }));
 
-        r.rewards.forEach((reward) => {
-          const iName = reward.itemName;
-          if (!state.itemsDatabase[iName]) state.itemsDatabase[iName] = [];
-          state.itemsDatabase[iName].push({
+        r.rewards.forEach((rw) => {
+          if (!state.itemsDatabase[rw.itemName])
+            state.itemsDatabase[rw.itemName] = [];
+          state.itemsDatabase[rw.itemName].push({
             relic: tierName,
             tier: r.tier,
-            chance: reward.chance,
+            chance: rw.chance,
           });
         });
 
         const isAya = state.activeResurgenceList.has(tierName.toUpperCase());
-        const dropsInGame = activeDropsSet.has(fullNameRelic);
-        const isRequiem = r.tier === "Requiem";
+        const dropsInGame = activeDropsSet.has(`${tierName} Relic`);
 
-        if (isAya) {
-          state.relicStatusDB[tierName] = "aya";
-        } else if (isRequiem || dropsInGame) {
+        if (isAya) state.relicStatusDB[tierName] = "aya";
+        else if (r.tier === "Requiem" || dropsInGame)
           state.relicStatusDB[tierName] = "active";
-        } else {
-          state.relicStatusDB[tierName] = "vaulted";
-        }
-      }
-    });
+        else state.relicStatusDB[tierName] = "vaulted";
+      });
+    }
 
     state.allRelicNames.sort();
-    finishLoading();
+    if (window.finishLoading) window.finishLoading();
   } catch (e) {
-    console.error("Error downloadRelics:", e);
-    showToast("Error cargando datos. Intenta recargar.");
+    console.error("Error crítico descarga:", e);
+    showToast("Error de datos. Recarga la página.");
+    if (loadEl) loadEl.style.display = "none";
   }
 }
 function isRelicUnvaulted(tier, name, allData) {
@@ -564,15 +628,13 @@ function savePriceToCache(slug, price) {
   try {
     const res = await fetch(`${WORKER_URL}?type=price&q=${slug}`);
 
-    if (res.status === 429) return 0; // Rate Limit
+    if (res.status === 429) return 0;
     if (!res.ok) return 0;
 
     const data = await res.json();
 
-    // Leer formato optimizado del Worker
     if (typeof data.price === "number") return data.price;
 
-    // Fallback formato antiguo
     if (data.payload?.orders?.length > 0)
       return data.payload.orders[0].platinum;
 
@@ -584,53 +646,110 @@ function savePriceToCache(slug, price) {
 export function addToQueue(itemName, element) {
   const slug = getSlug(itemName);
   getPriceValue(itemName, slug).then((price) => {
-    updatePriceUI(element, price);
+    if (window.updatePriceUI) window.updatePriceUI(element, price);
   });
 }
-const DB_NAME = "VoidStonksDB";
+const DB_NAME = "VoidStonksDB_V1";
 const STORE_NAME = "bigData";
 
 const dbHelper = {
+  dbInstance: null,
+
   open: () => {
     return new Promise((resolve, reject) => {
+      if (dbHelper.dbInstance) {
+        return resolve(dbHelper.dbInstance);
+      }
+
       const request = indexedDB.open(DB_NAME, 1);
+
       request.onupgradeneeded = (e) => {
         const db = e.target.result;
         if (!db.objectStoreNames.contains(STORE_NAME)) {
           db.createObjectStore(STORE_NAME);
         }
       };
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
+
+      request.onsuccess = (e) => {
+        const db = e.target.result;
+        dbHelper.dbInstance = db;
+
+        db.onversionchange = () => {
+          db.close();
+          dbHelper.dbInstance = null;
+          console.log(
+            "Base de datos cerrada automáticamente para permitir actualización."
+          );
+        };
+
+        resolve(db);
+      };
+
+      request.onerror = (e) => {
+        console.warn("Error abriendo DB:", e.target.error);
+        reject(e.target.error);
+      };
+
+      request.onblocked = () => {
+        console.warn(
+          "Base de datos bloqueada. Cerrando conexiones antiguas..."
+        );
+      };
     });
   },
+
   get: async (key) => {
-    const db = await dbHelper.open();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(STORE_NAME, "readonly");
-      const store = tx.objectStore(STORE_NAME);
-      const req = store.get(key);
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = () => reject(req.error);
-    });
+    try {
+      const db = await dbHelper.open();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, "readonly");
+        const store = tx.objectStore(STORE_NAME);
+        const req = store.get(key);
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    } catch (e) {
+      console.warn("Error DB Get", e);
+      return null;
+    }
   },
+
   set: async (key, value) => {
-    const db = await dbHelper.open();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(STORE_NAME, "readwrite");
-      const store = tx.objectStore(STORE_NAME);
-      const req = store.put(value, key);
-      req.onsuccess = () => resolve();
-      req.onerror = () => reject(req.error);
-    });
+    try {
+      const db = await dbHelper.open();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, "readwrite");
+        const store = tx.objectStore(STORE_NAME);
+        const req = store.put(value, key);
+        req.onsuccess = () => resolve();
+        req.onerror = () => reject(req.error);
+      });
+    } catch (e) {
+      console.warn("Error DB Set", e);
+    }
   },
+
   delete: async (key) => {
-    const db = await dbHelper.open();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(STORE_NAME, "readwrite");
-      const store = tx.objectStore(STORE_NAME);
-      store.delete(key);
-      tx.oncomplete = () => resolve();
-    });
+    try {
+      const db = await dbHelper.open();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, "readwrite");
+        const store = tx.objectStore(STORE_NAME);
+        store.delete(key);
+        tx.oncomplete = () => resolve();
+      });
+    } catch (e) {
+      console.warn("Error DB Delete", e);
+    }
   },
 };
+export async function initializeOCRDatabase() {
+  try {
+    const res = await fetch(`${WORKER_URL}?type=prime_items_list`);
+    const data = await res.json();
+    state.ocrReferenceList = data.items;
+    console.log("DB de Referencia OCR cargada:", state.ocrReferenceList.length);
+  } catch (e) {
+    console.error("Fallo al cargar referencia OCR");
+  }
+}

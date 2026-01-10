@@ -1,5 +1,132 @@
 export const WORKER_URL = "https://wf-tool-proxy-worker.edelamf0.workers.dev/";
+export const APP_VERSION = 1.23;
+export const UPDATE_HISTORY_CONTENT = `
+<div class="update-block">
+  <div class="update-header">
+    <span class="update-version">v1.2.3 (Current)</span>
+    <span class="update-date">2026-01-10</span>
+  </div>
+  <ul class="update-list">
+    <li>
+      <strong>Small fixes:</strong>Fixes on relic scan now it should cover more cases and correctly recognize more parts , there may be some bugs.
+    </li>
+        <li>
+      <strong>Should be getting a kind of overlay for consoles in a bit (soonish) using the phone as an overlay.
+    </li>
+  </ul>
+</div>
+<div class="update-block old">
+</div>
+<div class="update-block old">
+ <div class="update-header">
+  <span class="update-version">v1.2.1 and 1.2.2</span>
+    <span class="update-date">2026-01-07</span>
+  </div>
+    </div>
+  <ul class="update-list">
+      <li>
+      <strong>Small fixes:</strong>Fixes towards optimization and small translation errors
+    </li>
+    <li>
+      <strong>Mobile UI fixes:</strong> Broke stuff fixed it now
+    </li>
+    <li>
+      <strong>EXPORT/IMPORT RELIC INVENTORY ADDED:</strong> IF YOU GO THROUGH THE HASSLE OF SCANNING MANUALLY ADDING YOUR RELIC INVENTORY YOU CAN NOW EXPORT YOUR RELIC PROGRESS AND IMPORT LATER ON
+    </li>
+    <li><strong>Worker optimizations</strong> </li>
+    <li><em>Coming soon: Automatic inventory scan via screen recording , half implemented it works bad</em></li>
+    <li><em>Inventory scan now can be done inserting multiple photos, mobile scan is broken at the moment so a fix is pending.</em></li>
+  </ul>
 
+
+</div>
+<div class="update-block old">
+ <div class="update-header">
+    <span class="update-version">v1.2.0</span>
+    <span class="update-date">2026-01-05</span>
+  </div>
+  <ul class="update-list">
+    <li>
+      <strong>Riven Grading:</strong> New dedicated modal to calculate Riven
+      quality.
+    </li>
+    <li>
+      <strong>UI Overhaul:</strong> Improved styling for the Relics tab and
+      overall interface elements.
+    </li>
+    <li><strong>Bug Fix:</strong> Vaulted/not vaulted logic fixed</li>
+    <li><em>Coming soon: Automatic Riven grading via photo scan!</em></li>
+    <li><em>Added this update notice just today :P</em></li>
+  </ul>
+</div>
+<div class="update-block old">
+  <div class="update-header">
+    <span class="update-version">v1.1.5 (Beta)</span>
+    <span class="update-date">2026-01-04</span>
+  </div>
+  <ul class="update-list">
+    <li>
+      <strong>Live Reward Scanner (BETA):</strong> New OCR feature to scan
+      mission rewards in real-time. Expect potential bugs as it is currently in
+      testing.
+    </li>
+    <li>
+      <strong>New feature Vaulted/Not vaulted relics:</strong>Vaulted/not vaulted logic added
+    </li>
+    <li>
+      <strong>Mobile Optimization:</strong> Significant UI improvements for
+      better navigation on mobile devices.
+    </li>
+  </ul>
+</div>
+
+<div class="update-block old">
+  <div class="update-header">
+    <span class="update-version">v1.1.0</span>
+    <span class="update-date">2025-12-30</span>
+  </div>
+  <ul class="update-list">
+    <li>
+      <strong>Inventory Scanner:</strong> Use your phone's camera to scan and
+      add relics to your inventory automatically.
+    </li>
+    <li>
+      <strong>Cloud Sync:</strong> Added a new clipboard synchronization tool
+      (cloud icon) to transfer lfg text between devices instantly.
+    </li>
+    <li>
+      <strong>Side Panels:</strong> Added toggle buttons to easily show or hide
+      the Relic Inventory and Recommended Fissures.
+    </li>
+    <li>
+      <strong>Graphics:</strong> General visual enhancements across all tabs.
+    </li>
+  </ul>
+</div>
+
+<div class="update-block old">
+  <div class="update-header">
+    <span class="update-version">v1.0.0</span>
+    <span class="update-date">2025-12-28</span>
+  </div>
+  <ul class="update-list">
+    <li>
+      <strong>LFG Message Generator:</strong> Create professional recruitment
+      messages for chat with one click.
+    </li>
+    <li>
+      <strong>Market Integration:</strong> Real-time price fetching for Prime
+      parts and sets directly from Warframe Market.
+    </li>
+    <li>
+      <strong>Basic Database:</strong> Initial support for all currently active
+      Relics and Prime items.
+    </li>
+  </ul>
+</div>
+
+
+`;
 export const TIER_URLS = {
   Lith: "https://wiki.warframe.com/images/LithRelicIntact.png?ee7d7",
   Meso: "https://wiki.warframe.com/images/MesoRelicIntact.png?a9b4a",
@@ -20,7 +147,9 @@ export const DROP_CHANCES = {
   Flawless: { rare: 0.06, uncommon: 0.34, common: 0.6 },
   Rad: { rare: 0.1, uncommon: 0.4, common: 0.5 },
 };
+
 export const RIVEN_STATS = [
+  // --- BÁSICOS ---
   { slug: "critical_chance", name_en: "Crit Chance", name_es: "Prob. Crítica" },
   { slug: "critical_damage", name_en: "Crit Damage", name_es: "Daño Crítico" },
   { slug: "multishot", name_en: "Multishot", name_es: "Multidisparo" },
@@ -35,27 +164,153 @@ export const RIVEN_STATS = [
     name_es: "Cadencia / Vel. Ataque",
   },
   { slug: "status_chance", name_en: "Status Chance", name_es: "Prob. Estado" },
+  {
+    slug: "status_duration",
+    name_en: "Status Duration",
+    name_es: "Duración de Estado",
+  },
+
+  // --- ELEMENTALES ---
   { slug: "toxin_damage", name_en: "Toxin", name_es: "Toxina" },
   { slug: "heat_damage", name_en: "Heat", name_es: "Calor" },
   { slug: "electric_damage", name_en: "Electric", name_es: "Electricidad" },
   { slug: "cold_damage", name_en: "Cold", name_es: "Frío" },
+
+  // --- FÍSICOS ---
+  { slug: "impact_damage", name_en: "Impact", name_es: "Impacto" },
+  { slug: "puncture_damage", name_en: "Puncture", name_es: "Perforación" },
+  { slug: "slash_damage", name_en: "Slash", name_es: "Cortante" },
+
+  // --- UTILIDAD ARMAS DE FUEGO ---
   { slug: "weapon_recoil", name_en: "Recoil", name_es: "Retroceso" },
-  { slug: "range", name_en: "Range", name_es: "Alcance" },
-  { slug: "magazine_capacity", name_en: "Magazine Cap", name_es: "Cargador" },
+  {
+    slug: "magazine_capacity",
+    name_en: "Magazine Capacity",
+    name_es: "Capacidad Cargador",
+  },
+  { slug: "ammo_maximum", name_en: "Ammo Maximum", name_es: "Munición Máxima" },
   { slug: "reload_speed", name_en: "Reload Speed", name_es: "Vel. Recarga" },
   {
-    slug: "damage_vs_grineer",
-    name_en: "Dmg Grineer",
-    name_es: "Daño Grineer",
+    slug: "projectile_flight_speed",
+    name_en: "Projectile Speed",
+    name_es: "Vel. Proyectil",
   },
-  { slug: "damage_vs_corpus", name_en: "Dmg Corpus", name_es: "Daño Corpus" },
+  { slug: "punch_through", name_en: "Punch Through", name_es: "Atravesar" },
+  { slug: "zoom", name_en: "Zoom", name_es: "Zoom" },
+
+  // --- MELEE ESPECÍFICOS  ---
+  { slug: "range", name_en: "Range", name_es: "Alcance (Rango)" },
+  { slug: "initial_combo", name_en: "Initial Combo", name_es: "Combo Inicial" },
+  {
+    slug: "combo_duration",
+    name_en: "Combo Duration",
+    name_es: "Duración de Combo",
+  },
+  {
+    slug: "chance_to_gain_extra_combo_count",
+    name_en: "Chance not to gain Combo",
+    name_es: "Prob. Combo Extra",
+  },
+  {
+    slug: "critical_chance_on_slide_attack",
+    name_en: "Slide Attack Critical Chance",
+    name_es: "Crit en Deslizamiento",
+  },
+  {
+    slug: "heavy_attack_efficiency",
+    name_en: "Heavy Attack Efficiency",
+    name_es: "Eficiencia Ataque Pesado",
+  },
+  {
+    slug: "finisher_damage",
+    name_en: "Finisher Damage",
+    name_es: "Daño de Remate",
+  },
+
+  // --- FACCIONES ---
+  {
+    slug: "damage_vs_grineer",
+    name_en: "Damage to Grineer",
+    name_es: "Daño a Grineer",
+  },
+  {
+    slug: "damage_vs_corpus",
+    name_en: "Damage to Corpus",
+    name_es: "Daño a Corpus",
+  },
   {
     slug: "damage_vs_infested",
-    name_en: "Dmg Infested",
-    name_es: "Daño Infestado",
+    name_en: "Damage to Infested",
+    name_es: "Daño a Infestados",
   },
 ];
+export const WEAPON_TYPE_IDX = {
+  Rifle: 0,
+  Sniper: 0,
+  Bow: 0,
+  Launcher: 0,
+  Sentinel: 0,
+  Shotgun: 1,
+  Pistol: 2,
+  "Dual Pistols": 2,
+  Thrown: 2,
+  Melee: 3,
+  Zaw: 3,
+  Glaive: 3,
+  Archgun: 4,
+};
 
+export const RIVEN_BASE_STATS = {
+  // --- ESTADÍSTICAS OFENSIVAS ---
+  "Critical Chance": [16.7, 10, 16.7, 20.0, 11.1],
+  "Critical Damage": [13.3, 10, 10, 10, 8.9],
+  "Status Chance": [10, 10, 10, 10, 6.7],
+  "Status Duration": [11.1, 11.1, 11.1, 11.1, 11.1],
+  Damage: [18.3, 18.3, 24.4, 18.3, 11.1],
+  Multishot: [10, 13.3, 13.3, 0, 6.7],
+  "Fire Rate": [6.7, 10, 8.3, 0, 6.7],
+  "Attack Speed": [0, 0, 0, 6.1, 0],
+
+  // --- ELEMENTALES & FÍSICOS ---
+  Electric: [10, 10, 10, 10, 13.3],
+  Toxin: [10, 10, 10, 10, 13.3],
+  Heat: [10, 10, 10, 10, 13.3],
+  Cold: [10, 10, 10, 10, 13.3],
+  Impact: [13.3, 13.3, 13.3, 13.3, 10],
+  Puncture: [13.3, 13.3, 13.3, 13.3, 10],
+  Slash: [13.3, 13.3, 13.3, 13.3, 10],
+
+  // --- UTILIDAD / MUNICIÓN ---
+  "Ammo Maximum": [5.5, 10, 10, 0, 11.1],
+  "Magazine Capacity": [5.5, 5.5, 5.5, 0, 6.7],
+  "Reload Speed": [5.5, 5.5, 5.5, 0, 11.1],
+  "Projectile Speed": [10, 10, 10, 0, 11.1],
+  Zoom: [6.7, 0, 8.9, 0, 6.7],
+  "Punch Through": [0.3, 0.3, 0.3, 0, 0.3],
+  Recoil: [-10, -10, -10, 0, -10],
+
+  // --- MELEE ESPECÍFICOS ---
+  Range: [0, 0, 0, 0.21, 0],
+  "Combo Duration": [0, 0, 0, 0.9, 0],
+  "Initial Combo": [0, 0, 0, 2.7, 0],
+  "Chance not to gain Combo": [0, 0, 0, 6.5, 0],
+  "Slide Attack Critical Chance": [0, 0, 0, 13.3, 0],
+  "Finisher Damage": [0, 0, 0, 13.3, 0],
+  "Heavy Attack Efficiency": [0, 0, 0, 8.2, 0],
+
+  // --- FACCIONES ---
+  "Damage to Grineer": [5, 5, 5, 5, 5],
+  "Damage to Corpus": [5, 5, 5, 5, 5],
+  "Damage to Infested": [5, 5, 5, 5, 5],
+};
+
+// (Buffs vs Curses)
+export const RIVEN_WEIGHTS = {
+  "2-0": { buff: 0.99, curse: 0 },
+  "2-1": { buff: 1.2375, curse: 0.495 },
+  "3-0": { buff: 0.75, curse: 0 },
+  "3-1": { buff: 0.9375, curse: 0.75 },
+};
 export const TEXTS = {
   es: {
     inventory: {
@@ -86,7 +341,7 @@ export const TEXTS = {
     },
     lfgPresets: {
       title: "Mensajes Guardados",
-      btnSave: "GUARDAR PRESET",
+      btnSave: "Save preset",
       placeholder: "Nombre (ej: Eidolon 5x3)",
       empty: "No hay presets guardados.",
       deleteConfirm: "¿Borrar este preset?",
@@ -127,7 +382,7 @@ export const TEXTS = {
     },
     manualAdd: "Añadir al Inventario",
     addGuide:
-      "ℹ️ Dos formas de añadir: Manualmente (botón +) o Escáner (Cámara). Las fotos se procesan 100% local en tu dispositivo.",
+      "ℹ Dos formas de añadir: Manualmente (botón +) o Escáner (Cámara). Las fotos se procesan 100% local en tu dispositivo.",
     lblProfit: "Rentabilidad (Media)",
     lblProfitSolo: "Rentabilidad (Solo)",
     lblProfitSquad: "Rentabilidad ({n} Jugadores)",
@@ -169,7 +424,7 @@ export const TEXTS = {
     footerData: "Datos provistos por:",
     contactLabel: "¿Tienes ideas para mejorar la app?",
     contactLink: "w/Parcialsobriedad",
-    rivenSearch: "🔎 BUSCAR PRECIO",
+    rivenSearch: " BUSCAR PRECIO",
     refs: {
       rad: "Radiante",
       intact: "Intact",
@@ -178,7 +433,7 @@ export const TEXTS = {
     },
     rarityAbbr: { common: "C", uncommon: "PC", rare: "R" },
     trackerTitle: "Progreso del Set",
-    markDone: "✅ Ya lo tengo",
+    markDone: "Ya lo tengo",
     markUndo: "Desmarcar",
     lblUser: "Nombre de Usuario (PC)",
     btnCheck: "Check",
@@ -364,7 +619,7 @@ export const TEXTS = {
     footerData: "Data by:",
     contactLabel: "Ideas? PM me ingame or through wf forums",
     contactLink: "w/Parcialsobriedad",
-    rivenSearch: "🔎 CHECK PRICE",
+    rivenSearch: " CHECK PRICE",
     refs: {
       rad: "Radiant",
       intact: "Intact",
@@ -373,7 +628,7 @@ export const TEXTS = {
     },
     rarityAbbr: { common: "C", uncommon: "UC", rare: "R" },
     trackerTitle: "Set Progress",
-    markDone: "✅ Got it",
+    markDone: "Got it",
     markUndo: "Unmark",
     lblUser: "Username (PC)",
     btnCheck: "Check",

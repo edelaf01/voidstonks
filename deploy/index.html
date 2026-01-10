@@ -58,7 +58,8 @@
   <body>
     <canvas id="void-traces-canvas"></canvas>
     <div id="ocr-overlay" class="fullscreen-scanner hidden">
-      <div class="ocr-system-header">INVENTORY OCR (RELICS ONLY)</div>
+      <div class="ocr-system-header">INVENTORY SCANNER</div>
+
       <video id="ocr-video" autoplay playsinline class="scanner-video"></video>
       <canvas id="ocr-canvas" class="hidden"></canvas>
 
@@ -72,76 +73,123 @@
           <div class="guide-corner tr"></div>
           <div class="guide-corner bl"></div>
           <div class="guide-corner br"></div>
-          <div
-            class="scanner-text"
-            style="
-              position: absolute;
-              bottom: -30px;
-              width: 100%;
-              text-align: center;
-            "
-          >
-            AIM YOUR CAMERA TOWARDS THE INVENTORY SCREEN OF YOUR RELICS
-          </div>
+          <div class="scanner-text">AIM TOWARDS YOUR RELIC INVENTORY</div>
         </div>
 
-        <div class="scanner-controls-bar">
+        <div class="scanner-actions-bar">
           <button
+            class="action-btn secondary"
             onclick="document.getElementById('file-upload').click()"
-            class="control-btn small"
           >
-            📁
+            UPLOAD IMAGE
           </button>
+          <!--<button
+            class="action-btn secondary"
+            onclick="window.startInventoryScrollScan()"
+            style="border-color: #d4af37; color: #d4af37"
+          >
+            📜 AUTO-SCROLL
+          </button>-->
           <input
             type="file"
             id="file-upload"
+            multiple
             accept="image/*"
             hidden
-            onchange="window.handleFileUpload(this)"
+            onchange="window.handleFileUpload(event)"
           />
 
           <button onclick="window.captureRelics()" class="shutter-btn"></button>
 
           <button
+            class="action-btn inventory-badge-btn"
             onclick="window.toggleScannedList()"
-            class="control-btn small"
-            style="position: relative"
           >
-            🎒 <span id="scanned-badge" class="badge-count hidden">0</span>
+            DETECTED RELICS<span id="scanned-badge" class="badge-count hidden"
+              >0</span
+            >
           </button>
         </div>
       </div>
 
-      <div id="scanned-results-panel" class="results-drawer hidden">
-        <h4
-          style="
-            margin: 0 0 10px 0;
-            color: #fff;
-            text-align: center;
-            border-bottom: 1px solid #333;
-            padding-bottom: 10px;
-          "
-        >
-          DETECTED RELICS
-        </h4>
-        <div id="scanned-list" class="scanned-list-content"></div>
-        <div style="margin-top: 10px; display: flex; gap: 10px">
-          <button
-            onclick="window.confirmScanResults()"
-            class="riven-btn"
-            style="margin: 0; background: var(--wf-green)"
-          >
-            SAVE RELICS ON INVENTORY
-          </button>
-        </div>
-      </div>
-
-      <div id="ocr-loading" class="hidden">
-        <div class="loading-spinner"></div>
-        <p style="margin-top: 10px">Analizando...</p>
+      <div id="ocr-loading" class="ocr-loading-overlay hidden">
+        <div class="ocr-spinner"></div>
+        <p>Processing image ...</p>
       </div>
     </div>
 
+    <div id="scanner-section" class="scanner-wrapper">
+      <div
+        class="scanner-info-icon"
+        data-tooltip="This feature uses OCR to read your screen. Only works inside missions during the reward selection screen."
+      >
+        ℹ️
+      </div>
+
+      <div id="scanner-toggle" class="scanner-toggle-btn">
+        <div class="toggle-content">
+          <span class="icon-pulse">◉</span>
+          <span class="label">LIVE RELIC SCANNER</span>
+        </div>
+        <span class="arrow-indicator">▼</span>
+      </div>
+
+      <div id="scanner-privacy-notice" class="scanner-notice hidden">
+        <div class="notice-header">⚠️ BETA FEATURE NOTICE</div>
+        <div class="notice-body">
+          <p>
+            To detect rewards, this tool needs permission to
+            <span style="color: #ff4444; font-weight: 900">"RECORD"</span> your
+            screen.
+          </p>
+          <p style="font-size: 0.85em; color: #aaa">
+            When the browser popup appears, select the
+            <strong>Warframe Window</strong>.
+          </p>
+          <p class="beta-warning">
+            THIS IS A <strong>BETA FEATURE</strong>, SO EXPECT FOR IT NOT TO
+            WORK PROPERLY OR CONTAIN BUGS.
+          </p>
+        </div>
+        <button id="btn-accept-scan" class="action-btn confirm full-width">
+          I UNDERSTAND, START SCAN
+        </button>
+      </div>
+
+      <div id="scanner-drawer" class="scanner-drawer closed">
+        <div id="live-viewport">
+          <video id="live-video" autoplay muted playsinline></video>
+          <canvas id="live-canvas" class="hidden"></canvas>
+          <div id="live-overlay"></div>
+          <button id="close-drawer-btn" onclick="stopLiveSession()">
+            STOP SCAN
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div id="scan-success-modal" class="hidden">
+      <div class="modal-backdrop"></div>
+      <div class="scan-result-card">
+        <div class="scan-header">
+          <h3>REWARDS DETECTED</h3>
+          <button class="close-modal-btn" onclick="closeScanModal()">✕</button>
+        </div>
+
+        <div class="scan-image-container">
+          <img id="scan-snapshot" src="" alt="Scan Snapshot" />
+          <div id="scan-badges-wrapper">
+            <div id="scan-badges-container"></div>
+          </div>
+        </div>
+
+        <div class="scan-footer">
+          <button class="action-btn confirm" onclick="closeScanModal()">
+            CONTINUE SCANNING
+          </button>
+        </div>
+      </div>
+    </div>
     <div id="inventory-container">
       <div
         id="inv-toggle-btn"
@@ -213,7 +261,30 @@
           <option value="ducats">Ducats per relic</option>
         </select>
       </div>
-
+      <div
+        style="
+          display: flex;
+          gap: 10px;
+          margin-top: 10px;
+          border-top: 1px dashed #333;
+          padding-top: 10px;
+        "
+      >
+        <button
+          class="inv-tier-btn"
+          onclick="window.exportInventory()"
+          style="border-color: var(--wf-blue); color: var(--wf-blue)"
+        >
+          ⬇ EXPORT
+        </button>
+        <button
+          class="inv-tier-btn"
+          onclick="window.importInventory()"
+          style="border-color: var(--wf-gold-text); color: var(--wf-gold-text)"
+        >
+          ⬆ IMPORT
+        </button>
+      </div>
       <div id="inventory-list" class="fissures-scroll-area"></div>
     </div>
     <header class="site-header">
@@ -331,7 +402,7 @@
               <button
                 class="camera-btn"
                 onclick="window.openScanner()"
-                title="Escanear Inventario"
+                title="SCAN YOUR RELIC INVENTORY"
               >
                 Relic photo scan
               </button>
@@ -442,55 +513,45 @@
                 autocomplete="off"
               />
               <div id="rivenDropdown" class="custom-dropdown hidden"></div>
+
+              <div
+                id="riven-dispo-display"
+                style="margin-top: 5px; font-size: 0.9em; color: #aaa"
+              ></div>
             </div>
 
-            <div id="riven-avg-box">
+            <div id="riven-avg-box" style="margin-top: 15px; display: none">
               <span
                 style="font-size: 0.8em; color: #bbb; text-transform: uppercase"
-                >Precio Base (Est.)</span
+                >Estimated base price</span
               ><br />
               <span id="riven-avg-value" class="riven-avg-val">...</span>
               <span style="font-size: 0.8em">pl</span>
             </div>
 
-            <label id="lbl-riven-stats">Estadísticas (Opcional)</label>
-            <div class="riven-stats-container">
-              <div class="riven-row">
-                <select
-                  id="rivenStat1"
-                  class="wf-input riven-input riven-stat-select"
-                >
-                  <option value="">+ Stat 1</option>
-                </select>
-                <select
-                  id="rivenStat2"
-                  class="wf-input riven-input riven-stat-select"
-                >
-                  <option value="">+ Stat 2</option>
-                </select>
-                <select
-                  id="rivenStat3"
-                  class="wf-input riven-input riven-stat-select"
-                >
-                  <option value="">+ Stat 3</option>
-                </select>
-              </div>
-              <div class="riven-row" style="margin-top: 5px">
-                <select
-                  id="rivenStatNeg"
-                  class="wf-input riven-input riven-stat-select negative"
-                >
-                  <option value="">- Negativa (Opcional)</option>
-                </select>
-              </div>
+            <div style="display: flex; gap: 10px; margin-top: 20px">
+              <button
+                class="riven-btn"
+                id="btn-riven-search"
+                onclick="openRivenMarket()"
+                style="flex: 1; margin: 0"
+              >
+                 BUSCAR PRECIO
+              </button>
+
+              <button
+                class="riven-btn"
+                onclick="openGradingModal()"
+                style="
+                  flex: 1;
+                  margin: 0;
+                  background: linear-gradient(135deg, #d4af37, #a08538);
+                  color: #000;
+                "
+              >
+                GRADE RIVEN
+              </button>
             </div>
-            <button
-              class="riven-btn"
-              id="btn-riven-search"
-              onclick="openRivenMarket()"
-            >
-              🔎 BUSCAR PRECIO
-            </button>
           </div>
         </div>
 
@@ -681,6 +742,14 @@
         >
         <span class="footer-separator">|</span>
         <a
+          href="https://tenno.tools/"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="footer-link"
+          >Tenno.tools</a
+        >
+        <span class="footer-separator">|</span>
+        <a
           href="https://github.com/WFCD"
           target="_blank"
           rel="noopener noreferrer"
@@ -706,6 +775,251 @@
         Warframe™ es una marca registrada de Digital Extremes Ltd.
       </div>
     </footer>
+    <div id="grading-modal" class="hidden">
+      <div class="modal-backdrop" onclick="closeGradingModal()"></div>
+      <div
+        class="scan-result-card"
+        style="max-width: 600px; height: auto; max-height: 90vh"
+      >
+        <div class="scan-header">
+          <h3 id="grading-modal-title">RIVEN GRADER</h3>
+          <button class="close-modal-btn" onclick="closeGradingModal()">
+            ✕
+          </button>
+        </div>
+
+        <div class="content-area" style="padding: 20px; overflow-y: auto">
+          <div
+            class="form-group"
+            style="
+              display: flex;
+              gap: 10px;
+              align-items: center;
+              margin-bottom: 20px;
+              border-bottom: 1px dashed #444;
+              padding-bottom: 15px;
+            "
+          >
+            <div style="flex: 1">
+              <label>Arma</label>
+              <div
+                id="g-weapon-name"
+                style="
+                  font-weight: bold;
+                  color: var(--wf-blue);
+                  font-size: 1.1em;
+                "
+              >
+                ...
+              </div>
+            </div>
+            <div style="width: 120px">
+              <label>Riven mod rank</label>
+              <select
+                id="g-rank"
+                class="wf-input"
+                onchange="calculateModalGrade()"
+                style="padding: 5px"
+              >
+                <option value="8" selected>Max (8)</option>
+                <option value="0">Min (0)</option>
+              </select>
+            </div>
+          </div>
+
+          <div id="grading-inputs-container">
+            <div class="riven-row input-group">
+              <select
+                id="g-stat1"
+                class="wf-input riven-stat-select"
+                onchange="updateSelectExclusions(); calculateModalGrade()"
+              >
+                <option value="">+ STAT 1</option>
+              </select>
+              <input
+                type="number"
+                id="g-val1"
+                class="wf-input riven-val-input"
+                placeholder="%"
+                onkeyup="calculateModalGrade()"
+              />
+            </div>
+
+            <div class="riven-row input-group">
+              <select
+                id="g-stat2"
+                class="wf-input riven-stat-select"
+                onchange="updateSelectExclusions(); calculateModalGrade()"
+              >
+                <option value="">+ STAT 2</option>
+              </select>
+              <input
+                type="number"
+                id="g-val2"
+                class="wf-input riven-val-input"
+                placeholder="%"
+                onkeyup="calculateModalGrade()"
+              />
+            </div>
+
+            <div id="row-stat3" class="riven-row input-group hidden">
+              <select
+                id="g-stat3"
+                class="wf-input riven-stat-select"
+                onchange="updateSelectExclusions(); calculateModalGrade()"
+              >
+                <option value="">+ STAT 3</option>
+              </select>
+              <input
+                type="number"
+                id="g-val3"
+                class="wf-input riven-val-input"
+                placeholder="%"
+                onkeyup="calculateModalGrade()"
+              />
+              <button
+                class="mini-action-btn"
+                onclick="removeGradingRow('row-stat3')"
+                style="border-color: #f44; color: #f44"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div id="row-statNeg" class="riven-row input-group hidden">
+              <select
+                id="g-statNeg"
+                class="wf-input riven-stat-select negative"
+                onchange="updateSelectExclusions(); calculateModalGrade()"
+              >
+                <option value="">- Negativa</option>
+              </select>
+              <input
+                type="number"
+                id="g-valNeg"
+                class="wf-input riven-val-input"
+                placeholder="%"
+                onkeyup="calculateModalGrade()"
+              />
+              <button
+                class="mini-action-btn"
+                onclick="removeGradingRow('row-statNeg')"
+                style="border-color: #f44; color: #f44"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div
+              style="
+                display: flex;
+                gap: 10px;
+                margin-top: 10px;
+                justify-content: center;
+              "
+            >
+              <button
+                id="btn-add-pos"
+                class="dashed-btn"
+                onclick="showGradingRow('row-stat3')"
+              >
+                + Add Positive
+              </button>
+              <button
+                id="btn-add-neg"
+                class="dashed-btn red"
+                onclick="showGradingRow('row-statNeg')"
+              >
+                - Add Negative
+              </button>
+            </div>
+          </div>
+
+          <div
+            id="grading-modal-results"
+            class="grading-results hidden"
+            style="margin-top: 20px"
+          ></div>
+        </div>
+      </div>
+    </div>
+    <div id="update-modal" class="hidden">
+      <div class="modal-backdrop" onclick="closeUpdateModal()"></div>
+      <div
+        class="scan-result-card"
+        style="max-width: 500px; height: auto; max-height: 80vh"
+      >
+        <div class="scan-header">
+          <h3 style="color: var(--wf-blue)">FEATURE HISTORY</h3>
+          <button class="close-modal-btn" onclick="closeUpdateModal()">
+            ✕
+          </button>
+        </div>
+        <div
+          class="content-area"
+          id="update-history-content"
+          style="padding: 20px; overflow-y: auto"
+        >
+          <div style="text-align: center; padding: 20px">
+            Loading previous updates
+          </div>
+        </div>
+        <div class="scan-footer">
+          <button
+            class="action-btn confirm"
+            onclick="closeUpdateModal()"
+            style="width: 100%"
+          >
+            Got it
+          </button>
+        </div>
+      </div>
+    </div>
+    <div id="loadingOverlay" class="loading-overlay hidden">
+      <div class="spinner"></div>
+      <p>Escaneando Reliquias...</p>
+    </div>
+
+    <div id="toast" class="toast hidden">Scanner completed succesfully</div>
+
+    <div id="menuReliquias" class="relic-menu hidden">
+      <h2>Scan results</h2>
+      <div id="resultadosContainer"></div>
+
+      <div class="action-buttons">
+        <button id="btnAnadirInventario" disabled>Add to inventory</button>
+        <button id="btnLimpiar" disabled>Clean all</button>
+      </div>
+    </div>
+    <div id="scanned-results-panel" class="results-drawer hidden">
+      <div
+        class="scan-header"
+        style="
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        "
+      >
+        <h4 style="margin: 0; color: #fff">
+          DETECTED (<span id="scanned-total-count">0</span>)
+        </h4>
+        <button class="mini-action-btn" onclick="window.clearScannedList()">
+          CLEAR
+        </button>
+      </div>
+
+      <div id="scanned-list" class="scanned-grid-container"></div>
+
+      <div class="scan-footer-actions" style="margin-top: 10px">
+        <button
+          onclick="window.confirmScanResults()"
+          class="action-btn confirm"
+          style="width: 100%"
+        >
+          ADD ALL RELICS
+        </button>
+      </div>
+    </div>
     <script src="js/tesseract.min.js"></script>
     <script type="module" src="js/main.js"></script>
   </body>
