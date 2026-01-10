@@ -235,7 +235,11 @@ export function initCanvas() {
     for (let i = 0; i < PARTICLE_COUNT; i++) particles.push(new Particle());
   }
 
-  window.addEventListener("resize", initSystem);
+let resizeTimeout;
+window.addEventListener("resize", () => {
+    clearTimeout(resizeTimeout);
+    resizeTimeout = setTimeout(initSystem, 200); 
+});
   initSystem();
   function animate() {
     requestAnimationFrame(animate);
