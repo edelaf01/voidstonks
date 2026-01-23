@@ -1,358 +1,288 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="es">
-  <head>
-    <meta charset="UTF-8" />
-    <title>VoidStonks - Warframe Market Tool & Farm Optimizer</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-    <meta
-      name="description"
-      content="Herramienta avanzada para Warframe. Consulta precios de Rivens, optimiza tus Reliquias y trackea tu progreso de Sets Prime. Maximiza tu Platino con datos de mercado en tiempo real."
-    />
-    <meta
-      name="keywords"
-      content="Warframe, Market, Riven Prices, Relic Tool, Void, Farm, Optimizer, Platinum, Trading, VoidStonks"
-    />
-    <meta name="author" content="Parcialsobriedad" />
-    <meta name="robots" content="index, follow" />
+<head>
+  <meta charset="UTF-8" />
+  <title>VoidStonks - Warframe Market Tool & Farm Optimizer</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-    <link rel="canonical" href="https://voidstonks.com/" />
+  <meta name="description"
+    content="Herramienta avanzada para Warframe. Consulta precios de Rivens, optimiza tus Reliquias y trackea tu progreso de Sets Prime. Maximiza tu Platino con datos de mercado en tiempo real." />
+  <meta name="keywords"
+    content="Warframe, Market, Riven Prices, Relic Tool, Void, Farm, Optimizer, Platinum, Trading, VoidStonks" />
+  <meta name="author" content="Parcialsobriedad" />
+  <meta name="robots" content="index, follow" />
 
-    <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://voidstonks.com/" />
-    <meta
-      property="og:title"
-      content="VoidStonks - Optimización de Farm y Mercado"
-    />
-    <meta
-      property="og:description"
-      content="Consulta precios de Rivens, Reliquias y Sets en tiempo real. Herramienta esencial para traders de Warframe."
-    />
-    <meta
-      property="og:image"
-      content="https://wiki.warframe.com/images/Void_Projections_Icon.png"
-    />
-    <meta property="twitter:card" content="summary_large_image" />
-    <meta property="twitter:url" content="https://voidstonks.com/" />
-    <meta
-      property="twitter:title"
-      content="VoidStonks - Warframe Market Tool"
-    />
-    <meta
-      property="twitter:description"
-      content="Optimiza tu farm de reliquias y consulta precios de Rivens al instante."
-    />
-    <meta
-      property="twitter:image"
-      content="https://wiki.warframe.com/images/Void_Projections_Icon.png"
-    />
+  <link rel="canonical" href="https://voidstonks.com/" />
 
-    <link rel="stylesheet" href="styles.css" />
-    <link
-      rel="icon"
-      type="image/png"
-      href="https://wiki.warframe.com/images/VoidTraces.png"
-    />
-  </head>
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://voidstonks.com/" />
+  <meta property="og:title" content="VoidStonks - Optimización de Farm y Mercado" />
+  <meta property="og:description"
+    content="Consulta precios de Rivens, Reliquias y Sets en tiempo real. Herramienta esencial para traders de Warframe." />
+  <meta property="og:image" content="https://wiki.warframe.com/images/Void_Projections_Icon.png" />
+  <meta property="twitter:card" content="summary_large_image" />
+  <meta property="twitter:url" content="https://voidstonks.com/" />
+  <meta property="twitter:title" content="VoidStonks - Warframe Market Tool" />
+  <meta property="twitter:description"
+    content="Optimiza tu farm de reliquias y consulta precios de Rivens al instante." />
+  <meta property="twitter:image" content="https://wiki.warframe.com/images/Void_Projections_Icon.png" />
 
-  <body>
-    <canvas id="void-traces-canvas"></canvas>
-    <div id="ocr-overlay" class="fullscreen-scanner hidden">
-      <div class="ocr-system-header">INVENTORY SCANNER</div>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="icon" type="image/png" href="https://wiki.warframe.com/images/VoidTraces.png" />
+</head>
 
-      <video id="ocr-video" autoplay playsinline class="scanner-video"></video>
-      <canvas id="ocr-canvas" class="hidden"></canvas>
+<body>
+  <canvas id="void-traces-canvas"></canvas>
+  <div id="ocr-overlay" class="fullscreen-scanner hidden">
+    <div class="ocr-system-header">INVENTORY SCANNER</div>
 
-      <div class="scanner-ui">
-        <button onclick="window.closeScanner()" class="scanner-close-btn">
-          ×
+    <video id="ocr-video" autoplay playsinline class="scanner-video"></video>
+    <canvas id="ocr-canvas" class="hidden"></canvas>
+
+    <div class="scanner-ui">
+      <button onclick="globalThis.closeScanner()" class="scanner-close-btn">
+        ×
+      </button>
+
+      <div class="scanner-guide">
+        <div class="guide-corner tl"></div>
+        <div class="guide-corner tr"></div>
+        <div class="guide-corner bl"></div>
+        <div class="guide-corner br"></div>
+        <div class="scanner-text">AIM TOWARDS YOUR RELIC INVENTORY</div>
+      </div>
+
+      <div class="scanner-actions-bar">
+        <button class="action-btn secondary" onclick="document.getElementById('file-upload').click()">
+          UPLOAD IMAGE
         </button>
-
-        <div class="scanner-guide">
-          <div class="guide-corner tl"></div>
-          <div class="guide-corner tr"></div>
-          <div class="guide-corner bl"></div>
-          <div class="guide-corner br"></div>
-          <div class="scanner-text">AIM TOWARDS YOUR RELIC INVENTORY</div>
-        </div>
-
-        <div class="scanner-actions-bar">
-          <button
+        <!--<button
             class="action-btn secondary"
-            onclick="document.getElementById('file-upload').click()"
-          >
-            UPLOAD IMAGE
-          </button>
-          <!--<button
-            class="action-btn secondary"
-            onclick="window.startInventoryScrollScan()"
+            onclick="globalThis.startInventoryScrollScan()"
             style="border-color: #d4af37; color: #d4af37"
           >
-            📜 AUTO-SCROLL
+             AUTO-SCROLL
           </button>-->
-          <input
-            type="file"
-            id="file-upload"
-            multiple
-            accept="image/*"
-            hidden
-            onchange="window.handleFileUpload(event)"
-          />
+        <input type="file" id="file-upload" multiple accept="image/*" hidden
+          onchange="globalThis.handleFileUpload(event)" />
 
-          <button onclick="window.captureRelics()" class="shutter-btn"></button>
+        <button onclick="globalThis.captureRelics()" class="shutter-btn"></button>
 
-          <button
-            class="action-btn inventory-badge-btn"
-            onclick="window.toggleScannedList()"
-          >
-            DETECTED RELICS<span id="scanned-badge" class="badge-count hidden"
-              >0</span
-            >
-          </button>
-        </div>
-      </div>
-
-      <div id="ocr-loading" class="ocr-loading-overlay hidden">
-        <div class="ocr-spinner"></div>
-        <p>Processing image ...</p>
+        <button class="action-btn inventory-badge-btn" onclick="globalThis.toggleScannedList()">
+          DETECTED RELICS<span id="scanned-badge" class="badge-count hidden">0</span>
+        </button>
       </div>
     </div>
 
-    <div id="scanner-section" class="scanner-wrapper">
-      <div
-        class="scanner-info-icon"
-        data-tooltip="This feature uses OCR to read your screen. Only works inside missions during the reward selection screen."
-      >
-        ℹ️
+    <div id="ocr-loading" class="ocr-loading-overlay hidden">
+      <div class="ocr-spinner"></div>
+      <p>Processing image ...</p>
+    </div>
+  </div>
+
+  <div id="scanner-drawer" class="scanner-drawer closed">
+    <div id="live-viewport">
+      <video id="live-video" autoplay muted playsinline></video>
+      <canvas id="live-canvas" class="hidden"></canvas>
+      <div id="live-overlay"></div>
+      <button id="close-drawer-btn" onclick="stopLiveSession()">
+        STOP SCAN
+      </button>
+    </div>
+  </div>
+
+  <div id="scan-success-modal" class="hidden">
+    <div class="modal-backdrop"></div>
+    <div class="scan-result-card">
+      <div class="scan-header">
+        <h3>REWARDS DETECTED</h3>
+        <button class="close-modal-btn" onclick="closeScanModal()">✕</button>
       </div>
 
-      <div id="scanner-toggle" class="scanner-toggle-btn">
-        <div class="toggle-content">
-          <span class="icon-pulse">◉</span>
-          <span class="label">LIVE RELIC SCANNER</span>
+      <div class="scan-image-container">
+        <img id="scan-snapshot" src="" alt="Scan Snapshot" />
+        <div id="scan-badges-wrapper">
+          <div id="scan-badges-container"></div>
         </div>
-        <span class="arrow-indicator">▼</span>
       </div>
 
-      <div id="scanner-privacy-notice" class="scanner-notice hidden">
-        <div class="notice-header">⚠️ BETA FEATURE NOTICE</div>
-        <div class="notice-body">
-          <p>
-            To detect rewards, this tool needs permission to
-            <span style="color: #ff4444; font-weight: 900">"RECORD"</span> your
-            screen.
-          </p>
-          <p style="font-size: 0.85em; color: #aaa">
-            When the browser popup appears, select the
-            <strong>Warframe Window</strong>.
-          </p>
-          <p class="beta-warning">
-            THIS IS A <strong>BETA FEATURE</strong>, SO EXPECT FOR IT NOT TO
-            WORK PROPERLY OR CONTAIN BUGS.
-          </p>
-        </div>
-        <button id="btn-accept-scan" class="action-btn confirm full-width">
-          I UNDERSTAND, START SCAN
+      <div class="scan-footer">
+        <button class="action-btn confirm" onclick="closeScanModal()">
+          CONTINUE SCANNING
+        </button>
+      </div>
+    </div>
+  </div>
+  <div id="inventory-container">
+    <div id="inv-toggle-btn" class="mission-toggle-btn" onclick="toggleInventoryPanel()">
+      <img src="assets/inv.relic.png" class="toggle-img" alt="Inventario" />
+    </div>
+
+    <div class="inv-view-selector" style="display: flex; gap: 5px; padding: 10px 10px 0; background: #111">
+      <button id="inv-tab-relics" class="inv-tier-btn active" style="flex: 1"
+        onclick="globalThis.switchInvView('relics')">
+        RELICS
+      </button>
+      <button id="inv-tab-parts" class="inv-tier-btn" style="flex: 1" onclick="globalThis.switchInvView('parts')">
+        PRIME INVENTORY
+      </button>
+    </div>
+    <div class="panel-main-header-refined">
+      <button class="inv-action-btn export-btn" onclick="globalThis.exportInventory()" title="Export JSON">
+        <span class="btn-icon">⬇</span>
+        <span class="btn-text">EXPORT</span>
+      </button>
+
+      <div class="header-center">
+        <span id="txt-inv-title">MY INVENTORY</span>
+        <span class="clear-icon" onclick="globalThis.clearInventory()" title="Delete all data">🗑️</span>
+      </div>
+
+      <button class="inv-action-btn import-btn" onclick="globalThis.importInventory()" title="Import JSON">
+        <span class="btn-icon">⬆</span>
+        <span class="btn-text">IMPORT</span>
+      </button>
+    </div>
+
+    <div id="relic-inv-controls" class="inventory-controls"
+      style="padding: 10px; display: flex; flex-direction: column; gap: 8px">
+      <input type="text" id="inv-search-input" class="wf-input" placeholder="Filtrar..."
+        onkeyup="globalThis.handleInvSearch(this.value)" style="padding: 8px; font-size: 0.9em" />
+
+      <div class="inv-tiers-row">
+        <button class="inv-tier-btn active" onclick="globalThis.filterInvTier('ALL')">
+          ALL
+        </button>
+        <button class="inv-tier-btn" onclick="globalThis.filterInvTier('LITH')">
+          LITH
+        </button>
+        <button class="inv-tier-btn" onclick="globalThis.filterInvTier('MESO')">
+          MESO
+        </button>
+        <button class="inv-tier-btn" onclick="globalThis.filterInvTier('NEO')">
+          NEO
+        </button>
+        <button class="inv-tier-btn" onclick="globalThis.filterInvTier('AXI')">
+          AXI
+        </button>
+        <button class="inv-tier-btn" onclick="globalThis.filterInvTier('REQUIEM')">
+          REQ
         </button>
       </div>
 
-      <div id="scanner-drawer" class="scanner-drawer closed">
-        <div id="live-viewport">
-          <video id="live-video" autoplay muted playsinline></video>
-          <canvas id="live-canvas" class="hidden"></canvas>
-          <div id="live-overlay"></div>
-          <button id="close-drawer-btn" onclick="stopLiveSession()">
-            STOP SCAN
+      <select id="inv-sort" class="wf-input" onchange="globalThis.renderInventory()"
+        style="font-size: 0.85em; padding: 5px">
+        <option value="recent">Recently added</option>
+        <option value="plat_intact">AVG Plat value (intact)</option>
+        <option value="plat_rad">AVG Plat value (radiant)</option>
+        <option value="ducats">Ducats per relic</option>
+      </select>
+    </div>
+
+    <div id="inventory-list" class="fissures-scroll-area"></div>
+  </div>
+
+  <div id="best-missions-container">
+    <div id="mission-toggle-btn" class="mission-toggle-btn"
+      onclick="document.getElementById('best-missions-container').classList.toggle('open')">
+      <img src="assets/fissureicon.png" class="toggle-img" alt="Fisuras" />
+    </div>
+    <div class="panel-main-header" id="fissure-panel-header">
+      <svg class="gauss-icon" id="gauss-runner" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path
+          d="M18.5,5.5 C18.5,5.5 14,8 12,10 C10,12 5,11 2,12 C5,13 9,14 11,16 C13,18 16,19 18.5,19 C16,17 14,14 14,12 C14,10 16,7 18.5,5.5 Z M22,2 L20,4 C20,4 17,7 17,12 C17,17 20,20 20,20 L22,22"
+          fill="currentColor" />
+      </svg>
+      <span>Fisuras Activas</span>
+    </div>
+    <div class="fissures-scroll-area" id="fissures-list-area">
+      <div style="padding:10px; text-align:center; color:#666;">Cargando...</div>
+    </div>
+  </div>
+  <header class="site-header">
+    <h1 class="header-title" id="txt-header-title">VOIDSTONKS</h1>
+    <div class="header-subtitle" id="txt-header-sub">
+      Optimización de Farm y Mercado
+    </div>
+    <div class="header-controls">
+      <div id="scanner-section" class="scanner-wrapper">
+        <div class="scanner-info-icon"
+          data-tooltip="This feature uses OCR to read your screen. Only works inside missions during the reward selection screen.">
+          ℹ️
+        </div>
+
+        <div id="scanner-toggle" class="scanner-toggle-btn">
+          <div class="toggle-content">
+            <span class="icon-pulse">◉</span>
+            <span class="label">LIVE RELIC SCANNER</span>
+          </div>
+          <span class="arrow-indicator">▼</span>
+        </div>
+
+        <div id="scanner-privacy-notice" class="scanner-notice hidden">
+          <div class="notice-header">⚠️ BETA FEATURE NOTICE</div>
+          <div class="notice-body">
+            <p>
+              To detect rewards, this tool needs permission to
+              <span style="color: #ff4444; font-weight: 900">"RECORD"</span>
+              your screen.
+            </p>
+            <p style="font-size: 0.85em; color: #aaa">
+              When the browser popup appears, select the
+              <strong>Warframe Window</strong>.
+            </p>
+            <p class="beta-warning">
+              THIS IS A <strong>BETA FEATURE</strong>, SO EXPECT FOR IT NOT TO
+              WORK PROPERLY OR CONTAIN BUGS.
+            </p>
+          </div>
+          <button id="btn-accept-scan" class="action-btn confirm full-width">
+            I UNDERSTAND, START SCAN
           </button>
         </div>
       </div>
-    </div>
 
-    <div id="scan-success-modal" class="hidden">
-      <div class="modal-backdrop"></div>
-      <div class="scan-result-card">
-        <div class="scan-header">
-          <h3>REWARDS DETECTED</h3>
-          <button class="close-modal-btn" onclick="closeScanModal()">✕</button>
+      <div class="lang-custom-container" id="langSelectorWrapper">
+        <div class="lang-trigger" onclick="toggleLangDropdown()">
+          <img id="currentFlag" src="https://flagcdn.com/24x18/es.png" alt="ES" />
+          <span id="currentLangText">ES</span>
+          <span class="arrow-icon">▼</span>
         </div>
 
-        <div class="scan-image-container">
-          <img id="scan-snapshot" src="" alt="Scan Snapshot" />
-          <div id="scan-badges-wrapper">
-            <div id="scan-badges-container"></div>
+        <div class="lang-options hidden" id="langOptionsList">
+          <div class="lang-option-item" onclick="setLanguageManual('es')">
+            <img src="https://flagcdn.com/24x18/es.png" alt="ES" />
+            <span>Español</span>
+          </div>
+          <div class="lang-option-item" onclick="setLanguageManual('en')">
+            <img src="https://flagcdn.com/24x18/gb.png" alt="EN" />
+            <span>English</span>
           </div>
         </div>
-
-        <div class="scan-footer">
-          <button class="action-btn confirm" onclick="closeScanModal()">
-            CONTINUE SCANNING
-          </button>
-        </div>
       </div>
     </div>
-    <div id="inventory-container">
-      <div
-        id="inv-toggle-btn"
-        class="mission-toggle-btn"
-        onclick="toggleInventoryPanel()"
-      >
-        <img src="assets/inv.relic.png" class="toggle-img" alt="Inventario" />
-      </div>
+  </header>
 
-      <div class="panel-main-header">
-        <span id="txt-inv-title">Mi Inventario</span>
-        <span
-          class="info-icon"
-          onclick="window.clearInventory()"
-          title="Delete all"
-          >🗑️</span
-        >
-      </div>
-
-      <div
-        class="inventory-controls"
-        style="padding: 10px; display: flex; flex-direction: column; gap: 8px"
-      >
-        <input
-          type="text"
-          id="inv-search-input"
-          class="wf-input"
-          placeholder="Filtrar..."
-          onkeyup="window.handleInvSearch(this.value)"
-          style="padding: 8px; font-size: 0.9em"
-        />
-
-        <div class="inv-tiers-row">
-          <button
-            class="inv-tier-btn active"
-            onclick="window.filterInvTier('ALL')"
-          >
-            ALL
-          </button>
-          <button class="inv-tier-btn" onclick="window.filterInvTier('LITH')">
-            LITH
-          </button>
-          <button class="inv-tier-btn" onclick="window.filterInvTier('MESO')">
-            MESO
-          </button>
-          <button class="inv-tier-btn" onclick="window.filterInvTier('NEO')">
-            NEO
-          </button>
-          <button class="inv-tier-btn" onclick="window.filterInvTier('AXI')">
-            AXI
-          </button>
-          <button
-            class="inv-tier-btn"
-            onclick="window.filterInvTier('REQUIEM')"
-          >
-            REQ
-          </button>
-        </div>
-
-        <select
-          id="inv-sort"
-          class="wf-input"
-          onchange="window.renderInventory()"
-          style="font-size: 0.85em; padding: 5px"
-        >
-          <option value="recent">Recently added</option>
-          <option value="plat_intact">AVG Plat value (intact)</option>
-          <option value="plat_rad">AVG Plat value (radiant)</option>
-          <option value="ducats">Ducats per relic</option>
-        </select>
-      </div>
-      <div
-        style="
-          display: flex;
-          gap: 10px;
-          margin-top: 10px;
-          border-top: 1px dashed #333;
-          padding-top: 10px;
-        "
-      >
-        <button
-          class="inv-tier-btn"
-          onclick="window.exportInventory()"
-          style="border-color: var(--wf-blue); color: var(--wf-blue)"
-        >
-          ⬇ EXPORT
+  <div class="card" id="main-card">
+    <div class="card-top-bar">
+      <div class="tabs">
+        <button id="btn-relic" class="tab-btn active" onclick="switchTab('relic')">
+          <img src="assets/relic.png" class="tab-icon-img" alt="Relic Icon" />
+          <span id="tab-relic-text">Reliquia</span>
         </button>
-        <button
-          class="inv-tier-btn"
-          onclick="window.importInventory()"
-          style="border-color: var(--wf-gold-text); color: var(--wf-gold-text)"
-        >
-          ⬆ IMPORT
+
+        <button id="btn-set" class="tab-btn orokin" onclick="switchTab('set')">
+          <img src="assets/primeparts.png" class="tab-icon-img" alt="Set Icon" />
+          <span id="tab-set-text">Set</span>
         </button>
-      </div>
-      <div id="inventory-list" class="fissures-scroll-area"></div>
-    </div>
-    <header class="site-header">
-      <h1 class="header-title" id="txt-header-title">VOIDSTONKS</h1>
-      <div class="header-subtitle" id="txt-header-sub">
-        Optimización de Farm y Mercado
-      </div>
-      <div class="header-controls">
-        <div class="lang-custom-container" id="langSelectorWrapper">
-          <div class="lang-trigger" onclick="toggleLangDropdown()">
-            <img
-              id="currentFlag"
-              src="https://flagcdn.com/24x18/es.png"
-              alt="ES"
-            />
-            <span id="currentLangText">ES</span>
-            <span class="arrow-icon">▼</span>
-          </div>
 
-          <div class="lang-options hidden" id="langOptionsList">
-            <div class="lang-option-item" onclick="setLanguageManual('es')">
-              <img src="https://flagcdn.com/24x18/es.png" alt="ES" />
-              <span>Español</span>
-            </div>
-            <div class="lang-option-item" onclick="setLanguageManual('en')">
-              <img src="https://flagcdn.com/24x18/gb.png" alt="EN" />
-              <span>English</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </header>
+        <button id="btn-riven" class="tab-btn riven" onclick="switchTab('riven')">
+          <img src="assets/riven.png" class="tab-icon-img" alt="Riven Icon" />
+          <span id="tab-riven-text">Riven</span>
+        </button>
 
-    <div class="card" id="main-card">
-      <div class="card-top-bar">
-        <div class="tabs">
-          <button
-            id="btn-relic"
-            class="tab-btn active"
-            onclick="switchTab('relic')"
-          >
-            <img src="assets/relic.png" class="tab-icon-img" alt="Relic Icon" />
-            <span id="tab-relic-text">Reliquia</span>
-          </button>
-
-          <button
-            id="btn-set"
-            class="tab-btn orokin"
-            onclick="switchTab('set')"
-          >
-            <img
-              src="assets/primeparts.png"
-              class="tab-icon-img"
-              alt="Set Icon"
-            />
-            <span id="tab-set-text">Set</span>
-          </button>
-
-          <button
-            id="btn-riven"
-            class="tab-btn riven"
-            onclick="switchTab('riven')"
-          >
-            <img src="assets/riven.png" class="tab-icon-img" alt="Riven Icon" />
-            <span id="tab-riven-text">Riven</span>
-          </button>
-
-          <button
+        <!--<button
             id="btn-profile"
             class="tab-btn profile"
             onclick="switchTab('profile')"
@@ -363,88 +293,66 @@
               alt="Profile Icon"
             />
             <span id="tab-profile-text">Perfil</span>
-          </button>
+          </button>-->
+        <button id="btn-bounties" class="tab-btn bounties" onclick="switchTab('bounties')">
+          <img src="assets/farm.png" class="tab-icon-img" alt="Farms Icon" />
+          <span id="tab-bounties-text">Farms</span>
+        </button>
+        <button id="btn-lfg" class="tab-btn lfg" onclick="switchTab('lfg')">
+          <img src="assets/lfg.png" class="tab-icon-img" alt="LFG Icon" />
+          <span id="tab-lfg-text">LFG</span>
+        </button>
+      </div>
+    </div>
 
-          <button id="btn-lfg" class="tab-btn lfg" onclick="switchTab('lfg')">
-            <img src="assets/lfg.png" class="tab-icon-img" alt="LFG Icon" />
-            <span id="tab-lfg-text">LFG</span>
-          </button>
-        </div>
+    <div class="content-area">
+      <div id="loading">
+        <div id="loadingText">Cargando datos...</div>
+        <small>Conectando a base de datos segura...</small>
       </div>
 
-      <div class="content-area">
-        <div id="loading">
-          <div id="loadingText">Cargando datos...</div>
-          <small>Conectando a base de datos segura...</small>
-        </div>
+      <div id="mode-relic">
+        <div class="form-group">
+          <label>
+            <span id="lbl-relic-name">Nombre de Reliquia</span>
+            <span id="relic-guide-icon" class="info-icon" style="cursor: help; margin-left: 5px">ℹ️</span>
+          </label>
 
-        <div id="mode-relic">
-          <div class="form-group">
-            <label>
-              <span id="lbl-relic-name">Nombre de Reliquia</span>
-              <span
-                id="relic-guide-icon"
-                class="info-icon"
-                style="cursor: help; margin-left: 5px"
-                >ℹ️</span
-              >
-            </label>
+          <div class="relic-input-wrapper">
+            <input type="text" id="relicInput" placeholder="Ej: Lith G1..." autocomplete="off"
+              onkeyup="globalThis.handleRelicTyping()" />
 
-            <div class="relic-input-wrapper">
-              <input
-                type="text"
-                id="relicInput"
-                placeholder="Ej: Lith G1..."
-                autocomplete="off"
-                onkeyup="window.handleRelicTyping()"
-              />
+            <button class="camera-btn" onclick="globalThis.openScanner()" title="SCAN YOUR RELIC INVENTORY">
+              Relic photo scan
+            </button>
 
-              <button
-                class="camera-btn"
-                onclick="window.openScanner()"
-                title="SCAN YOUR RELIC INVENTORY"
-              >
-                Relic photo scan
-              </button>
-
-              <div id="relicDropdown" class="dropdown-list hidden"></div>
-            </div>
+            <div id="relicDropdown" class="dropdown-list hidden"></div>
           </div>
-          <div
-            id="relic-controls-wrapper"
-            style="
+        </div>
+        <div id="relic-controls-wrapper" style="
               margin-top: 20px;
               padding-top: 15px;
               border-top: 1px dashed #333;
-            "
-          >
-            <div
-              style="
+            ">
+          <div style="
                 display: flex;
                 justify-content: space-between;
                 align-items: center;
-              "
-            >
-              <div style="flex: 1; margin-right: 10px">
-                <label id="lbl-refinement">Refinamiento</label>
-                <select
-                  id="refinement"
-                  class="wf-input"
-                  onchange="generateMessage()"
-                >
-                  <option value="Rad" data-key="rad">Radiante</option>
-                  <option value="Flawless" data-key="flawless">Perfecta</option>
-                  <option value="Exceptional" data-key="exceptional">
-                    Excepcional
-                  </option>
-                  <option value="Intact" data-key="intact">Intacta</option>
-                </select>
-              </div>
-              <div>
-                <label id="lbl-missing">Faltan</label>
-                <div
-                  class="counter-inline"
-                  style="
+              ">
+            <div style="flex: 1; margin-right: 10px">
+              <label id="lbl-refinement">Refinamiento</label>
+              <select id="refinement" class="wf-input" onchange="generateMessage()">
+                <option value="Rad" data-key="rad">Radiante</option>
+                <option value="Flawless" data-key="flawless">Perfecta</option>
+                <option value="Exceptional" data-key="exceptional">
+                  Excepcional
+                </option>
+                <option value="Intact" data-key="intact">Intacta</option>
+              </select>
+            </div>
+            <div>
+              <label id="lbl-missing">Faltan</label>
+              <div class="counter-inline" style="
                     width: 100%;
                     display: flex;
                     justify-content: center;
@@ -452,575 +360,394 @@
                     padding: 10px;
                     margin: 0;
                     box-sizing: border-box;
-                  "
-                >
-                  <button class="c-btn" onclick="changeCount(-1)">-</button>
-                  <span class="c-val" id="countDisplay">1</span>
-                  <button class="c-btn" onclick="changeCount(1)">+</button>
-                </div>
+                  ">
+                <button class="c-btn" onclick="changeCount(-1)">-</button>
+                <span class="c-val" id="countDisplay">1</span>
+                <button class="c-btn" onclick="changeCount(1)">+</button>
               </div>
-            </div>
-          </div>
-
-          <div id="relic-contents" class="hidden">
-            <div class="total-profit-box">
-              <div class="profit-label" id="lbl-profit">
-                Rentabilidad (Media)
-              </div>
-              <div class="price-badge big loading" id="relic-profit-display">
-                ...
-              </div>
-            </div>
-            <div class="analysis-info">
-              <span id="lbl-content">Contenido:</span>
-            </div>
-            <div id="relic-drops-list"></div>
-
-            <div id="set-tracker">
-              <div class="tracker-title" id="tracker-title">
-                Progreso del Set
-              </div>
-              <div id="tracker-list"></div>
             </div>
           </div>
         </div>
-        <div id="mode-set" class="hidden">
-          <div class="form-group">
-            <label id="lbl-search-item">Buscar Item / Set</label>
-            <input
-              class="wf-input orokin-input"
-              type="text"
-              id="setItemInput"
-              placeholder="Ej: Xaku, Wisp..."
-              onkeyup="handleSetTyping()"
-              autocomplete="off"
-            />
+
+        <div id="relic-contents" class="hidden">
+          <div class="total-profit-box">
+            <div class="profit-label" id="lbl-profit">
+              Rentabilidad (Media)
+            </div>
+            <div class="price-badge big loading" id="relic-profit-display">
+              ...
+            </div>
           </div>
-          <div id="setResults"></div>
+          <div class="analysis-info">
+            <span id="lbl-content">Contenido:</span>
+          </div>
+          <div id="relic-drops-list"></div>
+
+          <div id="set-tracker">
+            <div class="tracker-title" id="tracker-title">
+              Progreso del Set
+            </div>
+            <div id="tracker-list"></div>
+          </div>
         </div>
+      </div>
+      <div id="mode-set" class="hidden">
+        <div class="form-group">
+          <label id="lbl-search-item">Buscar Item / Set</label>
+          <input class="wf-input orokin-input" type="text" id="setItemInput" placeholder="Ej: Xaku, Wisp..."
+            onkeyup="handleSetTyping()" autocomplete="off" />
+        </div>
+        <div id="setResults"></div>
+      </div>
 
-        <div id="mode-riven" class="hidden">
-          <div class="form-group">
-            <label id="lbl-riven-weapon">Arma del Riven</label>
+      <div id="mode-riven" class="hidden">
+        <div class="form-group">
+          <label id="lbl-riven-weapon">Arma del Riven</label>
 
-            <div class="custom-search-container">
-              <input
-                class="wf-input riven-input"
-                type="text"
-                id="rivenWeaponInput"
-                placeholder="Ej: Bramma, Nikana..."
-                onkeyup="handleRivenInput()"
-                autocomplete="off"
-              />
-              <div id="rivenDropdown" class="custom-dropdown hidden"></div>
+          <div class="custom-search-container">
+            <input class="wf-input riven-input" type="text" id="rivenWeaponInput" placeholder="Ej: Bramma, Nikana..."
+              onkeyup="handleRivenInput()" autocomplete="off" />
+            <div id="rivenDropdown" class="custom-dropdown hidden"></div>
 
-              <div
-                id="riven-dispo-display"
-                style="margin-top: 5px; font-size: 0.9em; color: #aaa"
-              ></div>
-            </div>
+            <div id="riven-dispo-display" style="margin-top: 5px; font-size: 0.9em; color: #aaa"></div>
+          </div>
 
-            <div id="riven-avg-box" style="margin-top: 15px; display: none">
-              <span
-                style="font-size: 0.8em; color: #bbb; text-transform: uppercase"
-                >Estimated base price</span
-              ><br />
-              <span id="riven-avg-value" class="riven-avg-val">...</span>
-              <span style="font-size: 0.8em">pl</span>
-            </div>
+          <div id="riven-avg-box" style="margin-top: 15px; display: none">
+            <span style="font-size: 0.8em; color: #bbb; text-transform: uppercase">Estimated base price</span><br />
+            <span id="riven-avg-value" class="riven-avg-val">...</span>
+            <span style="font-size: 0.8em">pl</span>
+          </div>
 
-            <div style="display: flex; gap: 10px; margin-top: 20px">
-              <button
-                class="riven-btn"
-                id="btn-riven-search"
-                onclick="openRivenMarket()"
-                style="flex: 1; margin: 0"
-              >
-                 BUSCAR PRECIO
-              </button>
+          <div style="display: flex; gap: 10px; margin-top: 20px">
+            <button class="riven-btn" id="btn-riven-search" onclick="openRivenMarket()" style="flex: 1; margin: 0">
+              BUSCAR PRECIO
+            </button>
 
-              <button
-                class="riven-btn"
-                onclick="openGradingModal()"
-                style="
+            <button class="riven-btn" onclick="openGradingModal()" style="
                   flex: 1;
                   margin: 0;
                   background: linear-gradient(135deg, #d4af37, #a08538);
                   color: #000;
-                "
-              >
-                GRADE RIVEN
-              </button>
-            </div>
+                ">
+              GRADE RIVEN
+            </button>
           </div>
         </div>
+      </div>
 
-        <div id="mode-profile" class="hidden">
-          <div class="form-group">
-            <label id="lbl-username">Nombre de Usuario (PC)</label>
-            <div style="display: flex; gap: 10px">
-              <input
-                class="wf-input profile-input"
-                type="text"
-                id="usernameInput"
-                disabled
-                placeholder="Ej: Parcialsobriedad // Does not work yet this may be a dead feature check by mr instead down below"
-              />
-              <button
-                class="ctrl-btn"
-                style="
+      <div id="mode-profile" class="hidden">
+        <div class="form-group">
+          <label id="lbl-username">Nombre de Usuario (PC)</label>
+          <div style="display: flex; gap: 10px">
+            <input class="wf-input profile-input" type="text" id="usernameInput" disabled
+              placeholder="Ej: Parcialsobriedad // Does not work yet this may be a dead feature check by mr instead down below" />
+            <button class="ctrl-btn" style="
                   background: var(--wf-blue);
                   color: #000;
                   font-weight: bold;
-                "
-                onclick="/*fetchUserProfile()*/"
-              >
-                NOT WORKING
-              </button>
-            </div>
-            <small
-              id="txt-mr-label"
-              style="color: #666; margin-top: 5px; display: block"
-              >Si la API falla, calcula por MR:</small
-            >
-            <div
-              style="
+                " onclick="/*fetchUserProfile()*/">
+              NOT WORKING
+            </button>
+          </div>
+          <small id="txt-mr-label" style="color: #666; margin-top: 5px; display: block">Si la API falla, calcula por
+            MR:</small>
+          <div style="
                 margin-top: 5px;
                 display: flex;
                 align-items: center;
                 gap: 10px;
-              "
-            >
-              <label style="margin: 0; width: auto">MR:</label>
-              <input
-                class="wf-input profile-input"
-                type="number"
-                id="mrInput"
-                min="0"
-                max="34"
-                value="0"
-                style="width: 60px; padding: 5px"
-                onchange="calculateCaps()"
-              />
-            </div>
+              ">
+            <label style="margin: 0; width: auto">MR:</label>
+            <input class="wf-input profile-input" type="number" id="mrInput" min="0" max="34" value="0"
+              style="width: 60px; padding: 5px" onchange="calculateCaps()" />
           </div>
-          <div id="profile-data"></div>
         </div>
-        <div id="mode-lfg" class="hidden">
-          <div class="form-group">
-            <label id="lbl-lfg-activity">Actividad</label>
-            <div class="custom-search-container" tabindex="0">
-              <div
-                class="wf-input"
-                id="lfgActivityInput"
-                onclick="toggleLfgDropdown()"
-                style="
+        <div id="profile-data"></div>
+      </div>
+      <div id="mode-lfg" class="hidden">
+        <div class="form-group">
+          <label id="lbl-lfg-activity">Actividad</label>
+          <div class="custom-search-container" tabindex="0">
+            <div class="wf-input" id="lfgActivityInput" onclick="toggleLfgDropdown()" style="
                   cursor: pointer;
                   display: flex;
                   align-items: center;
                   justify-content: space-between;
-                "
-              >
-                <span id="lfgSelectedText">Eidolon Hunt</span>
-                <span style="font-size: 0.8em">▼</span>
-              </div>
-              <div id="lfgDropdown" class="custom-dropdown hidden">
-                <div
-                  class="dropdown-item"
-                  onclick="selectLfgOption('eidolon', 'Eidolon Hunt')"
-                >
-                  Eidolon Hunt
-                </div>
-                <div
-                  class="dropdown-item"
-                  onclick="selectLfgOption('profit', 'Profit Taker')"
-                >
-                  Profit Taker
-                </div>
-                <div
-                  class="dropdown-item"
-                  onclick="selectLfgOption('eda', 'Deep Archimedea')"
-                >
-                  Deep Archimedea
-                </div>
-                <div
-                  class="dropdown-item"
-                  onclick="selectLfgOption('temporal', 'Temporal Archimedea')"
-                >
-                  Temporal Archimedea
-                </div>
-                <div
-                  class="dropdown-item"
-                  onclick="selectLfgOption('netra', 'Netracells')"
-                >
-                  Netracells
-                </div>
-                <div
-                  class="dropdown-item"
-                  onclick="selectLfgOption('archon', 'Archon Hunt')"
-                >
-                  Archon Hunt
-                </div>
-                <div
-                  class="dropdown-item"
-                  onclick="selectLfgOption('sortie', 'Sortie')"
-                >
-                  Sortie
-                </div>
-                <div
-                  class="dropdown-item"
-                  onclick="selectLfgOption('arbi', 'Arbitration')"
-                >
-                  Arbitration
-                </div>
-                <div
-                  class="dropdown-item"
-                  onclick="selectLfgOption('radshare', 'Radshare (Relics)')"
-                >
-                  Radshare (Relics)
-                </div>
-              </div>
-              <input type="hidden" id="lfgActivity" value="eidolon" />
+                ">
+              <span id="lfgSelectedText">Eidolon Hunt</span>
+              <span style="font-size: 0.8em">▼</span>
             </div>
-          </div>
-
-          <div id="lfg-dynamic-options" style="margin-bottom: 15px"></div>
-
-          <div class="form-group">
-            <label id="lbl-lfg-players">Jugadores Necesarios</label>
-            <div class="counter-inline">
-              <button class="c-btn" onclick="changeLFGCount(-1)">-</button>
-
-              <span class="c-val" id="lfgCountDisplay">1</span>
-
-              <button class="c-btn" onclick="changeLFGCount(1)">+</button>
+            <div id="lfgDropdown" class="custom-dropdown hidden">
+              <div class="dropdown-item" onclick="selectLfgOption('eidolon', 'Eidolon Hunt')">
+                Eidolon Hunt
+              </div>
+              <div class="dropdown-item" onclick="selectLfgOption('profit', 'Profit Taker')">
+                Profit Taker
+              </div>
+              <div class="dropdown-item" onclick="selectLfgOption('eda', 'Deep Archimedea')">
+                Deep Archimedea
+              </div>
+              <div class="dropdown-item" onclick="selectLfgOption('temporal', 'Temporal Archimedea')">
+                Temporal Archimedea
+              </div>
+              <div class="dropdown-item" onclick="selectLfgOption('netra', 'Netracells')">
+                Netracells
+              </div>
+              <div class="dropdown-item" onclick="selectLfgOption('archon', 'Archon Hunt')">
+                Archon Hunt
+              </div>
+              <div class="dropdown-item" onclick="selectLfgOption('sortie', 'Sortie')">
+                Sortie
+              </div>
+              <div class="dropdown-item" onclick="selectLfgOption('arbi', 'Arbitration')">
+                Arbitration
+              </div>
+              <div class="dropdown-item" onclick="selectLfgOption('radshare', 'Radshare (Relics)')">
+                Radshare (Relics)
+              </div>
             </div>
-          </div>
-
-          <div class="form-group">
-            <label>Extra Info</label>
-            <input
-              type="text"
-              id="lfgExtra"
-              class="wf-input"
-              placeholder="+Info"
-              onkeyup="generateLFGMessage()"
-            />
+            <input type="hidden" id="lfgActivity" value="eidolon" />
           </div>
         </div>
-      </div>
 
-      <div id="footer-relic" class="footer-output">
-        <div id="finalMessage" class="message-display">...</div>
-        <button id="btn-copy" class="copy-btn" onclick="copyText()">
-          Copiar Mensaje
-        </button>
+        <div id="lfg-dynamic-options" style="margin-bottom: 15px"></div>
+
+        <div class="form-group">
+          <label id="lbl-lfg-players">Jugadores Necesarios</label>
+          <div class="counter-inline">
+            <button class="c-btn" onclick="changeLFGCount(-1)">-</button>
+
+            <span class="c-val" id="lfgCountDisplay">1</span>
+
+            <button class="c-btn" onclick="changeLFGCount(1)">+</button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Extra Info</label>
+          <input type="text" id="lfgExtra" class="wf-input" placeholder="+Info" onkeyup="generateLFGMessage()" />
+        </div>
+      </div>
+      <div id="mode-bounties" class="hidden">
+        <div id="bounties-list-container" class="fissures-scroll-area" style="overflow: visible">
+          <div style="text-align: center; padding: 20px; color: #666">
+            <div class="spinner" style="margin: 0 auto 10px auto"></div>
+            Cargando Worldstate...
+          </div>
+        </div>
       </div>
     </div>
 
-    <div id="error-toast">Error de conexión</div>
+    <div id="footer-relic" class="footer-output">
+      <div id="finalMessage" class="message-display">...</div>
+      <button id="btn-copy" class="copy-btn" onclick="copyText()">
+        Copiar Mensaje
+      </button>
+    </div>
+  </div>
 
-    <footer class="site-footer">
-      <div class="footer-row">
-        <span id="txt-footer-data"
-          >Herramienta no oficial de Warframe Datos provistos por:</span
-        >
-        <a
-          href="https://warframe.market/"
-          target="_blank"
-          rel="noopener noreferrer"
-          class="footer-link"
-          >Warframe Market</a
-        >
-        <span class="footer-separator">|</span>
-        <a
-          href="https://drops.warframestat.us/"
-          target="_blank"
-          rel="noopener noreferrer"
-          class="footer-link"
-          >Warframe Drops API</a
-        >
-        <span class="footer-separator">|</span>
-        <a
-          href="https://tenno.tools/"
-          target="_blank"
-          rel="noopener noreferrer"
-          class="footer-link"
-          >Tenno.tools</a
-        >
-        <span class="footer-separator">|</span>
-        <a
-          href="https://github.com/WFCD"
-          target="_blank"
-          rel="noopener noreferrer"
-          class="footer-link"
-          >WFCD</a
-        >
+  <div id="error-toast">Error de conexión</div>
+
+  <footer class="site-footer">
+    <div class="footer-row">
+      <span id="txt-footer-data">Herramienta no oficial de Warframe Datos provistos por:</span>
+      <a href="https://warframe.market/" target="_blank" rel="noopener noreferrer" class="footer-link">Warframe
+        Market</a>
+      <span class="footer-separator">|</span>
+      <a href="https://drops.warframestat.us/" target="_blank" rel="noopener noreferrer" class="footer-link">Warframe
+        Drops API</a>
+      <span class="footer-separator">|</span>
+      <a href="https://tenno.tools/" target="_blank" rel="noopener noreferrer" class="footer-link">Tenno.tools</a>
+      <span class="footer-separator">|</span>
+      <a href="https://github.com/WFCD" target="_blank" rel="noopener noreferrer" class="footer-link">WFCD</a>
+    </div>
+
+    <div class="footer-row" style="margin-top: 10px; font-size: 0.9em">
+      <span id="txt-contact-label">¿Tienes ideas para mejorar la app?</span>
+      <a href="https://forums.warframe.com/profile/4069424-parcialsobriedad/" target="_blank" rel="noopener noreferrer"
+        class="contact-link" id="txt-contact-link">w/Parcialsobriedad</a>
+    </div>
+    <div class="footer-row footer-disclaimer" id="txt-disclaimer">
+      VoidStonks no está afiliado, respaldado ni patrocinado por Digital
+      Extremes Ltd.<br />
+      Warframe™ es una marca registrada de Digital Extremes Ltd.
+    </div>
+  </footer>
+  <div id="grading-modal" class="hidden">
+    <div class="modal-backdrop" onclick="closeGradingModal()"></div>
+    <div class="scan-result-card" style="max-width: 600px; height: auto; max-height: 90vh">
+      <div class="scan-header">
+        <h3 id="grading-modal-title">RIVEN GRADER</h3>
+        <button class="close-modal-btn" onclick="closeGradingModal()">
+          ✕
+        </button>
       </div>
 
-      <div class="footer-row" style="margin-top: 10px; font-size: 0.9em">
-        <span id="txt-contact-label">¿Tienes ideas para mejorar la app?</span>
-        <a
-          href="https://forums.warframe.com/profile/4069424-parcialsobriedad/"
-          target="_blank"
-          rel="noopener noreferrer"
-          class="contact-link"
-          id="txt-contact-link"
-          >w/Parcialsobriedad</a
-        >
-      </div>
-      <div class="footer-row footer-disclaimer" id="txt-disclaimer">
-        VoidStonks no está afiliado, respaldado ni patrocinado por Digital
-        Extremes Ltd.<br />
-        Warframe™ es una marca registrada de Digital Extremes Ltd.
-      </div>
-    </footer>
-    <div id="grading-modal" class="hidden">
-      <div class="modal-backdrop" onclick="closeGradingModal()"></div>
-      <div
-        class="scan-result-card"
-        style="max-width: 600px; height: auto; max-height: 90vh"
-      >
-        <div class="scan-header">
-          <h3 id="grading-modal-title">RIVEN GRADER</h3>
-          <button class="close-modal-btn" onclick="closeGradingModal()">
-            ✕
-          </button>
-        </div>
-
-        <div class="content-area" style="padding: 20px; overflow-y: auto">
-          <div
-            class="form-group"
-            style="
+      <div class="content-area" style="padding: 20px; overflow-y: auto">
+        <div class="form-group" style="
               display: flex;
               gap: 10px;
               align-items: center;
               margin-bottom: 20px;
               border-bottom: 1px dashed #444;
               padding-bottom: 15px;
-            "
-          >
-            <div style="flex: 1">
-              <label>Arma</label>
-              <div
-                id="g-weapon-name"
-                style="
+            ">
+          <div style="flex: 1">
+            <label>Arma</label>
+            <div id="g-weapon-name" style="
                   font-weight: bold;
                   color: var(--wf-blue);
                   font-size: 1.1em;
-                "
-              >
-                ...
-              </div>
-            </div>
-            <div style="width: 120px">
-              <label>Riven mod rank</label>
-              <select
-                id="g-rank"
-                class="wf-input"
-                onchange="calculateModalGrade()"
-                style="padding: 5px"
-              >
-                <option value="8" selected>Max (8)</option>
-                <option value="0">Min (0)</option>
-              </select>
+                ">
+              ...
             </div>
           </div>
+          <div style="width: 120px">
+            <label>Riven mod rank</label>
+            <select id="g-rank" class="wf-input" onchange="calculateModalGrade()" style="padding: 5px">
+              <option value="8" selected>Max (8)</option>
+              <option value="0">Min (0)</option>
+            </select>
+          </div>
+        </div>
 
-          <div id="grading-inputs-container">
-            <div class="riven-row input-group">
-              <select
-                id="g-stat1"
-                class="wf-input riven-stat-select"
-                onchange="updateSelectExclusions(); calculateModalGrade()"
-              >
-                <option value="">+ STAT 1</option>
-              </select>
-              <input
-                type="number"
-                id="g-val1"
-                class="wf-input riven-val-input"
-                placeholder="%"
-                onkeyup="calculateModalGrade()"
-              />
-            </div>
+        <div id="grading-inputs-container">
+          <div class="riven-row input-group">
+            <select id="g-stat1" class="wf-input riven-stat-select" onchange="
+                  updateSelectExclusions();
+                  calculateModalGrade();
+                ">
+              <option value="">+ STAT 1</option>
+            </select>
+            <input type="number" id="g-val1" class="wf-input riven-val-input" placeholder="%"
+              onkeyup="calculateModalGrade()" />
+          </div>
 
-            <div class="riven-row input-group">
-              <select
-                id="g-stat2"
-                class="wf-input riven-stat-select"
-                onchange="updateSelectExclusions(); calculateModalGrade()"
-              >
-                <option value="">+ STAT 2</option>
-              </select>
-              <input
-                type="number"
-                id="g-val2"
-                class="wf-input riven-val-input"
-                placeholder="%"
-                onkeyup="calculateModalGrade()"
-              />
-            </div>
+          <div class="riven-row input-group">
+            <select id="g-stat2" class="wf-input riven-stat-select" onchange="
+                  updateSelectExclusions();
+                  calculateModalGrade();
+                ">
+              <option value="">+ STAT 2</option>
+            </select>
+            <input type="number" id="g-val2" class="wf-input riven-val-input" placeholder="%"
+              onkeyup="calculateModalGrade()" />
+          </div>
 
-            <div id="row-stat3" class="riven-row input-group hidden">
-              <select
-                id="g-stat3"
-                class="wf-input riven-stat-select"
-                onchange="updateSelectExclusions(); calculateModalGrade()"
-              >
-                <option value="">+ STAT 3</option>
-              </select>
-              <input
-                type="number"
-                id="g-val3"
-                class="wf-input riven-val-input"
-                placeholder="%"
-                onkeyup="calculateModalGrade()"
-              />
-              <button
-                class="mini-action-btn"
-                onclick="removeGradingRow('row-stat3')"
-                style="border-color: #f44; color: #f44"
-              >
-                ✕
-              </button>
-            </div>
+          <div id="row-stat3" class="riven-row input-group hidden">
+            <select id="g-stat3" class="wf-input riven-stat-select" onchange="
+                  updateSelectExclusions();
+                  calculateModalGrade();
+                ">
+              <option value="">+ STAT 3</option>
+            </select>
+            <input type="number" id="g-val3" class="wf-input riven-val-input" placeholder="%"
+              onkeyup="calculateModalGrade()" />
+            <button class="mini-action-btn" onclick="removeGradingRow('row-stat3')"
+              style="border-color: #f44; color: #f44">
+              ✕
+            </button>
+          </div>
 
-            <div id="row-statNeg" class="riven-row input-group hidden">
-              <select
-                id="g-statNeg"
-                class="wf-input riven-stat-select negative"
-                onchange="updateSelectExclusions(); calculateModalGrade()"
-              >
-                <option value="">- Negativa</option>
-              </select>
-              <input
-                type="number"
-                id="g-valNeg"
-                class="wf-input riven-val-input"
-                placeholder="%"
-                onkeyup="calculateModalGrade()"
-              />
-              <button
-                class="mini-action-btn"
-                onclick="removeGradingRow('row-statNeg')"
-                style="border-color: #f44; color: #f44"
-              >
-                ✕
-              </button>
-            </div>
+          <div id="row-statNeg" class="riven-row input-group hidden">
+            <select id="g-statNeg" class="wf-input riven-stat-select negative" onchange="
+                  updateSelectExclusions();
+                  calculateModalGrade();
+                ">
+              <option value="">- Negativa</option>
+            </select>
+            <input type="number" id="g-valNeg" class="wf-input riven-val-input" placeholder="%"
+              onkeyup="calculateModalGrade()" />
+            <button class="mini-action-btn" onclick="removeGradingRow('row-statNeg')"
+              style="border-color: #f44; color: #f44">
+              ✕
+            </button>
+          </div>
 
-            <div
-              style="
+          <div style="
                 display: flex;
                 gap: 10px;
                 margin-top: 10px;
                 justify-content: center;
-              "
-            >
-              <button
-                id="btn-add-pos"
-                class="dashed-btn"
-                onclick="showGradingRow('row-stat3')"
-              >
-                + Add Positive
-              </button>
-              <button
-                id="btn-add-neg"
-                class="dashed-btn red"
-                onclick="showGradingRow('row-statNeg')"
-              >
-                - Add Negative
-              </button>
-            </div>
-          </div>
-
-          <div
-            id="grading-modal-results"
-            class="grading-results hidden"
-            style="margin-top: 20px"
-          ></div>
-        </div>
-      </div>
-    </div>
-    <div id="update-modal" class="hidden">
-      <div class="modal-backdrop" onclick="closeUpdateModal()"></div>
-      <div
-        class="scan-result-card"
-        style="max-width: 500px; height: auto; max-height: 80vh"
-      >
-        <div class="scan-header">
-          <h3 style="color: var(--wf-blue)">FEATURE HISTORY</h3>
-          <button class="close-modal-btn" onclick="closeUpdateModal()">
-            ✕
-          </button>
-        </div>
-        <div
-          class="content-area"
-          id="update-history-content"
-          style="padding: 20px; overflow-y: auto"
-        >
-          <div style="text-align: center; padding: 20px">
-            Loading previous updates
+              ">
+            <button id="btn-add-pos" class="dashed-btn" onclick="showGradingRow('row-stat3')">
+              + Add Positive
+            </button>
+            <button id="btn-add-neg" class="dashed-btn red" onclick="showGradingRow('row-statNeg')">
+              - Add Negative
+            </button>
           </div>
         </div>
-        <div class="scan-footer">
-          <button
-            class="action-btn confirm"
-            onclick="closeUpdateModal()"
-            style="width: 100%"
-          >
-            Got it
-          </button>
+
+        <div id="grading-modal-results" class="grading-results hidden" style="margin-top: 20px"></div>
+      </div>
+    </div>
+  </div>
+  <div id="update-modal" class="hidden">
+    <div class="modal-backdrop" onclick="closeUpdateModal()"></div>
+    <div class="scan-result-card" style="max-width: 500px; height: auto; max-height: 80vh">
+      <div class="scan-header">
+        <h3 style="color: var(--wf-blue)">FEATURE HISTORY</h3>
+        <button class="close-modal-btn" onclick="closeUpdateModal()">
+          ✕
+        </button>
+      </div>
+      <div class="content-area" id="update-history-content" style="padding: 20px; overflow-y: auto">
+        <div style="text-align: center; padding: 20px">
+          Loading previous updates
         </div>
       </div>
-    </div>
-    <div id="loadingOverlay" class="loading-overlay hidden">
-      <div class="spinner"></div>
-      <p>Escaneando Reliquias...</p>
-    </div>
-
-    <div id="toast" class="toast hidden">Scanner completed succesfully</div>
-
-    <div id="menuReliquias" class="relic-menu hidden">
-      <h2>Scan results</h2>
-      <div id="resultadosContainer"></div>
-
-      <div class="action-buttons">
-        <button id="btnAnadirInventario" disabled>Add to inventory</button>
-        <button id="btnLimpiar" disabled>Clean all</button>
+      <div class="scan-footer">
+        <button class="action-btn confirm" onclick="closeUpdateModal()" style="width: 100%">
+          Got it
+        </button>
       </div>
     </div>
-    <div id="scanned-results-panel" class="results-drawer hidden">
-      <div
-        class="scan-header"
-        style="
+  </div>
+  <div id="loadingOverlay" class="loading-overlay hidden">
+    <div class="spinner"></div>
+    <p>Escaneando Reliquias...</p>
+  </div>
+
+  <div id="toast" class="toast hidden">Scanner completed succesfully</div>
+
+  <div id="menuReliquias" class="relic-menu hidden">
+    <h2>Scan results</h2>
+    <div id="resultadosContainer"></div>
+
+    <div class="action-buttons">
+      <button id="btnAnadirInventario" disabled>Add to inventory</button>
+      <button id="btnLimpiar" disabled>Clean all</button>
+    </div>
+  </div>
+  <div id="scanned-results-panel" class="results-drawer hidden">
+    <div class="scan-header" style="
           display: flex;
           justify-content: space-between;
           align-items: center;
-        "
-      >
-        <h4 style="margin: 0; color: #fff">
-          DETECTED (<span id="scanned-total-count">0</span>)
-        </h4>
-        <button class="mini-action-btn" onclick="window.clearScannedList()">
-          CLEAR
-        </button>
-      </div>
-
-      <div id="scanned-list" class="scanned-grid-container"></div>
-
-      <div class="scan-footer-actions" style="margin-top: 10px">
-        <button
-          onclick="window.confirmScanResults()"
-          class="action-btn confirm"
-          style="width: 100%"
-        >
-          ADD ALL RELICS
-        </button>
-      </div>
+        ">
+      <h4 style="margin: 0; color: #fff">
+        DETECTED (<span id="scanned-total-count">0</span>)
+      </h4>
+      <button class="mini-action-btn" onclick="globalThis.clearScannedList()">
+        CLEAR
+      </button>
     </div>
-    <script src="js/tesseract.min.js"></script>
-    <script type="module" src="js/main.js"></script>
-  </body>
+
+    <div id="scanned-list" class="scanned-grid-container"></div>
+
+    <div class="scan-footer-actions" style="margin-top: 10px">
+      <button onclick="globalThis.confirmScanResults()" class="action-btn confirm" style="width: 100%">
+        ADD ALL RELICS
+      </button>
+    </div>
+  </div>
+  <button id="mobile-scan-btn" class="mobile-scan-fab" onclick="globalThis.startMobileScanner()"
+    aria-label="Scan Relics">
+    <img src="assets/scanner-icon.svg" alt="Scan Icon" class="fab-icon" />
+  </button>
+  <script src="js/tesseract.min.js"></script>
+  <script type="module" src="js/main.js"></script>
+</body>
+
 </html>
