@@ -25,7 +25,7 @@ let DYNAMIC_REGEX = null;
 let CACHED_DB_ITEMS = [];
 
 function logDebug(...args) {
-  if (DEBUG_MODE) console.log("🛠️ [DEBUG]:", ...args);
+  if (DEBUG_MODE) console.log(" [DEBUG]:", ...args);
 }
 
 function initScannerData() {
@@ -73,7 +73,8 @@ function initScannerData() {
 
   Object.keys(state.itemsDatabase).forEach((itemName) => {
     const upperName = itemName.toUpperCase();
-    const words = upperName.split(" ").filter((w) => w !== "PRIME");
+    const normalizedName = upperName.replaceAll("&", " ").replaceAll(/[^A-Z0-9 ]/g, " ");
+    const words = normalizedName.split(/\s+/).filter((w) => w !== "PRIME" && w.length > 0);
 
     upperName.split(" ").forEach((w) => {
       if (w.length > 2 || w === "BO") {
@@ -92,7 +93,7 @@ function initScannerData() {
   DYNAMIC_KNOWN_PARTS = tempParts;
 
   const partsArray = Array.from(DYNAMIC_KNOWN_PARTS).sort(
-    (a, b) => b.length - a.length
+    (a, b) => b.length - a.length,
   );
   DYNAMIC_REGEX = new RegExp(`(${partsArray.join("|")})`, "g");
 }
@@ -105,9 +106,10 @@ function getSimilarity(s1, s2) {
     shorter = s1;
   }
   const longerLength = longer.length;
-  if (longerLength === 0) return 1.0;
+  if (longerLength === 0) return 1;
   return (
-    (longerLength - editDistance(longer, shorter)) / parseFloat(longerLength)
+    (longerLength - editDistance(longer, shorter)) /
+    Number.parseFloat(longerLength)
   );
 }
 
@@ -119,14 +121,12 @@ function editDistance(s1, s2) {
     let lastValue = i;
     for (let j = 0; j <= s2.length; j++) {
       if (i == 0) costs[j] = j;
-      else {
-        if (j > 0) {
-          let newValue = costs[j - 1];
-          if (s1.charAt(i - 1) != s2.charAt(j - 1))
-            newValue = Math.min(Math.min(newValue, lastValue), costs[j]) + 1;
-          costs[j - 1] = lastValue;
-          lastValue = newValue;
-        }
+      else if (j > 0) {
+        let newValue = costs[j - 1];
+        if (s1.charAt(i - 1) != s2.charAt(j - 1))
+          newValue = Math.min(Math.min(newValue, lastValue), costs[j]) + 1;
+        costs[j - 1] = lastValue;
+        lastValue = newValue;
       }
     }
     if (i > 0) costs[s2.length] = lastValue;
@@ -135,8 +135,11 @@ function editDistance(s1, s2) {
 }
 
 export async function startLiveSession() {
-  if (isStartingSession || (liveStream && liveStream.active)) return;
+  if (isStartingSession || liveStream?.active) return;
   isStartingSession = true;
+
+  detectionLocked = false;
+  isScanning = false;
 
   initScannerData();
 
@@ -170,7 +173,7 @@ export async function startLiveSession() {
       snapshotCtx = snapshotCanvas.getContext("2d");
     }
 
-    if (!worker && window.Tesseract) {
+    if (!worker && globalThis.Tesseract) {
       worker = await Tesseract.createWorker("eng");
       await worker.setParameters({
         tessedit_char_whitelist:
@@ -205,10 +208,11 @@ export function stopLiveSession() {
   if (worker) {
     worker.terminate();
     worker = null;
-    if (DEBUG_MODE) console.log("🛠️ [DEBUG]: Tesseract Worker terminated.");
+    if (DEBUG_MODE) console.log(" [DEBUG]: Tesseract Worker terminated.");
   }
 
   isScanning = false;
+  detectionLocked = false;
   isStartingSession = false;
 
   const toggleBtn = document.getElementById("scanner-toggle");
@@ -223,7 +227,18 @@ function startLoop() {
   if (scanInterval) clearInterval(scanInterval);
   scanInterval = setInterval(async () => {
     const modal = document.getElementById("scan-success-modal");
-    if (isScanning || (modal && !modal.classList.contains("hidden"))) return;
+
+    const isModalVisible = modal && !modal.classList.contains("hidden");
+
+    if (isModalVisible) {
+      detectionLocked = true;
+      return;
+    } else {
+      detectionLocked = false;
+    }
+
+    if (isScanning) return;
+
     await processFrame();
   }, SCAN_RATE_MS);
 
@@ -295,24 +310,24 @@ function handleSuccessfulScan(video, width, height, foundItems) {
 }
 
 function parseTextForItems(ocrData) {
-  if (!ocrData || !ocrData.words || !state.itemsDatabase) return [];
+  if (!ocrData?.words || !state.itemsDatabase) return [];
   if (CACHED_DB_ITEMS.length === 0) initScannerData();
 
   let rawWords = [];
 
   ocrData.words.forEach((w) => {
-    let text = w.text.toUpperCase().replace(/[^A-Z]/g, " ");
+    let text = w.text.toUpperCase().replaceAll("&", " ").replaceAll(/[^A-Z]/g, " ");
 
-    if (DYNAMIC_REGEX) text = text.replace(DYNAMIC_REGEX, " $1 ");
+    if (DYNAMIC_REGEX) text = text.replaceAll(DYNAMIC_REGEX, " $1 ");
 
-    const splitParts = text.split(/\s+/).filter((p) => p.length > 2);
+    const splitParts = text.split(/\s+/).filter((p) => p.length > 2 || p === "BO");
     splitParts.forEach((part) => {
       rawWords.push({ text: part, x: (w.bbox.x0 + w.bbox.x1) / 2 });
     });
   });
 
   const ocrWords = rawWords.filter(
-    (wordObj) => getSimilarity(wordObj.text, "PRIME") <= 0.75
+    (wordObj) => getSimilarity(wordObj.text, "PRIME") <= 0.75,
   );
 
   const dbItems = CACHED_DB_ITEMS;
@@ -434,10 +449,10 @@ async function openScanModal(imageUrl, items) {
   modal.classList.remove("hidden");
 
   autoCloseTimer = setTimeout(() => {
-    window.closeScanModal();
+    globalThis.closeScanModal();
   }, AUTO_CLOSE_DELAY_MS);
 
-  const itemsWithPrices = await Promise.all(
+  const itemsWithDetails = await Promise.all(
     items.map(async (item) => {
       let price = priceCache.get(item.name) || 0;
       if (price === 0) {
@@ -449,49 +464,118 @@ async function openScanModal(imageUrl, items) {
           console.error(e);
         }
       }
-      return { ...item, price };
-    })
+
+      // Get ducats from database
+      let ducats = 0;
+      if (state.ducatsDatabase) {
+        // Match by name in database
+        const itemData = Object.values(state.ducatsDatabase).find(d =>
+          d.name.toUpperCase() === item.name.toUpperCase()
+        );
+        if (itemData) ducats = itemData.ducats;
+      }
+
+      if (DEBUG_MODE) console.log(`[SCANNER]: ${item.name} -> ${ducats} DUC`);
+
+      return { ...item, price, ducats };
+    }),
   );
 
+  const maxPl = Math.max(...itemsWithDetails.map((i) => i.price));
+  const maxDuc = Math.max(...itemsWithDetails.map((i) => i.ducats));
+
   requestAnimationFrame(() => {
+    const cvsHeight = virtualCanvas ? virtualCanvas.height : 100;
     const cvsWidth = virtualCanvas ? virtualCanvas.width : 1000;
-    itemsWithPrices.forEach((item) => {
+
+    itemsWithDetails.forEach((item) => {
+      const isBestPl = item.price > 0 && item.price === maxPl;
+      const isBestDuc = item.ducats > 0 && item.ducats === maxDuc;
+
       const leftPercent = (item.xPos / cvsWidth) * 100;
-      createModalBadge(item.name, item.price, badgesContainer, leftPercent);
+      // Position badge just below the detected item box
+      const topPercent = ((item.yPos + 35) / cvsHeight) * 100;
+
+      createModalBadge(
+        item.name,
+        item.price,
+        item.ducats,
+        badgesContainer,
+        leftPercent,
+        topPercent,
+        isBestPl,
+        isBestDuc
+      );
     });
   });
 }
 
-function createModalBadge(name, price, container, leftPercent) {
+function createModalBadge(
+  name,
+  price,
+  ducats,
+  container,
+  leftPercent,
+  topPercent,
+  isBestPl,
+  isBestDuc
+) {
   const badge = document.createElement("div");
-  badge.className = "modal-badge";
-  badge.style.left = `calc(${leftPercent}% - 50px)`;
+  badge.className = `modal-badge ${isBestPl ? "best-pl" : ""} ${isBestDuc ? "best-duc" : ""
+    }`;
+
+  // Clamp left position to prevent clipping at edges (8% - 92%)
+  const clampedLeft = Math.max(8, Math.min(92, leftPercent));
+  badge.style.left = `${clampedLeft}%`;
+  badge.style.top = `${Math.min(90, topPercent)}%`;
 
   const slug = getSlug(name);
   const marketUrl = `https://warframe.market/items/${slug}`;
 
   const cleanName = name
-    .replace(/PRIME/gi, "")
-    .replace(/BLUEPRINT/gi, "BP")
-    .replace(/NEUROPTICS/gi, "NEURO")
-    .replace(/SYSTEMS/gi, "SYS")
-    .replace(/CHASSIS/gi, "CHAS")
+    .replaceAll(/PRIME/gi, "")
+    .replaceAll(/BLUEPRINT/gi, "BP")
+    .replaceAll(/NEUROPTICS/gi, "NEURO")
+    .replaceAll(/SYSTEMS/gi, "SYS")
+    .replaceAll(/CHASSIS/gi, "CHAS")
     .trim();
 
+  const escapedName = cleanName.replace(/[&<>"']/g, (m) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  }[m]));
+
   badge.innerHTML = `
-    <a href="${marketUrl}" target="_blank" class="modal-badge-link">
-        <div class="modal-badge-name">${cleanName}</div>
-        <div class="modal-badge-price">
-            ${price > 0 ? price : "--"} <span class="pl-unit">PL</span>
+    <a href="${marketUrl.replace(/"/g, "&quot;")}" target="_blank" class="modal-badge-link" style="display:block; text-decoration:none;">
+        <div class="modal-badge-name" style="font-size:10px; color:#aaa; font-weight:bold; margin-bottom:4px; text-transform:uppercase;">${escapedName}</div>
+        <div class="modal-badge-row" style="display:flex; justify-content:center; align-items:center; gap:10px; font-weight:bold;">
+            <div class="modal-badge-price" style="display:flex; align-items:center; gap:2px; font-size:14px; color:#f1c40f;">
+                <img src="https://warframe.market/static/assets/common/platinum.png" style="width:14px; height:14px;">
+                ${price > 0 ? price : "--"}
+            </div>
+            ${ducats > 0
+      ? `<div class="modal-badge-ducats" style="display:flex; align-items:center; gap:3px; font-size:13px; color:#D4AF37;">
+                  <span style="background:#D4AF37; color:#000; width:14px; height:14px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:9px; font-weight:900;">D</span>
+                  ${ducats}
+                </div>`
+      : ""
+    }
+        </div>
+        <div style="margin-top:4px; display:flex; flex-direction:column; gap:2px;">
+          ${isBestPl ? '<div style="background:#f1c40f; color:#000; font-size:8px; font-weight:900; padding:1px 4px; border-radius:2px; display:inline-block; align-self:center;">MOST VALUABLE</div>' : ""}
+          ${isBestDuc ? '<div style="background:#D4AF37; color:#000; font-size:8px; font-weight:900; padding:1px 4px; border-radius:2px; display:inline-block; align-self:center;">BEST DUCATS</div>' : ""}
         </div>
     </a>`;
 
   container.appendChild(badge);
 }
 
-window.startLiveSession = startLiveSession;
-window.stopLiveSession = stopLiveSession;
-window.closeScanModal = function () {
+globalThis.startLiveSession = startLiveSession;
+globalThis.stopLiveSession = stopLiveSession;
+globalThis.closeScanModal = function () {
   if (autoCloseTimer) clearTimeout(autoCloseTimer);
   document.getElementById("scan-success-modal").classList.add("hidden");
   detectionLocked = false;

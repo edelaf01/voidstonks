@@ -14,11 +14,88 @@ import { state, saveAppState, updateInventoryCount } from "./state.js";
 import {
   addToQueue,
   fetchRivenAverage,
-  fetchBestFissures,
-  getPriceValue,
   getSlug,
   getRivenSlug,
+  fetchActiveBounties,
+  getPriceValue,
+
+
 } from "./api.js";
+
+/**
+ * Resolves an item name to its corresponding icon path.
+ */
+function getItemIcon(itemName) {
+  if (!itemName) return null;
+
+  let originalName = itemName.toLowerCase().trim();
+
+  // 0. Remove multipliers (e.g. "2x Forma" -> "Forma", "3x Neuroptics" -> "Neuroptics")
+  originalName = originalName.replace(/^\d+x\s+/, "");
+
+  // 1. Calculate the base slug (e.g., "Wisp Prime Blueprint" -> "wisp-prime-blueprint")
+  let baseSlug = originalName.replace(" set", "").replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+
+  // Special case for double-dash items in assets (silva--aegis, cobra--crane)
+  if (baseSlug.includes("silva-aegis")) baseSlug = baseSlug.replace("silva-aegis", "silva--aegis");
+  if (baseSlug.includes("cobra-crane")) baseSlug = baseSlug.replace("cobra-crane", "cobra--crane");
+
+  // 2. GENERIC PART ASSETS (Higher Quality 'prime-' versions)
+  // CRITICAL: We check these FIRST so that "Loki Prime Systems Blueprint" uses the Systems icon, not Loki.
+  if (originalName.includes("chassis")) return "assets/relic_contents/prime-chassis.webp";
+  if (originalName.includes("systems")) return "assets/relic_contents/prime-systems.webp";
+  if (originalName.includes("neuroptics")) return "assets/relic_contents/prime-neuroptics.webp"; // Corrected icon
+  if (originalName.includes("cerebrum")) return "assets/relic_contents/prime-cerebrum.webp";
+  if (originalName.includes("harness")) return "assets/relic_contents/prime-odonata-prime-harness.webp";
+  if (originalName.includes("wings")) return "assets/relic_contents/prime-odonata-prime-wings.webp";
+  if (originalName.includes("barrel")) return "assets/relic_contents/prime-barrel.webp";
+  if (originalName.includes("receiver")) return "assets/relic_contents/prime-receiver.webp";
+  if (originalName.includes("stock") || originalName.includes("motor")) return "assets/relic_contents/prime-stock.webp";
+  if (originalName.includes("link") || originalName.includes("chain")) return "assets/relic_contents/prime-link.webp";
+  if (originalName.includes("grip") || originalName.includes("limb") || originalName.includes("string")) return "assets/relic_contents/prime-grip.webp";
+  if (originalName.includes("hilt") || originalName.includes("handle") || originalName.includes("ornament") || originalName.includes("blade") || originalName.includes("tip")) return "assets/relic_contents/prime-hilt.webp";
+  if (originalName.includes("disc")) return "assets/relic_contents/prime-disc.webp";
+  if (originalName.includes("boot")) return "assets/relic_contents/prime-boot.webp";
+  if (originalName.includes("chain")) return "assets/relic_contents/prime-chain.webp";
+
+  // 3. BLUEPRINT PRIORITY: Use Set icon for MAIN Blueprints (e.g., Loki Prime Blueprint)
+  if (originalName.includes("blueprint") || originalName.endsWith(" bp")) {
+    const setSlug = baseSlug.replace("-blueprint", "").replace("-bp", "");
+    return `assets/relic_contents/${setSlug}.webp`;
+  }
+
+  // 4. Default attempt with full slug
+  return `assets/relic_contents/${baseSlug}.webp`;
+}
+
+function getRequiredCount(setName, partName) {
+  if (!state.primeManifest) return 1;
+  const item = state.primeManifest.find((i) => i.name === setName);
+  if (!item || !item.components) return 1;
+
+  const cleanPart = partName === setName ? "Blueprint" : partName.replace(setName, "").trim();
+  const comp = item.components.find((c) => c.name === cleanPart);
+  return comp ? comp.itemCount : 1;
+}
+
+function generateDotsHtml(owned, required) {
+  if (required <= 1) return "";
+  const isComplete = owned >= required;
+  let html = `<div class="tracker-dots ${isComplete ? "complete" : ""}" style="display: flex; gap: 3px; margin-left: 8px;">`;
+  for (let i = 0; i < required; i++) {
+    const filled = i < owned ? "filled" : "";
+    html += `<span class="tracker-dot ${filled}"></span>`;
+  }
+  html += `</div>`;
+  return html;
+}
+
+export function escapeHTML(str) {
+  if (!str) return "";
+  const p = document.createElement("p");
+  p.textContent = str;
+  return p.innerHTML;
+}
 
 let debounceTimer;
 
@@ -60,7 +137,12 @@ export function switchTab(mode) {
     mainCard.classList.add(`theme-${mode}`);
   }
 
-  ["relic", "set", "riven", "profile", "lfg"].forEach((m) => {
+  // Set theme on body for global elements (logo, header etc)
+  document.body.className = document.body.className.replace(/\btheme-\S+/g, "").trim();
+  document.body.classList.add(`theme-${mode}`);
+
+  if (mode === "bounties" && mainCard) mainCard.classList.add("theme-bounties");
+  ["relic", "set", "riven", "profile", "lfg", "bounties"].forEach((m) => {
     document.getElementById("mode-" + m)?.classList.add("hidden");
   });
   document.getElementById("mode-" + mode)?.classList.remove("hidden");
@@ -77,23 +159,30 @@ export function switchTab(mode) {
       footer.style.display = "block";
       footer.style.borderTopColor = "#333";
       if (msgText) msgText.style.color = "#00e5ff";
-      else if (tabName === "live") {
+      else if (mode === "live") {
         document.getElementById("mode-live").classList.remove("hidden");
       }
     } else {
       footer.style.display = "none";
     }
   }
-  toggleInventoryPanel(false);
-  const invBtn = document.getElementById("inventory-toggle-btn");
+  const invBtn = document.getElementById("inv-toggle-btn");
   if (invBtn) {
-    if (tabId === "relic") {
+    const tabsWithInventory = ["relic", "set", "bounties"];
+    if (tabsWithInventory.includes(mode)) {
       invBtn.classList.remove("hidden");
       invBtn.style.display = "flex";
     } else {
       invBtn.classList.add("hidden");
       invBtn.style.display = "none";
     }
+  }
+  if (mode === "bounties") {
+    renderBountiesTab();
+    document.querySelector(".card").classList.add("theme-bounties");
+  } else {
+    const card = document.querySelector(".card");
+    if (card) card.classList.remove("theme-bounties");
   }
   const resultsPanel = document.getElementById("scanned-results-panel");
   if (resultsPanel) {
@@ -102,21 +191,24 @@ export function switchTab(mode) {
   const overlay = document.getElementById("ocr-overlay");
   if (overlay && !overlay.classList.contains("hidden")) {
     overlay.classList.add("hidden");
-    if (window.closeScanner) window.closeScanner();
+    if (globalThis.closeScanner) globalThis.closeScanner();
   }
   if (mode === "lfg") updateLFGUI();
   else generateMessage();
 }
 
-export function changeLanguage() {
+export function changeLanguage(lang) {
+  if (lang) state.currentLang = lang;
   if (!state.currentLang) state.currentLang = "es";
+
   saveAppState();
   updateLangButtonVisuals(state.currentLang);
+
   const t = TEXTS[state.currentLang];
 
   const setText = (id, text) => {
     const el = document.getElementById(id);
-    if (el) el.innerText = text;
+    if (el && text) el.innerText = text;
   };
 
   const setTab = (id, text, tip) => {
@@ -126,7 +218,7 @@ export function changeLanguage() {
       el.innerHTML = "";
       if (img) el.appendChild(img);
       el.appendChild(document.createTextNode(" " + text));
-      el.setAttribute("data-tooltip", tip);
+      if (tip) el.dataset.tooltip = tip;
     }
   };
 
@@ -135,7 +227,7 @@ export function changeLanguage() {
   setTab("btn-riven", t.menuRiven || "Riven", t.tooltips.tabRiven);
   setTab("btn-profile", t.menuProfile || "Perfil", t.tooltips.tabProfile);
   setTab("btn-lfg", t.menuLfg || "LFG", t.tooltips.tabLfg);
-
+  setTab("btn-bounties", t.menuBounties || "Farms", t.tooltips.tabBounties);
   setText("txt-header-title", t.headerTitle);
   setText("txt-header-sub", t.headerSub);
   setText("txt-footer-data", t.footerData);
@@ -148,31 +240,12 @@ export function changeLanguage() {
   setText("lbl-relic-name", t.lblRelic);
   const relicInput = document.getElementById("relicInput");
   if (relicInput) relicInput.placeholder = t.phRelic;
+
   setText("lbl-missing", t.lblMiss);
   setText("lbl-profit", t.lblProfit);
   setText("lbl-content", t.lblContent);
 
-  setText("lbl-search-item", t.lblItem);
-  const setInput = document.getElementById("setItemInput");
-  if (setInput) setInput.placeholder = t.phItem;
-
-  setText("lbl-riven-weapon", t.lblRivenW);
-  const rivenInput = document.getElementById("rivenWeaponInput");
-  if (rivenInput) rivenInput.placeholder = t.phRivenW;
-  setText("lbl-riven-stats", t.lblRivenS);
-  setText("btn-riven-search", t.rivenSearch);
-  const statNegOpt = document.querySelector('#rivenStatNeg option[value=""]');
-  if (statNegOpt) statNegOpt.innerText = t.lblRivenNeg;
-
-  setText("lbl-username", t.lblUser);
-  const btnCheck = document.querySelector("#mode-profile button");
-  if (btnCheck) btnCheck.innerText = t.btnCheck;
-  setText("txt-mr-label", t.lblMrCalc);
-
-  setText("lbl-lfg-activity", t.lblLfgActivity);
-  setText("lbl-lfg-players", t.lblLfgPlayers);
-  setText("btn-copy", t.btnCopy);
-
+  // Refinamiento (Selector)
   const refLabel = document.getElementById("lbl-refinement");
   if (refLabel) {
     refLabel.innerHTML = `${t.lblRef} <span data-tooltip="${t.tooltips.refinement}" style="cursor:help; opacity:0.7"> (?)</span>`;
@@ -185,17 +258,53 @@ export function changeLanguage() {
     });
   }
 
-  setText("txt-inv-title", t.inventory.title);
-  const invInput = document.getElementById("inv-search-input");
-  if (invInput) invInput.placeholder = t.inventory.searchPlaceholder;
-
-  setText("txt-fissure-title", t.lblFissures || "Fisuras Activas");
-
-  setText("lbl-relic-name", t.lblRelic);
-  if (relicInput) relicInput.placeholder = t.phRelic;
-
+  // Guía de añadir reliquia
   const guideText = document.getElementById("relic-add-guide");
   if (guideText) guideText.innerText = t.addGuide;
+  const guideIcon = document.getElementById("relic-guide-icon");
+  if (guideIcon) guideIcon.dataset.tooltip = t.addGuide;
+
+  // --- 4. SECCIÓN SETS ---
+  setText("lbl-search-item", t.lblItem);
+  const setInput = document.getElementById("setItemInput");
+  if (setInput) setInput.placeholder = t.phItem;
+
+  // --- 5. SECCIÓN RIVEN ---
+  setText("lbl-riven-weapon", t.lblRivenW);
+  const rivenInput = document.getElementById("rivenWeaponInput");
+  if (rivenInput) rivenInput.placeholder = t.phRivenW;
+  setText("lbl-riven-stats", t.lblRivenS);
+  setText("btn-riven-search", t.rivenSearch);
+
+  // Update all Riven stat placeholders
+  const phStat = t.lblRivenPos || "+ STAT";
+  const phNeg = t.lblRivenNeg || "- NEGATIVA";
+
+  document.querySelectorAll(".riven-stat-select").forEach(sel => {
+    const isNeg = sel.classList.contains("negative");
+    const firstOpt = sel.options[0];
+    if (firstOpt && firstOpt.value === "") {
+      if (isNeg) {
+        firstOpt.innerText = phNeg;
+      } else {
+        const match = sel.id.match(/\d/);
+        const num = match ? match[0] : "";
+        firstOpt.innerText = `${phStat} ${num}`.trim();
+      }
+    }
+  });
+
+  // --- 6. SECCIÓN PERFIL ---
+  setText("lbl-username", t.lblUser);
+  const btnCheck = document.querySelector("#mode-profile button");
+  if (btnCheck) btnCheck.innerText = t.btnCheck;
+  setText("txt-mr-label", t.lblMrCalc);
+
+  // --- 7. SECCIÓN LFG ---
+  setText("lbl-lfg-activity", t.lblLfgActivity);
+  setText("lbl-lfg-players", t.lblLfgPlayers);
+  setText("btn-copy", t.btnCopy);
+
   const lfgItems = document.querySelectorAll("#lfgDropdown .dropdown-item");
   const keys = [
     "eidolon",
@@ -212,30 +321,34 @@ export function changeLanguage() {
     if (lfgItems[index] && t.lfgOpts[key])
       lfgItems[index].innerText = t.lfgOpts[key];
   });
-
   const currentVal = document.getElementById("lfgActivity").value;
   if (t.lfgOpts[currentVal]) setText("lfgSelectedText", t.lfgOpts[currentVal]);
 
+  // --- 8. SECCIÓN INVENTARIO ---
+  setText("txt-inv-title", t.inventory.title);
+  const invInput = document.getElementById("inv-search-input");
+  if (invInput) invInput.placeholder = t.inventory.searchPlaceholder;
+
+  // --- 9. SECCIÓN FISURAS & FARMS (NUEVO) ---
+  setText("txt-fissure-title", t.lblFissures || "Fisuras Activas");
+
+  setText("lbl-fast-farms-title", t.lblFastFarms || "Misiones Rápidas");
+
   populateRivenSelects();
+
   const modeLfg = document.getElementById("mode-lfg");
   if (modeLfg && !modeLfg.classList.contains("hidden")) updateLFGUI();
+
   if (state.currentActiveSet) renderSetTracker();
-  if (state.selectedRelic) manualRelicUpdate();
-  const guideIcon = document.getElementById("relic-guide-icon");
-  if (guideIcon) {
-    guideIcon.setAttribute("data-tooltip", t.addGuide);
+  if (state.activeTab === "bounties") {
+    renderBountiesTab();
   }
   const tier = document.getElementById("relicInput").value.split(" ")[0];
-  if (tier && state.selectedRelic) {
-    updateRecommendedMissions(tier);
-  }
-  if (state.selectedRelic) {
-    manualRelicUpdate();
-  }
+  if (tier && state.selectedRelic) updateRecommendedMissions(tier);
+  if (state.selectedRelic) manualRelicUpdate();
+
   generateMessage();
 }
-
-// --- MESSAGE GEN ---
 export function changeCount(n) {
   state.playerCount = Math.max(1, Math.min(4, state.playerCount + n));
   document.getElementById("countDisplay").innerText = state.playerCount;
@@ -243,51 +356,43 @@ export function changeCount(n) {
 }
 
 export function generateMessage() {
-  // Usamos requestAnimationFrame para no bloquear el hilo principal
-  // mientras el menú desplegable se está cerrando.
   requestAnimationFrame(() => {
-      const t = TEXTS[state.currentLang];
-      const defaultText = t.defaultRelic;
-      let rName = state.selectedRelic || defaultText;
-      rName = rName.trim();
-    
-      // Obtenemos el texto del select visual (o del nativo si no hay visual)
-      // Nota: Si usas el dropdown custom, el valor del select nativo ya está actualizado
-      const refSelect = document.getElementById("refinement");
-      const refVal = refSelect.value;
-      const refText = refSelect.options[refSelect.selectedIndex]?.text || refVal;
-    
-      let linkChat = "";
-      if (!state.selectedRelic) linkChat = `[${defaultText}]`;
-      else {
-        if (state.currentLang === "en") linkChat = `[${rName} Relic]`;
-        else linkChat = `[Reliquia ${rName}]`;
+    const t = TEXTS[state.currentLang];
+    const defaultText = t.defaultRelic;
+    let rName = state.selectedRelic || defaultText;
+    rName = rName.trim();
+
+    const refSelect = document.getElementById("refinement");
+    const refVal = refSelect.value;
+    const refText = refSelect.options[refSelect.selectedIndex]?.text || refVal;
+
+    let linkChat = "";
+    if (state.selectedRelic) {
+      if (state.currentLang === "en") linkChat = `[${rName} Relic]`;
+      else linkChat = `[Reliquia ${rName}]`;
+    } else {
+      linkChat = `[${defaultText}]`;
+    }
+
+    let countText = `${state.playerCount}/4`;
+    if (state.playerCount === 4) countText = "3/4";
+
+    const fullMessage = `H ${linkChat} ${refText} ${countText}`;
+    const msgBox = document.getElementById("finalMessage");
+
+    if (msgBox) {
+      if (msgBox.innerText !== fullMessage) {
+        msgBox.innerText = fullMessage;
+
+        msgBox.classList.remove("pulse-anim");
+
+        setTimeout(() => {
+          msgBox.classList.add("pulse-anim");
+        }, 10);
       }
-    
-      let countText = `${state.playerCount}/4`;
-      if (state.playerCount === 4) countText = "3/4";
-    
-      const fullMessage = `H ${linkChat} ${refText} ${countText}`;
-      const msgBox = document.getElementById("finalMessage");
-      
-      if (msgBox) {
-        // Solo actualizamos el DOM si el texto ha cambiado realmente
-        if (msgBox.innerText !== fullMessage) {
-            msgBox.innerText = fullMessage;
-            
-            // ELIMINADO EL HACK DE .offsetHeight QUE CONGELABA LA PANTALLA
-            // En su lugar, simplemente quitamos y ponemos la clase para animar
-            msgBox.classList.remove("pulse-anim");
-            
-            // Esperamos un micro-tick para re-aplicar la animación sin bloquear
-            setTimeout(() => {
-                msgBox.classList.add("pulse-anim");
-            }, 10);
-        }
-      }
-    
-      // Recalcular precios (ya optimizado en el paso anterior)
-      updateRelicTotal();
+    }
+
+    updateRelicTotal();
   });
 }
 
@@ -348,11 +453,14 @@ export function manualRelicUpdate() {
     state.selectedRelic = relicInput.value;
 
     const tier = state.selectedRelic.split(" ")[0];
-    if (typeof window.updateRecommendedMissions === "function") {
-      window.updateRecommendedMissions(tier).catch((err) => console.error(err));
+    if (typeof globalThis.updateRecommendedMissions === "function") {
+      globalThis
+        .updateRecommendedMissions(tier)
+        .catch((err) => console.error(err));
     }
 
-    if (typeof window.generateMessage === "function") window.generateMessage();
+    if (typeof globalThis.generateMessage === "function")
+      globalThis.generateMessage();
 
     const listDiv = document.getElementById("relic-drops-list");
     const profitDisplay = document.getElementById("relic-profit-display");
@@ -380,16 +488,15 @@ export function manualRelicUpdate() {
             status === "aya" ? "AYA (RESURGENCE)" : "ACTIVE";
 
           const tooltipHTML = getRelicDropTooltip(state.selectedRelic);
-          statusBadge.setAttribute("data-tooltip-html", tooltipHTML);
-          statusBadge.removeAttribute("data-tooltip");
+          statusBadge.dataset.tooltipHtml = tooltipHTML;
+          delete statusBadge.dataset.tooltip;
+        } else {
           statusBadge.classList.add("vaulted");
           statusBadge.innerText = "VAULTED";
 
-          statusBadge.removeAttribute("data-tooltip-html");
-          statusBadge.setAttribute(
-            "data-tooltip",
-            "Esta reliquia está en la Bóveda (No cae actualmente)."
-          );
+          delete statusBadge.dataset.tooltipHtml;
+          statusBadge.dataset.tooltip =
+            "Esta reliquia está en la Bóveda (No cae actualmente).";
         }
       }
 
@@ -404,14 +511,14 @@ export function manualRelicUpdate() {
 
       const t = TEXTS[state.currentLang];
       addBtnContainer.innerHTML = `
-        <button class="riven-btn" style="padding: 8px 15px; background: var(--wf-blue); color: #000; font-weight:bold;" onclick="window.addCurrentToInv()">
-            + ${t.manualAdd || "Add to Inventory"}
+        <button class="riven-btn" style="padding: 8px 15px; background: var(--wf-blue); color: #000; font-weight:bold;" data-action="add-current-to-inv">
+            + ${escapeHTML(t.manualAdd || "Add to Inventory")}
         </button>
       `;
 
       const items = state.relicsDatabase[state.selectedRelic];
       items.sort((a, b) => b.chance - a.chance);
-      const abbr = TEXTS[state.currentLang].rarityAbbr;
+      //const abbr = TEXTS[state.currentLang].rarityAbbr;
 
       items.forEach((item) => {
         const row = document.createElement("div");
@@ -428,38 +535,42 @@ export function manualRelicUpdate() {
 
         if (item.chance <= 5) {
           rarityLabel = abbr.rare;
-          row.setAttribute("data-rarity", "rare");
+          row.dataset.rarity = "rare";
         } else if (item.chance <= 11) {
           rarityLabel = abbr.uncommon;
-          row.setAttribute("data-rarity", "uncommon");
+          row.dataset.rarity = "uncommon";
         } else {
-          row.setAttribute("data-rarity", "common");
+          row.dataset.rarity = "common";
         }
 
         if (isUntradable) {
-          row.setAttribute("data-rarity", "forma");
+          row.dataset.rarity = "forma";
         }
 
-        row.style.display = "flex";
-        row.style.justifyContent = "space-between";
-        row.style.alignItems = "center";
+        const iconPath = getItemIcon(item.name);
+        const iconHtml = iconPath ? `<img src="${iconPath}" class="item-icon-mini" onerror="this.style.display='none'">` : '';
 
         let nameDisplay;
         if (isUntradable) {
-          nameDisplay = `<span class="component-name forma">${item.name.replace(
-            "Blueprint",
-            "BP"
+          nameDisplay = `<span class="component-name forma">${escapeHTML(
+            item.name.replaceAll("Blueprint", "BP"),
           )}</span>`;
         } else {
           nameDisplay = `
-            <span class="component-name item-interactive" onclick="window.findRelicsForItem('${
-              item.name
-            }')">
-                ${item.name}
-            </span>
-            <a href="https://warframe.market/items/${getSlug(
-              item.name
-            )}" target="_blank" class="market-link-icon">↗</a>
+            <div style="display:flex; align-items:center; gap:12px; width:100%;">
+              <span class="component-name item-interactive" data-action="find-relics-for-item" data-item="${escapeHTML(item.name)}">
+                  ${escapeHTML(item.name)}
+              </span>
+              <div style="margin-left:auto; display:flex; align-items:center; gap:8px;">
+                <a href="https://warframe.market/items/${getSlug(item.name)}" target="_blank" class="market-btn-mini" title="Warframe Market">
+                  MARKET
+                </a>
+                <button class="mini-action-btn" style="border-color:var(--wf-blue)" 
+                        data-action="modify-prime-part" data-part="${escapeHTML(item.name)}" data-amount="1">
+                  +1
+                </button>
+              </div>
+            </div>
           `;
         }
 
@@ -470,18 +581,22 @@ export function manualRelicUpdate() {
           ? "price-badge forma"
           : "price-badge loading";
 
+        const ducatVal = item.ducats || 0;
         row.innerHTML = `
             <div class="component-info">
                 <span class="rarity-indicator">${rarityLabel}</span>
-                <span class="name-wrapper">
-                    ${nameDisplay}
-                </span>
+                <div class="name-wrapper">
+                    ${iconHtml}
+                    <div class="name-column" style="display:flex; align-items:center;">
+                       ${nameDisplay}
+                    </div>
+                </div>
             </div>
-            <div class="${badgeClass}" data-item="${item.name.replace(
-          /"/g,
-          "&quot;"
-        )}">
-                ${badgeContent}
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span class="ducat-val" style="color:var(--wf-gold-text); font-size:0.85em; font-weight:bold;">${ducatVal} <span style="font-size:0.8em; opacity:0.8">d</span></span>
+              <div class="${badgeClass}" data-item="${item.name.replaceAll(/"/g, "&quot;")}">
+                  ${badgeContent}
+              </div>
             </div>
         `;
 
@@ -513,7 +628,7 @@ function updateRelicTotal() {
 
   const items = state.relicsDatabase[state.selectedRelic];
   const badges = document.querySelectorAll(
-    "#relic-drops-list .price-badge:not(.big)"
+    "#relic-drops-list .price-badge:not(.big)",
   );
   const refinementInput = document.getElementById("refinement").value;
   const squadSize = state.playerCount || 1;
@@ -525,10 +640,10 @@ function updateRelicTotal() {
 
     let price = 0;
     const badge = Array.from(badges).find(
-      (b) => b.getAttribute("data-item") === item.name.replace(/"/g, "&quot;")
+      (b) => b.dataset.item === item.name.replaceAll('"', "&quot;"),
     );
     if (badge) {
-      price = parseInt(badge.innerText) || 0;
+      price = Number.parseInt(badge.innerText) || 0;
     }
 
     return { ...item, rarityType, price };
@@ -537,7 +652,7 @@ function updateRelicTotal() {
   const totalEV = calculateSquadEV(
     itemDataWithPrice,
     refinementInput,
-    squadSize
+    squadSize,
   );
 
   const disp = document.getElementById("relic-profit-display");
@@ -545,47 +660,57 @@ function updateRelicTotal() {
   const t = TEXTS[state.currentLang];
 
   if (squadSize > 1) {
-    label.innerText = t.lblProfitSquad.replace("{n}", squadSize);
+    label.innerText = t.lblProfitSquad.replaceAll("{n}", squadSize);
     label.style.color = "var(--wf-blue)";
   } else {
     label.innerText = t.lblProfitSolo;
     label.style.color = "#bbb";
   }
 
-  disp.innerHTML = `~${totalEV.toFixed(
-    1
-  )}<span style="font-size:0.7em">pl</span>`;
+  const ducatEV = calculateSquadEV(
+    itemDataWithPrice.map(i => ({ ...i, price: i.ducats })),
+    refinementInput,
+    squadSize
+  );
+
+  disp.innerHTML = `
+    <div style="display:flex; flex-direction:column; align-items:flex-end;">
+      <span>~${totalEV.toFixed(1)}<span style="font-size:0.7em">pl</span></span>
+      <span style="font-size:0.7em; color:var(--wf-gold-text)">~${ducatEV.toFixed(1)} ducats</span>
+    </div>
+  `;
 
   const stillLoading = Array.from(badges).some((b) =>
-    b.classList.contains("loading")
+    b.classList.contains("loading"),
   );
   if (!stillLoading) disp.classList.remove("loading");
 }
 
-
-
 function calculateSquadEV(items, refinement, squadSize) {
-
   const keyMap = {
-    "Rad": "Radiant",
-    "Intact": "Intact",
-    "Exceptional": "Exceptional",
-    "Flawless": "Flawless"
+    Rad: "Rad",
+    rad: "Rad",
+    Intact: "Intact",
+    Exceptional: "Exceptional",
+    Flawless: "Flawless",
   };
 
   const safeKey = keyMap[refinement] || refinement;
 
-  const rates = (DROP_CHANCES && DROP_CHANCES[safeKey]) 
-             || (DROP_CHANCES && DROP_CHANCES.Intact) 
-             || { common: 0.76, uncommon: 0.22, rare: 0.02 };
+  const rates = DROP_CHANCES?.[safeKey] ||
+    DROP_CHANCES?.Intact || {
+    common: 0.76,
+    uncommon: 0.22,
+    rare: 0.02,
+  };
 
   if (!items) return 0;
 
   const itemsWithProb = items.map((item) => {
-    let prob = rates.common / 3; 
-    
-    if (item.rarityType === "rare") prob = rates.rare / 1; 
-    else if (item.rarityType === "uncommon") prob = rates.uncommon / 2; 
+    let prob = rates.common / 3;
+
+    if (item.rarityType === "rare") prob = rates.rare / 1;
+    else if (item.rarityType === "uncommon") prob = rates.uncommon / 2;
 
     return { price: item.price || 0, prob: prob };
   });
@@ -597,11 +722,11 @@ function calculateSquadEV(items, refinement, squadSize) {
 
   for (let item of itemsWithProb) {
     const nextAccumulatedProb = accumulatedProb + item.prob;
-    
+
     const chanceThisIsBest =
       Math.pow(nextAccumulatedProb, squadSize) -
       Math.pow(accumulatedProb, squadSize);
-      
+
     expectedValue += item.price * chanceThisIsBest;
     accumulatedProb = nextAccumulatedProb;
   }
@@ -643,9 +768,8 @@ function searchSet() {
   });
 
   if (Object.keys(groups).length === 0 && singles.length === 0) {
-    container.innerHTML = `<div style="text-align:center;color:#666;margin-top:20px">${
-      TEXTS[state.currentLang].notFound
-    }</div>`;
+    container.innerHTML = `<div style="text-align:center;color:#666;margin-top:20px">${TEXTS[state.currentLang].notFound
+      }</div>`;
     return;
   }
 
@@ -657,7 +781,7 @@ function searchSet() {
   singles
     .slice(0, 10)
     .forEach((itemName) =>
-      createSetCard(itemName, [itemName], container, true)
+      createSetCard(itemName, [itemName], container, true),
     );
 }
 
@@ -667,11 +791,14 @@ function createSetCard(title, itemNames, parent, isSingle = false) {
   const header = document.createElement("div");
   header.className = "set-header";
   let titleHTML = isSingle
-    ? `<span>${title}</span>`
+    ? `<span>${escapeHTML(title)}</span>`
     : `<a href="https://warframe.market/items/${getSlug(
-        title + " Set"
-      )}" target="_blank" class="market-link">${title} SET<span class="link-icon">↗</span></a>`;
-  header.innerHTML = titleHTML;
+      title + " Set",
+    )}" target="_blank" class="market-link">${escapeHTML(title)} SET<span class="link-icon">↗</span></a>`;
+
+  const setIcon = getItemIcon(title);
+  const setIconHtml = setIcon ? `<img src="${setIcon}" class="item-icon-small" onerror="this.style.display='none'">` : '';
+  header.innerHTML = `${setIconHtml} ${titleHTML}`;
 
   if (!isSingle) {
     const setPrice = document.createElement("span");
@@ -692,7 +819,7 @@ function createSetCard(title, itemNames, parent, isSingle = false) {
     row.className = "component-row";
     let dispName =
       !isSingle && itemName.startsWith(title)
-        ? itemName.replace(title, "").trim()
+        ? itemName.replaceAll(title, "").trim()
         : itemName;
 
     const priceSpan = document.createElement("span");
@@ -700,10 +827,33 @@ function createSetCard(title, itemNames, parent, isSingle = false) {
     priceSpan.innerText = "...";
     addToQueue(itemName, priceSpan);
 
-    row.innerHTML = `<div class="component-header"><a href="https://warframe.market/items/${getSlug(
-      itemName
-    )}" target="_blank" class="market-link"><span class="component-name">${dispName}</span><span class="link-icon">↗</span></a></div>`;
-    row.appendChild(priceSpan);
+    const partIcon = getItemIcon(itemName);
+    const partIconHtml = partIcon ? `<img src="${partIcon}" class="item-icon-mini" onerror="this.style.display='none'">` : '';
+
+    const itemData = state.itemsDatabase[itemName];
+    const ducatVal = itemData && itemData.length > 0 ? itemData[0].ducats : 0;
+
+    row.innerHTML = `
+  <div class="component-header">
+    <div class="name-col-wrapper">
+      ${partIconHtml}
+      <span class="component-name">${escapeHTML(dispName)}</span>
+    </div>
+    <div class="actions-col-wrapper">
+      <a href="https://warframe.market/items/${getSlug(itemName)}" target="_blank" class="market-btn-mini" title="Warframe Market">
+        MARKET
+      </a>
+      <button class="mini-action-btn" data-action="modify-prime-part" data-part="${escapeHTML(itemName)}" data-amount="1">
+        +1
+      </button>
+    </div>
+  </div>
+  <div style="display:flex; align-items:center; gap:8px; margin-top:4px;">
+    <span class="ducat-val" style="color:var(--wf-gold-text); font-size:0.85em; font-weight:bold;">${ducatVal} <span style="font-size:0.8em; opacity:0.8">d</span></span>
+    <div class="price-badge-wrapper" style="min-width:45px; display:flex; justify-content:flex-end;"></div>
+  </div>`;
+    const badgeWrapper = row.querySelector(".price-badge-wrapper");
+    badgeWrapper.appendChild(priceSpan);
 
     if (relicsInfo.length === 0)
       row.innerHTML += `<div style="color:#666;font-size:0.8em;font-style:italic;margin-left:10px;">Vaulted</div>`;
@@ -737,24 +887,25 @@ function createSetCard(title, itemNames, parent, isSingle = false) {
         let tooltipAttr = "";
         if (stKey === "active" || stKey === "aya") {
           const rawHtml = getRelicDropTooltip(info.relic);
-          const safeHtml = rawHtml.replace(/"/g, "&quot;");
+          const safeHtml = rawHtml.replaceAll(/"/g, "&quot;");
           tooltipAttr = `data-tooltip-html="${safeHtml}"`;
         } else {
-          tooltipAttr = `data-tooltip="Esta reliquia está Vaulted"`;
+          tooltipAttr = `data-tooltip="This relic is vaulted"`;
         }
 
         btn.className = `relic-chip ${rc}`;
 
         btn.innerHTML = `
             <div class="relic-chip-header">
-                <span class="relic-name">${info.relic}</span>
-                <img src="${
-                  TIER_URLS[tier] || TIER_URLS.Lith
-                }" class="relic-img">
+                <span class="relic-name">${escapeHTML(info.relic)}</span>
+                <img src="${TIER_URLS[tier] || TIER_URLS.Lith
+          }" class="relic-img">
             </div>
             <div class="chip-footer">
-                <span class="rarity-text ${rc}">${rl}</span>
-                <span class="status-badge ${stKey}" ${tooltipAttr}>${stTxt}</span>
+                <span class="rarity-text ${rc}">${escapeHTML(rl)}</span>
+                <span class="status-badge ${stKey}" ${tooltipAttr}>${escapeHTML(
+            stTxt,
+          )}</span>
             </div>`;
 
         btn.onclick = (e) => {
@@ -824,15 +975,13 @@ function renderRelicsForPartInline(partName, container) {
     btn.innerHTML = `
       <div class="relic-chip-header">
         <span class="relic-name">${info.relic}</span>
-        <img src="${
-          TIER_URLS[tier] || TIER_URLS.Lith
-        }" class="relic-img" style="width:20px;">
+        <img src="${TIER_URLS[tier] || TIER_URLS.Lith
+      }" class="relic-img" style="width:20px;">
       </div>
       <div class="chip-footer">
         <span class="rarity-text ${rc}">${rl}</span>
-        <span class="status-badge ${stKey}" style="font-size:0.7em">${
-      stKey === "active" ? "ACT" : "VLT"
-    }</span>
+        <span class="status-badge ${stKey}" style="font-size:0.7em">${stKey === "active" ? "ACT" : "VLT"
+      }</span>
       </div>
     `;
 
@@ -881,9 +1030,27 @@ export function renderSetTracker() {
     </a>
   `;
 
+  // Create a map from manifest for quick lookup if available
+  const manifestItem = state.primeManifest && Array.isArray(state.primeManifest)
+    ? state.primeManifest.find(i => i.name === state.currentActiveSet)
+    : null;
+
   state.activeSetParts.forEach((partName) => {
     const wrapper = document.createElement("div");
-    const isDone = state.completedParts.has(partName);
+    // Determine quantity owned and required
+    const ownedCount = state.primeInventory[partName] || 0;
+
+    let requiredCount = 1;
+    if (manifestItem && manifestItem.components) {
+      const shortPartName = partName === state.currentActiveSet
+        ? "Blueprint"
+        : partName.replace(state.currentActiveSet, "").trim();
+
+      const comp = manifestItem.components.find(c => c.name === shortPartName);
+      if (comp && comp.itemCount) requiredCount = comp.itemCount;
+    }
+
+    const isDone = ownedCount >= requiredCount;
 
     const row = document.createElement("div");
     row.className = `tracker-item ${isDone ? "done" : ""}`;
@@ -891,30 +1058,64 @@ export function renderSetTracker() {
     const nameText =
       partName === state.currentActiveSet
         ? "Blueprint"
-        : partName.replace(state.currentActiveSet, "").trim();
+        : partName.replaceAll(state.currentActiveSet, "").trim();
 
     const partSlug = getSlug(partName);
 
-    const nameSpan = document.createElement("span");
-    nameSpan.className = "t-name";
-    nameSpan.innerHTML = `
-      ${nameText}
+    // Layout: Left (Name + Arrow + Dots) ------- Right (Controls)
+    const leftDiv = document.createElement("div");
+    leftDiv.style.flex = "1";
+    leftDiv.style.display = "flex";
+    leftDiv.style.alignItems = "center";
+    leftDiv.innerHTML = `
+      <span class="t-name">${escapeHTML(nameText)}</span>
       <a href="https://warframe.market/items/${partSlug}" target="_blank" class="market-link-icon" onclick="event.stopPropagation()">↗</a>
+      ${generateDotsHtml(ownedCount, requiredCount)}
+      <span style="color:var(--wf-gold-text); font-size:0.8em; margin-left:10px; font-weight:bold;">
+        ${state.itemsDatabase[partName] ? state.itemsDatabase[partName][0].ducats : 0}d
+      </span>
     `;
 
-    const btnCheck = document.createElement("button");
-    btnCheck.className = "t-check";
-    btnCheck.innerText = isDone ? t.markUndo : t.markDone;
+    const rightDiv = document.createElement("div");
+    rightDiv.style.display = "flex";
+    rightDiv.style.alignItems = "center";
+    rightDiv.style.gap = "15px";
 
-    btnCheck.onclick = (e) => {
+    const controlsDiv = document.createElement("div");
+    controlsDiv.style.display = "flex";
+    controlsDiv.style.gap = "4px";
+
+    if (ownedCount > 0) {
+      const btnMinus = document.createElement("button");
+      btnMinus.className = "t-check";
+      btnMinus.style.padding = "2px 8px";
+      btnMinus.innerText = "-";
+      btnMinus.onclick = (e) => {
+        e.stopPropagation();
+        globalThis.modifyPrimePart(partName, -1);
+        if (state.primeInventory[partName] <= 0) state.completedParts.delete(partName);
+        if (state.primeInventory[partName] < requiredCount) state.completedParts.delete(partName);
+        renderSetTracker();
+      };
+      controlsDiv.appendChild(btnMinus);
+    }
+
+    const btnPlus = document.createElement("button");
+    btnPlus.className = "t-check";
+    btnPlus.innerText = "+";
+    btnPlus.onclick = (e) => {
       e.stopPropagation();
-      if (isDone) state.completedParts.delete(partName);
-      else state.completedParts.add(partName);
+      globalThis.modifyPrimePart(partName, 1);
+      state.completedParts.add(partName);
       renderSetTracker();
+      showToast(`${partName} +1`);
     };
+    controlsDiv.appendChild(btnPlus);
 
-    row.appendChild(nameSpan);
-    row.appendChild(btnCheck);
+    rightDiv.appendChild(controlsDiv);
+
+    row.appendChild(leftDiv);
+    row.appendChild(rightDiv);
 
     const drawer = document.createElement("div");
     drawer.className = "tracker-drawer hidden";
@@ -928,8 +1129,8 @@ export function renderSetTracker() {
       if (isCurrentlyClosed) {
         drawer.classList.remove("hidden");
         if (drawer.innerHTML === "") {
-          if (window.renderRelicsForPartInline) {
-            window.renderRelicsForPartInline(partName, drawer);
+          if (globalThis.renderRelicsForPartInline) {
+            globalThis.renderRelicsForPartInline(partName, drawer);
           }
         }
       }
@@ -947,26 +1148,37 @@ export function populateRivenSelects(weaponType = "Rifle") {
 
   const typeIdx = WEAPON_TYPE_IDX[weaponType] ?? 0;
 
+  const STAT_NAME_MAP = {
+    "Crit Chance": "Critical Chance",
+    "Crit Damage": "Critical Damage",
+    "Status Chance": "Status Chance",
+    Damage: "Damage",
+    Multishot: "Multishot",
+  };
+
   selects.forEach((sel) => {
     const savedValue = sel.value;
 
     while (sel.options.length > 1) sel.remove(1);
 
     RIVEN_STATS.forEach((stat) => {
-      const baseStatKey =
-        stat.name_en === "Crit Chance"
-          ? "Critical Chance"
-          : stat.name_en === "Crit Damage"
-          ? "Critical Damage"
-          : stat.name_en === "Status Chance"
-          ? "Status Chance"
-          : stat.name_en === "Damage"
-          ? "Damage"
-          : stat.name_en === "Multishot"
-          ? "Multishot"
-          : stat.name_en.split(" / ")[0];
+      const namesEn = stat.name_en.split(" / ");
+      let baseStatKey = STAT_NAME_MAP[stat.name_en];
+      let baseVal = undefined;
 
-      const baseVal = RIVEN_BASE_STATS[baseStatKey]?.[typeIdx];
+      if (baseStatKey) {
+        baseVal = RIVEN_BASE_STATS[baseStatKey]?.[typeIdx];
+      } else {
+        for (const name of namesEn) {
+          const partKey = STAT_NAME_MAP[name] || name;
+          const val = RIVEN_BASE_STATS[partKey]?.[typeIdx];
+          if (val !== 0 && val !== undefined) {
+            baseStatKey = partKey;
+            baseVal = val;
+            break;
+          }
+        }
+      }
 
       if (baseVal !== 0 && baseVal !== undefined) {
         let opt = document.createElement("option");
@@ -983,12 +1195,282 @@ export function populateRivenSelects(weaponType = "Rifle") {
   updateSelectExclusions();
 }
 
+export async function loadWeaponDetails() {
+  if (state.weaponDetailsDB) return;
+
+  try {
+    const res = await fetch("assets/json/cleaned_weapons.json");
+    if (!res.ok) throw new Error("Failed to load weapon details");
+    const data = await res.json();
+    state.weaponDetailsDB = data;
+    console.log("Weapon Details Loaded:", data.length);
+  } catch (e) {
+    console.error("Error loading weapon details:", e);
+  }
+}
+
+function renderRivenPreview(weaponName) {
+  const panel = document.getElementById("riven-preview-panel");
+  if (!panel) return;
+
+  // Clear if empty name
+  if (!weaponName) {
+    panel.innerHTML = "";
+    return;
+  }
+
+  // Find detailed data
+  let details = null;
+  if (state.weaponDetailsDB) {
+    details = state.weaponDetailsDB.find(
+      (w) => w.name.toUpperCase() === weaponName.toUpperCase()
+    );
+    // Fallback for primes if specific name not found?
+    if (!details && !weaponName.includes("Prime")) {
+      details = state.weaponDetailsDB.find(w => w.name.toUpperCase() === (weaponName + " PRIME").toUpperCase());
+    }
+  }
+
+  // Get basic data (disposition)
+  const basic = state.weaponMap ? state.weaponMap[weaponName] : null;
+
+  // If no data at all, return (or clear)
+  if (!details && !basic) {
+    panel.innerHTML = "";
+    return;
+  }
+
+  // Disposition Logic
+  const dispoValue = basic ? basic.d : (details ? 1.0 : 1.0); // Fallback
+  const dispoCircles = Math.round(dispoValue / 0.3); // Rough mapping or just 1-5 scale?
+  // Standard mapping: 0.5-0.69=1, 0.7-0.89=2, 0.9-1.1=3, 1.11-1.3=4, 1.3+=5
+  let circles = 3;
+  if (dispoValue < 0.7) circles = 1;
+  else if (dispoValue < 0.9) circles = 2;
+  else if (dispoValue <= 1.1) circles = 3;
+  else if (dispoValue <= 1.3) circles = 4;
+  else circles = 5;
+
+  let circlesHtml = "";
+  for (let i = 1; i <= 5; i++) {
+    circlesHtml += `<div class="dispo-circle ${i <= circles ? "filled" : ""}"></div>`;
+  }
+
+  // Image Logic
+  let imgPath = "";
+  if (details && details.localImage) {
+    // JSON has "weapons/foo.webp" but files are in "relic_contents/"
+    // Also potentially "png" -> "webp" fix if needed
+    let rawPath = details.localImage;
+
+    // Fix extension
+    if (rawPath.endsWith(".png")) {
+      rawPath = rawPath.replace(".png", ".webp");
+    }
+
+    // Fix directory mapping
+    // If it starts with "weapons/", replace with "relic_contents/"
+    if (rawPath.startsWith("weapons/")) {
+      rawPath = rawPath.replace("weapons/", "relic_contents/");
+    }
+
+    imgPath = `assets/${rawPath}`;
+  } else {
+    // Fallback
+    const slug = getSlug(weaponName);
+    // Fallback location: relic_contents/
+    imgPath = `assets/relic_contents/${slug}.webp`;
+  }
+
+  // Tooltip Logic
+  let tooltipHtml = "";
+  const hasComponents = details && details.components && details.components.length > 0;
+
+  // Check special cases (Lich weapons)
+  const nameUpper = details ? details.name.toUpperCase() : "";
+  const isLichPrefix = nameUpper.startsWith("KUVA") || nameUpper.startsWith("TENET") || nameUpper.startsWith("CODA");
+
+  // Detect exceptions (Tenet weapons sold by Ergo Glast cost Holokeys)
+  const isShopItem = details && details.components && details.components.some(c => c.name.toUpperCase().includes("HOLOKEY"));
+
+  // It is a Lich source if it has the prefix AND is NOT a shop item.
+  // We ignore 'hasComponents' check here because user reported unwanted "1 BP" recipes showing up.
+  const isLichWeapon = isLichPrefix && !isShopItem;
+
+  // Render logic:
+  // If Lich Weapon -> Show Source (and suppress meaningless "1 BP" recipe)
+  // Else -> Show Components/Drops normal flow
+
+  if (details && (hasComponents || isLichWeapon)) {
+    const weaponWikiUrl = `https://warframe.fandom.com/wiki/${encodeURIComponent(details.name)}`;
+
+    // Header with Wiki Link
+    // Note: Inline style override for header link to match theme, but keeping structure
+    tooltipHtml += `<div class="preview-tooltip">
+        <h4><a href="${weaponWikiUrl}" target="_blank" class="wiki-link" style="color:var(--wf-purple); border-bottom-color:var(--wf-purple);">${details.name}</a></h4>`;
+
+    // Only show "Requirements" section if it's NOT a Lich weapon (or if it's a shop item)
+    if (hasComponents && !isLichWeapon) {
+      tooltipHtml += `<div class="tooltip-section">
+            <span class="tooltip-section-title">Requirements</span>
+            ${details.components.map(c => {
+        const cSlug = getSlug(c.name);
+        const cImgPath = `assets/relic_contents/${cSlug}.webp`;
+        return `
+                <div class="tooltip-drop-row">
+                    <span style="display:flex; align-items:center;">
+                        <img src="${cImgPath}" class="tooltip-res-img" onerror="this.style.display='none'">
+                        ${c.itemCount}x ${c.name}
+                    </span>
+                    <span style="color:#888">${c.ducats || 0}d</span>
+                </div>`;
+      }).join('')}
+        </div>`;
+
+      // Drops logic only for non-Lich items
+      const allDrops = [];
+      details.components.forEach(c => {
+        if (c.drops) {
+          c.drops.forEach(d => {
+            allDrops.push({ part: c.name, loc: d.location, chance: d.chance, rarity: d.rarity });
+          });
+        }
+      });
+
+      const relevantDrops = allDrops
+        .filter(d => !d.loc.includes("Vaulted"))
+        .sort((a, b) => b.chance - a.chance)
+        .slice(0, 8);
+
+      if (relevantDrops.length > 0) {
+        tooltipHtml += `<div class="tooltip-section">
+                <span class="tooltip-section-title">Drop Locations</span>
+                ${relevantDrops.map(d => {
+          let colorClass = "t-chance-low";
+          if (d.rarity === "Common") colorClass = "t-chance-high";
+          if (d.rarity === "Rare") colorClass = "t-chance-low";
+
+          let loc = d.loc;
+          let locHtml = "";
+
+          if (loc.includes("Relic")) {
+            const relicName = loc.replace(" Relic", "").trim();
+            locHtml = `<span class="relic-link" onclick="selectRelicFromPreview('${relicName.replace(/'/g, "\\'")}')" title="Click to view Relic" style="max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:inline-block; vertical-align:bottom;">${loc}</span>`;
+          } else {
+            // Wiki Link
+            const cleanLoc = loc.split(":")[0].split(",")[0].split("(")[0].trim();
+            const wikiUrl = `https://warframe.fandom.com/wiki/${encodeURIComponent(cleanLoc)}`;
+            locHtml = `<a href="${wikiUrl}" target="_blank" class="wiki-link" title="Open Wiki for ${cleanLoc}" style="max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:inline-block; vertical-align:bottom;">${loc}</a>`;
+          }
+
+          return `<div class="tooltip-drop-row">
+                        ${locHtml}
+                        <span class="${colorClass}">${(d.chance * 100).toFixed(1)}%</span>
+                    </div>`;
+        }).join('')}
+            </div>`;
+      }
+    } else if (isLichWeapon) {
+      // Special Source for Lich Weapons
+      let sourceName = "Unknown Source";
+      let sourceUrl = "";
+
+      if (nameUpper.startsWith("KUVA")) {
+        sourceName = "Kuva Lich (Vanquish)";
+        sourceUrl = "https://warframe.fandom.com/wiki/Kuva_Lich";
+      }
+      else if (nameUpper.startsWith("TENET")) {
+        sourceName = "Sisters of Parvos (Vanquish)";
+        sourceUrl = "https://warframe.fandom.com/wiki/Sisters_of_Parvos";
+      }
+      else if (nameUpper.startsWith("CODA")) {
+        sourceName = "Infested Liches (1999)";
+        sourceUrl = "https://warframe.fandom.com/wiki/Technocyte_Coda";
+      }
+
+      tooltipHtml += `<div class="tooltip-section">
+            <span class="tooltip-section-title">Acquisition</span>
+            <div class="tooltip-drop-row" style="justify-content:center; padding:8px 0; border:none;">
+                <span style="color:#dcb3ff; text-align:center;">
+                   Source: <a href="${sourceUrl}" target="_blank" class="wiki-link" style="color:var(--wf-gold-text); border-bottom-style:dotted;">${sourceName}</a>
+                </span>
+            </div>
+             <div class="tooltip-drop-row" style="justify-content:center; border:none;">
+                <span style="color:#666; font-size:0.8em; font-style:italic;">(Pre-built weapon drop)</span>
+            </div>
+        </div>`;
+    }
+
+    tooltipHtml += `</div>`;
+  }
+
+  /* Apply toFixed(2) to ensure 0.65 instead of 0.64999998 */
+  const displayDispo = Number.parseFloat(dispoValue).toFixed(2);
+
+  // Mobile Click Handler Logic:
+  // We add 'onclick' to toggle a class. We also need a global listener to clear it (added separately).
+  const html = `
+    <div class="riven-weapon-preview" onclick="this.classList.toggle('mobile-active'); event.stopPropagation();">
+        <img src="${imgPath}" class="riven-weapon-img" onerror="this.src='assets/img/default-weapon.png'; this.style.opacity=0.5;">
+        <div class="riven-disposition-row dispo-level-${circles}" title="Disposition: ${displayDispo}">
+            ${circlesHtml}
+            <span class="dispo-text">${displayDispo}</span>
+        </div>
+        ${tooltipHtml}
+    </div>
+  `;
+
+  panel.innerHTML = html;
+}
+
+// Global listener to close mobile tooltip when clicking outside
+// (Ensure this is only added once or is idempotent)
+if (!globalThis._rivenTooltipListenerAdded) {
+  document.addEventListener('click', function (event) {
+    const preview = document.querySelector('.riven-weapon-preview.mobile-active');
+    if (preview && !preview.contains(event.target)) {
+      preview.classList.remove('mobile-active');
+    }
+  });
+  globalThis._rivenTooltipListenerAdded = true;
+}
+
+globalThis.selectRelicFromPreview = function (relicName) {
+  // Switch to Relic Tab
+  switchTab("relic");
+
+  // Set Input
+  const input = document.getElementById("relicInput");
+  if (input) {
+    input.value = relicName;
+    state.selectedRelic = relicName; // Update state
+    manualRelicUpdate(); // Trigger search
+  }
+
+  // Check Status and Toast
+  const status = state.relicStatusDB ? state.relicStatusDB[relicName] : null;
+  let msg = `Navigated to ${relicName}`;
+  if (status) {
+    if (status === "vaulted") msg += " (VAULTED)";
+    else msg += " (ACTIVE)";
+  }
+  showToast(msg);
+};
+
 export function handleRivenInput() {
   const input = document.getElementById("rivenWeaponInput");
   const dropdown = document.getElementById("rivenDropdown");
   if (!input || !dropdown) return;
 
   const val = input.value.toUpperCase().trim();
+  if (val.length === 0) {
+    dropdown.classList.add("hidden");
+    document.getElementById("riven-preview-panel").innerHTML = ""; // Clear preview
+    return;
+  }
+
+  // Ensure Details DB is loaded (should be called in switchTab, but just in case)
+  if (!state.weaponDetailsDB) loadWeaponDetails();
 
   if (
     (!state.allRivenNames || state.allRivenNames.length === 0) &&
@@ -998,9 +1480,19 @@ export function handleRivenInput() {
   }
 
   const source = state.allRivenNames || [];
-  const matches = source
-    .filter((n) => n.toUpperCase().includes(val))
-    .slice(0, 10);
+  const startsWithMatches = [];
+  const containsMatches = [];
+
+  source.forEach(n => {
+    const upperN = n.toUpperCase();
+    if (upperN.startsWith(val)) {
+      startsWithMatches.push(n);
+    } else if (upperN.includes(val)) {
+      containsMatches.push(n);
+    }
+  });
+
+  const matches = [...startsWithMatches, ...containsMatches].slice(0, 10);
 
   if (matches.length > 0) {
     dropdown.innerHTML = "";
@@ -1018,26 +1510,21 @@ export function handleRivenInput() {
         dropdown.classList.add("hidden");
 
         const weaponData = state.weaponMap[name];
-        console.log(
-          `📊 [LOG]: Datos en state.weaponMap["${name}"]:`,
-          weaponData
-        );
+
+        // Render Preview
+        renderRivenPreview(name);
 
         if (weaponData) {
           const dispoDisplay = document.getElementById("riven-dispo-display");
           if (dispoDisplay) {
-            const displayValue = parseFloat(weaponData.d).toFixed(2);
+            // Updated to be consistent with preview
+            // dispoDisplay.style.display = 'none'; // Maybe hide the text one since we have the visual one now?
+            // Or keep it for redundancy.
+            const displayValue = Number.parseFloat(weaponData.d).toFixed(2);
             dispoDisplay.innerHTML = `Riven disposition: <b style="color:var(--wf-gold-text)">${displayValue}</b>`;
-          } else {
-            /*
-              " No se encontró el elemento 'riven-dispo-display' en el HTML."
-            */
           }
 
           populateRivenSelects(weaponData.t);
-        } else {
-          /*Error  state.weaponMap no tiene datos para name
-           */
         }
 
         fetchRivenAverage(name);
@@ -1052,7 +1539,10 @@ export function handleRivenInput() {
 
 export function updateSelectExclusions() {
   const selects = Array.from(document.querySelectorAll(".riven-stat-select"));
-  const selectedValues = selects.map((s) => s.value).filter((v) => v !== "");
+
+  const selectedValues = new Set(
+    selects.map((s) => s.value).filter((v) => v !== ""),
+  );
 
   selects.forEach((currentSelect) => {
     const myValue = currentSelect.value;
@@ -1060,7 +1550,7 @@ export function updateSelectExclusions() {
     Array.from(currentSelect.options).forEach((option) => {
       if (option.value === "") return;
 
-      if (selectedValues.includes(option.value) && option.value !== myValue) {
+      if (selectedValues.has(option.value) && option.value !== myValue) {
         option.hidden = true;
         option.style.display = "none";
       } else {
@@ -1114,9 +1604,8 @@ export function updateLFGUI() {
   } else if (act === "eidolon") {
     container.innerHTML = `
             <div style="margin-bottom:10px;">
-                <label style="font-size:0.8em; color:#888; margin-bottom:5px; display:block;">Pace / Ritmo <span data-tooltip="${
-                  tips.rotation || "Rotation info"
-                }">(?)</span></label>
+                <label style="font-size:0.8em; color:#888; margin-bottom:5px; display:block;">Pace / Ritmo <span data-tooltip="${tips.rotation || "Rotation info"
+      }">(?)</span></label>
                 <select id="lfg-eidolon-runs" class="wf-input" onchange="generateLFGMessage()">
                     <option value="3x3">${roles.run3x3}</option>
                     <option value="5x3">${roles.run5x3}</option>
@@ -1155,9 +1644,8 @@ export function updateLFGUI() {
   } else if (act === "radshare") {
     container.innerHTML = `
             <div style="padding:10px; background:#1a1c20; border:1px dashed #444; color:#aaa; font-size:0.9em;">
-                <span data-tooltip="${tips.radshare || ""}">${
-      t.lfgOpts.radshareInfo
-    }</span>
+                <span data-tooltip="${tips.radshare || ""}">${t.lfgOpts.radshareInfo
+      }</span>
             </div>`;
   }
   generateLFGMessage();
@@ -1194,7 +1682,7 @@ export function generateLFGMessage() {
     const getRoles = () => {
       if (!optionsContainer) return [];
       return Array.from(
-        optionsContainer.querySelectorAll(".lfg-role:checked")
+        optionsContainer.querySelectorAll(".lfg-role:checked"),
       ).map((c) => c.value);
     };
 
@@ -1209,21 +1697,19 @@ export function generateLFGMessage() {
       msg = `H ${activityName}`;
     } else if (act === "temporal") {
       const eliteEl = document.getElementById("lfg-temp-elite");
-      const prefix =
-        eliteEl && eliteEl.checked
-          ? state.currentLang === "es"
-            ? "Élite "
-            : "Elite "
-          : "";
+      const prefix = eliteEl?.checked
+        ? state.currentLang === "es"
+          ? "Élite "
+          : "Elite "
+        : "";
       msg = `H ${prefix}${activityName}`;
     } else if (act === "eda") {
       const eliteEl = document.getElementById("lfg-eda-elite");
-      const prefix =
-        eliteEl && eliteEl.checked
-          ? state.currentLang === "es"
-            ? "Élite "
-            : "Elite "
-          : "";
+      const prefix = eliteEl?.checked
+        ? state.currentLang === "es"
+          ? "Élite "
+          : "Elite "
+        : "";
       msg = `H ${prefix}${activityName}`;
     } else if (act === "profit") {
       msg = `H ${activityName}`;
@@ -1238,8 +1724,7 @@ export function generateLFGMessage() {
 
     if (extra) msg += ` ${extra}`;
 
-    const count =
-      typeof state !== "undefined" && state.lfgCount ? state.lfgCount : 1;
+    const count = state?.lfgCount ? state.lfgCount : 1;
     msg += ` ${count}/4`;
 
     const box = document.getElementById("finalMessage");
@@ -1275,18 +1760,14 @@ export function renderProfileStats(mr, focus, standingObj, isCalc = false) {
   container.innerHTML = `
         <div style="display:flex; gap:10px; margin-bottom:15px;">
             <div class="profile-stat-box" style="flex:1"><div class="profile-stat-title">Mastery Rank</div><div class="profile-stat-val" style="color:#gold">${mr}</div></div>
-            <div class="profile-stat-box" style="flex:1"><div class="profile-stat-title">${
-              t.lblTraces
-            }</div><div class="profile-stat-val">${tracesCap}</div></div>
+            <div class="profile-stat-box" style="flex:1"><div class="profile-stat-title">${t.lblTraces
+    }</div><div class="profile-stat-val">${tracesCap}</div></div>
         </div>
-        <div class="profile-stat-box"><div class="profile-stat-title">${
-          t.lblDailyFocus
-        } ${
-    isCalc ? "(Max)" : "(Remaining)"
-  }</div><div class="profile-stat-val" style="color:var(--wf-riven)">${focus.toLocaleString()}</div></div>
-        <div style="margin-top:15px; font-weight:bold; color:var(--wf-blue); text-align:center;">${
-          t.lblStanding
-        }</div>
+        <div class="profile-stat-box"><div class="profile-stat-title">${t.lblDailyFocus
+    } ${isCalc ? "(Max)" : "(Remaining)"
+    }</div><div class="profile-stat-val" style="color:var(--wf-riven)">${focus.toLocaleString()}</div></div>
+        <div style="margin-top:15px; font-weight:bold; color:var(--wf-blue); text-align:center;">${t.lblStanding
+    }</div>
         <div class="standing-grid">${standingHtml}</div>
     `;
 }
@@ -1307,15 +1788,14 @@ export function calculateCaps() {
 let fissureLoadPromise = null;
 export async function updateRecommendedMissions(tier) {
   const listArea = document.getElementById("fissures-list-area");
-  
+
   if (!listArea || listArea.children.length === 0) {
-    
-    if (!fissureLoadPromise) {
-      fissureLoadPromise = initFissurePanel().then(() => {
-          // fissureLoadPromise = null; 
-      });
-    } else {
+    if (fissureLoadPromise) {
       //en curso
+    } else {
+      //fissureLoadPromise = initFissurePanel().then(() => {
+      // fissureLoadPromise = null;
+      //});
     }
 
     await fissureLoadPromise;
@@ -1365,14 +1845,6 @@ export function initGlobalTooltipSystem() {
     tooltipEl = document.createElement("div");
     tooltipEl.id = "global-tooltip";
     tooltipEl.className = "global-tooltip hidden";
-
-    tooltipEl.addEventListener("mouseenter", () => {
-      if (currentMode === "mega" && closeTimer) clearTimeout(closeTimer);
-    });
-    tooltipEl.addEventListener("mouseleave", () => {
-      if (currentMode === "mega") hideTooltip();
-    });
-
     document.body.appendChild(tooltipEl);
   }
 
@@ -1384,8 +1856,10 @@ export function initGlobalTooltipSystem() {
     let left = e.clientX + offset;
     let top = e.clientY + offset;
 
-    if (left + tWidth > window.innerWidth) left = e.clientX - tWidth - offset;
-    if (top + tHeight > window.innerHeight) top = e.clientY - tHeight - offset;
+    if (left + tWidth > globalThis.innerWidth)
+      left = e.clientX - tWidth - offset;
+    if (top + tHeight > globalThis.innerHeight)
+      top = e.clientY - tHeight - offset;
 
     tooltipEl.style.left = `${left}px`;
     tooltipEl.style.top = `${top}px`;
@@ -1400,9 +1874,9 @@ export function initGlobalTooltipSystem() {
     let left = rect.right + gap;
     let top = rect.top;
 
-    if (left + tWidth > window.innerWidth) left = rect.left - tWidth - gap;
+    if (left + tWidth > globalThis.innerWidth) left = rect.left - tWidth - gap;
 
-    if (top + tHeight > window.innerHeight) top = rect.bottom - tHeight;
+    if (top + tHeight > globalThis.innerHeight) top = rect.bottom - tHeight;
 
     if (top < 10) top = 10;
     if (left < 10) left = 10;
@@ -1414,8 +1888,8 @@ export function initGlobalTooltipSystem() {
   const showTooltip = (e, target) => {
     if (closeTimer) clearTimeout(closeTimer);
 
-    const htmlContent = target.getAttribute("data-tooltip-html");
-    const textContent = target.getAttribute("data-tooltip");
+    const htmlContent = target.dataset.tooltipHtml;
+    const textContent = target.dataset.tooltip;
 
     if (htmlContent) {
       currentMode = "mega";
@@ -1426,7 +1900,6 @@ export function initGlobalTooltipSystem() {
       tooltipEl.innerText = textContent;
       tooltipEl.classList.remove("mega-mode");
     } else {
-      //No content
       return;
     }
 
@@ -1443,15 +1916,22 @@ export function initGlobalTooltipSystem() {
     if (currentMode === "simple") {
       tooltipEl.classList.add("hidden");
     } else {
+      if (closeTimer) clearTimeout(closeTimer);
       closeTimer = setTimeout(() => {
         tooltipEl.classList.add("hidden");
+        tooltipEl.classList.remove("mega-mode");
       }, 300);
     }
   };
 
   document.addEventListener("mouseover", (e) => {
     const target = e.target.closest("[data-tooltip], [data-tooltip-html]");
-    if (target) showTooltip(e, target);
+    const isOverTooltip = e.target.closest("#global-tooltip");
+
+    if (target || isOverTooltip) {
+      if (closeTimer) clearTimeout(closeTimer);
+      if (target) showTooltip(e, target);
+    }
   });
 
   document.addEventListener("mousemove", (e) => {
@@ -1461,12 +1941,15 @@ export function initGlobalTooltipSystem() {
   });
 
   document.addEventListener("mouseout", (e) => {
-    const target = e.target.closest("[data-tooltip], [data-tooltip-html]");
-    if (target) {
+    const isTrigger = e.target.closest("[data-tooltip], [data-tooltip-html]");
+    const isTooltip = e.target.closest("#global-tooltip");
+
+    if (isTrigger || isTooltip) {
+      const related = e.relatedTarget;
       if (
-        currentMode === "mega" &&
-        e.relatedTarget &&
-        e.relatedTarget.closest("#global-tooltip")
+        related &&
+        (related.closest("[data-tooltip], [data-tooltip-html]") ||
+          related.closest("#global-tooltip"))
       ) {
         return;
       }
@@ -1475,16 +1958,35 @@ export function initGlobalTooltipSystem() {
   });
 }
 export function openRivenMarket() {
-  const inputVal = document.getElementById("rivenWeaponInput").value.trim();
-  //if (!inputVal) return alert("Por favor introduce un nombre de arma");
+  const inputEl = document.getElementById("rivenWeaponInput");
+  if (!inputEl) return;
+  const inputVal = inputEl.value.trim();
+  if (!inputVal) return showToast("Por favor selecciona un arma primero");
 
   let slug = getRivenSlug(inputVal);
   let url = `https://warframe.market/auctions/search?type=riven&weapon_url_name=${slug}&polarity=any&sort_by=price_asc`;
 
-  const stat1 = document.getElementById("rivenStat1").value;
-  const stat2 = document.getElementById("rivenStat2").value;
-  const stat3 = document.getElementById("rivenStat3").value;
-  const statNeg = document.getElementById("rivenStatNeg").value;
+  // Map readable values used in select to Warframe Market slugs
+  const statToSlugMap = {};
+  RIVEN_STATS.forEach(s => {
+    const baseStatKey = s.name_en === "Crit Chance" ? "Critical Chance" :
+      s.name_en === "Crit Damage" ? "Critical Damage" :
+        s.name_en === "Status Chance" ? "Status Chance" :
+          s.name_en === "Damage" ? "Damage" :
+            s.name_en === "Multishot" ? "Multishot" : s.name_en.split(" / ")[0];
+    statToSlugMap[baseStatKey] = s.slug;
+  });
+
+  const getStatSlug = (id) => {
+    const el = document.getElementById(id);
+    if (!el || !el.value) return null;
+    return statToSlugMap[el.value] || el.value;
+  };
+
+  const stat1 = getStatSlug("rivenStat1");
+  const stat2 = getStatSlug("rivenStat2");
+  const stat3 = getStatSlug("rivenStat3");
+  const statNeg = getStatSlug("rivenStatNeg");
 
   let positives = [];
   if (stat1) positives.push(stat1);
@@ -1494,18 +1996,18 @@ export function openRivenMarket() {
   if (positives.length > 0) url += `&positive_stats=${positives.join(",")}`;
   if (statNeg) url += `&negative_stats=${statNeg}`;
 
-  window.open(url, "_blank");
+  globalThis.open(url, "_blank");
 }
 
 /*export function getRivenSlug(inputVal) {
   const validWeapons = state.allRivenNames || [];
-  let fullSlug = inputVal.toLowerCase().trim().replace(/\s+/g, "_");
+  let fullSlug = inputVal.toLowerCase().trim().replaceAll(/\s+/g, "_");
   let nakedSlug = getNakedName(fullSlug);
 
   if (nakedSlug === fullSlug) return fullSlug;
 
   const baseExists = validWeapons.some(
-    (name) => name.toLowerCase().replace(/\s+/g, "_") === nakedSlug
+    (name) => name.toLowerCase().replaceAll(/\s+/g, "_") === nakedSlug
   );
 
   return baseExists ? nakedSlug : fullSlug;
@@ -1533,20 +2035,20 @@ export function getNakedName(slug) {
 
   for (let pre of prefixes) {
     if (s.startsWith(pre)) {
-      s = s.replace(pre, "");
+      s = s.replaceAll(pre, "");
       break;
     }
   }
   for (let suf of suffixes) {
     if (s.endsWith(suf)) {
-      s = s.replace(suf, "");
+      s = s.replaceAll(suf, "");
       break;
     }
   }
   return s;
 }
 
-window.findRelicsForItem = function (itemName) {
+globalThis.findRelicsForItem = function (itemName) {
   const setInput = document.getElementById("setItemInput");
   if (setInput) {
     let searchTerm = itemName;
@@ -1557,7 +2059,7 @@ window.findRelicsForItem = function (itemName) {
       searchTerm = itemName.split("Vandal")[0].trim() + " Vandal";
     else if (itemName.includes("Wraith"))
       searchTerm = itemName.split("Wraith")[0].trim() + " Wraith";
-    else searchTerm = itemName.replace("Blueprint", "").trim();
+    else searchTerm = itemName.replaceAll("Blueprint", "").trim();
 
     setInput.value = searchTerm;
     switchTab("set");
@@ -1618,23 +2120,26 @@ export async function initFissurePanel() {
       </div>
     `;
     document.body.appendChild(missionDiv);
+  }
 
-    const header = document.getElementById("fissure-panel-header");
-    const runner = document.getElementById("gauss-runner");
-    let runTimeout;
-    if (header && runner) {
-      header.addEventListener("mouseenter", () => {
-        runTimeout = setTimeout(() => {
-          if (runner) {
-            runner.classList.add("is-running");
-            setTimeout(() => {
-              if (runner) runner.classList.remove("is-running");
-            }, 3000);
-          }
-        }, 2000);
-      });
-      header.addEventListener("mouseleave", () => clearTimeout(runTimeout));
-    }
+  // Setup listeners (moved outside creation block)
+  const header = document.getElementById("fissure-panel-header");
+  const runner = document.getElementById("gauss-runner");
+  let runTimeout;
+  if (header && runner) {
+    // Remove old listeners if any? (Not seemingly easy, but cloning node or simple re-add is fine as this runs once usually)
+    // To be safe assuming init runs once.
+    header.onmouseenter = () => {
+      runTimeout = setTimeout(() => {
+        if (runner) {
+          runner.classList.add("is-running");
+          setTimeout(() => {
+            if (runner) runner.classList.remove("is-running");
+          }, 3000);
+        }
+      }, 2000);
+    };
+    header.onmouseleave = () => clearTimeout(runTimeout);
   }
 
   const { fetchBestFissures } = await import("./api.js");
@@ -1671,7 +2176,7 @@ export async function initFissurePanel() {
     const allTierMissions = tiersData[tierName];
 
     const efficientMissions = allTierMissions.filter(
-      (m) => efficientTypes.includes(m.type) || m.tier === "Omnia"
+      (m) => efficientTypes.includes(m.type) || m.tier === "Omnia",
     );
 
     const groupDiv = document.createElement("div");
@@ -1815,25 +2320,23 @@ export function initSyncPanel() {
   document.body.appendChild(syncDiv);
 }
 
-window.toggleSyncPanel = function () {
+globalThis.toggleSyncPanel = function () {
   const panel = document.getElementById("cloud-sync-container");
   panel.classList.toggle("open");
 
-  if (!panel.classList.contains("open")) {
-    stopReceiver();
-  } else {
+  if (panel.classList.contains("open")) {
     if (
       document.getElementById("panel-receive").classList.contains("active") ||
       !document.getElementById("panel-send").classList.contains("active")
     ) {
       switchSyncTab("receive");
     }
+  } else {
+    stopReceiver();
   }
 };
 
-window.switchSyncTab = function (mode) {
-  const t = TEXTS[state.currentLang];
-
+globalThis.switchSyncTab = function (mode) {
   document
     .querySelectorAll(".sync-tab")
     .forEach((b) => b.classList.remove("active"));
@@ -1938,14 +2441,13 @@ function startReceiver() {
     }
   }, 120000);
 }
-window.executeSyncSend = async function () {
+globalThis.executeSyncSend = async function () {
   const t = TEXTS[state.currentLang].sync;
   const code = document.getElementById("sync-input-code").value;
   const msg = document.getElementById("finalMessage")?.innerText;
   const btn = document.getElementById("btn-do-sync");
 
-  if (!code || code.length !== 4)
-    return showToast("Código inválido (4 dígitos)");
+  if (code?.length !== 4) return showToast("Código inválido (4 dígitos)");
   if (!msg || msg === "...") return showToast("No hay mensaje para enviar");
 
   const originalText = btn.innerText;
@@ -1954,7 +2456,7 @@ window.executeSyncSend = async function () {
 
   try {
     const res = await fetch(
-      `${WORKER_URL}?type=sync_set&id=${code}&val=${encodeURIComponent(msg)}`
+      `${WORKER_URL}?type=sync_set&id=${code}&val=${encodeURIComponent(msg)}`,
     );
     if (res.status === 429) {
       throw new Error("Límite alcanzado. Espera 1 minuto.");
@@ -2004,20 +2506,28 @@ export function renderLFGPresets() {
   const t = TEXTS[state.currentLang].lfgPresets;
 
   let html = `<div class="presets-header">
-                  <span style="font-size:0.85em; font-weight:bold; color:#888;">${t.title}</span>
-                  <button class="mini-action-btn" onclick="window.saveLFGPreset()">+ ${t.btnSave}</button>
+                  <span style="font-size:0.85em; font-weight:bold; color:#888;">${escapeHTML(
+    t.title,
+  )}</span>
+                  <button class="mini-action-btn" data-action="save-lfg-preset">+ ${escapeHTML(
+    t.btnSave,
+  )}</button>
                 </div>`;
 
   if (!state.lfgPresets || state.lfgPresets.length === 0) {
-    html += `<div style="font-size:0.8em; color:#555; font-style:italic; padding:5px;">${t.empty}</div>`;
+    html += `<div style="font-size:0.8em; color:#555; font-style:italic; padding:5px;">${escapeHTML(
+      t.empty,
+    )}</div>`;
   } else {
     html += `<div class="presets-list">`;
     state.lfgPresets.forEach((p, index) => {
       html += `
-                <div class="preset-chip" onclick="window.loadLFGPreset(${index})">
-                    <span class="p-name">${p.name}</span>
-                    <span class="p-act">${p.activity.toUpperCase()}</span>
-                    <button class="p-del" onclick="event.stopPropagation(); window.deleteLFGPreset(${index})">×</button>
+                <div class="preset-chip" data-action="load-lfg-preset" data-index="${index}">
+                    <span class="p-name">${escapeHTML(p.name)}</span>
+                    <span class="p-act">${escapeHTML(
+        p.activity.toUpperCase(),
+      )}</span>
+                    <button class="p-del" data-action="delete-lfg-preset" data-index="${index}">×</button>
                 </div>
             `;
     });
@@ -2027,7 +2537,7 @@ export function renderLFGPresets() {
   container.innerHTML = html;
 }
 
-window.saveLFGPreset = function () {
+globalThis.saveLFGPreset = function () {
   const t = TEXTS[state.currentLang].lfgPresets;
   const name = prompt(t.placeholder);
   if (!name) return;
@@ -2037,7 +2547,7 @@ window.saveLFGPreset = function () {
   const count = state.lfgCount;
 
   const roles = Array.from(document.querySelectorAll(".lfg-role:checked")).map(
-    (c) => c.value
+    (c) => c.value,
   );
 
   const specificData = {};
@@ -2060,7 +2570,7 @@ window.saveLFGPreset = function () {
   renderLFGPresets();
 };
 
-window.loadLFGPreset = function (index) {
+globalThis.loadLFGPreset = function (index) {
   const p = state.lfgPresets[index];
   if (!p) return;
 
@@ -2107,7 +2617,7 @@ window.loadLFGPreset = function (index) {
   showToast(`Preset "${p.name}" cargado`);
 };
 
-window.deleteLFGPreset = function (index) {
+globalThis.deleteLFGPreset = function (index) {
   if (confirm(TEXTS[state.currentLang].lfgPresets.deleteConfirm)) {
     state.lfgPresets.splice(index, 1);
     saveAppState();
@@ -2159,44 +2669,76 @@ export async function renderInventory() {
     return true;
   });
 
+  /* Sorting Logic */
+  if (sortMode !== "recent") {
+    // Add loading indicator if needed, but for now we just wait
+    // We need to calculate values for all visible items to sort them
+
+    // Create a map to store values to avoid recalculating during sort
+    const valueMap = new Map();
+
+    await Promise.all(
+      filtered.map(async (item) => {
+        const name = typeof item === "string" ? item : item.name;
+        const val = await calculateRelicValue(name);
+        valueMap.set(name, val);
+      })
+    );
+
+    filtered.sort((a, b) => {
+      const nameA = typeof a === "string" ? a : a.name;
+      const nameB = typeof b === "string" ? b : b.name;
+      const valA = valueMap.get(nameA);
+      const valB = valueMap.get(nameB);
+
+      if (!valA) return 1;
+      if (!valB) return -1;
+
+      if (sortMode === "plat_intact") return valB.intact - valA.intact;
+      if (sortMode === "plat_rad") return valB.rad - valA.rad;
+      if (sortMode === "ducats") return valB.ducats - valA.ducats;
+      return 0;
+    });
+  } else {
+    // recent: reverse order to show newest first? 
+    // Usually 'recently added' means newest at top. 
+    // state.inventory is pushed to end, so reverse it.
+    filtered.reverse();
+  }
+
   const fragment = document.createDocumentFragment();
 
   filtered.forEach((item) => {
     const itemName = typeof item === "string" ? item : item.name;
     const count = item.count || 1;
     const isVaulted = state.relicStatusDB[itemName] === "vaulted";
-    const safeId = itemName.replace(/[^a-zA-Z0-9]/g, "");
+    const safeId = itemName.replaceAll(/[^a-zA-Z0-9]/g, "");
 
     const row = document.createElement("div");
     row.className = "inv-row";
     row.dataset.relic = itemName;
 
     row.innerHTML = `
-          <div class="inv-name-group" onclick="selectRelicFromInv('${itemName.replace(
-            /'/g,
-            "\\'"
-          )}')">
-              <div class="inv-name">${itemName}</div>
+          <div class="inv-name-group" data-action="select-relic-from-inv" data-relic="${escapeHTML(
+      itemName,
+    )}">
+              <div class="inv-name">${escapeHTML(itemName)}</div>
               <div class="inv-meta">
-                 <span style="color:${isVaulted ? "#e44" : "#aaa"}">${
-      isVaulted ? "V" : "A"
-    }</span>
-                 <span id="duc-${safeId}" style="color:var(--wf-gold)">... duc</span>
+                 <span class="relic-status-tag ${isVaulted ? "vaulted" : "active"}">${isVaulted ? "VAULTED" : "ACTIVE"}</span>
+                 <span id="duc-${safeId}" class="ducat-tag">... duc</span>
               </div>
           </div>
           <div class="inv-price-tag">
-              <div id="price-${safeId}" class="price-loading">...p</div>
-              <div style="font-size:0.8em; opacity:0.6">x${count}</div>
+              <span id="price-${safeId}" class="price-val">...p</span>
+              <span class="qty-label">x${count}</span>
           </div>
           <div class="inv-qty-controls">
-              <button class="inv-btn minus" onclick="modifyInv('${itemName.replace(
-                /'/g,
-                "\\'"
-              )}', -1)">−</button>
-              <button class="inv-btn plus" onclick="modifyInv('${itemName.replace(
-                /'/g,
-                "\\'"
-              )}', 1)">+</button>
+              <button class="inv-btn minus" data-action="modify-inv" data-relic="${escapeHTML(
+      itemName,
+    )}" data-amount="-1">−</button>
+              <button class="inv-btn plus" data-action="modify-inv" data-relic="${escapeHTML(
+      itemName,
+    )}" data-amount="1">+</button>
           </div>
     `;
     fragment.appendChild(row);
@@ -2232,7 +2774,7 @@ async function triggerPriceFetch(relicList) {
 
     for (const row of rows) {
       const rName = row.dataset.relic;
-      const safeId = rName.replace(/[^a-zA-Z0-9]/g, "");
+      const safeId = rName.replaceAll(/[^a-zA-Z0-9]/g, "");
       const priceEl = document.getElementById(`price-${safeId}`);
       const ducEl = document.getElementById(`duc-${safeId}`);
 
@@ -2262,13 +2804,13 @@ function resetLoadingStyle(element) {
   element.style.opacity = "1";
   element.style.pointerEvents = "auto";
 }
-window.modifyInv = (name, amount) => {
+globalThis.modifyInv = (name, amount) => {
   updateInventoryCount(name, amount);
   saveAppState();
   renderInventory();
 };
 
-window.selectRelicFromInv = (name) => {
+globalThis.selectRelicFromInv = (name) => {
   const input = document.getElementById("relicInput");
   if (input) {
     input.value = name;
@@ -2295,10 +2837,12 @@ async function calculateRelicValue(relicName) {
     const slug = getSlug(d.name);
 
     const price = await getPriceValue(d.name, slug);
-    //TODO EXCEPTIONS TO BE IMPLEMENTED LATER
-    let ducatValue = 15;
-    if (d.chance < 20) ducatValue = 45;
-    if (d.chance < 5) ducatValue = 100;
+
+    let ducatValue = d.ducats || 15;
+    if (!d.ducats) {
+      if (d.chance < 20) ducatValue = 45;
+      if (d.chance < 5) ducatValue = 100;
+    }
 
     let pIntact = 0.2533;
     let pRad = 0.1667;
@@ -2334,7 +2878,7 @@ async function calculateRelicValue(relicName) {
   };
 }
 
-window.filterInvTier = (tier) => {
+globalThis.filterInvTier = (tier) => {
   state.invFilterTier = tier;
   document.querySelectorAll(".inv-tier-btn").forEach((btn) => {
     btn.classList.remove("active");
@@ -2348,7 +2892,7 @@ window.filterInvTier = (tier) => {
   });
   renderInventory();
 };
-window.selectRelicFromInv = (name) => {
+globalThis.selectRelicFromInv = (name) => {
   state.selectedRelic = name;
   const input = document.getElementById("relicInput");
   if (input) input.value = name;
@@ -2357,7 +2901,7 @@ window.selectRelicFromInv = (name) => {
   toggleInventoryPanel(false);
   manualRelicUpdate();
 };
-window.addCurrentToInv = function () {
+globalThis.addCurrentToInv = function () {
   if (!state.selectedRelic) return;
 
   updateInventoryCount(state.selectedRelic, 1);
@@ -2418,12 +2962,12 @@ export function setupGlobalClickListeners() {
       }
     }
 
-    if (window.innerWidth <= 768) {
+    if (globalThis.innerWidth <= 768) {
       const closeSidePanel = (panelId, btnId) => {
         const panel = document.getElementById(panelId);
         const btn = document.getElementById(btnId);
-        if (panel && panel.classList.contains("open")) {
-          if (!panel.contains(target) && (!btn || !btn.contains(target))) {
+        if (panel?.classList.contains("open")) {
+          if (!panel.contains(target) && !btn?.contains(target)) {
             panel.classList.remove("open");
           }
         }
@@ -2431,6 +2975,67 @@ export function setupGlobalClickListeners() {
       closeSidePanel("best-missions-container", "mission-toggle-btn");
       closeSidePanel("cloud-sync-container", "sync-toggle-btn");
       closeSidePanel("inventory-container", "inv-toggle-btn");
+    }
+
+    // Action-based event delegation
+    const actionTarget = target.closest("[data-action]");
+    if (actionTarget) {
+      const action = actionTarget.dataset.action;
+      const data = actionTarget.dataset;
+      console.log(`[UI ACTION]: ${action}`, data);
+
+      switch (action) {
+        case "select-relic-from-inv":
+          if (typeof globalThis.selectRelicFromInv === "function") {
+            globalThis.selectRelicFromInv(data.relic);
+          }
+          break;
+        case "modify-inv":
+          if (typeof globalThis.modifyInv === "function") {
+            globalThis.modifyInv(data.relic, parseInt(data.amount));
+          }
+          break;
+        case "find-relics-for-item":
+          if (typeof globalThis.findRelicsForItem === "function") {
+            globalThis.findRelicsForItem(data.item);
+          }
+          break;
+        case "add-current-to-inv":
+          if (typeof globalThis.addCurrentToInv === "function") {
+            globalThis.addCurrentToInv();
+          }
+          break;
+        case "toggle-inv-set":
+          if (typeof globalThis.toggleInvSet === "function") {
+            globalThis.toggleInvSet(data.setid);
+          }
+          break;
+        case "delete-prime-set":
+          if (typeof globalThis.deletePrimeSet === "function") {
+            globalThis.deletePrimeSet(data.setname);
+          }
+          break;
+        case "modify-prime-part":
+          if (typeof globalThis.modifyPrimePart === "function") {
+            globalThis.modifyPrimePart(data.part, parseInt(data.amount));
+          }
+          break;
+        case "load-lfg-preset":
+          if (typeof globalThis.loadLFGPreset === "function") {
+            globalThis.loadLFGPreset(parseInt(data.index));
+          }
+          break;
+        case "delete-lfg-preset":
+          if (typeof globalThis.deleteLFGPreset === "function") {
+            globalThis.deleteLFGPreset(parseInt(data.index));
+          }
+          break;
+        case "save-lfg-preset":
+          if (typeof globalThis.saveLFGPreset === "function") {
+            globalThis.saveLFGPreset();
+          }
+          break;
+      }
     }
   });
 }
@@ -2470,7 +3075,9 @@ export function getRelicDropTooltip(tierName) {
 
   sources.sort((a, b) => b.chance - a.chance);
 
-  let html = `<div class='tooltip-header'>Drops for ${tierName} (${sources.length})</div>`;
+  let html = `<div class='tooltip-header'>Drops for ${escapeHTML(
+    tierName,
+  )} (${sources.length})</div>`;
 
   html += "<ul class='tooltip-list'>";
 
@@ -2478,10 +3085,20 @@ export function getRelicDropTooltip(tierName) {
     let locText = "";
 
     if (s.type === "mission") {
-      locText = `<span class="t-loc">${s.location}</span> <span style="color:#888">-</span> ${s.mission} <span class='rot-badge'>${s.rotation}</span>`;
+      locText = `<span class="t-loc">${escapeHTML(
+        s.location,
+      )}</span> <span style="color:#888">-</span> ${escapeHTML(
+        s.mission,
+      )} <span class='rot-badge'>${escapeHTML(s.rotation)}</span>`;
     } else {
-      let stage = s.rotation.replace("Rotation ", "").replace("Stage ", "St.");
-      locText = `<span class="t-loc">${s.location}</span> <span style="color:#888">-</span> ${s.mission} <span class='rot-badge'>${stage}</span>`;
+      let stage = s.rotation
+        .replaceAll("Rotation ", "")
+        .replaceAll("Stage ", "St.");
+      locText = `<span class="t-loc">${escapeHTML(
+        s.location,
+      )}</span> <span style="color:#888">-</span> ${escapeHTML(
+        s.mission,
+      )} <span class='rot-badge'>${escapeHTML(stage)}</span>`;
     }
 
     const isTop = index < 5;
@@ -2491,10 +3108,12 @@ export function getRelicDropTooltip(tierName) {
     if (s.chance > 10) chanceColor = "var(--wf-gold-text)";
     else if (s.chance > 5) chanceColor = "var(--wf-blue)";
 
+    const sanitizedLocText = locText; // locText already sanitized above in previous partial replace
+
     html += `<li class="${rowClass}">
-      <div class="t-row">${locText}</div>
+      <div class="t-row">${sanitizedLocText}</div>
       <span class='drop-chance' style="color:${chanceColor}">${s.chance.toFixed(
-      2
+      2,
     )}%</span>
     </li>`;
   });
@@ -2512,7 +3131,7 @@ export function renderRivenGradingUI(weaponName, statsArray) {
   const hasCurse = statsArray.some((s) => s.value < 0);
 
   let html = `<div class="riven-grading-box">`;
-  html += `<h4>Grading: ${weaponName} (Disp: ${disposition})</h4>`;
+  html += `<h4>Grading: ${escapeHTML(weaponName)} (Disp: ${disposition})</h4>`;
 
   statsArray.forEach((stat) => {
     const isCurse = stat.value < 0;
@@ -2523,25 +3142,25 @@ export function renderRivenGradingUI(weaponName, statsArray) {
       stat.value,
       isCurse,
       buffCount,
-      hasCurse
+      hasCurse,
     );
 
     const colorClass =
       result.percentage > 90
         ? "grade-s"
         : result.percentage > 50
-        ? "grade-b"
-        : "grade-f";
+          ? "grade-b"
+          : "grade-f";
 
     html += `
             <div class="grade-row">
-                <span class="stat-name">${stat.name}</span>
-                <span class="stat-val">${stat.value}%</span>
+                <span class="stat-name">${escapeHTML(stat.name)}</span>
+                <span class="stat-val">${escapeHTML(stat.value.toString())}%</span>
                 <div class="grade-bar-container">
                     <div class="grade-bar ${colorClass}" style="width: ${result.percentage}%"></div>
                 </div>
-                <span class="grade-badge ${colorClass}">${result.grade}</span>
-                <span class="grade-range">Range: ${result.min}% - ${result.max}%</span>
+                <span class="grade-badge ${colorClass}">${escapeHTML(result.grade)}</span>
+                <span class="grade-range">Range: ${escapeHTML(result.min.toString())}% - ${escapeHTML(result.max.toString())}%</span>
             </div>
         `;
   });
@@ -2561,9 +3180,8 @@ export function openGradingModal() {
 
   const weaponData = state.weaponMap[weaponName];
 
-  document.getElementById(
-    "g-weapon-name"
-  ).innerHTML = `${weaponName} <span style="color:#888; font-weight:normal; font-size:0.8em;">(Disp: ${weaponData.d})</span>`;
+  document.getElementById("g-weapon-name").innerHTML =
+    `${escapeHTML(weaponName)} <span style="color:#888; font-weight:normal; font-size:0.8em;">(Disp: ${escapeHTML(weaponData.d.toString())})</span>`;
   document.getElementById("grading-modal").classList.remove("hidden");
 
   resetGradingInputs();
@@ -2607,7 +3225,7 @@ export function removeGradingRow(rowId) {
 
 function resetGradingInputs() {
   const inputs = document.querySelectorAll(
-    "#grading-modal input, #grading-modal select"
+    "#grading-modal input, #grading-modal select",
   );
   inputs.forEach((i) => {
     if (i.id === "g-rank") i.value = "8";
@@ -2620,7 +3238,9 @@ export function calculateModalGrade() {
   if (!weaponName || !state.weaponMap[weaponName]) return;
 
   const weaponData = state.weaponMap[weaponName];
-  const currentRank = parseInt(document.getElementById("g-rank").value || "8");
+  const currentRank = Number.parseInt(
+    document.getElementById("g-rank").value || "8",
+  );
   const scaleFactor = 9 / (currentRank + 1);
   const resultsDiv = document.getElementById("grading-modal-results");
 
@@ -2631,8 +3251,8 @@ export function calculateModalGrade() {
     const valInput = document.getElementById(valId);
 
     if (sel.offsetParent !== null && sel.value && valInput.value) {
-      let val = parseFloat(valInput.value);
-      if (isNaN(val)) return;
+      let val = Number.parseFloat(valInput.value);
+      if (Number.isNaN(val)) return;
       if (isNeg) val = -Math.abs(val);
 
       stats.push({
@@ -2662,7 +3282,7 @@ export function calculateModalGrade() {
       weaponData,
       stat.name,
       stat.projected,
-      stats
+      stats,
     );
 
     let colorClass = "grade-f";
@@ -2677,16 +3297,14 @@ export function calculateModalGrade() {
                 <div class="grade-stat-name">${stat.name}</div>
                 <div class="grade-values">
                     Valor: <span style="color:#fff">${Math.abs(
-                      stat.value
-                    )}%</span>
-                    <span class="grade-range" style="font-size:0.8em"> / Ideal: ${
-                      result.range
-                    }</span>
+      stat.value,
+    )}%</span>
+                    <span class="grade-range" style="font-size:0.8em"> / Ideal: ${result.range
+      }</span>
                 </div>
                 <div class="grade-track">
-                    <div class="grade-fill ${colorClass}" style="width: ${
-      result.pct
-    }%"></div>
+                    <div class="grade-fill ${colorClass}" style="width: ${result.pct
+      }%"></div>
                 </div>
             </div>
         </div>
@@ -2758,7 +3376,7 @@ export function importInventory() {
         if (Array.isArray(data)) {
           if (
             confirm(
-              `Archivo cargado con ${data.length} items.\n\nThis will overwrite your current relic inventory are you sure?`
+              `Archivo cargado con ${data.length} items.\n\nThis will overwrite your current relic inventory are you sure?`,
             )
           ) {
             state.inventory = data;
@@ -2779,7 +3397,531 @@ export function importInventory() {
 
   input.click();
 }
-Object.assign(window, {
+let bountyInterval = null;
+export async function renderBountiesTab() {
+  const container = document.getElementById("bounties-list-container");
+  if (!container) return;
+
+  if (bountyInterval) clearInterval(bountyInterval);
+
+  const t = TEXTS[state.currentLang];
+
+  const toggleText = state.showAllFarms
+    ? state.currentLang === "es"
+      ? "MOSTRANDO TODO"
+      : "SHOWING ALL"
+    : state.currentLang === "es"
+      ? "SOLO ÓPTIMAS"
+      : "OPTIMAL ONLY";
+
+  const headerHTML = `
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; padding:0 5px;">
+          <div class="panel-main-header" style="margin:0; border-radius:4px; flex-grow:1; margin-right:10px;">
+            <span id="lbl-fast-farms-title">${t.lblFastFarms || "Active Farms"}</span>
+            <span class="info-icon" id="bounties-guide-icon" data-tooltip="${t.fastFarmGuide}">ℹ️</span>
+          </div>
+          
+          <button 
+            class="dashed-btn ${state.showAllFarms ? "active-filter" : ""}" 
+            style="
+              font-weight:800; 
+              font-size:0.75em; 
+              height:46px; 
+              border:1px solid #444; 
+              color:${state.showAllFarms ? "#fff" : "#888"}; 
+              background:${state.showAllFarms ? "var(--wf-blue)" : "transparent"};
+              cursor: pointer;
+            "
+            onclick="globalThis.toggleFarmsFilter()"
+          >
+            ${toggleText}
+          </button>
+      </div>
+  `;
+
+  container.innerHTML = `
+      ${headerHTML}
+      <div style="display:flex; flex-direction:column; align-items:center; padding:40px; color:#888;">
+         <div class="spinner"></div>
+         <div style="margin-top:10px">...</div>
+      </div>`;
+
+  const allBounties = await fetchActiveBounties();
+
+  let visibleBounties = state.showAllFarms
+    ? allBounties
+    : allBounties.filter((b) => b.isOptimal);
+
+  if (!visibleBounties || visibleBounties.length === 0) {
+    container.innerHTML = `
+          ${headerHTML}
+          <div class="no-fissures-msg">
+            <span class="warning-icon">⚠</span> 
+            <div>
+              <strong>${t.msgNoBountiesTitle || "No optimal missions active."}</strong><br>
+              <small>${state.showAllFarms ? "No data found." : t.msgNoBountiesDesc || "Try switching to 'SHOW ALL'."}</small>
+            </div>
+          </div>`;
+    return;
+  }
+
+  const factionConfig = {
+    "The Holdfasts": { name: "Zariman (Ten Zero)", color: "#d4af37" },
+    Cavia: { name: "Sanctum Anatomica (Cavia)", color: "#a545e0" },
+    "The Hex": { name: "Höllvania (1999)", color: "#42f56c" },
+    Ostrons: { name: "Cetus (Aya Farm)", color: "#d6b07c" },
+    "Solaris United": { name: "Fortuna (Solaris)", color: "#00e5ff" },
+    Entrati: { name: "Necralisk (Entrati)", color: "#ffaa00" },
+  };
+
+  const groups = {};
+  visibleBounties.forEach((b) => {
+    if (!groups[b.factionKey]) groups[b.factionKey] = [];
+    groups[b.factionKey].push(b);
+  });
+
+  const expiryTimes = [];
+  let html = headerHTML;
+
+  for (const [key, missions] of Object.entries(groups)) {
+    const config = factionConfig[key] || { name: key, color: "#fff" };
+    missions.sort((a, b) => {
+      if (b.standing !== a.standing) return b.standing - a.standing;
+      if (typeof b.tier === "number" && typeof a.tier === "number")
+        return b.tier - a.tier;
+      return 0;
+    });
+
+    const expiryId = `timer-${key.replaceAll(/\s+/g, "")}`;
+    if (missions[0]?.expiry) {
+      expiryTimes.push({ id: expiryId, date: new Date(missions[0].expiry) });
+    }
+
+    html += `
+        <div style="margin-bottom: 20px;">
+            <div class="faction-header" style="border-left-color: ${config.color};">
+                <span class="faction-name" style="color: ${config.color};">${config.name}</span>
+                <span id="${expiryId}" style="font-size:0.9em; color:#fff; font-family:monospace; background:rgba(0,0,0,0.3); padding:2px 6px; border-radius:4px;">
+                    --:--:--
+                </span>
+            </div>`;
+
+    if (key === "Ostrons") {
+      html += `
+        <div style="border: 1px solid var(--wf-gold-text); background: rgba(197, 168, 86, 0.1); padding: 12px; margin-bottom: 15px; border-radius: 6px; color: #ddd; font-size: 0.85rem; line-height: 1.4;">
+          <strong style="color: var(--wf-gold-text);">ℹ AYA STRATEGY (TEAM):</strong> 
+          Start T5 Bounty (Lvl 40-60, NON-SP). Enter Plains, FAIL mission immediately. 
+          Check Tent console for Capture/Rescue. Accept there.
+        </div>
+      `;
+    }
+
+    missions.forEach((m, index) => {
+      const uniqueId = `drops-${key}-${index}`.replaceAll(/\s+/g, "");
+      const opacity = m.isOptimal ? "1" : "0.7";
+      let tierColor = "#888";
+      let tierLabel = m.tier;
+
+      if (m.tier === "NARMER") {
+        tierColor = "#ffaa00";
+      } else if (m.tier === 6) {
+        tierColor = "#ff4d4d";
+      } else if (m.tier === 5) {
+        tierColor = "#ffcc00";
+      } else if (m.tier >= 3) {
+        tierColor = "#00ccff";
+      }
+
+      let levelDisplay = "";
+      if (m.isDual) {
+        levelDisplay = `
+          <div style="display: flex; align-items: center; gap: 8px; font-size: 0.82em; margin-top: 4px; flex-wrap: wrap;">
+            <span style="color: #aaa;">Lvl ${m.level} <b style="color:#888">(+${m.standing})</b></span>
+            <span style="color: #444;">|</span>
+            <span style="color: #ff4d4d;">SP ${m.levelSP} <b style="color:#ff4d4d99">(+${m.standingSP})</b></span>
+          </div>`;
+      } else {
+        const tag = m.isSP ? "STEEL PATH" : "NORMAL PATH";
+        const color = m.isSP ? "#ff4d4d" : "#aaa";
+        levelDisplay = `
+          <div style="color: ${color}; font-weight: bold; font-size: 0.85em; margin-top: 4px;">
+            ${tag} (Lvl ${m.level}) <span style="color: #888; font-weight: normal;">(+${m.standing})</span>
+          </div>`;
+      }
+
+      let rewardsContent = m.detailedRewards
+        ? m.detailedRewards
+          .map((stage) => {
+            const rows = stage.drops
+              .map(
+                (d) =>
+                  `<div class="drop-row"><span class="drop-name ${d.name.includes("Aya") ? "aya" : ""}">${d.name}</span><span class="drop-chance">${d.chance.toFixed(2)}%</span></div>`,
+              )
+              .join("");
+            return `<div class="stage-container"><div class="stage-header">STAGE ${stage.stage}</div><div class="stage-content">${rows}</div></div>`;
+          })
+          .join("")
+        : `<ul class="drop-list">${m.rewards.map((r) => `<li class="drop-item">${r}</li>`).join("")}</ul>`;
+
+      html += `
+        <div class="bounty-wrapper ${m.isSP || m.isDual ? "is-sp" : ""} ${m.isOptimal ? "optimal-farm" : ""}" style="opacity:${opacity};">
+            <div class="bounty-header-row">
+                <div class="bounty-info">
+                   <div class="bounty-type" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                      <span style="color:var(--wf-blue); font-weight:900; font-size:0.75em; text-transform:uppercase; border-right:1px solid #444; padding-right:8px;">
+                        ${m.technicalType}
+                      </span>
+                      ${!m.hideTier
+          ? `
+                      <span style="color: ${tierColor}; border: 1px solid ${tierColor}44; padding: 1px 6px; font-size: 0.7em; border-radius: 3px; font-weight: 900; background: ${m.tier === 6 || m.tier === "NARMER" ? "rgba(255,170,0,0.1)" : "transparent"}">
+                        ${tierLabel === "NARMER" ? "" : "TIER "}${tierLabel}
+                      </span>`
+          : ""
+        }
+                      <span style="color: #fff; font-weight: 600; flex: 1;">${m.type}</span>
+                    </div>
+                    ${levelDisplay}
+                    ${m.condition ? `<div style="background: rgba(255,255,255,0.05); border-left: 3px solid #666; padding: 6px 12px; margin-top: 10px; font-size: 0.85em; color: #ccc; white-space: normal;">CHALLENGE: ${m.condition}</div>` : ""}
+                </div>
+                <button class="bounty-rewards-btn" style="color: ${config.color};" onclick="document.getElementById('${uniqueId}').classList.toggle('open')">
+                    VIEW REWARDS
+                </button>
+            </div>
+            <div id="${uniqueId}" class="bounty-drops-drawer">${rewardsContent}</div>
+        </div>`;
+    });
+    html += `</div>`;
+  }
+
+  container.innerHTML = html;
+
+  const updateTimers = () => {
+    const now = new Date();
+    expiryTimes.forEach((item) => {
+      const el = document.getElementById(item.id);
+      if (!el) return;
+      const diff = item.date - now;
+      if (diff <= 0) {
+        el.innerText = "ROTATING...";
+        el.style.color = "#f44";
+        return;
+      }
+      const h = Math.floor(diff / (1000 * 60 * 60));
+      const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const s = Math.floor((diff % (1000 * 60)) / 1000);
+      el.innerText = `${t.lblEndsIn || "Ends:"} ${h}h ${m}m ${s}s`;
+    });
+  };
+
+  updateTimers();
+  bountyInterval = setInterval(updateTimers, 1000);
+}
+globalThis.switchInvView = (view) => {
+  state.currentInvView = view;
+  const relicControls = document.getElementById("relic-inv-controls");
+  const tabRelics = document.getElementById("inv-tab-relics");
+  const tabParts = document.getElementById("inv-tab-parts");
+
+  if (view === "relics") {
+    relicControls.style.display = "flex";
+    tabRelics.classList.add("active");
+    tabParts.classList.remove("active");
+    renderInventory(); //
+  } else {
+    relicControls.style.display = "none";
+    tabParts.classList.add("active");
+    tabRelics.classList.remove("active");
+    renderPrimeInventory();
+  }
+};
+function getSetName(fullName) {
+  if (!fullName) return "Otros";
+  const match = fullName.match(/(.*?) (Prime|Vandal|Wraith)/);
+  return match ? match[0].trim() : "Otros";
+}
+
+globalThis.modifyPrimePart = (name, amount) => {
+  const current = state.primeInventory[name] || 0;
+  const newQty = Math.max(0, current + amount);
+
+  state.primeInventory[name] = newQty;
+
+  if (amount > 0 && current === 0) {
+    const setName = getSetName(name);
+    const sourceList =
+      state.ocrReferenceList || Object.keys(state.itemsDatabase);
+
+    if (setName && sourceList.length > 0) {
+      sourceList.forEach((itemName) => {
+        if (itemName.startsWith(setName) && !itemName.endsWith(" Set")) {
+          if (state.primeInventory[itemName] === undefined) {
+            state.primeInventory[itemName] = 0;
+          }
+        }
+      });
+    }
+  }
+
+  saveAppState();
+  renderPrimeInventory();
+};
+
+globalThis.deletePrimeSet = (setName) => {
+  const t = TEXTS[state.currentLang].inventory;
+  if (!confirm(`${t.confirmDeleteSet || "Delete entire set?"} (${setName})`))
+    return;
+
+  Object.keys(state.primeInventory).forEach((name) => {
+    if (getSetName(name) === setName) {
+      delete state.primeInventory[name];
+    }
+  });
+
+  saveAppState();
+  renderPrimeInventory();
+};
+
+globalThis.toggleInvSet = (safeSetId) => {
+  const el = document.getElementById(`set-group-${safeSetId}`);
+  if (el) el.classList.toggle("collapsed");
+};
+
+globalThis.openSetDetail = (setName) => {
+  switchTab("set");
+  const input = document.getElementById("setItemInput");
+  if (input) {
+    input.value = setName;
+    handleSetTyping();
+  }
+};
+
+// 3. Renderizado del Inventario (Agrupado y sin límites)
+export function renderPrimeInventory() {
+  const list = document.getElementById("inventory-list");
+  if (!list) return;
+
+  const entries = Object.entries(state.primeInventory);
+  if (entries.length === 0) {
+    list.innerHTML = `<div style="padding:20px; text-align:center; color:#666;">Inventory is empty</div>`;
+    return;
+  }
+
+  // Agrupar piezas por Set
+  const groups = {};
+  entries.forEach(([name, qty]) => {
+    const setName = getSetName(name);
+    if (!groups[setName]) groups[setName] = [];
+    groups[setName].push({ name, qty });
+  });
+
+  let html = `
+    <div class="inventory-total-header">
+       <div class="total-label">${TEXTS[state.currentLang].inventory.lblTotalValue || "ESTIMATED TOTAL VALUE"}</div>
+       <div class="total-value"><span id="total-prime-value">...</span> PL</div>
+    </div>`;
+
+  Object.keys(groups)
+    .sort()
+    .forEach((setName) => {
+      const safeSetId = setName.replaceAll(/[^a-zA-Z0-9]/g, "");
+
+      groups[setName].sort((a, b) => a.name.length - b.name.length);
+
+      // Calculate how many complete sets we have
+      let numSets = 0;
+      if (setName !== "Otros") {
+        const allPossibleParts = Object.keys(state.itemsDatabase).filter(name =>
+          name.startsWith(setName + " ") && !name.endsWith(" Set")
+        );
+
+        if (allPossibleParts.length > 0) {
+          numSets = 999;
+          allPossibleParts.forEach(p => {
+            const owned = state.primeInventory[p] || 0;
+            const required = getRequiredCount(setName, p);
+            const possible = Math.floor(owned / required);
+            if (possible < numSets) numSets = possible;
+          });
+          if (numSets === 999) numSets = 0;
+        }
+      }
+
+      html += `
+      <div class="inv-set-group" id="set-group-${safeSetId}">
+        <div class="inv-set-header" data-action="toggle-inv-set" data-setid="${safeSetId}">
+          <div class="header-controls">
+            <button class="delete-set-btn" data-action="delete-prime-set" data-setname="${escapeHTML(setName)}">×</button>
+            <span class="toggle-icon">▼</span>
+          </div>
+          
+          <div class="header-main" onclick="event.stopPropagation(); globalThis.openSetDetail('${escapeHTML(setName)}')">
+            ${(() => {
+          const setIcon = getItemIcon(setName);
+          return setIcon ? `<img src="${setIcon}" class="item-icon-small" onerror="this.style.display='none'">` : '';
+        })()}
+            <span class="set-title">${escapeHTML(setName)}</span>
+            <a href="https://warframe.market/items/${getSlug(setName + " Set")}" target="_blank" class="market-link-icon" onclick="event.stopPropagation()">↗</a>
+          </div>
+
+          <div class="header-info">
+             ${numSets > 0 ? `<span class="set-count-badge">${numSets} SETS</span>` : "<span></span>"}
+             <span class="set-total-price" id="set-price-${safeSetId}">0 PL</span>
+          </div>
+          <span id="set-mkt-${safeSetId}" class="set-price-marker" style="display:none" data-setname="${escapeHTML(setName)} Set">...</span>
+        </div>
+        <div class="inv-set-content">
+          ${groups[setName]
+          .map((item) => {
+            const safeId = item.name.replaceAll(/[^a-zA-Z0-9]/g, "");
+            const shortName = item.name.replace(setName, "").trim() || "Blueprint";
+            const requiredCount = getRequiredCount(setName, item.name);
+            const dotsHtml = generateDotsHtml(item.qty, requiredCount);
+
+            return `
+              <div class="inv-row-mini">
+                <div class="row-main" onclick="globalThis.openSetDetail('${escapeHTML(setName)}')">
+                  ${(() => {
+                const partIcon = getItemIcon(item.name);
+                return partIcon ? `<img src="${partIcon}" class="item-icon-mini" onerror="this.style.display='none'">` : '';
+              })()}
+                  <div class="name-column">
+                     <span class="part-name">${escapeHTML(shortName)}</span>
+                     ${dotsHtml}
+                  </div>
+                </div>
+
+                <div class="row-info">
+                   <a href="https://warframe.market/items/${getSlug(item.name)}" target="_blank" class="market-link-icon-mini" onclick="event.stopPropagation()">↗</a>
+                   <span class="price-badge-small" id="price-p-${safeId}" data-qty="${item.qty}" data-item="${escapeHTML(item.name)}">...</span>
+                </div>
+
+                <div class="inv-qty-controls-mini">
+                  <button class="inv-btn-small" data-action="modify-prime-part" data-part="${escapeHTML(item.name)}" data-amount="-1">−</button>
+                  <span class="qty-num">${item.qty}</span>
+                  <button class="inv-btn-small" data-action="modify-prime-part" data-part="${escapeHTML(item.name)}" data-amount="1">+</button>
+                </div>
+              </div>`;
+          }).join("")}
+        </div>
+      </div>`;
+    });
+
+  list.innerHTML = html;
+
+  entries.forEach(([name]) => {
+    const safeId = name.replaceAll(/[^a-zA-Z0-9]/g, "");
+    const el = document.getElementById(`price-p-${safeId}`);
+    if (el) addToQueue(name, el);
+  });
+
+  // También pedir precio de "Sets"
+  Object.keys(groups).forEach(setName => {
+    if (setName === "Otros") return;
+    const safeSetId = setName.replaceAll(/[^a-zA-Z0-9]/g, "");
+    const el = document.getElementById(`set-mkt-${safeSetId}`);
+    if (el) addToQueue(setName + " Set", el);
+  });
+
+  setTimeout(updatePrimeTotalValue, 100);
+}
+
+async function updatePrimeTotalValue() {
+  let totalGlobal = 0;
+  let allLoaded = true;
+  if (!state.itemsDatabase) return;
+
+  const invGroups = {};
+  const badges = document.querySelectorAll(".price-badge-small");
+
+  badges.forEach((b) => {
+    const val = parseInt(b.innerText);
+    const qty = parseInt(b.dataset.qty) || 0;
+    const itemName = b.dataset.item;
+    const setName = getSetName(itemName);
+
+    if (!invGroups[setName]) {
+      invGroups[setName] = { parts: {}, setPrice: 0, setPriceLoaded: false };
+    }
+    invGroups[setName].parts[itemName] = {
+      qty,
+      price: isNaN(val) ? 0 : val,
+      loaded: !isNaN(val)
+    };
+
+    if (isNaN(val) && qty > 0) allLoaded = false;
+  });
+
+  const setMarkers = document.querySelectorAll(".set-price-marker");
+  setMarkers.forEach(m => {
+    const val = parseInt(m.innerText);
+    const setNameRaw = m.dataset.setname.replace(" Set", "");
+    if (invGroups[setNameRaw]) {
+      invGroups[setNameRaw].setPrice = isNaN(val) ? 0 : val;
+      invGroups[setNameRaw].setPriceLoaded = !isNaN(val);
+      if (isNaN(val) && setNameRaw !== "Otros") allLoaded = false;
+    }
+  });
+
+  Object.keys(invGroups).forEach(setName => {
+    const g = invGroups[setName];
+    const safeSetId = setName.replaceAll(/[^a-zA-Z0-9]/g, "");
+
+    // Obtener todas las piezas posibles de este set según base de datos
+    const allPossibleParts = Object.keys(state.itemsDatabase).filter(name =>
+      name.startsWith(setName + " ") && !name.endsWith(" Set")
+    );
+
+    let subtotal = 0;
+
+    if (setName !== "Otros" && allPossibleParts.length > 0) {
+      // Calcular cuántos sets completos tenemos considerando requisitos del manifiesto
+      let numSets = 999;
+      allPossibleParts.forEach(p => {
+        const hasQty = g.parts[p]?.qty || 0;
+        const required = getRequiredCount(setName, p);
+        const possibleSetsFromThisPart = Math.floor(hasQty / required);
+        if (possibleSetsFromThisPart < numSets) numSets = possibleSetsFromThisPart;
+      });
+      if (numSets === 999) numSets = 0;
+
+      if (numSets > 0 && g.setPriceLoaded) {
+        // Valor = (Sets * PrecioSet) + (Piezas sueltas * PrecioPieza)
+        subtotal += numSets * g.setPrice;
+        for (const partName in g.parts) {
+          const required = getRequiredCount(setName, partName);
+          const remaining = g.parts[partName].qty - (numSets * required);
+          if (remaining > 0) {
+            subtotal += remaining * g.parts[partName].price;
+          }
+        }
+      } else {
+        // Si no hay sets o precio no cargado, suma normal
+        for (const p in g.parts) subtotal += g.parts[p].qty * g.parts[p].price;
+      }
+    } else {
+      // Para "Otros" o sets desconocidos, suma simple
+      for (const p in g.parts) subtotal += g.parts[p].qty * g.parts[p].price;
+    }
+
+    const el = document.getElementById(`set-price-${safeSetId}`);
+    if (el) el.innerText = subtotal + " PL";
+    totalGlobal += subtotal;
+  });
+
+  const totalEl = document.getElementById("total-prime-value");
+  if (totalEl) {
+    totalEl.textContent = totalGlobal;
+    totalEl.classList.toggle("loading-blink", !allLoaded);
+  }
+
+  if (!allLoaded) setTimeout(updatePrimeTotalValue, 1000);
+}
+globalThis.toggleFarmsFilter = function () {
+  state.showAllFarms = !state.showAllFarms;
+  saveAppState();
+  renderBountiesTab();
+};
+Object.assign(globalThis, {
   openGradingModal,
   calculateModalGrade,
   closeGradingModal,
@@ -2793,6 +3935,7 @@ Object.assign(window, {
   closeUpdateModal,
   exportInventory,
   importInventory,
+  renderPrimeInventory,
   updatePriceUI: (element, price) => {
     if (!element) return;
     element.classList.remove("loading");
@@ -2800,7 +3943,7 @@ Object.assign(window, {
     if (document.getElementById("relic-profit-display")) updateRelicTotal();
   },
 });
-window.handleInvSearch = (val) => {
+globalThis.handleInvSearch = (val) => {
   state.invSearchVal = val.toLowerCase().trim();
   renderInventory();
 };
