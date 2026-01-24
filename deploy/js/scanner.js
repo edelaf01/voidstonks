@@ -5,7 +5,7 @@ console.log(" [SCANNER] Script cargado correctamente.");
 let ocrWorker = null;
 let videoStream = null;
 let scannedInventory = [];
-let lastFrameData = null;
+let lastFrameData = null; 
 let staticFrameCount = 0;
 const STATIC_THRESHOLD = 5;
 const processingCanvas = document.createElement("canvas");
@@ -26,7 +26,7 @@ export async function openScanner() {
 
 export function closeScanner() {
   console.log("[SCANNER] Cerrando escáner...");
-
+  
   stopCamera();
 
   if (isInventoryScanning) {
@@ -41,7 +41,7 @@ export function closeScanner() {
 }
 
 async function startCamera() {
-  stopCamera();
+  stopCamera(); 
 
   const video = document.getElementById("ocr-video");
   if (!video) return console.error(" [SCANNER] No existe elemento #ocr-video");
@@ -51,7 +51,7 @@ async function startCamera() {
       video: { facingMode: "environment" },
     });
     video.srcObject = videoStream;
-    await video.play();
+    await video.play(); 
     video.classList.remove("hidden");
     console.log(" [SCANNER] Cámara iniciada");
   } catch (e) {
@@ -72,9 +72,8 @@ function stopCamera() {
 
   if (video) {
     video.pause();
-    video.srcObject = null;
-    video.classList.add("hidden");
-  }
+    video.srcObject = null; 
+    video.classList.add("hidden"); }
 }
 
 export async function captureRelics() {
@@ -99,6 +98,7 @@ export async function handleFileUpload(event) {
     await processImageSource(img);
   }
 }
+
 
 async function processImageSource(source) {
   const loading = document.getElementById("ocr-loading");
@@ -130,14 +130,14 @@ async function processImageSource(source) {
   processingCtx.putImageData(imageData, 0, 0);
 
   try {
-    if (!globalThis.Tesseract)
+    if (!window.Tesseract)
       throw new Error("Librería Tesseract no cargada en index.html");
 
     console.log(" [SCANNER] Iniciando reconocimiento OCR...");
 
     const {
       data: { text },
-    } = await globalThis.Tesseract.recognize(processingCanvas, "eng", {
+    } = await window.Tesseract.recognize(processingCanvas, "eng", {
       tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789[] ",
     });
 
@@ -173,25 +173,26 @@ async function processImageSource(source) {
 const RELIC_REGEX = /(LITH|MESO|NEO|AXI|REQUIEM)\s*([A-Z][0-9]+)/g;
 
 function parseRelicText(text) {
-  let clean = text.replaceAll(/\n/g, " ").toUpperCase();
+  let clean = text.replace(/\n/g, " ").toUpperCase();
 
-  clean = clean.replaceAll(/\[.*?\]/g, "");
-  clean = clean.replaceAll(/\bRADIANT\b/g, "");
-  clean = clean.replaceAll(/\bRELIC\b/g, "");
+  clean = clean.replace(/\[.*?\]/g, "");
+  clean = clean.replace(/\bRADIANT\b/g, "");
+  clean = clean.replace(/\bRELIC\b/g, "");
 
-  clean = clean.replaceAll(/\s+/g, " ").trim();
+  clean = clean.replace(/\s+/g, " ").trim();
 
   RELIC_REGEX.lastIndex = 0;
 
   const found = new Set();
   let m;
   while ((m = RELIC_REGEX.exec(clean)) !== null) {
-    const tier = m[1].charAt(0) + m[1].slice(1).toLowerCase();
-    const name = m[2];
+    const tier = m[1].charAt(0) + m[1].slice(1).toLowerCase(); 
+    const name = m[2]; 
     found.add(`${tier} ${name}`);
   }
   return Array.from(found);
 }
+
 
 export function toggleScannedList() {
   const panel = document.getElementById("scanned-results-panel");
@@ -218,16 +219,16 @@ function updateResultsUI() {
   if (countLabel) countLabel.innerText = scannedInventory.length;
 
   if (list) {
-    list.textContent = "";
+    list.innerHTML = "";
     if (scannedInventory.length === 0) {
-      list.textContent =
+      list.innerHTML =
         "<div style='color:#888; text-align:center'>Lista vacía</div>";
       return;
     }
     scannedInventory.forEach((r) => {
       const d = document.createElement("div");
       d.className = "scanned-item-card";
-      d.textContent = `<strong>${r}</strong>`;
+      d.innerHTML = `<strong>${r}</strong>`;
       list.appendChild(d);
     });
   }
@@ -247,7 +248,7 @@ export function confirmScanResults() {
 
   console.log(" Abriendo panel de inventario...");
   renderInventory();
-  toggleInventoryPanel(true);
+  toggleInventoryPanel(true); 
 
   showToast(` ${capturedCount} relics saved`);
 }
@@ -262,24 +263,26 @@ export async function startInventoryScrollScan() {
     showToast("🚀 INITIALIZING OCR ENGINE...");
 
     if (!ocrWorker) {
-      ocrWorker = await globalThis.Tesseract.createWorker("eng", 1, {
-        workerPath: "js/worker.min.js",
-        corePath: "js/tesseract-core.wasm.js",
-        langPath: "js/",
+      ocrWorker = await window.Tesseract.createWorker("eng", 1, {
+        workerPath: 'js/worker.min.js',
+        corePath: 'js/tesseract-core.wasm.js',
+        langPath: 'js/', 
         gzip: false,
-        logger: (m) => console.log(m),
+        logger: m => console.log(m) 
       });
 
       await ocrWorker.setParameters({
         tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789[] ",
-        tessedit_pageseg_mode: globalThis.Tesseract.PSM.SPARSE_TEXT,
+        tessedit_pageseg_mode: window.Tesseract.PSM.SPARSE_TEXT, 
       });
     }
 
+    
     inventoryStream = await navigator.mediaDevices.getDisplayMedia({
       video: { cursor: "never" },
       audio: false,
     });
+    
 
     const videoTrack = inventoryStream.getVideoTracks()[0];
     const video = document.createElement("video");
@@ -299,7 +302,7 @@ export async function startInventoryScrollScan() {
       if (video.readyState === 4) {
         await processInventoryFrame(video);
       }
-
+      
       requestAnimationFrame(scanLoop);
     };
 
@@ -343,7 +346,7 @@ async function processInventoryFrame(videoSource) {
           finishInventoryScan();
         else startInventoryScrollScan();
       }
-      return;
+      return; 
     }
     staticFrameCount = 0;
   }
@@ -357,6 +360,7 @@ async function processInventoryFrame(videoSource) {
   processingCtx.putImageData(imageData, 0, 0);
 
   try {
+
     const {
       data: { text },
     } = await ocrWorker.recognize(processingCanvas);
