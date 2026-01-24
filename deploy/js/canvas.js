@@ -3,8 +3,6 @@ export function initCanvas() {
   if (!canvas) return;
 
   const ctx = canvas.getContext("2d", { alpha: true });
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = "high";
   const TARGET_FPS = 15;
   const SPEED_MULTI = 2;
   const PARTICLE_COUNT = 8;
@@ -226,13 +224,10 @@ export function initCanvas() {
   }
 
   function initSystem() {
-    const dpr = window.devicePixelRatio || 1;
     width = window.innerWidth;
     height = window.innerHeight;
-    canvas.width = width * dpr;
-    canvas.height = height * dpr;
-    ctx.scale(dpr, dpr); // Scale drawing operations
-
+    canvas.width = width;
+    canvas.height = height;
     cols = Math.ceil(width / CELL_SIZE);
     rows = Math.ceil(height / CELL_SIZE);
     grid = new Array(cols).fill(null).map(() => new Array(rows).fill(null));
@@ -240,11 +235,11 @@ export function initCanvas() {
     for (let i = 0; i < PARTICLE_COUNT; i++) particles.push(new Particle());
   }
 
-  let resizeTimeout;
-  window.addEventListener("resize", () => {
+let resizeTimeout;
+window.addEventListener("resize", () => {
     clearTimeout(resizeTimeout);
-    resizeTimeout = setTimeout(initSystem, 200);
-  });
+    resizeTimeout = setTimeout(initSystem, 200); 
+});
   initSystem();
   function animate() {
     requestAnimationFrame(animate);

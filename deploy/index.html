@@ -401,45 +401,36 @@
       </div>
 
       <div id="mode-riven" class="hidden">
-        <div class="riven-columns-container" style="display:flex; gap:20px; align-items:flex-start;">
-          <div class="riven-left-col" style="flex:1;">
-            <div class="form-group">
-              <label id="lbl-riven-weapon">Arma del Riven</label>
+        <div class="form-group">
+          <label id="lbl-riven-weapon">Arma del Riven</label>
 
-              <div class="custom-search-container">
-                <input class="wf-input riven-input" type="text" id="rivenWeaponInput"
-                  placeholder="Ej: Bramma, Nikana..." onkeyup="handleRivenInput()" autocomplete="off" />
-                <div id="rivenDropdown" class="custom-dropdown hidden"></div>
+          <div class="custom-search-container">
+            <input class="wf-input riven-input" type="text" id="rivenWeaponInput" placeholder="Ej: Bramma, Nikana..."
+              onkeyup="handleRivenInput()" autocomplete="off" />
+            <div id="rivenDropdown" class="custom-dropdown hidden"></div>
 
-                <div id="riven-dispo-display" style="margin-top: 5px; font-size: 0.9em; color: #aaa"></div>
-              </div>
-
-              <div id="riven-avg-box" style="margin-top: 15px; display: none">
-                <span style="font-size: 0.8em; color: #bbb; text-transform: uppercase">Estimated base price</span><br />
-                <span id="riven-avg-value" class="riven-avg-val">...</span>
-                <span style="font-size: 0.8em">pl</span>
-              </div>
-
-              <div style="display: flex; gap: 10px; margin-top: 20px">
-                <button class="riven-btn" id="btn-riven-search" onclick="openRivenMarket()" style="flex: 1; margin: 0">
-                  BUSCAR PRECIO
-                </button>
-
-                <button class="riven-btn" onclick="openGradingModal()" style="
-                      flex: 1;
-                      margin: 0;
-                      background: linear-gradient(135deg, #d4af37, #a08538);
-                      color: #000;
-                    ">
-                  GRADE RIVEN
-                </button>
-              </div>
-            </div>
+            <div id="riven-dispo-display" style="margin-top: 5px; font-size: 0.9em; color: #aaa"></div>
           </div>
 
-          <div class="riven-right-col" id="riven-preview-panel"
-            style="width: 150px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding-top: 10px;">
-            <!-- Weapon Image and Info will be rendered here by ui.js -->
+          <div id="riven-avg-box" style="margin-top: 15px; display: none">
+            <span style="font-size: 0.8em; color: #bbb; text-transform: uppercase">Estimated base price</span><br />
+            <span id="riven-avg-value" class="riven-avg-val">...</span>
+            <span style="font-size: 0.8em">pl</span>
+          </div>
+
+          <div style="display: flex; gap: 10px; margin-top: 20px">
+            <button class="riven-btn" id="btn-riven-search" onclick="openRivenMarket()" style="flex: 1; margin: 0">
+              BUSCAR PRECIO
+            </button>
+
+            <button class="riven-btn" onclick="openGradingModal()" style="
+                  flex: 1;
+                  margin: 0;
+                  background: linear-gradient(135deg, #d4af37, #a08538);
+                  color: #000;
+                ">
+              GRADE RIVEN
+            </button>
           </div>
         </div>
       </div>
