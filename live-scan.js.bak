@@ -188,7 +188,7 @@ export async function startLiveSession() {
       canvas.style.display = "block";
     }
 
-    if (!worker && window.Tesseract) {
+    if (!worker && globalThis.Tesseract) {
       worker = await Tesseract.createWorker();
       await worker.loadLanguage("eng");
       await worker.initialize("eng");
@@ -315,7 +315,7 @@ async function processFrame() {
       data: { text },
     } = await worker.recognize(virtualCanvas);
 
-    if (DEBUG_MODE) console.log("RAW OCR OUTPUT:", text.replace(/\n/g, " "));
+    if (DEBUG_MODE) console.log("RAW OCR OUTPUT:", text.replaceAll(/\n/g, " "));
 
     const foundItems = parseTextForItems(text);
 
@@ -367,7 +367,7 @@ async function openScanModal(imageUrl, items) {
   if (!modal || !imgEl || !badgesContainer) return;
 
   imgEl.src = imageUrl;
-  badgesContainer.innerHTML = "";
+  badgesContainer.textContent = "";
   modal.classList.remove("hidden");
 
   items.forEach(async (item, index) => {
@@ -392,7 +392,7 @@ function createModalBadge(name, price, container, index, total) {
   const slug = getSlug(name);
   const marketUrl = `https://warframe.market/items/${slug}`;
 
-  badge.innerHTML = `
+  badge.textContent = `
     <a href="${marketUrl}" target="_blank" style="text-decoration:none; color:inherit;">
         <div style="font-size:0.65em; color:#bbb; text-transform:uppercase; margin-bottom:4px; line-height:1.2; white-space:normal; overflow:visible; text-align:center; min-height:2.4em; display:flex; align-items:center; justify-content:center;">
             ${name}
@@ -406,7 +406,7 @@ function createModalBadge(name, price, container, index, total) {
   container.appendChild(badge);
 }
 
-window.closeScanModal = function () {
+globalThis.closeScanModal = function () {
   const modal = document.getElementById("scan-success-modal");
   if (modal) modal.classList.add("hidden");
   detectionLocked = false;
@@ -417,13 +417,13 @@ function parseTextForItems(rawText) {
 
   // 1. Limpieza y Normalización
   let cleanText = rawText.toUpperCase()
-    .replace(/[^A-Z]/g, " ")
-    .replace(/\s+/g, " ")
+    .replaceAll(/[^A-Z]/g, " ")
+    .replaceAll(/\s+/g, " ")
     .trim();
 
   // Separar palabras pegadas (LAVOSPRIME -> LAVOS PRIME)
-  cleanText = cleanText.replace(/([A-Z]+)(PRIME)/g, "$1 $2");
-  cleanText = cleanText.replace(/(PRIME)(CHASSIS|SYSTEMS|NEUROPTICS|BARREL|RECEIVER|BLUEPRINT|STOCK|GRIP|LINK)/g, "$1 $2");
+  cleanText = cleanText.replaceAll(/([A-Z]+)(PRIME)/g, "$1 $2");
+  cleanText = cleanText.replaceAll(/(PRIME)(CHASSIS|SYSTEMS|NEUROPTICS|BARREL|RECEIVER|BLUEPRINT|STOCK|GRIP|LINK)/g, "$1 $2");
 
   const ocrWords = cleanText.split(" ").filter(w => w.length > 0);
   
@@ -495,5 +495,5 @@ function parseTextForItems(rawText) {
 
   return finalResults;
 }
-window.startLiveSession = startLiveSession;
-window.stopLiveSession = stopLiveSession;
+globalThis.startLiveSession = startLiveSession;
+globalThis.stopLiveSession = stopLiveSession;
