@@ -382,69 +382,56 @@
       </div>
 
       <div id="mode-riven" class="hidden">
-        <div class="form-group">
-          <label id="lbl-riven-weapon">Arma del Riven</label>
+        <div class="riven-columns-container">
+          <div class="riven-left-col">
+            <div class="form-group">
+              <label id="lbl-riven-weapon">Arma del Riven</label>
 
-          <div class="custom-search-container">
-            <input class="wf-input riven-input" type="text" id="rivenWeaponInput" placeholder="Ej: Bramma, Nikana..."
-              onkeyup="handleRivenInput()" autocomplete="off" />
-            <div id="rivenDropdown" class="custom-dropdown hidden"></div>
+              <div class="custom-search-container">
+                <input class="wf-input riven-input" type="text" id="rivenWeaponInput"
+                  placeholder="Ej: Bramma, Nikana..." onkeyup="handleRivenInput()" autocomplete="off" />
+                <div id="rivenDropdown" class="custom-dropdown hidden"></div>
 
-            <div id="riven-dispo-display" style="margin-top: 5px; font-size: 0.9em; color: #aaa"></div>
+                <div id="riven-dispo-display" style="margin-top: 5px; font-size: 0.9em; color: #aaa"></div>
+              </div>
+
+              <div id="riven-avg-box" style="margin-top: 15px; display: none">
+                <span style="font-size: 0.8em; color: #bbb; text-transform: uppercase">Estimated base price</span><br />
+                <span id="riven-avg-value" class="riven-avg-val">...</span>
+                <span style="font-size: 0.8em"><img src="assets/relic_contents/platinum.webp" class="plat-icon"
+                    style="height:1em; vertical-align:middle;"></span>
+              </div>
+
+              <div style="display: flex; gap: 10px; margin-top: 20px">
+                <button class="riven-btn" id="btn-riven-search" onclick="openRivenMarket()" style="flex: 1; margin: 0">
+                  BUSCAR PRECIO
+                </button>
+
+                <button class="riven-btn" onclick="openGradingModal()" style="
+                      flex: 1;
+                      margin: 0;
+                      background: linear-gradient(135deg, #d4af37, #a08538);
+                      color: #000;
+                    ">
+                  GRADE RIVEN
+                </button>
+              </div>
+
+              <div id="riven-variants-carousel-section" style="margin-top: 25px; display: none;">
+                <h4
+                  style="margin-bottom: 15px; font-size: 0.9em; color: #888; text-transform: uppercase; letter-spacing: 1px;">
+                  VARIANTS
+                </h4>
+                <div id="riven-variants-carousel" class="variants-carousel-scroll"></div>
+              </div>
+            </div>
           </div>
 
-          <div id="riven-avg-box" style="margin-top: 15px; display: none">
-            <span style="font-size: 0.8em; color: #bbb; text-transform: uppercase">Estimated base price</span><br />
-            <span id="riven-avg-value" class="riven-avg-val">...</span>
-            <span style="font-size: 0.8em">pl</span>
-          </div>
-
-          <div style="display: flex; gap: 10px; margin-top: 20px">
-            <button class="riven-btn" id="btn-riven-search" onclick="openRivenMarket()" style="flex: 1; margin: 0">
-              BUSCAR PRECIO
-            </button>
-
-            <button class="riven-btn" onclick="openGradingModal()" style="
-                  flex: 1;
-                  margin: 0;
-                  background: linear-gradient(135deg, #d4af37, #a08538);
-                  color: #000;
-                ">
-              GRADE RIVEN
-            </button>
+          <div class="riven-right-col" id="riven-preview-panel">
           </div>
         </div>
       </div>
 
-      <div id="mode-profile" class="hidden">
-        <div class="form-group">
-          <label id="lbl-username">Nombre de Usuario (PC)</label>
-          <div style="display: flex; gap: 10px">
-            <input class="wf-input profile-input" type="text" id="usernameInput" disabled
-              placeholder="Ej: Parcialsobriedad // Does not work yet this may be a dead feature check by mr instead down below" />
-            <button class="ctrl-btn" style="
-                  background: var(--wf-blue);
-                  color: #000;
-                  font-weight: bold;
-                " onclick="/*fetchUserProfile()*/">
-              NOT WORKING
-            </button>
-          </div>
-          <small id="txt-mr-label" style="color: #666; margin-top: 5px; display: block">Si la API falla, calcula por
-            MR:</small>
-          <div style="
-                margin-top: 5px;
-                display: flex;
-                align-items: center;
-                gap: 10px;
-              ">
-            <label style="margin: 0; width: auto">MR:</label>
-            <input class="wf-input profile-input" type="number" id="mrInput" min="0" max="34" value="0"
-              style="width: 60px; padding: 5px" onchange="calculateCaps()" />
-          </div>
-        </div>
-        <div id="profile-data"></div>
-      </div>
       <div id="mode-lfg" class="hidden">
         <div class="form-group">
           <label id="lbl-lfg-activity">Actividad</label>
