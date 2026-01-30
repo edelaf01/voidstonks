@@ -1,191 +1,430 @@
-/* js/scanner.js - Versión Final Integrada */
-import { state, saveAppState, updateInventoryCount } from "./state.js";
+import { state, saveAppState, updateInventoryBatch } from "./state.js";
 import { showToast, toggleInventoryPanel, renderInventory } from "./ui.js";
 
+console.log(" [SCANNER] Script cargado correctamente.");
+let ocrWorker = null;
 let videoStream = null;
 let scannedInventory = [];
+let lastFrameData = null;
+let staticFrameCount = 0;
+const STATIC_THRESHOLD = 5;
+const processingCanvas = document.createElement("canvas");
+const processingCtx = processingCanvas.getContext("2d", {
+  willReadFrequently: true,
+});
 
-// --- ABRIR Y CERRAR ESCÁNER ---
 export async function openScanner() {
+  console.log(" [SCANNER] Abriendo escáner...");
   const overlay = document.getElementById("ocr-overlay");
-  overlay.classList.remove("hidden");
-  startCamera();
+  const loading = document.getElementById("ocr-loading");
+
+  if (loading) loading.classList.add("hidden");
+  if (overlay) overlay.classList.remove("hidden");
+
+  await startCamera();
 }
 
 export function closeScanner() {
+  console.log("[SCANNER] Cerrando escáner...");
+
   stopCamera();
-  document.getElementById("ocr-overlay").classList.add("hidden");
-  document.getElementById("scanned-results-panel").classList.add("hidden");
+
+  if (isInventoryScanning) {
+    finishInventoryScan();
+  }
+
+  const overlay = document.getElementById("ocr-overlay");
+  if (overlay) overlay.classList.add("hidden");
+
+  const resultsPanel = document.getElementById("scanned-results-panel");
+  if (resultsPanel) resultsPanel.classList.add("hidden");
 }
 
 async function startCamera() {
+  stopCamera();
+
   const video = document.getElementById("ocr-video");
+  if (!video) return console.error(" [SCANNER] No existe elemento #ocr-video");
+
   try {
-    // Pedir cámara trasera con buena resolución
     videoStream = await navigator.mediaDevices.getUserMedia({
-      video: {
-        facingMode: "environment",
-        width: { ideal: 1920 },
-        height: { ideal: 1080 },
-      },
+      video: { facingMode: "environment" },
     });
     video.srcObject = videoStream;
+    await video.play();
     video.classList.remove("hidden");
+    console.log(" [SCANNER] Cámara iniciada");
   } catch (e) {
-    console.warn(e);
-    showToast("Error: No se pudo acceder a la cámara.");
+    console.error(" [SCANNER] Error cámara:", e);
+    showToast("Error: Can't access camera.");
   }
 }
 
 function stopCamera() {
+  const video = document.getElementById("ocr-video");
+
   if (videoStream) {
-    videoStream.getTracks().forEach((t) => t.stop());
+    videoStream.getTracks().forEach((t) => {
+      t.stop();
+    });
     videoStream = null;
+  }
+
+  if (video) {
+    video.pause();
+    video.srcObject = null;
+    video.classList.add("hidden");
   }
 }
 
-// --- CAPTURA Y PROCESADO ---
 export async function captureRelics() {
+  console.log(" [SCANNER] Capturando...");
   const video = document.getElementById("ocr-video");
-  if (!videoStream || video.readyState < 2) {
+  if (!videoStream || video.readyState < 2 || video.videoWidth === 0) {
     return showToast("Cámara no lista...");
   }
   processImageSource(video);
 }
 
-export function handleFileUpload(input) {
-  if (input.files && input.files[0]) {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const img = new Image();
-      img.onload = () => processImageSource(img);
-      img.src = e.target.result;
-    };
-    reader.readAsDataURL(input.files[0]);
+export async function handleFileUpload(event) {
+  const files = Array.from(event.target.files);
+  if (files.length === 0) return;
+  console.log(` [SCANNER] Archivos subidos: ${files.length}`);
+  showToast(`Procesando ${files.length} imágenes...`);
+
+  for (const file of files) {
+    const img = new Image();
+    img.src = URL.createObjectURL(file);
+    await new Promise((resolve) => (img.onload = resolve));
+    await processImageSource(img);
   }
 }
 
 async function processImageSource(source) {
   const loading = document.getElementById("ocr-loading");
-  loading.classList.remove("hidden");
+  if (loading) loading.classList.remove("hidden");
 
-  // 1. Crear Canvas temporal
-  const canvas = document.createElement("canvas");
   const w = source.videoWidth || source.width;
   const h = source.videoHeight || source.height;
-  canvas.width = w;
-  canvas.height = h;
-  const ctx = canvas.getContext("2d");
-  ctx.drawImage(source, 0, 0, w, h);
 
-  // 2. Filtro de Imagen (Inversión Suave)
-  const imageData = ctx.getImageData(0, 0, w, h);
-  const data = imageData.data;
-  for (let i = 0; i < data.length; i += 4) {
-    // Invertir colores (Warframe: Texto Blanco -> Negro para Tesseract)
-    // Usamos una media simple para pasar a gris e invertimos
-    const gray =
-      255 - (data[i] * 0.3 + data[i + 1] * 0.59 + data[i + 2] * 0.11);
-    data[i] = data[i + 1] = data[i + 2] = gray;
+  if (w < 10 || h < 10) {
+    console.warn(`[SCANNER] Imagen ignorada por tamaño incorrecto: ${w}x${h}`);
+    if (loading) loading.classList.add("hidden");
+    showToast("Error: Imagen demasiado pequeña o inválida.");
+    return;
   }
-  ctx.putImageData(imageData, 0, 0);
 
-  // 3. OCR con Tesseract
+  if (processingCanvas.width !== w) processingCanvas.width = w;
+  if (processingCanvas.height !== h) processingCanvas.height = h;
+
+  processingCtx.drawImage(source, 0, 0, w, h);
+
+  const imageData = processingCtx.getImageData(0, 0, w, h);
+  const data = imageData.data;
+
+  for (let i = 0; i < data.length; i += 4) {
+    const gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+    const contrast = gray > 100 ? 255 : 0;
+    data[i] = data[i + 1] = data[i + 2] = contrast;
+  }
+  processingCtx.putImageData(imageData, 0, 0);
+
   try {
+    if (!globalThis.Tesseract)
+      throw new Error("Librería Tesseract no cargada en index.html");
+
+    console.log(" [SCANNER] Iniciando reconocimiento OCR...");
+
     const {
       data: { text },
-    } = await window.Tesseract.recognize(canvas, "eng", {
-      tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 ",
+    } = await globalThis.Tesseract.recognize(processingCanvas, "eng", {
+      tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789[] ",
     });
+
+    console.log("[SCANNER] Texto crudo detectado:", text);
 
     const found = parseRelicText(text);
 
     if (found.length > 0) {
-      // Añadir a lista temporal
+      console.log("[SCANNER] Reliquias válidas encontradas:", found);
+
       found.forEach((item) => {
         if (!scannedInventory.includes(item)) scannedInventory.push(item);
       });
+
       updateResultsUI();
-      showToast(`🔍 ${found.length} reliquias encontradas`);
+
+      const resultsPanel = document.getElementById("scanned-results-panel");
+      if (resultsPanel) resultsPanel.classList.remove("hidden");
+
+      showToast(`¡${found.length} detected!`);
     } else {
-      showToast("No se detectó texto claro. Intenta acercarte.");
+      console.warn(" [SCANNER] No se detectó patrón de reliquia.");
+      showToast("NO RELICS DETECTED TRY AGAIN.");
     }
   } catch (e) {
-    console.error(e);
-    showToast("Error en el reconocimiento.");
+    console.error(" [SCANNER] Error OCR:", e);
+    showToast("SCANNER ERROR TRY AGAIN.");
   } finally {
-    loading.classList.add("hidden");
+    if (loading) loading.classList.add("hidden");
   }
 }
 
-// --- PARSEO DE TEXTO ---
+const RELIC_REGEX = /(LITH|MESO|NEO|AXI|REQUIEM)\s*([A-Z][0-9]+)/g;
+
 function parseRelicText(text) {
-  const clean = text.replace(/\n/g, " ").toUpperCase();
-  const regex = /(LITH|MESO|NEO|AXI|REQUIEM)\s+([A-Z][0-9]+)/g;
+  let clean = text.replaceAll(/\n/g, " ").toUpperCase();
+
+  clean = clean.replaceAll(/\[.*?\]/g, "");
+  clean = clean.replaceAll(/\bRADIANT\b/g, "");
+  clean = clean.replaceAll(/\bRELIC\b/g, "");
+
+  clean = clean.replaceAll(/\s+/g, " ").trim();
+
+  RELIC_REGEX.lastIndex = 0;
+
   const found = new Set();
   let m;
-  while ((m = regex.exec(clean)) !== null) {
-    // Normalizar: "LITH G1"
+  while ((m = RELIC_REGEX.exec(clean)) !== null) {
     const tier = m[1].charAt(0) + m[1].slice(1).toLowerCase();
-    found.add(`${tier} ${m[2]}`);
+    const name = m[2];
+    found.add(`${tier} ${name}`);
   }
   return Array.from(found);
 }
 
-// --- UI DE RESULTADOS ---
-export function toggleScannedList(forceOpen = false) {
+export function toggleScannedList() {
   const panel = document.getElementById("scanned-results-panel");
-  if (forceOpen) panel.classList.remove("hidden");
-  else panel.classList.toggle("hidden");
+  if (panel) panel.classList.toggle("hidden");
+}
+
+export function clearScannedList() {
+  console.log("[SCANNER] Limpiando lista temporal");
+  scannedInventory = [];
+  updateResultsUI();
+  const panel = document.getElementById("scanned-results-panel");
+  if (panel) panel.classList.add("hidden");
 }
 
 function updateResultsUI() {
   const list = document.getElementById("scanned-list");
   const badge = document.getElementById("scanned-badge");
+  const countLabel = document.getElementById("scanned-total-count");
 
   if (badge) {
     badge.innerText = scannedInventory.length;
-    badge.classList.remove("hidden");
+    badge.classList.toggle("hidden", scannedInventory.length === 0);
   }
+  if (countLabel) countLabel.innerText = scannedInventory.length;
 
-  list.innerHTML = "";
-  scannedInventory.forEach((r) => {
-    const d = document.createElement("div");
-    d.className = "scanned-item-card";
-    d.innerHTML = `<span style="color:#fff; font-weight:bold;">${r}</span>`;
-    list.appendChild(d);
-  });
-
-  toggleScannedList(true); // Abrir cajón automáticamente
+  if (list) {
+    list.textContent = "";
+    if (scannedInventory.length === 0) {
+      list.textContent =
+        "<div style='color:#888; text-align:center'>Lista vacía</div>";
+      return;
+    }
+    scannedInventory.forEach((r) => {
+      const d = document.createElement("div");
+      d.className = "scanned-item-card";
+      d.textContent = `<strong>${r}</strong>`;
+      list.appendChild(d);
+    });
+  }
 }
 
 export function confirmScanResults() {
-  if (scannedInventory.length === 0) return;
+  if (scannedInventory.length === 0) return showToast("Lista vacía");
 
-  let addedCount = 0;
-
-  // Procesar cada reliquia escaneada
-  scannedInventory.forEach((relicName) => {
-    updateInventoryCount(relicName, 1); // Sumar 1 por cada detección
-    addedCount++;
-  });
-
+  updateInventoryBatch(scannedInventory);
   saveAppState();
-  renderInventory();
 
-  showToast(`✅ ${addedCount} reliquias añadidas/actualizadas.`);
-
-  // Limpiar
+  const capturedCount = scannedInventory.length;
   scannedInventory = [];
+  updateResultsUI();
+
   closeScanner();
-  toggleInventoryPanel(true); // Mostrar el panel actualizado
+
+  console.log(" Abriendo panel de inventario...");
+  renderInventory();
+  toggleInventoryPanel(true);
+
+  showToast(` ${capturedCount} relics saved`);
 }
-// EXPORTAR A WINDOW PARA EL HTML
-Object.assign(window, {
+
+let inventoryStream = null;
+let inventoryInterval = null;
+let sessionRelics = new Set();
+let isInventoryScanning = false;
+
+export async function startInventoryScrollScan() {
+  try {
+    showToast("🚀 INITIALIZING OCR ENGINE...");
+
+    if (!ocrWorker) {
+      ocrWorker = await globalThis.Tesseract.createWorker("eng", 1, {
+        workerPath: "js/worker.min.js",
+        corePath: "js/tesseract-core.wasm.js",
+        langPath: "js/",
+        gzip: false,
+        logger: (m) => console.log(m),
+      });
+
+      await ocrWorker.setParameters({
+        tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789[] ",
+        tessedit_pageseg_mode: globalThis.Tesseract.PSM.SPARSE_TEXT,
+      });
+    }
+
+    inventoryStream = await navigator.mediaDevices.getDisplayMedia({
+      video: { cursor: "never" },
+      audio: false,
+    });
+
+    const videoTrack = inventoryStream.getVideoTracks()[0];
+    const video = document.createElement("video");
+    video.srcObject = inventoryStream;
+    video.play();
+
+    sessionRelics.clear();
+    lastFrameData = null;
+    staticFrameCount = 0;
+    isInventoryScanning = true;
+
+    showToast("⚡ READY. SCROLL SLOWLY AND STEADILY.");
+
+    const scanLoop = async () => {
+      if (!isInventoryScanning) return;
+
+      if (video.readyState === 4) {
+        await processInventoryFrame(video);
+      }
+
+      requestAnimationFrame(scanLoop);
+    };
+
+    scanLoop();
+
+    videoTrack.onended = () => {
+      finishInventoryScan();
+    };
+  } catch (err) {
+    console.error("Error al iniciar:", err);
+    showToast("Error: " + err.message);
+  }
+}
+
+async function processInventoryFrame(videoSource) {
+  const w = videoSource.videoWidth;
+  const h = videoSource.videoHeight;
+  if (w < 10 || h < 10) return;
+
+  const scale = 0.8;
+
+  if (processingCanvas.width !== w * scale) processingCanvas.width = w * scale;
+  if (processingCanvas.height !== h * scale)
+    processingCanvas.height = h * scale;
+
+  processingCtx.drawImage(videoSource, 0, 0, w * scale, h * scale);
+
+  const imageData = processingCtx.getImageData(0, 0, w * scale, h * scale);
+  const data = imageData.data;
+
+  if (lastFrameData && lastFrameData.length === data.length) {
+    let diff = 0;
+    for (let i = 0; i < data.length; i += 400) {
+      if (Math.abs(data[i] - lastFrameData[i]) > 40) diff++;
+    }
+    if (diff < 20) {
+      staticFrameCount++;
+      if (staticFrameCount > 20) {
+        isInventoryScanning = false;
+        if (confirm("Escaneo detenido por inactividad. ¿Finalizar?"))
+          finishInventoryScan();
+        else startInventoryScrollScan();
+      }
+      return;
+    }
+    staticFrameCount = 0;
+  }
+  lastFrameData = new Uint8ClampedArray(data);
+
+  for (let i = 0; i < data.length; i += 4) {
+    const gray = (data[i] + data[i + 1] + data[i + 2]) / 3;
+    const val = gray > 110 ? 0 : 255;
+    data[i] = data[i + 1] = data[i + 2] = val;
+  }
+  processingCtx.putImageData(imageData, 0, 0);
+
+  try {
+    const {
+      data: { text },
+    } = await ocrWorker.recognize(processingCanvas);
+
+    const found = parseRelicText(text);
+    let newCount = 0;
+
+    found.forEach((relic) => {
+      if (!sessionRelics.has(relic)) {
+        sessionRelics.add(relic);
+        scannedInventory.push(relic);
+        newCount++;
+      }
+    });
+
+    if (newCount > 0) {
+      console.log(`⚡ +${newCount} | Total: ${sessionRelics.size}`);
+      updateResultsUI();
+    }
+  } catch (e) {
+    console.warn("OCR Error:", e);
+  }
+}
+function detectScreenChange(prevData, currData) {
+  if (prevData.length !== currData.length) return true;
+
+  let diffPixels = 0;
+
+  for (let i = 0; i < currData.length; i += 100) {
+    if (Math.abs(prevData[i] - currData[i]) > 30) {
+      diffPixels++;
+    }
+  }
+
+  return diffPixels > 50;
+}
+export async function finishInventoryScan() {
+  isInventoryScanning = false;
+  if (inventoryStream) {
+    inventoryStream.getTracks().forEach((t) => t.stop());
+  }
+
+  if (ocrWorker) {
+    await ocrWorker.terminate();
+    ocrWorker = null;
+  }
+
+  const resultsPanel = document.getElementById("scanned-results-panel");
+  const overlay = document.getElementById("ocr-overlay");
+  const stopBtn = document.getElementById("manual-stop-btn");
+
+  if (stopBtn) stopBtn.classList.add("hidden");
+  if (overlay) overlay.classList.add("hidden");
+  if (resultsPanel) resultsPanel.classList.remove("hidden");
+
+  showToast(`🏁 FINISHED. ${sessionRelics.size} RELICS FOUND.`);
+}
+
+const globalFuncs = {
   openScanner,
   closeScanner,
   captureRelics,
   handleFileUpload,
   toggleScannedList,
+  clearScannedList,
   confirmScanResults,
-});
+  startInventoryScrollScan,
+  finishInventoryScan,
+};
+
+Object.assign(window, globalFuncs);

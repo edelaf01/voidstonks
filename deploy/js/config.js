@@ -1,5 +1,224 @@
 export const WORKER_URL = "https://wf-tool-proxy-worker.edelamf0.workers.dev/";
+export const APP_VERSION = 1.7;
+export const UPDATE_HISTORY_CONTENT = `
+<div class="update-block">
+  <div class="update-header">
+    <span class="update-version">v1.7.0 (Current)</span>
+    <span class="update-date">2026-01-30</span>
+  </div>
+  <ul class="update-list">
+    <li>
+      <strong>UI & Visual Overhaul:</strong> A fresh new interface with images everywhere (huge thanks to the WFCD team!) and improved layout for better readability.
+    </li>
+    <li>
+      <strong>Relics & Sets Upgrade:</strong> Added clearer action buttons, a new "Add to Inventory" feature, Ducat values, and statistics (like avg. ducats per relic).
+    </li>
+    <li>
+      <strong>Set Intuition:</strong> Clicking on a Prime component now visually displays your progress toward completing that specific weapon or frame set.
+    </li>
+    <li>
+      <strong>Riven Features:</strong> A cleaner, carousel-based design for variants (try searching "Cernos"!). Added visible Price (PL), Disposition, <strong>crafting recipes, and direct Wiki links.</strong>
+    </li>
+    <li>
+      <strong>New "Prime Inventory":</strong> A dedicated tab to track your loot and access market data. Features "Smart Logic" that understands complex sets (e.g., distinguishing when a set needs 2x of a part).
+    </li>
+    <li>
+      <strong>Performance:</strong> Major backend optimizations and speed improvements for both the app and the scanner.
+    </li>
+    <li>
+      <em><strong>Note:</strong> This update grew massive! Moving forward, I plan to release smaller updates on a weekly basis.</em>
+    </li>
+  </ul>
+</div>
+<div class="update-block old">
+  <div class="update-header">
+    <span class="update-version">v1.4.1</span>
+    <span class="update-date">2026-01-20</span>
+  </div>
+  <ul class="update-list">
+    <li>
+      <strong>Fixed relic overlay scan:</strong> There was a backend error and it showed debug settings by showing screen its fixed now.
+    </li>
+  </ul>
+</div>
+<div class="update-block old">
+  <div class="update-header">
+    <span class="update-version">v1.4.0 </span>
+    <span class="update-date">2026-01-20</span>
+  </div>
+  <ul class="update-list">
+    <li>
+      <strong>New Farms Tab:</strong> The Profile section has been removed and replaced with the Farms tab. This tab currently features curated syndicate missions from Open Worlds, including 1999, Zariman, and Cavia.
+    </li>
+    <li>
+      <strong>Tab Roadmap:</strong> Future updates will integrate alerts and additional functionalities into the Farms section to provide a more comprehensive tracking tool.
+    </li>
+    <li>
+      <strong>Code Quality & Optimization:</strong> Significant refactoring to improve general code readability and internal performance optimizations.
+    </li>
+    <li>
+      <strong>Mobile UI Improvements:</strong> Fixed several issues related to the mobile user interface. I apologize for any display errors or difficulty navigating the app on mobile devices during recent days.
+    </li>
+    <li>
+      <strong>Deployment Stability:</strong> Moving forward, a dedicated development server will be implemented for testing updates before they are deployed to the live environment to prevent app instability.
+    </li>
+  </ul>
+</div>
+<div class="update-block old">
+  <div class="update-header">
+    <span class="update-version">v1.3.0 and v1.3.1 </span>
+    <span class="update-date">2026-01-18</span>
+  </div>
+  <ul class="update-list">
 
+    <li>
+      <strong>Mobile AR Scanner (BETA):</strong> You can now point your phone's camera at the screen (relics/inventory) to instantly fetch prices. <em>Note: This is an experimental feature, so bugs or recognition errors may occur.</em>
+    </li>
+    <li>
+      <strong>Maintenance & Refactoring:</strong> Various internal fixes and code cleanup. I am improving the app's maintainability to ensure faster and better development for future updates.
+    </li>
+    <li>
+      <strong>Feedback & Roadmap:</strong> Working on several other features requested through suggestions. Thanks for the feedback!
+    </li>
+  </ul>
+</div>
+<div class="update-block old">
+  <div class="update-header">
+    <span class="update-version">v1.2.4 (Current)</span>
+    <span class="update-date">2026-01-14</span>
+  </div>
+  <ul class="update-list">
+    <li>
+      <strong>Bug Fix:</strong> Fixed an annoyance where clicking on any tab would incorrectly toggle/close the relic inventory panel. Thanks for the bug report!
+    </li>
+    <li>
+      <strong>Dev Diary (Console OCR):</strong> Progress on Live OCR using the phone as an overlay for consoles. Currently at ~70% reliability; aiming for >90% and hardening scan logic before release.
+    </li>
+  </ul>
+</div>
+
+<div class="update-block old">
+  <div class="update-header">
+    <span class="update-version">v1.2.3</span>
+    <span class="update-date">2026-01-10</span>
+  </div>
+  <ul class="update-list">
+    <li>
+      <strong>Small fixes:</strong> Fixes on relic scan now it should cover more cases and correctly recognize more parts, there may be some bugs.
+    </li>
+    <li>
+      <strong>Dev Note:</strong> Should be getting a kind of overlay for consoles in a bit (soonish) using the phone as an overlay.
+    </li>
+  </ul>
+</div>
+
+<div class="update-block old">
+ <div class="update-header">
+  <span class="update-version">v1.2.1 and 1.2.2</span>
+    <span class="update-date">2026-01-07</span>
+  </div>
+  <ul class="update-list">
+      <li>
+      <strong>Small fixes:</strong> Fixes towards optimization and small translation errors
+    </li>
+    <li>
+      <strong>Mobile UI fixes:</strong> Broke stuff fixed it now
+    </li>
+    <li>
+      <strong>EXPORT/IMPORT RELIC INVENTORY ADDED:</strong> IF YOU GO THROUGH THE HASSLE OF SCANNING MANUALLY ADDING YOUR RELIC INVENTORY YOU CAN NOW EXPORT YOUR RELIC PROGRESS AND IMPORT LATER ON
+    </li>
+    <li><strong>Worker optimizations</strong> </li>
+    <li><em>Coming soon: Automatic inventory scan via screen recording, half implemented it works bad</em></li>
+    <li><em>Inventory scan now can be done inserting multiple photos, mobile scan is broken at the moment so a fix is pending.</em></li>
+  </ul>
+</div>
+
+<div class="update-block old">
+ <div class="update-header">
+    <span class="update-version">v1.2.0</span>
+    <span class="update-date">2026-01-05</span>
+  </div>
+  <ul class="update-list">
+    <li>
+      <strong>Riven Grading:</strong> New dedicated modal to calculate Riven
+      quality.
+    </li>
+    <li>
+      <strong>UI Overhaul:</strong> Improved styling for the Relics tab and
+      overall interface elements.
+    </li>
+    <li><strong>Bug Fix:</strong> Vaulted/not vaulted logic fixed</li>
+    <li><em>Coming soon: Automatic Riven grading via photo scan!</em></li>
+    <li><em>Added this update notice just today :P</em></li>
+  </ul>
+</div>
+
+<div class="update-block old">
+  <div class="update-header">
+    <span class="update-version">v1.1.5 (Beta)</span>
+    <span class="update-date">2026-01-04</span>
+  </div>
+  <ul class="update-list">
+    <li>
+      <strong>Live Reward Scanner (BETA):</strong> New OCR feature to scan
+      mission rewards in real-time. Expect potential bugs as it is currently in
+      testing.
+    </li>
+    <li>
+      <strong>New feature Vaulted/Not vaulted relics:</strong> Vaulted/not vaulted logic added
+    </li>
+    <li>
+      <strong>Mobile Optimization:</strong> Significant UI improvements for
+      better navigation on mobile devices.
+    </li>
+  </ul>
+</div>
+
+<div class="update-block old">
+  <div class="update-header">
+    <span class="update-version">v1.1.0</span>
+    <span class="update-date">2025-12-30</span>
+  </div>
+  <ul class="update-list">
+    <li>
+      <strong>Inventory Scanner:</strong> Use your phone's camera to scan and
+      add relics to your inventory automatically.
+    </li>
+    <li>
+      <strong>Cloud Sync:</strong> Added a new clipboard synchronization tool
+      (cloud icon) to transfer lfg text between devices instantly.
+    </li>
+    <li>
+      <strong>Side Panels:</strong> Added toggle buttons to easily show or hide
+      the Relic Inventory and Recommended Fissures.
+    </li>
+    <li>
+      <strong>Graphics:</strong> General visual enhancements across all tabs.
+    </li>
+  </ul>
+</div>
+
+<div class="update-block old">
+  <div class="update-header">
+    <span class="update-version">v1.0.0</span>
+    <span class="update-date">2025-12-28</span>
+  </div>
+  <ul class="update-list">
+    <li>
+      <strong>LFG Message Generator:</strong> Create professional recruitment
+      messages for chat with one click.
+    </li>
+    <li>
+      <strong>Market Integration:</strong> Real-time price fetching for Prime
+      parts and sets directly from Warframe Market.
+    </li>
+    <li>
+      <strong>Basic Database:</strong> Initial support for all currently active
+      Relics and Prime items.
+    </li>
+  </ul>
+</div>
+`;
 export const TIER_URLS = {
   Lith: "https://wiki.warframe.com/images/LithRelicIntact.png?ee7d7",
   Meso: "https://wiki.warframe.com/images/MesoRelicIntact.png?a9b4a",
@@ -8,19 +227,15 @@ export const TIER_URLS = {
   Requiem: "https://wiki.warframe.com/images/RequiemRelicIntact.png?03821",
 };
 
-export const WEAPON_SOURCES = [
-  "https://cdn.jsdelivr.net/gh/WFCD/warframe-items@master/data/json/Primary.json",
-  "https://cdn.jsdelivr.net/gh/WFCD/warframe-items@master/data/json/Secondary.json",
-  "https://cdn.jsdelivr.net/gh/WFCD/warframe-items@master/data/json/Melee.json",
-  "https://cdn.jsdelivr.net/gh/WFCD/warframe-items@master/data/json/Arch-Gun.json",
-];
 export const DROP_CHANCES = {
   Intact: { rare: 0.02, uncommon: 0.22, common: 0.76 },
   Exceptional: { rare: 0.04, uncommon: 0.26, common: 0.7 },
   Flawless: { rare: 0.06, uncommon: 0.34, common: 0.6 },
   Rad: { rare: 0.1, uncommon: 0.4, common: 0.5 },
 };
+
 export const RIVEN_STATS = [
+  // --- BÁSICOS ---
   { slug: "critical_chance", name_en: "Crit Chance", name_es: "Prob. Crítica" },
   { slug: "critical_damage", name_en: "Crit Damage", name_es: "Daño Crítico" },
   { slug: "multishot", name_en: "Multishot", name_es: "Multidisparo" },
@@ -35,31 +250,168 @@ export const RIVEN_STATS = [
     name_es: "Cadencia / Vel. Ataque",
   },
   { slug: "status_chance", name_en: "Status Chance", name_es: "Prob. Estado" },
+  {
+    slug: "status_duration",
+    name_en: "Status Duration",
+    name_es: "Duración de Estado",
+  },
+
+  // --- ELEMENTALES ---
   { slug: "toxin_damage", name_en: "Toxin", name_es: "Toxina" },
   { slug: "heat_damage", name_en: "Heat", name_es: "Calor" },
   { slug: "electric_damage", name_en: "Electric", name_es: "Electricidad" },
   { slug: "cold_damage", name_en: "Cold", name_es: "Frío" },
+
+  // --- FÍSICOS ---
+  { slug: "impact_damage", name_en: "Impact", name_es: "Impacto" },
+  { slug: "puncture_damage", name_en: "Puncture", name_es: "Perforación" },
+  { slug: "slash_damage", name_en: "Slash", name_es: "Cortante" },
+
+  // --- UTILIDAD ARMAS DE FUEGO ---
   { slug: "weapon_recoil", name_en: "Recoil", name_es: "Retroceso" },
-  { slug: "range", name_en: "Range", name_es: "Alcance" },
-  { slug: "magazine_capacity", name_en: "Magazine Cap", name_es: "Cargador" },
+  {
+    slug: "magazine_capacity",
+    name_en: "Magazine Capacity",
+    name_es: "Capacidad Cargador",
+  },
+  { slug: "ammo_maximum", name_en: "Ammo Maximum", name_es: "Munición Máxima" },
   { slug: "reload_speed", name_en: "Reload Speed", name_es: "Vel. Recarga" },
   {
-    slug: "damage_vs_grineer",
-    name_en: "Dmg Grineer",
-    name_es: "Daño Grineer",
+    slug: "projectile_flight_speed",
+    name_en: "Projectile Speed",
+    name_es: "Vel. Proyectil",
   },
-  { slug: "damage_vs_corpus", name_en: "Dmg Corpus", name_es: "Daño Corpus" },
+  { slug: "punch_through", name_en: "Punch Through", name_es: "Atravesar" },
+  { slug: "zoom", name_en: "Zoom", name_es: "Zoom" },
+
+  // --- MELEE ESPECÍFICOS  ---
+  { slug: "range", name_en: "Range", name_es: "Alcance (Rango)" },
+  { slug: "initial_combo", name_en: "Initial Combo", name_es: "Combo Inicial" },
+  {
+    slug: "combo_duration",
+    name_en: "Combo Duration",
+    name_es: "Duración de Combo",
+  },
+  {
+    slug: "chance_to_gain_extra_combo_count",
+    name_en: "Chance not to gain Combo",
+    name_es: "Prob. Combo Extra",
+  },
+  {
+    slug: "critical_chance_on_slide_attack",
+    name_en: "Slide Attack Critical Chance",
+    name_es: "Crit en Deslizamiento",
+  },
+  {
+    slug: "heavy_attack_efficiency",
+    name_en: "Heavy Attack Efficiency",
+    name_es: "Eficiencia Ataque Pesado",
+  },
+  {
+    slug: "finisher_damage",
+    name_en: "Finisher Damage",
+    name_es: "Daño de Remate",
+  },
+
+  // --- FACCIONES ---
+  {
+    slug: "damage_vs_grineer",
+    name_en: "Damage to Grineer",
+    name_es: "Daño a Grineer",
+  },
+  {
+    slug: "damage_vs_corpus",
+    name_en: "Damage to Corpus",
+    name_es: "Daño a Corpus",
+  },
   {
     slug: "damage_vs_infested",
-    name_en: "Dmg Infested",
-    name_es: "Daño Infestado",
+    name_en: "Damage to Infested",
+    name_es: "Daño a Infestados",
   },
 ];
+export const WEAPON_TYPE_IDX = {
+  Rifle: 0,
+  Sniper: 0,
+  Bow: 0,
+  Launcher: 0,
+  Sentinel: 0,
+  Shotgun: 1,
+  Pistol: 2,
+  "Dual Pistols": 2,
+  Thrown: 2,
+  Melee: 3,
+  Zaw: 3,
+  Glaive: 3,
+  Archgun: 4,
+};
 
+export const RIVEN_BASE_STATS = {
+  // --- ESTADÍSTICAS OFENSIVAS ---
+  "Critical Chance": [16.7, 10, 16.7, 20, 11.1],
+  "Critical Damage": [13.3, 10, 10, 10, 8.9],
+  "Status Chance": [10, 10, 10, 10, 6.7],
+  "Status Duration": [11.1, 11.1, 11.1, 11.1, 11.1],
+  Damage: [18.3, 18.3, 24.4, 18.3, 11.1],
+  Multishot: [10, 13.3, 13.3, 0, 6.7],
+  "Fire Rate": [6.7, 10, 8.3, 0, 6.7],
+  "Attack Speed": [0, 0, 0, 6.1, 0],
+
+  // --- ELEMENTALES & FÍSICOS ---
+  Electric: [10, 10, 10, 10, 13.3],
+  Toxin: [10, 10, 10, 10, 13.3],
+  Heat: [10, 10, 10, 10, 13.3],
+  Cold: [10, 10, 10, 10, 13.3],
+  Impact: [13.3, 13.3, 13.3, 13.3, 10],
+  Puncture: [13.3, 13.3, 13.3, 13.3, 10],
+  Slash: [13.3, 13.3, 13.3, 13.3, 10],
+
+  // --- UTILIDAD / MUNICIÓN ---
+  "Ammo Maximum": [5.5, 10, 10, 0, 11.1],
+  "Magazine Capacity": [5.5, 5.5, 5.5, 0, 6.7],
+  "Reload Speed": [5.5, 5.5, 5.5, 0, 11.1],
+  "Projectile Speed": [10, 10, 10, 0, 11.1],
+  Zoom: [6.7, 0, 8.9, 0, 6.7],
+  "Punch Through": [0.3, 0.3, 0.3, 0, 0.3],
+  Recoil: [-10, -10, -10, 0, -10],
+
+  // --- MELEE ESPECÍFICOS ---
+  Range: [0, 0, 0, 0.21, 0],
+  "Combo Duration": [0, 0, 0, 0.9, 0],
+  "Initial Combo": [0, 0, 0, 2.7, 0],
+  "Chance not to gain Combo": [0, 0, 0, 6.5, 0],
+  "Slide Attack Critical Chance": [0, 0, 0, 13.3, 0],
+  "Finisher Damage": [0, 0, 0, 13.3, 0],
+  "Heavy Attack Efficiency": [0, 0, 0, 8.2, 0],
+
+  // --- FACCIONES ---
+  "Damage to Grineer": [5, 5, 5, 5, 5],
+  "Damage to Corpus": [5, 5, 5, 5, 5],
+  "Damage to Infested": [5, 5, 5, 5, 5],
+};
+
+// (Buffs vs Curses)
+export const RIVEN_WEIGHTS = {
+  "2-0": { buff: 0.99, curse: 0 },
+  "2-1": { buff: 1.2375, curse: 0.495 },
+  "3-0": { buff: 0.75, curse: 0 },
+  "3-1": { buff: 0.9375, curse: 0.75 },
+};
 export const TEXTS = {
   es: {
+    lblCondition: "Condición:",
+    lblEndsIn: "Termina en:",
+    btnViewDrops: "VER RECOMPENSAS",
+    ayaTags: {
+      best: "AYA: ARTEFACTO (MEJOR)",
+      fast: "AYA: CAPTURA (RÁPIDA)",
+      runnable: "AYA: RESCATE (PASABLE)",
+      generic: "AYA: TIER 5 (BUSCAR EN TIENDAS)",
+    },
+    menuBounties: "Farms",
+    lblFastFarms: "Misiones Rápidas Activas",
     inventory: {
-      title: "Mi Inventario",
+      title: "Inventario",
       empty: "Inventario vacío. Usa el escáner.",
       searchPlaceholder: "Filtrar (Ej: G1)...",
       sort: {
@@ -72,6 +424,8 @@ export const TEXTS = {
         clear: "Borrar Todo",
         deleteConfirm: "¿Seguro que quieres borrar todo el inventario?",
       },
+      lblTotalValue: "VALOR TOTAL ESTIMADO",
+      confirmDeleteSet: "¿Borrar set completo?",
     },
     ocr: {
       cameraTitle: "Escáner de Reliquias",
@@ -86,7 +440,7 @@ export const TEXTS = {
     },
     lfgPresets: {
       title: "Mensajes Guardados",
-      btnSave: "GUARDAR PRESET",
+      btnSave: "Save preset",
       placeholder: "Nombre (ej: Eidolon 5x3)",
       empty: "No hay presets guardados.",
       deleteConfirm: "¿Borrar este preset?",
@@ -125,9 +479,15 @@ export const TEXTS = {
         "Usa esto para pasar textos (LFG, Compras) del Móvil al PC/Consola sin escribir.",
       placeholder: "Ej: 1234",
     },
+    msgNoBountiesTitle: "Sin misiones óptimas activas.",
+    msgNoBountiesDesc:
+      "No hay Exterminios T4/T5 ni cazas de Ángel disponibles en este ciclo.",
+
+    fastFarmGuide:
+      "Solo muestra contratos T4/T5 con objetivos rápidos (Exterminio, Ángel, <6min).",
     manualAdd: "Añadir al Inventario",
     addGuide:
-      "ℹ️ Dos formas de añadir: Manualmente (botón +) o Escáner (Cámara). Las fotos se procesan 100% local en tu dispositivo.",
+      "ℹ Dos formas de añadir: Manualmente (botón +) o Escáner (Cámara). Las fotos se procesan 100% local en tu dispositivo.",
     lblProfit: "Rentabilidad (Media)",
     lblProfitSolo: "Rentabilidad (Solo)",
     lblProfitSquad: "Rentabilidad ({n} Jugadores)",
@@ -164,12 +524,11 @@ export const TEXTS = {
     lblRivenS: "Estadísticas (Opcional)",
     headerTitle: "VOIDSTONKS",
     headerSub: "Optimización de Farm y Reclutamiento",
-    lblProfit: "Rentabilidad (Media)",
     lblContent: "Contenido:",
     footerData: "Datos provistos por:",
     contactLabel: "¿Tienes ideas para mejorar la app?",
     contactLink: "w/Parcialsobriedad",
-    rivenSearch: "🔎 BUSCAR PRECIO",
+    rivenSearch: " BUSCAR PRECIO",
     refs: {
       rad: "Radiante",
       intact: "Intact",
@@ -178,7 +537,7 @@ export const TEXTS = {
     },
     rarityAbbr: { common: "C", uncommon: "PC", rare: "R" },
     trackerTitle: "Progreso del Set",
-    markDone: "✅ Ya lo tengo",
+    markDone: "Ya lo tengo",
     markUndo: "Desmarcar",
     lblUser: "Nombre de Usuario (PC)",
     btnCheck: "Check",
@@ -188,11 +547,13 @@ export const TEXTS = {
     disclaimer:
       "VoidStonks no está afiliado, respaldado ni patrocinado por Digital Extremes Ltd.Warframe™ es una marca registrada de Digital Extremes Ltd.",
     lblRelicFor: "Reliquias para: ",
+    lblRivenPos: "+ Estadísticas",
     lblRivenNeg: "- Negativa (Opcional)",
     lblMrCalc: "Si la API falla, calcula por MR:",
     lblLfgActivity: "Actividad",
     lblLfgPlayers: "Jugadores Necesarios",
     tooltips: {
+      tabBounties: "Ver contratos rápidos activos (Zariman, Cavia, 1999).",
       netra:
         "Requiere: Rango 5 con Cavia. Misión de alta dificultad. 5 intentos semanales.",
       temporal:
@@ -255,8 +616,18 @@ export const TEXTS = {
     },
   },
   en: {
+    condSpeedrun: "Complete in less than 6 min",
+    lblCondition: "Condition:",
+    lblEndsIn: "Ends in:",
+    btnViewDrops: "VIEW REWARDS",
+    ayaTags: {
+      best: "AYA: ARTIFACT (BEST)",
+      fast: "AYA: CAPTURE (FAST)",
+      runnable: "AYA: RESCUE (RUNNABLE)",
+      generic: "AYA: TIER 5 (CHECK TENTS)",
+    },
     inventory: {
-      title: "My Inventory",
+      title: "Inventario",
       empty: "Inventory empty. Use scanner.",
       searchPlaceholder: "Filter (e.g. G1)...",
       sort: {
@@ -269,6 +640,8 @@ export const TEXTS = {
         clear: "Clear All",
         deleteConfirm: "Are you sure you want to delete all?",
       },
+      lblTotalValue: "ESTIMATED TOTAL VALUE",
+      confirmDeleteSet: "Delete entire set?",
     },
     ocr: {
       cameraTitle: "Relic Scanner",
@@ -320,6 +693,11 @@ export const TEXTS = {
       mobile_defense: "Mobile Defense",
       spy: "Spy",
     },
+    msgNoBountiesTitle: "No optimal missions active.",
+    msgNoBountiesDesc:
+      "No T4/T5 Exterminates or Angel hunts available in this cycle.",
+    menuBounties: "Farms",
+    lblFastFarms: "Active Fast Farms",
     manualAdd: "Add relic to Inventory",
     addGuide:
       "ℹTwo ways to adD relics: Manually press the add relic to inventory when you select a relic  or Scanner (Camera). Images are processed 100% locally on your device.",
@@ -364,7 +742,7 @@ export const TEXTS = {
     footerData: "Data by:",
     contactLabel: "Ideas? PM me ingame or through wf forums",
     contactLink: "w/Parcialsobriedad",
-    rivenSearch: "🔎 CHECK PRICE",
+    rivenSearch: " CHECK PRICE",
     refs: {
       rad: "Radiant",
       intact: "Intact",
@@ -373,7 +751,7 @@ export const TEXTS = {
     },
     rarityAbbr: { common: "C", uncommon: "UC", rare: "R" },
     trackerTitle: "Set Progress",
-    markDone: "✅ Got it",
+    markDone: "Got it",
     markUndo: "Unmark",
     lblUser: "Username (PC)",
     btnCheck: "Check",
@@ -383,11 +761,17 @@ export const TEXTS = {
     disclaimer:
       "VoidStonks is not affiliated, endorsed, or sponsored by Digital Extremes Ltd.Warframe™ is a registered trademark of Digital Extremes Ltd.",
     lblRelicFor: "Relics for: ",
+    lblRivenPos: "+ Positive Stat",
     lblRivenNeg: "- Negative (Optional)",
     lblMrCalc: "Calc by MR:",
     lblLfgActivity: "Activity",
     lblLfgPlayers: "Players Needed",
+    menuBounties: "Farms",
+    lblFastFarms: "Active Fast Farms",
+    fastFarmGuide:
+      "Only shows T4/T5 bounties with fast objectives (Exterminate, Angel, <6min).",
     tooltips: {
+      tabBounties: "Check active fast bounties (Zariman, Cavia, 1999).",
       temporal:
         "Requires: Complete 1999 quest , progressing main story. 3 consecutive missions in Höllvania with no breaks. High difficulty.",
       tabRelic: "Check Relic contents and prices.",
@@ -448,3 +832,200 @@ export const TEXTS = {
     },
   },
 };
+export const AYA_STRATEGY_CONFIG = {
+  minLevel: 40,
+  maxLevel: 60,
+  excludeSP: true,
+  requiredReward: "Aya",
+  priorities: [
+    {
+      id: "best",
+      keywords: ["artifact", "hidden", "artefacto"],
+      tagKey: "best",
+    },
+    {
+      id: "fast",
+      keywords: ["capture", "assassinate", "captura", "asesinato"],
+      tagKey: "fast",
+    },
+    { id: "runnable", keywords: ["rescue", "rescate"], tagKey: "runnable" },
+  ],
+};
+
+export const NODE_MAP = {
+  SolNode718: "Cambire",
+  SolNode719: "Persto",
+  SolNode721: "Munio",
+  SolNode715: "Effervo",
+  SolNode716: "Anatomia",
+  SolNode717: "Nex",
+  // Zariman
+  SolNode230: "Everview Arc",
+  SolNode231: "Halako Perimeter",
+  SolNode232: "Tuvul Commons",
+  SolNode233: "Oro Works",
+  SolNode235: "The Greenway",
+  // Höllvania (1999)
+  SolNode850: "Köbinn West",
+  SolNode851: "Mischta Ramparts",
+  SolNode852: "Old Konderuk",
+  SolNode853: "Mausoleum East",
+  SolNode854: "Rhu Manor",
+  SolNode855: "Lower Vehrvod",
+  SolNode856: "Victory Plaza",
+  SolNode857: "Vehrvod District",
+  SolNode858: "Solstice Square",
+};
+
+export const NODE_TO_TYPE = {
+  SolNode230: "Void Flood",
+  SolNode231: "Exterminate",
+  SolNode232: "Void Cascade",
+  SolNode233: "Void Armageddon",
+  SolNode235: "Mobile Defense",
+  SolNode715: "Assassination",
+  SolNode716: "Assassination",
+  SolNode717: "Exterminate",
+  SolNode718: "Alchemy",
+  SolNode719: "Survival",
+  SolNode721: "Mirror Defense",
+  SolNode850: "Alchemy",
+  SolNode851: "Survival",
+  SolNode852: "Survival",
+  SolNode853: "Exterminate",
+  SolNode854: "Exterminate",
+  SolNode855: "Assassination",
+  SolNode856: "Assassination",
+  SolNode857: "Assassination",
+  SolNode858: "Defense",
+};
+export const VANIA_NAMES = {
+  Alchemy: "Legacyte Harvest",
+  Survival: "Hell-Scrub",
+  Exterminate: "Exterminate",
+  Assassination: "Assassination",
+  Defense: "Stage Defense",
+  "Mobile Defense": "Mobile Defense",
+};
+export const CHALLENGE_MAP = {
+  EntratiLabDefeatDoppelgangerChallenge: "Defeat grimoire mini boss",
+  ZarimanExterminateNoPowersChallenge: "Cant use abilities",
+  ZarimanAssassinateKillAngelsHardChallenge: "Kill 3 Angels",
+  ZarimanKillCorpusEasyChallenge: "Kill 100 Corpus",
+  EntratiLabKillVialedEnemyChallenge: "Kill enemies doused with vitriol",
+  DestroyHazards: "Destroy Hazards",
+  HighKill: "High Kill Count",
+  SafeCracker: "Safe Cracker",
+  VaniaExplodingInfested: "Exploding Infested when killed",
+  DestroySpeakers: "Destroy Speakers",
+  DestroyBackpacks: "Destroy Backpacks",
+  DestroyVehicles: "Destroy Vehicles",
+  LichVaniaHighKill: "Lich: High Kill Count",
+  VaniaHighKillEasy: "Kill enemies from above (10)",
+  VaniaDestroyPropsNormal: "Destroy 30 crates/stationary items",
+  DestroyProps: "Destroy Props",
+  VaniaInfestedCrossfire: "techrot emerges from below",
+  ZarimanMobDefProtectShieldsChallenge:
+    "Complete mission with objective not losing shields",
+  ZarimanKillAsOperatorEasyChallenge: "Kill as Operator",
+  ZarimanKillAsOperatorNormalChallenge: "Kill as Operator",
+  ZarimanKillAsOperatorHardChallenge: "Kill as Operator",
+  ZarimanKillAsOperatorVeryHardChallenge: "Kill as Operator",
+  VaniaDestroyBackpacksVeryHard: "Destroy Backpacks",
+  VaniaDestroyBackpacksHard: "Destroy Backpacks",
+  ZarimanCorruptionCollectLargeOrbsEasyChallenge: "Collect Orbs",
+  ZarimanUseVoidRiftsHardChallenge: "Use Lohk surges",
+  ZarimanFloodCompleteWavesHardChallenge: "Complete rounds",
+  ZarimanDefeatVoidAngelChallenge: "Defeat Void Angel",
+  ZarimanFindMelicaCacheChallenge: "Find Melica's Cache",
+  ZarimanFloodCompleteWavesVeryHardChallenge: "Complete rounds",
+  VaniaSafeCracker: "Crack Safe",
+  VaniaAbilityKillVeryHard: " Kill using abilities",
+  VaniaAbilityKillHard: " Kill using abilities",
+  VaniaAbilityKillEasy: " Kill using abilities",
+  EntratiLabLootCratesChallenge: "Loot Crates",
+  EntratiLabKillVoidRigEasyChallenge: "Kill Necramech",
+  EntratiLabRangedMechWeakpointChallenge: "Mech Weakpoints",
+  EntratiLabKillFlyingMurmurChallenge: "Kill Flying Murmur",
+  EntratiLabKillMurmurVeryHardChallenge: "Kill Murmur",
+  EntratiLabKillVoidRigHardChallenge: "Kill Necramech/S",
+  EntratiLabKillVoidRigEasyChallenge: "Kill Necramech/s",
+  EntratiLabLootCratesChallenge: "Destroy Crates",
+  DestroyDemolystLimbs: "Destroy Demolyst Limbs",
+  RangedMechWeakpoint: "Ranged Mech Weakpoint",
+  LootCrates: "Loot Crates",
+  KillFlyingMurmur: "Kill Flying Murmur",
+  ActivateLohkSurge: "Activate Lohk Surge",
+  KillMurmur: "Kill Murmur",
+  ZarimanKillGrineerEasyChallenge: "Kill Grineer",
+  ZarimanCorruptionCollectLargeOrbsHardChallenge: "Collect Orbs",
+  ZarimanExterminateFastCompleteChallenge:
+    "Finish in < 6 min(fast for exterminate)",
+  ZarimanUseVoidRiftsEasyChallenge: "Use Lohk surges",
+  ZarimanKillGrineerHardChallenge: "Kill Grineer",
+  EntratiLabRangedMechWeakpointEasyChallenge: "Necramech Weakpoints",
+  EntratiLabKillMurmurChallenge: "Kill Murmur",
+};
+export const ALLY_MAP = {
+  QuincyAllyAgent: "Quincy",
+  AmirAllyAgent: "Amir",
+  EleanorAllyAgent: "Eleanor",
+  AoiAllyAgent: "Aoi",
+  LettieAllyAgent: "Lettie",
+  ArthurAllyAgent: "Arthur",
+};
+export const DUAL_PATH_FACTIONS = new Set([
+  "The Holdfasts",
+  "Cavia",
+  "The Hex",
+]);
+export const ZARIMAN_DATA = {
+  counts: {
+    normal: [1, 1, 2, 3, 4, 5],
+    sp: [2, 2, 3, 5, 6, 8],
+  },
+  value: 2500,
+};
+export const BOUNTY_NAMES = {
+  Ostrons: {
+    "5-15": "Spy Catcher",
+    "10-30": "Search and Rescue",
+    "20-40": "Cull the Enemy",
+    "30-50": "Capture Leader",
+    "40-60": "Sabotage Lines",
+    "100-100": "Sabotage Bounty",
+    "50-70": "Rise and Fall",
+  },
+  Entrati: {
+    "5-15": "Salvage",
+    "15-25": "Core Samples",
+    "25-30": "Anomaly Retrieval",
+    "30-40": "Cleanse the Land",
+    "40-60": "For Science!",
+    "100-100": "Brute Force",
+  },
+  "Solaris United": {
+    "5-15": "Scorched Earth",
+    "10-30": "Bury Them",
+    "20-40": "Seems Legit",
+    "30-50": "Hunter-Killer",
+    "40-60": "Courier Ambush",
+    "100-100": "Software Subterfuge",
+    "50-70": "Master's Voice",
+  },
+};
+export const OPTIMAL_FILTERS = [
+  {
+    factions: ["The Holdfasts"],
+    tiers: [4, 5, 6],
+    types: ["Exterminate"],
+    challenges: [
+      "ZarimanDefeatVoidAngelChallenge",
+      "ZarimanExterminateFastCompleteChallenge",
+    ],
+  },
+  {
+    types: ["Exterminate", "Capture"],
+    factions: ["Ostrons", "Solaris United", "Entrati"],
+  },
+];

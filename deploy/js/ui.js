@@ -1,44 +1,136 @@
+import { calculateRivenGrade } from "./riven_logic.js";
 import {
   TEXTS,
   TIER_URLS,
   RIVEN_STATS,
   DROP_CHANCES,
   WORKER_URL,
+  RIVEN_BASE_STATS,
+  WEAPON_TYPE_IDX,
+  APP_VERSION,
+  UPDATE_HISTORY_CONTENT,
 } from "./config.js";
 import { state, saveAppState, updateInventoryCount } from "./state.js";
 import {
   addToQueue,
   fetchRivenAverage,
-  fetchBestFissures,
+  getSlug,
+  getRivenSlug,
+  fetchActiveBounties,
   getPriceValue,
+
+
 } from "./api.js";
+
+/**
+ * Resolves an item name to its corresponding icon path.
+ */
+function getItemIcon(itemName) {
+  if (!itemName) return null;
+
+  let originalName = itemName.toLowerCase().trim().replace(/^\d+x\s+/, "");
+
+  const baseSlug = originalName
+    .replace(" set", "")
+    .replace(/[\s-]+/g, "_")
+    .replace(/[^a-z0-9_]/g, "")
+    .replace(/_+/g, "_");
+
+  const pPrefix = originalName.includes("prime") ? "prime_" : "";
+  const basePath = `assets/relic_contents/${pPrefix}`;
+
+  // --- LÓGICA DE DETECCIÓN ---
+
+  if (originalName.includes("systems")) {
+    const archwings = ["amesha", "odonata", "elytron", "itzal"];
+    const isArchwing = archwings.some(aw => originalName.includes(aw));
+    return `${basePath}systems${isArchwing ? "_archwing" : ""}.webp`;
+  }
+
+  if (originalName.includes("grip") || /limb(?!o)/.test(originalName) || originalName.includes("string")) {
+    return `${basePath}grip.webp`;
+  }
+
+
+  const partMappings = [
+    ['neuroptics', ['neuroptics']],
+    ['cerebrum', ['cerebrum']],
+    ['carapace', ['carapace']],
+    ['harness', ['harness']],
+    ['wings', ['wings']],
+    ['barrel', ['barrel']],
+    ['receiver', ['receiver']],
+    ['stock', ['stock', 'motor']],
+    ['link', ['link', 'chain']],
+    ['hilt', ['hilt', 'handle', 'ornament', 'blade', 'tip']],
+    ['disc', ['disc']],
+    ['boot', ['boot']],
+    ['gauntlet', ['gauntlet']],
+    ['head', ['head']],
+    ['chassis', ['chassis']]
+  ];
+
+  const match = partMappings.find(([_, keywords]) =>
+    keywords.some(k => originalName.includes(k))
+  );
+
+  if (match) {
+    return `${basePath}${match[0]}.webp`;
+  }
+
+  // --- FALLBACKS (Blueprints y Default) ---
+
+  if (originalName.includes("blueprint") || originalName.endsWith(" bp")) {
+    const setSlug = baseSlug.replace(/(_blueprint|_bp)$/, "");
+    return `assets/relic_contents/${setSlug}.webp`;
+  }
+
+  return `assets/relic_contents/${baseSlug}.webp`;
+}
+
+function getRequiredCount(setName, partName) {
+  const manifest = state.primeManifest || [];
+  const weapons = state.weaponDetailsDB || [];
+
+  const item = manifest.find((i) => i.name === setName) || weapons.find((i) => i.name === setName);
+  if (!item || !item.components) return 1;
+
+  let cleanPart = partName === setName ? "Blueprint" : partName.replace(setName, "").trim();
+  if (cleanPart.endsWith(" Blueprint")) cleanPart = cleanPart.replace(" Blueprint", "").trim();
+
+  const comp = item.components.find((c) =>
+    c.name === cleanPart ||
+    (c.name + " Blueprint") === cleanPart ||
+    (setName + " " + c.name) === partName
+  );
+  return comp ? comp.itemCount : 1;
+}
+
+function generateDotsHtml(owned, required) {
+  if (required <= 0) return "";
+  // For required === 1, we usually don't show dots to avoid clutter, 
+  // but we want to know it's needed. However, the dots are best for multiple.
+  if (required <= 1) return "";
+  const isComplete = owned >= required;
+  let html = `<div class="tracker-dots ${isComplete ? "complete" : ""}" style="display: flex; gap: 3px; margin-left: 8px;">`;
+  for (let i = 0; i < required; i++) {
+    const filled = i < owned ? "filled" : "";
+    html += `<span class="tracker-dot ${filled}"></span>`;
+  }
+  html += `</div>`;
+  return html;
+}
+
+export function escapeHTML(str) {
+  if (!str) return "";
+  const p = document.createElement("p");
+  p.textContent = str;
+  return p.innerHTML;
+}
 
 let debounceTimer;
 
 const t = TEXTS[state.currentLang];
-
-// --- UTILS ---
-export function getSlug(itemName) {
-  if (!itemName) return "";
-
-  let cleanName = itemName.trim();
-  let slug = cleanName
-    .toLowerCase()
-    .replace(/&/g, "and")
-    .replace(/[^a-z0-9 ]/g, "")
-    .trim()
-    .replace(/\s+/g, "_");
-
-  const manualFixes = {
-    kompressa_prime_receiver: "kompressa_prime_reciever", // <--- COMENTAR ESTO SI LO ARREGLAN
-  };
-
-  if (manualFixes[slug]) {
-    return manualFixes[slug];
-  }
-
-  return slug;
-}
 
 export function showToast(message) {
   const toast = document.getElementById("error-toast");
@@ -76,7 +168,11 @@ export function switchTab(mode) {
     mainCard.classList.add(`theme-${mode}`);
   }
 
-  ["relic", "set", "riven", "profile", "lfg"].forEach((m) => {
+  document.body.className = document.body.className.replace(/\btheme-\S+/g, "").trim();
+  document.body.classList.add(`theme-${mode}`);
+
+  if (mode === "bounties" && mainCard) mainCard.classList.add("theme-bounties");
+  ["relic", "set", "riven", "profile", "lfg", "bounties"].forEach((m) => {
     document.getElementById("mode-" + m)?.classList.add("hidden");
   });
   document.getElementById("mode-" + mode)?.classList.remove("hidden");
@@ -93,24 +189,56 @@ export function switchTab(mode) {
       footer.style.display = "block";
       footer.style.borderTopColor = "#333";
       if (msgText) msgText.style.color = "#00e5ff";
+      else if (mode === "live") {
+        document.getElementById("mode-live").classList.remove("hidden");
+      }
     } else {
       footer.style.display = "none";
     }
   }
-
+  const invBtn = document.getElementById("inv-toggle-btn");
+  if (invBtn) {
+    const tabsWithInventory = ["relic", "set", "bounties"];
+    if (tabsWithInventory.includes(mode)) {
+      invBtn.classList.remove("hidden");
+      invBtn.style.display = "flex";
+    } else {
+      invBtn.classList.add("hidden");
+      invBtn.style.display = "none";
+    }
+  }
+  if (mode === "bounties") {
+    renderBountiesTab();
+    document.querySelector(".card").classList.add("theme-bounties");
+  } else {
+    const card = document.querySelector(".card");
+    if (card) card.classList.remove("theme-bounties");
+  }
+  const resultsPanel = document.getElementById("scanned-results-panel");
+  if (resultsPanel) {
+    resultsPanel.classList.add("hidden");
+  }
+  const overlay = document.getElementById("ocr-overlay");
+  if (overlay && !overlay.classList.contains("hidden")) {
+    overlay.classList.add("hidden");
+    if (globalThis.closeScanner) globalThis.closeScanner();
+  }
   if (mode === "lfg") updateLFGUI();
   else generateMessage();
 }
 
-export function changeLanguage() {
+export function changeLanguage(lang) {
+  if (lang) state.currentLang = lang;
   if (!state.currentLang) state.currentLang = "es";
+
   saveAppState();
   updateLangButtonVisuals(state.currentLang);
+
   const t = TEXTS[state.currentLang];
 
   const setText = (id, text) => {
     const el = document.getElementById(id);
-    if (el) el.innerText = text;
+    if (el && text) el.innerText = text;
   };
 
   const setTab = (id, text, tip) => {
@@ -120,7 +248,7 @@ export function changeLanguage() {
       el.innerHTML = "";
       if (img) el.appendChild(img);
       el.appendChild(document.createTextNode(" " + text));
-      el.setAttribute("data-tooltip", tip);
+      if (tip) el.dataset.tooltip = tip;
     }
   };
 
@@ -129,7 +257,7 @@ export function changeLanguage() {
   setTab("btn-riven", t.menuRiven || "Riven", t.tooltips.tabRiven);
   setTab("btn-profile", t.menuProfile || "Perfil", t.tooltips.tabProfile);
   setTab("btn-lfg", t.menuLfg || "LFG", t.tooltips.tabLfg);
-
+  setTab("btn-bounties", t.menuBounties || "Farms", t.tooltips.tabBounties);
   setText("txt-header-title", t.headerTitle);
   setText("txt-header-sub", t.headerSub);
   setText("txt-footer-data", t.footerData);
@@ -142,31 +270,12 @@ export function changeLanguage() {
   setText("lbl-relic-name", t.lblRelic);
   const relicInput = document.getElementById("relicInput");
   if (relicInput) relicInput.placeholder = t.phRelic;
+
   setText("lbl-missing", t.lblMiss);
   setText("lbl-profit", t.lblProfit);
   setText("lbl-content", t.lblContent);
 
-  setText("lbl-search-item", t.lblItem);
-  const setInput = document.getElementById("setItemInput");
-  if (setInput) setInput.placeholder = t.phItem;
-
-  setText("lbl-riven-weapon", t.lblRivenW);
-  const rivenInput = document.getElementById("rivenWeaponInput");
-  if (rivenInput) rivenInput.placeholder = t.phRivenW;
-  setText("lbl-riven-stats", t.lblRivenS);
-  setText("btn-riven-search", t.rivenSearch);
-  const statNegOpt = document.querySelector('#rivenStatNeg option[value=""]');
-  if (statNegOpt) statNegOpt.innerText = t.lblRivenNeg;
-
-  setText("lbl-username", t.lblUser);
-  const btnCheck = document.querySelector("#mode-profile button");
-  if (btnCheck) btnCheck.innerText = t.btnCheck;
-  setText("txt-mr-label", t.lblMrCalc);
-
-  setText("lbl-lfg-activity", t.lblLfgActivity);
-  setText("lbl-lfg-players", t.lblLfgPlayers);
-  setText("btn-copy", t.btnCopy);
-
+  // Refinamiento (Selector)
   const refLabel = document.getElementById("lbl-refinement");
   if (refLabel) {
     refLabel.innerHTML = `${t.lblRef} <span data-tooltip="${t.tooltips.refinement}" style="cursor:help; opacity:0.7"> (?)</span>`;
@@ -179,17 +288,53 @@ export function changeLanguage() {
     });
   }
 
-  setText("txt-inv-title", t.inventory.title);
-  const invInput = document.getElementById("inv-search-input");
-  if (invInput) invInput.placeholder = t.inventory.searchPlaceholder;
-
-  setText("txt-fissure-title", t.lblFissures || "Fisuras Activas");
-
-  setText("lbl-relic-name", t.lblRelic);
-  if (relicInput) relicInput.placeholder = t.phRelic;
-
+  // Guía de añadir reliquia
   const guideText = document.getElementById("relic-add-guide");
   if (guideText) guideText.innerText = t.addGuide;
+  const guideIcon = document.getElementById("relic-guide-icon");
+  if (guideIcon) guideIcon.dataset.tooltip = t.addGuide;
+
+  // --- 4. SECCIÓN SETS ---
+  setText("lbl-search-item", t.lblItem);
+  const setInput = document.getElementById("setItemInput");
+  if (setInput) setInput.placeholder = t.phItem;
+
+  // --- 5. SECCIÓN RIVEN ---
+  setText("lbl-riven-weapon", t.lblRivenW);
+  const rivenInput = document.getElementById("rivenWeaponInput");
+  if (rivenInput) rivenInput.placeholder = t.phRivenW;
+  setText("lbl-riven-stats", t.lblRivenS);
+  setText("btn-riven-search", t.rivenSearch);
+
+  // Update all Riven stat placeholders
+  const phStat = t.lblRivenPos || "+ STAT";
+  const phNeg = t.lblRivenNeg || "- NEGATIVA";
+
+  document.querySelectorAll(".riven-stat-select").forEach(sel => {
+    const isNeg = sel.classList.contains("negative");
+    const firstOpt = sel.options[0];
+    if (firstOpt && firstOpt.value === "") {
+      if (isNeg) {
+        firstOpt.innerText = phNeg;
+      } else {
+        const match = sel.id.match(/\d/);
+        const num = match ? match[0] : "";
+        firstOpt.innerText = `${phStat} ${num}`.trim();
+      }
+    }
+  });
+
+  // --- 6. SECCIÓN PERFIL ---
+  setText("lbl-username", t.lblUser);
+  const btnCheck = document.querySelector("#mode-profile button");
+  if (btnCheck) btnCheck.innerText = t.btnCheck;
+  setText("txt-mr-label", t.lblMrCalc);
+
+  // --- 7. SECCIÓN LFG ---
+  setText("lbl-lfg-activity", t.lblLfgActivity);
+  setText("lbl-lfg-players", t.lblLfgPlayers);
+  setText("btn-copy", t.btnCopy);
+
   const lfgItems = document.querySelectorAll("#lfgDropdown .dropdown-item");
   const keys = [
     "eidolon",
@@ -206,30 +351,34 @@ export function changeLanguage() {
     if (lfgItems[index] && t.lfgOpts[key])
       lfgItems[index].innerText = t.lfgOpts[key];
   });
-
   const currentVal = document.getElementById("lfgActivity").value;
   if (t.lfgOpts[currentVal]) setText("lfgSelectedText", t.lfgOpts[currentVal]);
 
+  // --- 8. SECCIÓN INVENTARIO ---
+  setText("txt-inv-title", t.inventory.title);
+  const invInput = document.getElementById("inv-search-input");
+  if (invInput) invInput.placeholder = t.inventory.searchPlaceholder;
+
+  // --- 9. SECCIÓN FISURAS & FARMS (NUEVO) ---
+  setText("txt-fissure-title", t.lblFissures || "Fisuras Activas");
+
+  setText("lbl-fast-farms-title", t.lblFastFarms || "Misiones Rápidas");
+
   populateRivenSelects();
+
   const modeLfg = document.getElementById("mode-lfg");
   if (modeLfg && !modeLfg.classList.contains("hidden")) updateLFGUI();
+
   if (state.currentActiveSet) renderSetTracker();
-  if (state.selectedRelic) manualRelicUpdate();
-  const guideIcon = document.getElementById("relic-guide-icon");
-  if (guideIcon) {
-    guideIcon.setAttribute("data-tooltip", t.addGuide);
+  if (state.activeTab === "bounties") {
+    renderBountiesTab();
   }
   const tier = document.getElementById("relicInput").value.split(" ")[0];
-  if (tier && state.selectedRelic) {
-    updateRecommendedMissions(tier);
-  }
-  if (state.selectedRelic) {
-    manualRelicUpdate();
-  }
+  if (tier && state.selectedRelic) updateRecommendedMissions(tier);
+  if (state.selectedRelic) manualRelicUpdate();
+
   generateMessage();
 }
-
-// --- MESSAGE GEN ---
 export function changeCount(n) {
   state.playerCount = Math.max(1, Math.min(4, state.playerCount + n));
   document.getElementById("countDisplay").innerText = state.playerCount;
@@ -237,36 +386,44 @@ export function changeCount(n) {
 }
 
 export function generateMessage() {
-  const t = TEXTS[state.currentLang];
-  const defaultText = t.defaultRelic;
-  let rName = state.selectedRelic || defaultText;
-  rName = rName.trim();
+  requestAnimationFrame(() => {
+    const t = TEXTS[state.currentLang];
+    const defaultText = t.defaultRelic;
+    let rName = state.selectedRelic || defaultText;
+    rName = rName.trim();
 
-  const refVal = document.getElementById("refinement").value;
-  const refText =
-    document.querySelector(`#refinement option[value="${refVal}"]`)
-      ?.innerText || refVal;
+    const refSelect = document.getElementById("refinement");
+    const refVal = refSelect.value;
+    const refText = refSelect.options[refSelect.selectedIndex]?.text || refVal;
 
-  let linkChat = "";
-  if (!state.selectedRelic) linkChat = `[${defaultText}]`;
-  else {
-    if (state.currentLang === "en") linkChat = `[${rName} Relic]`;
-    else linkChat = `[Reliquia ${rName}]`;
-  }
+    let linkChat = "";
+    if (state.selectedRelic) {
+      if (state.currentLang === "en") linkChat = `[${rName} Relic]`;
+      else linkChat = `[Reliquia ${rName}]`;
+    } else {
+      linkChat = `[${defaultText}]`;
+    }
 
-  let countText = `${state.playerCount}/4`;
-  if (state.playerCount === 4) countText = "3/4";
+    let countText = `${state.playerCount}/4`;
+    if (state.playerCount === 4) countText = "3/4";
 
-  const fullMessage = `H ${linkChat} ${refText} ${countText}`;
-  const msgBox = document.getElementById("finalMessage");
-  if (msgBox) {
-    msgBox.innerText = fullMessage;
-    msgBox.style.animation = "none";
-    msgBox.offsetHeight; // trigger reflow
-    msgBox.style.animation = "pulse 0.3s ease";
-  }
+    const fullMessage = `H ${linkChat} ${refText} ${countText}`;
+    const msgBox = document.getElementById("finalMessage");
 
-  updateRelicTotal();
+    if (msgBox) {
+      if (msgBox.innerText !== fullMessage) {
+        msgBox.innerText = fullMessage;
+
+        msgBox.classList.remove("pulse-anim");
+
+        setTimeout(() => {
+          msgBox.classList.add("pulse-anim");
+        }, 10);
+      }
+    }
+
+    updateRelicTotal();
+  });
 }
 
 export function copyText() {
@@ -324,16 +481,21 @@ export function manualRelicUpdate() {
   try {
     const relicInput = document.getElementById("relicInput");
     state.selectedRelic = relicInput.value;
-    const tier = state.selectedRelic.split(" ")[0];
-    updateRecommendedMissions(tier).catch((err) =>
-      console.error("Error misiones:", err)
-    );
 
-    generateMessage();
+    const tier = state.selectedRelic.split(" ")[0];
+    if (typeof globalThis.updateRecommendedMissions === "function") {
+      globalThis
+        .updateRecommendedMissions(tier)
+        .catch((err) => console.error(err));
+    }
+
+    if (typeof globalThis.generateMessage === "function")
+      globalThis.generateMessage();
 
     const listDiv = document.getElementById("relic-drops-list");
     const profitDisplay = document.getElementById("relic-profit-display");
     const container = document.getElementById("relic-contents");
+    const statusBadge = document.getElementById("relic-status-badge");
 
     if (!listDiv || !profitDisplay || !container) return;
 
@@ -343,6 +505,31 @@ export function manualRelicUpdate() {
 
     if (state.selectedRelic && state.relicsDatabase[state.selectedRelic]) {
       container.classList.remove("hidden");
+
+      if (statusBadge) {
+        const status = state.relicStatusDB[state.selectedRelic] || "vaulted";
+
+        statusBadge.className = "badge";
+        statusBadge.style.display = "inline-block";
+
+        if (status === "active" || status === "aya") {
+          statusBadge.classList.add(status === "aya" ? "aya" : "active");
+          statusBadge.innerText =
+            status === "aya" ? "AYA (RESURGENCE)" : "ACTIVE";
+
+          const tooltipHTML = getRelicDropTooltip(state.selectedRelic);
+          statusBadge.dataset.tooltipHtml = tooltipHTML;
+          delete statusBadge.dataset.tooltip;
+        } else {
+          statusBadge.classList.add("vaulted");
+          statusBadge.innerText = "VAULTED";
+
+          delete statusBadge.dataset.tooltipHtml;
+          statusBadge.dataset.tooltip =
+            "Esta reliquia está en la Bóveda (No cae actualmente).";
+        }
+      }
+
       let addBtnContainer = document.getElementById("manual-add-container");
       if (!addBtnContainer) {
         addBtnContainer = document.createElement("div");
@@ -354,13 +541,14 @@ export function manualRelicUpdate() {
 
       const t = TEXTS[state.currentLang];
       addBtnContainer.innerHTML = `
-        <button class="riven-btn" style="padding: 8px 15px; background: var(--wf-blue); color: #000; font-weight:bold;" onclick="window.addCurrentToInv()">
-            + ${t.manualAdd || "Add to Inventory"}
+        <button class="riven-btn" style="padding: 8px 15px; background: var(--wf-blue); color: #000; font-weight:bold;" data-action="add-current-to-inv">
+            + ${escapeHTML(t.manualAdd || "Add to Inventory")}
         </button>
       `;
+
       const items = state.relicsDatabase[state.selectedRelic];
       items.sort((a, b) => b.chance - a.chance);
-      const abbr = TEXTS[state.currentLang].rarityAbbr;
+      //const abbr = TEXTS[state.currentLang].rarityAbbr;
 
       items.forEach((item) => {
         const row = document.createElement("div");
@@ -372,59 +560,89 @@ export function manualRelicUpdate() {
           item.name === "Riven Sliver" ||
           item.name === "Exilus Weapon Adapter Blueprint";
 
+        const abbr = TEXTS[state.currentLang].rarityAbbr;
         let rarityLabel = abbr.common;
-        let rarityColor = "var(--wf-common)";
 
         if (item.chance <= 5) {
           rarityLabel = abbr.rare;
-          rarityColor = "var(--wf-rare)";
-        } else if (item.chance <= 22) {
+          row.dataset.rarity = "rare";
+        } else if (item.chance <= 11) {
           rarityLabel = abbr.uncommon;
-          rarityColor = "var(--wf-uncommon)";
+          row.dataset.rarity = "uncommon";
+        } else {
+          row.dataset.rarity = "common";
         }
 
-        if (isUntradable) rarityColor = "var(--wf-forma)";
+        if (isUntradable) {
+          row.dataset.rarity = "forma";
+        }
 
-        row.style.display = "flex";
-        row.style.justifyContent = "space-between";
-        row.style.alignItems = "center";
+        const iconPath = getItemIcon(item.name);
+        const iconHtml = iconPath ? `<img src="${iconPath}" class="item-icon-mini" onerror="this.style.display='none'">` : '';
 
         let nameDisplay;
         if (isUntradable) {
-          nameDisplay = `<span style="font-weight:bold; color:var(--wf-forma);">${item.name.replace(
-            "Blueprint",
-            "BP"
+          nameDisplay = `<span class="component-name forma">${escapeHTML(
+            item.name.replaceAll("Blueprint", "BP"),
           )}</span>`;
         } else {
-          nameDisplay = `<span class="item-interactive" style="cursor:pointer; text-decoration:underline; margin-right:5px;" onclick="window.findRelicsForItem('${
-            item.name
-          }')">${item.name}</span> 
-             <a href="https://warframe.market/items/${getSlug(
-               item.name
-             )}" target="_blank" class="market-link-icon" style="text-decoration:none">↗</a>`;
+          nameDisplay = `
+            <div style="display:flex; align-items:center; gap:12px; width:100%;">
+              <span class="component-name item-interactive" data-action="find-relics-for-item" data-item="${escapeHTML(item.name)}" onclick="event.stopPropagation(); globalThis.openSetFromRelicReward('${escapeHTML(item.name)}')">
+                  ${escapeHTML(item.name)}
+              </span>
+              ${(() => {
+              const setName = getSetName(item.name);
+              if (setName && setName !== "Otros") {
+                const req = getRequiredCount(setName, item.name);
+                const owned = state.primeInventory[item.name] || 0;
+                return generateDotsHtml(owned, req);
+              }
+              return "";
+            })()}
+              <div style="margin-left:auto; display:flex; align-items:center; gap:8px;">
+                <a href="https://warframe.market/items/${getSlug(item.name)}" target="_blank" class="market-btn-mini" title="Warframe Market">
+                  MARKET
+                </a>
+                <button class="mini-action-btn" style="border-color:var(--wf-blue)" 
+                        data-action="modify-prime-part" data-part="${escapeHTML(item.name)}" data-amount="1">
+                  +1
+                </button>
+              </div>
+            </div>
+          `;
         }
 
+        const finalIconHtml = iconPath
+          ? `<img src="${iconPath}" class="item-icon-mini item-interactive" onerror="this.style.display='none'" onclick="event.stopPropagation(); globalThis.openSetFromRelicReward('${escapeHTML(item.name)}')">`
+          : '';
+
         const badgeContent = isUntradable
-          ? '0<span style="font-size:0.7em">pl</span>'
+          ? '0<img src="assets/relic_contents/platinum.webp" class="plat-icon">'
           : "...";
         const badgeClass = isUntradable
           ? "price-badge forma"
           : "price-badge loading";
 
+        const ducatVal = item.ducats || 0;
         row.innerHTML = `
-            <div style="display:flex; align-items:center; gap:10px;">
-                <span style="color:${rarityColor}; font-weight:bold; font-size:0.8em; width:25px;">${rarityLabel}</span>
-                <span style="color:${
-                  isUntradable ? "#aaa" : "#eee"
-                }; font-size:0.9em;">${nameDisplay}</span>
+            <div class="component-info">
+                <span class="rarity-indicator">${rarityLabel}</span>
+                <div class="name-wrapper">
+                    ${finalIconHtml}
+                    <div class="name-column" style="display:flex; align-items:center;">
+                       ${nameDisplay}
+                    </div>
+                </div>
             </div>
-            <div class="${badgeClass}" data-item="${item.name.replace(
-          /"/g,
-          "&quot;"
-        )}">
-                ${badgeContent}
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span class="ducat-val" style="color:var(--wf-gold-text); font-size:0.85em; font-weight:bold;">${ducatVal} <span style="font-size:0.8em; opacity:0.8">d</span></span>
+              <div class="${badgeClass}" data-item="${item.name.replaceAll(/"/g, "&quot;")}">
+                  ${badgeContent}
+              </div>
             </div>
         `;
+
         listDiv.appendChild(row);
 
         const badge = row.querySelector(".price-badge");
@@ -443,7 +661,7 @@ export function manualRelicUpdate() {
 export function updatePriceUI(element, price) {
   if (!element) return;
   element.classList.remove("loading");
-  element.innerHTML = `${price}<span style="font-size:0.7em">pl</span>`;
+  element.innerHTML = `${price}<img src="assets/relic_contents/platinum.webp" class="plat-icon">`;
   if (document.getElementById("relic-profit-display")) updateRelicTotal();
 }
 
@@ -453,7 +671,7 @@ function updateRelicTotal() {
 
   const items = state.relicsDatabase[state.selectedRelic];
   const badges = document.querySelectorAll(
-    "#relic-drops-list .price-badge:not(.big)"
+    "#relic-drops-list .price-badge:not(.big)",
   );
   const refinementInput = document.getElementById("refinement").value;
   const squadSize = state.playerCount || 1;
@@ -465,10 +683,10 @@ function updateRelicTotal() {
 
     let price = 0;
     const badge = Array.from(badges).find(
-      (b) => b.getAttribute("data-item") === item.name.replace(/"/g, "&quot;")
+      (b) => b.dataset.item === item.name.replaceAll('"', "&quot;"),
     );
     if (badge) {
-      price = parseInt(badge.innerText) || 0;
+      price = Number.parseInt(badge.innerText) || 0;
     }
 
     return { ...item, rarityType, price };
@@ -477,7 +695,7 @@ function updateRelicTotal() {
   const totalEV = calculateSquadEV(
     itemDataWithPrice,
     refinementInput,
-    squadSize
+    squadSize,
   );
 
   const disp = document.getElementById("relic-profit-display");
@@ -485,31 +703,59 @@ function updateRelicTotal() {
   const t = TEXTS[state.currentLang];
 
   if (squadSize > 1) {
-    label.innerText = t.lblProfitSquad.replace("{n}", squadSize);
+    label.innerText = t.lblProfitSquad.replaceAll("{n}", squadSize);
     label.style.color = "var(--wf-blue)";
   } else {
     label.innerText = t.lblProfitSolo;
     label.style.color = "#bbb";
   }
 
-  disp.innerHTML = `~${totalEV.toFixed(
-    1
-  )}<span style="font-size:0.7em">pl</span>`;
+  const ducatEV = calculateSquadEV(
+    itemDataWithPrice.map(i => ({ ...i, price: i.ducats })),
+    refinementInput,
+    squadSize
+  );
+
+  disp.innerHTML = `
+    <div style="display:flex; flex-direction:column; align-items:flex-end;">
+      <span>~${totalEV.toFixed(1)}<img src="assets/relic_contents/platinum.webp" class="plat-icon"></span>
+      <span style="font-size:0.7em; color:var(--wf-gold-text)">~${ducatEV.toFixed(1)} ducats</span>
+    </div>
+  `;
 
   const stillLoading = Array.from(badges).some((b) =>
-    b.classList.contains("loading")
+    b.classList.contains("loading"),
   );
   if (!stillLoading) disp.classList.remove("loading");
 }
 
 function calculateSquadEV(items, refinement, squadSize) {
-  const rates = DROP_CHANCES[refinement] || DROP_CHANCES.Intact;
+  const keyMap = {
+    Rad: "Rad",
+    rad: "Rad",
+    Intact: "Intact",
+    Exceptional: "Exceptional",
+    Flawless: "Flawless",
+  };
+
+  const safeKey = keyMap[refinement] || refinement;
+
+  const rates = DROP_CHANCES?.[safeKey] ||
+    DROP_CHANCES?.Intact || {
+    common: 0.76,
+    uncommon: 0.22,
+    rare: 0.02,
+  };
+
+  if (!items) return 0;
 
   const itemsWithProb = items.map((item) => {
     let prob = rates.common / 3;
+
     if (item.rarityType === "rare") prob = rates.rare / 1;
     else if (item.rarityType === "uncommon") prob = rates.uncommon / 2;
-    return { price: item.price, prob: prob };
+
+    return { price: item.price || 0, prob: prob };
   });
 
   itemsWithProb.sort((a, b) => a.price - b.price);
@@ -519,17 +765,17 @@ function calculateSquadEV(items, refinement, squadSize) {
 
   for (let item of itemsWithProb) {
     const nextAccumulatedProb = accumulatedProb + item.prob;
+
     const chanceThisIsBest =
       Math.pow(nextAccumulatedProb, squadSize) -
       Math.pow(accumulatedProb, squadSize);
+
     expectedValue += item.price * chanceThisIsBest;
     accumulatedProb = nextAccumulatedProb;
   }
 
   return expectedValue;
 }
-
-// --- SETS & TRACKER ---
 export function handleSetTyping() {
   clearTimeout(debounceTimer);
   debounceTimer = setTimeout(searchSet, 1200);
@@ -565,9 +811,8 @@ function searchSet() {
   });
 
   if (Object.keys(groups).length === 0 && singles.length === 0) {
-    container.innerHTML = `<div style="text-align:center;color:#666;margin-top:20px">${
-      TEXTS[state.currentLang].notFound
-    }</div>`;
+    container.innerHTML = `<div style="text-align:center;color:#666;margin-top:20px">${TEXTS[state.currentLang].notFound
+      }</div>`;
     return;
   }
 
@@ -579,7 +824,7 @@ function searchSet() {
   singles
     .slice(0, 10)
     .forEach((itemName) =>
-      createSetCard(itemName, [itemName], container, true)
+      createSetCard(itemName, [itemName], container, true),
     );
 }
 
@@ -589,11 +834,14 @@ function createSetCard(title, itemNames, parent, isSingle = false) {
   const header = document.createElement("div");
   header.className = "set-header";
   let titleHTML = isSingle
-    ? `<span>${title}</span>`
+    ? `<span>${escapeHTML(title)}</span>`
     : `<a href="https://warframe.market/items/${getSlug(
-        title + " Set"
-      )}" target="_blank" class="market-link">${title} SET<span class="link-icon">↗</span></a>`;
-  header.innerHTML = titleHTML;
+      title + " Set",
+    )}" target="_blank" class="market-link">${escapeHTML(title)} SET<span class="link-icon">↗</span></a>`;
+
+  const setIcon = getItemIcon(title);
+  const setIconHtml = setIcon ? `<img src="${setIcon}" class="item-icon-set-header" onerror="this.style.display='none'">` : '';
+  header.innerHTML = `${setIconHtml} ${titleHTML}`;
 
   if (!isSingle) {
     const setPrice = document.createElement("span");
@@ -614,7 +862,7 @@ function createSetCard(title, itemNames, parent, isSingle = false) {
     row.className = "component-row";
     let dispName =
       !isSingle && itemName.startsWith(title)
-        ? itemName.replace(title, "").trim()
+        ? itemName.replaceAll(title, "").trim()
         : itemName;
 
     const priceSpan = document.createElement("span");
@@ -622,10 +870,40 @@ function createSetCard(title, itemNames, parent, isSingle = false) {
     priceSpan.innerText = "...";
     addToQueue(itemName, priceSpan);
 
-    row.innerHTML = `<div class="component-header"><a href="https://warframe.market/items/${getSlug(
-      itemName
-    )}" target="_blank" class="market-link"><span class="component-name">${dispName}</span><span class="link-icon">↗</span></a></div>`;
-    row.appendChild(priceSpan);
+    const partIcon = getItemIcon(itemName);
+    const partIconHtml = partIcon ? `<img src="${partIcon}" class="item-icon-mini" onerror="this.style.display='none'">` : '';
+
+    const itemData = state.itemsDatabase[itemName];
+    const ducatVal = itemData && itemData.length > 0 ? itemData[0].ducats : 0;
+
+    const requiredCount = getRequiredCount(title, itemName);
+    const countLabel = requiredCount > 1 ? ` <span class="required-count">x${requiredCount}</span>` : "";
+
+    row.innerHTML = `
+  <div class="component-header">
+    <div class="name-col-wrapper">
+      ${partIconHtml}
+      <span class="component-name">${escapeHTML(dispName)}${countLabel}</span>
+      ${(() => {
+        const owned = state.primeInventory[itemName] || 0;
+        return generateDotsHtml(owned, requiredCount);
+      })()}
+    </div>
+    <div class="actions-col-wrapper">
+      <a href="https://warframe.market/items/${getSlug(itemName)}" target="_blank" class="market-btn-mini" title="Warframe Market">
+        MARKET
+      </a>
+      <button class="mini-action-btn" data-action="modify-prime-part" data-part="${escapeHTML(itemName)}" data-amount="1">
+        +1
+      </button>
+    </div>
+  </div>
+  <div style="display:flex; align-items:center; gap:8px; margin-top:4px;">
+    <span class="ducat-val" style="color:var(--wf-gold-text); font-size:0.85em; font-weight:bold;">${ducatVal} <span style="font-size:0.8em; opacity:0.8">d</span></span>
+    <div class="price-badge-wrapper" style="min-width:45px; display:flex; justify-content:flex-end;"></div>
+  </div>`;
+    const badgeWrapper = row.querySelector(".price-badge-wrapper");
+    badgeWrapper.appendChild(priceSpan);
 
     if (relicsInfo.length === 0)
       row.innerHTML += `<div style="color:#666;font-size:0.8em;font-style:italic;margin-left:10px;">Vaulted</div>`;
@@ -656,12 +934,29 @@ function createSetCard(title, itemNames, parent, isSingle = false) {
         const stKey = state.relicStatusDB[info.relic] || "vaulted";
         const stTxt = TEXTS[state.currentLang][stKey];
 
+        let tooltipAttr = "";
+        if (stKey === "active" || stKey === "aya") {
+          const rawHtml = getRelicDropTooltip(info.relic);
+          const safeHtml = rawHtml.replaceAll(/"/g, "&quot;");
+          tooltipAttr = `data-tooltip-html="${safeHtml}"`;
+        } else {
+          tooltipAttr = `data-tooltip="This relic is vaulted"`;
+        }
+
         btn.className = `relic-chip ${rc}`;
-        btn.innerHTML = `<div class="relic-chip-header"><span class="relic-name">${
-          info.relic
-        }</span><img src="${
-          TIER_URLS[tier] || TIER_URLS.Lith
-        }" class="relic-img"></div><div class="chip-footer"><span class="rarity-text ${rc}">${rl}</span><span class="status-badge ${stKey}">${stTxt}</span></div>`;
+
+        btn.innerHTML = `
+            <div class="relic-chip-header">
+                <span class="relic-name">${escapeHTML(info.relic)}</span>
+                <img src="${TIER_URLS[tier] || TIER_URLS.Lith
+          }" class="relic-img">
+            </div>
+            <div class="chip-footer">
+                <span class="rarity-text ${rc}">${escapeHTML(rl)}</span>
+                <span class="status-badge ${stKey}" ${tooltipAttr}>${escapeHTML(
+            stTxt,
+          )}</span>
+            </div>`;
 
         btn.onclick = (e) => {
           e.stopPropagation();
@@ -730,15 +1025,13 @@ function renderRelicsForPartInline(partName, container) {
     btn.innerHTML = `
       <div class="relic-chip-header">
         <span class="relic-name">${info.relic}</span>
-        <img src="${
-          TIER_URLS[tier] || TIER_URLS.Lith
-        }" class="relic-img" style="width:20px;">
+        <img src="${TIER_URLS[tier] || TIER_URLS.Lith
+      }" class="relic-img" style="width:20px;">
       </div>
       <div class="chip-footer">
         <span class="rarity-text ${rc}">${rl}</span>
-        <span class="status-badge ${stKey}" style="font-size:0.7em">${
-      stKey === "active" ? "ACT" : "VLT"
-    }</span>
+        <span class="status-badge ${stKey}" style="font-size:0.7em">${stKey === "active" ? "ACT" : "VLT"
+      }</span>
       </div>
     `;
 
@@ -766,70 +1059,121 @@ function renderRelicsForPartInline(partName, container) {
 export function renderSetTracker() {
   const container = document.getElementById("set-tracker");
   const list = document.getElementById("tracker-list");
+  const title = document.getElementById("tracker-title");
   const t = TEXTS[state.currentLang];
 
   if (!state.currentActiveSet) {
     container.style.display = "none";
     return;
   }
+
   container.style.display = "block";
-  document.getElementById(
-    "tracker-title"
-  ).innerText = `${t.trackerTitle}: ${state.currentActiveSet}`;
   list.innerHTML = "";
+
+  const setSlug = getSlug(state.currentActiveSet + " Set");
+  const setUrl = `https://warframe.market/items/${setSlug}`;
+
+  title.innerHTML = `
+    ${t.trackerTitle}: 
+    <a href="${setUrl}" target="_blank" class="set-header-link">
+      ${state.currentActiveSet} ↗
+    </a>
+  `;
+
+  // Create a map from manifest for quick lookup if available
+  const manifestItem = state.primeManifest && Array.isArray(state.primeManifest)
+    ? state.primeManifest.find(i => i.name === state.currentActiveSet)
+    : null;
 
   state.activeSetParts.forEach((partName) => {
     const wrapper = document.createElement("div");
-    wrapper.style.marginBottom = "5px";
+    // Determine quantity owned and required
+    const ownedCount = state.primeInventory[partName] || 0;
 
-    const isDone = state.completedParts.has(partName);
+    const requiredCount = getRequiredCount(state.currentActiveSet, partName);
+
+    const isDone = ownedCount >= requiredCount;
+
     const row = document.createElement("div");
     row.className = `tracker-item ${isDone ? "done" : ""}`;
-    row.style.marginBottom = "0";
 
     const nameText =
       partName === state.currentActiveSet
         ? "Blueprint"
-        : partName.replace(state.currentActiveSet, "").trim();
+        : partName.replaceAll(state.currentActiveSet, "").trim();
 
-    const nameSpan = document.createElement("span");
-    nameSpan.className = "t-name item-interactive";
-    nameSpan.innerText = nameText;
-    nameSpan.style.cursor = "pointer";
-    nameSpan.style.textDecoration = "underline dotted #666";
+    const partSlug = getSlug(partName);
 
-    const btnCheck = document.createElement("button");
-    btnCheck.className = "t-check";
-    btnCheck.innerText = isDone ? t.markUndo : t.markDone;
-    btnCheck.onclick = (e) => {
+    // Layout: Left (Name + Arrow + Dots) ------- Right (Controls)
+    const leftDiv = document.createElement("div");
+    leftDiv.style.flex = "1";
+    leftDiv.style.display = "flex";
+    leftDiv.style.alignItems = "center";
+    leftDiv.innerHTML = `
+      <span class="t-name">${escapeHTML(nameText)}</span>
+      <a href="https://warframe.market/items/${partSlug}" target="_blank" class="market-link-icon" onclick="event.stopPropagation()">↗</a>
+      ${generateDotsHtml(ownedCount, requiredCount)}
+      <span style="color:var(--wf-gold-text); font-size:0.8em; margin-left:10px; font-weight:bold;">
+        ${state.itemsDatabase[partName] ? state.itemsDatabase[partName][0].ducats : 0}d
+      </span>
+    `;
+
+    const rightDiv = document.createElement("div");
+    rightDiv.style.display = "flex";
+    rightDiv.style.alignItems = "center";
+    rightDiv.style.gap = "15px";
+
+    const controlsDiv = document.createElement("div");
+    controlsDiv.style.display = "flex";
+    controlsDiv.style.gap = "4px";
+
+    if (ownedCount > 0) {
+      const btnMinus = document.createElement("button");
+      btnMinus.className = "t-check";
+      btnMinus.style.padding = "2px 8px";
+      btnMinus.innerText = "-";
+      btnMinus.onclick = (e) => {
+        e.stopPropagation();
+        globalThis.modifyPrimePart(partName, -1);
+        if (state.primeInventory[partName] <= 0) state.completedParts.delete(partName);
+        if (state.primeInventory[partName] < requiredCount) state.completedParts.delete(partName);
+        renderSetTracker();
+      };
+      controlsDiv.appendChild(btnMinus);
+    }
+
+    const btnPlus = document.createElement("button");
+    btnPlus.className = "t-check";
+    btnPlus.innerText = "+";
+    btnPlus.onclick = (e) => {
       e.stopPropagation();
-      if (isDone) state.completedParts.delete(partName);
-      else state.completedParts.add(partName);
+      globalThis.modifyPrimePart(partName, 1);
+      state.completedParts.add(partName);
       renderSetTracker();
+      showToast(`${partName} +1`);
     };
+    controlsDiv.appendChild(btnPlus);
 
-    row.appendChild(nameSpan);
-    row.appendChild(btnCheck);
+    rightDiv.appendChild(controlsDiv);
+
+    row.appendChild(leftDiv);
+    row.appendChild(rightDiv);
 
     const drawer = document.createElement("div");
     drawer.className = "tracker-drawer hidden";
-    drawer.style.background = "rgba(0, 0, 0, 0.3)";
-    drawer.style.border = "1px solid #333";
-    drawer.style.borderTop = "none";
-    drawer.style.borderRadius = "0 0 4px 4px";
-    drawer.style.overflow = "hidden";
-    drawer.style.transition = "all 0.3s ease";
 
-    nameSpan.onclick = (e) => {
-      e.stopPropagation();
+    row.onclick = () => {
       const isCurrentlyClosed = drawer.classList.contains("hidden");
       document
         .querySelectorAll(".tracker-drawer")
         .forEach((d) => d.classList.add("hidden"));
+
       if (isCurrentlyClosed) {
         drawer.classList.remove("hidden");
         if (drawer.innerHTML === "") {
-          renderRelicsForPartInline(partName, drawer);
+          if (globalThis.renderRelicsForPartInline) {
+            globalThis.renderRelicsForPartInline(partName, drawer);
+          }
         }
       }
     };
@@ -840,66 +1184,530 @@ export function renderSetTracker() {
   });
 }
 
-// --- RIVEN UI ---
-export function handleRivenInput() {
-  const input = document.getElementById("rivenWeaponInput");
-  const val = input.value.toUpperCase().trim();
-  const dropdown = document.getElementById("rivenDropdown");
-  const statsBox = document.getElementById("riven-avg-box");
+export function populateRivenSelects(weaponType = "Rifle") {
+  const selects = document.querySelectorAll(".riven-stat-select");
+  const isSpan = state.currentLang === "es";
 
-  saveAppState();
+  const typeIdx = WEAPON_TYPE_IDX[weaponType] ?? 0;
 
-  if (val.length < 1) {
-    dropdown.classList.add("hidden");
-    if (statsBox) statsBox.style.display = "none";
+  const STAT_NAME_MAP = {
+    "Crit Chance": "Critical Chance",
+    "Crit Damage": "Critical Damage",
+    "Status Chance": "Status Chance",
+    Damage: "Damage",
+    Multishot: "Multishot",
+  };
+
+  selects.forEach((sel) => {
+    const savedValue = sel.value;
+
+    while (sel.options.length > 1) sel.remove(1);
+
+    RIVEN_STATS.forEach((stat) => {
+      const namesEn = stat.name_en.split(" / ");
+      let baseStatKey = STAT_NAME_MAP[stat.name_en];
+      let baseVal = undefined;
+
+      if (baseStatKey) {
+        baseVal = RIVEN_BASE_STATS[baseStatKey]?.[typeIdx];
+      } else {
+        for (const name of namesEn) {
+          const partKey = STAT_NAME_MAP[name] || name;
+          const val = RIVEN_BASE_STATS[partKey]?.[typeIdx];
+          if (val !== 0 && val !== undefined) {
+            baseStatKey = partKey;
+            baseVal = val;
+            break;
+          }
+        }
+      }
+
+      if (baseVal !== 0 && baseVal !== undefined) {
+        let opt = document.createElement("option");
+        opt.value = baseStatKey;
+        opt.innerText = isSpan ? stat.name_es : stat.name_en;
+        sel.appendChild(opt);
+      }
+    });
+
+    const exists = Array.from(sel.options).some((o) => o.value === savedValue);
+    sel.value = exists ? savedValue : "";
+  });
+
+  updateSelectExclusions();
+}
+
+export async function loadWeaponDetails() {
+  if (state.weaponDetailsDB) return;
+
+  try {
+    const res = await fetch("assets/json/cleaned_weapons.json");
+    if (!res.ok) throw new Error("Failed to load weapon details from UI fallback");
+    const data = await res.json();
+    state.weaponDetailsDB = data;
+    console.log("Weapon Details Loaded (UI Fallback):", data.length);
+  } catch (e) {
+    console.error("Error loading weapon details:", e);
+  }
+}
+
+function renderRivenPreview(weaponName) {
+  const panel = document.getElementById("riven-preview-panel");
+  if (!panel) return;
+
+  if (!weaponName) {
+    panel.innerHTML = "";
     return;
   }
 
-  const source = state.allRivenNames || [];
+  let details = null;
+  if (state.weaponDetailsDB) {
+    details = state.weaponDetailsDB.find(
+      (w) => w.name.toUpperCase() === weaponName.toUpperCase()
+    );
+    if (!details && !weaponName.includes("Prime")) {
+      details = state.weaponDetailsDB.find(w => w.name.toUpperCase() === (weaponName + " PRIME").toUpperCase());
+    }
+  }
+  const basic = state.weaponMap ? state.weaponMap[weaponName] : null;
+  if (!details && !basic) {
+    panel.innerHTML = "";
+    return;
+  }
 
-  const matches = source
-    .filter((n) => n.toUpperCase().includes(val))
-    .slice(0, 10);
+  // Disposition Logic
+  const dispoValue = basic ? basic.d : (details ? 1.0 : 1.0);
+  let circles = 3;
+  if (dispoValue < 0.7) circles = 1;
+  else if (dispoValue < 0.9) circles = 2;
+  else if (dispoValue <= 1.1) circles = 3;
+  else if (dispoValue <= 1.3) circles = 4;
+  else circles = 5;
+
+  let circlesHtml = "";
+  for (let i = 1; i <= 5; i++) {
+    circlesHtml += `<div class="dispo-circle ${i <= circles ? "filled" : ""}"></div>`;
+  }
+
+  // Image Logic
+  let imgPath = "";
+  if (details && details.localImage) {
+    let rawPath = details.localImage;
+    if (rawPath.endsWith(".png")) {
+      rawPath = rawPath.replace(".png", ".webp");
+    }
+    if (rawPath.startsWith("weapons/")) {
+      rawPath = rawPath.replace("weapons/", "relic_contents/");
+    }
+
+    imgPath = `assets/${rawPath}`;
+  } else {
+    // Fallback
+    const slug = getSlug(weaponName);
+    imgPath = `assets/relic_contents/${slug}.webp`;
+  }
+
+  let tooltipHtml = "";
+  const hasComponents = details && details.components && details.components.length > 0;
+  const nameUpper = details ? details.name.toUpperCase() : "";
+  const isLichPrefix = nameUpper.startsWith("KUVA") || nameUpper.startsWith("TENET") || nameUpper.startsWith("CODA");
+  const isShopItem = details && details.components && details.components.some(c => c.name.toUpperCase().includes("HOLOKEY"));
+  const isLichWeapon = isLichPrefix && !isShopItem;
+
+  // Render logic:
+  // If Lich Weapon -> Show Source 
+  // Else -> Show Components/Drops normal flow
+
+  if (details && (hasComponents || isLichWeapon)) {
+    const weaponWikiUrl = `https://wiki.warframe.com/w/${encodeURIComponent(details.name)}`;
+
+
+    tooltipHtml += `<div class="preview-tooltip">
+        <h4><a href="${weaponWikiUrl}" target="_blank" class="wiki-link" style="color:var(--wf-purple); border-bottom-color:var(--wf-purple);">${details.name}</a></h4>`;
+
+    if (hasComponents && !isLichWeapon) {
+      tooltipHtml += `<div class="tooltip-section">
+            <span class="tooltip-section-title">Requirements</span>
+            ${details.components.map(c => {
+        const cSlug = getSlug(c.name);
+        const cImgPath = `assets/relic_contents/${cSlug}.webp`;
+        return `
+                <div class="tooltip-drop-row">
+                    <span style="display:flex; align-items:center;">
+                        <img src="${cImgPath}" class="tooltip-res-img" onerror="this.style.display='none'">
+                        ${c.itemCount}x ${c.name}
+                    </span>
+                    <span style="color:#888">${c.ducats || 0}d</span>
+                </div>`;
+      }).join('')}
+        </div>`;
+
+      // Drops logic only for non-Lich items
+      const allDrops = [];
+      details.components.forEach(c => {
+        if (c.drops) {
+          c.drops.forEach(d => {
+            allDrops.push({ part: c.name, loc: d.location, chance: d.chance, rarity: d.rarity });
+          });
+        }
+      });
+
+      const relevantDrops = allDrops
+        .filter(d => d.loc && !d.loc.includes("Vaulted"))
+        .sort((a, b) => b.chance - a.chance)
+        .slice(0, 8);
+
+      if (relevantDrops.length > 0) {
+        tooltipHtml += `<div class="tooltip-section">
+                <span class="tooltip-section-title">Drop Locations</span>
+                ${relevantDrops.map(d => {
+          let colorClass = "t-chance-low";
+          if (d.rarity === "Common") colorClass = "t-chance-high";
+          if (d.rarity === "Rare") colorClass = "t-chance-low";
+
+          let loc = d.loc;
+          let locHtml = "";
+
+          if (loc.includes("Relic")) {
+            const relicName = loc.replace(" Relic", "").trim();
+            locHtml = `<span class="relic-link" onclick="selectRelicFromPreview('${relicName.replace(/'/g, "\\'")}')" title="Click to view Relic" style="max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:inline-block; vertical-align:bottom;">${loc}</span>`;
+          } else {
+            // Wiki Link
+            const cleanLoc = loc.split(":")[0].split(",")[0].split("(")[0].trim();
+            const wikiUrl = `https://wiki.warframe.com/w/${encodeURIComponent(cleanLoc)}`;
+            locHtml = `<a href="${wikiUrl}" target="_blank" class="wiki-link" title="Open Wiki for ${cleanLoc}" style="max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:inline-block; vertical-align:bottom;">${loc}</a>`;
+          }
+
+          return `<div class="tooltip-drop-row">
+                        ${locHtml}
+                        <span class="${colorClass}">${(d.chance * 100).toFixed(1)}%</span>
+                    </div>`;
+        }).join('')}
+            </div>`;
+      }
+    } else if (isLichWeapon) {
+      let sourceName = "Unknown Source";
+      let sourceUrl = "";
+
+      if (nameUpper.startsWith("KUVA")) {
+        sourceName = "Kuva Lich (Vanquish)";
+        sourceUrl = "https://wiki.warframe.com/w/Kuva_Lich";
+      }
+      else if (nameUpper.startsWith("TENET")) {
+        sourceName = "Sisters of Parvos (Vanquish)";
+        sourceUrl = "https://wiki.warframe.com/w/Sisters_of_Parvos";
+      }
+      else if (nameUpper.startsWith("CODA")) {
+        sourceName = "Infested Liches (1999)";
+        sourceUrl = "https://wiki.warframe.com/w/Technocyte_Coda";
+      }
+
+      tooltipHtml += `<div class="tooltip-section">
+            <span class="tooltip-section-title">Acquisition</span>
+            <div class="tooltip-drop-row" style="justify-content:center; padding:8px 0; border:none;">
+                <span style="color:#dcb3ff; text-align:center;">
+                   Source: <a href="${sourceUrl}" target="_blank" class="wiki-link" style="color:var(--wf-gold-text); border-bottom-style:dotted;">${sourceName}</a>
+                </span>
+            </div>
+             <div class="tooltip-drop-row" style="justify-content:center; border:none;">
+                <span style="color:#666; font-size:0.8em; font-style:italic;">(Pre-built weapon drop)</span>
+            </div>
+        </div>`;
+    }
+
+    tooltipHtml += `</div>`;
+  }
+
+  const displayDispo = Number.parseFloat(dispoValue).toFixed(2);
+  // Mobile Click Handler Logic:
+
+  const html = `
+    <div class="riven-weapon-preview" onclick="this.classList.toggle('mobile-active'); event.stopPropagation();">
+        <img src="${imgPath}" class="riven-weapon-img" onerror="this.src='assets/img/default-weapon.png'; this.style.opacity=0.5;">
+        <div class="riven-disposition-row dispo-level-${circles}" title="Disposition: ${displayDispo}">
+            ${circlesHtml}
+            <span class="dispo-text">${displayDispo}</span>
+        </div>
+        ${tooltipHtml}
+    </div>
+  `;
+
+  panel.innerHTML = html;
+  renderVariants(weaponName);
+}
+
+/**
+ * Strips common prefixes and suffixes to find the base weapon name.
+ */
+export function getNakedName(name) {
+  if (!name) return "";
+  let s = name.toLowerCase().replace(/_/g, " ").trim();
+
+  const prefixes = [
+    "kuva ", "tenet ", "coda ", "carmine ", "rakta ", "synoid ",
+    "sancti ", "vaykor ", "telos ", "secura ", "mk1 ", "mk1-", "prisma ",
+    "mara ", "dex ", "mutalist "
+  ];
+  const suffixes = [" prime", " vandal", " wraith", " prisma", " coda"];
+
+  for (const pre of prefixes) {
+    if (s.startsWith(pre)) {
+      s = s.substring(pre.length);
+      break;
+    }
+  }
+  for (const suf of suffixes) {
+    if (s.endsWith(suf)) {
+      s = s.substring(0, s.length - suf.length);
+      break;
+    }
+  }
+  return s.trim();
+}
+
+/**
+ * Renders the horizontal carousel of weapon variants.
+ */
+export function renderVariants(currentWeaponName) {
+  const section = document.getElementById("riven-variants-carousel-section");
+  const carousel = document.getElementById("riven-variants-carousel");
+  if (!section || !carousel) return;
+
+  if (!currentWeaponName || !state.allRivenNames || !state.weaponMap) {
+    section.style.display = "none";
+    return;
+  }
+
+  const currentNaked = getNakedName(currentWeaponName);
+  const siblings = state.allRivenNames.filter(name => getNakedName(name) === currentNaked);
+
+  if (siblings.length <= 1) {
+    section.style.display = "none";
+    return;
+  }
+
+  section.style.display = "block";
+  carousel.innerHTML = "";
+  siblings.sort();
+
+  siblings.forEach(name => {
+    const isSelected = name.toUpperCase() === currentWeaponName.toUpperCase();
+    const weaponData = state.weaponMap[name];
+    const dispoValue = weaponData ? Number.parseFloat(weaponData.d) : 1.0;
+    const displayDispo = dispoValue.toFixed(2);
+
+    // Circle Logic
+    let circles = 3;
+    if (dispoValue < 0.7) circles = 1;
+    else if (dispoValue < 0.9) circles = 2;
+    else if (dispoValue <= 1.1) circles = 3;
+    else if (dispoValue <= 1.3) circles = 4;
+    else circles = 5;
+
+    let circlesHtml = "";
+    for (let i = 1; i <= 5; i++) {
+      circlesHtml += `<div class="v-dispo-dot ${i <= circles ? 'filled' : ''}"></div>`;
+    }
+
+    let imgPath = `assets/relic_contents/${getSlug(name)}.webp`;
+    if (state.weaponDetailsDB) {
+      const det = state.weaponDetailsDB.find(w => w.name.toUpperCase() === name.toUpperCase());
+      if (det && det.localImage) {
+        let raw = det.localImage.replace(".png", ".webp");
+        if (raw.startsWith("weapons/")) raw = raw.replace("weapons/", "relic_contents/");
+        imgPath = `assets/${raw}`;
+      }
+    }
+
+    const card = document.createElement("div");
+    card.className = `variant-card ${isSelected ? "active" : ""}`;
+    card.title = name;
+
+    card.onclick = () => {
+      selectRivenWeapon(name);
+    };
+
+    // Clean displayed variant name (e.g., "Braton Prime" -> "Prime")
+    let displayLabel = name;
+    const nakedUpper = currentNaked.toUpperCase();
+    if (name.toUpperCase().includes(nakedUpper)) {
+      displayLabel = name.toUpperCase().replace(nakedUpper, "").trim() || "Base";
+    }
+
+    card.innerHTML = `
+      <img src="${imgPath}" onerror="this.src='assets/img/default-weapon.png'">
+      <span class="v-name-small">${displayLabel}</span>
+      <div class="v-dispo-row">
+        <div class="v-dispo-dots">${circlesHtml}</div>
+        <span class="v-dispo-val">${displayDispo}</span>
+      </div>
+    `;
+    carousel.appendChild(card);
+  });
+
+  setTimeout(() => {
+    const activeItem = carousel.querySelector(".variant-card.active");
+    if (activeItem) {
+      activeItem.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+    }
+  }, 150);
+
+  if (!carousel._hasCarouselScrollListener) {
+    carousel.addEventListener("mousemove", (e) => {
+      if (globalThis.matchMedia("(pointer: fine)").matches) {
+        const rect = carousel.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const ratio = mouseX / rect.width;
+        const targetScroll = ratio * (carousel.scrollWidth - rect.width);
+        carousel.scrollLeft = targetScroll;
+      }
+    });
+    carousel._hasCarouselScrollListener = true;
+  }
+}
+
+
+if (!globalThis._rivenTooltipListenerAdded) {
+  document.addEventListener('click', function (event) {
+    const preview = document.querySelector('.riven-weapon-preview.mobile-active');
+    if (preview && !preview.contains(event.target)) {
+      preview.classList.remove('mobile-active');
+    }
+  });
+  globalThis._rivenTooltipListenerAdded = true;
+}
+
+globalThis.selectRelicFromPreview = function (relicName) {
+  switchTab("relic");
+
+  const input = document.getElementById("relicInput");
+  if (input) {
+    input.value = relicName;
+    state.selectedRelic = relicName;
+    manualRelicUpdate();
+  }
+
+  const status = state.relicStatusDB ? state.relicStatusDB[relicName] : null;
+  let msg = `Navigated to ${relicName}`;
+  if (status) {
+    if (status === "vaulted") msg += " (VAULTED)";
+    else msg += " (ACTIVE)";
+  }
+  showToast(msg);
+};
+
+export function handleRivenInput() {
+  const input = document.getElementById("rivenWeaponInput");
+  const dropdown = document.getElementById("rivenDropdown");
+  if (!input || !dropdown) return;
+
+  const val = input.value.toUpperCase().trim();
+  if (val.length === 0) {
+    dropdown.classList.add("hidden");
+    document.getElementById("riven-preview-panel").innerHTML = "";
+    return;
+  }
+
+  // Ensure Details DB is loaded (should be called in switchTab, but just in case)
+  if (!state.weaponDetailsDB) loadWeaponDetails();
+
+  if (
+    (!state.allRivenNames || state.allRivenNames.length === 0) &&
+    state.weaponMap
+  ) {
+    state.allRivenNames = Object.keys(state.weaponMap).sort();
+  }
+
+  const source = state.allRivenNames || [];
+  const startsWithMatches = [];
+  const containsMatches = [];
+
+  source.forEach(n => {
+    const upperN = n.toUpperCase();
+    if (upperN.startsWith(val)) {
+      startsWithMatches.push(n);
+    } else if (upperN.includes(val)) {
+      containsMatches.push(n);
+    }
+  });
+
+  const matches = [...startsWithMatches, ...containsMatches].slice(0, 10);
 
   if (matches.length > 0) {
     dropdown.innerHTML = "";
     dropdown.classList.remove("hidden");
+
     matches.forEach((name) => {
       const item = document.createElement("div");
       item.className = "dropdown-item";
       item.innerText = name;
+
       item.onclick = () => {
-        input.value = name;
-        dropdown.classList.add("hidden");
-        fetchRivenAverage(name);
+        selectRivenWeapon(name);
       };
+
       dropdown.appendChild(item);
     });
   } else {
     dropdown.classList.add("hidden");
   }
-
-  if (state.weaponMap && state.weaponMap[input.value]) {
-    dropdown.classList.add("hidden");
-    fetchRivenAverage(input.value);
-  }
 }
 
-export function populateRivenSelects() {
-  const selects = document.querySelectorAll(".riven-stat-select");
-  const isSpan = state.currentLang === "es";
-  selects.forEach((sel) => {
-    while (sel.options.length > 1) sel.remove(1);
-    RIVEN_STATS.forEach((stat) => {
-      let opt = document.createElement("option");
-      opt.value = stat.slug;
-      opt.innerText = isSpan ? stat.name_es : stat.name_en;
-      sel.appendChild(opt);
+/**
+ * Handles the selection of a Riven weapon from dropdown or variants.
+ */
+export function selectRivenWeapon(name) {
+  const input = document.getElementById("rivenWeaponInput");
+  const dropdown = document.getElementById("rivenDropdown");
+  if (!input) return;
+
+  console.log(`🖱️ [LOG]: Weapon selected: "${name}"`);
+
+  input.value = name;
+  if (dropdown) dropdown.classList.add("hidden");
+
+  const weaponData = state.weaponMap ? state.weaponMap[name] : null;
+
+  renderRivenPreview(name);
+
+  if (weaponData) {
+    const dispoDisplay = document.getElementById("riven-dispo-display");
+    if (dispoDisplay) {
+      const displayValue = Number.parseFloat(weaponData.d).toFixed(2);
+      dispoDisplay.innerHTML = `Riven disposition: <b style="color:var(--wf-gold-text)">${displayValue}</b>`;
+    }
+    populateRivenSelects(weaponData.t);
+  }
+
+  fetchRivenAverage(name);
+}
+
+export function updateSelectExclusions() {
+  const selects = Array.from(document.querySelectorAll(".riven-stat-select"));
+
+  const selectedValues = new Set(
+    selects.map((s) => s.value).filter((v) => v !== ""),
+  );
+
+  selects.forEach((currentSelect) => {
+    const myValue = currentSelect.value;
+
+    Array.from(currentSelect.options).forEach((option) => {
+      if (option.value === "") return;
+
+      if (selectedValues.has(option.value) && option.value !== myValue) {
+        option.hidden = true;
+        option.style.display = "none";
+      } else {
+        option.hidden = false;
+        option.style.display = "";
+      }
     });
   });
+
+  if (typeof updateGradingUI === "function") updateGradingUI();
 }
 
-// --- LFG UI ---
 export function changeLFGCount(n) {
   state.lfgCount = Math.max(1, Math.min(3, state.lfgCount + n));
   const display = document.getElementById("lfgCountDisplay");
@@ -941,9 +1749,8 @@ export function updateLFGUI() {
   } else if (act === "eidolon") {
     container.innerHTML = `
             <div style="margin-bottom:10px;">
-                <label style="font-size:0.8em; color:#888; margin-bottom:5px; display:block;">Pace / Ritmo <span data-tooltip="${
-                  tips.rotation || "Rotation info"
-                }">(?)</span></label>
+                <label style="font-size:0.8em; color:#888; margin-bottom:5px; display:block;">Pace / Ritmo <span data-tooltip="${tips.rotation || "Rotation info"
+      }">(?)</span></label>
                 <select id="lfg-eidolon-runs" class="wf-input" onchange="generateLFGMessage()">
                     <option value="3x3">${roles.run3x3}</option>
                     <option value="5x3">${roles.run5x3}</option>
@@ -982,9 +1789,8 @@ export function updateLFGUI() {
   } else if (act === "radshare") {
     container.innerHTML = `
             <div style="padding:10px; background:#1a1c20; border:1px dashed #444; color:#aaa; font-size:0.9em;">
-                <span data-tooltip="${tips.radshare || ""}">${
-      t.lfgOpts.radshareInfo
-    }</span>
+                <span data-tooltip="${tips.radshare || ""}">${t.lfgOpts.radshareInfo
+      }</span>
             </div>`;
   }
   generateLFGMessage();
@@ -1021,7 +1827,7 @@ export function generateLFGMessage() {
     const getRoles = () => {
       if (!optionsContainer) return [];
       return Array.from(
-        optionsContainer.querySelectorAll(".lfg-role:checked")
+        optionsContainer.querySelectorAll(".lfg-role:checked"),
       ).map((c) => c.value);
     };
 
@@ -1036,21 +1842,19 @@ export function generateLFGMessage() {
       msg = `H ${activityName}`;
     } else if (act === "temporal") {
       const eliteEl = document.getElementById("lfg-temp-elite");
-      const prefix =
-        eliteEl && eliteEl.checked
-          ? state.currentLang === "es"
-            ? "Élite "
-            : "Elite "
-          : "";
+      const prefix = eliteEl?.checked
+        ? state.currentLang === "es"
+          ? "Élite "
+          : "Elite "
+        : "";
       msg = `H ${prefix}${activityName}`;
     } else if (act === "eda") {
       const eliteEl = document.getElementById("lfg-eda-elite");
-      const prefix =
-        eliteEl && eliteEl.checked
-          ? state.currentLang === "es"
-            ? "Élite "
-            : "Elite "
-          : "";
+      const prefix = eliteEl?.checked
+        ? state.currentLang === "es"
+          ? "Élite "
+          : "Elite "
+        : "";
       msg = `H ${prefix}${activityName}`;
     } else if (act === "profit") {
       msg = `H ${activityName}`;
@@ -1065,8 +1869,7 @@ export function generateLFGMessage() {
 
     if (extra) msg += ` ${extra}`;
 
-    const count =
-      typeof state !== "undefined" && state.lfgCount ? state.lfgCount : 1;
+    const count = state?.lfgCount ? state.lfgCount : 1;
     msg += ` ${count}/4`;
 
     const box = document.getElementById("finalMessage");
@@ -1102,18 +1905,14 @@ export function renderProfileStats(mr, focus, standingObj, isCalc = false) {
   container.innerHTML = `
         <div style="display:flex; gap:10px; margin-bottom:15px;">
             <div class="profile-stat-box" style="flex:1"><div class="profile-stat-title">Mastery Rank</div><div class="profile-stat-val" style="color:#gold">${mr}</div></div>
-            <div class="profile-stat-box" style="flex:1"><div class="profile-stat-title">${
-              t.lblTraces
-            }</div><div class="profile-stat-val">${tracesCap}</div></div>
+            <div class="profile-stat-box" style="flex:1"><div class="profile-stat-title">${t.lblTraces
+    }</div><div class="profile-stat-val">${tracesCap}</div></div>
         </div>
-        <div class="profile-stat-box"><div class="profile-stat-title">${
-          t.lblDailyFocus
-        } ${
-    isCalc ? "(Max)" : "(Remaining)"
-  }</div><div class="profile-stat-val" style="color:var(--wf-riven)">${focus.toLocaleString()}</div></div>
-        <div style="margin-top:15px; font-weight:bold; color:var(--wf-blue); text-align:center;">${
-          t.lblStanding
-        }</div>
+        <div class="profile-stat-box"><div class="profile-stat-title">${t.lblDailyFocus
+    } ${isCalc ? "(Max)" : "(Remaining)"
+    }</div><div class="profile-stat-val" style="color:var(--wf-riven)">${focus.toLocaleString()}</div></div>
+        <div style="margin-top:15px; font-weight:bold; color:var(--wf-blue); text-align:center;">${t.lblStanding
+    }</div>
         <div class="standing-grid">${standingHtml}</div>
     `;
 }
@@ -1131,15 +1930,24 @@ export function calculateCaps() {
   renderProfileStats(mr, focusCap, mockStanding, true);
   saveAppState();
 }
-
+let fissureLoadPromise = null;
 export async function updateRecommendedMissions(tier) {
   const listArea = document.getElementById("fissures-list-area");
+
   if (!listArea || listArea.children.length === 0) {
-    await initFissurePanel();
+    if (fissureLoadPromise) {
+      //en curso
+    } else {
+      //fissureLoadPromise = initFissurePanel().then(() => {
+      // fissureLoadPromise = null;
+      //});
+    }
+
+    await fissureLoadPromise;
   }
+
   highlightFissureTier(tier);
 }
-
 function renderMissionRow(m) {
   const t = TEXTS[state.currentLang];
 
@@ -1172,8 +1980,12 @@ function renderMissionRow(m) {
         </div>
     `;
 }
+
 export function initGlobalTooltipSystem() {
   let tooltipEl = document.getElementById("global-tooltip");
+  let closeTimer = null;
+  let currentMode = "simple";
+
   if (!tooltipEl) {
     tooltipEl = document.createElement("div");
     tooltipEl.id = "global-tooltip";
@@ -1181,81 +1993,145 @@ export function initGlobalTooltipSystem() {
     document.body.appendChild(tooltipEl);
   }
 
-  const showTooltip = (e, text) => {
-    if (!text) return;
+  const moveSimpleTooltip = (e) => {
+    const offset = 15;
+    const tWidth = tooltipEl.offsetWidth;
+    const tHeight = tooltipEl.offsetHeight;
 
-    tooltipEl.innerText = text;
-    tooltipEl.classList.remove("hidden");
+    let left = e.clientX + offset;
+    let top = e.clientY + offset;
 
-    const padding = 10;
-    const tipWidth = tooltipEl.offsetWidth;
-    const tipHeight = tooltipEl.offsetHeight;
-    const screenWidth = window.innerWidth;
-    const screenHeight = window.innerHeight;
-
-    let left = e.clientX + padding;
-    let top = e.clientY + padding;
-
-    if (left + tipWidth > screenWidth) {
-      left = e.clientX - tipWidth - padding;
-    }
-
-    if (top + tipHeight > screenHeight) {
-      top = e.clientY - tipHeight - padding;
-    }
-
-    if (left < 0) left = 10;
+    if (left + tWidth > globalThis.innerWidth)
+      left = e.clientX - tWidth - offset;
+    if (top + tHeight > globalThis.innerHeight)
+      top = e.clientY - tHeight - offset;
 
     tooltipEl.style.left = `${left}px`;
     tooltipEl.style.top = `${top}px`;
   };
 
+  const positionMegaTooltip = (target) => {
+    const rect = target.getBoundingClientRect();
+    const tWidth = tooltipEl.offsetWidth;
+    const tHeight = tooltipEl.offsetHeight;
+    const gap = 5;
+
+    let left = rect.right + gap;
+    let top = rect.top;
+
+    if (left + tWidth > globalThis.innerWidth) left = rect.left - tWidth - gap;
+
+    if (top + tHeight > globalThis.innerHeight) top = rect.bottom - tHeight;
+
+    if (top < 10) top = 10;
+    if (left < 10) left = 10;
+
+    tooltipEl.style.left = `${left}px`;
+    tooltipEl.style.top = `${top}px`;
+  };
+
+  const showTooltip = (e, target) => {
+    if (closeTimer) clearTimeout(closeTimer);
+
+    const htmlContent = target.dataset.tooltipHtml;
+    const textContent = target.dataset.tooltip;
+
+    if (htmlContent) {
+      currentMode = "mega";
+      tooltipEl.innerHTML = htmlContent;
+      tooltipEl.classList.add("mega-mode");
+    } else if (textContent) {
+      currentMode = "simple";
+      tooltipEl.innerText = textContent;
+      tooltipEl.classList.remove("mega-mode");
+    } else {
+      return;
+    }
+
+    tooltipEl.classList.remove("hidden");
+
+    if (currentMode === "mega") {
+      positionMegaTooltip(target);
+    } else {
+      moveSimpleTooltip(e);
+    }
+  };
+
   const hideTooltip = () => {
-    tooltipEl.classList.add("hidden");
+    if (currentMode === "simple") {
+      tooltipEl.classList.add("hidden");
+    } else {
+      if (closeTimer) clearTimeout(closeTimer);
+      closeTimer = setTimeout(() => {
+        tooltipEl.classList.add("hidden");
+        tooltipEl.classList.remove("mega-mode");
+      }, 300);
+    }
   };
 
   document.addEventListener("mouseover", (e) => {
-    const target = e.target.closest("[data-tooltip]");
-    if (target) {
-      showTooltip(e, target.getAttribute("data-tooltip"));
+    const target = e.target.closest("[data-tooltip], [data-tooltip-html]");
+    const isOverTooltip = e.target.closest("#global-tooltip");
+
+    if (target || isOverTooltip) {
+      if (closeTimer) clearTimeout(closeTimer);
+      if (target) showTooltip(e, target);
     }
   });
 
   document.addEventListener("mousemove", (e) => {
-    const target = e.target.closest("[data-tooltip]");
-    if (target && !tooltipEl.classList.contains("hidden")) {
-      showTooltip(e, target.getAttribute("data-tooltip"));
+    if (currentMode === "simple" && !tooltipEl.classList.contains("hidden")) {
+      moveSimpleTooltip(e);
     }
   });
 
   document.addEventListener("mouseout", (e) => {
-    hideTooltip();
-  });
+    const isTrigger = e.target.closest("[data-tooltip], [data-tooltip-html]");
+    const isTooltip = e.target.closest("#global-tooltip");
 
-  document.addEventListener("touchstart", (e) => {
-    const target = e.target.closest("[data-tooltip]");
-    if (target) {
-      const touch = e.touches[0];
-      showTooltip(
-        { clientX: touch.clientX, clientY: touch.clientY },
-        target.getAttribute("data-tooltip")
-      );
-    } else {
+    if (isTrigger || isTooltip) {
+      const related = e.relatedTarget;
+      if (
+        related &&
+        (related.closest("[data-tooltip], [data-tooltip-html]") ||
+          related.closest("#global-tooltip"))
+      ) {
+        return;
+      }
       hideTooltip();
     }
   });
 }
 export function openRivenMarket() {
-  const inputVal = document.getElementById("rivenWeaponInput").value.trim();
-  if (!inputVal) return alert("Por favor introduce un nombre de arma");
+  const inputEl = document.getElementById("rivenWeaponInput");
+  if (!inputEl) return;
+  const inputVal = inputEl.value.trim();
+  if (!inputVal) return showToast("Por favor selecciona un arma primero");
 
   let slug = getRivenSlug(inputVal);
   let url = `https://warframe.market/auctions/search?type=riven&weapon_url_name=${slug}&polarity=any&sort_by=price_asc`;
 
-  const stat1 = document.getElementById("rivenStat1").value;
-  const stat2 = document.getElementById("rivenStat2").value;
-  const stat3 = document.getElementById("rivenStat3").value;
-  const statNeg = document.getElementById("rivenStatNeg").value;
+  // Map readable values used in select to Warframe Market slugs
+  const statToSlugMap = {};
+  RIVEN_STATS.forEach(s => {
+    const baseStatKey = s.name_en === "Crit Chance" ? "Critical Chance" :
+      s.name_en === "Crit Damage" ? "Critical Damage" :
+        s.name_en === "Status Chance" ? "Status Chance" :
+          s.name_en === "Damage" ? "Damage" :
+            s.name_en === "Multishot" ? "Multishot" : s.name_en.split(" / ")[0];
+    statToSlugMap[baseStatKey] = s.slug;
+  });
+
+  const getStatSlug = (id) => {
+    const el = document.getElementById(id);
+    if (!el || !el.value) return null;
+    return statToSlugMap[el.value] || el.value;
+  };
+
+  const stat1 = getStatSlug("rivenStat1");
+  const stat2 = getStatSlug("rivenStat2");
+  const stat3 = getStatSlug("rivenStat3");
+  const statNeg = getStatSlug("rivenStatNeg");
 
   let positives = [];
   if (stat1) positives.push(stat1);
@@ -1265,59 +2141,26 @@ export function openRivenMarket() {
   if (positives.length > 0) url += `&positive_stats=${positives.join(",")}`;
   if (statNeg) url += `&negative_stats=${statNeg}`;
 
-  window.open(url, "_blank");
+  globalThis.open(url, "_blank");
 }
 
-export function getRivenSlug(inputVal) {
+/*export function getRivenSlug(inputVal) {
   const validWeapons = state.allRivenNames || [];
-  let fullSlug = inputVal.toLowerCase().trim().replace(/\s+/g, "_");
+  let fullSlug = inputVal.toLowerCase().trim().replaceAll(/\s+/g, "_");
   let nakedSlug = getNakedName(fullSlug);
 
   if (nakedSlug === fullSlug) return fullSlug;
 
   const baseExists = validWeapons.some(
-    (name) => name.toLowerCase().replace(/\s+/g, "_") === nakedSlug
+    (name) => name.toLowerCase().replaceAll(/\s+/g, "_") === nakedSlug
   );
 
   return baseExists ? nakedSlug : fullSlug;
-}
+}*/
 
-export function getNakedName(slug) {
-  let s = slug;
-  const prefixes = [
-    "coda_",
-    "kuva_",
-    "tenet_",
-    "carmine_",
-    "rakta_",
-    "synoid_",
-    "sancti_",
-    "vaykor_",
-    "telos_",
-    "secura_",
-    "mk1_",
-    "prisma_",
-    "mara_",
-    "dex_",
-  ];
-  const suffixes = ["_prime", "_vandal", "_wraith", "_prisma"];
 
-  for (let pre of prefixes) {
-    if (s.startsWith(pre)) {
-      s = s.replace(pre, "");
-      break;
-    }
-  }
-  for (let suf of suffixes) {
-    if (s.endsWith(suf)) {
-      s = s.replace(suf, "");
-      break;
-    }
-  }
-  return s;
-}
 
-window.findRelicsForItem = function (itemName) {
+globalThis.findRelicsForItem = function (itemName) {
   const setInput = document.getElementById("setItemInput");
   if (setInput) {
     let searchTerm = itemName;
@@ -1328,7 +2171,7 @@ window.findRelicsForItem = function (itemName) {
       searchTerm = itemName.split("Vandal")[0].trim() + " Vandal";
     else if (itemName.includes("Wraith"))
       searchTerm = itemName.split("Wraith")[0].trim() + " Wraith";
-    else searchTerm = itemName.replace("Blueprint", "").trim();
+    else searchTerm = itemName.replaceAll("Blueprint", "").trim();
 
     setInput.value = searchTerm;
     switchTab("set");
@@ -1338,7 +2181,6 @@ window.findRelicsForItem = function (itemName) {
   }
 };
 
-//--- LANGUAGE SELECTION UI ---
 export function toggleLangDropdown() {
   const list = document.getElementById("langOptionsList");
   if (list) list.classList.toggle("hidden");
@@ -1390,23 +2232,24 @@ export async function initFissurePanel() {
       </div>
     `;
     document.body.appendChild(missionDiv);
+  }
 
-    const header = document.getElementById("fissure-panel-header");
-    const runner = document.getElementById("gauss-runner");
-    let runTimeout;
-    if (header && runner) {
-      header.addEventListener("mouseenter", () => {
-        runTimeout = setTimeout(() => {
-          if (runner) {
-            runner.classList.add("is-running");
-            setTimeout(() => {
-              if (runner) runner.classList.remove("is-running");
-            }, 3000);
-          }
-        }, 2000);
-      });
-      header.addEventListener("mouseleave", () => clearTimeout(runTimeout));
-    }
+  const header = document.getElementById("fissure-panel-header");
+  const runner = document.getElementById("gauss-runner");
+  let runTimeout;
+  if (header && runner) {
+
+    header.onmouseenter = () => {
+      runTimeout = setTimeout(() => {
+        if (runner) {
+          runner.classList.add("is-running");
+          setTimeout(() => {
+            if (runner) runner.classList.remove("is-running");
+          }, 3000);
+        }
+      }, 2000);
+    };
+    header.onmouseleave = () => clearTimeout(runTimeout);
   }
 
   const { fetchBestFissures } = await import("./api.js");
@@ -1422,7 +2265,6 @@ export async function initFissurePanel() {
     Omnia: [],
   };
 
-  // Agrupar misiones
   allMissions.forEach((m) => {
     let tName = m.tier;
     if (tName === "Vanguard") tName = "Axi";
@@ -1444,7 +2286,7 @@ export async function initFissurePanel() {
     const allTierMissions = tiersData[tierName];
 
     const efficientMissions = allTierMissions.filter(
-      (m) => efficientTypes.includes(m.type) || m.tier === "Omnia"
+      (m) => efficientTypes.includes(m.type) || m.tier === "Omnia",
     );
 
     const groupDiv = document.createElement("div");
@@ -1513,13 +2355,12 @@ export function highlightFissureTier(tier) {
   if (!tier) return;
   const tierKey = tier.toLowerCase();
 
-  // Normalizar Vanguard a Axi para propósitos visuales
   const normalizedTier = tierKey === "vanguard" ? "axi" : tierKey;
 
   const panel = document.getElementById("best-missions-container");
-  if (panel && !panel.classList.contains("open")) {
+  /*if (panel && !panel.classList.contains("open")) {
     panel.classList.add("open");
-  }
+  }*/ //TODO
 
   document.querySelectorAll(".fissure-group").forEach((group) => {
     const groupTier = group.dataset.tier;
@@ -1589,25 +2430,23 @@ export function initSyncPanel() {
   document.body.appendChild(syncDiv);
 }
 
-window.toggleSyncPanel = function () {
+globalThis.toggleSyncPanel = function () {
   const panel = document.getElementById("cloud-sync-container");
   panel.classList.toggle("open");
 
-  if (!panel.classList.contains("open")) {
-    stopReceiver();
-  } else {
+  if (panel.classList.contains("open")) {
     if (
       document.getElementById("panel-receive").classList.contains("active") ||
       !document.getElementById("panel-send").classList.contains("active")
     ) {
       switchSyncTab("receive");
     }
+  } else {
+    stopReceiver();
   }
 };
 
-window.switchSyncTab = function (mode) {
-  const t = TEXTS[state.currentLang];
-
+globalThis.switchSyncTab = function (mode) {
   document
     .querySelectorAll(".sync-tab")
     .forEach((b) => b.classList.remove("active"));
@@ -1624,8 +2463,6 @@ window.switchSyncTab = function (mode) {
     stopReceiver();
   }
 };
-
-// --- LÓGICA INTERNA ---
 
 function stopReceiver() {
   if (syncInterval) clearInterval(syncInterval);
@@ -1714,14 +2551,13 @@ function startReceiver() {
     }
   }, 120000);
 }
-window.executeSyncSend = async function () {
+globalThis.executeSyncSend = async function () {
   const t = TEXTS[state.currentLang].sync;
   const code = document.getElementById("sync-input-code").value;
   const msg = document.getElementById("finalMessage")?.innerText;
   const btn = document.getElementById("btn-do-sync");
 
-  if (!code || code.length !== 4)
-    return showToast("Código inválido (4 dígitos)");
+  if (code?.length !== 4) return showToast("Código inválido (4 dígitos)");
   if (!msg || msg === "...") return showToast("No hay mensaje para enviar");
 
   const originalText = btn.innerText;
@@ -1730,7 +2566,7 @@ window.executeSyncSend = async function () {
 
   try {
     const res = await fetch(
-      `${WORKER_URL}?type=sync_set&id=${code}&val=${encodeURIComponent(msg)}`
+      `${WORKER_URL}?type=sync_set&id=${code}&val=${encodeURIComponent(msg)}`,
     );
     if (res.status === 429) {
       throw new Error("Límite alcanzado. Espera 1 minuto.");
@@ -1780,20 +2616,28 @@ export function renderLFGPresets() {
   const t = TEXTS[state.currentLang].lfgPresets;
 
   let html = `<div class="presets-header">
-                  <span style="font-size:0.85em; font-weight:bold; color:#888;">${t.title}</span>
-                  <button class="mini-action-btn" onclick="window.saveLFGPreset()">+ ${t.btnSave}</button>
+                  <span style="font-size:0.85em; font-weight:bold; color:#888;">${escapeHTML(
+    t.title,
+  )}</span>
+                  <button class="mini-action-btn" data-action="save-lfg-preset">+ ${escapeHTML(
+    t.btnSave,
+  )}</button>
                 </div>`;
 
   if (!state.lfgPresets || state.lfgPresets.length === 0) {
-    html += `<div style="font-size:0.8em; color:#555; font-style:italic; padding:5px;">${t.empty}</div>`;
+    html += `<div style="font-size:0.8em; color:#555; font-style:italic; padding:5px;">${escapeHTML(
+      t.empty,
+    )}</div>`;
   } else {
     html += `<div class="presets-list">`;
     state.lfgPresets.forEach((p, index) => {
       html += `
-                <div class="preset-chip" onclick="window.loadLFGPreset(${index})">
-                    <span class="p-name">${p.name}</span>
-                    <span class="p-act">${p.activity.toUpperCase()}</span>
-                    <button class="p-del" onclick="event.stopPropagation(); window.deleteLFGPreset(${index})">×</button>
+                <div class="preset-chip" data-action="load-lfg-preset" data-index="${index}">
+                    <span class="p-name">${escapeHTML(p.name)}</span>
+                    <span class="p-act">${escapeHTML(
+        p.activity.toUpperCase(),
+      )}</span>
+                    <button class="p-del" data-action="delete-lfg-preset" data-index="${index}">×</button>
                 </div>
             `;
     });
@@ -1803,7 +2647,7 @@ export function renderLFGPresets() {
   container.innerHTML = html;
 }
 
-window.saveLFGPreset = function () {
+globalThis.saveLFGPreset = function () {
   const t = TEXTS[state.currentLang].lfgPresets;
   const name = prompt(t.placeholder);
   if (!name) return;
@@ -1813,7 +2657,7 @@ window.saveLFGPreset = function () {
   const count = state.lfgCount;
 
   const roles = Array.from(document.querySelectorAll(".lfg-role:checked")).map(
-    (c) => c.value
+    (c) => c.value,
   );
 
   const specificData = {};
@@ -1836,7 +2680,7 @@ window.saveLFGPreset = function () {
   renderLFGPresets();
 };
 
-window.loadLFGPreset = function (index) {
+globalThis.loadLFGPreset = function (index) {
   const p = state.lfgPresets[index];
   if (!p) return;
 
@@ -1883,7 +2727,7 @@ window.loadLFGPreset = function (index) {
   showToast(`Preset "${p.name}" cargado`);
 };
 
-window.deleteLFGPreset = function (index) {
+globalThis.deleteLFGPreset = function (index) {
   if (confirm(TEXTS[state.currentLang].lfgPresets.deleteConfirm)) {
     state.lfgPresets.splice(index, 1);
     saveAppState();
@@ -1905,98 +2749,159 @@ export function clearInventory() {
   }
 }
 
+let inventoryPriceUpdateInterval = null;
+
 export async function renderInventory() {
   const list = document.getElementById("inventory-list");
   if (!list) return;
 
-  list.style.opacity = "0.5";
-  list.style.pointerEvents = "none";
-  list.style.transition = "opacity 0.2s";
+  list.classList.remove("inventory-loading");
 
-  try {
-    if (!state.inventory || state.inventory.length === 0) {
-      list.innerHTML = `<div style="padding:20px; text-align:center; color:#666;">Inventario vacío</div>`;
-      resetLoadingStyle(list);
-      return;
+  if (!state.inventory || state.inventory.length === 0) {
+    list.innerHTML = `<div style="padding:20px; text-align:center; color:#666;">Inventory empty</div>`;
+    return;
+  }
+
+  const sortMode = document.getElementById("inv-sort")?.value || "recent";
+
+  const filtered = state.inventory.filter((item) => {
+    const name = (typeof item === "string" ? item : item.name).toUpperCase();
+    if (
+      state.invSearchVal &&
+      !name.toLowerCase().includes(state.invSearchVal.toLowerCase())
+    )
+      return false;
+    if (state.invFilterTier !== "ALL") {
+      let tier = name.split(" ")[0];
+      if (tier === "VANGUARD") tier = "AXI";
+      if (tier !== state.invFilterTier) return false;
     }
+    return true;
+  });
 
-    const sortMode = document.getElementById("inv-sort")?.value || "recent";
+  /* Sorting Logic */
+  if (sortMode !== "recent") {
 
-    const filtered = state.inventory.filter((item) => {
-      const name = (typeof item === "string" ? item : item.name).toUpperCase();
-      if (
-        state.invSearchVal &&
-        !name.toLowerCase().includes(state.invSearchVal)
-      )
-        return false;
-      if (state.invFilterTier !== "ALL") {
-        let tier = name.split(" ")[0];
-        if (tier === "VANGUARD") tier = "AXI";
-        if (tier !== state.invFilterTier) return false;
-      }
-      return true;
-    });
+    const valueMap = new Map();
 
-    let displayItems = filtered.map((item) =>
-      typeof item === "string" ? { name: item, count: 1 } : item
-    );
-
-    const enrichedItems = await Promise.all(
-      displayItems.map(async (item) => {
-        const stats = (await calculateRelicValue(item.name)) || {
-          intact: 0,
-          rad: 0,
-          ducats: 0,
-        };
-        return { ...item, ...stats };
+    await Promise.all(
+      filtered.map(async (item) => {
+        const name = typeof item === "string" ? item : item.name;
+        const val = await calculateRelicValue(name);
+        valueMap.set(name, val);
       })
     );
 
-    enrichedItems.sort((a, b) => {
-      if (sortMode === "plat_intact") return b.intact - a.intact;
-      if (sortMode === "plat_rad") return b.rad - a.rad;
-      if (sortMode === "ducats") return b.ducats - a.ducats;
+    filtered.sort((a, b) => {
+      const nameA = typeof a === "string" ? a : a.name;
+      const nameB = typeof b === "string" ? b : b.name;
+      const valA = valueMap.get(nameA);
+      const valB = valueMap.get(nameB);
+
+      if (!valA) return 1;
+      if (!valB) return -1;
+
+      if (sortMode === "plat_intact") return valB.intact - valA.intact;
+      if (sortMode === "plat_rad") return valB.rad - valA.rad;
+      if (sortMode === "ducats") return valB.ducats - valA.ducats;
       return 0;
     });
+  } else {
 
-    let newHTML = "";
-    enrichedItems.forEach((item) => {
-      const safeName = item.name.replace(/'/g, "\\'").replace(/"/g, "&quot;");
-      const mainPrice = sortMode.includes("rad") ? item.rad : item.intact;
-      const isVaulted = state.relicStatusDB[item.name] === "vaulted";
-
-      newHTML += `
-        <div class="inv-row">
-            <div class="inv-name-group" onclick="selectRelicFromInv('${safeName}')">
-                <div class="inv-name">${item.name}</div>
-                <div class="inv-meta">
-                   <span style="color:${isVaulted ? "#e44" : "#aaa"}">${
-        isVaulted ? "V" : "A"
-      }</span>
-                   <span style="color:var(--wf-gold)">${item.ducats} duc</span>
-                </div>
-            </div>
-            <div class="inv-price-tag">
-                <div>${mainPrice}p</div>
-                <div style="font-size:0.8em; opacity:0.6">x${item.count}</div>
-            </div>
-            <div class="inv-qty-controls">
-                <button class="inv-btn minus" onclick="modifyInv('${safeName}', -1)">−</button>
-                <button class="inv-btn plus" onclick="modifyInv('${safeName}', 1)">+</button>
-            </div>
-        </div>
-      `;
-    });
-
-    list.innerHTML = newHTML;
-  } catch (e) {
-    console.error("Error renderizando inventario:", e);
-    if (list.innerHTML === "") {
-      list.innerHTML = `<div style="color:#d44; padding:10px;">Error de visualización.</div>`;
-    }
-  } finally {
-    resetLoadingStyle(list);
+    filtered.reverse();
   }
+
+  const fragment = document.createDocumentFragment();
+
+  filtered.forEach((item) => {
+    const itemName = typeof item === "string" ? item : item.name;
+    const count = item.count || 1;
+    const isVaulted = state.relicStatusDB[itemName] === "vaulted";
+    const safeId = itemName.replaceAll(/[^a-zA-Z0-9]/g, "");
+
+    const row = document.createElement("div");
+    row.className = "inv-row";
+    row.dataset.relic = itemName;
+
+    row.innerHTML = `
+          <div class="inv-name-group" data-action="select-relic-from-inv" data-relic="${escapeHTML(
+      itemName,
+    )}">
+              <div class="inv-name">${escapeHTML(itemName)}</div>
+              <div class="inv-meta">
+                 <span class="relic-status-tag ${isVaulted ? "vaulted" : "active"}">${isVaulted ? "VAULTED" : "ACTIVE"}</span>
+                 <span id="duc-${safeId}" class="ducat-tag">... duc</span>
+              </div>
+          </div>
+          <div class="inv-price-tag">
+              <span id="price-${safeId}" class="price-val">...<img src="assets/relic_contents/platinum.webp" class="plat-icon"></span>
+              <span class="qty-label">x${count}</span>
+          </div>
+          <div class="inv-qty-controls">
+              <button class="inv-btn minus" data-action="modify-inv" data-relic="${escapeHTML(
+      itemName,
+    )}" data-amount="-1">−</button>
+              <button class="inv-btn plus" data-action="modify-inv" data-relic="${escapeHTML(
+      itemName,
+    )}" data-amount="1">+</button>
+          </div>
+    `;
+    fragment.appendChild(row);
+  });
+
+  list.innerHTML = "";
+  list.appendChild(fragment);
+
+  triggerPriceFetch(filtered);
+}
+
+async function triggerPriceFetch(relicList) {
+  if (inventoryPriceUpdateInterval) clearInterval(inventoryPriceUpdateInterval);
+
+  const { addToQueue } = await import("./api.js");
+
+  relicList.forEach((item) => {
+    const rName = typeof item === "string" ? item : item.name;
+    const drops = state.relicsDatabase[rName];
+
+    if (drops) {
+      drops.forEach((drop) => {
+        const dummyBadge = document.createElement("div");
+        addToQueue(drop.name, dummyBadge);
+      });
+    }
+  });
+
+  let attempts = 0;
+  inventoryPriceUpdateInterval = setInterval(async () => {
+    attempts++;
+    const rows = document.querySelectorAll(".inv-row");
+
+    for (const row of rows) {
+      const rName = row.dataset.relic;
+      const safeId = rName.replaceAll(/[^a-zA-Z0-9]/g, "");
+      const priceEl = document.getElementById(`price-${safeId}`);
+      const ducEl = document.getElementById(`duc-${safeId}`);
+
+      if (!priceEl) continue;
+
+      const stats = await calculateRelicValue(rName);
+
+      if (stats.intact > 0 || attempts > 10) {
+        if (priceEl.innerText !== `${stats.intact}p`) { // Check logic might need update, but for now just update render
+          priceEl.innerHTML = `${stats.intact}<img src="assets/relic_contents/platinum.webp" class="plat-icon">`;
+          priceEl.classList.remove("price-loading");
+          priceEl.style.color = "#42f56c";
+          setTimeout(() => (priceEl.style.color = ""), 1000);
+        }
+        if (ducEl) ducEl.innerText = `${stats.ducats} duc`;
+      }
+    }
+
+    if (attempts > 15) {
+      clearInterval(inventoryPriceUpdateInterval);
+    }
+  }, 1000);
 }
 
 function resetLoadingStyle(element) {
@@ -2004,13 +2909,13 @@ function resetLoadingStyle(element) {
   element.style.opacity = "1";
   element.style.pointerEvents = "auto";
 }
-window.modifyInv = (name, amount) => {
+globalThis.modifyInv = (name, amount) => {
   updateInventoryCount(name, amount);
   saveAppState();
   renderInventory();
 };
 
-window.selectRelicFromInv = (name) => {
+globalThis.selectRelicFromInv = (name) => {
   const input = document.getElementById("relicInput");
   if (input) {
     input.value = name;
@@ -2037,10 +2942,12 @@ async function calculateRelicValue(relicName) {
     const slug = getSlug(d.name);
 
     const price = await getPriceValue(d.name, slug);
-    //TODO EXCEPTIONS TO BE IMPLEMENTED LATER
-    let ducatValue = 15;
-    if (d.chance < 20) ducatValue = 45;
-    if (d.chance < 5) ducatValue = 100;
+
+    let ducatValue = d.ducats || 15;
+    if (!d.ducats) {
+      if (d.chance < 20) ducatValue = 45;
+      if (d.chance < 5) ducatValue = 100;
+    }
 
     let pIntact = 0.2533;
     let pRad = 0.1667;
@@ -2076,17 +2983,7 @@ async function calculateRelicValue(relicName) {
   };
 }
 
-Object.assign(window, {
-  toggleInventoryPanel,
-  renderInventory,
-  clearInventory,
-});
-window.handleInvSearch = (val) => {
-  state.invSearchVal = val.toLowerCase().trim();
-  renderInventory();
-};
-
-window.filterInvTier = (tier) => {
+globalThis.filterInvTier = (tier) => {
   state.invFilterTier = tier;
   document.querySelectorAll(".inv-tier-btn").forEach((btn) => {
     btn.classList.remove("active");
@@ -2100,7 +2997,7 @@ window.filterInvTier = (tier) => {
   });
   renderInventory();
 };
-window.selectRelicFromInv = (name) => {
+globalThis.selectRelicFromInv = (name) => {
   state.selectedRelic = name;
   const input = document.getElementById("relicInput");
   if (input) input.value = name;
@@ -2109,7 +3006,7 @@ window.selectRelicFromInv = (name) => {
   toggleInventoryPanel(false);
   manualRelicUpdate();
 };
-window.addCurrentToInv = function () {
+globalThis.addCurrentToInv = function () {
   if (!state.selectedRelic) return;
 
   updateInventoryCount(state.selectedRelic, 1);
@@ -2118,8 +3015,8 @@ window.addCurrentToInv = function () {
   const t = TEXTS[state.currentLang];
   const msg =
     state.currentLang === "es"
-      ? `✅ ${state.selectedRelic} añadida al inventario.`
-      : `✅ ${state.selectedRelic} added to inventory.`;
+      ? ` ${state.selectedRelic} añadida al inventario.`
+      : ` ${state.selectedRelic} added to inventory.`;
 
   showToast(msg);
 
@@ -2132,9 +3029,7 @@ window.addCurrentToInv = function () {
 
   renderInventory();
 };
-// En ui.js
 
-// Inicializa el cierre automático del disclaimer
 export function initDisclaimerSystem() {
   setTimeout(() => {
     const disclaimer = document.getElementById("txt-disclaimer");
@@ -2172,19 +3067,995 @@ export function setupGlobalClickListeners() {
       }
     }
 
-    if (window.innerWidth <= 768) {
+    if (globalThis.innerWidth <= 768) {
       const closeSidePanel = (panelId, btnId) => {
         const panel = document.getElementById(panelId);
         const btn = document.getElementById(btnId);
-        if (panel && panel.classList.contains("open")) {
-          if (!panel.contains(target) && (!btn || !btn.contains(target))) {
+        if (panel?.classList.contains("open")) {
+          if (!panel.contains(target) && !btn?.contains(target)) {
             panel.classList.remove("open");
           }
         }
       };
       closeSidePanel("best-missions-container", "mission-toggle-btn");
       closeSidePanel("cloud-sync-container", "sync-toggle-btn");
-      closeSidePanel("inventory-container", "inv-toggle-btn"); 
+      closeSidePanel("inventory-container", "inv-toggle-btn");
+    }
+
+    const actionTarget = target.closest("[data-action]");
+    if (actionTarget) {
+      const action = actionTarget.dataset.action;
+      const data = actionTarget.dataset;
+      console.log(`[UI ACTION]: ${action}`, data);
+
+      switch (action) {
+        case "select-relic-from-inv":
+          if (typeof globalThis.selectRelicFromInv === "function") {
+            globalThis.selectRelicFromInv(data.relic);
+          }
+          break;
+        case "modify-inv":
+          if (typeof globalThis.modifyInv === "function") {
+            globalThis.modifyInv(data.relic, parseInt(data.amount));
+          }
+          break;
+        case "find-relics-for-item":
+          if (typeof globalThis.findRelicsForItem === "function") {
+            globalThis.findRelicsForItem(data.item);
+          }
+          break;
+        case "add-current-to-inv":
+          if (typeof globalThis.addCurrentToInv === "function") {
+            globalThis.addCurrentToInv();
+          }
+          break;
+        case "toggle-inv-set":
+          if (typeof globalThis.toggleInvSet === "function") {
+            globalThis.toggleInvSet(data.setid);
+          }
+          break;
+        case "delete-prime-set":
+          if (typeof globalThis.deletePrimeSet === "function") {
+            globalThis.deletePrimeSet(data.setname);
+          }
+          break;
+        case "modify-prime-part":
+          if (typeof globalThis.modifyPrimePart === "function") {
+            globalThis.modifyPrimePart(data.part, parseInt(data.amount));
+          }
+          break;
+        case "load-lfg-preset":
+          if (typeof globalThis.loadLFGPreset === "function") {
+            globalThis.loadLFGPreset(parseInt(data.index));
+          }
+          break;
+        case "delete-lfg-preset":
+          if (typeof globalThis.deleteLFGPreset === "function") {
+            globalThis.deleteLFGPreset(parseInt(data.index));
+          }
+          break;
+        case "save-lfg-preset":
+          if (typeof globalThis.saveLFGPreset === "function") {
+            globalThis.saveLFGPreset();
+          }
+          break;
+      }
     }
   });
 }
+document.addEventListener("DOMContentLoaded", () => {
+  const contentArea = document.querySelector(".content-area");
+  const footerRelic = document.getElementById("footer-relic");
+
+  if (!contentArea || !footerRelic) return;
+
+  function checkFooterVisibility() {
+    if (contentArea.scrollHeight <= contentArea.clientHeight) {
+      footerRelic.classList.add("footer-visible");
+      return;
+    }
+
+    const scrollBottom = contentArea.scrollTop + contentArea.clientHeight;
+    const distanceToBottom = contentArea.scrollHeight - scrollBottom;
+
+    if (distanceToBottom < 80) {
+      footerRelic.classList.add("footer-visible");
+    } else {
+      footerRelic.classList.remove("footer-visible");
+    }
+  }
+
+  contentArea.addEventListener("scroll", checkFooterVisibility);
+
+  checkFooterVisibility();
+});
+
+export function getRelicDropTooltip(tierName) {
+  const sources = state.relicSourcesDatabase[tierName];
+
+  if (!sources || sources.length === 0) {
+    return "No hay datos de drop confirmados.";
+  }
+
+  sources.sort((a, b) => b.chance - a.chance);
+
+  let html = `<div class='tooltip-header'>Drops for ${escapeHTML(
+    tierName,
+  )} (${sources.length})</div>`;
+
+  html += "<ul class='tooltip-list'>";
+
+  sources.forEach((s, index) => {
+    let locText = "";
+
+    if (s.type === "mission") {
+      locText = `<span class="t-loc">${escapeHTML(
+        s.location,
+      )}</span> <span style="color:#888">-</span> ${escapeHTML(
+        s.mission,
+      )} <span class='rot-badge'>${escapeHTML(s.rotation)}</span>`;
+    } else {
+      let stage = s.rotation
+        .replaceAll("Rotation ", "")
+        .replaceAll("Stage ", "St.");
+      locText = `<span class="t-loc">${escapeHTML(
+        s.location,
+      )}</span> <span style="color:#888">-</span> ${escapeHTML(
+        s.mission,
+      )} <span class='rot-badge'>${escapeHTML(stage)}</span>`;
+    }
+
+    const isTop = index < 5;
+    const rowClass = isTop ? "top-drop" : "";
+
+    let chanceColor = "#888";
+    if (s.chance > 10) chanceColor = "var(--wf-gold-text)";
+    else if (s.chance > 5) chanceColor = "var(--wf-blue)";
+
+    const sanitizedLocText = locText; // locText already sanitized above in previous partial replace
+
+    html += `<li class="${rowClass}">
+      <div class="t-row">${sanitizedLocText}</div>
+      <span class='drop-chance' style="color:${chanceColor}">${s.chance.toFixed(
+      2,
+    )}%</span>
+    </li>`;
+  });
+
+  html += "</ul>";
+  return html;
+}
+
+export function renderRivenGradingUI(weaponName, statsArray) {
+  const weaponData = state.weaponMap[weaponName];
+  const disposition = weaponData ? weaponData.disposition : 1.0;
+  const weaponType = weaponData ? weaponData.type : "Rifle";
+
+  const buffCount = statsArray.filter((s) => s.value > 0).length;
+  const hasCurse = statsArray.some((s) => s.value < 0);
+
+  let html = `<div class="riven-grading-box">`;
+  html += `<h4>Grading: ${escapeHTML(weaponName)} (Disp: ${disposition})</h4>`;
+
+  statsArray.forEach((stat) => {
+    const isCurse = stat.value < 0;
+    const result = calculateRivenGrade(
+      weaponType,
+      disposition,
+      stat.name,
+      stat.value,
+      isCurse,
+      buffCount,
+      hasCurse,
+    );
+
+    const colorClass =
+      result.percentage > 90
+        ? "grade-s"
+        : result.percentage > 50
+          ? "grade-b"
+          : "grade-f";
+
+    html += `
+            <div class="grade-row">
+                <span class="stat-name">${escapeHTML(stat.name)}</span>
+                <span class="stat-val">${escapeHTML(stat.value.toString())}%</span>
+                <div class="grade-bar-container">
+                    <div class="grade-bar ${colorClass}" style="width: ${result.percentage}%"></div>
+                </div>
+                <span class="grade-badge ${colorClass}">${escapeHTML(result.grade)}</span>
+                <span class="grade-range">Range: ${escapeHTML(result.min.toString())}% - ${escapeHTML(result.max.toString())}%</span>
+            </div>
+        `;
+  });
+  html += `</div>`;
+
+  return html;
+}
+
+export function openGradingModal() {
+  const weaponInput = document.getElementById("rivenWeaponInput");
+  const weaponName = weaponInput.value.trim();
+
+  if (!weaponName || !state.weaponMap[weaponName]) {
+    alert("Please select a valid weapon on the field above.");
+    return;
+  }
+
+  const weaponData = state.weaponMap[weaponName];
+
+  document.getElementById("g-weapon-name").innerHTML =
+    `${escapeHTML(weaponName)} <span style="color:#888; font-weight:normal; font-size:0.8em;">(Disp: ${escapeHTML(weaponData.d.toString())})</span>`;
+  document.getElementById("grading-modal").classList.remove("hidden");
+
+  resetGradingInputs();
+
+  populateRivenSelects(weaponData.t);
+
+  document.getElementById("row-stat3").classList.add("hidden");
+  document.getElementById("row-statNeg").classList.add("hidden");
+  document.getElementById("btn-add-pos").style.display = "block";
+  document.getElementById("btn-add-neg").style.display = "block";
+  document.getElementById("grading-modal-results").classList.add("hidden");
+}
+
+export function closeGradingModal() {
+  document.getElementById("grading-modal").classList.add("hidden");
+}
+
+export function showGradingRow(rowId) {
+  document.getElementById(rowId).classList.remove("hidden");
+
+  if (rowId === "row-stat3")
+    document.getElementById("btn-add-pos").style.display = "none";
+  if (rowId === "row-statNeg")
+    document.getElementById("btn-add-neg").style.display = "none";
+}
+
+export function removeGradingRow(rowId) {
+  const row = document.getElementById(rowId);
+  row.classList.add("hidden");
+
+  row.querySelector("select").value = "";
+  row.querySelector("input").value = "";
+
+  if (rowId === "row-stat3")
+    document.getElementById("btn-add-pos").style.display = "block";
+  if (rowId === "row-statNeg")
+    document.getElementById("btn-add-neg").style.display = "block";
+
+  calculateModalGrade();
+}
+
+function resetGradingInputs() {
+  const inputs = document.querySelectorAll(
+    "#grading-modal input, #grading-modal select",
+  );
+  inputs.forEach((i) => {
+    if (i.id === "g-rank") i.value = "8";
+    else i.value = "";
+  });
+}
+
+export function calculateModalGrade() {
+  const weaponName = document.getElementById("rivenWeaponInput").value.trim();
+  if (!weaponName || !state.weaponMap[weaponName]) return;
+
+  const weaponData = state.weaponMap[weaponName];
+  const currentRank = Number.parseInt(
+    document.getElementById("g-rank").value || "8",
+  );
+  const scaleFactor = 9 / (currentRank + 1);
+  const resultsDiv = document.getElementById("grading-modal-results");
+
+  const stats = [];
+
+  const readModalRow = (selId, valId, isNeg) => {
+    const sel = document.getElementById(selId);
+    const valInput = document.getElementById(valId);
+
+    if (sel.offsetParent !== null && sel.value && valInput.value) {
+      let val = Number.parseFloat(valInput.value);
+      if (Number.isNaN(val)) return;
+      if (isNeg) val = -Math.abs(val);
+
+      stats.push({
+        name: sel.value,
+        value: val,
+        projected: val * scaleFactor,
+        isPenaltySlot: isNeg,
+      });
+    }
+  };
+
+  readModalRow("g-stat1", "g-val1", false);
+  readModalRow("g-stat2", "g-val2", false);
+  readModalRow("g-stat3", "g-val3", false);
+  readModalRow("g-statNeg", "g-valNeg", true);
+
+  if (stats.length === 0) {
+    resultsDiv.classList.add("hidden");
+    return;
+  }
+
+  resultsDiv.classList.remove("hidden");
+  let html = "";
+
+  stats.forEach((stat) => {
+    const result = calculateRivenGrade(
+      weaponData,
+      stat.name,
+      stat.projected,
+      stats,
+    );
+
+    let colorClass = "grade-f";
+    if (["SSS", "S+", "S"].includes(result.grade)) colorClass = "grade-s";
+    else if (["A+", "A"].includes(result.grade)) colorClass = "grade-a";
+    else if (["B+", "B"].includes(result.grade)) colorClass = "grade-b";
+
+    html += `
+        <div class="grade-card" style="background: rgba(0,0,0,0.3);">
+            <div class="grade-badge-large ${colorClass}">${result.grade}</div>
+            <div class="grade-info">
+                <div class="grade-stat-name">${stat.name}</div>
+                <div class="grade-values">
+                    Valor: <span style="color:#fff">${Math.abs(
+      stat.value,
+    )}%</span>
+                    <span class="grade-range" style="font-size:0.8em"> / Ideal: ${result.range
+      }</span>
+                </div>
+                <div class="grade-track">
+                    <div class="grade-fill ${colorClass}" style="width: ${result.pct
+      }%"></div>
+                </div>
+            </div>
+        </div>
+      `;
+  });
+
+  resultsDiv.innerHTML = html;
+}
+
+export async function checkUpdates() {
+  const lastSeenVersion = localStorage.getItem("last_seen_version");
+  const currentVersionStr = String(APP_VERSION);
+
+  if (lastSeenVersion !== currentVersionStr) {
+    const container = document.getElementById("update-history-content");
+    if (container) {
+      container.innerHTML = UPDATE_HISTORY_CONTENT;
+      document.getElementById("update-modal").classList.remove("hidden");
+    }
+  }
+}
+export function closeUpdateModal() {
+  document.getElementById("update-modal").classList.add("hidden");
+  localStorage.setItem("last_seen_version", String(APP_VERSION));
+  console.log("Versión guardada con éxito:", APP_VERSION);
+}
+export function exportInventory() {
+  if (!state.inventory || state.inventory.length === 0) {
+    return showToast("Relic inventory is empty.");
+  }
+
+  try {
+    const dataStr = JSON.stringify(state.inventory, null, 2);
+
+    const blob = new Blob([dataStr], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `voidstonks_inv_${new Date().toISOString().slice(0, 10)}.json`;
+
+    document.body.appendChild(a);
+    a.click();
+
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    showToast("Inventory downloaded");
+  } catch (e) {
+    console.error("Error exportando:", e);
+    showToast("Error exporting file.");
+  }
+}
+
+export function importInventory() {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = ".json";
+
+  input.onchange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const data = JSON.parse(event.target.result);
+
+        if (Array.isArray(data)) {
+          if (
+            confirm(
+              `Archivo cargado con ${data.length} items.\n\nThis will overwrite your current relic inventory are you sure?`,
+            )
+          ) {
+            state.inventory = data;
+            saveAppState();
+            renderInventory();
+            showToast("Sucessfuly updated relic inventory.");
+          }
+        } else {
+          showToast("File has inccorrect format: ERROR");
+        }
+      } catch (err) {
+        console.error(err);
+        showToast("Error reading JSON file.");
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  input.click();
+}
+let bountyInterval = null;
+export async function renderBountiesTab() {
+  const container = document.getElementById("bounties-list-container");
+  if (!container) return;
+
+  if (bountyInterval) clearInterval(bountyInterval);
+
+  const t = TEXTS[state.currentLang];
+
+  const toggleText = state.showAllFarms
+    ? state.currentLang === "es"
+      ? "MOSTRANDO TODO"
+      : "SHOWING ALL"
+    : state.currentLang === "es"
+      ? "SOLO ÓPTIMAS"
+      : "OPTIMAL ONLY";
+
+  const headerHTML = `
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; padding:0 5px;">
+          <div class="panel-main-header" style="margin:0; border-radius:4px; flex-grow:1; margin-right:10px;">
+            <span id="lbl-fast-farms-title">${t.lblFastFarms || "Active Farms"}</span>
+            <span class="info-icon" id="bounties-guide-icon" data-tooltip="${t.fastFarmGuide}">ℹ️</span>
+          </div>
+          
+          <button 
+            class="dashed-btn ${state.showAllFarms ? "active-filter" : ""}" 
+            style="
+              font-weight:800; 
+              font-size:0.75em; 
+              height:46px; 
+              border:1px solid #444; 
+              color:${state.showAllFarms ? "#fff" : "#888"}; 
+              background:${state.showAllFarms ? "var(--wf-blue)" : "transparent"};
+              cursor: pointer;
+            "
+            onclick="globalThis.toggleFarmsFilter()"
+          >
+            ${toggleText}
+          </button>
+      </div>
+  `;
+
+  container.innerHTML = `
+      ${headerHTML}
+      <div style="display:flex; flex-direction:column; align-items:center; padding:40px; color:#888;">
+         <div class="spinner"></div>
+         <div style="margin-top:10px">...</div>
+      </div>`;
+
+  const allBounties = await fetchActiveBounties();
+
+  let visibleBounties = state.showAllFarms
+    ? allBounties
+    : allBounties.filter((b) => b.isOptimal);
+
+  if (!visibleBounties || visibleBounties.length === 0) {
+    container.innerHTML = `
+          ${headerHTML}
+          <div class="no-fissures-msg">
+            <span class="warning-icon">⚠</span> 
+            <div>
+              <strong>${t.msgNoBountiesTitle || "No optimal missions active."}</strong><br>
+              <small>${state.showAllFarms ? "No data found." : t.msgNoBountiesDesc || "Try switching to 'SHOW ALL'."}</small>
+            </div>
+          </div>`;
+    return;
+  }
+
+  const factionConfig = {
+    "The Holdfasts": { name: "Zariman (Ten Zero)", color: "#d4af37" },
+    Cavia: { name: "Sanctum Anatomica (Cavia)", color: "#a545e0" },
+    "The Hex": { name: "Höllvania (1999)", color: "#42f56c" },
+    Ostrons: { name: "Cetus (Aya Farm)", color: "#d6b07c" },
+    "Solaris United": { name: "Fortuna (Solaris)", color: "#00e5ff" },
+    Entrati: { name: "Necralisk (Entrati)", color: "#ffaa00" },
+  };
+
+  const groups = {};
+  visibleBounties.forEach((b) => {
+    if (!groups[b.factionKey]) groups[b.factionKey] = [];
+    groups[b.factionKey].push(b);
+  });
+
+  const expiryTimes = [];
+  let html = headerHTML;
+
+  for (const [key, missions] of Object.entries(groups)) {
+    const config = factionConfig[key] || { name: key, color: "#fff" };
+    missions.sort((a, b) => {
+      if (b.standing !== a.standing) return b.standing - a.standing;
+      if (typeof b.tier === "number" && typeof a.tier === "number")
+        return b.tier - a.tier;
+      return 0;
+    });
+
+    const expiryId = `timer-${key.replaceAll(/\s+/g, "")}`;
+    if (missions[0]?.expiry) {
+      expiryTimes.push({ id: expiryId, date: new Date(missions[0].expiry) });
+    }
+
+    html += `
+        <div style="margin-bottom: 20px;">
+            <div class="faction-header" style="border-left-color: ${config.color};">
+                <span class="faction-name" style="color: ${config.color};">${config.name}</span>
+                <span id="${expiryId}" style="font-size:0.9em; color:#fff; font-family:monospace; background:rgba(0,0,0,0.3); padding:2px 6px; border-radius:4px;">
+                    --:--:--
+                </span>
+            </div>`;
+
+    if (key === "Ostrons") {
+      html += `
+        <div style="border: 1px solid var(--wf-gold-text); background: rgba(197, 168, 86, 0.1); padding: 12px; margin-bottom: 15px; border-radius: 6px; color: #ddd; font-size: 0.85rem; line-height: 1.4;">
+          <strong style="color: var(--wf-gold-text);">ℹ AYA STRATEGY (TEAM):</strong> 
+          Start T5 Bounty (Lvl 40-60, NON-SP). Enter Plains, FAIL mission immediately. 
+          Check Tent console for Capture/Rescue. Accept there.
+        </div>
+      `;
+    }
+
+    missions.forEach((m, index) => {
+      const uniqueId = `drops-${key}-${index}`.replaceAll(/\s+/g, "");
+      const opacity = m.isOptimal ? "1" : "0.7";
+      let tierColor = "#888";
+      let tierLabel = m.tier;
+
+      if (m.tier === "NARMER") {
+        tierColor = "#ffaa00";
+      } else if (m.tier === 6) {
+        tierColor = "#ff4d4d";
+      } else if (m.tier === 5) {
+        tierColor = "#ffcc00";
+      } else if (m.tier >= 3) {
+        tierColor = "#00ccff";
+      }
+
+      let levelDisplay = "";
+      if (m.isDual) {
+        levelDisplay = `
+          <div style="display: flex; align-items: center; gap: 8px; font-size: 0.82em; margin-top: 4px; flex-wrap: wrap;">
+            <span style="color: #aaa;">Lvl ${m.level} <b style="color:#888">(+${m.standing})</b></span>
+            <span style="color: #444;">|</span>
+            <span style="color: #ff4d4d;">SP ${m.levelSP} <b style="color:#ff4d4d99">(+${m.standingSP})</b></span>
+          </div>`;
+      } else {
+        const tag = m.isSP ? "STEEL PATH" : "NORMAL PATH";
+        const color = m.isSP ? "#ff4d4d" : "#aaa";
+        levelDisplay = `
+          <div style="color: ${color}; font-weight: bold; font-size: 0.85em; margin-top: 4px;">
+            ${tag} (Lvl ${m.level}) <span style="color: #888; font-weight: normal;">(+${m.standing})</span>
+          </div>`;
+      }
+
+      let rewardsContent = m.detailedRewards
+        ? m.detailedRewards
+          .map((stage) => {
+            const rows = stage.drops
+              .map(
+                (d) =>
+                  `<div class="drop-row"><span class="drop-name ${d.name.includes("Aya") ? "aya" : ""}">${d.name}</span><span class="drop-chance">${d.chance.toFixed(2)}%</span></div>`,
+              )
+              .join("");
+            return `<div class="stage-container"><div class="stage-header">STAGE ${stage.stage}</div><div class="stage-content">${rows}</div></div>`;
+          })
+          .join("")
+        : `<ul class="drop-list">${m.rewards.map((r) => `<li class="drop-item">${r}</li>`).join("")}</ul>`;
+
+      html += `
+        <div class="bounty-wrapper ${m.isSP || m.isDual ? "is-sp" : ""} ${m.isOptimal ? "optimal-farm" : ""}" style="opacity:${opacity};">
+            <div class="bounty-header-row">
+                <div class="bounty-info">
+                   <div class="bounty-type" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                      <span style="color:var(--wf-blue); font-weight:900; font-size:0.75em; text-transform:uppercase; border-right:1px solid #444; padding-right:8px;">
+                        ${m.technicalType}
+                      </span>
+                      ${!m.hideTier
+          ? `
+                      <span style="color: ${tierColor}; border: 1px solid ${tierColor}44; padding: 1px 6px; font-size: 0.7em; border-radius: 3px; font-weight: 900; background: ${m.tier === 6 || m.tier === "NARMER" ? "rgba(255,170,0,0.1)" : "transparent"}">
+                        ${tierLabel === "NARMER" ? "" : "TIER "}${tierLabel}
+                      </span>`
+          : ""
+        }
+                      <span style="color: #fff; font-weight: 600; flex: 1;">${m.type}</span>
+                    </div>
+                    ${levelDisplay}
+                    ${m.condition ? `<div style="background: rgba(255,255,255,0.05); border-left: 3px solid #666; padding: 6px 12px; margin-top: 10px; font-size: 0.85em; color: #ccc; white-space: normal;">CHALLENGE: ${m.condition}</div>` : ""}
+                </div>
+                <button class="bounty-rewards-btn" style="color: ${config.color};" onclick="document.getElementById('${uniqueId}').classList.toggle('open')">
+                    VIEW REWARDS
+                </button>
+            </div>
+            <div id="${uniqueId}" class="bounty-drops-drawer">${rewardsContent}</div>
+        </div>`;
+    });
+    html += `</div>`;
+  }
+
+  container.innerHTML = html;
+
+  const updateTimers = () => {
+    const now = new Date();
+    expiryTimes.forEach((item) => {
+      const el = document.getElementById(item.id);
+      if (!el) return;
+      const diff = item.date - now;
+      if (diff <= 0) {
+        el.innerText = "ROTATING...";
+        el.style.color = "#f44";
+        return;
+      }
+      const h = Math.floor(diff / (1000 * 60 * 60));
+      const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const s = Math.floor((diff % (1000 * 60)) / 1000);
+      el.innerText = `${t.lblEndsIn || "Ends:"} ${h}h ${m}m ${s}s`;
+    });
+  };
+
+  updateTimers();
+  bountyInterval = setInterval(updateTimers, 1000);
+}
+globalThis.switchInvView = (view) => {
+  state.currentInvView = view;
+  const relicControls = document.getElementById("relic-inv-controls");
+  const tabRelics = document.getElementById("inv-tab-relics");
+  const tabParts = document.getElementById("inv-tab-parts");
+
+  if (view === "relics") {
+    relicControls.style.display = "flex";
+    tabRelics.classList.add("active");
+    tabParts.classList.remove("active");
+    renderInventory(); //
+  } else {
+    relicControls.style.display = "none";
+    tabParts.classList.add("active");
+    tabRelics.classList.remove("active");
+    renderPrimeInventory();
+  }
+};
+function getSetName(fullName) {
+  if (!fullName) return "Otros";
+  const match = fullName.match(/(.*?) (Prime|Vandal|Wraith)/);
+  return match ? match[0].trim() : "Otros";
+}
+
+globalThis.openSetFromRelicReward = (partName) => {
+  const setName = getSetName(partName);
+  if (setName === "Otros") return;
+
+  const allParts = Object.keys(state.itemsDatabase).filter(name =>
+    (name === setName || name.startsWith(setName + " ")) && !name.endsWith(" Set")
+  );
+
+  if (allParts.length > 0) {
+    activateSetTracker(setName, allParts);
+    showToast(`Tracking ${setName} Set`);
+  }
+};
+
+globalThis.modifyPrimePart = (name, amount) => {
+  const current = state.primeInventory[name] || 0;
+  const newQty = Math.max(0, current + amount);
+
+  state.primeInventory[name] = newQty;
+
+  if (amount > 0 && current === 0) {
+    const setName = getSetName(name);
+    const sourceList =
+      state.ocrReferenceList || Object.keys(state.itemsDatabase);
+
+    if (setName && sourceList.length > 0) {
+      sourceList.forEach((itemName) => {
+        if (itemName.startsWith(setName) && !itemName.endsWith(" Set")) {
+          if (state.primeInventory[itemName] === undefined) {
+            state.primeInventory[itemName] = 0;
+          }
+        }
+      });
+    }
+  }
+
+  saveAppState();
+  renderPrimeInventory();
+};
+
+globalThis.deletePrimeSet = (setName) => {
+  const t = TEXTS[state.currentLang].inventory;
+  if (!confirm(`${t.confirmDeleteSet || "Delete entire set?"} (${setName})`))
+    return;
+
+  Object.keys(state.primeInventory).forEach((name) => {
+    if (getSetName(name) === setName) {
+      delete state.primeInventory[name];
+    }
+  });
+
+  saveAppState();
+  renderPrimeInventory();
+};
+
+globalThis.toggleInvSet = (safeSetId) => {
+  const el = document.getElementById(`set-group-${safeSetId}`);
+  if (el) el.classList.toggle("collapsed");
+};
+
+globalThis.openSetDetail = (setName) => {
+  switchTab("set");
+  const input = document.getElementById("setItemInput");
+  if (input) {
+    input.value = setName;
+    handleSetTyping();
+  }
+};
+
+// 3. Renderizado del Inventario (Agrupado y sin límites)
+export function renderPrimeInventory() {
+  const list = document.getElementById("inventory-list");
+  if (!list) return;
+
+  const entries = Object.entries(state.primeInventory);
+  if (entries.length === 0) {
+    list.innerHTML = `<div style="padding:20px; text-align:center; color:#666;">Inventory is empty</div>`;
+    return;
+  }
+
+  // Agrupar piezas por Set
+  const groups = {};
+  entries.forEach(([name, qty]) => {
+    const setName = getSetName(name);
+    if (!groups[setName]) groups[setName] = [];
+    groups[setName].push({ name, qty });
+  });
+
+  let html = `
+    <div class="inventory-total-header">
+       <div class="total-label">${TEXTS[state.currentLang].inventory.lblTotalValue || "ESTIMATED TOTAL VALUE"}</div>
+       <div class="total-value"><span id="total-prime-value">...</span> <img src="assets/relic_contents/platinum.webp" class="plat-icon" style="height:1em;"></div>
+    </div>`;
+
+  Object.keys(groups)
+    .sort()
+    .forEach((setName) => {
+      const safeSetId = setName.replaceAll(/[^a-zA-Z0-9]/g, "");
+
+      groups[setName].sort((a, b) => a.name.length - b.name.length);
+
+      let numSets = 0;
+      if (setName !== "Otros") {
+        const allPossibleParts = Object.keys(state.itemsDatabase).filter(name =>
+          (name === setName || name.startsWith(setName + " ")) && !name.endsWith(" Set")
+        );
+
+        if (allPossibleParts.length > 0) {
+          numSets = 999;
+          allPossibleParts.forEach(p => {
+            const owned = state.primeInventory[p] || 0;
+            const required = getRequiredCount(setName, p);
+            const possible = Math.floor(owned / required);
+            if (possible < numSets) numSets = possible;
+          });
+          if (numSets === 999) numSets = 0;
+        }
+      }
+
+      html += `
+      <div class="inv-set-group" id="set-group-${safeSetId}">
+        <div class="inv-set-header" data-action="toggle-inv-set" data-setid="${safeSetId}">
+          <div class="header-controls">
+            <button class="delete-set-btn" data-action="delete-prime-set" data-setname="${escapeHTML(setName)}">×</button>
+            <span class="toggle-icon">▼</span>
+          </div>
+          
+          <div class="header-main" onclick="event.stopPropagation(); globalThis.openSetDetail('${escapeHTML(setName)}')">
+            ${(() => {
+          const setIcon = getItemIcon(setName);
+          return setIcon ? `<img src="${setIcon}" class="item-icon-small" onerror="this.style.display='none'">` : '';
+        })()}
+            <span class="set-title">${escapeHTML(setName)}</span>
+            <a href="https://warframe.market/items/${getSlug(setName + " Set")}" target="_blank" class="market-link-icon" onclick="event.stopPropagation()">↗</a>
+          </div>
+
+          <div class="header-info">
+             ${numSets > 0 ? `<span class="set-count-badge">${numSets} SETS</span>` : "<span></span>"}
+             <span class="set-total-price" id="set-price-${safeSetId}">0 <img src="assets/relic_contents/platinum.webp" class="plat-icon"></span>
+          </div>
+          <span id="set-mkt-${safeSetId}" class="set-price-marker" style="display:none" data-setname="${escapeHTML(setName)} Set">...</span>
+        </div>
+        <div class="inv-set-content">
+          ${groups[setName]
+          .map((item) => {
+            const safeId = item.name.replaceAll(/[^a-zA-Z0-9]/g, "");
+            const shortName = item.name.replace(setName, "").trim() || "Blueprint";
+            const requiredCount = getRequiredCount(setName, item.name);
+            const dotsHtml = generateDotsHtml(item.qty, requiredCount);
+
+            return `
+              <div class="inv-row-mini">
+                <div class="row-main" onclick="globalThis.openSetDetail('${escapeHTML(setName)}')">
+                  ${(() => {
+                const partIcon = getItemIcon(item.name);
+                return partIcon ? `<img src="${partIcon}" class="item-icon-mini" onerror="this.style.display='none'">` : '';
+              })()}
+                  <div class="name-column">
+                     <span class="part-name">${escapeHTML(shortName)}</span>
+                     ${dotsHtml}
+                  </div>
+                </div>
+
+                <div class="row-info">
+                   <a href="https://warframe.market/items/${getSlug(item.name)}" target="_blank" class="market-link-icon-mini" onclick="event.stopPropagation()">↗</a>
+                   <span class="price-badge-small" id="price-p-${safeId}" data-qty="${item.qty}" data-item="${escapeHTML(item.name)}">...</span>
+                </div>
+
+                <div class="inv-qty-controls-mini">
+                  <button class="inv-btn-small" data-action="modify-prime-part" data-part="${escapeHTML(item.name)}" data-amount="-1">−</button>
+                  <span class="qty-num">${item.qty}</span>
+                  <button class="inv-btn-small" data-action="modify-prime-part" data-part="${escapeHTML(item.name)}" data-amount="1">+</button>
+                </div>
+              </div>`;
+          }).join("")}
+        </div>
+      </div>`;
+    });
+
+  list.innerHTML = html;
+
+  entries.forEach(([name]) => {
+    const safeId = name.replaceAll(/[^a-zA-Z0-9]/g, "");
+    const el = document.getElementById(`price-p-${safeId}`);
+    if (el) addToQueue(name, el);
+  });
+
+  // También pedir precio de "Sets"
+  Object.keys(groups).forEach(setName => {
+    if (setName === "Otros") return;
+    const safeSetId = setName.replaceAll(/[^a-zA-Z0-9]/g, "");
+    const el = document.getElementById(`set-mkt-${safeSetId}`);
+    if (el) addToQueue(setName + " Set", el);
+  });
+
+  setTimeout(updatePrimeTotalValue, 100);
+}
+
+async function updatePrimeTotalValue() {
+  let totalGlobal = 0;
+  let allLoaded = true;
+  if (!state.itemsDatabase) return;
+
+  const invGroups = {};
+  const badges = document.querySelectorAll(".price-badge-small");
+
+  badges.forEach((b) => {
+    const val = parseInt(b.innerText);
+    const qty = parseInt(b.dataset.qty) || 0;
+    const itemName = b.dataset.item;
+    const setName = getSetName(itemName);
+
+    if (!invGroups[setName]) {
+      invGroups[setName] = { parts: {}, setPrice: 0, setPriceLoaded: false };
+    }
+    invGroups[setName].parts[itemName] = {
+      qty,
+      price: isNaN(val) ? 0 : val,
+      loaded: !isNaN(val)
+    };
+
+    if (isNaN(val) && qty > 0) allLoaded = false;
+  });
+
+  const setMarkers = document.querySelectorAll(".set-price-marker");
+  setMarkers.forEach(m => {
+    const val = parseInt(m.innerText);
+    const setNameRaw = m.dataset.setname.replace(" Set", "");
+    if (invGroups[setNameRaw]) {
+      invGroups[setNameRaw].setPrice = isNaN(val) ? 0 : val;
+      invGroups[setNameRaw].setPriceLoaded = !isNaN(val);
+      if (isNaN(val) && setNameRaw !== "Otros") allLoaded = false;
+    }
+  });
+
+  Object.keys(invGroups).forEach(setName => {
+    const g = invGroups[setName];
+    const safeSetId = setName.replaceAll(/[^a-zA-Z0-9]/g, "");
+
+    const allPossibleParts = Object.keys(state.itemsDatabase).filter(name =>
+      (name === setName || name.startsWith(setName + " ")) && !name.endsWith(" Set")
+    );
+
+    let subtotal = 0;
+
+    if (setName !== "Otros" && allPossibleParts.length > 0) {
+      let numSets = 999;
+      allPossibleParts.forEach(p => {
+        const hasQty = g.parts[p]?.qty || 0;
+        const required = getRequiredCount(setName, p);
+        const possibleSetsFromThisPart = Math.floor(hasQty / required);
+        if (possibleSetsFromThisPart < numSets) numSets = possibleSetsFromThisPart;
+      });
+      if (numSets === 999) numSets = 0;
+
+      if (numSets > 0 && g.setPriceLoaded) {
+        subtotal += numSets * g.setPrice;
+        for (const partName in g.parts) {
+          const required = getRequiredCount(setName, partName);
+          const remaining = g.parts[partName].qty - (numSets * required);
+          if (remaining > 0) {
+            subtotal += remaining * g.parts[partName].price;
+          }
+        }
+      } else {
+        for (const p in g.parts) subtotal += g.parts[p].qty * g.parts[p].price;
+      }
+    } else {
+      for (const p in g.parts) subtotal += g.parts[p].qty * g.parts[p].price;
+    }
+
+    const el = document.getElementById(`set-price-${safeSetId}`);
+    if (el) el.innerHTML = `${subtotal} <img src="assets/relic_contents/platinum.webp" class="plat-icon">`;
+    totalGlobal += subtotal;
+  });
+
+  const totalEl = document.getElementById("total-prime-value");
+  if (totalEl) {
+    totalEl.textContent = totalGlobal;
+    totalEl.classList.toggle("loading-blink", !allLoaded);
+  }
+
+  if (!allLoaded) setTimeout(updatePrimeTotalValue, 1000);
+}
+globalThis.toggleFarmsFilter = function () {
+  state.showAllFarms = !state.showAllFarms;
+  saveAppState();
+  renderBountiesTab();
+};
+Object.assign(globalThis, {
+  openGradingModal,
+  calculateModalGrade,
+  closeGradingModal,
+  showGradingRow,
+  removeGradingRow,
+  toggleInventoryPanel,
+  renderInventory,
+  clearInventory,
+  showToast,
+  finishLoading,
+  closeUpdateModal,
+  exportInventory,
+  importInventory,
+  renderPrimeInventory,
+  updatePriceUI: (element, price) => {
+    if (!element) return;
+    element.classList.remove("loading");
+    element.innerHTML = `${price}<img src="assets/relic_contents/platinum.webp" class="plat-icon">`;
+    if (document.getElementById("relic-profit-display")) updateRelicTotal();
+  },
+});
+globalThis.handleInvSearch = (val) => {
+  state.invSearchVal = val.toLowerCase().trim();
+  renderInventory();
+};

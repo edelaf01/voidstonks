@@ -1,0 +1,75 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" style="border-radius: 50%; overflow: hidden;">
+  <defs>
+    <radialGradient id="voidStatic" cx="50%" cy="50%" r="50%">
+      <stop offset="30%" stop-color="#000000" />
+      <stop offset="80%" stop-color="#240046" />
+      <stop offset="100%" stop-color="#10002b" />
+    </radialGradient>
+
+    <linearGradient id="corruptGold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fdf5c9" />
+      <stop offset="50%" stop-color="#d4af37" />
+      <stop offset="100%" stop-color="#8a6e14" />
+    </linearGradient>
+
+    <radialGradient id="plat3D" cx="30%" cy="30%" r="90%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="1" />
+      <stop offset="40%" stop-color="#cfd8dc" />
+      <stop offset="100%" stop-color="#455a64" />
+    </radialGradient>
+    
+    <filter id="insetShadow">
+      <feComponentTransfer in="SourceAlpha">
+        <feFuncA type="table" tableValues="1 0" />
+      </feComponentTransfer>
+      <feGaussianBlur stdDeviation="3"/>
+      <feOffset dx="0" dy="0" result="offsetblur"/>
+      <feFlood flood-color="black" result="color"/>
+      <feComposite in2="offsetblur" operator="in"/>
+      <feComposite in2="SourceAlpha" operator="in" result="shadow"/>
+      <feMerge>
+        <feMergeNode in="SourceGraphic"/>
+        <feMergeNode in="shadow"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <circle cx="50" cy="50" r="50" fill="url(#voidStatic)" />
+  
+  <g opacity="0.6">
+    <path d="M50 50 L 50 5 L 65 15 Z" fill="#4a148c" />
+    <path d="M50 50 L 95 50 L 85 35 Z" fill="#311b92" />
+    <path d="M50 50 L 50 95 L 35 85 Z" fill="#4a148c" />
+    <path d="M50 50 L 5 50 L 15 65 Z" fill="#311b92" />
+    <path d="M50 50 L 85 85" stroke="#7b2cbf" stroke-width="1" />
+    <path d="M50 50 L 15 15" stroke="#7b2cbf" stroke-width="1" />
+    <path d="M50 50 L 85 15" stroke="#7b2cbf" stroke-width="1" />
+    <path d="M50 50 L 15 85" stroke="#7b2cbf" stroke-width="1" />
+  </g>
+
+  <g filter="url(#insetShadow)">
+    <circle cx="50" cy="50" r="44" stroke="url(#corruptGold)" stroke-width="3" fill="none"></circle>
+    <path d="M50 8 L 53 14 L 47 14 Z" fill="#d4af37" />
+    <path d="M50 92 L 53 86 L 47 86 Z" fill="#d4af37" />
+    <path d="M8 50 L 14 53 L 14 47 Z" fill="#d4af37" />
+    <path d="M92 50 L 86 53 L 86 47 Z" fill="#d4af37" />
+  </g>
+
+  <g transform="translate(50, 50)">
+    <circle cx="0" cy="0" r="26" fill="url(#plat3D)" stroke="#37474f" stroke-width="1"></circle>
+    
+    <g fill="#90a4ae" opacity="0.9">
+       <rect x="-9" y="-11" width="18" height="7" rx="1" stroke="#fff" stroke-width="0.5"/>
+       <rect x="-13" y="-2" width="26" height="9" rx="1" stroke="#fff" stroke-width="0.5"/>
+       <rect x="-9" y="9" width="18" height="7" rx="1" stroke="#fff" stroke-width="0.5"/>
+    </g>
+  </g>
+
+  <g stroke="#00e5ff" stroke-width="2" stroke-linecap="square" fill="none" opacity="0.9" filter="drop-shadow(0 0 1px #00e5ff)">
+    <path d="M28 35 L 28 28 L 35 28" />
+    <path d="M72 35 L 72 28 L 65 28" />
+    <path d="M28 65 L 28 72 L 35 72" />
+    <path d="M72 65 L 72 72 L 65 72" />
+  </g>
+
+</svg>
