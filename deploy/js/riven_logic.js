@@ -6,7 +6,7 @@ export function calculateRivenGrade(weaponData, statName, statValue, allStats) {
   const dispo = weaponData.d || 1.0;
   const type = weaponData.t || "Rifle";
 
-  const validStats = allStats.filter(s => s && s.name);
+  const validStats = allStats.filter(s => s?.name);
   
   const curses = validStats.filter(s => s.isPenaltySlot === true);
   const hasCurse = curses.length > 0;
@@ -49,22 +49,22 @@ export function calculateRivenGrade(weaponData, statName, statValue, allStats) {
 
   let grade = "F";
 
-  if (pct >= 98.0)      grade = "SSS"; 
-  else if (pct >= 94.0) grade = "S+";  
-  else if (pct >= 90.0) grade = "S";  
-  else if (pct >= 82.0) grade = "A+";  
-  else if (pct >= 75.0) grade = "A";   
-  else if (pct >= 65.0) grade = "B+";  
-  else if (pct >= 50.0) grade = "B";   
-  else if (pct >= 40.0) grade = "C+";  
-  else if (pct >= 30.0) grade = "C";   
+  if (pct >= 98)      grade = "SSS"; 
+  else if (pct >= 94) grade = "S+";  
+  else if (pct >= 90) grade = "S";  
+  else if (pct >= 82) grade = "A+";  
+  else if (pct >= 75) grade = "A";   
+  else if (pct >= 65) grade = "B+";  
+  else if (pct >= 50) grade = "B";   
+  else if (pct >= 40) grade = "C+";  
+  else if (pct >= 30) grade = "C";   
 
 
   const sign = theoreticalVal < 0 ? -1 : 1;
   const minDisplay = (minMag * sign).toFixed(1);
   const maxDisplay = (maxMag * sign).toFixed(1);
 
-  const rangeStr = (parseFloat(minDisplay) > parseFloat(maxDisplay))
+  const rangeStr = (Number.parseFloat(minDisplay) > Number.parseFloat(maxDisplay))
       ? `${maxDisplay} a ${minDisplay}%` 
       : `${minDisplay} a ${maxDisplay}%`;
 

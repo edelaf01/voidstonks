@@ -1,4 +1,4 @@
-export let state = {
+export const state = {
   currentLang: "es",
   activeTab: "relic",
   playerCount: 1,
@@ -19,13 +19,15 @@ export let state = {
   inventory: [],
   invFilterTier: "ALL",
   invSearchVal: "",
+  showAllFarms: false,
+  primeInventory: {},
+  primeManifest: [],
 };
 let saveTimer = null;
 export function saveAppState() {
   if (saveTimer) clearTimeout(saveTimer);
 
   saveTimer = setTimeout(() => {
-    
     const data = {
       lang: state.currentLang,
       relicInput: document.getElementById("relicInput")?.value || "",
@@ -38,13 +40,14 @@ export function saveAppState() {
       completedParts: Array.from(state.completedParts),
       lfgPresets: state.lfgPresets,
       inventory: state.inventory,
+      showAllFarms: state.showAllFarms,
+      primeInventory: state.primeInventory,
     };
-    
+
     localStorage.setItem("voidStonks_save", JSON.stringify(data));
-    
-    saveTimer = null; 
-    
-  }, 1000); 
+
+    saveTimer = null;
+  }, 1000);
 }
 
 export function loadAppState() {
@@ -73,8 +76,11 @@ export function loadAppState() {
         state.activeSetParts = data.activeSetParts || [];
         state.completedParts = new Set(data.completedParts || []);
       }
+      if (typeof data.showAllFarms !== "undefined")
+        state.showAllFarms = data.showAllFarms;
       if (data.lfgPresets) state.lfgPresets = data.lfgPresets;
       if (data.inventory) state.inventory = data.inventory;
+      if (data.primeInventory) state.primeInventory = data.primeInventory;
       return state.activeTab;
     } catch (e) {
       console.warn("Error cargando save:", e);
@@ -98,14 +104,14 @@ export function updateInventoryCount(relicName, change) {
   if (itemIndex >= 0) {
     state.inventory[itemIndex].count += change;
     if (state.inventory[itemIndex].count <= 0) {
-      state.inventory.splice(itemIndex, 1); 
+      state.inventory.splice(itemIndex, 1);
     }
   } else if (change > 0) {
     state.inventory.push({ name: relicName, count: change });
   }
 }
 export function updateInventoryBatch(relicList) {
-  relicList.forEach(relicName => {
+  relicList.forEach((relicName) => {
     const itemIndex = state.inventory.findIndex((i) => i.name === relicName);
     if (itemIndex >= 0) {
       state.inventory[itemIndex].count += 1;
@@ -113,7 +119,8 @@ export function updateInventoryBatch(relicList) {
       state.inventory.push({ name: relicName, count: 1 });
     }
   });
-  
-  state.inventory = state.inventory.filter(i => i.count > 0);
+
+  state.inventory = state.inventory.filter((i) => i.count > 0);
 }
-window.state = state;
+
+globalThis.state = state;
