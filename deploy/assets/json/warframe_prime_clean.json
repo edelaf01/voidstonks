@@ -1,0 +1,2068 @@
+[
+  {
+    "name": "Corvas Prime",
+    "type": "Arch-Gun",
+    "mastery_rank": 14,
+    "components": [
+      {
+        "name": "Barrel",
+        "itemCount": 1
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Receiver",
+        "itemCount": 1
+      },
+      {
+        "name": "Stock",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Larkspur Prime",
+    "type": "Arch-Gun",
+    "mastery_rank": 8,
+    "components": [
+      {
+        "name": "Barrel",
+        "itemCount": 1
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Receiver",
+        "itemCount": 1
+      },
+      {
+        "name": "Stock",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Ankyros Prime",
+    "type": "Melee",
+    "mastery_rank": 8,
+    "components": [
+      {
+        "name": "Blade",
+        "itemCount": 2
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Gauntlet",
+        "itemCount": 2
+      }
+    ]
+  },
+  {
+    "name": "Bo Prime",
+    "type": "Melee",
+    "mastery_rank": 5,
+    "components": [
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Handle",
+        "itemCount": 1
+      },
+      {
+        "name": "Ornament",
+        "itemCount": 2
+      }
+    ]
+  },
+  {
+    "name": "Cobra & Crane Prime",
+    "type": "Melee",
+    "mastery_rank": 14,
+    "components": [
+      {
+        "name": "Blade",
+        "itemCount": 1
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Guard",
+        "itemCount": 1
+      },
+      {
+        "name": "Hilt",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Dakra Prime",
+    "type": "Melee",
+    "mastery_rank": 10,
+    "components": [
+      {
+        "name": "Blade",
+        "itemCount": 1
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Handle",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Destreza Prime",
+    "type": "Melee",
+    "mastery_rank": 10,
+    "components": [
+      {
+        "name": "Blade",
+        "itemCount": 1
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Handle",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Dual Kamas Prime",
+    "type": "Melee",
+    "mastery_rank": 8,
+    "components": [
+      {
+        "name": "Blade",
+        "itemCount": 2
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Handle",
+        "itemCount": 2
+      }
+    ]
+  },
+  {
+    "name": "Dual Keres Prime",
+    "type": "Melee",
+    "mastery_rank": 14,
+    "components": [
+      {
+        "name": "Blade",
+        "itemCount": 2
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Handle",
+        "itemCount": 2
+      }
+    ]
+  },
+  {
+    "name": "Dual Zoren Prime",
+    "type": "Melee",
+    "mastery_rank": 13,
+    "components": [
+      {
+        "name": "Blade",
+        "itemCount": 2
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Handle",
+        "itemCount": 2
+      }
+    ]
+  },
+  {
+    "name": "Fang Prime",
+    "type": "Melee",
+    "mastery_rank": 10,
+    "components": [
+      {
+        "name": "Blade",
+        "itemCount": 2
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Handle",
+        "itemCount": 2
+      }
+    ]
+  },
+  {
+    "name": "Fragor Prime",
+    "type": "Melee",
+    "mastery_rank": 12,
+    "components": [
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Handle",
+        "itemCount": 1
+      },
+      {
+        "name": "Head",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Galatine Prime",
+    "type": "Melee",
+    "mastery_rank": 13,
+    "components": [
+      {
+        "name": "Blade",
+        "itemCount": 1
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Handle",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Glaive Prime",
+    "type": "Melee",
+    "mastery_rank": 10,
+    "components": [
+      {
+        "name": "Blade",
+        "itemCount": 2
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Disc",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Gram Prime",
+    "type": "Melee",
+    "mastery_rank": 14,
+    "components": [
+      {
+        "name": "Blade",
+        "itemCount": 1
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Handle",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Guandao Prime",
+    "type": "Melee",
+    "mastery_rank": 12,
+    "components": [
+      {
+        "name": "Blade",
+        "itemCount": 2
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Handle",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Gunsen Prime",
+    "type": "Melee",
+    "mastery_rank": 12,
+    "components": [
+      {
+        "name": "Blade",
+        "itemCount": 2
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Handle",
+        "itemCount": 2
+      }
+    ]
+  },
+  {
+    "name": "Karyst Prime",
+    "type": "Melee",
+    "mastery_rank": 12,
+    "components": [
+      {
+        "name": "Blade",
+        "itemCount": 1
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Handle",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Kestrel Prime",
+    "type": "Melee",
+    "mastery_rank": 11,
+    "components": [
+      {
+        "name": "Blade",
+        "itemCount": 2
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Grip",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Kogake Prime",
+    "type": "Melee",
+    "mastery_rank": 10,
+    "components": [
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Boot",
+        "itemCount": 2
+      },
+      {
+        "name": "Gauntlet",
+        "itemCount": 2
+      }
+    ]
+  },
+  {
+    "name": "Kronen Prime",
+    "type": "Melee",
+    "mastery_rank": 13,
+    "components": [
+      {
+        "name": "Blade",
+        "itemCount": 2
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Handle",
+        "itemCount": 2
+      }
+    ]
+  },
+  {
+    "name": "Masseter Prime",
+    "type": "Melee",
+    "mastery_rank": 14,
+    "components": [
+      {
+        "name": "Blade",
+        "itemCount": 1
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Handle",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Nami Skyla Prime",
+    "type": "Melee",
+    "mastery_rank": 11,
+    "components": [
+      {
+        "name": "Blade",
+        "itemCount": 2
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Handle",
+        "itemCount": 2
+      }
+    ]
+  },
+  {
+    "name": "Nikana Prime",
+    "type": "Melee",
+    "mastery_rank": 12,
+    "components": [
+      {
+        "name": "Blade",
+        "itemCount": 1
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Hilt",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Ninkondi Prime",
+    "type": "Melee",
+    "mastery_rank": 14,
+    "components": [
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Chain",
+        "itemCount": 1
+      },
+      {
+        "name": "Handle",
+        "itemCount": 2
+      }
+    ]
+  },
+  {
+    "name": "Okina Prime",
+    "type": "Melee",
+    "mastery_rank": 12,
+    "components": [
+      {
+        "name": "Blade",
+        "itemCount": 2
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Handle",
+        "itemCount": 2
+      }
+    ]
+  },
+  {
+    "name": "Orthos Prime",
+    "type": "Melee",
+    "mastery_rank": 12,
+    "components": [
+      {
+        "name": "Blade",
+        "itemCount": 2
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Handle",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Pangolin Prime",
+    "type": "Melee",
+    "mastery_rank": 14,
+    "components": [
+      {
+        "name": "Blade",
+        "itemCount": 1
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Handle",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Quassus Prime",
+    "type": "Melee",
+    "mastery_rank": 13,
+    "components": [
+      {
+        "name": "Blade",
+        "itemCount": 2
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Handle",
+        "itemCount": 2
+      }
+    ]
+  },
+  {
+    "name": "Reaper Prime",
+    "type": "Melee",
+    "mastery_rank": 10,
+    "components": [
+      {
+        "name": "Blade",
+        "itemCount": 1
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Handle",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Redeemer Prime",
+    "type": "Melee",
+    "mastery_rank": 10,
+    "components": [
+      {
+        "name": "Blade",
+        "itemCount": 1
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Handle",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Scindo Prime",
+    "type": "Melee",
+    "mastery_rank": 8,
+    "components": [
+      {
+        "name": "Blade",
+        "itemCount": 1
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Handle",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Silva & Aegis Prime",
+    "type": "Melee",
+    "mastery_rank": 12,
+    "components": [
+      {
+        "name": "Blade",
+        "itemCount": 1
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Guard",
+        "itemCount": 1
+      },
+      {
+        "name": "Hilt",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Tatsu Prime",
+    "type": "Melee",
+    "mastery_rank": 14,
+    "components": [
+      {
+        "name": "Blade",
+        "itemCount": 1
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Handle",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Tekko Prime",
+    "type": "Melee",
+    "mastery_rank": 12,
+    "components": [
+      {
+        "name": "Blade",
+        "itemCount": 2
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Gauntlet",
+        "itemCount": 2
+      }
+    ]
+  },
+  {
+    "name": "Tipedo Prime",
+    "type": "Melee",
+    "mastery_rank": 10,
+    "components": [
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Handle",
+        "itemCount": 1
+      },
+      {
+        "name": "Ornament",
+        "itemCount": 2
+      }
+    ]
+  },
+  {
+    "name": "Venato Prime",
+    "type": "Melee",
+    "mastery_rank": 14,
+    "components": [
+      {
+        "name": "Blade",
+        "itemCount": 1
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Handle",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Venka Prime",
+    "type": "Melee",
+    "mastery_rank": 14,
+    "components": [
+      {
+        "name": "Blades",
+        "itemCount": 2
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Gauntlet",
+        "itemCount": 2
+      }
+    ]
+  },
+  {
+    "name": "Volnus Prime",
+    "type": "Melee",
+    "mastery_rank": 14,
+    "components": [
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Handle",
+        "itemCount": 1
+      },
+      {
+        "name": "Head",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Acceltra Prime",
+    "type": "Rifle",
+    "mastery_rank": 14,
+    "components": [
+      {
+        "name": "Barrel",
+        "itemCount": 1
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Receiver",
+        "itemCount": 1
+      },
+      {
+        "name": "Stock",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Alternox Prime",
+    "type": "Rifle",
+    "mastery_rank": 13,
+    "components": [
+      {
+        "name": "Barrel",
+        "itemCount": 1
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Receiver",
+        "itemCount": 1
+      },
+      {
+        "name": "Stock",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Astilla Prime",
+    "type": "Shotgun",
+    "mastery_rank": 14,
+    "components": [
+      {
+        "name": "Barrel",
+        "itemCount": 1
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Receiver",
+        "itemCount": 1
+      },
+      {
+        "name": "Stock",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Baza Prime",
+    "type": "Rifle",
+    "mastery_rank": 10,
+    "components": [
+      {
+        "name": "Barrel",
+        "itemCount": 1
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Receiver",
+        "itemCount": 1
+      },
+      {
+        "name": "Stock",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Boar Prime",
+    "type": "Shotgun",
+    "mastery_rank": 11,
+    "components": [
+      {
+        "name": "Barrel",
+        "itemCount": 1
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Receiver",
+        "itemCount": 1
+      },
+      {
+        "name": "Stock",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Boltor Prime",
+    "type": "Rifle",
+    "mastery_rank": 13,
+    "components": [
+      {
+        "name": "Barrel",
+        "itemCount": 1
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Receiver",
+        "itemCount": 1
+      },
+      {
+        "name": "Stock",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Braton Prime",
+    "type": "Rifle",
+    "mastery_rank": 8,
+    "components": [
+      {
+        "name": "Barrel",
+        "itemCount": 1
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Receiver",
+        "itemCount": 1
+      },
+      {
+        "name": "Stock",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Burston Prime",
+    "type": "Rifle",
+    "mastery_rank": 12,
+    "components": [
+      {
+        "name": "Barrel",
+        "itemCount": 1
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Receiver",
+        "itemCount": 1
+      },
+      {
+        "name": "Stock",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Cedo Prime",
+    "type": "Shotgun",
+    "mastery_rank": 15,
+    "components": [
+      {
+        "name": "Barrel",
+        "itemCount": 1
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Receiver",
+        "itemCount": 1
+      },
+      {
+        "name": "Stock",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Cernos Prime",
+    "type": "Bow",
+    "mastery_rank": 12,
+    "components": [
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Grip",
+        "itemCount": 1
+      },
+      {
+        "name": "Lower Limb",
+        "itemCount": 1
+      },
+      {
+        "name": "String",
+        "itemCount": 1
+      },
+      {
+        "name": "Upper Limb",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Corinth Prime",
+    "type": "Shotgun",
+    "mastery_rank": 14,
+    "components": [
+      {
+        "name": "Barrel",
+        "itemCount": 1
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Receiver",
+        "itemCount": 1
+      },
+      {
+        "name": "Stock",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Daikyu Prime",
+    "type": "Bow",
+    "mastery_rank": 15,
+    "components": [
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Grip",
+        "itemCount": 1
+      },
+      {
+        "name": "Lower Limb",
+        "itemCount": 1
+      },
+      {
+        "name": "String",
+        "itemCount": 1
+      },
+      {
+        "name": "Upper Limb",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Fulmin Prime",
+    "type": "Rifle",
+    "mastery_rank": 12,
+    "components": [
+      {
+        "name": "Barrel",
+        "itemCount": 1
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Receiver",
+        "itemCount": 1
+      },
+      {
+        "name": "Stock",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Latron Prime",
+    "type": "Rifle",
+    "mastery_rank": 10,
+    "components": [
+      {
+        "name": "Barrel",
+        "itemCount": 1
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Receiver",
+        "itemCount": 1
+      },
+      {
+        "name": "Stock",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Nagantaka Prime",
+    "type": "Rifle",
+    "mastery_rank": 12,
+    "components": [
+      {
+        "name": "Barrel",
+        "itemCount": 1
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Receiver",
+        "itemCount": 1
+      },
+      {
+        "name": "Stock",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Panthera Prime",
+    "type": "Rifle",
+    "mastery_rank": 14,
+    "components": [
+      {
+        "name": "Barrel",
+        "itemCount": 1
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Receiver",
+        "itemCount": 1
+      },
+      {
+        "name": "Stock",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Paris Prime",
+    "type": "Bow",
+    "mastery_rank": 8,
+    "components": [
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Grip",
+        "itemCount": 1
+      },
+      {
+        "name": "Lower Limb",
+        "itemCount": 1
+      },
+      {
+        "name": "String",
+        "itemCount": 1
+      },
+      {
+        "name": "Upper Limb",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Phantasma Prime",
+    "type": "Shotgun",
+    "mastery_rank": 14,
+    "components": [
+      {
+        "name": "Barrel",
+        "itemCount": 1
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Receiver",
+        "itemCount": 1
+      },
+      {
+        "name": "Stock",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Rubico Prime",
+    "type": "Sniper",
+    "mastery_rank": 12,
+    "components": [
+      {
+        "name": "Barrel",
+        "itemCount": 1
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Receiver",
+        "itemCount": 1
+      },
+      {
+        "name": "Stock",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Scourge Prime",
+    "type": "Rifle",
+    "mastery_rank": 14,
+    "components": [
+      {
+        "name": "Barrel",
+        "itemCount": 1
+      },
+      {
+        "name": "Blade",
+        "itemCount": 1
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Handle",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Soma Prime",
+    "type": "Rifle",
+    "mastery_rank": 7,
+    "components": [
+      {
+        "name": "Barrel",
+        "itemCount": 1
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Receiver",
+        "itemCount": 1
+      },
+      {
+        "name": "Stock",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Stradavar Prime",
+    "type": "Rifle",
+    "mastery_rank": 12,
+    "components": [
+      {
+        "name": "Barrel",
+        "itemCount": 1
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Receiver",
+        "itemCount": 1
+      },
+      {
+        "name": "Stock",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Strun Prime",
+    "type": "Shotgun",
+    "mastery_rank": 14,
+    "components": [
+      {
+        "name": "Barrel",
+        "itemCount": 1
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Receiver",
+        "itemCount": 1
+      },
+      {
+        "name": "Stock",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Sybaris Prime",
+    "type": "Rifle",
+    "mastery_rank": 12,
+    "components": [
+      {
+        "name": "Barrel",
+        "itemCount": 1
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Receiver",
+        "itemCount": 1
+      },
+      {
+        "name": "Stock",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Tenora Prime",
+    "type": "Rifle",
+    "mastery_rank": 14,
+    "components": [
+      {
+        "name": "Barrel",
+        "itemCount": 1
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Receiver",
+        "itemCount": 1
+      },
+      {
+        "name": "Stock",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Tiberon Prime",
+    "type": "Rifle",
+    "mastery_rank": 14,
+    "components": [
+      {
+        "name": "Barrel",
+        "itemCount": 1
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Receiver",
+        "itemCount": 1
+      },
+      {
+        "name": "Stock",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Tigris Prime",
+    "type": "Shotgun",
+    "mastery_rank": 13,
+    "components": [
+      {
+        "name": "Barrel",
+        "itemCount": 1
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Receiver",
+        "itemCount": 1
+      },
+      {
+        "name": "Stock",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Trumna Prime",
+    "type": "Rifle",
+    "mastery_rank": 15,
+    "components": [
+      {
+        "name": "Barrel",
+        "itemCount": 1
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Receiver",
+        "itemCount": 1
+      },
+      {
+        "name": "Stock",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Vadarya Prime",
+    "type": "Sniper",
+    "mastery_rank": 15,
+    "components": [
+      {
+        "name": "Barrel",
+        "itemCount": 1
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Receiver",
+        "itemCount": 1
+      },
+      {
+        "name": "Stock",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Vectis Prime",
+    "type": "Sniper",
+    "mastery_rank": 14,
+    "components": [
+      {
+        "name": "Barrel",
+        "itemCount": 1
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Receiver",
+        "itemCount": 1
+      },
+      {
+        "name": "Stock",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Zhuge Prime",
+    "type": "Rifle",
+    "mastery_rank": 14,
+    "components": [
+      {
+        "name": "Barrel",
+        "itemCount": 1
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Grip",
+        "itemCount": 1
+      },
+      {
+        "name": "Receiver",
+        "itemCount": 1
+      },
+      {
+        "name": "String",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Afuris Prime",
+    "type": "Pistol",
+    "mastery_rank": 12,
+    "components": [
+      {
+        "name": "Barrel",
+        "itemCount": 2
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Link",
+        "itemCount": 1
+      },
+      {
+        "name": "Receiver",
+        "itemCount": 2
+      }
+    ]
+  },
+  {
+    "name": "Akarius Prime",
+    "type": "Pistol",
+    "mastery_rank": 14,
+    "components": [
+      {
+        "name": "Barrel",
+        "itemCount": 2
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Link",
+        "itemCount": 1
+      },
+      {
+        "name": "Receiver",
+        "itemCount": 2
+      }
+    ]
+  },
+  {
+    "name": "Akbolto Prime",
+    "type": "Pistol",
+    "mastery_rank": 13,
+    "components": [
+      {
+        "name": "Barrel",
+        "itemCount": 2
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Link",
+        "itemCount": 1
+      },
+      {
+        "name": "Receiver",
+        "itemCount": 2
+      }
+    ]
+  },
+  {
+    "name": "Akbronco Prime",
+    "type": "Dual Pistols",
+    "mastery_rank": 10,
+    "components": [
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Bronco Prime",
+        "itemCount": 1
+      },
+      {
+        "name": "Bronco Prime",
+        "itemCount": 1
+      },
+      {
+        "name": "Link",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Akjagara Prime",
+    "type": "Pistol",
+    "mastery_rank": 12,
+    "components": [
+      {
+        "name": "Barrel",
+        "itemCount": 2
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Link",
+        "itemCount": 1
+      },
+      {
+        "name": "Receiver",
+        "itemCount": 2
+      }
+    ]
+  },
+  {
+    "name": "Aklex Prime",
+    "type": "Dual Pistols",
+    "mastery_rank": 15,
+    "components": [
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Lex Prime",
+        "itemCount": 1
+      },
+      {
+        "name": "Lex Prime",
+        "itemCount": 1
+      },
+      {
+        "name": "Link",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Akmagnus Prime",
+    "type": "Dual Pistols",
+    "mastery_rank": 15,
+    "components": [
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Link",
+        "itemCount": 1
+      },
+      {
+        "name": "Magnus Prime",
+        "itemCount": 1
+      },
+      {
+        "name": "Magnus Prime",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Aksomati Prime",
+    "type": "Pistol",
+    "mastery_rank": 12,
+    "components": [
+      {
+        "name": "Barrel",
+        "itemCount": 2
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Link",
+        "itemCount": 1
+      },
+      {
+        "name": "Receiver",
+        "itemCount": 2
+      }
+    ]
+  },
+  {
+    "name": "Akstiletto Prime",
+    "type": "Pistol",
+    "mastery_rank": 10,
+    "components": [
+      {
+        "name": "Barrel",
+        "itemCount": 2
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Link",
+        "itemCount": 1
+      },
+      {
+        "name": "Receiver",
+        "itemCount": 2
+      }
+    ]
+  },
+  {
+    "name": "Akvasto Prime",
+    "type": "Pistol",
+    "mastery_rank": 12,
+    "components": [
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Link",
+        "itemCount": 1
+      },
+      {
+        "name": "Vasto Prime",
+        "itemCount": 1
+      },
+      {
+        "name": "Vasto Prime",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Ballistica Prime",
+    "type": "Pistol",
+    "mastery_rank": 14,
+    "components": [
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Lower Limb",
+        "itemCount": 1
+      },
+      {
+        "name": "Receiver",
+        "itemCount": 1
+      },
+      {
+        "name": "String",
+        "itemCount": 1
+      },
+      {
+        "name": "Upper Limb",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Bronco Prime",
+    "type": "Pistol",
+    "mastery_rank": 4,
+    "components": [
+      {
+        "name": "Barrel",
+        "itemCount": 1
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Receiver",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Epitaph Prime",
+    "type": "Pistol",
+    "mastery_rank": 14,
+    "components": [
+      {
+        "name": "Barrel",
+        "itemCount": 1
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Receiver",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Euphona Prime",
+    "type": "Pistol",
+    "mastery_rank": 14,
+    "components": [
+      {
+        "name": "Barrel",
+        "itemCount": 1
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Receiver",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Hikou Prime",
+    "type": "Throwing",
+    "mastery_rank": 4,
+    "components": [
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Pouch",
+        "itemCount": 2
+      },
+      {
+        "name": "Stars",
+        "itemCount": 2
+      }
+    ]
+  },
+  {
+    "name": "Hystrix Prime",
+    "type": "Pistol",
+    "mastery_rank": 12,
+    "components": [
+      {
+        "name": "Barrel",
+        "itemCount": 1
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Receiver",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Knell Prime",
+    "type": "Pistol",
+    "mastery_rank": 14,
+    "components": [
+      {
+        "name": "Barrel",
+        "itemCount": 1
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Receiver",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Kompressa Prime",
+    "type": "Pistol",
+    "mastery_rank": 13,
+    "components": [
+      {
+        "name": "Barrel",
+        "itemCount": 1
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Receiver",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Lex Prime",
+    "type": "Pistol",
+    "mastery_rank": 8,
+    "components": [
+      {
+        "name": "Barrel",
+        "itemCount": 1
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Receiver",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Magnus Prime",
+    "type": "Pistol",
+    "mastery_rank": 14,
+    "components": [
+      {
+        "name": "Barrel",
+        "itemCount": 1
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Receiver",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Pandero Prime",
+    "type": "Pistol",
+    "mastery_rank": 14,
+    "components": [
+      {
+        "name": "Barrel",
+        "itemCount": 1
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Receiver",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Pyrana Prime",
+    "type": "Pistol",
+    "mastery_rank": 13,
+    "components": [
+      {
+        "name": "Barrel",
+        "itemCount": 1
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Receiver",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Sicarus Prime",
+    "type": "Pistol",
+    "mastery_rank": 14,
+    "components": [
+      {
+        "name": "Barrel",
+        "itemCount": 1
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Receiver",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Spira Prime",
+    "type": "Throwing",
+    "mastery_rank": 10,
+    "components": [
+      {
+        "name": "Blade",
+        "itemCount": 2
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Pouch",
+        "itemCount": 2
+      }
+    ]
+  },
+  {
+    "name": "Vasto Prime",
+    "type": "Pistol",
+    "mastery_rank": 10,
+    "components": [
+      {
+        "name": "Barrel",
+        "itemCount": 1
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Receiver",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Velox Prime",
+    "type": "Pistol",
+    "mastery_rank": 13,
+    "components": [
+      {
+        "name": "Barrel",
+        "itemCount": 1
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Receiver",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Zakti Prime",
+    "type": "Pistol",
+    "mastery_rank": 14,
+    "components": [
+      {
+        "name": "Barrel",
+        "itemCount": 1
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Receiver",
+        "itemCount": 1
+      }
+    ]
+  },
+  {
+    "name": "Zylok Prime",
+    "type": "Pistol",
+    "mastery_rank": 13,
+    "components": [
+      {
+        "name": "Barrel",
+        "itemCount": 1
+      },
+      {
+        "name": "Blueprint",
+        "itemCount": 1
+      },
+      {
+        "name": "Receiver",
+        "itemCount": 1
+      }
+    ]
+  }
+]

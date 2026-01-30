@@ -1,8 +1,9 @@
-export let state = {
+export const state = {
   currentLang: "es",
   activeTab: "relic",
   playerCount: 1,
   lfgCount: 1,
+  relicSourcesDatabase: {},
   selectedRelic: "",
   itemsDatabase: {},
   relicsDatabase: {},
@@ -18,23 +19,35 @@ export let state = {
   inventory: [],
   invFilterTier: "ALL",
   invSearchVal: "",
+  showAllFarms: false,
+  primeInventory: {},
+  primeManifest: [],
 };
-
+let saveTimer = null;
 export function saveAppState() {
-  const data = {
-    lang: state.currentLang,
-    relicInput: document.getElementById("relicInput")?.value || "",
-    refinement: document.getElementById("refinement")?.value || "Rad",
-    lfgActivity: document.getElementById("lfgActivity")?.value || "eidolon",
-    username: document.getElementById("usernameInput")?.value || "",
-    mr: document.getElementById("mrInput")?.value || 0,
-    currentActiveSet: state.currentActiveSet,
-    activeSetParts: state.activeSetParts,
-    completedParts: Array.from(state.completedParts),
-    lfgPresets: state.lfgPresets,
-    inventory: state.inventory,
-  };
-  localStorage.setItem("voidStonks_save", JSON.stringify(data));
+  if (saveTimer) clearTimeout(saveTimer);
+
+  saveTimer = setTimeout(() => {
+    const data = {
+      lang: state.currentLang,
+      relicInput: document.getElementById("relicInput")?.value || "",
+      refinement: document.getElementById("refinement")?.value || "Rad",
+      lfgActivity: document.getElementById("lfgActivity")?.value || "eidolon",
+      username: document.getElementById("usernameInput")?.value || "",
+      mr: document.getElementById("mrInput")?.value || 0,
+      currentActiveSet: state.currentActiveSet,
+      activeSetParts: state.activeSetParts,
+      completedParts: Array.from(state.completedParts),
+      lfgPresets: state.lfgPresets,
+      inventory: state.inventory,
+      showAllFarms: state.showAllFarms,
+      primeInventory: state.primeInventory,
+    };
+
+    localStorage.setItem("voidStonks_save", JSON.stringify(data));
+
+    saveTimer = null;
+  }, 1000);
 }
 
 export function loadAppState() {
@@ -63,8 +76,11 @@ export function loadAppState() {
         state.activeSetParts = data.activeSetParts || [];
         state.completedParts = new Set(data.completedParts || []);
       }
+      if (typeof data.showAllFarms !== "undefined")
+        state.showAllFarms = data.showAllFarms;
       if (data.lfgPresets) state.lfgPresets = data.lfgPresets;
       if (data.inventory) state.inventory = data.inventory;
+      if (data.primeInventory) state.primeInventory = data.primeInventory;
       return state.activeTab;
     } catch (e) {
       console.warn("Error cargando save:", e);
@@ -94,3 +110,17 @@ export function updateInventoryCount(relicName, change) {
     state.inventory.push({ name: relicName, count: change });
   }
 }
+export function updateInventoryBatch(relicList) {
+  relicList.forEach((relicName) => {
+    const itemIndex = state.inventory.findIndex((i) => i.name === relicName);
+    if (itemIndex >= 0) {
+      state.inventory[itemIndex].count += 1;
+    } else {
+      state.inventory.push({ name: relicName, count: 1 });
+    }
+  });
+
+  state.inventory = state.inventory.filter((i) => i.count > 0);
+}
+
+globalThis.state = state;
