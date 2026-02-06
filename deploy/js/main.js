@@ -38,6 +38,7 @@ import {
   renderInventory,
   clearInventory,
   updateSelectExclusions,
+  preloadCriticalAssets,
 } from "./ui.js";
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.getRegistrations().then(function (registrations) {
@@ -60,6 +61,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   setupGlobalClickListeners();
   initGlobalTooltipSystem();
   initSyncPanel();
+  preloadCriticalAssets();
   setupScannerDrawer();
 
   const langSelect = document.getElementById("langSelect");
