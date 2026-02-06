@@ -1598,7 +1598,6 @@ option {
 /* Panel Sync */
 #cloud-sync-container {
   bottom: 30px;
-  /* Matches desktop scanner bottom */
   top: auto;
   left: -280px;
   right: auto !important;
@@ -1608,11 +1607,12 @@ option {
   border-radius: 0 8px 8px 0;
   z-index: 1001 !important;
   box-shadow: 2px 2px 15px rgba(0, 0, 0, 0.5);
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  will-change: transform;
 }
 
 #cloud-sync-container.open {
-  left: 0 !important;
-  right: auto !important;
+  transform: translateX(280px) !important;
 }
 
 .side-toggle-btn {
@@ -3841,11 +3841,11 @@ body.theme-bounties {
     bottom: 30px;
     /* Large desktop scanner bottom */
     border-radius: 0 12px 12px 0;
+    transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1) !important;
   }
 
   #cloud-sync-container.open {
-    left: 0 !important;
-    right: auto !important;
+    transform: translateX(290px) !important;
   }
 }
 
