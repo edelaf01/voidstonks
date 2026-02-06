@@ -587,7 +587,7 @@ export function manualRelicUpdate() {
           )}</span>`;
         } else {
           nameDisplay = `
-            <div style="display:flex; align-items:center; gap:12px; width:100%;">
+            <div class="name-row-content">
               <span class="component-name item-interactive" data-action="find-relics-for-item" data-item="${escapeHTML(item.name)}" onclick="event.stopPropagation(); globalThis.openSetFromRelicReward('${escapeHTML(item.name)}')">
                   ${escapeHTML(item.name)}
               </span>
@@ -600,7 +600,7 @@ export function manualRelicUpdate() {
               }
               return "";
             })()}
-              <div style="margin-left:auto; display:flex; align-items:center; gap:8px;">
+              <div class="actions-col-wrapper">
                 <a href="https://warframe.market/items/${getSlug(item.name)}" target="_blank" class="market-btn-mini" title="Warframe Market">
                   MARKET
                 </a>

@@ -1599,28 +1599,28 @@ option {
 #cloud-sync-container {
   bottom: 20px;
   top: auto;
-  left: -280px;
+  right: -280px;
   width: 280px;
   max-height: 500px;
-  border-left: none;
-  border-radius: 0 8px 8px 0;
+  border-right: none;
+  border-radius: 8px 0 0 8px;
   z-index: 1001 !important;
 }
 
 #cloud-sync-container.open {
-  left: 0;
+  right: 0;
 }
 
 .side-toggle-btn {
-  right: -50px;
+  left: -50px;
   bottom: 20px;
   top: auto;
   width: 50px;
   height: 50px;
   background: #15171b;
   border: 1px solid var(--wf-blue);
-  border-left: none;
-  border-radius: 0 8px 8px 0;
+  border-right: none;
+  border-radius: 8px 0 0 8px;
   display: flex !important;
   align-items: center;
   justify-content: center;
@@ -3829,15 +3829,16 @@ body.theme-bounties {
   }
 
   #cloud-sync-container {
-    left: -290px;
-    right: auto;
+    right: -290px;
+    left: auto;
     top: auto;
     bottom: 50px;
+    border-radius: 12px 0 0 12px;
   }
 
   #cloud-sync-container.open {
-    left: 30px;
-    right: auto;
+    right: 0;
+    left: auto;
   }
 }
 
@@ -4401,6 +4402,8 @@ button[onclick*="importInventory"]:hover {
   font-size: 0.95em !important;
   font-weight: 700 !important;
   color: #fff !important;
+  white-space: normal !important;
+  overflow: visible !important;
 }
 
 .price-badge,
@@ -5180,9 +5183,9 @@ button[onclick*="importInventory"]:hover {
 .component-name {
   font-weight: 700;
   color: #fff;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  overflow: visible;
+  line-height: 1.2;
 }
 
 .required-count {
@@ -5260,18 +5263,38 @@ button[onclick*="importInventory"]:hover {
   min-width: 0;
 }
 
+.name-row-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
 .actions-col-wrapper {
   display: flex;
   align-items: center;
   gap: 8px;
   margin-left: auto;
+  flex-shrink: 0;
+}
+
+@media (max-width: 500px) {
+
+  .name-row-content,
+  .component-header {
+    flex-wrap: wrap !important;
+  }
+
+  .actions-col-wrapper {
+    margin-left: auto;
+    padding-top: 5px;
+  }
 }
 
 .component-name {
   cursor: pointer;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  overflow: visible;
   position: relative;
 }
 
@@ -5289,6 +5312,7 @@ button[onclick*="importInventory"]:hover {
   font-size: 0.75rem;
   font-weight: bold;
   letter-spacing: 0.5px;
+  flex-shrink: 0 !important;
   transition: all 0.2s;
   text-decoration: none;
   display: flex;
@@ -5315,6 +5339,7 @@ button[onclick*="importInventory"]:hover {
   align-self: center !important;
   margin-top: 0 !important;
   margin-bottom: 0 !important;
+  flex-shrink: 0 !important;
 }
 
 #mode-riven {
