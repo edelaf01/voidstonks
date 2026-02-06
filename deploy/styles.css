@@ -32,7 +32,7 @@
 
   --active-theme-color: var(--wf-blue);
 
-  --z-back: -1;
+  --z-back: 0;
   --z-normal: 1;
   --z-card: 10;
   --z-header: 100;
