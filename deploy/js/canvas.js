@@ -231,7 +231,7 @@ export function initCanvas() {
     height = window.innerHeight;
     canvas.width = width * dpr;
     canvas.height = height * dpr;
-    ctx.scale(dpr, dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     cols = Math.ceil(width / CELL_SIZE);
     rows = Math.ceil(height / CELL_SIZE);
