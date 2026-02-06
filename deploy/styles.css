@@ -1597,23 +1597,29 @@ option {
 
 /* Panel Sync */
 #cloud-sync-container {
-  bottom: 20px;
+  bottom: 30px;
+  /* Matches desktop scanner bottom */
   top: auto;
   left: -280px;
+  right: auto !important;
   width: 280px;
   max-height: 500px;
   border-left: none;
   border-radius: 0 8px 8px 0;
   z-index: 1001 !important;
+  box-shadow: 2px 2px 15px rgba(0, 0, 0, 0.5);
 }
 
 #cloud-sync-container.open {
-  left: 0;
+  left: 0 !important;
+  right: auto !important;
 }
 
 .side-toggle-btn {
   right: -50px;
-  bottom: 20px;
+  left: auto !important;
+  bottom: 7.5px;
+  /* Offset to align centers with 65px scanner circle */
   top: auto;
   width: 50px;
   height: 50px;
@@ -3830,14 +3836,16 @@ body.theme-bounties {
 
   #cloud-sync-container {
     left: -290px;
-    right: auto;
+    right: auto !important;
     top: auto;
-    bottom: 50px;
+    bottom: 30px;
+    /* Large desktop scanner bottom */
+    border-radius: 0 12px 12px 0;
   }
 
   #cloud-sync-container.open {
-    left: 30px;
-    right: auto;
+    left: 0 !important;
+    right: auto !important;
   }
 }
 
@@ -3853,6 +3861,16 @@ body.theme-bounties {
   .mobile-scan-fab img.fab-icon {
     width: 30px;
     height: 30px;
+  }
+
+  #cloud-sync-container {
+    bottom: 20px;
+    /* Matches 1280px scanner bottom */
+  }
+
+  #cloud-sync-container .side-toggle-btn {
+    bottom: 2.5px;
+    /* Centers 50px btn with 55px scanner circle */
   }
 }
 
@@ -4135,6 +4153,15 @@ body.theme-bounties {
     height: 55px;
   }
 
+  #cloud-sync-container {
+    bottom: 90px !important;
+    /* Matches mobile scanner bottom */
+  }
+
+  #cloud-sync-container .side-toggle-btn {
+    bottom: 2.5px !important;
+  }
+
   #footer-relic.footer-visible~.mobile-scan-fab {
     bottom: 220px !important;
     transition: bottom 0.3s ease;
@@ -4401,6 +4428,8 @@ button[onclick*="importInventory"]:hover {
   font-size: 0.95em !important;
   font-weight: 700 !important;
   color: #fff !important;
+  white-space: normal !important;
+  overflow: visible !important;
 }
 
 .price-badge,
@@ -5175,14 +5204,15 @@ button[onclick*="importInventory"]:hover {
   flex-direction: column;
   min-width: 0;
   flex: 1;
+  gap: 4px;
 }
 
 .component-name {
   font-weight: 700;
   color: #fff;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  overflow: visible;
+  line-height: 1.2;
 }
 
 .required-count {
@@ -5260,19 +5290,41 @@ button[onclick*="importInventory"]:hover {
   min-width: 0;
 }
 
+.name-row-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
 .actions-col-wrapper {
   display: flex;
   align-items: center;
   gap: 8px;
   margin-left: auto;
+  flex-shrink: 0;
+}
+
+@media (max-width: 500px) {
+
+  .name-row-content,
+  .component-header {
+    flex-wrap: wrap !important;
+  }
+
+  .actions-col-wrapper {
+    width: 100% !important;
+    justify-content: flex-end;
+    padding-top: 8px;
+  }
 }
 
 .component-name {
   cursor: pointer;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal !important;
+  overflow: visible !important;
   position: relative;
+  word-break: break-word;
 }
 
 .component-name:hover {
@@ -5289,6 +5341,7 @@ button[onclick*="importInventory"]:hover {
   font-size: 0.75rem;
   font-weight: bold;
   letter-spacing: 0.5px;
+  flex-shrink: 0 !important;
   transition: all 0.2s;
   text-decoration: none;
   display: flex;
@@ -5315,6 +5368,7 @@ button[onclick*="importInventory"]:hover {
   align-self: center !important;
   margin-top: 0 !important;
   margin-bottom: 0 !important;
+  flex-shrink: 0 !important;
 }
 
 #mode-riven {
@@ -5382,8 +5436,13 @@ button[onclick*="importInventory"]:hover {
   width: 120px;
   height: auto;
   object-fit: contain;
-  transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.2s ease;
   filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.5));
+  opacity: 1;
+}
+
+.riven-weapon-img.loading {
+  opacity: 0;
 }
 
 .riven-weapon-preview:hover .riven-weapon-img {
@@ -5605,13 +5664,48 @@ button[onclick*="importInventory"]:hover {
 }
 
 .plat-icon {
-  width: auto;
-  height: 1em;
+  width: 1.2em;
+  height: 1.2em;
   vertical-align: middle;
   margin-left: 2px;
   display: inline-block;
-  object-fit: contain;
+  background-image: url('assets/relic_contents/platinum.webp');
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
 }
+
+.relic-era-icon {
+  width: 24px;
+  height: 24px;
+  display: inline-block;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.2));
+  vertical-align: middle;
+}
+
+.relic-era-icon.lith {
+  background-image: url('https://wiki.warframe.com/images/LithRelicIntact.png?ee7d7');
+}
+
+.relic-era-icon.meso {
+  background-image: url('https://wiki.warframe.com/images/MesoRelicIntact.png?a9b4a');
+}
+
+.relic-era-icon.neo {
+  background-image: url('https://wiki.warframe.com/images/NeoRelicIntact.png?6dc86');
+}
+
+.relic-era-icon.axi {
+  background-image: url('https://wiki.warframe.com/images/AxiRelicIntact.png?6cadf');
+}
+
+.relic-era-icon.requiem {
+  background-image: url('https://wiki.warframe.com/images/RequiemRelicIntact.png?03821');
+}
+
 
 .tooltip-res-img {
   width: 16px;
@@ -5780,7 +5874,43 @@ button[onclick*="importInventory"]:hover {
 .v-dispo-dot.filled {
   background: var(--wf-blue);
   border-color: #00e5ff;
-  box-shadow: 0 0 4px rgba(0, 229, 255, 0.8);
+  box-shadow: 0 0 5px rgba(0, 229, 255, 0.4);
+}
+
+/* Variant Set Shortcut */
+.variant-set-shortcut {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  background: rgba(0, 0, 0, 0.6);
+  color: var(--wf-gold-text);
+  font-size: 0.65rem;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid rgba(199, 158, 66, 0.3);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  z-index: 5;
+  opacity: 0.8;
+}
+
+.variant-set-shortcut:hover {
+  background: var(--wf-purple);
+  color: white;
+  opacity: 1;
+  transform: scale(1.1);
+  border-color: var(--wf-purple);
+}
+
+.item-interactive {
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.item-interactive:hover {
+  color: var(--wf-blue) !important;
+  text-decoration: underline;
 }
 
 .v-dispo-val {

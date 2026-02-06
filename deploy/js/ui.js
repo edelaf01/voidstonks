@@ -11,6 +11,23 @@ import {
   UPDATE_HISTORY_CONTENT,
 } from "./config.js";
 import { state, saveAppState, updateInventoryCount } from "./state.js";
+
+const iconPathCache = new Map();
+
+/**
+ * Preloads critical UI assets to avoid network calls during interaction.
+ */
+export function preloadCriticalAssets() {
+  const assets = [
+    "assets/relic_contents/platinum.webp",
+    ...Object.values(TIER_URLS)
+  ];
+  assets.forEach(url => {
+    const img = new Image();
+    img.src = url;
+  });
+}
+
 import {
   addToQueue,
   fetchRivenAverage,
@@ -27,6 +44,7 @@ import {
  */
 function getItemIcon(itemName) {
   if (!itemName) return null;
+  if (iconPathCache.has(itemName)) return iconPathCache.get(itemName);
 
   let originalName = itemName.toLowerCase().trim().replace(/^\d+x\s+/, "");
 
@@ -85,7 +103,9 @@ function getItemIcon(itemName) {
     return `assets/relic_contents/${setSlug}.webp`;
   }
 
-  return `assets/relic_contents/${baseSlug}.webp`;
+  const result = `assets/relic_contents/${baseSlug}.webp`;
+  iconPathCache.set(itemName, result);
+  return result;
 }
 
 function getRequiredCount(setName, partName) {
@@ -306,10 +326,8 @@ export function changeLanguage(lang) {
   setText("lbl-riven-stats", t.lblRivenS);
   setText("btn-riven-search", t.rivenSearch);
 
-  // Update all Riven stat placeholders
   const phStat = t.lblRivenPos || "+ STAT";
   const phNeg = t.lblRivenNeg || "- NEGATIVA";
-
   document.querySelectorAll(".riven-stat-select").forEach(sel => {
     const isNeg = sel.classList.contains("negative");
     const firstOpt = sel.options[0];
@@ -499,7 +517,8 @@ export function manualRelicUpdate() {
 
     if (!listDiv || !profitDisplay || !container) return;
 
-    listDiv.innerHTML = "";
+    // Use a Fragment to avoid multiple repaints
+    const fragment = document.createDocumentFragment();
     profitDisplay.innerText = "...";
     profitDisplay.classList.add("loading");
 
@@ -578,7 +597,7 @@ export function manualRelicUpdate() {
         }
 
         const iconPath = getItemIcon(item.name);
-        const iconHtml = iconPath ? `<img src="${iconPath}" class="item-icon-mini" onerror="this.style.display='none'">` : '';
+        const iconHtml = iconPath ? `<img src="${iconPath}" class="item-icon-mini" loading="lazy" onerror="this.style.display='none'">` : '';
 
         let nameDisplay;
         if (isUntradable) {
@@ -587,7 +606,7 @@ export function manualRelicUpdate() {
           )}</span>`;
         } else {
           nameDisplay = `
-            <div style="display:flex; align-items:center; gap:12px; width:100%;">
+            <div class="name-row-content">
               <span class="component-name item-interactive" data-action="find-relics-for-item" data-item="${escapeHTML(item.name)}" onclick="event.stopPropagation(); globalThis.openSetFromRelicReward('${escapeHTML(item.name)}')">
                   ${escapeHTML(item.name)}
               </span>
@@ -600,7 +619,7 @@ export function manualRelicUpdate() {
               }
               return "";
             })()}
-              <div style="margin-left:auto; display:flex; align-items:center; gap:8px;">
+              <div class="actions-col-wrapper">
                 <a href="https://warframe.market/items/${getSlug(item.name)}" target="_blank" class="market-btn-mini" title="Warframe Market">
                   MARKET
                 </a>
@@ -614,16 +633,15 @@ export function manualRelicUpdate() {
         }
 
         const finalIconHtml = iconPath
-          ? `<img src="${iconPath}" class="item-icon-mini item-interactive" onerror="this.style.display='none'" onclick="event.stopPropagation(); globalThis.openSetFromRelicReward('${escapeHTML(item.name)}')">`
+          ? `<img src="${iconPath}" class="item-icon-mini item-interactive" loading="lazy" onerror="this.style.display='none'" onclick="event.stopPropagation(); globalThis.openSetFromRelicReward('${escapeHTML(item.name)}')">`
           : '';
 
         const badgeContent = isUntradable
-          ? '0<img src="assets/relic_contents/platinum.webp" class="plat-icon">'
+          ? '0<span class="plat-icon"></span>'
           : "...";
         const badgeClass = isUntradable
           ? "price-badge forma"
           : "price-badge loading";
-
         const ducatVal = item.ducats || 0;
         row.innerHTML = `
             <div class="component-info">
@@ -643,13 +661,14 @@ export function manualRelicUpdate() {
             </div>
         `;
 
-        listDiv.appendChild(row);
+        fragment.appendChild(row);
 
         const badge = row.querySelector(".price-badge");
         if (!isUntradable) {
           addToQueue(item.name, badge);
         }
       });
+      listDiv.replaceChildren(fragment);
     } else {
       container.classList.add("hidden");
     }
@@ -840,7 +859,7 @@ function createSetCard(title, itemNames, parent, isSingle = false) {
     )}" target="_blank" class="market-link">${escapeHTML(title)} SET<span class="link-icon">↗</span></a>`;
 
   const setIcon = getItemIcon(title);
-  const setIconHtml = setIcon ? `<img src="${setIcon}" class="item-icon-set-header" onerror="this.style.display='none'">` : '';
+  const setIconHtml = setIcon ? `<img src="${setIcon}" class="item-icon-set-header" loading="lazy" onerror="this.style.display='none'">` : '';
   header.innerHTML = `${setIconHtml} ${titleHTML}`;
 
   if (!isSingle) {
@@ -871,7 +890,7 @@ function createSetCard(title, itemNames, parent, isSingle = false) {
     addToQueue(itemName, priceSpan);
 
     const partIcon = getItemIcon(itemName);
-    const partIconHtml = partIcon ? `<img src="${partIcon}" class="item-icon-mini" onerror="this.style.display='none'">` : '';
+    const partIconHtml = partIcon ? `<img src="${partIcon}" class="item-icon-mini" loading="lazy" onerror="this.style.display='none'">` : '';
 
     const itemData = state.itemsDatabase[itemName];
     const ducatVal = itemData && itemData.length > 0 ? itemData[0].ducats : 0;
@@ -881,21 +900,23 @@ function createSetCard(title, itemNames, parent, isSingle = false) {
 
     row.innerHTML = `
   <div class="component-header">
-    <div class="name-col-wrapper">
+    <div class="name-row-content">
       ${partIconHtml}
-      <span class="component-name">${escapeHTML(dispName)}${countLabel}</span>
-      ${(() => {
+      <div class="name-column">
+        <span class="component-name">${escapeHTML(dispName)}${countLabel}</span>
+        ${(() => {
         const owned = state.primeInventory[itemName] || 0;
         return generateDotsHtml(owned, requiredCount);
       })()}
-    </div>
-    <div class="actions-col-wrapper">
-      <a href="https://warframe.market/items/${getSlug(itemName)}" target="_blank" class="market-btn-mini" title="Warframe Market">
-        MARKET
-      </a>
-      <button class="mini-action-btn" data-action="modify-prime-part" data-part="${escapeHTML(itemName)}" data-amount="1">
-        +1
-      </button>
+      </div>
+      <div class="actions-col-wrapper">
+        <a href="https://warframe.market/items/${getSlug(itemName)}" target="_blank" class="market-btn-mini" title="Warframe Market">
+          MARKET
+        </a>
+        <button class="mini-action-btn" data-action="modify-prime-part" data-part="${escapeHTML(itemName)}" data-amount="1">
+          +1
+        </button>
+      </div>
     </div>
   </div>
   <div style="display:flex; align-items:center; gap:8px; margin-top:4px;">
@@ -906,7 +927,7 @@ function createSetCard(title, itemNames, parent, isSingle = false) {
     badgeWrapper.appendChild(priceSpan);
 
     if (relicsInfo.length === 0)
-      row.innerHTML += `<div style="color:#666;font-size:0.8em;font-style:italic;margin-left:10px;">Vaulted</div>`;
+      row.insertAdjacentHTML('beforeend', `<div style="color:#666;font-size:0.8em;font-style:italic;margin-left:10px;">Vaulted</div>`);
     itemWrapper.appendChild(row);
 
     if (relicsInfo.length > 0) {
@@ -948,14 +969,13 @@ function createSetCard(title, itemNames, parent, isSingle = false) {
         btn.innerHTML = `
             <div class="relic-chip-header">
                 <span class="relic-name">${escapeHTML(info.relic)}</span>
-                <img src="${TIER_URLS[tier] || TIER_URLS.Lith
-          }" class="relic-img">
+                <span class="relic-era-icon ${tier.toLowerCase()}"></span>
             </div>
             <div class="chip-footer">
                 <span class="rarity-text ${rc}">${escapeHTML(rl)}</span>
                 <span class="status-badge ${stKey}" ${tooltipAttr}>${escapeHTML(
-            stTxt,
-          )}</span>
+          stTxt,
+        )}</span>
             </div>`;
 
         btn.onclick = (e) => {
@@ -1025,8 +1045,7 @@ function renderRelicsForPartInline(partName, container) {
     btn.innerHTML = `
       <div class="relic-chip-header">
         <span class="relic-name">${info.relic}</span>
-        <img src="${TIER_URLS[tier] || TIER_URLS.Lith
-      }" class="relic-img" style="width:20px;">
+        <span class="relic-era-icon ${tier.toLowerCase()}"></span>
       </div>
       <div class="chip-footer">
         <span class="rarity-text ${rc}">${rl}</span>
@@ -1188,52 +1207,27 @@ export function populateRivenSelects(weaponType = "Rifle") {
   const selects = document.querySelectorAll(".riven-stat-select");
   const isSpan = state.currentLang === "es";
 
-  const typeIdx = WEAPON_TYPE_IDX[weaponType] ?? 0;
-
-  const STAT_NAME_MAP = {
-    "Crit Chance": "Critical Chance",
-    "Crit Damage": "Critical Damage",
-    "Status Chance": "Status Chance",
-    Damage: "Damage",
-    Multishot: "Multishot",
-  };
-
   selects.forEach((sel) => {
-    const savedValue = sel.value;
+    const currentValue = sel.value;
+    const fragment = document.createDocumentFragment();
 
-    while (sel.options.length > 1) sel.remove(1);
+    // Add default option
+    const defOpt = document.createElement("option");
+    defOpt.value = "";
+    defOpt.textContent = sel.classList.contains("negative") ? "- NEGATIVA" : "+ STAT";
+    fragment.appendChild(defOpt);
 
     RIVEN_STATS.forEach((stat) => {
-      const namesEn = stat.name_en.split(" / ");
-      let baseStatKey = STAT_NAME_MAP[stat.name_en];
-      let baseVal = undefined;
-
-      if (baseStatKey) {
-        baseVal = RIVEN_BASE_STATS[baseStatKey]?.[typeIdx];
-      } else {
-        for (const name of namesEn) {
-          const partKey = STAT_NAME_MAP[name] || name;
-          const val = RIVEN_BASE_STATS[partKey]?.[typeIdx];
-          if (val !== 0 && val !== undefined) {
-            baseStatKey = partKey;
-            baseVal = val;
-            break;
-          }
-        }
-      }
-
-      if (baseVal !== 0 && baseVal !== undefined) {
-        let opt = document.createElement("option");
-        opt.value = baseStatKey;
-        opt.innerText = isSpan ? stat.name_es : stat.name_en;
-        sel.appendChild(opt);
-      }
+      const opt = document.createElement("option");
+      const statName = isSpan ? stat.name_es : stat.name_en;
+      opt.value = stat.name_en; // We keep English as value for internal logic
+      opt.textContent = statName;
+      fragment.appendChild(opt);
     });
 
-    const exists = Array.from(sel.options).some((o) => o.value === savedValue);
-    sel.value = exists ? savedValue : "";
+    sel.replaceChildren(fragment);
+    sel.value = currentValue;
   });
-
   updateSelectExclusions();
 }
 
@@ -1256,7 +1250,9 @@ function renderRivenPreview(weaponName) {
   if (!panel) return;
 
   if (!weaponName) {
-    panel.innerHTML = "";
+    panel.replaceChildren();
+    const carousel = document.getElementById("riven-variants-carousel");
+    if (carousel) carousel.dataset.baseWeapon = "";
     return;
   }
 
@@ -1271,7 +1267,7 @@ function renderRivenPreview(weaponName) {
   }
   const basic = state.weaponMap ? state.weaponMap[weaponName] : null;
   if (!details && !basic) {
-    panel.innerHTML = "";
+    panel.replaceChildren();
     return;
   }
 
@@ -1289,9 +1285,13 @@ function renderRivenPreview(weaponName) {
     circlesHtml += `<div class="dispo-circle ${i <= circles ? "filled" : ""}"></div>`;
   }
 
-  // Image Logic
+  // Image Logic: Prefer getItemIcon for Prime variants to ensure the correct "Set" icon is shown
   let imgPath = "";
-  if (details && details.localImage) {
+  if (weaponName.toUpperCase().includes("PRIME")) {
+    imgPath = getItemIcon(weaponName);
+  }
+
+  if (!imgPath && details && details.localImage) {
     let rawPath = details.localImage;
     if (rawPath.endsWith(".png")) {
       rawPath = rawPath.replace(".png", ".webp");
@@ -1299,9 +1299,10 @@ function renderRivenPreview(weaponName) {
     if (rawPath.startsWith("weapons/")) {
       rawPath = rawPath.replace("weapons/", "relic_contents/");
     }
-
     imgPath = `assets/${rawPath}`;
-  } else {
+  }
+
+  if (!imgPath) {
     // Fallback
     const slug = getSlug(weaponName);
     imgPath = `assets/relic_contents/${slug}.webp`;
@@ -1328,18 +1329,25 @@ function renderRivenPreview(weaponName) {
     if (hasComponents && !isLichWeapon) {
       tooltipHtml += `<div class="tooltip-section">
             <span class="tooltip-section-title">Requirements</span>
-            ${details.components.map(c => {
-        const cSlug = getSlug(c.name);
-        const cImgPath = `assets/relic_contents/${cSlug}.webp`;
-        return `
-                <div class="tooltip-drop-row">
+            ${details.components
+          .map((c) => {
+            const cImgPath = getItemIcon(c.name);
+            const isItemInteractive = c.name.includes("Prime");
+            return `
+                <div class="tooltip-drop-row ${isItemInteractive ? "item-interactive" : ""
+              }" 
+                     ${isItemInteractive
+                ? `onclick="event.stopPropagation(); globalThis.openSetFromRelicReward('${c.name.replace(/'/g, "\\'")}')" title="Ver Set de ${c.name}"`
+                : ""
+              }>
                     <span style="display:flex; align-items:center;">
                         <img src="${cImgPath}" class="tooltip-res-img" onerror="this.style.display='none'">
                         ${c.itemCount}x ${c.name}
                     </span>
                     <span style="color:#888">${c.ducats || 0}d</span>
                 </div>`;
-      }).join('')}
+          })
+          .join("")}
         </div>`;
 
       // Drops logic only for non-Lich items
@@ -1421,18 +1429,60 @@ function renderRivenPreview(weaponName) {
   const displayDispo = Number.parseFloat(dispoValue).toFixed(2);
   // Mobile Click Handler Logic:
 
-  const html = `
-    <div class="riven-weapon-preview" onclick="this.classList.toggle('mobile-active'); event.stopPropagation();">
-        <img src="${imgPath}" class="riven-weapon-img" onerror="this.src='assets/img/default-weapon.png'; this.style.opacity=0.5;">
-        <div class="riven-disposition-row dispo-level-${circles}" title="Disposition: ${displayDispo}">
-            ${circlesHtml}
-            <span class="dispo-text">${displayDispo}</span>
-        </div>
-        ${tooltipHtml}
-    </div>
-  `;
+  // Smart update: Find or create the wrapper
+  let wrapper = panel.querySelector(".riven-weapon-preview");
+  if (!wrapper) {
+    wrapper = document.createElement("div");
+    wrapper.className = "riven-weapon-preview";
+    wrapper.onclick = (e) => {
+      wrapper.classList.toggle("mobile-active");
+      e.stopPropagation();
+    };
+    panel.appendChild(wrapper);
+  }
 
-  panel.innerHTML = html;
+  // Update image
+  let img = wrapper.querySelector(".riven-weapon-img");
+  if (!img) {
+    img = document.createElement("img");
+    img.className = "riven-weapon-img";
+    img.onerror = () => {
+      img.src = "assets/img/default-weapon.png";
+      img.style.opacity = 0.5;
+    };
+    wrapper.appendChild(img);
+  }
+
+  // Only trigger load animation if the path actually changed
+  const absoluteImgPath = new URL(imgPath, window.location.href).href;
+  if (img.src !== absoluteImgPath) {
+    img.classList.add("loading");
+    img.onload = () => img.classList.remove("loading");
+    img.src = imgPath;
+  }
+
+  // Update disposition row
+  let dispoRow = wrapper.querySelector(".riven-disposition-row");
+  if (!dispoRow) {
+    dispoRow = document.createElement("div");
+    wrapper.appendChild(dispoRow);
+  }
+  dispoRow.className = `riven-disposition-row dispo-level-${circles}`;
+  dispoRow.title = `Disposition: ${displayDispo}`;
+  dispoRow.innerHTML = `${circlesHtml}<span class="dispo-text">${displayDispo}</span>`;
+
+  // Update tooltip (surgically)
+  let oldTooltip = wrapper.querySelector(".preview-tooltip");
+  if (oldTooltip) oldTooltip.remove();
+
+  if (tooltipHtml) {
+    const temp = document.createElement("div");
+    temp.innerHTML = tooltipHtml;
+    if (temp.firstChild) {
+      wrapper.appendChild(temp.firstChild);
+    }
+  }
+
   renderVariants(weaponName);
 }
 
@@ -1479,18 +1529,51 @@ export function renderVariants(currentWeaponName) {
   }
 
   const currentNaked = getNakedName(currentWeaponName);
-  const siblings = state.allRivenNames.filter(name => getNakedName(name) === currentNaked);
+  const siblings = state.allRivenNames.filter(
+    (name) => getNakedName(name) === currentNaked,
+  );
 
   if (siblings.length <= 1) {
     section.style.display = "none";
+    carousel.dataset.baseWeapon = "";
     return;
   }
 
+  const oldBase = carousel.dataset.baseWeapon;
+
+  // Helper function to handle scrolling
+  const scrollToActive = () => {
+    setTimeout(() => {
+      const activeItem = carousel.querySelector(".variant-card.active");
+      if (activeItem) {
+        activeItem.scrollIntoView({
+          behavior: "smooth",
+          block: "nearest",
+          inline: "center",
+        });
+      }
+    }, 150);
+  };
+
+  if (oldBase === currentNaked) {
+    // Just update active state to avoid flicker
+    const cards = carousel.querySelectorAll(".variant-card");
+    cards.forEach((card) => {
+      card.classList.toggle(
+        "active",
+        card.title.toUpperCase() === currentWeaponName.toUpperCase(),
+      );
+    });
+    scrollToActive();
+    return;
+  }
+
+  carousel.dataset.baseWeapon = currentNaked;
   section.style.display = "block";
-  carousel.innerHTML = "";
+  const fragment = document.createDocumentFragment();
   siblings.sort();
 
-  siblings.forEach(name => {
+  siblings.forEach((name) => {
     const isSelected = name.toUpperCase() === currentWeaponName.toUpperCase();
     const weaponData = state.weaponMap[name];
     const dispoValue = weaponData ? Number.parseFloat(weaponData.d) : 1.0;
@@ -1506,18 +1589,11 @@ export function renderVariants(currentWeaponName) {
 
     let circlesHtml = "";
     for (let i = 1; i <= 5; i++) {
-      circlesHtml += `<div class="v-dispo-dot ${i <= circles ? 'filled' : ''}"></div>`;
+      circlesHtml += `<div class="v-dispo-dot ${i <= circles ? "filled" : ""
+        }"></div>`;
     }
 
-    let imgPath = `assets/relic_contents/${getSlug(name)}.webp`;
-    if (state.weaponDetailsDB) {
-      const det = state.weaponDetailsDB.find(w => w.name.toUpperCase() === name.toUpperCase());
-      if (det && det.localImage) {
-        let raw = det.localImage.replace(".png", ".webp");
-        if (raw.startsWith("weapons/")) raw = raw.replace("weapons/", "relic_contents/");
-        imgPath = `assets/${raw}`;
-      }
-    }
+    const imgPath = getItemIcon(name) || `assets/relic_contents/${getSlug(name)}.webp`;
 
     const card = document.createElement("div");
     card.className = `variant-card ${isSelected ? "active" : ""}`;
@@ -1531,26 +1607,54 @@ export function renderVariants(currentWeaponName) {
     let displayLabel = name;
     const nakedUpper = currentNaked.toUpperCase();
     if (name.toUpperCase().includes(nakedUpper)) {
-      displayLabel = name.toUpperCase().replace(nakedUpper, "").trim() || "Base";
+      displayLabel =
+        name.toUpperCase().replace(nakedUpper, "").trim() || "Base";
     }
 
-    card.innerHTML = `
-      <img src="${imgPath}" onerror="this.src='assets/img/default-weapon.png'">
-      <span class="v-name-small">${displayLabel}</span>
-      <div class="v-dispo-row">
-        <div class="v-dispo-dots">${circlesHtml}</div>
-        <span class="v-dispo-val">${displayDispo}</span>
-      </div>
-    `;
-    carousel.appendChild(card);
+    const img = document.createElement("img");
+    img.src = imgPath;
+    img.onerror = () => {
+      img.src = "assets/img/default-weapon.png";
+    };
+    card.appendChild(img);
+
+    // If it's a Prime variant, add a shortcut to the Set tab
+    if (name.toUpperCase().includes("PRIME")) {
+      const setShortcut = document.createElement("div");
+      setShortcut.className = "variant-set-shortcut";
+      setShortcut.innerHTML = "SET ↗";
+      setShortcut.title = `Ver Set de ${name}`;
+      setShortcut.onclick = (e) => {
+        e.stopPropagation();
+        globalThis.openSetFromRelicReward(name);
+      };
+      card.appendChild(setShortcut);
+    }
+
+    const nameSpan = document.createElement("span");
+    nameSpan.className = "v-name-small";
+    nameSpan.textContent = displayLabel;
+    card.appendChild(nameSpan);
+
+    const dispoRow = document.createElement("div");
+    dispoRow.className = "v-dispo-row";
+
+    const dotsDiv = document.createElement("div");
+    dotsDiv.className = "v-dispo-dots";
+    dotsDiv.innerHTML = circlesHtml;
+    dispoRow.appendChild(dotsDiv);
+
+    const dispoValSpan = document.createElement("span");
+    dispoValSpan.className = "v-dispo-val";
+    dispoValSpan.textContent = displayDispo;
+    dispoRow.appendChild(dispoValSpan);
+
+    card.appendChild(dispoRow);
+    fragment.appendChild(card);
   });
 
-  setTimeout(() => {
-    const activeItem = carousel.querySelector(".variant-card.active");
-    if (activeItem) {
-      activeItem.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
-    }
-  }, 150);
+  carousel.replaceChildren(fragment);
+  scrollToActive();
 
   if (!carousel._hasCarouselScrollListener) {
     carousel.addEventListener("mousemove", (e) => {
@@ -1596,61 +1700,69 @@ globalThis.selectRelicFromPreview = function (relicName) {
   showToast(msg);
 };
 
+let rivenDebounceTimer;
+
 export function handleRivenInput() {
-  const input = document.getElementById("rivenWeaponInput");
-  const dropdown = document.getElementById("rivenDropdown");
-  if (!input || !dropdown) return;
+  clearTimeout(rivenDebounceTimer);
+  rivenDebounceTimer = setTimeout(() => {
+    const input = document.getElementById("rivenWeaponInput");
+    const dropdown = document.getElementById("rivenDropdown");
+    if (!input || !dropdown) return;
 
-  const val = input.value.toUpperCase().trim();
-  if (val.length === 0) {
-    dropdown.classList.add("hidden");
-    document.getElementById("riven-preview-panel").innerHTML = "";
-    return;
-  }
-
-  // Ensure Details DB is loaded (should be called in switchTab, but just in case)
-  if (!state.weaponDetailsDB) loadWeaponDetails();
-
-  if (
-    (!state.allRivenNames || state.allRivenNames.length === 0) &&
-    state.weaponMap
-  ) {
-    state.allRivenNames = Object.keys(state.weaponMap).sort();
-  }
-
-  const source = state.allRivenNames || [];
-  const startsWithMatches = [];
-  const containsMatches = [];
-
-  source.forEach(n => {
-    const upperN = n.toUpperCase();
-    if (upperN.startsWith(val)) {
-      startsWithMatches.push(n);
-    } else if (upperN.includes(val)) {
-      containsMatches.push(n);
+    const val = input.value.toUpperCase().trim();
+    if (val.length === 0) {
+      dropdown.classList.add("hidden");
+      const previewPanel = document.getElementById("riven-preview-panel");
+      if (previewPanel) previewPanel.replaceChildren();
+      return;
     }
-  });
 
-  const matches = [...startsWithMatches, ...containsMatches].slice(0, 10);
+    // Ensure Details DB is loaded (should be called in switchTab, but just in case)
+    if (!state.weaponDetailsDB) loadWeaponDetails();
 
-  if (matches.length > 0) {
-    dropdown.innerHTML = "";
-    dropdown.classList.remove("hidden");
+    if (
+      (!state.allRivenNames || state.allRivenNames.length === 0) &&
+      state.weaponMap
+    ) {
+      state.allRivenNames = Object.keys(state.weaponMap).sort();
+    }
 
-    matches.forEach((name) => {
-      const item = document.createElement("div");
-      item.className = "dropdown-item";
-      item.innerText = name;
+    const source = state.allRivenNames || [];
+    const startsWithMatches = [];
+    const containsMatches = [];
 
-      item.onclick = () => {
-        selectRivenWeapon(name);
-      };
-
-      dropdown.appendChild(item);
+    source.forEach(n => {
+      const upperN = n.toUpperCase();
+      if (upperN.startsWith(val)) {
+        startsWithMatches.push(n);
+      } else if (upperN.includes(val)) {
+        containsMatches.push(n);
+      }
     });
-  } else {
-    dropdown.classList.add("hidden");
-  }
+
+    const matches = [...startsWithMatches, ...containsMatches].slice(0, 10);
+
+    if (matches.length > 0) {
+      dropdown.replaceChildren();
+      dropdown.classList.remove("hidden");
+
+      const fragment = document.createDocumentFragment();
+      matches.forEach((name) => {
+        const item = document.createElement("div");
+        item.className = "dropdown-item";
+        item.textContent = name;
+
+        item.onclick = () => {
+          selectRivenWeapon(name);
+        };
+
+        fragment.appendChild(item);
+      });
+      dropdown.appendChild(fragment);
+    } else {
+      dropdown.classList.add("hidden");
+    }
+  }, 300);
 }
 
 /**
@@ -2834,7 +2946,7 @@ export async function renderInventory() {
               </div>
           </div>
           <div class="inv-price-tag">
-              <span id="price-${safeId}" class="price-val">...<img src="assets/relic_contents/platinum.webp" class="plat-icon"></span>
+              <span id="price-${safeId}" class="price-val">...<span class="plat-icon"></span></span>
               <span class="qty-label">x${count}</span>
           </div>
           <div class="inv-qty-controls">
@@ -3337,85 +3449,87 @@ function resetGradingInputs() {
   });
 }
 
+let gradeDebounceTimer;
+
 export function calculateModalGrade() {
-  const weaponName = document.getElementById("rivenWeaponInput").value.trim();
-  if (!weaponName || !state.weaponMap[weaponName]) return;
+  clearTimeout(gradeDebounceTimer);
+  gradeDebounceTimer = setTimeout(() => {
+    const weaponName = document.getElementById("rivenWeaponInput").value.trim();
+    if (!weaponName || !state.weaponMap[weaponName]) return;
 
-  const weaponData = state.weaponMap[weaponName];
-  const currentRank = Number.parseInt(
-    document.getElementById("g-rank").value || "8",
-  );
-  const scaleFactor = 9 / (currentRank + 1);
-  const resultsDiv = document.getElementById("grading-modal-results");
-
-  const stats = [];
-
-  const readModalRow = (selId, valId, isNeg) => {
-    const sel = document.getElementById(selId);
-    const valInput = document.getElementById(valId);
-
-    if (sel.offsetParent !== null && sel.value && valInput.value) {
-      let val = Number.parseFloat(valInput.value);
-      if (Number.isNaN(val)) return;
-      if (isNeg) val = -Math.abs(val);
-
-      stats.push({
-        name: sel.value,
-        value: val,
-        projected: val * scaleFactor,
-        isPenaltySlot: isNeg,
-      });
-    }
-  };
-
-  readModalRow("g-stat1", "g-val1", false);
-  readModalRow("g-stat2", "g-val2", false);
-  readModalRow("g-stat3", "g-val3", false);
-  readModalRow("g-statNeg", "g-valNeg", true);
-
-  if (stats.length === 0) {
-    resultsDiv.classList.add("hidden");
-    return;
-  }
-
-  resultsDiv.classList.remove("hidden");
-  let html = "";
-
-  stats.forEach((stat) => {
-    const result = calculateRivenGrade(
-      weaponData,
-      stat.name,
-      stat.projected,
-      stats,
+    const weaponData = state.weaponMap[weaponName];
+    const currentRank = Number.parseInt(
+      document.getElementById("g-rank").value || "8",
     );
+    const scaleFactor = 9 / (currentRank + 1);
+    const resultsDiv = document.getElementById("grading-modal-results");
 
-    let colorClass = "grade-f";
-    if (["SSS", "S+", "S"].includes(result.grade)) colorClass = "grade-s";
-    else if (["A+", "A"].includes(result.grade)) colorClass = "grade-a";
-    else if (["B+", "B"].includes(result.grade)) colorClass = "grade-b";
+    const stats = [];
 
-    html += `
-        <div class="grade-card" style="background: rgba(0,0,0,0.3);">
-            <div class="grade-badge-large ${colorClass}">${result.grade}</div>
-            <div class="grade-info">
-                <div class="grade-stat-name">${stat.name}</div>
-                <div class="grade-values">
-                    Valor: <span style="color:#fff">${Math.abs(
-      stat.value,
-    )}%</span>
-                    <span class="grade-range" style="font-size:0.8em"> / Ideal: ${result.range
-      }</span>
-                </div>
-                <div class="grade-track">
-                    <div class="grade-fill ${colorClass}" style="width: ${result.pct
-      }%"></div>
-                </div>
-            </div>
-        </div>
-      `;
-  });
+    const readModalRow = (selId, valId, isNeg) => {
+      const sel = document.getElementById(selId);
+      const valInput = document.getElementById(valId);
 
-  resultsDiv.innerHTML = html;
+      if (sel.offsetParent !== null && sel.value && valInput.value) {
+        let val = Number.parseFloat(valInput.value);
+        if (Number.isNaN(val)) return;
+        if (isNeg) val = -Math.abs(val);
+
+        stats.push({
+          name: sel.value,
+          value: val,
+          projected: val * scaleFactor,
+          isPenaltySlot: isNeg,
+        });
+      }
+    };
+
+    readModalRow("g-stat1", "g-val1", false);
+    readModalRow("g-stat2", "g-val2", false);
+    readModalRow("g-stat3", "g-val3", false);
+    readModalRow("g-statNeg", "g-valNeg", true);
+
+    if (stats.length === 0) {
+      resultsDiv.classList.add("hidden");
+      return;
+    }
+
+    resultsDiv.classList.remove("hidden");
+    const fragment = document.createDocumentFragment();
+    stats.forEach((stat) => {
+      const result = calculateRivenGrade(
+        weaponData,
+        stat.name,
+        stat.projected,
+        stats,
+      );
+
+      let colorClass = "grade-f";
+      if (["SSS", "S+", "S"].includes(result.grade)) colorClass = "grade-s";
+      else if (["A+", "A"].includes(result.grade)) colorClass = "grade-a";
+      else if (["B+", "B"].includes(result.grade)) colorClass = "grade-b";
+
+      const card = document.createElement("div");
+      card.className = "grade-card";
+      card.style.background = "rgba(0,0,0,0.3)";
+      card.innerHTML = `
+              <div class="grade-badge-large ${colorClass}">${result.grade}</div>
+              <div class="grade-info">
+                  <div class="grade-stat-name">${stat.name}</div>
+                  <div class="grade-values">
+                      Valor: <span style="color:#fff">${Math.abs(stat.value)}%</span>
+                      <span class="grade-range" style="font-size:0.8em"> / Ideal: ${result.range}</span>
+                  </div>
+                  <div class="grade-track">
+                      <div class="grade-fill ${colorClass}" style="width: ${result.pct}%"></div>
+                  </div>
+              </div>
+          `;
+      fragment.appendChild(card);
+    });
+
+    resultsDiv.replaceChildren(fragment);
+  }, 250);
 }
 
 export async function checkUpdates() {
@@ -3748,8 +3862,18 @@ globalThis.openSetFromRelicReward = (partName) => {
   const setName = getSetName(partName);
   if (setName === "Otros") return;
 
-  const allParts = Object.keys(state.itemsDatabase).filter(name =>
-    (name === setName || name.startsWith(setName + " ")) && !name.endsWith(" Set")
+  // Switch to Set tab and search
+  switchTab("set");
+  const input = document.getElementById("setItemInput");
+  if (input) {
+    input.value = setName;
+    searchSet();
+  }
+
+  const allParts = Object.keys(state.itemsDatabase).filter(
+    (name) =>
+      (name === setName || name.startsWith(setName + " ")) &&
+      !name.endsWith(" Set"),
   );
 
   if (allParts.length > 0) {
