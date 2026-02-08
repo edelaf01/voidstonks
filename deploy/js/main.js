@@ -363,4 +363,5 @@ Object.assign(globalThis, {
   stopLiveSession,
   checkUpdates,
   updateSelectExclusions,
+  manualRelicUpdate,
 });
