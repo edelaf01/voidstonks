@@ -16,8 +16,6 @@ import { state } from "./state.js";
 
 const MEMORY_CACHE = new Map();
 const PENDING_REQUESTS = new Map();
-let activeRequests = 0;
-const MAX_CONCURRENT = 5;
 let batchTimer = null;
 export function getSlug(itemName) {
   if (!itemName) return "";
@@ -65,90 +63,27 @@ export function getRivenSlug(inputVal) {
   return baseExists ? baseCandidate : originalSlug;
 }
 
-function processRelicData(rawData) {
-  let relicsArray =
-    rawData.relics && Array.isArray(rawData.relics) ? rawData.relics : [];
-  let tempDB = {};
-  let tempRelicDB = {};
-  let tempStatusDB = {};
-  let tempNamesSet = new Set();
-
-  relicsArray.forEach((entry) => {
-    if (entry.state !== "Intact") return;
-    if (!entry.relicName || entry.relicName === "undefined") return;
-    const fullName = `${entry.tier} ${entry.relicName}`;
-
-    if (tempNamesSet.has(fullName)) return;
-    tempNamesSet.add(fullName);
-
-    const cleanNameUpper = fullName.toUpperCase();
-    if (!tempRelicDB[fullName]) tempRelicDB[fullName] = [];
-
-    tempStatusDB[fullName] = state.activeResurgenceList.has(cleanNameUpper)
-      ? "aya"
-      : "active";
-
-    if (entry.rewards && Array.isArray(entry.rewards)) {
-      entry.rewards.forEach((reward) => {
-        const itemName = reward.itemName;
-        if (!itemName) return;
-
-        if (!tempDB[itemName]) tempDB[itemName] = [];
-        tempDB[itemName].push({
-          relic: fullName,
-          tier: entry.tier,
-          chance: reward.chance,
-        });
-
-        tempRelicDB[fullName].push({
-          name: itemName,
-          chance: reward.chance,
-          rarity: reward.rarity,
-        });
-      });
-    }
-  });
-
-  state.itemsDatabase = tempDB;
-  state.relicsDatabase = tempRelicDB;
-  state.relicStatusDB = tempStatusDB;
-  state.allRelicNames = Array.from(tempNamesSet).sort((a, b) => {
-    const tierOrder = { Lith: 0, Meso: 1, Neo: 2, Axi: 3, Requiem: 4 };
-    const aTier = a.split(" ")[0];
-    const bTier = b.split(" ")[0];
-    const tierDiff = (tierOrder[aTier] ?? 5) - (tierOrder[bTier] ?? 5);
-    return tierDiff === 0 ? a.localeCompare(b) : tierDiff;
-  });
-}
 
 async function fetchActiveResurgence() {
   try {
     const res = await fetch(`${WORKER_URL}?type=aya`);
     if (!res.ok) return;
     const data = await res.json();
-    if (data.PrimeVaultTraders) {
-      data.PrimeVaultTraders.forEach((trader) => {
-        if (!trader.Closed && trader.Manifest) {
-          trader.Manifest.forEach((item) => {
-            if (item.ItemType?.includes("Projections")) {
-              const rawName = item.ItemType.split("/").pop();
-              let tier = "";
-              if (rawName.startsWith("T1")) tier = "Lith";
-              else if (rawName.startsWith("T2")) tier = "Meso";
-              else if (rawName.startsWith("T3")) tier = "Neo";
-              else if (rawName.startsWith("T4")) tier = "Axi";
-              else if (rawName.startsWith("T5")) tier = "Requiem";
+    const tierMap = { T1: "Lith", T2: "Meso", T3: "Neo", T4: "Axi", T5: "Requiem" };
 
-              let code = rawName.replaceAll(/T\d+VoidProjection/, "");
-              if (code.length === 1 && code.match(/[A-Z]/)) code += "1";
+    data.PrimeVaultTraders?.forEach(trader => {
+      if (trader.Closed) return;
+      trader.Manifest?.forEach(item => {
+        if (!item.ItemType?.includes("Projections")) return;
+        const rawName = item.ItemType.split("/").pop();
+        const tierTag = Object.keys(tierMap).find(t => rawName.startsWith(t));
+        if (!tierTag) return;
 
-              if (tier && code)
-                state.activeResurgenceList.add(`${tier} ${code}`.toUpperCase());
-            }
-          });
-        }
+        let code = rawName.replace(`${tierTag}VoidProjection`, "");
+        if (code.length === 1 && /[A-Z]/.test(code)) code += "1";
+        state.activeResurgenceList.add(`${tierMap[tierTag]} ${code}`.toUpperCase());
       });
-    }
+    });
   } catch (e) {
     console.warn("Aya Fetch Error", e);
   }
@@ -160,42 +95,28 @@ export async function fetchRivenWeapons() {
 
   try {
     const cached = await dbHelper.get(CACHE_KEY);
-
     if (cached?.data && cached?.timestamp && (Date.now() - cached.timestamp < ONE_DAY)) {
-      console.log(` Armas cargadas de caché local: ${Object.keys(cached.data).length}`);
       state.weaponMap = cached.data;
-
     }
 
     const res = await fetch("assets/json/cleaned_weapons.json");
-    if (!res.ok) throw new Error("Failed to load cleaned_weapons.json");
+    if (!res.ok) throw new Error("Failed weapons.json");
     const data = await res.json();
 
     state.weaponDetailsDB = data;
     state.weaponMap = {};
-
-    data.forEach((item) => {
+    data.forEach(item => {
       state.weaponMap[item.name] = {
-        d: Number.parseFloat(item.omegaAttenuation || 1),
+        d: parseFloat(item.omegaAttenuation || 1),
         t: item.type || "Rifle",
       };
     });
 
-    state.allRivenNames = Object.keys(state.weaponMap).sort((a, b) =>
-      a.localeCompare(b),
-    );
-
-    console.log(` ÉXITO: ${state.allRivenNames.length} armas listas desde JSON local.`);
-
-    await dbHelper.set(CACHE_KEY, {
-      timestamp: Date.now(),
-      data: state.weaponMap,
-    });
-
+    state.allRivenNames = Object.keys(state.weaponMap).sort();
+    dbHelper.set(CACHE_KEY, { timestamp: Date.now(), data: state.weaponMap });
     updateDucatsDB(data);
-
   } catch (e) {
-    console.error("Error cargando armas localmente:", e);
+    console.error("Error weapons local:", e);
   }
 }
 
@@ -203,11 +124,11 @@ const CACHE_TTL = 6 * 60 * 60 * 1000;
 
 export async function fetchRivenAverage(weaponName) {
   if (!weaponName) return;
-  let slug = getRivenSlug(weaponName);
+  const slug = getRivenSlug(weaponName);
   const cacheKey = `riven_avg_${slug}`;
-
   const box = document.getElementById("riven-avg-box");
   const valSpan = document.getElementById("riven-avg-value");
+
   if (box) box.style.display = "block";
   if (valSpan) valSpan.innerText = "...";
 
@@ -221,31 +142,22 @@ export async function fetchRivenAverage(weaponName) {
     const res = await fetch(`${WORKER_URL}?type=riven&q=${slug}`);
     if (!res.ok) throw new Error("Worker Error");
     const data = await res.json();
-    const auctions = data.payload?.auctions || [];
-    const prices = auctions
-      .filter(
-        (a) => a.visible && a.buyout_price > 0 && a.owner.status !== "offline",
-      )
-      .map((a) => a.buyout_price)
+    const prices = (data.payload?.auctions || [])
+      .filter(a => a.visible && a.buyout_price > 0 && a.owner.status !== "offline")
+      .map(a => a.buyout_price)
       .sort((a, b) => a - b);
 
     if (prices.length > 0) {
       const subset = prices.slice(0, 20);
       const mid = Math.floor(subset.length / 2);
-      const median =
-        subset.length % 2 === 0
-          ? (subset[mid - 1] + subset[mid]) / 2
-          : subset[mid];
-
+      const median = subset.length % 2 === 0 ? (subset[mid - 1] + subset[mid]) / 2 : subset[mid];
       const priceVal = Math.round(median);
       if (valSpan) valSpan.innerText = priceVal;
-
       dbHelper.set(cacheKey, { val: priceVal, time: Date.now() });
-    } else {
-      if (valSpan) valSpan.innerText = "N/A";
+    } else if (valSpan) {
+      valSpan.innerText = "N/A";
     }
   } catch (e) {
-    console.error("Error fetching riven average:", e);
     if (valSpan) valSpan.innerText = "?";
   }
 }
@@ -429,7 +341,6 @@ export async function fetchUserProfile(username, platform) {
   }
 }
 
-const PRICE_CACHE_DURATION = CACHE_TTL;
 
 export function getPriceValue(itemName, itemSlug) {
   return new Promise(async (resolve) => {
@@ -526,15 +437,11 @@ function updateDucatsDB(itemsArray) {
   });
 }
 
-/*export async function fetchRelicDatabase() {
-  console.log("Relic/Ducat Database auto-populated from Weapons/Entities.");
-}*/
 
 export async function downloadRelics() {
   const loadEl = document.getElementById("loading");
   if (loadEl) loadEl.style.display = "flex";
 
-  // await fetchRelicDatabase().catch(console.warn);
 
   const CACHE_KEY = "voidstonks_weapons_v6_full_data";
   const CACHE_TIME = 48 * 60 * 60 * 1000;
@@ -574,14 +481,12 @@ async function loadRelicsData(cacheKey, cacheTtl) {
   try {
     const cachedRecord = await dbHelper.get(cacheKey);
     if (cachedRecord && Date.now() - cachedRecord.timestamp < cacheTtl) {
-      console.log("Cargando desde caché local.");
       return cachedRecord.data;
     }
   } catch (e) {
     console.warn("Cache local ignorada:", e);
   }
 
-  console.log("Descargando del servidor...");
 
   const [relicsRes, missionsRes, bountiesRes] = await Promise.all([
     fetch(`${WORKER_URL}?type=relics_opt`),
@@ -733,42 +638,6 @@ function processRelicDatabase(rawData, activeDropsSet) {
 
   state.allRelicNames.sort();
 }
-function isRelicUnvaulted(tier, name, allData) {
-  const searchString = `${tier} ${name} Relic`;
-  let isFound = false;
-
-  for (const planet in allData.missionRewards) {
-    for (const node in allData.missionRewards[planet]) {
-      const rotations = allData.missionRewards[planet][node].rewards;
-      for (const rot in rotations) {
-        if (rotations[rot].some((item) => item.itemName === searchString)) {
-          return true;
-        }
-      }
-    }
-  }
-
-  const bountyFiles = [
-    allData.cetusBountyRewards,
-    allData.solarisBountyRewards,
-    allData.zarimanRewards,
-  ];
-
-  for (const bountyFile of bountyFiles) {
-    if (!bountyFile) continue;
-    for (const bounty of bountyFile) {
-      for (const stage in bounty.rewards) {
-        if (
-          bounty.rewards[stage].some((item) => item.itemName === searchString)
-        ) {
-          return true;
-        }
-      }
-    }
-  }
-
-  return isFound;
-}
 
 export function addToQueue(itemName, element) {
   const slug = getSlug(itemName);
@@ -781,94 +650,50 @@ const STORE_NAME = "bigData";
 
 const dbHelper = {
   dbInstance: null,
-
-  open: () => {
+  async open() {
+    if (this.dbInstance) return this.dbInstance;
     return new Promise((resolve, reject) => {
-      if (dbHelper.dbInstance) {
-        return resolve(dbHelper.dbInstance);
-      }
-
-      const request = indexedDB.open(DB_NAME, 1);
-
-      request.onupgradeneeded = (e) => {
-        const db = e.target.result;
-        if (!db.objectStoreNames.contains(STORE_NAME)) {
-          db.createObjectStore(STORE_NAME);
-        }
+      const req = indexedDB.open(DB_NAME, 1);
+      req.onupgradeneeded = e => !e.target.result.objectStoreNames.contains(STORE_NAME) && e.target.result.createObjectStore(STORE_NAME);
+      req.onsuccess = e => {
+        this.dbInstance = e.target.result;
+        this.dbInstance.onversionchange = () => { this.dbInstance.close(); this.dbInstance = null; };
+        resolve(this.dbInstance);
       };
-
-      request.onsuccess = (e) => {
-        const db = e.target.result;
-        dbHelper.dbInstance = db;
-
-        db.onversionchange = () => {
-          db.close();
-          dbHelper.dbInstance = null;
-          console.log(
-            "Base de datos cerrada automáticamente para permitir actualización.",
-          );
-        };
-
-        resolve(db);
-      };
-
-      request.onerror = (e) => {
-        console.warn("Error abriendo DB:", e.target.error);
-        reject(e.target.error);
-      };
-
-      request.onblocked = () => {
-        console.warn(
-          "Base de datos bloqueada. Cerrando conexiones antiguas...",
-        );
-      };
+      req.onerror = e => reject(e.target.error);
     });
   },
-
-  get: async (key) => {
+  async get(key) {
     try {
-      const db = await dbHelper.open();
-      return new Promise((resolve, reject) => {
+      const db = await this.open();
+      return new Promise((resolve) => {
         const tx = db.transaction(STORE_NAME, "readonly");
-        const store = tx.objectStore(STORE_NAME);
-        const req = store.get(key);
+        const req = tx.objectStore(STORE_NAME).get(key);
         req.onsuccess = () => resolve(req.result);
-        req.onerror = () => reject(req.error);
+        req.onerror = () => resolve(null);
       });
-    } catch (e) {
-      console.warn("Error DB Get", e);
-      return null;
-    }
+    } catch { return null; }
   },
-
-  set: async (key, value) => {
+  async set(key, value) {
     try {
-      const db = await dbHelper.open();
-      return new Promise((resolve, reject) => {
+      const db = await this.open();
+      return new Promise((resolve) => {
         const tx = db.transaction(STORE_NAME, "readwrite");
-        const store = tx.objectStore(STORE_NAME);
-        const req = store.put(value, key);
-        req.onsuccess = () => resolve();
-        req.onerror = () => reject(req.error);
-      });
-    } catch (e) {
-      console.warn("Error DB Set", e);
-    }
-  },
-
-  delete: async (key) => {
-    try {
-      const db = await dbHelper.open();
-      return new Promise((resolve, reject) => {
-        const tx = db.transaction(STORE_NAME, "readwrite");
-        const store = tx.objectStore(STORE_NAME);
-        store.delete(key);
+        tx.objectStore(STORE_NAME).put(value, key);
         tx.oncomplete = () => resolve();
       });
-    } catch (e) {
-      console.warn("Error DB Delete", e);
-    }
+    } catch { }
   },
+  async delete(key) {
+    try {
+      const db = await this.open();
+      return new Promise((resolve) => {
+        const tx = db.transaction(STORE_NAME, "readwrite");
+        tx.objectStore(STORE_NAME).delete(key);
+        tx.oncomplete = () => resolve();
+      });
+    } catch { }
+  }
 };
 export async function initializeOCRDatabase() {
   try {
@@ -998,157 +823,78 @@ function processJobRewards(job, ttSyn) {
   return { simple: [...new Set(simple)], detailed };
 }
 
-function calculateStandingXp(arr) {
-  if (!Array.isArray(arr)) return 0;
-  return arr.reduce((a, b) => a + (Number(b) || 0), 0);
-}
+const calculateStandingXp = arr => Array.isArray(arr) ? arr.reduce((a, b) => a + (Number(b) || 0), 0) : 0;
 
 export async function fetchActiveBounties() {
   const CACHE_KEY = "active_bounties_cache";
   try {
     const cached = await dbHelper.get(CACHE_KEY);
     const now = Date.now();
-
-    if (cached && cached.expiryTime > now) {
-      return cached.data;
-    }
+    if (cached && cached.expiryTime > now) return cached.data;
 
     const res = await fetch(`${WORKER_URL}?type=active_bounties`);
     if (!res.ok) return [];
 
-    const rawData = await res.json();
-    const { ws = [], tt = [], oracle = {} } = rawData;
+    const { ws = [], tt = [], oracle = {} } = await res.json();
+    const realExpiry = oracle.expiry ? new Date(Number(oracle.expiry)).toISOString() : new Date(now + 600000).toISOString();
 
-    const realExpiry = oracle.expiry
-      ? new Date(Number(oracle.expiry)).toISOString()
-      : new Date(now + 600000).toISOString();
-
-    const allMissions = [];
     const factionMap = [
-      {
-        key: "Ostrons",
-        ttId: "696e78a80000000000000010",
-        wsMatch: "Ostron",
-        wsId: "CetusSyndicate",
-      },
-      {
-        key: "The Holdfasts",
-        ttId: "ZarimanSyndicate",
-        wsMatch: "Holdfasts",
-        wsId: "ZarimanSyndicate",
-      },
-      {
-        key: "Cavia",
-        ttId: "CaviaSyndicate",
-        wsMatch: "Cavia",
-        wsId: "EntratiLabSyndicate",
-      },
-      {
-        key: "The Hex",
-        ttId: "HexSyndicate",
-        wsMatch: "Hex",
-        wsId: "HexSyndicate",
-      },
-      {
-        key: "Entrati",
-        ttId: "696e78a80000000000000002",
-        wsMatch: "Entrati",
-        wsId: "EntratiSyndicate",
-      },
-      {
-        key: "Solaris United",
-        ttId: "696e78a80000000000000031",
-        wsMatch: "Solaris",
-        wsId: "SolarisSyndicate",
-      },
+      { key: "Ostrons", ttId: "696e78a80000000000000010", wsMatch: "Ostron", wsId: "CetusSyndicate" },
+      { key: "The Holdfasts", ttId: "ZarimanSyndicate", wsMatch: "Holdfasts", wsId: "ZarimanSyndicate" },
+      { key: "Cavia", ttId: "CaviaSyndicate", wsMatch: "Cavia", wsId: "EntratiLabSyndicate" },
+      { key: "The Hex", ttId: "HexSyndicate", wsMatch: "Hex", wsId: "HexSyndicate" },
+      { key: "Entrati", ttId: "696e78a80000000000000002", wsMatch: "Entrati", wsId: "EntratiSyndicate" },
+      { key: "Solaris United", ttId: "696e78a80000000000000031", wsMatch: "Solaris", wsId: "SolarisSyndicate" },
     ];
 
+    const allMissions = [];
     factionMap.forEach(({ key, ttId, wsMatch, wsId }) => {
-      const wsSyn = ws.find((s) =>
-        (s.syndicate || s.syndicateKey || "")
-          .toLowerCase()
-          .includes(wsMatch.toLowerCase()),
-      );
-      const ttSyn = tt.find(
-        (t) =>
-          t.id === ttId || (t.syndicate || "").startsWith(key.substring(0, 4)),
-      );
-      const sourceFromTt = ttSyn ? "tt" : "none";
-      const source = wsSyn?.jobs && wsSyn.jobs.length > 0 ? "ws" : sourceFromTt;
+      const wsSyn = ws.find(s => (s.syndicate || s.syndicateKey || "").toLowerCase().includes(wsMatch.toLowerCase()));
+      const ttSyn = tt.find(t => t.id === ttId || (t.syndicate || "").startsWith(key.substring(0, 4)));
+      const source = wsSyn?.jobs?.length ? "ws" : (ttSyn ? "tt" : "none");
       if (source === "none") return;
 
       const jobs = source === "ws" ? wsSyn.jobs : ttSyn.jobs;
       const oracleData = oracle.bounties?.[wsId] || [];
-
-      const useOracleAsLeader = source === "tt" && oracleData.length > 0;
-      const jobsToProcess = useOracleAsLeader ? oracleData : jobs;
+      const useOracle = source === "tt" && oracleData.length > 0;
+      const jobsToProcess = useOracle ? oracleData : jobs;
 
       jobsToProcess.forEach((item, idx) => {
-        const oracleJob = useOracleAsLeader ? item : oracleData[idx];
-        const j = useOracleAsLeader ? jobs[idx] || jobs[jobs.length - 1] : item;
-
-        const info = extractJobInfo(j, source, key, oracleJob, idx);
+        const oJob = useOracle ? item : oracleData[idx];
+        const j = useOracle ? (jobs[idx] || jobs[jobs.length - 1]) : item;
+        const info = extractJobInfo(j, source, key, oJob, idx);
         const rewards = processJobRewards(j, ttSyn);
-        const isDual = DUAL_PATH_FACTIONS.has(key);
+        const numTier = (info.tier === "NARMER" || info.isLich) ? 6 : (parseInt(info.tier) || 1);
 
-        const numericTier =
-          info.tier === "NARMER" || info.isLich
-            ? 6
-            : Number.parseInt(info.tier) || 1;
-
-        let sNorm = 0;
-        let sSP = 0;
-
+        let standing = 0, standingSP = 0;
         if (key === "The Hex") {
-          sNorm = numericTier * 1000;
-          sSP = sNorm + 500;
+          standing = numTier * 1000;
+          standingSP = standing + 500;
         } else if (key === "The Holdfasts") {
-          const tIdx = Math.min(numericTier, 5);
-          sNorm = (ZARIMAN_DATA.counts.normal[tIdx] || 0) * ZARIMAN_DATA.value;
-          sSP = (ZARIMAN_DATA.counts.sp[tIdx] || 0) * ZARIMAN_DATA.value;
-          if (info.uName.includes("VoidAngel")) {
-            sNorm += 2500;
-            sSP += 2500;
-          }
+          const tIdx = Math.min(numTier, 5);
+          standing = (ZARIMAN_DATA.counts.normal[tIdx] || 0) * ZARIMAN_DATA.value;
+          standingSP = (ZARIMAN_DATA.counts.sp[tIdx] || 0) * ZARIMAN_DATA.value;
+          if (info.uName.includes("VoidAngel")) { standing += 2500; standingSP += 2500; }
         } else {
-          sNorm = calculateStandingXp(j.standingStages || j.xpAmounts);
-          sSP = Math.round(sNorm * 1.5);
+          standing = calculateStandingXp(j.standingStages || j.xpAmounts);
+          standingSP = Math.round(standing * 1.5);
         }
 
         allMissions.push({
-          factionKey: key,
-          type: info.name,
-          technicalType: info.techType,
-          tier: info.tier,
-          hideTier: info.hideTier,
-          standing: sNorm,
-          standingSP: sSP,
-          level: `${info.min}-${info.max}`,
-          levelSP: `${info.min + 100}-${info.max + 100}`,
-          rewards: rewards.simple,
-          detailedRewards: rewards.detailed,
-          expiry: realExpiry,
-          isDual: isDual,
-          isSP: !isDual && (j.isHard || info.min >= 100),
-          condition: info.condition,
-          uName: info.uName,
-          isOptimal: checkIsOptimal(key, info),
+          factionKey: key, type: info.name, technicalType: info.techType, tier: info.tier, hideTier: info.hideTier,
+          standing, standingSP, level: `${info.min}-${info.max}`, levelSP: `${info.min + 100}-${info.max + 100}`,
+          rewards: rewards.simple, detailedRewards: rewards.detailed, expiry: realExpiry, isDual: DUAL_PATH_FACTIONS.has(key),
+          isSP: !DUAL_PATH_FACTIONS.has(key) && (j.isHard || info.min >= 100), condition: info.condition, uName: info.uName,
+          isOptimal: checkIsOptimal(key, info)
         });
       });
     });
 
     allMissions.sort((a, b) => b.standing - a.standing);
-
-    const serverExpiry = oracle.expiry ? Number(oracle.expiry) : now + 600000;
-
-    await dbHelper.set(CACHE_KEY, {
-      expiryTime: serverExpiry,
-      data: allMissions,
-    });
-
+    await dbHelper.set(CACHE_KEY, { expiryTime: oracle.expiry ? Number(oracle.expiry) : now + 600000, data: allMissions });
     return allMissions;
   } catch (e) {
-    console.error("Error fetching active bounties:", e);
+    console.error("Bounties error:", e);
     return [];
   }
 }

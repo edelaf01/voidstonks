@@ -6003,4 +6003,134 @@ button[onclick*="importInventory"]:hover {
     width: 100% !important;
     padding-top: 0 !important;
   }
+
+}
+
+/* =========================================
+   RELICTRACK POPUP (LIVE SCANNER)
+   ========================================= */
+.track-popup-anim {
+  position: fixed;
+  bottom: 80px;
+  right: 20px;
+  z-index: 10000;
+  animation: slideInTrack 0.4s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+  pointer-events: auto;
+}
+
+.track-popup-anim.fade-out {
+  animation: slideOutTrack 0.5s forwards ease-in;
+}
+
+.track-popup-content {
+  background: rgba(15, 17, 21, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--wf-blue);
+  border-left: 4px solid var(--wf-blue);
+  border-radius: 8px;
+  padding: 12px 18px;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6), 0 0 15px rgba(0, 229, 255, 0.2);
+  min-width: 280px;
+}
+
+.relic-icon-mini {
+  width: 32px;
+  height: 32px;
+  background: var(--wf-blue);
+  color: #000;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+  font-size: 1.2em;
+  box-shadow: 0 0 10px var(--wf-blue);
+}
+
+.track-text {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.track-title {
+  color: #aaa;
+  font-size: 0.75em;
+  text-transform: uppercase;
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+
+.track-name {
+  color: #fff;
+  font-size: 1.1em;
+  font-weight: 800;
+  text-shadow: 0 0 5px rgba(255, 255, 255, 0.3);
+}
+
+.track-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.track-btn-yes {
+  background: var(--wf-blue);
+  color: #000;
+  border: none;
+  padding: 8px 15px;
+  border-radius: 4px;
+  font-weight: 900;
+  font-size: 0.8em;
+  cursor: pointer;
+  transition: all 0.2s;
+  letter-spacing: 0.5px;
+}
+
+.track-btn-yes:hover {
+  filter: brightness(1.2);
+  transform: scale(1.05);
+  box-shadow: 0 0 15px var(--wf-blue);
+}
+
+.track-btn-no {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  border: 1px solid #444;
+  width: 32px;
+  height: 32px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.track-btn-no:hover {
+  background: rgba(255, 0, 0, 0.2);
+  border-color: #f44;
+}
+
+@keyframes slideInTrack {
+  from {
+    transform: translateX(120%) scale(0.9);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateX(0) scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes slideOutTrack {
+  from {
+    transform: translateX(0) scale(1);
+    opacity: 1;
+  }
+
+  to {
+    transform: translateX(120%) scale(0.9);
+    opacity: 0;
+  }
 }

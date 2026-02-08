@@ -35,8 +35,6 @@ import {
   getRivenSlug,
   fetchActiveBounties,
   getPriceValue,
-
-
 } from "./api.js";
 
 /**
@@ -314,12 +312,10 @@ export function changeLanguage(lang) {
   const guideIcon = document.getElementById("relic-guide-icon");
   if (guideIcon) guideIcon.dataset.tooltip = t.addGuide;
 
-  // --- 4. SECCIÓN SETS ---
   setText("lbl-search-item", t.lblItem);
   const setInput = document.getElementById("setItemInput");
   if (setInput) setInput.placeholder = t.phItem;
 
-  // --- 5. SECCIÓN RIVEN ---
   setText("lbl-riven-weapon", t.lblRivenW);
   const rivenInput = document.getElementById("rivenWeaponInput");
   if (rivenInput) rivenInput.placeholder = t.phRivenW;
@@ -331,55 +327,38 @@ export function changeLanguage(lang) {
   document.querySelectorAll(".riven-stat-select").forEach(sel => {
     const isNeg = sel.classList.contains("negative");
     const firstOpt = sel.options[0];
-    if (firstOpt && firstOpt.value === "") {
+    if (firstOpt?.value === "") {
       if (isNeg) {
         firstOpt.innerText = phNeg;
       } else {
-        const match = sel.id.match(/\d/);
-        const num = match ? match[0] : "";
+        const num = sel.id.match(/\d/)?.[0] || "";
         firstOpt.innerText = `${phStat} ${num}`.trim();
       }
     }
   });
 
-  // --- 6. SECCIÓN PERFIL ---
   setText("lbl-username", t.lblUser);
   const btnCheck = document.querySelector("#mode-profile button");
   if (btnCheck) btnCheck.innerText = t.btnCheck;
   setText("txt-mr-label", t.lblMrCalc);
 
-  // --- 7. SECCIÓN LFG ---
   setText("lbl-lfg-activity", t.lblLfgActivity);
   setText("lbl-lfg-players", t.lblLfgPlayers);
   setText("btn-copy", t.btnCopy);
 
   const lfgItems = document.querySelectorAll("#lfgDropdown .dropdown-item");
-  const keys = [
-    "eidolon",
-    "profit",
-    "eda",
-    "temporal",
-    "netra",
-    "archon",
-    "sortie",
-    "arbi",
-    "radshare",
-  ];
-  keys.forEach((key, index) => {
-    if (lfgItems[index] && t.lfgOpts[key])
-      lfgItems[index].innerText = t.lfgOpts[key];
+  const lfgKeys = ["eidolon", "profit", "eda", "temporal", "netra", "archon", "sortie", "arbi", "radshare"];
+  lfgKeys.forEach((key, idx) => {
+    if (lfgItems[idx] && t.lfgOpts[key]) lfgItems[idx].innerText = t.lfgOpts[key];
   });
-  const currentVal = document.getElementById("lfgActivity").value;
-  if (t.lfgOpts[currentVal]) setText("lfgSelectedText", t.lfgOpts[currentVal]);
+  const currentLfgVal = document.getElementById("lfgActivity").value;
+  if (t.lfgOpts[currentLfgVal]) setText("lfgSelectedText", t.lfgOpts[currentLfgVal]);
 
-  // --- 8. SECCIÓN INVENTARIO ---
   setText("txt-inv-title", t.inventory.title);
   const invInput = document.getElementById("inv-search-input");
   if (invInput) invInput.placeholder = t.inventory.searchPlaceholder;
 
-  // --- 9. SECCIÓN FISURAS & FARMS (NUEVO) ---
   setText("txt-fissure-title", t.lblFissures || "Fisuras Activas");
-
   setText("lbl-fast-farms-title", t.lblFastFarms || "Misiones Rápidas");
 
   populateRivenSelects();
@@ -483,6 +462,9 @@ export function handleRelicTyping() {
       item.onclick = () => {
         input.value = name;
         dropdown.classList.add("hidden");
+        // Asegurar que el contenedor sea visible inmediatamente
+        const cont = document.getElementById("relic-contents");
+        if (cont) cont.classList.remove("hidden");
         manualRelicUpdate();
       };
       dropdown.appendChild(item);
@@ -498,7 +480,16 @@ export function handleRelicTyping() {
 export function manualRelicUpdate() {
   try {
     const relicInput = document.getElementById("relicInput");
-    state.selectedRelic = relicInput.value;
+    if (!relicInput) return;
+
+    let container = document.getElementById("relic-contents");
+    let inputVal = relicInput.value.trim().toUpperCase();
+
+    // Buscar la coincidencia real en la base de datos (insensible a mayúsculas)
+    let realName =
+      state.allRelicNames.find((n) => n.toUpperCase() === inputVal) ||
+      relicInput.value;
+    state.selectedRelic = realName;
 
     const tier = state.selectedRelic.split(" ")[0];
     if (typeof globalThis.updateRecommendedMissions === "function") {
@@ -512,10 +503,12 @@ export function manualRelicUpdate() {
 
     const listDiv = document.getElementById("relic-drops-list");
     const profitDisplay = document.getElementById("relic-profit-display");
-    const container = document.getElementById("relic-contents");
     const statusBadge = document.getElementById("relic-status-badge");
 
-    if (!listDiv || !profitDisplay || !container) return;
+    if (!listDiv || !profitDisplay || !container) {
+      console.warn("Faltan elementos UI para el update de reliquia");
+      return;
+    }
 
     // Use a Fragment to avoid multiple repaints
     const fragment = document.createDocumentFragment();
@@ -524,6 +517,12 @@ export function manualRelicUpdate() {
 
     if (state.selectedRelic && state.relicsDatabase[state.selectedRelic]) {
       container.classList.remove("hidden");
+      // Aseguramos que el input tenga el nombre con el casing correcto
+      if (
+        relicInput.value.toUpperCase() === state.selectedRelic.toUpperCase()
+      ) {
+        relicInput.value = state.selectedRelic;
+      }
 
       if (statusBadge) {
         const status = state.relicStatusDB[state.selectedRelic] || "vaulted";
@@ -567,7 +566,6 @@ export function manualRelicUpdate() {
 
       const items = state.relicsDatabase[state.selectedRelic];
       items.sort((a, b) => b.chance - a.chance);
-      //const abbr = TEXTS[state.currentLang].rarityAbbr;
 
       items.forEach((item) => {
         const row = document.createElement("div");
@@ -597,7 +595,9 @@ export function manualRelicUpdate() {
         }
 
         const iconPath = getItemIcon(item.name);
-        const iconHtml = iconPath ? `<img src="${iconPath}" class="item-icon-mini" loading="lazy" onerror="this.style.display='none'">` : '';
+        const iconHtml = iconPath
+          ? `<img src="${iconPath}" class="item-icon-mini" loading="lazy" onerror="this.style.display='none'">`
+          : "";
 
         let nameDisplay;
         if (isUntradable) {
@@ -607,7 +607,11 @@ export function manualRelicUpdate() {
         } else {
           nameDisplay = `
             <div class="name-row-content">
-              <span class="component-name item-interactive" data-action="find-relics-for-item" data-item="${escapeHTML(item.name)}" onclick="event.stopPropagation(); globalThis.openSetFromRelicReward('${escapeHTML(item.name)}')">
+              <span class="component-name item-interactive" data-action="find-relics-for-item" data-item="${escapeHTML(
+            item.name,
+          )}" onclick="event.stopPropagation(); globalThis.openSetFromRelicReward('${escapeHTML(
+            item.name,
+          )}')">
                   ${escapeHTML(item.name)}
               </span>
               ${(() => {
@@ -620,11 +624,15 @@ export function manualRelicUpdate() {
               return "";
             })()}
               <div class="actions-col-wrapper">
-                <a href="https://warframe.market/items/${getSlug(item.name)}" target="_blank" class="market-btn-mini" title="Warframe Market">
+                <a href="https://warframe.market/items/${getSlug(
+              item.name,
+            )}" target="_blank" class="market-btn-mini" title="Warframe Market">
                   MARKET
                 </a>
                 <button class="mini-action-btn" style="border-color:var(--wf-blue)" 
-                        data-action="modify-prime-part" data-part="${escapeHTML(item.name)}" data-amount="1">
+                        data-action="modify-prime-part" data-part="${escapeHTML(
+              item.name,
+            )}" data-amount="1">
                   +1
                 </button>
               </div>
@@ -633,8 +641,10 @@ export function manualRelicUpdate() {
         }
 
         const finalIconHtml = iconPath
-          ? `<img src="${iconPath}" class="item-icon-mini item-interactive" loading="lazy" onerror="this.style.display='none'" onclick="event.stopPropagation(); globalThis.openSetFromRelicReward('${escapeHTML(item.name)}')">`
-          : '';
+          ? `<img src="${iconPath}" class="item-icon-mini item-interactive" loading="lazy" onerror="this.style.display='none'" onclick="event.stopPropagation(); globalThis.openSetFromRelicReward('${escapeHTML(
+            item.name,
+          )}')">`
+          : "";
 
         const badgeContent = isUntradable
           ? '0<span class="plat-icon"></span>'
@@ -655,7 +665,10 @@ export function manualRelicUpdate() {
             </div>
             <div style="display:flex; align-items:center; gap:8px;">
               <span class="ducat-val" style="color:var(--wf-gold-text); font-size:0.85em; font-weight:bold;">${ducatVal} <span style="font-size:0.8em; opacity:0.8">d</span></span>
-              <div class="${badgeClass}" data-item="${item.name.replaceAll(/"/g, "&quot;")}">
+              <div class="${badgeClass}" data-item="${item.name.replaceAll(
+          /"/g,
+          "&quot;",
+        )}">
                   ${badgeContent}
               </div>
             </div>
@@ -2256,19 +2269,6 @@ export function openRivenMarket() {
   globalThis.open(url, "_blank");
 }
 
-/*export function getRivenSlug(inputVal) {
-  const validWeapons = state.allRivenNames || [];
-  let fullSlug = inputVal.toLowerCase().trim().replaceAll(/\s+/g, "_");
-  let nakedSlug = getNakedName(fullSlug);
-
-  if (nakedSlug === fullSlug) return fullSlug;
-
-  const baseExists = validWeapons.some(
-    (name) => name.toLowerCase().replaceAll(/\s+/g, "_") === nakedSlug
-  );
-
-  return baseExists ? nakedSlug : fullSlug;
-}*/
 
 
 
@@ -3028,17 +3028,13 @@ globalThis.modifyInv = (name, amount) => {
 };
 
 globalThis.selectRelicFromInv = (name) => {
+  state.selectedRelic = name;
   const input = document.getElementById("relicInput");
-  if (input) {
-    input.value = name;
-    state.selectedRelic = name;
+  if (input) input.value = name;
 
-    switchTab("relic");
-
-    toggleInventoryPanel(false);
-
-    manualRelicUpdate();
-  }
+  switchTab("relic");
+  toggleInventoryPanel(false);
+  manualRelicUpdate();
 };
 
 async function calculateRelicValue(relicName) {
@@ -3055,23 +3051,9 @@ async function calculateRelicValue(relicName) {
 
     const price = await getPriceValue(d.name, slug);
 
-    let ducatValue = d.ducats || 15;
-    if (!d.ducats) {
-      if (d.chance < 20) ducatValue = 45;
-      if (d.chance < 5) ducatValue = 100;
-    }
-
-    let pIntact = 0.2533;
-    let pRad = 0.1667;
-
-    if (d.chance < 20) {
-      pIntact = 0.11;
-      pRad = 0.2;
-    }
-    if (d.chance < 5) {
-      pIntact = 0.02;
-      pRad = 0.1;
-    }
+    const ducatValue = d.ducats || (d.chance < 5 ? 100 : d.chance < 20 ? 45 : 15);
+    const pIntact = d.chance < 5 ? DROP_CHANCES.Intact.rare : (d.chance < 20 ? DROP_CHANCES.Intact.uncommon / 2 : DROP_CHANCES.Intact.common / 3);
+    const pRad = d.chance < 5 ? DROP_CHANCES.Rad.rare : (d.chance < 20 ? DROP_CHANCES.Rad.uncommon / 2 : DROP_CHANCES.Rad.common / 3);
 
     return {
       intactVal: price * pIntact,
@@ -3108,15 +3090,6 @@ globalThis.filterInvTier = (tier) => {
     }
   });
   renderInventory();
-};
-globalThis.selectRelicFromInv = (name) => {
-  state.selectedRelic = name;
-  const input = document.getElementById("relicInput");
-  if (input) input.value = name;
-
-  switchTab("relic");
-  toggleInventoryPanel(false);
-  manualRelicUpdate();
 };
 globalThis.addCurrentToInv = function () {
   if (!state.selectedRelic) return;
@@ -4152,11 +4125,6 @@ async function updatePrimeTotalValue() {
 
   if (!allLoaded) setTimeout(updatePrimeTotalValue, 1000);
 }
-globalThis.toggleFarmsFilter = function () {
-  state.showAllFarms = !state.showAllFarms;
-  saveAppState();
-  renderBountiesTab();
-};
 Object.assign(globalThis, {
   openGradingModal,
   calculateModalGrade,
@@ -4172,14 +4140,15 @@ Object.assign(globalThis, {
   exportInventory,
   importInventory,
   renderPrimeInventory,
-  updatePriceUI: (element, price) => {
-    if (!element) return;
-    element.classList.remove("loading");
-    element.innerHTML = `${price}<img src="assets/relic_contents/platinum.webp" class="plat-icon">`;
-    if (document.getElementById("relic-profit-display")) updateRelicTotal();
+  updatePriceUI,
+  manualRelicUpdate,
+  toggleFarmsFilter: () => {
+    state.showAllFarms = !state.showAllFarms;
+    saveAppState();
+    renderBountiesTab();
   },
+  handleInvSearch: (val) => {
+    state.invSearchVal = val.toLowerCase().trim();
+    renderInventory();
+  }
 });
-globalThis.handleInvSearch = (val) => {
-  state.invSearchVal = val.toLowerCase().trim();
-  renderInventory();
-};
