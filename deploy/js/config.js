@@ -1,9 +1,20 @@
 export const WORKER_URL = "https://wf-tool-proxy-worker.edelamf0.workers.dev/";
-export const APP_VERSION = 1.7;
+export const APP_VERSION = 1.71;
 export const UPDATE_HISTORY_CONTENT = `
 <div class="update-block">
   <div class="update-header">
-    <span class="update-version">v1.7.0 (Current)</span>
+    <span class="update-version">v1.7.1 (Current)</span>
+    <span class="update-date">2026-02-18</span>
+  </div>
+  <ul class="update-list">
+    <li>
+      <strong>English language fixes</strong>Some text was always shown in spanish, now it should be either spanish or english based on the selected language.
+    </li>
+  </ul>
+</div>
+<div class="update-block old">
+  <div class="update-header">
+    <span class="update-version">v1.7.0 </span>
     <span class="update-date">2026-01-30</span>
   </div>
   <ul class="update-list">
