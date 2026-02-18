@@ -285,6 +285,9 @@ export function changeLanguage(lang) {
   const disclaimer = document.getElementById("txt-disclaimer");
   if (disclaimer) disclaimer.innerHTML = t.disclaimer;
 
+  setText("loadingText", t.loading);
+  setText("loadingSub", t.loadingSub);
+
   setText("lbl-relic-name", t.lblRelic);
   const relicInput = document.getElementById("relicInput");
   if (relicInput) relicInput.placeholder = t.phRelic;
