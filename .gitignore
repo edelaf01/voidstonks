@@ -5,3 +5,5 @@ deploy/sitemap.xml
 robots.txt
 /INVENTARIO
 .stylelintrc.json
+deploy/.wrangler/cache/pages.json
+deploy/.wrangler/cache/wrangler-account.json
