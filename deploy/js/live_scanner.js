@@ -1,6 +1,7 @@
 import { state } from "./state.js";
 import { getPriceValue, getSlug } from "./api.js";
 import { showToast } from "./ui.js";
+import { TEXTS } from "./config.js";
 
 const DEBUG_MODE = true;
 
@@ -108,7 +109,7 @@ export async function startLiveSession() {
   const toggleBtn = document.getElementById("scanner-toggle");
   if (toggleBtn) {
     toggleBtn.classList.add("active");
-    toggleBtn.querySelector(".label").innerText = "INICIANDO...";
+    toggleBtn.querySelector(".label").innerText = TEXTS[state.currentLang].scanner.starting;
   }
   try {
     liveStream = await navigator.mediaDevices.getDisplayMedia({
@@ -133,8 +134,8 @@ export async function startLiveSession() {
       });
     }
     startLoop();
-    showToast("Escáner Activo (Auto-Close 12s)");
-    if (toggleBtn) toggleBtn.querySelector(".label").innerText = "ESCANER ACTIVO";
+    showToast(TEXTS[state.currentLang].scanner.toastActive);
+    if (toggleBtn) toggleBtn.querySelector(".label").innerText = TEXTS[state.currentLang].scanner.active;
     liveStream.getVideoTracks()[0].onended = () => stopLiveSession();
   } catch (e) {
     console.error(e);
@@ -329,12 +330,12 @@ function showTrackConfirm(relicName) {
     <div class="track-popup-content">
       <div class="relic-icon-mini">${relicName.split(" ")[0][0]}</div>
       <div class="track-text">
-        <span class="track-title">🔍 Reliquia Detectada</span>
+        <span class="track-title">🔍 ${TEXTS[state.currentLang].scanner.relicDetected}</span>
         <span class="track-name">${relicName}</span>
       </div>
       <div class="track-actions">
         <button class="track-btn-no" id="btn-track-cancel">✕</button>
-        <button class="track-btn-yes" id="btn-track-confirm">TRACKEAR</button>
+        <button class="track-btn-yes" id="btn-track-confirm">${TEXTS[state.currentLang].scanner.track}</button>
       </div>
     </div>`;
 
@@ -351,7 +352,7 @@ function showTrackConfirm(relicName) {
       input.value = relicName;
       state.selectedRelic = relicName;
       if (globalThis.manualRelicUpdate) globalThis.manualRelicUpdate();
-      showToast(`Trackeando ${relicName}`);
+      showToast(TEXTS[state.currentLang].scanner.trackingToast.replace("{relic}", relicName));
     }
     popup.remove();
   };

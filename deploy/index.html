@@ -116,7 +116,7 @@
   </div>
   <div id="inventory-container">
     <div id="inv-toggle-btn" class="mission-toggle-btn" onclick="toggleInventoryPanel()">
-      <img src="assets/inv.relic.png" class="toggle-img" alt="Inventario" />
+      <img id="img-inv-toggle" src="assets/inv.relic.png" class="toggle-img" alt="Inventory" />
     </div>
 
     <div class="inv-view-selector" style="display: flex; gap: 5px; padding: 10px 10px 0; background: #111">
@@ -186,7 +186,7 @@
   <div id="best-missions-container">
     <div id="mission-toggle-btn" class="mission-toggle-btn"
       onclick="document.getElementById('best-missions-container').classList.toggle('open')">
-      <img src="assets/fissureicon.png" class="toggle-img" alt="Fisuras" />
+      <img id="img-fissure-toggle" src="assets/fissureicon.png" class="toggle-img" alt="Fissures" />
     </div>
     <div class="panel-main-header" id="fissure-panel-header">
       <svg class="gauss-icon" id="gauss-runner" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -194,7 +194,7 @@
           d="M18.5,5.5 C18.5,5.5 14,8 12,10 C10,12 5,11 2,12 C5,13 9,14 11,16 C13,18 16,19 18.5,19 C16,17 14,14 14,12 C14,10 16,7 18.5,5.5 Z M22,2 L20,4 C20,4 17,7 17,12 C17,17 20,20 20,20 L22,22"
           fill="currentColor" />
       </svg>
-      <span>Fisuras Activas</span>
+      <span id="txt-fissure-title">Fisuras Activas</span>
     </div>
     <div class="fissures-scroll-area" id="fissures-list-area">
       <div style="padding:10px; text-align:center; color:#666;">Cargando...</div>

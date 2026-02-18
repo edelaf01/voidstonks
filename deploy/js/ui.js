@@ -358,8 +358,13 @@ export function changeLanguage(lang) {
   const invInput = document.getElementById("inv-search-input");
   if (invInput) invInput.placeholder = t.inventory.searchPlaceholder;
 
-  setText("txt-fissure-title", t.lblFissures || "Fisuras Activas");
+  setText("txt-fissure-title", t.lblFissures);
   setText("lbl-fast-farms-title", t.lblFastFarms || "Misiones Rápidas");
+
+  const imgInv = document.getElementById("img-inv-toggle");
+  if (imgInv) imgInv.alt = t.lblInventory;
+  const imgFissure = document.getElementById("img-fissure-toggle");
+  if (imgFissure) imgFissure.alt = t.lblFissures;
 
   populateRivenSelects();
 

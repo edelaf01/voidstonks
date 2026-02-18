@@ -427,6 +427,14 @@ export const TEXTS = {
       lblTotalValue: "VALOR TOTAL ESTIMADO",
       confirmDeleteSet: "¿Borrar set completo?",
     },
+    scanner: {
+      starting: "INICIANDO...",
+      active: "ESCANER ACTIVO",
+      toastActive: "Escáner Activo (Auto-Close 12s)",
+      relicDetected: "Reliquia Detectada",
+      track: "TRACKEAR",
+      trackingToast: "Trackeando {relic}",
+    },
     ocr: {
       cameraTitle: "Escáner de Reliquias",
       btnCapture: "Capturar",
@@ -492,6 +500,8 @@ export const TEXTS = {
     lblProfitSolo: "Rentabilidad (Solo)",
     lblProfitSquad: "Rentabilidad ({n} Jugadores)",
     lblRecommended: "⚡ Fisuras Recomendadas:",
+    lblFissures: "Fisuras Activas",
+    lblInventory: "Inventario",
     menuRelic: "Reliquia",
     menuSet: "Set",
     menuRiven: "Riven",
@@ -627,7 +637,7 @@ export const TEXTS = {
       generic: "AYA: TIER 5 (CHECK TENTS)",
     },
     inventory: {
-      title: "Inventario",
+      title: "Inventory",
       empty: "Inventory empty. Use scanner.",
       searchPlaceholder: "Filter (e.g. G1)...",
       sort: {
@@ -642,6 +652,14 @@ export const TEXTS = {
       },
       lblTotalValue: "ESTIMATED TOTAL VALUE",
       confirmDeleteSet: "Delete entire set?",
+    },
+    scanner: {
+      starting: "STARTING...",
+      active: "SCANNER ACTIVE",
+      toastActive: "Scanner Active (Auto-Close 12s)",
+      relicDetected: "Relic Detected",
+      track: "TRACK",
+      trackingToast: "Tracking {relic}",
     },
     ocr: {
       cameraTitle: "Relic Scanner",
@@ -705,6 +723,8 @@ export const TEXTS = {
     lblProfitSolo: "Profitability (Solo)",
     lblProfitSquad: "Profitability ({n} Players)",
     lblRecommended: "⚡ Recommended Fissures:",
+    lblFissures: "Active Fissures",
+    lblInventory: "Inventory",
     menuRelic: "Relic",
     menuSet: "Set",
     menuRiven: "Riven",
