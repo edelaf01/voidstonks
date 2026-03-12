@@ -12,6 +12,8 @@ import {
 } from "./config.js";
 import { state, saveAppState, updateInventoryCount } from "./state.js";
 
+globalThis.TEXTS = TEXTS;
+
 const iconPathCache = new Map();
 
 /**
@@ -378,6 +380,31 @@ export function changeLanguage(lang) {
   const tier = document.getElementById("relicInput").value.split(" ")[0];
   if (tier && state.selectedRelic) updateRecommendedMissions(tier);
   if (state.selectedRelic) manualRelicUpdate();
+
+  // Scanner HUD translations
+  const sh = t.scannerHUD;
+  if (sh) {
+    setText("hud-title", sh.title);
+    setText("hud-context-badge", sh.statusIdle);
+    setText("btn-debug-toggle", sh.btnDebug);
+    setText("btn-manual-scan", sh.btnScan);
+    setText("btn-save-inv", sh.btnSave);
+    setText("btn-recalibrate", sh.btnRecalibrate);
+    setText("btn-open-grid-editor", sh.btnEditCells);
+    setText("edit-mode-title", sh.editTitle);
+    setText("edit-mode-guide", sh.editGuide);
+    setText("btn-edit-done", sh.btnDone);
+    setText("lbl-ocr-debug", sh.btnDebug + " Snapshot");
+    setText("btn-copy-debug-log", sh.btnCopyLog);
+    setText("lbl-detected-items", sh.lblDetected);
+    setText("lbl-scan-empty-state", sh.lblEmpty);
+  }
+
+  const ct = t.calib;
+  if (ct) {
+    setText("lbl-calib-title", ct.title);
+    setText("btn-calib-skip", ct.btnSkip);
+  }
 
   generateMessage();
 }
@@ -2859,11 +2886,33 @@ export function toggleInventoryPanel(forceOpen = false) {
 }
 
 export function clearInventory() {
-  if (confirm("Delete all saved relics?")) {
-    state.inventory = [];
+  const isParts = state.currentInvView === "parts";
+  const t = TEXTS[state.currentLang];
+  const confirmMsg = isParts
+    ? t.purgeConfirmParts || "OROKIN PURGE: Delete ALL Prime Inventory?"
+    : t.purgeConfirmRelics || "OROKIN PURGE: Delete ALL saved Relics?";
+
+  showCustomConfirm(confirmMsg, () => {
+    if (isParts) {
+      state.primeInventory = {};
+      if (typeof globalThis.renderPrimeInventory === "function") {
+        globalThis.renderPrimeInventory();
+      }
+    } else {
+      state.inventory = [];
+      renderInventory();
+    }
     saveAppState();
-    renderInventory();
-  }
+
+    // Smooth UI feedback
+    const toast = document.getElementById("error-toast");
+    if (toast) {
+      toast.innerText = (state.currentLang === "es" ? "Borrado Completado" : "Inventory Cleared");
+      toast.style.background = "var(--wf-blue)";
+      toast.classList.add("visible");
+      setTimeout(() => toast.classList.remove("visible"), 2000);
+    }
+  });
 }
 
 let inventoryPriceUpdateInterval = null;
@@ -3527,6 +3576,31 @@ export function closeUpdateModal() {
   localStorage.setItem("last_seen_version", String(APP_VERSION));
   console.log("Versión guardada con éxito:", APP_VERSION);
 }
+
+export function showCustomConfirm(message, onConfirm) {
+  const modal = document.getElementById("orokin-confirm-modal");
+  const msgEl = document.getElementById("orokin-confirm-msg");
+  const confirmBtn = document.getElementById("orokin-btn-confirm");
+  const cancelBtn = document.getElementById("orokin-btn-cancel");
+
+  if (!modal || !msgEl || !confirmBtn) return;
+
+  const t = TEXTS[state.currentLang];
+  msgEl.innerText = message;
+  confirmBtn.innerText = t.btnConfirm || "CONFIRM";
+  if (cancelBtn) cancelBtn.innerText = t.btnCancel || "CANCEL";
+
+  modal.classList.remove("hidden");
+
+  confirmBtn.onclick = () => {
+    onConfirm();
+    closeOrokinConfirm();
+  };
+}
+
+export function closeOrokinConfirm() {
+  document.getElementById("orokin-confirm-modal")?.classList.add("hidden");
+}
 export function exportInventory() {
   if (!state.inventory || state.inventory.length === 0) {
     return showToast("Relic inventory is empty.");
@@ -4142,11 +4216,14 @@ Object.assign(globalThis, {
   showToast,
   finishLoading,
   closeUpdateModal,
+  showCustomConfirm,
+  closeOrokinConfirm,
   exportInventory,
   importInventory,
   renderPrimeInventory,
   updatePriceUI,
   manualRelicUpdate,
+  saveAppState,
   toggleFarmsFilter: () => {
     state.showAllFarms = !state.showAllFarms;
     saveAppState();
