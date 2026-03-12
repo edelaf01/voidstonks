@@ -436,16 +436,31 @@ async function processInventoryGrid(snapshot, width, height, scale) {
   const ocrCtx = ocrCanvas.getContext("2d");
   ocrCtx.drawImage(snapshot, 0, 0);
 
+  const sampleData = ocrCtx.getImageData(grid.gridX + 5, grid.gridY + 5, 20, 20).data;
+  let refR = 0, refG = 0, refB = 0, count = 0;
+
+  for (let i = 0; i < sampleData.length; i += 4) {
+    const r = sampleData[i], g = sampleData[i + 1], b = sampleData[i + 2];
+    const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+    if (lum > 100 && lum < 240) {
+      refR += r; refG += g; refB += b; count++;
+    }
+  }
+
+  if (count > 0) {
+    refR /= count; refG /= count; refB /= count;
+  } else {
+    refR = 200; refG = 170; refB = 100;
+  }
+
   const imgData = ocrCtx.getImageData(0, 0, width, height);
   const px = imgData.data;
   for (let i = 0; i < px.length; i += 4) {
     const r = px[i], g = px[i + 1], b = px[i + 2];
+    const dist = Math.sqrt(Math.pow(r - refR, 2) + Math.pow(g - refG, 2) + Math.pow(b - refB, 2));
     const lum = 0.299 * r + 0.587 * g + 0.114 * b;
 
-    const isGold = (r > 110 && g > 90 && r > b * 1.3);
-    const isWhite = (lum > 180 && Math.abs(r - g) < 20 && Math.abs(g - b) < 20);
-
-    if (isGold || isWhite) {
+    if (dist < 85 || lum > 200) {
       px[i] = px[i + 1] = px[i + 2] = 0;
     } else {
       px[i] = px[i + 1] = px[i + 2] = 255;
@@ -453,117 +468,95 @@ async function processInventoryGrid(snapshot, width, height, scale) {
   }
   ocrCtx.putImageData(imgData, 0, 0);
 
-  logDebug("Running Inventory OCR Pass...");
-  const { data: { words } } = await worker1.recognize(ocrCanvas);
 
-  const textWords = [];
-  const numberWords = [];
-  words.forEach(w => {
-    const txt = w.text.trim();
-    if (txt.length < 1) return;
-    if (/\d/.test(txt)) numberWords.push(w);
-    if (/[A-Z]/i.test(txt)) textWords.push(w);
-  });
+  logDebug(`Iniciando OCR en paralelo con 3 workers para ${cellRects.length} celdas...`);
 
-  const primeItems = CACHED_DB_ITEMS.filter(it => it.isPrime);
+  const chunks = [[], [], []];
+  cellRects.forEach((cell, i) => chunks[i % 3].push(cell));
+  const workers = [worker1, worker2, worker3];
   const detectedItemsThisFrame = [];
 
-  for (const cell of cellRects) {
-    const TOL = 10;
-    const clusterWords = textWords.filter(w =>
-      w.bbox.x0 >= cell.sx - TOL && w.bbox.x1 <= cell.sx + grid.cellW + TOL &&
-      w.bbox.y0 >= cell.sy - TOL && w.bbox.y1 <= cell.sy + grid.cellH + TOL
-    );
-    const clusterNums = numberWords.filter(w =>
-      w.bbox.x0 >= cell.sx - TOL && w.bbox.x1 <= cell.sx + grid.cellW + TOL &&
-      w.bbox.y0 >= cell.sy - TOL && w.bbox.y1 <= cell.sy + grid.cellH + TOL
-    );
+  const processChunk = async (chunk, worker) => {
+    for (const cell of chunk) {
+      const cellCvs = document.createElement("canvas");
+      cellCvs.width = grid.cellW; cellCvs.height = grid.cellH;
+      const cCtx = cellCvs.getContext("2d");
+      cCtx.drawImage(ocrCanvas, cell.sx, cell.sy, grid.cellW, grid.cellH, 0, 0, grid.cellW, grid.cellH);
 
-    if (clusterWords.length < 1 && clusterNums.length < 1) continue;
-    const combinedText = [...clusterWords, ...clusterNums].map(w => w.text.toUpperCase());
+      const { data: { words } } = await worker.recognize(cellCvs);
+      if (words.length < 1) continue;
 
-    if (DEBUG_MODE) {
-      logDebug(`[CELL r${cell.r}c${cell.c}] OCR words: [${combinedText.join(', ')}]`);
-    }
+      const combinedText = words.map(w => w.text.toUpperCase());
+      const clusterNums = words.filter(w => /\d/.test(w.text));
 
-    let bestMatch = null;
-    let highestRatio = 0;
-    const topScores = [];
+      let bestMatch = null;
+      let highestRatio = 0;
 
-    primeItems.forEach(dbItem => {
-      let score = 0;
-      const tWords = dbItem.searchWords;
-
-      tWords.forEach(tw => {
-        let maxS = 0;
-        combinedText.forEach(cw => {
-          const s = getSimilarity(cw, tw);
-          maxS = Math.max(maxS, s);
+      const primeItems = CACHED_DB_ITEMS.filter(it => it.isPrime);
+      primeItems.forEach(dbItem => {
+        let score = 0;
+        let firstWordMatch = 0;
+        dbItem.searchWords.forEach((tw, idx) => {
+          let maxS = 0;
+          combinedText.forEach(cw => {
+            const s = getSimilarity(cw, tw);
+            if (s > maxS) maxS = s;
+          });
+          if (idx === 0) firstWordMatch = maxS;
+          if (maxS > 0.45) score += maxS;
         });
-        if (maxS > 0.40) score += maxS;
+
+        let ratio = score / dbItem.searchWords.length;
+        if (firstWordMatch < 0.7 && dbItem.searchWords.length > 1) ratio *= 0.4;
+
+        if (ratio > highestRatio) {
+          highestRatio = ratio;
+          bestMatch = dbItem;
+        }
       });
 
-      const ratio = tWords.length > 0 ? score / tWords.length : 0;
+      if (!bestMatch || highestRatio < 0.45) continue;
 
-      const isBetter = ratio > highestRatio ||
-        (Math.abs(ratio - highestRatio) < 0.01 && tWords.length > (bestMatch?.searchWords?.length || 0));
-
-      if (isBetter) {
-        highestRatio = ratio;
-        bestMatch = dbItem;
+      let qty = 1;
+      const qNumsTopLeft = clusterNums.filter(w => w.bbox.x1 <= grid.cellW * 0.5 && w.bbox.y1 <= grid.cellH * 0.4);
+      if (qNumsTopLeft.length > 0) {
+        qNumsTopLeft.sort((a, b) => a.bbox.y0 - b.bbox.y0);
+        const topNum = qNumsTopLeft[0];
+        const sameLineParts = qNumsTopLeft.filter(w => Math.abs(w.bbox.y0 - topNum.bbox.y0) < 8);
+        sameLineParts.sort((a, b) => a.bbox.x0 - b.bbox.x0);
+        const fullQtyStr = sameLineParts.map(w => w.text.replace(/\D/g, '')).join("");
+        if (fullQtyStr) qty = Math.max(1, Math.min(999, parseInt(fullQtyStr)));
       }
-      if (DEBUG_MODE && ratio > 0.35) {
-        topScores.push({ name: dbItem.originalName, ratio: ratio.toFixed(3) });
-      }
-    });
 
-    if (DEBUG_MODE && topScores.length > 0) {
-      topScores.sort((a, b) => b.ratio - a.ratio || b.name.length - a.name.length);
-      logDebug(`[CELL r${cell.r}c${cell.c}] Top matches: ${topScores.slice(0, 5).map(s => `${s.name}(${s.ratio})`).join(' | ')}`);
+      detectedItemsThisFrame.push({ name: bestMatch.originalName, qty, x: cell.cx, y: cell.cy, cell });
+
+      dCtx.strokeStyle = "#ffff00"; dCtx.lineWidth = 2;
+      dCtx.strokeRect(cell.sx, cell.sy, grid.cellW, grid.cellH);
+      dCtx.fillStyle = "#ffe000"; dCtx.font = "bold 11px Arial";
+      const shortName = bestMatch.originalName.replace("PRIME ", "").substring(0, 18);
+      dCtx.fillText(`${shortName} x${qty}`, cell.sx + 4, cell.sy + 15);
     }
+  };
 
-    if (!bestMatch || highestRatio < 0.45) continue;
+  await Promise.all([
+    processChunk(chunks[0], workers[0]),
+    processChunk(chunks[1], workers[1]),
+    processChunk(chunks[2], workers[2])
+  ]);
 
-    const qTopLimit = cell.sy + grid.cellH * 0.45;
-    const qRightLimit = cell.sx + grid.cellW * 0.50;
-    const qNumsTopLeft = clusterNums.filter(w =>
-      w.bbox.x1 <= qRightLimit &&
-      w.bbox.y1 <= qTopLimit
-    );
-
-    let qty = 1;
-    if (qNumsTopLeft.length > 0) {
-      qNumsTopLeft.sort((a, b) => b.bbox.y0 - a.bbox.y0);
-      const m = qNumsTopLeft[0].text.match(/\d+/);
-      if (m) qty = Math.max(1, Math.min(999, parseInt(m[0])));
-    }
-
-    detectedItemsThisFrame.push({ name: bestMatch.originalName, qty, x: cell.cx, y: cell.cy, cell });
-
-    dCtx.strokeStyle = "#ffff00"; dCtx.lineWidth = 2;
-    dCtx.strokeRect(cell.sx, cell.sy, grid.cellW, grid.cellH);
-    dCtx.fillStyle = "#ffe000"; dCtx.font = "bold 11px Arial";
-    dCtx.fillText(`${bestMatch.originalName} x${qty}`, cell.sx + 4, cell.sy + 16);
-  }
-
-  const uniqueInFrame = [];
   detectedItemsThisFrame.forEach(item => {
-    const dup = uniqueInFrame.findIndex(it => Math.abs(it.x - item.x) < 20 && Math.abs(it.y - item.y) < 20);
-    if (dup === -1) uniqueInFrame.push(item);
-    else if (item.qty > uniqueInFrame[dup].qty) uniqueInFrame[dup] = item;
-  });
-
-  uniqueInFrame.forEach(item => {
     const existing = sessionInventory.get(item.name) || 0;
     if (item.qty >= existing) sessionInventory.set(item.name, item.qty);
   });
 
-  logDebug(`Detected ${uniqueInFrame.length} items (hybrid grid+anchor scan).`);
-  const sorted = [...uniqueInFrame].sort((a, b) => a.y - b.y || a.x - b.x);
-  updateLiveInventoryUI(sorted[sorted.length - 1], sorted, grid.cellH * 0.1);
+  logDebug(`Scan completo: ${detectedItemsThisFrame.length} items detectados.`);
+  const sorted = [...detectedItemsThisFrame].sort((a, b) => a.y - b.y || a.x - b.x);
+  if (sorted.length > 0) {
+    updateLiveInventoryUI(sorted[sorted.length - 1], sorted, grid.cellH * 0.1);
+  }
+
   return debugCanvas.toDataURL("image/jpeg", 0.7);
 }
-
 
 
 function updateLiveInventoryUI(lastFoundItem = null, currentFrameItems = [], avgU = 10) {
