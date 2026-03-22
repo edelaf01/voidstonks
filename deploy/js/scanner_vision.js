@@ -45,8 +45,8 @@ export function createTextCanvas(ocrCanvas, cell, grid) {
 }
 
 export function createBadgeCanvas(snapshot, cell, grid) {
-    const badgeW = Math.floor(grid.cellW * 0.40);
-    const badgeH = Math.floor(grid.cellH * 0.22);
+    const badgeW = Math.floor(grid.cellW * 0.35);
+    const badgeH = Math.floor(grid.cellH * 0.20);
     const BADGE_SCALE = 3;
 
     const tempCvs = document.createElement('canvas');
