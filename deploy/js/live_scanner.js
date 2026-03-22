@@ -2,6 +2,8 @@ import { state } from "./state.js";
 import { getPriceValue, getSlug } from "./api.js";
 import { showToast } from "./ui.js";
 import { TEXTS } from "./config.js";
+import { initOcrWorkers, stopOcrWorkers, getWorkers, initScannerMatcherData, findBestItemMatch, parseTextForItems } from "./scanner_ocr.js";
+import { getFrameHash, createFilteredOcrCanvas, createTextCanvas, createBadgeCanvas } from "./scanner_vision.js";
 
 let DEBUG_MODE = false;
 globalThis.toggleScannerDebug = () => {
@@ -29,6 +31,112 @@ const FAST_SCAN_RATE = 600;
 const SLOW_SCAN_RATE = 1500;
 const INV_SCAN_RATE = 2000;
 
+let autoScrollMode = false;
+let autoScrollHash = null;
+let autoScrollStableTimer = null;
+
+globalThis.toggleAutoScrollScan = function () {
+  autoScrollMode = !autoScrollMode;
+  autoScrollHash = null;
+  if (autoScrollStableTimer) { clearTimeout(autoScrollStableTimer); autoScrollStableTimer = null; }
+
+  const btn = document.getElementById('btn-auto-scan');
+  const scrollGuide = document.getElementById('live-scroll-guide');
+  if (btn) {
+    btn.dataset.active = autoScrollMode ? '1' : '0';
+    btn.style.background = autoScrollMode ? 'rgba(0,255,120,0.15)' : 'rgba(0,255,120,0.06)';
+    btn.style.borderColor = autoScrollMode ? 'rgba(0,255,120,0.7)' : 'rgba(0,255,120,0.25)';
+    btn.style.color = autoScrollMode ? '#00ff78' : '#4a7a5a';
+    btn.style.boxShadow = autoScrollMode ? '0 0 12px rgba(0,255,120,0.3)' : 'none';
+    btn.textContent = autoScrollMode ? '⟳ AUTO ✓' : '⟳ AUTO';
+  }
+  if (scrollGuide) {
+    scrollGuide.innerHTML = autoScrollMode
+      ? `<div style="color:#00ff78;font-weight:800;font-size:0.82em;">⟳ AUTO SCAN ACTIVO</div>
+         <div style="color:#506070;font-size:0.75em;margin-top:3px;">↓ Haz scroll en el inventario.<br>Se escaneará solo al detectar cambio.</div>`
+      : `<div style="color:#506070;font-size:0.75em;">Modo auto desactivado.</div>`;
+  }
+  showToast(autoScrollMode ? 'Auto-scroll scan ON' : 'Auto-scroll scan OFF');
+};
+
+// Llamado desde el background loop cuando isInventoryMode
+// Calcula su propio hash del área del grid (no el header que nunca cambia)
+async function checkAutoScrollScan() {
+  if (!autoScrollMode || isScanning) return;
+  const video = document.getElementById('live-video');
+  if (!video || !liveStream?.active || video.videoHeight < 10) return;
+
+  // Muestrear el área del grid (25-90% del alto) - cambia al hacer scroll
+  const sampleCvs = document.createElement('canvas');
+  sampleCvs.width = 48; sampleCvs.height = 27;
+  const sCtx = sampleCvs.getContext('2d');
+  const vw = video.videoWidth, vh = video.videoHeight;
+  sCtx.drawImage(video, 0, Math.floor(vh * 0.25), vw, Math.floor(vh * 0.65), 0, 0, 48, 27);
+  const currentHash = getFrameHash(sCtx, 48, 27);
+
+  if (autoScrollHash === null) {
+    autoScrollHash = currentHash;
+    return;
+  }
+
+  const delta = Math.abs(currentHash - autoScrollHash);
+  if (delta < 80) return; // pantalla estable, nada nuevo
+
+  // Cambio significativo detectado (scroll)
+  const scrollGuide = document.getElementById('live-scroll-guide');
+  const msgEl = document.getElementById('live-inv-msg');
+  if (scrollGuide) scrollGuide.innerHTML =
+    `<div style="color:#f1c40f;font-weight:800;font-size:0.82em;">⏳ Scroll detectado...</div>
+     <div style="color:#506070;font-size:0.75em;margin-top:2px;">Espera — escaneando en 2s</div>`;
+  if (msgEl) msgEl.innerText = 'SCROLL...';
+
+  // Resetear el hash para no re-disparar hasta que se escanee
+  autoScrollHash = null;
+
+  if (autoScrollStableTimer) clearTimeout(autoScrollStableTimer);
+  autoScrollStableTimer = setTimeout(async () => {
+    if (!autoScrollMode) return;
+    const video = document.getElementById('live-video');
+    if (!video || !liveStream?.active) return;
+
+    // Esperar a que background scan termine (si está corriendo)
+    let waited = 0;
+    while (isScanning && waited < 3000) {
+      await new Promise(r => setTimeout(r, 200)); waited += 200;
+    }
+    if (isScanning) return; // timeout
+
+    isScanning = true;
+    if (scrollGuide) scrollGuide.innerHTML =
+      `<div style="color:#00e5ff;font-weight:800;font-size:0.82em;">🔍 Escaneando...</div>
+       <div style="color:#506070;font-size:0.75em;margin-top:2px;">Espera un momento</div>`;
+
+    try {
+      snapshotCanvas.width = video.videoWidth;
+      snapshotCanvas.height = video.videoHeight;
+      snapshotCtx.drawImage(video, 0, 0);
+      if (msgEl) msgEl.innerText = 'AUTO 1/2...';
+      await processInventoryGrid(snapshotCanvas, video.videoWidth, video.videoHeight, 1080 / video.videoHeight);
+      if (msgEl) msgEl.innerText = 'AUTO 2/2...';
+      await processInventoryGrid(snapshotCanvas, video.videoWidth, video.videoHeight, 1080 / video.videoHeight);
+
+      const total = sessionInventory.size;
+      if (msgEl) msgEl.innerText = `${total} ITEMS`;
+      if (scrollGuide) scrollGuide.innerHTML =
+        `<div style="color:#00ff78;font-weight:800;font-size:0.82em;">✓ ${total} items guardados</div>
+         <div style="color:#506070;font-size:0.75em;margin-top:3px;">↓ Haz scroll a la siguiente página</div>`;
+
+      // Actualizar hash base con el frame escaneado
+      autoScrollHash = currentHash;
+    } catch (e) {
+      console.warn('Auto-scan error', e);
+    } finally {
+      isScanning = false;
+    }
+  }, 2000); // 2s de espera para que la página se estabilice
+}
+
+
 let virtualCanvas = null;
 let vCtx = null;
 let snapshotCanvas = null;
@@ -38,10 +146,6 @@ const priceCache = new Map();
 let lastTrackedRelic = "";
 let trackingDebounce = 0;
 let scanCounter = 0;
-
-let DYNAMIC_KNOWN_PARTS = new Set();
-let DYNAMIC_REGEX = null;
-let CACHED_DB_ITEMS = [];
 
 let sessionInventory = new Map();
 let isInventoryMode = false;
@@ -58,57 +162,6 @@ function logDebug(...args) {
 }
 
 let lastStableImageHash = null;
-function getFrameHash(ctx, w, h) {
-  // Sample 8x8 grid for a fast "perceptual" hash
-  const data = ctx.getImageData(0, 0, w, h).data;
-  let hash = 0;
-  for (let i = 0; i < data.length; i += Math.floor(data.length / 64)) {
-    hash += data[i];
-  }
-  return hash;
-}
-
-function initScannerData() {
-  if (!state.itemsDatabase || Object.keys(state.itemsDatabase).length === 0) return;
-  if (CACHED_DB_ITEMS.length > 0) return;
-
-  const tempParts = new Set();
-  [
-    "BLUEPRINT", "PRIME", "CHASSIS", "SYSTEMS", "NEUROPTICS", "HARNESS", "WINGS",
-    "DUAL", "TWIN", "DEX", "MK1", "PRISMA", "VANDAL", "WRAITH", "FORMA",
-    "CARAPACE", "CEREBRUM", "HANDLE", "BARREL", "RECEIVER", "STOCK", "LINK",
-    "POUCH", "STARS", "BLADE", "HILT", "HEAD", "MOTOR", "GRIP", "STRING", "LIMB",
-  ].forEach((p) => tempParts.add(p));
-
-  const processedItems = [];
-  Object.keys(state.itemsDatabase).forEach((itemName) => {
-    const upperName = itemName.toUpperCase();
-    const normalizedName = upperName.replaceAll("&", " ").replaceAll(/[^A-Z0-9 ]/g, " ");
-    const words = normalizedName.split(/\s+/).filter((w) => w !== "PRIME" && w.length > 0);
-    upperName.split(" ").forEach((w) => {
-      if (w.length > 2 || w === "BO") tempParts.add(w);
-    });
-    processedItems.push({
-      originalName: itemName,
-      searchWords: words,
-      firstWord: words[0],
-      isPrime: upperName.includes("PRIME")
-    });
-  });
-
-  CACHED_DB_ITEMS = processedItems;
-  DYNAMIC_KNOWN_PARTS = tempParts;
-  const partsArray = Array.from(DYNAMIC_KNOWN_PARTS).sort((a, b) => b.length - a.length);
-  DYNAMIC_REGEX = new RegExp(`(${partsArray.join("|")})`, "g");
-}
-
-function getSimilarity(s1, s2) {
-  let longer = s1, shorter = s2;
-  if (s1.length < s2.length) { longer = s2; shorter = s1; }
-  const longerLength = longer.length;
-  if (longerLength === 0) return 1;
-  return (longerLength - editDistance(longer, shorter)) / Number.parseFloat(longerLength);
-}
 
 function getRequiredCountLocal(setName, partName) {
   const manifest = state.primeManifest || [];
@@ -164,25 +217,6 @@ function checkAndPromoteSets() {
   });
 }
 
-function editDistance(s1, s2) {
-  s1 = s1.toLowerCase(); s2 = s2.toLowerCase();
-  const costs = new Array();
-  for (let i = 0; i <= s1.length; i++) {
-    let lastValue = i;
-    for (let j = 0; j <= s2.length; j++) {
-      if (i == 0) costs[j] = j;
-      else if (j > 0) {
-        let newValue = costs[j - 1];
-        if (s1.charAt(i - 1) != s2.charAt(j - 1))
-          newValue = Math.min(Math.min(newValue, lastValue), costs[j]) + 1;
-        costs[j - 1] = lastValue; lastValue = newValue;
-      }
-    }
-    if (i > 0) costs[s2.length] = lastValue;
-  }
-  return costs[s2.length];
-}
-
 export async function startLiveSession() {
   if (isStartingSession || liveStream?.active) return;
   isStartingSession = true;
@@ -191,7 +225,7 @@ export async function startLiveSession() {
   trackingDebounce = 0;
   sessionInventory.clear();
   isInventoryMode = false;
-  initScannerData();
+  initScannerMatcherData();
   const video = document.getElementById("live-video");
   const toggleBtn = document.getElementById("scanner-toggle");
   if (toggleBtn) {
@@ -227,18 +261,8 @@ export async function startLiveSession() {
 
     if (!worker1 && (globalThis.Tesseract || typeof Tesseract !== "undefined")) {
       logDebug("Initializing Triple Tesseract workers...");
-      const tess = globalThis.Tesseract || Tesseract;
-
-      const initWorker = async () => {
-        const w = await tess.createWorker("eng");
-        await w.setParameters({
-          tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-:/() ",
-          tessedit_pageseg_mode: "11",
-        });
-        return w;
-      };
-
-      [worker1, worker2, worker3] = await Promise.all([initWorker(), initWorker(), initWorker()]);
+      const workers = await initOcrWorkers();
+      worker1 = workers[0]; worker2 = workers[1]; worker3 = workers[2];
       logDebug("Triple Workers ready");
     }
 
@@ -266,9 +290,8 @@ export function stopLiveSession() {
   if (scanInterval) clearTimeout(scanInterval);
   if (autoCloseTimer) clearTimeout(autoCloseTimer);
   if (liveStream) { liveStream.getTracks().forEach((track) => track.stop()); liveStream = null; }
-  if (worker1) { worker1.terminate(); worker1 = null; }
-  if (worker2) { worker2.terminate(); worker2 = null; }
-  if (worker3) { worker3.terminate(); worker3 = null; }
+  stopOcrWorkers();
+  worker1 = null; worker2 = null; worker3 = null;
   isScanning = false; detectionLocked = false; isStartingSession = false;
   const toggleBtn = document.getElementById("scanner-toggle");
   if (toggleBtn) {
@@ -325,6 +348,7 @@ async function processFrame() {
 
   // Check for stability if in inventory mode
   if (isInventoryMode) {
+    checkAutoScrollScan(); // fire-and-forget, usa su propio hash del grid
     const currentHash = getFrameHash(vCtx, virtualCanvas.width, virtualCanvas.height);
     if (lastStableImageHash !== null && Math.abs(currentHash - lastStableImageHash) < 50) {
       // Screen hasn't changed enough to warrant a new heavy OCR scan
@@ -360,7 +384,11 @@ async function processFrame() {
         badge.style.background = "rgba(241,196,15,0.1)";
       }
       const msgEl = document.getElementById("live-inv-msg");
-      if (msgEl) msgEl.innerText = sh.statusIdle === "IDLE" ? "READY" : "LISTO";
+      if (msgEl && !autoScrollMode) msgEl.innerText = sh.statusIdle === "IDLE" ? "READY" : "LISTO";
+
+      // Auto-scroll mode: detectar cambio de página para escanear automáticamente
+      const frameHash = getFrameHash(vCtx, virtualCanvas.width, virtualCanvas.height);
+      checkAutoScrollScan(frameHash); // no-op si autoScrollMode=false
     } else if (hasRelic || hasRefinement) {
       const sh = TEXTS[state.currentLang].scannerHUD;
       isInventoryMode = false;
@@ -440,49 +468,7 @@ async function processInventoryGrid(snapshot, width, height, scale) {
   dCtx.lineWidth = 1;
   cellRects.forEach(cell => dCtx.strokeRect(cell.sx, cell.sy, grid.cellW, grid.cellH));
 
-  // --- Broad grayscale OCR on entire screen ---
-  // Create a separate filtered canvas just for Tesseract
-  const ocrCanvas = document.createElement("canvas");
-  ocrCanvas.width = width; ocrCanvas.height = height;
-  const ocrCtx = ocrCanvas.getContext("2d");
-  ocrCtx.drawImage(snapshot, 0, 0);
-
-  // --- MUESTREO DINÁMICO DEL COLOR DEL TEXTO ---
-  // Tomamos una muestra de la esquina superior de la primera celda
-  const sampleData = ocrCtx.getImageData(grid.gridX + 5, grid.gridY + 5, 20, 20).data;
-  let refR = 0, refG = 0, refB = 0, count = 0;
-
-  for (let i = 0; i < sampleData.length; i += 4) {
-    const r = sampleData[i], g = sampleData[i + 1], b = sampleData[i + 2];
-    const lum = 0.299 * r + 0.587 * g + 0.114 * b;
-    if (lum > 100 && lum < 240) { // Evitamos el fondo negro y el blanco quemado
-      refR += r; refG += g; refB += b; count++;
-    }
-  }
-
-  // Si no hay muestra válida, usamos un dorado por defecto
-  if (count > 0) {
-    refR /= count; refG /= count; refB /= count;
-  } else {
-    refR = 200; refG = 170; refB = 100;
-  }
-
-  const imgData = ocrCtx.getImageData(0, 0, width, height);
-  const px = imgData.data;
-  for (let i = 0; i < px.length; i += 4) {
-    const r = px[i], g = px[i + 1], b = px[i + 2];
-    const dist = Math.sqrt(Math.pow(r - refR, 2) + Math.pow(g - refG, 2) + Math.pow(b - refB, 2));
-    const lum = 0.299 * r + 0.587 * g + 0.114 * b;
-
-    // Filtro dinámico: Si se parece al color de referencia o es blanco brillante
-    if (dist < 85 || lum > 200) {
-      px[i] = px[i + 1] = px[i + 2] = 0; // Texto -> Negro
-    } else {
-      px[i] = px[i + 1] = px[i + 2] = 255; // Fondo -> Blanco
-    }
-  }
-  ocrCtx.putImageData(imgData, 0, 0);
-
+  const ocrCanvas = createFilteredOcrCanvas(snapshot, width, height, grid, cellRects);
 
   logDebug(`Iniciando OCR en paralelo con 3 workers para ${cellRects.length} celdas...`);
 
@@ -492,60 +478,43 @@ async function processInventoryGrid(snapshot, width, height, scale) {
   const workers = [worker1, worker2, worker3];
   const detectedItemsThisFrame = [];
 
-  // 2. Función interna que procesará cada grupo
+  // Función interna que procesará cada grupo
   const processChunk = async (chunk, worker) => {
     for (const cell of chunk) {
-      // Creamos un mini-canvas para la celda (esto acelera MUCHO a Tesseract)
-      const cellCvs = document.createElement("canvas");
-      cellCvs.width = grid.cellW; cellCvs.height = grid.cellH;
-      const cCtx = cellCvs.getContext("2d");
-      cCtx.drawImage(ocrCanvas, cell.sx, cell.sy, grid.cellW, grid.cellH, 0, 0, grid.cellW, grid.cellH);
+      // OCR en dos canvases:
+      // A) Zona de texto (mitad inferior, 3x) → nombre del item, sin arte de carta
+      // B) Badge de cantidad (esquina sup-izq, 3x) desde snapshot crudo → número
 
-      const { data: { words } } = await worker.recognize(cellCvs);
+      const textCvs = createTextCanvas(ocrCanvas, cell, grid);
+      const { data: { words } } = await worker.recognize(textCvs);
       if (words.length < 1) continue;
 
       const combinedText = words.map(w => w.text.toUpperCase());
-      const clusterNums = words.filter(w => /\d/.test(w.text));
 
-      let bestMatch = null;
-      let highestRatio = 0;
+      if (DEBUG_MODE) {
+        logDebug(`[CELL r${cell.r}c${cell.c}] OCR words: [${combinedText.join(', ')}]`);
+      }
 
-      // --- Lógica de Matching (Anti-Nekros incluida) ---
-      const primeItems = CACHED_DB_ITEMS.filter(it => it.isPrime);
-      primeItems.forEach(dbItem => {
-        let score = 0;
-        let firstWordMatch = 0;
-        dbItem.searchWords.forEach((tw, idx) => {
-          let maxS = 0;
-          combinedText.forEach(cw => {
-            const s = getSimilarity(cw, tw);
-            if (s > maxS) maxS = s;
-          });
-          if (idx === 0) firstWordMatch = maxS;
-          if (maxS > 0.45) score += maxS;
-        });
-
-        let ratio = score / dbItem.searchWords.length;
-        if (firstWordMatch < 0.7 && dbItem.searchWords.length > 1) ratio *= 0.4;
-
-        if (ratio > highestRatio) {
-          highestRatio = ratio;
-          bestMatch = dbItem;
-        }
-      });
+      const matchOpts = findBestItemMatch(combinedText);
+      let bestMatch = matchOpts.bestMatch;
+      let highestRatio = matchOpts.highestRatio;
 
       if (!bestMatch || highestRatio < 0.45) continue;
 
-      // --- Cantidad (Filtro por Coordenada Y) ---
+      // --- Cantidad: siempre desde badge en snapshot crudo (top-left de celda) ---
+      // La zona de texto no incluye el badge → leer siempre desde la imagen sin filtro
       let qty = 1;
-      const qNumsTopLeft = clusterNums.filter(w => w.bbox.x1 <= grid.cellW * 0.5 && w.bbox.y1 <= grid.cellH * 0.4);
-      if (qNumsTopLeft.length > 0) {
-        qNumsTopLeft.sort((a, b) => a.bbox.y0 - b.bbox.y0);
-        const topNum = qNumsTopLeft[0];
-        const sameLineParts = qNumsTopLeft.filter(w => Math.abs(w.bbox.y0 - topNum.bbox.y0) < 8);
-        sameLineParts.sort((a, b) => a.bbox.x0 - b.bbox.x0);
-        const fullQtyStr = sameLineParts.map(w => w.text.replace(/\D/g, '')).join("");
-        if (fullQtyStr) qty = Math.max(1, Math.min(999, parseInt(fullQtyStr)));
+      const badgeCvs = createBadgeCanvas(snapshot, cell, grid);
+      const { data: { words: badgeWords } } = await worker.recognize(badgeCvs);
+      const badgeNums = badgeWords.filter(w => /\d/.test(w.text));
+      if (badgeNums.length > 0) {
+        // La cantidad correcta SIEMPRE es el número más a la derecha del recuadro del badge, 
+        // así esquivamos cualquier número fantasma 3D o el badge UI que esté a la izquierda.
+        badgeNums.sort((a, b) => b.bbox.x0 - a.bbox.x0); // De mayor a menor X0 (de derecha a izquierda)
+        const pureDigit = badgeNums[0].text.replace(/\D/g, ''); // Coger los digitos del que está más a la derecha
+        if (pureDigit) {
+          qty = Math.max(1, Math.min(999, parseInt(pureDigit)));
+        }
       }
 
       detectedItemsThisFrame.push({ name: bestMatch.originalName, qty, x: cell.cx, y: cell.cy, cell });
@@ -731,66 +700,7 @@ function handleSuccessfulScan(video, width, height, foundItems) {
   openScanModal(snapshotCanvas.toDataURL("image/jpeg", 0.85), foundItems);
 }
 
-function parseTextForItems(ocrData) {
-  if (!ocrData?.words || !state.itemsDatabase) return [];
-  if (CACHED_DB_ITEMS.length === 0) initScannerData();
-  let rawWords = [];
-  ocrData.words.forEach((w) => {
-    let text = w.text.toUpperCase().replaceAll("&", " ").replaceAll(/[^A-Z]/g, " ");
-    if (DYNAMIC_REGEX) text = text.replaceAll(DYNAMIC_REGEX, " $1 ");
-    const splitParts = text.split(/\s+/).filter((p) => p.length > 2 || p === "BO");
-    splitParts.forEach((part) => {
-      rawWords.push({ text: part, x: (w.bbox.x0 + w.bbox.x1) / 2, y: (w.bbox.y0 + w.bbox.y1) / 2 });
-    });
-  });
-  const ocrWords = rawWords; // Restore context for Rewards
-  const dbItems = CACHED_DB_ITEMS;
-  const finalResults = [];
-  const usedIndices = new Set();
 
-  function runMatchingPass(lookAheadLimit) {
-    for (let i = 0; i < ocrWords.length; i++) {
-      if (usedIndices.has(i) || finalResults.length >= 32) continue;
-      for (const item of dbItems) {
-        const firstWordDB = item.firstWord;
-        const similarityThreshold = firstWordDB.length <= 3 ? 0.9 : 0.85;
-        if (getSimilarity(ocrWords[i].text, firstWordDB) > similarityThreshold) {
-          let matchedIndices = [i];
-          let currentPos = i;
-          let possibleMatch = true;
-          for (let j = 1; j < item.searchWords.length; j++) {
-            let foundNext = false;
-            const targetComp = item.searchWords[j];
-            for (let dist = 1; dist <= lookAheadLimit; dist++) {
-              const nextIdx = currentPos + dist;
-              if (nextIdx >= ocrWords.length || usedIndices.has(nextIdx)) continue;
-              if (getSimilarity(ocrWords[nextIdx].text, targetComp) > 0.75) {
-                matchedIndices.push(nextIdx); currentPos = nextIdx; foundNext = true; break;
-              }
-            }
-            if (!possibleMatch || !foundNext) {
-              if (targetComp === "BLUEPRINT") {
-                const prevWordDB = item.searchWords[j - 1];
-                if (["NEUROPTICS", "SYSTEMS", "CHASSIS", "HARNESS", "WINGS", "CARAPACE", "CEREBRUM", "FORMA"].includes(prevWordDB)) foundNext = true;
-                else { possibleMatch = false; break; }
-              } else { possibleMatch = false; break; }
-            }
-          }
-          if (possibleMatch) {
-            const avgX = matchedIndices.reduce((sum, idx) => sum + ocrWords[idx].x, 0) / matchedIndices.length;
-            const avgY = matchedIndices.reduce((sum, idx) => sum + ocrWords[idx].y, 0) / matchedIndices.length;
-            finalResults.push({ name: item.originalName, xPos: avgX, yPos: avgY });
-            matchedIndices.forEach((idx) => usedIndices.add(idx));
-            break;
-          }
-        }
-      }
-    }
-  }
-  runMatchingPass(3);
-  if (finalResults.length < 32) runMatchingPass(8);
-  return finalResults;
-}
 
 async function openScanModal(imageUrl, items) {
   const modal = document.getElementById("scan-success-modal");
@@ -905,7 +815,15 @@ globalThis.closeScanModal = function () {
 };
 
 globalThis.manualPrecisionScan = async function () {
-  if (isScanning) return showToast("Scanner busy...");
+  // Si el background loop está corriendo, esperar hasta 2s antes de rechazar
+  if (isScanning) {
+    let waited = 0;
+    while (isScanning && waited < 2000) {
+      await new Promise(r => setTimeout(r, 200));
+      waited += 200;
+    }
+    if (isScanning) return showToast("Scanner busy...");
+  }
   const video = document.getElementById("live-video");
   if (!video || !liveStream?.active) return showToast("Scanner not active");
 
@@ -925,12 +843,12 @@ globalThis.manualPrecisionScan = async function () {
     snapshotCanvas.height = height;
     snapshotCtx.drawImage(video, 0, 0);
 
-    if (msgEl) msgEl.innerText = "SCANNING...";
-
+    // 2 pasadas sobre el mismo frame: la segunda corrige errores limítrofe de la primera
+    if (msgEl) msgEl.innerText = "SCANNING 1/2...";
+    await processInventoryGrid(snapshotCanvas, width, height, scale);
+    if (msgEl) msgEl.innerText = "SCANNING 2/2...";
     const diagnosticUrl = await processInventoryGrid(snapshotCanvas, width, height, scale);
     if (msgEl) msgEl.innerText = "DONE";
-
-    if (!diagnosticUrl) { isScanning = false; return; }
 
     if (DEBUG_MODE) {
       const dbgImg = document.getElementById('live-debug-snapshot-img');
