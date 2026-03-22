@@ -28,15 +28,18 @@ export async function initOcrWorkers() {
         });
         return w;
     };
-
+    // scanner_ocr.js
     const initBadgeWorker = async () => {
         const w = await tess.createWorker("eng");
         await w.setParameters({
-            tessedit_char_whitelist: "0123456789",
-            tessedit_pageseg_mode: "7", // Cambiado a 7 (Single line) para evitar ruido
+            // Solo dígitos
+            tessedit_char_whitelist: " 0123456789",
+            // PSM 7: Trata la imagen como una sola línea de texto.
+            // Ahora que la imagen es grande y tiene padding, esto será perfecto.
+            tessedit_pageseg_mode: "7",
+            // LSTM Mode
             tessedit_ocr_engine_mode: "3",
-            load_system_dawg: "0", // Desactiva diccionarios para evitar "autocorrecciones" numéricas
-            load_freq_dawg: "0"
+
         });
         return w;
     };

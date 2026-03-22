@@ -2,19 +2,30 @@ import { state } from "./state.js";
 import { getPriceValue, getSlug } from "./api.js";
 import { showToast } from "./ui.js";
 import { TEXTS } from "./config.js";
-import { initOcrWorkers, stopOcrWorkers, getWorkers, initScannerMatcherData, findBestItemMatch, parseTextForItems } from "./scanner_ocr.js";
-import { getFrameHash, createFilteredOcrCanvas, createTextCanvas, createBadgeCanvas } from "./scanner_vision.js";
+import {
+  initOcrWorkers,
+  stopOcrWorkers,
+  getBadgeWorkers,
+  initScannerMatcherData,
+  findBestItemMatch,
+  parseTextForItems,
+} from "./scanner_ocr.js";
+import {
+  getFrameHash,
+  createFilteredOcrCanvas,
+  createTextCanvas,
+  createBadgeCanvas,
+} from "./scanner_vision.js";
 
 let DEBUG_MODE = false;
 globalThis.toggleScannerDebug = () => {
   DEBUG_MODE = !DEBUG_MODE;
-  const btn = document.getElementById('btn-debug-toggle');
-  if (btn) btn.classList.toggle('active', DEBUG_MODE);
-  const dbgPanel = document.getElementById('live-debug-snapshot');
-  if (dbgPanel) dbgPanel.style.display = DEBUG_MODE ? 'block' : 'none';
-  showToast(DEBUG_MODE ? 'Debug mode ON' : 'Debug mode OFF');
+  const btn = document.getElementById("btn-debug-toggle");
+  if (btn) btn.classList.toggle("active", DEBUG_MODE);
+  const dbgPanel = document.getElementById("live-debug-snapshot");
+  if (dbgPanel) dbgPanel.style.display = DEBUG_MODE ? "block" : "none";
+  showToast(DEBUG_MODE ? "Debug mode ON" : "Debug mode OFF");
 };
-
 
 let liveStream = null;
 let scanInterval = null;
@@ -36,42 +47,81 @@ let autoScrollHash = null;
 let autoScrollStableTimer = null;
 
 globalThis.toggleAutoScrollScan = function () {
+  // 1. Gestión de estado y timers
   autoScrollMode = !autoScrollMode;
   autoScrollHash = null;
-  if (autoScrollStableTimer) { clearTimeout(autoScrollStableTimer); autoScrollStableTimer = null; }
 
-  const btn = document.getElementById('btn-auto-scan');
-  const scrollGuide = document.getElementById('live-scroll-guide');
-  if (btn) {
-    btn.dataset.active = autoScrollMode ? '1' : '0';
-    btn.style.background = autoScrollMode ? 'rgba(0,255,120,0.15)' : 'rgba(0,255,120,0.06)';
-    btn.style.borderColor = autoScrollMode ? 'rgba(0,255,120,0.7)' : 'rgba(0,255,120,0.25)';
-    btn.style.color = autoScrollMode ? '#00ff78' : '#4a7a5a';
-    btn.style.boxShadow = autoScrollMode ? '0 0 12px rgba(0,255,120,0.3)' : 'none';
-    btn.textContent = autoScrollMode ? '⟳ AUTO ✓' : '⟳ AUTO';
+  if (autoScrollStableTimer) {
+    clearTimeout(autoScrollStableTimer);
+    autoScrollStableTimer = null;
   }
+
+  // 2. Actualización del Botón (Agrupando lógica de estilos)
+  const btn = document.getElementById("btn-auto-scan");
+  if (btn) {
+    const theme = autoScrollMode
+      ? {
+          alpha: "0.15",
+          border: "0.7",
+          color: "#00ff78",
+          shadow: "0 0 12px rgba(0,255,120,0.3)",
+          label: "⟳ AUTO ✓",
+        }
+      : {
+          alpha: "0.06",
+          border: "0.25",
+          color: "#4a7a5a",
+          shadow: "none",
+          label: "⟳ AUTO",
+        };
+
+    btn.dataset.active = autoScrollMode ? "1" : "0";
+    btn.textContent = theme.label;
+
+    Object.assign(btn.style, {
+      background: `rgba(0,255,120,${theme.alpha})`,
+      borderColor: `rgba(0,255,120,${theme.border})`,
+      color: theme.color,
+      boxShadow: theme.shadow,
+    });
+  }
+
+  // 3. Actualización de la Guía Visual
+  const scrollGuide = document.getElementById("live-scroll-guide");
   if (scrollGuide) {
     scrollGuide.innerHTML = autoScrollMode
       ? `<div style="color:#00ff78;font-weight:800;font-size:0.82em;">⟳ AUTO SCAN ACTIVO</div>
          <div style="color:#506070;font-size:0.75em;margin-top:3px;">↓ Haz scroll en el inventario.<br>Se escaneará solo al detectar cambio.</div>`
       : `<div style="color:#506070;font-size:0.75em;">Modo auto desactivado.</div>`;
   }
-  showToast(autoScrollMode ? 'Auto-scroll scan ON' : 'Auto-scroll scan OFF');
+
+  showToast(`Auto-scroll scan ${autoScrollMode ? "ON" : "OFF"}`);
 };
 
-// Llamado desde el background loop cuando isInventoryMode
-// Calcula su propio hash del área del grid (no el header que nunca cambia)
 async function checkAutoScrollScan() {
   if (!autoScrollMode || isScanning) return;
-  const video = document.getElementById('live-video');
+
+  const video = document.getElementById("live-video");
   if (!video || !liveStream?.active || video.videoHeight < 10) return;
 
-  // Muestrear el área del grid (25-90% del alto) - cambia al hacer scroll
-  const sampleCvs = document.createElement('canvas');
-  sampleCvs.width = 48; sampleCvs.height = 27;
-  const sCtx = sampleCvs.getContext('2d');
-  const vw = video.videoWidth, vh = video.videoHeight;
-  sCtx.drawImage(video, 0, Math.floor(vh * 0.25), vw, Math.floor(vh * 0.65), 0, 0, 48, 27);
+  const vw = video.videoWidth,
+    vh = video.videoHeight;
+  const sampleCvs = document.createElement("canvas");
+  sampleCvs.width = 48;
+  sampleCvs.height = 27;
+
+  const sCtx = sampleCvs.getContext("2d");
+  sCtx.drawImage(
+    video,
+    0,
+    Math.floor(vh * 0.25),
+    vw,
+    Math.floor(vh * 0.65),
+    0,
+    0,
+    48,
+    27,
+  );
   const currentHash = getFrameHash(sCtx, 48, 27);
 
   if (autoScrollHash === null) {
@@ -79,63 +129,48 @@ async function checkAutoScrollScan() {
     return;
   }
 
-  const delta = Math.abs(currentHash - autoScrollHash);
-  if (delta < 80) return; // pantalla estable, nada nuevo
+  if (Math.abs(currentHash - autoScrollHash) < 80) return;
 
-  // Cambio significativo detectado (scroll)
-  const scrollGuide = document.getElementById('live-scroll-guide');
-  const msgEl = document.getElementById('live-inv-msg');
-  if (scrollGuide) scrollGuide.innerHTML =
-    `<div style="color:#f1c40f;font-weight:800;font-size:0.82em;">⏳ Scroll detectado...</div>
-     <div style="color:#506070;font-size:0.75em;margin-top:2px;">Espera — escaneando en 2s</div>`;
-  if (msgEl) msgEl.innerText = 'SCROLL...';
-
-  // Resetear el hash para no re-disparar hasta que se escanee
+  updateScrollUI("detected");
   autoScrollHash = null;
 
   if (autoScrollStableTimer) clearTimeout(autoScrollStableTimer);
-  autoScrollStableTimer = setTimeout(async () => {
-    if (!autoScrollMode) return;
-    const video = document.getElementById('live-video');
-    if (!video || !liveStream?.active) return;
 
-    // Esperar a que background scan termine (si está corriendo)
-    let waited = 0;
-    while (isScanning && waited < 3000) {
-      await new Promise(r => setTimeout(r, 200)); waited += 200;
-    }
-    if (isScanning) return; // timeout
+  autoScrollStableTimer = setTimeout(async () => {
+    if (!autoScrollMode || isScanning) return; // Si ya empezó otro scan, cancelar este
 
     isScanning = true;
-    if (scrollGuide) scrollGuide.innerHTML =
-      `<div style="color:#00e5ff;font-weight:800;font-size:0.82em;">🔍 Escaneando...</div>
-       <div style="color:#506070;font-size:0.75em;margin-top:2px;">Espera un momento</div>`;
+    updateScrollUI("scanning");
 
     try {
+      const scale = 1080 / video.videoHeight;
       snapshotCanvas.width = video.videoWidth;
       snapshotCanvas.height = video.videoHeight;
       snapshotCtx.drawImage(video, 0, 0);
-      if (msgEl) msgEl.innerText = 'AUTO 1/2...';
-      await processInventoryGrid(snapshotCanvas, video.videoWidth, video.videoHeight, 1080 / video.videoHeight);
-      if (msgEl) msgEl.innerText = 'AUTO 2/2...';
-      await processInventoryGrid(snapshotCanvas, video.videoWidth, video.videoHeight, 1080 / video.videoHeight);
 
-      const total = sessionInventory.size;
-      if (msgEl) msgEl.innerText = `${total} ITEMS`;
-      if (scrollGuide) scrollGuide.innerHTML =
-        `<div style="color:#00ff78;font-weight:800;font-size:0.82em;">✓ ${total} items guardados</div>
-         <div style="color:#506070;font-size:0.75em;margin-top:3px;">↓ Haz scroll a la siguiente página</div>`;
+      // Realizamos el proceso de escaneo (2 pasadas para precisión)
+      await processInventoryGrid(
+        snapshotCanvas,
+        video.videoWidth,
+        video.videoHeight,
+        scale,
+      );
+      await processInventoryGrid(
+        snapshotCanvas,
+        video.videoWidth,
+        video.videoHeight,
+        scale,
+      );
 
-      // Actualizar hash base con el frame escaneado
+      updateScrollUI("done", sessionInventory.size);
       autoScrollHash = currentHash;
     } catch (e) {
-      console.warn('Auto-scan error', e);
+      console.warn("Auto-scan error", e);
     } finally {
       isScanning = false;
     }
-  }, 2000); // 2s de espera para que la página se estabilice
+  }, 2000);
 }
-
 
 let virtualCanvas = null;
 let vCtx = null;
@@ -149,14 +184,18 @@ let scanCounter = 0;
 
 let sessionInventory = new Map();
 let isInventoryMode = false;
-let _preSessionItemNames = new Set(); // snapshot of known names BEFORE a scan run
-
+let _preSessionItemNames = new Set();
 
 let debugLogArchive = [];
 function logDebug(...args) {
   if (DEBUG_MODE) {
     console.log(" [DEBUG]:", ...args);
-    debugLogArchive.push(`[${new Date().toLocaleTimeString()}] ` + args.map(a => typeof a === "object" ? JSON.stringify(a) : a).join(" "));
+    debugLogArchive.push(
+      `[${new Date().toLocaleTimeString()}] ` +
+        args
+          .map((a) => (typeof a === "object" ? JSON.stringify(a) : a))
+          .join(" "),
+    );
     if (debugLogArchive.length > 500) debugLogArchive.shift();
   }
 }
@@ -166,15 +205,18 @@ let lastStableImageHash = null;
 function getRequiredCountLocal(setName, partName) {
   const manifest = state.primeManifest || [];
   const item = manifest.find((i) => i.name === setName);
-  if (!item || !item.components) return 1;
+  if (!item?.components) return 1;
 
-  let cleanPart = partName === setName ? "Blueprint" : partName.replace(setName, "").trim();
-  if (cleanPart.endsWith(" Blueprint")) cleanPart = cleanPart.replace(" Blueprint", "").trim();
+  let cleanPart =
+    partName === setName ? "Blueprint" : partName.replace(setName, "").trim();
+  if (cleanPart.endsWith(" Blueprint"))
+    cleanPart = cleanPart.replace(" Blueprint", "").trim();
 
-  const comp = item.components.find((c) =>
-    c.name === cleanPart ||
-    (c.name + " Blueprint") === cleanPart ||
-    (setName + " " + c.name) === partName
+  const comp = item.components.find(
+    (c) =>
+      c.name === cleanPart ||
+      c.name + " Blueprint" === cleanPart ||
+      setName + " " + c.name === partName,
   );
   return comp ? comp.itemCount : 1;
 }
@@ -183,13 +225,14 @@ function checkAndPromoteSets() {
   const inv = state.primeInventory;
   if (!inv) return;
 
-  const allSetNames = Object.keys(state.itemsDatabase).filter(n => n.endsWith(" Set"));
+  const allSetNames = Object.keys(state.itemsDatabase).filter((n) =>
+    n.endsWith(" Set"),
+  );
 
-  allSetNames.forEach(setName => {
+  allSetNames.forEach((setName) => {
     const baseName = setName.replace(" Set", "");
-    const parts = Object.keys(state.itemsDatabase).filter(n =>
-      (n === baseName || n.startsWith(baseName + " ")) &&
-      n !== setName
+    const parts = Object.keys(state.itemsDatabase).filter(
+      (n) => (n === baseName || n.startsWith(baseName + " ")) && n !== setName,
     );
 
     if (parts.length < 2) return;
@@ -197,7 +240,7 @@ function checkAndPromoteSets() {
     let canComplete = true;
     let minSets = Infinity;
 
-    parts.forEach(part => {
+    parts.forEach((part) => {
       const required = getRequiredCountLocal(baseName, part);
       const owned = inv[part] || 0;
       const possible = Math.floor(owned / required);
@@ -207,9 +250,9 @@ function checkAndPromoteSets() {
 
     if (canComplete && minSets > 0) {
       logDebug(`SET COMPLETED: Promoting parts to ${setName} x${minSets}`);
-      parts.forEach(part => {
+      parts.forEach((part) => {
         const required = getRequiredCountLocal(baseName, part);
-        inv[part] -= (required * minSets);
+        inv[part] -= required * minSets;
         if (inv[part] <= 0) delete inv[part];
       });
       inv[setName] = (inv[setName] || 0) + minSets;
@@ -220,7 +263,8 @@ function checkAndPromoteSets() {
 export async function startLiveSession() {
   if (isStartingSession || liveStream?.active) return;
   isStartingSession = true;
-  detectionLocked = false; isScanning = false;
+  detectionLocked = false;
+  isScanning = false;
   lastTrackedRelic = "";
   trackingDebounce = 0;
   sessionInventory.clear();
@@ -230,12 +274,17 @@ export async function startLiveSession() {
   const toggleBtn = document.getElementById("scanner-toggle");
   if (toggleBtn) {
     toggleBtn.classList.add("active");
-    toggleBtn.querySelector(".label").innerText = TEXTS[state.currentLang].scanner.starting;
+    toggleBtn.querySelector(".label").innerText =
+      TEXTS[state.currentLang].scanner.starting;
   }
   try {
     logDebug("Requesting display media...");
     liveStream = await navigator.mediaDevices.getDisplayMedia({
-      video: { cursor: "never", displaySurface: "window", frameRate: { ideal: 10, max: 15 } },
+      video: {
+        cursor: "never",
+        displaySurface: "window",
+        frameRate: { ideal: 10, max: 15 },
+      },
       audio: false,
     });
 
@@ -259,10 +308,15 @@ export async function startLiveSession() {
       snapshotCtx = snapshotCanvas.getContext("2d");
     }
 
-    if (!worker1 && (globalThis.Tesseract || typeof Tesseract !== "undefined")) {
+    if (
+      !worker1 &&
+      (globalThis.Tesseract || typeof Tesseract !== "undefined")
+    ) {
       logDebug("Initializing Triple Tesseract workers...");
       const workers = await initOcrWorkers();
-      worker1 = workers[0]; worker2 = workers[1]; worker3 = workers[2];
+      worker1 = workers[0];
+      worker2 = workers[1];
+      worker3 = workers[2];
       logDebug("Triple Workers ready");
     }
 
@@ -274,7 +328,9 @@ export async function startLiveSession() {
     }, 1000);
 
     showToast(TEXTS[state.currentLang].scanner.toastActive);
-    if (toggleBtn) toggleBtn.querySelector(".label").innerText = TEXTS[state.currentLang].scanner.active;
+    if (toggleBtn)
+      toggleBtn.querySelector(".label").innerText =
+        TEXTS[state.currentLang].scanner.active;
     liveStream.getVideoTracks()[0].onended = () => {
       logDebug("Stream track ended");
       stopLiveSession();
@@ -283,16 +339,25 @@ export async function startLiveSession() {
     console.error("Scanner startup failed:", e);
     showToast("Error: " + e.message);
     stopLiveSession();
-  } finally { isStartingSession = false; }
+  } finally {
+    isStartingSession = false;
+  }
 }
 
 export function stopLiveSession() {
   if (scanInterval) clearTimeout(scanInterval);
   if (autoCloseTimer) clearTimeout(autoCloseTimer);
-  if (liveStream) { liveStream.getTracks().forEach((track) => track.stop()); liveStream = null; }
+  if (liveStream) {
+    liveStream.getTracks().forEach((track) => track.stop());
+    liveStream = null;
+  }
   stopOcrWorkers();
-  worker1 = null; worker2 = null; worker3 = null;
-  isScanning = false; detectionLocked = false; isStartingSession = false;
+  worker1 = null;
+  worker2 = null;
+  worker3 = null;
+  isScanning = false;
+  detectionLocked = false;
+  isStartingSession = false;
   const toggleBtn = document.getElementById("scanner-toggle");
   if (toggleBtn) {
     toggleBtn.classList.remove("active");
@@ -304,7 +369,8 @@ export function stopLiveSession() {
     drawer.classList.remove("open");
     drawer.classList.add("closed");
   }
-  document.getElementById("inv-hud")?.style && (document.getElementById("inv-hud").style.display = "none");
+  document.getElementById("inv-hud")?.style &&
+    (document.getElementById("inv-hud").style.display = "none");
 }
 
 function startLoop() {
@@ -332,7 +398,10 @@ async function processFrame() {
   isScanning = true;
   scanCounter++;
   const video = document.getElementById("live-video");
-  if (!video || video.videoWidth < 10) { isScanning = false; return; }
+  if (!video || video.videoWidth < 10) {
+    isScanning = false;
+    return;
+  }
 
   const width = video.videoWidth;
   const height = video.videoHeight;
@@ -344,13 +413,30 @@ async function processFrame() {
   if (!vCtx) vCtx = virtualCanvas.getContext("2d");
 
   vCtx.filter = "grayscale(100%) brightness(1.3) contrast(200%)";
-  vCtx.drawImage(video, 0, 0, width, hCropH, 0, 0, virtualCanvas.width, virtualCanvas.height);
+  vCtx.drawImage(
+    video,
+    0,
+    0,
+    width,
+    hCropH,
+    0,
+    0,
+    virtualCanvas.width,
+    virtualCanvas.height,
+  );
 
   // Check for stability if in inventory mode
   if (isInventoryMode) {
     checkAutoScrollScan(); // fire-and-forget, usa su propio hash del grid
-    const currentHash = getFrameHash(vCtx, virtualCanvas.width, virtualCanvas.height);
-    if (lastStableImageHash !== null && Math.abs(currentHash - lastStableImageHash) < 50) {
+    const currentHash = getFrameHash(
+      vCtx,
+      virtualCanvas.width,
+      virtualCanvas.height,
+    );
+    if (
+      lastStableImageHash !== null &&
+      Math.abs(currentHash - lastStableImageHash) < 50
+    ) {
       // Screen hasn't changed enough to warrant a new heavy OCR scan
       isScanning = false;
       return;
@@ -384,10 +470,15 @@ async function processFrame() {
         badge.style.background = "rgba(241,196,15,0.1)";
       }
       const msgEl = document.getElementById("live-inv-msg");
-      if (msgEl && !autoScrollMode) msgEl.innerText = sh.statusIdle === "IDLE" ? "READY" : "LISTO";
+      if (msgEl && !autoScrollMode)
+        msgEl.innerText = sh.statusIdle === "IDLE" ? "READY" : "LISTO";
 
       // Auto-scroll mode: detectar cambio de página para escanear automáticamente
-      const frameHash = getFrameHash(vCtx, virtualCanvas.width, virtualCanvas.height);
+      const frameHash = getFrameHash(
+        vCtx,
+        virtualCanvas.width,
+        virtualCanvas.height,
+      );
       checkAutoScrollScan(frameHash); // no-op si autoScrollMode=false
     } else if (hasRelic || hasRefinement) {
       const sh = TEXTS[state.currentLang].scannerHUD;
@@ -432,13 +523,19 @@ async function processFrame() {
 
 async function processInventoryGrid(snapshot, width, height, scale) {
   // --- CALIBRATION INTERCEPT ---
-  if (globalThis.LiveCalibration && !globalThis.LiveCalibration.hasCalibration()) {
+  if (
+    globalThis.LiveCalibration &&
+    !globalThis.LiveCalibration.hasCalibration()
+  ) {
     logDebug("No Grid Calibration found. Pausing for user calibration.");
     const calibCvs = document.createElement("canvas");
-    calibCvs.width = width; calibCvs.height = height;
+    calibCvs.width = width;
+    calibCvs.height = height;
     const calibCtx = calibCvs.getContext("2d");
     calibCtx.drawImage(snapshot, 0, 0);
-    await globalThis.LiveCalibration.runCalibrationFlow(calibCtx.getImageData(0, 0, width, height));
+    await globalThis.LiveCalibration.runCalibrationFlow(
+      calibCtx.getImageData(0, 0, width, height),
+    );
     return null;
   }
 
@@ -451,26 +548,48 @@ async function processInventoryGrid(snapshot, width, height, scale) {
   const globalOff = editor ? editor.getOffset() : { dx: 0, dy: 0 };
   for (let r = 0; r < grid.rows; r++) {
     for (let c = 0; c < grid.cols; c++) {
-      const sx = Math.floor(grid.gridX + c * (grid.cellW + grid.gapX) + globalOff.dx);
-      const sy = Math.floor(grid.gridY + r * (grid.cellH + grid.gapY) + globalOff.dy);
-      cellRects.push({ r, c, sx, sy, cx: sx + grid.cellW / 2, cy: sy + grid.cellH / 2 });
+      const sx = Math.floor(
+        grid.gridX + c * (grid.cellW + grid.gapX) + globalOff.dx,
+      );
+      const sy = Math.floor(
+        grid.gridY + r * (grid.cellH + grid.gapY) + globalOff.dy,
+      );
+      cellRects.push({
+        r,
+        c,
+        sx,
+        sy,
+        cx: sx + grid.cellW / 2,
+        cy: sy + grid.cellH / 2,
+      });
     }
   }
 
   // --- Diagnostic canvas ---
   const debugCanvas = document.createElement("canvas");
-  debugCanvas.width = width; debugCanvas.height = height;
+  debugCanvas.width = width;
+  debugCanvas.height = height;
   const dCtx = debugCanvas.getContext("2d");
   dCtx.drawImage(snapshot, 0, 0);
 
   // Draw calibration cell outlines as cyan overlay
   dCtx.strokeStyle = "rgba(0,255,255,0.3)";
   dCtx.lineWidth = 1;
-  cellRects.forEach(cell => dCtx.strokeRect(cell.sx, cell.sy, grid.cellW, grid.cellH));
+  cellRects.forEach((cell) =>
+    dCtx.strokeRect(cell.sx, cell.sy, grid.cellW, grid.cellH),
+  );
 
-  const ocrCanvas = createFilteredOcrCanvas(snapshot, width, height, grid, cellRects);
+  const ocrCanvas = createFilteredOcrCanvas(
+    snapshot,
+    width,
+    height,
+    grid,
+    cellRects,
+  );
 
-  logDebug(`Iniciando OCR en paralelo con 3 workers para ${cellRects.length} celdas...`);
+  logDebug(
+    `Iniciando OCR en paralelo con 3 workers para ${cellRects.length} celdas...`,
+  );
 
   // 1. Dividimos las celdas en 3 grupos (uno por worker)
   const chunks = [[], [], []];
@@ -479,20 +598,24 @@ async function processInventoryGrid(snapshot, width, height, scale) {
   const detectedItemsThisFrame = [];
 
   // Función interna que procesará cada grupo
-  const processChunk = async (chunk, worker) => {
+  const processChunk = async (chunk, worker, bWorker) => {
     for (const cell of chunk) {
       // OCR en dos canvases:
       // A) Zona de texto (mitad inferior, 3x) → nombre del item, sin arte de carta
       // B) Badge de cantidad (esquina sup-izq, 3x) desde snapshot crudo → número
 
       const textCvs = createTextCanvas(ocrCanvas, cell, grid);
-      const { data: { words } } = await worker.recognize(textCvs);
+      const {
+        data: { words },
+      } = await worker.recognize(textCvs);
       if (words.length < 1) continue;
 
-      const combinedText = words.map(w => w.text.toUpperCase());
+      const combinedText = words.map((w) => w.text.toUpperCase());
 
       if (DEBUG_MODE) {
-        logDebug(`[CELL r${cell.r}c${cell.c}] OCR words: [${combinedText.join(', ')}]`);
+        logDebug(
+          `[CELL r${cell.r}c${cell.c}] OCR words: [${combinedText.join(", ")}]`,
+        );
       }
 
       const matchOpts = findBestItemMatch(combinedText);
@@ -505,44 +628,65 @@ async function processInventoryGrid(snapshot, width, height, scale) {
       // La zona de texto no incluye el badge → leer siempre desde la imagen sin filtro
       let qty = 1;
       const badgeCvs = createBadgeCanvas(snapshot, cell, grid);
-      const { data: { words: badgeWords } } = await worker.recognize(badgeCvs);
-      const badgeNums = badgeWords.filter(w => /\d/.test(w.text));
+      const {
+        data: { words: badgeWords },
+      } = await bWorker.recognize(badgeCvs);
+      const badgeNums = badgeWords.filter((w) => /\d/.test(w.text));
       if (badgeNums.length > 0) {
-        // La cantidad correcta SIEMPRE es el número más a la derecha del recuadro del badge, 
+        // La cantidad correcta SIEMPRE es el número más a la derecha del recuadro del badge,
         // así esquivamos cualquier número fantasma 3D o el badge UI que esté a la izquierda.
         badgeNums.sort((a, b) => b.bbox.x0 - a.bbox.x0); // De mayor a menor X0 (de derecha a izquierda)
-        const pureDigit = badgeNums[0].text.replace(/\D/g, ''); // Coger los digitos del que está más a la derecha
-        if (pureDigit) {
-          qty = Math.max(1, Math.min(999, parseInt(pureDigit)));
+        const pureDigit = badgeNums[0].text.replace(/\D/g, "");
+        if (pureDigit && pureDigit.length > 0) {
+          // Validamos que el número tenga sentido (Warframe no muestra el "1" en el badge)
+          // Si el OCR lee un "1", pero el badge suele estar vacío para unidades sueltas,
+          // es probable que sea un error.
+          let val = parseInt(pureDigit);
+          qty = val > 1 && val < 1000 ? val : 1;
+        } else {
+          qty = 1;
         }
       }
 
-      detectedItemsThisFrame.push({ name: bestMatch.originalName, qty, x: cell.cx, y: cell.cy, cell });
+      detectedItemsThisFrame.push({
+        name: bestMatch.originalName,
+        qty,
+        x: cell.cx,
+        y: cell.cy,
+        cell,
+      });
 
       // --- Dibujo de Debug (Reinstalado) ---
-      dCtx.strokeStyle = "#ffff00"; dCtx.lineWidth = 2;
+      dCtx.strokeStyle = "#ffff00";
+      dCtx.lineWidth = 2;
       dCtx.strokeRect(cell.sx, cell.sy, grid.cellW, grid.cellH);
-      dCtx.fillStyle = "#ffe000"; dCtx.font = "bold 11px Arial";
-      const shortName = bestMatch.originalName.replace("PRIME ", "").substring(0, 18);
+      dCtx.fillStyle = "#ffe000";
+      dCtx.font = "bold 11px Arial";
+      const shortName = bestMatch.originalName
+        .replace("PRIME ", "")
+        .substring(0, 18);
       dCtx.fillText(`${shortName} x${qty}`, cell.sx + 4, cell.sy + 15);
     }
   };
 
-  // 3. Ejecutamos los 3 workers en paralelo
+  const bWorkers = getBadgeWorkers();
+
   await Promise.all([
-    processChunk(chunks[0], workers[0]),
-    processChunk(chunks[1], workers[1]),
-    processChunk(chunks[2], workers[2])
+    processChunk(chunks[0], workers[0], bWorkers[0]),
+    processChunk(chunks[1], workers[1], bWorkers[1]),
+    processChunk(chunks[2], workers[2], bWorkers[2]),
   ]);
 
   // 4. Guardado y actualización de UI
-  detectedItemsThisFrame.forEach(item => {
+  detectedItemsThisFrame.forEach((item) => {
     const existing = sessionInventory.get(item.name) || 0;
     if (item.qty >= existing) sessionInventory.set(item.name, item.qty);
   });
 
   logDebug(`Scan completo: ${detectedItemsThisFrame.length} items detectados.`);
-  const sorted = [...detectedItemsThisFrame].sort((a, b) => a.y - b.y || a.x - b.x);
+  const sorted = [...detectedItemsThisFrame].sort(
+    (a, b) => a.y - b.y || a.x - b.x,
+  );
   if (sorted.length > 0) {
     updateLiveInventoryUI(sorted[sorted.length - 1], sorted, grid.cellH * 0.1);
   }
@@ -550,8 +694,11 @@ async function processInventoryGrid(snapshot, width, height, scale) {
   return debugCanvas.toDataURL("image/jpeg", 0.7);
 }
 
-
-function updateLiveInventoryUI(lastFoundItem = null, currentFrameItems = [], avgU = 10) {
+function updateLiveInventoryUI(
+  lastFoundItem = null,
+  currentFrameItems = [],
+  avgU = 10,
+) {
   // Count badge = total unique session items
   const countDisplay = document.getElementById("live-inv-count");
   if (countDisplay) countDisplay.innerText = sessionInventory.size;
@@ -566,9 +713,10 @@ function updateLiveInventoryUI(lastFoundItem = null, currentFrameItems = [], avg
 
   // Flat list sorted by row then column (Y then X)
   const sorted = [...currentFrameItems].sort((a, b) => a.y - b.y || a.x - b.x);
-  listContainer.innerHTML = sorted.map(item => {
-    const shortName = item.name.replace(/prime/gi, "").trim();
-    return `
+  listContainer.innerHTML = sorted
+    .map((item) => {
+      const shortName = item.name.replace(/prime/gi, "").trim();
+      return `
       <div style="display:flex;justify-content:space-between;align-items:center;
           background:rgba(0,229,255,0.04);padding:5px 8px;border-radius:4px;
           border-left:2px solid rgba(0,229,255,0.4);
@@ -576,7 +724,8 @@ function updateLiveInventoryUI(lastFoundItem = null, currentFrameItems = [], avg
         <span style="color:#ddd;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:190px;">${shortName}</span>
         <span style="color:#f1c40f;font-weight:900;flex-shrink:0;">×${item.qty}</span>
       </div>`;
-  }).join("");
+    })
+    .join("");
 
   const scrollGuide = document.getElementById("live-scroll-guide");
   if (scrollGuide && lastFoundItem) {
@@ -596,7 +745,17 @@ async function processRelicSelection(video, width, height, scale) {
   canvas.height = Math.floor(rsCropH * scale * 0.75);
   const ctx = canvas.getContext("2d");
   ctx.filter = "grayscale(100%) brightness(1.2) contrast(300%)";
-  ctx.drawImage(video, rsCropX, rsCropY, rsCropW, rsCropH, 0, 0, canvas.width, canvas.height);
+  ctx.drawImage(
+    video,
+    rsCropX,
+    rsCropY,
+    rsCropW,
+    rsCropH,
+    0,
+    0,
+    canvas.width,
+    canvas.height,
+  );
 
   const { data } = await worker1.recognize(canvas);
   detectRelicSelection(data);
@@ -604,7 +763,7 @@ async function processRelicSelection(video, width, height, scale) {
 
 async function processRewards(video, width, height, scale) {
   // Reward mode optimization: Wider vertical window (30-65%) to ensure coverage
-  const rCropY = Math.floor(height * 0.30);
+  const rCropY = Math.floor(height * 0.3);
   const rCropH = Math.floor(height * 0.35);
   const targetW = Math.floor(width * scale) * 1.5;
   const targetH = Math.floor(rCropH * scale) * 1.5;
@@ -628,7 +787,10 @@ function detectRelicSelection(data) {
   const tiers = ["LITH", "MESO", "NEO", "AXI", "REQUIEM"];
   const text = data.text.toUpperCase();
   const pattern = tiers.join("|");
-  const match = new RegExp(`(${pattern})[\\s\\S]*?([A-Z][0-9]{1,2}|[IVX]+)`, "i").exec(text);
+  const match = new RegExp(
+    String.raw`(${pattern})[\s\S]*?([A-Z][0-9]{1,2}|[IVX]+)`,
+    "i",
+  ).exec(text);
   if (!match) return;
 
   const tier = match[1].toUpperCase();
@@ -637,15 +799,28 @@ function detectRelicSelection(data) {
 
   let code = codeRaw;
   if (!isRequiem && code.length >= 2) {
-    code = code.replace(/Z/g, "2").replace(/S/g, "5").replace(/B/g, "8").replace(/G/g, "6").replace(/O/g, "0").replace(/[IL]/g, "1");
+    code = code
+      .replaceAll('Z', "2")
+      .replaceAll('S', "5")
+      .replaceAll('B', "8")
+      .replaceAll('G', "6")
+      .replace(/O/g, "0")
+      .replace(/[IL]/g, "1");
   } else if (isRequiem) {
-    code = code.replace(/1/g, "I").replace(/0/g, "O").replace(/2/g, "II").replace(/3/g, "III").replace(/4/g, "IV");
+    code = code
+      .replace(/1/g, "I")
+      .replace(/0/g, "O")
+      .replace(/2/g, "II")
+      .replace(/3/g, "III")
+      .replace(/4/g, "IV");
   }
 
   if (code && code.length >= 1) {
     const foundRelic = `${tier} ${code}`.toUpperCase();
     if (foundRelic === lastTrackedRelic) return;
-    const exists = state.allRelicNames?.some(n => n.toUpperCase() === foundRelic);
+    const exists = state.allRelicNames?.some(
+      (n) => n.toUpperCase() === foundRelic,
+    );
     if (exists) {
       lastTrackedRelic = foundRelic;
       showTrackConfirm(foundRelic);
@@ -680,12 +855,21 @@ function showTrackConfirm(relicName) {
       input.value = relicName;
       state.selectedRelic = relicName;
       if (globalThis.manualRelicUpdate) globalThis.manualRelicUpdate();
-      showToast(TEXTS[state.currentLang].scanner.trackingToast.replace("{relic}", relicName));
+      showToast(
+        TEXTS[state.currentLang].scanner.trackingToast.replace(
+          "{relic}",
+          relicName,
+        ),
+      );
     }
     popup.remove();
   };
-  setTimeout(() => { if (popup.parentElement) popup.classList.add("fade-out"); }, 10000);
-  setTimeout(() => { if (popup.parentElement) popup.remove(); }, 10500);
+  setTimeout(() => {
+    if (popup.parentElement) popup.classList.add("fade-out");
+  }, 10000);
+  setTimeout(() => {
+    if (popup.parentElement) popup.remove();
+  }, 10500);
 }
 
 function handleSuccessfulScan(video, width, height, foundItems) {
@@ -700,8 +884,6 @@ function handleSuccessfulScan(video, width, height, foundItems) {
   openScanModal(snapshotCanvas.toDataURL("image/jpeg", 0.85), foundItems);
 }
 
-
-
 async function openScanModal(imageUrl, items) {
   const modal = document.getElementById("scan-success-modal");
   const imgEl = document.getElementById("scan-snapshot");
@@ -711,23 +893,31 @@ async function openScanModal(imageUrl, items) {
   badgesContainer.innerHTML = "";
   imgEl.src = imageUrl;
   modal.classList.remove("hidden");
-  autoCloseTimer = setTimeout(() => { globalThis.closeScanModal(); }, AUTO_CLOSE_DELAY_MS);
-  const itemsWithDetails = await Promise.all(items.map(async (item) => {
-    let price = priceCache.get(item.name) || 0;
-    if (price === 0) {
-      try {
-        const slug = getSlug(item.name);
-        price = await getPriceValue(item.name, slug);
-        if (price > 0) priceCache.set(item.name, price);
-      } catch (e) { console.error(e); }
-    }
-    let ducats = 0;
-    if (state.ducatsDatabase) {
-      const itemData = Object.values(state.ducatsDatabase).find(d => d.name.toUpperCase() === item.name.toUpperCase());
-      if (itemData) ducats = itemData.ducats;
-    }
-    return { ...item, price, ducats };
-  }));
+  autoCloseTimer = setTimeout(() => {
+    globalThis.closeScanModal();
+  }, AUTO_CLOSE_DELAY_MS);
+  const itemsWithDetails = await Promise.all(
+    items.map(async (item) => {
+      let price = priceCache.get(item.name) || 0;
+      if (price === 0) {
+        try {
+          const slug = getSlug(item.name);
+          price = await getPriceValue(item.name, slug);
+          if (price > 0) priceCache.set(item.name, price);
+        } catch (e) {
+          console.error(e);
+        }
+      }
+      let ducats = 0;
+      if (state.ducatsDatabase) {
+        const itemData = Object.values(state.ducatsDatabase).find(
+          (d) => d.name.toUpperCase() === item.name.toUpperCase(),
+        );
+        if (itemData) ducats = itemData.ducats;
+      }
+      return { ...item, price, ducats };
+    }),
+  );
   const maxPl = Math.max(...itemsWithDetails.map((i) => i.price));
   const maxDuc = Math.max(...itemsWithDetails.map((i) => i.ducats));
   requestAnimationFrame(() => {
@@ -736,19 +926,43 @@ async function openScanModal(imageUrl, items) {
     itemsWithDetails.forEach((item) => {
       const leftPercent = (item.xPos / cvsWidth) * 100;
       const topPercent = ((item.yPos + 35) / cvsHeight) * 100;
-      createModalBadge(item.name, item.price, item.ducats, badgesContainer, leftPercent, topPercent, item.price === maxPl && item.price > 0, item.ducats === maxDuc && item.ducats > 0);
+      createModalBadge(
+        item.name,
+        item.price,
+        item.ducats,
+        badgesContainer,
+        leftPercent,
+        topPercent,
+        item.price === maxPl && item.price > 0,
+        item.ducats === maxDuc && item.ducats > 0,
+      );
     });
   });
 }
 
-function createModalBadge(name, price, ducats, container, leftPercent, topPercent, isBestPl, isBestDuc) {
+function createModalBadge(
+  name,
+  price,
+  ducats,
+  container,
+  leftPercent,
+  topPercent,
+  isBestPl,
+  isBestDuc,
+) {
   const badge = document.createElement("div");
   badge.className = `modal-badge ${isBestPl ? "best-pl" : ""} ${isBestDuc ? "best-duc" : ""}`;
   const clampedLeft = Math.max(8, Math.min(92, leftPercent));
   badge.style.left = `${clampedLeft}%`;
   badge.style.top = `${Math.min(90, topPercent)}%`;
   const slug = getSlug(name);
-  const cleanName = name.replaceAll(/PRIME/gi, "").replaceAll(/BLUEPRINT/gi, "BP").replaceAll(/NEUROPTICS/gi, "NEURO").replaceAll(/SYSTEMS/gi, "SYS").replaceAll(/CHASSIS/gi, "CHAS").trim();
+  const cleanName = name
+    .replaceAll(/PRIME/gi, "")
+    .replaceAll(/BLUEPRINT/gi, "BP")
+    .replaceAll(/NEUROPTICS/gi, "NEURO")
+    .replaceAll(/SYSTEMS/gi, "SYS")
+    .replaceAll(/CHASSIS/gi, "CHAS")
+    .trim();
   badge.innerHTML = `
     <a href="https://warframe.market/items/${slug}" target="_blank" class="modal-badge-link" style="display:block; text-decoration:none;">
         <div class="modal-badge-name" style="font-size:10px; color:#aaa; font-weight:bold; margin-bottom:4px; text-transform:uppercase;">${cleanName}</div>
@@ -757,10 +971,14 @@ function createModalBadge(name, price, ducats, container, leftPercent, topPercen
                 <img src="assets/relic_contents/platinum.webp" style="width:14px; height:14px;">
                 ${price > 0 ? price : "--"} pl
             </div>
-            ${ducats > 0 ? `<div class="modal-badge-ducats" style="display:flex; align-items:center; gap:3px; font-size:13px; color:#D4AF37;">
+            ${
+              ducats > 0
+                ? `<div class="modal-badge-ducats" style="display:flex; align-items:center; gap:3px; font-size:13px; color:#D4AF37;">
                    <span style="background:#D4AF37; color:#000; width:14px; height:14px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:9px; font-weight:900;">D</span>
                    ${ducats}
-                </div>` : ""}
+                </div>`
+                : ""
+            }
         </div>
     </a>`;
   container.appendChild(badge);
@@ -791,21 +1009,26 @@ globalThis.clearLiveSessionInventory = function () {
 globalThis.startLiveSession = startLiveSession;
 function copyScannerDebugLog() {
   if (debugLogArchive.length === 0) {
-    if (typeof showToast === "function") showToast("No debug logs collected yet.");
+    if (typeof showToast === "function")
+      showToast("No debug logs collected yet.");
     else alert("No debug logs collected yet.");
     return;
   }
   const text = debugLogArchive.join("\n");
-  navigator.clipboard.writeText(text).then(() => {
-    if (typeof showToast === "function") showToast("Diagnostic log copied to clipboard!");
-    else alert("Diagnostic log copied to clipboard!");
-  }).catch(err => {
-    console.error("Copy failed", err);
-  });
+  navigator.clipboard
+    .writeText(text)
+    .then(() => {
+      if (typeof showToast === "function")
+        showToast("Diagnostic log copied to clipboard!");
+      else alert("Diagnostic log copied to clipboard!");
+    })
+    .catch((err) => {
+      console.error("Copy failed", err);
+    });
 }
 
 globalThis.stopLiveSession = stopLiveSession;
-globalThis.isScannerActive = () => !!(liveStream?.active);
+globalThis.isScannerActive = () => !!liveStream?.active;
 globalThis.copyScannerDebugLog = copyScannerDebugLog;
 globalThis.closeScanModal = function () {
   if (autoCloseTimer) clearTimeout(autoCloseTimer);
@@ -815,11 +1038,10 @@ globalThis.closeScanModal = function () {
 };
 
 globalThis.manualPrecisionScan = async function () {
-  // Si el background loop está corriendo, esperar hasta 2s antes de rechazar
   if (isScanning) {
     let waited = 0;
     while (isScanning && waited < 2000) {
-      await new Promise(r => setTimeout(r, 200));
+      await new Promise((r) => setTimeout(r, 200));
       waited += 200;
     }
     if (isScanning) return showToast("Scanner busy...");
@@ -847,18 +1069,28 @@ globalThis.manualPrecisionScan = async function () {
     if (msgEl) msgEl.innerText = "SCANNING 1/2...";
     await processInventoryGrid(snapshotCanvas, width, height, scale);
     if (msgEl) msgEl.innerText = "SCANNING 2/2...";
-    const diagnosticUrl = await processInventoryGrid(snapshotCanvas, width, height, scale);
+    const diagnosticUrl = await processInventoryGrid(
+      snapshotCanvas,
+      width,
+      height,
+      scale,
+    );
     if (msgEl) msgEl.innerText = "DONE";
 
     if (DEBUG_MODE) {
-      const dbgImg = document.getElementById('live-debug-snapshot-img');
-      const dbgPanel = document.getElementById('live-debug-snapshot');
-      if (dbgImg) { dbgImg.src = diagnosticUrl; dbgImg.style.display = 'block'; }
-      if (dbgPanel) dbgPanel.style.display = 'block';
+      const dbgImg = document.getElementById("live-debug-snapshot-img");
+      const dbgPanel = document.getElementById("live-debug-snapshot");
+      if (dbgImg) {
+        dbgImg.src = diagnosticUrl;
+        dbgImg.style.display = "block";
+      }
+      if (dbgPanel) dbgPanel.style.display = "block";
     }
 
     // --- AUTO-SCAN PROGRESS FEEDBACK ---
-    const newItems = [...sessionInventory.keys()].filter(k => !_preSessionItemNames.has(k));
+    const newItems = [...sessionInventory.keys()].filter(
+      (k) => !_preSessionItemNames.has(k),
+    );
     const newCount = newItems.length;
     const totalNow = sessionInventory.size;
     const scrollGuide = document.getElementById("live-scroll-guide");
@@ -866,9 +1098,10 @@ globalThis.manualPrecisionScan = async function () {
     if (newCount > 0) {
       // Found new items → user should scroll and scan again
       if (msgEl) msgEl.innerText = `+${newCount} NEW`;
-      if (scrollGuide) scrollGuide.innerHTML = `
+      if (scrollGuide)
+        scrollGuide.innerHTML = `
         <div style="line-height:1.5;">
-          <div style="color:#f1c40f;font-weight:800;font-size:0.85em;">↓ ${newCount} NEW ITEM${newCount > 1 ? 'S' : ''} FOUND</div>
+          <div style="color:#f1c40f;font-weight:800;font-size:0.85em;">↓ ${newCount} NEW ITEM${newCount > 1 ? "S" : ""} FOUND</div>
           <div style="color:#506070;margin:3px 0;">Scroll down, then press SCAN PAGE again.</div>
           <div style="display:flex;gap:5px;margin-top:5px;">
             <button onclick="globalThis.manualPrecisionScan()" style="flex:1;background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.4);color:#00e5ff;font-size:0.7em;padding:4px;border-radius:4px;cursor:pointer;font-weight:700;">↓ SCAN NEXT</button>
@@ -878,7 +1111,8 @@ globalThis.manualPrecisionScan = async function () {
     } else {
       // No new items → likely at the bottom or already seen this page
       if (msgEl) msgEl.innerText = `${totalNow} ITEMS`;
-      if (scrollGuide) scrollGuide.innerHTML = `
+      if (scrollGuide)
+        scrollGuide.innerHTML = `
         <div style="line-height:1.5;">
           <div style="color:#a0c0b0;font-weight:800;font-size:0.85em;">✓ No new items on this page</div>
           <div style="color:#506070;margin:3px 0;">${totalNow} total unique items found.</div>
@@ -897,7 +1131,9 @@ globalThis.inventoryScanDone = function () {
   const scrollGuide = document.getElementById("live-scroll-guide");
   const msgEl = document.getElementById("live-inv-msg");
   if (msgEl) msgEl.innerText = `${sessionInventory.size} ITEMS`;
-  if (scrollGuide) scrollGuide.innerHTML = `<span style="color:#a0c0b0;">✓ Scan complete — ${sessionInventory.size} unique items</span>`;
-  showToast(`Scan complete! ${sessionInventory.size} unique Prime items found.`);
+  if (scrollGuide)
+    scrollGuide.innerHTML = `<span style="color:#a0c0b0;">✓ Scan complete — ${sessionInventory.size} unique items</span>`;
+  showToast(
+    `Scan complete! ${sessionInventory.size} unique Prime items found.`,
+  );
 };
-

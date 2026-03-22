@@ -13,10 +13,6 @@ export function createFilteredOcrCanvas(snapshot, width, height, grid, cellRects
     const ocrCtx = ocrCanvas.getContext("2d");
     ocrCtx.drawImage(snapshot, 0, 0);
 
-    // Se elimina el muestreo dinámico ya que capturaba los píxeles grises/blancos de los modelos 3D 
-    // de las armas, lo que destrozaba el color de referencia 'refR' promediándolo a un gris oscuro, 
-    // haciendo que el filtro de distancia borrara el texto dorado real dejándole la pantalla en blanco
-    // al OCR para leer la chatarra 3D restante. Volvemos al dorado universal estático.
     const refR = 215, refG = 165, refB = 95;
 
     const imgData = ocrCtx.getImageData(0, 0, width, height);
@@ -25,9 +21,6 @@ export function createFilteredOcrCanvas(snapshot, width, height, grid, cellRects
         let r = px[i], g = px[i + 1], b = px[i + 2];
         const dist = Math.sqrt(Math.pow(r - refR, 2) + Math.pow(g - refG, 2) + Math.pow(b - refB, 2));
 
-        // ONLY Euclidean distance to Gold. Eliminamos el fallback de luminancia (lum > 175)
-        // porque si el modelo 3D del fondo es blanco o plateado brillante, se convertía en
-        // un manchón negro gigante que se fusionaba con el texto destrozando la lectura.
         if (dist < 90) {
             px[i] = px[i + 1] = px[i + 2] = 0; // Texto -> Negro
         } else {
@@ -52,8 +45,8 @@ export function createTextCanvas(ocrCanvas, cell, grid) {
 }
 
 export function createBadgeCanvas(snapshot, cell, grid) {
-    const badgeW = Math.floor(grid.cellW * 0.40);
-    const badgeH = Math.floor(grid.cellH * 0.22);
+    const badgeW = Math.floor(grid.cellW * 0.35);
+    const badgeH = Math.floor(grid.cellH * 0.20);
     const BADGE_SCALE = 3;
 
     const tempCvs = document.createElement('canvas');
@@ -61,13 +54,10 @@ export function createBadgeCanvas(snapshot, cell, grid) {
     const tCtx = tempCvs.getContext('2d');
     tCtx.drawImage(snapshot, cell.sx, cell.sy, badgeW, badgeH, 0, 0, badgeW, badgeH);
 
-    // Extracción K-Means local exclusiva para la cantidad.
-    // Descubre matemáticamente el color del texto (número) y el fondo (interfaz)
-    // sin asumir que es blanco puro, adaptándose a filtros o brillos del juego.
     const imgData = tCtx.getImageData(0, 0, badgeW, badgeH);
     const px = imgData.data;
     const samples = [];
-    for (let i = 0; i < px.length; i += 8) { // Muestrear la mitad para 100% precisión
+    for (let i = 0; i < px.length; i += 8) {
         samples.push([px[i], px[i + 1], px[i + 2]]);
     }
 
@@ -102,7 +92,7 @@ export function createBadgeCanvas(snapshot, cell, grid) {
         let dBg = Math.abs(r - bgCentroid[0]) + Math.abs(g - bgCentroid[1]) + Math.abs(b - bgCentroid[2]);
 
         if (dText < dBg * 1.5) {
-            px[i] = px[i + 1] = px[i + 2] = 0; // Se parece al texto encontrado -> Negro para OCR
+            px[i] = px[i + 1] = px[i + 2] = 0;
         } else {
             px[i] = px[i + 1] = px[i + 2] = 255;
         }
