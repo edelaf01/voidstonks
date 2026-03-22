@@ -27,15 +27,13 @@ export async function initOcrWorkers() {
         });
         return w;
     };
-
     const initBadgeWorker = async () => {
         const w = await tess.createWorker("eng");
         await w.setParameters({
-            tessedit_char_whitelist: "0123456789",
+            tessedit_char_whitelist: " 0123456789",
             tessedit_pageseg_mode: "7",
             tessedit_ocr_engine_mode: "3",
-            load_system_dawg: "0",
-            load_freq_dawg: "0"
+
         });
         return w;
     };
