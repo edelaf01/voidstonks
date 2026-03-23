@@ -1,6 +1,6 @@
 import { state } from "./state.js";
 import { getPriceValue, getSlug } from "./api.js";
-import { showToast } from "./ui.js";
+import { showToast } from "./ui.components/ui_components.js";
 import { TEXTS } from "./config.js";
 import {
   initOcrWorkers,

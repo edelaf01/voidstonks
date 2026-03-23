@@ -31,8 +31,6 @@ import {
   changeLFGCount,
   handleRelicTyping,
   handleSetTyping,
-  handleRivenInput,
-  openRivenMarket,
   calculateCaps,
   toggleLfgDropdown,
   checkUpdates,
@@ -40,12 +38,18 @@ import {
   toggleLangDropdown,
   setLanguageManual,
   generateLFGMessage,
+  preloadCriticalAssets,
+} from "./ui.js";
+import {
   toggleInventoryPanel,
   renderInventory,
   clearInventory,
+} from "./ui.components/ui_inventory.js";
+import {
+  handleRivenInput,
+  openRivenMarket,
   updateSelectExclusions,
-  preloadCriticalAssets,
-} from "./ui.js";
+} from "./ui.components/ui_rivens.js";
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.getRegistrations().then(function (registrations) {
     for (let registration of registrations) {
