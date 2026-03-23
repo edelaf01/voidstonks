@@ -1,5 +1,11 @@
 import { initCanvas } from "./canvas.js";
-import { downloadRelics, fetchRivenWeapons, fetchUserProfile, fetchPrimeManifest, warmupPrices } from "./api.js";
+import {
+  downloadRelics,
+  fetchRivenWeapons,
+  fetchUserProfile,
+  fetchPrimeManifest,
+  warmupPrices,
+} from "./api.js";
 import { state, loadAppState, saveAppState } from "./state.js";
 import { startLiveSession, stopLiveSession } from "./live_scanner.js";
 import {
@@ -90,14 +96,12 @@ function setupScannerDrawer() {
 
     if (isActive) {
       closeFullScanner();
+    } else if (isNoticeVisible) {
+      noticePanel.classList.add("hidden");
+      toggleBtn.classList.remove("active");
     } else {
-      if (isNoticeVisible) {
-        noticePanel.classList.add("hidden");
-        toggleBtn.classList.remove("active");
-      } else {
-        noticePanel.classList.remove("hidden");
-        toggleBtn.classList.add("active");
-      }
+      noticePanel.classList.remove("hidden");
+      toggleBtn.classList.add("active");
     }
   });
 
@@ -139,10 +143,7 @@ async function loadAsyncData() {
   try {
     initFissurePanel().catch(console.error);
 
-    await Promise.all([
-      fetchRivenWeapons(),
-      fetchPrimeManifest()
-    ]);
+    await Promise.all([fetchRivenWeapons(), fetchPrimeManifest()]);
 
     await downloadRelics();
 

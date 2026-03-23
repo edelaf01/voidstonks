@@ -95,31 +95,48 @@ globalThis.toggleAutoScrollScan = function () {
   showToast(`Auto-scroll scan ${autoScrollMode ? "ON" : "OFF"}`);
 };
 
-async function checkAutoScrollScan() {
+function updateScrollUI(status, count = 0) {
+  const scrollGuide = document.getElementById("live-scroll-guide");
+  if (!scrollGuide) return;
+
+  if (status === "detected") {
+    scrollGuide.innerHTML = `<div style="color:#f1c40f;font-weight:800;font-size:0.82em;">MOVIMIENTO DETECTADO</div><div style="color:#506070;font-size:0.75em;margin-top:3px;">Esperando estabilización...</div>`;
+  } else if (status === "scanning") {
+    scrollGuide.innerHTML = `<div style="color:#00e5ff;font-weight:800;font-size:0.82em;">ESCANEANDO PÁGINA...</div><div style="color:#506070;font-size:0.75em;margin-top:3px;">Por favor no muevas el inventario.</div>`;
+  } else if (status === "done") {
+    scrollGuide.innerHTML = `<div style="color:#00ff78;font-weight:800;font-size:0.82em;">ESCANEO COMPLETADO</div><div style="color:#506070;font-size:0.75em;margin-top:3px;">${count} items únicos en total.<br>Puedes seguir bajando.</div>`;
+  }
+}
+
+async function checkAutoScrollScan(externalHash = null) {
   if (!autoScrollMode || isScanning) return;
 
   const video = document.getElementById("live-video");
   if (!video || !liveStream?.active || video.videoHeight < 10) return;
 
-  const vw = video.videoWidth,
-    vh = video.videoHeight;
-  const sampleCvs = document.createElement("canvas");
-  sampleCvs.width = 48;
-  sampleCvs.height = 27;
+  let currentHash = externalHash;
 
-  const sCtx = sampleCvs.getContext("2d");
-  sCtx.drawImage(
-    video,
-    0,
-    Math.floor(vh * 0.25),
-    vw,
-    Math.floor(vh * 0.65),
-    0,
-    0,
-    48,
-    27,
-  );
-  const currentHash = getFrameHash(sCtx, 48, 27);
+  if (currentHash === null) {
+    const vw = video.videoWidth,
+      vh = video.videoHeight;
+    const sampleCvs = document.createElement("canvas");
+    sampleCvs.width = 48;
+    sampleCvs.height = 27;
+
+    const sCtx = sampleCvs.getContext("2d");
+    sCtx.drawImage(
+      video,
+      0,
+      Math.floor(vh * 0.25),
+      vw,
+      Math.floor(vh * 0.65),
+      0,
+      0,
+      48,
+      27,
+    );
+    currentHash = getFrameHash(sCtx, 48, 27);
+  }
 
   if (autoScrollHash === null) {
     autoScrollHash = currentHash;
@@ -393,19 +410,41 @@ async function processFrame() {
   if (isScanning) return;
   isScanning = true;
   scanCounter++;
-  const video = document.getElementById("live-video");
-  if (!video || video.videoWidth < 10) {
-    isScanning = false;
-    return;
-  }
 
+  try {
+    const video = document.getElementById("live-video");
+    if (!video || video.videoWidth < 10) return;
+
+    const dims = prepareVirtualCanvas(video);
+
+    if (isInventoryMode && isStableInventoryFrame()) return;
+
+    logDebug(`Processing frame ${scanCounter}...`);
+    const { data: headerData } = await worker1.recognize(virtualCanvas);
+    const headerText = headerData.text.toUpperCase();
+    logDebug("Header OCR:", headerText);
+
+    const contextType = determineContext(headerText);
+    await routeFrameAction(contextType, video, dims);
+
+    const counter = document.getElementById("hud-scan-counter");
+    if (counter) counter.textContent = `FRAME ${scanCounter}`;
+  } catch (e) {
+    console.warn("OCR Error", e);
+  } finally {
+    isScanning = false;
+  }
+}
+
+function prepareVirtualCanvas(video) {
   const width = video.videoWidth;
   const height = video.videoHeight;
   const scale = 1080 / height;
-
   const hCropH = Math.floor(height * 0.15);
+
   virtualCanvas.width = Math.floor(width * scale);
   virtualCanvas.height = Math.floor(hCropH * scale);
+
   if (!vCtx) vCtx = virtualCanvas.getContext("2d");
 
   vCtx.filter = "grayscale(100%) brightness(1.3) contrast(200%)";
@@ -421,95 +460,113 @@ async function processFrame() {
     virtualCanvas.height,
   );
 
-  if (isInventoryMode) {
-    checkAutoScrollScan();
-    const currentHash = getFrameHash(
+  return { width, height, scale };
+}
+
+function isStableInventoryFrame() {
+  checkAutoScrollScan();
+  const currentHash = getFrameHash(
+    vCtx,
+    virtualCanvas.width,
+    virtualCanvas.height,
+  );
+
+  if (
+    lastStableImageHash !== null &&
+    Math.abs(currentHash - lastStableImageHash) < 50
+  ) {
+    return true;
+  }
+
+  lastStableImageHash = currentHash;
+  return false;
+}
+
+function determineContext(headerText) {
+  if (/INVEN|TORY|SELL/.test(headerText)) return "INVENTORY";
+  if (/RELI|ELIC/.test(headerText) || /REFI|NEME/.test(headerText))
+    return "RELICS";
+  if (/REWA|WARD|FISSU|FISSI|VOID/.test(headerText)) return "REWARD";
+  return "UNKNOWN";
+}
+
+async function routeFrameAction(contextType, video, dims) {
+  const { width, height, scale } = dims;
+
+  if (contextType === "INVENTORY") {
+    isInventoryMode = true;
+    currentScanRate = INV_SCAN_RATE;
+    updateHUD("INVENTORY");
+
+    const frameHash = getFrameHash(
       vCtx,
       virtualCanvas.width,
       virtualCanvas.height,
     );
-    if (
-      lastStableImageHash !== null &&
-      Math.abs(currentHash - lastStableImageHash) < 50
-    ) {
-      isScanning = false;
-      return;
-    }
-    lastStableImageHash = currentHash;
+    checkAutoScrollScan(frameHash);
+  } else if (contextType === "RELICS") {
+    isInventoryMode = false;
+    currentScanRate = FAST_SCAN_RATE;
+    updateHUD("RELICS");
+    await processRelicSelection(video, width, height, scale);
+  } else if (contextType === "REWARD" && !isInventoryMode) {
+    isInventoryMode = false;
+    currentScanRate = SLOW_SCAN_RATE;
+    updateHUD("REWARD");
+    await processRewards(video, width, height, scale);
+  } else {
+    currentScanRate = 800;
   }
+}
 
-  try {
-    logDebug(`Processing frame ${scanCounter}...`);
-    const { data: headerData } = await worker1.recognize(virtualCanvas);
-    const headerText = headerData.text.toUpperCase();
-    logDebug("Header OCR:", headerText);
+function updateHUD(contextType) {
+  const sh = TEXTS[state.currentLang].scannerHUD;
+  const hud = document.getElementById("inv-hud");
+  const badge = document.getElementById("hud-context-badge");
 
-    const hasRelic = /RELI|ELIC/.test(headerText);
-    const hasRefinement = /REFI|NEME/.test(headerText);
-    const hasInventory = /INVEN|TORY|SELL/.test(headerText);
-    const hasReward = /REWA|WARD|FISSU|FISSI|VOID/.test(headerText);
+  if (contextType === "INVENTORY") {
+    if (hud) hud.style.display = "block";
+    setUIBadge(
+      badge,
+      sh.statusInventory,
+      "#f1c40f",
+      "rgba(241,196,15,0.4)",
+      "rgba(241,196,15,0.1)",
+    );
 
-    if (hasInventory) {
-      const sh = TEXTS[state.currentLang].scannerHUD;
-      isInventoryMode = true;
-      currentScanRate = INV_SCAN_RATE;
-      const hud = document.getElementById("inv-hud");
-      if (hud) hud.style.display = "block";
-      const badge = document.getElementById("hud-context-badge");
-      if (badge) {
-        badge.textContent = sh.statusInventory;
-        badge.style.color = "#f1c40f";
-        badge.style.borderColor = "rgba(241,196,15,0.4)";
-        badge.style.background = "rgba(241,196,15,0.1)";
-      }
-      const msgEl = document.getElementById("live-inv-msg");
-      if (msgEl && !autoScrollMode)
-        msgEl.innerText = sh.statusIdle === "IDLE" ? "READY" : "LISTO";
+    const msgEl = document.getElementById("live-inv-msg");
+    if (msgEl && !autoScrollMode) {
+      msgEl.innerText = sh.statusIdle === "IDLE" ? "READY" : "LISTO";
+    }
+  } else {
+    if (hud) hud.style.display = "none";
 
-      const frameHash = getFrameHash(
-        vCtx,
-        virtualCanvas.width,
-        virtualCanvas.height,
+    if (contextType === "RELICS") {
+      setUIBadge(
+        badge,
+        sh.statusRelics,
+        "#00e5ff",
+        "rgba(0,229,255,0.3)",
+        "rgba(0,229,255,0.1)",
       );
-      checkAutoScrollScan(frameHash);
-    } else if (hasRelic || hasRefinement) {
-      const sh = TEXTS[state.currentLang].scannerHUD;
-      isInventoryMode = false;
-      currentScanRate = FAST_SCAN_RATE;
-      const hud = document.getElementById("inv-hud");
-      if (hud) hud.style.display = "none";
-      const badge = document.getElementById("hud-context-badge");
-      if (badge) {
-        badge.textContent = sh.statusRelics;
-        badge.style.color = "#00e5ff";
-        badge.style.borderColor = "rgba(0,229,255,0.3)";
-        badge.style.background = "rgba(0,229,255,0.1)";
-      }
-      await processRelicSelection(video, width, height, scale);
-    } else if (hasReward && !isInventoryMode) {
-      const sh = TEXTS[state.currentLang].scannerHUD;
-      isInventoryMode = false;
-      currentScanRate = SLOW_SCAN_RATE;
-      const hud = document.getElementById("inv-hud");
-      if (hud) hud.style.display = "none";
-      const badge = document.getElementById("hud-context-badge");
-      if (badge) {
-        badge.textContent = sh.statusReward;
-        badge.style.color = "#a0ff80";
-        badge.style.borderColor = "rgba(160,255,128,0.3)";
-        badge.style.background = "rgba(160,255,128,0.08)";
-      }
-      await processRewards(video, width, height, scale);
-    } else {
-      currentScanRate = 800;
+    } else if (contextType === "REWARD") {
+      setUIBadge(
+        badge,
+        sh.statusReward,
+        "#a0ff80",
+        "rgba(160,255,128,0.3)",
+        "rgba(160,255,128,0.08)",
+      );
     }
-    const counter = document.getElementById("hud-scan-counter");
-    if (counter) counter.textContent = `FRAME ${scanCounter}`;
-  } catch (e) {
-    console.warn("OCR Error", e);
-  } finally {
-    isScanning = false;
   }
+}
+
+function setUIBadge(badgeElement, text, color, borderColor, background) {
+  if (!badgeElement) return;
+  badgeElement.textContent = text;
+  badgeElement.style.color = color;
+  badgeElement.style.borderColor = borderColor;
+  badgeElement.style.background = background;
 }
 
 async function processInventoryGrid(snapshot, width, height, scale) {
@@ -585,42 +642,15 @@ async function processInventoryGrid(snapshot, width, height, scale) {
 
   const processChunk = async (chunk, worker, bWorker) => {
     for (const cell of chunk) {
-      const textCvs = createTextCanvas(ocrCanvas, cell, grid);
-      const {
-        data: { words },
-      } = await worker.recognize(textCvs);
-      if (words.length < 1) continue;
+      const combinedText = await extractCellText(cell, worker, ocrCanvas, grid);
+      if (!combinedText) continue;
 
-      const combinedText = words.map((w) => w.text.toUpperCase());
+      handleDebugLogging(cell, combinedText);
 
-      if (DEBUG_MODE) {
-        logDebug(
-          `[CELL r${cell.r}c${cell.c}] OCR words: [${combinedText.join(", ")}]`,
-        );
-      }
+      const bestMatch = getValidItemMatch(combinedText);
+      if (!bestMatch) continue;
 
-      const matchOpts = findBestItemMatch(combinedText);
-      let bestMatch = matchOpts.bestMatch;
-      let highestRatio = matchOpts.highestRatio;
-
-      if (!bestMatch || highestRatio < 0.45) continue;
-
-      let qty = 1;
-      const badgeCvs = createBadgeCanvas(snapshot, cell, grid);
-      const {
-        data: { words: badgeWords },
-      } = await bWorker.recognize(badgeCvs);
-      const badgeNums = badgeWords.filter((w) => /\d/.test(w.text));
-      if (badgeNums.length > 0) {
-        badgeNums.sort((a, b) => b.bbox.x0 - a.bbox.x0);
-        const pureDigit = badgeNums[0].text.replace(/\D/g, "");
-        if (pureDigit && pureDigit.length > 0) {
-          let val = parseInt(pureDigit);
-          qty = val > 1 && val < 1000 ? val : 1;
-        } else {
-          qty = 1;
-        }
-      }
+      const qty = await extractCellQuantity(cell, bWorker, snapshot, grid);
 
       detectedItemsThisFrame.push({
         name: bestMatch.originalName,
@@ -630,15 +660,7 @@ async function processInventoryGrid(snapshot, width, height, scale) {
         cell,
       });
 
-      dCtx.strokeStyle = "#ffff00";
-      dCtx.lineWidth = 2;
-      dCtx.strokeRect(cell.sx, cell.sy, grid.cellW, grid.cellH);
-      dCtx.fillStyle = "#ffe000";
-      dCtx.font = "bold 11px Arial";
-      const shortName = bestMatch.originalName
-        .replace("PRIME ", "")
-        .substring(0, 18);
-      dCtx.fillText(`${shortName} x${qty}`, cell.sx + 4, cell.sy + 15);
+      drawCellDebugOverlay(dCtx, cell, grid, bestMatch.originalName, qty);
     }
   };
 
@@ -660,7 +682,7 @@ async function processInventoryGrid(snapshot, width, height, scale) {
     (a, b) => a.y - b.y || a.x - b.x,
   );
   if (sorted.length > 0) {
-    updateLiveInventoryUI(sorted[sorted.length - 1], sorted, grid.cellH * 0.1);
+    updateLiveInventoryUI(sorted.at(-1), sorted, grid.cellH * 0.1);
   }
 
   return debugCanvas.toDataURL("image/jpeg", 0.7);
@@ -685,7 +707,7 @@ function updateLiveInventoryUI(
   const sorted = [...currentFrameItems].sort((a, b) => a.y - b.y || a.x - b.x);
   listContainer.innerHTML = sorted
     .map((item) => {
-      const shortName = item.name.replace(/prime/gi, "").trim();
+      const shortName = item.name.replaceAll(/prime/gi, "").trim();
       return `
       <div style="display:flex;justify-content:space-between;align-items:center;
           background:rgba(0,229,255,0.04);padding:5px 8px;border-radius:4px;
@@ -699,7 +721,7 @@ function updateLiveInventoryUI(
 
   const scrollGuide = document.getElementById("live-scroll-guide");
   if (scrollGuide && lastFoundItem) {
-    const cleanName = lastFoundItem.name.replace(/PRIME/gi, "").trim();
+    const cleanName = lastFoundItem.name.replaceAll(/PRIME/gi, "").trim();
     scrollGuide.innerHTML = `<span style="color:#0e9;font-weight:700;">${cleanName.toUpperCase()}</span> — last detected`;
   }
 }
@@ -762,25 +784,25 @@ function detectRelicSelection(data) {
   if (!match) return;
 
   const tier = match[1].toUpperCase();
-  const codeRaw = match[2].trim().replace(/\s+/g, "");
+  const codeRaw = match[2].trim().replaceAll(/\s+/g, "");
   const isRequiem = tier === "REQUIEM";
 
   let code = codeRaw;
   if (!isRequiem && code.length >= 2) {
     code = code
-      .replaceAll('Z', "2")
-      .replaceAll('S', "5")
-      .replaceAll('B', "8")
-      .replaceAll('G', "6")
-      .replace(/O/g, "0")
-      .replace(/[IL]/g, "1");
+      .replaceAll("Z", "2")
+      .replaceAll("S", "5")
+      .replaceAll("B", "8")
+      .replaceAll("G", "6")
+      .replaceAll("O", "0")
+      .replaceAll(/[IL]/g, "1");
   } else if (isRequiem) {
     code = code
-      .replace(/1/g, "I")
-      .replace(/0/g, "O")
-      .replace(/2/g, "II")
-      .replace(/3/g, "III")
-      .replace(/4/g, "IV");
+      .replaceAll("1", "I")
+      .replaceAll("0", "O")
+      .replaceAll("2", "II")
+      .replaceAll("3", "III")
+      .replaceAll("4", "IV");
   }
 
   if (code && code.length >= 1) {
@@ -895,34 +917,32 @@ async function openScanModal(imageUrl, items) {
       const leftPercent = (item.xPos / cvsWidth) * 100;
       const topPercent = ((item.yPos + 35) / cvsHeight) * 100;
       createModalBadge(
-        item.name,
-        item.price,
-        item.ducats,
+        {
+          name: item.name,
+          price: item.price,
+          ducats: item.ducats,
+          leftPercent: leftPercent,
+          topPercent: topPercent,
+          isBestPl: item.price === maxPl && item.price > 0,
+          isBestDuc: item.ducats === maxDuc && item.ducats > 0,
+        },
         badgesContainer,
-        leftPercent,
-        topPercent,
-        item.price === maxPl && item.price > 0,
-        item.ducats === maxDuc && item.ducats > 0,
       );
     });
   });
 }
 
 function createModalBadge(
-  name,
-  price,
-  ducats,
+  { name, price, ducats, leftPercent, topPercent, isBestPl, isBestDuc },
   container,
-  leftPercent,
-  topPercent,
-  isBestPl,
-  isBestDuc,
 ) {
   const badge = document.createElement("div");
   badge.className = `modal-badge ${isBestPl ? "best-pl" : ""} ${isBestDuc ? "best-duc" : ""}`;
   const clampedLeft = Math.max(8, Math.min(92, leftPercent));
+
   badge.style.left = `${clampedLeft}%`;
   badge.style.top = `${Math.min(90, topPercent)}%`;
+
   const slug = getSlug(name);
   const cleanName = name
     .replaceAll(/PRIME/gi, "")
@@ -931,6 +951,7 @@ function createModalBadge(
     .replaceAll(/SYSTEMS/gi, "SYS")
     .replaceAll(/CHASSIS/gi, "CHAS")
     .trim();
+
   badge.innerHTML = `
     <a href="https://warframe.market/items/${slug}" target="_blank" class="modal-badge-link" style="display:block; text-decoration:none;">
         <div class="modal-badge-name" style="font-size:10px; color:#aaa; font-weight:bold; margin-bottom:4px; text-transform:uppercase;">${cleanName}</div>
@@ -949,9 +970,9 @@ function createModalBadge(
             }
         </div>
     </a>`;
+
   container.appendChild(badge);
 }
-
 globalThis.saveLiveInventory = function () {
   if (sessionInventory.size === 0) return showToast("No items detected");
   for (const [name, count] of sessionInventory) {
@@ -1005,82 +1026,23 @@ globalThis.closeScanModal = function () {
 };
 
 globalThis.manualPrecisionScan = async function () {
-  if (isScanning) {
-    let waited = 0;
-    while (isScanning && waited < 2000) {
-      await new Promise((r) => setTimeout(r, 200));
-      waited += 200;
-    }
-    if (isScanning) return showToast("Scanner busy...");
-  }
+  const isReady = await waitForScannerReady();
+  if (!isReady) return showToast("Scanner busy...");
+
   const video = document.getElementById("live-video");
   if (!video || !liveStream?.active) return showToast("Scanner not active");
 
   _preSessionItemNames = new Set(sessionInventory.keys());
-
   showToast("Scanning page...");
   isScanning = true;
-  const msgEl = document.getElementById("live-inv-msg");
 
   try {
-    const width = video.videoWidth;
-    const height = video.videoHeight;
-    const scale = 1080 / height;
+    const msgEl = document.getElementById("live-inv-msg");
+    const diagnosticUrl = await performTwoPassScan(video, msgEl);
 
-    snapshotCanvas.width = width;
-    snapshotCanvas.height = height;
-    snapshotCtx.drawImage(video, 0, 0);
+    if (DEBUG_MODE) updateDebugUI(diagnosticUrl);
 
-    if (msgEl) msgEl.innerText = "SCANNING 1/2...";
-    await processInventoryGrid(snapshotCanvas, width, height, scale);
-    if (msgEl) msgEl.innerText = "SCANNING 2/2...";
-    const diagnosticUrl = await processInventoryGrid(
-      snapshotCanvas,
-      width,
-      height,
-      scale,
-    );
-    if (msgEl) msgEl.innerText = "DONE";
-
-    if (DEBUG_MODE) {
-      const dbgImg = document.getElementById("live-debug-snapshot-img");
-      const dbgPanel = document.getElementById("live-debug-snapshot");
-      if (dbgImg) {
-        dbgImg.src = diagnosticUrl;
-        dbgImg.style.display = "block";
-      }
-      if (dbgPanel) dbgPanel.style.display = "block";
-    }
-
-    const newItems = [...sessionInventory.keys()].filter(
-      (k) => !_preSessionItemNames.has(k),
-    );
-    const newCount = newItems.length;
-    const totalNow = sessionInventory.size;
-    const scrollGuide = document.getElementById("live-scroll-guide");
-
-    if (newCount > 0) {
-      if (msgEl) msgEl.innerText = `+${newCount} NEW`;
-      if (scrollGuide)
-        scrollGuide.innerHTML = `
-        <div style="line-height:1.5;">
-          <div style="color:#f1c40f;font-weight:800;font-size:0.85em;">↓ ${newCount} NEW ITEM${newCount > 1 ? "S" : ""} FOUND</div>
-          <div style="color:#506070;margin:3px 0;">Scroll down, then press SCAN PAGE again.</div>
-          <div style="display:flex;gap:5px;margin-top:5px;">
-            <button onclick="globalThis.manualPrecisionScan()" style="flex:1;background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.4);color:#00e5ff;font-size:0.7em;padding:4px;border-radius:4px;cursor:pointer;font-weight:700;">↓ SCAN NEXT</button>
-            <button onclick="globalThis.inventoryScanDone()" style="flex:1;background:none;border:1px solid rgba(255,255,255,0.1);color:#506070;font-size:0.7em;padding:4px;border-radius:4px;cursor:pointer;">✓ DONE</button>
-          </div>
-        </div>`;
-    } else {
-      if (msgEl) msgEl.innerText = `${totalNow} ITEMS`;
-      if (scrollGuide)
-        scrollGuide.innerHTML = `
-        <div style="line-height:1.5;">
-          <div style="color:#a0c0b0;font-weight:800;font-size:0.85em;">✓ No new items on this page</div>
-          <div style="color:#506070;margin:3px 0;">${totalNow} total unique items found.</div>
-          <button onclick="globalThis.inventoryScanDone()" style="width:100%;margin-top:5px;background:rgba(0,229,255,0.08);border:1px solid rgba(0,229,255,0.3);color:#7cada8;font-size:0.7em;padding:5px;border-radius:4px;cursor:pointer;font-weight:700;">✓ FINISHED — SAVE INVENTORY</button>
-        </div>`;
-    }
+    updatePostScanUI(msgEl);
   } catch (e) {
     console.error("Manual scan failed:", e);
     showToast("Scan failed: " + e.message);
@@ -1089,6 +1051,145 @@ globalThis.manualPrecisionScan = async function () {
   }
 };
 
+async function waitForScannerReady() {
+  if (!isScanning) return true;
+  let waited = 0;
+  while (isScanning && waited < 2000) {
+    await new Promise((r) => setTimeout(r, 200));
+    waited += 200;
+  }
+  return !isScanning;
+}
+
+async function performTwoPassScan(video, msgEl) {
+  const width = video.videoWidth;
+  const height = video.videoHeight;
+  const scale = 1080 / height;
+
+  snapshotCanvas.width = width;
+  snapshotCanvas.height = height;
+  snapshotCtx.drawImage(video, 0, 0);
+
+  if (msgEl) msgEl.innerText = "SCANNING 1/2...";
+  await processInventoryGrid(snapshotCanvas, width, height, scale);
+
+  if (msgEl) msgEl.innerText = "SCANNING 2/2...";
+  const diagnosticUrl = await processInventoryGrid(
+    snapshotCanvas,
+    width,
+    height,
+    scale,
+  );
+
+  if (msgEl) msgEl.innerText = "DONE";
+
+  return diagnosticUrl;
+}
+
+function updateDebugUI(diagnosticUrl) {
+  const dbgImg = document.getElementById("live-debug-snapshot-img");
+  const dbgPanel = document.getElementById("live-debug-snapshot");
+  if (dbgImg) {
+    dbgImg.src = diagnosticUrl;
+    dbgImg.style.display = "block";
+  }
+  if (dbgPanel) dbgPanel.style.display = "block";
+}
+
+function updatePostScanUI(msgEl) {
+  const newItems = [...sessionInventory.keys()].filter(
+    (k) => !_preSessionItemNames.has(k),
+  );
+  const newCount = newItems.length;
+  const totalNow = sessionInventory.size;
+  const scrollGuide = document.getElementById("live-scroll-guide");
+
+  if (newCount > 0) {
+    renderNewItemsFoundUI(msgEl, scrollGuide, newCount);
+  } else {
+    renderNoNewItemsUI(msgEl, scrollGuide, totalNow);
+  }
+}
+
+function renderNewItemsFoundUI(msgEl, scrollGuide, newCount) {
+  if (msgEl) msgEl.innerText = `+${newCount} NEW`;
+  if (scrollGuide) {
+    scrollGuide.innerHTML = `
+        <div style="line-height:1.5;">
+          <div style="color:#f1c40f;font-weight:800;font-size:0.85em;">↓ ${newCount} NEW ITEM${newCount > 1 ? "S" : ""} FOUND</div>
+          <div style="color:#506070;margin:3px 0;">Scroll down, then press SCAN PAGE again.</div>
+          <div style="display:flex;gap:5px;margin-top:5px;">
+            <button onclick="globalThis.manualPrecisionScan()" style="flex:1;background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.4);color:#00e5ff;font-size:0.7em;padding:4px;border-radius:4px;cursor:pointer;font-weight:700;">↓ SCAN NEXT</button>
+            <button onclick="globalThis.inventoryScanDone()" style="flex:1;background:none;border:1px solid rgba(255,255,255,0.1);color:#506070;font-size:0.7em;padding:4px;border-radius:4px;cursor:pointer;">✓ DONE</button>
+          </div>
+        </div>`;
+  }
+}
+
+function renderNoNewItemsUI(msgEl, scrollGuide, totalNow) {
+  if (msgEl) msgEl.innerText = `${totalNow} ITEMS`;
+  if (scrollGuide) {
+    scrollGuide.innerHTML = `
+        <div style="line-height:1.5;">
+          <div style="color:#a0c0b0;font-weight:800;font-size:0.85em;">✓ No new items on this page</div>
+          <div style="color:#506070;margin:3px 0;">${totalNow} total unique items found.</div>
+          <button onclick="globalThis.inventoryScanDone()" style="width:100%;margin-top:5px;background:rgba(0,229,255,0.08);border:1px solid rgba(0,229,255,0.3);color:#7cada8;font-size:0.7em;padding:5px;border-radius:4px;cursor:pointer;font-weight:700;">✓ FINISHED — SAVE INVENTORY</button>
+        </div>`;
+  }
+}
+async function extractCellText(cell, worker, ocrCanvas, grid) {
+  const textCvs = createTextCanvas(ocrCanvas, cell, grid);
+  const {
+    data: { words },
+  } = await worker.recognize(textCvs);
+
+  if (words.length < 1) return null;
+  return words.map((w) => w.text.toUpperCase());
+}
+
+function handleDebugLogging(cell, combinedText) {
+  if (DEBUG_MODE) {
+    logDebug(
+      `[CELL r${cell.r}c${cell.c}] OCR words: [${combinedText.join(", ")}]`,
+    );
+  }
+}
+
+function getValidItemMatch(combinedText) {
+  const matchOpts = findBestItemMatch(combinedText);
+  if (!matchOpts.bestMatch || matchOpts.highestRatio < 0.45) return null;
+  return matchOpts.bestMatch;
+}
+
+async function extractCellQuantity(cell, bWorker, snapshot, grid) {
+  const badgeCvs = createBadgeCanvas(snapshot, cell, grid);
+  const {
+    data: { words: badgeWords },
+  } = await bWorker.recognize(badgeCvs);
+
+  const badgeNums = badgeWords.filter((w) => /\d/.test(w.text));
+  if (badgeNums.length === 0) return 1;
+
+  badgeNums.sort((a, b) => b.bbox.x0 - a.bbox.x0);
+  const pureDigit = badgeNums[0].text.replaceAll(/\D/g, "");
+
+  if (pureDigit && pureDigit.length > 0) {
+    const val = Number.parseInt(pureDigit);
+    return val > 1 && val < 1000 ? val : 1;
+  }
+  return 1;
+}
+
+function drawCellDebugOverlay(dCtx, cell, grid, originalName, qty) {
+  dCtx.strokeStyle = "#ffff00";
+  dCtx.lineWidth = 2;
+  dCtx.strokeRect(cell.sx, cell.sy, grid.cellW, grid.cellH);
+  dCtx.fillStyle = "#ffe000";
+  dCtx.font = "bold 11px Arial";
+
+  const shortName = originalName.replace("PRIME ", "").substring(0, 18);
+  dCtx.fillText(`${shortName} x${qty}`, cell.sx + 4, cell.sy + 15);
+}
 globalThis.inventoryScanDone = function () {
   const scrollGuide = document.getElementById("live-scroll-guide");
   const msgEl = document.getElementById("live-inv-msg");
