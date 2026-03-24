@@ -19,7 +19,6 @@ import {
   changeLanguage,
   initSyncPanel,
   initFissurePanel,
-  initGlobalTooltipSystem,
   initLFGPresets,
   manualRelicUpdate,
   initDisclaimerSystem,
@@ -38,8 +37,11 @@ import {
   toggleLangDropdown,
   setLanguageManual,
   generateLFGMessage,
-  preloadCriticalAssets,
 } from "./ui.js";
+import {
+  initGlobalTooltipSystem,
+  preloadCriticalAssets,
+} from "./ui.components/ui_components.js";
 import {
   toggleInventoryPanel,
   renderInventory,
