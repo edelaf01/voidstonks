@@ -4,13 +4,13 @@ import { addToQueue, getSlug, getPriceValue } from "../api.js";
 import { escapeHTML, showToast, showCustomConfirm } from "./ui_components.js";
 import {
   getItemIcon,
-  switchTab,
-  manualRelicUpdate,
+  getSetName,
   getRequiredCount,
   generateDotsHtml,
-  getSetName,
-  handleSetTyping,
-} from "../ui.js";
+} from "./ui_utils.js"; 
+
+import { manualRelicUpdate } from "./ui_relics.js";
+
 
 export function toggleInventoryPanel(forceOpen = false) {
   const panel = document.getElementById("inventory-container");

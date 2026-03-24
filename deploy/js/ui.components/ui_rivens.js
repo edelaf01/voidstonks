@@ -2,11 +2,28 @@ import { state } from "../state.js";
 import { TEXTS, RIVEN_STATS } from "../config.js";
 import { calculateRivenGrade } from "../riven_logic.js";
 import { getRivenSlug, fetchRivenAverage } from "../api.js";
-import { getItemIcon } from "../ui.js";
-
+import {
+  getItemIcon,
+  getSetName,
+  getRequiredCount,
+  generateDotsHtml,
+} from "./ui_utils.js";
 import { escapeHTML, showToast } from "./ui_components.js";
+
 let rivenDebounceTimer;
 let gradeDebounceTimer;
+
+/**
+ * Normalizador Dinámico: Traduce nombres de la UI a nombres técnicos de la DB.
+ */
+const normalizeStatName = (name) => {
+  if (!name) return "";
+  return name
+    .replaceAll(/\bCrit\b/g, "Critical")
+    .replaceAll(/\bDmg\b/g, "Damage")
+    .replaceAll(/\bStats\b/g, "Status")
+    .trim();
+};
 
 if (!globalThis._rivenTooltipListenerAdded) {
   document.addEventListener("click", function (event) {
@@ -19,6 +36,8 @@ if (!globalThis._rivenTooltipListenerAdded) {
   });
   globalThis._rivenTooltipListenerAdded = true;
 }
+
+// --- LÓGICA DE UI Y PREVIEW ---
 
 export function populateRivenSelects(weaponType = "Rifle") {
   const selects = document.querySelectorAll(".riven-stat-select");
@@ -57,7 +76,6 @@ export async function loadWeaponDetails() {
       throw new Error("Failed to load weapon details from UI fallback");
     const data = await res.json();
     state.weaponDetailsDB = data;
-    console.log("Weapon Details Loaded (UI Fallback):", data.length);
   } catch (e) {
     console.error("Error loading weapon details:", e);
   }
@@ -104,9 +122,11 @@ function getWeaponDetails(weaponName) {
 }
 
 function getDispositionData(details, basic) {
-  const dispoValue = basic ? basic.d : details ? 1.0 : 1.0;
+  let dispoValue = 1;
+  if (basic) {
+    dispoValue = basic.d;
+  }
   let circles = 0;
-
   if (dispoValue < 0.7) circles = 1;
   else if (dispoValue < 0.9) circles = 2;
   else if (dispoValue <= 1.1) circles = 3;
@@ -117,23 +137,18 @@ function getDispositionData(details, basic) {
   for (let i = 1; i <= 5; i++) {
     circlesHtml += `<div class="dispo-circle ${i <= circles ? "filled" : ""}"></div>`;
   }
-
   return { value: dispoValue, circles, circlesHtml };
 }
 
 function getWeaponImagePath(weaponName, details) {
-  let imgPath = "";
-
-  if (weaponName.toUpperCase().includes("PRIME")) {
-    imgPath = getItemIcon(weaponName);
-  }
+  let imgPath = weaponName.toUpperCase().includes("PRIME")
+    ? getItemIcon(weaponName)
+    : "";
 
   if (!imgPath && details?.localImage) {
-    let rawPath = details.localImage;
-    if (rawPath.endsWith(".png")) rawPath = rawPath.replace(".png", ".webp");
-    if (rawPath.startsWith("weapons/")) {
+    let rawPath = details.localImage.replace(".png", ".webp");
+    if (rawPath.startsWith("weapons/"))
       rawPath = rawPath.replace("weapons/", "relic_contents/");
-    }
     imgPath = `assets/${rawPath}`;
   }
 
@@ -145,14 +160,11 @@ function getWeaponImagePath(weaponName, details) {
       .replaceAll(/_+/g, "_");
     imgPath = `assets/relic_contents/${slug}.webp`;
   }
-
   return imgPath;
 }
 
 function buildTooltipHtml(details) {
   if (!details) return "";
-
-  const hasComponents = details.components && details.components.length > 0;
   const nameUpper = details.name.toUpperCase();
   const isLichPrefix =
     nameUpper.startsWith("KUVA") ||
@@ -163,12 +175,12 @@ function buildTooltipHtml(details) {
   );
   const isLichWeapon = isLichPrefix && !isShopItem;
 
-  if (!hasComponents && !isLichWeapon) return "";
+  if (!details.components?.length && !isLichWeapon) return "";
 
   const weaponWikiUrl = `https://wiki.warframe.com/w/${encodeURIComponent(details.name)}`;
   let html = `<div class="preview-tooltip"><h4><a href="${weaponWikiUrl}" target="_blank" class="wiki-link" style="color:var(--wf-purple); border-bottom-color:var(--wf-purple);">${details.name}</a></h4>`;
 
-  if (hasComponents && !isLichWeapon) {
+  if (details.components?.length && !isLichWeapon) {
     html += buildComponentsHtml(details.components);
     html += buildDropsHtml(details.components);
   } else if (isLichWeapon) {
@@ -185,9 +197,11 @@ function buildComponentsHtml(components) {
     .map((c) => {
       const cImgPath = getItemIcon(c.name);
       const isItemInteractive = c.name.includes("Prime");
+      const escapedName = c.name.replaceAll("'", String.raw`\'`);
       const onclickAttr = isItemInteractive
-        ? `onclick="event.stopPropagation(); globalThis.openSetFromRelicReward('${c.name.replace(/'/g, "\\'")}')" title="Ver Set de ${c.name}"`
+        ? `onclick="event.stopPropagation(); globalThis.openSetFromRelicReward('${escapedName}')" title="Ver Set de ${c.name}"`
         : "";
+
       return `<div class="tooltip-drop-row ${isItemInteractive ? "item-interactive" : ""}" ${onclickAttr}><span style="display:flex; align-items:center;"><img src="${cImgPath}" class="tooltip-res-img" onerror="this.style.display='none'">${c.itemCount}x ${c.name}</span><span style="color:#888">${c.ducats || 0}d</span></div>`;
     })
     .join("");
@@ -200,12 +214,7 @@ function buildDropsHtml(components) {
   components.forEach((c) => {
     if (c.drops) {
       c.drops.forEach((d) =>
-        allDrops.push({
-          part: c.name,
-          loc: d.location,
-          chance: d.chance,
-          rarity: d.rarity,
-        }),
+        allDrops.push({ loc: d.location, chance: d.chance, rarity: d.rarity }),
       );
     }
   });
@@ -218,31 +227,33 @@ function buildDropsHtml(components) {
   if (relevantDrops.length === 0) return "";
 
   let html = `<div class="tooltip-section"><span class="tooltip-section-title">Drop Locations</span>`;
+
   html += relevantDrops
     .map((d) => {
-      let colorClass = "t-chance-low";
-      if (d.rarity === "Common") colorClass = "t-chance-high";
-      if (d.rarity === "Rare") colorClass = "t-chance-low";
-
+      const colorClass =
+        d.rarity === "Common" ? "t-chance-high" : "t-chance-low";
       let locHtml = "";
       if (d.loc.includes("Relic")) {
         const relicName = d.loc.replace(" Relic", "").trim();
-        locHtml = `<span class="relic-link" onclick="selectRelicFromPreview('${relicName.replaceAll("'", "\\'")}')" title="Click to view Relic" style="max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:inline-block; vertical-align:bottom;">${d.loc}</span>`;
+        const escapedRelic = relicName.replaceAll("'", String.raw`\'`);
+        locHtml = `<span class="relic-link" onclick="selectRelicFromPreview('${escapedRelic}')" title="Ver Reliquia">${d.loc}</span>`;
       } else {
-        const cleanLoc = d.loc.split(":")[0].split(",")[0].split("(")[0].trim();
+        const cleanLoc = d.loc.split(":")[0].split(",")[0].trim();
         const wikiUrl = `https://wiki.warframe.com/w/${encodeURIComponent(cleanLoc)}`;
-        locHtml = `<a href="${wikiUrl}" target="_blank" class="wiki-link" title="Open Wiki for ${cleanLoc}" style="max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:inline-block; vertical-align:bottom;">${d.loc}</a>`;
+        locHtml = `<a href="${wikiUrl}" target="_blank" class="wiki-link">${d.loc}</a>`;
       }
+
       return `<div class="tooltip-drop-row">${locHtml}<span class="${colorClass}">${(d.chance * 100).toFixed(1)}%</span></div>`;
     })
     .join("");
+
   html += `</div>`;
   return html;
 }
 
 function buildLichHtml(nameUpper) {
-  let sourceName = "Unknown Source";
-  let sourceUrl = "";
+  let sourceName = "Unknown Source",
+    sourceUrl = "";
   if (nameUpper.startsWith("KUVA")) {
     sourceName = "Kuva Lich (Vanquish)";
     sourceUrl = "https://wiki.warframe.com/w/Kuva_Lich";
@@ -253,13 +264,14 @@ function buildLichHtml(nameUpper) {
     sourceName = "Infested Liches (1999)";
     sourceUrl = "https://wiki.warframe.com/w/Technocyte_Coda";
   }
-  return `<div class="tooltip-section"><span class="tooltip-section-title">Acquisition</span><div class="tooltip-drop-row" style="justify-content:center; padding:8px 0; border:none;"><span style="color:#dcb3ff; text-align:center;">Source: <a href="${sourceUrl}" target="_blank" class="wiki-link" style="color:var(--wf-gold-text); border-bottom-style:dotted;">${sourceName}</a></span></div><div class="tooltip-drop-row" style="justify-content:center; border:none;"><span style="color:#666; font-size:0.8em; font-style:italic;">(Pre-built weapon drop)</span></div></div>`;
+  return `<div class="tooltip-section"><span class="tooltip-section-title">Acquisition</span><div class="tooltip-drop-row" style="justify-content:center; padding:8px 0; border:none;"><span style="color:#dcb3ff; text-align:center;">Source: <a href="${sourceUrl}" target="_blank" class="wiki-link" style="color:var(--wf-gold-text);">${sourceName}</a></span></div></div>`;
 }
 
 function updatePreviewDOM(panel, imgPath, dispoData, tooltipHtml) {
-  let wrapper = panel.querySelector(".riven-weapon-preview");
-  if (!wrapper) {
-    wrapper = document.createElement("div");
+  let wrapper =
+    panel.querySelector(".riven-weapon-preview") ||
+    document.createElement("div");
+  if (!wrapper.parentElement) {
     wrapper.className = "riven-weapon-preview";
     wrapper.onclick = (e) => {
       wrapper.classList.toggle("mobile-active");
@@ -268,9 +280,9 @@ function updatePreviewDOM(panel, imgPath, dispoData, tooltipHtml) {
     panel.appendChild(wrapper);
   }
 
-  let img = wrapper.querySelector(".riven-weapon-img");
-  if (!img) {
-    img = document.createElement("img");
+  let img =
+    wrapper.querySelector(".riven-weapon-img") || document.createElement("img");
+  if (!img.parentElement) {
     img.className = "riven-weapon-img";
     img.onerror = () => {
       img.src = "assets/img/default-weapon.png";
@@ -279,27 +291,21 @@ function updatePreviewDOM(panel, imgPath, dispoData, tooltipHtml) {
     wrapper.appendChild(img);
   }
 
-  const absoluteImgPath = new URL(imgPath, globalThis.location.href).href;
-  if (img.src !== absoluteImgPath) {
+  const absPath = new URL(imgPath, globalThis.location.href).href;
+  if (img.src !== absPath) {
     img.classList.add("loading");
     img.onload = () => img.classList.remove("loading");
     img.src = imgPath;
   }
 
-  let dispoRow = wrapper.querySelector(".riven-disposition-row");
-  if (!dispoRow) {
-    dispoRow = document.createElement("div");
-    wrapper.appendChild(dispoRow);
-  }
-
-  const displayDispo = Number.parseFloat(dispoData.value).toFixed(2);
+  let dispoRow =
+    wrapper.querySelector(".riven-disposition-row") ||
+    document.createElement("div");
+  if (!dispoRow.parentElement) wrapper.appendChild(dispoRow);
   dispoRow.className = `riven-disposition-row dispo-level-${dispoData.circles}`;
-  dispoRow.title = `Disposition: ${displayDispo}`;
-  dispoRow.innerHTML = `${dispoData.circlesHtml}<span class="dispo-text">${displayDispo}</span>`;
+  dispoRow.innerHTML = `${dispoData.circlesHtml}<span class="dispo-text">${dispoData.value.toFixed(2)}</span>`;
 
-  let oldTooltip = wrapper.querySelector(".preview-tooltip");
-  if (oldTooltip) oldTooltip.remove();
-
+  wrapper.querySelector(".preview-tooltip")?.remove();
   if (tooltipHtml) {
     const temp = document.createElement("div");
     temp.innerHTML = tooltipHtml;
@@ -307,10 +313,11 @@ function updatePreviewDOM(panel, imgPath, dispoData, tooltipHtml) {
   }
 }
 
+// --- LÓGICA DE NOMBRES Y VARIANTES ---
+
 export function getNakedName(name) {
   if (!name) return "";
   let s = name.toLowerCase().replaceAll("_", " ").trim();
-
   const prefixes = [
     "kuva ",
     "tenet ",
@@ -328,7 +335,6 @@ export function getNakedName(name) {
     "mara ",
     "dex ",
   ];
-
   const suffixes = [" prime", " vandal", " wraith", " prisma", " coda"];
 
   for (const pre of prefixes) {
@@ -349,12 +355,7 @@ export function getNakedName(name) {
 export function renderVariants(currentWeaponName) {
   const section = document.getElementById("riven-variants-carousel-section");
   const carousel = document.getElementById("riven-variants-carousel");
-  if (!section || !carousel) return;
-
-  if (!currentWeaponName || !state.allRivenNames || !state.weaponMap) {
-    section.style.display = "none";
-    return;
-  }
+  if (!section || !carousel || !state.allRivenNames) return;
 
   const currentNaked = getNakedName(currentWeaponName);
   const siblings = state.allRivenNames.filter(
@@ -363,134 +364,42 @@ export function renderVariants(currentWeaponName) {
 
   if (siblings.length <= 1) {
     section.style.display = "none";
-    carousel.dataset.baseWeapon = "";
     return;
   }
 
-  const oldBase = carousel.dataset.baseWeapon;
-  const scrollToActive = () => {
-    setTimeout(() => {
-      const activeItem = carousel.querySelector(".variant-card.active");
-      if (activeItem)
-        activeItem.scrollIntoView({
-          behavior: "smooth",
-          block: "nearest",
-          inline: "center",
-        });
-    }, 150);
-  };
-
-  if (oldBase === currentNaked) {
-    const cards = carousel.querySelectorAll(".variant-card");
-    cards.forEach((card) =>
-      card.classList.toggle(
-        "active",
-        card.title.toUpperCase() === currentWeaponName.toUpperCase(),
-      ),
-    );
-    scrollToActive();
-    return;
-  }
-
-  carousel.dataset.baseWeapon = currentNaked;
   section.style.display = "block";
+  carousel.dataset.baseWeapon = currentNaked;
   const fragment = document.createDocumentFragment();
-  siblings.sort();
 
-  siblings.forEach((name) => {
-    const isSelected = name.toUpperCase() === currentWeaponName.toUpperCase();
-    const weaponData = state.weaponMap[name];
-    const dispoValue = weaponData ? Number.parseFloat(weaponData.d) : 1;
-    const displayDispo = dispoValue.toFixed(2);
+  siblings
+    .toSorted((a, b) => a.localeCompare(b))
+    .forEach((name) => {
+      const isSelected = name.toUpperCase() === currentWeaponName.toUpperCase();
+      const weaponData = state.weaponMap[name];
+      const dispo = weaponData ? Number.parseFloat(weaponData.d) : 1;
 
-    let circles = 0;
-    if (dispoValue < 0.7) circles = 1;
-    else if (dispoValue < 0.9) circles = 2;
-    else if (dispoValue <= 1.1) circles = 3;
-    else if (dispoValue <= 1.3) circles = 4;
-    else circles = 5;
+      const card = document.createElement("div");
+      card.className = `variant-card ${isSelected ? "active" : ""}`;
+      card.title = name;
+      card.onclick = () => selectRivenWeapon(name);
+      const displayLabel =
+        name.toUpperCase().replace(currentNaked.toUpperCase(), "").trim() ||
+        "Base";
 
-    let circlesHtml = "";
-    for (let i = 1; i <= 5; i++)
-      circlesHtml += `<div class="v-dispo-dot ${i <= circles ? "filled" : ""}"></div>`;
+      card.innerHTML = `
+        <img src="${getItemIcon(name)}" onerror="this.src='assets/img/default-weapon.png'">
+        <span class="v-name-small">${displayLabel}</span>
+        <div class="v-dispo-row">
+            <span class="v-dispo-val">${dispo.toFixed(2)}</span>
+        </div>`;
 
-    const imgPath =
-      getItemIcon(name) ||
-      `assets/relic_contents/${name
-        .toLowerCase()
-        .replaceAll(/[\s-]+/g, "_")
-        .replaceAll(/[^a-z0-9_]/g, "")
-        .replaceAll(/_+/g, "_")}.webp`;
-
-    const card = document.createElement("div");
-    card.className = `variant-card ${isSelected ? "active" : ""}`;
-    card.title = name;
-    card.onclick = () => selectRivenWeapon(name);
-
-    let displayLabel = name;
-    const nakedUpper = currentNaked.toUpperCase();
-    if (name.toUpperCase().includes(nakedUpper)) {
-      displayLabel =
-        name.toUpperCase().replace(nakedUpper, "").trim() || "Base";
-    }
-
-    const img = document.createElement("img");
-    img.src = imgPath;
-    img.onerror = () => {
-      img.src = "assets/img/default-weapon.png";
-    };
-    card.appendChild(img);
-
-    if (name.toUpperCase().includes("PRIME")) {
-      const setShortcut = document.createElement("div");
-      setShortcut.className = "variant-set-shortcut";
-      setShortcut.innerHTML = "SET ↗";
-      setShortcut.title = `Ver Set de ${name}`;
-      setShortcut.onclick = (e) => {
-        e.stopPropagation();
-        if (globalThis.openSetFromRelicReward)
-          globalThis.openSetFromRelicReward(name);
-      };
-      card.appendChild(setShortcut);
-    }
-
-    const nameSpan = document.createElement("span");
-    nameSpan.className = "v-name-small";
-    nameSpan.textContent = displayLabel;
-    card.appendChild(nameSpan);
-
-    const dispoRow = document.createElement("div");
-    dispoRow.className = "v-dispo-row";
-
-    const dotsDiv = document.createElement("div");
-    dotsDiv.className = "v-dispo-dots";
-    dotsDiv.innerHTML = circlesHtml;
-    dispoRow.appendChild(dotsDiv);
-
-    const dispoValSpan = document.createElement("span");
-    dispoValSpan.className = "v-dispo-val";
-    dispoValSpan.textContent = displayDispo;
-    dispoRow.appendChild(dispoValSpan);
-
-    card.appendChild(dispoRow);
-    fragment.appendChild(card);
-  });
+      fragment.appendChild(card);
+    });
 
   carousel.replaceChildren(fragment);
-  scrollToActive();
-
-  if (!carousel._hasCarouselScrollListener) {
-    carousel.addEventListener("mousemove", (e) => {
-      if (globalThis.matchMedia("(pointer: fine)").matches) {
-        const rect = carousel.getBoundingClientRect();
-        const mouseX = e.clientX - rect.left;
-        const ratio = mouseX / rect.width;
-        carousel.scrollLeft = ratio * (carousel.scrollWidth - rect.width);
-      }
-    });
-    carousel._hasCarouselScrollListener = true;
-  }
 }
+
+// --- LÓGICA DE GRADING Y MERCADO ---
 
 export function handleRivenInput() {
   clearTimeout(rivenDebounceTimer);
@@ -500,48 +409,31 @@ export function handleRivenInput() {
     if (!input || !dropdown) return;
 
     const val = input.value.toUpperCase().trim();
-    if (val.length === 0) {
+    if (!val) {
       dropdown.classList.add("hidden");
-      const previewPanel = document.getElementById("riven-preview-panel");
-      if (previewPanel) previewPanel.replaceChildren();
       return;
     }
 
-    if (!state.weaponDetailsDB) loadWeaponDetails();
-
-    if (
-      (!state.allRivenNames || state.allRivenNames.length === 0) &&
-      state.weaponMap
-    ) {
-      state.allRivenNames = Object.keys(state.weaponMap).sort((a, b) =>
+    if (!state.allRivenNames?.length) {
+      state.allRivenNames = Object.keys(state.weaponMap || {}).sort((a, b) =>
         a.localeCompare(b),
       );
     }
 
-    const source = state.allRivenNames || [];
-    const startsWithMatches = [];
-    const containsMatches = [];
-
-    source.forEach((n) => {
-      const upperN = n.toUpperCase();
-      if (upperN.startsWith(val)) startsWithMatches.push(n);
-      else if (upperN.includes(val)) containsMatches.push(n);
-    });
-
-    const matches = [...startsWithMatches, ...containsMatches].slice(0, 10);
-
+    const matches = state.allRivenNames
+      .filter((n) => n.toUpperCase().includes(val))
+      .slice(0, 10);
     if (matches.length > 0) {
-      dropdown.replaceChildren();
+      dropdown.replaceChildren(
+        ...matches.map((name) => {
+          const item = document.createElement("div");
+          item.className = "dropdown-item";
+          item.textContent = name;
+          item.onclick = () => selectRivenWeapon(name);
+          return item;
+        }),
+      );
       dropdown.classList.remove("hidden");
-      const fragment = document.createDocumentFragment();
-      matches.forEach((name) => {
-        const item = document.createElement("div");
-        item.className = "dropdown-item";
-        item.textContent = name;
-        item.onclick = () => selectRivenWeapon(name);
-        fragment.appendChild(item);
-      });
-      dropdown.appendChild(fragment);
     } else {
       dropdown.classList.add("hidden");
     }
@@ -550,204 +442,79 @@ export function handleRivenInput() {
 
 export function selectRivenWeapon(name) {
   const input = document.getElementById("rivenWeaponInput");
-  const dropdown = document.getElementById("rivenDropdown");
   if (!input) return;
-
   input.value = name;
-  if (dropdown) dropdown.classList.add("hidden");
+  document.getElementById("rivenDropdown")?.classList.add("hidden");
 
-  const weaponData = state.weaponMap ? state.weaponMap[name] : null;
   renderRivenPreview(name);
-
+  const weaponData = state.weaponMap?.[name];
   if (weaponData) {
-    const dispoDisplay = document.getElementById("riven-dispo-display");
-    if (dispoDisplay) {
-      const displayValue = Number.parseFloat(weaponData.d).toFixed(2);
-      dispoDisplay.innerHTML = `Riven disposition: <b style="color:var(--wf-gold-text)">${displayValue}</b>`;
-    }
     populateRivenSelects(weaponData.t);
+    const dispoEl = document.getElementById("riven-dispo-display");
+    if (dispoEl)
+      dispoEl.innerHTML = `Riven disposition: <b style="color:var(--wf-gold-text)">${weaponData.d.toFixed(2)}</b>`;
   }
-
-  const baseWeaponName = getNakedName(name);
-  fetchRivenAverage(baseWeaponName);
-}
-
-export function updateSelectExclusions() {
-  const selects = Array.from(document.querySelectorAll(".riven-stat-select"));
-  const selectedValues = new Set(
-    selects.map((s) => s.value).filter((v) => v !== ""),
-  );
-
-  selects.forEach((currentSelect) => {
-    const myValue = currentSelect.value;
-    Array.from(currentSelect.options).forEach((option) => {
-      if (option.value === "") return;
-      if (selectedValues.has(option.value) && option.value !== myValue) {
-        option.hidden = true;
-        option.style.display = "none";
-      } else {
-        option.hidden = false;
-        option.style.display = "";
-      }
-    });
-  });
-
-  if (typeof globalThis.updateGradingUI === "function")
-    globalThis.updateGradingUI();
+  fetchRivenAverage(getNakedName(name));
 }
 
 export function openRivenMarket() {
-  const inputEl = document.getElementById("rivenWeaponInput");
-  if (!inputEl) return;
-  const inputVal = inputEl.value.trim();
+  const inputVal = document.getElementById("rivenWeaponInput")?.value.trim();
   if (!inputVal) return showToast("Por favor selecciona un arma primero");
 
-  // SOLUCIÓN: Extraemos el nombre base antes de generar el Slug para la URL
   const baseWeaponName = getNakedName(inputVal);
-  let slug = getRivenSlug(baseWeaponName);
-
-  let url = `https://warframe.market/auctions/search?type=riven&weapon_url_name=${slug}&polarity=any&sort_by=price_asc`;
-
-  const statToSlugMap = {};
-  RIVEN_STATS.forEach((s) => {
-    const baseStatKey =
-      s.name_en === "Crit Chance"
-        ? "Critical Chance"
-        : s.name_en === "Crit Damage"
-          ? "Critical Damage"
-          : s.name_en === "Status Chance"
-            ? "Status Chance"
-            : s.name_en === "Damage"
-              ? "Damage"
-              : s.name_en === "Multishot"
-                ? "Multishot"
-                : s.name_en.split(" / ")[0];
-    statToSlugMap[baseStatKey] = s.slug;
-  });
+  let url = `https://warframe.market/auctions/search?type=riven&weapon_url_name=${getRivenSlug(baseWeaponName)}&polarity=any&sort_by=price_asc`;
 
   const getStatSlug = (id) => {
-    const el = document.getElementById(id);
-    if (!el || !el.value) return null;
-    return statToSlugMap[el.value] || el.value;
+    const val = document.getElementById(id)?.value;
+    if (!val) return null;
+    const internalName = normalizeStatName(val);
+    return (
+      RIVEN_STATS.find((s) => normalizeStatName(s.name_en) === internalName)
+        ?.slug || val
+    );
   };
 
-  const stat1 = getStatSlug("rivenStat1");
-  const stat2 = getStatSlug("rivenStat2");
-  const stat3 = getStatSlug("rivenStat3");
-  const statNeg = getStatSlug("rivenStatNeg");
-
-  let positives = [];
-  if (stat1) positives.push(stat1);
-  if (stat2) positives.push(stat2);
-  if (stat3) positives.push(stat3);
+  const positives = ["rivenStat1", "rivenStat2", "rivenStat3"]
+    .map(getStatSlug)
+    .filter(Boolean);
+  const negative = getStatSlug("rivenStatNeg");
 
   if (positives.length > 0) url += `&positive_stats=${positives.join(",")}`;
-  if (statNeg) url += `&negative_stats=${statNeg}`;
+  if (negative) url += `&negative_stats=${negative}`;
 
   globalThis.open(url, "_blank");
 }
 
 export function renderRivenGradingUI(weaponName, statsArray) {
   const weaponData = state.weaponMap[weaponName];
-  const disposition = weaponData ? weaponData.disposition : 1.0;
-  const weaponType = weaponData ? weaponData.type : "Rifle";
+  if (!weaponData) return "";
+  const disposition = weaponData.disposition || 1.0;
+  const weaponType = weaponData.type || "Rifle";
   const buffCount = statsArray.filter((s) => s.value > 0).length;
   const hasCurse = statsArray.some((s) => s.value < 0);
 
-  let html = `<div class="riven-grading-box"><h4>Grading: ${escapeHTML(weaponName)} (Disp: ${disposition})</h4>`;
-
+  let html = `<div class="riven-grading-box"><h4>Grading: ${escapeHTML(weaponName)}</h4>`;
   statsArray.forEach((stat) => {
-    const isCurse = stat.value < 0;
-    const result = calculateRivenGrade(
+    const internalName = normalizeStatName(stat.name);
+    const res = calculateRivenGrade(
       weaponType,
       disposition,
-      stat.name,
+      internalName,
       stat.value,
-      isCurse,
+      stat.value < 0,
       buffCount,
       hasCurse,
     );
-    const colorClass =
-      result.percentage > 90
-        ? "grade-s"
-        : result.percentage > 50
-          ? "grade-b"
-          : "grade-f";
+    let color = "grade-f";
 
-    html += `
-      <div class="grade-row">
-          <span class="stat-name">${escapeHTML(stat.name)}</span>
-          <span class="stat-val">${escapeHTML(stat.value.toString())}%</span>
-          <div class="grade-bar-container">
-              <div class="grade-bar ${colorClass}" style="width: ${result.percentage}%"></div>
-          </div>
-          <span class="grade-badge ${colorClass}">${escapeHTML(result.grade)}</span>
-          <span class="grade-range">Range: ${escapeHTML(result.min.toString())}% - ${escapeHTML(result.max.toString())}%</span>
-      </div>`;
+    if (res.percentage > 90) {
+      color = "grade-s";
+    } else if (res.percentage > 50) {
+      color = "grade-b";
+    }
+    html += `<div class="grade-row"><span>${escapeHTML(stat.name)}</span><div class="grade-bar ${color}" style="width:${res.percentage}%"></div><span class="grade-badge ${color}">${res.grade}</span></div>`;
   });
-  html += `</div>`;
-  return html;
-}
-
-export function openGradingModal() {
-  const weaponInput = document.getElementById("rivenWeaponInput");
-  const weaponName = weaponInput.value.trim();
-
-  if (!weaponName || !state.weaponMap[weaponName]) {
-    alert("Please select a valid weapon on the field above.");
-    return;
-  }
-
-  const weaponData = state.weaponMap[weaponName];
-
-  document.getElementById("g-weapon-name").innerHTML =
-    `${escapeHTML(weaponName)} <span style="color:#888; font-weight:normal; font-size:0.8em;">(Disp: ${escapeHTML(weaponData.d.toString())})</span>`;
-  document.getElementById("grading-modal").classList.remove("hidden");
-
-  resetGradingInputs();
-  populateRivenSelects(weaponData.t);
-
-  document.getElementById("row-stat3").classList.add("hidden");
-  document.getElementById("row-statNeg").classList.add("hidden");
-  document.getElementById("btn-add-pos").style.display = "block";
-  document.getElementById("btn-add-neg").style.display = "block";
-  document.getElementById("grading-modal-results").classList.add("hidden");
-}
-
-export function closeGradingModal() {
-  document.getElementById("grading-modal").classList.add("hidden");
-}
-
-export function showGradingRow(rowId) {
-  document.getElementById(rowId).classList.remove("hidden");
-  if (rowId === "row-stat3")
-    document.getElementById("btn-add-pos").style.display = "none";
-  if (rowId === "row-statNeg")
-    document.getElementById("btn-add-neg").style.display = "none";
-}
-
-export function removeGradingRow(rowId) {
-  const row = document.getElementById(rowId);
-  row.classList.add("hidden");
-  row.querySelector("select").value = "";
-  row.querySelector("input").value = "";
-
-  if (rowId === "row-stat3")
-    document.getElementById("btn-add-pos").style.display = "block";
-  if (rowId === "row-statNeg")
-    document.getElementById("btn-add-neg").style.display = "block";
-
-  calculateModalGrade();
-}
-
-function resetGradingInputs() {
-  const inputs = document.querySelectorAll(
-    "#grading-modal input, #grading-modal select",
-  );
-  inputs.forEach((i) => {
-    if (i.id === "g-rank") i.value = "8";
-    else i.value = "";
-  });
+  return html + `</div>`;
 }
 
 export function calculateModalGrade() {
@@ -762,31 +529,26 @@ export function calculateModalGrade() {
     );
     const scaleFactor = 9 / (currentRank + 1);
     const resultsDiv = document.getElementById("grading-modal-results");
-
     const stats = [];
 
-    const readModalRow = (selId, valId, isNeg) => {
+    const readRow = (selId, valId, isNeg) => {
       const sel = document.getElementById(selId);
-      const valInput = document.getElementById(valId);
-      if (sel.offsetParent !== null && sel.value && valInput.value) {
-        let val = Number.parseFloat(valInput.value);
-        if (Number.isNaN(val)) return;
+      const valIn = document.getElementById(valId);
+      if (sel?.offsetParent && sel.value && valIn.value) {
+        let val = Number.parseFloat(valIn.value);
         if (isNeg) val = -Math.abs(val);
         stats.push({
           name: sel.value,
           value: val,
           projected: val * scaleFactor,
-          isPenaltySlot: isNeg,
         });
       }
     };
 
-    readModalRow("g-stat1", "g-val1", false);
-    readModalRow("g-stat2", "g-val2", false);
-    readModalRow("g-stat3", "g-val3", false);
-    readModalRow("g-statNeg", "g-valNeg", true);
+    ["1", "2", "3"].forEach((n) => readRow(`g-stat${n}`, `g-val${n}`, false));
+    readRow("g-statNeg", "g-valNeg", true);
 
-    if (stats.length === 0) {
+    if (!stats.length) {
       resultsDiv.classList.add("hidden");
       return;
     }
@@ -794,38 +556,91 @@ export function calculateModalGrade() {
     resultsDiv.classList.remove("hidden");
     const fragment = document.createDocumentFragment();
     stats.forEach((stat) => {
-      const result = calculateRivenGrade(
+      const internalName = normalizeStatName(stat.name);
+      const res = calculateRivenGrade(
         weaponData,
-        stat.name,
+        internalName,
         stat.projected,
         stats,
       );
-      let colorClass = "grade-f";
-      if (["SSS", "S+", "S"].includes(result.grade)) colorClass = "grade-s";
-      else if (["A+", "A"].includes(result.grade)) colorClass = "grade-a";
-      else if (["B+", "B"].includes(result.grade)) colorClass = "grade-b";
+      let color = "grade-f";
+      if (["SSS", "S+", "S"].includes(res.grade)) color = "grade-s";
+      else if (["A+", "A"].includes(res.grade)) color = "grade-a";
+      else if (["B+", "B"].includes(res.grade)) color = "grade-b";
 
       const card = document.createElement("div");
       card.className = "grade-card";
-      card.style.background = "rgba(0,0,0,0.3)";
-      card.innerHTML = `
-        <div class="grade-badge-large ${colorClass}">${result.grade}</div>
-        <div class="grade-info">
-            <div class="grade-stat-name">${stat.name}</div>
-            <div class="grade-values">Valor: <span style="color:#fff">${Math.abs(stat.value)}%</span><span class="grade-range" style="font-size:0.8em"> / Ideal: ${result.range}</span></div>
-            <div class="grade-track"><div class="grade-fill ${colorClass}" style="width: ${result.pct}%"></div></div>
-        </div>
-      `;
+      card.innerHTML = `<div class="grade-badge-large ${color}">${res.grade}</div>
+                        <div class="grade-info"><div class="grade-stat-name">${stat.name}</div>
+                        <div>Valor: ${Math.abs(stat.value)}% <span class="grade-range">/ Ideal: ${res.range}</span></div>
+                        <div class="grade-track"><div class="grade-fill ${color}" style="width:${res.pct}%"></div></div></div>`;
       fragment.appendChild(card);
     });
-
     resultsDiv.replaceChildren(fragment);
   }, 250);
 }
+
+export function updateSelectExclusions() {
+  const selects = Array.from(document.querySelectorAll(".riven-stat-select"));
+  const selected = new Set(selects.map((s) => s.value).filter((v) => v !== ""));
+  selects.forEach((sel) => {
+    Array.from(sel.options).forEach((opt) => {
+      if (opt.value !== "") {
+        const isTaken = selected.has(opt.value) && opt.value !== sel.value;
+        opt.hidden = isTaken;
+        opt.style.display = isTaken ? "none" : "";
+      }
+    });
+  });
+}
+
+export function openGradingModal() {
+  const name = document.getElementById("rivenWeaponInput").value.trim();
+  if (!name || !state.weaponMap[name])
+    return alert("Selecciona un arma válida");
+  const data = state.weaponMap[name];
+  document.getElementById("g-weapon-name").innerHTML =
+    `${escapeHTML(name)} <small>(Disp: ${data.d.toFixed(2)})</small>`;
+  document.getElementById("grading-modal").classList.remove("hidden");
+  resetGradingInputs();
+  populateRivenSelects(data.t);
+  document.getElementById("grading-modal-results").classList.add("hidden");
+}
+
+function resetGradingInputs() {
+  document
+    .querySelectorAll("#grading-modal input, #grading-modal select")
+    .forEach((i) => (i.value = i.id === "g-rank" ? "8" : ""));
+}
+
+export function closeGradingModal() {
+  document.getElementById("grading-modal").classList.add("hidden");
+}
+export function showGradingRow(id) {
+  document.getElementById(id).classList.remove("hidden");
+  document.getElementById(
+    id === "row-stat3" ? "btn-add-pos" : "btn-add-neg",
+  ).style.display = "none";
+}
+export function removeGradingRow(id) {
+  const row = document.getElementById(id);
+  row.classList.add("hidden");
+  row.querySelector("select").value = "";
+  row.querySelector("input").value = "";
+  document.getElementById(
+    id === "row-stat3" ? "btn-add-pos" : "btn-add-neg",
+  ).style.display = "block";
+  calculateModalGrade();
+}
+
 Object.assign(globalThis, {
   openGradingModal,
   closeGradingModal,
   calculateModalGrade,
   showGradingRow,
   removeGradingRow,
+  handleRivenInput,
+  selectRivenWeapon,
+  openRivenMarket,
+  getNakedName,
 });
