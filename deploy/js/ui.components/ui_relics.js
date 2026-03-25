@@ -1,12 +1,13 @@
 import { state, saveAppState } from "../state.js";
 import { TEXTS, DROP_CHANCES } from "../config.js";
-import { addToQueue } from "../api.js";
+import { addToQueue, getSlug } from "../api.js";
 import { escapeHTML, showToast } from "./ui_components.js";
 import {
   getItemIcon,
   getSetName,
   getRequiredCount,
   generateDotsHtml,
+  generateSetProgressTooltip,
 } from "./ui_utils.js";
 
 let debounceTimer;
@@ -99,6 +100,12 @@ function renderRelicStatusBadge(relicName) {
 function createRelicDropRow(item) {
   const row = document.createElement("div");
   row.className = "component-row";
+  row.draggable = true;
+  row.ondragstart = (e) => {
+    e.dataTransfer.setData("text/plain", item.name);
+    e.dataTransfer.effectAllowed = "copy";
+  };
+  
   const isUntradable =
     item.name.includes("Forma Blueprint") ||
     item.name.includes("Kuva") ||
@@ -106,29 +113,54 @@ function createRelicDropRow(item) {
 
   let rarityKey =
     item.chance <= 5 ? "rare" : item.chance <= 11 ? "uncommon" : "common";
-  if (isUntradable) rarityKey = "forma";
+  if (isUntradable) {
+    if (!item.name.toLowerCase().includes("forma blueprint")) {
+      rarityKey = "forma";
+    }
+  }
   row.dataset.rarity = rarityKey;
 
   const setName = getSetName(item.name);
   const dots =
     setName !== "Otros"
       ? generateDotsHtml(
-          state.primeInventory[item.name] || 0,
-          getRequiredCount(setName, item.name),
-        )
+        state.primeInventory[item.name] || 0,
+        getRequiredCount(setName, item.name),
+      )
       : "";
 
+  const tooltipHtml = setName !== "Otros" ? generateSetProgressTooltip(setName) : "";
+
   row.innerHTML = `
-    <div class="component-info">
+    <div class="component-info" style="flex:1; min-width:0;">
       <span class="rarity-indicator">${TEXTS[state.currentLang].rarityAbbr[rarityKey] || ""}</span>
       <div class="name-wrapper">
-        <img src="${getItemIcon(item.name)}" class="item-icon-mini item-interactive" onclick="event.stopPropagation(); globalThis.openSetFromRelicReward('${escapeHTML(item.name)}')">
-        <div class="name-column">${escapeHTML(item.name)}${dots}</div>
+        <img src="${getItemIcon(item.name)}" class="item-icon-mini item-interactive" loading="lazy" onerror="this.style.display='none'" onclick="event.stopPropagation(); globalThis.openSetFromRelicReward('${escapeHTML(item.name)}')">
+        <div class="name-column">
+          <span class="component-name item-interactive" onclick="event.stopPropagation(); globalThis.openSetFromRelicReward('${escapeHTML(item.name)}')">
+            ${escapeHTML(item.name)}
+          </span>
+          <div class="progress-tooltip-wrapper">
+             <div class="live-tracker" data-part="${escapeHTML(item.name)}" data-req="${getRequiredCount(setName, item.name)}">
+               ${dots}
+             </div>
+             ${tooltipHtml ? `<div class="progress-tooltip-content">${tooltipHtml}</div>` : ""}
+          </div>
+        </div>
       </div>
     </div>
+    
+    ${!isUntradable
+      ? `<div class="actions-col-wrapper" style="margin-right:10px;">
+        <a href="https://warframe.market/items/${getSlug(item.name)}" target="_blank" class="market-btn-mini" onclick="event.stopPropagation()" title="Warframe Market">MARKET</a>
+        <button class="mini-action-btn" data-action="modify-prime-part" data-part="${escapeHTML(item.name)}" data-amount="1" onclick="event.stopPropagation(); requestAnimationFrame(() => { globalThis.modifyPrimePart('${escapeHTML(item.name)}', 1); showToast('${escapeHTML(item.name)} +1'); })">+1</button>
+      </div>`
+      : `<div class="actions-col-wrapper" style="margin-right:10px;"></div>`
+    }
+
     <div style="display:flex; align-items:center; gap:8px;">
-      <span class="ducat-val">${item.ducats || 0} <span class="ducat-symbol">d</span></span>
-      <div class="price-badge ${isUntradable ? "untradable" : "loading"}" data-item="${escapeHTML(item.name)}">${isUntradable ? "0" : "..."}</div>
+      <span class="ducat-val" style="color:var(--wf-gold-text); font-size:0.85em; font-weight:bold; ${isUntradable ? 'opacity:0.3;' : ''}">${item.ducats || 0} <img src="assets/Ducats.webp" class="ducat-icon" ${isUntradable ? 'style="opacity:0.6;"' : ''}></span>
+      <div class="price-badge ${isUntradable ? "untradable" : "loading"}" data-item="${escapeHTML(item.name)}" ${isUntradable ? 'style="opacity:0.3;"' : ''}>${isUntradable ? "0" : "..."}</div>
     </div>`;
 
   if (!isUntradable) addToQueue(item.name, row.querySelector(".price-badge"));
@@ -162,7 +194,7 @@ export function updateRelicTotal() {
 
   const disp = document.getElementById("relic-profit-display");
   if (disp) {
-    disp.innerHTML = `<div style="text-align:right"><span>~${totalEV.toFixed(1)}<img src="assets/relic_contents/platinum.webp" class="plat-icon"></span><br><span style="font-size:0.7em; color:var(--wf-gold-text)">~${ducatEV.toFixed(1)} ducats</span></div>`;
+    disp.innerHTML = `<div style="text-align:right"><span>~${totalEV.toFixed(1)}<img src="assets/relic_contents/platinum.webp" class="plat-icon"></span><br><span style="font-size:0.7em; color:var(--wf-gold-text)">~${ducatEV.toFixed(1)} <img src="assets/Ducats.webp" class="ducat-icon"></span></div>`;
     disp.classList.remove("loading");
   }
 }
@@ -227,11 +259,45 @@ export function renderRelicsForPartInline(partName, container) {
         info.chance <= 5 ? "rare" : info.chance <= 22 ? "uncommon" : "common";
       const tier = info.relic.split(" ")[0].toLowerCase();
       btn.className = `relic-chip ${rc}`;
-      btn.innerHTML = `<div class="relic-chip-header"><span>${info.relic}</span><span class="relic-era-icon ${tier}"></span></div>`;
-      btn.onclick = () => {
+      
+      const relicEraImg = `<span class="relic-era-icon ${tier}" style="flex-shrink:0; transform:scale(1.3); margin: 4px;"></span>`;
+      
+      const vaultStatus = state.relicStatusDB ? state.relicStatusDB[info.relic] : null;
+      const isVaulted = vaultStatus === "vaulted";
+      const statusClass = isVaulted ? "vaulted" : "active";
+      const statusText = isVaulted ? "VAULTED" : "ACTIVE";
+      const vaultHtml = `<span class="status-badge ${statusClass}" style="font-size:0.65em; padding:2px 6px; border-radius:4px;">${statusText}</span>`;
+      
+      const averages = state.relicAverages ? state.relicAverages[info.relic] : null;
+
+      btn.style.height = "auto";
+      btn.style.minHeight = "min-content";
+      
+      btn.style.position = "relative";
+      
+      btn.setAttribute("data-tooltip-relic", info.relic);
+
+      btn.innerHTML = `
+        <span class="info-icon" style="position:absolute; top:4px; right:6px; font-size:1.1em; opacity:0.6; z-index:2;">ℹ️</span>
+        <div style="display:flex; flex-direction:column; align-items:center; gap:6px; width:100%;">
+          <div style="display:flex; align-items:center; justify-content:center; gap:6px;">
+            ${relicEraImg}
+            <span style="font-weight:800; font-size:1.0em; color:#fff;">${info.relic}</span>
+          </div>
+          ${vaultHtml}
+        </div>
+        <div style="margin-top:6px; padding-top:6px; border-top:1px solid rgba(255,255,255,0.1); width:100%; text-align:center;">
+          <span style="font-size:0.7em; font-weight:bold; opacity:0.6; text-transform:uppercase;">${rc} Drop</span>
+        </div>
+      `;
+      btn.onclick = (e) => {
+        if (e.target.closest('.info-icon')) return;
+        
         state.selectedRelic = info.relic;
-        document.getElementById("relicInput").value = info.relic;
-        manualRelicUpdate();
+        const searchInput = document.getElementById("relicInput");
+        if (searchInput) searchInput.value = info.relic;
+        if (globalThis.manualRelicUpdate) globalThis.manualRelicUpdate();
+        if (globalThis.switchTab) globalThis.switchTab("relic");
       };
       grid.appendChild(btn);
     });

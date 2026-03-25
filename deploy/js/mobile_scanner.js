@@ -593,7 +593,7 @@ export class MobileScanner {
                     ... <img src="assets/relic_contents/platinum.webp" class="plat-icon" style="height:1em; width:auto; vertical-align:middle;">
                 </div>
                 <div style="font-size:13px; color:#D4AF37; display:flex; align-items:center; gap:3px;">
-                    <span style="background:#D4AF37; color:#000; width:14px; height:14px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:9px; font-weight:900;">D</span>
+                    <img src="assets/Ducats.webp" class="ducat-icon" style="width:16px; height:16px;">
                     ${item.ducats}
                 </div>
             </div>

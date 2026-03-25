@@ -14,7 +14,8 @@ import {
 } from "./config.js";
 import { state } from "./state.js";
 
-const MEMORY_CACHE = new Map();
+export const MEMORY_CACHE = new Map();
+globalThis.MEMORY_CACHE = MEMORY_CACHE;
 const PENDING_REQUESTS = new Map();
 let batchTimer = null;
 export function getSlug(itemName) {
@@ -412,7 +413,7 @@ function updateDucatsDB(itemsArray) {
 
           let fullName = comp.name;
 
-          if (["Blueprint", "Barrel", "Receiver", "Stock", "Blade", "Hilt", "Chassis", "Neuroptics", "Systems", "Carapace", "Cerebrum", "Harness", "Wings", "Link", "Pouch", "Stars", "Head", "Motor", "Grip", "String", "Limb", "Guard", "Disc", "Boot", "Gauntlet", "Chain", "Handle", "Ornament"].includes(comp.name)) {
+          if (["Blueprint", "Barrel", "Receiver", "Stock", "Blade", "Hilt", "Chassis", "Neuroptics", "Systems", "Carapace", "Cerebrum", "Harness", "Wings", "Link", "Pouch", "Stars", "Head", "Motor", "Grip", "String", "Limb", "Upper Limb", "Lower Limb", "Guard", "Disc", "Boot", "Gauntlet", "Chain", "Handle", "Ornament", "Buckle", "Band"].includes(comp.name)) {
             fullName = `${item.name} ${comp.name}`;
           }
           state.ducatsDatabase[fullName] = {
@@ -693,8 +694,37 @@ const dbHelper = {
         tx.oncomplete = () => resolve();
       });
     } catch { }
+  },
+  async preloadPrices() {
+    try {
+      const db = await this.open();
+      return new Promise((resolve) => {
+        const tx = db.transaction(STORE_NAME, "readonly");
+        const req = tx.objectStore(STORE_NAME).openCursor();
+        req.onsuccess = (e) => {
+           const cursor = e.target.result;
+           if (cursor) {
+              if (typeof cursor.key === "string" && cursor.key.startsWith("price_")) {
+                 const cached = cursor.value;
+                 if (cached && (Date.now() - cached.time < CACHE_TTL)) {
+                     const slug = cursor.key.replace("price_", "");
+                     MEMORY_CACHE.set(slug, cached.val);
+                 }
+              }
+              cursor.continue();
+           } else {
+              resolve();
+           }
+        };
+        req.onerror = () => resolve();
+      });
+    } catch { return; }
   }
 };
+
+export async function preloadPricesToMemory() {
+  await dbHelper.preloadPrices();
+}
 export async function initializeOCRDatabase() {
   try {
     const res = await fetch(`${WORKER_URL}?type=prime_items_list`);

@@ -145,7 +145,7 @@ export const UPDATE_HISTORY_CONTENT = `
 </div>
 
 <div class="update-block old">
- <div class="update-header">
+  <div class="update-header">
     <span class="update-version">v1.2.0</span>
     <span class="update-date">2026-01-05</span>
   </div>
@@ -425,11 +425,26 @@ export const TEXTS = {
       title: "Inventario",
       empty: "Inventario vacío. Usa el escáner.",
       searchPlaceholder: "Filtrar (Ej: G1)...",
+      primeSearchPlaceholder: "Buscar Set o Parte...",
       sort: {
         recent: "Recientes",
         valIntact: "Valor (Intacta)",
         valRad: "Valor (Radiante)",
         ducats: "Ducados",
+      },
+      primeSort: {
+        alpha: "Alfabético (A-Z)",
+        sets_desc: "Sets completados (Mayor a Menor)",
+        sets_asc: "Sets a completar (Cerquitas de terminar)",
+        plat_desc: "Valor Total en Platino",
+      },
+      tooltips: {
+        dropsFor: "Misiones para",
+        contentsOf: "Reliquia",
+        avgPlat: "Media PL",
+        avgDucats: "Media Ducados",
+        vaulted: "VAULTED",
+        active: "ACTIVA"
       },
       actions: {
         clear: "Borrar Todo",
@@ -470,7 +485,15 @@ export const TEXTS = {
       lblDetected: "ITEMS DETECTADOS",
       lblEmpty: "PULSA SCAN PÁGINA PARA EMPEZAR",
       finished: "¡FINALIZADO!",
-      saved: "Guardado"
+      saved: "Guardado",
+      autoScanOn: "⟳ AUTO SCAN ACTIVO",
+      autoScanDesc: "↓ Haz scroll en el inventario.<br>Se escaneará automático al estabilizar la pantalla.",
+      autoScanDetected: "MOVIMIENTO DETECTADO",
+      autoScanDetectedDesc: "Esperando estabilización...",
+      autoScanScanning: "ESCANEANDO PÁGINA...",
+      autoScanScanningDesc: "Por favor no muevas el inventario ni la pantalla.",
+      autoScanDone: "ESCANEO COMPLETADO",
+      autoScanDoneDesc: "{count} items únicos en total.<br>Puedes seguir bajando la página para leer más."
     },
     calib: {
       title: "CALIBRACIÓN INICIAL",
@@ -578,6 +601,8 @@ export const TEXTS = {
     lblRivenS: "Estadísticas (Opcional)",
     headerTitle: "VOIDSTONKS",
     headerSub: "Optimización de Farm y Reclutamiento",
+    tooltipContent: "Arrastra piezas al panel lateral para seguirlas. Consulta los requisitos en los círculos y pulsa '+1' para añadirlas a tu inventario.",
+    tooltipTracker: "Arrastra piezas aquí para trackearlas, o haz click en cualquier pieza para revelar y seleccionar qué reliquias la dropean. Los círculos indican el progreso de tu Set.",
     lblContent: "Contenido:",
     footerData: "Datos provistos por:",
     contactLabel: "¿Tienes ideas para mejorar la app?",
@@ -672,6 +697,7 @@ export const TEXTS = {
     purgeConfirmParts: "¿Borrar todo el Inventario Prime?",
     btnConfirm: "CONFIRMAR",
     btnCancel: "CANCELAR",
+    lblOwned: "obtenidos",
   },
   en: {
     condSpeedrun: "Complete in less than 6 min",
@@ -688,11 +714,26 @@ export const TEXTS = {
       title: "Inventory",
       empty: "Inventory empty. Use scanner.",
       searchPlaceholder: "Filter (e.g. G1)...",
+      primeSearchPlaceholder: "Search Set or Part...",
       sort: {
         recent: "Recent",
         valIntact: "Value (Intact)",
         valRad: "Value (Radiant)",
         ducats: "Ducats",
+      },
+      primeSort: {
+        alpha: "Alphabetical (A-Z)",
+        sets_desc: "Completed Sets (Highest to Lowest)",
+        sets_asc: "Sets to Complete (Closest to finish)",
+        plat_desc: "Total Platinum Value",
+      },
+      tooltips: {
+        dropsFor: "Drops for",
+        contentsOf: "Relic Contents",
+        avgPlat: "Avg Plat",
+        avgDucats: "Avg Ducats",
+        vaulted: "VAULTED",
+        active: "ACTIVE"
       },
       actions: {
         clear: "Clear All",
@@ -733,7 +774,15 @@ export const TEXTS = {
       lblDetected: "DETECTED ITEMS",
       lblEmpty: "PRESS SCAN PAGE TO START",
       finished: "FINISHED!",
-      saved: "Saved"
+      saved: "Saved",
+      autoScanOn: "⟳ AUTO SCAN ON",
+      autoScanDesc: "↓ Scroll gently through your inventory.<br>It will scan automatically when movement stops.",
+      autoScanDetected: "MOVEMENT DETECTED",
+      autoScanDetectedDesc: "Waiting for screen to stabilize...",
+      autoScanScanning: "SCANNING PAGE...",
+      autoScanScanningDesc: "Please keep the mouse and scroll wheel still.",
+      autoScanDone: "SCAN COMPLETE",
+      autoScanDoneDesc: "{count} unique items extracted.<br>Scroll down one block to continue scanning."
     },
     calib: {
       title: "INITIAL CALIBRATION",
@@ -839,6 +888,8 @@ export const TEXTS = {
     headerTitle: "VOIDSTONKS",
     headerSub: "Farm & Recruit Tool",
     lblProfit: "Profitability (Avg)",
+    tooltipContent: "Drag parts to the side panel to track them. Check build requirements via the circles and click '+1' to add them to your inventory.",
+    tooltipTracker: "Drag parts here to track them, or click on a piece to reveal and select the relics that drop it. Circles show your Set progress.",
     lblContent: "Contents:",
     footerData: "Data by:",
     contactLabel: "Ideas? PM me ingame or through wf forums",
@@ -935,6 +986,7 @@ export const TEXTS = {
     purgeConfirmParts: "Delete all Prime Inventory?",
     btnConfirm: "CONFIRM",
     btnCancel: "CANCEL",
+    lblOwned: "owned",
   },
 };
 export const AYA_STRATEGY_CONFIG = {

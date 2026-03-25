@@ -883,7 +883,35 @@
         </select>
       </div>
 
+      <div
+        id="prime-inv-controls"
+        class="inventory-controls"
+        style="padding: 10px; display: none; flex-direction: column; gap: 8px"
+      >
+        <input
+          type="text"
+          id="prime-inv-search"
+          class="wf-input"
+          placeholder="Buscar Set o Parte..."
+          onkeyup="globalThis.renderPrimeInventory()"
+          style="padding: 8px; font-size: 0.9em"
+        />
+
+        <select
+          id="prime-inv-sort"
+          class="wf-input"
+          onchange="globalThis.renderPrimeInventory()"
+          style="font-size: 0.85em; padding: 5px"
+        >
+          <option value="alpha">Alfabético (A-Z)</option>
+          <option value="sets_desc">Sets completados (Mayor a Menor)</option>
+          <option value="sets_asc">Sets a completar (Cerquitas de terminar)</option>
+          <option value="plat_desc">Valor Total en Platino</option>
+        </select>
+      </div>
+
       <div id="inventory-list" class="fissures-scroll-area"></div>
+      <div id="inventory-list-parts" class="fissures-scroll-area" style="display:none;"></div>
     </div>
 
     <div id="best-missions-container">

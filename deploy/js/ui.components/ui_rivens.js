@@ -202,7 +202,7 @@ function buildComponentsHtml(components) {
         ? `onclick="event.stopPropagation(); globalThis.openSetFromRelicReward('${escapedName}')" title="Ver Set de ${c.name}"`
         : "";
 
-      return `<div class="tooltip-drop-row ${isItemInteractive ? "item-interactive" : ""}" ${onclickAttr}><span style="display:flex; align-items:center;"><img src="${cImgPath}" class="tooltip-res-img" onerror="this.style.display='none'">${c.itemCount}x ${c.name}</span><span style="color:#888">${c.ducats || 0}d</span></div>`;
+      return `<div class="tooltip-drop-row ${isItemInteractive ? "item-interactive" : ""}" ${onclickAttr}><span style="display:flex; align-items:center;"><img src="${cImgPath}" class="tooltip-res-img" onerror="this.style.display='none'">${c.itemCount}x ${c.name}</span><span style="color:#888">${c.ducats || 0}<img src="assets/Ducats.webp" class="ducat-icon"></span></div>`;
     })
     .join("");
   html += `</div>`;

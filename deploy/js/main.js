@@ -5,6 +5,7 @@ import {
   fetchUserProfile,
   fetchPrimeManifest,
   warmupPrices,
+  preloadPricesToMemory,
 } from "./api.js";
 import { state, loadAppState, saveAppState } from "./state.js";
 import { startLiveSession, stopLiveSession } from "./live_scanner.js";
@@ -17,27 +18,15 @@ import {
 import {
   switchTab,
   changeLanguage,
-  initSyncPanel,
-  initFissurePanel,
-  initLFGPresets,
-  manualRelicUpdate,
   initDisclaimerSystem,
   setupGlobalClickListeners,
-  renderSetTracker,
-  generateMessage,
-  copyText,
-  changeCount,
-  changeLFGCount,
-  handleRelicTyping,
-  handleSetTyping,
-  calculateCaps,
-  toggleLfgDropdown,
   checkUpdates,
-  selectLfgOption,
   toggleLangDropdown,
   setLanguageManual,
-  generateLFGMessage,
 } from "./ui.js";
+import { initFissurePanel } from "./ui.components/ui_fissures.js";
+import { initSyncPanel } from "./ui.components/ui_sync.js";
+import { calculateCaps, renderProfileStats } from "./ui.components/ui_profile.js";
 import {
   initGlobalTooltipSystem,
   preloadCriticalAssets,
@@ -148,6 +137,8 @@ function handleClipboardAction(msg) {
 async function loadAsyncData() {
   try {
     initFissurePanel().catch(console.error);
+
+    await preloadPricesToMemory().catch(console.error);
 
     // 1. Fetch static definitions (Weapons, Entities) to build Ducat DB first
     await Promise.all([fetchRivenWeapons(), fetchPrimeManifest()]);
@@ -348,21 +339,13 @@ Object.assign(globalThis, {
   startMobileScanner: globalThis.startMobileScanner,
   switchTab: wrapperSwitchTab,
   changeLanguage,
-  generateMessage,
-  copyText,
-  changeCount,
-  changeLFGCount,
-  handleRelicTyping,
-  handleSetTyping,
   handleRivenInput,
   openRivenMarket,
   fetchUserProfile,
   calculateCaps,
-  toggleLfgDropdown,
-  selectLfgOption,
+  renderProfileStats,
   toggleLangDropdown,
   setLanguageManual,
-  generateLFGMessage,
   openScanner,
   closeScanner,
   captureRelics,
@@ -374,5 +357,4 @@ Object.assign(globalThis, {
   stopLiveSession,
   checkUpdates,
   updateSelectExclusions,
-  manualRelicUpdate,
 });
