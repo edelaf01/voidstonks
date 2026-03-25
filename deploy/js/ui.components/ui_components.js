@@ -1,7 +1,7 @@
 import {
   TEXTS,
   APP_VERSION,
-  UPDATE_HISTORY_CONTENT,
+  UPDATE_HISTORY_DATA,
   TIER_URLS,
 } from "../config.js";
 import { state } from "../state.js";
@@ -62,11 +62,17 @@ export async function checkUpdates() {
   const currentVersionStr = String(APP_VERSION);
 
   if (lastSeenVersion !== currentVersionStr) {
-    const container = document.getElementById("update-history-content");
-    if (container) {
-      container.innerHTML = UPDATE_HISTORY_CONTENT;
-      document.getElementById("update-modal").classList.remove("hidden");
-    }
+    openUpdateHistory();
+  }
+}
+
+export function openUpdateHistory() {
+  const container = document.getElementById("update-history-content");
+  if (container) {
+    const history =
+      UPDATE_HISTORY_DATA[state.currentLang] || UPDATE_HISTORY_DATA.es;
+    container.innerHTML = history;
+    document.getElementById("update-modal")?.classList.remove("hidden");
   }
 }
 
@@ -131,7 +137,7 @@ export function initGlobalTooltipSystem() {
     const relicName = target.dataset.tooltipRelic;
 
     if (relicName && globalThis.getRelicDropTooltip) {
-       htmlContent = globalThis.getRelicDropTooltip(relicName);
+      htmlContent = globalThis.getRelicDropTooltip(relicName);
     }
 
     if (htmlContent) {
@@ -176,7 +182,7 @@ export function initGlobalTooltipSystem() {
 
     if (target || isOverTooltip) {
       if (closeTimer) clearTimeout(closeTimer);
-      
+
       if (target && target !== currentHoverTarget) {
         if (openTimer) clearTimeout(openTimer);
         currentHoverTarget = target;

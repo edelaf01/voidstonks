@@ -262,7 +262,7 @@ export function renderSetTracker() {
   const badgeColor = totalFullSets > 0 ? "var(--wf-gold-text)" : "#666";
   const badgeBg = totalFullSets > 0 ? "rgba(221,169,56,0.15)" : "rgba(100,100,100,0.1)";
   const badgeBorder = totalFullSets > 0 ? "rgba(221,169,56,0.3)" : "rgba(100,100,100,0.2)";
-  const setBadge = `<span style="color:${badgeColor}; margin-left:auto; font-weight:bold; font-size:0.85em; background:${badgeBg}; border:1px solid ${badgeBorder}; padding:2px 6px; border-radius:4px; text-transform:uppercase; white-space:nowrap; text-align:center;">(${totalFullSets} Sets)</span>`;
+  const setBadge = `<span style="color:${badgeColor}; margin-left:auto; font-weight:bold; font-size:0.85em; background:${badgeBg}; border:1px solid ${badgeBorder}; padding:2px 6px; border-radius:4px; text-transform:uppercase; white-space:nowrap; text-align:center;">(${totalFullSets} ${t.countMsg || "Sets"})</span>`;
 
   title.innerHTML = `
     <div style="display:flex; align-items:center; gap:8px; line-height:1; width:100%;">
@@ -294,7 +294,7 @@ export function renderSetTracker() {
 
     const nameText =
       partName === state.currentActiveSet
-        ? "Blueprint"
+        ? (t.lblBlueprint || "Blueprint")
         : partName.replaceAll(state.currentActiveSet, "").trim();
 
     const partSlug = getSlug(partName);
@@ -305,7 +305,7 @@ export function renderSetTracker() {
     imgWrapper.style.justifyContent = "center";
     imgWrapper.style.width = "28px";
     imgWrapper.style.height = "28px";
-    
+
     if (partIcon) {
       const imgEl = document.createElement("img");
       imgEl.src = partIcon;
@@ -313,7 +313,7 @@ export function renderSetTracker() {
       imgEl.style.width = "100%";
       imgEl.style.height = "100%";
       imgEl.style.objectFit = "contain";
-      
+
       let hoverTimer;
       imgEl.onmouseenter = () => {
         row.style.zIndex = "10";
@@ -361,7 +361,7 @@ export function renderSetTracker() {
     dotsDiv.style.display = "flex";
     dotsDiv.style.alignItems = "center";
     dotsDiv.style.flexShrink = "0";
-    dotsDiv.style.width = "115px"; 
+    dotsDiv.style.width = "115px";
     dotsDiv.style.justifyContent = "flex-end";
     dotsDiv.innerHTML = generateDotsHtml(ownedCount, requiredCount);
 

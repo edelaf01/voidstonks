@@ -482,7 +482,8 @@ body {
 }
 
 .footer-link,
-.contact-link {
+.contact-link,
+.footer-link-btn {
   color: #888;
   text-decoration: none;
   font-weight: 600;
@@ -490,7 +491,19 @@ body {
   padding: 2px 5px;
   border-radius: 4px;
   position: relative;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: inherit;
+  font-family: inherit;
 }
+
+.footer-link-btn:hover {
+  color: var(--wf-blue);
+  text-shadow: 0 0 8px rgba(0, 229, 255, 0.4);
+  background: rgba(0, 229, 255, 0.05);
+}
+
 
 .footer-disclaimer {
   position: fixed;
@@ -1197,7 +1210,8 @@ option {
   min-width: 0;
 }
 
-#inventory-list, #inventory-list-parts {
+#inventory-list,
+#inventory-list-parts {
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -1852,7 +1866,8 @@ body.theme-bounties {
   color: #fff !important;
 }
 
-#inventory-list, #inventory-list-parts {
+#inventory-list,
+#inventory-list-parts {
   margin-top: auto;
   border-top: 1px dashed #333;
 }

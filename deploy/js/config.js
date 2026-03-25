@@ -1,14 +1,86 @@
 export const WORKER_URL = "https://wf-tool-proxy-worker.edelamf0.workers.dev/";
-export const APP_VERSION = 1.71;
-export const UPDATE_HISTORY_CONTENT = `
+export const APP_VERSION = 1.8;
+export const UPDATE_HISTORY_DATA = {
+  es: `
 <div class="update-block">
   <div class="update-header">
-    <span class="update-version">v1.7.1 (Current)</span>
+    <span class="update-version">v1.8.0 (Actual)</span>
+    <span class="update-date">2026-03-25</span>
+  </div>
+  <ul class="update-list">
+    <li>
+      <strong>Mejoras de inventario:</strong> Ahora se puede escanear el inventario prime via el botón de livescan. Comparte la pantalla de Warframe con el app a través de Live Scanner y el app detecta si estás en el inventario; sale un menú desplegable para escanear de forma manual o automática (esta funciona cuando haces scroll manualmente). Tienes que seguir las instrucciones que salen debajo. <em>Nota: esta funcionalidad es experimental de momento y hay casos en las que el reconocimiento de letras no va a ir bien. Si encontráis algún bug agradecería que me lo dejaseis saber a través del enlace <strong>w/Parcialsobriedad</strong> en los foros de warframe junto a la captura que dio error (modo debug), así puedo tener en consideración ese caso para realizar ajustes necesarios.</em>
+    </li>
+    <li>
+      <strong>Calibración muy importante:</strong> Antes os pedirá realizar una calibración. Tendrías que estar en el inventario (pestaña de partes prime) y ordenado alfabéticamente si es posible. Os pedirá la calibración para seleccionar el primer item a la izquierda y el último item a la derecha de la pantalla. Hay un pequeño error llegando al final de la pantalla que tengo pensado arreglar en un futuro para que no haga falta calibración por tu parte.
+    </li>
+    <li>
+      <strong>Nueva funcionalidad y optimización:</strong> Gestión más fluida del inventario junto a importación y exportación de este. Bastante optimizada, por cierto.
+    </li>
+    <li>
+      <strong>Mejoras en reliquias y sets:</strong> Lo hice más intuitivo y bonito. Pista: puedes arrastrar elementos de la reliquia que hayas seleccionado al set tracker y ver desde esta pantalla o en sets cuántos sets o piezas tienes de lo que buscas.
+    </li>
+    <li>
+      <strong>Mejoras visuales UI:</strong> En el set tracker ahora al dar click en una pieza se muestran las reliquias de donde dropea.
+    </li>
+    <li>
+      <strong>Optimizaciones internas:</strong> Enormes optimizaciones (quité bastante código spaghetti) para mejorar la mantenibilidad de la aplicación.
+    </li>
+    <li>
+      <em>Muchas gracias por usar esta app y cualquier sugerencia no dudéis en poneros en contacto conmigo a través de warframe forums. ¡Disfrutad de la actualización <strong>Shadowgrafter</strong>!</em>
+    </li>
+  </ul>
+</div>
+<div class="update-block old">
+  <div class="update-header">
+    <span class="update-version">v1.7.1</span>
     <span class="update-date">2026-02-18</span>
   </div>
   <ul class="update-list">
     <li>
-      <strong>English language fixes</strong>Some text was always shown in spanish, now it should be either spanish or english based on the selected language.
+      <strong>English language fixes</strong> Some text was always shown in spanish, now it should be either spanish or english based on the selected language.
+    </li>
+  </ul>
+</div>
+`,
+  en: `
+<div class="update-block">
+  <div class="update-header">
+    <span class="update-version">v1.8.0 (Current)</span>
+    <span class="update-date">2026-03-25</span>
+  </div>
+  <ul class="update-list">
+    <li>
+      <strong>Inventory Improvements:</strong> Now you can scan your prime inventory via the LiveScan button. Share your Warframe screen and the app will detect if you are in the inventory, allowing manual or automatic scanning as you scroll.
+    </li>
+    <li>
+      <strong>Important Calibration:</strong> You'll be asked to calibrate (first item top-left, last item bottom-right) in the Prime parts tab. Note: This is experimental; if it fails, please report it to <strong>w/Parcialsobriedad</strong> on the forums with a debug screenshot.
+    </li>
+    <li>
+      <strong>Fluid Management:</strong> Improved inventory management with optimized import/export.
+    </li>
+    <li>
+      <strong>Relics & Sets:</strong> More intuitive and beautiful interface. You can now drag parts from a relic to the Set Tracker to see your progress instantly.
+    </li>
+    <li>
+      <strong>UI Visuals:</strong> In the set tracker, clicking a piece now shows which relics drop it.
+    </li>
+    <li>
+      <strong>Huge Optimizations:</strong> Removed a lot of spaghetti code to improve app maintainability and performance.
+    </li>
+    <li>
+      <em>Thank you for using the app! Suggestions are welcome on the Warframe forums. Enjoy the <strong>Shadowgrafter</strong> update!</em>
+    </li>
+  </ul>
+</div>
+<div class="update-block old">
+  <div class="update-header">
+    <span class="update-version">v1.7.1</span>
+    <span class="update-date">2026-02-18</span>
+  </div>
+  <ul class="update-list">
+    <li>
+      <strong>English language fixes:</strong> Some text was always shown in spanish, now it correctly translates based on the selected language.
     </li>
   </ul>
 </div>
@@ -81,7 +153,6 @@ export const UPDATE_HISTORY_CONTENT = `
     <span class="update-date">2026-01-18</span>
   </div>
   <ul class="update-list">
-
     <li>
       <strong>Mobile AR Scanner (BETA):</strong> You can now point your phone's camera at the screen (relics/inventory) to instantly fetch prices. <em>Note: This is an experimental feature, so bugs or recognition errors may occur.</em>
     </li>
@@ -107,7 +178,6 @@ export const UPDATE_HISTORY_CONTENT = `
     </li>
   </ul>
 </div>
-
 <div class="update-block old">
   <div class="update-header">
     <span class="update-version">v1.2.3</span>
@@ -122,7 +192,6 @@ export const UPDATE_HISTORY_CONTENT = `
     </li>
   </ul>
 </div>
-
 <div class="update-block old">
  <div class="update-header">
   <span class="update-version">v1.2.1 and 1.2.2</span>
@@ -143,7 +212,6 @@ export const UPDATE_HISTORY_CONTENT = `
     <li><em>Inventory scan now can be done inserting multiple photos, mobile scan is broken at the moment so a fix is pending.</em></li>
   </ul>
 </div>
-
 <div class="update-block old">
   <div class="update-header">
     <span class="update-version">v1.2.0</span>
@@ -151,19 +219,16 @@ export const UPDATE_HISTORY_CONTENT = `
   </div>
   <ul class="update-list">
     <li>
-      <strong>Riven Grading:</strong> New dedicated modal to calculate Riven
-      quality.
+      <strong>Riven Grading:</strong> New dedicated modal to calculate Riven quality.
     </li>
     <li>
-      <strong>UI Overhaul:</strong> Improved styling for the Relics tab and
-      overall interface elements.
+      <strong>UI Overhaul:</strong> Improved styling for the Relics tab and overall interface elements.
     </li>
     <li><strong>Bug Fix:</strong> Vaulted/not vaulted logic fixed</li>
     <li><em>Coming soon: Automatic Riven grading via photo scan!</em></li>
     <li><em>Added this update notice just today :P</em></li>
   </ul>
 </div>
-
 <div class="update-block old">
   <div class="update-header">
     <span class="update-version">v1.1.5 (Beta)</span>
@@ -171,20 +236,16 @@ export const UPDATE_HISTORY_CONTENT = `
   </div>
   <ul class="update-list">
     <li>
-      <strong>Live Reward Scanner (BETA):</strong> New OCR feature to scan
-      mission rewards in real-time. Expect potential bugs as it is currently in
-      testing.
+      <strong>Live Reward Scanner (BETA):</strong> New OCR feature to scan mission rewards in real-time. Expect potential bugs as it is currently in testing.
     </li>
     <li>
       <strong>New feature Vaulted/Not vaulted relics:</strong> Vaulted/not vaulted logic added
     </li>
     <li>
-      <strong>Mobile Optimization:</strong> Significant UI improvements for
-      better navigation on mobile devices.
+      <strong>Mobile Optimization:</strong> Significant UI improvements for better navigation on mobile devices.
     </li>
   </ul>
 </div>
-
 <div class="update-block old">
   <div class="update-header">
     <span class="update-version">v1.1.0</span>
@@ -192,23 +253,19 @@ export const UPDATE_HISTORY_CONTENT = `
   </div>
   <ul class="update-list">
     <li>
-      <strong>Inventory Scanner:</strong> Use your phone's camera to scan and
-      add relics to your inventory automatically.
+      <strong>Inventory Scanner:</strong> Use your phone's camera to scan and add relics to your inventory automatically.
     </li>
     <li>
-      <strong>Cloud Sync:</strong> Added a new clipboard synchronization tool
-      (cloud icon) to transfer lfg text between devices instantly.
+      <strong>Cloud Sync:</strong> Added a new clipboard synchronization tool (cloud icon) to transfer lfg text between devices instantly.
     </li>
     <li>
-      <strong>Side Panels:</strong> Added toggle buttons to easily show or hide
-      the Relic Inventory and Recommended Fissures.
+      <strong>Side Panels:</strong> Added toggle buttons to easily show or hide the Relic Inventory and Recommended Fissures.
     </li>
     <li>
       <strong>Graphics:</strong> General visual enhancements across all tabs.
     </li>
   </ul>
 </div>
-
 <div class="update-block old">
   <div class="update-header">
     <span class="update-version">v1.0.0</span>
@@ -216,20 +273,18 @@ export const UPDATE_HISTORY_CONTENT = `
   </div>
   <ul class="update-list">
     <li>
-      <strong>LFG Message Generator:</strong> Create professional recruitment
-      messages for chat with one click.
+      <strong>LFG Message Generator:</strong> Create professional recruitment messages for chat with one click.
     </li>
     <li>
-      <strong>Market Integration:</strong> Real-time price fetching for Prime
-      parts and sets directly from Warframe Market.
+      <strong>Market Integration:</strong> Real-time price fetching for Prime parts and sets directly from Warframe Market.
     </li>
     <li>
-      <strong>Basic Database:</strong> Initial support for all currently active
-      Relics and Prime items.
+      <strong>Basic Database:</strong> Initial support for all currently active Relics and Prime items.
     </li>
   </ul>
 </div>
-`;
+`
+};
 export const TIER_URLS = {
   Lith: "https://wiki.warframe.com/images/LithRelicIntact.png?ee7d7",
   Meso: "https://wiki.warframe.com/images/MesoRelicIntact.png?a9b4a",
@@ -592,6 +647,7 @@ export const TEXTS = {
     uncommon: "Poco Común",
     rare: "Raro",
     setInfo: "Set Completo",
+    lblBlueprint: "Plano",
     notFound: "No encontrado en Reliquias.",
     active: "ACTIVA",
     vaulted: "VAULTED",
@@ -698,6 +754,7 @@ export const TEXTS = {
     btnConfirm: "CONFIRMAR",
     btnCancel: "CANCELAR",
     lblOwned: "obtenidos",
+    btnShowUpdates: "Ver Novedades",
   },
   en: {
     condSpeedrun: "Complete in less than 6 min",
@@ -878,6 +935,7 @@ export const TEXTS = {
     uncommon: "Uncommon",
     rare: "Rare",
     setInfo: "Full Set",
+    lblBlueprint: "Blueprint",
     notFound: "Not found.",
     active: "ACTIVE",
     vaulted: "VAULTED",
@@ -987,6 +1045,7 @@ export const TEXTS = {
     btnConfirm: "CONFIRM",
     btnCancel: "CANCEL",
     lblOwned: "owned",
+    btnShowUpdates: "Patch Notes",
   },
 };
 export const AYA_STRATEGY_CONFIG = {
