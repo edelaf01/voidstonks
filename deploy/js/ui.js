@@ -8,7 +8,6 @@ import {
   RIVEN_BASE_STATS,
   WEAPON_TYPE_IDX,
   APP_VERSION,
-  UPDATE_HISTORY_CONTENT,
 } from "./config.js";
 import {
   escapeHTML,
@@ -17,7 +16,8 @@ import {
   initGlobalTooltipSystem,
   initDisclaimerSystem,
   checkUpdates,
-  closeUpdateModal
+  closeUpdateModal,
+  openUpdateHistory,
 } from "./ui.components/ui_components.js";
 import {
   getItemIcon,
@@ -62,7 +62,7 @@ export function preloadCriticalAssets() {
     const img = new Image();
     img.src = url;
   });
-}const t = TEXTS[state.currentLang];
+} const t = TEXTS[state.currentLang];
 
 export function finishLoading() {
   const loadEl = document.getElementById("loading");
@@ -189,6 +189,7 @@ export function changeLanguage(lang) {
   setText("txt-footer-data", t.footerData);
   setText("txt-contact-label", t.contactLabel);
   setText("txt-contact-link", t.contactLink);
+  setText("btn-footer-updates", t.btnShowUpdates);
 
   const disclaimer = document.getElementById("txt-disclaimer");
   if (disclaimer) disclaimer.innerHTML = t.disclaimer;
@@ -287,6 +288,8 @@ export function changeLanguage(lang) {
     setText("lfgSelectedText", t.lfgOpts[currentLfgVal]);
 
   setText("txt-inv-title", t.inventory.title);
+  setText("tracker-title", t.trackerTitle);
+  if (state.currentActiveSet) renderSetTracker();
   const invInput = document.getElementById("inv-search-input");
   if (invInput) invInput.placeholder = t.inventory.searchPlaceholder;
 
@@ -568,6 +571,7 @@ Object.assign(globalThis, {
   updatePriceUI,
   manualRelicUpdate,
   saveAppState,
+  openUpdateHistory,
 
   handleInvSearch: (val) => {
     state.invSearchVal = val.toLowerCase().trim();
