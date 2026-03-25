@@ -30,6 +30,7 @@ globalThis.toggleScannerDebug = () => {
 let liveStream = null;
 let scanInterval = null;
 let isScanning = false;
+let isDeepScanning = false;
 let worker1 = null;
 let worker2 = null;
 let worker3 = null;
@@ -85,11 +86,13 @@ globalThis.toggleAutoScrollScan = function () {
   }
 
   const scrollGuide = document.getElementById("live-scroll-guide");
+  const sh = TEXTS[state.currentLang]?.scannerHUD;
+
   if (scrollGuide) {
     scrollGuide.innerHTML = autoScrollMode
-      ? `<div style="color:#00ff78;font-weight:800;font-size:0.82em;">⟳ AUTO SCAN ACTIVO</div>
-         <div style="color:#506070;font-size:0.75em;margin-top:3px;">↓ Haz scroll en el inventario.<br>Se escaneará solo al detectar cambio.</div>`
-      : `<div style="color:#506070;font-size:0.75em;">Modo auto desactivado.</div>`;
+      ? `<div style="color:#00ff78;font-weight:800;font-size:0.82em;">${sh?.autoScanOn || "⟳ AUTO SCAN ACTIVO"}</div>
+         <div style="color:#506070;font-size:0.75em;margin-top:3px;">${sh?.autoScanDesc || "↓ Haz scroll suavemente en el inventario.<br>Se escaneará automático al estabilizar."}</div>`
+      : `<div style="color:#506070;font-size:0.75em;">Auto scan OFF</div>`;
   }
 
   showToast(`Auto-scroll scan ${autoScrollMode ? "ON" : "OFF"}`);
@@ -98,18 +101,20 @@ globalThis.toggleAutoScrollScan = function () {
 function updateScrollUI(status, count = 0) {
   const scrollGuide = document.getElementById("live-scroll-guide");
   if (!scrollGuide) return;
+  const sh = TEXTS[state.currentLang]?.scannerHUD;
 
   if (status === "detected") {
-    scrollGuide.innerHTML = `<div style="color:#f1c40f;font-weight:800;font-size:0.82em;">MOVIMIENTO DETECTADO</div><div style="color:#506070;font-size:0.75em;margin-top:3px;">Esperando estabilización...</div>`;
+    scrollGuide.innerHTML = `<div style="color:#f1c40f;font-weight:800;font-size:0.82em;">${sh?.autoScanDetected || "MOVIMIENTO DETECTADO"}</div><div style="color:#506070;font-size:0.75em;margin-top:3px;">${sh?.autoScanDetectedDesc || "Esperando estabilización..."}</div>`;
   } else if (status === "scanning") {
-    scrollGuide.innerHTML = `<div style="color:#00e5ff;font-weight:800;font-size:0.82em;">ESCANEANDO PÁGINA...</div><div style="color:#506070;font-size:0.75em;margin-top:3px;">Por favor no muevas el inventario.</div>`;
+    scrollGuide.innerHTML = `<div style="color:#00e5ff;font-weight:800;font-size:0.82em;">${sh?.autoScanScanning || "ESCANEANDO PÁGINA..."}</div><div style="color:#506070;font-size:0.75em;margin-top:3px;">${sh?.autoScanScanningDesc || "Por favor no muevas el inventario ni la pantalla."}</div>`;
   } else if (status === "done") {
-    scrollGuide.innerHTML = `<div style="color:#00ff78;font-weight:800;font-size:0.82em;">ESCANEO COMPLETADO</div><div style="color:#506070;font-size:0.75em;margin-top:3px;">${count} items únicos en total.<br>Puedes seguir bajando.</div>`;
+    const doneDesc = (sh?.autoScanDoneDesc || "{count} items únicos en total.<br>Puedes seguir bajando la página.").replace("{count}", count);
+    scrollGuide.innerHTML = `<div style="color:#00ff78;font-weight:800;font-size:0.82em;">${sh?.autoScanDone || "ESCANEO COMPLETADO"}</div><div style="color:#506070;font-size:0.75em;margin-top:3px;">${doneDesc}</div>`;
   }
 }
 
 async function checkAutoScrollScan(externalHash = null) {
-  if (!autoScrollMode || isScanning) return;
+  if (!autoScrollMode || isDeepScanning) return;
 
   const video = document.getElementById("live-video");
   if (!video || !liveStream?.active || video.videoHeight < 10) return;
@@ -151,9 +156,9 @@ async function checkAutoScrollScan(externalHash = null) {
   if (autoScrollStableTimer) clearTimeout(autoScrollStableTimer);
 
   autoScrollStableTimer = setTimeout(async () => {
-    if (!autoScrollMode || isScanning) return;
+    if (!autoScrollMode || isDeepScanning) return;
 
-    isScanning = true;
+    isDeepScanning = true;
     updateScrollUI("scanning");
 
     try {
@@ -180,7 +185,7 @@ async function checkAutoScrollScan(externalHash = null) {
     } catch (e) {
       console.warn("Auto-scan error", e);
     } finally {
-      isScanning = false;
+      isDeepScanning = false;
     }
   }, 2000);
 }
@@ -407,7 +412,7 @@ function startLoop() {
 }
 
 async function processFrame() {
-  if (isScanning) return;
+  if (isScanning || isDeepScanning) return;
   isScanning = true;
   scanCounter++;
 
@@ -913,6 +918,8 @@ async function openScanModal(imageUrl, items) {
   requestAnimationFrame(() => {
     const cvsHeight = virtualCanvas ? virtualCanvas.height : 100;
     const cvsWidth = virtualCanvas ? virtualCanvas.width : 1000;
+    const fragment = document.createDocumentFragment();
+    
     itemsWithDetails.forEach((item) => {
       const leftPercent = (item.xPos / cvsWidth) * 100;
       const topPercent = ((item.yPos + 35) / cvsHeight) * 100;
@@ -926,9 +933,12 @@ async function openScanModal(imageUrl, items) {
           isBestPl: item.price === maxPl && item.price > 0,
           isBestDuc: item.ducats === maxDuc && item.ducats > 0,
         },
-        badgesContainer,
+        fragment,
       );
     });
+    
+    badgesContainer.innerHTML = "";
+    badgesContainer.appendChild(fragment);
   });
 }
 
@@ -963,7 +973,7 @@ function createModalBadge(
             ${
               ducats > 0
                 ? `<div class="modal-badge-ducats" style="display:flex; align-items:center; gap:3px; font-size:13px; color:#D4AF37;">
-                   <span style="background:#D4AF37; color:#000; width:14px; height:14px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:9px; font-weight:900;">D</span>
+                   <img src="assets/Ducats.webp" class="ducat-icon" style="width:16px; height:16px;">
                    ${ducats}
                 </div>`
                 : ""
