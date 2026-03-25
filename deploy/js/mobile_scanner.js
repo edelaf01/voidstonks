@@ -1,6 +1,6 @@
 import { state } from "./state.js";
 import { getPriceValue, getSlug } from "./api.js";
-import { showToast } from "./ui.js";
+import { showToast } from "./ui.components/ui_components.js";
 
 globalThis.onerror = function (msg, url, lineNo, columnNo, error) {
   return false;
@@ -80,14 +80,15 @@ export class MobileScanner {
         border-left: 4px solid #00e5ff; padding: 10px 12px; border-radius: 4px;
         color: #eee; font-size: 12px; line-height: 1.4; pointer-events: none;
         backdrop-filter: blur(4px); transition: all 0.3s ease;
-        ${isLandscape
-          ? "top: 15px; left: 15px; width: 220px; text-align: left;"
-          : "top: 18%; left: 50%; transform: translateX(-50%); width: 85%; text-align: center;"
+        ${
+          isLandscape
+            ? "top: 15px; left: 15px; width: 220px; text-align: left;"
+            : "top: 18%; left: 50%; transform: translateX(-50%); width: 85%; text-align: center;"
         }
       `;
     };
     updateStyles();
-    window.addEventListener('resize', updateStyles);
+    window.addEventListener("resize", updateStyles);
 
     instructionBox.innerHTML = `
         <strong style="color:#00e5ff; display:block; margin-bottom:4px; font-size:11px;">HOW TO SCAN:</strong>
@@ -111,9 +112,13 @@ export class MobileScanner {
             z-index: 100002; cursor: pointer; display: flex; align-items: center; justify-content: center;
         `;
     const innerBtn = document.createElement("div");
-    innerBtn.style.cssText = "width: 55px; height: 55px; background: #fff; border-radius: 50%;";
+    innerBtn.style.cssText =
+      "width: 55px; height: 55px; background: #fff; border-radius: 50%;";
     shutterBtn.appendChild(innerBtn);
-    shutterBtn.onclick = (e) => { e.stopPropagation(); this.captureAndProcess(); };
+    shutterBtn.onclick = (e) => {
+      e.stopPropagation();
+      this.captureAndProcess();
+    };
 
     const closeBtn = document.createElement("button");
     closeBtn.innerHTML = "✕";
@@ -124,7 +129,7 @@ export class MobileScanner {
             backdrop-filter: blur(4px); cursor: pointer;
         `;
     closeBtn.onclick = () => {
-      window.removeEventListener('resize', updateStyles);
+      window.removeEventListener("resize", updateStyles);
       this.close();
     };
 
@@ -431,8 +436,9 @@ export class MobileScanner {
       highestScore > MIN_SCORE &&
       !debugBox.innerHTML.includes(bestMatch.name)
     ) {
-      debugBox.innerHTML += `<br><span style="color:#3498db">Best: ${bestMatch.name
-        } (${highestScore.toFixed(2)})</span>`;
+      debugBox.innerHTML += `<br><span style="color:#3498db">Best: ${
+        bestMatch.name
+      } (${highestScore.toFixed(2)})</span>`;
     }
 
     return highestScore >= MIN_SCORE ? bestMatch : null;
@@ -533,19 +539,19 @@ export class MobileScanner {
       : "display: flex; gap: 15px; overflow-x: auto; padding-bottom: 5px; width: 100%;";
     resultsContainer.appendChild(cardsContainer);
 
-    const itemsWithDucats = items.map(item => {
+    const itemsWithDucats = items.map((item) => {
       let ducats = 0;
       if (state.ducatsDatabase) {
-        const itemData = Object.values(state.ducatsDatabase).find(d =>
-          d.name.toUpperCase() === item.name.toUpperCase()
+        const itemData = Object.values(state.ducatsDatabase).find(
+          (d) => d.name.toUpperCase() === item.name.toUpperCase(),
         );
         if (itemData) ducats = itemData.ducats;
       }
       return { ...item, ducats };
     });
 
-    const maxDucats = Math.max(...itemsWithDucats.map(i => i.ducats));
-    const maxPl = Math.max(...itemsWithDucats.map(i => i.price || 0));
+    const maxDucats = Math.max(...itemsWithDucats.map((i) => i.ducats));
+    const maxPl = Math.max(...itemsWithDucats.map((i) => i.price || 0));
 
     itemsWithDucats.forEach((item, index) => {
       const card = document.createElement("div");
@@ -568,7 +574,8 @@ export class MobileScanner {
       if (headerLabel) {
         const h = document.createElement("div");
         h.innerText = headerLabel;
-        h.style.cssText = "background:#D4AF37; color:#000; font-size:9px; font-weight:900; padding:2px 0; letter-spacing:0.5px;";
+        h.style.cssText =
+          "background:#D4AF37; color:#000; font-size:9px; font-weight:900; padding:2px 0; letter-spacing:0.5px;";
         card.appendChild(h);
       }
 
@@ -586,7 +593,7 @@ export class MobileScanner {
                     ... <img src="assets/relic_contents/platinum.webp" class="plat-icon" style="height:1em; width:auto; vertical-align:middle;">
                 </div>
                 <div style="font-size:13px; color:#D4AF37; display:flex; align-items:center; gap:3px;">
-                    <span style="background:#D4AF37; color:#000; width:14px; height:14px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:9px; font-weight:900;">D</span>
+                    <img src="assets/Ducats.webp" class="ducat-icon" style="width:16px; height:16px;">
                     ${item.ducats}
                 </div>
             </div>

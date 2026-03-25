@@ -1,5 +1,12 @@
 import { initCanvas } from "./canvas.js";
-import { downloadRelics, fetchRivenWeapons, fetchUserProfile, fetchPrimeManifest, warmupPrices } from "./api.js";
+import {
+  downloadRelics,
+  fetchRivenWeapons,
+  fetchUserProfile,
+  fetchPrimeManifest,
+  warmupPrices,
+  preloadPricesToMemory,
+} from "./api.js";
 import { state, loadAppState, saveAppState } from "./state.js";
 import { startLiveSession, stopLiveSession } from "./live_scanner.js";
 import {
@@ -11,35 +18,29 @@ import {
 import {
   switchTab,
   changeLanguage,
-  initSyncPanel,
-  initFissurePanel,
-  initGlobalTooltipSystem,
-  initLFGPresets,
-  manualRelicUpdate,
   initDisclaimerSystem,
   setupGlobalClickListeners,
-  renderSetTracker,
-  generateMessage,
-  copyText,
-  changeCount,
-  changeLFGCount,
-  handleRelicTyping,
-  handleSetTyping,
-  handleRivenInput,
-  openRivenMarket,
-  calculateCaps,
-  toggleLfgDropdown,
   checkUpdates,
-  selectLfgOption,
   toggleLangDropdown,
   setLanguageManual,
-  generateLFGMessage,
+} from "./ui.js";
+import { initFissurePanel } from "./ui.components/ui_fissures.js";
+import { initSyncPanel } from "./ui.components/ui_sync.js";
+import { calculateCaps, renderProfileStats } from "./ui.components/ui_profile.js";
+import {
+  initGlobalTooltipSystem,
+  preloadCriticalAssets,
+} from "./ui.components/ui_components.js";
+import {
   toggleInventoryPanel,
   renderInventory,
   clearInventory,
+} from "./ui.components/ui_inventory.js";
+import {
+  handleRivenInput,
+  openRivenMarket,
   updateSelectExclusions,
-  preloadCriticalAssets,
-} from "./ui.js";
+} from "./ui.components/ui_rivens.js";
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.getRegistrations().then(function (registrations) {
     for (let registration of registrations) {
@@ -90,14 +91,12 @@ function setupScannerDrawer() {
 
     if (isActive) {
       closeFullScanner();
+    } else if (isNoticeVisible) {
+      noticePanel.classList.add("hidden");
+      toggleBtn.classList.remove("active");
     } else {
-      if (isNoticeVisible) {
-        noticePanel.classList.add("hidden");
-        toggleBtn.classList.remove("active");
-      } else {
-        noticePanel.classList.remove("hidden");
-        toggleBtn.classList.add("active");
-      }
+      noticePanel.classList.remove("hidden");
+      toggleBtn.classList.add("active");
     }
   });
 
@@ -139,11 +138,11 @@ async function loadAsyncData() {
   try {
     initFissurePanel().catch(console.error);
 
+    // Don't await preloading, let it run in background to speed up startup
+    preloadPricesToMemory().catch(console.error);
+
     // 1. Fetch static definitions (Weapons, Entities) to build Ducat DB first
-    await Promise.all([
-      fetchRivenWeapons(),
-      fetchPrimeManifest()
-    ]);
+    await Promise.all([fetchRivenWeapons(), fetchPrimeManifest()]);
 
     // 2. Fetch Relics (dynamic) - now safe to use Ducat DB
     // We treat this as critical, so we await it.
@@ -341,21 +340,13 @@ Object.assign(globalThis, {
   startMobileScanner: globalThis.startMobileScanner,
   switchTab: wrapperSwitchTab,
   changeLanguage,
-  generateMessage,
-  copyText,
-  changeCount,
-  changeLFGCount,
-  handleRelicTyping,
-  handleSetTyping,
   handleRivenInput,
   openRivenMarket,
   fetchUserProfile,
   calculateCaps,
-  toggleLfgDropdown,
-  selectLfgOption,
+  renderProfileStats,
   toggleLangDropdown,
   setLanguageManual,
-  generateLFGMessage,
   openScanner,
   closeScanner,
   captureRelics,
@@ -367,5 +358,4 @@ Object.assign(globalThis, {
   stopLiveSession,
   checkUpdates,
   updateSelectExclusions,
-  manualRelicUpdate,
 });

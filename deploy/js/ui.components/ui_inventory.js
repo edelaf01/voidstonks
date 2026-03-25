@@ -1,0 +1,935 @@
+import { state, saveAppState, updateInventoryCount } from "../state.js";
+import { TEXTS, DROP_CHANCES } from "../config.js";
+import { addToQueue, getSlug, getPriceValue } from "../api.js";
+import { escapeHTML, showToast, showCustomConfirm } from "./ui_components.js";
+import {
+  getItemIcon,
+  getSetName,
+  getRequiredCount,
+  generateDotsHtml,
+} from "./ui_utils.js";
+
+import { manualRelicUpdate } from "./ui_relics.js";
+
+
+export function toggleInventoryPanel(forceOpen = false) {
+  const panel = document.getElementById("inventory-container");
+  if (forceOpen) panel.classList.add("open");
+  else panel.classList.toggle("open");
+  if (panel.classList.contains("open")) {
+    if (state.currentInvView === "parts") renderPrimeInventory();
+    else renderInventory();
+  }
+}
+
+export function clearInventory() {
+  const isParts = state.currentInvView === "parts";
+  const t = TEXTS[state.currentLang];
+  const confirmMsg = isParts
+    ? t.purgeConfirmParts || "OROKIN PURGE: Delete ALL Prime Inventory?"
+    : t.purgeConfirmRelics || "OROKIN PURGE: Delete ALL saved Relics?";
+
+  showCustomConfirm(confirmMsg, () => {
+    if (isParts) {
+      state.primeInventory = {};
+      renderPrimeInventory();
+    } else {
+      state.inventory = [];
+      renderInventory();
+    }
+    saveAppState();
+    showToast("Inventory cleared");
+  });
+}
+
+let lastInventoryHash = "";
+let inventoryPriceUpdateInterval = null;
+
+export async function renderInventory() {
+  const list = document.getElementById("inventory-list");
+  if (!list) return;
+
+  list.classList.remove("inventory-loading");
+
+  const sortMode = document.getElementById("inv-sort")?.value || "recent";
+  const newHash = JSON.stringify(state.inventory) + state.invSearchVal + state.invFilterTier + sortMode + state.currentLang;
+  if (newHash === lastInventoryHash && list.children.length > 0) {
+    return;
+  }
+  lastInventoryHash = newHash;
+
+  if (!state.inventory || state.inventory.length === 0) {
+    list.innerHTML = `<div style="padding:20px; text-align:center; color:#666;">Inventory empty</div>`;
+    return;
+  }
+
+  list.innerHTML = `<div style="padding:40px; text-align:center; color:#00E5FF; font-weight:bold; letter-spacing:1px; animation: pulse 1s infinite alternate;">LOADING INVENTORY...</div>`;
+
+  globalThis.relicRenderId = (globalThis.relicRenderId || 0) + 1;
+  const currentRenderId = globalThis.relicRenderId;
+
+  setTimeout(async () => {
+    if (globalThis.relicRenderId !== currentRenderId) return;
+
+    const filtered = state.inventory.filter((item) => {
+      const name = (typeof item === "string" ? item : item.name).toUpperCase();
+      if (
+        state.invSearchVal &&
+        !name.toLowerCase().includes(state.invSearchVal.toLowerCase())
+      )
+        return false;
+      if (state.invFilterTier !== "ALL") {
+        let tier = name.split(" ")[0];
+        if (tier === "VANGUARD") tier = "AXI";
+        if (tier !== state.invFilterTier) return false;
+      }
+      return true;
+    });
+
+    if (sortMode === "recent") {
+      filtered.reverse();
+    } else {
+      const valueMap = new Map();
+
+      await Promise.all(
+        filtered.map(async (item) => {
+          const name = typeof item === "string" ? item : item.name;
+          const val = await calculateRelicValue(name);
+          valueMap.set(name, val);
+        }),
+      );
+
+      if (globalThis.relicRenderId !== currentRenderId) return;
+
+      filtered.sort((a, b) => {
+        const nameA = typeof a === "string" ? a : a.name;
+        const nameB = typeof b === "string" ? b : b.name;
+        const valA = valueMap.get(nameA);
+        const valB = valueMap.get(nameB);
+
+        if (!valA) return 1;
+        if (!valB) return -1;
+
+        if (sortMode === "plat_intact") return valB.intact - valA.intact;
+        if (sortMode === "plat_rad") return valB.rad - valA.rad;
+        if (sortMode === "ducats") return valB.ducats - valA.ducats;
+        return 0;
+      });
+    }
+
+    const fragment = document.createDocumentFragment();
+
+    filtered.forEach((item) => {
+      const itemName = typeof item === "string" ? item : item.name;
+      const count = item.count || 1;
+      const isVaulted = state.relicStatusDB[itemName] === "vaulted";
+      const safeId = itemName.replaceAll(/[^a-zA-Z0-9]/g, "");
+
+      const row = document.createElement("div");
+      row.className = "inv-row";
+      row.dataset.relic = itemName;
+
+      row.innerHTML = `
+            <div class="inv-name-group" data-action="select-relic-from-inv" data-relic="${escapeHTML(itemName)}">
+                <div class="inv-name">${escapeHTML(itemName)}</div>
+                <div class="inv-meta">
+                   <span class="relic-status-tag ${isVaulted ? "vaulted" : "active"}">${isVaulted ? "VAULTED" : "ACTIVE"}</span>
+                   <span id="duc-${safeId}" class="ducat-tag">... <span class="ducat-icon-inline"></span></span>
+                </div>
+            </div>
+            <div class="inv-price-tag">
+                <span id="price-${safeId}" class="price-val">...<span class="plat-icon"></span></span>
+                <span class="qty-label">x${count}</span>
+            </div>
+            <div class="inv-qty-controls">
+                <button class="inv-btn minus" data-action="modify-inv" data-relic="${escapeHTML(itemName)}" data-amount="-1">−</button>
+                <button class="inv-btn plus" data-action="modify-inv" data-relic="${escapeHTML(itemName)}" data-amount="1">+</button>
+            </div>
+      `;
+      fragment.appendChild(row);
+    });
+
+    if (globalThis.relicRenderId !== currentRenderId) return;
+
+    list.innerHTML = "";
+    list.appendChild(fragment);
+
+    triggerPriceFetch(filtered);
+  }, 10);
+}
+
+async function triggerPriceFetch(relicList) {
+  if (inventoryPriceUpdateInterval) clearInterval(inventoryPriceUpdateInterval);
+
+  relicList.forEach((item) => {
+    const rName = typeof item === "string" ? item : item.name;
+    const drops = state.relicsDatabase[rName];
+
+    if (drops) {
+      drops.forEach((drop) => {
+        const dummyBadge = document.createElement("div");
+        addToQueue(drop.name, dummyBadge);
+      });
+    }
+  });
+
+  let attempts = 0;
+  inventoryPriceUpdateInterval = setInterval(async () => {
+    attempts++;
+    const rows = document.querySelectorAll(".inv-row");
+
+    for (const row of rows) {
+      const rName = row.dataset.relic;
+      const safeId = rName.replaceAll(/[^a-zA-Z0-9]/g, "");
+      const priceEl = document.getElementById(`price-${safeId}`);
+      const ducEl = document.getElementById(`duc-${safeId}`);
+
+      if (!priceEl) continue;
+
+      const stats = await calculateRelicValue(rName);
+
+      if (stats.intact > 0 || attempts > 10) {
+        if (priceEl.innerText !== `${stats.intact}p`) {
+          priceEl.innerHTML = `${stats.intact}<span class="plat-icon-inline"></span>`;
+          priceEl.classList.remove("price-loading");
+          priceEl.style.color = "#42f56c";
+          setTimeout(() => (priceEl.style.color = ""), 1000);
+        }
+        if (ducEl) ducEl.innerHTML = `${stats.ducats} <span class="ducat-icon-inline"></span>`;
+      }
+    }
+
+    if (attempts > 15) {
+      clearInterval(inventoryPriceUpdateInterval);
+    }
+  }, 1000);
+}
+
+export function modifyInv(name, amount) {
+  const oldLength = state.inventory ? state.inventory.length : 0;
+  updateInventoryCount(name, amount);
+  saveAppState();
+
+  if (state.inventory.length !== oldLength) {
+    renderInventory();
+  } else {
+    const itemMatch = state.inventory.find(
+      (i) => (typeof i === "string" ? i : i.name) === name
+    );
+    if (!itemMatch) {
+      renderInventory();
+      return;
+    }
+
+    const newQty = typeof itemMatch === "string" ? 1 : itemMatch.count || itemMatch.qty || 1;
+    const safeNameHtml = escapeHTML(name);
+    const qtySpan = document.querySelector(`.inv-row[data-relic="${safeNameHtml}"] .qty-label`);
+    if (qtySpan) qtySpan.textContent = `x${newQty}`;
+  }
+}
+
+export function selectRelicFromInv(name) {
+  state.selectedRelic = name;
+  const input = document.getElementById("relicInput");
+  if (input) input.value = name;
+
+  switchTab("relic");
+  toggleInventoryPanel(false);
+  manualRelicUpdate();
+}
+
+async function calculateRelicValue(relicName) {
+  const drops = state.relicsDatabase[relicName];
+  if (!drops) return { intact: 0, rad: 0, ducats: 0 };
+
+  let totalIntact = 0;
+  let totalRad = 0;
+  let avgDucats = 0;
+
+  const promises = drops.map(async (d) => {
+    const slug = getSlug(d.name);
+    const price = await getPriceValue(d.name, slug);
+
+    let fallbackDucats = 15;
+    if (d.chance < 5) {
+      fallbackDucats = 100;
+    } else if (d.chance < 20) {
+      fallbackDucats = 45;
+    }
+    const ducatValue = d.ducats || fallbackDucats;
+
+    let pIntact;
+    let pRad;
+
+    if (d.chance < 5) {
+      pIntact = DROP_CHANCES.Intact.rare;
+      pRad = DROP_CHANCES.Rad.rare;
+    } else if (d.chance < 20) {
+      pIntact = DROP_CHANCES.Intact.uncommon / 2;
+      pRad = DROP_CHANCES.Rad.uncommon / 2;
+    } else {
+      pIntact = DROP_CHANCES.Intact.common / 3;
+      pRad = DROP_CHANCES.Rad.common / 3;
+    }
+
+    return {
+      intactVal: price * pIntact,
+      radVal: price * pRad,
+      ducatVal: ducatValue * pIntact,
+    };
+  });
+
+  const results = await Promise.all(promises);
+
+  results.forEach((res) => {
+    totalIntact += res.intactVal;
+    totalRad += res.radVal;
+    avgDucats += res.ducatVal;
+  });
+
+  return {
+    intact: Number.parseFloat(totalIntact.toFixed(1)),
+    rad: Number.parseFloat(totalRad.toFixed(1)),
+    ducats: Math.round(avgDucats),
+  };
+}
+export function filterInvTier(tier) {
+  state.invFilterTier = tier;
+  document.querySelectorAll(".inv-tier-btn").forEach((btn) => {
+    btn.classList.remove("active");
+    if (
+      btn.innerText === tier ||
+      (tier === "REQUIEM" && btn.innerText === "REQ") ||
+      (tier === "ALL" && btn.innerText === "ALL")
+    ) {
+      btn.classList.add("active");
+    }
+  });
+  renderInventory();
+}
+
+export function addCurrentToInv() {
+  if (!state.selectedRelic) return;
+
+  updateInventoryCount(state.selectedRelic, 1);
+  saveAppState();
+
+  const msg =
+    state.currentLang === "es"
+      ? `${state.selectedRelic} añadida al inventario.`
+      : `${state.selectedRelic} added to inventory.`;
+
+  showToast(msg);
+
+  const btn = document.querySelector("#manual-add-container button");
+  if (btn) {
+    const originalText = btn.innerText;
+    btn.innerText = "✔ OK";
+    setTimeout(() => {
+      btn.innerText = originalText;
+    }, 1000);
+  }
+
+  renderInventory();
+}
+export function switchInvView(view) {
+  if (state.currentInvView === view && document.getElementById("inventory-list")?.innerHTML.length > 50) return;
+  state.currentInvView = view;
+  const relicControls = document.getElementById("relic-inv-controls");
+  const primeControls = document.getElementById("prime-inv-controls");
+  const tabRelics = document.getElementById("inv-tab-relics");
+  const tabParts = document.getElementById("inv-tab-parts");
+
+  const listRelics = document.getElementById("inventory-list");
+  const listParts = document.getElementById("inventory-list-parts");
+
+  if (view === "relics") {
+    if (relicControls) relicControls.style.display = "flex";
+    if (primeControls) primeControls.style.display = "none";
+    tabRelics.classList.add("active");
+    tabParts.classList.remove("active");
+    if (listRelics) listRelics.style.display = "";
+    if (listParts) listParts.style.display = "none";
+    renderInventory();
+  } else {
+    if (relicControls) relicControls.style.display = "none";
+    if (primeControls) primeControls.style.display = "flex";
+    tabParts.classList.add("active");
+    tabRelics.classList.remove("active");
+    if (listRelics) listRelics.style.display = "none";
+    if (listParts) listParts.style.display = "";
+    renderPrimeInventory();
+  }
+}
+
+export function modifyPrimePart(name, amount) {
+  const current = state.primeInventory[name] || 0;
+  const newQty = Math.max(0, current + amount);
+
+  state.primeInventory[name] = newQty;
+
+  if (amount > 0 && current === 0) {
+    const setName = getSetName(name);
+    const sourceList =
+      state.ocrReferenceList || Object.keys(state.itemsDatabase);
+
+    if (setName && sourceList.length > 0) {
+      sourceList.forEach((itemName) => {
+        if (itemName.startsWith(setName) && !itemName.endsWith(" Set")) {
+          if (state.primeInventory[itemName] === undefined) {
+            state.primeInventory[itemName] = 0;
+          }
+        }
+      });
+    }
+  }
+
+  saveAppState();
+
+  const safePartHtml = escapeHTML(name);
+  const qtySpans = document.querySelectorAll(`.inv-btn-small[data-part="${safePartHtml}"] ~ .qty-num`);
+  qtySpans.forEach(span => span.textContent = newQty);
+
+  const safeId = name.replaceAll(/[^a-zA-Z0-9]/g, "");
+  const badge = document.getElementById(`price-p-${safeId}`);
+  if (badge) badge.dataset.qty = newQty;
+
+  setTimeout(updatePrimeTotalValue, 10);
+
+  requestAnimationFrame(() => {
+    const trackers = document.querySelectorAll(`.live-tracker[data-part="${escapeHTML(name)}"]`);
+    if (trackers.length > 0) {
+      trackers.forEach(t => {
+        t.innerHTML = generateDotsHtml(newQty, parseInt(t.dataset.req) || 1);
+      });
+    }
+
+    const setName = getSetName(name);
+    if (setName && setName !== "Otros" && typeof globalThis.calculateTotalFullSets === "function") {
+      const safeSetNameId = setName.replaceAll(/[^a-zA-Z0-9]/g, "");
+      const setBadge = document.querySelector(`#set-group-${safeSetNameId} .set-count-badge`);
+      if (setBadge) {
+        const fullSets = globalThis.calculateTotalFullSets(setName);
+        setBadge.innerHTML = `${fullSets} SETS`;
+        setBadge.style.display = fullSets > 0 ? "inline-block" : "none";
+      }
+
+      if (state.activeTab === "set" && typeof globalThis.updateMacroTracker === "function") {
+        globalThis.updateMacroTracker(setName);
+      }
+    }
+  });
+}
+
+export function deletePrimeSet(setName) {
+  const t = TEXTS[state.currentLang].inventory;
+  if (!confirm(`${t.confirmDeleteSet || "Delete entire set?"} (${setName})`))
+    return;
+
+  Object.keys(state.primeInventory).forEach((name) => {
+    if (getSetName(name) === setName) {
+      delete state.primeInventory[name];
+    }
+  });
+
+  saveAppState();
+  renderPrimeInventory();
+}
+
+export function toggleInvSet(safeSetId) {
+  const el = document.getElementById(`set-group-${safeSetId}`);
+  if (el) el.classList.toggle("collapsed");
+}
+
+export function openSetDetail(setName) {
+  switchTab("set");
+  const input = document.getElementById("setItemInput");
+  if (input) {
+    input.value = setName;
+    handleSetTyping();
+  }
+}
+
+let lastRenderedHash = "";
+export function renderPrimeInventory() {
+  const list = document.getElementById("inventory-list-parts");
+  if (!list) return;
+
+  const panel = document.getElementById("inventory-sidebar");
+  if (panel && !panel.classList.contains("open")) return;
+
+  const searchInput = (document.getElementById("prime-inv-search")?.value || "").toLowerCase();
+  const sortMode = document.getElementById("prime-inv-sort")?.value || "alpha";
+
+  const newHash = JSON.stringify(state.primeInventory) + state.currentLang + searchInput + sortMode;
+  if (newHash === lastRenderedHash && list.children.length > 0) {
+    setTimeout(updatePrimeTotalValue, 10);
+    return;
+  }
+  lastRenderedHash = newHash;
+
+  const entries = Object.entries(state.primeInventory);
+  const groups = {};
+  entries.forEach(([name, qty]) => {
+    const setName = getSetName(name);
+    if (!groups[setName]) groups[setName] = [];
+    if (qty > 0 || state.settings?.showEmptyPrime) {
+      groups[setName].push({ name, qty });
+    }
+  });
+
+  let setNames = Object.keys(groups);
+
+  if (searchInput) {
+    setNames = setNames.filter(n => n.toLowerCase().includes(searchInput));
+  }
+
+  const setMetrics = new Map();
+  setNames.forEach(setName => {
+    if (setName === "Otros") {
+      setMetrics.set(setName, { numSets: 0, setTotalPlat: 0 });
+      return;
+    }
+
+    if (!globalThis.setPartsCache) globalThis.setPartsCache = new Map();
+    if (!globalThis.setPartsCache.has(setName) || globalThis.setPartsCache.get(setName).length === 0) {
+      const parts = Object.keys(state.itemsDatabase || {}).filter(
+        (name) => (name === setName || name.startsWith(setName + " ")) && !name.endsWith(" Set")
+      );
+      globalThis.setPartsCache.set(setName, parts);
+    }
+    const allPossibleParts = globalThis.setPartsCache.get(setName);
+
+    let numSets = 999;
+    let setTotalPlat = 0;
+    let piecesOwned = 0;
+
+    allPossibleParts.forEach(p => {
+      const owned = state.primeInventory[p] || 0;
+      const required = getRequiredCount(setName, p);
+      if (owned >= required) piecesOwned++;
+
+      const possible = Math.floor(owned / required);
+      if (possible < numSets) numSets = possible;
+
+      const cachedRaw = globalThis.MEMORY_CACHE?.get(getSlug(p));
+      const plat = cachedRaw ? (Number.parseInt(cachedRaw, 10) || 0) : 0;
+      setTotalPlat += plat * required;
+    });
+
+    if (numSets === 999) numSets = 0;
+    setMetrics.set(setName, { numSets, setTotalPlat, piecesOwned });
+  });
+
+  setNames.sort((a, b) => {
+    if (a === "Otros") return 1;
+    if (b === "Otros") return -1;
+
+    const metricA = setMetrics.get(a);
+    const metricB = setMetrics.get(b);
+
+    if (sortMode === "sets_desc") {
+      if (metricA.numSets !== metricB.numSets) return metricB.numSets - metricA.numSets;
+      return metricB.setTotalPlat - metricA.setTotalPlat;
+    } else if (sortMode === "sets_asc") {
+      if (metricA.piecesOwned !== metricB.piecesOwned) return metricB.piecesOwned - metricA.piecesOwned;
+      return metricB.setTotalPlat - metricA.setTotalPlat;
+    } else if (sortMode === "plat_desc") {
+      return metricB.setTotalPlat - metricA.setTotalPlat;
+    } else {
+      return a.localeCompare(b);
+    }
+  });
+
+  if (setNames.length === 0) {
+    list.innerHTML = `<div style="padding:20px; text-align:center; color:#666;">Búsqueda sin resultados o inventario vacío</div>`;
+    return;
+  }
+
+  globalThis.primeRenderId = (globalThis.primeRenderId || 0) + 1;
+  const currentRenderId = globalThis.primeRenderId;
+
+  list.innerHTML = `<div style="padding:40px; text-align:center; color:#D4AF37; font-weight:bold; letter-spacing:1px; animation: pulse 1s infinite alternate;">LOADING PRIME PARTS...</div>`;
+
+  setTimeout(() => {
+    if (globalThis.primeRenderId !== currentRenderId) return;
+
+    list.innerHTML = `
+      <div class="inventory-total-header">
+         <div class="total-label">${TEXTS[state.currentLang].inventory.lblTotalValue || "ESTIMATED TOTAL VALUE"}</div>
+         <div class="total-value"><span id="total-prime-value">...</span> <span class="plat-icon-inline"></span></div>
+      </div>`;
+
+    let currentIndex = 0;
+    const renderChunk = () => {
+      if (globalThis.primeRenderId !== currentRenderId) return;
+
+      const fragment = document.createDocumentFragment();
+      const chunkSize = 5;
+      const end = Math.min(currentIndex + chunkSize, setNames.length);
+
+      for (; currentIndex < end; currentIndex++) {
+        const setName = setNames[currentIndex];
+        const safeSetId = setName.replaceAll(/[^a-zA-Z0-9]/g, "");
+
+        groups[setName].sort((a, b) => a.name.length - b.name.length);
+
+        let numSets = 0;
+        let allPossibleParts = [];
+        if (setName !== "Otros") {
+          allPossibleParts = globalThis.setPartsCache.get(setName);
+          numSets = setMetrics.get(setName).numSets;
+        }
+
+        let groupHtml = `
+      <div class="inv-set-group collapsed" id="set-group-${safeSetId}">
+        <div class="inv-set-header" data-action="toggle-inv-set" data-setid="${safeSetId}">
+          <div class="header-controls">
+            <button class="delete-set-btn" data-action="delete-prime-set" data-setname="${escapeHTML(setName)}">×</button>
+            <span class="toggle-icon">▼</span>
+          </div>
+          
+          <div class="header-main">
+            ${(() => {
+            const setIcon = getItemIcon(setName);
+            return setIcon
+              ? `<img src="${setIcon}" class="item-icon-small" loading="lazy" onerror="this.style.display='none'">`
+              : "";
+          })()}
+            <span class="set-title">${escapeHTML(setName)}</span>
+            <span class="tracker-link-icon" onclick="event.stopPropagation(); globalThis.openSetDetail('${escapeHTML(setName)}')" title="Set Tracker" style="cursor:pointer; margin-left:6px; display:inline-flex; align-items:center; vertical-align:middle;">
+              <img src="assets/target.svg" style="width:24px; height:24px; filter:drop-shadow(0 0 2px rgba(0,204,204,0.5));" alt="Tracker">
+            </span>
+            <a href="https://warframe.market/items/${getSlug(setName + " Set")}" target="_blank" class="market-link-icon" onclick="event.stopPropagation()" style="margin-left:4px;">↗</a>
+          </div>
+
+          <div class="header-info">
+             <span class="set-count-badge" style="display:${numSets > 0 ? "inline-block" : "none"};">${numSets} SETS</span>
+             <span class="set-total-price" id="set-price-${safeSetId}">0 <span class="plat-icon-inline"></span></span>
+          </div>
+          <span id="set-mkt-${safeSetId}" class="set-price-marker" style="display:none" data-setname="${escapeHTML(setName)} Set">...</span>
+        </div>
+        <div class="inv-set-content">
+          ${(setName === "Otros" ? groups[setName].map(p => p.name) : allPossibleParts)
+            .map((partName) => {
+              const qty = state.primeInventory[partName] || 0;
+              const safeId = partName.replaceAll(/[^a-zA-Z0-9]/g, "");
+              const shortName = partName.replace(setName, "").trim() || (TEXTS[state.currentLang].lblBlueprint || "Blueprint");
+              const requiredCount = getRequiredCount(setName, partName);
+              const dotsHtml = generateDotsHtml(qty, requiredCount);
+
+              // Queue individual part price fetch if missing
+              if (!globalThis.MEMORY_CACHE?.has(getSlug(partName))) {
+                setTimeout(() => {
+                  const el = document.getElementById(`price-p-${safeId}`);
+                  if (el) addToQueue(partName, el);
+                }, 50);
+              }
+
+              return `
+              <div class="inv-row-mini">
+                <div class="row-main" onclick="globalThis.openSetDetail('${escapeHTML(setName)}')">
+                  ${(() => {
+                  const partIcon = getItemIcon(partName);
+                  return partIcon
+                    ? `<img src="${partIcon}" class="item-icon-mini" loading="lazy" onerror="this.style.display='none'">`
+                    : "";
+                })()}
+                  <div class="name-column">
+                     <span class="part-name">${escapeHTML(shortName)}</span>
+                     ${dotsHtml}
+                  </div>
+                </div>
+
+                <div class="row-info">
+                   <a href="https://warframe.market/items/${getSlug(partName)}" target="_blank" class="market-link-icon-mini" onclick="event.stopPropagation()">↗</a>
+                   <span class="price-badge-small" id="price-p-${safeId}" data-qty="${qty}" data-item="${escapeHTML(partName)}">${(() => {
+                  const cached = globalThis.MEMORY_CACHE?.get(getSlug(partName));
+                  if (cached !== undefined && !Number.isNaN(Number.parseInt(cached, 10))) return Number.parseInt(cached, 10);
+                  return "...";
+                })()} <span class="plat-icon-inline"></span></span>
+                </div>
+
+                <div class="inv-qty-controls-mini">
+                  <button class="inv-btn-small" data-action="modify-prime-part" data-part="${escapeHTML(partName)}" data-amount="-1">−</button>
+                  <span class="qty-num">${qty}</span>
+                  <button class="inv-btn-small" data-action="modify-prime-part" data-part="${escapeHTML(partName)}" data-amount="1">+</button>
+                </div>
+              </div>`;
+            })
+            .join("")}
+        </div>
+      </div>`;
+
+        const tempDiv = document.createElement("div");
+        tempDiv.innerHTML = groupHtml;
+        fragment.appendChild(tempDiv.firstElementChild);
+      }
+
+      list.appendChild(fragment);
+
+      if (currentIndex < setNames.length) {
+        requestAnimationFrame(renderChunk);
+      } else {
+        setNames.forEach((setName) => {
+          if (setName === "Otros") return;
+          const safeSetId = setName.replaceAll(/[^a-zA-Z0-9]/g, "");
+          const el = document.getElementById(`set-mkt-${safeSetId}`);
+          if (el) addToQueue(setName + " Set", el);
+        });
+
+        setTimeout(updatePrimeTotalValue, 100);
+      }
+    };
+
+    requestAnimationFrame(renderChunk);
+  }, 10);
+}
+
+export async function updatePrimeTotalValue() {
+  let totalGlobal = 0;
+  let allLoaded = true;
+  const entries = Object.entries(state.primeInventory);
+  const invGroups = {};
+
+  entries.forEach(([itemName, qty]) => {
+    if (qty > 0) {
+      const setNameRaw = getSetName(itemName);
+      if (!invGroups[setNameRaw]) {
+        invGroups[setNameRaw] = { parts: {}, setPrice: 0 };
+      }
+
+      const itemSlug = getSlug(itemName);
+      let price = 0;
+
+      const cachedRaw = globalThis.MEMORY_CACHE?.get(itemSlug);
+      if (cachedRaw !== undefined) {
+        price = Number.parseInt(cachedRaw, 10);
+      }
+      if (Number.isNaN(price)) price = 0;
+
+      invGroups[setNameRaw].parts[itemName] = { qty, price };
+    }
+  });
+
+  Object.keys(invGroups).forEach((setNameRaw) => {
+    if (setNameRaw === "Otros") return;
+    const setSlug = getSlug(setNameRaw + " Set");
+    let price = 0;
+
+    const cachedRaw = globalThis.MEMORY_CACHE?.get(setSlug);
+    if (cachedRaw !== undefined) {
+      price = Number.parseInt(cachedRaw, 10);
+    }
+    if (Number.isNaN(price)) price = 0;
+
+    invGroups[setNameRaw].setPrice = price;
+  });
+
+  Object.keys(invGroups).forEach((setName) => {
+    const subtotal = calculateGroupSubtotal(setName, invGroups[setName]);
+    const safeSetId = setName.replaceAll(/[^a-zA-Z0-9]/g, "");
+
+    const el = document.getElementById(`set-price-${safeSetId}`);
+    if (el) {
+      el.innerHTML = `${new Intl.NumberFormat().format(subtotal)} <span class="plat-icon-inline"></span>`;
+    }
+    totalGlobal += subtotal;
+  });
+
+  const totalEl = document.getElementById("total-prime-value");
+  if (totalEl) {
+    totalEl.textContent = new Intl.NumberFormat().format(totalGlobal);
+    totalEl.classList.remove("loading-blink");
+  }
+}
+
+function calculateGroupSubtotal(setName, groupData) {
+  if (setName === "Otros") {
+    return sumIndividualParts(groupData.parts);
+  }
+
+  const allPossibleParts = Object.keys(state.itemsDatabase).filter(
+    (name) =>
+      (name === setName || name.startsWith(setName + " ")) &&
+      !name.endsWith(" Set"),
+  );
+
+  if (allPossibleParts.length === 0) {
+    return sumIndividualParts(groupData.parts);
+  }
+
+  const numSets = calculatePossibleSets(setName, groupData, allPossibleParts);
+
+  if (numSets > 0 && groupData.setPriceLoaded) {
+    return calculateSetPlusLeftovers(setName, groupData, numSets);
+  }
+
+  return sumIndividualParts(groupData.parts);
+}
+
+function sumIndividualParts(parts) {
+  let subtotal = 0;
+  for (const p in parts) {
+    const qty = parts[p].qty || 0;
+    const price = parts[p].price || 0;
+    subtotal += qty * price;
+  }
+  return subtotal;
+}
+
+function calculatePossibleSets(setName, groupData, allPossibleParts) {
+  let numSets = 999;
+
+  allPossibleParts.forEach((p) => {
+    const hasQty = groupData.parts[p]?.qty || 0;
+    const required = getRequiredCount(setName, p) || 1;
+    const possibleSets = Math.floor(hasQty / required);
+
+    if (possibleSets < numSets) {
+      numSets = possibleSets;
+    }
+  });
+
+  return numSets === 999 ? 0 : numSets;
+}
+
+function calculateSetPlusLeftovers(setName, groupData, numSets) {
+  let subtotal = numSets * (groupData.setPrice || 0);
+
+  for (const partName in groupData.parts) {
+    const required = getRequiredCount(setName, partName) || 1;
+    const remaining = (groupData.parts[partName].qty || 0) - numSets * required;
+
+    if (remaining > 0) {
+      subtotal += remaining * (groupData.parts[partName].price || 0);
+    }
+  }
+
+  return subtotal;
+}
+
+export function exportInventory() {
+  if (
+    (!state.inventory || state.inventory.length === 0) &&
+    Object.keys(state.primeInventory || {}).length === 0
+  ) {
+    return showToast("Inventory is completely empty.");
+  }
+
+  try {
+    const exportData = {
+      relics: state.inventory || [],
+      parts: state.primeInventory || {},
+    };
+    const dataStr = JSON.stringify(exportData, null, 2);
+    const blob = new Blob([dataStr], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `voidstonks_inv_${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    showToast("Inventory downloaded");
+  } catch (e) {
+    console.error("Error exportando:", e);
+    showToast("Error exporting file.");
+  }
+}
+
+export function importInventory() {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = ".json";
+
+  input.onchange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+
+      if (data && data.relics !== undefined && data.parts !== undefined) {
+        if (
+          confirm(
+            `Archivo de inventario dual cargado.\n\nThis will overwrite your entire inventory (Relics & Parts). Are you sure?`
+          )
+        ) {
+          state.inventory = data.relics;
+          state.primeInventory = data.parts;
+          saveAppState();
+          renderInventory();
+          renderPrimeInventory();
+          showToast("Successfully updated complete inventory.");
+        }
+      } else if (Array.isArray(data)) {
+        if (
+          confirm(
+            `Archivo Legacy cargado con ${data.length} items.\n\nThis will overwrite your current relic inventory. Are you sure?`
+          )
+        ) {
+          state.inventory = data;
+          saveAppState();
+          renderInventory();
+          showToast("Successfully updated relic inventory.");
+        }
+      } else {
+        showToast("File has incorrect format: ERROR");
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("Error reading JSON file.");
+    }
+  };
+  input.click();
+}
+
+Object.assign(globalThis, {
+  modifyInv,
+  selectRelicFromInv,
+  filterInvTier,
+  addCurrentToInv,
+  switchInvView,
+  modifyPrimePart,
+  deletePrimeSet,
+  toggleInvSet,
+  openSetDetail,
+  renderInventory,
+  renderPrimeInventory,
+  clearInventory,
+  toggleInventoryPanel,
+  exportInventory,
+  importInventory,
+});
+
+document.addEventListener("click", (e) => {
+  const actionTarget = e.target.closest("[data-action]");
+  if (!actionTarget) return;
+
+  const action = actionTarget.dataset.action;
+  const data = actionTarget.dataset;
+
+  switch (action) {
+    case "select-relic-from-inv":
+      selectRelicFromInv(data.relic);
+      break;
+    case "modify-inv":
+      requestAnimationFrame(() => modifyInv(data.relic, Number.parseInt(data.amount)));
+      break;
+    case "add-current-to-inv":
+      requestAnimationFrame(() => addCurrentToInv());
+      break;
+    case "toggle-inv-set":
+      requestAnimationFrame(() => toggleInvSet(data.setid));
+      break;
+    case "delete-prime-set":
+      requestAnimationFrame(() => deletePrimeSet(data.setname));
+      break;
+    case "modify-prime-part":
+      requestAnimationFrame(() => modifyPrimePart(data.part, Number.parseInt(data.amount)));
+      break;
+  }
+});

@@ -92,6 +92,459 @@
     </div>
   </div>
 
+  <!-- Floating Scanner HUD (VoidStonks) -->
+  <div id="inv-hud" style="
+        display: none;
+        position: fixed;
+        top: 80px;
+        right: 20px;
+        width: 290px;
+        z-index: 10001;
+        font-family: &quot;Segoe UI&quot;, system-ui, sans-serif;
+        user-select: none;
+        color: #e0e0e0;
+      ">
+    <!-- ── HEADER (drag handle) ──────────────────────── -->
+    <div id="inv-hud-header" style="
+          background: linear-gradient(135deg, #0a0c14 0%, #0d1322 100%);
+          border: 1px solid rgba(0, 229, 255, 0.4);
+          border-bottom: none;
+          border-radius: 8px 8px 0 0;
+          padding: 9px 12px;
+          cursor: grab;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+        ">
+      <!-- Left: icon + title + counter -->
+      <div style="display: flex; align-items: center; gap: 8px">
+        <span id="hud-status-dot" style="
+              width: 7px;
+              height: 7px;
+              border-radius: 50%;
+              background: #00e5ff;
+              box-shadow: 0 0 8px #00e5ff;
+              display: inline-block;
+              flex-shrink: 0;
+            "></span>
+        <span id="hud-title" style="
+              font-size: 0.7em;
+              font-weight: 800;
+              letter-spacing: 2px;
+              color: #00e5ff;
+            ">VOIDSCANNER</span>
+        <span id="live-inv-count" style="
+              font-weight: 900;
+              color: #f1c40f;
+              padding: 1px 7px;
+              background: rgba(241, 196, 15, 0.12);
+              border: 1px solid rgba(241, 196, 15, 0.25);
+              border-radius: 10px;
+              font-size: 0.75em;
+            ">0</span>
+      </div>
+      <!-- Right: context badge + DBG + collapse -->
+      <div style="display: flex; align-items: center; gap: 5px">
+        <span id="hud-context-badge" style="
+              font-size: 0.58em;
+              font-weight: 700;
+              letter-spacing: 1px;
+              padding: 2px 7px;
+              border-radius: 10px;
+              background: rgba(0, 229, 255, 0.12);
+              border: 1px solid rgba(0, 229, 255, 0.3);
+              color: #00e5ff;
+            ">IDLE</span>
+        <button id="btn-debug-toggle" onclick="globalThis.toggleScannerDebug()"
+          title="Toggle debug mode (shows OCR diagnostic image)" style="
+              background: none;
+              border: 1px solid #2a3040;
+              color: #506070;
+              font-size: 0.58em;
+              padding: 2px 6px;
+              cursor: pointer;
+              border-radius: 4px;
+              transition: all 0.2s;
+              letter-spacing: 1px;
+            ">
+          DBG
+        </button>
+        <button id="hud-collapse-btn" onclick="
+              (function () {
+                var b = document.getElementById('inv-hud-body');
+                var open = b.style.display !== 'none';
+                b.style.display = open ? 'none' : 'flex';
+                document.getElementById('hud-collapse-btn').textContent = open
+                  ? '▸'
+                  : '▾';
+              })()
+            " style="
+              background: rgba(255, 255, 255, 0.03);
+              border: 1px solid #2a3040;
+              color: #506070;
+              font-size: 0.65em;
+              cursor: pointer;
+              padding: 2px 6px;
+              border-radius: 4px;
+              line-height: 1.2;
+              transition: all 0.2s;
+            ">
+          ▾
+        </button>
+      </div>
+    </div>
+
+    <!-- ── BODY ──────────────────────────────────────── -->
+    <div id="inv-hud-body" style="
+          background: rgba(9, 11, 18, 0.96);
+          border: 1px solid rgba(0, 229, 255, 0.2);
+          border-top: 1px solid rgba(0, 229, 255, 0.08);
+          border-radius: 0 0 8px 8px;
+          backdrop-filter: blur(12px);
+          box-shadow:
+            0 8px 32px rgba(0, 0, 0, 0.7),
+            inset 0 1px 0 rgba(0, 229, 255, 0.05);
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+        ">
+      <!-- Status row -->
+      <div style="
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 5px 12px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+            font-size: 0.6em;
+            color: #506070;
+            letter-spacing: 1px;
+          ">
+        <span id="live-inv-msg">READY</span>
+        <span id="hud-scan-counter" style="color: #2a3a4a">FRAMES: 0</span>
+      </div>
+
+      <!-- ── ACTION BUTTONS ─────────────── -->
+      <div style="
+            display: flex;
+            gap: 6px;
+            padding: 9px 10px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+          ">
+        <!-- SCAN PAGE — primary cyan action, glow only (NO pulse on text) -->
+        <button id="btn-manual-scan" onclick="globalThis.manualPrecisionScan()" style="
+              flex: 2;
+              background: rgba(0, 229, 255, 0.1);
+              border: 1px solid rgba(0, 229, 255, 0.55);
+              color: #00e5ff;
+              font-size: 0.68em;
+              padding: 7px 4px;
+              cursor: pointer;
+              border-radius: 5px;
+              font-weight: 800;
+              letter-spacing: 1px;
+              box-shadow: 0 0 14px rgba(0, 229, 255, 0.2);
+              transition: all 0.15s;
+              white-space: nowrap;
+            " onmouseover="
+              this.style.background = 'rgba(0,229,255,0.2)';
+              this.style.boxShadow = '0 0 22px rgba(0,229,255,0.4)';
+            " onmouseout="
+              this.style.background = 'rgba(0,229,255,0.1)';
+              this.style.boxShadow = '0 0 14px rgba(0,229,255,0.2)';
+            ">
+          ⌖ SCAN PAGE
+        </button>
+
+        <!-- AUTO SCROLL mode toggle -->
+        <button id="btn-auto-scan" onclick="globalThis.toggleAutoScrollScan()"
+          title="Auto-scan when page changes after scroll" style="
+              flex: 1.2;
+              background: rgba(0, 255, 120, 0.06);
+              border: 1px solid rgba(0, 255, 120, 0.25);
+              color: #4a7a5a;
+              font-size: 0.62em;
+              padding: 7px 4px;
+              cursor: pointer;
+              border-radius: 5px;
+              font-weight: 800;
+              letter-spacing: 0.5px;
+              transition: all 0.2s;
+              white-space: nowrap;
+            " onmouseover="this.style.background = 'rgba(0,255,120,0.12)'" onmouseout="
+              this.style.background =
+                document.getElementById('btn-auto-scan').dataset.active === '1'
+                  ? 'rgba(0,255,120,0.15)'
+                  : 'rgba(0,255,120,0.06)'
+            " data-active="0">
+          ⟳ AUTO
+        </button>
+
+        <!-- SAVE — secondary soft -->
+        <button id="btn-save-inv" onclick="globalThis.saveLiveInventory()" style="
+              flex: 1.5;
+              background: rgba(0, 229, 255, 0.06);
+              border: 1px solid rgba(0, 229, 255, 0.25);
+              color: #7cada8;
+              font-size: 0.68em;
+              padding: 7px 4px;
+              cursor: pointer;
+              border-radius: 5px;
+              font-weight: 700;
+              letter-spacing: 0.5px;
+              transition: all 0.15s;
+            " onmouseover="
+              this.style.background = 'rgba(0,229,255,0.12)';
+              this.style.color = '#00e5ff';
+            " onmouseout="
+              this.style.background = 'rgba(0,229,255,0.06)';
+              this.style.color = '#7cada8';
+            ">
+          ↓ SAVE
+        </button>
+
+        <!-- CLEAR — muted -->
+        <button onclick="globalThis.clearLiveSessionInventory()" title="Clear this scan session" style="
+              background: none;
+              border: 1px solid rgba(255, 255, 255, 0.1);
+              color: #506070;
+              font-size: 0.68em;
+              padding: 7px 8px;
+              cursor: pointer;
+              border-radius: 5px;
+              transition: all 0.15s;
+            " onmouseover="
+              this.style.color = '#e07070';
+              this.style.borderColor = 'rgba(224,112,112,0.4)';
+            " onmouseout="
+              this.style.color = '#506070';
+              this.style.borderColor = 'rgba(255,255,255,0.1)';
+            ">
+          ✕
+        </button>
+      </div>
+
+      <!-- ── CALIBRATE ROW ──────────────── -->
+      <div style="
+            padding: 0 10px 8px;
+            display: flex;
+            gap: 5px;
+            align-items: center;
+          ">
+        <!-- RECALIBRATE: full redo -->
+        <button id="btn-recalibrate" onclick="globalThis.LiveCalibration.clearCalibration()" style="
+              flex: 1;
+              background: none;
+              border: 1px solid rgba(255, 180, 50, 0.4);
+              color: #c8963a;
+              font-size: 0.6em;
+              padding: 5px 6px;
+              cursor: pointer;
+              border-radius: 4px;
+              font-weight: 700;
+              letter-spacing: 0.5px;
+              transition: all 0.15s;
+            " onmouseover="
+              this.style.background = 'rgba(255,180,50,0.1)';
+              this.style.borderColor = 'rgba(255,180,50,0.7)';
+              this.style.color = '#f0b040';
+            " onmouseout="
+              this.style.background = 'none';
+              this.style.borderColor = 'rgba(255,180,50,0.4)';
+              this.style.color = '#c8963a';
+            " title="Reset calibration and redo from scratch">
+          ⊹ RECALIBRATE
+        </button>
+
+        <!-- EDIT GRID: fine-tune individual cells -->
+        <button id="btn-open-grid-editor" onclick="globalThis.openGridEditor()" style="
+              flex: 1;
+              background: none;
+              border: 1px solid rgba(0, 229, 255, 0.3);
+              color: #5090a0;
+              font-size: 0.6em;
+              padding: 5px 6px;
+              cursor: pointer;
+              border-radius: 4px;
+              font-weight: 700;
+              letter-spacing: 0.5px;
+              transition: all 0.15s;
+            " onmouseover="
+              this.style.background = 'rgba(0,229,255,0.1)';
+              this.style.borderColor = 'rgba(0,229,255,0.6)';
+              this.style.color = '#00e5ff';
+            " onmouseout="
+              this.style.background = 'none';
+              this.style.borderColor = 'rgba(0,229,255,0.3)';
+              this.style.color = '#5090a0';
+            " title="Fine-tune individual cell positions by dragging">
+          ✎ EDIT CELLS
+        </button>
+
+        <!-- RESET OFFSETS -->
+        <button onclick="globalThis.resetGridOffsets()" style="
+              background: none;
+              border: 1px solid rgba(255, 255, 255, 0.1);
+              color: #353d4a;
+              font-size: 0.6em;
+              padding: 5px 7px;
+              cursor: pointer;
+              border-radius: 4px;
+              transition: all 0.15s;
+            " onmouseover="
+              this.style.color = '#e07070';
+              this.style.borderColor = 'rgba(224,112,112,0.4)';
+            " onmouseout="
+              this.style.color = '#353d4a';
+              this.style.borderColor = 'rgba(255,255,255,0.1)';
+            " title="Reset all cell fine-tune offsets">
+          ↺
+        </button>
+      </div>
+
+      <!-- EDIT MODE close bar (shown when editor is open, fixed at top of viewport) -->
+      <div id="btn-close-grid-editor" style="
+            position: fixed;
+            top: 12px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 5001;
+            background: rgba(0, 10, 20, 0.9);
+            border: 1px solid rgba(0, 229, 255, 0.5);
+            border-radius: 6px;
+            padding: 7px 18px;
+            display: none;
+            align-items: center;
+            gap: 12px;
+            font-family: &quot;Segoe UI&quot;, sans-serif;
+            box-shadow: 0 4px 20px rgba(0, 229, 255, 0.2);
+          ">
+        <span id="edit-mode-title" style="
+              font-size: 0.72em;
+              font-weight: 700;
+              letter-spacing: 1.5px;
+              color: #00e5ff;
+            ">CELL EDITOR ACTIVE</span>
+        <span id="edit-mode-guide" style="font-size: 0.65em; color: #506070">Click a cell to select · Drag or ↑↓←→ to
+          nudge</span>
+        <button id="btn-edit-done" onclick="globalThis.closeGridEditor()" style="
+              background: rgba(0, 229, 255, 0.15);
+              border: 1px solid rgba(0, 229, 255, 0.5);
+              color: #00e5ff;
+              font-size: 0.68em;
+              padding: 4px 12px;
+              border-radius: 4px;
+              cursor: pointer;
+              font-weight: 700;
+            ">
+          ✓ DONE
+        </button>
+      </div>
+
+      <!-- ── DEBUG SNAPSHOT ──────────────── -->
+      <div id="live-debug-snapshot" style="display: none; padding: 0 10px 8px">
+        <div style="
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              margin-bottom: 4px;
+            ">
+          <span id="lbl-ocr-debug" style="
+                font-size: 0.58em;
+                color: #506070;
+                font-weight: 700;
+                letter-spacing: 1px;
+                text-transform: uppercase;
+              ">OCR Debug Snapshot</span>
+          <button id="btn-copy-debug-log" onclick="globalThis.copyScannerDebugLog()" style="
+                background: none;
+                border: 1px solid rgba(0, 229, 255, 0.3);
+                color: #00e5ff;
+                font-size: 0.58em;
+                padding: 2px 7px;
+                border-radius: 3px;
+                cursor: pointer;
+                font-weight: 700;
+              ">
+            COPY LOG
+          </button>
+        </div>
+        <img id="live-debug-snapshot-img" src="" alt="" style="
+              width: 100%;
+              border-radius: 4px;
+              border: 1px solid #1a2030;
+              display: none;
+            " />
+      </div>
+
+      <!-- ── ITEM LIST ─────────────────── -->
+      <div id="lbl-detected-items" style="
+            padding: 0 10px 4px;
+            font-size: 0.58em;
+            color: #2a3a50;
+            font-weight: 700;
+            letter-spacing: 1px;
+          ">
+        DETECTED ITEMS
+      </div>
+      <div id="live-inventory-items-list" style="
+            height: 300px;
+            overflow-y: auto;
+            padding: 0 10px 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+          ">
+        <div id="lbl-scan-empty-state" style="
+              text-align: center;
+              color: #1e2a38;
+              font-size: 0.75em;
+              padding: 30px 0;
+              letter-spacing: 1px;
+            ">
+          PRESS SCAN PAGE TO START
+        </div>
+      </div>
+
+      <!-- ── SCROLL GUIDE ──────────────── -->
+      <div id="live-scroll-guide" style="
+            border-top: 1px solid rgba(0, 229, 255, 0.06);
+            padding: 5px 12px;
+            font-size: 0.62em;
+            color: #2a3a50;
+            text-align: center;
+          "></div>
+    </div>
+  </div>
+
+  <script>
+    // Make inv-hud draggable
+    (function () {
+      const hud = document.getElementById("inv-hud");
+      const handle = document.getElementById("inv-hud-header");
+      if (!hud || !handle) return;
+      let dragging = false,
+        offX = 0,
+        offY = 0;
+      handle.addEventListener("mousedown", (e) => {
+        dragging = true;
+        offX = e.clientX - hud.getBoundingClientRect().left;
+        offY = e.clientY - hud.getBoundingClientRect().top;
+        handle.style.cursor = "grabbing";
+        e.preventDefault();
+      });
+      document.addEventListener("mousemove", (e) => {
+        if (!dragging) return;
+        hud.style.left = e.clientX - offX + "px";
+        hud.style.top = e.clientY - offY + "px";
+        hud.style.right = "auto";
+      });
+      document.addEventListener("mouseup", () => {
+        dragging = false;
+        handle.style.cursor = "grab";
+      });
+    })();
+  </script>
+
   <div id="scan-success-modal" class="hidden">
     <div class="modal-backdrop"></div>
     <div class="scan-result-card">
@@ -136,7 +589,15 @@
 
       <div class="header-center">
         <span id="txt-inv-title">MY INVENTORY</span>
-        <span class="clear-icon" onclick="globalThis.clearInventory()" title="Delete all data">🗑️</span>
+        <span class="orokin-clear-btn" onclick="globalThis.clearInventory()" title="Orokin Purge (Clear Contextual)">
+          <svg class="orokin-trash-svg" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path
+              d="M7 21C6.45 21 5.979 20.804 5.587 20.412C5.195 20.02 4.99933 19.5493 5 19V6H4V4H9V3H15V4H20V6H19V19C19 19.55 18.804 20.021 18.412 20.413C18.02 20.805 17.5493 21.0007 17 21H7ZM7 19H17V6H7V19ZM9 17H11V8H9V17ZM13 17H15V8H13V17Z"
+              fill="currentColor" />
+            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="0.5" stroke-dasharray="2 2"
+              class="orokin-ring" />
+          </svg>
+        </span>
       </div>
 
       <button class="inv-action-btn import-btn" onclick="globalThis.importInventory()" title="Import JSON">
@@ -180,12 +641,30 @@
       </select>
     </div>
 
+    <div id="prime-inv-controls" class="inventory-controls"
+      style="padding: 10px; display: none; flex-direction: column; gap: 8px">
+      <input type="text" id="prime-inv-search" class="wf-input" placeholder="Buscar Set o Parte..."
+        onkeyup="globalThis.renderPrimeInventory()" style="padding: 8px; font-size: 0.9em" />
+
+      <select id="prime-inv-sort" class="wf-input" onchange="globalThis.renderPrimeInventory()"
+        style="font-size: 0.85em; padding: 5px">
+        <option value="alpha">Alfabético (A-Z)</option>
+        <option value="sets_desc">Sets completados (Mayor a Menor)</option>
+        <option value="sets_asc">Sets a completar (Cerquitas de terminar)</option>
+        <option value="plat_desc">Valor Total en Platino</option>
+      </select>
+    </div>
+
     <div id="inventory-list" class="fissures-scroll-area"></div>
+    <div id="inventory-list-parts" class="fissures-scroll-area" style="display:none;"></div>
   </div>
 
   <div id="best-missions-container">
-    <div id="mission-toggle-btn" class="mission-toggle-btn"
-      onclick="document.getElementById('best-missions-container').classList.toggle('open')">
+    <div id="mission-toggle-btn" class="mission-toggle-btn" onclick="
+          document
+            .getElementById('best-missions-container')
+            .classList.toggle('open')
+        ">
       <img id="img-fissure-toggle" src="assets/fissureicon.png" class="toggle-img" alt="Fissures" />
     </div>
     <div class="panel-main-header" id="fissure-panel-header">
@@ -197,7 +676,9 @@
       <span id="txt-fissure-title">Fisuras Activas</span>
     </div>
     <div class="fissures-scroll-area" id="fissures-list-area">
-      <div style="padding:10px; text-align:center; color:#666;">Cargando...</div>
+      <div style="padding: 10px; text-align: center; color: #666">
+        Cargando...
+      </div>
     </div>
   </div>
   <header class="site-header">
@@ -307,8 +788,8 @@
 
     <div class="content-area">
       <div id="loading">
-        <div id="loadingText">Cargando datos...</div>
-        <small id="loadingSub">Conectando a base de datos segura...</small>
+        <div id="loadingText">Loading...</div>
+        <small id="loadingSub"></small>
       </div>
 
       <div id="mode-relic">
@@ -415,7 +896,11 @@
               </div>
 
               <div id="riven-avg-box" style="margin-top: 15px; display: none">
-                <span style="font-size: 0.8em; color: #bbb; text-transform: uppercase">Estimated base price</span><br />
+                <span style="
+                      font-size: 0.8em;
+                      color: #bbb;
+                      text-transform: uppercase;
+                    ">Estimated base price</span><br />
                 <span id="riven-avg-value" class="riven-avg-val">...</span>
                 <span style="font-size: 0.8em"><span class="plat-icon"></span></span>
               </div>
@@ -435,9 +920,14 @@
                 </button>
               </div>
 
-              <div id="riven-variants-carousel-section" style="margin-top: 25px; display: none;">
-                <h4
-                  style="margin-bottom: 15px; font-size: 0.9em; color: #888; text-transform: uppercase; letter-spacing: 1px;">
+              <div id="riven-variants-carousel-section" style="margin-top: 25px; display: none">
+                <h4 style="
+                      margin-bottom: 15px;
+                      font-size: 0.9em;
+                      color: #888;
+                      text-transform: uppercase;
+                      letter-spacing: 1px;
+                    ">
                   VARIANTS
                 </h4>
                 <div id="riven-variants-carousel" class="variants-carousel-scroll"></div>
@@ -451,35 +941,6 @@
         </div>
       </div>
 
-      <!-- <div id="mode-profile" class="hidden">
-        <div class="form-group">
-          <label id="lbl-username">Nombre de Usuario (PC)</label>
-          <div style="display: flex; gap: 10px">
-            <input class="wf-input profile-input" type="text" id="usernameInput" disabled
-              placeholder="Ej: Parcialsobriedad // Does not work yet this may be a dead feature check by mr instead down below" />
-            <button class="ctrl-btn" style="
-                  background: var(--wf-blue);
-                  color: #000;
-                  font-weight: bold;
-                " onclick="/*fetchUserProfile()*/">
-              NOT WORKING
-            </button>
-          </div>
-          <small id="txt-mr-label" style="color: #666; margin-top: 5px; display: block">Si la API falla, calcula por
-            MR:</small>
-          <div style="
-                margin-top: 5px;
-                display: flex;
-                align-items: center;
-                gap: 10px;
-              ">
-            <label style="margin: 0; width: auto">MR:</label>
-            <input class="wf-input profile-input" type="number" id="mrInput" min="0" max="34" value="0"
-              style="width: 60px; padding: 5px" onchange="calculateCaps()" />
-          </div>
-        </div>
-        <div id="profile-data"></div>
-      </div>-->
       <div id="mode-lfg" class="hidden">
         <div class="form-group">
           <label id="lbl-lfg-activity">Actividad</label>
@@ -569,6 +1030,10 @@
       <span id="txt-footer-data">Herramienta no oficial de Warframe Datos provistos por:</span>
       <a href="https://warframe.market/" target="_blank" rel="noopener noreferrer" class="footer-link">Warframe
         Market</a>
+      <span class="footer-separator">|</span>
+      <button id="btn-footer-updates" class="footer-link-btn" onclick="globalThis.openUpdateHistory()">
+        Novedades
+      </button>
       <span class="footer-separator">|</span>
       <a href="https://drops.warframestat.us/" target="_blank" rel="noopener noreferrer" class="footer-link">Warframe
         Drops API</a>
@@ -762,7 +1227,98 @@
     aria-label="Scan Relics">
     <img src="assets/scanner-icon.svg" alt="Scan Icon" class="fab-icon" />
   </button>
+  <!-- Simple Confirmation Modal -->
+  <div id="orokin-confirm-modal" class="hidden">
+    <div class="modal-backdrop" onclick="closeOrokinConfirm()"></div>
+    <div class="scan-result-card simple-confirm-modal" style="max-width: 400px; height: auto">
+      <div class="scan-header" style="border-bottom: 1px solid rgba(255, 255, 255, 0.1)">
+        <h3 id="orokin-confirm-title" style="
+              color: var(--wf-blue);
+              letter-spacing: 1px;
+              text-transform: uppercase;
+            ">
+          CONFIRMATION
+        </h3>
+      </div>
+      <div class="content-area" style="padding: 25px 20px; text-align: center">
+        <p id="orokin-confirm-msg" style="color: #eee; font-size: 1rem; margin-bottom: 20px"></p>
+        <div style="display: flex; gap: 12px; justify-content: center">
+          <button id="orokin-btn-confirm" class="action-btn confirm" style="flex: 1; font-weight: 700">
+            CONFIRM
+          </button>
+          <button id="orokin-btn-cancel" class="action-btn" onclick="closeOrokinConfirm()" style="
+                flex: 1;
+                border-color: rgba(255, 255, 255, 0.2);
+                color: #aaa;
+              ">
+            CANCEL
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- Calibration Modal -->
+  <div id="calibration-modal" class="hidden">
+    <div class="modal-backdrop"></div>
+    <div class="scan-result-card simple-confirm-modal" style="
+          max-width: 90vw;
+          width: 1000px;
+          height: auto;
+          display: flex;
+          flex-direction: column;
+        ">
+      <div class="scan-header" style="border-bottom: 1px solid rgba(255, 255, 255, 0.1)">
+        <h3 id="lbl-calib-title" style="
+              color: var(--wf-blue);
+              letter-spacing: 1px;
+              text-transform: uppercase;
+            ">
+          INITIAL CALIBRATION
+        </h3>
+      </div>
+      <div class="content-area" style="padding: 20px; text-align: center">
+        <p id="calibration-instructions" style="color: #eee; font-size: 0.95rem; margin-bottom: 10px">
+          <!-- Dynamically filled by JS -->
+        </p>
+        <div style="
+              position: relative;
+              display: inline-block;
+              margin-bottom: 20px;
+              border: 2px solid #333;
+              border-radius: 4px;
+              overflow: hidden;
+              background: #000;
+              box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+              max-width: 100%;
+            ">
+          <canvas id="calibration-canvas" style="
+                cursor: crosshair;
+                display: block;
+                max-width: 100%;
+                height: auto;
+                max-height: 55vh;
+              "></canvas>
+        </div>
+        <div style="display: flex; gap: 12px; justify-content: center">
+          <button id="calib-btn-next" class="action-btn confirm" onclick="globalThis.confirmCalibration()"
+            style="flex: 1; font-weight: 700">
+            NEXT
+          </button>
+          <button id="btn-calib-skip" class="action-btn" onclick="globalThis.cancelCalibration()" style="
+                flex: 1;
+                border-color: rgba(255, 255, 255, 0.2);
+                color: #aaa;
+              ">
+            SKIP CALIBRATION
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script src="js/tesseract.min.js"></script>
+  <script src="js/live_calibration.js"></script>
+  <script src="js/live_grid_editor.js"></script>
   <script type="module" src="js/main.js"></script>
 </body>
 

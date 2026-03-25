@@ -86,6 +86,18 @@
   }
 }
 
+@keyframes slideInRightSimple {
+  from {
+    opacity: 0;
+    transform: translateX(30px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
 @keyframes slideDown {
   0% {
     opacity: 0;
@@ -470,7 +482,8 @@ body {
 }
 
 .footer-link,
-.contact-link {
+.contact-link,
+.footer-link-btn {
   color: #888;
   text-decoration: none;
   font-weight: 600;
@@ -478,7 +491,19 @@ body {
   padding: 2px 5px;
   border-radius: 4px;
   position: relative;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: inherit;
+  font-family: inherit;
 }
+
+.footer-link-btn:hover {
+  color: var(--wf-blue);
+  text-shadow: 0 0 8px rgba(0, 229, 255, 0.4);
+  background: rgba(0, 229, 255, 0.05);
+}
+
 
 .footer-disclaimer {
   position: fixed;
@@ -987,17 +1012,44 @@ option {
   text-shadow: 0 0 10px rgba(0, 229, 255, 0.2);
 }
 
-.clear-icon {
+.orokin-clear-btn {
   cursor: pointer;
-  opacity: 0.5;
-  transition: all 0.2s;
-  font-size: 1.1em;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  color: #c9a050;
+  /* Base Orokin Gold */
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  filter: drop-shadow(0 0 2px rgba(201, 160, 80, 0.3));
 }
 
-.clear-icon:hover {
-  opacity: 1;
-  transform: scale(1.1);
-  filter: drop-shadow(0 0 5px #ff4444);
+.orokin-clear-btn:hover {
+  color: #ffdc73;
+  /* Bright Orokin Gold */
+  filter: drop-shadow(0 1px 8px rgba(255, 220, 115, 0.6));
+  transform: scale(1.15) rotate(5deg);
+}
+
+.orokin-trash-svg {
+  width: 22px;
+  height: 22px;
+}
+
+.orokin-ring {
+  animation: orokin-spin 12s linear infinite;
+  transform-origin: center;
+}
+
+@keyframes orokin-spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .inv-action-btn {
@@ -1158,11 +1210,12 @@ option {
   min-width: 0;
 }
 
-#inventory-list {
-  display: flex !important;
-  flex-direction: column !important;
-  width: 100% !important;
-  gap: 0 !important;
+#inventory-list,
+#inventory-list-parts {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  gap: 0;
   flex-grow: 1;
   min-height: 0;
   overflow-y: auto;
@@ -1813,9 +1866,8 @@ body.theme-bounties {
   color: #fff !important;
 }
 
-#inventory-container>div:last-child {
-  display: flex;
-  gap: 10px;
+#inventory-list,
+#inventory-list-parts {
   margin-top: auto;
   border-top: 1px dashed #333;
 }
@@ -2273,7 +2325,6 @@ body.theme-bounties {
 .component-name.item-interactive:hover {
   color: var(--wf-blue);
   text-shadow: 0 0 8px rgba(0, 229, 255, 0.5);
-  border-bottom-color: var(--wf-blue);
   padding-left: 5px;
 }
 
@@ -2798,13 +2849,28 @@ body.theme-bounties {
 }
 
 .scanner-drawer.open {
-  max-height: 60vh;
-  opacity: 1;
-  border: 1px solid #333;
-  border-top: none;
-  position: relative;
-  width: auto;
-  z-index: auto;
+  max-height: 0;
+  opacity: 0;
+  display: flex !important;
+  pointer-events: none;
+  position: fixed;
+  top: -9999px;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  z-index: -1;
+}
+
+#live-scroll-guide {
+  transition: all 0.3s ease;
+  min-height: 1.5em;
+}
+
+#live-inventory-status button:hover,
+#live-inventory-list-overlay button:hover {
+  filter: brightness(1.2);
+  transform: scale(1.05);
 }
 
 .scanner-info-icon {
@@ -3280,7 +3346,9 @@ body.theme-bounties {
    ========================================= */
 #scan-success-modal,
 #grading-modal,
-#update-modal {
+#update-modal,
+#calibration-modal,
+#orokin-confirm-modal {
   position: fixed;
   top: 0;
   left: 0;
@@ -3297,7 +3365,9 @@ body.theme-bounties {
 
 #scan-success-modal:not(.hidden),
 #grading-modal:not(.hidden),
-#update-modal:not(.hidden) {
+#update-modal:not(.hidden),
+#calibration-modal:not(.hidden),
+#orokin-confirm-modal:not(.hidden) {
   opacity: 1;
   pointer-events: auto;
 }
@@ -4842,6 +4912,24 @@ button[onclick*="importInventory"]:hover {
 }
 
 /* Item Icons */
+.plat-icon-inline {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  background: url('assets/relic_contents/platinum.webp') no-repeat center center;
+  background-size: contain;
+  vertical-align: middle;
+}
+
+.ducat-icon-inline {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  background: url('assets/Ducats.webp') no-repeat center center;
+  background-size: contain;
+  vertical-align: middle;
+}
+
 .item-icon-mini {
   width: 32px;
   height: 32px;
@@ -5047,7 +5135,6 @@ button[onclick*="importInventory"]:hover {
 
 .clickable-set-name:hover {
   color: var(--wf-blue);
-  border-bottom-color: var(--wf-blue);
 }
 
 .clickable-part-name {
@@ -5124,6 +5211,39 @@ button[onclick*="importInventory"]:hover {
   background: #4ef56c !important;
   border-color: #4ef56c !important;
   box-shadow: 0 0 8px rgba(78, 245, 108, 0.6) !important;
+}
+
+.progress-tooltip-wrapper {
+  position: relative;
+  display: inline-block;
+  cursor: help;
+}
+
+.progress-tooltip-content {
+  visibility: hidden;
+  opacity: 0;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 5px;
+  z-index: 1000;
+  transition: opacity 0.2s, visibility 0.2s;
+  pointer-events: none;
+}
+
+.progress-tooltip-wrapper:hover .progress-tooltip-content {
+  visibility: visible;
+  opacity: 1;
+}
+
+#set-tracker {
+  transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+}
+
+#set-tracker.drag-hover {
+  border-color: var(--wf-gold-text) !important;
+  box-shadow: 0 0 15px rgba(221, 169, 56, 0.4) !important;
+  background: rgba(221, 169, 56, 0.1) !important;
 }
 
 /* TOP Relics Farm Styles */
@@ -5675,6 +5795,14 @@ button[onclick*="importInventory"]:hover {
   background-position: center;
 }
 
+.ducat-icon {
+  width: 2.2em;
+  height: 1.2em;
+  vertical-align: middle;
+  margin-left: 2px;
+  display: inline-block;
+}
+
 .relic-era-icon {
   width: 24px;
   height: 24px;
@@ -6133,4 +6261,49 @@ button[onclick*="importInventory"]:hover {
     transform: translateX(120%) scale(0.9);
     opacity: 0;
   }
+}
+
+/* Simple Confirmation Modal Styles */
+#orokin-confirm-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+}
+
+#orokin-confirm-modal.hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.simple-confirm-modal {
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6) !important;
+  background: #1a1e24 !important;
+  transform: scale(0.95);
+  transition: transform 0.2s ease-out;
+}
+
+#orokin-confirm-modal:not(.hidden) .simple-confirm-modal {
+  transform: scale(1);
+}
+
+#orokin-btn-confirm:hover {
+  background: var(--wf-blue) !important;
+  color: #fff !important;
+  box-shadow: 0 0 15px rgba(0, 229, 255, 0.3) !important;
+  transform: translateY(-1px);
+}
+
+#orokin-btn-cancel:hover {
+  border-color: rgba(255, 255, 255, 0.4) !important;
+  color: #fff !important;
+  background: rgba(255, 255, 255, 0.05);
 }

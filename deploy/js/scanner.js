@@ -1,6 +1,6 @@
 import { state, saveAppState, updateInventoryBatch } from "./state.js";
-import { showToast, toggleInventoryPanel, renderInventory } from "./ui.js";
-
+import { toggleInventoryPanel, renderInventory } from "./ui.components/ui_inventory.js";
+import { showToast } from "./ui.components/ui_components.js";
 console.log(" [SCANNER] Script cargado correctamente.");
 let ocrWorker = null;
 let videoStream = null;
