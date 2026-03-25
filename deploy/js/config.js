@@ -488,6 +488,7 @@ export const TEXTS = {
         sets_desc: "Sets completados (Mayor a Menor)",
         sets_asc: "Sets a completar (Cerquitas de terminar)",
         plat_desc: "Valor Total en Platino",
+        relic_potential: "Potencial PL (Según Reliquias)",
       },
       tooltips: {
         dropsFor: "Misiones para",
@@ -538,7 +539,7 @@ export const TEXTS = {
       finished: "¡FINALIZADO!",
       saved: "Guardado",
       autoScanOn: "⟳ AUTO SCAN ACTIVO",
-      autoScanDesc: "↓ Haz scroll en el inventario.<br>Se escaneará automático al estabilizar la pantalla.",
+      autoScanDesc: "↓ Haz scroll en el inventario. Se escaneará automático al estabilizar. Asegúrate de mostrar filas completas.",
       autoScanDetected: "MOVIMIENTO DETECTADO",
       autoScanDetectedDesc: "Esperando estabilización...",
       autoScanScanning: "ESCANEANDO PÁGINA...",
@@ -548,8 +549,8 @@ export const TEXTS = {
     },
     calib: {
       title: "CALIBRACIÓN INICIAL",
-      step1: "Encuadra el primer item (arriba a la izquierda)",
-      step2: "Encuadra el último item (abajo a la derecha)",
+      step1: "Selecciona el cuadrado correspondiente al PRIMER ITEM (arriba-izq), incluyendo NOMBRE ENTERO y CANTIDAD.",
+      step2: "Selecciona el cuadrado correspondiente al ÚLTIMO ITEM (abajo-der), incluyendo NOMBRE ENTERO y CANTIDAD.",
       btnNext: "SIGUIENTE",
       btnSkip: "Omitir Calibración"
     },
@@ -767,7 +768,7 @@ export const TEXTS = {
     },
     inventory: {
       title: "Inventory",
-      empty: "Inventory empty. Use scanner.",
+      empty: "Inventory empty. Use live scanner or add prime parts manually.",
       searchPlaceholder: "Filter (e.g. G1)...",
       primeSearchPlaceholder: "Search Set or Part...",
       sort: {
@@ -781,6 +782,7 @@ export const TEXTS = {
         sets_desc: "Completed Sets (Highest to Lowest)",
         sets_asc: "Sets to Complete (Closest to finish)",
         plat_desc: "Total Platinum Value",
+        relic_potential: "PL Potential (By Relics)",
       },
       tooltips: {
         dropsFor: "Drops for",
@@ -831,7 +833,7 @@ export const TEXTS = {
       finished: "FINISHED!",
       saved: "Saved",
       autoScanOn: "⟳ AUTO SCAN ON",
-      autoScanDesc: "↓ Scroll gently through your inventory.<br>It will scan automatically when movement stops.",
+      autoScanDesc: "↓ Scroll gently. It scans automatically when stable. Make sure full rows are visible.",
       autoScanDetected: "MOVEMENT DETECTED",
       autoScanDetectedDesc: "Waiting for screen to stabilize...",
       autoScanScanning: "SCANNING PAGE...",
@@ -841,8 +843,8 @@ export const TEXTS = {
     },
     calib: {
       title: "INITIAL CALIBRATION",
-      step1: "Select the first item (top-left)",
-      step2: "Select the last item (bottom-right)",
+      step1: "Select the square for the FIRST ITEM (top-left). Include the ENTIRE NAME and QUANTITY.",
+      step2: "Select the square for the LAST ITEM (bottom-right). Include the ENTIRE NAME and QUANTITY.",
       btnNext: "NEXT",
       btnSkip: "Skip Calibration"
     },
