@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36" width="36" height="36">
+  <defs>
+    <linearGradient id="miniGold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#fdf4df"/> <stop offset="100%" stop-color="#c09131"/> </linearGradient>
+    <radialGradient id="miniVoid" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#66ffff"/> <stop offset="100%" stop-color="#00cccc"/> </radialGradient>
+  </defs>
+
+  <circle cx="18" cy="18" r="17" fill="#010410" stroke="#c09131" stroke-width="0.5"/>
+  
+  <circle cx="18" cy="18" r="14" fill="none" stroke="url(#miniGold)" stroke-width="1.5" opacity="0.7"/>
+  
+  <circle cx="18" cy="18" r="8" fill="none" stroke="#00cccc" stroke-width="1" opacity="0.8"/>
+
+  <circle cx="18" cy="18" r="2.5" fill="url(#miniVoid)" stroke="#fdf4df" stroke-width="0.5"/>
+
+  <g stroke="#c09131" stroke-width="0.25" opacity="0.5">
+    <line x1="18" y1="4" x2="18" y2="32"/>
+    <line x1="4" y1="18" x2="32" y2="18"/>
+  </g>
+
+  <g transform="translate(19,17) rotate(-45)">
+    <path d="M0,2 L-1.5,-2 L0,-1 L1.5,-2 Z" fill="#000" opacity="0.5" transform="translate(1,1)"/>
+    
+    <path d="M0,1 L-1,-2 L1,-2 Z" fill="#999"/>
+    
+    <rect x="-0.75" y="-7" width="1.5" height="6" rx="0.3" fill="url(#miniGold)"/>
+    
+    <path d="M0,-7 L-3,-11 L0,-10 L3,-11 Z" fill="#66ffff" stroke="#fdf4df" stroke-width="0.2"/>
+  </g>
+  
+</svg>
