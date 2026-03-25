@@ -138,7 +138,8 @@ async function loadAsyncData() {
   try {
     initFissurePanel().catch(console.error);
 
-    await preloadPricesToMemory().catch(console.error);
+    // Don't await preloading, let it run in background to speed up startup
+    preloadPricesToMemory().catch(console.error);
 
     // 1. Fetch static definitions (Weapons, Entities) to build Ducat DB first
     await Promise.all([fetchRivenWeapons(), fetchPrimeManifest()]);

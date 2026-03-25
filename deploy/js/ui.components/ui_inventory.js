@@ -486,59 +486,59 @@ export function renderPrimeInventory() {
 
   const setMetrics = new Map();
   setNames.forEach(setName => {
-     if (setName === "Otros") {
-       setMetrics.set(setName, { numSets: 0, setTotalPlat: 0 });
-       return;
-     }
-     
-     if (!globalThis.setPartsCache) globalThis.setPartsCache = new Map();
+    if (setName === "Otros") {
+      setMetrics.set(setName, { numSets: 0, setTotalPlat: 0 });
+      return;
+    }
+
+    if (!globalThis.setPartsCache) globalThis.setPartsCache = new Map();
     if (!globalThis.setPartsCache.has(setName) || globalThis.setPartsCache.get(setName).length === 0) {
-       const parts = Object.keys(state.itemsDatabase || {}).filter(
-         (name) => (name === setName || name.startsWith(setName + " ")) && !name.endsWith(" Set")
-       );
-       globalThis.setPartsCache.set(setName, parts);
-     }
-     const allPossibleParts = globalThis.setPartsCache.get(setName);
-     
-     let numSets = 999;
-     let setTotalPlat = 0;
-     let piecesOwned = 0;
-     
-     allPossibleParts.forEach(p => {
-        const owned = state.primeInventory[p] || 0;
-        const required = getRequiredCount(setName, p);
-        if (owned >= required) piecesOwned++;
-        
-        const possible = Math.floor(owned / required);
-        if (possible < numSets) numSets = possible;
-        
-        const cachedRaw = globalThis.MEMORY_CACHE?.get(getSlug(p));
-        const plat = cachedRaw ? (Number.parseInt(cachedRaw, 10) || 0) : 0;
-        setTotalPlat += plat * required;
-     });
-     
-     if (numSets === 999) numSets = 0;
-     setMetrics.set(setName, { numSets, setTotalPlat, piecesOwned });
+      const parts = Object.keys(state.itemsDatabase || {}).filter(
+        (name) => (name === setName || name.startsWith(setName + " ")) && !name.endsWith(" Set")
+      );
+      globalThis.setPartsCache.set(setName, parts);
+    }
+    const allPossibleParts = globalThis.setPartsCache.get(setName);
+
+    let numSets = 999;
+    let setTotalPlat = 0;
+    let piecesOwned = 0;
+
+    allPossibleParts.forEach(p => {
+      const owned = state.primeInventory[p] || 0;
+      const required = getRequiredCount(setName, p);
+      if (owned >= required) piecesOwned++;
+
+      const possible = Math.floor(owned / required);
+      if (possible < numSets) numSets = possible;
+
+      const cachedRaw = globalThis.MEMORY_CACHE?.get(getSlug(p));
+      const plat = cachedRaw ? (Number.parseInt(cachedRaw, 10) || 0) : 0;
+      setTotalPlat += plat * required;
+    });
+
+    if (numSets === 999) numSets = 0;
+    setMetrics.set(setName, { numSets, setTotalPlat, piecesOwned });
   });
 
   setNames.sort((a, b) => {
-     if (a === "Otros") return 1;
-     if (b === "Otros") return -1;
-     
-     const metricA = setMetrics.get(a);
-     const metricB = setMetrics.get(b);
-     
-     if (sortMode === "sets_desc") {
-       if (metricA.numSets !== metricB.numSets) return metricB.numSets - metricA.numSets;
-       return metricB.setTotalPlat - metricA.setTotalPlat;
-     } else if (sortMode === "sets_asc") {
-       if (metricA.piecesOwned !== metricB.piecesOwned) return metricB.piecesOwned - metricA.piecesOwned;
-       return metricB.setTotalPlat - metricA.setTotalPlat;
-     } else if (sortMode === "plat_desc") {
-       return metricB.setTotalPlat - metricA.setTotalPlat;
-     } else {
-       return a.localeCompare(b);
-     }
+    if (a === "Otros") return 1;
+    if (b === "Otros") return -1;
+
+    const metricA = setMetrics.get(a);
+    const metricB = setMetrics.get(b);
+
+    if (sortMode === "sets_desc") {
+      if (metricA.numSets !== metricB.numSets) return metricB.numSets - metricA.numSets;
+      return metricB.setTotalPlat - metricA.setTotalPlat;
+    } else if (sortMode === "sets_asc") {
+      if (metricA.piecesOwned !== metricB.piecesOwned) return metricB.piecesOwned - metricA.piecesOwned;
+      return metricB.setTotalPlat - metricA.setTotalPlat;
+    } else if (sortMode === "plat_desc") {
+      return metricB.setTotalPlat - metricA.setTotalPlat;
+    } else {
+      return a.localeCompare(b);
+    }
   });
 
   if (setNames.length === 0) {
@@ -561,27 +561,27 @@ export function renderPrimeInventory() {
       </div>`;
 
     let currentIndex = 0;
-  const renderChunk = () => {
-    if (globalThis.primeRenderId !== currentRenderId) return;
+    const renderChunk = () => {
+      if (globalThis.primeRenderId !== currentRenderId) return;
 
-    const fragment = document.createDocumentFragment();
-    const chunkSize = 5;
-    const end = Math.min(currentIndex + chunkSize, setNames.length);
+      const fragment = document.createDocumentFragment();
+      const chunkSize = 5;
+      const end = Math.min(currentIndex + chunkSize, setNames.length);
 
-    for (; currentIndex < end; currentIndex++) {
-      const setName = setNames[currentIndex];
-      const safeSetId = setName.replaceAll(/[^a-zA-Z0-9]/g, "");
+      for (; currentIndex < end; currentIndex++) {
+        const setName = setNames[currentIndex];
+        const safeSetId = setName.replaceAll(/[^a-zA-Z0-9]/g, "");
 
-      groups[setName].sort((a, b) => a.name.length - b.name.length);
+        groups[setName].sort((a, b) => a.name.length - b.name.length);
 
-      let numSets = 0;
-      let allPossibleParts = [];
-      if (setName !== "Otros") {
-        allPossibleParts = globalThis.setPartsCache.get(setName);
-        numSets = setMetrics.get(setName).numSets;
-      }
+        let numSets = 0;
+        let allPossibleParts = [];
+        if (setName !== "Otros") {
+          allPossibleParts = globalThis.setPartsCache.get(setName);
+          numSets = setMetrics.get(setName).numSets;
+        }
 
-      let groupHtml = `
+        let groupHtml = `
       <div class="inv-set-group collapsed" id="set-group-${safeSetId}">
         <div class="inv-set-header" data-action="toggle-inv-set" data-setid="${safeSetId}">
           <div class="header-controls">
@@ -591,11 +591,11 @@ export function renderPrimeInventory() {
           
           <div class="header-main">
             ${(() => {
-          const setIcon = getItemIcon(setName);
-          return setIcon
-            ? `<img src="${setIcon}" class="item-icon-small" loading="lazy" onerror="this.style.display='none'">`
-            : "";
-        })()}
+            const setIcon = getItemIcon(setName);
+            return setIcon
+              ? `<img src="${setIcon}" class="item-icon-small" loading="lazy" onerror="this.style.display='none'">`
+              : "";
+          })()}
             <span class="set-title">${escapeHTML(setName)}</span>
             <span class="tracker-link-icon" onclick="event.stopPropagation(); globalThis.openSetDetail('${escapeHTML(setName)}')" title="Set Tracker" style="cursor:pointer; margin-left:6px; display:inline-flex; align-items:center; vertical-align:middle;">
               <img src="assets/target.svg" style="width:24px; height:24px; filter:drop-shadow(0 0 2px rgba(0,204,204,0.5));" alt="Tracker">
@@ -611,23 +611,30 @@ export function renderPrimeInventory() {
         </div>
         <div class="inv-set-content">
           ${(setName === "Otros" ? groups[setName].map(p => p.name) : allPossibleParts)
-          .map((partName) => {
-            const qty = state.primeInventory[partName] || 0;
-            const safeId = partName.replaceAll(/[^a-zA-Z0-9]/g, "");
-            const shortName =
-              partName.replace(setName, "").trim() || "Blueprint";
-            const requiredCount = getRequiredCount(setName, partName);
-            const dotsHtml = generateDotsHtml(qty, requiredCount);
+            .map((partName) => {
+              const qty = state.primeInventory[partName] || 0;
+              const safeId = partName.replaceAll(/[^a-zA-Z0-9]/g, "");
+              const shortName = partName.replace(setName, "").trim() || (TEXTS[state.currentLang].lblBlueprint || "Blueprint");
+              const requiredCount = getRequiredCount(setName, partName);
+              const dotsHtml = generateDotsHtml(qty, requiredCount);
 
-            return `
+              // Queue individual part price fetch if missing
+              if (!globalThis.MEMORY_CACHE?.has(getSlug(partName))) {
+                setTimeout(() => {
+                  const el = document.getElementById(`price-p-${safeId}`);
+                  if (el) addToQueue(partName, el);
+                }, 50);
+              }
+
+              return `
               <div class="inv-row-mini">
                 <div class="row-main" onclick="globalThis.openSetDetail('${escapeHTML(setName)}')">
                   ${(() => {
-                const partIcon = getItemIcon(partName);
-                return partIcon
-                  ? `<img src="${partIcon}" class="item-icon-mini" loading="lazy" onerror="this.style.display='none'">`
-                  : "";
-              })()}
+                  const partIcon = getItemIcon(partName);
+                  return partIcon
+                    ? `<img src="${partIcon}" class="item-icon-mini" loading="lazy" onerror="this.style.display='none'">`
+                    : "";
+                })()}
                   <div class="name-column">
                      <span class="part-name">${escapeHTML(shortName)}</span>
                      ${dotsHtml}
@@ -637,10 +644,10 @@ export function renderPrimeInventory() {
                 <div class="row-info">
                    <a href="https://warframe.market/items/${getSlug(partName)}" target="_blank" class="market-link-icon-mini" onclick="event.stopPropagation()">↗</a>
                    <span class="price-badge-small" id="price-p-${safeId}" data-qty="${qty}" data-item="${escapeHTML(partName)}">${(() => {
-                     const cached = globalThis.MEMORY_CACHE?.get(getSlug(partName));
-                     if (cached !== undefined && !Number.isNaN(Number.parseInt(cached, 10))) return Number.parseInt(cached, 10);
-                     return "...";
-                   })()} <span class="plat-icon-inline"></span></span>
+                  const cached = globalThis.MEMORY_CACHE?.get(getSlug(partName));
+                  if (cached !== undefined && !Number.isNaN(Number.parseInt(cached, 10))) return Number.parseInt(cached, 10);
+                  return "...";
+                })()} <span class="plat-icon-inline"></span></span>
                 </div>
 
                 <div class="inv-qty-controls-mini">
@@ -649,33 +656,33 @@ export function renderPrimeInventory() {
                   <button class="inv-btn-small" data-action="modify-prime-part" data-part="${escapeHTML(partName)}" data-amount="1">+</button>
                 </div>
               </div>`;
-          })
-          .join("")}
+            })
+            .join("")}
         </div>
       </div>`;
-      
-      const tempDiv = document.createElement("div");
-      tempDiv.innerHTML = groupHtml;
-      fragment.appendChild(tempDiv.firstElementChild);
-    }
 
-    list.appendChild(fragment);
+        const tempDiv = document.createElement("div");
+        tempDiv.innerHTML = groupHtml;
+        fragment.appendChild(tempDiv.firstElementChild);
+      }
 
-    if (currentIndex < setNames.length) {
-      requestAnimationFrame(renderChunk);
-    } else {
-      setNames.forEach((setName) => {
-        if (setName === "Otros") return;
-        const safeSetId = setName.replaceAll(/[^a-zA-Z0-9]/g, "");
-        const el = document.getElementById(`set-mkt-${safeSetId}`);
-        if (el) addToQueue(setName + " Set", el);
-      });
+      list.appendChild(fragment);
 
-      setTimeout(updatePrimeTotalValue, 100);
-    }
-  };
+      if (currentIndex < setNames.length) {
+        requestAnimationFrame(renderChunk);
+      } else {
+        setNames.forEach((setName) => {
+          if (setName === "Otros") return;
+          const safeSetId = setName.replaceAll(/[^a-zA-Z0-9]/g, "");
+          const el = document.getElementById(`set-mkt-${safeSetId}`);
+          if (el) addToQueue(setName + " Set", el);
+        });
 
-  requestAnimationFrame(renderChunk);
+        setTimeout(updatePrimeTotalValue, 100);
+      }
+    };
+
+    requestAnimationFrame(renderChunk);
   }, 10);
 }
 
@@ -694,7 +701,7 @@ export async function updatePrimeTotalValue() {
 
       const itemSlug = getSlug(itemName);
       let price = 0;
-      
+
       const cachedRaw = globalThis.MEMORY_CACHE?.get(itemSlug);
       if (cachedRaw !== undefined) {
         price = Number.parseInt(cachedRaw, 10);
@@ -709,7 +716,7 @@ export async function updatePrimeTotalValue() {
     if (setNameRaw === "Otros") return;
     const setSlug = getSlug(setNameRaw + " Set");
     let price = 0;
-    
+
     const cachedRaw = globalThis.MEMORY_CACHE?.get(setSlug);
     if (cachedRaw !== undefined) {
       price = Number.parseInt(cachedRaw, 10);

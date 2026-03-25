@@ -223,6 +223,7 @@ export async function warmupPrices() {
 
   // 1. Collect all potential slugs
   Object.keys(state.primeInventory).forEach(name => {
+    if (state.primeInventory[name] <= 0) return;
     const slug = getSlug(name);
     itemsToCheck.add(slug);
 
@@ -246,23 +247,18 @@ export async function warmupPrices() {
   const slugsToFetch = [];
   const now = Date.now();
 
-  // 2. Filter out already cached items (Memory or IndexedDB)
-  for (const slug of itemsToCheck) {
-    if (MEMORY_CACHE.has(slug)) continue;
-
-    const cached = await dbHelper.get(`price_${slug}`);
-    if (cached && (now - cached.time < CACHE_TTL)) {
-      MEMORY_CACHE.set(slug, cached.val);
-      continue;
+  // 2. Filter out already cached items in memory
+  itemsToCheck.forEach(slug => {
+    if (!MEMORY_CACHE.has(slug)) {
+      slugsToFetch.push(slug);
     }
-    slugsToFetch.push(slug);
-  }
+  });
 
   if (slugsToFetch.length === 0) return;
 
-  // 3. Batch fetch remaining missing prices
-  for (let i = 0; i < slugsToFetch.length; i += 30) {
-    const chunk = slugsToFetch.slice(i, i + 30);
+  // 3. Perform large batch fetch for all missing items at once
+  for (let i = 0; i < slugsToFetch.length; i += 40) {
+    const chunk = slugsToFetch.slice(i, i + 40);
     try {
       const url = `${WORKER_URL}?type=prices_batch&q=${chunk.join(",")}`;
       const res = await fetch(url);
@@ -702,19 +698,19 @@ const dbHelper = {
         const tx = db.transaction(STORE_NAME, "readonly");
         const req = tx.objectStore(STORE_NAME).openCursor();
         req.onsuccess = (e) => {
-           const cursor = e.target.result;
-           if (cursor) {
-              if (typeof cursor.key === "string" && cursor.key.startsWith("price_")) {
-                 const cached = cursor.value;
-                 if (cached && (Date.now() - cached.time < CACHE_TTL)) {
-                     const slug = cursor.key.replace("price_", "");
-                     MEMORY_CACHE.set(slug, cached.val);
-                 }
+          const cursor = e.target.result;
+          if (cursor) {
+            if (typeof cursor.key === "string" && cursor.key.startsWith("price_")) {
+              const cached = cursor.value;
+              if (cached && (Date.now() - cached.time < CACHE_TTL)) {
+                const slug = cursor.key.replace("price_", "");
+                MEMORY_CACHE.set(slug, cached.val);
               }
-              cursor.continue();
-           } else {
-              resolve();
-           }
+            }
+            cursor.continue();
+          } else {
+            resolve();
+          }
         };
         req.onerror = () => resolve();
       });
