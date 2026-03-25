@@ -517,8 +517,22 @@ export function renderPrimeInventory() {
       setTotalPlat += plat * required;
     });
 
+    // --- Potential Sort Logic ---
+    let farmablePieces = 0;
+    const ownedRelics = new Set((state.inventory || []).map(r => r.name.toUpperCase()));
+    allPossibleParts.forEach(p => {
+      const owned = state.primeInventory[p] || 0;
+      const required = getRequiredCount(setName, p);
+      if (owned < required) {
+        const relicsForPart = state.relicsDatabase[p] || [];
+        if (relicsForPart.some(r => ownedRelics.has(r.name.toUpperCase()))) farmablePieces++;
+      }
+    });
+
+    const potentialScore = (piecesOwned / allPossibleParts.length) + (farmablePieces * 0.5);
+
     if (numSets === 999) numSets = 0;
-    setMetrics.set(setName, { numSets, setTotalPlat, piecesOwned });
+    setMetrics.set(setName, { numSets, setTotalPlat, piecesOwned, potentialScore });
   });
 
   setNames.sort((a, b) => {
@@ -536,13 +550,17 @@ export function renderPrimeInventory() {
       return metricB.setTotalPlat - metricA.setTotalPlat;
     } else if (sortMode === "plat_desc") {
       return metricB.setTotalPlat - metricA.setTotalPlat;
+    } else if (sortMode === "relic_potential") {
+      if (metricA.potentialScore !== metricB.potentialScore) return metricB.potentialScore - metricA.potentialScore;
+      return metricB.setTotalPlat - metricA.setTotalPlat;
     } else {
       return a.localeCompare(b);
     }
   });
 
   if (setNames.length === 0) {
-    list.innerHTML = `<div style="padding:20px; text-align:center; color:#666;">Búsqueda sin resultados o inventario vacío</div>`;
+    const emptyMsg = TEXTS[state.currentLang].inventory.empty || "Inventory empty";
+    list.innerHTML = `<div style="padding:20px; text-align:center; color:#666;">${emptyMsg}</div>`;
     return;
   }
 
@@ -583,7 +601,7 @@ export function renderPrimeInventory() {
 
         let groupHtml = `
       <div class="inv-set-group collapsed" id="set-group-${safeSetId}">
-        <div class="inv-set-header" data-action="toggle-inv-set" data-setid="${safeSetId}">
+        <div class="inv-set-header" data-action="toggle-inv-set" data-setid="${safeSetId}" style="cursor:pointer;">
           <div class="header-controls">
             <button class="delete-set-btn" data-action="delete-prime-set" data-setname="${escapeHTML(setName)}">×</button>
             <span class="toggle-icon">▼</span>
@@ -596,11 +614,11 @@ export function renderPrimeInventory() {
               ? `<img src="${setIcon}" class="item-icon-small" loading="lazy" onerror="this.style.display='none'">`
               : "";
           })()}
-            <span class="set-title">${escapeHTML(setName)}</span>
-            <span class="tracker-link-icon" onclick="event.stopPropagation(); globalThis.openSetDetail('${escapeHTML(setName)}')" title="Set Tracker" style="cursor:pointer; margin-left:6px; display:inline-flex; align-items:center; vertical-align:middle;">
-              <img src="assets/target.svg" style="width:24px; height:24px; filter:drop-shadow(0 0 2px rgba(0,204,204,0.5));" alt="Tracker">
+            <span class="set-title" style="flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHTML(setName)}</span>
+            <span class="tracker-link-icon" onclick="event.stopPropagation(); globalThis.openSetDetail('${escapeHTML(setName)}')" title="Set Tracker" style="cursor:pointer; margin-left:8px; display:inline-flex; align-items:center; vertical-align:middle; flex-shrink:0;">
+              <img src="assets/target.svg" style="width:22px; height:22px; filter:drop-shadow(0 0 2px rgba(0,204,204,0.5));" alt="Tracker">
             </span>
-            <a href="https://warframe.market/items/${getSlug(setName + " Set")}" target="_blank" class="market-link-icon" onclick="event.stopPropagation()" style="margin-left:4px;">↗</a>
+            <a href="https://warframe.market/items/${getSlug(setName + " Set")}" target="_blank" class="market-link-icon" onclick="event.stopPropagation()" style="margin-left:6px; flex-shrink:0; font-size:1.1em;">↗</a>
           </div>
 
           <div class="header-info">
@@ -628,7 +646,7 @@ export function renderPrimeInventory() {
 
               return `
               <div class="inv-row-mini">
-                <div class="row-main" onclick="globalThis.openSetDetail('${escapeHTML(setName)}')">
+                <div class="row-main" onclick="globalThis.openSetDetail('${escapeHTML(setName)}')" style="cursor:pointer;">
                   ${(() => {
                   const partIcon = getItemIcon(partName);
                   return partIcon

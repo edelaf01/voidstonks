@@ -199,12 +199,18 @@ class ScannerCalibration {
 
   updateUI() {
     const t = globalThis.TEXTS[globalThis.state.currentLang].calib;
+    const titleEl = document.getElementById("lbl-calib-title");
+    if (titleEl) titleEl.innerText = t.title;
+
+    const skipBtn = document.getElementById("btn-calib-skip");
+    if (skipBtn) skipBtn.innerText = t.btnSkip;
+
     if (this.phase === 1) {
-      this.instructions.innerHTML = `<strong>STEP 1/2:</strong> ${t.step1}`;
+      this.instructions.innerHTML = `<strong>${state.currentLang === "es" ? "PASO" : "STEP"} 1/2:</strong> ${t.step1}`;
       this.btnNext.innerText = t.btnNext;
       this.cellTL = null;
     } else if (this.phase === 2) {
-      this.instructions.innerHTML = `<strong>STEP 2/2:</strong> ${t.step2}`;
+      this.instructions.innerHTML = `<strong>${state.currentLang === "es" ? "PASO" : "STEP"} 2/2:</strong> ${t.step2}`;
       this.btnNext.innerText = t.btnNext;
       this.cellBR = null;
     }
