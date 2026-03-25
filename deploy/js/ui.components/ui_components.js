@@ -126,8 +126,13 @@ export function initGlobalTooltipSystem() {
   const showTooltip = (e, target) => {
     if (closeTimer) clearTimeout(closeTimer);
 
-    const htmlContent = target.dataset.tooltipHtml;
+    let htmlContent = target.dataset.tooltipHtml;
     const textContent = target.dataset.tooltip;
+    const relicName = target.dataset.tooltipRelic;
+
+    if (relicName && globalThis.getRelicDropTooltip) {
+       htmlContent = globalThis.getRelicDropTooltip(relicName);
+    }
 
     if (htmlContent) {
       currentMode = "mega";
@@ -162,13 +167,23 @@ export function initGlobalTooltipSystem() {
     }
   };
 
+  let openTimer = null;
+  let currentHoverTarget = null;
+
   document.addEventListener("mouseover", (e) => {
-    const target = e.target.closest("[data-tooltip], [data-tooltip-html]");
+    const target = e.target.closest("[data-tooltip], [data-tooltip-html], [data-tooltip-relic]");
     const isOverTooltip = e.target.closest("#global-tooltip");
 
     if (target || isOverTooltip) {
       if (closeTimer) clearTimeout(closeTimer);
-      if (target) showTooltip(e, target);
+      
+      if (target && target !== currentHoverTarget) {
+        if (openTimer) clearTimeout(openTimer);
+        currentHoverTarget = target;
+        openTimer = setTimeout(() => {
+          showTooltip(e, target);
+        }, 350);
+      }
     }
   });
 
@@ -179,18 +194,20 @@ export function initGlobalTooltipSystem() {
   });
 
   document.addEventListener("mouseout", (e) => {
-    const isTrigger = e.target.closest("[data-tooltip], [data-tooltip-html]");
+    const isTrigger = e.target.closest("[data-tooltip], [data-tooltip-html], [data-tooltip-relic]");
     const isTooltip = e.target.closest("#global-tooltip");
 
     if (isTrigger || isTooltip) {
       const related = e.relatedTarget;
       if (
         related &&
-        (related.closest("[data-tooltip], [data-tooltip-html]") ||
+        (related.closest("[data-tooltip], [data-tooltip-html], [data-tooltip-relic]") ||
           related.closest("#global-tooltip"))
       ) {
         return;
       }
+      currentHoverTarget = null;
+      if (openTimer) clearTimeout(openTimer);
       hideTooltip();
     }
   });
