@@ -99,7 +99,7 @@ export async function initFissurePanel() {
          <img src="assets/fissureicon.png" class="toggle-img" alt="Fisuras">
       </div>
       
-      <div class="panel-main-header" id="fissure-panel-header">
+      <div class="panel-main-header" id="fissure-panel-header" style="cursor:pointer;" onclick="initFissurePanel()">
           <svg class="gauss-icon" id="gauss-runner" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
             <path d="M18.5,5.5 C18.5,5.5 14,8 12,10 C10,12 5,11 2,12 C5,13 9,14 11,16 C13,18 16,19 18.5,19 C16,17 14,14 14,12 C14,10 16,7 18.5,5.5 Z M22,2 L20,4 C20,4 17,7 17,12 C17,17 20,20 20,20 L22,22" fill="currentColor"/>
          </svg>
@@ -128,6 +128,17 @@ export async function initFissurePanel() {
       }, 2000);
     };
     header.onmouseleave = () => clearTimeout(runTimeout);
+  }
+
+  // Setup auto-refresh every 5 minutes
+  if (!globalThis._fissureRefreshInterval) {
+    globalThis._fissureRefreshInterval = setInterval(() => {
+      const panel = document.getElementById("best-missions-container");
+      if (panel && panel.classList.contains("open")) {
+        console.log("[FISSURES]: Auto-refreshing missions...");
+        initFissurePanel();
+      }
+    }, 5 * 60 * 1000);
   }
 
   const allMissions = await fetchBestFissures();

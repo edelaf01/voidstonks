@@ -159,6 +159,8 @@ async function checkAutoScrollScan(externalHash = null) {
     if (!autoScrollMode || isDeepScanning) return;
 
     isDeepScanning = true;
+    if (!globalThis.currentStabilizationId) globalThis.currentStabilizationId = 0;
+    globalThis.currentStabilizationId++;
     updateScrollUI("scanning");
 
     try {
@@ -286,6 +288,9 @@ export async function startLiveSession() {
   lastTrackedRelic = "";
   trackingDebounce = 0;
   sessionInventory.clear();
+  globalThis.currentStabilizationId = 0;
+  globalThis.lastProcessedStabilization = -1;
+  globalThis.processedItemsInStability = new Set();
   isInventoryMode = false;
   initScannerMatcherData();
   const video = document.getElementById("live-video");
@@ -705,7 +710,10 @@ function updateLiveInventoryUI(
   if (!listContainer) return;
 
   if (currentFrameItems.length === 0) {
-    listContainer.innerHTML = `<div style="text-align:center;color:#444;font-size:0.75em;padding:20px 0;">No items detected yet</div>`;
+    // Keep last detected message, only clear the list if it's really the start
+    if (sessionInventory.size === 0) {
+      listContainer.innerHTML = `<div style="text-align:center;color:#444;font-size:0.75em;padding:20px 0;">${TEXTS[state.currentLang].scannerHUD.lblEmpty}</div>`;
+    }
     return;
   }
 
@@ -986,7 +994,7 @@ function createModalBadge(
 globalThis.saveLiveInventory = function () {
   if (sessionInventory.size === 0) return showToast("No items detected");
   for (const [name, count] of sessionInventory) {
-    state.primeInventory[name] = (state.primeInventory[name] || 0) + count;
+    state.primeInventory[name] = count;
   }
 
   checkAndPromoteSets();
@@ -1036,23 +1044,23 @@ globalThis.closeScanModal = function () {
 };
 
 globalThis.manualPrecisionScan = async function () {
-  const isReady = await waitForScannerReady();
-  if (!isReady) return showToast("Scanner busy...");
-
   const video = document.getElementById("live-video");
   if (!video || !liveStream?.active) return showToast("Scanner not active");
 
   _preSessionItemNames = new Set(sessionInventory.keys());
-  showToast("Scanning page...");
   isScanning = true;
 
   try {
     const msgEl = document.getElementById("live-inv-msg");
+    if (msgEl) msgEl.innerText = "S-C-A-N-N-I-N-G...";
+    
+    // Perform two pass scan for accuracy
     const diagnosticUrl = await performTwoPassScan(video, msgEl);
 
     if (DEBUG_MODE) updateDebugUI(diagnosticUrl);
 
     updatePostScanUI(msgEl);
+    showToast("Página escaneada con éxito");
   } catch (e) {
     console.error("Manual scan failed:", e);
     showToast("Scan failed: " + e.message);

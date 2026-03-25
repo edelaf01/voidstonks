@@ -7,7 +7,7 @@ export function initCanvas() {
   ctx.imageSmoothingQuality = "high";
   const TARGET_FPS = 15;
   const SPEED_MULTI = 2;
-  const PARTICLE_COUNT = 20;
+  const PARTICLE_COUNT = 12;
   const CELL_SIZE = 12;
   const MIN_SEGMENT = 10;
   const TURN_PROBABILITY = 0.02;

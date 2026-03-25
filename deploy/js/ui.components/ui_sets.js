@@ -338,6 +338,7 @@ export function renderSetTracker() {
     row.style.justifyContent = "space-between";
     row.style.gap = "8px";
     row.style.width = "100%";
+    row.style.cursor = "pointer";
 
     const nameSpan = document.createElement("span");
     nameSpan.className = "t-name";
