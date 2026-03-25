@@ -138,7 +138,7 @@ async function loadAsyncData() {
   try {
     initFissurePanel().catch(console.error);
 
-    await preloadPricesToMemory().catch(console.error);
+    preloadPricesToMemory().catch(console.error);
 
     await Promise.all([fetchRivenWeapons(), fetchPrimeManifest()]);
 
