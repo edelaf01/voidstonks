@@ -260,29 +260,6 @@ globalThis.startMobileScanner = async function () {
   }
 };
 
-globalThis.closeScanModal = function () {
-  const modal = document.getElementById("scan-success-modal");
-  if (modal) {
-    modal.classList.add("hidden");
-  }
-
-  if (activeScannerInstance) {
-    try {
-      activeScannerInstance.close();
-    } catch (e) {
-      console.warn("Error al cerrar scanner desde modal:", e);
-    }
-
-    activeScannerInstance = null;
-    isScannerActive = false;
-  }
-
-  const scanBtn = document.getElementById("mobile-scan-btn");
-  if (scanBtn) {
-    scanBtn.classList.remove("scanning", "processing");
-  }
-};
-
 document.addEventListener("visibilitychange", () => {
   if (document.hidden && activeScannerInstance) {
     console.log("📱 App en segundo plano, cerrando scanner...");
@@ -353,4 +330,6 @@ Object.assign(globalThis, {
   stopLiveSession,
   checkUpdates,
   updateSelectExclusions,
+  saveAppState,
+  renderPrimeInventory,
 });
