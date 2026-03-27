@@ -62,19 +62,19 @@ globalThis.toggleAutoScrollScan = function () {
   if (btn) {
     const theme = autoScrollMode
       ? {
-          alpha: "0.15",
-          border: "0.7",
-          color: "#00ff78",
-          shadow: "0 0 12px rgba(0,255,120,0.3)",
-          label: "⟳ AUTO ✓",
-        }
+        alpha: "0.15",
+        border: "0.7",
+        color: "#00ff78",
+        shadow: "0 0 12px rgba(0,255,120,0.3)",
+        label: "⟳ AUTO ✓",
+      }
       : {
-          alpha: "0.06",
-          border: "0.25",
-          color: "#4a7a5a",
-          shadow: "none",
-          label: "⟳ AUTO",
-        };
+        alpha: "0.06",
+        border: "0.25",
+        color: "#4a7a5a",
+        shadow: "none",
+        label: "⟳ AUTO",
+      };
 
     btn.dataset.active = autoScrollMode ? "1" : "0";
     btn.textContent = theme.label;
@@ -214,9 +214,9 @@ function logDebug(...args) {
     console.log(" [DEBUG]:", ...args);
     debugLogArchive.push(
       `[${new Date().toLocaleTimeString()}] ` +
-        args
-          .map((a) => (typeof a === "object" ? JSON.stringify(a) : a))
-          .join(" "),
+      args
+        .map((a) => (typeof a === "object" ? JSON.stringify(a) : a))
+        .join(" "),
     );
     if (debugLogArchive.length > 500) debugLogArchive.shift();
   }
@@ -284,22 +284,22 @@ function checkAndPromoteSets() {
 
 function canItemCompleteSet(itemName) {
   if (!state.primeInventory || !state.primeManifest) return false;
-  
+
   const allSetNames = Object.keys(state.itemsDatabase).filter(n => n.endsWith(" Set"));
-  
+
   for (const setName of allSetNames) {
     const baseName = setName.replace(" Set", "");
     const parts = Object.keys(state.itemsDatabase).filter(
       n => (n === baseName || n.startsWith(baseName + " ")) && n !== setName
     );
-    
+
     if (parts.includes(itemName)) {
       const requiredForThis = getRequiredCountLocal(baseName, itemName);
       const ownedForThis = state.primeInventory[itemName] || 0;
-      
+
       const currentSets = Math.floor(ownedForThis / requiredForThis);
       const futureSets = Math.floor((ownedForThis + 1) / requiredForThis);
-      
+
       if (futureSets > currentSets) {
         let othersReady = true;
         for (const other of parts) {
@@ -507,7 +507,7 @@ function prepareVirtualCanvas(video) {
     virtualCanvas.width,
     virtualCanvas.height,
   );
-  
+
   applyClusteringThreshold(vCtx, virtualCanvas.width, virtualCanvas.height);
 
   return { width, height, scale };
@@ -815,9 +815,9 @@ async function processRewards(video, width, height, scale) {
   canvas.width = targetW;
   canvas.height = targetH;
   const ctx = canvas.getContext("2d");
-  
+
   ctx.drawImage(video, 0, rCropY, width, rCropH, 0, 0, targetW, targetH);
-  
+
   const ocrCanvas = document.createElement('canvas');
   ocrCanvas.width = targetW; ocrCanvas.height = targetH;
   const ocrCtx = ocrCanvas.getContext('2d');
@@ -827,7 +827,7 @@ async function processRewards(video, width, height, scale) {
   const { data } = await worker1.recognize(ocrCanvas);
   const rawOcr = data.text || "";
   console.log("[SCAN] Rewards Raw OCR:", rawOcr);
-  
+
   clearRewardDebugLogs();
   addRewardDebugLog("OCR", `Text read: ${rawOcr.substring(0, 50)}...`, "info");
 
@@ -838,7 +838,7 @@ async function processRewards(video, width, height, scale) {
   if (foundItems.length > 0 && !detectionLocked) {
     foundItems.forEach(item => {
       addRewardDebugLog("ITEM", `Detected: ${item.name}`, "match");
-      const tickX = item.xPos + 50; 
+      const tickX = item.xPos + 50;
       const tickY = item.yPos - 150;
       item.isSelected = detectCheckmark(ocrCanvas, tickX, tickY, 70, 70);
     });
@@ -855,19 +855,19 @@ function clearRewardDebugLogs() {
 function addRewardDebugLog(tag, msg, type = "info") {
   const container = document.getElementById("rewards-raw-ocr-content");
   if (!container) return;
-  
+
   const entry = document.createElement("div");
   entry.className = `dbg-log-entry dbg-log-${type}`;
-  
+
   const now = new Date();
   const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
-  
+
   entry.innerHTML = `
     <span class="dbg-log-time">[${timeStr}]</span>
     <span class="dbg-log-tag">${tag.toUpperCase()}</span>
     <span class="dbg-log-msg">${msg}</span>
   `;
-  
+
   container.appendChild(entry);
   container.scrollTop = container.scrollHeight;
 }
@@ -918,32 +918,47 @@ function detectRelicSelection(data) {
 }
 
 function showTrackConfirm(relicName, rawOcr = "") {
-  const existing = document.getElementById("relic-track-popup");
-  if (existing) existing.remove();
+  const container = document.getElementById("toast-container");
+  if (!container) return;
+
+  const safeId = `track-${relicName.replace(/\s+/g, "-")}`;
+  if (document.getElementById(safeId)) return;
+
   const popup = document.createElement("div");
-  popup.id = "relic-track-popup";
-  popup.className = "track-popup-anim";
+  popup.id = safeId;
+  popup.className = "wf-toast track-confirm-toast";
+  popup.style.flexDirection = "column";
+  popup.style.alignItems = "stretch";
+  popup.style.minWidth = "300px";
+
   popup.innerHTML = `
-    <div class="track-popup-content">
-      <div class="relic-icon-mini">${relicName.split(" ")[0][0]}</div>
-      <div class="track-text">
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-          <span class="track-title">🔍 ${TEXTS[state.currentLang].scanner.relicDetected}</span>
-          <span class="dbg-toggle" onclick="document.getElementById('relic-dbg-text').classList.toggle('hidden')" style="font-size:8px; cursor:pointer; opacity:0.5; color:var(--wf-blue);">[DBG]</span>
-        </div>
-        <span class="track-name">${relicName}</span>
-        <div id="relic-dbg-text" class="hidden" style="font-size:9px; color:#ff9800; margin-top:4px; font-family:monospace; background:rgba(0,0,0,0.3); padding:4px; border-radius:4px; border:1px solid rgba(255,152,0,0.2);">
-          RAW: ${rawOcr.substring(0, 100)}
-        </div>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <div class="relic-icon-mini" style="margin:0;">${relicName.split(" ")[0][0]}</div>
+        <span style="font-size:0.9em; font-weight:800; color:var(--wf-blue);">${TEXTS[state.currentLang].scanner.relicDetected}</span>
       </div>
-      <div class="track-actions">
-        <button class="track-btn-no" id="btn-track-cancel">✕</button>
-        <button class="track-btn-yes" id="btn-track-confirm">${TEXTS[state.currentLang].scanner.track}</button>
-      </div>
-    </div>`;
-  document.body.appendChild(popup);
-  document.getElementById("btn-track-cancel").onclick = () => popup.remove();
-  document.getElementById("btn-track-confirm").onclick = () => {
+      <span class="toast-close">×</span>
+    </div>
+    <div style="font-size:1.1em; font-weight:900; color:#fff; margin-bottom:12px; border-left:3px solid var(--wf-blue); padding-left:8px;">${relicName}</div>
+    <div class="track-actions" style="display:flex; gap:8px; justify-content:flex-end;">
+      <button class="track-btn-no" id="btn-cancel-${safeId}" style="padding:4px 12px; font-size:0.8em;">✕</button>
+      <button class="track-btn-yes" id="btn-confirm-${safeId}" style="padding:4px 16px; font-size:0.8em; font-weight:800;">${TEXTS[state.currentLang].scanner.track}</button>
+    </div>
+    <div id="relic-dbg-${safeId}" class="hidden" style="font-size:9px; color:#ff9800; margin-top:8px; font-family:monospace; background:rgba(0,0,0,0.3); padding:4px; border-radius:4px; border:1px solid rgba(255,152,0,0.2);">
+      RAW: ${rawOcr.substring(0, 100)}
+    </div>
+  `;
+
+  const removeAlert = () => {
+    popup.classList.add("fade-out");
+    setTimeout(() => popup.remove(), 400);
+  };
+
+  container.appendChild(popup);
+
+  popup.querySelector(".toast-close").onclick = removeAlert;
+  document.getElementById(`btn-cancel-${safeId}`).onclick = removeAlert;
+  document.getElementById(`btn-confirm-${safeId}`).onclick = () => {
     if (globalThis.switchTab) globalThis.switchTab("relic");
     const input = document.getElementById("relicInput");
     if (input) {
@@ -951,20 +966,14 @@ function showTrackConfirm(relicName, rawOcr = "") {
       state.selectedRelic = relicName;
       if (globalThis.manualRelicUpdate) globalThis.manualRelicUpdate();
       showToast(
-        TEXTS[state.currentLang].scanner.trackingToast.replace(
-          "{relic}",
-          relicName,
-        ),
+        TEXTS[state.currentLang].scanner.trackingToast.replace("{relic}", relicName),
+        { type: "success" }
       );
     }
-    popup.remove();
+    removeAlert();
   };
-  setTimeout(() => {
-    if (popup.parentElement) popup.classList.add("fade-out");
-  }, 10000);
-  setTimeout(() => {
-    if (popup.parentElement) popup.remove();
-  }, 10500);
+
+  setTimeout(removeAlert, 60000);
 }
 
 function handleSuccessfulScan(video, width, height, foundItems, rawOcr = "") {
@@ -991,7 +1000,7 @@ async function openScanModal(imageUrl, items, width, height, scale, rawOcr = "")
 
   const syncToggle = document.getElementById("sync-rewards-toggle");
   if (syncToggle) syncToggle.checked = !!state.autoSyncRewards;
-  
+
   if (typeof TEXTS !== 'undefined' && TEXTS[state.currentLang]?.rewardScanner) {
     const tScan = TEXTS[state.currentLang].rewardScanner;
     const toggleLabel = modal.querySelector(".sync-toggle-label");
@@ -999,10 +1008,10 @@ async function openScanModal(imageUrl, items, width, height, scale, rawOcr = "")
     const helpIcon = modal.querySelector(".help-icon");
     if (helpIcon) helpIcon.setAttribute("data-tooltip", tScan.autoSyncTooltip);
   }
-  
+
   const statusMsg = document.getElementById("scan-selection-status");
   if (statusMsg) statusMsg.classList.add("hidden");
-  
+
   const dbgContent = document.getElementById("rewards-raw-ocr-content");
   if (dbgContent?.children.length === 0) {
     dbgContent.innerText = rawOcr || "NO OCR DATA AVAILABLE";
@@ -1038,11 +1047,11 @@ async function openScanModal(imageUrl, items, width, height, scale, rawOcr = "")
       return { ...item, price, ducats };
     }),
   );
-  
+
   currentScanResults = itemsWithDetails;
 
   const maxPl = Math.max(...itemsWithDetails.map((i) => i.price));
-  
+
   const potentialMap = itemsWithDetails.map(item => ({
     ...item,
     potential: Math.max(item.ducats, item.price * 10)
@@ -1051,15 +1060,15 @@ async function openScanModal(imageUrl, items, width, height, scale, rawOcr = "")
 
   requestAnimationFrame(() => {
     const fragment = document.createDocumentFragment();
-    
+
     const sortedItems = [...potentialMap].sort((a, b) => a.xPos - b.xPos);
 
     sortedItems.forEach((item) => {
       const currentAppCount = state.primeInventory ? (state.primeInventory[item.name] || 0) : 0;
-      
-      const isCurrentlySelected = item.name && selectedScanItem && 
-                                  item.name.toUpperCase().trim() === selectedScanItem.toUpperCase().trim();
-      
+
+      const isCurrentlySelected = item.name && selectedScanItem &&
+        item.name.toUpperCase().trim() === selectedScanItem.toUpperCase().trim();
+
       const isCompletingSet = canItemCompleteSet(item.name);
 
       createModalBadge(
@@ -1080,7 +1089,7 @@ async function openScanModal(imageUrl, items, width, height, scale, rawOcr = "")
         fragment,
       );
     });
-    
+
     badgesContainer.innerHTML = "";
     badgesContainer.appendChild(fragment);
   });
@@ -1097,7 +1106,7 @@ function createModalBadge(
     const leftPct = (xPos / targetW) * 100;
     badge.style.left = `${leftPct}%`;
   }
-  
+
   const displayName = name.toUpperCase();
 
   const labels = {
@@ -1108,7 +1117,7 @@ function createModalBadge(
   const t = labels[lang];
 
   const isForma = name.toUpperCase().includes("FORMA");
-  
+
   let tagsHtml = "";
   if (isBestPl) tagsHtml += `<div class="best-badge pl">${t.bestPl}</div>`;
   if (isBestEff && !isForma) tagsHtml += `<div class="best-badge duc">${t.bestDuc}</div>`;
@@ -1128,8 +1137,8 @@ function createModalBadge(
         </div>
     </div>`;
 
-  const selectionHtml = isSelected 
-    ? '<div style="background:#00ff78; color:#000; font-size:8px; padding:1px 4px; border-radius:3px; margin-top:2px; font-weight:bold; display:inline-block; box-shadow:0 0 10px rgba(0,255,120,0.5);">✓</div>' 
+  const selectionHtml = isSelected
+    ? '<div style="background:#00ff78; color:#000; font-size:8px; padding:1px 4px; border-radius:3px; margin-top:2px; font-weight:bold; display:inline-block; box-shadow:0 0 10px rgba(0,255,120,0.5);">✓</div>'
     : '';
 
   if (!isForma) {
@@ -1152,14 +1161,13 @@ function createModalBadge(
                     <span class="scanner-plat-icon"></span>
                     ${price > 0 ? price : "—"}
                 </div>
-                ${
-                  ducats > 0
-                    ? `<div class="modal-badge-ducats">
+                ${ducats > 0
+      ? `<div class="modal-badge-ducats">
                         <img src="assets/Ducats.webp" class="currency-icon">
                         ${ducats}
                     </div>`
-                    : ""
-                }
+      : ""
+    }
             </div>
           </div>
           
@@ -1219,60 +1227,60 @@ let selectedScanItem = null;
 
 globalThis.closeScanModal = function () {
   if (autoCloseTimer) clearTimeout(autoCloseTimer);
-  
+
   const successModal = document.getElementById("scan-success-modal");
   if (successModal) successModal.classList.add("hidden");
 
   detectionLocked = false;
-  
+
   if (currentScanResults.length > 0 && typeof state !== 'undefined' && state.primeInventory) {
-      let anyChange = false;
-      const normalizedSelection = selectedScanItem ? selectedScanItem.toUpperCase().trim() : null;
+    let anyChange = false;
+    const normalizedSelection = selectedScanItem ? selectedScanItem.toUpperCase().trim() : null;
 
-      currentScanResults.forEach(item => {
-          if (item.name && typeof item.owned === 'number' && item.owned >= 0) {
-              const itemNameNorm = item.name.toUpperCase().trim();
-              const isSelected = normalizedSelection && itemNameNorm === normalizedSelection;
-              
-              if (state.autoSyncRewards) {
-                  const targetQty = item.owned + (isSelected ? 1 : 0);
-                  if (state.primeInventory[item.name] !== targetQty) {
-                      state.primeInventory[item.name] = targetQty;
-                      anyChange = true;
-                      addRewardDebugLog("AUTO_SYNC", `${item.name}: synced to ${targetQty}${isSelected ? ' (+1 selected)' : ''}`, "match");
-                  }
-              } else {
-                  if (isSelected) {
-                      const currentQty = state.primeInventory[item.name] || 0;
-                      state.primeInventory[item.name] = currentQty + 1;
-                      anyChange = true;
-                      addRewardDebugLog("MANUAL_ADD", `${item.name}: +1 (App New: ${currentQty + 1})`, "match");
-                  }
-              }
+    currentScanResults.forEach(item => {
+      if (item.name && typeof item.owned === 'number' && item.owned >= 0) {
+        const itemNameNorm = item.name.toUpperCase().trim();
+        const isSelected = normalizedSelection && itemNameNorm === normalizedSelection;
+
+        if (state.autoSyncRewards) {
+          const targetQty = item.owned + (isSelected ? 1 : 0);
+          if (state.primeInventory[item.name] !== targetQty) {
+            state.primeInventory[item.name] = targetQty;
+            anyChange = true;
+            addRewardDebugLog("AUTO_SYNC", `${item.name}: synced to ${targetQty}${isSelected ? ' (+1 selected)' : ''}`, "match");
           }
-      });
-      if (anyChange) {
-          if (typeof globalThis.saveAppState === "function") globalThis.saveAppState();
-          if (globalThis.renderPrimeInventory) globalThis.renderPrimeInventory();
+        } else {
+          if (isSelected) {
+            const currentQty = state.primeInventory[item.name] || 0;
+            state.primeInventory[item.name] = currentQty + 1;
+            anyChange = true;
+            addRewardDebugLog("MANUAL_ADD", `${item.name}: +1 (App New: ${currentQty + 1})`, "match");
+          }
+        }
       }
-  }
-  
-  if (selectedScanItem && typeof globalThis.showToast === "function") {
-      const t = (typeof TEXTS !== 'undefined') ? TEXTS[state.currentLang] : null;
-      let msg = `${selectedScanItem.toUpperCase()} SELECCIONADA +1`;
-      if (t && t.rewardScanner && t.rewardScanner.rewardSelectedConfirmation) {
-          msg = t.rewardScanner.rewardSelectedConfirmation.replace("{item}", selectedScanItem.toUpperCase());
-      }
-      globalThis.showToast(msg);
+    });
+    if (anyChange) {
+      if (typeof globalThis.saveAppState === "function") globalThis.saveAppState();
+      if (globalThis.renderPrimeInventory) globalThis.renderPrimeInventory();
+    }
   }
 
-  currentScanResults = []; 
+  if (selectedScanItem && typeof globalThis.showToast === "function") {
+    const t = (typeof TEXTS !== 'undefined') ? TEXTS[state.currentLang] : null;
+    let msg = `${selectedScanItem.toUpperCase()} SELECCIONADA +1`;
+    if (t && t.rewardScanner && t.rewardScanner.rewardSelectedConfirmation) {
+      msg = t.rewardScanner.rewardSelectedConfirmation.replace("{item}", selectedScanItem.toUpperCase());
+    }
+    globalThis.showToast(msg);
+  }
+
+  currentScanResults = [];
   selectedScanItem = null;
 };
 
 globalThis.selectRewardToInventory = function (itemName) {
   selectedScanItem = itemName;
-  
+
   const modal = document.getElementById("scan-success-modal");
   if (modal) {
     modal.querySelectorAll('.modal-badge').forEach(b => b.classList.remove('selected-reward'));
@@ -1280,7 +1288,7 @@ globalThis.selectRewardToInventory = function (itemName) {
     badges.forEach(b => {
       if (b.innerText.toUpperCase().includes(itemName.toUpperCase().trim())) {
         b.classList.add('selected-reward');
-        
+
         const ownedValSpan = b.querySelector('.app-owned-val');
         if (ownedValSpan) {
           const rawOcr = b.querySelector('.metadata-seen')?.innerText || "0";
@@ -1291,11 +1299,11 @@ globalThis.selectRewardToInventory = function (itemName) {
       }
     });
   }
-  
+
   if (typeof showToast === "function") showToast(`SELECCIONADO: ${itemName}`);
   addRewardDebugLog("SELECT", `Reward selected (sync pending close): ${itemName}`, "match");
-  
-  setTimeout(() => globalThis.closeScanModal(), 600); 
+
+  setTimeout(() => globalThis.closeScanModal(), 600);
 };
 
 globalThis.toggleRewardsAutoSync = function (val) {
@@ -1314,7 +1322,7 @@ globalThis.manualPrecisionScan = async function () {
   try {
     const msgEl = document.getElementById("live-inv-msg");
     if (msgEl) msgEl.innerText = "S-C-A-N-N-I-N-G...";
-    
+
     const diagnosticUrl = await performTwoPassScan(video, msgEl);
 
     if (DEBUG_MODE) updateDebugUI(diagnosticUrl);
@@ -1390,15 +1398,16 @@ function updatePostScanUI(msgEl) {
 }
 
 function renderNewItemsFoundUI(msgEl, scrollGuide, newCount) {
-  if (msgEl) msgEl.innerText = `+${newCount} NEW`;
+  const sh = TEXTS[state.currentLang].scannerHUD;
+  if (msgEl) msgEl.innerText = `+${newCount} ${state.currentLang === 'es' ? 'NUEVOS' : 'NEW'}`;
   if (scrollGuide) {
     scrollGuide.innerHTML = `
         <div style="line-height:1.5;">
-          <div style="color:#f1c40f;font-weight:800;font-size:0.85em;">↓ ${newCount} NEW ITEM${newCount > 1 ? "S" : ""} FOUND</div>
-          <div style="color:#506070;margin:3px 0;">Scroll down, then press SCAN PAGE again.</div>
+          <div style="color:#f1c40f;font-weight:800;font-size:0.85em;">${sh.lblNewItemsFound.replace("{count}", newCount)}</div>
+          <div style="color:#506070;margin:3px 0;">${sh.btnScrollManualScan}</div>
           <div style="display:flex;gap:5px;margin-top:5px;">
-            <button onclick="globalThis.manualPrecisionScan()" style="flex:1;background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.4);color:#00e5ff;font-size:0.7em;padding:4px;border-radius:4px;cursor:pointer;font-weight:700;">↓ SCAN NEXT</button>
-            <button onclick="globalThis.inventoryScanDone()" style="flex:1;background:none;border:1px solid rgba(255,255,255,0.1);color:#506070;font-size:0.7em;padding:4px;border-radius:4px;cursor:pointer;">✓ DONE</button>
+            <button onclick="globalThis.manualPrecisionScan()" style="flex:1;background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.4);color:#00e5ff;font-size:0.7em;padding:4px;border-radius:4px;cursor:pointer;font-weight:700;">${sh.btnScanNext}</button>
+            <button onclick="globalThis.inventoryScanDone()" style="flex:1;background:none;border:1px solid rgba(255,255,255,0.1);color:#506070;font-size:0.7em;padding:4px;border-radius:4px;cursor:pointer;">${sh.btnDone}</button>
           </div>
         </div>`;
   }
@@ -1407,11 +1416,12 @@ function renderNewItemsFoundUI(msgEl, scrollGuide, newCount) {
 function renderNoNewItemsUI(msgEl, scrollGuide, totalNow) {
   if (msgEl) msgEl.innerText = `${totalNow} ITEMS`;
   if (scrollGuide) {
+    const sh = TEXTS[state.currentLang].scannerHUD;
     scrollGuide.innerHTML = `
         <div style="line-height:1.5;">
-          <div style="color:#a0c0b0;font-weight:800;font-size:0.85em;">✓ No new items on this page</div>
-          <div style="color:#506070;margin:3px 0;">${totalNow} total unique items found.</div>
-          <button onclick="globalThis.inventoryScanDone()" style="width:100%;margin-top:5px;background:rgba(0,229,255,0.08);border:1px solid rgba(0,229,255,0.3);color:#7cada8;font-size:0.7em;padding:5px;border-radius:4px;cursor:pointer;font-weight:700;">✓ FINISHED — SAVE INVENTORY</button>
+          <div style="color:#a0c0b0;font-weight:800;font-size:0.85em;">${sh.lblNoNewItems}</div>
+          <div style="color:#506070;margin:3px 0;">${sh.lblTotalUnique.replace("{total}", totalNow)}</div>
+          <button onclick="globalThis.inventoryScanDone()" style="width:100%;margin-top:5px;background:rgba(0,229,255,0.08);border:1px solid rgba(0,229,255,0.3);color:#7cada8;font-size:0.75em;padding:5px;border-radius:4px;cursor:pointer;font-weight:700;">${sh.btnFinishedSave}</button>
         </div>`;
   }
 }
@@ -1471,10 +1481,14 @@ function drawCellDebugOverlay(dCtx, cell, grid, originalName, qty) {
 globalThis.inventoryScanDone = function () {
   const scrollGuide = document.getElementById("live-scroll-guide");
   const msgEl = document.getElementById("live-inv-msg");
+  const sh = TEXTS[state.currentLang].scannerHUD;
+
   if (msgEl) msgEl.innerText = `${sessionInventory.size} ITEMS`;
   if (scrollGuide)
-    scrollGuide.innerHTML = `<span style="color:#a0c0b0;">✓ Scan complete — ${sessionInventory.size} unique items</span>`;
+    scrollGuide.innerHTML = `<span style="color:#a0c0b0;">${sh.lblTotalUnique.replace("{total}", sessionInventory.size)}</span>`;
+
   showToast(
-    `Scan complete! ${sessionInventory.size} unique Prime items found.`,
+    sh.toastScanComplete.replace("{count}", sessionInventory.size),
+    { type: "success" }
   );
 };

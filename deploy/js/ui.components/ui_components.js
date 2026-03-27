@@ -24,12 +24,58 @@ export function escapeHTML(str) {
   return p.innerHTML;
 }
 
-export function showToast(message) {
-  const toast = document.getElementById("error-toast");
-  if (!toast) return;
-  toast.innerText = message;
-  toast.classList.add("visible");
-  setTimeout(() => toast.classList.remove("visible"), 3000);
+const activeToasts = new Map();
+
+export function showToast(message, options = {}) {
+  const container = document.getElementById("toast-container");
+  if (!container) return;
+
+  const {
+    duration = 60000,
+    tag = null,
+    onClose = null,
+    type = "info"
+  } = options;
+
+  if (tag && activeToasts.has(tag)) {
+    const old = activeToasts.get(tag);
+    old.remove();
+    activeToasts.delete(tag);
+  }
+
+  const toast = document.createElement("div");
+  toast.className = `wf-toast ${type}`;
+
+  const icon = type === "error" ? "⚠️" : (type === "success" ? "✓" : "ℹ");
+
+  toast.innerHTML = `
+    <span class="toast-icon">${icon}</span>
+    <span class="toast-message">${message}</span>
+    <span class="toast-close">×</span>
+  `;
+
+  const removeToast = () => {
+    toast.classList.add("fade-out");
+    setTimeout(() => {
+      toast.remove();
+      if (tag) activeToasts.delete(tag);
+      if (onClose) onClose();
+    }, 400);
+  };
+
+  toast.querySelector(".toast-close").onclick = (e) => {
+    e.stopPropagation();
+    removeToast();
+  };
+
+  if (duration > 0) {
+    setTimeout(removeToast, duration);
+  }
+
+  container.appendChild(toast);
+  if (tag) activeToasts.set(tag, toast);
+
+  return toast;
 }
 
 export function showCustomConfirm(message, onConfirm) {
