@@ -2,17 +2,19 @@ import { state } from "./state.js";
 
 let worker1 = null;
 let worker2 = null;
+let worker3 = null;
 
 // Workers dedicados exclusivamente para Cantidades (números)
 let badgeWorker1 = null;
 let badgeWorker2 = null;
+let badgeWorker3 = null;
 
 let DYNAMIC_KNOWN_PARTS = new Set();
 let DYNAMIC_REGEX = null;
 let CACHED_DB_ITEMS = [];
 
 export async function initOcrWorkers() {
-  if (worker1) return [worker1, worker2];
+  if (worker1 && worker2 && worker3) return [worker1, worker2, worker3];
 
   // eslint-disable-next-line no-undef
   const tess = globalThis.Tesseract || Tesseract;
@@ -38,30 +40,34 @@ export async function initOcrWorkers() {
     return w;
   };
 
-  // Inicializamos 4 workers en total (2 textos, 2 badges)
-  [worker1, worker2, badgeWorker1, badgeWorker2] =
+  // Inicializamos 6 workers en total (3 textos, 3 badges)
+  [worker1, worker2, worker3, badgeWorker1, badgeWorker2, badgeWorker3] =
     await Promise.all([
       initWorker(),
       initWorker(),
+      initWorker(),
+      initBadgeWorker(),
       initBadgeWorker(),
       initBadgeWorker(),
     ]);
-  return [worker1, worker2];
+  return [worker1, worker2, worker3];
 }
 
 export function stopOcrWorkers() {
   if (worker1) { worker1.terminate(); worker1 = null; }
   if (worker2) { worker2.terminate(); worker2 = null; }
+  if (worker3) { worker3.terminate(); worker3 = null; }
   if (badgeWorker1) { badgeWorker1.terminate(); badgeWorker1 = null; }
   if (badgeWorker2) { badgeWorker2.terminate(); badgeWorker2 = null; }
+  if (badgeWorker3) { badgeWorker3.terminate(); badgeWorker3 = null; }
 }
 
 export function getWorkers() {
-  return [worker1, worker2];
+  return [worker1, worker2, worker3];
 }
 
 export function getBadgeWorkers() {
-  return [badgeWorker1, badgeWorker2];
+  return [badgeWorker1, badgeWorker2, badgeWorker3];
 }
 
 export function initScannerMatcherData() {
@@ -397,7 +403,7 @@ export function parseTextForRewards(ocrData) {
 
   const itemMatches = [];
   const used = new Set();
-  
+
   for (let i = 0; i < ocrWords.length; i++) {
     if (used.has(i)) continue;
     for (const dbItem of dbItems) {
@@ -421,25 +427,25 @@ export function parseTextForRewards(ocrData) {
       // 20wned -> prefix="2" -> qty=2
       const prefix = word.text.substring(0, oMatch.index).trim();
       let qty = (prefix && /\d+/.test(prefix)) ? Number.parseInt(prefix.match(/\d+/)[0]) : 0;
-      
+
       if (qty === 0) {
-        const prev = ocrWords[idx-1];
+        const prev = ocrWords[idx - 1];
         if (prev && /\d+/.test(prev.text) && Math.abs(prev.x - word.x) < 200) {
-           qty = Number.parseInt(prev.text.match(/\d+/)[0]);
+          qty = Number.parseInt(prev.text.match(/\d+/)[0]);
         } else {
-           qty = 1;
+          qty = 1;
         }
       }
       metaLabels.push({ qty, x: word.x, type: 'owned' });
     }
     if (/CRA[FT][FT]ED|GRAFTED/i.test(word.text)) {
-       metaLabels.push({ qty: 1, x: word.x, type: 'crafted' });
+      metaLabels.push({ qty: 1, x: word.x, type: 'crafted' });
     }
   });
 
   return itemMatches.map(item => {
-    let bestL = null; 
-    let minDist = 400; 
+    let bestL = null;
+    let minDist = 400;
     let bestIdx = -1;
 
     metaLabels.forEach((l, lIdx) => {

@@ -784,32 +784,88 @@ option {
 }
 
 /* Toasts */
-#error-toast,
-.toast {
+/* Stackable Toast System */
+.wf-toast-container {
   position: fixed;
-  bottom: 30px;
+  bottom: 20px;
   left: 50%;
-  transform: translateX(-50%) translateY(100px);
-  background: #2a0f0f;
-  color: #f55;
-  padding: 12px 25px;
-  border-radius: 6px;
-  border: 1px solid #522;
-  z-index: var(--z-toast);
-  opacity: 0;
-  transition: all 0.4s;
+  transform: translateX(-50%);
+  z-index: 10002;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 8px;
+  pointer-events: none;
+  width: 100%;
+  max-width: 400px;
+  align-items: center;
 }
 
-#error-toast.visible,
-.toast.show {
-  transform: translateX(-50%) translateY(0);
+.wf-toast {
+  pointer-events: auto;
+  background: rgba(13, 19, 33, 0.96);
+  border: 1px solid rgba(0, 229, 255, 0.4);
+  color: #00e5ff;
+  padding: 10px 16px;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
+  font-size: 0.82em;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 280px;
+  animation: toast-in 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  transition: all 0.3s;
+  backdrop-filter: blur(8px);
+}
+
+.wf-toast.success {
+  border-color: rgba(0, 255, 120, 0.4);
+  color: #00ff78;
+}
+
+.wf-toast.error {
+  border-color: rgba(255, 68, 68, 0.4);
+  color: #ff5555;
+}
+
+.wf-toast.warning {
+  border-color: rgba(255, 180, 50, 0.4);
+  color: #f0b040;
+}
+
+.wf-toast.fade-out {
+  opacity: 0;
+  transform: translateY(15px) scale(0.95);
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(25px) scale(0.9);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.wf-toast .toast-close {
+  cursor: pointer;
+  opacity: 0.4;
+  font-size: 1.4em;
+  line-height: 1;
+  padding: 0 4px;
+  transition: opacity 0.2s;
+}
+
+.wf-toast .toast-close:hover {
   opacity: 1;
 }
 
-.toast {
-  background-color: #2ecc71;
-  color: white;
-  border: none;
+.wf-toast .toast-message {
+  flex: 1;
 }
 
 /* Tooltips */

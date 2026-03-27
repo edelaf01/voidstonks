@@ -24,12 +24,64 @@ export function escapeHTML(str) {
   return p.innerHTML;
 }
 
-export function showToast(message) {
-  const toast = document.getElementById("error-toast");
-  if (!toast) return;
-  toast.innerText = message;
-  toast.classList.add("visible");
-  setTimeout(() => toast.classList.remove("visible"), 3000);
+/**
+ * Dynamic Toast Manager
+ * Handles stackable, closable, and persistent notifications.
+ */
+const activeToasts = new Map();
+
+export function showToast(message, options = {}) {
+  const container = document.getElementById("toast-container");
+  if (!container) return;
+
+  const {
+    duration = 60000, // 1 minute default
+    tag = null,      // If tag is provided, replace existing toast with same tag
+    onClose = null,
+    type = "info"    // info, success, warning, error
+  } = options;
+
+  // Replace existing if tag matches
+  if (tag && activeToasts.has(tag)) {
+    const old = activeToasts.get(tag);
+    old.remove();
+    activeToasts.delete(tag);
+  }
+
+  const toast = document.createElement("div");
+  toast.className = `wf-toast ${type}`;
+
+  // Icon based on type (simple version)
+  const icon = type === "error" ? "⚠️" : (type === "success" ? "✓" : "ℹ");
+
+  toast.innerHTML = `
+    <span class="toast-icon">${icon}</span>
+    <span class="toast-message">${message}</span>
+    <span class="toast-close">×</span>
+  `;
+
+  const removeToast = () => {
+    toast.classList.add("fade-out");
+    setTimeout(() => {
+      toast.remove();
+      if (tag) activeToasts.delete(tag);
+      if (onClose) onClose();
+    }, 400);
+  };
+
+  toast.querySelector(".toast-close").onclick = (e) => {
+    e.stopPropagation();
+    removeToast();
+  };
+
+  if (duration > 0) {
+    setTimeout(removeToast, duration);
+  }
+
+  container.appendChild(toast);
+  if (tag) activeToasts.set(tag, toast);
+
+  return toast;
 }
 
 export function showCustomConfirm(message, onConfirm) {
