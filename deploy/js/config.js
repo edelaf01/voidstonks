@@ -1,10 +1,27 @@
-export const WORKER_URL = "https://wf-tool-proxy-worker.edelamf0.workers.dev/";
-export const APP_VERSION = 1.8;
+export const APP_VERSION = 1.9;
 export const UPDATE_HISTORY_DATA = {
   es: `
-<div class="update-block">
+    <span class="update-version">v1.9.0 (Actual)</span>
+    <span class="update-date">2026-03-27</span>
+  </div>
+  <ul class="update-list">
+    <li>
+      <strong>Escáner y Recompensas:</strong> Mejoras en el escáner de reliquias en vivo y recompensas, ahora escanea mejor.
+    </li>
+    <li>
+      <strong>Optimización:</strong> Mejoras orientadas a la optimización de llamadas API y su gestión.
+    </li>
+    <li>
+      <strong>Interfaz:</strong> Actualización visual de la pestaña de inventario.
+    </li>
+    <li>
+      <strong>Miscelánea:</strong> Nuevas traducciones y correcciones varias.
+    </li>
+  </ul>
+</div>
+<div class="update-block old">
   <div class="update-header">
-    <span class="update-version">v1.8.0 (Actual)</span>
+    <span class="update-version">v1.8.0</span>
     <span class="update-date">2026-03-25</span>
   </div>
   <ul class="update-list">
@@ -44,9 +61,27 @@ export const UPDATE_HISTORY_DATA = {
 </div>
 `,
   en: `
-<div class="update-block">
+    <span class="update-version">v1.9.0 (Current)</span>
+    <span class="update-date">2026-03-27</span>
+  </div>
+  <ul class="update-list">
+    <li>
+      Improvements live relic scanner, rewards, now it scans betterer.
+    </li>
+    <li>
+      Improvements towards optimization related to api calls and how the program handles it.
+    </li>
+    <li>
+      Visual update towards the inventory tab.
+    </li>
+    <li>
+      New translations and miscellaneous fixes.
+    </li>
+  </ul>
+</div>
+<div class="update-block old">
   <div class="update-header">
-    <span class="update-version">v1.8.0 (Current)</span>
+    <span class="update-version">v1.8.0</span>
     <span class="update-date">2026-03-25</span>
   </div>
   <ul class="update-list">
@@ -508,6 +543,7 @@ export const TEXTS = {
       },
       lblTotalValue: "VALOR TOTAL ESTIMADO",
       confirmDeleteSet: "¿Borrar set completo?",
+      lblMarketSet: "PRECIO MERCADO",
     },
     scanner: {
       starting: "INICIANDO...",
@@ -802,6 +838,7 @@ export const TEXTS = {
       },
       lblTotalValue: "ESTIMATED TOTAL VALUE",
       confirmDeleteSet: "Delete entire set?",
+      lblMarketSet: "MARKET SET",
     },
     scanner: {
       starting: "STARTING...",

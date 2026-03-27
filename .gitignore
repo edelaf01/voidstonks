@@ -7,3 +7,6 @@ robots.txt
 .stylelintrc.json
 deploy/.wrangler/cache/wrangler-account.json
 deploy/.wrangler/cache/pages.json
+/.wrangler
+worker-code-proposed.js
+worker-code.js
