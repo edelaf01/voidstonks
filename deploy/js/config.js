@@ -1,7 +1,10 @@
-export const APP_VERSION = 1.9;
+export const WORKER_URL = "https://wf-tool-proxy-worker.edelamf0.workers.dev/";
+export const APP_VERSION = 1.85;
 export const UPDATE_HISTORY_DATA = {
   es: `
-    <span class="update-version">v1.9.0 (Actual)</span>
+<div class="update-block">
+  <div class="update-header">
+    <span class="update-version">v1.8.5 (Actual)</span>
     <span class="update-date">2026-03-27</span>
   </div>
   <ul class="update-list">
