@@ -1,6 +1,6 @@
 import { state } from "./state.js";
 import { getPriceValue, getSlug } from "./api.js";
-import { showToast } from "./ui.components/ui_components.js";
+import { showToast, escapeHTML } from "./ui.components/ui_components.js";
 import { TEXTS } from "./config.js";
 import {
   initOcrWorkers,
@@ -8,13 +8,15 @@ import {
   getBadgeWorkers,
   initScannerMatcherData,
   findBestItemMatch,
-  parseTextForItems,
+  parseTextForRewards,
 } from "./scanner_ocr.js";
 import {
   getFrameHash,
   createFilteredOcrCanvas,
   createTextCanvas,
   createBadgeCanvas,
+  applyClusteringThreshold,
+  detectCheckmark,
 } from "./scanner_vision.js";
 
 let DEBUG_MODE = false;
@@ -37,7 +39,7 @@ let worker3 = null;
 let isStartingSession = false;
 let detectionLocked = false;
 let autoCloseTimer = null;
-const AUTO_CLOSE_DELAY_MS = 12000;
+const AUTO_CLOSE_DELAY_MS = 20000;
 let currentScanRate = 1200;
 const FAST_SCAN_RATE = 600;
 const SLOW_SCAN_RATE = 1500;
@@ -280,6 +282,46 @@ function checkAndPromoteSets() {
   });
 }
 
+function canItemCompleteSet(itemName) {
+  if (!state.primeInventory || !state.primeManifest) return false;
+  
+  // Find sets this item belongs to
+  const allSetNames = Object.keys(state.itemsDatabase).filter(n => n.endsWith(" Set"));
+  
+  for (const setName of allSetNames) {
+    const baseName = setName.replace(" Set", "");
+    const parts = Object.keys(state.itemsDatabase).filter(
+      n => (n === baseName || n.startsWith(baseName + " ")) && n !== setName
+    );
+    
+    // If this item is part of this set
+    if (parts.includes(itemName)) {
+      const requiredForThis = getRequiredCountLocal(baseName, itemName);
+      const ownedForThis = state.primeInventory[itemName] || 0;
+      
+      // If adding 1 would make us hit a set multiple
+      const currentSets = Math.floor(ownedForThis / requiredForThis);
+      const futureSets = Math.floor((ownedForThis + 1) / requiredForThis);
+      
+      if (futureSets > currentSets) {
+        // Now check if we have enough of EVERY OTHER part to actually complete that set
+        let othersReady = true;
+        for (const other of parts) {
+          if (other === itemName) continue;
+          const req = getRequiredCountLocal(baseName, other);
+          const own = state.primeInventory[other] || 0;
+          if (Math.floor(own / req) < futureSets) {
+            othersReady = false;
+            break;
+          }
+        }
+        if (othersReady) return true;
+      }
+    }
+  }
+  return false;
+}
+
 export async function startLiveSession() {
   if (isStartingSession || liveStream?.active) return;
   isStartingSession = true;
@@ -432,9 +474,10 @@ async function processFrame() {
     logDebug(`Processing frame ${scanCounter}...`);
     const { data: headerData } = await worker1.recognize(virtualCanvas);
     const headerText = headerData.text.toUpperCase();
-    logDebug("Header OCR:", headerText);
+    console.log("[SCAN] Header OCR:", headerText);
 
     const contextType = determineContext(headerText);
+    console.log("[SCAN] Context:", contextType);
     await routeFrameAction(contextType, video, dims);
 
     const counter = document.getElementById("hud-scan-counter");
@@ -457,7 +500,6 @@ function prepareVirtualCanvas(video) {
 
   if (!vCtx) vCtx = virtualCanvas.getContext("2d");
 
-  vCtx.filter = "grayscale(100%) brightness(1.3) contrast(200%)";
   vCtx.drawImage(
     video,
     0,
@@ -469,6 +511,9 @@ function prepareVirtualCanvas(video) {
     virtualCanvas.width,
     virtualCanvas.height,
   );
+  
+  // Usar clustering dinámico para el header también
+  applyClusteringThreshold(vCtx, virtualCanvas.width, virtualCanvas.height);
 
   return { width, height, scale };
 }
@@ -767,23 +812,74 @@ async function processRelicSelection(video, width, height, scale) {
 }
 
 async function processRewards(video, width, height, scale) {
-  const rCropY = Math.floor(height * 0.3);
-  const rCropH = Math.floor(height * 0.35);
-  const targetW = Math.floor(width * scale) * 1.5;
-  const targetH = Math.floor(rCropH * scale) * 1.5;
+  // Franja de recompensas ampliada considerablemente para capturar "OWNED" que está arriba del nombre
+  const rCropY = Math.floor(height * 0.18);
+  const rCropH = Math.floor(height * 0.55);
+  const targetW = Math.floor(width * scale);
+  const targetH = Math.floor(rCropH * scale);
 
   const canvas = virtualCanvas || document.createElement("canvas");
   canvas.width = targetW;
   canvas.height = targetH;
   const ctx = canvas.getContext("2d");
-  ctx.filter = "brightness(1.2) contrast(180%) grayscale(100%)";
+  
+  // Usamos el snapshot original para OCR y detección de ticks
   ctx.drawImage(video, 0, rCropY, width, rCropH, 0, 0, targetW, targetH);
+  
+  // Pre-procesamiento dinámico (clustering) antes de OCR
+  const ocrCanvas = document.createElement('canvas');
+  ocrCanvas.width = targetW; ocrCanvas.height = targetH;
+  const ocrCtx = ocrCanvas.getContext('2d');
+  ocrCtx.drawImage(canvas, 0, 0);
+  applyClusteringThreshold(ocrCtx, targetW, targetH);
 
-  const { data } = await worker1.recognize(canvas);
-  const foundItems = parseTextForItems(data);
+  const { data } = await worker1.recognize(ocrCanvas);
+  const rawOcr = data.text || "";
+  console.log("[SCAN] Rewards Raw OCR:", rawOcr);
+  
+  clearRewardDebugLogs();
+  addRewardDebugLog("OCR", `Text read: ${rawOcr.substring(0, 50)}...`, "info");
+
+  const foundItems = parseTextForRewards(data);
+  console.log("[SCAN] Rewards Found Items:", foundItems.length);
+  addRewardDebugLog("SCAN", `Items found: ${foundItems.length}`, foundItems.length > 0 ? "match" : "warn");
+
   if (foundItems.length > 0 && !detectionLocked) {
-    handleSuccessfulScan(video, width, height, foundItems);
+    foundItems.forEach(item => {
+      addRewardDebugLog("ITEM", `Detected: ${item.name}`, "match");
+      // Tick detection
+      const tickX = item.xPos + 50; 
+      const tickY = item.yPos - 150;
+      item.isSelected = detectCheckmark(ocrCanvas, tickX, tickY, 70, 70);
+    });
+
+    handleSuccessfulScan(video, width, height, foundItems, rawOcr);
   }
+}
+
+function clearRewardDebugLogs() {
+  const container = document.getElementById("rewards-raw-ocr-content");
+  if (container) container.innerHTML = "";
+}
+
+function addRewardDebugLog(tag, msg, type = "info") {
+  const container = document.getElementById("rewards-raw-ocr-content");
+  if (!container) return;
+  
+  const entry = document.createElement("div");
+  entry.className = `dbg-log-entry dbg-log-${type}`;
+  
+  const now = new Date();
+  const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
+  
+  entry.innerHTML = `
+    <span class="dbg-log-time">[${timeStr}]</span>
+    <span class="dbg-log-tag">${tag.toUpperCase()}</span>
+    <span class="dbg-log-msg">${msg}</span>
+  `;
+  
+  container.appendChild(entry);
+  container.scrollTop = container.scrollHeight;
 }
 
 function detectRelicSelection(data) {
@@ -826,12 +922,12 @@ function detectRelicSelection(data) {
     );
     if (exists) {
       lastTrackedRelic = foundRelic;
-      showTrackConfirm(foundRelic);
+      showTrackConfirm(foundRelic, text);
     }
   }
 }
 
-function showTrackConfirm(relicName) {
+function showTrackConfirm(relicName, rawOcr = "") {
   const existing = document.getElementById("relic-track-popup");
   if (existing) existing.remove();
   const popup = document.createElement("div");
@@ -841,8 +937,14 @@ function showTrackConfirm(relicName) {
     <div class="track-popup-content">
       <div class="relic-icon-mini">${relicName.split(" ")[0][0]}</div>
       <div class="track-text">
-        <span class="track-title">🔍 ${TEXTS[state.currentLang].scanner.relicDetected}</span>
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <span class="track-title">🔍 ${TEXTS[state.currentLang].scanner.relicDetected}</span>
+          <span class="dbg-toggle" onclick="document.getElementById('relic-dbg-text').classList.toggle('hidden')" style="font-size:8px; cursor:pointer; opacity:0.5; color:var(--wf-blue);">[DBG]</span>
+        </div>
         <span class="track-name">${relicName}</span>
+        <div id="relic-dbg-text" class="hidden" style="font-size:9px; color:#ff9800; margin-top:4px; font-family:monospace; background:rgba(0,0,0,0.3); padding:4px; border-radius:4px; border:1px solid rgba(255,152,0,0.2);">
+          RAW: ${rawOcr.substring(0, 100)}
+        </div>
       </div>
       <div class="track-actions">
         <button class="track-btn-no" id="btn-track-cancel">✕</button>
@@ -875,7 +977,7 @@ function showTrackConfirm(relicName) {
   }, 10500);
 }
 
-function handleSuccessfulScan(video, width, height, foundItems) {
+function handleSuccessfulScan(video, width, height, foundItems, rawOcr = "") {
   detectionLocked = true;
   if (!snapshotCanvas) {
     snapshotCanvas = document.createElement("canvas");
@@ -884,14 +986,42 @@ function handleSuccessfulScan(video, width, height, foundItems) {
   snapshotCanvas.width = width;
   snapshotCanvas.height = height;
   snapshotCtx.drawImage(video, 0, 0, width, height);
-  openScanModal(snapshotCanvas.toDataURL("image/jpeg", 0.85), foundItems);
+  const scale = 1080 / height;
+  openScanModal(snapshotCanvas.toDataURL("image/jpeg", 0.85), foundItems, width, height, scale, rawOcr);
 }
 
-async function openScanModal(imageUrl, items) {
+async function openScanModal(imageUrl, items, width, height, scale, rawOcr = "") {
   const modal = document.getElementById("scan-success-modal");
   const imgEl = document.getElementById("scan-snapshot");
   const badgesContainer = document.getElementById("scan-badges-container");
+
   if (!modal || !imgEl || !badgesContainer) return;
+
+  // CRITICAL: Store results IMMEDIATELY for the sync on close.
+  currentScanResults = items;
+
+  // Set toggle state
+  const syncToggle = document.getElementById("sync-rewards-toggle");
+  if (syncToggle) syncToggle.checked = !!state.autoSyncRewards;
+  
+  // Localize Header items
+  if (typeof TEXTS !== 'undefined' && TEXTS[state.currentLang]?.rewardScanner) {
+    const tScan = TEXTS[state.currentLang].rewardScanner;
+    const toggleLabel = modal.querySelector(".sync-toggle-label");
+    if (toggleLabel) toggleLabel.innerText = tScan.autoSyncLabel;
+    const helpIcon = modal.querySelector(".help-icon");
+    if (helpIcon) helpIcon.setAttribute("data-tooltip", tScan.autoSyncTooltip);
+  }
+  
+  // Hide selection status initially
+  const statusMsg = document.getElementById("scan-selection-status");
+  if (statusMsg) statusMsg.classList.add("hidden");
+  
+  // Si no hay logs (porque no han pasado por add RewardDebugLog), mostramos el rawOcr
+  const dbgContent = document.getElementById("rewards-raw-ocr-content");
+  if (dbgContent?.children.length === 0) {
+    dbgContent.innerText = rawOcr || "NO OCR DATA AVAILABLE";
+  }
   if (autoCloseTimer) clearTimeout(autoCloseTimer);
   badgesContainer.innerHTML = "";
   imgEl.src = imageUrl;
@@ -899,8 +1029,17 @@ async function openScanModal(imageUrl, items) {
   autoCloseTimer = setTimeout(() => {
     globalThis.closeScanModal();
   }, AUTO_CLOSE_DELAY_MS);
+  // Track OCR results to avoid overwriting manual "Add to Inventory" with stale game UI
+  if (!globalThis.lastSeenOcrCache) globalThis.lastSeenOcrCache = {};
+
   const itemsWithDetails = await Promise.all(
     items.map(async (item) => {
+      // Sincronización automática de inventario: si OCR ve piezas, actualizamos el estado
+      // Nota: Si el usuario tiene más en la App que en el juego, confiamos en el juego (el estado real)
+      // NOTE: We no longer sync state.primeInventory here. 
+      // We will perform a single 'batch sync' when closeScanModal is called.
+      // This keeps the App inventory stable while the scanner is pointing at the screen.
+
       let price = priceCache.get(item.name) || 0;
       if (price === 0) {
         try {
@@ -921,25 +1060,48 @@ async function openScanModal(imageUrl, items) {
       return { ...item, price, ducats };
     }),
   );
+  
+  // Store results for the final sync on closeScanModal
+  currentScanResults = itemsWithDetails;
+
   const maxPl = Math.max(...itemsWithDetails.map((i) => i.price));
-  const maxDuc = Math.max(...itemsWithDetails.map((i) => i.ducats));
+  
+  // Calculate Potential Ducat Value (Direct Ducats vs Market Fodder potential at ~10d/1p)
+  const potentialMap = itemsWithDetails.map(item => ({
+    ...item,
+    potential: Math.max(item.ducats, item.price * 10)
+  }));
+  const maxPotential = Math.max(...potentialMap.map(i => i.potential));
+
   requestAnimationFrame(() => {
-    const cvsHeight = virtualCanvas ? virtualCanvas.height : 100;
-    const cvsWidth = virtualCanvas ? virtualCanvas.width : 1000;
     const fragment = document.createDocumentFragment();
     
-    itemsWithDetails.forEach((item) => {
-      const leftPercent = (item.xPos / cvsWidth) * 100;
-      const topPercent = ((item.yPos + 35) / cvsHeight) * 100;
+    // Sort items by horizontal position (X) to match visual order in flexbox
+    const sortedItems = [...potentialMap].sort((a, b) => a.xPos - b.xPos);
+
+    sortedItems.forEach((item) => {
+      // PROPIO (App State) should reflect what is CURRENTLY in the database before the sync
+      const currentAppCount = state.primeInventory ? (state.primeInventory[item.name] || 0) : 0;
+      
+      const isCurrentlySelected = item.name && selectedScanItem && 
+                                  item.name.toUpperCase().trim() === selectedScanItem.toUpperCase().trim();
+      
+      const isCompletingSet = canItemCompleteSet(item.name);
+
       createModalBadge(
         {
           name: item.name,
           price: item.price,
           ducats: item.ducats,
-          leftPercent: leftPercent,
-          topPercent: topPercent,
+          owned: item.owned,
+          appOwned: currentAppCount,
+          crafted: item.crafted,
+          isSelected: isCurrentlySelected,
           isBestPl: item.price === maxPl && item.price > 0,
-          isBestDuc: item.ducats === maxDuc && item.ducats > 0,
+          isBestEff: item.potential === maxPotential && item.potential > 0,
+          isCompletingSet: isCompletingSet,
+          xPos: item.xPos, // Pass horizontal position
+          targetW: width * scale, // Pass target container width (normalized)
         },
         fragment,
       );
@@ -948,46 +1110,94 @@ async function openScanModal(imageUrl, items) {
     badgesContainer.innerHTML = "";
     badgesContainer.appendChild(fragment);
   });
+
+  // NOTE: Final save and UI sync is now deferred to closeScanModal.
+  // This prevents the background inventory list from 'jumping' during the scan.
 }
 
 function createModalBadge(
-  { name, price, ducats, leftPercent, topPercent, isBestPl, isBestDuc },
+  { name, price, ducats, owned, appOwned, crafted, isSelected, isBestPl, isBestEff, isCompletingSet, xPos, targetW },
   container,
 ) {
   const badge = document.createElement("div");
-  badge.className = `modal-badge ${isBestPl ? "best-pl" : ""} ${isBestDuc ? "best-duc" : ""}`;
-  const clampedLeft = Math.max(8, Math.min(92, leftPercent));
+  badge.className = `modal-badge ${isBestPl ? "best-pl" : ""} ${isBestEff ? "best-duc" : ""} ${isSelected ? "selected-reward" : ""}`;
 
-  badge.style.left = `${clampedLeft}%`;
-  badge.style.top = `${Math.min(90, topPercent)}%`;
+  // Apply horizontal positioning (xPos is relative to the OCR'd wide franja at scale)
+  if (typeof xPos === 'number' && targetW) {
+    const leftPct = (xPos / targetW) * 100;
+    badge.style.left = `${leftPct}%`;
+  }
+  
+  const displayName = name.toUpperCase();
 
-  const slug = getSlug(name);
-  const cleanName = name
-    .replaceAll(/PRIME/gi, "")
-    .replaceAll(/BLUEPRINT/gi, "BP")
-    .replaceAll(/NEUROPTICS/gi, "NEURO")
-    .replaceAll(/SYSTEMS/gi, "SYS")
-    .replaceAll(/CHASSIS/gi, "CHAS")
-    .trim();
+  const labels = {
+    es: { add: "✓ AÑADIR AL INVENTARIO", owned: "Vista", crafted: "Forja", inv: "PROPIO", bestPl: "¡MEJOR PLAT!", bestDuc: "¡MEJOR DUCAT!", completes: "¡COMPLETA SET!" },
+    en: { add: "✓ ADD TO INVENTORY", owned: "Seen", crafted: "Forge", inv: "OWNED", bestPl: "BEST PLAT!", bestDuc: "BEST DUCAT!", completes: "COMPLETES SET!" }
+  };
+  const lang = state.currentLang === "en" ? "en" : "es";
+  const t = labels[lang];
 
-  badge.innerHTML = `
-    <a href="https://warframe.market/items/${slug}" target="_blank" class="modal-badge-link" style="display:block; text-decoration:none;">
-        <div class="modal-badge-name" style="font-size:10px; color:#aaa; font-weight:bold; margin-bottom:4px; text-transform:uppercase;">${cleanName}</div>
-        <div class="modal-badge-row" style="display:flex; justify-content:center; align-items:center; gap:10px; font-weight:bold;">
-            <div class="modal-badge-price" style="display:flex; align-items:center; gap:2px; font-size:14px; color:#f1c40f;">
-                <img src="assets/relic_contents/platinum.webp" style="width:14px; height:14px;">
-                ${price > 0 ? price : "--"} pl
-            </div>
-            ${
-              ducats > 0
-                ? `<div class="modal-badge-ducats" style="display:flex; align-items:center; gap:3px; font-size:13px; color:#D4AF37;">
-                   <img src="assets/Ducats.webp" class="ducat-icon" style="width:16px; height:16px;">
-                   ${ducats}
-                </div>`
-                : ""
-            }
+  const isForma = name.toUpperCase().includes("FORMA");
+  
+  let tagsHtml = "";
+  if (isBestPl) tagsHtml += `<div class="best-badge pl">${t.bestPl}</div>`;
+  if (isBestEff && !isForma) tagsHtml += `<div class="best-badge duc">${t.bestDuc}</div>`;
+  if (isCompletingSet) tagsHtml += `<div class="best-badge set-finisher">${t.completes}</div>`;
+
+  const bestLabelHtml = tagsHtml ? `<div class="modal-badge-labels">${tagsHtml}</div>` : "";
+
+  let metadataHtml = "";
+  metadataHtml = `
+    <div class="metadata-row">
+        <div class="inventory-app-count" style="background: rgba(0, 255, 120, 0.15); border-color: #00ff78;">
+            VISTO: <span class="metadata-seen" style="font-size: 14px;">${owned > 0 ? owned : 0}</span>
         </div>
-    </a>`;
+        <div style="display:flex; justify-content:center; gap:12px; margin-top:6px; font-size:10px; font-weight:700;">
+          <span style="color: #00e5ff;" class="app-owned-val" data-part="${escapeHTML(name)}">${t.inv}: ${appOwned}</span>
+          ${crafted > 0 ? `<span class="metadata-crafted" style="border-left:1px solid rgba(255,255,255,0.1); padding-left:12px;">FORJA: ${crafted}</span>` : ""}
+        </div>
+    </div>`;
+
+  const selectionHtml = isSelected 
+    ? '<div style="background:#00ff78; color:#000; font-size:8px; padding:1px 4px; border-radius:3px; margin-top:2px; font-weight:bold; display:inline-block; box-shadow:0 0 10px rgba(0,255,120,0.5);">✓</div>' 
+    : '';
+
+  if (!isForma) {
+    badge.onclick = () => {
+      if (typeof globalThis.selectRewardToInventory === 'function') {
+        globalThis.selectRewardToInventory(name);
+      }
+    };
+  }
+
+  badge.innerHTML = String.raw`
+        ${bestLabelHtml}
+        <div class="modal-badge-link">
+          <div class="modal-badge-content-wrapper">
+            ${metadataHtml}
+            <div class="modal-badge-name">${displayName}</div>
+            
+            <div class="modal-badge-row">
+                <div class="modal-badge-price">
+                    <span class="scanner-plat-icon"></span>
+                    ${price > 0 ? price : "—"}
+                </div>
+                ${
+                  ducats > 0
+                    ? `<div class="modal-badge-ducats">
+                        <img src="assets/Ducats.webp" class="currency-icon">
+                        ${ducats}
+                    </div>`
+                    : ""
+                }
+            </div>
+          </div>
+          
+          ${!isForma ? `<div class="badge-add-inventory-hint">${t.add}</div>` : ''}
+          ${selectionHtml ? `<div style="position:absolute; top:-10px; right:-10px; z-index:110;">${selectionHtml}</div>` : ''}
+        </div>`;
+
+  if (price === 0) badge.classList.add('loading-price');
 
   container.appendChild(badge);
 }
@@ -1034,14 +1244,106 @@ function copyScannerDebugLog() {
 }
 
 globalThis.stopLiveSession = stopLiveSession;
-globalThis.isScannerActive = () => !!liveStream?.active;
-globalThis.copyScannerDebugLog = copyScannerDebugLog;
+let currentScanResults = [];
+let selectedScanItem = null;
+
 globalThis.closeScanModal = function () {
   if (autoCloseTimer) clearTimeout(autoCloseTimer);
-  const modal = document.getElementById("scan-success-modal");
-  if (modal) modal.classList.add("hidden");
+  
+  const successModal = document.getElementById("scan-success-modal");
+  if (successModal) successModal.classList.add("hidden");
+
+  // Unlock detection
   detectionLocked = false;
+  
+  // FINAL SYNC RULE: AppStore = (item is selected ? OCR Seen + 1 : OCR Seen)
+  if (currentScanResults.length > 0 && typeof state !== 'undefined' && state.primeInventory) {
+      let anyChange = false;
+      const normalizedSelection = selectedScanItem ? selectedScanItem.toUpperCase().trim() : null;
+
+      currentScanResults.forEach(item => {
+          if (item.name && typeof item.owned === 'number' && item.owned >= 0) {
+              const itemNameNorm = item.name.toUpperCase().trim();
+              const isSelected = normalizedSelection && itemNameNorm === normalizedSelection;
+              
+              if (state.autoSyncRewards) {
+                  // AUTO MODE: Smart Mirror (Baseline is OCR reality)
+                  const targetQty = item.owned + (isSelected ? 1 : 0);
+                  if (state.primeInventory[item.name] !== targetQty) {
+                      state.primeInventory[item.name] = targetQty;
+                      anyChange = true;
+                      addRewardDebugLog("AUTO_SYNC", `${item.name}: synced to ${targetQty}${isSelected ? ' (+1 selected)' : ''}`, "match");
+                  }
+              } else {
+                  // MANUAL MODE: App State Priority (Increment current log)
+                  if (isSelected) {
+                      const currentQty = state.primeInventory[item.name] || 0;
+                      state.primeInventory[item.name] = currentQty + 1;
+                      anyChange = true;
+                      addRewardDebugLog("MANUAL_ADD", `${item.name}: +1 (App New: ${currentQty + 1})`, "match");
+                  }
+              }
+          }
+      });
+      if (anyChange) {
+          if (typeof globalThis.saveAppState === "function") globalThis.saveAppState();
+          if (globalThis.renderPrimeInventory) globalThis.renderPrimeInventory();
+      }
+  }
+  
+  // TRIGGER POST-MODAL TOAST (Bottom of screen)
+  if (selectedScanItem && typeof globalThis.showToast === "function") {
+      const t = (typeof TEXTS !== 'undefined') ? TEXTS[state.currentLang] : null;
+      let msg = `${selectedScanItem.toUpperCase()} SELECCIONADA +1`; // Fallback
+      if (t && t.rewardScanner && t.rewardScanner.rewardSelectedConfirmation) {
+          msg = t.rewardScanner.rewardSelectedConfirmation.replace("{item}", selectedScanItem.toUpperCase());
+      }
+      globalThis.showToast(msg);
+  }
+
+  currentScanResults = []; 
+  selectedScanItem = null;
 };
+
+globalThis.selectRewardToInventory = function (itemName) {
+  selectedScanItem = itemName;
+  
+  // Instant UI feedback: highlight the selected badge and update its preview label
+  const modal = document.getElementById("scan-success-modal");
+  if (modal) {
+    modal.querySelectorAll('.modal-badge').forEach(b => b.classList.remove('selected-reward'));
+    const badges = modal.querySelectorAll('.modal-badge');
+    badges.forEach(b => {
+      // Robust name match
+      if (b.innerText.toUpperCase().includes(itemName.toUpperCase().trim())) {
+        b.classList.add('selected-reward');
+        
+        // Update the label inside the badge for instant feedback
+        const ownedValSpan = b.querySelector('.app-owned-val');
+        if (ownedValSpan) {
+          const rawOcr = b.querySelector('.metadata-seen')?.innerText || "0";
+          const seen = parseInt(rawOcr) || 0;
+          const labelPrefix = ownedValSpan.innerText.split(':')[0];
+          ownedValSpan.innerText = `${labelPrefix}: ${seen + 1}`;
+        }
+      }
+    });
+  }
+  
+  if (typeof showToast === "function") showToast(`SELECCIONADO: ${itemName}`);
+  addRewardDebugLog("SELECT", `Reward selected (sync pending close): ${itemName}`, "match");
+  
+  // Final commitment happens in closeScanModal
+  setTimeout(() => globalThis.closeScanModal(), 600); 
+};
+
+globalThis.toggleRewardsAutoSync = function (val) {
+  state.autoSyncRewards = val;
+  if (globalThis.saveAppState) globalThis.saveAppState();
+  showToast(`Auto-Sync: ${val ? "ON" : "OFF"}`);
+};
+
+// Unified closeScanModal used now globally
 
 globalThis.manualPrecisionScan = async function () {
   const video = document.getElementById("live-video");

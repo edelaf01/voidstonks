@@ -265,28 +265,7 @@ globalThis.startMobileScanner = async function () {
   }
 };
 
-globalThis.closeScanModal = function () {
-  const modal = document.getElementById("scan-success-modal");
-  if (modal) {
-    modal.classList.add("hidden");
-  }
-
-  if (activeScannerInstance) {
-    try {
-      activeScannerInstance.close();
-    } catch (e) {
-      console.warn("Error al cerrar scanner desde modal:", e);
-    }
-
-    activeScannerInstance = null;
-    isScannerActive = false;
-  }
-
-  const scanBtn = document.getElementById("mobile-scan-btn");
-  if (scanBtn) {
-    scanBtn.classList.remove("scanning", "processing");
-  }
-};
+// Unified closeScanModal is now handled in live_scanner.js to ensure inventory sync.
 
 document.addEventListener("visibilitychange", () => {
   if (document.hidden && activeScannerInstance) {
@@ -358,4 +337,6 @@ Object.assign(globalThis, {
   stopLiveSession,
   checkUpdates,
   updateSelectExclusions,
+  saveAppState,
+  renderPrimeInventory,
 });

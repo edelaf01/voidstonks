@@ -359,6 +359,9 @@ export function renderSetTracker() {
     arrowLink.onclick = (e) => e.stopPropagation();
 
     const dotsDiv = document.createElement("div");
+    dotsDiv.className = "live-tracker";
+    dotsDiv.dataset.part = partName;
+    dotsDiv.dataset.req = requiredCount;
     dotsDiv.style.display = "flex";
     dotsDiv.style.alignItems = "center";
     dotsDiv.style.flexShrink = "0";

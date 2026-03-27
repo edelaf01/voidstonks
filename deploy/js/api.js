@@ -17,7 +17,10 @@ import { state } from "./state.js";
 export const MEMORY_CACHE = new Map();
 globalThis.MEMORY_CACHE = MEMORY_CACHE;
 const PENDING_REQUESTS = new Map();
+const RETRY_COUNTS = new Map();
+const MAX_RETRIES = 3;
 let batchTimer = null;
+let currentBackoff = 50;
 export function getSlug(itemName) {
   if (!itemName) return "";
   let cleanName = itemName.trim().replaceAll("&", "and");
@@ -26,7 +29,13 @@ export function getSlug(itemName) {
     .replaceAll(/[^a-z0-9 ]/g, "")
     .trim()
     .replaceAll(/\s+/g, "_");
-  const manualFixes = { kompressa_prime_receiver: "kompressa_prime_reciever" };
+  const manualFixes = {
+    kompressa_prime_receiver: "kompressa_prime_reciever",
+    kavasa_prime_set: "kavasa_prime_kubrow_collar_set",
+    kavasa_prime_blueprint: "kavasa_prime_kubrow_collar_blueprint",
+    kavasa_prime_buckle: "kavasa_prime_kubrow_collar_buckle",
+    kavasa_prime_band: "kavasa_prime_kubrow_collar_band",
+  };
   return manualFixes[slug] || slug;
 }
 
@@ -174,41 +183,117 @@ async function savePriceToCache(slug, price) {
   }
 }
 
+let isProcessingQueue = false;
+
 async function processQueue() {
+  if (isProcessingQueue) {
+    // If already running, another timer will be set when it finishes or by new requests
+    return;
+  }
+
+  isProcessingQueue = true;
   batchTimer = null;
 
   const slugsToFetch = Array.from(PENDING_REQUESTS.keys());
-  if (slugsToFetch.length === 0) return;
+  if (slugsToFetch.length === 0) {
+    isProcessingQueue = false;
+    return;
+  }
 
   const currentBatch = new Map(PENDING_REQUESTS);
   PENDING_REQUESTS.clear();
 
+  // Process in chunks with delays to avoid rate limits
   for (let i = 0; i < slugsToFetch.length; i += 25) {
     const chunk = slugsToFetch.slice(i, i + 25);
+
+    // Safety: don't process if chunk is empty somehow
+    if (chunk.length === 0) continue;
+
     try {
       const url = `${WORKER_URL}?type=prices_batch&q=${chunk.join(",")}`;
       const res = await fetch(url);
 
-      if (!res.ok) throw new Error(`Error en Worker: ${res.status}`);
+      if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
 
       const data = await res.json();
+      const now = Date.now();
 
       chunk.forEach((slug) => {
-        const price = data[slug] || 0;
-        if (price > 0) savePriceToCache(slug, price);
+        const price = data[slug];
 
-        const resolvers = currentBatch.get(slug);
-        if (resolvers) resolvers.forEach((resolveFunc) => resolveFunc(price));
+        if (price !== undefined) {
+          if (price > 0) savePriceToCache(slug, price);
+          RETRY_COUNTS.delete(slug); // Reset on success
+
+          const resolvers = currentBatch.get(slug);
+          if (resolvers) {
+            resolvers.forEach((resolveFunc) => resolveFunc(price));
+            currentBatch.delete(slug); // Mark as resolved
+          }
+        } else {
+          // Slug not in response (likely worker hit rate limit for this batch)
+          const retries = (RETRY_COUNTS.get(slug) || 0) + 1;
+
+          if (retries >= MAX_RETRIES) {
+            console.warn(`Retry limit reached for ${slug}, resolving to 0`);
+            const resolvers = currentBatch.get(slug);
+            if (resolvers) {
+              resolvers.forEach((r) => r(0));
+              currentBatch.delete(slug);
+            }
+            RETRY_COUNTS.delete(slug);
+          } else {
+            RETRY_COUNTS.set(slug, retries);
+            if (!PENDING_REQUESTS.has(slug)) {
+              PENDING_REQUESTS.set(slug, currentBatch.get(slug) || []);
+              currentBatch.delete(slug);
+            }
+          }
+        }
       });
+
+      // Reset backoff on any successful response chunk
+      currentBackoff = 50;
+
+      // Small pause between chunks to be polite to the server
+      if (i + 25 < slugsToFetch.length) {
+        await new Promise(r => setTimeout(r, 300));
+      }
 
     } catch (err) {
-      console.error("Batch chunk fetch failed:", err);
-      // Resolve failed chunk with 0 to unblock UI
+      console.error("Batch chunk fetch failed, backing off and re-queueing:", err);
+      currentBackoff = Math.min(currentBackoff * 2, 5000); // Exponential backoff
+
       chunk.forEach((slug) => {
-        const resolvers = currentBatch.get(slug);
-        if (resolvers) resolvers.forEach((resolveFunc) => resolveFunc(0));
+        const retries = (RETRY_COUNTS.get(slug) || 0) + 1;
+
+        if (retries >= MAX_RETRIES) {
+          const resolvers = currentBatch.get(slug);
+          if (resolvers) {
+            resolvers.forEach((r) => r(0));
+            currentBatch.delete(slug);
+          }
+          RETRY_COUNTS.delete(slug);
+        } else {
+          RETRY_COUNTS.set(slug, retries);
+          if (!PENDING_REQUESTS.has(slug)) {
+            PENDING_REQUESTS.set(slug, currentBatch.get(slug) || []);
+            currentBatch.delete(slug);
+          }
+        }
       });
+
+      // Force exit loop to wait for next batch cycle
+      break;
     }
+  }
+
+  isProcessingQueue = false;
+  // If we have items left (new or re-queued), schedule another run with backoff
+  if (PENDING_REQUESTS.size > 0 && !batchTimer) {
+    const delay = currentBackoff + Math.random() * 1000;
+    batchTimer = setTimeout(processQueue, delay);
   }
 }
 
@@ -221,7 +306,7 @@ export async function warmupPrices() {
     return match ? match[0].trim() : null;
   };
 
-  // 1. Collect all potential slugs
+  // 1. Collect all potential slugs from inventory
   Object.keys(state.primeInventory).forEach(name => {
     if (state.primeInventory[name] <= 0) return;
     const slug = getSlug(name);
@@ -233,6 +318,7 @@ export async function warmupPrices() {
     }
   });
 
+  // 2. Collect slugs from relic drops currently in inventory
   state.inventory.forEach(item => {
     const drops = state.relicsDatabase[item.name];
     if (drops) {
@@ -242,12 +328,23 @@ export async function warmupPrices() {
     }
   });
 
+  // 3. Collect slugs for all set components to ensure we have them for totals
+  if (state.setsDatabase) {
+    Object.keys(state.setsDatabase).forEach(setName => {
+      // Limit warmup to sets that actually have some inventory or are common
+      const parts = state.setsDatabase[setName];
+      const hasAny = parts.some(p => (state.primeInventory[p] || 0) > 0);
+      if (hasAny) {
+        itemsToCheck.add(getSlug(setName + " Set"));
+        parts.forEach(p => itemsToCheck.add(getSlug(p)));
+      }
+    });
+  }
+
   if (itemsToCheck.size === 0) return;
 
   const slugsToFetch = [];
-  const now = Date.now();
-
-  // 2. Filter out already cached items in memory
+  // 4. Filter out already cached items
   itemsToCheck.forEach(slug => {
     if (!MEMORY_CACHE.has(slug)) {
       slugsToFetch.push(slug);
@@ -256,9 +353,9 @@ export async function warmupPrices() {
 
   if (slugsToFetch.length === 0) return;
 
-  // 3. Perform large batch fetch for all missing items at once
-  for (let i = 0; i < slugsToFetch.length; i += 40) {
-    const chunk = slugsToFetch.slice(i, i + 40);
+  // 5. Perform batch fetch
+  for (let i = 0; i < slugsToFetch.length; i += 50) {
+    const chunk = slugsToFetch.slice(i, i + 50);
     try {
       const url = `${WORKER_URL}?type=prices_batch&q=${chunk.join(",")}`;
       const res = await fetch(url);
@@ -339,26 +436,23 @@ export async function fetchUserProfile(username, platform) {
 }
 
 
+const IN_FLIGHT_PROMISES = new Map();
+
 export function getPriceValue(itemName, itemSlug) {
-  return new Promise(async (resolve) => {
-    if (
-      !itemName ||
-      !itemSlug ||
-      itemName.includes("Forma") ||
-      itemName.includes("Kuva") ||
-      itemName === "Riven Sliver" ||
-      itemName === "Exilus Weapon Adapter Blueprint"
-    ) {
-      resolve(0);
-      return;
-    }
+  if (
+    !itemName || !itemSlug ||
+    itemName.includes("Forma") || itemName.includes("Kuva") ||
+    itemName === "Riven Sliver" || itemName === "Exilus Weapon Adapter Blueprint"
+  ) return Promise.resolve(0);
 
-    if (MEMORY_CACHE.has(itemSlug)) {
-      resolve(MEMORY_CACHE.get(itemSlug));
-      return;
-    }
+  if (MEMORY_CACHE.has(itemSlug)) return Promise.resolve(MEMORY_CACHE.get(itemSlug));
 
+  // DEDUPLICATION: If we are already fetching this slug, return the existing promise
+  if (IN_FLIGHT_PROMISES.has(itemSlug)) return IN_FLIGHT_PROMISES.get(itemSlug);
+
+  const fetchPromise = new Promise(async (resolve) => {
     try {
+      // Check IndexedDB
       const cached = await dbHelper.get(`price_${itemSlug}`);
       if (cached && (Date.now() - cached.time < CACHE_TTL)) {
         MEMORY_CACHE.set(itemSlug, cached.val);
@@ -369,17 +463,23 @@ export function getPriceValue(itemName, itemSlug) {
       console.warn(`Error reading price cache for ${itemSlug}:`, e);
     }
 
-    if (PENDING_REQUESTS.has(itemSlug)) {
-      PENDING_REQUESTS.get(itemSlug).push(resolve);
-      return;
+    // Add to batch queue
+    if (!PENDING_REQUESTS.has(itemSlug)) {
+      PENDING_REQUESTS.set(itemSlug, []);
     }
-
-    PENDING_REQUESTS.set(itemSlug, [resolve]);
+    PENDING_REQUESTS.get(itemSlug).push(resolve);
 
     if (!batchTimer) {
-      batchTimer = setTimeout(processQueue, 50);
+      batchTimer = setTimeout(processQueue, currentBackoff);
     }
+  }).finally(() => {
+    // Cleanup so it can be fetched again if cache expires later
+    // but ONLY after it has a result.
+    IN_FLIGHT_PROMISES.delete(itemSlug);
   });
+
+  IN_FLIGHT_PROMISES.set(itemSlug, fetchPromise);
+  return fetchPromise;
 }
 
 export async function fetchPrimeManifest() {
@@ -634,6 +734,21 @@ function processRelicDatabase(rawData, activeDropsSet) {
   });
 
   state.allRelicNames.sort();
+
+  // Pre-calculate Set -> Parts mapping for O(1) lookups
+  state.setsDatabase = {};
+  const getSetNameHelperLoc = (fullName) => {
+    const match = fullName.match(/(.*?) (Prime|Vandal|Wraith)/);
+    return match ? match[0].trim() : "Otros";
+  };
+
+  Object.keys(state.itemsDatabase).forEach(itemName => {
+    const setName = getSetNameHelperLoc(itemName);
+    if (setName !== "Otros" && !itemName.endsWith(" Set")) {
+      if (!state.setsDatabase[setName]) state.setsDatabase[setName] = [];
+      state.setsDatabase[setName].push(itemName);
+    }
+  });
 }
 
 export function addToQueue(itemName, element) {
