@@ -1,15 +1,39 @@
 import { state, saveAppState, updateInventoryCount } from "../state.js";
 import { TEXTS, DROP_CHANCES } from "../config.js";
-import { addToQueue, getSlug, getPriceValue } from "../api.js";
+import { addToQueue, getSlug, getPriceValue, warmupPrices } from "../api.js";
 import { escapeHTML, showToast, showCustomConfirm } from "./ui_components.js";
 import {
   getItemIcon,
   getSetName,
   getRequiredCount,
   generateDotsHtml,
+  calculateTotalFullSets,
 } from "./ui_utils.js";
 
 import { manualRelicUpdate } from "./ui_relics.js";
+
+const TARGET_SVG_INLINE = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36" width="22" height="22" style="filter:drop-shadow(0 0 2px rgba(0,204,204,0.5));">
+  <defs>
+    <linearGradient id="miniGold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#fdf4df"/> <stop offset="100%" stop-color="#c09131"/> </linearGradient>
+    <radialGradient id="miniVoid" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#66ffff"/> <stop offset="100%" stop-color="#00cccc"/> </radialGradient>
+  </defs>
+  <circle cx="18" cy="18" r="17" fill="#010410" stroke="#c09131" stroke-width="0.5"/>
+  <circle cx="18" cy="18" r="14" fill="none" stroke="url(#miniGold)" stroke-width="1.5" opacity="0.7"/>
+  <circle cx="18" cy="18" r="8" fill="none" stroke="#00cccc" stroke-width="1" opacity="0.8"/>
+  <circle cx="18" cy="18" r="2.5" fill="url(#miniVoid)" stroke="#fdf4df" stroke-width="0.5"/>
+  <g stroke="#c09131" stroke-width="0.25" opacity="0.5">
+    <line x1="18" y1="4" x2="18" y2="32"/>
+    <line x1="4" y1="18" x2="32" y2="18"/>
+  </g>
+  <g transform="translate(19,17) rotate(-45)">
+    <path d="M0,2 L-1.5,-2 L0,-1 L1.5,-2 Z" fill="#000" opacity="0.5" transform="translate(1,1)"/>
+    <path d="M0,1 L-1,-2 L1,-2 Z" fill="#999"/>
+    <rect x="-0.75" y="-7" width="1.5" height="6" rx="0.3" fill="url(#miniGold)"/>
+    <path d="M0,-7 L-3,-11 L0,-10 L3,-11 Z" fill="#66ffff" stroke="#fdf4df" stroke-width="0.2"/>
+  </g>
+</svg>`;
 
 
 export function toggleInventoryPanel(forceOpen = false) {
@@ -387,8 +411,17 @@ export function modifyPrimePart(name, amount) {
   saveAppState();
 
   const safePartHtml = escapeHTML(name);
-  const qtySpans = document.querySelectorAll(`.inv-btn-small[data-part="${safePartHtml}"] ~ .qty-num`);
-  qtySpans.forEach(span => span.textContent = newQty);
+  // Update all instances of quantity labels that use data-part or are next to a data-part button
+  const qtySpans = document.querySelectorAll(
+    `.inv-btn-small[data-part="${safePartHtml}"] ~ .qty-num, .qty-num[data-part="${safePartHtml}"]`
+  );
+  qtySpans.forEach(span => {
+    span.textContent = newQty;
+    // Animation pulse for feedback
+    span.classList.remove("pulse-anim");
+    void span.offsetWidth; // trigger reflow
+    span.classList.add("pulse-anim");
+  });
 
   const safeId = name.replaceAll(/[^a-zA-Z0-9]/g, "");
   const badge = document.getElementById(`price-p-${safeId}`);
@@ -397,27 +430,41 @@ export function modifyPrimePart(name, amount) {
   setTimeout(updatePrimeTotalValue, 10);
 
   requestAnimationFrame(() => {
-    const trackers = document.querySelectorAll(`.live-tracker[data-part="${escapeHTML(name)}"]`);
-    if (trackers.length > 0) {
-      trackers.forEach(t => {
-        t.innerHTML = generateDotsHtml(newQty, parseInt(t.dataset.req) || 1);
-      });
-    }
-
+    // Update all dots/trackers for this part
+    const trackers = document.querySelectorAll(`.live-tracker[data-part="${safePartHtml}"]`);
+    trackers.forEach(t => {
+      const required = parseInt(t.dataset.req) || 1;
+      t.innerHTML = generateDotsHtml(newQty, required);
+    });
     const setName = getSetName(name);
-    if (setName && setName !== "Otros" && typeof globalThis.calculateTotalFullSets === "function") {
+    if (setName && setName !== "Otros") {
       const safeSetNameId = setName.replaceAll(/[^a-zA-Z0-9]/g, "");
-      const setBadge = document.querySelector(`#set-group-${safeSetNameId} .set-count-badge`);
-      if (setBadge) {
-        const fullSets = globalThis.calculateTotalFullSets(setName);
-        setBadge.innerHTML = `${fullSets} SETS`;
-        setBadge.style.display = fullSets > 0 ? "inline-block" : "none";
+
+      if (typeof calculateTotalFullSets === "function") {
+        const fullSets = calculateTotalFullSets(setName);
+        const setBadge = document.querySelector(`#set-group-${safeSetNameId} .set-count-badge`);
+        if (setBadge) {
+          setBadge.innerHTML = `${fullSets} SETS`;
+          setBadge.style.display = fullSets > 0 ? "inline-block" : "none";
+        }
       }
 
+      // Update macro tracker in the search results
       if (state.activeTab === "set" && typeof globalThis.updateMacroTracker === "function") {
         globalThis.updateMacroTracker(setName);
       }
+
+      // Refresh the main Set Tracker if it's currently showing this set
+      if (state.currentActiveSet === setName && typeof globalThis.renderSetTracker === "function") {
+        globalThis.renderSetTracker();
+      }
     }
+
+    // Update Reward Modal counts if present
+    const rewardCounts = document.querySelectorAll(`.app-owned-val[data-part="${safePartHtml}"]`);
+    rewardCounts.forEach(span => {
+      span.textContent = `TENÍAS: ${newQty}`;
+    });
   });
 }
 
@@ -491,14 +538,19 @@ export function renderPrimeInventory() {
       return;
     }
 
-    if (!globalThis.setPartsCache) globalThis.setPartsCache = new Map();
-    if (!globalThis.setPartsCache.has(setName) || globalThis.setPartsCache.get(setName).length === 0) {
-      const parts = Object.keys(state.itemsDatabase || {}).filter(
-        (name) => (name === setName || name.startsWith(setName + " ")) && !name.endsWith(" Set")
-      );
-      globalThis.setPartsCache.set(setName, parts);
+    let allPossibleParts = [];
+    if (state.setsDatabase && state.setsDatabase[setName]) {
+      allPossibleParts = state.setsDatabase[setName];
+    } else {
+      if (!globalThis.setPartsCache) globalThis.setPartsCache = new Map();
+      if (!globalThis.setPartsCache.has(setName) || globalThis.setPartsCache.get(setName).length === 0) {
+        const parts = Object.keys(state.itemsDatabase || {}).filter(
+          (name) => (name === setName || name.startsWith(setName + " ")) && !name.endsWith(" Set")
+        );
+        globalThis.setPartsCache.set(setName, parts);
+      }
+      allPossibleParts = globalThis.setPartsCache.get(setName);
     }
-    const allPossibleParts = globalThis.setPartsCache.get(setName);
 
     let numSets = 999;
     let setTotalPlat = 0;
@@ -554,7 +606,7 @@ export function renderPrimeInventory() {
       if (metricA.potentialScore !== metricB.potentialScore) return metricB.potentialScore - metricA.potentialScore;
       return metricB.setTotalPlat - metricA.setTotalPlat;
     } else {
-      return a.localeCompare(b);
+      return a.localeCompare(b, undefined, { sensitivity: 'base' });
     }
   });
 
@@ -567,16 +619,24 @@ export function renderPrimeInventory() {
   globalThis.primeRenderId = (globalThis.primeRenderId || 0) + 1;
   const currentRenderId = globalThis.primeRenderId;
 
-  list.innerHTML = `<div style="padding:40px; text-align:center; color:#D4AF37; font-weight:bold; letter-spacing:1px; animation: pulse 1s infinite alternate;">LOADING PRIME PARTS...</div>`;
-
   setTimeout(() => {
     if (globalThis.primeRenderId !== currentRenderId) return;
 
-    list.innerHTML = `
+    // Only clear if empty or completely different, otherwise just prepare headers
+    const headerHtml = `
       <div class="inventory-total-header">
          <div class="total-label">${TEXTS[state.currentLang].inventory.lblTotalValue || "ESTIMATED TOTAL VALUE"}</div>
          <div class="total-value"><span id="total-prime-value">...</span> <span class="plat-icon-inline"></span></div>
       </div>`;
+
+    if (list.querySelector(".inventory-total-header")) {
+      // Keep existing items until chunks replace them for smoother transition
+      const oldTotal = document.getElementById("total-prime-value")?.textContent;
+      list.innerHTML = headerHtml;
+      if (oldTotal) document.getElementById("total-prime-value").textContent = oldTotal;
+    } else {
+      list.innerHTML = headerHtml;
+    }
 
     let currentIndex = 0;
     const renderChunk = () => {
@@ -595,7 +655,11 @@ export function renderPrimeInventory() {
         let numSets = 0;
         let allPossibleParts = [];
         if (setName !== "Otros") {
-          allPossibleParts = globalThis.setPartsCache.get(setName);
+          if (state.setsDatabase && state.setsDatabase[setName]) {
+            allPossibleParts = state.setsDatabase[setName];
+          } else {
+            allPossibleParts = globalThis.setPartsCache?.get(setName) || [];
+          }
           numSets = setMetrics.get(setName).numSets;
         }
 
@@ -614,9 +678,9 @@ export function renderPrimeInventory() {
               ? `<img src="${setIcon}" class="item-icon-small" loading="lazy" onerror="this.style.display='none'">`
               : "";
           })()}
-            <span class="set-title" style="flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHTML(setName)}</span>
+            <span class="set-title">${escapeHTML(setName)}</span>
             <span class="tracker-link-icon" onclick="event.stopPropagation(); globalThis.openSetDetail('${escapeHTML(setName)}')" title="Set Tracker" style="cursor:pointer; margin-left:8px; display:inline-flex; align-items:center; vertical-align:middle; flex-shrink:0;">
-              <img src="assets/target.svg" style="width:22px; height:22px; filter:drop-shadow(0 0 2px rgba(0,204,204,0.5));" alt="Tracker">
+              ${TARGET_SVG_INLINE}
             </span>
             <a href="https://warframe.market/items/${getSlug(setName + " Set")}" target="_blank" class="market-link-icon" onclick="event.stopPropagation()" style="margin-left:6px; flex-shrink:0; font-size:1.1em;">↗</a>
           </div>
@@ -624,8 +688,8 @@ export function renderPrimeInventory() {
           <div class="header-info">
              <span class="set-count-badge" style="display:${numSets > 0 ? "inline-block" : "none"};">${numSets} SETS</span>
              <span class="set-total-price" id="set-price-${safeSetId}">0 <span class="plat-icon-inline"></span></span>
+             <span id="set-mkt-${safeSetId}" class="set-price-marker" style="display:none;">...</span>
           </div>
-          <span id="set-mkt-${safeSetId}" class="set-price-marker" style="display:none" data-setname="${escapeHTML(setName)} Set">...</span>
         </div>
         <div class="inv-set-content">
           ${(setName === "Otros" ? groups[setName].map(p => p.name) : allPossibleParts)
@@ -636,13 +700,7 @@ export function renderPrimeInventory() {
               const requiredCount = getRequiredCount(setName, partName);
               const dotsHtml = generateDotsHtml(qty, requiredCount);
 
-              // Queue individual part price fetch if missing
-              if (!globalThis.MEMORY_CACHE?.has(getSlug(partName))) {
-                setTimeout(() => {
-                  const el = document.getElementById(`price-p-${safeId}`);
-                  if (el) addToQueue(partName, el);
-                }, 50);
-              }
+              // Price fetch is now handled at the end of renderChunk or by updatePrimeTotalValue for items already in cache
 
               return `
               <div class="inv-row-mini">
@@ -653,9 +711,11 @@ export function renderPrimeInventory() {
                     ? `<img src="${partIcon}" class="item-icon-mini" loading="lazy" onerror="this.style.display='none'">`
                     : "";
                 })()}
-                  <div class="name-column">
+                   <div class="name-column">
                      <span class="part-name">${escapeHTML(shortName)}</span>
-                     ${dotsHtml}
+                     <div class="live-tracker" data-part="${escapeHTML(partName)}" data-req="${requiredCount}">
+                        ${dotsHtml}
+                     </div>
                   </div>
                 </div>
 
@@ -670,7 +730,7 @@ export function renderPrimeInventory() {
 
                 <div class="inv-qty-controls-mini">
                   <button class="inv-btn-small" data-action="modify-prime-part" data-part="${escapeHTML(partName)}" data-amount="-1">−</button>
-                  <span class="qty-num">${qty}</span>
+                  <span class="qty-num" data-part="${escapeHTML(partName)}">${qty}</span>
                   <button class="inv-btn-small" data-action="modify-prime-part" data-part="${escapeHTML(partName)}" data-amount="1">+</button>
                 </div>
               </div>`;
@@ -686,6 +746,9 @@ export function renderPrimeInventory() {
 
       list.appendChild(fragment);
 
+      // INCREMENTAL TOTAL: Update total after every chunk to show progress
+      updatePrimeTotalValue();
+
       if (currentIndex < setNames.length) {
         requestAnimationFrame(renderChunk);
       } else {
@@ -696,17 +759,33 @@ export function renderPrimeInventory() {
           if (el) addToQueue(setName + " Set", el);
         });
 
+        // Trigger a targeted warmup for any parts currently visible but not in cache
+        if (typeof warmupPrices === "function") {
+          warmupPrices();
+        }
+
         setTimeout(updatePrimeTotalValue, 100);
       }
     };
 
     requestAnimationFrame(renderChunk);
+
+    // LIVE SYNC: Start a temporary interval to pick up prices as they finish loading from the queue
+    if (globalThis.invTotalSyncInterval) clearInterval(globalThis.invTotalSyncInterval);
+    let syncCount = 0;
+    globalThis.invTotalSyncInterval = setInterval(() => {
+      syncCount++;
+      updatePrimeTotalValue();
+      // Stop after 20 seconds or if inventory is closed (checked via DOM existence)
+      if (syncCount > 40 || !document.getElementById("inventory-list-parts")) {
+        clearInterval(globalThis.invTotalSyncInterval);
+      }
+    }, 500);
   }, 10);
 }
 
 export async function updatePrimeTotalValue() {
   let totalGlobal = 0;
-  let allLoaded = true;
   const entries = Object.entries(state.primeInventory);
   const invGroups = {};
 
@@ -720,9 +799,20 @@ export async function updatePrimeTotalValue() {
       const itemSlug = getSlug(itemName);
       let price = 0;
 
+      const safeId = itemName.replaceAll(/[^a-zA-Z0-9]/g, "");
+      const badge = document.getElementById(`price-p-${safeId}`);
+
       const cachedRaw = globalThis.MEMORY_CACHE?.get(itemSlug);
       if (cachedRaw !== undefined) {
         price = Number.parseInt(cachedRaw, 10);
+        if (badge) {
+          badge.classList.remove("price-loading-blink");
+          if (badge.textContent.includes("...") || badge.textContent.trim() === "") {
+            badge.innerHTML = `${price} <span class="plat-icon-inline"></span>`;
+          }
+        }
+      } else if (badge) {
+        badge.classList.add("price-loading-blink");
       }
       if (Number.isNaN(price)) price = 0;
 
@@ -732,16 +822,31 @@ export async function updatePrimeTotalValue() {
 
   Object.keys(invGroups).forEach((setNameRaw) => {
     if (setNameRaw === "Otros") return;
-    const setSlug = getSlug(setNameRaw + " Set");
-    let price = 0;
+    const safeSetId = setNameRaw.replaceAll(/[^a-zA-Z0-9]/g, "");
+    const mktEl = document.getElementById(`set-mkt-${safeSetId}`);
 
-    const cachedRaw = globalThis.MEMORY_CACHE?.get(setSlug);
+    const cachedRaw = globalThis.MEMORY_CACHE?.get(getSlug(setNameRaw + " Set"));
+    const price = cachedRaw !== undefined ? Number.parseInt(cachedRaw, 10) : 0;
+
     if (cachedRaw !== undefined) {
-      price = Number.parseInt(cachedRaw, 10);
+      if (!Number.isNaN(price) && mktEl) {
+        mktEl.classList.remove("price-loading-blink");
+        mktEl.innerHTML = `
+          <div style="display:flex; flex-direction:column; align-items:flex-end; gap:0; margin-top:2px;">
+            <span style="font-size:0.55em; opacity:0.5; line-height:1; letter-spacing:0.5px;">MARKET SET</span>
+            <span style="font-size:0.85em;">${price} <span class="plat-icon-inline"></span></span>
+          </div>
+        `;
+        mktEl.style.display = "inline-block";
+      }
+    } else if (mktEl) {
+      mktEl.classList.add("price-loading-blink");
+      if (mktEl.textContent === "") mktEl.textContent = "...";
+      mktEl.style.display = "inline-block";
     }
-    if (Number.isNaN(price)) price = 0;
 
-    invGroups[setNameRaw].setPrice = price;
+    invGroups[setNameRaw].setPrice = Number.isNaN(price) ? 0 : price;
+    invGroups[setNameRaw].setPriceLoaded = (cachedRaw !== undefined);
   });
 
   Object.keys(invGroups).forEach((setName) => {
@@ -767,11 +872,16 @@ function calculateGroupSubtotal(setName, groupData) {
     return sumIndividualParts(groupData.parts);
   }
 
-  const allPossibleParts = Object.keys(state.itemsDatabase).filter(
-    (name) =>
-      (name === setName || name.startsWith(setName + " ")) &&
-      !name.endsWith(" Set"),
-  );
+  let allPossibleParts = [];
+  if (state.setsDatabase && state.setsDatabase[setName]) {
+    allPossibleParts = state.setsDatabase[setName];
+  } else {
+    allPossibleParts = Object.keys(state.itemsDatabase).filter(
+      (name) =>
+        (name === setName || name.startsWith(setName + " ")) &&
+        !name.endsWith(" Set"),
+    );
+  }
 
   if (allPossibleParts.length === 0) {
     return sumIndividualParts(groupData.parts);

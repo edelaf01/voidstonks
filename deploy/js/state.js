@@ -23,6 +23,7 @@ export const state = {
   showAllFarms: false,
   primeInventory: {},
   primeManifest: [],
+  autoSyncRewards: true,
 };
 let saveTimer = null;
 export function saveAppState() {
@@ -43,6 +44,7 @@ export function saveAppState() {
       inventory: state.inventory,
       showAllFarms: state.showAllFarms,
       primeInventory: state.primeInventory,
+      autoSyncRewards: state.autoSyncRewards,
     };
 
     localStorage.setItem("voidStonks_save", JSON.stringify(data));
@@ -84,6 +86,8 @@ export function loadAppState() {
       if (data.lfgPresets) state.lfgPresets = data.lfgPresets;
       if (data.inventory) state.inventory = data.inventory;
       if (data.primeInventory) state.primeInventory = data.primeInventory;
+      if (typeof data.autoSyncRewards !== "undefined")
+        state.autoSyncRewards = data.autoSyncRewards;
       return state.activeTab;
     } catch (e) {
       console.warn("Error cargando save:", e);

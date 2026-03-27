@@ -66,17 +66,22 @@ export function generateDotsHtml(owned, required) {
 export function calculateTotalFullSets(setName) {
   if (!setName || setName === "Otros") return 0;
   
-  if (!globalThis.setPartsCache) globalThis.setPartsCache = new Map();
-  if (!globalThis.setPartsCache.has(setName) || globalThis.setPartsCache.get(setName).length === 0) {
-    const parts = Object.keys(state.itemsDatabase || {}).filter(
-      (name) =>
-        (name === setName || name.startsWith(setName + " ")) &&
-        !name.endsWith(" Set")
-    );
-    globalThis.setPartsCache.set(setName, parts);
+  let allParts = [];
+  if (state.setsDatabase && state.setsDatabase[setName]) {
+    allParts = state.setsDatabase[setName];
+  } else {
+    if (!globalThis.setPartsCache) globalThis.setPartsCache = new Map();
+    if (!globalThis.setPartsCache.has(setName) || globalThis.setPartsCache.get(setName).length === 0) {
+      const parts = Object.keys(state.itemsDatabase || {}).filter(
+        (name) =>
+          (name === setName || name.startsWith(setName + " ")) &&
+          !name.endsWith(" Set")
+      );
+      globalThis.setPartsCache.set(setName, parts);
+    }
+    allParts = globalThis.setPartsCache.get(setName);
   }
   
-  const allParts = globalThis.setPartsCache.get(setName);
 
   let possibleSets = Infinity;
   allParts.forEach((partName) => {
@@ -100,17 +105,24 @@ export function generateSetProgressTooltip(setName) {
   if (!setName || setName === "Otros") return "";
   const tKeys = TEXTS[state.currentLang];
   
-  if (!globalThis.setPartsCache) globalThis.setPartsCache = new Map();
-  if (!globalThis.setPartsCache.has(setName)) {
-    const parts = Object.keys(state.itemsDatabase || {}).filter(
-      (name) =>
-        (name === setName || name.startsWith(setName + " ")) &&
-        !name.endsWith(" Set")
-    );
-    globalThis.setPartsCache.set(setName, parts);
+  // Use pre-calculated setsDatabase if available for O(1) lookup
+  let partsList = [];
+  if (state.setsDatabase && state.setsDatabase[setName]) {
+    partsList = state.setsDatabase[setName];
+  } else {
+    if (!globalThis.setPartsCache) globalThis.setPartsCache = new Map();
+    if (!globalThis.setPartsCache.has(setName)) {
+      const parts = Object.keys(state.itemsDatabase || {}).filter(
+        (name) =>
+          (name === setName || name.startsWith(setName + " ")) &&
+          !name.endsWith(" Set")
+      );
+      globalThis.setPartsCache.set(setName, parts);
+    }
+    partsList = globalThis.setPartsCache.get(setName);
   }
   
-  const itemNames = [...globalThis.setPartsCache.get(setName)].sort();
+  const itemNames = [...partsList].sort();
 
   if (itemNames.length === 0) return "";
 

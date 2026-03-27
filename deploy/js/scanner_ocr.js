@@ -2,19 +2,17 @@ import { state } from "./state.js";
 
 let worker1 = null;
 let worker2 = null;
-let worker3 = null;
 
 // Workers dedicados exclusivamente para Cantidades (números)
 let badgeWorker1 = null;
 let badgeWorker2 = null;
-let badgeWorker3 = null;
 
 let DYNAMIC_KNOWN_PARTS = new Set();
 let DYNAMIC_REGEX = null;
 let CACHED_DB_ITEMS = [];
 
 export async function initOcrWorkers() {
-  if (worker1) return [worker1, worker2, worker3];
+  if (worker1) return [worker1, worker2];
 
   // eslint-disable-next-line no-undef
   const tess = globalThis.Tesseract || Tesseract;
@@ -29,66 +27,41 @@ export async function initOcrWorkers() {
     });
     return w;
   };
-  // scanner_ocr.js
+
   const initBadgeWorker = async () => {
     const w = await tess.createWorker("eng");
     await w.setParameters({
-      // Solo dígitos
       tessedit_char_whitelist: " 0123456789",
-      // PSM 7: Trata la imagen como una sola línea de texto.
-      // Ahora que la imagen es grande y tiene padding, esto será perfecto.
       tessedit_pageseg_mode: "7",
-      // LSTM Mode
       tessedit_ocr_engine_mode: "3",
     });
     return w;
   };
-  // Inicializamos 6 workers en total (3 textos, 3 badges)
-  [worker1, worker2, worker3, badgeWorker1, badgeWorker2, badgeWorker3] =
+
+  // Inicializamos 4 workers en total (2 textos, 2 badges)
+  [worker1, worker2, badgeWorker1, badgeWorker2] =
     await Promise.all([
       initWorker(),
       initWorker(),
-      initWorker(),
-      initBadgeWorker(),
       initBadgeWorker(),
       initBadgeWorker(),
     ]);
-  return [worker1, worker2, worker3];
+  return [worker1, worker2];
 }
 
 export function stopOcrWorkers() {
-  if (worker1) {
-    worker1.terminate();
-    worker1 = null;
-  }
-  if (worker2) {
-    worker2.terminate();
-    worker2 = null;
-  }
-  if (worker3) {
-    worker3.terminate();
-    worker3 = null;
-  }
-  if (badgeWorker1) {
-    badgeWorker1.terminate();
-    badgeWorker1 = null;
-  }
-  if (badgeWorker2) {
-    badgeWorker2.terminate();
-    badgeWorker2 = null;
-  }
-  if (badgeWorker3) {
-    badgeWorker3.terminate();
-    badgeWorker3 = null;
-  }
+  if (worker1) { worker1.terminate(); worker1 = null; }
+  if (worker2) { worker2.terminate(); worker2 = null; }
+  if (badgeWorker1) { badgeWorker1.terminate(); badgeWorker1 = null; }
+  if (badgeWorker2) { badgeWorker2.terminate(); badgeWorker2 = null; }
 }
 
 export function getWorkers() {
-  return [worker1, worker2, worker3];
+  return [worker1, worker2];
 }
 
 export function getBadgeWorkers() {
-  return [badgeWorker1, badgeWorker2, badgeWorker3];
+  return [badgeWorker1, badgeWorker2];
 }
 
 export function initScannerMatcherData() {
@@ -397,6 +370,119 @@ function isOptionalBlueprint(targetComp, prevWordDB) {
   return validPredecessors.includes(prevWordDB);
 }
 function isFirstWordMatch(ocrText, dbFirstWord) {
-  const similarityThreshold = dbFirstWord.length <= 3 ? 0.9 : 0.85;
-  return getSimilarity(ocrText, dbFirstWord) > similarityThreshold;
+  const cleanOCR = ocrText.toUpperCase().replaceAll(/[^A-Z0-9]/g, "");
+  const cleanDB = dbFirstWord.toUpperCase().replaceAll(/[^A-Z0-9]/g, "");
+
+  if (cleanOCR === cleanDB) return true;
+  if (cleanOCR.length < 3 || cleanDB.length < 3) return cleanOCR === cleanDB;
+
+  const similarityThreshold = dbFirstWord.length <= 3 ? 0.85 : 0.8;
+  return getSimilarity(cleanOCR, cleanDB) > similarityThreshold;
+}
+
+/**
+ * Versión especializada para la pantalla de recompensas.
+ * Busca no solo el nombre del ítem, sino también "OWNED", "CRAFTED" y cantidades.
+ */
+export function parseTextForRewards(ocrData) {
+  if (!ocrData?.words) return [];
+  console.log("%c >>> MOTOR OCR V5 (FIXED QUANTITY) ACTIVADO <<< ", "background: #222; color: #bada55");
+  const dbItems = getCachedDbItems();
+
+  const ocrWords = ocrData.words.map(w => ({
+    text: w.text.toUpperCase(),
+    x: (w.bbox.x0 + w.bbox.x1) / 2,
+    y: (w.bbox.y0 + w.bbox.y1) / 2
+  }));
+
+  const itemMatches = [];
+  const used = new Set();
+  
+  for (let i = 0; i < ocrWords.length; i++) {
+    if (used.has(i)) continue;
+    for (const dbItem of dbItems) {
+      if (isFirstWordMatch(ocrWords[i].text, dbItem.firstWord)) {
+        const found = attemptItemMatch(i, dbItem, 2, ocrWords, used);
+        if (found) {
+          const avgX = found.reduce((s, idx) => s + ocrWords[idx].x, 0) / found.length;
+          const avgY = found.reduce((s, idx) => s + ocrWords[idx].y, 0) / found.length;
+          itemMatches.push({ name: dbItem.originalName, x: avgX, y: avgY });
+          found.forEach(idx => used.add(idx));
+          break;
+        }
+      }
+    }
+  }
+
+  const metaLabels = [];
+  ocrWords.forEach((word, idx) => {
+    const oMatch = word.text.match(/([OD0][WNM]NED)/i);
+    if (oMatch) {
+      // 20wned -> prefix="2" -> qty=2
+      const prefix = word.text.substring(0, oMatch.index).trim();
+      let qty = (prefix && /\d+/.test(prefix)) ? Number.parseInt(prefix.match(/\d+/)[0]) : 0;
+      
+      if (qty === 0) {
+        const prev = ocrWords[idx-1];
+        if (prev && /\d+/.test(prev.text) && Math.abs(prev.x - word.x) < 200) {
+           qty = Number.parseInt(prev.text.match(/\d+/)[0]);
+        } else {
+           qty = 1;
+        }
+      }
+      metaLabels.push({ qty, x: word.x, type: 'owned' });
+    }
+    if (/CRA[FT][FT]ED|GRAFTED/i.test(word.text)) {
+       metaLabels.push({ qty: 1, x: word.x, type: 'crafted' });
+    }
+  });
+
+  return itemMatches.map(item => {
+    let bestL = null; 
+    let minDist = 400; 
+    let bestIdx = -1;
+
+    metaLabels.forEach((l, lIdx) => {
+      const d = Math.abs(l.x - item.x);
+      if (d < minDist) { minDist = d; bestL = l; bestIdx = lIdx; }
+    });
+
+    if (bestIdx !== -1) metaLabels.splice(bestIdx, 1);
+
+    return {
+      name: item.name, xPos: item.x, yPos: item.y,
+      owned: (bestL && bestL.type === 'owned') ? bestL.qty : 0,
+      crafted: (bestL && bestL.type === 'crafted') ? 1 : 0
+    };
+  });
+}
+
+
+function attemptItemMatch(startIndex, item, lookAheadLimit, ocrWords, usedIndices) {
+  const matchedIndices = [startIndex];
+  let currentPos = startIndex;
+
+  for (let j = 1; j < item.searchWords.length; j++) {
+    const targetComp = item.searchWords[j];
+    let found = false;
+
+    for (let dist = 1; dist <= lookAheadLimit; dist++) {
+      const nextIdx = currentPos + dist;
+      if (nextIdx >= ocrWords.length || usedIndices.has(nextIdx)) continue;
+
+      if (getSimilarity(ocrWords[nextIdx].text.replaceAll(/[^A-Z]/g, ""), targetComp) > 0.75) {
+        matchedIndices.push(nextIdx);
+        currentPos = nextIdx;
+        found = true;
+        break;
+      }
+    }
+
+    if (!found) {
+      if (!isOptionalBlueprint(targetComp, item.searchWords[j - 1])) {
+        return null;
+      }
+    }
+  }
+  return matchedIndices;
 }
