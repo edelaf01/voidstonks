@@ -268,9 +268,9 @@ export function renderSetTracker() {
     <div style="display:flex; align-items:center; gap:8px; line-height:1; width:100%;">
       <span data-tooltip="${t.tooltipTracker}" style="color:#888; text-transform:uppercase; letter-spacing:1px; font-weight:800; font-size:0.75em; cursor:help;">${t.trackerTitle}:</span> 
       ${setIconHtml}
-      <a href="${setUrl}" target="_blank" class="set-header-link" style="display:flex; align-items:center; gap:4px; text-decoration:none;">
+      <a href="${setUrl}" target="_blank" class="set-header-link" style="text-decoration:none; display:inline-flex; align-items:center; gap:4px;">
         <span style="font-weight:bold; font-size:1.1em; color:var(--wf-gold-text); filter:drop-shadow(0 2px 4px rgba(221,169,56,0.3));">${state.currentActiveSet}</span>
-        <span style="font-size:1.0em; opacity:0.8; color:var(--wf-gold-text);">↗</span>
+        <span style="font-size:0.9em; opacity:0.8; color:var(--wf-gold-text);">↗</span>
       </a>
       ${setBadge}
     </div>
@@ -365,7 +365,6 @@ export function renderSetTracker() {
     dotsDiv.style.display = "flex";
     dotsDiv.style.alignItems = "center";
     dotsDiv.style.flexShrink = "0";
-    dotsDiv.style.width = "115px";
     dotsDiv.style.justifyContent = "flex-end";
     dotsDiv.innerHTML = generateDotsHtml(ownedCount, requiredCount);
 
@@ -377,15 +376,13 @@ export function renderSetTracker() {
     ducatsSpan.style.alignItems = "center";
     ducatsSpan.style.justifyContent = "flex-end";
     ducatsSpan.style.flexShrink = "0";
-    ducatsSpan.style.width = "45px";
     ducatsSpan.innerHTML = `${state.itemsDatabase[partName] ? state.itemsDatabase[partName][0].ducats : 0}&nbsp;<img src="assets/Ducats.webp" class="ducat-icon" style="width:14px; height:14px; object-fit:contain;">`;
 
     const controlsDiv = document.createElement("div");
     controlsDiv.style.display = "flex";
     controlsDiv.style.alignItems = "center";
-    controlsDiv.style.justifyContent = "space-between";
+    controlsDiv.style.justifyContent = "flex-end";
     controlsDiv.style.flexShrink = "0";
-    controlsDiv.style.width = "60px";
     controlsDiv.style.gap = "4px";
 
     const btnMinus = document.createElement("button");

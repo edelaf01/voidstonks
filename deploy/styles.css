@@ -1041,9 +1041,10 @@ option {
 /* Refined Inventory Header */
 .panel-main-header-refined {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: space-between;
-  padding: 10px 15px;
+  justify-content: center;
+  padding: 12px 15px;
   background: linear-gradient(90deg, rgba(0, 229, 255, 0.05) 0%, rgba(0, 0, 0, 0.6) 50%, rgba(212, 175, 55, 0.05) 100%);
   border-bottom: 2px solid rgba(255, 255, 255, 0.05);
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
@@ -2476,13 +2477,17 @@ body.theme-bounties {
 }
 
 .set-header-link {
-  border-bottom: 1px dotted var(--wf-gold-text);
   transition: all 0.2s ease;
   margin-left: 5px;
 }
 
-.set-header-link:hover {
-  color: #fff;
+.set-header-link span:first-child {
+  border-bottom: 1px dotted var(--wf-gold-text);
+  transition: all 0.2s ease;
+}
+
+.set-header-link:hover span:first-child {
+  color: #fff !important;
   border-bottom-style: solid;
   text-shadow: 0 0 10px var(--wf-gold-text);
 }
@@ -4186,7 +4191,7 @@ body.theme-bounties {
     margin-bottom: 2px !important;
   }
 
-  .header-controls {
+  .site-header .header-controls {
     display: flex !important;
     position: relative !important;
     width: 100% !important;
@@ -4677,25 +4682,72 @@ button[onclick*="importInventory"]:hover {
     max-width: 95vw !important;
   }
 
-  .inv-set-header,
+  /* Mobile Two-Row Set Header: Title on Top, Components Below */
+  .inv-set-header {
+    display: grid !important;
+    grid-template-columns: auto auto auto auto 1fr auto !important;
+    grid-template-areas:
+      "title title title title title title"
+      "controls icon tracker market . info" !important;
+    align-items: center;
+    gap: 8px 10px !important;
+    padding: 10px 12px !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  .inv-set-header .header-main {
+    display: contents !important;
+  }
+
+  .inv-set-header .set-title {
+    grid-area: title;
+    width: 100% !important;
+    text-align: center !important;
+    font-size: 0.95rem !important;
+    white-space: normal !important;
+    word-break: break-word !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding-bottom: 6px;
+    margin-bottom: 2px;
+  }
+
+  .inv-set-header .header-controls {
+    grid-area: controls;
+  }
+
+  .inv-set-header .item-icon-small {
+    grid-area: icon;
+    margin: 0 !important;
+  }
+
+  .inv-set-header .tracker-link-icon {
+    grid-area: tracker;
+  }
+
+  .inv-set-header .market-link-icon {
+    grid-area: market;
+  }
+
+  .inv-set-header .header-info {
+    grid-area: info;
+    align-items: flex-end;
+  }
+
+  /* Retain grid only for inventory mini-rows */
   .inv-row-mini {
+    display: grid !important;
     grid-template-columns: 1fr auto !important;
     gap: 8px !important;
     padding: 10px !important;
   }
 
-  .header-controls {
-    grid-row: 2;
-    grid-column: 1 / -1;
-    justify-content: flex-end;
-    border-top: 1px solid rgba(255, 255, 255, 0.05);
-    padding-top: 5px;
-  }
-
-  .header-main,
   .row-main {
     grid-column: 1 / -1;
   }
+
 
   .item-icon-small {
     width: 36px !important;
@@ -4715,6 +4767,31 @@ button[onclick*="importInventory"]:hover {
 
 /* Ajuste Móvil */
 @media (max-width: 480px) {
+
+  .component-row {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 10px;
+  }
+
+  .component-info {
+    width: 100% !important;
+    flex: none !important;
+    margin-bottom: 6px !important;
+  }
+
+  .actions-col-wrapper {
+    flex: 1 !important;
+    justify-content: flex-start !important;
+    margin-right: auto !important;
+  }
+
+  .component-row>div:last-child {
+    /* The Ducats & Price div */
+    flex: 1 !important;
+    justify-content: flex-end !important;
+  }
+
   .bounty-item {
     flex-direction: column;
     align-items: flex-start;
@@ -5018,7 +5095,6 @@ button[onclick*="importInventory"]:hover {
 .inv-set-header {
   background: rgba(25, 30, 40, 0.7);
   padding: 6px 12px;
-  display: flex !important;
   align-items: center;
   gap: 10px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
@@ -5049,7 +5125,7 @@ button[onclick*="importInventory"]:hover {
   align-items: flex-end;
   justify-content: center;
   gap: 2px;
-  min-width: 85px;
+
   flex-shrink: 0;
 }
 

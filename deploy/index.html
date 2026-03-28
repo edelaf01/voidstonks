@@ -551,20 +551,25 @@
       <div class="scan-header">
         <div style="display:flex; align-items:center; gap:10px;">
           <h3>REWARDS DETECTED</h3>
-          <button id="rewards-dbg-toggle" class="orokin-btn-mini" style="font-size:10px; padding:2px 5px;" onclick="document.getElementById('rewards-dbg-text').classList.toggle('hidden')">DBG</button>
+          <button id="rewards-dbg-toggle" class="orokin-btn-mini" style="font-size:10px; padding:2px 5px;"
+            onclick="document.getElementById('rewards-dbg-text').classList.toggle('hidden')">DBG</button>
         </div>
-        <div class="reward-sync-controls" style="display: flex; align-items: center; gap: 8px; margin-right: auto; margin-left: 20px;">
-          <label class="orokin-toggle" style="display: flex; align-items: center; gap: 5px; cursor: pointer; font-size: 0.75rem; color: #888;">
-            <input type="checkbox" id="sync-rewards-toggle" checked onchange="globalThis.toggleRewardsAutoSync(this.checked)" style="accent-color: #00e5ff;">
+        <div class="reward-sync-controls"
+          style="display: flex; align-items: center; gap: 8px; margin-right: auto; margin-left: 20px;">
+          <label class="orokin-toggle"
+            style="display: flex; align-items: center; gap: 5px; cursor: pointer; font-size: 0.75rem; color: #888;">
+            <input type="checkbox" id="sync-rewards-toggle" checked
+              onchange="globalThis.toggleRewardsAutoSync(this.checked)" style="accent-color: #00e5ff;">
             <span class="sync-toggle-label">AUTO-SYNC</span>
           </label>
-          <span class="help-icon" style="color: #555; cursor: help; font-size: 0.8rem;" 
-                data-tooltip="SI: Sincroniza TODO con el VISTO (Prioridad OCR). NO: Solo añade +1 a la pieza que elijas manualmente.">ⓘ</span>
+          <span class="help-icon" style="color: #555; cursor: help; font-size: 0.8rem;"
+            data-tooltip="SI: Sincroniza TODO con el VISTO (Prioridad OCR). NO: Solo añade +1 a la pieza que elijas manualmente.">ⓘ</span>
         </div>
         <button class="close-modal-btn" onclick="closeScanModal()">✕</button>
       </div>
 
-      <div id="rewards-dbg-text" class="hidden" style="background:#000; color:#ff9800; font-family:monospace; font-size:11px; padding:10px; margin:0 20px 10px; border:1px solid #333; max-height:100px; overflow-y:auto; border-radius:4px;">
+      <div id="rewards-dbg-text" class="hidden"
+        style="background:#000; color:#ff9800; font-family:monospace; font-size:11px; padding:10px; margin:0 20px 10px; border:1px solid #333; max-height:100px; overflow-y:auto; border-radius:4px;">
         RAW OCR: <span id="rewards-raw-ocr-content">...</span>
       </div>
 
@@ -597,12 +602,8 @@
       </button>
     </div>
     <div class="panel-main-header-refined">
-      <button class="inv-action-btn export-btn" onclick="globalThis.exportInventory()" title="Export JSON">
-        <span class="btn-icon">⬇</span>
-        <span class="btn-text">EXPORT</span>
-      </button>
-
-      <div class="header-center">
+      <div class="header-center"
+        style="width: 100%; display: flex; justify-content: center; align-items: center; margin-bottom: 6px;">
         <span id="txt-inv-title">MY INVENTORY</span>
         <span class="orokin-clear-btn" onclick="globalThis.clearInventory()" title="Orokin Purge (Clear Contextual)">
           <svg class="orokin-trash-svg" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -615,10 +616,17 @@
         </span>
       </div>
 
-      <button class="inv-action-btn import-btn" onclick="globalThis.importInventory()" title="Import JSON">
-        <span class="btn-icon">⬆</span>
-        <span class="btn-text">IMPORT</span>
-      </button>
+      <div class="inv-action-buttons-row" style="display: flex; gap: 12px; justify-content: center; width: 100%;">
+        <button class="inv-action-btn export-btn" onclick="globalThis.exportInventory()" title="Export JSON">
+          <span class="btn-icon">⬇</span>
+          <span class="btn-text">EXPORT</span>
+        </button>
+
+        <button class="inv-action-btn import-btn" onclick="globalThis.importInventory()" title="Import JSON">
+          <span class="btn-icon">⬆</span>
+          <span class="btn-text">IMPORT</span>
+        </button>
+      </div>
     </div>
 
     <div id="relic-inv-controls" class="inventory-controls"
