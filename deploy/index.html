@@ -1254,12 +1254,14 @@
           <button id="orokin-btn-confirm" class="action-btn confirm" style="flex: 1; font-weight: 700">
             CONFIRM
           </button>
-          <button id="orokin-btn-cancel" class="action-btn" onclick="closeOrokinConfirm()" style="
-                flex: 1;
-                border-color: rgba(255, 255, 255, 0.2);
-                color: #aaa;
-              ">
-            CANCEL
+          <button id="orokin-btn-cancel" class="action-btn" onclick="globalThis.closeOrokinConfirm()" style="
+            background: transparent;
+            border: 1px solid rgba(255, 68, 68, 0.4);
+            color: #ff4444;
+            flex: 1;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          ">
+            CANCELAR
           </button>
         </div>
       </div>
