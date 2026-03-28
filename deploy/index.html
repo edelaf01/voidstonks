@@ -29,6 +29,7 @@
   <meta property="twitter:image" content="https://wiki.warframe.com/images/Void_Projections_Icon.png" />
 
   <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="css/components/inventory.css?v=1.3" />
   <link rel="icon" type="image/png" href="https://wiki.warframe.com/images/VoidTraces.png" />
 </head>
 
@@ -602,8 +603,12 @@
       </button>
     </div>
     <div class="panel-main-header-refined">
-      <div class="header-center"
-        style="width: 100%; display: flex; justify-content: center; align-items: center; margin-bottom: 6px;">
+      <button class="inv-action-btn export-btn" onclick="globalThis.exportInventory()" title="Export JSON">
+        <span class="btn-icon">⬇</span>
+        <span class="btn-text">EXPORT</span>
+      </button>
+
+      <div class="header-center">
         <span id="txt-inv-title">MY INVENTORY</span>
         <span class="orokin-clear-btn" onclick="globalThis.clearInventory()" title="Orokin Purge (Clear Contextual)">
           <svg class="orokin-trash-svg" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -616,17 +621,10 @@
         </span>
       </div>
 
-      <div class="inv-action-buttons-row" style="display: flex; gap: 12px; justify-content: center; width: 100%;">
-        <button class="inv-action-btn export-btn" onclick="globalThis.exportInventory()" title="Export JSON">
-          <span class="btn-icon">⬇</span>
-          <span class="btn-text">EXPORT</span>
-        </button>
-
-        <button class="inv-action-btn import-btn" onclick="globalThis.importInventory()" title="Import JSON">
-          <span class="btn-icon">⬆</span>
-          <span class="btn-text">IMPORT</span>
-        </button>
-      </div>
+      <button class="inv-action-btn import-btn" onclick="globalThis.importInventory()" title="Import JSON">
+        <span class="btn-icon">⬆</span>
+        <span class="btn-text">IMPORT</span>
+      </button>
     </div>
 
     <div id="relic-inv-controls" class="inventory-controls"
