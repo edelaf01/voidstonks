@@ -181,7 +181,7 @@
     box-sizing: border-box;
 }
 
-.header-controls {
+.inv-set-header .header-controls {
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -190,7 +190,7 @@
     flex-shrink: 0;
 }
 
-.header-main {
+.inv-set-header .header-main {
     display: flex !important;
     align-items: center !important;
     gap: 8px;
@@ -198,13 +198,12 @@
     flex: 1;
 }
 
-.header-info {
+.inv-set-header .header-info {
     display: flex;
     flex-direction: column;
     align-items: flex-end;
     justify-content: center;
     gap: 2px;
-
     flex-shrink: 0;
 }
 

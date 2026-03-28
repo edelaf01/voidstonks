@@ -4497,6 +4497,20 @@ button[onclick*="importInventory"]:hover {
   text-overflow: ellipsis;
 }
 
+.site-header .header-version {
+  font-size: 0.6em;
+  color: var(--wf-blue);
+  opacity: 0.8;
+  margin-left: 8px;
+  vertical-align: top;
+}
+
+.site-header .header-controls {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
 .bounty-tag span {
   font-size: 0.9em;
   opacity: 0.7;

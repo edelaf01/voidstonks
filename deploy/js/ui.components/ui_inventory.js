@@ -483,6 +483,41 @@ export function deletePrimeSet(setName) {
   renderPrimeInventory();
 }
 
+export function decrementPrimeSet(setName) {
+  let allPossibleParts = [];
+  if (state.setsDatabase && state.setsDatabase[setName]) {
+    allPossibleParts = state.setsDatabase[setName];
+  } else {
+    allPossibleParts = globalThis.setPartsCache?.get(setName) || [];
+  }
+
+  if (allPossibleParts.length === 0) return;
+
+  let anyRemoved = false;
+  allPossibleParts.forEach(p => {
+    const reqMatch = p.match(/(\d+)x$/);
+    let requiredCount = 1;
+    let partName = p;
+    if (reqMatch) {
+      requiredCount = parseInt(reqMatch[1], 10);
+      partName = p.replace(/\s*\d+x$/, "").trim();
+    }
+
+    if (state.primeInventory[partName]) {
+      state.primeInventory[partName] = Math.max(0, state.primeInventory[partName] - requiredCount);
+      anyRemoved = true;
+      if (state.primeInventory[partName] === 0) {
+        delete state.primeInventory[partName];
+      }
+    }
+  });
+
+  if (anyRemoved) {
+    saveAppState();
+    renderPrimeInventory();
+  }
+}
+
 export function toggleInvSet(safeSetId) {
   const el = document.getElementById(`set-group-${safeSetId}`);
   if (el) el.classList.toggle("collapsed");
@@ -667,7 +702,10 @@ export function renderPrimeInventory() {
       <div class="inv-set-group collapsed" id="set-group-${safeSetId}">
         <div class="inv-set-header" data-action="toggle-inv-set" data-setid="${safeSetId}" style="cursor:pointer;">
           <div class="header-controls">
-            <button class="delete-set-btn" data-action="delete-prime-set" data-setname="${escapeHTML(setName)}">×</button>
+            <div style="display:flex; gap:4px;">
+              ${numSets >= 1 ? `<button class="delete-set-btn" data-action="decrement-prime-set" data-setname="${escapeHTML(setName)}" title="-1 Set" style="font-size:0.75em; padding: 2px 4px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: #fff; border-radius: 3px; cursor: pointer; transition: all 0.2s; line-height: 1;">-1</button>` : ''}
+              <button class="delete-set-btn" data-action="delete-prime-set" data-setname="${escapeHTML(setName)}" title="Delete Everything">×</button>
+            </div>
             <span class="toggle-icon">▼</span>
           </div>
           
@@ -1023,6 +1061,7 @@ Object.assign(globalThis, {
   switchInvView,
   modifyPrimePart,
   deletePrimeSet,
+  decrementPrimeSet,
   toggleInvSet,
   openSetDetail,
   renderInventory,
@@ -1055,6 +1094,9 @@ document.addEventListener("click", (e) => {
       break;
     case "delete-prime-set":
       requestAnimationFrame(() => deletePrimeSet(data.setname));
+      break;
+    case "decrement-prime-set":
+      requestAnimationFrame(() => decrementPrimeSet(data.setname));
       break;
     case "modify-prime-part":
       requestAnimationFrame(() => modifyPrimePart(data.part, Number.parseInt(data.amount)));
