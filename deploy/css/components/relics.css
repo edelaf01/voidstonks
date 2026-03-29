@@ -1,0 +1,178 @@
+/* ==============================================
+   RELICS.CSS - Bounty & Relic Drop Styles
+   Extracted from styles.css for modularization
+   ============================================== */
+
+/* ---- Bounty List Container ---- */
+#bounties-list-container {
+    padding: 10px 5px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.card.theme-bounties {
+    --active-theme-color: #ff8c00;
+}
+
+.tab-btn.bounties:hover {
+    color: #ff8c00;
+}
+
+/* ---- Faction Header ---- */
+.faction-header {
+    background: linear-gradient(90deg,
+            rgba(255, 255, 255, 0.05) 0%,
+            transparent 80%);
+    border-left-width: 4px;
+    border-left-style: solid;
+    padding: 12px 15px;
+    border-radius: 0 6px 6px 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 10px;
+    margin-bottom: 5px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+}
+
+.faction-name {
+    font-weight: 800;
+    text-transform: uppercase;
+    font-size: 1.1em;
+    letter-spacing: 1px;
+    text-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+}
+
+/* ---- Bounty Item Cards ---- */
+.bounty-item {
+    background-color: #16191d;
+    border: 1px solid #333;
+    border-radius: 6px;
+    padding: 12px 15px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s;
+    position: relative;
+    overflow: hidden;
+}
+
+.bounty-item:hover {
+    transform: translateX(5px);
+    border-color: var(--active-theme-color, #fff);
+    background-color: #1c2026;
+}
+
+.bounty-item.is-sp {
+    border-color: rgba(255, 68, 68, 0.4);
+    background: linear-gradient(90deg, rgba(220, 20, 60, 0.08) 0%, #16191d 60%);
+}
+
+.bounty-item.is-sp:hover {
+    border-color: #ff4444;
+    box-shadow: inset 0 0 20px rgba(255, 0, 0, 0.05);
+}
+
+/* ---- Bounty Info Typography ---- */
+.bounty-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1;
+    min-width: 0;
+}
+
+.bounty-type {
+    color: #f0f0f0;
+    font-size: 0.95em;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.sp-badge {
+    background: #ff4444;
+    color: #000;
+    font-size: 0.65em;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: 900;
+    letter-spacing: 0.5px;
+    box-shadow: 0 0 8px #ff4444;
+}
+
+.bounty-tag {
+    font-size: 0.8em;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.bounty-tag span {
+    font-size: 0.9em;
+    opacity: 0.7;
+    margin-left: 8px;
+    font-weight: normal;
+    font-family: monospace;
+}
+
+/* ---- Drop Table Detail Styles ---- */
+.stage-container {
+    border-bottom: 1px solid #222;
+    margin-bottom: 0;
+}
+
+.stage-header {
+    background: #15171a;
+    color: #666;
+    font-size: 0.7rem;
+    font-weight: 800;
+    padding: 4px 12px;
+    letter-spacing: 1px;
+    border-top: 1px solid #222;
+}
+
+.stage-content {
+    padding: 4px 12px;
+}
+
+.drop-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 3px 0;
+    font-size: 0.85rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.drop-row:last-child {
+    border-bottom: none;
+}
+
+.drop-name {
+    color: #bbb;
+    flex-grow: 1;
+    padding-right: 10px;
+}
+
+.drop-name.aya {
+    color: var(--wf-aya);
+    text-shadow: 0 0 5px rgba(165, 69, 224, 0.3);
+}
+
+.drop-name.relic {
+    color: #fff;
+    font-weight: 500;
+}
+
+.drop-name.endo {
+    color: var(--wf-gold-text);
+}
+
+.drop-name.mod {
+    color: #aaa;
+}

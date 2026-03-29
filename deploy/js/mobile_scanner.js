@@ -38,6 +38,11 @@ export class MobileScanner {
     }
 
     try {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error(
+          "Camera not available. Make sure you are using HTTPS and your browser supports camera access."
+        );
+      }
       this.stream = await navigator.mediaDevices.getUserMedia({
         audio: false,
         video: {
@@ -80,10 +85,9 @@ export class MobileScanner {
         border-left: 4px solid #00e5ff; padding: 10px 12px; border-radius: 4px;
         color: #eee; font-size: 12px; line-height: 1.4; pointer-events: none;
         backdrop-filter: blur(4px); transition: all 0.3s ease;
-        ${
-          isLandscape
-            ? "top: 15px; left: 15px; width: 220px; text-align: left;"
-            : "top: 18%; left: 50%; transform: translateX(-50%); width: 85%; text-align: center;"
+        ${isLandscape
+          ? "top: 15px; left: 15px; width: 220px; text-align: left;"
+          : "top: 18%; left: 50%; transform: translateX(-50%); width: 85%; text-align: center;"
         }
       `;
     };
@@ -436,9 +440,8 @@ export class MobileScanner {
       highestScore > MIN_SCORE &&
       !debugBox.innerHTML.includes(bestMatch.name)
     ) {
-      debugBox.innerHTML += `<br><span style="color:#3498db">Best: ${
-        bestMatch.name
-      } (${highestScore.toFixed(2)})</span>`;
+      debugBox.innerHTML += `<br><span style="color:#3498db">Best: ${bestMatch.name
+        } (${highestScore.toFixed(2)})</span>`;
     }
 
     return highestScore >= MIN_SCORE ? bestMatch : null;
