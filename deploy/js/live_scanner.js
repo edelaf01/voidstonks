@@ -1062,13 +1062,32 @@ async function openScanModal(imageUrl, items, width, height, scale, rawOcr = "")
     const fragment = document.createDocumentFragment();
 
     const sortedItems = [...potentialMap].sort((a, b) => a.xPos - b.xPos);
+    const targetW = width * scale;
+    const positionedItems = sortedItems.map(item => ({
+      ...item,
+      leftPct: typeof item.xPos === 'number' && targetW > 0
+        ? (item.xPos / targetW) * 100
+        : null,
+    }));
 
-    sortedItems.forEach((item) => {
+    const BADGE_GAP_PCT = 13;
+    for (let i = 1; i < positionedItems.length; i++) {
+      const prev = positionedItems[i - 1];
+      const curr = positionedItems[i];
+      if (prev.leftPct !== null && curr.leftPct !== null) {
+        if (curr.leftPct - prev.leftPct < BADGE_GAP_PCT) {
+          curr.leftPct = prev.leftPct + BADGE_GAP_PCT;
+        }
+      }
+    }
+    positionedItems.forEach(item => {
+      if (item.leftPct !== null) item.leftPct = Math.min(98, Math.max(2, item.leftPct));
+    });
+
+    positionedItems.forEach((item) => {
       const currentAppCount = state.primeInventory ? (state.primeInventory[item.name] || 0) : 0;
-
       const isCurrentlySelected = item.name && selectedScanItem &&
         item.name.toUpperCase().trim() === selectedScanItem.toUpperCase().trim();
-
       const isCompletingSet = canItemCompleteSet(item.name);
 
       createModalBadge(
@@ -1083,8 +1102,7 @@ async function openScanModal(imageUrl, items, width, height, scale, rawOcr = "")
           isBestPl: item.price === maxPl && item.price > 0,
           isBestEff: item.potential === maxPotential && item.potential > 0,
           isCompletingSet: isCompletingSet,
-          xPos: item.xPos,
-          targetW: width * scale,
+          leftPct: item.leftPct,
         },
         fragment,
       );
@@ -1096,14 +1114,13 @@ async function openScanModal(imageUrl, items, width, height, scale, rawOcr = "")
 }
 
 function createModalBadge(
-  { name, price, ducats, owned, appOwned, crafted, isSelected, isBestPl, isBestEff, isCompletingSet, xPos, targetW },
+  { name, price, ducats, owned, appOwned, crafted, isSelected, isBestPl, isBestEff, isCompletingSet, leftPct },
   container,
 ) {
   const badge = document.createElement("div");
   badge.className = `modal-badge ${isBestPl ? "best-pl" : ""} ${isBestEff ? "best-duc" : ""} ${isSelected ? "selected-reward" : ""}`;
 
-  if (typeof xPos === 'number' && targetW) {
-    const leftPct = (xPos / targetW) * 100;
+  if (leftPct !== null && leftPct !== undefined) {
     badge.style.left = `${leftPct}%`;
   }
 
