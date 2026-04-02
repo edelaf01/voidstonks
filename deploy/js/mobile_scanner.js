@@ -1,635 +1,702 @@
-import { state } from "./state.js";
 import { getPriceValue, getSlug } from "./api.js";
 import { showToast } from "./ui.components/ui_components.js";
+import { initScannerMatcherData, parseTextForRewards, initOcrWorkers, findBestItemMatch, isPerfectDbWord } from "./scanner_ocr.js";
+import { OpenCVEngine } from "./opencv_engine.js";
 
-globalThis.onerror = function (msg, url, lineNo, columnNo, error) {
-  return false;
-};
-
+/**
+ * MobileScanner V22 - Premium Targeting Guide
+ * Uses 500px crop height and X-position accumulation for robust detection.
+ */
 export class MobileScanner {
   stream = null;
   video = null;
-  canvas = null;
-  ctx = null;
-  worker = null;
-  isProcessing = false;
-  debugMode = false;
-  cachedDb = [];
-  tempCanvas = document.createElement("canvas");
-  tempCtx = this.tempCanvas.getContext("2d", {
-    willReadFrequently: true,
-  });
+  worker1 = null;
+  worker2 = null;
+  worker3 = null;
+  rewardCount = 4; // V147 Manual Control
+  calibratedColor = null; // V177 Semantic Color Profile
 
-  async start() {
-    this.createOverlay();
-    showToast("Iniciando...");
+  toggleScannerDebug() {
+    this.debugMode = !this.debugMode;
 
-    if (!this.worker && globalThis.Tesseract) {
-      try {
-        this.worker = await Tesseract.createWorker("eng");
-        await this.worker.setParameters({
-          tessedit_pageseg_mode: "6",
-          tessedit_char_whitelist:
-            "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuwxyz ",
-        });
-      } catch (e) {
-        alert("Error Tesseract: " + e.message);
+    const guide = document.getElementById("scanner-box-guide");
+    const sideGallery = document.getElementById("scanner-side-gallery");
+    const debugLog = document.getElementById("scanner-debug-log");
+    const dbgBtn = document.getElementById("btn-debug-toggle");
+
+    if (this.debugMode) {
+      if (guide) {
+        guide.style.borderColor = "#00e5ff";
+        guide.style.boxShadow = "0 0 20px #00e5ff";
+        guide.style.borderStyle = "solid";
       }
-    }
-
-    try {
-      if (!navigator.mediaDevices?.getUserMedia) {
-        throw new Error(
-          "Camera not available. Make sure you are using HTTPS and your browser supports camera access."
-        );
+      if (sideGallery) {
+        sideGallery.style.display = "flex";
+        sideGallery.style.right = "0px";
       }
-      this.stream = await navigator.mediaDevices.getUserMedia({
-        audio: false,
-        video: {
-          facingMode: "environment",
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
-          advanced: [{ focusMode: "continuous" }],
-        },
-      });
-
-      this.video.srcObject = this.stream;
-      this.video.onloadedmetadata = async () => {
-        await this.video.play();
-      };
-    } catch (err) {
-      alert("Error cámara: " + err.message);
-      this.close();
+      if (debugLog) debugLog.style.display = "block";
+      if (dbgBtn) {
+        dbgBtn.style.color = "#00e5ff";
+        dbgBtn.style.borderColor = "#00e5ff";
+        dbgBtn.style.background = "rgba(0, 229, 255, 0.1)";
+      }
+    } else {
+      if (guide) {
+        guide.style.borderColor = "rgba(255,255,255,0.7)";
+        guide.style.boxShadow = "0 0 0 9999px rgba(0,0,0,0.75)";
+        guide.style.borderStyle = "dashed";
+      }
+      if (sideGallery) {
+        sideGallery.style.display = "none";
+        sideGallery.style.right = "-200px";
+      }
+      if (debugLog) debugLog.style.display = "none";
+      if (dbgBtn) {
+        dbgBtn.style.color = "#506070";
+        dbgBtn.style.borderColor = "#2a3040";
+        dbgBtn.style.background = "none";
+      }
     }
   }
 
+  // Calibración V89: Ultra-Slim Industrial (Máxima Velocidad)
+  calibratedCropY = -1;
+  calibratedCropH = 180;
+  calibratedCropX = -1;
+  calibratedCropW = -1;
+
+  async start() {
+    globalThis.currentScanner = this;
+    initScannerMatcherData();
+    this.createOverlay();
+
+    try {
+      const success = await OpenCVEngine.waitReady(30000);
+      if (!success) this.setVisionStatus("ERROR AL CARGAR MOTOR", "#ff4b2b");
+
+      // V195: No bloqueamos el inicio de cámara por el OCR
+      initOcrWorkers().then(workers => {
+        this.worker1 = workers[0]; this.worker2 = workers[1]; this.worker3 = workers[2];
+        this.setVisionStatus("MOTOR OCR LISTO", "#2ecc71");
+      });
+
+      if (!navigator.mediaDevices?.getUserMedia) throw new Error("HTTPS Required");
+      this.stream = await navigator.mediaDevices.getUserMedia({
+        audio: false, video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } }
+      });
+      this.video.srcObject = this.stream;
+      await this.video.play();
+
+      this.startDiscoveryLoop();
+      this.updateGuideDividers(); // Inicializar lineas de guia
+      showToast("Escáner Premium de Alta Precisión");
+    } catch (err) { showToast("Error: " + err.message); this.close(); }
+  }
+
+  setVisionStatus(text, color) {
+    const el = document.getElementById("scanner-vision-status");
+    if (el) { el.innerText = text; el.style.color = color; }
+  }
+
   createOverlay() {
-    const overlay = document.createElement("div");
-    overlay.id = "mobile-scan-overlay";
-    overlay.style.cssText = `
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: #000; z-index: 100000; display: flex; flex-direction: column;
-        `;
+    const overlay = document.createElement("div"); overlay.id = "mobile-scan-overlay";
+    overlay.style.cssText = "position:fixed; top:0; left:0; width:100%; height:100%; background:transparent; z-index:100000; overflow:hidden; pointer-events:none;";
+    this.video = document.createElement("video"); this.video.style.cssText = "width:100%; height:100%; object-fit:cover; pointer-events:none; z-index:100001;";
+    overlay.appendChild(this.video);
 
-    this.video = document.createElement("video");
-    this.video.style.cssText = "width: 100%; height: 100%; object-fit: cover;";
-    this.video.autoplay = true;
-    this.video.playsInline = true;
+    const backdrop = document.createElement("div"); backdrop.id = "scanner-backdrop";
+    backdrop.style.cssText = "position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:100005; pointer-events:none;";
+    overlay.appendChild(backdrop);
 
-    const instructionBox = document.createElement("div");
-    instructionBox.id = "scanner-instructions";
-    const updateStyles = () => {
-      const isLandscape = window.innerWidth > window.innerHeight;
-      instructionBox.style.cssText = `
-        position: absolute; z-index: 100002; background: rgba(15, 17, 21, 0.85);
-        border-left: 4px solid #00e5ff; padding: 10px 12px; border-radius: 4px;
-        color: #eee; font-size: 12px; line-height: 1.4; pointer-events: none;
-        backdrop-filter: blur(4px); transition: all 0.3s ease;
-        ${isLandscape
-          ? "top: 15px; left: 15px; width: 220px; text-align: left;"
-          : "top: 18%; left: 50%; transform: translateX(-50%); width: 85%; text-align: center;"
-        }
-      `;
+    const headerBar = document.createElement("div"); headerBar.id = "scanner-header-bar";
+    headerBar.style.cssText = "position:absolute; top:0; left:0; width:100%; height:120px; pointer-events:none; z-index:100010;";
+    overlay.appendChild(headerBar);
+
+    const titleDiv = document.createElement("div");
+    titleDiv.style.cssText = "position:absolute; top:20px; left:15px; display:flex; align-items:center; gap:10px; z-index:100006; pointer-events:auto;";
+    titleDiv.innerHTML = `
+      <div style="background:#00e5ff; width:6px; height:6px; border-radius:50%; box-shadow:0 0 10px #00e5ff;"></div>
+      <div style="color:#00e5ff; font-weight:900; font-size:11px; letter-spacing:2px; text-shadow:0 0 10px rgba(0,229,255,0.5);">LIVE RELIC SCANNER</div>
+    `;
+    headerBar.appendChild(titleDiv);
+
+    const status = document.createElement("div"); status.id = "scanner-vision-status";
+    status.style.cssText = "position:absolute; top:45px; left:31px; font-family:monospace; font-size:8px; font-weight:900; z-index:100004; letter-spacing:1px; color:#506070;";
+    headerBar.appendChild(status);
+
+    const dbgToggle = document.createElement("button");
+    dbgToggle.innerText = "DEBUG"; dbgToggle.id = "btn-debug-hud";
+    dbgToggle.style.cssText = "position:absolute; top:20px; right:75px; width:65px; height:40px; border-radius:20px; background:rgba(0,0,0,0.5); border:1px solid #00e5ff; color:#00e5ff; font-weight:900; font-size:10px; cursor:pointer; z-index:100005; pointer-events:auto;";
+    dbgToggle.onclick = () => this.toggleScannerDebug();
+    headerBar.appendChild(dbgToggle);
+
+    const hideHeaderBtn = document.createElement("button");
+    hideHeaderBtn.innerText = "HIDE UI"; hideHeaderBtn.style.cssText = "position:absolute; top:70px; left:15px; width:55px; height:24px; border-radius:12px; background:rgba(0,0,0,0.5); border:1px solid #444; color:#888; font-weight:900; font-size:8px; cursor:pointer; z-index:100006; pointer-events:auto;";
+    hideHeaderBtn.onclick = () => {
+      const bar = document.getElementById("scanner-header-bar");
+      const isHidden = bar.style.opacity === "0";
+      bar.style.opacity = isHidden ? "1" : "0";
+      bar.style.pointerEvents = isHidden ? "auto" : "none";
+      hideHeaderBtn.innerText = isHidden ? "HIDE UI" : "SHOW UI";
+      hideHeaderBtn.style.borderColor = isHidden ? "#444" : "#00ff78";
+      hideHeaderBtn.style.color = isHidden ? "#888" : "#00ff78";
     };
-    updateStyles();
-    window.addEventListener("resize", updateStyles);
+    overlay.appendChild(hideHeaderBtn);
 
-    instructionBox.innerHTML = `
-        <strong style="color:#00e5ff; display:block; margin-bottom:4px; font-size:11px;">HOW TO SCAN:</strong>
-        Point at rewards. Position <strong>item names</strong> inside the rectangle. Closer/clearer text improves detection.
+    const guide = document.createElement("div"); guide.id = "scanner-box-guide";
+    guide.style.cssText = "position:absolute; top:50%; left:50%; transform:translate(-50%, -50%); width:90%; height:180px; border:2px dashed rgba(255,255,255,0.7); z-index:100010; pointer-events:auto; background:transparent;";
+    overlay.appendChild(guide);
+
+    const shutterBtn = document.createElement("button"); shutterBtn.style.cssText = "position:absolute; bottom:30px; left:50%; transform:translateX(-50%); width:80px; height:80px; border-radius:50%; border:5px solid #fff; background:rgba(255,255,255,0.2); z-index:100020; cursor:pointer; pointer-events:auto;";
+    shutterBtn.innerHTML = "<div style='width:58px; height:58px; background:#fff; border-radius:50%; margin:4.5px;'></div>";
+    shutterBtn.onclick = () => this.captureAndProcess();
+    overlay.appendChild(shutterBtn);
+
+    const countSelector = document.createElement("div"); countSelector.style.cssText = "position:absolute; bottom:130px; left:50%; transform:translateX(-50%); display:flex; gap:10px; z-index:100025; pointer-events:auto;";
+    for (let i = 1; i <= 4; i++) {
+      const btn = document.createElement("button"); btn.innerText = i; btn.id = `btn-count-${i}`;
+      btn.style.cssText = `width:40px; height:40px; border-radius:8px; border:1px solid ${i === this.rewardCount ? "#00e5ff" : "rgba(255,255,255,0.2)"}; background:${i === this.rewardCount ? "rgba(0,229,255,0.2)" : "rgba(0,0,0,0.5)"}; color:${i === this.rewardCount ? "#00e5ff" : "#fff"}; font-weight:900; font-size:16px; cursor:pointer;`;
+      btn.onclick = () => this.setRewardCount(i);
+      countSelector.appendChild(btn);
+    }
+    overlay.appendChild(countSelector);
+
+    const closeBtn = document.createElement("button"); closeBtn.innerHTML = "✕"; closeBtn.style.cssText = "position:absolute; top:20px; right:20px; background:rgba(0,0,0,0.5); color:#fff; width:40px; height:40px; border-radius:50%; border:1px solid #444; z-index:100030; pointer-events:auto;";
+    closeBtn.onclick = () => this.close();
+    overlay.appendChild(closeBtn);
+
+    const debugPanel = document.createElement("div"); debugPanel.id = "scanner-debug-log";
+    debugPanel.style.cssText = "position:absolute; top:70px; left:5%; width:90%; background:rgba(10,12,16,0.98); border:1px solid #00e5ff; z-index:100020; max-height:250px; overflow-y:auto; padding:8px; display:none; color:white; font-family:monospace; font-size:9px; border-radius:8px; word-break:break-all; white-space:pre-wrap;";
+
+    const labelsLayer = document.createElement("div"); labelsLayer.id = "scanner-labels-layer";
+    labelsLayer.style.cssText = "position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:100005;";
+    guide.appendChild(labelsLayer);
+
+    // V91 DEBUG GALLERY: Ventanita lateral para las fotos del OCR
+    const sideGallery = document.createElement("div"); sideGallery.id = "scanner-side-gallery";
+    sideGallery.style.cssText = `
+        position:absolute; top:80px; right:-200px; width:180px; bottom:120px; 
+        background: rgba(10, 15, 20, 0.95); backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px);
+        border-left: 1px solid #00e5ff; border-radius: 12px 0 0 12px;
+        z-index: 100030; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 10px;
+        transition: right 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        box-shadow: -10px 0 30px rgba(0,0,0,0.5); pointer-events: none;
     `;
 
-    const guideBox = document.createElement("div");
-    guideBox.style.cssText = `
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            width: 90%; height: 20%;
-            border: 2px dashed rgba(0, 229, 255, 0.7); border-radius: 8px;
-            box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
-            pointer-events: none; z-index: 100001;
-        `;
-
-    const shutterBtn = document.createElement("button");
-    shutterBtn.style.cssText = `
-            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
-            width: 70px; height: 70px; border-radius: 50%; 
-            background: rgba(255, 255, 255, 0.2); border: 4px solid #fff; 
-            z-index: 100002; cursor: pointer; display: flex; align-items: center; justify-content: center;
-        `;
-    const innerBtn = document.createElement("div");
-    innerBtn.style.cssText =
-      "width: 55px; height: 55px; background: #fff; border-radius: 50%;";
-    shutterBtn.appendChild(innerBtn);
-    shutterBtn.onclick = (e) => {
-      e.stopPropagation();
-      this.captureAndProcess();
+    const toggleGallery = document.createElement("button");
+    toggleGallery.id = "toggle-side-gallery";
+    toggleGallery.style.cssText = "position:absolute; top:80px; right:0; width:25px; height:60px; background:#00e5ff; color:#000; border:none; border-radius:10px 0 0 10px; z-index:100031; cursor:pointer; font-size:14px; font-weight:bold;";
+    toggleGallery.innerText = "‹";
+    toggleGallery.onclick = () => {
+      const open = sideGallery.style.right === "0px";
+      sideGallery.style.right = open ? "-200px" : "0px";
+      toggleGallery.innerText = open ? "‹" : "›";
+      toggleGallery.style.right = open ? "0" : "180px";
     };
 
-    const closeBtn = document.createElement("button");
-    closeBtn.innerHTML = "✕";
-    closeBtn.style.cssText = `
-            position: absolute; top: 15px; right: 15px; 
-            background: rgba(0,0,0,0.4); color: #fff; border: 1px solid rgba(255,255,255,0.5);
-            width: 35px; height: 35px; border-radius: 50%; font-size: 16px; z-index: 100003;
-            backdrop-filter: blur(4px); cursor: pointer;
-        `;
-    closeBtn.onclick = () => {
-      window.removeEventListener("resize", updateStyles);
-      this.close();
-    };
+    overlay.appendChild(this.video); overlay.appendChild(headerBar); overlay.appendChild(guide);
+    overlay.appendChild(shutterBtn); overlay.appendChild(countSelector); overlay.appendChild(closeBtn);
+    overlay.appendChild(sideGallery); overlay.appendChild(toggleGallery);
 
-    overlay.appendChild(this.video);
-    overlay.appendChild(guideBox);
-    overlay.appendChild(instructionBox);
-    overlay.appendChild(shutterBtn);
-    overlay.appendChild(closeBtn);
+    // V85 INDUSTRIAL: Glassmorphic Badge Styles
+    if (!document.getElementById("premium-mobile-badges-style")) {
+      const style = document.createElement("style");
+      style.id = "premium-mobile-badges-style";
+      style.textContent = `
+        .premium-mobile-badge {
+          position: absolute; background: rgba(10, 15, 20, 0.9); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+          border: 1px solid rgba(0, 229, 255, 0.2); border-left: 4px solid #00e5ff; border-radius: 6px; padding: 4px 10px;
+          color: #fff; font-family: system-ui, sans-serif; display: flex; flex-direction: column; gap: 1px;
+          transform: translate(-50%, -120%); pointer-events: none; box-shadow: 0 4px 15px rgba(0,0,0,0.6);
+          animation: badgePop 0.2s cubic-bezier(0.18, 0.89, 0.32, 1.28); z-index: 10001; white-space: nowrap;
+        }
+        @keyframes badgePop {
+          from { opacity: 0; transform: translate(-50%, -100%) scale(0.8); }
+          to { opacity: 1; transform: translate(-50%, -120%) scale(1); }
+        }
+        .pmb-name { font-size: 8.5px; font-weight: 800; text-transform: uppercase; color: #00e5ff; letter-spacing: 0.5px; }
+        .pmb-data { display: flex; gap: 8px; align-items: center; }
+        .pmb-price { color: #f1c40f; font-weight: 900; font-size: 11px; display: flex; align-items: center; gap: 2px; }
+        .pmb-owned { color: #888; font-size: 9px; font-weight: 700; border-left: 1px solid rgba(255,255,255,0.1); padding-left: 8px; }
+      `;
+      document.head.appendChild(style);
+    }
+
     document.body.appendChild(overlay);
+  }
+
+  setRewardCount(n) {
+    this.rewardCount = n;
+    for (let i = 1; i <= 4; i++) {
+      const btn = document.getElementById(`btn-count-${i}`);
+      if (btn) {
+        btn.style.borderColor = (i === n) ? "#00e5ff" : "rgba(255,255,255,0.2)";
+        btn.style.background = (i === n) ? "rgba(0,229,255,0.2)" : "rgba(0,0,0,0.5)";
+        btn.style.color = (i === n) ? "#00e5ff" : "#fff";
+      }
+    }
+    this.updateGuideDividers();
+    showToast(`Escaneando ${n} recompensas`);
+  }
+
+  updateGuideDividers() {
+    const guide = document.getElementById("scanner-box-guide");
+    if (!guide) return;
+
+    // Limpiar lineas viejas
+    guide.querySelectorAll(".guide-divider").forEach(el => el.remove());
+
+    if (this.rewardCount > 1) {
+      for (let i = 1; i < this.rewardCount; i++) {
+        const line = document.createElement("div");
+        line.className = "guide-divider";
+        line.style.cssText = `position:absolute; top:0; bottom:0; left:${(100 / this.rewardCount) * i}%; width:1px; background:rgba(0,229,255,0.3); z-index:50;`;
+        guide.appendChild(line);
+      }
+    }
+  }
+
+  close() {
+    if (this.stream) {
+      this.stream.getTracks().forEach(track => track.stop());
+    }
+    const overlay = document.getElementById("mobile-scan-overlay");
+    if (overlay) overlay.remove();
+    if (this.discoveryInterval) clearInterval(this.discoveryInterval);
+    globalThis.mobileScanner = null;
+    globalThis.currentScanner = null;
+  }
+
+  async startDiscoveryLoop() {
+    if (this.discoveryInterval) return;
+    this.discoveryInterval = setInterval(async () => {
+      if (this.isProcessing || !this.worker3) return;
+      try {
+        const video = this.video;
+        const vw = video.videoWidth, vh = video.videoHeight;
+        if (vw < 10) return;
+
+        const guide = document.getElementById("scanner-box-guide");
+        const vRect = video.getBoundingClientRect();
+        const gRect = guide ? guide.getBoundingClientRect() : { top: vRect.top + (vRect.height - 180) / 2, height: 180, left: vRect.left, width: vRect.width };
+
+        const videoAspect = vw / vh, screenAspect = vRect.width / vRect.height;
+        let scale, offsetX = 0, offsetY = 0;
+        if (videoAspect > screenAspect) {
+          scale = vRect.height / vh;
+          offsetX = (vh * videoAspect * scale - vRect.width) / 2;
+        } else {
+          scale = vRect.width / vw;
+          offsetY = (vw / videoAspect * scale - vRect.height) / 2;
+        }
+
+        const cX = Math.max(0, Math.floor(((gRect.left - vRect.left) + offsetX) / scale));
+        const cY = Math.max(0, Math.floor(((gRect.top - vRect.top) + offsetY) / scale));
+        const cW = Math.min(vw - cX, Math.floor(gRect.width / scale));
+        const cH = Math.min(vh - cY, Math.floor(gRect.height / scale));
+
+        const canvasScale = 0.4;
+        const cvs = document.createElement("canvas");
+        cvs.width = Math.floor(cW * canvasScale); cvs.height = Math.floor(cH * canvasScale);
+        const ctx = cvs.getContext("2d");
+        if (cvs.width <= 0 || cvs.height <= 0) return;
+        ctx.drawImage(video, cX, cY, cW, cH, 0, 0, cvs.width, cvs.height);
+
+        if (OpenCVEngine.isReady) {
+          OpenCVEngine.processForOCR(cvs, "discovery", this.calibratedColor, state.visionSettings);
+        }
+
+        // V195: Si los workers aún no están listos, saltamos este frame de descubrimiento
+        if (!this.worker3) return;
+
+        const { data } = await this.worker3.recognize(cvs);
+        // V140: Unificamos lógica de Discovery con el motor de recompensas
+        const rewards = parseTextForRewards(data);
+        const matches = rewards.map(r => ({ text: r.name, confidence: 99 }));
+
+        const guideEl = document.getElementById("scanner-box-guide");
+        if (guideEl) {
+          if (matches.length > 0) { guideEl.style.borderColor = "#00e5ff"; guideEl.style.boxShadow = "0 0 20px #00e5ff"; }
+          else { guideEl.style.borderColor = "rgba(255,255,255,0.4)"; guideEl.style.boxShadow = "0 0 0 9999px rgba(0,0,0,0.6)"; }
+        }
+        this.updateDiscoveryLabels(matches, cW, cH, 0, canvasScale);
+
+        // V196: Notificamos telemetría al dashboard (sobre todo en modo DEBUG)
+        if (typeof this.onDiscoveryFrame === "function") {
+          this.onDiscoveryFrame(matches, cW, cH, cY);
+        }
+      } catch (e) { console.warn("Discovery err", e); }
+    }, 1500);
+  }
+
+  updateDiscoveryLabels(words, vidW, vidH, cropY, scale) {
+    const layer = document.getElementById("scanner-labels-layer"); if (!layer) return;
+
+    const currentMatches = words.map(w => w.text.toUpperCase());
+    if (layer.dataset.lastKeys === currentMatches.join("|")) return;
+    layer.dataset.lastKeys = currentMatches.join("|");
+    layer.innerHTML = "";
+
+    words.forEach(w => {
+      const label = document.createElement("div");
+      label.className = "premium-mobile-badge";
+
+      // V92: Coordenadas relativas directas al Canvas (que ahora mapea al Guide)
+      const xNorm = ((w.bbox.x0 + w.bbox.x1) / 2) / (vidW * scale);
+      const yNorm = ((w.bbox.y0 + w.bbox.y1) / 2) / (vidH * scale);
+
+      label.style.left = `${xNorm * 100}%`;
+      label.style.top = `${yNorm * 100}%`;
+
+      const match = findBestItemMatch(w.text);
+      const itemNameBase = match ? match.name : w.text.toUpperCase();
+      const price = getPriceValue(itemNameBase, getSlug(itemNameBase));
+      const owned = state.primeInventory ? (state.primeInventory[itemNameBase] || 0) : 0;
+
+      label.innerHTML = `
+        <div class="pmb-name">${itemNameBase}</div>
+        <div class="pmb-data">
+          <div class="pmb-price">
+            <span style="width:8px;height:8px;background:#f1c40f;border-radius:50%;display:inline-block;"></span>
+            ${price > 0 ? price : "—"}
+          </div>
+          <div class="pmb-owned">INV: ${owned}</div>
+        </div>
+      `;
+      layer.appendChild(label);
+      setTimeout(() => label.style.opacity = "0", 1800);
+      setTimeout(() => label.remove(), 2500);
+    });
   }
 
   async captureAndProcess() {
     if (this.isProcessing) return;
     this.isProcessing = true;
-    showToast("Procesando...");
 
-    const debugBox = this.debugMode
-      ? document.getElementById("ocr-raw-debug")
-      : null;
-    if (debugBox) debugBox.innerText = "Analizando...";
+    const loader = document.getElementById("ocr-loading");
+    const loaderText = loader?.querySelector("p");
+    if (loader) {
+      loader.classList.remove("hidden");
+      if (loaderText) loaderText.innerText = "INICIANDO VISIÓN ARTIFICIAL...";
+    }
+
+    const sideGallery = document.getElementById("scanner-side-gallery");
+    if (sideGallery) sideGallery.innerHTML = "<div style='color:#00e5ff; font-size:10px; font-weight:900; letter-spacing:1px; border-bottom:1px solid #333; padding-bottom:5px;'>V91 VISION FEED</div>";
 
     try {
-      if (!this.worker) throw new Error("Tesseract no cargado");
-      if (!this.canvas) {
-        this.canvas = document.createElement("canvas");
-        this.ctx = this.canvas.getContext("2d", { willReadFrequently: true });
-      }
+      const video = this.video;
+      const vw = video.videoWidth, vh = video.videoHeight;
+      if (vw < 10) return;
 
-      const vidW = this.video.videoWidth;
-      const vidH = this.video.videoHeight;
-      const cropH = Math.floor(vidH * 0.25);
-      const cropW = vidW;
-      const cropX = 0;
-      const cropY = Math.floor((vidH - cropH) / 2);
+      // V92 DYNAMIC CALIBRATION: Mapeo absoluto entre CSS y Píxeles de Vídeo
+      const guide = document.getElementById("scanner-box-guide");
+      const vRect = video.getBoundingClientRect();
+      const gRect = guide ? guide.getBoundingClientRect() : { top: vRect.top + (vRect.height - 180) / 2, height: 180, left: vRect.left, width: vRect.width };
 
-      const SCALE = 0.6;
-      const finalW = Math.floor(cropW * SCALE);
-      const finalH = Math.floor(cropH * SCALE);
+      // Calcular escala de la imagen proyectada (object-fit: cover)
+      const videoAspect = vw / vh;
+      const screenAspect = vRect.width / vRect.height;
 
-      this.canvas.width = finalW;
-      this.canvas.height = finalH;
-
-      this.ctx.drawImage(
-        this.video,
-        cropX,
-        cropY,
-        cropW,
-        cropH,
-        0,
-        0,
-        finalW,
-        finalH,
-      );
-      this.video.pause();
-
-      const rawImageData = this.ctx.getImageData(0, 0, finalW, finalH);
-      const processedData = this.processImageVariant(rawImageData);
-
-      if (this.debugMode) {
-        this.showDebugImage(processedData, finalW, finalH);
-      }
-
-      this.tempCanvas.width = finalW;
-      this.tempCanvas.height = finalH;
-      this.tempCtx.putImageData(processedData, 0, 0);
-
-      const res = await this.worker.recognize(this.tempCanvas);
-      const text = res.data.text.trim();
-
-      if (debugBox) {
-        debugBox.innerHTML = `<span style='color:#f1c40f'>RAW:</span> "${text}"`;
-      }
-
-      if (this.isGarbageText(text)) {
-        if (debugBox)
-          debugBox.innerHTML += `<br><span style='color:#e74c3c'>Ruido</span>`;
-        showToast("Texto ilegible.");
+      let scale, offsetX = 0, offsetY = 0;
+      if (videoAspect > screenAspect) {
+        // El vídeo es más ancho que la pantalla (se cortan los laterales)
+        scale = vRect.height / vh;
+        offsetX = (vh * videoAspect * scale - vRect.width) / 2;
       } else {
-        const items = this.parseItemsFromOCR_Spatial(res.data, 0);
+        // El vídeo es más alto que la pantalla (se corta arriba/abajo)
+        scale = vRect.width / vw;
+        offsetY = (vw / videoAspect * scale - vRect.height) / 2;
+      }
 
-        if (items.length > 0) {
-          this.showResults(items);
-        } else {
-          const singleMatch = this.findBestMatchInDatabase(text);
-          if (singleMatch) {
-            if (debugBox)
-              debugBox.innerHTML += `<br><span style='color:#3498db'>Bruto:</span> ${singleMatch.name}`;
-            this.showResults([{ ...singleMatch, xPos: 0 }]);
-          } else {
-            if (debugBox)
-              debugBox.innerHTML += `<br><span style='color:#e74c3c'>Sin coincidencia</span>`;
-            showToast("Sin coincidencias.");
+      // Mapear Coordenadas del Guía (Pantalla) -> Vídeo (Píxeles Reales)
+      const cX = Math.max(0, Math.floor(((gRect.left - vRect.left) + offsetX) / scale));
+      const cY = Math.max(0, Math.floor(((gRect.top - vRect.top) + offsetY) / scale));
+      const cW = Math.min(vw - cX, Math.floor(gRect.width / scale));
+      const cH = Math.min(vh - cY, Math.floor(gRect.height / scale));
+
+      const mainCvs = document.createElement("canvas");
+      mainCvs.width = cW;
+      mainCvs.height = cH;
+      const mCtx = mainCvs.getContext("2d");
+      mCtx.drawImage(video, cX, cY, cW, cH, 0, 0, cW, cH);
+
+      const results = []; // Aquí acumularemos los hallazgos únicos
+      const sessionResults = []; // Datos para el diagnóstico agrupado
+
+      // V147 MANUAL PARTITIONING:
+      const strips = [];
+      const stripH = Math.floor(cH / this.rewardCount);
+      const padV = Math.floor(stripH * 0.12); // V184: Aumentamos a 12% para evitar cortes verticales
+      const padH = Math.floor(cW * 0.08);
+
+      for (let i = 0; i < this.rewardCount; i++) {
+        const sY = Math.max(0, (i * stripH) - padV);
+        const sH = Math.min(cH - sY, stripH + (padV * 2));
+        const sX = Math.max(0, -padH);
+        const sW = Math.min(cW, cW + (padH * 2));
+        strips.push({ x: cX + sX, y: cY + sY, w: sW, h: sH });
+      }
+
+      const debugLog = document.getElementById("scanner-debug-log");
+      if (debugLog && this.debugMode) {
+        debugLog.innerHTML = `<div style="color:#00e5ff; font-weight:900;">[V178] MODO ${this.rewardCount} RECOMPENSAS</div>
+                              <div style="color:#506070; font-size:10px; margin-bottom:5px;">${this.calibratedColor ? "PROFILING COLOR ACTIVO" : "SCANNER STANDBY"}</div>`;
+        debugLog.style.display = "block";
+      }
+      if (mainCvs.width <= 0 || mainCvs.height <= 0) return;
+      console.log(`[V197] CAPTURA INDUSTRIAL: ${mainCvs.width}x${mainCvs.height}`);
+
+      const ocrPromises = strips.map(async (strip, idx) => {
+        // ACTUALIZACIÓN DE PROGRESO EN PANTALLA DE CARGA
+        const statusMsg = `PROCESANDO: ${idx + 1}/${strips.length} BLOQUES...`;
+        if (loaderText) loaderText.innerText = statusMsg;
+
+        const statusEl = document.getElementById("scanner-vision-status");
+        if (statusEl) {
+          statusEl.innerText = statusMsg;
+          statusEl.style.color = "#00e5ff";
+        }
+
+        // 0. VALIDACIÓN INDUSTRIAL (V197)
+        if (strip.w <= 0 || strip.h <= 0) return;
+
+        // 1. ESCALADO DINÁMICO
+        // Esto hace que las letras tengan siempre el mismo tamaño para el OCR
+        let scale = 120 / strip.h;
+        scale = Math.min(5, Math.max(2.5, scale));
+
+        const blockCvs = document.createElement("canvas");
+        blockCvs.width = Math.floor(strip.w * scale);
+        blockCvs.height = Math.floor(strip.h * scale);
+
+        const bCtx = blockCvs.getContext("2d", { willReadFrequently: true });
+        bCtx.imageSmoothingEnabled = true;
+        bCtx.imageSmoothingQuality = 'high';
+
+        // Dibujamos el trozo de la imagen original en el canvas pequeño
+        bCtx.drawImage(mainCvs, strip.x, strip.y, strip.w, strip.h, 0, 0, blockCvs.width, blockCvs.height);
+
+        // 2. PRE-PROCESADO: Binarización dinámica (V187)
+        if (OpenCVEngine.isReady) {
+          OpenCVEngine.processForOCR(blockCvs, "hard", null, state.visionSettings);
+        }
+        const originalUrl = blockCvs.toDataURL();
+
+        // 3. OCR: Protección contra dimensiones 0x0 (V191)
+        if (blockCvs.width <= 0 || blockCvs.height <= 0) return;
+
+        // Rotamos entre los 3 workers para máxima paralelización
+        let worker = this.worker1;
+        const mod = idx % 3;
+        if (mod === 1) worker = this.worker2;
+        else if (mod === 2) worker = this.worker3 || this.worker1;
+
+        if (!worker) return;
+        const { data } = await worker.recognize(blockCvs);
+
+        // V91: Generar previsualización ETIQUETADA para la galería
+        const labeledCvs = document.createElement("canvas");
+        labeledCvs.width = blockCvs.width; labeledCvs.height = blockCvs.height;
+        const lCtx = labeledCvs.getContext("2d");
+        lCtx.drawImage(blockCvs, 0, 0);
+        lCtx.fillStyle = "rgba(0,0,0,0.7)";
+        lCtx.fillRect(0, 0, labeledCvs.width, 24);
+        lCtx.fillStyle = "#00e5ff";
+        lCtx.font = "bold 15px monospace";
+        lCtx.fillText(data.text.trim().substring(0, 30).toUpperCase(), 5, 18);
+        const labeledUrl = labeledCvs.toDataURL();
+
+        // Buffer de diagnóstico para la sesión
+        const roiDiag = {
+          idx, originalUrl, processedUrl: labeledUrl,
+          fullText: data.text, matches: []
+        };
+
+        // 4. MATCHING
+        const detectedItems = parseTextForRewards(data);
+        roiDiag.matches = detectedItems;
+        sessionResults.push(roiDiag);
+
+        if (debugLog) {
+          const div = document.createElement("div");
+          div.style.cssText = "border-bottom:1px solid #222; padding:4px 0; font-size:8.5px; opacity:0.8; word-wrap:break-word;";
+          div.innerHTML = `<span style="color:#00ff78;">[B-${idx}]</span> ${data.text.trim()}`;
+          debugLog.appendChild(div);
+        }
+
+        // V91 SIDE GALLERY: Añadir previsualización de imágenes con ETIQUETA
+        if (sideGallery) {
+          const block = document.createElement("div");
+          block.style.cssText = "background:rgba(255,255,255,0.05); border-radius:6px; padding:6px; font-size:8px; color:#ccc;";
+          block.innerHTML = `
+              <div style="margin-bottom:4px; font-weight:900; color:#00e5ff;">BLOQUE ${idx}</div>
+              <div style="display:flex; flex-direction:column; gap:4px;">
+                <img src="${originalUrl}" style="width:100%; border:1px solid #444; border-radius:4px;" />
+                <img src="${labeledUrl}" style="width:100%; border:1px solid #00e5ff; border-radius:4px;" title="${data.text.trim()}" />
+              </div>
+           `;
+          // V95: Rolling Buffer de 20 bloques (Limpieza automática)
+          if (sideGallery.children.length > 20) {
+            // El primer elemento es la cabecera, borramos el segundo
+            if (sideGallery.children[1]) sideGallery.children[1].remove();
           }
+          sideGallery.appendChild(block);
+          block.scrollIntoView({ behavior: 'smooth' });
         }
-      }
-    } catch (e) {
-      showToast("Error: " + e.message);
-    } finally {
-      this.video.play();
-      this.isProcessing = false;
-    }
-  }
 
-  processImageVariant(original) {
-    const w = original.width;
-    const h = original.height;
-    const newImg = new ImageData(new Uint8ClampedArray(original.data), w, h);
-    const d = newImg.data;
-    const THRESHOLD = 155;
+        detectedItems.forEach(it => {
+          // Calculamos la posición X real en la pantalla global
+          const globalX = strip.x + (strip.w / 2);
 
-    for (let i = 0; i < d.length; i += 4) {
-      const r = d[i];
-      const g = d[i + 1];
-      const b = d[i + 2];
-      const luma = 0.299 * r + 0.587 * g + 0.114 * b;
-      const val = luma > THRESHOLD ? 0 : 255;
-      d[i] = d[i + 1] = d[i + 2] = val;
-      d[i + 3] = 255;
-    }
-    return newImg;
-  }
-
-  showDebugImage(imageData, w, h) {
-    let debugCvs = document.getElementById("debug-view-cvs");
-    if (!debugCvs) {
-      debugCvs = document.createElement("canvas");
-      debugCvs.id = "debug-view-cvs";
-      debugCvs.style.cssText =
-        "position:fixed; top:120px; left:10px; width:120px; z-index:100005; border:2px solid #e74c3c; border-radius:4px; background:#fff;";
-      document.body.appendChild(debugCvs);
-    }
-    debugCvs.width = w;
-    debugCvs.height = h;
-    debugCvs.getContext("2d").putImageData(imageData, 0, 0);
-  }
-
-  isGarbageText(text) {
-    if (!text) return true;
-    const clean = text.replaceAll(/[^A-Z0-9]/g, "");
-    return clean.length < 3;
-  }
-
-  parseItemsFromOCR_Spatial(ocrData, paddingX = 0) {
-    if (!ocrData?.words || !state.itemsDatabase) return [];
-    this.initScannerData();
-
-    let validWords = ocrData.words
-      .map((w) => {
-        const cleanText = w.text
-          .trim()
-          .toUpperCase()
-          .replaceAll(/[^A-Z0-9]/g, "");
-        return { ...w, text: cleanText };
-      })
-      .filter((w) => w.text.length >= 2 && w.confidence > 40);
-
-    if (validWords.length === 0) return [];
-
-    const itemsGroups = [];
-
-    validWords.forEach((word) => {
-      const wordMidX = (word.bbox.x0 + word.bbox.x1) / 2;
-      const COLUMN_TOLERANCE = this.canvas.width * 0.12;
-
-      const existingGroup = itemsGroups.find((group) => {
-        const groupMidX =
-          group.reduce((sum, w) => sum + (w.bbox.x0 + w.bbox.x1) / 2, 0) /
-          group.length;
-        return Math.abs(wordMidX - groupMidX) < COLUMN_TOLERANCE;
-      });
-
-      if (existingGroup) {
-        existingGroup.push(word);
-      } else {
-        itemsGroups.push([word]);
-      }
-    });
-
-    const rawResults = [];
-
-    itemsGroups.forEach((group) => {
-      group.sort((a, b) => {
-        if (Math.abs(a.bbox.y0 - b.bbox.y0) < 20) {
-          return a.bbox.x0 - b.bbox.x0;
-        }
-        return a.bbox.y0 - b.bbox.y0;
-      });
-
-      const rawString = group.map((w) => w.text).join(" ");
-      const match = this.findBestMatchInDatabase(rawString);
-
-      if (match) {
-        const avgX =
-          group.reduce((s, w) => s + (w.bbox.x0 - paddingX), 0) / group.length;
-        rawResults.push({ ...match, xPos: avgX });
-      }
-    });
-
-    return this.consolidateItems(rawResults);
-  }
-
-  consolidateItems(items) {
-    if (!items || items.length === 0) return [];
-    const uniqueByName = new Map();
-    items.forEach((item) => {
-      if (
-        !uniqueByName.has(item.name) ||
-        item.confidence > uniqueByName.get(item.name).confidence
-      ) {
-        uniqueByName.set(item.name, item);
-      }
-    });
-    let candidates = Array.from(uniqueByName.values());
-    candidates.sort((a, b) => a.xPos - b.xPos);
-    if (candidates.length > 4) candidates = candidates.slice(0, 4);
-    return candidates;
-  }
-
-  initScannerData() {
-    if (!state.itemsDatabase || this.cachedDb.length > 0) return;
-    const processedItems = [];
-    Object.keys(state.itemsDatabase).forEach((itemName) => {
-      const cleanName = itemName
-        .toUpperCase()
-        .replaceAll("&", "AND")
-        .replaceAll(/[^A-Z0-9 ]/g, "");
-      const allWords = cleanName.split(" ").filter((w) => w.length > 1);
-      processedItems.push({
-        originalName: itemName,
-        keywords: allWords,
-      });
-    });
-    this.cachedDb = processedItems;
-  }
-
-  findBestMatchInDatabase(scannedString) {
-    if (!scannedString || scannedString.length < 3) return null;
-
-    const GENERIC_WORDS = new Set([
-      "PRIME",
-      "BLUEPRINT",
-      "BARREL",
-      "RECEIVER",
-      "STOCK",
-      "BLADE",
-      "CHASSIS",
-      "SYSTEMS",
-      "NEUROPTICS",
-      "CARAPACE",
-      "CEREBRUM",
-      "HANDLE",
-      "ORNAMENT",
-      "WINGS",
-      "HARNESS",
-      "MAIN",
-      "SET",
-    ]);
-    const inputTokens = scannedString
-      .toUpperCase()
-      .split(" ")
-      .filter((t) => t.length > 2);
-
-    if (inputTokens.length === 0) return null;
-
-    let bestMatch = null;
-    let highestScore = 0;
-    const MIN_SCORE = 0.35;
-
-    for (const item of this.cachedDb) {
-      let matchedCount = 0;
-      let uniqueWordMatched = false;
-
-      for (const keyWord of item.keywords) {
-        const isGeneric = GENERIC_WORDS.has(keyWord);
-        for (const inputWord of inputTokens) {
-          if (this.getSimilarity(keyWord, inputWord) > 0.75) {
-            matchedCount++;
-            if (!isGeneric) uniqueWordMatched = true;
-            break;
-          }
-        }
-      }
-
-      if (matchedCount === 0) continue;
-
-      let confidence = matchedCount / item.keywords.length;
-      if (uniqueWordMatched) confidence += 0.2;
-      if (!uniqueWordMatched) confidence -= 0.15;
-
-      const diff = Math.abs(item.keywords.length - inputTokens.length);
-      confidence -= diff * 0.05;
-
-      if (confidence > highestScore) {
-        highestScore = confidence;
-        bestMatch = { name: item.originalName, confidence };
-      }
-    }
-
-    const debugBox = this.debugMode
-      ? document.getElementById("ocr-raw-debug")
-      : null;
-    if (
-      debugBox &&
-      highestScore > MIN_SCORE &&
-      !debugBox.innerHTML.includes(bestMatch.name)
-    ) {
-      debugBox.innerHTML += `<br><span style="color:#3498db">Best: ${bestMatch.name
-        } (${highestScore.toFixed(2)})</span>`;
-    }
-
-    return highestScore >= MIN_SCORE ? bestMatch : null;
-  }
-
-  getSimilarity(s1, s2) {
-    if (!s1 || !s2) return 0;
-    let longer = s1,
-      shorter = s2;
-    if (s1.length < s2.length) {
-      longer = s2;
-      shorter = s1;
-    }
-    if (longer.length === 0) return 1;
-    return (
-      (longer.length - this.editDistance(longer, shorter)) /
-      Number.parseFloat(longer.length)
-    );
-  }
-
-  editDistance(s1, s2) {
-    s1 = s1.toLowerCase();
-    s2 = s2.toLowerCase();
-    const costs = new Array();
-    for (let i = 0; i <= s1.length; i++) {
-      let lastValue = i;
-      for (let j = 0; j <= s2.length; j++) {
-        if (i == 0) costs[j] = j;
-        else if (j > 0) {
-          let newValue = costs[j - 1];
-          if (s1.charAt(i - 1) != s2.charAt(j - 1))
-            newValue = Math.min(Math.min(newValue, lastValue), costs[j]) + 1;
-          costs[j - 1] = lastValue;
-          lastValue = newValue;
-        }
-      }
-      if (i > 0) costs[s2.length] = lastValue;
-    }
-    return costs[s2.length];
-  }
-
-  async showResults(items) {
-    if (!items || items.length === 0) return;
-
-    let resultsContainer = document.getElementById("scan-results-sheet");
-    if (resultsContainer) resultsContainer.remove();
-
-    resultsContainer = document.createElement("div");
-    resultsContainer.id = "scan-results-sheet";
-    document.body.appendChild(resultsContainer);
-
-    const isPortrait = globalThis.innerHeight > globalThis.innerWidth;
-
-    if (isPortrait) {
-      resultsContainer.style.cssText = `
-            position: fixed; top: 0; right: 0; bottom: 0; width: 150px;
-            background: rgba(10, 10, 15, 0.95); border-left: 3px solid #D4AF37;
-            padding: 50px 10px 10px 10px; z-index: 9999999;
-            display: flex; flex-direction: column; gap: 15px;
-            overflow-y: auto; box-shadow: -5px 0 20px rgba(0,0,0,0.8);
-        `;
-    } else {
-      resultsContainer.style.cssText = `
-            position: fixed; bottom: 0; left: 0; right: 0;
-            background: rgba(10, 10, 15, 0.95); border-top: 3px solid #D4AF37;
-            padding: 15px 10px; z-index: 9999999;
-            display: flex; flex-direction: column; gap: 10px;
-            box-shadow: 0 -5px 20px rgba(0,0,0,0.8); max-height: 45vh;
-        `;
-    }
-
-    const header = document.createElement("div");
-    header.style.cssText = isPortrait
-      ? "width:100%; display:flex; justify-content:center; margin-bottom:10px;"
-      : "width:100%; display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;";
-
-    header.innerHTML = `<span style="color:#D4AF37; font-weight:bold; font-size:12px;">${items.length} ITEMS</span>`;
-
-    const closeBtn = document.createElement("button");
-    closeBtn.innerText = "X";
-    closeBtn.style.cssText =
-      "background:#c0392b; border:none; color:white; width:25px; height:25px; border-radius:4px; font-weight:bold;";
-    closeBtn.onclick = () => {
-      resultsContainer.remove();
-      this.close();
-    };
-
-    if (isPortrait) {
-      resultsContainer.appendChild(closeBtn);
-    } else {
-      header.appendChild(closeBtn);
-    }
-    resultsContainer.prepend(header);
-
-    const cardsContainer = document.createElement("div");
-    cardsContainer.style.cssText = isPortrait
-      ? "display: flex; flex-direction: column; gap: 10px; width: 100%;"
-      : "display: flex; gap: 15px; overflow-x: auto; padding-bottom: 5px; width: 100%;";
-    resultsContainer.appendChild(cardsContainer);
-
-    const itemsWithDucats = items.map((item) => {
-      let ducats = 0;
-      if (state.ducatsDatabase) {
-        const itemData = Object.values(state.ducatsDatabase).find(
-          (d) => d.name.toUpperCase() === item.name.toUpperCase(),
-        );
-        if (itemData) ducats = itemData.ducats;
-      }
-      return { ...item, ducats };
-    });
-
-    const maxDucats = Math.max(...itemsWithDucats.map((i) => i.ducats));
-    const maxPl = Math.max(...itemsWithDucats.map((i) => i.price || 0));
-
-    itemsWithDucats.forEach((item, index) => {
-      const card = document.createElement("div");
-      const isBestDuc = item.ducats > 0 && item.ducats === maxDucats;
-      const isBestPl = (item.price || 0) > 0 && item.price === maxPl;
-
-      card.style.cssText = `
-            background: #252525; border: 1px solid ${isBestDuc || isBestPl ? "#D4AF37" : "#555"}; border-radius: 6px;
-            padding: 0; text-align: center; color: white;
-            min-width: ${isPortrait ? "calc(100% - 16px)" : "140px"};
-            box-shadow: 0 2px 5px rgba(0,0,0,0.5);
-            display: flex; flex-direction: column; overflow: hidden;
-            margin: ${isPortrait ? "0 8px" : "0"};
-        `;
-
-      let headerLabel = "";
-      if (isBestPl) headerLabel = "MOST VALUABLE";
-      else if (isBestDuc) headerLabel = "BEST DUCATS";
-
-      if (headerLabel) {
-        const h = document.createElement("div");
-        h.innerText = headerLabel;
-        h.style.cssText =
-          "background:#D4AF37; color:#000; font-size:9px; font-weight:900; padding:2px 0; letter-spacing:0.5px;";
-        card.appendChild(h);
-      }
-
-      const priceId = `price-tag-${index}`;
-      const displayName = item.name.replaceAll("BLUEPRINT", "BP");
-
-      const body = document.createElement("div");
-      body.style.cssText = "padding: 10px 8px;";
-      body.innerHTML = `
-            <div style="font-size:10px; color:#aaa; font-weight:bold; margin-bottom:8px; line-height:1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                ${displayName}
-            </div>
-            <div style="display:flex; justify-content:center; align-items:center; gap:12px; font-weight:bold;">
-                <div style="font-size:14px; color:#f1c40f; display:flex; align-items:center; gap:2px;" id="${priceId}">
-                    ... <img src="assets/relic_contents/platinum.webp" class="plat-icon" style="height:1em; width:auto; vertical-align:middle;">
-                </div>
-                <div style="font-size:13px; color:#D4AF37; display:flex; align-items:center; gap:3px;">
-                    <img src="assets/Ducats.webp" class="ducat-icon" style="width:16px; height:16px;">
-                    ${item.ducats}
-                </div>
-            </div>
-      `;
-      card.appendChild(body);
-      cardsContainer.appendChild(card);
-
-      getPriceValue(item.name, getSlug(item.name))
-        .then((price) => {
-          const priceEl = document.getElementById(priceId);
-          if (priceEl) {
-            priceEl.innerHTML = `${price} <img src="assets/relic_contents/platinum.webp" class="plat-icon" style="height:1em; width:auto; vertical-align:middle;">`;
-            priceEl.style.color = "#2ecc71";
-          }
-        })
-        .catch(() => {
-          const priceEl = document.getElementById(priceId);
-          if (priceEl) priceEl.innerText = "N/A";
+          results.push({
+            ...it,
+            xPos: globalX,
+            confidence: it.confidence || data.confidence
+          });
         });
-    });
+      });
+
+      await Promise.all(ocrPromises);
+
+      // Limpiar HUD de progreso
+      const statusEl = document.getElementById("scanner-vision-status");
+      if (statusEl) {
+        statusEl.innerText = `ESCANEADO FINALIZADO: ${results.length} ITEMS`;
+        setTimeout(() => { if (statusEl) statusEl.innerText = "READY (HIGH-SPEED V86)"; }, 3000);
+      }
+
+      // Enviamos el bloque completo de la sesión al Debugger si existe
+      if (this.debugMode || this.isDebugScanner) {
+        sessionResults.sort((a, b) => a.idx - b.idx);
+        this.logScanSession({
+          time: new Date().toLocaleTimeString(),
+          results: sessionResults
+        });
+      }
+
+      // Finalmente, mostramos los resultados si hemos encontrado algo
+      if (results.length > 0) {
+        results.sort((a, b) => a.xPos - b.xPos);
+        this.showResults(results);
+      } else {
+        showToast("No se detectaron recompensas claras.");
+      }
+
+    } catch (e) {
+      console.error(e);
+    } finally {
+      this.isProcessing = false;
+      const activeLoader = document.getElementById("ocr-loading");
+      if (activeLoader) activeLoader.classList.add("hidden");
+    }
   }
 
-  close() {
-    if (this.stream) {
-      this.stream.getTracks().forEach((t) => t.stop());
-      this.stream = null;
+  showResults(items) {
+    let rc = document.getElementById("scan-results-sheet"); if (rc) rc.remove();
+    rc = document.createElement("div"); rc.id = "scan-results-sheet"; document.body.appendChild(rc);
+
+    // Contenedor principal con estilo cristalino
+    rc.style.cssText = `
+        position:fixed; bottom:0; left:0; right:0; 
+        background: rgba(10, 15, 20, 0.96); backdrop-filter: blur(25px); -webkit-backdrop-filter: blur(25px);
+        border-top: 1px solid rgba(0, 229, 255, 0.3); padding: 15px; 
+        z-index: 999999; border-radius: 20px 20px 0 0; 
+        box-shadow: 0 -10px 40px rgba(0,0,0,0.8);
+        animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    `;
+
+    if (!document.getElementById("btn-slide-anim")) {
+      const style = document.createElement("style");
+      style.id = "btn-slide-anim";
+      style.textContent = `@keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }`;
+      document.head.appendChild(style);
     }
-    const overlay = document.getElementById("mobile-scan-overlay");
-    if (overlay) overlay.remove();
-    const sheet = document.getElementById("scan-results-sheet");
-    if (sheet) sheet.remove();
-    const debug = document.getElementById("debug-view-cvs");
-    if (debug) debug.remove();
-    this.isProcessing = false;
+
+    rc.innerHTML = `
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; padding: 0 5px;">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <div style="width:8px; height:8px; border-radius:50%; background:#00e5ff; box-shadow:0 0 10px #00e5ff;"></div>
+          <div style="color:#00e5ff; font-weight:900; font-size:11px; letter-spacing:2px;">RECOMPENSAS DETECTADAS</div>
+        </div>
+        <button onclick="this.parentElement.parentElement.remove()" style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); color:#fff; width:28px; height:28px; border-radius:50%; cursor:pointer; font-weight:bold;">✕</button>
+      </div>
+    `;
+
+    const cc = document.createElement("div");
+    cc.style.cssText = "display:flex; gap:12px; overflow-x:auto; padding:10px 5px 20px 5px; scrollbar-width:none; -ms-overflow-style:none;";
+
+    // Obtenemos los precios para marcar el mejor
+    Promise.all(items.map(it => getPriceValue(it.name, getSlug(it.name)))).then(prices => {
+      const maxPl = Math.max(...prices);
+
+      items.forEach((it, idx) => {
+        const price = prices[idx];
+        const appOwned = state.primeInventory ? (state.primeInventory[it.name] || 0) : 0;
+        const isBest = (price === maxPl && price > 0);
+        const ducats = it.ducats || 0;
+
+        const card = document.createElement("div");
+        card.style.cssText = `
+            background: rgba(255, 255, 255, 0.03); 
+            border: 1px solid ${isBest ? "rgba(212, 175, 55, 0.5)" : "rgba(255,255,255,0.15)"}; 
+            border-radius: 12px; padding: 12px; min-width: 155px; 
+            display: flex; flex-direction: column; gap: 8px;
+            position: relative; overflow: hidden;
+            box-shadow: ${isBest ? "0 0 20px rgba(212, 175, 55, 0.15)" : "0 4px 10px rgba(0,0,0,0.3)"};
+        `;
+
+        if (isBest) {
+          const goldTag = document.createElement("div");
+          goldTag.style.cssText = "position:absolute; top:0; left:0; width:100%; background:#d4af37; color:#000; font-size:8px; font-weight:900; text-align:center; padding:2px 0; letter-spacing:1px;";
+          goldTag.innerText = "MEJOR VALOR";
+          card.appendChild(goldTag);
+          card.style.paddingTop = "18px";
+        }
+
+        card.innerHTML += `
+          <div style="font-size:10px; font-weight:800; color:#fff; text-transform:uppercase; line-height:1.2; height:2.4em; overflow:hidden;">${it.name}</div>
+          
+          <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-top:5px;">
+            <div style="display:flex; flex-direction:column; gap:6px;">
+                <div style="color:var(--wf-gold-text); font-weight:900; font-size:18px; display:flex; align-items:center; gap:6px;">
+                  <img src="assets/relic_contents/platinum.webp" style="width:16px; height:16px; filter: drop-shadow(0 0 5px rgba(212,175,55,0.4));" />
+                  ${price > 0 ? price : "—"}
+                </div>
+                ${ducats > 0 ? `
+                  <div style="color:#00e5ff; font-size:11px; font-weight:800; display:flex; align-items:center; gap:5px; background:rgba(0,229,255,0.05); padding:2px 6px; border-radius:4px; width:fit-content;">
+                    <img src="assets/Ducats.webp" style="width:12px; height:12px;" />
+                    ${ducats}
+                  </div>
+                ` : ""}
+            </div>
+            
+            <div style="text-align:right;">
+                <div style="font-size:8px; color:#aaa; font-weight:800; margin-bottom:2px; letter-spacing:0.5px;">INV</div>
+                <div style="background:rgba(0, 255, 120, 0.1); border:1px solid rgba(0, 255, 120, 0.2); border-radius:4px; padding:2px 8px; color:#00ff78; font-size:13px; font-weight:900; box-shadow: 0 0 10px rgba(0,255,120,0.05);">
+                  ${appOwned}
+                </div>
+            </div>
+          </div>
+
+          <div style="margin-top:12px; padding-top:10px; border-top:1px solid rgba(255,255,255,0.06); display:flex; justify-content:space-between; align-items:center;">
+             <button onclick="globalThis.currentScanner.showPartPicker('${it.name.replace(/'/g, "\\'")}', ${idx})" 
+                     style="background:rgba(0,229,255,0.15); border:1px solid rgba(0,229,255,0.3); color:#00e5ff; font-size:9px; padding:6px 12px; border-radius:6px; cursor:pointer; font-weight:900;">
+               ✎ ${state.currentLang === 'es' ? 'CORREGIR' : 'EDIT'}
+             </button>
+             <div style="width:14px; height:14px; border-radius:50%; border:1px solid #00ff78; display:flex; align-items:center; justify-content:center; color:#00ff78; font-size:9px;">✓</div>
+          </div>
+        `;
+        cc.appendChild(card);
+      });
+    });
+
+    rc.appendChild(cc);
+
+    // Botón de confirmación opcional o footer
+    const footer = document.createElement("div");
+    footer.style.cssText = "margin-top: 5px; text-align: center; font-size: 9px; color: #555; font-weight: 700; letter-spacing: 0.5px;";
+    footer.innerText = "ITEMS AÑADIDOS AUTOMÁTICAMENTE AL REGISTRO";
+    rc.appendChild(footer);
   }
 }
+// FINAL V200

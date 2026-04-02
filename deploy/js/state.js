@@ -24,6 +24,26 @@ export const state = {
   primeInventory: {},
   primeManifest: [],
   autoSyncRewards: true,
+  visionSettings: {
+    thresholdC: -15,
+    claheClip: 5,
+    hsvHueTol: 25,
+    bilateralD: 5,
+    tesseractPSM: 6,
+    dilation: 0,
+    erosion: 0,
+    autoCalibrate: false,
+    blockSize: 31,
+    sigmaColor: 75,
+    sigmaSpace: 75,
+    contrast: 1.0,
+    brightness: 0,
+    gamma: 1.0,
+    ocrLang: "eng",
+    showROI: true,
+    medianBlur: 9,
+    sharpen: 1
+  }
 };
 let saveTimer = null;
 export function saveAppState() {
@@ -86,8 +106,9 @@ export function loadAppState() {
       if (data.lfgPresets) state.lfgPresets = data.lfgPresets;
       if (data.inventory) state.inventory = data.inventory;
       if (data.primeInventory) state.primeInventory = data.primeInventory;
-      if (typeof data.autoSyncRewards !== "undefined")
+      if (data.autoSyncRewards !== undefined)
         state.autoSyncRewards = data.autoSyncRewards;
+      if (data.visionSettings) state.visionSettings = { ...state.visionSettings, ...data.visionSettings };
       return state.activeTab;
     } catch (e) {
       console.warn("Error cargando save:", e);
@@ -131,3 +152,13 @@ export function updateInventoryBatch(relicList) {
 }
 
 globalThis.state = state;
+
+/**
+ * V187: Helper global para actualizar settings de visión desde la UI
+ */
+globalThis.updateVisionSetting = (key, value) => {
+  if (state.visionSettings) {
+    state.visionSettings[key] = value;
+    saveAppState();
+  }
+};

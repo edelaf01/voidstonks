@@ -493,6 +493,8 @@ function prepareVirtualCanvas(video) {
   const width = video.videoWidth;
   const height = video.videoHeight;
   const scale = 1080 / height;
+
+  // Mantenemos tu lógica original: capturar el 15% superior de TODA la pantalla
   const hCropH = Math.floor(height * 0.15);
 
   virtualCanvas.width = Math.floor(width * scale);
@@ -502,18 +504,33 @@ function prepareVirtualCanvas(video) {
 
   vCtx.drawImage(
     video,
-    0,
-    0,
-    width,
-    hCropH,
-    0,
-    0,
-    virtualCanvas.width,
-    virtualCanvas.height,
+    0, 0, width, hCropH, // Leemos todo el ancho de nuevo
+    0, 0, virtualCanvas.width, virtualCanvas.height,
   );
 
-  // Usar clustering dinámico para el header también
-  applyClusteringThreshold(vCtx, virtualCanvas.width, virtualCanvas.height);
+  // Filtro Bimodal: Salva el texto Naranja Y el texto Blanco brillante
+  const imgData = vCtx.getImageData(0, 0, virtualCanvas.width, virtualCanvas.height);
+  const px = imgData.data;
+
+  for (let i = 0; i < px.length; i += 4) {
+    let r = px[i], g = px[i + 1], b = px[i + 2];
+
+    let luma = (r * 0.2126) + (g * 0.7152) + (b * 0.0722);
+
+    // 1. Regla para el Naranja/Dorado oscuro de la UI ("VOID FISSURE")
+    let isOrange = (r > 140 && g > 70 && b < 100 && r > b + 40);
+
+    // 2. Regla para el texto blanco/gris claro del contexto extra
+    // Exigimos que los canales RGB estén cerca entre sí (baja saturación) para no confundirlo con luces de colores
+    let isWhiteText = (luma > 160 && Math.abs(r - g) < 30 && Math.abs(g - b) < 30);
+
+    if (isOrange || isWhiteText) {
+      px[i] = px[i + 1] = px[i + 2] = 0;   // Texto -> Negro
+    } else {
+      px[i] = px[i + 1] = px[i + 2] = 255; // Luces y nave de fondo -> Blanco
+    }
+  }
+  vCtx.putImageData(imgData, 0, 0);
 
   return { width, height, scale };
 }
@@ -831,23 +848,65 @@ async function processRewards(video, width, height, scale) {
   ocrCanvas.width = targetW; ocrCanvas.height = targetH;
   const ocrCtx = ocrCanvas.getContext('2d');
   ocrCtx.drawImage(canvas, 0, 0);
-  applyClusteringThreshold(ocrCtx, targetW, targetH);
 
-  const { data } = await worker1.recognize(ocrCanvas);
-  const rawOcr = data.text || "";
+  // --- INICIO DEL NUEVO MOTOR DE COLOR ANCLA ---
+
+  // 1. Guardamos el Canvas original INTACTO (con colores) antes de aplicar filtros
+  const originalCanvas = document.createElement('canvas');
+  originalCanvas.width = targetW; originalCanvas.height = targetH;
+  const originalCtx = originalCanvas.getContext('2d');
+  originalCtx.drawImage(canvas, 0, 0);
+
+  // 2. Primera Pasada: Lectura Rápida
+  applyClusteringThreshold(ocrCtx, targetW, targetH);
+  const { data: pass1Data } = await worker1.recognize(ocrCanvas);
+
+  // 3. Buscamos "Palabras Ancla" en los resultados de la Pasada 1
+  const anchorKeywords = ["PRIME", "BLUEPRINT", "OWNED", "CHASSIS", "SYSTEMS", "NEUROPTICS", "HANDLE", "BARREL"];
+  let bestAnchor = null;
+
+  for (const w of pass1Data.words) {
+    const text = w.text.toUpperCase().replace(/[^A-Z]/g, '');
+    if (anchorKeywords.includes(text) && w.confidence > 75) {
+      bestAnchor = w;
+      break; // Encontramos un ancla, dejamos de buscar
+    }
+  }
+
+  let finalData = pass1Data;
+
+  // 4. Si encontramos un ancla, hacemos la Pasada Mágica (Fase 2)
+  if (bestAnchor) {
+    console.log(`[COLOR MATCH] Ancla encontrada: ${bestAnchor.text}`);
+
+    const exactColor = getAnchorColorFromBBox(originalCtx, bestAnchor.bbox);
+
+    ocrCtx.drawImage(originalCanvas, 0, 0);
+
+    applyTargetColorThreshold(ocrCtx, targetW, targetH, exactColor, 75);
+
+    const { data: pass2Data } = await worker1.recognize(ocrCanvas);
+    finalData = pass2Data;
+  }
+
+  // --- FIN DEL NUEVO MOTOR DE COLOR ANCLA ---
+
+  // Actualizamos tus variables de logs para que usen la lectura limpia de finalData
+  const rawOcr = finalData.text || "";
   console.log("[SCAN] Rewards Raw OCR:", rawOcr);
 
   clearRewardDebugLogs();
   addRewardDebugLog("OCR", `Text read: ${rawOcr.substring(0, 50)}...`, "info");
 
-  const foundItems = parseTextForRewards(data);
+  // 5. Procesamos las recompensas normalmente
+  const foundItems = parseTextForRewards(finalData);
   console.log("[SCAN] Rewards Found Items:", foundItems.length);
   addRewardDebugLog("SCAN", `Items found: ${foundItems.length}`, foundItems.length > 0 ? "match" : "warn");
 
   if (foundItems.length > 0 && !detectionLocked) {
     foundItems.forEach(item => {
       addRewardDebugLog("ITEM", `Detected: ${item.name}`, "match");
-      // Tick detection
+      // Tick detection (El ocrCanvas ahora tiene la binarización perfecta por color, lo que hace al checkmark infalible)
       const tickX = item.xPos + 50;
       const tickY = item.yPos - 150;
       item.isSelected = detectCheckmark(ocrCanvas, tickX, tickY, 70, 70);
@@ -1000,7 +1059,7 @@ function handleSuccessfulScan(video, width, height, foundItems, rawOcr = "") {
   openScanModal(snapshotCanvas.toDataURL("image/jpeg", 0.85), foundItems, width, height, scale, rawOcr);
 }
 
-async function openScanModal(imageUrl, items, width, height, scale, rawOcr = "") {
+globalThis.openScanModal = async function (imageUrl, items, width, height, scale, rawOcr = "") {
   const modal = document.getElementById("scan-success-modal");
   const imgEl = document.getElementById("scan-snapshot");
   const badgesContainer = document.getElementById("scan-badges-container");
@@ -1044,12 +1103,6 @@ async function openScanModal(imageUrl, items, width, height, scale, rawOcr = "")
 
   const itemsWithDetails = await Promise.all(
     items.map(async (item) => {
-      // Sincronización automática de inventario: si OCR ve piezas, actualizamos el estado
-      // Nota: Si el usuario tiene más en la App que en el juego, confiamos en el juego (el estado real)
-      // NOTE: We no longer sync state.primeInventory here. 
-      // We will perform a single 'batch sync' when closeScanModal is called.
-      // This keeps the App inventory stable while the scanner is pointing at the screen.
-
       let price = priceCache.get(item.name) || 0;
       if (price === 0) {
         try {
@@ -1062,12 +1115,12 @@ async function openScanModal(imageUrl, items, width, height, scale, rawOcr = "")
       }
       let ducats = 0;
       if (state.ducatsDatabase) {
-        const itemData = Object.values(state.ducatsDatabase).find(
+        const itemVal = Object.values(state.ducatsDatabase).find(
           (d) => d.name.toUpperCase() === item.name.toUpperCase(),
         );
-        if (itemData) ducats = itemData.ducats;
+        if (itemVal) ducats = itemVal.ducats;
       }
-      return { ...item, price, ducats };
+      return { ...item, price, ducats, xPos: item.xPos || 0 };
     }),
   );
 
@@ -1086,18 +1139,50 @@ async function openScanModal(imageUrl, items, width, height, scale, rawOcr = "")
   requestAnimationFrame(() => {
     const fragment = document.createDocumentFragment();
 
-    // Compute left% from xPos and apply anti-overlap separation
-    const sortedItems = [...potentialMap].sort((a, b) => a.xPos - b.xPos);
-    const targetW = width * scale;
-    const positionedItems = sortedItems.map(item => ({
-      ...item,
-      leftPct: typeof item.xPos === 'number' && targetW > 0
-        ? (item.xPos / targetW) * 100
-        : null,
-    }));
+    // V253: Sincronización PROFUNDA de dimensiones (Pillarboxing fix)
+    const wrapper = document.getElementById("scan-badges-wrapper");
+    if (imgEl.clientWidth > 0 && wrapper) {
+      const imgRatio = imgEl.naturalWidth / imgEl.naturalHeight;
+      const elRatio = imgEl.clientWidth / imgEl.clientHeight;
+      let visualW = imgEl.clientWidth;
+      let visualH = imgEl.clientHeight;
+
+      if (imgRatio > elRatio) {
+        visualH = visualW / imgRatio;
+      } else {
+        visualW = visualH * imgRatio;
+      }
+
+      wrapper.style.width = `${Math.floor(visualW)}px`;
+      wrapper.style.height = `${Math.floor(visualH)}px`;
+    }
+
+    // Compute left% from xPos and apply grid fallback if clumped
+    let positionedItems = potentialMap.map(item => {
+      const referenceW = item.imgW || (width * scale);
+      // Si xPos es 0 o muy cercano al centro (indicio de fallback), marcamos para grid
+      const isClumped = !item.xPos || Math.abs(item.xPos - (referenceW / 2)) < 5;
+
+      let rawPct = (typeof item.xPos === 'number' && referenceW > 0 && !isClumped)
+        ? (item.xPos / referenceW) * 100
+        : -1; // -1 significa "usar rejilla"
+
+      return { ...item, leftPct: rawPct };
+    }).sort((a, b) => a.leftPct - b.leftPct);
+
+    // Fallback: Si no hay datos espaciales reales, distribuir equitativamente
+    const itemsWithoutPos = positionedItems.filter(i => i.leftPct < 0);
+    if (itemsWithoutPos.length > 0) {
+      positionedItems = positionedItems.map((item, idx) => {
+        if (item.leftPct < 0) {
+          return { ...item, leftPct: (idx + 0.5) * (100 / positionedItems.length), isGrid: true };
+        }
+        return item;
+      });
+    }
 
     // Anti-overlap: ensure each badge is at least BADGE_GAP_PCT apart
-    const BADGE_GAP_PCT = 13; // ~200px / 1600px container = ~12.5%
+    const BADGE_GAP_PCT = 18;
     for (let i = 1; i < positionedItems.length; i++) {
       const prev = positionedItems[i - 1];
       const curr = positionedItems[i];
@@ -1145,7 +1230,7 @@ async function openScanModal(imageUrl, items, width, height, scale, rawOcr = "")
 }
 
 function createModalBadge(
-  { name, price, ducats, owned, appOwned, crafted, isSelected, isBestPl, isBestEff, isCompletingSet, leftPct },
+  { name, price, ducats, owned, appOwned, crafted, isSelected, isBestPl, isBestEff, isCompletingSet, leftPct, isGrid },
   container,
 ) {
   const badge = document.createElement("div");
@@ -1154,6 +1239,10 @@ function createModalBadge(
   if (leftPct !== null && leftPct !== undefined) {
     badge.style.left = `${leftPct}%`;
   }
+
+  // Diagnostic badge (V253)
+  const mode = isGrid ? "GRID" : "REAL";
+  const diagnosticHtml = `<div style="position:absolute; bottom:5px; left:0; width:100%; font-size:8px; color:rgba(255,255,255,0.4); pointer-events:none; text-align:center;">${mode}: ${Math.round(leftPct)}%</div>`;
 
   const displayName = name.toUpperCase();
 
@@ -1181,7 +1270,6 @@ function createModalBadge(
         </div>
         <div style="display:flex; justify-content:center; gap:12px; margin-top:6px; font-size:10px; font-weight:700;">
           <span style="color: #00e5ff;" class="app-owned-val" data-part="${escapeHTML(name)}">${t.inv}: ${appOwned}</span>
-          ${crafted > 0 ? `<span class="metadata-crafted" style="border-left:1px solid rgba(255,255,255,0.1); padding-left:12px;">FORJA: ${crafted}</span>` : ""}
         </div>
     </div>`;
 
@@ -1198,6 +1286,7 @@ function createModalBadge(
   }
 
   badge.innerHTML = String.raw`
+        ${diagnosticHtml}
         ${bestLabelHtml}
         <div class="modal-badge-link">
           <div class="modal-badge-content-wrapper">
@@ -1505,10 +1594,15 @@ function handleDebugLogging(cell, combinedText) {
 
 function getValidItemMatch(combinedText) {
   const matchOpts = findBestItemMatch(combinedText);
-  if (!matchOpts.bestMatch || matchOpts.highestRatio < 0.45) return null;
-  return matchOpts.bestMatch;
-}
 
+  // FIX: Puente de compatibilidad con el nuevo motor de scanner_ocr.js
+  // El nuevo motor OCR devuelve { item, score, xPos } en lugar de { bestMatch, highestRatio }
+  const bestMatch = matchOpts?.item || matchOpts?.bestMatch;
+  const score = matchOpts?.score || matchOpts?.highestRatio || 0;
+
+  if (!bestMatch || score < 0.45) return null;
+  return bestMatch;
+}
 async function extractCellQuantity(cell, bWorker, snapshot, grid) {
   const badgeCvs = createBadgeCanvas(snapshot, cell, grid);
   const {
@@ -1552,3 +1646,68 @@ globalThis.inventoryScanDone = function () {
     { type: "success" }
   );
 };
+/**
+ * Extrae el color RGB promedio del texto dentro de un Bounding Box de Tesseract.
+ * Busca los píxeles más brillantes (texto) ignorando el fondo oscuro.
+ */
+export function getAnchorColorFromBBox(originalCtx, bbox) {
+  const w = Math.max(1, bbox.x1 - bbox.x0);
+  const h = Math.max(1, bbox.y1 - bbox.y0);
+
+  // Obtenemos los píxeles originales (sin filtros) de esa palabra exacta
+  const imgData = originalCtx.getImageData(bbox.x0, bbox.y0, w, h).data;
+  let pixels = [];
+
+  for (let i = 0; i < imgData.length; i += 4) {
+    let r = imgData[i], g = imgData[i + 1], b = imgData[i + 2];
+    let luma = (r * 0.2126) + (g * 0.7152) + (b * 0.0722);
+    pixels.push({ r, g, b, luma });
+  }
+
+  // Ordenamos por brillo de mayor a menor
+  pixels.sort((a, b) => b.luma - a.luma);
+
+  // Tomamos el top 10% de los píxeles más brillantes (que conforman las letras puras)
+  const topCount = Math.max(1, Math.floor(pixels.length * 0.10));
+  let sumR = 0, sumG = 0, sumB = 0;
+
+  for (let i = 0; i < topCount; i++) {
+    sumR += pixels[i].r;
+    sumG += pixels[i].g;
+    sumB += pixels[i].b;
+  }
+
+  // Devolvemos el color semilla exacto
+  return {
+    r: Math.floor(sumR / topCount),
+    g: Math.floor(sumG / topCount),
+    b: Math.floor(sumB / topCount)
+  };
+}
+
+/**
+ * Binarización Estricta por Color. 
+ * Solo los píxeles que se parezcan a 'targetColor' sobrevivirán.
+ */
+export function applyTargetColorThreshold(ctx, w, h, targetColor, tolerance = 70) {
+  const imgData = ctx.getImageData(0, 0, w, h);
+  const px = imgData.data;
+
+  for (let i = 0; i < px.length; i += 4) {
+    let r = px[i], g = px[i + 1], b = px[i + 2];
+
+    // Distancia euclidiana en el espacio RGB
+    let dist = Math.sqrt(
+      Math.pow(r - targetColor.r, 2) +
+      Math.pow(g - targetColor.g, 2) +
+      Math.pow(b - targetColor.b, 2)
+    );
+
+    if (dist < tolerance) {
+      px[i] = px[i + 1] = px[i + 2] = 0;   // Se parece al color: Texto (Negro)
+    } else {
+      px[i] = px[i + 1] = px[i + 2] = 255; // No se parece: Fondo (Blanco puro)
+    }
+  }
+  ctx.putImageData(imgData, 0, 0);
+}
