@@ -156,7 +156,6 @@ export function detectCheckmark(snapshot, x, y, w, h) {
         brightnessSum += (data[i] + data[i + 1] + data[i + 2]) / 3;
     }
     const avgBrightness = brightnessSum / (data.length / 4);
-
     let highPoints = 0;
     for (let i = 0; i < data.length; i += 4) {
         let l = (data[i] + data[i + 1] + data[i + 2]) / 3;
