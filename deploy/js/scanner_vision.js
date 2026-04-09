@@ -121,18 +121,16 @@ export function applyClusteringThreshold(ctx, w, h) {
     const imgData = ctx.getImageData(0, 0, w, h);
     const px = imgData.data;
 
-    // OPTIMIZACIÓN: Filtro Luma de una sola pasada (sin bucles iterativos)
     for (let i = 0; i < px.length; i += 4) {
         let r = px[i], g = px[i + 1], b = px[i + 2];
         let luma = (r * 0.2126) + (g * 0.7152) + (b * 0.0722);
 
-        // Umbral de 110: Perfecto para leer texto blanco, dorado y bronce oscuro a la primera.
         let isText = luma > 110;
 
         if (isText) {
-            px[i] = px[i + 1] = px[i + 2] = 0;   // Texto -> Negro
+            px[i] = px[i + 1] = px[i + 2] = 0;
         } else {
-            px[i] = px[i + 1] = px[i + 2] = 255; // Fondo -> Blanco
+            px[i] = px[i + 1] = px[i + 2] = 255;
         }
     }
     ctx.putImageData(imgData, 0, 0);
@@ -171,10 +169,6 @@ export function detectCheckmark(snapshot, x, y, w, h) {
         brightnessSum += (data[i] + data[i + 1] + data[i + 2]) / 3;
     }
     const avgBrightness = brightnessSum / (data.length / 4);
-
-    // Un tick activo suele ser muy brillante comparado con el fondo oscuro de la carta.
-    // También podemos buscar píxeles que se acerquen al color del tema si lo supiéramos,
-    // pero el brillo es un buen proxy inicial.
     let highPoints = 0;
     for (let i = 0; i < data.length; i += 4) {
         let l = (data[i] + data[i + 1] + data[i + 2]) / 3;
