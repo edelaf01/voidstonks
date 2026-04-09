@@ -1,12 +1,10 @@
 import { state } from "../state.js";
-import { TEXTS, RIVEN_STATS } from "../config.js";
+import { RIVEN_STATS } from "../config.js";
 import { calculateRivenGrade } from "../riven_logic.js";
 import { getRivenSlug, fetchRivenAverage } from "../api.js";
 import {
   getItemIcon,
-  getSetName,
-  getRequiredCount,
-  generateDotsHtml,
+
 } from "./ui_utils.js";
 import { escapeHTML, showToast } from "./ui_components.js";
 

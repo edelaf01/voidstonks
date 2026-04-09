@@ -85,15 +85,15 @@ export function initCanvas() {
       if (tdir === 2 || tdir === 6) oy += i * 2;
       else ox += i * 2;
 
-      if (!isGridOccupied(ox, oy)) {
+      if (isGridOccupied(ox, oy)) {
+        p.state = "waiting_to_spawn";
+      } else {
         p.gx = ox;
         p.gy = oy;
         p.dirIdx = tdir;
         p.baseDir = tdir;
         p.pushPath(ox, oy);
         p.state = "drawing";
-      } else {
-        p.state = "waiting_to_spawn";
       }
     }
   }

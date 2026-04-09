@@ -599,8 +599,18 @@
               onchange="globalThis.toggleRewardsAutoSync(this.checked)" style="accent-color: #00e5ff;">
             <span class="sync-toggle-label">AUTO-SYNC</span>
           </label>
+          <label class="orokin-toggle"
+            style="display: flex; align-items: center; gap: 5px; cursor: pointer; font-size: 0.75rem; color: #888; margin-left: 10px;">
+            <input type="checkbox" id="auto-copy-toggle" onchange="globalThis.toggleAutoCopyScanResults(this.checked)"
+              style="accent-color: #00e5ff;">
+            <span class="copy-toggle-label">AUTO-COPY</span>
+          </label>
           <span class="help-icon" style="color: #555; cursor: help; font-size: 0.8rem;"
-            data-tooltip="SI: Sincroniza TODO con el VISTO (Prioridad OCR). NO: Solo añade +1 a la pieza que elijas manualmente.">ⓘ</span>
+            data-tooltip="SI: Copia automáticamente los resultados al portapapeles después de cada escaneo en formato chat de Warframe.">ⓘ</span>
+          <button class="orokin-btn-mini" onclick="globalThis.copyScanResultsToClipboard()"
+            style="background: rgba(0, 229, 255, 0.1); border: 1px solid rgba(0, 229, 255, 0.4); color: #00e5ff; font-size: 10px; padding: 3px 10px; border-radius: 4px; font-weight: 800; cursor: pointer; margin-left: 10px; transition: all 0.2s; white-space: nowrap;">
+            📋 COPY
+          </button>
         </div>
         <button class="close-modal-btn" onclick="closeScanModal()">✕</button>
       </div>
@@ -758,10 +768,6 @@
           </div>
           <span class="arrow-indicator">▼</span>
         </div>
-        <button onclick="import('./js/mobile_debug_scanner.js').then(m => globalThis.startDebugScanner())"
-          style="margin-left: 8px; background: rgba(0,229,255,0.15); border: 1px solid #00e5ff; color: #00e5ff; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 10px; font-weight: 800; white-space: nowrap; display: flex; align-items: center; gap: 5px; transition: all 0.2s;">
-          <span style="font-size:12px;">🛠️</span> DEBUG
-        </button>
 
         <div id="scanner-privacy-notice" class="scanner-notice hidden">
           <div class="notice-header">⚠️ BETA FEATURE NOTICE</div>
@@ -1216,7 +1222,7 @@
     <div class="modal-backdrop" onclick="closeUpdateModal()"></div>
     <div class="scan-result-card" style="max-width: 500px; height: auto; max-height: 80vh">
       <div class="scan-header">
-        <h3 style="color: var(--wf-blue)">FEATURE HISTORY</h3>
+        <h3 id="lbl-update-title" style="color: var(--wf-blue)">FEATURE HISTORY</h3>
         <button class="close-modal-btn" onclick="closeUpdateModal()">
           ✕
         </button>
@@ -1227,7 +1233,7 @@
         </div>
       </div>
       <div class="scan-footer">
-        <button class="action-btn confirm" onclick="closeUpdateModal()" style="width: 100%">
+        <button id="btn-update-gotit" class="action-btn confirm" onclick="closeUpdateModal()" style="width: 100%">
           Got it
         </button>
       </div>

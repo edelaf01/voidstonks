@@ -234,7 +234,6 @@ export class MobileScanner {
   updateGuideDividers() {
     const guide = document.getElementById("scanner-box-guide");
     if (!guide) return;
-
     guide.querySelectorAll(".guide-divider").forEach(el => el.remove());
 
     if (this.rewardCount > 1) {
@@ -296,7 +295,6 @@ export class MobileScanner {
         if (OpenCVEngine.isReady) {
           OpenCVEngine.processForOCR(cvs, "discovery", this.calibratedColor, state.visionSettings);
         }
-
         if (!this.worker3) return;
 
         const { data } = await this.worker3.recognize(cvs);
@@ -425,7 +423,7 @@ export class MobileScanner {
         debugLog.style.display = "block";
       }
       if (mainCvs.width <= 0 || mainCvs.height <= 0) return;
-      console.log(`[V197] CAPTURA INDUSTRIAL: ${mainCvs.width}x${mainCvs.height}`);
+      console.log(`CAPTURA : ${mainCvs.width}x${mainCvs.height}`);
 
       const ocrPromises = strips.map(async (strip, idx) => {
         const statusMsg = `PROCESANDO: ${idx + 1}/${strips.length} BLOQUES...`;

@@ -137,13 +137,9 @@ function handleClipboardAction(msg) {
 async function loadAsyncData() {
   try {
     initFissurePanel().catch(console.error);
-
     preloadPricesToMemory().catch(console.error);
-
     await Promise.all([fetchRivenWeapons(), fetchPrimeManifest()]);
-
     await downloadRelics();
-
     if (state.selectedRelic) {
       const input = document.getElementById("relicInput");
       if (input) input.value = state.selectedRelic;
@@ -260,25 +256,7 @@ globalThis.startMobileScanner = async function () {
   }
 };
 
-document.addEventListener("visibilitychange", () => {
-  if (document.hidden && activeScannerInstance) {
-    console.log("📱 App en segundo plano, cerrando scanner...");
 
-    try {
-      activeScannerInstance.close();
-    } catch (e) {
-      console.warn("Error al cerrar scanner por visibilitychange:", e);
-    }
-
-    activeScannerInstance = null;
-    isScannerActive = false;
-
-    const scanBtn = document.getElementById("mobile-scan-btn");
-    if (scanBtn) {
-      scanBtn.classList.remove("scanning", "processing");
-    }
-  }
-});
 
 const wrapperSwitchTab = function (mode) {
   if (activeScannerInstance && mode !== "relic") {
@@ -305,7 +283,25 @@ const wrapperSwitchTab = function (mode) {
 
   switchTab(mode);
 };
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden && activeScannerInstance) {
+    console.log("📱 App en segundo plano, cerrando scanner...");
 
+    try {
+      activeScannerInstance.close();
+    } catch (e) {
+      console.warn("Error al cerrar scanner por visibilitychange:", e);
+    }
+
+    activeScannerInstance = null;
+    isScannerActive = false;
+
+    const scanBtn = document.getElementById("mobile-scan-btn");
+    if (scanBtn) {
+      scanBtn.classList.remove("scanning", "processing");
+    }
+  }
+});
 globalThis.switchTab = wrapperSwitchTab;
 
 Object.assign(globalThis, {

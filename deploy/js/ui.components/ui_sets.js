@@ -274,11 +274,6 @@ export function renderSetTracker() {
     </div>
   `;
 
-  const manifestItem =
-    state.primeManifest && Array.isArray(state.primeManifest)
-      ? state.primeManifest.find((i) => i.name === state.currentActiveSet)
-      : null;
-
   state.activeSetParts.forEach((partName) => {
     const wrapper = document.createElement("div");
     const ownedCount = state.primeInventory[partName] || 0;
@@ -315,7 +310,7 @@ export function renderSetTracker() {
         row.style.zIndex = "10";
         hoverTimer = setTimeout(() => {
           const drawer = row.nextElementSibling;
-          if (drawer && drawer.classList.contains("hidden")) {
+          if (drawer?.classList.contains("hidden")) {
             row.click();
           }
         }, 500);

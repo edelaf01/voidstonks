@@ -45,7 +45,6 @@ export function showToast(message, options = {}) {
 
   const toast = document.createElement("div");
   toast.className = `wf-toast ${type}`;
-
   const icon = type === "error" ? "⚠️" : (type === "success" ? "✓" : "ℹ");
 
   toast.innerHTML = `

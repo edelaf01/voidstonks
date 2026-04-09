@@ -64,6 +64,8 @@ export const UPDATE_HISTORY_DATA = {
 </div>
 `,
   en: `
+<div class="update-block">
+  <div class="update-header">
     <span class="update-version">v1.9.0 (Current)</span>
     <span class="update-date">2026-03-27</span>
   </div>
@@ -586,6 +588,13 @@ export const TEXTS = {
       btnScrollManualScan: "Haz scroll abajo, y pulsa SCAN PÁGINA de nuevo.",
       toastScanComplete: "¡Escaneo completado! {count} piezas Prime detectadas.",
     },
+    rewardScanner: {
+      autoSyncLabel: "AUTO-SYNC",
+      autoSyncTooltip: "SI: Sincroniza TODO con el VISTO (Prioridad OCR). NO: Solo añade +1 a la pieza que elijas manualmente.",
+      autoCopyLabel: "AUTO-COPY",
+      autoCopyTooltip: "SI: Copia automáticamente los resultados al portapapeles después de cada escaneo en formato chat de Warframe.",
+      rewardSelectedConfirmation: "{item} SELECCIONADA +1",
+    },
     calib: {
       title: "CALIBRACIÓN INICIAL",
       step1: "Selecciona el cuadrado correspondiente al PRIMER ITEM (arriba-izq), incluyendo NOMBRE ENTERO y CANTIDAD.",
@@ -793,6 +802,8 @@ export const TEXTS = {
     btnCancel: "CANCELAR",
     lblOwned: "obtenidos",
     btnShowUpdates: "Ver Novedades",
+    updateModalTitle: "HISTORIAL DE ACTUALIZACIONES",
+    updateModalGotIt: "Entendido",
   },
   en: {
     condSpeedrun: "Complete in less than 6 min",
@@ -1094,8 +1105,16 @@ export const TEXTS = {
     purgeConfirmParts: "Delete all Prime Inventory?",
     btnConfirm: "CONFIRM",
     btnCancel: "CANCEL",
-    lblOwned: "owned",
     btnShowUpdates: "Patch Notes",
+    updateModalTitle: "FEATURE HISTORY",
+    updateModalGotIt: "Got it",
+    rewardScanner: {
+      autoSyncLabel: "AUTO-SYNC",
+      autoSyncTooltip: "YES: Sync EVERYTHING with SEEN (OCR Priority). NO: Only add +1 to the part you manually choose.",
+      autoCopyLabel: "AUTO-COPY",
+      autoCopyTooltip: "YES: Automatically copies results to clipboard after each scan in Warframe chat format.",
+      rewardSelectedConfirmation: "{item} SELECTED +1",
+    },
   },
 };
 export const AYA_STRATEGY_CONFIG = {
