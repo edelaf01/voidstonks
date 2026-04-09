@@ -9,7 +9,6 @@ export function initCanvas() {
   const SPEED_MULTI = 2;
   const PARTICLE_COUNT = 15;
   const CELL_SIZE = 12;
-  // Increase MIN_SEGMENT for smoother, longer PCB traces
   const MIN_SEGMENT = 15;
   const TURN_PROBABILITY = 0.05;
   const BASE_MAX_LENGTH = 180;
@@ -89,16 +88,16 @@ export function initCanvas() {
       if (tdir === 2 || tdir === 6) oy += i * 2; // Offset Y for E/W
       else ox += i * 2; // Offset X for N/S
 
-      if (!isGridOccupied(ox, oy)) {
+      if (isGridOccupied(ox, oy)) {
+        // If spot occupied, throw it back to pool
+        p.state = "waiting_to_spawn";
+      } else {
         p.gx = ox;
         p.gy = oy;
         p.dirIdx = tdir;
         p.baseDir = tdir; // Lock base direction to prevent U-turns
         p.pushPath(ox, oy);
         p.state = "drawing";
-      } else {
-        // If spot occupied, throw it back to pool
-        p.state = "waiting_to_spawn";
       }
     }
   }
@@ -144,7 +143,6 @@ export function initCanvas() {
 
       const canGoStraight = isPathClear(this.gx, this.gy, currentDir.dx, currentDir.dy);
 
-      // Try to keep going straight
       if (
         canGoStraight &&
         (this.stepsStraight < MIN_SEGMENT || Math.random() > TURN_PROBABILITY)
@@ -154,24 +152,18 @@ export function initCanvas() {
         return true;
       }
 
-      // If we are forced to turn but haven't gone straight long enough,
-      // terminate the trace here to avoid chaotic zig-zags.
       if (!canGoStraight && this.stepsStraight < MIN_SEGMENT) {
         return false;
       }
 
-      // Time to turn.
-      // PCB traces strictly use 45 degree angles.
       const turnOffsets = [1, -1];
       if (Math.random() < 0.5) turnOffsets.reverse();
 
       for (let offset of turnOffsets) {
         const newDirIdx = (this.dirIdx + offset + 8) % 8;
 
-        // Prevent trace from looping back towards its spawn edge
         let diff = Math.abs(newDirIdx - this.baseDir);
         if (diff > 4) diff = 8 - diff;
-        // Allows turning up to 90 degrees relative to spawn vector, never backwards (135 or 180)
         if (diff > 2) continue;
 
         const d = directions[newDirIdx];
@@ -183,10 +175,9 @@ export function initCanvas() {
           return true;
         }
       }
-      return false; // Stuck
+      return false;
     }
     update() {
-      // Spawning is now handled centrally by spawnBus()
       if (this.state === "waiting_to_spawn") return;
 
       if (this.state === "drawing") {
@@ -227,7 +218,7 @@ export function initCanvas() {
       const sy = (y) => y * CELL_SIZE + CELL_SIZE / 2;
       ctx.lineWidth = 2;
       ctx.lineCap = "square";
-      ctx.lineJoin = "bevel"; // Bevel provides PCB aesthetic for sharp angled strokes
+      ctx.lineJoin = "bevel";
       const opacity = this.state === "retracting" ? 0.3 : 0.8;
       ctx.strokeStyle = `rgba(${GOLD_COLOR}, ${opacity * this.alpha})`;
       ctx.shadowBlur = 0;
@@ -252,7 +243,6 @@ export function initCanvas() {
         const hy = sy(head.y);
         ctx.fillStyle = "#fff";
         ctx.beginPath();
-        // PCB component pad / node
         ctx.moveTo(hx, hy - 4);
         ctx.lineTo(hx + 4, hy);
         ctx.lineTo(hx, hy + 4);
@@ -303,7 +293,6 @@ export function initCanvas() {
     if (elapsed > frameDelay) {
       then = now - (elapsed % frameDelay);
 
-      // Randomly spawn new data buses
       if (Math.random() < 0.05) {
         spawnBus();
       }

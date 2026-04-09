@@ -26,7 +26,7 @@ export function getRequiredCount(setName, partName) {
     const item =
       manifest.find((i) => i.name === setName) ||
       weapons.find((i) => i.name === setName);
-    if (!item || !item.components) return 1;
+    if (!item?.components) return 1;
 
     let cleanPart =
       partName === setName ? "Blueprint" : partName.replace(setName, "").trim();
@@ -65,9 +65,9 @@ export function generateDotsHtml(owned, required) {
 
 export function calculateTotalFullSets(setName) {
   if (!setName || setName === "Otros") return 0;
-  
+
   let allParts = [];
-  if (state.setsDatabase && state.setsDatabase[setName]) {
+  if (state.setsDatabase?.[setName]) {
     allParts = state.setsDatabase[setName];
   } else {
     if (!globalThis.setPartsCache) globalThis.setPartsCache = new Map();
@@ -81,7 +81,7 @@ export function calculateTotalFullSets(setName) {
     }
     allParts = globalThis.setPartsCache.get(setName);
   }
-  
+
 
   let possibleSets = Infinity;
   allParts.forEach((partName) => {
@@ -90,11 +90,11 @@ export function calculateTotalFullSets(setName) {
     const safeReq = requiredCount > 0 ? requiredCount : 1;
     const sets = Math.floor(owned / safeReq);
     if (!Number.isNaN(sets) && sets < possibleSets) {
-        possibleSets = sets;
+      possibleSets = sets;
     }
   });
   if (possibleSets === Infinity || Number.isNaN(possibleSets)) {
-      possibleSets = 0;
+    possibleSets = 0;
   }
 
   const setItemOwned = state.primeInventory[setName + " Set"] || 0;
@@ -103,11 +103,12 @@ export function calculateTotalFullSets(setName) {
 
 export function generateSetProgressTooltip(setName) {
   if (!setName || setName === "Otros") return "";
-  const tKeys = TEXTS[state.currentLang];
-  
+  //TPDP MPT ISED
+  //const tKeys = TEXTS[state.currentLang];
+
   // Use pre-calculated setsDatabase if available for O(1) lookup
   let partsList = [];
-  if (state.setsDatabase && state.setsDatabase[setName]) {
+  if (state.setsDatabase?.[setName]) {
     partsList = state.setsDatabase[setName];
   } else {
     if (!globalThis.setPartsCache) globalThis.setPartsCache = new Map();
@@ -121,7 +122,7 @@ export function generateSetProgressTooltip(setName) {
     }
     partsList = globalThis.setPartsCache.get(setName);
   }
-  
+
   const itemNames = [...partsList].sort();
 
   if (itemNames.length === 0) return "";
@@ -131,13 +132,13 @@ export function generateSetProgressTooltip(setName) {
 
   let html = `<div class="set-progress-tooltip-inner" style="background:#1a1e24; border:1px solid var(--wf-orokin); border-radius:6px; padding:10px; min-width:220px; box-shadow: 0 4px 12px rgba(0,0,0,0.5);">`;
   html += `<div style="color:var(--wf-gold-text); font-weight:bold; font-size:1.1em; border-bottom:1px solid #333; padding-bottom:5px; margin-bottom:8px; text-transform:uppercase; display:flex; align-items:center; justify-content:space-between;"><span>${escapeHTML(setName)}</span>${setBadge}</div>`;
-  
+
   itemNames.forEach((itemName) => {
     const icon = getItemIcon(itemName);
     const shortName = itemName.replace(setName, "").trim() || "Blueprint";
     const req = getRequiredCount(setName, itemName);
     const owned = state.primeInventory[itemName] || 0;
-    
+
     html += `
       <div style="display:flex; align-items:center; gap:8px; margin-bottom:5px;">
          ${icon ? `<img src="${icon}" style="width:24px; height:24px; object-fit:contain;">` : ""}
@@ -172,27 +173,28 @@ export function getRelicDropTooltip(tierName) {
     <div style='margin-bottom:4px; font-size:1.3em;'>${tKeys.dropsFor ? tKeys.dropsFor : "Drops for"} ${escapeHTML(tierName)}</div>
     ${avgHeader}
   </div>`;
-  
+
   if (contents.length > 0) {
     html += `<div style='margin:12px 0 6px 0; padding-bottom:6px; border-bottom:1px solid #555; font-weight:900; color:#ddd; font-size:1.0em; text-transform:uppercase;'>${tKeys.contentsOf ? tKeys.contentsOf : "Contents"}</div>`;
     html += `<div style='display:flex; flex-direction:column; gap:6px; margin-bottom:14px;'>`;
     contents.forEach(item => {
       const isRare = item.chance <= 5;
       const isUncommon = item.chance > 5 && item.chance <= 22;
+      //TODO FIX LINT
       const color = isRare ? "var(--wf-gold-text)" : isUncommon ? "var(--wf-blue)" : "#bbb";
       const itemSlug = getSlug(item.name);
-      
+
       const isForma = item.name.toLowerCase().includes("forma") || item.name.toLowerCase().includes("kuva");
-      
+
       if (isForma) {
         html += `<div style='display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; background:rgba(0,0,0,0.25); padding:4px 8px; border-radius:4px; border-left:3px solid ${color}; gap:10px; width:100%; box-sizing:border-box;'>
           <span style='font-size:0.9em; color:#fff; flex:1; min-width:140px; word-break:break-word; line-height:1.2;'>${escapeHTML(item.name)}</span>
         </div>`;
         return;
       }
-      
+
       const cachedPrice = globalThis.MEMORY_CACHE?.get(itemSlug) || "...";
-      
+
       if (getPriceValue) {
         getPriceValue(item.name, itemSlug).then(price => {
           const el = document.getElementById(`tt-price-${getSlug(tierName)}-${itemSlug}`);
@@ -201,7 +203,7 @@ export function getRelicDropTooltip(tierName) {
           }
         });
       }
-      
+
       html += `<div style='display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; background:rgba(0,0,0,0.25); padding:4px 8px; border-radius:4px; border-left:3px solid ${color}; gap:10px; width:100%; box-sizing:border-box;'>
         <span style='font-size:0.9em; color:#fff; flex:1; min-width:140px; word-break:break-word; line-height:1.2;'>${escapeHTML(item.name)}</span>
         <div style='display:flex; gap:10px; align-items:center; font-size:0.9em; font-weight:bold; flex-shrink:0;'>
@@ -277,15 +279,15 @@ export function getItemIcon(itemName) {
     if (originalName === "forma blueprint") {
       return "assets/relic_contents/forma.webp";
     }
-    
+
     if (originalName === "silva & aegis prime") return "assets/relic_contents/silva__aegis_prime.webp";
     if (originalName === "kavasa prime" || originalName === "kavasa prime collar") return "assets/relic_contents/kavasa_prime_kubrow_collar.webp";
 
     const baseSlug = originalName
       .replace(" set", "")
-      .replace(/\s+&\s+/g, "__")
-      .replace(/[\s-]+/g, "_")
-      .replace(/[^a-z0-9_]/g, "");
+      .replaceAll(/\s+&\s+/g, "__")
+      .replaceAll(/[\s-]+/g, "_")
+      .replaceAll(/[^a-z0-9_]/g, "");
 
     const pPrefix = originalName.includes("prime") ? "prime_" : "";
     const basePath = `assets/relic_contents/${pPrefix}`;

@@ -234,9 +234,7 @@ export function modifyInv(name, amount) {
   updateInventoryCount(name, amount);
   saveAppState();
 
-  if (state.inventory.length !== oldLength) {
-    renderInventory();
-  } else {
+  if (state.inventory.length === oldLength) {
     const itemMatch = state.inventory.find(
       (i) => (typeof i === "string" ? i : i.name) === name
     );
@@ -249,6 +247,8 @@ export function modifyInv(name, amount) {
     const safeNameHtml = escapeHTML(name);
     const qtySpan = document.querySelector(`.inv-row[data-relic="${safeNameHtml}"] .qty-label`);
     if (qtySpan) qtySpan.textContent = `x${newQty}`;
+  } else {
+    renderInventory();
   }
 }
 
@@ -356,6 +356,7 @@ export function addCurrentToInv() {
 
   renderInventory();
 }
+//TODO FIX LINT
 export function switchInvView(view) {
   if (state.currentInvView === view && document.getElementById("inventory-list")?.innerHTML.length > 50) return;
   state.currentInvView = view;
@@ -411,15 +412,15 @@ export function modifyPrimePart(name, amount) {
   saveAppState();
 
   const safePartHtml = escapeHTML(name);
-  // Update all instances of quantity labels that use data-part or are next to a data-part button
   const qtySpans = document.querySelectorAll(
     `.inv-btn-small[data-part="${safePartHtml}"] ~ .qty-num, .qty-num[data-part="${safePartHtml}"]`
   );
   qtySpans.forEach(span => {
     span.textContent = newQty;
-    // Animation pulse for feedback
     span.classList.remove("pulse-anim");
-    void span.offsetWidth; // trigger reflow
+
+    //???   TODO FIX LINT
+    // span.offsetWidth; // trigger reflow
     span.classList.add("pulse-anim");
   });
 
@@ -428,12 +429,11 @@ export function modifyPrimePart(name, amount) {
   if (badge) badge.dataset.qty = newQty;
 
   setTimeout(updatePrimeTotalValue, 10);
-
+  //TODO TOO COMPLEX
   requestAnimationFrame(() => {
-    // Update all dots/trackers for this part
     const trackers = document.querySelectorAll(`.live-tracker[data-part="${safePartHtml}"]`);
     trackers.forEach(t => {
-      const required = parseInt(t.dataset.req) || 1;
+      const required = Number.parseInt(t.dataset.req) || 1;
       t.innerHTML = generateDotsHtml(newQty, required);
     });
     const setName = getSetName(name);
@@ -449,18 +449,15 @@ export function modifyPrimePart(name, amount) {
         }
       }
 
-      // Update macro tracker in the search results
       if (state.activeTab === "set" && typeof globalThis.updateMacroTracker === "function") {
         globalThis.updateMacroTracker(setName);
       }
 
-      // Refresh the main Set Tracker if it's currently showing this set
       if (state.currentActiveSet === setName && typeof globalThis.renderSetTracker === "function") {
         globalThis.renderSetTracker();
       }
     }
 
-    // Update Reward Modal counts if present
     const rewardCounts = document.querySelectorAll(`.app-owned-val[data-part="${safePartHtml}"]`);
     rewardCounts.forEach(span => {
       span.textContent = `TENÍAS: ${newQty}`;
@@ -485,7 +482,7 @@ export function deletePrimeSet(setName) {
 
 export function decrementPrimeSet(setName) {
   let allPossibleParts = [];
-  if (state.setsDatabase && state.setsDatabase[setName]) {
+  if (state.setsDatabase?.[setName]) {
     allPossibleParts = state.setsDatabase[setName];
   } else {
     allPossibleParts = globalThis.setPartsCache?.get(setName) || [];
@@ -499,7 +496,7 @@ export function decrementPrimeSet(setName) {
     let requiredCount = 1;
     let partName = p;
     if (reqMatch) {
-      requiredCount = parseInt(reqMatch[1], 10);
+      requiredCount = Number.parseInt(reqMatch[1], 10);
       partName = p.replace(/\s*\d+x$/, "").trim();
     }
 
@@ -574,7 +571,7 @@ export function renderPrimeInventory() {
     }
 
     let allPossibleParts = [];
-    if (state.setsDatabase && state.setsDatabase[setName]) {
+    if (state.setsDatabase?.[setName]) {
       allPossibleParts = state.setsDatabase[setName];
     } else {
       if (!globalThis.setPartsCache) globalThis.setPartsCache = new Map();
@@ -657,7 +654,6 @@ export function renderPrimeInventory() {
   setTimeout(() => {
     if (globalThis.primeRenderId !== currentRenderId) return;
 
-    // Only clear if empty or completely different, otherwise just prepare headers
     const headerHtml = `
       <div class="inventory-total-header">
          <div class="total-label">${TEXTS[state.currentLang].inventory.lblTotalValue || "ESTIMATED TOTAL VALUE"}</div>
@@ -665,7 +661,6 @@ export function renderPrimeInventory() {
       </div>`;
 
     if (list.querySelector(".inventory-total-header")) {
-      // Keep existing items until chunks replace them for smoother transition
       const oldTotal = document.getElementById("total-prime-value")?.textContent;
       list.innerHTML = headerHtml;
       if (oldTotal) document.getElementById("total-prime-value").textContent = oldTotal;
@@ -674,6 +669,7 @@ export function renderPrimeInventory() {
     }
 
     let currentIndex = 0;
+    //TODO TOO COMPLEX
     const renderChunk = () => {
       if (globalThis.primeRenderId !== currentRenderId) return;
 
@@ -690,7 +686,8 @@ export function renderPrimeInventory() {
         let numSets = 0;
         let allPossibleParts = [];
         if (setName !== "Otros") {
-          if (state.setsDatabase && state.setsDatabase[setName]) {
+          //TODO deja vu , not following DRY??
+          if (state.setsDatabase?.[setName]) {
             allPossibleParts = state.setsDatabase[setName];
           } else {
             allPossibleParts = globalThis.setPartsCache?.get(setName) || [];
@@ -761,13 +758,14 @@ export function renderPrimeInventory() {
                    <a href="https://warframe.market/items/${getSlug(partName)}" target="_blank" class="market-link-icon-mini" onclick="event.stopPropagation()">↗</a>
                    <span class="price-badge-small" id="price-p-${safeId}" data-qty="${qty}" data-item="${escapeHTML(partName)}">${(() => {
                   const cached = globalThis.MEMORY_CACHE?.get(getSlug(partName));
+                  //TODO FIX LINT
                   if (cached !== undefined && !Number.isNaN(Number.parseInt(cached, 10))) return Number.parseInt(cached, 10);
                   return "...";
                 })()} <span class="plat-icon-inline"></span></span>
                 </div>
 
                 <div class="inv-qty-controls-mini">
-                  <button class="inv-btn-small" data-action="modify-prime-part" data-part="${escapeHTML(partName)}" data-amount="-1">−</button>
+                  <button class="inv-btn-small" data-action="modify-prime-part" data-part="${escapeHTML(partName)}" data-amount="-1"></button>
                   <span class="qty-num" data-part="${escapeHTML(partName)}">${qty}</span>
                   <button class="inv-btn-small" data-action="modify-prime-part" data-part="${escapeHTML(partName)}" data-amount="1">+</button>
                 </div>
@@ -783,8 +781,6 @@ export function renderPrimeInventory() {
       }
 
       list.appendChild(fragment);
-
-      // INCREMENTAL TOTAL: Update total after every chunk to show progress
       updatePrimeTotalValue();
 
       if (currentIndex < setNames.length) {
@@ -796,8 +792,7 @@ export function renderPrimeInventory() {
           const el = document.getElementById(`set-mkt-${safeSetId}`);
           if (el) addToQueue(setName + " Set", el);
         });
-
-        // Trigger a targeted warmup for any parts currently visible but not in cache
+        //This is needed for the prices to update and be somewhat ready 
         if (typeof warmupPrices === "function") {
           warmupPrices();
         }
@@ -814,7 +809,7 @@ export function renderPrimeInventory() {
     globalThis.invTotalSyncInterval = setInterval(() => {
       syncCount++;
       updatePrimeTotalValue();
-      // Stop after 20 seconds or if inventory is closed (checked via DOM existence)
+      // Stop after 20 seconds or if inventory is closed
       if (syncCount > 40 || !document.getElementById("inventory-list-parts")) {
         clearInterval(globalThis.invTotalSyncInterval);
       }
@@ -864,7 +859,7 @@ export async function updatePrimeTotalValue() {
     const mktEl = document.getElementById(`set-mkt-${safeSetId}`);
 
     const cachedRaw = globalThis.MEMORY_CACHE?.get(getSlug(setNameRaw + " Set"));
-    const price = cachedRaw !== undefined ? Number.parseInt(cachedRaw, 10) : 0;
+    const price = cachedRaw === undefined ? 0 : Number.parseInt(cachedRaw, 10);
 
     if (cachedRaw !== undefined) {
       if (!Number.isNaN(price) && mktEl) {
@@ -911,7 +906,8 @@ function calculateGroupSubtotal(setName, groupData) {
   }
 
   let allPossibleParts = [];
-  if (state.setsDatabase && state.setsDatabase[setName]) {
+  //TODO deja vu
+  if (state.setsDatabase?.[setName]) {
     allPossibleParts = state.setsDatabase[setName];
   } else {
     allPossibleParts = Object.keys(state.itemsDatabase).filter(
@@ -1018,7 +1014,7 @@ export function importInventory() {
       const text = await file.text();
       const data = JSON.parse(text);
 
-      if (data && data.relics !== undefined && data.parts !== undefined) {
+      if (data?.relics !== undefined && data.parts !== undefined) {
         if (
           confirm(
             `Archivo de inventario dual cargado.\n\nThis will overwrite your entire inventory (Relics & Parts). Are you sure?`

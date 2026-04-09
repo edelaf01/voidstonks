@@ -249,9 +249,7 @@ export class OpenCVEngine {
     }
 
     /**
-     * V146 INDUSTRIAL COLUMN DISCOVERY:
-     * Encuentra 1-4 recompensas dinámicamente mediante clustering vertical pesado.
-     * Esto evita separar el nombre de la pieza de su cantidad/ducados.
+     * Encuentra 1-4 recompensas dinámicamente mediante clustering vertical .
      */
     static findTextROIs(canvas) {
         if (!OpenCVEngine.isReady) return [];
@@ -262,13 +260,9 @@ export class OpenCVEngine {
 
         let gray = new cv.Mat(); cv.cvtColor(srcSmall, gray, cv.COLOR_RGBA2GRAY);
         let binary = new cv.Mat();
-        // Umbral adaptativo equilibrado para texto claro sobre fondo oscuro
         cv.adaptiveThreshold(gray, binary, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, 15, 5);
-
-        // CLUSTERING VERTICAL PESADO (V146)
-        // Usamos un kernel muy alto para unir NOMBRE + TIPO + DUCADOS en un solo bloque por jugador.
         let mClose = new cv.Mat();
-        let kernel = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(40, 100)); // H=100px para unir verticalmente
+        let kernel = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(40, 100));
         cv.morphologyEx(binary, mClose, cv.MORPH_CLOSE, kernel);
 
         let contours = new cv.MatVector();
@@ -280,20 +274,18 @@ export class OpenCVEngine {
 
         for (let i = 0; i < contours.size(); ++i) {
             let rect = cv.boundingRect(contours.get(i));
-            // Filtro de "Columna de Recompensa": Área mínima significativa para evitar ruido
             if (rect.width > 30 && rect.height > 40) {
                 finalROIs.push({
                     x: Math.floor(rect.x * scale),
-                    y: Math.max(0, Math.floor((rect.y - 10) * scale)), // Margen de seguridad superior
+                    y: Math.max(0, Math.floor((rect.y - 10) * scale)),
                     w: Math.floor(rect.width * scale),
-                    h: Math.floor((rect.height + 20) * scale) // Margen de seguridad inferior
+                    h: Math.floor((rect.height + 20) * scale)
                 });
             }
         }
 
         src.delete(); srcSmall.delete(); gray.delete(); binary.delete(); mClose.delete(); contours.delete(); hierarchy.delete(); kernel.delete();
 
-        // Ordenamos de izquierda a derecha y devolvemos las columnas reales (1-4)
         return finalROIs.sort((a, b) => a.x - b.x);
     }
 }

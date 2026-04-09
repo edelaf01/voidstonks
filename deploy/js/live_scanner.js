@@ -130,7 +130,7 @@ async function checkAutoScrollScan(externalHash = null) {
     sampleCvs.width = 48;
     sampleCvs.height = 27;
 
-    const sCtx = sampleCvs.getContext("2d");
+    const sCtx = sampleCvs.getContext("2d", { willReadFrequently: true });
     sCtx.drawImage(
       video,
       0,
@@ -201,7 +201,8 @@ let snapshotCtx = null;
 const priceCache = new Map();
 
 let lastTrackedRelic = "";
-let trackingDebounce = 0;
+//NO SE USA
+//let trackingDebounce = 0;
 let scanCounter = 0;
 
 let sessionInventory = new Map();
@@ -494,7 +495,6 @@ function prepareVirtualCanvas(video) {
   const height = video.videoHeight;
   const scale = 1080 / height;
 
-  // Mantenemos tu lógica original: capturar el 15% superior de TODA la pantalla
   const hCropH = Math.floor(height * 0.15);
 
   virtualCanvas.width = Math.floor(width * scale);
@@ -504,11 +504,10 @@ function prepareVirtualCanvas(video) {
 
   vCtx.drawImage(
     video,
-    0, 0, width, hCropH, // Leemos todo el ancho de nuevo
+    0, 0, width, hCropH,
     0, 0, virtualCanvas.width, virtualCanvas.height,
   );
 
-  // Filtro Bimodal: Salva el texto Naranja Y el texto Blanco brillante
   const imgData = vCtx.getImageData(0, 0, virtualCanvas.width, virtualCanvas.height);
   const px = imgData.data;
 
@@ -517,17 +516,15 @@ function prepareVirtualCanvas(video) {
 
     let luma = (r * 0.2126) + (g * 0.7152) + (b * 0.0722);
 
-    // 1. Regla para el Naranja/Dorado oscuro de la UI ("VOID FISSURE")
     let isOrange = (r > 140 && g > 70 && b < 100 && r > b + 40);
 
     // 2. Regla para el texto blanco/gris claro del contexto extra
-    // Exigimos que los canales RGB estén cerca entre sí (baja saturación) para no confundirlo con luces de colores
+
     let isWhiteText = (luma > 160 && Math.abs(r - g) < 30 && Math.abs(g - b) < 30);
 
     if (isOrange || isWhiteText) {
-      px[i] = px[i + 1] = px[i + 2] = 0;   // Texto -> Negro
-    } else {
-      px[i] = px[i + 1] = px[i + 2] = 255; // Luces y nave de fondo -> Blanco
+      px[i] = px[i + 1] = px[i + 2] = 0;
+      px[i] = px[i + 1] = px[i + 2] = 255;
     }
   }
   vCtx.putImageData(imgData, 0, 0);
@@ -772,7 +769,6 @@ function updateLiveInventoryUI(
   if (!listContainer) return;
 
   if (currentFrameItems.length === 0) {
-    // Keep last detected message, only clear the list if it's really the start
     if (sessionInventory.size === 0) {
       listContainer.innerHTML = `<div style="text-align:center;color:#444;font-size:0.75em;padding:20px 0;">${TEXTS[state.currentLang].scannerHUD.lblEmpty}</div>`;
     }
@@ -829,9 +825,8 @@ async function processRelicSelection(video, width, height, scale) {
 }
 
 async function processRewards(video, width, height, scale) {
-  // Franja de recompensas ampliada considerablemente para capturar "OWNED" que está arriba del nombre
   const rCropY = Math.floor(height * 0.18);
-  const rCropH = Math.floor(height * 0.55);
+  const rCropH = Math.floor(height * 0.50);
   const targetW = Math.floor(width * scale);
   const targetH = Math.floor(rCropH * scale);
 
@@ -840,73 +835,64 @@ async function processRewards(video, width, height, scale) {
   canvas.height = targetH;
   const ctx = canvas.getContext("2d");
 
-  // Usamos el snapshot original para OCR y detección de ticks
   ctx.drawImage(video, 0, rCropY, width, rCropH, 0, 0, targetW, targetH);
 
-  // Pre-procesamiento dinámico (clustering) antes de OCR
   const ocrCanvas = document.createElement('canvas');
   ocrCanvas.width = targetW; ocrCanvas.height = targetH;
-  const ocrCtx = ocrCanvas.getContext('2d');
-  ocrCtx.drawImage(canvas, 0, 0);
+  const ocrCtx = ocrCanvas.getContext('2d', { willReadFrequently: true }); ocrCtx.drawImage(canvas, 0, 0);
 
-  // --- INICIO DEL NUEVO MOTOR DE COLOR ANCLA ---
 
-  // 1. Guardamos el Canvas original INTACTO (con colores) antes de aplicar filtros
   const originalCanvas = document.createElement('canvas');
   originalCanvas.width = targetW; originalCanvas.height = targetH;
-  const originalCtx = originalCanvas.getContext('2d');
-  originalCtx.drawImage(canvas, 0, 0);
+  const originalCtx = originalCanvas.getContext('2d', { willReadFrequently: true }); originalCtx.drawImage(canvas, 0, 0);
 
-  // 2. Primera Pasada: Lectura Rápida
   applyClusteringThreshold(ocrCtx, targetW, targetH);
   const { data: pass1Data } = await worker1.recognize(ocrCanvas);
-
-  // 3. Buscamos "Palabras Ancla" en los resultados de la Pasada 1
-  const anchorKeywords = ["PRIME", "BLUEPRINT", "OWNED", "CHASSIS", "SYSTEMS", "NEUROPTICS", "HANDLE", "BARREL"];
-  let bestAnchor = null;
-
-  for (const w of pass1Data.words) {
-    const text = w.text.toUpperCase().replace(/[^A-Z]/g, '');
-    if (anchorKeywords.includes(text) && w.confidence > 75) {
-      bestAnchor = w;
-      break; // Encontramos un ancla, dejamos de buscar
-    }
-  }
-
   let finalData = pass1Data;
+  let foundItems = parseTextForRewards(pass1Data);
+  const metaCount = pass1Data.words.filter(w => /OWNED|CRAFTED|CRAFT/i.test(w.text)).length;
 
-  // 4. Si encontramos un ancla, hacemos la Pasada Mágica (Fase 2)
-  if (bestAnchor) {
-    console.log(`[COLOR MATCH] Ancla encontrada: ${bestAnchor.text}`);
+  if (foundItems.length < 2 || foundItems.length < metaCount) {
+    const anchorKeywords = new Set(["PRIME", "BLUEPRINT", "OWNED", "CHASSIS", "SYSTEMS", "NEUROPTICS", "HANDLE", "BARREL"]);
+    let bestAnchor = null;
 
-    const exactColor = getAnchorColorFromBBox(originalCtx, bestAnchor.bbox);
+    for (const w of pass1Data.words) {
+      const text = w.text.toUpperCase().replaceAll(/[^A-Z]/g, '');
+      if (anchorKeywords.has(text) && w.confidence > 75) {
+        bestAnchor = w;
+        break;
+      }
+    }
 
-    ocrCtx.drawImage(originalCanvas, 0, 0);
+    if (bestAnchor) {
+      console.log(`[COLOR MATCH] Rescate activado. Ancla: ${bestAnchor.text}`);
+      const exactColor = getAnchorColorFromBBox(originalCtx, bestAnchor.bbox);
+      ocrCtx.drawImage(originalCanvas, 0, 0);
+      applyTargetColorThreshold(ocrCtx, targetW, targetH, exactColor, 75);
 
-    applyTargetColorThreshold(ocrCtx, targetW, targetH, exactColor, 75);
+      const { data: pass2Data } = await worker1.recognize(ocrCanvas);
+      finalData = pass2Data;
 
-    const { data: pass2Data } = await worker1.recognize(ocrCanvas);
-    finalData = pass2Data;
+      // Re-evaluamos con los datos limpios de la segunda pasada
+      foundItems = parseTextForRewards(finalData);
+    }
+  } else {
+    console.log(`[FAST PATH] Pasada 1 exitosa. Saltando corrección de color.`);
   }
 
-  // --- FIN DEL NUEVO MOTOR DE COLOR ANCLA ---
 
-  // Actualizamos tus variables de logs para que usen la lectura limpia de finalData
   const rawOcr = finalData.text || "";
   console.log("[SCAN] Rewards Raw OCR:", rawOcr);
 
   clearRewardDebugLogs();
   addRewardDebugLog("OCR", `Text read: ${rawOcr.substring(0, 50)}...`, "info");
 
-  // 5. Procesamos las recompensas normalmente
-  const foundItems = parseTextForRewards(finalData);
   console.log("[SCAN] Rewards Found Items:", foundItems.length);
   addRewardDebugLog("SCAN", `Items found: ${foundItems.length}`, foundItems.length > 0 ? "match" : "warn");
 
   if (foundItems.length > 0 && !detectionLocked) {
     foundItems.forEach(item => {
       addRewardDebugLog("ITEM", `Detected: ${item.name}`, "match");
-      // Tick detection (El ocrCanvas ahora tiene la binarización perfecta por color, lo que hace al checkmark infalible)
       const tickX = item.xPos + 50;
       const tickY = item.yPos - 150;
       item.isSelected = detectCheckmark(ocrCanvas, tickX, tickY, 70, 70);
@@ -990,8 +976,8 @@ function showTrackConfirm(relicName, rawOcr = "") {
   const container = document.getElementById("toast-container");
   if (!container) return;
 
-  const safeId = `track-${relicName.replace(/\s+/g, "-")}`;
-  if (document.getElementById(safeId)) return; // Already showing
+  const safeId = `track-${relicName.replaceAll(/\s+/g, "-")}`;
+  if (document.getElementById(safeId)) return;
 
   const popup = document.createElement("div");
   popup.id = safeId;
@@ -1042,7 +1028,6 @@ function showTrackConfirm(relicName, rawOcr = "") {
     removeAlert();
   };
 
-  // Close automatically after 1 minute
   setTimeout(removeAlert, 60000);
 }
 
@@ -1066,20 +1051,22 @@ globalThis.openScanModal = async function (imageUrl, items, width, height, scale
 
   if (!modal || !imgEl || !badgesContainer) return;
 
-  // CRITICAL: Store results IMMEDIATELY for the sync on close.
   currentScanResults = items;
 
-  // Set toggle state
   const syncToggle = document.getElementById("sync-rewards-toggle");
   if (syncToggle) syncToggle.checked = !!state.autoSyncRewards;
 
-  // Localize Header items
-  if (typeof TEXTS !== 'undefined' && TEXTS[state.currentLang]?.rewardScanner) {
+  const copyToggle = document.getElementById("auto-copy-toggle");
+  if (copyToggle) copyToggle.checked = !!state.autoCopyScanResults;
+
+  if (TEXTS?.[state.currentLang]?.rewardScanner) {
     const tScan = TEXTS[state.currentLang].rewardScanner;
-    const toggleLabel = modal.querySelector(".sync-toggle-label");
-    if (toggleLabel) toggleLabel.innerText = tScan.autoSyncLabel;
+    const syncLabel = modal.querySelector(".sync-toggle-label");
+    if (syncLabel) syncLabel.innerText = tScan.autoSyncLabel;
+    const copyLabel = modal.querySelector(".copy-toggle-label");
+    if (copyLabel) copyLabel.innerText = tScan.autoCopyLabel;
     const helpIcon = modal.querySelector(".help-icon");
-    if (helpIcon) helpIcon.setAttribute("data-tooltip", tScan.autoSyncTooltip);
+    if (helpIcon) helpIcon.dataset.tooltip = tScan.autoSyncTooltip + " | " + tScan.autoCopyTooltip;
   }
 
   // Hide selection status initially
@@ -1098,7 +1085,6 @@ globalThis.openScanModal = async function (imageUrl, items, width, height, scale
   autoCloseTimer = setTimeout(() => {
     globalThis.closeScanModal();
   }, AUTO_CLOSE_DELAY_MS);
-  // Track OCR results to avoid overwriting manual "Add to Inventory" with stale game UI
   if (!globalThis.lastSeenOcrCache) globalThis.lastSeenOcrCache = {};
 
   const itemsWithDetails = await Promise.all(
@@ -1124,8 +1110,8 @@ globalThis.openScanModal = async function (imageUrl, items, width, height, scale
     }),
   );
 
-  // Store results for the final sync on closeScanModal
   currentScanResults = itemsWithDetails;
+  console.log("[Auto-Copy] Results stored:", currentScanResults.length);
 
   const maxPl = Math.max(...itemsWithDetails.map((i) => i.price));
 
@@ -1139,7 +1125,6 @@ globalThis.openScanModal = async function (imageUrl, items, width, height, scale
   requestAnimationFrame(() => {
     const fragment = document.createDocumentFragment();
 
-    // V253: Sincronización PROFUNDA de dimensiones (Pillarboxing fix)
     const wrapper = document.getElementById("scan-badges-wrapper");
     if (imgEl.clientWidth > 0 && wrapper) {
       const imgRatio = imgEl.naturalWidth / imgEl.naturalHeight;
@@ -1223,12 +1208,15 @@ globalThis.openScanModal = async function (imageUrl, items, width, height, scale
 
     badgesContainer.innerHTML = "";
     badgesContainer.appendChild(fragment);
+
+    if (state.autoCopyScanResults) {
+      console.log("[Auto-Copy] Triggering copy...");
+      setTimeout(() => globalThis.copyScanResultsToClipboard(true), 100);
+    }
   });
 
-  // NOTE: Final save and UI sync is now deferred to closeScanModal.
-  // This prevents the background inventory list from 'jumping' during the scan.
 }
-
+//todo fix 
 function createModalBadge(
   { name, price, ducats, owned, appOwned, crafted, isSelected, isBestPl, isBestEff, isCompletingSet, leftPct, isGrid },
   container,
@@ -1240,7 +1228,6 @@ function createModalBadge(
     badge.style.left = `${leftPct}%`;
   }
 
-  // Diagnostic badge (V253)
   const mode = isGrid ? "GRID" : "REAL";
   const diagnosticHtml = `<div style="position:absolute; bottom:5px; left:0; width:100%; font-size:8px; color:rgba(255,255,255,0.4); pointer-events:none; text-align:center;">${mode}: ${Math.round(leftPct)}%</div>`;
 
@@ -1266,7 +1253,7 @@ function createModalBadge(
   metadataHtml = `
     <div class="metadata-row">
         <div class="inventory-app-count" style="background: rgba(0, 255, 120, 0.15); border-color: #00ff78;">
-            VISTO: <span class="metadata-seen" style="font-size: 14px;">${owned > 0 ? owned : 0}</span>
+            ${t.owned.toUpperCase()}: <span class="metadata-seen" style="font-size: 14px;">${owned > 0 ? owned : 0}</span>
         </div>
         <div style="display:flex; justify-content:center; gap:12px; margin-top:6px; font-size:10px; font-weight:700;">
           <span style="color: #00e5ff;" class="app-owned-val" data-part="${escapeHTML(name)}">${t.inv}: ${appOwned}</span>
@@ -1295,7 +1282,7 @@ function createModalBadge(
             
             <div class="modal-badge-row">
                 <div class="modal-badge-price">
-                    <span class="scanner-plat-icon"></span>
+                    <img src="assets/relic_contents/platinum.webp" class="currency-icon">
                     ${price > 0 ? price : "—"}
                 </div>
                 ${ducats > 0
@@ -1316,6 +1303,93 @@ function createModalBadge(
 
   container.appendChild(badge);
 }
+
+globalThis.copyScanResultsToClipboard = function (isAuto = false) {
+  if (!currentScanResults || currentScanResults.length === 0) {
+    if (!isAuto) showToast("No rewards to copy!");
+    console.warn("[Auto-Copy] No results available to copy.");
+    return;
+  }
+
+  const lang = state.currentLang === "en" ? "en" : "es";
+
+  const parts = currentScanResults.map(item => {
+    const displayName = item.name || "Unknown Item";
+    const name = `[${displayName}]`;
+    const pl = item.price > 0 ? `${item.price} :platinum:` : "";
+    const duc = item.ducats > 0 ? `${item.ducats} :ducats:` : "";
+    return `${name} ${pl} ${duc}`.trim();
+  });
+
+  const text = parts.join(" | ");
+
+  const finalizeCopy = (success) => {
+    if (success) {
+      console.log("[Auto-Copy] Success!");
+      showToast(lang === "en" ? "Results copied to clipboard!" : "Resultados copiados al portapapeles!", { type: "success" });
+    } else {
+      console.error("[Auto-Copy] Failed");
+      if (!isAuto) {
+        showToast("Failed to copy results", { type: "error" });
+      } else if (!document.hasFocus()) {
+        console.warn("[Auto-Copy] Blocked: Document not focused.");
+        showToast(lang === "en" ? "Focus app to copy automatically!" : "¡Focaliza la app para copiar!", { type: "warn" });
+      }
+    }
+  };
+
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(text).then(() => finalizeCopy(true)).catch(err => {
+      console.warn("[Auto-Copy] navigator.clipboard failed, trying fallback...", err);
+      fallbackCopyTextToClipboard(text, finalizeCopy);
+    });
+  } else {
+    fallbackCopyTextToClipboard(text, finalizeCopy);
+  }
+};
+
+
+function fallbackCopyTextToClipboard(text, callback) {
+  try {
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    textArea.style.position = "fixed";
+    textArea.style.left = "0";
+    textArea.style.top = "0";
+    textArea.style.width = "2em";
+    textArea.style.height = "2em";
+    textArea.style.padding = "0";
+    textArea.style.border = "none";
+    textArea.style.outline = "none";
+    textArea.style.boxShadow = "none";
+    textArea.style.background = "transparent";
+    textArea.style.opacity = "0.01";
+    textArea.style.zIndex = "-1";
+
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    //TODO FIX THIS no funciona como queria dfe todas formasw
+    const successful = document.execCommand('copy');
+    textArea.remove();
+
+    if (!successful) {
+      console.warn("[Auto-Copy] execCommand('copy') returned false.");
+    }
+    callback(successful);
+  } catch (err) {
+    console.error("[Auto-Copy] Fallback critical failure:", err);
+    callback(false);
+  }
+}
+
+
+globalThis.toggleAutoCopyScanResults = function (val) {
+  state.autoCopyScanResults = val;
+  if (globalThis.saveAppState) globalThis.saveAppState();
+  showToast(`Auto-Copy: ${val ? "ON" : "OFF"}`);
+};
+
 globalThis.saveLiveInventory = function () {
   if (sessionInventory.size === 0) return showToast("No items detected");
   for (const [name, count] of sessionInventory) {
@@ -1361,19 +1435,18 @@ function copyScannerDebugLog() {
 globalThis.stopLiveSession = stopLiveSession;
 let currentScanResults = [];
 let selectedScanItem = null;
-
+//TODO: Fix this
 globalThis.closeScanModal = function () {
   if (autoCloseTimer) clearTimeout(autoCloseTimer);
 
   const successModal = document.getElementById("scan-success-modal");
   if (successModal) successModal.classList.add("hidden");
 
-  // Unlock detection
   detectionLocked = false;
 
-  // FINAL SYNC RULE: AppStore = (item is selected ? OCR Seen + 1 : OCR Seen)
-  if (currentScanResults.length > 0 && typeof state !== 'undefined' && state.primeInventory) {
-    let anyChange = false;
+  if (currentScanResults.length > 0 && state?.primeInventory) {
+    // TODO: Fix this
+    let anyChange = false; state !== undefined
     const normalizedSelection = selectedScanItem ? selectedScanItem.toUpperCase().trim() : null;
 
     currentScanResults.forEach(item => {
@@ -1382,7 +1455,6 @@ globalThis.closeScanModal = function () {
         const isSelected = normalizedSelection && itemNameNorm === normalizedSelection;
 
         if (state.autoSyncRewards) {
-          // AUTO MODE: Smart Mirror (Baseline is OCR reality)
           const targetQty = item.owned + (isSelected ? 1 : 0);
           if (state.primeInventory[item.name] !== targetQty) {
             state.primeInventory[item.name] = targetQty;
@@ -1390,7 +1462,6 @@ globalThis.closeScanModal = function () {
             addRewardDebugLog("AUTO_SYNC", `${item.name}: synced to ${targetQty}${isSelected ? ' (+1 selected)' : ''}`, "match");
           }
         } else {
-          // MANUAL MODE: App State Priority (Increment current log)
           if (isSelected) {
             const currentQty = state.primeInventory[item.name] || 0;
             state.primeInventory[item.name] = currentQty + 1;
@@ -1405,12 +1476,11 @@ globalThis.closeScanModal = function () {
       if (globalThis.renderPrimeInventory) globalThis.renderPrimeInventory();
     }
   }
-
-  // TRIGGER POST-MODAL TOAST (Bottom of screen)
+  //TODO  FIX THIS  
   if (selectedScanItem && typeof globalThis.showToast === "function") {
     const t = (typeof TEXTS !== 'undefined') ? TEXTS[state.currentLang] : null;
-    let msg = `${selectedScanItem.toUpperCase()} SELECCIONADA +1`; // Fallback
-    if (t && t.rewardScanner && t.rewardScanner.rewardSelectedConfirmation) {
+    let msg = `TEXTS !== undefinedse()} SELECCIONADA +1`; // Fallback
+    if (t?.rewardScanner?.rewardSelectedConfirmation) {
       msg = t.rewardScanner.rewardSelectedConfirmation.replace("{item}", selectedScanItem.toUpperCase());
     }
     globalThis.showToast(msg);
@@ -1423,21 +1493,18 @@ globalThis.closeScanModal = function () {
 globalThis.selectRewardToInventory = function (itemName) {
   selectedScanItem = itemName;
 
-  // Instant UI feedback: highlight the selected badge and update its preview label
   const modal = document.getElementById("scan-success-modal");
   if (modal) {
     modal.querySelectorAll('.modal-badge').forEach(b => b.classList.remove('selected-reward'));
     const badges = modal.querySelectorAll('.modal-badge');
     badges.forEach(b => {
-      // Robust name match
       if (b.innerText.toUpperCase().includes(itemName.toUpperCase().trim())) {
         b.classList.add('selected-reward');
 
-        // Update the label inside the badge for instant feedback
         const ownedValSpan = b.querySelector('.app-owned-val');
         if (ownedValSpan) {
           const rawOcr = b.querySelector('.metadata-seen')?.innerText || "0";
-          const seen = parseInt(rawOcr) || 0;
+          const seen = Number.parseInt(rawOcr) || 0;
           const labelPrefix = ownedValSpan.innerText.split(':')[0];
           ownedValSpan.innerText = `${labelPrefix}: ${seen + 1}`;
         }
@@ -1448,7 +1515,6 @@ globalThis.selectRewardToInventory = function (itemName) {
   if (typeof showToast === "function") showToast(`SELECCIONADO: ${itemName}`);
   addRewardDebugLog("SELECT", `Reward selected (sync pending close): ${itemName}`, "match");
 
-  // Final commitment happens in closeScanModal
   setTimeout(() => globalThis.closeScanModal(), 600);
 };
 
@@ -1458,7 +1524,6 @@ globalThis.toggleRewardsAutoSync = function (val) {
   showToast(`Auto-Sync: ${val ? "ON" : "OFF"}`);
 };
 
-// Unified closeScanModal used now globally
 
 globalThis.manualPrecisionScan = async function () {
   const video = document.getElementById("live-video");
@@ -1471,7 +1536,6 @@ globalThis.manualPrecisionScan = async function () {
     const msgEl = document.getElementById("live-inv-msg");
     if (msgEl) msgEl.innerText = "S-C-A-N-N-I-N-G...";
 
-    // Perform two pass scan for accuracy
     const diagnosticUrl = await performTwoPassScan(video, msgEl);
 
     if (DEBUG_MODE) updateDebugUI(diagnosticUrl);
@@ -1594,9 +1658,6 @@ function handleDebugLogging(cell, combinedText) {
 
 function getValidItemMatch(combinedText) {
   const matchOpts = findBestItemMatch(combinedText);
-
-  // FIX: Puente de compatibilidad con el nuevo motor de scanner_ocr.js
-  // El nuevo motor OCR devuelve { item, score, xPos } en lugar de { bestMatch, highestRatio }
   const bestMatch = matchOpts?.item || matchOpts?.bestMatch;
   const score = matchOpts?.score || matchOpts?.highestRatio || 0;
 
@@ -1654,7 +1715,6 @@ export function getAnchorColorFromBBox(originalCtx, bbox) {
   const w = Math.max(1, bbox.x1 - bbox.x0);
   const h = Math.max(1, bbox.y1 - bbox.y0);
 
-  // Obtenemos los píxeles originales (sin filtros) de esa palabra exacta
   const imgData = originalCtx.getImageData(bbox.x0, bbox.y0, w, h).data;
   let pixels = [];
 
@@ -1663,11 +1723,7 @@ export function getAnchorColorFromBBox(originalCtx, bbox) {
     let luma = (r * 0.2126) + (g * 0.7152) + (b * 0.0722);
     pixels.push({ r, g, b, luma });
   }
-
-  // Ordenamos por brillo de mayor a menor
   pixels.sort((a, b) => b.luma - a.luma);
-
-  // Tomamos el top 10% de los píxeles más brillantes (que conforman las letras puras)
   const topCount = Math.max(1, Math.floor(pixels.length * 0.10));
   let sumR = 0, sumG = 0, sumB = 0;
 
@@ -1677,7 +1733,6 @@ export function getAnchorColorFromBBox(originalCtx, bbox) {
     sumB += pixels[i].b;
   }
 
-  // Devolvemos el color semilla exacto
   return {
     r: Math.floor(sumR / topCount),
     g: Math.floor(sumG / topCount),
@@ -1687,26 +1742,22 @@ export function getAnchorColorFromBBox(originalCtx, bbox) {
 
 /**
  * Binarización Estricta por Color. 
- * Solo los píxeles que se parezcan a 'targetColor' sobrevivirán.
  */
 export function applyTargetColorThreshold(ctx, w, h, targetColor, tolerance = 70) {
   const imgData = ctx.getImageData(0, 0, w, h);
   const px = imgData.data;
 
+  const tolSq = tolerance * tolerance;
   for (let i = 0; i < px.length; i += 4) {
     let r = px[i], g = px[i + 1], b = px[i + 2];
-
-    // Distancia euclidiana en el espacio RGB
-    let dist = Math.sqrt(
-      Math.pow(r - targetColor.r, 2) +
-      Math.pow(g - targetColor.g, 2) +
-      Math.pow(b - targetColor.b, 2)
-    );
-
-    if (dist < tolerance) {
-      px[i] = px[i + 1] = px[i + 2] = 0;   // Se parece al color: Texto (Negro)
+    let dr = r - targetColor.r;
+    let dg = g - targetColor.g;
+    let db = b - targetColor.b;
+    let distSq = (dr * dr) + (dg * dg) + (db * db);
+    if (distSq < tolSq) {
+      px[i] = px[i + 1] = px[i + 2] = 0;
     } else {
-      px[i] = px[i + 1] = px[i + 2] = 255; // No se parece: Fondo (Blanco puro)
+      px[i] = px[i + 1] = px[i + 2] = 255;
     }
   }
   ctx.putImageData(imgData, 0, 0);

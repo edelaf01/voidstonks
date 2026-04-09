@@ -136,19 +136,11 @@ function handleClipboardAction(msg) {
 
 async function loadAsyncData() {
   try {
+    //Preload should look into this later TODO no deberia hacer esto
     initFissurePanel().catch(console.error);
-
-    // Don't await preloading, let it run in background to speed up startup
     preloadPricesToMemory().catch(console.error);
-
-    // 1. Fetch static definitions (Weapons, Entities) to build Ducat DB first
     await Promise.all([fetchRivenWeapons(), fetchPrimeManifest()]);
-
-    // 2. Fetch Relics (dynamic) - now safe to use Ducat DB
-    // We treat this as critical, so we await it.
     await downloadRelics();
-
-    // Success actions
     if (state.selectedRelic) {
       const input = document.getElementById("relicInput");
       if (input) input.value = state.selectedRelic;
@@ -265,27 +257,7 @@ globalThis.startMobileScanner = async function () {
   }
 };
 
-// Unified closeScanModal is now handled in live_scanner.js to ensure inventory sync.
 
-document.addEventListener("visibilitychange", () => {
-  if (document.hidden && activeScannerInstance) {
-    console.log("📱 App en segundo plano, cerrando scanner...");
-
-    try {
-      activeScannerInstance.close();
-    } catch (e) {
-      console.warn("Error al cerrar scanner por visibilitychange:", e);
-    }
-
-    activeScannerInstance = null;
-    isScannerActive = false;
-
-    const scanBtn = document.getElementById("mobile-scan-btn");
-    if (scanBtn) {
-      scanBtn.classList.remove("scanning", "processing");
-    }
-  }
-});
 
 const wrapperSwitchTab = function (mode) {
   if (activeScannerInstance && mode !== "relic") {
@@ -312,7 +284,25 @@ const wrapperSwitchTab = function (mode) {
 
   switchTab(mode);
 };
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden && activeScannerInstance) {
+    console.log("📱 App en segundo plano, cerrando scanner...");
 
+    try {
+      activeScannerInstance.close();
+    } catch (e) {
+      console.warn("Error al cerrar scanner por visibilitychange:", e);
+    }
+
+    activeScannerInstance = null;
+    isScannerActive = false;
+
+    const scanBtn = document.getElementById("mobile-scan-btn");
+    if (scanBtn) {
+      scanBtn.classList.remove("scanning", "processing");
+    }
+  }
+});
 globalThis.switchTab = wrapperSwitchTab;
 
 Object.assign(globalThis, {

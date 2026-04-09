@@ -59,7 +59,6 @@ export class MobileScanner {
     }
   }
 
-  // Calibración V89: Ultra-Slim Industrial (Máxima Velocidad)
   calibratedCropY = -1;
   calibratedCropH = 180;
   calibratedCropX = -1;
@@ -74,7 +73,6 @@ export class MobileScanner {
       const success = await OpenCVEngine.waitReady(30000);
       if (!success) this.setVisionStatus("ERROR AL CARGAR MOTOR", "#ff4b2b");
 
-      // V195: No bloqueamos el inicio de cámara por el OCR
       initOcrWorkers().then(workers => {
         this.worker1 = workers[0]; this.worker2 = workers[1]; this.worker3 = workers[2];
         this.setVisionStatus("MOTOR OCR LISTO", "#2ecc71");
@@ -88,7 +86,7 @@ export class MobileScanner {
       await this.video.play();
 
       this.startDiscoveryLoop();
-      this.updateGuideDividers(); // Inicializar lineas de guia
+      this.updateGuideDividers();
       showToast("Escáner Premium de Alta Precisión");
     } catch (err) { showToast("Error: " + err.message); this.close(); }
   }
@@ -172,7 +170,6 @@ export class MobileScanner {
     labelsLayer.style.cssText = "position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:100005;";
     guide.appendChild(labelsLayer);
 
-    // V91 DEBUG GALLERY: Ventanita lateral para las fotos del OCR
     const sideGallery = document.createElement("div"); sideGallery.id = "scanner-side-gallery";
     sideGallery.style.cssText = `
         position:absolute; top:80px; right:-200px; width:180px; bottom:120px; 
@@ -198,7 +195,6 @@ export class MobileScanner {
     overlay.appendChild(shutterBtn); overlay.appendChild(countSelector); overlay.appendChild(closeBtn);
     overlay.appendChild(sideGallery); overlay.appendChild(toggleGallery);
 
-    // V85 INDUSTRIAL: Glassmorphic Badge Styles
     if (!document.getElementById("premium-mobile-badges-style")) {
       const style = document.createElement("style");
       style.id = "premium-mobile-badges-style";
@@ -242,8 +238,6 @@ export class MobileScanner {
   updateGuideDividers() {
     const guide = document.getElementById("scanner-box-guide");
     if (!guide) return;
-
-    // Limpiar lineas viejas
     guide.querySelectorAll(".guide-divider").forEach(el => el.remove());
 
     if (this.rewardCount > 1) {
@@ -305,12 +299,9 @@ export class MobileScanner {
         if (OpenCVEngine.isReady) {
           OpenCVEngine.processForOCR(cvs, "discovery", this.calibratedColor, state.visionSettings);
         }
-
-        // V195: Si los workers aún no están listos, saltamos este frame de descubrimiento
         if (!this.worker3) return;
 
         const { data } = await this.worker3.recognize(cvs);
-        // V140: Unificamos lógica de Discovery con el motor de recompensas
         const rewards = parseTextForRewards(data);
         const matches = rewards.map(r => ({ text: r.name, confidence: 99 }));
 
@@ -321,7 +312,6 @@ export class MobileScanner {
         }
         this.updateDiscoveryLabels(matches, cW, cH, 0, canvasScale);
 
-        // V196: Notificamos telemetría al dashboard (sobre todo en modo DEBUG)
         if (typeof this.onDiscoveryFrame === "function") {
           this.onDiscoveryFrame(matches, cW, cH, cY);
         }
@@ -341,7 +331,6 @@ export class MobileScanner {
       const label = document.createElement("div");
       label.className = "premium-mobile-badge";
 
-      // V92: Coordenadas relativas directas al Canvas (que ahora mapea al Guide)
       const xNorm = ((w.bbox.x0 + w.bbox.x1) / 2) / (vidW * scale);
       const yNorm = ((w.bbox.y0 + w.bbox.y1) / 2) / (vidH * scale);
 
@@ -388,27 +377,22 @@ export class MobileScanner {
       const vw = video.videoWidth, vh = video.videoHeight;
       if (vw < 10) return;
 
-      // V92 DYNAMIC CALIBRATION: Mapeo absoluto entre CSS y Píxeles de Vídeo
       const guide = document.getElementById("scanner-box-guide");
       const vRect = video.getBoundingClientRect();
       const gRect = guide ? guide.getBoundingClientRect() : { top: vRect.top + (vRect.height - 180) / 2, height: 180, left: vRect.left, width: vRect.width };
 
-      // Calcular escala de la imagen proyectada (object-fit: cover)
       const videoAspect = vw / vh;
       const screenAspect = vRect.width / vRect.height;
 
       let scale, offsetX = 0, offsetY = 0;
       if (videoAspect > screenAspect) {
-        // El vídeo es más ancho que la pantalla (se cortan los laterales)
         scale = vRect.height / vh;
         offsetX = (vh * videoAspect * scale - vRect.width) / 2;
       } else {
-        // El vídeo es más alto que la pantalla (se corta arriba/abajo)
         scale = vRect.width / vw;
         offsetY = (vw / videoAspect * scale - vRect.height) / 2;
       }
 
-      // Mapear Coordenadas del Guía (Pantalla) -> Vídeo (Píxeles Reales)
       const cX = Math.max(0, Math.floor(((gRect.left - vRect.left) + offsetX) / scale));
       const cY = Math.max(0, Math.floor(((gRect.top - vRect.top) + offsetY) / scale));
       const cW = Math.min(vw - cX, Math.floor(gRect.width / scale));
@@ -420,13 +404,12 @@ export class MobileScanner {
       const mCtx = mainCvs.getContext("2d");
       mCtx.drawImage(video, cX, cY, cW, cH, 0, 0, cW, cH);
 
-      const results = []; // Aquí acumularemos los hallazgos únicos
-      const sessionResults = []; // Datos para el diagnóstico agrupado
+      const results = [];
+      const sessionResults = [];
 
-      // V147 MANUAL PARTITIONING:
       const strips = [];
       const stripH = Math.floor(cH / this.rewardCount);
-      const padV = Math.floor(stripH * 0.12); // V184: Aumentamos a 12% para evitar cortes verticales
+      const padV = Math.floor(stripH * 0.12);
       const padH = Math.floor(cW * 0.08);
 
       for (let i = 0; i < this.rewardCount; i++) {
@@ -444,10 +427,9 @@ export class MobileScanner {
         debugLog.style.display = "block";
       }
       if (mainCvs.width <= 0 || mainCvs.height <= 0) return;
-      console.log(`[V197] CAPTURA INDUSTRIAL: ${mainCvs.width}x${mainCvs.height}`);
+      console.log(`CAPTURA : ${mainCvs.width}x${mainCvs.height}`);
 
       const ocrPromises = strips.map(async (strip, idx) => {
-        // ACTUALIZACIÓN DE PROGRESO EN PANTALLA DE CARGA
         const statusMsg = `PROCESANDO: ${idx + 1}/${strips.length} BLOQUES...`;
         if (loaderText) loaderText.innerText = statusMsg;
 
@@ -457,11 +439,8 @@ export class MobileScanner {
           statusEl.style.color = "#00e5ff";
         }
 
-        // 0. VALIDACIÓN INDUSTRIAL (V197)
         if (strip.w <= 0 || strip.h <= 0) return;
 
-        // 1. ESCALADO DINÁMICO
-        // Esto hace que las letras tengan siempre el mismo tamaño para el OCR
         let scale = 120 / strip.h;
         scale = Math.min(5, Math.max(2.5, scale));
 
@@ -473,19 +452,17 @@ export class MobileScanner {
         bCtx.imageSmoothingEnabled = true;
         bCtx.imageSmoothingQuality = 'high';
 
-        // Dibujamos el trozo de la imagen original en el canvas pequeño
         bCtx.drawImage(mainCvs, strip.x, strip.y, strip.w, strip.h, 0, 0, blockCvs.width, blockCvs.height);
 
-        // 2. PRE-PROCESADO: Binarización dinámica (V187)
+        // 2. PRE-PROCESADO: Binarización dinámica 
         if (OpenCVEngine.isReady) {
           OpenCVEngine.processForOCR(blockCvs, "hard", null, state.visionSettings);
         }
         const originalUrl = blockCvs.toDataURL();
 
-        // 3. OCR: Protección contra dimensiones 0x0 (V191)
         if (blockCvs.width <= 0 || blockCvs.height <= 0) return;
 
-        // Rotamos entre los 3 workers para máxima paralelización
+        // paralelización
         let worker = this.worker1;
         const mod = idx % 3;
         if (mod === 1) worker = this.worker2;
@@ -494,7 +471,6 @@ export class MobileScanner {
         if (!worker) return;
         const { data } = await worker.recognize(blockCvs);
 
-        // V91: Generar previsualización ETIQUETADA para la galería
         const labeledCvs = document.createElement("canvas");
         labeledCvs.width = blockCvs.width; labeledCvs.height = blockCvs.height;
         const lCtx = labeledCvs.getContext("2d");
@@ -524,7 +500,6 @@ export class MobileScanner {
           debugLog.appendChild(div);
         }
 
-        // V91 SIDE GALLERY: Añadir previsualización de imágenes con ETIQUETA
         if (sideGallery) {
           const block = document.createElement("div");
           block.style.cssText = "background:rgba(255,255,255,0.05); border-radius:6px; padding:6px; font-size:8px; color:#ccc;";
@@ -535,7 +510,6 @@ export class MobileScanner {
                 <img src="${labeledUrl}" style="width:100%; border:1px solid #00e5ff; border-radius:4px;" title="${data.text.trim()}" />
               </div>
            `;
-          // V95: Rolling Buffer de 20 bloques (Limpieza automática)
           if (sideGallery.children.length > 20) {
             // El primer elemento es la cabecera, borramos el segundo
             if (sideGallery.children[1]) sideGallery.children[1].remove();
@@ -545,7 +519,7 @@ export class MobileScanner {
         }
 
         detectedItems.forEach(it => {
-          // Calculamos la posición X real en la pantalla global
+          // Calculamos la posición X real en la pantalla 
           const globalX = strip.x + (strip.w / 2);
 
           results.push({
@@ -558,10 +532,10 @@ export class MobileScanner {
 
       await Promise.all(ocrPromises);
 
-      // Limpiar HUD de progreso
       const statusEl = document.getElementById("scanner-vision-status");
       if (statusEl) {
         statusEl.innerText = `ESCANEADO FINALIZADO: ${results.length} ITEMS`;
+        //TODO: Fix this
         setTimeout(() => { if (statusEl) statusEl.innerText = "READY (HIGH-SPEED V86)"; }, 3000);
       }
 
@@ -595,7 +569,6 @@ export class MobileScanner {
     let rc = document.getElementById("scan-results-sheet"); if (rc) rc.remove();
     rc = document.createElement("div"); rc.id = "scan-results-sheet"; document.body.appendChild(rc);
 
-    // Contenedor principal con estilo cristalino
     rc.style.cssText = `
         position:fixed; bottom:0; left:0; right:0; 
         background: rgba(10, 15, 20, 0.96); backdrop-filter: blur(25px); -webkit-backdrop-filter: blur(25px);
@@ -625,7 +598,6 @@ export class MobileScanner {
     const cc = document.createElement("div");
     cc.style.cssText = "display:flex; gap:12px; overflow-x:auto; padding:10px 5px 20px 5px; scrollbar-width:none; -ms-overflow-style:none;";
 
-    // Obtenemos los precios para marcar el mejor
     Promise.all(items.map(it => getPriceValue(it.name, getSlug(it.name)))).then(prices => {
       const maxPl = Math.max(...prices);
 

@@ -1,7 +1,7 @@
 import { state, saveAppState } from "../state.js";
 import { TEXTS, DROP_CHANCES } from "../config.js";
 import { addToQueue, getSlug } from "../api.js";
-import { escapeHTML, showToast } from "./ui_components.js";
+import { escapeHTML } from "./ui_components.js";
 import {
   getItemIcon,
   getSetName,
@@ -96,7 +96,7 @@ function renderRelicStatusBadge(relicName) {
     statusBadge.dataset.tooltip = TEXTS[state.currentLang].vaulted;
   }
 }
-
+//TODO Too complex , 16 out of 15 close
 function createRelicDropRow(item) {
   const row = document.createElement("div");
   row.className = "component-row";
@@ -105,12 +105,12 @@ function createRelicDropRow(item) {
     e.dataTransfer.setData("text/plain", item.name);
     e.dataTransfer.effectAllowed = "copy";
   };
-  
+
   const isUntradable =
     item.name.includes("Forma Blueprint") ||
     item.name.includes("Kuva") ||
     item.name === "Riven Sliver";
-
+  //TODO FIX LINT
   let rarityKey =
     item.chance <= 5 ? "rare" : item.chance <= 11 ? "uncommon" : "common";
   if (isUntradable) {
@@ -122,14 +122,14 @@ function createRelicDropRow(item) {
 
   const setName = getSetName(item.name);
   const dots =
-    setName !== "Otros"
-      ? generateDotsHtml(
+    setName === "Otros"
+      ? ""
+      : generateDotsHtml(
         state.primeInventory[item.name] || 0,
         getRequiredCount(setName, item.name),
-      )
-      : "";
+      );
 
-  const tooltipHtml = setName !== "Otros" ? generateSetProgressTooltip(setName) : "";
+  const tooltipHtml = setName === "Otros" ? "" : generateSetProgressTooltip(setName);
 
   row.innerHTML = `
     <div class="component-info" style="flex:1; min-width:0;">
@@ -180,7 +180,7 @@ export function updateRelicTotal() {
     rarityType:
       item.chance < 5 ? "rare" : item.chance < 20 ? "uncommon" : "common",
     price:
-      parseInt(
+      Number.parseInt(
         Array.from(badges).find((b) => b.dataset.item === item.name)?.innerText,
       ) || 0,
   }));
@@ -230,6 +230,7 @@ export function generateMessage() {
   const ref = document.getElementById("refinement");
   const refText = ref.options[ref.selectedIndex]?.text || "Intact";
   const link = state.selectedRelic
+    //TODO FIX LINT should look into translations too
     ? state.currentLang === "en"
       ? `[${rName} Relic]`
       : `[Reliquia ${rName}]`
@@ -255,27 +256,28 @@ export function renderRelicsForPartInline(partName, container) {
     .sort((a, b) => a.relic.localeCompare(b.relic))
     .forEach((info) => {
       const btn = document.createElement("div");
+      //TODO FIX LINT
       const rc =
         info.chance <= 5 ? "rare" : info.chance <= 22 ? "uncommon" : "common";
       const tier = info.relic.split(" ")[0].toLowerCase();
       btn.className = `relic-chip ${rc}`;
-      
+
       const relicEraImg = `<span class="relic-era-icon ${tier}" style="flex-shrink:0; transform:scale(1.3); margin: 4px;"></span>`;
-      
+
       const vaultStatus = state.relicStatusDB ? state.relicStatusDB[info.relic] : null;
       const isVaulted = vaultStatus === "vaulted";
       const statusClass = isVaulted ? "vaulted" : "active";
       const statusText = isVaulted ? "VAULTED" : "ACTIVE";
       const vaultHtml = `<span class="status-badge ${statusClass}" style="font-size:0.65em; padding:2px 6px; border-radius:4px;">${statusText}</span>`;
-      
-      const averages = state.relicAverages ? state.relicAverages[info.relic] : null;
-
+      //i should be using this but apparently not
+      //const averages = state.relicAverages ? state.relicAverages[info.relic] : null;
+      //TODO FIX LINT and why do i need this?
       btn.style.height = "auto";
       btn.style.minHeight = "min-content";
-      
+
       btn.style.position = "relative";
-      
-      btn.setAttribute("data-tooltip-relic", info.relic);
+
+      btn.dataset.tooltipRelic = info.relic;
 
       btn.innerHTML = `
         <span class="info-icon" style="position:absolute; top:4px; right:6px; font-size:1.1em; opacity:0.6; z-index:2;">ℹ️</span>
@@ -292,7 +294,7 @@ export function renderRelicsForPartInline(partName, container) {
       `;
       btn.onclick = (e) => {
         if (e.target.closest('.info-icon')) return;
-        
+
         state.selectedRelic = info.relic;
         const searchInput = document.getElementById("relicInput");
         if (searchInput) searchInput.value = info.relic;

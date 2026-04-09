@@ -2,21 +2,17 @@ import { MobileScanner } from "./mobile_scanner.js";
 import { initScannerMatcherData, initOcrWorkers } from "./scanner_ocr.js";
 import { showToast } from "./ui.components/ui_components.js";
 
-/**
- * MobileDebugScanner V85-DEBUG
- * Una herramienta de diagnóstico avanzada para validar el motor de visión Industrial.
- */
+
 export class MobileDebugScanner extends MobileScanner {
     constructor() {
         super();
         this.debugPanel = null;
         this.frameCounter = 0;
         this.detectionCount = 0;
-        this.isDebugScanner = true; // V180: Flag para evitar circular dependency
+        this.isDebugScanner = true;
     }
 
     async start() {
-        // V190: Optimizamos el inicio compartiendo workers del escáner principal si existen
         initScannerMatcherData();
 
         const mainScanner = globalThis.mobileScanner;
@@ -25,19 +21,16 @@ export class MobileDebugScanner extends MobileScanner {
             this.worker2 = mainScanner.worker2;
             this.worker3 = mainScanner.worker3;
         } else {
-            showToast("Inicializando OCR...");
+            showToast("Initializing OCR...");
             const workers = await initOcrWorkers();
             this.worker1 = workers[0]; this.worker2 = workers[1]; this.worker3 = workers[2];
         }
 
-        // Eliminamos el confirm bloqueante para mayor fluidez
         await super.start();
 
-        // AHORA SÍ, con los elementos ya en el DOM
         this.initDebugUI();
         this.makeGuideInteractive();
 
-        // V196: Vinculamos el bucle de descubrimiento con el Dashboard
         this.onDiscoveryFrame = (matches, vidW, vidH, cY) => {
             this.frameCounter++;
             this.detectionCount = matches.length;
@@ -73,15 +66,14 @@ export class MobileDebugScanner extends MobileScanner {
 
         dash.innerHTML = `
             <div style="background:linear-gradient(90deg, #00e5ff, #008cff); color:#000; padding:12px; font-weight:900; letter-spacing:1.5px; display:flex; justify-content:space-between; align-items:center;">
-                <span>V85 CALIBRATION STATION</span>
+                <span>V CALIBRATION STATION</span>
                 <button onclick="globalThis.currentScanner.close(); document.getElementById('debug-scanner-dashboard').remove();" style="background:rgba(0,0,0,0.2); border:none; color:white; padding:4px 8px; border-radius:4px; cursor:pointer; font-weight:bold;">✕</button>
             </div>
             <div style="flex:1; overflow-y:auto; padding-bottom:40px;">
                 <!-- SECCIÓN 1: PROCESADO VISUAL (OPENCV) -->
                 <div style="padding:15px; border-bottom:1px solid rgba(0,229,255,0.1); background:rgba(0,229,255,0.02);">
                     <div style="color:#00e5ff; font-weight:800; margin-bottom:10px; font-size:11px; display:flex; justify-content:space-between;">
-                        <span>📸 FILTROS OPENCV</span>
-                        <span style="font-size:8px; opacity:0.6;">V209 INDUSTRIAL</span>
+                        <span> FILTROS OPENCV</span>
                     </div>
 
                     <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:10px;">
@@ -207,7 +199,6 @@ export class MobileDebugScanner extends MobileScanner {
             </div>
         `;
 
-        // V199: Anexamos al overlay en vez del body para heredar stack y no bloquear interacciones
         const overlay = document.getElementById("mobile-scan-overlay");
         if (overlay) overlay.appendChild(dash);
         else document.body.appendChild(dash);
@@ -226,11 +217,10 @@ export class MobileDebugScanner extends MobileScanner {
             this.liveLog.prepend(entry);
             if (this.liveLog.children.length > 30) this.liveLog.lastElementChild.remove();
 
-            // V206: Auto-calibración semántica
             if (state.visionSettings.autoCalibrate) {
                 const best = matches.find(m => m.confidence > 80);
-                if (best && best.bbox) {
-                    const canvas = this.liveOriginal; // Usamos el ORIGINAL (Color) para muestrear!
+                if (best?.bbox) {
+                    const canvas = this.liveOriginal;
                     if (canvas && canvas.width > 0) {
                         const { x0, y0, x1, y1 } = best.bbox;
                         const hsv = OpenCVEngine.sampleTextColor(canvas, x0, y0, x1, y1);
@@ -257,9 +247,9 @@ export class MobileDebugScanner extends MobileScanner {
         }
     }
 
-    // ESTADO INTERNO DE CALIBRACIÓN (en Porcentajes y Píxeles)
-    guideX = 50; guideY = 50; // Centro en %
-    guideW = 90; guideH = 450; // W en %, H en PX
+
+    guideX = 50; guideY = 50;
+    guideW = 90; guideH = 450;
 
     makeGuideInteractive() {
         const guide = this.guide;
@@ -268,13 +258,13 @@ export class MobileDebugScanner extends MobileScanner {
         guide.style.cursor = "move";
         guide.style.borderStyle = "solid";
         guide.style.pointerEvents = "auto";
-        guide.style.touchAction = "none"; // V201: Prevenir scroll del navegador al arrastrar
+        guide.style.touchAction = "none";
         guide.style.maxWidth = "none";
         guide.style.userSelect = "none";
-        guide.style.overflow = "visible"; // V198: Permitimos que el handle sobresalga
-        guide.style.zIndex = "1000000"; // V198: Encima de todo
+        guide.style.overflow = "visible";
+        //TODO mal uso z index en general 
+        guide.style.zIndex = "1000000";
 
-        // Handle de Redimensión en la esquina inferior derecha (V198: Más gordo y visible)
         const handle = document.createElement("div");
         handle.id = "scanner-resize-handle";
         handle.style.cssText = `
@@ -288,7 +278,7 @@ export class MobileDebugScanner extends MobileScanner {
         handle.innerText = "⇲";
         guide.appendChild(handle);
 
-        let activeAction = null; // 'drag' o 'resize'
+        let activeAction = null;
         let lastX, lastY;
 
         const syncCalibration = () => {
@@ -297,7 +287,7 @@ export class MobileDebugScanner extends MobileScanner {
             const scaleH = this.video.videoHeight / videoRect.height;
             const scaleW = this.video.videoWidth / videoRect.width;
 
-            // Mapeo final a Píxeles de VÍDEO
+            // Mapeo pixels
             this.calibratedCropY = Math.max(0, (rect.top - videoRect.top) * scaleH);
             this.calibratedCropX = Math.max(0, (rect.left - videoRect.left) * scaleW);
             this.calibratedCropW = rect.width * scaleW;
@@ -323,7 +313,7 @@ export class MobileDebugScanner extends MobileScanner {
             guide.style.borderColor = isHandle ? "#f1c40f" : "#00ff78";
             guide.style.boxShadow = `0 0 30px ${isHandle ? "#f1c40f" : "#00ff78"} `;
 
-            e.stopPropagation(); // V201: Evitar que otros elementos capturen el inicio
+            e.stopPropagation();
             if (e.cancelable) e.preventDefault();
         };
 
@@ -360,20 +350,17 @@ export class MobileDebugScanner extends MobileScanner {
         const onEnd = () => {
             activeAction = null;
             guide.style.borderColor = "rgba(255,255,255,0.7)";
-            guide.style.boxShadow = "0 0 15px rgba(0,229,255,0.3)"; // V203: Glow sutil en vez de sombra gigante
+            guide.style.boxShadow = "0 0 15px rgba(0,229,255,0.3)";
         };
 
         guide.addEventListener("mousedown", onStart);
         handle.addEventListener("mousedown", onStart);
         globalThis.addEventListener("mousemove", onMove);
         globalThis.addEventListener("mouseup", onEnd);
-
         guide.addEventListener("touchstart", onStart, { passive: false });
         handle.addEventListener("touchstart", onStart, { passive: false });
         globalThis.addEventListener("touchmove", onMove, { passive: false });
         globalThis.addEventListener("touchend", onEnd);
-
-        // Sinconización inicial
         setTimeout(syncCalibration, 500);
     }
 
@@ -404,7 +391,6 @@ export class MobileDebugScanner extends MobileScanner {
             g.style.left = `${this.guideX}%`;
             g.style.height = `${this.guideH}px`;
 
-            // Forzar actualización de etiquetas de UI
             const el = document.getElementById("debug-crop-y");
             if (el) el.innerText = `${g.style.top} (${this.guideH}px)`;
         }
@@ -415,7 +401,6 @@ export class MobileDebugScanner extends MobileScanner {
         const frameId = document.getElementById("debug-frame-count");
         if (frameId) frameId.innerText = this.frameCounter;
 
-        // V203: Realizamos el escaneo real
         const results = await super.captureAndProcess();
 
         const detectId = document.getElementById("debug-detect-count");
@@ -425,7 +410,6 @@ export class MobileDebugScanner extends MobileScanner {
     logScanSession(sessionData) {
         if (!this.debugPanel) return;
 
-        // Limpiar mensaje de bienvenida si es la primera vez
         if (this.debugPanel.querySelector('div[style*="padding-top:40px;"]')) {
             this.debugPanel.innerHTML = "";
         }
@@ -502,7 +486,6 @@ export class MobileDebugScanner extends MobileScanner {
     logToDebug() { /* Redireccionado a logScanSession */ }
 }
 
-// Ensure style is added for the fade-in effect
 if (!document.getElementById("debug-scanner-styles")) {
     const style = document.createElement("style");
     style.id = "debug-scanner-styles";
@@ -510,7 +493,6 @@ if (!document.getElementById("debug-scanner-styles")) {
     document.head.appendChild(style);
 }
 
-// Global accessor
 globalThis.startDebugScanner = async () => {
     if (globalThis.currentScanner) {
         globalThis.currentScanner.close();

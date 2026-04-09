@@ -13,9 +13,9 @@ import {
   escapeHTML,
   showToast,
   showCustomConfirm,
-  initGlobalTooltipSystem,
-  initDisclaimerSystem,
-  checkUpdates,
+
+
+
   closeUpdateModal,
   openUpdateHistory,
 } from "./ui.components/ui_components.js";
@@ -155,7 +155,7 @@ export function switchTab(mode) {
   if (mode === "lfg") updateLFGUI();
   else generateMessage();
 }
-
+//TODO FIX THIS TOO COMPLEX se puede optimizar bastante pero hay que hacer cambios en la logica integral
 export function changeLanguage(lang) {
   if (lang) state.currentLang = lang;
   if (!state.currentLang) state.currentLang = "es";
@@ -193,7 +193,8 @@ export function changeLanguage(lang) {
   setText("txt-contact-label", t.contactLabel);
   setText("txt-contact-link", t.contactLink);
   setText("btn-footer-updates", t.btnShowUpdates);
-
+  setText("lbl-update-title", t.updateModalTitle);
+  setText("btn-update-gotit", t.updateModalGotIt);
   const disclaimer = document.getElementById("txt-disclaimer");
   if (disclaimer) disclaimer.innerHTML = t.disclaimer;
 
@@ -422,8 +423,6 @@ function updateLangButtonVisuals(lang) {
   }
 }
 
-export { initGlobalTooltipSystem, initDisclaimerSystem, checkUpdates, closeUpdateModal };
-
 export function setupGlobalClickListeners() {
   document.addEventListener("click", (e) => {
     const target = e.target;
@@ -585,3 +584,5 @@ Object.assign(globalThis, {
     renderInventory();
   },
 });
+
+export { checkUpdates, initGlobalTooltipSystem, initDisclaimerSystem, closeUpdateModal } from "./ui.components/ui_components.js";

@@ -91,7 +91,6 @@ function createSetCard(title, itemNames, parent, isSingle = false) {
   if (headerProgressHtml) {
     const progressDiv = document.createElement("div");
     progressDiv.innerHTML = headerProgressHtml;
-    // ensure the contents align properly
     progressDiv.style.display = "flex";
     progressDiv.style.alignItems = "center";
     rightWrapper.appendChild(progressDiv);
@@ -224,7 +223,7 @@ function createSetCard(title, itemNames, parent, isSingle = false) {
   parent.appendChild(setContainer);
 
   if (!isSingle) {
-    // Populate the newly injected macro-tracker
+    // Populate , this works to avoid stutters when loading or adding sets 
     requestAnimationFrame(() => updateMacroTracker(title));
   }
 }
@@ -277,14 +276,14 @@ export function renderSetTracker() {
   `;
 
   // Create a map from manifest for quick lookup if available
-  const manifestItem =
+  //TODO Not used anywhere
+  /*const manifestItem =
     state.primeManifest && Array.isArray(state.primeManifest)
       ? state.primeManifest.find((i) => i.name === state.currentActiveSet)
-      : null;
+      : null;*/
 
   state.activeSetParts.forEach((partName) => {
     const wrapper = document.createElement("div");
-    // Determine quantity owned and required
     const ownedCount = state.primeInventory[partName] || 0;
 
     const requiredCount = getRequiredCount(state.currentActiveSet, partName);
@@ -319,7 +318,7 @@ export function renderSetTracker() {
         row.style.zIndex = "10";
         hoverTimer = setTimeout(() => {
           const drawer = row.nextElementSibling;
-          if (drawer && drawer.classList.contains("hidden")) {
+          if (drawer?.classList.contains("hidden")) {
             row.click();
           }
         }, 500);

@@ -64,6 +64,8 @@ export const UPDATE_HISTORY_DATA = {
 </div>
 `,
   en: `
+<div class="update-block">
+  <div class="update-header">
     <span class="update-version">v1.9.0 (Current)</span>
     <span class="update-date">2026-03-27</span>
   </div>
@@ -451,7 +453,7 @@ export const WEAPON_TYPE_IDX = {
 };
 
 export const RIVEN_BASE_STATS = {
-  // --- ESTADÍSTICAS OFENSIVAS ---
+  // DMG
   "Critical Chance": [16.7, 10, 16.7, 20, 11.1],
   "Critical Damage": [13.3, 10, 10, 10, 8.9],
   "Status Chance": [10, 10, 10, 10, 6.7],
@@ -461,7 +463,7 @@ export const RIVEN_BASE_STATS = {
   "Fire Rate": [6.7, 10, 8.3, 0, 6.7],
   "Attack Speed": [0, 0, 0, 6.1, 0],
 
-  // --- ELEMENTALES & FÍSICOS ---
+  // ELEMENTALS
   Electric: [10, 10, 10, 10, 13.3],
   Toxin: [10, 10, 10, 10, 13.3],
   Heat: [10, 10, 10, 10, 13.3],
@@ -470,7 +472,7 @@ export const RIVEN_BASE_STATS = {
   Puncture: [13.3, 13.3, 13.3, 13.3, 10],
   Slash: [13.3, 13.3, 13.3, 13.3, 10],
 
-  // --- UTILIDAD / MUNICIÓN ---
+  //UTILITY
   "Ammo Maximum": [5.5, 10, 10, 0, 11.1],
   "Magazine Capacity": [5.5, 5.5, 5.5, 0, 6.7],
   "Reload Speed": [5.5, 5.5, 5.5, 0, 11.1],
@@ -479,7 +481,7 @@ export const RIVEN_BASE_STATS = {
   "Punch Through": [0.3, 0.3, 0.3, 0, 0.3],
   Recoil: [-10, -10, -10, 0, -10],
 
-  // --- MELEE ESPECÍFICOS ---
+  // MELEE ONLY
   Range: [0, 0, 0, 0.21, 0],
   "Combo Duration": [0, 0, 0, 0.9, 0],
   "Initial Combo": [0, 0, 0, 2.7, 0],
@@ -488,7 +490,6 @@ export const RIVEN_BASE_STATS = {
   "Finisher Damage": [0, 0, 0, 13.3, 0],
   "Heavy Attack Efficiency": [0, 0, 0, 8.2, 0],
 
-  // --- FACCIONES ---
   "Damage to Grineer": [5, 5, 5, 5, 5],
   "Damage to Corpus": [5, 5, 5, 5, 5],
   "Damage to Infested": [5, 5, 5, 5, 5],
@@ -597,6 +598,13 @@ export const TEXTS = {
       btnFinishedSave: "✓ TERMINAR — GUARDAR INVENTARIO",
       btnScrollManualScan: "Haz scroll abajo, y pulsa SCAN PÁGINA de nuevo.",
       toastScanComplete: "¡Escaneo completado! {count} piezas Prime detectadas.",
+    },
+    rewardScanner: {
+      autoSyncLabel: "AUTO-SYNC",
+      autoSyncTooltip: "SI: Sincroniza TODO con el VISTO (Prioridad OCR). NO: Solo añade +1 a la pieza que elijas manualmente.",
+      autoCopyLabel: "AUTO-COPY",
+      autoCopyTooltip: "SI: Copia automáticamente los resultados al portapapeles después de cada escaneo en formato chat de Warframe.",
+      rewardSelectedConfirmation: "{item} SELECCIONADA +1",
     },
     calib: {
       title: "CALIBRACIÓN INICIAL",
@@ -805,6 +813,8 @@ export const TEXTS = {
     btnCancel: "CANCELAR",
     lblOwned: "obtenidos",
     btnShowUpdates: "Ver Novedades",
+    updateModalTitle: "HISTORIAL DE ACTUALIZACIONES",
+    updateModalGotIt: "Entendido",
   },
   en: {
     condSpeedrun: "Complete in less than 6 min",
@@ -1106,8 +1116,16 @@ export const TEXTS = {
     purgeConfirmParts: "Delete all Prime Inventory?",
     btnConfirm: "CONFIRM",
     btnCancel: "CANCEL",
-    lblOwned: "owned",
     btnShowUpdates: "Patch Notes",
+    updateModalTitle: "FEATURE HISTORY",
+    updateModalGotIt: "Got it",
+    rewardScanner: {
+      autoSyncLabel: "AUTO-SYNC",
+      autoSyncTooltip: "YES: Sync EVERYTHING with SEEN (OCR Priority). NO: Only add +1 to the part you manually choose.",
+      autoCopyLabel: "AUTO-COPY",
+      autoCopyTooltip: "YES: Automatically copies results to clipboard after each scan in Warframe chat format.",
+      rewardSelectedConfirmation: "{item} SELECTED +1",
+    },
   },
 };
 export const AYA_STRATEGY_CONFIG = {

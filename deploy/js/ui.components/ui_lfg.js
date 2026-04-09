@@ -45,9 +45,8 @@ export function updateLFGUI() {
   } else if (act === "eidolon") {
     container.innerHTML = `
             <div style="margin-bottom:10px;">
-                <label style="font-size:0.8em; color:#888; margin-bottom:5px; display:block;">Pace / Ritmo <span data-tooltip="${
-                  tips.rotation || "Rotation info"
-                }">(?)</span></label>
+                <label style="font-size:0.8em; color:#888; margin-bottom:5px; display:block;">Pace / Ritmo <span data-tooltip="${tips.rotation || "Rotation info"
+      }">(?)</span></label>
                 <select id="lfg-eidolon-runs" class="wf-input" onchange="generateLFGMessage()">
                     <option value="3x3">${roles.run3x3}</option>
                     <option value="5x3">${roles.run5x3}</option>
@@ -86,9 +85,8 @@ export function updateLFGUI() {
   } else if (act === "radshare") {
     container.innerHTML = `
             <div style="padding:10px; background:#1a1c20; border:1px dashed #444; color:#aaa; font-size:0.9em;">
-                <span data-tooltip="${tips.radshare || ""}">${
-                  t.lfgOpts.radshareInfo
-                }</span>
+                <span data-tooltip="${tips.radshare || ""}">${t.lfgOpts.radshareInfo
+      }</span>
             </div>`;
   }
   generateLFGMessage();
@@ -138,6 +136,7 @@ export function generateLFGMessage() {
       msg = `H ${activityName}`;
     } else if (act === "temporal") {
       const eliteEl = document.getElementById("lfg-temp-elite");
+      //TODO deja vu not following DRY
       const prefix = eliteEl?.checked
         ? state.currentLang === "es"
           ? "Élite "
@@ -147,6 +146,8 @@ export function generateLFGMessage() {
     } else if (act === "eda") {
       const eliteEl = document.getElementById("lfg-eda-elite");
       const prefix = eliteEl?.checked
+        //TODO deja vu not following DRY
+
         ? state.currentLang === "es"
           ? "Élite "
           : "Elite "
@@ -209,11 +210,11 @@ export function renderLFGPresets() {
 
   let html = `<div class="presets-header">
                   <span style="font-size:0.85em; font-weight:bold; color:#888;">${escapeHTML(
-                    t.title,
-                  )}</span>
+    t.title,
+  )}</span>
                   <button class="mini-action-btn" data-action="save-lfg-preset">+ ${escapeHTML(
-                    t.btnSave,
-                  )}</button>
+    t.btnSave,
+  )}</button>
                 </div>`;
 
   if (!state.lfgPresets || state.lfgPresets.length === 0) {
@@ -227,8 +228,8 @@ export function renderLFGPresets() {
                 <div class="preset-chip" data-action="load-lfg-preset" data-index="${index}">
                     <span class="p-name">${escapeHTML(p.name)}</span>
                     <span class="p-act">${escapeHTML(
-                      p.activity.toUpperCase(),
-                    )}</span>
+        p.activity.toUpperCase(),
+      )}</span>
                     <button class="p-del" data-action="delete-lfg-preset" data-index="${index}">×</button>
                 </div>
             `;

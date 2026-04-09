@@ -21,8 +21,6 @@ const OCR_CORRECTIONS = {
   "CHASSS": "CHASSIS",
   "CHASS1S": "CHASSIS",
   "CHASIS": "CHASSIS",
-  "GARUDA": "GARUDA",
-  "PRIME": "PRIME",
   "BLUEPRIN": "BLUEPRINT",
   "BLUEP": "BLUEPRINT",
   "SYST": "SYSTEMS",
@@ -55,6 +53,7 @@ export async function warmUpOcr() {
       badgeWorker2 = badgeWorker3 = badgeWorker1;
       return [worker1, worker2, worker3];
     } catch (e) {
+      //TODO: Fix this
       ocrInitPromise = null;
       return [];
     }
@@ -85,6 +84,7 @@ export async function safeRecognize(worker, image, options = {}) {
     worker.isBusy = false;
     return result;
   } catch (e) {
+    //TODO: Fix this
     worker.isBusy = false;
     return { data: { text: "", confidence: 0 } };
   }
@@ -127,7 +127,7 @@ export function initScannerMatcherData() {
 
 export function isPerfectDbWord(word) {
   if (!word) return false;
-  const upper = word.toUpperCase().replace(/[^A-Z]/g, "");
+  const upper = word.toUpperCase().replaceAll(/[^A-Z]/g, "");
   return DYNAMIC_KNOWN_PARTS.has(upper) || OCR_CORRECTIONS[upper];
 }
 
@@ -173,16 +173,13 @@ function isFirstWordMatch(ocrText, dbFirstWord) {
   return getSimilarity(cleanOCR, cleanDB) >= similarityThreshold;
 }
 
-/**
- * Versión Restaurada V265 (Estabilidad Secuencial)
- */
+//TODO: Fix this FUNCTION TOO COMPLEX
 export function parseTextForRewards(ocrData) {
   if (!ocrData?.words) return [];
   initScannerMatcherData();
   const dbItems = getCachedDbItems();
   const imgW = ocrData.imageW || 1920;
 
-  // 1. FILTRADO NLP ESTRICTO (Destrucción absoluta del ruido)
   const knownTokens = Array.from(DYNAMIC_KNOWN_PARTS);
   const validWords = [];
 
@@ -197,7 +194,6 @@ export function parseTextForRewards(ocrData) {
       matchedToken = text;
     } else {
       for (const token of knownTokens) {
-        // Tolerancia del 70% para absorber letras mutiladas (ej: ECEIVER)
         if (getSimilarity(text, token) >= 0.70) {
           matchedToken = token;
           break;
@@ -215,42 +211,50 @@ export function parseTextForRewards(ocrData) {
     }
   });
 
-  // 2. BÚSQUEDA LOCAL POR ANCLAS (Sopa Circular)
   const itemMatches = [];
-  // Radio del 15%. Traza un círculo alrededor del ancla ("MAGNUS") que cubre su propia carta
-  // pero jamás alcanzará el Ancla del jugador contiguo ("ASH").
-  const MAX_RADIUS = imgW * 0.15;
 
+  const MARGIN_LEFT = imgW * 0.04;
+  const MARGIN_RIGHT = imgW * 0.18;
   const wfParts = ["CHASSIS", "SYSTEMS", "NEUROPTICS", "HARNESS", "WINGS", "CARAPACE", "CEREBRUM"];
   const wpnParts = ["BARREL", "RECEIVER", "STOCK", "BLADE", "HILT", "HEAD", "MOTOR", "GRIP", "STRING", "LIMB", "LINK", "POUCH", "GUARD", "DISC", "STARS", "BAND", "BOOT"];
+  //ANCHORS
+  const allFirstTokens = new Set(dbItems.map(item => item.searchWords[0]));
+  const globalAnchors = validWords.filter(w => allFirstTokens.has(w.text)).sort((a, b) => a.x - b.x);
 
   for (const dbItem of dbItems) {
     const searchTokens = dbItem.searchWords;
     if (searchTokens.length === 0) continue;
 
-    const firstToken = searchTokens[0]; // Ej: "MAGNUS"
-
-    // Encontramos los cimientos (Anclas) dentro del mapa ya limpio de ruido
+    const firstToken = searchTokens[0];
     const anchors = validWords.filter(w => w.text === firstToken);
 
     for (const anchor of anchors) {
-      // Extraemos la Sopa Local (Solo las palabras dentro del círculo de influencia de este Ancla)
-      const localWords = validWords.filter(w => Math.abs(w.x - anchor.x) <= MAX_RADIUS);
+
+      const nextAnchor = globalAnchors.find(a => a.x > anchor.x + (imgW * 0.05));
+
+      let maxRightX = anchor.x + MARGIN_RIGHT;
+      if (nextAnchor) {
+        maxRightX = Math.min(maxRightX, nextAnchor.x - 1);
+      }
+
+      const localWords = validWords.filter(w =>
+        w.x >= (anchor.x - MARGIN_LEFT) &&
+        w.x <= maxRightX
+      );
+
       const localSoupText = localWords.map(w => w.text).join(" ");
 
       let matchScore = 1.0;
       let validWordsFound = 1;
       let itemSpecificWpnPartFound = wpnParts.includes(firstToken);
 
-      // Evaluar si las demás piezas del rompecabezas cayeron en este círculo
       for (let i = 1; i < searchTokens.length; i++) {
         const token = searchTokens[i];
         if (localWords.some(w => w.text === token)) {
-          matchScore += 1.0;
+          matchScore += 1;
           validWordsFound++;
           if (wpnParts.includes(token)) itemSpecificWpnPartFound = true;
         } else if (token === "BLUEPRINT" && wfParts.some(p => dbItem.originalName.toUpperCase().includes(p))) {
-          // Se perdona si Tesseract se saltó "Blueprint" en piezas de Warframe
           matchScore += 0.8;
           validWordsFound++;
         }
@@ -258,7 +262,7 @@ export function parseTextForRewards(ocrData) {
 
       let ratio = matchScore / searchTokens.length;
 
-      // --- MOTOR SEMÁNTICO (Escudo contra alucinaciones cruzadas) ---
+      // --- MOTOR SEMÁNTICO DE CASTIGOS ---
       const name = dbItem.originalName.toUpperCase();
       const isWarframePart = wfParts.some(p => name.includes(p));
       const isWeaponPart = wpnParts.some(p => name.includes(p));
@@ -279,7 +283,6 @@ export function parseTextForRewards(ocrData) {
 
       ratio += (validWordsFound * 0.01);
 
-      // Si la pieza supera el castigo y tiene suficientes palabras, se nomina
       if (ratio > 0.65 && validWordsFound >= 2) {
         itemMatches.push({
           name: dbItem.originalName,
@@ -290,15 +293,13 @@ export function parseTextForRewards(ocrData) {
     }
   }
 
-  // 3. RESOLUCIÓN DE CONFLICTOS ESPACIALES SUAVE
+  // 3. RESOLUCIÓN DE CONFLICTOS ESPACIALES
   itemMatches.sort((a, b) => b.ratio - a.ratio);
   const finalItems = [];
 
   for (const match of itemMatches) {
     let conflict = false;
     for (const f of finalItems) {
-      // Si dos objetos distintos intentan nacer del mismo Ancla física (mismo jugador),
-      // solo se permite sobrevivir al que tenga el ratio más alto.
       if (Math.abs(match.x - f.x) < imgW * 0.10) {
         conflict = true;
         break;
@@ -326,14 +327,14 @@ export function parseTextForRewards(ocrData) {
   });
 
   // 5. Ensamblaje Final
-  return finalItems.sort((a, b) => a.x - b.x).map(item => {
+  return finalItems.toSorted((a, b) => a.x - b.x).map(item => {
     let bestL = null; let minDist = 300; let bestIdx = -1;
     metaLabels.forEach((l, lIdx) => {
       const d = Math.abs(l.x - item.x);
       if (d < minDist) { minDist = d; bestL = l; bestIdx = lIdx; }
     });
     if (bestIdx !== -1) metaLabels.splice(bestIdx, 1);
-    return { name: item.name, xPos: item.x, imgW: imgW, owned: (bestL && bestL.type === 'owned') ? bestL.qty : 0, crafted: 0, confidence: 0.95 };
+    return { name: item.name, xPos: item.x, imgW: imgW, owned: (bestL?.type === 'owned') ? bestL.qty : 0, crafted: 0, confidence: 0.95 };
   });
 }
 function attemptItemMatch(startIndex, item, lookAheadLimit, ocrWords, usedIndices) {
@@ -369,5 +370,5 @@ export function findBestItemMatch(text) {
   }
   return { bestMatch: null, highestRatio: 0 };
 }
-
+//TODO Fix this , so it cant be an await otherwise it will block the ui
 warmUpOcr();

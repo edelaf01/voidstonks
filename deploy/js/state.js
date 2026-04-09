@@ -24,6 +24,7 @@ export const state = {
   primeInventory: {},
   primeManifest: [],
   autoSyncRewards: true,
+  autoCopyScanResults: false,
   visionSettings: {
     thresholdC: -15,
     claheClip: 5,
@@ -65,6 +66,7 @@ export function saveAppState() {
       showAllFarms: state.showAllFarms,
       primeInventory: state.primeInventory,
       autoSyncRewards: state.autoSyncRewards,
+      autoCopyScanResults: state.autoCopyScanResults,
     };
 
     localStorage.setItem("voidStonks_save", JSON.stringify(data));
@@ -73,7 +75,7 @@ export function saveAppState() {
     saveTimer = null;
   }, 1000);
 }
-
+//TODO FIX THIS TOO COMPLEX
 export function loadAppState() {
   const saved = localStorage.getItem("voidStonks_save");
   if (saved) {
@@ -108,6 +110,8 @@ export function loadAppState() {
       if (data.primeInventory) state.primeInventory = data.primeInventory;
       if (data.autoSyncRewards !== undefined)
         state.autoSyncRewards = data.autoSyncRewards;
+      if (data.autoCopyScanResults !== undefined)
+        state.autoCopyScanResults = data.autoCopyScanResults;
       if (data.visionSettings) state.visionSettings = { ...state.visionSettings, ...data.visionSettings };
       return state.activeTab;
     } catch (e) {

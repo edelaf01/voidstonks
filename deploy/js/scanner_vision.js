@@ -10,21 +10,26 @@ export function getFrameHash(ctx, w, h) {
 export function createFilteredOcrCanvas(snapshot, width, height, grid, cellRects) {
     const ocrCanvas = document.createElement("canvas");
     ocrCanvas.width = width; ocrCanvas.height = height;
-    const ocrCtx = ocrCanvas.getContext("2d");
+    const ocrCtx = ocrCanvas.getContext("2d", { willReadFrequently: true });
     ocrCtx.drawImage(snapshot, 0, 0);
 
     const refR = 215, refG = 165, refB = 95;
 
     const imgData = ocrCtx.getImageData(0, 0, width, height);
     const px = imgData.data;
-    for (let i = 0; i < px.length; i += 4) {
-        let r = px[i], g = px[i + 1], b = px[i + 2];
-        const dist = Math.sqrt(Math.pow(r - refR, 2) + Math.pow(g - refG, 2) + Math.pow(b - refB, 2));
+    const tolSq = 90 * 90;
 
-        if (dist < 90) {
-            px[i] = px[i + 1] = px[i + 2] = 0; // Texto -> Negro
+    for (let i = 0; i < px.length; i += 4) {
+        let dr = px[i] - refR;
+        let dg = px[i + 1] - refG;
+        let db = px[i + 2] - refB;
+
+        let distSq = (dr * dr) + (dg * dg) + (db * db);
+
+        if (distSq < tolSq) {
+            px[i] = px[i + 1] = px[i + 2] = 0;
         } else {
-            px[i] = px[i + 1] = px[i + 2] = 255; // Fondo -> Blanco
+            px[i] = px[i + 1] = px[i + 2] = 255;
         }
     }
     ocrCtx.putImageData(imgData, 0, 0);
@@ -43,7 +48,7 @@ export function createTextCanvas(ocrCanvas, cell, grid) {
     tCtx.drawImage(ocrCanvas, cell.sx, cell.sy + textSrcY, grid.cellW, textSrcH, 0, 0, textCvs.width, textCvs.height);
     return textCvs;
 }
-
+//TODO FIX THIS TOO COMPLEX
 export function createBadgeCanvas(snapshot, cell, grid) {
     const badgeW = Math.floor(grid.cellW * 0.35);
     const badgeH = Math.floor(grid.cellH * 0.2);
@@ -115,58 +120,19 @@ export function createBadgeCanvas(snapshot, cell, grid) {
 export function applyClusteringThreshold(ctx, w, h) {
     const imgData = ctx.getImageData(0, 0, w, h);
     const px = imgData.data;
-    
-    // Sampler (1 de cada 8 px para velocidad en áreas grandes como el header)
-    const samples = [];
-    for (let i = 0; i < px.length; i += 32) {
-        samples.push([px[i], px[i+1], px[i+2]]);
-    }
 
-    // Inicialización por luminancia
-    let c1 = [0, 0, 0], c2 = [255, 255, 255];
-    let minL = 255, maxL = 0;
-    for (const s of samples) {
-        let l = 0.299 * s[0] + 0.587 * s[1] + 0.114 * s[2];
-        if (l < minL) { minL = l; c1 = [...s]; }
-        if (l > maxL) { maxL = l; c2 = [...s]; }
-    }
-
-    // K-means (reduit iterations)
-    for (let iter = 0; iter < 4; iter++) {
-        let s1 = [0,0,0], s2 = [0,0,0], n1 = 0, n2 = 0;
-        for (const s of samples) {
-            let d1 = Math.abs(s[0]-c1[0]) + Math.abs(s[1]-c1[1]) + Math.abs(s[2]-c1[2]);
-            let d2 = Math.abs(s[0]-c2[0]) + Math.abs(s[1]-c2[1]) + Math.abs(s[2]-c2[2]);
-            if (d1 < d2) { s1[0]+=s[0]; s1[1]+=s[1]; s1[2]+=s[2]; n1++; }
-            else { s2[0]+=s[0]; s2[1]+=s[1]; s2[2]+=s[2]; n2++; }
-        }
-        if (n1 > 0) { c1[0]=s1[0]/n1; c1[1]=s1[1]/n1; c1[2]=s1[2]/n1; }
-        if (n2 > 0) { c2[0]=s2[0]/n2; c2[1]=s2[1]/n2; c2[2]=s2[2]/n2; }
-    }
-
-    let l1 = 0.299*c1[0] + 0.587*c1[1] + 0.114*c1[2];
-    let l2 = 0.299*c2[0] + 0.587*c2[1] + 0.114*c2[2];
-    
-    // Heurística: El texto suele ser el más estable/puro o el de mayor luminancia.
-    // En Warframe el texto suele brillar más que el fondo.
-    let textC = l2 > l1 ? c2 : c1;
-    let bgC = l2 > l1 ? c1 : c2;
-
-    // Log centroids if needed
-    if (globalThis.logDebug) {
-        globalThis.logDebug("Cluster centroids:", JSON.stringify({text: textC, bg: bgC}));
-    }
-
+    // OPTIMIZACIÓN: Filtro Luma de una sola pasada (sin bucles iterativos)
     for (let i = 0; i < px.length; i += 4) {
-        let r = px[i], g = px[i+1], b = px[i+2];
-        let dText = Math.abs(r - textC[0]) + Math.abs(g - textC[1]) + Math.abs(b - textC[2]);
-        let dBg = Math.abs(r - bgC[0]) + Math.abs(g - bgC[1]) + Math.abs(b - bgC[2]);
-        
-        // El factor 1.2 ayuda a ser más selectivo con el texto
-        if (dText < dBg * 1.2) {
-            px[i] = px[i+1] = px[i+2] = 0;
+        let r = px[i], g = px[i + 1], b = px[i + 2];
+        let luma = (r * 0.2126) + (g * 0.7152) + (b * 0.0722);
+
+        // Umbral de 110: Perfecto para leer texto blanco, dorado y bronce oscuro a la primera.
+        let isText = luma > 110;
+
+        if (isText) {
+            px[i] = px[i + 1] = px[i + 2] = 0;   // Texto -> Negro
         } else {
-            px[i] = px[i+1] = px[i+2] = 255;
+            px[i] = px[i + 1] = px[i + 2] = 255; // Fondo -> Blanco
         }
     }
     ctx.putImageData(imgData, 0, 0);
@@ -182,10 +148,10 @@ export function preprocessRewardCell(snapshot, x, y, w, h, scale = 2) {
     const ctx = cvs.getContext('2d');
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(snapshot, x, y, w, h, 0, 0, cvs.width, cvs.height);
-    
+
     // Aplicar clustering dinámico
     applyClusteringThreshold(ctx, cvs.width, cvs.height);
-    
+
     return cvs;
 }
 
@@ -198,23 +164,23 @@ export function detectCheckmark(snapshot, x, y, w, h) {
     cvs.width = w; cvs.height = h;
     const ctx = cvs.getContext('2d');
     ctx.drawImage(snapshot, x, y, w, h, 0, 0, w, h);
-    
+
     const data = ctx.getImageData(0, 0, w, h).data;
     let brightnessSum = 0;
     for (let i = 0; i < data.length; i += 4) {
-        brightnessSum += (data[i] + data[i+1] + data[i+2]) / 3;
+        brightnessSum += (data[i] + data[i + 1] + data[i + 2]) / 3;
     }
     const avgBrightness = brightnessSum / (data.length / 4);
-    
+
     // Un tick activo suele ser muy brillante comparado con el fondo oscuro de la carta.
     // También podemos buscar píxeles que se acerquen al color del tema si lo supiéramos,
     // pero el brillo es un buen proxy inicial.
     let highPoints = 0;
     for (let i = 0; i < data.length; i += 4) {
-        let l = (data[i] + data[i+1] + data[i+2]) / 3;
+        let l = (data[i] + data[i + 1] + data[i + 2]) / 3;
         if (l > avgBrightness * 1.8 && l > 100) highPoints++;
     }
-    
+
     // Si hay suficientes puntos de alta luminosidad concentrados, asumimos tick.
-    return highPoints > (w * h * 0.05); 
+    return highPoints > (w * h * 0.05);
 }

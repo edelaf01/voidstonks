@@ -87,7 +87,8 @@ export function highlightFissureTier(tier) {
 }
 
 export async function initFissurePanel() {
-  const container = document.getElementById("relic-contents");
+  // if i ever need this i will be sad
+  //const container = document.getElementById("relic-contents");
   let missionDiv = document.getElementById("best-missions-container");
   const t = TEXTS[state.currentLang];
 
@@ -119,6 +120,7 @@ export async function initFissurePanel() {
   if (header && runner) {
     header.onmouseenter = () => {
       runTimeout = setTimeout(() => {
+        //TODO FIX LINT x2
         if (runner) {
           runner.classList.add("is-running");
           setTimeout(() => {
@@ -134,7 +136,7 @@ export async function initFissurePanel() {
   if (!globalThis._fissureRefreshInterval) {
     globalThis._fissureRefreshInterval = setInterval(() => {
       const panel = document.getElementById("best-missions-container");
-      if (panel && panel.classList.contains("open")) {
+      if (panel?.classList.contains("open")) {
         console.log("[FISSURES]: Auto-refreshing missions...");
         initFissurePanel();
       }
@@ -162,19 +164,19 @@ export async function initFissurePanel() {
   const listArea = document.getElementById("fissures-list-area");
   listArea.innerHTML = "";
 
-  const efficientTypes = [
+  const efficientTypes = new Set([
     "Capture",
     "Extermination",
     "Rescue",
     "Sabotage",
     "Void Cascade",
-  ];
+  ]);
 
   tiersOrder.forEach((tierName) => {
     const allTierMissions = tiersData[tierName];
 
     const efficientMissions = allTierMissions.filter(
-      (m) => efficientTypes.includes(m.type) || m.tier === "Omnia",
+      (m) => efficientTypes.has(m.type) || m.tier === "Omnia",
     );
 
     const groupDiv = document.createElement("div");

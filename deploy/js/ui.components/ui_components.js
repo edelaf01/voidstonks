@@ -35,13 +35,12 @@ export function showToast(message, options = {}) {
   if (!container) return;
 
   const {
-    duration = 60000, // 1 minute default
-    tag = null,      // If tag is provided, replace existing toast with same tag
+    duration = 60000,
+    tag = null,
     onClose = null,
-    type = "info"    // info, success, warning, error
+    type = "info"
   } = options;
 
-  // Replace existing if tag matches
   if (tag && activeToasts.has(tag)) {
     const old = activeToasts.get(tag);
     old.remove();
@@ -50,8 +49,7 @@ export function showToast(message, options = {}) {
 
   const toast = document.createElement("div");
   toast.className = `wf-toast ${type}`;
-
-  // Icon based on type (simple version)
+  //TODO Prefer svg over emojis
   const icon = type === "error" ? "⚠️" : (type === "success" ? "✓" : "ℹ");
 
   toast.innerHTML = `

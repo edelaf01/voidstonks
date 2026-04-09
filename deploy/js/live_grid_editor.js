@@ -1,16 +1,6 @@
-/**
- * GridCellEditor — screenshot-based grid calibration fine-tuner.
- *
- * • Drag any cell  → moves the ENTIRE grid (global dx/dy)
- * • ↑↓←→ keys     → 1px nudge (SHIFT = 5px)
- * • W / H buttons  → resize all cells (cellW / cellH)
- *
- * On "SAVE", all changes are baked into the stored grid calibration.
- */
+
 class GridCellEditor {
     constructor() {
-        this._modal = null;
-        this._canvas = null;
         this._ctx = null;
         this._grid = null;
         this._snapshot = null;
@@ -30,7 +20,7 @@ class GridCellEditor {
 
     open(grid, videoEl) {
         if (this._active) return;
-        this._grid = Object.assign({}, grid);
+        this._grid = { ...grid };
         this._active = true;
         this._buildModal(videoEl);
     }
@@ -38,7 +28,7 @@ class GridCellEditor {
     close() {
         this._active = false;
         if (this._keyHandler) {
-            window.removeEventListener('keydown', this._keyHandler);
+            globalThis.removeEventListener('keydown', this._keyHandler);
             this._keyHandler = null;
         }
         if (this._modal) {
@@ -57,13 +47,15 @@ class GridCellEditor {
         localStorage.removeItem('vs_scanner_grid_offset');
     }
 
-    // ── INTERNALS ──────────────────────────────────────────────────────────
 
     _loadOffset() {
         try {
             const s = localStorage.getItem('vs_scanner_grid_offset');
             if (s) return JSON.parse(s);
-        } catch (e) { }
+        } catch (e) {
+            Ç
+            //SHOULD CATCH
+        }
         return { dx: 0, dy: 0 };
     }
 
@@ -79,18 +71,15 @@ class GridCellEditor {
         };
     }
 
-    // ─── build the modal ────────────────────────────────────────────────────
     _buildModal(videoEl) {
         const vw = videoEl.videoWidth || 1280;
         const vh = videoEl.videoHeight || 720;
 
-        // Capture frame
         const snap = document.createElement('canvas');
         snap.width = vw; snap.height = vh;
         try { snap.getContext('2d').drawImage(videoEl, 0, 0); } catch (e) { }
         this._snapshot = snap;
 
-        // Backdrop
         const modal = document.createElement('div');
         modal.id = 'grid-editor-modal';
         modal.style.cssText = `
@@ -102,7 +91,6 @@ class GridCellEditor {
       gap:6px;
     `;
 
-        // ── Top bar ───────────────────────────────────────────────────────────
         const bar = document.createElement('div');
         bar.style.cssText = `
       display:flex;align-items:center;gap:10px;padding:7px 14px;
@@ -155,7 +143,6 @@ class GridCellEditor {
       ">${sh.btnDone}</button>
     `;
 
-        // ── Canvas ───────────────────────────────────────────────────────────
         const canvas = document.createElement('canvas');
         canvas.style.cssText = `
       max-width:100%;max-height:calc(100vh - 90px);
@@ -175,13 +162,12 @@ class GridCellEditor {
 
         this._draw();
 
-        // ── Events ─────────────────────────────────────────────────────────
         canvas.addEventListener('mousedown', e => this._onDown(e));
         canvas.addEventListener('mousemove', e => this._onMove(e));
-        window.addEventListener('mouseup', e => this._onUp(e));
+        globalThis.addEventListener('mouseup', e => this._onUp(e));
 
         this._keyHandler = e => this._onKey(e);
-        window.addEventListener('keydown', this._keyHandler);
+        globalThis.addEventListener('keydown', this._keyHandler);
 
         const step = e => e.shiftKey ? 5 : 1;
 
@@ -196,7 +182,6 @@ class GridCellEditor {
         document.getElementById('ge-h-minus').onclick = () => this._resize('cellH', -step(window.event || {}));
         document.getElementById('ge-h-plus').onclick = () => this._resize('cellH', +step(window.event || {}));
 
-        // Shift+click for bigger steps
         ['ge-w-minus', 'ge-w-plus', 'ge-h-minus', 'ge-h-plus'].forEach(id => {
             const btn = document.getElementById(id);
             btn.addEventListener('click', e => {
@@ -205,7 +190,6 @@ class GridCellEditor {
                 this._resize(key, delta);
                 e.stopPropagation();
             }, true);
-            // override the simple onclick above
             btn.onclick = null;
         });
     }
@@ -225,7 +209,6 @@ class GridCellEditor {
         this._draw();
     }
 
-    // ── Interaction ─────────────────────────────────────────────────────────
     _getPos(e) {
         const r = this._canvas.getBoundingClientRect();
         return {
@@ -293,7 +276,6 @@ class GridCellEditor {
         if (lbl) lbl.textContent = `dx=${this._offset.dx} dy=${this._offset.dy}`;
     }
 
-    // ── Draw ────────────────────────────────────────────────────────────────
     _draw() {
         const ctx = this._ctx;
         if (!ctx) return;
@@ -318,7 +300,6 @@ class GridCellEditor {
             }
         }
 
-        // Dim crosshair
         const cx = (this._grid.gridX + this._offset.dx) + (cols * (cellW + this._grid.gapX)) / 2;
         const cy = (this._grid.gridY + this._offset.dy) + (rows * (cellH + this._grid.gapY)) / 2;
         ctx.strokeStyle = 'rgba(0,229,255,0.2)';
@@ -328,9 +309,10 @@ class GridCellEditor {
         ctx.beginPath(); ctx.moveTo(0, cy); ctx.lineTo(this._canvas.width, cy); ctx.stroke();
         ctx.setLineDash([]);
     }
+    _modal = null;
+    _canvas = null;
 }
 
-// ── Global singleton + API ──────────────────────────────────────────────────
 globalThis.GridCellEditor = new GridCellEditor();
 
 globalThis.openGridEditor = function () {
@@ -349,10 +331,8 @@ globalThis.closeGridEditor = function () {
     if (calib && editor) {
         const off = editor.getOffset();
         const edited = editor.getEditedGrid();
-        // Merge position shift + size changes back into the stored grid
         edited.gridX += off.dx;
         edited.gridY += off.dy;
-        // Update the live calibration object's gridData directly
         calib.gridData = edited;
         localStorage.setItem('vs_scanner_grid_calib', JSON.stringify(edited));
         editor.resetOffsets();
