@@ -1,7 +1,6 @@
+
 class GridCellEditor {
     constructor() {
-        this._modal = null;
-        this._canvas = null;
         this._ctx = null;
         this._grid = null;
         this._snapshot = null;
@@ -21,7 +20,7 @@ class GridCellEditor {
 
     open(grid, videoEl) {
         if (this._active) return;
-        this._grid = Object.assign({}, grid);
+        this._grid = { ...grid };
         this._active = true;
         this._buildModal(videoEl);
     }
@@ -29,7 +28,7 @@ class GridCellEditor {
     close() {
         this._active = false;
         if (this._keyHandler) {
-            window.removeEventListener('keydown', this._keyHandler);
+            globalThis.removeEventListener('keydown', this._keyHandler);
             this._keyHandler = null;
         }
         if (this._modal) {
@@ -48,11 +47,14 @@ class GridCellEditor {
         localStorage.removeItem('vs_scanner_grid_offset');
     }
 
+
     _loadOffset() {
         try {
             const s = localStorage.getItem('vs_scanner_grid_offset');
             if (s) return JSON.parse(s);
-        } catch (e) { }
+        } catch (e) {
+            Ç
+        }
         return { dx: 0, dy: 0 };
     }
 
@@ -161,10 +163,10 @@ class GridCellEditor {
 
         canvas.addEventListener('mousedown', e => this._onDown(e));
         canvas.addEventListener('mousemove', e => this._onMove(e));
-        window.addEventListener('mouseup', e => this._onUp(e));
+        globalThis.addEventListener('mouseup', e => this._onUp(e));
 
         this._keyHandler = e => this._onKey(e);
-        window.addEventListener('keydown', this._keyHandler);
+        globalThis.addEventListener('keydown', this._keyHandler);
 
         const step = e => e.shiftKey ? 5 : 1;
 
@@ -306,6 +308,8 @@ class GridCellEditor {
         ctx.beginPath(); ctx.moveTo(0, cy); ctx.lineTo(this._canvas.width, cy); ctx.stroke();
         ctx.setLineDash([]);
     }
+    _modal = null;
+    _canvas = null;
 }
 
 globalThis.GridCellEditor = new GridCellEditor();

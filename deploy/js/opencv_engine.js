@@ -225,6 +225,9 @@ export class OpenCVEngine {
         return rects;
     }
 
+    /**
+     * 1 to 4 reward regions by vertical clustering.
+     */
     static findTextROIs(canvas) {
         if (!OpenCVEngine.isReady) return [];
         let src = cv.imread(canvas);
@@ -235,7 +238,6 @@ export class OpenCVEngine {
         let gray = new cv.Mat(); cv.cvtColor(srcSmall, gray, cv.COLOR_RGBA2GRAY);
         let binary = new cv.Mat();
         cv.adaptiveThreshold(gray, binary, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, 15, 5);
-
         let mClose = new cv.Mat();
         let kernel = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(40, 100));
         cv.morphologyEx(binary, mClose, cv.MORPH_CLOSE, kernel);

@@ -2,6 +2,7 @@ import { MobileScanner } from "./mobile_scanner.js";
 import { initScannerMatcherData, initOcrWorkers } from "./scanner_ocr.js";
 import { showToast } from "./ui.components/ui_components.js";
 
+
 export class MobileDebugScanner extends MobileScanner {
     constructor() {
         super();
@@ -20,7 +21,7 @@ export class MobileDebugScanner extends MobileScanner {
             this.worker2 = mainScanner.worker2;
             this.worker3 = mainScanner.worker3;
         } else {
-            showToast("Inicializando OCR...");
+            showToast("Initializing OCR...");
             const workers = await initOcrWorkers();
             this.worker1 = workers[0]; this.worker2 = workers[1]; this.worker3 = workers[2];
         }
@@ -65,15 +66,14 @@ export class MobileDebugScanner extends MobileScanner {
 
         dash.innerHTML = `
             <div style="background:linear-gradient(90deg, #00e5ff, #008cff); color:#000; padding:12px; font-weight:900; letter-spacing:1.5px; display:flex; justify-content:space-between; align-items:center;">
-                <span>V85 CALIBRATION STATION</span>
+                <span>V CALIBRATION STATION</span>
                 <button onclick="globalThis.currentScanner.close(); document.getElementById('debug-scanner-dashboard').remove();" style="background:rgba(0,0,0,0.2); border:none; color:white; padding:4px 8px; border-radius:4px; cursor:pointer; font-weight:bold;">✕</button>
             </div>
             <div style="flex:1; overflow-y:auto; padding-bottom:40px;">
                 <!-- SECCIÓN 1: PROCESADO VISUAL (OPENCV) -->
                 <div style="padding:15px; border-bottom:1px solid rgba(0,229,255,0.1); background:rgba(0,229,255,0.02);">
                     <div style="color:#00e5ff; font-weight:800; margin-bottom:10px; font-size:11px; display:flex; justify-content:space-between;">
-                        <span>📸 FILTROS OPENCV</span>
-                        <span style="font-size:8px; opacity:0.6;">V209 INDUSTRIAL</span>
+                        <span> FILTROS OPENCV</span>
                     </div>
 
                     <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:10px;">
@@ -219,7 +219,7 @@ export class MobileDebugScanner extends MobileScanner {
 
             if (state.visionSettings.autoCalibrate) {
                 const best = matches.find(m => m.confidence > 80);
-                if (best && best.bbox) {
+                if (best?.bbox) {
                     const canvas = this.liveOriginal;
                     if (canvas && canvas.width > 0) {
                         const { x0, y0, x1, y1 } = best.bbox;
@@ -246,6 +246,7 @@ export class MobileDebugScanner extends MobileScanner {
             btn.innerText = val ? '🟢 AUTO-CALIBRATE: ON' : '🔴 AUTO-CALIBRATE: OFF';
         }
     }
+
 
     guideX = 50; guideY = 50;
     guideW = 90; guideH = 450;
@@ -353,12 +354,10 @@ export class MobileDebugScanner extends MobileScanner {
         handle.addEventListener("mousedown", onStart);
         globalThis.addEventListener("mousemove", onMove);
         globalThis.addEventListener("mouseup", onEnd);
-
         guide.addEventListener("touchstart", onStart, { passive: false });
         handle.addEventListener("touchstart", onStart, { passive: false });
         globalThis.addEventListener("touchmove", onMove, { passive: false });
         globalThis.addEventListener("touchend", onEnd);
-
         setTimeout(syncCalibration, 500);
     }
 

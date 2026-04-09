@@ -1,5 +1,6 @@
 import { state, saveAppState } from "../state.js";
 import { TEXTS } from "../config.js";
+// not using this class at all, but it works so it wastes your bandwidth
 
 export function renderProfileStats(mr, focus, standingObj, isCalc = false) {
   const container = document.getElementById("profile-data");
@@ -17,26 +18,21 @@ export function renderProfileStats(mr, focus, standingObj, isCalc = false) {
   container.innerHTML = `
         <div style="display:flex; gap:10px; margin-bottom:15px;">
             <div class="profile-stat-box" style="flex:1"><div class="profile-stat-title">Mastery Rank</div><div class="profile-stat-val" style="color:#gold">${mr}</div></div>
-            <div class="profile-stat-box" style="flex:1"><div class="profile-stat-title">${
-              t.lblTraces
-            }</div><div class="profile-stat-val">${tracesCap}</div></div>
+            <div class="profile-stat-box" style="flex:1"><div class="profile-stat-title">${t.lblTraces
+    }</div><div class="profile-stat-val">${tracesCap}</div></div>
         </div>
-        <div class="profile-stat-box"><div class="profile-stat-title">${
-          t.lblDailyFocus
-        } ${
-          isCalc ? "(Max)" : "(Remaining)"
-        }</div><div class="profile-stat-val" style="color:var(--wf-riven)">${focus.toLocaleString()}</div></div>
-        <div style="margin-top:15px; font-weight:bold; color:var(--wf-blue); text-align:center;">${
-          t.lblStanding
-        }</div>
+        <div class="profile-stat-box"><div class="profile-stat-title">${t.lblDailyFocus
+    } ${isCalc ? "(Max)" : "(Remaining)"
+    }</div><div class="profile-stat-val" style="color:var(--wf-riven)">${focus.toLocaleString()}</div></div>
+        <div style="margin-top:15px; font-weight:bold; color:var(--wf-blue); text-align:center;">${t.lblStanding
+    }</div>
         <div class="standing-grid">${standingHtml}</div>
     `;
 }
-
 export function calculateCaps() {
   const inputEl = document.getElementById("mrInput");
   if (!inputEl) return;
-  const mr = parseInt(inputEl.value) || 0;
+  const mr = Number.parseInt(inputEl.value) || 0;
   const focusCap = 250000 + 5000 * mr;
   const standingCap = 16000 + 500 * mr;
   const mockStanding = {

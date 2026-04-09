@@ -20,8 +20,6 @@ const OCR_CORRECTIONS = {
   "CHASSS": "CHASSIS",
   "CHASS1S": "CHASSIS",
   "CHASIS": "CHASSIS",
-  "GARUDA": "GARUDA",
-  "PRIME": "PRIME",
   "BLUEPRIN": "BLUEPRINT",
   "BLUEP": "BLUEPRINT",
   "SYST": "SYSTEMS",
@@ -126,7 +124,7 @@ export function initScannerMatcherData() {
 
 export function isPerfectDbWord(word) {
   if (!word) return false;
-  const upper = word.toUpperCase().replace(/[^A-Z]/g, "");
+  const upper = word.toUpperCase().replaceAll(/[^A-Z]/g, "");
   return DYNAMIC_KNOWN_PARTS.has(upper) || OCR_CORRECTIONS[upper];
 }
 
@@ -210,21 +208,35 @@ export function parseTextForRewards(ocrData) {
   });
 
   const itemMatches = [];
-  const MAX_RADIUS = imgW * 0.15;
 
+  const MARGIN_LEFT = imgW * 0.04;
+  const MARGIN_RIGHT = imgW * 0.18;
   const wfParts = ["CHASSIS", "SYSTEMS", "NEUROPTICS", "HARNESS", "WINGS", "CARAPACE", "CEREBRUM"];
   const wpnParts = ["BARREL", "RECEIVER", "STOCK", "BLADE", "HILT", "HEAD", "MOTOR", "GRIP", "STRING", "LIMB", "LINK", "POUCH", "GUARD", "DISC", "STARS", "BAND", "BOOT"];
+  const allFirstTokens = new Set(dbItems.map(item => item.searchWords[0]));
+  const globalAnchors = validWords.filter(w => allFirstTokens.has(w.text)).sort((a, b) => a.x - b.x);
 
   for (const dbItem of dbItems) {
     const searchTokens = dbItem.searchWords;
     if (searchTokens.length === 0) continue;
 
     const firstToken = searchTokens[0];
-
     const anchors = validWords.filter(w => w.text === firstToken);
 
     for (const anchor of anchors) {
-      const localWords = validWords.filter(w => Math.abs(w.x - anchor.x) <= MAX_RADIUS);
+
+      const nextAnchor = globalAnchors.find(a => a.x > anchor.x + (imgW * 0.05));
+
+      let maxRightX = anchor.x + MARGIN_RIGHT;
+      if (nextAnchor) {
+        maxRightX = Math.min(maxRightX, nextAnchor.x - 1);
+      }
+
+      const localWords = validWords.filter(w =>
+        w.x >= (anchor.x - MARGIN_LEFT) &&
+        w.x <= maxRightX
+      );
+
       const localSoupText = localWords.map(w => w.text).join(" ");
 
       let matchScore = 1.0;
@@ -234,7 +246,7 @@ export function parseTextForRewards(ocrData) {
       for (let i = 1; i < searchTokens.length; i++) {
         const token = searchTokens[i];
         if (localWords.some(w => w.text === token)) {
-          matchScore += 1.0;
+          matchScore += 1;
           validWordsFound++;
           if (wpnParts.includes(token)) itemSpecificWpnPartFound = true;
         } else if (token === "BLUEPRINT" && wfParts.some(p => dbItem.originalName.toUpperCase().includes(p))) {
@@ -306,14 +318,14 @@ export function parseTextForRewards(ocrData) {
     }
   });
 
-  return finalItems.sort((a, b) => a.x - b.x).map(item => {
+  return finalItems.toSorted((a, b) => a.x - b.x).map(item => {
     let bestL = null; let minDist = 300; let bestIdx = -1;
     metaLabels.forEach((l, lIdx) => {
       const d = Math.abs(l.x - item.x);
       if (d < minDist) { minDist = d; bestL = l; bestIdx = lIdx; }
     });
     if (bestIdx !== -1) metaLabels.splice(bestIdx, 1);
-    return { name: item.name, xPos: item.x, imgW: imgW, owned: (bestL && bestL.type === 'owned') ? bestL.qty : 0, crafted: 0, confidence: 0.95 };
+    return { name: item.name, xPos: item.x, imgW: imgW, owned: (bestL?.type === 'owned') ? bestL.qty : 0, crafted: 0, confidence: 0.95 };
   });
 }
 function attemptItemMatch(startIndex, item, lookAheadLimit, ocrWords, usedIndices) {
@@ -349,5 +361,4 @@ export function findBestItemMatch(text) {
   }
   return { bestMatch: null, highestRatio: 0 };
 }
-
 warmUpOcr();

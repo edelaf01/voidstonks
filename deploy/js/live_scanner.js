@@ -130,7 +130,7 @@ async function checkAutoScrollScan(externalHash = null) {
     sampleCvs.width = 48;
     sampleCvs.height = 27;
 
-    const sCtx = sampleCvs.getContext("2d");
+    const sCtx = sampleCvs.getContext("2d", { willReadFrequently: true });
     sCtx.drawImage(
       video,
       0,
@@ -201,7 +201,6 @@ let snapshotCtx = null;
 const priceCache = new Map();
 
 let lastTrackedRelic = "";
-let trackingDebounce = 0;
 let scanCounter = 0;
 
 let sessionInventory = new Map();
@@ -517,7 +516,6 @@ function prepareVirtualCanvas(video) {
 
     if (isOrange || isWhiteText) {
       px[i] = px[i + 1] = px[i + 2] = 0;
-    } else {
       px[i] = px[i + 1] = px[i + 2] = 255;
     }
   }
@@ -820,7 +818,7 @@ async function processRelicSelection(video, width, height, scale) {
 
 async function processRewards(video, width, height, scale) {
   const rCropY = Math.floor(height * 0.18);
-  const rCropH = Math.floor(height * 0.55);
+  const rCropH = Math.floor(height * 0.50);
   const targetW = Math.floor(width * scale);
   const targetH = Math.floor(rCropH * scale);
 
@@ -833,42 +831,46 @@ async function processRewards(video, width, height, scale) {
 
   const ocrCanvas = document.createElement('canvas');
   ocrCanvas.width = targetW; ocrCanvas.height = targetH;
-  const ocrCtx = ocrCanvas.getContext('2d');
-  ocrCtx.drawImage(canvas, 0, 0);
+  const ocrCtx = ocrCanvas.getContext('2d', { willReadFrequently: true }); ocrCtx.drawImage(canvas, 0, 0);
+
 
   const originalCanvas = document.createElement('canvas');
   originalCanvas.width = targetW; originalCanvas.height = targetH;
-  const originalCtx = originalCanvas.getContext('2d');
-  originalCtx.drawImage(canvas, 0, 0);
+  const originalCtx = originalCanvas.getContext('2d', { willReadFrequently: true }); originalCtx.drawImage(canvas, 0, 0);
 
   applyClusteringThreshold(ocrCtx, targetW, targetH);
   const { data: pass1Data } = await worker1.recognize(ocrCanvas);
-
-  const anchorKeywords = ["PRIME", "BLUEPRINT", "OWNED", "CHASSIS", "SYSTEMS", "NEUROPTICS", "HANDLE", "BARREL"];
-  let bestAnchor = null;
-
-  for (const w of pass1Data.words) {
-    const text = w.text.toUpperCase().replace(/[^A-Z]/g, '');
-    if (anchorKeywords.includes(text) && w.confidence > 75) {
-      bestAnchor = w;
-      break;
-    }
-  }
-
   let finalData = pass1Data;
+  let foundItems = parseTextForRewards(pass1Data);
+  const metaCount = pass1Data.words.filter(w => /OWNED|CRAFTED|CRAFT/i.test(w.text)).length;
 
-  if (bestAnchor) {
-    console.log(`[COLOR MATCH] Ancla encontrada: ${bestAnchor.text}`);
+  if (foundItems.length < 2 || foundItems.length < metaCount) {
+    const anchorKeywords = new Set(["PRIME", "BLUEPRINT", "OWNED", "CHASSIS", "SYSTEMS", "NEUROPTICS", "HANDLE", "BARREL"]);
+    let bestAnchor = null;
 
-    const exactColor = getAnchorColorFromBBox(originalCtx, bestAnchor.bbox);
+    for (const w of pass1Data.words) {
+      const text = w.text.toUpperCase().replaceAll(/[^A-Z]/g, '');
+      if (anchorKeywords.has(text) && w.confidence > 75) {
+        bestAnchor = w;
+        break;
+      }
+    }
 
-    ocrCtx.drawImage(originalCanvas, 0, 0);
+    if (bestAnchor) {
+      console.log(`[COLOR MATCH] Rescate activado. Ancla: ${bestAnchor.text}`);
+      const exactColor = getAnchorColorFromBBox(originalCtx, bestAnchor.bbox);
+      ocrCtx.drawImage(originalCanvas, 0, 0);
+      applyTargetColorThreshold(ocrCtx, targetW, targetH, exactColor, 75);
 
-    applyTargetColorThreshold(ocrCtx, targetW, targetH, exactColor, 75);
+      const { data: pass2Data } = await worker1.recognize(ocrCanvas);
+      finalData = pass2Data;
 
-    const { data: pass2Data } = await worker1.recognize(ocrCanvas);
-    finalData = pass2Data;
+      foundItems = parseTextForRewards(finalData);
+    }
+  } else {
+    console.log(`[FAST PATH] Pasada 1 exitosa. Saltando corrección de color.`);
   }
+
 
   const rawOcr = finalData.text || "";
   console.log("[SCAN] Rewards Raw OCR:", rawOcr);
@@ -876,7 +878,6 @@ async function processRewards(video, width, height, scale) {
   clearRewardDebugLogs();
   addRewardDebugLog("OCR", `Text read: ${rawOcr.substring(0, 50)}...`, "info");
 
-  const foundItems = parseTextForRewards(finalData);
   console.log("[SCAN] Rewards Found Items:", foundItems.length);
   addRewardDebugLog("SCAN", `Items found: ${foundItems.length}`, foundItems.length > 0 ? "match" : "warn");
 
@@ -966,7 +967,7 @@ function showTrackConfirm(relicName, rawOcr = "") {
   const container = document.getElementById("toast-container");
   if (!container) return;
 
-  const safeId = `track-${relicName.replace(/\s+/g, "-")}`;
+  const safeId = `track-${relicName.replaceAll(/\s+/g, "-")}`;
   if (document.getElementById(safeId)) return;
 
   const popup = document.createElement("div");
@@ -1046,12 +1047,17 @@ globalThis.openScanModal = async function (imageUrl, items, width, height, scale
   const syncToggle = document.getElementById("sync-rewards-toggle");
   if (syncToggle) syncToggle.checked = !!state.autoSyncRewards;
 
-  if (typeof TEXTS !== 'undefined' && TEXTS[state.currentLang]?.rewardScanner) {
+  const copyToggle = document.getElementById("auto-copy-toggle");
+  if (copyToggle) copyToggle.checked = !!state.autoCopyScanResults;
+
+  if (TEXTS?.[state.currentLang]?.rewardScanner) {
     const tScan = TEXTS[state.currentLang].rewardScanner;
-    const toggleLabel = modal.querySelector(".sync-toggle-label");
-    if (toggleLabel) toggleLabel.innerText = tScan.autoSyncLabel;
+    const syncLabel = modal.querySelector(".sync-toggle-label");
+    if (syncLabel) syncLabel.innerText = tScan.autoSyncLabel;
+    const copyLabel = modal.querySelector(".copy-toggle-label");
+    if (copyLabel) copyLabel.innerText = tScan.autoCopyLabel;
     const helpIcon = modal.querySelector(".help-icon");
-    if (helpIcon) helpIcon.setAttribute("data-tooltip", tScan.autoSyncTooltip);
+    if (helpIcon) helpIcon.dataset.tooltip = tScan.autoSyncTooltip + " | " + tScan.autoCopyTooltip;
   }
 
   const statusMsg = document.getElementById("scan-selection-status");
@@ -1094,6 +1100,7 @@ globalThis.openScanModal = async function (imageUrl, items, width, height, scale
   );
 
   currentScanResults = itemsWithDetails;
+  console.log("[Auto-Copy] Results stored:", currentScanResults.length);
 
   const maxPl = Math.max(...itemsWithDetails.map((i) => i.price));
 
@@ -1184,9 +1191,14 @@ globalThis.openScanModal = async function (imageUrl, items, width, height, scale
 
     badgesContainer.innerHTML = "";
     badgesContainer.appendChild(fragment);
-  });
-}
 
+    if (state.autoCopyScanResults) {
+      console.log("[Auto-Copy] Triggering copy...");
+      setTimeout(() => globalThis.copyScanResultsToClipboard(true), 100);
+    }
+  });
+
+}
 function createModalBadge(
   { name, price, ducats, owned, appOwned, crafted, isSelected, isBestPl, isBestEff, isCompletingSet, leftPct, isGrid },
   container,
@@ -1223,7 +1235,7 @@ function createModalBadge(
   metadataHtml = `
     <div class="metadata-row">
         <div class="inventory-app-count" style="background: rgba(0, 255, 120, 0.15); border-color: #00ff78;">
-            VISTO: <span class="metadata-seen" style="font-size: 14px;">${owned > 0 ? owned : 0}</span>
+            ${t.owned.toUpperCase()}: <span class="metadata-seen" style="font-size: 14px;">${owned > 0 ? owned : 0}</span>
         </div>
         <div style="display:flex; justify-content:center; gap:12px; margin-top:6px; font-size:10px; font-weight:700;">
           <span style="color: #00e5ff;" class="app-owned-val" data-part="${escapeHTML(name)}">${t.inv}: ${appOwned}</span>
@@ -1252,7 +1264,7 @@ function createModalBadge(
             
             <div class="modal-badge-row">
                 <div class="modal-badge-price">
-                    <span class="scanner-plat-icon"></span>
+                    <img src="assets/relic_contents/platinum.webp" class="currency-icon">
                     ${price > 0 ? price : "—"}
                 </div>
                 ${ducats > 0
@@ -1273,6 +1285,92 @@ function createModalBadge(
 
   container.appendChild(badge);
 }
+
+globalThis.copyScanResultsToClipboard = function (isAuto = false) {
+  if (!currentScanResults || currentScanResults.length === 0) {
+    if (!isAuto) showToast("No rewards to copy!");
+    console.warn("[Auto-Copy] No results available to copy.");
+    return;
+  }
+
+  const lang = state.currentLang === "en" ? "en" : "es";
+
+  const parts = currentScanResults.map(item => {
+    const displayName = item.name || "Unknown Item";
+    const name = `[${displayName}]`;
+    const pl = item.price > 0 ? `${item.price} :platinum:` : "";
+    const duc = item.ducats > 0 ? `${item.ducats} :ducats:` : "";
+    return `${name} ${pl} ${duc}`.trim();
+  });
+
+  const text = parts.join(" | ");
+
+  const finalizeCopy = (success) => {
+    if (success) {
+      console.log("[Auto-Copy] Success!");
+      showToast(lang === "en" ? "Results copied to clipboard!" : "Resultados copiados al portapapeles!", { type: "success" });
+    } else {
+      console.error("[Auto-Copy] Failed");
+      if (!isAuto) {
+        showToast("Failed to copy results", { type: "error" });
+      } else if (!document.hasFocus()) {
+        console.warn("[Auto-Copy] Blocked: Document not focused.");
+        showToast(lang === "en" ? "Focus app to copy automatically!" : "¡Focaliza la app para copiar!", { type: "warn" });
+      }
+    }
+  };
+
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(text).then(() => finalizeCopy(true)).catch(err => {
+      console.warn("[Auto-Copy] navigator.clipboard failed, trying fallback...", err);
+      fallbackCopyTextToClipboard(text, finalizeCopy);
+    });
+  } else {
+    fallbackCopyTextToClipboard(text, finalizeCopy);
+  }
+};
+
+
+function fallbackCopyTextToClipboard(text, callback) {
+  try {
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    textArea.style.position = "fixed";
+    textArea.style.left = "0";
+    textArea.style.top = "0";
+    textArea.style.width = "2em";
+    textArea.style.height = "2em";
+    textArea.style.padding = "0";
+    textArea.style.border = "none";
+    textArea.style.outline = "none";
+    textArea.style.boxShadow = "none";
+    textArea.style.background = "transparent";
+    textArea.style.opacity = "0.01";
+    textArea.style.zIndex = "-1";
+
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    const successful = document.execCommand('copy');
+    textArea.remove();
+
+    if (!successful) {
+      console.warn("[Auto-Copy] execCommand('copy') returned false.");
+    }
+    callback(successful);
+  } catch (err) {
+    console.error("[Auto-Copy] Fallback critical failure:", err);
+    callback(false);
+  }
+}
+
+
+globalThis.toggleAutoCopyScanResults = function (val) {
+  state.autoCopyScanResults = val;
+  if (globalThis.saveAppState) globalThis.saveAppState();
+  showToast(`Auto-Copy: ${val ? "ON" : "OFF"}`);
+};
+
 globalThis.saveLiveInventory = function () {
   if (sessionInventory.size === 0) return showToast("No items detected");
   for (const [name, count] of sessionInventory) {
@@ -1318,7 +1416,6 @@ function copyScannerDebugLog() {
 globalThis.stopLiveSession = stopLiveSession;
 let currentScanResults = [];
 let selectedScanItem = null;
-
 globalThis.closeScanModal = function () {
   if (autoCloseTimer) clearTimeout(autoCloseTimer);
 
@@ -1327,8 +1424,8 @@ globalThis.closeScanModal = function () {
 
   detectionLocked = false;
 
-  if (currentScanResults.length > 0 && typeof state !== 'undefined' && state.primeInventory) {
-    let anyChange = false;
+  if (currentScanResults.length > 0 && state?.primeInventory) {
+    let anyChange = false; state !== undefined
     const normalizedSelection = selectedScanItem ? selectedScanItem.toUpperCase().trim() : null;
 
     currentScanResults.forEach(item => {
@@ -1358,11 +1455,10 @@ globalThis.closeScanModal = function () {
       if (globalThis.renderPrimeInventory) globalThis.renderPrimeInventory();
     }
   }
-
   if (selectedScanItem && typeof globalThis.showToast === "function") {
     const t = (typeof TEXTS !== 'undefined') ? TEXTS[state.currentLang] : null;
-    let msg = `${selectedScanItem.toUpperCase()} SELECCIONADA +1`;
-    if (t && t.rewardScanner && t.rewardScanner.rewardSelectedConfirmation) {
+    let msg = `TEXTS !== undefinedse()} SELECCIONADA +1`;
+    if (t?.rewardScanner?.rewardSelectedConfirmation) {
       msg = t.rewardScanner.rewardSelectedConfirmation.replace("{item}", selectedScanItem.toUpperCase());
     }
     globalThis.showToast(msg);
@@ -1386,7 +1482,7 @@ globalThis.selectRewardToInventory = function (itemName) {
         const ownedValSpan = b.querySelector('.app-owned-val');
         if (ownedValSpan) {
           const rawOcr = b.querySelector('.metadata-seen')?.innerText || "0";
-          const seen = parseInt(rawOcr) || 0;
+          const seen = Number.parseInt(rawOcr) || 0;
           const labelPrefix = ownedValSpan.innerText.split(':')[0];
           ownedValSpan.innerText = `${labelPrefix}: ${seen + 1}`;
         }
@@ -1405,6 +1501,7 @@ globalThis.toggleRewardsAutoSync = function (val) {
   if (globalThis.saveAppState) globalThis.saveAppState();
   showToast(`Auto-Sync: ${val ? "ON" : "OFF"}`);
 };
+
 
 globalThis.manualPrecisionScan = async function () {
   const video = document.getElementById("live-video");
@@ -1539,7 +1636,6 @@ function handleDebugLogging(cell, combinedText) {
 
 function getValidItemMatch(combinedText) {
   const matchOpts = findBestItemMatch(combinedText);
-
   const bestMatch = matchOpts?.item || matchOpts?.bestMatch;
   const score = matchOpts?.score || matchOpts?.highestRatio || 0;
 
@@ -1601,9 +1697,7 @@ export function getAnchorColorFromBBox(originalCtx, bbox) {
     let luma = (r * 0.2126) + (g * 0.7152) + (b * 0.0722);
     pixels.push({ r, g, b, luma });
   }
-
   pixels.sort((a, b) => b.luma - a.luma);
-
   const topCount = Math.max(1, Math.floor(pixels.length * 0.10));
   let sumR = 0, sumG = 0, sumB = 0;
 
@@ -1624,16 +1718,14 @@ export function applyTargetColorThreshold(ctx, w, h, targetColor, tolerance = 70
   const imgData = ctx.getImageData(0, 0, w, h);
   const px = imgData.data;
 
+  const tolSq = tolerance * tolerance;
   for (let i = 0; i < px.length; i += 4) {
     let r = px[i], g = px[i + 1], b = px[i + 2];
-
-    let dist = Math.sqrt(
-      Math.pow(r - targetColor.r, 2) +
-      Math.pow(g - targetColor.g, 2) +
-      Math.pow(b - targetColor.b, 2)
-    );
-
-    if (dist < tolerance) {
+    let dr = r - targetColor.r;
+    let dg = g - targetColor.g;
+    let db = b - targetColor.b;
+    let distSq = (dr * dr) + (dg * dg) + (db * db);
+    if (distSq < tolSq) {
       px[i] = px[i + 1] = px[i + 2] = 0;
     } else {
       px[i] = px[i + 1] = px[i + 2] = 255;
