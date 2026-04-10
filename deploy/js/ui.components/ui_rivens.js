@@ -283,7 +283,7 @@ function updatePreviewDOM(panel, imgPath, dispoData, tooltipHtml) {
   if (!img.parentElement) {
     img.className = "riven-weapon-img";
     img.onerror = () => {
-      img.src = "assets/img/default-weapon.png";
+      img.src = "assets/img/default-weapon.webp";
       img.style.opacity = 0.5;
     };
     wrapper.appendChild(img);
@@ -385,7 +385,7 @@ export function renderVariants(currentWeaponName) {
         "Base";
 
       card.innerHTML = `
-        <img src="${getItemIcon(name)}" onerror="this.src='assets/img/default-weapon.png'">
+        <img src="${getItemIcon(name)}" onerror="this.src='assets/img/default-weapon.webp'">
         <span class="v-name-small">${displayLabel}</span>
         <div class="v-dispo-row">
             <span class="v-dispo-val">${dispo.toFixed(2)}</span>

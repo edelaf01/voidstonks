@@ -258,7 +258,6 @@
 #scan-badges-container {
     position: relative;
     width: 100%;
-    /* Mantener relación de aspecto del video si se puede, pero 100% es base */
     height: 100%;
     pointer-events: none;
     overflow: visible;

@@ -97,7 +97,7 @@ export async function initFissurePanel() {
     missionDiv.id = "best-missions-container";
     missionDiv.innerHTML = `
       <div id="mission-toggle-btn" class="mission-toggle-btn" onclick="document.getElementById('best-missions-container').classList.toggle('open')">
-         <img src="assets/fissureicon.png" class="toggle-img" alt="Fisuras">
+         <img src="assets/fissureicon.webp" class="toggle-img" alt="Fisuras">
       </div>
       
       <div class="panel-main-header" id="fissure-panel-header" style="cursor:pointer;" onclick="initFissurePanel()">
