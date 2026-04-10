@@ -151,6 +151,7 @@
     "slug": "paris-prime-grip",
     "relics": [
       "Axi A10",
+      "Axi G15",
       "Lith A10",
       "Lith K6",
       "Lith S1",
@@ -204,6 +205,7 @@
       "Neo N15",
       "Neo P6",
       "Neo T2",
+      "Neo V11",
       "Neo W2"
     ]
   },
@@ -238,6 +240,7 @@
       "Axi G10",
       "Axi G11",
       "Axi G13",
+      "Axi G15",
       "Axi G3",
       "Axi G6",
       "Axi G9",
@@ -278,6 +281,7 @@
       "Axi S15",
       "Axi S18",
       "Axi S19",
+      "Axi S20",
       "Axi S4",
       "Axi S6",
       "Axi S7",
@@ -285,7 +289,6 @@
       "Axi S9",
       "Axi T11",
       "Axi T12",
-      "Axi T13",
       "Axi T6",
       "Axi T7",
       "Axi T8",
@@ -303,6 +306,7 @@
       "Axi Z1",
       "Lith A1",
       "Lith A10",
+      "Lith A11",
       "Lith A2",
       "Lith A4",
       "Lith A5",
@@ -316,6 +320,7 @@
       "Lith B9",
       "Lith C10",
       "Lith C13",
+      "Lith C14",
       "Lith C4",
       "Lith C5",
       "Lith C6",
@@ -399,6 +404,8 @@
       "Lith X1",
       "Lith Z2",
       "Lith Z4",
+      "Meso A10",
+      "Meso A11",
       "Meso A2",
       "Meso A6",
       "Meso A8",
@@ -420,6 +427,7 @@
       "Meso E4",
       "Meso E5",
       "Meso E6",
+      "Meso E7",
       "Meso F4",
       "Meso G1",
       "Meso G10",
@@ -484,6 +492,7 @@
       "Meso Z3",
       "Meso Z4",
       "Meso Z5",
+      "Meso Z6",
       "Neo A1",
       "Neo A10",
       "Neo A11",
@@ -514,6 +523,7 @@
       "Neo E4",
       "Neo F2",
       "Neo G1",
+      "Neo G10",
       "Neo G2",
       "Neo G3",
       "Neo G5",
@@ -532,6 +542,7 @@
       "Neo L3",
       "Neo L4",
       "Neo M2",
+      "Neo M6",
       "Neo N1",
       "Neo N10",
       "Neo N14",
@@ -542,6 +553,7 @@
       "Neo N5",
       "Neo O1",
       "Neo O3",
+      "Neo P10",
       "Neo P5",
       "Neo P6",
       "Neo P7",
@@ -656,6 +668,7 @@
       "Axi K11",
       "Axi L5",
       "Axi P8",
+      "Axi V14",
       "Axi Y1",
       "Axi Y2",
       "Lith B6",
@@ -705,6 +718,7 @@
       "Axi G2",
       "Axi N11",
       "Axi V11",
+      "Axi Y3",
       "Lith A4",
       "Lith C4",
       "Lith C8",
@@ -819,6 +833,7 @@
       "Axi B2",
       "Axi C1",
       "Axi M1",
+      "Axi S20",
       "Axi V3",
       "Lith B6",
       "Lith B7",
@@ -926,9 +941,11 @@
       "Meso S11",
       "Meso V2",
       "Neo C6",
+      "Neo G10",
       "Neo N15",
       "Neo N22",
       "Neo S19",
+      "Neo V11",
       "Neo Z1"
     ]
   },
@@ -1095,6 +1112,7 @@
       "Lith Y1",
       "Meso B2",
       "Meso B9",
+      "Meso D8",
       "Meso P6",
       "Meso R1",
       "Meso S9",
@@ -1193,6 +1211,7 @@
     "relics": [
       "Axi A17",
       "Axi A3",
+      "Axi C11",
       "Axi C5",
       "Axi N6",
       "Lith A1",
@@ -1232,11 +1251,12 @@
   },
   "acceltra-prime-stock": {
     "name": "Acceltra Prime Stock",
-    "ducats": 100,
+    "ducats": 65,
     "slug": "acceltra-prime-stock",
     "relics": [
       "Axi A18",
       "Axi A19",
+      "Meso A11",
       "Meso A8"
     ]
   },
@@ -1247,6 +1267,7 @@
     "relics": [
       "Axi A18",
       "Axi A9",
+      "Axi C11",
       "Axi C5",
       "Axi K8",
       "Axi L5",
@@ -1288,10 +1309,12 @@
       "Axi B3",
       "Axi B4",
       "Axi B5",
+      "Axi D6",
       "Axi H7",
       "Axi S12",
       "Axi T3",
       "Axi T8",
+      "Lith A11",
       "Lith B2",
       "Lith C4",
       "Lith G14",
@@ -1341,6 +1364,7 @@
     "relics": [
       "Axi A19",
       "Axi M6",
+      "Axi S20",
       "Lith A10",
       "Neo O3"
     ]
@@ -1393,7 +1417,9 @@
       "Neo G9",
       "Neo K6",
       "Neo M3",
+      "Neo M6",
       "Neo N14",
+      "Neo N24",
       "Neo N6",
       "Neo S11",
       "Neo S8",
@@ -1409,8 +1435,10 @@
     "relics": [
       "Axi A19",
       "Axi C10",
+      "Axi C11",
       "Axi F3",
       "Axi O6",
+      "Axi Y3",
       "Lith D7",
       "Meso K7"
     ]
@@ -1488,6 +1516,7 @@
       "Axi A2",
       "Axi C1",
       "Axi C7",
+      "Axi D6",
       "Axi E2",
       "Axi H2",
       "Axi N2",
@@ -1538,6 +1567,7 @@
       "Axi K1",
       "Axi M1",
       "Axi N5",
+      "Axi V14",
       "Axi V7",
       "Lith A2",
       "Lith B6",
@@ -1582,7 +1612,8 @@
     "ducats": 100,
     "slug": "alternox-prime-blueprint",
     "relics": [
-      "Axi A20"
+      "Axi A20",
+      "Meso A10"
     ]
   },
   "kompressa-prime-receiver": {
@@ -1591,7 +1622,8 @@
     "slug": "kompressa-prime-receiver",
     "relics": [
       "Axi A20",
-      "Axi N13"
+      "Axi N13",
+      "Axi V14"
     ]
   },
   "lavos-prime-neuroptics-blueprint": {
@@ -1600,7 +1632,8 @@
     "slug": "lavos-prime-neuroptics-blueprint",
     "relics": [
       "Axi A20",
-      "Meso A8"
+      "Meso A8",
+      "Neo N24"
     ]
   },
   "cedo-prime-stock": {
@@ -1611,6 +1644,7 @@
       "Axi A20",
       "Axi S18",
       "Lith A7",
+      "Meso E7",
       "Neo A14"
     ]
   },
@@ -1621,6 +1655,7 @@
     "relics": [
       "Axi A20",
       "Axi V12",
+      "Lith N19",
       "Neo A15"
     ]
   },
@@ -1822,6 +1857,7 @@
       "Lith M9",
       "Lith N10",
       "Meso A1",
+      "Meso A10",
       "Meso B1",
       "Meso D1",
       "Meso D4",
@@ -1922,11 +1958,13 @@
       "Axi S2",
       "Axi S5",
       "Axi T10",
+      "Axi T13",
       "Axi T2",
       "Axi T3",
       "Axi T5",
       "Axi V1",
       "Axi V10",
+      "Axi V14",
       "Axi V4",
       "Axi W1",
       "Lith A6",
@@ -1949,6 +1987,7 @@
       "Lith M9",
       "Lith N1",
       "Lith N14",
+      "Lith N19",
       "Lith N3",
       "Lith O1",
       "Lith O2",
@@ -2000,6 +2039,7 @@
       "Meso T1",
       "Meso V1",
       "Meso V14",
+      "Meso V15",
       "Meso V2",
       "Meso W4",
       "Neo A14",
@@ -2028,6 +2068,7 @@
       "Neo S1",
       "Neo S11",
       "Neo S13",
+      "Neo S20",
       "Neo S3",
       "Neo S9",
       "Neo T2",
@@ -2260,6 +2301,7 @@
       "Neo N23",
       "Neo S11",
       "Neo S12",
+      "Neo S20",
       "Neo S7"
     ]
   },
@@ -2387,7 +2429,7 @@
   },
   "baruuk-prime-neuroptics-blueprint": {
     "name": "Baruuk Prime Neuroptics Blueprint",
-    "ducats": 100,
+    "ducats": 65,
     "slug": "baruuk-prime-neuroptics-blueprint",
     "relics": [
       "Axi B5",
@@ -2497,6 +2539,7 @@
       "Lith N16",
       "Neo A15",
       "Neo D10",
+      "Neo G10",
       "Neo G9",
       "Neo M5",
       "Neo T9"
@@ -2554,6 +2597,7 @@
       "Neo K9",
       "Neo L4",
       "Neo N23",
+      "Neo P10",
       "Neo R3",
       "Neo S6",
       "Neo T1",
@@ -2645,6 +2689,7 @@
     "slug": "caliban-prime-systems-blueprint",
     "relics": [
       "Axi C10",
+      "Axi C11",
       "Vanguard C1"
     ]
   },
@@ -2654,6 +2699,7 @@
     "slug": "daikyu-prime-lower-limb",
     "relics": [
       "Axi C10",
+      "Axi C11",
       "Lith A8",
       "Meso A9"
     ]
@@ -2664,8 +2710,17 @@
     "slug": "lavos-prime-chassis-blueprint",
     "relics": [
       "Axi C10",
+      "Axi D6",
       "Lith G14",
       "Neo X1"
+    ]
+  },
+  "perigale-prime-stock": {
+    "name": "Perigale Prime Stock",
+    "ducats": 15,
+    "slug": "perigale-prime-stock",
+    "relics": [
+      "Axi C11"
     ]
   },
   "silva--aegis-prime-blade": {
@@ -2869,6 +2924,7 @@
     "relics": [
       "Axi C7",
       "Axi G12",
+      "Axi G15",
       "Axi N2",
       "Axi N8",
       "Axi N9",
@@ -2974,7 +3030,7 @@
   },
   "phantasma-prime-stock": {
     "name": "Phantasma Prime Stock",
-    "ducats": 100,
+    "ducats": 65,
     "slug": "phantasma-prime-stock",
     "relics": [
       "Axi C9",
@@ -3242,6 +3298,7 @@
       "Neo A12",
       "Neo A13",
       "Neo D10",
+      "Neo M6",
       "Neo X1"
     ]
   },
@@ -3263,10 +3320,12 @@
       "Lith K3",
       "Lith L5",
       "Lith N14",
+      "Lith N19",
       "Lith N2",
       "Lith T12",
       "Lith V1",
       "Lith V2",
+      "Meso A11",
       "Meso B4",
       "Meso B9",
       "Meso H2",
@@ -3288,6 +3347,47 @@
       "Neo P7",
       "Neo S12",
       "Neo S2"
+    ]
+  },
+  "dual-zoren-prime-blade": {
+    "name": "Dual Zoren Prime Blade",
+    "ducats": 100,
+    "slug": "dual-zoren-prime-blade",
+    "relics": [
+      "Axi D6",
+      "Neo D9"
+    ]
+  },
+  "orthos-prime-blade": {
+    "name": "Orthos Prime Blade",
+    "ducats": 45,
+    "slug": "orthos-prime-blade",
+    "relics": [
+      "Axi D6",
+      "Axi T10",
+      "Lith A9",
+      "Lith B2",
+      "Lith B3",
+      "Lith B5",
+      "Lith C4",
+      "Lith T12",
+      "Meso A7",
+      "Meso D1",
+      "Meso I1",
+      "Meso K6",
+      "Meso W3",
+      "Neo N16",
+      "Neo P9"
+    ]
+  },
+  "cedo-prime-barrel": {
+    "name": "Cedo Prime Barrel",
+    "ducats": 45,
+    "slug": "cedo-prime-barrel",
+    "relics": [
+      "Axi D6",
+      "Meso Y1",
+      "Neo T9"
     ]
   },
   "ember-prime-blueprint": {
@@ -3345,10 +3445,13 @@
       "Axi W3",
       "Lith P9",
       "Lith T10",
+      "Meso D8",
+      "Meso L4",
       "Meso N10",
       "Meso R3",
       "Meso V12",
       "Meso Z4",
+      "Meso Z6",
       "Neo C6",
       "Neo G9",
       "Neo M2",
@@ -3432,7 +3535,8 @@
       "Lith G13",
       "Lith S16",
       "Meso K7",
-      "Meso N17"
+      "Meso N17",
+      "Neo G10"
     ]
   },
   "lavos-prime-blueprint": {
@@ -3441,7 +3545,8 @@
     "slug": "lavos-prime-blueprint",
     "relics": [
       "Axi F3",
-      "Axi Y1"
+      "Axi Y1",
+      "Lith C14"
     ]
   },
   "galatine-prime-blueprint": {
@@ -3529,11 +3634,12 @@
   },
   "grendel-prime-systems-blueprint": {
     "name": "Grendel Prime Systems Blueprint",
-    "ducats": 100,
+    "ducats": 65,
     "slug": "grendel-prime-systems-blueprint",
     "relics": [
       "Axi G11",
-      "Axi G14"
+      "Axi G14",
+      "Neo M6"
     ]
   },
   "afuris-prime-link": {
@@ -3583,6 +3689,7 @@
       "Axi P6",
       "Lith A8",
       "Lith W4",
+      "Meso A11",
       "Meso E6",
       "Neo G9",
       "Neo P6"
@@ -3622,6 +3729,7 @@
     "slug": "zylok-prime-receiver",
     "relics": [
       "Axi G14",
+      "Axi G15",
       "Axi O6",
       "Lith L5",
       "Lith R4",
@@ -3637,6 +3745,7 @@
       "Axi G14",
       "Axi N13",
       "Axi T13",
+      "Axi Y3",
       "Meso A8",
       "Meso V12"
     ]
@@ -3651,8 +3760,37 @@
       "Meso A7",
       "Meso A9",
       "Meso L3",
+      "Meso L4",
       "Neo K9",
       "Neo T9"
+    ]
+  },
+  "gauss-prime-systems-blueprint": {
+    "name": "Gauss Prime Systems Blueprint",
+    "ducats": 100,
+    "slug": "gauss-prime-systems-blueprint",
+    "relics": [
+      "Axi G15",
+      "Lith G12",
+      "Lith G9",
+      "Meso G7",
+      "Meso G9",
+      "Neo G8",
+      "Neo G9"
+    ]
+  },
+  "grendel-prime-neuroptics-blueprint": {
+    "name": "Grendel Prime Neuroptics Blueprint",
+    "ducats": 15,
+    "slug": "grendel-prime-neuroptics-blueprint",
+    "relics": [
+      "Axi G15",
+      "Axi M6",
+      "Axi S17",
+      "Meso A5",
+      "Meso B8",
+      "Neo M5",
+      "Neo Q1"
     ]
   },
   "gram-prime-handle": {
@@ -3818,6 +3956,7 @@
       "Meso G10",
       "Meso G6",
       "Meso G7",
+      "Meso L4",
       "Meso N3",
       "Meso O5",
       "Meso S14",
@@ -4157,6 +4296,7 @@
       "Axi H8",
       "Axi L6",
       "Axi V12",
+      "Lith A11",
       "Lith G12",
       "Lith Q1",
       "Lith R5",
@@ -4809,7 +4949,8 @@
       "Lith M10",
       "Lith M9",
       "Meso M4",
-      "Neo M5"
+      "Neo M5",
+      "Neo M6"
     ]
   },
   "cedo-prime-receiver": {
@@ -4818,7 +4959,8 @@
     "slug": "cedo-prime-receiver",
     "relics": [
       "Axi M6",
-      "Lith K12"
+      "Lith K12",
+      "Neo P10"
     ]
   },
   "acceltra-prime-blueprint": {
@@ -4833,20 +4975,8 @@
       "Meso N17",
       "Meso V10",
       "Meso W5",
+      "Meso Z6",
       "Neo Z11"
-    ]
-  },
-  "grendel-prime-neuroptics-blueprint": {
-    "name": "Grendel Prime Neuroptics Blueprint",
-    "ducats": 15,
-    "slug": "grendel-prime-neuroptics-blueprint",
-    "relics": [
-      "Axi M6",
-      "Axi S17",
-      "Meso A5",
-      "Meso B8",
-      "Neo M5",
-      "Neo Q1"
     ]
   },
   "akstiletto-prime-link": {
@@ -5022,6 +5152,7 @@
       "Axi N12",
       "Axi O2",
       "Axi S18",
+      "Axi S20",
       "Axi T6",
       "Lith H3",
       "Lith H4",
@@ -5040,6 +5171,7 @@
       "Meso N9",
       "Meso S10",
       "Meso S2",
+      "Meso Z6",
       "Neo A12",
       "Neo A5",
       "Neo B1",
@@ -5063,7 +5195,8 @@
     "relics": [
       "Axi N13",
       "Lith N15",
-      "Lith N16"
+      "Lith N16",
+      "Lith N19"
     ]
   },
   "protea-prime-blueprint": {
@@ -5364,6 +5497,7 @@
       "Meso L3",
       "Neo F3",
       "Neo L4",
+      "Neo M6",
       "Neo O2"
     ]
   },
@@ -5503,7 +5637,8 @@
       "Axi Y2",
       "Lith Q2",
       "Lith W4",
-      "Neo P9"
+      "Neo P9",
+      "Neo V11"
     ]
   },
   "dual-zoren-prime-handle": {
@@ -5512,7 +5647,9 @@
     "slug": "dual-zoren-prime-handle",
     "relics": [
       "Axi P8",
+      "Axi S20",
       "Lith E2",
+      "Meso D8",
       "Neo T10"
     ]
   },
@@ -5539,6 +5676,7 @@
       "Axi V13",
       "Meso H5",
       "Meso T7",
+      "Meso Z6",
       "Neo E4"
     ]
   },
@@ -5566,6 +5704,7 @@
       "Lith K12",
       "Lith Q2",
       "Meso P16",
+      "Meso V15",
       "Meso Y1",
       "Neo W2"
     ]
@@ -5818,6 +5957,7 @@
       "Axi S16",
       "Lith Q1",
       "Lith Q2",
+      "Meso A10",
       "Meso V11",
       "Neo T10"
     ]
@@ -5859,7 +5999,8 @@
     "relics": [
       "Axi S17",
       "Axi S18",
-      "Lith S16"
+      "Lith S16",
+      "Neo S20"
     ]
   },
   "vadarya-prime-receiver": {
@@ -5869,7 +6010,8 @@
     "relics": [
       "Axi S18",
       "Lith G14",
-      "Neo C7"
+      "Neo C7",
+      "Neo S20"
     ]
   },
   "gunsen-prime-handle": {
@@ -5924,6 +6066,14 @@
       "Axi S2",
       "Neo B8",
       "Neo S5"
+    ]
+  },
+  "sarofang-prime-blade": {
+    "name": "Sarofang Prime Blade",
+    "ducats": 100,
+    "slug": "sarofang-prime-blade",
+    "relics": [
+      "Axi S20"
     ]
   },
   "nyx-prime-systems-blueprint": {
@@ -6093,27 +6243,6 @@
       "Neo T7"
     ]
   },
-  "orthos-prime-blade": {
-    "name": "Orthos Prime Blade",
-    "ducats": 45,
-    "slug": "orthos-prime-blade",
-    "relics": [
-      "Axi T10",
-      "Lith A9",
-      "Lith B2",
-      "Lith B3",
-      "Lith B5",
-      "Lith C4",
-      "Lith T12",
-      "Meso A7",
-      "Meso D1",
-      "Meso I1",
-      "Meso K6",
-      "Meso W3",
-      "Neo N16",
-      "Neo P9"
-    ]
-  },
   "trumna-prime-receiver": {
     "name": "Trumna Prime Receiver",
     "ducats": 100,
@@ -6150,6 +6279,7 @@
       "Axi T13",
       "Lith N17",
       "Lith S16",
+      "Meso A10",
       "Meso E6",
       "Meso T8",
       "Meso V11"
@@ -6374,7 +6504,8 @@
       "Axi V12",
       "Lith O4",
       "Neo G8",
-      "Neo K9"
+      "Neo K9",
+      "Neo V11"
     ]
   },
   "venato-prime-blade": {
@@ -6396,7 +6527,25 @@
       "Lith L7",
       "Lith Y1",
       "Neo G7",
+      "Neo P10",
       "Neo W2"
+    ]
+  },
+  "voruna-prime-blueprint": {
+    "name": "Voruna Prime Blueprint",
+    "ducats": 100,
+    "slug": "voruna-prime-blueprint",
+    "relics": [
+      "Axi V14"
+    ]
+  },
+  "alternox-prime-receiver": {
+    "name": "Alternox Prime Receiver",
+    "ducats": 15,
+    "slug": "alternox-prime-receiver",
+    "relics": [
+      "Axi V14",
+      "Neo P9"
     ]
   },
   "valkyr-prime-chassis-blueprint": {
@@ -6565,6 +6714,7 @@
     "slug": "yareli-prime-neuroptics-blueprint",
     "relics": [
       "Axi Y2",
+      "Axi Y3",
       "Lith Y1",
       "Meso Y1"
     ]
@@ -6575,6 +6725,7 @@
     "slug": "akarius-prime-link",
     "relics": [
       "Axi Y2",
+      "Lith A11",
       "Lith R5",
       "Meso N17",
       "Meso P16",
@@ -6589,7 +6740,31 @@
     "relics": [
       "Axi Y2",
       "Neo C7",
-      "Neo G9"
+      "Neo G9",
+      "Neo S20"
+    ]
+  },
+  "vadarya-prime-barrel": {
+    "name": "Vadarya Prime Barrel",
+    "ducats": 45,
+    "slug": "vadarya-prime-barrel",
+    "relics": [
+      "Axi Y3",
+      "Lith L7",
+      "Neo A15"
+    ]
+  },
+  "sevagoth-prime-blueprint": {
+    "name": "Sevagoth Prime Blueprint",
+    "ducats": 45,
+    "slug": "sevagoth-prime-blueprint",
+    "relics": [
+      "Axi Y3",
+      "Axi Z2",
+      "Lith L7",
+      "Lith Z4",
+      "Meso V12",
+      "Neo A13"
     ]
   },
   "zakti-prime-blueprint": {
@@ -6610,20 +6785,9 @@
     "relics": [
       "Axi Z2",
       "Lith Z4",
+      "Meso Z6",
       "Neo Z10",
       "Neo Z11"
-    ]
-  },
-  "sevagoth-prime-blueprint": {
-    "name": "Sevagoth Prime Blueprint",
-    "ducats": 45,
-    "slug": "sevagoth-prime-blueprint",
-    "relics": [
-      "Axi Z2",
-      "Lith L7",
-      "Lith Z4",
-      "Meso V12",
-      "Neo A13"
     ]
   },
   "vectis-prime-blueprint": {
@@ -6651,13 +6815,14 @@
   },
   "akarius-prime-receiver": {
     "name": "Akarius Prime Receiver",
-    "ducats": 100,
+    "ducats": 65,
     "slug": "akarius-prime-receiver",
     "relics": [
       "Lith A10",
       "Lith A6",
       "Lith A7",
-      "Lith A8"
+      "Lith A8",
+      "Neo G10"
     ]
   },
   "yareli-prime-chassis-blueprint": {
@@ -6667,7 +6832,33 @@
     "relics": [
       "Lith A10",
       "Lith Z4",
-      "Meso X1"
+      "Meso X1",
+      "Neo V11"
+    ]
+  },
+  "acceltra-prime-barrel": {
+    "name": "Acceltra Prime Barrel",
+    "ducats": 100,
+    "slug": "acceltra-prime-barrel",
+    "relics": [
+      "Lith A11",
+      "Meso A5",
+      "Neo A12",
+      "Neo A13",
+      "Neo A14",
+      "Neo A15"
+    ]
+  },
+  "grendel-prime-chassis-blueprint": {
+    "name": "Grendel Prime Chassis Blueprint",
+    "ducats": 45,
+    "slug": "grendel-prime-chassis-blueprint",
+    "relics": [
+      "Lith A11",
+      "Lith C12",
+      "Lith G13",
+      "Lith M10",
+      "Neo S18"
     ]
   },
   "akjagara-prime-barrel": {
@@ -6712,6 +6903,7 @@
     "relics": [
       "Lith A7",
       "Lith C12",
+      "Lith C14",
       "Lith D7",
       "Lith E2",
       "Lith M10",
@@ -6896,17 +7088,6 @@
       "Meso C1"
     ]
   },
-  "grendel-prime-chassis-blueprint": {
-    "name": "Grendel Prime Chassis Blueprint",
-    "ducats": 45,
-    "slug": "grendel-prime-chassis-blueprint",
-    "relics": [
-      "Lith C12",
-      "Lith G13",
-      "Lith M10",
-      "Neo S18"
-    ]
-  },
   "caliban-prime-neuroptics-blueprint": {
     "name": "Caliban Prime Neuroptics Blueprint",
     "ducats": 100,
@@ -6924,6 +7105,7 @@
     "relics": [
       "Lith C13",
       "Lith S16",
+      "Meso A10",
       "Meso X1"
     ]
   },
@@ -6934,11 +7116,38 @@
     "relics": [
       "Lith C13",
       "Lith M9",
+      "Meso A11",
       "Meso P15",
       "Neo A14",
       "Neo O2",
       "Neo P7",
       "Neo W1"
+    ]
+  },
+  "cedo-prime-blueprint": {
+    "name": "Cedo Prime Blueprint",
+    "ducats": 100,
+    "slug": "cedo-prime-blueprint",
+    "relics": [
+      "Lith C14",
+      "Neo C6"
+    ]
+  },
+  "perigale-prime-receiver": {
+    "name": "Perigale Prime Receiver",
+    "ducats": 45,
+    "slug": "perigale-prime-receiver",
+    "relics": [
+      "Lith C14"
+    ]
+  },
+  "kestrel-prime-blade": {
+    "name": "Kestrel Prime Blade",
+    "ducats": 15,
+    "slug": "kestrel-prime-blade",
+    "relics": [
+      "Lith C14",
+      "Lith D7"
     ]
   },
   "nami-skyla-prime-handle": {
@@ -7156,15 +7365,8 @@
     "slug": "daikyu-prime-grip",
     "relics": [
       "Lith D7",
+      "Meso D8",
       "Neo D10"
-    ]
-  },
-  "kestrel-prime-blade": {
-    "name": "Kestrel Prime Blade",
-    "ducats": 15,
-    "slug": "kestrel-prime-blade",
-    "relics": [
-      "Lith D7"
     ]
   },
   "rhino-prime-chassis-blueprint": {
@@ -7194,6 +7396,7 @@
     "relics": [
       "Lith E2",
       "Meso E6",
+      "Meso E7",
       "Neo E4"
     ]
   },
@@ -7212,7 +7415,8 @@
     "slug": "daikyu-prime-blueprint",
     "relics": [
       "Lith E2",
-      "Lith Q2"
+      "Lith Q2",
+      "Neo N24"
     ]
   },
   "glaive-prime-blueprint": {
@@ -7254,19 +7458,6 @@
       "Lith G13",
       "Meso G10",
       "Meso G5"
-    ]
-  },
-  "gauss-prime-systems-blueprint": {
-    "name": "Gauss Prime Systems Blueprint",
-    "ducats": 100,
-    "slug": "gauss-prime-systems-blueprint",
-    "relics": [
-      "Lith G12",
-      "Lith G9",
-      "Meso G7",
-      "Meso G9",
-      "Neo G8",
-      "Neo G9"
     ]
   },
   "gyre-prime-neuroptics-blueprint": {
@@ -7359,6 +7550,7 @@
       "Lith G8",
       "Meso G6",
       "Meso G8",
+      "Neo G10",
       "Neo G7"
     ]
   },
@@ -7415,6 +7607,7 @@
     "slug": "caliban-prime-chassis-blueprint",
     "relics": [
       "Lith K12",
+      "Meso V15",
       "Meso Y1",
       "Vanguard P1"
     ]
@@ -7486,16 +7679,8 @@
     "relics": [
       "Lith L5",
       "Lith L7",
-      "Meso L3"
-    ]
-  },
-  "vadarya-prime-barrel": {
-    "name": "Vadarya Prime Barrel",
-    "ducats": 45,
-    "slug": "vadarya-prime-barrel",
-    "relics": [
-      "Lith L7",
-      "Neo A15"
+      "Meso L3",
+      "Meso L4"
     ]
   },
   "mag-prime-blueprint": {
@@ -7624,7 +7809,8 @@
       "Lith N16",
       "Lith Y1",
       "Meso G9",
-      "Meso V14"
+      "Meso V14",
+      "Neo P10"
     ]
   },
   "nautilus-prime-blueprint": {
@@ -7634,7 +7820,8 @@
     "relics": [
       "Lith N17",
       "Lith N18",
-      "Meso N17"
+      "Meso N17",
+      "Neo N24"
     ]
   },
   "alternox-prime-barrel": {
@@ -7652,8 +7839,27 @@
     "relics": [
       "Lith N18",
       "Meso G8",
+      "Meso L4",
       "Neo A15",
       "Neo X1"
+    ]
+  },
+  "voruna-prime-chassis-blueprint": {
+    "name": "Voruna Prime Chassis Blueprint",
+    "ducats": 45,
+    "slug": "voruna-prime-chassis-blueprint",
+    "relics": [
+      "Lith N19"
+    ]
+  },
+  "vadarya-prime-stock": {
+    "name": "Vadarya Prime Stock",
+    "ducats": 15,
+    "slug": "vadarya-prime-stock",
+    "relics": [
+      "Lith N19",
+      "Lith O4",
+      "Meso X1"
     ]
   },
   "nekros-prime-systems-blueprint": {
@@ -7679,15 +7885,6 @@
       "Meso O2",
       "Meso O4",
       "Meso O6"
-    ]
-  },
-  "vadarya-prime-stock": {
-    "name": "Vadarya Prime Stock",
-    "ducats": 15,
-    "slug": "vadarya-prime-stock",
-    "relics": [
-      "Lith O4",
-      "Meso X1"
     ]
   },
   "ballistica-prime-receiver": {
@@ -7882,7 +8079,7 @@
   },
   "wisp-prime-chassis-blueprint": {
     "name": "Wisp Prime Chassis Blueprint",
-    "ducats": 100,
+    "ducats": 65,
     "slug": "wisp-prime-chassis-blueprint",
     "relics": [
       "Lith W3",
@@ -7928,6 +8125,16 @@
       "Neo Z11"
     ]
   },
+  "akarius-prime-blueprint": {
+    "name": "Akarius Prime Blueprint",
+    "ducats": 100,
+    "slug": "akarius-prime-blueprint",
+    "relics": [
+      "Meso A11",
+      "Meso A7",
+      "Neo A11"
+    ]
+  },
   "nidus-prime-systems-blueprint": {
     "name": "Nidus Prime Systems Blueprint",
     "ducats": 15,
@@ -7941,27 +8148,6 @@
       "Neo A8",
       "Neo C2",
       "Neo N19"
-    ]
-  },
-  "acceltra-prime-barrel": {
-    "name": "Acceltra Prime Barrel",
-    "ducats": 100,
-    "slug": "acceltra-prime-barrel",
-    "relics": [
-      "Meso A5",
-      "Neo A12",
-      "Neo A13",
-      "Neo A14",
-      "Neo A15"
-    ]
-  },
-  "akarius-prime-blueprint": {
-    "name": "Akarius Prime Blueprint",
-    "ducats": 100,
-    "slug": "akarius-prime-blueprint",
-    "relics": [
-      "Meso A7",
-      "Neo A11"
     ]
   },
   "alternox-prime-stock": {
@@ -8026,6 +8212,24 @@
       "Neo C5"
     ]
   },
+  "voruna-prime-neuroptics-blueprint": {
+    "name": "Voruna Prime Neuroptics Blueprint",
+    "ducats": 45,
+    "slug": "voruna-prime-neuroptics-blueprint",
+    "relics": [
+      "Meso D8"
+    ]
+  },
+  "yareli-prime-blueprint": {
+    "name": "Yareli Prime Blueprint",
+    "ducats": 45,
+    "slug": "yareli-prime-blueprint",
+    "relics": [
+      "Meso D8",
+      "Meso P17",
+      "Neo A14"
+    ]
+  },
   "wyrm-prime-systems": {
     "name": "Wyrm Prime Systems",
     "ducats": 45,
@@ -8045,6 +8249,33 @@
       "Meso E4",
       "Neo E2",
       "Neo E3"
+    ]
+  },
+  "sarofang-prime-blueprint": {
+    "name": "Sarofang Prime Blueprint",
+    "ducats": 45,
+    "slug": "sarofang-prime-blueprint",
+    "relics": [
+      "Meso E7"
+    ]
+  },
+  "daikyu-prime-upper-limb": {
+    "name": "Daikyu Prime Upper Limb",
+    "ducats": 45,
+    "slug": "daikyu-prime-upper-limb",
+    "relics": [
+      "Meso E7",
+      "Meso P16",
+      "Neo C7"
+    ]
+  },
+  "gyre-prime-systems-blueprint": {
+    "name": "Gyre Prime Systems Blueprint",
+    "ducats": 15,
+    "slug": "gyre-prime-systems-blueprint",
+    "relics": [
+      "Meso E7",
+      "Meso V14"
     ]
   },
   "frost-prime-blueprint": {
@@ -8096,7 +8327,17 @@
     "slug": "venato-prime-handle",
     "relics": [
       "Meso G9",
-      "Meso P17"
+      "Meso P17",
+      "Meso V15",
+      "Neo N24"
+    ]
+  },
+  "perigale-prime-blueprint": {
+    "name": "Perigale Prime Blueprint",
+    "ducats": 15,
+    "slug": "perigale-prime-blueprint",
+    "relics": [
+      "Meso L4"
     ]
   },
   "ankyros-prime-gauntlet": {
@@ -8128,30 +8369,13 @@
       "Neo E1"
     ]
   },
-  "daikyu-prime-upper-limb": {
-    "name": "Daikyu Prime Upper Limb",
-    "ducats": 45,
-    "slug": "daikyu-prime-upper-limb",
-    "relics": [
-      "Meso P16",
-      "Neo C7"
-    ]
-  },
   "kestrel-prime-blueprint": {
     "name": "Kestrel Prime Blueprint",
     "ducats": 45,
     "slug": "kestrel-prime-blueprint",
     "relics": [
-      "Meso P17"
-    ]
-  },
-  "yareli-prime-blueprint": {
-    "name": "Yareli Prime Blueprint",
-    "ducats": 45,
-    "slug": "yareli-prime-blueprint",
-    "relics": [
       "Meso P17",
-      "Neo A14"
+      "Neo N24"
     ]
   },
   "panthera-prime-receiver": {
@@ -8205,6 +8429,7 @@
     "relics": [
       "Meso V11",
       "Meso V13",
+      "Meso V15",
       "Vanguard M1"
     ]
   },
@@ -8213,40 +8438,8 @@
     "ducats": 100,
     "slug": "vadarya-prime-blueprint",
     "relics": [
-      "Meso V12"
-    ]
-  },
-  "gyre-prime-systems-blueprint": {
-    "name": "Gyre Prime Systems Blueprint",
-    "ducats": 15,
-    "slug": "gyre-prime-systems-blueprint",
-    "relics": [
-      "Meso V14"
-    ]
-  },
-  "cedo-prime-barrel": {
-    "name": "Cedo Prime Barrel",
-    "ducats": 45,
-    "slug": "cedo-prime-barrel",
-    "relics": [
-      "Meso Y1",
-      "Neo T9"
-    ]
-  },
-  "cedo-prime-blueprint": {
-    "name": "Cedo Prime Blueprint",
-    "ducats": 100,
-    "slug": "cedo-prime-blueprint",
-    "relics": [
-      "Neo C6"
-    ]
-  },
-  "dual-zoren-prime-blade": {
-    "name": "Dual Zoren Prime Blade",
-    "ducats": 100,
-    "slug": "dual-zoren-prime-blade",
-    "relics": [
-      "Neo D9"
+      "Meso V12",
+      "Meso V15"
     ]
   },
   "bo-prime-handle": {
@@ -8266,12 +8459,20 @@
       "Neo K9"
     ]
   },
-  "alternox-prime-receiver": {
-    "name": "Alternox Prime Receiver",
-    "ducats": 15,
-    "slug": "alternox-prime-receiver",
+  "perigale-prime-barrel": {
+    "name": "Perigale Prime Barrel",
+    "ducats": 100,
+    "slug": "perigale-prime-barrel",
     "relics": [
-      "Neo P9"
+      "Neo P10"
+    ]
+  },
+  "sarofang-prime-handle": {
+    "name": "Sarofang Prime Handle",
+    "ducats": 15,
+    "slug": "sarofang-prime-handle",
+    "relics": [
+      "Neo S20"
     ]
   },
   "gyre-prime-blueprint": {
@@ -8280,6 +8481,14 @@
     "slug": "gyre-prime-blueprint",
     "relics": [
       "Neo T10"
+    ]
+  },
+  "voruna-prime-systems-blueprint": {
+    "name": "Voruna Prime Systems Blueprint",
+    "ducats": 100,
+    "slug": "voruna-prime-systems-blueprint",
+    "relics": [
+      "Neo V11"
     ]
   },
   "zhuge-prime-barrel": {
@@ -8294,23 +8503,12 @@
       "Neo Z9"
     ]
   },
-  "exilus-weapon-adapter-blueprint": {
-    "name": "Exilus Weapon Adapter Blueprint",
-    "ducats": 0,
-    "slug": "exilus-weapon-adapter-blueprint",
-    "relics": [
-      "Requiem I",
-      "Requiem II",
-      "Requiem III",
-      "Requiem IV",
-      "Requiem None"
-    ]
-  },
   "lohk": {
     "name": "Lohk",
     "ducats": 0,
     "slug": "lohk",
     "relics": [
+      "Eterna None",
       "Requiem I",
       "Requiem None"
     ]
@@ -8320,7 +8518,74 @@
     "ducats": 0,
     "slug": "xata",
     "relics": [
+      "Eterna None",
       "Requiem I",
+      "Requiem None"
+    ]
+  },
+  "jahu": {
+    "name": "Jahu",
+    "ducats": 0,
+    "slug": "jahu",
+    "relics": [
+      "Eterna None",
+      "Requiem II"
+    ]
+  },
+  "vome": {
+    "name": "Vome",
+    "ducats": 0,
+    "slug": "vome",
+    "relics": [
+      "Eterna None",
+      "Requiem II"
+    ]
+  },
+  "ris": {
+    "name": "Ris",
+    "ducats": 0,
+    "slug": "ris",
+    "relics": [
+      "Eterna None",
+      "Requiem III"
+    ]
+  },
+  "fass": {
+    "name": "Fass",
+    "ducats": 0,
+    "slug": "fass",
+    "relics": [
+      "Eterna None",
+      "Requiem III"
+    ]
+  },
+  "netra": {
+    "name": "Netra",
+    "ducats": 0,
+    "slug": "netra",
+    "relics": [
+      "Eterna None",
+      "Requiem IV"
+    ]
+  },
+  "khra": {
+    "name": "Khra",
+    "ducats": 0,
+    "slug": "khra",
+    "relics": [
+      "Eterna None",
+      "Requiem IV"
+    ]
+  },
+  "exilus-weapon-adapter-blueprint": {
+    "name": "Exilus Weapon Adapter Blueprint",
+    "ducats": 0,
+    "slug": "exilus-weapon-adapter-blueprint",
+    "relics": [
+      "Requiem I",
+      "Requiem II",
+      "Requiem III",
+      "Requiem IV",
       "Requiem None"
     ]
   },
@@ -8346,54 +8611,6 @@
       "Requiem III",
       "Requiem IV",
       "Requiem None"
-    ]
-  },
-  "jahu": {
-    "name": "Jahu",
-    "ducats": 0,
-    "slug": "jahu",
-    "relics": [
-      "Requiem II"
-    ]
-  },
-  "vome": {
-    "name": "Vome",
-    "ducats": 0,
-    "slug": "vome",
-    "relics": [
-      "Requiem II"
-    ]
-  },
-  "ris": {
-    "name": "Ris",
-    "ducats": 0,
-    "slug": "ris",
-    "relics": [
-      "Requiem III"
-    ]
-  },
-  "fass": {
-    "name": "Fass",
-    "ducats": 0,
-    "slug": "fass",
-    "relics": [
-      "Requiem III"
-    ]
-  },
-  "netra": {
-    "name": "Netra",
-    "ducats": 0,
-    "slug": "netra",
-    "relics": [
-      "Requiem IV"
-    ]
-  },
-  "khra": {
-    "name": "Khra",
-    "ducats": 0,
-    "slug": "khra",
-    "relics": [
-      "Requiem IV"
     ]
   }
 }

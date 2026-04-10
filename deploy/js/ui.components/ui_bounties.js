@@ -122,7 +122,7 @@ export async function renderBountiesTab() {
         </div>
       `;
     }
-
+    //TODO Fix complexity
     missions.forEach((m, index) => {
       const uniqueId = `drops-${key}-${index}`.replaceAll(/\s+/g, "");
       const opacity = m.isOptimal ? "1" : "0.7";
