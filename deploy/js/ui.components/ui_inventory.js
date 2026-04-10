@@ -234,9 +234,7 @@ export function modifyInv(name, amount) {
   updateInventoryCount(name, amount);
   saveAppState();
 
-  if (state.inventory.length !== oldLength) {
-    renderInventory();
-  } else {
+  if (state.inventory.length === oldLength) {
     const itemMatch = state.inventory.find(
       (i) => (typeof i === "string" ? i : i.name) === name
     );
@@ -249,6 +247,8 @@ export function modifyInv(name, amount) {
     const safeNameHtml = escapeHTML(name);
     const qtySpan = document.querySelector(`.inv-row[data-relic="${safeNameHtml}"] .qty-label`);
     if (qtySpan) qtySpan.textContent = `x${newQty}`;
+  } else {
+    renderInventory();
   }
 }
 
@@ -417,7 +417,7 @@ export function modifyPrimePart(name, amount) {
   qtySpans.forEach(span => {
     span.textContent = newQty;
     span.classList.remove("pulse-anim");
-    void span.offsetWidth;
+
     span.classList.add("pulse-anim");
   });
 
@@ -426,11 +426,10 @@ export function modifyPrimePart(name, amount) {
   if (badge) badge.dataset.qty = newQty;
 
   setTimeout(updatePrimeTotalValue, 10);
-
   requestAnimationFrame(() => {
     const trackers = document.querySelectorAll(`.live-tracker[data-part="${safePartHtml}"]`);
     trackers.forEach(t => {
-      const required = parseInt(t.dataset.req) || 1;
+      const required = Number.parseInt(t.dataset.req) || 1;
       t.innerHTML = generateDotsHtml(newQty, required);
     });
     const setName = getSetName(name);
@@ -479,7 +478,7 @@ export function deletePrimeSet(setName) {
 
 export function decrementPrimeSet(setName) {
   let allPossibleParts = [];
-  if (state.setsDatabase && state.setsDatabase[setName]) {
+  if (state.setsDatabase?.[setName]) {
     allPossibleParts = state.setsDatabase[setName];
   } else {
     allPossibleParts = globalThis.setPartsCache?.get(setName) || [];
@@ -493,7 +492,7 @@ export function decrementPrimeSet(setName) {
     let requiredCount = 1;
     let partName = p;
     if (reqMatch) {
-      requiredCount = parseInt(reqMatch[1], 10);
+      requiredCount = Number.parseInt(reqMatch[1], 10);
       partName = p.replace(/\s*\d+x$/, "").trim();
     }
 
@@ -568,7 +567,7 @@ export function renderPrimeInventory() {
     }
 
     let allPossibleParts = [];
-    if (state.setsDatabase && state.setsDatabase[setName]) {
+    if (state.setsDatabase?.[setName]) {
       allPossibleParts = state.setsDatabase[setName];
     } else {
       if (!globalThis.setPartsCache) globalThis.setPartsCache = new Map();
@@ -681,7 +680,7 @@ export function renderPrimeInventory() {
         let numSets = 0;
         let allPossibleParts = [];
         if (setName !== "Otros") {
-          if (state.setsDatabase && state.setsDatabase[setName]) {
+          if (state.setsDatabase?.[setName]) {
             allPossibleParts = state.setsDatabase[setName];
           } else {
             allPossibleParts = globalThis.setPartsCache?.get(setName) || [];
@@ -756,7 +755,7 @@ export function renderPrimeInventory() {
                 </div>
 
                 <div class="inv-qty-controls-mini">
-                  <button class="inv-btn-small" data-action="modify-prime-part" data-part="${escapeHTML(partName)}" data-amount="-1">−</button>
+                  <button class="inv-btn-small" data-action="modify-prime-part" data-part="${escapeHTML(partName)}" data-amount="-1"></button>
                   <span class="qty-num" data-part="${escapeHTML(partName)}">${qty}</span>
                   <button class="inv-btn-small" data-action="modify-prime-part" data-part="${escapeHTML(partName)}" data-amount="1">+</button>
                 </div>
@@ -772,7 +771,6 @@ export function renderPrimeInventory() {
       }
 
       list.appendChild(fragment);
-
       updatePrimeTotalValue();
 
       if (currentIndex < setNames.length) {
@@ -784,7 +782,6 @@ export function renderPrimeInventory() {
           const el = document.getElementById(`set-mkt-${safeSetId}`);
           if (el) addToQueue(setName + " Set", el);
         });
-
         if (typeof warmupPrices === "function") {
           warmupPrices();
         }
@@ -801,6 +798,7 @@ export function renderPrimeInventory() {
     globalThis.invTotalSyncInterval = setInterval(() => {
       syncCount++;
       updatePrimeTotalValue();
+      // Stop after 20 seconds or if inventory is closed
       if (syncCount > 40 || !document.getElementById("inventory-list-parts")) {
         clearInterval(globalThis.invTotalSyncInterval);
       }
@@ -850,7 +848,7 @@ export async function updatePrimeTotalValue() {
     const mktEl = document.getElementById(`set-mkt-${safeSetId}`);
 
     const cachedRaw = globalThis.MEMORY_CACHE?.get(getSlug(setNameRaw + " Set"));
-    const price = cachedRaw !== undefined ? Number.parseInt(cachedRaw, 10) : 0;
+    const price = cachedRaw === undefined ? 0 : Number.parseInt(cachedRaw, 10);
 
     if (cachedRaw !== undefined) {
       if (!Number.isNaN(price) && mktEl) {
@@ -897,7 +895,7 @@ function calculateGroupSubtotal(setName, groupData) {
   }
 
   let allPossibleParts = [];
-  if (state.setsDatabase && state.setsDatabase[setName]) {
+  if (state.setsDatabase?.[setName]) {
     allPossibleParts = state.setsDatabase[setName];
   } else {
     allPossibleParts = Object.keys(state.itemsDatabase).filter(
@@ -1004,7 +1002,7 @@ export function importInventory() {
       const text = await file.text();
       const data = JSON.parse(text);
 
-      if (data && data.relics !== undefined && data.parts !== undefined) {
+      if (data?.relics !== undefined && data.parts !== undefined) {
         if (
           confirm(
             `Archivo de inventario dual cargado.\n\nThis will overwrite your entire inventory (Relics & Parts). Are you sure?`

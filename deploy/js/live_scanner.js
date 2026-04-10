@@ -130,7 +130,7 @@ async function checkAutoScrollScan(externalHash = null) {
     sampleCvs.width = 48;
     sampleCvs.height = 27;
 
-    const sCtx = sampleCvs.getContext("2d");
+    const sCtx = sampleCvs.getContext("2d", { willReadFrequently: true });
     sCtx.drawImage(
       video,
       0,
@@ -201,7 +201,6 @@ let snapshotCtx = null;
 const priceCache = new Map();
 
 let lastTrackedRelic = "";
-let trackingDebounce = 0;
 let scanCounter = 0;
 
 let sessionInventory = new Map();
@@ -489,6 +488,7 @@ function prepareVirtualCanvas(video) {
   const width = video.videoWidth;
   const height = video.videoHeight;
   const scale = 1080 / height;
+
   const hCropH = Math.floor(height * 0.15);
 
   virtualCanvas.width = Math.floor(width * scale);
@@ -498,17 +498,28 @@ function prepareVirtualCanvas(video) {
 
   vCtx.drawImage(
     video,
-    0,
-    0,
-    width,
-    hCropH,
-    0,
-    0,
-    virtualCanvas.width,
-    virtualCanvas.height,
+    0, 0, width, hCropH,
+    0, 0, virtualCanvas.width, virtualCanvas.height,
   );
 
-  applyClusteringThreshold(vCtx, virtualCanvas.width, virtualCanvas.height);
+  const imgData = vCtx.getImageData(0, 0, virtualCanvas.width, virtualCanvas.height);
+  const px = imgData.data;
+
+  for (let i = 0; i < px.length; i += 4) {
+    let r = px[i], g = px[i + 1], b = px[i + 2];
+
+    let luma = (r * 0.2126) + (g * 0.7152) + (b * 0.0722);
+
+    let isOrange = (r > 140 && g > 70 && b < 100 && r > b + 40);
+
+    let isWhiteText = (luma > 160 && Math.abs(r - g) < 30 && Math.abs(g - b) < 30);
+
+    if (isOrange || isWhiteText) {
+      px[i] = px[i + 1] = px[i + 2] = 0;
+      px[i] = px[i + 1] = px[i + 2] = 255;
+    }
+  }
+  vCtx.putImageData(imgData, 0, 0);
 
   return { width, height, scale };
 }
@@ -807,7 +818,7 @@ async function processRelicSelection(video, width, height, scale) {
 
 async function processRewards(video, width, height, scale) {
   const rCropY = Math.floor(height * 0.18);
-  const rCropH = Math.floor(height * 0.55);
+  const rCropH = Math.floor(height * 0.50);
   const targetW = Math.floor(width * scale);
   const targetH = Math.floor(rCropH * scale);
 
@@ -820,18 +831,53 @@ async function processRewards(video, width, height, scale) {
 
   const ocrCanvas = document.createElement('canvas');
   ocrCanvas.width = targetW; ocrCanvas.height = targetH;
-  const ocrCtx = ocrCanvas.getContext('2d');
-  ocrCtx.drawImage(canvas, 0, 0);
-  applyClusteringThreshold(ocrCtx, targetW, targetH);
+  const ocrCtx = ocrCanvas.getContext('2d', { willReadFrequently: true }); ocrCtx.drawImage(canvas, 0, 0);
 
-  const { data } = await worker1.recognize(ocrCanvas);
-  const rawOcr = data.text || "";
+
+  const originalCanvas = document.createElement('canvas');
+  originalCanvas.width = targetW; originalCanvas.height = targetH;
+  const originalCtx = originalCanvas.getContext('2d', { willReadFrequently: true }); originalCtx.drawImage(canvas, 0, 0);
+
+  applyClusteringThreshold(ocrCtx, targetW, targetH);
+  const { data: pass1Data } = await worker1.recognize(ocrCanvas);
+  let finalData = pass1Data;
+  let foundItems = parseTextForRewards(pass1Data);
+  const metaCount = pass1Data.words.filter(w => /OWNED|CRAFTED|CRAFT/i.test(w.text)).length;
+
+  if (foundItems.length < 2 || foundItems.length < metaCount) {
+    const anchorKeywords = new Set(["PRIME", "BLUEPRINT", "OWNED", "CHASSIS", "SYSTEMS", "NEUROPTICS", "HANDLE", "BARREL"]);
+    let bestAnchor = null;
+
+    for (const w of pass1Data.words) {
+      const text = w.text.toUpperCase().replaceAll(/[^A-Z]/g, '');
+      if (anchorKeywords.has(text) && w.confidence > 75) {
+        bestAnchor = w;
+        break;
+      }
+    }
+
+    if (bestAnchor) {
+      console.log(`[COLOR MATCH] Rescate activado. Ancla: ${bestAnchor.text}`);
+      const exactColor = getAnchorColorFromBBox(originalCtx, bestAnchor.bbox);
+      ocrCtx.drawImage(originalCanvas, 0, 0);
+      applyTargetColorThreshold(ocrCtx, targetW, targetH, exactColor, 75);
+
+      const { data: pass2Data } = await worker1.recognize(ocrCanvas);
+      finalData = pass2Data;
+
+      foundItems = parseTextForRewards(finalData);
+    }
+  } else {
+    console.log(`[FAST PATH] Pasada 1 exitosa. Saltando corrección de color.`);
+  }
+
+
+  const rawOcr = finalData.text || "";
   console.log("[SCAN] Rewards Raw OCR:", rawOcr);
 
   clearRewardDebugLogs();
   addRewardDebugLog("OCR", `Text read: ${rawOcr.substring(0, 50)}...`, "info");
 
-  const foundItems = parseTextForRewards(data);
   console.log("[SCAN] Rewards Found Items:", foundItems.length);
   addRewardDebugLog("SCAN", `Items found: ${foundItems.length}`, foundItems.length > 0 ? "match" : "warn");
 
@@ -921,7 +967,7 @@ function showTrackConfirm(relicName, rawOcr = "") {
   const container = document.getElementById("toast-container");
   if (!container) return;
 
-  const safeId = `track-${relicName.replace(/\s+/g, "-")}`;
+  const safeId = `track-${relicName.replaceAll(/\s+/g, "-")}`;
   if (document.getElementById(safeId)) return;
 
   const popup = document.createElement("div");
@@ -989,7 +1035,7 @@ function handleSuccessfulScan(video, width, height, foundItems, rawOcr = "") {
   openScanModal(snapshotCanvas.toDataURL("image/jpeg", 0.85), foundItems, width, height, scale, rawOcr);
 }
 
-async function openScanModal(imageUrl, items, width, height, scale, rawOcr = "") {
+globalThis.openScanModal = async function (imageUrl, items, width, height, scale, rawOcr = "") {
   const modal = document.getElementById("scan-success-modal");
   const imgEl = document.getElementById("scan-snapshot");
   const badgesContainer = document.getElementById("scan-badges-container");
@@ -1001,12 +1047,17 @@ async function openScanModal(imageUrl, items, width, height, scale, rawOcr = "")
   const syncToggle = document.getElementById("sync-rewards-toggle");
   if (syncToggle) syncToggle.checked = !!state.autoSyncRewards;
 
-  if (typeof TEXTS !== 'undefined' && TEXTS[state.currentLang]?.rewardScanner) {
+  const copyToggle = document.getElementById("auto-copy-toggle");
+  if (copyToggle) copyToggle.checked = !!state.autoCopyScanResults;
+
+  if (TEXTS?.[state.currentLang]?.rewardScanner) {
     const tScan = TEXTS[state.currentLang].rewardScanner;
-    const toggleLabel = modal.querySelector(".sync-toggle-label");
-    if (toggleLabel) toggleLabel.innerText = tScan.autoSyncLabel;
+    const syncLabel = modal.querySelector(".sync-toggle-label");
+    if (syncLabel) syncLabel.innerText = tScan.autoSyncLabel;
+    const copyLabel = modal.querySelector(".copy-toggle-label");
+    if (copyLabel) copyLabel.innerText = tScan.autoCopyLabel;
     const helpIcon = modal.querySelector(".help-icon");
-    if (helpIcon) helpIcon.setAttribute("data-tooltip", tScan.autoSyncTooltip);
+    if (helpIcon) helpIcon.dataset.tooltip = tScan.autoSyncTooltip + " | " + tScan.autoCopyTooltip;
   }
 
   const statusMsg = document.getElementById("scan-selection-status");
@@ -1039,16 +1090,17 @@ async function openScanModal(imageUrl, items, width, height, scale, rawOcr = "")
       }
       let ducats = 0;
       if (state.ducatsDatabase) {
-        const itemData = Object.values(state.ducatsDatabase).find(
+        const itemVal = Object.values(state.ducatsDatabase).find(
           (d) => d.name.toUpperCase() === item.name.toUpperCase(),
         );
-        if (itemData) ducats = itemData.ducats;
+        if (itemVal) ducats = itemVal.ducats;
       }
-      return { ...item, price, ducats };
+      return { ...item, price, ducats, xPos: item.xPos || 0 };
     }),
   );
 
   currentScanResults = itemsWithDetails;
+  console.log("[Auto-Copy] Results stored:", currentScanResults.length);
 
   const maxPl = Math.max(...itemsWithDetails.map((i) => i.price));
 
@@ -1061,14 +1113,62 @@ async function openScanModal(imageUrl, items, width, height, scale, rawOcr = "")
   requestAnimationFrame(() => {
     const fragment = document.createDocumentFragment();
 
-    const sortedItems = [...potentialMap].sort((a, b) => a.xPos - b.xPos);
+    const wrapper = document.getElementById("scan-badges-wrapper");
+    if (imgEl.clientWidth > 0 && wrapper) {
+      const imgRatio = imgEl.naturalWidth / imgEl.naturalHeight;
+      const elRatio = imgEl.clientWidth / imgEl.clientHeight;
+      let visualW = imgEl.clientWidth;
+      let visualH = imgEl.clientHeight;
 
-    sortedItems.forEach((item) => {
+      if (imgRatio > elRatio) {
+        visualH = visualW / imgRatio;
+      } else {
+        visualW = visualH * imgRatio;
+      }
+
+      wrapper.style.width = `${Math.floor(visualW)}px`;
+      wrapper.style.height = `${Math.floor(visualH)}px`;
+    }
+
+    let positionedItems = potentialMap.map(item => {
+      const referenceW = item.imgW || (width * scale);
+      const isClumped = !item.xPos || Math.abs(item.xPos - (referenceW / 2)) < 5;
+
+      let rawPct = (typeof item.xPos === 'number' && referenceW > 0 && !isClumped)
+        ? (item.xPos / referenceW) * 100
+        : -1;
+
+      return { ...item, leftPct: rawPct };
+    }).sort((a, b) => a.leftPct - b.leftPct);
+
+    const itemsWithoutPos = positionedItems.filter(i => i.leftPct < 0);
+    if (itemsWithoutPos.length > 0) {
+      positionedItems = positionedItems.map((item, idx) => {
+        if (item.leftPct < 0) {
+          return { ...item, leftPct: (idx + 0.5) * (100 / positionedItems.length), isGrid: true };
+        }
+        return item;
+      });
+    }
+
+    const BADGE_GAP_PCT = 18;
+    for (let i = 1; i < positionedItems.length; i++) {
+      const prev = positionedItems[i - 1];
+      const curr = positionedItems[i];
+      if (prev.leftPct !== null && curr.leftPct !== null) {
+        if (curr.leftPct - prev.leftPct < BADGE_GAP_PCT) {
+          curr.leftPct = prev.leftPct + BADGE_GAP_PCT;
+        }
+      }
+    }
+    positionedItems.forEach(item => {
+      if (item.leftPct !== null) item.leftPct = Math.min(98, Math.max(2, item.leftPct));
+    });
+
+    positionedItems.forEach((item) => {
       const currentAppCount = state.primeInventory ? (state.primeInventory[item.name] || 0) : 0;
-
       const isCurrentlySelected = item.name && selectedScanItem &&
         item.name.toUpperCase().trim() === selectedScanItem.toUpperCase().trim();
-
       const isCompletingSet = canItemCompleteSet(item.name);
 
       createModalBadge(
@@ -1083,8 +1183,7 @@ async function openScanModal(imageUrl, items, width, height, scale, rawOcr = "")
           isBestPl: item.price === maxPl && item.price > 0,
           isBestEff: item.potential === maxPotential && item.potential > 0,
           isCompletingSet: isCompletingSet,
-          xPos: item.xPos,
-          targetW: width * scale,
+          leftPct: item.leftPct,
         },
         fragment,
       );
@@ -1092,20 +1191,27 @@ async function openScanModal(imageUrl, items, width, height, scale, rawOcr = "")
 
     badgesContainer.innerHTML = "";
     badgesContainer.appendChild(fragment);
-  });
-}
 
+    if (state.autoCopyScanResults) {
+      console.log("[Auto-Copy] Triggering copy...");
+      setTimeout(() => globalThis.copyScanResultsToClipboard(true), 100);
+    }
+  });
+
+}
 function createModalBadge(
-  { name, price, ducats, owned, appOwned, crafted, isSelected, isBestPl, isBestEff, isCompletingSet, xPos, targetW },
+  { name, price, ducats, owned, appOwned, crafted, isSelected, isBestPl, isBestEff, isCompletingSet, leftPct, isGrid },
   container,
 ) {
   const badge = document.createElement("div");
   badge.className = `modal-badge ${isBestPl ? "best-pl" : ""} ${isBestEff ? "best-duc" : ""} ${isSelected ? "selected-reward" : ""}`;
 
-  if (typeof xPos === 'number' && targetW) {
-    const leftPct = (xPos / targetW) * 100;
+  if (leftPct !== null && leftPct !== undefined) {
     badge.style.left = `${leftPct}%`;
   }
+
+  const mode = isGrid ? "GRID" : "REAL";
+  const diagnosticHtml = `<div style="position:absolute; bottom:5px; left:0; width:100%; font-size:8px; color:rgba(255,255,255,0.4); pointer-events:none; text-align:center;">${mode}: ${Math.round(leftPct)}%</div>`;
 
   const displayName = name.toUpperCase();
 
@@ -1129,11 +1235,10 @@ function createModalBadge(
   metadataHtml = `
     <div class="metadata-row">
         <div class="inventory-app-count" style="background: rgba(0, 255, 120, 0.15); border-color: #00ff78;">
-            VISTO: <span class="metadata-seen" style="font-size: 14px;">${owned > 0 ? owned : 0}</span>
+            ${t.owned.toUpperCase()}: <span class="metadata-seen" style="font-size: 14px;">${owned > 0 ? owned : 0}</span>
         </div>
         <div style="display:flex; justify-content:center; gap:12px; margin-top:6px; font-size:10px; font-weight:700;">
           <span style="color: #00e5ff;" class="app-owned-val" data-part="${escapeHTML(name)}">${t.inv}: ${appOwned}</span>
-          ${crafted > 0 ? `<span class="metadata-crafted" style="border-left:1px solid rgba(255,255,255,0.1); padding-left:12px;">FORJA: ${crafted}</span>` : ""}
         </div>
     </div>`;
 
@@ -1150,6 +1255,7 @@ function createModalBadge(
   }
 
   badge.innerHTML = String.raw`
+        ${diagnosticHtml}
         ${bestLabelHtml}
         <div class="modal-badge-link">
           <div class="modal-badge-content-wrapper">
@@ -1158,7 +1264,7 @@ function createModalBadge(
             
             <div class="modal-badge-row">
                 <div class="modal-badge-price">
-                    <span class="scanner-plat-icon"></span>
+                    <img src="assets/relic_contents/platinum.webp" class="currency-icon">
                     ${price > 0 ? price : "—"}
                 </div>
                 ${ducats > 0
@@ -1179,6 +1285,92 @@ function createModalBadge(
 
   container.appendChild(badge);
 }
+
+globalThis.copyScanResultsToClipboard = function (isAuto = false) {
+  if (!currentScanResults || currentScanResults.length === 0) {
+    if (!isAuto) showToast("No rewards to copy!");
+    console.warn("[Auto-Copy] No results available to copy.");
+    return;
+  }
+
+  const lang = state.currentLang === "en" ? "en" : "es";
+
+  const parts = currentScanResults.map(item => {
+    const displayName = item.name || "Unknown Item";
+    const name = `[${displayName}]`;
+    const pl = item.price > 0 ? `${item.price} :platinum:` : "";
+    const duc = item.ducats > 0 ? `${item.ducats} :ducats:` : "";
+    return `${name} ${pl} ${duc}`.trim();
+  });
+
+  const text = parts.join(" | ");
+
+  const finalizeCopy = (success) => {
+    if (success) {
+      console.log("[Auto-Copy] Success!");
+      showToast(lang === "en" ? "Results copied to clipboard!" : "Resultados copiados al portapapeles!", { type: "success" });
+    } else {
+      console.error("[Auto-Copy] Failed");
+      if (!isAuto) {
+        showToast("Failed to copy results", { type: "error" });
+      } else if (!document.hasFocus()) {
+        console.warn("[Auto-Copy] Blocked: Document not focused.");
+        showToast(lang === "en" ? "Focus app to copy automatically!" : "¡Focaliza la app para copiar!", { type: "warn" });
+      }
+    }
+  };
+
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(text).then(() => finalizeCopy(true)).catch(err => {
+      console.warn("[Auto-Copy] navigator.clipboard failed, trying fallback...", err);
+      fallbackCopyTextToClipboard(text, finalizeCopy);
+    });
+  } else {
+    fallbackCopyTextToClipboard(text, finalizeCopy);
+  }
+};
+
+
+function fallbackCopyTextToClipboard(text, callback) {
+  try {
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    textArea.style.position = "fixed";
+    textArea.style.left = "0";
+    textArea.style.top = "0";
+    textArea.style.width = "2em";
+    textArea.style.height = "2em";
+    textArea.style.padding = "0";
+    textArea.style.border = "none";
+    textArea.style.outline = "none";
+    textArea.style.boxShadow = "none";
+    textArea.style.background = "transparent";
+    textArea.style.opacity = "0.01";
+    textArea.style.zIndex = "-1";
+
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    const successful = document.execCommand('copy');
+    textArea.remove();
+
+    if (!successful) {
+      console.warn("[Auto-Copy] execCommand('copy') returned false.");
+    }
+    callback(successful);
+  } catch (err) {
+    console.error("[Auto-Copy] Fallback critical failure:", err);
+    callback(false);
+  }
+}
+
+
+globalThis.toggleAutoCopyScanResults = function (val) {
+  state.autoCopyScanResults = val;
+  if (globalThis.saveAppState) globalThis.saveAppState();
+  showToast(`Auto-Copy: ${val ? "ON" : "OFF"}`);
+};
+
 globalThis.saveLiveInventory = function () {
   if (sessionInventory.size === 0) return showToast("No items detected");
   for (const [name, count] of sessionInventory) {
@@ -1224,7 +1416,6 @@ function copyScannerDebugLog() {
 globalThis.stopLiveSession = stopLiveSession;
 let currentScanResults = [];
 let selectedScanItem = null;
-
 globalThis.closeScanModal = function () {
   if (autoCloseTimer) clearTimeout(autoCloseTimer);
 
@@ -1233,8 +1424,8 @@ globalThis.closeScanModal = function () {
 
   detectionLocked = false;
 
-  if (currentScanResults.length > 0 && typeof state !== 'undefined' && state.primeInventory) {
-    let anyChange = false;
+  if (currentScanResults.length > 0 && state?.primeInventory) {
+    let anyChange = false; state !== undefined
     const normalizedSelection = selectedScanItem ? selectedScanItem.toUpperCase().trim() : null;
 
     currentScanResults.forEach(item => {
@@ -1264,11 +1455,10 @@ globalThis.closeScanModal = function () {
       if (globalThis.renderPrimeInventory) globalThis.renderPrimeInventory();
     }
   }
-
   if (selectedScanItem && typeof globalThis.showToast === "function") {
     const t = (typeof TEXTS !== 'undefined') ? TEXTS[state.currentLang] : null;
-    let msg = `${selectedScanItem.toUpperCase()} SELECCIONADA +1`;
-    if (t && t.rewardScanner && t.rewardScanner.rewardSelectedConfirmation) {
+    let msg = `TEXTS !== undefinedse()} SELECCIONADA +1`;
+    if (t?.rewardScanner?.rewardSelectedConfirmation) {
       msg = t.rewardScanner.rewardSelectedConfirmation.replace("{item}", selectedScanItem.toUpperCase());
     }
     globalThis.showToast(msg);
@@ -1292,7 +1482,7 @@ globalThis.selectRewardToInventory = function (itemName) {
         const ownedValSpan = b.querySelector('.app-owned-val');
         if (ownedValSpan) {
           const rawOcr = b.querySelector('.metadata-seen')?.innerText || "0";
-          const seen = parseInt(rawOcr) || 0;
+          const seen = Number.parseInt(rawOcr) || 0;
           const labelPrefix = ownedValSpan.innerText.split(':')[0];
           ownedValSpan.innerText = `${labelPrefix}: ${seen + 1}`;
         }
@@ -1311,6 +1501,7 @@ globalThis.toggleRewardsAutoSync = function (val) {
   if (globalThis.saveAppState) globalThis.saveAppState();
   showToast(`Auto-Sync: ${val ? "ON" : "OFF"}`);
 };
+
 
 globalThis.manualPrecisionScan = async function () {
   const video = document.getElementById("live-video");
@@ -1445,10 +1636,12 @@ function handleDebugLogging(cell, combinedText) {
 
 function getValidItemMatch(combinedText) {
   const matchOpts = findBestItemMatch(combinedText);
-  if (!matchOpts.bestMatch || matchOpts.highestRatio < 0.45) return null;
-  return matchOpts.bestMatch;
-}
+  const bestMatch = matchOpts?.item || matchOpts?.bestMatch;
+  const score = matchOpts?.score || matchOpts?.highestRatio || 0;
 
+  if (!bestMatch || score < 0.45) return null;
+  return bestMatch;
+}
 async function extractCellQuantity(cell, bWorker, snapshot, grid) {
   const badgeCvs = createBadgeCanvas(snapshot, cell, grid);
   const {
@@ -1492,3 +1685,51 @@ globalThis.inventoryScanDone = function () {
     { type: "success" }
   );
 };
+export function getAnchorColorFromBBox(originalCtx, bbox) {
+  const w = Math.max(1, bbox.x1 - bbox.x0);
+  const h = Math.max(1, bbox.y1 - bbox.y0);
+
+  const imgData = originalCtx.getImageData(bbox.x0, bbox.y0, w, h).data;
+  let pixels = [];
+
+  for (let i = 0; i < imgData.length; i += 4) {
+    let r = imgData[i], g = imgData[i + 1], b = imgData[i + 2];
+    let luma = (r * 0.2126) + (g * 0.7152) + (b * 0.0722);
+    pixels.push({ r, g, b, luma });
+  }
+  pixels.sort((a, b) => b.luma - a.luma);
+  const topCount = Math.max(1, Math.floor(pixels.length * 0.10));
+  let sumR = 0, sumG = 0, sumB = 0;
+
+  for (let i = 0; i < topCount; i++) {
+    sumR += pixels[i].r;
+    sumG += pixels[i].g;
+    sumB += pixels[i].b;
+  }
+
+  return {
+    r: Math.floor(sumR / topCount),
+    g: Math.floor(sumG / topCount),
+    b: Math.floor(sumB / topCount)
+  };
+}
+
+export function applyTargetColorThreshold(ctx, w, h, targetColor, tolerance = 70) {
+  const imgData = ctx.getImageData(0, 0, w, h);
+  const px = imgData.data;
+
+  const tolSq = tolerance * tolerance;
+  for (let i = 0; i < px.length; i += 4) {
+    let r = px[i], g = px[i + 1], b = px[i + 2];
+    let dr = r - targetColor.r;
+    let dg = g - targetColor.g;
+    let db = b - targetColor.b;
+    let distSq = (dr * dr) + (dg * dg) + (db * db);
+    if (distSq < tolSq) {
+      px[i] = px[i + 1] = px[i + 2] = 0;
+    } else {
+      px[i] = px[i + 1] = px[i + 2] = 255;
+    }
+  }
+  ctx.putImageData(imgData, 0, 0);
+}
