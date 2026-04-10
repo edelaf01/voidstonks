@@ -486,7 +486,7 @@ export function openRivenMarket() {
 export function renderRivenGradingUI(weaponName, statsArray) {
   const weaponData = state.weaponMap[weaponName];
   if (!weaponData) return "";
-  const disposition = weaponData.disposition || 1.0;
+  const disposition = weaponData.disposition || 1;
   const weaponType = weaponData.type || "Rifle";
   const buffCount = statsArray.filter((s) => s.value > 0).length;
   const hasCurse = statsArray.some((s) => s.value < 0);

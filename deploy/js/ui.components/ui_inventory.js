@@ -356,7 +356,6 @@ export function addCurrentToInv() {
 
   renderInventory();
 }
-//TODO FIX LINT
 export function switchInvView(view) {
   if (state.currentInvView === view && document.getElementById("inventory-list")?.innerHTML.length > 50) return;
   state.currentInvView = view;
@@ -419,7 +418,6 @@ export function modifyPrimePart(name, amount) {
     span.textContent = newQty;
     span.classList.remove("pulse-anim");
 
-    //???   TODO FIX LINT
     // span.offsetWidth; // trigger reflow
     span.classList.add("pulse-anim");
   });
@@ -429,7 +427,6 @@ export function modifyPrimePart(name, amount) {
   if (badge) badge.dataset.qty = newQty;
 
   setTimeout(updatePrimeTotalValue, 10);
-  //TODO TOO COMPLEX
   requestAnimationFrame(() => {
     const trackers = document.querySelectorAll(`.live-tracker[data-part="${safePartHtml}"]`);
     trackers.forEach(t => {
@@ -669,7 +666,6 @@ export function renderPrimeInventory() {
     }
 
     let currentIndex = 0;
-    //TODO TOO COMPLEX
     const renderChunk = () => {
       if (globalThis.primeRenderId !== currentRenderId) return;
 
@@ -686,7 +682,7 @@ export function renderPrimeInventory() {
         let numSets = 0;
         let allPossibleParts = [];
         if (setName !== "Otros") {
-          //TODO deja vu , not following DRY??
+          // Fetching parts logic
           if (state.setsDatabase?.[setName]) {
             allPossibleParts = state.setsDatabase[setName];
           } else {

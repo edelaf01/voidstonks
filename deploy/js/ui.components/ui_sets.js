@@ -1,8 +1,7 @@
-import { state, saveAppState } from "../state.js";
+import { state } from "../state.js";
 import { TEXTS } from "../config.js";
 import { addToQueue, getSlug } from "../api.js";
 import { escapeHTML, showToast } from "./ui_components.js";
-import { manualRelicUpdate } from "./ui_relics.js";
 
 import {
   getItemIcon,
@@ -29,7 +28,7 @@ export function searchSet() {
   if (query.length < 2) return;
 
   const dbKeys = Object.keys(state.itemsDatabase);
-  const matches = dbKeys.filter((k) => k.toLowerCase().includes(query)).sort();
+  const matches = dbKeys.filter((k) => k.toLowerCase().includes(query)).sort((a, b) => a.localeCompare(b));
   const groups = {};
   const singles = [];
 
@@ -54,7 +53,7 @@ export function searchSet() {
   }
 
   Object.keys(groups)
-    .sort()
+    .sort((a, b) => a.localeCompare(b))
     .forEach((setName) =>
       createSetCard(setName, groups[setName], container, false),
     );
@@ -81,7 +80,7 @@ function createSetCard(title, itemNames, parent, isSingle = false) {
     : "";
 
   header.innerHTML = `<div style="display:flex; align-items:center;">${setIconHtml} ${titleHTML}</div>`;
-  const headerProgressHtml = !isSingle ? `<div class="macro-tracker" data-set="${escapeHTML(title)}" style="display:flex; align-items:center;"></div>` : "";
+  const headerProgressHtml = isSingle ? "" : `<div class="macro-tracker" data-set="${escapeHTML(title)}" style="display:flex; align-items:center;"></div>`;
 
   const rightWrapper = document.createElement("div");
   rightWrapper.style.display = "flex";
@@ -275,12 +274,7 @@ export function renderSetTracker() {
     </div>
   `;
 
-  // Create a map from manifest for quick lookup if available
-  //TODO Not used anywhere
-  /*const manifestItem =
-    state.primeManifest && Array.isArray(state.primeManifest)
-      ? state.primeManifest.find((i) => i.name === state.currentActiveSet)
-      : null;*/
+
 
   state.activeSetParts.forEach((partName) => {
     const wrapper = document.createElement("div");
