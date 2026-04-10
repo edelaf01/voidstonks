@@ -69,6 +69,7 @@ export const UPDATE_HISTORY_DATA = {
     <li>
       <em>Muchas gracias por usar esta app y cualquier sugerencia no dudéis en poneros en contacto conmigo a través de warframe forums. ¡Disfrutad de la actualización <strong>Shadowgrafter</strong>!</em>
     </li>
+
   </ul>
 </div>
 <div class="update-block old">
@@ -91,16 +92,16 @@ export const UPDATE_HISTORY_DATA = {
   </div>
   <ul class="update-list">
     <li>
-      <strong>OCR Scanner Improvements:</strong> We improved the detection logic using Tesseract, making scans much more reliable.
+      <strong>OCR Scanner Improvements:</strong> Improved  detection logic using Tesseract, making scans much more reliable.
     </li>
     <li>
       <strong>New Assets:</strong> Updated assets to include Voruna Prime, Follie, and the new adversary weapons (Lich).
     </li>
     <li>
-      <strong>UI Optimizations:</strong> Changed UI images to lighter versions (.webp) so the app loads faster.
+      <strong>UI Optimizations:</strong> Changed UI images to lighter versions for optimization purposes
     </li>
     <li>
-      <strong>Miscellaneous:</strong> Small code optimizations (linting) to make everything run smoother and translation fixes.
+      <strong>Miscellaneous:</strong> Small code optimizations and translation fixes.
     </li>
   </ul>
 </div>
@@ -340,6 +341,9 @@ export const UPDATE_HISTORY_DATA = {
     </li>
     <li>
       <strong>Basic Database:</strong> Initial support for all currently active Relics and Prime items.
+    </li>
+    <li>
+      <a href="https://www.youtube.com/watch?v=4fbhm08lWJw" target="_blank" style="color: inherit; text-decoration: underline;">charlie charlie kirky</a>
     </li>
   </ul>
 </div>
