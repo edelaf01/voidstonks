@@ -134,9 +134,10 @@ export function switchTab(mode) {
   if (mode === "lfg") updateLFGUI();
   else generateMessage();
 }
-export function changeLanguage(lang) {
+export function applySavedLang() {
+  const lang = localStorage.getItem("app_lang");
   if (lang) state.currentLang = lang;
-  if (!state.currentLang) state.currentLang = "es";
+  if (!state.currentLang) state.currentLang = "en";
 
   saveAppState();
   updateLangButtonVisuals(state.currentLang);

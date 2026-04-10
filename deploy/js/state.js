@@ -1,5 +1,5 @@
 export const state = {
-  currentLang: "es",
+  currentLang: "en",
   activeTab: "relic",
   playerCount: 1,
   lfgCount: 1,
@@ -36,9 +36,9 @@ export const state = {
     blockSize: 31,
     sigmaColor: 75,
     sigmaSpace: 75,
-    contrast: 1.0,
+    contrast: 1,
     brightness: 0,
-    gamma: 1.0,
+    gamma: 1,
     ocrLang: "eng",
     showROI: true,
     medianBlur: 9,
@@ -73,48 +73,53 @@ export function saveAppState() {
     saveTimer = null;
   }, 1000);
 }
-export function loadAppState() {
-  const saved = localStorage.getItem("voidStonks_save");
-  if (saved) {
-    try {
-      const data = JSON.parse(saved);
-
-      state.currentLang = data.lang || "es";
-
-      if (data.relicInput) {
-        const ri = document.getElementById("relicInput");
-        if (ri) ri.value = data.relicInput;
-        state.selectedRelic = data.relicInput;
-      }
-      if (data.refinement)
-        document.getElementById("refinement").value = data.refinement;
-      if (data.username)
-        document.getElementById("usernameInput").value = data.username;
-      if (data.mr) document.getElementById("mrInput").value = data.mr;
-      if (data.lfgActivity)
-        document.getElementById("lfgActivity").value = data.lfgActivity;
-
-      if (data.currentActiveSet) {
-        state.currentActiveSet = data.currentActiveSet;
-        state.activeSetParts = data.activeSetParts || [];
-        state.completedParts = new Set(data.completedParts || []);
-      }
-      if (typeof data.showAllFarms !== "undefined")
-        state.showAllFarms = data.showAllFarms;
-      if (data.lfgPresets) state.lfgPresets = data.lfgPresets;
-      if (data.inventory) state.inventory = data.inventory;
-      if (data.primeInventory) state.primeInventory = data.primeInventory;
-      if (data.autoSyncRewards !== undefined)
-        state.autoSyncRewards = data.autoSyncRewards;
-      if (data.autoCopyScanResults !== undefined)
-        state.autoCopyScanResults = data.autoCopyScanResults;
-      if (data.visionSettings) state.visionSettings = { ...state.visionSettings, ...data.visionSettings };
-      return state.activeTab;
-    } catch (e) {
-      console.warn("Error cargando save:", e);
+function restoreDOMInputs(data) {
+  const map = {
+    relicInput: "relicInput",
+    refinement: "refinement",
+    username: "usernameInput",
+    mr: "mrInput",
+    lfgActivity: "lfgActivity"
+  };
+  for (const [key, id] of Object.entries(map)) {
+    if (data[key] !== undefined && data[key] !== null) {
+      const el = document.getElementById(id);
+      if (el) el.value = data[key];
     }
   }
-  return "relic";
+}
+
+export function loadAppState() {
+  const saved = localStorage.getItem("voidStonks_save");
+  if (!saved) return "relic";
+
+  try {
+    const data = JSON.parse(saved);
+    state.currentLang = data.lang || "en";
+
+    restoreDOMInputs(data);
+
+    if (data.relicInput) state.selectedRelic = data.relicInput;
+    if (data.currentActiveSet) {
+      state.currentActiveSet = data.currentActiveSet;
+      state.activeSetParts = data.activeSetParts || [];
+      state.completedParts = new Set(data.completedParts || []);
+    }
+
+    const simpleKeys = ["showAllFarms", "lfgPresets", "inventory", "primeInventory", "autoSyncRewards", "autoCopyScanResults"];
+    simpleKeys.forEach(k => {
+      if (data[k] !== undefined) state[k] = data[k];
+    });
+
+    if (data.visionSettings) {
+      state.visionSettings = { ...state.visionSettings, ...data.visionSettings };
+    }
+
+    return state.activeTab;
+  } catch (e) {
+    console.warn("Error cargando save:", e);
+    return "relic";
+  }
 }
 export function updateInventoryCount(relicName, change) {
   if (state.inventory.length > 0 && typeof state.inventory[0] === "string") {
