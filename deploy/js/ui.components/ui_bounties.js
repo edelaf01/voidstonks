@@ -120,7 +120,6 @@ export async function renderBountiesTab() {
         </div>
       `;
     }
-
     missions.forEach((m, index) => {
       const uniqueId = `drops-${key}-${index}`.replaceAll(/\s+/g, "");
       const opacity = m.isOptimal ? "1" : "0.7";
