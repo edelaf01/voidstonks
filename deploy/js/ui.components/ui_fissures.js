@@ -87,6 +87,7 @@ export function highlightFissureTier(tier) {
 }
 
 export async function initFissurePanel() {
+
   let missionDiv = document.getElementById("best-missions-container");
   const t = TEXTS[state.currentLang];
 
@@ -118,16 +119,15 @@ export async function initFissurePanel() {
   if (header && runner) {
     header.onmouseenter = () => {
       runTimeout = setTimeout(() => {
-        if (runner) {
-          runner.classList.add("is-running");
-          setTimeout(() => {
-            if (runner) runner.classList.remove("is-running");
-          }, 3000);
-        }
+        runner.classList.add("is-running");
+        setTimeout(() => {
+          runner.classList.remove("is-running");
+        }, 3000);
       }, 2000);
     };
     header.onmouseleave = () => clearTimeout(runTimeout);
   }
+
 
   if (!globalThis._fissureRefreshInterval) {
     globalThis._fissureRefreshInterval = setInterval(() => {
