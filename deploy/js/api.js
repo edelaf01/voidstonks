@@ -1,14 +1,11 @@
 import {
   WORKER_URL,
   TEXTS,
-  AYA_STRATEGY_CONFIG,
   DUAL_PATH_FACTIONS,
   NODE_MAP,
   NODE_TO_TYPE,
-  VANIA_NAMES,
   CHALLENGE_MAP,
   ZARIMAN_DATA,
-  BOUNTY_NAMES,
   OPTIMAL_FILTERS,
   ALLY_MAP,
 } from "./config.js";
@@ -219,16 +216,7 @@ async function processQueue() {
       chunk.forEach((slug) => {
         const price = data[slug];
 
-        if (price !== undefined) {
-          if (price > 0) savePriceToCache(slug, price);
-          RETRY_COUNTS.delete(slug);
-
-          const resolvers = currentBatch.get(slug);
-          if (resolvers) {
-            resolvers.forEach((resolveFunc) => resolveFunc(price));
-            currentBatch.delete(slug);
-          }
-        } else {
+        if (price === undefined) {
           const retries = (RETRY_COUNTS.get(slug) || 0) + 1;
 
           if (retries >= MAX_RETRIES) {
@@ -246,11 +234,18 @@ async function processQueue() {
               currentBatch.delete(slug);
             }
           }
+        } else {
+          if (price > 0) savePriceToCache(slug, price);
+          RETRY_COUNTS.delete(slug);
+
+          const resolvers = currentBatch.get(slug);
+          if (resolvers) {
+            resolvers.forEach((resolveFunc) => resolveFunc(price));
+            currentBatch.delete(slug);
+          }
         }
       });
-
       currentBackoff = 50;
-
       if (i + 25 < slugsToFetch.length) {
         await new Promise(r => setTimeout(r, 300));
       }
@@ -258,7 +253,6 @@ async function processQueue() {
     } catch (err) {
       console.error("Batch chunk fetch failed, backing off and re-queueing:", err);
       currentBackoff = Math.min(currentBackoff * 2, 5000);
-
       chunk.forEach((slug) => {
         const retries = (RETRY_COUNTS.get(slug) || 0) + 1;
 
@@ -505,7 +499,6 @@ function updateDucatsDB(itemsArray) {
               ducats: comp.ducats
             };
           }
-
           if (comp.name !== fullName) {
           }
         }
