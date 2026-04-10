@@ -1,10 +1,30 @@
 export const WORKER_URL = "https://wf-tool-proxy-worker.edelamf0.workers.dev/";
-export const APP_VERSION = 1.85;
+export const APP_VERSION = 1.90;
 export const UPDATE_HISTORY_DATA = {
   es: `
 <div class="update-block">
   <div class="update-header">
-    <span class="update-version">v1.8.5 (Actual)</span>
+    <span class="update-version">v1.9.0 (Actual)</span>
+    <span class="update-date">2026-04-10</span>
+  </div>
+  <ul class="update-list">
+    <li>
+      <strong>Mejoras del Escáner OCR:</strong> Mejoras en la lógica de detección empleando Tesseract, lo cual hace que los escaneos sean mucho más fiables.
+    </li>
+    <li>
+      <strong>Nuevos Assets:</strong> Se actualizaron los assets para incluir a Voruna Prime, Follie, y las nuevas armas (Lich).
+    </li>
+    <li>
+      <strong>Optimizaciones UI:</strong> Imagenes UI optimizadas para mejor rendimiento.
+    </li>
+    <li>
+      <strong>Miscelánea:</strong> Pequeñas optimizaciones de código 
+    </li>
+  </ul>
+</div>
+<div class="update-block old">
+  <div class="update-header">
+    <span class="update-version">v1.8.5</span>
     <span class="update-date">2026-03-27</span>
   </div>
   <ul class="update-list">
@@ -67,20 +87,20 @@ export const UPDATE_HISTORY_DATA = {
 <div class="update-block">
   <div class="update-header">
     <span class="update-version">v1.9.0 (Current)</span>
-    <span class="update-date">2026-03-27</span>
+    <span class="update-date">2026-04-10</span>
   </div>
   <ul class="update-list">
     <li>
-      Improvements live relic scanner, rewards, now it scans betterer.
+      <strong>OCR Scanner Improvements:</strong> We improved the detection logic using Tesseract, making scans much more reliable.
     </li>
     <li>
-      Improvements towards optimization related to api calls and how the program handles it.
+      <strong>New Assets:</strong> Updated assets to include Voruna Prime, Follie, and the new adversary weapons (Lich).
     </li>
     <li>
-      Visual update towards the inventory tab.
+      <strong>UI Optimizations:</strong> Changed UI images to lighter versions (.webp) so the app loads faster.
     </li>
     <li>
-      New translations and miscellaneous fixes.
+      <strong>Miscellaneous:</strong> Small code optimizations (linting) to make everything run smoother and translation fixes.
     </li>
   </ul>
 </div>
@@ -94,7 +114,7 @@ export const UPDATE_HISTORY_DATA = {
       <strong>Inventory Improvements:</strong> Now you can scan your prime inventory via the LiveScan button. Share your Warframe screen and the app will detect if you are in the inventory, allowing manual or automatic scanning as you scroll.
     </li>
     <li>
-      <strong>Important Calibration:</strong> You'll be asked to calibrate (first item top-left, last item bottom-right) in the Prime parts tab. Note: This is experimental; if it fails, please report it to <strong>w/Parcialsobriedad</strong> on the forums with a debug screenshot.
+      <strong>Important Calibration:</strong> You'll be asked to calibrate (first item top-left, last item bottom-right) in the Prime parts tab. Note: This is experimental; if it fails, please report it to w/Parcialsobriedad on the forums with a debug screenshot.
     </li>
     <li>
       <strong>Fluid Management:</strong> Improved inventory management with optimized import/export.
@@ -109,7 +129,7 @@ export const UPDATE_HISTORY_DATA = {
       <strong>Huge Optimizations:</strong> Removed a lot of spaghetti code to improve app maintainability and performance.
     </li>
     <li>
-      <em>Thank you for using the app! Suggestions are welcome on the Warframe forums. Enjoy the <strong>Shadowgrafter</strong> update!</em>
+      <em>Thank you for using the app! Suggestions are welcome on the Warframe forums. Enjoy the Shadowgrafter update!</em>
     </li>
   </ul>
 </div>
@@ -126,7 +146,7 @@ export const UPDATE_HISTORY_DATA = {
 </div>
 <div class="update-block old">
   <div class="update-header">
-    <span class="update-version">v1.7.0 </span>
+    <span class="update-version">v1.7.0</span>
     <span class="update-date">2026-01-30</span>
   </div>
   <ul class="update-list">
@@ -140,7 +160,7 @@ export const UPDATE_HISTORY_DATA = {
       <strong>Set Intuition:</strong> Clicking on a Prime component now visually displays your progress toward completing that specific weapon or frame set.
     </li>
     <li>
-      <strong>Riven Features:</strong> A cleaner, carousel-based design for variants (try searching "Cernos"!). Added visible Price (PL), Disposition, <strong>crafting recipes, and direct Wiki links.</strong>
+      <strong>Riven Features:</strong> A cleaner, carousel-based design for variants (try searching "Cernos"!). Added visible Price (PL), Disposition, crafting recipes, and direct Wiki links.
     </li>
     <li>
       <strong>New "Prime Inventory":</strong> A dedicated tab to track your loot and access market data. Features "Smart Logic" that understands complex sets (e.g., distinguishing when a set needs 2x of a part).
@@ -149,7 +169,7 @@ export const UPDATE_HISTORY_DATA = {
       <strong>Performance:</strong> Major backend optimizations and speed improvements for both the app and the scanner.
     </li>
     <li>
-      <em><strong>Note:</strong> This update grew massive! Moving forward, I plan to release smaller updates on a weekly basis.</em>
+      <em>Note: This update grew massive! Moving forward, I plan to release smaller updates on a weekly basis.</em>
     </li>
   </ul>
 </div>
@@ -166,7 +186,7 @@ export const UPDATE_HISTORY_DATA = {
 </div>
 <div class="update-block old">
   <div class="update-header">
-    <span class="update-version">v1.4.0 </span>
+    <span class="update-version">v1.4.0</span>
     <span class="update-date">2026-01-20</span>
   </div>
   <ul class="update-list">
@@ -189,12 +209,12 @@ export const UPDATE_HISTORY_DATA = {
 </div>
 <div class="update-block old">
   <div class="update-header">
-    <span class="update-version">v1.3.0 and v1.3.1 </span>
+    <span class="update-version">v1.3.0 and v1.3.1</span>
     <span class="update-date">2026-01-18</span>
   </div>
   <ul class="update-list">
     <li>
-      <strong>Mobile AR Scanner (BETA):</strong> You can now point your phone's camera at the screen (relics/inventory) to instantly fetch prices. <em>Note: This is an experimental feature, so bugs or recognition errors may occur.</em>
+      <strong>Mobile AR Scanner (BETA):</strong> You can now point your phone's camera at the screen (relics/inventory) to instantly fetch prices. Note: This is an experimental feature, so bugs or recognition errors may occur.
     </li>
     <li>
       <strong>Maintenance & Refactoring:</strong> Various internal fixes and code cleanup. I am improving the app's maintainability to ensure faster and better development for future updates.
@@ -233,12 +253,12 @@ export const UPDATE_HISTORY_DATA = {
   </ul>
 </div>
 <div class="update-block old">
- <div class="update-header">
-  <span class="update-version">v1.2.1 and 1.2.2</span>
+  <div class="update-header">
+    <span class="update-version">v1.2.1 and 1.2.2</span>
     <span class="update-date">2026-01-07</span>
   </div>
   <ul class="update-list">
-      <li>
+    <li>
       <strong>Small fixes:</strong> Fixes towards optimization and small translation errors
     </li>
     <li>
@@ -247,7 +267,7 @@ export const UPDATE_HISTORY_DATA = {
     <li>
       <strong>EXPORT/IMPORT RELIC INVENTORY ADDED:</strong> IF YOU GO THROUGH THE HASSLE OF SCANNING MANUALLY ADDING YOUR RELIC INVENTORY YOU CAN NOW EXPORT YOUR RELIC PROGRESS AND IMPORT LATER ON
     </li>
-    <li><strong>Worker optimizations</strong> </li>
+    <li><strong>Worker optimizations</strong></li>
     <li><em>Coming soon: Automatic inventory scan via screen recording, half implemented it works bad</em></li>
     <li><em>Inventory scan now can be done inserting multiple photos, mobile scan is broken at the moment so a fix is pending.</em></li>
   </ul>
