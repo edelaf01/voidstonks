@@ -4,6 +4,7 @@ import { fetchActiveBounties } from "../api.js";
 
 let bountyInterval = null;
 
+//TODO FIX THIS TOO COMPLEX
 export async function renderBountiesTab() {
   const container = document.getElementById("bounties-list-container");
   if (!container) return;
@@ -11,7 +12,7 @@ export async function renderBountiesTab() {
   if (bountyInterval) clearInterval(bountyInterval);
 
   const t = TEXTS[state.currentLang];
-
+  //TODO FIX LINT
   const toggleText = state.showAllFarms
     ? state.currentLang === "es"
       ? "MOSTRANDO TODO"
@@ -121,7 +122,7 @@ export async function renderBountiesTab() {
         </div>
       `;
     }
-
+    //TODO Fix complexity
     missions.forEach((m, index) => {
       const uniqueId = `drops-${key}-${index}`.replaceAll(/\s+/g, "");
       const opacity = m.isOptimal ? "1" : "0.7";
@@ -157,16 +158,16 @@ export async function renderBountiesTab() {
 
       let rewardsContent = m.detailedRewards
         ? m.detailedRewards
-            .map((stage) => {
-              const rows = stage.drops
-                .map(
-                  (d) =>
-                    `<div class="drop-row"><span class="drop-name ${d.name.includes("Aya") ? "aya" : ""}">${d.name}</span><span class="drop-chance">${d.chance.toFixed(2)}%</span></div>`,
-                )
-                .join("");
-              return `<div class="stage-container"><div class="stage-header">STAGE ${stage.stage}</div><div class="stage-content">${rows}</div></div>`;
-            })
-            .join("")
+          .map((stage) => {
+            const rows = stage.drops
+              .map(
+                (d) =>
+                  `<div class="drop-row"><span class="drop-name ${d.name.includes("Aya") ? "aya" : ""}">${d.name}</span><span class="drop-chance">${d.chance.toFixed(2)}%</span></div>`,
+              )
+              .join("");
+            return `<div class="stage-container"><div class="stage-header">STAGE ${stage.stage}</div><div class="stage-content">${rows}</div></div>`;
+          })
+          .join("")
         : `<ul class="drop-list">${m.rewards.map((r) => `<li class="drop-item">${r}</li>`).join("")}</ul>`;
 
       html += `
@@ -177,14 +178,11 @@ export async function renderBountiesTab() {
                       <span style="color:var(--wf-blue); font-weight:900; font-size:0.75em; text-transform:uppercase; border-right:1px solid #444; padding-right:8px;">
                         ${m.technicalType}
                       </span>
-                      ${
-                        !m.hideTier
-                          ? `
+                      ${m.hideTier ? "" : `
                       <span style="color: ${tierColor}; border: 1px solid ${tierColor}44; padding: 1px 6px; font-size: 0.7em; border-radius: 3px; font-weight: 900; background: ${m.tier === 6 || m.tier === "NARMER" ? "rgba(255,170,0,0.1)" : "transparent"}">
                         ${tierLabel === "NARMER" ? "" : "TIER "}${tierLabel}
                       </span>`
-                          : ""
-                      }
+        }
                       <span style="color: #fff; font-weight: 600; flex: 1;">${m.type}</span>
                     </div>
                     ${levelDisplay}

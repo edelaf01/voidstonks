@@ -1,0 +1,72 @@
+/* ==================================================
+   SCANNER.CSS - Live Scanner Overlay Styles
+   Extracted from styles.css for modularization
+   ================================================== */
+
+/* ---- Scanner Guide Overlay ---- */
+.scanner-guide-overlay {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+}
+
+.scan-area-bracket {
+    width: 80%;
+    height: 20%;
+    border: 2px dashed rgba(0, 229, 255, 0.5);
+    border-radius: 8px;
+    position: relative;
+    margin-bottom: 20px;
+}
+
+.scanner-instructions-box {
+    background: rgba(15, 17, 21, 0.8);
+    border: 1px solid #444;
+    border-left: 3px solid var(--wf-blue);
+    padding: 10px 15px;
+    border-radius: 4px;
+    width: 85%;
+    max-width: 400px;
+    backdrop-filter: blur(4px);
+}
+
+.scanner-instructions-box p {
+    margin: 0;
+    font-size: 0.85rem;
+    line-height: 1.4;
+    color: #ddd;
+}
+
+.scanner-instructions-box strong {
+    color: var(--wf-blue);
+    text-transform: uppercase;
+}
+
+
+/* ---- Component/Set Row Icon Sizes ---- */
+.item-icon-mini {
+    width: 28px;
+    height: 28px;
+    object-fit: contain;
+    flex-shrink: 0;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
+    border-radius: 4px;
+    background: rgba(0, 0, 0, 0.2);
+    display: block;
+}
+
+.item-icon-small {
+    width: 32px;
+    height: 32px;
+    object-fit: contain;
+    flex-shrink: 0;
+    filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.6));
+    border-radius: 6px;
+    background: rgba(0, 0, 0, 0.3);
+    display: block;
+}

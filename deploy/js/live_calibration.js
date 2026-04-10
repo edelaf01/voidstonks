@@ -44,22 +44,18 @@ class ScannerCalibration {
   }
 
   saveGrid() {
-    // We now have the exact Top-Left Cell and Bottom-Right Cell
     const cellW = (this.cellTL.w + this.cellBR.w) / 2;
     const cellH = (this.cellTL.h + this.cellBR.h) / 2;
 
     const gridX = this.cellTL.x;
     const gridY = this.cellTL.y;
 
-    // Horizontal distance from TopLeft X to BotRight X = 5 column jumps
     const distX = this.cellBR.x - this.cellTL.x;
     const cols = 6;
-    const totalJumpsX = cols - 1; // 5 jumps
+    const totalJumpsX = cols - 1;
     const gapX = distX / totalJumpsX - cellW;
 
-    // Vertical distance
     const distY = this.cellBR.y - this.cellTL.y;
-    // Estimate rows based on cell height + roughly gapX for Y gap
     const estimatedJumpY = cellH + gapX;
     const jumpsY = Math.max(1, Math.round(distY / estimatedJumpY));
     const rows = jumpsY + 1;
@@ -72,7 +68,6 @@ class ScannerCalibration {
     const gridW = cols * cellW + (cols - 1) * gapX;
     const gridH = rows * cellH + jumpsY * gapY;
 
-    // Generate a preview tile out of the top-left cell
     const pCvs = document.createElement("canvas");
     pCvs.width = Math.floor(cellW);
     pCvs.height = Math.floor(cellH);
@@ -110,7 +105,6 @@ class ScannerCalibration {
     this.canvas.addEventListener("mousemove", (e) => this.onInteractMove(e));
     globalThis.addEventListener("mouseup", (e) => this.onInteractEnd(e));
 
-    // Touch support
     this.canvas.addEventListener("touchstart", (e) => {
       e.preventDefault();
       this.onInteractStart(e.touches[0]);
@@ -159,10 +153,8 @@ class ScannerCalibration {
   drawState() {
     if (!this.ctx || !this.snapshotData) return;
 
-    // Redraw base image
     this.ctx.putImageData(this.snapshotData, 0, 0);
 
-    // Draw saved Phase 1 box if we are in Phase 2
     if (this.phase === 2 && this.cellTL) {
       this.ctx.strokeStyle = "rgba(0, 255, 255, 0.4)";
       this.ctx.lineWidth = 2;
@@ -181,14 +173,13 @@ class ScannerCalibration {
       );
     }
 
-    // Draw current selection
     if (this.isDrawing || this.startX !== this.currentX) {
       const x = Math.min(this.startX, this.currentX);
       const y = Math.min(this.startY, this.currentY);
       const w = Math.abs(this.currentX - this.startX);
       const h = Math.abs(this.currentY - this.startY);
 
-      const color = this.phase === 1 ? "0, 255, 255" : "255, 165, 0"; // Cyan for Grid, Orange for Cell
+      const color = this.phase === 1 ? "0, 255, 255" : "255, 165, 0";
       this.ctx.fillStyle = `rgba(${color}, 0.2)`;
       this.ctx.fillRect(x, y, w, h);
       this.ctx.strokeStyle = `rgb(${color})`;
@@ -249,7 +240,7 @@ class ScannerCalibration {
       this.cellTL = { x, y, w, h };
       this.phase = 2;
       this.startX = 0;
-      this.currentX = 0; // Reset drawing
+      this.currentX = 0;
       this.updateUI();
       this.drawState();
     } else if (this.phase === 2) {
@@ -274,7 +265,6 @@ class ScannerCalibration {
 
 globalThis.LiveCalibration = new ScannerCalibration();
 
-// Expose confirm/cancel to global for HTML buttons
 globalThis.confirmCalibration = () =>
   globalThis.LiveCalibration.confirmCalibration();
 globalThis.cancelCalibration = () =>

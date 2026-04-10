@@ -1,0 +1,518 @@
+/* =============================================
+   SETS.CSS - Set Tracker & Component Row Styles
+   Extracted from styles.css for modularization
+   ============================================= */
+
+/* ---- Relic Grid & Chips ---- */
+.relic-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)) !important;
+    gap: 8px;
+    width: 100%;
+}
+
+.relic-chip {
+    background: #222;
+    border: 1px solid #333;
+    border-left-width: 5px;
+    border-radius: 4px;
+    padding: 8px 10px;
+    cursor: pointer;
+    transition: 0.2s;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    overflow: visible !important;
+    position: relative;
+    z-index: 1;
+    transform: none !important;
+}
+
+.relic-chip:hover {
+    transform: translateY(-2px);
+    border-color: #555;
+    filter: brightness(1.1);
+    z-index: 9999;
+}
+
+.relic-chip.common {
+    border-left-color: var(--wf-common) !important;
+    background: var(--bg-common);
+}
+
+.relic-chip.uncommon {
+    border-left-color: var(--wf-uncommon) !important;
+    background: var(--bg-uncommon);
+}
+
+.relic-chip.rare {
+    border-left-color: var(--wf-rare) !important;
+    background: var(--bg-rare);
+    border: 1px solid rgba(255, 215, 0, 0.3);
+    border-left-width: 5px;
+}
+
+.relic-chip-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+#relicInput {
+    flex: 1;
+    width: 100%;
+    padding: 12px;
+    border-radius: 4px;
+    border: 1px solid #444;
+    background-color: var(--wf-input-bg);
+    color: #eee;
+    font-size: 1em;
+    outline: 0;
+    transition: all 0.2s ease;
+    font-family: "Segoe UI", sans-serif;
+}
+
+#relicInput:focus {
+    border-color: var(--active-theme-color);
+    box-shadow: 0 0 8px var(--active-theme-color);
+    background-color: #0f1113;
+}
+
+.relic-name {
+    font-weight: 800;
+    font-size: 0.95em;
+    color: #fff;
+}
+
+.relic-img {
+    width: 24px;
+    max-height: 24px;
+    filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.2));
+}
+
+.chip-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 2px;
+}
+
+.rarity-text {
+    font-size: 0.7em;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.rarity-text.common {
+    color: var(--wf-common) !important;
+}
+
+.rarity-text.uncommon {
+    color: var(--wf-uncommon) !important;
+}
+
+.rarity-text.rare {
+    color: var(--wf-rare) !important;
+}
+
+.status-badge {
+    font-size: 0.6em;
+    font-weight: 700;
+    padding: 1px 4px;
+    border-radius: 3px;
+    border: 1px solid;
+}
+
+.status-badge.active {
+    background: rgba(50, 200, 50, 0.1);
+    color: var(--wf-green);
+    border-color: #2a4b2a;
+}
+
+.status-badge.vaulted {
+    background: rgba(224, 69, 69, 0.15);
+    color: var(--wf-vaulted);
+    border-color: #5a1a1a;
+}
+
+.status-badge.aya {
+    background: rgba(165, 69, 224, 0.15);
+    color: var(--wf-aya);
+    border-color: #6a2a4b;
+}
+
+/* ---- Total Profit Box ---- */
+.total-profit-box {
+    background: #15171b;
+    padding: 15px;
+    border-radius: 6px;
+    border: 1px solid #333;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.profit-label {
+    color: #bbb;
+    font-size: 0.9em;
+    text-transform: uppercase;
+    font-weight: 700;
+}
+
+/* ---- Component Rows ---- */
+.component-row {
+    background: linear-gradient(90deg,
+            rgba(20, 22, 26, 0.9) 0,
+            rgba(30, 33, 40, 0.6) 100%);
+    border: 1px solid #333;
+    border-left-width: 4px;
+    border-radius: 4px;
+    padding: 12px 15px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+    margin-bottom: 8px;
+    overflow: visible !important;
+    position: relative;
+    z-index: 1;
+    transform: none !important;
+}
+
+.component-row:hover {
+    background: linear-gradient(90deg, #252830 0, #2a2d35 100%);
+    transform: translateX(3px);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+    z-index: 9999;
+}
+
+.component-row[data-rarity="common"] {
+    border-left-color: var(--wf-common);
+}
+
+.component-row[data-rarity="uncommon"] {
+    border-left-color: var(--wf-uncommon);
+}
+
+.component-row[data-rarity="rare"] {
+    border-left-color: var(--wf-rare);
+    box-shadow: 0 0 10px rgba(255, 215, 0, 0.1);
+}
+
+.component-row[data-rarity="forma"] {
+    border-left-color: var(--wf-forma);
+}
+
+.component-row[data-rarity="common"] .rarity-indicator {
+    color: var(--wf-common);
+    text-shadow: 0 0 2px rgba(205, 127, 50, 0.2);
+}
+
+.component-row[data-rarity="uncommon"] .rarity-indicator {
+    color: var(--wf-uncommon);
+    text-shadow: 0 0 2px rgba(192, 192, 192, 0.2);
+}
+
+.component-row[data-rarity="rare"] .rarity-indicator {
+    color: var(--wf-rare);
+    text-shadow: 0 0 8px var(--wf-rare);
+}
+
+.component-row[data-rarity="forma"] .rarity-indicator {
+    color: var(--wf-forma);
+}
+
+.component-row:hover .market-link-icon {
+    opacity: 1;
+    color: var(--wf-blue);
+}
+
+.component-header {
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+    min-width: 0;
+    flex: 1;
+}
+
+.component-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 1;
+    min-width: 0;
+}
+
+.name-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    flex: 1;
+}
+
+.name-column {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1;
+    gap: 4px;
+}
+
+.component-name {
+    font-weight: 700;
+    color: #fff;
+    white-space: normal;
+    overflow: visible;
+    line-height: 1.2;
+    text-transform: uppercase;
+    font-size: 0.9em;
+}
+
+.component-name.item-interactive {
+    cursor: pointer;
+    border-bottom: 1px solid transparent;
+}
+
+.component-name.item-interactive:hover {
+    color: var(--wf-blue);
+    text-shadow: 0 0 8px rgba(0, 229, 255, 0.5);
+    padding-left: 5px;
+}
+
+.component-name.forma {
+    color: var(--wf-forma);
+    font-weight: 700;
+    font-style: italic;
+}
+
+.rarity-indicator {
+    min-width: 25px;
+    font-family: monospace;
+    font-weight: 900;
+    font-size: 0.8em;
+    width: 24px;
+    text-align: center;
+    flex-shrink: 0;
+    opacity: 0.7;
+    transition: text-shadow 0.3s ease;
+}
+
+.required-count {
+    color: var(--wf-gold-text);
+    font-size: 0.9em;
+    font-weight: 900;
+    margin-left: 5px;
+    opacity: 0.9;
+}
+
+.market-link-icon {
+    color: #666;
+    opacity: 0;
+    transition: opacity 0.2s;
+    margin-left: 10px;
+}
+
+/* ---- Price Badge ---- */
+.price-badge {
+    font-family: monospace;
+    font-weight: 700;
+    font-size: 1.1em;
+    color: var(--wf-blue);
+    background: rgba(0, 229, 255, 0.1);
+    padding: 4px 8px;
+    border-radius: 4px;
+    border: 1px solid rgba(0, 229, 255, 0.3);
+    min-width: 50px;
+    text-align: center;
+    display: inline-block;
+    margin-right: 10px;
+    overflow: visible !important;
+    position: relative;
+    z-index: 1;
+    transform: none !important;
+}
+
+.price-badge.loading {
+    color: #666;
+    border-color: #444;
+    background: 0 0;
+    font-size: 0.8em;
+}
+
+.price-badge.forma {
+    color: #bbb;
+    border-color: #555;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+/* ---- Set Container / Header ---- */
+#setResults {
+    padding-right: 5px;
+    overflow-y: auto;
+}
+
+.set-container {
+    margin-bottom: 25px;
+    border: 1px solid #333;
+    border-radius: 6px;
+    background: #15171b;
+    transition: border-color 0.2s;
+    overflow: visible !important;
+    position: relative;
+    z-index: 10;
+    transform: none !important;
+}
+
+.set-container:hover {
+    border-color: var(--wf-orokin);
+    z-index: 9999;
+}
+
+.set-header {
+    background: #1f2329;
+    padding: 10px 15px;
+    border-bottom: 1px solid #333;
+    color: var(--wf-orokin);
+    font-weight: 700;
+    text-transform: uppercase;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+}
+
+.set-header-link,
+.market-link {
+    text-decoration: none;
+    color: inherit;
+    display: inline-flex;
+    align-items: center;
+    transition: color 0.2s;
+}
+
+.set-header-link {
+    transition: all 0.2s ease;
+    margin-left: 5px;
+}
+
+.set-header-link span:first-child {
+    border-bottom: 1px dotted var(--wf-gold-text);
+    transition: all 0.2s ease;
+}
+
+.set-header-link:hover span:first-child {
+    color: #fff !important;
+    border-bottom-style: solid;
+    text-shadow: 0 0 10px var(--wf-gold-text);
+}
+
+.market-link:hover {
+    color: var(--wf-blue);
+    text-shadow: 0 0 8px rgba(0, 229, 255, 0.4);
+}
+
+/* ---- Set Tracker Panel ---- */
+#set-tracker {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 6px;
+    padding: 10px;
+    border: 1px solid #333;
+    transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+}
+
+#set-tracker.drag-hover {
+    border-color: var(--wf-gold-text) !important;
+    box-shadow: 0 0 15px rgba(221, 169, 56, 0.4) !important;
+    background: rgba(221, 169, 56, 0.1) !important;
+}
+
+#tracker-list {
+    overflow-y: auto;
+    padding-right: 5px;
+    overflow-x: visible;
+}
+
+.tracker-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px;
+    background: #222;
+    border: 1px solid #333;
+    margin-bottom: 5px;
+    border-radius: 4px;
+    transition: 0.2s;
+    overflow: visible !important;
+    position: relative;
+    z-index: 1;
+    transform: none !important;
+}
+
+.tracker-item:hover {
+    z-index: 9999;
+}
+
+.tracker-item.done {
+    opacity: 0.4;
+    text-decoration: line-through;
+    border-color: #222;
+}
+
+.tracker-item .market-link-icon {
+    margin-left: 8px;
+    font-size: 1em;
+    opacity: 0.5;
+}
+
+.tracker-item:hover .market-link-icon {
+    opacity: 1;
+    color: var(--wf-blue);
+}
+
+/* ---- Item Icon Sizing ---- */
+.item-icon-mini,
+.item-icon-small {
+    width: 40px !important;
+    height: 40px !important;
+    margin-right: 16px !important;
+    margin-left: 12px !important;
+    object-fit: contain;
+    transition: transform 0.25s ease-out !important;
+    position: relative;
+    z-index: 5;
+}
+
+.item-icon-mini:hover,
+.item-icon-small:hover {
+    transform: scale(1.5) !important;
+    z-index: 100;
+}
+
+/* ---- Relic Contents / Profit ---- */
+#relic-contents {
+    margin-top: 20px;
+    border-top: 1px dashed #333;
+    padding-top: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    overflow: visible !important;
+}
+
+/* ---- T-Check Button (Set Tracker) ---- */
+.t-check {
+    cursor: pointer;
+    background: #333;
+    border: 1px solid #555;
+    color: #fff;
+    padding: 2px 8px;
+    border-radius: 3px;
+}
+
+.t-check:hover {
+    background: var(--wf-green);
+    border-color: var(--wf-green);
+}

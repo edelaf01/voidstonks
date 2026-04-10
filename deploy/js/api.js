@@ -1,14 +1,14 @@
 import {
   WORKER_URL,
   TEXTS,
-  AYA_STRATEGY_CONFIG,
+  //AYA_STRATEGY_CONFIG,
   DUAL_PATH_FACTIONS,
   NODE_MAP,
   NODE_TO_TYPE,
-  VANIA_NAMES,
+  //VANIA_NAMES,
   CHALLENGE_MAP,
   ZARIMAN_DATA,
-  BOUNTY_NAMES,
+  //BOUNTY_NAMES,
   OPTIMAL_FILTERS,
   ALLY_MAP,
 } from "./config.js";
@@ -203,11 +203,9 @@ async function processQueue() {
   const currentBatch = new Map(PENDING_REQUESTS);
   PENDING_REQUESTS.clear();
 
-  // Process in chunks with delays to avoid rate limits
   for (let i = 0; i < slugsToFetch.length; i += 25) {
     const chunk = slugsToFetch.slice(i, i + 25);
 
-    // Safety: don't process if chunk is empty somehow
     if (chunk.length === 0) continue;
 
     try {
@@ -222,17 +220,7 @@ async function processQueue() {
       chunk.forEach((slug) => {
         const price = data[slug];
 
-        if (price !== undefined) {
-          if (price > 0) savePriceToCache(slug, price);
-          RETRY_COUNTS.delete(slug); // Reset on success
-
-          const resolvers = currentBatch.get(slug);
-          if (resolvers) {
-            resolvers.forEach((resolveFunc) => resolveFunc(price));
-            currentBatch.delete(slug); // Mark as resolved
-          }
-        } else {
-          // Slug not in response (likely worker hit rate limit for this batch)
+        if (price === undefined) {
           const retries = (RETRY_COUNTS.get(slug) || 0) + 1;
 
           if (retries >= MAX_RETRIES) {
@@ -250,21 +238,25 @@ async function processQueue() {
               currentBatch.delete(slug);
             }
           }
+        } else {
+          if (price > 0) savePriceToCache(slug, price);
+          RETRY_COUNTS.delete(slug);
+
+          const resolvers = currentBatch.get(slug);
+          if (resolvers) {
+            resolvers.forEach((resolveFunc) => resolveFunc(price));
+            currentBatch.delete(slug);
+          }
         }
       });
-
-      // Reset backoff on any successful response chunk
       currentBackoff = 50;
-
-      // Small pause between chunks to be polite to the server
       if (i + 25 < slugsToFetch.length) {
         await new Promise(r => setTimeout(r, 300));
       }
 
     } catch (err) {
       console.error("Batch chunk fetch failed, backing off and re-queueing:", err);
-      currentBackoff = Math.min(currentBackoff * 2, 5000); // Exponential backoff
-
+      currentBackoff = Math.min(currentBackoff * 2, 5000);
       chunk.forEach((slug) => {
         const retries = (RETRY_COUNTS.get(slug) || 0) + 1;
 
@@ -284,13 +276,11 @@ async function processQueue() {
         }
       });
 
-      // Force exit loop to wait for next batch cycle
       break;
     }
   }
 
   isProcessingQueue = false;
-  // If we have items left (new or re-queued), schedule another run with backoff
   if (PENDING_REQUESTS.size > 0 && !batchTimer) {
     const delay = currentBackoff + Math.random() * 1000;
     batchTimer = setTimeout(processQueue, delay);
@@ -331,7 +321,6 @@ export async function warmupPrices() {
   // 3. Collect slugs for all set components to ensure we have them for totals
   if (state.setsDatabase) {
     Object.keys(state.setsDatabase).forEach(setName => {
-      // Limit warmup to sets that actually have some inventory or are common
       const parts = state.setsDatabase[setName];
       const hasAny = parts.some(p => (state.primeInventory[p] || 0) > 0);
       if (hasAny) {
@@ -474,7 +463,6 @@ export function getPriceValue(itemName, itemSlug) {
     }
   }).finally(() => {
     // Cleanup so it can be fetched again if cache expires later
-    // but ONLY after it has a result.
     IN_FLIGHT_PROMISES.delete(itemSlug);
   });
 
@@ -524,7 +512,7 @@ function updateDucatsDB(itemsArray) {
               ducats: comp.ducats
             };
           }
-
+          //que hacia esto?
           if (comp.name !== fullName) {
             // state.ducatsDatabase[comp.name] = { name: comp.name, ducats: comp.ducats };
           }
@@ -735,7 +723,6 @@ function processRelicDatabase(rawData, activeDropsSet) {
 
   state.allRelicNames.sort();
 
-  // Pre-calculate Set -> Parts mapping for O(1) lookups
   state.setsDatabase = {};
   const getSetNameHelperLoc = (fullName) => {
     const match = fullName.match(/(.*?) (Prime|Vandal|Wraith)/);

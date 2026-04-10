@@ -178,13 +178,14 @@ function startReceiver() {
         statusMsg.innerHTML = `<span style="color:#ff4444"> Server error. Try again later.</span>`;
         return;
       }
-      if (data && data.val) {
+      if (data?.val) {
         stopReceiver();
         const box = document.getElementById("finalMessage");
         if (box) {
           box.innerText = data.val;
           box.style.animation = "none";
-          box.offsetHeight;
+          // TODO sure go ahead why this does nothing ?
+          // box.offsetHeight;
           box.style.animation = "pulse 0.5s ease";
         }
         statusMsg.innerText = TEXTS[state.currentLang].sync.success;

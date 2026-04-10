@@ -28,9 +28,18 @@
     content="Optimiza tu farm de reliquias y consulta precios de Rivens al instante." />
   <meta property="twitter:image" content="https://wiki.warframe.com/images/Void_Projections_Icon.png" />
 
-  <link rel="stylesheet" href="styles.css?v=3.3" />
   <link rel="stylesheet" href="css/components/inventory.css?v=1.4" />
+  <link rel="stylesheet" href="css/components/sets.css?v=1.0" />
+  <link rel="stylesheet" href="css/components/relics.css?v=1.0" />
+  <link rel="stylesheet" href="css/components/scanner.css?v=1.0" />
+  <link rel="stylesheet" href="css/components/modals.css?v=1.0" />
+  <link rel="stylesheet" href="css/components/header.css?v=1.0" />
+  <link rel="stylesheet" href="styles.css?v=3.3" />
   <link rel="icon" type="image/png" href="https://wiki.warframe.com/images/VoidTraces.png" />
+
+  <!-- OpenCV deleting this + TODO FIX LINT  -->
+  <script async src="https://cdn.jsdelivr.net/npm/@techstark/opencv-js@4.5.4-beta.3/dist/opencv.js"
+    type="text/javascript"></script>
 </head>
 
 <body>
@@ -42,44 +51,99 @@
     <canvas id="ocr-canvas" class="hidden"></canvas>
 
     <div class="scanner-ui">
-      <button onclick="globalThis.closeScanner()" class="scanner-close-btn">
-        ×
-      </button>
+      <div style="position:absolute; top:15px; left:15px; display:flex; gap:10px;">
+        <button onclick="globalThis.closeScanner()" class="scanner-close-btn" style="position:static;">×</button>
+        <button onclick="document.getElementById('vision-tuning-panel').classList.toggle('hidden')"
+          class="orokin-btn-mini"
+          style="background:rgba(0,229,255,0.1); border:1px solid #00e5ff; color:#00e5ff; padding:5px 10px; border-radius:4px; font-size:10px; font-weight:800;">
+          🛠️ TUNING
+        </button>
+      </div>
 
       <div class="scanner-guide">
         <div class="guide-corner tl"></div>
         <div class="guide-corner tr"></div>
         <div class="guide-corner bl"></div>
         <div class="guide-corner br"></div>
-        <div class="scanner-text">AIM TOWARDS YOUR RELIC INVENTORY</div>
+        <div id="ocr-box-guide"></div>
+        <div id="ocr-labels-layer"></div>
       </div>
 
-      <div class="scanner-actions-bar">
-        <button class="action-btn secondary" onclick="document.getElementById('file-upload').click()">
-          UPLOAD IMAGE
-        </button>
-        <!--<button
+      <div id="vision-tuning-panel" class="hidden"
+        style="position:absolute; top:60px; left:15px; background:rgba(0,10,20,0.95); border:1px solid #00e5ff; border-radius:8px; padding:15px; width:220px; z-index:100; box-shadow:0 0 20px rgba(0,229,255,0.3); font-family:sans-serif;">
+        <div
+          style="color:#00e5ff; font-size:11px; font-weight:800; margin-bottom:12px; letter-spacing:1px; border-bottom:1px solid rgba(0,229,255,0.2); padding-bottom:5px;">
+          VISION ENGINE PARAMS</div>
+
+        <div style="margin-bottom:10px;">
+          <label style="display:block; color:#888; font-size:9px; margin-bottom:3px;">ADAPTIVE C: <span id="val-threshC"
+              style="color:#fff;">-15</span></label>
+          <input type="range" min="-30" max="5" value="-15" step="1"
+            style="width:100%; height:4px; accent-color:#00e5ff;"
+            oninput="document.getElementById('val-threshC').innerText = this.value; globalThis.updateVisionSetting('thresholdC', parseInt(this.value))">
+        </div>
+
+        <div style="margin-bottom:10px;">
+          <label style="display:block; color:#888; font-size:9px; margin-bottom:3px;">CLAHE CLIP: <span id="val-clahe"
+              style="color:#fff;">2.0</span></label>
+          <input type="range" min="1" max="5" value="2" step="0.5" style="width:100%; height:4px; accent-color:#00e5ff;"
+            oninput="document.getElementById('val-clahe').innerText = parseFloat(this.value).toFixed(1); globalThis.updateVisionSetting('claheClip', parseFloat(this.value))">
+        </div>
+
+        <div style="margin-bottom:10px;">
+          <label style="display:block; color:#888; font-size:9px; margin-bottom:3px;">HSV HUE TOL: <span id="val-hsv"
+              style="color:#fff;">25</span></label>
+          <input type="range" min="5" max="50" value="25" step="1" style="width:100%; height:4px; accent-color:#3dff70;"
+            oninput="document.getElementById('val-hsv').innerText = this.value; globalThis.updateVisionSetting('hsvHueTol', parseInt(this.value))">
+        </div>
+
+        <div style="margin-bottom:10px;">
+          <label style="display:block; color:#888; font-size:9px; margin-bottom:3px;">TESSERACT PSM: <span id="val-psm"
+              style="color:#fff;">6</span></label>
+          <select
+            style="width:100%; background:#111; color:#fff; border:1px solid #333; font-size:10px; border-radius:3px; padding:2px;"
+            onchange="document.getElementById('val-psm').innerText = this.value; globalThis.updateVisionSetting('tesseractPSM', parseInt(this.value))">
+            <option value="3">3 (Auto)</option>
+            <option value="6" selected>6 (Uniform Block)</option>
+            <option value="7">7 (Single Line)</option>
+            <option value="11">11 (Sparse Text)</option>
+          </select>
+        </div>
+
+        <button onclick="globalThis.resetVisionSettings()"
+          style="width:100%; margin-top:5px; background:rgba(255,100,100,0.1); border:1px solid #ff6464; color:#ff6464; font-size:9px; padding:4px; border-radius:4px; cursor:pointer;">RESET
+          DEFAULTS</button>
+      </div>
+
+      <div class="scanner-text">AIM TOWARDS YOUR RELIC INVENTORY</div>
+    </div>
+
+    <div class="scanner-actions-bar">
+      <button class="action-btn secondary" onclick="document.getElementById('file-upload').click()">
+        UPLOAD IMAGE
+      </button>
+      <!--<button
             class="action-btn secondary"
             onclick="globalThis.startInventoryScrollScan()"
             style="border-color: #d4af37; color: #d4af37"
           >
           AUTO-SCROLL
           </button>-->
-        <input type="file" id="file-upload" multiple accept="image/*" hidden
-          onchange="globalThis.handleFileUpload(event)" />
+      <input type="file" id="file-upload" multiple accept="image/*" hidden
+        onchange="globalThis.handleFileUpload(event)" />
 
-        <button onclick="globalThis.captureRelics()" class="shutter-btn"></button>
+      <button onclick="globalThis.captureRelics()" class="shutter-btn"></button>
 
-        <button class="action-btn inventory-badge-btn" onclick="globalThis.toggleScannedList()">
-          DETECTED RELICS<span id="scanned-badge" class="badge-count hidden">0</span>
-        </button>
-      </div>
+      <button class="action-btn inventory-badge-btn" onclick="globalThis.toggleScannedList()">
+        DETECTED RELICS<span id="scanned-badge" class="badge-count hidden">0</span>
+      </button>
     </div>
+  </div>
 
-    <div id="ocr-loading" class="ocr-loading-overlay hidden">
-      <div class="ocr-spinner"></div>
-      <p>Processing image ...</p>
-    </div>
+  <div id="ocr-loading" class="ocr-loading-overlay hidden">
+    <div class="ocr-spinner"></div>
+    <p>Processing image ...</p>
+  </div>
   </div>
 
   <div id="scanner-drawer" class="scanner-drawer closed">
@@ -93,7 +157,7 @@
     </div>
   </div>
 
-  <!-- Floating Scanner HUD (VoidStonks) -->
+  <!-- Floating Scanner HUD -->
   <div id="inv-hud" style="
         display: none;
         position: fixed;
@@ -105,7 +169,7 @@
         user-select: none;
         color: #e0e0e0;
       ">
-    <!-- ── HEADER (drag handle) ──────────────────────── -->
+    <!-- ── HEADER  ──────────────────────── -->
     <div id="inv-hud-header" style="
           background: linear-gradient(135deg, #0a0c14 0%, #0d1322 100%);
           border: 1px solid rgba(0, 229, 255, 0.4);
@@ -144,7 +208,7 @@
               font-size: 0.75em;
             ">0</span>
       </div>
-      <!-- Right: context badge + DBG + collapse -->
+      <!-- Right -->
       <div style="display: flex; align-items: center; gap: 5px">
         <span id="hud-context-badge" style="
               font-size: 0.58em;
@@ -195,7 +259,6 @@
       </div>
     </div>
 
-    <!-- ── BODY ──────────────────────────────────────── -->
     <div id="inv-hud-body" style="
           background: rgba(9, 11, 18, 0.96);
           border: 1px solid rgba(0, 229, 255, 0.2);
@@ -209,7 +272,6 @@
           flex-direction: column;
           overflow: hidden;
         ">
-      <!-- Status row -->
       <div style="
             display: flex;
             align-items: center;
@@ -224,14 +286,12 @@
         <span id="hud-scan-counter" style="color: #2a3a4a">FRAMES: 0</span>
       </div>
 
-      <!-- ── ACTION BUTTONS ─────────────── -->
       <div style="
             display: flex;
             gap: 6px;
             padding: 9px 10px;
             border-bottom: 1px solid rgba(255, 255, 255, 0.05);
           ">
-        <!-- SCAN PAGE — primary cyan action, glow only (NO pulse on text) -->
         <button id="btn-manual-scan" onclick="globalThis.manualPrecisionScan()" style="
               flex: 2;
               background: rgba(0, 229, 255, 0.1);
@@ -256,7 +316,6 @@
           ⌖ SCAN PAGE
         </button>
 
-        <!-- AUTO SCROLL mode toggle -->
         <button id="btn-auto-scan" onclick="globalThis.toggleAutoScrollScan()"
           title="Auto-scan when page changes after scroll" style="
               flex: 1.2;
@@ -280,7 +339,6 @@
           ⟳ AUTO
         </button>
 
-        <!-- SAVE — secondary soft -->
         <button id="btn-save-inv" onclick="globalThis.saveLiveInventory()" style="
               flex: 1.5;
               background: rgba(0, 229, 255, 0.06);
@@ -303,7 +361,6 @@
           ↓ SAVE
         </button>
 
-        <!-- CLEAR — muted -->
         <button onclick="globalThis.clearLiveSessionInventory()" title="Clear this scan session" style="
               background: none;
               border: 1px solid rgba(255, 255, 255, 0.1);
@@ -324,14 +381,12 @@
         </button>
       </div>
 
-      <!-- ── CALIBRATE ROW ──────────────── -->
       <div style="
             padding: 0 10px 8px;
             display: flex;
             gap: 5px;
             align-items: center;
           ">
-        <!-- RECALIBRATE: full redo -->
         <button id="btn-recalibrate" onclick="globalThis.LiveCalibration.clearCalibration()" style="
               flex: 1;
               background: none;
@@ -356,7 +411,6 @@
           ⊹ RECALIBRATE
         </button>
 
-        <!-- EDIT GRID: fine-tune individual cells -->
         <button id="btn-open-grid-editor" onclick="globalThis.openGridEditor()" style="
               flex: 1;
               background: none;
@@ -381,7 +435,6 @@
           ✎ EDIT CELLS
         </button>
 
-        <!-- RESET OFFSETS -->
         <button onclick="globalThis.resetGridOffsets()" style="
               background: none;
               border: 1px solid rgba(255, 255, 255, 0.1);
@@ -402,7 +455,6 @@
         </button>
       </div>
 
-      <!-- EDIT MODE close bar (shown when editor is open, fixed at top of viewport) -->
       <div id="btn-close-grid-editor" style="
             position: fixed;
             top: 12px;
@@ -441,7 +493,6 @@
         </button>
       </div>
 
-      <!-- ── DEBUG SNAPSHOT ──────────────── -->
       <div id="live-debug-snapshot" style="display: none; padding: 0 10px 8px">
         <div style="
               display: flex;
@@ -477,7 +528,6 @@
             " />
       </div>
 
-      <!-- ── ITEM LIST ─────────────────── -->
       <div id="lbl-detected-items" style="
             padding: 0 10px 4px;
             font-size: 0.58em;
@@ -506,7 +556,6 @@
         </div>
       </div>
 
-      <!-- ── SCROLL GUIDE ──────────────── -->
       <div id="live-scroll-guide" style="
             border-top: 1px solid rgba(0, 229, 255, 0.06);
             padding: 5px 12px;
@@ -518,7 +567,6 @@
   </div>
 
   <script>
-    // Make inv-hud draggable
     (function () {
       const hud = document.getElementById("inv-hud");
       const handle = document.getElementById("inv-hud-header");
@@ -563,8 +611,19 @@
               onchange="globalThis.toggleRewardsAutoSync(this.checked)" style="accent-color: #00e5ff;">
             <span class="sync-toggle-label">AUTO-SYNC</span>
           </label>
+          <label class="orokin-toggle"
+            style="display: flex; align-items: center; gap: 5px; cursor: pointer; font-size: 0.75rem; color: #888; margin-left: 10px;">
+            <input type="checkbox" id="auto-copy-toggle" onchange="globalThis.toggleAutoCopyScanResults(this.checked)"
+              style="accent-color: #00e5ff;">
+            <span class="copy-toggle-label">AUTO-COPY</span>
+          </label>
           <span class="help-icon" style="color: #555; cursor: help; font-size: 0.8rem;"
-            data-tooltip="SI: Sincroniza TODO con el VISTO (Prioridad OCR). NO: Solo añade +1 a la pieza que elijas manualmente.">ⓘ</span>
+            data-tooltip="SI: Copia automáticamente los resultados al portapapeles después de cada escaneo en formato chat de Warframe.">ⓘ</span>
+          <!-- V254: Copy Results to Clipboard -->
+          <button class="orokin-btn-mini" onclick="globalThis.copyScanResultsToClipboard()"
+            style="background: rgba(0, 229, 255, 0.1); border: 1px solid rgba(0, 229, 255, 0.4); color: #00e5ff; font-size: 10px; padding: 3px 10px; border-radius: 4px; font-weight: 800; cursor: pointer; margin-left: 10px; transition: all 0.2s; white-space: nowrap;">
+            📋 COPY
+          </button>
         </div>
         <button class="close-modal-btn" onclick="closeScanModal()">✕</button>
       </div>
@@ -590,7 +649,7 @@
   </div>
   <div id="inventory-container">
     <div id="inv-toggle-btn" class="mission-toggle-btn" onclick="toggleInventoryPanel()">
-      <img id="img-inv-toggle" src="assets/inv.relic.png" class="toggle-img" alt="Inventory" />
+      <img id="img-inv-toggle" src="assets/inv.relic.webp" class="toggle-img" alt="Inventory" />
     </div>
 
     <div class="inv-view-selector" style="display: flex; gap: 5px; padding: 10px 10px 0; background: #111">
@@ -686,7 +745,7 @@
             .getElementById('best-missions-container')
             .classList.toggle('open')
         ">
-      <img id="img-fissure-toggle" src="assets/fissureicon.png" class="toggle-img" alt="Fissures" />
+      <img id="img-fissure-toggle" src="assets/fissureicon.webp" class="toggle-img" alt="Fissures" />
     </div>
     <div class="panel-main-header" id="fissure-panel-header">
       <svg class="gauss-icon" id="gauss-runner" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -714,6 +773,7 @@
           ℹ️
         </div>
 
+
         <div id="scanner-toggle" class="scanner-toggle-btn">
           <div class="toggle-content">
             <span class="icon-pulse">◉</span>
@@ -721,6 +781,10 @@
           </div>
           <span class="arrow-indicator">▼</span>
         </div>
+        <!--<button onclick="import('./js/mobile_debug_scanner.js').then(m => globalThis.startDebugScanner())"
+          style="margin-left: 8px; background: rgba(0,229,255,0.15); border: 1px solid #00e5ff; color: #00e5ff; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 10px; font-weight: 800; white-space: nowrap; display: flex; align-items: center; gap: 5px; transition: all 0.2s;">
+          <span style="font-size:12px;"></span> DEBUG
+        </button>-->
 
         <div id="scanner-privacy-notice" class="scanner-notice hidden">
           <div class="notice-header">⚠️ BETA FEATURE NOTICE</div>
@@ -770,25 +834,25 @@
     <div class="card-top-bar">
       <div class="tabs">
         <button id="btn-relic" class="tab-btn active" onclick="switchTab('relic')">
-          <img src="assets/relic.png" class="tab-icon-img" alt="Relic Icon" />
+          <img src="assets/relic.webp" class="tab-icon-img" alt="Relic Icon" />
           <span id="tab-relic-text">Reliquia</span>
         </button>
 
         <button id="btn-set" class="tab-btn orokin" onclick="switchTab('set')">
-          <img src="assets/primeparts.png" class="tab-icon-img" alt="Set Icon" />
+          <img src="assets/primeparts.webp" class="tab-icon-img" alt="Set Icon" />
           <span id="tab-set-text">Set</span>
         </button>
 
         <button id="btn-riven" class="tab-btn riven" onclick="switchTab('riven')">
-          <img src="assets/riven.png" class="tab-icon-img" alt="Riven Icon" />
+          <img src="assets/riven.webp" class="tab-icon-img" alt="Riven Icon" />
           <span id="tab-riven-text">Riven</span>
         </button>
         <button id="btn-bounties" class="tab-btn bounties" onclick="switchTab('bounties')">
-          <img src="assets/farm.png" class="tab-icon-img" alt="Farms Icon" />
+          <img src="assets/farm.webp" class="tab-icon-img" alt="Farms Icon" />
           <span id="tab-bounties-text">Farms</span>
         </button>
         <button id="btn-lfg" class="tab-btn lfg" onclick="switchTab('lfg')">
-          <img src="assets/lfg.png" class="tab-icon-img" alt="LFG Icon" />
+          <img src="assets/lfg.webp" class="tab-icon-img" alt="LFG Icon" />
           <span id="tab-lfg-text">LFG</span>
         </button>
       </div>
@@ -1176,7 +1240,7 @@
     <div class="modal-backdrop" onclick="closeUpdateModal()"></div>
     <div class="scan-result-card" style="max-width: 500px; height: auto; max-height: 80vh">
       <div class="scan-header">
-        <h3 style="color: var(--wf-blue)">FEATURE HISTORY</h3>
+        <h3 id="lbl-update-title" style="color: var(--wf-blue)">FEATURE HISTORY</h3>
         <button class="close-modal-btn" onclick="closeUpdateModal()">
           ✕
         </button>
@@ -1187,7 +1251,7 @@
         </div>
       </div>
       <div class="scan-footer">
-        <button class="action-btn confirm" onclick="closeUpdateModal()" style="width: 100%">
+        <button id="btn-update-gotit" class="action-btn confirm" onclick="closeUpdateModal()" style="width: 100%">
           Got it
         </button>
       </div>
@@ -1329,7 +1393,7 @@
   <script src="js/tesseract.min.js"></script>
   <script src="js/live_calibration.js"></script>
   <script src="js/live_grid_editor.js"></script>
-  <script type="module" src="js/main.js"></script>
+  <script type="module" src="js/main.js?v=1.2"></script>
 </body>
 
 </html>

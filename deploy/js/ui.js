@@ -1,50 +1,31 @@
-import { calculateRivenGrade } from "./riven_logic.js";
+
 import {
   TEXTS,
   TIER_URLS,
-  RIVEN_STATS,
-  DROP_CHANCES,
-  WORKER_URL,
-  RIVEN_BASE_STATS,
-  WEAPON_TYPE_IDX,
-  APP_VERSION,
+
 } from "./config.js";
 import {
-  escapeHTML,
   showToast,
   showCustomConfirm,
-  closeOrokinConfirm,
-  initGlobalTooltipSystem,
-  initDisclaimerSystem,
-  checkUpdates,
   closeUpdateModal,
   openUpdateHistory,
 } from "./ui.components/ui_components.js";
+
 import {
-  getItemIcon,
-  getRequiredCount,
-  generateDotsHtml,
-} from "./ui.components/ui_utils.js";
-import {
-  handleRelicTyping,
+
   manualRelicUpdate,
   updateRelicTotal,
   generateMessage,
-  renderRelicsForPartInline,
 } from "./ui.components/ui_relics.js";
 import {
-  handleSetTyping,
+
   renderSetTracker,
-  activateSetTracker,
+
 } from "./ui.components/ui_sets.js";
 import {
-  changeLFGCount,
+
   updateLFGUI,
-  generateLFGMessage,
-  toggleLfgDropdown,
-  selectLfgOption,
-  initLFGPresets,
-  renderLFGPresets,
+
 } from "./ui.components/ui_lfg.js";
 import { populateRivenSelects } from "./ui.components/ui_rivens.js";
 import { state, saveAppState, updateInventoryCount } from "./state.js";
@@ -156,7 +137,7 @@ export function switchTab(mode) {
   if (mode === "lfg") updateLFGUI();
   else generateMessage();
 }
-
+//TODO FIX THIS TOO COMPLEX se puede optimizar bastante pero hay que hacer cambios en la logica integral
 export function changeLanguage(lang) {
   if (lang) state.currentLang = lang;
   if (!state.currentLang) state.currentLang = "es";
@@ -194,7 +175,8 @@ export function changeLanguage(lang) {
   setText("txt-contact-label", t.contactLabel);
   setText("txt-contact-link", t.contactLink);
   setText("btn-footer-updates", t.btnShowUpdates);
-
+  setText("lbl-update-title", t.updateModalTitle);
+  setText("btn-update-gotit", t.updateModalGotIt);
   const disclaimer = document.getElementById("txt-disclaimer");
   if (disclaimer) disclaimer.innerHTML = t.disclaimer;
 
@@ -423,8 +405,6 @@ function updateLangButtonVisuals(lang) {
   }
 }
 
-export { initGlobalTooltipSystem, initDisclaimerSystem, checkUpdates, closeUpdateModal };
-
 export function setupGlobalClickListeners() {
   document.addEventListener("click", (e) => {
     const target = e.target;
@@ -576,7 +556,6 @@ Object.assign(globalThis, {
   finishLoading,
   closeUpdateModal,
   showCustomConfirm,
-  closeOrokinConfirm,
   updatePriceUI,
   manualRelicUpdate,
   saveAppState,
@@ -587,3 +566,5 @@ Object.assign(globalThis, {
     renderInventory();
   },
 });
+
+export { checkUpdates, initGlobalTooltipSystem, initDisclaimerSystem, closeUpdateModal } from "./ui.components/ui_components.js";
