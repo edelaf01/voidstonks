@@ -87,8 +87,7 @@ export function highlightFissureTier(tier) {
 }
 
 export async function initFissurePanel() {
-  // if i ever need this i will be sad
-  //const container = document.getElementById("relic-contents");
+
   let missionDiv = document.getElementById("best-missions-container");
   const t = TEXTS[state.currentLang];
 
@@ -120,19 +119,16 @@ export async function initFissurePanel() {
   if (header && runner) {
     header.onmouseenter = () => {
       runTimeout = setTimeout(() => {
-        //TODO FIX LINT x2
-        if (runner) {
-          runner.classList.add("is-running");
-          setTimeout(() => {
-            if (runner) runner.classList.remove("is-running");
-          }, 3000);
-        }
+        runner.classList.add("is-running");
+        setTimeout(() => {
+          runner.classList.remove("is-running");
+        }, 3000);
       }, 2000);
     };
     header.onmouseleave = () => clearTimeout(runTimeout);
   }
 
-  // Setup auto-refresh every 5 minutes
+
   if (!globalThis._fissureRefreshInterval) {
     globalThis._fissureRefreshInterval = setInterval(() => {
       const panel = document.getElementById("best-missions-container");

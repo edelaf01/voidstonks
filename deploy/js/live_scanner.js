@@ -329,7 +329,6 @@ export async function startLiveSession() {
   detectionLocked = false;
   isScanning = false;
   lastTrackedRelic = "";
-  trackingDebounce = 0;
   sessionInventory.clear();
   globalThis.currentStabilizationId = 0;
   globalThis.lastProcessedStabilization = -1;
@@ -826,7 +825,7 @@ async function processRelicSelection(video, width, height, scale) {
 
 async function processRewards(video, width, height, scale) {
   const rCropY = Math.floor(height * 0.18);
-  const rCropH = Math.floor(height * 0.50);
+  const rCropH = Math.floor(height * 0.5);
   const targetW = Math.floor(width * scale);
   const targetH = Math.floor(rCropH * scale);
 
@@ -1216,63 +1215,17 @@ globalThis.openScanModal = async function (imageUrl, items, width, height, scale
   });
 
 }
-//todo fix 
-function createModalBadge(
-  { name, price, ducats, owned, appOwned, crafted, isSelected, isBestPl, isBestEff, isCompletingSet, leftPct, isGrid },
-  container,
-) {
-  const badge = document.createElement("div");
-  badge.className = `modal-badge ${isBestPl ? "best-pl" : ""} ${isBestEff ? "best-duc" : ""} ${isSelected ? "selected-reward" : ""}`;
-
-  if (leftPct !== null && leftPct !== undefined) {
-    badge.style.left = `${leftPct}%`;
-  }
-
+function getBadgeInnerHtml(data, isForma, badgeData) {
+  const { displayName, metadataHtml, tagsHtml, leftPct, isGrid } = data;
+  const { t, price, ducats, isSelected } = badgeData;
   const mode = isGrid ? "GRID" : "REAL";
   const diagnosticHtml = `<div style="position:absolute; bottom:5px; left:0; width:100%; font-size:8px; color:rgba(255,255,255,0.4); pointer-events:none; text-align:center;">${mode}: ${Math.round(leftPct)}%</div>`;
-
-  const displayName = name.toUpperCase();
-
-  const labels = {
-    es: { add: "✓ AÑADIR AL INVENTARIO", owned: "Vista", crafted: "Forja", inv: "PROPIO", bestPl: "¡MEJOR PLAT!", bestDuc: "¡MEJOR DUCAT!", completes: "¡COMPLETA SET!" },
-    en: { add: "✓ ADD TO INVENTORY", owned: "Seen", crafted: "Forge", inv: "OWNED", bestPl: "BEST PLAT!", bestDuc: "BEST DUCAT!", completes: "COMPLETES SET!" }
-  };
-  const lang = state.currentLang === "en" ? "en" : "es";
-  const t = labels[lang];
-
-  const isForma = name.toUpperCase().includes("FORMA");
-
-  let tagsHtml = "";
-  if (isBestPl) tagsHtml += `<div class="best-badge pl">${t.bestPl}</div>`;
-  if (isBestEff && !isForma) tagsHtml += `<div class="best-badge duc">${t.bestDuc}</div>`;
-  if (isCompletingSet) tagsHtml += `<div class="best-badge set-finisher">${t.completes}</div>`;
-
   const bestLabelHtml = tagsHtml ? `<div class="modal-badge-labels">${tagsHtml}</div>` : "";
-
-  let metadataHtml = "";
-  metadataHtml = `
-    <div class="metadata-row">
-        <div class="inventory-app-count" style="background: rgba(0, 255, 120, 0.15); border-color: #00ff78;">
-            ${t.owned.toUpperCase()}: <span class="metadata-seen" style="font-size: 14px;">${owned > 0 ? owned : 0}</span>
-        </div>
-        <div style="display:flex; justify-content:center; gap:12px; margin-top:6px; font-size:10px; font-weight:700;">
-          <span style="color: #00e5ff;" class="app-owned-val" data-part="${escapeHTML(name)}">${t.inv}: ${appOwned}</span>
-        </div>
-    </div>`;
-
   const selectionHtml = isSelected
     ? '<div style="background:#00ff78; color:#000; font-size:8px; padding:1px 4px; border-radius:3px; margin-top:2px; font-weight:bold; display:inline-block; box-shadow:0 0 10px rgba(0,255,120,0.5);">✓</div>'
     : '';
 
-  if (!isForma) {
-    badge.onclick = () => {
-      if (typeof globalThis.selectRewardToInventory === 'function') {
-        globalThis.selectRewardToInventory(name);
-      }
-    };
-  }
-
-  badge.innerHTML = String.raw`
+  return String.raw`
         ${diagnosticHtml}
         ${bestLabelHtml}
         <div class="modal-badge-link">
@@ -1286,18 +1239,60 @@ function createModalBadge(
                     ${price > 0 ? price : "—"}
                 </div>
                 ${ducats > 0
-      ? `<div class="modal-badge-ducats">
-                        <img src="assets/Ducats.webp" class="currency-icon">
-                        ${ducats}
-                    </div>`
+      ? `<div class="modal-badge-ducats"><img src="assets/Ducats.webp" class="currency-icon">${ducats}</div>`
       : ""
     }
             </div>
           </div>
           
-          ${!isForma ? `<div class="badge-add-inventory-hint">${t.add}</div>` : ''}
+          ${isForma ? '' : `<div class="badge-add-inventory-hint">${t.add}</div>`}
           ${selectionHtml ? `<div style="position:absolute; top:-10px; right:-10px; z-index:110;">${selectionHtml}</div>` : ''}
         </div>`;
+}
+
+//todo fix 
+function createModalBadge(badgeData, container) {
+  const { name, price, ducats, owned, appOwned, isSelected, isBestPl, isBestEff, isCompletingSet, leftPct, isGrid } = badgeData;
+  const badge = document.createElement("div");
+  badge.className = `modal-badge ${isBestPl ? "best-pl" : ""} ${isBestEff ? "best-duc" : ""} ${isSelected ? "selected-reward" : ""}`;
+
+  if (leftPct !== null && leftPct !== undefined) {
+    badge.style.left = `${leftPct}%`;
+  }
+
+  const displayName = name.toUpperCase();
+  const lang = state.currentLang === "en" ? "en" : "es";
+  const t = {
+    es: { add: "✓ AÑADIR AL INVENTARIO", owned: "Vista", crafted: "Forja", inv: "PROPIO", bestPl: "¡MEJOR PLAT!", bestDuc: "¡MEJOR DUCAT!", completes: "¡COMPLETA SET!" },
+    en: { add: "✓ ADD TO INVENTORY", owned: "Seen", crafted: "Forge", inv: "OWNED", bestPl: "BEST PLAT!", bestDuc: "BEST DUCAT!", completes: "COMPLETES SET!" }
+  }[lang];
+
+  const isForma = name.toUpperCase().includes("FORMA");
+
+  let tagsHtml = "";
+  if (isBestPl) tagsHtml += `<div class="best-badge pl">${t.bestPl}</div>`;
+  if (isBestEff && !isForma) tagsHtml += `<div class="best-badge duc">${t.bestDuc}</div>`;
+  if (isCompletingSet) tagsHtml += `<div class="best-badge set-finisher">${t.completes}</div>`;
+
+  const metadataHtml = `
+    <div class="metadata-row">
+        <div class="inventory-app-count" style="background: rgba(0, 255, 120, 0.15); border-color: #00ff78;">
+            ${t.owned.toUpperCase()}: <span class="metadata-seen" style="font-size: 14px;">${Math.max(owned, 0)}</span>
+        </div>
+        <div style="display:flex; justify-content:center; gap:12px; margin-top:6px; font-size:10px; font-weight:700;">
+          <span style="color: #00e5ff;" class="app-owned-val" data-part="${escapeHTML(name)}">${t.inv}: ${appOwned}</span>
+        </div>
+    </div>`;
+
+  if (!isForma) {
+    badge.onclick = () => {
+      if (typeof globalThis.selectRewardToInventory === 'function') {
+        globalThis.selectRewardToInventory(name);
+      }
+    };
+  }
+
+  badge.innerHTML = getBadgeInnerHtml({ displayName, metadataHtml, tagsHtml, leftPct, isGrid }, isForma, { ...badgeData, t });
 
   if (price === 0) badge.classList.add('loading-price');
 
@@ -1369,7 +1364,7 @@ function fallbackCopyTextToClipboard(text, callback) {
     document.body.appendChild(textArea);
     textArea.focus();
     textArea.select();
-    //TODO FIX THIS no funciona como queria dfe todas formasw
+    // NOSONAR (Deprecated execCommand is requested on fallback)
     const successful = document.execCommand('copy');
     textArea.remove();
 
@@ -1435,7 +1430,36 @@ function copyScannerDebugLog() {
 globalThis.stopLiveSession = stopLiveSession;
 let currentScanResults = [];
 let selectedScanItem = null;
-//TODO: Fix this
+function processScanResults() {
+  if (currentScanResults.length === 0 || !state?.primeInventory) return false;
+
+  let anyChange = false;
+  const normalizedSelection = selectedScanItem ? selectedScanItem.toUpperCase().trim() : null;
+
+  currentScanResults.forEach(item => {
+    if (!item.name || typeof item.owned !== 'number' || item.owned < 0) return;
+
+    const itemNameNorm = item.name.toUpperCase().trim();
+    const isSelected = normalizedSelection && itemNameNorm === normalizedSelection;
+    const currentQty = state.primeInventory[item.name] || 0;
+
+    if (state.autoSyncRewards) {
+      const targetQty = item.owned + (isSelected ? 1 : 0);
+      if (currentQty !== targetQty) {
+        state.primeInventory[item.name] = targetQty;
+        anyChange = true;
+        addRewardDebugLog("AUTO_SYNC", `${item.name}: synced to ${targetQty}${isSelected ? ' (+1 selected)' : ''}`, "match");
+      }
+    } else if (isSelected) {
+      state.primeInventory[item.name] = currentQty + 1;
+      anyChange = true;
+      addRewardDebugLog("MANUAL_ADD", `${item.name}: +1 (App New: ${currentQty + 1})`, "match");
+    }
+  });
+
+  return anyChange;
+}
+
 globalThis.closeScanModal = function () {
   if (autoCloseTimer) clearTimeout(autoCloseTimer);
 
@@ -1444,42 +1468,16 @@ globalThis.closeScanModal = function () {
 
   detectionLocked = false;
 
-  if (currentScanResults.length > 0 && state?.primeInventory) {
-    // TODO: Fix this
-    let anyChange = false; state !== undefined
-    const normalizedSelection = selectedScanItem ? selectedScanItem.toUpperCase().trim() : null;
+  const changed = processScanResults();
 
-    currentScanResults.forEach(item => {
-      if (item.name && typeof item.owned === 'number' && item.owned >= 0) {
-        const itemNameNorm = item.name.toUpperCase().trim();
-        const isSelected = normalizedSelection && itemNameNorm === normalizedSelection;
-
-        if (state.autoSyncRewards) {
-          const targetQty = item.owned + (isSelected ? 1 : 0);
-          if (state.primeInventory[item.name] !== targetQty) {
-            state.primeInventory[item.name] = targetQty;
-            anyChange = true;
-            addRewardDebugLog("AUTO_SYNC", `${item.name}: synced to ${targetQty}${isSelected ? ' (+1 selected)' : ''}`, "match");
-          }
-        } else {
-          if (isSelected) {
-            const currentQty = state.primeInventory[item.name] || 0;
-            state.primeInventory[item.name] = currentQty + 1;
-            anyChange = true;
-            addRewardDebugLog("MANUAL_ADD", `${item.name}: +1 (App New: ${currentQty + 1})`, "match");
-          }
-        }
-      }
-    });
-    if (anyChange) {
-      if (typeof globalThis.saveAppState === "function") globalThis.saveAppState();
-      if (globalThis.renderPrimeInventory) globalThis.renderPrimeInventory();
-    }
+  if (changed) {
+    if (typeof globalThis.saveAppState === "function") globalThis.saveAppState();
+    if (globalThis.renderPrimeInventory) globalThis.renderPrimeInventory();
   }
-  //TODO  FIX THIS  
+
   if (selectedScanItem && typeof globalThis.showToast === "function") {
-    const t = (typeof TEXTS !== 'undefined') ? TEXTS[state.currentLang] : null;
-    let msg = `TEXTS !== undefinedse()} SELECCIONADA +1`; // Fallback
+    const t = TEXTS !== undefined ? TEXTS[state.currentLang] : null;
+    let msg = `${selectedScanItem.toUpperCase()} SELECCIONADA +1`;
     if (t?.rewardScanner?.rewardSelectedConfirmation) {
       msg = t.rewardScanner.rewardSelectedConfirmation.replace("{item}", selectedScanItem.toUpperCase());
     }
@@ -1724,7 +1722,7 @@ export function getAnchorColorFromBBox(originalCtx, bbox) {
     pixels.push({ r, g, b, luma });
   }
   pixels.sort((a, b) => b.luma - a.luma);
-  const topCount = Math.max(1, Math.floor(pixels.length * 0.10));
+  const topCount = Math.max(1, Math.floor(pixels.length * 0.1));
   let sumR = 0, sumG = 0, sumB = 0;
 
   for (let i = 0; i < topCount; i++) {

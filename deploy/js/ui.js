@@ -156,7 +156,8 @@ export function switchTab(mode) {
   else generateMessage();
 }
 //TODO FIX THIS TOO COMPLEX se puede optimizar bastante pero hay que hacer cambios en la logica integral
-export function changeLanguage(lang) {
+export function changeLanguage() {
+  const lang = localStorage.getItem("app_lang");
   if (lang) state.currentLang = lang;
   if (!state.currentLang) state.currentLang = "es";
 

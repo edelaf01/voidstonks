@@ -120,7 +120,7 @@ export function openUpdateHistory() {
   const container = document.getElementById("update-history-content");
   if (container) {
     const history =
-      UPDATE_HISTORY_DATA[state.currentLang] || UPDATE_HISTORY_DATA.es;
+      UPDATE_HISTORY_DATA[state.currentLang] || UPDATE_HISTORY_DATA.en;
     container.innerHTML = history;
     document.getElementById("update-modal")?.classList.remove("hidden");
   }
