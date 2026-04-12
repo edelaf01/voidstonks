@@ -46,7 +46,7 @@ export const ScannerModal = {
         this.currentResults = itemsWithDetails;
 
         this.renderBadges(itemsWithDetails, imgEl, width, height, scale);
-        
+
         // Restore PiP update
         renderItemsInPiP(itemsWithDetails);
 
@@ -167,7 +167,7 @@ export const ScannerModal = {
         positionedItems.forEach((item) => {
             const isBestPl = item.price === maxPl && item.price > 0;
             const isBestEff = item.potential === maxPotential && item.potential > 0;
-            
+
             this.createBadge(item, fragment, isBestPl, isBestEff);
         });
 
@@ -183,39 +183,59 @@ export const ScannerModal = {
         const t = TEXTS[state.currentLang].rewardScanner;
         const appOwned = state.primeInventory?.[item.name] || 0;
 
+        const isZero = item.owned === 0;
+        const statusColor = item.crafted ? "#888" : (isZero ? "#ff4b2b" : "#00ff78");
+        const statusText = item.crafted ? "CRAFTED" : `${item.owned} ${t.lblSeen.toUpperCase()}`;
+
         badge.innerHTML = `
-            <div class="modal-badge-link">
-                <div class="modal-badge-labels">
-                    ${isBestPl ? `<div class="best-badge pl">${t.tagBestPl}</div>` : ""}
-                    ${isBestEff ? `<div class="best-badge duc">${t.tagBestDuc}</div>` : ""}
-                </div>
-                <div class="modal-badge-content-wrapper">
-                    <div class="metadata-row">
-                        <div class="inventory-app-count">${t.lblSeen.toUpperCase()}: ${item.owned || 0}</div>
-                        <div class="app-owned-info">${t.lblInv.toUpperCase()}: ${appOwned}</div>
-                    </div>
-                    <div class="modal-badge-name">${item.name.toUpperCase()}</div>
-                    <div class="modal-badge-row">
-                        <div class="modal-badge-price"><img src="assets/relic_contents/platinum.webp" class="currency-icon">${item.price || "—"}</div>
-                        <div class="modal-badge-ducats"><img src="assets/Ducats.webp" class="currency-icon">${item.ducats || 0}</div>
-                    </div>
-                </div>
-                <div class="badge-add-inventory-hint">${t.addBtn}</div>
+        <div class="modal-badge-link">
+            <div class="modal-badge-labels">
+                ${isBestPl ? `<div class="best-badge pl">${t.tagBestPl}</div>` : ""}
+                ${isBestEff ? `<div class="best-badge duc">${t.tagBestDuc}</div>` : ""}
             </div>
-        `;
+            <div class="modal-badge-content-wrapper">
+                <div class="metadata-row">
+                    <div class="inventory-app-count" style="border-color:${statusColor}; color:${statusColor}; font-weight:bold; border:1px solid; padding:2px 6px; border-radius:4px;">
+                        ${statusText}
+                    </div>
+                    <div class="app-owned-info">${t.lblInv.toUpperCase()}: ${appOwned}</div>
+                </div>
+                <div class="modal-badge-name">${item.name.toUpperCase()}</div>
+                <div class="modal-badge-row">
+                    <div class="modal-badge-price"><img src="assets/relic_contents/platinum.webp" class="currency-icon">${item.price || "—"}</div>
+                    <div class="modal-badge-ducats"><img src="assets/Ducats.webp" class="currency-icon">${item.ducats || 0}</div>
+                </div>
+            </div>
+            <div class="badge-add-inventory-hint">${t.addBtn}</div>
+        </div>
+    `;
         badge.onclick = () => {
             if (typeof globalThis.selectRewardToInventory === "function") {
                 globalThis.selectRewardToInventory(item.name);
                 badge.classList.add("selected-reward");
             }
         };
-
         container.appendChild(badge);
     }
 };
 
-// Global hooks for index.html / legacy interop
-globalThis.closeScanModal = () => ScannerModal.close();
+// Global hooks for index
+globalThis.closeScanModal = () => {
+    if (state.autoSyncRewards && ScannerModal.currentResults) {
+        ScannerModal.currentResults.forEach(item => {
+            if (!item.name) return;
+            const currentAppQty = state.primeInventory[item.name] || 0;
+            const isSelected = (globalThis.selectedScanItem === item.name);
+            const ocrOwned = (typeof item.owned === 'number') ? item.owned : currentAppQty;
+            state.primeInventory[item.name] = ocrOwned + (isSelected ? 1 : 0);
+        });
+        saveAppState();
+        if (globalThis.renderPrimeInventory) globalThis.renderPrimeInventory();
+    }
+    globalThis.selectedScanItem = null;
+    ScannerModal.close();
+    if (globalThis.ScannerService) globalThis.ScannerService.detectionLocked = false;
+};
 
 globalThis.toggleRewardsAutoSync = (val) => {
     state.autoSyncRewards = val;

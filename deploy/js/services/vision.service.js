@@ -217,7 +217,11 @@ export const VisionService = {
         cvs.width = targetW;
         cvs.height = targetH;
         const ctx = cvs.getContext("2d", { willReadFrequently: true });
+
+        ctx.filter = "grayscale(100%) contrast(300%) brightness(1.2)";
         ctx.drawImage(video, 0, rCropY, width, rCropH, 0, 0, targetW, targetH);
+        ctx.filter = "none";
+
         return cvs;
     },
 

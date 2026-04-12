@@ -19,7 +19,7 @@ export const ScannerService = {
 
     async start() {
         if (this.scanInterval) return;
-
+        globalThis.ScannerService = this;
         if (!this.virtualCanvas) {
             this.virtualCanvas = document.createElement("canvas");
             this.virtualCanvas.id = "scanner-virtual-canvas";
@@ -122,18 +122,37 @@ export const ScannerService = {
         const { width, height, scale } = dims;
         const ocrCanvas = VisionService.prepareRewardOCRCanvas(video, width, height, scale);
 
+        if (globalThis.OpenCVEngine?.isReady) {
+            globalThis.OpenCVEngine.processForOCR(ocrCanvas, "hard");
+        }
+
+        const dbgPanel = document.getElementById("live-debug-snapshot");
+        if (dbgPanel?.style.display === "block") {
+            const debugImg = document.getElementById("live-debug-snapshot-img");
+            if (debugImg) debugImg.src = ocrCanvas.toDataURL("image/jpeg", 0.85);
+        }
+
         const worker1 = OCRRepository.workers[0];
         const { data } = await OCRRepository.recognize(worker1, ocrCanvas);
-
+        const rawOcr = data.text || "";
         const foundItems = OCRService.parseRewards(data);
-        if (foundItems.length > 0 && !this.detectionLocked) {
-            this.detectionLocked = true;
 
+        clearRewardDebugLogs();
+        const cleanOcrText = rawOcr.replaceAll(/\n+/g, ' ').trim();
+        addRewardDebugLog("OCR", `Read: ${cleanOcrText}`, "info");
+        addRewardDebugLog("SCAN", `Items found: ${foundItems.length}`, foundItems.length > 0 ? "match" : "warn");
+
+        if (foundItems.length > 0 && !this.detectionLocked) {
+            foundItems.forEach(item => {
+                const status = item.crafted ? "CRAFTED" : `${item.owned} OWNED`;
+                addRewardDebugLog("ITEM", `${item.name} -> ${status}`, "match");
+            });
+
+            this.detectionLocked = true;
             const snapshot = document.createElement("canvas");
             snapshot.width = width; snapshot.height = height;
             snapshot.getContext("2d").drawImage(video, 0, 0, width, height);
-
-            ScannerModal.open(snapshot.toDataURL("image/jpeg", 0.85), foundItems, width, height, scale, data.text);
+            ScannerModal.open(snapshot.toDataURL("image/jpeg", 0.85), foundItems, width, height, scale, rawOcr);
         }
     },
 
@@ -191,3 +210,34 @@ export const ScannerService = {
         return rects;
     }
 };
+function clearRewardDebugLogs() {
+    const container = document.getElementById("rewards-raw-ocr-content");
+    if (container) container.innerHTML = "";
+}
+
+function addRewardDebugLog(tag, msg, type = "info") {
+    const container = document.getElementById("rewards-raw-ocr-content");
+    if (!container) return;
+
+    const entry = document.createElement("div");
+
+    const colors = {
+        info: "#ff9800",
+        match: "#00ff78",
+        warn: "#f1c40f"
+    };
+
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString([], { hour12: false });
+
+    entry.innerHTML = `
+        <span style="color:#555;">[${timeStr}]</span>
+        <span style="color:${colors[type]}; font-weight:bold;">${tag.toUpperCase()}</span>
+        <span style="color:#eee;">${msg}</span>
+    `;
+
+    container.appendChild(entry);
+
+    const parent = document.getElementById("rewards-dbg-text");
+    if (parent) parent.scrollTop = parent.scrollHeight;
+}

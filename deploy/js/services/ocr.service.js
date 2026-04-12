@@ -1,9 +1,6 @@
 import { state } from "../state.js";
 import { OCRRepository } from "../repositories/ocr.repository.js";
 
-/**
- * Service for high-level OCR results processing and fuzzy matching.
- */
 export const OCRService = {
     cachedDbItems: [],
     knownParts: new Set(),
@@ -15,7 +12,6 @@ export const OCRService = {
 
         const tempParts = new Set(["BLUEPRINT", "PRIME", "CHASSIS", "SYSTEMS", "NEUROPTICS", "HARNESS", "WINGS", "DUAL", "TWIN", "DEX", "MK1", "PRISMA", "VANDAL", "WRAITH", "FORMA", "CARAPACE", "CEREBRUM", "HANDLE", "BARREL", "RECEIVER", "STOCK", "LINK", "POUCH", "STARS", "BLADE", "HILT", "HEAD", "MOTOR", "GRIP", "STRING", "LIMB"]);
 
-        const processedItems = [];
         Object.keys(state.itemsDatabase).forEach((itemName) => {
             const upperName = itemName.toUpperCase();
             const normalizedName = upperName.replaceAll(/[^A-Z0-9 ]/g, " ");
@@ -23,19 +19,16 @@ export const OCRService = {
 
             upperName.split(" ").forEach(w => { if (w.length > 2 || w === "BO") tempParts.add(w); });
 
-            processedItems.push({
+            this.cachedDbItems.push({
                 originalName: itemName,
                 searchWords: words,
                 firstWord: words[0],
                 isPrime: upperName.includes("PRIME"),
-                ducats: state.itemsDatabase[itemName][0].ducats || 0
+                ducats: state.itemsDatabase[itemName][0]?.ducats || 0
             });
         });
 
-        this.cachedDbItems = processedItems;
         this.knownParts = tempParts;
-        const partsArray = Array.from(tempParts).sort((a, b) => b.length - a.length);
-        this.dynamicRegex = new RegExp(`(${partsArray.join("|")})`, "g");
     },
 
     editDistance(s1, s2) {
@@ -65,9 +58,6 @@ export const OCRService = {
         return (longer.length - this.editDistance(longer, shorter)) / longer.length;
     },
 
-    /**
-     * Semantical parsing for relic selection (Lith A1, etc).
-     */
     parseRelicSelection(ocrText) {
         const tiers = ["LITH", "MESO", "NEO", "AXI", "REQUIEM"];
         const text = ocrText.toUpperCase();
@@ -98,29 +88,29 @@ export const OCRService = {
         return null;
     },
 
-    /**
-     * Motor de emparejamiento semántico para recompensas.
-     */
-    //TODO FIX THIS LINTING ERROR TOO COMPLEX 
     _normalizeOCRWords(ocrData) {
-        const corrections = {
-            "IHASSIS": "CHASSIS", "HASSIS": "CHASSIS", "GHASSIS": "CHASSIS",
-            "DHASSIS": "CHASSIS", "CHASSS": "CHASSIS", "CHASS1S": "CHASSIS",
-            "CHASIS": "CHASSIS", "BLUEPRIN": "BLUEPRINT", "BLUEP": "BLUEPRINT",
-            "SYST": "SYSTEMS", "NEURO": "NEUROPTICS", "RECVR": "RECEIVER"
-        };
+        const metaTokens = ["OWNED", "CRAFTED", "FORJA", "PROPIO", "PRDPIO", "0WNED", "OWN", "OWED"];
         const validWords = [];
         const knownTokens = Array.from(this.knownParts);
 
         ocrData.words.forEach(w => {
             let text = w.text.toUpperCase().replaceAll(/[^A-Z0-9]/g, "");
-            if (text.length < 2) return;
-            text = corrections[text] || text;
+            if (text.length < 1) return;
+
+            if (metaTokens.includes(text) || /^\d+$/.test(text)) {
+                validWords.push({
+                    text: text,
+                    x: (w.bbox.x0 + w.bbox.x1) / 2,
+                    y: (w.bbox.y0 + w.bbox.y1) / 2,
+                    raw: w.text
+                });
+                return;
+            }
 
             let matchedToken = knownTokens.includes(text) ? text : null;
             if (!matchedToken) {
                 for (const token of knownTokens) {
-                    if (this.getSimilarity(text, token) >= 0.7) {
+                    if (this.getSimilarity(text, token) >= 0.75) {
                         matchedToken = token;
                         break;
                     }
@@ -138,16 +128,18 @@ export const OCRService = {
         });
         return validWords;
     },
-
     parseRewards(ocrData) {
         if (!ocrData?.words) return [];
         this.initMatcherData();
         const imgW = ocrData.imageW || 1920;
+        const isStrip = ocrData.isStrip === true;
         const validWords = this._normalizeOCRWords(ocrData);
 
         const itemMatches = [];
-        const MARGIN_LEFT = imgW * 0.04;
-        const MARGIN_RIGHT = imgW * 0.18;
+
+        const MARGIN_LEFT = isStrip ? (imgW * 0.3) : (imgW * 0.05);
+        const MARGIN_RIGHT = isStrip ? imgW : (imgW * 0.18);
+
         const allFirstTokens = new Set(this.cachedDbItems.map(item => item.searchWords[0]));
         const globalAnchors = validWords.filter(w => allFirstTokens.has(w.text)).sort((a, b) => a.x - b.x);
 
@@ -156,22 +148,41 @@ export const OCRService = {
             const anchors = validWords.filter(w => w.text === searchTokens[0]);
 
             for (const anchor of anchors) {
-                const nextAnchor = globalAnchors.find(a => a.x > anchor.x + (imgW * 0.05));
+                const nextAnchor = isStrip ? null : globalAnchors.find(a => a.x > anchor.x + (imgW * 0.05));
                 const maxRightX = nextAnchor ? Math.min(anchor.x + MARGIN_RIGHT, nextAnchor.x - 1) : anchor.x + MARGIN_RIGHT;
 
                 const localWords = validWords.filter(w => w.x >= (anchor.x - MARGIN_LEFT) && w.x <= maxRightX);
+                const metadata = this.extractInventoryMetadata(localWords);
+
                 const localSoupText = localWords.map(w => w.text).join(" ");
-
                 const ratio = this._calculateMatchRatio(dbItem, localSoupText, localWords);
-                const minWords = searchTokens.length === 1 ? 1 : 2;
 
-                if (ratio > 0.65 && this._countValidTokens(searchTokens, localWords) >= minWords) {
-                    itemMatches.push({ name: dbItem.originalName, ratio, x: anchor.x });
+                const minWords = searchTokens.length === 1 ? 1 : (isStrip ? 1 : 2);
+                const minRatio = isStrip ? 0.55 : 0.65;
+
+                if (ratio > minRatio && this._countValidTokens(searchTokens, localWords) >= minWords) {
+                    itemMatches.push({
+                        name: dbItem.originalName,
+                        ratio: ratio,
+                        x: anchor.x,
+                        owned: metadata.owned,
+                        crafted: metadata.crafted
+                    });
                 }
             }
         }
-
         return this._consolidateMatches(itemMatches, imgW);
+    },
+
+    _countValidTokens(searchTokens, localWords) {
+        let count = 0;
+        const localTexts = localWords.map(lw => lw.text);
+        searchTokens.forEach(token => {
+            if (localTexts.some(lt => lt === token || this.getSimilarity(lt, token) > 0.8)) {
+                count++;
+            }
+        });
+        return count;
     },
 
     _calculateMatchRatio(dbItem, localSoupText, localWords) {
@@ -182,11 +193,8 @@ export const OCRService = {
         let matchScore = 1.0;
         for (let i = 1; i < searchTokens.length; i++) {
             const token = searchTokens[i];
-            if (localWords.some(w => w.text === token)) {
-                matchScore += 1;
-            } else if (token === "BLUEPRINT" && wfParts.some(p => dbItem.originalName.toUpperCase().includes(p))) {
-                matchScore += 0.8;
-            }
+            if (localWords.some(w => w.text === token)) matchScore += 1;
+            else if (token === "BLUEPRINT" && wfParts.some(p => dbItem.originalName.toUpperCase().includes(p))) matchScore += 0.8;
         }
 
         let ratio = matchScore / searchTokens.length;
@@ -203,8 +211,12 @@ export const OCRService = {
 
     _countValidTokens(searchTokens, localWords) {
         let count = 0;
+        const localTexts = localWords.map(lw => lw.text);
+
         searchTokens.forEach(token => {
-            if (localWords.some(w => w.text === token)) count++;
+            // Match exacto o match por similitud (Fuzzy)
+            const hasMatch = localTexts.some(lt => lt === token || this.getSimilarity(lt, token) > 0.8);
+            if (hasMatch) count++;
         });
         return count;
     },
@@ -217,14 +229,40 @@ export const OCRService = {
                 finalItems.push(match);
             }
         }
-
         return finalItems.toSorted((a, b) => a.x - b.x).map(item => ({
             name: item.name,
             xPos: item.x,
             imgW: imgW,
-            owned: 0,
+            owned: item.owned,
+            crafted: item.crafted,
             confidence: 0.95
         }));
+    },
+
+    extractInventoryMetadata(wordsArray) {
+        if (!wordsArray || wordsArray.length === 0) return { owned: 0, crafted: 0 };
+        const text = wordsArray.map(w => w.text).join(" ").toUpperCase();
+
+        if (text.includes("CRAFTED") || text.includes("FORJA") || /CRAFT/i.test(text)) {
+            return { owned: 0, crafted: 1 };
+        }
+
+        const strongMatch = text.match(/(\d+)\s*(?:OWNED|0WNED|QWNED|UWNED|OWNE|OWED|OWN|0WN|PROPIO|PROP)/);
+        if (strongMatch && strongMatch[1]) {
+            return { owned: parseInt(strongMatch[1], 10), crafted: 0 };
+        }
+
+        if (/OWNED|0WNED|OWNE|OWED|OWN|PROPIO|PROP/i.test(text)) {
+            return { owned: 1, crafted: 0 };
+        }
+
+        const loneMatch = text.match(/(?:\s|^)(\d+)(?:\s|$)/);
+        if (loneMatch && loneMatch[1]) {
+            const val = parseInt(loneMatch[1], 10);
+            if (val < 1000) return { owned: val, crafted: 0 };
+        }
+
+        return { owned: 0, crafted: 0 };
     },
 
     async extractCellText(worker, textCanvas) {
@@ -241,7 +279,6 @@ export const OCRService = {
 
         badgeNums.sort((a, b) => b.bbox.x0 - a.bbox.x0);
         const pureDigit = badgeNums[0].text.replaceAll(/\D/g, "");
-
         if (pureDigit) {
             const val = Number.parseInt(pureDigit);
             return (val > 1 && val < 1000) ? val : 1;
@@ -250,16 +287,24 @@ export const OCRService = {
     },
 
     getValidItemMatch(combinedText) {
-        const matchOpts = this.findBestItemMatch(combinedText);
-        const bestMatch = matchOpts?.item || matchOpts?.bestMatch;
-        const score = matchOpts?.score || matchOpts?.highestRatio || 0;
-        if (!bestMatch || score < 0.45) return null;
-        return bestMatch;
-    },
+        if (!this.cachedDbItems.length) this.initMatcherData();
+        let bestItem = null;
+        let highestRatio = 0;
 
-    findBestItemMatch(words) {
-        // This is a wrapper for initOcrWorkers / findBestItemMatch in scanner_ocr.js
-        if (globalThis.findBestItemMatch) return globalThis.findBestItemMatch(words);
-        return null; // TODO: port the actual findBestItemMatch here if needed
+        for (const dbItem of this.cachedDbItems) {
+            const searchTokens = dbItem.searchWords;
+            let matchScore = 0;
+            searchTokens.forEach(token => {
+                if (combinedText.includes(token)) matchScore++;
+            });
+            const ratio = matchScore / searchTokens.length;
+            if (ratio > highestRatio) {
+                highestRatio = ratio;
+                bestItem = dbItem;
+            }
+        }
+
+        if (!bestItem || highestRatio < 0.5) return null;
+        return bestItem;
     }
 };

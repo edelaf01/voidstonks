@@ -406,60 +406,53 @@ export class MobileDebugScanner extends MobileScanner {
         super.showResults(results);
         this.logScanSession({ strips: results });
     }
-
     logScanSession(sessionData) {
         if (!this.debugPanel) return;
-
-        if (this.debugPanel.querySelector('div[style*="padding-top:40px;"]')) {
-            this.debugPanel.innerHTML = "";
-        }
 
         const sessionEntry = document.createElement("div");
         sessionEntry.style.cssText = `
         background: rgba(10, 15, 25, 0.6); border: 1px solid rgba(0, 229, 255, 0.2);
-        border - radius: 12px; overflow: hidden; margin - bottom: 20px; animation: fadeIn 0.4s ease - out;
-        box - shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+        border-radius: 12px; overflow: hidden; margin-bottom: 20px; animation: fadeIn 0.4s ease-out;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
         `;
 
         let itemsHtml = "";
         const strips = sessionData.strips || [];
-        strips.forEach((res, index) => {
-            const itemName = res.name || "SIN DETECCIÓN";
-            const matchColor = (res.name && res.name !== "SIN DETECCIÓN") ? "#00ff78" : "#888";
-            const imgUrl = res.image || "";
+
+        // Ordenamos los bloques del 1 al 4
+        strips.sort((a, b) => a.idx - b.idx);
+
+        strips.forEach((res) => {
+            const rawOcrText = (res.rawText || "").replaceAll("\n", " ").trim();
+            const hasMatches = res.matches && res.matches.length > 0;
+            const itemNames = hasMatches ? res.matches.map(m => m.name).join(", ") : "NADA DETECTADO";
+            const matchColor = hasMatches ? "#00ff78" : "#f1c40f";
 
             itemsHtml += `
             <div style="padding:10px; border-top:1px solid rgba(255,255,255,0.05); background:rgba(255,255,255,0.02);">
-                    <div style="display:flex; justify-content:space-between; margin-bottom:8px; font-size:9px;">
-                        <span style="color:${matchColor}; font-weight:800;">[ITEM ${index + 1}] ${itemName}</span>
-                        <button onclick='globalThis.currentScanner.showPartPicker("${itemName.replace(/"/g, "&quot;")}", ${index})' 
-                                style="background:#00e5ff1a; border:1px solid #00e5ff4d; color:#00e5ff; font-size:7px; padding:2px 6px; border-radius:4px; cursor:pointer; font-weight:900;">
-                          ✎ CORREGIR
-                        </button>
+                    <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                        <span style="color:#00e5ff; font-weight:800; font-size:10px;">[BLOQUE ${res.idx + 1}]</span>
                     </div>
-                    <div style="display:grid; grid-template-columns: 1fr; gap:6px; margin-bottom:8px;">
-                        <img src="${imgUrl}" style="width:100%; border:1px solid rgba(0,229,255,0.3); border-radius:4px;" />
+                    <div style="font-size:8px; color:#aaa; margin-bottom:6px; font-family:monospace; background:#111; padding:4px; border-radius:4px;">
+                        RAW OCR: ${rawOcrText || "Vacío..."}
                     </div>
-                </div>
+                    <div style="display:flex; justify-content:space-between; font-size:9px;">
+                        <span style="color:${matchColor}; font-weight:800;">-> MATCH: ${itemNames}</span>
+                    </div>
+                    <img src="${res.imgUrl}" style="width:100%; border:1px solid rgba(0,229,255,0.3); border-radius:4px; margin-top:6px;" />
+            </div>
             `;
         });
 
         sessionEntry.innerHTML = `
-            <div style="background:rgba(0, 229, 255, 0.1); padding:8px 12px; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid rgba(0, 229, 255, 0.2);">
-                <span style="font-weight:900; color:#00e5ff; letter-spacing:1px; font-size:10px;">SCAN HORA ${sessionData.time}</span>
-                <span style="font-size:8px; opacity:0.6;">FRAME #${this.frameCounter}</span>
+            <div style="background:rgba(0, 229, 255, 0.1); padding:8px 12px; display:flex; justify-content:space-between; align-items:center;">
+                <span style="font-weight:900; color:#00e5ff; font-size:10px;">SCAN HORA ${sessionData.time}</span>
             </div>
             ${itemsHtml}
         `;
 
         this.debugPanel.prepend(sessionEntry);
         if (this.debugPanel.children.length > 15) this.debugPanel.lastChild.remove();
-
-        if (sessionData.results) {
-            this.detectionCount += sessionData.results.length;
-            const dId = document.getElementById("debug-detect-count");
-            if (dId) dId.innerText = this.detectionCount;
-        }
     }
 
     async switchToScreen() {
