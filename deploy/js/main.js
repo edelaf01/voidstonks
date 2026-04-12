@@ -7,8 +7,9 @@ import {
   warmupPrices,
   preloadPricesToMemory,
 } from "./api.js";
-import { state, loadAppState, saveAppState } from "./state.js";
+import { state, loadAppState, saveAppState, hydrateDOM } from "./state.js";
 import { startLiveSession, stopLiveSession } from "./live_scanner.js";
+import { openPiP, initPiP } from "./pip_overlay.js";
 import {
   openScanner,
   closeScanner,
@@ -56,7 +57,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     return;
   }
   checkUpdates();
-  loadAppState();
+  const { domValues } = loadAppState();
+  hydrateDOM(domValues);
   initCanvas();
   initDisclaimerSystem();
   setupGlobalClickListeners();
@@ -64,6 +66,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   initSyncPanel();
   preloadCriticalAssets();
   setupScannerDrawer();
+  initPiP();
 
   const langSelect = document.getElementById("langSelect");
   if (langSelect) langSelect.value = state.currentLang;
@@ -329,4 +332,5 @@ Object.assign(globalThis, {
   updateSelectExclusions,
   saveAppState,
   renderPrimeInventory,
+  togglePiP: openPiP,
 });

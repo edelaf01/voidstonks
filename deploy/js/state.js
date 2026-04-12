@@ -1,4 +1,6 @@
-export const state = {
+import { rawState, get, set, subscribe } from "./store/state.store.js";
+
+Object.assign(rawState, {
   currentLang: "es",
   activeTab: "relic",
   playerCount: 1,
@@ -44,7 +46,18 @@ export const state = {
     medianBlur: 9,
     sharpen: 1
   }
-};
+});
+
+export const state = new Proxy(rawState, {
+  get(target, prop) {
+    if (prop === "subscribe") return subscribe;
+    return target[prop];
+  },
+  set(target, prop, value) {
+    set(prop, value);
+    return true;
+  }
+});
 let saveTimer = null;
 export function saveAppState() {
   if (saveTimer) clearTimeout(saveTimer);
@@ -52,11 +65,11 @@ export function saveAppState() {
   saveTimer = setTimeout(() => {
     const data = {
       lang: state.currentLang,
-      relicInput: document.getElementById("relicInput")?.value || "",
-      refinement: document.getElementById("refinement")?.value || "Rad",
-      lfgActivity: document.getElementById("lfgActivity")?.value || "eidolon",
-      username: document.getElementById("usernameInput")?.value || "",
-      mr: document.getElementById("mrInput")?.value || 0,
+      relicInput: state.selectedRelic || "",
+      refinement: state.refinement || "Rad",
+      lfgActivity: state.lfgActivity || "eidolon",
+      username: state.username || "",
+      mr: state.mr || 0,
       currentActiveSet: state.currentActiveSet,
       activeSetParts: state.activeSetParts,
       completedParts: Array.from(state.completedParts),
@@ -66,56 +79,59 @@ export function saveAppState() {
       primeInventory: state.primeInventory,
       autoSyncRewards: state.autoSyncRewards,
       autoCopyScanResults: state.autoCopyScanResults,
+      visionSettings: state.visionSettings,
     };
 
     localStorage.setItem("voidStonks_save", JSON.stringify(data));
-
     saveTimer = null;
   }, 1000);
 }
+/** @returns {{ activeTab: string, domValues: object }} */
 export function loadAppState() {
   const saved = localStorage.getItem("voidStonks_save");
-  if (saved) {
-    try {
-      const data = JSON.parse(saved);
+  const domValues = {};
+  if (!saved) return { activeTab: "relic", domValues };
 
-      state.currentLang = data.lang || "es";
+  try {
+    const data = JSON.parse(saved);
 
-      if (data.relicInput) {
-        const ri = document.getElementById("relicInput");
-        if (ri) ri.value = data.relicInput;
-        state.selectedRelic = data.relicInput;
-      }
-      if (data.refinement)
-        document.getElementById("refinement").value = data.refinement;
-      if (data.username)
-        document.getElementById("usernameInput").value = data.username;
-      if (data.mr) document.getElementById("mrInput").value = data.mr;
-      if (data.lfgActivity)
-        document.getElementById("lfgActivity").value = data.lfgActivity;
-
-      if (data.currentActiveSet) {
-        state.currentActiveSet = data.currentActiveSet;
-        state.activeSetParts = data.activeSetParts || [];
-        state.completedParts = new Set(data.completedParts || []);
-      }
-      if (typeof data.showAllFarms !== "undefined")
-        state.showAllFarms = data.showAllFarms;
-      if (data.lfgPresets) state.lfgPresets = data.lfgPresets;
-      if (data.inventory) state.inventory = data.inventory;
-      if (data.primeInventory) state.primeInventory = data.primeInventory;
-      if (data.autoSyncRewards !== undefined)
-        state.autoSyncRewards = data.autoSyncRewards;
-      if (data.autoCopyScanResults !== undefined)
-        state.autoCopyScanResults = data.autoCopyScanResults;
-      if (data.visionSettings) state.visionSettings = { ...state.visionSettings, ...data.visionSettings };
-      return state.activeTab;
-    } catch (e) {
-      console.warn("Error cargando save:", e);
+    state.currentLang = data.lang || "es";
+    if (data.relicInput) state.selectedRelic = data.relicInput;
+    if (data.currentActiveSet) {
+      state.currentActiveSet = data.currentActiveSet;
+      state.activeSetParts = data.activeSetParts || [];
+      state.completedParts = new Set(data.completedParts || []);
     }
+    if (typeof data.showAllFarms !== "undefined") state.showAllFarms = data.showAllFarms;
+    if (data.lfgPresets) state.lfgPresets = data.lfgPresets;
+    if (data.inventory) state.inventory = data.inventory;
+    if (data.primeInventory) state.primeInventory = data.primeInventory;
+    if (data.autoSyncRewards !== undefined) state.autoSyncRewards = data.autoSyncRewards;
+    if (data.autoCopyScanResults !== undefined) state.autoCopyScanResults = data.autoCopyScanResults;
+    if (data.visionSettings) state.visionSettings = { ...state.visionSettings, ...data.visionSettings };
+
+    domValues.relicInput = data.relicInput || "";
+    domValues.refinement = data.refinement || "Rad";
+    domValues.username = data.username || "";
+    domValues.mr = data.mr || 0;
+    domValues.lfgActivity = data.lfgActivity || "eidolon";
+  } catch (e) {
+    console.warn("Error cargando save:", e);
   }
-  return "relic";
+
+  return { activeTab: state.activeTab || "relic", domValues };
 }
+
+/** @param {object} domValues */
+export function hydrateDOM(domValues) {
+  const set = (id, val) => { const el = document.getElementById(id); if (el && val) el.value = val; };
+  set("relicInput", domValues.relicInput);
+  set("refinement", domValues.refinement);
+  set("usernameInput", domValues.username);
+  set("mrInput", domValues.mr);
+  set("lfgActivity", domValues.lfgActivity);
+}
+
 export function updateInventoryCount(relicName, change) {
   if (state.inventory.length > 0 && typeof state.inventory[0] === "string") {
     const newInv = [];
