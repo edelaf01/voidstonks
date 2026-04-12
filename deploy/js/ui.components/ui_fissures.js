@@ -87,14 +87,17 @@ export function highlightFissureTier(tier) {
 }
 
 export async function initFissurePanel() {
-
   let missionDiv = document.getElementById("best-missions-container");
   const t = TEXTS[state.currentLang];
 
   if (!missionDiv) {
     missionDiv = document.createElement("div");
     missionDiv.id = "best-missions-container";
-    missionDiv.innerHTML = `
+    document.body.appendChild(missionDiv);
+  }
+
+  // Update static part of the HTML
+  missionDiv.innerHTML = `
       <div id="mission-toggle-btn" class="mission-toggle-btn" onclick="document.getElementById('best-missions-container').classList.toggle('open')">
          <img src="assets/fissureicon.webp" class="toggle-img" alt="Fisuras">
       </div>
@@ -102,16 +105,14 @@ export async function initFissurePanel() {
       <div class="panel-main-header" id="fissure-panel-header" style="cursor:pointer;" onclick="initFissurePanel()">
           <svg class="gauss-icon" id="gauss-runner" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
             <path d="M18.5,5.5 C18.5,5.5 14,8 12,10 C10,12 5,11 2,12 C5,13 9,14 11,16 C13,18 16,19 18.5,19 C16,17 14,14 14,12 C14,10 16,7 18.5,5.5 Z M22,2 L20,4 C20,4 17,7 17,12 C17,17 20,20 20,20 L22,22" fill="currentColor"/>
-         </svg>
-         <span>${t.lblRecommended || "Fisuras Activas"}</span>
+          </svg>
+          <span>${t.lblRecommended || "Fisuras Activas"}</span>
       </div>
       
       <div class="fissures-scroll-area" id="fissures-list-area">
          <div style="padding:10px; text-align:center; color:#666;">Cargando...</div>
       </div>
     `;
-    document.body.appendChild(missionDiv);
-  }
 
   const header = document.getElementById("fissure-panel-header");
   const runner = document.getElementById("gauss-runner");

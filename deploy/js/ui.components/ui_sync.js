@@ -6,13 +6,15 @@ let syncInterval = null;
 let timeoutTimer = null;
 
 export function initSyncPanel() {
-  if (document.getElementById("cloud-sync-container")) return;
-
+  let syncDiv = document.getElementById("cloud-sync-container");
   const t = TEXTS[state.currentLang];
 
-  const syncDiv = document.createElement("div");
-  syncDiv.id = "cloud-sync-container";
-  syncDiv.className = "side-panel-container";
+  if (!syncDiv) {
+      syncDiv = document.createElement("div");
+      syncDiv.id = "cloud-sync-container";
+      syncDiv.className = "side-panel-container";
+      document.body.appendChild(syncDiv);
+  }
 
   syncDiv.innerHTML = `
     <div id="sync-toggle-btn" class="side-toggle-btn" onclick="toggleSyncPanel()">
@@ -20,7 +22,7 @@ export function initSyncPanel() {
     </div>
     
     <div class="panel-main-header">
-       <span>${t.sync.title}</span>
+       <span id="txt-sync-title">${t.sync.title}</span>
        <span class="info-icon" data-tooltip="${t.sync.helpTooltip}">ℹ️</span>
     </div>
     

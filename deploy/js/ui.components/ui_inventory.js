@@ -83,7 +83,8 @@ export async function renderInventory() {
   lastInventoryHash = newHash;
 
   if (!state.inventory || state.inventory.length === 0) {
-    list.innerHTML = `<div style="padding:20px; text-align:center; color:#666;">Inventory empty</div>`;
+    const emptyMsg = TEXTS[state.currentLang]?.inventory?.empty || "Inventory empty";
+    list.innerHTML = `<div style="padding:20px; text-align:center; color:#666;">${emptyMsg}</div>`;
     return;
   }
 
@@ -157,7 +158,7 @@ export async function renderInventory() {
             <div class="inv-name-group" data-action="select-relic-from-inv" data-relic="${escapeHTML(itemName)}">
                 <div class="inv-name">${escapeHTML(itemName)}</div>
                 <div class="inv-meta">
-                   <span class="relic-status-tag ${isVaulted ? "vaulted" : "active"}">${isVaulted ? "VAULTED" : "ACTIVE"}</span>
+                   <span class="relic-status-tag ${isVaulted ? "vaulted" : "active"}">${isVaulted ? (TEXTS[state.currentLang].vaulted || "VAULTED") : (TEXTS[state.currentLang].active || "ACTIVE")}</span>
                    <span id="duc-${safeId}" class="ducat-tag">... <span class="ducat-icon-inline"></span></span>
                 </div>
             </div>
@@ -234,18 +235,27 @@ export function modifyInv(name, amount) {
   updateInventoryCount(name, amount);
   saveAppState();
 
-  if (state.inventory.length === oldLength) {
-    const itemMatch = state.inventory.find(
-      (i) => (typeof i === "string" ? i : i.name) === name
-    );
-    if (!itemMatch) {
-      renderInventory();
-      return;
-    }
+  const safeNameHtml = escapeHTML(name);
+  const row = document.querySelector(`.inv-row[data-relic="${safeNameHtml}"]`);
 
-    const newQty = typeof itemMatch === "string" ? 1 : itemMatch.count || itemMatch.qty || 1;
-    const safeNameHtml = escapeHTML(name);
-    const qtySpan = document.querySelector(`.inv-row[data-relic="${safeNameHtml}"] .qty-label`);
+  if (state.inventory.length < oldLength) {
+    if (row) row.remove();
+    return;
+  }
+
+  const itemMatch = state.inventory.find(
+    (i) => (typeof i === "string" ? i : i.name) === name
+  );
+
+  if (!itemMatch) {
+    renderInventory();
+    return;
+  }
+
+  const newQty = typeof itemMatch === "string" ? 1 : itemMatch.count || itemMatch.qty || 1;
+
+  if (row) {
+    const qtySpan = row.querySelector(".qty-label");
     if (qtySpan) qtySpan.textContent = `x${newQty}`;
   } else {
     renderInventory();
@@ -417,7 +427,6 @@ export function modifyPrimePart(name, amount) {
   qtySpans.forEach(span => {
     span.textContent = newQty;
     span.classList.remove("pulse-anim");
-
     // span.offsetWidth; // trigger reflow
     span.classList.add("pulse-anim");
   });
@@ -441,7 +450,7 @@ export function modifyPrimePart(name, amount) {
         const fullSets = calculateTotalFullSets(setName);
         const setBadge = document.querySelector(`#set-group-${safeSetNameId} .set-count-badge`);
         if (setBadge) {
-          setBadge.innerHTML = `${fullSets} SETS`;
+          setBadge.innerHTML = `${fullSets} ${fullSets === 1 ? 'SET' : 'SETS'}`;
           setBadge.style.display = fullSets > 0 ? "inline-block" : "none";
         }
       }
@@ -457,7 +466,8 @@ export function modifyPrimePart(name, amount) {
 
     const rewardCounts = document.querySelectorAll(`.app-owned-val[data-part="${safePartHtml}"]`);
     rewardCounts.forEach(span => {
-      span.textContent = `TENÍAS: ${newQty}`;
+      const lbl = state.currentLang === "es" ? "TENÍAS" : "OWNED";
+      span.textContent = `${lbl}: ${newQty}`;
     });
   });
 }
@@ -717,7 +727,7 @@ export function renderPrimeInventory() {
           </div>
 
           <div class="header-info">
-             <span class="set-count-badge" style="display:${numSets > 0 ? "inline-block" : "none"};">${numSets} SETS</span>
+             <span class="set-count-badge" style="display:${numSets > 0 ? "inline-block" : "none"};">${numSets} ${numSets === 1 ? 'SET' : 'SETS'}</span>
              <span class="set-total-price" id="set-price-${safeSetId}">0 <span class="plat-icon-inline"></span></span>
              <span id="set-mkt-${safeSetId}" class="set-price-marker" style="display:none;">...</span>
           </div>
@@ -754,7 +764,6 @@ export function renderPrimeInventory() {
                    <a href="https://warframe.market/items/${getSlug(partName)}" target="_blank" class="market-link-icon-mini" onclick="event.stopPropagation()">↗</a>
                    <span class="price-badge-small" id="price-p-${safeId}" data-qty="${qty}" data-item="${escapeHTML(partName)}">${(() => {
                   const cached = globalThis.MEMORY_CACHE?.get(getSlug(partName));
-                  //TODO FIX LINT
                   if (cached !== undefined && !Number.isNaN(Number.parseInt(cached, 10))) return Number.parseInt(cached, 10);
                   return "...";
                 })()} <span class="plat-icon-inline"></span></span>
@@ -902,7 +911,6 @@ function calculateGroupSubtotal(setName, groupData) {
   }
 
   let allPossibleParts = [];
-  //TODO deja vu
   if (state.setsDatabase?.[setName]) {
     allPossibleParts = state.setsDatabase[setName];
   } else {

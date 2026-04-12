@@ -10,45 +10,31 @@ import {
   APP_VERSION,
 } from "./config.js";
 import {
-  escapeHTML,
   showToast,
   showCustomConfirm,
-
-
-
   closeUpdateModal,
   openUpdateHistory,
 } from "./ui.components/ui_components.js";
+
 import {
-  getItemIcon,
-  getRequiredCount,
-  generateDotsHtml,
-} from "./ui.components/ui_utils.js";
-import {
-  handleRelicTyping,
   manualRelicUpdate,
   updateRelicTotal,
   generateMessage,
-  renderRelicsForPartInline,
 } from "./ui.components/ui_relics.js";
 import {
-  handleSetTyping,
   renderSetTracker,
-  activateSetTracker,
 } from "./ui.components/ui_sets.js";
 import {
-  changeLFGCount,
   updateLFGUI,
-  generateLFGMessage,
-  toggleLfgDropdown,
-  selectLfgOption,
-  initLFGPresets,
-  renderLFGPresets,
 } from "./ui.components/ui_lfg.js";
 import { populateRivenSelects } from "./ui.components/ui_rivens.js";
+import { initSyncPanel } from "./ui.components/ui_sync.js";
+import { initFissurePanel, updateRecommendedMissions } from "./ui.components/ui_fissures.js";
 import { state, saveAppState, updateInventoryCount } from "./state.js";
-import { updateRecommendedMissions } from "./ui.components/ui_fissures.js";
 import { renderBountiesTab } from "./ui.components/ui_bounties.js";
+import { renderInventory, renderPrimeInventory } from "./ui.components/ui_inventory.js";
+import { ScannerHUD } from "./ui.components/ui_scanner_hud.js";
+import { ScannerModal } from "./ui.components/ui_scanner_modal.js";
 globalThis.TEXTS = TEXTS;
 
 const iconPathCache = new Map();
@@ -65,7 +51,7 @@ export function preloadCriticalAssets() {
     const img = new Image();
     img.src = url;
   });
-} const t = TEXTS[state.currentLang];
+}
 
 export function finishLoading() {
   const loadEl = document.getElementById("loading");
@@ -155,39 +141,49 @@ export function switchTab(mode) {
   if (mode === "lfg") updateLFGUI();
   else generateMessage();
 }
-//TODO FIX THIS TOO COMPLEX se puede optimizar bastante pero hay que hacer cambios en la logica integral
-export function changeLanguage() {
-  const lang = localStorage.getItem("app_lang");
-  if (lang) state.currentLang = lang;
-  if (!state.currentLang) state.currentLang = "es";
+export function changeLanguage(langCode) {
+  if (langCode) state.currentLang = langCode;
 
+  localStorage.setItem("app_lang", state.currentLang);
   saveAppState();
-  updateLangButtonVisuals(state.currentLang);
+}
 
-  const t = TEXTS[state.currentLang];
+/**
+ * Updates all UI text labels based on the current language.
+ */
 
-  const setText = (id, text) => {
-    const el = document.getElementById(id);
-    if (el && text) el.innerText = text;
-  };
+const setText = (id, text) => {
+  const el = document.getElementById(id);
+  if (el && text) el.innerText = text;
+};
 
-  const setTab = (id, text, tip) => {
-    const el = document.getElementById(id);
-    if (el) {
-      const img = el.querySelector("img");
-      el.innerHTML = "";
-      if (img) el.appendChild(img);
-      el.appendChild(document.createTextNode(" " + text));
-      if (tip) el.dataset.tooltip = tip;
-    }
-  };
+const setTab = (id, text, tip) => {
+  const el = document.getElementById(id);
+  if (el) {
+    const img = el.querySelector("img");
+    el.innerHTML = "";
+    if (img) el.appendChild(img);
+    el.appendChild(document.createTextNode(" " + text));
+    if (tip) el.dataset.tooltip = tip;
+  }
+};
 
+const setPlaceholder = (id, text) => {
+  const el = document.getElementById(id);
+  if (el && text) el.placeholder = text;
+};
+
+
+function updateNavTabs(t) {
   setTab("btn-relic", t.menuRelic || "Reliquia", t.tooltips.tabRelic);
   setTab("btn-set", t.menuSet || "Set", t.tooltips.tabSet);
   setTab("btn-riven", t.menuRiven || "Riven", t.tooltips.tabRiven);
   setTab("btn-profile", t.menuProfile || "Perfil", t.tooltips.tabProfile);
   setTab("btn-lfg", t.menuLfg || "LFG", t.tooltips.tabLfg);
   setTab("btn-bounties", t.menuBounties || "Farms", t.tooltips.tabBounties);
+}
+
+function updateStaticTexts(t) {
   setText("txt-header-title", t.headerTitle);
   setText("txt-header-sub", t.headerSub);
   setText("txt-footer-data", t.footerData);
@@ -196,63 +192,113 @@ export function changeLanguage() {
   setText("btn-footer-updates", t.btnShowUpdates);
   setText("lbl-update-title", t.updateModalTitle);
   setText("btn-update-gotit", t.updateModalGotIt);
-  const disclaimer = document.getElementById("txt-disclaimer");
-  if (disclaimer) disclaimer.innerHTML = t.disclaimer;
-
   setText("loadingText", t.loading);
   setText("loadingSub", t.loadingSub);
 
   setText("lbl-relic-name", t.lblRelic);
-  const relicInput = document.getElementById("relicInput");
-  if (relicInput) relicInput.placeholder = t.phRelic;
-
   setText("lbl-missing", t.lblMiss);
   setText("lbl-profit", t.lblProfit);
+  setText("lbl-search-item", t.lblItem);
+  setText("lbl-riven-weapon", t.lblRivenW);
+  setText("lbl-riven-stats", t.lblRivenS);
+  setText("btn-riven-search", t.rivenSearch);
+
+  setText("lbl-username", t.lblUser);
+  setText("txt-mr-label", t.lblMrCalc);
+  setText("lbl-lfg-activity", t.lblLfgActivity);
+  setText("lbl-lfg-players", t.lblLfgPlayers);
+  setText("btn-copy", t.btnCopy);
+
+  setText("txt-inv-title", t.inventory?.title);
+  setText("tracker-title", t.trackerTitle);
+  setText("txt-fissure-title", t.lblFissures);
+  setText("lbl-fast-farms-title", t.lblFastFarms || "Misiones Rápidas");
+
+  const disclaimer = document.getElementById("txt-disclaimer");
+  if (disclaimer) disclaimer.innerHTML = t.disclaimer;
+
+  const btnCheck = document.querySelector("#mode-profile button");
+  if (btnCheck) btnCheck.innerText = t.btnCheck;
+
+  const guideText = document.getElementById("relic-add-guide");
+  if (guideText) guideText.innerText = t.addGuide;
+
+  const guideIcon = document.getElementById("relic-guide-icon");
+  if (guideIcon) guideIcon.dataset.tooltip = t.addGuide;
+}
+
+function updateInputsAndContent(t) {
+  setPlaceholder("relicInput", t.phRelic);
+  setPlaceholder("setItemInput", t.phItem);
+  setPlaceholder("rivenWeaponInput", t.phRivenW);
+  setPlaceholder("inv-search-input", t.inventory?.searchPlaceholder);
+  setPlaceholder("prime-inv-search", t.inventory?.primeSearchPlaceholder);
+
   const elContents = document.getElementById("lbl-content");
   if (elContents) {
     elContents.innerText = t.lblContent;
     elContents.dataset.tooltip = t.tooltipContent;
-    elContents.style.cursor = "help";
-    elContents.style.color = "#888";
-    elContents.style.textTransform = "uppercase";
-    elContents.style.letterSpacing = "1px";
-    elContents.style.fontWeight = "800";
-    elContents.style.fontSize = "0.75em";
-    elContents.style.display = "inline-block";
-    elContents.style.width = "max-content";
-    elContents.style.marginBottom = "8px";
-    elContents.style.borderBottom = "none";
-    elContents.style.filter = "none";
+    Object.assign(elContents.style, {
+      cursor: "help", color: "#888", textTransform: "uppercase",
+      letterSpacing: "1px", fontWeight: "800", fontSize: "0.75em",
+      display: "inline-block", width: "max-content", marginBottom: "8px",
+      borderBottom: "none", filter: "none"
+    });
   }
+
   const refLabel = document.getElementById("lbl-refinement");
   if (refLabel) {
     refLabel.innerHTML = `${t.lblRef} <span data-tooltip="${t.tooltips.refinement}" style="cursor:help; opacity:0.7"> (?)</span>`;
   }
-  const refSelect = document.getElementById("refinement");
-  if (refSelect && t.refs) {
-    Array.from(refSelect.options).forEach((opt) => {
+
+  const imgInv = document.getElementById("img-inv-toggle");
+  if (imgInv) imgInv.alt = t.lblInventory;
+
+  const imgFissure = document.getElementById("img-fissure-toggle");
+  if (imgFissure) imgFissure.alt = t.lblFissures;
+}
+
+function updateSelectDropdowns(t) {
+  const updateOptions = (id, dict) => {
+    const select = document.getElementById(id);
+    if (!select || !dict) return;
+    Array.from(select.options).forEach((opt) => {
       const key = opt.value.toLowerCase();
-      if (t.refs[key]) opt.innerText = t.refs[key];
+      if (dict[key]) opt.innerText = dict[key];
+    });
+  };
+
+  updateOptions("refinement", t.refs);
+  updateOptions("prime-inv-sort", t.inventory?.primeSort);
+
+  const relicSortSelect = document.getElementById("inv-sort");
+  if (relicSortSelect && t.inventory?.sort) {
+    Array.from(relicSortSelect.options).forEach((opt) => {
+      const key = opt.value;
+      if (key === "plat_intact") opt.innerText = t.inventory.sort.valIntact;
+      else if (key === "plat_rad") opt.innerText = t.inventory.sort.valRad;
+      else if (t.inventory.sort[key]) opt.innerText = t.inventory.sort[key];
     });
   }
 
-  const guideText = document.getElementById("relic-add-guide");
-  if (guideText) guideText.innerText = t.addGuide;
-  const guideIcon = document.getElementById("relic-guide-icon");
-  if (guideIcon) guideIcon.dataset.tooltip = t.addGuide;
+  const lfgItems = document.querySelectorAll("#lfgDropdown .dropdown-item");
+  const lfgKeys = ["eidolon", "profit", "eda", "temporal", "netra", "archon", "sortie", "arbi", "radshare"];
+  lfgKeys.forEach((key, idx) => {
+    if (lfgItems[idx] && t.lfgOpts?.[key]) {
+      lfgItems[idx].innerText = t.lfgOpts[key];
+    }
+  });
 
-  setText("lbl-search-item", t.lblItem);
-  const setInput = document.getElementById("setItemInput");
-  if (setInput) setInput.placeholder = t.phItem;
+  const currentLfgVal = document.getElementById("lfgActivity")?.value;
+  if (currentLfgVal && t.lfgOpts?.[currentLfgVal]) {
+    setText("lfgSelectedText", t.lfgOpts[currentLfgVal]);
+  }
+}
 
-  setText("lbl-riven-weapon", t.lblRivenW);
-  const rivenInput = document.getElementById("rivenWeaponInput");
-  if (rivenInput) rivenInput.placeholder = t.phRivenW;
-  setText("lbl-riven-stats", t.lblRivenS);
-  setText("btn-riven-search", t.rivenSearch);
-
+function updateRivenSelects(t) {
   const phStat = t.lblRivenPos || "+ STAT";
   const phNeg = t.lblRivenNeg || "- NEGATIVA";
+
   document.querySelectorAll(".riven-stat-select").forEach((sel) => {
     const isNeg = sel.classList.contains("negative");
     const firstOpt = sel.options[0];
@@ -265,87 +311,9 @@ export function changeLanguage() {
       }
     }
   });
+}
 
-  setText("lbl-username", t.lblUser);
-  const btnCheck = document.querySelector("#mode-profile button");
-  if (btnCheck) btnCheck.innerText = t.btnCheck;
-  setText("txt-mr-label", t.lblMrCalc);
-
-  setText("lbl-lfg-activity", t.lblLfgActivity);
-  setText("lbl-lfg-players", t.lblLfgPlayers);
-  setText("btn-copy", t.btnCopy);
-
-  const lfgItems = document.querySelectorAll("#lfgDropdown .dropdown-item");
-  const lfgKeys = [
-    "eidolon",
-    "profit",
-    "eda",
-    "temporal",
-    "netra",
-    "archon",
-    "sortie",
-    "arbi",
-    "radshare",
-  ];
-  lfgKeys.forEach((key, idx) => {
-    if (lfgItems[idx] && t.lfgOpts[key])
-      lfgItems[idx].innerText = t.lfgOpts[key];
-  });
-  const currentLfgVal = document.getElementById("lfgActivity").value;
-  if (t.lfgOpts[currentLfgVal])
-    setText("lfgSelectedText", t.lfgOpts[currentLfgVal]);
-
-  setText("txt-inv-title", t.inventory.title);
-  setText("tracker-title", t.trackerTitle);
-  if (state.currentActiveSet) renderSetTracker();
-  const invInput = document.getElementById("inv-search-input");
-  if (invInput) invInput.placeholder = t.inventory.searchPlaceholder;
-
-  const primeInvInput = document.getElementById("prime-inv-search");
-  if (primeInvInput && t.inventory.primeSearchPlaceholder) {
-    primeInvInput.placeholder = t.inventory.primeSearchPlaceholder;
-  }
-
-  const primeSortSelect = document.getElementById("prime-inv-sort");
-  if (primeSortSelect && t.inventory.primeSort) {
-    Array.from(primeSortSelect.options).forEach((opt) => {
-      const key = opt.value.toLowerCase();
-      if (t.inventory.primeSort[key]) opt.innerText = t.inventory.primeSort[key];
-    });
-  }
-
-  const relicSortSelect = document.getElementById("inv-sort");
-  if (relicSortSelect && t.inventory.sort) {
-    Array.from(relicSortSelect.options).forEach((opt) => {
-      const key = opt.value;
-      if (key === "plat_intact") opt.innerText = t.inventory.sort.valIntact;
-      else if (key === "plat_rad") opt.innerText = t.inventory.sort.valRad;
-      else if (t.inventory.sort[key]) opt.innerText = t.inventory.sort[key];
-    });
-  }
-
-  setText("txt-fissure-title", t.lblFissures);
-  setText("lbl-fast-farms-title", t.lblFastFarms || "Misiones Rápidas");
-
-  const imgInv = document.getElementById("img-inv-toggle");
-  if (imgInv) imgInv.alt = t.lblInventory;
-  const imgFissure = document.getElementById("img-fissure-toggle");
-  if (imgFissure) imgFissure.alt = t.lblFissures;
-
-  populateRivenSelects();
-
-  const modeLfg = document.getElementById("mode-lfg");
-  if (modeLfg && !modeLfg.classList.contains("hidden")) updateLFGUI();
-
-  if (state.currentActiveSet) renderSetTracker();
-  if (state.activeTab === "bounties") {
-    renderBountiesTab();
-  }
-  const tier = document.getElementById("relicInput").value.split(" ")[0];
-  if (tier && state.selectedRelic) updateRecommendedMissions(tier);
-  if (state.selectedRelic) manualRelicUpdate();
-
-  // Scanner HUD translations
+function updateScannerAndCalib(t) {
   const sh = t.scannerHUD;
   if (sh) {
     setText("hud-title", sh.title);
@@ -369,10 +337,70 @@ export function changeLanguage() {
     setText("lbl-calib-title", ct.title);
     setText("btn-calib-skip", ct.btnSkip);
   }
-
-  generateMessage();
 }
 
+function triggerSideEffects(t) {
+  populateRivenSelects();
+
+  const modeLfg = document.getElementById("mode-lfg");
+  if (modeLfg && !modeLfg.classList.contains("hidden")) updateLFGUI();
+
+  if (state.currentActiveSet) renderSetTracker();
+  if (state.activeTab === "bounties") renderBountiesTab();
+
+  const relicInput = document.getElementById("relicInput");
+  const tier = relicInput ? relicInput.value.split(" ")[0] : "";
+  if (tier && state.selectedRelic) updateRecommendedMissions(tier);
+  if (state.selectedRelic) manualRelicUpdate();
+
+  generateMessage();
+
+  // Refresh major components
+  if (typeof renderInventory === "function") renderInventory();
+  if (typeof renderPrimeInventory === "function") renderPrimeInventory();
+
+  // Scanner Context Update
+  if (ScannerHUD !== undefined) {
+    const badge = document.getElementById("hud-context-badge");
+    if (badge && t.scannerHUD) {
+      const context = badge.innerText;
+      const sh = t.scannerHUD;
+      let type = "IDLE";
+      if (context === sh.statusInventory) type = "INVENTORY";
+      else if (context === sh.statusRelics) type = "RELICS";
+      else if (context === sh.statusReward) type = "REWARD";
+      ScannerHUD.updateContext(type);
+    }
+  }
+
+  const modal = document.getElementById("scan-success-modal");
+  if (modal && !modal.classList.contains("hidden") && typeof ScannerModal !== "undefined") {
+    ScannerModal.localizeLabels(modal);
+  }
+
+  if (typeof initSyncPanel === "function") initSyncPanel();
+  if (typeof initFissurePanel === "function") initFissurePanel().catch(console.error);
+}
+
+export function updateUILabels() {
+  saveAppState();
+  updateLangButtonVisuals(state.currentLang);
+
+  const t = TEXTS[state.currentLang];
+  if (!t) return;
+
+  updateNavTabs(t);
+  updateStaticTexts(t);
+  updateInputsAndContent(t);
+  updateSelectDropdowns(t);
+  updateRivenSelects(t);
+  updateScannerAndCalib(t);
+  triggerSideEffects(t);
+}
+
+// Initial subscription & trigger first call
+state.subscribe("currentLang", updateUILabels);
+updateUILabels();
 
 globalThis.selectRelicFromPreview = function (relicName) {
   switchTab("relic");
@@ -404,9 +432,7 @@ export function toggleLangDropdown() {
 }
 
 export function setLanguageManual(langCode) {
-  state.currentLang = langCode;
-  saveAppState();
-  changeLanguage();
+  changeLanguage(langCode);
   updateLangButtonVisuals(langCode);
   document.getElementById("langOptionsList").classList.add("hidden");
 }
@@ -424,7 +450,29 @@ function updateLangButtonVisuals(lang) {
   }
 }
 
+export function bindInputsToState() {
+  const listen = (id, prop) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener("change", (e) => {
+      state[prop] = e.target.value;
+      saveAppState();
+    });
+    // Also bind input for real-time tracking if needed
+    el.addEventListener("input", (e) => {
+      state[prop] = e.target.value;
+    });
+  };
+
+  listen("relicInput", "selectedRelic");
+  listen("refinement", "refinement");
+  listen("usernameInput", "username");
+  listen("mrInput", "mr");
+  listen("lfgActivity", "lfgActivity");
+}
+
 export function setupGlobalClickListeners() {
+  bindInputsToState();
   document.addEventListener("click", (e) => {
     const target = e.target;
 
