@@ -8,7 +8,7 @@ export class OpenCVEngine {
 
         this.initializationPromise = new Promise((resolve) => {
             const check = () => {
-                if (globalThis.cv && globalThis.cv.getBuildInformation) {
+                if (globalThis.cv?.getBuildInformation) {
                     this.isReady = true;
                     this.initializationPromise = null;
                     this.log("VISION ENGINE READY", "#2ecc71");
@@ -118,6 +118,7 @@ export class OpenCVEngine {
                 cv.filter2D(dst, dst, -1, kernel);
                 kernel.delete();
             }
+
 
             cv.imshow(canvas, dst);
 
