@@ -1,4 +1,4 @@
-export const WORKER_URL = "https://wf-tool-proxy-worker.edelamf0.workers.dev/";
+export const WORKER_URL = "https://shrill-brook-d8aa.edelamf0.workers.dev/";
 export const APP_VERSION = 1.85;
 export const UPDATE_HISTORY_DATA = {
   es: `
@@ -594,6 +594,14 @@ export const TEXTS = {
       autoCopyLabel: "AUTO-COPY",
       autoCopyTooltip: "SI: Copia automáticamente los resultados al portapapeles después de cada escaneo en formato chat de Warframe.",
       rewardSelectedConfirmation: "{item} SELECCIONADA +1",
+      addBtn: "✓ AÑADIR AL INVENTARIO",
+      lblSeen: "Vista",
+      lblInv: "PROPIO",
+      tagBestPl: "¡MEJOR PLAT!",
+      tagBestDuc: "¡MEJOR DUCAT!",
+      tagCompletes: "¡COMPLETA SET!",
+      title: "RECOMPENSAS DETECTADAS",
+      mobileHint: "Toca 'AÑADIR' para registrar en inventario",
     },
     calib: {
       title: "CALIBRACIÓN INICIAL",
@@ -1105,6 +1113,7 @@ export const TEXTS = {
     purgeConfirmParts: "Delete all Prime Inventory?",
     btnConfirm: "CONFIRM",
     btnCancel: "CANCEL",
+    lblOwned: "owned",
     btnShowUpdates: "Patch Notes",
     updateModalTitle: "FEATURE HISTORY",
     updateModalGotIt: "Got it",
@@ -1114,6 +1123,14 @@ export const TEXTS = {
       autoCopyLabel: "AUTO-COPY",
       autoCopyTooltip: "YES: Automatically copies results to clipboard after each scan in Warframe chat format.",
       rewardSelectedConfirmation: "{item} SELECTED +1",
+      addBtn: "✓ ADD TO INVENTORY",
+      lblSeen: "Seen",
+      lblInv: "OWNED",
+      tagBestPl: "BEST PLAT!",
+      tagBestDuc: "BEST DUCAT!",
+      tagCompletes: "COMPLETES SET!",
+      title: "DETECTED REWARDS",
+      mobileHint: "Tap 'ADD' to register in inventory",
     },
   },
 };
