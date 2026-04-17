@@ -1,10 +1,30 @@
 export const WORKER_URL = "https://shrill-brook-d8aa.edelamf0.workers.dev/";
-export const APP_VERSION = 1.85;
+export const APP_VERSION = 2.0;
 export const UPDATE_HISTORY_DATA = {
   es: `
 <div class="update-block">
   <div class="update-header">
-    <span class="update-version">v1.8.5 (Actual)</span>
+    <span class="update-version">v2.0.0 (Actual)</span>
+    <span class="update-date">2026-04-17</span>
+  </div>
+  <ul class="update-list">
+    <li>
+      <strong>Escáner de Inventario:</strong> Mejorada la precisión en cantidades y añadidos cuadros de debug rojos.
+    </li>
+    <li>
+      <strong>Escáner de Recompensas:</strong> Restaurada la lógica de detección estable (filtros CSS) para máxima fiabilidad.
+    </li>
+    <li>
+      <strong>Refactorización:</strong> Mejoras en el backend de fisuras y limpieza de código en servicios OCR/Visión.
+    </li>
+    <li>
+      <strong>Interfaz:</strong> El modal de resultados ahora se cierra automáticamente al elegir recompensa.
+    </li>
+  </ul>
+</div>
+<div class="update-block old">
+  <div class="update-header">
+    <span class="update-version">v1.8.5</span>
     <span class="update-date">2026-03-27</span>
   </div>
   <ul class="update-list">
@@ -66,7 +86,27 @@ export const UPDATE_HISTORY_DATA = {
   en: `
 <div class="update-block">
   <div class="update-header">
-    <span class="update-version">v1.9.0 (Current)</span>
+    <span class="update-version">v2.0.0 (Current)</span>
+    <span class="update-date">2026-04-17</span>
+  </div>
+  <ul class="update-list">
+    <li>
+      <strong>Inventory Scanner:</strong> Improved quantity precision and added red debug boxes.
+    </li>
+    <li>
+      <strong>Reward Scanner:</strong> Restored stable detection logic (CSS filters) for maximum reliability.
+    </li>
+    <li>
+      <strong>Refactoring:</strong> Improvements to the fissures backend and code cleanup in OCR/Vision services.
+    </li>
+    <li>
+      <strong>UI:</strong> Results modal now automatically closes after selecting a reward.
+    </li>
+  </ul>
+</div>
+<div class="update-block old">
+  <div class="update-header">
+    <span class="update-version">v1.9.0</span>
     <span class="update-date">2026-03-27</span>
   </div>
   <ul class="update-list">

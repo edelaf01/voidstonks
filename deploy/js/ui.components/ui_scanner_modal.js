@@ -205,6 +205,9 @@ export const ScannerModal = {
             if (typeof globalThis.selectRewardToInventory === "function") {
                 globalThis.selectRewardToInventory(item.name);
                 badge.classList.add("selected-reward");
+                if (typeof globalThis.closeScanModal === "function") {
+                    globalThis.closeScanModal();
+                }
             }
         };
         container.appendChild(badge);
