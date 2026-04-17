@@ -8,7 +8,7 @@ export class OpenCVEngine {
 
         this.initializationPromise = new Promise((resolve) => {
             const check = () => {
-                if (globalThis.cv && globalThis.cv.getBuildInformation) {
+                if (globalThis.cv?.getBuildInformation) {
                     this.isReady = true;
                     this.initializationPromise = null;
                     this.log("VISION ENGINE READY", "#2ecc71");
@@ -40,6 +40,9 @@ export class OpenCVEngine {
         });
     }
 
+    /**
+     * With a known text color (PRIME gold), isolates that HSV range before binarizing.
+     */
     static processForOCR(canvas, mode = "hard", targetColor = null, settings = null) {
         if (!this.isReady || !canvas || canvas.width <= 0 || canvas.height <= 0) return;
 
@@ -118,6 +121,7 @@ export class OpenCVEngine {
                 cv.filter2D(dst, dst, -1, kernel);
                 kernel.delete();
             }
+
 
             cv.imshow(canvas, dst);
 
