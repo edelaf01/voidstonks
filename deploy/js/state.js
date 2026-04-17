@@ -1,7 +1,7 @@
 import { rawState, get, set, subscribe } from "./store/state.store.js";
 
 Object.assign(rawState, {
-  currentLang: "es",
+  currentLang: "en",
   activeTab: "relic",
   playerCount: 1,
   lfgCount: 1,
