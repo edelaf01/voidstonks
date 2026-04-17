@@ -15,6 +15,8 @@ export const ScannerService = {
     sessionInventory: new Map(),
     detectionLocked: false,
     scanCounter: 0,
+    inventoryHasScanned: false,
+    lastStableHash: null,
     virtualCanvas: null,
 
     async start() {
@@ -82,16 +84,48 @@ export const ScannerService = {
         ScannerHUD.updateFrameCounter(this.scanCounter);
     },
 
+    autoScrollHash: null,
+    autoScrollStableTimer: null,
+
     async routeFrameAction(contextType, video, dims) {
         ScannerHUD.updateContext(contextType);
 
         if (contextType === "INVENTORY") {
-            this.currentRate = 1500;
-            const video = document.getElementById("live-video");
-            const snapshot = document.createElement("canvas");
-            snapshot.width = video.videoWidth; snapshot.height = video.videoHeight;
-            snapshot.getContext("2d").drawImage(video, 0, 0);
-            await this.processInventoryGrid(snapshot, dims.width, dims.height, dims.scale);
+            this.currentRate = 500; // Check faster to catch scrolls
+
+            if (!globalThis.state.autoScanEnabled) {
+                this.autoScrollHash = null;
+                return;
+            }
+
+            const sampleCvs = document.createElement("canvas");
+            sampleCvs.width = 48; sampleCvs.height = 27;
+            const sCtx = sampleCvs.getContext("2d");
+            sCtx.drawImage(video, 0, Math.floor(video.videoHeight * 0.25), video.videoWidth, Math.floor(video.videoHeight * 0.5), 0, 0, 48, 27);
+            const currentHash = VisionService.getFrameHash(sCtx, 48, 27);
+
+            if (this.autoScrollHash && Math.abs(currentHash - this.autoScrollHash) < 80) {
+                return; // Hasn't changed significantly enough yet
+            }
+
+            ScannerHUD.updateScrollStatus("detected");
+            this.autoScrollHash = null;
+
+            if (this.autoScrollStableTimer) clearTimeout(this.autoScrollStableTimer);
+
+            this.autoScrollStableTimer = setTimeout(async () => {
+                if (!globalThis.state.autoScanEnabled || this.detectionLocked) return;
+
+                const v = document.getElementById("live-video");
+                const snapshot = document.createElement("canvas");
+                snapshot.width = v.videoWidth; snapshot.height = v.videoHeight;
+                snapshot.getContext("2d").drawImage(v, 0, 0);
+
+                await this.processInventoryGrid(snapshot, dims.width, dims.height, dims.scale);
+                this.autoScrollHash = currentHash;
+
+            }, 2000);
+
         } else if (contextType === "RELICS") {
             this.currentRate = 600;
             await this.processRelicSelection(video, dims);
@@ -157,11 +191,36 @@ export const ScannerService = {
     },
 
     async processInventoryGrid(snapshot, width, height, scale) {
+        if (this.detectionLocked) return;
+        this.detectionLocked = true;
+
+        if (globalThis.LiveCalibration && !globalThis.LiveCalibration.hasCalibration()) {
+            console.log("No Grid Calibration found. Starting calibration...");
+            const calibCvs = document.createElement("canvas");
+            calibCvs.width = width;
+            calibCvs.height = height;
+            const calibCtx = calibCvs.getContext("2d");
+            calibCtx.drawImage(snapshot, 0, 0);
+            await globalThis.LiveCalibration.runCalibrationFlow(
+                calibCtx.getImageData(0, 0, width, height)
+            );
+            return;
+        }
+
         const grid = globalThis.LiveCalibration?.getGrid();
         if (!grid) return;
 
         const cellRects = this.calculateCellRects(grid);
         const ocrCanvas = VisionService.createFilteredOcrCanvas(snapshot, width, height, grid);
+
+        const debugCanvas = document.createElement("canvas");
+        debugCanvas.width = width;
+        debugCanvas.height = height;
+        const dCtx = debugCanvas.getContext("2d");
+        dCtx.drawImage(snapshot, 0, 0);
+        dCtx.strokeStyle = "rgba(0,255,255,0.3)";
+        dCtx.lineWidth = 1;
+        cellRects.forEach(cell => dCtx.strokeRect(cell.sx, cell.sy, grid.cellW, grid.cellH));
 
         ScannerHUD.updateScrollStatus("scanning");
 
@@ -170,13 +229,68 @@ export const ScannerService = {
 
         const workers = OCRRepository.workers;
         const bWorkers = OCRRepository.badgeWorkers;
-        //sequential read to avoid future possible mobile errors
-        await this.processCellChunk(chunks, workers, bWorkers, ocrCanvas, snapshot, grid);
-        await this.processCellChunk(chunks[1], workers[1], bWorkers[1], ocrCanvas, snapshot, grid);
-        await this.processCellChunk(chunks[2], workers[2], bWorkers[2], ocrCanvas, snapshot, grid);
 
+        this.lastRawOcrLog = [];
 
-        ScannerHUD.updateScrollStatus("done", this.sessionInventory.size);
+        const processChunk = async (chunk, worker, bWorker) => {
+            for (const cell of chunk) {
+                const textCanvas = VisionService.createTextCanvas(ocrCanvas, cell, grid);
+                const combinedText = await OCRService.extractCellText(worker, textCanvas);
+                if (!combinedText) {
+                    this.lastRawOcrLog.push(`[r${cell.r}c${cell.c}] NONE`);
+                    continue;
+                }
+
+                let logStr = `[r${cell.r}c${cell.c}] OCR: ${combinedText.join(" ")}`;
+
+                const bestItem = OCRService.getValidItemMatch(combinedText);
+                if (bestItem) {
+                    const badgeCanvas = VisionService.createBadgeCanvas(snapshot, cell, grid);
+                    const qtyResult = await OCRService.extractCellQuantity(bWorker, badgeCanvas);
+
+                    logStr += ` || BDG: ${qtyResult.raw}`;
+                    this.lastRawOcrLog.push(logStr);
+
+                    this.sessionInventory.set(bestItem.originalName, qtyResult.qty);
+                    ScannerHUD.updateDetectedItems(this.sessionInventory);
+
+                    // Draw success on debug canvas
+                    dCtx.fillStyle = "rgba(0,0,0,0.8)";
+                    dCtx.fillRect(cell.sx, cell.sy + grid.cellH - 20, grid.cellW, 20);
+                    dCtx.fillStyle = "#00ff78";
+                    dCtx.font = "bold 11px monospace";
+                    const shortName = bestItem.originalName.replace(/Prime/gi, "").trim();
+                    dCtx.fillText(`${shortName} x${qtyResult.qty}`, cell.sx + 4, cell.sy + grid.cellH - 5);
+                } else {
+                    this.lastRawOcrLog.push(logStr);
+                    // Draw failure/debug info
+                    dCtx.fillStyle = "rgba(255,0,0,0.5)";
+                    dCtx.fillRect(cell.sx, cell.sy + grid.cellH - 15, grid.cellW, 15);
+                }
+            }
+        };
+
+        try {
+            await Promise.all([
+                processChunk(chunks[0], workers[0], bWorkers[0]),
+                processChunk(chunks[1], workers[1], bWorkers[1]),
+                processChunk(chunks[2], workers[2], bWorkers[2])
+            ]);
+
+            console.log(`Scan Page Complete. Found ${this.sessionInventory.size} unique items.`);
+            ScannerHUD.updateScrollStatus("done", this.sessionInventory.size);
+            ScannerHUD.updateDetectedItems(this.sessionInventory);
+
+            if (ScannerHUD.updateDebugSnapshot) {
+                ScannerHUD.updateDebugSnapshot(debugCanvas.toDataURL("image/jpeg", 0.7));
+                // Prevent processFrame from overwriting this painted image for 5 seconds
+                this.lastDebugUpdate = Date.now() + 5000;
+            }
+        } catch (e) {
+            console.error("Grid processing failed:", e);
+        } finally {
+            this.detectionLocked = false;
+        }
     },
 
     async processCellChunk(chunk, worker, bWorker, ocrCanvas, snapshot, grid) {

@@ -18,6 +18,36 @@ globalThis.toggleScannerDebug = () => {
   showToast(DEBUG_MODE ? "Debug mode ON" : "Debug mode OFF");
 };
 
+/**
+ * Copies the current scan session info to the clipboard for debugging.
+ */
+globalThis.copyScannerDebugLog = async () => {
+  try {
+    let logLines = ["=== VOIDSTONKS SCANNER DEBUG LOG ===", `Timestamp: ${new Date().toISOString()}`];
+
+    const inv = globalThis.ScannerService?.sessionInventory;
+    if (inv && inv.size > 0) {
+      logLines.push(`\n[Inventory Scan Cache]`);
+      for (const [name, qty] of inv) {
+        logLines.push(`${name}: x${qty}`);
+      }
+    } else {
+      logLines.push("\n[Inventory Scan Cache]: EMPTY");
+    }
+
+    const rawOcr = globalThis.ScannerService?.lastRawOcrLog;
+    if (rawOcr && rawOcr.length > 0) {
+      logLines.push("\n[RAW OCR Per Cell]", rawOcr.sort().join("\n"));
+    }
+
+    const logText = logLines.join("\n");
+    await navigator.clipboard.writeText(logText);
+  } catch (e) {
+    showToast("Error copiando log");
+    console.error(e);
+  }
+};
+
 let liveStream = null;
 let isStartingSession = false;
 
@@ -135,6 +165,38 @@ globalThis.saveLiveInventory = () => {
   saveAppState();
 
   if (globalThis.renderInventory) globalThis.renderInventory();
+};
+
+/**
+ * Triggers a manual, high-precision inventory grid scan.
+ */
+globalThis.manualPrecisionScan = async () => {
+  if (!liveStream?.active) return showToast("START SCANNER FIRST");
+  state.isPrecisionScanActive = true;
+  showToast("ESCANEANDO PÁGINA...");
+
+  const video = document.getElementById("live-video");
+  const snapshot = document.createElement("canvas");
+  snapshot.width = video.videoWidth; snapshot.height = video.videoHeight;
+  snapshot.getContext("2d").drawImage(video, 0, 0);
+
+  await ScannerService.processInventoryGrid(snapshot, video.videoWidth, video.videoHeight, video.videoHeight / 1080);
+  state.isPrecisionScanActive = false;
+};
+
+/**
+ * Toggles the auto-scan mode when scrolling in the inventory.
+ */
+globalThis.toggleAutoScrollScan = () => {
+  state.autoScanEnabled = !state.autoScanEnabled;
+  const btn = document.getElementById("btn-auto-scan");
+  if (btn) {
+    btn.dataset.active = state.autoScanEnabled ? "1" : "0";
+    btn.style.color = state.autoScanEnabled ? "#00ff78" : "#4a7a5a";
+    btn.style.borderColor = state.autoScanEnabled ? "#00ff78" : "rgba(0,255,120,0.25)";
+    btn.style.background = state.autoScanEnabled ? "rgba(0,255,120,0.15)" : "rgba(0,255,120,0.06)";
+  }
+  showToast(state.autoScanEnabled ? "AUTO-SCAN ACTIVADO" : "AUTO-SCAN DESACTIVADO");
 };
 
 // Global exports for UI button interactions

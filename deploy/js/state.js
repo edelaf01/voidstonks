@@ -25,6 +25,8 @@ Object.assign(rawState, {
   showAllFarms: false,
   primeInventory: {},
   primeManifest: [],
+  autoScanEnabled: false,
+  isPrecisionScanActive: false,
   autoSyncRewards: true,
   autoCopyScanResults: false,
   visionSettings: {
@@ -49,10 +51,9 @@ Object.assign(rawState, {
   }
 });
 
-// Proxy global para mantener retrocompatibilidad de lectura/escritura mutativa
 export const state = new Proxy(rawState, {
   get(target, prop) {
-    if (prop === "subscribe") return subscribe; // Permite state.subscribe('x', fn)
+    if (prop === "subscribe") return subscribe;
     return target[prop];
   },
   set(target, prop, value) {

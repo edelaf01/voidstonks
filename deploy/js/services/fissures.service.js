@@ -10,6 +10,10 @@ export async function fetchBestFissures() {
         if (!res.ok) throw new Error("Error al conectar con el Worldstate");
 
         const fissures = await res.json();
+        if (!Array.isArray(fissures)) {
+            throw new TypeError("El Worldstate no ha devuelto un array válido de fisuras.");
+        }
+
         const now = new Date();
         const fastMissions = new Set(["Capture", "Extermination", "Rescue", "Void Cascade"]);
 

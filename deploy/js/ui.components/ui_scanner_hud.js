@@ -13,7 +13,7 @@ export const ScannerHUD = {
         if (contextType === "INVENTORY") {
             if (hud) hud.style.display = "block";
             this.setUIBadge(badge, sh.statusInventory, "#f1c40f", "rgba(241,196,15,0.4)", "rgba(241,196,15,0.1)");
-            
+
             const msgEl = document.getElementById("live-inv-msg");
             if (msgEl) msgEl.innerText = sh.statusIdle;
         } else {
@@ -39,6 +39,14 @@ export const ScannerHUD = {
         if (counter) counter.textContent = count > 0 ? `FRAME ${count}` : "";
     },
 
+    updateDebugSnapshot(dataUrl) {
+        const img = document.getElementById("live-debug-snapshot-img");
+        if (img) {
+            img.src = dataUrl;
+            img.style.display = "block";
+        }
+    },
+
     updateScrollStatus(status, count = 0) {
         const scrollGuide = document.getElementById("live-scroll-guide");
         if (!scrollGuide) return;
@@ -52,5 +60,39 @@ export const ScannerHUD = {
             const doneDesc = sh.autoScanDoneDesc.replace("{count}", count);
             scrollGuide.innerHTML = `<div style="color:#00ff78;font-weight:800;font-size:0.82em;">${sh.autoScanDone}</div><div style="color:#506070;font-size:0.75em;margin-top:3px;">${doneDesc}</div>`;
         }
+    },
+
+    updateDetectedItems(sessionInventory) {
+        const listContainer = document.getElementById("live-inventory-items-list");
+        const countEl = document.getElementById("live-inv-count");
+        const hud = document.getElementById("inv-hud");
+
+        if (countEl) countEl.innerText = sessionInventory.size;
+        if (!listContainer) return;
+
+        if (sessionInventory.size > 0 && hud && hud.style.display === "none") {
+            hud.style.display = "block";
+        }
+        const items = Array.from(sessionInventory.entries()).map(([name, qty]) => ({ name, qty }));
+        items.sort((a, b) => a.name.localeCompare(b.name));
+
+        if (items.length === 0) {
+            const sh = TEXTS[state.currentLang]?.scannerHUD;
+            listContainer.innerHTML = `<div style="text-align:center;color:#444;font-size:0.75em;padding:20px 0;">${sh?.lblEmpty || "PRESS SCAN TO START"}</div>`;
+            return;
+        }
+
+        listContainer.innerHTML = items.map(item => {
+            const shortName = item.name.replace(/PRIME/gi, "").trim();
+            return `
+                <div style="display:flex;justify-content:space-between;align-items:center;
+                    background:rgba(0,229,255,0.04);padding:5px 8px;border-radius:4px;
+                    border-left:2px solid rgba(0,229,255,0.4);
+                    font-size:0.78em;gap:6px;">
+                    <span style="color:#ddd;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:190px;">${shortName}</span>
+                    <span style="color:#f1c40f;font-weight:900;flex-shrink:0;">×${item.qty}</span>
+                </div>
+            `;
+        }).join("");
     }
 };

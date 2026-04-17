@@ -30,7 +30,7 @@ export const OCRRepository = {
                 const createBadgeWorker = async () => {
                     const w = await tess.createWorker("eng", 1);
                     await w.setParameters({
-                        tessedit_char_whitelist: " 0123456789",
+                        tessedit_char_whitelist: " 0123456789xX",
                         tessedit_pageseg_mode: "7",
                         user_defined_dictionary_priority: "1",
                     });
@@ -41,11 +41,13 @@ export const OCRRepository = {
                     createStandardWorker(),
                     createStandardWorker(),
                     createStandardWorker(),
+                    createBadgeWorker(),
+                    createBadgeWorker(),
                     createBadgeWorker()
                 ]);
 
                 this.workers = [results[0], results[1], results[2]];
-                this.badgeWorkers = [results[3], results[3], results[3]];
+                this.badgeWorkers = [results[3], results[4], results[5]];
 
                 return true;
             } catch (e) {

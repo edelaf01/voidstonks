@@ -273,38 +273,79 @@ export const OCRService = {
 
     async extractCellQuantity(worker, badgeCanvas) {
         const { data: { words } } = await OCRRepository.recognize(worker, badgeCanvas);
-        if (!words) return 1;
+        if (!words) return { qty: 1, raw: "" };
         const badgeNums = words.filter((w) => /\d/.test(w.text));
-        if (badgeNums.length === 0) return 1;
+        
+        const rawTexts = words.map(w => w.text).join(" ");
+
+        if (badgeNums.length === 0) return { qty: 1, raw: rawTexts };
 
         badgeNums.sort((a, b) => b.bbox.x0 - a.bbox.x0);
         const pureDigit = badgeNums[0].text.replaceAll(/\D/g, "");
         if (pureDigit) {
             const val = Number.parseInt(pureDigit);
-            return (val > 1 && val < 1000) ? val : 1;
+            return { qty: (val > 1 && val < 1000) ? val : 1, raw: rawTexts };
         }
-        return 1;
+        return { qty: 1, raw: rawTexts };
     },
 
     getValidItemMatch(combinedText) {
         if (!this.cachedDbItems.length) this.initMatcherData();
-        let bestItem = null;
-        let highestRatio = 0;
+        
+        const textWords = Array.isArray(combinedText) ? combinedText : combinedText.split(/\s+/);
+        
+        if (textWords.length === 0) return null;
 
-        for (const dbItem of this.cachedDbItems) {
-            const searchTokens = dbItem.searchWords;
-            let matchScore = 0;
-            searchTokens.forEach(token => {
-                if (combinedText.includes(token)) matchScore++;
-            });
-            const ratio = matchScore / searchTokens.length;
-            if (ratio > highestRatio) {
-                highestRatio = ratio;
-                bestItem = dbItem;
+        const isOptionalBlueprint = (targetComp, prevWordDB) => {
+            if (targetComp !== "BLUEPRINT") return false;
+            return ["NEUROPTICS", "SYSTEMS", "CHASSIS", "HARNESS", "WINGS", "CARAPACE", "CEREBRUM", "FORMA"].includes(prevWordDB);
+        };
+
+        const isFirstWordMatch = (ocrStr, dbFirstWord) => {
+            const cleanOCR = ocrStr.toUpperCase().replaceAll(/[^A-Z0-9]/g, "");
+            const cleanDB = dbFirstWord.toUpperCase().replaceAll(/[^A-Z0-9]/g, "");
+            if (cleanOCR === cleanDB) return true;
+            if (cleanOCR.length < 3 || cleanDB.length < 3) return cleanOCR === cleanDB;
+            const similarityThreshold = dbFirstWord.length <= 3 ? 0.8 : 0.75;
+            return this.getSimilarity(cleanOCR, cleanDB) >= similarityThreshold;
+        };
+
+        const attemptItemMatch = (startIndex, item, lookAheadLimit, ocrWords) => {
+            const matchedIndices = [startIndex];
+            let currentPos = startIndex;
+            for (let j = 1; j < item.searchWords.length; j++) {
+                const targetComp = item.searchWords[j];
+                let found = false;
+                for (let dist = 1; dist <= lookAheadLimit; dist++) {
+                    const nextIdx = currentPos + dist;
+                    if (nextIdx >= ocrWords.length) continue;
+                    if (this.getSimilarity(ocrWords[nextIdx].replaceAll(/[^A-Z]/g, ""), targetComp) >= 0.70) {
+                        matchedIndices.push(nextIdx);
+                        currentPos = nextIdx;
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found && !isOptionalBlueprint(targetComp, item.searchWords[j - 1])) return null;
+            }
+            return matchedIndices;
+        };
+
+        let bestItem = null;
+        let longestMatch = 0;
+
+        for (const item of this.cachedDbItems) {
+            for (let i = 0; i < textWords.length; i++) {
+                if (isFirstWordMatch(textWords[i], item.firstWord)) {
+                    const matched = attemptItemMatch(i, item, 4, textWords);
+                    if (matched && matched.length > longestMatch) {
+                        longestMatch = matched.length;
+                        bestItem = item;
+                    }
+                }
             }
         }
-
-        if (!bestItem || highestRatio < 0.5) return null;
+        
         return bestItem;
     }
 };

@@ -95,22 +95,8 @@ export const VisionService = {
         const ctx = canvas.getContext("2d", { willReadFrequently: true });
         ctx.drawImage(video, 0, 0, width, hCropH, 0, 0, canvas.width, canvas.height);
 
-        const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const px = imgData.data;
+        this.applyClusteringThreshold(ctx, canvas.width, canvas.height);
 
-        for (let i = 0; i < px.length; i += 4) {
-            let r = px[i], g = px[i + 1], b = px[i + 2];
-            let luma = (r * 0.2126) + (g * 0.7152) + (b * 0.0722);
-            let isOrange = (r > 140 && g > 70 && b < 100 && r > b + 40);
-            let isWhiteText = (luma > 160 && Math.abs(r - g) < 30 && Math.abs(g - b) < 30);
-
-            if (isOrange || isWhiteText) {
-                px[i] = px[i + 1] = px[i + 2] = 255;
-            } else {
-                px[i] = px[i + 1] = px[i + 2] = 0;
-            }
-        }
-        ctx.putImageData(imgData, 0, 0);
         return { width, height, scale };
     },
 
@@ -120,17 +106,18 @@ export const VisionService = {
         const ctx = cvs.getContext("2d", { willReadFrequently: true });
         ctx.drawImage(snapshot, 0, 0);
 
+        // Legacy Thresholding: Look for specific Bronze/Gold text color
+        const refR = 215, refG = 165, refB = 95;
         const imgData = ctx.getImageData(0, 0, width, height);
         const px = imgData.data;
-        const refR = 215, refG = 165, refB = 95;
-        const tolSq = 90 * 90;
-
         for (let i = 0; i < px.length; i += 4) {
-            let dr = px[i] - refR, dg = px[i + 1] - refG, db = px[i + 2] - refB;
-            if ((dr * dr + dg * dg + db * db) < tolSq) {
-                px[i] = px[i + 1] = px[i + 2] = 0;
+            let r = px[i], g = px[i + 1], b = px[i + 2];
+            const dist = Math.sqrt(Math.pow(r - refR, 2) + Math.pow(g - refG, 2) + Math.pow(b - refB, 2));
+
+            if (dist < 90) {
+                px[i] = px[i + 1] = px[i + 2] = 0; // Text -> Black
             } else {
-                px[i] = px[i + 1] = px[i + 2] = 255;
+                px[i] = px[i + 1] = px[i + 2] = 255; // Background -> White
             }
         }
         ctx.putImageData(imgData, 0, 0);
@@ -151,35 +138,96 @@ export const VisionService = {
     },
 
     createBadgeCanvas(snapshot, cell, grid) {
-        const badgeW = Math.floor(grid.cellW * 0.35);
-        const badgeH = Math.floor(grid.cellH * 0.2);
+        // Skip the far-left tick by shifting the crop X offset by ~10% of cell width
+        const bdgOffsetX = Math.floor(grid.cellW * 0.10);
+        const copyW = Math.floor(grid.cellW * 0.25) - bdgOffsetX;
+
+        const badgeH = Math.floor(grid.cellH * 0.11);
         const BADGE_SCALE = 3;
 
         const tempCvs = document.createElement('canvas');
-        tempCvs.width = badgeW; tempCvs.height = badgeH;
+        tempCvs.width = copyW; tempCvs.height = badgeH;
         const tCtx = tempCvs.getContext('2d');
-        tCtx.drawImage(snapshot, cell.sx, cell.sy, badgeW, badgeH, 0, 0, badgeW, badgeH);
+        tCtx.drawImage(snapshot, cell.sx + bdgOffsetX, cell.sy, copyW, badgeH, 0, 0, copyW, badgeH);
 
         // Simplified Clustering ported from scanner_vision.js
-        this.applyClusteringToBadge(tCtx, badgeW, badgeH);
+        this.applyClusteringToBadge(tCtx, copyW, badgeH);
 
         const badgeCvs = document.createElement('canvas');
-        badgeCvs.width = badgeW * BADGE_SCALE;
+        badgeCvs.width = copyW * BADGE_SCALE;
         badgeCvs.height = badgeH * BADGE_SCALE;
         const bCtx = badgeCvs.getContext('2d');
         bCtx.imageSmoothingEnabled = false;
-        bCtx.drawImage(tempCvs, 0, 0, badgeW, badgeH, 0, 0, badgeCvs.width, badgeCvs.height);
+        bCtx.drawImage(tempCvs, 0, 0, copyW, badgeH, 0, 0, badgeCvs.width, badgeCvs.height);
         return badgeCvs;
     },
 
     applyClusteringToBadge(ctx, w, h) {
         const imgData = ctx.getImageData(0, 0, w, h);
         const px = imgData.data;
-        // Logic similar to scanner_vision.js:createBadgeCanvas (K-means)
-        // I'll use a slightly simplified version for brevity in first pass
+        const samples = [];
+        for (let i = 0; i < px.length; i += 8) {
+            samples.push([px[i], px[i + 1], px[i + 2]]);
+        }
+        let c1 = [0, 0, 0], c2 = [255, 255, 255], minLum = 255, maxLum = 0;
+        for (let s of samples) {
+            let l = 0.299 * s[0] + 0.587 * s[1] + 0.114 * s[2];
+            if (l < minLum) { minLum = l; c1 = [...s]; }
+            if (l > maxLum) { maxLum = l; c2 = [...s]; }
+        }
+        for (let iter = 0; iter < 4; iter++) {
+            let s1 = [0, 0, 0], s2 = [0, 0, 0], n1 = 0, n2 = 0;
+            for (let s of samples) {
+                let d1 = Math.abs(s[0] - c1[0]) + Math.abs(s[1] - c1[1]) + Math.abs(s[2] - c1[2]);
+                let d2 = Math.abs(s[0] - c2[0]) + Math.abs(s[1] - c2[1]) + Math.abs(s[2] - c2[2]);
+                if (d1 < d2) { s1[0] += s[0]; s1[1] += s[1]; s1[2] += s[2]; n1++; }
+                else { s2[0] += s[0]; s2[1] += s[1]; s2[2] += s[2]; n2++; }
+            }
+            if (n1 > 0) { c1[0] = s1[0] / n1; c1[1] = s1[1] / n1; c1[2] = s1[2] / n1; }
+            if (n2 > 0) { c2[0] = s2[0] / n2; c2[1] = s2[1] / n2; c2[2] = s2[2] / n2; }
+        }
+        let l1 = 0.299 * c1[0] + 0.587 * c1[1] + 0.114 * c1[2], l2 = 0.299 * c2[0] + 0.587 * c2[1] + 0.114 * c2[2];
+        let textC = l2 > l1 ? c2 : c1, bgC = l2 > l1 ? c1 : c2;
         for (let i = 0; i < px.length; i += 4) {
-            let luma = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
-            px[i] = px[i + 1] = px[i + 2] = (luma > 150) ? 0 : 255;
+            let r = px[i], g = px[i + 1], b = px[i + 2];
+            let dT = Math.abs(r - textC[0]) + Math.abs(g - textC[1]) + Math.abs(b - textC[2]);
+            let dB = Math.abs(r - bgC[0]) + Math.abs(g - bgC[1]) + Math.abs(b - bgC[2]);
+            px[i] = px[i + 1] = px[i + 2] = (dT < dB * 1.5) ? 0 : 255;
+        }
+        ctx.putImageData(imgData, 0, 0);
+    },
+
+    applyClusteringThreshold(ctx, w, h) {
+        const imgData = ctx.getImageData(0, 0, w, h);
+        const px = imgData.data;
+        const samples = [];
+        for (let i = 0; i < px.length; i += 32) {
+            samples.push([px[i], px[i + 1], px[i + 2]]);
+        }
+        let c1 = [0, 0, 0], c2 = [255, 255, 255], minL = 255, maxL = 0;
+        for (const s of samples) {
+            let l = 0.299 * s[0] + 0.587 * s[1] + 0.114 * s[2];
+            if (l < minL) { minL = l; c1 = [...s]; }
+            if (l > maxL) { maxL = l; c2 = [...s]; }
+        }
+        for (let iter = 0; iter < 4; iter++) {
+            let s1 = [0, 0, 0], s2 = [0, 0, 0], n1 = 0, n2 = 0;
+            for (const s of samples) {
+                let d1 = Math.abs(s[0] - c1[0]) + Math.abs(s[1] - c1[1]) + Math.abs(s[2] - c1[2]);
+                let d2 = Math.abs(s[0] - c2[0]) + Math.abs(s[1] - c2[1]) + Math.abs(s[2] - c2[2]);
+                if (d1 < d2) { s1[0] += s[0]; s1[1] += s[1]; s1[2] += s[2]; n1++; }
+                else { s2[0] += s[0]; s2[1] += s[1]; s2[2] += s[2]; n2++; }
+            }
+            if (n1 > 0) { c1[0] = s1[0] / n1; c1[1] = s1[1] / n1; c1[2] = s1[2] / n1; }
+            if (n2 > 0) { c2[0] = s2[0] / n2; c2[1] = s2[1] / n2; c2[2] = s2[2] / n2; }
+        }
+        let l1 = 0.299 * c1[0] + 0.587 * c1[1] + 0.114 * c1[2], l2 = 0.299 * c2[0] + 0.587 * c2[1] + 0.114 * c2[2];
+        let textC = l2 > l1 ? c2 : c1, bgC = l2 > l1 ? c1 : c2;
+        for (let i = 0; i < px.length; i += 4) {
+            let r = px[i], g = px[i + 1], b = px[i + 2];
+            let dT = Math.abs(r - textC[0]) + Math.abs(g - textC[1]) + Math.abs(b - textC[2]);
+            let dB = Math.abs(r - bgC[0]) + Math.abs(g - bgC[1]) + Math.abs(b - bgC[2]);
+            px[i] = px[i + 1] = px[i + 2] = (dT < dB * 1.2) ? 0 : 255;
         }
         ctx.putImageData(imgData, 0, 0);
     },
