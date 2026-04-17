@@ -1,5 +1,6 @@
 import { MobileScanner } from "./mobile_scanner.js";
-import { initScannerMatcherData, initOcrWorkers } from "./scanner_ocr.js";
+import { OCRRepository } from "./repositories/ocr.repository.js";
+import { OCRService } from "./services/ocr.service.js";
 import { showToast } from "./ui.components/ui_components.js";
 
 
@@ -13,25 +14,21 @@ export class MobileDebugScanner extends MobileScanner {
     }
 
     async start() {
-        initScannerMatcherData();
+        OCRService.initMatcherData();
+        await OCRRepository.warmUp();
 
-        const mainScanner = globalThis.mobileScanner;
-        if (mainScanner?.worker1) {
-            this.worker1 = mainScanner.worker1;
-            this.worker2 = mainScanner.worker2;
-            this.worker3 = mainScanner.worker3;
-        } else {
-            showToast("Initializing OCR...");
-            const workers = await initOcrWorkers();
-            this.worker1 = workers[0]; this.worker2 = workers[1]; this.worker3 = workers[2];
+        try {
+            await super.start();
+        } catch (e) {
+            console.warn("MobileDebugScanner: Camera blocked/unavailable. Loading UI anyway.", e);
+            this.createOverlay();
+            showToast("Camera blocked - Use SCREEN mode", "warning");
         }
-
-        await super.start();
 
         this.initDebugUI();
         this.makeGuideInteractive();
 
-        this.onDiscoveryFrame = (matches, vidW, vidH, cY) => {
+        this.onDiscoveryFrame = (matches, vidW, vidH, cY, cvs) => {
             this.frameCounter++;
             this.detectionCount = matches.length;
 
@@ -47,6 +44,31 @@ export class MobileDebugScanner extends MobileScanner {
                 elD.innerText = this.detectionCount;
                 elD.style.color = this.detectionCount > 0 ? "#00ff78" : "#f1c40f";
             }
+
+            // Draw to Live Preview
+            if (cvs && this.livePreview) {
+                const ctx = this.livePreview.getContext("2d");
+                this.livePreview.width = cvs.width;
+                this.livePreview.height = cvs.height;
+                ctx.drawImage(cvs, 0, 0);
+            }
+
+            // Log to Live Log
+            if (this.liveLog) {
+                if (matches.length > 0) {
+                    const entry = document.createElement("div");
+                    entry.style.cssText = "padding:2px 0; border-bottom:1px solid #222;";
+                    entry.innerHTML = `<span style="color:#00ff78;">[${new Date().toLocaleTimeString()}]</span> ${matches.map(m => m.name).join(", ")}`;
+                    this.liveLog.prepend(entry);
+                } else if (this.frameCounter % 10 === 0) {
+                    // Show heartbeat every 10 frames if empty to show it's working
+                    const entry = document.createElement("div");
+                    entry.style.cssText = "padding:2px 0; border-bottom:1px solid #111; opacity:0.3; font-style:italic;";
+                    entry.innerHTML = `<span>[${new Date().toLocaleTimeString()}]</span> Scanning...`;
+                    this.liveLog.prepend(entry);
+                }
+                if (this.liveLog.children.length > 30) this.liveLog.lastElementChild.remove();
+            }
         };
     }
 
@@ -59,7 +81,7 @@ export class MobileDebugScanner extends MobileScanner {
             position: fixed; top: 0; right: 0; width: 320px; height: 100vh;
             background: rgba(10, 15, 25, 0.98); border-left: 2px solid #00e5ff;
             color: #e0e0e0; font-family: 'Segoe UI', system-ui, sans-serif; font-size: 10px;
-            z-index: 100015; display: flex; flex-direction: column; 
+            z-index: 1000015; display: flex; flex-direction: column; 
             box-shadow: -10px 0 30px rgba(0,0,0,0.8); backdrop-filter: blur(20px);
             pointer-events: auto;
         `;
@@ -209,31 +231,6 @@ export class MobileDebugScanner extends MobileScanner {
         this.liveLog = document.getElementById("debug-live-log");
     }
 
-    onDiscoveryFrame(matches, w, h, sy) {
-        if (this.liveLog && matches.length > 0) {
-            const entry = document.createElement("div");
-            entry.style.cssText = "padding:2px 0; border-bottom:1px solid #222;";
-            entry.innerHTML = `<span style="color:#00ff78;">[${new Date().toLocaleTimeString()}]</span> ${matches.map(m => m.text).join(", ")}`;
-            this.liveLog.prepend(entry);
-            if (this.liveLog.children.length > 30) this.liveLog.lastElementChild.remove();
-
-            if (state.visionSettings.autoCalibrate) {
-                const best = matches.find(m => m.confidence > 80);
-                if (best?.bbox) {
-                    const canvas = this.liveOriginal;
-                    if (canvas && canvas.width > 0) {
-                        const { x0, y0, x1, y1 } = best.bbox;
-                        const hsv = OpenCVEngine.sampleTextColor(canvas, x0, y0, x1, y1);
-                        if (hsv) {
-                            globalThis.updateVisionSetting('targetColor', hsv);
-                            const el = document.getElementById("debug-semantic-color");
-                            if (el) el.innerText = `HSV: ${hsv.join(',')} `;
-                        }
-                    }
-                }
-            }
-        }
-    }
 
     toggleAutoCalibrate() {
         const val = !state.visionSettings.autoCalibrate;
@@ -401,66 +398,61 @@ export class MobileDebugScanner extends MobileScanner {
         const frameId = document.getElementById("debug-frame-count");
         if (frameId) frameId.innerText = this.frameCounter;
 
-        const results = await super.captureAndProcess();
+        await super.captureAndProcess();
 
-        const detectId = document.getElementById("debug-detect-count");
-        if (detectId) detectId.innerText = results ? results.length : 0;
     }
 
+    showResults(results) {
+        super.showResults(results);
+        this.logScanSession({ strips: results });
+    }
     logScanSession(sessionData) {
         if (!this.debugPanel) return;
-
-        if (this.debugPanel.querySelector('div[style*="padding-top:40px;"]')) {
-            this.debugPanel.innerHTML = "";
-        }
 
         const sessionEntry = document.createElement("div");
         sessionEntry.style.cssText = `
         background: rgba(10, 15, 25, 0.6); border: 1px solid rgba(0, 229, 255, 0.2);
-        border - radius: 12px; overflow: hidden; margin - bottom: 20px; animation: fadeIn 0.4s ease - out;
-        box - shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+        border-radius: 12px; overflow: hidden; margin-bottom: 20px; animation: fadeIn 0.4s ease-out;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
         `;
 
         let itemsHtml = "";
         const strips = sessionData.strips || [];
-        strips.forEach(res => {
-            const itemName = res.matches && res.matches.length > 0 ? res.matches.map(m => m.text).join(", ") : "SIN DETECCIÓN";
-            const matchColor = (res.matches && res.matches.length > 0) ? "#00ff78" : "#888";
-            const imgUrl = res.originalUrl || "";
+
+        // Ordenamos los bloques del 1 al 4
+        strips.sort((a, b) => a.idx - b.idx);
+
+        strips.forEach((res) => {
+            const rawOcrText = (res.rawText || "").replaceAll("\n", " ").trim();
+            const hasMatches = res.matches && res.matches.length > 0;
+            const itemNames = hasMatches ? res.matches.map(m => m.name).join(", ") : "NADA DETECTADO";
+            const matchColor = hasMatches ? "#00ff78" : "#f1c40f";
 
             itemsHtml += `
             <div style="padding:10px; border-top:1px solid rgba(255,255,255,0.05); background:rgba(255,255,255,0.02);">
-                    <div style="display:flex; justify-content:space-between; margin-bottom:8px; font-size:9px;">
-                        <span style="color:${matchColor}; font-weight:800;">[STRIP ${res.idx + 1}] ${itemName}</span>
-                        <button onclick='globalThis.currentScanner.showPartPicker("${itemName.replace(/"/g, "&quot;")}", ${res.idx}, ${JSON.stringify(res.ocrTokens || [])})' 
-                                style="background:#00e5ff1a; border:1px solid #00e5ff4d; color:#00e5ff; font-size:7px; padding:2px 6px; border-radius:4px; cursor:pointer; font-weight:900;">
-                          ✎ CORREGIR
-                        </button>
+                    <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                        <span style="color:#00e5ff; font-weight:800; font-size:10px;">[BLOQUE ${res.idx + 1}]</span>
                     </div>
-                    <div style="display:grid; grid-template-columns: 1fr; gap:6px; margin-bottom:8px;">
-                        <img src="${imgUrl}" style="width:100%; border:1px solid rgba(0,229,255,0.3); border-radius:4px;" />
+                    <div style="font-size:8px; color:#aaa; margin-bottom:6px; font-family:monospace; background:#111; padding:4px; border-radius:4px;">
+                        RAW OCR: ${rawOcrText || "Vacío..."}
                     </div>
-                    <div style="color:#555; font-size:8px; font-family:monospace;">OCR RAW: ${res.text || "—"}</div>
-                </div>
+                    <div style="display:flex; justify-content:space-between; font-size:9px;">
+                        <span style="color:${matchColor}; font-weight:800;">-> MATCH: ${itemNames}</span>
+                    </div>
+                    <img src="${res.imgUrl}" style="width:100%; border:1px solid rgba(0,229,255,0.3); border-radius:4px; margin-top:6px;" />
+            </div>
             `;
         });
 
         sessionEntry.innerHTML = `
-            <div style="background:rgba(0, 229, 255, 0.1); padding:8px 12px; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid rgba(0, 229, 255, 0.2);">
-                <span style="font-weight:900; color:#00e5ff; letter-spacing:1px; font-size:10px;">SCAN HORA ${sessionData.time}</span>
-                <span style="font-size:8px; opacity:0.6;">FRAME #${this.frameCounter}</span>
+            <div style="background:rgba(0, 229, 255, 0.1); padding:8px 12px; display:flex; justify-content:space-between; align-items:center;">
+                <span style="font-weight:900; color:#00e5ff; font-size:10px;">SCAN HORA ${sessionData.time}</span>
             </div>
             ${itemsHtml}
         `;
 
         this.debugPanel.prepend(sessionEntry);
         if (this.debugPanel.children.length > 15) this.debugPanel.lastChild.remove();
-
-        if (sessionData.results) {
-            this.detectionCount += sessionData.results.length;
-            const dId = document.getElementById("debug-detect-count");
-            if (dId) dId.innerText = this.detectionCount;
-        }
     }
 
     async switchToScreen() {

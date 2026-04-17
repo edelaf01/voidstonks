@@ -86,14 +86,15 @@ function renderRelicStatusBadge(relicName) {
   const statusBadge = document.getElementById("relic-status-badge");
   if (!statusBadge) return;
   const status = state.relicStatusDB[relicName] || "vaulted";
+  const t = TEXTS[state.currentLang];
   statusBadge.className = `badge ${status}`;
   statusBadge.style.display = "inline-block";
   if (status === "active" || status === "aya") {
-    statusBadge.innerText = status === "aya" ? "AYA (RESURGENCE)" : "ACTIVE";
+    statusBadge.innerText = status === "aya" ? "AYA (RESURGENCE)" : (t.active || "ACTIVE");
     statusBadge.dataset.tooltipHtml = globalThis.getRelicDropTooltip(relicName);
   } else {
-    statusBadge.innerText = "VAULTED";
-    statusBadge.dataset.tooltip = TEXTS[state.currentLang].vaulted;
+    statusBadge.innerText = t.vaulted || "VAULTED";
+    statusBadge.dataset.tooltip = t.vaulted;
   }
 }
 //TODO Too complex , 16 out of 15 close
@@ -152,7 +153,7 @@ function createRelicDropRow(item) {
     
     ${!isUntradable
       ? `<div class="actions-col-wrapper" style="margin-right:10px;">
-        <a href="https://warframe.market/items/${getSlug(item.name)}" target="_blank" class="market-btn-mini" onclick="event.stopPropagation()" title="Warframe Market">MARKET</a>
+        <a href="https://warframe.market/items/${getSlug(item.name)}" target="_blank" class="market-btn-mini" onclick="event.stopPropagation()" title="Warframe Market">${state.currentLang === "es" ? "MERCADO" : "MARKET"}</a>
         <button class="mini-action-btn" data-action="modify-prime-part" data-part="${escapeHTML(item.name)}" data-amount="1" onclick="event.stopPropagation(); requestAnimationFrame(() => { globalThis.modifyPrimePart('${escapeHTML(item.name)}', 1); showToast('${escapeHTML(item.name)} +1'); })">+1</button>
       </div>`
       : `<div class="actions-col-wrapper" style="margin-right:10px;"></div>`
@@ -265,9 +266,10 @@ export function renderRelicsForPartInline(partName, container) {
       const relicEraImg = `<span class="relic-era-icon ${tier}" style="flex-shrink:0; transform:scale(1.3); margin: 4px;"></span>`;
 
       const vaultStatus = state.relicStatusDB ? state.relicStatusDB[info.relic] : null;
+      const t = TEXTS[state.currentLang];
       const isVaulted = vaultStatus === "vaulted";
       const statusClass = isVaulted ? "vaulted" : "active";
-      const statusText = isVaulted ? "VAULTED" : "ACTIVE";
+      const statusText = isVaulted ? (t.vaulted || "VAULTED") : (t.active || "ACTIVE");
       const vaultHtml = `<span class="status-badge ${statusClass}" style="font-size:0.65em; padding:2px 6px; border-radius:4px;">${statusText}</span>`;
       //i should be using this but apparently not
       //const averages = state.relicAverages ? state.relicAverages[info.relic] : null;

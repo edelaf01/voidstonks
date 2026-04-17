@@ -222,6 +222,7 @@
               border: 1px solid rgba(0, 229, 255, 0.3);
               color: #00e5ff;
             ">IDLE</span>
+
         <button id="btn-debug-toggle" onclick="globalThis.toggleScannerDebug()"
           title="Toggle debug mode (shows OCR diagnostic image)" style="
               background: none;
@@ -621,7 +622,6 @@
           </label>
           <span class="help-icon" style="color: #555; cursor: help; font-size: 0.8rem;"
             data-tooltip="SI: Copia automáticamente los resultados al portapapeles después de cada escaneo en formato chat de Warframe.">ⓘ</span>
-          <!-- V254: Copy Results to Clipboard -->
           <button class="orokin-btn-mini" onclick="globalThis.copyScanResultsToClipboard()"
             style="background: rgba(0, 229, 255, 0.1); border: 1px solid rgba(0, 229, 255, 0.4); color: #00e5ff; font-size: 10px; padding: 3px 10px; border-radius: 4px; font-weight: 800; cursor: pointer; margin-left: 10px; transition: all 0.2s; white-space: nowrap;">
             📋 COPY
@@ -631,8 +631,13 @@
       </div>
 
       <div id="rewards-dbg-text" class="hidden"
-        style="background:#000; color:#ff9800; font-family:monospace; font-size:11px; padding:10px; margin:0 20px 10px; border:1px solid #333; max-height:100px; overflow-y:auto; border-radius:4px;">
-        RAW OCR: <span id="rewards-raw-ocr-content">...</span>
+        style="background:#000; color:#ff9800; font-family:monospace; font-size:11px; padding:10px; margin:0 20px 10px; border:1px solid #333; max-height:160px; overflow-y:auto; border-radius:4px; line-height:1.4;">
+        <div style="color: #555; border-bottom: 1px solid #222; margin-bottom: 5px; padding-bottom: 2px;">SYSTEM
+          DIAGNOSTICS</div>
+        <div id="rewards-raw-ocr-content"
+          style="white-space: pre-wrap; word-break: break-all; display: flex; flex-direction: column; gap: 2px;">
+          ...
+        </div>
       </div>
 
       <div class="scan-image-container">
@@ -783,7 +788,24 @@
           </div>
           <span class="arrow-indicator">▼</span>
         </div>
-        <!--<button onclick="import('./js/mobile_debug_scanner.js').then(m => globalThis.startDebugScanner())"
+        <!-- <button id="btn-pip-toggle" onclick="globalThis.togglePiP && globalThis.togglePiP()" title="Open Overlay (PiP)"
+          style="
+              display: none;
+              background: rgba(243,156,18,0.08);
+              border: 1px solid rgba(243,156,18,0.4);
+              color: #f39c12;
+              font-size: 0.7em;
+              font-weight: 800;
+              padding: 5px 10px;
+              cursor: pointer;
+              border-radius: 6px;
+              letter-spacing: 1px;
+              transition: all 0.2s;
+              white-space: nowrap;
+            ">
+          PIP
+        </button>
+        <button onclick="import('./js/mobile_debug_scanner.js').then(m => globalThis.startDebugScanner())"
           style="margin-left: 8px; background: rgba(0,229,255,0.15); border: 1px solid #00e5ff; color: #00e5ff; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 10px; font-weight: 800; white-space: nowrap; display: flex; align-items: center; gap: 5px; transition: all 0.2s;">
           <span style="font-size:12px;"></span> DEBUG
         </button>-->

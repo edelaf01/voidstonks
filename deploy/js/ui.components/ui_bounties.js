@@ -4,70 +4,82 @@ import { fetchActiveBounties } from "../api.js";
 
 let bountyInterval = null;
 
-function getBountyMissionHtml(m, index, key, color) {
-  const uniqueId = `drops-${key}-${index}`.replaceAll(/\s+/g, "");
-  const opacity = m.isOptimal ? "1" : "0.7";
-  let tierColor = "#888";
-  let tierLabel = m.tier;
+const TIER_COLORS = {
+  NARMER: "#ffaa00",
+  6: "#ff4d4d",
+  5: "#ffcc00",
+};
 
-  if (m.tier === "NARMER") {
-    tierColor = "#ffaa00";
-  } else if (m.tier === 6) {
-    tierColor = "#ff4d4d";
-  } else if (m.tier === 5) {
-    tierColor = "#ffcc00";
-  } else if (m.tier >= 3) {
-    tierColor = "#00ccff";
-  }
+function getTierColor(tier) {
+  return TIER_COLORS[tier] ?? (tier >= 3 ? "#00ccff" : "#888");
+}
 
-  let levelDisplay = "";
+function getLevelDisplay(m) {
   if (m.isDual) {
-    levelDisplay = `
+    return `
       <div style="display: flex; align-items: center; gap: 8px; font-size: 0.82em; margin-top: 4px; flex-wrap: wrap;">
         <span style="color: #aaa;">Lvl ${m.level} <b style="color:#888">(+${m.standing})</b></span>
         <span style="color: #444;">|</span>
         <span style="color: #ff4d4d;">SP ${m.levelSP} <b style="color:#ff4d4d99">(+${m.standingSP})</b></span>
       </div>`;
-  } else {
-    const tag = m.isSP ? "STEEL PATH" : "NORMAL PATH";
-    const lvlColor = m.isSP ? "#ff4d4d" : "#aaa";
-    levelDisplay = `
+  }
+  const tag = m.isSP ? "STEEL PATH" : "NORMAL PATH";
+  const lvlColor = m.isSP ? "#ff4d4d" : "#aaa";
+  return `
       <div style="color: ${lvlColor}; font-weight: bold; font-size: 0.85em; margin-top: 4px;">
         ${tag} (Lvl ${m.level}) <span style="color: #888; font-weight: normal;">(+${m.standing})</span>
       </div>`;
-  }
+}
 
-  const rewardsContent = m.detailedRewards
-    ? m.detailedRewards
-      .map((stage) => {
-        const rows = stage.drops
-          .map(
-            (d) =>
-              `<div class="drop-row"><span class="drop-name ${d.name.includes("Aya") ? "aya" : ""}">${d.name}</span><span class="drop-chance">${d.chance.toFixed(2)}%</span></div>`,
-          )
-          .join("");
-        return `<div class="stage-container"><div class="stage-header">STAGE ${stage.stage}</div><div class="stage-content">${rows}</div></div>`;
-      })
-      .join("")
-    : `<ul class="drop-list">${m.rewards.map((r) => `<li class="drop-item">${r}</li>`).join("")}</ul>`;
+function getRewardsContent(m) {
+  if (!m.detailedRewards) {
+    const rewardListHtml = m.rewards.map((r) => `<li class="drop-item">${r}</li>`).join("");
+    return `<ul class="drop-list">${rewardListHtml}</ul>`;
+  }
+  return m.detailedRewards.map((stage) => {
+    const rows = stage.drops.map((d) => {
+      const ayaClass = d.name.includes("Aya") ? "aya" : "";
+      return `<div class="drop-row"><span class="drop-name ${ayaClass}">${d.name}</span><span class="drop-chance">${d.chance.toFixed(2)}%</span></div>`;
+    }).join("");
+    return `<div class="stage-container"><div class="stage-header">STAGE ${stage.stage}</div><div class="stage-content">${rows}</div></div>`;
+  }).join("");
+}
+
+function getTierBadgeHtml(m, tierColor) {
+  if (m.hideTier) return "";
+  const tierLabel = m.tier;
+  const hasBg = m.tier === 6 || m.tier === "NARMER";
+  const bg = hasBg ? "rgba(255,170,0,0.1)" : "transparent";
+  const label = tierLabel === "NARMER" ? "NARMER" : `TIER ${tierLabel}`;
+  return `<span style="color: ${tierColor}; border: 1px solid ${tierColor}44; padding: 1px 6px; font-size: 0.7em; border-radius: 3px; font-weight: 900; background: ${bg}">${label}</span>`;
+}
+
+function getBountyMissionHtml(m, index, key, color) {
+  const uniqueId = `drops-${key}-${index}`.replaceAll(/\s+/g, "");
+  const opacity = m.isOptimal ? "1" : "0.7";
+  const tierColor = getTierColor(m.tier);
+  const levelDisplay = getLevelDisplay(m);
+  const rewardsContent = getRewardsContent(m);
+  const tierBadgeHtml = getTierBadgeHtml(m, tierColor);
+  const spClass = m.isSP || m.isDual ? "is-sp" : "";
+  const optimalClass = m.isOptimal ? "optimal-farm" : "";
+  const conditionHtml = m.condition
+    ? `<div style="background: rgba(255,255,255,0.05); border-left: 3px solid #666; padding: 6px 12px; margin-top: 10px; font-size: 0.85em; color: #ccc; white-space: normal;">CHALLENGE: ${m.condition}</div>`
+    : "";
 
   return `
-    <div class="bounty-wrapper ${m.isSP || m.isDual ? "is-sp" : ""} ${m.isOptimal ? "optimal-farm" : ""}" style="opacity:${opacity};">
+    <div class="bounty-wrapper ${spClass} ${optimalClass}" style="opacity:${opacity};">
         <div class="bounty-header-row">
             <div class="bounty-info">
                <div class="bounty-type" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
                   <span style="color:var(--wf-blue); font-weight:900; font-size:0.75em; text-transform:uppercase; border-right:1px solid #444; padding-right:8px;">
                     ${m.technicalType}
                   </span>
-                  ${m.hideTier ? "" : `
-                  <span style="color: ${tierColor}; border: 1px solid ${tierColor}44; padding: 1px 6px; font-size: 0.7em; border-radius: 3px; font-weight: 900; background: ${m.tier === 6 || m.tier === "NARMER" ? "rgba(255,170,0,0.1)" : "transparent"}">
-                    ${tierLabel === "NARMER" ? "" : "TIER "}${tierLabel}
-                  </span>`
-    }
+                  ${tierBadgeHtml}
                   <span style="color: #fff; font-weight: 600; flex: 1;">${m.type}</span>
                 </div>
                 ${levelDisplay}
-                ${m.condition ? `<div style="background: rgba(255,255,255,0.05); border-left: 3px solid #666; padding: 6px 12px; margin-top: 10px; font-size: 0.85em; color: #ccc; white-space: normal;">CHALLENGE: ${m.condition}</div>` : ""}
+                ${conditionHtml}
             </div>
             <button class="bounty-rewards-btn" style="color: ${color};" onclick="document.getElementById('${uniqueId}').classList.toggle('open')">
                 VIEW REWARDS

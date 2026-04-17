@@ -8,9 +8,9 @@ export class OpenCVEngine {
 
         this.initializationPromise = new Promise((resolve) => {
             const check = () => {
-                if (globalThis.cv && globalThis.cv.getBuildInformation) {
+                if (globalThis.cv?.getBuildInformation) {
                     this.isReady = true;
-                    this.initializationPromise = null; // V205: Clear promise
+                    this.initializationPromise = null;
                     this.log("VISION ENGINE READY", "#2ecc71");
                     resolve(true);
                 } else {
@@ -41,7 +41,6 @@ export class OpenCVEngine {
     }
 
     /**
-     * V177 SEMANTIC COLOR TARGET:
      * Si conocemos el color del texto (ej: dorado de PRIME), aislamos ese rango en HSV
      * antes de binarizar. Esto destruye fondos complejos del mismo brillo pero distinto tono.
      */
@@ -89,21 +88,18 @@ export class OpenCVEngine {
 
             let whitePixels = cv.countNonZero(dst);
             if (whitePixels < (dst.rows * dst.cols) / 2) {
-                // Tesseract prefiere texto negro sobre fondo blanco
                 cv.bitwise_not(dst, dst);
             }
 
-            // MORFOLOGÍA (V206)
             if (s.dilation > 0) {
                 let M = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(s.dilation, s.dilation));
                 cv.dilate(dst, dst, M);
                 M.delete();
             }
 
-            // V218: Limpieza de Ruido (Median Blur)
             if (s.medianBlur > 0) {
                 let ksize = Math.max(1, s.medianBlur);
-                if (ksize % 2 === 0) ksize += 1; // Debe ser impar
+                if (ksize % 2 === 0) ksize += 1;
                 cv.medianBlur(dst, dst, ksize);
             }
 
@@ -117,7 +113,6 @@ export class OpenCVEngine {
                 dst.convertTo(dst, -1, s.contrast || 1.0, s.brightness || 0);
             }
 
-            // V218: Enfoque Agresivo (Sharpening Kernel)
             if (s.sharpen > 0) {
                 let kernel = cv.matFromArray(3, 3, cv.CV_32F, [
                     -1, -1, -1,
@@ -128,11 +123,9 @@ export class OpenCVEngine {
                 kernel.delete();
             }
 
-            // Corrección Gamma (Simulada si se requiere, pero convertTo suele bastar)
 
             cv.imshow(canvas, dst);
 
-            // V209: Visualización de ROIs si está activo
             if (s.showROI && canvas.id === "debug-live-preview") {
                 const boxes = this.findTextRows(canvas);
                 let ctx = canvas.getContext("2d");
@@ -162,7 +155,6 @@ export class OpenCVEngine {
     }
 
     /**
-     * V177: Sampler de color semántico.
      * Muestrea el color promedio (HSV) de los píxeles brillantes en un área con texto fiable.
      */
     static sampleTextColor(canvas, x0, y0, x1, y1) {
@@ -199,7 +191,7 @@ export class OpenCVEngine {
     }
 
     /**
-     * V208: Detecta filas de texto horizontalmente para colaboración ROI.
+     *  Detecta filas de texto horizontalmente para colaboración ROI.
      * Devuelve un array de Rects donde se concentra el texto.
      */
     static findTextRows(canvas) {
@@ -226,13 +218,11 @@ export class OpenCVEngine {
 
             for (let i = 0; i < contours.size(); i++) {
                 let r = cv.boundingRect(contours.get(i));
-                // Filtramos por tamaño razonable para una línea de recompensa
                 if (r.width > canvas.width * 0.3 && r.height > 15 && r.height < 150) {
                     rects.push(r);
                 }
             }
 
-            // Ordenar de arriba a abajo
             rects.sort((a, b) => a.y - b.y);
 
         } catch (e) {

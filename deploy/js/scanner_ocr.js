@@ -213,8 +213,8 @@ export function parseTextForRewards(ocrData) {
 
   const itemMatches = [];
 
-  const MARGIN_LEFT = imgW * 0.04;
-  const MARGIN_RIGHT = imgW * 0.18;
+  const MARGIN_LEFT = isStrip ? imgW : (imgW * 0.05);
+  const MARGIN_RIGHT = isStrip ? imgW : (imgW * 0.18);
   const wfParts = ["CHASSIS", "SYSTEMS", "NEUROPTICS", "HARNESS", "WINGS", "CARAPACE", "CEREBRUM"];
   const wpnParts = ["BARREL", "RECEIVER", "STOCK", "BLADE", "HILT", "HEAD", "MOTOR", "GRIP", "STRING", "LIMB", "LINK", "POUCH", "GUARD", "DISC", "STARS", "BAND", "BOOT"];
   //ANCHORS

@@ -8,10 +8,10 @@ const setNameCache = new Map();
 const requiredCountCache = new Map();
 
 export function getSetName(fullName) {
-  if (!fullName) return "Otros";
+  if (!fullName) return (state.currentLang === "es" ? "Otros" : "Others");
   if (setNameCache.has(fullName)) return setNameCache.get(fullName);
   const match = fullName.match(/(.*?) (Prime|Vandal|Wraith)/);
-  const res = match ? match[0].trim() : "Otros";
+  const res = match ? match[0].trim() : (state.currentLang === "es" ? "Otros" : "Others");
   setNameCache.set(fullName, res);
   return res;
 }
@@ -128,14 +128,15 @@ export function generateSetProgressTooltip(setName) {
   if (itemNames.length === 0) return "";
 
   const totalFullSets = calculateTotalFullSets(setName);
-  const setBadge = totalFullSets > 0 ? `<span style="color:var(--wf-gold-text); margin-left:8px; font-weight:normal; font-size:0.8em; background:rgba(221,169,56,0.15); border:1px solid rgba(221,169,56,0.3); padding:2px 6px; border-radius:4px; text-transform:uppercase;">(${totalFullSets} Sets)</span>` : "";
+  const setSuffix = state.currentLang === "es" ? "Sets" : (totalFullSets === 1 ? "Set" : "Sets");
+  const setBadge = totalFullSets > 0 ? `<span style="color:var(--wf-gold-text); margin-left:8px; font-weight:normal; font-size:0.8em; background:rgba(221,169,56,0.15); border:1px solid rgba(221,169,56,0.3); padding:2px 6px; border-radius:4px; text-transform:uppercase;">(${totalFullSets} ${setSuffix})</span>` : "";
 
   let html = `<div class="set-progress-tooltip-inner" style="background:#1a1e24; border:1px solid var(--wf-orokin); border-radius:6px; padding:10px; min-width:220px; box-shadow: 0 4px 12px rgba(0,0,0,0.5);">`;
   html += `<div style="color:var(--wf-gold-text); font-weight:bold; font-size:1.1em; border-bottom:1px solid #333; padding-bottom:5px; margin-bottom:8px; text-transform:uppercase; display:flex; align-items:center; justify-content:space-between;"><span>${escapeHTML(setName)}</span>${setBadge}</div>`;
 
   itemNames.forEach((itemName) => {
     const icon = getItemIcon(itemName);
-    const shortName = itemName.replace(setName, "").trim() || "Blueprint";
+    const shortName = itemName.replace(setName, "").trim() || (TEXTS[state.currentLang].lblBlueprint || "Blueprint");
     const req = getRequiredCount(setName, itemName);
     const owned = state.primeInventory[itemName] || 0;
 
