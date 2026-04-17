@@ -9,8 +9,19 @@ export async function fetchBestFissures() {
         const res = await fetch(`${WORKER_URL}?type=fissures`);
         if (!res.ok) throw new Error("Error al conectar con el Worldstate");
 
-        const fissures = await res.json();
+        let fissures = await res.json();
+
+        if (typeof fissures === "string") {
+            try { fissures = JSON.parse(fissures); } catch (e) {//TODO elaborar mas el handler igual esto no hace falta
+                console.error("Error al parsear las fisuras", e);
+            }
+        }
+        if (fissures && !Array.isArray(fissures) && Array.isArray(fissures.data)) {
+            fissures = fissures.data;
+        }
+
         if (!Array.isArray(fissures)) {
+            console.error("[Worldstate Error] Expected array, got:", typeof fissures, fissures);
             throw new TypeError("El Worldstate no ha devuelto un array válido de fisuras.");
         }
 

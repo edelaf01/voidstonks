@@ -119,8 +119,7 @@ export async function checkUpdates() {
 export function openUpdateHistory() {
   const container = document.getElementById("update-history-content");
   if (container) {
-    const history =
-      UPDATE_HISTORY_DATA[state.currentLang] || UPDATE_HISTORY_DATA.en;
+    const history = UPDATE_HISTORY_DATA.en || UPDATE_HISTORY_DATA[state.currentLang];
     container.innerHTML = history;
     document.getElementById("update-modal")?.classList.remove("hidden");
   }

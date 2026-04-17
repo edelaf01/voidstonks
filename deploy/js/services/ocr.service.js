@@ -275,7 +275,7 @@ export const OCRService = {
         const { data: { words } } = await OCRRepository.recognize(worker, badgeCanvas);
         if (!words) return { qty: 1, raw: "" };
         const badgeNums = words.filter((w) => /\d/.test(w.text));
-        
+
         const rawTexts = words.map(w => w.text).join(" ");
 
         if (badgeNums.length === 0) return { qty: 1, raw: rawTexts };
@@ -291,9 +291,9 @@ export const OCRService = {
 
     getValidItemMatch(combinedText) {
         if (!this.cachedDbItems.length) this.initMatcherData();
-        
+
         const textWords = Array.isArray(combinedText) ? combinedText : combinedText.split(/\s+/);
-        
+
         if (textWords.length === 0) return null;
 
         const isOptionalBlueprint = (targetComp, prevWordDB) => {
@@ -345,7 +345,7 @@ export const OCRService = {
                 }
             }
         }
-        
+
         return bestItem;
     }
 };
