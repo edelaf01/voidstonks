@@ -10,3 +10,4 @@ deploy/.wrangler/cache/pages.json
 /.wrangler
 worker-code-proposed.js
 worker-code.js
+/antiguo
