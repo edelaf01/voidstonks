@@ -56,9 +56,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     handleClipboardAction(urlParams.get("clip"));
     return;
   }
-  checkUpdates();
   const { domValues } = loadAppState();
   hydrateDOM(domValues);
+  checkUpdates();
   initCanvas();
   initDisclaimerSystem();
   setupGlobalClickListeners();

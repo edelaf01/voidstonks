@@ -2,7 +2,7 @@ import { rawState, get, set, subscribe } from "./store/state.store.js";
 
 // Inicializa el estado en bruto del store
 Object.assign(rawState, {
-  currentLang: "es",
+  currentLang: "en",
   activeTab: "relic",
   playerCount: 1,
   lfgCount: 1,
