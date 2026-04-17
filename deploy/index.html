@@ -210,6 +210,7 @@
               border: 1px solid rgba(0, 229, 255, 0.3);
               color: #00e5ff;
             ">IDLE</span>
+
         <button id="btn-debug-toggle" onclick="globalThis.toggleScannerDebug()"
           title="Toggle debug mode (shows OCR diagnostic image)" style="
               background: none;
@@ -618,8 +619,13 @@
       </div>
 
       <div id="rewards-dbg-text" class="hidden"
-        style="background:#000; color:#ff9800; font-family:monospace; font-size:11px; padding:10px; margin:0 20px 10px; border:1px solid #333; max-height:100px; overflow-y:auto; border-radius:4px;">
-        RAW OCR: <span id="rewards-raw-ocr-content">...</span>
+        style="background:#000; color:#ff9800; font-family:monospace; font-size:11px; padding:10px; margin:0 20px 10px; border:1px solid #333; max-height:160px; overflow-y:auto; border-radius:4px; line-height:1.4;">
+        <div style="color: #555; border-bottom: 1px solid #222; margin-bottom: 5px; padding-bottom: 2px;">SYSTEM
+          DIAGNOSTICS</div>
+        <div id="rewards-raw-ocr-content"
+          style="white-space: pre-wrap; word-break: break-all; display: flex; flex-direction: column; gap: 2px;">
+          ...
+        </div>
       </div>
 
       <div class="scan-image-container">
