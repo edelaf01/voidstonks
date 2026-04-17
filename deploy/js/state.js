@@ -24,6 +24,8 @@ Object.assign(rawState, {
   showAllFarms: false,
   primeInventory: {},
   primeManifest: [],
+  autoScanEnabled: false,
+  isPrecisionScanActive: false,
   autoSyncRewards: true,
   autoCopyScanResults: false,
   visionSettings: {
