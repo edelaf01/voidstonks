@@ -144,9 +144,7 @@ export async function fetchActiveBounties() {
         const { ws = [], tt = [], oracle = {} } = await res.json();
         const now = Date.now();
         const tzOptions = { hour12: false };
-        const realExpiry = oracle.expiry
-            ? new Date(Number(oracle.expiry)).toLocaleString("es-ES", tzOptions)
-            : new Date(now + 600000).toLocaleString("es-ES", tzOptions);
+        const realExpiry = oracle.expiry ? Number(oracle.expiry) : (now + 600000);
 
         const factionMap = [
             { key: "Ostrons", ttId: "696e78a80000000000000010", wsMatch: "Ostron", wsId: "CetusSyndicate" },

@@ -91,17 +91,15 @@ export const UPDATE_HISTORY_DATA = {
   </div>
   <ul class="update-list">
     <li>
-      <strong>Inventory Scanner:</strong> Improved quantity precision and added red debug boxes.
+      <strong>Inventory Scanner:</strong> Improved and fixed inventory scanner problems .
     </li>
     <li>
-      <strong>Reward Scanner:</strong> Restored stable detection logic (CSS filters) for maximum reliability.
+      <strong>Reward Scanner:</strong> Restored stable detection logic Now it should scan better.
     </li>
     <li>
       <strong>Refactoring:</strong> Improvements to the fissures backend and code cleanup in OCR/Vision services.
     </li>
-    <li>
-      <strong>UI:</strong> Results modal now automatically closes after selecting a reward.
-    </li>
+
   </ul>
 </div>
 <div class="update-block old">
