@@ -203,6 +203,10 @@ function updateStaticTexts(t) {
   setText("lbl-riven-stats", t.lblRivenS);
   setText("btn-riven-search", t.rivenSearch);
 
+  setText("lbl-riven-median-price", t.lblRivenMedian);
+  setText("lbl-riven-low-price", t.lblRivenLow);
+  setText("lbl-riven-high-price", t.lblRivenHigh);
+
   setText("lbl-username", t.lblUser);
   setText("txt-mr-label", t.lblMrCalc);
   setText("lbl-lfg-activity", t.lblLfgActivity);

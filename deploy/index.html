@@ -992,13 +992,17 @@
               </div>
 
               <div id="riven-avg-box" style="margin-top: 15px; display: none">
-                <span style="
+                <span id="lbl-riven-median-price" style="
                       font-size: 0.8em;
                       color: #bbb;
                       text-transform: uppercase;
-                    ">Estimated base price</span><br />
+                    ">Estimated base price (Median)</span><br />
                 <span id="riven-avg-value" class="riven-avg-val">...</span>
                 <span style="font-size: 0.8em"><span class="plat-icon"></span></span>
+                <div style="display: flex; gap: 16px; margin-top: 6px; padding-top: 6px; border-top: 1px solid #2a2a2a; font-size: 0.75em; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;">
+                  <span style="color: #888;"><span id="lbl-riven-low-price">Lowest:</span> <b id="riven-min-value" style="color: #44ff88; font-weight: 900;">...</b> <span class="plat-icon" style="font-size:0.85em"></span></span>
+                  <span style="color: #888;"><span id="lbl-riven-high-price">Highest:</span> <b id="riven-max-value" style="color: #ff6666; font-weight: 900;">...</b> <span class="plat-icon" style="font-size:0.85em"></span></span>
+                </div>
               </div>
 
               <div style="display: flex; gap: 10px; margin-top: 20px">

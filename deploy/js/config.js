@@ -861,6 +861,9 @@ export const TEXTS = {
     btnShowUpdates: "Ver Novedades",
     updateModalTitle: "HISTORIAL DE ACTUALIZACIONES",
     updateModalGotIt: "Entendido",
+    lblRivenMedian: "Precio base estimado (Mediana)",
+    lblRivenLow: "Precio más bajo:",
+    lblRivenHigh: "Precio más alto:",
   },
   en: {
     condSpeedrun: "Complete in less than 6 min",
@@ -1166,6 +1169,9 @@ export const TEXTS = {
     btnShowUpdates: "Patch Notes",
     updateModalTitle: "FEATURE HISTORY",
     updateModalGotIt: "Got it",
+    lblRivenMedian: "Estimated base price (Median)",
+    lblRivenLow: "Lowest Price:",
+    lblRivenHigh: "Highest Price:",
     rewardScanner: {
       autoSyncLabel: "AUTO-SYNC",
       autoSyncTooltip: "YES: Sync EVERYTHING with SEEN (OCR Priority). NO: Only add +1 to the part you manually choose.",

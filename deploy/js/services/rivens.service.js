@@ -36,17 +36,27 @@ export async function fetchRivenWeapons() {
 }
 
 /**
- * Computes median from a sorted price array and persists it.
+ * Computes median, min, and max from a sorted price array, displays them, and persists to cache.
  */
-async function saveRivenMedian(prices, cacheKey, valSpan) {
+async function computeAndDisplayPrices(prices, cacheKey) {
     const subset = prices.slice(0, 20);
     const mid = Math.floor(subset.length / 2);
     const median = subset.length % 2 === 0
         ? (subset[mid - 1] + subset[mid]) / 2
         : subset[mid];
     const priceVal = Math.round(median);
+    const minVal = prices[0];
+    const maxVal = prices[prices.length - 1];
+
+    const valSpan = document.getElementById("riven-avg-value");
+    const minSpan = document.getElementById("riven-min-value");
+    const maxSpan = document.getElementById("riven-max-value");
+
     if (valSpan) valSpan.innerText = priceVal;
-    await dbHelper.set(cacheKey, { val: priceVal, time: Date.now() });
+    if (minSpan) minSpan.innerText = minVal;
+    if (maxSpan) maxSpan.innerText = maxVal;
+
+    await dbHelper.set(cacheKey, { val: priceVal, min: minVal, max: maxVal, time: Date.now() });
 }
 
 /**
@@ -60,14 +70,20 @@ export async function fetchRivenAverage(weaponName) {
     const CACHE_TTL = 6 * 60 * 60 * 1000;
     const box = document.getElementById("riven-avg-box");
     const valSpan = document.getElementById("riven-avg-value");
+    const minSpan = document.getElementById("riven-min-value");
+    const maxSpan = document.getElementById("riven-max-value");
 
     if (box) box.style.display = "block";
     if (valSpan) valSpan.innerText = "...";
+    if (minSpan) minSpan.innerText = "...";
+    if (maxSpan) maxSpan.innerText = "...";
 
     try {
         const cached = await dbHelper.get(cacheKey);
         if (cached && (Date.now() - cached.time < CACHE_TTL)) {
             if (valSpan) valSpan.innerText = Math.round(cached.val);
+            if (minSpan && cached.min != null) minSpan.innerText = cached.min;
+            if (maxSpan && cached.max != null) maxSpan.innerText = cached.max;
             return;
         }
         const res = await fetch(`${WORKER_URL}?type=riven&q=${slug}`);
@@ -79,11 +95,15 @@ export async function fetchRivenAverage(weaponName) {
             .sort((a, b) => a - b);
 
         if (prices.length > 0) {
-            await saveRivenMedian(prices, cacheKey, valSpan);
-        } else if (valSpan) {
-            valSpan.innerText = "N/A";
+            await computeAndDisplayPrices(prices, cacheKey);
+        } else {
+            if (valSpan) valSpan.innerText = "N/A";
+            if (minSpan) minSpan.innerText = "N/A";
+            if (maxSpan) maxSpan.innerText = "N/A";
         }
     } catch {
         if (valSpan) valSpan.innerText = "?";
+        if (minSpan) minSpan.innerText = "?";
+        if (maxSpan) maxSpan.innerText = "?";
     }
 }
