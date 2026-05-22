@@ -11,3 +11,10 @@ deploy/.wrangler/cache/pages.json
 worker-code-proposed.js
 worker-code.js
 /antiguo
+<<<<<<< Updated upstream
+=======
+deploy/assets/json/metastats.json.bak
+scripts-actu/
+.cursorrules
+.gitignore
+>>>>>>> Stashed changes
