@@ -161,10 +161,16 @@ export const OCRService = {
                 const minRatio = isStrip ? 0.55 : 0.65;
 
                 if (ratio > minRatio && this._countValidTokens(searchTokens, localWords) >= minWords) {
+                    // Centro de gravedad X: promedio de la posición de todas las palabras que componen el nombre
+                    const matchedWords = localWords.filter(w => searchTokens.includes(w.text));
+                    const avgX = matchedWords.length > 0 
+                        ? matchedWords.reduce((s, w) => s + w.x, 0) / matchedWords.length 
+                        : anchor.x;
+
                     itemMatches.push({
                         name: dbItem.originalName,
                         ratio: ratio,
-                        x: anchor.x,
+                        x: avgX,
                         owned: metadata.owned,
                         crafted: metadata.crafted
                     });
@@ -254,12 +260,6 @@ export const OCRService = {
 
         if (/OWNED|0WNED|OWNE|OWED|OWN|PROPIO|PROP/i.test(text)) {
             return { owned: 1, crafted: 0 };
-        }
-
-        const loneMatch = text.match(/(?:\s|^)(\d+)(?:\s|$)/);
-        if (loneMatch && loneMatch[1]) {
-            const val = parseInt(loneMatch[1], 10);
-            if (val < 1000) return { owned: val, crafted: 0 };
         }
 
         return { owned: 0, crafted: 0 };

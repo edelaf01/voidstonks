@@ -1471,6 +1471,62 @@ body.theme-bounties {
   filter: brightness(1.2);
 }
 
+/* Premium Riven Buttons */
+.premium-riven-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex: 1;
+  margin: 0;
+  padding: 12px 20px;
+  font-family: 'Outfit', 'Inter', 'Roboto', sans-serif;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-sizing: border-box;
+}
+
+.premium-riven-btn.btn-price {
+  background: rgba(0, 229, 255, 0.05);
+  border: 1px solid rgba(0, 229, 255, 0.25);
+  color: #00e5ff;
+  text-shadow: 0 0 8px rgba(0, 229, 255, 0.3);
+}
+
+.premium-riven-btn.btn-price:hover {
+  background: rgba(0, 229, 255, 0.14);
+  border-color: rgba(0, 229, 255, 0.65);
+  box-shadow: 0 0 15px rgba(0, 229, 255, 0.25);
+  transform: translateY(-2px);
+}
+
+.premium-riven-btn.btn-price:active {
+  transform: translateY(0);
+}
+
+.premium-riven-btn.btn-grade {
+  background: rgba(212, 175, 55, 0.07);
+  border: 1px solid rgba(212, 175, 55, 0.35);
+  color: var(--wf-gold-text);
+  text-shadow: 0 0 8px rgba(212, 175, 55, 0.35);
+}
+
+.premium-riven-btn.btn-grade:hover {
+  background: rgba(212, 175, 55, 0.18);
+  border-color: rgba(212, 175, 55, 0.75);
+  box-shadow: 0 0 18px rgba(212, 175, 55, 0.35);
+  transform: translateY(-2px);
+}
+
+.premium-riven-btn.btn-grade:active {
+  transform: translateY(0);
+}
+
 #riven-avg-box {
   background: rgba(162, 53, 226, 0.1);
   border: 1px solid var(--wf-riven);
@@ -3713,6 +3769,10 @@ button[onclick*="importInventory"]:hover {
   border: 1px solid rgba(162, 53, 226, 0.2);
 }
 
+.riven-input:hover {
+  border-color: var(--wf-riven) !important;
+}
+
 .riven-input:focus {
   border-color: var(--wf-riven) !important;
   box-shadow: 0 0 10px rgba(162, 53, 226, 0.5) !important;
@@ -3872,7 +3932,7 @@ button[onclick*="importInventory"]:hover {
 .preview-tooltip {
   position: absolute;
   top: 0;
-  right: 120%;
+  right: calc(100% + 12px);
   left: auto;
   transform: translateY(0);
   width: 300px;
@@ -3881,7 +3941,7 @@ button[onclick*="importInventory"]:hover {
   border-radius: 8px;
   padding: 12px;
   z-index: 1000;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.9);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.9), 0 0 15px rgba(220, 179, 255, 0.15);
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.2s;
@@ -3899,8 +3959,8 @@ button[onclick*="importInventory"]:hover {
   content: "";
   position: absolute;
   top: 20px;
-  right: -20px;
-  width: 20px;
+  right: -14px;
+  width: 14px;
   height: 60px;
   background: transparent;
 }
@@ -4160,13 +4220,12 @@ button[onclick*="importInventory"]:hover {
   height: 60px;
   /* Increased from 50px */
   object-fit: contain;
-  transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.5));
+  transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.2s ease;
+  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.5));
 }
 
 .variant-card:hover img {
-  transform: scale(1.3);
-  /* Adjusted from 1.4 */
+  transform: scale(1.3) translateY(-8px);
 }
 
 .variant-card.active {
@@ -4313,18 +4372,18 @@ button[onclick*="importInventory"]:hover {
 }
 
 .riven-left-col {
-  flex: 1;
+  flex: 1.4;
   min-width: 0;
   box-sizing: border-box;
 }
 
 .riven-right-col {
-  width: 150px;
+  width: 380px;
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: stretch;
   justify-content: flex-start;
-  padding-top: 10px;
+  padding-top: 0;
   flex-shrink: 0;
   min-width: 0;
 }
@@ -4347,6 +4406,52 @@ button[onclick*="importInventory"]:hover {
     padding-top: 0 !important;
   }
 
+  .index-item-header {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+    padding: 12px !important;
+  }
+
+  .index-item-left {
+    justify-content: space-between !important;
+  }
+
+  .index-item-pop {
+    justify-content: flex-start !important;
+  }
+
+  .index-item-mid {
+    justify-content: space-between !important;
+    border-top: 1px dashed rgba(255,255,255,0.05) !important;
+    padding-top: 8px !important;
+  }
+
+  .index-item-right {
+    flex-wrap: wrap !important;
+  }
+
+  .index-weapon-img {
+    align-self: center !important;
+    width: 90px !important;
+    height: 54px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .index-item-header {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+  }
+
+  .index-weapon-img {
+    align-self: center !important;
+    width: 90px !important;
+    height: 54px !important;
+  }
 }
 
 /* =========================================
@@ -4439,4 +4544,740 @@ button[onclick*="importInventory"]:hover {
   font-weight: bold;
   color: var(--wf-gold-text);
   white-space: nowrap;
+}
+
+/* =========================================
+   11. RIVEN MARKET INDEX STYLES
+   ========================================= */
+.riven-market-index-container {
+  background: rgba(15, 17, 21, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(10px);
+  border-radius: 8px;
+  width: 100%;
+}
+
+.index-item-card {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: 6px;
+  overflow: hidden;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.index-item-card:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(220, 179, 255, 0.15);
+  box-shadow: 0 4px 15px rgba(220, 179, 255, 0.03);
+}
+
+.index-item-header {
+  display: grid;
+  grid-template-columns: 180px 100px 320px 1fr 80px;
+  align-items: center;
+  padding: 10px 16px;
+  cursor: pointer;
+  user-select: none;
+  gap: 16px;
+  box-sizing: border-box;
+}
+
+.index-item-pop {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.index-item-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.index-weapon-name {
+  font-weight: 800;
+  font-size: 1.05rem;
+  color: #fff;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+
+.index-badge-popularity {
+  background: rgba(255, 102, 102, 0.1);
+  color: #ff6666;
+  border: 1px solid rgba(255, 102, 102, 0.2);
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+}
+
+.index-item-mid {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  min-width: 0;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.index-price-block {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.index-price-label {
+  font-size: 0.65rem;
+  color: #888;
+  text-transform: uppercase;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+}
+
+.index-price-value {
+  font-family: monospace;
+  font-size: 0.85rem;
+  color: #ddd;
+  font-weight: bold;
+}
+
+.index-price-value.highlight-wfm {
+  color: var(--wf-gold-text);
+}
+
+.index-price-diff {
+  background: rgba(0, 229, 255, 0.08);
+  color: #00e5ff;
+  border: 1px solid rgba(0, 229, 255, 0.15);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 900;
+  font-family: monospace;
+  flex-shrink: 0;
+}
+
+.index-item-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.index-weapon-img {
+  width: 80px;
+  height: 48px;
+  object-fit: contain;
+  transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.2s ease;
+  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.5));
+  opacity: 1;
+  justify-self: end;
+}
+
+.index-item-card:hover .index-weapon-img {
+  transform: scale(1.15) translateY(-2px);
+}
+
+.index-quick-tag {
+  font-size: 0.7rem;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.index-quick-tag.positive {
+  background: rgba(68, 255, 136, 0.06);
+  color: #44ff88;
+  border: 1px solid rgba(68, 255, 136, 0.12);
+}
+
+.index-quick-tag.negative {
+  background: rgba(170, 170, 170, 0.08);
+  color: #bbb;
+  border: 1px solid rgba(170, 170, 170, 0.15);
+}
+
+.index-item-details {
+  border-top: 1px solid rgba(255, 255, 255, 0.03);
+  background: rgba(0, 0, 0, 0.2);
+  padding: 16px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  transition: all 0.3s ease;
+}
+
+.index-detail-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.index-detail-title {
+  font-size: 0.75rem;
+  font-weight: 900;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  padding-bottom: 4px;
+}
+
+.index-detail-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.index-detail-pill {
+  font-size: 0.7rem;
+  font-weight: bold;
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+
+.index-detail-pill.pos-best {
+  background: rgba(68, 255, 136, 0.06);
+  color: #44ff88;
+  border: 1px solid rgba(68, 255, 136, 0.15);
+}
+
+.index-detail-pill.pos-worst {
+  background: rgba(255, 102, 102, 0.05);
+  color: #ff6666;
+  border: 1px solid rgba(255, 102, 102, 0.12);
+}
+
+.index-detail-pill.neg-best {
+  background: rgba(220, 179, 255, 0.06);
+  color: #dcb3ff;
+  border: 1px solid rgba(220, 179, 255, 0.15);
+}
+
+.index-detail-pill.neg-worst {
+  background: rgba(255, 50, 50, 0.08);
+  color: #ff3232;
+  border: 1px solid rgba(255, 50, 50, 0.18);
+}
+
+.index-expand-indicator {
+  color: #666;
+  font-weight: bold;
+  font-family: monospace;
+  font-size: 1rem;
+  transition: transform 0.25s ease;
+  width: 20px;
+  text-align: center;
+}
+
+.index-item-card.expanded .index-expand-indicator {
+  transform: rotate(90deg);
+  color: var(--wf-gold-text);
+}
+
+/* =========================================
+   12. REDISEÑO PREMIUM COMPACT CARDS
+   ========================================= */
+.index-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 18px;
+  gap: 16px;
+  cursor: pointer;
+  user-select: none;
+  box-sizing: border-box;
+}
+
+.index-card-img-area {
+  width: 74px;
+  height: 48px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(68, 255, 136, 0.22);
+  box-shadow: 0 0 10px rgba(68, 255, 136, 0.08);
+  border-radius: 6px;
+  padding: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+  transition: border-color 0.25s, box-shadow 0.25s;
+}
+
+.index-item-card:hover .index-card-img-area {
+  border-color: rgba(68, 255, 136, 0.45);
+  box-shadow: 0 0 14px rgba(68, 255, 136, 0.15);
+}
+
+.index-card-weapon-img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
+  transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.index-item-card:hover .index-card-weapon-img {
+  transform: scale(1.26) translateY(-5px);
+}
+
+.index-card-info-area {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex-grow: 1;
+  min-width: 0;
+}
+
+.index-card-top-line {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.index-card-weapon-name {
+  font-weight: 800;
+  font-size: 1.15rem;
+  color: #fff;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  transition: color 0.2s;
+}
+
+.index-item-card:hover .index-card-weapon-name {
+  color: var(--wf-blue);
+}
+
+.index-card-price-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.88rem;
+  color: #ccc;
+  flex-wrap: wrap;
+}
+
+.index-card-price-span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.price-separator {
+  color: rgba(255, 255, 255, 0.15);
+  font-weight: bold;
+}
+
+.price-label-small {
+  color: #888;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  font-weight: bold;
+  letter-spacing: 0.5px;
+}
+
+.price-value-small {
+  color: #eee;
+  font-weight: 800;
+}
+
+.price-group-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-radius: 6px;
+  padding: 6px 12px;
+  white-space: nowrap; /* STRICTLY prevent any text wrapping */
+}
+
+.price-group-section span,
+.price-group-section div,
+.price-group-section img {
+  white-space: nowrap; /* Prevent inner inline wrapping */
+}
+
+.price-group-section.de-official {
+  background: rgba(212, 175, 55, 0.02) !important;
+  border: 1px solid rgba(212, 175, 55, 0.08) !important;
+  flex: 1.6 !important;
+  min-width: 290px !important; /* Fixed generous space to never overflow */
+}
+
+.price-group-section.wfm-web {
+  background: rgba(0, 229, 255, 0.02) !important;
+  border: 1px solid rgba(0, 229, 255, 0.08) !important;
+  flex: 1 !important;
+  min-width: 175px !important; /* Fixed generous space to never overflow */
+}
+
+.price-group-section.market-risk {
+  background: rgba(255, 255, 255, 0.015) !important;
+  border: 1px solid rgba(255, 255, 255, 0.04) !important;
+  flex: 1 !important;
+  min-width: 185px !important; /* Fixed generous space to never overflow */
+}
+
+.index-card-right-area {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+  margin-left: auto; /* Push center arrow to the far right */
+}
+
+.index-card-expand-indicator {
+  color: #666;
+  font-weight: bold;
+  font-family: monospace;
+  font-size: 1.15rem;
+  transition: transform 0.25s ease, color 0.25s;
+  width: 20px;
+  text-align: center;
+}
+
+.index-item-card.expanded .index-card-expand-indicator {
+  transform: rotate(90deg);
+  color: var(--wf-blue);
+}
+
+/* Adaptación Responsiva para Tarjetas Compactas */
+@media (max-width: 600px) {
+  .index-card-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    padding: 14px;
+  }
+  
+  .index-card-img-area {
+    align-self: center;
+    width: 100px;
+    height: 54px;
+  }
+  
+  .index-card-info-area {
+    align-items: center;
+    text-align: center;
+  }
+  
+  .index-card-top-line {
+    justify-content: center;
+  }
+  
+  .index-card-price-line {
+    justify-content: center;
+  }
+  
+  .index-card-right-area {
+    justify-content: space-between;
+    border-top: 1px dashed rgba(255, 255, 255, 0.06);
+    padding-top: 8px;
+    width: 100%;
+  }
+}
+
+/* =========================================
+   13. CARRUSEL INLINE DE VARIANTES EN INDEX
+   ========================================= */
+.index-card-variants-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0px;
+  width: 100%;
+  height: 100%;
+  transition: gap 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.index-card-variant-img {
+  width: 0px;
+  height: 40px;
+  object-fit: contain;
+  opacity: 0;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.6));
+  transition: width 0.35s cubic-bezier(0.4, 0, 0.2, 1), 
+              opacity 0.3s ease, 
+              transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.index-card-variant-img.main-weapon {
+  width: 44px;
+  opacity: 1;
+}
+
+/* Al hacer hover en la tarjeta, expandimos el contenedor y mostramos las variantes de lado */
+.index-item-card:hover .index-card-img-area {
+  border-color: rgba(68, 255, 136, 0.45);
+  box-shadow: 0 0 14px rgba(68, 255, 136, 0.15);
+  width: var(--hover-width, 74px);
+}
+
+.index-item-card:hover .index-card-variants-row {
+  gap: 8px;
+}
+
+.index-item-card:hover .index-card-variant-img {
+  width: 42px;
+  opacity: 1;
+}
+
+/* Zoom y flotación individual al hacer hover directo sobre la variante elegida */
+.index-card-variant-img:hover {
+  transform: scale(1.32) translateY(-4px);
+  z-index: 10;
+  filter: drop-shadow(0 4px 8px rgba(68, 255, 136, 0.35));
+}
+
+.ticker-grid-expanded {
+  display: grid;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+  gap: 32px;
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 24px;
+  height: 520px;
+  overflow: hidden;
+  position: relative;
+  mask-image: linear-gradient(to bottom, transparent, black 10%, black 90%, transparent);
+  -webkit-mask-image: linear-gradient(to bottom, transparent, black 10%, black 90%, transparent);
+}
+
+@media (min-width: 768px) {
+  .ticker-grid-expanded {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1200px) {
+  .ticker-grid-expanded {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.ticker-column-large {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+  will-change: transform;
+  backface-visibility: hidden;
+  transform: translate3d(0, 0, 0);
+}
+
+.ticker-column-large > * {
+  width: 100%;
+  min-height: 120px;
+}
+
+.ticker-column-large:nth-child(1) {
+  animation: verticalLargeScroll 60s linear infinite;
+  animation-delay: -15s;
+}
+
+.ticker-column-large:nth-child(2) {
+  animation: verticalLargeScroll 45s linear infinite;
+  animation-delay: -30s;
+}
+
+.ticker-column-large:nth-child(3) {
+  animation: verticalLargeScroll 75s linear infinite;
+  animation-delay: -10s;
+}
+
+.ticker-grid-expanded:hover .ticker-column-large {
+  animation-play-state: paused;
+}
+
+@keyframes verticalLargeScroll {
+  0% {
+    transform: translateY(0);
+  }
+  100% {
+    transform: translateY(-50%);
+  }
+}
+
+/* RIVEN CARD PREVIEW & TEXTURE RULES */
+.riven-preview-wrapper {
+  position: sticky;
+  top: 24px;
+  width: 100%;
+  max-width: 320px;
+  margin-left: auto;
+}
+
+.riven-card-dynamic {
+  background: linear-gradient(135deg, #1e132b 0%, #39224f 50%, #1e132b 100%);
+  border: 2px solid #a38baf;
+  border-radius: 12px;
+  box-shadow: 
+    0 0 20px rgba(119, 68, 161, 0.4),
+    inset 0 0 40px rgba(0, 0, 0, 0.6);
+  padding: 16px;
+  color: #fff;
+  font-family: var(--wf-font, 'Arial', sans-serif);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  position: relative;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+/* Efecto de grieta/brillo de fondo */
+.riven-card-dynamic::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle, rgba(160, 100, 220, 0.15) 0%, transparent 60%);
+  pointer-events: none;
+}
+
+.riven-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 1.1rem;
+  font-weight: bold;
+}
+
+.riven-rank-dots {
+  display: flex;
+  gap: 4px;
+}
+
+.rank-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1px solid #a38baf;
+  background: transparent;
+  box-sizing: border-box;
+}
+
+.rank-dot.active {
+  background: #a38baf;
+  box-shadow: 0 0 5px #a38baf;
+}
+
+.riven-art-placeholder {
+  height: 120px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(163, 139, 175, 0.3);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.riven-art-placeholder img {
+  max-height: 90%;
+  max-width: 95%;
+  object-fit: contain;
+  filter: drop-shadow(0 0 8px rgba(160, 100, 220, 0.5));
+}
+
+.riven-title {
+  text-align: center;
+  font-size: 1.15rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin: 8px 0;
+  color: #e0d0f0;
+  text-shadow: 0 0 5px rgba(160, 100, 220, 0.8);
+  font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.riven-stats-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 0.95rem;
+  font-weight: bold;
+}
+
+.riven-stat-line {
+  line-height: 1.2;
+}
+
+.riven-stat-line.positive {
+  color: #a4c9eb; /* Azul base de stats en Warframe */
+}
+
+.riven-stat-line.negative {
+  color: #eb7a7a; /* Rojo de stats negativos */
+}
+
+.riven-footer {
+  display: flex;
+  justify-content: space-between;
+  border-top: 1px solid rgba(163, 139, 175, 0.3);
+  padding-top: 12px;
+  margin-top: auto;
+  font-size: 0.9rem;
+  color: #a38baf;
+  font-weight: bold;
+}
+
+/* RIVEN MARKET INDEX INLINE VARIANTS STYLING */
+.ic-variants-inline-row {
+  display: flex;
+  flex-direction: row;
+  gap: 6px;
+  align-items: center;
+  height: 100%;
+}
+.ic-icon-col .variant-hover-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+.ic-icon-col .variant-hover-item img {
+  width: 52px;
+  height: 52px;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4));
+  transition: filter 0.2s, transform 0.2s;
+}
+.ic-icon-col .variant-hover-item:hover img {
+  transform: scale(1.08);
+}
+.ic-icon-col .variant-hover-item.active-variant {
+  order: -1;
+}
+.ic-icon-col .variant-hover-item.active-variant img {
+  filter: drop-shadow(0 0 5px rgba(212, 175, 55, 0.45)) drop-shadow(0 2px 4px rgba(0,0,0,0.5));
 }

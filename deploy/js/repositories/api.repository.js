@@ -81,3 +81,41 @@ export async function initializeOCRDatabase() {
         throw e;
     }
 }
+
+/**
+ * Fetches the active resurgence list (Aya items) from the worker 'aya' endpoint with a 1-day cache.
+ */
+export async function fetchActiveResurgence() {
+    const CACHE_KEY = "voidstonks_active_resurgence_list_v2";
+    const ONE_DAY = 24 * 60 * 60 * 1000;
+    try {
+        const cached = await dbHelper.get(CACHE_KEY);
+        if (cached?.data && cached?.timestamp && (Date.now() - cached.timestamp < ONE_DAY)) {
+            state.activeResurgenceList = new Set(cached.data);
+            return;
+        }
+
+        const res = await fetch(`${WORKER_URL}?type=aya`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const traders = data.PrimeVaultTraders || [];
+        
+        const resurgenceSet = new Set();
+        traders.forEach(trader => {
+            if (trader.Closed) return;
+            const manifest = trader.Manifest || [];
+            manifest.forEach(item => {
+                const itemName = item.ItemType;
+                if (itemName && itemName.includes("Relic")) {
+                    const cleaned = itemName.replace(" Relic", "").trim().toUpperCase();
+                    resurgenceSet.add(cleaned);
+                }
+            });
+        });
+
+        state.activeResurgenceList = resurgenceSet;
+        await dbHelper.set(CACHE_KEY, { timestamp: Date.now(), data: Array.from(resurgenceSet) });
+    } catch (e) {
+        console.warn("Error fetching resurgence list:", e);
+    }
+}
