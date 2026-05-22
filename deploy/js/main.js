@@ -24,7 +24,7 @@ import {
   checkUpdates,
   toggleLangDropdown,
   setLanguageManual,
-} from "./ui.js";
+} from "./ui.js?v=1.9";
 import { initFissurePanel } from "./ui.components/ui_fissures.js";
 import { initSyncPanel } from "./ui.components/ui_sync.js";
 import { calculateCaps, renderProfileStats } from "./ui.components/ui_profile.js";
@@ -41,7 +41,7 @@ import {
   handleRivenInput,
   openRivenMarket,
   updateSelectExclusions,
-} from "./ui.components/ui_rivens.js";
+} from "./ui.components/ui_rivens.js?v=1.8";
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.getRegistrations().then(function (registrations) {
     for (let registration of registrations) {

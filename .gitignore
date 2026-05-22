@@ -11,3 +11,4 @@ deploy/.wrangler/cache/pages.json
 worker-code-proposed.js
 worker-code.js
 /antiguo
+deploy/assets/json/metastats.json.bak
