@@ -1,0 +1,649 @@
+/**
+ * riven-module.css
+ * Capa de estilos aislados para el módulo de Riven Vanilla JS.
+ */
+
+:root {
+  --riven-bg-dark: #0f1015;
+  --riven-card-bg: #1a1a24;
+  --riven-purple: #9b59b6;
+  --riven-purple-glow: rgba(155, 89, 182, 0.4);
+  --riven-gold: #d4af37;
+  --riven-cyan: #00e5ff;
+  --riven-red: #e74c3c;
+  --riven-text-main: #e2e8f0;
+  --riven-text-dim: #94a3b8;
+  --riven-border: #334155;
+  --riven-border-focus: #475569;
+}
+
+/* LAYOUT PRINCIPAL */
+.riven-analyzer-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 20px;
+  background-color: var(--riven-bg-dark);
+  color: var(--riven-text-main);
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.analyzer-top-section {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  justify-content: space-between;
+}
+
+.analyzer-col {
+  background-color: var(--riven-card-bg);
+  border: 1px solid var(--riven-border);
+  border-radius: 12px;
+  padding: 20px;
+  flex: 1;
+  min-width: 300px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.left-col {
+  flex: 1.2;
+}
+
+.center-col {
+  flex: 1;
+}
+
+.right-col {
+  flex: 0.8;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: radial-gradient(circle at center, #231b2d 0%, var(--riven-card-bg) 100%);
+}
+
+/* RIVEN CARD PREVIEW (Holográfico 3D) */
+.riven-preview-container {
+  perspective: 1000px;
+}
+
+.riven-card-dynamic {
+  width: 260px;
+  background: linear-gradient(135deg, #1e132b 0%, #39224f 50%, #1e132b 100%);
+  border: 2px solid #a38baf;
+  border-radius: 12px;
+  padding: 16px;
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 0 20px var(--riven-purple-glow), inset 0 0 40px rgba(0, 0, 0, 0.6);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.riven-card-dynamic:hover {
+  transform: translateY(-5px) rotateX(5deg) rotateY(5deg);
+  box-shadow: 0 10px 30px var(--riven-purple-glow), inset 0 0 40px rgba(0, 0, 0, 0.6);
+}
+
+.riven-card-dynamic::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle, rgba(160, 100, 220, 0.15) 0%, transparent 60%);
+  pointer-events: none;
+}
+
+.riven-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.riven-polarity {
+  font-size: 1.2rem;
+  font-weight: bold;
+}
+
+.riven-rank-dots {
+  display: flex;
+  gap: 4px;
+}
+
+.rank-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #333;
+  border: 1px solid #555;
+}
+
+.rank-dot.active {
+  background: #fff;
+  box-shadow: 0 0 5px #fff;
+}
+
+.riven-body {
+  text-align: center;
+}
+
+.riven-title {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--riven-purple);
+  text-shadow: 0 0 5px var(--riven-purple-glow);
+  margin-bottom: 12px;
+}
+
+.riven-weapon-img {
+  width: 100%;
+  max-width: 180px;
+  height: auto;
+  margin: 10px auto;
+  display: block;
+  filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.3));
+}
+
+.riven-stats-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.stat-positive {
+  color: #81a1c1;
+}
+
+.stat-negative {
+  color: var(--riven-red);
+}
+
+.riven-footer {
+  display: flex;
+  justify-content: space-between;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding-top: 10px;
+  font-size: 0.85rem;
+  color: #ccc;
+}
+
+/* VALUATION RESULTS */
+.valuation-results {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.val-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--riven-border);
+}
+
+.val-row:last-child {
+  border-bottom: none;
+}
+
+.price-est {
+  font-size: 1.2rem;
+  font-weight: bold;
+}
+
+.plat-text {
+  color: var(--riven-gold);
+  text-shadow: 0 0 8px rgba(212, 175, 55, 0.4);
+}
+
+.score-text {
+  color: var(--riven-cyan);
+  font-weight: bold;
+}
+
+/* MARKET INDEX */
+.analyzer-bottom-section {
+  margin-top: 20px;
+}
+
+.index-controls {
+  display: flex;
+  gap: 15px;
+  margin-bottom: 20px;
+}
+
+.riven-search-input {
+  width: 100%;
+  max-width: 400px;
+  padding: 10px 16px;
+  background-color: #1e1e2d;
+  border: 1px solid var(--riven-border);
+  border-radius: 8px;
+  color: white;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.riven-search-input:focus {
+  border-color: var(--riven-cyan);
+}
+
+.index-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.family-card {
+  background-color: #1e1e2d;
+  border: 1px solid var(--riven-border);
+  border-radius: 8px;
+  padding: 16px;
+  cursor: pointer;
+  transition: transform 0.2s, border-color 0.2s;
+}
+
+.family-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--riven-purple);
+}
+
+.family-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.family-header h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  color: var(--riven-text-main);
+}
+
+.potential-badge {
+  font-size: 0.75rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: bold;
+}
+
+.score-high {
+  background-color: rgba(0, 229, 255, 0.2);
+  color: var(--riven-cyan);
+  border: 1px solid var(--riven-cyan);
+}
+
+.score-med {
+  background-color: rgba(212, 175, 55, 0.2);
+  color: var(--riven-gold);
+  border: 1px solid var(--riven-gold);
+}
+
+.score-low {
+  background-color: rgba(231, 76, 60, 0.2);
+  color: var(--riven-red);
+  border: 1px solid var(--riven-red);
+}
+
+.family-variants {
+  font-size: 0.85rem;
+  color: var(--riven-text-dim);
+}
+
+/* GRÁFICAS */
+.chart-container-mini {
+  margin-top: 20px;
+  background: #111116;
+  border-radius: 8px;
+  padding: 10px;
+  border: 1px solid var(--riven-border);
+  height: 250px;
+  /* Importante para que Chart.js tenga un límite */
+}
+
+/* ================================================================
+   GOD ROLL STATS CARD (panel izquierdo, debajo de los botones)
+   ================================================================ */
+.recommended-god-roll-card {
+  background-color: #1a1b23;
+  border: 1px dashed rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  padding: 14px 16px;
+  margin-top: 18px;
+}
+
+.card-subtitle {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.5);
+  margin: 0 0 10px 0;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+}
+
+.meta-pills-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.pill-pos {
+  background: rgba(0, 191, 255, 0.08);
+  color: #00bfff;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.pill-neg {
+  background: rgba(248, 113, 113, 0.08);
+  color: #f87171;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.meta-stats-footer-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.35);
+  border-top: 1px dotted rgba(255, 255, 255, 0.08);
+  padding-top: 8px;
+  margin-top: 4px;
+}
+
+.text-yellow {
+  color: #d4af37;
+}
+
+/* ================================================================
+   RIVEN MARKET INDEX — PREMIUM CARD (index-item-card)
+   ================================================================ */
+.index-item-card {
+  background: #0f172a;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 10px;
+  overflow: hidden;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  margin-bottom: 8px;
+}
+
+.index-item-card:hover {
+  border-color: rgba(212, 175, 55, 0.25);
+  box-shadow: 0 0 12px rgba(212, 175, 55, 0.06);
+}
+
+.index-item-card.expanded {
+  border-color: rgba(212, 175, 55, 0.3);
+}
+
+/* Header row */
+.index-card-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.index-card-header:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+/* Weapon image area  */
+.index-card-img-area {
+  width: 58px;
+  height: 58px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  position: relative;
+  overflow: hidden;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(15, 23, 42, 0.4);
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.2s;
+  cursor: default;
+}
+
+.index-card-img-area.has-variants {
+  cursor: pointer;
+}
+
+.index-card-img-area.has-variants:hover {
+  width: var(--hover-width, 58px);
+  border-color: rgba(212, 175, 55, 0.45);
+  box-shadow: 0 0 10px rgba(212, 175, 55, 0.1);
+}
+
+.ic-variants-inline-row {
+  display: flex;
+  flex-direction: row;
+  gap: 6px;
+  align-items: center;
+  height: 100%;
+}
+
+/* Horizontal variant item matching the size  */
+.index-card-img-area .variant-hover-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.index-card-img-area .variant-hover-item img {
+  width: 52px;
+  height: 52px;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.4));
+  transition: filter 0.2s, transform 0.2s;
+}
+
+.index-card-img-area .variant-hover-item:hover img {
+  transform: scale(1.08);
+}
+
+.index-card-img-area .variant-hover-item.active-variant {
+  order: -1;
+}
+
+.index-card-img-area .variant-hover-item.active-variant img {
+  filter: drop-shadow(0 0 5px rgba(212, 175, 55, 0.45)) drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
+}
+
+/* Info area */
+.index-card-info-area {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.index-card-top-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.index-card-weapon-name {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #f8fafc;
+}
+
+/* Prices row */
+.index-card-price-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 0;
+}
+
+.index-card-price-span,
+.index-price-span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.75rem;
+}
+
+.price-label-small {
+  color: rgba(255, 255, 255, 0.38);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.price-value-small {
+  color: #e2e8f0;
+  font-weight: 600;
+}
+
+.highlight-wfm {
+  color: #f8fafc;
+}
+
+.price-separator {
+  color: rgba(255, 255, 255, 0.15);
+  margin: 0 5px;
+  font-size: 0.75rem;
+}
+
+/* Badges */
+.index-badge-popularity,
+.index-badge-trend {
+  font-size: 0.68rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.index-price-diff {
+  font-size: 0.72rem;
+  padding: 3px 8px;
+  border-radius: 5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* Quick tag pills */
+.index-quick-tag {
+  font-size: 0.68rem;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-weight: 600;
+}
+
+.index-quick-tag.positive {
+  background: rgba(0, 191, 255, 0.08);
+  color: #00bfff;
+}
+
+.index-quick-tag.negative {
+  background: rgba(248, 113, 113, 0.08);
+  color: #f87171;
+}
+
+/* Right area */
+.index-card-right-area {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.index-card-expand-indicator {
+  font-size: 1.1rem;
+  color: rgba(255, 255, 255, 0.25);
+  transition: color 0.15s, transform 0.2s;
+  line-height: 1;
+}
+
+.index-item-card.expanded .index-card-expand-indicator {
+  transform: rotate(90deg);
+  color: #d4af37;
+}
+
+/* Detail panel */
+.index-item-details {
+  padding: 12px 16px 16px 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.index-detail-section {
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 6px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.index-detail-title {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: rgba(255, 255, 255, 0.35);
+  font-weight: 700;
+}
+
+.index-detail-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.index-detail-pill {
+  font-size: 0.72rem;
+  padding: 2px 7px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #cbd5e1;
+}
+
+.index-detail-pill.pos-best {
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.07);
+}
+
+.index-detail-pill.pos-worst {
+  color: #f87171;
+  background: rgba(248, 113, 113, 0.07);
+}
+
+.index-detail-pill.neg-best {
+  color: #a78bfa;
+  background: rgba(167, 139, 250, 0.07);
+}
+
+.index-detail-pill.neg-worst {
+  color: #fb7185;
+  background: rgba(251, 113, 133, 0.07);
+}

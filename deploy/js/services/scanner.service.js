@@ -1,9 +1,10 @@
-import { VisionService } from "./vision.service.js";
+import { VisionService, WF_THEMES } from "./vision.service.js";
 import { OCRService } from "./ocr.service.js";
 import { OCRRepository } from "../repositories/ocr.repository.js";
 import { OpenCVRepository } from "../repositories/opencv.repository.js";
 import { ScannerHUD } from "../ui.components/ui_scanner_hud.js";
 import { ScannerModal } from "../ui.components/ui_scanner_modal.js";
+import { initializeOCRDatabase } from "../repositories/api.repository.js";
 
 /**
  */
@@ -20,27 +21,32 @@ export const ScannerService = {
     virtualCanvas: null,
 
     async start() {
-        if (this.scanInterval) return;
+        if (this.isScanning) return;
+        this.isScanning = true;
         globalThis.ScannerService = this;
         if (!this.virtualCanvas) {
             this.virtualCanvas = document.createElement("canvas");
             this.virtualCanvas.id = "scanner-virtual-canvas";
         }
 
+        // On-demand fetch of the fresh prime items reference list from worker/backend cache
+        initializeOCRDatabase().catch(err => console.warn("Error fetching OCR reference database from backend:", err));
+
         await OCRRepository.warmUp();
-        await OpenCVRepository.waitReady();
+        OpenCVRepository.waitReady().catch(() => { });
         OCRService.initMatcherData();
         this.loop();
     },
 
     stop() {
+        this.isScanning = false;
         if (this.scanInterval) clearTimeout(this.scanInterval);
         this.scanInterval = null;
         OCRRepository.terminateAll();
     },
 
     async loop() {
-        if (this.scanInterval === null && this.scanCounter > 0) return; // Prevent loop after stop
+        if (!this.isScanning) return;
 
         const video = document.getElementById("live-video");
         if (!video || video.paused || video.ended) {
@@ -53,7 +59,9 @@ export const ScannerService = {
         } catch (e) {
             console.warn("Scanner loop error:", e);
         } finally {
-            this.scanInterval = setTimeout(() => this.loop(), this.currentRate);
+            if (this.isScanning) {
+                this.scanInterval = setTimeout(() => this.loop(), this.currentRate);
+            }
         }
     },
 
@@ -79,6 +87,7 @@ export const ScannerService = {
         const { data: headerData } = await OCRRepository.recognize(worker1, virtualCanvas);
 
         const contextType = VisionService.determineContext(headerData.text);
+        console.log(`[SCAN] Context: ${contextType} | Header OCR: "${(headerData.text || "").trim().slice(0, 60)}"`);
         await this.routeFrameAction(contextType, video, dims);
 
         ScannerHUD.updateFrameCounter(this.scanCounter);
@@ -155,9 +164,26 @@ export const ScannerService = {
     async processRewards(video, dims) {
         const { width, height, scale } = dims;
         const ocrCanvas = VisionService.prepareRewardOCRCanvas(video, width, height, scale);
+        console.log(`[REWARD] Canvas: ${ocrCanvas.width}x${ocrCanvas.height}`);
 
         if (globalThis.OpenCVEngine?.isReady) {
             globalThis.OpenCVEngine.processForOCR(ocrCanvas, "hard");
+            console.log("[REWARD] Binarization: OpenCV");
+        } else {
+            // Canvas is already grayscale from CSS filter.
+            // Invert: bright=text → black(0), dark=background → white(255)
+            const ctx = ocrCanvas.getContext("2d", { willReadFrequently: true });
+            const imgData = ctx.getImageData(0, 0, ocrCanvas.width, ocrCanvas.height);
+            const px = imgData.data;
+            let textPixels = 0;
+            for (let i = 0; i < px.length; i += 4) {
+                const v = px[i] > 128 ? 0 : 255;
+                if (v === 0) textPixels++;
+                px[i] = px[i + 1] = px[i + 2] = v;
+            }
+            ctx.putImageData(imgData, 0, 0);
+            const totalPx = px.length / 4;
+            console.log(`[REWARD] Binarization: ${textPixels} text pixels / ${totalPx} total (${(100 * textPixels / totalPx).toFixed(2)}%)`);
         }
 
         const dbgPanel = document.getElementById("live-debug-snapshot");
@@ -169,7 +195,11 @@ export const ScannerService = {
         const worker1 = OCRRepository.workers[0];
         const { data } = await OCRRepository.recognize(worker1, ocrCanvas);
         const rawOcr = data.text || "";
+        console.log(`[REWARD] OCR raw: "${rawOcr.replaceAll(/\n+/g, " ").trim().slice(0, 120)}"`);
+        // Pass the real canvas width so parseRewards uses correct coordinates
+        data.imageW = ocrCanvas.width;
         const foundItems = OCRService.parseRewards(data);
+        console.log(`[REWARD] Items found: ${foundItems.length}`, foundItems.map(i => i.name));
 
         clearRewardDebugLogs();
         const cleanOcrText = rawOcr.replaceAll(/\n+/g, ' ').trim();
@@ -194,100 +224,106 @@ export const ScannerService = {
         if (this.detectionLocked) return;
         this.detectionLocked = true;
 
-        if (globalThis.LiveCalibration && !globalThis.LiveCalibration.hasCalibration()) {
-            console.log("No Grid Calibration found. Starting calibration...");
-            const calibCvs = document.createElement("canvas");
-            calibCvs.width = width;
-            calibCvs.height = height;
-            const calibCtx = calibCvs.getContext("2d");
-            calibCtx.drawImage(snapshot, 0, 0);
-            await globalThis.LiveCalibration.runCalibrationFlow(
-                calibCtx.getImageData(0, 0, width, height)
-            );
-            return;
-        }
-
-        const grid = globalThis.LiveCalibration?.getGrid();
-        if (!grid) return;
-
-        const cellRects = this.calculateCellRects(grid);
-        const ocrCanvas = VisionService.createFilteredOcrCanvas(snapshot, width, height, grid);
-
-        const debugCanvas = document.createElement("canvas");
-        debugCanvas.width = width;
-        debugCanvas.height = height;
-        const dCtx = debugCanvas.getContext("2d");
-        dCtx.drawImage(snapshot, 0, 0);
-        dCtx.strokeStyle = "rgba(0,255,255,0.3)";
-        dCtx.lineWidth = 1;
-        cellRects.forEach(cell => dCtx.strokeRect(cell.sx, cell.sy, grid.cellW, grid.cellH));
-
-        ScannerHUD.updateScrollStatus("scanning");
-
-        const chunks = [[], [], []];
-        cellRects.forEach((cell, i) => chunks[i % 3].push(cell));
-
-        const workers = OCRRepository.workers;
-        const bWorkers = OCRRepository.badgeWorkers;
-
-        this.lastRawOcrLog = [];
-
-        const processChunk = async (chunk, worker, bWorker) => {
-            for (const cell of chunk) {
-                const textCanvas = VisionService.createTextCanvas(ocrCanvas, cell, grid);
-                const combinedText = await OCRService.extractCellText(worker, textCanvas);
-                if (!combinedText) {
-                    this.lastRawOcrLog.push(`[r${cell.r}c${cell.c}] NONE`);
-                    continue;
-                }
-
-                let logStr = `[r${cell.r}c${cell.c}] OCR: ${combinedText.join(" ")}`;
-
-                const bestItem = OCRService.getValidItemMatch(combinedText);
-                if (bestItem) {
-                    const badgeCanvas = VisionService.createBadgeCanvas(snapshot, cell, grid);
-                    const qtyResult = await OCRService.extractCellQuantity(bWorker, badgeCanvas);
-
-                    logStr += ` || BDG: ${qtyResult.raw}`;
-                    this.lastRawOcrLog.push(logStr);
-
-                    this.sessionInventory.set(bestItem.originalName, qtyResult.qty);
-                    ScannerHUD.updateDetectedItems(this.sessionInventory);
-
-                    // Draw success on debug canvas
-                    dCtx.fillStyle = "rgba(0,0,0,0.8)";
-                    dCtx.fillRect(cell.sx, cell.sy + grid.cellH - 20, grid.cellW, 20);
-                    dCtx.fillStyle = "#00ff78";
-                    dCtx.font = "bold 11px monospace";
-                    const shortName = bestItem.originalName.replace(/Prime/gi, "").trim();
-                    dCtx.fillText(`${shortName} x${qtyResult.qty}`, cell.sx + 4, cell.sy + grid.cellH - 5);
-                } else {
-                    this.lastRawOcrLog.push(logStr);
-                    // Draw failure/debug info
-                    dCtx.fillStyle = "rgba(255,0,0,0.5)";
-                    dCtx.fillRect(cell.sx, cell.sy + grid.cellH - 15, grid.cellW, 15);
-                }
-            }
-        };
-
         try {
-            await Promise.all([
-                processChunk(chunks[0], workers[0], bWorkers[0]),
-                processChunk(chunks[1], workers[1], bWorkers[1]),
-                processChunk(chunks[2], workers[2], bWorkers[2])
-            ]);
 
-            console.log(`Scan Page Complete. Found ${this.sessionInventory.size} unique items.`);
-            ScannerHUD.updateScrollStatus("done", this.sessionInventory.size);
-            ScannerHUD.updateDetectedItems(this.sessionInventory);
-
-            if (ScannerHUD.updateDebugSnapshot) {
-                ScannerHUD.updateDebugSnapshot(debugCanvas.toDataURL("image/jpeg", 0.7));
-                // Prevent processFrame from overwriting this painted image for 5 seconds
-                this.lastDebugUpdate = Date.now() + 5000;
+            if (globalThis.LiveCalibration && !globalThis.LiveCalibration.hasCalibration()) {
+                console.log("No Grid Calibration found. Starting calibration...");
+                const calibCvs = document.createElement("canvas");
+                calibCvs.width = width;
+                calibCvs.height = height;
+                const calibCtx = calibCvs.getContext("2d");
+                calibCtx.drawImage(snapshot, 0, 0);
+                await globalThis.LiveCalibration.runCalibrationFlow(
+                    calibCtx.getImageData(0, 0, width, height)
+                );
+                return;
             }
-        } catch (e) {
-            console.error("Grid processing failed:", e);
+
+            const grid = globalThis.LiveCalibration?.getGrid();
+            if (!grid) {
+                console.warn("[INV] No grid calibration available.");
+                return;
+            }
+
+            const cellRects = this.calculateCellRects(grid);
+            const ocrCanvas = VisionService.createFilteredOcrCanvas(snapshot, width, height, grid);
+
+            const debugCanvas = document.createElement("canvas");
+            debugCanvas.width = width;
+            debugCanvas.height = height;
+            const dCtx = debugCanvas.getContext("2d");
+            dCtx.drawImage(snapshot, 0, 0);
+            dCtx.strokeStyle = "rgba(0,255,255,0.3)";
+            dCtx.lineWidth = 1;
+            cellRects.forEach(cell => dCtx.strokeRect(cell.sx, cell.sy, grid.cellW, grid.cellH));
+
+            ScannerHUD.updateScrollStatus("scanning");
+
+            const chunks = [[], [], []];
+            cellRects.forEach((cell, i) => chunks[i % 3].push(cell));
+
+            const workers = OCRRepository.workers;
+            const bWorkers = OCRRepository.badgeWorkers;
+
+            this.lastRawOcrLog = [];
+
+            const processChunk = async (chunk, worker, bWorker) => {
+                for (const cell of chunk) {
+                    const textCanvas = VisionService.createTextCanvas(ocrCanvas, cell, grid);
+                    const combinedText = await OCRService.extractCellText(worker, textCanvas);
+                    if (!combinedText) {
+                        this.lastRawOcrLog.push(`[r${cell.r}c${cell.c}] NONE`);
+                        continue;
+                    }
+
+                    let logStr = `[r${cell.r}c${cell.c}] OCR: ${combinedText.join(" ")}`;
+
+                    const bestItem = OCRService.getValidItemMatch(combinedText);
+                    if (bestItem) {
+                        const badgeCanvas = VisionService.createBadgeCanvas(snapshot, cell, grid);
+                        const qtyResult = await OCRService.extractCellQuantity(bWorker, badgeCanvas);
+
+                        logStr += ` || BDG: ${qtyResult.raw}`;
+                        this.lastRawOcrLog.push(logStr);
+
+                        this.sessionInventory.set(bestItem.originalName, qtyResult.qty);
+                        ScannerHUD.updateDetectedItems(this.sessionInventory);
+
+                        // Draw success on debug canvas
+                        dCtx.fillStyle = "rgba(0,0,0,0.8)";
+                        dCtx.fillRect(cell.sx, cell.sy + grid.cellH - 20, grid.cellW, 20);
+                        dCtx.fillStyle = "#00ff78";
+                        dCtx.font = "bold 11px monospace";
+                        const shortName = bestItem.originalName.replace(/Prime/gi, "").trim();
+                        dCtx.fillText(`${shortName} x${qtyResult.qty}`, cell.sx + 4, cell.sy + grid.cellH - 5);
+                    } else {
+                        this.lastRawOcrLog.push(logStr);
+                        // Draw failure/debug info
+                        dCtx.fillStyle = "rgba(255,0,0,0.5)";
+                        dCtx.fillRect(cell.sx, cell.sy + grid.cellH - 15, grid.cellW, 15);
+                    }
+                }
+            };
+
+            try {
+                await processChunk(chunks[0], workers[0 % workers.length], bWorkers[0 % bWorkers.length]);
+                await processChunk(chunks[1], workers[1 % workers.length], bWorkers[1 % bWorkers.length]);
+                await processChunk(chunks[2], workers[2 % workers.length], bWorkers[2 % bWorkers.length]);
+
+                console.log(`Scan Page Complete. Found ${this.sessionInventory.size} unique items.`);
+                ScannerHUD.updateScrollStatus("done", this.sessionInventory.size);
+                ScannerHUD.updateDetectedItems(this.sessionInventory);
+
+                if (ScannerHUD.updateDebugSnapshot) {
+                    ScannerHUD.updateDebugSnapshot(debugCanvas.toDataURL("image/jpeg", 0.7));
+                    this.lastDebugUpdate = Date.now() + 5000;
+                }
+            } catch (e) {
+                console.error("Grid processing failed:", e);
+            } finally {
+                this.detectionLocked = false;
+            }
+
         } finally {
             this.detectionLocked = false;
         }
@@ -299,7 +335,8 @@ export const ScannerService = {
             const combinedText = await OCRService.extractCellText(worker, textCanvas);
             if (!combinedText) continue;
 
-            const bestMatch = OCRService.getValidItemMatch(combinedText);
+            const bestMatch = OCRService.getValidItemMatch(combinedText)
+                ?? OCRService.levenshteinFallback(combinedText);
             if (!bestMatch) continue;
 
             const badgeCanvas = VisionService.createBadgeCanvas(snapshot, cell, grid);

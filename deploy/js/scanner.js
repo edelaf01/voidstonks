@@ -101,6 +101,7 @@ export async function handleFileUpload(event) {
 }
 
 async function processImageSource(source) {
+  console.log("[SCANNER] processImageSource called"); // early debug
   const loading = document.getElementById("ocr-loading");
   if (loading) loading.classList.remove("hidden");
 
@@ -108,9 +109,9 @@ async function processImageSource(source) {
   const h = source.videoHeight || source.height;
 
   if (w < 10 || h < 10) {
-    console.warn(`[SCANNER] Imagen ignorada por tamaño incorrecto: ${w}x${h}`);
+    console.warn(`[SCANNER] Imagen ignorada por tama\u00f1o incorrecto: ${w}x${h}`);
     if (loading) loading.classList.add("hidden");
-    showToast("Error: Imagen demasiado pequeña o inválida.");
+    showToast("Error: Imagen demasiado peque\u00f1a o inv\u00e1lida.");
     return;
   }
 
@@ -119,51 +120,102 @@ async function processImageSource(source) {
 
   processingCtx.drawImage(source, 0, 0, w, h);
 
+  // Falls back to simple grayscale if themes not loaded yet.
+  const themes = globalThis._WF_THEMES;
+  const TOL_SQ = 1944; // 10% tolerance of color
   const imageData = processingCtx.getImageData(0, 0, w, h);
   const data = imageData.data;
-
-  for (let i = 0; i < data.length; i += 4) {
-    const gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
-    const contrast = gray > 100 ? 255 : 0;
-    data[i] = data[i + 1] = data[i + 2] = contrast;
+  if (themes?.length) {
+    for (let i = 0; i < data.length; i += 4) {
+      const r = data[i], g = data[i + 1], b = data[i + 2];
+      let isText = false;
+      for (const t of themes) {
+        const dr = r - t.r, dg = g - t.g, db = b - t.b;
+        if (dr * dr + dg * dg + db * db < TOL_SQ) { isText = true; break; }
+      }
+      data[i] = data[i + 1] = data[i + 2] = isText ? 0 : 255;
+    }
+  } else {
+    // Fallback: grayscale threshold
+    for (let i = 0; i < data.length; i += 4) {
+      const gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+      data[i] = data[i + 1] = data[i + 2] = gray > 100 ? 0 : 255;
+    }
   }
   processingCtx.putImageData(imageData, 0, 0);
 
   try {
     if (!globalThis.Tesseract)
-      throw new Error("Librería Tesseract no cargada en index.html");
+      throw new Error("Librer\u00eda Tesseract no cargada en index.html");
 
-    console.log(" [SCANNER] Iniciando reconocimiento OCR...");
+    console.log(`[SCANNER] Iniciando OCR sobre imagen ${w}x${h} (temas: ${themes?.length ?? 0})...`);
 
-    const {
-      data: { text },
-    } = await globalThis.Tesseract.recognize(processingCanvas, "eng", {
-      tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789[] ",
-    });
-
-    console.log("[SCANNER] Texto crudo detectado:", text);
-
-    const found = parseRelicText(text);
-
-    if (found.length > 0) {
-      console.log("[SCANNER] Reliquias válidas encontradas:", found);
-
-      found.forEach((item) => {
-        if (!scannedInventory.includes(item)) scannedInventory.push(item);
-      });
-
-      updateResultsUI();
-
-      const resultsPanel = document.getElementById("scanned-results-panel");
-      if (resultsPanel) resultsPanel.classList.remove("hidden");
-
-      showToast(`¡${found.length} detected!`);
+    // Use pre-warmed OCR worker if available, otherwise use cold Tesseract
+    let ocrData;
+    const repo = globalThis._OCRRepository;
+    if (repo?.workers?.length > 0) {
+      console.log("[SCANNER] Usando worker pre-calentado");
+      const result = await repo.recognize(repo.workers[0], processingCanvas);
+      ocrData = result.data;
     } else {
-      console.warn(" [SCANNER] No se detectó patrón de reliquia.");
-      showToast("NO RELICS DETECTED TRY AGAIN.");
+      console.log("[SCANNER] Usando Tesseract.recognize en fr\u00edo");
+      const result = await globalThis.Tesseract.recognize(processingCanvas, "eng");
+      ocrData = result.data;
+    }
+
+    const text = ocrData.text || "";
+    const words = ocrData.words || [];
+
+    console.log("[SCANNER] Texto crudo OCR:", text.replaceAll(/\n+/g, " ").trim());
+    console.log(`[SCANNER] Palabras detectadas: ${words.length}`);
+
+    // Auto-detect context from the raw text
+    const upperText = text.toUpperCase();
+    let context = "UNKNOWN";
+    if (/REWARD|FISSURE|VOID/.test(upperText)) context = "REWARD";
+    else if (/LITH|MESO|NEO|AXI|REQUIEM/.test(upperText)) context = "RELICS";
+    else if (/INVEN|TORY|SELL/.test(upperText)) context = "INVENTORY";
+
+    console.log(`[SCANNER] Contexto detectado: ${context}`);
+
+    if (context === "REWARD") {
+      // Route through the live scanner's services (already loaded via live_scanner.js)
+      const ocrSvc = globalThis.ScannerService ? globalThis.ScannerService.ocrService : null;
+      const OCRSvc = globalThis._OCRService;
+      if (!OCRSvc) {
+        console.warn("[SCANNER] OCRService not ready yet - start the live scanner first or wait for warm-up.");
+        showToast("Inicia el escáner en vivo primero para poder procesar recompensas.");
+      } else {
+        OCRSvc.initMatcherData();
+        ocrData.imageW = w;
+        const foundItems = OCRSvc.parseRewards(ocrData);
+        console.log(`[SCANNER] Items de recompensa encontrados: ${foundItems.length}`, foundItems.map(i => i.name));
+        if (foundItems.length > 0 && globalThis._ScannerModal) {
+          const snap = processingCanvas.toDataURL("image/jpeg", 0.85);
+          globalThis._ScannerModal.open(snap, foundItems, w, h, 1, text);
+          showToast(`\u00a1${foundItems.length} reward(s) detected!`);
+        } else {
+          showToast("REWARDS: no items matched. Check console for OCR output.");
+        }
+      }
+    } else {
+      // Relic / fallback path
+      const found = parseRelicText(text);
+      console.log(`[SCANNER] Reliquias encontradas: ${found.length}`, found);
+      if (found.length > 0) {
+        found.forEach((item) => {
+          if (!scannedInventory.includes(item)) scannedInventory.push(item);
+        });
+        updateResultsUI();
+        const resultsPanel = document.getElementById("scanned-results-panel");
+        if (resultsPanel) resultsPanel.classList.remove("hidden");
+        showToast(`¡${found.length} relic(s) detected!`);
+      } else {
+        showToast("No items detected. Check console for OCR output.");
+      }
     }
   } catch (e) {
-    console.error(" [SCANNER] Error OCR:", e);
+    console.error("[SCANNER] Error OCR:", e);
     showToast("SCANNER ERROR TRY AGAIN.");
   } finally {
     if (loading) loading.classList.add("hidden");

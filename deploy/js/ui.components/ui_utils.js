@@ -208,7 +208,7 @@ export function getRelicDropTooltip(tierName) {
       html += `<div style='display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; background:rgba(0,0,0,0.25); padding:4px 8px; border-radius:4px; border-left:3px solid ${color}; gap:10px; width:100%; box-sizing:border-box;'>
         <span style='font-size:0.9em; color:#fff; flex:1; min-width:140px; word-break:break-word; line-height:1.2;'>${escapeHTML(item.name)}</span>
         <div style='display:flex; gap:10px; align-items:center; font-size:0.9em; font-weight:bold; flex-shrink:0;'>
-          <span style='color:#2196f3; display:flex; align-items:center; gap:3px;'><img src='assets/Ducats.webp' style='width:12px;height:12px;'>${item.ducats || 0}</span>
+          ${(item.ducats && item.ducats > 0) ? `<span style='color:#2196f3; display:flex; align-items:center; gap:3px;'><img src='assets/Ducats.webp' style='width:12px;height:12px;'>${item.ducats}</span>` : ''}
           <span style='color:var(--wf-gold-text); display:flex; align-items:center; gap:3px;'><img src='assets/relic_contents/platinum.webp' style='width:12px;height:12px;'><span id='tt-price-${getSlug(tierName)}-${itemSlug}'>${cachedPrice}</span></span>
         </div>
       </div>`;

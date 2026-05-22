@@ -23,11 +23,11 @@ import {
 } from "./ui.components/ui_relics.js";
 import {
   renderSetTracker,
-} from "./ui.components/ui_sets.js";
+} from "./ui.components/ui_sets.js?v=1.9";
 import {
   updateLFGUI,
 } from "./ui.components/ui_lfg.js";
-import { populateRivenSelects } from "./ui.components/ui_rivens.js";
+import { populateRivenSelects, initRivenMarketIndex, updateIndexTranslations, filterRivenIndex, stopRivenShowcase } from "./ui.components/ui_rivens.js?v=1.10";
 import { initSyncPanel } from "./ui.components/ui_sync.js";
 import { initFissurePanel, updateRecommendedMissions } from "./ui.components/ui_fissures.js";
 import { state, saveAppState, updateInventoryCount } from "./state.js";
@@ -91,6 +91,16 @@ export function switchTab(mode) {
     document.getElementById("mode-" + m)?.classList.add("hidden");
   });
   document.getElementById("mode-" + mode)?.classList.remove("hidden");
+
+  if (mode === "riven") {
+    if (typeof initRivenMarketIndex === "function") {
+      initRivenMarketIndex().catch(console.error);
+    }
+  } else if (mode === "set") {
+    if (typeof globalThis.searchSet === "function") {
+      globalThis.searchSet();
+    }
+  }
 
   const footer = document.getElementById("footer-relic");
   const msgText = document.getElementById("finalMessage");
@@ -202,6 +212,10 @@ function updateStaticTexts(t) {
   setText("lbl-riven-weapon", t.lblRivenW);
   setText("lbl-riven-stats", t.lblRivenS);
   setText("btn-riven-search", t.rivenSearch);
+
+  setText("txt-mod-preview", t.lblModPreview);
+  setText("txt-weapon-guide", t.lblWeaponGuide);
+  setText("txt-variants-header", t.rivenIndex?.variantsLabel || "VARIANTS");
 
   setText("lbl-riven-median-price", t.lblRivenMedian);
   setText("lbl-riven-low-price", t.lblRivenLow);
@@ -399,6 +413,12 @@ export function updateUILabels() {
   updateSelectDropdowns(t);
   updateRivenSelects(t);
   updateScannerAndCalib(t);
+  if (typeof updateIndexTranslations === "function") {
+    updateIndexTranslations();
+    if (state.rivenIndexData) {
+      filterRivenIndex();
+    }
+  }
   triggerSideEffects(t);
 }
 

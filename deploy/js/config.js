@@ -1,10 +1,36 @@
-export const WORKER_URL = "https://shrill-brook-d8aa.edelamf0.workers.dev/";
+export const WORKER_URL = "https://wf-tool-proxy-worker.edelamf0.workers.dev/";
 export const APP_VERSION = 2.0;
 export const UPDATE_HISTORY_DATA = {
   es: `
 <div class="update-block">
   <div class="update-header">
-    <span class="update-version">v2.0.0 (Actual)</span>
+    <span class="update-version">v2.1.0 (Actual)</span>
+    <span class="update-date">2026-05-22</span>
+  </div>
+  <ul class="update-list">
+    <li>
+      <strong>Rivens (Lógica y Apariencia):</strong> Sección y tasador de Rivens (Riven Appraisal) completamente rediseñados. La interfaz es mucho más dinámica y limpia, y los campos opcionales (+STAT 3 y -Negativa) ahora se crean y destruyen dinámicamente en el DOM sin recargar la página.
+    </li>
+    <li>
+      <strong>Información Completa de Precios:</strong> Se muestran más datos para informarse en detalle sobre los precios actuales. Ahora puedes ver tanto los precios de transacciones reales completadas en el juego (DE Real) como los precios del mercado activo (WFM Web), con iconos visuales de Platinum.
+    </li>
+    <li>
+      <strong>Tasación Inteligente:</strong> A partir de los datos de WFM y DE, el sistema obtiene el precio medio estimado de un Riven "unrolled" (basura/base) y clasifica automáticamente los mejores y peores modificadores (stats) del arma seleccionada. <em>Nota: El precio es una estimación orientativa; puedes vender tus Rivens por más o por menos según la oferta y la demanda.</em>
+    </li>
+    <li>
+      <strong>Escáner de Recompensas (PC):</strong> Mejoras sustanciales en la detección del Live Scanner para PC. El escaneo ahora es casi instantáneo, con una tasa de falsos positivos y de no-detecciones drásticamente reducida.
+    </li>
+    <li>
+      <strong>Pestaña de Sets:</strong> Se ha rediseñado y embellecido la pestaña de conjuntos de reliquias y partes Prime, ofreciendo una experiencia visual mucho más elegante y fluida.
+    </li>
+    <li>
+      <strong>Optimización General:</strong> Limpieza profunda del codebase, reducción de código spaghetti y mejoras menores en el rendimiento de la aplicación.
+    </li>
+  </ul>
+</div>
+<div class="update-block old">
+  <div class="update-header">
+    <span class="update-version">v2.0.0</span>
     <span class="update-date">2026-04-17</span>
   </div>
   <ul class="update-list">
@@ -86,20 +112,48 @@ export const UPDATE_HISTORY_DATA = {
   en: `
 <div class="update-block">
   <div class="update-header">
-    <span class="update-version">v2.0.0 (Current)</span>
+    <span class="update-version">v2.1.0 (Current)</span>
+    <span class="update-date">2026-05-22</span>
+  </div>
+  <ul class="update-list">
+    <li>
+      <strong>Rivens (Logic & Visuals):</strong> Fully redesigned the Riven section and the Riven Appraisal widget. The interface is much more dynamic and clean.
+    </li>
+    <li>
+      <strong>Rich Price Insights:</strong> More detailed data has been added to provide comprehensive insights on current Riven pricing. You can now see completed real transaction data (DE Real) alongside active market listings (WFM Web).
+    </li>
+    <li>
+      <strong>Smart Appraisal:</strong> Based on market data, the app calculates the estimated average price of unrolled/trash Rivens and automatically tags the best and worst stats according to WFM metrics. <em>Note: The suggested price is an estimate; you can buy or sell your Rivens for more or less than this valuation.</em>
+    </li>
+    <li>
+      <strong>Reward Scanner (PC):</strong> Massive improvements to PC  reward   scanner. Recognition is now near-instantaneous with an extremely low false-positive and non-detection rate.
+    </li>
+    <li>
+      <strong>Sets Tab:</strong> redesigned the Sets tab adding a carrousel thingy.
+    </li>
+    <li>
+      <strong>General Optimization:</strong> Cleaned up the codebase, eliminated legacy code, and implemented miscellaneous minor performance enhancements.
+    </li>
+    <li>
+      <strong>As always this is not abandoned im working on it every other day when i can , just had irl scares related to health of family members and full time job, i want to prioritize  mobile functionality in the future so you console tenno can use a reliable overlay on your phone while playing .
+    </li>
+  </ul>
+</div>
+<div class="update-block old">
+  <div class="update-header">
+    <span class="update-version">v2.0.0</span>
     <span class="update-date">2026-04-17</span>
   </div>
   <ul class="update-list">
     <li>
-      <strong>Inventory Scanner:</strong> Improved and fixed inventory scanner problems .
+      <strong>Inventory Scanner:</strong> Improved and fixed inventory scanner problems.
     </li>
     <li>
-      <strong>Reward Scanner:</strong> Restored stable detection logic Now it should scan better.
+      <strong>Reward Scanner:</strong> Restored stable detection logic. Now it should scan better.
     </li>
     <li>
       <strong>Refactoring:</strong> Improvements to the fissures backend and code cleanup in OCR/Vision services.
     </li>
-
   </ul>
 </div>
 <div class="update-block old">
@@ -785,9 +839,10 @@ export const TEXTS = {
     lblTraces: "Max Vestigios",
     disclaimer:
       "VoidStonks no está afiliado, respaldado ni patrocinado por Digital Extremes Ltd.Warframe™ es una marca registrada de Digital Extremes Ltd.",
-    lblRelicFor: "Reliquias para: ",
     lblRivenPos: "+ Estadísticas",
     lblRivenNeg: "- Negativa (Opcional)",
+    lblModPreview: "VISTA PREVIA DEL MOD",
+    lblWeaponGuide: "GUÍA DEL ARMA",
     lblMrCalc: "Si la API falla, calcula por MR:",
     lblLfgActivity: "Actividad",
     lblLfgPlayers: "Jugadores Necesarios",
@@ -864,6 +919,31 @@ export const TEXTS = {
     lblRivenMedian: "Precio base estimado (Mediana)",
     lblRivenLow: "Precio más bajo:",
     lblRivenHigh: "Precio más alto:",
+    recipe: "Receta",
+    stats: "Estadísticas",
+    recipeNotAvailable: "Receta no disponible",
+    requirements: "Requisitos",
+    dropLocations: "Ubicaciones de Drop",
+    lichSources: {
+      unknown: "Fuente Desconocida",
+      kuva: "Lich de Kuva (Vencer)",
+      tenet: "Hermanas de Parvos (Vencer)",
+      coda: "Liches Infestados (1999)"
+    },
+    rivenIndex: {
+      trend: "TENDENCIA",
+      potential: "POTENCIAL",
+      medianUnrolled: "MEDIANA (SIN ROLL)",
+      medianRerolled: "MEDIANA (ROLLEADO)",
+      maxRecorded: "MÁX. REGISTRADO",
+      wfmAverage: "MEDIA WFM",
+      ords: "ords",
+      variantsLabel: "Variantes",
+      bestPositives: "MEJORES POSITIVOS",
+      worstPositives: "PEORES POSITIVOS",
+      bestNegatives: "MEJORES NEGATIVOS (INOFENSIVOS)",
+      worstNegatives: "PEORES NEGATIVOS (CRÍTICOS)"
+    }
   },
   en: {
     condSpeedrun: "Complete in less than 6 min",
@@ -1094,6 +1174,8 @@ export const TEXTS = {
     lblRelicFor: "Relics for: ",
     lblRivenPos: "+ Positive Stat",
     lblRivenNeg: "- Negative (Optional)",
+    lblModPreview: "MOD CARD LIVE PREVIEW",
+    lblWeaponGuide: "WEAPON ATTRIBUTES GUIDE",
     lblMrCalc: "Calc by MR:",
     lblLfgActivity: "Activity",
     lblLfgPlayers: "Players Needed",
@@ -1184,9 +1266,33 @@ export const TEXTS = {
       tagBestPl: "BEST PLAT!",
       tagBestDuc: "BEST DUCAT!",
       tagCompletes: "COMPLETES SET!",
-      title: "DETECTED REWARDS",
       mobileHint: "Tap 'ADD' to register in inventory",
     },
+    recipe: "Recipe",
+    stats: "Stats",
+    recipeNotAvailable: "Recipe not available",
+    requirements: "Requirements",
+    dropLocations: "Drop Locations",
+    lichSources: {
+      unknown: "Unknown Source",
+      kuva: "Kuva Lich (Vanquish)",
+      tenet: "Sisters of Parvos (Vanquish)",
+      coda: "Infested Liches (1999)"
+    },
+    rivenIndex: {
+      trend: "TREND",
+      potential: "POTENTIAL",
+      medianUnrolled: "MEDIAN (UNROLLED)",
+      medianRerolled: "MEDIAN (REROLLED)",
+      maxRecorded: "MAX. RECORDED",
+      wfmAverage: "WFM AVERAGE",
+      ords: "ords",
+      variantsLabel: "Variants",
+      bestPositives: "BEST POSITIVES",
+      worstPositives: "WORST POSITIVES",
+      bestNegatives: "BEST NEGATIVES (HARMLESS)",
+      worstNegatives: "WORST NEGATIVES (CRITICAL)"
+    }
   },
 };
 export const AYA_STRATEGY_CONFIG = {

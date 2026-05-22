@@ -154,7 +154,7 @@ export const ScannerModal = {
             });
         }
 
-        const BADGE_GAP_PCT = 18;
+        const BADGE_GAP_PCT = 11;
         for (let i = 1; i < positionedItems.length; i++) {
             const prev = positionedItems[i - 1];
             const curr = positionedItems[i];

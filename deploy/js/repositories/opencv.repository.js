@@ -2,6 +2,7 @@
  * Repository for OpenCV.js library management and raw image processing.
  */
 export const OpenCVRepository = {
+    DISABLE_OPENCV: false,
     isReady: false,
     initializationPromise: null,
 
@@ -9,6 +10,11 @@ export const OpenCVRepository = {
      * Injects OpenCV.js
      */
     async waitReady(timeout = 30000) {
+        if (this.DISABLE_OPENCV) {
+            console.warn("[OpenCV] OpenCV loading is disabled by code toggle.");
+            return false;
+        }
+
         if (this.isReady) return true;
         if (this.initializationPromise) return this.initializationPromise;
 
@@ -23,7 +29,12 @@ export const OpenCVRepository = {
 
             if (check()) return true;
 
-            await this.injectScript("https://docs.opencv.org/4.5.4/opencv.js");
+            try {
+                await this.injectScript("https://docs.opencv.org/4.5.4/opencv.js");
+            } catch (e) {
+                console.warn("[OpenCV] Primary CDN failed, fallback to unpkg...");
+                await this.injectScript("https://unpkg.com/@techstark/opencv-js@4.5.4-beta.3/dist/opencv.js");
+            }
 
             return new Promise((resolve) => {
                 const interval = setInterval(() => {
