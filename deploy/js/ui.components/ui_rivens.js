@@ -422,6 +422,37 @@ async function fetchAndRenderHistory(weaponName) {
   try {
       // Ensure historyData is an array before sorting to avoid TypeError
       if (Array.isArray(historyData)) {
+        const todayStr = new Date().toISOString().split("T")[0];
+        let todayEntry = historyData.find(d => d.date && d.date.startsWith(todayStr));
+
+        const wfmPrice = (meta && (meta.wfm_avg_price || meta.wfm_avg)) || null;
+        const officialPrice = (meta && (meta.official_median || (meta.de_unrolled && meta.de_unrolled.median))) || null;
+        const rolledPrice = (meta && ((meta.de_rerolled && meta.de_rerolled.median) || (meta.de_rolled && meta.de_rolled.median))) || null;
+        const volumeVal = (meta && (meta.wfm_market_sample || (meta.de_unrolled && meta.de_unrolled.pop) || 0)) || 0;
+
+        if (!todayEntry) {
+          if (wfmPrice || officialPrice || rolledPrice) {
+            todayEntry = {
+              date: todayStr,
+              wfm_avg_price: wfmPrice ? Math.round(wfmPrice) : null,
+              official_median: officialPrice ? Math.round(officialPrice) : null,
+              rolled_median: rolledPrice ? Math.round(rolledPrice) : null,
+              volume: Math.round(volumeVal)
+            };
+            historyData.push(todayEntry);
+          }
+        } else {
+          // If today's entry exists but lacks prices, populate them with live data!
+          if (wfmPrice && !todayEntry.wfm_avg_price && !todayEntry.wfm_avg) {
+            todayEntry.wfm_avg_price = Math.round(wfmPrice);
+          }
+          if (officialPrice && !todayEntry.official_median) {
+            todayEntry.official_median = Math.round(officialPrice);
+          }
+          if (rolledPrice && !todayEntry.rolled_median) {
+            todayEntry.rolled_median = Math.round(rolledPrice);
+          }
+        }
         historyData.sort((a, b) => a.date.localeCompare(b.date));
       } else {
         console.warn('Riven history data is not an array, resetting to empty array:', historyData);
@@ -429,7 +460,7 @@ async function fetchAndRenderHistory(weaponName) {
       }
 
     const labels = historyData.map(d => d.date);
-    const wfmPrices = historyData.map(d => d.wfm_avg_price || null);
+    const wfmPrices = historyData.map(d => d.wfm_avg_price || d.wfm_avg || null);
 
     // Mathematically robust baseline average of historical WFM prices to center our projections perfectly
     const validWfm = wfmPrices.filter(p => p !== null && p > 0);
@@ -437,8 +468,9 @@ async function fetchAndRenderHistory(weaponName) {
 
     const officialMedians = historyData.map(d => {
       if (d.official_median && d.official_median > 0) return d.official_median;
-      if (d.wfm_avg_price && avgWfm > 0) {
-        const ratio = d.wfm_avg_price / avgWfm;
+      const wfmVal = d.wfm_avg_price || d.wfm_avg;
+      if (wfmVal && avgWfm > 0) {
+        const ratio = wfmVal / avgWfm;
         return Math.round(baseMedian * ratio);
       }
       return baseMedian;
@@ -446,8 +478,9 @@ async function fetchAndRenderHistory(weaponName) {
 
     const rolledMedians = historyData.map(d => {
       if (d.rolled_median && d.rolled_median > 0) return d.rolled_median;
-      if (d.wfm_avg_price && avgWfm > 0) {
-        const ratio = d.wfm_avg_price / avgWfm;
+      const wfmVal = d.wfm_avg_price || d.wfm_avg;
+      if (wfmVal && avgWfm > 0) {
+        const ratio = wfmVal / avgWfm;
         return Math.round(baseRolled * ratio);
       }
       return baseRolled;
@@ -3551,10 +3584,9 @@ export async function initRivenMarketIndex() {
       state.rivenIndexData = globalThis.dynamicMetaStats;
       console.log("Reused globalThis.dynamicMetaStats for Riven Market Index!");
     } else {
-      // 2. Fetch directly from the updated worker endpoint
+      // 2. Fetch directly from the updated worker endpoint (fast Soft Mountain 28 worker)
       try {
-        const base = WORKER_URL.endsWith("/") ? WORKER_URL.slice(0, -1) : WORKER_URL;
-        const res = await fetch(`${base}/api/rivens`);
+        const res = await fetch(`${RIVEN_API_BASE}/rivens`);
         if (res.ok) {
           let data = await res.json();
           if (data && data.data && typeof data.data === "object" && !Array.isArray(data.data)) {
@@ -3578,24 +3610,27 @@ export async function initRivenMarketIndex() {
               }
             }
             state.rivenIndexData = merged;
-            console.log("Loaded and merged Riven Market Index directly from Worker!");
+            console.log("Loaded and merged Riven Market Index directly from Soft Mountain 28 worker!");
           }
         }
       } catch (apiErr) {
-        console.warn("Direct API fetch failed, falling back to local asset", apiErr);
+        console.warn("Direct Soft Mountain worker fetch failed, falling back", apiErr);
       }
 
-      // 3. Fallback to global baseline dynamicMetaStats or local metastats.json if direct fetch failed
+      // 3. Fallback to global baseline dynamicMetaStats or Soft Mountain 28 worker if direct fetch failed
       if (!state.rivenIndexData) {
-        if (globalThis.dynamicMetaStats && Object.keys(globalThis.dynamicMetaStats).length > 0) {
+        if (globalThis.dynamicMetaStats && Object.keys(globalThis.dynamicMetaStats).length > 10) {
           state.rivenIndexData = globalThis.dynamicMetaStats;
           console.log("Loaded Riven Market Index from global dynamicMetaStats fallback!");
         } else {
-          const res = await fetch("metastats.json");
-          if (!res.ok) throw new Error("Failed to fetch metastats.json");
-          const data = await res.json();
+          const res = await fetch(`${RIVEN_API_BASE}/rivens`);
+          if (!res.ok) throw new Error("Failed to fetch metastats from Soft Mountain 28 worker");
+          let data = await res.json();
+          if (data && data.data && typeof data.data === "object" && !Array.isArray(data.data)) {
+            data = data.data;
+          }
           state.rivenIndexData = data;
-          console.log("Loaded Riven Market Index from local metastats.json fallback!");
+          console.log("Loaded Riven Market Index from Soft Mountain 28 worker fallback!");
         }
       }
     }
@@ -3618,8 +3653,24 @@ export function filterRivenIndex(resetPagination = true) {
   if (resetPagination) {
     indexRenderLimit = 30;
   }
-  const data = state.rivenIndexData;
-  if (!data) return;
+  
+  const rawData = state.rivenIndexData || {};
+  const data = {};
+  if (state.allRivenNames && state.allRivenNames.length > 0) {
+    state.allRivenNames.forEach(wName => {
+      const matchKey = Object.keys(rawData).find(k => k.toLowerCase() === wName.toLowerCase());
+      data[wName] = matchKey ? rawData[matchKey] : {
+        official_median: 0,
+        popularity_pct: 0,
+        wfm_market_sample: 0,
+        wfm_avg_price: 0,
+        wfm_avg: 0
+      };
+    });
+  } else {
+    if (Object.keys(rawData).length === 0) return;
+    Object.assign(data, rawData);
+  }
 
   const query = document.getElementById("indexSearchInput")?.value?.trim()?.toLowerCase() || "";
   const sortBy = document.getElementById("indexSortSelect")?.value || "popularity";

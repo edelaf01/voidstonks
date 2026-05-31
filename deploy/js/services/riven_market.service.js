@@ -578,7 +578,7 @@ export async function loadDynamicMetaStats() {
         let fetchedFromWorker = false;
         if (!cacheValid) {
             try {
-                const cleanWorkerUrl = `${RIVEN_API_BASE}/metastats`;
+                const cleanWorkerUrl = `${RIVEN_API_BASE}/rivens`;
                 const res = await fetch(cleanWorkerUrl);
                 if (res.ok) {
                     let data = await res.json();

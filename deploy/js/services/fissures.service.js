@@ -44,6 +44,7 @@ export async function fetchBestFissures() {
                 type: f.missionType,
                 tier: f.tier,
                 eta: timeText,
+                expiry: f.expiry,
                 isSP: f.isHard === true,
                 isOmnia: f.tier === "Omnia",
             });
