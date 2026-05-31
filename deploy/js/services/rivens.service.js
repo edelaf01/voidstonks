@@ -293,32 +293,24 @@ export async function fetchRivenAverage(weaponName) {
                 return price;
             };
 
-            let unrolledMedian = (meta.de_unrolled && meta.de_unrolled.median > 0)
+            const unrolledMedian = (meta.de_unrolled && meta.de_unrolled.median > 0)
                 ? meta.de_unrolled.median
                 : (meta.official_median > 0 ? meta.official_median : null);
-            let unrolledMin = (meta.de_unrolled && meta.de_unrolled.min_price > 0) ? meta.de_unrolled.min_price : null;
-            let unrolledMax = (meta.de_unrolled && meta.de_unrolled.max_price > 0) ? meta.de_unrolled.max_price : null;
+            const unrolledMin = (meta.de_unrolled && meta.de_unrolled.min_price > 0) ? meta.de_unrolled.min_price : null;
+            const unrolledMax = (meta.de_unrolled && meta.de_unrolled.max_price > 0) ? meta.de_unrolled.max_price : null;
 
-            let rerolledMedian = (meta.de_rerolled && meta.de_rerolled.median > 0) ? meta.de_rerolled.median : null;
-            let rerolledMin = (meta.de_rerolled && meta.de_rerolled.min_price > 0) ? meta.de_rerolled.min_price : null;
-            let rerolledMax = (meta.de_rerolled && meta.de_rerolled.max_price > 0) ? meta.de_rerolled.max_price : null;
+            const rerolledMedian = (meta.de_rerolled && meta.de_rerolled.median > 0) ? meta.de_rerolled.median : null;
+            const rerolledMin = (meta.de_rerolled && meta.de_rerolled.min_price > 0) ? meta.de_rerolled.min_price : null;
+            const rerolledMax = (meta.de_rerolled && meta.de_rerolled.max_price > 0) ? meta.de_rerolled.max_price : null;
 
-            let wfmAvg = meta.wfm_avg_price > 0 ? meta.wfm_avg_price : null;
-
-            if (isUnpopular) {
-                unrolledMedian = smoothPrice(unrolledMedian, 150, 0.15);
-                unrolledMin = smoothPrice(unrolledMin, 100, 0.15);
-                unrolledMax = smoothPrice(unrolledMax, 800, 0.10);
-
-                rerolledMedian = smoothPrice(rerolledMedian, 300, 0.15);
-                rerolledMin = smoothPrice(rerolledMin, 200, 0.15);
-                rerolledMax = smoothPrice(rerolledMax, 1500, 0.10);
-
-                wfmAvg = smoothPrice(wfmAvg, 400, 0.20);
-            }
-
+            const wfmAvg = meta.wfm_avg_price > 0 ? meta.wfm_avg_price : null;
             const wfmMin = wfmAvg ? Math.round(wfmAvg * 0.25) : null;
             const wfmOrders = meta.wfm_market_sample > 0 ? meta.wfm_market_sample : 0;
+
+            let calculationBase = unrolledMedian;
+            if (isUnpopular) {
+                calculationBase = smoothPrice(calculationBase, 150, 0.15);
+            }
 
             const updateField = (el, val) => {
                 if (el) el.innerText = (val !== null && val !== undefined) ? (typeof val === "number" ? Math.round(val) : val) : "N/A";
@@ -336,7 +328,7 @@ export async function fetchRivenAverage(weaponName) {
             updateField(webMinEl, wfmMin);
             updateField(webOrdersEl, wfmOrders);
 
-            if (valSpan) valSpan.innerText = unrolledMedian ? Math.round(unrolledMedian) : "50";
+            if (valSpan) valSpan.innerText = calculationBase ? Math.round(calculationBase) : "50";
         } else {
             [unrolledMedianEl, unrolledMinEl, unrolledMaxEl, rerolledMedianEl, rerolledMinEl, rerolledMaxEl, webAvgEl, webMinEl, webOrdersEl].forEach(el => {
                 if (el) el.innerText = "N/A";
