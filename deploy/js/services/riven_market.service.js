@@ -26,15 +26,494 @@ export async function loadDynamicMetaStats() {
 
     // Default hardcoded initial fallback data provided by the user
     let loadedData = {
-        "Arbucep": { "pos": ["Critical Damage", "Multishot", "Critical Chance", "Reload Speed"], "neg": ["Zoom", "Damage Vs Grineer"] },
-        "Cortege": { "pos": ["Critical Damage", "Status Chance", "Toxin Damage", "Critical Chance"], "neg": ["Reload Speed"] },
-        "Corvas": { "pos": ["Critical Chance", "Critical Damage", "Multishot", "Damage Vs Corpus"], "neg": ["Impact Damage", "Fire Rate / Attack Speed"] },
-        "Cyngas": { "pos": ["Critical Damage", "Multishot", "Critical Chance", "Base Damage / Melee Damage"], "neg": ["Puncture Damage", "Zoom"] },
-        "Dual Decurion": { "pos": ["Damage Vs Corpus", "Critical Chance", "Multishot", "Critical Damage"], "neg": ["Zoom", "Puncture Damage"] },
-        "Fluctus": { "pos": ["Critical Damage", "Reload Speed", "Toxin Damage", "Critical Chance"], "neg": ["Zoom", "Ammo Maximum"] },
-        "Kuva Ayanga": { "pos": ["Multishot", "Critical Damage", "Critical Chance", "Toxin Damage"], "neg": ["Recoil", "Reload Speed"] },
-        "Larkspur": { "pos": ["Multishot", "Base Damage / Melee Damage", "Critical Chance", "Critical Damage"], "neg": ["Recoil", "Impact Damage"] },
-        "Mandonel": { "pos": ["Multishot", "Base Damage / Melee Damage", "Critical Chance", "Punch Through"], "neg": ["Zoom", "Recoil"] }
+        "Arbucep": {
+            "official_median": 95,
+            "official_stddev": 81.97,
+            "de_unrolled": {
+                "pop": 3.5,
+                "median": 95,
+                "stddev": 81.97,
+                "min_price": 15,
+                "max_price": 300
+            },
+            "de_rerolled": {
+                "pop": 2.5,
+                "median": 52,
+                "stddev": 48.02,
+                "min_price": 30,
+                "max_price": 300
+            },
+            "wfm_market_sample": 23,
+            "wfm_avg": 1216,
+            "pos_tier": {
+                "top": [
+                    "Multishot",
+                    "Critical Damage",
+                    "Base Damage / Melee Damage",
+                    "Critical Chance",
+                    "Heat Damage"
+                ],
+                "mid": [
+                    "Toxin Damage",
+                    "Fire Rate / Attack Speed",
+                    "Cold Damage"
+                ],
+                "trash": [
+                    "Zoom",
+                    "Electric Damage",
+                    "Magazine Capacity",
+                    "Status Duration",
+                    "Status Chance",
+                    "Damage Vs Corpus",
+                    "Damage Vs Grineer",
+                    "Projectile Speed",
+                    "Punch Through"
+                ]
+            },
+            "neg_tier": {
+                "buff": [
+                    "Zoom",
+                    "Status Chance"
+                ],
+                "curse": [
+                    "Damage Vs Grineer",
+                    "Reload Speed",
+                    "Ammo Maximum",
+                    "Recoil",
+                    "Base Damage / Melee Damage"
+                ]
+            }
+        },
+        "Cortege": {
+            "official_median": 30,
+            "official_stddev": 10.73,
+            "de_unrolled": {
+                "pop": 2.0,
+                "median": 30,
+                "stddev": 10.73,
+                "min_price": 8,
+                "max_price": 50
+            },
+            "de_rerolled": {
+                "pop": 1.5,
+                "median": 22,
+                "stddev": 0.0,
+                "min_price": 5,
+                "max_price": 40
+            },
+            "wfm_market_sample": 12,
+            "wfm_avg": 269,
+            "pos_tier": {
+                "top": [
+                    "Toxin Damage",
+                    "Multishot",
+                    "Fire Rate / Attack Speed",
+                    "Critical Damage"
+                ],
+                "mid": [
+                    "Base Damage / Melee Damage",
+                    "Critical Chance",
+                    "Electric Damage",
+                    "Heat Damage"
+                ],
+                "trash": [
+                    "Status Duration",
+                    "Damage Vs Grineer",
+                    "Status Chance",
+                    "Punch Through",
+                    "Cold Damage",
+                    "Recoil",
+                    "Damage Vs Corpus",
+                    "Reload Speed"
+                ]
+            },
+            "neg_tier": {
+                "buff": [
+                    "Zoom",
+                    "Magazine Capacity"
+                ],
+                "curse": [
+                    "Recoil",
+                    "Fire Rate / Attack Speed",
+                    "Ammo Maximum",
+                    "Status Chance",
+                    "Base Damage / Melee Damage"
+                ]
+            }
+        },
+        "Corvas": {
+            "official_median": 39,
+            "official_stddev": 59.4,
+            "de_unrolled": {
+                "pop": 3.0,
+                "median": 39,
+                "stddev": 59.4,
+                "min_price": 8,
+                "max_price": 360
+            },
+            "de_rerolled": {
+                "pop": 1.0,
+                "median": 400,
+                "stddev": 546.89,
+                "min_price": 50,
+                "max_price": 1800
+            },
+            "wfm_market_sample": 35,
+            "wfm_avg": 1585,
+            "pos_tier": {
+                "top": [
+                    "Multishot",
+                    "Critical Chance",
+                    "Critical Damage",
+                    "Base Damage / Melee Damage"
+                ],
+                "mid": [
+                    "Fire Rate / Attack Speed",
+                    "Damage Vs Corpus",
+                    "Toxin Damage",
+                    "Electric Damage",
+                    "Cold Damage",
+                    "Heat Damage"
+                ],
+                "trash": [
+                    "Recoil",
+                    "Status Duration",
+                    "Punch Through",
+                    "Status Chance",
+                    "Magazine Capacity",
+                    "Reload Speed",
+                    "Damage Vs Grineer",
+                    "Zoom"
+                ]
+            },
+            "neg_tier": {
+                "buff": [
+                    "Impact Damage",
+                    "Zoom",
+                    "Recoil"
+                ],
+                "curse": [
+                    "Status Chance",
+                    "Ammo Maximum",
+                    "Reload Speed",
+                    "Magazine Capacity",
+                    "Damage Vs Grineer",
+                    "Status Duration",
+                    "Damage Vs Corpus",
+                    "Critical Damage"
+                ]
+            }
+        },
+        "Cyngas": {
+            "official_median": 400,
+            "official_stddev": 196.69,
+            "de_unrolled": {
+                "pop": 1.0,
+                "median": 400,
+                "stddev": 196.69,
+                "min_price": 10,
+                "max_price": 450
+            },
+            "de_rerolled": {},
+            "wfm_market_sample": 13,
+            "wfm_avg": 241,
+            "pos_tier": {
+                "top": [
+                    "Base Damage / Melee Damage",
+                    "Critical Chance",
+                    "Fire Rate / Attack Speed",
+                    "Critical Damage"
+                ],
+                "mid": [
+                    "Multishot",
+                    "Toxin Damage",
+                    "Damage Vs Corpus",
+                    "Cold Damage"
+                ],
+                "trash": [
+                    "Heat Damage",
+                    "Electric Damage",
+                    "Recoil",
+                    "Damage Vs Grineer",
+                    "Impact Damage",
+                    "Magazine Capacity",
+                    "Ammo Maximum"
+                ]
+            },
+            "neg_tier": {
+                "buff": [
+                    "Zoom",
+                    "Slash Damage",
+                    "Damage Vs Corpus"
+                ],
+                "curse": [
+                    "Multishot",
+                    "Reload Speed",
+                    "Ammo Maximum",
+                    "Magazine Capacity"
+                ]
+            }
+        },
+        "Dual Decurion": {
+            "official_median": 70,
+            "official_stddev": 206.99,
+            "de_unrolled": {
+                "pop": 4.0,
+                "median": 70,
+                "stddev": 206.99,
+                "min_price": 25,
+                "max_price": 1200
+            },
+            "de_rerolled": {
+                "pop": 2.0,
+                "median": 150,
+                "stddev": 460.58,
+                "min_price": 50,
+                "max_price": 2000
+            },
+            "wfm_market_sample": 50,
+            "wfm_avg": 1073,
+            "pos_tier": {
+                "top": [
+                    "Damage Vs Corpus",
+                    "Ammo Maximum",
+                    "Multishot",
+                    "Critical Damage",
+                    "Critical Chance",
+                    "Base Damage / Melee Damage"
+                ],
+                "mid": [
+                    "Electric Damage",
+                    "Fire Rate / Attack Speed",
+                    "Cold Damage"
+                ],
+                "trash": [
+                    "Damage Vs Grineer",
+                    "Punch Through",
+                    "Puncture Damage",
+                    "Heat Damage",
+                    "Toxin Damage",
+                    "Status Duration",
+                    "Recoil",
+                    "Slash Damage",
+                    "Status Chance"
+                ]
+            },
+            "neg_tier": {
+                "buff": [
+                    "Recoil",
+                    "Magazine Capacity",
+                    "Zoom",
+                    "Fire Rate / Attack Speed",
+                    "Damage Vs Grineer",
+                    "Status Duration"
+                ],
+                "curse": [
+                    "Impact Damage",
+                    "Reload Speed",
+                    "Slash Damage",
+                    "Ammo Maximum",
+                    "Status Chance",
+                    "Puncture Damage",
+                    "Damage Vs Corpus"
+                ]
+            }
+        },
+        "Fluctus": {
+            "official_median": 25,
+            "official_stddev": 43.84,
+            "de_unrolled": {
+                "pop": 1.5,
+                "median": 25,
+                "stddev": 43.84,
+                "min_price": 10,
+                "max_price": 300
+            },
+            "de_rerolled": {
+                "pop": 1.0,
+                "median": 500,
+                "stddev": 0.0,
+                "min_price": 500,
+                "max_price": 500
+            },
+            "wfm_market_sample": 12,
+            "wfm_avg": 341,
+            "pos_tier": {
+                "top": [
+                    "Critical Damage",
+                    "Critical Chance",
+                    "Base Damage / Melee Damage",
+                    "Heat Damage"
+                ],
+                "mid": [
+                    "Multishot",
+                    "Electric Damage",
+                    "Slash Damage",
+                    "Reload Speed"
+                ],
+                "trash": [
+                    "Fire Rate / Attack Speed",
+                    "Magazine Capacity",
+                    "Damage Vs Corpus",
+                    "Cold Damage",
+                    "Punch Through",
+                    "Damage Vs Grineer",
+                    "Zoom"
+                ]
+            },
+            "neg_tier": {
+                "buff": [
+                    "Recoil",
+                    "Damage Vs Corpus"
+                ],
+                "curse": [
+                    "Zoom",
+                    "Ammo Maximum",
+                    "Slash Damage",
+                    "Base Damage / Melee Damage"
+                ]
+            }
+        },
+        "Kuva Ayanga": {
+            "official_median": 25,
+            "official_stddev": 8.59,
+            "de_unrolled": {
+                "pop": 3.0,
+                "median": 25,
+                "stddev": 8.59,
+                "min_price": 15,
+                "max_price": 100
+            },
+            "de_rerolled": {
+                "pop": 4.5,
+                "median": 425,
+                "stddev": 892.62,
+                "min_price": 30,
+                "max_price": 4000
+            },
+            "wfm_market_sample": 18,
+            "wfm_avg": 1774,
+            "pos_tier": {
+                "top": [
+                    "Multishot",
+                    "Critical Damage",
+                    "Critical Chance"
+                ],
+                "mid": [
+                    "Toxin Damage",
+                    "Base Damage / Melee Damage"
+                ],
+                "trash": [
+                    "Fire Rate / Attack Speed",
+                    "Heat Damage",
+                    "Cold Damage",
+                    "Electric Damage",
+                    "Impact Damage",
+                    "Damage Vs Corpus",
+                    "Recoil",
+                    "Damage Vs Grineer",
+                    "Punch Through"
+                ]
+            },
+            "neg_tier": {
+                "buff": [
+                    "Recoil",
+                    "Reload Speed",
+                    "Impact Damage"
+                ],
+                "curse": [
+                    "Status Duration",
+                    "Status Chance",
+                    "Fire Rate / Attack Speed",
+                    "Damage Vs Grineer",
+                    "Ammo Maximum"
+                ]
+            }
+        },
+        "Larkspur": {
+            "official_median": 67,
+            "official_stddev": 40.4,
+            "de_unrolled": {
+                "pop": 6.667,
+                "median": 67,
+                "stddev": 40.4,
+                "min_price": 20,
+                "max_price": 800
+            },
+            "de_rerolled": {
+                "pop": 4.0,
+                "median": 46,
+                "stddev": 127.03,
+                "min_price": 20,
+                "max_price": 1500
+            },
+            "wfm_market_sample": 0,
+            "wfm_avg": 0,
+            "pos_tier": {
+                "top": [],
+                "mid": [],
+                "trash": []
+            },
+            "neg_tier": {
+                "buff": [],
+                "curse": []
+            }
+        },
+        "Mandonel": {
+            "official_median": 30,
+            "official_stddev": 10.19,
+            "de_unrolled": {
+                "pop": 1.0,
+                "median": 30,
+                "stddev": 10.19,
+                "min_price": 10,
+                "max_price": 40
+            },
+            "de_rerolled": {
+                "pop": 2.5,
+                "median": 62,
+                "stddev": 0.0,
+                "min_price": 53,
+                "max_price": 70
+            },
+            "wfm_market_sample": 15,
+            "wfm_avg": 95,
+            "pos_tier": {
+                "top": [
+                    "Critical Chance",
+                    "Toxin Damage",
+                    "Base Damage / Melee Damage",
+                    "Critical Damage",
+                    "Multishot",
+                    "Fire Rate / Attack Speed"
+                ],
+                "mid": [
+                    "Ammo Maximum"
+                ],
+                "trash": [
+                    "Reload Speed",
+                    "Damage Vs Grineer",
+                    "Recoil",
+                    "Status Chance",
+                    "Zoom",
+                    "Magazine Capacity",
+                    "Electric Damage",
+                    "Punch Through",
+                    "Status Duration"
+                ]
+            },
+            "neg_tier": {
+                "buff": [
+                    "Damage Vs Grineer",
+                    "Status Chance"
+                ],
+                "curse": [
+                    "Reload Speed",
+                    "Critical Chance",
+                    "Magazine Capacity"
+                ]
+            }
+        }
     };
 
     dynamicMetaStats = { ...loadedData };

@@ -3863,7 +3863,8 @@ export function renderRivenIndexList(items) {
 
     const popVal = (val.popularity_pct !== undefined && val.popularity_pct !== null) ? `${Math.round(val.popularity_pct)}/100` : "0/100";
 
-    const hasWfm = val.wfm_avg_price !== undefined && val.wfm_avg_price !== null && val.wfm_avg_price > 0;
+    const wfmAvgValue = val.wfm_avg || val.wfm_avg_price || 0;
+    const hasWfm = wfmAvgValue > 0;
     const wfmMarketSample = val.wfm_market_sample || 0;
 
     // Dual-market prices extraction with fallback
@@ -3900,8 +3901,8 @@ export function renderRivenIndexList(items) {
 
     const wfmPriceText = hasWfm
       ? (wfmMarketSample > 0
-        ? `${val.wfm_avg_price}${platImgHtml}<span style="font-size:0.65rem; font-weight:normal; opacity:0.8; margin-left:2px;">(${wfmMarketSample} ${isEs ? (wfmMarketSample === 1 ? "orden" : "órdenes") : (wfmMarketSample === 1 ? "order" : "orders")})</span>`
-        : `${val.wfm_avg_price}${platImgHtml}`)
+        ? `${wfmAvgValue}${platImgHtml}<span style="font-size:0.65rem; font-weight:normal; opacity:0.8; margin-left:2px;">(${wfmMarketSample} ${isEs ? (wfmMarketSample === 1 ? "orden" : "órdenes") : (wfmMarketSample === 1 ? "order" : "orders")})</span>`
+        : `${wfmAvgValue}${platImgHtml}`)
       : (isEs ? "Mercado inactivo" : "Inactive Market");
     const wfmPriceColor = hasWfm ? "display:inline-flex; align-items:center;" : "color: #ff9800; font-style: italic; font-size: 0.75rem; font-weight: normal;";
 
@@ -4103,11 +4104,24 @@ export function renderRivenIndexList(items) {
         worstPos = val.pos.worst || [];
       }
 
+      if (Array.isArray(val.pos)) {
+        bestPos = val.pos;
+      } else if (val.pos) {
+        bestPos = val.pos.best || [];
+        worstPos = val.pos.worst || [];
+      } else if (val.pos_tier) {
+        bestPos = val.pos_tier.top || [];
+        worstPos = val.pos_tier.trash || [];
+      }
+
       if (Array.isArray(val.neg)) {
         bestNeg = val.neg;
       } else if (val.neg) {
         bestNeg = val.neg.best || [];
         worstNeg = val.neg.worst || [];
+      } else if (val.neg_tier) {
+        bestNeg = val.neg_tier.buff || [];
+        worstNeg = val.neg_tier.curse || [];
       }
 
       // Robust fallback using getMetaStats for missing recommendations (e.g. Sydon or empty variant entries)
