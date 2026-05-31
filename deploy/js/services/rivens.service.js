@@ -40,7 +40,7 @@ export async function fetchRivenWeapons() {
         });
 
         try {
-            const metaRes = await fetch("metastats.json");
+            const metaRes = await fetch("https://soft-mountain-28fe.edelamf0.workers.dev/api/rivens");
             if (metaRes.ok) {
                 const metaData = await metaRes.json();
                 const statsObj = metaData.data ? metaData.data : metaData;
@@ -266,15 +266,16 @@ export async function fetchRivenAverage(weaponName) {
     if (webTitleEl) webTitleEl.innerText = isEs ? "WFM Web" : "WFM Web";
     if (webSubEl) webSubEl.innerText = isEs ? "(Activo)" : "(Active)";
 
-    if (unrolledMedianEl) unrolledMedianEl.innerText = "...";
-    if (unrolledMinEl) unrolledMinEl.innerText = "...";
-    if (unrolledMaxEl) unrolledMaxEl.innerText = "...";
-    if (rerolledMedianEl) rerolledMedianEl.innerText = "...";
-    if (rerolledMinEl) rerolledMinEl.innerText = "...";
-    if (rerolledMaxEl) rerolledMaxEl.innerText = "...";
-    if (webAvgEl) webAvgEl.innerText = "...";
-    if (webMinEl) webMinEl.innerText = "...";
-    if (webOrdersEl) webOrdersEl.innerText = "...";
+    const loadingText = isEs ? "Cargando..." : "Loading...";
+    if (unrolledMedianEl) unrolledMedianEl.innerText = loadingText;
+    if (unrolledMinEl) unrolledMinEl.innerText = loadingText;
+    if (unrolledMaxEl) unrolledMaxEl.innerText = loadingText;
+    if (rerolledMedianEl) rerolledMedianEl.innerText = loadingText;
+    if (rerolledMinEl) rerolledMinEl.innerText = loadingText;
+    if (rerolledMaxEl) rerolledMaxEl.innerText = loadingText;
+    if (webAvgEl) webAvgEl.innerText = loadingText;
+    if (webMinEl) webMinEl.innerText = loadingText;
+    if (webOrdersEl) webOrdersEl.innerText = loadingText;
     if (valSpan) valSpan.innerText = "...";
 
     try {
@@ -330,16 +331,20 @@ export async function fetchRivenAverage(weaponName) {
 
             if (valSpan) valSpan.innerText = calculationBase ? Math.round(calculationBase) : "50";
         } else {
+            const isLoading = !globalThis.dynamicMetaStats || Object.keys(globalThis.dynamicMetaStats).length <= 10;
+            const fallbackText = isLoading ? (isEs ? "Cargando..." : "Loading...") : "N/A";
             [unrolledMedianEl, unrolledMinEl, unrolledMaxEl, rerolledMedianEl, rerolledMinEl, rerolledMaxEl, webAvgEl, webMinEl, webOrdersEl].forEach(el => {
-                if (el) el.innerText = "N/A";
+                if (el) el.innerText = fallbackText;
             });
-            if (valSpan) valSpan.innerText = "50";
+            if (valSpan) valSpan.innerText = isLoading ? "..." : "50";
         }
     } catch (e) {
         console.error("Error setting official DE prices in fast view:", e);
+        const isLoading = !globalThis.dynamicMetaStats || Object.keys(globalThis.dynamicMetaStats).length <= 10;
+        const fallbackText = isLoading ? (isEs ? "Cargando..." : "Loading...") : "N/A";
         [unrolledMedianEl, unrolledMinEl, unrolledMaxEl, rerolledMedianEl, rerolledMinEl, rerolledMaxEl, webAvgEl, webMinEl, webOrdersEl].forEach(el => {
-            if (el) el.innerText = "N/A";
+            if (el) el.innerText = fallbackText;
         });
-        if (valSpan) valSpan.innerText = "50";
+        if (valSpan) valSpan.innerText = isLoading ? "..." : "50";
     }
 }
