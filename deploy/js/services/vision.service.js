@@ -97,13 +97,15 @@ export const VisionService = {
         const width = video.videoWidth;
         const height = video.videoHeight;
         const scale = 1080 / height;
-        const hCropH = Math.floor(height * 0.15);
 
-        canvas.width = Math.floor(width * scale);
+        const hCropW = Math.floor(width * 0.45);
+        const hCropH = Math.floor(height * 0.12);
+
+        canvas.width = Math.floor(hCropW * scale);
         canvas.height = Math.floor(hCropH * scale);
 
         const ctx = canvas.getContext("2d", { willReadFrequently: true });
-        ctx.drawImage(video, 0, 0, width, hCropH, 0, 0, canvas.width, canvas.height);
+        ctx.drawImage(video, 0, 0, hCropW, hCropH, 0, 0, canvas.width, canvas.height);
 
         this.applyClusteringThreshold(ctx, canvas.width, canvas.height);
 
@@ -156,15 +158,22 @@ export const VisionService = {
         }
 
         const bestTheme = WF_THEMES[bestThemeIdx];
+        const bestStats = themeStats[bestThemeIdx];
 
-        console.log(`[VisionService] Theme detected: ${bestTheme.name} (weight: ${maxWeight.toFixed(4)})`);
+        const actualR = bestStats.count > 0 ? Math.round(bestStats.rSum / bestStats.count) : bestTheme.r;
+        const actualG = bestStats.count > 0 ? Math.round(bestStats.gSum / bestStats.count) : bestTheme.g;
+        const actualB = bestStats.count > 0 ? Math.round(bestStats.bSum / bestStats.count) : bestTheme.b;
+
+        console.log(`[VisionService] Theme detected: ${bestTheme.name} (weight: ${maxWeight.toFixed(4)}, catalog: rgb(${bestTheme.r},${bestTheme.g},${bestTheme.b}), actual: rgb(${actualR},${actualG},${actualB}))`);
 
         return {
             name: bestTheme.name,
             r: bestTheme.r,
             g: bestTheme.g,
             b: bestTheme.b,
-            tol: bestTheme.tol
+            actualR,
+            actualG,
+            actualB,
         };
     },
 
@@ -219,7 +228,7 @@ export const VisionService = {
         const rowMax = Math.max(...rowDensity);
         if (rowMax < 10) return null;
 
-        const rowMinDist = Math.floor(maskH / 12);
+        const rowMinDist = Math.floor(maskH / 6.5);
         const rowPeaks = this._findPeaks(rowDensity, rowMinDist, rowMax * 0.25);
         if (!rowPeaks.length) return null;
 
@@ -272,25 +281,72 @@ export const VisionService = {
         return peaks;
     },
 
-    cropThemeBinarized(sourceCvs, sx, sy, sw, sh) {
-        const S = 2;
-        const cvs = this._textCvs;
+    cropThemeBinarized(sourceCvs, sx, sy, sw, sh, theme) {
+        const S = 3;
+        const cvs = document.createElement("canvas");
         cvs.width = sw * S; cvs.height = sh * S;
         const ctx = cvs.getContext("2d", { willReadFrequently: true });
-        ctx.imageSmoothingEnabled = false;
+        ctx.imageSmoothingEnabled = true;
         ctx.drawImage(sourceCvs, sx, sy, sw, sh, 0, 0, cvs.width, cvs.height);
         const imgData = ctx.getImageData(0, 0, cvs.width, cvs.height);
         const px = imgData.data;
+
+        const targetThemes = theme ? [theme, ...WF_THEMES] : WF_THEMES;
+        const tolSq = theme ? 45 * 45 : 35 * 35;
+
         for (let i = 0; i < px.length; i += 4) {
             const r = px[i], g = px[i + 1], b = px[i + 2];
+            const luma = 0.299 * r + 0.587 * g + 0.114 * b;
             let isText = false;
-            for (const t of WF_THEMES) {
+
+            for (const t of targetThemes) {
                 const dr = r - t.r, dg = g - t.g, db = b - t.b;
-                if (dr * dr + dg * dg + db * db < THEME_TOL_SQ) { isText = true; break; }
+                if (dr * dr + dg * dg + db * db < tolSq) {
+                    isText = true;
+                    break;
+                }
+                if (t.actualR !== undefined) {
+                    const dar = r - t.actualR, dag = g - t.actualG, dab = b - t.actualB;
+                    if (dar * dar + dag * dag + dab * dab < tolSq) {
+                        isText = true;
+                        break;
+                    }
+                }
             }
+
+            if (luma > 180) {
+                isText = true;
+            }
+
             px[i] = px[i + 1] = px[i + 2] = isText ? 0 : 255;
         }
-        ctx.putImageData(imgData, 0, 0);
+
+        const dilatedImgData = ctx.createImageData(cvs.width, cvs.height);
+        const dPx = dilatedImgData.data;
+        const w = cvs.width;
+        const h = cvs.height;
+
+        for (let i = 0; i < dPx.length; i += 4) {
+            dPx[i] = dPx[i + 1] = dPx[i + 2] = 255;
+            dPx[i + 3] = 255;
+        }
+
+        for (let y = 1; y < h - 1; y++) {
+            for (let x = 1; x < w - 1; x++) {
+                const idx = (y * w + x) * 4;
+                if (px[idx] === 0) {
+                    dPx[idx] = dPx[idx + 1] = dPx[idx + 2] = 0;
+                    dPx[idx - 4] = dPx[idx - 3] = dPx[idx - 2] = 0;
+                    dPx[idx + 4] = dPx[idx + 5] = dPx[idx + 6] = 0;
+                    const topIdx = idx - w * 4;
+                    dPx[topIdx] = dPx[topIdx + 1] = dPx[topIdx + 2] = 0;
+                    const botIdx = idx + w * 4;
+                    dPx[botIdx] = dPx[botIdx + 1] = dPx[botIdx + 2] = 0;
+                }
+            }
+        }
+
+        ctx.putImageData(dilatedImgData, 0, 0);
         return cvs;
     },
 
@@ -315,8 +371,8 @@ export const VisionService = {
 
     createTextCanvas(ocrCanvas, cell, grid) {
         const TEXT_SCALE = 3;
-        const textSrcY = Math.floor(grid.cellH * 0.35);
-        const textSrcH = grid.cellH - textSrcY;
+        const textSrcY = Math.floor(grid.cellH * 0.22);
+        const textSrcH = grid.cellH - textSrcY + Math.floor(grid.cellH * 0.08);
         const textCvs = this._textCvs;
         textCvs.width = grid.cellW * TEXT_SCALE;
         textCvs.height = textSrcH * TEXT_SCALE;
@@ -328,7 +384,7 @@ export const VisionService = {
 
     createBadgeCanvas(snapshot, cell, grid) {
         const bdgOffsetX = Math.floor(grid.cellW * 0.10);
-        const copyW = Math.floor(grid.cellW * 0.25) - bdgOffsetX;
+        const copyW = Math.floor(grid.cellW * 0.22);
 
         const badgeH = Math.floor(grid.cellH * 0.11);
         const BADGE_SCALE = 3;
@@ -349,53 +405,73 @@ export const VisionService = {
         return badgeCvs;
     },
 
+    applyThemeToBadge(ctx, w, h, theme) {
+        const imgData = ctx.getImageData(0, 0, w, h);
+        const px = imgData.data;
+
+        const targetThemes = theme ? [theme] : WF_THEMES;
+        const tolSq = theme ? 55 * 55 : 45 * 45;
+
+        for (let i = 0; i < px.length; i += 4) {
+            const r = px[i], g = px[i + 1], b = px[i + 2];
+            const luma = 0.299 * r + 0.587 * g + 0.114 * b;
+            let isBadge = false;
+
+            for (const t of targetThemes) {
+                const dr = r - t.r, dg = g - t.g, db = b - t.b;
+                if (dr * dr + dg * dg + db * db < tolSq) {
+                    isBadge = true;
+                    break;
+                }
+                if (t.actualR !== undefined) {
+                    const dar = r - t.actualR, dag = g - t.actualG, dab = b - t.actualB;
+                    if (dar * dar + dag * dag + dab * dab < tolSq) {
+                        isBadge = true;
+                        break;
+                    }
+                }
+            }
+
+            if (luma > 165) {
+                isBadge = true;
+            }
+
+            px[i] = px[i + 1] = px[i + 2] = isBadge ? 0 : 255;
+        }
+        ctx.putImageData(imgData, 0, 0);
+    },
+
     applyClusteringToBadge(ctx, w, h) {
+        const imgData = ctx.getImageData(0, 0, w, h);
+        const px = imgData.data;
+        
+        let maxL = 0;
+        for (let i = 0; i < px.length; i += 4) {
+            const l = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
+            if (l > maxL) maxL = l;
+        }
+        
+        const thresh = Math.max(50, maxL * 0.55);
+        
+        for (let i = 0; i < px.length; i += 4) {
+            const l = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
+            px[i] = px[i + 1] = px[i + 2] = (l >= thresh) ? 0 : 255;
+        }
+        ctx.putImageData(imgData, 0, 0);
+    },
+
+    applyClusteringThreshold(ctx, w, h, theme) {
         const imgData = ctx.getImageData(0, 0, w, h);
         const px = imgData.data;
         const samples = [];
         for (let i = 0; i < px.length; i += 8) {
             samples.push([px[i], px[i + 1], px[i + 2]]);
         }
-        let c1 = [0, 0, 0], c2 = [255, 255, 255], minLum = 255, maxLum = 0;
-        for (let s of samples) {
-            let l = 0.299 * s[0] + 0.587 * s[1] + 0.114 * s[2];
-            if (l < minLum) { minLum = l; c1 = [...s]; }
-            if (l > maxLum) { maxLum = l; c2 = [...s]; }
-        }
-        for (let iter = 0; iter < 4; iter++) {
-            let s1 = [0, 0, 0], s2 = [0, 0, 0], n1 = 0, n2 = 0;
-            for (let s of samples) {
-                let d1 = Math.abs(s[0] - c1[0]) + Math.abs(s[1] - c1[1]) + Math.abs(s[2] - c1[2]);
-                let d2 = Math.abs(s[0] - c2[0]) + Math.abs(s[1] - c2[1]) + Math.abs(s[2] - c2[2]);
-                if (d1 < d2) { s1[0] += s[0]; s1[1] += s[1]; s1[2] += s[2]; n1++; }
-                else { s2[0] += s[0]; s2[1] += s[1]; s2[2] += s[2]; n2++; }
-            }
-            if (n1 > 0) { c1[0] = s1[0] / n1; c1[1] = s1[1] / n1; c1[2] = s1[2] / n1; }
-            if (n2 > 0) { c2[0] = s2[0] / n2; c2[1] = s2[1] / n2; c2[2] = s2[2] / n2; }
-        }
-        let l1 = 0.299 * c1[0] + 0.587 * c1[1] + 0.114 * c1[2], l2 = 0.299 * c2[0] + 0.587 * c2[1] + 0.114 * c2[2];
-        let textC = l2 > l1 ? c2 : c1, bgC = l2 > l1 ? c1 : c2;
-        for (let i = 0; i < px.length; i += 4) {
-            let r = px[i], g = px[i + 1], b = px[i + 2];
-            let dT = Math.abs(r - textC[0]) + Math.abs(g - textC[1]) + Math.abs(b - textC[2]);
-            let dB = Math.abs(r - bgC[0]) + Math.abs(g - bgC[1]) + Math.abs(b - bgC[2]);
-            px[i] = px[i + 1] = px[i + 2] = (dT < dB * 1.5) ? 0 : 255;
-        }
-        ctx.putImageData(imgData, 0, 0);
-    },
-
-    applyClusteringThreshold(ctx, w, h) {
-        const imgData = ctx.getImageData(0, 0, w, h);
-        const px = imgData.data;
-        const samples = [];
-        for (let i = 0; i < px.length; i += 32) {
-            samples.push([px[i], px[i + 1], px[i + 2]]);
-        }
-        let c1 = [0, 0, 0], c2 = [255, 255, 255], minL = 255, maxL = 0;
+        let c1 = [0, 0, 0], c2 = theme ? [theme.r, theme.g, theme.b] : [255, 255, 255], minL = 255, maxL = 0;
         for (const s of samples) {
             let l = 0.299 * s[0] + 0.587 * s[1] + 0.114 * s[2];
             if (l < minL) { minL = l; c1 = [...s]; }
-            if (l > maxL) { maxL = l; c2 = [...s]; }
+            if (!theme && l > maxL) { maxL = l; c2 = [...s]; }
         }
         for (let iter = 0; iter < 4; iter++) {
             let s1 = [0, 0, 0], s2 = [0, 0, 0], n1 = 0, n2 = 0;
@@ -436,9 +512,44 @@ export const VisionService = {
         return cvs;
     },
 
+    prepareRewardCanvas(snapshot, card, scale) {
+        const cvs = this._rewardCvs;
+        cvs.width = Math.floor(card.w * scale);
+        cvs.height = Math.floor(card.h * scale);
+        const ctx = cvs.getContext("2d", { willReadFrequently: true });
+        ctx.drawImage(snapshot, card.x, card.y, card.w, card.h, 0, 0, cvs.width, cvs.height);
+        return cvs;
+    },
+
+    detectReward(snapshot, card, scale) {
+        const cvs = this.prepareRewardCanvas(snapshot, card, scale);
+        const ctx = cvs.getContext("2d", { willReadFrequently: true });
+        const px = ctx.getImageData(0, 0, cvs.width, cvs.height).data;
+        let whitePixels = 0;
+        for (let i = 0; i < px.length; i += 4) {
+            const l = (px[i] + px[i + 1] + px[i + 2]) / 3;
+            if (l > 180) whitePixels++;
+        }
+        return whitePixels > (cvs.width * cvs.height * 0.02);
+    },
+
+    detectRewardTheme(snapshot, card, scale) {
+        const cvs = this.prepareRewardCanvas(snapshot, card, scale);
+        const ctx = cvs.getContext("2d", { willReadFrequently: true });
+        const text = ctx.getImageData(0, 0, cvs.width, cvs.height).data;
+        let maxL = 0;
+        for (let i = 0; i < text.length; i += 4) {
+            const l = (text[i] + text[i + 1] + text[i + 2]) / 3;
+            if (l > maxL) maxL = l;
+        }
+        if (maxL < 100) return "UNKNOWN";
+        if (maxL > 180) return "REWARD";
+        return "UNKNOWN";
+    },
+
     prepareRewardOCRCanvas(video, width, height, scale) {
-        const rCropY = Math.floor(height * 0.18);
-        const rCropH = Math.floor(height * 0.5);
+        const rCropY = Math.floor(height * 0.185);
+        const rCropH = Math.floor(height * 0.255);
         const targetW = Math.floor(width * scale);
         const targetH = Math.floor(rCropH * scale);
 
@@ -457,7 +568,268 @@ export const VisionService = {
         const text = headerText.toUpperCase();
         if (/INVEN|TORY|SELL/.test(text)) return "INVENTORY";
         if (/RELI|ELIC|REFI|NEME/.test(text)) return "RELICS";
-        if (/REWA|WARD|ARDS|FISSU|FISSI|FISR|VOID/.test(text)) return "REWARD";
+        if (/REWA|WARD|ARDS|FISSU|FISSI|FISR|F5UR|FSUR|FI55|F1SS|FISS|FISU|VOID|V0ID|V01D/.test(text)) return "REWARD";
         return "UNKNOWN";
-    }
+    },
+
+     buildAutoGrid(snapshot, gridZone, theme, calibData) {
+        if (calibData && calibData.cellW && calibData.cols && calibData.rows) {
+            const cols = calibData.cols;
+            const rows = calibData.rows;
+            const cellW = calibData.cellW;
+            const cellH = calibData.cellH;
+            const gapX = calibData.gapX || 0;
+            const gapY = calibData.gapY || 0;
+            const gridX = calibData.gridX !== undefined ? calibData.gridX : gridZone.x;
+            const gridY = calibData.gridY !== undefined ? calibData.gridY : gridZone.y;
+
+            const cellRects = [];
+            for (let ri = 0; ri < rows; ri++) {
+                for (let ci = 0; ci < cols; ci++) {
+                    const sx = Math.round(gridX + ci * (cellW + gapX));
+                    const sy = Math.round(gridY + ri * (cellH + gapY));
+                    const cx = sx + cellW / 2;
+                    const cy = sy + cellH * 0.82;
+                    cellRects.push({ r: ri, c: ci, sx, sy, cx, cy });
+                }
+            }
+            console.log(`[buildAutoGrid] Snapped saved/edited grid layout: ${rows}r x ${cols}c, cellW=${cellW}, cellH=${cellH}`);
+            return { cellRects, cellW, cellH, cols, rows };
+        }
+
+        const { x: zx, y: zy, w: zw, h: zh } = gridZone;
+
+        const rows = 3;
+        const aspectRatio = zw / zh;
+        let cols = Math.round(aspectRatio * rows);
+        if (cols < 3) cols = 3;
+        if (cols > 12) cols = 12;
+
+        const finalCellW = Math.round(zw / cols);
+        const finalCellH = Math.round(zh / rows);
+        const cellRects = [];
+
+        for (let ri = 0; ri < rows; ri++) {
+            for (let ci = 0; ci < cols; ci++) {
+                const sx = Math.round(zx + ci * finalCellW);
+                const sy = Math.round(zy + ri * finalCellH);
+
+                const cx = sx + finalCellW / 2;
+                const cy = sy + finalCellH * 0.82;
+
+                cellRects.push({ r: ri, c: ci, sx, sy, cx, cy });
+            }
+        }
+
+        console.log(`[buildAutoGrid] Snapped perfect ${rows}x${cols} grid to calibrated zone: cellW=${finalCellW}, cellH=${finalCellH}`);
+        return { cellRects, cellW: finalCellW, cellH: finalCellH, cols, rows };
+    },
+
+    extractBadgeByColor(snapshot, cell, cellW, cellH, theme) {
+        const safeW = Math.round(cellW * 0.35);
+        const padTop = 12;
+        const startY = Math.max(0, cell.sy - padTop);
+        const safeH = Math.round(cellH * 0.25) + padTop;
+
+        const tempCvs = document.createElement("canvas");
+        tempCvs.width = safeW;
+        tempCvs.height = safeH;
+        const tCtx = tempCvs.getContext("2d", { willReadFrequently: true });
+        tCtx.drawImage(snapshot, cell.sx, startY, safeW, safeH, 0, 0, safeW, safeH);
+
+        this.applyClusteringThreshold(tCtx, safeW, safeH, theme);
+
+        const imgData = tCtx.getImageData(0, 0, safeW, safeH);
+        const px = imgData.data;
+
+
+
+        const visited = new Uint8Array(safeW * safeH);
+        const components = [];
+
+        const scanW = safeW;
+        const scanH = safeH;
+
+        for (let y = 0; y < scanH; y++) {
+            for (let x = 0; x < scanW; x++) {
+                const idx = y * safeW + x;
+                if (px[idx * 4] === 0 && !visited[idx]) {
+                    const compPixels = [];
+                    const queue = [idx];
+                    visited[idx] = 1;
+                    let minX = x, maxX = x, minY = y, maxY = y;
+
+                    while (queue.length > 0) {
+                        const current = queue.shift();
+                        compPixels.push(current);
+                        const cx = current % safeW;
+                        const cy = Math.floor(current / safeW);
+
+                        if (cx < minX) minX = cx;
+                        if (cx > maxX) maxX = cx;
+                        if (cy < minY) minY = cy;
+                        if (cy > maxY) maxY = cy;
+
+                        const neighbors = [];
+                        for (let dy = -1; dy <= 1; dy++) {
+                            for (let dx = -1; dx <= 1; dx++) {
+                                if (dx === 0 && dy === 0) continue;
+                                const nx = cx + dx;
+                                const ny = cy + dy;
+                                if (nx >= 0 && nx < safeW && ny >= 0 && ny < safeH) {
+                                    neighbors.push(ny * safeW + nx);
+                                }
+                            }
+                        }
+
+                        for (const n of neighbors) {
+                            if (px[n * 4] === 0 && !visited[n]) {
+                                visited[n] = 1;
+                                queue.push(n);
+                            }
+                        }
+                    }
+
+                    if (compPixels.length >= 3) {
+                        components.push({
+                            pixels: compPixels,
+                            minX,
+                            maxX,
+                            minY,
+                            maxY,
+                            width: maxX - minX + 1,
+                            height: maxY - minY + 1
+                        });
+                    }
+                }
+            }
+        }
+
+        if (components.length === 0) {
+            return null;
+        }
+
+        for (const comp of components) {
+            if (comp.width > 18 && comp.height <= 3) {
+                for (const pixelIdx of comp.pixels) {
+                    px[pixelIdx * 4] = 255;
+                    px[pixelIdx * 4 + 1] = 255;
+                    px[pixelIdx * 4 + 2] = 255;
+                }
+                comp.erased = true;
+            }
+        }
+
+        let globalMinY = safeH;
+        for (const comp of components) {
+            if (!comp.erased && comp.pixels.length >= 8 && comp.minY < globalMinY) {
+                globalMinY = comp.minY;
+            }
+        }
+
+        for (const comp of components) {
+            if (comp.minY > globalMinY + 16) {
+                for (const pixelIdx of comp.pixels) {
+                    px[pixelIdx * 4] = 255;
+                    px[pixelIdx * 4 + 1] = 255;
+                    px[pixelIdx * 4 + 2] = 255;
+                }
+                comp.erased = true;
+            }
+        }
+
+        const activeComponents = components.filter(c => !c.erased);
+        if (activeComponents.length === 0) {
+            return null;
+        }
+
+        activeComponents.sort((a, b) => a.minX - b.minX);
+
+        let splitIdx = -1;
+        let maxGap = 0;
+        for (let i = 0; i < activeComponents.length - 1; i++) {
+            const gap = activeComponents[i+1].minX - activeComponents[i].maxX;
+            if (gap > maxGap) {
+                maxGap = gap;
+                splitIdx = i;
+            }
+        }
+
+        if (splitIdx !== -1 && maxGap >= 1 && activeComponents[splitIdx].maxX < safeW * 0.55) {
+            for (let i = 0; i <= splitIdx; i++) {
+                for (const pixelIdx of activeComponents[i].pixels) {
+                    px[pixelIdx * 4] = 255;
+                    px[pixelIdx * 4 + 1] = 255;
+                    px[pixelIdx * 4 + 2] = 255;
+                }
+                activeComponents[i].erased = true;
+            }
+        } else {
+            for (const comp of activeComponents) {
+                if (comp.minX < safeW * 0.25) {
+                    for (const pixelIdx of comp.pixels) {
+                        px[pixelIdx * 4] = 255;
+                        px[pixelIdx * 4 + 1] = 255;
+                        px[pixelIdx * 4 + 2] = 255;
+                    }
+                    comp.erased = true;
+                }
+            }
+        }
+        tCtx.putImageData(imgData, 0, 0);
+
+        let digitMinX = safeW, digitMaxX = 0, digitMinY = safeH, digitMaxY = 0;
+        let hasDigits = false;
+
+        for (const comp of components) {
+            if (comp.erased) continue;
+            
+            if (comp.minX < digitMinX) digitMinX = comp.minX;
+            if (comp.maxX > digitMaxX) digitMaxX = comp.maxX;
+            if (comp.minY < digitMinY) digitMinY = comp.minY;
+            if (comp.maxY > digitMaxY) digitMaxY = comp.maxY;
+            hasDigits = true;
+        }
+
+        if (!hasDigits || digitMinX >= digitMaxX || digitMinY >= digitMaxY) {
+            return null;
+        }
+
+        const padX = 8;
+        const padY = 6;
+        const cropStartX = Math.max(0, digitMinX - padX);
+        const cropStartY = Math.max(0, digitMinY - padY);
+        const cropEndX = Math.min(safeW - 1, digitMaxX + padX);
+        const cropEndY = Math.min(safeH - 1, digitMaxY + padY);
+
+        const digitW = cropEndX - cropStartX + 1;
+        const digitH = cropEndY - cropStartY + 1;
+
+        const SCALE = 4;
+        const badgeCvs = document.createElement("canvas");
+        badgeCvs.width = digitW * SCALE;
+        badgeCvs.height = digitH * SCALE;
+        const bCtx = badgeCvs.getContext("2d");
+        bCtx.imageSmoothingEnabled = true;
+        bCtx.imageSmoothingQuality = "high";
+        bCtx.drawImage(tempCvs, cropStartX, cropStartY, digitW, digitH, 0, 0, badgeCvs.width, badgeCvs.height);
+
+        const bImgData = bCtx.getImageData(0, 0, badgeCvs.width, badgeCvs.height);
+        const bPx = bImgData.data;
+        for (let i = 0; i < bPx.length; i += 4) {
+            const luma = bPx[i] * 0.299 + bPx[i + 1] * 0.587 + bPx[i + 2] * 0.114;
+            const val = luma < 180 ? 0 : 255;
+            bPx[i] = bPx[i + 1] = bPx[i + 2] = val;
+        }
+        bCtx.putImageData(bImgData, 0, 0);
+
+        badgeCvs.bestY = startY + cropStartY;
+        badgeCvs.bestOffset = cropStartY;
+        badgeCvs.cropX = cell.sx + cropStartX;
+        badgeCvs.cropY = startY + cropStartY;
+        badgeCvs.cropW = digitW;
+        badgeCvs.cropH = digitH;
+
+        return badgeCvs;
+    },
 };

@@ -270,16 +270,34 @@ export const OCRService = {
     },
 
     async extractCellQuantity(worker, badgeCanvas) {
+        if (!badgeCanvas) return { qty: 1, raw: "" };
         const { data: { words } } = await OCRRepository.recognize(worker, badgeCanvas);
         if (!words) return { qty: 1, raw: "" };
+
+        words.forEach(w => {
+            w.text = w.text.toUpperCase()
+                .replaceAll(/[Il|]/g, "1")
+                .replaceAll(/[t]/g, "1")
+                .replaceAll(/[T]/g, "7")
+                .replaceAll(/[Yy]/g, "7")
+                .replaceAll(/[A]/g, "4")
+                .replaceAll(/[S]/g, "5")
+                .replaceAll(/[B]/g, "8")
+                .replaceAll(/[G]/g, "6")
+                .replaceAll(/[Z]/g, "2")
+                .replaceAll(/[O]/g, "0")
+                .replaceAll(/[q]/g, "9");
+        });
+
         const badgeNums = words.filter((w) => /\d/.test(w.text));
 
         const rawTexts = words.map(w => w.text).join(" ");
 
         if (badgeNums.length === 0) return { qty: 1, raw: rawTexts };
 
-        badgeNums.sort((a, b) => b.bbox.x0 - a.bbox.x0);
-        const pureDigit = badgeNums[0].text.replaceAll(/\D/g, "");
+        badgeNums.sort((a, b) => a.bbox.x0 - b.bbox.x0);
+        let pureDigit = badgeNums.map(w => w.text.replace(/\D/g, "")).join("");
+        
         if (pureDigit) {
             const val = Number.parseInt(pureDigit);
             return { qty: (val > 1 && val < 1000) ? val : 1, raw: rawTexts };
@@ -303,9 +321,37 @@ export const OCRService = {
             const cleanOCR = ocrStr.toUpperCase().replaceAll(/[^A-Z0-9]/g, "");
             const cleanDB = dbFirstWord.toUpperCase().replaceAll(/[^A-Z0-9]/g, "");
             if (cleanOCR === cleanDB) return true;
+            
+            if (cleanDB === "BO" && ["3E", "30", "36", "3B", "3b", "86", "8b", "80", "8O", "SO", "AO", "DO", "CO", "B0", "O0"].includes(cleanOCR)) {
+                return true;
+            }
+
+            if (cleanDB === "DAKRA" && ["DALIA", "DAKLA", "DACRA", "DARRA", "DATRA"].includes(cleanOCR)) {
+                return true;
+            }
+
+            if (cleanDB === "HYDROID" && cleanOCR === "DROID") {
+                return true;
+            }
+
+            if (cleanDB === "FANG" && ["ZANC", "FANC", "ZANG", "EANG", "ANG", "ANC"].includes(cleanOCR)) {
+                return true;
+            }
+
             if (cleanOCR.length < 3 || cleanDB.length < 3) return cleanOCR === cleanDB;
-            const similarityThreshold = dbFirstWord.length <= 3 ? 0.8 : 0.75;
+            const similarityThreshold = dbFirstWord.length <= 3 ? 0.8 : 0.70;
             return this.getSimilarity(cleanOCR, cleanDB) >= similarityThreshold;
+        };
+
+        const normalizeComponent = (word, targetComp) => {
+            const w = word.toUpperCase();
+            const t = targetComp.toUpperCase();
+            if (t === "RECEIVER" && /^(KEC|REC|CELV|RES)/i.test(w) && (w.includes("VE") || w.includes("IV"))) return "RECEIVER";
+            if (t === "HANDLE" && /^(FAN|HAN|AN)/i.test(w) && w.includes("LE")) return "HANDLE";
+            if (t === "BLUEPRINT" && /^(BLU|BLA|B1U|3LU)/i.test(w) && (w.includes("INT") || w.includes("INI") || w.includes("EPR"))) return "BLUEPRINT";
+            if (t === "NEUROPTICS" && /^(NEU|NEPT)/i.test(w) && w.includes("TICS")) return "NEUROPTICS";
+            if (t === "GAUNTLET" && (w === "ES" || w === "RES" || w === "ON" || w === "RESON" || w === "AR" || w === "AS" || w === "ER" || w === "RE" || /^(GAU|GNT|AN|RES)/i.test(w) || w.endsWith("ON"))) return "GAUNTLET";
+            return w;
         };
 
         const attemptItemMatch = (startIndex, item, lookAheadLimit, ocrWords) => {
@@ -317,9 +363,25 @@ export const OCRService = {
                 for (let dist = 1; dist <= lookAheadLimit; dist++) {
                     const nextIdx = currentPos + dist;
                     if (nextIdx >= ocrWords.length) continue;
-                    if (this.getSimilarity(ocrWords[nextIdx].replaceAll(/[^A-Z]/g, ""), targetComp) >= 0.70) {
+
+                    const cleanWord = ocrWords[nextIdx].replaceAll(/[^A-Z]/g, "");
+                    const normWord = normalizeComponent(cleanWord, targetComp);
+
+                    let combinedWord = cleanWord;
+                    if (nextIdx + 1 < ocrWords.length) {
+                        combinedWord += ocrWords[nextIdx + 1].replaceAll(/[^A-Z]/g, "");
+                    }
+                    const normCombined = normalizeComponent(combinedWord, targetComp);
+
+                    if (this.getSimilarity(normWord, targetComp) >= 0.70) {
                         matchedIndices.push(nextIdx);
                         currentPos = nextIdx;
+                        found = true;
+                        break;
+                    } else if (this.getSimilarity(normCombined, targetComp) >= 0.70) {
+                        matchedIndices.push(nextIdx);
+                        matchedIndices.push(nextIdx + 1);
+                        currentPos = nextIdx + 1;
                         found = true;
                         break;
                     }
@@ -334,8 +396,19 @@ export const OCRService = {
 
         for (const item of this.cachedDbItems) {
             for (let i = 0; i < textWords.length; i++) {
+                let matchedIndexOffset = 0;
+                let isMatch = false;
+
                 if (isFirstWordMatch(textWords[i], item.firstWord)) {
-                    const matched = attemptItemMatch(i, item, 4, textWords);
+                    isMatch = true;
+                    matchedIndexOffset = 0;
+                } else if (i + 1 < textWords.length && isFirstWordMatch(textWords[i] + textWords[i + 1], item.firstWord)) {
+                    isMatch = true;
+                    matchedIndexOffset = 1;
+                }
+
+                if (isMatch) {
+                    const matched = attemptItemMatch(i + matchedIndexOffset, item, 4, textWords);
                     if (matched && matched.length > longestMatch) {
                         longestMatch = matched.length;
                         bestItem = item;
