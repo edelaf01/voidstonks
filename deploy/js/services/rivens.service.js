@@ -329,7 +329,7 @@ export async function fetchRivenAverage(weaponName) {
             const rerolledMax = (meta.de_rerolled && meta.de_rerolled.max_price > 0) ? meta.de_rerolled.max_price : null;
 
             // Get WFM active listings stats (pure raw data)
-            const wfmAvg = meta.wfm_avg_price > 0 ? meta.wfm_avg_price : null;
+            const wfmAvg = (meta.wfm_avg_price > 0 ? meta.wfm_avg_price : (meta.wfm_avg > 0 ? meta.wfm_avg : null));
             const wfmMin = wfmAvg ? Math.round(wfmAvg * 0.25) : null;
             const wfmOrders = meta.wfm_market_sample > 0 ? meta.wfm_market_sample : 0;
 
