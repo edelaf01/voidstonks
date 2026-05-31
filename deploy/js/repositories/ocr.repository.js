@@ -30,7 +30,7 @@ export const OCRRepository = {
                 const createBadgeWorker = async () => {
                     const w = await tess.createWorker("eng", 1);
                     await w.setParameters({
-                        tessedit_char_whitelist: " 0123456789xX",
+                        tessedit_char_whitelist: " 0123456789",
                         tessedit_pageseg_mode: "7",
                         user_defined_dictionary_priority: "1",
                     });

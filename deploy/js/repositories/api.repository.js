@@ -52,18 +52,28 @@ export async function loadRelicsData(cacheKey, cacheTtl) {
  */
 export async function fetchPrimeManifest() {
     try {
-        const res = await fetch("assets/json/cleaned_entities.json");
-        if (!res.ok) throw new Error("Entities Load Failed");
-        const data = await res.json();
+        const [resEntities, resWeapons] = await Promise.all([
+            fetch("assets/json/cleaned_entities.json"),
+            fetch("assets/json/cleaned_weapons.json").catch(() => null)
+        ]);
+
+        if (!resEntities.ok) throw new Error("Entities Load Failed");
+        const data = await resEntities.json();
         state.primeManifest = data;
         state.entitiesDB = data;
         console.log("Entities Manifest Loaded:", data.length, "items");
         
-        // This import is needed because updateDucatsDB logic is in relics.service
         const { updateDucatsDB } = await import("../services/relics.service.js");
         updateDucatsDB(data);
+
+        if (resWeapons && resWeapons.ok) {
+            const weaponsData = await resWeapons.json();
+            const primeWeapons = weaponsData.filter(item => item.isPrime);
+            console.log("Prime Weapons Loaded for Ducats:", primeWeapons.length, "items");
+            updateDucatsDB(primeWeapons);
+        }
     } catch (e) {
-        console.warn("Error loading entities manifest:", e);
+        console.warn("Error loading entities/weapons manifest:", e);
     }
 }
 

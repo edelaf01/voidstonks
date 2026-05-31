@@ -166,7 +166,10 @@ globalThis.selectRewardToInventory = (itemName) => {
   globalThis.selectedScanItem = itemName;
 
   const t = TEXTS[state.currentLang].rewardScanner;
-  showToast(`${t.toastAdded || "Seleccionado"}: ${itemName}`);
+  const msg = t.rewardSelectedConfirmation
+    ? t.rewardSelectedConfirmation.replace("{item}", itemName)
+    : `Seleccionado: ${itemName}`;
+  showToast(msg);
 
   if (!state.autoSyncRewards) {
     state.primeInventory[itemName] = (state.primeInventory[itemName] || 0) + 1;
@@ -196,7 +199,8 @@ globalThis.saveLiveInventory = () => {
 globalThis.manualPrecisionScan = async () => {
   if (!liveStream?.active) return showToast("START SCANNER FIRST");
   state.isPrecisionScanActive = true;
-  showToast("ESCANEANDO PÁGINA...");
+  const sh = TEXTS[state.currentLang].scannerHUD;
+  showToast(sh.autoScanScanning);
 
   const video = document.getElementById("live-video");
   const snapshot = document.createElement("canvas");
@@ -219,7 +223,8 @@ globalThis.toggleAutoScrollScan = () => {
     btn.style.borderColor = state.autoScanEnabled ? "#00ff78" : "rgba(0,255,120,0.25)";
     btn.style.background = state.autoScanEnabled ? "rgba(0,255,120,0.15)" : "rgba(0,255,120,0.06)";
   }
-  showToast(state.autoScanEnabled ? "AUTO-SCAN ACTIVADO" : "AUTO-SCAN DESACTIVADO");
+  const sh2 = TEXTS[state.currentLang].scannerHUD;
+  showToast(state.autoScanEnabled ? sh2.autoScanOn : sh2.autoScanOff);
 };
 
 // Global exports for UI button interactions

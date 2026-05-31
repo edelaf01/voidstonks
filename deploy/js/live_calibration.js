@@ -14,13 +14,7 @@ class ScannerCalibration {
     this.currentX = 0;
     this.currentY = 0;
 
-    this.phase = 1;
-
-    this.cellTL = null;
-    this.cellBR = null;
-
     this.gridData = this.loadGrid();
-
     this.resolvePromise = null;
 
     if (this.canvas) {
@@ -36,68 +30,71 @@ class ScannerCalibration {
     return this.gridData;
   }
 
+  /**
+   * Loads calibration from localStorage.
+   * Migrates old 2-cell format to null (requires recalibration).
+   */
   loadGrid() {
     const stored = localStorage.getItem("vs_scanner_grid_calib");
-    if (stored) return JSON.parse(stored);
-
-    return null;
+    if (!stored) return null;
+    const parsed = JSON.parse(stored);
+    // Migrate: old format had cellW/cellH instead of gridZone — discard it
+    if (!parsed.gridZone) {
+      console.log("[Calib] Old 2-cell calibration format detected — clearing, recalibration needed.");
+      localStorage.removeItem("vs_scanner_grid_calib");
+      return null;
+    }
+    return parsed;
   }
 
   saveGrid() {
-    const cellW = (this.cellTL.w + this.cellBR.w) / 2;
-    const cellH = (this.cellTL.h + this.cellBR.h) / 2;
+    const x = Math.round(Math.min(this.startX, this.currentX));
+    const y = Math.round(Math.min(this.startY, this.currentY));
+    const w = Math.round(Math.abs(this.currentX - this.startX));
+    const h = Math.round(Math.abs(this.currentY - this.startY));
 
-    const gridX = this.cellTL.x;
-    const gridY = this.cellTL.y;
+    // Warframe inventory is strictly 3 rows vertical
+    const rows = 3;
+    const aspectRatio = w / h;
+    let cols = Math.round(aspectRatio * rows);
+    if (cols < 3) cols = 3;
+    if (cols > 12) cols = 12;
 
-    const distX = this.cellBR.x - this.cellTL.x;
-    const cols = 6;
-    const totalJumpsX = cols - 1;
-    const gapX = distX / totalJumpsX - cellW;
+    const cellW = Math.round(w / cols);
+    const cellH = Math.round(h / rows);
 
-    const distY = this.cellBR.y - this.cellTL.y;
-    const estimatedJumpY = cellH + gapX;
-    const jumpsY = Math.max(1, Math.round(distY / estimatedJumpY));
-    const rows = jumpsY + 1;
-
-    let gapY = gapX;
-    if (jumpsY > 0) {
-      gapY = distY / jumpsY - cellH;
-    }
-
-    const gridW = cols * cellW + (cols - 1) * gapX;
-    const gridH = rows * cellH + jumpsY * gapY;
-
+    // Generate a small preview of the calibrated zone
     const pCvs = document.createElement("canvas");
-    pCvs.width = Math.floor(cellW);
-    pCvs.height = Math.floor(cellH);
+    pCvs.width = Math.min(w, 200);
+    pCvs.height = Math.min(h, 200);
     const pCtx = pCvs.getContext("2d");
-    pCtx.putImageData(this.snapshotData, -this.cellTL.x, -this.cellTL.y);
+    pCtx.putImageData(this.snapshotData, -x, -y);
     const demoDataUrl = pCvs.toDataURL("image/jpeg", 0.5);
 
     const grid = {
-      gridX: gridX,
-      gridY: gridY,
-      gridW: gridW,
-      gridH: gridH,
+      gridZone: { x, y, w, h },
+      gridX: x,
+      gridY: y,
+      gridW: w,
+      gridH: h,
       cellW: cellW,
       cellH: cellH,
-      gapX: Math.max(0, gapX),
-      gapY: Math.max(0, gapY),
+      gapX: 0,
+      gapY: 0,
       cols: cols,
       rows: rows,
-      demoDataUrl: demoDataUrl,
+      demoDataUrl,
     };
 
     this.gridData = grid;
     localStorage.setItem("vs_scanner_grid_calib", JSON.stringify(grid));
-    console.log("Grid calibrated from TL/BR anchors:", grid);
+    console.log(`[Calib] Zone calibrated: ${rows}r x ${cols}c (W:${cellW} H:${cellH})`, grid.gridZone);
   }
 
   clearCalibration() {
     this.gridData = null;
     localStorage.removeItem("vs_scanner_grid_calib");
-    console.log("Grid Calibration cleared");
+    console.log("[Calib] Calibration cleared");
   }
 
   attachEvents() {
@@ -152,26 +149,7 @@ class ScannerCalibration {
 
   drawState() {
     if (!this.ctx || !this.snapshotData) return;
-
     this.ctx.putImageData(this.snapshotData, 0, 0);
-
-    if (this.phase === 2 && this.cellTL) {
-      this.ctx.strokeStyle = "rgba(0, 255, 255, 0.4)";
-      this.ctx.lineWidth = 2;
-      this.ctx.strokeRect(
-        this.cellTL.x,
-        this.cellTL.y,
-        this.cellTL.w,
-        this.cellTL.h,
-      );
-      this.ctx.fillStyle = "rgba(0, 255, 255, 0.1)";
-      this.ctx.fillRect(
-        this.cellTL.x,
-        this.cellTL.y,
-        this.cellTL.w,
-        this.cellTL.h,
-      );
-    }
 
     if (this.isDrawing || this.startX !== this.currentX) {
       const x = Math.min(this.startX, this.currentX);
@@ -179,12 +157,18 @@ class ScannerCalibration {
       const w = Math.abs(this.currentX - this.startX);
       const h = Math.abs(this.currentY - this.startY);
 
-      const color = this.phase === 1 ? "0, 255, 255" : "255, 165, 0";
-      this.ctx.fillStyle = `rgba(${color}, 0.2)`;
+      this.ctx.fillStyle = "rgba(0, 229, 255, 0.12)";
       this.ctx.fillRect(x, y, w, h);
-      this.ctx.strokeStyle = `rgb(${color})`;
+      this.ctx.strokeStyle = "#00e5ff";
       this.ctx.lineWidth = 2;
+      this.ctx.setLineDash([6, 3]);
       this.ctx.strokeRect(x, y, w, h);
+      this.ctx.setLineDash([]);
+
+      // Show dimensions hint
+      this.ctx.fillStyle = "rgba(0,229,255,0.9)";
+      this.ctx.font = "bold 13px monospace";
+      this.ctx.fillText(`${Math.round(w)} × ${Math.round(h)}`, x + 4, y + 16);
     }
   }
 
@@ -196,21 +180,13 @@ class ScannerCalibration {
     const skipBtn = document.getElementById("btn-calib-skip");
     if (skipBtn) skipBtn.innerText = t.btnSkip;
 
-    if (this.phase === 1) {
-      this.instructions.innerHTML = `<strong>${state.currentLang === "es" ? "PASO" : "STEP"} 1/2:</strong> ${t.step1}`;
-      this.btnNext.innerText = t.btnNext;
-      this.cellTL = null;
-    } else if (this.phase === 2) {
-      this.instructions.innerHTML = `<strong>${state.currentLang === "es" ? "PASO" : "STEP"} 2/2:</strong> ${t.step2}`;
-      this.btnNext.innerText = t.btnNext;
-      this.cellBR = null;
-    }
+    this.instructions.innerHTML = `${t.step1}`;
+    this.btnNext.innerText = t.btnNext;
   }
 
   async runCalibrationFlow(imageData) {
     return new Promise((resolve) => {
       this.snapshotData = imageData;
-      this.phase = 1;
       this.startX = 0;
       this.currentX = 0;
 
@@ -226,28 +202,16 @@ class ScannerCalibration {
   }
 
   confirmCalibration() {
-    const x = Math.min(this.startX, this.currentX);
-    const y = Math.min(this.startY, this.currentY);
     const w = Math.abs(this.currentX - this.startX);
     const h = Math.abs(this.currentY - this.startY);
 
-    if (w < 20 || h < 20) {
-      alert("Please draw a clear box first.");
+    if (w < 50 || h < 50) {
+      alert("Please draw a clear box around the inventory grid first.");
       return;
     }
 
-    if (this.phase === 1) {
-      this.cellTL = { x, y, w, h };
-      this.phase = 2;
-      this.startX = 0;
-      this.currentX = 0;
-      this.updateUI();
-      this.drawState();
-    } else if (this.phase === 2) {
-      this.cellBR = { x, y, w, h };
-      this.saveGrid();
-      this.closeModal(true);
-    }
+    this.saveGrid();
+    this.closeModal(true);
   }
 
   cancelCalibration() {

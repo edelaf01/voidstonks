@@ -1,10 +1,25 @@
-export const WORKER_URL = "https://wf-tool-proxy-worker.edelamf0.workers.dev/";
-export const APP_VERSION = 2.0;
+export const WORKER_URL = "https://api.voidstonks.com/";
+export const APP_VERSION = 2.2;
 export const UPDATE_HISTORY_DATA = {
   es: `
 <div class="update-block">
   <div class="update-header">
-    <span class="update-version">v2.1.0 (Actual)</span>
+    <span class="update-version">v2.2.0 (Actual)</span>
+    <span class="update-date">2026-05-31</span>
+  </div>
+  <ul class="update-list">
+    <li><strong>Mejoras en estimaciones de precios de rivens.</strong></li>
+    <li><strong>Mejoras en el escáner:</strong>
+      <ul>
+        <li>Detección de objetos prime en el inventario; ahora detecta mejor los objetos y sus cantidades.</li>
+        <li>Añadido historial de detecciones para aperturas de reliquias.</li>
+      </ul>
+    </li>
+  </ul>
+</div>
+<div class="update-block old">
+  <div class="update-header">
+    <span class="update-version">v2.1.0</span>
     <span class="update-date">2026-05-22</span>
   </div>
   <ul class="update-list">
@@ -112,7 +127,22 @@ export const UPDATE_HISTORY_DATA = {
   en: `
 <div class="update-block">
   <div class="update-header">
-    <span class="update-version">v2.1.0 (Current)</span>
+    <span class="update-version">v2.2.0 (Current)</span>
+    <span class="update-date">2026-05-31</span>
+  </div>
+  <ul class="update-list">
+    <li><strong>Improvements in riven pricing estimates.</strong></li>
+    <li><strong>Scanner improvements:</strong>
+      <ul>
+        <li>Detection of prime objects in the inventory; now detects objects and their quantities better.</li>
+        <li>Added detection history for relic runs.</li>
+      </ul>
+    </li>
+  </ul>
+</div>
+<div class="update-block old">
+  <div class="update-header">
+    <span class="update-version">v2.1.0</span>
     <span class="update-date">2026-05-22</span>
   </div>
   <ul class="update-list">
@@ -676,6 +706,7 @@ export const TEXTS = {
       finished: "¡FINALIZADO!",
       saved: "Guardado",
       autoScanOn: "⟳ AUTO SCAN ACTIVO",
+      autoScanOff: "AUTO SCAN DESACTIVADO",
       autoScanDesc: "↓ Haz scroll en el inventario. Se escaneará automático al estabilizar. Asegúrate de mostrar filas completas.",
       autoScanDetected: "MOVIMIENTO DETECTADO",
       autoScanDetectedDesc: "Esperando estabilización...",
@@ -706,11 +737,20 @@ export const TEXTS = {
       title: "RECOMPENSAS DETECTADAS",
       mobileHint: "Toca 'AÑADIR' para registrar en inventario",
     },
+    history: {
+      title: "DETECCIONES RECIENTES",
+      empty: "No hay ningún escaneo de recompensas reciente.<br><span style='font-size:0.75rem; color:#aaa; opacity:0.8;'>Prueba a hacer una misión de abrir reliquias con el Live Scanner activo.</span>",
+      btnView: "VER CAPTURA",
+      btnChoose: "ELEGIR",
+      btnAdded: "AGREGADO",
+      btnClearTooltip: "Limpiar historial",
+      toastCleared: "Historial borrado",
+      btnLabel: "HISTORIAL"
+    },
     calib: {
-      title: "CALIBRACIÓN INICIAL",
-      step1: "Selecciona el cuadrado correspondiente al PRIMER ITEM (arriba-izq), incluyendo NOMBRE ENTERO y CANTIDAD.",
-      step2: "Selecciona el cuadrado correspondiente al ÚLTIMO ITEM (abajo-der), incluyendo NOMBRE ENTERO y CANTIDAD.",
-      btnNext: "SIGUIENTE",
+      title: "CALIBRACIÓN DE ZONA",
+      step1: "Dibuja un rectángulo alrededor de TODA el área del grid de items (desde el primer item visible hasta el último). No hace falta ser exacto.",
+      btnNext: "CALIBRAR",
       btnSkip: "Omitir Calibración"
     },
     ocr: {
@@ -1025,6 +1065,7 @@ export const TEXTS = {
       finished: "FINISHED!",
       saved: "Saved",
       autoScanOn: "⟳ AUTO SCAN ON",
+      autoScanOff: "AUTO SCAN OFF",
       autoScanDesc: "↓ Scroll gently. It scans automatically when stable. Make sure full rows are visible.",
       autoScanDetected: "MOVEMENT DETECTED",
       autoScanDetectedDesc: "Waiting for screen to stabilize...",
@@ -1041,10 +1082,9 @@ export const TEXTS = {
       toastScanComplete: "Scan complete! {count} unique Prime items found.",
     },
     calib: {
-      title: "INITIAL CALIBRATION",
-      step1: "Select the square for the FIRST ITEM (top-left). Include the ENTIRE NAME and QUANTITY.",
-      step2: "Select the square for the LAST ITEM (bottom-right). Include the ENTIRE NAME and QUANTITY.",
-      btnNext: "NEXT",
+      title: "ZONE CALIBRATION",
+      step1: "Draw a rectangle around the ENTIRE inventory grid area (from the first visible item to the last). Doesn't need to be pixel-perfect.",
+      btnNext: "CALIBRATE",
       btnSkip: "Skip Calibration"
     },
     ocr: {
@@ -1267,6 +1307,16 @@ export const TEXTS = {
       tagBestDuc: "BEST DUCAT!",
       tagCompletes: "COMPLETES SET!",
       mobileHint: "Tap 'ADD' to register in inventory",
+    },
+    history: {
+      title: "RECENT DETECTIONS",
+      empty: "No recent reward scans found.<br><span style='font-size:0.75rem; color:#aaa; opacity:0.8;'>Try playing a relic opening mission with the Live Scanner active!</span>",
+      btnView: "VIEW CAPTURE",
+      btnChoose: "CHOOSE",
+      btnAdded: "ADDED",
+      btnClearTooltip: "Clear history",
+      toastCleared: "History cleared",
+      btnLabel: "HISTORY"
     },
     recipe: "Recipe",
     stats: "Stats",

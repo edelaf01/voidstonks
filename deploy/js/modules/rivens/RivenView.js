@@ -142,9 +142,11 @@ export function renderValuationResults(container, selectedVariantName, valuation
 export function renderMarketIndex(container, rivensData, filterText, onSelect) {
   container.innerHTML = '';
   
-  const entries = Object.entries(rivensData).filter(([familyName]) => 
-    familyName.toLowerCase().includes(filterText.toLowerCase())
-  );
+  const entries = Object.entries(rivensData).filter(([familyName]) => {
+    const upper = familyName.toUpperCase();
+    if (upper === "NOTE" || upper === "STATUS" || upper === "VERSION" || upper === "TTL" || upper === "DATA" || upper === "ERROR") return false;
+    return familyName.toLowerCase().includes(filterText.toLowerCase());
+  });
 
   const fragment = document.createDocumentFragment();
 
@@ -179,7 +181,9 @@ function createAdvancedCardElement(familyName, familyData, onSelect) {
     // Prices (Robust object checks to fix [object Object] displaying when de_unrolled/de_rerolled are empty objects)
     const unrolledMed  = (activeWeapon.de_unrolled && typeof activeWeapon.de_unrolled === 'object') ? (activeWeapon.de_unrolled.median ?? 0) : (activeWeapon.de_unrolled ?? 0);
     const rerolledMed  = (activeWeapon.de_rerolled && typeof activeWeapon.de_rerolled === 'object') ? (activeWeapon.de_rerolled.median ?? 0) : (activeWeapon.de_rerolled ?? 0);
-    const maxPrice     = activeWeapon.max_price ?? activeWeapon.de_rerolled?.max_price ?? activeWeapon.de_unrolled?.max_price ?? 0;
+    const maxUnrolled  = (activeWeapon.de_unrolled && typeof activeWeapon.de_unrolled === 'object') ? (activeWeapon.de_unrolled.max_price ?? 0) : 0;
+    const maxRerolled  = (activeWeapon.de_rerolled && typeof activeWeapon.de_rerolled === 'object') ? (activeWeapon.de_rerolled.max_price ?? 0) : 0;
+    const maxPrice     = Math.max(maxUnrolled, maxRerolled, activeWeapon.max_price ?? 0);
     const avgPrice     = activeWeapon.wfm_avg_price ?? 0;
     const marketSample = activeWeapon.wfm_market_sample ?? 0;
     const trendPct     = (activeWeapon.trend_7d_pct ?? 0).toFixed(1);
