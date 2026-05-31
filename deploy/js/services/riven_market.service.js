@@ -1,11 +1,27 @@
 import { WORKER_URL } from "../config.js";
+import { RIVEN_API_BASE } from "../modules/rivens/RivenRepository.js";
 import { getRivenSlug } from "./slugs.service.js";
 import { state } from "../state.js";
 import { dbHelper } from "../repositories/storage.repository.js";
+
+const ENABLE_DEBUG_LOGS = false;
+
 let dynamicMetaStats = null;
 let baselineMetaStats = null;
+
+function cleanMetadataKeys(obj) {
+    if (!obj || typeof obj !== "object" || Array.isArray(obj)) return obj;
+    const metadataKeys = new Set(["note", "status", "version", "ttl", "error", "timestamp", "data", "created at", "completed at", "file path"]);
+    for (const key of Object.keys(obj)) {
+        if (metadataKeys.has(key.toLowerCase()) || metadataKeys.has(key)) {
+            delete obj[key];
+        }
+    }
+    return obj;
+}
+
 export async function loadDynamicMetaStats() {
-    const CACHE_KEY = "voidstonkscache_riven_metastats_v6";
+    const CACHE_KEY = "voidstonkscache_riven_metastats_v7";
     const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
 
     // Fallback snapshot until the worker data loads.
@@ -22,26 +38,10 @@ export async function loadDynamicMetaStats() {
     };
 
     dynamicMetaStats = { ...loadedData };
+    baselineMetaStats = { ...loadedData };
     globalThis.dynamicMetaStats = dynamicMetaStats;
+    globalThis.baselineMetaStats = baselineMetaStats;
     try {
-        try {
-            const resLocalBaseline = await fetch("metastats.json");
-            if (resLocalBaseline.ok) {
-                let dataLocalBaseline = await resLocalBaseline.json();
-                if (dataLocalBaseline && dataLocalBaseline.data && typeof dataLocalBaseline.data === "object" && !Array.isArray(dataLocalBaseline.data)) {
-                    dataLocalBaseline = dataLocalBaseline.data;
-                }
-                if (dataLocalBaseline && !dataLocalBaseline.error && Object.keys(dataLocalBaseline).length > 0) {
-                    loadedData = { ...loadedData, ...dataLocalBaseline };
-                    baselineMetaStats = dataLocalBaseline;
-                    globalThis.baselineMetaStats = baselineMetaStats;
-                    dynamicMetaStats = loadedData;
-                    globalThis.dynamicMetaStats = dynamicMetaStats;
-                    console.log("Loaded baseline metastats from local metastats.json!");
-                }
-            }
-        } catch (err) {
-        }
         const getLastMonday1730UTC = (timestamp) => {
             const d = new Date(timestamp);
             const day = d.getUTCDay();
@@ -66,72 +66,73 @@ export async function loadDynamicMetaStats() {
                 if (cachedObj && cachedObj.data && typeof cachedObj.data === "object" && !Array.isArray(cachedObj.data)) {
                     cachedObj = cachedObj.data;
                 }
+                cachedObj = cleanMetadataKeys(cachedObj);
 
                 if (cachedObj && !cachedObj.error && Object.keys(cachedObj).length > 0) {
-                    loadedData = { ...loadedData, ...cachedObj };
+                    for (const [key, cachedVal] of Object.entries(cachedObj)) {
+                        if (loadedData[key]) {
+                            const cachedPop = cachedVal.popularity_pct;
+                            const hasValidCachedPop = cachedPop !== undefined && cachedPop !== null && cachedPop > 0;
+                            loadedData[key] = {
+                                ...loadedData[key],
+                                ...cachedVal,
+                                popularity_pct: hasValidCachedPop ? cachedPop : (loadedData[key].popularity_pct || 0)
+                            };
+                        } else {
+                            loadedData[key] = cachedVal;
+                        }
+                    }
                     dynamicMetaStats = loadedData;
                     globalThis.dynamicMetaStats = dynamicMetaStats;
                     cacheValid = true;
-                    console.log("Loaded dynamic Riven Meta Stats from local cache (Valid since last Monday 17:30 UTC)");
+                    if (ENABLE_DEBUG_LOGS) console.log("Loaded dynamic Riven Meta Stats from local cache (Valid since last Monday 17:30 UTC)");
                 }
             }
         }
         let fetchedFromWorker = false;
         if (!cacheValid) {
             try {
-                const cleanWorkerUrl = "https://soft-mountain-28fe.edelamf0.workers.dev/api/rivens";
+                const cleanWorkerUrl = `${RIVEN_API_BASE}/metastats`;
                 const res = await fetch(cleanWorkerUrl);
                 if (res.ok) {
                     let data = await res.json();
 
-                    if (data && data.data && typeof data.data === "object" && !Array.isArray(data.data)) {
+                    if (data?.data && typeof data.data === "object" && !Array.isArray(data.data)) {
                         data = data.data;
                     }
+                    data = cleanMetadataKeys(data);
 
                     if (data && !data.error && Object.keys(data).length > 0) {
-                        loadedData = { ...loadedData, ...data };
+                        for (const [key, workerVal] of Object.entries(data)) {
+                            if (loadedData[key]) {
+                                const workerPop = workerVal.popularity_pct;
+                                const hasValidWorkerPop = workerPop !== undefined && workerPop !== null && workerPop > 0;
+                                loadedData[key] = {
+                                    ...loadedData[key],
+                                    ...workerVal,
+                                    popularity_pct: hasValidWorkerPop ? workerPop : (loadedData[key].popularity_pct || 0)
+                                };
+                            } else {
+                                loadedData[key] = workerVal;
+                            }
+                        }
                         dynamicMetaStats = loadedData;
                         globalThis.dynamicMetaStats = dynamicMetaStats;
                         await dbHelper.set(CACHE_KEY, { timestamp: Date.now(), data: loadedData });
                         fetchedFromWorker = true;
-                        console.log("Loaded and cached fresh dynamic Riven Meta Stats from Worker!");
+                        if (ENABLE_DEBUG_LOGS) console.log("Loaded and cached fresh dynamic Riven Meta Stats from Worker!");
                     }
                 }
             } catch (err) {
                 console.warn("Could not fetch metastats from worker:", err);
             }
         }
-        if (!cacheValid && !fetchedFromWorker) {
-            try {
-                const resLocal = await fetch("metastats.json");
-                if (resLocal.ok) {
-                    let dataLocal = await resLocal.json();
-                    if (dataLocal && dataLocal.data && typeof dataLocal.data === "object" && !Array.isArray(dataLocal.data)) {
-                        dataLocal = dataLocal.data;
-                    }
-                    if (dataLocal && !dataLocal.error && Object.keys(dataLocal).length > 0) {
-                        baselineMetaStats = dataLocal;
-                        globalThis.baselineMetaStats = baselineMetaStats;
-                        for (const [key, val] of Object.entries(dataLocal)) {
-                            if (loadedData[key]) {
-                                loadedData[key] = { ...loadedData[key], ...val };
-                            } else {
-                                loadedData[key] = val;
-                            }
-                        }
-                        dynamicMetaStats = loadedData;
-                        globalThis.dynamicMetaStats = dynamicMetaStats;
-                        console.log("Loaded and merged local metastats.json fallback!");
-                    }
-                }
-            } catch (err) {
-            }
-        }
+
         if (globalThis.refreshCurrentRivenMetaStats) {
             globalThis.refreshCurrentRivenMetaStats();
         }
         const weaponInput = document.getElementById("rivenWeaponInput");
-        if (weaponInput && weaponInput.value) {
+        if (weaponInput?.value) {
             import("./rivens.service.js").then(({ fetchRivenAverage }) => {
                 fetchRivenAverage(weaponInput.value);
             }).catch(err => console.error("Error refreshing Riven average after metadata load:", err));
@@ -182,7 +183,7 @@ export function getBaseWeaponName(weaponName) {
         changed = false;
 
         for (const pre of prefixes) {
-            const regex = new RegExp(`^${pre}\\s+`, "i");
+            const regex = new RegExp(String.raw`^${pre}\s+`, "i");
             if (regex.test(baseCandidate)) {
                 baseCandidate = baseCandidate.replace(regex, "");
                 changed = true;
@@ -190,7 +191,7 @@ export function getBaseWeaponName(weaponName) {
         }
 
         for (const suf of suffixes) {
-            const regex = new RegExp(`\\s+${suf}$`, "i");
+            const regex = new RegExp(String.raw`\s+${suf}$`, "i");
             if (regex.test(baseCandidate)) {
                 baseCandidate = baseCandidate.replace(regex, "");
                 changed = true;
@@ -256,13 +257,16 @@ export function getMetaStats(weaponName, weaponType) {
             const topPos = metaObj.top_positive;
             if (Array.isArray(topPos) && topPos.length > 0) return true;
 
+            const posTier = metaObj.pos_tier;
+            if (posTier && Array.isArray(posTier.top) && posTier.top.length > 0) return true;
+
             return false;
         };
         const hasValidPricing = (metaObj) => {
             if (!metaObj) return false;
             if (metaObj.official_median > 0) return true;
             if (metaObj.official_avg_price > 0) return true;
-            if (metaObj.wfm_avg_price > 0) return true;
+            if (metaObj.wfm_avg_price > 0 || metaObj.wfm_avg > 0) return true;
             if (metaObj.de_unrolled && metaObj.de_unrolled.median > 0) return true;
             return false;
         };
@@ -272,12 +276,14 @@ export function getMetaStats(weaponName, weaponType) {
             if (hasValidRecommendations(baseMeta) && !hasValidRecommendations(rawMeta)) {
                 if (baseMeta.pos) rawMeta.pos = baseMeta.pos;
                 if (baseMeta.neg) rawMeta.neg = baseMeta.neg;
+                if (baseMeta.pos_tier) rawMeta.pos_tier = baseMeta.pos_tier;
+                if (baseMeta.neg_tier) rawMeta.neg_tier = baseMeta.neg_tier;
                 if (baseMeta.top_positive) rawMeta.top_positive = baseMeta.top_positive;
                 if (baseMeta.top_negative) rawMeta.top_negative = baseMeta.top_negative;
             }
 
             if (hasValidPricing(baseMeta)) {
-                const excludedKeys = new Set(["name", "pos", "neg", "top_positive", "top_negative"]);
+                const excludedKeys = new Set(["name", "pos", "neg", "pos_tier", "neg_tier", "top_positive", "top_negative"]);
                 for (const key of Object.keys(baseMeta)) {
                     if (!excludedKeys.has(key) && baseMeta[key] !== undefined) {
                         rawMeta[key] = baseMeta[key];
@@ -301,6 +307,8 @@ export function getMetaStats(weaponName, weaponType) {
                 if (baselineMeta && hasValidRecommendations(baselineMeta)) {
                     rawMeta.pos = baselineMeta.pos;
                     rawMeta.neg = baselineMeta.neg;
+                    if (baselineMeta.pos_tier) rawMeta.pos_tier = baselineMeta.pos_tier;
+                    if (baselineMeta.neg_tier) rawMeta.neg_tier = baselineMeta.neg_tier;
                     if (baselineMeta.top_positive) rawMeta.top_positive = baselineMeta.top_positive;
                     if (baselineMeta.top_negative) rawMeta.top_negative = baselineMeta.top_negative;
                 }
@@ -327,6 +335,7 @@ export function getMetaStats(weaponName, weaponType) {
                         "official_avg_price",
                         "wfm_market_sample",
                         "wfm_avg_price",
+                        "wfm_avg",
                         "de_unrolled",
                         "de_rerolled"
                     ];
@@ -342,13 +351,14 @@ export function getMetaStats(weaponName, weaponType) {
 
     if (!rawMeta) return null;
 
-    const pos = Array.isArray(rawMeta.pos) ? rawMeta.pos : (rawMeta.pos?.best || []);
-    const neg = Array.isArray(rawMeta.neg) ? rawMeta.neg : (rawMeta.neg?.best || []);
+    const pos = Array.isArray(rawMeta.pos) ? rawMeta.pos : (rawMeta.pos?.best || rawMeta.pos_tier?.top || []);
+    const neg = Array.isArray(rawMeta.neg) ? rawMeta.neg : (rawMeta.neg?.best || rawMeta.neg_tier?.buff || []);
 
-    console.log(`[getMetaStats] weaponName: ${weaponName}, baseName: ${baseName}, inherited pos:`, pos, "neg:", neg);
+    if (ENABLE_DEBUG_LOGS) console.log(`[getMetaStats] weaponName: ${weaponName}, baseName: ${baseName}, inherited pos:`, pos, "neg:", neg);
 
     return {
         ...rawMeta,
+        name: weaponName,
         pos,
         neg,
         rawPos: rawMeta.pos,
@@ -370,7 +380,7 @@ export async function fetchSimilarRivens(weaponName, positiveStats, negativeStat
     try {
         if (liveAuctionsCache[cacheKey] && (Date.now() - liveAuctionsCache[cacheKey].timestamp < FIFTEEN_MINUTES)) {
             auctions = liveAuctionsCache[cacheKey].auctions;
-            console.log(`[Cache Hit] Retrieved live Riven auctions for ${weaponName} from memory (15 min cache)!`);
+            if (ENABLE_DEBUG_LOGS) console.log(`[Cache Hit] Retrieved live Riven auctions for ${weaponName} from memory (15 min cache)!`);
         } else {
             const res = await fetch(`${WORKER_URL}?type=riven&q=${slug}`);
             if (!res.ok) throw new Error("Worker Error");
@@ -380,7 +390,7 @@ export async function fetchSimilarRivens(weaponName, positiveStats, negativeStat
                 timestamp: Date.now(),
                 auctions: auctions
             };
-            console.log(`[Network Fetch] Fetched fresh live Riven auctions for ${weaponName} from Worker!`);
+            if (ENABLE_DEBUG_LOGS) console.log(`[Network Fetch] Fetched fresh live Riven auctions for ${weaponName} from Worker!`);
         }
 
         const searchPositives = positiveStats.map(s => s.toLowerCase().trim());
@@ -388,15 +398,15 @@ export async function fetchSimilarRivens(weaponName, positiveStats, negativeStat
 
         const similar = auctions.filter(a => {
             if (!a.visible || a.owner.status === "offline") return false;
-            if (!a.item || !a.item.attributes) return false;
+            if (!a.item?.attributes) return false;
 
             const itemPositives = a.item.attributes
                 .filter(attr => attr.positive)
-                .map(attr => attr.url_name.replace(/_/g, " ").toLowerCase());
+                .map(attr => attr.url_name.replaceAll('_', " ").toLowerCase());
 
             const itemNegatives = a.item.attributes
                 .filter(attr => !attr.positive)
-                .map(attr => attr.url_name.replace(/_/g, " ").toLowerCase());
+                .map(attr => attr.url_name.replaceAll('_', " ").toLowerCase());
 
             let matchCount = 0;
             for (const sp of searchPositives) {
@@ -425,11 +435,11 @@ export async function fetchSimilarRivens(weaponName, positiveStats, negativeStat
         if (similar.length < 2) {
             finalResults = auctions.filter(a => {
                 if (!a.visible || a.owner.status === "offline") return false;
-                if (!a.item || !a.item.attributes) return false;
+                if (!a.item?.attributes) return false;
 
                 const itemPositives = a.item.attributes
                     .filter(attr => attr.positive)
-                    .map(attr => attr.url_name.replace(/_/g, " ").toLowerCase());
+                    .map(attr => attr.url_name.replaceAll('_', " ").toLowerCase());
 
                 let matchCount = 0;
                 for (const sp of searchPositives) {

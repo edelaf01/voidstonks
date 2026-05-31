@@ -1,9 +1,9 @@
-const API_BASE_URL = 'https://soft-mountain-28fe.edelamf0.workers.dev/api';
+export const RIVEN_API_BASE = "https://soft-mountain-28fe.edelamf0.workers.dev/api";
 
 /** @returns {Promise<Object>} */
 export async function fetchCurrentRivens() {
   try {
-    const response = await fetch(`${API_BASE_URL}/rivens`);
+    const response = await fetch(`${RIVEN_API_BASE}/rivens`);
     if (!response.ok) {
       throw new Error(`Error HTTP: ${response.status}`);
     }
@@ -22,7 +22,7 @@ export async function fetchCurrentRivens() {
 export async function fetchWeaponHistory(weaponName) {
   try {
     const encodedName = encodeURIComponent(weaponName);
-    const response = await fetch(`${API_BASE_URL}/history?weapon=${encodedName}`);
+    const response = await fetch(`${RIVEN_API_BASE}/history?weapon=${encodedName}`);
     if (!response.ok) {
       throw new Error(`Error HTTP al obtener historial para ${weaponName}`);
     }
@@ -49,7 +49,7 @@ export function weaponNameToSlug(name) {
   return slug;
 }
 
-function extractFamilyName(weaponName) {
+export function extractFamilyName(weaponName) {
   const overrides = {
     "prisma dual decurions": "Dual Decurion",
     "dual decurions": "Dual Decurion",
