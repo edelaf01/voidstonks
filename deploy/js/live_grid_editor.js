@@ -130,6 +130,22 @@ class GridCellEditor {
         <button id="ge-h-plus"  style="${this._btnStyle('#7cada8')}">+</button>
       </div>
 
+      <!-- Columns control -->
+      <div style="display:flex;align-items:center;gap:4px;">
+        <span style="font-size:0.6em;color:#506070;letter-spacing:1px;">COLS</span>
+        <button id="ge-cols-minus" style="${this._btnStyle('#7cada8')}">−</button>
+        <span id="ge-cols-val" style="font-size:0.68em;color:#e0e0e0;font-family:monospace;min-width:20px;text-align:center;">${g.cols || 6}</span>
+        <button id="ge-cols-plus"  style="${this._btnStyle('#7cada8')}">+</button>
+      </div>
+
+      <!-- Rows control -->
+      <div style="display:flex;align-items:center;gap:4px;">
+        <span style="font-size:0.6em;color:#506070;letter-spacing:1px;">ROWS</span>
+        <button id="ge-rows-minus" style="${this._btnStyle('#7cada8')}">−</button>
+        <span id="ge-rows-val" style="font-size:0.68em;color:#e0e0e0;font-family:monospace;min-width:20px;text-align:center;">${g.rows || 3}</span>
+        <button id="ge-rows-plus"  style="${this._btnStyle('#7cada8')}">+</button>
+      </div>
+
       <!-- Separator -->
       <span style="color:#1e2e3e;font-size:0.8em;">│</span>
 
@@ -182,11 +198,13 @@ class GridCellEditor {
         document.getElementById('ge-h-minus').onclick = () => this._resize('cellH', -step(window.event || {}));
         document.getElementById('ge-h-plus').onclick = () => this._resize('cellH', +step(window.event || {}));
 
-        ['ge-w-minus', 'ge-w-plus', 'ge-h-minus', 'ge-h-plus'].forEach(id => {
+        ['ge-w-minus', 'ge-w-plus', 'ge-h-minus', 'ge-h-plus', 'ge-cols-minus', 'ge-cols-plus', 'ge-rows-minus', 'ge-rows-plus'].forEach(id => {
             const btn = document.getElementById(id);
             btn.addEventListener('click', e => {
-                const delta = (e.shiftKey ? 5 : 1) * (id.includes('minus') ? -1 : 1);
-                const key = id.includes('-w-') ? 'cellW' : 'cellH';
+                const delta = id.includes('cols') || id.includes('rows')
+                    ? (id.includes('minus') ? -1 : 1)
+                    : ((e.shiftKey ? 5 : 1) * (id.includes('minus') ? -1 : 1));
+                const key = id.includes('-w-') ? 'cellW' : (id.includes('-h-') ? 'cellH' : (id.includes('-cols-') ? 'cols' : 'rows'));
                 this._resize(key, delta);
                 e.stopPropagation();
             }, true);
@@ -202,10 +220,17 @@ class GridCellEditor {
     }
 
     _resize(key, delta) {
-        this._grid[key] = Math.max(20, Math.round(this._grid[key] + delta));
-        const id = key === 'cellW' ? 'ge-w-val' : 'ge-h-val';
-        const el = document.getElementById(id);
-        if (el) el.textContent = Math.round(this._grid[key]);
+        if (key === 'cols' || key === 'rows') {
+            this._grid[key] = Math.max(1, Math.round((this._grid[key] || (key === 'cols' ? 6 : 3)) + delta));
+            const id = key === 'cols' ? 'ge-cols-val' : 'ge-rows-val';
+            const el = document.getElementById(id);
+            if (el) el.textContent = this._grid[key];
+        } else {
+            this._grid[key] = Math.max(20, Math.round(this._grid[key] + delta));
+            const id = key === 'cellW' ? 'ge-w-val' : 'ge-h-val';
+            const el = document.getElementById(id);
+            if (el) el.textContent = Math.round(this._grid[key]);
+        }
         this._draw();
     }
 

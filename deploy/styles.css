@@ -1239,19 +1239,20 @@ body.theme-bounties {
 
 /* inventory-list-parts styling handled elsewhere */
 
-.inv-filter-btn {
+.inv-tier-btn {
   flex: 1;
-  background: transparent;
-  border: 1px solid #444;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   color: #888;
-  padding: 6px 4px;
-  font-size: 0.75em;
+  padding: 6px 2px;
+  font-size: 0.72em;
   font-weight: 700;
   cursor: pointer;
-  border-radius: 3px;
+  border-radius: 4px;
   transition: all 0.2s;
   text-align: center;
-  min-width: 40px;
+  min-width: 0;
+  white-space: nowrap;
 }
 
 #inventory-container .inv-row {
@@ -1265,17 +1266,43 @@ body.theme-bounties {
   width: 100% !important;
 }
 
-.inv-filter-btn:hover {
-  background: #252830;
+.inv-tier-btn:hover {
+  background: rgba(0, 229, 255, 0.08);
   color: #fff;
-  border-color: #666;
+  border-color: rgba(0, 229, 255, 0.3);
 }
 
-.inv-filter-btn.active {
+.inv-tier-btn.active {
   background: var(--wf-blue);
   color: #050505;
   border-color: var(--wf-blue);
-  box-shadow: 0 0 10px rgba(0, 229, 255, 0.2);
+  box-shadow: 0 0 10px rgba(0, 229, 255, 0.3);
+}
+
+.inv-view-btn {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #888;
+  padding: 8px 12px;
+  font-size: 0.8em;
+  font-weight: 800;
+  cursor: pointer;
+  border-radius: 4px 4px 0 0;
+  transition: all 0.2s;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.inv-view-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.inv-view-btn.active {
+  background: #1e222b;
+  border-bottom: 2px solid var(--wf-blue);
+  color: var(--wf-blue);
+  text-shadow: 0 0 8px rgba(0, 229, 255, 0.3);
 }
 
 /* 3. Selector de Ordenación (Recently added, AVG Plat...) */

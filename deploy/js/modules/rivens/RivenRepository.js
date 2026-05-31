@@ -3,7 +3,7 @@
  * Capa de datos para la obtención y manipulación inicial de información de Rivens en Vanilla JS.
  */
 
-const API_BASE_URL = 'https://soft-mountain-28fe.edelamf0.workers.dev/api';
+export const RIVEN_API_BASE = "https://soft-mountain-28fe.edelamf0.workers.dev/api";
 
 /**
  * Obtiene el listado completo de datos de Rivens desde el worker de Cloudflare.
@@ -11,7 +11,7 @@ const API_BASE_URL = 'https://soft-mountain-28fe.edelamf0.workers.dev/api';
  */
 export async function fetchCurrentRivens() {
   try {
-    const response = await fetch(`${API_BASE_URL}/rivens`);
+    const response = await fetch(`${RIVEN_API_BASE}/rivens`);
     if (!response.ok) {
       throw new Error(`Error HTTP: ${response.status}`);
     }
@@ -31,7 +31,7 @@ export async function fetchCurrentRivens() {
 export async function fetchWeaponHistory(weaponName) {
   try {
     const encodedName = encodeURIComponent(weaponName);
-    const response = await fetch(`${API_BASE_URL}/history?weapon=${encodedName}`);
+    const response = await fetch(`${RIVEN_API_BASE}/history?weapon=${encodedName}`);
     if (!response.ok) {
       throw new Error(`Error HTTP al obtener historial para ${weaponName}`);
     }
@@ -71,7 +71,7 @@ export function weaponNameToSlug(name) {
  *   "Nikana Prime" → "Nikana"
  *   "Strun Wraith" → "Strun"
  */
-function extractFamilyName(weaponName) {
+export function extractFamilyName(weaponName) {
   // Specific custom overrides for family mappings
   const overrides = {
     "prisma dual decurions": "Dual Decurion",

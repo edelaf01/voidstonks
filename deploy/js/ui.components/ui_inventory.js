@@ -567,7 +567,11 @@ export function renderPrimeInventory() {
   let setNames = Object.keys(groups);
 
   if (searchInput) {
-    setNames = setNames.filter(n => n.toLowerCase().includes(searchInput));
+    setNames = setNames.filter(n => {
+      if (n.toLowerCase().includes(searchInput)) return true;
+      const parts = groups[n] || [];
+      return parts.some(p => p.name.toLowerCase().includes(searchInput));
+    });
   }
 
   const setMetrics = new Map();

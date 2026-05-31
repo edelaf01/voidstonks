@@ -70,3 +70,340 @@
     background: rgba(0, 0, 0, 0.3);
     display: block;
 }
+
+/* ---- Scanner History Dropdown System ---- */
+.scan-history-dropdown-wrapper {
+    position: relative;
+    display: inline-block;
+    z-index: 1001;
+}
+
+.scan-history-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(162, 53, 226, 0.12);
+    border: 1px solid rgba(162, 53, 226, 0.35);
+    color: #dcb3ff;
+    font-weight: 800;
+    font-size: 0.72rem;
+    font-family: 'Outfit', 'Inter', sans-serif;
+    padding: 7px 14px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    white-space: nowrap;
+    letter-spacing: 0.5px;
+    box-shadow: 0 0 8px rgba(162, 53, 226, 0.1);
+}
+
+.scan-history-btn:hover {
+    background: rgba(162, 53, 226, 0.28);
+    border-color: rgba(162, 53, 226, 0.65);
+    box-shadow: 0 0 15px rgba(162, 53, 226, 0.25);
+    transform: translateY(-1px);
+    color: #fff;
+}
+
+.scan-history-btn:active {
+    transform: translateY(0);
+}
+
+/* SVG icons */
+.scan-history-btn .icon-clock-svg {
+    width: 13px;
+    height: 13px;
+    opacity: 0.85;
+    transition: transform 0.2s;
+}
+
+.scan-history-btn:hover .icon-clock-svg {
+    transform: rotate(15deg);
+    opacity: 1;
+}
+
+.scan-history-btn .icon-arrow-svg {
+    width: 10px;
+    height: 10px;
+    opacity: 0.6;
+    transition: transform 0.2s;
+}
+
+.scan-history-btn:hover .icon-arrow-svg {
+    opacity: 0.95;
+}
+
+/* The actual dropdown container */
+.scan-history-dropdown {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    width: 380px;
+    background: rgba(10, 12, 18, 0.98);
+    border: 1px solid rgba(162, 53, 226, 0.3);
+    border-radius: 6px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8), 0 0 20px rgba(162, 53, 226, 0.15);
+    backdrop-filter: blur(8px);
+    opacity: 1;
+    transform: translateY(0);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    overflow: hidden;
+}
+
+.scan-history-dropdown.hidden {
+    opacity: 0;
+    transform: translateY(-10px);
+    pointer-events: none;
+    display: none !important;
+}
+
+/* Dropdown Header */
+.scan-history-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 14px;
+    background: rgba(162, 53, 226, 0.08);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.scan-history-title {
+    font-weight: 800;
+    font-size: 0.72rem;
+    letter-spacing: 1px;
+    color: #dcb3ff;
+}
+
+.scan-history-clear-btn {
+    background: transparent;
+    border: none;
+    color: #888;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+}
+
+.scan-history-clear-btn:hover {
+    color: #ff5555;
+    background: rgba(255, 85, 85, 0.1);
+}
+
+.scan-history-clear-btn .icon-trash-svg {
+    width: 12px;
+    height: 12px;
+}
+
+/* Dropdown scrollable list */
+.scan-history-list {
+    max-height: 400px;
+    overflow-y: auto;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+/* Scrollbar styling */
+.scan-history-list::-webkit-scrollbar {
+    width: 4px;
+}
+.scan-history-list::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.1);
+}
+.scan-history-list::-webkit-scrollbar-thumb {
+    background: rgba(162, 53, 226, 0.3);
+    border-radius: 2px;
+}
+.scan-history-list::-webkit-scrollbar-thumb:hover {
+    background: rgba(162, 53, 226, 0.6);
+}
+
+.scan-history-empty {
+    text-align: center;
+    color: #bbb;
+    font-size: 0.85rem;
+    padding: 30px 14px;
+    line-height: 1.6;
+    font-weight: 500;
+}
+
+/* Single detection block */
+.scan-history-card {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 4px;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    transition: all 0.2s;
+}
+
+.scan-history-card:hover {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(162, 53, 226, 0.25);
+}
+
+/* Card Header */
+.scan-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px dashed rgba(255, 255, 255, 0.08);
+    padding-bottom: 6px;
+}
+
+.scan-card-time {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #aaa;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.scan-card-time .icon-clock-mini {
+    width: 12px;
+    height: 12px;
+}
+
+/* View Snapshot button inside card */
+.scan-card-view-btn {
+    background: rgba(0, 229, 255, 0.08);
+    border: 1px solid rgba(0, 229, 255, 0.25);
+    color: #00e5ff;
+    font-size: 0.75rem;
+    font-weight: 800;
+    padding: 4px 8px;
+    border-radius: 3px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    transition: all 0.15s;
+}
+
+.scan-card-view-btn:hover {
+    background: rgba(0, 229, 255, 0.2);
+    border-color: #00e5ff;
+    box-shadow: 0 0 8px rgba(0, 229, 255, 0.2);
+}
+
+.scan-card-view-btn .icon-eye {
+    width: 12px;
+    height: 12px;
+}
+
+/* Card Items list */
+.scan-card-items {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.scan-card-item-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.85rem;
+    background: rgba(0, 0, 0, 0.25);
+    padding: 6px 10px;
+    border-radius: 4px;
+    border: 1px solid rgba(255, 255, 255, 0.03);
+    gap: 10px;
+}
+
+.scan-card-item-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    flex-grow: 1;
+}
+
+.scan-card-item-image {
+    width: 32px;
+    height: 32px;
+    object-fit: contain;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    flex-shrink: 0;
+}
+
+.scan-card-item-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    flex-grow: 1;
+}
+
+.scan-card-item-name {
+    font-weight: 800;
+    color: #eee;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.85rem;
+    letter-spacing: 0.3px;
+}
+
+.scan-card-item-stats {
+    font-size: 0.72rem;
+    color: #aaa;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.scan-card-item-stats span {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+}
+
+.scan-card-plat-icon, .scan-card-ducat-icon {
+    width: 12px;
+    height: 12px;
+    object-fit: contain;
+}
+
+/* Choose item button inside row */
+.scan-card-choose-btn {
+    background: rgba(0, 255, 120, 0.06);
+    border: 1px solid rgba(0, 255, 120, 0.25);
+    color: #00ff78;
+    font-size: 0.74rem;
+    font-weight: 800;
+    padding: 4px 8px;
+    border-radius: 3px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    transition: all 0.15s;
+    white-space: nowrap;
+}
+
+.scan-card-choose-btn:hover {
+    background: rgba(0, 255, 120, 0.15);
+    border-color: #00ff78;
+    box-shadow: 0 0 8px rgba(0, 255, 120, 0.25);
+}
+
+.scan-card-choose-btn:disabled {
+    background: rgba(0, 255, 120, 0.2);
+    border-color: #00ff78;
+    color: #fff;
+    cursor: not-allowed;
+}
+
+.scan-card-choose-btn .icon-check {
+    width: 11px;
+    height: 11px;
+}

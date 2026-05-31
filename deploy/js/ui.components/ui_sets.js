@@ -8,9 +8,13 @@ import {
   getSetName,
   getRequiredCount,
   generateDotsHtml,
-  calculateTotalFullSets
+  calculateTotalFullSets,
+  DEFAULT_WEAPON_SVG
 } from "./ui_utils.js";
 let debounceTimer;
+let cachedShowcasePools = null;
+globalThis.DEFAULT_WEAPON_SVG = DEFAULT_WEAPON_SVG;
+globalThis.DEFAULT_WEAPON_DATA_URL = "data:image/svg+xml;utf8," + encodeURIComponent(DEFAULT_WEAPON_SVG);
 
 function renderEmptySetsShowcase(container) {
   const isEs = state.currentLang === "es";
@@ -20,53 +24,64 @@ function renderEmptySetsShowcase(container) {
   let poolPrimaries = [];
   let poolMelees = [];
 
-  try {
-    const dbKeys = Object.keys(state.itemsDatabase || {});
-    // Extract unique prime set names (e.g. "Wisp Prime", "Braton Prime")
-    const uniqueSetNames = Array.from(new Set(
-      dbKeys.map(k => getSetName(k)).filter(name => name && name.endsWith(" Prime"))
-    )).sort((a, b) => a.localeCompare(b));
+  if (cachedShowcasePools) {
+    poolWarframes = cachedShowcasePools.poolWarframes;
+    poolPrimaries = cachedShowcasePools.poolPrimaries;
+    poolMelees = cachedShowcasePools.poolMelees;
+  } else {
+    try {
+      const dbKeys = Object.keys(state.itemsDatabase || {});
+      if (dbKeys.length > 0) {
+        // Extract unique prime set names (e.g. "Wisp Prime", "Braton Prime")
+        const uniqueSetNames = Array.from(new Set(
+          dbKeys.map(k => getSetName(k)).filter(name => name && name.endsWith(" Prime"))
+        )).sort((a, b) => a.localeCompare(b));
 
-    const manifest = state.primeManifest || [];
-    const weapons = state.weaponDetailsDB || [];
+        const manifest = state.primeManifest || [];
+        const weapons = state.weaponDetailsDB || [];
 
-    uniqueSetNames.forEach(setName => {
-      // 1. Check in entities/manifest (Warframes & Sentinels)
-      const entity = manifest.find(i => i.name === setName);
-      if (entity) {
-        if (entity.type === "Warframe") {
-          poolWarframes.push(setName);
-        } else {
-          poolPrimaries.push(setName); // Sentinels / Companions go to poolPrimaries
-        }
-        return;
+        uniqueSetNames.forEach(setName => {
+          // 1. Check in entities/manifest (Warframes & Sentinels)
+          const entity = manifest.find(i => i.name === setName);
+          if (entity) {
+            if (entity.type === "Warframe") {
+              poolWarframes.push(setName);
+            } else {
+              poolPrimaries.push(setName); // Sentinels / Companions go to poolPrimaries
+            }
+            return;
+          }
+
+          // 2. Check in weapons database
+          const weapon = weapons.find(i => i.name === setName);
+          if (weapon) {
+            if (weapon.type === "Melee") {
+              poolMelees.push(setName);
+            } else if (["Pistol", "Dual Pistols", "Throwing"].includes(weapon.type)) {
+              poolMelees.push(setName); // Group secondaries with Melees for balanced columns
+            } else {
+              poolPrimaries.push(setName); // Primaries (Rifle, Shotgun, Bow, Sniper, Arch-Gun) go to poolPrimaries
+            }
+            return;
+          }
+
+          // 3. Fallback name heuristics if database entries aren't fully resolved yet
+          const lower = setName.toLowerCase();
+          if (lower.includes("carrier") || lower.includes("helios") || lower.includes("wyrm") || lower.includes("dethcube") || lower.includes("nautilus") || lower.includes("shade") || lower.includes("oxylus") || lower.includes("diriga") || lower.includes("djinn") || lower.includes("taxon")) {
+            poolPrimaries.push(setName);
+          } else if (lower.includes("lex") || lower.includes("pyrana") || lower.includes("ak") || lower.includes("vasto") || lower.includes("bronco") || lower.includes("magnus") || lower.includes("sicarus") || lower.includes("zylok") || lower.includes("knell") || lower.includes("velox") || lower.includes("pandero") || lower.includes("afuris") || lower.includes("aksomati") || lower.includes("akstiletto") || lower.includes("lato") || lower.includes("spira") || lower.includes("hikou")) {
+            poolMelees.push(setName);
+          } else {
+            poolPrimaries.push(setName);
+          }
+        });
+
+        // Cache the categorized pools for all future renders
+        cachedShowcasePools = { poolWarframes, poolPrimaries, poolMelees };
       }
-
-      // 2. Check in weapons database
-      const weapon = weapons.find(i => i.name === setName);
-      if (weapon) {
-        if (weapon.type === "Melee") {
-          poolMelees.push(setName);
-        } else if (["Pistol", "Dual Pistols", "Throwing"].includes(weapon.type)) {
-          poolMelees.push(setName); // Group secondaries with Melees for balanced columns
-        } else {
-          poolPrimaries.push(setName); // Primaries (Rifle, Shotgun, Bow, Sniper, Arch-Gun) go to poolPrimaries
-        }
-        return;
-      }
-
-      // 3. Fallback name heuristics if database entries aren't fully resolved yet
-      const lower = setName.toLowerCase();
-      if (lower.includes("carrier") || lower.includes("helios") || lower.includes("wyrm") || lower.includes("dethcube") || lower.includes("nautilus") || lower.includes("shade") || lower.includes("oxylus") || lower.includes("diriga") || lower.includes("djinn") || lower.includes("taxon")) {
-        poolPrimaries.push(setName);
-      } else if (lower.includes("lex") || lower.includes("pyrana") || lower.includes("ak") || lower.includes("vasto") || lower.includes("bronco") || lower.includes("magnus") || lower.includes("sicarus") || lower.includes("zylok") || lower.includes("knell") || lower.includes("velox") || lower.includes("pandero") || lower.includes("afuris") || lower.includes("aksomati") || lower.includes("akstiletto") || lower.includes("lato") || lower.includes("spira") || lower.includes("hikou")) {
-        poolMelees.push(setName);
-      } else {
-        poolPrimaries.push(setName);
-      }
-    });
-  } catch (err) {
-    console.error("Error dynamically building empty sets showcase pools:", err);
+    } catch (err) {
+      console.error("Error dynamically building empty sets showcase pools:", err);
+    }
   }
 
   // Absolute hardcoded fallbacks in case database is empty or still loading on startup
@@ -126,18 +141,23 @@ function renderEmptySetsShowcase(container) {
   const doubleSets3 = [...c3, ...c3];
 
   const renderColumnCards = (setsList, colId) => {
-    return setsList.map((setName, idx) => {
-      const icon = getItemIcon(setName) || "assets/img/default-weapon.webp";
-      return `
-        <div class="showcase-card" id="set-showcase-card-${colId}-${idx}" style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; padding: 15px 20px; display: flex; flex-direction: column; align-items: center; width: 100%; box-sizing: border-box; transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1); cursor: pointer;" 
-             onclick="globalThis.selectShowcaseSet('${setName}')"
-             onmouseover="this.style.background='rgba(0, 229, 255, 0.08)'; this.style.borderColor='rgba(0, 229, 255, 0.35)'; this.style.boxShadow='0 0 15px rgba(0, 229, 255, 0.2)'; this.querySelector('.showcase-img').style.transform='scale(1.15)';" 
-             onmouseout="this.style.background='rgba(255,255,255,0.02)'; this.style.borderColor='rgba(255,255,255,0.05)'; this.style.boxShadow='none'; this.querySelector('.showcase-img').style.transform='scale(1)';">
-          <img class="showcase-img" style="width: 90px; height: 56px; object-fit: contain; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.5)); transition: all 0.5s;" src="${icon}" onerror="this.src='assets/img/default-weapon.webp'">
-          <span class="showcase-name" style="font-size: 0.72rem; font-weight: bold; margin-top: 10px; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%;">${setName}</span>
+    let html = "";
+    const len = setsList.length;
+    for (let i = 0; i < len; i++) {
+      const setName = setsList[i];
+      let icon = getItemIcon(setName) || globalThis.DEFAULT_WEAPON_DATA_URL;
+      if (icon.startsWith("<svg")) {
+        icon = "data:image/svg+xml;utf8," + encodeURIComponent(icon);
+      }
+      const safeIcon = icon.replace(/"/g, '&quot;');
+      html += `
+        <div class="showcase-card" id="set-showcase-card-${colId}-${i}" onclick="globalThis.selectShowcaseSet('${setName}')">
+          <img class="showcase-img" src="${safeIcon}" onerror="this.onerror=null; this.src=globalThis.DEFAULT_WEAPON_DATA_URL;" loading="lazy">
+          <span class="showcase-name">${setName}</span>
         </div>
       `;
-    }).join("");
+    }
+    return html;
   };
 
   const col1Html = renderColumnCards(doubleSets1, 1);
@@ -145,6 +165,46 @@ function renderEmptySetsShowcase(container) {
   const col3Html = renderColumnCards(doubleSets3, 3);
 
   container.innerHTML = `
+    <style>
+      .showcase-card {
+        background: rgba(255,255,255,0.02);
+        border: 1px solid rgba(255,255,255,0.05);
+        border-radius: 8px;
+        padding: 15px 20px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        width: 100%;
+        box-sizing: border-box;
+        transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        cursor: pointer;
+      }
+      .showcase-card:hover {
+        background: rgba(0, 229, 255, 0.08) !important;
+        border-color: rgba(0, 229, 255, 0.35) !important;
+        box-shadow: 0 0 15px rgba(0, 229, 255, 0.2);
+      }
+      .showcase-card:hover .showcase-img {
+        transform: scale(1.15);
+      }
+      .showcase-img {
+        width: 90px;
+        height: 56px;
+        object-fit: contain;
+        filter: drop-shadow(0 4px 8px rgba(0,0,0,0.5));
+        transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      .showcase-name {
+        font-size: 0.72rem;
+        font-weight: bold;
+        margin-top: 10px;
+        color: #fff;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        width: 100%;
+      }
+    </style>
     <div class="empty-showcase-container" style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 20px; box-sizing: border-box; text-align: center; border-top: 1px solid rgba(255,255,255,0.03); margin-top: 30px; width: 100%;">
       <div style="font-size: 1.15rem; font-weight: 800; color: var(--wf-gold-text); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 1.5px; text-shadow: 0 0 10px rgba(0, 229, 255, 0.15);">
         ${isEs ? "SETS POPULARES" : "PRIME SETS"}
@@ -367,7 +427,12 @@ function createSetCard(title, itemNames, parent, isSingle = false) {
 
         btn.onclick = (e) => {
           e.stopPropagation();
-          if (!isSingle) activateSetTracker(title, itemNames);
+          if (!isSingle) {
+            const allParts = Object.keys(state.itemsDatabase).filter(
+              (n) => (n === title || n.startsWith(title + " ")) && !n.endsWith(" Set")
+            );
+            activateSetTracker(title, allParts.length > 0 ? allParts : itemNames);
+          }
           state.selectedRelic = info.relic;
           document.getElementById("relicInput").value = info.relic;
 

@@ -350,6 +350,21 @@ function updateScannerAndCalib(t) {
     setText("lbl-scan-empty-state", sh.lblEmpty);
   }
 
+  const histLabel = document.querySelector("#btn-scan-history .history-btn-label");
+  if (histLabel && t.history?.btnLabel) {
+    histLabel.innerText = t.history.btnLabel;
+  }
+
+  const histTitle = document.querySelector("#scan-history-dropdown .scan-history-title");
+  if (histTitle && t.history?.title) {
+    histTitle.innerText = t.history.title;
+  }
+
+  const histClear = document.querySelector("#scan-history-dropdown .scan-history-clear-btn");
+  if (histClear && t.history?.btnClearTooltip) {
+    histClear.title = t.history.btnClearTooltip;
+  }
+
   const ct = t.calib;
   if (ct) {
     setText("lbl-calib-title", ct.title);

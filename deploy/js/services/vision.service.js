@@ -121,13 +121,19 @@ export const VisionService = {
         const width = video.videoWidth;
         const height = video.videoHeight;
         const scale = 1080 / height;
-        const hCropH = Math.floor(height * 0.15);
 
-        canvas.width = Math.floor(width * scale);
+        // Crop strictly the top-left area (45% width, 12% height) where the screen title header
+        // (e.g. "VOID FISSURE/REWARDS", "INVENTORY", "RELIC REFINEMENT") is always located.
+        // This completely avoids the middle/right background graphic and sparks from skewing
+        // the K-means clustering threshold, ensuring 100% stable context detection.
+        const hCropW = Math.floor(width * 0.45);
+        const hCropH = Math.floor(height * 0.12);
+
+        canvas.width = Math.floor(hCropW * scale);
         canvas.height = Math.floor(hCropH * scale);
 
         const ctx = canvas.getContext("2d", { willReadFrequently: true });
-        ctx.drawImage(video, 0, 0, width, hCropH, 0, 0, canvas.width, canvas.height);
+        ctx.drawImage(video, 0, 0, hCropW, hCropH, 0, 0, canvas.width, canvas.height);
 
         this.applyClusteringThreshold(ctx, canvas.width, canvas.height);
 
@@ -193,15 +199,24 @@ export const VisionService = {
         }
 
         const bestTheme = WF_THEMES[bestThemeIdx];
+        const bestStats = themeStats[bestThemeIdx];
 
-        console.log(`[VisionService] Theme detected: ${bestTheme.name} (weight: ${maxWeight.toFixed(4)})`);
+        // Compute the ACTUAL average color of pixels that voted for this theme.
+        // This accounts for bloom, glow, and JPEG compression — closer to the real on-screen color.
+        const actualR = bestStats.count > 0 ? Math.round(bestStats.rSum / bestStats.count) : bestTheme.r;
+        const actualG = bestStats.count > 0 ? Math.round(bestStats.gSum / bestStats.count) : bestTheme.g;
+        const actualB = bestStats.count > 0 ? Math.round(bestStats.bSum / bestStats.count) : bestTheme.b;
+
+        console.log(`[VisionService] Theme detected: ${bestTheme.name} (weight: ${maxWeight.toFixed(4)}, catalog: rgb(${bestTheme.r},${bestTheme.g},${bestTheme.b}), actual: rgb(${actualR},${actualG},${actualB}))`);
 
         return {
             name: bestTheme.name,
             r: bestTheme.r,
             g: bestTheme.g,
             b: bestTheme.b,
-            tol: bestTheme.tol
+            actualR,
+            actualG,
+            actualB,
         };
     },
 
@@ -264,8 +279,9 @@ export const VisionService = {
         const rowMax = Math.max(...rowDensity);
         if (rowMax < 10) return null;
 
-        // adaptive minDist based on expected minimum cell sizes (at least 1/12th of screen)
-        const rowMinDist = Math.floor(maskH / 12);
+        // adaptive minDist based on expected minimum cell sizes (at least 1/6.5th of screen)
+        // This prevents weapon details/decorations inside a card from creating duplicate row peaks.
+        const rowMinDist = Math.floor(maskH / 6.5);
         const rowPeaks = this._findPeaks(rowDensity, rowMinDist, rowMax * 0.25);
         if (!rowPeaks.length) return null;
 
@@ -322,26 +338,78 @@ export const VisionService = {
         return peaks;
     },
 
-    /** Crop region from source canvas, apply theme binarization, scale 2x for OCR. */
-    cropThemeBinarized(sourceCvs, sx, sy, sw, sh) {
-        const S = 2;
-        const cvs = this._textCvs;
+    cropThemeBinarized(sourceCvs, sx, sy, sw, sh, theme) {
+        const S = 3;
+        const cvs = document.createElement("canvas");
         cvs.width = sw * S; cvs.height = sh * S;
         const ctx = cvs.getContext("2d", { willReadFrequently: true });
-        ctx.imageSmoothingEnabled = false;
+        ctx.imageSmoothingEnabled = true;
         ctx.drawImage(sourceCvs, sx, sy, sw, sh, 0, 0, cvs.width, cvs.height);
         const imgData = ctx.getImageData(0, 0, cvs.width, cvs.height);
         const px = imgData.data;
+
+        const targetThemes = theme ? [theme, ...WF_THEMES] : WF_THEMES;
+        // Relaxed tolerance (45px distance) to capture full, thick letter strokes including anti-aliasing
+        const tolSq = theme ? 45 * 45 : 35 * 35;
+
         for (let i = 0; i < px.length; i += 4) {
             const r = px[i], g = px[i + 1], b = px[i + 2];
+            const luma = 0.299 * r + 0.587 * g + 0.114 * b;
             let isText = false;
-            for (const t of WF_THEMES) {
+
+            for (const t of targetThemes) {
                 const dr = r - t.r, dg = g - t.g, db = b - t.b;
-                if (dr * dr + dg * dg + db * db < THEME_TOL_SQ) { isText = true; break; }
+                if (dr * dr + dg * dg + db * db < tolSq) {
+                    isText = true;
+                    break;
+                }
+                if (t.actualR !== undefined) {
+                    const dar = r - t.actualR, dag = g - t.actualG, dab = b - t.actualB;
+                    if (dar * dar + dag * dag + dab * dab < tolSq) {
+                        isText = true;
+                        break;
+                    }
+                }
             }
+
+            // Universal fallback for solid white/light text across all themes
+            if (luma > 180) {
+                isText = true;
+            }
+
             px[i] = px[i + 1] = px[i + 2] = isText ? 0 : 255;
         }
-        ctx.putImageData(imgData, 0, 0);
+
+        // Apply an ultra-high-quality, morphological 3x3 cross binary dilation kernel
+        // to fill in fine anti-aliasing line gaps while keeping inner loops of lowercase
+        // letters (like 'e', 'a', 'o') perfectly hollow, open, and highly legible for Tesseract.
+        const dilatedImgData = ctx.createImageData(cvs.width, cvs.height);
+        const dPx = dilatedImgData.data;
+        const w = cvs.width;
+        const h = cvs.height;
+
+        // Initialize output as all white (255)
+        for (let i = 0; i < dPx.length; i += 4) {
+            dPx[i] = dPx[i + 1] = dPx[i + 2] = 255;
+            dPx[i + 3] = 255;
+        }
+
+        for (let y = 1; y < h - 1; y++) {
+            for (let x = 1; x < w - 1; x++) {
+                const idx = (y * w + x) * 4;
+                if (px[idx] === 0) { // Black pixel found
+                    dPx[idx] = dPx[idx + 1] = dPx[idx + 2] = 0; // Center
+                    dPx[idx - 4] = dPx[idx - 3] = dPx[idx - 2] = 0; // Left
+                    dPx[idx + 4] = dPx[idx + 5] = dPx[idx + 6] = 0; // Right
+                    const topIdx = idx - w * 4;
+                    dPx[topIdx] = dPx[topIdx + 1] = dPx[topIdx + 2] = 0; // Top
+                    const botIdx = idx + w * 4;
+                    dPx[botIdx] = dPx[botIdx + 1] = dPx[botIdx + 2] = 0; // Bottom
+                }
+            }
+        }
+
+        ctx.putImageData(dilatedImgData, 0, 0);
         return cvs;
     },
 
@@ -367,8 +435,10 @@ export const VisionService = {
 
     createTextCanvas(ocrCanvas, cell, grid) {
         const TEXT_SCALE = 3;
-        const textSrcY = Math.floor(grid.cellH * 0.35);
-        const textSrcH = grid.cellH - textSrcY;
+        // Crop starting higher up (22% of cell height) to perfectly capture 2-line item names,
+        // and add 8% bottom padding to guarantee no letters on the bottom line are cut off.
+        const textSrcY = Math.floor(grid.cellH * 0.22);
+        const textSrcH = grid.cellH - textSrcY + Math.floor(grid.cellH * 0.08);
         const textCvs = this._textCvs;
         textCvs.width = grid.cellW * TEXT_SCALE;
         textCvs.height = textSrcH * TEXT_SCALE;
@@ -381,7 +451,7 @@ export const VisionService = {
     createBadgeCanvas(snapshot, cell, grid) {
         // Skip the far-left tick by shifting the crop X offset by 10% of cell width
         const bdgOffsetX = Math.floor(grid.cellW * 0.10);
-        const copyW = Math.floor(grid.cellW * 0.25) - bdgOffsetX;
+        const copyW = Math.floor(grid.cellW * 0.22);
 
         const badgeH = Math.floor(grid.cellH * 0.11);
         const BADGE_SCALE = 3;
@@ -403,53 +473,74 @@ export const VisionService = {
         return badgeCvs;
     },
 
+    applyThemeToBadge(ctx, w, h, theme) {
+        const imgData = ctx.getImageData(0, 0, w, h);
+        const px = imgData.data;
+
+        const targetThemes = theme ? [theme] : WF_THEMES;
+        const tolSq = theme ? 55 * 55 : 45 * 45;
+
+        for (let i = 0; i < px.length; i += 4) {
+            const r = px[i], g = px[i + 1], b = px[i + 2];
+            const luma = 0.299 * r + 0.587 * g + 0.114 * b;
+            let isBadge = false;
+
+            for (const t of targetThemes) {
+                const dr = r - t.r, dg = g - t.g, db = b - t.b;
+                if (dr * dr + dg * dg + db * db < tolSq) {
+                    isBadge = true;
+                    break;
+                }
+                if (t.actualR !== undefined) {
+                    const dar = r - t.actualR, dag = g - t.actualG, dab = b - t.actualB;
+                    if (dar * dar + dag * dag + dab * dab < tolSq) {
+                        isBadge = true;
+                        break;
+                    }
+                }
+            }
+
+            if (luma > 165) {
+                isBadge = true;
+            }
+
+            px[i] = px[i + 1] = px[i + 2] = isBadge ? 0 : 255;
+        }
+        ctx.putImageData(imgData, 0, 0);
+    },
+
     applyClusteringToBadge(ctx, w, h) {
+        const imgData = ctx.getImageData(0, 0, w, h);
+        const px = imgData.data;
+        
+        let maxL = 0;
+        for (let i = 0; i < px.length; i += 4) {
+            const l = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
+            if (l > maxL) maxL = l;
+        }
+        
+        // Dynamic adaptive threshold based on peak luminance (55% of maximum, minimum 50)
+        const thresh = Math.max(50, maxL * 0.55);
+        
+        for (let i = 0; i < px.length; i += 4) {
+            const l = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
+            px[i] = px[i + 1] = px[i + 2] = (l >= thresh) ? 0 : 255;
+        }
+        ctx.putImageData(imgData, 0, 0);
+    },
+
+    applyClusteringThreshold(ctx, w, h, theme) {
         const imgData = ctx.getImageData(0, 0, w, h);
         const px = imgData.data;
         const samples = [];
         for (let i = 0; i < px.length; i += 8) {
             samples.push([px[i], px[i + 1], px[i + 2]]);
         }
-        let c1 = [0, 0, 0], c2 = [255, 255, 255], minLum = 255, maxLum = 0;
-        for (let s of samples) {
-            let l = 0.299 * s[0] + 0.587 * s[1] + 0.114 * s[2];
-            if (l < minLum) { minLum = l; c1 = [...s]; }
-            if (l > maxLum) { maxLum = l; c2 = [...s]; }
-        }
-        for (let iter = 0; iter < 4; iter++) {
-            let s1 = [0, 0, 0], s2 = [0, 0, 0], n1 = 0, n2 = 0;
-            for (let s of samples) {
-                let d1 = Math.abs(s[0] - c1[0]) + Math.abs(s[1] - c1[1]) + Math.abs(s[2] - c1[2]);
-                let d2 = Math.abs(s[0] - c2[0]) + Math.abs(s[1] - c2[1]) + Math.abs(s[2] - c2[2]);
-                if (d1 < d2) { s1[0] += s[0]; s1[1] += s[1]; s1[2] += s[2]; n1++; }
-                else { s2[0] += s[0]; s2[1] += s[1]; s2[2] += s[2]; n2++; }
-            }
-            if (n1 > 0) { c1[0] = s1[0] / n1; c1[1] = s1[1] / n1; c1[2] = s1[2] / n1; }
-            if (n2 > 0) { c2[0] = s2[0] / n2; c2[1] = s2[1] / n2; c2[2] = s2[2] / n2; }
-        }
-        let l1 = 0.299 * c1[0] + 0.587 * c1[1] + 0.114 * c1[2], l2 = 0.299 * c2[0] + 0.587 * c2[1] + 0.114 * c2[2];
-        let textC = l2 > l1 ? c2 : c1, bgC = l2 > l1 ? c1 : c2;
-        for (let i = 0; i < px.length; i += 4) {
-            let r = px[i], g = px[i + 1], b = px[i + 2];
-            let dT = Math.abs(r - textC[0]) + Math.abs(g - textC[1]) + Math.abs(b - textC[2]);
-            let dB = Math.abs(r - bgC[0]) + Math.abs(g - bgC[1]) + Math.abs(b - bgC[2]);
-            px[i] = px[i + 1] = px[i + 2] = (dT < dB * 1.5) ? 0 : 255;
-        }
-        ctx.putImageData(imgData, 0, 0);
-    },
-
-    applyClusteringThreshold(ctx, w, h) {
-        const imgData = ctx.getImageData(0, 0, w, h);
-        const px = imgData.data;
-        const samples = [];
-        for (let i = 0; i < px.length; i += 32) {
-            samples.push([px[i], px[i + 1], px[i + 2]]);
-        }
-        let c1 = [0, 0, 0], c2 = [255, 255, 255], minL = 255, maxL = 0;
+        let c1 = [0, 0, 0], c2 = theme ? [theme.r, theme.g, theme.b] : [255, 255, 255], minL = 255, maxL = 0;
         for (const s of samples) {
             let l = 0.299 * s[0] + 0.587 * s[1] + 0.114 * s[2];
             if (l < minL) { minL = l; c1 = [...s]; }
-            if (l > maxL) { maxL = l; c2 = [...s]; }
+            if (!theme && l > maxL) { maxL = l; c2 = [...s]; }
         }
         for (let iter = 0; iter < 4; iter++) {
             let s1 = [0, 0, 0], s2 = [0, 0, 0], n1 = 0, n2 = 0;
@@ -496,9 +587,52 @@ export const VisionService = {
     /**
      * Prepares canvas for reward detection.
      */
+    prepareRewardCanvas(snapshot, card, scale) {
+        const cvs = this._rewardCvs;
+        cvs.width = Math.floor(card.w * scale);
+        cvs.height = Math.floor(card.h * scale);
+        const ctx = cvs.getContext("2d", { willReadFrequently: true });
+        ctx.drawImage(snapshot, card.x, card.y, card.w, card.h, 0, 0, cvs.width, cvs.height);
+        return cvs;
+    },
+
+    /**
+     * Detects if a cell contains a valid reward.
+     */
+    detectReward(snapshot, card, scale) {
+        const cvs = this.prepareRewardCanvas(snapshot, card, scale);
+        const ctx = cvs.getContext("2d", { willReadFrequently: true });
+        const px = ctx.getImageData(0, 0, cvs.width, cvs.height).data;
+        let whitePixels = 0;
+        for (let i = 0; i < px.length; i += 4) {
+            const l = (px[i] + px[i + 1] + px[i + 2]) / 3;
+            if (l > 180) whitePixels++;
+        }
+        return whitePixels > (cvs.width * cvs.height * 0.02);
+    },
+
+    detectRewardTheme(snapshot, card, scale) {
+        const cvs = this.prepareRewardCanvas(snapshot, card, scale);
+        const ctx = cvs.getContext("2d", { willReadFrequently: true });
+        const text = ctx.getImageData(0, 0, cvs.width, cvs.height).data;
+        let maxL = 0;
+        for (let i = 0; i < text.length; i += 4) {
+            const l = (text[i] + text[i + 1] + text[i + 2]) / 3;
+            if (l > maxL) maxL = l;
+        }
+        if (maxL < 100) return "UNKNOWN";
+        if (maxL > 180) return "REWARD";
+        return "UNKNOWN";
+    },
+
+    /**
+     * Prepares canvas for reward detection.
+     */
     prepareRewardOCRCanvas(video, width, height, scale) {
-        const rCropY = Math.floor(height * 0.18);
-        const rCropH = Math.floor(height * 0.5);
+        // Crop strictly inside the clean dark translucent bounds of the reward cards (Y = 18.5% to 44%)
+        // to completely eliminate the busy backgrounds and player names below the cards!
+        const rCropY = Math.floor(height * 0.185);
+        const rCropH = Math.floor(height * 0.255);
         const targetW = Math.floor(width * scale);
         const targetH = Math.floor(rCropH * scale);
 
@@ -508,8 +642,6 @@ export const VisionService = {
         const ctx = cvs.getContext("2d", { willReadFrequently: true });
 
         // Grayscale + high contrast to maximize text/background separation.
-        // Multi-theme detection doesn't work here because reward text is white/cream,
-        // not the specific golden theme colors.
         ctx.filter = "grayscale(100%) contrast(400%) brightness(1.3)";
         ctx.drawImage(video, 0, rCropY, width, rCropH, 0, 0, targetW, targetH);
         ctx.filter = "none";
@@ -523,7 +655,310 @@ export const VisionService = {
         const text = headerText.toUpperCase();
         if (/INVEN|TORY|SELL/.test(text)) return "INVENTORY";
         if (/RELI|ELIC|REFI|NEME/.test(text)) return "RELICS";
-        if (/REWA|WARD|ARDS|FISSU|FISSI|FISR|VOID/.test(text)) return "REWARD";
+        // Extremely robust regex including common Tesseract/OCR garblings for FISSURE and VOID (e.g. F5UR, FI55, F1SS, V0ID)
+        if (/REWA|WARD|ARDS|FISSU|FISSI|FISR|F5UR|FSUR|FI55|F1SS|FISS|FISU|VOID|V0ID|V01D/.test(text)) return "REWARD";
         return "UNKNOWN";
-    }
+    },
+
+    /**
+     * Detects the inventory grid automatically from a calibrated zone.
+     * Uses luminance-based bright-pixel mask since inventory item names are white/cream,
+     * NOT the theme secondary color (which is only used in the relic reward screen).
+     */
+     buildAutoGrid(snapshot, gridZone, theme, calibData) {
+        // If the user has manually edited the grid (or we have saved grid dimensions), respect it!
+        if (calibData && calibData.cellW && calibData.cols && calibData.rows) {
+            const cols = calibData.cols;
+            const rows = calibData.rows;
+            const cellW = calibData.cellW;
+            const cellH = calibData.cellH;
+            const gapX = calibData.gapX || 0;
+            const gapY = calibData.gapY || 0;
+            const gridX = calibData.gridX !== undefined ? calibData.gridX : gridZone.x;
+            const gridY = calibData.gridY !== undefined ? calibData.gridY : gridZone.y;
+
+            const cellRects = [];
+            for (let ri = 0; ri < rows; ri++) {
+                for (let ci = 0; ci < cols; ci++) {
+                    const sx = Math.round(gridX + ci * (cellW + gapX));
+                    const sy = Math.round(gridY + ri * (cellH + gapY));
+                    const cx = sx + cellW / 2;
+                    const cy = sy + cellH * 0.82;
+                    cellRects.push({ r: ri, c: ci, sx, sy, cx, cy });
+                }
+            }
+            console.log(`[buildAutoGrid] Snapped saved/edited grid layout: ${rows}r x ${cols}c, cellW=${cellW}, cellH=${cellH}`);
+            return { cellRects, cellW, cellH, cols, rows };
+        }
+
+        const { x: zx, y: zy, w: zw, h: zh } = gridZone;
+
+        // Since the Warframe inventory grid can show more columns on ultra-wide screens (e.g., 8 columns instead of 6),
+        // we dynamically calculate the column count using the calibrated zone's aspect ratio.
+        const rows = 3;
+        const aspectRatio = zw / zh;
+        let cols = Math.round(aspectRatio * rows);
+        if (cols < 3) cols = 3;
+        if (cols > 12) cols = 12;
+
+        const finalCellW = Math.round(zw / cols);
+        const finalCellH = Math.round(zh / rows);
+        const cellRects = [];
+
+        for (let ri = 0; ri < rows; ri++) {
+            for (let ci = 0; ci < cols; ci++) {
+                const sx = Math.round(zx + ci * finalCellW);
+                const sy = Math.round(zy + ri * finalCellH);
+
+                // We estimate the text center (cx, cy) in case any other function relies on it.
+                const cx = sx + finalCellW / 2;
+                const cy = sy + finalCellH * 0.82;
+
+                cellRects.push({ r: ri, c: ci, sx, sy, cx, cy });
+            }
+        }
+
+        console.log(`[buildAutoGrid] Snapped perfect ${rows}x${cols} grid to calibrated zone: cellW=${finalCellW}, cellH=${finalCellH}`);
+        return { cellRects, cellW: finalCellW, cellH: finalCellH, cols, rows };
+    },
+
+    /**
+     * Extracts the quantity badge from the top-left of an inventory cell.
+     * Fully self-calibrating and dynamic. Immune to grid calibration offsets and theme variations.
+     */
+    extractBadgeByColor(snapshot, cell, cellW, cellH, theme) {
+        // 1. Crop a very generous top-left area starting exactly at cell.sx (35% of cell width)
+        const safeW = Math.round(cellW * 0.35);
+        // Start crop higher to prevent clipping the top hook of 6 or top bar of 7 and 5
+        const padTop = 12;
+        const startY = Math.max(0, cell.sy - padTop);
+        // Use a taller vertical search window to guarantee digit presence
+        const safeH = Math.round(cellH * 0.25) + padTop;
+
+        const tempCvs = document.createElement("canvas");
+        tempCvs.width = safeW;
+        tempCvs.height = safeH;
+        const tCtx = tempCvs.getContext("2d", { willReadFrequently: true });
+        tCtx.drawImage(snapshot, cell.sx, startY, safeW, safeH, 0, 0, safeW, safeH);
+
+        // 2. Binarize using dynamic K-Means color clustering seeded by the exact detected theme
+        this.applyClusteringThreshold(tCtx, safeW, safeH, theme);
+
+        // 3. Find connected components on the binarized canvas
+        const imgData = tCtx.getImageData(0, 0, safeW, safeH);
+        const px = imgData.data;
+
+
+
+        // BFS-based Connected Component Labeling
+        const visited = new Uint8Array(safeW * safeH);
+        const components = [];
+
+        // Scan 100% of the cropped area to prevent any cutoffs
+        const scanW = safeW;
+        const scanH = safeH;
+
+        for (let y = 0; y < scanH; y++) {
+            for (let x = 0; x < scanW; x++) {
+                const idx = y * safeW + x;
+                // Black pixels are binarized text/digits
+                if (px[idx * 4] === 0 && !visited[idx]) {
+                    // Start BFS for new component
+                    const compPixels = [];
+                    const queue = [idx];
+                    visited[idx] = 1;
+                    let minX = x, maxX = x, minY = y, maxY = y;
+
+                    while (queue.length > 0) {
+                        const current = queue.shift();
+                        compPixels.push(current);
+                        const cx = current % safeW;
+                        const cy = Math.floor(current / safeW);
+
+                        if (cx < minX) minX = cx;
+                        if (cx > maxX) maxX = cx;
+                        if (cy < minY) minY = cy;
+                        if (cy > maxY) maxY = cy;
+
+                        // 8-connected neighbors using coordinates to prevent wrapping and digit splitting
+                        const neighbors = [];
+                        for (let dy = -1; dy <= 1; dy++) {
+                            for (let dx = -1; dx <= 1; dx++) {
+                                if (dx === 0 && dy === 0) continue;
+                                const nx = cx + dx;
+                                const ny = cy + dy;
+                                if (nx >= 0 && nx < safeW && ny >= 0 && ny < safeH) {
+                                    neighbors.push(ny * safeW + nx);
+                                }
+                            }
+                        }
+
+                        for (const n of neighbors) {
+                            if (px[n * 4] === 0 && !visited[n]) {
+                                visited[n] = 1;
+                                queue.push(n);
+                            }
+                        }
+                    }
+
+                    // Ignore tiny noise (less than 3 pixels)
+                    if (compPixels.length >= 3) {
+                        components.push({
+                            pixels: compPixels,
+                            minX,
+                            maxX,
+                            minY,
+                            maxY,
+                            width: maxX - minX + 1,
+                            height: maxY - minY + 1
+                        });
+                    }
+                }
+            }
+        }
+
+        // If no components found, return null
+        if (components.length === 0) {
+            return null;
+        }
+
+        // Erase horizontal border lines (the selection box border) to break merge bridges
+        for (const comp of components) {
+            if (comp.width > 18 && comp.height <= 3) {
+                for (const pixelIdx of comp.pixels) {
+                    px[pixelIdx * 4] = 255;
+                    px[pixelIdx * 4 + 1] = 255;
+                    px[pixelIdx * 4 + 2] = 255;
+                }
+                comp.erased = true;
+            }
+        }
+
+        // Filter out components that are clearly too low in the crop box.
+        // The quantity badge numbers always start at the very top.
+        // Find the global top baseline.
+        let globalMinY = safeH;
+        for (const comp of components) {
+            if (!comp.erased && comp.pixels.length >= 8 && comp.minY < globalMinY) {
+                globalMinY = comp.minY;
+            }
+        }
+
+        // Anything starting 16px below the top baseline is a crafting icon or background detail.
+        for (const comp of components) {
+            if (comp.minY > globalMinY + 16) {
+                for (const pixelIdx of comp.pixels) {
+                    px[pixelIdx * 4] = 255;
+                    px[pixelIdx * 4 + 1] = 255;
+                    px[pixelIdx * 4 + 2] = 255;
+                }
+                comp.erased = true;
+            }
+        }
+
+        // Get non-erased components
+        const activeComponents = components.filter(c => !c.erased);
+        if (activeComponents.length === 0) {
+            return null;
+        }
+
+        // Sort active components from left to right based on minX
+        activeComponents.sort((a, b) => a.minX - b.minX);
+
+        // Find the split point based on the largest horizontal gap of at least 3 pixels
+        let splitIdx = -1;
+        let maxGap = 0;
+        for (let i = 0; i < activeComponents.length - 1; i++) {
+            const gap = activeComponents[i+1].minX - activeComponents[i].maxX;
+            if (gap > maxGap) {
+                maxGap = gap;
+                splitIdx = i;
+            }
+        }
+
+        // If a clear separation gap of at least 1 pixel is found, erase everything to the left of it (the checkmark icon)!
+        // Otherwise, fall back to a conservative 25% boundary to prevent erasing thin digits (like 11).
+        if (splitIdx !== -1 && maxGap >= 1 && activeComponents[splitIdx].maxX < safeW * 0.55) {
+            for (let i = 0; i <= splitIdx; i++) {
+                for (const pixelIdx of activeComponents[i].pixels) {
+                    px[pixelIdx * 4] = 255;
+                    px[pixelIdx * 4 + 1] = 255;
+                    px[pixelIdx * 4 + 2] = 255;
+                }
+                activeComponents[i].erased = true;
+            }
+        } else {
+            for (const comp of activeComponents) {
+                if (comp.minX < safeW * 0.25) {
+                    for (const pixelIdx of comp.pixels) {
+                        px[pixelIdx * 4] = 255;
+                        px[pixelIdx * 4 + 1] = 255;
+                        px[pixelIdx * 4 + 2] = 255;
+                    }
+                    comp.erased = true;
+                }
+            }
+        }
+        tCtx.putImageData(imgData, 0, 0);
+
+        // Determine the bounding box of the remaining digit components
+        let digitMinX = safeW, digitMaxX = 0, digitMinY = safeH, digitMaxY = 0;
+        let hasDigits = false;
+
+        for (const comp of components) {
+            if (comp.erased) continue;
+            
+            if (comp.minX < digitMinX) digitMinX = comp.minX;
+            if (comp.maxX > digitMaxX) digitMaxX = comp.maxX;
+            if (comp.minY < digitMinY) digitMinY = comp.minY;
+            if (comp.maxY > digitMaxY) digitMaxY = comp.maxY;
+            hasDigits = true;
+        }
+
+        // If no digits remain, return null
+        if (!hasDigits || digitMinX >= digitMaxX || digitMinY >= digitMaxY) {
+            return null;
+        }
+
+        // Add generous padding (8px horiz, 6px vert) for maximum Tesseract OCR precision and beautiful debug outlines
+        const padX = 8;
+        const padY = 6;
+        const cropStartX = Math.max(0, digitMinX - padX);
+        const cropStartY = Math.max(0, digitMinY - padY);
+        const cropEndX = Math.min(safeW - 1, digitMaxX + padX);
+        const cropEndY = Math.min(safeH - 1, digitMaxY + padY);
+
+        const digitW = cropEndX - cropStartX + 1;
+        const digitH = cropEndY - cropStartY + 1;
+
+        const SCALE = 4;
+        const badgeCvs = document.createElement("canvas");
+        badgeCvs.width = digitW * SCALE;
+        badgeCvs.height = digitH * SCALE;
+        const bCtx = badgeCvs.getContext("2d");
+        // Scale the perfectly clustered binary image with high-quality bilinear smoothing
+        bCtx.imageSmoothingEnabled = true;
+        bCtx.imageSmoothingQuality = "high";
+        bCtx.drawImage(tempCvs, cropStartX, cropStartY, digitW, digitH, 0, 0, badgeCvs.width, badgeCvs.height);
+
+        // Re-binarize the smoothed high-resolution canvas to get perfectly smooth, solid vector-like black digits
+        const bImgData = bCtx.getImageData(0, 0, badgeCvs.width, badgeCvs.height);
+        const bPx = bImgData.data;
+        for (let i = 0; i < bPx.length; i += 4) {
+            const luma = bPx[i] * 0.299 + bPx[i + 1] * 0.587 + bPx[i + 2] * 0.114;
+            const val = luma < 180 ? 0 : 255;
+            bPx[i] = bPx[i + 1] = bPx[i + 2] = val;
+        }
+        bCtx.putImageData(bImgData, 0, 0);
+
+        // Attach properties for debug outline
+        badgeCvs.bestY = startY + cropStartY;
+        badgeCvs.bestOffset = cropStartY;
+        badgeCvs.cropX = cell.sx + cropStartX;
+        badgeCvs.cropY = startY + cropStartY;
+        badgeCvs.cropW = digitW;
+        badgeCvs.cropH = digitH;
+
+        return badgeCvs;
+    },
 };

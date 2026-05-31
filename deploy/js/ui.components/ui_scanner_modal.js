@@ -3,6 +3,7 @@ import { TEXTS } from "../config.js";
 import { getSlug, getPriceValue } from "../api.js";
 import { showToast, escapeHTML } from "./ui_components.js";
 import { renderItemsInPiP } from "../pip_overlay.js";
+import { getItemIcon } from "./ui_utils.js";
 
 /**
  * Component for the Scanner Success/Results Modal.
@@ -45,6 +46,28 @@ export const ScannerModal = {
         const itemsWithDetails = await this.enrichItemDetails(items, width, height, scale);
         this.currentResults = itemsWithDetails;
 
+        // Save to past detections history (in-memory)
+        if (!state.scanHistory) state.scanHistory = [];
+        const isDuplicate = state.scanHistory.length > 0 &&
+            state.scanHistory[0].items.length === itemsWithDetails.length &&
+            state.scanHistory[0].items.every((it, idx) => it.name === itemsWithDetails[idx].name);
+        
+        if (!isDuplicate) {
+            state.scanHistory.unshift({
+                id: Date.now(),
+                timestamp: new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+                items: itemsWithDetails,
+                imageUrl: imageUrl,
+                width,
+                height,
+                scale,
+                rawOcr
+            });
+            if (state.scanHistory.length > 10) {
+                state.scanHistory.pop();
+            }
+        }
+
         this.renderBadges(itemsWithDetails, imgEl, width, height, scale);
 
         // Restore PiP update
@@ -56,10 +79,16 @@ export const ScannerModal = {
 
     handleAutoActions(items) {
         if (state.autoCopyScanResults && items.length > 0) {
-            const text = items.map(i => i.name).join(", ");
-            navigator.clipboard.writeText(text).then(() => {
-                showToast(TEXTS[state.currentLang].rewardScanner.toastCopied || "Results copied to clipboard");
-            }).catch(console.warn);
+            const filtered = items.filter(i => !i.name.toUpperCase().includes("FORMA"));
+            if (filtered.length > 0) {
+                const text = filtered.map(i => {
+                    const p = i.price || 0;
+                    return p > 0 ? `[${i.name}] ${p} :platinum:` : `[${i.name}]`;
+                }).join(", ");
+                navigator.clipboard.writeText(text).then(() => {
+                    showToast(TEXTS[state.currentLang].rewardScanner.toastCopied || "Results copied to clipboard");
+                }).catch(console.warn);
+            }
         }
 
         if (state.autoSyncRewards && items.length > 0) {
@@ -229,7 +258,9 @@ globalThis.closeScanModal = () => {
             if (!item.name) return;
             const currentAppQty = state.primeInventory[item.name] || 0;
             const isSelected = (globalThis.selectedScanItem === item.name);
-            const ocrOwned = (typeof item.owned === 'number') ? item.owned : currentAppQty;
+            // On reward screen, we should NOT trust OCR owned count unless it actually detected
+            // a count greater than 0 from the screen. Otherwise, preserve the currentAppQty.
+            const ocrOwned = (typeof item.owned === 'number' && item.owned > 0) ? item.owned : currentAppQty;
             state.primeInventory[item.name] = ocrOwned + (isSelected ? 1 : 0);
         });
         saveAppState();
@@ -252,8 +283,181 @@ globalThis.toggleAutoCopyScanResults = (val) => {
 
 globalThis.copyScanResultsToClipboard = () => {
     if (ScannerModal.currentResults.length === 0) return;
-    const text = ScannerModal.currentResults.map(i => i.name).join(", ");
-    navigator.clipboard.writeText(text).then(() => {
-        showToast(TEXTS[state.currentLang].rewardScanner.toastCopied || "Copied to clipboard");
-    });
+    const filtered = ScannerModal.currentResults.filter(i => !i.name.toUpperCase().includes("FORMA"));
+    if (filtered.length > 0) {
+        const text = filtered.map(i => {
+            const p = i.price || 0;
+            return p > 0 ? `[${i.name}] ${p} :platinum:` : `[${i.name}]`;
+        }).join(", ");
+        navigator.clipboard.writeText(text).then(() => {
+            showToast(TEXTS[state.currentLang].rewardScanner.toastCopied || "Copied to clipboard");
+        });
+    } else {
+        showToast(state.currentLang === "es" ? "No hay ítems comerciables para copiar" : "No tradeable items to copy");
+    }
 };
+
+globalThis.toggleScanHistoryDropdown = (event) => {
+    if (event) event.stopPropagation();
+    const dropdown = document.getElementById("scan-history-dropdown");
+    if (!dropdown) return;
+    
+    const isHidden = dropdown.classList.contains("hidden");
+    if (isHidden) {
+        dropdown.classList.remove("hidden");
+        renderScanHistory();
+    } else {
+        dropdown.classList.add("hidden");
+    }
+};
+
+globalThis.clearScanHistory = (event) => {
+    if (event) event.stopPropagation();
+    state.scanHistory = [];
+    renderScanHistory();
+    const t = TEXTS[state.currentLang].history || {};
+    showToast(t.toastCleared || "History cleared");
+};
+
+document.addEventListener("click", (e) => {
+    const dropdown = document.getElementById("scan-history-dropdown");
+    const button = document.getElementById("btn-scan-history");
+    if (dropdown && !dropdown.classList.contains("hidden")) {
+        if (!dropdown.contains(e.target) && (!button || !button.contains(e.target))) {
+            dropdown.classList.add("hidden");
+        }
+    }
+});
+
+function renderScanHistory() {
+    const container = document.getElementById("scan-history-dropdown-list");
+    if (!container) return;
+    
+    const history = state.scanHistory || [];
+    const t = TEXTS[state.currentLang].history || {};
+    
+    if (history.length === 0) {
+        container.innerHTML = `<div class="scan-history-empty">
+            ${t.empty || "No rewards detected yet."}
+        </div>`;
+        return;
+    }
+    
+    const fragment = document.createDocumentFragment();
+    
+    history.forEach((detection) => {
+        const itemCard = document.createElement("div");
+        itemCard.className = "scan-history-card";
+        
+        // Header row
+        const headerRow = document.createElement("div");
+        headerRow.className = "scan-card-header";
+        
+        const timeSpan = document.createElement("span");
+        timeSpan.className = "scan-card-time";
+        timeSpan.innerHTML = `
+            <svg class="icon-clock-mini" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <polyline points="12 6 12 12 16 14"></polyline>
+            </svg>
+            ${detection.timestamp}
+        `;
+        
+        const viewBtn = document.createElement("button");
+        viewBtn.className = "scan-card-view-btn";
+        viewBtn.innerHTML = `
+            <svg class="icon-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+              <circle cx="12" cy="12" r="3"></circle>
+            </svg>
+            ${t.btnView || "VIEW CAPTURE"}
+        `;
+        viewBtn.onclick = (e) => {
+            e.stopPropagation();
+            const dropdown = document.getElementById("scan-history-dropdown");
+            if (dropdown) dropdown.classList.add("hidden");
+            ScannerModal.open(detection.imageUrl, detection.items, detection.width, detection.height, detection.scale, detection.rawOcr);
+        };
+        
+        headerRow.appendChild(timeSpan);
+        headerRow.appendChild(viewBtn);
+        itemCard.appendChild(headerRow);
+        
+        // Items list
+        const itemsList = document.createElement("div");
+        itemsList.className = "scan-card-items";
+        
+        detection.items.forEach((item) => {
+            const itemRow = document.createElement("div");
+            itemRow.className = "scan-card-item-row";
+            
+            const itemLeft = document.createElement("div");
+            itemLeft.className = "scan-card-item-left";
+            
+            const imgPath = getItemIcon(item.name);
+            if (imgPath) {
+                const imgEl = document.createElement("img");
+                imgEl.src = imgPath;
+                imgEl.className = "scan-card-item-image";
+                imgEl.alt = item.name;
+                imgEl.loading = "lazy";
+                imgEl.onerror = () => { imgEl.style.display = "none"; };
+                itemLeft.appendChild(imgEl);
+            }
+            
+            const nameCol = document.createElement("div");
+            nameCol.className = "scan-card-item-info";
+            
+            const nameSpan = document.createElement("span");
+            nameSpan.className = "scan-card-item-name";
+            nameSpan.innerText = item.name.toUpperCase();
+            
+            const statsSpan = document.createElement("span");
+            statsSpan.className = "scan-card-item-stats";
+            statsSpan.innerHTML = `
+                <span><img src="assets/relic_contents/platinum.webp" class="scan-card-plat-icon"> ${item.price || 0}p</span>
+                <span style="color: var(--wf-gold-text);"><img src="assets/Ducats.webp" class="scan-card-ducat-icon"> ${item.ducats || 0}</span>
+            `;
+            
+            nameCol.appendChild(nameSpan);
+            nameCol.appendChild(statsSpan);
+            itemLeft.appendChild(nameCol);
+            itemRow.appendChild(itemLeft);
+            
+            const selectBtn = document.createElement("button");
+            selectBtn.className = "scan-card-choose-btn";
+            selectBtn.innerHTML = `
+                <svg class="icon-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+                <span>${t.btnChoose || "CHOOSE"}</span>
+            `;
+            
+            selectBtn.onclick = (e) => {
+                e.stopPropagation();
+                if (typeof globalThis.selectRewardToInventory === "function") {
+                    globalThis.selectRewardToInventory(item.name);
+                    selectBtn.innerHTML = `
+                        <svg class="icon-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                          <polyline points="20 6 9 17 4 12"></polyline>
+                        </svg>
+                        <span>${t.btnAdded || "ADDED"}</span>
+                    `;
+                    selectBtn.disabled = true;
+                    setTimeout(() => {
+                        const dropdown = document.getElementById("scan-history-dropdown");
+                        if (dropdown) dropdown.classList.add("hidden");
+                    }, 500);
+                }
+            };
+            
+            itemRow.appendChild(selectBtn);
+            itemsList.appendChild(itemRow);
+        });
+        
+        itemCard.appendChild(itemsList);
+        fragment.appendChild(itemCard);
+    });
+    
+    container.replaceChildren(fragment);
+}

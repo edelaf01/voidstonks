@@ -1,13 +1,18 @@
 import { state } from "../state.js";
-import { RIVEN_STATS, TEXTS } from "../config.js";
+import { RIVEN_STATS, TEXTS, WORKER_URL } from "../config.js";
+import { RIVEN_API_BASE } from "../modules/rivens/RivenRepository.js";
 import { calculateRivenGrade, getRivenStatRange } from "../riven_logic.js";
 import { getRivenSlug, fetchRivenAverage } from "../api.js";
 import { getMetaStats, fetchSimilarRivens } from "../services/riven_market.service.js?v=1.8";
 import {
   getItemIcon,
-
+  DEFAULT_WEAPON_SVG,
 } from "./ui_utils.js";
 import { escapeHTML, showToast } from "./ui_components.js";
+
+window.DEFAULT_WEAPON_SVG = DEFAULT_WEAPON_SVG;
+const DEFAULT_WEAPON_DATA_URL = "data:image/svg+xml;utf8," + encodeURIComponent(DEFAULT_WEAPON_SVG);
+window.DEFAULT_WEAPON_DATA_URL = DEFAULT_WEAPON_DATA_URL;
 
 let rivenDebounceTimer;
 let gradeDebounceTimer;
@@ -214,6 +219,131 @@ export function populateRivenSelects(weaponType = "Rifle") {
     sel.value = currentValue;
   });
   updateSelectExclusions();
+  initSearchableSelects();
+}
+
+export function initSearchableSelects() {
+  const selects = document.querySelectorAll(".riven-stat-select");
+  selects.forEach((sel) => {
+    // If we have already initialized this select, just update the visible input value
+    let container = sel.parentElement.querySelector(".custom-select-search-container");
+    if (!container) {
+      // Hide the native select
+      sel.style.display = "none";
+
+      // Create container wrapper
+      container = document.createElement("div");
+      container.className = "custom-select-search-container";
+      container.style.cssText = "flex: 1; position: relative;";
+
+      // Create the text search input
+      const input = document.createElement("input");
+      input.type = "text";
+      input.className = sel.className.replace("riven-stat-select", "riven-stat-search-input");
+      input.placeholder = sel.classList.contains("negative") ? "- NEGATIVA" : "+ STAT";
+      input.style.cssText = "width: 100%; box-sizing: border-box; padding: 6px;";
+      input.autocomplete = "off";
+
+      // Create custom dropdown list
+      const dropdown = document.createElement("div");
+      dropdown.className = "custom-dropdown hidden";
+      dropdown.style.cssText = "position: absolute; top: 100%; left: 0; right: 0; max-height: 200px; overflow-y: auto; z-index: 1000; background: #111; border: 1px solid rgba(162, 53, 226, 0.4); border-radius: 0 0 6px 6px; box-shadow: 0 8px 24px rgba(0,0,0,0.6);";
+
+      container.appendChild(input);
+      container.appendChild(dropdown);
+      sel.parentElement.insertBefore(container, sel);
+
+      // Filter options matching user typing query
+      const filterOptions = () => {
+        const query = input.value.toLowerCase().trim();
+        const items = dropdown.querySelectorAll(".dropdown-item");
+        let visibleCount = 0;
+        items.forEach((item) => {
+          const text = item.textContent.toLowerCase();
+          if (text.includes(query)) {
+            item.style.display = "block";
+            visibleCount++;
+          } else {
+            item.style.display = "none";
+          }
+        });
+        if (visibleCount > 0) {
+          dropdown.classList.remove("hidden");
+        } else {
+          dropdown.classList.add("hidden");
+        }
+      };
+
+      input.addEventListener("focus", () => {
+        rebuildCustomOptions(sel, dropdown, input);
+        dropdown.classList.remove("hidden");
+        input.select(); // Highlight on focus to allow quick replacement
+      });
+
+      input.addEventListener("input", filterOptions);
+
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          const firstVisible = dropdown.querySelector(".dropdown-item[style*='display: block']");
+          if (firstVisible) {
+            firstVisible.click();
+          } else {
+            const firstAny = dropdown.querySelector(".dropdown-item");
+            if (firstAny) firstAny.click();
+          }
+        } else if (e.key === "Escape") {
+          dropdown.classList.add("hidden");
+          input.blur();
+        }
+      });
+
+      // Close dropdown when clicking outside
+      document.addEventListener("click", (e) => {
+        if (!container.contains(e.target)) {
+          dropdown.classList.add("hidden");
+          const selectedOption = sel.options[sel.selectedIndex];
+          input.value = (selectedOption && selectedOption.value) ? selectedOption.textContent : "";
+        }
+      });
+    }
+
+    // Keep the input text aligned with the actual native select value
+    const selectedOption = sel.options[sel.selectedIndex];
+    const input = container.querySelector(".riven-stat-search-input");
+    if (input) {
+      input.value = (selectedOption && selectedOption.value) ? selectedOption.textContent : "";
+    }
+  });
+}
+
+function rebuildCustomOptions(sel, dropdown, input) {
+  // Only show options that are not hidden (excludes stats picked in other inputs)
+  const options = Array.from(sel.options).filter(opt => !opt.hidden);
+  const items = options.map((opt) => {
+    const item = document.createElement("div");
+    item.className = "dropdown-item";
+    item.textContent = opt.textContent;
+    item.style.cssText = "padding: 8px 12px; cursor: pointer; transition: all 0.2s; border-bottom: 1px solid rgba(255,255,255,0.02);";
+
+    if (opt.value === sel.value) {
+      item.style.background = "rgba(162, 53, 226, 0.15)";
+      item.style.color = "var(--wf-gold-text)";
+    }
+
+    item.onclick = (e) => {
+      e.stopPropagation();
+      sel.value = opt.value;
+      input.value = opt.value ? opt.textContent : "";
+      dropdown.classList.add("hidden");
+
+      // Dispatch change event to update metrics and exclusions
+      sel.dispatchEvent(new Event("change"));
+    };
+    return item;
+  });
+
+  dropdown.replaceChildren(...items);
 }
 
 export async function loadWeaponDetails() {
@@ -250,7 +380,8 @@ async function fetchAndRenderHistory(weaponName) {
 
   let historyData = [];
   try {
-    const res = await fetch(`https://soft-mountain-28fe.edelamf0.workers.dev/api/history?weapon=${slug}`);
+    const base = RIVEN_API_BASE.endsWith("/") ? RIVEN_API_BASE.slice(0, -1) : RIVEN_API_BASE;
+    const res = await fetch(`${base}/history?weapon=${slug}`);
     if (res.ok) {
       historyData = await res.json();
     }
@@ -289,7 +420,13 @@ async function fetchAndRenderHistory(weaponName) {
   }
 
   try {
-    historyData.sort((a, b) => a.date.localeCompare(b.date));
+      // Ensure historyData is an array before sorting to avoid TypeError
+      if (Array.isArray(historyData)) {
+        historyData.sort((a, b) => a.date.localeCompare(b.date));
+      } else {
+        console.warn('Riven history data is not an array, resetting to empty array:', historyData);
+        historyData = [];
+      }
 
     const labels = historyData.map(d => d.date);
     const wfmPrices = historyData.map(d => d.wfm_avg_price || null);
@@ -497,9 +634,9 @@ export function renderRivenPreview(weaponName) {
     return;
   }
 
-  if (!panel.querySelector(".empty-showcase-container")) {
+  if (panel.querySelector(".empty-showcase-container")) {
     stopRivenShowcase();
-    renderEmptyShowcase(panel);
+    panel.innerHTML = "";
   }
 
   const dispoData = getDispositionData(details, basic);
@@ -548,15 +685,15 @@ function renderEmptyShowcase(panel) {
       
       <div style="display: flex; gap: 15px; justify-content: center; width: 100%; margin-bottom: 25px;">
         <div class="showcase-card" id="showcase-card-0" style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; padding: 15px 10px; display: flex; flex-direction: column; align-items: center; width: 110px; transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1); cursor: pointer;" onmouseover="this.style.background='rgba(155, 89, 182, 0.08)'; this.style.borderColor='rgba(155, 89, 182, 0.35)'; this.style.boxShadow='0 0 15px rgba(155, 89, 182, 0.2)';" onmouseout="this.style.background='rgba(255,255,255,0.02)'; this.style.borderColor='rgba(255,255,255,0.05)'; this.style.boxShadow='none';">
-          <img class="showcase-img" style="width: 90px; height: 56px; object-fit: contain; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.5)); transition: all 0.5s;" src="assets/img/default-weapon.webp">
+          <img class="showcase-img" style="width: 90px; height: 56px; object-fit: contain; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.5)); transition: all 0.5s;" src="${DEFAULT_WEAPON_DATA_URL}">
           <span class="showcase-name" style="font-size: 0.72rem; font-weight: bold; margin-top: 10px; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%;">Acceltra</span>
         </div>
         <div class="showcase-card" id="showcase-card-1" style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; padding: 15px 10px; display: flex; flex-direction: column; align-items: center; width: 110px; transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1); cursor: pointer;" onmouseover="this.style.background='rgba(155, 89, 182, 0.08)'; this.style.borderColor='rgba(155, 89, 182, 0.35)'; this.style.boxShadow='0 0 15px rgba(155, 89, 182, 0.2)';" onmouseout="this.style.background='rgba(255,255,255,0.02)'; this.style.borderColor='rgba(255,255,255,0.05)'; this.style.boxShadow='none';">
-          <img class="showcase-img" style="width: 90px; height: 56px; object-fit: contain; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.5)); transition: all 0.5s;" src="assets/img/default-weapon.webp">
+          <img class="showcase-img" style="width: 90px; height: 56px; object-fit: contain; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.5)); transition: all 0.5s;" src="${DEFAULT_WEAPON_DATA_URL}">
           <span class="showcase-name" style="font-size: 0.72rem; font-weight: bold; margin-top: 10px; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%;">Braton</span>
         </div>
         <div class="showcase-card" id="showcase-card-2" style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; padding: 15px 10px; display: flex; flex-direction: column; align-items: center; width: 110px; transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1); cursor: pointer;" onmouseover="this.style.background='rgba(155, 89, 182, 0.08)'; this.style.borderColor='rgba(155, 89, 182, 0.35)'; this.style.boxShadow='0 0 15px rgba(155, 89, 182, 0.2)';" onmouseout="this.style.background='rgba(255,255,255,0.02)'; this.style.borderColor='rgba(255,255,255,0.05)'; this.style.boxShadow='none';">
-          <img class="showcase-img" style="width: 90px; height: 56px; object-fit: contain; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.5)); transition: all 0.5s;" src="assets/img/default-weapon.webp">
+          <img class="showcase-img" style="width: 90px; height: 56px; object-fit: contain; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.5)); transition: all 0.5s;" src="${DEFAULT_WEAPON_DATA_URL}">
           <span class="showcase-name" style="font-size: 0.72rem; font-weight: bold; margin-top: 10px; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%;">Rubico</span>
         </div>
       </div>
@@ -587,7 +724,7 @@ function renderEmptyShowcase(panel) {
     const imgUrl = getWeaponImagePath(weaponName, details);
 
     img.src = imgUrl;
-    img.onerror = () => { img.src = "assets/img/default-weapon.webp"; };
+    img.onerror = () => { img.src = DEFAULT_WEAPON_DATA_URL; };
     nameSpan.textContent = weaponName;
 
     card.onclick = () => {
@@ -1081,7 +1218,7 @@ export function renderRivenCardHTML(container, data) {
   const polaritySymbol = data.polarity || "V";
   const rank = data.rank !== undefined ? data.rank : 8;
   const drain = data.drain || (10 + rank);
-  const imgUrl = data.imgUrl || "assets/img/default-weapon.webp";
+  const imgUrl = data.imgUrl || DEFAULT_WEAPON_DATA_URL;
   const title = data.title || "Riven Mod";
   const stats = data.stats || [];
   const mr = data.masteryRank || 16;
@@ -1114,7 +1251,7 @@ export function renderRivenCardHTML(container, data) {
 
       <!-- Imagen central -->
       <div class="riven-art-placeholder">
-         <img src="${imgUrl}" alt="Riven Art" onerror="this.src='assets/img/default-weapon.webp'" />
+         <img src="${imgUrl}" alt="Riven Art" onerror="this.src=DEFAULT_WEAPON_DATA_URL" />
       </div>
 
       <!-- Nombre del Mod -->
@@ -1193,7 +1330,7 @@ function updatePreviewDOM(panel, imgPath, dispoData, tooltipHtml) {
   if (!img.parentElement) {
     img.className = "riven-weapon-img";
     img.onerror = () => {
-      img.src = "assets/img/default-weapon.webp";
+      img.src = DEFAULT_WEAPON_DATA_URL;
       img.style.opacity = 0.5;
     };
     wrapper.appendChild(img);
@@ -1391,7 +1528,7 @@ export function renderVariants(currentWeaponName) {
         "Base";
 
       card.innerHTML = `
-        <img src="${getWeaponImagePath(name, getWeaponDetails(name))}" onerror="this.src='assets/img/default-weapon.webp'">
+        <img src="${getWeaponImagePath(name, getWeaponDetails(name))}" onerror="this.src=DEFAULT_WEAPON_DATA_URL">
         <span class="v-name-small">${displayLabel}</span>
         <div class="v-dispo-row">
             <span class="v-dispo-val">${dispo.toFixed(2)}</span>
@@ -1454,7 +1591,7 @@ export function handleRivenInput() {
           const img = document.createElement("img");
           img.src = imgUrl;
           img.style = "width: 40px; height: 24px; object-fit: contain; border-radius: 2px; background: rgba(0,0,0,0.1);";
-          img.onerror = () => { img.src = "assets/img/default-weapon.webp"; };
+          img.onerror = () => { img.src = DEFAULT_WEAPON_DATA_URL; };
 
           item.appendChild(textSpan);
           item.appendChild(img);
@@ -1668,7 +1805,8 @@ export function syncRivenSliders() {
 
   rows.forEach(r => {
     const sel = document.getElementById(`g-stat${r.suffix}`);
-    if (sel && sel.offsetParent && sel.value) {
+    const valIn = document.getElementById(`g-val${r.suffix}`);
+    if (sel && valIn && valIn.offsetParent && sel.value) {
       if (r.isNeg) hasNeg = true;
       else buffCount++;
     }
@@ -1683,7 +1821,7 @@ export function syncRivenSliders() {
     const sliderMin = document.getElementById(`g-slider-min${r.suffix}`);
     const sliderMax = document.getElementById(`g-slider-max${r.suffix}`);
 
-    if (sel && sel.offsetParent && sel.value) {
+    if (sel && valIn && valIn.offsetParent && sel.value) {
       const internalName = normalizeStatName(sel.value, weaponData?.t);
       const range = getRivenStatRange(weaponData, internalName, r.isNeg, buffCount, hasNeg);
 
@@ -1767,7 +1905,7 @@ export function calculateModalGrade() {
     const readRow = (selId, valId, isNeg) => {
       const sel = document.getElementById(selId);
       const valIn = document.getElementById(valId);
-      if (sel?.offsetParent && sel.value && valIn.value) {
+      if (valIn?.offsetParent && sel && sel.value && valIn.value) {
         let val = Number.parseFloat(valIn.value);
         if (isNeg) val = -Math.abs(val);
         stats.push({
@@ -1858,10 +1996,15 @@ export function calculateModalGrade() {
       else if (["A+", "A"].includes(res.grade)) color = "grade-a";
       else if (["B+", "B"].includes(res.grade)) color = "grade-b";
 
+      const isNegStat = stat.value < 0;
       const card = document.createElement("div");
       card.className = "grade-card";
+      // Visually mark the negative curse stat with a red tint and a "−" prefix
+      if (isNegStat) {
+        card.style.cssText = "border-color: rgba(239,68,68,0.3); background: rgba(239,68,68,0.04);";
+      }
       card.innerHTML = `<div class="grade-badge-large ${color}">${res.grade}</div>
-                        <div class="grade-info"><div class="grade-stat-name">${stat.name}</div>
+                        <div class="grade-info"><div class="grade-stat-name" style="${isNegStat ? 'color:#ef4444;' : ''}">${isNegStat ? '−' : ''}${stat.name}</div>
                         <div>Valor: ${Math.abs(stat.value)}% <span class="grade-range">/ Ideal: ${res.range}</span></div>
                         <div class="grade-track"><div class="grade-fill ${color}" style="width:${res.pct}%"></div></div></div>`;
       fragment.appendChild(card);
@@ -1876,6 +2019,7 @@ export function calculateModalGrade() {
     let metaMatches = 0;
     let trashCount = 0;
     let hasNegative = false;
+    let hasBrickNegative = false;
 
     stats.forEach(s => {
       // Normalize name from UI form (e.g. "Crit Damage" -> "Critical Damage")
@@ -1883,15 +2027,28 @@ export function calculateModalGrade() {
       if (s.value < 0) {
         hasNegative = true;
         // Check if it is a meta negative or a safe harmless negative
-        const isGoodNeg = meta?.neg.some(m => normalized.includes(m) || m.includes(normalized)) ||
+        // Faction damage negatives (Damage to Grineer/Corpus/Infested) are always harmless — they only affect one faction
+        const isFactionDmgNeg = normalized.toLowerCase().includes(" to ") || normalized.toLowerCase().includes("vs");
+        const isGoodNeg = isFactionDmgNeg ||
+          meta?.neg.some(m => normalized.includes(m) || m.includes(normalized)) ||
           ["Zoom", "Recoil", "Ammo Maximum", "Status Duration", "Magazine Capacity"].some(t => normalized.includes(t));
 
-        // Critical negative stats (like -Multishot or -Damage) destroy usability!
-        const isRuined = ["Damage", "Multishot", "Critical Chance", "Critical Damage", "Status Chance", "Elemental"].some(t => {
+        // Critical negative stats that destroy usability (brick-tier negatives excluded from faction dmg)
+        // Guard: faction damage stats use " to " (Damage to Grineer) OR "vs" — both must be excluded
+        const isFactionDmg = normalized.toLowerCase().includes(" to ") || normalized.toLowerCase().includes("vs");
+        const isRuined = !isFactionDmg && ["Damage", "Multishot", "Critical Chance", "Critical Damage", "Status Chance"].some(t => {
           return normalized.includes(t);
         });
 
-        if (isRuined && !normalized.includes("Vs")) {
+        const isBrick = !isFactionDmg && ["Damage", "Multishot", "Critical Chance", "Critical Damage", "Melee Damage", "Status Chance"].some(t => {
+          return normalized.includes(t);
+        });
+
+        if (isBrick) {
+          hasBrickNegative = true;
+        }
+
+        if (isRuined) {
           // Ruining negative penalty
           trashCount += 2.0;
         } else if (!isGoodNeg) {
@@ -1917,13 +2074,24 @@ export function calculateModalGrade() {
     if (positiveCount > 0) {
       // Use core ratio to prevent 3rd positive from unfairly diluting meta matches
       const metaRatio = Math.min(1.0, Math.max(metaMatches / 2, metaMatches / positiveCount));
-      const trashPenalty = trashCount * 0.35;
+      const trashPenalty = trashCount * 0.15; // 15% penalty per trash positive instead of 35% to avoid over-suppressing usable combinations
       desirabilityMultiplier = 0.5 + (0.5 * metaRatio) - trashPenalty;
     }
 
     if (!hasNegative) {
-      // Mild penalty for not having a negative, applied consistently to both 2 and 3 positives
-      desirabilityMultiplier -= 0.15;
+      // Realistic market penalties for the lack of a negative stat (curse)
+      // 1-stat Rivens without a negative are basically placeholder rolls, barely worth trading above trash
+      if (positiveCount === 1) {
+        desirabilityMultiplier -= 0.40; // Single stat, no neg — very low trade appeal
+      } else if (positiveCount === 2) {
+        desirabilityMultiplier -= 0.50; // 50% penalty for 2+0-
+      } else if (positiveCount >= 3) {
+        desirabilityMultiplier -= 0.35; // 35% penalty for 3+0-
+      }
+    }
+
+    if (hasBrickNegative) {
+      desirabilityMultiplier = 0.05; // Ruined / Bricked negative completely destroys the Riven's grade
     }
 
     desirabilityMultiplier = Math.max(0.1, Math.min(1.0, desirabilityMultiplier));
@@ -2035,6 +2203,23 @@ export function calculateModalGrade() {
       warningHtml = `<div style="color: #ff6666; font-size: 10px; margin-top: 8px; font-weight: bold; text-align: center; border-top: 1px dashed rgba(255,255,255,0.05); padding-top: 8px;">${isEs ? "Penalización por Stats no deseados" : "Heavy Penalty: Unpopular Stats"}</div>`;
     } else if (desirabilityMultiplier > 0.8) {
       warningHtml = `<div style="color: #00ff78; font-size: 10px; margin-top: 8px; font-weight: bold; text-align: center; border-top: 1px dashed rgba(255,255,255,0.05); padding-top: 8px;">${isEs ? "Coincide con Stats Meta" : "Meta Stats Match"}</div>`;
+    }
+
+    // Risk warning for highly volatile trades exceeding 8,000p (fraudulent transfers / fake platinum risk)
+    if (priceCalculated >= 8000) {
+      const riskTitle = isEs
+        ? "⚠️ RIESGO DE PLATINO ILÍCITO / FRAUDULENTO"
+        : "⚠️ ILLEGAL / BOGUS PLATINUM RISK";
+      const riskDesc = isEs
+        ? "Las transacciones de Mods Agrietados que rozan o superan los 10,000p conllevan un riesgo extremo in-game. Ventas récord tan elevadas a menudo reflejan traspasos fraudulentos o lavado de platino. El comercio en este rango se realiza bajo tu propio riesgo debido a la alta probabilidad de recibir Platinum 'sucio/falso' que resulte en suspensión de cuenta."
+        : "Riven trades approaching or exceeding 10,000p carry extreme in-game risks. Record prices in this range often reflect fraudulent transfers or platinum laundering. Trading in this high tier is done strictly at your own risk due to a high likelihood of receiving 'fake/dirty' platinum leading to account suspension.";
+
+      warningHtml += `
+        <div style="background: rgba(255, 68, 68, 0.08); border: 1px solid rgba(255, 68, 68, 0.25); border-radius: 6px; padding: 10px; margin-top: 10px; font-size: 9px; color: #ff5555; line-height: 1.35; text-align: left;">
+          <b style="color: #ff8888; text-transform: uppercase; display: flex; align-items: center; gap: 4px;">${riskTitle}</b>
+          <div style="margin-top: 4px; color: #eee; font-weight: normal;">${riskDesc}</div>
+        </div>
+      `;
     }
 
     estCard.innerHTML = `
@@ -2785,10 +2970,15 @@ const calculateAdvancedPredictivePrice = (weapon, itemAttributes, tiers, desirab
   }
 
   // 1. CLASIFICADOR DE ARQUETIPO DE ARMA
-  const isMeleeWeapon = itemAttributes.some(attr => {
-    const name = attr.name.toLowerCase();
-    return name.includes("melee") || name.includes("range") || name.includes("combo") || name.includes("efficiency");
-  });
+  // Use weapon type first (most reliable), fall back to stat name sniffing only if unknown
+  const weaponType = weaponData?.t?.toLowerCase() || "";
+  const isMeleeWeapon = weaponType === "melee" || weaponType === "zaw" || weaponType === "glaive"
+    ? true
+    : (weaponType === "" && itemAttributes.some(attr => {
+      const name = attr.name.toLowerCase();
+      // Only match unambiguously melee-only stat names
+      return name === "melee damage" || name === "range" || name === "combo duration" || name === "initial combo" || name === "heavy attack efficiency";
+    }));
 
   // 2. MATRICES DE SALVAGUARDA UNIVERSAL (Evitan falsos negativos en el meta)
   const universalGodStats = isMeleeWeapon
@@ -2800,6 +2990,7 @@ const calculateAdvancedPredictivePrice = (weapon, itemAttributes, tiers, desirab
     : ["fire rate", "toxin", "heat", "elemental"];
 
   const positiveWeights = [];
+  let validRangeCount = 0; // Track stats that have a real DB range, to avoid polluting avgRollQuality
   itemAttributes.forEach(attr => {
     if (attr.isPositive) {
       positiveCount++;
@@ -2821,15 +3012,20 @@ const calculateAdvancedPredictivePrice = (weapon, itemAttributes, tiers, desirab
       }
 
       // Calidad del número del roll dentro de su rango ideal
+      // Bug fix: only count quality for stats that have a real DB-backed range (maxIdeal > 0)
+      // Stats without a range (e.g. Zoom on Shotgun) default to 0.5 and should not distort the average
       const range = attr.maxIdeal - attr.minIdeal;
-      const quality = range > 0 ? (attr.value - attr.minIdeal) / range : 0.5;
-      const clampedQuality = Math.max(0, Math.min(1, quality));
-      totalRollQuality += clampedQuality;
+      if (range > 0) {
+        const quality = (attr.value - attr.minIdeal) / range;
+        const clampedQuality = Math.max(0, Math.min(1, quality));
+        totalRollQuality += clampedQuality;
+        validRangeCount++;
 
-      // If this stat has exceptional roll quality (e.g. >80% max roll) and is a high-tier stat (like Universal God),
-      // we value it slightly more to reward the superior roll over a lower-quality top-ranked stat.
-      if (clampedQuality > 0.8 && (isUniversalGod || isDynamicMeta)) {
-        attributeWeight += (1.0 - attributeWeight) * 0.25; // Boost weight towards 1.0 based on exceptional quality
+        // If this stat has exceptional roll quality (e.g. >80% max roll) and is a high-tier stat (like Universal God),
+        // we value it slightly more to reward the superior roll over a lower-quality top-ranked stat.
+        if (clampedQuality > 0.8 && (isUniversalGod || isDynamicMeta)) {
+          attributeWeight += (1.0 - attributeWeight) * 0.25; // Boost weight towards 1.0 based on exceptional quality
+        }
       }
 
       totalMetaScore += attributeWeight;
@@ -2853,33 +3049,59 @@ const calculateAdvancedPredictivePrice = (weapon, itemAttributes, tiers, desirab
     });
   }
 
-  const avgRollQuality = positiveCount > 0 ? totalRollQuality / positiveCount : 0.5;
+  // Bug fix: use validRangeCount for avgRollQuality to avoid distorting the average
+  // with stats that have no real DB range (they default to 0.5 which is misleading).
+  // If no valid range stats exist, fall back to a neutral 0.5
+  const avgRollQuality = validRangeCount > 0 ? totalRollQuality / validRangeCount : 0.5;
 
-  // Evaluate combination meta ratio based on core stats to prevent dilution by 3rd positive
-  const sortedWeights = positiveWeights.sort((a, b) => b - a);
+  // Evaluate combination meta ratio based on core stats to prevent dilution by 3rd positive.
+  // Bug fix: use a COPY of positiveWeights (slice) before sorting to prevent mutating the original array,
+  // which would break the index-based elementComboBonus application above.
+  const sortedWeights = positiveWeights.slice().sort((a, b) => b - a);
   let finalMetaRatio = 0;
   if (positiveCount === 1) {
-    finalMetaRatio = sortedWeights[0];
+    finalMetaRatio = sortedWeights[0] || 0;
   } else if (positiveCount === 2) {
-    finalMetaRatio = (sortedWeights[0] + sortedWeights[1]) / 2;
+    finalMetaRatio = ((sortedWeights[0] || 0) + (sortedWeights[1] || 0)) / 2;
   } else if (positiveCount >= 3) {
-    const coreRatio = (sortedWeights[0] + sortedWeights[1]) / 2;
-    // Core combination strength is preserved; 3rd positive cannot drag the tier down
-    finalMetaRatio = Math.max(coreRatio, (sortedWeights[0] + sortedWeights[1] + sortedWeights[2]) / 3);
+    // A completely useless/trash 3rd positive dilutes the Riven's stats and value in the market.
+    // Instead of a harsh straight average, we blend the top 2 positives (80%) with the 3rd (20%) to model realistic dilution.
+    finalMetaRatio = (((sortedWeights[0] || 0) + (sortedWeights[1] || 0)) / 2) * 0.80 + (sortedWeights[2] || 0) * 0.20;
   }
 
-  // 3. CURVA AJUSTADA DE VALORACIÓN COMERCIAL (La presencia del stat dicta el tier de precio, la calidad sólo ajusta un ±20%)
+  // Determine if the Riven completely lacks a negative curse (curse/boost synergy)
+  let hasNegAttr = false;
+  itemAttributes.forEach(attr => {
+    if (!attr.isPositive) hasNegAttr = true;
+  });
+
+  // A Riven completely lacking a negative curse can NEVER be a true Godroll.
+  // We dynamically shift its quality tier down by scaling the effective meta ratio.
+  let effectiveMetaRatio = finalMetaRatio;
+  if (!hasNegAttr) {
+    effectiveMetaRatio = finalMetaRatio * 0.78; // Scale down meta ratio to prevent Godroll classification but keep in Good Reroll/Utility
+  }
+
+  // 3. CURVA AJUSTADA DE VALORACIÓN COMERCIAL (La presencia del stat dicta el tier de precio, la calidad del roll define la posición dentro del tier)
   let finalPrice = 0;
 
-  if (finalMetaRatio >= 0.80) {
-    // Combinación Godroll (Estadísticas meta presentes; la calidad tiene un peso menor e incremental del 20%)
-    finalPrice = tiers.godroll * (0.8 + avgRollQuality * 0.2);
-  } else if (finalMetaRatio >= 0.50) {
-    // Combinación de Utilidad Alta / Reroll Competitivo
-    finalPrice = tiers.goodReroll * (0.8 + avgRollQuality * 0.2);
+  if (effectiveMetaRatio >= 0.80) {
+    // Godroll Curve: floors at 50% of tiers.godroll to preserve massive inherent value of perfect stat combos.
+    const floorGodroll = tiers.godroll * 0.50;
+    finalPrice = floorGodroll + (Math.pow(avgRollQuality, 1.3) * (tiers.godroll - floorGodroll));
+  } else if (effectiveMetaRatio >= 0.50) {
+    // Good Reroll Curve: tiers.goodReroll is the MARKET CENTROID — most tradeable Rivens land here.
+    // Starts at 65% of tiers.goodReroll even at quality=0.0 to prevent devaluing solid utility stats to trash.
+    if (avgRollQuality <= 0.5) {
+      const floorGood = tiers.goodReroll * 0.65;
+      finalPrice = floorGood + (avgRollQuality * 2.0) * (tiers.goodReroll - floorGood);
+    } else {
+      const upperBound = tiers.goodReroll * 1.4;
+      finalPrice = tiers.goodReroll + ((avgRollQuality - 0.5) * 2.0) * (upperBound - tiers.goodReroll);
+    }
   } else {
-    // Combinación sin sinergia comercial (Trash tier)
-    finalPrice = tiers.trash * (0.9 + avgRollQuality * 0.1);
+    // Trash tier: Riven with no meta synergy. Still respects the trash floor.
+    finalPrice = tiers.trash * (0.8 + avgRollQuality * 0.4);
   }
 
   // 4. PENALIZADOR DINÁMICO DE NEGATIVAS CRÍTICAS (-dmg, status duration, cc, cd, etc. penalizan fuertemente)
@@ -2895,16 +3117,26 @@ const calculateAdvancedPredictivePrice = (weapon, itemAttributes, tiers, desirab
 
   const bestNegatives = Array.isArray(weapon.neg) ? weapon.neg : (weapon.neg?.best || []);
 
+  let isBricked = false;
+
   itemAttributes.forEach(attr => {
     if (!attr.isPositive) {
       const negName = attr.name.toLowerCase();
-      const isUniversalBad = universalCriticalNegs.some(n => negName.includes(n));
-      const isGoodNegative = bestNegatives.some(b => b.toLowerCase().includes(negName) || negName.includes(b.toLowerCase()));
-      const isMitigable = mitigableNegs.some(m => negName.includes(m));
+      // Faction damage negatives (Damage to Grineer/Corpus/Infested) are always harmless — exclude from hard penalty logic
+      const isFactionDmgNeg = negName.includes(" to ") || negName.includes("vs");
+      const isUniversalBad = !isFactionDmgNeg && universalCriticalNegs.some(n => negName.includes(n));
+      const isGoodNegative = isFactionDmgNeg ||
+        bestNegatives.some(b => b.toLowerCase().includes(negName) || negName.includes(b.toLowerCase()));
+      const isMitigable = !isFactionDmgNeg && mitigableNegs.some(m => negName.includes(m));
+
+      const isBrick = !isFactionDmgNeg && ["multishot", "critical chance", "critical damage", "damage", "melee damage"].some(b => negName.includes(b));
+      if (isBrick && !isGoodNegative) {
+        isBricked = true;
+      }
 
       if (isUniversalBad && !isGoodNegative) {
         // Negativa nefasta (como -daño, -duración estado, -cc o -cd) destruye el valor comercial
-        finalPrice *= (finalMetaRatio >= 0.80) ? 0.25 : 0.10;
+        finalPrice *= (effectiveMetaRatio >= 0.80) ? 0.25 : 0.10;
       } else if (isGoodNegative) {
         // Negativa inofensiva o buscada (ej: zoom en Cyngas) otorga un multiplicador positivo
         finalPrice *= 1.20;
@@ -2918,10 +3150,33 @@ const calculateAdvancedPredictivePrice = (weapon, itemAttributes, tiers, desirab
     }
   });
 
+  if (isBricked) {
+    finalPrice = tiers.trash;
+  }
+
   // Apply desirability multiplier directly to scale estimated price and grade based on trash positives/negatives
-  const penalizedPrice = Math.round(finalPrice * desirabilityMultiplier);
-  const rawScore = Math.round(((finalMetaRatio * 0.7) + (avgRollQuality * 0.3)) * 100);
-  const adjustedScore = Math.max(10, Math.min(100, Math.round(rawScore * desirabilityMultiplier)));
+  let penalizedPrice = Math.round(finalPrice * desirabilityMultiplier);
+  if (isBricked) {
+    penalizedPrice = tiers.trash; // Bricked Riven's price is exactly the trash median price, not scaled down further
+  } else {
+    // The absolute minimum commercial value of a Riven is always its trash/unrolled price (tiers.trash)
+    penalizedPrice = Math.max(penalizedPrice, tiers.trash);
+  }
+  const rawScore = Math.round(((finalMetaRatio * 0.85) + (avgRollQuality * 0.15)) * 100);
+  // Bug fix: for bricked Rivens, clamp adjustedScore to a max of 20 regardless of raw score
+  // (a bricked Riven is always trash-tier, the score should reflect that)
+  const adjustedScore = isBricked
+    ? Math.min(20, Math.max(5, Math.round(rawScore * 0.10)))
+    : Math.max(10, Math.min(100, Math.round(rawScore * desirabilityMultiplier)));
+
+  // Soft compression for extremely high premium pricing to prevent excessive exaggeration
+  // keeping it balanced and realistic within safe trade thresholds
+  if (penalizedPrice > 9500) {
+    penalizedPrice = Math.round(9500 + (penalizedPrice - 9500) * 0.25);
+  }
+
+  // Safe maximum ceiling for Riven trades to avoid hyper-inflated troll ranges
+  penalizedPrice = Math.min(15000, penalizedPrice);
 
   return {
     estimatedValue: penalizedPrice,
@@ -2936,14 +3191,46 @@ const calculateAdvancedPredictivePrice = (weapon, itemAttributes, tiers, desirab
 function calculateHybridTiers(weapon) {
   const popularity = weapon.popularity_pct || 0;
   const realVolume = (weapon.de_unrolled?.pop || 0) + (weapon.de_rerolled?.pop || 0);
-  const isUnpopular = popularity < 8.0 || realVolume < 3;
 
   let wfmAvg = weapon.wfm_avg_price || 0;
   let offMedian = weapon.official_median || 0; // Base unrolled median
   let offStdDev = weapon.official_stddev || 0;
   let reMedian = (weapon.de_rerolled && weapon.de_rerolled.median !== undefined) ? weapon.de_rerolled.median : 0;
 
-  // Dampen outliers if unpopular/low pop weapon
+  // Dynamic Speculative Hyperinflation Safeguard linked directly to transaction volume (liquidity)
+  let clampMultiplier = 8.0;
+  if (popularity > 0 || realVolume > 0) {
+    if (popularity < 25.0 || realVolume < 25) {
+      clampMultiplier = 5.5; // Very low movement = tight clamp to prevent speculative spikes
+    } else if (popularity > 75.0 || realVolume > 100) {
+      clampMultiplier = 12.0; // High liquid movement = relaxed clamp
+    }
+  }
+
+  const baseRefMedian = offMedian > 0 ? offMedian : (reMedian > 0 ? reMedian : 50);
+  if (wfmAvg > baseRefMedian * clampMultiplier) {
+    wfmAvg = baseRefMedian * clampMultiplier + (wfmAvg - baseRefMedian * clampMultiplier) * 0.15;
+  }
+
+  // Resolve true maximum registered DE price
+  const maxUnrolled = (weapon.de_unrolled && weapon.de_unrolled.max_price) || 0;
+  const maxRerolled = (weapon.de_rerolled && weapon.de_rerolled.max_price) || 0;
+  const absoluteMax = Math.max(maxUnrolled, maxRerolled, weapon.max_price || 0);
+
+  // Check if this is a high-demand premium variant (e.g. Prime, Tenet, Kuva)
+  let isPremiumVariant = false;
+  if (weapon.name) {
+    const nameLower = weapon.name.toLowerCase();
+    if (nameLower.includes("tenet") || nameLower.includes("kuva") || nameLower.includes("prime") || nameLower.includes("vandal") || nameLower.includes("wraith") || nameLower.includes("prisma")) {
+      isPremiumVariant = true;
+    }
+  }
+
+  // Consistent high-value evaluation (must have high average or high max with decent average)
+  const isHighValue = wfmAvg > 800 || (absoluteMax > 2500 && wfmAvg > 500);
+  const isUnpopular = (popularity < 25.0 || realVolume < 25) && !isHighValue && !isPremiumVariant;
+
+  // Dampen outliers if unpopular/low pop weapon AND NOT premium/high-value
   if (isUnpopular) {
     if (offMedian > 150) {
       offMedian = 150 + (offMedian - 150) * 0.15;
@@ -2962,7 +3249,7 @@ function calculateHybridTiers(weapon) {
   // 1. Trash/Base tier: siempre respeta el official_median (transacciones reales) como suelo
   const trash = offMedian > 0 ? offMedian : Math.round(wfmAvg * 0.15);
 
-  // 2. Good Reroll tier: basado en el DE rerolled median real para evitar la inflación artificial de ofertas inactivas/exageradas de WFM
+  // 2. Good Reroll tier
   let goodReroll = 0;
   if (reMedian > 0) {
     goodReroll = Math.round(reMedian * 1.6 + Math.min(wfmAvg * 0.15, reMedian * 2));
@@ -2972,16 +3259,30 @@ function calculateHybridTiers(weapon) {
       : Math.round(trash * 2.5);
   }
 
-  // 3. Godroll tier: ajusta de forma realista en base a desviación típica real para evitar multiplicadores desbocados en armas con precios base bajos
+  // 3. Godroll tier
   let godroll = 0;
   if (offMedian > 0) {
     const stdDevScale = offStdDev > 0 ? (offStdDev / offMedian) : 1.0;
     const baseRef = reMedian > 0 ? reMedian : offMedian;
-    godroll = Math.round(baseRef * (3.0 + Math.min(stdDevScale * 5.0, 15.0)));
 
-    // Suavizamos con el promedio de WFM limitando su impacto máximo
+    // Dynamic Standard Deviation Multiplier: low-liquidity/unpopular weapons shouldn't scale as fast
+    let stdDevMultiplier = 5.0;
+    if (isUnpopular) {
+      stdDevMultiplier = 1.5; // Dampen standard deviation multiplier for low-volume/unpopular items
+    }
+
+    // Base DE record prediction
+    const deGodroll = Math.round(baseRef * (2.5 + Math.min(stdDevScale * stdDevMultiplier, 10.0)));
+
     if (wfmAvg > 0) {
-      godroll = Math.round(godroll * 0.6 + Math.min(wfmAvg * 0.8, baseRef * 20) * 0.4);
+      if (wfmAvg > baseRef * 2) {
+        const baseWfmScale = wfmAvg * (1.2 + Math.min(stdDevScale * 0.5, 1.5));
+        godroll = Math.round(deGodroll * 0.3 + baseWfmScale * 0.7);
+      } else {
+        godroll = Math.round(deGodroll * 0.6 + Math.min(wfmAvg * 0.8, baseRef * 20) * 0.4);
+      }
+    } else {
+      godroll = deGodroll;
     }
   } else {
     godroll = wfmAvg > 0
@@ -2994,7 +3295,7 @@ function calculateHybridTiers(weapon) {
     goodReroll = Math.round(trash * 1.8);
   }
   if (godroll <= goodReroll) {
-    godroll = Math.round(godroll * 3.0);
+    godroll = Math.round(goodReroll * 2.5);
   }
 
   return { trash, goodReroll, godroll };
@@ -3252,28 +3553,50 @@ export async function initRivenMarketIndex() {
     } else {
       // 2. Fetch directly from the updated worker endpoint
       try {
-        const res = await fetch("https://soft-mountain-28fe.edelamf0.workers.dev/api/rivens");
+        const base = WORKER_URL.endsWith("/") ? WORKER_URL.slice(0, -1) : WORKER_URL;
+        const res = await fetch(`${base}/api/rivens`);
         if (res.ok) {
           let data = await res.json();
           if (data && data.data && typeof data.data === "object" && !Array.isArray(data.data)) {
             data = data.data;
           }
           if (data && !data.error && Object.keys(data).length > 0) {
-            state.rivenIndexData = data;
-            console.log("Loaded Riven Market Index directly from Worker!");
+            const merged = { ...(globalThis.dynamicMetaStats || {}) };
+            for (const [key, val] of Object.entries(data)) {
+              const upper = key.toUpperCase();
+              if (upper === "NOTE" || upper === "STATUS" || upper === "VERSION" || upper === "TTL" || upper === "DATA" || upper === "ERROR") continue;
+              if (merged[key]) {
+                const valPop = val.popularity_pct;
+                const hasValidPop = valPop !== undefined && valPop !== null && valPop > 0;
+                merged[key] = {
+                  ...merged[key],
+                  ...val,
+                  popularity_pct: hasValidPop ? valPop : (merged[key].popularity_pct || 0)
+                };
+              } else {
+                merged[key] = val;
+              }
+            }
+            state.rivenIndexData = merged;
+            console.log("Loaded and merged Riven Market Index directly from Worker!");
           }
         }
       } catch (apiErr) {
         console.warn("Direct API fetch failed, falling back to local asset", apiErr);
       }
 
-      // 3. Fallback to local metastats.json asset if direct fetch failed
+      // 3. Fallback to global baseline dynamicMetaStats or local metastats.json if direct fetch failed
       if (!state.rivenIndexData) {
-        const res = await fetch("metastats.json");
-        if (!res.ok) throw new Error("Failed to fetch metastats.json");
-        const data = await res.json();
-        state.rivenIndexData = data;
-        console.log("Loaded Riven Market Index from local fallback!");
+        if (globalThis.dynamicMetaStats && Object.keys(globalThis.dynamicMetaStats).length > 0) {
+          state.rivenIndexData = globalThis.dynamicMetaStats;
+          console.log("Loaded Riven Market Index from global dynamicMetaStats fallback!");
+        } else {
+          const res = await fetch("metastats.json");
+          if (!res.ok) throw new Error("Failed to fetch metastats.json");
+          const data = await res.json();
+          state.rivenIndexData = data;
+          console.log("Loaded Riven Market Index from local metastats.json fallback!");
+        }
       }
     }
 
@@ -3323,6 +3646,8 @@ export function filterRivenIndex(resetPagination = true) {
   };
 
   let items = Object.entries(data).filter(([name]) => {
+    const upper = name.toUpperCase();
+    if (upper === "NOTE" || upper === "STATUS" || upper === "VERSION" || upper === "TTL" || upper === "DATA" || upper === "ERROR") return false;
     if (excludedComponents.has(name.toUpperCase())) return false;
 
     // Deduplicate: If a weapon sibling has an original base version (e.g. Grattler), only show the base card in the index.
@@ -3532,7 +3857,7 @@ export function renderRivenIndexList(items) {
       return `<div class="variant-hover-item ${isMain ? "active-variant" : ""}" 
                    title="${escapeHTML(sib)}" 
                    onclick="event.stopPropagation(); selectRivenWeapon('${escapeHTML(sib)}');">
-                <img src="${sibImg}" onerror="this.src='assets/img/default-weapon.webp';" />
+                <img src="${sibImg}" onerror="this.src=DEFAULT_WEAPON_DATA_URL;" />
               </div>`;
     }).join("");
 
@@ -3552,9 +3877,15 @@ export function renderRivenIndexList(items) {
       ? val.de_rerolled.median
       : 0;
 
-    const rerolledMax = (val.de_rerolled && val.de_rerolled.max_price !== undefined && val.de_rerolled.max_price !== null && val.de_rerolled.max_price > 0)
+    const maxUnrolled = (val.de_unrolled && val.de_unrolled.max_price !== undefined && val.de_unrolled.max_price !== null && val.de_unrolled.max_price > 0)
+      ? val.de_unrolled.max_price
+      : 0;
+
+    const maxRerolled = (val.de_rerolled && val.de_rerolled.max_price !== undefined && val.de_rerolled.max_price !== null && val.de_rerolled.max_price > 0)
       ? val.de_rerolled.max_price
       : 0;
+
+    const absoluteMax = Math.max(maxUnrolled, maxRerolled, val.max_price || 0);
 
     const platImgHtml = `<img src="assets/relic_contents/platinum.webp" style="width:12px; height:12px; object-fit:contain; vertical-align:middle; margin-left:2px; margin-right:2px;">`;
 
@@ -3564,8 +3895,8 @@ export function renderRivenIndexList(items) {
     const rerolledPriceText = rerolledMedian > 0 ? `${rerolledMedian}${platImgHtml}` : "N/A";
     const rerolledPriceColor = rerolledMedian > 0 ? "display:inline-flex; align-items:center;" : "color: #777; font-style: italic;";
 
-    const maxPriceText = rerolledMax > 0 ? `${rerolledMax}${platImgHtml}` : "N/A";
-    const maxPriceColor = rerolledMax > 0 ? "display:inline-flex; align-items:center;" : "color: #777; font-style: italic;";
+    const maxPriceText = absoluteMax > 0 ? `${absoluteMax}${platImgHtml}` : "N/A";
+    const maxPriceColor = absoluteMax > 0 ? "display:inline-flex; align-items:center;" : "color: #777; font-style: italic;";
 
     const wfmPriceText = hasWfm
       ? (wfmMarketSample > 0
