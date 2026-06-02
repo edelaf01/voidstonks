@@ -114,3 +114,27 @@ export async function fetchActiveResurgence() {
         console.warn("Error fetching resurgence list:", e);
     }
 }
+
+export async function sendSyncMessage(code, val) {
+    return fetch(`${WORKER_URL}?type=sync_set&id=${code}&val=${encodeURIComponent(val)}`);
+}
+
+export async function getSyncMessage(code) {
+    return fetch(`${WORKER_URL}?type=sync_get&id=${code}`);
+}
+
+export async function getProfileData(username, platform) {
+    return fetch(`${WORKER_URL}?type=profile&platform=${platform}&user=${encodeURIComponent(username)}`);
+}
+
+export async function getPricesBatch(chunk) {
+    return fetch(`${WORKER_URL}?type=prices_batch&q=${chunk.join(",")}`);
+}
+
+export async function getActiveBounties() {
+    return fetch(`${WORKER_URL}?type=active_bounties`);
+}
+
+export async function getActiveFissures() {
+    return fetch(`${WORKER_URL}?type=fissures&_cb=${Date.now()}`, { cache: "no-store" });
+}

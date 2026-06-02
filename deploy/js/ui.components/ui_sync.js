@@ -1,6 +1,7 @@
 import { state } from "../state.js";
-import { TEXTS, WORKER_URL } from "../config.js";
+import { TEXTS } from "../config.js";
 import { showToast } from "./ui_components.js";
+import { sendSyncMessage, getSyncMessage } from "../repositories/api.repository.js";
 
 let syncInterval = null;
 let timeoutTimer = null;
@@ -104,9 +105,7 @@ Object.assign(globalThis, {
     btn.disabled = true;
 
     try {
-      const res = await fetch(
-        `${WORKER_URL}?type=sync_set&id=${code}&val=${encodeURIComponent(msg)}`,
-      );
+      const res = await sendSyncMessage(code, msg);
       if (res.status === 429) {
         throw new Error("Límite alcanzado. Espera 1 minuto.");
       }
@@ -168,7 +167,7 @@ function startReceiver() {
 
   syncInterval = setInterval(async () => {
     try {
-      const res = await fetch(`${WORKER_URL}?type=sync_get&id=${code}`);
+      const res = await getSyncMessage(code);
       const data = await res.json();
       if (res.status === 429) {
         stopReceiver();

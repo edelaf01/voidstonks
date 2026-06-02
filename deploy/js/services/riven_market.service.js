@@ -1,6 +1,6 @@
 import { WORKER_URL } from "../config.js";
-import { RIVEN_API_BASE } from "../modules/rivens/RivenRepository.js";
-import { getRivenSlug } from "./slugs.service.js";
+import { RIVEN_API_BASE } from "../repositories/riven.repository.js";
+import { getRivenSlug } from "../utils/slugs.utils.js";
 import { state } from "../state.js";
 import { dbHelper } from "../repositories/storage.repository.js";
 
@@ -350,6 +350,8 @@ export function getMetaStats(weaponName, weaponType) {
 
     const pos = Array.isArray(rawMeta.pos) ? rawMeta.pos : (rawMeta.pos?.best || rawMeta.pos_tier?.top || []);
     const neg = Array.isArray(rawMeta.neg) ? rawMeta.neg : (rawMeta.neg?.best || rawMeta.neg_tier?.buff || []);
+    const midPos = rawMeta.pos_tier?.mid || rawMeta.pos?.mid || [];
+    const midNeg = rawMeta.neg_tier?.mid || rawMeta.neg?.mid || [];
 
     if (ENABLE_DEBUG_LOGS) console.log(`[getMetaStats] weaponName: ${weaponName}, baseName: ${baseName}, inherited pos:`, pos, "neg:", neg);
 
@@ -358,6 +360,8 @@ export function getMetaStats(weaponName, weaponType) {
         name: weaponName,
         pos,
         neg,
+        midPos,
+        midNeg,
         rawPos: rawMeta.pos,
         rawNeg: rawMeta.neg
     };
@@ -389,67 +393,132 @@ export async function fetchSimilarRivens(weaponName, positiveStats, negativeStat
             if (ENABLE_DEBUG_LOGS) console.log(`[Network Fetch] Fetched fresh live Riven auctions for ${weaponName} from Worker!`);
         }
 
-        const searchPositives = positiveStats.map(s => s.toLowerCase().trim());
-        const searchNegative = negativeStat ? negativeStat.toLowerCase().trim() : null;
+        const getCanonicalStatKey = (name) => {
+            if (!name) return "";
+            const clean = name.toLowerCase().replaceAll('_', " ").replaceAll('-', " ").trim();
+            if (clean.includes("critical chance")) return "critical_chance";
+            if (clean.includes("critical damage")) return "critical_damage";
+            if (clean.includes("multishot")) return "multishot";
+            if (clean.includes("melee range") || clean.includes("range")) return "range";
+            if (clean.includes("base damage") || clean.includes("melee damage") || clean === "damage") return "damage";
+            if (clean.includes("fire rate") || clean.includes("attack speed") || clean === "speed") return "speed";
+            if (clean.includes("status chance")) return "status_chance";
+            if (clean.includes("status duration")) return "status_duration";
+            if (clean.includes("toxin")) return "toxin";
+            if (clean.includes("heat")) return "heat";
+            if (clean.includes("electricity") || clean.includes("electric")) return "electricity";
+            if (clean.includes("cold")) return "cold";
+            if (clean.includes("impact")) return "impact";
+            if (clean.includes("puncture")) return "puncture";
+            if (clean.includes("slash")) return "slash";
+            if (clean.includes("recoil")) return "recoil";
+            if (clean.includes("magazine")) return "magazine_capacity";
+            if (clean.includes("reload")) return "reload_speed";
+            if (clean.includes("ammo")) return "ammo_maximum";
+            if (clean.includes("flight") || clean.includes("projectile speed")) return "flight_speed";
+            if (clean.includes("zoom")) return "zoom";
+            if (clean.includes("punch")) return "punch_through";
+            if (clean.includes("combo duration")) return "combo_duration";
+            if (clean.includes("slide crit") || clean.includes("slide attack")) return "slide_crit";
+            if (clean.includes("extra combo count") || clean.includes("combo count chance") || clean.includes("combo_count_chance")) return "combo_count_chance";
+            if (clean.includes("channeling damage") || clean.includes("initial combo")) return "initial_combo";
+            if (clean.includes("channeling efficiency") || clean.includes("heavy attack efficiency") || clean.includes("heavy efficiency")) return "heavy_efficiency";
+            if (clean.includes("corpus")) return "vs_corpus";
+            if (clean.includes("grineer")) return "vs_grineer";
+            if (clean.includes("infested")) return "vs_infested";
+            return clean;
+        };
 
-        const similar = auctions.filter(a => {
-            if (!a.visible || a.owner.status === "offline") return false;
-            if (!a.item?.attributes) return false;
+        const isBrickNegative = (negUrlName) => {
+            const key = getCanonicalStatKey(negUrlName);
+            return key === "critical_chance" ||
+                   key === "critical_damage" ||
+                   key === "multishot" ||
+                   key === "damage";
+        };
 
-            const itemPositives = a.item.attributes
-                .filter(attr => attr.positive)
-                .map(attr => attr.url_name.replaceAll('_', " ").toLowerCase());
+        const searchPosKeys = positiveStats.map(s => getCanonicalStatKey(s));
+        const searchNegKey = negativeStat ? getCanonicalStatKey(negativeStat) : null;
 
-            const itemNegatives = a.item.attributes
-                .filter(attr => !attr.positive)
-                .map(attr => attr.url_name.replaceAll('_', " ").toLowerCase());
-
-            let matchCount = 0;
-            for (const sp of searchPositives) {
-                if (itemPositives.some(ip => ip.includes(sp) || sp.includes(ip))) {
-                    matchCount++;
-                }
-            }
-
-            let negativeMatch = true;
-            if (searchNegative) {
-                if (itemNegatives.length === 0) {
-                    negativeMatch = false;
-                }
-            } else {
-                if (itemNegatives.length > 0) {
-                    negativeMatch = false;
-                }
-            }
-
-            const requiredMatches = Math.max(1, searchPositives.length > 1 ? 2 : 1);
-
-            if (matchCount < requiredMatches) return false;
-            return negativeMatch;
-        });
-        let finalResults = similar;
-        if (similar.length < 2) {
-            finalResults = auctions.filter(a => {
-                if (!a.visible || a.owner.status === "offline") return false;
-                if (!a.item?.attributes) return false;
-
-                const itemPositives = a.item.attributes
+        const scoredAuctions = auctions
+            .filter(a => a.visible && a.owner.status !== "offline" && a.item?.attributes)
+            .map(a => {
+                const itemPosKeys = a.item.attributes
                     .filter(attr => attr.positive)
-                    .map(attr => attr.url_name.replaceAll('_', " ").toLowerCase());
+                    .map(attr => getCanonicalStatKey(attr.url_name));
+
+                const itemNegKeys = a.item.attributes
+                    .filter(attr => !attr.positive)
+                    .map(attr => getCanonicalStatKey(attr.url_name));
 
                 let matchCount = 0;
-                for (const sp of searchPositives) {
-                    if (itemPositives.some(ip => ip.includes(sp) || sp.includes(ip))) {
+                for (const spKey of searchPosKeys) {
+                    if (itemPosKeys.includes(spKey)) {
                         matchCount++;
                     }
                 }
-                const requiredMatches = Math.max(1, searchPositives.length > 1 ? 2 : 1);
-                return matchCount >= requiredMatches;
+
+                let similarityScore = 0;
+
+                if (searchPosKeys.length === 3) {
+                    if (matchCount === 3) similarityScore += 150;
+                    else if (matchCount === 2) similarityScore += 50;
+                    else if (matchCount === 1) similarityScore += 10;
+                } else if (searchPosKeys.length === 2) {
+                    if (matchCount === 2) similarityScore += 150;
+                    else if (matchCount === 1) similarityScore += 30;
+                } else {
+                    if (matchCount === 1) similarityScore += 150;
+                }
+
+                const hasSearchNeg = !!searchNegKey;
+                const hasItemNeg = itemNegKeys.length > 0;
+
+                if (hasSearchNeg && hasItemNeg) {
+                    if (itemNegKeys.includes(searchNegKey)) {
+                        similarityScore += 80;
+                    } else {
+                        similarityScore += 30;
+                    }
+                } else if (!hasSearchNeg && !hasItemNeg) {
+                    similarityScore += 50;
+                } else {
+                    similarityScore -= 20;
+                }
+
+                if (hasItemNeg) {
+                    const itemNegUrl = a.item.attributes.find(attr => !attr.positive)?.url_name || "";
+                    const isItemNegBrick = isBrickNegative(itemNegUrl);
+                    const isSearchNegBrick = searchNegKey ? isBrickNegative(searchNegKey) : false;
+
+                    if (isItemNegBrick && !isSearchNegBrick) {
+                        similarityScore -= 300;
+                    }
+                }
+
+                return {
+                    auction: a,
+                    matchCount: matchCount,
+                    similarityScore: similarityScore
+                };
             });
-        }
-        finalResults.sort((a, b) => (a.buyout_price || a.starting_price) - (b.buyout_price || b.starting_price));
+
+        const requiredMatches = Math.max(1, searchPosKeys.length > 1 ? 2 : 1);
+        const filtered = scoredAuctions.filter(item => item.matchCount >= requiredMatches);
+
+        filtered.sort((a, b) => {
+            if (b.similarityScore !== a.similarityScore) {
+                return b.similarityScore - a.similarityScore;
+            }
+            const priceA = a.auction.buyout_price || a.auction.starting_price || 99999;
+            const priceB = b.auction.buyout_price || b.auction.starting_price || 99999;
+            return priceA - priceB;
+        });
+
+        const finalResults = filtered.map(item => item.auction);
 
         return finalResults.slice(0, 4);
+
     } catch (e) {
         console.error("Failed to fetch similar rivens:", e);
         return [];
