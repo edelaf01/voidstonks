@@ -2,8 +2,8 @@ import { state, saveAppState } from "../state.js";
 import { TEXTS } from "../config.js";
 import { getSlug, getPriceValue } from "../api.js";
 import { showToast, escapeHTML } from "./ui_components.js";
-import { renderItemsInPiP } from "../pip_overlay.js";
-import { getItemIcon } from "./ui_utils.js";
+import { renderItemsInPiP } from "../utils/pip_overlay.js";
+import { getItemIcon } from "../utils/ui_utils.js";
 
 /**
  * Component for the Scanner Success/Results Modal.

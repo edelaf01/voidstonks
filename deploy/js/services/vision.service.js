@@ -935,7 +935,7 @@ export const VisionService = {
         const badgeCvs = document.createElement("canvas");
         badgeCvs.width = digitW * SCALE;
         badgeCvs.height = digitH * SCALE;
-        const bCtx = badgeCvs.getContext("2d");
+        const bCtx = badgeCvs.getContext("2d", { willReadFrequently: true });
         // Scale the perfectly clustered binary image with high-quality bilinear smoothing
         bCtx.imageSmoothingEnabled = true;
         bCtx.imageSmoothingQuality = "high";

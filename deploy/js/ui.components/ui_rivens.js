@@ -1,18 +1,18 @@
 import { state } from "../state.js";
 import { RIVEN_STATS, TEXTS, WORKER_URL } from "../config.js";
-import { RIVEN_API_BASE } from "../modules/rivens/RivenRepository.js";
-import { calculateRivenGrade, getRivenStatRange } from "../riven_logic.js";
+import { RIVEN_API_BASE, fetchWeaponHistory, fetchCurrentRivens, extractFamilyName } from "../repositories/riven.repository.js";
+import { calculateRivenGrade, getRivenStatRange } from "../utils/riven_logic.js";
 import { getRivenSlug, fetchRivenAverage } from "../api.js";
 import { getMetaStats, fetchSimilarRivens } from "../services/riven_market.service.js?v=1.8";
 import {
   getItemIcon,
   DEFAULT_WEAPON_SVG,
-} from "./ui_utils.js";
+} from "../utils/ui_utils.js";
 import { escapeHTML, showToast } from "./ui_components.js";
 
-window.DEFAULT_WEAPON_SVG = DEFAULT_WEAPON_SVG;
+globalThis.DEFAULT_WEAPON_SVG = DEFAULT_WEAPON_SVG;
 const DEFAULT_WEAPON_DATA_URL = "data:image/svg+xml;utf8," + encodeURIComponent(DEFAULT_WEAPON_SVG);
-window.DEFAULT_WEAPON_DATA_URL = DEFAULT_WEAPON_DATA_URL;
+globalThis.DEFAULT_WEAPON_DATA_URL = DEFAULT_WEAPON_DATA_URL;
 
 let rivenDebounceTimer;
 let gradeDebounceTimer;
@@ -380,11 +380,7 @@ async function fetchAndRenderHistory(weaponName) {
 
   let historyData = [];
   try {
-    const base = RIVEN_API_BASE.endsWith("/") ? RIVEN_API_BASE.slice(0, -1) : RIVEN_API_BASE;
-    const res = await fetch(`${base}/history?weapon=${slug}`);
-    if (res.ok) {
-      historyData = await res.json();
-    }
+    historyData = await fetchWeaponHistory(weaponName);
   } catch (e) {
     console.warn("Failed fetching live history, using robust local fallback generation", e);
   }
@@ -394,7 +390,7 @@ async function fetchAndRenderHistory(weaponName) {
   const meta = getMetaStats(weaponName, (details && details.t) || (basic && basic.t));
 
   const baseMedian = (meta && meta.official_median) || 120;
-  const baseWfm = (meta && meta.wfm_avg_price) || 180;
+  const baseWfm = (meta && (meta.wfm_avg_price || meta.wfm_avg)) || 180;
   const baseRolled = (meta && meta.de_rolled && meta.de_rolled.median) || (baseMedian * 2.2);
 
   if (!historyData || historyData.length === 0) {
@@ -420,14 +416,65 @@ async function fetchAndRenderHistory(weaponName) {
   }
 
   try {
+<<<<<<< Updated upstream
       // Ensure historyData is an array before sorting to avoid TypeError
       if (Array.isArray(historyData)) {
         historyData.sort((a, b) => a.date.localeCompare(b.date));
+=======
+    // Ensure historyData is an array before sorting to avoid TypeError
+    if (Array.isArray(historyData)) {
+      const today = new Date();
+      const todayStr = today.toISOString().split("T")[0];
+
+      const wfmPrice = (meta && (meta.wfm_avg_price || meta.wfm_avg)) || null;
+      const officialPrice = (meta && (meta.official_median || (meta.de_unrolled && meta.de_unrolled.median))) || null;
+      const rolledPrice = (meta && ((meta.de_rerolled && meta.de_rerolled.median) || (meta.de_rolled && meta.de_rolled.median))) || null;
+      const volumeVal = (meta && (meta.wfm_market_sample || (meta.de_unrolled && meta.de_unrolled.pop) || 0)) || 0;
+
+      // Clean up historical 0 or missing prices by filling with current values to prevent vertical drops
+      historyData.forEach(d => {
+        if (d.wfm_avg_price === 0 || d.wfm_avg_price === null) d.wfm_avg_price = wfmPrice ? Math.round(wfmPrice) : null;
+        if (d.official_median === 0 || d.official_median === null) d.official_median = officialPrice ? Math.round(officialPrice) : null;
+        if (d.rolled_median === 0 || d.rolled_median === null) d.rolled_median = rolledPrice ? Math.round(rolledPrice) : null;
+      });
+
+      // Fill in any missing intermediate dates between the last date in history and today
+      if (historyData.length > 0) {
+        historyData.sort((a, b) => a.date.localeCompare(b.date));
+        const lastDateStr = historyData[historyData.length - 1].date;
+        const lastDate = new Date(lastDateStr);
+
+        let checkDate = new Date(lastDate.getTime() + 24 * 60 * 60 * 1000);
+        // Loop up to today to fill gaps chronologically
+        while (checkDate.toISOString().split("T")[0] <= todayStr) {
+          const checkDateStr = checkDate.toISOString().split("T")[0];
+          let entry = historyData.find(d => d.date && d.date.startsWith(checkDateStr));
+          if (!entry) {
+            entry = {
+              date: checkDateStr,
+              wfm_avg_price: wfmPrice ? Math.round(wfmPrice) : null,
+              official_median: officialPrice ? Math.round(officialPrice) : null,
+              rolled_median: rolledPrice ? Math.round(rolledPrice) : null,
+              volume: Math.round(volumeVal)
+            };
+            historyData.push(entry);
+          }
+          checkDate = new Date(checkDate.getTime() + 24 * 60 * 60 * 1000);
+        }
+>>>>>>> Stashed changes
       } else {
-        console.warn('Riven history data is not an array, resetting to empty array:', historyData);
-        historyData = [];
+        // If history was completely empty but somehow evaluated as an array
+        const todayEntry = {
+          date: todayStr,
+          wfm_avg_price: wfmPrice ? Math.round(wfmPrice) : null,
+          official_median: officialPrice ? Math.round(officialPrice) : null,
+          rolled_median: rolledPrice ? Math.round(rolledPrice) : null,
+          volume: Math.round(volumeVal)
+        };
+        historyData.push(todayEntry);
       }
 
+<<<<<<< Updated upstream
     const labels = historyData.map(d => d.date);
     const wfmPrices = historyData.map(d => d.wfm_avg_price || null);
 
@@ -470,145 +517,315 @@ async function fetchAndRenderHistory(weaponName) {
         console.warn("Failed destroying rivenHistoryChartInstance:", e);
       }
       rivenHistoryChartInstance = null;
+=======
+      historyData.sort((a, b) => a.date.localeCompare(b.date));
+    } else {
+      console.warn('Riven history data is not an array, resetting to empty array:', historyData);
+      historyData = [];
+>>>>>>> Stashed changes
     }
 
-    const isEs = state.currentLang === "es";
+    // Cache the fully resolved states for local range filtering
+    globalThis._lastFetchedHistoryData = historyData;
+    globalThis._lastFetchedMeta = meta;
+    globalThis._lastFetchedWeaponName = weaponName;
 
-    const hintEl = document.getElementById("chart-hint-note");
-    if (hintEl) {
-      hintEl.innerText = isEs
-        ? "💡 Haz clic en la leyenda 'WFM' para ocultarlo y auto-escalar a Precios Reales"
-        : "💡 Click 'WFM' in the legend to hide it and auto-scale to DE Real Prices";
+    // Default active filter is 7 days as selected in HTML
+    if (globalThis._activeHistoryRange === undefined) {
+      globalThis._activeHistoryRange = 7;
     }
 
-    // Show container BEFORE chart creation so browser can compute real block width/height, preventing squishing/narrow charts
-    container.style.display = "block";
-
-    rivenHistoryChartInstance = new globalThis.Chart(canvas, {
-      data: {
-        labels: labels,
-        datasets: [
-          {
-            type: "line",
-            label: isEs ? "WFM (Precio Base)" : "WFM (Base Price)",
-            data: wfmPrices,
-            borderColor: "#00e5ff",
-            backgroundColor: "rgba(0, 229, 255, 0.08)",
-            borderWidth: 2,
-            tension: 0.4,
-            pointRadius: 2,
-            fill: true,
-            yAxisID: "yLeft"
-          },
-          {
-            type: "line",
-            label: isEs ? "Mediana Rerolled" : "Rerolled Median",
-            data: rolledMedians,
-            borderColor: "#9b59b6",
-            backgroundColor: "rgba(155, 89, 182, 0.04)",
-            borderWidth: 2,
-            tension: 0.4,
-            pointRadius: 2,
-            fill: true,
-            yAxisID: "yLeft"
-          },
-          {
-            type: "line",
-            label: isEs ? "Mediana Juego (Oficial)" : "Official Median (Game)",
-            data: officialMedians,
-            borderColor: "#ffca28",
-            backgroundColor: "transparent",
-            borderWidth: 2,
-            stepped: true,
-            pointRadius: 2,
-            fill: false,
-            yAxisID: "yLeft"
-          },
-          {
-            type: "bar",
-            label: isEs ? "Volumen de Ventas" : "Sales Volume",
-            data: volumes,
-            backgroundColor: "rgba(155, 89, 182, 0.15)",
-            borderColor: "rgba(155, 89, 182, 0.3)",
-            borderWidth: 1,
-            yAxisID: "yVolume",
-            barPercentage: 0.4
-          }
-        ]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: {
-            display: true,
-            position: "top",
-            labels: {
-              color: "#e2e8f0",
-              font: {
-                size: 13,
-                weight: "bold",
-                family: "'Outfit', 'Inter', 'Roboto', sans-serif"
-              },
-              boxWidth: 18,
-              padding: 15
-            }
-          },
-          tooltip: {
-            mode: "index",
-            intersect: false
-          }
-        },
-        scales: {
-          x: {
-            grid: { color: "rgba(255, 255, 255, 0.03)" },
-            ticks: {
-              color: "#94a3b8",
-              font: {
-                size: 11,
-                family: "'Outfit', 'Inter', 'Roboto', sans-serif"
-              },
-              maxTicksLimit: 6
-            }
-          },
-          yLeft: {
-            type: "linear",
-            display: true,
-            position: "left",
-            grid: { color: "rgba(255, 255, 255, 0.05)" },
-            ticks: {
-              color: "#cbd5e1",
-              font: {
-                size: 11,
-                family: "'Outfit', 'Inter', 'Roboto', sans-serif"
-              },
-              callback: function (value) { return value + "p"; }
-            }
-          },
-          yVolume: {
-            type: "linear",
-            display: true,
-            position: "right",
-            grid: { drawOnChartArea: false },
-            ticks: {
-              color: "rgba(155, 89, 182, 0.65)",
-              font: {
-                size: 10,
-                family: "'Outfit', 'Inter', 'Roboto', sans-serif"
-              },
-              maxTicksLimit: 5
-            },
-            max: Math.max(...volumes) * 4,
-            min: 0
-          }
-        }
-      }
-    });
+    // Render with current range filter
+    renderHistoryWithRange();
 
   } catch (err) {
     console.error("Error loading Riven history:", err);
     container.style.display = "none";
   }
+}
+
+// Dynamically registers global filter range handler for high-performance instant updates
+globalThis.changeHistoryRange = function (days) {
+  globalThis._activeHistoryRange = days;
+  renderHistoryWithRange();
+};
+
+export function renderHistoryWithRange() {
+  const historyData = globalThis._lastFetchedHistoryData;
+  const meta = globalThis._lastFetchedMeta;
+  const weaponName = globalThis._lastFetchedWeaponName;
+  const canvas = document.getElementById("rivenHistoryChart");
+  const container = document.getElementById("riven-history-chart-container");
+
+  if (!historyData || !canvas || !container) return;
+
+  const isEs = state.currentLang === "es";
+
+  // Visual selector update for tab buttons
+  const activeRange = globalThis._activeHistoryRange || 7;
+  document.querySelectorAll(".history-range-btn").forEach(btn => {
+    const d = btn.getAttribute("data-days");
+    if ((d === "all" && activeRange === "all") || parseInt(d) === activeRange) {
+      btn.classList.add("active");
+      btn.style.background = "rgba(162, 53, 226, 0.25)";
+      btn.style.borderColor = "rgba(162, 53, 226, 0.6)";
+      btn.style.color = "#fff";
+    } else {
+      btn.classList.remove("active");
+      btn.style.background = "rgba(255, 255, 255, 0.03)";
+      btn.style.borderColor = "rgba(255, 255, 255, 0.1)";
+      btn.style.color = "#aaa";
+    }
+  });
+
+  // Dynamic range filtering
+  let filteredData = [...historyData];
+  if (activeRange !== "all") {
+    // Sort from newest to oldest to slice latest entries
+    filteredData.sort((a, b) => b.date.localeCompare(a.date));
+    filteredData = filteredData.slice(0, activeRange);
+    // Sort chronologically again for Chart representation
+    filteredData.sort((a, b) => a.date.localeCompare(b.date));
+  }
+
+  const details = getWeaponDetails(weaponName);
+  const basic = state.weaponMap ? state.weaponMap[weaponName] : null;
+  const computedMeta = meta || getMetaStats(weaponName, (details && details.t) || (basic && basic.t));
+  const baseMedian = (computedMeta && computedMeta.official_median) || 120;
+  const baseRolled = (computedMeta && computedMeta.de_rolled && computedMeta.de_rolled.median) || (baseMedian * 2.2);
+
+  const labels = filteredData.map(d => d.date);
+  const wfmPrices = filteredData.map(d => d.wfm_avg_price || d.wfm_avg || null);
+
+  const validWfm = wfmPrices.filter(p => p !== null && p > 0);
+  const avgWfm = validWfm.length > 0 ? (validWfm.reduce((s, p) => s + p, 0) / validWfm.length) : 180;
+
+  const officialMedians = filteredData.map(d => {
+    if (d.official_median && d.official_median > 0) return d.official_median;
+    const wfmVal = d.wfm_avg_price || d.wfm_avg;
+    if (wfmVal && avgWfm > 0) {
+      const ratio = wfmVal / avgWfm;
+      return Math.round(baseMedian * ratio);
+    }
+    return baseMedian;
+  });
+
+  const rolledMedians = filteredData.map(d => {
+    if (d.rolled_median && d.rolled_median > 0) return d.rolled_median;
+    const wfmVal = d.wfm_avg_price || d.wfm_avg;
+    if (wfmVal && avgWfm > 0) {
+      const ratio = wfmVal / avgWfm;
+      return Math.round(baseRolled * ratio);
+    }
+    return baseRolled;
+  });
+
+  const volumes = filteredData.map(d => d.volume || d.wfm_market_sample || Math.round(10 + Math.random() * 20));
+
+  // Dynamically build and render the premium price history details table with fully projected values and trend arrows
+  const tableContainer = document.getElementById("riven-history-table-container");
+  if (tableContainer) {
+    let tableHtml = `
+      <table style="width: 100%; border-collapse: collapse; font-size: 0.72rem; text-align: center; color: #cbd5e1;">
+        <thead>
+          <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.15); color: #c59afc; font-weight: bold; text-transform: uppercase;">
+            <th style="padding: 4px; text-align: left;">${isEs ? "Fecha" : "Date"}</th>
+            <th style="padding: 4px;">${isEs ? "Base Real (DE)" : "DE Real (Unrolled)"}</th>
+            <th style="padding: 4px;">${isEs ? "Ciclos Real" : "DE Rolled"}</th>
+            <th style="padding: 4px;">${isEs ? "WFM Base" : "WFM Base"}</th>
+            <th style="padding: 4px;">${isEs ? "Muestras" : "Orders"}</th>
+          </tr>
+        </thead>
+        <tbody>
+    `;
+
+    const reversedData = [...filteredData].reverse();
+    reversedData.forEach((d) => {
+      const idx = filteredData.indexOf(d);
+      const dateFormatted = d.date;
+
+      const officialVal = officialMedians[idx];
+      const rolledVal = rolledMedians[idx];
+      const wfmVal = wfmPrices[idx] || 0;
+      const volVal = volumes[idx] || 0;
+
+      const globalIdx = historyData.findIndex(item => item.date === d.date);
+      const prevWfmVal = globalIdx > 0 ? (historyData[globalIdx - 1].wfm_avg_price || historyData[globalIdx - 1].wfm_avg || 0) : 0;
+      let trendHtml = "";
+      if (prevWfmVal > 0 && wfmVal > 0) {
+        if (wfmVal > prevWfmVal) {
+          trendHtml = `<span style="color: #44ff88; font-size: 0.65rem; margin-left: 3px; font-weight: bold;">▲</span>`;
+        } else if (wfmVal < prevWfmVal) {
+          trendHtml = `<span style="color: #ff6666; font-size: 0.65rem; margin-left: 3px; font-weight: bold;">▼</span>`;
+        } else {
+          trendHtml = `<span style="color: #888; font-size: 0.65rem; margin-left: 3px;">•</span>`;
+        }
+      }
+
+      tableHtml += `
+        <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
+          <td style="padding: 4px; text-align: left; font-weight: bold; color: #94a3b8;">${dateFormatted}</td>
+          <td style="padding: 4px; font-weight: bold; color: #ffca28;">${officialVal > 0 ? Math.round(officialVal) : "N/A"}</td>
+          <td style="padding: 4px; font-weight: bold; color: #9b59b6;">${rolledVal > 0 ? Math.round(rolledVal) : "N/A"}</td>
+          <td style="padding: 4px; font-weight: bold; color: #00e5ff;">${wfmVal > 0 ? Math.round(wfmVal) : "N/A"}${trendHtml}</td>
+          <td style="padding: 4px; color: #cbd5e1;">${volVal > 0 ? volVal : 0}</td>
+        </tr>
+      `;
+    });
+
+    tableHtml += `
+        </tbody>
+      </table>
+    `;
+    tableContainer.innerHTML = tableHtml;
+  }
+
+  const existingChart = typeof globalThis.Chart !== "undefined" && canvas ? globalThis.Chart.getChart(canvas) : null;
+  if (existingChart) {
+    try {
+      existingChart.destroy();
+    } catch (e) {
+      console.warn("Failed destroying existingChart via getChart:", e);
+    }
+  }
+  if (rivenHistoryChartInstance) {
+    try {
+      rivenHistoryChartInstance.destroy();
+    } catch (e) {
+      console.warn("Failed destroying rivenHistoryChartInstance:", e);
+    }
+    rivenHistoryChartInstance = null;
+  }
+
+  const hintEl = document.getElementById("chart-hint-note");
+  if (hintEl) {
+    hintEl.innerText = isEs
+      ? "💡 Haz clic en la leyenda 'WFM' para ocultarlo y auto-escalar a Precios Reales"
+      : "💡 Click 'WFM' in the legend to hide it and auto-scale to DE Real Prices";
+  }
+
+  container.style.display = "block";
+
+  rivenHistoryChartInstance = new globalThis.Chart(canvas, {
+    data: {
+      labels: labels,
+      datasets: [
+        {
+          type: "line",
+          label: isEs ? "WFM (Precio Base)" : "WFM (Base Price)",
+          data: wfmPrices,
+          borderColor: "#00e5ff",
+          backgroundColor: "rgba(0, 229, 255, 0.08)",
+          borderWidth: 2,
+          tension: 0.4,
+          pointRadius: 2,
+          fill: true,
+          yAxisID: "yLeft"
+        },
+        {
+          type: "line",
+          label: isEs ? "Mediana Rerolled" : "Rerolled Median",
+          data: rolledMedians,
+          borderColor: "#9b59b6",
+          backgroundColor: "rgba(155, 89, 182, 0.04)",
+          borderWidth: 2,
+          tension: 0.4,
+          pointRadius: 2,
+          fill: true,
+          yAxisID: "yLeft"
+        },
+        {
+          type: "line",
+          label: isEs ? "Mediana Juego (Oficial)" : "Official Median (Game)",
+          data: officialMedians,
+          borderColor: "#ffca28",
+          backgroundColor: "transparent",
+          borderWidth: 2,
+          stepped: true,
+          pointRadius: 2,
+          fill: false,
+          yAxisID: "yLeft"
+        },
+        {
+          type: "bar",
+          label: isEs ? "Volumen de Ventas" : "Sales Volume",
+          data: volumes,
+          backgroundColor: "rgba(155, 89, 182, 0.15)",
+          borderColor: "rgba(155, 89, 182, 0.3)",
+          borderWidth: 1,
+          yAxisID: "yVolume",
+          barPercentage: 0.4
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: true,
+          position: "top",
+          labels: {
+            color: "#e2e8f0",
+            font: {
+              size: 13,
+              weight: "bold",
+              family: "'Outfit', 'Inter', 'Roboto', sans-serif"
+            },
+            boxWidth: 18,
+            padding: 15
+          }
+        },
+        tooltip: {
+          mode: "index",
+          intersect: false
+        }
+      },
+      scales: {
+        x: {
+          grid: { color: "rgba(255, 255, 255, 0.03)" },
+          ticks: {
+            color: "#94a3b8",
+            font: {
+              size: 11,
+              family: "'Outfit', 'Inter', 'Roboto', sans-serif"
+            },
+            maxTicksLimit: 6
+          }
+        },
+        yLeft: {
+          type: "linear",
+          display: true,
+          position: "left",
+          grid: { color: "rgba(255, 255, 255, 0.05)" },
+          ticks: {
+            color: "#cbd5e1",
+            font: {
+              size: 11,
+              family: "'Outfit', 'Inter', 'Roboto', sans-serif"
+            },
+            callback: function (value) { return value + "p"; }
+          }
+        },
+        yVolume: {
+          type: "linear",
+          display: true,
+          position: "right",
+          grid: { drawOnChartArea: false },
+          ticks: {
+            color: "rgba(155, 89, 182, 0.65)",
+            font: {
+              size: 10,
+              family: "'Outfit', 'Inter', 'Roboto', sans-serif"
+            },
+            maxTicksLimit: 5
+          },
+          max: Math.max(...volumes) * 4,
+          min: 0
+        }
+      }
+    }
+  });
 }
 
 export function renderRivenPreview(weaponName) {
@@ -641,7 +858,7 @@ export function renderRivenPreview(weaponName) {
 
   const dispoData = getDispositionData(details, basic);
   const imgPath = getWeaponImagePath(weaponName, details);
-  const tooltipHtml = buildTooltipHtml(details);
+  const tooltipHtml = buildTooltipHtml(weaponName, details);
 
   const oldNaked = panel.dataset.lastNaked || "";
   const newNaked = getNakedName(weaponName);
@@ -1085,23 +1302,23 @@ function buildStatsHtml(weaponName) {
   </div>`;
 }
 
-function buildTooltipHtml(details) {
-  if (!details) return "";
-  const nameUpper = details.name.toUpperCase();
+function buildTooltipHtml(weaponName, details) {
+  if (!weaponName) return "";
+  const nameUpper = weaponName.toUpperCase();
   const isLichPrefix =
     nameUpper.startsWith("KUVA") ||
     nameUpper.startsWith("TENET") ||
     nameUpper.startsWith("CODA");
-  const isShopItem = details.components?.some((c) =>
+  const isShopItem = details?.components?.some((c) =>
     c.name.toUpperCase().includes("HOLOKEY"),
   );
   const isLichWeapon = isLichPrefix && !isShopItem;
 
-  const weaponWikiUrl = `https://wiki.warframe.com/w/${encodeURIComponent(details.name)}`;
+  const weaponWikiUrl = `https://wiki.warframe.com/w/${encodeURIComponent(weaponName)}`;
   const t = TEXTS[state.currentLang];
 
   let contentHtml = "";
-  if (details.components?.length && !isLichWeapon) {
+  if (details && details.components?.length && !isLichWeapon) {
     contentHtml += buildComponentsHtml(details.components);
     contentHtml += buildDropsHtml(details.components);
   } else if (isLichWeapon) {
@@ -1109,13 +1326,13 @@ function buildTooltipHtml(details) {
   }
 
   // If there's no recipe and no stats, hide tooltip entirely to keep it clean
-  if (!contentHtml && !state.combatStatsDB?.[details.name]) return "";
+  if (!contentHtml && !state.combatStatsDB?.[weaponName]) return "";
 
-  const statsHtml = buildStatsHtml(details.name);
+  const statsHtml = buildStatsHtml(weaponName);
 
   // Tabs UI
   let html = `<div class="preview-tooltip">
-      <h4><a href="${weaponWikiUrl}" target="_blank" class="wiki-link" style="color:var(--wf-purple); border-bottom-color:var(--wf-purple);">${details.name}</a></h4>
+      <h4><a href="${weaponWikiUrl}" target="_blank" class="wiki-link" style="color:var(--wf-purple); border-bottom-color:var(--wf-purple);">${weaponName}</a></h4>
       
       <div style="display:flex; border-bottom:1px solid #333; margin-bottom:8px;">
           <button onclick="this.parentElement.nextElementSibling.style.display='block'; this.parentElement.nextElementSibling.nextElementSibling.style.display='none'; this.style.color='var(--wf-gold-text)'; this.style.borderBottom='2px solid var(--wf-gold-text)'; this.nextElementSibling.style.color='#888'; this.nextElementSibling.style.borderBottom='none';" style="flex:1; background:none; border:none; color:var(--wf-gold-text); border-bottom:2px solid var(--wf-gold-text); padding:5px; cursor:pointer; font-weight:bold; font-size:12px; font-family:'Roboto', sans-serif;">${t.recipe}</button>
@@ -1215,6 +1432,7 @@ function buildLichHtml(nameUpper) {
 }
 
 export function renderRivenCardHTML(container, data) {
+  const isEs = state.currentLang === "es";
   const polaritySymbol = data.polarity || "V";
   const rank = data.rank !== undefined ? data.rank : 8;
   const drain = data.drain || (10 + rank);
@@ -1223,26 +1441,72 @@ export function renderRivenCardHTML(container, data) {
   const stats = data.stats || [];
   const mr = data.masteryRank || 16;
   const rolls = data.rolls || 0;
+  const weaponName = data.weaponName || "";
+
+  // Upgrade #g-rank options on the fly if not already done
+  const gRankSelect = document.getElementById("g-rank");
+  if (gRankSelect && gRankSelect.options.length <= 3) {
+    const currentVal = gRankSelect.value || "8";
+    gRankSelect.innerHTML = "";
+    for (let r = 8; r >= 0; r--) {
+      const label = r === 8 ? (isEs ? "Máx (8)" : "Max (8)") : r === 0 ? (isEs ? "Mín (0)" : "Min (0)") : `${isEs ? "Rango" : "Rank"} ${r}`;
+      const opt = new Option(label, r.toString());
+      gRankSelect.appendChild(opt);
+    }
+    gRankSelect.value = currentVal;
+  }
 
   const dotsHtml = Array.from({ length: 8 }).map((_, i) => `
-    <div class="rank-dot ${i < rank ? 'active' : ''}"></div>
+    <div class="rank-dot ${i < rank ? 'active' : ''}" data-index="${i}" style="cursor: pointer;" title="${isEs ? `Establecer rango a ${i + 1}` : `Set rank to ${i + 1}`}"></div>
   `).join("");
 
   const statsHtml = stats.map(s => {
     const isNeg = s.value < 0;
     const cleanName = s.name.charAt(0).toUpperCase() + s.name.slice(1);
+    
+    // Find matching row id
+    let rowId = "row-stat1";
+    if (isNeg) {
+      rowId = "row-statNeg";
+    } else {
+      // Find which positive row matches this stat name
+      for (let n = 1; n <= 3; n++) {
+        const sel = document.getElementById(`g-stat${n}`);
+        if (sel && sel.value === s.name) {
+          rowId = `row-stat${n}`;
+          break;
+        }
+      }
+    }
     return `
-      <div class="riven-stat-line ${isNeg ? 'negative' : 'positive'}">
+      <div class="riven-stat-line ${isNeg ? 'negative' : 'positive'}" data-row-id="${rowId}" style="cursor: pointer; transition: all 0.2s;" title="${isEs ? "Haz clic para editar esta estadística" : "Click to edit this stat"}">
         ${isNeg ? '' : '+'}${s.value.toFixed(1)}% ${cleanName}
       </div>
     `;
   }).join("");
 
+  let titleHtml = escapeHTML(title);
+  if (weaponName && title.startsWith(weaponName)) {
+    const currentNaked = getNakedName(weaponName);
+    const siblings = state.allRivenNames ? state.allRivenNames.filter(
+      (n) => getNakedName(n) === currentNaked
+    ).toSorted((a, b) => a.localeCompare(b)) : [];
+
+    if (siblings.length > 1) {
+      const suffix = title.substring(weaponName.length);
+      titleHtml = `
+        <span class="riven-card-variant-selector" style="cursor: pointer; border-bottom: 1px dashed var(--wf-blue); color: var(--wf-blue); transition: all 0.2s; display: inline-block;" title="${isEs ? "Haz clic para cambiar variante de arma" : "Click to cycle weapon variant"}" onmouseover="this.style.color='#00e5ff'; this.style.textShadow='0 0 8px rgba(0, 229, 255, 0.4)';" onmouseout="this.style.color='var(--wf-blue)'; this.style.textShadow='none';">
+          ${escapeHTML(weaponName)}
+        </span>${escapeHTML(suffix)}
+      `;
+    }
+  }
+
   container.innerHTML = `
     <div class="riven-card-dynamic">
       <!-- Cabecera del Mod -->
       <div class="riven-header">
-        <span class="riven-polarity" style="color: #a38baf; font-weight: 900; text-shadow: 0 0 5px rgba(163, 139, 175, 0.6);">${polaritySymbol}</span>
+        <span class="riven-polarity" style="color: #a38baf; font-weight: 900; text-shadow: 0 0 5px rgba(163, 139, 175, 0.6); cursor: pointer;" title="${isEs ? "Haz clic para cambiar polaridad" : "Click to cycle polarity"}">${polaritySymbol}</span>
         <div class="riven-rank-dots">
           ${dotsHtml}
         </div>
@@ -1256,18 +1520,18 @@ export function renderRivenCardHTML(container, data) {
 
       <!-- Nombre del Mod -->
       <h3 class="riven-title" title="${title}">
-        ${title}
+        ${titleHtml}
       </h3>
 
       <!-- Estadísticas Reactivas -->
       <div class="riven-stats-list">
-        ${statsHtml || '<div style="font-size: 0.85em; color: #888; text-align: center; margin: 10px 0;">+ stats</div>'}
+        ${statsHtml || `<div style="font-size: 0.85em; color: #888; text-align: center; margin: 10px 0;">+ ${isEs ? "estadísticas" : "stats"}</div>`}
       </div>
 
       <!-- Pie del Mod -->
       <div class="riven-footer">
-        <span>MR ${mr}</span>
-        <span class="riven-cycle-icon">Rolls: ${rolls}</span>
+        <span class="riven-card-mr" style="cursor: pointer;" title="${isEs ? "Haz clic para cambiar Rango de Maestría" : "Click to cycle Mastery Rank"}">MR ${mr}</span>
+        <span class="riven-cycle-icon riven-card-rolls" style="cursor: pointer;" title="${isEs ? "Haz clic para añadir rolls (+10 con Shift)" : "Click to add rolls (+10 with Shift)"}">${isEs ? "Giros" : "Rolls"}: ${rolls}</span>
       </div>
     </div>
   `;
@@ -1309,6 +1573,131 @@ export function renderRivenCardHTML(container, data) {
       cardElement.style.boxShadow = "0 0 20px var(--riven-purple-glow), inset 0 0 40px rgba(0, 0, 0, 0.6)";
       cardElement.style.backgroundImage = "linear-gradient(135deg, #1e132b 0%, #39224f 50%, #1e132b 100%)";
     });
+
+    // 1. Cycle polarity on click
+    const polarityEl = cardElement.querySelector(".riven-polarity");
+    if (polarityEl) {
+      polarityEl.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const polarities = ["V", "D", "-", "None"];
+        const gPolaritySelect = document.getElementById("g-polarity");
+        if (gPolaritySelect) {
+          const currentPol = gPolaritySelect.value || "V";
+          const nextIndex = (polarities.indexOf(currentPol) + 1) % polarities.length;
+          const nextPol = polarities[nextIndex];
+          gPolaritySelect.value = nextPol;
+          gPolaritySelect.dispatchEvent(new Event("change"));
+          calculateModalGrade();
+        }
+      });
+    }
+
+    // 2. Set Rank Dots on click
+    const dotEls = cardElement.querySelectorAll(".rank-dot");
+    dotEls.forEach(dot => {
+      dot.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const clickedIndex = parseInt(dot.dataset.index);
+        let newRank = clickedIndex + 1;
+        if (newRank === rank) {
+          newRank = rank - 1;
+        }
+        const gRankSelect = document.getElementById("g-rank");
+        if (gRankSelect) {
+          gRankSelect.value = newRank.toString();
+          gRankSelect.dispatchEvent(new Event("change"));
+          calculateModalGrade();
+        }
+      });
+    });
+
+    // 3. Highlight and focus input rows on clicking stat lines
+    const statLines = cardElement.querySelectorAll(".riven-stat-line");
+    statLines.forEach(line => {
+      line.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const targetRowId = line.dataset.rowId;
+        const targetRow = document.getElementById(targetRowId);
+        if (targetRow) {
+          targetRow.style.transition = "background-color 0.3s ease";
+          targetRow.style.backgroundColor = "rgba(155, 89, 182, 0.25)";
+          setTimeout(() => {
+            targetRow.style.backgroundColor = "";
+          }, 800);
+
+          let valInputId = targetRowId === "row-statNeg" ? "g-valNeg" : "g-val" + targetRowId.replace("row-stat", "");
+          const valIn = document.getElementById(valInputId);
+          if (valIn) {
+            valIn.focus();
+            valIn.select();
+          }
+        }
+      });
+      line.addEventListener("mouseenter", () => {
+        const targetRow = document.getElementById(line.dataset.rowId);
+        if (targetRow) {
+          targetRow.style.backgroundColor = "rgba(255, 255, 255, 0.05)";
+        }
+      });
+      line.addEventListener("mouseleave", () => {
+        const targetRow = document.getElementById(line.dataset.rowId);
+        if (targetRow) {
+          targetRow.style.backgroundColor = "";
+        }
+      });
+    });
+
+    // 4. Cycle Mastery Rank (MR) on click
+    const mrEl = cardElement.querySelector(".riven-card-mr");
+    if (mrEl) {
+      mrEl.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const gMrInput = document.getElementById("g-mr");
+        if (gMrInput) {
+          let currentMr = parseInt(gMrInput.value || 16);
+          let nextMr = currentMr + 1;
+          if (nextMr > 16) nextMr = 8;
+          gMrInput.value = nextMr.toString();
+          gMrInput.dispatchEvent(new Event("input"));
+          calculateModalGrade();
+        }
+      });
+    }
+
+    // 5. Increment rolls on click (+10 with shift)
+    const rollsEl = cardElement.querySelector(".riven-card-rolls");
+    if (rollsEl) {
+      rollsEl.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const gRollsInput = document.getElementById("g-rolls");
+        if (gRollsInput) {
+          let currentRolls = parseInt(gRollsInput.value || 0);
+          let increment = e.shiftKey ? 10 : 1;
+          gRollsInput.value = (currentRolls + increment).toString();
+          gRollsInput.dispatchEvent(new Event("input"));
+          calculateModalGrade();
+        }
+      });
+    }
+
+    // 6. Cycle weapon variant on clicking variant selector
+    const variantSelectorEl = cardElement.querySelector(".riven-card-variant-selector");
+    if (variantSelectorEl) {
+      variantSelectorEl.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const currentNaked = getNakedName(weaponName);
+        const siblings = state.allRivenNames ? state.allRivenNames.filter(
+          (n) => getNakedName(n) === currentNaked
+        ).toSorted((a, b) => a.localeCompare(b)) : [];
+
+        if (siblings.length > 1) {
+          const currentIndex = siblings.findIndex(s => s.toLowerCase() === weaponName.toLowerCase());
+          const nextIndex = (currentIndex + 1) % siblings.length;
+          const nextVariant = siblings[nextIndex];
+          selectRivenWeapon(nextVariant);
+        }
+      });
+    }
   }
 }
 
@@ -1547,6 +1936,70 @@ export function renderVariants(currentWeaponName) {
   initCarouselHoverScroll();
 }
 
+export function renderModalVariants(currentWeaponName) {
+  const section = document.getElementById("g-modal-variants-section");
+  const carousel = document.getElementById("g-modal-variants-carousel");
+  if (!section || !carousel || !state.allRivenNames) return;
+
+  const currentNaked = getNakedName(currentWeaponName);
+  const siblings = state.allRivenNames.filter(
+    (name) => getNakedName(name) === currentNaked,
+  );
+
+  if (siblings.length <= 1) {
+    section.style.display = "none";
+    carousel.innerHTML = "";
+    return;
+  }
+
+  section.style.display = "block";
+  const fragment = document.createDocumentFragment();
+
+  siblings
+    .toSorted((a, b) => a.localeCompare(b))
+    .forEach((name) => {
+      const isSelected = name.toUpperCase() === currentWeaponName.toUpperCase();
+      const weaponData = state.weaponMap[name];
+      const dispo = weaponData ? Number.parseFloat(weaponData.d) : 1;
+
+      const card = document.createElement("div");
+      card.className = `variant-card ${isSelected ? "active" : ""}`;
+      card.style.width = "100px";
+      card.style.padding = "6px";
+      card.style.fontSize = "0.75rem";
+      card.title = name;
+      card.onclick = () => selectRivenWeapon(name);
+
+      const displayLabel =
+        name.toUpperCase().replace(currentNaked.toUpperCase(), "").trim() ||
+        "Base";
+
+      card.innerHTML = `
+        <img src="${getWeaponImagePath(name, getWeaponDetails(name))}" onerror="this.src=DEFAULT_WEAPON_DATA_URL" style="width: 70px; height: 42px; object-fit: contain;">
+        <span class="v-name-small" style="font-size: 0.72rem; margin-top: 4px;">${displayLabel}</span>
+        <div class="v-dispo-row" style="margin-top: 4px;">
+            <span class="v-dispo-val" style="font-size: 0.68rem;">${dispo.toFixed(2)}</span>
+        </div>`;
+
+      fragment.appendChild(card);
+    });
+
+  carousel.replaceChildren(fragment);
+}
+
+export function syncModalVariantCarousel(name) {
+  const carousel = document.getElementById("g-modal-variants-carousel");
+  if (!carousel) return;
+  const cards = carousel.querySelectorAll(".variant-card");
+  cards.forEach((card) => {
+    if (card.title.toUpperCase() === name.toUpperCase()) {
+      card.classList.add("active");
+    } else {
+      card.classList.remove("active");
+    }
+  });
+}
+
 // --- LÓGICA DE GRADING Y MERCADO ---
 
 export function handleRivenInput() {
@@ -1657,9 +2110,45 @@ export function selectRivenWeapon(name) {
   }
   fetchRivenAverage(name);
 
+  // Fetch historical data asynchronously and save it in state to use in appraisal calculations
+  if (globalThis.state) {
+    globalThis.state.currentWeaponHistory = { weaponName: name, data: [], loading: true };
+    fetchWeaponHistory(name)
+      .then((historyData) => {
+        if (globalThis.state.currentWeaponHistory && globalThis.state.currentWeaponHistory.weaponName === name) {
+          globalThis.state.currentWeaponHistory = {
+            weaponName: name,
+            data: historyData || [],
+            loading: false
+          };
+          if (typeof calculateModalGrade === "function") {
+            calculateModalGrade();
+          }
+        }
+      })
+      .catch((err) => {
+        console.warn("Could not fetch historical data for " + name, err);
+        if (globalThis.state.currentWeaponHistory && globalThis.state.currentWeaponHistory.weaponName === name) {
+          globalThis.state.currentWeaponHistory.loading = false;
+        }
+      });
+  }
+
   // Recalculate riven grading score instantly for the new variant's disposition
   if (isSameFamily && typeof calculateModalGrade === "function") {
     calculateModalGrade();
+  }
+
+  // Keep modal variant selector and metadata stats container in sync
+  const gradingModal = document.getElementById("grading-modal");
+  if (gradingModal && !gradingModal.classList.contains("hidden")) {
+    const weaponData = state.weaponMap?.[name];
+    if (weaponData) {
+      document.getElementById("g-weapon-name").innerHTML =
+        `${escapeHTML(name)} <small>(Disp: ${weaponData.d.toFixed(2)})</small>`;
+      renderMetaStats(name, weaponData.t, "modal-meta-stats-container");
+    }
+    syncModalVariantCarousel(name);
   }
 
   // Synchronize and filter Riven Market Index to show only the selected weapon/family
@@ -1894,6 +2383,28 @@ export function calculateModalGrade() {
     const weaponName = document.getElementById("rivenWeaponInput").value.trim();
     if (!weaponName || !state.weaponMap[weaponName]) return;
 
+    // Asynchronously fetch historical logs if not already loaded for this weapon
+    if (globalThis.state && (!globalThis.state.currentWeaponHistory || globalThis.state.currentWeaponHistory.weaponName !== weaponName)) {
+      globalThis.state.currentWeaponHistory = { weaponName, data: [], loading: true };
+      fetchWeaponHistory(weaponName)
+        .then((historyData) => {
+          if (globalThis.state.currentWeaponHistory && globalThis.state.currentWeaponHistory.weaponName === weaponName) {
+            globalThis.state.currentWeaponHistory = {
+              weaponName: weaponName,
+              data: historyData || [],
+              loading: false
+            };
+            calculateModalGrade();
+          }
+        })
+        .catch((err) => {
+          console.warn("Could not fetch historical data for " + weaponName, err);
+          if (globalThis.state.currentWeaponHistory && globalThis.state.currentWeaponHistory.weaponName === weaponName) {
+            globalThis.state.currentWeaponHistory.loading = false;
+          }
+        });
+    }
+
     const weaponData = state.weaponMap[weaponName];
     const currentRank = Number.parseInt(
       document.getElementById("g-rank").value || "8",
@@ -1939,6 +2450,7 @@ export function calculateModalGrade() {
         drain: 10 + currentRank,
         imgUrl: imgPath,
         title: generatedName,
+        weaponName: weaponName,
         stats: stats.map(s => ({
           name: s.name,
           value: s.value
@@ -1977,6 +2489,11 @@ export function calculateModalGrade() {
       fragment.appendChild(nameHeader);
     }
 
+    const gridContainer = document.createElement("div");
+    gridContainer.className = "results-layout-grid";
+    const statsCol = document.createElement("div");
+    statsCol.className = "results-stats-col";
+
     let totalPct = 0;
 
     stats.forEach((stat) => {
@@ -2007,8 +2524,9 @@ export function calculateModalGrade() {
                         <div class="grade-info"><div class="grade-stat-name" style="${isNegStat ? 'color:#ef4444;' : ''}">${isNegStat ? '−' : ''}${stat.name}</div>
                         <div>Valor: ${Math.abs(stat.value)}% <span class="grade-range">/ Ideal: ${res.range}</span></div>
                         <div class="grade-track"><div class="grade-fill ${color}" style="width:${res.pct}%"></div></div></div>`;
-      fragment.appendChild(card);
+      statsCol.appendChild(card);
     });
+    gridContainer.appendChild(statsCol);
 
     const avgScore = totalPct / stats.length;
 
@@ -2031,6 +2549,7 @@ export function calculateModalGrade() {
         const isFactionDmgNeg = normalized.toLowerCase().includes(" to ") || normalized.toLowerCase().includes("vs");
         const isGoodNeg = isFactionDmgNeg ||
           meta?.neg.some(m => normalized.includes(m) || m.includes(normalized)) ||
+          meta?.midNeg?.some(m => normalized.includes(m) || m.includes(normalized)) ||
           ["Zoom", "Recoil", "Ammo Maximum", "Status Duration", "Magazine Capacity"].some(t => normalized.includes(t));
 
         // Critical negative stats that destroy usability (brick-tier negatives excluded from faction dmg)
@@ -2058,11 +2577,14 @@ export function calculateModalGrade() {
       } else {
         positiveCount++;
         const isMeta = meta?.pos.some(m => normalized.includes(m) || m.includes(normalized));
+        const isMid = meta?.midPos?.some(m => normalized.includes(m) || m.includes(normalized));
         const isTrash = meta?.neg.some(m => normalized.includes(m) || m.includes(normalized)) ||
           ["Zoom", "Recoil"].some(t => normalized.includes(t));
 
         if (isMeta) {
           metaMatches++;
+        } else if (isMid) {
+          metaMatches += 0.8; // mid/good positives count 80% of meta weight
         } else if (isTrash) {
           trashCount += 1.0;
         } else {
@@ -2115,7 +2637,7 @@ export function calculateModalGrade() {
 
     const popPct = meta && meta.popularity_pct ? (meta.popularity_pct / 10.0) : 0.5;
 
-    const tiersObj = calculateHybridTiers(meta || { wfm_avg_price: basePrice, official_median: basePrice });
+    const tiersObj = calculateHybridTiers(meta || { name: weaponName, wfm_avg_price: basePrice, official_median: basePrice });
 
     const itemAttributes = stats.map(stat => {
       const internalName = normalizeStatName(stat.name, weaponData?.t);
@@ -2129,7 +2651,7 @@ export function calculateModalGrade() {
       };
     });
 
-    const appraisal = calculateAdvancedPredictivePrice(meta || { wfm_avg_price: basePrice, official_median: basePrice }, itemAttributes, tiersObj, desirabilityMultiplier, weaponData);
+    const appraisal = calculateAdvancedPredictivePrice(meta || { name: weaponName, wfm_avg_price: basePrice, official_median: basePrice }, itemAttributes, tiersObj, desirabilityMultiplier, weaponData);
 
     let priceCalculated = appraisal.estimatedValue;
     let minPrice = appraisal.suggestedMin;
@@ -2254,7 +2776,8 @@ export function calculateModalGrade() {
       
       <div id="similar-rivens-container" style="margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px; display: none;"></div>
     `;
-    fragment.appendChild(estCard);
+    gridContainer.appendChild(estCard);
+    fragment.appendChild(gridContainer);
 
     resultsDiv.replaceChildren(fragment);
 
@@ -2426,6 +2949,80 @@ export function updateSelectExclusions() {
   });
 }
 
+export function createGradingRowDOM(id) {
+  const isNeg = id === "row-statNeg";
+  const num = id.replace("row-stat", "");
+  const div = document.createElement("div");
+  div.id = id;
+  div.className = "riven-row-wrapper";
+
+  if (isNeg) {
+    div.style.cssText = "border: 1px solid rgba(239,68,68,0.15); background: rgba(239,68,68,0.02); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 8px;";
+    div.innerHTML = `
+      <div style="display: flex; gap: 10px; align-items: center;">
+        <select id="g-statNeg" class="wf-input riven-stat-select negative"
+          style="flex: 1; padding: 6px; border-color: rgba(239,68,68,0.3);"
+          onchange="updateSelectExclusions(); calculateModalGrade();">
+          <option value="">- Negativa</option>
+        </select>
+        <div
+          style="width: 100px; display: flex; align-items: center; gap: 4px; background: rgba(0,0,0,0.25); border: 1px solid rgba(239,68,68,0.3); border-radius: 4px; padding: 2px 6px;">
+          <input type="number" id="g-valNeg" class="wf-input riven-val-input" placeholder="0"
+            style="border: none; background: transparent; width: 100%; text-align: right; font-weight: bold; color: #ef4444; padding: 2px 0;"
+            oninput="syncRivenInputs('g-valNeg', 'g-sliderNeg'); calculateModalGrade();" />
+          <span style="color: #ef4444; font-weight: bold; font-size: 0.85rem;">%</span>
+        </div>
+        <button class="mini-action-btn" onclick="removeGradingRow('row-statNeg')"
+          style="border-color: #ef4444; color: #ef4444; padding: 4px 8px; font-size: 0.75rem;">
+          ✕
+        </button>
+      </div>
+      <div id="g-slider-containerNeg" class="slider-input-container hidden"
+        style="display: flex; align-items: center; gap: 8px; margin-top: 4px;">
+        <span id="g-slider-minNeg"
+          style="font-size: 0.72rem; color: #ef4444; font-weight: bold; min-width: 32px;">0%</span>
+        <input type="range" id="g-sliderNeg" class="riven-slider" min="-200" max="0" step="0.1" value="0"
+          style="flex: 1;" oninput="syncRivenInputs('g-sliderNeg', 'g-valNeg'); calculateModalGrade();" />
+        <span id="g-slider-maxNeg"
+          style="font-size: 0.72rem; color: #ef4444; font-weight: bold; min-width: 32px; text-align: right;">0%</span>
+      </div>
+    `;
+  } else {
+    const canDelete = num === "3";
+    div.style.cssText = "border: 1px solid rgba(255,255,255,0.06); background: rgba(0,0,0,0.15); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 8px;";
+    div.innerHTML = `
+      <div style="display: flex; gap: 10px; align-items: center;">
+        <select id="g-stat${num}" class="wf-input riven-stat-select" style="flex: 1; padding: 6px;"
+          onchange="updateSelectExclusions(); calculateModalGrade();">
+          <option value="">+ STAT ${num}</option>
+        </select>
+        <div
+          style="width: 100px; display: flex; align-items: center; gap: 4px; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; padding: 2px 6px;">
+          <input type="number" id="g-val${num}" class="wf-input riven-val-input" placeholder="0"
+            style="border: none; background: transparent; width: 100%; text-align: right; font-weight: bold; color: var(--wf-gold-text); padding: 2px 0;"
+            oninput="syncRivenInputs('g-val${num}', 'g-slider${num}'); calculateModalGrade();" />
+          <span style="color: #64748b; font-weight: bold; font-size: 0.85rem;">%</span>
+        </div>
+        ${canDelete ? `
+        <button class="mini-action-btn" onclick="removeGradingRow('row-stat3')"
+          style="border-color: #ef4444; color: #ef4444; padding: 4px 8px; font-size: 0.75rem;">
+          ✕
+        </button>` : ""}
+      </div>
+      <div id="g-slider-container${num}" class="slider-input-container hidden"
+        style="display: flex; align-items: center; gap: 8px; margin-top: 4px;">
+        <span id="g-slider-min${num}"
+          style="font-size: 0.72rem; color: #64748b; font-weight: bold; min-width: 32px;">0%</span>
+        <input type="range" id="g-slider${num}" class="riven-slider" min="0" max="200" step="0.1" value="0"
+          style="flex: 1;" oninput="syncRivenInputs('g-slider${num}', 'g-val${num}'); calculateModalGrade();" />
+        <span id="g-slider-max${num}"
+          style="font-size: 0.72rem; color: #64748b; font-weight: bold; min-width: 32px; text-align: right;">100%</span>
+      </div>
+    `;
+  }
+  return div;
+}
+
 export function openGradingModal() {
   let name = document.getElementById("rivenWeaponInput")?.value.trim();
   if (!name) return alert("Selecciona un arma válida");
@@ -2441,11 +3038,20 @@ export function openGradingModal() {
 
   if (!data) return alert("Selecciona un arma válida");
 
-  // Destruir campos dinámicos previos para reiniciar limpiamente
-  const row3 = document.getElementById("row-stat3");
-  if (row3) row3.remove();
-  const rowNeg = document.getElementById("row-statNeg");
-  if (rowNeg) rowNeg.remove();
+  // Reconstruir los inputs de la tasación de forma dinámica y limpia
+  const container = document.getElementById("grading-inputs-container");
+  if (container) {
+    container.querySelectorAll(".riven-row-wrapper").forEach(el => el.remove());
+    const addButtonsDiv = container.querySelector("div[style*='justify-content: center']");
+    ["row-stat1", "row-stat2"].forEach(id => {
+      const rowDiv = createGradingRowDOM(id);
+      if (addButtonsDiv) {
+        container.insertBefore(rowDiv, addButtonsDiv);
+      } else {
+        container.appendChild(rowDiv);
+      }
+    });
+  }
 
   // Restaurar botones de agregar
   const btnAddPos = document.getElementById("btn-add-pos");
@@ -2455,6 +3061,7 @@ export function openGradingModal() {
 
   document.getElementById("g-weapon-name").innerHTML =
     `${escapeHTML(name)} <small>(Disp: ${data.d.toFixed(2)})</small>`;
+  renderModalVariants(name);
   document.getElementById("grading-modal").classList.remove("hidden");
 
   resetGradingInputs();
@@ -2485,83 +3092,11 @@ export function showGradingRow(id) {
     const container = document.getElementById("grading-inputs-container");
     if (container) {
       const addButtonsDiv = container.querySelector("div[style*='justify-content: center']");
-      if (id === "row-stat3") {
-        const div = document.createElement("div");
-        div.id = "row-stat3";
-        div.className = "riven-row-wrapper";
-        div.style.cssText = "border: 1px solid rgba(255,255,255,0.06); background: rgba(0,0,0,0.15); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 8px;";
-        div.innerHTML = `
-          <div style="display: flex; gap: 10px; align-items: center;">
-            <select id="g-stat3" class="wf-input riven-stat-select" style="flex: 1; padding: 6px;"
-              onchange="updateSelectExclusions(); calculateModalGrade();">
-              <option value="">+ STAT 3</option>
-            </select>
-            <div
-              style="width: 100px; display: flex; align-items: center; gap: 4px; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; padding: 2px 6px;">
-              <input type="number" id="g-val3" class="wf-input riven-val-input" placeholder="0"
-                style="border: none; background: transparent; width: 100%; text-align: right; font-weight: bold; color: var(--wf-gold-text); padding: 2px 0;"
-                oninput="syncRivenInputs('g-val3', 'g-slider3'); calculateModalGrade();" />
-              <span style="color: #64748b; font-weight: bold; font-size: 0.85rem;">%</span>
-            </div>
-            <button class="mini-action-btn" onclick="removeGradingRow('row-stat3')"
-              style="border-color: #ef4444; color: #ef4444; padding: 4px 8px; font-size: 0.75rem;">
-              ✕
-            </button>
-          </div>
-          <div id="g-slider-container3" class="slider-input-container hidden"
-            style="display: flex; align-items: center; gap: 8px; margin-top: 4px;">
-            <span id="g-slider-min3"
-              style="font-size: 0.72rem; color: #64748b; font-weight: bold; min-width: 32px;">0%</span>
-            <input type="range" id="g-slider3" class="riven-slider" min="0" max="200" step="0.1" value="0"
-              style="flex: 1;" oninput="syncRivenInputs('g-slider3', 'g-val3'); calculateModalGrade();" />
-            <span id="g-slider-max3"
-              style="font-size: 0.72rem; color: #64748b; font-weight: bold; min-width: 32px; text-align: right;">100%</span>
-          </div>
-        `;
-        if (addButtonsDiv) {
-          container.insertBefore(div, addButtonsDiv);
-        } else {
-          container.appendChild(div);
-        }
-      } else if (id === "row-statNeg") {
-        const div = document.createElement("div");
-        div.id = "row-statNeg";
-        div.className = "riven-row-wrapper";
-        div.style.cssText = "border: 1px solid rgba(239,68,68,0.15); background: rgba(239,68,68,0.02); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 8px;";
-        div.innerHTML = `
-          <div style="display: flex; gap: 10px; align-items: center;">
-            <select id="g-statNeg" class="wf-input riven-stat-select negative"
-              style="flex: 1; padding: 6px; border-color: rgba(239,68,68,0.3);"
-              onchange="updateSelectExclusions(); calculateModalGrade();">
-              <option value="">- Negativa</option>
-            </select>
-            <div
-              style="width: 100px; display: flex; align-items: center; gap: 4px; background: rgba(0,0,0,0.25); border: 1px solid rgba(239,68,68,0.3); border-radius: 4px; padding: 2px 6px;">
-              <input type="number" id="g-valNeg" class="wf-input riven-val-input" placeholder="0"
-                style="border: none; background: transparent; width: 100%; text-align: right; font-weight: bold; color: #ef4444; padding: 2px 0;"
-                oninput="syncRivenInputs('g-valNeg', 'g-sliderNeg'); calculateModalGrade();" />
-              <span style="color: #ef4444; font-weight: bold; font-size: 0.85rem;">%</span>
-            </div>
-            <button class="mini-action-btn" onclick="removeGradingRow('row-statNeg')"
-              style="border-color: #ef4444; color: #ef4444; padding: 4px 8px; font-size: 0.75rem;">
-              ✕
-            </button>
-          </div>
-          <div id="g-slider-containerNeg" class="slider-input-container hidden"
-            style="display: flex; align-items: center; gap: 8px; margin-top: 4px;">
-            <span id="g-slider-minNeg"
-              style="font-size: 0.72rem; color: #ef4444; font-weight: bold; min-width: 32px;">0%</span>
-            <input type="range" id="g-sliderNeg" class="riven-slider" min="-200" max="0" step="0.1" value="0"
-              style="flex: 1;" oninput="syncRivenInputs('g-sliderNeg', 'g-valNeg'); calculateModalGrade();" />
-            <span id="g-slider-maxNeg"
-              style="font-size: 0.72rem; color: #ef4444; font-weight: bold; min-width: 32px; text-align: right;">0%</span>
-          </div>
-        `;
-        if (addButtonsDiv) {
-          container.insertBefore(div, addButtonsDiv);
-        } else {
-          container.appendChild(div);
-        }
+      const div = createGradingRowDOM(id);
+      if (addButtonsDiv) {
+        container.insertBefore(div, addButtonsDiv);
+      } else {
+        container.appendChild(div);
       }
     }
     row = document.getElementById(id);
@@ -2595,8 +3130,10 @@ function renderMetaStats(weaponName, weaponType, targetId = "meta-stats-containe
   const container = document.getElementById(targetId);
   if (!container) return;
 
+  const cacheKey = `${weaponName}_${weaponType}_${state.currentLang}`;
+  if (container.dataset.lastRenderedKey === cacheKey) return;
+
   const meta = getMetaStats(weaponName, weaponType);
-  console.log(`[renderMetaStats] render for ${weaponName}:`, meta);
   if (!meta) {
     container.style.display = "none";
     return;
@@ -2604,27 +3141,41 @@ function renderMetaStats(weaponName, weaponType, targetId = "meta-stats-containe
 
   const isEs = state.currentLang === "es";
 
-  // Build beautiful positive and negative guides (best & worst)
+  // Build beautiful positive and negative guides (best, mid & worst)
   const bestPosHtml = meta.pos.map(s => `
     <span style="background: rgba(0, 255, 120, 0.08); border: 1px solid rgba(0, 255, 120, 0.18); color: #00ff78; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 4px; display: inline-block; margin-bottom: 4px; font-weight: 500;">
-      + ${getLocalizedStatName(s)}
+      <span style="font-size: 9px; background: rgba(0, 255, 120, 0.18); color: #00ff78; padding: 1px 4px; border-radius: 3px; margin-right: 5px; font-weight: 700; text-transform: uppercase;">BEST</span>+ ${getLocalizedStatName(s)}
     </span>
   `).join("");
 
-  const worstPos = meta.rawPos?.worst || [];
+  const midPos = meta.midPos || [];
+  const midPosHtml = midPos.length > 0 ? midPos.map(s => `
+    <span style="background: rgba(234, 179, 8, 0.08); border: 1px solid rgba(234, 179, 8, 0.18); color: #eab308; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 4px; display: inline-block; margin-bottom: 4px; font-weight: 500;">
+      <span style="font-size: 9px; background: rgba(234, 179, 8, 0.18); color: #eab308; padding: 1px 4px; border-radius: 3px; margin-right: 5px; font-weight: 700; text-transform: uppercase;">MID</span>+ ${getLocalizedStatName(s)}
+    </span>
+  `).join("") : "";
+
+  const worstPos = meta.pos_tier?.trash || meta.pos?.worst || meta.rawPos?.worst || [];
   const worstPosHtml = worstPos.length > 0 ? worstPos.map(s => `
-    <span style="background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.18); color: #ef4444; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 4px; display: inline-block; margin-bottom: 4px; font-weight: 500;">
+    <span style="background: rgba(148, 163, 184, 0.08); border: 1px solid rgba(148, 163, 184, 0.18); color: #94a3b8; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 4px; display: inline-block; margin-bottom: 4px; font-weight: 500;">
       + ${getLocalizedStatName(s)}
     </span>
   `).join("") : "";
 
   const bestNegHtml = meta.neg.map(s => `
     <span style="background: rgba(0, 229, 255, 0.08); border: 1px solid rgba(0, 229, 255, 0.18); color: #00e5ff; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 4px; display: inline-block; margin-bottom: 4px; font-weight: 500;">
-      - ${getLocalizedStatName(s)}
+      <span style="font-size: 9px; background: rgba(0, 229, 255, 0.18); color: #00e5ff; padding: 1px 4px; border-radius: 3px; margin-right: 5px; font-weight: 700; text-transform: uppercase;">BEST</span>- ${getLocalizedStatName(s)}
     </span>
   `).join("");
 
-  const worstNeg = meta.rawNeg?.worst || [];
+  const midNeg = meta.midNeg || [];
+  const midNegHtml = midNeg.length > 0 ? midNeg.map(s => `
+    <span style="background: rgba(234, 179, 8, 0.08); border: 1px solid rgba(234, 179, 8, 0.18); color: #eab308; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 4px; display: inline-block; margin-bottom: 4px; font-weight: 500;">
+      <span style="font-size: 9px; background: rgba(234, 179, 8, 0.18); color: #eab308; padding: 1px 4px; border-radius: 3px; margin-right: 5px; font-weight: 700; text-transform: uppercase;">MID</span>- ${getLocalizedStatName(s)}
+    </span>
+  `).join("") : "";
+
+  const worstNeg = meta.neg_tier?.curse || meta.neg?.worst || meta.rawNeg?.worst || [];
   const worstNegHtml = worstNeg.length > 0 ? worstNeg.map(s => `
     <span style="background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.18); color: #ef4444; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 4px; display: inline-block; margin-bottom: 4px; font-weight: 500;">
       - ${getLocalizedStatName(s)}
@@ -2635,13 +3186,14 @@ function renderMetaStats(weaponName, weaponType, targetId = "meta-stats-containe
   const hasOfficial = (meta.official_median !== undefined && meta.official_median !== null && meta.official_median > 0) ||
     (meta.official_avg_price !== undefined && meta.official_avg_price !== null && meta.official_avg_price > 0);
 
-  if (hasOfficial || meta.wfm_avg_price || meta.popularity_pct) {
+  const wfmAvgVal = meta.wfm_avg_price || meta.wfm_avg || 0;
+  if (hasOfficial || wfmAvgVal || meta.popularity_pct) {
     const basePrice = meta.official_median !== undefined && meta.official_median !== null && meta.official_median > 0
       ? meta.official_median
       : (meta.official_avg_price || 0);
 
     const officialPrice = hasOfficial ? `${basePrice}p` : "N/A";
-    const wfmPrice = meta.wfm_avg_price ? `${meta.wfm_avg_price}p` : "N/A";
+    const wfmPrice = wfmAvgVal ? `${wfmAvgVal}p` : "N/A";
     const pop = (meta.popularity_pct !== undefined && meta.popularity_pct !== null)
       ? `${Math.round(meta.popularity_pct)}/100`
       : "0/100";
@@ -2702,7 +3254,8 @@ function renderMetaStats(weaponName, weaponType, targetId = "meta-stats-containe
     `;
 
     let tierEstimatesHtml = "";
-    if (basePrice > 0 || meta.wfm_avg_price > 0) {
+    const wfmAvgValForTiers = meta.wfm_avg_price || meta.wfm_avg || 0;
+    if (basePrice > 0 || wfmAvgValForTiers > 0) {
       const tiers = calculateHybridTiers(meta);
 
       tierEstimatesHtml = `
@@ -2746,10 +3299,18 @@ function renderMetaStats(weaponName, weaponType, targetId = "meta-stats-containe
             </div>
             <div>${bestPosHtml}</div>
             
+            ${midPosHtml ? `
+              <div style="font-size: 9px; color: #eab308; font-weight: 700; text-transform: uppercase; margin-top: 6px; margin-bottom: 4px; display: flex; align-items: center; gap: 4px;">
+                <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #eab308;"></span>
+                ${isEs ? "POSITIVOS MEDIOS" : "MID POSITIVES"}
+              </div>
+              <div>${midPosHtml}</div>
+            ` : ""}
+            
             ${worstPosHtml ? `
-              <div style="font-size: 9px; color: #ef4444; font-weight: 700; text-transform: uppercase; margin-top: 6px; margin-bottom: 4px; display: flex; align-items: center; gap: 4px;">
-                <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #ef4444;"></span>
-                ${isEs ? "PEORES POSITIVOS (EVITAR)" : "WORST POSITIVES (AVOID)"}
+              <div style="font-size: 9px; color: #94a3b8; font-weight: 700; text-transform: uppercase; margin-top: 6px; margin-bottom: 4px; display: flex; align-items: center; gap: 4px;">
+                <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #94a3b8;"></span>
+                ${isEs ? "POSITIVOS MEH (REGULARES)" : "MEH POSITIVES"}
               </div>
               <div>${worstPosHtml}</div>
             ` : ""}
@@ -2762,6 +3323,14 @@ function renderMetaStats(weaponName, weaponType, targetId = "meta-stats-containe
               ${isEs ? "MEJORES NEGATIVOS (INOFENSIVOS)" : "BEST NEGATIVES (HARMLESS)"}
             </div>
             <div>${bestNegHtml}</div>
+
+            ${midNegHtml ? `
+              <div style="font-size: 9px; color: #eab308; font-weight: 700; text-transform: uppercase; margin-top: 6px; margin-bottom: 4px; display: flex; align-items: center; gap: 4px;">
+                <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #eab308;"></span>
+                ${isEs ? "NEGATIVOS MEDIOS" : "MID NEGATIVES"}
+              </div>
+              <div>${midNegHtml}</div>
+            ` : ""}
             
             ${worstNegHtml ? `
               <div style="font-size: 9px; color: #ef4444; font-weight: 700; text-transform: uppercase; margin-top: 6px; margin-bottom: 4px; display: flex; align-items: center; gap: 4px;">
@@ -2778,6 +3347,7 @@ function renderMetaStats(weaponName, weaponType, targetId = "meta-stats-containe
     `;
   }
   container.style.display = "block";
+  container.dataset.lastRenderedKey = cacheKey;
 }
 
 export function refreshCurrentRivenMetaStats() {
@@ -2892,7 +3462,7 @@ export function calculateWebPotential(val) {
     ? val.de_unrolled.median
     : (val.official_median || val.official_avg_price || 30);
 
-  let wfmAvg = val.wfm_avg_price || 0;
+  let wfmAvg = val.wfm_avg_price || val.wfm_avg || 0;
 
   // Outlier / Abnormally high price handling for unpopular/off-meta weapons
   if (isUnpopular) {
@@ -2921,6 +3491,7 @@ export function calculateRivenPotential(val) {
 
 const calculateAdvancedPredictivePrice = (weapon, itemAttributes, tiers, desirabilityMultiplier = 1.0, weaponData = null) => {
   const bestPositives = Array.isArray(weapon.pos) ? weapon.pos : (weapon.pos?.best || []);
+  const midPositives = weapon.midPos || [];
 
   let positiveCount = 0;
   let totalMetaScore = 0;
@@ -2995,20 +3566,37 @@ const calculateAdvancedPredictivePrice = (weapon, itemAttributes, tiers, desirab
     if (attr.isPositive) {
       positiveCount++;
       const nameLower = attr.name.toLowerCase();
+      const isDynamicMeta = bestPositives.some(p => p.toLowerCase() === nameLower);
+      const isMidMeta = midPositives.some(p => p.toLowerCase() === nameLower);
+      const isUniversalGod = universalGodStats.some(u => nameLower.includes(u));
+      const isUniversalTier2 = universalTier2Stats.some(t => nameLower.includes(t));
 
       // Cálculo del peso del atributo según su importancia real en el mercado
       let attributeWeight = 0;
 
-      const isDynamicMeta = bestPositives.some(p => p.toLowerCase() === nameLower);
-      const isUniversalGod = universalGodStats.some(u => nameLower.includes(u));
-      const isUniversalTier2 = universalTier2Stats.some(t => nameLower.includes(t));
+      const wDynamicWeights = (weapon && weapon.dynamic_weights) || (weaponData && weaponData.dynamic_weights);
+      let foundWeightVal = null;
+      if (wDynamicWeights && typeof wDynamicWeights === "object") {
+        const foundKey = Object.keys(wDynamicWeights).find(
+          k => k.toLowerCase() === nameLower || nameLower.includes(k.toLowerCase()) || k.toLowerCase().includes(nameLower)
+        );
+        if (foundKey !== undefined && wDynamicWeights[foundKey] !== undefined && wDynamicWeights[foundKey] !== null) {
+          foundWeightVal = parseFloat(wDynamicWeights[foundKey]);
+        }
+      }
 
-      if (isDynamicMeta) {
-        attributeWeight = 1.0;
-      } else if (isUniversalGod) {
-        attributeWeight = 0.90; // Protege estadísticas críticas fuera del top semanal
-      } else if (isUniversalTier2) {
-        attributeWeight = 0.65; // Otorga valor ponderado a velocidad de disparo y elementos
+      if (foundWeightVal !== null) {
+        attributeWeight = foundWeightVal;
+      } else {
+        if (isDynamicMeta) {
+          attributeWeight = 1.0;
+        } else if (isMidMeta) {
+          attributeWeight = 0.85; // Count as good positive (85% weight)
+        } else if (isUniversalGod) {
+          attributeWeight = 0.90; // Protege estadísticas críticas fuera del top semanal
+        } else if (isUniversalTier2) {
+          attributeWeight = 0.65; // Otorga valor ponderado a velocidad de disparo y elementos
+        }
       }
 
       // Calidad del número del roll dentro de su rango ideal
@@ -3192,10 +3780,64 @@ function calculateHybridTiers(weapon) {
   const popularity = weapon.popularity_pct || 0;
   const realVolume = (weapon.de_unrolled?.pop || 0) + (weapon.de_rerolled?.pop || 0);
 
-  let wfmAvg = weapon.wfm_avg_price || 0;
+  let wfmAvg = weapon.wfm_avg_price || weapon.wfm_avg || 0;
   let offMedian = weapon.official_median || 0; // Base unrolled median
   let offStdDev = weapon.official_stddev || 0;
   let reMedian = (weapon.de_rerolled && weapon.de_rerolled.median !== undefined) ? weapon.de_rerolled.median : 0;
+
+  // Integrate historical price estimations from API history logs
+  let histWfmAvg = 0;
+  let histWfmMax = 0;
+  let histDeMedian = 0;
+  let hasHistory = false;
+
+  const currentName = weapon.name || (globalThis.state && globalThis.state.currentWeaponHistory ? globalThis.state.currentWeaponHistory.weaponName : null);
+  if (currentName && globalThis.state && globalThis.state.currentWeaponHistory && globalThis.state.currentWeaponHistory.weaponName === currentName && Array.isArray(globalThis.state.currentWeaponHistory.data)) {
+    const histPoints = globalThis.state.currentWeaponHistory.data.filter(p => p && (p.wfm_avg_price > 0 || p.official_median > 0));
+    if (histPoints.length > 0) {
+      hasHistory = true;
+      let sumWfm = 0;
+      let sumDe = 0;
+      let countWfm = 0;
+      let countDe = 0;
+      histPoints.forEach(p => {
+        if (p.wfm_avg_price > 0) {
+          sumWfm += p.wfm_avg_price;
+          countWfm++;
+          if (p.wfm_avg_price > histWfmMax) histWfmMax = p.wfm_avg_price;
+        }
+        if (p.official_median > 0) {
+          sumDe += p.official_median;
+          countDe++;
+        }
+      });
+      if (countWfm > 0) histWfmAvg = sumWfm / countWfm;
+      if (countDe > 0) histDeMedian = sumDe / countDe;
+    }
+  }
+
+  // Stabilize averages by blending current data with historical estimations
+  if (hasHistory) {
+    if (histWfmAvg > 0) {
+      wfmAvg = wfmAvg > 0 ? (wfmAvg * 0.6 + histWfmAvg * 0.4) : histWfmAvg;
+    }
+    if (histDeMedian > 0) {
+      offMedian = offMedian > 0 ? (offMedian * 0.6 + histDeMedian * 0.4) : histDeMedian;
+    }
+  }
+
+  // Check if this is a high-demand premium variant (e.g. Prime, Tenet, Kuva)
+  let isPremiumVariant = false;
+  if (currentName) {
+    const nameLower = currentName.toLowerCase();
+    if (nameLower.includes("tenet") || nameLower.includes("kuva") || nameLower.includes("prime") || nameLower.includes("vandal") || nameLower.includes("wraith") || nameLower.includes("prisma")) {
+      isPremiumVariant = true;
+    }
+  }
+
+  const maxWfmPrice = Math.max(wfmAvg, histWfmMax);
+  const META_WEAPONS = new Set(["torid", "latron", "angstrum", "boar", "toxocyst", "dual toxocyst", "furis", "burston", "miter", "magistar", "ceramic dagger", "hate", "glaive", "phenmor", "felarx", "laetum", "epitaph", "nataruk", "stropha", "pennant", "sporelacer"]);
+  const isMetaWeapon = isPremiumVariant || (currentName && META_WEAPONS.has(currentName.toLowerCase()));
 
   // Dynamic Speculative Hyperinflation Safeguard linked directly to transaction volume (liquidity)
   let clampMultiplier = 8.0;
@@ -3205,6 +3847,10 @@ function calculateHybridTiers(weapon) {
     } else if (popularity > 75.0 || realVolume > 100) {
       clampMultiplier = 12.0; // High liquid movement = relaxed clamp
     }
+  }
+
+  if (isMetaWeapon) {
+    clampMultiplier = Math.max(clampMultiplier, 22.0); // Allow much higher WFM pricing scale for top meta/Incarnon weapons
   }
 
   const baseRefMedian = offMedian > 0 ? offMedian : (reMedian > 0 ? reMedian : 50);
@@ -3217,18 +3863,9 @@ function calculateHybridTiers(weapon) {
   const maxRerolled = (weapon.de_rerolled && weapon.de_rerolled.max_price) || 0;
   const absoluteMax = Math.max(maxUnrolled, maxRerolled, weapon.max_price || 0);
 
-  // Check if this is a high-demand premium variant (e.g. Prime, Tenet, Kuva)
-  let isPremiumVariant = false;
-  if (weapon.name) {
-    const nameLower = weapon.name.toLowerCase();
-    if (nameLower.includes("tenet") || nameLower.includes("kuva") || nameLower.includes("prime") || nameLower.includes("vandal") || nameLower.includes("wraith") || nameLower.includes("prisma")) {
-      isPremiumVariant = true;
-    }
-  }
-
   // Consistent high-value evaluation (must have high average or high max with decent average)
-  const isHighValue = wfmAvg > 800 || (absoluteMax > 2500 && wfmAvg > 500);
-  const isUnpopular = (popularity < 25.0 || realVolume < 25) && !isHighValue && !isPremiumVariant;
+  const isHighValue = wfmAvg > 800 || (absoluteMax > 2500 && wfmAvg > 500) || histWfmAvg > 800;
+  const isUnpopular = (popularity < 25.0 || realVolume < 25) && !isHighValue && !isMetaWeapon;
 
   // Dampen outliers if unpopular/low pop weapon AND NOT premium/high-value
   if (isUnpopular) {
@@ -3417,6 +4054,10 @@ export function updateIndexTranslations() {
 
   // Dynamic help tooltip update
   updateSortHelpTooltip();
+
+  if (typeof renderHistoryWithRange === "function") {
+    renderHistoryWithRange();
+  }
 }
 
 let indexRenderLimit = 30;
@@ -3553,6 +4194,7 @@ export async function initRivenMarketIndex() {
     } else {
       // 2. Fetch directly from the updated worker endpoint
       try {
+<<<<<<< Updated upstream
         const base = WORKER_URL.endsWith("/") ? WORKER_URL.slice(0, -1) : WORKER_URL;
         const res = await fetch(`${base}/api/rivens`);
         if (res.ok) {
@@ -3579,7 +4221,31 @@ export async function initRivenMarketIndex() {
             }
             state.rivenIndexData = merged;
             console.log("Loaded and merged Riven Market Index directly from Worker!");
+=======
+        let data = await fetchCurrentRivens();
+        if (data && data.data && typeof data.data === "object" && !Array.isArray(data.data)) {
+          data = data.data;
+        }
+        if (data && !data.error && Object.keys(data).length > 0) {
+          const merged = { ...(globalThis.dynamicMetaStats || {}) };
+          for (const [key, val] of Object.entries(data)) {
+            const upper = key.toUpperCase();
+            if (upper === "NOTE" || upper === "STATUS" || upper === "VERSION" || upper === "TTL" || upper === "DATA" || upper === "ERROR") continue;
+            if (merged[key]) {
+              const valPop = val.popularity_pct;
+              const hasValidPop = valPop !== undefined && valPop !== null && valPop > 0;
+              merged[key] = {
+                ...merged[key],
+                ...val,
+                popularity_pct: hasValidPop ? valPop : (merged[key].popularity_pct || 0)
+              };
+            } else {
+              merged[key] = val;
+            }
+>>>>>>> Stashed changes
           }
+          state.rivenIndexData = merged;
+          console.log("Loaded and merged Riven Market Index directly from Soft Mountain 28 worker!");
         }
       } catch (apiErr) {
         console.warn("Direct API fetch failed, falling back to local asset", apiErr);
@@ -3591,9 +4257,16 @@ export async function initRivenMarketIndex() {
           state.rivenIndexData = globalThis.dynamicMetaStats;
           console.log("Loaded Riven Market Index from global dynamicMetaStats fallback!");
         } else {
+<<<<<<< Updated upstream
           const res = await fetch("metastats.json");
           if (!res.ok) throw new Error("Failed to fetch metastats.json");
           const data = await res.json();
+=======
+          let data = await fetchCurrentRivens();
+          if (data && data.data && typeof data.data === "object" && !Array.isArray(data.data)) {
+            data = data.data;
+          }
+>>>>>>> Stashed changes
           state.rivenIndexData = data;
           console.log("Loaded Riven Market Index from local metastats.json fallback!");
         }
@@ -3618,8 +4291,29 @@ export function filterRivenIndex(resetPagination = true) {
   if (resetPagination) {
     indexRenderLimit = 30;
   }
+<<<<<<< Updated upstream
   const data = state.rivenIndexData;
   if (!data) return;
+=======
+
+  const rawData = state.rivenIndexData || {};
+  const data = {};
+  if (state.allRivenNames && state.allRivenNames.length > 0) {
+    state.allRivenNames.forEach(wName => {
+      const matchKey = Object.keys(rawData).find(k => k.toLowerCase() === wName.toLowerCase());
+      data[wName] = matchKey ? rawData[matchKey] : {
+        official_median: 0,
+        popularity_pct: 0,
+        wfm_market_sample: 0,
+        wfm_avg_price: 0,
+        wfm_avg: 0
+      };
+    });
+  } else {
+    if (Object.keys(rawData).length === 0) return;
+    Object.assign(data, rawData);
+  }
+>>>>>>> Stashed changes
 
   const query = document.getElementById("indexSearchInput")?.value?.trim()?.toLowerCase() || "";
   const sortBy = document.getElementById("indexSortSelect")?.value || "popularity";
@@ -3694,8 +4388,8 @@ export function filterRivenIndex(resetPagination = true) {
       scoreA = getUnrolledMedian(dataA);
       scoreB = getUnrolledMedian(dataB);
     } else if (sortBy === "price-wfm") {
-      scoreA = dataA.wfm_avg_price || 0;
-      scoreB = dataB.wfm_avg_price || 0;
+      scoreA = dataA.wfm_avg_price || dataA.wfm_avg || 0;
+      scoreB = dataB.wfm_avg_price || dataB.wfm_avg || 0;
     } else if (sortBy === "potential" || sortBy === "potential-real") {
       scoreA = calculateRealPotential(dataA);
       scoreB = calculateRealPotential(dataB);
@@ -3705,8 +4399,8 @@ export function filterRivenIndex(resetPagination = true) {
     } else if (sortBy === "arbitrage") {
       const medA = getUnrolledMedian(dataA);
       const medB = getUnrolledMedian(dataB);
-      scoreA = medA > 0 ? Math.max((dataA.wfm_avg_price || 0) - medA, 0) : 0;
-      scoreB = medB > 0 ? Math.max((dataB.wfm_avg_price || 0) - medB, 0) : 0;
+      scoreA = medA > 0 ? Math.max((dataA.wfm_avg_price || dataA.wfm_avg || 0) - medA, 0) : 0;
+      scoreB = medB > 0 ? Math.max((dataB.wfm_avg_price || dataB.wfm_avg || 0) - medB, 0) : 0;
     } else if (sortBy === "kuva") {
       // Calculate real official trade volume (completed unrolled + rerolled DE trades)
       const realVolumeA = (dataA.de_unrolled?.pop || 0) + (dataA.de_rerolled?.pop || 0);
@@ -3861,7 +4555,20 @@ export function renderRivenIndexList(items) {
               </div>`;
     }).join("");
 
-    const popVal = (val.popularity_pct !== undefined && val.popularity_pct !== null) ? `${Math.round(val.popularity_pct)}/100` : "0/100";
+    let resolvedPop = val.popularity_pct;
+    if (!resolvedPop) {
+      const activeMeta = getMetaStats(activeRenderingName, state.weaponMap[activeRenderingName]?.t);
+      if (activeMeta && activeMeta.popularity_pct) {
+        resolvedPop = activeMeta.popularity_pct;
+      }
+    }
+    if (!resolvedPop) {
+      const baseMeta = getMetaStats(name, state.weaponMap[name]?.t);
+      if (baseMeta && baseMeta.popularity_pct) {
+        resolvedPop = baseMeta.popularity_pct;
+      }
+    }
+    const popVal = (resolvedPop !== undefined && resolvedPop !== null && resolvedPop > 0) ? `${Math.round(resolvedPop)}/100` : "0/100";
 
     const hasWfm = val.wfm_avg_price !== undefined && val.wfm_avg_price !== null && val.wfm_avg_price > 0;
     const wfmMarketSample = val.wfm_market_sample || 0;
@@ -4092,21 +4799,43 @@ export function renderRivenIndexList(items) {
     let detailsHtml = "";
     if (isExpanded) {
       let bestPos = [];
+      let midPos = [];
       let worstPos = [];
       let bestNeg = [];
+      let midNeg = [];
       let worstNeg = [];
 
       if (Array.isArray(val.pos)) {
         bestPos = val.pos;
+<<<<<<< Updated upstream
       } else if (val.pos) {
         bestPos = val.pos.best || [];
+=======
+      } else if (val.pos_tier) {
+        bestPos = val.pos_tier.top || [];
+        midPos = val.pos_tier.mid || [];
+        worstPos = val.pos_tier.trash || [];
+      } else if (val.pos) {
+        bestPos = val.pos.best || [];
+        midPos = val.pos.mid || [];
+>>>>>>> Stashed changes
         worstPos = val.pos.worst || [];
       }
 
       if (Array.isArray(val.neg)) {
         bestNeg = val.neg;
+<<<<<<< Updated upstream
       } else if (val.neg) {
         bestNeg = val.neg.best || [];
+=======
+      } else if (val.neg_tier) {
+        bestNeg = val.neg_tier.buff || [];
+        midNeg = val.neg_tier.mid || [];
+        worstNeg = val.neg_tier.curse || [];
+      } else if (val.neg) {
+        bestNeg = val.neg.best || [];
+        midNeg = val.neg.mid || [];
+>>>>>>> Stashed changes
         worstNeg = val.neg.worst || [];
       }
 
@@ -4116,40 +4845,128 @@ export function renderRivenIndexList(items) {
         if (fallbackMeta) {
           if (bestPos.length === 0 && fallbackMeta.pos) {
             bestPos = Array.isArray(fallbackMeta.pos) ? fallbackMeta.pos : (fallbackMeta.pos.best || []);
-            worstPos = Array.isArray(fallbackMeta.pos) ? [] : (fallbackMeta.pos.worst || []);
+            midPos = Array.isArray(fallbackMeta.pos) ? [] : (fallbackMeta.midPos || fallbackMeta.pos.mid || []);
+            worstPos = Array.isArray(fallbackMeta.pos) ? [] : (fallbackMeta.pos_tier?.trash || fallbackMeta.pos.worst || []);
           }
           if (bestNeg.length === 0 && fallbackMeta.neg) {
             bestNeg = Array.isArray(fallbackMeta.neg) ? fallbackMeta.neg : (fallbackMeta.neg.best || []);
-            worstNeg = Array.isArray(fallbackMeta.neg) ? [] : (fallbackMeta.neg.worst || []);
+            midNeg = Array.isArray(fallbackMeta.neg) ? [] : (fallbackMeta.midNeg || fallbackMeta.neg.mid || []);
+            worstNeg = Array.isArray(fallbackMeta.neg) ? [] : (fallbackMeta.neg_tier?.curse || fallbackMeta.neg.worst || []);
           }
         }
       }
 
-      const renderPills = (list, pillClass) => {
-        if (!list || list.length === 0) return `<span style="font-size: 0.75rem; color: #555;">N/A</span>`;
-        return list.map(item => `<span class="index-detail-pill ${pillClass}">${escapeHTML(getLocalizedStatName(item))}</span>`).join("");
-      };
-
       detailsHtml = `
-        <div class="index-item-details">
-          <div class="index-detail-section">
-            <span class="index-detail-title">${isEs ? "Mejores Positivos" : "Best Positives"}</span>
-            <div class="index-detail-tags">${renderPills(bestPos, "pos-best")}</div>
+        <div class="index-item-details" style="background: rgba(255,255,255,0.015); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 12px; box-shadow: inset 0 0 15px rgba(0,0,0,0.2); display: block; border-top: none; margin-top: 8px;">
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px;">
+            
+            <!-- Positives Section -->
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+              <div style="font-size: 10px; color: #94a3b8; margin-bottom: 6px; text-transform: uppercase; font-weight: 800; letter-spacing: 0.05em; border-bottom: 1px dashed rgba(255,255,255,0.08); padding-bottom: 6px;">
+                ${isEs ? "ATRIBUTOS POSITIVOS" : "POSITIVE ATTRIBUTES"}
+              </div>
+              
+              <!-- Best Positives -->
+              <div style="margin-bottom: 6px;">
+                <div style="font-size: 9px; color: #00ff78; font-weight: 700; text-transform: uppercase; margin-bottom: 4px; display: flex; align-items: center; gap: 4px;">
+                  <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #00ff78;"></span>
+                  ${isEs ? "MEJORES POSITIVOS (BUSCADOS)" : "BEST POSITIVES (WANTED)"}
+                </div>
+                <div>
+                  ${bestPos.length > 0 ? bestPos.map(s => `
+                    <span style="background: rgba(0, 255, 120, 0.08); border: 1px solid rgba(0, 255, 120, 0.18); color: #00ff78; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 4px; display: inline-block; margin-bottom: 4px; font-weight: 500;">
+                      <span style="font-size: 9px; background: rgba(0, 255, 120, 0.18); color: #00ff78; padding: 1px 4px; border-radius: 3px; margin-right: 5px; font-weight: 700; text-transform: uppercase;">BEST</span>+ ${escapeHTML(getLocalizedStatName(s))}
+                    </span>
+                  `).join("") : `<span style="font-size: 0.75rem; color: #555;">N/A</span>`}
+                </div>
+              </div>
+
+              <!-- Mid Positives -->
+              ${midPos.length > 0 ? `
+              <div style="margin-bottom: 6px;">
+                <div style="font-size: 9px; color: #eab308; font-weight: 700; text-transform: uppercase; margin-bottom: 4px; display: flex; align-items: center; gap: 4px;">
+                  <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #eab308;"></span>
+                  ${isEs ? "POSITIVOS MEDIOS" : "MID POSITIVES"}
+                </div>
+                <div>
+                  ${midPos.map(s => `
+                    <span style="background: rgba(234, 179, 8, 0.08); border: 1px solid rgba(234, 179, 8, 0.18); color: #eab308; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 4px; display: inline-block; margin-bottom: 4px; font-weight: 500;">
+                      <span style="font-size: 9px; background: rgba(234, 179, 8, 0.18); color: #eab308; padding: 1px 4px; border-radius: 3px; margin-right: 5px; font-weight: 700; text-transform: uppercase;">MID</span>+ ${escapeHTML(getLocalizedStatName(s))}
+                    </span>
+                  `).join("")}
+                </div>
+              </div>` : ""}
+
+              <!-- Meh Positives -->
+              ${worstPos.length > 0 ? `
+              <div style="margin-bottom: 6px;">
+                <div style="font-size: 9px; color: #94a3b8; font-weight: 700; text-transform: uppercase; margin-bottom: 4px; display: flex; align-items: center; gap: 4px;">
+                  <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #94a3b8;"></span>
+                  ${isEs ? "POSITIVOS MEH" : "MEH POSITIVES"}
+                </div>
+                <div>
+                  ${worstPos.map(s => `
+                    <span style="background: rgba(148, 163, 184, 0.08); border: 1px solid rgba(148, 163, 184, 0.18); color: #94a3b8; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 4px; display: inline-block; margin-bottom: 4px; font-weight: 500;">
+                      + ${escapeHTML(getLocalizedStatName(s))}
+                    </span>
+                  `).join("")}
+                </div>
+              </div>` : ""}
+            </div>
+
+            <!-- Negatives Section -->
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+              <div style="font-size: 10px; color: #94a3b8; margin-bottom: 6px; text-transform: uppercase; font-weight: 800; letter-spacing: 0.05em; border-bottom: 1px dashed rgba(255,255,255,0.08); padding-bottom: 6px;">
+                ${isEs ? "ATRIBUTOS NEGATIVOS (MALDICIÓN)" : "NEGATIVE ATTRIBUTES (CURSE)"}
+              </div>
+
+              <!-- Best Negatives -->
+              <div style="margin-bottom: 6px;">
+                <div style="font-size: 9px; color: #00e5ff; font-weight: 700; text-transform: uppercase; margin-bottom: 4px; display: flex; align-items: center; gap: 4px;">
+                  <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #00e5ff;"></span>
+                  ${isEs ? "MEJORES NEGATIVOS (INOFENSIVOS)" : "BEST NEGATIVES (HARMLESS)"}
+                </div>
+                <div>
+                  ${bestNeg.length > 0 ? bestNeg.map(s => `
+                    <span style="background: rgba(0, 229, 255, 0.08); border: 1px solid rgba(0, 229, 255, 0.18); color: #00e5ff; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 4px; display: inline-block; margin-bottom: 4px; font-weight: 500;">
+                      <span style="font-size: 9px; background: rgba(0, 229, 255, 0.18); color: #00e5ff; padding: 1px 4px; border-radius: 3px; margin-right: 5px; font-weight: 700; text-transform: uppercase;">BEST</span>- ${escapeHTML(getLocalizedStatName(s))}
+                    </span>
+                  `).join("") : `<span style="font-size: 0.75rem; color: #555;">N/A</span>`}
+                </div>
+              </div>
+
+              <!-- Mid Negatives -->
+              ${midNeg.length > 0 ? `
+              <div style="margin-bottom: 6px;">
+                <div style="font-size: 9px; color: #eab308; font-weight: 700; text-transform: uppercase; margin-bottom: 4px; display: flex; align-items: center; gap: 4px;">
+                  <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #eab308;"></span>
+                  ${isEs ? "NEGATIVOS MEDIOS" : "MID NEGATIVES"}
+                </div>
+                <div>
+                  ${midNeg.map(s => `
+                    <span style="background: rgba(234, 179, 8, 0.08); border: 1px solid rgba(234, 179, 8, 0.18); color: #eab308; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 4px; display: inline-block; margin-bottom: 4px; font-weight: 500;">
+                      <span style="font-size: 9px; background: rgba(234, 179, 8, 0.18); color: #eab308; padding: 1px 4px; border-radius: 3px; margin-right: 5px; font-weight: 700; text-transform: uppercase;">MID</span>- ${escapeHTML(getLocalizedStatName(s))}
+                    </span>
+                  `).join("")}
+                </div>
+              </div>` : ""}
+
+              <!-- Worst Negatives -->
+              ${worstNeg.length > 0 ? `
+              <div style="margin-bottom: 6px;">
+                <div style="font-size: 9px; color: #ef4444; font-weight: 700; text-transform: uppercase; margin-bottom: 4px; display: flex; align-items: center; gap: 4px;">
+                  <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #ef4444;"></span>
+                  ${isEs ? "PEORES NEGATIVOS (EVITAR - PENALIZAN PRECIO)" : "WORST NEGATIVES (AVOID - RUINS VALUE!)"}
+                </div>
+                <div>
+                  ${worstNeg.map(s => `
+                    <span style="background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.18); color: #ef4444; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 4px; display: inline-block; margin-bottom: 4px; font-weight: 500;">
+                      - ${escapeHTML(getLocalizedStatName(s))}
+                    </span>
+                  `).join("")}
+                </div>
+              </div>` : ""}
           </div>
-          ${worstPos.length > 0 ? `
-          <div class="index-detail-section">
-            <span class="index-detail-title">${isEs ? "Peores Positivos" : "Worst Positives"}</span>
-            <div class="index-detail-tags">${renderPills(worstPos, "pos-worst")}</div>
-          </div>` : ""}
-          <div class="index-detail-section">
-            <span class="index-detail-title">${isEs ? "Mejores Negativos" : "Best Negatives (Harmless)"}</span>
-            <div class="index-detail-tags">${renderPills(bestNeg, "neg-best")}</div>
-          </div>
-          ${worstNeg.length > 0 ? `
-          <div class="index-detail-section">
-            <span class="index-detail-title">${isEs ? "Peores Negativos" : "Worst Negatives (Critical)"}</span>
-            <div class="index-detail-tags">${renderPills(worstNeg, "neg-worst")}</div>
-          </div>` : ""}
         </div>
       `;
     }

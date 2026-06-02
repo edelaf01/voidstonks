@@ -512,7 +512,13 @@
     border-radius: 3px;
 }
 
-.t-check:hover {
-    background: var(--wf-green);
-    border-color: var(--wf-green);
+.tracker-img-wrapper {
+  position: relative;
+  overflow: visible !important;
+  z-index: 1;
+}
+
+.tracker-img-wrapper img.item-icon-small:hover {
+  transform: scale(2) !important;
+  z-index: 1000 !important;
 }

@@ -8,7 +8,7 @@ import {
   getRequiredCount,
   generateDotsHtml,
   calculateTotalFullSets,
-} from "./ui_utils.js";
+} from "../utils/ui_utils.js";
 
 import { manualRelicUpdate } from "./ui_relics.js";
 

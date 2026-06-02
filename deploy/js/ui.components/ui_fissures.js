@@ -228,4 +228,46 @@ export async function initFissurePanel() {
     const tier = state.selectedRelic.split(" ")[0];
     highlightFissureTier(tier);
   }
+<<<<<<< Updated upstream
+=======
+
+  // Active client-side countdown timer to update dynamically and refresh on expiration
+  if (!globalThis._fissureCountdownInterval) {
+    globalThis._fissureCountdownInterval = setInterval(() => {
+      let expiredFound = false;
+      document.querySelectorAll(".m-eta[data-expiry]").forEach((el) => {
+        const expiryStr = el.getAttribute("data-expiry");
+        if (!expiryStr) return;
+        const expiry = new Date(expiryStr);
+        const now = new Date();
+        const diffMs = expiry - now;
+        if (diffMs <= 0) {
+          el.innerText = state.currentLang === "es" ? "Expirado" : "Expired";
+          expiredFound = true;
+        } else {
+          const totalSecs = Math.floor(diffMs / 1000);
+          const hrs = Math.floor(totalSecs / 3600);
+          const mins = Math.floor((totalSecs % 3600) / 60);
+          const secs = totalSecs % 60;
+          
+          if (hrs > 0) {
+            el.innerText = `${hrs}h ${mins}m ${secs}s`;
+          } else if (mins > 0) {
+            el.innerText = `${mins}m ${secs}s`;
+          } else {
+            el.innerText = `${secs}s`;
+          }
+        }
+      });
+      if (expiredFound) {
+        console.log("[FISSURES]: Fissure expired, refreshing list...");
+        if (globalThis._fissureCountdownInterval) {
+          clearInterval(globalThis._fissureCountdownInterval);
+          globalThis._fissureCountdownInterval = null;
+        }
+        initFissurePanel();
+      }
+    }, 1000);
+  }
+>>>>>>> Stashed changes
 }

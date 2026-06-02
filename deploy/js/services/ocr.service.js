@@ -347,6 +347,11 @@ export const OCRService = {
                 return true;
             }
 
+            // Robust custom mapping for "AFURIS" misread as "AFUNS" due to letter merges (ri -> n)
+            if (cleanDB === "AFURIS" && ["AFUNS", "AFUNIS", "AFUR1S", "AFUN1S"].includes(cleanOCR)) {
+                return true;
+            }
+
             if (cleanOCR.length < 3 || cleanDB.length < 3) return cleanOCR === cleanDB;
             const similarityThreshold = dbFirstWord.length <= 3 ? 0.8 : 0.70;
             return this.getSimilarity(cleanOCR, cleanDB) >= similarityThreshold;

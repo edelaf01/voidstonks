@@ -1,5 +1,5 @@
-import { WORKER_URL } from "../config.js";
-import { getSlug } from "../services/slugs.service.js";
+import { getPricesBatch } from "./api.repository.js";
+import { getSlug } from "../utils/slugs.utils.js";
 
 
 const DB_NAME = "VoidStonksDB_V1";
@@ -124,7 +124,7 @@ async function processQueue() {
         const chunk = slugsToFetch.slice(i, i + 25);
         if (chunk.length === 0) continue;
         try {
-            const res = await fetch(`${WORKER_URL}?type=prices_batch&q=${chunk.join(",")}`);
+            const res = await getPricesBatch(chunk);
             if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
             const data = await res.json();
 
