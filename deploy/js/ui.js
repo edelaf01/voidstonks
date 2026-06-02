@@ -1,4 +1,4 @@
-import { calculateRivenGrade } from "./riven_logic.js";
+import { calculateRivenGrade } from "./utils/riven_logic.js";
 import {
   TEXTS,
   TIER_URLS,

@@ -119,3 +119,48 @@ export async function fetchActiveResurgence() {
         console.warn("Error fetching resurgence list:", e);
     }
 }
+
+/**
+ * @param {string} code
+ * @param {string} val
+ * @returns {Promise<Response>}
+ */
+//TODO disabled at the moment
+export async function sendSyncMessage(code, val) {
+    return fetch(`${WORKER_URL}?type=sync_set&id=${code}&val=${encodeURIComponent(val)}`);
+}
+
+/**
+ * @param {string} code
+ * @returns {Promise<Response>}
+ */
+export async function getSyncMessage(code) {
+    return fetch(`${WORKER_URL}?type=sync_get&id=${code}`);
+}
+
+/**
+ * @param {string} username
+ * @param {string} platform
+ * @returns {Promise<Response>}
+ */
+export async function getProfileData(username, platform) {
+    return fetch(`${WORKER_URL}?type=profile&platform=${platform}&user=${encodeURIComponent(username)}`);
+}
+
+/**
+ * @param {Array<string>} chunk
+ * @returns {Promise<Response>}
+ */
+export async function getPricesBatch(chunk) {
+    return fetch(`${WORKER_URL}?type=prices_batch&q=${chunk.join(",")}`);
+}
+
+/** @returns {Promise<Response>} */
+export async function getActiveBounties() {
+    return fetch(`${WORKER_URL}?type=active_bounties`);
+}
+
+/** @returns {Promise<Response>} */
+export async function getActiveFissures() {
+    return fetch(`${WORKER_URL}?type=fissures&_cb=${Date.now()}`, { cache: "no-store" });
+}

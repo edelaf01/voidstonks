@@ -1,9 +1,9 @@
-import { WORKER_URL } from "../config.js";
+import { getActiveFissures } from "../repositories/api.repository.js";
 
 /** @returns {Promise<Array>} */
 export async function fetchBestFissures() {
     try {
-        const res = await fetch(`${WORKER_URL}?type=fissures`);
+        const res = await getActiveFissures();
         if (!res.ok) throw new Error("Error al conectar con el Worldstate");
 
         let fissures = await res.json();
