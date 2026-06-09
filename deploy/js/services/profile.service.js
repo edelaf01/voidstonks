@@ -1,11 +1,10 @@
-import { WORKER_URL, TEXTS } from "../config.js";
+import { TEXTS } from "../config.js";
 import { state } from "../state.js";
+import { getProfileData } from "../repositories/api.repository.js";
 
 export async function fetchUserProfile(username, platform) {
     try {
-        const res = await fetch(
-            `${WORKER_URL}?type=profile&platform=${platform}&user=${encodeURIComponent(username)}`,
-        );
+        const res = await getProfileData(username, platform);
         if (!res.ok) throw new Error("Worker Error");
         const data = await res.json();
         if (data.error) {

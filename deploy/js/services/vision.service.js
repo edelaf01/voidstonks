@@ -809,7 +809,7 @@ export const VisionService = {
         const badgeCvs = document.createElement("canvas");
         badgeCvs.width = digitW * SCALE;
         badgeCvs.height = digitH * SCALE;
-        const bCtx = badgeCvs.getContext("2d");
+        const bCtx = badgeCvs.getContext("2d", { willReadFrequently: true });
         bCtx.imageSmoothingEnabled = true;
         bCtx.imageSmoothingQuality = "high";
         bCtx.drawImage(tempCvs, cropStartX, cropStartY, digitW, digitH, 0, 0, badgeCvs.width, badgeCvs.height);

@@ -11,7 +11,7 @@ export {
     initializeOCRDatabase,
 } from "./repositories/api.repository.js";
 
-export { getSlug, getRivenSlug } from "./services/slugs.service.js";
+export { getSlug, getRivenSlug } from "./utils/slugs.utils.js";
 export { downloadRelics, updateDucatsDB } from "./services/relics.service.js";
 export { fetchActiveBounties } from "./services/bounties.service.js";
 export { fetchBestFissures } from "./services/fissures.service.js";
