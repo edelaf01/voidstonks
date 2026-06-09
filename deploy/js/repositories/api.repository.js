@@ -129,3 +129,57 @@ export async function fetchActiveResurgence() {
         console.warn("Error fetching resurgence list:", e);
     }
 }
+
+/**
+ * Sends a synchronization message to the Cloudflare Worker.
+ * @param {string} code - The 4-digit code.
+ * @param {string} val - The message content.
+ * @returns {Promise<Response>}
+ */
+export async function sendSyncMessage(code, val) {
+    return fetch(`${WORKER_URL}?type=sync_set&id=${code}&val=${encodeURIComponent(val)}`);
+}
+
+/**
+ * Retrieves a synchronization message from the Cloudflare Worker.
+ * @param {string} code - The 4-digit code.
+ * @returns {Promise<Response>}
+ */
+export async function getSyncMessage(code) {
+    return fetch(`${WORKER_URL}?type=sync_get&id=${code}`);
+}
+
+/**
+ * Fetches user profile data from the worker.
+ * @param {string} username
+ * @param {string} platform
+ * @returns {Promise<Response>}
+ */
+export async function getProfileData(username, platform) {
+    return fetch(`${WORKER_URL}?type=profile&platform=${platform}&user=${encodeURIComponent(username)}`);
+}
+
+/**
+ * Fetches batch prices for items chunk from the worker.
+ * @param {Array<string>} chunk
+ * @returns {Promise<Response>}
+ */
+export async function getPricesBatch(chunk) {
+    return fetch(`${WORKER_URL}?type=prices_batch&q=${chunk.join(",")}`);
+}
+
+/**
+ * Fetches active bounty data from the worker.
+ * @returns {Promise<Response>}
+ */
+export async function getActiveBounties() {
+    return fetch(`${WORKER_URL}?type=active_bounties`);
+}
+
+/**
+ * Fetches active fissure data from the worker with cache-busting.
+ * @returns {Promise<Response>}
+ */
+export async function getActiveFissures() {
+    return fetch(`${WORKER_URL}?type=fissures&_cb=${Date.now()}`, { cache: "no-store" });
+}

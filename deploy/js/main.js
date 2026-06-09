@@ -1,4 +1,4 @@
-import { initCanvas } from "./canvas.js";
+import { initCanvas } from "./utils/canvas.js";
 import {
   downloadRelics,
   fetchRivenWeapons,
@@ -9,13 +9,13 @@ import {
 } from "./api.js";
 import { state, loadAppState, saveAppState, hydrateDOM } from "./state.js";
 import { startLiveSession, stopLiveSession } from "./live_scanner.js";
-import { openPiP, initPiP } from "./pip_overlay.js";
+import { openPiP, initPiP } from "./utils/pip_overlay.js";
 import {
   openScanner,
   closeScanner,
   captureRelics,
   handleFileUpload,
-} from "./scanner.js";
+} from "./utils/scanner.js";
 import {
   switchTab,
   changeLanguage,

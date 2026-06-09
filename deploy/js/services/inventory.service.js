@@ -1,7 +1,7 @@
-import { WORKER_URL } from "../config.js";
 import { state } from "../state.js";
 import { dbHelper, MEMORY_CACHE } from "../repositories/storage.repository.js";
-import { getSlug } from "./slugs.service.js";
+import { getSlug } from "../utils/slugs.utils.js";
+import { getPricesBatch } from "../repositories/api.repository.js";
 
 /**
  * Pre-fetches prices for all items currently in the player's inventory.
@@ -45,7 +45,7 @@ export async function warmupPrices() {
     for (let i = 0; i < slugsToFetch.length; i += 50) {
         const chunk = slugsToFetch.slice(i, i + 50);
         try {
-            const res = await fetch(`${WORKER_URL}?type=prices_batch&q=${chunk.join(",")}`);
+            const res = await getPricesBatch(chunk);
             if (!res.ok) continue;
             const data = await res.json();
             Object.entries(data).forEach(([slug, price]) => {

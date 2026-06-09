@@ -2,13 +2,18 @@ import { state } from "../state.js";
 import { TEXTS } from "../config.js";
 import { fetchBestFissures } from "../api.js";
 
-let activeFissuresPromise = null;
+let fissureLoadPromise = null;
 
 export async function updateRecommendedMissions(tier) {
   const listArea = document.getElementById("fissures-list-area");
 
   if (!listArea || listArea.children.length === 0) {
-    await initFissurePanel();
+    if (!fissureLoadPromise) {
+      fissureLoadPromise = initFissurePanel().then(() => {
+        fissureLoadPromise = null;
+      });
+    }
+    await fissureLoadPromise;
   }
 
   highlightFissureTier(tier);
@@ -41,7 +46,7 @@ export function renderMissionRow(m) {
                 <span class="m-node">${m.node}</span>
             </div>
             <div class="m-timer-box">
-                <span class="m-eta" data-expiry="${m.expiry || ''}">${m.eta}</span>
+                <span class="m-eta">${m.eta}</span>
             </div>
         </div>
     `;
@@ -82,17 +87,6 @@ export function highlightFissureTier(tier) {
 }
 
 export async function initFissurePanel() {
-  if (activeFissuresPromise) return activeFissuresPromise;
-
-  activeFissuresPromise = _executeInitFissurePanel();
-  try {
-    await activeFissuresPromise;
-  } finally {
-    activeFissuresPromise = null;
-  }
-}
-
-async function _executeInitFissurePanel() {
   let missionDiv = document.getElementById("best-missions-container");
   const t = TEXTS[state.currentLang];
 
@@ -116,7 +110,7 @@ async function _executeInitFissurePanel() {
       </div>
       
       <div class="fissures-scroll-area" id="fissures-list-area">
-          <div style="padding:10px; text-align:center; color:#666;">Cargando...</div>
+         <div style="padding:10px; text-align:center; color:#666;">Cargando...</div>
       </div>
     `;
 
@@ -234,7 +228,6 @@ async function _executeInitFissurePanel() {
     const tier = state.selectedRelic.split(" ")[0];
     highlightFissureTier(tier);
   }
-
   // Active client-side countdown timer to update dynamically and refresh on expiration
   if (!globalThis._fissureCountdownInterval) {
     globalThis._fissureCountdownInterval = setInterval(() => {
@@ -253,7 +246,7 @@ async function _executeInitFissurePanel() {
           const hrs = Math.floor(totalSecs / 3600);
           const mins = Math.floor((totalSecs % 3600) / 60);
           const secs = totalSecs % 60;
-          
+
           if (hrs > 0) {
             el.innerText = `${hrs}h ${mins}m ${secs}s`;
           } else if (mins > 0) {
@@ -265,6 +258,10 @@ async function _executeInitFissurePanel() {
       });
       if (expiredFound) {
         console.log("[FISSURES]: Fissure expired, refreshing list...");
+        if (globalThis._fissureCountdownInterval) {
+          clearInterval(globalThis._fissureCountdownInterval);
+          globalThis._fissureCountdownInterval = null;
+        }
         initFissurePanel();
       }
     }, 1000);

@@ -1,6 +1,6 @@
 import { WORKER_URL } from "../config.js";
-import { RIVEN_API_BASE } from "../modules/rivens/RivenRepository.js";
-import { getRivenSlug } from "./slugs.service.js";
+import { RIVEN_API_BASE } from "../repositories/riven.repository.js";
+import { getRivenSlug } from "../utils/slugs.utils.js";
 import { state } from "../state.js";
 import { dbHelper } from "../repositories/storage.repository.js";
 
@@ -21,7 +21,7 @@ function cleanMetadataKeys(obj) {
 }
 
 export async function loadDynamicMetaStats() {
-    const CACHE_KEY = "voidstonkscache_riven_metastats_v7";
+    const CACHE_KEY = "voidstonkscache_riven_metastats_v8";
     const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
 
     // Default hardcoded initial fallback data provided by the user
@@ -705,8 +705,37 @@ export function getMetaStats(weaponName, weaponType) {
     const baseName = getBaseWeaponName(weaponName);
 
     let rawMeta = null;
+    let baseMeta = null;
 
-    if (dynamicMetaStats) {
+    if (state.rivenIndexData && typeof state.rivenIndexData === "object") {
+        if (state.rivenIndexData[weaponName]) {
+            rawMeta = { ...state.rivenIndexData[weaponName] };
+        } else {
+            for (const family of Object.values(state.rivenIndexData)) {
+                if (family && typeof family === "object") {
+                    if (family.variants && family.variants[weaponName]) {
+                        rawMeta = { ...family.variants[weaponName] };
+                        break;
+                    } else if (family.baseStats && family.familyName && family.familyName.toLowerCase() === baseName.toLowerCase()) {
+                        rawMeta = { ...family.baseStats };
+                        break;
+                    }
+                }
+            }
+        }
+        if (state.rivenIndexData[baseName]) {
+            baseMeta = { ...state.rivenIndexData[baseName] };
+        } else {
+            for (const family of Object.values(state.rivenIndexData)) {
+                if (family && typeof family === "object" && family.familyName && family.familyName.toLowerCase() === baseName.toLowerCase()) {
+                    baseMeta = family.baseStats ? { ...family.baseStats } : null;
+                    break;
+                }
+            }
+        }
+    }
+
+    if (!rawMeta && dynamicMetaStats) {
         const statsObj = dynamicMetaStats.data ? dynamicMetaStats.data : dynamicMetaStats;
 
         const lookupKey = (key) => {
@@ -717,13 +746,13 @@ export function getMetaStats(weaponName, weaponType) {
             );
             return matchedKey ? statsObj[matchedKey] : null;
         };
-        const baseMeta = lookupKey(baseName);
+        const baseMetaFallback = lookupKey(baseName);
         const variantMeta = lookupKey(weaponName);
 
         if (variantMeta) {
             rawMeta = { ...variantMeta };
-        } else if (baseMeta) {
-            rawMeta = { ...baseMeta };
+        } else if (baseMetaFallback) {
+            rawMeta = { ...baseMetaFallback };
         }
 
         if (!rawMeta) {
@@ -742,110 +771,119 @@ export function getMetaStats(weaponName, weaponType) {
             };
             rawMeta = findNested(statsObj, weaponName) || findNested(statsObj, baseName);
         }
-        const hasValidRecommendations = (metaObj) => {
-            if (!metaObj) return false;
 
-            // Check pos
-            const pos = metaObj.pos;
-            if (Array.isArray(pos) && pos.length > 0) return true;
-            if (pos && typeof pos === "object" && Array.isArray(pos.best) && pos.best.length > 0) return true;
+        if (!baseMeta) {
+            baseMeta = baseMetaFallback;
+        }
+    }
 
-            // Check top_positive
-            const topPos = metaObj.top_positive;
-            if (Array.isArray(topPos) && topPos.length > 0) return true;
+    const hasValidRecommendations = (metaObj) => {
+        if (!metaObj) return false;
 
-            // NEW FORMAT Check
-            const posTier = metaObj.pos_tier;
-            if (posTier && Array.isArray(posTier.top) && posTier.top.length > 0) return true;
+        // Check pos
+        const pos = metaObj.pos;
+        if (Array.isArray(pos) && pos.length > 0) return true;
+        if (pos && typeof pos === "object" && Array.isArray(pos.best) && pos.best.length > 0) return true;
 
-            return false;
-        };
-        const hasValidPricing = (metaObj) => {
-            if (!metaObj) return false;
-            if (metaObj.official_median > 0) return true;
-            if (metaObj.official_avg_price > 0) return true;
-            if (metaObj.wfm_avg_price > 0 || metaObj.wfm_avg > 0) return true;
-            if (metaObj.de_unrolled && metaObj.de_unrolled.median > 0) return true;
-            return false;
-        };
-        // Perform robust inheritance if variant belongs to a base family
-        if (rawMeta && baseMeta) {
-            // 1. ALWAYS inherit recommendations from the base family if the base has them!
-            if (hasValidRecommendations(baseMeta) && !hasValidRecommendations(rawMeta)) {
-                if (baseMeta.pos) rawMeta.pos = baseMeta.pos;
-                if (baseMeta.neg) rawMeta.neg = baseMeta.neg;
-                if (baseMeta.pos_tier) rawMeta.pos_tier = baseMeta.pos_tier;
-                if (baseMeta.neg_tier) rawMeta.neg_tier = baseMeta.neg_tier;
-                if (baseMeta.top_positive) rawMeta.top_positive = baseMeta.top_positive;
-                if (baseMeta.top_negative) rawMeta.top_negative = baseMeta.top_negative;
-            }
+        // Check top_positive
+        const topPos = metaObj.top_positive;
+        if (Array.isArray(topPos) && topPos.length > 0) return true;
 
-            // 2. ALWAYS inherit pricing and statistical metrics from the base family if the base has them!
-            if (hasValidPricing(baseMeta)) {
-                const excludedKeys = new Set(["name", "pos", "neg", "pos_tier", "neg_tier", "top_positive", "top_negative"]);
-                for (const key of Object.keys(baseMeta)) {
-                    if (!excludedKeys.has(key) && baseMeta[key] !== undefined) {
-                        rawMeta[key] = baseMeta[key];
-                    }
+        // NEW FORMAT Check
+        const posTier = metaObj.pos_tier;
+        if (posTier && Array.isArray(posTier.top) && posTier.top.length > 0) return true;
+
+        return false;
+    };
+
+    const hasValidPricing = (metaObj) => {
+        if (!metaObj) return false;
+        if (metaObj.official_median > 0) return true;
+        if (metaObj.official_avg_price > 0) return true;
+        if (metaObj.wfm_avg_price > 0 || metaObj.wfm_avg > 0) return true;
+        if (metaObj.de_unrolled && metaObj.de_unrolled.median > 0) return true;
+        return false;
+    };
+
+    // Perform robust inheritance if variant belongs to a base family
+    if (rawMeta && baseMeta) {
+        // 1. ALWAYS inherit recommendations from the base family if the base has them!
+        if (hasValidRecommendations(baseMeta) && !hasValidRecommendations(rawMeta)) {
+            if (baseMeta.pos) rawMeta.pos = baseMeta.pos;
+            if (baseMeta.neg) rawMeta.neg = baseMeta.neg;
+            if (baseMeta.pos_tier) rawMeta.pos_tier = baseMeta.pos_tier;
+            if (baseMeta.neg_tier) rawMeta.neg_tier = baseMeta.neg_tier;
+            if (baseMeta.top_positive) rawMeta.top_positive = baseMeta.top_positive;
+            if (baseMeta.top_negative) rawMeta.top_negative = baseMeta.top_negative;
+        }
+
+        // 2. ALWAYS inherit pricing and statistical metrics from the base family if the base has them!
+        if (hasValidPricing(baseMeta)) {
+            const excludedKeys = new Set(["name", "pos", "neg", "pos_tier", "neg_tier", "top_positive", "top_negative"]);
+            for (const key of Object.keys(baseMeta)) {
+                if (!excludedKeys.has(key) && baseMeta[key] !== undefined) {
+                    rawMeta[key] = baseMeta[key];
                 }
             }
         }
-        // 3. Defensive fallback: If resolved rawMeta lacks valid recommendations (e.g. empty pos/neg from Worker or Cache),
-        // retrieve them from the original baseline metadata.
-        if (rawMeta && !hasValidRecommendations(rawMeta)) {
-            const activeBaseline = baselineMetaStats || globalThis.baselineMetaStats;
-            if (activeBaseline) {
-                const lookupBaseline = (key) => {
-                    if (!key) return null;
-                    if (activeBaseline[key]) return activeBaseline[key];
-                    const matchedKey = Object.keys(activeBaseline).find(
-                        k => k.toLowerCase() === key.toLowerCase()
-                    );
-                    return matchedKey ? activeBaseline[matchedKey] : null;
-                };
+    }
 
-                const baselineMeta = lookupBaseline(baseName) || lookupBaseline(weaponName);
-                if (baselineMeta && hasValidRecommendations(baselineMeta)) {
-                    rawMeta.pos = baselineMeta.pos;
-                    rawMeta.neg = baselineMeta.neg;
-                    if (baselineMeta.pos_tier) rawMeta.pos_tier = baselineMeta.pos_tier;
-                    if (baselineMeta.neg_tier) rawMeta.neg_tier = baselineMeta.neg_tier;
-                    if (baselineMeta.top_positive) rawMeta.top_positive = baselineMeta.top_positive;
-                    if (baselineMeta.top_negative) rawMeta.top_negative = baselineMeta.top_negative;
-                }
+    // 3. Defensive fallback: If resolved rawMeta lacks valid recommendations (e.g. empty pos/neg from Worker or Cache),
+    // retrieve them from the original baseline metadata.
+    if (rawMeta && !hasValidRecommendations(rawMeta)) {
+        const activeBaseline = baselineMetaStats || globalThis.baselineMetaStats;
+        if (activeBaseline) {
+            const lookupBaseline = (key) => {
+                if (!key) return null;
+                if (activeBaseline[key]) return activeBaseline[key];
+                const matchedKey = Object.keys(activeBaseline).find(
+                    k => k.toLowerCase() === key.toLowerCase()
+                );
+                return matchedKey ? activeBaseline[matchedKey] : null;
+            };
+
+            const baselineMeta = lookupBaseline(baseName) || lookupBaseline(weaponName);
+            if (baselineMeta && hasValidRecommendations(baselineMeta)) {
+                rawMeta.pos = baselineMeta.pos;
+                rawMeta.neg = baselineMeta.neg;
+                if (baselineMeta.pos_tier) rawMeta.pos_tier = baselineMeta.pos_tier;
+                if (baselineMeta.neg_tier) rawMeta.neg_tier = baselineMeta.neg_tier;
+                if (baselineMeta.top_positive) rawMeta.top_positive = baselineMeta.top_positive;
+                if (baselineMeta.top_negative) rawMeta.top_negative = baselineMeta.top_negative;
             }
         }
-        // 4. Defensive fallback for other statistical/pricing metrics:
-        // If the resolved rawMeta is missing key metrics, inherit them from the baseline entry.
-        if (rawMeta) {
-            const activeBaseline = baselineMetaStats || globalThis.baselineMetaStats;
-            if (activeBaseline) {
-                const lookupBaseline = (key) => {
-                    if (!key) return null;
-                    if (activeBaseline[key]) return activeBaseline[key];
-                    const matchedKey = Object.keys(activeBaseline).find(
-                        k => k.toLowerCase() === key.toLowerCase()
-                    );
-                    return matchedKey ? activeBaseline[matchedKey] : null;
-                };
+    }
 
-                const baselineMeta = lookupBaseline(baseName) || lookupBaseline(weaponName);
-                if (baselineMeta) {
-                    const fallbackMetrics = [
-                        "popularity_pct",
-                        "official_median",
-                        "official_stddev",
-                        "official_avg_price",
-                        "wfm_market_sample",
-                        "wfm_avg_price",
-                        "wfm_avg",
-                        "de_unrolled",
-                        "de_rerolled"
-                    ];
-                    for (const metric of fallbackMetrics) {
-                        if (rawMeta[metric] === undefined || rawMeta[metric] === null) {
-                            rawMeta[metric] = baselineMeta[metric];
-                        }
+    // 4. Defensive fallback for other statistical/pricing metrics:
+    // If the resolved rawMeta is missing key metrics, inherit them from the baseline entry.
+    if (rawMeta) {
+        const activeBaseline = baselineMetaStats || globalThis.baselineMetaStats;
+        if (activeBaseline) {
+            const lookupBaseline = (key) => {
+                if (!key) return null;
+                if (activeBaseline[key]) return activeBaseline[key];
+                const matchedKey = Object.keys(activeBaseline).find(
+                    k => k.toLowerCase() === key.toLowerCase()
+                );
+                return matchedKey ? activeBaseline[matchedKey] : null;
+            };
+
+            const baselineMeta = lookupBaseline(baseName) || lookupBaseline(weaponName);
+            if (baselineMeta) {
+                const fallbackMetrics = [
+                    "popularity_pct",
+                    "official_median",
+                    "official_stddev",
+                    "official_avg_price",
+                    "wfm_market_sample",
+                    "wfm_avg_price",
+                    "wfm_avg",
+                    "de_unrolled",
+                    "de_rerolled"
+                ];
+                for (const metric of fallbackMetrics) {
+                    if (rawMeta[metric] === undefined || rawMeta[metric] === null) {
+                        rawMeta[metric] = baselineMeta[metric];
                     }
                 }
             }
@@ -856,14 +894,19 @@ export function getMetaStats(weaponName, weaponType) {
 
     const pos = Array.isArray(rawMeta.pos) ? rawMeta.pos : (rawMeta.pos?.best || rawMeta.pos_tier?.top || []);
     const neg = Array.isArray(rawMeta.neg) ? rawMeta.neg : (rawMeta.neg?.best || rawMeta.neg_tier?.buff || []);
+    const midPos = rawMeta.pos_tier?.mid || rawMeta.pos?.mid || [];
+    const midNeg = rawMeta.neg_tier?.mid || rawMeta.neg?.mid || [];
 
     if (ENABLE_DEBUG_LOGS) console.log(`[getMetaStats] weaponName: ${weaponName}, baseName: ${baseName}, inherited pos:`, pos, "neg:", neg);
 
     return {
         ...rawMeta,
         name: weaponName,
+        popularity_pct: rawMeta.popularity_pct ?? rawMeta.liquidity_score ?? 0,
         pos,
         neg,
+        midPos,
+        midNeg,
         rawPos: rawMeta.pos,
         rawNeg: rawMeta.neg
     };
@@ -896,82 +939,144 @@ export async function fetchSimilarRivens(weaponName, positiveStats, negativeStat
             if (ENABLE_DEBUG_LOGS) console.log(`[Network Fetch] Fetched fresh live Riven auctions for ${weaponName} from Worker!`);
         }
 
-        // Normalize search stats to clean lower case
-        const searchPositives = positiveStats.map(s => s.toLowerCase().trim());
-        const searchNegative = negativeStat ? negativeStat.toLowerCase().trim() : null;
+        // Helper to canonicalize names for matching
+        const getCanonicalStatKey = (name) => {
+            if (!name) return "";
+            const clean = name.toLowerCase().replaceAll('_', " ").replaceAll('-', " ").trim();
+            if (clean.includes("critical chance")) return "critical_chance";
+            if (clean.includes("critical damage")) return "critical_damage";
+            if (clean.includes("multishot")) return "multishot";
+            if (clean.includes("melee range") || clean.includes("range")) return "range";
+            if (clean.includes("base damage") || clean.includes("melee damage") || clean === "damage") return "damage";
+            if (clean.includes("fire rate") || clean.includes("attack speed") || clean === "speed") return "speed";
+            if (clean.includes("status chance")) return "status_chance";
+            if (clean.includes("status duration")) return "status_duration";
+            if (clean.includes("toxin")) return "toxin";
+            if (clean.includes("heat")) return "heat";
+            if (clean.includes("electricity") || clean.includes("electric")) return "electricity";
+            if (clean.includes("cold")) return "cold";
+            if (clean.includes("impact")) return "impact";
+            if (clean.includes("puncture")) return "puncture";
+            if (clean.includes("slash")) return "slash";
+            if (clean.includes("recoil")) return "recoil";
+            if (clean.includes("magazine")) return "magazine_capacity";
+            if (clean.includes("reload")) return "reload_speed";
+            if (clean.includes("ammo")) return "ammo_maximum";
+            if (clean.includes("flight") || clean.includes("projectile speed")) return "flight_speed";
+            if (clean.includes("zoom")) return "zoom";
+            if (clean.includes("punch")) return "punch_through";
+            if (clean.includes("combo duration")) return "combo_duration";
+            if (clean.includes("slide crit") || clean.includes("slide attack")) return "slide_crit";
+            if (clean.includes("extra combo count") || clean.includes("combo count chance") || clean.includes("combo_count_chance")) return "combo_count_chance";
+            if (clean.includes("channeling damage") || clean.includes("initial combo")) return "initial_combo";
+            if (clean.includes("channeling efficiency") || clean.includes("heavy attack efficiency") || clean.includes("heavy efficiency")) return "heavy_efficiency";
+            if (clean.includes("corpus")) return "vs_corpus";
+            if (clean.includes("grineer")) return "vs_grineer";
+            if (clean.includes("infested")) return "vs_infested";
+            return clean;
+        };
 
-        // Filter auctions
-        const similar = auctions.filter(a => {
-            if (!a.visible || a.owner.status === "offline") return false;
-            if (!a.item?.attributes) return false;
+        const isBrickNegative = (negUrlName) => {
+            const key = getCanonicalStatKey(negUrlName);
+            return key === "critical_chance" ||
+                   key === "critical_damage" ||
+                   key === "multishot" ||
+                   key === "damage";
+        };
 
-            // Map positive and negative attributes from the live auction
-            const itemPositives = a.item.attributes
-                .filter(attr => attr.positive)
-                .map(attr => attr.url_name.replaceAll('_', " ").toLowerCase());
+        // Canonicalize search criteria
+        const searchPosKeys = positiveStats.map(s => getCanonicalStatKey(s));
+        const searchNegKey = negativeStat ? getCanonicalStatKey(negativeStat) : null;
 
-            const itemNegatives = a.item.attributes
-                .filter(attr => !attr.positive)
-                .map(attr => attr.url_name.replaceAll('_', " ").toLowerCase());
-
-            // Check how many positives match
-            let matchCount = 0;
-            for (const sp of searchPositives) {
-                if (itemPositives.some(ip => ip.includes(sp) || sp.includes(ip))) {
-                    matchCount++;
-                }
-            }
-
-            // Check negative match if user has a negative
-            let negativeMatch = true;
-            if (searchNegative) {
-                // If user selected a negative stat, we prefer auctions that also have that negative stat,
-                // or at least have some negative stat (so the positive stats are boosted!).
-                if (itemNegatives.length === 0) {
-                    negativeMatch = false;
-                }
-            } else {
-                // If user selected NO negative stat, we prefer auctions that also have NO negative stat.
-                if (itemNegatives.length > 0) {
-                    negativeMatch = false;
-                }
-            }
-
-            // We want similar positive matches:
-            // If user has 2 or 3 positive search stats: at least 2 must match.
-            // If user has 1 positive: 1 must match.
-            const requiredMatches = Math.max(1, searchPositives.length > 1 ? 2 : 1);
-
-            if (matchCount < requiredMatches) return false;
-            return negativeMatch;
-        });
-        // Fallback: If filtering strictly by negative/no-negative returned too few results (< 2),
-        // relax the filter to return any positive matches!
-        let finalResults = similar;
-        if (similar.length < 2) {
-            finalResults = auctions.filter(a => {
-                if (!a.visible || a.owner.status === "offline") return false;
-                if (!a.item?.attributes) return false;
-
-                const itemPositives = a.item.attributes
+        // Map and score all active auctions
+        const scoredAuctions = auctions
+            .filter(a => a.visible && a.owner.status !== "offline" && a.item?.attributes)
+            .map(a => {
+                const itemPosKeys = a.item.attributes
                     .filter(attr => attr.positive)
-                    .map(attr => attr.url_name.replaceAll('_', " ").toLowerCase());
+                    .map(attr => getCanonicalStatKey(attr.url_name));
 
+                const itemNegKeys = a.item.attributes
+                    .filter(attr => !attr.positive)
+                    .map(attr => getCanonicalStatKey(attr.url_name));
+
+                // Calculate positive match count
                 let matchCount = 0;
-                for (const sp of searchPositives) {
-                    if (itemPositives.some(ip => ip.includes(sp) || sp.includes(ip))) {
+                for (const spKey of searchPosKeys) {
+                    if (itemPosKeys.includes(spKey)) {
                         matchCount++;
                     }
                 }
-                const requiredMatches = Math.max(1, searchPositives.length > 1 ? 2 : 1);
-                return matchCount >= requiredMatches;
-            });
-        }
-        // Sort by price
-        finalResults.sort((a, b) => (a.buyout_price || a.starting_price) - (b.buyout_price || b.starting_price));
 
-        // Return top 4 cheapest
+                // Similarity scoring
+                let similarityScore = 0;
+
+                // Positive match weighting
+                if (searchPosKeys.length === 3) {
+                    if (matchCount === 3) similarityScore += 150;
+                    else if (matchCount === 2) similarityScore += 50;
+                    else if (matchCount === 1) similarityScore += 10;
+                } else if (searchPosKeys.length === 2) {
+                    if (matchCount === 2) similarityScore += 150;
+                    else if (matchCount === 1) similarityScore += 30;
+                } else {
+                    if (matchCount === 1) similarityScore += 150;
+                }
+
+                // Negative match weighting
+                const hasSearchNeg = !!searchNegKey;
+                const hasItemNeg = itemNegKeys.length > 0;
+
+                if (hasSearchNeg && hasItemNeg) {
+                    if (itemNegKeys.includes(searchNegKey)) {
+                        similarityScore += 80; // Perfect negative match
+                    } else {
+                        similarityScore += 30; // Both have a negative, but different
+                    }
+                } else if (!hasSearchNeg && !hasItemNeg) {
+                    similarityScore += 50; // Both have no negative
+                } else {
+                    similarityScore -= 20; // Mismatch in having negative
+                }
+
+                // Brick negative penalty
+                if (hasItemNeg) {
+                    const itemNegUrl = a.item.attributes.find(attr => !attr.positive)?.url_name || "";
+                    const isItemNegBrick = isBrickNegative(itemNegUrl);
+                    const isSearchNegBrick = searchNegKey ? isBrickNegative(searchNegKey) : false;
+
+                    if (isItemNegBrick && !isSearchNegBrick) {
+                        similarityScore -= 300; // Massive penalty for bricking
+                    }
+                }
+
+                return {
+                    auction: a,
+                    matchCount: matchCount,
+                    similarityScore: similarityScore
+                };
+            });
+
+        // Filter: Must have at least required matches
+        const requiredMatches = Math.max(1, searchPosKeys.length > 1 ? 2 : 1);
+        const filtered = scoredAuctions.filter(item => item.matchCount >= requiredMatches);
+
+        // Sort: First by similarity score (descending), then by price (ascending)
+        filtered.sort((a, b) => {
+            if (b.similarityScore !== a.similarityScore) {
+                return b.similarityScore - a.similarityScore;
+            }
+            const priceA = a.auction.buyout_price || a.auction.starting_price || 99999;
+            const priceB = b.auction.buyout_price || b.auction.starting_price || 99999;
+            return priceA - priceB;
+        });
+
+        // Extract auctions
+        const finalResults = filtered.map(item => item.auction);
+
+        // Return top 4 most similar / cheapest
         return finalResults.slice(0, 4);
+
     } catch (e) {
         console.error("Failed to fetch similar rivens:", e);
         return [];

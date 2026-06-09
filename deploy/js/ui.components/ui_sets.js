@@ -10,7 +10,7 @@ import {
   generateDotsHtml,
   calculateTotalFullSets,
   DEFAULT_WEAPON_SVG
-} from "./ui_utils.js";
+} from "../utils/ui_utils.js";
 let debounceTimer;
 let cachedShowcasePools = null;
 globalThis.DEFAULT_WEAPON_SVG = DEFAULT_WEAPON_SVG;
@@ -525,6 +525,7 @@ export function renderSetTracker() {
     const partSlug = getSlug(partName);
     const partIcon = getItemIcon(partName) || "";
     const imgWrapper = document.createElement("div");
+    imgWrapper.className = "tracker-img-wrapper";
     imgWrapper.style.display = "flex";
     imgWrapper.style.alignItems = "center";
     imgWrapper.style.justifyContent = "center";
@@ -768,7 +769,7 @@ setTimeout(() => {
       trackerContainer.classList.remove("drag-hover");
       const itemName = e.dataTransfer.getData("text/plain");
       if (itemName) {
-        import("./ui_utils.js").then((m) => {
+        import("../utils/ui_utils.js").then((m) => {
           const setName = m.getSetName(itemName);
           if (setName !== "Otros") {
             const allParts = Object.keys(state.itemsDatabase).filter(

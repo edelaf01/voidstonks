@@ -4,7 +4,7 @@ import { state } from "./state.js";
 import { TEXTS } from "./config.js";
 import { OCRService } from "./services/ocr.service.js";
 import { OCRRepository } from "./repositories/ocr.repository.js";
-import { OpenCVEngine } from "./opencv_engine.js";
+import { OpenCVEngine } from "./utils/opencv_engine.js";
 
 /**
  * MobileScanner - Modularized and Optimized for Production

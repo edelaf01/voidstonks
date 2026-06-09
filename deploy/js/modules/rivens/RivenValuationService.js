@@ -20,6 +20,60 @@ export function calculateHybridTiers(weapon) {
   let offStdDev = weapon.official_stddev || 0;
   let reMedian = (weapon.de_rerolled?.median !== undefined) ? weapon.de_rerolled.median : 0;
 
+  // Integrate historical price estimations from API history logs
+  let histWfmAvg = 0;
+  let histWfmMax = 0;
+  let histDeMedian = 0;
+  let hasHistory = false;
+
+  const currentName = weapon.name || (globalThis.state && globalThis.state.currentWeaponHistory ? globalThis.state.currentWeaponHistory.weaponName : null);
+  if (currentName && globalThis.state && globalThis.state.currentWeaponHistory && globalThis.state.currentWeaponHistory.weaponName === currentName && Array.isArray(globalThis.state.currentWeaponHistory.data)) {
+    const histPoints = globalThis.state.currentWeaponHistory.data.filter(p => p && (p.wfm_avg_price > 0 || p.official_median > 0));
+    if (histPoints.length > 0) {
+      hasHistory = true;
+      let sumWfm = 0;
+      let sumDe = 0;
+      let countWfm = 0;
+      let countDe = 0;
+      histPoints.forEach(p => {
+        if (p.wfm_avg_price > 0) {
+          sumWfm += p.wfm_avg_price;
+          countWfm++;
+          if (p.wfm_avg_price > histWfmMax) histWfmMax = p.wfm_avg_price;
+        }
+        if (p.official_median > 0) {
+          sumDe += p.official_median;
+          countDe++;
+        }
+      });
+      if (countWfm > 0) histWfmAvg = sumWfm / countWfm;
+      if (countDe > 0) histDeMedian = sumDe / countDe;
+    }
+  }
+
+  // Stabilize averages by blending current data with historical estimations
+  if (hasHistory) {
+    if (histWfmAvg > 0) {
+      wfmAvg = wfmAvg > 0 ? (wfmAvg * 0.6 + histWfmAvg * 0.4) : histWfmAvg;
+    }
+    if (histDeMedian > 0) {
+      offMedian = offMedian > 0 ? (offMedian * 0.6 + histDeMedian * 0.4) : histDeMedian;
+    }
+  }
+
+  // Check if this is a high-demand premium variant (e.g. Prime, Tenet, Kuva)
+  let isPremiumVariant = false;
+  if (currentName) {
+    const nameLower = currentName.toLowerCase();
+    if (nameLower.includes("tenet") || nameLower.includes("kuva") || nameLower.includes("prime") || nameLower.includes("vandal") || nameLower.includes("wraith") || nameLower.includes("prisma")) {
+      isPremiumVariant = true;
+    }
+  }
+
+  const maxWfmPrice = Math.max(wfmAvg, histWfmMax);
+  const META_WEAPONS = new Set(["torid", "latron", "angstrum", "boar", "toxocyst", "dual toxocyst", "furis", "burston", "miter", "magistar", "ceramic dagger", "hate", "glaive", "phenmor", "felarx", "laetum", "epitaph", "nataruk", "stropha", "pennant", "sporelacer"]);
+  const isMetaWeapon = isPremiumVariant || (currentName && META_WEAPONS.has(currentName.toLowerCase()));
+
   // Dynamic Speculative Hyperinflation Safeguard linked directly to transaction volume (liquidity)
   let clampMultiplier = 8;
   if (popularity > 0 || realVolume > 0) {
@@ -30,7 +84,19 @@ export function calculateHybridTiers(weapon) {
     }
   }
 
-  const baseRefMedian = offMedian > 0 ? offMedian : (reMedian > 0 ? reMedian : 50);
+  if (isMetaWeapon) {
+    clampMultiplier = Math.max(clampMultiplier, 22.0); // Allow much higher WFM pricing scale for top meta/Incarnon weapons
+  }
+
+  const absMinFloor = isMetaWeapon ? 50 : 15;
+  if (offMedian > 0 && offMedian < absMinFloor) {
+    offMedian = absMinFloor;
+  }
+  if (reMedian > 0 && reMedian < absMinFloor * 1.5) {
+    reMedian = absMinFloor * 1.5;
+  }
+
+  const baseRefMedian = Math.max(absMinFloor, offMedian > 0 ? offMedian : (reMedian > 0 ? reMedian : 50));
   if (wfmAvg > baseRefMedian * clampMultiplier) {
     wfmAvg = baseRefMedian * clampMultiplier + (wfmAvg - baseRefMedian * clampMultiplier) * 0.15;
   }
@@ -40,18 +106,9 @@ export function calculateHybridTiers(weapon) {
   const maxRerolled = (weapon.de_rerolled?.max_price) || 0;
   const absoluteMax = Math.max(maxUnrolled, maxRerolled, weapon.max_price || 0);
 
-  // Check if this is a high-demand premium variant (e.g. Prime, Tenet, Kuva)
-  let isPremiumVariant = false;
-  if (weapon.name) {
-    const nameLower = weapon.name.toLowerCase();
-    if (nameLower.includes("tenet") || nameLower.includes("kuva") || nameLower.includes("prime") || nameLower.includes("vandal") || nameLower.includes("wraith") || nameLower.includes("prisma")) {
-      isPremiumVariant = true;
-    }
-  }
-
   // Consistent high-value evaluation (must have high average or high max with decent average)
-  const isHighValue = wfmAvg > 800 || (absoluteMax > 2500 && wfmAvg > 500);
-  const isUnpopular = (popularity < 25 || realVolume < 25) && !isHighValue && !isPremiumVariant;
+  const isHighValue = wfmAvg > 800 || (absoluteMax > 2500 && wfmAvg > 500) || histWfmAvg > 800;
+  const isUnpopular = (popularity < 25 || realVolume < 25) && !isHighValue && !isMetaWeapon;
 
   // Dampen outliers if unpopular/low pop weapon AND NOT igh-value
   if (isUnpopular) {
@@ -70,7 +127,7 @@ export function calculateHybridTiers(weapon) {
   }
 
   // 1. Trash/Base tier: siempre respeta el official_median (transacciones reales) como suelo
-  const trash = offMedian > 0 ? offMedian : Math.round(wfmAvg * 0.15);
+  const trash = Math.max(absMinFloor, offMedian > 0 ? offMedian : Math.round(wfmAvg * 0.15));
 
   // 2. Good Reroll tier
   let goodReroll = 0;
@@ -85,7 +142,10 @@ export function calculateHybridTiers(weapon) {
   // 3. Godroll tier
   let godroll = 0;
   if (offMedian > 0) {
-    const stdDevScale = offStdDev > 0 ? (offStdDev / offMedian) : 1;
+    let stdDevScale = offStdDev > 0 ? (offStdDev / offMedian) : 1;
+    if (stdDevScale > 5.0) {
+      stdDevScale = 5.0; // clamp standard deviation scale to avoid outliers distorting godroll benchmark
+    }
     const baseRef = reMedian > 0 ? reMedian : offMedian;
 
     // Dynamic Standard Deviation Multiplier: low-liquidity/unpopular weapons shouldn't scale as fast
@@ -156,18 +216,33 @@ export function calculateAdvancedPredictivePrice(weapon, itemAttributes, tiers) 
       positiveCount++;
       const nameLower = attr.name.toLowerCase();
 
-      let attributeWeight = 0.35; // Default utility weight
+      let attributeWeight = 0.15; // Default utility weight
 
-      const isDynamicMeta = bestPositives.some(p => p.toLowerCase().includes(nameLower) || nameLower.includes(p.toLowerCase()));
-      const isMidMeta = midPositives.some(p => p.toLowerCase().includes(nameLower) || nameLower.includes(p.toLowerCase()));
-      const isTrashMeta = trashPositives.some(p => p.toLowerCase().includes(nameLower) || nameLower.includes(p.toLowerCase()));
+      const wDynamicWeights = weapon.dynamic_weights;
+      let foundWeightVal = null;
+      if (wDynamicWeights && typeof wDynamicWeights === "object") {
+        const foundKey = Object.keys(wDynamicWeights).find(
+          k => k.toLowerCase() === nameLower || nameLower.includes(k.toLowerCase()) || k.toLowerCase().includes(nameLower)
+        );
+        if (foundKey !== undefined && wDynamicWeights[foundKey] !== undefined && wDynamicWeights[foundKey] !== null) {
+          foundWeightVal = parseFloat(wDynamicWeights[foundKey]);
+        }
+      }
 
-      if (isDynamicMeta) {
-        attributeWeight = 1.0;
-      } else if (isMidMeta) {
-        attributeWeight = 0.65;
-      } else if (isTrashMeta) {
-        attributeWeight = 0.15;
+      if (foundWeightVal !== null) {
+        attributeWeight = foundWeightVal;
+      } else {
+        const isDynamicMeta = bestPositives.some(p => p.toLowerCase().includes(nameLower) || nameLower.includes(p.toLowerCase()));
+        const isMidMeta = midPositives.some(p => p.toLowerCase().includes(nameLower) || nameLower.includes(p.toLowerCase()));
+        const isTrashMeta = trashPositives.some(p => p.toLowerCase().includes(nameLower) || nameLower.includes(p.toLowerCase()));
+
+        if (isTrashMeta) {
+          attributeWeight = 0.0;
+        } else if (isDynamicMeta) {
+          attributeWeight = 1.0;
+        } else if (isMidMeta) {
+          attributeWeight = 0.60;
+        }
       }
 
       totalMetaScore += attributeWeight;
@@ -188,8 +263,13 @@ export function calculateAdvancedPredictivePrice(weapon, itemAttributes, tiers) 
     finalMetaRatio = (((positiveWeights[0] || 0) + (positiveWeights[1] || 0)) / 2) * 1.10;
   } else if (positiveCount >= 3) {
     const sortedWeights = positiveWeights.toSorted((a, b) => b - a);
-    // Instead of a harsh straight average, we blend the top 2 positives (80%) with the 3rd (20%) to model realistic dilution.
-    finalMetaRatio = ((sortedWeights[0] + sortedWeights[1]) / 2) * 0.80 + sortedWeights[2] * 0.20;
+    if (sortedWeights[2] >= 0.8) {
+      // Symmetrical weight for triple top stats to prevent underestimating perfect 3-stat rolls
+      finalMetaRatio = (sortedWeights[0] + sortedWeights[1] + sortedWeights[2]) / 3;
+    } else {
+      // Dilution blend (80% top 2, 20% 3rd)
+      finalMetaRatio = ((sortedWeights[0] + sortedWeights[1]) / 2) * 0.80 + sortedWeights[2] * 0.20;
+    }
   }
 
   // Determine if the Riven completely lacks a negative curse (curse/boost synergy)
@@ -235,6 +315,9 @@ export function calculateAdvancedPredictivePrice(weapon, itemAttributes, tiers) 
   }
 
   // 4. CLASIFICADOR DINÁMICO DE NEGATIVAS (con fallback para esquemas viejos)
+  const currentName = weapon.name || (globalThis.state && globalThis.state.currentWeaponHistory ? globalThis.state.currentWeaponHistory.weaponName : null);
+  const isIncarnonDevouring = currentName && ["phenmor", "laetum", "felarx"].some(w => currentName.toLowerCase().includes(w));
+
   const curseNegs = Array.isArray(weapon.neg_tier?.curse) ? weapon.neg_tier.curse : 
     ["critical chance", "critical damage", "damage", "multishot", "fire rate", "attack speed", "melee damage", "range"];
   const buffNegs = Array.isArray(weapon.neg_tier?.buff) ? weapon.neg_tier.buff : 
@@ -248,8 +331,14 @@ export function calculateAdvancedPredictivePrice(weapon, itemAttributes, tiers) 
       
       const isElementalNeg = ["toxin", "heat", "cold", "electric"].some(e => negName.includes(e));
       
-      const isCurse = isElementalNeg || curseNegs.some(n => n.toLowerCase().includes(negName) || negName.includes(n.toLowerCase()));
-      const isBuff = !isElementalNeg && buffNegs.some(n => n.toLowerCase().includes(negName) || negName.includes(n.toLowerCase()));
+      let isCurse = isElementalNeg || curseNegs.some(n => n.toLowerCase().includes(negName) || negName.includes(n.toLowerCase()));
+      let isBuff = !isElementalNeg && buffNegs.some(n => n.toLowerCase().includes(negName) || negName.includes(n.toLowerCase()));
+
+      // If it's an Incarnon weapon with Devouring Attrition (Phenmor, Laetum, Felarx), negative critical stats are actually perfect buffs!
+      if (isIncarnonDevouring && (negName.includes("critical chance") || negName.includes("critical damage"))) {
+        isCurse = false;
+        isBuff = true;
+      }
 
       const isBrick = isElementalNeg || (isCurse && ["multishot", "critical chance", "critical damage", "damage", "melee damage"].some(b => negName.includes(b)));
       if (isBrick) {
@@ -261,7 +350,8 @@ export function calculateAdvancedPredictivePrice(weapon, itemAttributes, tiers) 
         finalPrice *= (effectiveMetaRatio >= 0.85) ? 0.35 : 0.15;
       } else if (isBuff) {
         // Negativa inofensiva o "Perfect Negative"
-        finalPrice *= 1.15;
+        // Since Quality_stat was already calculated on the negative-boosted range, we set the multiplier to 1.0 to avoid double dipping.
+        finalPrice *= 1.0;
       } else {
         // Negativa neutral (ni buena ni mala)
         finalPrice *= 0.90;

@@ -6,9 +6,9 @@ import {
     ZARIMAN_DATA,
     OPTIMAL_FILTERS,
     ALLY_MAP,
-    WORKER_URL,
 } from "../config.js";
 import { dbHelper } from "../repositories/storage.repository.js";
+import { getActiveBounties } from "../repositories/api.repository.js";
 
 //Helpers for classification
 
@@ -138,7 +138,7 @@ export async function fetchActiveBounties() {
         const cached = await dbHelper.get(WORKER_URL_KEY);
         if (cached?.expiryTime > Date.now()) return cached.data;
 
-        const res = await fetch(`${WORKER_URL}?type=active_bounties`);
+        const res = await getActiveBounties();
         if (!res.ok) return [];
 
         const { ws = [], tt = [], oracle = {} } = await res.json();

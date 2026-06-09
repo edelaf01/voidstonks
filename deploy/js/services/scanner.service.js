@@ -108,7 +108,7 @@ export const ScannerService = {
 
             const sampleCvs = document.createElement("canvas");
             sampleCvs.width = 48; sampleCvs.height = 27;
-            const sCtx = sampleCvs.getContext("2d");
+            const sCtx = sampleCvs.getContext("2d", { willReadFrequently: true });
             sCtx.drawImage(video, 0, Math.floor(video.videoHeight * 0.25), video.videoWidth, Math.floor(video.videoHeight * 0.5), 0, 0, 48, 27);
             const currentHash = VisionService.getFrameHash(sCtx, 48, 27);
 
@@ -308,9 +308,10 @@ export const ScannerService = {
                 const calibCvs = document.createElement("canvas");
                 calibCvs.width = width;
                 calibCvs.height = height;
-                calibCvs.getContext("2d").drawImage(snapshot, 0, 0);
+                const calibCtx = calibCvs.getContext("2d", { willReadFrequently: true });
+                calibCtx.drawImage(snapshot, 0, 0);
                 await globalThis.LiveCalibration.runCalibrationFlow(
-                    calibCvs.getContext("2d").getImageData(0, 0, width, height)
+                    calibCtx.getImageData(0, 0, width, height)
                 );
                 return;
             }
@@ -457,31 +458,31 @@ export const ScannerService = {
                         const relX = cell.sx - gridZone.x;
                         const relY = cell.sy - gridZone.y;
 
-                        // Draw a single elegant semi-transparent label block at the bottom of the card
-                        dCtx.fillStyle = "rgba(5, 8, 15, 0.9)";
-                        dCtx.fillRect(relX, relY + cellH - 43, cellW, 43);
+                        // Draw a single elegant opaque label block at the bottom of the card to fully cover underlying text
+                        dCtx.fillStyle = "rgba(10, 15, 28, 0.98)";
+                        dCtx.fillRect(relX, relY + cellH - 50, cellW, 50);
                         
                         // Thin cyan line top separator for premium feel
-                        dCtx.fillStyle = "rgba(0, 229, 255, 0.4)";
-                        dCtx.fillRect(relX, relY + cellH - 43, cellW, 1);
+                        dCtx.fillStyle = "rgba(0, 229, 255, 0.7)";
+                        dCtx.fillRect(relX, relY + cellH - 50, cellW, 1.5);
 
-                        // 1. Raw Tesseract OCR Text (Amber, italic, 9px) - Displays both Item name and Badge digit OCR
+                        // 1. Raw Tesseract OCR Text (Amber, italic, 9px)
                         dCtx.fillStyle = "#ffb300";
-                        dCtx.font = "italic 9px monospace";
+                        dCtx.font = "italic 9px system-ui, -apple-system, sans-serif";
                         const rawText = combinedText.join(" ");
                         const badgeRawText = qtyResult.raw ? qtyResult.raw.trim().replaceAll(/\s+/g, " ") : "Ø";
-                        const maxCharsItem = Math.floor(cellW / 6.2);
+                        const maxCharsItem = Math.floor(cellW / 5.5);
                         const truncatedItem = rawText.length > maxCharsItem ? rawText.slice(0, maxCharsItem - 3) + "..." : rawText;
-                        dCtx.fillText(truncatedItem, relX + 4, relY + cellH - 32);
+                        dCtx.fillText(truncatedItem, relX + 6, relY + cellH - 37);
 
-                        // Line 2: Raw Badge Text (NEVER truncated, printed clearly!)
-                        dCtx.fillText(`BDG: "${badgeRawText}"`, relX + 4, relY + cellH - 21);
+                        // Line 2: Raw Badge Text
+                        dCtx.fillText(`BDG: "${badgeRawText}"`, relX + 6, relY + cellH - 25);
 
-                        // 2. Clean Matched Catalog Name (Green, bold, 11px)
+                        // 2. Clean Matched Catalog Name (Green, bold, 12px)
                         dCtx.fillStyle = "#00ff78";
-                        dCtx.font = "bold 11px monospace";
+                        dCtx.font = "bold 12px system-ui, -apple-system, sans-serif";
                         const shortName = bestItem.originalName.replace(/Prime/gi, "").trim();
-                        dCtx.fillText(shortName, relX + 4, relY + cellH - 6);
+                        dCtx.fillText(shortName, relX + 6, relY + cellH - 8);
 
                         // Draw a premium, beautiful pill badge at the TOP-LEFT exactly over the physical badge
                         const shiftLeft = (cell.c === 0) ? 14 : 2;
@@ -510,26 +511,29 @@ export const ScannerService = {
                         dCtx.lineWidth = 2;
                         dCtx.strokeRect(relX + 2, relY + 2, cellW - 4, cellH - 4);
 
-                        // Draw a single elegant red-tinted semi-transparent label block at the bottom
-                        dCtx.fillStyle = "rgba(25, 5, 10, 0.9)";
-                        dCtx.fillRect(relX, relY + cellH - 43, cellW, 43);
+                        // Draw a single elegant red-tinted opaque label block at the bottom
+                        dCtx.fillStyle = "rgba(25, 10, 15, 0.98)";
+                        dCtx.fillRect(relX, relY + cellH - 50, cellW, 50);
                         
                         // Thin red line top separator
-                        dCtx.fillStyle = "rgba(255, 30, 80, 0.4)";
-                        dCtx.fillRect(relX, relY + cellH - 43, cellW, 1);
+                        dCtx.fillStyle = "rgba(255, 30, 80, 0.7)";
+                        dCtx.fillRect(relX, relY + cellH - 50, cellW, 1.5);
 
                         // 1. Raw Tesseract OCR Text (Red-orange, italic, 9px)
                         dCtx.fillStyle = "#ff5252";
-                        dCtx.font = "italic 9px monospace";
+                        dCtx.font = "italic 9px system-ui, -apple-system, sans-serif";
                         const rawText = combinedText ? combinedText.join(" ") : "EMPTY";
-                        const maxCharsItem = Math.floor(cellW / 6.2);
+                        const maxCharsItem = Math.floor(cellW / 5.5);
                         const truncatedItem = rawText.length > maxCharsItem ? rawText.slice(0, maxCharsItem - 3) + "..." : rawText;
-                        dCtx.fillText(truncatedItem, relX + 4, relY + cellH - 26);
+                        dCtx.fillText(truncatedItem, relX + 6, relY + cellH - 37);
 
-                        // 2. Unmatched Status Label (Gray, bold, 11px)
+                        // Line 2: Raw Badge Text
+                        dCtx.fillText(`BDG: "Ø"`, relX + 6, relY + cellH - 25);
+
+                        // 2. Unmatched Status Label (Gray, bold, 12px)
                         dCtx.fillStyle = "#8c9eff";
-                        dCtx.font = "bold 11px monospace";
-                        dCtx.fillText("UNMATCHED CELL", relX + 4, relY + cellH - 8);
+                        dCtx.font = "bold 12px system-ui, -apple-system, sans-serif";
+                        dCtx.fillText("UNMATCHED CELL", relX + 6, relY + cellH - 8);
                     }
                 }
             };

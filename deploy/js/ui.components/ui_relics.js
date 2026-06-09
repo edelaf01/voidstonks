@@ -8,7 +8,7 @@ import {
   getRequiredCount,
   generateDotsHtml,
   generateSetProgressTooltip,
-} from "./ui_utils.js";
+} from "../utils/ui_utils.js";
 
 let debounceTimer;
 

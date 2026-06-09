@@ -1156,13 +1156,22 @@
 
             <!-- RIVEN HISTORY CHART -->
             <div id="riven-history-chart-container"
-              style="margin-top: 15px; display: none; position: relative; height: 240px; background: rgba(0,0,0,0.25); border: 1px solid rgba(155, 89, 182, 0.15); border-radius: 8px; padding: 8px; box-sizing: border-box; width: 100%;">
+              style="margin-top: 15px; display: none; position: relative; height: auto; background: rgba(0,0,0,0.25); border: 1px solid rgba(155, 89, 182, 0.15); border-radius: 8px; padding: 8px; box-sizing: border-box; width: 100%;">
               <div id="chart-hint-note"
                 style="font-size: 0.6rem; color: #888; text-align: center; margin-bottom: 4px; text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px;">
                 💡 Haz clic en la leyenda 'WFM' para ocultarlo y auto-escalar a Precios Reales
               </div>
-              <canvas id="rivenHistoryChart"
-                style="width: 100% !important; height: calc(100% - 16px) !important; display: block;"></canvas>
+              <div class="history-range-selector" style="display: flex; justify-content: center; gap: 6px; margin: 6px 0 10px 0;">
+                <button class="history-range-btn active" data-days="7" onclick="globalThis.changeHistoryRange(7)" style="background: rgba(162, 53, 226, 0.25); border: 1px solid rgba(162, 53, 226, 0.6); color: #fff; font-size: 0.65rem; font-weight: bold; padding: 3px 10px; border-radius: 4px; cursor: pointer; transition: all 0.2s;">7D</button>
+                <button class="history-range-btn" data-days="15" onclick="globalThis.changeHistoryRange(15)" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); color: #aaa; font-size: 0.65rem; font-weight: bold; padding: 3px 10px; border-radius: 4px; cursor: pointer; transition: all 0.2s;">15D</button>
+                <button class="history-range-btn" data-days="all" onclick="globalThis.changeHistoryRange('all')" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); color: #aaa; font-size: 0.65rem; font-weight: bold; padding: 3px 10px; border-radius: 4px; cursor: pointer; transition: all 0.2s;">Todo</button>
+              </div>
+              <div style="height: 180px; position: relative; width: 100%;">
+                <canvas id="rivenHistoryChart"
+                  style="width: 100% !important; height: 100% !important; display: block;"></canvas>
+              </div>
+              <div id="riven-history-table-container" style="margin-top: 12px; border-top: 1px dashed rgba(155, 89, 182, 0.25); padding-top: 10px; max-height: 125px; overflow-y: auto;">
+              </div>
             </div>
 
             <div id="riven-variants-carousel-section" style="margin-top: 5px; display: none; width: 100%;">
@@ -1214,7 +1223,7 @@
                 </div>
 
                 <div id="indexSortOptions" class="custom-dropdown hidden"
-                  style="position: absolute; top: 100%; left: 0; right: 0; background: #111; border: 1px solid rgba(162, 53, 226, 0.5) !important; border-radius: 0 0 6px 6px; overflow: hidden; z-index: var(--z-dropdown); box-shadow: 0 8px 24px rgba(0,0,0,0.6);">
+                  style="position: absolute; top: 100%; left: 0; right: 0; background: #111; border: 1px solid rgba(162, 53, 226, 0.5) !important; border-radius: 0 0 6px 6px; overflow-y: auto; max-height: 250px; overscroll-behavior: contain; z-index: var(--z-dropdown); box-shadow: 0 8px 24px rgba(0,0,0,0.6);">
                   <div class="dropdown-item active-sort-item" data-value="popularity"
                     style="padding: 10px 12px; cursor: pointer; transition: all 0.2s; border-bottom: 1px solid #222;"
                     id="opt-custom-pop">Popularidad</div>
@@ -1389,11 +1398,25 @@
         </button>
       </div>
 
-      <div class="content-area"
-        style="padding: 20px; overflow-y: auto; display: grid; grid-template-columns: 1.25fr 1fr 1.15fr; gap: 20px;">
+      <div class="content-area riven-grader-grid">
 
         <!-- LEFT COLUMN: INPUTS & CONTROLS -->
         <div style="display: flex; flex-direction: column; gap: 16px;">
+          <!-- Variant Carousel inside the Modal -->
+          <div id="g-modal-variants-section" style="display: none; border-bottom: 1px dashed rgba(255,255,255,0.1); padding-bottom: 15px;">
+            <label style="font-size: 0.75rem; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; display: block;">
+              Variantes
+            </label>
+            <div id="g-modal-variants-carousel" class="variants-carousel-scroll" style="
+              display: flex;
+              gap: 8px;
+              overflow-x: auto;
+              padding: 8px 4px 12px 4px;
+              scrollbar-width: thin;
+            ">
+            </div>
+          </div>
+
           <!-- Weapon and Rank Header Row -->
           <div class="form-group" style="
                 display: flex;
@@ -1427,61 +1450,6 @@
 
           <!-- Stats list container -->
           <div id="grading-inputs-container" style="display: flex; flex-direction: column; gap: 12px;">
-
-            <!-- STAT 1 -->
-            <div class="riven-row-wrapper"
-              style="border: 1px solid rgba(255,255,255,0.06); background: rgba(0,0,0,0.15); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 8px;">
-              <div style="display: flex; gap: 10px; align-items: center;">
-                <select id="g-stat1" class="wf-input riven-stat-select" style="flex: 1; padding: 6px;"
-                  onchange="updateSelectExclusions(); calculateModalGrade();">
-                  <option value="">+ STAT 1</option>
-                </select>
-                <div
-                  style="width: 100px; display: flex; align-items: center; gap: 4px; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; padding: 2px 6px;">
-                  <input type="number" id="g-val1" class="wf-input riven-val-input" placeholder="0"
-                    style="border: none; background: transparent; width: 100%; text-align: right; font-weight: bold; color: var(--wf-gold-text); padding: 2px 0;"
-                    oninput="syncRivenInputs('g-val1', 'g-slider1'); calculateModalGrade();" />
-                  <span style="color: #64748b; font-weight: bold; font-size: 0.85rem;">%</span>
-                </div>
-              </div>
-              <div id="g-slider-container1" class="slider-input-container hidden"
-                style="display: flex; align-items: center; gap: 8px; margin-top: 4px;">
-                <span id="g-slider-min1"
-                  style="font-size: 0.72rem; color: #64748b; font-weight: bold; min-width: 32px;">0%</span>
-                <input type="range" id="g-slider1" class="riven-slider" min="0" max="200" step="0.1" value="0"
-                  style="flex: 1;" oninput="syncRivenInputs('g-slider1', 'g-val1'); calculateModalGrade();" />
-                <span id="g-slider-max1"
-                  style="font-size: 0.72rem; color: #64748b; font-weight: bold; min-width: 32px; text-align: right;">100%</span>
-              </div>
-            </div>
-
-            <!-- STAT 2 -->
-            <div class="riven-row-wrapper"
-              style="border: 1px solid rgba(255,255,255,0.06); background: rgba(0,0,0,0.15); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 8px;">
-              <div style="display: flex; gap: 10px; align-items: center;">
-                <select id="g-stat2" class="wf-input riven-stat-select" style="flex: 1; padding: 6px;"
-                  onchange="updateSelectExclusions(); calculateModalGrade();">
-                  <option value="">+ STAT 2</option>
-                </select>
-                <div
-                  style="width: 100px; display: flex; align-items: center; gap: 4px; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; padding: 2px 6px;">
-                  <input type="number" id="g-val2" class="wf-input riven-val-input" placeholder="0"
-                    style="border: none; background: transparent; width: 100%; text-align: right; font-weight: bold; color: var(--wf-gold-text); padding: 2px 0;"
-                    oninput="syncRivenInputs('g-val2', 'g-slider2'); calculateModalGrade();" />
-                  <span style="color: #64748b; font-weight: bold; font-size: 0.85rem;">%</span>
-                </div>
-              </div>
-              <div id="g-slider-container2" class="slider-input-container hidden"
-                style="display: flex; align-items: center; gap: 8px; margin-top: 4px;">
-                <span id="g-slider-min2"
-                  style="font-size: 0.72rem; color: #64748b; font-weight: bold; min-width: 32px;">0%</span>
-                <input type="range" id="g-slider2" class="riven-slider" min="0" max="200" step="0.1" value="0"
-                  style="flex: 1;" oninput="syncRivenInputs('g-slider2', 'g-val2'); calculateModalGrade();" />
-                <span id="g-slider-max2"
-                  style="font-size: 0.72rem; color: #64748b; font-weight: bold; min-width: 32px; text-align: right;">100%</span>
-              </div>
-            </div>
-
 
             <!-- Add buttons -->
             <div style="
@@ -1522,14 +1490,9 @@
 
           <!-- Weapon Meta Guide Stats Container -->
           <div id="modal-meta-stats-container" style="width: 100%;"></div>
+          <!-- RESULTS SECTION AND SIMILAR LISTINGS -->
+          <div id="grading-modal-results" class="grading-results hidden"></div>
         </div>
-
-      </div>
-
-      <!-- RESULTS SECTION AND SIMILAR LISTINGS -->
-      <div
-        style="flex-grow: 1; padding: 0 20px 20px 20px; overflow-y: auto; border-top: 1px solid rgba(255,255,255,0.06); background: rgba(0,0,0,0.08); display: flex; flex-direction: column; gap: 15px;">
-        <div id="grading-modal-results" class="grading-results hidden" style="margin-top: 15px;"></div>
       </div>
     </div>
   </div>
@@ -1693,7 +1656,6 @@
 
   <!-- New Vanilla Riven Modules -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script type="module" src="js/modules/rivens/RivenController.js"></script>
 
   <script type="module" src="js/main.js?v=1.2"></script>
 </body>
