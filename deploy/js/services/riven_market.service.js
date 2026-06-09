@@ -21,7 +21,7 @@ function cleanMetadataKeys(obj) {
 }
 
 export async function loadDynamicMetaStats() {
-    const CACHE_KEY = "voidstonkscache_riven_metastats_v7";
+    const CACHE_KEY = "voidstonkscache_riven_metastats_v8";
     const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
 
     // Default hardcoded initial fallback data provided by the user
@@ -99,7 +99,7 @@ export async function loadDynamicMetaStats() {
         let fetchedFromWorker = false;
         if (!cacheValid) {
             try {
-                const cleanWorkerUrl = `${RIVEN_API_BASE}/metastats`;
+                const cleanWorkerUrl = `${RIVEN_API_BASE}/rivens`;
                 const res = await fetch(cleanWorkerUrl);
                 if (res.ok) {
                     let data = await res.json();
@@ -226,8 +226,37 @@ export function getMetaStats(weaponName, weaponType) {
     const baseName = getBaseWeaponName(weaponName);
 
     let rawMeta = null;
+    let baseMeta = null;
 
-    if (dynamicMetaStats) {
+    if (state.rivenIndexData && typeof state.rivenIndexData === "object") {
+        if (state.rivenIndexData[weaponName]) {
+            rawMeta = { ...state.rivenIndexData[weaponName] };
+        } else {
+            for (const family of Object.values(state.rivenIndexData)) {
+                if (family && typeof family === "object") {
+                    if (family.variants && family.variants[weaponName]) {
+                        rawMeta = { ...family.variants[weaponName] };
+                        break;
+                    } else if (family.baseStats && family.familyName && family.familyName.toLowerCase() === baseName.toLowerCase()) {
+                        rawMeta = { ...family.baseStats };
+                        break;
+                    }
+                }
+            }
+        }
+        if (state.rivenIndexData[baseName]) {
+            baseMeta = { ...state.rivenIndexData[baseName] };
+        } else {
+            for (const family of Object.values(state.rivenIndexData)) {
+                if (family && typeof family === "object" && family.familyName && family.familyName.toLowerCase() === baseName.toLowerCase()) {
+                    baseMeta = family.baseStats ? { ...family.baseStats } : null;
+                    break;
+                }
+            }
+        }
+    }
+
+    if (!rawMeta && dynamicMetaStats) {
         const statsObj = dynamicMetaStats.data ? dynamicMetaStats.data : dynamicMetaStats;
 
         const lookupKey = (key) => {
@@ -238,13 +267,13 @@ export function getMetaStats(weaponName, weaponType) {
             );
             return matchedKey ? statsObj[matchedKey] : null;
         };
-        const baseMeta = lookupKey(baseName);
+        const baseMetaFallback = lookupKey(baseName);
         const variantMeta = lookupKey(weaponName);
 
         if (variantMeta) {
             rawMeta = { ...variantMeta };
-        } else if (baseMeta) {
-            rawMeta = { ...baseMeta };
+        } else if (baseMetaFallback) {
+            rawMeta = { ...baseMetaFallback };
         }
 
         if (!rawMeta) {
@@ -263,110 +292,119 @@ export function getMetaStats(weaponName, weaponType) {
             };
             rawMeta = findNested(statsObj, weaponName) || findNested(statsObj, baseName);
         }
-        const hasValidRecommendations = (metaObj) => {
-            if (!metaObj) return false;
 
-            // Check pos
-            const pos = metaObj.pos;
-            if (Array.isArray(pos) && pos.length > 0) return true;
-            if (pos && typeof pos === "object" && Array.isArray(pos.best) && pos.best.length > 0) return true;
+        if (!baseMeta) {
+            baseMeta = baseMetaFallback;
+        }
+    }
 
-            // Check top_positive
-            const topPos = metaObj.top_positive;
-            if (Array.isArray(topPos) && topPos.length > 0) return true;
+    const hasValidRecommendations = (metaObj) => {
+        if (!metaObj) return false;
 
-            // NEW FORMAT Check
-            const posTier = metaObj.pos_tier;
-            if (posTier && Array.isArray(posTier.top) && posTier.top.length > 0) return true;
+        // Check pos
+        const pos = metaObj.pos;
+        if (Array.isArray(pos) && pos.length > 0) return true;
+        if (pos && typeof pos === "object" && Array.isArray(pos.best) && pos.best.length > 0) return true;
 
-            return false;
-        };
-        const hasValidPricing = (metaObj) => {
-            if (!metaObj) return false;
-            if (metaObj.official_median > 0) return true;
-            if (metaObj.official_avg_price > 0) return true;
-            if (metaObj.wfm_avg_price > 0 || metaObj.wfm_avg > 0) return true;
-            if (metaObj.de_unrolled && metaObj.de_unrolled.median > 0) return true;
-            return false;
-        };
-        // Perform robust inheritance if variant belongs to a base family
-        if (rawMeta && baseMeta) {
-            // 1. ALWAYS inherit recommendations from the base family if the base has them!
-            if (hasValidRecommendations(baseMeta) && !hasValidRecommendations(rawMeta)) {
-                if (baseMeta.pos) rawMeta.pos = baseMeta.pos;
-                if (baseMeta.neg) rawMeta.neg = baseMeta.neg;
-                if (baseMeta.pos_tier) rawMeta.pos_tier = baseMeta.pos_tier;
-                if (baseMeta.neg_tier) rawMeta.neg_tier = baseMeta.neg_tier;
-                if (baseMeta.top_positive) rawMeta.top_positive = baseMeta.top_positive;
-                if (baseMeta.top_negative) rawMeta.top_negative = baseMeta.top_negative;
-            }
+        // Check top_positive
+        const topPos = metaObj.top_positive;
+        if (Array.isArray(topPos) && topPos.length > 0) return true;
 
-            // 2. ALWAYS inherit pricing and statistical metrics from the base family if the base has them!
-            if (hasValidPricing(baseMeta)) {
-                const excludedKeys = new Set(["name", "pos", "neg", "pos_tier", "neg_tier", "top_positive", "top_negative"]);
-                for (const key of Object.keys(baseMeta)) {
-                    if (!excludedKeys.has(key) && baseMeta[key] !== undefined) {
-                        rawMeta[key] = baseMeta[key];
-                    }
+        // NEW FORMAT Check
+        const posTier = metaObj.pos_tier;
+        if (posTier && Array.isArray(posTier.top) && posTier.top.length > 0) return true;
+
+        return false;
+    };
+
+    const hasValidPricing = (metaObj) => {
+        if (!metaObj) return false;
+        if (metaObj.official_median > 0) return true;
+        if (metaObj.official_avg_price > 0) return true;
+        if (metaObj.wfm_avg_price > 0 || metaObj.wfm_avg > 0) return true;
+        if (metaObj.de_unrolled && metaObj.de_unrolled.median > 0) return true;
+        return false;
+    };
+
+    // Perform robust inheritance if variant belongs to a base family
+    if (rawMeta && baseMeta) {
+        // 1. ALWAYS inherit recommendations from the base family if the base has them!
+        if (hasValidRecommendations(baseMeta) && !hasValidRecommendations(rawMeta)) {
+            if (baseMeta.pos) rawMeta.pos = baseMeta.pos;
+            if (baseMeta.neg) rawMeta.neg = baseMeta.neg;
+            if (baseMeta.pos_tier) rawMeta.pos_tier = baseMeta.pos_tier;
+            if (baseMeta.neg_tier) rawMeta.neg_tier = baseMeta.neg_tier;
+            if (baseMeta.top_positive) rawMeta.top_positive = baseMeta.top_positive;
+            if (baseMeta.top_negative) rawMeta.top_negative = baseMeta.top_negative;
+        }
+
+        // 2. ALWAYS inherit pricing and statistical metrics from the base family if the base has them!
+        if (hasValidPricing(baseMeta)) {
+            const excludedKeys = new Set(["name", "pos", "neg", "pos_tier", "neg_tier", "top_positive", "top_negative"]);
+            for (const key of Object.keys(baseMeta)) {
+                if (!excludedKeys.has(key) && baseMeta[key] !== undefined) {
+                    rawMeta[key] = baseMeta[key];
                 }
             }
         }
-        // 3. Defensive fallback: If resolved rawMeta lacks valid recommendations (e.g. empty pos/neg from Worker or Cache),
-        // retrieve them from the original baseline metadata.
-        if (rawMeta && !hasValidRecommendations(rawMeta)) {
-            const activeBaseline = baselineMetaStats || globalThis.baselineMetaStats;
-            if (activeBaseline) {
-                const lookupBaseline = (key) => {
-                    if (!key) return null;
-                    if (activeBaseline[key]) return activeBaseline[key];
-                    const matchedKey = Object.keys(activeBaseline).find(
-                        k => k.toLowerCase() === key.toLowerCase()
-                    );
-                    return matchedKey ? activeBaseline[matchedKey] : null;
-                };
+    }
 
-                const baselineMeta = lookupBaseline(baseName) || lookupBaseline(weaponName);
-                if (baselineMeta && hasValidRecommendations(baselineMeta)) {
-                    rawMeta.pos = baselineMeta.pos;
-                    rawMeta.neg = baselineMeta.neg;
-                    if (baselineMeta.pos_tier) rawMeta.pos_tier = baselineMeta.pos_tier;
-                    if (baselineMeta.neg_tier) rawMeta.neg_tier = baselineMeta.neg_tier;
-                    if (baselineMeta.top_positive) rawMeta.top_positive = baselineMeta.top_positive;
-                    if (baselineMeta.top_negative) rawMeta.top_negative = baselineMeta.top_negative;
-                }
+    // 3. Defensive fallback: If resolved rawMeta lacks valid recommendations (e.g. empty pos/neg from Worker or Cache),
+    // retrieve them from the original baseline metadata.
+    if (rawMeta && !hasValidRecommendations(rawMeta)) {
+        const activeBaseline = baselineMetaStats || globalThis.baselineMetaStats;
+        if (activeBaseline) {
+            const lookupBaseline = (key) => {
+                if (!key) return null;
+                if (activeBaseline[key]) return activeBaseline[key];
+                const matchedKey = Object.keys(activeBaseline).find(
+                    k => k.toLowerCase() === key.toLowerCase()
+                );
+                return matchedKey ? activeBaseline[matchedKey] : null;
+            };
+
+            const baselineMeta = lookupBaseline(baseName) || lookupBaseline(weaponName);
+            if (baselineMeta && hasValidRecommendations(baselineMeta)) {
+                rawMeta.pos = baselineMeta.pos;
+                rawMeta.neg = baselineMeta.neg;
+                if (baselineMeta.pos_tier) rawMeta.pos_tier = baselineMeta.pos_tier;
+                if (baselineMeta.neg_tier) rawMeta.neg_tier = baselineMeta.neg_tier;
+                if (baselineMeta.top_positive) rawMeta.top_positive = baselineMeta.top_positive;
+                if (baselineMeta.top_negative) rawMeta.top_negative = baselineMeta.top_negative;
             }
         }
-        // 4. Defensive fallback for other statistical/pricing metrics:
-        // If the resolved rawMeta is missing key metrics, inherit them from the baseline entry.
-        if (rawMeta) {
-            const activeBaseline = baselineMetaStats || globalThis.baselineMetaStats;
-            if (activeBaseline) {
-                const lookupBaseline = (key) => {
-                    if (!key) return null;
-                    if (activeBaseline[key]) return activeBaseline[key];
-                    const matchedKey = Object.keys(activeBaseline).find(
-                        k => k.toLowerCase() === key.toLowerCase()
-                    );
-                    return matchedKey ? activeBaseline[matchedKey] : null;
-                };
+    }
 
-                const baselineMeta = lookupBaseline(baseName) || lookupBaseline(weaponName);
-                if (baselineMeta) {
-                    const fallbackMetrics = [
-                        "popularity_pct",
-                        "official_median",
-                        "official_stddev",
-                        "official_avg_price",
-                        "wfm_market_sample",
-                        "wfm_avg_price",
-                        "wfm_avg",
-                        "de_unrolled",
-                        "de_rerolled"
-                    ];
-                    for (const metric of fallbackMetrics) {
-                        if (rawMeta[metric] === undefined || rawMeta[metric] === null) {
-                            rawMeta[metric] = baselineMeta[metric];
-                        }
+    // 4. Defensive fallback for other statistical/pricing metrics:
+    // If the resolved rawMeta is missing key metrics, inherit them from the baseline entry.
+    if (rawMeta) {
+        const activeBaseline = baselineMetaStats || globalThis.baselineMetaStats;
+        if (activeBaseline) {
+            const lookupBaseline = (key) => {
+                if (!key) return null;
+                if (activeBaseline[key]) return activeBaseline[key];
+                const matchedKey = Object.keys(activeBaseline).find(
+                    k => k.toLowerCase() === key.toLowerCase()
+                );
+                return matchedKey ? activeBaseline[matchedKey] : null;
+            };
+
+            const baselineMeta = lookupBaseline(baseName) || lookupBaseline(weaponName);
+            if (baselineMeta) {
+                const fallbackMetrics = [
+                    "popularity_pct",
+                    "official_median",
+                    "official_stddev",
+                    "official_avg_price",
+                    "wfm_market_sample",
+                    "wfm_avg_price",
+                    "wfm_avg",
+                    "de_unrolled",
+                    "de_rerolled"
+                ];
+                for (const metric of fallbackMetrics) {
+                    if (rawMeta[metric] === undefined || rawMeta[metric] === null) {
+                        rawMeta[metric] = baselineMeta[metric];
                     }
                 }
             }
@@ -385,6 +423,7 @@ export function getMetaStats(weaponName, weaponType) {
     return {
         ...rawMeta,
         name: weaponName,
+        popularity_pct: rawMeta.popularity_pct ?? rawMeta.liquidity_score ?? 0,
         pos,
         neg,
         midPos,

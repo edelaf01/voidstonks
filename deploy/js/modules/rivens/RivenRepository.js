@@ -137,6 +137,12 @@ function processAndGroupFamilies(rawData) {
   for (const [weaponName, stats] of Object.entries(rawData)) {
     const familyName = extractFamilyName(weaponName);
 
+    if (stats) {
+      if (stats.liquidity_score === undefined) stats.liquidity_score = 0;
+      if (stats.volatility_index === undefined) stats.volatility_index = 0;
+      if (stats.rerolled_premium_ratio === undefined) stats.rerolled_premium_ratio = 0;
+    }
+
     if (!groupedData[familyName]) {
       groupedData[familyName] = {
         familyName,

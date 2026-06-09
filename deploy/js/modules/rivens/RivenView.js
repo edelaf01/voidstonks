@@ -292,7 +292,10 @@ function createAdvancedCardElement(familyName, familyData, onSelect) {
         <div class="ic-right-col">
           <span class="ic-potential-badge">POTENTIAL: x${score} ℹ</span>
           <span class="ic-dispo-badge">DISPO: ${disposition}</span>
-          <span class="ic-expand-arrow ${expanded ? 'expanded' : ''}">›</span>
+                    <span class="ic-expand-arrow ${expanded ? 'expanded' : ''}">›</span>
+          <span class="ic-liquidity-badge">LIQ: ${activeWeapon.liquidity_score ?? 0}</span>
+          <span class="ic-volatility-badge">VOL: ${activeWeapon.volatility_index ?? 0}</span>
+          <span class="ic-reroll-ratio-badge">RR: ${activeWeapon.rerolled_premium_ratio ?? 0}</span>
         </div>
       </div>
 

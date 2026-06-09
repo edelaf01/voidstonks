@@ -451,8 +451,9 @@
     transform: none !important;
 }
 
-.tracker-item:hover {
-    z-index: 9999;
+.tracker-item:hover .item-icon-small {
+    transform: scale(2) !important;
+    z-index: 10000 !important;
 }
 
 .tracker-item.done {
@@ -513,12 +514,12 @@
 }
 
 .tracker-img-wrapper {
-  position: relative;
-  overflow: visible !important;
-  z-index: 1;
+    position: relative;
+    overflow: visible !important;
+    z-index: 1;
 }
 
 .tracker-img-wrapper img.item-icon-small:hover {
-  transform: scale(2) !important;
-  z-index: 1000 !important;
+    transform: scale(2) !important;
+    z-index: 1000 !important;
 }

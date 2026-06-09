@@ -1,10 +1,31 @@
 export const WORKER_URL = "https://api.voidstonks.com/";
-export const APP_VERSION = 2.2;
+export const APP_VERSION = 2.21;
 export const UPDATE_HISTORY_DATA = {
   es: `
 <div class="update-block">
   <div class="update-header">
-    <span class="update-version">v2.2.0 (Actual)</span>
+    <span class="update-version">v2.2.1 (Actual)</span>
+    <span class="update-date">2026-06-09</span>
+  </div>
+  <ul class="update-list">
+    <li><strong>Corrección de Errores (Bugfixes):</strong>
+      <ul>
+        <li>Se solucionó un problema en el escáner de recompensas donde sincronizar automáticamente un recuento de 0 no se actualizaba correctamente.</li>
+        <li>Se corrigió la recarga asíncrona de precios en la pestaña de inventario, asegurando que se actualicen sin retrasos ni bloqueos.</li>
+      </ul>
+    </li>
+    <li><strong>Mejoras de Rivens:</strong>
+      <ul>
+        <li>Se eliminaron los números redundantes en la guía de atributos recomendados de Rivens.</li>
+        <li>Se mejoró el contraste y resaltado de los mejores atributos recomendados (BEST) para facilitar su visualización rápida.</li>
+        <li>Se optimizó la herencia de datos de mercado y de popularidad de las armas base a sus variantes.</li>
+      </ul>
+    </li>
+  </ul>
+</div>
+<div class="update-block old">
+  <div class="update-header">
+    <span class="update-version">v2.2.0</span>
     <span class="update-date">2026-05-31</span>
   </div>
   <ul class="update-list">
@@ -127,7 +148,28 @@ export const UPDATE_HISTORY_DATA = {
   en: `
 <div class="update-block">
   <div class="update-header">
-    <span class="update-version">v2.2.0 (Current)</span>
+    <span class="update-version">v2.2.1 (Current)</span>
+    <span class="update-date">2026-06-09</span>
+  </div>
+  <ul class="update-list">
+    <li><strong>Bugfixes:</strong>
+      <ul>
+        <li>Fixed an issue in the reward scanner where auto-syncing an owned count of 0 would fail to update correctly.</li>
+        <li>Fixed asynchronous price loading in the inventory panel to ensure prices refresh instantly and reliably.</li>
+      </ul>
+    </li>
+    <li><strong>Riven Improvements:</strong>
+      <ul>
+        <li>Removed redundant weight numbers from the Riven attributes recommendation guide.</li>
+        <li>Improved the visual highlighting and contrast of the BEST recommended attributes for quick scanning.</li>
+        <li>Optimized market data and popularity inheritance from baseline weapons to their variants.</li>
+      </ul>
+    </li>
+  </ul>
+</div>
+<div class="update-block old">
+  <div class="update-header">
+    <span class="update-version">v2.2.0</span>
     <span class="update-date">2026-05-31</span>
   </div>
   <ul class="update-list">

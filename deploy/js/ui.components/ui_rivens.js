@@ -416,11 +416,6 @@ async function fetchAndRenderHistory(weaponName) {
   }
 
   try {
-<<<<<<< Updated upstream
-      // Ensure historyData is an array before sorting to avoid TypeError
-      if (Array.isArray(historyData)) {
-        historyData.sort((a, b) => a.date.localeCompare(b.date));
-=======
     // Ensure historyData is an array before sorting to avoid TypeError
     if (Array.isArray(historyData)) {
       const today = new Date();
@@ -461,7 +456,6 @@ async function fetchAndRenderHistory(weaponName) {
           }
           checkDate = new Date(checkDate.getTime() + 24 * 60 * 60 * 1000);
         }
->>>>>>> Stashed changes
       } else {
         // If history was completely empty but somehow evaluated as an array
         const todayEntry = {
@@ -474,55 +468,10 @@ async function fetchAndRenderHistory(weaponName) {
         historyData.push(todayEntry);
       }
 
-<<<<<<< Updated upstream
-    const labels = historyData.map(d => d.date);
-    const wfmPrices = historyData.map(d => d.wfm_avg_price || null);
-
-    // Mathematically robust baseline average of historical WFM prices to center our projections perfectly
-    const validWfm = wfmPrices.filter(p => p !== null && p > 0);
-    const avgWfm = validWfm.length > 0 ? (validWfm.reduce((s, p) => s + p, 0) / validWfm.length) : 180;
-
-    const officialMedians = historyData.map(d => {
-      if (d.official_median && d.official_median > 0) return d.official_median;
-      if (d.wfm_avg_price && avgWfm > 0) {
-        const ratio = d.wfm_avg_price / avgWfm;
-        return Math.round(baseMedian * ratio);
-      }
-      return baseMedian;
-    });
-
-    const rolledMedians = historyData.map(d => {
-      if (d.rolled_median && d.rolled_median > 0) return d.rolled_median;
-      if (d.wfm_avg_price && avgWfm > 0) {
-        const ratio = d.wfm_avg_price / avgWfm;
-        return Math.round(baseRolled * ratio);
-      }
-      return baseRolled;
-    });
-
-    const volumes = historyData.map(d => d.volume || d.wfm_market_sample || Math.round(10 + Math.random() * 20));
-
-    const existingChart = typeof globalThis.Chart !== "undefined" && canvas ? globalThis.Chart.getChart(canvas) : null;
-    if (existingChart) {
-      try {
-        existingChart.destroy();
-      } catch (e) {
-        console.warn("Failed destroying existingChart via getChart:", e);
-      }
-    }
-    if (rivenHistoryChartInstance) {
-      try {
-        rivenHistoryChartInstance.destroy();
-      } catch (e) {
-        console.warn("Failed destroying rivenHistoryChartInstance:", e);
-      }
-      rivenHistoryChartInstance = null;
-=======
       historyData.sort((a, b) => a.date.localeCompare(b.date));
     } else {
       console.warn('Riven history data is not an array, resetting to empty array:', historyData);
       historyData = [];
->>>>>>> Stashed changes
     }
 
     // Cache the fully resolved states for local range filtering
@@ -1463,7 +1412,7 @@ export function renderRivenCardHTML(container, data) {
   const statsHtml = stats.map(s => {
     const isNeg = s.value < 0;
     const cleanName = s.name.charAt(0).toUpperCase() + s.name.slice(1);
-    
+
     // Find matching row id
     let rowId = "row-stat1";
     if (isNeg) {
@@ -3141,10 +3090,17 @@ function renderMetaStats(weaponName, weaponType, targetId = "meta-stats-containe
 
   const isEs = state.currentLang === "es";
 
+  const getWeightText = (stat, fallbackVal) => {
+    if (meta.dynamic_weights && meta.dynamic_weights[stat] !== undefined) {
+      return ` (${Number(meta.dynamic_weights[stat]).toFixed(2)})`;
+    }
+    return fallbackVal !== undefined ? ` (${fallbackVal.toFixed(2)})` : "";
+  };
+
   // Build beautiful positive and negative guides (best, mid & worst)
   const bestPosHtml = meta.pos.map(s => `
-    <span style="background: rgba(0, 255, 120, 0.08); border: 1px solid rgba(0, 255, 120, 0.18); color: #00ff78; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 4px; display: inline-block; margin-bottom: 4px; font-weight: 500;">
-      <span style="font-size: 9px; background: rgba(0, 255, 120, 0.18); color: #00ff78; padding: 1px 4px; border-radius: 3px; margin-right: 5px; font-weight: 700; text-transform: uppercase;">BEST</span>+ ${getLocalizedStatName(s)}
+    <span style="background: rgba(0, 255, 120, 0.15); border: 1px solid rgba(0, 255, 120, 0.45); color: #00ff78; text-shadow: 0 0 6px rgba(0, 255, 120, 0.5); box-shadow: 0 0 8px rgba(0, 255, 120, 0.15); padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 4px; display: inline-block; margin-bottom: 4px; font-weight: bold;">
+      <span style="font-size: 9px; background: #00ff78; color: #000; padding: 1px 4px; border-radius: 3px; margin-right: 5px; font-weight: 900; text-transform: uppercase;">BEST</span>+ ${getLocalizedStatName(s)}
     </span>
   `).join("");
 
@@ -3163,8 +3119,8 @@ function renderMetaStats(weaponName, weaponType, targetId = "meta-stats-containe
   `).join("") : "";
 
   const bestNegHtml = meta.neg.map(s => `
-    <span style="background: rgba(0, 229, 255, 0.08); border: 1px solid rgba(0, 229, 255, 0.18); color: #00e5ff; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 4px; display: inline-block; margin-bottom: 4px; font-weight: 500;">
-      <span style="font-size: 9px; background: rgba(0, 229, 255, 0.18); color: #00e5ff; padding: 1px 4px; border-radius: 3px; margin-right: 5px; font-weight: 700; text-transform: uppercase;">BEST</span>- ${getLocalizedStatName(s)}
+    <span style="background: rgba(0, 229, 255, 0.15); border: 1px solid rgba(0, 229, 255, 0.45); color: #00e5ff; text-shadow: 0 0 6px rgba(0, 229, 255, 0.5); box-shadow: 0 0 8px rgba(0, 229, 255, 0.15); padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 4px; display: inline-block; margin-bottom: 4px; font-weight: bold;">
+      <span style="font-size: 9px; background: #00e5ff; color: #000; padding: 1px 4px; border-radius: 3px; margin-right: 5px; font-weight: 900; text-transform: uppercase;">BEST</span>- ${getLocalizedStatName(s)}
     </span>
   `).join("");
 
@@ -3245,11 +3201,20 @@ function renderMetaStats(weaponName, weaponType, targetId = "meta-stats-containe
 
     const premiumTooltip = getRivenTooltip("wfm", isEs);
 
+    const webMinVal = meta.web_min !== undefined ? meta.web_min : Math.round(wfmAvgVal * 0.25);
+    const webMaxVal = meta.web_max !== undefined ? meta.web_max : 0;
+    const wfmRangeText = webMinVal > 0 || webMaxVal > 0 ? ` (Range: ${webMinVal}p - ${webMaxVal}p)` : "";
+
     extraHtml = `
       <div style="margin-top:8px; padding-top:8px; border-top:1px dashed rgba(255,255,255,0.1); font-size:11px; color:#aaa; display:flex; gap:12px; justify-content:space-between; flex-wrap:wrap;">
         <span data-tooltip="${trendTooltip}" style="cursor: help;">TREND: <b style="color:var(--wf-gold-text)">${pop}</b> <span class="info-icon" style="font-size:0.65rem;">ℹ</span></span>
         <span data-tooltip="${baseTooltip}" style="cursor: help;">${isEs ? "Mediana" : "Median"}: <b style="color:var(--wf-gold-text)">${officialPrice}</b> <span class="info-icon" style="font-size:0.65rem;">ℹ</span>${riskHtml}</span>
-        <span data-tooltip="${premiumTooltip}" style="cursor: help;">WFM Avg: <b style="color:var(--wf-gold-text)">${wfmPrice} (${sample})</b> <span class="info-icon" style="font-size:0.65rem;">ℹ</span></span>
+        <span data-tooltip="${premiumTooltip}" style="cursor: help;">WFM Avg: <b style="color:var(--wf-gold-text)">${wfmPrice} (${sample})</b>${wfmRangeText} <span class="info-icon" style="font-size:0.65rem;">ℹ</span></span>
+      </div>
+      <div style="margin-top:10px; padding-top:10px; border-top:1px dotted rgba(255,255,255,0.1); font-size:11px; display:flex; gap:10px; flex-wrap:wrap; font-weight:bold;">
+        <span class="index-price-diff" style="color: #00e5ff; background: rgba(0, 229, 255, 0.1); border: 1px solid rgba(0, 229, 255, 0.3); padding: 4px 8px; border-radius: 4px; cursor: help;" data-tooltip="${isEs ? 'Liquidez (0-100): Rapidez para comprar/vender. A mayor valor, más fácil y rápido es encontrar comprador.' : 'Liquidity (0-100): How fast this Riven buys/sells. Higher means easier and faster to find a buyer.'}">${isEs ? 'LIQUIDEZ' : 'LIQUIDITY'}: <b style="font-size:12px;">${meta.liquidity_score ?? 0}</b></span>
+        <span class="index-price-diff" style="color: #eab308; background: rgba(234, 179, 8, 0.1); border: 1px solid rgba(234, 179, 8, 0.3); padding: 4px 8px; border-radius: 4px; cursor: help;" data-tooltip="${isEs ? 'Volatilidad: Fluctuación del precio. Valores altos indican que los precios varían frecuentemente y con fuerza (mayor riesgo de especulación).' : 'Volatility: Price fluctuations. High values indicate prices spike and drop frequently (higher speculation risk).'}">${isEs ? 'VOLATILIDAD' : 'VOLATILITY'}: <b style="font-size:12px;">${(typeof meta.volatility_index === 'number' ? meta.volatility_index : 0).toFixed(2)}</b></span>
+        <span class="index-price-diff" style="color: #a855f7; background: rgba(168, 85, 247, 0.1); border: 1px solid rgba(168, 85, 247, 0.3); padding: 4px 8px; border-radius: 4px; cursor: help;" data-tooltip="${isEs ? 'Valor Reroll: Multiplicador de precio según rolls. Indica cuánto sube el precio en rivens con muchos rerolls.' : 'Reroll Value: Price multiplier by rerolls. Shows how much value is added for high-reroll rivens.'}">${isEs ? 'VALOR REROLL' : 'REROLL VALUE'}: <b style="font-size:12px;">${((typeof meta.rerolled_premium_ratio === 'number' ? meta.rerolled_premium_ratio : 0) * 100).toFixed(1)}%</b></span>
       </div>
     `;
 
@@ -4188,40 +4153,13 @@ export async function initRivenMarketIndex() {
 
   try {
     // 1. Try reusing loaded dynamicMetaStats if they are already active
-    if (globalThis.dynamicMetaStats && Object.keys(globalThis.dynamicMetaStats).length > 10) {
+    const hasPremiumData = globalThis.dynamicMetaStats && Object.keys(globalThis.dynamicMetaStats).some(k => globalThis.dynamicMetaStats[k]?.liquidity_score > 0);
+    if (hasPremiumData) {
       state.rivenIndexData = globalThis.dynamicMetaStats;
       console.log("Reused globalThis.dynamicMetaStats for Riven Market Index!");
     } else {
       // 2. Fetch directly from the updated worker endpoint
       try {
-<<<<<<< Updated upstream
-        const base = WORKER_URL.endsWith("/") ? WORKER_URL.slice(0, -1) : WORKER_URL;
-        const res = await fetch(`${base}/api/rivens`);
-        if (res.ok) {
-          let data = await res.json();
-          if (data && data.data && typeof data.data === "object" && !Array.isArray(data.data)) {
-            data = data.data;
-          }
-          if (data && !data.error && Object.keys(data).length > 0) {
-            const merged = { ...(globalThis.dynamicMetaStats || {}) };
-            for (const [key, val] of Object.entries(data)) {
-              const upper = key.toUpperCase();
-              if (upper === "NOTE" || upper === "STATUS" || upper === "VERSION" || upper === "TTL" || upper === "DATA" || upper === "ERROR") continue;
-              if (merged[key]) {
-                const valPop = val.popularity_pct;
-                const hasValidPop = valPop !== undefined && valPop !== null && valPop > 0;
-                merged[key] = {
-                  ...merged[key],
-                  ...val,
-                  popularity_pct: hasValidPop ? valPop : (merged[key].popularity_pct || 0)
-                };
-              } else {
-                merged[key] = val;
-              }
-            }
-            state.rivenIndexData = merged;
-            console.log("Loaded and merged Riven Market Index directly from Worker!");
-=======
         let data = await fetchCurrentRivens();
         if (data && data.data && typeof data.data === "object" && !Array.isArray(data.data)) {
           data = data.data;
@@ -4242,9 +4180,14 @@ export async function initRivenMarketIndex() {
             } else {
               merged[key] = val;
             }
->>>>>>> Stashed changes
           }
           state.rivenIndexData = merged;
+          // Ensure new premium fields have defaults to avoid undefined
+          Object.values(state.rivenIndexData).forEach(weapon => {
+            if (weapon.liquidity_score === undefined) weapon.liquidity_score = 0;
+            if (weapon.volatility_index === undefined) weapon.volatility_index = 0;
+            if (weapon.rerolled_premium_ratio === undefined) weapon.rerolled_premium_ratio = 0;
+          });
           console.log("Loaded and merged Riven Market Index directly from Soft Mountain 28 worker!");
         }
       } catch (apiErr) {
@@ -4257,20 +4200,20 @@ export async function initRivenMarketIndex() {
           state.rivenIndexData = globalThis.dynamicMetaStats;
           console.log("Loaded Riven Market Index from global dynamicMetaStats fallback!");
         } else {
-<<<<<<< Updated upstream
-          const res = await fetch("metastats.json");
-          if (!res.ok) throw new Error("Failed to fetch metastats.json");
-          const data = await res.json();
-=======
-          let data = await fetchCurrentRivens();
-          if (data && data.data && typeof data.data === "object" && !Array.isArray(data.data)) {
-            data = data.data;
-          }
->>>>>>> Stashed changes
-          state.rivenIndexData = data;
-          console.log("Loaded Riven Market Index from local metastats.json fallback!");
+          // No local metastats.json available; fallback to empty index to avoid 404
+          state.rivenIndexData = {};
+          console.warn("metastats.json not found; using empty Riven index.");
         }
       }
+    }
+    if (state.rivenIndexData && typeof state.rivenIndexData === "object") {
+      Object.values(state.rivenIndexData).forEach(weapon => {
+        if (weapon) {
+          if (weapon.liquidity_score === undefined) weapon.liquidity_score = 0;
+          if (weapon.volatility_index === undefined) weapon.volatility_index = 0;
+          if (weapon.rerolled_premium_ratio === undefined) weapon.rerolled_premium_ratio = 0;
+        }
+      });
     }
 
     if (loadingDiv) loadingDiv.classList.add("hidden");
@@ -4291,10 +4234,6 @@ export function filterRivenIndex(resetPagination = true) {
   if (resetPagination) {
     indexRenderLimit = 30;
   }
-<<<<<<< Updated upstream
-  const data = state.rivenIndexData;
-  if (!data) return;
-=======
 
   const rawData = state.rivenIndexData || {};
   const data = {};
@@ -4313,7 +4252,6 @@ export function filterRivenIndex(resetPagination = true) {
     if (Object.keys(rawData).length === 0) return;
     Object.assign(data, rawData);
   }
->>>>>>> Stashed changes
 
   const query = document.getElementById("indexSearchInput")?.value?.trim()?.toLowerCase() || "";
   const sortBy = document.getElementById("indexSortSelect")?.value || "popularity";
@@ -4523,7 +4461,9 @@ export function renderRivenIndexList(items) {
         const fields = [
           "de_unrolled", "de_rerolled", "pos", "neg", "top_positive", "top_negative",
           "official_median", "official_avg_price", "official_stddev", "popularity_pct",
-          "wfm_avg_price", "wfm_market_sample", "trend_7d_pct"
+          "wfm_avg_price", "wfm_avg", "wfm_market_sample", "trend_7d_pct",
+          "liquidity_score", "volatility_index", "rerolled_premium_ratio",
+          "web_min", "web_max", "pos_tier", "neg_tier", "dynamic_weights"
         ];
 
         fields.forEach(overrideIfValid);
@@ -4555,22 +4495,23 @@ export function renderRivenIndexList(items) {
               </div>`;
     }).join("");
 
-    let resolvedPop = val.popularity_pct;
+    let resolvedPop = val.popularity_pct || val.liquidity_score;
     if (!resolvedPop) {
       const activeMeta = getMetaStats(activeRenderingName, state.weaponMap[activeRenderingName]?.t);
-      if (activeMeta && activeMeta.popularity_pct) {
-        resolvedPop = activeMeta.popularity_pct;
+      if (activeMeta && (activeMeta.popularity_pct || activeMeta.liquidity_score)) {
+        resolvedPop = activeMeta.popularity_pct || activeMeta.liquidity_score;
       }
     }
     if (!resolvedPop) {
       const baseMeta = getMetaStats(name, state.weaponMap[name]?.t);
-      if (baseMeta && baseMeta.popularity_pct) {
-        resolvedPop = baseMeta.popularity_pct;
+      if (baseMeta && (baseMeta.popularity_pct || baseMeta.liquidity_score)) {
+        resolvedPop = baseMeta.popularity_pct || baseMeta.liquidity_score;
       }
     }
     const popVal = (resolvedPop !== undefined && resolvedPop !== null && resolvedPop > 0) ? `${Math.round(resolvedPop)}/100` : "0/100";
 
-    const hasWfm = val.wfm_avg_price !== undefined && val.wfm_avg_price !== null && val.wfm_avg_price > 0;
+    const wfmAvgVal = val.wfm_avg_price || val.wfm_avg || 0;
+    const hasWfm = wfmAvgVal > 0;
     const wfmMarketSample = val.wfm_market_sample || 0;
 
     // Dual-market prices extraction with fallback
@@ -4607,8 +4548,8 @@ export function renderRivenIndexList(items) {
 
     const wfmPriceText = hasWfm
       ? (wfmMarketSample > 0
-        ? `${val.wfm_avg_price}${platImgHtml}<span style="font-size:0.65rem; font-weight:normal; opacity:0.8; margin-left:2px;">(${wfmMarketSample} ${isEs ? (wfmMarketSample === 1 ? "orden" : "órdenes") : (wfmMarketSample === 1 ? "order" : "orders")})</span>`
-        : `${val.wfm_avg_price}${platImgHtml}`)
+        ? `${wfmAvgVal}${platImgHtml}<span style="font-size:0.65rem; font-weight:normal; opacity:0.8; margin-left:2px;">(${wfmMarketSample} ${isEs ? (wfmMarketSample === 1 ? "orden" : "órdenes") : (wfmMarketSample === 1 ? "order" : "orders")})</span>`
+        : `${wfmAvgVal}${platImgHtml}`)
       : (isEs ? "Mercado inactivo" : "Inactive Market");
     const wfmPriceColor = hasWfm ? "display:inline-flex; align-items:center;" : "color: #ff9800; font-style: italic; font-size: 0.75rem; font-weight: normal;";
 
@@ -4807,10 +4748,6 @@ export function renderRivenIndexList(items) {
 
       if (Array.isArray(val.pos)) {
         bestPos = val.pos;
-<<<<<<< Updated upstream
-      } else if (val.pos) {
-        bestPos = val.pos.best || [];
-=======
       } else if (val.pos_tier) {
         bestPos = val.pos_tier.top || [];
         midPos = val.pos_tier.mid || [];
@@ -4818,16 +4755,11 @@ export function renderRivenIndexList(items) {
       } else if (val.pos) {
         bestPos = val.pos.best || [];
         midPos = val.pos.mid || [];
->>>>>>> Stashed changes
         worstPos = val.pos.worst || [];
       }
 
       if (Array.isArray(val.neg)) {
         bestNeg = val.neg;
-<<<<<<< Updated upstream
-      } else if (val.neg) {
-        bestNeg = val.neg.best || [];
-=======
       } else if (val.neg_tier) {
         bestNeg = val.neg_tier.buff || [];
         midNeg = val.neg_tier.mid || [];
@@ -4835,7 +4767,6 @@ export function renderRivenIndexList(items) {
       } else if (val.neg) {
         bestNeg = val.neg.best || [];
         midNeg = val.neg.mid || [];
->>>>>>> Stashed changes
         worstNeg = val.neg.worst || [];
       }
 
@@ -4874,13 +4805,13 @@ export function renderRivenIndexList(items) {
                 </div>
                 <div>
                   ${bestPos.length > 0 ? bestPos.map(s => `
-                    <span style="background: rgba(0, 255, 120, 0.08); border: 1px solid rgba(0, 255, 120, 0.18); color: #00ff78; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 4px; display: inline-block; margin-bottom: 4px; font-weight: 500;">
-                      <span style="font-size: 9px; background: rgba(0, 255, 120, 0.18); color: #00ff78; padding: 1px 4px; border-radius: 3px; margin-right: 5px; font-weight: 700; text-transform: uppercase;">BEST</span>+ ${escapeHTML(getLocalizedStatName(s))}
+                    <span style="background: rgba(0, 255, 120, 0.15); border: 1px solid rgba(0, 255, 120, 0.45); color: #00ff78; text-shadow: 0 0 6px rgba(0, 255, 120, 0.5); box-shadow: 0 0 8px rgba(0, 255, 120, 0.15); padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 4px; display: inline-block; margin-bottom: 4px; font-weight: bold;">
+                      <span style="font-size: 9px; background: #00ff78; color: #000; padding: 1px 4px; border-radius: 3px; margin-right: 5px; font-weight: 900; text-transform: uppercase;">BEST</span>+ ${escapeHTML(getLocalizedStatName(s))}
                     </span>
                   `).join("") : `<span style="font-size: 0.75rem; color: #555;">N/A</span>`}
                 </div>
               </div>
-
+ 
               <!-- Mid Positives -->
               ${midPos.length > 0 ? `
               <div style="margin-bottom: 6px;">
@@ -4896,7 +4827,7 @@ export function renderRivenIndexList(items) {
                   `).join("")}
                 </div>
               </div>` : ""}
-
+ 
               <!-- Meh Positives -->
               ${worstPos.length > 0 ? `
               <div style="margin-bottom: 6px;">
@@ -4913,13 +4844,13 @@ export function renderRivenIndexList(items) {
                 </div>
               </div>` : ""}
             </div>
-
+ 
             <!-- Negatives Section -->
             <div style="display: flex; flex-direction: column; gap: 10px;">
               <div style="font-size: 10px; color: #94a3b8; margin-bottom: 6px; text-transform: uppercase; font-weight: 800; letter-spacing: 0.05em; border-bottom: 1px dashed rgba(255,255,255,0.08); padding-bottom: 6px;">
                 ${isEs ? "ATRIBUTOS NEGATIVOS (MALDICIÓN)" : "NEGATIVE ATTRIBUTES (CURSE)"}
               </div>
-
+ 
               <!-- Best Negatives -->
               <div style="margin-bottom: 6px;">
                 <div style="font-size: 9px; color: #00e5ff; font-weight: 700; text-transform: uppercase; margin-bottom: 4px; display: flex; align-items: center; gap: 4px;">
@@ -4928,13 +4859,13 @@ export function renderRivenIndexList(items) {
                 </div>
                 <div>
                   ${bestNeg.length > 0 ? bestNeg.map(s => `
-                    <span style="background: rgba(0, 229, 255, 0.08); border: 1px solid rgba(0, 229, 255, 0.18); color: #00e5ff; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 4px; display: inline-block; margin-bottom: 4px; font-weight: 500;">
-                      <span style="font-size: 9px; background: rgba(0, 229, 255, 0.18); color: #00e5ff; padding: 1px 4px; border-radius: 3px; margin-right: 5px; font-weight: 700; text-transform: uppercase;">BEST</span>- ${escapeHTML(getLocalizedStatName(s))}
+                    <span style="background: rgba(0, 229, 255, 0.15); border: 1px solid rgba(0, 229, 255, 0.45); color: #00e5ff; text-shadow: 0 0 6px rgba(0, 229, 255, 0.5); box-shadow: 0 0 8px rgba(0, 229, 255, 0.15); padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 4px; display: inline-block; margin-bottom: 4px; font-weight: bold;">
+                      <span style="font-size: 9px; background: #00e5ff; color: #000; padding: 1px 4px; border-radius: 3px; margin-right: 5px; font-weight: 900; text-transform: uppercase;">BEST</span>- ${escapeHTML(getLocalizedStatName(s))}
                     </span>
                   `).join("") : `<span style="font-size: 0.75rem; color: #555;">N/A</span>`}
                 </div>
               </div>
-
+ 
               <!-- Mid Negatives -->
               ${midNeg.length > 0 ? `
               <div style="margin-bottom: 6px;">
@@ -4991,6 +4922,9 @@ export function renderRivenIndexList(items) {
               ${popVal ? `<span class="index-badge-popularity" data-tooltip="${getRivenTooltip("trend", isEs)}" style="cursor: help;">TREND: ${popVal} <span class="info-icon" style="font-size: 0.65rem; margin-left: 2px;">ℹ</span></span>` : ""}
               ${trendHtml}
               ${potentialHtml}
+              <span class="index-price-diff" style="color: #00e5ff; background: rgba(0, 229, 255, 0.08); border: 1px solid rgba(0, 229, 255, 0.2); cursor: help;" data-tooltip="${isEs ? 'Liquidez de Mercado (0-100): Velocidad de compra/venta' : 'Market Liquidity (0-100): Measure of trade speed'}">LIQ: ${val.liquidity_score ?? 0}</span>
+              <span class="index-price-diff" style="color: #eab308; background: rgba(234, 179, 8, 0.08); border: 1px solid rgba(234, 179, 8, 0.2); cursor: help;" data-tooltip="${isEs ? 'Índice de Volatilidad: Fluctuación del precio' : 'Volatility Index: Price fluctuations'}">VOL: ${(typeof val.volatility_index === 'number' ? val.volatility_index : 0).toFixed(2)}</span>
+              <span class="index-price-diff" style="color: #a855f7; background: rgba(168, 85, 247, 0.08); border: 1px solid rgba(168, 85, 247, 0.2); cursor: help;" data-tooltip="${isEs ? 'Proporción de Valor por Rerolls' : 'Reroll Premium Ratio'}">RR: ${((typeof val.rerolled_premium_ratio === 'number' ? val.rerolled_premium_ratio : 0) * 100).toFixed(1)}%</span>
             </div>
             
             <div class="index-card-price-groups" style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 6px; padding-top: 6px; border-top: 1px dashed rgba(255,255,255,0.06); width: 100%;">

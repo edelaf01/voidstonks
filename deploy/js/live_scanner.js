@@ -1,6 +1,7 @@
 import { state, saveAppState } from "./state.js";
 import { showToast } from "./ui.components/ui_components.js";
 import { TEXTS } from "./config.js";
+import { warmupPrices } from "./api.js";
 import { ScannerService } from "./services/scanner.service.js";
 import { OCRService } from "./services/ocr.service.js";
 import { ScannerModal } from "./ui.components/ui_scanner_modal.js";
@@ -171,7 +172,8 @@ globalThis.selectRewardToInventory = (itemName) => {
     : `Seleccionado: ${itemName}`;
   showToast(msg);
 
-  if (!state.autoSyncRewards) {
+  const willSyncInClose = state.autoSyncRewards && modal && modal.currentResults && !modal.isHistoric;
+  if (!willSyncInClose) {
     state.primeInventory[itemName] = (state.primeInventory[itemName] || 0) + 1;
     saveAppState();
     if (globalThis.renderPrimeInventory) globalThis.renderPrimeInventory();
@@ -190,7 +192,12 @@ globalThis.saveLiveInventory = () => {
   showToast(sh.saved);
   saveAppState();
 
+  if (typeof warmupPrices === "function") {
+    warmupPrices().catch(console.error);
+  }
+
   if (globalThis.renderInventory) globalThis.renderInventory();
+  if (globalThis.renderPrimeInventory) globalThis.renderPrimeInventory();
 };
 
 /**

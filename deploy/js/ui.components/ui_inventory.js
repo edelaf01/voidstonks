@@ -421,21 +421,31 @@ export function modifyPrimePart(name, amount) {
   saveAppState();
 
   const safePartHtml = escapeHTML(name);
-  const qtySpans = document.querySelectorAll(
-    `.inv-btn-small[data-part="${safePartHtml}"] ~ .qty-num, .qty-num[data-part="${safePartHtml}"]`
-  );
-  qtySpans.forEach(span => {
-    span.textContent = newQty;
-    span.classList.remove("pulse-anim");
-    // span.offsetWidth; // trigger reflow
-    span.classList.add("pulse-anim");
-  });
 
-  const safeId = name.replaceAll(/[^a-zA-Z0-9]/g, "");
-  const badge = document.getElementById(`price-p-${safeId}`);
-  if (badge) badge.dataset.qty = newQty;
+  if (current === 0 || newQty === 0) {
+    renderPrimeInventory();
+  } else {
+    const qtySpans = document.querySelectorAll(
+      `.inv-btn-small[data-part="${safePartHtml}"] ~ .qty-num, .qty-num[data-part="${safePartHtml}"]`
+    );
+    qtySpans.forEach(span => {
+      span.textContent = newQty;
+      span.classList.remove("pulse-anim");
+      span.classList.add("pulse-anim");
+    });
 
-  setTimeout(updatePrimeTotalValue, 10);
+    const safeId = name.replaceAll(/[^a-zA-Z0-9]/g, "");
+    const badge = document.getElementById(`price-p-${safeId}`);
+    if (badge) badge.dataset.qty = newQty;
+
+    setTimeout(updatePrimeTotalValue, 10);
+    if (newQty > 0) {
+      const slug = getSlug(name);
+      getPriceValue(name, slug).then(() => {
+        updatePrimeTotalValue();
+      });
+    }
+  }
   requestAnimationFrame(() => {
     const trackers = document.querySelectorAll(`.live-tracker[data-part="${safePartHtml}"]`);
     trackers.forEach(t => {
@@ -769,6 +779,15 @@ export function renderPrimeInventory() {
                    <span class="price-badge-small" id="price-p-${safeId}" data-qty="${qty}" data-item="${escapeHTML(partName)}">${(() => {
                   const cached = globalThis.MEMORY_CACHE?.get(getSlug(partName));
                   if (cached !== undefined && !Number.isNaN(Number.parseInt(cached, 10))) return Number.parseInt(cached, 10);
+                  const slug = getSlug(partName);
+                  getPriceValue(partName, slug).then((price) => {
+                    const badgeEl = document.getElementById(`price-p-${safeId}`);
+                    if (badgeEl) {
+                      badgeEl.innerHTML = `${price} <span class="plat-icon-inline"></span>`;
+                      badgeEl.classList.remove("price-loading-blink");
+                      updatePrimeTotalValue();
+                    }
+                  });
                   return "...";
                 })()} <span class="plat-icon-inline"></span></span>
                 </div>
