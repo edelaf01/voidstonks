@@ -227,9 +227,6 @@ export async function initFissurePanel() {
     const tier = state.selectedRelic.split(" ")[0];
     highlightFissureTier(tier);
   }
-<<<<<<< Updated upstream
-=======
-
   if (!globalThis._fissureCountdownInterval) {
     globalThis._fissureCountdownInterval = setInterval(() => {
       let expiredFound = false;
@@ -247,7 +244,7 @@ export async function initFissurePanel() {
           const hrs = Math.floor(totalSecs / 3600);
           const mins = Math.floor((totalSecs % 3600) / 60);
           const secs = totalSecs % 60;
-          
+
           if (hrs > 0) {
             el.innerText = `${hrs}h ${mins}m ${secs}s`;
           } else if (mins > 0) {
@@ -267,5 +264,4 @@ export async function initFissurePanel() {
       }
     }, 1000);
   }
->>>>>>> Stashed changes
 }
