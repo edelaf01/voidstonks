@@ -2,20 +2,23 @@ import { state, saveAppState } from "../state.js";
 import { TEXTS } from "../config.js";
 import { getSlug, getPriceValue } from "../api.js";
 import { showToast, escapeHTML } from "./ui_components.js";
-import { renderItemsInPiP } from "../pip_overlay.js";
-import { getItemIcon } from "./ui_utils.js";
+import { renderItemsInPiP } from "../utils/pip_overlay.js";
+import { getItemIcon } from "../utils/ui_utils.js";
 
 export const ScannerModal = {
     currentResults: [],
     autoCloseTimer: null,
     AUTO_CLOSE_DELAY_MS: 20000,
+    isHistoric: false,
 
-    async open(imageUrl, items, width, height, scale, rawOcr = "") {
+    async open(imageUrl, items, width, height, scale, rawOcr = "", isHistoric = false) {
         const modal = document.getElementById("scan-success-modal");
         const imgEl = document.getElementById("scan-snapshot");
         const badgesContainer = document.getElementById("scan-badges-container");
 
         if (!modal || !imgEl || !badgesContainer) return;
+
+        this.isHistoric = isHistoric;
 
         this.currentResults = items;
 
@@ -78,7 +81,7 @@ export const ScannerModal = {
                 const text = filtered.map(i => {
                     const p = i.price || 0;
                     return p > 0 ? `[${i.name}] ${p} :platinum:` : `[${i.name}]`;
-                }).join(", ");
+                }).join(", ") + " - voidstonks";
                 navigator.clipboard.writeText(text).then(() => {
                     showToast(TEXTS[state.currentLang].rewardScanner.toastCopied || "Results copied to clipboard");
                 }).catch(console.warn);
@@ -243,12 +246,12 @@ export const ScannerModal = {
 };
 
 globalThis.closeScanModal = () => {
-    if (state.autoSyncRewards && ScannerModal.currentResults) {
+    if (state.autoSyncRewards && ScannerModal.currentResults && !ScannerModal.isHistoric) {
         ScannerModal.currentResults.forEach(item => {
             if (!item.name) return;
             const currentAppQty = state.primeInventory[item.name] || 0;
             const isSelected = (globalThis.selectedScanItem === item.name);
-            const ocrOwned = (typeof item.owned === 'number' && item.owned > 0) ? item.owned : currentAppQty;
+            const ocrOwned = (typeof item.owned === 'number') ? item.owned : currentAppQty;
             state.primeInventory[item.name] = ocrOwned + (isSelected ? 1 : 0);
         });
         saveAppState();
@@ -276,7 +279,7 @@ globalThis.copyScanResultsToClipboard = () => {
         const text = filtered.map(i => {
             const p = i.price || 0;
             return p > 0 ? `[${i.name}] ${p} :platinum:` : `[${i.name}]`;
-        }).join(", ");
+        }).join(", ") + " - voidstonks";
         navigator.clipboard.writeText(text).then(() => {
             showToast(TEXTS[state.currentLang].rewardScanner.toastCopied || "Copied to clipboard");
         });
@@ -363,7 +366,7 @@ function renderScanHistory() {
             e.stopPropagation();
             const dropdown = document.getElementById("scan-history-dropdown");
             if (dropdown) dropdown.classList.add("hidden");
-            ScannerModal.open(detection.imageUrl, detection.items, detection.width, detection.height, detection.scale, detection.rawOcr);
+            ScannerModal.open(detection.imageUrl, detection.items, detection.width, detection.height, detection.scale, detection.rawOcr, true);
         };
         
         headerRow.appendChild(timeSpan);
