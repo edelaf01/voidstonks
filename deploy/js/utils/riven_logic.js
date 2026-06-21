@@ -312,6 +312,12 @@ export function calculateAdvancedPredictivePrice(weapon, itemAttributes, tiers, 
         attributeWeight = 0;
       }
 
+      // Daño por facción (Grineer/Corpus/Infested): decente pero nicho. Suelo ~0.30 para que no cuente
+      // como trash total (peso 0) ni como meta; sube algo el score sin convertir el riven en godroll.
+      if (/\b(grineer|corpus|infested)\b/i.test(nameLower)) {
+        attributeWeight = Math.max(attributeWeight, 0.30);
+      }
+
       const range = attr.maxIdeal - attr.minIdeal;
       if (range > 0) {
         const quality = (attr.value - attr.minIdeal) / range;
@@ -360,9 +366,10 @@ export function calculateAdvancedPredictivePrice(weapon, itemAttributes, tiers, 
   } else if (positiveCount === 2) {
     finalMetaRatio = ((sortedWeights[0] || 0) + (sortedWeights[1] || 0)) / 2;
   } else if (positiveCount >= 3) {
-    // A completely useless/trash 3rd positive dilutes the Riven's stats and value in the market.
-    // Instead of a harsh straight average, we blend the top 2 positives (80%) with the 3rd (20%) to model realistic dilution.
-    finalMetaRatio = (((sortedWeights[0] || 0) + (sortedWeights[1] || 0)) / 2) * 0.80 + (sortedWeights[2] || 0) * 0.20;
+    // Un 3er positivo basura (p.ej. daño por facción "Damage to Grineer") diluye el riven: pesa el 3º
+    // al 30% (antes 20%) para que un 2-bueno-1-trash caiga del tier godroll a good-reroll. Un godroll
+    // de verdad necesita que los 3 stats sean al menos decentes (3er positivo con peso >= ~0.33).
+    finalMetaRatio = (((sortedWeights[0] || 0) + (sortedWeights[1] || 0)) / 2) * 0.70 + (sortedWeights[2] || 0) * 0.30;
   }
 
   // Determine if the Riven completely lacks a negative curse (curse/boost synergy)

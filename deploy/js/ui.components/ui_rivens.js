@@ -3642,7 +3642,12 @@ function renderMetaStats(weaponName, weaponType, targetId = "meta-stats-containe
   // negatives) and elemental damage (Heat/Cold/Electric/Toxin), which can NEVER roll negative
   // on a riven. This avoids junk like "Zoom" or "Heat" appearing here.
   const goodNegSet = new Set([...(meta.neg || []), ...(meta.midNeg || [])].map(x => String(x).toLowerCase()));
-  const worstNeg = [...(meta.pos || []), ...(meta.midPos || [])]
+  // Peores negativas = inverso de los mejores positivos (bricks) + las peores que devuelve el endpoint
+  // (neg_tier.curse en armas normales, negWorst en kitguns), deduplicadas.
+  const worstNeg = [...new Set([
+    ...(meta.pos || []), ...(meta.midPos || []),
+    ...(meta.negWorst || []), ...(meta.neg_tier?.curse || []), ...(meta.rawNeg?.worst || [])
+  ])]
     .filter(allow)
     .filter(s => !goodNegSet.has(String(s).toLowerCase()) && !CANT_BE_NEGATIVE.test(s));
   const worstNegHtml = worstNeg.length > 0 ? worstNeg.map(s => `
@@ -4824,7 +4829,10 @@ export function renderRivenIndexList(items) {
       // elemental damage (which can never roll negative), so harmless stats (e.g. Zoom, Heat on
       // Acceltra) never show up here.
       const goodNegSet = new Set([...bestNeg, ...midNeg].map(x => String(x).toLowerCase()));
-      worstNeg = [...bestPos, ...midPos].filter(s => !goodNegSet.has(String(s).toLowerCase()) && !CANT_BE_NEGATIVE.test(s));
+      // Híbrido (anti-survivorship): bricks = inverso de los positivos + curse/worst de DE (cubren
+      // las negativas que arruinan valor pero casi no se listan), + negWorst observado en WFM.
+      worstNeg = [...new Set([...bestPos, ...midPos, ...(worstNeg || []), ...(val.negWorst || [])])]
+        .filter(s => !goodNegSet.has(String(s).toLowerCase()) && !CANT_BE_NEGATIVE.test(s));
 
       detailsHtml = `
         <div class="index-item-details" style="background: rgba(255,255,255,0.015); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 12px; box-shadow: inset 0 0 15px rgba(0,0,0,0.2); display: block; border-top: none; margin-top: 8px;">
