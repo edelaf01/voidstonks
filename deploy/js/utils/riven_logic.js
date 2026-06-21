@@ -301,6 +301,10 @@ export function calculateAdvancedPredictivePrice(weapon, itemAttributes, tiers, 
         attributeWeight = 0;
       }
 
+      if (/\b(grineer|corpus|infested)\b/i.test(nameLower)) {
+        attributeWeight = Math.max(attributeWeight, 0.30);
+      }
+
       const range = attr.maxIdeal - attr.minIdeal;
       if (range > 0) {
         const quality = (attr.value - attr.minIdeal) / range;
@@ -344,7 +348,8 @@ export function calculateAdvancedPredictivePrice(weapon, itemAttributes, tiers, 
   } else if (positiveCount === 2) {
     finalMetaRatio = ((sortedWeights[0] || 0) + (sortedWeights[1] || 0)) / 2;
   } else if (positiveCount >= 3) {
-    finalMetaRatio = (((sortedWeights[0] || 0) + (sortedWeights[1] || 0)) / 2) * 0.80 + (sortedWeights[2] || 0) * 0.20;
+    // a junk 3rd positive dilutes the riven, so it weighs 30%
+    finalMetaRatio = (((sortedWeights[0] || 0) + (sortedWeights[1] || 0)) / 2) * 0.70 + (sortedWeights[2] || 0) * 0.30;
   }
 
   let hasNegAttr = false;
