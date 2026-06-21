@@ -3523,7 +3523,10 @@ function renderMetaStats(weaponName, weaponType, targetId = "meta-stats-containe
   `).join("") : "";
 
   const goodNegSet = new Set([...(meta.neg || []), ...(meta.midNeg || [])].map(x => String(x).toLowerCase()));
-  const worstNeg = [...(meta.pos || []), ...(meta.midPos || [])]
+  const worstNeg = [...new Set([
+    ...(meta.pos || []), ...(meta.midPos || []),
+    ...(meta.negWorst || []), ...(meta.neg_tier?.curse || []), ...(meta.rawNeg?.worst || [])
+  ])]
     .filter(allow)
     .filter(s => !goodNegSet.has(String(s).toLowerCase()) && !CANT_BE_NEGATIVE.test(s));
   const worstNegHtml = worstNeg.length > 0 ? worstNeg.map(s => `
@@ -4661,7 +4664,8 @@ export function renderRivenIndexList(items) {
       }
 
       const goodNegSet = new Set([...bestNeg, ...midNeg].map(x => String(x).toLowerCase()));
-      worstNeg = [...bestPos, ...midPos].filter(s => !goodNegSet.has(String(s).toLowerCase()) && !CANT_BE_NEGATIVE.test(s));
+      worstNeg = [...new Set([...bestPos, ...midPos, ...(worstNeg || []), ...(val.negWorst || [])])]
+        .filter(s => !goodNegSet.has(String(s).toLowerCase()) && !CANT_BE_NEGATIVE.test(s));
 
       detailsHtml = `
         <div class="index-item-details" style="background: rgba(255,255,255,0.015); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 12px; box-shadow: inset 0 0 15px rgba(0,0,0,0.2); display: block; border-top: none; margin-top: 8px;">
