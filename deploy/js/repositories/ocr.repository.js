@@ -17,7 +17,7 @@ export const OCRRepository = {
                 const createStandardWorker = async () => {
                     const w = await tess.createWorker("eng", 1);
                     await w.setParameters({
-                        tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789:()+- '",
+                        tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789:()+- '/%,.",
                         tessedit_pageseg_mode: "6",
                         user_defined_dictionary_priority: "1",
                     });
@@ -69,10 +69,11 @@ export const OCRRepository = {
         this.initPromise = null;
     },
 
-    async recognize(worker, image, options = {}) {
+    async recognize(worker, image, options = {}, output = undefined) {
         if (!worker) return { data: { text: "", confidence: 0 } };
         try {
-            return await worker.recognize(image, options);
+            // `output` (e.g. { blocks: true }) requests word/line boxes from Tesseract to split side-by-side cards by X position when rolling rivens
+            return await worker.recognize(image, options, output);
         } catch (e) {
             console.error("[OCR Repo] Recognize Err:", e);
             return { data: { text: "", confidence: 0 } };

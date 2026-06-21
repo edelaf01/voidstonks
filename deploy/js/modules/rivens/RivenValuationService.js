@@ -2,7 +2,7 @@
  * @param {Object} weapon
  * @returns {Object}
  */
-export function calculateHybridTiers(weapon) {
+export function calculateHybridTiers(weapon, weaponHistory = null) {
   const popularity = weapon.popularity_pct || 0;
   const realVolume = (weapon.de_unrolled?.pop || 0) + (weapon.de_rerolled?.pop || 0) + (weapon.wfm_market_sample || 0);
 
@@ -16,9 +16,9 @@ export function calculateHybridTiers(weapon) {
   let histDeMedian = 0;
   let hasHistory = false;
 
-  const currentName = weapon.name || (globalThis.state && globalThis.state.currentWeaponHistory ? globalThis.state.currentWeaponHistory.weaponName : null);
-  if (currentName && globalThis.state && globalThis.state.currentWeaponHistory && globalThis.state.currentWeaponHistory.weaponName === currentName && Array.isArray(globalThis.state.currentWeaponHistory.data)) {
-    const histPoints = globalThis.state.currentWeaponHistory.data.filter(p => p && (p.wfm_avg_price > 0 || p.official_median > 0));
+  const currentName = weapon.name || null;
+  if (currentName && weaponHistory && weaponHistory.weaponName === currentName && Array.isArray(weaponHistory.data)) {
+    const histPoints = weaponHistory.data.filter(p => p && (p.wfm_avg_price > 0 || p.official_median > 0));
     if (histPoints.length > 0) {
       hasHistory = true;
       let sumWfm = 0;
@@ -50,17 +50,13 @@ export function calculateHybridTiers(weapon) {
     }
   }
 
-  let isPremiumVariant = false;
-  if (currentName) {
-    const nameLower = currentName.toLowerCase();
-    if (nameLower.includes("tenet") || nameLower.includes("kuva") || nameLower.includes("prime") || nameLower.includes("vandal") || nameLower.includes("wraith") || nameLower.includes("prisma")) {
-      isPremiumVariant = true;
-    }
-  }
-
   const maxWfmPrice = Math.max(wfmAvg, histWfmMax);
-  const META_WEAPONS = new Set(["torid", "latron", "angstrum", "boar", "toxocyst", "dual toxocyst", "furis", "burston", "miter", "magistar", "ceramic dagger", "hate", "glaive", "phenmor", "felarx", "laetum", "epitaph", "nataruk", "stropha", "pennant", "sporelacer"]);
-  const isMetaWeapon = isPremiumVariant || (currentName && META_WEAPONS.has(currentName.toLowerCase()));
+  const maxUnrolledRef = (weapon.de_unrolled && weapon.de_unrolled.max_price) || 0;
+  const maxRerolledRef = (weapon.de_rerolled && weapon.de_rerolled.max_price) || 0;
+  const absoluteMax = Math.max(maxUnrolledRef, maxRerolledRef, weapon.max_price || 0);
+  const isHighValue = wfmAvg > 800 || (absoluteMax > 2500 && wfmAvg > 500) || histWfmAvg > 800;
+  const hasBasicVolume = popularity >= 5.0 || realVolume >= 5;
+  const isMetaWeapon = ((isHighValue || maxWfmPrice > 1200) && hasBasicVolume) || popularity >= 60;
 
   let clampMultiplier = 8;
   if (popularity > 0 || realVolume > 0) {
@@ -88,11 +84,6 @@ export function calculateHybridTiers(weapon) {
     wfmAvg = baseRefMedian * clampMultiplier + (wfmAvg - baseRefMedian * clampMultiplier) * 0.15;
   }
 
-  const maxUnrolled = (weapon.de_unrolled?.max_price) || 0;
-  const maxRerolled = (weapon.de_rerolled?.max_price) || 0;
-  const absoluteMax = Math.max(maxUnrolled, maxRerolled, weapon.max_price || 0);
-
-  const isHighValue = wfmAvg > 800 || (absoluteMax > 2500 && wfmAvg > 500) || histWfmAvg > 800;
   const isUnpopular = (popularity < 25 || realVolume < 25) && !isHighValue && !isMetaWeapon;
 
   if (isUnpopular) {
@@ -168,7 +159,7 @@ export function calculateHybridTiers(weapon) {
  * @param {Object} tiers
  * @returns {Object}
  */
-export function calculateAdvancedPredictivePrice(weapon, itemAttributes, tiers) {
+export function calculateAdvancedPredictivePrice(weapon, itemAttributes, tiers, desirabilityMultiplier = 1.0) {
   const bestPositives = Array.isArray(weapon.pos) ? weapon.pos : (weapon.pos?.best || weapon.pos_tier?.top || []);
 
   let positiveCount = 0;
@@ -248,12 +239,12 @@ export function calculateAdvancedPredictivePrice(weapon, itemAttributes, tiers) 
     if (!attr.isPositive) hasNegAttr = true;
   });
 
-  let effectiveMetaRatio = finalMetaRatio;
+  let effectiveMetaRatio = finalMetaRatio * desirabilityMultiplier;
   if (!hasNegAttr) {
     if (positiveCount >= 3) {
-      effectiveMetaRatio = finalMetaRatio * 0.82; 
+      effectiveMetaRatio = Math.min(effectiveMetaRatio, finalMetaRatio * 0.70); 
     } else {
-      effectiveMetaRatio = finalMetaRatio * 0.80;
+      effectiveMetaRatio = Math.min(effectiveMetaRatio, finalMetaRatio * 0.45);
     }
   }
 
@@ -275,7 +266,7 @@ export function calculateAdvancedPredictivePrice(weapon, itemAttributes, tiers) 
     finalPrice = tiers.trash * (0.8 + avgRollQuality * 0.4);
   }
 
-  const currentName = weapon.name || (globalThis.state && globalThis.state.currentWeaponHistory ? globalThis.state.currentWeaponHistory.weaponName : null);
+  const currentName = weapon.name || null;
   const isIncarnonDevouring = currentName && ["phenmor", "laetum", "felarx"].some(w => currentName.toLowerCase().includes(w));
 
   const curseNegs = Array.isArray(weapon.neg_tier?.curse) ? weapon.neg_tier.curse : 
@@ -291,15 +282,23 @@ export function calculateAdvancedPredictivePrice(weapon, itemAttributes, tiers) 
       
       const isElementalNeg = ["toxin", "heat", "cold", "electric"].some(e => negName.includes(e));
       
-      let isCurse = isElementalNeg || curseNegs.some(n => n.toLowerCase().includes(negName) || negName.includes(n.toLowerCase()));
-      let isBuff = !isElementalNeg && buffNegs.some(n => n.toLowerCase().includes(negName) || negName.includes(n.toLowerCase()));
+      let isCurse = isElementalNeg || curseNegs.some(n => {
+        const nl = n.toLowerCase();
+        if (nl === "damage") return negName === "damage" || negName === "base damage" || negName === "melee damage";
+        return nl === negName || negName.includes(nl) || nl.includes(negName);
+      });
+      let isBuff = !isElementalNeg && buffNegs.some(n => {
+        const nl = n.toLowerCase();
+        if (nl === "damage") return negName === "damage" || negName === "base damage" || negName === "melee damage";
+        return nl === negName || negName.includes(nl) || nl.includes(negName);
+      });
 
       if (isIncarnonDevouring && (negName.includes("critical chance") || negName.includes("critical damage"))) {
         isCurse = false;
         isBuff = true;
       }
 
-      const isBrick = isElementalNeg || (isCurse && ["multishot", "critical chance", "critical damage", "damage", "melee damage"].some(b => negName.includes(b)));
+      const isBrick = isElementalNeg || (isCurse && ["multishot", "critical chance", "critical damage", "damage", "base damage", "melee damage", "status chance"].includes(negName));
       if (isBrick) {
         isBricked = true;
       }

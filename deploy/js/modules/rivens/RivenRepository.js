@@ -35,6 +35,11 @@ export async function fetchWeaponHistory(weaponName) {
 
 export function weaponNameToSlug(name) {
   let slug = name.toLowerCase();
+  
+  slug = slug.replace("ack_and_brunt", "ack__brunt")
+             .replace("silva_and_aegis", "silva__aegis")
+             .replace("kuva_shildeg", "kuva_shieldeg");
+
   if (slug.includes('&')) {
     slug = slug.replace(/\s*&\s*/g, '__');
   }
