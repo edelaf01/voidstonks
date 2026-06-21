@@ -1,6 +1,6 @@
 import { state } from "../state.js";
 import { TEXTS } from "../config.js";
-import { fetchBestFissures } from "../api.js";
+import { fetchBestFissures } from "../services/fissures.service.js";
 
 let fissureLoadPromise = null;
 
@@ -46,7 +46,7 @@ export function renderMissionRow(m) {
                 <span class="m-node">${m.node}</span>
             </div>
             <div class="m-timer-box">
-                <span class="m-eta">${m.eta}</span>
+                <span class="m-eta" data-expiry="${m.expiry}">${m.eta}</span>
             </div>
         </div>
     `;
@@ -133,11 +133,12 @@ export async function initFissurePanel() {
   if (!globalThis._fissureRefreshInterval) {
     globalThis._fissureRefreshInterval = setInterval(() => {
       const panel = document.getElementById("best-missions-container");
+      // Solo refresca si el panel está abierto: evita quemar llamadas al worker cuando nadie mira.
       if (panel?.classList.contains("open")) {
         console.log("[FISSURES]: Auto-refreshing missions...");
         initFissurePanel();
       }
-    }, 5 * 60 * 1000);
+    }, 150 * 1000); // 2.5 min (la cache en memoria de 2 min garantiza datos frescos sin spam)
   }
 
   const allMissions = await fetchBestFissures();

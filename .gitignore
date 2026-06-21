@@ -13,4 +13,25 @@ worker-code.js
 /antiguo
 deploy/assets/json/metastats.json.bak
 .cursorrules
+<<<<<<< Updated upstream
+/scripts-actu
+=======
+.gitignore
+>>>>>>> Stashed changes
+.agents/
+.agents/
+.agents/
+skills-lock.json
+specs.md
+.claude/settings.local.json
+agents.md
+.vscode/settings.json
+/.claude
+/deploy/js/tests
+deploy/js/utils/RIVEN_VALUATION.md
+deploy/temp_inspect.html
+/scripts-actu
+scripts-actu/actualizarjsonimg.py
+>>>>>>> Stashed changes
+*.py
 /scripts-actu

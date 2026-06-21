@@ -402,6 +402,7 @@ function triggerSideEffects(t) {
       if (context === sh.statusInventory) type = "INVENTORY";
       else if (context === sh.statusRelics) type = "RELICS";
       else if (context === sh.statusReward) type = "REWARD";
+      else if (context === "MODS") type = "INVENTORY_MODS";
       ScannerHUD.updateContext(type);
     }
   }

@@ -1,10 +1,45 @@
 export const WORKER_URL = "https://api.voidstonks.com/";
-export const APP_VERSION = 2.21;
+export const APP_VERSION = 2.30;
 export const UPDATE_HISTORY_DATA = {
   es: `
 <div class="update-block">
   <div class="update-header">
-    <span class="update-version">v2.2.1 (Actual)</span>
+    <span class="update-version">v2.3.0 (Actual)</span>
+    <span class="update-date">2026-06-21</span>
+  </div>
+  <ul class="update-list">
+    <li><strong> Nueva función: Escáner de Rivens en vivo</strong>
+      <ul>
+        <li>Escanea rivens directamente desde la pantalla del juego y obtén su tasación de mercado (precio estimado, rango y nota) al instante.</li>
+        <li>En la pantalla de reroll escanea las DOS cartas a la vez (roll nuevo vs anterior) y muestra una comparativa lado a lado.</li>
+        <li>Indicador de <strong>deseabilidad por stat</strong> según el meta del arma: TOP / GOOD / MID / WEAK (y BRICK / NEG OK en negativas), independiente del grado del roll (cuánto subió dentro de su rango).</li>
+        <li>Cada stat en su propia cápsula con el texto completo.</li>
+      </ul>
+    </li>
+    <li><strong>Fisuras:</strong>
+      <ul>
+        <li>Refresco automático cada ~2-3 minutos.</li>
+        <li>Más estables: ya no se quedan vacías ni se bloquean cuando el servidor tarda, y consumen menos llamadas (caché).</li>
+      </ul>
+    </li>
+    <li><strong>Tasación de Rivens:</strong>
+      <ul>
+        <li>Corregida la sobrevaloración de armas impopulares / fuera del meta.</li>
+        <li>Corregido un fallo que rompía la tasación en algunos casos.</li>
+      </ul>
+    </li>
+    <li><strong>Nuevas armas:</strong>
+      <ul>
+        <li>Añadidos los kitguns (Catchmoon, Gaze, Rattleguts, Tombfinger, Sporelacer, Vermisplicer) para la valoración de rivens.</li>
+        <li>Añadidas Primes nuevas con sus ducados: Afentis Prime, Athodai Prime (y War Prime, Pride, Wrath).</li>
+      </ul>
+    </li>
+    <li><strong>Mejoras de backend:</strong> modelo de precios de rivens más preciso y mejor rendimiento y estabilidad del servidor.</li>
+  </ul>
+</div>
+<div class="update-block old">
+  <div class="update-header">
+    <span class="update-version">v2.2.1</span>
     <span class="update-date">2026-06-09</span>
   </div>
   <ul class="update-list">
@@ -148,7 +183,42 @@ export const UPDATE_HISTORY_DATA = {
   en: `
 <div class="update-block">
   <div class="update-header">
-    <span class="update-version">v2.2.1 (Current)</span>
+    <span class="update-version">v2.3.0 (Current)</span>
+    <span class="update-date">2026-06-21</span>
+  </div>
+  <ul class="update-list">
+    <li><strong> New: Live Riven Scanner</strong>
+      <ul>
+        <li>Scan rivens straight from the in-game screen and get their market appraisal (estimated price, range and grade) instantly.</li>
+        <li>On the reroll screen, scan BOTH cards at once (new vs previous roll) and see a side-by-side comparison.</li>
+        <li>Per-stat <strong>desirability</strong> indicator based on the weapon's meta: TOP / GOOD / MID / WEAK (plus BRICK / NEG OK for negatives), separate from the roll grade (how high it rolled within its range).</li>
+        <li>Each stat shown in its own capsule with the full text.</li>
+      </ul>
+    </li>
+    <li><strong>Void Fissures:</strong>
+      <ul>
+        <li>Now auto-refresh every ~2-3 minutes.</li>
+        <li>More reliable: no longer go blank or freeze when the server is slow, and use fewer API calls (caching).</li>
+      </ul>
+    </li>
+    <li><strong>Riven Appraisal:</strong>
+      <ul>
+        <li>Fixed overvaluation of unpopular / off-meta weapons.</li>
+        <li>Fixed a bug that broke the appraisal in some cases.</li>
+      </ul>
+    </li>
+    <li><strong>New weapons:</strong>
+      <ul>
+        <li>Added kitguns (Catchmoon, Gaze, Rattleguts, Tombfinger, Sporelacer, Vermisplicer) for riven appraisal.</li>
+        <li>Added new Primes with their ducat values: Afentis Prime, Athodai Prime (plus War Prime, Pride, Wrath).</li>
+      </ul>
+    </li>
+    <li><strong>Backend improvements:</strong> more accurate riven pricing model and better server performance and stability.</li>
+  </ul>
+</div>
+<div class="update-block old">
+  <div class="update-header">
+    <span class="update-version">v2.2.1</span>
     <span class="update-date">2026-06-09</span>
   </div>
   <ul class="update-list">
@@ -610,10 +680,14 @@ export const WEAPON_TYPE_IDX = {
   Pistol: 2,
   "Dual Pistols": 2,
   Thrown: 2,
+  Throwing: 2,
+  Kitgun: 2,
   Melee: 3,
   Zaw: 3,
+  "Zaw Component": 3,
   Glaive: 3,
   Archgun: 4,
+  "Arch-Gun": 4,
 };
 
 export const RIVEN_BASE_STATS = {
@@ -863,6 +937,22 @@ export const TEXTS = {
     lblFissures: "Fisuras Activas",
     lblInventory: "Inventario",
     menuRelic: "Reliquia",
+    rivenHud: {
+      compareTitle: "COMPARACIÓN DE ROLLS",
+      current: "ACTUAL",
+      new: "NUEVO",
+      score: "Puntuación",
+      est: "Est",
+      verdictBetter: "ES MEJOR",
+      editCurrent: "EDITAR ACTUAL",
+      editNew: "EDITAR NUEVO",
+      capture: "CAPTURA",
+      gradeActual: "GRADING (ACTUAL)",
+      gradeNuevo: "GRADING (NUEVO)",
+      sideCurrent: "ACTUAL (IZQ)",
+      sideNew: "NUEVO (DER)",
+      captured: "CAPTURADO"
+    },
     menuSet: "Set",
     menuRiven: "Riven",
     menuProfile: "Perfil",
@@ -1384,6 +1474,22 @@ export const TEXTS = {
       worstPositives: "WORST POSITIVES",
       bestNegatives: "BEST NEGATIVES (HARMLESS)",
       worstNegatives: "WORST NEGATIVES (CRITICAL)"
+    },
+    rivenHud: {
+      compareTitle: "ROLL COMPARISON",
+      current: "CURRENT",
+      new: "NEW",
+      score: "Score",
+      est: "Est",
+      verdictBetter: "IS BETTER",
+      editCurrent: "EDIT CURRENT",
+      editNew: "EDIT NEW",
+      capture: "CAPTURE",
+      gradeActual: "GRADING (CURRENT)",
+      gradeNuevo: "GRADING (NEW)",
+      sideCurrent: "CURRENT (L)",
+      sideNew: "NEW (R)",
+      captured: "CAPTURED"
     }
   },
 };

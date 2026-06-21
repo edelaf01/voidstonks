@@ -20,6 +20,7 @@ let DEBUG_MODE = false;
  */
 globalThis.toggleScannerDebug = () => {
   DEBUG_MODE = !DEBUG_MODE;
+  globalThis._scannerDebug = DEBUG_MODE;
   const btn = document.getElementById("btn-debug-toggle");
   if (btn) btn.classList.toggle("active", DEBUG_MODE);
   const dbgPanel = document.getElementById("live-debug-snapshot");
@@ -104,6 +105,7 @@ export async function startLiveSession() {
       drawer.classList.add("open");
     }
 
+    globalThis.syncScannerModeUI();
     await ScannerService.start();
     showToast(t.toastActive);
 
@@ -140,7 +142,18 @@ export function stopLiveSession() {
     drawer.classList.remove("open");
     drawer.classList.add("closed");
   }
+  if (globalThis.RivenScannerHUD) {
+    globalThis.RivenScannerHUD.dismiss();
+  }
 }
+
+/**
+ * UI Hook called by ScannerService when Riven card(s) are parsed.
+ */
+globalThis.showRivenAppraisal = async (parsedL, parsedR, screenshotDataURL) => {
+  const { RivenScannerHUD } = await import("./ui.components/ui_riven_scanner_hud.js");
+  RivenScannerHUD.show(parsedL, parsedR, screenshotDataURL);
+};
 
 /**
  * UI Hook called by ScannerService when a relic is detected.
@@ -240,4 +253,39 @@ globalThis.stopLiveSession = stopLiveSession;
 globalThis.toggleScanner = () => {
   if (liveStream?.active) stopLiveSession();
   else startLiveSession();
+};
+
+/**
+ * Changes active scan sub-mode between Prime and Riven scanning.
+ */
+globalThis.setScannerMode = (mode) => {
+  state.scannerModsMode = (mode === "mods");
+  saveAppState();
+  globalThis.syncScannerModeUI();
+  showToast(state.currentLang === "es" 
+    ? (mode === "prime" ? "Modo Prime activado" : "Modo Riven activado")
+    : (mode === "prime" ? "Prime mode active" : "Riven mode active")
+  );
+};
+
+/**
+ * Updates toggle visual styles based on state.scannerModsMode.
+ */
+globalThis.syncScannerModeUI = () => {
+  const mode = state.scannerModsMode ? "mods" : "prime";
+  const primeBtn = document.getElementById("btn-mode-prime");
+  const modsBtn = document.getElementById("btn-mode-mods");
+  if (primeBtn && modsBtn) {
+    if (mode === "prime") {
+      primeBtn.style.background = "rgba(0, 229, 255, 0.2)";
+      primeBtn.style.color = "#00e5ff";
+      modsBtn.style.background = "none";
+      modsBtn.style.color = "#888";
+    } else {
+      modsBtn.style.background = "rgba(208, 96, 255, 0.2)";
+      modsBtn.style.color = "#d060ff";
+      primeBtn.style.background = "none";
+      primeBtn.style.color = "#888";
+    }
+  }
 };
