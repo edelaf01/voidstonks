@@ -694,6 +694,8 @@ export const VisionService = {
     // and have dimmer text. RIVEN_CARD_CROP is a wide central band that contains either layout;
     // prepareRivenCardCanvases splits it into 1-2 card text clusters automatically.
     RIVEN_CARD_CROP: { x: 0.13, y: 0.50, w: 0.74, h: 0.40 },
+    // Popup "Item Details" de un riven linkeado: carta única CENTRADA y más arriba que el reroll.
+    RIVEN_ITEM_DETAILS_CROP: { x: 0.33, y: 0.30, w: 0.34, h: 0.40 },
 
     // Binarize riven text to black-on-white in place.
     // opts.C        — local contrast threshold (default 18, lower = catch dimmer text)
@@ -740,11 +742,11 @@ export const VisionService = {
     },
 
     // Returns an array of 1-2 binarized, tightly-cropped card canvases (left-to-right).
-    prepareRivenCardCanvases(video, scale) {
+    prepareRivenCardCanvases(video, scale, crop) {
         const width = video.videoWidth || video.width || 1920;
         const height = video.videoHeight || video.height || 1080;
 
-        const C = this.RIVEN_CARD_CROP;
+        const C = crop || this.RIVEN_CARD_CROP;
         const cropX = Math.floor(width * C.x);
         const cropW = Math.floor(width * C.w);
         const cropY = Math.floor(height * C.y);
@@ -877,6 +879,7 @@ export const VisionService = {
         const hasInv = /INVEN|TORY|1NVENT|INV|VENT|SELL|TARIO/.test(text);
         const hasMods = /MODS|MOD|M0DS|MOOS|MDDS|MDS|M0D5|M0D|MOO|MD|FICADORES|AGRIETADO|KUVA|KUYVA|CICLO|CICLAR|ATRIBU/.test(text);
 
+        if (/DETAIL|DETALL/.test(text)) return "ITEM_DETAILS"; // popup "Item Details" (riven linkeado, centrado)
         if (hasMods) return "INVENTORY_MODS";
         if (hasInv) return "INVENTORY";
         if (/RELI|ELIC|REFI|NEME/.test(text)) return "RELICS";
