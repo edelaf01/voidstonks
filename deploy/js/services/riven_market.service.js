@@ -21,7 +21,7 @@ function cleanMetadataKeys(obj) {
 }
 
 export async function loadDynamicMetaStats() {
-    const CACHE_KEY = "voidstonkscache_riven_metastats_v8";
+    const CACHE_KEY = "voidstonkscache_riven_metastats_v9";
     const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
 
     // Fallback snapshot until the worker data loads.
