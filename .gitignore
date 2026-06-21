@@ -20,3 +20,11 @@ scripts-actu/
 >>>>>>> Stashed changes
 .agents/rules/caveman.md
 .agents/rules/caveman.md
+/.agents
+/.vscode
+agents.md
+deploy/js/tests/riven_logic.test.js
+deploy/js/utils/RIVEN_VALUATION.md
+deploy/temp_inspect.html
+skills-lock.json
+specs.md
