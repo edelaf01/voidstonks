@@ -28,6 +28,7 @@ export const VisionService = {
     _badgeCvs: document.createElement("canvas"),
     _relicSelectionCvs: document.createElement("canvas"),
     _rewardCvs: document.createElement("canvas"),
+    _rivenCvs: document.createElement("canvas"),
     _inventoryCvs: document.createElement("canvas"),
     getFrameHash(ctx, w, h) {
         const data = ctx.getImageData(0, 0, w, h).data;
@@ -107,7 +108,9 @@ export const VisionService = {
         const ctx = canvas.getContext("2d", { willReadFrequently: true });
         ctx.drawImage(video, 0, 0, hCropW, hCropH, 0, 0, canvas.width, canvas.height);
 
-        this.applyClusteringThreshold(ctx, canvas.width, canvas.height);
+        const theme = this.detectThemeFromSnapshot(canvas, 0, 0, canvas.width, canvas.height);
+
+        this.applyClusteringThreshold(ctx, canvas.width, canvas.height, theme);
 
         return { width, height, scale };
     },
@@ -166,7 +169,14 @@ export const VisionService = {
 
         console.log(`[VisionService] Theme detected: ${bestTheme.name} (weight: ${maxWeight.toFixed(4)}, catalog: rgb(${bestTheme.r},${bestTheme.g},${bestTheme.b}), actual: rgb(${actualR},${actualG},${actualB}))`);
 
-        return {
+        if (maxWeight < 0.001) {
+            if (globalThis.state && globalThis.state.lastStableTheme) {
+                return globalThis.state.lastStableTheme;
+            }
+            return null;
+        }
+
+        const result = {
             name: bestTheme.name,
             r: bestTheme.r,
             g: bestTheme.g,
@@ -175,6 +185,12 @@ export const VisionService = {
             actualG,
             actualB,
         };
+
+        if (globalThis.state) {
+            globalThis.state.lastStableTheme = result;
+        }
+
+        return result;
     },
 
     createFilteredOcrCanvas(snapshot, width, height, grid) {
@@ -467,7 +483,7 @@ export const VisionService = {
         for (let i = 0; i < px.length; i += 8) {
             samples.push([px[i], px[i + 1], px[i + 2]]);
         }
-        let c1 = [0, 0, 0], c2 = theme ? [theme.r, theme.g, theme.b] : [255, 255, 255], minL = 255, maxL = 0;
+        let c1 = [0, 0, 0], c2 = theme ? [theme.actualR || theme.r, theme.actualG || theme.g, theme.actualB || theme.b] : [255, 255, 255], minL = 255, maxL = 0;
         for (const s of samples) {
             let l = 0.299 * s[0] + 0.587 * s[1] + 0.114 * s[2];
             if (l < minL) { minL = l; c1 = [...s]; }
@@ -564,9 +580,188 @@ export const VisionService = {
         return cvs;
     },
 
+    _rgbToHsv(r, g, b) {
+        r /= 255; g /= 255; b /= 255;
+        const max = Math.max(r, g, b), min = Math.min(r, g, b);
+        const d = max - min;
+        let h = 0, s = max === 0 ? 0 : (d / max) * 100, v = max * 100;
+        if (d !== 0) {
+            if (max === r) h = 60 * (((g - b) / d) % 6);
+            else if (max === g) h = 60 * (((b - r) / d) + 2);
+            else h = 60 * (((r - g) / d) + 4);
+            if (h < 0) h += 360;
+        }
+        return [h, s, v];
+    },
+
+    RIVEN_CARD_CROP: { x: 0.13, y: 0.50, w: 0.74, h: 0.40 },
+
+    _binarizeRivenText(px, targetW, targetH, opts = {}) {
+        const W = 25;
+        const C = opts.C ?? 18;
+        const whiteMin = opts.whiteMin ?? 120;
+
+        const L = new Uint8Array(targetW * targetH);
+        for (let i = 0; i < L.length; i++) {
+            const idx = i * 4;
+            L[i] = Math.round(0.299 * px[idx] + 0.587 * px[idx + 1] + 0.114 * px[idx + 2]);
+        }
+
+        for (let y = 0; y < targetH; y++) {
+            const rowOff = y * targetW;
+            let sum = 0, count = 0;
+            for (let x = 0; x <= W && x < targetW; x++) { sum += L[rowOff + x]; count++; }
+
+            for (let x = 0; x < targetW; x++) {
+                const oldX = x - W - 1, newX = x + W;
+                if (oldX >= 0) { sum -= L[rowOff + oldX]; count--; }
+                if (newX < targetW) { sum += L[rowOff + newX]; count++; }
+
+                const avg = sum / count;
+                const idx = (rowOff + x) * 4;
+                const val = L[rowOff + x];
+                const r = px[idx], g = px[idx + 1], b = px[idx + 2];
+                const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+                const s = mx === 0 ? 0 : (mx - mn) / mx;
+
+                let isText = false;
+                if (val > avg + C) {
+                    const isLavender = (b > r && r > g && s > 0.12 && s < 0.45);
+                    const isWhite    = (s < 0.18 && val > whiteMin);
+                    if (isLavender || isWhite) isText = true;
+                }
+                if (r > 90 && r - g > 30 && r - b > 30) isText = true;
+
+                px[idx] = px[idx + 1] = px[idx + 2] = isText ? 0 : 255;
+            }
+        }
+    },
+
+    prepareRivenCardCanvases(video, scale) {
+        const width = video.videoWidth || video.width || 1920;
+        const height = video.videoHeight || video.height || 1080;
+
+        const C = this.RIVEN_CARD_CROP;
+        const cropX = Math.floor(width * C.x);
+        const cropW = Math.floor(width * C.w);
+        const cropY = Math.floor(height * C.y);
+        const cropH = Math.floor(height * C.h);
+
+        const S = 2;
+        const targetW = Math.floor(cropW * scale * S);
+        const targetH = Math.floor(cropH * scale * S);
+
+        const cvs = this._rivenCvs;
+        cvs.width = targetW;
+        cvs.height = targetH;
+        const ctx = cvs.getContext("2d", { willReadFrequently: true });
+        ctx.imageSmoothingEnabled = true;
+        ctx.filter = "none";
+        ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, targetW, targetH);
+
+        const rawData = ctx.getImageData(0, 0, targetW, targetH);
+        const statsZoneStart = Math.floor(targetH * 0.38);
+        const minClusterW = Math.floor(targetW * 0.06);
+
+        const findClusters = (binPx) => {
+            const colCount = new Int32Array(targetW);
+            for (let y = statsZoneStart; y < targetH; y++) {
+                const rowOff = y * targetW;
+                for (let x = 0; x < targetW; x++) if (binPx[(rowOff + x) * 4] === 0) colCount[x]++;
+            }
+            const colThresh = Math.max(2, Math.floor((targetH - statsZoneStart) * 0.015));
+            const gapTol = Math.floor(targetW * 0.045);
+            const clusters = [];
+            let start = -1, lastActive = -1;
+            for (let x = 0; x < targetW; x++) {
+                if (colCount[x] >= colThresh) { if (start === -1) start = x; lastActive = x; }
+                else if (start !== -1 && x - lastActive > gapTol) { clusters.push([start, lastActive]); start = -1; }
+            }
+            if (start !== -1) clusters.push([start, lastActive]);
+            return clusters.filter(c => (c[1] - c[0]) >= minClusterW);
+        };
+
+        const brightPx = new Uint8ClampedArray(rawData.data);
+        this._binarizeRivenText(brightPx, targetW, targetH, { C: 18, whiteMin: 120 });
+        const dimPx = new Uint8ClampedArray(rawData.data);
+        this._binarizeRivenText(dimPx, targetW, targetH, { C: 10, whiteMin: 65 });
+
+        const byWidthDesc = (a, b) => (b[1] - b[0]) - (a[1] - a[0]);
+        const brightClusters = findClusters(brightPx).sort(byWidthDesc);
+        const dimClusters = findClusters(dimPx).sort(byWidthDesc);
+
+        const overlaps = (a, b) => !(a[1] < b[0] || b[1] < a[0]);
+        const center = brightClusters[0] || null;
+        const side = center ? (dimClusters.find(c => !overlaps(c, center)) || null) : null;
+
+        const plan = [];
+        if (center) plan.push({ range: center, binPx: brightPx });
+        if (side) plan.push({ range: side, binPx: dimPx });
+        if (!plan.length) (dimClusters.length ? dimClusters : [[0, targetW - 1]]).forEach(r => plan.push({ range: r, binPx: dimPx }));
+
+        const pad = Math.floor(6 * scale);
+        const out = [];
+        for (const { range, binPx } of plan) {
+            const [cx0, cx1] = range;
+            let minY = 0, maxY = targetH - 1;
+            const rowCount = new Int32Array(targetH);
+            for (let y = 0; y < targetH; y++) {
+                let c = 0;
+                const rowOff = y * targetW;
+                for (let x = cx0; x <= cx1; x++) { if (binPx[(rowOff + x) * 4] === 0) c++; }
+                rowCount[y] = c;
+            }
+            const rowThresh = Math.max(2, Math.floor((cx1 - cx0) * 0.02));
+            while (minY < maxY && rowCount[minY] < rowThresh) minY++;
+            while (maxY > minY && rowCount[maxY] < rowThresh) maxY--;
+
+            const bx0 = Math.max(0, cx0 - pad), by0 = Math.max(0, minY - pad);
+            const bx1 = Math.min(targetW - 1, cx1 + pad), by1 = Math.min(targetH - 1, maxY + pad);
+            const bw = bx1 - bx0 + 1, bh = by1 - by0 + 1;
+            if (bw < 40 || bh < 30) continue;
+
+            ctx.putImageData(new ImageData(binPx, targetW, targetH), 0, 0);
+            const oc = document.createElement("canvas");
+            oc.width = bw;
+            oc.height = bh;
+            oc.getContext("2d").putImageData(ctx.getImageData(bx0, by0, bw, bh), 0, 0);
+            out.push(oc);
+        }
+
+        if (globalThis.dumpRivenCrops) this._dumpRivenCrops(out.length ? out : [cvs]);
+
+        return out.length ? out : [cvs];
+    },
+
+    _dumpRivenCrops(canvases) {
+        let host = document.getElementById("__rivenDump");
+        if (!host) {
+            host = document.createElement("div");
+            host.id = "__rivenDump";
+            host.style.cssText = "position:fixed;top:0;left:0;z-index:999999;background:#000;padding:4px;display:flex;gap:6px;border:2px solid lime";
+            document.body.appendChild(host);
+        }
+        host.innerHTML = "";
+        canvases.forEach((c, i) => {
+            const clone = document.createElement("canvas");
+            clone.width = c.width;
+            clone.height = c.height;
+            clone.getContext("2d").drawImage(c, 0, 0);
+            clone.style.cssText = "outline:1px solid magenta;max-height:180px;height:auto";
+            clone.title = `card ${i} — ${c.width}x${c.height}`;
+            host.appendChild(clone);
+            console.log(`[rivenDump] card ${i}: ${c.width}x${c.height}`, c.toDataURL());
+        });
+    },
+
     determineContext(headerText) {
         const text = headerText.toUpperCase();
-        if (/INVEN|TORY|SELL/.test(text)) return "INVENTORY";
+        
+        const hasInv = /INVEN|TORY|1NVENT|INV|VENT|SELL|TARIO/.test(text);
+        const hasMods = /MODS|MOD|M0DS|MOOS|MDDS|MDS|M0D5|M0D|MOO|MD|FICADORES|AGRIETADO|KUVA|KUYVA|CICLO|CICLAR|ATRIBU/.test(text);
+
+        if (hasMods) return "INVENTORY_MODS";
+        if (hasInv) return "INVENTORY";
         if (/RELI|ELIC|REFI|NEME/.test(text)) return "RELICS";
         if (/REWA|WARD|ARDS|FISSU|FISSI|FISR|F5UR|FSUR|FI55|F1SS|FISS|FISU|VOID|V0ID|V01D/.test(text)) return "REWARD";
         return "UNKNOWN";

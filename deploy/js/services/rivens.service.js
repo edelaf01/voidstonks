@@ -6,21 +6,42 @@ import { getRivenSlug } from "../utils/slugs.utils.js";
 const EXCLUDED_COMPONENTS = new Set([
     "JAYAP", "KORB", "KROOSTRA", "KWATH", "LAKA", "PEYE", "SEEKALLA", "SHTUNG", "PLAGUE AKWIN", "PLAGUE BOKWIN",
     "JAI", "RUHANG", "JAI II", "RUHANG II", "VARGEET JAI", "VARGEET RUHANG", "EKWANA JAI", "EKWANA RUHANG", 
-    "VARGEET II JAI", "VARGEET II RUHANG", "EKWANA II JAI", "EKWANA II RUHANG", "VARGEET JAI II", "VARGEET RUHANG II", 
+    "VARGEET II JAI", "VARGEET II RUHANG", "EKWANA II JAI", "EKWANA II RUHANG", "VARGEET JAI II", "VARGEET RUHANG II",
     "EKWANA JAI II", "EKWANA RUHANG II"
 ]);
 
+const HOUND_WEAPONS = new Set(["AKATEN", "BATOTEN", "LACERTEN"]);
+
+// kitgun chambers are missing from cleaned_weapons.json and use Pistol riven stats
+const KITGUN_WEAPONS = new Set(["CATCHMOON", "GAZE", "RATTLEGUTS", "TOMBFINGER", "VERMISPLICER", "SPORELACER"]);
+
+function normalizeRivenWeaponType(item) {
+    const t = item.type || "Rifle";
+    if (t === "Zaw Component") return "Melee";
+    if (t === "Companion Weapon") return HOUND_WEAPONS.has(item.name.toUpperCase()) ? "Melee" : "Rifle";
+    return t;
+}
+
 export async function fetchRivenWeapons() {
-    const CACHE_KEY = "voidstonkscache_weapons_v4";
+    const CACHE_KEY = "voidstonkscache_weapons_v8";
     const ONE_DAY = 24 * 60 * 60 * 1000;
     try {
         const cached = await dbHelper.get(CACHE_KEY);
-        if (cached?.data && cached?.timestamp && (Date.now() - cached.timestamp < ONE_DAY) && cached.data["Sydon"]) {
+        if (cached?.data && cached?.timestamp && (Date.now() - cached.timestamp < ONE_DAY) && cached.data["Athodai Prime"]) {
             state.weaponMap = cached.data;
             state.allRivenNames = Object.keys(state.weaponMap).sort((a, b) => a.localeCompare(b));
-            
+
+            if (!state.weaponDetailsDB) {
+                try {
+                    const detailsRes = await fetch("assets/json/cleaned_weapons.json");
+                    if (detailsRes.ok) state.weaponDetailsDB = await detailsRes.json();
+                } catch (detErr) {
+                    console.error("Error loading weapon details on cache hit:", detErr);
+                }
+            }
+
             fetchWeaponCombatStats();
-            
+
             if (typeof globalThis.refreshCurrentRivenMetaStats === "function") {
                 globalThis.refreshCurrentRivenMetaStats();
             }
@@ -35,7 +56,7 @@ export async function fetchRivenWeapons() {
             if (EXCLUDED_COMPONENTS.has(item.name.toUpperCase())) return;
             state.weaponMap[item.name] = {
                 d: Number.parseFloat(item.omegaAttenuation || 1),
-                t: item.type || "Rifle",
+                t: normalizeRivenWeaponType(item),
             };
         });
 
@@ -44,12 +65,15 @@ export async function fetchRivenWeapons() {
             if (metaRes.ok) {
                 const metaData = await metaRes.json();
                 const statsObj = metaData.data ? metaData.data : metaData;
-                Object.keys(statsObj).forEach((wName) => {
+                Object.keys(statsObj).forEach((rawName) => {
+                    const wName = rawName.replace(/ And /g, " & ");
                     if (EXCLUDED_COMPONENTS.has(wName.toUpperCase())) return;
                     if (!state.weaponMap[wName]) {
                         const metaItem = statsObj[wName];
                         let type = "Rifle";
-                        if (metaItem.category) {
+                        if (KITGUN_WEAPONS.has(wName.toUpperCase())) {
+                            type = "Pistol";
+                        } else if (metaItem.category) {
                             type = metaItem.category;
                         } else {
                             const posArray = metaItem.pos ? (Array.isArray(metaItem.pos) ? metaItem.pos : (Array.isArray(metaItem.pos.best) ? metaItem.pos.best : [])) : [];
@@ -86,7 +110,7 @@ export async function fetchRivenWeapons() {
 }
 
 export async function fetchWeaponCombatStats() {
-    const CACHE_KEY = "voidstonkscache_combat_stats_v6";
+    const CACHE_KEY = "voidstonkscache_combat_stats_v7";
     const ONE_WEEK = 7 * 24 * 60 * 60 * 1000;
     try {
         const cached = await dbHelper.get(CACHE_KEY);
@@ -96,7 +120,7 @@ export async function fetchWeaponCombatStats() {
         }
 
         const statsDB = {};
-        const categories = ["Primary", "Secondary", "Melee", "Arch-Gun"];
+        const categories = ["Primary", "Secondary", "Melee", "Arch-Gun", "SentinelWeapons"];
         
         await Promise.all(categories.map(async (cat) => {
             const res = await fetch(`https://cdn.jsdelivr.net/gh/WFCD/warframe-items@master/data/json/${cat}.json`);
@@ -371,16 +395,10 @@ export function calculateHybridTiers(weapon) {
   const maxRerolled = (weapon.de_rerolled?.max_price) || 0;
   const absoluteMax = Math.max(maxUnrolled, maxRerolled, weapon.max_price || 0);
 
-  let isPremiumVariant = false;
-  if (weapon.name) {
-    const nameLower = weapon.name.toLowerCase();
-    if (nameLower.includes("tenet") || nameLower.includes("kuva") || nameLower.includes("prime") || nameLower.includes("vandal") || nameLower.includes("wraith") || nameLower.includes("prisma")) {
-      isPremiumVariant = true;
-    }
-  }
-
   const isHighValue = wfmAvg > 800 || (absoluteMax > 2500 && wfmAvg > 500);
-  const isUnpopular = (popularity < 25 || realVolume < 25) && !isHighValue && !isPremiumVariant;
+  const hasBasicVolume = popularity >= 5.0 || realVolume >= 5;
+  const isMetaWeapon = ((isHighValue || wfmAvg > 1200) && hasBasicVolume) || popularity >= 60;
+  const isUnpopular = (popularity < 25 || realVolume < 25) && !(isHighValue && hasBasicVolume) && !isMetaWeapon;
 
   if (isUnpopular) {
     if (offMedian > 150) {
@@ -397,7 +415,11 @@ export function calculateHybridTiers(weapon) {
     }
   }
 
-  const trash = offMedian > 0 ? offMedian : Math.round(wfmAvg * 0.15);
+  let trash = offMedian > 0 ? offMedian : ((weapon.de_unrolled?.median > 0) ? weapon.de_unrolled.median : ((weapon.de_unrolled?.min_price > 0) ? weapon.de_unrolled.min_price : (isMetaWeapon ? 50 : 15)));
+  const maxTrashFloor = isMetaWeapon ? 250 : 100;
+  if (trash > maxTrashFloor) {
+    trash = maxTrashFloor;
+  }
 
   let goodReroll = 0;
   if (reMedian > 0) {

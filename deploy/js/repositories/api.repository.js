@@ -2,6 +2,20 @@ import { WORKER_URL } from "../config.js";
 import { state } from "../state.js";
 import { dbHelper } from "./storage.repository.js";
 
+async function fetchWithTimeout(url, options = {}) {
+    const { timeout = 8000 } = options;
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeout);
+    try {
+        const response = await fetch(url, { ...options, signal: controller.signal });
+        clearTimeout(id);
+        return response;
+    } catch (error) {
+        clearTimeout(id);
+        throw error;
+    }
+}
+
 export async function loadRelicsData(cacheKey, cacheTtl) {
     try {
         const cachedRecord = await dbHelper.get(cacheKey);
@@ -13,9 +27,9 @@ export async function loadRelicsData(cacheKey, cacheTtl) {
     }
 
     const [relicsRes, missionsRes, bountiesRes] = await Promise.all([
-        fetch(`${WORKER_URL}?type=relics_opt`),
-        fetch(`${WORKER_URL}?type=missions_opt`),
-        fetch(`${WORKER_URL}?type=bounties_opt`),
+        fetchWithTimeout(`${WORKER_URL}?type=relics_opt`),
+        fetchWithTimeout(`${WORKER_URL}?type=missions_opt`),
+        fetchWithTimeout(`${WORKER_URL}?type=bounties_opt`),
     ]);
 
     if (!relicsRes.ok || !missionsRes.ok || !bountiesRes.ok) {
@@ -70,7 +84,7 @@ export async function fetchPrimeManifest() {
 
 export async function initializeOCRDatabase() {
     try {
-        const res = await fetch(`${WORKER_URL}?type=prime_items_list`);
+        const res = await fetchWithTimeout(`${WORKER_URL}?type=prime_items_list`);
         if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
         const data = await res.json();
         state.ocrReferenceList = data.items;
@@ -90,7 +104,7 @@ export async function fetchActiveResurgence() {
             return;
         }
 
-        const res = await fetch(`${WORKER_URL}?type=aya`);
+        const res = await fetchWithTimeout(`${WORKER_URL}?type=aya`);
         if (!res.ok) return;
         const data = await res.json();
         const traders = data.PrimeVaultTraders || [];
@@ -116,25 +130,25 @@ export async function fetchActiveResurgence() {
 }
 
 export async function sendSyncMessage(code, val) {
-    return fetch(`${WORKER_URL}?type=sync_set&id=${code}&val=${encodeURIComponent(val)}`);
+    return fetchWithTimeout(`${WORKER_URL}?type=sync_set&id=${code}&val=${encodeURIComponent(val)}`);
 }
 
 export async function getSyncMessage(code) {
-    return fetch(`${WORKER_URL}?type=sync_get&id=${code}`);
+    return fetchWithTimeout(`${WORKER_URL}?type=sync_get&id=${code}`);
 }
 
 export async function getProfileData(username, platform) {
-    return fetch(`${WORKER_URL}?type=profile&platform=${platform}&user=${encodeURIComponent(username)}`);
+    return fetchWithTimeout(`${WORKER_URL}?type=profile&platform=${platform}&user=${encodeURIComponent(username)}`);
 }
 
 export async function getPricesBatch(chunk) {
-    return fetch(`${WORKER_URL}?type=prices_batch&q=${chunk.join(",")}`);
+    return fetchWithTimeout(`${WORKER_URL}?type=prices_batch&q=${chunk.join(",")}`);
 }
 
 export async function getActiveBounties() {
-    return fetch(`${WORKER_URL}?type=active_bounties`);
+    return fetchWithTimeout(`${WORKER_URL}?type=active_bounties`);
 }
 
 export async function getActiveFissures() {
-    return fetch(`${WORKER_URL}?type=fissures&_cb=${Date.now()}`, { cache: "no-store" });
+    return fetchWithTimeout(`${WORKER_URL}?type=fissures`, { timeout: 15000 });
 }

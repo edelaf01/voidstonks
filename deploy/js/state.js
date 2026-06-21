@@ -28,6 +28,7 @@ Object.assign(rawState, {
   isPrecisionScanActive: false,
   autoSyncRewards: true,
   autoCopyScanResults: false,
+  scannerModsMode: false,
   visionSettings: {
     thresholdC: -15,
     claheClip: 5,
@@ -81,6 +82,7 @@ export function saveAppState() {
       primeInventory: state.primeInventory,
       autoSyncRewards: state.autoSyncRewards,
       autoCopyScanResults: state.autoCopyScanResults,
+      scannerModsMode: state.scannerModsMode,
       visionSettings: state.visionSettings,
     };
 
@@ -109,6 +111,7 @@ export function loadAppState() {
     if (data.primeInventory) state.primeInventory = data.primeInventory;
     if (data.autoSyncRewards !== undefined) state.autoSyncRewards = data.autoSyncRewards;
     if (data.autoCopyScanResults !== undefined) state.autoCopyScanResults = data.autoCopyScanResults;
+    if (data.scannerModsMode !== undefined) state.scannerModsMode = data.scannerModsMode;
     if (data.visionSettings) state.visionSettings = { ...state.visionSettings, ...data.visionSettings };
 
     domValues.relicInput = data.relicInput || "";
