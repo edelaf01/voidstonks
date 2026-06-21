@@ -78,6 +78,39 @@ export function updateLFGUI() {
                 <option value="Meta">${roles.meta}</option>
                 <option value="Normal">${roles.casual}</option>
             </select>`;
+  } else if (act === "circuit") {
+    container.innerHTML = `
+            ${createInfo(tips.circuit)}
+            <select id="lfg-circuit-mode" class="wf-input" onchange="generateLFGMessage()">
+                <option value="normal">${roles.normal || "Normal"}</option>
+                <option value="SP">${roles.steelpath || "Steel Path"}</option>
+            </select>`;
+  } else if (act === "eso" || act === "so") {
+    container.innerHTML = `
+            ${createInfo(act === "eso" ? tips.eso : tips.so)}
+            <div class="lfg-grid">
+                ${createCheckbox("Saryn", roles.saryn || "Saryn", tips.saryn)}
+                ${createCheckbox("Mirage", roles.mirage || "Mirage", tips.mirage)}
+                ${createCheckbox("Volt", "Volt", tips.volt)}
+                ${createCheckbox("Support", roles.support || "Support", tips.support)}
+                ${createCheckbox("DPS", roles.dps, tips.dps)}
+            </div>`;
+  } else if (act === "isovault") {
+    container.innerHTML = `
+            ${createInfo(tips.isovault)}
+            <select id="lfg-isovault-tier" class="wf-input" onchange="generateLFGMessage()">
+                <option value="T1">T1</option>
+                <option value="T2">T2</option>
+                <option value="T3" selected>T3</option>
+            </select>`;
+  } else if (act === "kuva") {
+    container.innerHTML = `
+            ${createInfo(tips.kuva)}
+            <select id="lfg-kuva-type" class="wf-input" onchange="generateLFGMessage()">
+                <option value="Survival">${roles.kuvaSurvival || "Survival"}</option>
+                <option value="Flood">Flood</option>
+                <option value="Siphon">Siphon</option>
+            </select>`;
   } else if (act === "archon") {
     container.innerHTML = createInfo(tips.archon);
   } else if (act === "sortie") {
@@ -162,6 +195,22 @@ export function generateLFGMessage() {
       if (arbiTypeEl) {
         msg = `H ${arbiTypeEl.value} ${activityName}`;
       }
+    } else if (act === "circuit") {
+      const modeEl = document.getElementById("lfg-circuit-mode");
+      const prefix = modeEl?.value === "SP" ? "SP " : "";
+      msg = `H ${prefix}${activityName}`;
+    } else if (act === "eso" || act === "so") {
+      msg = `H ${activityName}`;
+      const roles = getRoles();
+      if (roles.length > 0) msg += ` LF ${roles.join("/")}`;
+    } else if (act === "isovault") {
+      const tierEl = document.getElementById("lfg-isovault-tier");
+      const tier = tierEl ? tierEl.value : "T3";
+      msg = `H ${tier} ${activityName}`;
+    } else if (act === "kuva") {
+      const typeEl = document.getElementById("lfg-kuva-type");
+      const type = typeEl ? typeEl.value : "Survival";
+      msg = `H ${activityName} ${type}`;
     }
 
     if (extra) msg += ` ${extra}`;
@@ -200,7 +249,90 @@ export function initLFGPresets() {
   activityGroup.after(presetArea);
 
   renderLFGPresets();
+
+  if (!document.getElementById("trade-presets-area")) {
+    const tradeArea = document.createElement("div");
+    tradeArea.id = "trade-presets-area";
+    tradeArea.className = "lfg-presets-container";
+    presetArea.after(tradeArea);
+    renderTradePresets();
+  }
 }
+
+export function renderTradePresets() {
+  const container = document.getElementById("trade-presets-area");
+  if (!container) return;
+
+  const t = TEXTS[state.currentLang].tradePresets || {};
+  const currentText = document.getElementById("trade-msg-input")?.value || "";
+
+  let html = `<div class="presets-header">
+                  <span style="font-size:0.85em; font-weight:bold; color:#888;">${escapeHTML(
+    t.title || "Trade Messages",
+  )}</span>
+                  <button class="mini-action-btn" data-action="save-trade-preset">+ ${escapeHTML(
+    t.btnSave || "Save",
+  )}</button>
+                </div>
+                <textarea id="trade-msg-input" class="wf-input" rows="2"
+                  placeholder="${escapeHTML(t.placeholderText || "WTS [Arcane Energize] 100p")}"
+                  style="width:100%; resize:vertical; margin-bottom:8px; font-size:0.85em;">${escapeHTML(currentText)}</textarea>`;
+
+  if (!state.tradePresets || state.tradePresets.length === 0) {
+    html += `<div style="font-size:0.8em; color:#555; font-style:italic; padding:5px;">${escapeHTML(
+      t.empty || "No saved trade messages.",
+    )}</div>`;
+  } else {
+    html += `<div class="presets-list">`;
+    state.tradePresets.forEach((p, index) => {
+      html += `
+                <div class="preset-chip" data-action="load-trade-preset" data-index="${index}" title="${escapeHTML(p.text)}">
+                    <span class="p-name">${escapeHTML(p.name)}</span>
+                    <button class="p-del" data-action="delete-trade-preset" data-index="${index}">×</button>
+                </div>
+            `;
+    });
+    html += `</div>`;
+  }
+
+  container.innerHTML = html;
+}
+
+const saveTradePreset = function () {
+  const t = TEXTS[state.currentLang].tradePresets || {};
+  const text = (document.getElementById("trade-msg-input")?.value || "").trim();
+  if (!text) {
+    showToast(t.emptyMsg || "Write a message first");
+    return;
+  }
+  const name = prompt(t.placeholderName || "Preset name");
+  if (!name) return;
+
+  if (!state.tradePresets) state.tradePresets = [];
+  state.tradePresets.push({ name, text });
+  saveAppState();
+  renderTradePresets();
+};
+
+const loadTradePreset = function (index) {
+  const p = state.tradePresets[index];
+  if (!p) return;
+  const input = document.getElementById("trade-msg-input");
+  if (input) input.value = p.text;
+  navigator.clipboard
+    .writeText(p.text)
+    .then(() => showToast(TEXTS[state.currentLang].tradePresets?.copied || "Copied!"))
+    .catch((err) => console.error("Error al copiar: ", err));
+};
+
+const deleteTradePreset = function (index) {
+  const t = TEXTS[state.currentLang].tradePresets || {};
+  if (confirm(t.deleteConfirm || "Delete this preset?")) {
+    state.tradePresets.splice(index, 1);
+    saveAppState();
+    renderTradePresets();
+  }
+};
 
 export function renderLFGPresets() {
   const container = document.getElementById("lfg-presets-area");
@@ -337,6 +469,9 @@ Object.assign(globalThis, {
   saveLFGPreset,
   loadLFGPreset,
   deleteLFGPreset,
+  saveTradePreset,
+  loadTradePreset,
+  deleteTradePreset,
   copyText,
 });
 
