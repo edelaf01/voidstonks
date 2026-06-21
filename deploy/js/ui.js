@@ -579,6 +579,21 @@ export function setupGlobalClickListeners() {
             globalThis.saveLFGPreset();
           }
           break;
+        case "load-trade-preset":
+          if (typeof globalThis.loadTradePreset === "function") {
+            globalThis.loadTradePreset(parseInt(data.index));
+          }
+          break;
+        case "delete-trade-preset":
+          if (typeof globalThis.deleteTradePreset === "function") {
+            globalThis.deleteTradePreset(parseInt(data.index));
+          }
+          break;
+        case "save-trade-preset":
+          if (typeof globalThis.saveTradePreset === "function") {
+            globalThis.saveTradePreset();
+          }
+          break;
       }
     }
   });
