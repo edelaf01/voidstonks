@@ -1,0 +1,7796 @@
+{
+    "Arbucep": {
+        "pos": [
+            "Critical Damage",
+            "Multishot",
+            "Critical Chance",
+            "Reload Speed"
+        ],
+        "neg": [
+            "Zoom",
+            "Damage Vs Grineer"
+        ],
+        "popularity_pct": 3.94,
+        "official_avg_price": 154,
+        "official_median": 154
+    },
+    "Cortege": {
+        "pos": [
+            "Multishot",
+            "Heat Damage",
+            "Critical Damage",
+            "Toxin Damage"
+        ],
+        "neg": [
+            "Zoom",
+            "Damage Vs Corpus"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 88,
+        "official_median": 88
+    },
+    "Corvas": {
+        "pos": [
+            "Critical Chance",
+            "Critical Damage",
+            "Multishot",
+            "Damage Vs Corpus"
+        ],
+        "neg": [
+            "Impact Damage",
+            "Zoom"
+        ],
+        "popularity_pct": 4.72,
+        "official_avg_price": 94,
+        "official_median": 94
+    },
+    "Cyngas": {
+        "pos": [
+            "Critical Chance",
+            "Ammo Maximum",
+            "Critical Damage",
+            "Multishot"
+        ],
+        "neg": [
+            "Puncture Damage",
+            "Zoom"
+        ],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Dual Decurion": {
+        "pos": [
+            "Damage Vs Corpus",
+            "Critical Chance",
+            "Ammo Maximum",
+            "Critical Damage"
+        ],
+        "neg": [
+            "Reload Speed",
+            "Impact Damage"
+        ],
+        "popularity_pct": 5.77,
+        "official_avg_price": 149,
+        "official_median": 149
+    },
+    "Fluctus": {
+        "pos": [
+            "Base Damage / Melee Damage",
+            "Critical Chance",
+            "Multishot",
+            "Electric Damage"
+        ],
+        "neg": [
+            "Zoom",
+            "Slash Damage"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 220,
+        "official_median": 220
+    },
+    "Grattler": {
+        "pos": [
+            "Multishot",
+            "Toxin Damage",
+            "Base Damage / Melee Damage",
+            "Critical Damage"
+        ],
+        "neg": [
+            "Puncture Damage",
+            "Damage Vs Grineer"
+        ],
+        "popularity_pct": 7.24,
+        "official_avg_price": 120,
+        "official_median": 120
+    },
+    "Imperator": {
+        "pos": [
+            "Critical Damage",
+            "Fire Rate / Attack Speed",
+            "Critical Chance",
+            "Multishot"
+        ],
+        "neg": [
+            "Recoil",
+            "Puncture Damage"
+        ],
+        "popularity_pct": 4.72,
+        "official_avg_price": 20,
+        "official_median": 20
+    },
+    "Kuva Ayanga": {
+        "pos": [
+            "Multishot",
+            "Critical Damage",
+            "Critical Chance",
+            "Toxin Damage"
+        ],
+        "neg": [
+            "Recoil",
+            "Zoom"
+        ],
+        "popularity_pct": 3.54,
+        "official_avg_price": 74,
+        "official_median": 74
+    },
+    "Larkspur": {
+        "pos": [
+            "Multishot",
+            "Critical Damage",
+            "Toxin Damage",
+            "Critical Chance"
+        ],
+        "neg": [
+            "Puncture Damage",
+            "Recoil"
+        ],
+        "popularity_pct": 5.25,
+        "official_avg_price": 127,
+        "official_median": 127
+    },
+    "Mandonel": {
+        "pos": [
+            "Multishot",
+            "Critical Chance",
+            "Critical Damage",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Ammo Maximum",
+            "Status Chance"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 287,
+        "official_median": 287
+    },
+    "Mausolon": {
+        "pos": [
+            "Critical Damage",
+            "Multishot",
+            "Critical Chance",
+            "Damage Vs Corpus"
+        ],
+        "neg": [
+            "Zoom",
+            "Impact Damage"
+        ],
+        "popularity_pct": 4.2,
+        "official_avg_price": 119,
+        "official_median": 119
+    },
+    "Morgha": {
+        "pos": [
+            "Multishot",
+            "Critical Chance",
+            "Toxin Damage",
+            "Critical Damage"
+        ],
+        "neg": [
+            "Recoil",
+            "Impact Damage"
+        ],
+        "popularity_pct": 2.1,
+        "official_avg_price": 104,
+        "official_median": 104
+    },
+    "Phaedra": {
+        "pos": [
+            "Base Damage / Melee Damage",
+            "Critical Damage",
+            "Toxin Damage",
+            "Critical Chance"
+        ],
+        "neg": [
+            "Magazine Capacity",
+            "Zoom"
+        ],
+        "popularity_pct": 2.36,
+        "official_avg_price": 22,
+        "official_median": 22
+    },
+    "Velocitus": {
+        "pos": [
+            "Critical Chance",
+            "Damage Vs Corpus",
+            "Critical Damage",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Zoom",
+            "Status Chance"
+        ],
+        "popularity_pct": 3.94,
+        "official_avg_price": 498,
+        "official_median": 498
+    },
+    "Amanata": {
+        "pos": [
+            "Range",
+            "Fire Rate / Attack Speed",
+            "Critical Damage",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Slash Damage",
+            "Critical Chance On Slide Attack"
+        ],
+        "popularity_pct": 7.35,
+        "official_avg_price": 248,
+        "official_median": 248
+    },
+    "Amphis": {
+        "pos": [
+            "Critical Damage",
+            "Critical Chance",
+            "Fire Rate / Attack Speed",
+            "Range"
+        ],
+        "neg": [
+            "Impact Damage",
+            "Finisher Damage"
+        ],
+        "popularity_pct": 2.1,
+        "official_avg_price": 462,
+        "official_median": 462
+    },
+    "Anku": {
+        "pos": [
+            "Critical Damage",
+            "Fire Rate / Attack Speed",
+            "Critical Chance",
+            "Range"
+        ],
+        "neg": [
+            "Critical Chance On Slide Attack",
+            "Puncture Damage"
+        ],
+        "popularity_pct": 3.94,
+        "official_avg_price": 172,
+        "official_median": 172
+    },
+    "Ankyros": {
+        "pos": [
+            "Critical Chance",
+            "Critical Damage",
+            "Range",
+            "Fire Rate / Attack Speed"
+        ],
+        "neg": [
+            "Finisher Damage",
+            "Impact Damage"
+        ],
+        "popularity_pct": 2.1,
+        "official_avg_price": 134,
+        "official_median": 134
+    },
+    "Arca Titron": {
+        "pos": [
+            "Critical Damage",
+            "Fire Rate / Attack Speed",
+            "Critical Chance",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Impact Damage",
+            "Finisher Damage"
+        ],
+        "popularity_pct": 7.09,
+        "official_avg_price": 135,
+        "official_median": 135
+    },
+    "Arum Spinosa": {
+        "pos": [
+            "Base Damage / Melee Damage",
+            "Range",
+            "Critical Damage",
+            "Fire Rate / Attack Speed"
+        ],
+        "neg": [
+            "Critical Chance On Slide Attack",
+            "Finisher Damage"
+        ],
+        "popularity_pct": 4.72,
+        "official_avg_price": 21,
+        "official_median": 21
+    },
+    "Atterax": {
+        "pos": [
+            "Critical Chance",
+            "Fire Rate / Attack Speed",
+            "Electric Damage",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Channeling Efficiency",
+            "Damage Vs Infested"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 385,
+        "official_median": 385
+    },
+    "Azothane": {
+        "pos": [
+            "Critical Chance",
+            "Critical Damage",
+            "Base Damage / Melee Damage",
+            "Damage Vs Grineer"
+        ],
+        "neg": [
+            "Slash Damage",
+            "Critical Chance On Slide Attack"
+        ],
+        "popularity_pct": 6.69,
+        "official_avg_price": 150,
+        "official_median": 150
+    },
+    "Balla": {
+        "pos": [
+            "Critical Damage",
+            "Fire Rate / Attack Speed",
+            "Base Damage / Melee Damage",
+            "Heat Damage"
+        ],
+        "neg": [
+            "Finisher Damage",
+            "Damage Vs Grineer"
+        ],
+        "popularity_pct": 5.51,
+        "official_avg_price": 158,
+        "official_median": 158
+    },
+    "Bo": {
+        "pos": [
+            "Range",
+            "Critical Damage",
+            "Fire Rate / Attack Speed",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Impact Damage",
+            "Damage Vs Infested"
+        ],
+        "popularity_pct": 29.13,
+        "official_avg_price": 251,
+        "official_median": 251
+    },
+    "Boltace": {
+        "pos": [
+            "Critical Damage",
+            "Fire Rate / Attack Speed",
+            "Range",
+            "Channeling Efficiency"
+        ],
+        "neg": [
+            "Status Chance",
+            "Puncture Damage"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 176,
+        "official_median": 176
+    },
+    "Broken Scepter": {
+        "pos": [
+            "Critical Damage",
+            "Toxin Damage",
+            "Range",
+            "Critical Chance"
+        ],
+        "neg": [
+            "Status Duration",
+            "Channeling Efficiency"
+        ],
+        "popularity_pct": 3.15,
+        "official_avg_price": 339,
+        "official_median": 339
+    },
+    "Broken War": {
+        "pos": [
+            "Critical Damage",
+            "Fire Rate / Attack Speed",
+            "Critical Chance",
+            "Range"
+        ],
+        "neg": [
+            "Slash Damage",
+            "Finisher Damage"
+        ],
+        "popularity_pct": 9.45,
+        "official_avg_price": 89,
+        "official_median": 89
+    },
+    "Cadus": {
+        "pos": [
+            "Range",
+            "Critical Damage",
+            "Critical Chance",
+            "Fire Rate / Attack Speed"
+        ],
+        "neg": [
+            "Finisher Damage",
+            "Damage Vs Corpus"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 87,
+        "official_median": 87
+    },
+    "Cassowar": {
+        "pos": [
+            "Critical Damage",
+            "Fire Rate / Attack Speed",
+            "Cold Damage",
+            "Range"
+        ],
+        "neg": [
+            "Critical Chance On Slide Attack",
+            "Finisher Damage"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 33,
+        "official_median": 33
+    },
+    "Caustacyst": {
+        "pos": [
+            "Base Damage / Melee Damage",
+            "Critical Chance",
+            "Critical Damage",
+            "Range"
+        ],
+        "neg": [
+            "Finisher Damage",
+            "Chance To Gain Combo Count"
+        ],
+        "popularity_pct": 6.3,
+        "official_avg_price": 114,
+        "official_median": 114
+    },
+    "Ceramic Dagger": {
+        "pos": [
+            "Critical Chance",
+            "Critical Damage",
+            "Base Damage / Melee Damage",
+            "Channeling Damage"
+        ],
+        "neg": [
+            "Finisher Damage",
+            "Puncture Damage"
+        ],
+        "popularity_pct": 12.99,
+        "official_avg_price": 99,
+        "official_median": 99
+    },
+    "Cerata": {
+        "pos": [
+            "Critical Chance",
+            "Critical Damage",
+            "Base Damage / Melee Damage",
+            "Fire Rate / Attack Speed"
+        ],
+        "neg": [
+            "Combo Duration",
+            "Critical Chance On Slide Attack"
+        ],
+        "popularity_pct": 2.36,
+        "official_avg_price": 439,
+        "official_median": 439
+    },
+    "Coda Motovore": {
+        "pos": [
+            "Critical Damage",
+            "Critical Chance",
+            "Base Damage / Melee Damage",
+            "Impact Damage"
+        ],
+        "neg": [
+            "Impact Damage",
+            "Critical Chance On Slide Attack"
+        ],
+        "popularity_pct": 11.29,
+        "official_avg_price": 65,
+        "official_median": 65
+    },
+    "Corufell": {
+        "pos": [
+            "Critical Damage",
+            "Range",
+            "Fire Rate / Attack Speed",
+            "Critical Chance"
+        ],
+        "neg": [
+            "Puncture Damage",
+            "Impact Damage"
+        ],
+        "popularity_pct": 3.15,
+        "official_avg_price": 157,
+        "official_median": 157
+    },
+    "Cronus": {
+        "pos": [
+            "Critical Chance",
+            "Critical Damage",
+            "Base Damage / Melee Damage",
+            "Channeling Damage"
+        ],
+        "neg": [
+            "Impact Damage",
+            "Damage Vs Grineer"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 1118,
+        "official_median": 1118
+    },
+    "Cyath": {
+        "pos": [
+            "Fire Rate / Attack Speed",
+            "Range",
+            "Electric Damage",
+            "Critical Chance"
+        ],
+        "neg": [
+            "Combo Duration",
+            "Puncture Damage"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 194,
+        "official_median": 194
+    },
+    "Dakra Prime": {
+        "pos": [
+            "Base Damage / Melee Damage",
+            "Critical Chance",
+            "Critical Damage",
+            "Fire Rate / Attack Speed"
+        ],
+        "neg": [
+            "Range",
+            "Channeling Efficiency"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 129,
+        "official_median": 129
+    },
+    "Dark Dagger": {
+        "pos": [
+            "Critical Chance",
+            "Critical Damage",
+            "Electric Damage",
+            "Toxin Damage"
+        ],
+        "neg": [
+            "Finisher Damage",
+            "Channeling Efficiency"
+        ],
+        "popularity_pct": 3.67,
+        "official_avg_price": 52,
+        "official_median": 52
+    },
+    "Dark Sword": {
+        "pos": [
+            "Base Damage / Melee Damage",
+            "Critical Damage",
+            "Range",
+            "Toxin Damage"
+        ],
+        "neg": [
+            "Combo Duration",
+            "Finisher Damage"
+        ],
+        "popularity_pct": 4.33,
+        "official_avg_price": 86,
+        "official_median": 86
+    },
+    "Dehtat": {
+        "pos": [
+            "Critical Damage",
+            "Base Damage / Melee Damage",
+            "Fire Rate / Attack Speed",
+            "Electric Damage"
+        ],
+        "neg": [
+            "Finisher Damage",
+            "Critical Chance On Slide Attack"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 34,
+        "official_median": 34
+    },
+    "Destreza": {
+        "pos": [
+            "Critical Damage",
+            "Fire Rate / Attack Speed",
+            "Critical Chance",
+            "Electric Damage"
+        ],
+        "neg": [
+            "Puncture Damage",
+            "Critical Chance On Slide Attack"
+        ],
+        "popularity_pct": 17.06,
+        "official_avg_price": 123,
+        "official_median": 123
+    },
+    "Dex Dakra": {
+        "pos": [
+            "Critical Damage",
+            "Critical Chance",
+            "Electric Damage",
+            "Range"
+        ],
+        "neg": [
+            "Damage Vs Infested",
+            "Critical Chance On Slide Attack"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 137,
+        "official_median": 137
+    },
+    "Dokrahm": {
+        "pos": [
+            "Critical Damage",
+            "Fire Rate / Attack Speed",
+            "Range",
+            "Critical Chance"
+        ],
+        "neg": [
+            "Puncture Damage",
+            "Impact Damage"
+        ],
+        "popularity_pct": 6.3,
+        "official_avg_price": 269,
+        "official_median": 269
+    },
+    "Dorrclave": {
+        "pos": [
+            "Critical Damage",
+            "Fire Rate / Attack Speed",
+            "Status Chance",
+            "Electric Damage"
+        ],
+        "neg": [
+            "Status Duration",
+            "Slash Damage"
+        ],
+        "popularity_pct": 4.2,
+        "official_avg_price": 17,
+        "official_median": 17
+    },
+    "Dragon Nikana": {
+        "pos": [
+            "Critical Chance",
+            "Critical Damage",
+            "Fire Rate / Attack Speed",
+            "Range"
+        ],
+        "neg": [
+            "Critical Chance On Slide Attack",
+            "Damage Vs Corpus"
+        ],
+        "popularity_pct": 4.41,
+        "official_avg_price": 118,
+        "official_median": 118
+    },
+    "Dual Cleavers": {
+        "pos": [
+            "Critical Damage",
+            "Critical Chance",
+            "Base Damage / Melee Damage",
+            "Fire Rate / Attack Speed"
+        ],
+        "neg": [
+            "Critical Chance On Slide Attack",
+            "Damage Vs Corpus"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 778,
+        "official_median": 778
+    },
+    "Dual Ether": {
+        "pos": [
+            "Fire Rate / Attack Speed",
+            "Range",
+            "Critical Damage",
+            "Critical Chance"
+        ],
+        "neg": [
+            "Damage Vs Infested",
+            "Critical Chance"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 7,
+        "official_median": 7
+    },
+    "Dual Heat Swords": {
+        "pos": [
+            "Critical Chance",
+            "Critical Damage",
+            "Fire Rate / Attack Speed",
+            "Electric Damage"
+        ],
+        "neg": [
+            "Finisher Damage",
+            "Damage Vs Corpus"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 260,
+        "official_median": 260
+    },
+    "Dual Ichor": {
+        "pos": [
+            "Range",
+            "Fire Rate / Attack Speed",
+            "Critical Damage",
+            "Electric Damage"
+        ],
+        "neg": [
+            "Finisher Damage",
+            "Critical Chance On Slide Attack"
+        ],
+        "popularity_pct": 15.75,
+        "official_avg_price": 203,
+        "official_median": 203
+    },
+    "Dual Kamas": {
+        "pos": [
+            "Critical Chance",
+            "Critical Damage",
+            "Base Damage / Melee Damage",
+            "Range"
+        ],
+        "neg": [
+            "Status Chance",
+            "Critical Chance On Slide Attack"
+        ],
+        "popularity_pct": 2.1,
+        "official_avg_price": 48,
+        "official_median": 48
+    },
+    "Dual Keres": {
+        "pos": [
+            "Fire Rate / Attack Speed",
+            "Critical Damage",
+            "Range",
+            "Critical Chance"
+        ],
+        "neg": [
+            "Slash Damage",
+            "Damage Vs Infested"
+        ],
+        "popularity_pct": 3.46,
+        "official_avg_price": 125,
+        "official_median": 125
+    },
+    "Dual Raza": {
+        "pos": [
+            "Base Damage / Melee Damage",
+            "Critical Damage",
+            "Critical Chance",
+            "Fire Rate / Attack Speed"
+        ],
+        "neg": [
+            "Finisher Damage",
+            "Channeling Efficiency"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 1006,
+        "official_median": 1006
+    },
+    "Dual Skana": {
+        "pos": [
+            "Critical Damage",
+            "Critical Chance",
+            "Base Damage / Melee Damage",
+            "Range"
+        ],
+        "neg": [
+            "Channeling Efficiency",
+            "Status Duration"
+        ],
+        "popularity_pct": 2.1,
+        "official_avg_price": 353,
+        "official_median": 353
+    },
+    "Dual Viciss": {
+        "pos": [
+            "Range",
+            "Critical Chance",
+            "Critical Damage",
+            "Fire Rate / Attack Speed"
+        ],
+        "neg": [
+            "Finisher Damage",
+            "Chance To Gain Combo Count"
+        ],
+        "popularity_pct": 5.51,
+        "official_avg_price": 72,
+        "official_median": 72
+    },
+    "Dual Zoren": {
+        "pos": [
+            "Range",
+            "Critical Chance",
+            "Critical Damage",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Finisher Damage",
+            "Damage Vs Corpus"
+        ],
+        "popularity_pct": 3.67,
+        "official_avg_price": 322,
+        "official_median": 322
+    },
+    "Edun": {
+        "pos": [
+            "Critical Damage",
+            "Critical Chance",
+            "Channeling Damage",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Finisher Damage",
+            "Fire Rate / Attack Speed"
+        ],
+        "popularity_pct": 4.09,
+        "official_avg_price": 107,
+        "official_median": 107
+    },
+    "Ekhein": {
+        "pos": [
+            "Critical Damage",
+            "Critical Chance",
+            "Heat Damage",
+            "Channeling Damage"
+        ],
+        "neg": [
+            "Impact Damage",
+            "Damage Vs Infested"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 476,
+        "official_median": 476
+    },
+    "Endura": {
+        "pos": [
+            "Critical Chance",
+            "Critical Damage",
+            "Base Damage / Melee Damage",
+            "Cold Damage"
+        ],
+        "neg": [
+            "Fire Rate / Attack Speed",
+            "Finisher Damage"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 606,
+        "official_median": 606
+    },
+    "Ether Daggers": {
+        "pos": [
+            "Base Damage / Melee Damage",
+            "Range",
+            "Critical Chance",
+            "Fire Rate / Attack Speed"
+        ],
+        "neg": [
+            "Slash Damage",
+            "Critical Damage"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 1500,
+        "official_median": 1500
+    },
+    "Ether Reaper": {
+        "pos": [
+            "Critical Damage",
+            "Critical Chance",
+            "Range",
+            "Channeling Damage"
+        ],
+        "neg": [
+            "Chance To Gain Combo Count",
+            "Combo Duration"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 1459,
+        "official_median": 1459
+    },
+    "Ether Sword": {
+        "pos": [
+            "Base Damage / Melee Damage",
+            "Critical Damage",
+            "Critical Chance",
+            "Range"
+        ],
+        "neg": [
+            "Damage Vs Grineer",
+            "Finisher Damage"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 19,
+        "official_median": 19
+    },
+    "Falcor": {
+        "pos": [
+            "Critical Chance",
+            "Base Damage / Melee Damage",
+            "Critical Damage",
+            "Electric Damage"
+        ],
+        "neg": [
+            "Impact Damage",
+            "Chance To Gain Combo Count"
+        ],
+        "popularity_pct": 14.17,
+        "official_avg_price": 1036,
+        "official_median": 1036
+    },
+    "Fang": {
+        "pos": [
+            "Critical Chance",
+            "Base Damage / Melee Damage",
+            "Range",
+            "Channeling Damage"
+        ],
+        "neg": [
+            "Puncture Damage",
+            "Combo Duration"
+        ],
+        "popularity_pct": 4.72,
+        "official_avg_price": 43,
+        "official_median": 43
+    },
+    "Fragor": {
+        "pos": [
+            "Critical Damage",
+            "Critical Chance",
+            "Base Damage / Melee Damage",
+            "Channeling Damage"
+        ],
+        "neg": [
+            "Finisher Damage",
+            "Damage Vs Grineer"
+        ],
+        "popularity_pct": 3.15,
+        "official_avg_price": 197,
+        "official_median": 197
+    },
+    "Furax": {
+        "pos": [
+            "Critical Damage",
+            "Critical Chance",
+            "Range",
+            "Fire Rate / Attack Speed"
+        ],
+        "neg": [
+            "Impact Damage",
+            "Status Duration"
+        ],
+        "popularity_pct": 5.12,
+        "official_avg_price": 107,
+        "official_median": 107
+    },
+    "Galariak Prime": {
+        "pos": [
+            "Base Damage / Melee Damage",
+            "Critical Damage",
+            "Range",
+            "Channeling Efficiency"
+        ],
+        "neg": [
+            "Damage Vs Corpus",
+            "Puncture Damage"
+        ],
+        "popularity_pct": 2.36,
+        "official_avg_price": 55,
+        "official_median": 55
+    },
+    "Galatine": {
+        "pos": [
+            "Critical Damage",
+            "Range",
+            "Critical Chance",
+            "Fire Rate / Attack Speed"
+        ],
+        "neg": [
+            "Channeling Efficiency",
+            "Damage Vs Grineer"
+        ],
+        "popularity_pct": 4.99,
+        "official_avg_price": 171,
+        "official_median": 171
+    },
+    "Galvacord": {
+        "pos": [
+            "Critical Chance",
+            "Critical Damage",
+            "Range",
+            "Status Chance"
+        ],
+        "neg": [
+            "Finisher Damage",
+            "Damage Vs Grineer"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 358,
+        "official_median": 358
+    },
+    "Gazal Machete": {
+        "pos": [
+            "Critical Damage",
+            "Range",
+            "Base Damage / Melee Damage",
+            "Electric Damage"
+        ],
+        "neg": [
+            "Damage Vs Infested",
+            "Damage Vs Corpus"
+        ],
+        "popularity_pct": 3.94,
+        "official_avg_price": 489,
+        "official_median": 489
+    },
+    "Ghoulsaw": {
+        "pos": [
+            "Critical Damage",
+            "Critical Chance",
+            "Electric Damage",
+            "Range"
+        ],
+        "neg": [
+            "Critical Chance On Slide Attack",
+            "Finisher Damage"
+        ],
+        "popularity_pct": 8.66,
+        "official_avg_price": 65,
+        "official_median": 65
+    },
+    "Glaive": {
+        "pos": [
+            "Critical Damage",
+            "Critical Chance",
+            "Base Damage / Melee Damage",
+            "Status Chance"
+        ],
+        "neg": [
+            "Finisher Damage",
+            "Critical Chance On Slide Attack"
+        ],
+        "popularity_pct": 18.37,
+        "official_avg_price": 100,
+        "official_median": 100
+    },
+    "Gram": {
+        "pos": [
+            "Critical Damage",
+            "Fire Rate / Attack Speed",
+            "Range",
+            "Critical Chance"
+        ],
+        "neg": [
+            "Slash Damage",
+            "Damage Vs Infested"
+        ],
+        "popularity_pct": 4.09,
+        "official_avg_price": 62,
+        "official_median": 62
+    },
+    "Guandao": {
+        "pos": [
+            "Critical Damage",
+            "Range",
+            "Fire Rate / Attack Speed",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Channeling Efficiency",
+            "Damage Vs Infested"
+        ],
+        "popularity_pct": 7.87,
+        "official_avg_price": 127,
+        "official_median": 127
+    },
+    "Gunsen": {
+        "pos": [
+            "Critical Chance",
+            "Critical Damage",
+            "Base Damage / Melee Damage",
+            "Toxin Damage"
+        ],
+        "neg": [
+            "Combo Duration",
+            "Damage Vs Corpus"
+        ],
+        "popularity_pct": 2.36,
+        "official_avg_price": 235,
+        "official_median": 235
+    },
+    "Halikar": {
+        "pos": [
+            "Critical Damage",
+            "Critical Chance",
+            "Channeling Damage",
+            "Electric Damage"
+        ],
+        "neg": [
+            "Finisher Damage",
+            "Puncture Damage"
+        ],
+        "popularity_pct": 2.36,
+        "official_avg_price": 262,
+        "official_median": 262
+    },
+    "Harmony": {
+        "pos": [
+            "Critical Damage",
+            "Fire Rate / Attack Speed",
+            "Range",
+            "Critical Chance"
+        ],
+        "neg": [
+            "Puncture Damage",
+            "Finisher Damage"
+        ],
+        "popularity_pct": 6.3,
+        "official_avg_price": 135,
+        "official_median": 135
+    },
+    "Hate": {
+        "pos": [
+            "Critical Damage",
+            "Fire Rate / Attack Speed",
+            "Critical Chance",
+            "Range"
+        ],
+        "neg": [
+            "Slash Damage",
+            "Finisher Damage"
+        ],
+        "popularity_pct": 43.83,
+        "official_avg_price": 176,
+        "official_median": 176
+    },
+    "Heat Dagger": {
+        "pos": [
+            "Toxin Damage",
+            "Critical Damage",
+            "Range",
+            "Fire Rate / Attack Speed"
+        ],
+        "neg": [
+            "Impact Damage",
+            "Combo Duration"
+        ],
+        "popularity_pct": 3.15,
+        "official_avg_price": 194,
+        "official_median": 194
+    },
+    "Heat Sword": {
+        "pos": [
+            "Base Damage / Melee Damage",
+            "Critical Damage",
+            "Fire Rate / Attack Speed",
+            "Toxin Damage"
+        ],
+        "neg": [
+            "Finisher Damage",
+            "Range"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 702,
+        "official_median": 702
+    },
+    "Heliocor": {
+        "pos": [
+            "Critical Damage",
+            "Base Damage / Melee Damage",
+            "Critical Chance",
+            "Electric Damage"
+        ],
+        "neg": [
+            "Critical Chance On Slide Attack",
+            "Status Chance"
+        ],
+        "popularity_pct": 3.15,
+        "official_avg_price": 91,
+        "official_median": 91
+    },
+    "Hespar": {
+        "pos": [
+            "Critical Damage",
+            "Range",
+            "Fire Rate / Attack Speed",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Channeling Efficiency",
+            "Critical Chance On Slide Attack"
+        ],
+        "popularity_pct": 4.72,
+        "official_avg_price": 306,
+        "official_median": 306
+    },
+    "Hirudo": {
+        "pos": [
+            "Critical Damage",
+            "Range",
+            "Base Damage / Melee Damage",
+            "Fire Rate / Attack Speed"
+        ],
+        "neg": [
+            "Finisher Damage",
+            "Puncture Damage"
+        ],
+        "popularity_pct": 4.72,
+        "official_avg_price": 103,
+        "official_median": 103
+    },
+    "Innodem": {
+        "pos": [
+            "Critical Damage",
+            "Fire Rate / Attack Speed",
+            "Critical Chance",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Puncture Damage",
+            "Critical Chance On Slide Attack"
+        ],
+        "popularity_pct": 4.2,
+        "official_avg_price": 102,
+        "official_median": 102
+    },
+    "Jat Kittag": {
+        "pos": [
+            "Critical Chance",
+            "Critical Damage",
+            "Channeling Efficiency",
+            "Status Chance"
+        ],
+        "neg": [
+            "Finisher Damage",
+            "Impact Damage"
+        ],
+        "popularity_pct": 2.76,
+        "official_avg_price": 148,
+        "official_median": 148
+    },
+    "Jat Kusar": {
+        "pos": [
+            "Critical Damage",
+            "Fire Rate / Attack Speed",
+            "Critical Chance",
+            "Heat Damage"
+        ],
+        "neg": [
+            "Channeling Efficiency",
+            "Combo Duration"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 87,
+        "official_median": 87
+    },
+    "Jaw Sword": {
+        "pos": [
+            "Critical Chance",
+            "Critical Damage",
+            "Electric Damage",
+            "Range"
+        ],
+        "neg": [
+            "Channeling Efficiency",
+            "Finisher Damage"
+        ],
+        "popularity_pct": 3.15,
+        "official_avg_price": 1810,
+        "official_median": 1810
+    },
+    "Kama": {
+        "pos": [
+            "Critical Damage",
+            "Fire Rate / Attack Speed",
+            "Critical Chance",
+            "Cold Damage"
+        ],
+        "neg": [
+            "Status Duration",
+            "Critical Chance On Slide Attack"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 1042,
+        "official_median": 1042
+    },
+    "Karyst": {
+        "pos": [
+            "Critical Damage",
+            "Range",
+            "Fire Rate / Attack Speed",
+            "Critical Chance"
+        ],
+        "neg": [
+            "Channeling Efficiency",
+            "Finisher Damage"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 655,
+        "official_median": 655
+    },
+    "Keratinos": {
+        "pos": [
+            "Critical Damage",
+            "Fire Rate / Attack Speed",
+            "Critical Chance",
+            "Range"
+        ],
+        "neg": [
+            "Puncture Damage",
+            "Status Duration"
+        ],
+        "popularity_pct": 2.36,
+        "official_avg_price": 137,
+        "official_median": 137
+    },
+    "Kesheg": {
+        "pos": [
+            "Base Damage / Melee Damage",
+            "Fire Rate / Attack Speed",
+            "Critical Chance",
+            "Heat Damage"
+        ],
+        "neg": [
+            "Damage Vs Infested",
+            "Combo Duration"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 243,
+        "official_median": 243
+    },
+    "Kestrel": {
+        "pos": [
+            "Critical Damage",
+            "Critical Chance",
+            "Fire Rate / Attack Speed",
+            "Range"
+        ],
+        "neg": [
+            "Finisher Damage",
+            "Status Duration"
+        ],
+        "popularity_pct": 2.36,
+        "official_avg_price": 171,
+        "official_median": 171
+    },
+    "Kogake": {
+        "pos": [
+            "Critical Damage",
+            "Range",
+            "Fire Rate / Attack Speed",
+            "Electric Damage"
+        ],
+        "neg": [
+            "Impact Damage",
+            "Finisher Damage"
+        ],
+        "popularity_pct": 2.62,
+        "official_avg_price": 124,
+        "official_median": 124
+    },
+    "Korrudo": {
+        "pos": [
+            "Critical Damage",
+            "Critical Chance",
+            "Heat Damage",
+            "Fire Rate / Attack Speed"
+        ],
+        "neg": [
+            "Damage Vs Corpus",
+            "Chance To Gain Combo Count"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 13,
+        "official_median": 13
+    },
+    "Korumm": {
+        "pos": [
+            "Critical Damage",
+            "Critical Chance",
+            "Fire Rate / Attack Speed",
+            "Channeling Damage"
+        ],
+        "neg": [
+            "Combo Duration",
+            "Slash Damage"
+        ],
+        "popularity_pct": 2.36,
+        "official_avg_price": 101,
+        "official_median": 101
+    },
+    "Kreska": {
+        "pos": [
+            "Critical Chance",
+            "Critical Damage",
+            "Base Damage / Melee Damage",
+            "Status Duration"
+        ],
+        "neg": [
+            "Damage Vs Grineer",
+            "Fire Rate / Attack Speed"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 304,
+        "official_median": 304
+    },
+    "Krohkur": {
+        "pos": [
+            "Critical Chance",
+            "Base Damage / Melee Damage",
+            "Critical Damage",
+            "Fire Rate / Attack Speed"
+        ],
+        "neg": [
+            "Combo Duration",
+            "Channeling Efficiency"
+        ],
+        "popularity_pct": 3.15,
+        "official_avg_price": 1293,
+        "official_median": 1293
+    },
+    "Kronen": {
+        "pos": [
+            "Critical Damage",
+            "Range",
+            "Critical Chance",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Damage Vs Infested",
+            "Critical Chance On Slide Attack"
+        ],
+        "popularity_pct": 4.09,
+        "official_avg_price": 182,
+        "official_median": 182
+    },
+    "Kronsh": {
+        "pos": [
+            "Fire Rate / Attack Speed",
+            "Critical Damage",
+            "Base Damage / Melee Damage",
+            "Critical Chance"
+        ],
+        "neg": [
+            "Damage Vs Corpus",
+            "Impact Damage"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 634,
+        "official_median": 634
+    },
+    "Kuva Shildeg": {
+        "pos": [
+            "Critical Damage",
+            "Critical Chance",
+            "Fire Rate / Attack Speed",
+            "Range"
+        ],
+        "neg": [
+            "Impact Damage",
+            "Puncture Damage"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 64,
+        "official_median": 64
+    },
+    "Lacera": {
+        "pos": [
+            "Range",
+            "Critical Damage",
+            "Electric Damage",
+            "Critical Chance"
+        ],
+        "neg": [
+            "Finisher Damage",
+            "Damage Vs Corpus"
+        ],
+        "popularity_pct": 2.62,
+        "official_avg_price": 306,
+        "official_median": 306
+    },
+    "Lecta": {
+        "pos": [
+            "Fire Rate / Attack Speed",
+            "Range",
+            "Damage Vs Grineer",
+            "Critical Damage"
+        ],
+        "neg": [
+            "Finisher Damage",
+            "Critical Chance"
+        ],
+        "popularity_pct": 3.94,
+        "official_avg_price": 43,
+        "official_median": 43
+    },
+    "Lesion": {
+        "pos": [
+            "Critical Damage",
+            "Critical Chance",
+            "Range",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Finisher Damage",
+            "Damage Vs Corpus"
+        ],
+        "popularity_pct": 3.15,
+        "official_avg_price": 91,
+        "official_median": 91
+    },
+    "Machete": {
+        "pos": [
+            "Base Damage / Melee Damage",
+            "Range",
+            "Critical Chance",
+            "Critical Damage"
+        ],
+        "neg": [
+            "Channeling Efficiency",
+            "Damage Vs Infested"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 132,
+        "official_median": 132
+    },
+    "Magistar": {
+        "pos": [
+            "Critical Damage",
+            "Critical Chance",
+            "Base Damage / Melee Damage",
+            "Damage Vs Grineer"
+        ],
+        "neg": [
+            "Range",
+            "Finisher Damage"
+        ],
+        "popularity_pct": 44.62,
+        "official_avg_price": 635,
+        "official_median": 635
+    },
+    "Masseter": {
+        "pos": [
+            "Critical Damage",
+            "Fire Rate / Attack Speed",
+            "Chance To Gain Extra Combo Count",
+            "Toxin Damage"
+        ],
+        "neg": [
+            "Impact Damage",
+            "Finisher Damage"
+        ],
+        "popularity_pct": 3.15,
+        "official_avg_price": 173,
+        "official_median": 173
+    },
+    "Mewan": {
+        "pos": [
+            "Critical Damage",
+            "Base Damage / Melee Damage",
+            "Critical Chance",
+            "Fire Rate / Attack Speed"
+        ],
+        "neg": [
+            "Channeling Efficiency",
+            "Damage Vs Corpus"
+        ],
+        "popularity_pct": 2.62,
+        "official_avg_price": 276,
+        "official_median": 276
+    },
+    "Mios": {
+        "pos": [
+            "Fire Rate / Attack Speed",
+            "Critical Damage",
+            "Range",
+            "Status Chance"
+        ],
+        "neg": [
+            "Puncture Damage",
+            "Combo Duration"
+        ],
+        "popularity_pct": 2.1,
+        "official_avg_price": 71,
+        "official_median": 71
+    },
+    "Mire": {
+        "pos": [
+            "Base Damage / Melee Damage",
+            "Critical Chance",
+            "Critical Damage",
+            "Fire Rate / Attack Speed"
+        ],
+        "neg": [
+            "Impact Damage",
+            "Critical Damage"
+        ],
+        "popularity_pct": 4.99,
+        "official_avg_price": 65,
+        "official_median": 65
+    },
+    "Nami Skyla": {
+        "pos": [
+            "Critical Damage",
+            "Fire Rate / Attack Speed",
+            "Toxin Damage",
+            "Range"
+        ],
+        "neg": [
+            "Finisher Damage",
+            "Critical Chance On Slide Attack"
+        ],
+        "popularity_pct": 3.94,
+        "official_avg_price": 215,
+        "official_median": 215
+    },
+    "Nami Solo": {
+        "pos": [
+            "Range",
+            "Critical Damage",
+            "Fire Rate / Attack Speed",
+            "Electric Damage"
+        ],
+        "neg": [
+            "Slash Damage",
+            "Finisher Damage"
+        ],
+        "popularity_pct": 25.46,
+        "official_avg_price": 266,
+        "official_median": 266
+    },
+    "Nepheri": {
+        "pos": [
+            "Fire Rate / Attack Speed",
+            "Critical Damage",
+            "Range",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Slash Damage",
+            "Critical Chance On Slide Attack"
+        ],
+        "popularity_pct": 4.72,
+        "official_avg_price": 66,
+        "official_median": 66
+    },
+    "Nikana": {
+        "pos": [
+            "Fire Rate / Attack Speed",
+            "Critical Damage",
+            "Range",
+            "Cold Damage"
+        ],
+        "neg": [
+            "Slash Damage",
+            "Finisher Damage"
+        ],
+        "popularity_pct": 15.22,
+        "official_avg_price": 163,
+        "official_median": 163
+    },
+    "Ninkondi": {
+        "pos": [
+            "Critical Damage",
+            "Range",
+            "Fire Rate / Attack Speed",
+            "Critical Chance"
+        ],
+        "neg": [
+            "Finisher Damage",
+            "Channeling Efficiency"
+        ],
+        "popularity_pct": 5.67,
+        "official_avg_price": 139,
+        "official_median": 139
+    },
+    "Obex": {
+        "pos": [
+            "Critical Damage",
+            "Critical Chance",
+            "Base Damage / Melee Damage",
+            "Fire Rate / Attack Speed"
+        ],
+        "neg": [
+            "Impact Damage",
+            "Critical Chance On Slide Attack"
+        ],
+        "popularity_pct": 14.96,
+        "official_avg_price": 197,
+        "official_median": 197
+    },
+    "Ohma": {
+        "pos": [
+            "Critical Damage",
+            "Fire Rate / Attack Speed",
+            "Critical Chance",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Channeling Efficiency",
+            "Damage Vs Infested"
+        ],
+        "popularity_pct": 9.13,
+        "official_avg_price": 51,
+        "official_median": 51
+    },
+    "Okina": {
+        "pos": [
+            "Critical Damage",
+            "Electric Damage",
+            "Range",
+            "Fire Rate / Attack Speed"
+        ],
+        "neg": [
+            "Puncture Damage",
+            "Slash Damage"
+        ],
+        "popularity_pct": 19.69,
+        "official_avg_price": 213,
+        "official_median": 213
+    },
+    "Ooltha": {
+        "pos": [
+            "Critical Damage",
+            "Fire Rate / Attack Speed",
+            "Critical Chance",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Impact Damage",
+            "Combo Duration"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 115,
+        "official_median": 115
+    },
+    "Orthos": {
+        "pos": [
+            "Critical Damage",
+            "Heat Damage",
+            "Base Damage / Melee Damage",
+            "Electric Damage"
+        ],
+        "neg": [
+            "Damage Vs Infested",
+            "Chance To Gain Combo Count"
+        ],
+        "popularity_pct": 4.46,
+        "official_avg_price": 148,
+        "official_median": 148
+    },
+    "Orvius": {
+        "pos": [
+            "Critical Damage",
+            "Critical Chance",
+            "Base Damage / Melee Damage",
+            "Channeling Damage"
+        ],
+        "neg": [
+            "Finisher Damage",
+            "Status Chance"
+        ],
+        "popularity_pct": 3.15,
+        "official_avg_price": 420,
+        "official_median": 420
+    },
+    "Pangolin Sword": {
+        "pos": [
+            "Critical Damage",
+            "Fire Rate / Attack Speed",
+            "Toxin Damage",
+            "Range"
+        ],
+        "neg": [
+            "Channeling Efficiency",
+            "Slash Damage"
+        ],
+        "popularity_pct": 3.15,
+        "official_avg_price": 347,
+        "official_median": 347
+    },
+    "Paracesis": {
+        "pos": [
+            "Critical Damage",
+            "Critical Chance",
+            "Range",
+            "Fire Rate / Attack Speed"
+        ],
+        "neg": [
+            "Damage Vs Infested",
+            "Finisher Damage"
+        ],
+        "popularity_pct": 4.33,
+        "official_avg_price": 52,
+        "official_median": 52
+    },
+    "Pathocyst": {
+        "pos": [
+            "Critical Chance",
+            "Critical Damage",
+            "Channeling Damage",
+            "Electric Damage"
+        ],
+        "neg": [
+            "Finisher Damage",
+            "Combo Duration"
+        ],
+        "popularity_pct": 7.09,
+        "official_avg_price": 177,
+        "official_median": 177
+    },
+    "Pennant": {
+        "pos": [
+            "Fire Rate / Attack Speed",
+            "Critical Damage",
+            "Range",
+            "Electric Damage"
+        ],
+        "neg": [
+            "Puncture Damage",
+            "Combo Duration"
+        ],
+        "popularity_pct": 3.46,
+        "official_avg_price": 171,
+        "official_median": 171
+    },
+    "Plague Keewar": {
+        "pos": [
+            "Critical Damage",
+            "Fire Rate / Attack Speed",
+            "Base Damage / Melee Damage",
+            "Critical Chance"
+        ],
+        "neg": [
+            "Impact Damage",
+            "Channeling Efficiency"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 119,
+        "official_median": 119
+    },
+    "Plague Kripath": {
+        "pos": [
+            "Critical Damage",
+            "Range",
+            "Fire Rate / Attack Speed",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Puncture Damage",
+            "Finisher Damage"
+        ],
+        "popularity_pct": 2.1,
+        "official_avg_price": 157,
+        "official_median": 157
+    },
+    "Plasma Sword": {
+        "pos": [
+            "Electric Damage",
+            "Fire Rate / Attack Speed",
+            "Range",
+            "Critical Damage"
+        ],
+        "neg": [
+            "Finisher Damage",
+            "Channeling Efficiency"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 900,
+        "official_median": 900
+    },
+    "Praedos": {
+        "pos": [
+            "Critical Damage",
+            "Range",
+            "Fire Rate / Attack Speed",
+            "Critical Chance"
+        ],
+        "neg": [
+            "Critical Chance On Slide Attack",
+            "Damage Vs Infested"
+        ],
+        "popularity_pct": 9.19,
+        "official_avg_price": 137,
+        "official_median": 137
+    },
+    "Prova": {
+        "pos": [
+            "Range",
+            "Critical Damage",
+            "Base Damage / Melee Damage",
+            "Toxin Damage"
+        ],
+        "neg": [
+            "Status Duration",
+            "Damage Vs Infested"
+        ],
+        "popularity_pct": 3.15,
+        "official_avg_price": 30,
+        "official_median": 30
+    },
+    "Pulmonars": {
+        "pos": [
+            "Critical Damage",
+            "Critical Chance",
+            "Fire Rate / Attack Speed",
+            "Range"
+        ],
+        "neg": [
+            "Critical Chance On Slide Attack",
+            "Finisher Damage"
+        ],
+        "popularity_pct": 2.36,
+        "official_avg_price": 205,
+        "official_median": 205
+    },
+    "Pupacyst": {
+        "pos": [
+            "Critical Damage",
+            "Range",
+            "Base Damage / Melee Damage",
+            "Fire Rate / Attack Speed"
+        ],
+        "neg": [
+            "Impact Damage",
+            "Damage Vs Corpus"
+        ],
+        "popularity_pct": 2.36,
+        "official_avg_price": 588,
+        "official_median": 588
+    },
+    "Quassus": {
+        "pos": [
+            "Critical Damage",
+            "Critical Chance",
+            "Base Damage / Melee Damage",
+            "Channeling Damage"
+        ],
+        "neg": [
+            "Critical Chance On Slide Attack",
+            "Finisher Damage"
+        ],
+        "popularity_pct": 3.94,
+        "official_avg_price": 165,
+        "official_median": 165
+    },
+    "Rabvee": {
+        "pos": [
+            "Critical Damage",
+            "Critical Chance",
+            "Base Damage / Melee Damage",
+            "Toxin Damage"
+        ],
+        "neg": [
+            "Damage Vs Infested",
+            "Finisher Damage"
+        ],
+        "popularity_pct": 9.06,
+        "official_avg_price": 133,
+        "official_median": 133
+    },
+    "Reaper Prime": {
+        "pos": [
+            "Critical Damage",
+            "Base Damage / Melee Damage",
+            "Critical Chance",
+            "Fire Rate / Attack Speed"
+        ],
+        "neg": [
+            "Channeling Efficiency",
+            "Fire Rate / Attack Speed"
+        ],
+        "popularity_pct": 4.41,
+        "official_avg_price": 102,
+        "official_median": 102
+    },
+    "Redeemer": {
+        "pos": [
+            "Critical Damage",
+            "Channeling Efficiency",
+            "Critical Chance",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Combo Duration",
+            "Finisher Damage"
+        ],
+        "popularity_pct": 3.15,
+        "official_avg_price": 199,
+        "official_median": 199
+    },
+    "Ripkas": {
+        "pos": [
+            "Critical Damage",
+            "Critical Chance",
+            "Base Damage / Melee Damage",
+            "Range"
+        ],
+        "neg": [
+            "Damage Vs Grineer",
+            "Fire Rate / Attack Speed"
+        ],
+        "popularity_pct": 3.94,
+        "official_avg_price": 156,
+        "official_median": 156
+    },
+    "Rumblejack": {
+        "pos": [
+            "Critical Chance",
+            "Critical Damage",
+            "Base Damage / Melee Damage",
+            "Range"
+        ],
+        "neg": [
+            "Damage Vs Corpus",
+            "Slash Damage"
+        ],
+        "popularity_pct": 2.1,
+        "official_avg_price": 630,
+        "official_median": 630
+    },
+    "Ruvox": {
+        "pos": [
+            "Critical Chance",
+            "Critical Damage",
+            "Base Damage / Melee Damage",
+            "Channeling Damage"
+        ],
+        "neg": [
+            "Damage Vs Grineer",
+            "Status Chance"
+        ],
+        "popularity_pct": 4.2,
+        "official_avg_price": 83,
+        "official_median": 83
+    },
+    "Sampotes": {
+        "pos": [
+            "Critical Chance",
+            "Critical Damage",
+            "Base Damage / Melee Damage",
+            "Electric Damage"
+        ],
+        "neg": [
+            "Impact Damage",
+            "Critical Chance On Slide Attack"
+        ],
+        "popularity_pct": 9.13,
+        "official_avg_price": 101,
+        "official_median": 101
+    },
+    "Sarofang": {
+        "pos": [
+            "Critical Damage",
+            "Critical Chance",
+            "Fire Rate / Attack Speed",
+            "Electric Damage"
+        ],
+        "neg": [
+            "Channeling Efficiency",
+            "Finisher Damage"
+        ],
+        "popularity_pct": 7.61,
+        "official_avg_price": 103,
+        "official_median": 103
+    },
+    "Sarpa": {
+        "pos": [
+            "Critical Chance",
+            "Critical Damage",
+            "Fire Rate / Attack Speed",
+            "Toxin Damage"
+        ],
+        "neg": [
+            "Finisher Damage",
+            "Range"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 154,
+        "official_median": 154
+    },
+    "Scindo": {
+        "pos": [
+            "Critical Damage",
+            "Fire Rate / Attack Speed",
+            "Electric Damage",
+            "Range"
+        ],
+        "neg": [
+            "Finisher Damage",
+            "Channeling Efficiency"
+        ],
+        "popularity_pct": 5.25,
+        "official_avg_price": 141,
+        "official_median": 141
+    },
+    "Scoliac": {
+        "pos": [
+            "Critical Damage",
+            "Range",
+            "Fire Rate / Attack Speed",
+            "Critical Chance"
+        ],
+        "neg": [
+            "Critical Chance On Slide Attack",
+            "Finisher Damage"
+        ],
+        "popularity_pct": 2.1,
+        "official_avg_price": 373,
+        "official_median": 373
+    },
+    "Sepfahn": {
+        "pos": [
+            "Critical Damage",
+            "Critical Chance",
+            "Fire Rate / Attack Speed",
+            "Range"
+        ],
+        "neg": [
+            "Puncture Damage",
+            "Channeling Efficiency"
+        ],
+        "popularity_pct": 4.09,
+        "official_avg_price": 121,
+        "official_median": 121
+    },
+    "Serro": {
+        "pos": [
+            "Base Damage / Melee Damage",
+            "Fire Rate / Attack Speed",
+            "Electric Damage",
+            "Critical Chance"
+        ],
+        "neg": [
+            "Critical Chance On Slide Attack",
+            "Combo Duration"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 758,
+        "official_median": 758
+    },
+    "Shaku": {
+        "pos": [
+            "Range",
+            "Fire Rate / Attack Speed",
+            "Critical Chance",
+            "Critical Damage"
+        ],
+        "neg": [
+            "Finisher Damage",
+            "Damage Vs Infested"
+        ],
+        "popularity_pct": 3.15,
+        "official_avg_price": 35,
+        "official_median": 35
+    },
+    "Sheev": {
+        "pos": [
+            "Critical Damage",
+            "Critical Chance",
+            "Base Damage / Melee Damage",
+            "Fire Rate / Attack Speed"
+        ],
+        "neg": [
+            "Damage Vs Infested",
+            "Finisher Damage"
+        ],
+        "popularity_pct": 3.15,
+        "official_avg_price": 1506,
+        "official_median": 1506
+    },
+    "Sibear": {
+        "pos": [
+            "Critical Damage",
+            "Critical Chance",
+            "Range",
+            "Fire Rate / Attack Speed"
+        ],
+        "neg": [
+            "Critical Chance On Slide Attack",
+            "Finisher Damage"
+        ],
+        "popularity_pct": 14.96,
+        "official_avg_price": 335,
+        "official_median": 335
+    },
+    "Skana": {
+        "pos": [
+            "Critical Damage",
+            "Range",
+            "Fire Rate / Attack Speed",
+            "Critical Chance"
+        ],
+        "neg": [
+            "Finisher Damage",
+            "Critical Chance On Slide Attack"
+        ],
+        "popularity_pct": 7.87,
+        "official_avg_price": 128,
+        "official_median": 128
+    },
+    "Skiajati": {
+        "pos": [
+            "Critical Damage",
+            "Fire Rate / Attack Speed",
+            "Critical Chance",
+            "Range"
+        ],
+        "neg": [
+            "Finisher Damage",
+            "Fire Rate / Attack Speed"
+        ],
+        "popularity_pct": 5.35,
+        "official_avg_price": 132,
+        "official_median": 132
+    },
+    "Slaytra": {
+        "pos": [
+            "Fire Rate / Attack Speed",
+            "Base Damage / Melee Damage",
+            "Critical Damage",
+            "Electric Damage"
+        ],
+        "neg": [
+            "Channeling Efficiency",
+            "Slash Damage"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 30,
+        "official_median": 30
+    },
+    "Spinnerex": {
+        "pos": [
+            "Critical Damage",
+            "Electric Damage",
+            "Range",
+            "Fire Rate / Attack Speed"
+        ],
+        "neg": [
+            "Finisher Damage",
+            "Chance To Gain Combo Count"
+        ],
+        "popularity_pct": 4.72,
+        "official_avg_price": 953,
+        "official_median": 953
+    },
+    "Stropha": {
+        "pos": [
+            "Critical Damage",
+            "Critical Chance",
+            "Base Damage / Melee Damage",
+            "Fire Rate / Attack Speed"
+        ],
+        "neg": [
+            "Impact Damage",
+            "Critical Chance On Slide Attack"
+        ],
+        "popularity_pct": 3.54,
+        "official_avg_price": 198,
+        "official_median": 198
+    },
+    "Syam": {
+        "pos": [
+            "Critical Damage",
+            "Critical Chance",
+            "Base Damage / Melee Damage",
+            "Fire Rate / Attack Speed"
+        ],
+        "neg": [
+            "Puncture Damage",
+            "Finisher Damage"
+        ],
+        "popularity_pct": 13.86,
+        "official_avg_price": 130,
+        "official_median": 130
+    },
+    "Sydon": {
+        "pos": [
+            "Critical Damage",
+            "Base Damage / Melee Damage",
+            "Critical Chance",
+            "Fire Rate / Attack Speed"
+        ],
+        "neg": [
+            "Puncture Damage",
+            "Combo Duration"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 114,
+        "official_median": 114
+    },
+    "Tatsu": {
+        "pos": [
+            "Critical Damage",
+            "Critical Chance",
+            "Fire Rate / Attack Speed",
+            "Toxin Damage"
+        ],
+        "neg": [
+            "Critical Chance On Slide Attack",
+            "Combo Duration"
+        ],
+        "popularity_pct": 4.72,
+        "official_avg_price": 54,
+        "official_median": 54
+    },
+    "Tekko": {
+        "pos": [
+            "Critical Damage",
+            "Fire Rate / Attack Speed",
+            "Electric Damage",
+            "Critical Chance"
+        ],
+        "neg": [
+            "Finisher Damage",
+            "Critical Chance On Slide Attack"
+        ],
+        "popularity_pct": 2.1,
+        "official_avg_price": 341,
+        "official_median": 341
+    },
+    "Tenet Agendus": {
+        "pos": [
+            "Critical Damage",
+            "Range",
+            "Critical Chance",
+            "Fire Rate / Attack Speed"
+        ],
+        "neg": [
+            "Slash Damage",
+            "Channeling Efficiency"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 25,
+        "official_median": 25
+    },
+    "Tenet Exec": {
+        "pos": [
+            "Critical Damage",
+            "Critical Chance",
+            "Channeling Damage",
+            "Fire Rate / Attack Speed"
+        ],
+        "neg": [
+            "Impact Damage",
+            "Slash Damage"
+        ],
+        "popularity_pct": 10.24,
+        "official_avg_price": 75,
+        "official_median": 75
+    },
+    "Tenet Grigori": {
+        "pos": [
+            "Critical Chance",
+            "Critical Damage",
+            "Base Damage / Melee Damage",
+            "Range"
+        ],
+        "neg": [
+            "Puncture Damage",
+            "Status Chance"
+        ],
+        "popularity_pct": 4.09,
+        "official_avg_price": 76,
+        "official_median": 76
+    },
+    "Tenet Livia": {
+        "pos": [
+            "Critical Damage",
+            "Critical Chance",
+            "Base Damage / Melee Damage",
+            "Range"
+        ],
+        "neg": [
+            "Channeling Efficiency",
+            "Finisher Damage"
+        ],
+        "popularity_pct": 3.15,
+        "official_avg_price": 102,
+        "official_median": 102
+    },
+    "Thalys": {
+        "pos": [
+            "Critical Damage",
+            "Fire Rate / Attack Speed",
+            "Range",
+            "Critical Chance"
+        ],
+        "neg": [
+            "Slash Damage",
+            "Finisher Damage"
+        ],
+        "popularity_pct": 7.24,
+        "official_avg_price": 118,
+        "official_median": 118
+    },
+    "Tipedo": {
+        "pos": [
+            "Critical Damage",
+            "Range",
+            "Base Damage / Melee Damage",
+            "Fire Rate / Attack Speed"
+        ],
+        "neg": [
+            "Finisher Damage",
+            "Damage Vs Infested"
+        ],
+        "popularity_pct": 3.15,
+        "official_avg_price": 127,
+        "official_median": 127
+    },
+    "Tonbo": {
+        "pos": [
+            "Critical Chance",
+            "Critical Damage",
+            "Range",
+            "Fire Rate / Attack Speed"
+        ],
+        "neg": [
+            "Slash Damage",
+            "Fire Rate / Attack Speed"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 160,
+        "official_median": 160
+    },
+    "Tonkkatt": {
+        "pos": [
+            "Critical Chance",
+            "Critical Damage",
+            "Fire Rate / Attack Speed",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Combo Duration",
+            "Status Chance"
+        ],
+        "popularity_pct": 2.1,
+        "official_avg_price": 57,
+        "official_median": 57
+    },
+    "Twin Basolk": {
+        "pos": [
+            "Base Damage / Melee Damage",
+            "Critical Chance",
+            "Critical Damage",
+            "Cold Damage"
+        ],
+        "neg": [
+            "Channeling Efficiency",
+            "Status Duration"
+        ],
+        "popularity_pct": 2.36,
+        "official_avg_price": 377,
+        "official_median": 377
+    },
+    "Twin Krohkur": {
+        "pos": [
+            "Base Damage / Melee Damage",
+            "Critical Damage",
+            "Critical Chance",
+            "Cold Damage"
+        ],
+        "neg": [
+            "Damage Vs Infested",
+            "Channeling Efficiency"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 74,
+        "official_median": 74
+    },
+    "Vastilok": {
+        "pos": [
+            "Critical Damage",
+            "Critical Chance",
+            "Base Damage / Melee Damage",
+            "Fire Rate / Attack Speed"
+        ],
+        "neg": [
+            "Fire Rate / Attack Speed",
+            "Critical Chance On Slide Attack"
+        ],
+        "popularity_pct": 4.2,
+        "official_avg_price": 109,
+        "official_median": 109
+    },
+    "Venato": {
+        "pos": [
+            "Range",
+            "Critical Damage",
+            "Electric Damage",
+            "Heat Damage"
+        ],
+        "neg": [
+            "Finisher Damage",
+            "Status Chance"
+        ],
+        "popularity_pct": 7.61,
+        "official_avg_price": 83,
+        "official_median": 83
+    },
+    "Venka": {
+        "pos": [
+            "Critical Damage",
+            "Range",
+            "Critical Chance",
+            "Fire Rate / Attack Speed"
+        ],
+        "neg": [
+            "Channeling Efficiency",
+            "Finisher Damage"
+        ],
+        "popularity_pct": 5.12,
+        "official_avg_price": 741,
+        "official_median": 741
+    },
+    "Verdilac": {
+        "pos": [
+            "Critical Damage",
+            "Critical Chance",
+            "Range",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Puncture Damage",
+            "Critical Chance On Slide Attack"
+        ],
+        "popularity_pct": 2.62,
+        "official_avg_price": 69,
+        "official_median": 69
+    },
+    "Vericres": {
+        "pos": [
+            "Critical Damage",
+            "Fire Rate / Attack Speed",
+            "Range",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Finisher Damage",
+            "Damage Vs Infested"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 1348,
+        "official_median": 1348
+    },
+    "Vitrica": {
+        "pos": [
+            "Critical Damage",
+            "Critical Chance",
+            "Fire Rate / Attack Speed",
+            "Electric Damage"
+        ],
+        "neg": [
+            "Impact Damage",
+            "Slash Damage"
+        ],
+        "popularity_pct": 2.1,
+        "official_avg_price": 60,
+        "official_median": 60
+    },
+    "Volnus": {
+        "pos": [
+            "Critical Damage",
+            "Critical Chance",
+            "Fire Rate / Attack Speed",
+            "Range"
+        ],
+        "neg": [
+            "Puncture Damage",
+            "Status Chance"
+        ],
+        "popularity_pct": 3.15,
+        "official_avg_price": 286,
+        "official_median": 286
+    },
+    "War": {
+        "pos": [
+            "Critical Chance",
+            "Fire Rate / Attack Speed",
+            "Critical Damage",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Channeling Efficiency",
+            "Critical Chance On Slide Attack"
+        ],
+        "popularity_pct": 7.61,
+        "official_avg_price": 99,
+        "official_median": 99
+    },
+    "Wolf Sledge": {
+        "pos": [
+            "Critical Damage",
+            "Critical Chance",
+            "Channeling Efficiency",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Combo Duration",
+            "Channeling Efficiency"
+        ],
+        "popularity_pct": 6.93,
+        "official_avg_price": 107,
+        "official_median": 107
+    },
+    "Xoris": {
+        "pos": [
+            "Critical Chance",
+            "Critical Damage",
+            "Base Damage / Melee Damage",
+            "Status Chance"
+        ],
+        "neg": [
+            "Combo Duration",
+            "Damage Vs Grineer"
+        ],
+        "popularity_pct": 6.82,
+        "official_avg_price": 104,
+        "official_median": 104
+    },
+    "Zenistar": {
+        "pos": [
+            "Critical Damage",
+            "Range",
+            "Fire Rate / Attack Speed",
+            "Toxin Damage"
+        ],
+        "neg": [
+            "Critical Chance On Slide Attack",
+            "Status Chance"
+        ],
+        "popularity_pct": 4.09,
+        "official_avg_price": 92,
+        "official_median": 92
+    },
+    "Acceltra": {
+        "pos": [
+            "Multishot",
+            "Critical Chance",
+            "Critical Damage",
+            "Heat Damage"
+        ],
+        "neg": [
+            "Impact Damage",
+            "Zoom"
+        ],
+        "popularity_pct": 35.17,
+        "official_avg_price": 133,
+        "official_median": 133
+    },
+    "Aeolak": {
+        "pos": [
+            "Critical Damage",
+            "Multishot",
+            "Critical Chance",
+            "Fire Rate / Attack Speed"
+        ],
+        "neg": [
+            "Puncture Damage",
+            "Recoil"
+        ],
+        "popularity_pct": 7.35,
+        "official_avg_price": 78,
+        "official_median": 78
+    },
+    "Afentis": {
+        "pos": [
+            "Critical Chance",
+            "Multishot",
+            "Base Damage / Melee Damage",
+            "Critical Damage"
+        ],
+        "neg": [
+            "Puncture Damage",
+            "Recoil"
+        ],
+        "popularity_pct": 12.99,
+        "official_avg_price": 69,
+        "official_median": 69
+    },
+    "Alternox": {
+        "pos": [
+            "Multishot",
+            "Critical Chance",
+            "Critical Damage",
+            "Status Chance"
+        ],
+        "neg": [
+            "Zoom",
+            "Projectile Speed"
+        ],
+        "popularity_pct": 5.91,
+        "official_avg_price": 59,
+        "official_median": 59
+    },
+    "Ambassador": {
+        "pos": [
+            "Multishot",
+            "Critical Damage",
+            "Critical Chance",
+            "Fire Rate / Attack Speed"
+        ],
+        "neg": [
+            "Zoom",
+            "Magazine Capacity"
+        ],
+        "popularity_pct": 6.3,
+        "official_avg_price": 50,
+        "official_median": 50
+    },
+    "Amprex": {
+        "pos": [
+            "Critical Chance",
+            "Critical Damage",
+            "Base Damage / Melee Damage",
+            "Multishot"
+        ],
+        "neg": [
+            "Zoom",
+            "Reload Speed"
+        ],
+        "popularity_pct": 11.02,
+        "official_avg_price": 139,
+        "official_median": 139
+    },
+    "Arca Plasmor": {
+        "pos": [
+            "Multishot",
+            "Critical Damage",
+            "Critical Chance",
+            "Toxin Damage"
+        ],
+        "neg": [
+            "Recoil"
+        ],
+        "popularity_pct": 16.27,
+        "official_avg_price": 94,
+        "official_median": 94
+    },
+    "Argonak": {
+        "pos": [
+            "Critical Chance",
+            "Multishot",
+            "Critical Damage",
+            "Toxin Damage"
+        ],
+        "neg": [
+            "Zoom",
+            "Ammo Maximum"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 192,
+        "official_median": 192
+    },
+    "Astilla": {
+        "pos": [
+            "Multishot",
+            "Critical Damage",
+            "Critical Chance",
+            "Fire Rate / Attack Speed"
+        ],
+        "neg": [
+            "Impact Damage",
+            "Recoil"
+        ],
+        "popularity_pct": 5.91,
+        "official_avg_price": 53,
+        "official_median": 53
+    },
+    "Attica": {
+        "pos": [
+            "Multishot",
+            "Critical Chance",
+            "Toxin Damage",
+            "Fire Rate / Attack Speed"
+        ],
+        "neg": [
+            "Puncture Damage",
+            "Recoil"
+        ],
+        "popularity_pct": 4.72,
+        "official_avg_price": 1285,
+        "official_median": 1285
+    },
+    "Ax-52": {
+        "pos": [
+            "Multishot",
+            "Critical Damage",
+            "Critical Chance",
+            "Toxin Damage"
+        ],
+        "neg": [
+            "Zoom",
+            "Puncture Damage"
+        ],
+        "popularity_pct": 20.73,
+        "official_avg_price": 109,
+        "official_median": 109
+    },
+    "Basmu": {
+        "pos": [
+            "Multishot",
+            "Critical Damage",
+            "Critical Chance",
+            "Toxin Damage"
+        ],
+        "neg": [
+            "Zoom",
+            "Recoil"
+        ],
+        "popularity_pct": 9.45,
+        "official_avg_price": 101,
+        "official_median": 101
+    },
+    "Battacor": {
+        "pos": [
+            "Multishot",
+            "Critical Chance",
+            "Critical Damage",
+            "Fire Rate / Attack Speed"
+        ],
+        "neg": [
+            "Zoom",
+            "Impact Damage"
+        ],
+        "popularity_pct": 2.62,
+        "official_avg_price": 81,
+        "official_median": 81
+    },
+    "Baza": {
+        "pos": [
+            "Critical Chance",
+            "Multishot",
+            "Critical Damage",
+            "Toxin Damage"
+        ],
+        "neg": [
+            "Recoil",
+            "Impact Damage"
+        ],
+        "popularity_pct": 4.72,
+        "official_avg_price": 53,
+        "official_median": 53
+    },
+    "Boar": {
+        "pos": [
+            "Multishot",
+            "Critical Damage",
+            "Critical Chance",
+            "Heat Damage"
+        ],
+        "neg": [
+            "Impact Damage",
+            "Reload Speed"
+        ],
+        "popularity_pct": 33.6,
+        "official_avg_price": 159,
+        "official_median": 159
+    },
+    "Boltor": {
+        "pos": [
+            "Multishot",
+            "Critical Chance",
+            "Critical Damage",
+            "Status Chance"
+        ],
+        "neg": [
+            "Zoom",
+            "Puncture Damage"
+        ],
+        "popularity_pct": 24.15,
+        "official_avg_price": 157,
+        "official_median": 157
+    },
+    "Braton": {
+        "pos": [
+            "Critical Damage",
+            "Critical Chance",
+            "Multishot",
+            "Fire Rate / Attack Speed"
+        ],
+        "neg": [
+            "Zoom",
+            "Impact Damage"
+        ],
+        "popularity_pct": 27.56,
+        "official_avg_price": 159,
+        "official_median": 159
+    },
+    "Bubonico": {
+        "pos": [
+            "Multishot",
+            "Critical Damage",
+            "Critical Chance",
+            "Fire Rate / Attack Speed"
+        ],
+        "neg": [
+            "Ammo Maximum",
+            "Puncture Damage"
+        ],
+        "popularity_pct": 21.52,
+        "official_avg_price": 129,
+        "official_median": 129
+    },
+    "Burston": {
+        "pos": [
+            "Critical Damage",
+            "Multishot",
+            "Critical Chance"
+        ],
+        "neg": [
+            "Impact Damage",
+            "Puncture Damage"
+        ],
+        "popularity_pct": 100.0,
+        "official_avg_price": 459,
+        "official_median": 459
+    },
+    "Buzlok": {
+        "pos": [
+            "Multishot",
+            "Critical Damage",
+            "Critical Chance",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Projectile Speed",
+            "Magazine Capacity"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 184,
+        "official_median": 184
+    },
+    "Cedo": {
+        "pos": [
+            "Multishot",
+            "Critical Damage",
+            "Critical Chance",
+            "Toxin Damage"
+        ],
+        "neg": [
+            "Puncture Damage",
+            "Reload Speed"
+        ],
+        "popularity_pct": 17.32,
+        "official_avg_price": 52,
+        "official_median": 52
+    },
+    "Cernos": {
+        "pos": [
+            "Critical Chance",
+            "Critical Damage",
+            "Base Damage / Melee Damage",
+            "Multishot"
+        ],
+        "neg": [
+            "Zoom",
+            "Magazine Capacity"
+        ],
+        "popularity_pct": 3.54,
+        "official_avg_price": 63,
+        "official_median": 63
+    },
+    "Cinta": {
+        "pos": [
+            "Multishot",
+            "Critical Damage",
+            "Critical Chance",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Puncture Damage",
+            "Zoom"
+        ],
+        "popularity_pct": 3.15,
+        "official_avg_price": 246,
+        "official_median": 246
+    },
+    "Coda Bassocyst": {
+        "pos": [
+            "Critical Damage",
+            "Multishot",
+            "Critical Chance",
+            "Toxin Damage"
+        ],
+        "neg": [
+            "Recoil",
+            "Damage Vs Infested"
+        ],
+        "popularity_pct": 15.49,
+        "official_avg_price": 94,
+        "official_median": 94
+    },
+    "Convectrix": {
+        "pos": [
+            "Critical Damage",
+            "Multishot",
+            "Critical Chance",
+            "Fire Rate / Attack Speed"
+        ],
+        "neg": [
+            "Slash Damage",
+            "Ammo Maximum"
+        ],
+        "popularity_pct": 3.54,
+        "official_avg_price": 125,
+        "official_median": 125
+    },
+    "Corinth": {
+        "pos": [
+            "Multishot",
+            "Critical Damage",
+            "Critical Chance",
+            "Status Chance"
+        ],
+        "neg": [
+            "Recoil",
+            "Impact Damage"
+        ],
+        "popularity_pct": 6.3,
+        "official_avg_price": 126,
+        "official_median": 126
+    },
+    "Daikyu": {
+        "pos": [
+            "Critical Damage",
+            "Multishot",
+            "Critical Chance",
+            "Toxin Damage"
+        ],
+        "neg": [
+            "Impact Damage",
+            "Recoil"
+        ],
+        "popularity_pct": 7.48,
+        "official_avg_price": 100,
+        "official_median": 100
+    },
+    "Dera": {
+        "pos": [
+            "Multishot",
+            "Critical Damage",
+            "Critical Chance",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Zoom",
+            "Puncture Damage"
+        ],
+        "popularity_pct": 4.72,
+        "official_avg_price": 142,
+        "official_median": 142
+    },
+    "Drakgoon": {
+        "pos": [
+            "Multishot",
+            "Critical Damage",
+            "Critical Chance",
+            "Fire Rate / Attack Speed"
+        ],
+        "neg": [
+            "Slash Damage",
+            "Recoil"
+        ],
+        "popularity_pct": 5.25,
+        "official_avg_price": 153,
+        "official_median": 153
+    },
+    "Dread": {
+        "pos": [
+            "Critical Damage",
+            "Multishot",
+            "Critical Chance",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Zoom",
+            "Reload Speed"
+        ],
+        "popularity_pct": 21.78,
+        "official_avg_price": 84,
+        "official_median": 84
+    },
+    "Efv-5 Jupiter": {
+        "pos": [
+            "Critical Damage",
+            "Critical Chance",
+            "Fire Rate / Attack Speed",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Reload Speed",
+            "Zoom"
+        ],
+        "popularity_pct": 5.12,
+        "official_avg_price": 190,
+        "official_median": 190
+    },
+    "Enkaus": {
+        "pos": [
+            "Critical Damage",
+            "Base Damage / Melee Damage",
+            "Critical Chance",
+            "Multishot"
+        ],
+        "neg": [
+            "Zoom",
+            "Ammo Maximum"
+        ],
+        "popularity_pct": 5.35,
+        "official_avg_price": 108,
+        "official_median": 108
+    },
+    "Evensong": {
+        "pos": [
+            "Multishot",
+            "Critical Chance",
+            "Critical Damage",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Ammo Maximum",
+            "Damage Vs Infested"
+        ],
+        "popularity_pct": 5.04,
+        "official_avg_price": 140,
+        "official_median": 140
+    },
+    "Exergis": {
+        "pos": [
+            "Multishot",
+            "Base Damage / Melee Damage",
+            "Critical Damage",
+            "Critical Chance"
+        ],
+        "neg": [
+            "Impact Damage",
+            "Recoil"
+        ],
+        "popularity_pct": 4.2,
+        "official_avg_price": 130,
+        "official_median": 130
+    },
+    "Felarx": {
+        "pos": [
+            "Multishot",
+            "Base Damage / Melee Damage",
+            "Cold Damage",
+            "Heat Damage"
+        ],
+        "neg": [
+            "Critical Chance",
+            "Base Damage / Melee Damage"
+        ],
+        "popularity_pct": 14.49,
+        "official_avg_price": 279,
+        "official_median": 279
+    },
+    "Ferrox": {
+        "pos": [
+            "Multishot",
+            "Critical Damage",
+            "Base Damage / Melee Damage",
+            "Critical Chance"
+        ],
+        "neg": [
+            "Zoom",
+            "Puncture Damage"
+        ],
+        "popularity_pct": 7.09,
+        "official_avg_price": 118,
+        "official_median": 118
+    },
+    "Flux Rifle": {
+        "pos": [
+            "Multishot",
+            "Critical Damage",
+            "Critical Chance",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Zoom",
+            "Status Duration"
+        ],
+        "popularity_pct": 4.46,
+        "official_avg_price": 54,
+        "official_median": 54
+    },
+    "Fulmin": {
+        "pos": [
+            "Critical Damage",
+            "Multishot",
+            "Critical Chance",
+            "Toxin Damage"
+        ],
+        "neg": [
+            "Impact Damage",
+            "Zoom"
+        ],
+        "popularity_pct": 20.21,
+        "official_avg_price": 131,
+        "official_median": 131
+    },
+    "Glaxion": {
+        "pos": [
+            "Critical Damage",
+            "Multishot",
+            "Critical Chance",
+            "Toxin Damage"
+        ],
+        "neg": [
+            "Zoom",
+            "Recoil"
+        ],
+        "popularity_pct": 15.75,
+        "official_avg_price": 184,
+        "official_median": 184
+    },
+    "Gorgon": {
+        "pos": [
+            "Multishot",
+            "Critical Damage",
+            "Critical Chance",
+            "Cold Damage"
+        ],
+        "neg": [
+            "Zoom",
+            "Impact Damage"
+        ],
+        "popularity_pct": 6.3,
+        "official_avg_price": 606,
+        "official_median": 606
+    },
+    "Gotva Prime": {
+        "pos": [
+            "Critical Damage",
+            "Multishot",
+            "Critical Chance",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Damage Vs Corpus",
+            "Zoom"
+        ],
+        "popularity_pct": 4.33,
+        "official_avg_price": 139,
+        "official_median": 139
+    },
+    "Grakata": {
+        "pos": [
+            "Critical Chance",
+            "Multishot",
+            "Fire Rate / Attack Speed",
+            "Critical Damage"
+        ],
+        "neg": [
+            "Puncture Damage",
+            "Impact Damage"
+        ],
+        "popularity_pct": 4.09,
+        "official_avg_price": 128,
+        "official_median": 128
+    },
+    "Grinlok": {
+        "pos": [
+            "Multishot",
+            "Critical Chance",
+            "Critical Damage",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Recoil",
+            "Zoom"
+        ],
+        "popularity_pct": 3.94,
+        "official_avg_price": 324,
+        "official_median": 324
+    },
+    "Harpak": {
+        "pos": [
+            "Critical Chance",
+            "Critical Damage",
+            "Toxin Damage",
+            "Multishot"
+        ],
+        "neg": [
+            "Recoil",
+            "Puncture Damage"
+        ],
+        "popularity_pct": 4.2,
+        "official_avg_price": 256,
+        "official_median": 256
+    },
+    "Hek": {
+        "pos": [
+            "Multishot",
+            "Critical Damage",
+            "Critical Chance",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Recoil",
+            "Projectile Speed"
+        ],
+        "popularity_pct": 6.56,
+        "official_avg_price": 210,
+        "official_median": 210
+    },
+    "Hema": {
+        "pos": [
+            "Multishot",
+            "Critical Damage",
+            "Critical Chance",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Ammo Maximum",
+            "Zoom"
+        ],
+        "popularity_pct": 7.87,
+        "official_avg_price": 136,
+        "official_median": 136
+    },
+    "Higasa": {
+        "pos": [
+            "Critical Chance",
+            "Critical Damage",
+            "Multishot",
+            "Toxin Damage"
+        ],
+        "neg": [
+            "Damage Vs Infested",
+            "Puncture Damage"
+        ],
+        "popularity_pct": 4.33,
+        "official_avg_price": 84,
+        "official_median": 84
+    },
+    "Hind": {
+        "pos": [
+            "Critical Damage",
+            "Critical Chance",
+            "Multishot",
+            "Fire Rate / Attack Speed"
+        ],
+        "neg": [
+            "Status Duration",
+            "Damage Vs Corpus"
+        ],
+        "popularity_pct": 3.54,
+        "official_avg_price": 215,
+        "official_median": 215
+    },
+    "Ignis": {
+        "pos": [
+            "Multishot",
+            "Critical Damage",
+            "Critical Chance",
+            "Status Chance"
+        ],
+        "neg": [
+            "Zoom",
+            "Recoil"
+        ],
+        "popularity_pct": 6.3,
+        "official_avg_price": 199,
+        "official_median": 199
+    },
+    "Javlok": {
+        "pos": [
+            "Critical Damage",
+            "Multishot",
+            "Critical Chance",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Status Duration",
+            "Fire Rate / Attack Speed"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 10,
+        "official_median": 10
+    },
+    "Karak": {
+        "pos": [
+            "Multishot",
+            "Critical Damage",
+            "Critical Chance",
+            "Toxin Damage"
+        ],
+        "neg": [
+            "Recoil",
+            "Magazine Capacity"
+        ],
+        "popularity_pct": 6.82,
+        "official_avg_price": 128,
+        "official_median": 128
+    },
+    "Kohm": {
+        "pos": [
+            "Multishot",
+            "Critical Chance",
+            "Critical Damage",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Recoil",
+            "Slash Damage"
+        ],
+        "popularity_pct": 13.86,
+        "official_avg_price": 143,
+        "official_median": 143
+    },
+    "Komorex": {
+        "pos": [
+            "Multishot",
+            "Critical Chance",
+            "Fire Rate / Attack Speed",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Zoom",
+            "Projectile Speed"
+        ],
+        "popularity_pct": 2.36,
+        "official_avg_price": 204,
+        "official_median": 204
+    },
+    "Kuva Bramma": {
+        "pos": [
+            "Multishot",
+            "Critical Damage",
+            "Critical Chance",
+            "Fire Rate / Attack Speed"
+        ],
+        "neg": [
+            "Zoom",
+            "Ammo Maximum"
+        ],
+        "popularity_pct": 10.5,
+        "official_avg_price": 576,
+        "official_median": 576
+    },
+    "Kuva Chakkhurr": {
+        "pos": [
+            "Multishot",
+            "Critical Damage",
+            "Critical Chance",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Zoom",
+            "Ammo Maximum"
+        ],
+        "popularity_pct": 5.25,
+        "official_avg_price": 85,
+        "official_median": 85
+    },
+    "Lanka": {
+        "pos": [
+            "Critical Chance",
+            "Critical Damage",
+            "Multishot",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Recoil",
+            "Ammo Maximum"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 1319,
+        "official_median": 1319
+    },
+    "Latron": {
+        "pos": [
+            "Critical Damage",
+            "Critical Chance",
+            "Multishot",
+            "Toxin Damage"
+        ],
+        "neg": [
+            "Zoom",
+            "Puncture Damage"
+        ],
+        "popularity_pct": 33.33,
+        "official_avg_price": 239,
+        "official_median": 239
+    },
+    "Lenz": {
+        "pos": [
+            "Multishot",
+            "Critical Damage",
+            "Critical Chance",
+            "Toxin Damage"
+        ],
+        "neg": [
+            "Zoom",
+            "Impact Damage"
+        ],
+        "popularity_pct": 3.15,
+        "official_avg_price": 112,
+        "official_median": 112
+    },
+    "Miter": {
+        "pos": [
+            "Critical Damage",
+            "Critical Chance",
+            "Multishot",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Recoil",
+            "Slash Damage"
+        ],
+        "popularity_pct": 8.4,
+        "official_avg_price": 224,
+        "official_median": 224
+    },
+    "Mutalist Cernos": {
+        "pos": [
+            "Critical Chance",
+            "Critical Damage",
+            "Multishot",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Impact Damage",
+            "Zoom"
+        ],
+        "popularity_pct": 2.36,
+        "official_avg_price": 311,
+        "official_median": 311
+    },
+    "Mutalist Quanta": {
+        "pos": [
+            "Multishot",
+            "Critical Damage",
+            "Critical Chance",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Zoom",
+            "Puncture Damage"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 1482,
+        "official_median": 1482
+    },
+    "Nagantaka": {
+        "pos": [
+            "Critical Chance",
+            "Multishot",
+            "Critical Damage",
+            "Fire Rate / Attack Speed"
+        ],
+        "neg": [
+            "Zoom",
+            "Slash Damage"
+        ],
+        "popularity_pct": 3.94,
+        "official_avg_price": 46,
+        "official_median": 46
+    },
+    "Nataruk": {
+        "pos": [
+            "Multishot",
+            "Critical Damage",
+            "Critical Chance",
+            "Toxin Damage"
+        ],
+        "neg": [
+            "Puncture Damage",
+            "Zoom"
+        ],
+        "popularity_pct": 18.64,
+        "official_avg_price": 117,
+        "official_median": 117
+    },
+    "Ogris": {
+        "pos": [
+            "Multishot",
+            "Toxin Damage",
+            "Projectile Speed",
+            "Critical Damage"
+        ],
+        "neg": [
+            "Zoom",
+            "Recoil"
+        ],
+        "popularity_pct": 19.16,
+        "official_avg_price": 149,
+        "official_median": 149
+    },
+    "Opticor": {
+        "pos": [
+            "Critical Damage",
+            "Critical Chance",
+            "Multishot",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Recoil",
+            "Zoom"
+        ],
+        "popularity_pct": 6.93,
+        "official_avg_price": 133,
+        "official_median": 133
+    },
+    "Panthera": {
+        "pos": [
+            "Multishot",
+            "Critical Damage",
+            "Critical Chance",
+            "Heat Damage"
+        ],
+        "neg": [
+            "Slash Damage",
+            "Damage Vs Corpus"
+        ],
+        "popularity_pct": 3.94,
+        "official_avg_price": 209,
+        "official_median": 209
+    },
+    "Paracyst": {
+        "pos": [
+            "Critical Chance",
+            "Multishot",
+            "Fire Rate / Attack Speed",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Zoom",
+            "Damage Vs Infested"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 28,
+        "official_median": 28
+    },
+    "Paris": {
+        "pos": [
+            "Critical Chance",
+            "Critical Damage",
+            "Multishot",
+            "Status Chance"
+        ],
+        "neg": [
+            "Zoom",
+            "Recoil"
+        ],
+        "popularity_pct": 12.86,
+        "official_avg_price": 168,
+        "official_median": 168
+    },
+    "Penta": {
+        "pos": [
+            "Multishot",
+            "Critical Damage",
+            "Punch Through",
+            "Status Chance"
+        ],
+        "neg": [
+            "Zoom",
+            "Ammo Maximum"
+        ],
+        "popularity_pct": 4.33,
+        "official_avg_price": 231,
+        "official_median": 231
+    },
+    "Perigale": {
+        "pos": [
+            "Multishot",
+            "Critical Damage",
+            "Critical Chance",
+            "Toxin Damage"
+        ],
+        "neg": [
+            "Zoom",
+            "Recoil"
+        ],
+        "popularity_pct": 12.34,
+        "official_avg_price": 135,
+        "official_median": 135
+    },
+    "Phage": {
+        "pos": [
+            "Multishot",
+            "Critical Damage",
+            "Critical Chance",
+            "Electric Damage"
+        ],
+        "neg": [
+            "Damage Vs Infested",
+            "Damage Vs Corpus"
+        ],
+        "popularity_pct": 8.4,
+        "official_avg_price": 220,
+        "official_median": 220
+    },
+    "Phantasma": {
+        "pos": [
+            "Multishot",
+            "Base Damage / Melee Damage",
+            "Status Chance",
+            "Fire Rate / Attack Speed"
+        ],
+        "neg": [
+            "Impact Damage",
+            "Puncture Damage"
+        ],
+        "popularity_pct": 8.66,
+        "official_avg_price": 156,
+        "official_median": 156
+    },
+    "Phenmor": {
+        "pos": [
+            "Multishot",
+            "Toxin Damage",
+            "Base Damage / Melee Damage",
+            "Cold Damage"
+        ],
+        "neg": [
+            "Critical Chance",
+            "Zoom"
+        ],
+        "popularity_pct": 13.65,
+        "official_avg_price": 169,
+        "official_median": 169
+    },
+    "Proboscis Cernos": {
+        "pos": [
+            "Multishot",
+            "Base Damage / Melee Damage",
+            "Fire Rate / Attack Speed",
+            "Critical Damage"
+        ],
+        "neg": [
+            "Recoil",
+            "Impact Damage"
+        ],
+        "popularity_pct": 4.72,
+        "official_avg_price": 392,
+        "official_median": 392
+    },
+    "Purgator 1": {
+        "pos": [
+            "Critical Damage",
+            "Multishot",
+            "Base Damage / Melee Damage",
+            "Toxin Damage"
+        ],
+        "neg": [
+            "Puncture Damage",
+            "Projectile Speed"
+        ],
+        "popularity_pct": 3.94,
+        "official_avg_price": 66,
+        "official_median": 66
+    },
+    "Quanta": {
+        "pos": [
+            "Critical Damage",
+            "Multishot",
+            "Toxin Damage",
+            "Critical Chance"
+        ],
+        "neg": [
+            "Projectile Speed",
+            "Zoom"
+        ],
+        "popularity_pct": 4.72,
+        "official_avg_price": 113,
+        "official_median": 113
+    },
+    "Quartakk": {
+        "pos": [
+            "Critical Damage",
+            "Multishot",
+            "Critical Chance",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Impact Damage",
+            "Puncture Damage"
+        ],
+        "popularity_pct": 5.04,
+        "official_avg_price": 442,
+        "official_median": 442
+    },
+    "Quellor": {
+        "pos": [
+            "Critical Damage",
+            "Multishot",
+            "Critical Chance",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Ammo Maximum",
+            "Impact Damage"
+        ],
+        "popularity_pct": 3.78,
+        "official_avg_price": 81,
+        "official_median": 81
+    },
+    "Rauta": {
+        "pos": [
+            "Multishot",
+            "Critical Damage",
+            "Critical Chance",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Recoil",
+            "Slash Damage"
+        ],
+        "popularity_pct": 3.15,
+        "official_avg_price": 93,
+        "official_median": 93
+    },
+    "Reconifex": {
+        "pos": [
+            "Critical Damage",
+            "Multishot",
+            "Critical Chance",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Recoil",
+            "Zoom"
+        ],
+        "popularity_pct": 5.25,
+        "official_avg_price": 117,
+        "official_median": 117
+    },
+    "Rubico": {
+        "pos": [
+            "Critical Damage",
+            "Multishot",
+            "Critical Chance",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Impact Damage",
+            "Fire Rate / Attack Speed"
+        ],
+        "popularity_pct": 5.67,
+        "official_avg_price": 163,
+        "official_median": 163
+    },
+    "Scourge": {
+        "pos": [
+            "Multishot",
+            "Base Damage / Melee Damage",
+            "Fire Rate / Attack Speed",
+            "Critical Chance"
+        ],
+        "neg": [
+            "Zoom",
+            "Ammo Maximum"
+        ],
+        "popularity_pct": 7.09,
+        "official_avg_price": 131,
+        "official_median": 131
+    },
+    "Shedu": {
+        "pos": [
+            "Critical Damage",
+            "Multishot",
+            "Critical Chance",
+            "Toxin Damage"
+        ],
+        "neg": [
+            "Zoom",
+            "Ammo Maximum"
+        ],
+        "popularity_pct": 6.93,
+        "official_avg_price": 100,
+        "official_median": 100
+    },
+    "Simulor": {
+        "pos": [
+            "Critical Chance",
+            "Critical Damage",
+            "Multishot",
+            "Status Chance"
+        ],
+        "neg": [
+            "Impact Damage",
+            "Recoil"
+        ],
+        "popularity_pct": 5.35,
+        "official_avg_price": 34,
+        "official_median": 34
+    },
+    "Snipetron": {
+        "pos": [
+            "Critical Chance",
+            "Critical Damage",
+            "Base Damage / Melee Damage",
+            "Multishot"
+        ],
+        "neg": [
+            "Zoom",
+            "Ammo Maximum"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 186,
+        "official_median": 186
+    },
+    "Sobek": {
+        "pos": [
+            "Multishot",
+            "Projectile Speed",
+            "Fire Rate / Attack Speed",
+            "Toxin Damage"
+        ],
+        "neg": [
+            "Impact Damage",
+            "Status Chance"
+        ],
+        "popularity_pct": 55.38,
+        "official_avg_price": 184,
+        "official_median": 184
+    },
+    "Soma": {
+        "pos": [
+            "Multishot",
+            "Critical Damage",
+            "Critical Chance",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Puncture Damage",
+            "Zoom"
+        ],
+        "popularity_pct": 27.82,
+        "official_avg_price": 188,
+        "official_median": 188
+    },
+    "Sporothrix": {
+        "pos": [
+            "Multishot",
+            "Critical Damage",
+            "Critical Chance",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Impact Damage",
+            "Zoom"
+        ],
+        "popularity_pct": 9.76,
+        "official_avg_price": 161,
+        "official_median": 161
+    },
+    "Stahlta": {
+        "pos": [
+            "Multishot",
+            "Critical Damage",
+            "Critical Chance",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Recoil",
+            "Zoom"
+        ],
+        "popularity_pct": 11.29,
+        "official_avg_price": 139,
+        "official_median": 139
+    },
+    "Steflos": {
+        "pos": [
+            "Critical Damage",
+            "Multishot",
+            "Critical Chance",
+            "Cold Damage"
+        ],
+        "neg": [
+            "Ammo Maximum",
+            "Recoil"
+        ],
+        "popularity_pct": 2.76,
+        "official_avg_price": 113,
+        "official_median": 113
+    },
+    "Stradavar": {
+        "pos": [
+            "Critical Damage",
+            "Multishot",
+            "Critical Chance",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Zoom",
+            "Puncture Damage"
+        ],
+        "popularity_pct": 2.36,
+        "official_avg_price": 115,
+        "official_median": 115
+    },
+    "Strun": {
+        "pos": [
+            "Multishot",
+            "Critical Damage",
+            "Base Damage / Melee Damage",
+            "Critical Chance"
+        ],
+        "neg": [
+            "Impact Damage",
+            "Recoil"
+        ],
+        "popularity_pct": 23.88,
+        "official_avg_price": 280,
+        "official_median": 280
+    },
+    "Supra": {
+        "pos": [
+            "Critical Damage",
+            "Base Damage / Melee Damage",
+            "Critical Chance",
+            "Status Chance"
+        ],
+        "neg": [
+            "Puncture Damage",
+            "Damage Vs Corpus"
+        ],
+        "popularity_pct": 3.94,
+        "official_avg_price": 53,
+        "official_median": 53
+    },
+    "Sybaris": {
+        "pos": [
+            "Critical Damage",
+            "Multishot",
+            "Critical Chance",
+            "Toxin Damage"
+        ],
+        "neg": [
+            "Puncture Damage",
+            "Magazine Capacity"
+        ],
+        "popularity_pct": 7.87,
+        "official_avg_price": 314,
+        "official_median": 314
+    },
+    "Synapse": {
+        "pos": [
+            "Critical Chance",
+            "Critical Damage",
+            "Multishot",
+            "Fire Rate / Attack Speed"
+        ],
+        "neg": [
+            "Zoom",
+            "Recoil"
+        ],
+        "popularity_pct": 9.45,
+        "official_avg_price": 139,
+        "official_median": 139
+    },
+    "Tenet Envoy": {
+        "pos": [
+            "Critical Chance",
+            "Multishot",
+            "Base Damage / Melee Damage",
+            "Critical Damage"
+        ],
+        "neg": [
+            "Impact Damage",
+            "Zoom"
+        ],
+        "popularity_pct": 9.45,
+        "official_avg_price": 111,
+        "official_median": 111
+    },
+    "Tenora": {
+        "pos": [
+            "Multishot",
+            "Critical Chance",
+            "Critical Damage",
+            "Heat Damage"
+        ],
+        "neg": [
+            "Damage Vs Infested",
+            "Recoil"
+        ],
+        "popularity_pct": 3.15,
+        "official_avg_price": 279,
+        "official_median": 279
+    },
+    "Tetra": {
+        "pos": [
+            "Critical Chance",
+            "Critical Damage",
+            "Multishot",
+            "Electric Damage"
+        ],
+        "neg": [
+            "Magazine Capacity",
+            "Zoom"
+        ],
+        "popularity_pct": 5.25,
+        "official_avg_price": 93,
+        "official_median": 93
+    },
+    "Thornbak": {
+        "pos": [
+            "Multishot",
+            "Critical Damage",
+            "Fire Rate / Attack Speed",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Damage Vs Corpus",
+            "Recoil"
+        ],
+        "popularity_pct": 4.72,
+        "official_avg_price": 86,
+        "official_median": 86
+    },
+    "Tiberon": {
+        "pos": [
+            "Critical Chance",
+            "Multishot",
+            "Critical Damage",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Puncture Damage",
+            "Zoom"
+        ],
+        "popularity_pct": 4.2,
+        "official_avg_price": 99,
+        "official_median": 99
+    },
+    "Tigris": {
+        "pos": [
+            "Critical Damage",
+            "Critical Chance",
+            "Multishot",
+            "Heat Damage"
+        ],
+        "neg": [
+            "Recoil",
+            "Damage Vs Corpus"
+        ],
+        "popularity_pct": 6.82,
+        "official_avg_price": 52,
+        "official_median": 52
+    },
+    "Tonkor": {
+        "pos": [
+            "Critical Damage",
+            "Multishot",
+            "Critical Chance",
+            "Reload Speed"
+        ],
+        "neg": [
+            "Zoom",
+            "Puncture Damage"
+        ],
+        "popularity_pct": 5.51,
+        "official_avg_price": 150,
+        "official_median": 150
+    },
+    "Torid": {
+        "pos": [
+            "Critical Chance",
+            "Multishot",
+            "Critical Damage",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Zoom",
+            "Recoil"
+        ],
+        "popularity_pct": 91.08,
+        "official_avg_price": 532,
+        "official_median": 532
+    },
+    "Trumna": {
+        "pos": [
+            "Critical Damage",
+            "Critical Chance",
+            "Multishot",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Zoom",
+            "Projectile Speed"
+        ],
+        "popularity_pct": 19.95,
+        "official_avg_price": 124,
+        "official_median": 124
+    },
+    "Vadarya Prime": {
+        "pos": [
+            "Critical Damage",
+            "Multishot",
+            "Critical Chance",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Projectile Speed",
+            "Zoom"
+        ],
+        "popularity_pct": 6.56,
+        "official_avg_price": 148,
+        "official_median": 148
+    },
+    "Vectis": {
+        "pos": [
+            "Critical Chance",
+            "Multishot",
+            "Critical Damage",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Magazine Capacity",
+            "Zoom"
+        ],
+        "popularity_pct": 32.13,
+        "official_avg_price": 226,
+        "official_median": 226
+    },
+    "Veldt": {
+        "pos": [
+            "Critical Chance",
+            "Critical Damage",
+            "Base Damage / Melee Damage",
+            "Multishot"
+        ],
+        "neg": [
+            "Impact Damage",
+            "Puncture Damage"
+        ],
+        "popularity_pct": 3.94,
+        "official_avg_price": 18,
+        "official_median": 18
+    },
+    "Vinquibus": {
+        "pos": [
+            "Critical Damage",
+            "Critical Chance",
+            "Multishot",
+            "Toxin Damage"
+        ],
+        "neg": [
+            "Puncture Damage",
+            "Damage Vs Infested"
+        ],
+        "popularity_pct": 6.82,
+        "official_avg_price": 112,
+        "official_median": 112
+    },
+    "Vulkar": {
+        "pos": [
+            "Critical Chance",
+            "Multishot",
+            "Critical Damage",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Damage Vs Infested",
+            "Ammo Maximum"
+        ],
+        "popularity_pct": 2.1,
+        "official_avg_price": 148,
+        "official_median": 148
+    },
+    "Zarr": {
+        "pos": [
+            "Multishot",
+            "Critical Damage",
+            "Base Damage / Melee Damage",
+            "Critical Chance"
+        ],
+        "neg": [
+            "Zoom",
+            "Impact Damage"
+        ],
+        "popularity_pct": 12.91,
+        "official_avg_price": 128,
+        "official_median": 128
+    },
+    "Zenith": {
+        "pos": [
+            "Critical Damage",
+            "Multishot",
+            "Base Damage / Melee Damage",
+            "Critical Chance"
+        ],
+        "neg": [
+            "Recoil",
+            "Zoom"
+        ],
+        "popularity_pct": 5.77,
+        "official_avg_price": 208,
+        "official_median": 208
+    },
+    "Zhuge": {
+        "pos": [
+            "Critical Damage",
+            "Multishot",
+            "Base Damage / Melee Damage",
+            "Critical Chance"
+        ],
+        "neg": [
+            "Zoom",
+            "Puncture Damage"
+        ],
+        "popularity_pct": 3.67,
+        "official_avg_price": 146,
+        "official_median": 146
+    },
+    "Acrid": {
+        "pos": [
+            "Multishot",
+            "Base Damage / Melee Damage",
+            "Fire Rate / Attack Speed",
+            "Critical Damage"
+        ],
+        "neg": [
+            "Recoil",
+            "Status Duration"
+        ],
+        "popularity_pct": 3.15,
+        "official_avg_price": 50,
+        "official_median": 50
+    },
+    "Aegrit": {
+        "pos": [
+            "Critical Chance",
+            "Critical Damage",
+            "Magazine Capacity",
+            "Fire Rate / Attack Speed"
+        ],
+        "neg": [
+            "Multishot",
+            "Impact Damage"
+        ],
+        "popularity_pct": 2.1,
+        "official_avg_price": 39,
+        "official_median": 39
+    },
+    "Afuris": {
+        "pos": [
+            "Critical Chance",
+            "Critical Damage",
+            "Multishot",
+            "Fire Rate / Attack Speed"
+        ],
+        "neg": [
+            "Projectile Speed",
+            "Ammo Maximum"
+        ],
+        "popularity_pct": 6.04,
+        "official_avg_price": 56,
+        "official_median": 56
+    },
+    "Akarius": {
+        "pos": [
+            "Multishot",
+            "Critical Damage",
+            "Toxin Damage",
+            "Critical Chance"
+        ],
+        "neg": [
+            "Impact Damage",
+            "Recoil"
+        ],
+        "popularity_pct": 18.11,
+        "official_avg_price": 262,
+        "official_median": 262
+    },
+    "Akbolto": {
+        "pos": [
+            "Critical Chance",
+            "Critical Damage",
+            "Multishot",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Recoil",
+            "Projectile Speed"
+        ],
+        "popularity_pct": 3.94,
+        "official_avg_price": 26,
+        "official_median": 26
+    },
+    "Akbronco": {
+        "pos": [
+            "Multishot",
+            "Critical Damage",
+            "Fire Rate / Attack Speed",
+            "Critical Chance"
+        ],
+        "neg": [
+            "Zoom"
+        ],
+        "popularity_pct": 2.36,
+        "official_avg_price": 159,
+        "official_median": 159
+    },
+    "Akjagara": {
+        "pos": [
+            "Multishot",
+            "Critical Chance",
+            "Critical Damage",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Reload Speed",
+            "Zoom"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 88,
+        "official_median": 88
+    },
+    "Aklato": {
+        "pos": [
+            "Critical Damage",
+            "Multishot",
+            "Critical Chance",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Ammo Maximum",
+            "Damage Vs Grineer"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 1200,
+        "official_median": 1200
+    },
+    "Aklex": {
+        "pos": [
+            "Multishot",
+            "Base Damage / Melee Damage",
+            "Critical Chance",
+            "Toxin Damage"
+        ],
+        "neg": [
+            "Puncture Damage",
+            "Zoom"
+        ],
+        "popularity_pct": 3.15,
+        "official_avg_price": 91,
+        "official_median": 91
+    },
+    "Akmagnus": {
+        "pos": [
+            "Multishot",
+            "Base Damage / Melee Damage",
+            "Critical Chance",
+            "Critical Damage"
+        ],
+        "neg": [
+            "Zoom",
+            "Impact Damage"
+        ],
+        "popularity_pct": 2.1,
+        "official_avg_price": 106,
+        "official_median": 106
+    },
+    "Aksomati": {
+        "pos": [
+            "Base Damage / Melee Damage",
+            "Critical Damage",
+            "Multishot",
+            "Critical Chance"
+        ],
+        "neg": [
+            "Ammo Maximum",
+            "Slash Damage"
+        ],
+        "popularity_pct": 2.36,
+        "official_avg_price": 96,
+        "official_median": 96
+    },
+    "Akstiletto": {
+        "pos": [
+            "Multishot",
+            "Critical Damage",
+            "Base Damage / Melee Damage",
+            "Critical Chance"
+        ],
+        "neg": [
+            "Zoom",
+            "Status Chance"
+        ],
+        "popularity_pct": 4.72,
+        "official_avg_price": 224,
+        "official_median": 224
+    },
+    "Akvasto": {
+        "pos": [
+            "Multishot",
+            "Critical Damage",
+            "Critical Chance",
+            "Toxin Damage"
+        ],
+        "neg": [
+            "Zoom",
+            "Damage Vs Grineer"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 854,
+        "official_median": 854
+    },
+    "Akzani": {
+        "pos": [
+            "Multishot",
+            "Critical Damage",
+            "Base Damage / Melee Damage",
+            "Toxin Damage"
+        ],
+        "neg": [
+            "Puncture Damage",
+            "Damage Vs Infested"
+        ],
+        "popularity_pct": 2.1,
+        "official_avg_price": 321,
+        "official_median": 321
+    },
+    "Angstrum": {
+        "pos": [
+            "Multishot",
+            "Critical Damage",
+            "Critical Chance",
+            "Toxin Damage"
+        ],
+        "neg": [
+            "Zoom",
+            "Recoil"
+        ],
+        "popularity_pct": 9.84,
+        "official_avg_price": 188,
+        "official_median": 188
+    },
+    "Arca Scisco": {
+        "pos": [
+            "Critical Chance",
+            "Fire Rate / Attack Speed",
+            "Multishot",
+            "Critical Damage"
+        ],
+        "neg": [
+            "Reload Speed",
+            "Zoom"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 6426,
+        "official_median": 6426
+    },
+    "Athodai": {
+        "pos": [
+            "Multishot",
+            "Base Damage / Melee Damage",
+            "Critical Damage",
+            "Critical Chance"
+        ],
+        "neg": [
+            "Magazine Capacity",
+            "Damage Vs Infested"
+        ],
+        "popularity_pct": 8.14,
+        "official_avg_price": 124,
+        "official_median": 124
+    },
+    "Atomos": {
+        "pos": [
+            "Multishot",
+            "Critical Damage",
+            "Toxin Damage",
+            "Critical Chance"
+        ],
+        "neg": [
+            "Zoom",
+            "Recoil"
+        ],
+        "popularity_pct": 6.93,
+        "official_avg_price": 131,
+        "official_median": 131
+    },
+    "Azima": {
+        "pos": [
+            "Critical Damage",
+            "Base Damage / Melee Damage",
+            "Multishot",
+            "Critical Chance"
+        ],
+        "neg": [
+            "Damage Vs Infested",
+            "Zoom"
+        ],
+        "popularity_pct": 3.67,
+        "official_avg_price": 195,
+        "official_median": 195
+    },
+    "Ballistica": {
+        "pos": [
+            "Multishot",
+            "Critical Damage",
+            "Critical Chance",
+            "Fire Rate / Attack Speed"
+        ],
+        "neg": [
+            "Puncture Damage",
+            "Zoom"
+        ],
+        "popularity_pct": 8.5,
+        "official_avg_price": 123,
+        "official_median": 123
+    },
+    "Bolto": {
+        "pos": [
+            "Critical Damage",
+            "Multishot",
+            "Critical Chance",
+            "Fire Rate / Attack Speed"
+        ],
+        "neg": [
+            "Zoom",
+            "Puncture Damage"
+        ],
+        "popularity_pct": 2.36,
+        "official_avg_price": 875,
+        "official_median": 875
+    },
+    "Brakk": {
+        "pos": [
+            "Multishot",
+            "Critical Damage",
+            "Base Damage / Melee Damage",
+            "Fire Rate / Attack Speed"
+        ],
+        "neg": [
+            "Puncture Damage",
+            "Zoom"
+        ],
+        "popularity_pct": 2.62,
+        "official_avg_price": 45,
+        "official_median": 45
+    },
+    "Bronco": {
+        "pos": [
+            "Multishot",
+            "Base Damage / Melee Damage",
+            "Status Chance",
+            "Critical Damage"
+        ],
+        "neg": [
+            "Ammo Maximum",
+            "Impact Damage"
+        ],
+        "popularity_pct": 2.62,
+        "official_avg_price": 1469,
+        "official_median": 1469
+    },
+    "Cantare": {
+        "pos": [
+            "Critical Damage",
+            "Multishot",
+            "Base Damage / Melee Damage",
+            "Electric Damage"
+        ],
+        "neg": [
+            "Ammo Maximum",
+            "Zoom"
+        ],
+        "popularity_pct": 2.36,
+        "official_avg_price": 339,
+        "official_median": 339
+    },
+    "Castanas": {
+        "pos": [
+            "Multishot",
+            "Base Damage / Melee Damage",
+            "Critical Chance",
+            "Electric Damage"
+        ],
+        "neg": [
+            "Zoom",
+            "Damage Vs Corpus"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 241,
+        "official_median": 241
+    },
+    "Catabolyst": {
+        "pos": [
+            "Critical Damage",
+            "Multishot",
+            "Critical Chance",
+            "Toxin Damage"
+        ],
+        "neg": [
+            "Magazine Capacity",
+            "Zoom"
+        ],
+        "popularity_pct": 2.36,
+        "official_avg_price": 48,
+        "official_median": 48
+    },
+    "Cestra": {
+        "pos": [
+            "Critical Chance",
+            "Critical Damage",
+            "Multishot",
+            "Fire Rate / Attack Speed"
+        ],
+        "neg": [
+            "Puncture Damage",
+            "Zoom"
+        ],
+        "popularity_pct": 3.54,
+        "official_avg_price": 194,
+        "official_median": 194
+    },
+    "Cyanex": {
+        "pos": [
+            "Multishot",
+            "Base Damage / Melee Damage",
+            "Fire Rate / Attack Speed",
+            "Critical Chance"
+        ],
+        "neg": [
+            "Zoom",
+            "Impact Damage"
+        ],
+        "popularity_pct": 2.36,
+        "official_avg_price": 190,
+        "official_median": 190
+    },
+    "Cycron": {
+        "pos": [
+            "Multishot",
+            "Critical Damage",
+            "Critical Chance",
+            "Fire Rate / Attack Speed"
+        ],
+        "neg": [
+            "Puncture Damage",
+            "Zoom"
+        ],
+        "popularity_pct": 6.61,
+        "official_avg_price": 147,
+        "official_median": 147
+    },
+    "Despair": {
+        "pos": [
+            "Multishot",
+            "Critical Chance",
+            "Critical Damage",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Damage Vs Corpus",
+            "Puncture Damage"
+        ],
+        "popularity_pct": 13.65,
+        "official_avg_price": 108,
+        "official_median": 108
+    },
+    "Detron": {
+        "pos": [
+            "Critical Damage",
+            "Multishot",
+            "Base Damage / Melee Damage",
+            "Critical Chance"
+        ],
+        "neg": [
+            "Zoom",
+            "Damage Vs Infested"
+        ],
+        "popularity_pct": 2.36,
+        "official_avg_price": 116,
+        "official_median": 116
+    },
+    "Dual Cestra": {
+        "pos": [
+            "Multishot",
+            "Critical Damage",
+            "Critical Chance",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Recoil",
+            "Zoom"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 278,
+        "official_median": 278
+    },
+    "Dual Coda Torxica": {
+        "pos": [
+            "Critical Chance",
+            "Critical Damage",
+            "Multishot",
+            "Status Chance"
+        ],
+        "neg": [
+            "Zoom",
+            "Projectile Speed"
+        ],
+        "popularity_pct": 15.75,
+        "official_avg_price": 90,
+        "official_median": 90
+    },
+    "Dual Toxocyst": {
+        "pos": [
+            "Critical Damage",
+            "Multishot",
+            "Critical Chance",
+            "Status Chance"
+        ],
+        "neg": [
+            "Projectile Speed",
+            "Zoom"
+        ],
+        "popularity_pct": 47.51,
+        "official_avg_price": 301,
+        "official_median": 301
+    },
+    "Efv-8 Mars": {
+        "pos": [
+            "Critical Chance",
+            "Multishot",
+            "Base Damage / Melee Damage",
+            "Punch Through"
+        ],
+        "neg": [
+            "Impact Damage",
+            "Zoom"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 271,
+        "official_median": 271
+    },
+    "Embolist": {
+        "pos": [
+            "Multishot",
+            "Fire Rate / Attack Speed",
+            "Base Damage / Melee Damage",
+            "Critical Damage"
+        ],
+        "neg": [
+            "Zoom",
+            "Ammo Maximum"
+        ],
+        "popularity_pct": 3.67,
+        "official_avg_price": 94,
+        "official_median": 94
+    },
+    "Epitaph": {
+        "pos": [
+            "Multishot",
+            "Status Chance",
+            "Toxin Damage",
+            "Fire Rate / Attack Speed"
+        ],
+        "neg": [
+            "Impact Damage",
+            "Damage Vs Grineer"
+        ],
+        "popularity_pct": 10.24,
+        "official_avg_price": 1064,
+        "official_median": 1064
+    },
+    "Euphona Prime": {
+        "pos": [
+            "Critical Damage",
+            "Multishot",
+            "Critical Chance",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Impact Damage",
+            "Magazine Capacity"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 192,
+        "official_median": 192
+    },
+    "Furis": {
+        "pos": [
+            "Critical Chance",
+            "Multishot",
+            "Critical Damage",
+            "Punch Through"
+        ],
+        "neg": [
+            "Zoom",
+            "Recoil"
+        ],
+        "popularity_pct": 22.68,
+        "official_avg_price": 233,
+        "official_median": 233
+    },
+    "Fusilai": {
+        "pos": [
+            "Base Damage / Melee Damage",
+            "Multishot",
+            "Critical Chance",
+            "Toxin Damage"
+        ],
+        "neg": [
+            "Puncture Damage",
+            "Recoil"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 8,
+        "official_median": 8
+    },
+    "Gammacor": {
+        "pos": [
+            "Critical Chance",
+            "Multishot",
+            "Critical Damage",
+            "Fire Rate / Attack Speed"
+        ],
+        "neg": [
+            "Base Damage / Melee Damage",
+            "Status Duration"
+        ],
+        "popularity_pct": 6.3,
+        "official_avg_price": 159,
+        "official_median": 159
+    },
+    "Grimoire": {
+        "pos": [
+            "Multishot",
+            "Critical Damage",
+            "Critical Chance",
+            "Toxin Damage"
+        ],
+        "neg": [
+            "Magazine Capacity",
+            "Critical Chance"
+        ],
+        "popularity_pct": 12.6,
+        "official_avg_price": 161,
+        "official_median": 161
+    },
+    "Hikou": {
+        "pos": [
+            "Critical Damage",
+            "Critical Chance",
+            "Multishot",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Magazine Capacity",
+            "Recoil"
+        ],
+        "popularity_pct": 3.67,
+        "official_avg_price": 237,
+        "official_median": 237
+    },
+    "Hystrix": {
+        "pos": [
+            "Critical Chance",
+            "Multishot",
+            "Critical Damage",
+            "Fire Rate / Attack Speed"
+        ],
+        "neg": [
+            "Zoom",
+            "Projectile Speed"
+        ],
+        "popularity_pct": 3.15,
+        "official_avg_price": 160,
+        "official_median": 160
+    },
+    "Knell": {
+        "pos": [
+            "Critical Chance",
+            "Multishot",
+            "Critical Damage",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Impact Damage",
+            "Zoom"
+        ],
+        "popularity_pct": 3.15,
+        "official_avg_price": 174,
+        "official_median": 174
+    },
+    "Kohmak": {
+        "pos": [
+            "Base Damage / Melee Damage",
+            "Multishot",
+            "Status Chance",
+            "Critical Chance"
+        ],
+        "neg": [
+            "Damage Vs Infested",
+            "Recoil"
+        ],
+        "popularity_pct": 3.15,
+        "official_avg_price": 39,
+        "official_median": 39
+    },
+    "Kompressa": {
+        "pos": [
+            "Multishot",
+            "Status Chance",
+            "Critical Damage",
+            "Status Duration"
+        ],
+        "neg": [
+            "Zoom",
+            "Critical Chance"
+        ],
+        "popularity_pct": 7.24,
+        "official_avg_price": 71,
+        "official_median": 71
+    },
+    "Kraken": {
+        "pos": [
+            "Multishot",
+            "Critical Chance",
+            "Base Damage / Melee Damage",
+            "Critical Damage"
+        ],
+        "neg": [
+            "Zoom",
+            "Impact Damage"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 159,
+        "official_median": 159
+    },
+    "Kulstar": {
+        "pos": [
+            "Critical Damage",
+            "Critical Chance",
+            "Status Chance",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Status Duration",
+            "Zoom"
+        ],
+        "popularity_pct": 3.15,
+        "official_avg_price": 189,
+        "official_median": 189
+    },
+    "Kunai": {
+        "pos": [
+            "Multishot",
+            "Critical Damage",
+            "Critical Chance",
+            "Toxin Damage"
+        ],
+        "neg": [
+            "Recoil",
+            "Reload Speed"
+        ],
+        "popularity_pct": 4.33,
+        "official_avg_price": 183,
+        "official_median": 183
+    },
+    "Kuva Twin Stubbas": {
+        "pos": [
+            "Multishot",
+            "Critical Chance",
+            "Critical Damage",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Zoom",
+            "Recoil"
+        ],
+        "popularity_pct": 6.3,
+        "official_avg_price": 221,
+        "official_median": 221
+    },
+    "Laetum": {
+        "pos": [
+            "Multishot",
+            "Toxin Damage",
+            "Fire Rate / Attack Speed",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Critical Chance",
+            "Impact Damage"
+        ],
+        "popularity_pct": 17.85,
+        "official_avg_price": 116,
+        "official_median": 116
+    },
+    "Lato": {
+        "pos": [
+            "Multishot",
+            "Critical Chance",
+            "Critical Damage",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Zoom",
+            "Recoil"
+        ],
+        "popularity_pct": 6.3,
+        "official_avg_price": 144,
+        "official_median": 144
+    },
+    "Lex": {
+        "pos": [
+            "Critical Damage",
+            "Multishot",
+            "Critical Chance",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Zoom",
+            "Puncture Damage"
+        ],
+        "popularity_pct": 9.97,
+        "official_avg_price": 183,
+        "official_median": 183
+    },
+    "Magnus": {
+        "pos": [
+            "Critical Damage",
+            "Multishot",
+            "Toxin Damage",
+            "Critical Chance"
+        ],
+        "neg": [
+            "Puncture Damage",
+            "Impact Damage"
+        ],
+        "popularity_pct": 3.15,
+        "official_avg_price": 881,
+        "official_median": 881
+    },
+    "Marelok": {
+        "pos": [
+            "Multishot",
+            "Critical Damage",
+            "Critical Chance",
+            "Status Chance"
+        ],
+        "neg": [
+            "Zoom",
+            "Damage Vs Corpus"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 145,
+        "official_median": 145
+    },
+    "Nukor": {
+        "pos": [
+            "Critical Damage",
+            "Multishot",
+            "Base Damage / Melee Damage",
+            "Fire Rate / Attack Speed"
+        ],
+        "neg": [
+            "Zoom",
+            "Recoil"
+        ],
+        "popularity_pct": 21.78,
+        "official_avg_price": 135,
+        "official_median": 135
+    },
+    "Ocucor": {
+        "pos": [
+            "Multishot",
+            "Critical Damage",
+            "Toxin Damage",
+            "Critical Chance"
+        ],
+        "neg": [
+            "Impact Damage",
+            "Zoom"
+        ],
+        "popularity_pct": 44.36,
+        "official_avg_price": 400,
+        "official_median": 400
+    },
+    "Onos": {
+        "pos": [
+            "Multishot",
+            "Critical Chance",
+            "Critical Damage",
+            "Damage Vs Corpus"
+        ],
+        "neg": [
+            "Zoom",
+            "Magazine Capacity"
+        ],
+        "popularity_pct": 8.66,
+        "official_avg_price": 42,
+        "official_median": 42
+    },
+    "Pandero": {
+        "pos": [
+            "Multishot",
+            "Critical Chance",
+            "Toxin Damage",
+            "Fire Rate / Attack Speed"
+        ],
+        "neg": [
+            "Recoil",
+            "Status Duration"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 267,
+        "official_median": 267
+    },
+    "Plinx": {
+        "pos": [
+            "Critical Damage",
+            "Multishot",
+            "Critical Chance",
+            "Toxin Damage"
+        ],
+        "neg": [
+            "Ammo Maximum",
+            "Zoom"
+        ],
+        "popularity_pct": 5.51,
+        "official_avg_price": 72,
+        "official_median": 72
+    },
+    "Pox": {
+        "pos": [
+            "Multishot",
+            "Base Damage / Melee Damage",
+            "Critical Chance",
+            "Critical Damage"
+        ],
+        "neg": [
+            "Zoom",
+            "Recoil"
+        ],
+        "popularity_pct": 5.51,
+        "official_avg_price": 77,
+        "official_median": 77
+    },
+    "Pyrana": {
+        "pos": [
+            "Multishot",
+            "Critical Damage",
+            "Critical Chance",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Slash Damage",
+            "Recoil"
+        ],
+        "popularity_pct": 4.72,
+        "official_avg_price": 406,
+        "official_median": 406
+    },
+    "Quatz": {
+        "pos": [
+            "Critical Damage",
+            "Electric Damage",
+            "Critical Chance",
+            "Multishot"
+        ],
+        "neg": [
+            "Reload Speed",
+            "Recoil"
+        ],
+        "popularity_pct": 2.36,
+        "official_avg_price": 107,
+        "official_median": 107
+    },
+    "Riot-848": {
+        "pos": [
+            "Critical Damage",
+            "Multishot",
+            "Critical Chance",
+            "Cold Damage"
+        ],
+        "neg": [
+            "Ammo Maximum",
+            "Recoil"
+        ],
+        "popularity_pct": 3.46,
+        "official_avg_price": 121,
+        "official_median": 121
+    },
+    "Sagek Prime": {
+        "pos": [
+            "Multishot",
+            "Base Damage / Melee Damage",
+            "Punch Through",
+            "Toxin Damage"
+        ],
+        "neg": [
+            "Puncture Damage",
+            "Reload Speed"
+        ],
+        "popularity_pct": 3.15,
+        "official_avg_price": 227,
+        "official_median": 227
+    },
+    "Scyotid": {
+        "pos": [
+            "Critical Damage",
+            "Critical Chance",
+            "Multishot",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Magazine Capacity",
+            "Recoil"
+        ],
+        "popularity_pct": 2.36,
+        "official_avg_price": 289,
+        "official_median": 289
+    },
+    "Seer": {
+        "pos": [
+            "Critical Chance",
+            "Critical Damage",
+            "Status Duration",
+            "Multishot"
+        ],
+        "neg": [
+            "Projectile Speed",
+            "Puncture Damage"
+        ],
+        "popularity_pct": 2.1,
+        "official_avg_price": 171,
+        "official_median": 171
+    },
+    "Sepulcrum": {
+        "pos": [
+            "Multishot",
+            "Fire Rate / Attack Speed",
+            "Base Damage / Melee Damage",
+            "Critical Damage"
+        ],
+        "neg": [
+            "Zoom",
+            "Damage Vs Grineer"
+        ],
+        "popularity_pct": 7.61,
+        "official_avg_price": 139,
+        "official_median": 139
+    },
+    "Sicarus": {
+        "pos": [
+            "Multishot",
+            "Critical Damage",
+            "Critical Chance",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Zoom",
+            "Recoil"
+        ],
+        "popularity_pct": 7.87,
+        "official_avg_price": 149,
+        "official_median": 149
+    },
+    "Sonicor": {
+        "pos": [
+            "Critical Chance",
+            "Multishot",
+            "Critical Damage",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Impact Damage",
+            "Projectile Speed"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 127,
+        "official_median": 127
+    },
+    "Spectra": {
+        "pos": [
+            "Multishot",
+            "Critical Damage",
+            "Critical Chance",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Puncture Damage",
+            "Reload Speed"
+        ],
+        "popularity_pct": 2.62,
+        "official_avg_price": 159,
+        "official_median": 159
+    },
+    "Spira": {
+        "pos": [
+            "Critical Chance",
+            "Multishot",
+            "Critical Damage",
+            "Electric Damage"
+        ],
+        "neg": [
+            "Magazine Capacity",
+            "Zoom"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 8,
+        "official_median": 8
+    },
+    "Staticor": {
+        "pos": [
+            "Critical Damage",
+            "Multishot",
+            "Critical Chance",
+            "Zoom"
+        ],
+        "neg": [
+            "Reload Speed",
+            "Recoil"
+        ],
+        "popularity_pct": 2.1,
+        "official_avg_price": 250,
+        "official_median": 250
+    },
+    "Stubba": {
+        "pos": [
+            "Critical Damage",
+            "Critical Chance",
+            "Multishot",
+            "Toxin Damage"
+        ],
+        "neg": [
+            "Impact Damage",
+            "Projectile Speed"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 707,
+        "official_median": 707
+    },
+    "Stug": {
+        "pos": [
+            "Multishot",
+            "Base Damage / Melee Damage",
+            "Critical Damage",
+            "Critical Chance"
+        ],
+        "neg": [
+            "Recoil",
+            "Zoom"
+        ],
+        "popularity_pct": 20.47,
+        "official_avg_price": 250,
+        "official_median": 250
+    },
+    "Talons": {
+        "pos": [
+            "Critical Chance",
+            "Critical Damage",
+            "Toxin Damage",
+            "Magazine Capacity"
+        ],
+        "neg": [
+            "Damage Vs Infested",
+            "Damage Vs Corpus"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 534,
+        "official_median": 534
+    },
+    "Tenet Diplos": {
+        "pos": [
+            "Critical Damage",
+            "Multishot",
+            "Critical Chance",
+            "Toxin Damage"
+        ],
+        "neg": [
+            "Puncture Damage",
+            "Zoom"
+        ],
+        "popularity_pct": 3.94,
+        "official_avg_price": 109,
+        "official_median": 109
+    },
+    "Tenet Spirex": {
+        "pos": [
+            "Multishot",
+            "Base Damage / Melee Damage",
+            "Critical Damage",
+            "Electric Damage"
+        ],
+        "neg": [
+            "Zoom",
+            "Slash Damage"
+        ],
+        "popularity_pct": 2.36,
+        "official_avg_price": 407,
+        "official_median": 407
+    },
+    "Twin Grakatas": {
+        "pos": [
+            "Critical Damage",
+            "Multishot",
+            "Toxin Damage",
+            "Fire Rate / Attack Speed"
+        ],
+        "neg": [
+            "Status Chance",
+            "Zoom"
+        ],
+        "popularity_pct": 4.72,
+        "official_avg_price": 62,
+        "official_median": 62
+    },
+    "Twin Gremlins": {
+        "pos": [
+            "Multishot",
+            "Critical Chance",
+            "Critical Damage",
+            "Fire Rate / Attack Speed"
+        ],
+        "neg": [
+            "Recoil",
+            "Puncture Damage"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 147,
+        "official_median": 147
+    },
+    "Twin Kohmak": {
+        "pos": [
+            "Critical Chance",
+            "Critical Damage",
+            "Multishot",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Zoom",
+            "Status Duration"
+        ],
+        "popularity_pct": 3.67,
+        "official_avg_price": 425,
+        "official_median": 425
+    },
+    "Twin Rogga": {
+        "pos": [
+            "Multishot",
+            "Fire Rate / Attack Speed",
+            "Base Damage / Melee Damage",
+            "Critical Chance"
+        ],
+        "neg": [
+            "Puncture Damage",
+            "Recoil"
+        ],
+        "popularity_pct": 2.36,
+        "official_avg_price": 30,
+        "official_median": 30
+    },
+    "Twin Vipers": {
+        "pos": [
+            "Critical Damage",
+            "Base Damage / Melee Damage",
+            "Electric Damage",
+            "Impact Damage"
+        ],
+        "neg": [
+            "Projectile Speed",
+            "Zoom"
+        ],
+        "popularity_pct": 2.1,
+        "official_avg_price": 41,
+        "official_median": 41
+    },
+    "Tysis": {
+        "pos": [
+            "Multishot",
+            "Base Damage / Melee Damage",
+            "Critical Damage",
+            "Status Chance"
+        ],
+        "neg": [
+            "Impact Damage",
+            "Zoom"
+        ],
+        "popularity_pct": 2.36,
+        "official_avg_price": 112,
+        "official_median": 112
+    },
+    "Vasto": {
+        "pos": [
+            "Critical Damage",
+            "Multishot",
+            "Critical Chance",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Zoom",
+            "Projectile Speed"
+        ],
+        "popularity_pct": 5.04,
+        "official_avg_price": 266,
+        "official_median": 266
+    },
+    "Velox": {
+        "pos": [
+            "Critical Chance",
+            "Critical Damage",
+            "Base Damage / Melee Damage",
+            "Multishot"
+        ],
+        "neg": [
+            "Recoil",
+            "Damage Vs Corpus"
+        ],
+        "popularity_pct": 8.19,
+        "official_avg_price": 83,
+        "official_median": 83
+    },
+    "Vesper 77": {
+        "pos": [
+            "Critical Damage",
+            "Multishot",
+            "Critical Chance",
+            "Toxin Damage"
+        ],
+        "neg": [
+            "Puncture Damage",
+            "Impact Damage"
+        ],
+        "popularity_pct": 6.61,
+        "official_avg_price": 101,
+        "official_median": 101
+    },
+    "Viper": {
+        "pos": [
+            "Critical Chance",
+            "Punch Through",
+            "Critical Damage",
+            "Zoom"
+        ],
+        "neg": [
+            "Magazine Capacity",
+            "Reload Speed"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 484,
+        "official_median": 484
+    },
+    "Zakti": {
+        "pos": [
+            "Multishot",
+            "Fire Rate / Attack Speed",
+            "Toxin Damage",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Puncture Damage",
+            "Zoom"
+        ],
+        "popularity_pct": 3.15,
+        "official_avg_price": 330,
+        "official_median": 330
+    },
+    "Zylok": {
+        "pos": [
+            "Critical Chance",
+            "Critical Damage",
+            "Multishot",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Slash Damage",
+            "Recoil"
+        ],
+        "popularity_pct": 8.4,
+        "official_avg_price": 132,
+        "official_median": 132
+    },
+    "Zymos": {
+        "pos": [
+            "Multishot",
+            "Base Damage / Melee Damage",
+            "Critical Damage",
+            "Fire Rate / Attack Speed"
+        ],
+        "neg": [
+            "Zoom",
+            "Ammo Maximum"
+        ],
+        "popularity_pct": 2.36,
+        "official_avg_price": 559,
+        "official_median": 559
+    },
+    "Akaten": {
+        "pos": [
+            "Fire Rate / Attack Speed",
+            "Base Damage / Melee Damage",
+            "Critical Damage",
+            "Toxin Damage"
+        ],
+        "neg": [
+            "Slash Damage",
+            "Fire Rate / Attack Speed"
+        ],
+        "popularity_pct": 4.2,
+        "official_avg_price": 119,
+        "official_median": 119
+    },
+    "Artax": {
+        "pos": [
+            "Fire Rate / Attack Speed",
+            "Status Chance",
+            "Multishot",
+            "Critical Chance"
+        ],
+        "neg": [
+            "Critical Chance",
+            "Critical Damage"
+        ],
+        "popularity_pct": 3.15,
+        "official_avg_price": 466,
+        "official_median": 466
+    },
+    "Batoten": {
+        "pos": [
+            "Toxin Damage",
+            "Critical Damage",
+            "Electric Damage",
+            "Status Chance"
+        ],
+        "neg": [
+            "Fire Rate / Attack Speed",
+            "Damage Vs Grineer"
+        ],
+        "popularity_pct": 2.1,
+        "official_avg_price": 34,
+        "official_median": 34
+    },
+    "Burst Laser": {
+        "pos": [
+            "Base Damage / Melee Damage",
+            "Critical Damage",
+            "Fire Rate / Attack Speed",
+            "Multishot"
+        ],
+        "neg": [
+            "Status Duration",
+            "Damage Vs Infested"
+        ],
+        "popularity_pct": 3.54,
+        "official_avg_price": 184,
+        "official_median": 184
+    },
+    "Cryotra": {
+        "pos": [
+            "Multishot",
+            "Status Chance",
+            "Punch Through",
+            "Critical Chance"
+        ],
+        "neg": [
+            "Impact Damage",
+            "Fire Rate / Attack Speed"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 156,
+        "official_median": 156
+    },
+    "Deconstructor": {
+        "pos": [
+            "Critical Damage",
+            "Critical Chance",
+            "Fire Rate / Attack Speed",
+            "Status Chance"
+        ],
+        "neg": [
+            "Impact Damage",
+            "Status Chance"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 44,
+        "official_median": 44
+    },
+    "Deth Machine Rifle": {
+        "pos": [
+            "Multishot",
+            "Critical Chance",
+            "Cold Damage",
+            "Toxin Damage"
+        ],
+        "neg": [
+            "Recoil",
+            "Fire Rate / Attack Speed"
+        ],
+        "popularity_pct": 7.09,
+        "official_avg_price": 56,
+        "official_median": 56
+    },
+    "Helstrum": {
+        "pos": [
+            "Multishot",
+            "Critical Damage",
+            "Critical Chance",
+            "Heat Damage"
+        ],
+        "neg": [
+            "Impact Damage",
+            "Projectile Speed"
+        ],
+        "popularity_pct": 3.15,
+        "official_avg_price": 22,
+        "official_median": 22
+    },
+    "Lacerten": {
+        "pos": [
+            "Critical Damage",
+            "Critical Chance",
+            "Fire Rate / Attack Speed",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Impact Damage",
+            "Damage Vs Grineer"
+        ],
+        "popularity_pct": 3.54,
+        "official_avg_price": 87,
+        "official_median": 87
+    },
+    "Laser Rifle": {
+        "pos": [
+            "Multishot",
+            "Base Damage / Melee Damage",
+            "Critical Damage",
+            "Toxin Damage"
+        ],
+        "neg": [
+            "Puncture Damage",
+            "Fire Rate / Attack Speed"
+        ],
+        "popularity_pct": 4.33,
+        "official_avg_price": 87,
+        "official_median": 87
+    },
+    "Multron": {
+        "pos": [
+            "Base Damage / Melee Damage",
+            "Multishot",
+            "Damage Vs Infested",
+            "Punch Through"
+        ],
+        "neg": [
+            "Damage Vs Infested",
+            "Status Chance"
+        ],
+        "popularity_pct": 3.15,
+        "official_avg_price": 225,
+        "official_median": 225
+    },
+    "Stinger": {
+        "pos": [
+            "Toxin Damage",
+            "Base Damage / Melee Damage",
+            "Critical Chance",
+            "Critical Damage"
+        ],
+        "neg": [
+            "Damage Vs Corpus",
+            "Zoom"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 262,
+        "official_median": 262
+    },
+    "Sweeper": {
+        "pos": [
+            "Multishot",
+            "Base Damage / Melee Damage",
+            "Fire Rate / Attack Speed",
+            "Critical Chance"
+        ],
+        "neg": [
+            "Impact Damage"
+        ],
+        "popularity_pct": 2.36,
+        "official_avg_price": 21,
+        "official_median": 21
+    },
+    "Tazicor": {
+        "pos": [
+            "Multishot",
+            "Critical Damage",
+            "Base Damage / Melee Damage",
+            "Status Chance"
+        ],
+        "neg": [
+            "Damage Vs Infested",
+            "Critical Damage"
+        ],
+        "popularity_pct": 3.78,
+        "official_avg_price": 77,
+        "official_median": 77
+    },
+    "Verglas": {
+        "pos": [
+            "Multishot",
+            "Critical Chance",
+            "Heat Damage",
+            "Critical Damage"
+        ],
+        "neg": [
+            "Damage Vs Infested",
+            "Critical Chance"
+        ],
+        "popularity_pct": 38.85,
+        "official_avg_price": 628,
+        "official_median": 628
+    },
+    "Vulcax": {
+        "pos": [
+            "Critical Damage",
+            "Multishot",
+            "Critical Chance",
+            "Electric Damage"
+        ],
+        "neg": [
+            "Damage Vs Infested",
+            "Reload Speed"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 36,
+        "official_median": 36
+    },
+    "Vulklok": {
+        "pos": [
+            "Critical Damage",
+            "Cold Damage",
+            "Multishot",
+            "Base Damage / Melee Damage"
+        ],
+        "neg": [
+            "Magazine Capacity",
+            "Damage Vs Corpus"
+        ],
+        "popularity_pct": 1.57,
+        "official_avg_price": 54,
+        "official_median": 54
+    },
+    "Ack & Brunt": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 3.15,
+        "official_avg_price": 331,
+        "official_median": 331
+    },
+    "Argo & Vel": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 5.98,
+        "official_avg_price": 201,
+        "official_median": 201
+    },
+    "Catchmoon": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 2.36,
+        "official_avg_price": 472,
+        "official_median": 472
+    },
+    "Cobra & Crane": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 1.57,
+        "official_avg_price": 295,
+        "official_median": 295
+    },
+    "Dark Split-Sword": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 4.33,
+        "official_avg_price": 227,
+        "official_median": 227
+    },
+    "Gaze": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 4.99,
+        "official_avg_price": 96,
+        "official_median": 96
+    },
+    "Rattleguts": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 1.57,
+        "official_avg_price": 331,
+        "official_median": 331
+    },
+    "Sigma & Octantis": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 2.36,
+        "official_avg_price": 14,
+        "official_median": 14
+    },
+    "Silva & Aegis": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 4.09,
+        "official_avg_price": 255,
+        "official_median": 255
+    },
+    "Sporelacer": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 4.72,
+        "official_avg_price": 328,
+        "official_median": 328
+    },
+    "Sun & Moon": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 5.35,
+        "official_avg_price": 84,
+        "official_median": 84
+    },
+    "Tak & Lug": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 1.57,
+        "official_avg_price": 163,
+        "official_median": 163
+    },
+    "Tombfinger": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 11.55,
+        "official_avg_price": 114,
+        "official_median": 114
+    },
+    "Verglas Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 1.57,
+        "official_avg_price": 8825,
+        "official_median": 8825
+    },
+    "Vermisplicer": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 4.2,
+        "official_avg_price": 230,
+        "official_median": 230
+    },
+    "Vinquibus (Melee)": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 4.72,
+        "official_avg_price": 608,
+        "official_median": 608
+    },
+    "Acceltra Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Afentis Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Alternox Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Astilla Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Ax 52": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Baza Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Boar Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Boltor Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Braton Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Braton Vandal": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Burston Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Carmine Penta": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Cedo Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Cernos Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Coda Bubonico": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Coda Hema": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Coda Sporothrix": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Coda Synapse": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Corinth Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Daikyu Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Dera Vandal": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Dex Sybaris": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Efv 5 Jupiter": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Fulmin Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Glaxion Vandal": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Gorgon Wraith": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Ignis Wraith": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Karak Wraith": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Kuva Drakgoon": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Kuva Hek": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Kuva Hind": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Kuva Karak": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Kuva Kohm": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Kuva Ogris": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Kuva Quartakk": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Kuva Sobek": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Kuva Tonkor": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Kuva Zarr": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Latron Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Latron Wraith": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Mk1-Braton": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Mk1-Paris": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Mk1-Strun": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Nagantaka Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Opticor Vandal": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Panthera Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Paris Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Perigale Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Phantasma Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Prisma Gorgon": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Prisma Grakata": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Prisma Grinlok": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Prisma Lenz": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Prisma Tetra": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Quanta Vandal": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Rakta Cernos": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Rubico Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Sancti Tigris": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Scourge Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Secura Penta": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Sirocco": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Snipetron Vandal": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Soma Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Stradavar Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Strun Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Strun Wraith": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Supra Vandal": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Sybaris Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Synoid Simulor": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Telos Boltor": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Tenet Arca Plasmor": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Tenet Ferrox": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Tenet Flux Rifle": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Tenet Glaxion": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Tenet Quanta": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Tenet Tetra": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Tenora Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Tiberon Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Tigris Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Trumna Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Vaykor Hek": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Vectis Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Vulkar Wraith": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Zhuge Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Afuris Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Akarius Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Akbolto Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Akbronco Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Akjagara Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Aklex Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Akmagnus Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Aksomati Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Akstiletto Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Akvasto Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Athodai Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Ballistica Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Bronco Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Coda Catabolyst": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Coda Pox": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Coda Tysis": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Dex Furis": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Efv 8 Mars": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Epitaph Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Hikou Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Hystrix Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Knell Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Kompressa Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Kuva Brakk": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Kuva Kraken": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Kuva Nukor": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Kuva Seer": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Lato Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Lato Vandal": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Lex Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Magnus Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Mara Detron": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Mk1-Furis": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Mk1-Kunai": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Pandero Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Prisma Angstrum": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Prisma Twin Gremlins": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Pyrana Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Rakta Ballistica": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Riot 848": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Sancti Castanas": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Secura Dual Cestra": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Sicarus Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Spectra Vandal": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Spira Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Synoid Gammacor": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Telos Akbolto": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Tenet Cycron": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Tenet Detron": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Tenet Plinx": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Twin Vipers Wraith": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Vasto Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Vaykor Marelok": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Velox Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Viper Wraith": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Zakti Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Zylok Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Ankyros Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Bo Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Ceti Lacera": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Cobra & Crane Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Coda Caustacyst": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Coda Hirudo": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Coda Mire": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Coda Pathocyst": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Dark Split Sword": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Destreza Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Dex Nikana": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Dual Kamas Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Dual Keres Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Dual Zoren Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Ekwana Ii Jai": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Ekwana Ii Ruhang": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Ekwana Jai": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Ekwana Jai Ii": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Ekwana Ruhang": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Ekwana Ruhang Ii": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Fang Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Fragor Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Furax Wraith": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Galatine Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Glaive Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Gram Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Guandao Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Gunsen Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Halikar Wraith": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Jai": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Jai Ii": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Jayap": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Karyst Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Kestrel Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Kogake Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Korb": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Kronen Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Kroostra": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Kuva Ghoulsaw": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Kwath": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Laka": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Machete Wraith": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Masseter Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Mk1-Bo": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Mk1-Furax": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Nami Skyla Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Nikana Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Ninkondi Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Okina Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Orthos Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Pangolin Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Peye": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Plague Akwin": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Plague Bokwin": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Pride": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Prisma Dual Cleavers": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Prisma Machete": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Prisma Obex": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Prisma Ohma": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Prisma Skana": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Prova Vandal": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Quassus Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Rakta Dark Dagger": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Redeemer Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Ruhang": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Ruhang Ii": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Sancti Magistar": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Sarofang Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Scindo Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Secura Lecta": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Seekalla": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Shtung": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Silva & Aegis Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Skana Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Synoid Heliocor": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Tatsu Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Tekko Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Telos Boltace": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Tipedo Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Vargeet Ii Jai": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Vargeet Ii Ruhang": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Vargeet Jai": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Vargeet Jai Ii": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Vargeet Ruhang": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Vargeet Ruhang Ii": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Vaykor Sydon": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Venato Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Venka Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Volnus Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "War Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Wrath": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Corvas Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Imperator Vandal": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Kuva Grattler": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Larkspur Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Prisma Dual Decurions": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Burst Laser Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Deconstructor Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Deth Machine Rifle Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Prime Laser Rifle": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Prisma Burst Laser": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    },
+    "Sweeper Prime": {
+        "pos": [],
+        "neg": [],
+        "popularity_pct": 0.0,
+        "official_avg_price": 0,
+        "official_median": 0
+    }
+}

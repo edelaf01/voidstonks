@@ -1,6 +1,6 @@
 import { state } from "../state.js";
 import { TEXTS } from "../config.js";
-import { fetchBestFissures } from "../api.js";
+import { fetchBestFissures } from "../services/fissures.service.js";
 
 let fissureLoadPromise = null;
 
@@ -46,7 +46,7 @@ export function renderMissionRow(m) {
                 <span class="m-node">${m.node}</span>
             </div>
             <div class="m-timer-box">
-                <span class="m-eta">${m.eta}</span>
+                <span class="m-eta" data-expiry="${m.expiry}">${m.eta}</span>
             </div>
         </div>
     `;
@@ -136,7 +136,7 @@ export async function initFissurePanel() {
         console.log("[FISSURES]: Auto-refreshing missions...");
         initFissurePanel();
       }
-    }, 5 * 60 * 1000);
+    }, 150 * 1000);
   }
 
   const allMissions = await fetchBestFissures();

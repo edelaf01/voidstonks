@@ -15,7 +15,9 @@ export const ScannerHUD = {
             if (msgEl) msgEl.innerText = sh.statusIdle;
         } else {
             if (hud) hud.style.display = "none";
-            if (contextType === "RELICS") {
+            if (contextType === "INVENTORY_MODS") {
+                this.setUIBadge(badge, "MODS", "#d060ff", "rgba(208,96,255,0.4)", "rgba(208,96,255,0.1)");
+            } else if (contextType === "RELICS") {
                 this.setUIBadge(badge, sh.statusRelics, "#00e5ff", "rgba(0,229,255,0.3)", "rgba(0,229,255,0.1)");
             } else if (contextType === "REWARD") {
                 this.setUIBadge(badge, sh.statusReward, "#a0ff80", "rgba(160,255,128,0.3)", "rgba(160,255,128,0.08)");
