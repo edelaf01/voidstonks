@@ -18,6 +18,7 @@ Object.assign(rawState, {
   activeSetParts: [],
   completedParts: new Set(),
   lfgPresets: [],
+  tradePresets: [],
   inventory: [],
   invFilterTier: "ALL",
   invSearchVal: "",
@@ -77,6 +78,7 @@ export function saveAppState() {
       activeSetParts: state.activeSetParts,
       completedParts: Array.from(state.completedParts),
       lfgPresets: state.lfgPresets,
+      tradePresets: state.tradePresets,
       inventory: state.inventory,
       showAllFarms: state.showAllFarms,
       primeInventory: state.primeInventory,
@@ -108,6 +110,7 @@ export function loadAppState() {
     }
     if (typeof data.showAllFarms !== "undefined") state.showAllFarms = data.showAllFarms;
     if (data.lfgPresets) state.lfgPresets = data.lfgPresets;
+    if (data.tradePresets) state.tradePresets = data.tradePresets;
     if (data.inventory) state.inventory = data.inventory;
     if (data.primeInventory) state.primeInventory = data.primeInventory;
     if (data.autoSyncRewards !== undefined) state.autoSyncRewards = data.autoSyncRewards;
