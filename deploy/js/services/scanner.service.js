@@ -97,7 +97,7 @@ export const ScannerService = {
                                textUpper.includes("ATRIBUTOS") || textUpper.includes("ELEGIR") || textUpper.includes("CONFIRMAR") ||
                                textUpper.includes("AGRIETADO");
         
-        if (rawContext === "INVENTORY_MODS" || containsAnchor) {
+        if (rawContext === "INVENTORY_MODS" || rawContext === "ITEM_DETAILS" || containsAnchor) {
             this.lastRivenContextTime = now;
         }
 
@@ -247,10 +247,10 @@ export const ScannerService = {
                 ScannerHUD.updateScrollStatus("done", this.sessionInventory.size);
             }
 
-        } else if (contextType === "INVENTORY_MODS" || (globalThis.state.scannerModsMode && contextType === "INVENTORY")) {
+        } else if (contextType === "INVENTORY_MODS" || contextType === "ITEM_DETAILS" || (globalThis.state.scannerModsMode && contextType === "INVENTORY")) {
             this.currentRate = 1200;
             if (this.detectionLocked) return;
-            await this.processRivenCard(video, dims);
+            await this.processRivenCard(video, dims, contextType);
         } else if (contextType === "RELICS") {
             if (globalThis.RivenScannerHUD) globalThis.RivenScannerHUD.dismiss();
             this.currentRate = 600;
@@ -396,11 +396,14 @@ export const ScannerService = {
         return realGroups.map(toText);
     },
 
-    async processRivenCard(video, dims) {
+    async processRivenCard(video, dims, contextType = null) {
         const { scale } = dims;
 
+        // the "Item Details" popup has the card centered and higher, so it has its own crop
+        const cardCrop = contextType === "ITEM_DETAILS" ? VisionService.RIVEN_ITEM_DETAILS_CROP : VisionService.RIVEN_CARD_CROP;
+
         // the reroll screen shows one centered card or two side by side; one canvas per card
-        const canvases = VisionService.prepareRivenCardCanvases(video, scale);
+        const canvases = VisionService.prepareRivenCardCanvases(video, scale, cardCrop);
         const hash = canvases.map(c => this._getCanvasHash(c)).join("|");
 
         if (globalThis.dumpRivenCrops) {
@@ -468,7 +471,7 @@ export const ScannerService = {
 
         let screenshotDataURL = null;
         try {
-            const C = VisionService.RIVEN_CARD_CROP;
+            const C = cardCrop;
             const colorCvs = document.createElement("canvas");
             const cropX = Math.floor(video.videoWidth * C.x);
             const cropW = Math.floor(video.videoWidth * C.w);
