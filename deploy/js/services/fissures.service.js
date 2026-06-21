@@ -1,6 +1,12 @@
 import { getActiveFissures } from "../repositories/api.repository.js";
 
-export async function fetchBestFissures() {
+const FISSURE_TTL = 120 * 1000;
+let _fissureCache = { data: null, ts: 0 };
+
+export async function fetchBestFissures(force = false) {
+    if (!force && _fissureCache.data && (Date.now() - _fissureCache.ts < FISSURE_TTL)) {
+        return _fissureCache.data;
+    }
     try {
         const res = await getActiveFissures();
         if (!res.ok) throw new Error("Error al conectar con el Worldstate");
@@ -24,7 +30,7 @@ export async function fetchBestFissures() {
         const now = new Date();
         const fastMissions = new Set(["Capture", "Extermination", "Rescue", "Void Cascade"]);
 
-        return fissures.reduce((acc, f) => {
+        const result = fissures.reduce((acc, f) => {
             const isValidType = (fastMissions.has(f.missionType) || f.tier === "Omnia") && !f.isStorm;
             const expiryDate = new Date(f.expiry);
             if (!isValidType || expiryDate <= now) return acc;
@@ -46,8 +52,11 @@ export async function fetchBestFissures() {
             });
             return acc;
         }, []);
+
+        _fissureCache = { data: result, ts: Date.now() };
+        return result;
     } catch (e) {
         console.error("Error en Worldstate:", e);
-        return [];
+        return _fissureCache.data || [];
     }
 }
