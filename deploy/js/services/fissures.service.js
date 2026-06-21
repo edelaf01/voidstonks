@@ -1,10 +1,19 @@
 import { getActiveFissures } from "../repositories/api.repository.js";
 
+// Cache en memoria del worldstate (global y de cambio lento): limita las llamadas al worker
+// (límite 100k/día) y evita parpadeos al re-renderizar el panel.
+const FISSURE_TTL = 120 * 1000; // 2 min
+let _fissureCache = { data: null, ts: 0 };
+
 /**
  * Fetches active fissure missions from the worker and filters them.
+ * @param {boolean} [force=false] - Ignora la cache en memoria y fuerza recarga.
  * @returns {Promise<Array>}
  */
-export async function fetchBestFissures() {
+export async function fetchBestFissures(force = false) {
+    if (!force && _fissureCache.data && (Date.now() - _fissureCache.ts < FISSURE_TTL)) {
+        return _fissureCache.data;
+    }
     try {
         const res = await getActiveFissures();
         if (!res.ok) throw new Error("Error al conectar con el Worldstate");
@@ -28,7 +37,7 @@ export async function fetchBestFissures() {
         const now = new Date();
         const fastMissions = new Set(["Capture", "Extermination", "Rescue", "Void Cascade"]);
 
-        return fissures.reduce((acc, f) => {
+        const result = fissures.reduce((acc, f) => {
             const isValidType = (fastMissions.has(f.missionType) || f.tier === "Omnia") && !f.isStorm;
             const expiryDate = new Date(f.expiry);
             if (!isValidType || expiryDate <= now) return acc;
@@ -50,8 +59,12 @@ export async function fetchBestFissures() {
             });
             return acc;
         }, []);
+
+        _fissureCache = { data: result, ts: Date.now() };
+        return result;
     } catch (e) {
         console.error("Error en Worldstate:", e);
-        return [];
+        // Fallo transitorio (timeout/cold start): no vacíes la lista, devuelve lo último bueno.
+        return _fissureCache.data || [];
     }
 }

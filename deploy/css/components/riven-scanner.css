@@ -1,0 +1,359 @@
+#riven-appraisal-hud {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.riven-hud-card {
+    background: rgba(9, 11, 18, 0.95);
+    border: 1px solid rgba(208, 96, 255, 0.45);
+    border-radius: 8px;
+    backdrop-filter: blur(12px);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.75),
+                inset 0 1px 0 rgba(208, 96, 255, 0.1),
+                0 0 15px rgba(208, 96, 255, 0.1);
+    overflow: hidden;
+    animation: slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.riven-hud-card.comparison {
+    border-color: rgba(0, 229, 255, 0.45);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.75),
+                inset 0 1px 0 rgba(0, 229, 255, 0.1),
+                0 0 15px rgba(0, 229, 255, 0.1);
+}
+
+.riven-hud-header {
+    background: linear-gradient(135deg, #0b0716 0%, #120a22 100%);
+    border-bottom: 1px solid rgba(208, 96, 255, 0.2);
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.riven-hud-card.comparison .riven-hud-header {
+    background: linear-gradient(135deg, #05101a 0%, #081a29 100%);
+    border-bottom: 1px solid rgba(0, 229, 255, 0.2);
+}
+
+.riven-hud-header .dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #d060ff;
+    box-shadow: 0 0 8px #d060ff;
+    display: inline-block;
+    margin-right: 8px;
+}
+
+.riven-hud-header .dot.comp {
+    background: #00e5ff;
+    box-shadow: 0 0 8px #00e5ff;
+}
+
+.riven-hud-header .title {
+    font-size: 0.72em;
+    font-weight: 800;
+    letter-spacing: 2px;
+    color: #d060ff;
+}
+
+.riven-hud-card.comparison .riven-hud-header .title {
+    color: #00e5ff;
+}
+
+.riven-hud-header .close-btn {
+    background: none;
+    border: none;
+    color: #705580;
+    font-size: 0.85em;
+    cursor: pointer;
+    transition: color 0.2s;
+    padding: 2px 6px;
+}
+
+.riven-hud-header .close-btn:hover {
+    color: #ff4d4d;
+}
+
+.riven-hud-body {
+    padding: 12px;
+}
+
+.riven-weapon-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.riven-weapon-row .weapon-name {
+    font-size: 0.95em;
+    font-weight: 700;
+    color: #fff;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.5);
+}
+
+.riven-weapon-row .rolls-badge {
+    background: rgba(208, 96, 255, 0.12);
+    border: 1px solid rgba(208, 96, 255, 0.35);
+    color: #d060ff;
+    font-size: 0.6em;
+    font-weight: 900;
+    padding: 2px 6px;
+    border-radius: 10px;
+    letter-spacing: 0.5px;
+}
+
+.riven-hud-stats-list {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.04);
+    border-radius: 6px;
+    padding: 8px;
+    margin-bottom: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.riven-hud-stat {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.8em;
+    font-weight: 600;
+    padding: 4px 6px;
+    border-radius: 4px;
+}
+
+.riven-hud-stat.pos {
+    background: rgba(0, 255, 120, 0.03);
+    border-left: 2px solid rgba(0, 255, 120, 0.4);
+    color: #ddd;
+}
+
+.riven-hud-stat.neg {
+    background: rgba(255, 77, 77, 0.03);
+    border-left: 2px solid rgba(255, 77, 77, 0.4);
+    color: #ccc;
+}
+
+.riven-hud-stat .meta-tag {
+    background: rgba(0, 229, 255, 0.15);
+    border: 1px solid rgba(0, 229, 255, 0.4);
+    color: #00e5ff;
+    font-size: 0.55em;
+    font-weight: 800;
+    padding: 1px 4px;
+    border-radius: 3px;
+    letter-spacing: 0.5px;
+}
+
+.riven-hud-tiers {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 12px;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.03);
+    border-radius: 6px;
+    padding: 6px 8px;
+}
+
+.riven-hud-tiers div {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.riven-hud-tiers span {
+    font-size: 0.55em;
+    color: #5a6578;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+}
+
+.riven-hud-tiers strong {
+    font-size: 0.82em;
+    color: #ddd;
+    margin-top: 2px;
+}
+
+.riven-hud-estimate {
+    display: flex;
+    align-items: center;
+    background: rgba(208, 96, 255, 0.05);
+    border: 1px solid rgba(208, 96, 255, 0.18);
+    border-radius: 6px;
+    padding: 8px 10px;
+    margin-bottom: 8px;
+}
+
+.riven-hud-estimate .lbl {
+    font-size: 0.58em;
+    font-weight: 800;
+    color: #c080e0;
+    letter-spacing: 1px;
+}
+
+.riven-hud-estimate .val {
+    margin-left: auto;
+    font-size: 1.1em;
+    font-weight: 900;
+    color: #d060ff;
+    text-shadow: 0 0 10px rgba(208, 96, 255, 0.3);
+}
+
+.riven-hud-estimate .range {
+    font-size: 0.7em;
+    color: #8a7aa0;
+    margin-left: 6px;
+}
+
+.riven-hud-score {
+    display: flex;
+    align-items: center;
+    background: rgba(0, 229, 255, 0.04);
+    border: 1px solid rgba(0, 229, 255, 0.15);
+    border-radius: 6px;
+    padding: 6px 10px;
+    margin-bottom: 12px;
+}
+
+.riven-hud-score .lbl {
+    font-size: 0.58em;
+    font-weight: 800;
+    color: #50b0c0;
+    letter-spacing: 1px;
+}
+
+.riven-hud-score .val {
+    margin-left: auto;
+    font-size: 0.85em;
+    font-weight: 800;
+    color: #00e5ff;
+}
+
+.riven-hud-actions {
+    margin-top: 10px;
+}
+
+.riven-hud-actions .action-btn {
+    width: 100%;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #889bb0;
+    font-size: 0.7em;
+    font-weight: 700;
+    padding: 8px;
+    cursor: pointer;
+    border-radius: 5px;
+    transition: all 0.2s;
+    letter-spacing: 0.5px;
+}
+
+.riven-hud-actions .action-btn:hover {
+    background: rgba(255, 255, 255, 0.07);
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.riven-hud-actions .action-btn.primary {
+    background: rgba(208, 96, 255, 0.15);
+    border-color: rgba(208, 96, 255, 0.5);
+    color: #e2a0ff;
+    font-weight: 800;
+    box-shadow: 0 0 10px rgba(208, 96, 255, 0.1);
+}
+
+.riven-hud-actions .action-btn.primary:hover {
+    background: rgba(208, 96, 255, 0.25);
+    border-color: rgba(208, 96, 255, 0.7);
+    color: #fff;
+    box-shadow: 0 0 16px rgba(208, 96, 255, 0.25);
+}
+
+/* --- COMPARISON MODE STYLES --- */
+.comp-col {
+    flex: 1;
+    background: rgba(255,255,255,0.015);
+    border: 1px solid rgba(255, 255, 255, 0.04);
+    border-radius: 6px;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    transition: all 0.2s;
+}
+
+.comp-col.winner {
+    background: rgba(0, 229, 255, 0.03);
+    border-color: rgba(0, 229, 255, 0.35);
+    box-shadow: 0 0 12px rgba(0, 229, 255, 0.08);
+}
+
+.comp-col .col-title {
+    font-size: 0.6em;
+    font-weight: 800;
+    color: #888;
+    text-align: center;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    padding-bottom: 4px;
+    margin-bottom: 4px;
+}
+
+.comp-col.winner .col-title {
+    color: #00e5ff;
+}
+
+.comp-col .col-stats {
+    min-height: 48px;
+    margin-bottom: 6px;
+}
+
+.comp-col .col-score, .comp-col .col-price {
+    font-size: 0.65em;
+    color: #aaa;
+    display: flex;
+    justify-content: space-between;
+}
+
+.comp-col .col-score strong, .comp-col .col-price strong {
+    color: #eee;
+}
+
+.comp-col.winner .col-score strong {
+    color: #00e5ff;
+}
+
+.comp-verdict {
+    margin-top: 10px;
+    background: rgba(0, 229, 255, 0.05);
+    border: 1px solid rgba(0, 229, 255, 0.15);
+    border-radius: 6px;
+    padding: 8px;
+}
+
+.comp-verdict .verdict-title {
+    font-size: 0.62em;
+    font-weight: 900;
+    color: #00e5ff;
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+}
+
+.comp-verdict .verdict-reason {
+    font-size: 0.72em;
+    color: #c5d8e2;
+    line-height: 1.3;
+    margin: 0;
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}

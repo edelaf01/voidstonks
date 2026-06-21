@@ -25,7 +25,9 @@ export async function fetchWeaponHistory(weaponName) {
   if (!response.ok) {
     throw new Error(`HTTP Error for historical logs of ${weaponName}`);
   }
-  return await response.json();
+  const result = await response.json();
+  // Worker may return { data: [...], pos, neg } — extract just the price array
+  return Array.isArray(result) ? result : (result.data || []);
 }
 
 /**

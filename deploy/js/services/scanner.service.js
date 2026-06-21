@@ -19,10 +19,19 @@ export const ScannerService = {
     inventoryHasScanned: false,
     lastStableHash: null,
     virtualCanvas: null,
+    lastHashL: null,
+    lastHashR: null,
+    rivenConsensusBuffer: [],
 
     async start() {
         if (this.isScanning) return;
         this.isScanning = true;
+        this.latchedContext = "UNKNOWN";
+        this.unknownFrameCount = 0;
+        this.detectionLocked = false;
+        this.lastHashL = null;
+        this.lastHashR = null;
+        this.rivenConsensusBuffer = [];
         globalThis.ScannerService = this;
         if (!this.virtualCanvas) {
             this.virtualCanvas = document.createElement("canvas");
@@ -31,6 +40,9 @@ export const ScannerService = {
 
         // On-demand fetch of the fresh prime items reference list from worker/backend cache
         initializeOCRDatabase().catch(err => console.warn("Error fetching OCR reference database from backend:", err));
+
+        // Pre-fetch Riven weapons list on start to ensure Riven OCR is ready immediately
+        import("./rivens.service.js").then(m => m.fetchRivenWeapons()).catch(err => console.warn("Error fetching Riven weapons:", err));
 
         await OCRRepository.warmUp();
         OpenCVRepository.waitReady().catch(() => { });
@@ -65,20 +77,60 @@ export const ScannerService = {
         }
     },
 
+    latchedContext: "UNKNOWN",
+    unknownFrameCount: 0,
+    lastRivenContextTime: 0,
+
     async processFrame(video, virtualCanvas) {
         if (this.detectionLocked) return;
         this.scanCounter++;
 
         const dims = VisionService.prepareVirtualCanvas(video, virtualCanvas);
 
-
-
         const worker1 = OCRRepository.workers[0];
         const { data: headerData } = await OCRRepository.recognize(worker1, virtualCanvas);
 
-        const contextType = VisionService.determineContext(headerData.text);
-        console.log(`[SCAN] Context: ${contextType} | Header OCR: "${(headerData.text || "").trim().slice(0, 60)}"`);
-        await this.routeFrameAction(contextType, video, dims);
+        const rawContext = VisionService.determineContext(headerData.text);
+        const now = Date.now();
+
+        // Check if header contains Riven/Mods anchors (English and Spanish equivalents)
+        const textUpper = (headerData.text || "").toUpperCase();
+        const containsAnchor = textUpper.includes("INVENTORY") || textUpper.includes("INVENTARIO") ||
+                               textUpper.includes("MODS") || textUpper.includes("MODIFICADORES") ||
+                               textUpper.includes("CYCLE") || textUpper.includes("CICLO") || textUpper.includes("CICLAR") ||
+                               textUpper.includes("KUVA") || textUpper.includes("KUYVA") ||
+                               textUpper.includes("ATRIBUTOS") || textUpper.includes("ELEGIR") || textUpper.includes("CONFIRMAR") ||
+                               textUpper.includes("AGRIETADO");
+        
+        if (rawContext === "INVENTORY_MODS" || containsAnchor) {
+            this.lastRivenContextTime = now;
+        }
+
+        let routedContext = rawContext;
+
+        // Apply 8-second grace period for Riven/Mods context
+        if (this.lastRivenContextTime && (now - this.lastRivenContextTime < 8000)) {
+            if (rawContext === "UNKNOWN" || rawContext === "INVENTORY") {
+                routedContext = "INVENTORY_MODS";
+            } else if (rawContext === "RELICS" || rawContext === "REWARD") {
+                // Navigated away: immediately cancel grace period
+                this.lastRivenContextTime = 0;
+            }
+        }
+
+        // Hysteresis/Debounce logic for OCR context noise
+        if (routedContext === "UNKNOWN") {
+            this.unknownFrameCount++;
+            if (this.unknownFrameCount >= 3) {
+                this.latchedContext = "UNKNOWN";
+            }
+        } else {
+            this.unknownFrameCount = 0;
+            this.latchedContext = routedContext;
+        }
+
+        console.log(`[SCAN] Context Raw: ${rawContext} | Latched: ${this.latchedContext} | Header: "${(headerData.text || "").trim().slice(0, 60)}"`);
+        await this.routeFrameAction(this.latchedContext, video, dims);
 
         ScannerHUD.updateFrameCounter(this.scanCounter);
     },
@@ -212,16 +264,354 @@ export const ScannerService = {
                 ScannerHUD.updateScrollStatus("done", this.sessionInventory.size);
             }
 
+        } else if (contextType === "INVENTORY_MODS" || (globalThis.state.scannerModsMode && contextType === "INVENTORY")) {
+            this.currentRate = 1200;
+            if (this.detectionLocked) return;
+            await this.processRivenCard(video, dims);
         } else if (contextType === "RELICS") {
+            if (globalThis.RivenScannerHUD) globalThis.RivenScannerHUD.dismiss();
             this.currentRate = 600;
             await this.processRelicSelection(video, dims);
         } else if (contextType === "REWARD") {
+            if (globalThis.RivenScannerHUD) globalThis.RivenScannerHUD.dismiss();
             if (this.detectionLocked) return;
             this.currentRate = 1200;
             await this.processRewards(video, dims);
         } else {
+            if (globalThis.RivenScannerHUD) globalThis.RivenScannerHUD.dismiss();
             this.currentRate = globalThis.state.autoScanEnabled ? 1000 : 3000;
         }
+    },
+
+    lastParsedL: null,
+    lastParsedR: null,
+
+    _isSameRiven(a, b) {
+        if (!a && !b) return true;
+        if (!a || !b) return false;
+        if (a.weaponName !== b.weaponName) return false;
+        if (a.rolls !== b.rolls) return false;
+        if (a.stats.length !== b.stats.length) return false;
+        for (let i = 0; i < a.stats.length; i++) {
+            if (a.stats[i].name !== b.stats[i].name) return false;
+            if (a.stats[i].isPositive !== b.stats[i].isPositive) return false;
+            // Ignore minor value differences to prevent HUD jitter
+        }
+        return true;
+    },
+
+    /**
+     * Checks if the new read is of better or equal quality than the old one,
+     * to prevent lower-quality frames (missing stats/names) from overriding a good active read.
+     */
+    _isBetterOrEqualRead(newRiven, oldRiven) {
+        if (!oldRiven) return true;
+        if (!newRiven) return false;
+
+        // If the old read has a valid weapon name, and the new read doesn't, keep the old one
+        if (oldRiven.weaponName && !newRiven.weaponName) return false;
+
+        // If the old read has a valid rolls count, and the new read doesn't, keep the old one
+        if (oldRiven.rolls !== null && newRiven.rolls === null) return false;
+
+        // If weaponName or rolls is different (and not null), they are different cards or rolls
+        if (newRiven.weaponName !== oldRiven.weaponName || newRiven.rolls !== oldRiven.rolls) {
+            return true;
+        }
+
+        // Same card and same roll count:
+        const newMatchedCount = newRiven.stats.filter(s => s.matched).length;
+        const oldMatchedCount = oldRiven.stats.filter(s => s.matched).length;
+
+        // Prefer the read with strictly more matched stats
+        if (newMatchedCount > oldMatchedCount) return true;
+        if (newMatchedCount < oldMatchedCount) return false;
+
+        // Tie-break on validation confidence (fewer stats flagged as illegal/implausible)
+        const newConf = newRiven.validation?.confidence ?? 0;
+        const oldConf = oldRiven.validation?.confidence ?? 0;
+        if (newConf > oldConf) return true;
+
+        return false;
+    },
+
+    _getCanvasHash(canvas) {
+        if (!canvas) return "";
+        const tiny = document.createElement("canvas");
+        tiny.width = 8;
+        tiny.height = 8;
+        const ctx = tiny.getContext("2d");
+        const startY = Math.floor(canvas.height * 0.45);
+        const sourceH = canvas.height - startY;
+        ctx.drawImage(canvas, 0, startY, canvas.width, sourceH, 0, 0, 8, 8);
+        const imgData = ctx.getImageData(0, 0, 8, 8).data;
+        let hash = "";
+        for (let i = 0; i < imgData.length; i += 4) {
+            const avg = Math.floor((imgData[i] + imgData[i+1] + imgData[i+2]) / 3);
+            hash += avg.toString(16).padStart(2, "0");
+        }
+        return hash;
+    },
+
+    _compareHashes(hash1, hash2) {
+        if (!hash1 || !hash2) return false;
+        if (hash1.length !== hash2.length) return false;
+        let diff = 0;
+        for (let i = 0; i < hash1.length; i += 2) {
+            const val1 = parseInt(hash1.substring(i, i + 2), 16);
+            const val2 = parseInt(hash2.substring(i, i + 2), 16);
+            diff += Math.abs(val1 - val2);
+        }
+        const avgDiff = diff / (hash1.length / 2);
+        return avgDiff < 18;
+    },
+
+    /**
+     * Generates a fingerprint string from a parsed riven for consensus comparison.
+     */
+    _rivenFingerprint(parsed) {
+        if (!parsed) return "null";
+        const w = parsed.weaponName || "?";
+        const s = parsed.stats.map(st => `${st.isPositive ? "+" : "-"}${st.name}`).sort().join(",");
+        return `${w}|${s}`;
+    },
+
+    // Separa las palabras del OCR en cartas por su posición X (hueco grande = frontera entre cartas).
+    // Filtra por confianza para tirar el "garbage" que genera el arte de fondo. Reconstruye el texto
+    // de cada carta agrupando por líneas (Y) y ordenando por X. Devuelve null si solo hay una carta.
+    _wordsToCards(data, canvasWidth) {
+        let words = [];
+        const pushAll = (arr) => { if (Array.isArray(arr)) for (const w of arr) words.push(w); };
+        if (Array.isArray(data?.words)) pushAll(data.words);
+        if (!words.length && Array.isArray(data?.lines)) data.lines.forEach(l => pushAll(l.words));
+        if (!words.length && Array.isArray(data?.paragraphs)) data.paragraphs.forEach(p => (p.lines || []).forEach(l => pushAll(l.words)));
+        if (!words.length && Array.isArray(data?.blocks)) data.blocks.forEach(b => (b.paragraphs || []).forEach(p => (p.lines || []).forEach(l => pushAll(l.words))));
+
+        // Solo palabras "de contenido" (>=3 alfanuméricos): tira el ruido del arte/bordes/triángulo
+        // ("Ne", "|", "7", "<"...) que puenteaba el hueco entre cartas e impedía el corte correcto.
+        const isContent = (t) => (t || "").replace(/[^a-z0-9]/gi, "").length >= 3 || /\d/.test(t || "");
+        const usable = words.filter(w => w && w.text && isContent(w.text) && (w.confidence ?? 0) >= 50 && w.bbox);
+        console.log(`[OCR DIAG] dataKeys=[${Object.keys(data || {}).join(",")}] rawWords=${words.length} usable=${usable.length}`, words[0]);
+        if (usable.length < 3) return null;
+        words = usable;
+
+        const items = words.map(w => ({ w, cx: (w.bbox.x0 + w.bbox.x1) / 2 })).sort((a, b) => a.cx - b.cx);
+        const gapThresh = Math.max(canvasWidth * 0.07, 80); // hueco entre cartas ≫ espaciado intra-carta
+
+        const groups = [[]];
+        let prev = null;
+        for (const it of items) {
+            if (prev !== null && it.cx - prev > gapThresh) groups.push([]);
+            groups[groups.length - 1].push(it.w);
+            prev = it.cx;
+        }
+        const realGroups = groups.filter(g => g.length >= 3); // descarta clusters de ruido sueltos
+        console.log(`[OCR DIAG] gapThresh=${Math.round(gapThresh)} groups=${groups.length} realGroups=${realGroups.length} xs=[${items.map(i => Math.round(i.cx)).join(",")}]`);
+        if (realGroups.length < 2) return null; // una sola carta -> deja el flujo normal
+
+        const toText = (ws) => {
+            // Agrupa por línea usando el CENTRO-Y con tolerancia = mediana de altura, para que el
+            // valor ("+92.4%") y su nombre ("Status Chance") —que tienen y0 ligeramente distintos—
+            // queden en la MISMA línea y el parser capte el valor.
+            const heights = ws.map(w => w.bbox.y1 - w.bbox.y0).sort((a, b) => a - b);
+            const medH = heights[Math.floor(heights.length / 2)] || 20;
+            const lines = [];
+            for (const w of ws.slice().sort((a, b) => a.bbox.y0 - b.bbox.y0)) {
+                const cy = (w.bbox.y0 + w.bbox.y1) / 2;
+                let line = lines.find(L => Math.abs(L.cy - cy) < medH * 0.6);
+                if (!line) { line = { cy, ws: [] }; lines.push(line); }
+                line.ws.push(w);
+                line.cy = (line.cy * (line.ws.length - 1) + cy) / line.ws.length;
+            }
+            lines.sort((a, b) => a.cy - b.cy);
+            return lines.map(L => L.ws.sort((a, b) => a.bbox.x0 - b.bbox.x0).map(w => w.text).join(" ")).join("\n");
+        };
+        return realGroups.map(toText);
+    },
+
+    async processRivenCard(video, dims) {
+        const { scale } = dims;
+
+        // The reroll screen shows ONE centered card or TWO side-by-side (old vs new roll).
+        // prepareRivenCardCanvases auto-detects and returns one tightly-cropped canvas per card.
+        const canvases = VisionService.prepareRivenCardCanvases(video, scale);
+        const hash = canvases.map(c => this._getCanvasHash(c)).join("|");
+
+        // Debug: set `globalThis.dumpRivenCrops = true` in the console to print each binarized crop
+        // as a data URL (paste into a browser address bar to view it). Runs before the hash-skip so
+        // it fires even on a static, already-parsed screen.
+        if (globalThis.dumpRivenCrops) {
+            canvases.forEach((c, i) => console.log(`[RIVEN CROP ${canvases.length > 1 ? `C${i + 1}` : "C"}] ${c.toDataURL("image/png")}`));
+            globalThis.dumpRivenCrops = false;
+        }
+
+        // Skip OCR if we already have a result and the crops haven't changed
+        if ((this.lastParsedL || this.lastParsedR) && this._sameCombinedHash(hash, this.lastHashL)) {
+            this.lastRivenContextTime = Date.now();
+            return;
+        }
+
+        const worker = OCRRepository.workers[1] || OCRRepository.workers[0];
+        const { RivenOCRService } = await import("./riven_ocr.service.js?v=2");
+
+        const reads = await Promise.all(canvases.map(c => OCRRepository.recognize(worker, c, {}, { blocks: true })));
+        // El layout side-by-side hace que el OCR lea AMBAS cartas en una sola pasada (el arte de fondo
+        // funde el recorte de imagen). Separamos por posición X de las palabras —filtrando el garbage
+        // del arte por confianza— en vez de fiarnos del recorte. Así C1/C2 salen limpios y sin mezclar.
+        const entries = [];
+        reads.forEach((res, ci) => {
+            const cardTexts = this._wordsToCards(res.data, canvases[ci].width) || [res.data.text || ""];
+            cardTexts.forEach((text) => {
+                const parsed = RivenOCRService.parseRivenCard(text);
+                const label = `C${entries.length + 1}`;
+                this._logRivenRead(label, text, parsed, canvases[ci]);
+                entries.push({ res, text, parsed, canvas: canvases[ci] });
+            });
+        });
+
+        // Extend grace period while the screen still looks riven-related
+        const anyText = entries.map(e => e.text.toUpperCase()).join(" ");
+        const hasCardAnchor = /CYCLE|KUVA|KUYVA|CONFIRM|\bMR\s*\d/.test(anyText);
+
+        // Keep only confident reads (drops mod-grid / background noise), left-to-right
+        const MIN_CONF = 0.5;
+        const valids = entries.filter(e => e.parsed && (e.parsed.validation?.confidence ?? 0) >= MIN_CONF);
+
+        if (valids.length || hasCardAnchor) this.lastRivenContextTime = Date.now();
+
+        // --- TEMPORAL CONSENSUS: require 2/3 matching fingerprints (of the whole card set) ---
+        const currentFP = valids.map(e => this._rivenFingerprint(e.parsed)).join("||") || "none";
+        this.rivenConsensusBuffer.push(currentFP);
+        if (this.rivenConsensusBuffer.length > 3) this.rivenConsensusBuffer.shift();
+        const matchCount = this.rivenConsensusBuffer.filter(fp => fp === currentFP).length;
+        const hasConsensus = matchCount >= 2;
+
+        const parsedL = valids[0]?.parsed || null;
+        const parsedR = valids[1]?.parsed || null;
+
+        if (!hasConsensus && (this.lastParsedL || this.lastParsedR)) {
+            console.log(`[RIVEN OCR] Consensus: ${matchCount}/3 — waiting for confirmation`);
+            if (globalThis._scannerDebug) this._renderRivenDebug(entries, false);
+            return;
+        }
+
+        // Update only when the detected set is new (different from what's already shown)
+        const lastFP = [this.lastParsedL, this.lastParsedR].filter(Boolean)
+            .map(p => this._rivenFingerprint(p)).join("||") || "none";
+        const shouldUpdate = currentFP !== "none" && currentFP !== lastFP;
+
+        if (globalThis._scannerDebug) this._renderRivenDebug(entries, shouldUpdate);
+
+        if (!shouldUpdate) return;
+
+        this.lastParsedL = parsedL;
+        this.lastParsedR = parsedR;
+        this.lastHashL = hash;
+        this.lastHashR = null;
+
+        // Capture a clean color crop of the whole card region as a downloadable screenshot
+        let screenshotDataURL = null;
+        try {
+            const C = VisionService.RIVEN_CARD_CROP;
+            const colorCvs = document.createElement("canvas");
+            const cropX = Math.floor(video.videoWidth * C.x);
+            const cropW = Math.floor(video.videoWidth * C.w);
+            const cropY = Math.floor(video.videoHeight * C.y);
+            const cropH = Math.floor(video.videoHeight * C.h);
+            colorCvs.width = cropW;
+            colorCvs.height = cropH;
+            colorCvs.getContext("2d").drawImage(video, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+            screenshotDataURL = colorCvs.toDataURL("image/png");
+        } catch (e) {
+            console.warn("Screenshot capture failed:", e);
+        }
+
+        if (globalThis.showRivenAppraisal) {
+            globalThis.showRivenAppraisal(parsedL, parsedR, screenshotDataURL);
+        }
+    },
+
+    // Compares two "hashA|hashB" combined canvas hashes segment-by-segment.
+    _sameCombinedHash(a, b) {
+        if (!a || !b) return false;
+        const pa = a.split("|"), pb = b.split("|");
+        if (pa.length !== pb.length) return false;
+        return pa.every((h, i) => this._compareHashes(h, pb[i]));
+    },
+
+    /**
+     * Structured per-card log: raw OCR, the cropped canvas size, the parsed result,
+     * and the known-riven validation (confidence + issues). Collapsed console group.
+     */
+    _logRivenRead(side, rawText, parsed, canvas) {
+        const raw = (rawText || "").trim().replace(/\n/g, " | ");
+        const v = parsed?.validation;
+        const tag = parsed
+            ? `${parsed.weaponName || "?"} | ${parsed.stats.length} stats | conf ${v ? v.confidence : "?"}${v && !v.valid ? " ⚠" : " ✓"}`
+            : "no parse";
+        // Raw OCR text on the TOP-LEVEL line so it is visible without expanding a group —
+        // this is the single most useful signal for diagnosing crop/binarization issues.
+        console.log(`[RIVEN OCR ${side}] ${tag} | crop ${canvas?.width}x${canvas?.height} | raw: "${raw}"`);
+        if (parsed) {
+            const stats = parsed.stats.map(s => `${s.isPositive ? "+" : "-"}${s.value}% ${s.name}${s.suspicious ? "⚠" : ""}`).join("  ");
+            console.log(`  → riven: ${parsed.rivenName || "—"} | rolls ${parsed.rolls ?? "—"} | mr ${parsed.mr ?? "—"} | ${stats}`);
+            if (v?.issues?.length) console.log(`  → issues: ${v.issues.join("; ")}`);
+        }
+    },
+
+    /**
+     * Renders the riven debug panel: each detected card's binarized OCR input side by side,
+     * with its OCR line boxes and parsed weapon/confidence. `entries` is the array from
+     * processRivenCard ({ res, parsed, canvas } per card).
+     */
+    _renderRivenDebug(entries, accepted) {
+        if (!entries || entries.length === 0) return;
+
+        const gap = 12;
+        const panelH = Math.max(...entries.map(e => e.canvas.height));
+        const totalW = entries.reduce((w, e) => w + e.canvas.width, 0) + gap * (entries.length - 1);
+
+        const debugCvs = document.createElement("canvas");
+        debugCvs.width = Math.max(totalW, 200);
+        debugCvs.height = panelH + 22;
+        const dCtx = debugCvs.getContext("2d");
+        dCtx.fillStyle = "#000";
+        dCtx.fillRect(0, 0, debugCvs.width, debugCvs.height);
+
+        let xOff = 0;
+        entries.forEach((e, idx) => {
+            dCtx.drawImage(e.canvas, xOff, 18);
+
+            // OCR line boxes (coords are in this card's canvas space)
+            if (e.res?.data?.lines) {
+                e.res.data.lines.forEach(line => {
+                    const t = line.text ? line.text.trim() : "";
+                    if (!t || !line.bbox) return;
+                    const b = line.bbox;
+                    const isStat = t.includes("%") || t.includes("+") || t.includes("-");
+                    dCtx.strokeStyle = "rgba(0, 229, 255, 0.6)";
+                    dCtx.lineWidth = 1;
+                    dCtx.strokeRect(xOff + b.x0, 18 + b.y0, b.x1 - b.x0, b.y1 - b.y0);
+                    dCtx.fillStyle = isStat ? "#00ff78" : "#aaa";
+                    dCtx.font = "9px monospace";
+                    dCtx.fillText(t, xOff + b.x0, 18 + b.y0 - 1);
+                });
+            }
+
+            const conf = e.parsed?.validation ? ` c${e.parsed.validation.confidence}` : "";
+            dCtx.fillStyle = "rgba(172, 131, 213, 0.95)";
+            dCtx.font = "bold 10px monospace";
+            dCtx.fillText(`#${idx + 1} ${e.parsed ? (e.parsed.weaponName || "?") : "—"}${conf}`, xOff + 2, 12);
+
+            xOff += e.canvas.width + gap;
+        });
+
+        const consensusCount = this.rivenConsensusBuffer.filter(fp => fp === this.rivenConsensusBuffer[this.rivenConsensusBuffer.length - 1]).length;
+        dCtx.fillStyle = accepted ? "#00ff78" : "#ff6644";
+        dCtx.font = "bold 10px monospace";
+        dCtx.fillText(`${accepted ? "✓" : "⏳"} ${consensusCount}/3`, debugCvs.width - 48, 12);
+
+        ScannerHUD.updateDebugSnapshot(debugCvs.toDataURL("image/webp"));
     },
 
     async processRelicSelection(video, dims) {

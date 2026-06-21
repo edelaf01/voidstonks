@@ -46,7 +46,7 @@ export function getRivenSlug(inputVal) {
         "prime_robo_deth": "robo_deth",
         "prime_deth_machine_rifle": "deth_machine_rifle",
         "vaykor_marelok": "marelok",
-        "vaykor_hek": "hek"
+        "vaykor_hek": "hek",
     };
     
     if (overrides[cleanVal]) {

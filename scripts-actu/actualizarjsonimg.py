@@ -15,20 +15,11 @@ IMG_DIR = "./img"
 MAX_SIZE = (256, 256)
 WEBP_QUALITY = 50
 
-# --- LISTAS DE URLS ---
-URLS_WEAPONS = [
-    "https://raw.githubusercontent.com/WFCD/warframe-items/master/data/json/Arch-Gun.json",
-    "https://raw.githubusercontent.com/WFCD/warframe-items/master/data/json/Melee.json",
-    "https://raw.githubusercontent.com/WFCD/warframe-items/master/data/json/Primary.json",
-    "https://raw.githubusercontent.com/WFCD/warframe-items/master/data/json/Secondary.json",
-    "https://raw.githubusercontent.com/WFCD/warframe-items/master/data/json/SentinelWeapons.json"
-]
+# Directorio del build local de WFCD (fetcha directo de DE, más fresco que el CDN de GitHub)
+WFCD_LOCAL = os.path.join(os.path.dirname(__file__), "../../scripts-wfcd/warframe-items/data/json")
 
-URLS_ENTITIES = [
-    "https://raw.githubusercontent.com/WFCD/warframe-items/master/data/json/Warframes.json",
-    "https://raw.githubusercontent.com/WFCD/warframe-items/master/data/json/Archwing.json",
-    "https://raw.githubusercontent.com/WFCD/warframe-items/master/data/json/Sentinels.json"
-]
+FILES_WEAPONS  = ["Arch-Gun", "Melee", "Primary", "Secondary", "SentinelWeapons"]
+FILES_ENTITIES = ["Warframes", "Archwing", "Sentinels"]
 
 # --- FUNCIONES AUXILIARES ---
 
@@ -158,16 +149,16 @@ def process_components(components, subdir):
     return clean_comps
 
 # --- LOOP PRINCIPAL GENERIICO ---
-def process_data(urls, subdir, output_file, is_weapon=False):
+def process_data(files, subdir, output_file, is_weapon=False):
     print(f"--- PROCESANDO {subdir.upper()} ---")
     all_items = []
 
-    for url in urls:
+    for name in files:
+        local_path = os.path.join(WFCD_LOCAL, f"{name}.json")
         try:
-            print(f"Descargando: {url.split('/')[-1]}...")
-            req = urllib.request.Request(url, headers={'User-Agent': 'Python-Script'})
-            with urllib.request.urlopen(req) as response:
-                data = json.loads(response.read().decode())
+            print(f"Leyendo: {name}.json...")
+            with open(local_path, encoding='utf-8') as f:
+                data = json.load(f)
 
                 for item in data:
                     if item.get("productCategory") == "SpaceSuits": continue
@@ -197,18 +188,66 @@ def process_data(urls, subdir, output_file, is_weapon=False):
                     all_items.append(cleaned_item)
 
         except Exception as e:
-            print(f"Error en {url}: {e}")
+            print(f"Error en {name}.json: {e}")
 
     with open(output_file, "w", encoding='utf-8') as f:
         # Separators elimina espacios en blanco para minificar al máximo
         json.dump(all_items, f, separators=(',', ':'))
     print(f"Guardado en {output_file} (Tamaño optimizado)\n")
 
+# Kitgun chambers: viven en Misc.json (category=Misc), no en Primary/Secondary, así que el loop
+# normal no los coge. Los inyectamos leyendo su disposición real de All.json.
+KITGUN_CHAMBERS = {"Catchmoon", "Gaze", "Rattleguts", "Tombfinger", "Sporelacer", "Vermisplicer"}
+
+def inject_kitguns(output_file, subdir="weapons"):
+    try:
+        with open(os.path.join(WFCD_LOCAL, "All.json"), encoding="utf-8") as f:
+            allitems = json.load(f)
+    except Exception as e:
+        print(f"No se pudieron inyectar kitguns (All.json): {e}")
+        return
+
+    # Un chamber por nombre, el que tenga disposición numérica (descarta el emote 'Gaze').
+    picked = {}
+    for it in allitems:
+        n = it.get("name")
+        if n in KITGUN_CHAMBERS and isinstance(it.get("omegaAttenuation"), (int, float)):
+            picked[n] = it
+
+    with open(output_file, encoding="utf-8") as f:
+        weapons = json.load(f)
+    existing = {w.get("name") for w in weapons}
+
+    added = 0
+    for n, it in picked.items():
+        if n in existing:
+            continue
+        weapons.append({
+            "name": n,
+            "type": "Pistol",          # kitgun = arma de fuego: usa stats de pistola en la tasación
+            "category": "Secondary",
+            "isPrime": False,
+            "vaulted": None,
+            "masteryReq": it.get("masteryReq", 0),
+            "components": [],
+            "localImage": process_image(n, it.get("imageName"), subdir),
+            "omegaAttenuation": clean_dispo(it.get("omegaAttenuation")),
+        })
+        added += 1
+
+    with open(output_file, "w", encoding="utf-8") as f:
+        json.dump(weapons, f, separators=(",", ":"))
+    print(f"Kitguns inyectados en {output_file}: {added}")
+
+
 if __name__ == "__main__":
     # Procesar Armas
-    process_data(URLS_WEAPONS, "weapons", "cleaned_weapons.json", is_weapon=True)
+    process_data(FILES_WEAPONS, "weapons", "cleaned_weapons.json", is_weapon=True)
+
+    # Inyectar kitguns (no están en las categorías estándar de WFCD)
+    inject_kitguns("cleaned_weapons.json")
 
     # Procesar Entidades (Warframes, Archwings, etc)
-    process_data(URLS_ENTITIES, "entities", "cleaned_entities.json", is_weapon=False)
+    process_data(FILES_ENTITIES, "entities", "cleaned_entities.json", is_weapon=False)
 
     print("--- TODO LISTO ---")
