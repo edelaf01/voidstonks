@@ -35,6 +35,7 @@ export const UPDATE_HISTORY_DATA = {
       </ul>
     </li>
     <li><strong>Mejoras de backend:</strong> modelo de precios de rivens más preciso y mejor rendimiento y estabilidad del servidor.</li>
+    <li><strong>⚠️ Aviso:</strong> las tasaciones son solo una guía orientativa y pueden variar mucho según el mercado. El escáner de rivens está en <strong>versión de pruebas (beta)</strong>.</li>
   </ul>
 </div>
 <div class="update-block old">
@@ -214,6 +215,7 @@ export const UPDATE_HISTORY_DATA = {
       </ul>
     </li>
     <li><strong>Backend improvements:</strong> more accurate riven pricing model and better server performance and stability.</li>
+    <li><strong>⚠️ Note:</strong> appraisals are a rough guide only and can vary a lot with the market. The riven scanner is in <strong>beta (testing)</strong>.</li>
   </ul>
 </div>
 <div class="update-block old">
