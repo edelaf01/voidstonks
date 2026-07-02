@@ -1,4 +1,4 @@
-import { RIVEN_BASE_STATS, WEAPON_TYPE_IDX, RIVEN_WEIGHTS } from "../config.js";
+import { RIVEN_BASE_STATS, WEAPON_TYPE_IDX, RIVEN_WEIGHTS, resolveBaseStatKey } from "../config.js";
 import { state } from "../state.js";
 
 /**
@@ -21,7 +21,7 @@ export function calculateRivenGrade(weaponData, statName, statValue, isNeg, buff
   const multiplier = isNeg ? w.curse : w.buff;
 
   const typeIdx = WEAPON_TYPE_IDX[type] ?? 0;
-  const baseCoef = RIVEN_BASE_STATS[statName]?.[typeIdx];
+  const baseCoef = RIVEN_BASE_STATS[resolveBaseStatKey(statName, typeIdx)]?.[typeIdx];
 
   if (baseCoef === undefined || baseCoef === 0) {
     return { grade: "?", pct: 0, range: "N/A", isGodRoll: false };
@@ -79,7 +79,7 @@ export function getRivenStatRange(weaponData, statName, isNeg, buffCount, hasNeg
 
   const multiplier = isNeg ? w.curse : w.buff;
   const typeIdx = WEAPON_TYPE_IDX[type] ?? 0;
-  const baseCoef = RIVEN_BASE_STATS[statName]?.[typeIdx];
+  const baseCoef = RIVEN_BASE_STATS[resolveBaseStatKey(statName, typeIdx)]?.[typeIdx];
 
   if (baseCoef === undefined || baseCoef === 0) {
     return null;
@@ -495,6 +495,11 @@ export function calculateAdvancedPredictivePrice(weapon, itemAttributes, tiers, 
   };
 }
 
+// tolerant to case and spacing between user input and the canonical name
+export function sameWeaponName(a, b) {
+  return !!a && !!b && String(a).trim().toLowerCase() === String(b).trim().toLowerCase();
+}
+
 export function calculateHybridTiers(weapon, weaponHistory = null) {
   const popularity = weapon.popularity_pct || 0;
   const realVolume = (weapon.de_unrolled?.pop || 0) + (weapon.de_rerolled?.pop || 0) + (weapon.wfm_market_sample || 0);
@@ -519,7 +524,7 @@ export function calculateHybridTiers(weapon, weaponHistory = null) {
   };
 
   const currentName = weapon.name || null;
-  if (currentName && weaponHistory && weaponHistory.weaponName === currentName && Array.isArray(weaponHistory.data)) {
+  if (currentName && weaponHistory && sameWeaponName(weaponHistory.weaponName, currentName) && Array.isArray(weaponHistory.data)) {
     const histPoints = weaponHistory.data.filter(p => p && (p.wfm_avg_price > 0 || p.official_median > 0));
     if (histPoints.length > 0) {
       hasHistory = true;
@@ -527,8 +532,10 @@ export function calculateHybridTiers(weapon, weaponHistory = null) {
       // flat max on purpose: all-time ceiling for meta detection
       histPoints.forEach(p => { if (p.wfm_avg_price > histWfmMax) histWfmMax = p.wfm_avg_price; });
 
-      const wfmPts = histPoints.filter(p => p.wfm_avg_price > 0).sort((a, b) => new Date(b.date) - new Date(a.date));
-      const dePts  = histPoints.filter(p => p.official_median > 0).sort((a, b) => new Date(b.date) - new Date(a.date));
+      // unparseable dates go last instead of breaking the sort
+      const _ts = (p) => { const t = Date.parse(p.date); return Number.isNaN(t) ? -Infinity : t; };
+      const wfmPts = histPoints.filter(p => p.wfm_avg_price > 0).sort((a, b) => _ts(b) - _ts(a));
+      const dePts  = histPoints.filter(p => p.official_median > 0).sort((a, b) => _ts(b) - _ts(a));
 
       const flatWfm = wfmPts.length > 0 ? wfmPts.reduce((s, p) => s + p.wfm_avg_price, 0) / wfmPts.length : 0;
 
@@ -650,6 +657,11 @@ export function calculateHybridTiers(weapon, weaponHistory = null) {
     godroll = Math.round(observedMax * 1.3);
   }
 
+  // ML trash floor (ml_trash) overrides the generic cap when there is real data
+  if (weapon.ml_trash && weapon.ml_trash.min > 0) {
+    trash = Math.max(trash, weapon.ml_trash.min);
+  }
+
   if (goodReroll <= trash) {
     goodReroll = Math.round(trash * 1.8);
   }
@@ -657,5 +669,68 @@ export function calculateHybridTiers(weapon, weaponHistory = null) {
     godroll = Math.round(godroll * 2.5);
   }
 
-  return { trash, goodReroll, godroll, isUnpopular };
+  return { trash: Math.round(trash), goodReroll: Math.round(goodReroll), godroll: Math.round(godroll), isUnpopular };
+}
+
+/**
+ * @param {object} meta
+ * @param {object} [band]
+ * @returns {{flag:string,label:string,emoji:string,ratio:number,vol:number,trend:number,advice:string}|null}
+ */
+export function classifyWeaponMarket(meta, band = null) {
+  if (!meta) return null;
+  const b = band || meta.band || {};
+  let typical = b.typical || meta.official_median || 0;
+  const wfm = meta.wfm_avg_price || meta.wfm_avg || 0;
+  const vol = b.vol_dia != null ? b.vol_dia : (meta.wfm_market_sample || 0);
+  const trend = b.trend != null ? b.trend : (meta.trend_7d_pct || 0);
+
+  // blends the live weekly history so the flag does not anchor on a stale band
+  const hist = (typeof state !== "undefined" && state.currentWeaponHistory
+    && sameWeaponName(state.currentWeaponHistory.weaponName, meta.name)
+    && Array.isArray(state.currentWeaponHistory.data)) ? state.currentWeaponHistory.data : null;
+  if (hist && hist.length > 0) {
+    const meds = hist.map(p => p && p.official_median).filter(v => Number.isFinite(v) && v > 0).sort((x, y) => x - y);
+    if (meds.length > 0) {
+      const histMed = meds[Math.floor((meds.length - 1) / 2)];
+      typical = typical > 0 ? Math.round(typical * 0.6 + histMed * 0.4) : histMed;
+    }
+  }
+  if (!typical) return null;
+  const ratio = wfm > 0 ? Math.round((wfm / typical) * 10) / 10 : 0;
+
+  const isEs = state.currentLang === "es";
+
+  let flag, label, emoji, advice;
+  if (ratio >= 8) {
+    flag = "bubble"; emoji = "🫧";
+    label = isEs ? "Burbuja especulativa" : "Speculative bubble";
+    advice = isEs
+      ? "Los asks están muy por encima del valor real. Demanda baja: difícil de vender al precio listado."
+      : "Asks are way above real value. Low demand: hard to sell at listed price.";
+  } else if (vol > 0 && vol < 12) {
+    flag = "illiquid"; emoji = "🧊";
+    label = isEs ? "Poco líquido" : "Illiquid";
+    advice = isEs
+      ? "Pocos listados/día. Puede tardar en venderse; ajusta el precio a la baja para liquidar."
+      : "Few listings/day. Slow to sell; lower price to liquidate.";
+  } else if (vol >= 35 && ratio < 4) {
+    flag = "meta"; emoji = "🔥";
+    label = isEs ? "Meta / demanda real" : "Meta / real demand";
+    advice = isEs
+      ? "Mucho volumen y asks sanos: se vende rápido cerca del precio justo."
+      : "High volume and healthy asks: sells quickly close to fair price.";
+  } else {
+    flag = "mid"; emoji = "·";
+    label = isEs ? "Demanda media" : "Moderate demand";
+    advice = isEs
+      ? "Liquidez moderada. Precio justo razonable; paciencia para el techo."
+      : "Moderate liquidity. Fair price is reasonable; patience needed for top value.";
+  }
+  if (trend >= 25) {
+    advice += isEs ? ` ▲ Subiendo (+${Math.round(trend)}% 7d).` : ` ▲ Rising (+${Math.round(trend)}% 7d).`;
+  } else if (trend <= -25) {
+    advice += isEs ? ` ▼ Enfriándose (${Math.round(trend)}% 7d).` : ` ▼ Cooling down (${Math.round(trend)}% 7d).`;
+  }
+  return { flag, label, emoji, ratio, vol, trend, advice };
 }

@@ -8,7 +8,7 @@ import {
   preloadPricesToMemory,
 } from "./api.js";
 import { state, loadAppState, saveAppState, hydrateDOM } from "./state.js";
-import { startLiveSession, stopLiveSession } from "./live_scanner.js";
+import { startLiveSession, stopLiveSession } from "./scanner/live_scanner.js";
 import { openPiP, initPiP } from "./utils/pip_overlay.js";
 import {
   openScanner,
@@ -214,7 +214,7 @@ globalThis.startMobileScanner = async function () {
   }
 
   try {
-    const { MobileScanner } = await import("./mobile_scanner.js");
+    const { MobileScanner } = await import("./scanner/mobile_scanner.js");
     const scanner = new MobileScanner();
 
     activeScannerInstance = scanner;

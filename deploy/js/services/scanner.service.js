@@ -359,26 +359,19 @@ export const ScannerService = {
         if (!words.length && Array.isArray(data?.paragraphs)) data.paragraphs.forEach(p => (p.lines || []).forEach(l => pushAll(l.words)));
         if (!words.length && Array.isArray(data?.blocks)) data.blocks.forEach(b => (b.paragraphs || []).forEach(p => (p.lines || []).forEach(l => pushAll(l.words))));
 
-        const isContent = (t) => (t || "").replace(/[^a-z0-9]/gi, "").length >= 3 || /\d/.test(t || "");
-        const usable = words.filter(w => w && w.text && isContent(w.text) && (w.confidence ?? 0) >= 50 && w.bbox);
-        console.log(`[OCR DIAG] dataKeys=[${Object.keys(data || {}).join(",")}] rawWords=${words.length} usable=${usable.length}`, words[0]);
-        if (usable.length < 3) return null;
-        words = usable;
-
-        const items = words.map(w => ({ w, cx: (w.bbox.x0 + w.bbox.x1) / 2 })).sort((a, b) => a.cx - b.cx);
-        const gapThresh = Math.max(canvasWidth * 0.07, 80);
-
-        const groups = [[]];
-        let prev = null;
-        for (const it of items) {
-            if (prev !== null && it.cx - prev > gapThresh) groups.push([]);
-            groups[groups.length - 1].push(it.w);
-            prev = it.cx;
+        // word dump to debug live inclusion/grouping: globalThis._rivenWordDump = true
+        if (globalThis._rivenWordDump) {
+            const dump = words.filter(w => w && w.text && w.bbox)
+                .map(w => `${w.text.trim()}@${Math.round(w.confidence ?? 0)}(${Math.round((w.bbox.x0 + w.bbox.x1) / 2)},${Math.round((w.bbox.y0 + w.bbox.y1) / 2)})`)
+                .join("  ");
+            console.log(`[RIVEN WORDS] ${dump}`);
         }
-        const realGroups = groups.filter(g => g.length >= 3);
-        console.log(`[OCR DIAG] gapThresh=${Math.round(gapThresh)} groups=${groups.length} realGroups=${realGroups.length} xs=[${items.map(i => Math.round(i.cx)).join(",")}]`);
-        if (realGroups.length < 2) return null; // single card: back to the normal flow
 
+        // "content" word (>=3 alphanumerics or a digit): drops loose art noise
+        const isContent = (t) => (t || "").replace(/[^a-z0-9]/gi, "").length >= 3 || /\d/.test(t || "");
+
+        // rebuilds a card's text: groups by line (Y center, tolerance = median height) so the value ("+92.4%") and
+        // its name ("Status Chance") share a line, and sorts each line by X
         const toText = (ws) => {
             const heights = ws.map(w => w.bbox.y1 - w.bbox.y0).sort((a, b) => a - b);
             const medH = heights[Math.floor(heights.length / 2)] || 20;
@@ -393,6 +386,51 @@ export const ScannerService = {
             lines.sort((a, b) => a.cy - b.cy);
             return lines.map(L => L.ws.sort((a, b) => a.bbox.x0 - b.bbox.x0).map(w => w.text).join(" ")).join("\n");
         };
+
+        const gapThresh = Math.max(canvasWidth * 0.07, 80);
+        const clusterByX = (ws) => {
+            const items = ws.map(w => ({ w, cx: (w.bbox.x0 + w.bbox.x1) / 2 })).sort((a, b) => a.cx - b.cx);
+            const groups = [[]];
+            let prev = null;
+            for (const it of items) {
+                if (prev !== null && it.cx - prev > gapThresh) groups.push([]);
+                groups[groups.length - 1].push(it.w);
+                prev = it.cx;
+            }
+            return groups;
+        };
+
+        const ANCHOR_CONF = 70; // between garbage (≤~67) and real text (≳84)
+        const INSIDE_CONF = 28; // faint but real tokens inside the box (e.g. the curse line)
+        const anchors = words.filter(w => w && w.text && w.bbox && isContent(w.text) && (w.confidence ?? 0) >= ANCHOR_CONF);
+        console.log(`[OCR DIAG] dataKeys=[${Object.keys(data || {}).join(",")}] rawWords=${words.length} anchors=${anchors.length}`, words[0]);
+        if (anchors.length >= 3) {
+            const anchorGroups = clusterByX(anchors).filter(g => g.length >= 3);
+            if (anchorGroups.length >= 2) {
+                const inside = words.filter(w => w && w.text && w.bbox && isContent(w.text) && (w.confidence ?? 0) >= INSIDE_CONF);
+                const cards = anchorGroups.map(g => {
+                    // cards are side by side, so tokens whose X CENTER falls in the card column get in with no Y filter, to
+                    // catch the weapon name (top) and the curse line (bottom). The parser ignores non stat noise
+                    const x0 = Math.min(...g.map(t => t.bbox.x0)), x1 = Math.max(...g.map(t => t.bbox.x1));
+                    const mx = (x1 - x0) * 0.06;
+                    const ws = inside.filter(w => {
+                        const cx = (w.bbox.x0 + w.bbox.x1) / 2;
+                        return cx >= x0 - mx && cx <= x1 + mx;
+                    });
+                    return toText(ws);
+                });
+                console.log(`[OCR DIAG] spatial cards=${cards.length} (anchorGroups=${anchorGroups.length})`);
+                return cards;
+            }
+        }
+
+        // fallback: flat confidence cut (>=50) + X gap
+        const usable = words.filter(w => w && w.text && isContent(w.text) && (w.confidence ?? 0) >= 50 && w.bbox);
+        console.log(`[OCR DIAG] usable=${usable.length} (fallback)`);
+        if (usable.length < 3) return null;
+        const realGroups = clusterByX(usable).filter(g => g.length >= 3);
+        console.log(`[OCR DIAG] gapThresh=${Math.round(gapThresh)} realGroups=${realGroups.length}`);
+        if (realGroups.length < 2) return null; // single card: back to the normal flow
         return realGroups.map(toText);
     },
 
@@ -450,7 +488,15 @@ export const ScannerService = {
         const parsedL = valids[0]?.parsed || null;
         const parsedR = valids[1]?.parsed || null;
 
-        if (!hasConsensus && (this.lastParsedL || this.lastParsedR)) {
+        const shownCount = (this.lastParsedL ? 1 : 0) + (this.lastParsedR ? 1 : 0);
+        const revealsMore = valids.length > shownCount;
+
+        const newWeapons = valids.map(e => e.parsed.weaponName).filter(Boolean).sort().join("|");
+        const shownWeapons = [this.lastParsedL, this.lastParsedR].filter(Boolean)
+            .map(p => p.weaponName).filter(Boolean).sort().join("|");
+        const weaponChanged = newWeapons !== "" && newWeapons !== shownWeapons;
+
+        if (!hasConsensus && !revealsMore && !weaponChanged && (this.lastParsedL || this.lastParsedR)) {
             console.log(`[RIVEN OCR] Consensus: ${matchCount}/3 — waiting for confirmation`);
             if (globalThis._scannerDebug) this._renderRivenDebug(entries, false);
             return;
@@ -611,12 +657,21 @@ export const ScannerService = {
             if (debugImg) debugImg.src = ocrCanvas.toDataURL("image/jpeg", 0.85);
         }
 
-        const worker1 = OCRRepository.workers[0];
-        const { data } = await OCRRepository.recognize(worker1, ocrCanvas);
+        const namesCanvas = VisionService.prepareRewardNamesCanvas(video, width, height, scale);
+        const w0 = OCRRepository.workers[0];
+        const w1 = OCRRepository.workers[1] || w0;
+        const [metaRes, namesRes] = await Promise.all([
+            OCRRepository.recognize(w0, ocrCanvas),
+            OCRRepository.recognize(w1, namesCanvas),
+        ]);
+        const data = metaRes.data;
         const rawOcr = data.text || "";
-        console.log(`[REWARD] OCR raw: "${rawOcr.replaceAll(/\n+/g, " ").trim().slice(0, 120)}"`);
-        data.imageW = ocrCanvas.width;
-        const foundItems = OCRService.parseRewards(data);
+        console.log(`[REWARD] OCR raw (grayscale/badges): "${rawOcr.replaceAll(/\n+/g, " ").trim().slice(0, 120)}"`);
+        const namesRaw = namesRes.data?.text || "";
+        console.log(`[REWARD] OCR raw (color/nombres): "${namesRaw.replaceAll(/\n+/g, " ").trim().slice(0, 120)}"`);
+
+        const mergedWords = [...(namesRes.data?.words || []), ...(data.words || [])];
+        const foundItems = OCRService.parseRewards({ words: mergedWords, imageW: ocrCanvas.width });
         console.log(`[REWARD] Items found: ${foundItems.length}`, foundItems.map(i => i.name));
 
         clearRewardDebugLogs();

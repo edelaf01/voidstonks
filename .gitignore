@@ -11,22 +11,33 @@ deploy/.wrangler/cache/pages.json
 worker-code-proposed.js
 worker-code.js
 /antiguo
-<<<<<<< Updated upstream
-=======
 deploy/assets/json/metastats.json.bak
-scripts-actu/
 .cursorrules
 .gitignore
->>>>>>> Stashed changes
-.agents/rules/caveman.md
-.agents/rules/caveman.md
-/.agents
-/.claude
-/.vscode
-agents.md
-deploy/js/tests/riven_logic.test.js
-deploy/js/utils/RIVEN_VALUATION.md
-deploy/temp_inspect.html
+.agents/
+.agents/
+.agents/
 skills-lock.json
 specs.md
-temp_inspect.html
+.claude/settings.local.json
+agents.md
+.vscode/settings.json
+/.claude
+/deploy/js/tests
+deploy/js/utils/RIVEN_VALUATION.md
+deploy/temp_inspect.html
+# scripts-actu ignorado SALVO lo que necesita el workflow retrain-ml.yml en CI
+# (regla /dir a secas impediría re-incluir hijos; por eso /dir/* + negaciones)
+/scripts-actu/*
+!/scripts-actu/ML-rivenvaluation/
+/scripts-actu/ML-rivenvaluation/*
+scripts-actu/img/
+/tests
+deploy/rootCA.crt
+/.codebase-memory
+tests/import-graph.test.mjs
+deploy/rootCA.pem
+.gitignore
+certs/dev-key.pem
+certs/dev.pem
+package.json

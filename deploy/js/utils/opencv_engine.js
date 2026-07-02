@@ -153,6 +153,149 @@ export class OpenCVEngine {
         }
     }
 
+    /**
+     * Laplacian variance: high = sharp. Gate for live OCR.
+     */
+    static sharpness(canvas) {
+        if (!this.isReady || !canvas || canvas.width <= 0 || canvas.height <= 0) return 0;
+        let src, gray, lap, mean, stddev;
+        try {
+            src = cv.imread(canvas);
+            gray = new cv.Mat();
+            cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+            lap = new cv.Mat();
+            cv.Laplacian(gray, lap, cv.CV_64F);
+            mean = new cv.Mat(); stddev = new cv.Mat();
+            cv.meanStdDev(lap, mean, stddev);
+            const sd = stddev.doubleAt(0, 0);
+            return sd * sd;
+        } catch (e) {
+            return 0;
+        } finally {
+            if (src) src.delete();
+            if (gray) gray.delete();
+            if (lap) lap.delete();
+            if (mean) mean.delete();
+            if (stddev) stddev.delete();
+        }
+    }
+
+    static WF_PALETTE() {
+        return globalThis._WF_THEMES || [
+            { r: 232, g: 213, b: 93 }, { r: 245, g: 227, b: 173 }, { r: 255, g: 61, b: 51 },
+            { r: 236, g: 211, b: 162 }, { r: 111, g: 229, b: 253 }, { r: 255, g: 115, b: 230 },
+            { r: 255, g: 224, b: 153 }, { r: 255, g: 241, b: 191 }, { r: 245, g: 73, b: 93 },
+            { r: 178, g: 125, b: 5 }, { r: 6, g: 106, b: 74 }, { r: 255, g: 255, b: 0 },
+        ];
+    }
+
+    /**
+     * Real accent text color: each bright pixel votes for the closest WF theme and the winner's pixels
+     * are averaged, which catches camera color drift. [r,g,b] or null.
+     */
+    static detectAccentColor(canvas) {
+        if (!canvas || canvas.width <= 0 || canvas.height <= 0) return null;
+        const ctx = canvas.getContext("2d");
+        const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+        const themes = this.WF_PALETTE();
+        const st = themes.map(() => ({ r: 0, g: 0, b: 0, n: 0, w: 0 }));
+        for (let i = 0; i < data.length; i += 16) {
+            const r = data[i], g = data[i + 1], b = data[i + 2];
+            if (0.299 * r + 0.587 * g + 0.114 * b < 100) continue;
+            let bi = 0, bd = Infinity;
+            for (let t = 0; t < themes.length; t++) {
+                const th = themes[t];
+                const d = Math.abs(r - th.r) + Math.abs(g - th.g) + Math.abs(b - th.b);
+                if (d < bd) { bd = d; bi = t; }
+            }
+            const w = 1 / Math.pow(bd + 1, 2);
+            st[bi].w += w; st[bi].r += r; st[bi].g += g; st[bi].b += b; st[bi].n++;
+        }
+        let bi = 0, bw = -1;
+        for (let t = 0; t < themes.length; t++) if (st[t].w > bw) { bw = st[t].w; bi = t; }
+        const s = st[bi];
+        if (s.n < 4) return null;
+        return [Math.round(s.r / s.n), Math.round(s.g / s.n), Math.round(s.b / s.n)];
+    }
+
+    /**
+     * Binarizes by RGB distance to a color (black text on white). tolSq is the squared distance.
+     */
+    static binarizeNearColor(canvas, rgb, tolSq) {
+        if (!canvas || !rgb) return;
+        const ctx = canvas.getContext("2d");
+        const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const d = img.data, cr = rgb[0], cg = rgb[1], cb = rgb[2];
+        for (let i = 0; i < d.length; i += 4) {
+            const dr = d[i] - cr, dg = d[i + 1] - cg, db = d[i + 2] - cb;
+            const v = (dr * dr + dg * dg + db * db) < tolSq ? 0 : 255;
+            d[i] = d[i + 1] = d[i + 2] = v;
+        }
+        ctx.putImageData(img, 0, 0);
+    }
+
+    /**
+     * Reward text: keeps saturated bright pixels of any hue, drops the dark background and white
+     * glare. Black text on white.
+     */
+    static isolateAccentText(canvas, settings = null) {
+        if (!this.isReady || !canvas || canvas.width <= 0 || canvas.height <= 0) return;
+        const s = settings || {};
+        const satMin = s.satMin ?? 55, valMin = s.valMin ?? 110;
+        let src, hsv, mask, low, high, k;
+        try {
+            src = cv.imread(canvas);
+            hsv = new cv.Mat();
+            cv.cvtColor(src, hsv, cv.COLOR_RGBA2RGB);
+            cv.cvtColor(hsv, hsv, cv.COLOR_RGB2HSV);
+            mask = new cv.Mat();
+            low = new cv.Mat(hsv.rows, hsv.cols, hsv.type(), [0, satMin, valMin, 0]);
+            high = new cv.Mat(hsv.rows, hsv.cols, hsv.type(), [180, 255, 255, 0]);
+            cv.inRange(hsv, low, high, mask);
+            k = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(2, 2));
+            cv.dilate(mask, mask, k);
+            cv.bitwise_not(mask, mask);
+            cv.imshow(canvas, mask);
+        } catch (e) {
+            console.error("isolateAccentText err:", e);
+        } finally {
+            if (src) src.delete();
+            if (hsv) hsv.delete();
+            if (mask) mask.delete();
+            if (low) low.delete();
+            if (high) high.delete();
+            if (k) k.delete();
+        }
+    }
+
+    /**
+     * Glare 0..1: share of very bright, low-saturation pixels.
+     */
+    static glareLevel(canvas) {
+        if (!this.isReady || !canvas || canvas.width <= 0 || canvas.height <= 0) return 0;
+        let src, hsv, mask, low, high;
+        try {
+            src = cv.imread(canvas);
+            hsv = new cv.Mat();
+            cv.cvtColor(src, hsv, cv.COLOR_RGBA2RGB);
+            cv.cvtColor(hsv, hsv, cv.COLOR_RGB2HSV);
+            mask = new cv.Mat();
+            low = new cv.Mat(hsv.rows, hsv.cols, hsv.type(), [0, 0, 245, 0]);
+            high = new cv.Mat(hsv.rows, hsv.cols, hsv.type(), [180, 35, 255, 0]);
+            cv.inRange(hsv, low, high, mask);
+            const spec = cv.countNonZero(mask);
+            return spec / (mask.rows * mask.cols);
+        } catch (e) {
+            return 0;
+        } finally {
+            if (src) src.delete();
+            if (hsv) hsv.delete();
+            if (mask) mask.delete();
+            if (low) low.delete();
+            if (high) high.delete();
+        }
+    }
+
     static sampleTextColor(canvas, x0, y0, x1, y1) {
         if (!this.isReady) return null;
         let src, crop, hsv, mask, low, high;
