@@ -886,8 +886,8 @@ export function getMetaStats(weaponName, weaponType) {
 }
 const liveAuctionsCache = {};
 
-export async function fetchSimilarRivens(weaponName, positiveStats, negativeStat) {
-    if (!weaponName || positiveStats.length === 0) return [];
+export async function fetchSimilarRivens(weaponName, positiveStats, negativeStat, withMeta = false) {
+    if (!weaponName || positiveStats.length === 0) return withMeta ? { auctions: [], anchor: null } : [];
 
     const slug = getRivenSlug(weaponName);
     const cacheKey = slug.toLowerCase();
@@ -1024,21 +1024,44 @@ export async function fetchSimilarRivens(weaponName, positiveStats, negativeStat
         const requiredMatches = Math.max(1, searchPosKeys.length > 1 ? 2 : 1);
         const filtered = scoredAuctions.filter(item => item.matchCount >= requiredMatches);
 
+        const statusRank = (s) => (s === "ingame" ? 2 : s === "online" ? 1 : 0);
+
         filtered.sort((a, b) => {
             if (b.similarityScore !== a.similarityScore) {
                 return b.similarityScore - a.similarityScore;
             }
+            const stA = statusRank(a.auction.owner.status), stB = statusRank(b.auction.owner.status);
+            if (stA !== stB) return stB - stA;
             const priceA = a.auction.buyout_price || a.auction.starting_price || 99999;
             const priceB = b.auction.buyout_price || b.auction.starting_price || 99999;
             return priceA - priceB;
         });
 
-        const finalResults = filtered.map(item => item.auction);
+        const top = filtered.map(item => item.auction).slice(0, 8);
+        if (!withMeta) return top;
 
-        return finalResults.slice(0, 4);
+        // p30 of the asks stands in for the closing price, since buyouts are asks
+        const exact = filtered.filter((it) => {
+            if (it.matchCount !== searchPosKeys.length) return false;
+            const negs = it.auction.item.attributes.filter(a => !a.positive).map(a => getCanonicalStatKey(a.url_name));
+            return searchNegKey ? negs.includes(searchNegKey) : negs.length === 0;
+        });
+        const asks = exact
+            .map(it => it.auction.buyout_price || it.auction.starting_price)
+            .filter(p => Number.isFinite(p) && p > 0)
+            .sort((a, b) => a - b);
+        let anchor = null;
+        if (asks.length >= 3) {
+            anchor = {
+                price: asks[Math.min(asks.length - 1, Math.floor(asks.length * 0.30))],
+                median: asks[Math.floor((asks.length - 1) / 2)],
+                n: asks.length
+            };
+        }
+        return { auctions: top, anchor };
 
     } catch (e) {
         console.error("Failed to fetch similar rivens:", e);
-        return [];
+        return withMeta ? { auctions: [], anchor: null } : [];
     }
 }
