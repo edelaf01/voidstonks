@@ -387,32 +387,21 @@ export const ScannerService = {
         if (!words.length && Array.isArray(data?.paragraphs)) data.paragraphs.forEach(p => (p.lines || []).forEach(l => pushAll(l.words)));
         if (!words.length && Array.isArray(data?.blocks)) data.blocks.forEach(b => (b.paragraphs || []).forEach(p => (p.lines || []).forEach(l => pushAll(l.words))));
 
-        // Solo palabras "de contenido" (>=3 alfanuméricos): tira el ruido del arte/bordes/triángulo
-        // ("Ne", "|", "7", "<"...) que puenteaba el hueco entre cartas e impedía el corte correcto.
-        const isContent = (t) => (t || "").replace(/[^a-z0-9]/gi, "").length >= 3 || /\d/.test(t || "");
-        const usable = words.filter(w => w && w.text && isContent(w.text) && (w.confidence ?? 0) >= 50 && w.bbox);
-        console.log(`[OCR DIAG] dataKeys=[${Object.keys(data || {}).join(",")}] rawWords=${words.length} usable=${usable.length}`, words[0]);
-        if (usable.length < 3) return null;
-        words = usable;
-
-        const items = words.map(w => ({ w, cx: (w.bbox.x0 + w.bbox.x1) / 2 })).sort((a, b) => a.cx - b.cx);
-        const gapThresh = Math.max(canvasWidth * 0.07, 80); // hueco entre cartas ≫ espaciado intra-carta
-
-        const groups = [[]];
-        let prev = null;
-        for (const it of items) {
-            if (prev !== null && it.cx - prev > gapThresh) groups.push([]);
-            groups[groups.length - 1].push(it.w);
-            prev = it.cx;
+        // Volcado de palabras para depurar inclusión/agrupado en vivo: globalThis._rivenWordDump = true
+        if (globalThis._rivenWordDump) {
+            const dump = words.filter(w => w && w.text && w.bbox)
+                .map(w => `${w.text.trim()}@${Math.round(w.confidence ?? 0)}(${Math.round((w.bbox.x0 + w.bbox.x1) / 2)},${Math.round((w.bbox.y0 + w.bbox.y1) / 2)})`)
+                .join("  ");
+            console.log(`[RIVEN WORDS] ${dump}`);
         }
-        const realGroups = groups.filter(g => g.length >= 3); // descarta clusters de ruido sueltos
-        console.log(`[OCR DIAG] gapThresh=${Math.round(gapThresh)} groups=${groups.length} realGroups=${realGroups.length} xs=[${items.map(i => Math.round(i.cx)).join(",")}]`);
-        if (realGroups.length < 2) return null; // una sola carta -> deja el flujo normal
 
+        // Palabra "de contenido" (>=3 alfanuméricos o con dígito): tira el ruido suelto del arte.
+        const isContent = (t) => (t || "").replace(/[^a-z0-9]/gi, "").length >= 3 || /\d/.test(t || "");
+
+        // Reconstruye el texto de una carta: agrupa por línea (centro-Y, tolerancia = mediana de
+        // altura) para que el valor ("+92.4%") y su nombre ("Status Chance") queden en la MISMA línea,
+        // y ordena cada línea por X.
         const toText = (ws) => {
-            // Agrupa por línea usando el CENTRO-Y con tolerancia = mediana de altura, para que el
-            // valor ("+92.4%") y su nombre ("Status Chance") —que tienen y0 ligeramente distintos—
-            // queden en la MISMA línea y el parser capte el valor.
             const heights = ws.map(w => w.bbox.y1 - w.bbox.y0).sort((a, b) => a - b);
             const medH = heights[Math.floor(heights.length / 2)] || 20;
             const lines = [];
@@ -426,6 +415,59 @@ export const ScannerService = {
             lines.sort((a, b) => a.cy - b.cy);
             return lines.map(L => L.ws.sort((a, b) => a.bbox.x0 - b.bbox.x0).map(w => w.text).join(" ")).join("\n");
         };
+
+        const gapThresh = Math.max(canvasWidth * 0.07, 80); // hueco entre cartas ≫ espaciado intra-carta
+        const clusterByX = (ws) => {
+            const items = ws.map(w => ({ w, cx: (w.bbox.x0 + w.bbox.x1) / 2 })).sort((a, b) => a.cx - b.cx);
+            const groups = [[]];
+            let prev = null;
+            for (const it of items) {
+                if (prev !== null && it.cx - prev > gapThresh) groups.push([]);
+                groups[groups.length - 1].push(it.w);
+                prev = it.cx;
+            }
+            return groups;
+        };
+
+        // --- Paso PRINCIPAL: anclas espaciales (robusto al ruido del arte) ---
+        // El arte de la carta hace que Tesseract escupa ~100 tokens basura de confianza baja,
+        // dispersos en X, que corrompen un corte por confianza plana. El texto real de los stats es
+        // de confianza ALTA (≳84) y va MUY agrupado por carta; la basura es ≤~67 y dispersa. Así que:
+        // anclamos en los tokens de confianza alta para ubicar la CAJA de cada carta, y dentro de esa
+        // caja metemos tokens de confianza más baja (≥28) — recupera el negativo/curse tenue (~35 de
+        // confianza) y descarta la basura dispersa. Validado offline contra el motor real (tesseract.js).
+        const ANCHOR_CONF = 70; // entre la basura (≤~67) y el texto real (≳84)
+        const INSIDE_CONF = 28; // tokens tenues pero reales dentro de la caja (p.ej. la línea del curse)
+        const anchors = words.filter(w => w && w.text && w.bbox && isContent(w.text) && (w.confidence ?? 0) >= ANCHOR_CONF);
+        console.log(`[OCR DIAG] dataKeys=[${Object.keys(data || {}).join(",")}] rawWords=${words.length} anchors=${anchors.length}`, words[0]);
+        if (anchors.length >= 3) {
+            const anchorGroups = clusterByX(anchors).filter(g => g.length >= 3);
+            if (anchorGroups.length >= 2) {
+                const inside = words.filter(w => w && w.text && w.bbox && isContent(w.text) && (w.confidence ?? 0) >= INSIDE_CONF);
+                const cards = anchorGroups.map(g => {
+                    // Las cartas se separan por X (van lado a lado); incluimos los tokens cuyo CENTRO-X
+                    // cae en la columna de la carta, sin filtrar por Y, para captar el nombre del arma
+                    // (arriba) y la línea del curse (abajo). El parser ignora el ruido que no es stat.
+                    const x0 = Math.min(...g.map(t => t.bbox.x0)), x1 = Math.max(...g.map(t => t.bbox.x1));
+                    const mx = (x1 - x0) * 0.06;
+                    const ws = inside.filter(w => {
+                        const cx = (w.bbox.x0 + w.bbox.x1) / 2;
+                        return cx >= x0 - mx && cx <= x1 + mx;
+                    });
+                    return toText(ws);
+                });
+                console.log(`[OCR DIAG] spatial cards=${cards.length} (anchorGroups=${anchorGroups.length})`);
+                return cards;
+            }
+        }
+
+        // --- FALLBACK: corte por confianza plana (>=50) + hueco en X (comportamiento original) ---
+        const usable = words.filter(w => w && w.text && isContent(w.text) && (w.confidence ?? 0) >= 50 && w.bbox);
+        console.log(`[OCR DIAG] usable=${usable.length} (fallback)`);
+        if (usable.length < 3) return null;
+        const realGroups = clusterByX(usable).filter(g => g.length >= 3);
+        console.log(`[OCR DIAG] gapThresh=${Math.round(gapThresh)} realGroups=${realGroups.length}`);
+        if (realGroups.length < 2) return null; // una sola carta -> deja el flujo normal
         return realGroups.map(toText);
     },
 
@@ -493,7 +535,26 @@ export const ScannerService = {
         const parsedL = valids[0]?.parsed || null;
         const parsedR = valids[1]?.parsed || null;
 
-        if (!hasConsensus && (this.lastParsedL || this.lastParsedR)) {
+        // A frame that reveals MORE cards than we're currently showing is strictly more complete:
+        // the reroll comparison has two cards, but a wide/noisy frame often parses only one, shows
+        // a single riven, and then the consensus gate blocks the good two-card frame from ever
+        // updating it (its fingerprint differs, so 2/3 never forms). Let "more cards" through
+        // immediately so the second riven appears. Downgrades (fewer cards) still need consensus,
+        // so a single bad frame can't drop a card that is genuinely there.
+        const shownCount = (this.lastParsedL ? 1 : 0) + (this.lastParsedR ? 1 : 0);
+        const revealsMore = valids.length > shownCount;
+
+        // Switching to a different weapon/riven should update immediately instead of waiting for the
+        // 2/3 consensus (which exists to stabilize a noisy read of the SAME card, not to delay a
+        // genuinely new one). Key off the set of weapon names: if it differs from what's shown, it's
+        // a new card → show it on the first valid read. Same-weapon rerolls keep the consensus
+        // stabilization (so jittery stat values don't flicker the display).
+        const newWeapons = valids.map(e => e.parsed.weaponName).filter(Boolean).sort().join("|");
+        const shownWeapons = [this.lastParsedL, this.lastParsedR].filter(Boolean)
+            .map(p => p.weaponName).filter(Boolean).sort().join("|");
+        const weaponChanged = newWeapons !== "" && newWeapons !== shownWeapons;
+
+        if (!hasConsensus && !revealsMore && !weaponChanged && (this.lastParsedL || this.lastParsedR)) {
             console.log(`[RIVEN OCR] Consensus: ${matchCount}/3 — waiting for confirmation`);
             if (globalThis._scannerDebug) this._renderRivenDebug(entries, false);
             return;
@@ -663,13 +724,26 @@ export const ScannerService = {
             if (debugImg) debugImg.src = ocrCanvas.toDataURL("image/jpeg", 0.85);
         }
 
-        const worker1 = OCRRepository.workers[0];
-        const { data } = await OCRRepository.recognize(worker1, ocrCanvas);
+        // 2ª pasada: NOMBRES por máscara de color del tema. El grayscale funde el color del nombre
+        // con el fondo/ilustración dorada y Tesseract lee basura; el filtro por color del tema lo aísla.
+        // Mismo recorte/escala que ocrCanvas -> las cajas de palabra comparten coordenadas, así que
+        // parseRewards (que separa columnas por X) fusiona nombres (color) + Owned/Crafted (grayscale).
+        // Las DOS pasadas corren EN PARALELO (workers distintos) -> no suman latencia frente a una sola.
+        const namesCanvas = VisionService.prepareRewardNamesCanvas(video, width, height, scale);
+        const w0 = OCRRepository.workers[0];
+        const w1 = OCRRepository.workers[1] || w0;
+        const [metaRes, namesRes] = await Promise.all([
+            OCRRepository.recognize(w0, ocrCanvas),
+            OCRRepository.recognize(w1, namesCanvas),
+        ]);
+        const data = metaRes.data;
         const rawOcr = data.text || "";
-        console.log(`[REWARD] OCR raw: "${rawOcr.replaceAll(/\n+/g, " ").trim().slice(0, 120)}"`);
-        // Pass the real canvas width so parseRewards uses correct coordinates
-        data.imageW = ocrCanvas.width;
-        const foundItems = OCRService.parseRewards(data);
+        console.log(`[REWARD] OCR raw (grayscale/badges): "${rawOcr.replaceAll(/\n+/g, " ").trim().slice(0, 120)}"`);
+        const namesRaw = namesRes.data?.text || "";
+        console.log(`[REWARD] OCR raw (color/nombres): "${namesRaw.replaceAll(/\n+/g, " ").trim().slice(0, 120)}"`);
+
+        const mergedWords = [...(namesRes.data?.words || []), ...(data.words || [])];
+        const foundItems = OCRService.parseRewards({ words: mergedWords, imageW: ocrCanvas.width });
         console.log(`[REWARD] Items found: ${foundItems.length}`, foundItems.map(i => i.name));
 
         clearRewardDebugLogs();

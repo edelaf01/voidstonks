@@ -36,6 +36,7 @@
   <link rel="stylesheet" href="css/components/modals.css?v=1.0" />
   <link rel="stylesheet" href="css/components/header.css?v=1.0" />
   <link rel="stylesheet" href="styles.css?v=3.3" />
+  <link rel="stylesheet" href="css/components/riven-grader.css?v=1.2" />
   <link rel="icon" type="image/png" href="https://wiki.warframe.com/images/VoidTraces.png" />
 
   <script async src="https://unpkg.com/@techstark/opencv-js@4.5.4-beta.3/dist/opencv.js"
@@ -735,7 +736,7 @@
     <div id="relic-inv-controls" class="inventory-controls"
       style="padding: 10px; display: flex; flex-direction: column; gap: 8px">
       <input type="text" id="inv-search-input" class="wf-input" placeholder="Filtrar..."
-        onkeyup="globalThis.handleInvSearch(this.value)" style="padding: 8px; font-size: 0.9em" />
+        oninput="globalThis.handleInvSearch(this.value)" style="padding: 8px; font-size: 0.9em" />
 
       <div class="inv-tiers-row">
         <button class="inv-tier-btn active" onclick="globalThis.filterInvTier('ALL')">
@@ -860,7 +861,7 @@
           </div>
           <span class="arrow-indicator">▼</span>
         </div>
-        <!-- <button id="btn-pip-toggle" onclick="globalThis.togglePiP && globalThis.togglePiP()" title="Open Overlay (PiP)"
+        <button id="btn-pip-toggle" onclick="globalThis.togglePiP && globalThis.togglePiP()" title="Open Overlay (PiP)"
           style="
               display: none;
               background: rgba(243,156,18,0.08);
@@ -877,10 +878,10 @@
             ">
           PIP
         </button>
-        <button onclick="import('./js/mobile_debug_scanner.js').then(m => globalThis.startDebugScanner())"
+        <button onclick="import('./js/scanner/mobile_debug_scanner.js').then(m => globalThis.startDebugScanner())"
           style="margin-left: 8px; background: rgba(0,229,255,0.15); border: 1px solid #00e5ff; color: #00e5ff; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 10px; font-weight: 800; white-space: nowrap; display: flex; align-items: center; gap: 5px; transition: all 0.2s;">
           <span style="font-size:12px;"></span> DEBUG
-        </button>-->
+        </button>
 
         <div id="scanner-privacy-notice" class="scanner-notice hidden">
           <div class="notice-header">⚠️ BETA FEATURE NOTICE</div>
@@ -969,10 +970,10 @@
 
           <div class="relic-input-wrapper">
             <input type="text" id="relicInput" placeholder="Ej: Lith G1..." autocomplete="off"
-              onkeyup="globalThis.handleRelicTyping()" />
+              oninput="globalThis.handleRelicTyping()" />
 
-            <button class="camera-btn" onclick="globalThis.openScanner()" title="SCAN YOUR RELIC INVENTORY">
-              Relic photo scan
+            <button class="camera-btn" disabled title="SCAN YOUR RELIC INVENTORY (work in progress)" style="opacity:0.4; cursor: not-allowed;">
+              📷 Relic photo scan <span style="font-size:0.7em; font-weight:700; color:#ffb74d; border:1px solid #ffb74d; border-radius:4px; padding:0 4px; margin-left:4px;">🚧 WIP</span>
             </button>
 
             <div id="relicDropdown" class="dropdown-list hidden"></div>
@@ -1027,6 +1028,7 @@
               ...
             </div>
           </div>
+          <div id="relic-verdict" class="relic-verdict hidden"></div>
           <div class="analysis-info">
             <span id="lbl-content">Contenido:</span>
           </div>
@@ -1044,7 +1046,7 @@
         <div class="form-group">
           <label id="lbl-search-item">Buscar Item / Set</label>
           <input class="wf-input orokin-input" type="text" id="setItemInput" placeholder="Ej: Xaku, Wisp..."
-            onkeyup="handleSetTyping()" autocomplete="off" />
+            oninput="handleSetTyping()" autocomplete="off" />
         </div>
         <div id="setResults"></div>
       </div>
@@ -1057,7 +1059,7 @@
 
               <div class="custom-search-container">
                 <input class="wf-input riven-input" type="text" id="rivenWeaponInput"
-                  placeholder="Ej: Bramma, Nikana..." onkeyup="handleRivenInput()" autocomplete="off" />
+                  placeholder="Ej: Bramma, Nikana..." oninput="handleRivenInput()" autocomplete="off" />
                 <div id="rivenDropdown" class="custom-dropdown hidden"></div>
 
                 <div id="riven-dispo-display" style="margin-top: 5px; font-size: 0.9em; color: #aaa"></div>
@@ -1310,6 +1312,28 @@
           <!-- Contenedor del listado principal -->
           <div id="index-results-container" class="hidden" style="display: flex; flex-direction: column; gap: 16px;">
           </div>
+
+          <!-- ===== Arbitrage (flips compra/venta) — DESACTIVADO temporalmente (descomentar para reactivar) =====
+          <div id="arb-section" style="margin-top: 20px;">
+            <div onclick="toggleArbitrage()"
+              style="cursor: pointer; display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; background: rgba(155, 89, 182, 0.08); border: 1px solid rgba(155, 89, 182, 0.25); border-radius: 8px;">
+              <span style="font-weight: bold; color: #c59afc; font-size: 0.9rem;">
+                💱 <span id="lbl-arb-title">Arbitrage (Flips)</span>
+              </span>
+              <span id="arb-toggle-icon" style="font-size: 0.8em; color: #c59afc;">▼</span>
+            </div>
+            <div id="arb-body" class="hidden" style="margin-top: 10px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <span id="arb-meta" style="font-size: 0.7rem; color: #888;"></span>
+                <button onclick="refreshArbitrage()" id="lbl-arb-refresh"
+                  style="font-size: 0.7rem; padding: 3px 8px; border-radius: 5px; background: rgba(155,89,182,0.12); border: 1px solid rgba(155,89,182,0.25); color: #c59afc; cursor: pointer;">↻ Refrescar</button>
+              </div>
+              <div id="arb-disclaimer" style="font-size: 0.66rem; color: #777; margin-bottom: 8px; line-height: 1.35;"></div>
+              <div id="arb-controls" style="display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; margin-bottom: 10px;"></div>
+              <div id="arb-list" style="display: flex; flex-direction: column; gap: 6px;"></div>
+            </div>
+          </div>
+          ===== fin Arbitrage ===== -->
         </div>
       </div>
 
@@ -1365,6 +1389,15 @@
               </div>
               <div class="dropdown-item" onclick="selectLfgOption('kuva', 'Kuva (Survival/Flood/Siphon)')">
                 Kuva (Survival/Flood/Siphon)
+              </div>
+              <div class="dropdown-item" onclick="selectLfgOption('sirius', 'Sirius (Jade)')">
+                Sirius (Jade)
+              </div>
+              <div class="dropdown-item" onclick="selectLfgOption('orion', 'Orion (Jade)')">
+                Orion (Jade)
+              </div>
+              <div class="dropdown-item" onclick="selectLfgOption('follie', 'Follie Hunt (Vesper)')">
+                Follie Hunt (Vesper)
               </div>
               <div class="dropdown-item" onclick="selectLfgOption('radshare', 'Radshare (Relics)')">
                 Radshare (Relics)
@@ -1533,6 +1566,9 @@
 
           <!-- Interactive Riven Card Container -->
           <div id="modal-riven-preview-container" style="perspective: 1000px; padding: 10px 0;"></div>
+
+          <!-- RESULTS SECTION AND SIMILAR LISTINGS: la tasación vive junto a la carta -->
+          <div id="grading-modal-results" class="grading-results hidden"></div>
         </div>
 
         <!-- THIRD COLUMN: WEAPON GUIDE COMPANION WINDOW -->
@@ -1544,8 +1580,6 @@
 
           <!-- Weapon Meta Guide Stats Container -->
           <div id="modal-meta-stats-container" style="width: 100%;"></div>
-          <!-- RESULTS SECTION AND SIMILAR LISTINGS -->
-          <div id="grading-modal-results" class="grading-results hidden"></div>
         </div>
       </div>
     </div>
@@ -1705,8 +1739,8 @@
   </div>
 
   <script src="js/tesseract.min.js"></script>
-  <script src="js/live_calibration.js"></script>
-  <script src="js/live_grid_editor.js"></script>
+  <script src="js/scanner/live_calibration.js"></script>
+  <script src="js/scanner/live_grid_editor.js"></script>
 
   <!-- New Vanilla Riven Modules -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>

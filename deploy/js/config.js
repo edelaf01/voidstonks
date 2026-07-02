@@ -735,6 +735,23 @@ export const RIVEN_BASE_STATS = {
   "Damage to Infested": [5, 5, 5, 5, 5],
 };
 
+// Bridges RIVEN_STATS.name_en → RIVEN_BASE_STATS keys where they differ.
+// The scanner labels stats with name_en ("Crit Chance"), but the base-stat table is keyed by the
+// long form ("Critical Chance"); without this bridge those stats grade as "?".
+export const BASE_STAT_ALIAS = {
+  "Crit Chance": "Critical Chance",
+  "Crit Damage": "Critical Damage",
+};
+
+// Resolves the RIVEN_BASE_STATS key for a parsed stat name, given the weapon type index.
+// "Fire Rate / Attack Speed" resolves per weapon type (melee idx 3 → Attack Speed, else Fire Rate).
+export function resolveBaseStatKey(nameEn, typeIdx) {
+  if (nameEn === "Fire Rate / Attack Speed") {
+    return typeIdx === 3 ? "Attack Speed" : "Fire Rate";
+  }
+  return BASE_STAT_ALIAS[nameEn] || nameEn;
+}
+
 // (Buffs vs Curses)
 export const RIVEN_WEIGHTS = {
   "2-0": { buff: 0.99, curse: 0 },
@@ -1074,6 +1091,8 @@ export const TEXTS = {
       saryn: "Limpiadora del mapa (daño en área constante).",
       mirage: "Nuker de Mirage (Sala de Espejos + Prestidigitación Explosiva).",
       support: "Buffs/energía para el escuadrón (Trinity, Wisp, etc.).",
+      jadeConstellation: "Constelación de Jade Shadows. Requiere: completar las misiones Railjack de Jade Shadows. Farm de la constelación.",
+      follie: "Caza de Follie en el Relé Vesper (Venus).",
     },
     lfgOpts: {
       radshare: "Radshare",
@@ -1091,6 +1110,9 @@ export const TEXTS = {
       so: "Sanctuary Onslaught",
       isovault: "Bóveda de Aislamiento",
       kuva: "Kuva",
+      sirius: "Sirius",
+      orion: "Orion",
+      follie: "Caza de Follie",
     },
     lfgRoles: {
       dps: "DPS",
@@ -1146,6 +1168,32 @@ export const TEXTS = {
       worstPositives: "PEORES POSITIVOS",
       bestNegatives: "MEJORES NEGATIVOS (INOFENSIVOS)",
       worstNegatives: "PEORES NEGATIVOS (CRÍTICOS)"
+    },
+    arbitrage: {
+      title: "Arbitraje (Flips)",
+      loading: "Buscando oportunidades…",
+      error: "Error al cargar.",
+      updated: "Actualizado",
+      scanned: "activos",
+      inventory: "inventario",
+      shown: "mostrados",
+      refresh: "Refrescar",
+      verified: "Verificado en vivo",
+      presetHint: "¿Cuánto beneficio buscas?",
+      presetAll: "Todos",
+      presetSmall: "Pequeños",
+      presetGood: "Buenos",
+      presetBig: "Pelotazos",
+      advanced: "Ajustes finos",
+      minSpread: "💰 Ganancia por flip",
+      minPct: "📈 Rentabilidad",
+      minPrice: "🏷️ Precio del ítem",
+      sortBy: "Ordenar",
+      sortSpread: "Ganancia",
+      sortPct: "Rentab.",
+      sortPrice: "Precio",
+      empty: "Sin oportunidades con estos filtros.",
+      disclaimer: "Flips del mercado: compra a la venta más barata y revende a la compra más cara. Verifica en vivo (↻) antes de actuar; los precios cambian al instante."
     }
   },
   en: {
@@ -1437,6 +1485,8 @@ export const TEXTS = {
       saryn: "Map nuker (constant AoE damage).",
       mirage: "Mirage nuker (Hall of Mirrors + Explosive Legerdemain).",
       support: "Buffs/energy for the squad (Trinity, Wisp, etc.).",
+      jadeConstellation: "Jade Shadows constellation. Requires: completed Jade Shadows Railjack missions. Constellation farm.",
+      follie: "Follie hunt at the Vesper Relay (Venus).",
     },
     lfgOpts: {
       radshare: "Radshare",
@@ -1455,6 +1505,9 @@ export const TEXTS = {
       so: "Sanctuary Onslaught",
       isovault: "Isolation Vault",
       kuva: "Kuva",
+      sirius: "Sirius",
+      orion: "Orion",
+      follie: "Follie Hunt",
     },
     lfgRoles: {
       dps: "DPS",
@@ -1534,6 +1587,32 @@ export const TEXTS = {
       worstPositives: "WORST POSITIVES",
       bestNegatives: "BEST NEGATIVES (HARMLESS)",
       worstNegatives: "WORST NEGATIVES (CRITICAL)"
+    },
+    arbitrage: {
+      title: "Arbitrage (Flips)",
+      loading: "Scanning opportunities…",
+      error: "Failed to load.",
+      updated: "Updated",
+      scanned: "active",
+      inventory: "inventory",
+      shown: "shown",
+      refresh: "Refresh",
+      verified: "Live-verified",
+      presetHint: "How much profit are you after?",
+      presetAll: "All",
+      presetSmall: "Small",
+      presetGood: "Good",
+      presetBig: "Jackpots",
+      advanced: "Fine-tune",
+      minSpread: "💰 Profit per flip",
+      minPct: "📈 Margin",
+      minPrice: "🏷️ Item price",
+      sortBy: "Sort",
+      sortSpread: "Profit",
+      sortPct: "Margin",
+      sortPrice: "Price",
+      empty: "No opportunities with these filters.",
+      disclaimer: "Market flips: buy at the lowest sell and resell to the highest buy. Verify live (↻) before acting; prices change instantly."
     },
     rivenHud: {
       compareTitle: "ROLL COMPARISON",

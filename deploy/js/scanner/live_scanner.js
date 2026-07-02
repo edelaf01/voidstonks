@@ -1,12 +1,12 @@
-import { state, saveAppState } from "./state.js";
-import { showToast } from "./ui.components/ui_components.js";
-import { TEXTS } from "./config.js";
-import { warmupPrices } from "./api.js";
-import { ScannerService } from "./services/scanner.service.js";
-import { OCRService } from "./services/ocr.service.js";
-import { ScannerModal } from "./ui.components/ui_scanner_modal.js";
-import { OCRRepository } from "./repositories/ocr.repository.js";
-import { WF_THEMES } from "./services/vision.service.js";
+import { state, saveAppState } from "../state.js";
+import { showToast } from "../ui.components/ui_components.js";
+import { TEXTS } from "../config.js";
+import { warmupPrices } from "../api.js";
+import { ScannerService } from "../services/scanner.service.js";
+import { OCRService } from "../services/ocr.service.js";
+import { ScannerModal } from "../ui.components/ui_scanner_modal.js";
+import { OCRRepository } from "../repositories/ocr.repository.js";
+import { WF_THEMES } from "../services/vision.service.js";
 
 globalThis._OCRService = OCRService;
 globalThis._ScannerModal = ScannerModal;
@@ -151,7 +151,7 @@ export function stopLiveSession() {
  * UI Hook called by ScannerService when Riven card(s) are parsed.
  */
 globalThis.showRivenAppraisal = async (parsedL, parsedR, screenshotDataURL) => {
-  const { RivenScannerHUD } = await import("./ui.components/ui_riven_scanner_hud.js");
+  const { RivenScannerHUD } = await import("../ui.components/ui_riven_scanner_hud.js");
   RivenScannerHUD.show(parsedL, parsedR, screenshotDataURL);
 };
 

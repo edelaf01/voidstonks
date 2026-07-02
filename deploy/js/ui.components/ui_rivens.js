@@ -2499,7 +2499,190 @@ export function appraiseParsedRiven(weaponName, stats, meta = null) {
   });
   const prediction = calculateAdvancedPredictivePrice(m, itemAttributes, tiers, desirabilityMultiplier, weaponData, state.rivenStatBaseline?.stat_weights ?? null);
 
-  return { meta: m, tiers, prediction };
+  // Nota: la tasación del MODELO (XGBoost slim, anclada a banda robusta) se calcula en cada vista
+  // visible (HUD del escáner y tarjetas del estimador), no aquí, para no duplicar predicciones.
+  return { meta: m, tiers, prediction, itemAttributes };
+}
+
+// Avisos de la tarjeta de tasación. Los largos van plegados en <details> (una línea plegada,
+// texto completo a un tap) para que la tasación quepa sin scroll; los cortos quedan en línea.
+function buildAppraisalWarningsHtml({ appraisal, weaponData, desirabilityMultiplier, stats, priceCalculated, isEs }) {
+  let warningHtml = "";
+  if (appraisal.comboName) {
+    const dispo = weaponData ? (weaponData.disposition || weaponData.d || 1) : 1;
+    if (dispo < 0.8) {
+      const title = isEs
+        ? `SINERGIA ELEMENTAL GODROLL (Dispo Baja: ${dispo.toFixed(2)})`
+        : `ELEMENTAL SYNERGY GODROLL (Low Dispo: ${dispo.toFixed(2)})`;
+      const desc = isEs
+        ? `El combo <b>${appraisal.comboName}</b> ahorra valiosos slots de modulación. En armas con disposición reducida, este combo sustituye mods obligatorios y se tasa al nivel de un <b>Godroll</b>.`
+        : `The <b>${appraisal.comboName}</b> combo saves valuable mod slots. For weapons with reduced disposition, this combo replaces mandatory mods and values near a <b>Godroll</b>.`;
+      warningHtml = `<details class="gsc-flag cyan"><summary>${title}</summary><div>${desc}</div></details>`;
+    } else {
+      const title = isEs
+        ? `SINERGIA ELEMENTAL (${appraisal.comboName})`
+        : `ELEMENTAL SYNERGY (${appraisal.comboName})`;
+      const desc = isEs
+        ? `La combinación de elementos aumenta el valor comercial al liberar espacio de modulación.`
+        : `The element combination increases market value by freeing up mod space.`;
+      warningHtml = `<details class="gsc-flag green"><summary>${title}</summary><div>${desc}</div></details>`;
+    }
+  } else if (desirabilityMultiplier < 0.5) {
+    // Distinguir la causa: si los stats son buenos pero NO hay negativa, la bajada es por
+    // tener stats más débiles (sin curse), NO por stats "no deseados". Mensaje preciso.
+    const _sinNeg = !stats.some(s => s.value < 0);
+    warningHtml = _sinNeg
+      ? `<div class="gsc-flag-line amber">${isEs ? "Sin negativa: stats más débiles (no godroll)" : "No negative: weaker stats (not a godroll)"}</div>`
+      : `<div class="gsc-flag-line red">${isEs ? "Penalización por Stats no deseados" : "Heavy Penalty: Unpopular Stats"}</div>`;
+  } else if (desirabilityMultiplier > 0.8) {
+    warningHtml = `<div class="gsc-flag-line green">${isEs ? "Coincide con Stats Meta" : "Meta Stats Match"}</div>`;
+  }
+
+  // Risk warning for highly volatile trades exceeding 8,000p (fraudulent transfers / fake platinum risk)
+  if (priceCalculated >= 8000) {
+    const riskTitle = isEs
+      ? "RIESGO DE PLATINO ILÍCITO / FRAUDULENTO"
+      : "ILLEGAL / BOGUS PLATINUM RISK";
+    const riskDesc = isEs
+      ? "Las transacciones de Mods Agrietados que rozan o superan los 10,000p conllevan un riesgo extremo in-game. Ventas récord tan elevadas a menudo reflejan traspasos fraudulentos o lavado de platino. El comercio en este rango se realiza bajo tu propio riesgo debido a la alta probabilidad de recibir Platinum 'sucio/falso' que resulte en suspensión de cuenta."
+      : "Riven trades approaching or exceeding 10,000p carry extreme in-game risks. Record prices in this range often reflect fraudulent transfers or platinum laundering. Trading in this high tier is done strictly at your own risk due to a high likelihood of receiving 'fake/dirty' platinum leading to account suspension.";
+    warningHtml += `<details class="gsc-flag red"><summary>${riskTitle}</summary><div>${riskDesc}</div></details>`;
+  }
+  return warningHtml;
+}
+
+// Markup ÚNICO de la tarjeta de tasación (la usa la ruta single y la comparativa; antes eran
+// dos copias que debían mantenerse en sync). Jerarquía: precio y grade co-dominantes arriba,
+// métricas secundarias como chips, avisos plegados. Los ganchos [data-*] son el contrato del
+// parcheo async del ML: data-fair-price / data-fair-range / data-ml-line / data-market-line /
+// data-stat-score / data-roll-score deben existir SIEMPRE en este markup.
+function buildAppraisalCardHTML({ tier, tierColor, priceCalculated, minPrice, maxPrice, finalScore, popPct, basePrice, warningHtml, isEs, withSimilarButton, histLoading }) {
+  // Mientras llega el historial semanal: la primera pasada tasa sin él y se recalcula al llegar.
+  // Punto pulsante (sin emoji), tooltip explica el estado.
+  const histHint = histLoading
+    ? `<span class="gsc-hist-loading" title="${isEs ? "Actualizando con historial de precios…" : "Updating with price history…"}"></span>`
+    : "";
+  const similarHtml = withSimilarButton ? `
+    <button id="btn-search-similar-rivens" class="btn btn-secondary" style="margin-top: 10px; width: 100%; font-size: 11px; padding: 6px 12px; border-radius: 4px; display: flex; align-items: center; justify-content: center; gap: 6px; background: rgba(155, 89, 182, 0.2); border: 1px solid rgba(155, 89, 182, 0.4); color: #dcb3ff; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='rgba(155, 89, 182, 0.4)'" onmouseout="this.style.background='rgba(155, 89, 182, 0.2)'">
+      <img src="assets/dmg/DmgVoidSmall64.webp" style="width:14px; height:14px; object-fit:contain;"> ${isEs ? "Buscar Rivens Similares" : "Search Similar Rivens"}
+    </button>
+    <div id="similar-rivens-container" style="margin-top: 12px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px; display: none;"></div>
+  ` : "";
+
+  return `
+    <div class="gsc-hero">
+      <div class="gsc-price">
+        <span class="gsc-price-label">${isEs ? "Valor Estimado" : "Estimated Value"}${histHint}</span>
+        <span class="gsc-price-value">
+          <span data-fair-price>~${priceCalculated}p</span>
+          <img src="assets/relic_contents/platinum.webp" style="width: 18px; height: 18px; object-fit: contain; vertical-align: middle;">
+        </span>
+        <span class="gsc-price-range" title="${isEs ? "Del precio de venta rápida (abajo) al techo si esperas al comprador adecuado (arriba)." : "From quick-sale price (low) to the ceiling if you wait for the right buyer (high)."}" style="cursor:help;">${isEs ? "Rango" : "Range"}: <span data-fair-range>${minPrice}p - ${maxPrice}p</span></span>
+      </div>
+      <div class="gsc-grade">
+        <div class="grade-badge-large ${tierColor} gsc-badge">${tier}</div>
+        <span class="gsc-grade-score">Score <b>${finalScore}%</b></span>
+      </div>
+      <div class="grade-track gsc-score-track"><div class="grade-fill ${tier[0]}" style="width:${Math.max(0, Math.min(100, finalScore))}%"></div></div>
+    </div>
+
+    <div class="gsc-chips">
+      <span class="gsc-chip" data-stat-score title="${isEs ? "¿Son estos los stats que los compradores buscan en esta arma? S = combo muy buscado · F = stats que nadie quiere. Solo mira QUÉ stats son, no sus números." : "Are these the stats buyers want on this weapon? S = highly wanted combo · F = stats nobody wants. Only looks at WHICH stats, not their numbers."}" style="cursor:help;">${isEs ? "Stats buscados" : "Wanted stats"}: <b style="opacity:.5;">…</b></span>
+      <span class="gsc-chip" data-roll-score title="${isEs ? "¿Cómo de altos salieron los números dentro de lo posible para cada stat? S = casi perfectos · F = por los mínimos. No mira si los stats son buenos, solo cuánto rolaron." : "How high did the numbers land within what's possible for each stat? S = near perfect · F = rock bottom. Ignores whether the stats are good, only how well they rolled."}" style="cursor:help;">${isEs ? "Nivel del roll" : "Roll strength"}: <b style="opacity:.5;">…</b></span>
+      <span class="gsc-chip" data-tooltip="${isEs ? "Cuánto se está comerciando esta arma ahora mismo: 0 = nadie la busca, 100 = de las más demandadas. Con demanda alta venderás antes y a mejor precio." : "How actively this weapon is being traded right now: 0 = nobody wants it, 100 = among the most in-demand. High demand means faster sales at better prices."}" style="cursor: help;">${isEs ? "Demanda" : "Demand"}: <b>${Math.round(popPct)}/100</b> <span class="gsc-info">i</span></span>
+      <span class="gsc-chip" data-tooltip="${isEs ? "Lo que se paga de verdad por un riven cualquiera de esta arma: la mediana de las ventas reales del juego, sin timos ni gangas. Es el punto de partida antes de valorar tus stats." : "What people actually pay for any riven of this weapon: the median of real in-game sales, excluding scams and fire sales. The starting point before your stats are valued."}" style="cursor: help;">${isEs ? "Precio típico" : "Typical price"}: <b>${basePrice}p</b> <span class="gsc-info">i</span></span>
+      <span class="gsc-chip" data-ml-line style="display:none;"></span>
+      <span class="gsc-chip" data-market-line style="display:none;"></span>
+      <span class="gsc-chip" data-comp-line style="display:none;"></span>
+    </div>
+
+    <div class="gsc-flags">${warningHtml}</div>
+    ${similarHtml}
+  `;
+}
+
+// Desglose de stats como TABLA compacta (stat | valor | ideal | grade): máxima densidad,
+// una fila por stat. La usan la ruta single y la comparativa del modal.
+function buildStatsTable(stats, weaponData, buffCount, hasNeg, isEs) {
+  const table = document.createElement("div");
+  table.className = "stats-table";
+  const head = document.createElement("div");
+  head.className = "st-row st-head";
+  head.innerHTML = `<span>Stat</span><span>${isEs ? "Valor" : "Value"}</span><span>Ideal</span><span>G</span>`;
+  table.appendChild(head);
+  stats.forEach((stat) => {
+    const internalName = normalizeStatName(stat.name, weaponData?.t);
+    const res = calculateRivenGrade(weaponData, internalName, stat.projected, stat.value < 0, buffCount, hasNeg);
+    let color = "grade-f";
+    if (["SSS", "S+", "S"].includes(res.grade)) color = "grade-s";
+    else if (["A+", "A"].includes(res.grade)) color = "grade-a";
+    else if (["B+", "B"].includes(res.grade)) color = "grade-b";
+    else if (["C+", "C"].includes(res.grade)) color = "grade-c";
+    const isNegStat = stat.value < 0;
+    const row = document.createElement("div");
+    row.className = `st-row${isNegStat ? " neg" : ""}`;
+    row.innerHTML = `
+      <span class="st-name" title="${stat.name}">${stat.name}</span>
+      <span class="st-val">${isNegStat ? "−" : "+"}${Math.abs(stat.value)}%</span>
+      <span class="st-ideal">${res.range}</span>
+      <span class="st-grade ${color}">${res.grade}</span>`;
+    table.appendChild(row);
+  });
+  return table;
+}
+
+// Techo del rango CONSCIENTE DEL ROLL. p95 es el techo godroll del ARMA entera: usarlo plano
+// inflaba el rango de rolls mediocres (ej. Cedo Prime con stats C -> "hasta 938p" irreal).
+// Un combo de stats poco buscado nunca cobra precio de godroll por mucho que haya rolado alto,
+// así que el techo se elige por la calidad de los STATS (qué combo es), no por la magnitud.
+function computeFairHigh(appraisal, bandQ, fair) {
+  const statQ = Number.isFinite(appraisal?.statScore?.score) ? appraisal.statScore.score
+    : (Number.isFinite(appraisal?.adjustedScore) ? appraisal.adjustedScore : null);
+  let cap;
+  if (statQ == null || statQ >= 75) cap = bandQ.p95;          // combo top: techo godroll real
+  else if (statQ >= 55) cap = bandQ.p90;                       // combo bueno
+  else if (statQ >= 35) cap = bandQ.p80;                       // combo mediocre
+  else cap = Math.round((bandQ.p50 || fair) * 1.5);            // combo no deseado: poco sobre el justo
+  const rawHigh = Math.max(bandQ.p95 || 0, appraisal.suggestedMax || 0, fair);
+  return Math.max(fair, Math.min(rawHigh, Math.max(cap, Math.round(fair * 1.3))));
+}
+
+// Chip de la IA en lenguaje llano: nada de MAPE/p25/p95 — "confianza X, se desvía ±N%",
+// y la banda de cuantiles traducida a venta rápida / precio justo / buen roll / godroll.
+function renderMlChip(estCard, prec, bandQ, isEs) {
+  const el = estCard.querySelector("[data-ml-line]");
+  if (!el) return;
+  const colores = { alta: "#4ade80", high: "#4ade80", media: "#fbbf24", medium: "#fbbf24", baja: "#f87171", low: "#f87171" };
+  const warn = bandQ.confianza === "baja" ? ` <b style="color:#f87171;">!</b>` : "";
+  let precTxt;
+  if (prec && Number.isFinite(prec.mape)) {
+    const nivel = prec.mape < 35 ? (isEs ? "alta" : "high") : prec.mape < 70 ? (isEs ? "media" : "medium") : (isEs ? "baja" : "low");
+    precTxt = `<b style="color:${colores[nivel] || "#cbd5e1"};">${isEs ? "confianza " + nivel : nivel + " confidence"}</b> <span style="opacity:.6;">(±${prec.mape}%)</span>`;
+  } else {
+    precTxt = `<span style="opacity:.6;">${bandQ.confianza === "baja" ? (isEs ? "confianza baja" : "low confidence") : (isEs ? "sin historial suficiente" : "not enough history")}</span>`;
+  }
+  el.style.display = "inline-flex";
+  el.title = (isEs
+    ? `Cuánto suele desviarse la predicción del precio real en esta arma (medido con ventas que la IA no vio al entrenar). `
+      + `Según la IA: venta rápida ~${bandQ.p25}p · precio justo ~${bandQ.p50}p · buen roll ~${bandQ.p80}p · godroll ~${bandQ.p95}p`
+    : `How far the prediction typically lands from the real price on this weapon (measured on sales the AI never saw). `
+      + `Per the AI: quick sale ~${bandQ.p25}p · fair price ~${bandQ.p50}p · good roll ~${bandQ.p80}p · godroll ~${bandQ.p95}p`)
+    + (bandQ.aviso ? ` · ${bandQ.aviso}` : "");
+  el.innerHTML = `${isEs ? "IA" : "AI"}: ${precTxt}${warn}`;
+}
+
+// Chip de mercado en lenguaje llano: "42 anuncios/día" y "piden 3× su valor típico".
+function renderMarketChip(estCard, mk, isEs) {
+  const el = estCard.querySelector("[data-market-line]");
+  if (!el || !mk) return;
+  const col = { meta: "#4ade80", bubble: "#f87171", illiquid: "#60a5fa", mid: "#cbd5e1" }[mk.flag] || "#cbd5e1";
+  el.style.display = "inline-flex"; el.style.color = col;
+  el.title = mk.advice;
+  const extras = [
+    mk.vol ? `${mk.vol} ${isEs ? "anuncios/día" : "listings/day"}` : null,
+    mk.ratio && mk.ratio >= 2 ? (isEs ? `piden ${mk.ratio}× su valor` : `asking ${mk.ratio}× its value`) : null,
+  ].filter(Boolean).join(" · ");
+  el.innerHTML = `<span class="gsc-dot" style="background:${col}; box-shadow:0 0 6px ${col};"></span> <b>${mk.label}</b>${extras ? ` <span style="opacity:.6;">· ${extras}</span>` : ""}`;
 }
 
 function generateRollResultsDOM(roll, weaponData, weaponName, currentRank, scaleFactor) {
@@ -2513,35 +2696,7 @@ function generateRollResultsDOM(roll, weaponData, weaponName, currentRank, scale
 
   const statsCol = document.createElement("div");
   statsCol.className = "results-stats-col";
-
-  stats.forEach((stat) => {
-    const internalName = normalizeStatName(stat.name, weaponData?.t);
-    const res = calculateRivenGrade(
-      weaponData,
-      internalName,
-      stat.projected,
-      stat.value < 0,
-      buffCount,
-      hasNeg,
-    );
-
-    let color = "grade-f";
-    if (["SSS", "S+", "S"].includes(res.grade)) color = "grade-s";
-    else if (["A+", "A"].includes(res.grade)) color = "grade-a";
-    else if (["B+", "B"].includes(res.grade)) color = "grade-b";
-
-    const isNegStat = stat.value < 0;
-    const card = document.createElement("div");
-    card.className = "grade-card";
-    if (isNegStat) {
-      card.style.cssText = "border-color: rgba(239,68,68,0.3); background: rgba(239,68,68,0.04);";
-    }
-    card.innerHTML = `<div class="grade-badge-large ${color}">${res.grade}</div>
-                      <div class="grade-info"><div class="grade-stat-name" style="${isNegStat ? 'color:#ef4444;' : ''}">${isNegStat ? '−' : ''}${stat.name}</div>
-                      <div>Valor: ${Math.abs(stat.value)}% <span class="grade-range">/ Ideal: ${res.range}</span></div>
-                      <div class="grade-track"><div class="grade-fill ${color}" style="width:${res.pct}%"></div></div></div>`;
-    statsCol.appendChild(card);
-  });
+  statsCol.appendChild(buildStatsTable(stats, weaponData, buffCount, hasNeg, state.currentLang === "es"));
 
   // Desirability Weighting
   const meta = getMetaStats(weaponData?.name || weaponName, weaponData?.t);
@@ -2580,6 +2735,51 @@ function generateRollResultsDOM(roll, weaponData, weaponName, currentRank, scale
 
   const appraisal = calculateAdvancedPredictivePrice(meta || { name: weaponName, wfm_avg_price: basePrice, official_median: basePrice }, itemAttributes, tiersObj, desirabilityMultiplier, weaponData, state.rivenStatBaseline?.stat_weights ?? null);
 
+  // EXPERIMENTAL (no destructivo): modelo XGBoost slim (lazy-load), ANCLADO a la banda robusta
+  // (mediana histórica DE + techo acotado) para no fiarse de outliers de un día.
+  {
+    const _w = meta || { name: weaponName, official_median: basePrice, wfm_avg: basePrice };
+    import("../utils/riven_ml.js")
+      .then(async (M) => {
+        const bandQ = await M.predictRivenMLBand(_w, itemAttributes, weaponData, 0, appraisal.adjustedScore);
+        const mk = await M.getWeaponMarket(weaponName, _w);
+        appraisal.mlEstimate = bandQ.p50;
+        appraisal.mlBand = bandQ;
+        // DOS SCORES: calidad por stats (meta) y calidad del roll (magnitud)
+        try {
+          const sc = await M.rivenScores(weaponName, itemAttributes);
+          appraisal.statScore = sc.stat; appraisal.rollScore = sc.roll;
+          // Mini badge con la misma paleta que la pestaña de grading (.grade-badge-large)
+          const _gBadge = (g) => `<span class="gsc-mini-badge grade-${String(g || "f").toLowerCase()}">${g}</span>`;
+          const _ss = estCard.querySelector("[data-stat-score] b");
+          const _rs = estCard.querySelector("[data-roll-score] b");
+          if (_ss) { _ss.innerHTML = `${sc.stat.score}% ${_gBadge(sc.stat.grade)}`; _ss.style.opacity = 1; }
+          if (_rs) { _rs.innerHTML = `${sc.roll.score}% ${_gBadge(sc.roll.grade)}`; _rs.style.opacity = 1; }
+        } catch (_e) { /* scores opcionales */ }
+        // FUSIÓN PONDERADA POR FIABILIDAD: la heurística COMPLEMENTA al ML. Si el ML es preciso en
+        // esta arma (MAPE bajo) pesa más el ML; si es impreciso / baja confianza, manda la heurística.
+        const _prec = (typeof M.weaponPrecision === "function") ? await M.weaponPrecision(weaponName) : null;
+        const _h = appraisal.estimatedValue || 0, _m = bandQ.p50 || 0;
+        let _wMl = (_prec && Number.isFinite(_prec.mape))
+          ? (_prec.mape < 30 ? 0.75 : _prec.mape < 60 ? 0.60 : _prec.mape < 100 ? 0.42 : 0.28)
+          : 0.35;   // sin dato de precisión -> apóyate en la heurística
+        if (bandQ.confianza === "baja") _wMl = Math.min(_wMl, 0.30);
+        const _fair = (_h > 0 && _m > 0)
+          ? Math.round(Math.exp(_wMl * Math.log(_m) + (1 - _wMl) * Math.log(_h)))
+          : Math.round(_m || _h);
+        const _low = Math.max(1, Math.min(bandQ.p25, appraisal.suggestedMin || bandQ.p25, _fair));
+        const _high = computeFairHigh(appraisal, bandQ, _fair);
+        appraisal.fairPrice = _fair; appraisal.fairLow = _low; appraisal.fairHigh = _high;
+        const _fp = estCard.querySelector("[data-fair-price]"), _fr = estCard.querySelector("[data-fair-range]");
+        if (_fp) _fp.textContent = `~${_fair}p`;
+        if (_fr) _fr.textContent = `${_low}p – ${_high}p`;
+        console.log(`[ML fusion] ${weaponName}: heur=${_h} ml=${_m} wMl=${_wMl.toFixed(2)} -> fair=${_fair} [${_low}-${_high}]`);
+        renderMlChip(estCard, _prec, bandQ, isEs);
+        renderMarketChip(estCard, mk, isEs);
+      })
+      .catch(e => console.warn("[ML] error:", e));
+  }
+
   let priceCalculated = appraisal.estimatedValue;
   let minPrice = appraisal.suggestedMin;
   let maxPrice = appraisal.suggestedMax;
@@ -2608,76 +2808,22 @@ function generateRollResultsDOM(roll, weaponData, weaponName, currentRank, scale
   }
 
   const estCard = document.createElement("div");
-  estCard.className = "grade-summary-card";
-  estCard.style = "margin-top: 15px; padding: 15px; background: rgba(155, 89, 182, 0.08); border: 1px solid rgba(155, 89, 182, 0.25); border-radius: 8px; position: relative;";
+  estCard.className = "grade-summary-card gsc";
 
   const isEs = state.currentLang === "es";
 
-  let warningHtml = "";
-  if (appraisal.comboName) {
-    const dispo = weaponData ? (weaponData.disposition || weaponData.d || 1) : 1;
-    const isLowDispo = dispo < 0.8;
-    if (isLowDispo) {
-      warningHtml = `
-        <div style="background: rgba(0, 229, 255, 0.08); border: 1px solid rgba(0, 229, 255, 0.25); border-radius: 6px; padding: 8px; margin-top: 10px; font-size: 10px; color: #00e5ff; line-height: 1.3;">
-          <b style="color: #fff; text-transform: uppercase;">${isEs ? `SINERGIA ELEMENTAL GODROLL (Dispo Baja: ${dispo.toFixed(2)})` : `ELEMENTAL SYNERGY GODROLL (Low Dispo: ${dispo.toFixed(2)})`}</b><br>
-          ${isEs ? `El combo <b>${appraisal.comboName}</b> ahorra valiosos slots de modulación. En armas con disposición reducida, este combo sustituye mods obligatorios y se tasa al nivel de un <b>Godroll</b>.` : `The <b>${appraisal.comboName}</b> combo saves valuable mod slots. For weapons with reduced disposition, this combo replaces mandatory mods and values near a <b>Godroll</b>.`}
-        </div>
-      `;
-    } else {
-      warningHtml = `
-        <div style="background: rgba(0, 255, 120, 0.06); border: 1px solid rgba(0, 255, 120, 0.18); border-radius: 6px; padding: 8px; margin-top: 10px; font-size: 10px; color: #00ff78; line-height: 1.3;">
-          <b style="color: #fff; text-transform: uppercase;">${isEs ? `SINERGIA ELEMENTAL (${appraisal.comboName})` : `ELEMENTAL SYNERGY (${appraisal.comboName})`}</b><br>
-          ${isEs ? `La combinación de elementos aumenta el valor comercial al liberar espacio de modulación.` : `The element combination increases market value by freeing up mod space.`}
-        </div>
-      `;
-    }
-  } else if (desirabilityMultiplier < 0.5) {
-    warningHtml = `<div style="color: #ff6666; font-size: 10px; margin-top: 8px; font-weight: bold; text-align: center; border-top: 1px dashed rgba(255,255,255,0.05); padding-top: 8px;">${isEs ? "Penalización por Stats no deseados" : "Heavy Penalty: Unpopular Stats"}</div>`;
-  } else if (desirabilityMultiplier > 0.8) {
-    warningHtml = `<div style="color: #00ff78; font-size: 10px; margin-top: 8px; font-weight: bold; text-align: center; border-top: 1px dashed rgba(255,255,255,0.05); padding-top: 8px;">${isEs ? "Coincide con Stats Meta" : "Meta Stats Match"}</div>`;
-  }
-
-  if (priceCalculated >= 8000) {
-    warningHtml += `
-      <div style="background: rgba(255, 68, 68, 0.08); border: 1px solid rgba(255, 68, 68, 0.25); border-radius: 6px; padding: 10px; margin-top: 10px; font-size: 9px; color: #ff5555; line-height: 1.35; text-align: left;">
-        <b style="color: #ff8888; text-transform: uppercase; display: flex; align-items: center; gap: 4px;">${isEs ? "⚠️ RIESGO DE PLATINO ILÍCITO / FRAUDULENTO" : "⚠️ ILLEGAL / BOGUS PLATINUM RISK"}</b>
-        <div style="margin-top: 4px; color: #eee; font-weight: normal;">${isEs ? "Las transacciones de Mods Agrietados que rozan o superan los 10,000p conllevan un riesgo extremo in-game. Ventas récord tan elevadas a menudo reflejan traspasos fraudulentos o lavado de platino. El comercio en este rango se realiza bajo tu propio riesgo debido a la alta probabilidad de recibir Platinum 'sucio/falso' que resulte en suspensión de cuenta." : "Riven trades approaching or exceeding 10,000p carry extreme in-game risks. Record prices in this range often reflect fraudulent transfers or platinum laundering. Trading in this high tier is done strictly at your own risk due to a high likelihood of receiving 'fake/dirty' platinum leading to account suspension."}</div>
-      </div>
-    `;
-  }
-
-  estCard.innerHTML = `
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-      <div>
-        <h4 style="margin: 0; color: #dcb3ff; text-transform: uppercase; font-size: 0.85rem; letter-spacing: 0.5px;">${isEs ? "Tasación de Mercado" : "Market Appraisal"}</h4>
-        <div style="font-size: 0.65rem; color: #888; text-transform: uppercase; margin-top: 2px;">Predictive Price Estimator</div>
-      </div>
-      <div class="grade-badge-large ${tierColor}" style="width: 48px; height: 48px; border-radius: 6px; font-size: 1.6rem; font-weight: 900; margin: 0; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 15px rgba(220,179,255,0.2);">${tier}</div>
-    </div>
-    
-    <div style="margin: 10px 0; border-top: 1px dashed rgba(255,255,255,0.08); padding-top: 10px;">
-      <div style="font-size: 1.15rem; font-weight: 800; color: #fff; display: flex; align-items: center; gap: 6px;">
-        ${isEs ? "Valor Estimado" : "Estimated Value"}: <span style="color: var(--wf-gold-text);">~${priceCalculated}p</span>
-        <img src="assets/relic_contents/platinum.webp" style="width: 18px; height: 18px; object-fit: contain; vertical-align: middle;">
-      </div>
-      <div style="font-size: 0.75rem; color: #aaa; margin-top: 4px;">
-        ${isEs ? "Rango de venta sugerido" : "Suggested retail range"}: <span style="font-weight: bold; color: #fff;">${minPrice}p - ${maxPrice}p</span>
-      </div>
-    </div>
-    
-    <div style="font-size: 10px; color: #888; margin-top: 8px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px; border-top: 1px dashed rgba(255,255,255,0.05); padding-top: 8px;">
-      <span>Score: <b style="color: #dcb3ff;">${finalScore}%</b></span>
-      <span data-tooltip="${isEs ? "Una puntuación del 0 al 100 que indica cómo de 'caliente' está el arma en el Meta actual basándose en su volumen real de intercambios." : "A score from 0 to 100 indicating how 'hot' the weapon is in the current Meta based on its real trading volume."}" style="cursor: help;">TREND: <b style="color: #dcb3ff;">${Math.round(popPct)}/100</b> <span class="info-icon" style="font-size: 0.65rem;">ℹ</span></span>
-      <span data-tooltip="${isEs ? "El precio 'real' en el chat de comercio. Es la Mediana matemática de las ventas oficiales del juego. Ignora los timos carísimos y las ventas a precio de saldo para darte el valor más preciso del jugador promedio." : "The 'real' price in trade chat. It is the mathematical Median of official in-game sales. It ignores extremely expensive scams and quick-sell bargains to give you the most accurate value of the average player."}" style="cursor: help;">Base: <b style="color: #dcb3ff;">${basePrice}p</b> <span class="info-icon" style="font-size: 0.65rem;">ℹ</span></span>
-    </div>
-    ${warningHtml}
-  `;
+  const warningHtml = buildAppraisalWarningsHtml({ appraisal, weaponData, desirabilityMultiplier, stats, priceCalculated, isEs });
+  estCard.innerHTML = buildAppraisalCardHTML({
+    tier, tierColor, priceCalculated, minPrice, maxPrice, finalScore, popPct, basePrice,
+    warningHtml, isEs, withSimilarButton: false,
+    histLoading: !!(state.currentWeaponHistory?.weaponName === weaponName && state.currentWeaponHistory.loading)
+  });
 
   const wrapper = document.createElement("div");
-  wrapper.style = "display: flex; flex-direction: column; gap: 15px; width: 100%;";
-  wrapper.appendChild(statsCol);
+  wrapper.style = "display: flex; flex-direction: column; gap: 12px; width: 100%;";
+  // Hero primero: la tasación (precio + grade) arriba, el desglose de stats debajo.
   wrapper.appendChild(estCard);
+  wrapper.appendChild(statsCol);
 
   return wrapper;
 }
@@ -2847,7 +2993,8 @@ export function calculateModalGrade() {
       resultsDiv.appendChild(headerDiv);
 
       const sideBySideContainer = document.createElement("div");
-      sideBySideContainer.style = "display: flex; gap: 16px; justify-content: space-between; width: 100%;";
+      // flex-wrap para que en móvil las dos columnas de comparación apilen en vez de aplastarse.
+      sideBySideContainer.className = "results-compare-row";
 
       const leftWrapper = generateRollResultsDOM(globalThis.activeGradingRolls.rollL, weaponData, weaponName, currentRank, scaleFactor);
       leftWrapper.style.flex = "1";
@@ -2867,7 +3014,8 @@ export function calculateModalGrade() {
 
       const grid = document.querySelector(".riven-grader-grid");
       if (grid) {
-        grid.style.gridTemplateColumns = "1.1fr 2fr 2fr";
+        // La comparativa vive en la columna central (bajo las cartas): ensancharla.
+        grid.style.gridTemplateColumns = "1fr 2.6fr 1fr";
       }
       return;
     }
@@ -2891,39 +3039,19 @@ export function calculateModalGrade() {
 
     const gridContainer = document.createElement("div");
     gridContainer.className = "results-layout-grid";
-    const statsCol = document.createElement("div");
-    statsCol.className = "results-stats-col";
-
-    stats.forEach((stat) => {
-      const internalName = normalizeStatName(stat.name, weaponData?.t);
-      const res = calculateRivenGrade(
-        weaponData,
-        internalName,
-        stat.projected,
-        stat.value < 0,
-        buffCount,
-        hasNeg,
-      );
-
-      let color = "grade-f";
-      if (["SSS", "S+", "S"].includes(res.grade)) color = "grade-s";
-      else if (["A+", "A"].includes(res.grade)) color = "grade-a";
-      else if (["B+", "B"].includes(res.grade)) color = "grade-b";
-
-      const isNegStat = stat.value < 0;
-      const card = document.createElement("div");
-      card.className = "grade-card";
-      // Visually mark the negative curse stat with a red tint and a "−" prefix
-      if (isNegStat) {
-        card.style.cssText = "border-color: rgba(239,68,68,0.3); background: rgba(239,68,68,0.04);";
-      }
-      card.innerHTML = `<div class="grade-badge-large ${color}">${res.grade}</div>
-                        <div class="grade-info"><div class="grade-stat-name" style="${isNegStat ? 'color:#ef4444;' : ''}">${isNegStat ? '−' : ''}${stat.name}</div>
-                        <div>Valor: ${Math.abs(stat.value)}% <span class="grade-range">/ Ideal: ${res.range}</span></div>
-                        <div class="grade-track"><div class="grade-fill ${color}" style="width:${res.pct}%"></div></div></div>`;
-      statsCol.appendChild(card);
-    });
-    gridContainer.appendChild(statsCol);
+    // La tabla de stats va AL LADO de la carta riven generada (el preview la borra y re-renderiza
+    // en cada recálculo, así que re-colgarla aquí nunca duplica). Fallback: dentro de resultados.
+    const statsTable = buildStatsTable(stats, weaponData, buffCount, hasNeg, state.currentLang === "es");
+    const previewBox = document.getElementById("modal-riven-preview-container");
+    if (previewBox) {
+      statsTable.classList.add("beside-card");
+      previewBox.appendChild(statsTable);
+    } else {
+      const statsCol = document.createElement("div");
+      statsCol.className = "results-stats-col";
+      statsCol.appendChild(statsTable);
+      gridContainer.appendChild(statsCol);
+    }
 
     // Desirability Weighting
     const meta = getMetaStats(weaponData.name || weaponName, weaponData.t);
@@ -2963,6 +3091,77 @@ export function calculateModalGrade() {
 
     const appraisal = calculateAdvancedPredictivePrice(meta || { name: weaponName, wfm_avg_price: basePrice, official_median: basePrice }, itemAttributes, tiersObj, desirabilityMultiplier, weaponData, state.rivenStatBaseline?.stat_weights ?? null);
 
+    // EXPERIMENTAL (no destructivo): modelo XGBoost slim (lazy-load), ANCLADO a la banda robusta.
+    {
+      const _w = meta || { name: weaponName, official_median: basePrice, wfm_avg: basePrice };
+      import("../utils/riven_ml.js")
+        .then(async (M) => {
+          const bandQ = await M.predictRivenMLBand(_w, itemAttributes, weaponData, 0, appraisal.adjustedScore);
+          const mk = await M.getWeaponMarket(weaponName, _w);
+          appraisal.mlEstimate = bandQ.p50;
+          appraisal.mlBand = bandQ;
+          try {
+            const sc = await M.rivenScores(weaponName, itemAttributes);
+            appraisal.statScore = sc.stat; appraisal.rollScore = sc.roll;
+            // Mini badge con la misma paleta que la pestaña de grading (.grade-badge-large)
+            const _gBadge = (g) => `<span class="gsc-mini-badge grade-${String(g || "f").toLowerCase()}">${g}</span>`;
+            const _ss = estCard.querySelector("[data-stat-score] b");
+            const _rs = estCard.querySelector("[data-roll-score] b");
+            if (_ss) { _ss.innerHTML = `${sc.stat.score}% ${_gBadge(sc.stat.grade)}`; _ss.style.opacity = 1; }
+            if (_rs) { _rs.innerHTML = `${sc.roll.score}% ${_gBadge(sc.roll.grade)}`; _rs.style.opacity = 1; }
+          } catch (_e) { /* scores opcionales */ }
+          // FUSIÓN PONDERADA POR FIABILIDAD (la heurística complementa al ML según su precisión/arma).
+          const _prec = (typeof M.weaponPrecision === "function") ? await M.weaponPrecision(weaponName) : null;
+          const _h = appraisal.estimatedValue || 0, _m = bandQ.p50 || 0;
+          let _wMl = (_prec && Number.isFinite(_prec.mape))
+            ? (_prec.mape < 30 ? 0.75 : _prec.mape < 60 ? 0.60 : _prec.mape < 100 ? 0.42 : 0.28)
+            : 0.35;
+          if (bandQ.confianza === "baja") _wMl = Math.min(_wMl, 0.30);
+          const _fair = (_h > 0 && _m > 0)
+            ? Math.round(Math.exp(_wMl * Math.log(_m) + (1 - _wMl) * Math.log(_h)))
+            : Math.round(_m || _h);
+          const _low = Math.max(1, Math.min(bandQ.p25, appraisal.suggestedMin || bandQ.p25, _fair));
+          const _high = computeFairHigh(appraisal, bandQ, _fair);
+          appraisal.fairPrice = _fair; appraisal.fairLow = _low; appraisal.fairHigh = _high;
+          const _fp = estCard.querySelector("[data-fair-price]"), _fr = estCard.querySelector("[data-fair-range]");
+          if (_fp) _fp.textContent = `~${_fair}p`;
+          if (_fr) _fr.textContent = `${_low}p – ${_high}p`;
+          renderMlChip(estCard, _prec, bandQ, isEs);
+          renderMarketChip(estCard, mk, isEs);
+
+          // ANCLAJE POR COMPARABLES: si hay listados vivos con el MISMO combo (mismos positivos
+          // y misma negativa), el mercado real manda sobre el modelo. p30 de asks exactos ≈
+          // precio de cierre (los buyout de WFM son precios pedidos, inflados). El ancla entra
+          // con peso proporcional al nº de comparables (máx 50%). Ataca directamente el ruido
+          // irreducible del modelo (~39% de spread entre vendedores del mismo roll).
+          try {
+            const _posN = itemAttributes.filter(a => a.isPositive).map(a => a.name);
+            const _negN = itemAttributes.find(a => !a.isPositive)?.name || null;
+            const { anchor } = await fetchSimilarRivens(weaponName, _posN, _negN, true);
+            if (anchor && anchor.n >= 3 && appraisal.fairPrice > 0) {
+              const _wC = Math.min(0.5, anchor.n * 0.08);
+              const _adj = Math.round(Math.exp((1 - _wC) * Math.log(appraisal.fairPrice) + _wC * Math.log(anchor.price)));
+              appraisal.fairPrice = _adj;
+              appraisal.fairLow = Math.min(appraisal.fairLow, _adj);
+              appraisal.fairHigh = Math.max(appraisal.fairHigh, anchor.median);
+              const _fp2 = estCard.querySelector("[data-fair-price]"), _fr2 = estCard.querySelector("[data-fair-range]");
+              if (_fp2) _fp2.textContent = `~${_adj}p`;
+              if (_fr2) _fr2.textContent = `${appraisal.fairLow}p – ${appraisal.fairHigh}p`;
+              const _cEl = estCard.querySelector("[data-comp-line]");
+              if (_cEl) {
+                _cEl.style.display = "inline-flex"; _cEl.style.color = "#4ade80";
+                _cEl.title = isEs
+                  ? `Ahora mismo hay ${anchor.n} rivens a la venta con este mismo combo de stats. Los más baratos piden ~${anchor.price}p (lo habitual es ${anchor.median}p). Tu tasación se ajusta a estos precios reales del mercado.`
+                  : `Right now there are ${anchor.n} rivens for sale with this exact stat combo. The cheapest ask ~${anchor.price}p (typical ask is ${anchor.median}p). Your appraisal is adjusted to these real market prices.`;
+                _cEl.innerHTML = `${isEs ? "En venta ahora" : "On sale now"}: <b>${isEs ? "desde" : "from"} ~${anchor.price}p</b> <span style="opacity:.6;">(${anchor.n} ${isEs ? "iguales" : "same"})</span>`;
+              }
+              console.log(`[Comparables] ${weaponName}: fair=${_adj} ancla=${anchor.price}p n=${anchor.n} w=${_wC.toFixed(2)}`);
+            }
+          } catch (_e) { /* comparables opcionales: sin red o sin matches no rompe la tasación */ }
+        })
+        .catch(e => console.warn("[ML] error:", e));
+    }
+
     let priceCalculated = appraisal.estimatedValue;
     let minPrice = appraisal.suggestedMin;
     let maxPrice = appraisal.suggestedMax;
@@ -2992,100 +3191,18 @@ export function calculateModalGrade() {
     }
 
     const estCard = document.createElement("div");
-    estCard.className = "grade-summary-card";
-    estCard.style = "margin-top: 15px; padding: 15px; background: rgba(155, 89, 182, 0.08); border: 1px solid rgba(155, 89, 182, 0.25); border-radius: 8px; position: relative;";
+    estCard.className = "grade-summary-card gsc";
 
     const isEs = state.currentLang === "es";
 
-    let warningHtml = "";
-    if (appraisal.comboName) {
-      const dispo = weaponData ? (weaponData.disposition || weaponData.d || 1) : 1;
-      const isLowDispo = dispo < 0.8;
-
-      if (isLowDispo) {
-        const title = isEs
-          ? `SINERGIA ELEMENTAL GODROLL (Dispo Baja: ${dispo.toFixed(2)})`
-          : `ELEMENTAL SYNERGY GODROLL (Low Dispo: ${dispo.toFixed(2)})`;
-        const desc = isEs
-          ? `El combo <b>${appraisal.comboName}</b> ahorra valiosos slots de modulación. En armas con disposición reducida, este combo sustituye mods obligatorios y se tasa al nivel de un <b>Godroll</b>.`
-          : `The <b>${appraisal.comboName}</b> combo saves valuable mod slots. For weapons with reduced disposition, this combo replaces mandatory mods and values near a <b>Godroll</b>.`;
-
-        warningHtml = `
-          <div style="background: rgba(0, 229, 255, 0.08); border: 1px solid rgba(0, 229, 255, 0.25); border-radius: 6px; padding: 8px; margin-top: 10px; font-size: 10px; color: #00e5ff; line-height: 1.3;">
-            <b style="color: #fff; text-transform: uppercase;">${title}</b><br>
-            ${desc}
-          </div>
-        `;
-      } else {
-        const title = isEs
-          ? `SINERGIA ELEMENTAL (${appraisal.comboName})`
-          : `ELEMENTAL SYNERGY (${appraisal.comboName})`;
-        const desc = isEs
-          ? `La combinación de elementos aumenta el valor comercial al liberar espacio de modulación.`
-          : `The element combination increases market value by freeing up mod space.`;
-
-        warningHtml = `
-          <div style="background: rgba(0, 255, 120, 0.06); border: 1px solid rgba(0, 255, 120, 0.18); border-radius: 6px; padding: 8px; margin-top: 10px; font-size: 10px; color: #00ff78; line-height: 1.3;">
-            <b style="color: #fff; text-transform: uppercase;">${title}</b><br>
-            ${desc}
-          </div>
-        `;
-      }
-    } else if (desirabilityMultiplier < 0.5) {
-      warningHtml = `<div style="color: #ff6666; font-size: 10px; margin-top: 8px; font-weight: bold; text-align: center; border-top: 1px dashed rgba(255,255,255,0.05); padding-top: 8px;">${isEs ? "Penalización por Stats no deseados" : "Heavy Penalty: Unpopular Stats"}</div>`;
-    } else if (desirabilityMultiplier > 0.8) {
-      warningHtml = `<div style="color: #00ff78; font-size: 10px; margin-top: 8px; font-weight: bold; text-align: center; border-top: 1px dashed rgba(255,255,255,0.05); padding-top: 8px;">${isEs ? "Coincide con Stats Meta" : "Meta Stats Match"}</div>`;
-    }
-
-    // Risk warning for highly volatile trades exceeding 8,000p (fraudulent transfers / fake platinum risk)
-    if (priceCalculated >= 8000) {
-      const riskTitle = isEs
-        ? "⚠️ RIESGO DE PLATINO ILÍCITO / FRAUDULENTO"
-        : "⚠️ ILLEGAL / BOGUS PLATINUM RISK";
-      const riskDesc = isEs
-        ? "Las transacciones de Mods Agrietados que rozan o superan los 10,000p conllevan un riesgo extremo in-game. Ventas récord tan elevadas a menudo reflejan traspasos fraudulentos o lavado de platino. El comercio en este rango se realiza bajo tu propio riesgo debido a la alta probabilidad de recibir Platinum 'sucio/falso' que resulte en suspensión de cuenta."
-        : "Riven trades approaching or exceeding 10,000p carry extreme in-game risks. Record prices in this range often reflect fraudulent transfers or platinum laundering. Trading in this high tier is done strictly at your own risk due to a high likelihood of receiving 'fake/dirty' platinum leading to account suspension.";
-
-      warningHtml += `
-        <div style="background: rgba(255, 68, 68, 0.08); border: 1px solid rgba(255, 68, 68, 0.25); border-radius: 6px; padding: 10px; margin-top: 10px; font-size: 9px; color: #ff5555; line-height: 1.35; text-align: left;">
-          <b style="color: #ff8888; text-transform: uppercase; display: flex; align-items: center; gap: 4px;">${riskTitle}</b>
-          <div style="margin-top: 4px; color: #eee; font-weight: normal;">${riskDesc}</div>
-        </div>
-      `;
-    }
-
-    estCard.innerHTML = `
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-        <div>
-          <h4 style="margin: 0; color: #dcb3ff; text-transform: uppercase; font-size: 0.85rem; letter-spacing: 0.5px;">${isEs ? "Tasación de Mercado" : "Market Appraisal"}</h4>
-          <div style="font-size: 0.65rem; color: #888; text-transform: uppercase; margin-top: 2px;">Predictive Price Estimator</div>
-        </div>
-        <div class="grade-badge-large ${tierColor}" style="width: 48px; height: 48px; border-radius: 6px; font-size: 1.6rem; font-weight: 900; margin: 0; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 15px rgba(220,179,255,0.2);">${tier}</div>
-      </div>
-      
-      <div style="margin: 10px 0; border-top: 1px dashed rgba(255,255,255,0.08); padding-top: 10px;">
-        <div style="font-size: 1.15rem; font-weight: 800; color: #fff; display: flex; align-items: center; gap: 6px;">
-          ${isEs ? "Valor Estimado" : "Estimated Value"}: <span style="color: var(--wf-gold-text);">~${priceCalculated}p</span>
-          <img src="assets/relic_contents/platinum.webp" style="width: 18px; height: 18px; object-fit: contain; vertical-align: middle;">
-        </div>
-        <div style="font-size: 0.75rem; color: #aaa; margin-top: 4px;">
-          ${isEs ? "Rango de venta sugerido" : "Suggested retail range"}: <span style="font-weight: bold; color: #fff;">${minPrice}p - ${maxPrice}p</span>
-        </div>
-      </div>
-      
-      <div style="font-size: 10px; color: #888; margin-top: 8px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px; border-top: 1px dashed rgba(255,255,255,0.05); padding-top: 8px;">
-        <span>Score: <b style="color: #dcb3ff;">${finalScore}%</b></span>
-        <span data-tooltip="${isEs ? "Una puntuación del 0 al 100 que indica cómo de 'caliente' está el arma en el Meta actual basándose en su volumen real de intercambios." : "A score from 0 to 100 indicating how 'hot' the weapon is in the current Meta based on its real trading volume."}" style="cursor: help;">TREND: <b style="color: #dcb3ff;">${Math.round(popPct)}/100</b> <span class="info-icon" style="font-size: 0.65rem;">ℹ</span></span>
-        <span data-tooltip="${isEs ? "El precio 'real' en el chat de comercio. Es la Mediana matemática de las ventas oficiales del juego. Ignora los timos carísimos y las ventas a precio de saldo para darte el valor más preciso del jugador promedio." : "The 'real' price in trade chat. It is the mathematical Median of official in-game sales. It ignores extremely expensive scams and quick-sell bargains to give you the most accurate value of the average player."}" style="cursor: help;">Base: <b style="color: #dcb3ff;">${basePrice}p</b> <span class="info-icon" style="font-size: 0.65rem;">ℹ</span></span>
-      </div>
-      ${warningHtml}
-      
-      <button id="btn-search-similar-rivens" class="btn btn-secondary" style="margin-top: 12px; width: 100%; font-size: 11px; padding: 6px 12px; border-radius: 4px; display: flex; align-items: center; justify-content: center; gap: 6px; background: rgba(155, 89, 182, 0.2); border: 1px solid rgba(155, 89, 182, 0.4); color: #dcb3ff; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='rgba(155, 89, 182, 0.4)'" onmouseout="this.style.background='rgba(155, 89, 182, 0.2)'">
-        <img src="assets/dmg/DmgVoidSmall64.webp" style="width:14px; height:14px; object-fit:contain;"> ${isEs ? "Buscar Rivens Similares" : "Search Similar Rivens"}
-      </button>
-      
-      <div id="similar-rivens-container" style="margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px; display: none;"></div>
-    `;
+    const warningHtml = buildAppraisalWarningsHtml({ appraisal, weaponData, desirabilityMultiplier, stats, priceCalculated, isEs });
+    estCard.innerHTML = buildAppraisalCardHTML({
+      tier, tierColor, priceCalculated, minPrice, maxPrice, finalScore, popPct, basePrice,
+      warningHtml, isEs, withSimilarButton: true,
+      histLoading: !!(state.currentWeaponHistory?.weaponName === weaponName && state.currentWeaponHistory.loading)
+    });
+    // Hero primero: la tarjeta de tasación por delante de la columna de stats.
+    // La tabla de stats vive junto a la carta (previewBox); aquí solo va la tarjeta de tasación.
     gridContainer.appendChild(estCard);
     fragment.appendChild(gridContainer);
 
@@ -3111,12 +3228,38 @@ export function calculateModalGrade() {
               if (!simContainer) return;
 
               simContainer.style.display = "block";
+              simContainer.style.maxHeight = "360px";   // evita que se corten: scroll dentro del panel
+              simContainer.style.overflowY = "auto";
               if (similar.length === 0) {
                 simContainer.innerHTML = `<div style="font-size:12px; color:#888; text-align:center; padding:8px 0;">${state.currentLang === "es" ? "No se encontraron rivens similares activos." : "No similar active listings found."}</div>`;
                 return;
               }
 
-              let simHtml = `<h5 style="margin: 0 0 8px 0; color: #aaa; text-transform: uppercase; font-size: 10px; letter-spacing: 1px;">${state.currentLang === "es" ? "Rivens Similares Activos" : "Similar Live Listings"}</h5>`;
+              const _wfmUrl = `https://warframe.market/auctions/search?type=riven&weapon_url_name=${getRivenSlug(weaponName)}&sort_by=price_asc`;
+              let simHtml = `<div style="display:flex; justify-content:space-between; align-items:center; margin:0 0 8px 0;">
+                  <h5 style="margin:0; color:#aaa; text-transform:uppercase; font-size:10px; letter-spacing:1px;">${state.currentLang === "es" ? "Rivens Similares Activos" : "Similar Live Listings"}</h5>
+                  <a href="${_wfmUrl}" target="_blank" rel="noopener" style="font-size:10px; color:#00e5ff; text-decoration:none; border:1px solid rgba(0,229,255,0.35); border-radius:4px; padding:2px 7px; white-space:nowrap;">warframe.market ↗</a>
+                </div>`;
+
+              // PRECIO DE MERCADO REAL: mediana + mínimo de los listings del combo (la verdad, no una
+              // estimación). Las tasaciones de arriba (heurística/modelo) sobreestiman combos off-meta;
+              // estos son precios de venta reales del MISMO combo.
+              const _isEs = state.currentLang === "es";
+              // Precio de mercado real desde vendedores INGAME (comprable ya); si hay <2, cae a todos.
+              const _ingame = similar.filter(a => a.owner?.status === "ingame");
+              const _src = _ingame.length >= 2 ? _ingame : similar;
+              const _onlyIngame = _src === _ingame;
+              const _simPrices = _src.map(a => a.buyout_price || a.starting_price).filter(p => p > 0).sort((x, y) => x - y);
+              if (_simPrices.length) {
+                const _min = _simPrices[0];
+                const _med = _simPrices[Math.floor((_simPrices.length - 1) / 2)];
+                const _tag = _onlyIngame ? (_isEs ? "ingame" : "ingame") : (_isEs ? "todos" : "all");
+                simHtml += `<div style="font-size:11px; color:#00e5ff; background:rgba(0,229,255,0.07); border:1px solid rgba(0,229,255,0.28); border-radius:6px; padding:7px 9px; margin-bottom:8px; line-height:1.4;">
+                  <b style="text-transform:uppercase; letter-spacing:0.5px;">${_isEs ? "Precio de mercado real" : "Real market price"}</b> <span style="opacity:.6; font-size:0.9em;">(${_tag})</span><br>
+                  <span style="color:#fff; font-weight:800; font-size:1.05em;">~${_med}p</span> ${_isEs ? "mediana" : "median"} · ${_isEs ? "desde" : "from"} <b>${_min}p</b>
+                  <span style="opacity:.65;">(${_simPrices.length} ${_isEs ? "listings" : "listings"})</span>
+                </div>`;
+              }
 
               const getShortStatName = (urlName, positive) => {
                 const isEs = state.currentLang === "es";
@@ -3207,9 +3350,9 @@ export function calculateModalGrade() {
                             <span style="color: #dcb3ff; font-weight: bold; font-size: 11px;">[${rivenName.toUpperCase()}]</span>
                             <span style="color: var(--wf-gold-text); font-weight: bold; font-size: 12px;">${price} <img src="assets/relic_contents/platinum.webp" style="width:11px; vertical-align:middle;"></span>
                         </div>
-                        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 10px;">
-                            <span style="color: #aaa; max-width: 65%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${posHtml} <span style="color:#ff6666">${negHtml}</span></span>
-                            <span style="display: flex; align-items: center; gap: 4px; font-size: 9px; color: #888;">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; font-size: 10px;">
+                            <span style="color: #aaa; flex: 1; min-width: 0; white-space: normal; word-break: break-word; line-height: 1.35;">${posHtml} <span style="color:#ff6666">${negHtml}</span></span>
+                            <span style="display: flex; align-items: center; gap: 4px; font-size: 9px; color: #888; flex-shrink: 0; white-space: nowrap;">
                                 <span style="width: 5px; height: 5px; border-radius: 50%; background: ${dotColor}; display: inline-block;"></span>
                                 ${sellerName}
                             </span>
@@ -3624,13 +3767,34 @@ function renderMetaStats(weaponName, weaponType, targetId = "meta-stats-containe
     </span>
   `).join("") : "";
 
-  const bestNegHtml = (meta.neg || []).filter(allow).map(s => `
-    <span style="background: rgba(0, 229, 255, 0.15); border: 1px solid rgba(0, 229, 255, 0.45); color: #00e5ff; text-shadow: 0 0 6px rgba(0, 229, 255, 0.5); box-shadow: 0 0 8px rgba(0, 229, 255, 0.15); padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 4px; display: inline-block; margin-bottom: 4px; font-weight: bold;">
-      <span style="font-size: 9px; background: #00e5ff; color: #000; padding: 1px 4px; border-radius: 3px; margin-right: 5px; font-weight: 900; text-transform: uppercase;">BEST</span>- ${getLocalizedStatName(s)}
-    </span>
-  `).join("");
+  // Negativas INOFENSIVAS (data-driven por arma): la lista curada del endpoint (meta.neg) + negativas
+  // universalmente inofensivas/mitigables, EXCLUYENDO las que el arma QUIERE como positivo (esas serían
+  // ruinosas) y las que no pueden rolear negativas (elementos). Antes solo salían las de meta.neg (2-3).
+  // Facción NO va aquí: es "meh" (se prefiere sin negativa de facción) -> va a MID, con Infested primero.
+  const HARMLESS_NEG_CANDIDATES = ["Zoom", "Recoil", "Impact Damage", "Puncture Damage",
+    "Ammo Maximum", "Magazine Capacity", "Reload Speed", "Projectile Speed"];
+  // PRIORIDAD AL RANKING DE DATOS: un stat que los pesos por arma (dynamic_weights) marcan valioso
+  // NO puede ser harmless/mid aunque esté en mis listas hardcodeadas -> manda el dato.
+  const _dw = meta.dynamic_weights || {};
+  const _dataWantedNames = Object.keys(_dw).filter(k => parseFloat(_dw[k]) >= 0.5);
+  const _wantedSet = new Set([...(meta.pos || []), ...(meta.midPos || []), ..._dataWantedNames].map(x => String(x).toLowerCase()));
+  const _curatedNeg = new Set((meta.neg || []).map(x => String(x).toLowerCase()));
+  const harmlessAll = [...new Set([...(meta.neg || []), ...HARMLESS_NEG_CANDIDATES])]
+    .filter(allow)
+    .filter(s => !_wantedSet.has(String(s).toLowerCase()) && !CANT_BE_NEGATIVE.test(s));
+  const harmlessSet = new Set(harmlessAll.map(x => String(x).toLowerCase()));
+  const bestNegHtml = harmlessAll.map(s => {
+    const isCurated = _curatedNeg.has(String(s).toLowerCase());
+    const badge = isCurated ? `<span style="font-size: 9px; background: #00e5ff; color: #000; padding: 1px 4px; border-radius: 3px; margin-right: 5px; font-weight: 900; text-transform: uppercase;">BEST</span>` : "";
+    return `<span style="background: rgba(0, 229, 255, ${isCurated ? "0.15" : "0.07"}); border: 1px solid rgba(0, 229, 255, ${isCurated ? "0.45" : "0.22"}); color: #00e5ff; ${isCurated ? "text-shadow: 0 0 6px rgba(0,229,255,0.5); box-shadow: 0 0 8px rgba(0,229,255,0.15); font-weight: bold;" : "font-weight: 500;"} padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 4px; display: inline-block; margin-bottom: 4px;">${badge}- ${getLocalizedStatName(s)}</span>`;
+  }).join("");
 
-  const midNeg = (meta.midNeg || []).filter(allow);
+  // MID negativas = las del endpoint + las de FACCIÓN ("meh": se prefiere sin facción; Infested
+  // primero por ser la menos mala). Excluye las que el arma quiere y las ya marcadas harmless.
+  const FACTION_NEGS = ["Damage Vs Infested", "Damage Vs Grineer", "Damage Vs Corpus"];
+  const midNeg = [...new Set([...(meta.midNeg || []), ...FACTION_NEGS])]
+    .filter(allow)
+    .filter(s => !_wantedSet.has(String(s).toLowerCase()) && !harmlessSet.has(String(s).toLowerCase()));
   const midNegHtml = midNeg.length > 0 ? midNeg.map(s => `
     <span style="background: rgba(234, 179, 8, 0.08); border: 1px solid rgba(234, 179, 8, 0.18); color: #eab308; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 4px; display: inline-block; margin-bottom: 4px; font-weight: 500;">
       <span style="font-size: 9px; background: rgba(234, 179, 8, 0.18); color: #eab308; padding: 1px 4px; border-radius: 3px; margin-right: 5px; font-weight: 700; text-transform: uppercase;">MID</span>- ${getLocalizedStatName(s)}
@@ -3641,15 +3805,15 @@ function renderMetaStats(weaponName, weaponType, targetId = "meta-stats-containe
   // ruins value. Excluded: stats that are good/neutral as a curse (the weapon's desirable
   // negatives) and elemental damage (Heat/Cold/Electric/Toxin), which can NEVER roll negative
   // on a riven. This avoids junk like "Zoom" or "Heat" appearing here.
-  const goodNegSet = new Set([...(meta.neg || []), ...(meta.midNeg || [])].map(x => String(x).toLowerCase()));
+  const goodNegSet = new Set([...(meta.neg || []), ...midNeg, ...harmlessAll].map(x => String(x).toLowerCase()));
   // Peores negativas = inverso de los mejores positivos (bricks) + las peores que devuelve el endpoint
   // (neg_tier.curse en armas normales, negWorst en kitguns), deduplicadas.
   const worstNeg = [...new Set([
-    ...(meta.pos || []), ...(meta.midPos || []),
+    ...(meta.pos || []), ...(meta.midPos || []), ..._dataWantedNames,
     ...(meta.negWorst || []), ...(meta.neg_tier?.curse || []), ...(meta.rawNeg?.worst || [])
   ])]
     .filter(allow)
-    .filter(s => !goodNegSet.has(String(s).toLowerCase()) && !CANT_BE_NEGATIVE.test(s));
+    .filter(s => !goodNegSet.has(String(s).toLowerCase()) && !harmlessSet.has(String(s).toLowerCase()) && !CANT_BE_NEGATIVE.test(s));
   const worstNegHtml = worstNeg.length > 0 ? worstNeg.map(s => `
     <span style="background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.18); color: #ef4444; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 4px; display: inline-block; margin-bottom: 4px; font-weight: 500;">
       - ${getLocalizedStatName(s)}

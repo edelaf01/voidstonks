@@ -1,5 +1,8 @@
 #riven-appraisal-hud {
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    /* Red de seguridad: el HUD nunca sobrepasa el alto del viewport; si el contenido
+       excede (p.ej. captura expandida), el body hace scroll interno y el header queda fijo. */
+    max-height: calc(100vh - 70px);
 }
 
 .riven-hud-card {
@@ -12,6 +15,9 @@
                 0 0 15px rgba(208, 96, 255, 0.1);
     overflow: hidden;
     animation: slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    display: flex;
+    flex-direction: column;
+    max-height: inherit;
 }
 
 .riven-hud-card.comparison {
@@ -76,7 +82,9 @@
 }
 
 .riven-hud-body {
-    padding: 12px;
+    padding: 10px 12px;
+    overflow-y: auto;
+    /* Sigue siendo block: toggleCollapse() re-expande con display:block. */
 }
 
 .riven-weapon-row {
@@ -148,88 +156,139 @@
     letter-spacing: 0.5px;
 }
 
-.riven-hud-tiers {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 12px;
-    background: rgba(0, 0, 0, 0.2);
-    border: 1px solid rgba(255, 255, 255, 0.03);
-    border-radius: 6px;
-    padding: 6px 8px;
+/* --- HERO: precio estimado + grado co-dominantes en cabecera --- */
+.hud-hero {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 10px;
+    background: rgba(208, 96, 255, 0.06);
+    border: 1px solid rgba(208, 96, 255, 0.2);
+    border-radius: 8px;
+    padding: 8px 12px;
+    margin-bottom: 10px;
 }
 
-.riven-hud-tiers div {
+.hud-hero-price {
     display: flex;
     flex-direction: column;
-    align-items: center;
+    min-width: 0;
 }
 
-.riven-hud-tiers span {
+.hud-hero-price .lbl {
     font-size: 0.55em;
-    color: #5a6578;
-    font-weight: 800;
-    letter-spacing: 0.5px;
-}
-
-.riven-hud-tiers strong {
-    font-size: 0.82em;
-    color: #ddd;
-    margin-top: 2px;
-}
-
-.riven-hud-estimate {
-    display: flex;
-    align-items: center;
-    background: rgba(208, 96, 255, 0.05);
-    border: 1px solid rgba(208, 96, 255, 0.18);
-    border-radius: 6px;
-    padding: 8px 10px;
-    margin-bottom: 8px;
-}
-
-.riven-hud-estimate .lbl {
-    font-size: 0.58em;
     font-weight: 800;
     color: #c080e0;
     letter-spacing: 1px;
 }
 
-.riven-hud-estimate .val {
-    margin-left: auto;
-    font-size: 1.1em;
+.hud-hero-price .val {
+    font-size: 1.5em;
     font-weight: 900;
-    color: #d060ff;
-    text-shadow: 0 0 10px rgba(208, 96, 255, 0.3);
+    color: #ffd700;
+    line-height: 1.15;
+    text-shadow: 0 0 12px rgba(255, 215, 0, 0.25);
 }
 
-.riven-hud-estimate .range {
-    font-size: 0.7em;
+.hud-hero-price .range {
+    font-size: 0.65em;
     color: #8a7aa0;
-    margin-left: 6px;
 }
 
-.riven-hud-score {
+.hud-hero-grade {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    background: rgba(0, 229, 255, 0.04);
-    border: 1px solid rgba(0, 229, 255, 0.15);
-    border-radius: 6px;
-    padding: 6px 10px;
-    margin-bottom: 12px;
+    padding: 2px 10px;
+    border-left: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.riven-hud-score .lbl {
-    font-size: 0.58em;
+.hud-hero-grade .letter {
+    font-size: 2em;
+    font-weight: 900;
+    line-height: 1;
+    color: var(--gc, #fff);
+    text-shadow: 0 0 12px color-mix(in srgb, var(--gc, #fff) 40%, transparent);
+}
+
+.hud-hero-grade .sub {
+    font-size: 0.6em;
+    font-weight: 700;
+    color: #8a7aa0;
+    margin-top: 2px;
+}
+
+/* --- Métricas secundarias en una sola fila de chips --- */
+.hud-metrics-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 4px;
+}
+
+.hud-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 999px;
+    padding: 2px 8px;
+    font-size: 0.68em;
+    white-space: nowrap;
+}
+
+.hud-chip span {
+    font-size: 0.8em;
+    color: #5a6578;
     font-weight: 800;
-    color: #50b0c0;
-    letter-spacing: 1px;
+    letter-spacing: 0.5px;
 }
 
-.riven-hud-score .val {
-    margin-left: auto;
+.hud-chip strong {
+    color: #ddd;
+    font-weight: 800;
+}
+
+.hud-chip em {
+    font-style: normal;
     font-size: 0.85em;
-    font-weight: 800;
+    color: #8a7aa0;
+}
+
+.hud-chip.ml {
+    border-color: rgba(179, 154, 255, 0.35);
+}
+
+.hud-chip.ml span,
+.hud-chip.ml strong {
+    color: #b39aff;
+}
+
+.hud-chip.score {
+    border-color: rgba(0, 229, 255, 0.25);
+}
+
+.hud-chip.score span,
+.hud-chip.score strong {
     color: #00e5ff;
+}
+
+/* Botón que muestra/oculta la captura recortada (plegada por defecto) */
+.hud-cap-btn {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 4px;
+    color: #ccc;
+    font-size: 0.7em;
+    padding: 1px 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.hud-cap-btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
 }
 
 .riven-hud-actions {
@@ -306,45 +365,71 @@
 
 .comp-col .col-stats {
     min-height: 48px;
-    margin-bottom: 6px;
-}
-
-.comp-col .col-score, .comp-col .col-price {
-    font-size: 0.65em;
-    color: #aaa;
-    display: flex;
-    justify-content: space-between;
-}
-
-.comp-col .col-score strong, .comp-col .col-price strong {
-    color: #eee;
-}
-
-.comp-col.winner .col-score strong {
-    color: #00e5ff;
-}
-
-.comp-verdict {
-    margin-top: 10px;
-    background: rgba(0, 229, 255, 0.05);
-    border: 1px solid rgba(0, 229, 255, 0.15);
-    border-radius: 6px;
-    padding: 8px;
-}
-
-.comp-verdict .verdict-title {
-    font-size: 0.62em;
-    font-weight: 900;
-    color: #00e5ff;
-    letter-spacing: 0.5px;
     margin-bottom: 4px;
 }
 
-.comp-verdict .verdict-reason {
-    font-size: 0.72em;
-    color: #c5d8e2;
-    line-height: 1.3;
-    margin: 0;
+/* Precio hero + score en una línea dentro de cada columna de comparación */
+.comp-col .col-hero {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 6px;
+    margin-bottom: 4px;
+}
+
+.comp-col .col-price-big {
+    font-size: 1.05em;
+    font-weight: 900;
+    color: #ffd700;
+    white-space: nowrap;
+}
+
+.comp-col .col-score-sm {
+    font-size: 0.62em;
+    color: #aaa;
+    white-space: nowrap;
+}
+
+.comp-col .col-score-sm strong {
+    color: #eee;
+}
+
+.comp-col.winner .col-price-big {
+    color: #00e5ff;
+    text-shadow: 0 0 8px rgba(0, 229, 255, 0.4);
+}
+
+.comp-col.winner .col-score-sm strong {
+    color: #00e5ff;
+}
+
+/* Veredicto ganador como chip compacto junto al nombre del arma */
+.comp-verdict-chip {
+    background: rgba(0, 229, 255, 0.1);
+    border: 1px solid rgba(0, 229, 255, 0.35);
+    color: #00e5ff;
+    font-size: 0.6em;
+    font-weight: 900;
+    padding: 2px 8px;
+    border-radius: 999px;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+}
+
+@media (max-width: 480px) {
+    #riven-appraisal-hud {
+        /* top/right inline (init + drag) mandan; solo garantizamos que quepa en alto */
+        max-height: calc(100vh - 70px);
+    }
+
+    .comp-col .col-title,
+    .comp-col .col-score-sm {
+        font-size: 0.58em;
+    }
+
+    .comp-col .col-price-big {
+        font-size: 0.9em;
+    }
 }
 
 @keyframes slideIn {
