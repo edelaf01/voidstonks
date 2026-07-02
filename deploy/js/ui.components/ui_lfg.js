@@ -111,6 +111,10 @@ export function updateLFGUI() {
                 <option value="Flood">Flood</option>
                 <option value="Siphon">Siphon</option>
             </select>`;
+  } else if (act === "sirius" || act === "orion") {
+    container.innerHTML = createInfo(tips.jadeConstellation);
+  } else if (act === "follie") {
+    container.innerHTML = createInfo(tips.follie);
   } else if (act === "archon") {
     container.innerHTML = createInfo(tips.archon);
   } else if (act === "sortie") {

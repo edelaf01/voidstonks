@@ -28,6 +28,7 @@ import {
   updateLFGUI,
 } from "./ui.components/ui_lfg.js";
 import { populateRivenSelects, initRivenMarketIndex, updateIndexTranslations, filterRivenIndex, stopRivenShowcase } from "./ui.components/ui_rivens.js?v=1.10";
+import { applyArbTexts } from "./ui.components/ui_arbitrage.js";
 import { initSyncPanel } from "./ui.components/ui_sync.js";
 import { initFissurePanel, updateRecommendedMissions } from "./ui.components/ui_fissures.js";
 import { state, saveAppState, updateInventoryCount } from "./state.js";
@@ -93,6 +94,7 @@ export function switchTab(mode) {
     if (typeof initRivenMarketIndex === "function") {
       initRivenMarketIndex().catch(console.error);
     }
+    applyArbTexts();
   } else if (mode === "set") {
     if (typeof globalThis.searchSet === "function") {
       globalThis.searchSet();
@@ -426,6 +428,7 @@ export function updateUILabels() {
       filterRivenIndex();
     }
   }
+  applyArbTexts();
   triggerSideEffects(t);
 }
 
