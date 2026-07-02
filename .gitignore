@@ -13,11 +13,7 @@ worker-code.js
 /antiguo
 deploy/assets/json/metastats.json.bak
 .cursorrules
-<<<<<<< Updated upstream
-/scripts-actu
-=======
 .gitignore
->>>>>>> Stashed changes
 .agents/
 .agents/
 .agents/
@@ -30,9 +26,18 @@ agents.md
 /deploy/js/tests
 deploy/js/utils/RIVEN_VALUATION.md
 deploy/temp_inspect.html
-/scripts-actu
-scripts-actu/actualizarjsonimg.py
->>>>>>> Stashed changes
-*.py
-/scripts-actu
-temp_inspect.html
+# scripts-actu ignorado SALVO lo que necesita el workflow retrain-ml.yml en CI
+# (regla /dir a secas impediría re-incluir hijos; por eso /dir/* + negaciones)
+/scripts-actu/*
+!/scripts-actu/ML-rivenvaluation/
+/scripts-actu/ML-rivenvaluation/*
+scripts-actu/img/
+/tests
+deploy/rootCA.crt
+/.codebase-memory
+tests/import-graph.test.mjs
+deploy/rootCA.pem
+.gitignore
+certs/dev-key.pem
+certs/dev.pem
+package.json
