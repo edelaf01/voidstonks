@@ -15,6 +15,12 @@
   --riven-text-dim: #94a3b8;
   --riven-border: #334155;
   --riven-border-focus: #475569;
+  /* Paleta de grades unificada (misma que usa el HUD del escáner en JS) */
+  --grade-s: #ffd700;
+  --grade-a: #ff8c00;
+  --grade-b: #00e5ff;
+  --grade-c: #a879ec;
+  --grade-f: #ff4d4d;
 }
 
 /* LAYOUT PRINCIPAL */
@@ -647,3 +653,121 @@
   color: #fb7185;
   background: rgba(251, 113, 133, 0.07);
 }
+/* La tarjeta de tasación (.gsc) y las filas compactas del grader viven en
+   css/components/riven-grader.css (este fichero no está enlazado en index.html). */
+
+/* ============================================================
+   TABLA COMPACTA DE STATS (stat | valor | ideal | grade)
+   ============================================================ */
+.stats-table {
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.035) 0%, rgba(0, 0, 0, 0.25) 100%);
+  border: 1px solid rgba(208, 96, 255, 0.18);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+.stats-table .st-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto 34px;
+  align-items: center;
+  column-gap: 10px;
+  padding: 5px 10px;
+  font-size: 0.76rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.stats-table .st-row:last-child {
+  border-bottom: none;
+}
+
+.stats-table .st-row:nth-child(even):not(.st-head) {
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.stats-table .st-head {
+  font-size: 0.6rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #8a7aa0;
+  background: rgba(0, 0, 0, 0.3);
+  border-bottom: 1px solid rgba(208, 96, 255, 0.2);
+}
+
+.stats-table .st-name {
+  color: #e2e8f0;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.stats-table .st-row.neg .st-name,
+.stats-table .st-row.neg .st-val {
+  color: #ef4444;
+}
+
+.stats-table .st-val {
+  font-weight: 800;
+  color: #00ff88;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.stats-table .st-ideal {
+  color: #8a7aa0;
+  font-size: 0.9em;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.stats-table .st-grade {
+  justify-self: center;
+  min-width: 28px;
+  padding: 1px 4px;
+  border-radius: 4px;
+  font-weight: 900;
+  font-size: 0.72rem;
+  text-align: center;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+.stats-table .st-grade.grade-s {
+  background: linear-gradient(135deg, var(--grade-s), #b8860b);
+  color: #000;
+  box-shadow: 0 0 8px rgba(255, 215, 0, 0.35);
+}
+
+.stats-table .st-grade.grade-a {
+  background: linear-gradient(135deg, var(--grade-a), #c96a00);
+  color: #000;
+  box-shadow: 0 0 6px rgba(255, 140, 0, 0.3);
+}
+
+.stats-table .st-grade.grade-b {
+  background: linear-gradient(135deg, var(--grade-b), #0099cc);
+  color: #000;
+}
+
+.stats-table .st-grade.grade-c {
+  background: linear-gradient(135deg, var(--grade-c), #6a4b9c);
+  color: #fff;
+}
+
+.stats-table .st-grade.grade-f {
+  background: #2a2a33;
+  color: #888;
+}
+
+/* Badge del hero con la MISMA paleta unificada que la tabla y el HUD (S oro, A naranja,
+   B cyan, C púrpura) — las clases globales de styles.css usan otra paleta antigua. */
+.gsc-badge.grade-s { background: linear-gradient(135deg, var(--grade-s), #b8860b); color: #000; }
+.gsc-badge.grade-a { background: linear-gradient(135deg, var(--grade-a), #c96a00); color: #000; }
+.gsc-badge.grade-b { background: linear-gradient(135deg, var(--grade-b), #0099cc); color: #000; }
+.gsc-badge.grade-c { background: linear-gradient(135deg, var(--grade-c), #6a4b9c); color: #fff; }
+.gsc-badge.grade-f { background: #2a2a33; color: #888; }

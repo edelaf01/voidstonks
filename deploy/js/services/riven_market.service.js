@@ -435,8 +435,8 @@ export function getMetaStats(weaponName, weaponType) {
 // Short-lived memory cache for live Riven auctions (15 minutes) to prevent spamming the worker on stat toggle
 const liveAuctionsCache = {};
 
-export async function fetchSimilarRivens(weaponName, positiveStats, negativeStat) {
-    if (!weaponName || positiveStats.length === 0) return [];
+export async function fetchSimilarRivens(weaponName, positiveStats, negativeStat, withMeta = false) {
+    if (!weaponName || positiveStats.length === 0) return withMeta ? { auctions: [], anchor: null } : [];
 
     const slug = getRivenSlug(weaponName);
     const cacheKey = slug.toLowerCase();
@@ -582,24 +582,51 @@ export async function fetchSimilarRivens(weaponName, positiveStats, negativeStat
         const requiredMatches = Math.max(1, searchPosKeys.length > 1 ? 2 : 1);
         const filtered = scoredAuctions.filter(item => item.matchCount >= requiredMatches);
 
-        // Sort: First by similarity score (descending), then by price (ascending)
+        // Estado del vendedor: ingame (comprable YA) > online (en la web) > offline (no comprable).
+        // Solo ingame/online cuentan como "mercado real"; offline son listados fantasma.
+        const statusRank = (s) => (s === "ingame" ? 2 : s === "online" ? 1 : 0);
+
+        // Sort: similitud (desc) -> estado del vendedor (ingame primero) -> precio (asc)
         filtered.sort((a, b) => {
             if (b.similarityScore !== a.similarityScore) {
                 return b.similarityScore - a.similarityScore;
             }
+            const stA = statusRank(a.auction.owner.status), stB = statusRank(b.auction.owner.status);
+            if (stA !== stB) return stB - stA;
             const priceA = a.auction.buyout_price || a.auction.starting_price || 99999;
             const priceB = b.auction.buyout_price || b.auction.starting_price || 99999;
             return priceA - priceB;
         });
 
-        // Extract auctions
-        const finalResults = filtered.map(item => item.auction);
+        // Extract auctions. Top 8 más similares (ingame primero); la UI hace scroll.
+        const top = filtered.map(item => item.auction).slice(0, 8);
+        if (!withMeta) return top;
 
-        // Return top 4 most similar / cheapest
-        return finalResults.slice(0, 4);
+        // ANCLA DE COMPARABLES: solo coincidencias EXACTAS de combo (todos los positivos y la
+        // misma negativa, o ambos sin negativa) de vendedores no-offline. Se usa el p30 de los
+        // asks como proxy de precio de cierre: los buyout de WFM son precios PEDIDOS (inflados),
+        // el percentil bajo es lo que de verdad se paga.
+        const exact = filtered.filter((it) => {
+            if (it.matchCount !== searchPosKeys.length) return false;
+            const negs = it.auction.item.attributes.filter(a => !a.positive).map(a => getCanonicalStatKey(a.url_name));
+            return searchNegKey ? negs.includes(searchNegKey) : negs.length === 0;
+        });
+        const asks = exact
+            .map(it => it.auction.buyout_price || it.auction.starting_price)
+            .filter(p => Number.isFinite(p) && p > 0)
+            .sort((a, b) => a - b);
+        let anchor = null;
+        if (asks.length >= 3) {
+            anchor = {
+                price: asks[Math.min(asks.length - 1, Math.floor(asks.length * 0.30))],  // ~p30
+                median: asks[Math.floor((asks.length - 1) / 2)],
+                n: asks.length
+            };
+        }
+        return { auctions: top, anchor };
 
     } catch (e) {
         console.error("Failed to fetch similar rivens:", e);
-        return [];
+        return withMeta ? { auctions: [], anchor: null } : [];
     }
 }

@@ -1,13 +1,5 @@
 import { state } from "../state.js";
-import { RIVEN_STATS, RIVEN_BASE_STATS, WEAPON_TYPE_IDX, RIVEN_WEIGHTS } from "../config.js";
-
-// Bridges RIVEN_STATS.name_en → RIVEN_BASE_STATS keys where they differ.
-// "Fire Rate / Attack Speed" resolves per weapon type (melee → Attack Speed).
-const BASE_STAT_ALIAS = {
-    "Crit Chance": "Critical Chance",
-    "Crit Damage": "Critical Damage",
-    "Projectile Speed": "Projectile Speed",
-};
+import { RIVEN_STATS, RIVEN_BASE_STATS, WEAPON_TYPE_IDX, RIVEN_WEIGHTS, resolveBaseStatKey } from "../config.js";
 
 const RIVEN_NAMING_DICT = {
   "critical_chance": { prefix: "Crita", suffix: "cron" },
@@ -187,13 +179,10 @@ export const RivenOCRService = {
 
     /**
      * Resolves the RIVEN_BASE_STATS key for a parsed stat name, given the weapon type index.
-     * Firearms use "Fire Rate"; melee (idx 3) uses "Attack Speed".
+     * Firearms use "Fire Rate"; melee (idx 3) uses "Attack Speed". Shared with the grading path.
      */
     _baseStatKey(nameEn, typeIdx) {
-        if (nameEn === "Fire Rate / Attack Speed") {
-            return typeIdx === 3 ? "Attack Speed" : "Fire Rate";
-        }
-        return BASE_STAT_ALIAS[nameEn] || nameEn;
+        return resolveBaseStatKey(nameEn, typeIdx);
     },
 
     /**

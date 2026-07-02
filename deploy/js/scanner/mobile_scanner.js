@@ -1,10 +1,10 @@
-import { getPriceValue, getSlug } from "./api.js";
-import { showToast } from "./ui.components/ui_components.js";
-import { state } from "./state.js";
-import { TEXTS } from "./config.js";
-import { OCRService } from "./services/ocr.service.js";
-import { OCRRepository } from "./repositories/ocr.repository.js";
-import { OpenCVEngine } from "./utils/opencv_engine.js";
+import { getPriceValue, getSlug } from "../api.js";
+import { showToast } from "../ui.components/ui_components.js";
+import { state } from "../state.js";
+import { TEXTS } from "../config.js";
+import { OCRService } from "../services/ocr.service.js";
+import { OCRRepository } from "../repositories/ocr.repository.js";
+import { OpenCVEngine } from "../utils/opencv_engine.js";
 
 /**
  * MobileScanner - Modularized and Optimized for Production
@@ -19,7 +19,11 @@ export class MobileScanner {
   calibratedColor = null;
   debugMode = false;
   isProcessing = false;
-  discoveryInterval = null;
+  discoveryActive = false;
+  discoveryTimer = null;
+  photoEl = null;
+  photoUrl = null;
+  visionCalib = null; // {satMin,valMin} aprendidos por auto-calibración
   guide = null;
 
   toggleScannerDebug() {
@@ -149,6 +153,18 @@ export class MobileScanner {
     shutterBtn.onclick = () => this.captureAndProcess();
     overlay.appendChild(shutterBtn);
 
+    // Subir foto del galería/disco y procesarla con el mismo pipeline que la cámara.
+    const fileInput = document.createElement("input");
+    fileInput.type = "file"; fileInput.accept = "image/*"; fileInput.style.display = "none";
+    fileInput.onchange = () => { const f = fileInput.files[0]; fileInput.value = ""; if (f) this.processUploadedPhoto(f); };
+    overlay.appendChild(fileInput);
+
+    const uploadBtn = document.createElement("button");
+    uploadBtn.innerHTML = "📁"; uploadBtn.title = "Subir foto";
+    uploadBtn.style.cssText = "position:absolute; bottom:48px; left:calc(50% + 75px); width:52px; height:52px; border-radius:50%; border:1px solid #00ff78; background:rgba(0,255,120,0.15); color:#00ff78; font-size:22px; z-index:100020; cursor:pointer; pointer-events:auto;";
+    uploadBtn.onclick = () => fileInput.click();
+    overlay.appendChild(uploadBtn);
+
     const countSelector = document.createElement("div"); countSelector.style.cssText = "position:absolute; bottom:130px; left:50%; transform:translateX(-50%); display:flex; gap:10px; z-index:100025; pointer-events:auto;";
     for (let i = 1; i <= 4; i++) {
       const btn = document.createElement("button"); btn.innerText = i; btn.id = `btn-count-${i}`;
@@ -237,114 +253,175 @@ export class MobileScanner {
   }
 
   close() {
+    if (this.photoUrl) { URL.revokeObjectURL(this.photoUrl); this.photoUrl = null; }
+    this.photoEl = null;
     if (this.stream) {
       this.stream.getTracks().forEach(track => track.stop());
     }
     const overlay = document.getElementById("mobile-scan-overlay");
     if (overlay) overlay.remove();
-    if (this.discoveryInterval) clearInterval(this.discoveryInterval);
+    this.discoveryActive = false;
+    if (this.discoveryTimer) clearTimeout(this.discoveryTimer);
     globalThis.mobileScanner = null;
     globalThis.currentScanner = null;
   }
 
+  // Bucle de detección EN TIEMPO REAL: se auto-reprograma tan rápido como permite el OCR.
+  // Gate de nitidez (salta frames borrosos/movidos), aviso de reflejo y auto-calibrado de color.
   async startDiscoveryLoop() {
-    if (this.discoveryInterval) return;
-    this.discoveryInterval = setInterval(async () => {
-      const worker3 = OCRRepository.workers ? OCRRepository.workers[2] : null;
-      if (this.isProcessing || !worker3) return;
-      try {
-        const video = this.video;
-        const vw = video.videoWidth, vh = video.videoHeight;
-        if (vw < 50 || vh < 50) return;
+    if (this.discoveryActive) return;
+    this.discoveryActive = true;
 
+    const tick = async () => {
+      if (!this.discoveryActive) return;
+      let delay = 90;
+      try {
+        const worker3 = OCRRepository.workers ? OCRRepository.workers[2] : null;
+        const video = this.video;
+        // Con foto activa, sin worker o cámara no lista: no escaneamos la cámara.
+        if (!worker3 || this.isProcessing || this.photoEl || !video || video.videoWidth < 50) {
+          this.discoveryTimer = setTimeout(tick, 250);
+          return;
+        }
+
+        const vw = video.videoWidth, vh = video.videoHeight;
         const guide = document.getElementById("scanner-box-guide");
         const vRect = video.getBoundingClientRect();
         const gRect = guide ? guide.getBoundingClientRect() : { top: vRect.top + (vRect.height - 180) / 2, height: 180, left: vRect.left, width: vRect.width };
 
         const videoAspect = vw / vh, screenAspect = vRect.width / vRect.height;
         let scale, offsetX = 0, offsetY = 0;
-        if (videoAspect > screenAspect) {
-          scale = vRect.height / vh;
-          offsetX = (vh * videoAspect * scale - vRect.width) / 2;
-        } else {
-          scale = vRect.width / vw;
-          offsetY = (vw / videoAspect * scale - vRect.height) / 2;
-        }
+        if (videoAspect > screenAspect) { scale = vRect.height / vh; offsetX = (vh * videoAspect * scale - vRect.width) / 2; }
+        else { scale = vRect.width / vw; offsetY = (vw / videoAspect * scale - vRect.height) / 2; }
 
         const cX = Math.max(0, Math.floor(((gRect.left - vRect.left) + offsetX) / scale));
         const cY = Math.max(0, Math.floor(((gRect.top - vRect.top) + offsetY) / scale));
         const cW = Math.min(vw - cX, Math.floor(gRect.width / scale));
         const cH = Math.min(vh - cY, Math.floor(gRect.height / scale));
 
-        const canvasScale = 0.4;
+        // Escala a una anchura objetivo (~1100px) para que el texto quede a tamaño legible para
+        // el OCR sea cual sea el tamaño de la guía -> no hay que "encajar" los nombres justos.
+        const canvasScale = Math.max(0.3, Math.min(2.2, 1100 / cW));
         const cvs = document.createElement("canvas");
         cvs.width = Math.floor(cW * canvasScale); cvs.height = Math.floor(cH * canvasScale);
-        const ctx = cvs.getContext("2d");
-        if (cvs.width <= 0 || cvs.height <= 0) return;
-        ctx.drawImage(video, cX, cY, cW, cH, 0, 0, cvs.width, cvs.height);
+        if (cvs.width <= 0 || cvs.height <= 0) { this.discoveryTimer = setTimeout(tick, 250); return; }
+        cvs.getContext("2d").drawImage(video, cX, cY, cW, cH, 0, 0, cvs.width, cvs.height);
 
-        if (OpenCVEngine.isReady) {
-          OpenCVEngine.processForOCR(cvs, "discovery", this.calibratedColor, state.visionSettings);
+        const s = state.visionSettings || {};
+
+        // 1) GATE DE NITIDEZ (desenfoque / movimiento brusco): solo leemos frames nítidos.
+        const sharp = OpenCVEngine.isReady ? OpenCVEngine.sharpness(cvs) : 999;
+        if (sharp < (s.sharpnessMin ?? 45)) {
+          this.setVisionStatus("📷 ENFOCA / MANTÉN FIRME", "#f1c40f");
+          if (guide) { guide.style.borderColor = "rgba(241,196,15,0.7)"; guide.style.boxShadow = "none"; }
+          this.discoveryTimer = setTimeout(tick, 80);
+          return;
+        }
+
+        // 2) REFLEJO DE PANTALLA (glare): avisamos para que cambien el ángulo.
+        const glare = OpenCVEngine.isReady ? OpenCVEngine.glareLevel(cvs) : 0;
+        const glareHigh = glare > (s.glareMax ?? 0.12);
+        this.setVisionStatus(glareHigh ? "⚠️ REFLEJO — CAMBIA EL ÁNGULO" : `● BUSCANDO (foco ${Math.round(sharp)})`, glareHigh ? "#e67e22" : "#00e5ff");
+
+        // Binariza por color: usa el calibrado si existe; si no, detecta el color al vuelo.
+        const liveColor = this.visionCalib?.color || OpenCVEngine.detectAccentColor(cvs);
+        if (liveColor) {
+          OpenCVEngine.binarizeNearColor(cvs, liveColor, this.visionCalib?.tolSq || 2500);
+        } else if (OpenCVEngine.isReady) {
+          OpenCVEngine.isolateAccentText(cvs, state.visionSettings);
         }
 
         const { data } = await OCRRepository.recognize(worker3, cvs);
-        const rewards = OCRService.parseRewards(data);
+        // Filtro estricto (anti-basura tipo "xata ris") + consenso temporal: solo se confirma
+        // un ítem cuando aparece en varios frames; los falsos transitorios se descartan.
+        const strong = OCRService.parseRewards(data).filter(r => (r.ratio ?? 1) >= 0.8);
+        const confirmed = this._voteRewards(strong);
 
         if (guide) {
-          if (rewards.length > 0) {
-            guide.style.borderColor = "#00e5ff";
-            guide.style.boxShadow = "0 0 20px rgba(0, 229, 255, 0.5)";
-          } else {
-            guide.style.borderColor = "rgba(255,255,255,0.4)";
-            guide.style.boxShadow = "none";
-          }
+          if (confirmed.length > 0) { guide.style.borderColor = "#00e5ff"; guide.style.boxShadow = "0 0 20px rgba(0,229,255,0.5)"; }
+          else if (!glareHigh) { guide.style.borderColor = "rgba(255,255,255,0.4)"; guide.style.boxShadow = "none"; }
         }
-        this.updateDiscoveryLabels(rewards, cW, cH, 0, canvasScale);
+        this.updateDiscoveryLabels(confirmed, cW, cH, 0, canvasScale);
+        if (typeof this.onDiscoveryFrame === "function") this.onDiscoveryFrame(confirmed, cW, cH, 0, cvs);
 
-        if (typeof this.onDiscoveryFrame === "function") {
-          this.onDiscoveryFrame(rewards, cW, cH, 0, cvs);
-        }
+        delay = confirmed.length > 0 ? 160 : 50;
       } catch (e) { console.warn("Discovery err", e); }
-    }, 1500);
+      this.discoveryTimer = setTimeout(tick, delay);
+    };
+
+    tick();
   }
 
+  // Consenso temporal con histéresis: un ítem se CONFIRMA tras verse en varios frames (+2 al
+  // verlo, -1 al fallar). Mata los falsos transitorios ("xata ris") y estabiliza la lista, así
+  // updateDiscoveryLabels recibe un conjunto estable (no recrea nada).
+  _voteRewards(items) {
+    this._liveVotes ||= new Map();
+    const now = Date.now();
+    const NEED = 3, MAXV = 6, WINDOW = 3000;
+    const seen = new Set();
+    for (const it of items) {
+      const n = it.name.toUpperCase();
+      seen.add(n);
+      const v = this._liveVotes.get(n) || { hits: 0, shown: false };
+      v.hits = Math.min(MAXV, v.hits + 2);
+      v.lastSeen = now; v.item = it;
+      if (v.hits >= NEED) v.shown = true;
+      this._liveVotes.set(n, v);
+    }
+    const out = [];
+    for (const [n, v] of this._liveVotes) {
+      if (!seen.has(n)) v.hits -= 1;
+      if (v.hits <= 0 || now - v.lastSeen > WINDOW) { this._liveVotes.delete(n); continue; }
+      if (v.shown) out.push(v.item);
+    }
+    return out;
+  }
+
+  // Etiquetas en vivo PERSISTENTES: cada ítem detectado mantiene su badge entre frames (no se
+  // borra/recrea -> sin parpadeo). Se refresca al re-detectar y se desvanece si no se ve ~1.6s.
   updateDiscoveryLabels(items, vidW, vidH, cropY, scale) {
     const layer = document.getElementById("scanner-labels-layer"); if (!layer) return;
-
-    const currentMatches = items.map(it => it.name.toUpperCase());
-    if (layer.dataset.lastKeys === currentMatches.join("|")) return;
-    layer.dataset.lastKeys = currentMatches.join("|");
-    layer.innerHTML = "";
+    const now = Date.now();
+    const TTL = 1600;
+    this._liveLabels ||= new Map();
 
     items.forEach(it => {
-      const label = document.createElement("div");
-      label.className = "premium-mobile-badge";
+      const nameU = it.name.toUpperCase();
+      const targetX = Math.max(0.06, Math.min(0.94, (it.xPos || (vidW * scale) / 2) / (vidW * scale)));
 
-      const xNorm = it.xPos / (vidW * scale);
-      const yNorm = 0.5;
-
-      label.style.left = `${xNorm * 100}%`;
-      label.style.top = `${yNorm * 100}%`;
-
-      const itemNameBase = it.name.toUpperCase();
-      const price = getPriceValue(itemNameBase, getSlug(itemNameBase));
-      const owned = (state.primeInventory && state.primeInventory[itemNameBase]) || 0;
-      const priceText = typeof price === 'number' ? price : "—";
-
-      label.innerHTML = `
-        <div class="pmb-name">${itemNameBase}</div>
-        <div class="pmb-data">
-          <div class="pmb-price">
-            <span style="width:8px;height:8px;background:#f1c40f;border-radius:50%;display:inline-block;"></span>
-            ${priceText}
-          </div>
-          <div class="pmb-owned">INV: ${owned}</div>
-        </div>
-      `;
-      layer.appendChild(label);
-      setTimeout(() => { if (label) label.style.opacity = "0"; }, 1400);
-      setTimeout(() => { if (label) label.remove(); }, 1800);
+      let e = this._liveLabels.get(nameU);
+      if (!e) {
+        const label = document.createElement("div");
+        label.className = "premium-mobile-badge";
+        const price = getPriceValue(nameU, getSlug(nameU));
+        const owned = (state.primeInventory && state.primeInventory[nameU]) || 0;
+        const priceText = typeof price === "number" ? price : "—";
+        label.innerHTML = `
+          <div class="pmb-name">${nameU}</div>
+          <div class="pmb-data">
+            <div class="pmb-price"><span style="width:8px;height:8px;background:#f1c40f;border-radius:50%;display:inline-block;"></span> ${priceText}</div>
+            <div class="pmb-owned">INV: ${owned}</div>
+          </div>`;
+        label.style.top = "50%";
+        layer.appendChild(label);
+        e = { el: label, x: targetX };
+        this._liveLabels.set(nameU, e);
+      }
+      e.lastSeen = now;
+      e.x = e.x * 0.6 + targetX * 0.4;   // suavizado de posición (anti-jitter)
+      e.el.style.left = `${e.x * 100}%`;
+      e.el.style.opacity = "1";
     });
+
+    // Desvanece y elimina las que no se han visto en TTL.
+    for (const [name, e] of this._liveLabels) {
+      if (now - e.lastSeen > TTL) {
+        e.el.style.opacity = "0";
+        setTimeout(() => { if (e.el && e.el.parentNode) e.el.remove(); }, 350);
+        this._liveLabels.delete(name);
+      }
+    }
   }
 
   async captureAndProcess() {
@@ -361,114 +438,50 @@ export class MobileScanner {
     }
 
     try {
-      const video = this.video;
-      const vw = video.videoWidth, vh = video.videoHeight;
+      // Fuente: foto subida (si está activa) o la cámara.
+      const srcEl = this.photoEl || this.video;
+      const vw = srcEl.naturalWidth || srcEl.videoWidth || 0;
+      const vh = srcEl.naturalHeight || srcEl.videoHeight || 0;
       if (vw < 50 || vh < 50) {
-        showToast("Cámara no lista...", "warning");
+        showToast("Fuente no lista...", "warning");
         this.isProcessing = false;
+        this.setVisionStatus("READY", "#506070");
         return;
       }
       const guide = document.getElementById("scanner-box-guide");
-      const vRect = video.getBoundingClientRect();
+      const vRect = srcEl.getBoundingClientRect();
       const gRect = guide.getBoundingClientRect();
 
-      const videoAspect = vw / vh, screenAspect = vRect.width / vRect.height;
-      let scale, offsetX = 0, offsetY = 0;
-      if (videoAspect > screenAspect) {
-        scale = vRect.height / vh;
-        offsetX = (vh * videoAspect * scale - vRect.width) / 2;
-      } else {
-        scale = vRect.width / vw;
-        offsetY = (vw / videoAspect * scale - vRect.height) / 2;
-      }
+      // El recorte debe respetar el object-fit del elemento: la foto se muestra con
+      // 'contain' (imagen entera, alineas libre); la cámara con 'cover' (llena la pantalla).
+      const fit = this.photoEl ? "contain" : "cover";
+      const s = fit === "contain"
+        ? Math.min(vRect.width / vw, vRect.height / vh)
+        : Math.max(vRect.width / vw, vRect.height / vh);
+      const dispW = vw * s, dispH = vh * s;
+      const dx = (vRect.width - dispW) / 2;   // desplazamiento del contenido dentro del elemento
+      const dy = (vRect.height - dispH) / 2;
 
-      const cX = Math.floor(((gRect.left - vRect.left) + offsetX) / scale);
-      const cY = Math.floor(((gRect.top - vRect.top) + offsetY) / scale);
-      const cW = Math.floor(gRect.width / scale);
-      const cH = Math.floor(gRect.height / scale);
+      const gx = gRect.left - vRect.left, gy = gRect.top - vRect.top;
+      let cX = Math.round((gx - dx) / s);
+      let cY = Math.round((gy - dy) / s);
+      let cW = Math.round(gRect.width / s);
+      let cH = Math.round(gRect.height / s);
+      // Clamp a los límites de la fuente (la guía puede salirse de la imagen en 'contain').
+      cX = Math.max(0, Math.min(vw - 1, cX));
+      cY = Math.max(0, Math.min(vh - 1, cY));
+      cW = Math.max(1, Math.min(vw - cX, cW));
+      cH = Math.max(1, Math.min(vh - cY, cH));
 
       const mainCvs = document.createElement("canvas");
       mainCvs.width = cW; mainCvs.height = cH;
-      const mainCtx = mainCvs.getContext("2d");
-      mainCtx.drawImage(video, cX, cY, cW, cH, 0, 0, cW, cH);
+      mainCvs.getContext("2d").drawImage(srcEl, cX, cY, cW, cH, 0, 0, cW, cH);
 
-      const strips = [];
-      const stripW = cW / this.rewardCount;
-      for (let i = 0; i < this.rewardCount; i++) {
-        strips.push({ x: i * stripW, y: 0, w: stripW, h: cH });
-      }
-
-      const debugLog = document.getElementById("scanner-debug-log");
-      const sideGallery = document.getElementById("scanner-side-gallery");
-      if (debugLog && this.debugMode) debugLog.innerHTML = "<b>DEBUGLOG:</b><br>";
-      if (sideGallery && this.debugMode) sideGallery.innerHTML = "<div style='color:#00e5ff; font-size:10px; font-weight:900; border-bottom:1px solid #333;'> FEED</div>";
-
-      const results = [];
-      const ocrPromises = strips.map(async (strip, idx) => {
-        const blockCvs = document.createElement("canvas");
-        let blockScale = 120 / strip.h;
-        blockScale = Math.min(5, Math.max(2.5, blockScale));
-        blockCvs.width = Math.floor(strip.w * blockScale);
-        blockCvs.height = Math.floor(strip.h * blockScale);
-        const bCtx = blockCvs.getContext("2d");
-
-        bCtx.drawImage(mainCvs, strip.x, strip.y, strip.w, strip.h, 0, 0, blockCvs.width, blockCvs.height);
-
-        if (OpenCVEngine.isReady) {
-          OpenCVEngine.processForOCR(blockCvs, "soft", this.calibratedColor, state.visionSettings);
-        }
-
-        const originalUrl = blockCvs.toDataURL("image/webp", 0.6);
-        // Safety: width must be at least 3 for Tesseract
-        if (blockCvs.width < 10) {
-          console.warn(`[OCR] Strip ${idx} too small (${blockCvs.width}x${blockCvs.height}), skipping.`);
-          return;
-        }
-
-        const labeledUrl = blockCvs.toDataURL("image/webp", 0.6);
-
-        // Assign worker from pool (cycle through top 3)
-        const worker = workers[idx % workers.length];
-
-        // Timeout protection for OCR
-        const timeoutPromise = new Promise(resolve => setTimeout(() => resolve({ data: { text: "", confidence: 0 } }), 10000));
-        const { data } = await Promise.race([
-          OCRRepository.recognize(worker, blockCvs),
-          timeoutPromise
-        ]);
-
-        if (debugLog && this.debugMode) {
-          const div = document.createElement("div");
-          div.innerHTML = `<span style="color:#00e5ff">STRIP ${idx}:</span> ${data.text.replaceAll("\n", " ")}`;
-          debugLog.appendChild(div);
-        }
-
-        if (sideGallery && this.debugMode) {
-          const block = document.createElement("div");
-          block.style.cssText = "background:rgba(255,255,255,0.05); border-radius:6px; padding:6px; font-size:8px;";
-          const cleanText = (data.text || "").trim();
-          block.innerHTML = `
-              <div style="margin-bottom:4px; font-weight:900; color:#00e5ff;">BLOQUE ${idx}</div>
-              <img src="${originalUrl}" style="width:100%; border:1px solid #444;" />
-              <img src="${labeledUrl}" style="width:100%; border:1px solid #00e5ff; margin-top:4px;" title="${cleanText}" />
-           `;
-          sideGallery.appendChild(block);
-        }
-
-        data.imageW = 1000;
-        const detectedItems = OCRService.parseRewards(data);
-        detectedItems.forEach(it => {
-          results.push({ ...it, xPos: strip.x + (strip.w / 2) });
-        });
-      });
-
-      await Promise.all(ocrPromises);
-
-      if (results.length > 0) {
-        this.showResults(results);
-      } else {
-        showToast("No se detectaron recompensas");
-      }
+      // Auto-calibra la binarización contra ESTA imagen (barre umbrales hasta leer texto
+      // legible de Warframe) y luego escanea con los parámetros ganadores.
+      this.setVisionStatus("CALIBRANDO...", "#f1c40f");
+      await this.autoCalibrateVision(mainCvs);
+      await this.processStrips(mainCvs);
     } catch (err) {
       console.error(err);
       showToast("Error en captura");
@@ -476,6 +489,203 @@ export class MobileScanner {
       this.isProcessing = false;
       this.setVisionStatus("READY", "#506070");
     }
+  }
+
+  /**
+   * AUTO-CALIBRACIÓN: prueba varias combinaciones de umbral de saturación/brillo, OCR-ea, y
+   * puntúa por nº de recompensas RECONOCIDAS (texto legible de Warframe). Se queda con la
+   * mejor y la guarda en this.visionCalib para la captura y el live. Robusto a fotos de
+   * pantalla (saturación lavada, reflejos, desenfoque): el barrido encuentra el punto bueno.
+   */
+  async autoCalibrateVision(mainCvs) {
+    const workers = OCRRepository.workers;
+    if (!workers || !workers.length) return null;
+
+    // Banda reducida para calibrar rápido.
+    const calScale = Math.min(1, 900 / Math.max(1, mainCvs.width));
+    const calW = Math.max(10, Math.floor(mainCvs.width * calScale));
+    const calH = Math.max(10, Math.floor(mainCvs.height * calScale));
+
+    // 1) COLOR REAL del texto (paleta WF, color más cercano + promedio) sobre ESTA foto.
+    const base = document.createElement("canvas");
+    base.width = calW; base.height = calH;
+    base.getContext("2d").drawImage(mainCvs, 0, 0, calW, calH);
+    const color = OpenCVEngine.detectAccentColor(base);
+
+    const sideGallery = document.getElementById("scanner-side-gallery");
+    if (sideGallery && this.debugMode) {
+      sideGallery.innerHTML = `<div style='color:#f1c40f; font-size:10px; font-weight:900;'>CALIB · color ${color ? `rgb(${color.join(",")})` : "?"}</div>`;
+    }
+    if (!color) { this.visionCalib = null; return null; }
+
+    // 2) Barre la TOLERANCIA (dist² RGB) hasta leer texto legible de Warframe (pocas pasadas = rápido).
+    const tolCandidates = [1600, 3600, 7000];
+    let best = { score: -1, params: null, matches: 0 };
+    for (const tolSq of tolCandidates) {
+      const c = document.createElement("canvas");
+      c.width = calW; c.height = calH;
+      c.getContext("2d").drawImage(mainCvs, 0, 0, calW, calH);
+      OpenCVEngine.binarizeNearColor(c, color, tolSq);
+
+      const timeout = new Promise(r => setTimeout(() => r({ data: { text: "", confidence: 0 } }), 8000));
+      const { data } = await Promise.race([OCRRepository.recognize(workers[0], c), timeout]);
+      data.imageW = 1000;
+      const items = OCRService.parseRewards(data);
+      const score = items.length * 1000 + (data.confidence || 0);
+
+      if (sideGallery && this.debugMode) {
+        const div = document.createElement("div");
+        div.style.cssText = "background:rgba(255,255,255,0.05); border-radius:6px; padding:6px; font-size:8px; margin-bottom:6px;";
+        div.innerHTML = `<div style="color:#f1c40f; font-weight:900;">tol ${tolSq} · match:${items.length} conf:${Math.round(data.confidence || 0)}</div>
+          <img src="${c.toDataURL("image/webp", 0.5)}" style="width:100%; border:1px solid #444; margin-top:3px;" />`;
+        sideGallery.appendChild(div);
+      }
+
+      if (score > best.score) best = { score, params: { color, tolSq }, matches: items.length };
+    }
+
+    this.visionCalib = best.params;
+    if (best.params) console.log(`[CALIB] color rgb(${color.join(",")}) tol ${best.params.tolSq} matches ${best.matches}`);
+    return best;
+  }
+
+  /**
+   * Procesa una imagen-fuente (canvas) partiéndola en tiras verticales -> OpenCV -> OCR -> resultados.
+   * Reutilizado por la captura de cámara y por la subida de fotos del debug scanner.
+   */
+  async processStrips(mainCvs) {
+    const workers = OCRRepository.workers;
+    if (!workers || workers.length === 0) {
+      showToast("Esperando motor OCR...", "warning");
+      return;
+    }
+    const cW = mainCvs.width, cH = mainCvs.height;
+
+    // 1) LOCALIZAR las recompensas: ROIs de texto auto-detectados (clustering OpenCV).
+    //    Si no detecta nada, se procesa la región ENTERA como una sola (sin trocear en casillas;
+    //    parseRewards extrae todos los nombres del texto).
+    let regions = [];
+    if (OpenCVEngine.isReady) {
+      try {
+        regions = (OpenCVEngine.findTextROIs(mainCvs) || [])
+          .filter(r => r.w > cW * 0.03 && r.h > cH * 0.08 && r.h < cH * 0.99);
+      } catch (_) { regions = []; }
+    }
+    const auto = regions.length > 0;
+    if (!auto) regions.push({ x: 0, y: 0, w: cW, h: cH });
+
+    const debugLog = document.getElementById("scanner-debug-log");
+    const sideGallery = document.getElementById("scanner-side-gallery");
+    if (debugLog && this.debugMode) debugLog.innerHTML = `<b>DEBUGLOG</b> (${auto ? "auto-ROI" : "completa"} ×${regions.length}):<br>`;
+    if (sideGallery && this.debugMode) sideGallery.innerHTML = "<div style='color:#00e5ff; font-size:10px; font-weight:900; border-bottom:1px solid #333;'> FEED</div>";
+
+    const results = [];
+    const ocrPromises = regions.map(async (r, idx) => {
+      let blockScale = 120 / r.h;
+      blockScale = Math.min(5, Math.max(2.5, blockScale));
+      const bw = Math.floor(r.w * blockScale), bh = Math.floor(r.h * blockScale);
+      if (bw < 10 || bh < 10) return;
+
+      const blockCvs = document.createElement("canvas");
+      blockCvs.width = bw; blockCvs.height = bh;
+      blockCvs.getContext("2d").drawImage(mainCvs, r.x, r.y, r.w, r.h, 0, 0, bw, bh);
+
+      const originalUrl = this.debugMode ? blockCvs.toDataURL("image/webp", 0.6) : "";
+
+      // 2) BINARIZAR por CERCANÍA al color real del texto (calibrado). Fallback: aislar acento.
+      if (this.visionCalib?.color) {
+        OpenCVEngine.binarizeNearColor(blockCvs, this.visionCalib.color, this.visionCalib.tolSq);
+      } else if (OpenCVEngine.isReady) {
+        OpenCVEngine.isolateAccentText(blockCvs, state.visionSettings);
+      }
+
+      const labeledUrl = this.debugMode ? blockCvs.toDataURL("image/webp", 0.6) : "";
+      const worker = workers[idx % workers.length];
+
+      const timeoutPromise = new Promise(resolve => setTimeout(() => resolve({ data: { text: "", confidence: 0 } }), 10000));
+      const { data } = await Promise.race([
+        OCRRepository.recognize(worker, blockCvs),
+        timeoutPromise
+      ]);
+
+      if (debugLog && this.debugMode) {
+        const div = document.createElement("div");
+        div.innerHTML = `<span style="color:#00e5ff">ROI ${idx}:</span> ${(data.text || "").replaceAll("\n", " ")}`;
+        debugLog.appendChild(div);
+      }
+      if (sideGallery && this.debugMode) {
+        const block = document.createElement("div");
+        block.style.cssText = "background:rgba(255,255,255,0.05); border-radius:6px; padding:6px; font-size:8px;";
+        const cleanText = (data.text || "").trim();
+        block.innerHTML = `
+            <div style="margin-bottom:4px; font-weight:900; color:#00e5ff;">ROI ${idx}</div>
+            <img src="${originalUrl}" style="width:100%; border:1px solid #444;" />
+            <img src="${labeledUrl}" style="width:100%; border:1px solid #00e5ff; margin-top:4px;" title="${cleanText}" />
+         `;
+        sideGallery.appendChild(block);
+      }
+
+      data.imageW = 1000;
+      const detectedItems = OCRService.parseRewards(data);
+      detectedItems.forEach(it => results.push({ ...it, xPos: r.x + (r.w / 2) }));
+    });
+
+    await Promise.all(ocrPromises);
+
+    if (results.length > 0) this.showResults(results);
+    else showToast("No se detectaron recompensas");
+  }
+
+  /**
+   * Carga una foto del disco/galería y la pasa por el MISMO pipeline de tiras que la cámara.
+   * Disponible en el escáner móvil normal y en el debug (que hereda).
+   */
+  // Sube una foto y la procesa ENTERA de forma AUTOMÁTICA (sin alinear): detecta el color del
+  // texto, auto-calibra la binarización y localiza/lee las recompensas. parseRewards descarta
+  // todo lo que no sea un ítem (título, "Owned", nombres de jugador…).
+  async processUploadedPhoto(file) {
+    if (!file) return;
+    if (this.isProcessing) { showToast("Procesando, espera..."); return; }
+    this.isProcessing = true;
+    this.setVisionStatus("ESCANEANDO FOTO...", "#f1c40f");
+    let url = null;
+    try {
+      url = URL.createObjectURL(file);
+      const img = new Image();
+      img.src = url;
+      await new Promise((res, rej) => { img.onload = res; img.onerror = () => rej(new Error("img")); });
+      const w = img.naturalWidth, h = img.naturalHeight;
+      if (w < 10 || h < 10) { showToast("Imagen inválida"); return; }
+
+      // Reescala para rendimiento (foto entera, sin recorte manual).
+      const sc = Math.min(1, 1600 / w);
+      const mainCvs = document.createElement("canvas");
+      mainCvs.width = Math.floor(w * sc); mainCvs.height = Math.floor(h * sc);
+      mainCvs.getContext("2d").drawImage(img, 0, 0, mainCvs.width, mainCvs.height);
+
+      if (this.livePreview) {
+        this.livePreview.width = mainCvs.width; this.livePreview.height = mainCvs.height;
+        this.livePreview.getContext("2d").drawImage(mainCvs, 0, 0);
+      }
+
+      await this.autoCalibrateVision(mainCvs);
+      await this.processStrips(mainCvs);
+    } catch (e) {
+      console.error("[Scanner] processUploadedPhoto:", e);
+      showToast("Error procesando la foto");
+    } finally {
+      if (url) URL.revokeObjectURL(url);
+      this.isProcessing = false;
+      this.setVisionStatus("READY", "#506070");
+    }
+  }
+
+  removePhoto() {
+    if (this.photoEl) { this.photoEl.remove(); this.photoEl = null; }
+    if (this.photoUrl) { URL.revokeObjectURL(this.photoUrl); this.photoUrl = null; }
+    const cb = document.getElementById("scanner-clear-photo");
+    if (cb) cb.style.display = "none";
+    this.setVisionStatus("READY", "#506070");
   }
 
   showResults(items) {

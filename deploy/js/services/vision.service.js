@@ -39,6 +39,7 @@ export const VisionService = {
     _badgeCvs: document.createElement("canvas"),
     _relicSelectionCvs: document.createElement("canvas"),
     _rewardCvs: document.createElement("canvas"),
+    _rewardNamesCvs: document.createElement("canvas"),
     _rivenCvs: document.createElement("canvas"),
     _inventoryCvs: document.createElement("canvas"),
     /**
@@ -662,6 +663,74 @@ export const VisionService = {
         ctx.filter = "grayscale(100%) contrast(400%) brightness(1.3)";
         ctx.drawImage(video, 0, rCropY, width, rCropH, 0, 0, targetW, targetH);
         ctx.filter = "none";
+        return cvs;
+    },
+
+    // Mismo recorte que prepareRewardOCRCanvas pero AÍSLA EL TEXTO DEL NOMBRE POR COLOR (no por gris).
+    // Motivo: el nombre se dibuja en el COLOR DE UI QUE ELIGE EL JUGADOR (catálogo WF_THEMES: naranja,
+    // cian, verde, rosa, rojo...). Al pasar a gris su luminancia ≈ fondo + ilustración dorada y Tesseract
+    // lee basura ("Wudi ZOO Fiime" en vez de "Dual Zoren Prime"). En vez de un color fijo, detectamos el
+    // TONO (hue) dominante de los píxeles saturados (= las letras del nombre; el oro de la ilustración es
+    // menos saturado y no domina) y aislamos ese tono. Así funciona con cualquier color del catálogo y a
+    // cualquier resolución/nº de recompensas. (Los badges N Owned/Crafted los lee la pasada grayscale;
+    // processRewards fusiona ambas listas de palabras antes de parseRewards.)
+    prepareRewardNamesCanvas(video, width, height, scale) {
+        const rCropY = Math.floor(height * 0.185);
+        const rCropH = Math.floor(height * 0.255);
+        const targetW = Math.floor(width * scale);
+        const targetH = Math.floor(rCropH * scale);
+
+        const cvs = this._rewardNamesCvs;
+        cvs.width = targetW;
+        cvs.height = targetH;
+        const ctx = cvs.getContext("2d", { willReadFrequently: true });
+        ctx.drawImage(video, 0, rCropY, width, rCropH, 0, 0, targetW, targetH);
+
+        const img = ctx.getImageData(0, 0, targetW, targetH);
+        const px = img.data;
+
+        const toHSV = (r, g, b) => {
+            r /= 255; g /= 255; b /= 255;
+            const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+            let h = 0;
+            if (d !== 0) {
+                if (mx === r) h = ((g - b) / d) % 6;
+                else if (mx === g) h = (b - r) / d + 2;
+                else h = (r - g) / d + 4;
+                h /= 6; if (h < 0) h += 1;
+            }
+            return [h, mx === 0 ? 0 : d / mx, mx]; // h,s,v en 0..1
+        };
+
+        // 1ª pasada: detectar el HUE dominante del texto (= color de UI elegido por el jugador).
+        // Histograma de tono de los píxeles saturados y brillantes (las letras del nombre).
+        const bins = new Array(36).fill(0);
+        const hsum = new Array(36).fill(0);
+        for (let i = 0; i < px.length; i += 4) {
+            const [h, s, v] = toHSV(px[i], px[i + 1], px[i + 2]);
+            if (v > 0.47 && s > 0.55) {
+                const bi = Math.min(35, Math.floor(h * 36));
+                bins[bi]++; hsum[bi] += h;
+            }
+        }
+        let peak = 0;
+        for (let i = 1; i < 36; i++) if (bins[i] > bins[peak]) peak = i;
+        const Hd = bins[peak] >= 20 ? hsum[peak] / bins[peak] : null; // null = tema crema/claro
+
+        // 2ª pasada: texto del nombre -> negro, resto -> blanco.
+        for (let i = 0; i < px.length; i += 4) {
+            const [h, s, v] = toHSV(px[i], px[i + 1], px[i + 2]);
+            let isText;
+            if (Hd === null) {
+                isText = v > 0.78 && s < 0.45;                 // fallback temas crema/claros: texto brillante
+            } else {
+                let hd = Math.abs(h - Hd); if (hd > 0.5) hd = 1 - hd;
+                isText = v > 0.30 && s > 0.45 && hd < 0.125;   // ~±45°: texto del color del tema, saturado
+            }
+            const val = isText ? 0 : 255;
+            px[i] = px[i + 1] = px[i + 2] = val;
+        }
+        ctx.putImageData(img, 0, 0);
         return cvs;
     },
 

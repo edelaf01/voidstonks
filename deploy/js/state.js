@@ -20,6 +20,7 @@ Object.assign(rawState, {
   completedParts: new Set(),
   lfgPresets: [],
   tradePresets: [],
+  arbSettings: { minSpread: 5, minPct: 8, minPrice: 0, sort: "spread" },
   inventory: [],
   invFilterTier: "ALL",
   invSearchVal: "",
@@ -49,7 +50,11 @@ Object.assign(rawState, {
     ocrLang: "eng",
     showROI: true,
     medianBlur: 9,
-    sharpen: 1
+    sharpen: 1,
+    sharpnessMin: 0,
+    glareMax: 0.12,
+    satMin: 55,
+    valMin: 110
   }
 });
 
@@ -80,6 +85,7 @@ export function saveAppState() {
       completedParts: Array.from(state.completedParts),
       lfgPresets: state.lfgPresets,
       tradePresets: state.tradePresets,
+      arbSettings: state.arbSettings,
       inventory: state.inventory,
       showAllFarms: state.showAllFarms,
       primeInventory: state.primeInventory,
@@ -116,6 +122,7 @@ export function loadAppState() {
     if (typeof data.showAllFarms !== "undefined") state.showAllFarms = data.showAllFarms;
     if (data.lfgPresets) state.lfgPresets = data.lfgPresets;
     if (data.tradePresets) state.tradePresets = data.tradePresets;
+    if (data.arbSettings) state.arbSettings = { ...state.arbSettings, ...data.arbSettings };
     if (data.inventory) state.inventory = data.inventory;
     if (data.primeInventory) state.primeInventory = data.primeInventory;
     if (data.autoSyncRewards !== undefined) state.autoSyncRewards = data.autoSyncRewards;

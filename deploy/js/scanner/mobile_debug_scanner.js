@@ -1,7 +1,7 @@
 import { MobileScanner } from "./mobile_scanner.js";
-import { OCRRepository } from "./repositories/ocr.repository.js";
-import { OCRService } from "./services/ocr.service.js";
-import { showToast } from "./ui.components/ui_components.js";
+import { OCRRepository } from "../repositories/ocr.repository.js";
+import { OCRService } from "../services/ocr.service.js";
+import { showToast } from "../ui.components/ui_components.js";
 
 
 export class MobileDebugScanner extends MobileScanner {
@@ -197,6 +197,8 @@ export class MobileDebugScanner extends MobileScanner {
                         <button onclick="globalThis.currentScanner.switchToScreen()" style="padding:8px; background:rgba(0,229,255,0.1); border:1px solid #00e5ff; color:#00e5ff; font-size:10px; cursor:pointer; border-radius:4px; font-weight:900;">🖥️ PANTALLA</button>
                         <button onclick="globalThis.currentScanner.resetCalibration()" style="padding:8px; background:rgba(255,255,255,0.05); border:1px solid #444; color:#aaa; font-size:10px; cursor:pointer; border-radius:4px;">🔄 RESET</button>
                     </div>
+                    <input type="file" id="debug-photo-input" accept="image/*" style="display:none;" onchange="globalThis.currentScanner.processUploadedPhoto(this.files[0]); this.value='';">
+                    <button onclick="document.getElementById('debug-photo-input').click()" style="width:100%; padding:10px; background:rgba(0,255,120,0.12); border:1px solid #00ff78; color:#00ff78; font-size:11px; cursor:pointer; border-radius:4px; font-weight:900; margin-bottom:12px;">📁 SUBIR FOTO (procesar)</button>
                     <div style="display:flex; justify-content:space-between; font-size:9px; color:#888; margin-bottom:4px;">
                         <span>CROP Y:</span> <span id="debug-crop-y" style="font-weight:bold; color:#00ff78;">AUTO</span>
                     </div>
@@ -242,6 +244,12 @@ export class MobileDebugScanner extends MobileScanner {
             btn.style.borderColor = val ? '#000' : '#444';
             btn.innerText = val ? '🟢 AUTO-CALIBRATE: ON' : '🔴 AUTO-CALIBRATE: OFF';
         }
+    }
+
+    // En debug forzamos la galería de tiras para inspeccionar el preprocesado; el resto lo hace la base.
+    async processUploadedPhoto(file) {
+        this.debugMode = true;
+        return super.processUploadedPhoto(file);
     }
 
 

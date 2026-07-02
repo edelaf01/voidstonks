@@ -1,0 +1,566 @@
+/**
+ * riven-grader.css
+ * Tarjeta de tasación del RIVEN GRADER (.gsc = grade summary card) y filas de
+ * stat compactas del modal. Extraído de riven-module.css (que no está enlazado
+ * en index.html) para que estos estilos carguen de verdad.
+ * Depende de styles.css: .grade-badge-large, .grade-track/.grade-fill y @keyframes pulse.
+ */
+
+:root {
+  /* Fallbacks locales (la paleta principal vive en riven-module.css, no cargado) */
+  --riven-gold: #d4af37;
+  --riven-cyan: #00e5ff;
+}
+
+/* ============================================================
+   TARJETA DE TASACIÓN COMPACTA (.gsc = grade summary card)
+   Jerarquía: precio + grade co-dominantes arriba, chips de
+   métricas secundarias, avisos plegados. Diseñada para caber
+   sin scroll en móvil (~360px).
+   ============================================================ */
+.grade-summary-card.gsc {
+  padding: 12px;
+  background: linear-gradient(160deg, rgba(50, 25, 70, 0.55) 0%, rgba(22, 14, 34, 0.9) 55%, rgba(12, 8, 20, 0.95) 100%);
+  border: 1px solid rgba(208, 96, 255, 0.35);
+  border-radius: 10px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.55),
+              inset 0 1px 0 rgba(208, 96, 255, 0.15),
+              0 0 18px rgba(155, 89, 182, 0.12);
+}
+
+/* Brillo holográfico sutil, mismo lenguaje que la carta riven */
+.grade-summary-card.gsc::before {
+  content: '';
+  position: absolute;
+  top: -60%;
+  left: -30%;
+  width: 160%;
+  height: 160%;
+  background: radial-gradient(circle at 30% 20%, rgba(208, 96, 255, 0.12) 0%, transparent 55%);
+  pointer-events: none;
+}
+
+.gsc-hero {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 12px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  padding: 10px 12px;
+  position: relative;
+}
+
+.gsc-price {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.gsc-price-label {
+  font-size: 0.62rem;
+  font-weight: 800;
+  color: #c080e0;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.gsc-price-value {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 1.55rem;
+  font-weight: 900;
+  color: var(--wf-gold-text, var(--riven-gold));
+  line-height: 1.15;
+  text-shadow: 0 0 14px rgba(212, 175, 55, 0.45), 0 2px 4px rgba(0, 0, 0, 0.6);
+}
+
+.gsc-price-value img {
+  filter: drop-shadow(0 0 4px rgba(212, 175, 55, 0.5));
+}
+
+.gsc-price-range {
+  font-size: 0.72rem;
+  color: #aaa;
+}
+
+.gsc-price-range [data-fair-range] {
+  font-weight: bold;
+  color: #fff;
+}
+
+.gsc-grade {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding-left: 12px;
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.gsc-badge {
+  width: 52px;
+  height: 52px;
+  border-radius: 10px;
+  font-size: 1.7rem;
+  font-weight: 900;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 0 0 18px rgba(220, 179, 255, 0.35),
+              inset 0 1px 0 rgba(255, 255, 255, 0.35),
+              inset 0 -6px 12px rgba(0, 0, 0, 0.35);
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.45);
+}
+
+/* Glow del badge acorde a su grade */
+.gsc-badge.grade-s { box-shadow: 0 0 20px rgba(255, 215, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.35), inset 0 -6px 12px rgba(0, 0, 0, 0.3); }
+.gsc-badge.grade-a { box-shadow: 0 0 18px rgba(0, 229, 255, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.35), inset 0 -6px 12px rgba(0, 0, 0, 0.3); }
+.gsc-badge.grade-b { box-shadow: 0 0 16px rgba(79, 189, 79, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.3), inset 0 -6px 12px rgba(0, 0, 0, 0.3); }
+.gsc-badge.grade-c,
+.gsc-badge.grade-f { box-shadow: 0 0 10px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.12), inset 0 -6px 12px rgba(0, 0, 0, 0.3); }
+
+.gsc-grade-score {
+  font-size: 0.62rem;
+  color: #888;
+}
+
+.gsc-grade-score b {
+  color: #dcb3ff;
+}
+
+.gsc-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.08);
+}
+
+.gsc-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.05) 0%, rgba(0, 0, 0, 0.35) 100%);
+  border: 1px solid rgba(208, 96, 255, 0.22);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 0.68rem;
+  color: #b8a8cc;
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.gsc-chip:hover {
+  border-color: rgba(208, 96, 255, 0.5);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4), 0 0 10px rgba(208, 96, 255, 0.15);
+}
+
+.gsc-chip b {
+  color: #dcb3ff;
+  text-shadow: 0 0 6px rgba(220, 179, 255, 0.35);
+}
+
+.gsc-chip[data-ml-line] {
+  color: #9b8cff;
+  border-color: rgba(155, 140, 255, 0.35);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35), 0 0 10px rgba(155, 140, 255, 0.12);
+}
+
+/* Barra de score global bajo el hero: mismo lenguaje que las barras de la pestaña de grading
+   (.grade-track / .grade-fill S|A|B|C|F definidas en styles.css). */
+.gsc-score-track {
+  grid-column: 1 / -1;
+  height: 5px;
+  margin-top: 2px;
+  background: rgba(0, 0, 0, 0.55);
+  border-radius: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.gsc-score-track .grade-fill {
+  border-radius: 3px;
+}
+
+/* Mini badges de grade dentro de los chips: mismos gradientes que .grade-badge-large
+   de la pestaña de grading, a escala chip. */
+.gsc-mini-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 3px;
+  border-radius: 3px;
+  font-size: 0.62rem;
+  font-weight: 900;
+  line-height: 1;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 1px 3px rgba(0, 0, 0, 0.4);
+  text-shadow: none;
+}
+
+.gsc-mini-badge.grade-s { background: linear-gradient(135deg, gold, #b8860b); color: #000; }
+.gsc-mini-badge.grade-a { background: linear-gradient(135deg, #00e5ff, #09c); color: #000; }
+.gsc-mini-badge.grade-b { background: linear-gradient(135deg, #4fbd4f, #2e7d32); color: #fff; }
+.gsc-mini-badge.grade-c { background: #333; color: #999; }
+.gsc-mini-badge.grade-f { background: #333; color: #888; }
+
+/* Punto de estado del mercado (sustituye a los emojis 🔥/🫧/🧊) */
+.gsc-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+/* Icono de info sin glifo unicode: "i" en círculo, hereda el color del chip */
+.gsc-info {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1px solid currentColor;
+  font-size: 0.55rem;
+  font-weight: 700;
+  font-style: italic;
+  line-height: 1;
+  opacity: 0.55;
+  flex-shrink: 0;
+}
+
+/* Indicador de "actualizando con historial" (sustituye al reloj de arena) */
+.gsc-hist-loading {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-left: 5px;
+  border-radius: 50%;
+  background: #c080e0;
+  box-shadow: 0 0 6px rgba(192, 128, 224, 0.6);
+  animation: pulse 1.2s ease-in-out infinite;
+  vertical-align: middle;
+  cursor: help;
+}
+
+/* Avisos: los largos plegados en <details> (una línea), los cortos en línea */
+.gsc-flags {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.gsc-flags:empty {
+  display: none;
+}
+
+.gsc-flag {
+  border-radius: 6px;
+  font-size: 0.66rem;
+  line-height: 1.35;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, rgba(0, 0, 0, 0.25) 100%);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  transition: border-color 0.2s;
+}
+
+.gsc-flag:hover {
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.gsc-flag summary {
+  cursor: pointer;
+  padding: 5px 8px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  list-style-position: inside;
+}
+
+.gsc-flag > div {
+  padding: 2px 10px 8px;
+  color: #ddd;
+}
+
+.gsc-flag.cyan {
+  border-color: rgba(0, 229, 255, 0.25);
+  background: rgba(0, 229, 255, 0.06);
+}
+
+.gsc-flag.cyan summary { color: var(--riven-cyan); }
+
+.gsc-flag.green {
+  border-color: rgba(0, 255, 120, 0.18);
+  background: rgba(0, 255, 120, 0.05);
+}
+
+.gsc-flag.green summary { color: #00ff78; }
+
+.gsc-flag.amber {
+  border-color: rgba(224, 176, 0, 0.25);
+  background: rgba(224, 176, 0, 0.06);
+}
+
+.gsc-flag.amber summary { color: #e0b000; }
+
+.gsc-flag.red {
+  border-color: rgba(255, 68, 68, 0.25);
+  background: rgba(255, 68, 68, 0.07);
+}
+
+.gsc-flag.red summary { color: #ff8888; }
+
+/* Avisos de una línea: strip con tinte y borde propios, mismo tratamiento que .gsc-flag */
+.gsc-flag-line {
+  font-size: 0.66rem;
+  font-weight: 800;
+  text-align: center;
+  padding: 5px 8px;
+  border-radius: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, rgba(0, 0, 0, 0.25) 100%);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+.gsc-flag-line.green { color: #00ff78; border-color: rgba(0, 255, 120, 0.25); background: rgba(0, 255, 120, 0.06); }
+.gsc-flag-line.amber { color: #e0b000; border-color: rgba(224, 176, 0, 0.3); background: rgba(224, 176, 0, 0.07); }
+.gsc-flag-line.red { color: #ff6666; border-color: rgba(255, 68, 68, 0.3); background: rgba(255, 68, 68, 0.08); }
+
+/* Filas de stat compactas (~26px por stat en vez de ~64px) */
+.grade-card.compact {
+  padding: 5px 8px;
+  margin-bottom: 0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.045) 0%, rgba(0, 0, 0, 0.2) 100%);
+  border: 1px solid rgba(208, 96, 255, 0.14);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  transition: border-color 0.2s, transform 0.15s;
+}
+
+.grade-card.compact:hover {
+  border-color: rgba(208, 96, 255, 0.35);
+  transform: translateX(2px);
+}
+
+.grade-card.compact .grade-badge-large {
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 0 8px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+.grade-card.compact .grade-badge-large {
+  width: 24px;
+  height: 24px;
+  font-size: 0.85em;
+  border-radius: 4px;
+  margin-right: 8px;
+}
+
+.grade-card.compact .grade-info {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  column-gap: 8px;
+  min-width: 0;
+}
+
+.grade-card.compact .grade-stat-name {
+  font-size: 0.78em;
+  margin-bottom: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.grade-card.compact .grade-info > div:nth-child(2) {
+  font-size: 0.68em;
+  color: #aaa;
+  white-space: nowrap;
+}
+
+.grade-card.compact .grade-track {
+  grid-column: 1 / -1;
+  height: 3px;
+  margin-top: 3px;
+}
+
+/* Comparativa del modal: columnas que apilan en pantallas estrechas */
+.results-compare-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  width: 100%;
+}
+
+.results-compare-row > * {
+  /* 260px de base: caben dos columnas lado a lado en la columna central ensanchada
+     del grader (~600px) y apilan en móvil. */
+  flex: 1 1 260px;
+  min-width: 0;
+}
+
+@media (max-width: 480px) {
+  .gsc-price-value {
+    font-size: 1.3rem;
+  }
+
+  .gsc-badge {
+    width: 44px;
+    height: 44px;
+    font-size: 1.4rem;
+  }
+
+  .gsc-chip {
+    font-size: 0.62rem;
+  }
+}
+
+/* ============================================================
+   TABLA COMPACTA DE STATS (stat | valor | ideal | grade)
+   ============================================================ */
+:root {
+  --grade-s: #ffd700;
+  --grade-a: #ff8c00;
+  --grade-b: #00e5ff;
+  --grade-c: #a879ec;
+  --grade-f: #ff4d4d;
+}
+
+.stats-table {
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.035) 0%, rgba(0, 0, 0, 0.25) 100%);
+  border: 1px solid rgba(208, 96, 255, 0.18);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+.stats-table .st-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto 38px;
+  align-items: center;
+  column-gap: 10px;
+  padding: 5px 10px;
+  font-size: 0.76rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.stats-table .st-row:last-child {
+  border-bottom: none;
+}
+
+.stats-table .st-row:nth-child(even):not(.st-head) {
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.stats-table .st-head {
+  font-size: 0.6rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #8a7aa0;
+  background: rgba(0, 0, 0, 0.3);
+  border-bottom: 1px solid rgba(208, 96, 255, 0.2);
+}
+
+.stats-table .st-name {
+  color: #e2e8f0;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.stats-table .st-row.neg .st-name,
+.stats-table .st-row.neg .st-val {
+  color: #ef4444;
+}
+
+.stats-table .st-val {
+  font-weight: 800;
+  color: #00ff88;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.stats-table .st-ideal {
+  color: #8a7aa0;
+  font-size: 0.9em;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.stats-table .st-grade {
+  justify-self: center;
+  min-width: 30px;
+  padding: 1px 4px;
+  border-radius: 4px;
+  font-weight: 900;
+  font-size: 0.72rem;
+  text-align: center;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+.stats-table .st-grade.grade-s {
+  background: linear-gradient(135deg, var(--grade-s), #b8860b);
+  color: #000;
+  box-shadow: 0 0 8px rgba(255, 215, 0, 0.35);
+}
+
+.stats-table .st-grade.grade-a {
+  background: linear-gradient(135deg, var(--grade-a), #c96a00);
+  color: #000;
+  box-shadow: 0 0 6px rgba(255, 140, 0, 0.3);
+}
+
+.stats-table .st-grade.grade-b {
+  background: linear-gradient(135deg, var(--grade-b), #0099cc);
+  color: #000;
+}
+
+.stats-table .st-grade.grade-c {
+  background: linear-gradient(135deg, var(--grade-c), #6a4b9c);
+  color: #fff;
+}
+
+.stats-table .st-grade.grade-f {
+  background: #2a2a33;
+  color: #888;
+}
+
+/* La tabla de stats se cuelga junto a la carta riven generada (flex-wrap: en pantallas
+   estrechas cae debajo de la carta). El perspective inline del contenedor no afecta al flex. */
+#modal-riven-preview-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+.stats-table.beside-card {
+  flex: 1 1 260px;
+  max-width: 380px;
+}

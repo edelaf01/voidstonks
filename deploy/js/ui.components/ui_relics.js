@@ -1,6 +1,6 @@
 import { state, saveAppState } from "../state.js";
 import { TEXTS, DROP_CHANCES } from "../config.js";
-import { addToQueue, getSlug } from "../api.js";
+import { addToQueue, getSlug, getPriceValue } from "../api.js";
 import { escapeHTML } from "./ui_components.js";
 import {
   getItemIcon,
@@ -198,6 +198,59 @@ export function updateRelicTotal() {
     disp.innerHTML = `<div style="text-align:right"><span>~${totalEV.toFixed(1)}<img src="assets/relic_contents/platinum.webp" class="plat-icon"></span><br><span style="font-size:0.7em; color:var(--wf-gold-text)">~${ducatEV.toFixed(1)} <img src="assets/Ducats.webp" class="ducat-icon"></span></div>`;
     disp.classList.remove("loading");
   }
+
+  updateRelicVerdict(state.selectedRelic, totalEV);
+}
+
+/**
+ * Compares the EV of opening (already factoring refinement + squad size)
+ * against the raw market price of selling the relic intact, and renders
+ * an ABRIR / VENDER recommendation badge.
+ * @param {string} relicName
+ * @param {number} openEV  expected platinum from opening
+ */
+export function updateRelicVerdict(relicName, openEV) {
+  const box = document.getElementById("relic-verdict");
+  if (!box || !relicName) return;
+  const es = state.currentLang === "es";
+
+  // warframe.market lists relics with a "_relic" suffix on the slug.
+  const relicSlug = `${getSlug(relicName)}_relic`;
+  getPriceValue(relicName, relicSlug).then((sellPrice) => {
+    // Bail if selection changed while the price was in flight.
+    if (state.selectedRelic !== relicName) return;
+    box.classList.remove("hidden", "open", "sell", "neutral");
+
+    const ref = document.getElementById("refinement");
+    const refText = ref?.options[ref.selectedIndex]?.text || "";
+    const squad = `${state.playerCount}/4`;
+    const ctx = `${refText} · ${squad}`;
+
+    if (!sellPrice || sellPrice <= 0) {
+      box.classList.add("neutral");
+      box.innerHTML = `
+        <span class="verdict-tag">${es ? "ABRIR" : "OPEN"}</span>
+        <span class="verdict-detail">${es ? "Sin precio de venta en el mercado" : "No market sell price"}<br>${ctx}</span>`;
+      return;
+    }
+
+    const open = openEV >= sellPrice;
+    const diff = Math.abs(openEV - sellPrice);
+    box.classList.add(open ? "open" : "sell");
+    const tag = open
+      ? (es ? "ABRIR" : "OPEN")
+      : (es ? "VENDER" : "SELL");
+    const reason = open
+      ? (es ? "Abrir renta más" : "Opening is worth more")
+      : (es ? "Vender intacta renta más" : "Selling intact is worth more");
+
+    box.innerHTML = `
+      <span class="verdict-tag">${tag}</span>
+      <span class="verdict-detail">
+        ${reason} <b>(+${diff.toFixed(1)}<img src="assets/relic_contents/platinum.webp" class="plat-icon">)</b><br>
+        ${es ? "Abrir" : "Open"} ~<b>${openEV.toFixed(1)}</b> · ${es ? "Vender" : "Sell"} ~<b>${sellPrice}</b> · ${ctx}
+      </span>`;
+  });
 }
 
 export function calculateSquadEV(items, refinement, squadSize) {

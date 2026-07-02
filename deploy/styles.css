@@ -1478,6 +1478,73 @@ body.theme-bounties {
   font-weight: 700;
 }
 
+/* Open-vs-sell verdict indicator */
+.relic-verdict {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+  margin-bottom: 15px;
+  border-radius: 6px;
+  border: 1px solid #333;
+  background: #15171b;
+}
+
+.relic-verdict.hidden {
+  display: none;
+}
+
+.relic-verdict .verdict-tag {
+  font-size: 0.8em;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.relic-verdict .verdict-detail {
+  font-size: 0.78em;
+  color: #bbb;
+  text-align: right;
+  line-height: 1.4;
+}
+
+.relic-verdict .verdict-detail b {
+  color: #fff;
+}
+
+/* OPEN -> reuse the cyan "active" palette */
+.relic-verdict.open {
+  border-color: rgba(0, 229, 255, 0.3);
+  background: rgba(0, 229, 255, 0.06);
+}
+.relic-verdict.open .verdict-tag {
+  background: rgba(0, 229, 255, 0.12);
+  color: #00e5ff;
+  border: 1px solid rgba(0, 229, 255, 0.3);
+}
+
+/* SELL -> reuse the gold ducat palette */
+.relic-verdict.sell {
+  border-color: rgba(255, 183, 77, 0.3);
+  background: rgba(255, 183, 77, 0.06);
+}
+.relic-verdict.sell .verdict-tag {
+  background: rgba(255, 183, 77, 0.12);
+  color: var(--wf-gold-text);
+  border: 1px solid rgba(255, 183, 77, 0.3);
+}
+
+/* NEUTRAL / no market data */
+.relic-verdict.neutral .verdict-tag {
+  background: rgba(255, 255, 255, 0.06);
+  color: #bbb;
+  border: 1px solid #444;
+}
+
 
 
 /* Riven Module */
@@ -2358,12 +2425,14 @@ body.theme-bounties {
    9. MODALES (Grading, Scan Results, Updates)
    ========================================= */
 /* Grading Modal Specifics */
+/* La tasación vive en la columna central del grader, bajo la vista previa del mod:
+   caja ligera (la columna ya tiene fondo/borde propios) y a todo el ancho de la columna. */
 .grading-results {
-  grid-column: 1 / span 3;
-  margin-top: 15px;
-  padding: 20px;
-  background: rgba(0, 0, 0, 0.25);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  width: 100%;
+  margin-top: 4px;
+  padding: 0;
+  background: none;
+  border: none;
   border-radius: 8px;
 }
 
@@ -5343,16 +5412,16 @@ button[onclick*="importInventory"]:hover {
   }
   .grading-results {
     grid-column: 1 / span 1 !important;
-    padding: 15px !important;
   }
 }
 
-/* Two-column layout inside the results section */
+/* Layout de resultados dentro de la columna central (~350px): una sola columna,
+   tarjeta de tasación primero y desglose de stats debajo. */
 .results-layout-grid {
-  display: grid;
-  grid-template-columns: 1.2fr 1fr;
-  gap: 20px;
-  align-items: start;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: stretch;
 }
 
 .results-stats-col {
@@ -5361,9 +5430,3 @@ button[onclick*="importInventory"]:hover {
   gap: 8px;
 }
 
-@media (max-width: 768px) {
-  .results-layout-grid {
-    grid-template-columns: 1fr !important;
-    gap: 15px !important;
-  }
-}
