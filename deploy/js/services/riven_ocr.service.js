@@ -1,11 +1,5 @@
 import { state } from "../state.js";
-import { RIVEN_STATS, RIVEN_BASE_STATS, WEAPON_TYPE_IDX, RIVEN_WEIGHTS } from "../config.js";
-
-const BASE_STAT_ALIAS = {
-    "Crit Chance": "Critical Chance",
-    "Crit Damage": "Critical Damage",
-    "Projectile Speed": "Projectile Speed",
-};
+import { RIVEN_STATS, RIVEN_BASE_STATS, WEAPON_TYPE_IDX, RIVEN_WEIGHTS, resolveBaseStatKey } from "../config.js";
 
 const RIVEN_NAMING_DICT = {
   "critical_chance": { prefix: "Crita", suffix: "cron" },
@@ -154,10 +148,7 @@ export const RivenOCRService = {
     },
 
     _baseStatKey(nameEn, typeIdx) {
-        if (nameEn === "Fire Rate / Attack Speed") {
-            return typeIdx === 3 ? "Attack Speed" : "Fire Rate";
-        }
-        return BASE_STAT_ALIAS[nameEn] || nameEn;
+        return resolveBaseStatKey(nameEn, typeIdx);
     },
 
     validateRiven(parsed) {

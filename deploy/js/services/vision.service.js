@@ -28,6 +28,7 @@ export const VisionService = {
     _badgeCvs: document.createElement("canvas"),
     _relicSelectionCvs: document.createElement("canvas"),
     _rewardCvs: document.createElement("canvas"),
+    _rewardNamesCvs: document.createElement("canvas"),
     _rivenCvs: document.createElement("canvas"),
     _inventoryCvs: document.createElement("canvas"),
     getFrameHash(ctx, w, h) {
@@ -577,6 +578,63 @@ export const VisionService = {
         ctx.filter = "grayscale(100%) contrast(400%) brightness(1.3)";
         ctx.drawImage(video, 0, rCropY, width, rCropH, 0, 0, targetW, targetH);
         ctx.filter = "none";
+        return cvs;
+    },
+
+    prepareRewardNamesCanvas(video, width, height, scale) {
+        const rCropY = Math.floor(height * 0.185);
+        const rCropH = Math.floor(height * 0.255);
+        const targetW = Math.floor(width * scale);
+        const targetH = Math.floor(rCropH * scale);
+
+        const cvs = this._rewardNamesCvs;
+        cvs.width = targetW;
+        cvs.height = targetH;
+        const ctx = cvs.getContext("2d", { willReadFrequently: true });
+        ctx.drawImage(video, 0, rCropY, width, rCropH, 0, 0, targetW, targetH);
+
+        const img = ctx.getImageData(0, 0, targetW, targetH);
+        const px = img.data;
+
+        const toHSV = (r, g, b) => {
+            r /= 255; g /= 255; b /= 255;
+            const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+            let h = 0;
+            if (d !== 0) {
+                if (mx === r) h = ((g - b) / d) % 6;
+                else if (mx === g) h = (b - r) / d + 2;
+                else h = (r - g) / d + 4;
+                h /= 6; if (h < 0) h += 1;
+            }
+            return [h, mx === 0 ? 0 : d / mx, mx];
+        };
+
+        const bins = new Array(36).fill(0);
+        const hsum = new Array(36).fill(0);
+        for (let i = 0; i < px.length; i += 4) {
+            const [h, s, v] = toHSV(px[i], px[i + 1], px[i + 2]);
+            if (v > 0.47 && s > 0.55) {
+                const bi = Math.min(35, Math.floor(h * 36));
+                bins[bi]++; hsum[bi] += h;
+            }
+        }
+        let peak = 0;
+        for (let i = 1; i < 36; i++) if (bins[i] > bins[peak]) peak = i;
+        const Hd = bins[peak] >= 20 ? hsum[peak] / bins[peak] : null;
+
+        for (let i = 0; i < px.length; i += 4) {
+            const [h, s, v] = toHSV(px[i], px[i + 1], px[i + 2]);
+            let isText;
+            if (Hd === null) {
+                isText = v > 0.78 && s < 0.45;
+            } else {
+                let hd = Math.abs(h - Hd); if (hd > 0.5) hd = 1 - hd;
+                isText = v > 0.30 && s > 0.45 && hd < 0.125;
+            }
+            const val = isText ? 0 : 255;
+            px[i] = px[i + 1] = px[i + 2] = val;
+        }
+        ctx.putImageData(img, 0, 0);
         return cvs;
     },
 
