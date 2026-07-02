@@ -239,6 +239,7 @@ export const OCRService = {
             imgW: imgW,
             owned: item.owned,
             crafted: item.crafted,
+            ratio: item.ratio,
             confidence: 0.95
         }));
     },

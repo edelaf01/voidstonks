@@ -1,0 +1,83 @@
+name: Reentrenar Riven ML (banda cuantiles)
+
+# Reentrena el tasador (5 cuantiles p25/p50/p80/p90/p95) con datos frescos y publica el bundle
+# del navegador en deploy/assets/ml. Hands-off: el drift del history reajusta el nivel a diario,
+# así que un reentreno semanal basta. Ejecutable a mano con "Run workflow".
+on:
+  schedule:
+    - cron: '0 4 * * 1'      # lunes 04:00 UTC (tras acumular una semana de listings)
+  workflow_dispatch:
+    inputs:
+      xgb_n:
+        description: "n_estimators del modelo full (diagnóstico CI)"
+        default: "400"
+      slim_n:
+        description: "n_estimators del modelo slim (el que se publica)"
+        default: "400"
+
+concurrency:
+  group: retrain-ml
+  cancel-in-progress: false
+
+jobs:
+  retrain:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write        # para commitear el bundle
+    steps:
+      - name: Checkout repo principal (deploy)
+        uses: actions/checkout@v4
+
+      - name: Checkout dataset (repo del oráculo)
+        uses: actions/checkout@v4
+        with:
+          repository: edelaf01/Voidstonks-cron
+          path: _cron
+          # PAT con permiso de LECTURA a Voidstonks-cron (Settings > Secrets > Actions).
+          # Si el repo fuese público, este token no es necesario.
+          token: ${{ secrets.CRON_DATASET_PAT }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Instalar dependencias
+        run: pip install --upgrade pip && pip install xgboost pandas numpy scikit-learn requests
+
+      - name: Descargar serie history (todas las armas)
+        working-directory: scripts-actu/ML-rivenvaluation
+        env:
+          VOIDSTONKS_CSV: ${{ github.workspace }}/_cron/historial_precios/dataset_raw_ml.csv
+        run: python history_fetch.py
+
+      - name: Reentrenar + exportar bundle a deploy/assets/ml
+        working-directory: scripts-actu/ML-rivenvaluation
+        env:
+          VOIDSTONKS_CSV: ${{ github.workspace }}/_cron/historial_precios/dataset_raw_ml.csv
+          VOIDSTONKS_WEAPONS: ${{ github.workspace }}/deploy/assets/json/cleaned_weapons.json
+          DEPLOY_ML_DIR: ${{ github.workspace }}/deploy/assets/ml
+          XGB_N: ${{ github.event.inputs.xgb_n || '400' }}   # full = solo diagnóstico en CI (no se commitea)
+          SLIM_N: ${{ github.event.inputs.slim_n || '400' }} # slim = lo que sirve la app
+          SLIM_EXPORT: '1'
+          PRUEBAS: '0'                                        # sin pruebas/comparativa en CI (rápido)
+          # XGB_DEVICE: 'cpu'  (runners sin GPU; AMD del dev no vale para XGBoost CUDA)
+        run: python ML_local.py
+
+      - name: Commit del bundle actualizado
+        run: |
+          git config user.email "actions@github.com"
+          git config user.name "ML Retrain Bot"
+          git add deploy/assets/ml/model_quantiles_slim.json \
+                  deploy/assets/ml/feature_order_slim.json \
+                  deploy/assets/ml/feature_defaults_slim.json \
+                  deploy/assets/ml/calibracion_por_arma.json \
+                  deploy/assets/ml/price_bands.json \
+                  deploy/assets/ml/stat_weights.json \
+                  scripts-actu/ML-rivenvaluation/metrics_history.json
+          if git diff --staged --quiet; then
+            echo "Sin cambios en el bundle; nada que commitear."
+            exit 0
+          fi
+          git commit -m "🤖 Reentreno ML riven (banda cuantiles) $(date -u +%F)"
+          git push
