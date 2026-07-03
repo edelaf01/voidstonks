@@ -654,6 +654,18 @@ export const ScannerService = {
         addRewardDebugLog("OCR", `Read: ${cleanOcrText}`, "info");
         addRewardDebugLog("SCAN", `Items found: ${foundItems.length}`, foundItems.length > 0 ? "match" : "warn");
 
+        const contextText = `${rawOcr} ${namesRaw}`.toUpperCase();
+        const NON_REWARD_TOKENS = [
+            "MISSION COMPLETE", "MISION COMPLETADA", "MISIÓN COMPLETADA",
+            "IMPORTANCE", "IMPORTANCIA", "SEARCH", "BUSCAR",
+        ];
+        const badToken = NON_REWARD_TOKENS.find(t => contextText.includes(t));
+        if (badToken && foundItems.length > 0) {
+            console.log(`[REWARD] Ignorado: pantalla fuera de contexto (token "${badToken}")`);
+            addRewardDebugLog("CTX", `Skipped: end-of-mission screen detected ("${badToken}")`, "warn");
+            return;
+        }
+
         if (foundItems.length > 0 && !this.detectionLocked) {
             foundItems.forEach(item => {
                 const status = item.crafted ? "CRAFTED" : `${item.owned} OWNED`;

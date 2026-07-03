@@ -1,10 +1,35 @@
 export const WORKER_URL = "https://api.voidstonks.com/";
-export const APP_VERSION = 2.30;
+export const APP_VERSION = 2.40;
 export const UPDATE_HISTORY_DATA = {
   es: `
 <div class="update-block">
   <div class="update-header">
-    <span class="update-version">v2.3.0 (Actual)</span>
+    <span class="update-version">v2.4.0 (Actual)</span>
+    <span class="update-date">2026-07-02</span>
+  </div>
+  <ul class="update-list">
+    <li><strong>Tasación de Rivens rediseñada</strong>
+      <ul>
+        <li>Todo visible sin hacer scroll, en móvil y escritorio: precio estimado y nota (S/A/B/C/F) al frente, y el resto como fichas compactas.</li>
+        <li>La tabla de grados por stat (valor, rango ideal y nota) ahora aparece junto a la carta del riven.</li>
+        <li>Adiós a la jerga: cada dato explica qué significa al pasar el ratón o tocarlo ("Demanda", "Precio típico", "Stats buscados"...), en español e inglés.</li>
+      </ul>
+    </li>
+    <li><strong>Tasación más precisa</strong>
+      <ul>
+        <li>Nuevo indicador "En venta ahora": si hay rivens con tu mismo combo listados en el mercado, la tasación se ajusta a esos precios reales.</li>
+        <li>El escáner en vivo ahora usa el historial de precios del arma (antes tasaba sin él y podía desviarse en armas volátiles).</li>
+        <li>El rango de precio ya no usa el techo godroll del arma para cualquier roll: un combo poco buscado muestra un techo realista.</li>
+        <li>El modelo distingue mejor un precio troll de una subida real de mercado (Incarnons, buffs), y se reentrena solo cada semana con datos frescos.</li>
+      </ul>
+    </li>
+    <li><strong>Escáner de Rivens:</strong> panel más compacto (cabe en pantalla en móvil), captura plegada por defecto y comparativa con el precio de cada roll destacado.</li>
+    <li><strong>Aviso sobre los precios:</strong> la tasación es un <strong>indicador orientativo</strong>, no un precio garantizado. En rolls muy altos y godrolls el margen de error crece (hay pocas ventas de referencia), así que úsala como punto de partida y contrasta con los listados en vivo antes de cerrar un trato.</li>
+  </ul>
+</div>
+<div class="update-block old">
+  <div class="update-header">
+    <span class="update-version">v2.3.0</span>
     <span class="update-date">2026-06-21</span>
   </div>
   <ul class="update-list">
@@ -183,7 +208,32 @@ export const UPDATE_HISTORY_DATA = {
   en: `
 <div class="update-block">
   <div class="update-header">
-    <span class="update-version">v2.3.0 (Current)</span>
+    <span class="update-version">v2.4.0 (Current)</span>
+    <span class="update-date">2026-07-02</span>
+  </div>
+  <ul class="update-list">
+    <li><strong>Riven appraisal redesigned</strong>
+      <ul>
+        <li>Everything visible without scrolling, on mobile and desktop: estimated price and grade (S/A/B/C/F) up front, everything else as compact chips.</li>
+        <li>The per-stat grade table (value, ideal range and grade) now sits next to the riven card.</li>
+        <li>No more jargon: every value explains itself on hover or tap ("Demand", "Typical price", "Wanted stats"...), in English and Spanish.</li>
+      </ul>
+    </li>
+    <li><strong>More accurate appraisals</strong>
+      <ul>
+        <li>New "On sale now" indicator: if rivens with your exact combo are listed on the market, the appraisal adjusts to those real prices.</li>
+        <li>The live scanner now uses the weapon's price history (it previously appraised without it and could drift on volatile weapons).</li>
+        <li>The price range no longer uses the weapon's godroll ceiling for every roll: an unwanted combo now shows a realistic ceiling.</li>
+        <li>The model better separates troll listings from genuine market shifts (Incarnons, buffs), and retrains itself weekly on fresh data.</li>
+      </ul>
+    </li>
+    <li><strong>Riven scanner:</strong> more compact panel (fits on screen on mobile), capture collapsed by default, and the comparison view highlights each roll's price.</li>
+    <li><strong>A note on prices:</strong> the appraisal is a <strong>guideline, not a guaranteed price</strong>. On very high rolls and godrolls the margin of error grows (there are few reference sales), so treat it as a starting point and check live listings before closing a trade.</li>
+  </ul>
+</div>
+<div class="update-block old">
+  <div class="update-header">
+    <span class="update-version">v2.3.0</span>
     <span class="update-date">2026-06-21</span>
   </div>
   <ul class="update-list">

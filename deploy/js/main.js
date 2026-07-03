@@ -63,7 +63,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   initDisclaimerSystem();
   setupGlobalClickListeners();
   initGlobalTooltipSystem();
-  initSyncPanel();
   preloadCriticalAssets();
   setupScannerDrawer();
   initPiP();
