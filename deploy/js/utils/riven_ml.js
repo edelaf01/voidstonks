@@ -75,14 +75,31 @@ export async function getWeaponMarket(weaponName, meta) {
 export async function gradeRiven(weaponName, stats) {
   const ml = await loadRivenML();
   const sw = ml.statWeights || {};
-  const W = sw[weaponName] || {};
-  const base = sw.__baseline || {};
+  const findWeapon = (name) => {
+    if (sw[name]) return sw[name];
+    const nl = String(name || "").trim().toLowerCase();
+    const k = Object.keys(sw).find(x => x.toLowerCase() === nl);
+    return k ? sw[k] : undefined;
+  };
+  const W = findWeapon(weaponName) || {};
+  const base = sw.__baseline || sw._global || {};
   const lookup = (table, name) => {
     if (!table) return undefined;
-    if (table[name] != null) return table[name];
-    const nl = name.toLowerCase();
-    const k = Object.keys(table).find(x => x.toLowerCase() === nl);
-    return k ? table[k] : undefined;
+    const direct = (t) => {
+      if (t[name] != null) return t[name];
+      const nl = name.toLowerCase();
+      const k = Object.keys(t).find(x => x.toLowerCase() === nl);
+      return k ? t[k] : undefined;
+    };
+    const v = direct(table);
+    if (typeof v === "number") return v;
+    for (const tier of Object.values(table)) {
+      if (tier && typeof tier === "object") {
+        const tv = direct(tier);
+        if (typeof tv === "number") return tv;
+      }
+    }
+    return undefined;
   };
   const posTier = (w) => w >= 0.75 ? "S" : w >= 0.45 ? "A" : w >= 0.15 ? "B" : "F";
   const isEs = state.currentLang === "es";
