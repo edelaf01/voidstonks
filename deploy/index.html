@@ -36,7 +36,7 @@
   <link rel="stylesheet" href="css/components/modals.css?v=1.0" />
   <link rel="stylesheet" href="css/components/header.css?v=1.0" />
   <link rel="stylesheet" href="styles.css?v=3.3" />
-  <link rel="stylesheet" href="css/components/riven-grader.css?v=1.2" />
+  <link rel="stylesheet" href="css/components/riven-grader.css?v=1.3" />
   <link rel="icon" type="image/png" href="https://wiki.warframe.com/images/VoidTraces.png" />
 
   <script async src="https://unpkg.com/@techstark/opencv-js@4.5.4-beta.3/dist/opencv.js"
@@ -861,27 +861,15 @@
           </div>
           <span class="arrow-indicator">▼</span>
         </div>
+        <!-- PIP y DEBUG retirados del menú (herramientas de desarrollo; el overlay PiP ya no existe).
         <button id="btn-pip-toggle" onclick="globalThis.togglePiP && globalThis.togglePiP()" title="Open Overlay (PiP)"
-          style="
-              display: none;
-              background: rgba(243,156,18,0.08);
-              border: 1px solid rgba(243,156,18,0.4);
-              color: #f39c12;
-              font-size: 0.7em;
-              font-weight: 800;
-              padding: 5px 10px;
-              cursor: pointer;
-              border-radius: 6px;
-              letter-spacing: 1px;
-              transition: all 0.2s;
-              white-space: nowrap;
-            ">
+          style="display: none;">
           PIP
         </button>
-        <button onclick="import('./js/scanner/mobile_debug_scanner.js').then(m => globalThis.startDebugScanner())"
-          style="margin-left: 8px; background: rgba(0,229,255,0.15); border: 1px solid #00e5ff; color: #00e5ff; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 10px; font-weight: 800; white-space: nowrap; display: flex; align-items: center; gap: 5px; transition: all 0.2s;">
-          <span style="font-size:12px;"></span> DEBUG
+        <button onclick="import('./js/scanner/mobile_debug_scanner.js').then(m => globalThis.startDebugScanner())">
+          DEBUG
         </button>
+        -->
 
         <div id="scanner-privacy-notice" class="scanner-notice hidden">
           <div class="notice-header">⚠️ BETA FEATURE NOTICE</div>

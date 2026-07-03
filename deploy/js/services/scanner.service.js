@@ -751,6 +751,22 @@ export const ScannerService = {
         addRewardDebugLog("OCR", `Read: ${cleanOcrText}`, "info");
         addRewardDebugLog("SCAN", `Items found: ${foundItems.length}`, foundItems.length > 0 ? "match" : "warn");
 
+        // Guard de contexto: la pantalla de FIN DE MISIÓN muestra partes prime en su grid
+        // de botín dentro de la misma banda de recorte y dispara falsos positivos. Su UI
+        // fija ("MISSION COMPLETE", dropdown IMPORTANCE, caja SEARCH) no existe en la
+        // pantalla de selección de recompensa de reliquia, así que sirve de descarte.
+        const contextText = `${rawOcr} ${namesRaw}`.toUpperCase();
+        const NON_REWARD_TOKENS = [
+            "MISSION COMPLETE", "MISION COMPLETADA", "MISIÓN COMPLETADA",
+            "IMPORTANCE", "IMPORTANCIA", "SEARCH", "BUSCAR",
+        ];
+        const badToken = NON_REWARD_TOKENS.find(t => contextText.includes(t));
+        if (badToken && foundItems.length > 0) {
+            console.log(`[REWARD] Ignorado: pantalla fuera de contexto (token "${badToken}")`);
+            addRewardDebugLog("CTX", `Skipped: end-of-mission screen detected ("${badToken}")`, "warn");
+            return;
+        }
+
         if (foundItems.length > 0 && !this.detectionLocked) {
             foundItems.forEach(item => {
                 const status = item.crafted ? "CRAFTED" : `${item.owned} OWNED`;

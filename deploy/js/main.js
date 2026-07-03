@@ -63,7 +63,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   initDisclaimerSystem();
   setupGlobalClickListeners();
   initGlobalTooltipSystem();
-  initSyncPanel();
+  // initSyncPanel();  // Interfaz de nube (sync) desactivada de momento
   preloadCriticalAssets();
   setupScannerDrawer();
   initPiP();

@@ -267,7 +267,8 @@
 .modal-badge {
   position: absolute;
   top: 48%;
-  transform: translateX(-50%);
+  transform: translateX(-50%) scale(var(--badge-scale, 1));
+  transform-origin: 50% 0;
   background: rgba(10, 15, 20, 0.98);
   backdrop-filter: blur(25px);
   border: 1px solid rgba(255, 255, 255, 0.2);
@@ -286,14 +287,14 @@
 }
 
 .modal-badge:active {
-  transform: translateX(-50%) scale(0.95);
+  transform: translateX(-50%) scale(calc(var(--badge-scale, 1) * 0.95));
 }
 
 .modal-badge:hover {
   background: rgba(25, 30, 40, 0.95);
   border-color: var(--wf-blue);
   box-shadow: 0 15px 40px rgba(0, 229, 255, 0.3);
-  transform: translateX(-50%) translateY(-5px) scale(1.05);
+  transform: translateX(-50%) translateY(-5px) scale(calc(var(--badge-scale, 1) * 1.05));
   z-index: 100 !important;
 }
 

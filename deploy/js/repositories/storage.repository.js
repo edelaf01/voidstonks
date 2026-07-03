@@ -114,7 +114,9 @@ async function processQueue() {
     isProcessingQueue = true;
     batchTimer = null;
 
-    const slugsToFetch = Array.from(PENDING_REQUESTS.keys());
+    // Orden alfabético: la URL del batch queda canónica y clientes distintos que piden
+    // los mismos slugs generan la misma cache key en el edge del worker.
+    const slugsToFetch = Array.from(PENDING_REQUESTS.keys()).sort();
     if (slugsToFetch.length === 0) { isProcessingQueue = false; return; }
 
     const currentBatch = new Map(PENDING_REQUESTS);

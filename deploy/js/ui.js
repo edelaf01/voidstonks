@@ -414,7 +414,7 @@ function triggerSideEffects(t) {
     ScannerModal.localizeLabels(modal);
   }
 
-  if (typeof initSyncPanel === "function") initSyncPanel();
+  // if (typeof initSyncPanel === "function") initSyncPanel();  // Interfaz de nube (sync) desactivada de momento
   if (typeof initFissurePanel === "function") initFissurePanel().catch(console.error);
 }
 
