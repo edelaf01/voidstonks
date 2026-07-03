@@ -405,7 +405,7 @@ function triggerSideEffects(t) {
     ScannerModal.localizeLabels(modal);
   }
 
-  if (typeof initSyncPanel === "function") initSyncPanel();
+  // if (typeof initSyncPanel === "function") initSyncPanel();
   if (typeof initFissurePanel === "function") initFissurePanel().catch(console.error);
 }
 
