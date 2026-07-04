@@ -145,6 +145,10 @@ export async function getPricesBatch(chunk) {
     return fetchWithTimeout(`${WORKER_URL}?type=prices_batch&q=${chunk.join(",")}`);
 }
 
+export async function getArcaneBatch(chunk) {
+    return fetchWithTimeout(`${WORKER_URL}?type=arcane_batch&q=${chunk.join(",")}`, { timeout: 25000 });
+}
+
 export async function getActiveBounties() {
     return fetchWithTimeout(`${WORKER_URL}?type=active_bounties`);
 }
