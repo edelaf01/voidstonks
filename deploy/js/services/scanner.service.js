@@ -84,7 +84,7 @@ export const ScannerService = {
         const dims = VisionService.prepareVirtualCanvas(video, virtualCanvas);
 
         const worker1 = OCRRepository.workers[0];
-        const { data: headerData } = await OCRRepository.recognize(worker1, virtualCanvas);
+        const { data: headerData } = await OCRRepository.recognize(worker1, virtualCanvas, {}, { text: true });
 
         const rawContext = VisionService.determineContext(headerData.text);
         const now = Date.now();
@@ -619,7 +619,7 @@ export const ScannerService = {
         const { scale } = dims;
         const canvas = VisionService.prepareRelicSelectionCanvas(video, scale);
         const worker1 = OCRRepository.workers[0];
-        const { data } = await OCRRepository.recognize(worker1, canvas);
+        const { data } = await OCRRepository.recognize(worker1, canvas, {}, { text: true });
 
         const relicMatch = OCRService.parseRelicSelection(data.text);
         if (relicMatch && relicMatch !== this.lastTrackedRelic) {
@@ -661,8 +661,8 @@ export const ScannerService = {
         const w0 = OCRRepository.workers[0];
         const w1 = OCRRepository.workers[1] || w0;
         const [metaRes, namesRes] = await Promise.all([
-            OCRRepository.recognize(w0, ocrCanvas),
-            OCRRepository.recognize(w1, namesCanvas),
+            OCRRepository.recognize(w0, ocrCanvas, {}, { blocks: true }),
+            OCRRepository.recognize(w1, namesCanvas, {}, { blocks: true }),
         ]);
         const data = metaRes.data;
         const rawOcr = data.text || "";
@@ -678,6 +678,18 @@ export const ScannerService = {
         const cleanOcrText = rawOcr.replaceAll(/\n+/g, ' ').trim();
         addRewardDebugLog("OCR", `Read: ${cleanOcrText}`, "info");
         addRewardDebugLog("SCAN", `Items found: ${foundItems.length}`, foundItems.length > 0 ? "match" : "warn");
+
+        const contextText = `${rawOcr} ${namesRaw}`.toUpperCase();
+        const NON_REWARD_TOKENS = [
+            "MISSION COMPLETE", "MISION COMPLETADA", "MISIÓN COMPLETADA",
+            "IMPORTANCE", "IMPORTANCIA", "SEARCH", "BUSCAR",
+        ];
+        const badToken = NON_REWARD_TOKENS.find(t => contextText.includes(t));
+        if (badToken && foundItems.length > 0) {
+            console.log(`[REWARD] Ignorado: pantalla fuera de contexto (token "${badToken}")`);
+            addRewardDebugLog("CTX", `Skipped: end-of-mission screen detected ("${badToken}")`, "warn");
+            return;
+        }
 
         if (foundItems.length > 0 && !this.detectionLocked) {
             foundItems.forEach(item => {

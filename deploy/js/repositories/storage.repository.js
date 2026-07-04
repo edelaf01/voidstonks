@@ -112,7 +112,7 @@ async function processQueue() {
     isProcessingQueue = true;
     batchTimer = null;
 
-    const slugsToFetch = Array.from(PENDING_REQUESTS.keys());
+    const slugsToFetch = Array.from(PENDING_REQUESTS.keys()).sort();
     if (slugsToFetch.length === 0) { isProcessingQueue = false; return; }
 
     const currentBatch = new Map(PENDING_REQUESTS);

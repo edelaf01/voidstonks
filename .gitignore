@@ -41,3 +41,5 @@ deploy/rootCA.pem
 certs/dev-key.pem
 certs/dev.pem
 package.json
+deploy/MAINTENANCE_VOSFOR.md
+deploy/MAINTENANCE_VOSFOR.md
