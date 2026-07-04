@@ -87,31 +87,40 @@ export const VisionService = {
 
         return OpenCVRepository.run((cv) => {
             const rects = [];
-            let src = cv.imread(canvas);
-            let gray = new cv.Mat();
-            cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+            let src, gray, binary, morph, k, contours, hierarchy;
+            try {
+                src = cv.imread(canvas);
+                gray = new cv.Mat();
+                cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
 
-            let binary = new cv.Mat();
-            cv.adaptiveThreshold(gray, binary, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, 31, 10);
+                binary = new cv.Mat();
+                cv.adaptiveThreshold(gray, binary, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, 31, 10);
 
-            let morph = new cv.Mat();
-            let k = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(25, 3));
-            cv.dilate(binary, morph, k);
-            k.delete();
+                morph = new cv.Mat();
+                k = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(25, 3));
+                cv.dilate(binary, morph, k);
+                k.delete();
+                k = null;
 
-            let contours = new cv.MatVector();
-            let hierarchy = new cv.Mat();
-            cv.findContours(morph, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+                contours = new cv.MatVector();
+                hierarchy = new cv.Mat();
+                cv.findContours(morph, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
 
-            for (let i = 0; i < contours.size(); i++) {
-                let r = cv.boundingRect(contours.get(i));
-                if (r.width > canvas.width * 0.3 && r.height > 15 && r.height < 150) {
-                    rects.push({ x: r.x, y: r.y, width: r.width, height: r.height });
+                for (let i = 0; i < contours.size(); i++) {
+                    let r = cv.boundingRect(contours.get(i));
+                    if (r.width > canvas.width * 0.3 && r.height > 15 && r.height < 150) {
+                        rects.push({ x: r.x, y: r.y, width: r.width, height: r.height });
+                    }
                 }
+            } finally {
+                if (src) src.delete();
+                if (gray) gray.delete();
+                if (binary) binary.delete();
+                if (morph) morph.delete();
+                if (k) k.delete();
+                if (contours) contours.delete();
+                if (hierarchy) hierarchy.delete();
             }
-
-            // Cleanup
-            src.delete(); gray.delete(); binary.delete(); morph.delete(); contours.delete(); hierarchy.delete();
 
             return rects.sort((a, b) => a.y - b.y);
         }) || [];
@@ -651,7 +660,10 @@ export const VisionService = {
         // to completely eliminate the busy backgrounds and player names below the cards!
         const rCropY = Math.floor(height * 0.185);
         const rCropH = Math.floor(height * 0.255);
-        const targetW = Math.floor(width * scale);
+        // Trim 8% from each side — rewards are centered, extremes are empty background
+        const marginX = Math.floor(width * 0.08);
+        const cropW = width - marginX * 2;
+        const targetW = Math.floor(cropW * scale);
         const targetH = Math.floor(rCropH * scale);
 
         const cvs = this._rewardCvs;
@@ -661,7 +673,7 @@ export const VisionService = {
 
         // Grayscale + high contrast to maximize text/background separation.
         ctx.filter = "grayscale(100%) contrast(400%) brightness(1.3)";
-        ctx.drawImage(video, 0, rCropY, width, rCropH, 0, 0, targetW, targetH);
+        ctx.drawImage(video, marginX, rCropY, cropW, rCropH, 0, 0, targetW, targetH);
         ctx.filter = "none";
         return cvs;
     },
@@ -677,14 +689,16 @@ export const VisionService = {
     prepareRewardNamesCanvas(video, width, height, scale) {
         const rCropY = Math.floor(height * 0.185);
         const rCropH = Math.floor(height * 0.255);
-        const targetW = Math.floor(width * scale);
+        const marginX = Math.floor(width * 0.08);
+        const cropW = width - marginX * 2;
+        const targetW = Math.floor(cropW * scale);
         const targetH = Math.floor(rCropH * scale);
 
         const cvs = this._rewardNamesCvs;
         cvs.width = targetW;
         cvs.height = targetH;
         const ctx = cvs.getContext("2d", { willReadFrequently: true });
-        ctx.drawImage(video, 0, rCropY, width, rCropH, 0, 0, targetW, targetH);
+        ctx.drawImage(video, marginX, rCropY, cropW, rCropH, 0, 0, targetW, targetH);
 
         const img = ctx.getImageData(0, 0, targetW, targetH);
         const px = img.data;

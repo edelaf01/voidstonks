@@ -1,10 +1,46 @@
 export const WORKER_URL = "https://api.voidstonks.com/";
-export const APP_VERSION = 2.30;
+export const APP_VERSION = 2.50;
 export const UPDATE_HISTORY_DATA = {
   es: `
 <div class="update-block">
   <div class="update-header">
-    <span class="update-version">v2.3.0 (Actual)</span>
+    <span class="update-version">v2.5.0 (Actual)</span>
+    <span class="update-date">2026-07-04</span>
+  </div>
+  <ul class="update-list">
+    <li><strong>Calculadora Vosfor:</strong> Simula la probabilidad exacta de conseguir de 1 a 4 copias de una parte prime según su rareza y el tipo de paquete Vosfor.</li>
+    <li><strong>Simulador de Runs (Set Tracker):</strong> Muestra los runs promedio necesarios para conseguir 1 copia de cualquier pieza según la refinación de la reliquia y el número de jugadores (1 a 4), junto a su rango de caso mejor y peor (95% de confianza).</li>
+    <li><strong>Corrección de errores (Reliquias):</strong> Solucionado el fallo al buscar reliquias escribiendo directamente el nombre de la recompensa deseada (ej: "kronen", "rhino") o por era ("Lith", "Meso", "Neo", "Axi").</li>
+  </ul>
+</div>
+<div class="update-block old">
+  <div class="update-header">
+    <span class="update-version">v2.4.0</span>
+    <span class="update-date">2026-07-02</span>
+  </div>
+  <ul class="update-list">
+    <li><strong>Tasación de Rivens rediseñada</strong>
+      <ul>
+        <li>Todo visible sin hacer scroll, en móvil y escritorio: precio estimado y nota (S/A/B/C/F) al frente, y el resto como fichas compactas.</li>
+        <li>La tabla de grados por stat (valor, rango ideal y nota) ahora aparece junto a la carta del riven.</li>
+        <li>Adiós a la jerga: cada dato explica qué significa al pasar el ratón o tocarlo ("Demanda", "Precio típico", "Stats buscados"...), en español e inglés.</li>
+      </ul>
+    </li>
+    <li><strong>Tasación más precisa</strong>
+      <ul>
+        <li>Nuevo indicador "En venta ahora": si hay rivens con tu mismo combo listados en el mercado, la tasación se ajusta a esos precios reales.</li>
+        <li>El escáner en vivo ahora usa el historial de precios del arma (antes tasaba sin él y podía desviarse en armas volátiles).</li>
+        <li>El rango de precio ya no usa el techo godroll del arma para cualquier roll: un combo poco buscado muestra un techo realista.</li>
+        <li>El modelo distingue mejor un precio troll de una subida real de mercado (Incarnons, buffs), y se reentrena solo cada semana con datos frescos.</li>
+      </ul>
+    </li>
+    <li><strong>Escáner de Rivens:</strong> panel más compacto (cabe en pantalla en móvil), captura plegada por defecto y comparativa con el precio de cada roll destacado.</li>
+    <li><strong>Aviso sobre los precios:</strong> la tasación es un <strong>indicador orientativo</strong>, no un precio garantizado. En rolls muy altos y godrolls el margen de error crece (hay pocas ventas de referencia), así que úsala como punto de partida y contrasta con los listados en vivo antes de cerrar un trato.</li>
+  </ul>
+</div>
+<div class="update-block old">
+  <div class="update-header">
+    <span class="update-version">v2.3.0</span>
     <span class="update-date">2026-06-21</span>
   </div>
   <ul class="update-list">
@@ -184,7 +220,43 @@ export const UPDATE_HISTORY_DATA = {
   en: `
 <div class="update-block">
   <div class="update-header">
-    <span class="update-version">v2.3.0 (Current)</span>
+    <span class="update-version">v2.5.0 (Current)</span>
+    <span class="update-date">2026-07-04</span>
+  </div>
+  <ul class="update-list">
+    <li><strong>Vosfor Calculator:</strong> Simulates the exact chance of obtaining 1 to 4 copies of a prime part based on its rarity and Vosfor pack type.</li>
+    <li><strong>Runs Simulator (Set Tracker):</strong> Displays average expected runs to get 1 copy of any part based on relic refinement and squad size (1 to 4 players), along with best and worst case ranges (95% confidence).</li>
+    <li><strong>Bugfixes (Relics):</strong> Fixed search issues when searching relics directly by item reward name (e.g. "kronen", "rhino") or era ("Lith", "Meso", "Neo", "Axi").</li>
+  </ul>
+</div>
+<div class="update-block old">
+  <div class="update-header">
+    <span class="update-version">v2.4.0</span>
+    <span class="update-date">2026-07-02</span>
+  </div>
+  <ul class="update-list">
+    <li><strong>Riven appraisal redesigned</strong>
+      <ul>
+        <li>Everything visible without scrolling, on mobile and desktop: estimated price and grade (S/A/B/C/F) up front, everything else as compact chips.</li>
+        <li>The per-stat grade table (value, ideal range and grade) now sits next to the riven card.</li>
+        <li>No more jargon: every value explains itself on hover or tap ("Demand", "Typical price", "Wanted stats"...), in English and Spanish.</li>
+      </ul>
+    </li>
+    <li><strong>More accurate appraisals</strong>
+      <ul>
+        <li>New "On sale now" indicator: if rivens with your exact combo are listed on the market, the appraisal adjusts to those real prices.</li>
+        <li>The live scanner now uses the weapon's price history (it previously appraised without it and could drift on volatile weapons).</li>
+        <li>The price range no longer uses the weapon's godroll ceiling for every roll: an unwanted combo now shows a realistic ceiling.</li>
+        <li>The model better separates troll listings from genuine market shifts (Incarnons, buffs), and retrains itself weekly on fresh data.</li>
+      </ul>
+    </li>
+    <li><strong>Riven scanner:</strong> more compact panel (fits on screen on mobile), capture collapsed by default, and the comparison view highlights each roll's price.</li>
+    <li><strong>A note on prices:</strong> the appraisal is a <strong>guideline, not a guaranteed price</strong>. On very high rolls and godrolls the margin of error grows (there are few reference sales), so treat it as a starting point and check live listings before closing a trade.</li>
+  </ul>
+</div>
+<div class="update-block old">
+  <div class="update-header">
+    <span class="update-version">v2.3.0</span>
     <span class="update-date">2026-06-21</span>
   </div>
   <ul class="update-list">
@@ -1185,8 +1257,6 @@ export const TEXTS = {
       presetGood: "Buenos",
       presetBig: "Pelotazos",
       advanced: "Ajustes finos",
-      minSpread: "💰 Ganancia por flip",
-      minPct: "📈 Rentabilidad",
       minPrice: "🏷️ Precio del ítem",
       sortBy: "Ordenar",
       sortSpread: "Ganancia",
@@ -1194,6 +1264,118 @@ export const TEXTS = {
       sortPrice: "Precio",
       empty: "Sin oportunidades con estos filtros.",
       disclaimer: "Flips del mercado: compra a la venta más barata y revende a la compra más cara. Verifica en vivo (↻) antes de actuar; los precios cambian al instante."
+    },
+    vosfor: {
+      tabName: "Vosfor",
+      tabTip: "Calculadora de Vosfor: vender vs disolver arcanos y mejor pack de Loid",
+      loading: "Cargando datos de arcanos…",
+      error: "Error al cargar los datos de Vosfor.",
+      loadingPrices: "Cargando precios",
+      explain: "Cada arcano muestra su precio de venta real y el Vosfor que da al disolverlo. El veredicto compara vender en rango 0 (R0) o rango 5 (R5) con disolver en Loid al cambio de la mejor colección.",
+      bestPackTitle: "Mejor colección para gastar Vosfor",
+      bestPackHint: "Con los precios actuales, aquí rinde más cada Vosfor gastado en Loid.",
+      summaryLoading: "Calculando la mejor colección…",
+      bestPack: "MEJOR GASTO",
+      platPerVosfor: "pl/vosfor",
+      arcanes: "arcanos",
+      colArcane: "Arcano / liquidez",
+      colSell: "Venta R0 / Rmax",
+      colDissolve: "Al disolver",
+      colVerdict: "Qué hacer",
+      verdictSell: "VENDER",
+      verdictDissolve: "DISOLVER",
+      verdictEven: "PAREJO",
+      noMarket: "sin mercado",
+      liqHigh: "Liquidez alta",
+      liqMed: "Liquidez media",
+      liqLow: "Liquidez baja",
+      liqNone: "Sin ventas",
+      demand: "DEMANDA",
+      demandTip: "Hay compradores activos pagando cerca del precio de venta",
+      salesPerDay: "ventas/día (48h reales)",
+      bestToSell: "Más plat por venta:",
+      bestToDissolve: "Más Vosfor al disolver:",
+      sortBy: "Ordenar",
+      sortPrice: "Venta",
+      sortRarity: "Rareza",
+      sortVosfor: "Vosfor",
+      sortLiq: "Liquidez",
+      sortBalanced: "Balanceado",
+      calcTitle: "Calculadora de Vosfor (Loid)",
+      calcLabel: "Tu Vosfor:",
+      calcSub: "Simula cuántas tiradas de Loid puedes comprar y qué colección rinde más:",
+      maxPlatTitle: "MÁXIMO PLAT (EV)",
+      maxLiquidTitle: "VENTA RÁPIDA (LIQUIDEZ)",
+      projectedPlat: "Platino Proyectado",
+      tradeFrictionLabel: "Trades Diarios Requeridos",
+      tradeFrictionNote: "{items} arcanos sueltos consumen {trades} trades diarios si vendes en R0 (ó ~{r5Trades} trade consolidando en R5).",
+      tradeSavings: "Ahorras {n} trades en R5",
+      r5RealismTitle: "Realismo de Rango 5 (21 Copias)",
+      r5RealismNote: "Copias esperadas y probabilidad de completar un R5 con tus {vosfor} Vosfor ({pulls} tiradas):",
+      r5PracticalAdvice: "Consejo Práctico: Con tu Vosfor actual es matemáticamente casi imposible completar un R5 de alta rareza. Te conviene vender o disolver las copias R0 sueltas.",
+      r5ProbLabel: "Prob. R5",
+      pullsUnit: "tiradas",
+      estProfit: "Ganancia est.",
+      verdictSellR5: "VENDER R5",
+      verdictSellR0: "VENDER R0",
+      r5Title: "En Rango Máximo (R5 = 21 copias):",
+      r0Title: "En Rango 0 (1 copia):",
+      othersTitle: "Otros arcanos",
+      othersSub: "no salen en packs de Loid, pero se pueden vender o disolver",
+      sellSimTitle: "Calculadora de Venta Manual",
+      sellSimPick: "Elige un arcano para calcular su venta.",
+      sellSimArcLabel: "Arcano:",
+      sellSimRankLabel: "Rango:",
+      sellSimQtyLabel: "Cantidad:",
+      sellSimUnitPrice: "Precio unidad",
+      sellSimTotalSale: "Venta total",
+      sellSimTotalVosfor: "Vosfor al disolver",
+      sellSimVosforEquiv: "Ese Vosfor equivale a",
+      sellFast: "Venta rápida",
+      sellMed: "Venta media",
+      sellSlow: "Venta lenta",
+      rarities: { COMMON: "Común", UNCOMMON: "Poco común", RARE: "Raro", LEGENDARY: "Legendario" },
+      guideTitle: "Guía Rápida: ¿Cómo sacarle el máximo partido a tu Vosfor?",
+      guideShow: "Ver Guía",
+      guideHide: "Ocultar Guía",
+      guideStep1Title: "1. Tiradas en Loid",
+      guideStep1Desc: "Cada pack cuesta 200 Vosfor + 50k cr y te otorga 3 arcanos aleatorios de la colección.",
+      guideStep2Title: "2. Vender vs Disolver",
+      guideStep2Desc: "El veredicto te indica si ganas más Platinum vendiéndolo o disolviéndolo de nuevo en Loid.",
+      guideStep3Title: "3. Rango 0 vs Rango 5",
+      guideStep3Desc: "Compara si te conviene vender la copia suelta o reunir 21 copias para vender un R5 con bonus.",
+      guideStep4Title: "4. Liquidez de Mercado",
+      guideStep4Desc: "El modo Balanceado evita packs inflados con arcanos raros que tardan semanas en venderse.",
+      searchPlaceholder: "Buscar arcano o sindicato por nombre…",
+      expandAll: "Desplegar Todo",
+      collapseAll: "Contraer Todo",
+      rankingTitle: "Ranking de Rentabilidad",
+      rankTabPacks: "Colecciones de Loid",
+      rankTabR5: "Venta en Rango R5",
+      rankTabDissolve: "Rinden al Disolver",
+      rankTabLiq: "Los Más Vendidos",
+      rankShowTop5: "TOP 5",
+      rankShowTop10: "TOP 10",
+      rankShowTop20: "TOP 20",
+      rankShowAll: "Ver Todos",
+      rankShowMore: "Mostrar más posiciones",
+      dissolveSpentTip: "Disolver este arcano equivale a ~{plat} Platino gastando su Vosfor en {pack}",
+      targetSimTitle: "Simulador de Arcano Objetivo",
+      targetSimPackLabel: "Colección:",
+      targetSimArcLabel: "Arcano Objetivo:",
+      targetSimQtyLabel: "Copias que te faltan:",
+      targetSimCopy: "copia",
+      targetSimCopies: "copias",
+      targetSimRank0: "Rango 0",
+      targetSimRank5: "Rango 5",
+      targetSimVosforNeed: "Vosfor Necesario",
+      targetSimPullsNeed: "Tiradas (Packs Loid)",
+      targetSimCreditsNeed: "Créditos",
+      targetSimProbNote: "Basado en la tasa oficial de aparición por rareza",
+      targetSimExplanation: "Para conseguir <b>{qty}x {arcane}</b> ({rarity}) en {pack}, necesitas en promedio <b>{packs} packs</b> ({pulls} tiradas).",
+      targetSimCopiesR0: "1 Copia (Rango 0)",
+      targetSimCopiesR5: "21 Copias (Rango 5 Máximo)",
+      dataNote: "Precios: warframe.market (promedio equilibrado con historial de 48h). Packs: exportación oficial del juego. Actualizado:"
     }
   },
   en: {
@@ -1613,6 +1795,118 @@ export const TEXTS = {
       sortPrice: "Price",
       empty: "No opportunities with these filters.",
       disclaimer: "Market flips: buy at the lowest sell and resell to the highest buy. Verify live (↻) before acting; prices change instantly."
+    },
+    vosfor: {
+      tabName: "Vosfor",
+      tabTip: "Vosfor calculator: sell vs dissolve arcanes and best Loid pack",
+      loading: "Loading arcane data…",
+      error: "Failed to load Vosfor data.",
+      loadingPrices: "Loading prices",
+      explain: "Each arcane shows its real sell price (balanced against recent trade history) and the Vosfor it yields when dissolved. The verdict compares selling the arcane (rank 0) vs dissolving it, valuing Vosfor at the best Loid collection rate.",
+      bestPackTitle: "Best collection to spend Vosfor on",
+      bestPackHint: "At current prices, each Vosfor spent at Loid returns the most here.",
+      summaryLoading: "Computing the best collection…",
+      bestPack: "BEST VALUE",
+      platPerVosfor: "pl/vosfor",
+      arcanes: "arcanes",
+      colArcane: "Arcane / liquidity",
+      colSell: "Sell R0 / Rmax",
+      colDissolve: "Dissolve",
+      colVerdict: "Best action",
+      verdictSell: "SELL",
+      verdictDissolve: "DISSOLVE",
+      verdictEven: "EVEN",
+      noMarket: "no market",
+      liqHigh: "High liquidity",
+      liqMed: "Medium liquidity",
+      liqLow: "Low liquidity",
+      liqNone: "No sales",
+      demand: "DEMAND",
+      demandTip: "Active buyers paying close to the sell price",
+      salesPerDay: "sales/day (real 48h)",
+      bestToSell: "Most plat per sale:",
+      bestToDissolve: "Most Vosfor when dissolved:",
+      sortBy: "Sort",
+      sortPrice: "Sell",
+      sortRarity: "Rarity",
+      sortVosfor: "Vosfor",
+      sortLiq: "Liquidity",
+      sortBalanced: "Balanced",
+      calcTitle: "Vosfor Calculator (Loid)",
+      calcLabel: "Your Vosfor:",
+      calcSub: "Simulate how many Loid pulls you can buy and which collection pays best:",
+      maxPlatTitle: "Max Plat (EV)",
+      maxLiquidTitle: "Fast Sale (Liquidity)",
+      projectedPlat: "Projected Platinum",
+      tradeFrictionLabel: "Daily Trades Required",
+      tradeFrictionNote: "{items} loose arcanes require {trades} daily trades if sold at R0 (or ~{r5Trades} trade if consolidated to R5).",
+      tradeSavings: "Saves {n} trades in R5",
+      r5RealismTitle: "Rank 5 Realism (21 Copies)",
+      r5RealismNote: "Expected copies & probability of completing an R5 with your {vosfor} Vosfor ({pulls} pulls):",
+      r5PracticalAdvice: "Practical Tip: With your current Vosfor it is mathematically nearly impossible to complete a high-rarity R5. It is better to sell or dissolve loose R0 copies.",
+      r5ProbLabel: "R5 Chance",
+      pullsUnit: "pulls",
+      estProfit: "Est. Profit",
+      verdictSellR5: "SELL R5",
+      verdictSellR0: "SELL R0",
+      r5Title: "At Max Rank (R5 = 21 copies):",
+      r0Title: "At Rank 0 (1 copy):",
+      othersTitle: "Other arcanes",
+      sellSimTitle: "Manual Sale Calculator",
+      sellSimPick: "Pick an arcane to calculate its sale.",
+      sellSimArcLabel: "Arcane:",
+      sellSimRankLabel: "Rank:",
+      sellSimQtyLabel: "Quantity:",
+      sellSimUnitPrice: "Unit price",
+      sellSimTotalSale: "Total sale",
+      sellSimTotalVosfor: "Vosfor if dissolved",
+      sellSimVosforEquiv: "That Vosfor equals",
+      sellFast: "Fast to sell",
+      sellMed: "Average sale",
+      sellSlow: "Slow to sell",
+      othersSub: "not in any Loid pack, but can be sold or dissolved",
+      rarities: { COMMON: "Common", UNCOMMON: "Uncommon", RARE: "Rare", LEGENDARY: "Legendary" },
+      guideTitle: "Quick Guide: How to maximize your Vosfor?",
+      guideShow: "Show Guide",
+      guideHide: "Hide Guide",
+      guideStep1Title: "1. Loid Pulls",
+      guideStep1Desc: "Each pack costs 200 Vosfor + 50k cr and grants 3 random arcanes from the collection.",
+      guideStep2Title: "2. Sell vs Dissolve",
+      guideStep2Desc: "The verdict shows whether you earn more Platinum by selling or dissolving back at Loid.",
+      guideStep3Title: "3. Rank 0 vs Rank 5",
+      guideStep3Desc: "Compares selling a single copy vs combining 21 copies to sell a Max Rank (R5) with bonus.",
+      guideStep4Title: "4. Market Liquidity",
+      guideStep4Desc: "Balanced mode avoids packs inflated by rare arcanes that take weeks to sell.",
+      searchPlaceholder: "Search arcane or syndicate by name…",
+      expandAll: "Expand All",
+      collapseAll: "Collapse All",
+      rankingTitle: "Profitability Ranking",
+      rankTabPacks: "Loid Collections",
+      rankTabR5: "Max Rank R5 Sales",
+      rankTabDissolve: "Best to Dissolve",
+      rankTabLiq: "Top Sellers",
+      rankShowTop5: "TOP 5",
+      rankShowTop10: "TOP 10",
+      rankShowTop20: "TOP 20",
+      rankShowAll: "Show All",
+      rankShowMore: "Show more positions",
+      dissolveSpentTip: "Dissolving this arcane equals ~{plat} Platinum when spending its Vosfor on {pack}",
+      targetSimTitle: "Target Arcane Simulator",
+      targetSimPackLabel: "Collection:",
+      targetSimArcLabel: "Target Arcane:",
+      targetSimQtyLabel: "Missing copies:",
+      targetSimCopy: "copy",
+      targetSimCopies: "copies",
+      targetSimRank0: "Rank 0",
+      targetSimRank5: "Rank 5",
+      targetSimVosforNeed: "Vosfor Needed",
+      targetSimPullsNeed: "Pulls (Loid Packs)",
+      targetSimCreditsNeed: "Credits",
+      targetSimProbNote: "Based on official drop weight probabilities by rarity",
+      targetSimExplanation: "To obtain <b>{qty}x {arcane}</b> ({rarity}) in {pack}, you need on average <b>{packs} packs</b> ({pulls} pulls).",
+      targetSimCopiesR0: "1 Copy (Rank 0)",
+      targetSimCopiesR5: "21 Copies (Max Rank R5)",
+      dataNote: "Prices: warframe.market (lowest-sale average balanced with 48h history). Pack data: official game export. Updated:"
     },
     rivenHud: {
       compareTitle: "ROLL COMPARISON",

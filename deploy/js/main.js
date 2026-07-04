@@ -50,6 +50,8 @@ if ("serviceWorker" in navigator) {
     }
   });
 }
+import { initVosforTab } from "./ui.components/ui_vosfor.js?v=2.1";
+
 document.addEventListener("DOMContentLoaded", async () => {
   const urlParams = new URLSearchParams(globalThis.location.search);
   if (urlParams.get("clip")) {
@@ -63,10 +65,11 @@ document.addEventListener("DOMContentLoaded", async () => {
   initDisclaimerSystem();
   setupGlobalClickListeners();
   initGlobalTooltipSystem();
-  initSyncPanel();
+  // initSyncPanel();  // Interfaz de nube (sync) desactivada de momento
   preloadCriticalAssets();
   setupScannerDrawer();
   initPiP();
+  initVosforTab().catch(console.error);
 
   const langSelect = document.getElementById("langSelect");
   if (langSelect) langSelect.value = state.currentLang;

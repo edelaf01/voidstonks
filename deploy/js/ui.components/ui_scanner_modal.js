@@ -186,13 +186,39 @@ export const ScannerModal = {
             });
         }
 
-        const BADGE_GAP_PCT = 11;
-        for (let i = 1; i < positionedItems.length; i++) {
+        // Anti-overlap en píxeles reales: los badges miden 200px fijos, así que la
+        // separación mínima depende del ancho visual del wrapper, no de un % fijo.
+        const BADGE_W_PX = 200;
+        const BADGE_MARGIN_PX = 8;
+        const n = positionedItems.length;
+        const wrapperW = parseFloat(wrapper.style.width) || wrapper.clientWidth || imgEl.clientWidth || 0;
+        // Si no caben n badges lado a lado, se reducen con scale() hasta que quepan.
+        const badgeScale = wrapperW > 0
+            ? Math.max(0.4, Math.min(1, (wrapperW / n - BADGE_MARGIN_PX) / BADGE_W_PX))
+            : 1;
+        const gapPct = wrapperW > 0
+            ? ((BADGE_W_PX * badgeScale + BADGE_MARGIN_PX) / wrapperW) * 100
+            : 100 / n;
+        const halfPct = gapPct / 2;
+
+        for (let i = 1; i < n; i++) {
             const prev = positionedItems[i - 1];
             const curr = positionedItems[i];
-            if (curr.leftPct - prev.leftPct < BADGE_GAP_PCT) {
-                curr.leftPct = prev.leftPct + BADGE_GAP_PCT;
+            if (curr.leftPct - prev.leftPct < gapPct) {
+                curr.leftPct = prev.leftPct + gapPct;
             }
+        }
+        // Reencaje dentro del wrapper: si el empuje hacia la derecha desborda,
+        // se recoloca en cascada hacia la izquierda manteniendo el gap.
+        if (n > 0) {
+            const maxLeft = 100 - halfPct;
+            if (positionedItems[n - 1].leftPct > maxLeft) positionedItems[n - 1].leftPct = maxLeft;
+            for (let i = n - 2; i >= 0; i--) {
+                if (positionedItems[i].leftPct > positionedItems[i + 1].leftPct - gapPct) {
+                    positionedItems[i].leftPct = positionedItems[i + 1].leftPct - gapPct;
+                }
+            }
+            if (positionedItems[0].leftPct < halfPct) positionedItems[0].leftPct = halfPct;
         }
 
         const fragment = document.createDocumentFragment();
@@ -200,17 +226,18 @@ export const ScannerModal = {
             const isBestPl = item.price === maxPl && item.price > 0;
             const isBestEff = item.potential === maxPotential && item.potential > 0;
 
-            this.createBadge(item, fragment, isBestPl, isBestEff);
+            this.createBadge(item, fragment, isBestPl, isBestEff, badgeScale);
         });
 
         badgesContainer.innerHTML = "";
         badgesContainer.appendChild(fragment);
     },
 
-    createBadge(item, container, isBestPl, isBestEff) {
+    createBadge(item, container, isBestPl, isBestEff, badgeScale = 1) {
         const badge = document.createElement("div");
         badge.className = `modal-badge ${isBestPl ? "best-pl" : ""} ${isBestEff ? "best-duc" : ""}`;
-        badge.style.left = `${Math.min(98, Math.max(2, item.leftPct))}%`;
+        badge.style.left = `${item.leftPct}%`;
+        if (badgeScale < 1) badge.style.setProperty("--badge-scale", badgeScale);
 
         const t = TEXTS[state.currentLang].rewardScanner;
         const appOwned = state.primeInventory?.[item.name] || 0;
