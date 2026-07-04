@@ -183,6 +183,16 @@ export async function getPricesBatch(chunk) {
 }
 
 /**
+ * Fetches price + liquidity stats for a chunk of arcane slugs (Vosfor calculator).
+ * Timeout alto: el worker puede tener que pedir órdenes + histórico a WFM por cada slug.
+ * @param {Array<string>} chunk
+ * @returns {Promise<Response>}
+ */
+export async function getArcaneBatch(chunk) {
+    return fetchWithTimeout(`${WORKER_URL}?type=arcane_batch&q=${chunk.join(",")}`, { timeout: 25000 });
+}
+
+/**
  * Fetches active bounty data from the worker.
  * @returns {Promise<Response>}
  */

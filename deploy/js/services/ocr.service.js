@@ -170,6 +170,7 @@ export const OCRService = {
                     itemMatches.push({
                         name: dbItem.originalName,
                         ratio: ratio,
+                        tokens: searchTokens.length,
                         x: avgX,
                         owned: metadata.owned,
                         crafted: metadata.crafted
@@ -200,15 +201,19 @@ export const OCRService = {
         for (let i = 1; i < searchTokens.length; i++) {
             const token = searchTokens[i];
             if (localWords.some(w => w.text === token)) matchScore += 1;
+            else if (localWords.some(w => this.getSimilarity(w.text, token) > 0.7)) matchScore += 0.7;
             else if (token === "BLUEPRINT" && wfParts.some(p => dbItem.originalName.toUpperCase().includes(p))) matchScore += 0.8;
         }
 
         let ratio = matchScore / searchTokens.length;
         const name = dbItem.originalName.toUpperCase();
         const isMainBlueprint = name.endsWith("BLUEPRINT") && !wfParts.some(p => name.includes(p));
+        const soupHasWfPart = wfParts.some(p => localSoupText.includes(p) || localWords.some(w => this.getSimilarity(w.text, p) > 0.7));
 
         if (wpnParts.some(p => localSoupText.includes(p))) {
             if (isMainBlueprint) ratio -= 0.8;
+        } else if (soupHasWfPart) {
+            if (isMainBlueprint) ratio -= 0.6;
         } else if (localSoupText.includes("BLUEPRINT")) {
             if (wpnParts.some(p => name.includes(p))) ratio -= 0.6;
         }
@@ -228,7 +233,8 @@ export const OCRService = {
     },
 
     _consolidateMatches(itemMatches, imgW) {
-        itemMatches.sort((a, b) => b.ratio - a.ratio);
+        // Sort by ratio desc, then by specificity (more tokens = more specific) desc
+        itemMatches.sort((a, b) => b.ratio - a.ratio || (b.tokens || 0) - (a.tokens || 0));
         const finalItems = [];
         for (const match of itemMatches) {
             if (!finalItems.some(f => Math.abs(match.x - f.x) < imgW * 0.1)) {

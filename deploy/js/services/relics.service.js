@@ -107,18 +107,31 @@ function processRelicDatabase(rawData, activeDropsSet) {
 
     rawData.relics.forEach((r) => {
         if (r.state !== "Intact") return;
-        const rName = r.relicName || r.name;
+        let rName = r.relicName || r.name || "";
         if (!rName || !r.tier) return;
 
-        const tierName = `${r.tier} ${rName}`;
-        state.allRelicNames.push(tierName);
+        // Evitar duplicaciones de la era (ej: si rName es "Axi A1" y r.tier es "Axi", no producir "Axi Axi A1")
+        if (rName.toUpperCase().startsWith(r.tier.toUpperCase())) {
+            rName = rName.substring(r.tier.length).trim();
+        }
 
-        state.relicsDatabase[tierName] = r.rewards.map((rw) => ({
+        const tierName = `${r.tier} ${rName}`.trim();
+        if (!state.allRelicNames.includes(tierName)) {
+            state.allRelicNames.push(tierName);
+        }
+
+        const rewards = r.rewards.map((rw) => ({
             name: rw.itemName,
             chance: rw.chance,
             rarity: rw.rarity,
             ducats: ducatMap[rw.itemName.toLowerCase().trim()] || 0,
         }));
+
+        state.relicsDatabase[tierName] = rewards;
+        const withRelic = tierName.endsWith(" Relic") ? tierName : `${tierName} Relic`;
+        const withoutRelic = tierName.replace(/\s+Relic$/, "");
+        state.relicsDatabase[withRelic] = rewards;
+        state.relicsDatabase[withoutRelic] = rewards;
 
         r.rewards.forEach((rw) => {
             if (!state.itemsDatabase[rw.itemName]) state.itemsDatabase[rw.itemName] = [];
@@ -126,6 +139,7 @@ function processRelicDatabase(rawData, activeDropsSet) {
                 relic: tierName,
                 tier: r.tier,
                 chance: rw.chance,
+                rarity: rw.rarity,
                 ducats: ducatMap[rw.itemName.toLowerCase().trim()] || 0,
             });
         });

@@ -29,6 +29,7 @@ import {
 } from "./ui.components/ui_lfg.js";
 import { populateRivenSelects, initRivenMarketIndex, updateIndexTranslations, filterRivenIndex, stopRivenShowcase } from "./ui.components/ui_rivens.js?v=1.10";
 import { applyArbTexts } from "./ui.components/ui_arbitrage.js";
+import { initVosforTab, renderVosforTab } from "./ui.components/ui_vosfor.js?v=2.1";
 import { initSyncPanel } from "./ui.components/ui_sync.js";
 import { initFissurePanel, updateRecommendedMissions } from "./ui.components/ui_fissures.js";
 import { state, saveAppState, updateInventoryCount } from "./state.js";
@@ -88,7 +89,7 @@ export function switchTab(mode) {
   document.body.classList.add(`theme-${mode}`);
 
   if (mode === "bounties" && mainCard) mainCard.classList.add("theme-bounties");
-  ["relic", "set", "riven", "profile", "lfg", "bounties"].forEach((m) => {
+  ["relic", "set", "riven", "profile", "lfg", "bounties", "vosfor"].forEach((m) => {
     document.getElementById("mode-" + m)?.classList.add("hidden");
   });
   document.getElementById("mode-" + mode)?.classList.remove("hidden");
@@ -102,6 +103,8 @@ export function switchTab(mode) {
     if (typeof globalThis.searchSet === "function") {
       globalThis.searchSet();
     }
+  } else if (mode === "vosfor") {
+    initVosforTab().catch(console.error);
   }
 
   const footer = document.getElementById("footer-relic");
@@ -193,6 +196,7 @@ function updateNavTabs(t) {
   setTab("btn-profile", t.menuProfile || "Perfil", t.tooltips.tabProfile);
   setTab("btn-lfg", t.menuLfg || "LFG", t.tooltips.tabLfg);
   setTab("btn-bounties", t.menuBounties || "Farms", t.tooltips.tabBounties);
+  setTab("btn-vosfor", t.vosfor?.tabName || "Vosfor", t.vosfor?.tabTip);
 }
 
 function updateStaticTexts(t) {
@@ -438,6 +442,7 @@ export function updateUILabels() {
     }
   }
   applyArbTexts();
+  if (state.activeTab === "vosfor") renderVosforTab().catch(console.error);
   triggerSideEffects(t);
 }
 

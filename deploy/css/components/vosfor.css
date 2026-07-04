@@ -1,0 +1,1081 @@
+/* =============================================
+   VOSFOR.CSS - Vosfor Calculator & Loid Packs
+   ============================================= */
+
+.vosfor-container {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    width: 100%;
+    color: #e0e0e0;
+    font-size: 0.92rem;
+}
+
+/* --- Image & Thumbnail Styles --- */
+.vosfor-arc-img {
+    width: 56px;
+    height: 56px;
+    object-fit: contain;
+    flex-shrink: 0;
+    background: rgba(0, 0, 0, 0.5);
+    border: 1px solid rgba(155, 89, 182, 0.4);
+    border-radius: 10px;
+    padding: 4px;
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.5);
+    transition: transform 0.18s ease, border-color 0.18s ease;
+}
+
+.vosfor-arc-img:hover {
+    transform: scale(1.18);
+    border-color: rgba(197, 154, 252, 0.9);
+}
+
+.vosfor-pack-img {
+    width: 70px;
+    height: 70px;
+    object-fit: contain;
+    flex-shrink: 0;
+    border-radius: 12px;
+    background: rgba(155, 89, 182, 0.18);
+    padding: 5px;
+    border: 1px solid rgba(155, 89, 182, 0.45);
+}
+
+.vosfor-syndicate-tag {
+    font-size: 0.76rem;
+    font-weight: 700;
+    color: #e0b0ff;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(155, 89, 182, 0.15);
+    border: 1px solid rgba(155, 89, 182, 0.3);
+    border-radius: 4px;
+    padding: 2px 7px;
+}
+
+.vosfor-syndicate-img {
+    width: 95px;
+    height: 95px;
+    object-fit: contain;
+    vertical-align: middle;
+    flex-shrink: 0;
+    filter: drop-shadow(0 4px 8px rgba(0,0,0,0.8));
+}
+
+/* Imagen de Sombras de Jade limpia y grande sin escalas ni márgenes extraños */
+.vosfor-jade-img,
+.vosfor-syndicate-img.vosfor-jade-img {
+    width: 135px !important;
+    height: 135px !important;
+    object-fit: contain;
+    filter: drop-shadow(0 5px 12px rgba(0,0,0,0.9));
+}
+
+/* En cabeceras de ranking */
+.vosfor-ranking-row .vosfor-syndicate-img {
+    width: 80px;
+    height: 80px;
+}
+
+.vosfor-ranking-row .vosfor-jade-img {
+    width: 110px !important;
+    height: 110px !important;
+}
+
+.vosfor-syndicate-group-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    background: rgba(155, 89, 182, 0.12);
+    border-left: 3px solid rgba(155, 89, 182, 0.6);
+    border-radius: 0 6px 6px 0;
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: #ffffff;
+    margin: 10px 0 6px;
+}
+
+/* --- Easter Egg: Jade (Green) vs Stalker (Red) Orbit & Clash --- */
+.jade-easter-egg-header {
+    position: relative;
+    overflow: hidden;
+    min-height: 72px;
+    padding: 10px 14px;
+    background: linear-gradient(135deg, rgba(22, 10, 16, 0.95) 0%, rgba(8, 20, 14, 0.97) 100%) !important;
+    border-left: 4px solid #42f56c !important;
+    box-shadow: inset 0 0 18px rgba(66, 245, 108, 0.12), 0 0 14px rgba(255, 51, 68, 0.18);
+    transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.jade-cosmic-canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 1;
+}
+
+/* --- Hunhow Sentient Dialogue HUD --- */
+.hunhow-meme-quote {
+    font-size: 0.74rem;
+    font-style: italic;
+    font-family: "Georgia", "Times New Roman", serif;
+    color: #ffb3c1;
+    text-shadow: 0 0 8px rgba(255, 51, 68, 0.8), 0 0 12px rgba(0, 240, 255, 0.35);
+    background: rgba(6, 4, 12, 0.93);
+    padding: 4px 10px;
+    border-radius: 2px 8px 8px 2px;
+    border-left: 3px solid #ff3344;
+    border-top: 1px solid rgba(255, 51, 68, 0.35);
+    border-right: 1px solid rgba(0, 240, 255, 0.2);
+    border-bottom: 1px solid rgba(0, 240, 255, 0.2);
+    margin-top: 4px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    animation: hunhowFadeIn 0.35s ease;
+    cursor: pointer;
+    box-shadow: 0 3px 12px rgba(0, 0, 0, 0.85);
+    z-index: 3;
+}
+
+.hunhow-author {
+    font-weight: 700;
+    font-style: normal;
+    letter-spacing: 0.5px;
+    color: #ff3344;
+    text-shadow: 0 0 6px #ff3344;
+    font-size: 0.72rem;
+    margin-left: 4px;
+}
+
+@keyframes hunhowFadeIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* --- Interactive Calculator Widget --- */
+.vosfor-calc-widget {
+    background: linear-gradient(135deg, rgba(155, 89, 182, 0.15) 0%, rgba(20, 20, 35, 0.85) 100%);
+    border: 1px solid rgba(155, 89, 182, 0.4);
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(10px);
+}
+
+/* --- Target Arcane Simulator Widget --- */
+.vosfor-target-widget {
+    background: linear-gradient(135deg, rgba(20, 30, 45, 0.9) 0%, rgba(12, 18, 30, 0.95) 100%);
+    border: 1px solid rgba(126, 203, 255, 0.4);
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(10px);
+}
+
+.vosfor-target-title {
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: #7ecbff;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.vosfor-target-controls {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+.vosfor-select {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 4px;
+    border: 1px solid #444;
+    background-color: var(--wf-input-bg, rgba(0, 0, 0, 0.4));
+    color: #eee;
+    font-size: 0.9em;
+    outline: 0;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-family: "Segoe UI", sans-serif;
+    appearance: none;
+    -webkit-appearance: none;
+    padding-right: 30px;
+    background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%237ECBFF%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px top 50%;
+    background-size: 10px auto;
+}
+
+.vosfor-select:focus {
+    border-color: var(--active-theme-color, #7ecbff) !important;
+    box-shadow: 0 0 8px var(--active-theme-color, rgba(126, 203, 255, 0.4)) !important;
+    background-color: #0f1113;
+}
+
+.vosfor-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 6px;
+    border-radius: 3px;
+    background: rgba(126, 203, 255, 0.25);
+    outline: none;
+    margin: 6px 0;
+}
+
+.vosfor-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #7ecbff;
+    box-shadow: 0 0 10px rgba(126, 203, 255, 0.8);
+    cursor: pointer;
+    transition: transform 0.15s ease;
+}
+
+.vosfor-slider::-webkit-slider-thumb:hover {
+    transform: scale(1.2);
+}
+
+.vosfor-stat-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 10px;
+}
+
+.vosfor-stat-card {
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(126, 203, 255, 0.25);
+    border-radius: 8px;
+    padding: 10px 12px;
+    text-align: center;
+}
+
+.vosfor-stat-card-label {
+    font-size: 0.74rem;
+    color: #aaa;
+    margin-bottom: 4px;
+    font-weight: 600;
+}
+
+.vosfor-stat-card-val {
+    font-size: 1.15rem;
+    font-weight: 800;
+    color: #7ecbff;
+}
+
+/* --- Ranking & Leaderboard Styles --- */
+.vosfor-ranking-section {
+    background: linear-gradient(135deg, rgba(25, 20, 40, 0.9) 0%, rgba(15, 12, 25, 0.95) 100%);
+    border: 1px solid rgba(155, 89, 182, 0.4);
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-bottom: 12px;
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
+}
+
+.vosfor-ranking-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+}
+
+.vosfor-ranking-title {
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: #ffd76e;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.vosfor-ranking-nav {
+    display: flex;
+    gap: 4px;
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(155, 89, 182, 0.3);
+    border-radius: 8px;
+    padding: 3px;
+    flex-wrap: wrap;
+}
+
+.vosfor-ranking-nav-btn {
+    padding: 4px 10px;
+    font-size: 0.76rem;
+    font-weight: 700;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: #aaa;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.vosfor-ranking-nav-btn:hover {
+    color: #fff;
+    background: rgba(155, 89, 182, 0.2);
+}
+
+.vosfor-ranking-nav-btn.active {
+    background: rgba(155, 89, 182, 0.45);
+    color: #ffffff;
+    box-shadow: 0 2px 8px rgba(155, 89, 182, 0.3);
+}
+
+.vosfor-ranking-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 8px;
+}
+
+.vosfor-ranking-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 8px;
+    padding: 8px 12px;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.vosfor-ranking-row:hover {
+    background: rgba(155, 89, 182, 0.1);
+    border-color: rgba(155, 89, 182, 0.35);
+}
+
+.vosfor-rank-medal {
+    font-size: 1rem;
+    font-weight: 800;
+    width: 28px;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+.vosfor-rank-gold { color: #ffd76e; }
+.vosfor-rank-silver { color: #dcdcdc; }
+.vosfor-rank-bronze { color: #e8a87c; }
+.vosfor-rank-num { color: #888; font-size: 0.85rem; }
+
+.vosfor-rank-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.vosfor-rank-name {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: #ffffff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.vosfor-rank-sub {
+    font-size: 0.76rem;
+    color: #aaa;
+    margin-top: 2px;
+}
+
+.vosfor-rank-stat {
+    text-align: right;
+    flex-shrink: 0;
+}
+
+.vosfor-rank-val {
+    font-size: 0.95rem;
+    font-weight: 800;
+    color: #42f56c;
+}
+
+.vosfor-calc-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+}
+
+.vosfor-preset-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 6px;
+    flex-wrap: wrap;
+}
+
+.vosfor-preset-btn {
+    background: rgba(155, 89, 182, 0.2);
+    border: 1px solid rgba(155, 89, 182, 0.4);
+    color: #e0b0ff;
+    border-radius: 6px;
+    padding: 3px 9px;
+    font-size: 0.76rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.vosfor-preset-btn:hover {
+    background: rgba(155, 89, 182, 0.45);
+    color: #ffffff;
+    transform: translateY(-1px);
+}
+
+.vosfor-guide-box {
+    background: linear-gradient(135deg, rgba(30, 25, 45, 0.8) 0%, rgba(15, 15, 25, 0.9) 100%);
+    border: 1px solid rgba(155, 89, 182, 0.3);
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-bottom: 10px;
+}
+
+.vosfor-guide-title {
+    font-size: 0.92rem;
+    font-weight: 700;
+    color: #e0b0ff;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+}
+
+.vosfor-guide-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 10px;
+    margin-top: 10px;
+    font-size: 0.82rem;
+    color: #ccc;
+    line-height: 1.5;
+}
+
+.vosfor-guide-item {
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 6px;
+    padding: 8px 10px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.vosfor-guide-item b {
+    color: #ffffff;
+    display: block;
+    margin-bottom: 2px;
+}
+
+.vosfor-search-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+}
+
+.vosfor-search-input {
+    flex: 1;
+    min-width: 180px;
+    width: 100%;
+    padding: 12px;
+    border-radius: 4px;
+    border: 1px solid #444;
+    background-color: var(--wf-input-bg, rgba(0, 0, 0, 0.4));
+    color: #eee;
+    font-size: 1em;
+    outline: 0;
+    transition: all 0.2s ease;
+    font-family: "Segoe UI", sans-serif;
+}
+
+.custom-dropdown .dropdown-item {
+    background: #111115;
+    color: #eeeeee;
+    padding: 8px 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    transition: background 0.15s ease, border-left 0.15s ease;
+}
+
+.custom-dropdown .dropdown-item:hover {
+    background: #281d38 !important;
+    color: #ffffff !important;
+    border-left: 4px solid #c59afc !important;
+}
+
+.custom-dropdown .dropdown-item:hover div,
+.custom-dropdown .dropdown-item:hover span {
+    color: #ffffff !important;
+}
+
+.vosfor-calc-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 12px;
+}
+
+@media (max-width: 640px) {
+    .vosfor-calc-header {
+        flex-direction: column;
+        align-items: stretch;
+    }
+}
+
+.vosfor-calc-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #e0b0ff;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.vosfor-calc-input-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(155, 89, 182, 0.5);
+    border-radius: 8px;
+    padding: 4px 10px;
+}
+
+.vosfor-calc-input-group label {
+    font-size: 0.85rem;
+    color: #bbb;
+    font-weight: 600;
+}
+
+.vosfor-calc-input {
+    width: 90px;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: #42f56c;
+    font-size: 1.1rem;
+    font-weight: bold;
+    text-align: right;
+}
+
+.vosfor-calc-input::-webkit-inner-spin-button,
+.vosfor-calc-input::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.vosfor-calc-results {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.vosfor-calc-card {
+    background: linear-gradient(145deg, rgba(30, 25, 45, 0.6) 0%, rgba(15, 15, 25, 0.8) 100%);
+    border: 1px solid rgba(155, 89, 182, 0.2);
+    border-radius: 10px;
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    backdrop-filter: blur(8px);
+    transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.vosfor-calc-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+}
+
+.vosfor-calc-card.highlight {
+    background: linear-gradient(145deg, rgba(66, 245, 108, 0.1) 0%, rgba(20, 40, 25, 0.8) 100%);
+    border-color: rgba(66, 245, 108, 0.4);
+    box-shadow: 0 4px 15px rgba(66, 245, 108, 0.05);
+}
+
+.vosfor-calc-card.highlight:hover {
+    border-color: rgba(66, 245, 108, 0.7);
+    box-shadow: 0 6px 20px rgba(66, 245, 108, 0.15);
+}
+
+.vosfor-calc-card.highlight-liquid {
+    background: linear-gradient(145deg, rgba(126, 203, 255, 0.1) 0%, rgba(20, 30, 45, 0.8) 100%);
+    border-color: rgba(126, 203, 255, 0.4);
+    box-shadow: 0 4px 15px rgba(126, 203, 255, 0.05);
+}
+
+.vosfor-calc-card.highlight-liquid:hover {
+    border-color: rgba(126, 203, 255, 0.7);
+    box-shadow: 0 6px 20px rgba(126, 203, 255, 0.15);
+}
+
+.vosfor-calc-card-tag {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    font-weight: 800;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+    margin-bottom: 2px;
+}
+
+.vosfor-calc-card-name {
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: #ffffff;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+
+.vosfor-calc-card-stat {
+    font-size: 1.15rem;
+    font-weight: 800;
+    color: #42f56c;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(0, 0, 0, 0.2);
+    padding: 6px 12px;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    margin-top: 4px;
+}
+
+.vosfor-calc-card-stat-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #aaa;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-right: 4px;
+}
+
+.vosfor-calc-card-sub {
+    font-size: 0.8rem;
+    color: #ccc;
+    background: rgba(0, 0, 0, 0.15);
+    padding: 6px 12px;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.04);
+    line-height: 1.4;
+    margin-top: 4px;
+}
+
+.vosfor-calc-card-trade {
+    font-size: 0.76rem;
+    color: #e8c88a;
+    background: rgba(224, 176, 64, 0.1);
+    border: 1px solid rgba(224, 176, 64, 0.25);
+    padding: 6px 12px;
+    border-radius: 6px;
+    margin-top: 6px;
+    line-height: 1.4;
+}
+
+/* --- Banner / Summary Card --- */
+.vosfor-summary-card {
+    background: linear-gradient(135deg, rgba(155, 89, 182, 0.12) 0%, rgba(30, 25, 45, 0.6) 100%);
+    border: 1px solid rgba(155, 89, 182, 0.35);
+    border-radius: 10px;
+    padding: 12px 16px;
+}
+
+.vosfor-summary-title {
+    font-size: 0.75rem;
+    color: #c59afc;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-weight: 700;
+    margin-bottom: 6px;
+}
+
+.vosfor-explain-text {
+    font-size: 0.84rem;
+    color: #bbb;
+    line-height: 1.5;
+    background: rgba(0, 0, 0, 0.2);
+    border-left: 3px solid rgba(155, 89, 182, 0.6);
+    border-radius: 0 6px 6px 0;
+    padding: 8px 12px;
+    margin-bottom: 4px;
+}
+
+/* --- Pack Cards & Collapsible --- */
+.vosfor-pack-card {
+    background: rgba(18, 18, 28, 0.7);
+    border: 1px solid rgba(155, 89, 182, 0.2);
+    border-radius: 10px;
+    padding: 12px 14px;
+    transition: all 0.2s ease;
+}
+
+.vosfor-pack-card.expanded {
+    border-color: rgba(155, 89, 182, 0.5);
+    background: rgba(22, 20, 36, 0.9);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+}
+
+.vosfor-pack-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.vosfor-pack-title {
+    font-size: 1rem;
+    color: #ffffff;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.vosfor-pack-sub {
+    font-size: 0.8rem;
+    color: #999;
+    margin-top: 3px;
+}
+
+.vosfor-pack-ev {
+    text-align: right;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    align-items: flex-end;
+}
+
+.vosfor-rate-val {
+    font-size: 0.92rem;
+    font-weight: 700;
+}
+
+.vosfor-ev-detail {
+    font-size: 0.78rem;
+    color: #aaa;
+}
+
+/* --- Badges --- */
+.badge-vosfor {
+    font-size: 0.72rem;
+    font-weight: 700;
+    border-radius: 4px;
+    padding: 2px 6px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    border: 1px solid;
+    white-space: nowrap;
+}
+
+.badge-best-spend {
+    background: rgba(66, 245, 108, 0.15);
+    color: #42f56c;
+    border-color: rgba(66, 245, 108, 0.4);
+}
+
+.badge-high-liquid {
+    background: rgba(126, 203, 255, 0.15);
+    color: #7ecbff;
+    border-color: rgba(126, 203, 255, 0.4);
+}
+
+/* --- Highlights Box --- */
+.vosfor-highlights {
+    background: rgba(155, 89, 182, 0.08);
+    border: 1px dashed rgba(155, 89, 182, 0.3);
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin: 10px 0;
+    font-size: 0.82rem;
+    color: #ccc;
+    line-height: 1.6;
+}
+
+/* --- Sorting & Mode Switcher --- */
+.vosfor-sort-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 10px 0 8px;
+    flex-wrap: wrap;
+}
+
+.vosfor-sort-label {
+    font-size: 0.76rem;
+    color: #aaa;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 600;
+}
+
+.vosfor-sort-group {
+    display: flex;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid rgba(155, 89, 182, 0.35);
+    background: rgba(0, 0, 0, 0.3);
+    flex-wrap: wrap;
+}
+
+.vosfor-sort-btn {
+    padding: 6px 12px;
+    font-size: 0.78rem;
+    cursor: pointer;
+    border: none;
+    background: transparent;
+    color: #aaa;
+    font-weight: 500;
+    transition: all 0.15s ease;
+}
+
+.vosfor-sort-btn:hover {
+    color: #fff;
+    background: rgba(155, 89, 182, 0.2);
+}
+
+.vosfor-sort-btn.active {
+    background: rgba(155, 89, 182, 0.45);
+    color: #ffffff;
+    font-weight: 700;
+}
+
+/* --- Arcane Table Header & Rows --- */
+.vosfor-table-header {
+    display: flex;
+    gap: 10px;
+    padding: 6px 10px;
+    font-size: 0.72rem;
+    color: #aaa;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 700;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.vosfor-arc-row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 9px 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    transition: background 0.15s ease;
+}
+
+.vosfor-arc-row:hover {
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.vosfor-arc-main-line {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.vosfor-arc-info {
+    flex: 1.5;
+    min-width: 0;
+}
+
+.vosfor-arc-name {
+    font-size: 0.88rem;
+    color: #ffffff;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.vosfor-arc-name a {
+    color: inherit;
+    text-decoration: none;
+}
+
+.vosfor-arc-name a:hover {
+    color: #e0b0ff;
+    text-decoration: underline;
+}
+
+.vosfor-arc-chips {
+    margin-top: 3px;
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.vosfor-arc-price-col {
+    flex: 1;
+    text-align: right;
+    font-size: 0.85rem;
+}
+
+.vosfor-arc-dissolve-col {
+    flex: 1;
+    text-align: right;
+    font-size: 0.84rem;
+}
+
+.vosfor-arc-verdict-col {
+    flex: 0 0 85px;
+    text-align: right;
+}
+
+/* --- R0 vs R5 Detailed Breakdown --- */
+.vosfor-r0r5-toggle-box {
+    margin-top: 4px;
+    background: rgba(0, 0, 0, 0.25);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 0.78rem;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    justify-content: space-between;
+    border: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.vosfor-r0r5-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.vosfor-r0r5-label {
+    font-weight: 700;
+    color: #999;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+}
+
+/* --- Verdict Badges --- */
+.verdict-tag {
+    font-size: 0.72rem;
+    font-weight: 800;
+    border: 1px solid;
+    border-radius: 4px;
+    padding: 2px 7px;
+    display: inline-block;
+    letter-spacing: 0.3px;
+}
+
+.verdict-sell {
+    color: #42f56c;
+    border-color: rgba(66, 245, 108, 0.5);
+    background: rgba(66, 245, 108, 0.1);
+}
+
+.verdict-dissolve {
+    color: #c59afc;
+    border-color: rgba(155, 89, 182, 0.5);
+    background: rgba(155, 89, 182, 0.15);
+}
+
+.verdict-even {
+    color: #e0b040;
+    border-color: rgba(224, 176, 64, 0.5);
+    background: rgba(224, 176, 64, 0.1);
+}
+
+/* Responsive adjustments */
+@media (max-width: 600px) {
+    .vosfor-calc-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    .vosfor-calc-input-group {
+        width: 100%;
+        justify-content: space-between;
+    }
+    .vosfor-arc-main-line {
+        flex-wrap: wrap;
+    }
+    .vosfor-arc-info {
+        flex: 1 0 100%;
+    }
+}
+
+/* --- Overflow y apilado (campos que crecen + dropdowns) --- */
+/* Los números grandes no deben empujar los iconos fuera de su tarjeta */
+.vosfor-calc-card-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+
+.vosfor-calc-card-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.vosfor-calc-card-name,
+.vosfor-calc-card-tag {
+    overflow-wrap: anywhere;
+}
+
+.vosfor-calc-card-stat {
+    flex-wrap: wrap;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.vosfor-calc-card-sub {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    column-gap: 3px;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.vosfor-calc-card-sub img,
+.vosfor-calc-card-stat img,
+.vosfor-stat-card-val img {
+    flex-shrink: 0;
+}
+
+.vosfor-stat-card-val {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 3px;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+/* Dropdowns por encima de los widgets vecinos: el widget con foco sube de capa */
+.vosfor-calc-widget,
+.vosfor-target-widget,
+.vosfor-ranking-section {
+    position: relative;
+    z-index: 1;
+}
+
+.vosfor-target-widget:focus-within {
+    z-index: 80;
+}
+
+.vosfor-target-widget .custom-dropdown {
+    z-index: 90;
+}

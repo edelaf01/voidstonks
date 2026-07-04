@@ -12,52 +12,133 @@ import {
 
 let debounceTimer;
 
+export function findBestRelicMatch(inputVal) {
+  if (!inputVal) return "";
+  const normInput = inputVal.toUpperCase().trim();
+  const normNoRelic = normInput.replace(/\s+RELIC$/, "");
+
+  // Las eras principales ("AXI", "LITH", "NEO", "MESO", "REQUIEM") despliegan la lista completa en el dropdown
+  const eras = ["AXI", "LITH", "NEO", "MESO", "REQUIEM"];
+  if (eras.includes(normNoRelic)) {
+    const exact = state.allRelicNames.find(
+      (n) => n.toUpperCase() === normInput || n.toUpperCase() === normNoRelic + " RELIC"
+    );
+    return exact || "";
+  }
+
+  // 1. Coincidencia exacta por nombre (ej: "AXI A1", "LITH G1")
+  let found = state.allRelicNames.find(
+    (n) => n.toUpperCase() === normInput || n.toUpperCase() === normNoRelic + " RELIC"
+  );
+  if (found) return found;
+
+  // 2. Coincidencia por inicio de código (ej: "AXI A1")
+  found = state.allRelicNames.find(
+    (n) => n.toUpperCase() === normNoRelic || n.toUpperCase().startsWith(normNoRelic)
+  );
+  if (found) return found;
+
+  // 3. Coincidencia por recompensa / drop (ej: "KRONEN", "FORMA", "RHINO")
+  if (state.relicsDatabase) {
+    for (const [relicName, drops] of Object.entries(state.relicsDatabase)) {
+      if (drops.some((d) => d.name.toUpperCase().includes(normInput))) {
+        return relicName;
+      }
+    }
+  }
+  return "";
+}
+
 export function handleRelicTyping() {
   const input = document.getElementById("relicInput");
+  if (!input) return;
   const val = input.value.toUpperCase().trim();
   const container = document.getElementById("relic-contents");
   const dropdown = document.getElementById("relicDropdown");
   saveAppState();
+
   if (val.length < 1) {
-    dropdown?.classList.add("hidden");
+    if (dropdown) {
+      dropdown.classList.add("hidden");
+      dropdown.style.display = "none";
+    }
     container?.classList.add("hidden");
     state.selectedRelic = "";
     return;
   }
-  const matches = state.allRelicNames
-    .filter((n) => n.toUpperCase().includes(val))
-    .sort((a, b) => a.localeCompare(b))
-    .slice(0, 10);
+
+  const valNoRelic = val.replace(/\s+RELIC$/, "");
+
+  // 1. Coincidencias por nombre de reliquia (ej: "AXI A1", "LITH G1", "A1", "AXI")
+  const nameMatches = state.allRelicNames.filter((n) => {
+    const upper = n.toUpperCase();
+    return upper.includes(val) || upper.includes(valNoRelic);
+  });
+
+  // 2. Coincidencias por objeto que contiene (ej: "KRONEN", "FORMA", "RHINO")
+  const dropMatches = [];
+  if (state.relicsDatabase) {
+    for (const [relicName, drops] of Object.entries(state.relicsDatabase)) {
+      if (nameMatches.includes(relicName)) continue;
+      const matchingDrop = drops.find((d) => d.name.toUpperCase().includes(val));
+      if (matchingDrop) {
+        dropMatches.push({ relicName, dropName: matchingDrop.name });
+      }
+    }
+  }
+
+  const combined = [];
+  nameMatches.forEach((n) => combined.push({ relicName: n, label: n }));
+  dropMatches.forEach((d) =>
+    combined.push({ relicName: d.relicName, label: `${d.relicName} (${d.dropName})` })
+  );
+
+  const matches = combined.slice(0, 15);
+
   if (matches.length > 0 && dropdown) {
     dropdown.innerHTML = "";
     dropdown.classList.remove("hidden");
-    matches.forEach((name) => {
+    dropdown.style.display = "block";
+    matches.forEach((itemObj) => {
       const item = document.createElement("div");
       item.className = "dropdown-item";
-      item.innerText = name;
+      item.innerText = itemObj.label;
       item.onclick = () => {
-        input.value = name;
+        input.value = itemObj.relicName;
         dropdown.classList.add("hidden");
+        dropdown.style.display = "none";
         document.getElementById("relic-contents")?.classList.remove("hidden");
         manualRelicUpdate();
       };
       dropdown.appendChild(item);
     });
   } else {
-    dropdown?.classList.add("hidden");
+    if (dropdown) {
+      dropdown.classList.add("hidden");
+      dropdown.style.display = "none";
+    }
   }
+
   clearTimeout(debounceTimer);
-  debounceTimer = setTimeout(manualRelicUpdate, 600);
+  debounceTimer = setTimeout(manualRelicUpdate, 350);
 }
 
 export function manualRelicUpdate() {
   try {
     const relicInput = document.getElementById("relicInput");
     if (!relicInput) return;
-    const inputVal = relicInput.value.trim().toUpperCase();
-    const realName =
-      state.allRelicNames.find((n) => n.toUpperCase() === inputVal) ||
-      relicInput.value;
+    const inputVal = relicInput.value.trim();
+    if (!inputVal) {
+      document.getElementById("relic-contents")?.classList.add("hidden");
+      return;
+    }
+
+    const realName = findBestRelicMatch(inputVal);
+    if (!realName) {
+      // Si el texto es parcial (ej: "AXI"), mantener el dropdown desplegado y no ocultar resultados previos si se hace clic
+      return;
+    }
+
     state.selectedRelic = realName;
 
     const listDiv = document.getElementById("relic-drops-list");
@@ -68,14 +149,12 @@ export function manualRelicUpdate() {
       container.classList.remove("hidden");
       renderRelicStatusBadge(state.selectedRelic);
       const items = [...state.relicsDatabase[state.selectedRelic]].sort(
-        (a, b) => b.chance - a.chance,
+        (a, b) => b.chance - a.chance
       );
       const fragment = document.createDocumentFragment();
       items.forEach((item) => fragment.appendChild(createRelicDropRow(item)));
       listDiv.replaceChildren(fragment);
       generateMessage();
-    } else {
-      container.classList.add("hidden");
     }
   } catch (e) {
     console.error("Error en manualRelicUpdate:", e);

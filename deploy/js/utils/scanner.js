@@ -94,9 +94,11 @@ export async function handleFileUpload(event) {
 
   for (const file of files) {
     const img = new Image();
-    img.src = URL.createObjectURL(file);
+    const url = URL.createObjectURL(file);
+    img.src = url;
     await new Promise((resolve) => (img.onload = resolve));
     await processImageSource(img);
+    URL.revokeObjectURL(url);
   }
 }
 
@@ -145,8 +147,14 @@ async function processImageSource(source) {
   processingCtx.putImageData(imageData, 0, 0);
 
   try {
+    // Carga bajo demanda: el loader ya no está en index.html para no penalizar
+    // en RAM/red a quien solo consulta precios
+    if (!globalThis.Tesseract) {
+      const { OCRRepository } = await import("../repositories/ocr.repository.js");
+      await OCRRepository.loadTesseractScript();
+    }
     if (!globalThis.Tesseract)
-      throw new Error("Librería Tesseract no cargada en index.html");
+      throw new Error("No se pudo cargar la librería Tesseract");
 
     console.log(`[SCANNER] Iniciando OCR sobre imagen ${w}x${h} (temas: ${themes?.length ?? 0})...`);
 
@@ -313,6 +321,10 @@ export async function startInventoryScrollScan() {
   try {
     showToast("🚀 INITIALIZING OCR ENGINE...");
 
+    if (!globalThis.Tesseract) {
+      const { OCRRepository } = await import("../repositories/ocr.repository.js");
+      await OCRRepository.loadTesseractScript();
+    }
     if (!ocrWorker) {
       ocrWorker = await globalThis.Tesseract.createWorker("eng", 1, {
         workerPath: "js/worker.min.js",

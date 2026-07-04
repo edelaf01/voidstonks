@@ -7,6 +7,29 @@ export const OCRRepository = {
     initPromise: null,
 
     /**
+     * Loads the Tesseract loader script on demand (the heavy wasm core is fetched
+     * later by createWorker). Keeps the main page light for price-only users.
+     */
+    loadTesseractScript() {
+        if (globalThis.Tesseract) return Promise.resolve();
+        return new Promise((resolve, reject) => {
+            const url = "js/tesseract.min.js";
+            if (document.querySelector(`script[src="${url}"]`)) {
+                const poll = setInterval(() => {
+                    if (globalThis.Tesseract) { clearInterval(poll); resolve(); }
+                }, 50);
+                setTimeout(() => { clearInterval(poll); resolve(); }, 10000);
+                return;
+            }
+            const script = document.createElement("script");
+            script.src = url;
+            script.onload = () => resolve();
+            script.onerror = () => reject(new Error("Tesseract Script Load Fail"));
+            document.head.appendChild(script);
+        });
+    },
+
+    /**
      * Initializes a pool of Tesseract workers.
      */
     async warmUp(timeout = 60000) {
@@ -14,6 +37,7 @@ export const OCRRepository = {
 
         this.initPromise = (async () => {
             try {
+                await this.loadTesseractScript();
                 const tess = globalThis.Tesseract;
                 if (!tess) throw new Error("Tesseract not found");
 
@@ -40,14 +64,12 @@ export const OCRRepository = {
                 const results = await Promise.all([
                     createStandardWorker(),
                     createStandardWorker(),
-                    createStandardWorker(),
-                    createBadgeWorker(),
                     createBadgeWorker(),
                     createBadgeWorker()
                 ]);
 
-                this.workers = [results[0], results[1], results[2]];
-                this.badgeWorkers = [results[3], results[4], results[5]];
+                this.workers = [results[0], results[1]];
+                this.badgeWorkers = [results[2], results[3]];
 
                 return true;
             } catch (e) {
