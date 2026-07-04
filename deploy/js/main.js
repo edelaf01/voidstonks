@@ -24,7 +24,7 @@ import {
   checkUpdates,
   toggleLangDropdown,
   setLanguageManual,
-} from "./ui.js?v=1.9";
+} from "./ui.js?v=2.0";
 import { initFissurePanel } from "./ui.components/ui_fissures.js";
 import { initSyncPanel } from "./ui.components/ui_sync.js";
 import { calculateCaps, renderProfileStats } from "./ui.components/ui_profile.js";
