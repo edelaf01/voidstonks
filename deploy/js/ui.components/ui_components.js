@@ -267,6 +267,31 @@ export function initGlobalTooltipSystem() {
       hideTooltip();
     }
   });
+
+  // Soporte TÁCTIL/MÓVIL: sin hover, un TAP sobre el disparador muestra el tooltip
+  // (mismo contenido/posición que en desktop); tocar de nuevo el mismo, o fuera, lo cierra.
+  // Sin esto, los usuarios de móvil no ven ningún tooltip (dissolve, veredicto, etc.).
+  document.addEventListener("click", (e) => {
+    const target = e.target.closest("[data-tooltip], [data-tooltip-html], [data-tooltip-relic]");
+    if (e.target.closest("#global-tooltip")) return; // clic dentro del propio tooltip: ignorar
+    if (target) {
+      const alreadyOpen = !tooltipEl.classList.contains("hidden") && currentHoverTarget === target;
+      if (openTimer) clearTimeout(openTimer);
+      if (alreadyOpen) {
+        currentHoverTarget = null;
+        tooltipEl.classList.add("hidden");
+        tooltipEl.classList.remove("mega-mode");
+      } else {
+        currentHoverTarget = target;
+        showTooltip(e, target);
+      }
+    } else if (!tooltipEl.classList.contains("hidden")) {
+      // Tap fuera de cualquier disparador: cerrar.
+      currentHoverTarget = null;
+      tooltipEl.classList.add("hidden");
+      tooltipEl.classList.remove("mega-mode");
+    }
+  });
 }
 
 export function initDisclaimerSystem() {
