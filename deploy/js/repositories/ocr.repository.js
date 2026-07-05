@@ -41,8 +41,13 @@ export const OCRRepository = {
                 const tess = globalThis.Tesseract;
                 if (!tess) throw new Error("Tesseract not found");
 
+                // Carga los datos de idioma desde el archivo local (tessdata_fast, ~4MB en vez
+                // de los 23MB del tessdata estándar). Menos RAM por worker y sin depender del CDN.
+                // Se deja worker/core en el default (que ya funciona) para no tocar el wiring del WASM.
+                const LOCAL_LANG = { langPath: "js/", gzip: false };
+
                 const createStandardWorker = async () => {
-                    const w = await tess.createWorker("eng", 1);
+                    const w = await tess.createWorker("eng", 1, LOCAL_LANG);
                     await w.setParameters({
                         tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789:()+- '/%,.",
                         tessedit_pageseg_mode: "6",
@@ -52,7 +57,7 @@ export const OCRRepository = {
                 };
 
                 const createBadgeWorker = async () => {
-                    const w = await tess.createWorker("eng", 1);
+                    const w = await tess.createWorker("eng", 1, LOCAL_LANG);
                     await w.setParameters({
                         tessedit_char_whitelist: " 0123456789",
                         tessedit_pageseg_mode: "7",

@@ -77,23 +77,11 @@ export async function startLiveSession() {
     toggleBtn.querySelector(".label").innerText = t.starting;
   }
 
-  let linuxBraveTimeout = null;
-  if (navigator.userAgent.toLowerCase().includes("linux") && navigator.brave) {
-    linuxBraveTimeout = setTimeout(() => {
-      if (isStartingSession && !liveStream?.active) {
-        const msgEs = "⚠️ AVISO LINUX/BRAVE ⚠️\n\nParece que Brave se ha bloqueado intentando pedir permisos de pantalla.\n\nPara usar esta función en Linux (Wayland), necesitas activar 'WebRTC PipeWire support' en 'brave://flags'.\n\nSi no, usa Firefox, que lo soporta nativamente.";
-        const msgEn = "⚠️ LINUX/BRAVE WARNING ⚠️\n\nIt seems Brave has frozen while requesting screen share permissions.\n\nTo use this feature on Linux (Wayland), you must enable 'WebRTC PipeWire support' in 'brave://flags'.\n\nOtherwise, use Firefox, which supports it natively.";
-        alert(state.currentLang === "es" ? msgEs : msgEn);
-      }
-    }, 6000);
-  }
-
   try {
     liveStream = await navigator.mediaDevices.getDisplayMedia({
       video: { cursor: "never", displaySurface: "window", frameRate: { ideal: 10, max: 15 } },
       audio: false,
     });
-    if (linuxBraveTimeout) clearTimeout(linuxBraveTimeout);
 
     const video = document.getElementById("live-video");
     video.srcObject = liveStream;
@@ -113,7 +101,6 @@ export async function startLiveSession() {
 
     liveStream.getVideoTracks()[0].onended = () => stopLiveSession();
   } catch (e) {
-    if (linuxBraveTimeout) clearTimeout(linuxBraveTimeout);
     console.error("Scanner startup failed:", e);
     showToast("Error: " + e.message);
     stopLiveSession();

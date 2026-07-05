@@ -18,6 +18,10 @@ export const WF_THEMES = [
     { name: "Lotus", r: 255, g: 241, b: 191 },
     { name: "Nidus", r: 245, g: 73, b: 93 },
     { name: "Orokin", r: 178, g: 125, b: 5 },
+    // Tema por defecto moderno de Warframe (naranja/dorado brillante). El catálogo
+    // solo tenía el "Orokin" apagado (178,125,5), que queda a >tolerancia del naranja
+    // real de la UI actual (~227,128,20) → detección con weight 0. Medido de captura real.
+    { name: "Default", r: 227, g: 128, b: 20 },
     { name: "Tenno", r: 6, g: 106, b: 74 },
     { name: "High Contrast", r: 255, g: 255, b: 0 },
 ];
@@ -1145,19 +1149,21 @@ export const VisionService = {
             }
         }
 
-        // Filter out components that are clearly too low in the crop box.
-        // The quantity badge numbers always start at the very top.
-        // Find the global top baseline.
-        let globalMinY = safeH;
+        // Aislar el/los DÍGITO(s) por FORMA (resolución-independiente). Verificado con harness
+        // offline sobre capturas reales del juego: la binarización K-means es perfecta y el fallo
+        // real era el borrado del checkmark. Firmas de forma:
+        //   - checkmark ✓  = componente CUADRADO (ancho≈alto, w/h≈1.0)  → NO es dígito
+        //   - arte del ítem = ANCHO o desproporcionado (w/h alto)        → NO es dígito
+        //   - dígito        = MÁS ALTO QUE ANCHO (w/h ≲ 0.9) y ocupa buena parte del alto del crop
+        // Esto sustituye a la heurística frágil de "mayor hueco" (que dejaba el checkmark → "93"
+        // o se comía el dígito → Ø). El consenso temporal (scanner.service) remata lo que quede.
+        const isDigitShaped = (c) => {
+            const ar = c.width / c.height;
+            return ar <= 0.92 && c.height >= safeH * 0.20 && c.height <= safeH * 0.80;
+        };
         for (const comp of components) {
-            if (!comp.erased && comp.pixels.length >= 8 && comp.minY < globalMinY) {
-                globalMinY = comp.minY;
-            }
-        }
-
-        // Anything starting 16px below the top baseline is a crafting icon or background detail.
-        for (const comp of components) {
-            if (comp.minY > globalMinY + 16) {
+            if (comp.erased) continue;
+            if (!isDigitShaped(comp)) {
                 for (const pixelIdx of comp.pixels) {
                     px[pixelIdx * 4] = 255;
                     px[pixelIdx * 4 + 1] = 255;
@@ -1167,46 +1173,15 @@ export const VisionService = {
             }
         }
 
-        // Get non-erased components
-        const activeComponents = components.filter(c => !c.erased);
-        if (activeComponents.length === 0) {
-            return null;
-        }
-
-        // Sort active components from left to right based on minX
-        activeComponents.sort((a, b) => a.minX - b.minX);
-
-        // Find the split point based on the largest horizontal gap of at least 3 pixels
-        let splitIdx = -1;
-        let maxGap = 0;
-        for (let i = 0; i < activeComponents.length - 1; i++) {
-            const gap = activeComponents[i+1].minX - activeComponents[i].maxX;
-            if (gap > maxGap) {
-                maxGap = gap;
-                splitIdx = i;
-            }
-        }
-
-        // If a clear separation gap of at least 1 pixel is found, erase everything to the left of it (the checkmark icon)!
-        // Otherwise, fall back to a conservative 25% boundary to prevent erasing thin digits (like 11).
-        if (splitIdx !== -1 && maxGap >= 1 && activeComponents[splitIdx].maxX < safeW * 0.55) {
-            for (let i = 0; i <= splitIdx; i++) {
-                for (const pixelIdx of activeComponents[i].pixels) {
-                    px[pixelIdx * 4] = 255;
-                    px[pixelIdx * 4 + 1] = 255;
-                    px[pixelIdx * 4 + 2] = 255;
-                }
-                activeComponents[i].erased = true;
-            }
-        } else {
-            for (const comp of activeComponents) {
-                if (comp.minX < safeW * 0.25) {
-                    for (const pixelIdx of comp.pixels) {
-                        px[pixelIdx * 4] = 255;
-                        px[pixelIdx * 4 + 1] = 255;
-                        px[pixelIdx * 4 + 2] = 255;
-                    }
-                    comp.erased = true;
+        // Red de seguridad: si el filtro de forma no dejó NINGÚN componente (caso raro), preferimos
+        // una lectura posiblemente contaminada a devolver vacío — el consenso descarta el ruido.
+        // Restauramos todo salvo las líneas de borde ya borradas antes.
+        if (!components.some(c => !c.erased)) {
+            for (const comp of components) {
+                if (comp.width > 18 && comp.height <= 3) continue; // líneas de borde: siguen fuera
+                comp.erased = false;
+                for (const pixelIdx of comp.pixels) {
+                    px[pixelIdx * 4] = 0; px[pixelIdx * 4 + 1] = 0; px[pixelIdx * 4 + 2] = 0;
                 }
             }
         }
@@ -1215,10 +1190,8 @@ export const VisionService = {
         // Determine the bounding box of the remaining digit components
         let digitMinX = safeW, digitMaxX = 0, digitMinY = safeH, digitMaxY = 0;
         let hasDigits = false;
-
         for (const comp of components) {
             if (comp.erased) continue;
-            
             if (comp.minX < digitMinX) digitMinX = comp.minX;
             if (comp.maxX > digitMaxX) digitMaxX = comp.maxX;
             if (comp.minY < digitMinY) digitMinY = comp.minY;
