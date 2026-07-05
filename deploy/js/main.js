@@ -50,7 +50,7 @@ if ("serviceWorker" in navigator) {
     }
   });
 }
-import { initVosforTab } from "./ui.components/ui_vosfor.js?v=2.1";
+import { initVosforTab } from "./ui.components/ui_vosfor.js?v=2.6";
 
 document.addEventListener("DOMContentLoaded", async () => {
   const urlParams = new URLSearchParams(globalThis.location.search);

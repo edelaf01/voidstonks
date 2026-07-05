@@ -272,6 +272,25 @@ function meanBy(items, fn) {
  * precio equilibrado (rank 0) de los arcanos de esa rareza en la colección.
  * Incluye cálculo de liquidez promedio del pack para ponderar ventas reales.
  */
+// Precio R0 REALIZABLE (no el listing a pelo): los asks de arcanos con MERCADO MUERTO no
+// reflejan lo que de verdad se vende — nadie compra a ese precio. Ponderamos el ask por la
+// liquidez real (ventas cerradas/día, r0+rmax) y ponemos como suelo lo que ofrecen los
+// compradores (best buy). Así un arcano casi sin ventas cuenta solo una fracción de su ask,
+// y el EV del pack deja de inflarse con precios de listings que nadie paga.
+function realizablePrice(ask, vol, bestBuy, thr) {
+    if (!ask || ask <= 0) return 0;
+    const liq = Math.max(0.15, Math.min(1, vol / thr));  // vol>=thr ventas/día = precio pleno; muerto ≈15%
+    return Math.max(bestBuy || 0, ask * liq);            // al menos lo que pagan los compradores
+}
+// R0: umbral 5 ventas/día para crédito pleno (volumen r0 + rmax).
+export function realizableR0(st) {
+    return st ? realizablePrice(st.pe || 0, (st.v || 0) + (st.vm || 0), st.bb || 0, 5) : 0;
+}
+// Rango máximo: los R5 se venden menos a menudo, umbral más bajo (2/día) y su propio best-buy.
+export function realizableMax(st) {
+    return st ? realizablePrice(st.pem || 0, st.vm || 0, st.bbm || 0, 2) : 0;
+}
+
 export function computePackEV(pack, arcanes) {
     const loaded = pack.items.filter((s) => ARC_STATS.has(s));
     const ready = loaded.length === pack.items.length;
@@ -292,7 +311,7 @@ export function computePackEV(pack, arcanes) {
         for (const r of RARITIES) {
             const w = roll[r] || 0;
             if (!w || !byRarity[r].length) continue;
-            evPlat += w * meanBy(byRarity[r], (s) => ARC_STATS.get(s)?.pe || 0);
+            evPlat += w * meanBy(byRarity[r], (s) => realizableR0(ARC_STATS.get(s)));
             evVosfor += w * meanBy(byRarity[r], (s) => arcanes[s]?.vosfor || 0);
         }
     }
@@ -372,8 +391,9 @@ export function arcaneVerdict(slug, arcanes, bestRate) {
     const rate = bestRate ? bestRate.rate : 0;
     const copiesMax = copiesForMaxRank(meta);
 
-    // R0 Math (1 copia)
-    const sellR0 = st.pe || 0;
+    // R0 Math (1 copia). Precio REALIZABLE, no el listing: un arcano con mercado muerto no
+    // vale su ask (nadie lo compra) → no debe recomendar "VENDER" con un precio fantasma.
+    const sellR0 = realizableR0(st);
     const dissolvePlatR0 = meta.vosfor * rate;
 
     let verdictR0 = "pending";
@@ -384,8 +404,8 @@ export function arcaneVerdict(slug, arcanes, bestRate) {
         else verdictR0 = "even";
     }
 
-    // Rango máximo (copiesMax copias: 21 si fusionLimit 5, 10 si fusionLimit 3)
-    const sellR5 = st.pem || 0;
+    // Rango máximo (copiesMax copias: 21 si fusionLimit 5, 10 si fusionLimit 3). Realizable.
+    const sellR5 = realizableMax(st);
     const sell21R0 = sellR0 * copiesMax;
     const dissolvePlat21 = (meta.vosfor * copiesMax) * rate;
 
@@ -405,22 +425,44 @@ export function arcaneVerdict(slug, arcanes, bestRate) {
         ? Math.round(((sellR5 - sell21R0) / sell21R0) * 100)
         : 0;
 
-    // VEREDICTO ÚNICO por copia: qué hacer con cada copia de este arcano, sin importar
-    // el rango. Compara las tres salidas por copia: vender suelta (R0), subir a rango
-    // máximo y vender (pem/copias), o disolver (vosfor x tasa del mejor pack).
     const sellPerCopyMax = copiesMax > 0 ? sellR5 / copiesMax : 0;
-    const bestSellPerCopy = Math.max(sellR0, sellPerCopyMax);
+
+    // ── VEREDICTO por CONJUNTO de `copiesMax` copias (foco en R5/R3, no en spamear R0) ──
+    // Motivo: vender N copias R0 sueltas son N trades tediosos por poco cada uno; fusionar a
+    // rango máximo y vender es 1 solo trade; disolver es una APUESTA (packs aleatorios).
+    // Comparamos el valor NETO de cada salida para el MISMO lote, con:
+    //   - fricción por trade (EFFORT_PL): penaliza vender muchas copias sueltas,
+    //   - tasa ajustada por liquidez (no la cruda): el pack no siempre revende todo,
+    //   - descuento de certeza (CERTAINTY): una apuesta vale menos que el mismo plat seguro.
+    const CERTAINTY = 0.75;   // disolver→packs vale ~75% de su EV nominal (varianza + fricción de reventa)
+    const EFFORT_PL = 2;      // coste de fricción en pl por cada trade de venta
+    const liqRate = bestRate?.ev?.balancedRate ?? rate;   // tasa liquidez-ajustada del mejor pack
+
+    const canSellMax = st.pem > 0 && (st.rm || 0) > 0;                              // hay mercado real de Rmax
+    const netSellMax = canSellMax ? sellR5 - EFFORT_PL : -Infinity;                 // fusionar + vender: 1 trade
+    const netSellR0 = sellR0 > 0 ? copiesMax * (sellR0 - EFFORT_PL) : -Infinity;    // vender sueltas: N trades
+    const netDissolve = meta.vosfor * copiesMax * liqRate * CERTAINTY;              // disolver: apuesta descontada
+    const bestGuaranteed = Math.max(netSellMax, netSellR0);                         // mejor salida SIN apostar
+
     let bestAction = "pending";
+    let gambleWarning = false;
     if (bestRate) {
-        if (bestSellPerCopy <= 0) bestAction = "dissolve";
-        else if (bestSellPerCopy > dissolvePlatR0 * 1.15) {
-            bestAction = sellPerCopyMax > sellR0 * 1.1 ? "sell_max" : "sell_r0";
+        if (bestGuaranteed <= 0 && netDissolve <= 0) {
+            bestAction = "dissolve";
+        } else {
+            const opts = [["sell_max", netSellMax], ["sell_r0", netSellR0], ["dissolve", netDissolve]];
+            opts.sort((a, b) => b[1] - a[1]);
+            const [topKey, topVal] = opts[0];
+            bestAction = Math.abs(topVal - opts[1][1]) <= topVal * 0.08 ? "even" : topKey;
+            // Aviso: disolver "gana" en EV pero sacrificas un valor garantizado notable.
+            if (bestAction === "dissolve" && bestGuaranteed >= 20) gambleWarning = true;
         }
-        else if (bestSellPerCopy < dissolvePlatR0 * 0.85) bestAction = "dissolve";
-        else bestAction = "even";
     }
 
     return {
+        gambleWarning,
+        guaranteedBest: Math.round(Math.max(0, bestGuaranteed) * 10) / 10,
+        netDissolveAdj: Math.round(netDissolve * 10) / 10,
         verdict: verdictR0,
         verdictR5: verdictR5,
         bestAction,

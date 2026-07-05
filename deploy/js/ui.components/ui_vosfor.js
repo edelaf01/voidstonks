@@ -32,7 +32,7 @@ import {
     ARC_STATS,
     fetchLiveArcanePrice,
     clearArcaneCacheIDB
-} from "../services/vosfor.service.js?v=2.1";
+} from "../services/vosfor.service.js?v=2.4";
 
 const PLAT = `<img src="assets/relic_contents/platinum.webp" style="width:13px;height:13px;vertical-align:middle;margin-left:2px;">`;
 
@@ -224,7 +224,23 @@ const JADE_CONSTELLATIONS_ARCANES = new Set([
     "melee_assimilation",
 ]);
 
+// Arcanos del Artefacto Tektolisto (Marie Leroux, La Cathédrale — quest The Old Peace).
+// Fuente propia, no un pack de Loid: van en "others" con su sindicato propio.
+const TEKTOLYST_ARCANES = new Set([
+    "zid-an-asheir",
+    "zid-an-haras",
+    "zid-an-sek-eel",
+    "zid-an-uskos",
+    "zid-an-osbok",
+]);
+
 const OTHERS_SYNDICATE_MAP = {
+    tektolyst: {
+        es: "Artefacto Tektolisto (La Cathédrale)",
+        en: "Tektolyst Artifact (La Cathédrale)",
+        icon: "pack_tektolyst.webp",
+        wikiIcon: "TektolystArtifact", // clave de grupo única (icono real via `icon`)
+    },
     cathedrale: {
         es: "La Cathédrale (Höllvania 1999 - Descendencia)",
         en: "La Cathédrale (Höllvania 1999 - Descent)",
@@ -246,6 +262,7 @@ const OTHERS_SYNDICATE_MAP = {
 };
 
 function getArcaneOtherSyndicate(slug) {
+    if (TEKTOLYST_ARCANES.has(slug)) return OTHERS_SYNDICATE_MAP.tektolyst;
     if (CATHEDRALE_ARCANES.has(slug)) return OTHERS_SYNDICATE_MAP.cathedrale;
     if (JADE_CONSTELLATIONS_ARCANES.has(slug)) return OTHERS_SYNDICATE_MAP.jade_constellations;
     return OTHERS_SYNDICATE_MAP.default;
@@ -416,13 +433,14 @@ function rankingMedal(index) {
     return `<span class="vosfor-rank-medal vosfor-rank-num">#${index + 1}</span>`;
 }
 
-function getDissolveTip(v, t) {
+function getDissolveTip(v, t, meta) {
     if (!v || v.dissolvePlat === undefined || v.dissolvePlat === null) return "";
     const packName = state.currentLang === "es" ? v.bestPackEs : v.bestPackEn;
     const template = t.dissolveSpentTip || (state.currentLang === "es"
-        ? "Disolver este arcano equivale a ~{plat} Platino gastando su Vosfor en {pack}"
-        : "Dissolving this arcane equals ~{plat} Platinum when spending its Vosfor on {pack}");
+        ? "Disolver destruye el arcano y te da {vosfor} Vosfor. Gastado en packs de {pack} rinde de media ~{plat} pl, pero es una apuesta."
+        : "Dissolving destroys the arcane and gives you {vosfor} Vosfor. Spent on {pack} packs it averages ~{plat} pl, but it's a gamble.");
     return template
+        .replace("{vosfor}", meta?.vosfor ?? "")
         .replace("{plat}", v.dissolvePlat.toFixed(1))
         .replace("{pack}", packName || (state.currentLang === "es" ? "el mejor pack" : "the best pack"));
 }
@@ -1598,22 +1616,31 @@ export async function onLivePriceCheck(slug) {
 // Veredicto único por copia: la única decisión que importa (vender en R0, subir a Rmax
 // y vender, o disolver). El razonamiento completo va en el tooltip, no en la fila.
 function bestActionBadge(v, meta) {
-    const es = state.currentLang === "es";
     if (!v || v.bestAction === "pending" || v.bestAction === undefined) {
         return `<span style="font-size:0.72rem;color:#888;">…</span>`;
     }
+    const t = vosT();
     const map = {
-        sell_r0: { txt: "VENDER R0", css: "verdict-sell" },
-        sell_max: { txt: `VENDER R${v.maxRank}`, css: "verdict-sell" },
-        dissolve: { txt: es ? "DISOLVER" : "DISSOLVE", css: "verdict-dissolve" },
-        even: { txt: es ? "PAREJO" : "EVEN", css: "verdict-even" },
+        sell_r0: { txt: t.verdictSellR0, css: "verdict-sell" },
+        sell_max: { txt: `${t.verdictSell} R${v.maxRank}`, css: "verdict-sell" },
+        dissolve: { txt: t.verdictDissolve, css: "verdict-dissolve" },
+        even: { txt: t.verdictEven, css: "verdict-even" },
     };
-    if (!es) { map.sell_r0.txt = "SELL R0"; map.sell_max.txt = `SELL R${v.maxRank}`; }
     const m = map[v.bestAction] || map.even;
-    const tip = es
-        ? `Por copia: vender R0 = ${v.sell} pl · vía R${v.maxRank} (${v.copiesMax} copias a ${v.sellR5} pl) = ${v.sellPerCopyMax} pl · disolver = ${v.dissolvePlat.toFixed(1)} pl (${meta.vosfor} Vosfor a la tasa del mejor pack)`
-        : `Per copy: sell R0 = ${v.sell} pl · via R${v.maxRank} (${v.copiesMax} copies at ${v.sellR5} pl) = ${v.sellPerCopyMax} pl · dissolve = ${v.dissolvePlat.toFixed(1)} pl (${meta.vosfor} Vosfor at best pack rate)`;
-    return `<span class="verdict-tag ${m.css}" title="${escapeHTML(tip)}" style="cursor:help;">${escapeHTML(m.txt)}</span>`;
+    const dissolveVal = (v.netDissolveAdj ?? v.dissolvePlat21 ?? 0).toFixed(1);
+    const tip = (t.verdictBatchTip || "")
+        .replaceAll("{copies}", v.copiesMax)
+        .replace("{rank}", v.maxRank)
+        .replace("{r5}", v.sellR5)
+        .replace("{r0}", v.sell)
+        .replace("{dissolve}", dissolveVal);
+    // Aviso de apuesta (sin emoji): disolver "gana" en EV pero sacrificas valor garantizado alto.
+    let warn = "";
+    if (v.gambleWarning) {
+        const wtip = (t.gambleTip || "").replace("{plat}", v.guaranteedBest);
+        warn = ` <span data-tooltip="${escapeHTML(wtip)}" style="cursor:help;color:#ffb300;font-weight:700;font-size:0.62rem;border:1px solid rgba(255,179,0,0.5);border-radius:3px;padding:0 3px;">${escapeHTML(t.gambleTag || "GAMBLE")}</span>`;
+    }
+    return `<span class="verdict-tag ${m.css}" data-tooltip="${escapeHTML(tip)}" style="cursor:help;">${escapeHTML(m.txt)}</span>${warn}`;
 }
 
 function arcaneRow(slug, bestRate, parentPack) {
@@ -1637,9 +1664,9 @@ function arcaneRow(slug, bestRate, parentPack) {
         priceCell = `<span style="font-size:0.8rem;color:#aaa;">${parts.join(" · ")}</span>`;
     }
 
-    const dissolveTip = getDissolveTip(v, t);
+    const dissolveTip = getDissolveTip(v, t, meta);
     const dissolveCell = v.dissolvePlat !== null && v.dissolvePlat !== undefined && st
-        ? `<span title="${escapeHTML(dissolveTip)}" style="color:#c59afc;font-weight:700;cursor:help;font-size:0.8rem;">${meta.vosfor}${vosforIcon()} ≈ ${v.dissolvePlat.toFixed(1)}${PLAT}</span>`
+        ? `<span data-tooltip="${escapeHTML(dissolveTip)}" style="color:#c59afc;font-weight:700;cursor:help;font-size:0.8rem;">${meta.vosfor}${vosforIcon()} ≈ ${v.dissolvePlat.toFixed(1)}${PLAT}</span>`
         : `<span style="color:#c59afc;font-weight:700;font-size:0.8rem;">${meta.vosfor}${vosforIcon()}</span>`;
 
     return `
