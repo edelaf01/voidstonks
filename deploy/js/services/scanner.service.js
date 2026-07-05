@@ -15,6 +15,7 @@ export const ScannerService = {
     detectionLocked: false,
     scanCounter: 0,
     inventoryHasScanned: false,
+    qtyVotes: new Map(), // itemName -> Map<qty, count> (qty consensus across frames)
     lastStableHash: null,
     virtualCanvas: null,
     lastHashL: null,
@@ -30,6 +31,7 @@ export const ScannerService = {
         this.lastHashL = null;
         this.lastHashR = null;
         this.rivenConsensusBuffer = [];
+        this.qtyVotes = new Map();
         globalThis.ScannerService = this;
         if (!this.virtualCanvas) {
             this.virtualCanvas = document.createElement("canvas");
@@ -79,19 +81,20 @@ export const ScannerService = {
 
     async processFrame(video, virtualCanvas) {
         if (this.detectionLocked) return;
+        if (!this.isScanning) return;
         this.scanCounter++;
 
         const dims = VisionService.prepareVirtualCanvas(video, virtualCanvas);
 
         const worker1 = OCRRepository.workers[0];
+        if (!worker1) return;
         const { data: headerData } = await OCRRepository.recognize(worker1, virtualCanvas, {}, { text: true });
 
         const rawContext = VisionService.determineContext(headerData.text);
         const now = Date.now();
 
         const textUpper = (headerData.text || "").toUpperCase();
-        const containsAnchor = textUpper.includes("INVENTORY") || textUpper.includes("INVENTARIO") ||
-                               textUpper.includes("MODS") || textUpper.includes("MODIFICADORES") ||
+        const containsAnchor = textUpper.includes("MODS") || textUpper.includes("MODIFICADORES") ||
                                textUpper.includes("CYCLE") || textUpper.includes("CICLO") || textUpper.includes("CICLAR") ||
                                textUpper.includes("KUVA") || textUpper.includes("KUYVA") ||
                                textUpper.includes("ATRIBUTOS") || textUpper.includes("ELEGIR") || textUpper.includes("CONFIRMAR") ||
@@ -125,6 +128,30 @@ export const ScannerService = {
         await this.routeFrameAction(this.latchedContext, video, dims);
 
         ScannerHUD.updateFrameCounter(this.scanCounter);
+    },
+
+    recordQtyVote(itemName, qtyResult) {
+        let votes = this.qtyVotes.get(itemName);
+        if (!votes) { votes = new Map(); this.qtyVotes.set(itemName, votes); }
+
+        const readOk = /\d/.test(qtyResult.raw || "");
+        if (readOk) {
+            votes.set(qtyResult.qty, (votes.get(qtyResult.qty) || 0) + 1);
+        }
+
+        const consensus = this.modeQty(votes);
+        this.sessionInventory.set(itemName, consensus !== null ? consensus : qtyResult.qty);
+    },
+
+    // Most voted qty (ties: the larger). null without votes.
+    modeQty(votes) {
+        let bestQty = null, bestCount = -1;
+        for (const [qty, count] of votes) {
+            if (count > bestCount || (count === bestCount && qty > bestQty)) {
+                bestCount = count; bestQty = qty;
+            }
+        }
+        return bestQty;
     },
 
     autoScrollHash: null,
@@ -735,6 +762,11 @@ export const ScannerService = {
                 snapshot,
                 gridZone.x, gridZone.y, gridZone.w, gridZone.h
             );
+            if (!theme) {
+                console.warn("[INV] Theme detection inconclusive this frame — skipping.");
+                ScannerHUD.updateScrollStatus("done", 0);
+                return;
+            }
             console.log(`[INV] Theme detected: ${theme.name} (r:${theme.r} g:${theme.g} b:${theme.b})`);
 
             const autoGrid = VisionService.buildAutoGrid(snapshot, gridZone, theme, calibData);
@@ -838,7 +870,8 @@ export const ScannerService = {
                         logStr += ` || BDG: ${qtyResult.raw}`;
                         this.lastRawOcrLog.push(logStr);
 
-                        this.sessionInventory.set(bestItem.originalName, qtyResult.qty);
+                        // time consensus: one frame's digit is fragile, the item name is not. The mode of the votes wins.
+                        this.recordQtyVote(bestItem.originalName, qtyResult);
 
                         const relX = cell.sx - gridZone.x;
                         const relY = cell.sy - gridZone.y;
@@ -869,7 +902,8 @@ export const ScannerService = {
                         dCtx.fillRect(relX - shiftLeft, relY + 4, 44 + (shiftLeft - 2), 18);
                         dCtx.fillStyle = "#ffc107";
                         dCtx.font = "bold 11px monospace";
-                        dCtx.fillText(`x${qtyResult.qty}`, relX - shiftLeft + 8, relY + 17);
+                        const consensusQty = this.sessionInventory.get(bestItem.originalName) ?? qtyResult.qty;
+                        dCtx.fillText(`x${consensusQty}`, relX - shiftLeft + 8, relY + 17);
 
                         if (badgeCanvas) {
                             const bX = (badgeCanvas.cropX !== undefined ? badgeCanvas.cropX : cell.sx) - gridZone.x;
