@@ -37,8 +37,10 @@ export const OCRRepository = {
                 const tess = globalThis.Tesseract;
                 if (!tess) throw new Error("Tesseract not found");
 
+                const LOCAL_LANG = { langPath: "js/", gzip: false };
+
                 const createStandardWorker = async () => {
-                    const w = await tess.createWorker("eng", 1);
+                    const w = await tess.createWorker("eng", 1, LOCAL_LANG);
                     await w.setParameters({
                         tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789:()+- '/%,.",
                         tessedit_pageseg_mode: "6",
@@ -48,7 +50,7 @@ export const OCRRepository = {
                 };
 
                 const createBadgeWorker = async () => {
-                    const w = await tess.createWorker("eng", 1);
+                    const w = await tess.createWorker("eng", 1, LOCAL_LANG);
                     await w.setParameters({
                         tessedit_char_whitelist: " 0123456789",
                         tessedit_pageseg_mode: "7",
