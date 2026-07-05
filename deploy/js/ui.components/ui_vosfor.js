@@ -121,6 +121,7 @@ let calcSelectedPackId = "auto";
 let targetPackId = "albrechts_laboratories";
 let targetArcSlug = "";
 let targetCopies = 21;
+let targetCustomPacks = null;
 
 // Manual Sell Calculator State
 let sellArcSlug = "";
@@ -625,14 +626,18 @@ function rankingLeaderboardCard(bestRate) {
                     if (activeRankSubToggle === "rmax") {
                         const maxR = v.maxRank;
                         const copiesMax = v.copiesMax;
-                        const bonusText = v.r5RankBonus > 0 ? ` (+${v.r5RankBonus}% en R${maxR})` : (v.r5RankBonus < 0 ? ` (${v.r5RankBonus}% en R${maxR})` : "");
+                        const bonusText = v.r5RankBonus > 0
+                            ? (es ? ` (+${v.r5RankBonus}% en R${maxR})` : ` (+${v.r5RankBonus}% at R${maxR})`)
+                            : (v.r5RankBonus < 0 ? (es ? ` (${v.r5RankBonus}% en R${maxR})` : ` (${v.r5RankBonus}% at R${maxR})`) : "");
                         subText = es
                             ? `Copia suelta R0: ${v.sell}${PLAT} · ${copiesMax} copias R0: ${v.sell21R0}${PLAT}${bonusText}`
                             : `Single copy R0: ${v.sell}${PLAT} · ${copiesMax} copies R0: ${v.sell21R0}${PLAT}${bonusText}`;
                         mainVal = `${v.sellR5}${PLAT} <span style="font-size:0.72rem;color:#aaa;">(R${maxR})</span>`;
                     } else {
                         const maxR = v.maxRank;
-                        const bonusText = v.r5RankBonus > 0 ? ` (Rinde más en R${maxR}: +${v.r5RankBonus}%)` : (v.r5RankBonus < 0 ? ` (Cuidado: pierdes ${Math.abs(v.r5RankBonus)}% al subir a R${maxR})` : "");
+                        const bonusText = v.r5RankBonus > 0
+                            ? (es ? ` (Rinde más en R${maxR}: +${v.r5RankBonus}%)` : ` (Better at R${maxR}: +${v.r5RankBonus}%)`)
+                            : (v.r5RankBonus < 0 ? (es ? ` (Cuidado: pierdes ${Math.abs(v.r5RankBonus)}% al subir a R${maxR})` : ` (Warning: lose ${Math.abs(v.r5RankBonus)}% when upgrading to R${maxR})`) : "");
                         subText = es
                             ? `Volumen: ${v.volume || v.st?.pe_vol || 0} ventas/día${bonusText}`
                             : `Volume: ${v.volume || v.st?.pe_vol || 0} sales/day${bonusText}`;
@@ -954,18 +959,26 @@ function updateTargetSimDOM() {
     const rollProb = curPack.rolls && curPack.rolls[0] ? (curPack.rolls[0][targetRarity] || 0.05) : 0.05;
 
     const copiesPerPack = (3 * rollProb) / Math.max(1, sameRarityItems.length);
-    const packsNeeded = Math.ceil(targetCopies / Math.max(0.0001, copiesPerPack));
+    const defaultPacksNeeded = Math.ceil(targetCopies / Math.max(0.0001, copiesPerPack));
+    const packsNeeded = targetCustomPacks !== null ? targetCustomPacks : defaultPacksNeeded;
+    const pullsNeeded = packsNeeded * 3;
     const vosforNeeded = packsNeeded * (curPack.cost?.vosfor || 200);
     const creditsNeeded = packsNeeded * (curPack.cost?.credits || 50000);
 
     const targetArcName = targetMeta ? arcName(targetMeta) : "";
     const copyUnit = targetCopies === 1 ? (t.targetSimCopy || "copia") : (t.targetSimCopies || "copias");
-    const rankLabel = targetCopies === 21 ? `(${t.targetSimRank5 || "Rango 5"})` : targetCopies === 1 ? `(${t.targetSimRank0 || "Rango 0"})` : "";
+    const maxR = targetMeta ? (targetMeta.maxRank ?? 5) : 5;
+    const copiesMax = ((maxR + 1) * (maxR + 2)) / 2;
+    const rankLabel = targetCopies === copiesMax ? `(${t.targetSimRank5 || "Rango " + maxR})` : targetCopies === 1 ? `(${t.targetSimRank0 || "Rango 0"})` : "";
     const rarityLabel = (t.rarities || {})[targetRarity] || targetRarity;
 
-    const explainRaw = t.targetSimExplanation || (state.currentLang === "es"
-        ? "Para conseguir <b>{qty}x {arcane}</b> ({rarity}) en {pack}, necesitas en promedio <b>{packs} packs</b> ({pulls} tiradas)."
-        : "To obtain <b>{qty}x {arcane}</b> ({rarity}) in {pack}, you need on average <b>{packs} packs</b> ({pulls} pulls).");
+    const explainRaw = targetCustomPacks !== null
+        ? (state.currentLang === "es"
+            ? "Con <b>{packs} packs de Loid</b> ({pulls} arcanos) en {pack}, tu probabilidad de conseguir <b>{qty}x {arcane}</b> ({rarity}) es:"
+            : "With <b>{packs} Loid packs</b> ({pulls} arcanes) in {pack}, your chance to obtain <b>{qty}x {arcane}</b> ({rarity}) is:")
+        : (t.targetSimExplanation || (state.currentLang === "es"
+            ? "Para conseguir <b>{qty}x {arcane}</b> ({rarity}) en {pack}, necesitas en promedio <b>{packs} packs</b> ({pulls} tiradas)."
+            : "To obtain <b>{qty}x {arcane}</b> ({rarity}) in {pack}, you need on average <b>{packs} packs</b> ({pulls} pulls)."));
 
     const explainText = explainRaw
         .replace("{qty}", targetCopies)
@@ -973,20 +986,23 @@ function updateTargetSimDOM() {
         .replace("{rarity}", escapeHTML(rarityLabel))
         .replace("{pack}", escapeHTML(packName(curPack)))
         .replace("{packs}", packsNeeded.toLocaleString())
-        .replace("{pulls}", (packsNeeded * 3).toLocaleString());
+        .replace("{pulls}", pullsNeeded.toLocaleString());
 
     const qtyBadge = document.getElementById("target-qty-badge");
     if (qtyBadge) qtyBadge.textContent = `${targetCopies} ${copyUnit} ${rankLabel}`;
 
     const slider = document.getElementById("target-copies-slider");
-    if (slider) slider.value = targetCopies;
+    if (slider && document.activeElement !== slider) slider.value = targetCopies;
 
     // Solo texto: la <img> del icono de Vosfor del esqueleto no se toca
     const valVosforNum = document.getElementById("target-val-vosfor-num");
     if (valVosforNum) valVosforNum.textContent = vosforNeeded.toLocaleString();
 
+    const pullsInput = document.getElementById("target-pulls-input");
+    if (pullsInput && document.activeElement !== pullsInput) pullsInput.value = packsNeeded;
+
     const valPulls = document.getElementById("target-val-pulls");
-    if (valPulls) valPulls.innerHTML = `${packsNeeded.toLocaleString()} <span style="font-size:0.8rem;font-weight:normal;color:#aaa;">packs</span>`;
+    if (valPulls) valPulls.textContent = pullsNeeded.toLocaleString();
 
     const valCreditsNum = document.getElementById("target-val-credits-num");
     if (valCreditsNum) valCreditsNum.textContent = `${(creditsNeeded / 1000000).toFixed(2)}M`;
@@ -1059,6 +1075,7 @@ export function filterTargetArcDropdown(val) {
 export function selectTargetArcane(slug, packId) {
     targetPackId = packId;
     targetArcSlug = slug;
+    targetCustomPacks = null;
     hideTargetArcDropdown();
     renderVosforTab();
 }
@@ -1100,7 +1117,9 @@ function targetArcaneSimulatorCard() {
     const rollProb = curPack.rolls && curPack.rolls[0] ? (curPack.rolls[0][targetRarity] || 0.05) : 0.05;
 
     const copiesPerPack = (3 * rollProb) / Math.max(1, sameRarityItems.length);
-    const packsNeeded = Math.ceil(targetCopies / Math.max(0.0001, copiesPerPack));
+    const defaultPacksNeeded = Math.ceil(targetCopies / Math.max(0.0001, copiesPerPack));
+    const packsNeeded = targetCustomPacks !== null ? targetCustomPacks : defaultPacksNeeded;
+    const pullsNeeded = packsNeeded * 3;
     const vosforNeeded = packsNeeded * (curPack.cost?.vosfor || 200);
     const creditsNeeded = packsNeeded * (curPack.cost?.credits || 50000);
 
@@ -1200,8 +1219,14 @@ function targetArcaneSimulatorCard() {
           <div id="target-val-vosfor" class="vosfor-stat-card-val"><span id="target-val-vosfor-num">${vosforNeeded.toLocaleString()}</span> ${vosforIcon()}</div>
         </div>
         <div class="vosfor-stat-card">
-          <div class="vosfor-stat-card-label">${escapeHTML(t.targetSimPullsNeed || "Tiradas (Packs Loid)")}</div>
-          <div id="target-val-pulls" class="vosfor-stat-card-val" style="color:#ffffff;">${packsNeeded.toLocaleString()} <span style="font-size:0.8rem;font-weight:normal;color:#aaa;">packs</span></div>
+          <div class="vosfor-stat-card-label" style="display:flex;justify-content:space-between;align-items:center;">
+            <span>${escapeHTML(t.targetSimPullsNeed || "Tiradas (Packs Loid)")}</span>
+            <span style="font-size:0.65rem;color:#7ecbff;">${state.currentLang === "es" ? "Modificable" : "Editable"}</span>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:center;gap:6px;margin-top:2px;">
+            <input id="target-pulls-input" type="number" class="vosfor-calc-input" style="width:75px;font-size:1.05rem;padding:2px 4px;text-align:center;color:#ffffff;border-color:rgba(126,203,255,0.4);" min="1" max="999999" value="${packsNeeded}" oninput="onTargetPacksChange(this.value)" title="${state.currentLang === "es" ? "Modifica el número de tiradas/packs de Loid (200 Vosfor = 3 arcanos)" : "Modify Loid packs/pulls (200 Vosfor = 3 arcanes)"}">
+            <span style="font-size:0.8rem;color:#aaa;">(<span id="target-val-pulls">${pullsNeeded.toLocaleString()}</span> ${state.currentLang === "es" ? "arcanos" : "arcanes"})</span>
+          </div>
         </div>
         <div class="vosfor-stat-card">
           <div class="vosfor-stat-card-label">${escapeHTML(t.targetSimCreditsNeed || "Créditos")}</div>
@@ -1293,6 +1318,9 @@ function updateSellSimDOM() {
 
     document.querySelectorAll(".vosfor-sell-rank-btn").forEach((btn) => {
         btn.classList.toggle("active", btn.getAttribute("data-rank") === sellRank);
+        if (btn.getAttribute("data-rank") === "max" && m) {
+            btn.textContent = `R${m.maxRank} (max)`;
+        }
     });
 
     const es = state.currentLang === "es";
@@ -1370,7 +1398,7 @@ function updateSellSimDOM() {
           ${metricLine}
           <div style="font-size:0.74rem;color:#888;margin-top:6px;"><span data-f="liq"></span>${PLAT}</div>
           <div id="live-price-status" style="font-size:0.75rem;margin-top:6px;display:none;padding:4px 8px;border-radius:4px;"></div>
-          ${m.isMax ? `<div style="font-size:0.72rem;color:#777;margin-top:4px;">${es ? `1 unidad R${m.maxRank} = ${m.copiesMax} copias (${m.meta.vosfor} Vosfor cada una al disolver).` : `1 unit at R${m.maxRank} = ${m.copiesMax} copies (${m.meta.vosfor} Vosfor each when dissolved).`}</div>` : ""}`;
+          <div style="font-size:0.72rem;color:#777;margin-top:4px;">${es ? `1 unidad R${m.maxRank} = ${m.copiesMax} copias (${m.meta.vosfor} Vosfor cada una al disolver).` : `1 unit at R${m.maxRank} = ${m.copiesMax} copies (${m.meta.vosfor} Vosfor each when dissolved).`}</div>`;
     }
 
     if (!m || !m.st) return;
@@ -2316,11 +2344,13 @@ export function onTargetPackChange(packId) {
     targetPackId = packId;
     const pack = vosData?.packs.find((p) => p.id === packId);
     if (pack && pack.items.length) targetArcSlug = pack.items[0];
+    targetCustomPacks = null;
     renderVosforTab();
 }
 
 export function onTargetArcChange(slug) {
     targetArcSlug = slug;
+    targetCustomPacks = null;
     updateTargetSimDOM();
 }
 
@@ -2328,12 +2358,24 @@ export function onTargetCopiesChange(val) {
     const num = parseInt(val, 10);
     if (!isNaN(num) && num > 0) {
         targetCopies = num;
+        targetCustomPacks = null;
         updateTargetSimDOM();
     }
 }
 
 export function setTargetCopiesPreset(num) {
     targetCopies = num;
+    targetCustomPacks = null;
+    updateTargetSimDOM();
+}
+
+export function onTargetPacksChange(val) {
+    const num = parseInt(val, 10);
+    if (!isNaN(num) && num > 0) {
+        targetCustomPacks = Math.min(num, 999999);
+    } else {
+        targetCustomPacks = null;
+    }
     updateTargetSimDOM();
 }
 
@@ -2461,6 +2503,7 @@ Object.assign(globalThis, {
     onTargetArcChange,
     onTargetCopiesChange,
     setTargetCopiesPreset,
+    onTargetPacksChange,
     toggleVosforPack,
     setVosforSort,
     onVosforInputChange,

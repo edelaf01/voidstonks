@@ -17,6 +17,7 @@ export const ScannerService = {
     detectionLocked: false,
     scanCounter: 0,
     inventoryHasScanned: false,
+    qtyVotes: new Map(), // itemName -> Map<qty, count> (consenso de cantidad entre frames)
     lastStableHash: null,
     virtualCanvas: null,
     lastHashL: null,
@@ -32,6 +33,7 @@ export const ScannerService = {
         this.lastHashL = null;
         this.lastHashR = null;
         this.rivenConsensusBuffer = [];
+        this.qtyVotes = new Map();
         globalThis.ScannerService = this;
         if (!this.virtualCanvas) {
             this.virtualCanvas = document.createElement("canvas");
@@ -83,20 +85,28 @@ export const ScannerService = {
 
     async processFrame(video, virtualCanvas) {
         if (this.detectionLocked) return;
+        // Si la sesión se detuvo (p.ej. el stream terminó y stop() ya llamó a
+        // terminateAll), no toques los workers: evita recognize sobre un worker
+        // muerto → "Cannot read properties of null (reading 'postMessage')".
+        if (!this.isScanning) return;
         this.scanCounter++;
 
         const dims = VisionService.prepareVirtualCanvas(video, virtualCanvas);
 
         const worker1 = OCRRepository.workers[0];
+        if (!worker1) return;
         const { data: headerData } = await OCRRepository.recognize(worker1, virtualCanvas, {}, { text: true });
 
         const rawContext = VisionService.determineContext(headerData.text);
         const now = Date.now();
 
-        // Check if header contains Riven/Mods anchors (English and Spanish equivalents)
+        // Check if header contains Riven/Mods anchors (English and Spanish equivalents).
+        // OJO: "INVENTORY"/"INVENTARIO" NO son anclas de rivens — la pantalla de venta de
+        // prime parts tiene el header "INVENTORY/SELL", y meterlas aquí forzaba el grace
+        // period de rivens (INVENTORY → INVENTORY_MODS), enrutando el inventario normal al
+        // OCR de rivens y provocando el flip-flop que cerraba/reabría el escáner.
         const textUpper = (headerData.text || "").toUpperCase();
-        const containsAnchor = textUpper.includes("INVENTORY") || textUpper.includes("INVENTARIO") ||
-                               textUpper.includes("MODS") || textUpper.includes("MODIFICADORES") ||
+        const containsAnchor = textUpper.includes("MODS") || textUpper.includes("MODIFICADORES") ||
                                textUpper.includes("CYCLE") || textUpper.includes("CICLO") || textUpper.includes("CICLAR") ||
                                textUpper.includes("KUVA") || textUpper.includes("KUYVA") ||
                                textUpper.includes("ATRIBUTOS") || textUpper.includes("ELEGIR") || textUpper.includes("CONFIRMAR") ||
@@ -133,6 +143,35 @@ export const ScannerService = {
         await this.routeFrameAction(this.latchedContext, video, dims);
 
         ScannerHUD.updateFrameCounter(this.scanCounter);
+    },
+
+    // Registra un voto de cantidad para un ítem y actualiza sessionInventory con la MODA.
+    // Solo cuentan lecturas EXITOSAS (raw con dígito): una lectura fallida devuelve qty=1
+    // con raw vacío ("Ø"), y contarla contaminaría el consenso con falsos "1".
+    recordQtyVote(itemName, qtyResult) {
+        let votes = this.qtyVotes.get(itemName);
+        if (!votes) { votes = new Map(); this.qtyVotes.set(itemName, votes); }
+
+        const readOk = /\d/.test(qtyResult.raw || "");
+        if (readOk) {
+            votes.set(qtyResult.qty, (votes.get(qtyResult.qty) || 0) + 1);
+        }
+
+        // Cantidad de consenso = la más votada. Si aún no hay ningún voto válido,
+        // dejamos la lectura actual (mejor que nada) hasta que llegue un frame bueno.
+        const consensus = this.modeQty(votes);
+        this.sessionInventory.set(itemName, consensus !== null ? consensus : qtyResult.qty);
+    },
+
+    // Devuelve la cantidad más votada (desempate: la mayor). null si no hay votos.
+    modeQty(votes) {
+        let bestQty = null, bestCount = -1;
+        for (const [qty, count] of votes) {
+            if (count > bestCount || (count === bestCount && qty > bestQty)) {
+                bestCount = count; bestQty = qty;
+            }
+        }
+        return bestQty;
     },
 
     autoScrollHash: null,
@@ -808,11 +847,18 @@ export const ScannerService = {
 
             const { gridZone } = calibData;
 
-            // 2. Detect UI theme from within the calibrated zone
+            // 2. Detect UI theme from within the calibrated zone.
+            // detectThemeFromSnapshot devuelve null si no hay señal suficiente
+            // (weight < 0.001 y sin tema estable previo): saltamos este frame en vez de crashear.
             const theme = VisionService.detectThemeFromSnapshot(
                 snapshot,
                 gridZone.x, gridZone.y, gridZone.w, gridZone.h
             );
+            if (!theme) {
+                console.warn("[INV] Theme detection inconclusive this frame — skipping.");
+                ScannerHUD.updateScrollStatus("done", 0);
+                return;
+            }
             console.log(`[INV] Theme detected: ${theme.name} (r:${theme.r} g:${theme.g} b:${theme.b})`);
 
             // 3. Auto-detect grid cell positions from theme pixel density
@@ -937,7 +983,11 @@ export const ScannerService = {
                         logStr += ` || BDG: ${qtyResult.raw}`;
                         this.lastRawOcrLog.push(logStr);
 
-                        this.sessionInventory.set(bestItem.originalName, qtyResult.qty);
+                        // Consenso temporal: la lectura de un frame es frágil (dígito ~15px), pero
+                        // el nombre del ítem es fiable. Acumulamos votos de cantidad por ítem a lo
+                        // largo de los frames y guardamos la MODA. Así los errores aleatorios de un
+                        // frame se diluyen y la cantidad final es robusta.
+                        this.recordQtyVote(bestItem.originalName, qtyResult);
 
                         const relX = cell.sx - gridZone.x;
                         const relY = cell.sy - gridZone.y;
@@ -974,7 +1024,9 @@ export const ScannerService = {
                         dCtx.fillRect(relX - shiftLeft, relY + 4, 44 + (shiftLeft - 2), 18);
                         dCtx.fillStyle = "#ffc107"; // elegant amber/gold
                         dCtx.font = "bold 11px monospace";
-                        dCtx.fillText(`x${qtyResult.qty}`, relX - shiftLeft + 8, relY + 17);
+                        // Muestra la cantidad de CONSENSO (moda entre frames), no la del frame único.
+                        const consensusQty = this.sessionInventory.get(bestItem.originalName) ?? qtyResult.qty;
+                        dCtx.fillText(`x${consensusQty}`, relX - shiftLeft + 8, relY + 17);
 
                         // Highlight the exact auto-calibrated cropping region of the badge in golden outline
                         if (badgeCanvas) {

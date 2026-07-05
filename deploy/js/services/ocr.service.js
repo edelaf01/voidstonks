@@ -278,12 +278,9 @@ export const OCRService = {
         return words.map((w) => w.text.toUpperCase());
     },
 
-    async extractCellQuantity(worker, badgeCanvas) {
-        if (!badgeCanvas) return { qty: 1, raw: "" };
-        const { data: { words } } = await OCRRepository.recognize(worker, badgeCanvas);
-        if (!words) return { qty: 1, raw: "" };
-
-        // Post-processing digit repair: very commonly digits are misread as letters in the badge font
+    // Repara errores típicos letra→dígito de la fuente del badge y devuelve las palabras
+    // que contienen algún dígito, ordenadas de izquierda a derecha.
+    _repairBadgeWords(words) {
         words.forEach(w => {
             w.text = w.text.toUpperCase()
                 .replaceAll(/[Il|]/g, "1") // Map I, l, | to 1 (but not T or t)
@@ -298,23 +295,29 @@ export const OCRService = {
                 .replaceAll(/[O]/g, "0")   // Map O to 0
                 .replaceAll(/[q]/g, "9");  // Map q to 9
         });
-
         const badgeNums = words.filter((w) => /\d/.test(w.text));
-
-        const rawTexts = words.map(w => w.text).join(" ");
-
-        if (badgeNums.length === 0) return { qty: 1, raw: rawTexts };
-
         badgeNums.sort((a, b) => a.bbox.x0 - b.bbox.x0);
-        let pureDigit = badgeNums.map(w => w.text.replace(/\D/g, "")).join("");
-        
-        // (Buggy checkmark strip rule deleted: checkmark is already perfectly erased by BFS component filtering)
+        return { badgeNums, rawTexts: words.map(w => w.text).join(" ") };
+    },
 
+    _badgeToQty({ badgeNums, rawTexts }) {
+        if (badgeNums.length === 0) return { qty: 1, raw: rawTexts };
+        const pureDigit = badgeNums.map(w => w.text.replace(/\D/g, "")).join("");
         if (pureDigit) {
             const val = Number.parseInt(pureDigit);
             return { qty: (val > 1 && val < 1000) ? val : 1, raw: rawTexts };
         }
         return { qty: 1, raw: rawTexts };
+    },
+
+    // Lectura de cantidad de UN frame. Es intrínsecamente frágil (dígito ~15px, la
+    // binarización decide si se lee o no; el PSM no ayuda — verificado con harness offline).
+    // La fiabilidad real viene del CONSENSO temporal por ítem en scanner.service.js, no de aquí.
+    async extractCellQuantity(worker, badgeCanvas) {
+        if (!badgeCanvas) return { qty: 1, raw: "" };
+        const { data } = await OCRRepository.recognize(worker, badgeCanvas);
+        if (!data || !data.words) return { qty: 1, raw: "" };
+        return this._badgeToQty(this._repairBadgeWords(data.words));
     },
 
     getValidItemMatch(combinedText) {

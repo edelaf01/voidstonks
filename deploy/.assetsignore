@@ -1,0 +1,5 @@
+.wrangler
+.assetsignore
+rootCA.crt
+rootCA.pem
+MAINTENANCE_VOSFOR.md

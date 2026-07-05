@@ -8,7 +8,7 @@ export const UPDATE_HISTORY_DATA = {
     <span class="update-date">2026-07-04</span>
   </div>
   <ul class="update-list">
-    <li><strong>Calculadora Vosfor:</strong> Simula la probabilidad exacta de conseguir de 1 a 4 copias de una parte prime según su rareza y el tipo de paquete Vosfor.</li>
+    <li><strong>Calculadora de Vosfor:</strong> Compara al instante si te conviene vender un arcano en Warframe Market o disolverlo en Vosfor. Te muestra qué paquete de Loid te da más Platinum medio y se vende más rápido, y simula cuánto Vosfor necesitas para conseguir las copias de tu arcano objetivo.</li>
     <li><strong>Simulador de Runs (Set Tracker):</strong> Muestra los runs promedio necesarios para conseguir 1 copia de cualquier pieza según la refinación de la reliquia y el número de jugadores (1 a 4), junto a su rango de caso mejor y peor (95% de confianza).</li>
     <li><strong>Corrección de errores (Reliquias):</strong> Solucionado el fallo al buscar reliquias escribiendo directamente el nombre de la recompensa deseada (ej: "kronen", "rhino") o por era ("Lith", "Meso", "Neo", "Axi").</li>
   </ul>
@@ -224,7 +224,7 @@ export const UPDATE_HISTORY_DATA = {
     <span class="update-date">2026-07-04</span>
   </div>
   <ul class="update-list">
-    <li><strong>Vosfor Calculator:</strong> Simulates the exact chance of obtaining 1 to 4 copies of a prime part based on its rarity and Vosfor pack type.</li>
+    <li><strong>Vosfor Calculator:</strong> Instantly compares whether to sell your arcanes on Warframe Market or dissolve them into Vosfor. Shows which Loid pack yields the highest expected Platinum and fastest sales, and simulates how much Vosfor you need to farm your target arcane.</li>
     <li><strong>Runs Simulator (Set Tracker):</strong> Displays average expected runs to get 1 copy of any part based on relic refinement and squad size (1 to 4 players), along with best and worst case ranges (95% confidence).</li>
     <li><strong>Bugfixes (Relics):</strong> Fixed search issues when searching relics directly by item reward name (e.g. "kronen", "rhino") or era ("Lith", "Meso", "Neo", "Axi").</li>
   </ul>
@@ -1094,6 +1094,7 @@ export const TEXTS = {
     footerData: "Datos provistos por:",
     contactLabel: "¿Tienes ideas para mejorar la app?",
     contactLink: "w/Parcialsobriedad",
+    privacyLink: "Privacidad",
     rivenSearch: " BUSCAR PRECIO",
     refs: {
       rad: "Radiante",
@@ -1596,6 +1597,7 @@ export const TEXTS = {
     footerData: "Data by:",
     contactLabel: "Ideas? PM me ingame or through wf forums",
     contactLink: "w/Parcialsobriedad",
+    privacyLink: "Privacy",
     rivenSearch: " CHECK PRICE",
     refs: {
       rad: "Radiant",

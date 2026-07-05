@@ -1,5 +1,6 @@
 import { dbHelper } from "../repositories/storage.repository.js";
 import { getArcaneBatch } from "../repositories/api.repository.js";
+import { state } from "../state.js";
 
 // Calculadora de Vosfor: datos estáticos (colecciones de Loid + valores de disolución)
 // y carga perezosa de precios/liquidez de arcanos contra el worker (type=arcane_batch).
@@ -180,15 +181,22 @@ const LIVE_ARCANE_COOLDOWN_MS = 60 * 60 * 1000; // 1 petición/hora por arcano
 
 export async function fetchLiveArcanePrice(slug) {
     const now = Date.now();
+    const es = state.currentLang === "es";
     if (now - lastLiveFetchGlobal < LIVE_GLOBAL_COOLDOWN_MS) {
         const remaining = Math.ceil((LIVE_GLOBAL_COOLDOWN_MS - (now - lastLiveFetchGlobal)) / 1000);
-        return { ok: false, error: "global_cooldown", message: `Para no saturar WFM, espera ${remaining}s antes de actualizar otro arcano.` };
+        const msg = es
+            ? `Para no saturar WFM, espera ${remaining}s antes de actualizar otro arcano.`
+            : `To avoid spamming WFM, please wait ${remaining}s before updating another arcane.`;
+        return { ok: false, error: "global_cooldown", message: msg };
     }
 
     const cached = await idbGetSafe(`arcstat_${slug}`);
     if (cached?.time && now - cached.time < LIVE_ARCANE_COOLDOWN_MS) {
         const remaining = Math.ceil((LIVE_ARCANE_COOLDOWN_MS - (now - cached.time)) / 60000);
-        return { ok: false, error: "arcane_cooldown", message: `Actualizado recientemente. Podrás forzar otra comprobación en ${remaining} min.` };
+        const msg = es
+            ? `Actualizado recientemente. Podrás forzar otra comprobación en ${remaining} min.`
+            : `Recently updated. You can force another check in ${remaining} min.`;
+        return { ok: false, error: "arcane_cooldown", message: msg };
     }
 
     try {
@@ -241,7 +249,11 @@ export async function fetchLiveArcanePrice(slug) {
         return { ok: true, stats };
     } catch (err) {
         console.error("fetchLiveArcanePrice error:", err);
-        return { ok: false, error: "network_error", message: "Fallo al conectar con Warframe Market (posible bloqueo CORS/Red)." };
+        const es = state?.currentLang === "es";
+        const msg = es
+            ? "Fallo al conectar con Warframe Market (posible bloqueo CORS/Red)."
+            : "Failed to connect to Warframe Market (possible CORS/Network block).";
+        return { ok: false, error: "network_error", message: msg };
     }
 }
 
