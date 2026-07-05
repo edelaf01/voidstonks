@@ -13,6 +13,7 @@ export const WF_THEMES = [
     { name: "Lotus", r: 255, g: 241, b: 191 },
     { name: "Nidus", r: 245, g: 73, b: 93 },
     { name: "Orokin", r: 178, g: 125, b: 5 },
+    { name: "Default", r: 227, g: 128, b: 20 },
     { name: "Tenno", r: 6, g: 106, b: 74 },
     { name: "High Contrast", r: 255, g: 255, b: 0 },
 ];
@@ -989,15 +990,13 @@ export const VisionService = {
             }
         }
 
-        let globalMinY = safeH;
+        const isDigitShaped = (c) => {
+            const ar = c.width / c.height;
+            return ar <= 0.92 && c.height >= safeH * 0.20 && c.height <= safeH * 0.80;
+        };
         for (const comp of components) {
-            if (!comp.erased && comp.pixels.length >= 8 && comp.minY < globalMinY) {
-                globalMinY = comp.minY;
-            }
-        }
-
-        for (const comp of components) {
-            if (comp.minY > globalMinY + 16) {
+            if (comp.erased) continue;
+            if (!isDigitShaped(comp)) {
                 for (const pixelIdx of comp.pixels) {
                     px[pixelIdx * 4] = 255;
                     px[pixelIdx * 4 + 1] = 255;
@@ -1007,41 +1006,12 @@ export const VisionService = {
             }
         }
 
-        const activeComponents = components.filter(c => !c.erased);
-        if (activeComponents.length === 0) {
-            return null;
-        }
-
-        activeComponents.sort((a, b) => a.minX - b.minX);
-
-        let splitIdx = -1;
-        let maxGap = 0;
-        for (let i = 0; i < activeComponents.length - 1; i++) {
-            const gap = activeComponents[i+1].minX - activeComponents[i].maxX;
-            if (gap > maxGap) {
-                maxGap = gap;
-                splitIdx = i;
-            }
-        }
-
-        if (splitIdx !== -1 && maxGap >= 1 && activeComponents[splitIdx].maxX < safeW * 0.55) {
-            for (let i = 0; i <= splitIdx; i++) {
-                for (const pixelIdx of activeComponents[i].pixels) {
-                    px[pixelIdx * 4] = 255;
-                    px[pixelIdx * 4 + 1] = 255;
-                    px[pixelIdx * 4 + 2] = 255;
-                }
-                activeComponents[i].erased = true;
-            }
-        } else {
-            for (const comp of activeComponents) {
-                if (comp.minX < safeW * 0.25) {
-                    for (const pixelIdx of comp.pixels) {
-                        px[pixelIdx * 4] = 255;
-                        px[pixelIdx * 4 + 1] = 255;
-                        px[pixelIdx * 4 + 2] = 255;
-                    }
-                    comp.erased = true;
+        if (!components.some(c => !c.erased)) {
+            for (const comp of components) {
+                if (comp.width > 18 && comp.height <= 3) continue;
+                comp.erased = false;
+                for (const pixelIdx of comp.pixels) {
+                    px[pixelIdx * 4] = 0; px[pixelIdx * 4 + 1] = 0; px[pixelIdx * 4 + 2] = 0;
                 }
             }
         }
@@ -1049,10 +1019,8 @@ export const VisionService = {
 
         let digitMinX = safeW, digitMaxX = 0, digitMinY = safeH, digitMaxY = 0;
         let hasDigits = false;
-
         for (const comp of components) {
             if (comp.erased) continue;
-            
             if (comp.minX < digitMinX) digitMinX = comp.minX;
             if (comp.maxX > digitMaxX) digitMaxX = comp.maxX;
             if (comp.minY < digitMinY) digitMinY = comp.minY;
