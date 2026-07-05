@@ -247,6 +247,18 @@ function meanBy(items, fn) {
  * Expected value of a Loid pack: per pull, rarity weight x mean realizable R0 price of
  * that rarity, plus the pack's average liquidity.
  */
+function realizablePrice(ask, vol, bestBuy, thr) {
+    if (!ask || ask <= 0) return 0;
+    const liq = Math.max(0.15, Math.min(1, vol / thr));
+    return Math.max(bestBuy || 0, ask * liq);
+}
+export function realizableR0(st) {
+    return st ? realizablePrice(st.pe || 0, (st.v || 0) + (st.vm || 0), st.bb || 0, 5) : 0;
+}
+export function realizableMax(st) {
+    return st ? realizablePrice(st.pem || 0, st.vm || 0, st.bbm || 0, 2) : 0;
+}
+
 export function computePackEV(pack, arcanes) {
     const loaded = pack.items.filter((s) => ARC_STATS.has(s));
     const ready = loaded.length === pack.items.length;
@@ -267,7 +279,7 @@ export function computePackEV(pack, arcanes) {
         for (const r of RARITIES) {
             const w = roll[r] || 0;
             if (!w || !byRarity[r].length) continue;
-            evPlat += w * meanBy(byRarity[r], (s) => ARC_STATS.get(s)?.pe || 0);
+            evPlat += w * meanBy(byRarity[r], (s) => realizableR0(ARC_STATS.get(s)));
             evVosfor += w * meanBy(byRarity[r], (s) => arcanes[s]?.vosfor || 0);
         }
     }
@@ -339,7 +351,7 @@ export function arcaneVerdict(slug, arcanes, bestRate) {
     const rate = bestRate ? bestRate.rate : 0;
     const copiesMax = copiesForMaxRank(meta);
 
-    const sellR0 = st.pe || 0;
+    const sellR0 = realizableR0(st);
     const dissolvePlatR0 = meta.vosfor * rate;
 
     let verdictR0 = "pending";
@@ -350,7 +362,7 @@ export function arcaneVerdict(slug, arcanes, bestRate) {
         else verdictR0 = "even";
     }
 
-    const sellR5 = st.pem || 0;
+    const sellR5 = realizableMax(st);
     const sell21R0 = sellR0 * copiesMax;
     const dissolvePlat21 = (meta.vosfor * copiesMax) * rate;
 
@@ -370,18 +382,37 @@ export function arcaneVerdict(slug, arcanes, bestRate) {
         : 0;
 
     const sellPerCopyMax = copiesMax > 0 ? sellR5 / copiesMax : 0;
-    const bestSellPerCopy = Math.max(sellR0, sellPerCopyMax);
+
+    // Verdict per lot of `copiesMax` copies: net value of each outcome, with friction per
+    // trade, liquidity adjusted rate and the CERTAINTY discount for dissolving.
+    const CERTAINTY = 0.75;
+    const EFFORT_PL = 2;      // friction per sell trade, in plat
+    const liqRate = bestRate?.ev?.balancedRate ?? rate;
+
+    const canSellMax = st.pem > 0 && (st.rm || 0) > 0;
+    const netSellMax = canSellMax ? sellR5 - EFFORT_PL : -Infinity;
+    const netSellR0 = sellR0 > 0 ? copiesMax * (sellR0 - EFFORT_PL) : -Infinity;
+    const netDissolve = meta.vosfor * copiesMax * liqRate * CERTAINTY;
+    const bestGuaranteed = Math.max(netSellMax, netSellR0);
+
     let bestAction = "pending";
+    let gambleWarning = false;
     if (bestRate) {
-        if (bestSellPerCopy <= 0) bestAction = "dissolve";
-        else if (bestSellPerCopy > dissolvePlatR0 * 1.15) {
-            bestAction = sellPerCopyMax > sellR0 * 1.1 ? "sell_max" : "sell_r0";
+        if (bestGuaranteed <= 0 && netDissolve <= 0) {
+            bestAction = "dissolve";
+        } else {
+            const opts = [["sell_max", netSellMax], ["sell_r0", netSellR0], ["dissolve", netDissolve]];
+            opts.sort((a, b) => b[1] - a[1]);
+            const [topKey, topVal] = opts[0];
+            bestAction = Math.abs(topVal - opts[1][1]) <= topVal * 0.08 ? "even" : topKey;
+            if (bestAction === "dissolve" && bestGuaranteed >= 20) gambleWarning = true;
         }
-        else if (bestSellPerCopy < dissolvePlatR0 * 0.85) bestAction = "dissolve";
-        else bestAction = "even";
     }
 
     return {
+        gambleWarning,
+        guaranteedBest: Math.round(Math.max(0, bestGuaranteed) * 10) / 10,
+        netDissolveAdj: Math.round(netDissolve * 10) / 10,
         verdict: verdictR0,
         verdictR5: verdictR5,
         bestAction,
