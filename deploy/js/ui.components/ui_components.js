@@ -261,6 +261,27 @@ export function initGlobalTooltipSystem() {
       hideTooltip();
     }
   });
+
+  document.addEventListener("click", (e) => {
+    const target = e.target.closest("[data-tooltip], [data-tooltip-html], [data-tooltip-relic]");
+    if (e.target.closest("#global-tooltip")) return;
+    if (target) {
+      const alreadyOpen = !tooltipEl.classList.contains("hidden") && currentHoverTarget === target;
+      if (openTimer) clearTimeout(openTimer);
+      if (alreadyOpen) {
+        currentHoverTarget = null;
+        tooltipEl.classList.add("hidden");
+        tooltipEl.classList.remove("mega-mode");
+      } else {
+        currentHoverTarget = target;
+        showTooltip(e, target);
+      }
+    } else if (!tooltipEl.classList.contains("hidden")) {
+      currentHoverTarget = null;
+      tooltipEl.classList.add("hidden");
+      tooltipEl.classList.remove("mega-mode");
+    }
+  });
 }
 
 export function initDisclaimerSystem() {
