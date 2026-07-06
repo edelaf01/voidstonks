@@ -207,6 +207,10 @@ function updateStaticTexts(t) {
   setText("txt-contact-link", t.contactLink);
   setText("btn-footer-updates", t.btnShowUpdates);
   setText("txt-privacy-link", t.privacyLink);
+  setText("txt-guide-link", t.guideLink);
+  setText("txt-about-link", t.aboutLink);
+  setText("txt-contact-page-link", t.contactPageLink);
+  setText("txt-terms-link", t.termsLink);
   setText("lbl-update-title", t.updateModalTitle);
   setText("btn-update-gotit", t.updateModalGotIt);
   setText("loadingText", t.loading);

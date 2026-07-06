@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <title>User Guide / Guía de Uso - VoidStonks (Warframe)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="User guide for VoidStonks: how the Relic, Prime Set, Riven, Vosfor tabs and the inventory scanner work in this Warframe tool. Guía de uso." />
+  <meta name="keywords" content="Warframe guide, Riven price, relic farming, Vosfor, prime parts, VoidStonks" />
+  <meta name="robots" content="index, follow" />
+  <link rel="canonical" href="https://voidstonks.com/guide.html" />
+  <link rel="icon" type="image/png" href="https://wiki.warframe.com/images/VoidTraces.png" />
+
+  <!-- Google AdSense -->
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4559331797280612"
+    crossorigin="anonymous"></script>
+
+  <style>
+    :root { --bg:#0b0e13; --panel:#12171f; --border:rgba(0,229,255,0.18); --text:#d7e2ea; --muted:#8ea0ad; --accent:#00e5ff; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:radial-gradient(1200px 600px at 50% -10%,#101821,var(--bg)); color:var(--text); font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; line-height:1.65; padding:40px 16px 80px; }
+    .wrap { max-width:880px; margin:0 auto; background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:32px clamp(18px,4vw,44px); }
+    a { color:var(--accent); text-decoration:none; } a:hover { text-decoration:underline; }
+    h1 { font-size:1.7rem; margin:0 0 4px; color:#fff; }
+    h2 { font-size:1.3rem; margin:40px 0 10px; color:var(--accent); border-bottom:1px solid var(--border); padding-bottom:6px; }
+    h3 { font-size:1.05rem; margin:22px 0 6px; color:#fff; }
+    p,li { color:var(--text); } .muted { color:var(--muted); font-size:0.9rem; } ul { padding-left:20px; }
+    .topbar { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:22px; flex-wrap:wrap; }
+    .back { font-size:0.9rem; }
+    .lang-toggle { display:inline-flex; border:1px solid var(--border); border-radius:8px; overflow:hidden; }
+    .lang-toggle button { background:transparent; color:var(--muted); border:0; padding:6px 14px; font:inherit; font-size:0.85rem; cursor:pointer; transition:background .15s,color .15s; }
+    .lang-toggle button.active { background:var(--accent); color:#04121a; font-weight:700; }
+    .toc { background:rgba(0,0,0,0.25); border:1px solid var(--border); border-radius:10px; padding:14px 18px; margin:18px 0 8px; }
+    .toc ul { margin:6px 0 0; } .toc li { margin:2px 0; }
+    [data-lang] { display:none; } [data-lang].show { display:block; }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <a class="back" href="index.html">&larr; VoidStonks</a>
+      <div class="lang-toggle" role="group" aria-label="Language">
+        <button type="button" data-set-lang="en">EN</button>
+        <button type="button" data-set-lang="es">ES</button>
+      </div>
+    </div>
+
+    <!-- ================= ENGLISH ================= -->
+    <section data-lang="en">
+      <h1>VoidStonks User Guide</h1>
+      <p class="muted">What each part of the app does, tab by tab, plus the inventory scanner.</p>
+
+      <div class="toc">
+        <strong>Contents</strong>
+        <ul>
+          <li><a href="#g-context">General</a></li>
+          <li><a href="#g-relic">1. Relic tab</a></li>
+          <li><a href="#g-set">2. Prime Set tab</a></li>
+          <li><a href="#g-riven">3. Riven tab</a></li>
+          <li><a href="#g-farms">4. Farms and LFG tabs</a></li>
+          <li><a href="#g-vosfor">5. Vosfor tab</a></li>
+          <li><a href="#g-scanner">6. Inventory scanner</a></li>
+        </ul>
+      </div>
+
+      <h2 id="g-context">General</h2>
+      <h3>Navigation</h3>
+      <p>The row of icons at the top switches between the tabs: Relic, Set, Riven, Farms, LFG and Vosfor. Each tab has its own colour. The app stores your current tab, language and saved items locally in the browser. No account or login is required.</p>
+      <h3>Language</h3>
+      <p>The selector in the header switches the interface between Spanish and English. These information pages have a separate EN/ES button at the top.</p>
+      <h3>Prices</h3>
+      <p>Prices come from Warframe.market. For most of the app (relics, sets, inventory) the shown price is the average of the three cheapest current sell listings, so it is not thrown off by a single lowball order, but it does follow live listings. Two tabs go further: the Vosfor tab weighs each arcane by how much it actually trades, so an arcane with a dead market barely counts, and the Riven tab also uses a month of price history. All values are estimates; use the refresh control (↻) to check the live value before trading.</p>
+      <h3>Data</h3>
+      <p>No login is used and no personal data leaves the browser. The scanner processes the screen locally on your device. Details are in the <a href="privacy.html">Privacy Policy</a>.</p>
+
+      <h2 id="g-relic">1. Relic tab</h2>
+      <h3>Search a relic</h3>
+      <p>Type a relic name (for example "Meso F2") to list its six possible rewards, each with its current market value and drop rarity (Common, Uncommon, Rare).</p>
+      <h3>Profitability</h3>
+      <p>The tab shows the expected value of running the relic, so you can compare relics before spending Void Traces to refine them. Rewards with low liquidity are flagged so one rare that does not sell does not inflate the relic's value.</p>
+      <h3>Inventory panel</h3>
+      <p>The Relic, Set and Farms tabs share an inventory panel where you store the parts you own. The app uses it to track what you still need and to price your parts in bulk.</p>
+
+      <h2 id="g-set">2. Prime Set tab</h2>
+      <h3>Search a set</h3>
+      <p>Enter a Warframe or weapon name (for example "Mesa Prime") to list every part in the set, the price of each part, and the price of the complete set. The full set usually sells for more than the sum of its parts, which is the information needed to decide between selling parts or selling the set.</p>
+      <h3>Set tracker</h3>
+      <p>Mark the parts you already have to see your completion progress and which parts are left to farm.</p>
+
+      <h2 id="g-riven">3. Riven tab</h2>
+      <h3>Riven appraiser</h3>
+      <p>Enter the weapon and the Riven's stats (positives and negative) to get an estimated platinum range. The estimate uses live listings for that weapon, a trained model and the weapon's disposition. The result is placed on the weapon's price curve rather than reduced to a single number.</p>
+      <h3>Meta stats and grade</h3>
+      <p>The tab shows which stats the community values for each weapon and grades your roll against them. Mid-tier positives also affect the price, so the grade reflects a continuous value, not only good or bad.</p>
+      <h3>History and market flag</h3>
+      <p>It shows one month of price history and a badge indicating whether the current asks are inflated, below the historical median, or illiquid.</p>
+      <h3>Riven scanner</h3>
+      <p>Instead of typing stats, the scanner can read the weapon and stats from the in-game Riven screen (see the scanner section).</p>
+
+      <h2 id="g-farms">4. Farms and LFG tabs</h2>
+      <h3>Farms (Bounties)</h3>
+      <p>Lists the currently active bounties with their objectives and rewards, so you can choose the run that drops what you are farming.</p>
+      <h3>LFG</h3>
+      <p>Provides ready-made "looking for group" messages to post a recruiting message quickly.</p>
+
+      <h2 id="g-vosfor">5. Vosfor tab</h2>
+      <h3>Loid packs and expected value</h3>
+      <p>Each Loid pack costs 200 Vosfor and gives 3 random arcanes. The tab shows the expected platinum per pack (its EV), which is the average value of a pull weighted by rarity odds. Each arcane is valued at its realizable price, weighted by liquidity, not at its raw listing, so arcanes with a dead market barely count toward the EV.</p>
+      <h3>Sell or dissolve verdict</h3>
+      <p>For each arcane the tab compares three options for the same set of copies: rank it to maximum and sell once (one trade), sell the copies individually at rank 0 (many trades), or dissolve it for Vosfor. It favours guaranteed value over dissolving into random packs, and it penalises selling many low-value copies because each one is a separate trade. If dissolving has a higher average value but sacrifices a solid guaranteed sale, it shows a gamble warning.</p>
+      <h3>Other arcanes</h3>
+      <p>Arcanes that do not come from a Loid pack (for example La Cathédrale, Jade Shadows or the Tektolyst Artifact) are grouped separately at the bottom, so the pack comparison stays clean.</p>
+      <h3>Target simulator</h3>
+      <p>Estimates how much Vosfor you need and the probability of pulling a specific arcane, to compare grinding packs against buying it directly.</p>
+
+      <h2 id="g-scanner">6. Inventory scanner</h2>
+      <h3>Starting a scan</h3>
+      <p>Open the scanner and share the Warframe window when the browser asks. Processing is done locally on your device. On the Sell/Inventory screen the scanner detects the item grid automatically.</p>
+      <h3>How reading works</h3>
+      <p>The scanner reads each item's name and quantity. A single frame can misread a small digit, so it reads several frames and keeps the most frequent value per item. Keep the same screen steady for a few seconds for an accurate result.</p>
+      <h3>Riven scanning</h3>
+      <p>On the Riven reroll screen the scanner reads the weapon and stats directly into the appraiser.</p>
+      <p class="muted">The scanner only needs to be open while pricing. Closing it frees the memory used by the vision libraries.</p>
+
+      <p class="muted" style="margin-top:36px;">VoidStonks is not affiliated with or endorsed by Digital Extremes. Warframe™ is a trademark of Digital Extremes Ltd.</p>
+    </section>
+
+    <!-- ================= ESPAÑOL ================= -->
+    <section data-lang="es">
+      <h1>Guía de Uso de VoidStonks</h1>
+      <p class="muted">Qué hace cada parte de la app, pestaña por pestaña, más el escáner de inventario.</p>
+
+      <div class="toc">
+        <strong>Contenido</strong>
+        <ul>
+          <li><a href="#e-context">General</a></li>
+          <li><a href="#e-relic">1. Pestaña Reliquia</a></li>
+          <li><a href="#e-set">2. Pestaña Set Prime</a></li>
+          <li><a href="#e-riven">3. Pestaña Riven</a></li>
+          <li><a href="#e-farms">4. Pestañas Farms y LFG</a></li>
+          <li><a href="#e-vosfor">5. Pestaña Vosfor</a></li>
+          <li><a href="#e-scanner">6. Escáner de inventario</a></li>
+        </ul>
+      </div>
+
+      <h2 id="e-context">General</h2>
+      <h3>Navegación</h3>
+      <p>La fila de iconos de arriba cambia entre las pestañas: Reliquia, Set, Riven, Farms, LFG y Vosfor. Cada pestaña tiene su propio color. La app guarda localmente en el navegador tu pestaña actual, el idioma y los objetos guardados. No hace falta cuenta ni login.</p>
+      <h3>Idioma</h3>
+      <p>El selector de la cabecera cambia la interfaz entre español e inglés. Estas páginas de información tienen un botón EN/ES aparte, arriba.</p>
+      <h3>Precios</h3>
+      <p>Los precios vienen de Warframe.market. En la mayoría de la app (relics, sets, inventario) el precio mostrado es la media de los tres listings de venta más baratos, así que no se descuadra por una sola orden tirada, pero sí sigue los listings en vivo. Dos pestañas van más allá: la de Vosfor pondera cada arcano por cuánto se comercia de verdad, de modo que un arcano con mercado muerto apenas cuenta, y la de Riven usa además un mes de historial de precios. Todos los valores son estimaciones; usa el refresco (↻) para comprobar el valor en vivo antes de comerciar.</p>
+      <h3>Datos</h3>
+      <p>No se usa login y ningún dato personal sale del navegador. El escáner procesa la pantalla localmente en tu dispositivo. Los detalles están en la <a href="privacy.html">Política de Privacidad</a>.</p>
+
+      <h2 id="e-relic">1. Pestaña Reliquia</h2>
+      <h3>Buscar una reliquia</h3>
+      <p>Escribe el nombre de una reliquia (por ejemplo "Meso F2") para listar sus seis recompensas posibles, cada una con su valor de mercado actual y su rareza de drop (Común, Poco común, Raro).</p>
+      <h3>Rentabilidad</h3>
+      <p>La pestaña muestra el valor esperado de correr la reliquia, para comparar reliquias antes de gastar Trazas Void en refinarlas. Las recompensas con poca liquidez se marcan, para que un raro que no se vende no infle el valor de la reliquia.</p>
+      <h3>Panel de inventario</h3>
+      <p>Las pestañas Reliquia, Set y Farms comparten un panel de inventario donde guardas las piezas que tienes. La app lo usa para saber qué te falta y para tasar tus piezas en lote.</p>
+
+      <h2 id="e-set">2. Pestaña Set Prime</h2>
+      <h3>Buscar un set</h3>
+      <p>Introduce el nombre de un Warframe o arma (por ejemplo "Mesa Prime") para listar cada pieza del set, el precio de cada una y el precio del set completo. El set completo suele venderse por más que la suma de sus piezas, que es la información necesaria para decidir entre vender piezas o vender el set.</p>
+      <h3>Seguidor de sets</h3>
+      <p>Marca las piezas que ya tienes para ver tu progreso de completado y qué piezas faltan por farmear.</p>
+
+      <h2 id="e-riven">3. Pestaña Riven</h2>
+      <h3>Tasador de Rivens</h3>
+      <p>Introduce el arma y las estadísticas del Riven (positivos y negativo) para obtener un rango estimado en platino. La estimación usa los listings en vivo de esa arma, un modelo entrenado y la disposición del arma. El resultado se sitúa sobre la curva de precios del arma en vez de reducirse a un único número.</p>
+      <h3>Estadísticas meta y grado</h3>
+      <p>La pestaña muestra qué stats valora la comunidad para cada arma y puntúa tu roll frente a ellas. Los positivos de gama media también afectan al precio, así que el grado refleja un valor continuo, no solo bueno o malo.</p>
+      <h3>Historial e indicador de mercado</h3>
+      <p>Muestra un mes de historial de precios y una insignia que indica si los asks actuales están inflados, por debajo de la mediana histórica, o ilíquidos.</p>
+      <h3>Escáner de Riven</h3>
+      <p>En lugar de teclear las stats, el escáner puede leer el arma y las stats desde la pantalla de Riven del juego (ver la sección del escáner).</p>
+
+      <h2 id="e-farms">4. Pestañas Farms y LFG</h2>
+      <h3>Farms (Bounties)</h3>
+      <p>Lista los bounties activos en ese momento con sus objetivos y recompensas, para elegir la misión que suelta lo que estás farmeando.</p>
+      <h3>LFG</h3>
+      <p>Ofrece mensajes de "busco grupo" ya hechos para publicar un anuncio de reclutamiento rápido.</p>
+
+      <h2 id="e-vosfor">5. Pestaña Vosfor</h2>
+      <h3>Packs de Loid y valor esperado</h3>
+      <p>Cada pack de Loid cuesta 200 Vosfor y da 3 arcanos al azar. La pestaña muestra el platino esperado por pack (su EV), que es el valor medio de una tirada ponderado por las probabilidades de rareza. Cada arcano se valora a su precio realizable, ponderado por liquidez, y no a su listing crudo, de modo que los arcanos con mercado muerto apenas cuentan para el EV.</p>
+      <h3>Veredicto de vender o disolver</h3>
+      <p>Para cada arcano la pestaña compara tres opciones para el mismo conjunto de copias: subirlo a rango máximo y venderlo una vez (un trade), vender las copias sueltas a rango 0 (muchos trades), o disolverlo por Vosfor. Prioriza el valor garantizado frente a disolver en packs aleatorios, y penaliza vender muchas copias de poco valor porque cada una es un trade aparte. Si disolver tiene un valor medio mayor pero sacrifica una venta segura buena, muestra un aviso de apuesta.</p>
+      <h3>Otros arcanos</h3>
+      <p>Los arcanos que no vienen de un pack de Loid (por ejemplo La Cathédrale, Sombras de Jade o el Artefacto Tektolisto) se agrupan aparte al final, para que la comparación de packs quede limpia.</p>
+      <h3>Simulador de objetivo</h3>
+      <p>Estima cuánto Vosfor necesitas y la probabilidad de sacar un arcano concreto, para comparar grindear packs con comprarlo directamente.</p>
+
+      <h2 id="e-scanner">6. Escáner de inventario</h2>
+      <h3>Iniciar un escaneo</h3>
+      <p>Abre el escáner y comparte la ventana de Warframe cuando el navegador lo pida. El procesado se hace localmente en tu dispositivo. En la pantalla de Venta/Inventario el escáner detecta la rejilla de objetos automáticamente.</p>
+      <h3>Cómo funciona la lectura</h3>
+      <p>El escáner lee el nombre y la cantidad de cada objeto. Un solo frame puede leer mal un dígito pequeño, así que lee varios frames y se queda con el valor más frecuente por objeto. Mantén la misma pantalla quieta unos segundos para un resultado preciso.</p>
+      <h3>Escaneo de Riven</h3>
+      <p>En la pantalla de reroll de Riven el escáner lee el arma y las stats directamente en el tasador.</p>
+      <p class="muted">El escáner solo necesita estar abierto mientras tasas. Al cerrarlo se libera la memoria que usan las librerías de visión.</p>
+
+      <p class="muted" style="margin-top:36px;">VoidStonks no está afiliado ni respaldado por Digital Extremes. Warframe™ es una marca registrada de Digital Extremes Ltd.</p>
+    </section>
+  </div>
+
+  <script>
+    (function () {
+      var lang = "en";
+      try { var s = JSON.parse(localStorage.getItem("voidStonks_save") || "{}"); if (s.lang === "es" || s.lang === "en") lang = s.lang; } catch (e) {}
+      function apply(l) {
+        lang = l; document.documentElement.lang = l;
+        document.querySelectorAll("[data-lang]").forEach(function (x) { x.classList.toggle("show", x.getAttribute("data-lang") === l); });
+        document.querySelectorAll("[data-set-lang]").forEach(function (b) { b.classList.toggle("active", b.getAttribute("data-set-lang") === l); });
+      }
+      document.querySelectorAll("[data-set-lang]").forEach(function (b) { b.addEventListener("click", function () { apply(b.getAttribute("data-set-lang")); }); });
+      apply(lang);
+    })();
+  </script>
+</body>
+
+</html>

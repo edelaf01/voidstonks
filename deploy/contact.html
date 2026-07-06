@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <title>Contact / Contacto - VoidStonks</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="How to contact VoidStonks: report a bug, suggest a feature or ask about the data. Cómo contactar con VoidStonks." />
+  <meta name="robots" content="index, follow" />
+  <link rel="canonical" href="https://voidstonks.com/contact.html" />
+  <link rel="icon" type="image/png" href="https://wiki.warframe.com/images/VoidTraces.png" />
+
+  <!-- Google AdSense -->
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4559331797280612"
+    crossorigin="anonymous"></script>
+
+  <style>
+    :root { --bg:#0b0e13; --panel:#12171f; --border:rgba(0,229,255,0.18); --text:#d7e2ea; --muted:#8ea0ad; --accent:#00e5ff; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:radial-gradient(1200px 600px at 50% -10%,#101821,var(--bg)); color:var(--text); font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; line-height:1.6; padding:40px 16px 80px; }
+    .wrap { max-width:820px; margin:0 auto; background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:32px clamp(18px,4vw,44px); }
+    a { color:var(--accent); text-decoration:none; } a:hover { text-decoration:underline; }
+    h1 { font-size:1.6rem; margin:0 0 4px; color:#fff; } h2 { font-size:1.15rem; margin:34px 0 8px; color:var(--accent); }
+    p,li { color:var(--text); } .muted { color:var(--muted); font-size:0.9rem; } ul { padding-left:20px; }
+    .topbar { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:22px; flex-wrap:wrap; }
+    .back { font-size:0.9rem; }
+    .lang-toggle { display:inline-flex; border:1px solid var(--border); border-radius:8px; overflow:hidden; }
+    .lang-toggle button { background:transparent; color:var(--muted); border:0; padding:6px 14px; font:inherit; font-size:0.85rem; cursor:pointer; transition:background .15s,color .15s; }
+    .lang-toggle button.active { background:var(--accent); color:#04121a; font-weight:700; }
+    [data-lang] { display:none; } [data-lang].show { display:block; }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <a class="back" href="index.html">&larr; VoidStonks</a>
+      <div class="lang-toggle" role="group" aria-label="Language">
+        <button type="button" data-set-lang="en">EN</button>
+        <button type="button" data-set-lang="es">ES</button>
+      </div>
+    </div>
+
+    <!-- ENGLISH -->
+    <section data-lang="en">
+      <h1>Contact</h1>
+      <p>VoidStonks is a solo project. If you found a bug, want to suggest a feature, spotted a wrong price, or have a question about how the data is calculated, the best way to reach me is through the Warframe forums:</p>
+      <ul>
+        <li><strong>Warframe Forums:</strong> <a href="https://forums.warframe.com/profile/4069424-parcialsobriedad/" target="_blank" rel="noopener">w/Parcialsobriedad</a>. Send a direct message or post on my profile.</li>
+      </ul>
+      <p>When reporting a problem, it helps a lot to include: the tool you were using (Riven, Relic, Vosfor, etc.), the item involved, what you expected, and what happened instead. Screenshots are welcome.</p>
+      <p class="muted">This is a hobby project, so replies may take a little time. Thanks for using VoidStonks and for helping make it better.</p>
+    </section>
+
+    <!-- ESPAÑOL -->
+    <section data-lang="es">
+      <h1>Contacto</h1>
+      <p>VoidStonks es un proyecto de una sola persona. Si has encontrado un fallo, quieres sugerir una función, viste un precio incorrecto o tienes una duda sobre cómo se calculan los datos, la mejor forma de contactarme es por los foros de Warframe:</p>
+      <ul>
+        <li><strong>Foros de Warframe:</strong> <a href="https://forums.warframe.com/profile/4069424-parcialsobriedad/" target="_blank" rel="noopener">w/Parcialsobriedad</a>. Mándame un mensaje directo o escribe en mi perfil.</li>
+      </ul>
+      <p>Al reportar un problema ayuda mucho incluir: la herramienta que usabas (Riven, Reliquia, Vosfor, etc.), el objeto implicado, qué esperabas y qué pasó en su lugar. Las capturas son bienvenidas.</p>
+      <p class="muted">Es un proyecto hobby, así que las respuestas pueden tardar un poco. Gracias por usar VoidStonks y por ayudar a mejorarlo.</p>
+    </section>
+  </div>
+
+  <script>
+    (function () {
+      var lang = "en";
+      try { var s = JSON.parse(localStorage.getItem("voidStonks_save") || "{}"); if (s.lang === "es" || s.lang === "en") lang = s.lang; } catch (e) {}
+      function apply(l) {
+        lang = l; document.documentElement.lang = l;
+        document.querySelectorAll("[data-lang]").forEach(function (x) { x.classList.toggle("show", x.getAttribute("data-lang") === l); });
+        document.querySelectorAll("[data-set-lang]").forEach(function (b) { b.classList.toggle("active", b.getAttribute("data-set-lang") === l); });
+      }
+      document.querySelectorAll("[data-set-lang]").forEach(function (b) { b.addEventListener("click", function () { apply(b.getAttribute("data-set-lang")); }); });
+      apply(lang);
+    })();
+  </script>
+</body>
+
+</html>

@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <title>About VoidStonks / Sobre VoidStonks</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="What VoidStonks is, who makes it, and how it helps Warframe players trade and farm smarter. Qué es VoidStonks y quién lo hace." />
+  <meta name="robots" content="index, follow" />
+  <link rel="canonical" href="https://voidstonks.com/about.html" />
+  <link rel="icon" type="image/png" href="https://wiki.warframe.com/images/VoidTraces.png" />
+
+  <!-- Google AdSense -->
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4559331797280612"
+    crossorigin="anonymous"></script>
+
+  <style>
+    :root { --bg:#0b0e13; --panel:#12171f; --border:rgba(0,229,255,0.18); --text:#d7e2ea; --muted:#8ea0ad; --accent:#00e5ff; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:radial-gradient(1200px 600px at 50% -10%,#101821,var(--bg)); color:var(--text); font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; line-height:1.6; padding:40px 16px 80px; }
+    .wrap { max-width:820px; margin:0 auto; background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:32px clamp(18px,4vw,44px); }
+    a { color:var(--accent); text-decoration:none; } a:hover { text-decoration:underline; }
+    h1 { font-size:1.6rem; margin:0 0 4px; color:#fff; } h2 { font-size:1.15rem; margin:34px 0 8px; color:var(--accent); }
+    p,li { color:var(--text); } .muted { color:var(--muted); font-size:0.9rem; } ul { padding-left:20px; }
+    .topbar { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:22px; flex-wrap:wrap; }
+    .back { font-size:0.9rem; }
+    .lang-toggle { display:inline-flex; border:1px solid var(--border); border-radius:8px; overflow:hidden; }
+    .lang-toggle button { background:transparent; color:var(--muted); border:0; padding:6px 14px; font:inherit; font-size:0.85rem; cursor:pointer; transition:background .15s,color .15s; }
+    .lang-toggle button.active { background:var(--accent); color:#04121a; font-weight:700; }
+    [data-lang] { display:none; } [data-lang].show { display:block; }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <a class="back" href="index.html">&larr; VoidStonks</a>
+      <div class="lang-toggle" role="group" aria-label="Language">
+        <button type="button" data-set-lang="en">EN</button>
+        <button type="button" data-set-lang="es">ES</button>
+      </div>
+    </div>
+
+    <!-- ENGLISH -->
+    <section data-lang="en">
+      <h1>About VoidStonks</h1>
+      <p>VoidStonks is a free, unofficial companion tool for the game <strong>Warframe</strong>. It helps players make faster, better-informed trading and farming decisions by turning live market data into clear, actionable numbers.</p>
+
+      <h2>What it does</h2>
+      <ul>
+        <li><strong>Riven appraisal:</strong> estimates a fair Platinum value for Riven mods using live Warframe.market data and a trained model, instead of guesswork.</li>
+        <li><strong>Relic optimizer:</strong> shows which Void Relics are worth running and which rewards actually sell.</li>
+        <li><strong>Prime set tracker:</strong> tracks your progress toward complete Prime sets and their part values.</li>
+        <li><strong>Vosfor calculator:</strong> compares whether to sell an arcane or dissolve it into Vosfor, and which Loid collection yields the most Platinum.</li>
+        <li><strong>Inventory scanner:</strong> reads your in-game inventory on screen to price your items in bulk.</li>
+      </ul>
+
+      <h2>Who makes it</h2>
+      <p>VoidStonks is built and maintained by <strong>Parcialsobriedad</strong>, a long-time Warframe player, as a solo hobby project. It is not run by a company and is not affiliated with Digital Extremes.</p>
+
+      <h2>Our goal</h2>
+      <p>Warframe's economy is player-driven and opaque: prices swing, many items barely trade, and "worth" is hard to judge. VoidStonks exists to make that economy readable, so a newer player can price a drop as confidently as a veteran trader, without spending hours cross-checking the market.</p>
+
+      <h2>Data &amp; accuracy</h2>
+      <p>Prices come from <a href="https://warframe.market/" target="_blank" rel="noopener">Warframe.market</a> and public Warframe data. Values are estimates and market conditions change constantly, so always verify live before a big trade. VoidStonks never asks for your account credentials.</p>
+
+      <p class="muted">VoidStonks is not affiliated with, endorsed, or sponsored by Digital Extremes Ltd. Warframe™ is a trademark of Digital Extremes Ltd.</p>
+    </section>
+
+    <!-- ESPAÑOL -->
+    <section data-lang="es">
+      <h1>Sobre VoidStonks</h1>
+      <p>VoidStonks es una herramienta gratuita y no oficial para el juego <strong>Warframe</strong>. Ayuda a los jugadores a tomar decisiones de trading y farmeo más rápidas y mejor informadas, convirtiendo los datos de mercado en vivo en números claros y accionables.</p>
+
+      <h2>Qué hace</h2>
+      <ul>
+        <li><strong>Tasador de Rivens:</strong> estima un valor justo en Platino para los mods Riven usando datos en vivo de Warframe.market y un modelo entrenado, en vez de ir a ojo.</li>
+        <li><strong>Optimizador de Reliquias:</strong> muestra qué Reliquias Void merece la pena correr y qué recompensas se venden de verdad.</li>
+        <li><strong>Seguidor de Sets Prime:</strong> rastrea tu progreso hacia sets Prime completos y el valor de sus piezas.</li>
+        <li><strong>Calculadora de Vosfor:</strong> compara si conviene vender un arcano o disolverlo en Vosfor, y qué colección de Loid rinde más Platino.</li>
+        <li><strong>Escáner de inventario:</strong> lee tu inventario en pantalla para tasar tus objetos en lote.</li>
+      </ul>
+
+      <h2>Quién lo hace</h2>
+      <p>VoidStonks está desarrollado y mantenido por <strong>Parcialsobriedad</strong>, un jugador veterano de Warframe, como proyecto personal (hobby). No lo gestiona ninguna empresa y no está afiliado a Digital Extremes.</p>
+
+      <h2>Nuestro objetivo</h2>
+      <p>La economía de Warframe la mueven los jugadores y es opaca: los precios oscilan, muchos objetos apenas se comercian y es difícil saber qué "vale" cada cosa. VoidStonks existe para hacer esa economía legible: que un jugador nuevo pueda tasar un drop con tanta seguridad como un trader veterano, sin pasar horas comparando el mercado.</p>
+
+      <h2>Datos y precisión</h2>
+      <p>Los precios vienen de <a href="https://warframe.market/" target="_blank" rel="noopener">Warframe.market</a> y datos públicos de Warframe. Los valores son estimaciones y el mercado cambia constantemente: verifica siempre en vivo antes de un trade importante. VoidStonks nunca pide las credenciales de tu cuenta.</p>
+
+      <p class="muted">VoidStonks no está afiliado, respaldado ni patrocinado por Digital Extremes Ltd. Warframe™ es una marca registrada de Digital Extremes Ltd.</p>
+    </section>
+  </div>
+
+  <script>
+    (function () {
+      var lang = "en";
+      try { var s = JSON.parse(localStorage.getItem("voidStonks_save") || "{}"); if (s.lang === "es" || s.lang === "en") lang = s.lang; } catch (e) {}
+      function apply(l) {
+        lang = l; document.documentElement.lang = l;
+        document.querySelectorAll("[data-lang]").forEach(function (x) { x.classList.toggle("show", x.getAttribute("data-lang") === l); });
+        document.querySelectorAll("[data-set-lang]").forEach(function (b) { b.classList.toggle("active", b.getAttribute("data-set-lang") === l); });
+      }
+      document.querySelectorAll("[data-set-lang]").forEach(function (b) { b.addEventListener("click", function () { apply(b.getAttribute("data-set-lang")); }); });
+      apply(lang);
+    })();
+  </script>
+</body>
+
+</html>
