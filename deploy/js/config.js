@@ -1079,6 +1079,10 @@ export const TEXTS = {
     contactLabel: "¿Tienes ideas para mejorar la app?",
     contactLink: "w/Parcialsobriedad",
     privacyLink: "Privacidad",
+    guideLink: "Guía",
+    aboutLink: "Sobre nosotros",
+    contactPageLink: "Contacto",
+    termsLink: "Términos",
     rivenSearch: " BUSCAR PRECIO",
     refs: {
       rad: "Radiante",
@@ -1585,6 +1589,10 @@ export const TEXTS = {
     contactLabel: "Ideas? PM me ingame or through wf forums",
     contactLink: "w/Parcialsobriedad",
     privacyLink: "Privacy",
+    guideLink: "Guide",
+    aboutLink: "About",
+    contactPageLink: "Contact",
+    termsLink: "Terms",
     rivenSearch: " CHECK PRICE",
     refs: {
       rad: "Radiant",
