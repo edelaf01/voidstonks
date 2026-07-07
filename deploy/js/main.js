@@ -41,7 +41,7 @@ import {
   handleRivenInput,
   openRivenMarket,
   updateSelectExclusions,
-} from "./ui.components/ui_rivens.js?v=1.8";
+} from "./ui.components/ui_rivens.js?v=1.11";
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.getRegistrations().then(function (registrations) {
     for (let registration of registrations) {
