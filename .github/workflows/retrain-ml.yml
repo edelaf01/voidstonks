@@ -12,11 +12,11 @@ on:
         description: "n_estimators del modelo full (diagnóstico CI)"
         default: "400"
       slim_n:
-        description: "n_estimators del modelo slim publicado (sweet spot ~800)"
-        default: "800"
+        description: "n_estimators del modelo slim publicado (400 seguro; subir vigila el LÍMITE de 25MB de Cloudflare Pages en model_quantiles_slim.json)"
+        default: "400"
       slim_depth:
-        description: "max_depth del modelo slim publicado (5=más pequeño, 6=más preciso)"
-        default: "6"
+        description: "max_depth del modelo slim (5 seguro/pequeño; 6 hincha el cuantiles a ~25MB y PETA el deploy)"
+        default: "5"
 
 concurrency:
   group: retrain-ml
@@ -61,8 +61,8 @@ jobs:
           VOIDSTONKS_WEAPONS: ${{ github.workspace }}/deploy/assets/json/cleaned_weapons.json
           DEPLOY_ML_DIR: ${{ github.workspace }}/deploy/assets/ml
           XGB_N: ${{ github.event.inputs.xgb_n || '400' }}     # full = solo diagnóstico en CI (no se commitea)
-          SLIM_N: ${{ github.event.inputs.slim_n || '800' }}   # slim = lo que sirve la app (sweet spot ~800)
-          SLIM_DEPTH: ${{ github.event.inputs.slim_depth || '6' }} # depth del slim (5 pequeño / 6 más preciso)
+          SLIM_N: ${{ github.event.inputs.slim_n || '400' }}   # slim publicado; 400 mantiene el cuantiles < 25MB (límite Pages)
+          SLIM_DEPTH: ${{ github.event.inputs.slim_depth || '5' }} # 5 = seguro; 6 hincha el cuantiles a ~25MB y peta el deploy
           SLIM_EXPORT: '1'
           PRUEBAS: '0'                                        # sin pruebas/comparativa en CI (rápido)
           # XGB_DEVICE: 'cpu'  (runners sin GPU; AMD del dev no vale para XGBoost CUDA)
