@@ -1,0 +1,69 @@
+[
+ {
+  "ts": "2026-07-02 19:58",
+  "filas": 100295,
+  "armas": 413,
+  "fecha_min": "2026-06-03",
+  "fecha_max": "2026-06-30",
+  "pct_mag": 0.513,
+  "r2_log": 0.7606,
+  "r2_intra": 0.5732,
+  "auc_godroll": 0.814,
+  "mape_trade": 48.0,
+  "mape_global": 82.1,
+  "mape_mediano_arma": 83.8,
+  "cobertura": {
+   "p25": 28.8,
+   "p50": 50.1,
+   "p80": 80.5,
+   "p90": 90.8,
+   "p95": 96.1
+  },
+  "winsor_recortadas": 2188
+ },
+ {
+  "ts": "2026-07-02 21:22",
+  "filas": 100295,
+  "armas": 413,
+  "fecha_min": "2026-06-03",
+  "fecha_max": "2026-06-30",
+  "pct_mag": 0.513,
+  "r2_log": 0.7604,
+  "r2_intra": 0.5728,
+  "auc_godroll": 0.814,
+  "mape_trade": 48.0,
+  "mape_global": 82.4,
+  "mape_mediano_arma": 84.1,
+  "cobertura": {
+   "p25": 28.6,
+   "p50": 50.0,
+   "p80": 80.3,
+   "p90": 90.7,
+   "p95": 96.1
+  },
+  "winsor_recortadas": 2188
+ },
+ {
+  "ts": "2026-07-07 21:10",
+  "filas": 100295,
+  "armas": 413,
+  "fecha_min": "2026-06-03",
+  "fecha_max": "2026-06-30",
+  "pct_mag": 0.513,
+  "r2_log": 0.7544,
+  "r2_intra": 0.5621,
+  "spearman_intra": 0.697,
+  "auc_godroll": 0.811,
+  "mape_trade": 48.1,
+  "mape_global": 84.0,
+  "mape_mediano_arma": 84.4,
+  "cobertura": {
+   "p25": 27.8,
+   "p50": 49.9,
+   "p80": 81.2,
+   "p90": 90.9,
+   "p95": 95.6
+  },
+  "winsor_recortadas": 2188
+ }
+]
