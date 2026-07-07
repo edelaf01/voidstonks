@@ -3777,6 +3777,12 @@ function renderMetaStats(weaponName, weaponType, targetId = "meta-stats-containe
   // NO puede ser harmless/mid aunque esté en mis listas hardcodeadas -> manda el dato.
   const _dw = meta.dynamic_weights || {};
   const _dataWantedNames = Object.keys(_dw).filter(k => parseFloat(_dw[k]) >= 0.5);
+  // Ranking CONTINUO del daño de un negativo = cuánto quiere el arma ese stat como positivo:
+  //   peso >=0.7 (stat TOP) -> perderlo ARRUINA (WORST);  0.4-0.7 (stat medio) -> daño MEDIO (MID).
+  // Antes cualquier stat "querido" (incl. mid-positivos como Fire Rate) caía en WORST por igual.
+  const _dataWorst = Object.keys(_dw).filter(k => parseFloat(_dw[k]) >= 0.7);
+  const _dataMid = Object.keys(_dw).filter(k => { const v = parseFloat(_dw[k]); return v >= 0.4 && v < 0.7; });
+  const _worstSet = new Set([...(meta.pos || []), ..._dataWorst].map(x => String(x).toLowerCase()));
   const _wantedSet = new Set([...(meta.pos || []), ...(meta.midPos || []), ..._dataWantedNames].map(x => String(x).toLowerCase()));
   const _curatedNeg = new Set((meta.neg || []).map(x => String(x).toLowerCase()));
   const harmlessAll = [...new Set([...(meta.neg || []), ...HARMLESS_NEG_CANDIDATES])]
@@ -3792,9 +3798,11 @@ function renderMetaStats(weaponName, weaponType, targetId = "meta-stats-containe
   // MID negativas = las del endpoint + las de FACCIÓN ("meh": se prefiere sin facción; Infested
   // primero por ser la menos mala). Excluye las que el arma quiere y las ya marcadas harmless.
   const FACTION_NEGS = ["Damage Vs Infested", "Damage Vs Grineer", "Damage Vs Corpus"];
-  const midNeg = [...new Set([...(meta.midNeg || []), ...FACTION_NEGS])]
+  // MID negativas = facciones + las MID-positivas del arma (perder un stat medio duele pero NO
+  // arruina) + stats con peso de datos 0.4-0.7. Excluye harmless y las WORST (stats top).
+  const midNeg = [...new Set([...(meta.midNeg || []), ...FACTION_NEGS, ...(meta.midPos || []), ..._dataMid])]
     .filter(allow)
-    .filter(s => !_wantedSet.has(String(s).toLowerCase()) && !harmlessSet.has(String(s).toLowerCase()));
+    .filter(s => !_worstSet.has(String(s).toLowerCase()) && !harmlessSet.has(String(s).toLowerCase()));
   const midNegHtml = midNeg.length > 0 ? midNeg.map(s => `
     <span style="background: rgba(234, 179, 8, 0.08); border: 1px solid rgba(234, 179, 8, 0.18); color: #eab308; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 4px; display: inline-block; margin-bottom: 4px; font-weight: 500;">
       <span style="font-size: 9px; background: rgba(234, 179, 8, 0.18); color: #eab308; padding: 1px 4px; border-radius: 3px; margin-right: 5px; font-weight: 700; text-transform: uppercase;">MID</span>- ${getLocalizedStatName(s)}
@@ -3808,8 +3816,10 @@ function renderMetaStats(weaponName, weaponType, targetId = "meta-stats-containe
   const goodNegSet = new Set([...(meta.neg || []), ...midNeg, ...harmlessAll].map(x => String(x).toLowerCase()));
   // Peores negativas = inverso de los mejores positivos (bricks) + las peores que devuelve el endpoint
   // (neg_tier.curse en armas normales, negWorst en kitguns), deduplicadas.
+  // WORST = negativo sobre un stat TOP del arma (best positives o peso de datos >=0.7): arruina.
+  // Las MID-positivas (p.ej. Fire Rate en un arma de crit) YA NO caen aquí -> van a MID.
   const worstNeg = [...new Set([
-    ...(meta.pos || []), ...(meta.midPos || []), ..._dataWantedNames,
+    ...(meta.pos || []), ..._dataWorst,
     ...(meta.negWorst || []), ...(meta.neg_tier?.curse || []), ...(meta.rawNeg?.worst || [])
   ])]
     .filter(allow)
