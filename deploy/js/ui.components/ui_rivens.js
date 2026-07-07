@@ -3612,6 +3612,9 @@ function renderMetaStats(weaponName, weaponType, targetId = "meta-stats-containe
     "Ammo Maximum", "Magazine Capacity", "Reload Speed", "Projectile Speed"];
   const _dw = meta.dynamic_weights || {};
   const _dataWantedNames = Object.keys(_dw).filter(k => parseFloat(_dw[k]) >= 0.5);
+  const _dataWorst = Object.keys(_dw).filter(k => parseFloat(_dw[k]) >= 0.7);
+  const _dataMid = Object.keys(_dw).filter(k => { const v = parseFloat(_dw[k]); return v >= 0.4 && v < 0.7; });
+  const _worstSet = new Set([...(meta.pos || []), ..._dataWorst].map(x => String(x).toLowerCase()));
   const _wantedSet = new Set([...(meta.pos || []), ...(meta.midPos || []), ..._dataWantedNames].map(x => String(x).toLowerCase()));
   const _curatedNeg = new Set((meta.neg || []).map(x => String(x).toLowerCase()));
   const harmlessAll = [...new Set([...(meta.neg || []), ...HARMLESS_NEG_CANDIDATES])]
@@ -3625,9 +3628,9 @@ function renderMetaStats(weaponName, weaponType, targetId = "meta-stats-containe
   }).join("");
 
   const FACTION_NEGS = ["Damage Vs Infested", "Damage Vs Grineer", "Damage Vs Corpus"];
-  const midNeg = [...new Set([...(meta.midNeg || []), ...FACTION_NEGS])]
+  const midNeg = [...new Set([...(meta.midNeg || []), ...FACTION_NEGS, ...(meta.midPos || []), ..._dataMid])]
     .filter(allow)
-    .filter(s => !_wantedSet.has(String(s).toLowerCase()) && !harmlessSet.has(String(s).toLowerCase()));
+    .filter(s => !_worstSet.has(String(s).toLowerCase()) && !harmlessSet.has(String(s).toLowerCase()));
   const midNegHtml = midNeg.length > 0 ? midNeg.map(s => `
     <span style="background: rgba(234, 179, 8, 0.08); border: 1px solid rgba(234, 179, 8, 0.18); color: #eab308; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 4px; display: inline-block; margin-bottom: 4px; font-weight: 500;">
       <span style="font-size: 9px; background: rgba(234, 179, 8, 0.18); color: #eab308; padding: 1px 4px; border-radius: 3px; margin-right: 5px; font-weight: 700; text-transform: uppercase;">MID</span>- ${getLocalizedStatName(s)}
@@ -3636,7 +3639,7 @@ function renderMetaStats(weaponName, weaponType, targetId = "meta-stats-containe
 
   const goodNegSet = new Set([...(meta.neg || []), ...midNeg, ...harmlessAll].map(x => String(x).toLowerCase()));
   const worstNeg = [...new Set([
-    ...(meta.pos || []), ...(meta.midPos || []), ..._dataWantedNames,
+    ...(meta.pos || []), ..._dataWorst,
     ...(meta.negWorst || []), ...(meta.neg_tier?.curse || []), ...(meta.rawNeg?.worst || [])
   ])]
     .filter(allow)
