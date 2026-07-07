@@ -1,5 +1,4 @@
-
-name: Deploy Worker
+name: Deploy Site
 
 on:
   push:
@@ -8,18 +7,24 @@ on:
     paths:
       - 'deploy/**'
 
+# Evita que dos pushes seguidos lancen deploys en paralelo (y cancela el anterior).
+concurrency:
+  group: deploy-pages
+  cancel-in-progress: true
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
     name: Deploy
     steps:
       - uses: actions/checkout@v4
-      
-      - name: Deploy to Cloudflare
+
+      - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
         with:
-          apiToken: \${{ secrets.CF_API_TOKEN }}
-          accountId: \${{ secrets.CF_ACCOUNT_ID }}
+          apiToken: ${{ secrets.CF_API_TOKEN }}
+          accountId: ${{ secrets.CF_ACCOUNT_ID }}
           workingDirectory: 'deploy'
-          command: deploy
-EOF
+          # OJO: cambia "voidstonks" por el nombre EXACTO de tu proyecto de Pages
+          # (Cloudflare dashboard > Workers & Pages > tu proyecto).
+          command: pages deploy . --project-name=voidstonks
