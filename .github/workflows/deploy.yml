@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - 'deploy/**'
+  workflow_dispatch: {}   # permite lanzar el deploy a mano desde Actions > Deploy Site > Run workflow
 
 # Evita que dos pushes seguidos lancen deploys en paralelo (y cancela el anterior).
 concurrency:
