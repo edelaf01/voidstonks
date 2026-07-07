@@ -31,6 +31,9 @@ deploy/temp_inspect.html
 /scripts-actu/*
 !/scripts-actu/ML-rivenvaluation/
 /scripts-actu/ML-rivenvaluation/*
+# Re-incluir SOLO los scripts .py (los que necesita retrain-ml.yml en CI). El .venv,
+# exp_matrix.pkl, *.json y demás pesados siguen ignorados (solo se un-ignora *.py directo).
+!/scripts-actu/ML-rivenvaluation/*.py
 scripts-actu/img/
 /tests
 deploy/rootCA.crt
