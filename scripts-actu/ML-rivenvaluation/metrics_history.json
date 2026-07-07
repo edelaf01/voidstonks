@@ -65,5 +65,28 @@
    "p95": 95.6
   },
   "winsor_recortadas": 2188
+ },
+ {
+  "ts": "2026-07-07 19:37",
+  "filas": 118452,
+  "armas": 414,
+  "fecha_min": "2026-06-03",
+  "fecha_max": "2026-07-07",
+  "pct_mag": 0.616,
+  "r2_log": 0.7519,
+  "r2_intra": 0.5548,
+  "spearman_intra": 0.691,
+  "auc_godroll": 0.808,
+  "mape_trade": 48.1,
+  "mape_global": 83.5,
+  "mape_mediano_arma": 88.8,
+  "cobertura": {
+   "p25": 27.7,
+   "p50": 49.8,
+   "p80": 81.3,
+   "p90": 91.2,
+   "p95": 96.3
+  },
+  "winsor_recortadas": 2519
  }
 ]
