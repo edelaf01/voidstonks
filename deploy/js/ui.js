@@ -27,7 +27,7 @@ import {
 import {
   updateLFGUI,
 } from "./ui.components/ui_lfg.js";
-import { populateRivenSelects, initRivenMarketIndex, updateIndexTranslations, filterRivenIndex, stopRivenShowcase } from "./ui.components/ui_rivens.js?v=1.10";
+import { populateRivenSelects, initRivenMarketIndex, updateIndexTranslations, filterRivenIndex, stopRivenShowcase } from "./ui.components/ui_rivens.js?v=1.11";
 import { applyArbTexts } from "./ui.components/ui_arbitrage.js";
 import { initVosforTab, renderVosforTab } from "./ui.components/ui_vosfor.js?v=2.1";
 import { initSyncPanel } from "./ui.components/ui_sync.js";
