@@ -72,12 +72,9 @@ jobs:
         run: |
           git config user.email "actions@github.com"
           git config user.name "ML Retrain Bot"
-          git add deploy/assets/ml/model_quantiles_slim.json \
-                  deploy/assets/ml/feature_order_slim.json \
-                  deploy/assets/ml/feature_defaults_slim.json \
-                  deploy/assets/ml/calibracion_por_arma.json \
-                  deploy/assets/ml/price_bands.json \
-                  deploy/assets/ml/stat_weights.json \
+          # Todo el bundle (incluye model_trees_slim.json, que el navegador usa de fallback y
+          # DEBE ir sincronizado con el feature_order) + el log de métricas.
+          git add deploy/assets/ml/ \
                   scripts-actu/ML-rivenvaluation/metrics_history.json
           if git diff --staged --quiet; then
             echo "Sin cambios en el bundle; nada que commitear."
