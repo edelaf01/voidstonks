@@ -959,7 +959,7 @@ export async function fetchSimilarRivens(weaponName, positiveStats, negativeStat
         const searchNegKey = negativeStat ? getCanonicalStatKey(negativeStat) : null;
 
         const scoredAuctions = auctions
-            .filter(a => a.visible && a.owner.status !== "offline" && a.item?.attributes)
+            .filter(a => a.visible && ["ingame", "online"].includes(a.owner?.status) && a.item?.attributes)
             .map(a => {
                 const itemPosKeys = a.item.attributes
                     .filter(attr => attr.positive)

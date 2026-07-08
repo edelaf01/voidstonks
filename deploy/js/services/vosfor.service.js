@@ -283,15 +283,20 @@ export function computePackEV(pack, arcanes) {
     const liqMultiplier = Math.min(1.25, Math.max(0.4, 0.45 + 0.35 * Math.log10(1 + avgVolume)));
     const balancedRate = platPerVosfor * liqMultiplier;
 
+    const realizationFactor = Math.min(1, liqMultiplier);
+    const evPlatNet = evPlat * realizationFactor;
+
     return {
         ready,
         loaded: loaded.length,
         total: pack.items.length,
         evPlat: Math.round(evPlat * 10) / 10,
+        evPlatNet: Math.round(evPlatNet * 10) / 10,
         evVosfor: Math.round(evVosfor),
         platPerVosfor,
         avgVolume: Math.round(avgVolume),
         balancedRate,
+        liqMultiplier,
     };
 }
 
@@ -368,9 +373,13 @@ export function arcaneVerdict(slug, arcanes, bestRate) {
     const EFFORT_PL = 2;
     const liqRate = bestRate?.ev?.balancedRate ?? rate;
 
+    const volDay = (st.v || 0) + (st.vm || 0);
+    const SELL_HORIZON_DAYS = 14;
+    const sellableR0 = Math.max(1, Math.min(copiesMax, Math.ceil(volDay * SELL_HORIZON_DAYS)));
+
     const canSellMax = st.pem > 0 && (st.rm || 0) > 0;
     const netSellMax = canSellMax ? sellR5 - EFFORT_PL : -Infinity;
-    const netSellR0 = sellR0 > 0 ? copiesMax * (sellR0 - EFFORT_PL) : -Infinity;
+    const netSellR0 = sellR0 > 0 ? sellableR0 * (sellR0 - EFFORT_PL) : -Infinity;
     const netDissolve = meta.vosfor * copiesMax * liqRate * CERTAINTY;
     const bestGuaranteed = Math.max(netSellMax, netSellR0);
 
@@ -407,6 +416,40 @@ export function arcaneVerdict(slug, arcanes, bestRate) {
         hasR5Market: st.pem > 0 && (st.rm || 0) > 0,
         bestPackEs: bestRate?.pack?.es || "",
         bestPackEn: bestRate?.pack?.en || "",
+    };
+}
+
+export const HEX_ARCANES = ["arcane_escapist", "arcane_universal_fallout", "arcane_hot_shot"];
+
+export function pixRank(data, bestRate) {
+    const cfg = data?.hex_pix || { pixCostR0: 5, vosfor: 200, vosforPix: 6 };
+    const rate = bestRate?.balancedRate ?? bestRate?.rate ?? 0;
+    const rows = [];
+    for (const slug of HEX_ARCANES) {
+        const meta = data?.arcanes?.[slug];
+        if (!meta) continue;
+        const st = ARC_STATS.get(slug);
+        const pix = meta.pix || cfg.pixCostR0;
+        const sellR0 = realizableR0(st);
+        rows.push({
+            slug, meta, pix,
+            sellR0: Math.round(sellR0 * 10) / 10,
+            platPerPix: pix > 0 ? Math.round((sellR0 / pix) * 100) / 100 : 0,
+            ready: !!st,
+        });
+    }
+    const vosforPlatPerPix = (rate > 0 && cfg.vosforPix > 0)
+        ? Math.round((cfg.vosfor * rate / cfg.vosforPix) * 100) / 100
+        : 0;
+    rows.sort((a, b) => b.platPerPix - a.platPerPix);
+    const bestArcane = rows.find((r) => r.ready && r.platPerPix > 0) || null;
+    return {
+        rows,
+        vosforPlatPerPix,
+        rate,
+        cfg,
+        arcaneBeatsVosfor: !!bestArcane && bestArcane.platPerPix > vosforPlatPerPix,
+        ready: rows.every((r) => r.ready),
     };
 }
 
@@ -449,20 +492,22 @@ export function calculateVosforInvestment(vosforAmount, data, selectedPackId = "
         const pulls = Math.floor(vosforAmount / (pack.cost?.vosfor || 200));
         if (pulls <= 0) continue;
 
-        const estPlat = pulls * ev.evPlat;
-        if (estPlat > maxEvPlat) {
-            maxEvPlat = estPlat;
-            bestEvPack = { pack, pulls, estPlat: Math.round(estPlat), ev };
+        const estPlatNet = pulls * (ev.evPlatNet ?? ev.evPlat);
+        const estPlatRaw = pulls * ev.evPlat;
+        const shown = Math.round(estPlatNet);
+        if (estPlatNet > maxEvPlat) {
+            maxEvPlat = estPlatNet;
+            bestEvPack = { pack, pulls, estPlat: shown, ev };
         }
 
-        const liquidScore = estPlat * Math.min(1.3, 0.4 + 0.6 * Math.log10(1 + ev.avgVolume));
+        const liquidScore = estPlatRaw * Math.min(1.3, 0.4 + 0.6 * Math.log10(1 + ev.avgVolume));
         if (liquidScore > maxLiquidScore) {
             maxLiquidScore = liquidScore;
-            bestLiquidPack = { pack, pulls, estPlat: Math.round(estPlat), ev };
+            bestLiquidPack = { pack, pulls, estPlat: shown, ev };
         }
 
         if (selectedPackId && selectedPackId !== "auto" && pack.id === selectedPackId) {
-            customPack = { pack, pulls, estPlat: Math.round(estPlat), ev };
+            customPack = { pack, pulls, estPlat: shown, ev };
         }
     }
 
