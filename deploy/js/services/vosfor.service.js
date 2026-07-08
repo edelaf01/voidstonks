@@ -332,15 +332,24 @@ export function computePackEV(pack, arcanes) {
     const liqMultiplier = Math.min(1.25, Math.max(0.4, 0.45 + 0.35 * Math.log10(1 + avgVolume)));
     const balancedRate = platPerVosfor * liqMultiplier;
 
+    // EV REALIZABLE de verdad: el evPlat crudo asume que vendes los 3 arcanos de cada tirada a su
+    // precio realizable, pero un pack de rotación lenta (Necralisk: 100% rares ilíquidos) no coloca
+    // ese stock. Descuenta por el factor de realización = min(1, liqMult): un pack líquido muestra su
+    // EV pleno (factor 1, no lo inflamos por encima de lo realizable), uno muerto se recorta.
+    const realizationFactor = Math.min(1, liqMultiplier);
+    const evPlatNet = evPlat * realizationFactor;
+
     return {
         ready,
         loaded: loaded.length,
         total: pack.items.length,
         evPlat: Math.round(evPlat * 10) / 10,
+        evPlatNet: Math.round(evPlatNet * 10) / 10,
         evVosfor: Math.round(evVosfor),
         platPerVosfor,
         avgVolume: Math.round(avgVolume),
         balancedRate,
+        liqMultiplier,
     };
 }
 
@@ -438,9 +447,18 @@ export function arcaneVerdict(slug, arcanes, bestRate) {
     const EFFORT_PL = 2;      // coste de fricción en pl por cada trade de venta
     const liqRate = bestRate?.ev?.balancedRate ?? rate;   // tasa liquidez-ajustada del mejor pack
 
+    // No puedes colocar 21 copias R0 de un común de mercado muerto: el mercado se satura y el
+    // precio se hunde. Limita las copias R0 REALMENTE vendibles por la liquidez (ventas/día):
+    // más allá de una ventana razonable, el stock sobrante solo vale como disolución, no como
+    // "plat garantizado". Antes se multiplicaba por las copiesMax a secas -> inflaba el
+    // garantizado a un número fantasma (Escapist mostraba "sacrificas 112 pl" con R5 real ~31).
+    const volDay = (st.v || 0) + (st.vm || 0);
+    const SELL_HORIZON_DAYS = 14;   // ventana razonable para colocar el stock sin hundir el precio
+    const sellableR0 = Math.max(1, Math.min(copiesMax, Math.ceil(volDay * SELL_HORIZON_DAYS)));
+
     const canSellMax = st.pem > 0 && (st.rm || 0) > 0;                              // hay mercado real de Rmax
     const netSellMax = canSellMax ? sellR5 - EFFORT_PL : -Infinity;                 // fusionar + vender: 1 trade
-    const netSellR0 = sellR0 > 0 ? copiesMax * (sellR0 - EFFORT_PL) : -Infinity;    // vender sueltas: N trades
+    const netSellR0 = sellR0 > 0 ? sellableR0 * (sellR0 - EFFORT_PL) : -Infinity;   // vender solo lo colocable
     const netDissolve = meta.vosfor * copiesMax * liqRate * CERTAINTY;              // disolver: apuesta descontada
     const bestGuaranteed = Math.max(netSellMax, netSellR0);                         // mejor salida SIN apostar
 
@@ -478,6 +496,49 @@ export function arcaneVerdict(slug, arcanes, bestRate) {
         hasR5Market: st.pem > 0 && (st.rm || 0) > 0,
         bestPackEs: bestRate?.pack?.es || "",
         bestPackEn: bestRate?.pack?.en || "",
+    };
+}
+
+// ── The Hex: arcanos de Archimedea que se compran con PIX (no salen en packs de Loid) ──
+// Coste R0 = 5 pix/arcano; alternativa: 200 vosfor = 6 pix. "Mejor plat por pix" compara comprar
+// y revender cada arcano a R0 contra gastar esos pix en vosfor y meterlo en el mejor pack.
+export const HEX_ARCANES = ["arcane_escapist", "arcane_universal_fallout", "arcane_hot_shot"];
+
+/**
+ * Ranking plat-por-pix de los 3 arcanos de The Hex frente a la ruta "pix → vosfor → pack".
+ * bestRate: salida de bestBalancedPackRate (usa balancedRate, tasa plat/vosfor liquidez-ajustada).
+ */
+export function pixRank(data, bestRate) {
+    const cfg = data?.hex_pix || { pixCostR0: 5, vosfor: 200, vosforPix: 6 };
+    const rate = bestRate?.balancedRate ?? bestRate?.rate ?? 0;   // plat por vosfor realista
+    const rows = [];
+    for (const slug of HEX_ARCANES) {
+        const meta = data?.arcanes?.[slug];
+        if (!meta) continue;
+        const st = ARC_STATS.get(slug);
+        const pix = meta.pix || cfg.pixCostR0;
+        const sellR0 = realizableR0(st);                          // plat realizable de 1 copia R0
+        rows.push({
+            slug, meta, pix,
+            sellR0: Math.round(sellR0 * 10) / 10,
+            platPerPix: pix > 0 ? Math.round((sellR0 / pix) * 100) / 100 : 0,
+            ready: !!st,
+        });
+    }
+    // Ruta vosfor: gastar los pix en vosfor y revender vía el mejor pack (misma unidad, plat/pix).
+    const vosforPlatPerPix = (rate > 0 && cfg.vosforPix > 0)
+        ? Math.round((cfg.vosfor * rate / cfg.vosforPix) * 100) / 100
+        : 0;
+    rows.sort((a, b) => b.platPerPix - a.platPerPix);
+    const bestArcane = rows.find((r) => r.ready && r.platPerPix > 0) || null;
+    return {
+        rows,
+        vosforPlatPerPix,
+        rate,
+        cfg,
+        // recomendación: ¿algún arcano bate la ruta vosfor?
+        arcaneBeatsVosfor: !!bestArcane && bestArcane.platPerPix > vosforPlatPerPix,
+        ready: rows.every((r) => r.ready),
     };
 }
 
@@ -528,20 +589,25 @@ export function calculateVosforInvestment(vosforAmount, data, selectedPackId = "
         const pulls = Math.floor(vosforAmount / (pack.cost?.vosfor || 200));
         if (pulls <= 0) continue;
 
-        const estPlat = pulls * ev.evPlat;
-        if (estPlat > maxEvPlat) {
-            maxEvPlat = estPlat;
-            bestEvPack = { pack, pulls, estPlat: Math.round(estPlat), ev };
+        // Plat MOSTRADO = realizable neto (descontado por liquidez). El "mejor plat" se rankea por
+        // ese neto: un pack ilíquido (Necralisk) deja de aparentar más plat del que colocarás.
+        const estPlatNet = pulls * (ev.evPlatNet ?? ev.evPlat);
+        const estPlatRaw = pulls * ev.evPlat;   // crudo: solo para el score de velocidad de venta
+        const shown = Math.round(estPlatNet);
+        if (estPlatNet > maxEvPlat) {
+            maxEvPlat = estPlatNet;
+            bestEvPack = { pack, pulls, estPlat: shown, ev };
         }
 
-        const liquidScore = estPlat * Math.min(1.3, 0.4 + 0.6 * Math.log10(1 + ev.avgVolume));
+        // El score de liquidez pondera por rotación; usa el crudo para no aplicar el descuento dos veces.
+        const liquidScore = estPlatRaw * Math.min(1.3, 0.4 + 0.6 * Math.log10(1 + ev.avgVolume));
         if (liquidScore > maxLiquidScore) {
             maxLiquidScore = liquidScore;
-            bestLiquidPack = { pack, pulls, estPlat: Math.round(estPlat), ev };
+            bestLiquidPack = { pack, pulls, estPlat: shown, ev };
         }
 
         if (selectedPackId && selectedPackId !== "auto" && pack.id === selectedPackId) {
-            customPack = { pack, pulls, estPlat: Math.round(estPlat), ev };
+            customPack = { pack, pulls, estPlat: shown, ev };
         }
     }
 

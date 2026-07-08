@@ -11,7 +11,7 @@ import {
   calculateHybridTiers
 } from "../utils/riven_logic.js";
 import { getRivenSlug, fetchRivenAverage } from "../api.js";
-import { getMetaStats, fetchSimilarRivens } from "../services/riven_market.service.js?v=1.8";
+import { getMetaStats, fetchSimilarRivens } from "../services/riven_market.service.js?v=1.9";
 import {
   getItemIcon,
   DEFAULT_WEAPON_SVG,
@@ -2741,7 +2741,7 @@ function generateRollResultsDOM(roll, weaponData, weaponName, currentRank, scale
     const _w = meta || { name: weaponName, official_median: basePrice, wfm_avg: basePrice };
     import("../utils/riven_ml.js")
       .then(async (M) => {
-        const bandQ = await M.predictRivenMLBand(_w, itemAttributes, weaponData, 0, appraisal.adjustedScore);
+        const bandQ = await M.predictRivenMLBand(_w, itemAttributes, weaponData, null, appraisal.adjustedScore);
         const mk = await M.getWeaponMarket(weaponName, _w);
         appraisal.mlEstimate = bandQ.p50;
         appraisal.mlBand = bandQ;
@@ -2764,9 +2764,21 @@ function generateRollResultsDOM(roll, weaponData, weaponName, currentRank, scale
           ? (_prec.mape < 30 ? 0.75 : _prec.mape < 60 ? 0.60 : _prec.mape < 100 ? 0.42 : 0.28)
           : 0.35;   // sin dato de precisión -> apóyate en la heurística
         if (bandQ.confianza === "baja") _wMl = Math.min(_wMl, 0.30);
-        const _fair = (_h > 0 && _m > 0)
+        let _fair = (_h > 0 && _m > 0)
           ? Math.round(Math.exp(_wMl * Math.log(_m) + (1 - _wMl) * Math.log(_h)))
           : Math.round(_m || _h);
+        // CLAMP DE MERCADO: salvo godroll real (score GLOBAL >=85, combo Y magnitudes altas), el fair
+        // no puede dispararse muy por encima de la mediana real de ventas (typical/basePrice). Ataca
+        // el sobreprecio del modelo en rolls medios (un 66% no vale 3× el típico). Un combo S con
+        // magnitudes B baja el score global y por eso SÍ se clampa aquí (no basta con buen combo).
+        {
+          const _ovr = Number.isFinite(appraisal.adjustedScore) ? appraisal.adjustedScore : (appraisal?.statScore?.score || 0);
+          const _typical = basePrice || _m || _fair;
+          if (_typical > 0 && _ovr < 85) {
+            const _capMul = _ovr >= 70 ? 2.2 : _ovr >= 55 ? 1.6 : _ovr >= 40 ? 1.3 : 1.15;
+            _fair = Math.min(_fair, Math.round(_typical * _capMul));
+          }
+        }
         const _low = Math.max(1, Math.min(bandQ.p25, appraisal.suggestedMin || bandQ.p25, _fair));
         const _high = computeFairHigh(appraisal, bandQ, _fair);
         appraisal.fairPrice = _fair; appraisal.fairLow = _low; appraisal.fairHigh = _high;
@@ -3096,7 +3108,7 @@ export function calculateModalGrade() {
       const _w = meta || { name: weaponName, official_median: basePrice, wfm_avg: basePrice };
       import("../utils/riven_ml.js")
         .then(async (M) => {
-          const bandQ = await M.predictRivenMLBand(_w, itemAttributes, weaponData, 0, appraisal.adjustedScore);
+          const bandQ = await M.predictRivenMLBand(_w, itemAttributes, weaponData, null, appraisal.adjustedScore);
           const mk = await M.getWeaponMarket(weaponName, _w);
           appraisal.mlEstimate = bandQ.p50;
           appraisal.mlBand = bandQ;
@@ -3117,9 +3129,20 @@ export function calculateModalGrade() {
             ? (_prec.mape < 30 ? 0.75 : _prec.mape < 60 ? 0.60 : _prec.mape < 100 ? 0.42 : 0.28)
             : 0.35;
           if (bandQ.confianza === "baja") _wMl = Math.min(_wMl, 0.30);
-          const _fair = (_h > 0 && _m > 0)
+          let _fair = (_h > 0 && _m > 0)
             ? Math.round(Math.exp(_wMl * Math.log(_m) + (1 - _wMl) * Math.log(_h)))
             : Math.round(_m || _h);
+          // CLAMP DE MERCADO (ver path single): salvo godroll real (score GLOBAL >=85), el fair no
+          // se dispara por encima de un múltiplo razonable de la mediana real (typical). El anclaje
+          // por comparables de abajo aún puede subirlo si hay listados vivos que lo respalden.
+          {
+            const _ovr = Number.isFinite(appraisal.adjustedScore) ? appraisal.adjustedScore : (appraisal?.statScore?.score || 0);
+            const _typical = basePrice || _m || _fair;
+            if (_typical > 0 && _ovr < 85) {
+              const _capMul = _ovr >= 70 ? 2.2 : _ovr >= 55 ? 1.6 : _ovr >= 40 ? 1.3 : 1.15;
+              _fair = Math.min(_fair, Math.round(_typical * _capMul));
+            }
+          }
           const _low = Math.max(1, Math.min(bandQ.p25, appraisal.suggestedMin || bandQ.p25, _fair));
           const _high = computeFairHigh(appraisal, bandQ, _fair);
           appraisal.fairPrice = _fair; appraisal.fairLow = _low; appraisal.fairHigh = _high;
@@ -3149,11 +3172,23 @@ export function calculateModalGrade() {
               if (_fr2) _fr2.textContent = `${appraisal.fairLow}p – ${appraisal.fairHigh}p`;
               const _cEl = estCard.querySelector("[data-comp-line]");
               if (_cEl) {
-                _cEl.style.display = "inline-flex"; _cEl.style.color = "#4ade80";
+                _cEl.style.display = "inline-flex"; _cEl.style.color = "#4ade80"; _cEl.style.cursor = "pointer";
                 _cEl.title = isEs
-                  ? `Ahora mismo hay ${anchor.n} rivens a la venta con este mismo combo de stats. Los más baratos piden ~${anchor.price}p (lo habitual es ${anchor.median}p). Tu tasación se ajusta a estos precios reales del mercado.`
-                  : `Right now there are ${anchor.n} rivens for sale with this exact stat combo. The cheapest ask ~${anchor.price}p (typical ask is ${anchor.median}p). Your appraisal is adjusted to these real market prices.`;
-                _cEl.innerHTML = `${isEs ? "En venta ahora" : "On sale now"}: <b>${isEs ? "desde" : "from"} ~${anchor.price}p</b> <span style="opacity:.6;">(${anchor.n} ${isEs ? "iguales" : "same"})</span>`;
+                  ? `Ahora mismo hay ${anchor.n} rivens a la venta con este mismo combo de stats. Los más baratos piden ~${anchor.price}p (lo habitual es ${anchor.median}p). Tu tasación se ajusta a estos precios reales del mercado. Toca para ver los listados.`
+                  : `Right now there are ${anchor.n} rivens for sale with this exact stat combo. The cheapest ask ~${anchor.price}p (typical ask is ${anchor.median}p). Your appraisal is adjusted to these real market prices. Tap to see the listings.`;
+                _cEl.innerHTML = `${isEs ? "En venta ahora" : "On sale now"}: <b>${isEs ? "desde" : "from"} ~${anchor.price}p</b> <span style="opacity:.6;">(${anchor.n} ${isEs ? "iguales" : "same"}) ${isEs ? "· toca para ver" : "· tap to view"}</span>`;
+                // El chip no listaba los rivens; ahora dispara el botón de "Buscar similares" (que sí los
+                // renderiza) y hace scroll a la lista. Fallback: abrir la búsqueda en warframe.market.
+                _cEl.onclick = () => {
+                  const _btn = document.getElementById("btn-search-similar-rivens");
+                  const _c = document.getElementById("similar-rivens-container");
+                  if (_btn) {
+                    if (!_btn.disabled) _btn.click();
+                    if (_c) setTimeout(() => _c.scrollIntoView({ behavior: "smooth", block: "nearest" }), 80);
+                  } else {
+                    window.open(`https://warframe.market/auctions/search?type=riven&weapon_url_name=${getRivenSlug(weaponName)}&sort_by=price_asc`, "_blank", "noopener");
+                  }
+                };
               }
               console.log(`[Comparables] ${weaponName}: fair=${_adj} ancla=${anchor.price}p n=${anchor.n} w=${_wC.toFixed(2)}`);
             }
@@ -3335,6 +3370,11 @@ export function calculateModalGrade() {
 
                 const dotColor = sellerStatus === "ingame" ? "#00ff78" : "#9b59b6";
 
+                // Enlaces al trade real: la subasta concreta (id) y, de refuerzo, el perfil del
+                // vendedor (lista todos sus trades). Si por lo que sea no viene id, cae al perfil.
+                const _profileUrl = `https://warframe.market/profile/${encodeURIComponent(sellerName)}`;
+                const _auctionUrl = auction.id ? `https://warframe.market/auction/${auction.id}` : _profileUrl;
+
                 const posHtml = auction.item.attributes
                   .filter(a => a.positive)
                   .map(a => getShortStatName(a.url_name, true))
@@ -3347,15 +3387,15 @@ export function calculateModalGrade() {
 
                 simHtml += `<div style="display: flex; flex-direction: column; gap: 4px; background: rgba(0,0,0,0.3); padding: 8px 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.05); margin-bottom: 6px;">
                         <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <span style="color: #dcb3ff; font-weight: bold; font-size: 11px;">[${rivenName.toUpperCase()}]</span>
+                            <a href="${_auctionUrl}" target="_blank" rel="noopener" title="${_isEs ? "Ver este trade en warframe.market" : "View this trade on warframe.market"}" style="color: #dcb3ff; font-weight: bold; font-size: 11px; text-decoration: none;">[${rivenName.toUpperCase()}] <span style="opacity:.7;">↗</span></a>
                             <span style="color: var(--wf-gold-text); font-weight: bold; font-size: 12px;">${price} <img src="assets/relic_contents/platinum.webp" style="width:11px; vertical-align:middle;"></span>
                         </div>
                         <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; font-size: 10px;">
                             <span style="color: #aaa; flex: 1; min-width: 0; white-space: normal; word-break: break-word; line-height: 1.35;">${posHtml} <span style="color:#ff6666">${negHtml}</span></span>
-                            <span style="display: flex; align-items: center; gap: 4px; font-size: 9px; color: #888; flex-shrink: 0; white-space: nowrap;">
+                            <a href="${_profileUrl}" target="_blank" rel="noopener" title="${_isEs ? "Perfil del vendedor (sus trades)" : "Seller profile (their trades)"}" style="display: flex; align-items: center; gap: 4px; font-size: 9px; color: #888; flex-shrink: 0; white-space: nowrap; text-decoration: none;">
                                 <span style="width: 5px; height: 5px; border-radius: 50%; background: ${dotColor}; display: inline-block;"></span>
-                                ${sellerName}
-                            </span>
+                                ${sellerName} <span style="opacity:.6;">↗</span>
+                            </a>
                         </div>
                         <button onclick="navigator.clipboard.writeText('${whisperText.replace(/'/g, "\\'")}'); showToast('${state.currentLang === "es" ? "¡Mensaje de compra copiado!" : "Whisper copied to clipboard!"}')" 
                                 style="margin-top: 4px; width: 100%; font-size: 9px; padding: 4px 6px; border-radius: 4px; background: rgba(0, 255, 120, 0.1); border: 1px solid rgba(0, 255, 120, 0.2); color: #00ff78; cursor: pointer; transition: all 0.2s;"

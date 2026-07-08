@@ -528,14 +528,18 @@ export async function predictRivenMLBand(weapon, itemAttributes, weaponData = nu
   const usaDE = (deRe.median > 0 || deUn.median > 0);
   const deMed = usaDE ? (deRe.median > 0 ? deRe.median : deUn.median) : (b ? b.typical : 50);
   let deMax = (deRe.max_price || deRe.max || 0);
-  deMax = deMax > deMed ? Math.min(deMax, deMed * 25) : deMed * 8;    // techo godroll real, acotado
+  // Techo godroll ACOTADO: un godroll real vale ~3-8× la mediana, NO 25×. El 25× (asks outlier de
+  // un día) arrastraba los rolls medios hacia arriba por la curva convexa -> sobreprecio (un 66%
+  // salía a ~3× el típico). Cap a 8× (con datos) / 5× (sin datos de max) = techo de mercado creíble.
+  deMax = deMax > deMed ? Math.min(deMax, deMed * 8) : deMed * 5;
   const deFloor = Math.max(1, Math.round(Math.min(deMed, deUn.median || deMed) * 0.45));
   const levelMap = (f) => {   // f(0..1) calidad -> precio de venta real
     if (f <= 0.5) return deFloor + (deMed - deFloor) * (f / 0.5);
-    // s>0.5: mediana -> máx real, casi lineal en log (exp 1.05) para que un roll BUENO (no solo el
-    // godroll perfecto) escale de verdad hacia el techo y no se quede pegado a la mediana (trash-heavy).
+    // s>0.5: mediana -> máx real. Exponente 1.5 (antes 1.05): los rolls MEDIOS (0.5-0.75) se quedan
+    // cerca del típico y solo los rolls altos (0.85+) se acercan de verdad al techo godroll. Antes
+    // el 1.05 subía casi lineal y sobre-tasaba un roll normal como si fuera godroll.
     const fr = (f - 0.5) / 0.5, skew = Math.max(1.3, deMax / deMed);
-    return deMed * Math.pow(skew, Math.pow(fr, 1.05));
+    return deMed * Math.pow(skew, Math.pow(fr, 1.5));
   };
 
   // ajustes multiplicativos. OJO: la negativa mala YA la penaliza el SCORE (un -Multishot en Torid
@@ -551,7 +555,11 @@ export async function predictRivenMLBand(weapon, itemAttributes, weaponData = nu
     const wneg = parseFloat(dw[Object.keys(dw).find(k => k.toLowerCase() === nm.toLowerCase())] || 0);
     esBrick = BRICK.has(nm) || wneg >= 0.6;
   }
-  if (Number(rerolls) === 0) mult *= 1.25;
+  // Premio de riven SIN ROLAR (+25%): un buyer paga de más por poder rolar él mismo. Solo aplica
+  // cuando SABEMOS que es un 0-roll (scanner con rolls=0). El tasador manual pasa rerolls=null
+  // (roll concreto, magnitudes conocidas -> NO es un 0-roll): antes forzaba 0 y metía el +25% a
+  // TODO, empujando hasta el p25 por encima del típico ("venta rápida" > mediana, sinsentido).
+  if (rerolls === 0) mult *= 1.25;
 
   // La banda p25..p95 = el score posicionado ± dispersión (rango de precio del propio roll).
   const OFF = { 0.25: -0.12, 0.50: 0.0, 0.80: 0.10, 0.90: 0.15, 0.95: 0.20 };
@@ -579,7 +587,7 @@ export async function predictRivenMLBand(weapon, itemAttributes, weaponData = nu
       ? (esTrash ? "Roll de gama baja: precio orientativo (usa la banda, no el valor único)."
         : "Pocos datos del arma: precio orientativo.")
       : null,
-    regla: esBrick ? "BRICK" : (Number(rerolls) === 0 ? "0roll" : "q"),
+    regla: esBrick ? "BRICK" : (rerolls === 0 ? "0roll" : "q"),
   };
 }
 

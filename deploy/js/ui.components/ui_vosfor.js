@@ -31,8 +31,10 @@ import {
     calculateVosforInvestment,
     ARC_STATS,
     fetchLiveArcanePrice,
-    clearArcaneCacheIDB
-} from "../services/vosfor.service.js?v=2.4";
+    clearArcaneCacheIDB,
+    pixRank,
+    HEX_ARCANES
+} from "../services/vosfor.service.js?v=2.7";
 
 const PLAT = `<img src="assets/relic_contents/platinum.webp" style="width:13px;height:13px;vertical-align:middle;margin-left:2px;">`;
 
@@ -564,9 +566,10 @@ function rankingLeaderboardCard(bestRate) {
 
         rowsHtml = sortedPacks.map(({ pack, ev }, idx) => {
             const syn = PACK_SYNDICATES[pack.id] || PACK_SYNDICATES.others;
+            const _evShown = ev.evPlatNet ?? ev.evPlat;
             const subText = state.currentLang === "es"
-                ? `Ganas ~${ev.evPlat}${PLAT} por pack (200${vosforIcon(12)}) · ${ev.avgVolume} ventas/día`
-                : `Earn ~${ev.evPlat}${PLAT} per pack (200${vosforIcon(12)}) · ${ev.avgVolume} sales/day`;
+                ? `Ganas ~${_evShown}${PLAT} por pack (200${vosforIcon(12)}) · ${ev.avgVolume} ventas/día`
+                : `Earn ~${_evShown}${PLAT} per pack (200${vosforIcon(12)}) · ${ev.avgVolume} sales/day`;
             return `
               <div class="vosfor-ranking-row" onclick="toggleVosforPack('${pack.id}')" style="cursor:pointer;">
                 ${rankingMedal(idx)}
@@ -2081,7 +2084,7 @@ function packCard(pack, bestRate, bestBalancedRate) {
         const rateColor = isBestEv ? "#42f56c" : isBestBalanced ? "#7ecbff" : "#e0e0e0";
         evHtml = `
           <div class="vosfor-rate-val" style="color:${rateColor};">
-            ≈ ${ev.evPlat}${PLAT} <span style="font-size:0.72rem;font-weight:normal;opacity:0.85;">/ pack</span>
+            ≈ ${ev.evPlatNet ?? ev.evPlat}${PLAT} <span style="font-size:0.72rem;font-weight:normal;opacity:0.85;">/ pack</span>
           </div>
           <div class="vosfor-ev-detail" style="display:flex;justify-content:flex-end;">
             ${sellSpeedChip(ev.avgVolume)}
@@ -2270,6 +2273,49 @@ function searchAndControlsBar() {
     </div>`;
 }
 
+// Panel "The Hex": mejor uso de los PIX. Compara comprar cada arcano R0 (5 pix) y revenderlo
+// contra gastar los pix en vosfor (200 = 6 pix) y meterlo en el mejor pack, todo en plat/pix.
+function pixCard(bestBalancedRate) {
+    if (!vosData?.hex_pix) return "";
+    const t = vosT();
+    const es = state.currentLang === "es";
+    const pr = pixRank(vosData, bestBalancedRate);
+
+    const rows = pr.rows.map((r, i) => {
+        const name = arcName(r.meta);
+        const val = r.ready
+            ? `<b>${r.platPerPix}</b>${PLAT}/pix <span style="opacity:.55;">· R0 ${r.sellR0}${PLAT} · ${r.pix} pix</span>`
+            : `<span style="opacity:.5;">${escapeHTML(t.loading || "…")}</span>`;
+        return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-top:1px solid rgba(255,255,255,0.06);">
+            <span style="width:22px;text-align:center;">${rankingMedal(i)}</span>
+            ${arcaneImgHtml(r.slug, name)}
+            <span style="flex:1;font-size:0.82rem;">${escapeHTML(name)}</span>
+            <span style="font-size:0.8rem;white-space:nowrap;">${val}</span>
+        </div>`;
+    }).join("");
+
+    const vosforRow = `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-top:1px solid rgba(255,255,255,0.06);opacity:.9;">
+        <span style="width:22px;text-align:center;">${vosforIcon(15)}</span>
+        <span style="flex:1;font-size:0.82rem;">${escapeHTML(es ? "Gastar pix en vosfor (200 = 6 pix)" : "Spend pix on vosfor (200 = 6 pix)")}</span>
+        <span style="font-size:0.8rem;white-space:nowrap;"><b>${pr.vosforPlatPerPix}</b>${PLAT}/pix</span>
+    </div>`;
+
+    const verdict = pr.ready
+        ? (pr.arcaneBeatsVosfor
+            ? (es ? "Comprar el arcano de arriba y revenderlo rinde más plat por pix que gastar los pix en vosfor." : "Buying the top arcane and reselling it yields more plat per pix than spending the pix on vosfor.")
+            : (es ? "Gastar los pix en vosfor rinde más plat que comprar estos arcanos para revender." : "Spending pix on vosfor yields more plat than buying these arcanes to resell."))
+        : (es ? "Cargando precios en vivo de The Hex…" : "Loading The Hex live prices…");
+
+    return `
+      <div class="vosfor-card" style="border:1px solid rgba(155,89,182,0.35);border-radius:8px;padding:12px;background:rgba(155,89,182,0.06);">
+        <b style="font-size:0.92rem;">${escapeHTML(es ? "The Hex · Mejor plat por pix" : "The Hex · Best plat per pix")}</b>
+        <div style="font-size:0.72rem;color:#bbb;margin:4px 0 6px;">${escapeHTML(es ? "En qué gastar los pix: cada arcano cuesta 5 pix a R0; 200 vosfor cuestan 6 pix. Precio de venta realizable (no el listing a pelo)." : "What to spend pix on: each arcane costs 5 pix at R0; 200 vosfor cost 6 pix. Realizable sale price (not the raw listing).")}</div>
+        ${rows}
+        ${vosforRow}
+        <div style="font-size:0.74rem;color:#cbb3e0;margin-top:8px;">${escapeHTML(verdict)}</div>
+      </div>`;
+}
+
 export async function renderVosforTab() {
     const box = document.getElementById("vosfor-content");
     if (!box) return;
@@ -2305,6 +2351,7 @@ export async function renderVosforTab() {
         ${calculatorWidgetCard(vosData)}
         ${targetArcaneSimulatorCard()}
         ${rankingLeaderboardCard(bestRate)}
+        ${pixCard(bestBalancedRate)}
         ${searchAndControlsBar()}
         ${searchResultsCard(bestRate)}
         <div class="vosfor-explain-text">${escapeHTML(t.explain || "")}</div>
@@ -2337,6 +2384,8 @@ export async function initVosforTab() {
 
     // Initial fetch
     requestAllPacks().catch(console.error);
+    // The Hex (arcanos por pix): no están en ningún pack -> pide sus precios aparte, con prioridad.
+    requestPackStats({ id: "hex", items: HEX_ARCANES }, true).catch(console.error);
 
     // Background polling every 1 hour
     if (!globalRefreshTimer) {

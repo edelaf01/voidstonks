@@ -988,9 +988,12 @@ export async function fetchSimilarRivens(weaponName, positiveStats, negativeStat
         const searchPosKeys = positiveStats.map(s => getCanonicalStatKey(s));
         const searchNegKey = negativeStat ? getCanonicalStatKey(negativeStat) : null;
 
-        // Map and score all active auctions
+        // Map and score all active auctions.
+        // REQUISITO ONLINE: el vendedor debe estar ingame u online de forma EXPLÍCITA. Antes se usaba
+        // status !== "offline", que colaba estados ausentes/desconocidos (undefined !== "offline") como
+        // si fueran válidos. Con la lista blanca solo pasan vendedores localizables de verdad.
         const scoredAuctions = auctions
-            .filter(a => a.visible && a.owner.status !== "offline" && a.item?.attributes)
+            .filter(a => a.visible && ["ingame", "online"].includes(a.owner?.status) && a.item?.attributes)
             .map(a => {
                 const itemPosKeys = a.item.attributes
                     .filter(attr => attr.positive)
