@@ -463,12 +463,13 @@ export async function predictRivenMLBand(weapon, itemAttributes, weaponData = nu
   const usaDE = (deRe.median > 0 || deUn.median > 0);
   const deMed = usaDE ? (deRe.median > 0 ? deRe.median : deUn.median) : (b ? b.typical : 50);
   let deMax = (deRe.max_price || deRe.max || 0);
-  deMax = deMax > deMed ? Math.min(deMax, deMed * 25) : deMed * 8;
+  deMax = deMax > deMed ? Math.min(deMax, deMed * 8) : deMed * 5;
   const deFloor = Math.max(1, Math.round(Math.min(deMed, deUn.median || deMed) * 0.45));
   const levelMap = (f) => {   // quality 0..1 -> real sale price
     if (f <= 0.5) return deFloor + (deMed - deFloor) * (f / 0.5);
+    // above 0.5: median -> real max; exponent 1.5 keeps mid rolls near typical
     const fr = (f - 0.5) / 0.5, skew = Math.max(1.3, deMax / deMed);
-    return deMed * Math.pow(skew, Math.pow(fr, 1.05));
+    return deMed * Math.pow(skew, Math.pow(fr, 1.5));
   };
 
   let mult = 1.0;
@@ -481,7 +482,7 @@ export async function predictRivenMLBand(weapon, itemAttributes, weaponData = nu
     const wneg = parseFloat(dw[Object.keys(dw).find(k => k.toLowerCase() === nm.toLowerCase())] || 0);
     esBrick = BRICK.has(nm) || wneg >= 0.6;
   }
-  if (Number(rerolls) === 0) mult *= 1.25;
+  if (rerolls === 0) mult *= 1.25;
 
   // the p25..p95 band = the placed score ± spread
   const OFF = { 0.25: -0.12, 0.50: 0.0, 0.80: 0.10, 0.90: 0.15, 0.95: 0.20 };
@@ -509,7 +510,7 @@ export async function predictRivenMLBand(weapon, itemAttributes, weaponData = nu
       ? (esTrash ? "Roll de gama baja: precio orientativo (usa la banda, no el valor único)."
         : "Pocos datos del arma: precio orientativo.")
       : null,
-    regla: esBrick ? "BRICK" : (Number(rerolls) === 0 ? "0roll" : "q"),
+    regla: esBrick ? "BRICK" : (rerolls === 0 ? "0roll" : "q"),
   };
 }
 
