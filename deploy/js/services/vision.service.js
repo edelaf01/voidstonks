@@ -120,11 +120,25 @@ export const VisionService = {
         const ctx = canvas.getContext("2d", { willReadFrequently: true });
         ctx.drawImage(video, 0, 0, hCropW, hCropH, 0, 0, canvas.width, canvas.height);
 
-        const theme = this.detectThemeFromSnapshot(canvas, 0, 0, canvas.width, canvas.height);
-
-        this.applyClusteringThreshold(ctx, canvas.width, canvas.height, theme);
-
         return { width, height, scale };
+    },
+
+    finalizeVirtualCanvas(canvas) {
+        const ctx = canvas.getContext("2d", { willReadFrequently: true });
+        const theme = this.detectThemeFromSnapshot(canvas, 0, 0, canvas.width, canvas.height);
+        this.applyClusteringThreshold(ctx, canvas.width, canvas.height, theme);
+        return theme;
+    },
+
+    applyThemeDistanceThreshold(ctx, w, h, theme, maxDist = 130) {
+        const tR = theme.actualR ?? theme.r, tG = theme.actualG ?? theme.g, tB = theme.actualB ?? theme.b;
+        const imgData = ctx.getImageData(0, 0, w, h);
+        const px = imgData.data;
+        for (let i = 0; i < px.length; i += 4) {
+            const d = Math.abs(px[i] - tR) + Math.abs(px[i + 1] - tG) + Math.abs(px[i + 2] - tB);
+            px[i] = px[i + 1] = px[i + 2] = d < maxDist ? 0 : 255;
+        }
+        ctx.putImageData(imgData, 0, 0);
     },
 
     detectThemeFromSnapshot(snapshot, sampleX, sampleY, sampleW, sampleH) {
@@ -670,43 +684,60 @@ export const VisionService = {
     RIVEN_CARD_CROP: { x: 0.13, y: 0.50, w: 0.74, h: 0.40 },
     RIVEN_ITEM_DETAILS_CROP: { x: 0.33, y: 0.30, w: 0.34, h: 0.40 },
 
-    _binarizeRivenText(px, targetW, targetH, opts = {}) {
-        const W = 25;
-        const C = opts.C ?? 18;
-        const whiteMin = opts.whiteMin ?? 120;
+    _hintCvs: null,
+    hasRivenTextHint(video) {
+        const C = this.RIVEN_ITEM_DETAILS_CROP;
+        if (!this._hintCvs) {
+            this._hintCvs = document.createElement("canvas");
+            this._hintCvs.width = 64;
+            this._hintCvs.height = 36;
+        }
+        const ctx = this._hintCvs.getContext("2d", { willReadFrequently: true });
+        ctx.drawImage(video,
+            Math.floor(video.videoWidth * C.x), Math.floor(video.videoHeight * C.y),
+            Math.floor(video.videoWidth * C.w), Math.floor(video.videoHeight * C.h),
+            0, 0, 64, 36);
+        const d = ctx.getImageData(0, 0, 64, 36).data;
+        let lavender = 0;
+        for (let i = 0; i < d.length; i += 4) {
+            const r = d[i], g = d[i + 1], b = d[i + 2];
+            const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+            const s = mx === 0 ? 0 : (mx - mn) / mx;
+            if (b > r && r > g && s > 0.10 && s < 0.5 && mx > 80) lavender++;
+        }
+        return lavender >= 25;
+    },
 
+
+    _binarizeRivenTextDual(src, brightPx, dimPx, targetW, targetH) {
+        const W = 25;
         const L = new Uint8Array(targetW * targetH);
         for (let i = 0; i < L.length; i++) {
             const idx = i * 4;
-            L[i] = Math.round(0.299 * px[idx] + 0.587 * px[idx + 1] + 0.114 * px[idx + 2]);
+            L[i] = Math.round(0.299 * src[idx] + 0.587 * src[idx + 1] + 0.114 * src[idx + 2]);
         }
-
         for (let y = 0; y < targetH; y++) {
             const rowOff = y * targetW;
             let sum = 0, count = 0;
             for (let x = 0; x <= W && x < targetW; x++) { sum += L[rowOff + x]; count++; }
-
             for (let x = 0; x < targetW; x++) {
                 const oldX = x - W - 1, newX = x + W;
                 if (oldX >= 0) { sum -= L[rowOff + oldX]; count--; }
                 if (newX < targetW) { sum += L[rowOff + newX]; count++; }
-
                 const avg = sum / count;
                 const idx = (rowOff + x) * 4;
                 const val = L[rowOff + x];
-                const r = px[idx], g = px[idx + 1], b = px[idx + 2];
+                const r = src[idx], g = src[idx + 1], b = src[idx + 2];
                 const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
                 const s = mx === 0 ? 0 : (mx - mn) / mx;
-
-                let isText = false;
-                if (val > avg + C) {
-                    const isLavender = (b > r && r > g && s > 0.12 && s < 0.45);
-                    const isWhite    = (s < 0.18 && val > whiteMin);
-                    if (isLavender || isWhite) isText = true;
-                }
-                if (r > 90 && r - g > 30 && r - b > 30) isText = true;
-
-                px[idx] = px[idx + 1] = px[idx + 2] = isText ? 0 : 255;
+                const isLavender = (b > r && r > g && s > 0.12 && s < 0.45);
+                const red = (r > 90 && r - g > 30 && r - b > 30);
+                const brightText = red || (val > avg + 18 && (isLavender || (s < 0.18 && val > 120)));
+                const dimText = red || (val > avg + 10 && (isLavender || (s < 0.18 && val > 65)));
+                brightPx[idx] = brightPx[idx + 1] = brightPx[idx + 2] = brightText ? 0 : 255;
+                brightPx[idx + 3] = 255;
+                dimPx[idx] = dimPx[idx + 1] = dimPx[idx + 2] = dimText ? 0 : 255;
+                dimPx[idx + 3] = 255;
             }
         }
     },
@@ -721,7 +752,8 @@ export const VisionService = {
         const cropY = Math.floor(height * C.y);
         const cropH = Math.floor(height * C.h);
 
-        const S = 2;
+        // s=1.5: text ends ~25 px tall, Tesseract's sweet spot
+        const S = 1.5;
         const targetW = Math.floor(cropW * scale * S);
         const targetH = Math.floor(cropH * scale * S);
 
@@ -736,42 +768,108 @@ export const VisionService = {
         const rawData = ctx.getImageData(0, 0, targetW, targetH);
         const statsZoneStart = Math.floor(targetH * 0.38);
         const minClusterW = Math.floor(targetW * 0.06);
+        const gapTol = Math.floor(targetW * 0.045);
+        const runLo = Math.max(3, Math.round(targetH * 0.0046));
+        const runHi = Math.round(targetH * 0.046);
 
-        const findClusters = (binPx) => {
-            const colCount = new Int32Array(targetW);
-            for (let y = statsZoneStart; y < targetH; y++) {
-                const rowOff = y * targetW;
-                for (let x = 0; x < targetW; x++) if (binPx[(rowOff + x) * 4] === 0) colCount[x]++;
+        const glyphRunsPerCol = (binPx) => {
+            const counts = new Int32Array(targetW);
+            for (let x = 0; x < targetW; x++) {
+                let run = 0, n = 0;
+                for (let y = statsZoneStart; y < targetH; y++) {
+                    if (binPx[(y * targetW + x) * 4] === 0) { run++; continue; }
+                    if (run >= runLo && run <= runHi) n++;
+                    run = 0;
+                }
+                if (run >= runLo && run <= runHi) n++;
+                counts[x] = n;
             }
-            const colThresh = Math.max(2, Math.floor((targetH - statsZoneStart) * 0.015));
-            const gapTol = Math.floor(targetW * 0.045);
+            return counts;
+        };
+
+        const clusterRanges = (counts) => {
             const clusters = [];
             let start = -1, lastActive = -1;
             for (let x = 0; x < targetW; x++) {
-                if (colCount[x] >= colThresh) { if (start === -1) start = x; lastActive = x; }
+                if (counts[x] >= 3) { if (start === -1) start = x; lastActive = x; }
                 else if (start !== -1 && x - lastActive > gapTol) { clusters.push([start, lastActive]); start = -1; }
             }
             if (start !== -1) clusters.push([start, lastActive]);
             return clusters.filter(c => (c[1] - c[0]) >= minClusterW);
         };
 
-        const brightPx = new Uint8ClampedArray(rawData.data);
-        this._binarizeRivenText(brightPx, targetW, targetH, { C: 18, whiteMin: 120 });
-        const dimPx = new Uint8ClampedArray(rawData.data);
-        this._binarizeRivenText(dimPx, targetW, targetH, { C: 10, whiteMin: 65 });
+        const mass = (counts, [x0, x1]) => {
+            let s = 0;
+            for (let x = x0; x <= x1; x++) s += counts[x];
+            return s;
+        };
 
-        const byWidthDesc = (a, b) => (b[1] - b[0]) - (a[1] - a[0]);
-        const brightClusters = findClusters(brightPx).sort(byWidthDesc);
-        const dimClusters = findClusters(dimPx).sort(byWidthDesc);
+        const splitWide = (rg, counts) => {
+            const [x0, x1] = rg;
+            const w = x1 - x0 + 1;
+            if (w <= targetW * 0.38) return [rg];
+            const k = Math.max(5, Math.floor(targetW * 0.01));
+            const sm = new Float32Array(w);
+            for (let i = 0; i < w; i++) {
+                let s = 0, n = 0;
+                for (let j = Math.max(0, i - (k >> 1)); j <= Math.min(w - 1, i + (k >> 1)); j++) { s += counts[x0 + j]; n++; }
+                sm[i] = s / n;
+            }
+            const lo = Math.floor(w * 0.25), hi = Math.floor(w * 0.75);
+            let cut = lo;
+            for (let i = lo; i < hi; i++) if (sm[i] < sm[cut]) cut = i;
+            let leftMax = 1, rightMax = 1;
+            for (let i = 0; i < cut; i++) leftMax = Math.max(leftMax, sm[i]);
+            for (let i = cut; i < w; i++) rightMax = Math.max(rightMax, sm[i]);
+            if (sm[cut] <= 0.35 * leftMax && sm[cut] <= 0.35 * rightMax) {
+                return [[x0, x0 + cut - 1], [x0 + cut + 1, x1]];
+            }
+            return [rg];
+        };
 
-        const overlaps = (a, b) => !(a[1] < b[0] || b[1] < a[0]);
-        const center = brightClusters[0] || null;
-        const side = center ? (dimClusters.find(c => !overlaps(c, center)) || null) : null;
+        if (!this._brightBuf || this._brightBuf.length !== rawData.data.length) {
+            this._brightBuf = new Uint8ClampedArray(rawData.data.length);
+            this._dimBuf = new Uint8ClampedArray(rawData.data.length);
+        }
+        const brightPx = this._brightBuf;
+        const dimPx = this._dimBuf;
+        this._binarizeRivenTextDual(rawData.data, brightPx, dimPx, targetW, targetH);
+
+        const bruns = glyphRunsPerCol(brightPx);
+        const druns = glyphRunsPerCol(dimPx);
+
+        const maskFor = (rg) => (mass(bruns, rg) >= 0.55 * mass(druns, rg) ? brightPx : dimPx);
 
         const plan = [];
-        if (center) plan.push({ range: center, binPx: brightPx });
-        if (side) plan.push({ range: side, binPx: dimPx });
-        if (!plan.length) (dimClusters.length ? dimClusters : [[0, targetW - 1]]).forEach(r => plan.push({ range: r, binPx: dimPx }));
+        const bclusters = clusterRanges(bruns);
+        if (!bclusters.length) {
+            const dcl = [];
+            clusterRanges(druns).forEach(rg => dcl.push(...splitWide(rg, druns)));
+            (dcl.length ? dcl : [[0, targetW - 1]]).slice(0, 2)
+                .forEach(rg => plan.push({ range: rg, binPx: dimPx }));
+        } else {
+            let center = bclusters[0];
+            for (const rg of bclusters) if (mass(bruns, rg) > mass(bruns, center)) center = rg;
+
+            const parts = splitWide(center, druns);
+            if (parts.length === 2) {
+                parts.forEach(rg => plan.push({ range: rg, binPx: maskFor(rg) }));
+            } else {
+                plan.push({ range: center, binPx: brightPx });
+                const margin = Math.floor(targetW * 0.015);
+                const rem = Int32Array.from(druns);
+                for (let x = Math.max(0, center[0] - margin); x <= Math.min(targetW - 1, center[1] + margin); x++) rem[x] = 0;
+                const scand = clusterRanges(rem);
+                if (scand.length) {
+                    let side = scand[0];
+                    for (const rg of scand) if (mass(rem, rg) > mass(rem, side)) side = rg;
+                    if (mass(rem, side) >= 0.22 * mass(bruns, center)) {
+                        plan.push({ range: side, binPx: dimPx });
+                    }
+                }
+                plan.sort((a, b) => a.range[0] - b.range[0]);
+            }
+        }
 
         const pad = Math.floor(6 * scale);
         const out = [];
@@ -795,7 +893,9 @@ export const VisionService = {
             if (bw < 40 || bh < 30) continue;
 
             ctx.putImageData(new ImageData(binPx, targetW, targetH), 0, 0);
-            const oc = document.createElement("canvas");
+            if (!this._rivenOutCvs) this._rivenOutCvs = [];
+            let oc = this._rivenOutCvs[out.length];
+            if (!oc) { oc = document.createElement("canvas"); this._rivenOutCvs[out.length] = oc; }
             oc.width = bw;
             oc.height = bh;
             oc.getContext("2d").putImageData(ctx.getImageData(bx0, by0, bw, bh), 0, 0);
@@ -832,7 +932,8 @@ export const VisionService = {
         const text = headerText.toUpperCase();
         
         const hasInv = /INVEN|TORY|1NVENT|INV|VENT|SELL|TARIO/.test(text);
-        const hasMods = /MODS|MOD|M0DS|MOOS|MDDS|MDS|M0D5|M0D|MOO|MD|FICADORES|AGRIETADO|KUVA|KUYVA|CICLO|CICLAR|ATRIBU/.test(text);
+        const hasMods = /MODS|MOD|M0DS|MOOS|MDDS|MDS|M0D5|M0D|MOO|MD|FICADORES|AGRIETADO|KUVA|KUYVA|CICLO|CICLAR|ATRIBU/.test(text) ||
+            /\/\s*[MNHW][O0DQC][DO0B][S5$]/.test(text);
 
         if (/DETAIL|DETALL/.test(text)) return "ITEM_DETAILS";
         if (hasMods) return "INVENTORY_MODS";
@@ -864,7 +965,7 @@ export const VisionService = {
                 }
             }
             console.log(`[buildAutoGrid] Snapped saved/edited grid layout: ${rows}r x ${cols}c, cellW=${cellW}, cellH=${cellH}`);
-            return { cellRects, cellW, cellH, cols, rows };
+            return this._applyRowPhase(snapshot, gridZone, { cellRects, cellW, cellH, cols, rows });
         }
 
         const { x: zx, y: zy, w: zw, h: zh } = gridZone;
@@ -892,7 +993,61 @@ export const VisionService = {
         }
 
         console.log(`[buildAutoGrid] Snapped perfect ${rows}x${cols} grid to calibrated zone: cellW=${finalCellW}, cellH=${finalCellH}`);
-        return { cellRects, cellW: finalCellW, cellH: finalCellH, cols, rows };
+        return this._applyRowPhase(snapshot, gridZone, { cellRects, cellW: finalCellW, cellH: finalCellH, cols, rows });
+    },
+
+    detectRowPhase(snapshot, gridZone, rowTops, cellH) {
+        const { x: zx, y: zy, w: zw, h: zh } = gridZone;
+        const ctx = snapshot.getContext("2d", { willReadFrequently: true });
+        const data = ctx.getImageData(zx, zy, zw, zh).data;
+
+        const bright = new Float32Array(zh);
+        let totalBright = 0;
+        for (let y = 0; y < zh; y++) {
+            let cnt = 0;
+            const rowOff = y * zw * 4;
+            for (let x = 0; x < zw; x += 4) {
+                const i = rowOff + x * 4;
+                const mx = Math.max(data[i], data[i + 1], data[i + 2]);
+                if (mx > 185) cnt++;
+            }
+            bright[y] = cnt;
+            totalBright += cnt;
+        }
+        if (totalBright < zh) return 0;
+
+        const band = (a, b) => {
+            let s = 0;
+            const y0 = Math.max(0, Math.round(a));
+            const y1 = Math.min(zh - 1, Math.round(b));
+            for (let y = y0; y <= y1; y++) s += bright[y];
+            return s;
+        };
+
+        const half = Math.floor(cellH / 2);
+        let bestDy = 0;
+        let bestScore = -Infinity;
+        for (let dy = -half; dy <= half; dy += 2) {
+            let score = 0;
+            for (const top of rowTops) {
+                const t = top - zy + dy;
+                score += band(t + cellH * 0.58, t + cellH * 0.92);
+                score -= 2 * band(t - cellH * 0.04, t + cellH * 0.04);
+            }
+            if (score > bestScore) { bestScore = score; bestDy = dy; }
+        }
+        return Math.abs(bestDy) <= 4 ? 0 : bestDy;
+    },
+
+    _applyRowPhase(snapshot, gridZone, grid) {
+        const rowTops = [...new Set(grid.cellRects.filter(c => c.c === 0).map(c => c.sy))];
+        const dy = this.detectRowPhase(snapshot, gridZone, rowTops, grid.cellH);
+        grid.phaseShift = dy;
+        if (dy === 0) return grid;
+        console.log(`[buildAutoGrid] Row phase shift: ${dy}px (scroll clampado, p.ej. final de lista) — realineando filas.`);
+        for (const cell of grid.cellRects) { cell.sy += dy; cell.cy += dy; }
+        grid.cellRects = grid.cellRects.filter(c => c.sy >= 0 && c.sy + grid.cellH <= snapshot.height);
+        return grid;
     },
 
     extractBadgeByColor(snapshot, cell, cellW, cellH, theme) {
@@ -1006,9 +1161,23 @@ export const VisionService = {
             }
         }
 
+        for (const comp of components) {
+            if (comp.erased) continue;
+            if (comp.minY > safeH * 0.55) {
+                for (const pixelIdx of comp.pixels) {
+                    px[pixelIdx * 4] = 255;
+                    px[pixelIdx * 4 + 1] = 255;
+                    px[pixelIdx * 4 + 2] = 255;
+                }
+                comp.erased = true;
+                comp.hardErased = true;
+            }
+        }
+
         if (!components.some(c => !c.erased)) {
             for (const comp of components) {
                 if (comp.width > 18 && comp.height <= 3) continue;
+                if (comp.hardErased) continue;
                 comp.erased = false;
                 for (const pixelIdx of comp.pixels) {
                     px[pixelIdx * 4] = 0; px[pixelIdx * 4 + 1] = 0; px[pixelIdx * 4 + 2] = 0;
@@ -1068,5 +1237,88 @@ export const VisionService = {
         badgeCvs.cropH = digitH;
 
         return badgeCvs;
+    },
+
+    disambiguate69(badgeCvs, digits) {
+        if (!/[69]/.test(digits)) return digits;
+        const w = badgeCvs.width, h = badgeCvs.height;
+        const ctx = badgeCvs.getContext("2d", { willReadFrequently: true });
+        const px = ctx.getImageData(0, 0, w, h).data;
+        const isBlack = (i) => px[i * 4] === 0;
+
+        const labels = new Int32Array(w * h).fill(-1);
+        const blobs = [];
+        for (let start = 0; start < w * h; start++) {
+            if (!isBlack(start) || labels[start] !== -1) continue;
+            const id = blobs.length;
+            const queue = [start];
+            labels[start] = id;
+            let qi = 0, minX = w, maxX = 0, minY = h, maxY = 0, area = 0;
+            while (qi < queue.length) {
+                const cur = queue[qi++];
+                const cx = cur % w, cy = (cur - cx) / w;
+                if (cx < minX) minX = cx;
+                if (cx > maxX) maxX = cx;
+                if (cy < minY) minY = cy;
+                if (cy > maxY) maxY = cy;
+                area++;
+                for (let dy = -1; dy <= 1; dy++) {
+                    for (let dx = -1; dx <= 1; dx++) {
+                        if (!dx && !dy) continue;
+                        const nx = cx + dx, ny = cy + dy;
+                        if (nx < 0 || nx >= w || ny < 0 || ny >= h) continue;
+                        const n = ny * w + nx;
+                        if (isBlack(n) && labels[n] === -1) { labels[n] = id; queue.push(n); }
+                    }
+                }
+            }
+            blobs.push({ minX, maxX, minY, maxY, area });
+        }
+
+        const digitBlobs = blobs
+            .filter(b => b.area >= 30 && (b.maxY - b.minY) >= h * 0.3)
+            .sort((a, b) => a.minX - b.minX);
+        if (digitBlobs.length !== digits.length) return digits;
+
+        let out = "";
+        for (let i = 0; i < digits.length; i++) {
+            const ch = digits[i];
+            if (ch !== "6" && ch !== "9") { out += ch; continue; }
+            const b = digitBlobs[i];
+            const bw = b.maxX - b.minX + 1, bh = b.maxY - b.minY + 1;
+
+            const seen = new Uint8Array(bw * bh);
+            const idxOf = (x, y) => (y - b.minY) * bw + (x - b.minX);
+            const stack = [];
+            const trySeed = (x, y) => {
+                if (!isBlack(y * w + x) && !seen[idxOf(x, y)]) { seen[idxOf(x, y)] = 1; stack.push(y * w + x); }
+            };
+            for (let x = b.minX; x <= b.maxX; x++) { trySeed(x, b.minY); trySeed(x, b.maxY); }
+            for (let y = b.minY; y <= b.maxY; y++) { trySeed(b.minX, y); trySeed(b.maxX, y); }
+            while (stack.length) {
+                const cur = stack.pop();
+                const cx = cur % w, cy = (cur - cx) / w;
+                if (cx + 1 <= b.maxX) trySeed(cx + 1, cy);
+                if (cx - 1 >= b.minX) trySeed(cx - 1, cy);
+                if (cy + 1 <= b.maxY) trySeed(cx, cy + 1);
+                if (cy - 1 >= b.minY) trySeed(cx, cy - 1);
+            }
+
+            let holeArea = 0, holeYSum = 0;
+            for (let y = b.minY; y <= b.maxY; y++) {
+                for (let x = b.minX; x <= b.maxX; x++) {
+                    if (!isBlack(y * w + x) && !seen[idxOf(x, y)]) { holeArea++; holeYSum += y; }
+                }
+            }
+            if (holeArea < bh) { out += ch; continue; }
+
+            const holeCy = holeYSum / holeArea;
+            const centerY = (b.minY + b.maxY) / 2;
+            const margin = bh * 0.06;
+            if (holeCy > centerY + margin) out += "6";
+            else if (holeCy < centerY - margin) out += "9";
+            else out += ch;
+        }
+        return out;
     },
 };
