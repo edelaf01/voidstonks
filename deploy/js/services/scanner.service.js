@@ -5,6 +5,7 @@ import { OpenCVRepository } from "../repositories/opencv.repository.js";
 import { ScannerHUD } from "../ui.components/ui_scanner_hud.js";
 import { ScannerModal } from "../ui.components/ui_scanner_modal.js";
 import { initializeOCRDatabase } from "../repositories/api.repository.js";
+import { escapeHTML } from "../ui.components/ui_components.js";
 
 /**
  */
@@ -12,16 +13,31 @@ export const ScannerService = {
     isScanning: false,
     scanInterval: null,
     currentRate: 1200,
+    RIVEN_RATE_ACTIVE: 400, // sin resultado mostrado aún, o el hash cambió: escanea rápido
+    RIVEN_RATE_IDLE: 1000, // ya hay resultado y la pantalla está estática (hash-skip disparando): relaja el poll
     lastTrackedRelic: "",
     sessionInventory: new Map(),
+    sessionRelics: new Map(), // relicName -> qty de consenso (fallback de reliquias en el grid de inventario)
     detectionLocked: false,
     scanCounter: 0,
     inventoryHasScanned: false,
     qtyVotes: new Map(), // itemName -> Map<qty, count> (consenso de cantidad entre frames)
+    relicQtyVotes: new Map(), // relicName -> Map<qty, count> (mismo consenso, pero para reliquias)
     lastStableHash: null,
     virtualCanvas: null,
     lastHashL: null,
     lastHashR: null,
+    lastNoResultHash: null, // último hash de cartas que NO produjo ningún parse válido (evita re-OCRear en bucle una pantalla estática que no parsea)
+    lastNoResultTime: 0, // cuándo se cacheó — el skip caduca a los 3s (auto-recuperación tras fades)
+    lastHeaderHash: null, // hash de la franja del header EN EL ÚLTIMO OCR real (baseline fijo: no se actualiza en frames skipeados, para que el drift acumulado dispare re-OCR)
+    lastHeaderText: null, // texto de la última lectura real del header (se reutiliza cuando el hash coincide)
+    lastHeaderOcrTime: 0, // cuándo fue el último OCR real del header — el skip caduca a los 2.5s (acota la ceguera por colisión de hash)
+    lastRivenContextType: null, // "INVENTORY_MODS" | "ITEM_DETAILS": qué recorte produjo el último hit riven (el grace period debe re-enrutar al MISMO)
+    lastTwoCardHash: null, // hash de cartas la última vez que se mostraron 2 rivens de forma confirmada (histéresis 2→1)
+    oneCardStreak: 0, // lecturas consecutivas de <2 cartas tras un cambio de hash real (histéresis 2→1)
+    newCardStreak: 0, // lecturas consecutivas de una 2ª carta con arma distinta a la ya mostrada (evita falsos positivos del arte de fondo)
+    weaponSwitchCandidate: null, // set de armas candidato a "cambio de riven" pendiente de confirmar
+    weaponSwitchStreak: 0, // lecturas consecutivas con ese MISMO set de armas nuevo (anti-flip del matcher)
     rivenConsensusBuffer: [],
 
     async start() {
@@ -32,8 +48,21 @@ export const ScannerService = {
         this.detectionLocked = false;
         this.lastHashL = null;
         this.lastHashR = null;
+        this.lastNoResultHash = null;
+        this.lastNoResultTime = 0;
+        this.lastHeaderHash = null;
+        this.lastHeaderText = null;
+        this.lastHeaderOcrTime = 0;
+        this.lastRivenContextType = null;
+        this.lastTwoCardHash = null;
+        this.oneCardStreak = 0;
+        this.newCardStreak = 0;
+        this.weaponSwitchCandidate = null;
+        this.weaponSwitchStreak = 0;
         this.rivenConsensusBuffer = [];
         this.qtyVotes = new Map();
+        this.sessionRelics = new Map();
+        this.relicQtyVotes = new Map();
         globalThis.ScannerService = this;
         if (!this.virtualCanvas) {
             this.virtualCanvas = document.createElement("canvas");
@@ -95,9 +124,53 @@ export const ScannerService = {
 
         const worker1 = OCRRepository.workers[0];
         if (!worker1) return;
-        const { data: headerData } = await OCRRepository.recognize(worker1, virtualCanvas, {}, { text: true });
 
-        const rawContext = VisionService.determineContext(headerData.text);
+        // Skip del OCR de cabecera por hash: la franja del header no cambia entre frames de una
+        // pantalla quieta, y OCRearla cada tick (400ms en modo riven) era el mayor consumo fijo
+        // de CPU del scanner. Si el hash coincide, reutilizamos el texto de la última lectura —
+        // todo el flujo de contexto (anclas, grace, histéresis) se comporta exactamente igual.
+        // Tres protecciones contra la "ceguera de contexto" (recompensas que no saltaban):
+        //  - tolerancia ESTRICTA (6, no 18): el título del header es texto fino que apenas
+        //    mueve la media de un downsample 16×9; con 18 el cambio gameplay→recompensas
+        //    podía quedar por debajo y se reutilizaba el texto basura cacheado del gameplay.
+        //  - baseline anclado al último frame OCREADO (no al frame anterior): actualizarlo
+        //    cada frame dejaba pasar cambios graduales (fade de transición) sin re-OCR jamás.
+        //  - TTL: pase lo que pase, re-OCR cada 2.5s — acota cualquier colisión de hash a
+        //    2.5s de ceguera máxima (la pantalla de recompensas dura ~10s).
+        const headerHash = this._smallCanvasHash(virtualCanvas);
+        const headerCacheFresh = this.lastHeaderOcrTime && (Date.now() - this.lastHeaderOcrTime < 2500);
+        let headerText;
+        if (this.lastHeaderText !== null && headerCacheFresh && this._compareHashes(headerHash, this.lastHeaderHash, 6)) {
+            headerText = this.lastHeaderText;
+        } else {
+            // Solo cuando el header cambió: detección de tema + umbralizado (finalize) y OCR.
+            const headerTheme = VisionService.finalizeVirtualCanvas(virtualCanvas);
+            const { data: headerData } = await OCRRepository.recognize(worker1, virtualCanvas, {}, { text: true });
+            headerText = headerData.text || "";
+
+            // Segundo intento si el primero no dio contexto: re-binariza el header por
+            // distancia estricta al color del tema. Cubre el caso "header del tema sobre
+            // fondo claro" (recompensas con cielo rojo/rosa) donde la K-means invierte la
+            // clasificación y el OCR sale basura. Coste acotado: solo en frames cuyo header
+            // cambió Y no matchearon contexto, sobre el mismo canvas pequeño del header.
+            if (headerTheme && VisionService.determineContext(headerText) === "UNKNOWN") {
+                if (!this._altHeaderCvs) this._altHeaderCvs = document.createElement("canvas");
+                VisionService.prepareVirtualCanvas(video, this._altHeaderCvs);
+                const altCtx = this._altHeaderCvs.getContext("2d", { willReadFrequently: true });
+                VisionService.applyThemeDistanceThreshold(altCtx, this._altHeaderCvs.width, this._altHeaderCvs.height, headerTheme);
+                const { data: altData } = await OCRRepository.recognize(worker1, this._altHeaderCvs, {}, { text: true });
+                const altText = altData.text || "";
+                if (VisionService.determineContext(altText) !== "UNKNOWN") {
+                    console.log(`[SCAN] Header rescatado por binarización de tema: "${altText.trim().slice(0, 60)}"`);
+                    headerText = altText;
+                }
+            }
+            this.lastHeaderText = headerText;
+            this.lastHeaderHash = headerHash; // baseline = frame OCReado (evita drift)
+            this.lastHeaderOcrTime = Date.now();
+        }
+
+        const rawContext = VisionService.determineContext(headerText);
         const now = Date.now();
 
         // Check if header contains Riven/Mods anchors (English and Spanish equivalents).
@@ -105,7 +178,7 @@ export const ScannerService = {
         // prime parts tiene el header "INVENTORY/SELL", y meterlas aquí forzaba el grace
         // period de rivens (INVENTORY → INVENTORY_MODS), enrutando el inventario normal al
         // OCR de rivens y provocando el flip-flop que cerraba/reabría el escáner.
-        const textUpper = (headerData.text || "").toUpperCase();
+        const textUpper = headerText.toUpperCase();
         const containsAnchor = textUpper.includes("MODS") || textUpper.includes("MODIFICADORES") ||
                                textUpper.includes("CYCLE") || textUpper.includes("CICLO") || textUpper.includes("CICLAR") ||
                                textUpper.includes("KUVA") || textUpper.includes("KUYVA") ||
@@ -114,14 +187,17 @@ export const ScannerService = {
         
         if (rawContext === "INVENTORY_MODS" || rawContext === "ITEM_DETAILS" || containsAnchor) {
             this.lastRivenContextTime = now;
+            this.lastRivenContextType = rawContext === "ITEM_DETAILS" ? "ITEM_DETAILS" : "INVENTORY_MODS";
         }
 
         let routedContext = rawContext;
 
-        // Apply 8-second grace period for Riven/Mods context
+        // Apply 8-second grace period for Riven/Mods context. Re-enruta al MISMO tipo de contexto
+        // riven que produjo el último hit: el popup Item Details usa OTRO recorte que el reroll, y
+        // remapear siempre a INVENTORY_MODS haría OCR sobre la zona equivocada durante la gracia.
         if (this.lastRivenContextTime && (now - this.lastRivenContextTime < 8000)) {
             if (rawContext === "UNKNOWN" || rawContext === "INVENTORY") {
-                routedContext = "INVENTORY_MODS";
+                routedContext = this.lastRivenContextType || "INVENTORY_MODS";
             } else if (rawContext === "RELICS" || rawContext === "REWARD") {
                 // Navigated away: immediately cancel grace period
                 this.lastRivenContextTime = 0;
@@ -139,7 +215,7 @@ export const ScannerService = {
             this.latchedContext = routedContext;
         }
 
-        console.log(`[SCAN] Context Raw: ${rawContext} | Latched: ${this.latchedContext} | Header: "${(headerData.text || "").trim().slice(0, 60)}"`);
+        console.log(`[SCAN] Context Raw: ${rawContext} | Latched: ${this.latchedContext} | Header: "${headerText.trim().slice(0, 60)}"`);
         await this.routeFrameAction(this.latchedContext, video, dims);
 
         ScannerHUD.updateFrameCounter(this.scanCounter);
@@ -148,9 +224,11 @@ export const ScannerService = {
     // Registra un voto de cantidad para un ítem y actualiza sessionInventory con la MODA.
     // Solo cuentan lecturas EXITOSAS (raw con dígito): una lectura fallida devuelve qty=1
     // con raw vacío ("Ø"), y contarla contaminaría el consenso con falsos "1".
-    recordQtyVote(itemName, qtyResult) {
-        let votes = this.qtyVotes.get(itemName);
-        if (!votes) { votes = new Map(); this.qtyVotes.set(itemName, votes); }
+    // votesMap/targetMap son opcionales para reutilizar el mismo consenso con las reliquias
+    // (relicQtyVotes/sessionRelics) sin duplicar la lógica.
+    recordQtyVote(itemName, qtyResult, votesMap = this.qtyVotes, targetMap = this.sessionInventory) {
+        let votes = votesMap.get(itemName);
+        if (!votes) { votes = new Map(); votesMap.set(itemName, votes); }
 
         const readOk = /\d/.test(qtyResult.raw || "");
         if (readOk) {
@@ -160,7 +238,7 @@ export const ScannerService = {
         // Cantidad de consenso = la más votada. Si aún no hay ningún voto válido,
         // dejamos la lectura actual (mejor que nada) hasta que llegue un frame bueno.
         const consensus = this.modeQty(votes);
-        this.sessionInventory.set(itemName, consensus !== null ? consensus : qtyResult.qty);
+        targetMap.set(itemName, consensus !== null ? consensus : qtyResult.qty);
     },
 
     // Devuelve la cantidad más votada (desempate: la mayor). null si no hay votos.
@@ -179,6 +257,13 @@ export const ScannerService = {
     lastFrameHash: null,
     scrollDirectionAccumulator: 0,
     lastRowLums: null,
+    // true si se detectó movimiento desde el último escaneo: fuerza el rescan al
+    // estabilizarse aunque el hash de página no cambie (el hash — suma de 64 píxeles,
+    // umbral 120/16k — colisiona entre páginas parecidas y se comía escaneos).
+    sawScrollSinceScan: false,
+    // Historial de escaneos para el panel de debug: [{ time, img (dataURL jpeg del
+    // canvas anotado), log, summary, warning }], más reciente primero, cap 10.
+    debugHistory: [],
 
     async routeFrameAction(contextType, video, dims) {
         ScannerHUD.updateContext(contextType);
@@ -188,6 +273,7 @@ export const ScannerService = {
                 this.currentRate = 3000; // 3 seconds idle check when autoScan is disabled
                 this.autoScrollHash = null;
                 this.lastFrameHash = null;
+                this.sawScrollSinceScan = false;
                 if (this.autoScrollStableTimer) {
                     clearTimeout(this.autoScrollStableTimer);
                     this.autoScrollStableTimer = null;
@@ -224,8 +310,10 @@ export const ScannerService = {
 
             let bestDy = 0;
             let mseZero = 0;
+            // minError se usa también FUERA del if (en el cálculo de isScrolling): declararla
+            // dentro del bloque la dejaba fuera de scope y rompía el loop con ReferenceError.
+            let minError = Infinity;
             if (this.lastRowLums) {
-                let minError = Infinity;
                 for (let dy = -6; dy <= 6; dy++) {
                     let errorSum = 0;
                     let count = 0;
@@ -253,6 +341,7 @@ export const ScannerService = {
             if (isScrolling) {
                 // Screen is currently in motion (user is scrolling)
                 this.scrollDirectionAccumulator += bestDy;
+                this.sawScrollSinceScan = true;
                 if (this.autoScrollStableTimer) {
                     clearTimeout(this.autoScrollStableTimer);
                     this.autoScrollStableTimer = null;
@@ -261,18 +350,21 @@ export const ScannerService = {
                 return;
             }
 
-            // Screen is stable (still). If we haven't scanned this stable page yet (threshold lowered to 120 for sensitivity):
-            const hasPageChanged = !this.autoScrollHash || Math.abs(currentHash - this.autoScrollHash) >= 120;
-            const isScrollDown = this.scrollDirectionAccumulator > 1;
+            // Screen is stable (still). Rescan si hubo scroll desde el último escaneo O si el
+            // hash de página cambió (el hash solo ya no basta: colisiona entre páginas parecidas).
+            const hasPageChanged = !this.autoScrollHash || this.sawScrollSinceScan || Math.abs(currentHash - this.autoScrollHash) >= 120;
             const isFirstScan = !this.autoScrollHash;
 
             if (hasPageChanged && !this.autoScrollStableTimer && !this.detectionLocked) {
-                // Only ignore auto-scan when we have confirmed an upward scroll (negative accumulator)
-                if (!isFirstScan && this.scrollDirectionAccumulator < 0) {
+                // Ignorar el auto-scan solo con scroll hacia ARRIBA claro (acumulador <= -3):
+                // bestDy es ruidoso en scrolls rápidos (grid periódico vertical) y con el umbral
+                // anterior (< 0) un -1 espurio tras bajar de página se comía el escaneo.
+                if (!isFirstScan && this.scrollDirectionAccumulator <= -3) {
                     // It was an upward scroll. Ignore auto-scan.
                     this.scrollDirectionAccumulator = 0;
+                    this.sawScrollSinceScan = false;
                     this.autoScrollHash = currentHash; // Mark as done to prevent repeat triggers
-                    ScannerHUD.updateScrollStatus("done", this.sessionInventory.size);
+                    ScannerHUD.updateScrollStatus("done", this.sessionInventory.size + this.sessionRelics.size);
                     return;
                 }
 
@@ -281,6 +373,9 @@ export const ScannerService = {
                 // Wait 800ms of continuous stability before capturing & scanning for premium, instant responsiveness!
                 this.autoScrollStableTimer = setTimeout(async () => {
                     this.scrollDirectionAccumulator = 0;
+                    // Se limpia AQUÍ (no tras el OCR): si el usuario vuelve a hacer scroll
+                    // durante el escaneo, el flag se re-activa y la página nueva se escanea.
+                    this.sawScrollSinceScan = false;
                     if (!globalThis.state.autoScanEnabled || this.detectionLocked) {
                         this.autoScrollStableTimer = null;
                         return;
@@ -300,11 +395,15 @@ export const ScannerService = {
                 // Screen is stable, and we've already scanned this page (or there is no active timer).
                 // Safely clear accumulator and immediately restore visual "done" status to prevent HUD from sticking!
                 this.scrollDirectionAccumulator = 0;
-                ScannerHUD.updateScrollStatus("done", this.sessionInventory.size);
+                ScannerHUD.updateScrollStatus("done", this.sessionInventory.size + this.sessionRelics.size);
             }
 
         } else if (contextType === "INVENTORY_MODS" || contextType === "ITEM_DETAILS" || (globalThis.state.scannerModsMode && contextType === "INVENTORY")) {
-            this.currentRate = 1200;
+            // Poll rápido por defecto para reaccionar casi al instante cuando el usuario reroll-ea o
+            // cambia de riven / aún no hay nada mostrado. processRivenCard relaja este rate (ver
+            // RIVEN_RATE_IDLE) cuando ya hay un resultado en pantalla y el hash-skip está disparando
+            // (pantalla estática ya parseada) — así no se quema CPU/OCR sobre una carta sin cambios.
+            this.currentRate = this.RIVEN_RATE_ACTIVE;
             if (this.detectionLocked) return;
             await this.processRivenCard(video, dims, contextType);
         } else if (contextType === "RELICS") {
@@ -317,6 +416,17 @@ export const ScannerService = {
             this.currentRate = 1200;
             await this.processRewards(video, dims);
         } else {
+            // UNKNOWN: el popup "Item Details" de un riven linkeado (desde el chat/mercado) no
+            // tiene header arriba-izquierda, así que el contexto cae aquí. Test de PÍXEL barato
+            // (proporción de texto lavanda en el rect del popup) antes de gastar un OCR: si pasa,
+            // se intenta el escaneo de riven con el recorte del popup; el parser valida (arma +
+            // stats + confianza) y descarta cualquier falso positivo del arte.
+            if (contextType === "UNKNOWN" && VisionService.hasRivenTextHint(video)) {
+                this.currentRate = this.RIVEN_RATE_ACTIVE;
+                if (this.detectionLocked) return;
+                await this.processRivenCard(video, dims, "ITEM_DETAILS");
+                return;
+            }
             if (globalThis.RivenScannerHUD) globalThis.RivenScannerHUD.dismiss();
             this.currentRate = globalThis.state.autoScanEnabled ? 1000 : 3000;
         }
@@ -337,6 +447,30 @@ export const ScannerService = {
             // Ignore minor value differences to prevent HUD jitter
         }
         return true;
+    },
+
+    // Identidad "laxa" de un riven: mismo arma + mismos rolls, SIN exigir que el set de stats
+    // coincida exactamente (a diferencia de _isSameRiven). Esto es lo que nos deja reconocer que
+    // dos lecturas son "la misma carta" aunque una haya perdido/recuperado el curse tenue — y así
+    // hacer un MERGE/UPGRADE de stats en vez de tratarlas como cartas distintas.
+    _isSameRivenIdentity(a, b) {
+        if (!a && !b) return true;
+        if (!a || !b) return false;
+        if (a.weaponName !== b.weaponName) return false;
+        // rolls solo discrimina si AMBAS lecturas lo traen: la fila "MR/↻" se pierde a menudo en
+        // el OCR de un frame concreto, y un null no debe romper la identidad (bloquearía el merge).
+        if (a.rolls !== null && b.rolls !== null && a.rolls !== b.rolls) return false;
+        // Mismo arma+rolls NO basta: en la pantalla de reroll la carta NUEVA comparte ambos con
+        // la vieja (el contador aún no avanzó al no haber confirmado), pero es OTRO roll y debe
+        // reemplazar a la mostrada, no "mergearse" con ella. Exigimos solapamiento de nombres de
+        // stats: el set menor casi contenido en el mayor (se tolera 1 nombre de diferencia, que
+        // es justo el caso del curse perdido/misleído que motivó esta identidad laxa).
+        const namesA = new Set(a.stats.map(s => s.name));
+        const namesB = new Set(b.stats.map(s => s.name));
+        let overlap = 0;
+        for (const n of namesA) if (namesB.has(n)) overlap++;
+        const minLen = Math.min(namesA.size, namesB.size);
+        return overlap >= Math.max(1, minLen - 1);
     },
 
     /**
@@ -374,25 +508,53 @@ export const ScannerService = {
         return false;
     },
 
-    _getCanvasHash(canvas) {
-        if (!canvas) return "";
-        const tiny = document.createElement("canvas");
-        tiny.width = 8;
-        tiny.height = 8;
-        const ctx = tiny.getContext("2d");
-        const startY = Math.floor(canvas.height * 0.45);
-        const sourceH = canvas.height - startY;
-        ctx.drawImage(canvas, 0, startY, canvas.width, sourceH, 0, 0, 8, 8);
-        const imgData = ctx.getImageData(0, 0, 8, 8).data;
+    // Hash de la REGIÓN FIJA del vídeo (el rect de cardCrop sobre videoWidth/Height). Los canvases
+    // tight-cropped de prepareRivenCardCanvases jitteran de ancho entre frames (749–1538px con la
+    // pantalla QUIETA), así que un hash calculado sobre ellos nunca coincidía → el hash-skip y el
+    // rate IDLE no enganchaban jamás y se re-OCReaba cada frame. Hasheando el rect fijo del vídeo,
+    // una pantalla estática produce un hash estable aunque el tight-crop baile. Mismo formato hex
+    // que _getCanvasHash para poder reutilizar _compareHashes.
+    // Canvas 16x9 reutilizado por todos los hashes: crear uno nuevo por llamada (cada 400ms)
+    // generaba churn de GC innecesario.
+    _tinyCvs: null,
+    _tinyCtx() {
+        if (!this._tinyCvs) {
+            this._tinyCvs = document.createElement("canvas");
+            this._tinyCvs.width = 16;
+            this._tinyCvs.height = 9;
+        }
+        return this._tinyCvs.getContext("2d", { willReadFrequently: true });
+    },
+
+    _hashFromTiny(ctx) {
+        const d = ctx.getImageData(0, 0, 16, 9).data;
         let hash = "";
-        for (let i = 0; i < imgData.length; i += 4) {
-            const avg = Math.floor((imgData[i] + imgData[i+1] + imgData[i+2]) / 3);
+        for (let i = 0; i < d.length; i += 4) {
+            const avg = Math.floor((d[i] + d[i + 1] + d[i + 2]) / 3);
             hash += avg.toString(16).padStart(2, "0");
         }
         return hash;
     },
 
-    _compareHashes(hash1, hash2) {
+    _getVideoRegionHash(video, crop) {
+        const ctx = this._tinyCtx();
+        ctx.drawImage(video,
+            Math.floor(video.videoWidth * crop.x), Math.floor(video.videoHeight * crop.y),
+            Math.floor(video.videoWidth * crop.w), Math.floor(video.videoHeight * crop.h),
+            0, 0, 16, 9);
+        return this._hashFromTiny(ctx);
+    },
+
+    // Hash barato de un canvas ya preparado (franja del header) para el skip del OCR de contexto.
+    _smallCanvasHash(canvas) {
+        const ctx = this._tinyCtx();
+        ctx.drawImage(canvas, 0, 0, canvas.width, canvas.height, 0, 0, 16, 9);
+        return this._hashFromTiny(ctx);
+    },
+
+    // tolerance: 18 (por defecto) para pantallas riven/inventario completas; el skip del
+    // HEADER usa 6 — el título es texto fino y con 18 los cambios de pantalla se colaban.
+    _compareHashes(hash1, hash2, tolerance = 18) {
         if (!hash1 || !hash2) return false;
         if (hash1.length !== hash2.length) return false;
         let diff = 0;
@@ -402,7 +564,7 @@ export const ScannerService = {
             diff += Math.abs(val1 - val2);
         }
         const avgDiff = diff / (hash1.length / 2);
-        return avgDiff < 18;
+        return avgDiff < tolerance;
     },
 
     /**
@@ -455,15 +617,28 @@ export const ScannerService = {
             return lines.map(L => L.ws.sort((a, b) => a.bbox.x0 - b.bbox.x0).map(w => w.text).join(" ")).join("\n");
         };
 
-        const gapThresh = Math.max(canvasWidth * 0.07, 80); // hueco entre cartas ≫ espaciado intra-carta
+        // Umbral para huecos entre BORDES (no centros): mucho menor que el 7% original, que estaba
+        // calibrado para distancias entre centros de palabra. El hueco de borde real entre dos
+        // cartas lado a lado es ~4-6% del ancho del recorte, y con 7% no se separaban nunca
+        // (realGroups=1 → texto de ambas cartas entrelazado → no parse). Las continuaciones de
+        // línea de una carta única (el split fantasma) tienen huecos de borde casi nulos (~1%),
+        // así que 3% mantiene margen por ambos lados; y si aun así se partiera mal, la red de
+        // seguridad del texto completo en processRivenCard lo rescata.
+        const gapThresh = Math.max(canvasWidth * 0.03, 40);
+        // Cluster por hueco entre BORDES (x0 del siguiente menos el x1 máximo visto), NO entre
+        // centros: las palabras de continuación de línea de la MISMA carta (texto envuelto:
+        // "Croni-", "(x2 for", "Cold") quedan pegadas al borde derecho del bloque —hueco de borde
+        // pequeño— pero sus CENTROS caen lejos de los centros del resto y con el corte por centros
+        // formaban un grupo de anclas fantasma que partía una carta única en 2 "columnas" (ninguna
+        // parseaba). Dos cartas reales lado a lado sí dejan un hueco de borde >= gapThresh.
         const clusterByX = (ws) => {
-            const items = ws.map(w => ({ w, cx: (w.bbox.x0 + w.bbox.x1) / 2 })).sort((a, b) => a.cx - b.cx);
+            const items = ws.slice().sort((a, b) => a.bbox.x0 - b.bbox.x0);
             const groups = [[]];
-            let prev = null;
-            for (const it of items) {
-                if (prev !== null && it.cx - prev > gapThresh) groups.push([]);
-                groups[groups.length - 1].push(it.w);
-                prev = it.cx;
+            let maxX1 = null;
+            for (const w of items) {
+                if (maxX1 !== null && w.bbox.x0 - maxX1 > gapThresh) groups.push([]);
+                groups[groups.length - 1].push(w);
+                maxX1 = maxX1 === null ? w.bbox.x1 : Math.max(maxX1, w.bbox.x1);
             }
             return groups;
         };
@@ -517,40 +692,93 @@ export const ScannerService = {
         // así que usa su propio recorte; el resto usa el de la pantalla de reroll.
         const cardCrop = contextType === "ITEM_DETAILS" ? VisionService.RIVEN_ITEM_DETAILS_CROP : VisionService.RIVEN_CARD_CROP;
 
+        // Hash sobre la REGIÓN FIJA del vídeo, ANTES de preparar los canvases: el hash sobre los
+        // tight-crops jitteraba con la pantalla quieta (el ancho del recorte baila 749–1538px) y el
+        // skip nunca enganchaba. Con el rect fijo, un frame estático coincide y ni siquiera pagamos
+        // el coste de prepareRivenCardCanvases.
+        const hash = this._getVideoRegionHash(video, cardCrop);
+
+        // Skip OCR if we already have a result and the region hasn't changed. Pantalla estática ya
+        // parseada -> relaja el rate de poll (menos CPU); en cuanto el hash cambie, el siguiente
+        // frame ya vuelve a RIVEN_RATE_ACTIVE (fijado por defecto en routeFrameAction) para reaccionar rápido.
+        if ((this.lastParsedL || this.lastParsedR) && this._compareHashes(hash, this.lastHashL)) {
+            this.lastRivenContextTime = Date.now();
+            this.lastRivenContextType = contextType === "ITEM_DETAILS" ? "ITEM_DETAILS" : "INVENTORY_MODS";
+            this.currentRate = this.RIVEN_RATE_IDLE;
+            return;
+        }
+
+        // Skip OCR if this EXACT region already OCR'd to "no usable parse" last time. Sin esto, bajar
+        // el poll a 400ms convierte una pantalla estática que no parsea (menú intermedio, transición,
+        // etc.) en un bucle de OCR constante y redundante — cacheamos el hash "sin resultado" y lo
+        // saltamos hasta que la imagen realmente cambie. CADUCA a los 3s: el primer OCR puede caer
+        // en el fade-in de un popup (Item Details) y fallar, y el hash del fade casi completo queda
+        // dentro del umbral del de la pantalla final — sin caducidad, ese fallo silenciaba la
+        // pantalla buena para siempre. Reintentar cada 3s una pantalla estática cuesta casi nada.
+        if (this._compareHashes(hash, this.lastNoResultHash) && (Date.now() - this.lastNoResultTime < 3000)) {
+            return;
+        }
+
         // The reroll screen shows ONE centered card or TWO side-by-side (old vs new roll).
         // prepareRivenCardCanvases auto-detects and returns one tightly-cropped canvas per card.
         const canvases = VisionService.prepareRivenCardCanvases(video, scale, cardCrop);
-        const hash = canvases.map(c => this._getCanvasHash(c)).join("|");
 
         // Debug: set `globalThis.dumpRivenCrops = true` in the console to print each binarized crop
-        // as a data URL (paste into a browser address bar to view it). Runs before the hash-skip so
-        // it fires even on a static, already-parsed screen.
+        // as a data URL (paste into a browser address bar to view it). Solo se ve cuando el frame
+        // NO fue saltado por hash (una pantalla estática ya parseada no vuelve a preparar crops).
         if (globalThis.dumpRivenCrops) {
             canvases.forEach((c, i) => console.log(`[RIVEN CROP ${canvases.length > 1 ? `C${i + 1}` : "C"}] ${c.toDataURL("image/png")}`));
             globalThis.dumpRivenCrops = false;
         }
 
-        // Skip OCR if we already have a result and the crops haven't changed
-        if ((this.lastParsedL || this.lastParsedR) && this._sameCombinedHash(hash, this.lastHashL)) {
-            this.lastRivenContextTime = Date.now();
-            return;
-        }
+        const { RivenOCRService } = await import("./riven_ocr.service.js?v=3");
 
-        const worker = OCRRepository.workers[1] || OCRRepository.workers[0];
-        const { RivenOCRService } = await import("./riven_ocr.service.js?v=2");
-
-        const reads = await Promise.all(canvases.map(c => OCRRepository.recognize(worker, c, {}, { blocks: true })));
+        // Con DOS cartas, dos workers en paralelo ≈ mitad de latencia (en serie, la segunda carta
+        // esperaba en la cola del mismo worker). El 2º worker se crea perezoso solo la primera vez
+        // que aparece una pantalla de 2 cartas — el coste de RAM solo se paga si se usa el reroll.
+        if (canvases.length > 1) await OCRRepository.ensureSecondWorker().catch(() => {});
+        const pool = OCRRepository.workers.filter(Boolean);
+        const reads = await Promise.all(canvases.map((c, i) =>
+            OCRRepository.recognize(pool[i % pool.length] || pool[0], c, {}, { blocks: true })));
         // El layout side-by-side hace que el OCR lea AMBAS cartas en una sola pasada (el arte de fondo
         // funde el recorte de imagen). Separamos por posición X de las palabras —filtrando el garbage
         // del arte por confianza— en vez de fiarnos del recorte. Así C1/C2 salen limpios y sin mezclar.
         const entries = [];
         reads.forEach((res, ci) => {
             const cardTexts = this._wordsToCards(res.data, canvases[ci].width) || [res.data.text || ""];
-            cardTexts.forEach((text) => {
-                const parsed = RivenOCRService.parseRivenCard(text);
-                const label = `C${entries.length + 1}`;
-                this._logRivenRead(label, text, parsed, canvases[ci]);
-                entries.push({ res, text, parsed, canvas: canvases[ci] });
+            let cardEntries = cardTexts.map(text => ({
+                res, text, parsed: RivenOCRService.parseRivenCard(text), canvas: canvases[ci],
+            }));
+
+            // Red de seguridad anti split fantasma: si el corte espacial devolvió >=2 "cartas" pero
+            // MENOS de 2 parsean con arma (síntoma de que las continuaciones de línea de UNA carta
+            // formaron su propio grupo y ninguna mitad es parseable), probamos el texto completo sin
+            // split; si ESE sí parsea con arma, era una carta única mal partida y usamos ese parse.
+            // GUARD: solo si como mucho UNA columna menciona el arma. Si el arma aparece en 2+
+            // columnas es que el recorte contiene DOS cartas reales (una no parseó por ruido), y
+            // colapsarlas al texto completo produce una QUIMERA que mezcla stats de ambas cartas
+            // (p.ej. el Recoil de la derecha injertado en la carta izquierda). El nombre puede
+            // llegar troceado ("Gotva Pri"), así que basta con la primera palabra del arma.
+            if (cardEntries.length >= 2) {
+                const validCount = cardEntries.filter(e => e.parsed && e.parsed.weaponName).length;
+                if (validCount < 2) {
+                    const fullText = res.data.text || "";
+                    const fullParsed = RivenOCRService.parseRivenCard(fullText);
+                    const wName = cardEntries.find(e => e.parsed?.weaponName)?.parsed.weaponName || fullParsed?.weaponName || "";
+                    const wKey = (wName.split(" ")[0] || "").toUpperCase();
+                    const colsWithWeapon = wKey.length >= 4
+                        ? cardEntries.filter(e => e.text.toUpperCase().includes(wKey)).length
+                        : cardEntries.length; // sin arma fiable no podemos descartar 2 cartas: no colapsar
+                    if (fullParsed && fullParsed.weaponName && colsWithWeapon <= 1) {
+                        console.log(`[OCR DIAG] split fantasma revertido: ${cardEntries.length} columnas -> 1 carta (texto completo)`);
+                        cardEntries = [{ res, text: fullText, parsed: fullParsed, canvas: canvases[ci] }];
+                    }
+                }
+            }
+
+            cardEntries.forEach((e) => {
+                this._logRivenRead(`C${entries.length + 1}`, e.text, e.parsed, e.canvas);
+                entries.push(e);
             });
         });
 
@@ -562,7 +790,22 @@ export const ScannerService = {
         const MIN_CONF = 0.5;
         const valids = entries.filter(e => e.parsed && (e.parsed.validation?.confidence ?? 0) >= MIN_CONF);
 
-        if (valids.length || hasCardAnchor) this.lastRivenContextTime = Date.now();
+        if (valids.length || hasCardAnchor) {
+            this.lastRivenContextTime = Date.now();
+            // Recuerda QUÉ recorte produjo el hit: el grace period re-enruta a este mismo tipo
+            // (el popup Item Details y el reroll usan zonas de pantalla distintas).
+            this.lastRivenContextType = contextType === "ITEM_DETAILS" ? "ITEM_DETAILS" : "INVENTORY_MODS";
+        }
+
+        // Cachea el hash de un frame que NO produjo parse válido (y descáchalo en cuanto haya uno):
+        // es lo que hace funcionar el skip de arriba y evita OCRear en bucle a 400ms una pantalla
+        // estática que no parsea (menú intermedio, transición, etc.). El log es importante: sin él,
+        // un recorte mal calibrado falla UNA vez y el skip silencia todos los reintentos.
+        if (!valids.length) {
+            console.log(`[RIVEN OCR] sin parse válido en este frame (${contextType || "reroll"}) — se cachea el hash y no se reintenta hasta que la pantalla cambie`);
+        }
+        this.lastNoResultHash = valids.length ? null : hash;
+        if (!valids.length) this.lastNoResultTime = Date.now();
 
         // --- TEMPORAL CONSENSUS: require 2/3 matching fingerprints (of the whole card set) ---
         const currentFP = valids.map(e => this._rivenFingerprint(e.parsed)).join("||") || "none";
@@ -571,8 +814,21 @@ export const ScannerService = {
         const matchCount = this.rivenConsensusBuffer.filter(fp => fp === currentFP).length;
         const hasConsensus = matchCount >= 2;
 
-        const parsedL = valids[0]?.parsed || null;
-        const parsedR = valids[1]?.parsed || null;
+        let rawL = valids[0]?.parsed || null;
+        let rawR = valids[1]?.parsed || null;
+        const shownCards = [this.lastParsedL, this.lastParsedR].filter(Boolean);
+        const shownCount = shownCards.length;
+
+        // Realinea una lectura ÚNICA con el slot mostrado que le corresponde: si mostramos 2 cartas
+        // y este frame solo parseó la DERECHA, valids[0] caería en el slot izquierdo y lo pisaría
+        // con la carta derecha duplicada. Si la lectura coincide por identidad solo con la carta R
+        // mostrada, muévela a su slot (en un reroll ambas cartas son de la misma arma, así que la
+        // desambiguación real la dan los rolls; si coincide con ambas, se queda en L como hasta ahora).
+        if (shownCount === 2 && rawL && !rawR) {
+            const matchesL = this._isSameRivenIdentity(rawL, this.lastParsedL);
+            const matchesR = this._isSameRivenIdentity(rawL, this.lastParsedR);
+            if (matchesR && !matchesL) { rawR = rawL; rawL = null; }
+        }
 
         // A frame that reveals MORE cards than we're currently showing is strictly more complete:
         // the reroll comparison has two cards, but a wide/noisy frame often parses only one, shows
@@ -580,38 +836,138 @@ export const ScannerService = {
         // updating it (its fingerprint differs, so 2/3 never forms). Let "more cards" through
         // immediately so the second riven appears. Downgrades (fewer cards) still need consensus,
         // so a single bad frame can't drop a card that is genuinely there.
-        const shownCount = (this.lastParsedL ? 1 : 0) + (this.lastParsedR ? 1 : 0);
-        const revealsMore = valids.length > shownCount;
+        let revealsMore = valids.length > shownCount;
+
+        // Pero si la carta "nueva" trae un ARMA DISTINTA a la ya mostrada, podría ser ruido (una
+        // segunda carta fantasma sacada del arte de fondo) en vez de un reroll legítimo (que
+        // siempre muestra la MISMA arma en ambas cartas). Exige 2 lecturas seguidas antes de
+        // aceptar esa segunda carta con arma distinta; una carta nueva del MISMO arma (el caso
+        // normal de reroll) se sigue aceptando de inmediato.
+        if (revealsMore && shownCount >= 1) {
+            const otherShown = shownCards[0];
+            const newCard = [rawL, rawR].find(p => p && !shownCards.some(s => this._isSameRivenIdentity(p, s)));
+            const sameWeaponAsShown = !newCard || newCard.weaponName === otherShown.weaponName;
+            if (!sameWeaponAsShown) {
+                this.newCardStreak = (this.newCardStreak || 0) + 1;
+                if (this.newCardStreak < 2) revealsMore = false;
+            } else {
+                this.newCardStreak = 0;
+            }
+        } else {
+            this.newCardStreak = 0;
+        }
 
         // Switching to a different weapon/riven should update immediately instead of waiting for the
         // 2/3 consensus (which exists to stabilize a noisy read of the SAME card, not to delay a
         // genuinely new one). Key off the set of weapon names: if it differs from what's shown, it's
         // a new card → show it on the first valid read. Same-weapon rerolls keep the consensus
         // stabilization (so jittery stat values don't flicker the display).
-        const newWeapons = valids.map(e => e.parsed.weaponName).filter(Boolean).sort().join("|");
-        const shownWeapons = [this.lastParsedL, this.lastParsedR].filter(Boolean)
-            .map(p => p.weaponName).filter(Boolean).sort().join("|");
-        const weaponChanged = newWeapons !== "" && newWeapons !== shownWeapons;
+        // OJO: compara el set de armas ÚNICAS, no la lista con duplicados: con 2 cartas de la misma
+        // arma mostradas ("Karak|Karak"), un frame parcial de 1 carta ("Karak") NO es un cambio de
+        // arma — con join de duplicados daba true y disparaba dropExtra al instante, anulando toda
+        // la histéresis 2→1 (el flicker 2↔1 que se quería arreglar).
+        const newWeapons = [...new Set(valids.map(e => e.parsed.weaponName).filter(Boolean))].sort().join("|");
+        const shownWeapons = [...new Set(shownCards.map(p => p.weaponName).filter(Boolean))].sort().join("|");
+        let weaponChanged = newWeapons !== "" && newWeapons !== shownWeapons;
 
-        if (!hasConsensus && !revealsMore && !weaponChanged && (this.lastParsedL || this.lastParsedR)) {
+        // Anti-flip del matcher de armas: con un nombre de riven como "Croniignido" el matcher
+        // alterna entre el arma real ("Gotva Prime") y una enganchada dentro del nombre ("Ignis")
+        // en frames alternos, y el fast-path weaponChanged convertía ese ruido en un flip visible
+        // por frame. Exigimos 2 lecturas CONSECUTIVAS con el MISMO set de armas nuevo antes de
+        // aceptar el cambio; un cambio real de riven da 2 frames consistentes en <1s con el rate
+        // ACTIVE, así que la percepción sigue siendo inmediata. Solo aplica si ya hay algo mostrado
+        // (el primer resultado de la sesión debe salir al primer frame válido).
+        let weaponSwitchPending = false;
+        if (weaponChanged && shownCards.length) {
+            if (this.weaponSwitchCandidate === newWeapons) {
+                this.weaponSwitchStreak++;
+            } else {
+                this.weaponSwitchCandidate = newWeapons;
+                this.weaponSwitchStreak = 1;
+            }
+            if (this.weaponSwitchStreak < 2) {
+                weaponChanged = false;
+                weaponSwitchPending = true;
+            }
+        } else {
+            this.weaponSwitchCandidate = null;
+            this.weaponSwitchStreak = 0;
+        }
+
+        // --- Histéresis 2→1: si ya mostramos 2 cartas y este frame trae MENOS, no lo tomes como
+        // downgrade inmediato (podría ser una lectura parcial/ruidosa) — exige varias lecturas
+        // consecutivas con menos cartas (o un cambio real de arma) antes de soltar la carta que
+        // ya no se leyó en este frame. dropExtra solo afecta a la carta que YA NO llega en este
+        // frame; si sigue llegando (aunque sea con menos stats) se gestiona vía merge más abajo.
+        let dropExtra = false;
+        if (valids.length < shownCount) {
+            this.oneCardStreak++;
+            const DOWNGRADE_STREAK = 4;
+            if (this.oneCardStreak >= DOWNGRADE_STREAK || weaponChanged) {
+                dropExtra = true;
+                this.oneCardStreak = 0;
+            }
+        } else {
+            this.oneCardStreak = 0;
+        }
+
+        // --- MERGE/UPGRADE por identidad (arma+rolls): si la lectura nueva es del MISMO riven que
+        // el ya mostrado en esa posición, no la sobreescribimos sin más — nos quedamos con la MEJOR
+        // lectura entre la mostrada y la nueva (_isBetterOrEqualRead: más stats matcheados o mayor
+        // confianza). Así una lectura que recupera el curse tenue actualiza la carta, pero una
+        // lectura peor (p.ej. curse perdido de nuevo) no pisa la buena ya mostrada. Si en esta
+        // posición no llegó lectura nueva (rawX null), se conserva lo mostrado — esto es también
+        // lo que preserva la carta "hermana" durante la histéresis 2→1 de arriba.
+        const mergeSlot = (raw, shown) => {
+            if (!raw) return shown;
+            if (shown && this._isSameRivenIdentity(raw, shown)) {
+                return this._isBetterOrEqualRead(raw, shown) ? raw : shown;
+            }
+            // Cambio de arma aún SIN confirmar (streak < 2): conserva lo mostrado. Sin este guard,
+            // una alternancia A,B,A,B del matcher forma consenso 2/3 para AMBAS armas (cada una se
+            // repite 2 veces en el buffer de 3) y el flip se colaba por la puerta del consenso
+            // aunque el fast-path weaponChanged estuviera suprimido.
+            if (shown && weaponSwitchPending && raw.weaponName !== shown.weaponName) return shown;
+            return raw; // riven distinto (o nada mostrado antes en esta posición): adopta la lectura nueva
+        };
+
+        let finalL = mergeSlot(rawL, this.lastParsedL);
+        let finalR = mergeSlot(rawR, this.lastParsedR);
+        if (dropExtra) {
+            // Confirmado tras varias lecturas seguidas (o cambio de arma): la carta cuya posición
+            // no trajo lectura nueva en este frame se suelta de verdad (deja de mostrarse).
+            if (!rawL) finalL = null;
+            if (!rawR) finalR = null;
+        }
+
+        const anyUpgrade = (finalL && finalL !== this.lastParsedL && this._isSameRivenIdentity(finalL, this.lastParsedL)) ||
+                            (finalR && finalR !== this.lastParsedR && this._isSameRivenIdentity(finalR, this.lastParsedR));
+
+        if ((this.lastParsedL || this.lastParsedR) && !hasConsensus && !revealsMore && !weaponChanged && !anyUpgrade) {
             console.log(`[RIVEN OCR] Consensus: ${matchCount}/3 — waiting for confirmation`);
             if (globalThis._scannerDebug) this._renderRivenDebug(entries, false);
             return;
         }
 
-        // Update only when the detected set is new (different from what's already shown)
-        const lastFP = [this.lastParsedL, this.lastParsedR].filter(Boolean)
-            .map(p => this._rivenFingerprint(p)).join("||") || "none";
-        const shouldUpdate = currentFP !== "none" && currentFP !== lastFP;
+        // No re-renderices si el resultado final es exactamente el mismo (mismo arma+rolls+stats)
+        // que lo ya mostrado — evita quemar CPU/re-pintar el HUD ante lecturas idénticas.
+        const changed = !this._isSameRiven(finalL, this.lastParsedL) || !this._isSameRiven(finalR, this.lastParsedR);
 
-        if (globalThis._scannerDebug) this._renderRivenDebug(entries, shouldUpdate);
+        if (globalThis._scannerDebug) this._renderRivenDebug(entries, changed);
 
-        if (!shouldUpdate) return;
+        // Cachea el hash aunque el contenido no haya cambiado, para que el hash-skip enganche y el
+        // rate se relaje en pantalla estática ya resuelta. EXCEPTO si hay un cambio de arma pendiente
+        // de confirmar: con el hash de región fija, cachearlo aquí haría que el frame siguiente de la
+        // pantalla NUEVA (estática) se saltara por hash y el cambio real nunca llegara a streak 2.
+        if (!weaponSwitchPending) {
+            this.lastHashL = hash;
+            this.lastHashR = null;
+        }
 
-        this.lastParsedL = parsedL;
-        this.lastParsedR = parsedR;
-        this.lastHashL = hash;
-        this.lastHashR = null;
+        if (!changed) return;
+
+        this.lastParsedL = finalL;
+        this.lastParsedR = finalR;
 
         // Capture a clean color crop of the whole card region as a downloadable screenshot
         let screenshotDataURL = null;
@@ -631,7 +987,7 @@ export const ScannerService = {
         }
 
         if (globalThis.showRivenAppraisal) {
-            globalThis.showRivenAppraisal(parsedL, parsedR, screenshotDataURL);
+            globalThis.showRivenAppraisal(this.lastParsedL, this.lastParsedR, screenshotDataURL);
         }
     },
 
@@ -769,6 +1125,7 @@ export const ScannerService = {
         // parseRewards (que separa columnas por X) fusiona nombres (color) + Owned/Crafted (grayscale).
         // Las DOS pasadas corren EN PARALELO (workers distintos) -> no suman latencia frente a una sola.
         const namesCanvas = VisionService.prepareRewardNamesCanvas(video, width, height, scale);
+        await OCRRepository.ensureSecondWorker(); // el 2º worker se crea perezoso (RAM)
         const w0 = OCRRepository.workers[0];
         const w1 = OCRRepository.workers[1] || w0;
         const [metaRes, namesRes] = await Promise.all([
@@ -904,6 +1261,12 @@ export const ScannerService = {
             dCtx.setLineDash([]); // Reset line dash
 
             // 4. Extract active non-empty cells
+            // El reset del log va ANTES de este loop: reseteándolo después (como antes) se
+            // perdían las entradas "SKIPPED (empty)" que este loop ya había registrado.
+            this.lastRawOcrLog = [];
+            // Contadores del escaneo para el summary/aviso del debug: en teoría cada página
+            // debe rendir rows×cols celdas; si fallan matches o faltan celdas, se marca.
+            const scanStats = { cells: cellRects.length, matched: 0, relics: 0, empty: 0, unmatched: 0, none: 0 };
             const activeCells = [];
             for (const cell of cellRects) {
                 // Crop precisely the bottom portion of the card (starting at 58% height) 
@@ -922,6 +1285,7 @@ export const ScannerService = {
                 }
 
                 if (whitePixelCount < 40) {
+                    scanStats.empty++;
                     this.lastRawOcrLog.push(`[r${cell.r}c${cell.c}] SKIPPED (empty)`);
                     const relX = cell.sx - gridZone.x;
                     const relY = cell.sy - gridZone.y;
@@ -933,9 +1297,12 @@ export const ScannerService = {
                 }
             }
 
+            // Los workers extra (2º estándar + badges de cantidades) se crean aquí la primera
+            // vez: solo el escaneo del grid los usa, y tenerlos vivos desde el arranque costaba
+            // ~3 instancias WASM de RAM también en modo riven.
+            await Promise.all([OCRRepository.ensureSecondWorker(), OCRRepository.ensureBadgeWorkers()]);
             const workers = OCRRepository.workers;
             const bWorkers = OCRRepository.badgeWorkers;
-            this.lastRawOcrLog = [];
 
             let cellIndex = 0;
             const runWorker = async (worker, bWorker) => {
@@ -947,20 +1314,38 @@ export const ScannerService = {
                     const combinedText = await OCRService.extractCellText(worker, textCvs);
 
                     if (!combinedText) {
+                        scanStats.none++;
                         this.lastRawOcrLog.push(`[r${cell.r}c${cell.c}] NONE`);
                         continue;
                     }
 
                     let logStr = `[r${cell.r}c${cell.c}] OCR: ${combinedText.join(" ")}`;
                     let bestItem = OCRService.getValidItemMatch(combinedText);
-                    
+                    let fallbackText = null;
+
                     // Fallback: if no match, try full cell OCR (captures text at top/left like Octavia Prime Blueprint)
                     if (!bestItem) {
                         const fullCellCvs = VisionService.cropThemeBinarized(snapshot, cell.sx, Math.max(0, cell.sy - 16), cellW, cellH + 16, theme);
-                        const fallbackText = await OCRService.extractCellText(worker, fullCellCvs);
+                        fallbackText = await OCRService.extractCellText(worker, fullCellCvs);
                         if (fallbackText && fallbackText.length) {
                             logStr = `[r${cell.r}c${cell.c}] OCR (fallback): ${fallbackText.join(" ")}`;
                             bestItem = OCRService.getValidItemMatch(fallbackText);
+                        }
+                    }
+
+                    // Segundo fallback: la pestaña RELIQUIAS del inventario usa el MISMO grid/badges
+                    // que las prime parts ("LITH C1 RELIC", etc.) — si no matcheó como prime item,
+                    // probamos el matcher de reliquias. PRIMERO sobre la lectura original (la banda
+                    // de nombre es más limpia: el OCR de celda completa arrastra ruido del arte de
+                    // la reliquia y puede corromper una primera pasada buena), y si falla, sobre la
+                    // del fallback. relicText = la lectura que realmente matcheó (para el debug).
+                    let relicMatch = null;
+                    let relicText = combinedText;
+                    if (!bestItem) {
+                        relicMatch = OCRService.getRelicMatch(combinedText);
+                        if (!relicMatch && fallbackText && fallbackText.length) {
+                            relicMatch = OCRService.getRelicMatch(fallbackText);
+                            if (relicMatch) relicText = fallbackText;
                         }
                     }
 
@@ -976,6 +1361,7 @@ export const ScannerService = {
                     */
 
                     if (bestItem) {
+                        scanStats.matched++;
                         // 4b. Extract badge (quantity) using improved color-based crop
                         const badgeCanvas = VisionService.extractBadgeByColor(snapshot, cell, cellW, cellH, theme);
                         const qtyResult = await OCRService.extractCellQuantity(bWorker, badgeCanvas);
@@ -1038,7 +1424,63 @@ export const ScannerService = {
                             dCtx.lineWidth = 1.5;
                             dCtx.strokeRect(bX, bY, bW, bH);
                         }
+                    } else if (relicMatch) {
+                        scanStats.relics++;
+                        // 4c. Misma lectura de badge que los prime items, pero votando en los maps
+                        // de reliquias: no se mezcla con sessionInventory (se persisten por separado).
+                        const badgeCanvas = VisionService.extractBadgeByColor(snapshot, cell, cellW, cellH, theme);
+                        const qtyResult = await OCRService.extractCellQuantity(bWorker, badgeCanvas);
+
+                        // Indica qué lectura matcheó la reliquia (la original o la del fallback).
+                        const relicSrc = relicText === combinedText ? "1st-pass" : "fallback";
+                        logStr += ` || RELIC (${relicSrc}): ${relicMatch} || BDG: ${qtyResult.raw}`;
+                        this.lastRawOcrLog.push(logStr);
+
+                        this.recordQtyVote(relicMatch, qtyResult, this.relicQtyVotes, this.sessionRelics);
+
+                        const relX = cell.sx - gridZone.x;
+                        const relY = cell.sy - gridZone.y;
+
+                        // Mismo bloque de etiqueta que los prime items, pero con acento CIAN para
+                        // distinguir a simple vista una reliquia de una parte prime (verde).
+                        dCtx.fillStyle = "rgba(10, 15, 28, 0.98)";
+                        dCtx.fillRect(relX, relY + cellH - 50, cellW, 50);
+
+                        dCtx.fillStyle = "rgba(0, 229, 255, 0.9)";
+                        dCtx.fillRect(relX, relY + cellH - 50, cellW, 1.5);
+
+                        dCtx.fillStyle = "#ffb300";
+                        dCtx.font = "italic 9px system-ui, -apple-system, sans-serif";
+                        const rawText = relicText.join(" ");
+                        const badgeRawText = qtyResult.raw ? qtyResult.raw.trim().replaceAll(/\s+/g, " ") : "Ø";
+                        const maxCharsItem = Math.floor(cellW / 5.5);
+                        const truncatedItem = rawText.length > maxCharsItem ? rawText.slice(0, maxCharsItem - 3) + "..." : rawText;
+                        dCtx.fillText(truncatedItem, relX + 6, relY + cellH - 37);
+                        dCtx.fillText(`BDG: "${badgeRawText}"`, relX + 6, relY + cellH - 25);
+
+                        dCtx.fillStyle = "#00e5ff";
+                        dCtx.font = "bold 12px system-ui, -apple-system, sans-serif";
+                        dCtx.fillText(relicMatch, relX + 6, relY + cellH - 8);
+
+                        const shiftLeft = (cell.c === 0) ? 14 : 2;
+                        dCtx.fillStyle = "rgba(0, 0, 0, 0.85)";
+                        dCtx.fillRect(relX - shiftLeft, relY + 4, 44 + (shiftLeft - 2), 18);
+                        dCtx.fillStyle = "#00e5ff";
+                        dCtx.font = "bold 11px monospace";
+                        const consensusQty = this.sessionRelics.get(relicMatch) ?? qtyResult.qty;
+                        dCtx.fillText(`x${consensusQty}`, relX - shiftLeft + 8, relY + 17);
+
+                        if (badgeCanvas) {
+                            const bX = (badgeCanvas.cropX !== undefined ? badgeCanvas.cropX : cell.sx) - gridZone.x;
+                            const bY = badgeCanvas.bestY - gridZone.y;
+                            const bW = badgeCanvas.cropW !== undefined ? badgeCanvas.cropW : Math.round(cellW * 0.28);
+                            const bH = badgeCanvas.cropH !== undefined ? badgeCanvas.cropH : Math.round(cellH * 0.12);
+                            dCtx.strokeStyle = "rgba(0, 229, 255, 0.85)";
+                            dCtx.lineWidth = 1.5;
+                            dCtx.strokeRect(bX, bY, bW, bH);
+                        }
                     } else {
+                        scanStats.unmatched++;
                         this.lastRawOcrLog.push(logStr);
                         // Clean, premium thin red border for unmatched cells instead of heavy solid blocks
                         const relX = cell.sx - gridZone.x;
@@ -1090,11 +1532,32 @@ export const ScannerService = {
                 this.lastRawOcrLog.forEach(log => console.log(`%c${log}`, "color: #e0e0e0; font-family: monospace;"));
                 console.log("%c===========================", "color: #ffc107; font-weight: bold;");
                 */
-                ScannerHUD.updateScrollStatus("done", this.sessionInventory.size);
-                ScannerHUD.updateDetectedItems(this.sessionInventory);
+                ScannerHUD.updateScrollStatus("done", this.sessionInventory.size + this.sessionRelics.size);
+                ScannerHUD.updateDetectedItems(this.sessionInventory, this.sessionRelics);
 
-                if (ScannerHUD.updateDebugSnapshot) {
-                    ScannerHUD.updateDebugSnapshot(debugCanvas.toDataURL("image/jpeg", 0.7));
+                // Summary del escaneo: en teoría cada página completa rinde rows×cols celdas
+                // (18 en 6×3). Si hay celdas sin match/sin OCR o el realineo de fase descartó
+                // filas parciales, la entrada se marca como WARNING (borde rojo en el historial).
+                const expected = autoGrid.rows * autoGrid.cols;
+                const fails = scanStats.unmatched + scanStats.none;
+                const hasWarning = fails > 0 || scanStats.cells < expected;
+                const summary = `cells ${scanStats.cells}/${expected} · match ${scanStats.matched}`
+                    + ` · relic ${scanStats.relics} · empty ${scanStats.empty} · fail ${fails}`
+                    + (autoGrid.phaseShift ? ` · dy ${autoGrid.phaseShift > 0 ? "+" : ""}${autoGrid.phaseShift}px` : "");
+                this.lastRawOcrLog.push(`[SUMMARY] ${summary}`);
+
+                // Historial de debug: imagen anotada + log + summary por escaneo (máx 10
+                // entradas para no crecer en RAM). El HUD lo pinta como miniaturas clicables.
+                this.debugHistory.unshift({
+                    time: new Date().toLocaleTimeString([], { hour12: false }),
+                    img: debugCanvas.toDataURL("image/jpeg", 0.6),
+                    log: [...this.lastRawOcrLog],
+                    summary,
+                    warning: hasWarning
+                });
+                if (this.debugHistory.length > 10) this.debugHistory.length = 10;
+                if (ScannerHUD.updateDebugHistory) {
+                    ScannerHUD.updateDebugHistory(this.debugHistory);
                     this.lastDebugUpdate = Date.now() + 5000;
                 }
             } catch (e) {
@@ -1131,8 +1594,8 @@ function addRewardDebugLog(tag, msg, type = "info") {
 
     entry.innerHTML = `
         <span style="color:#555;">[${timeStr}]</span>
-        <span style="color:${colors[type]}; font-weight:bold;">${tag.toUpperCase()}</span>
-        <span style="color:#eee;">${msg}</span>
+        <span style="color:${colors[type]}; font-weight:bold;">${escapeHTML(tag).toUpperCase()}</span>
+        <span style="color:#eee;">${escapeHTML(msg)}</span>
     `;
 
     container.appendChild(entry);

@@ -1026,14 +1026,17 @@ function getWeaponImagePath(weaponName, details) {
   }
 
   if (!imgPath) {
-    let slug = weaponName.toLowerCase();
+    // Variantes de modo ("Vinquibus (Melee)", exaltadas, etc.) no tienen imagen propia:
+    // reutilizan la del arma base quitando el paréntesis de modo del final del nombre.
+    const baseName = weaponName.replace(/\s*\([^)]*\)\s*$/, "").trim();
+    let slug = baseName.toLowerCase();
     if (slug.includes("&")) {
       slug = slug.replace(/\s*&\s*/g, "__");
     }
     slug = slug
       .replaceAll(/[\s-]+/g, "_")
       .replaceAll(/[^a-z0-9_]/g, "");
-    if (!weaponName.includes("&")) {
+    if (!baseName.includes("&")) {
       slug = slug.replaceAll(/_+/g, "_");
     }
     imgPath = `assets/relic_contents/${slug}.webp`;
@@ -1215,24 +1218,114 @@ function buildStatsHtml(weaponName) {
   };
 
   const labels = statLabels[state.currentLang === "es" ? "es" : "en"];
+
+  // Desglose de daño por tipo (IPS/elementos) reutilizable para el arma y para cada modo.
+  const dmgMetaShared = {
+    impact: { label: state.currentLang === "es" ? "Impacto" : "Impact", color: "#8ca8b3" },
+    puncture: { label: state.currentLang === "es" ? "Perforación" : "Puncture", color: "#a89984" },
+    slash: { label: state.currentLang === "es" ? "Cortante" : "Slash", color: "#cf5e5e" },
+    heat: { label: state.currentLang === "es" ? "Calor" : "Heat", color: "#ff8c00" },
+    cold: { label: state.currentLang === "es" ? "Frío" : "Cold", color: "#00bfff" },
+    electricity: { label: state.currentLang === "es" ? "Electricidad" : "Electric", color: "#dda0dd" },
+    toxin: { label: state.currentLang === "es" ? "Toxina" : "Toxin", color: "#32cd32" },
+    blast: { label: state.currentLang === "es" ? "Explosión" : "Blast", color: "#e67e22" },
+    corrosive: { label: state.currentLang === "es" ? "Corrosivo" : "Corrosive", color: "#2ecc71" },
+    gas: { label: state.currentLang === "es" ? "Gas" : "Gas", color: "#f1c40f" },
+    magnetic: { label: state.currentLang === "es" ? "Magnético" : "Magnetic", color: "#9b59b6" },
+    radiation: { label: state.currentLang === "es" ? "Radiación" : "Radiation", color: "#e74c3c" },
+    viral: { label: state.currentLang === "es" ? "Viral" : "Viral", color: "#e84393" },
+    void: { label: state.currentLang === "es" ? "Vacío" : "Void", color: "#1abc9c" },
+    true: { label: state.currentLang === "es" ? "Verdadero" : "True", color: "#ffffff" }
+  };
+  const renderTypeRows = (damageTypes, small = false) => {
+    if (!damageTypes) return "";
+    const entries = Object.entries(damageTypes)
+      .map(([key, val]) => {
+        const k = key.toLowerCase();
+        const meta = dmgMetaShared[k] || { label: key.charAt(0).toUpperCase() + key.slice(1), color: "#aaa" };
+        return { key: k, label: meta.label, color: meta.color, value: val };
+      })
+      .filter(e => e.value > 0).sort((a, b) => b.value - a.value);
+    const fs = small ? "10px" : "11px";
+    return entries.map(e => `
+      <div style="display:flex; justify-content:space-between; font-size:${fs}; margin-bottom:2px; color:#ddd; align-items:center;">
+        <span style="display:inline-flex; align-items:center; line-height:1;">${getDmgIconHtml(e.key)} ${e.label}</span>
+        <span style="color:${e.color}; font-weight:bold;">${Math.round(e.value)}</span>
+      </div>`).join("");
+  };
+
+  // Bloque de MODOS DE DISPARO: solo cuando hay ≥2 modos con stats propios (Normal, Alt-Fire…).
+  // Sustituye las filas de daño/crit/estado/cadencia de un solo modo (que duplicarían el modo 1);
+  // cargador/recarga (comunes al arma) se siguen mostrando abajo.
+  const fireModes = Array.isArray(stats.fireModes) ? stats.fireModes.filter(m => (m.damage > 0) || m.damageTypes) : [];
+  const hasFireModes = !isMelee && fireModes.length >= 2;
+  let fireModesHtml = "";
+  if (hasFireModes) {
+    fireModesHtml = fireModes.map(m => {
+      const nameEs = { "Normal": "Normal", "Alt-Fire": "Disparo Alt.", "Charge": "Carga", "Charged": "Cargado", "Secondary": "Secundario" };
+      const modeName = state.currentLang === "es" ? (nameEs[m.name] || m.name) : m.name;
+      const typeRows = renderTypeRows(m.damageTypes, true);
+      return `
+        <div style="margin-top:6px; padding:6px; background:rgba(255,255,255,0.03); border-radius:4px; border:1px solid rgba(255,255,255,0.06);">
+          <div style="display:flex; justify-content:space-between; align-items:center; font-size:11px; font-weight:800; color:var(--wf-gold-text); border-bottom:1px solid rgba(255,255,255,0.06); padding-bottom:3px; margin-bottom:3px;">
+            <span style="text-transform:uppercase; letter-spacing:0.5px;">${modeName}</span>
+            <span>${Math.round(m.damage)}</span>
+          </div>
+          ${typeRows}
+          <div style="display:flex; justify-content:space-between; font-size:10px; color:#bbb; margin-top:2px;"><span>${labels.critChance}</span><span style="color:var(--wf-blue);">${(m.critChance || 0).toFixed(1)}% · ${(m.critMult || 0).toFixed(1)}x</span></div>
+          <div style="display:flex; justify-content:space-between; font-size:10px; color:#bbb;"><span>${labels.statusChance}</span><span style="color:var(--wf-purple);">${(m.statusChance || 0).toFixed(1)}%</span></div>
+          <div style="display:flex; justify-content:space-between; font-size:10px; color:#bbb;"><span>${labels.fireRate}</span><span>${(m.fireRate || 0).toFixed(2)}</span></div>
+        </div>`;
+    }).join("");
+  }
+
+  // Insignia de escalado con Condition Overload (mods de daño por estado): si el arma
+  // multiplica el daño (bueno) o suma plano (aditivo). Dato CURADO en el override
+  // (coScaling: "multiplicative" | "additive"); no está en WFCD. Sin dato → no se muestra.
+  let coBadgeHtml = "";
+  if (stats.coScaling === "multiplicative" || stats.coScaling === "additive") {
+    const isMult = stats.coScaling === "multiplicative";
+    const coLabel = state.currentLang === "es"
+      ? (isMult ? "Multiplicativo" : "Plano (aditivo)")
+      : (isMult ? "Multiplicative" : "Flat (additive)");
+    const col = isMult ? "#00ff78" : "#f1c40f";
+
+    // Mod Galvanized (o Condition Overload en melee) que da daño por tipo de estado, según
+    // el tipo de arma — así el usuario sabe qué mod concreto aplica al pasar el ratón.
+    const rType = (state.weaponMap?.[weaponName]?.t || stats.type || "").toLowerCase();
+    const coMod = rType.includes("melee") ? "Condition Overload"
+      : rType.includes("shotgun") ? "Galvanized Savvy"
+      : rType.includes("pistol") ? "Galvanized Shot"
+      : "Galvanized Aptitude";
+    const tip = state.currentLang === "es"
+      ? `Con ${coMod} (y sus variantes), el daño por estado ${isMult ? "se MULTIPLICA con el daño base — escala mucho mejor" : "se SUMA de forma plana — escala peor"}.`
+      : `With ${coMod} (and its variants), status damage ${isMult ? "stacks MULTIPLICATIVELY with base damage — scales much better" : "adds up FLATLY — scales worse"}.`;
+
+    coBadgeHtml = `
+      <div title="${tip}" style="display:flex; justify-content:space-between; align-items:center; margin:4px 0 2px; padding:4px 6px; background:${isMult ? "rgba(0,255,120,0.06)" : "rgba(241,196,15,0.06)"}; border:1px solid ${isMult ? "rgba(0,255,120,0.2)" : "rgba(241,196,15,0.2)"}; border-radius:4px; cursor:help;">
+        <span style="font-size:10px; color:#888; font-weight:800; text-transform:uppercase; letter-spacing:0.5px;">Condition Overload</span>
+        <span style="font-size:11px; color:${col}; font-weight:bold;">${coLabel}</span>
+      </div>`;
+  }
+
   let htmlRows = [];
 
-  if (stats.damage && stats.damage > 0) {
+  if (!hasFireModes && stats.damage && stats.damage > 0) {
     htmlRows.push(`
       <div class="tooltip-drop-row"><span>${labels.damage}</span><span style="color:var(--wf-gold-text); font-weight:bold;">${Math.round(stats.damage)}</span></div>
     `);
   }
-  if (stats.critChance && stats.critChance > 0) {
+  if (!hasFireModes && stats.critChance && stats.critChance > 0) {
     htmlRows.push(`
       <div class="tooltip-drop-row"><span>${labels.critChance}</span><span style="color:var(--wf-blue);">${stats.critChance.toFixed(1)}%</span></div>
     `);
   }
-  if (stats.critMult && stats.critMult > 0) {
+  if (!hasFireModes && stats.critMult && stats.critMult > 0) {
     htmlRows.push(`
       <div class="tooltip-drop-row"><span>${labels.critMult}</span><span style="color:var(--wf-blue);">${stats.critMult.toFixed(1)}x</span></div>
     `);
   }
-  if (stats.statusChance && stats.statusChance > 0) {
+  if (!hasFireModes && stats.statusChance && stats.statusChance > 0) {
     htmlRows.push(`
       <div class="tooltip-drop-row"><span>${labels.statusChance}</span><span style="color:var(--wf-purple);">${stats.statusChance.toFixed(1)}%</span></div>
     `);
@@ -1275,7 +1368,7 @@ function buildStatsHtml(weaponName) {
       `);
     }
   } else {
-    if (stats.fireRate && stats.fireRate > 0) {
+    if (!hasFireModes && stats.fireRate && stats.fireRate > 0) {
       htmlRows.push(`
         <div class="tooltip-drop-row"><span>${labels.fireRate}</span><span>${stats.fireRate.toFixed(2)}</span></div>
       `);
@@ -1293,8 +1386,10 @@ function buildStatsHtml(weaponName) {
   }
 
   return `<div class="tooltip-section" style="padding-top:4px;">
+      ${coBadgeHtml}
+      ${fireModesHtml}
       ${htmlRows.join("")}
-      ${dmgBreakdownHtml}
+      ${hasFireModes ? "" : dmgBreakdownHtml}
       ${radialHtml}
   </div>`;
 }
@@ -3362,7 +3457,8 @@ export function calculateModalGrade() {
                 }
               };
 
-              similar.forEach(auction => {
+              const _whisperTexts = [];
+              similar.forEach((auction, _simIdx) => {
                 const price = auction.buyout_price || auction.starting_price;
                 const rivenName = auction.item.name || "Riven";
                 const sellerName = auction.owner.ingame_name;
@@ -3385,19 +3481,24 @@ export function calculateModalGrade() {
 
                 const whisperText = `/w ${sellerName} Hi! I want to buy your ${weaponName} Riven Mod [${rivenName}] for ${price} platinum. (warframe.market)`;
 
+                const _sellerNameSafe = escapeHTML(sellerName);
+                const _rivenNameSafe = escapeHTML(rivenName);
+                _whisperTexts.push(whisperText);
+                const _copiedMsg = state.currentLang === "es" ? "¡Mensaje de compra copiado!" : "Whisper copied to clipboard!";
+
                 simHtml += `<div style="display: flex; flex-direction: column; gap: 4px; background: rgba(0,0,0,0.3); padding: 8px 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.05); margin-bottom: 6px;">
                         <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <a href="${_auctionUrl}" target="_blank" rel="noopener" title="${_isEs ? "Ver este trade en warframe.market" : "View this trade on warframe.market"}" style="color: #dcb3ff; font-weight: bold; font-size: 11px; text-decoration: none;">[${rivenName.toUpperCase()}] <span style="opacity:.7;">↗</span></a>
+                            <a href="${_auctionUrl}" target="_blank" rel="noopener" title="${_isEs ? "Ver este trade en warframe.market" : "View this trade on warframe.market"}" style="color: #dcb3ff; font-weight: bold; font-size: 11px; text-decoration: none;">[${_rivenNameSafe.toUpperCase()}] <span style="opacity:.7;">↗</span></a>
                             <span style="color: var(--wf-gold-text); font-weight: bold; font-size: 12px;">${price} <img src="assets/relic_contents/platinum.webp" style="width:11px; vertical-align:middle;"></span>
                         </div>
                         <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; font-size: 10px;">
                             <span style="color: #aaa; flex: 1; min-width: 0; white-space: normal; word-break: break-word; line-height: 1.35;">${posHtml} <span style="color:#ff6666">${negHtml}</span></span>
                             <a href="${_profileUrl}" target="_blank" rel="noopener" title="${_isEs ? "Perfil del vendedor (sus trades)" : "Seller profile (their trades)"}" style="display: flex; align-items: center; gap: 4px; font-size: 9px; color: #888; flex-shrink: 0; white-space: nowrap; text-decoration: none;">
                                 <span style="width: 5px; height: 5px; border-radius: 50%; background: ${dotColor}; display: inline-block;"></span>
-                                ${sellerName} <span style="opacity:.6;">↗</span>
+                                ${_sellerNameSafe} <span style="opacity:.6;">↗</span>
                             </a>
                         </div>
-                        <button onclick="navigator.clipboard.writeText('${whisperText.replace(/'/g, "\\'")}'); showToast('${state.currentLang === "es" ? "¡Mensaje de compra copiado!" : "Whisper copied to clipboard!"}')" 
+                        <button class="sim-whisper-btn" data-idx="${_simIdx}" data-toast="${escapeHTML(_copiedMsg)}"
                                 style="margin-top: 4px; width: 100%; font-size: 9px; padding: 4px 6px; border-radius: 4px; background: rgba(0, 255, 120, 0.1); border: 1px solid rgba(0, 255, 120, 0.2); color: #00ff78; cursor: pointer; transition: all 0.2s;"
                                 onmouseover="this.style.background='rgba(0, 255, 120, 0.2)'" onmouseout="this.style.background='rgba(0, 255, 120, 0.1)'">
                             ${state.currentLang === "es" ? "Copiar Mensaje de Compra" : "Copy Purchase Whisper"}
@@ -3406,6 +3507,13 @@ export function calculateModalGrade() {
               });
 
               simContainer.innerHTML = simHtml;
+              simContainer.querySelectorAll(".sim-whisper-btn").forEach(btn => {
+                btn.addEventListener("click", () => {
+                  const w = _whisperTexts[Number(btn.dataset.idx)] || "";
+                  navigator.clipboard.writeText(w);
+                  showToast(btn.dataset.toast || "");
+                });
+              });
             })
             .catch(err => {
               console.error("Error fetching similar rivens:", err);
