@@ -1,6 +1,7 @@
 import { state, saveAppState } from "../state.js";
 import { TEXTS } from "../config.js";
 import { fetchActiveBounties } from "../api.js";
+import { escapeHTML } from "./ui_components.js";
 
 let bountyInterval = null;
 
@@ -39,7 +40,7 @@ function getRewardsContent(m) {
   return m.detailedRewards.map((stage) => {
     const rows = stage.drops.map((d) => {
       const ayaClass = d.name.includes("Aya") ? "aya" : "";
-      return `<div class="drop-row"><span class="drop-name ${ayaClass}">${d.name}</span><span class="drop-chance">${d.chance.toFixed(2)}%</span></div>`;
+      return `<div class="drop-row"><span class="drop-name ${ayaClass}">${escapeHTML(d.name)}</span><span class="drop-chance">${d.chance.toFixed(2)}%</span></div>`;
     }).join("");
     return `<div class="stage-container"><div class="stage-header">STAGE ${stage.stage}</div><div class="stage-content">${rows}</div></div>`;
   }).join("");

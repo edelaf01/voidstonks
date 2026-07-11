@@ -20,6 +20,20 @@ const HOUND_WEAPONS = new Set(["AKATEN", "BATOTEN", "LACERTEN"]);
 // fallback with no type. They use Pistol (secondary) riven stats.
 const KITGUN_WEAPONS = new Set(["CATCHMOON", "GAZE", "RATTLEGUTS", "TOMBFINGER", "VERMISPLICER", "SPORELACER"]);
 
+// Armas con escalado de Condition Overload MULTIPLICATIVO en su comportamiento base
+// (curado de wiki Condition_Overload_(Mechanic)). Excluidas a propósito las que solo
+// multiplican en un modo puntual (Incarnon/carga/alt-fire) — ver comentario en la derivación.
+// Match por nombre exacto tal cual llega de WFCD (case-sensitive).
+const MULTIPLICATIVE_CO = new Set([
+    "Acceltra", "Aeolak", "Alternox", "Alternox Prime", "Arca Plasmor", "Tenet Arca Plasmor",
+    "Basmu", "Battacor", "Bubonico", "Buzlok", "Catchmoon", "Cedo", "Cedo Prime",
+    "Coda Bassocyst", "Coda Hema", "Mutalist Cernos", "Cinta", "Cyanex", "Epitaph", "Exergis",
+    "Felarx", "Fulmin", "Harpak", "Hema", "Javlok", "Nataruk", "Quellor", "Scourge",
+    "Scourge Prime", "Sepulcrum", "Shedu", "Sporelacer", "Stahlta", "Steflos", "Seer",
+    "Kuva Seer", "Tenet Envoy", "Tenet Diplos", "Tenet Spirex", "Tombfinger", "Torid",
+    "Zakti", "Zakti Prime", "Zenith", "Zymos"
+]);
+
 // Maps a cleaned_weapons type to the riven stat category the rest of the app understands.
 // "Zaw Component" → Melee, and Hound companion weapons → Melee; everything else passes through.
 function normalizeRivenWeaponType(item) {
@@ -33,7 +47,11 @@ function normalizeRivenWeaponType(item) {
  * Loads weapon database, updates state.weaponMap and state.allRivenNames.
  */
 export async function fetchRivenWeapons() {
-    const CACHE_KEY = "voidstonkscache_weapons_v8";
+    // v9 (jul 2026): +Haalvu, dedup de strikes de Zaw/Grimoire y 38 disposiciones del último
+    // update. Bumpear la versión invalida la caché de IndexedDB de todos los clientes para que
+    // reconstruyan weaponMap desde el cleaned_weapons.json nuevo en la siguiente carga (sin
+    // esperar el TTL de 24h). Súbela cada vez que cambien los datos de armas.
+    const CACHE_KEY = "voidstonkscache_weapons_v9";
     const ONE_DAY = 24 * 60 * 60 * 1000;
     try {
         const cached = await dbHelper.get(CACHE_KEY);
@@ -87,7 +105,11 @@ export async function fetchRivenWeapons() {
                     if (!state.weaponMap[wName]) {
                         const metaItem = statsObj[wName];
                         let type = "Rifle";
-                        if (KITGUN_WEAPONS.has(wName.toUpperCase())) {
+                        if (/\(melee\)\s*$/i.test(wName)) {
+                            // Variante melee de un arma con bayoneta/modo cuerpo a cuerpo
+                            // ("Vinquibus (Melee)"): usa stats de riven de melee, no de rifle.
+                            type = "Melee";
+                        } else if (KITGUN_WEAPONS.has(wName.toUpperCase())) {
                             // Kitguns aren't in cleaned_weapons.json; they use Pistol riven stats.
                             type = "Pistol";
                         } else if (metaItem.category) {
@@ -129,12 +151,17 @@ export async function fetchRivenWeapons() {
 }
 
 export async function fetchWeaponCombatStats() {
-    const CACHE_KEY = "voidstonkscache_combat_stats_v7";
+    // v9 (jul 2026): fuerza refetch para poblar los nuevos campos fireModes/coScaling en TODAS
+    // las armas (la caché v8 se generó antes de existir esos campos → salían solo en las del
+    // override, p.ej. Haalvu). Súbela cuando salga un arma nueva o cambie la forma de statsDB.
+    const CACHE_KEY = "voidstonkscache_combat_stats_v9";
     const ONE_WEEK = 7 * 24 * 60 * 60 * 1000;
     try {
         const cached = await dbHelper.get(CACHE_KEY);
         if (cached?.data && cached?.timestamp && (Date.now() - cached.timestamp < ONE_WEEK)) {
-            state.combatStatsDB = cached.data;
+            // El override se aplica en el ASSIGN (no se cachea fusionado), así editar el override
+            // surte efecto sin bump de caché — solo hay que recargar.
+            state.combatStatsDB = await applyCombatOverrides(cached.data);
             return;
         }
 
@@ -231,8 +258,56 @@ export async function fetchWeaponCombatStats() {
                             }
                         }
 
+                        // Modos de disparo (Normal, Alt-Fire, Carga…): muchas armas tienen
+                        // >1 y con stats distintos. WFCD los trae en attacks[] con crit_chance/
+                        // crit_mult/status_chance/speed ya en su escala final. Excluimos radial/
+                        // slam/heavy (se muestran aparte). Solo se puebla si hay ≥2 modos reales;
+                        // el daño puede venir vacío ({}) en armas nuevas → lo cubre el override.
+                        // Escalado con Condition Overload (wiki Condition_Overload_(Mechanic)):
+                        //  1º) lista curada de armas MULTIPLICATIVAS SIEMPRE (base) — cubre las
+                        //      excepciones hitscan que la regla no pilla (Fulmin, Cedo, Shedu…).
+                        //  2º) fallback por shot_type: proyectil → multiplicativo, hitscan → aditivo.
+                        //  El override JSON (Haalvu) gana sobre todo. EXCLUIDAS a propósito las que
+                        //  solo multiplican en UN modo (Incarnon: Dread/Paris/Latron/Kunai/Miter;
+                        //  alt-fire: Phantasma/Trumna) — marcar el arma entera engañaría.
+                        // Default ADITIVO (el comportamiento "intended" de la wiki); así TODA
+                        // arma muestra la insignia aunque no haya shot_type. Melee: su mod CO es
+                        // multiplicativo siempre. Guns: set curado o proyectil → multiplicativo.
+                        let coScaling = "additive";
+                        if (cat === "Melee" || item.type === "Melee") {
+                            coScaling = "multiplicative";
+                        } else if (MULTIPLICATIVE_CO.has(item.name)) {
+                            coScaling = "multiplicative";
+                        } else if (Array.isArray(item.attacks) && item.attacks.length > 0) {
+                            const shotType = (item.attacks.find(a => a.shot_type) || {}).shot_type || "";
+                            if (/projectile/i.test(shotType)) coScaling = "multiplicative";
+                        }
+
+                        let fireModes = [];
+                        if (Array.isArray(item.attacks)) {
+                            const modeAttacks = item.attacks.filter(a => a.name && !/radial|explosion|aoe|slam|heavy/i.test(a.name));
+                            if (modeAttacks.length >= 2) {
+                                fireModes = modeAttacks.map(a => {
+                                    const dt = (a.damage && Object.keys(a.damage).length > 0) ? a.damage : null;
+                                    let dmg = a.totalDamage || 0;
+                                    if (!dmg && dt) dmg = Object.values(dt).reduce((x, y) => x + y, 0);
+                                    return {
+                                        name: a.name,
+                                        damage: dmg,
+                                        damageTypes: dt,
+                                        critChance: a.crit_chance || 0,
+                                        critMult: a.crit_mult || 0,
+                                        statusChance: a.status_chance || 0,
+                                        fireRate: a.speed || 0,
+                                    };
+                                });
+                            }
+                        }
+
                         statsDB[item.name] = {
                             damage: totalDmg,
+                            fireModes,
+                            coScaling,
                             critChance: (item.criticalChance * 100) || 0,
                             critMult: item.criticalMultiplier || 0,
                             statusChance: (item.procChance * 100) || 0,
@@ -256,11 +331,31 @@ export async function fetchWeaponCombatStats() {
             }
         }));
 
-        state.combatStatsDB = statsDB;
+        // Se cachean los datos WFCD CRUDOS; el override se fusiona al asignar (ver arriba).
         dbHelper.set(CACHE_KEY, { timestamp: Date.now(), data: statsDB });
+        state.combatStatsDB = await applyCombatOverrides(statsDB);
     } catch (e) {
         console.error("Error fetching combat stats:", e);
     }
+}
+
+// Fusiona combat_stats_overrides.json ENCIMA de los datos de WFCD para armas donde el
+// upstream sirve datos malos/incompletos (típico en armas nuevas; p.ej. jsdelivr cacheaba
+// una build corrupta de Haalvu con recarga de 13.8s). El override gana por completo por
+// nombre de arma. Memoizado en módulo; si falla el fetch, devuelve los datos sin tocar.
+let _combatOverridesCache;
+async function applyCombatOverrides(db) {
+    if (_combatOverridesCache === undefined) {
+        try {
+            const res = await fetch("assets/json/combat_stats_overrides.json");
+            const json = res.ok ? await res.json() : {};
+            delete json._comment;
+            _combatOverridesCache = json;
+        } catch (e) {
+            _combatOverridesCache = {};
+        }
+    }
+    return { ...db, ..._combatOverridesCache };
 }
 
 /**
