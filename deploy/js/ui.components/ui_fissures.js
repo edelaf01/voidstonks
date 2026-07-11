@@ -1,6 +1,7 @@
 import { state } from "../state.js";
 import { TEXTS } from "../config.js";
 import { fetchBestFissures } from "../services/fissures.service.js";
+import { escapeHTML } from "./ui_components.js";
 
 let fissureLoadPromise = null;
 
@@ -39,14 +40,14 @@ export function renderMissionRow(m) {
         <div class="mission-item ${m.isSP ? "sp-row" : ""}">
             <div class="m-info">
                 <span class="m-type">
-                    ${translatedType} 
+                    ${escapeHTML(translatedType)}
                     ${omniaTag}
                     ${spTag}
                 </span>
-                <span class="m-node">${m.node}</span>
+                <span class="m-node">${escapeHTML(m.node)}</span>
             </div>
             <div class="m-timer-box">
-                <span class="m-eta" data-expiry="${m.expiry}">${m.eta}</span>
+                <span class="m-eta" data-expiry="${m.expiry}">${escapeHTML(m.eta)}</span>
             </div>
         </div>
     `;
@@ -139,7 +140,9 @@ export async function initFissurePanel() {
     }, 150 * 1000);
   }
 
-  const allMissions = await fetchBestFissures();
+  let allMissions = await fetchBestFissures();
+
+  allMissions = allMissions.filter(m => !m.expiry || (new Date(m.expiry) - Date.now()) > 0);
 
   const tiersOrder = ["Lith", "Meso", "Neo", "Axi", "Requiem", "Omnia"];
   const tiersData = {
@@ -255,12 +258,16 @@ export async function initFissurePanel() {
         }
       });
       if (expiredFound) {
-        console.log("[FISSURES]: Fissure expired, refreshing list...");
-        if (globalThis._fissureCountdownInterval) {
-          clearInterval(globalThis._fissureCountdownInterval);
-          globalThis._fissureCountdownInterval = null;
+        const now = Date.now();
+        if (!globalThis._fissureLastExpiryRefresh || now - globalThis._fissureLastExpiryRefresh > 60000) {
+          globalThis._fissureLastExpiryRefresh = now;
+          console.log("[FISSURES]: Fissure expired, refreshing list...");
+          if (globalThis._fissureCountdownInterval) {
+            clearInterval(globalThis._fissureCountdownInterval);
+            globalThis._fissureCountdownInterval = null;
+          }
+          initFissurePanel();
         }
-        initFissurePanel();
       }
     }, 1000);
   }

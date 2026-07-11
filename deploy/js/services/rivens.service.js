@@ -19,6 +19,16 @@ const HOUND_WEAPONS = new Set(["AKATEN", "BATOTEN", "LACERTEN"]);
 // Kitgun chambers are missing from cleaned_weapons.json and use Pistol riven stats.
 const KITGUN_WEAPONS = new Set(["CATCHMOON", "GAZE", "RATTLEGUTS", "TOMBFINGER", "VERMISPLICER", "SPORELACER"]);
 
+const MULTIPLICATIVE_CO = new Set([
+    "Acceltra", "Aeolak", "Alternox", "Alternox Prime", "Arca Plasmor", "Tenet Arca Plasmor",
+    "Basmu", "Battacor", "Bubonico", "Buzlok", "Catchmoon", "Cedo", "Cedo Prime",
+    "Coda Bassocyst", "Coda Hema", "Mutalist Cernos", "Cinta", "Cyanex", "Epitaph", "Exergis",
+    "Felarx", "Fulmin", "Harpak", "Hema", "Javlok", "Nataruk", "Quellor", "Scourge",
+    "Scourge Prime", "Sepulcrum", "Shedu", "Sporelacer", "Stahlta", "Steflos", "Seer",
+    "Kuva Seer", "Tenet Envoy", "Tenet Diplos", "Tenet Spirex", "Tombfinger", "Torid",
+    "Zakti", "Zakti Prime", "Zenith", "Zymos"
+]);
+
 // cleaned_weapons type -> riven stat category: Zaw Component and Hound weapons -> Melee.
 function normalizeRivenWeaponType(item) {
     const t = item.type || "Rifle";
@@ -28,7 +38,7 @@ function normalizeRivenWeaponType(item) {
 }
 
 export async function fetchRivenWeapons() {
-    const CACHE_KEY = "voidstonkscache_weapons_v8";
+    const CACHE_KEY = "voidstonkscache_weapons_v9";
     const ONE_DAY = 24 * 60 * 60 * 1000;
     try {
         const cached = await dbHelper.get(CACHE_KEY);
@@ -78,7 +88,9 @@ export async function fetchRivenWeapons() {
                     if (!state.weaponMap[wName]) {
                         const metaItem = statsObj[wName];
                         let type = "Rifle";
-                        if (KITGUN_WEAPONS.has(wName.toUpperCase())) {
+                        if (/\(melee\)\s*$/i.test(wName)) {
+                            type = "Melee";
+                        } else if (KITGUN_WEAPONS.has(wName.toUpperCase())) {
                             type = "Pistol";
                         } else if (metaItem.category) {
                             type = metaItem.category;
@@ -117,12 +129,13 @@ export async function fetchRivenWeapons() {
 }
 
 export async function fetchWeaponCombatStats() {
-    const CACHE_KEY = "voidstonkscache_combat_stats_v7";
+    const CACHE_KEY = "voidstonkscache_combat_stats_v9";
     const ONE_WEEK = 7 * 24 * 60 * 60 * 1000;
     try {
         const cached = await dbHelper.get(CACHE_KEY);
         if (cached?.data && cached?.timestamp && (Date.now() - cached.timestamp < ONE_WEEK)) {
-            state.combatStatsDB = cached.data;
+            // overrides apply on assign, not cached merged, so editing them needs no bump
+            state.combatStatsDB = await applyCombatOverrides(cached.data);
             return;
         }
 
@@ -214,8 +227,41 @@ export async function fetchWeaponCombatStats() {
                             }
                         }
 
+                        let coScaling = "additive";
+                        if (cat === "Melee" || item.type === "Melee") {
+                            coScaling = "multiplicative";
+                        } else if (MULTIPLICATIVE_CO.has(item.name)) {
+                            coScaling = "multiplicative";
+                        } else if (Array.isArray(item.attacks) && item.attacks.length > 0) {
+                            const shotType = (item.attacks.find(a => a.shot_type) || {}).shot_type || "";
+                            if (/projectile/i.test(shotType)) coScaling = "multiplicative";
+                        }
+
+                        let fireModes = [];
+                        if (Array.isArray(item.attacks)) {
+                            const modeAttacks = item.attacks.filter(a => a.name && !/radial|explosion|aoe|slam|heavy/i.test(a.name));
+                            if (modeAttacks.length >= 2) {
+                                fireModes = modeAttacks.map(a => {
+                                    const dt = (a.damage && Object.keys(a.damage).length > 0) ? a.damage : null;
+                                    let dmg = a.totalDamage || 0;
+                                    if (!dmg && dt) dmg = Object.values(dt).reduce((x, y) => x + y, 0);
+                                    return {
+                                        name: a.name,
+                                        damage: dmg,
+                                        damageTypes: dt,
+                                        critChance: a.crit_chance || 0,
+                                        critMult: a.crit_mult || 0,
+                                        statusChance: a.status_chance || 0,
+                                        fireRate: a.speed || 0,
+                                    };
+                                });
+                            }
+                        }
+
                         statsDB[item.name] = {
                             damage: totalDmg,
+                            fireModes,
+                            coScaling,
                             critChance: (item.criticalChance * 100) || 0,
                             critMult: item.criticalMultiplier || 0,
                             statusChance: (item.procChance * 100) || 0,
@@ -239,11 +285,28 @@ export async function fetchWeaponCombatStats() {
             }
         }));
 
-        state.combatStatsDB = statsDB;
         dbHelper.set(CACHE_KEY, { timestamp: Date.now(), data: statsDB });
+        state.combatStatsDB = await applyCombatOverrides(statsDB);
     } catch (e) {
         console.error("Error fetching combat stats:", e);
     }
+}
+
+// combat_stats_overrides.json over WFCD data where upstream is bad; the override wins whole by
+// weapon name. Memoized; on fetch failure the data comes back untouched.
+let _combatOverridesCache;
+async function applyCombatOverrides(db) {
+    if (_combatOverridesCache === undefined) {
+        try {
+            const res = await fetch("assets/json/combat_stats_overrides.json");
+            const json = res.ok ? await res.json() : {};
+            delete json._comment;
+            _combatOverridesCache = json;
+        } catch (e) {
+            _combatOverridesCache = {};
+        }
+    }
+    return { ...db, ..._combatOverridesCache };
 }
 
 async function computeAndDisplayPrices(prices, cacheKey) {

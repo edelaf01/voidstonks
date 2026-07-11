@@ -104,7 +104,34 @@ export const RivenOCRService = {
         return bestMatch;
     },
 
+    // The name caught by PCT_RE can drag the next line when that one lost its value
+    // ("Zoom Ammo Maximum"). The stat that starts at the first word wins: growing prefixes, longest
+    // anchored match. Falls back to the full name.
+    _matchStatAnchored(rawName) {
+        const words = rawName.split(/\s+/).filter(Boolean);
+        const first = (words[0] || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+        let anchored = null;
+        if (first.length >= 3) {
+            for (let k = 1; k <= Math.min(5, words.length); k++) {
+                const m = this._matchStat(words.slice(0, k).join(" "));
+                if (!m) continue;
+                const statDef = RIVEN_STATS.find(s => s.name_en === m);
+                const formWords = `${m}/${statDef?.name_es || ""}`.toLowerCase().split(/[\s/]+/).filter(Boolean);
+                if (formWords.some(w => w === first || w.includes(first) || first.includes(w))) {
+                    anchored = m;
+                }
+            }
+        }
+        return anchored || this._matchStat(rawName);
+    },
+
     _matchWeapon(rawName) {
+        return this._matchWeaponScored(rawName)?.name || null;
+    },
+
+    // Like _matchWeapon but returns the match quality { name, tier, dist }: 3 exact, 2 substring,
+    // 1 Levenshtein. An exact match must beat a fuzzy one on a closer line.
+    _matchWeaponScored(rawName) {
         if (!state.allRivenNames || state.allRivenNames.length === 0) {
             import("./rivens.service.js").then(m => m.fetchRivenWeapons()).catch(() => {});
             return null;
@@ -114,7 +141,7 @@ export const RivenOCRService = {
 
         // 1. exact
         const exact = state.allRivenNames.find(n => n.toLowerCase() === clean);
-        if (exact) return exact;
+        if (exact) return { name: exact, tier: 3, dist: 0 };
 
         // 2. substring, 4+ chars
         const sortedNames = [...state.allRivenNames].sort((a, b) => b.length - a.length);
@@ -123,7 +150,7 @@ export const RivenOCRService = {
             if (nl.length < 4 || clean.length < 4) return false;
             return clean.includes(nl) || nl.includes(clean);
         });
-        if (sub) return sub;
+        if (sub) return { name: sub, tier: 2, dist: 0 };
 
         // 3. Levenshtein on the whole text
         let bestDist = Infinity;
@@ -140,7 +167,7 @@ export const RivenOCRService = {
                 bestMatch = name;
             }
         }
-        if (bestMatch) return bestMatch;
+        if (bestMatch) return { name: bestMatch, tier: 1, dist: bestDist };
 
         // 4. word by word
         const words = clean.split(" ").filter(w => w.length >= 3);
@@ -158,7 +185,7 @@ export const RivenOCRService = {
             }
         }
 
-        return bestMatch;
+        return bestMatch ? { name: bestMatch, tier: 1, dist: bestDist } : null;
     },
 
     /**
@@ -288,7 +315,11 @@ export const RivenOCRService = {
         let rivenName = null;
 
         if (firstStatIdx !== -1) {
-            const statBlock = contentLines.slice(firstStatIdx).join(" ").replace(/\bMR\s*\d+/ig, " ");
+            // Pass 1b: a stat can wrap across lines, so the stat block is joined and split on each
+            // "<number>%" anchor. "(x2 for Bows)" goes first, or MULT_RE would read it as a stat.
+            const statBlock = contentLines.slice(firstStatIdx).join(" ")
+                .replace(/\bMR\s*\d+/ig, " ")
+                .replace(/\(?\s*x\s*\d+\s+for\s+[a-z)]+\)?/ig, " ");
 
             // Each name runs up to the next "<number>%" or an "x<mult>" curse. The number allows a space
             // decimal ("82 4%" -> 82.4).
@@ -300,75 +331,109 @@ export const RivenOCRService = {
                 let value = parseFloat(m[2].replace(/[,\s]+/g, "."));
                 // dropped decimal point (1215 -> 121.5)
                 if (value > 450 && value < 9999) value = parseFloat((value / 10).toFixed(1));
+                if (value < 8) continue;
                 const name = m[3]
                     .replace(/\([^)]*\)/g, " ")
                     .replace(/x\s*\d+\s+for\s+\w+/ig, " ")
                     .replace(/[^\w\s/]/g, " ")
                     .replace(/\s+/g, " ")
                     .trim();
-                const matchedName = this._matchStat(name);
+                const matchedName = this._matchStatAnchored(name);
                 if (matchedName) {
-                    const isPositive = /^(heat|cold|electric|toxin)$/i.test(matchedName) ? true : (sign === "+");
+                    let isPositive;
+                    if (/^(heat|cold|electric|toxin)$/i.test(matchedName)) {
+                        isPositive = true;
+                    } else if (/^recoil$/i.test(matchedName)) {
+                        // Recoil is inverted: the card shows the buff with a minus and the curse with a plus.
+                        isPositive = sign === "-";
+                    } else {
+                        isPositive = sign === "+";
+                    }
                     stats.push({ name: matchedName, value, isPositive, matched: true });
                 }
             }
 
-            const MULT_RE = /x\s*(\d+(?:[.,]\d+)?)\s+([a-zA-Z][a-zA-Z\s/]+?)\s*(?=\s*(?:[+\-–—]?\s*\d|x\s*\d|$))/gi;
+            // Faction damage shows as a multiplier: x1.74 -> +74%, x0.8 -> -20% (curse).
+            // The name ends at a digit, another "x<mult>", the end or the first char outside its class,
+            // since art noise after the curse leaves no clean digit. Then prefixes of 4 to 2 words are tried.
+            const MULT_RE = /x\s*(\d+(?:[.,]\d+)?)\s+([a-zA-Z][a-zA-Z\s/]+?)\s*(?=\s*(?:[+\-–—]?\s*\d|x\s*\d|$)|[^a-zA-Z\s/])/gi;
+            // The multiplier form only exists for faction damage, so the faction is matched directly:
+            // without "to", "Damage to Grineer" would lose to "Damage".
+            const FACTION_MULT = [
+                { re: /GRIN|GRJN|GR1N|GRTN/i, name: "Damage to Grineer" },
+                { re: /CORP|C0RP|CDRP/i, name: "Damage to Corpus" },
+                { re: /INFES|1NFES|NFEST|INFST/i, name: "Damage to Infested" },
+            ];
             let mm;
             while ((mm = MULT_RE.exec(statBlock)) !== null) {
                 const mult = parseFloat(mm[1].replace(",", "."));
                 if (!(mult > 0) || mult === 1) continue;
                 const name = mm[2].replace(/[^\w\s/]/g, " ").replace(/\s+/g, " ").trim();
-                const matchedName = this._matchStat(name);
+                const matchedName = FACTION_MULT.find(f => f.re.test(name))?.name || null;
                 if (matchedName && !stats.some(s => s.name === matchedName)) {
                     const value = parseFloat((Math.abs(mult - 1) * 100).toFixed(1));
                     stats.push({ name: matchedName, value, isPositive: mult > 1, matched: true });
                 }
             }
 
+            // Pass 2: weapon and riven name from the lines above the stats. Picks by match quality across
+            // all lines, not by closeness: a riven name wrapped to 2 lines can fuzzy-match another weapon
+            // on the closer line. Ties go to the closest line.
+            let bestW = null;
             for (let i = firstStatIdx - 1; i >= 0; i--) {
                 const norm = contentLines[i];
-                if (norm.length <= 2 || norm.match(/^\d/) || norm.includes("%")) continue;
+                // trim leading art noise; drop the line only if it is a real stat (STAT_ANCHOR), not for a stray %
+                const lineTxt = norm.replace(/^[^A-Za-z]+/, "");
+                if (lineTxt.length <= 2 || STAT_ANCHOR.test(norm)) continue;
 
-                const words = norm.split(" ");
-                let matchedW = null;
+                const words = lineTxt.split(" ");
+                let cand = null;
                 if (words.length >= 2) {
                     const firstWord = words[0];
                     const restWords = words.slice(0, words.length - 1).join(" ");
-                    matchedW = this._matchWeapon(restWords) || this._matchWeapon(firstWord) || this._matchWeapon(norm);
+                    cand = this._matchWeaponScored(restWords) || this._matchWeaponScored(firstWord) || this._matchWeaponScored(lineTxt);
                 } else {
-                    matchedW = this._matchWeapon(norm);
+                    cand = this._matchWeaponScored(lineTxt);
                 }
 
-                if (matchedW) {
-                    weaponName = matchedW;
+                if (cand && (!bestW || cand.tier > bestW.tier || (cand.tier === bestW.tier && cand.dist < bestW.dist))) {
+                    bestW = { ...cand, norm };
+                }
+            }
 
-                    let wIdx = norm.toLowerCase().indexOf(matchedW.toLowerCase());
-                    if (wIdx === -1) {
-                        const wordsLower = norm.toLowerCase().split(" ");
-                        let bestWordIdx = -1;
-                        let bestWordDist = Infinity;
-                        for (let k = 0; k < wordsLower.length; k++) {
-                            const d = this._levenshtein(wordsLower[k].replace(/[^a-z0-9]/g, ""), matchedW.toLowerCase());
-                            if (d < bestWordDist && d <= 2) {
-                                bestWordDist = d;
-                                bestWordIdx = k;
-                            }
+            if (bestW) {
+                weaponName = bestW.name;
+                const norm = bestW.norm;
+
+                let wIdx = norm.toLowerCase().indexOf(weaponName.toLowerCase());
+                if (wIdx === -1) {
+                    const wordsLower = norm.toLowerCase().split(" ");
+                    let bestWordIdx = -1;
+                    let bestWordDist = Infinity;
+                    for (let k = 0; k < wordsLower.length; k++) {
+                        const d = this._levenshtein(wordsLower[k].replace(/[^a-z0-9]/g, ""), weaponName.toLowerCase());
+                        if (d < bestWordDist && d <= 2) {
+                            bestWordDist = d;
+                            bestWordIdx = k;
                         }
-                        if (bestWordIdx !== -1) {
-                            rivenName = norm.split(" ").slice(bestWordIdx).join(" ");
-                        } else {
-                            rivenName = norm;
-                        }
-                    } else {
-                        rivenName = norm.substring(wIdx).trim();
                     }
-                    break;
+                    if (bestWordIdx !== -1) {
+                        rivenName = norm.split(" ").slice(bestWordIdx).join(" ");
+                    } else {
+                        rivenName = norm;
+                    }
+                } else {
+                    rivenName = norm.substring(wIdx).trim();
                 }
             }
         }
 
         if (!weaponName && stats.length === 0) return null;
+
+        if (stats.length === 4 && stats.every(s => s.isPositive)) {
+            const last = stats[stats.length - 1];
+            if (!/^(heat|cold|electric|toxin)$/i.test(last.name)) last.isPositive = false;
+        }
 
         // 2-3 positives, 0-1 negatives, 2-4 total
         const positives = stats.filter(s => s.isPositive);
