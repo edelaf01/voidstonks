@@ -1,5 +1,6 @@
 import { state } from "../state.js";
 import { OCRRepository } from "../repositories/ocr.repository.js";
+import { VisionService } from "./vision.service.js";
 
 export const OCRService = {
     cachedDbItems: [],
@@ -58,8 +59,37 @@ export const OCRService = {
         return (longer.length - this.editDistance(longer, shorter)) / longer.length;
     },
 
+    RELIC_TIERS: ["LITH", "MESO", "NEO", "AXI", "REQUIEM"],
+    // Ruido típico de la UI de selección de reliquia/inventario que no forma parte del código.
+    RELIC_NOISE_TOKENS: new Set([
+        "RELIC", "RADIANT", "INTACT", "EXCEPTIONAL", "FLAWLESS",
+        "RELIQUIA", "RADIANTE", "INTACTA", "EXCEPCIONAL", "IMPECABLE"
+    ]),
+
+    // Correcciones letra->dígito típicas del OCR sobre la parte NUMÉRICA de un código.
+    _fixRelicDigits(s) {
+        return s
+            .replaceAll("Z", "2").replaceAll("S", "5").replaceAll("B", "8")
+            .replaceAll("G", "6").replaceAll("O", "0").replaceAll(/[IL]/g, "1");
+    },
+
+    // Repara los errores típicos de OCR letra<->dígito del código de reliquia
+    // (p.ej. "O1" -> "01", o para Requiem el sentido inverso dígito->romano).
+    // Factorizado de parseRelicSelection para reutilizarlo también en getRelicMatch.
+    _fixRelicCode(codeRaw, isRequiem) {
+        let code = codeRaw;
+        if (!isRequiem && code.length >= 2) {
+            code = this._fixRelicDigits(code);
+        } else if (isRequiem) {
+            code = code
+                .replaceAll("1", "I").replaceAll("0", "O").replaceAll("2", "II")
+                .replaceAll("3", "III").replaceAll("4", "IV");
+        }
+        return code;
+    },
+
     parseRelicSelection(ocrText) {
-        const tiers = ["LITH", "MESO", "NEO", "AXI", "REQUIEM"];
+        const tiers = this.RELIC_TIERS;
         const text = ocrText.toUpperCase();
         const pattern = tiers.join("|");
         const match = new RegExp(String.raw`(${pattern})[\s\S]*?([A-Z][0-9]{1,2}|[IVX]+)`, "i").exec(text);
@@ -68,22 +98,115 @@ export const OCRService = {
         const tier = match[1].toUpperCase();
         const codeRaw = match[2].trim().replaceAll(/\s+/g, "");
         const isRequiem = tier === "REQUIEM";
-
-        let code = codeRaw;
-        if (!isRequiem && code.length >= 2) {
-            code = code
-                .replaceAll("Z", "2").replaceAll("S", "5").replaceAll("B", "8")
-                .replaceAll("G", "6").replaceAll("O", "0").replaceAll(/[IL]/g, "1");
-        } else if (isRequiem) {
-            code = code
-                .replaceAll("1", "I").replaceAll("0", "O").replaceAll("2", "II")
-                .replaceAll("3", "III").replaceAll("4", "IV");
-        }
+        const code = this._fixRelicCode(codeRaw, isRequiem);
 
         if (code && code.length >= 1) {
             const foundRelic = `${tier} ${code}`.toUpperCase();
             const exists = state.allRelicNames?.some(n => n.toUpperCase() === foundRelic);
             return exists ? foundRelic : null;
+        }
+        return null;
+    },
+
+    // Match de reliquia para el flujo del inventario (grid de celdas del escáner de items).
+    // A diferencia de parseRelicSelection (texto libre de una sola pantalla), aquí recibimos
+    // el array de palabras OCR de UNA celda (mayúsculas), como getValidItemMatch. Localiza el
+    // tier (fuzzy, aguanta L1TH/MES0/NE0/AX1), el código pegado o en la palabra siguiente, y
+    // devuelve el nombre CANÓNICO tal como figura en state.allRelicNames (no en mayúsculas),
+    // para que case con el resto de la app (helpers de inventario, etc.).
+    getRelicMatch(combinedText) {
+        if (!combinedText) return null;
+        const rawWords = Array.isArray(combinedText) ? combinedText : combinedText.split(/\s+/);
+        const words = rawWords
+            .map(w => (w || "").toString().toUpperCase().replaceAll(/[^A-Z0-9]/g, ""))
+            .filter(w => w.length > 0 && !this.RELIC_NOISE_TOKENS.has(w));
+
+        const tiers = this.RELIC_TIERS;
+
+        for (let i = 0; i < words.length; i++) {
+            const word = words[i];
+            // Normalizamos los errores típicos dígito->letra SOLO para comparar el tier
+            // (NE0->NEO, AX1->AXI...): el fuzzy con umbral 0.75 no tolera 1 error en tiers
+            // de 3 letras (2/3 ≈ 0.67), y bajar el umbral colaría basura como "NEC"/"AXL".
+            // Los reemplazos son 1:1 (misma longitud), así que los índices del prefijo
+            // valen igual sobre la palabra ORIGINAL, de donde sale el remainder del código.
+            const tierWord = word
+                .replaceAll("0", "O").replaceAll("1", "I")
+                .replaceAll("5", "S").replaceAll("8", "B");
+            let tier = null;
+            let remainder = "";
+
+            // Match exacto o prefijo pegado (p.ej. token único "LITHC1" o "AX1C3")
+            for (const t of tiers) {
+                if (tierWord === t) { tier = t; break; }
+                if (tierWord.length > t.length && tierWord.startsWith(t)) { tier = t; remainder = word.slice(t.length); break; }
+            }
+            // Fuzzy sobre la palabra normalizada (aguanta L1TH, MES0, NE0, AX1 y erratas de letra)
+            if (!tier) {
+                for (const t of tiers) {
+                    if (this.getSimilarity(tierWord, t) >= 0.75) { tier = t; break; }
+                }
+            }
+            // Último recurso: dígito OCR cuya normalización 1:1 NO da la letra correcta
+            // (p.ej. "AX0" -> "AXO": ni prefijo de AXI ni pasa el fuzzy, 2/3 < 0.75).
+            // Aceptamos el tier si la palabra ORIGINAL tiene su misma longitud, difiere en
+            // UNA posición como máximo, y toda discrepancia es un DÍGITO en la original
+            // (= ruido OCR seguro). Una letra discrepante ("NEC") sigue fuera: no bajamos
+            // el umbral porque colaría cualquier palabra de 3 letras con 1 error.
+            if (!tier) {
+                for (const t of tiers) {
+                    if (word.length !== t.length) continue;
+                    let mismatches = 0;
+                    let mismatchesAreDigits = true;
+                    for (let k = 0; k < t.length; k++) {
+                        if (tierWord[k] !== t[k]) {
+                            mismatches++;
+                            if (!/[0-9]/.test(word[k])) { mismatchesAreDigits = false; break; }
+                        }
+                    }
+                    if (mismatchesAreDigits && mismatches === 1) { tier = t; break; }
+                }
+            }
+            if (!tier) continue;
+
+            // El código: o viene pegado al tier, o es una de las 2 palabras siguientes
+            // (tolera un token de ruido intermedio que _normalizeOCRWords ya filtró aquí arriba).
+            let codeRaw = remainder;
+            if (!codeRaw) {
+                for (let j = i + 1; j < Math.min(i + 3, words.length); j++) {
+                    const cand = words[j];
+                    // El patrón todo-dígitos cubre la LETRA del código leída como dígito
+                    // ("11" = I1, "12" = I2): es seguro porque al final SIEMPRE se valida
+                    // contra state.allRelicNames — si no existe la reliquia, devuelve null.
+                    if (/^[A-Z][0-9]{1,2}$/.test(cand) || /^[IVX]+$/.test(cand) || /^[A-Z][A-Z0-9]$/.test(cand) || /^[0-9][0-9]{1,2}$/.test(cand)) {
+                        codeRaw = cand;
+                        break;
+                    }
+                }
+            }
+            if (!codeRaw) continue;
+
+            const isRequiem = tier === "REQUIEM";
+            // A diferencia de parseRelicSelection (que corrige el código entero), aquí el código
+            // es letra + 1-2 dígitos: la corrección letra->dígito solo aplica a la parte numérica,
+            // o rompería la letra del código (p.ej. "G1" -> "61" y "Neo G1" jamás matchearía).
+            // Y al revés: si la LETRA del código llegó como dígito ("11" -> I1), la mapeamos
+            // dígito->letra solo en la primera posición.
+            const DIGIT_TO_CODE_LETTER = { "1": "I", "0": "O", "8": "B", "5": "S", "6": "G", "2": "Z" };
+            let code;
+            if (isRequiem) {
+                code = this._fixRelicCode(codeRaw, true);
+            } else if (codeRaw.length >= 2) {
+                const lead = DIGIT_TO_CODE_LETTER[codeRaw.charAt(0)] || codeRaw.charAt(0);
+                code = lead + this._fixRelicDigits(codeRaw.slice(1));
+            } else {
+                code = codeRaw;
+            }
+            if (!code) continue;
+
+            const foundRelicUpper = `${tier} ${code}`.toUpperCase();
+            const canonical = state.allRelicNames?.find(n => n.toUpperCase() === foundRelicUpper);
+            if (canonical) return canonical;
         }
         return null;
     },
@@ -317,13 +440,34 @@ export const OCRService = {
         if (!badgeCanvas) return { qty: 1, raw: "" };
         const { data } = await OCRRepository.recognize(worker, badgeCanvas);
         if (!data || !data.words) return { qty: 1, raw: "" };
-        return this._badgeToQty(this._repairBadgeWords(data.words));
+        const repaired = this._repairBadgeWords(data.words);
+
+        // Tesseract confunde 6↔9 en dígitos aislados (sin línea base). Verificación
+        // geométrica sobre el canvas binarizado: posición del lazo cerrado del glifo.
+        const digits = repaired.badgeNums.map(w => w.text.replace(/\D/g, "")).join("");
+        if (/[69]/.test(digits)) {
+            const fixed = VisionService.disambiguate69(badgeCanvas, digits);
+            if (fixed !== digits) {
+                const val = Number.parseInt(fixed);
+                return {
+                    qty: (val > 1 && val < 1000) ? val : 1,
+                    raw: `${repaired.rawTexts} [69fix ${digits}->${fixed}]`
+                };
+            }
+        }
+        return this._badgeToQty(repaired);
     },
 
     getValidItemMatch(combinedText) {
         if (!this.cachedDbItems.length) this.initMatcherData();
 
-        const textWords = Array.isArray(combinedText) ? combinedText : combinedText.split(/\s+/);
+        // Tesseract a veces FUSIONA dos palabras con un punto/guión en medio
+        // ("CARRIER.PRIME BLUEPRINT"): isFirstWordMatch limpia a "CARRIERPRIME" y la
+        // similitud contra "CARRIER" (0.58) no llega al umbral. Partimos cada palabra
+        // OCR por separadores no alfanuméricos antes de matchear; el caso inverso
+        // (una palabra DB partida en dos por el OCR) ya lo cubre el join i+(i+1).
+        const rawWords = Array.isArray(combinedText) ? combinedText : combinedText.split(/\s+/);
+        const textWords = rawWords.flatMap(w => w.split(/[^A-Za-z0-9]+/).filter(Boolean));
 
         if (textWords.length === 0) return null;
 

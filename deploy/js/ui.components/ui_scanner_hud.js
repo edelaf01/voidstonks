@@ -51,6 +51,50 @@ export const ScannerHUD = {
         }
     },
 
+    // ── Historial de escaneos de debug ──────────────────────────────────────
+    // history = ScannerService.debugHistory (más reciente primero). Cada nuevo
+    // escaneo selecciona automáticamente la entrada 0; clicar una miniatura fija
+    // esa entrada (imagen grande + summary) y COPY LOG copia SU log.
+    debugSelectedIndex: 0,
+
+    updateDebugHistory(history) {
+        this.debugSelectedIndex = 0;
+        this._renderDebugHistory(history);
+        this.selectDebugEntry(history, 0);
+    },
+
+    _renderDebugHistory(history) {
+        const strip = document.getElementById("live-debug-history");
+        if (!strip) return;
+        strip.innerHTML = "";
+        history.forEach((entry, i) => {
+            const th = document.createElement("img");
+            th.src = entry.img;
+            th.title = `[${entry.time}] ${entry.summary}`;
+            th.style.cssText =
+                "width:64px;height:36px;object-fit:cover;border-radius:3px;cursor:pointer;flex-shrink:0;" +
+                `border:1px solid ${entry.warning ? "rgba(255,30,80,0.85)" : "rgba(0,229,255,0.35)"};` +
+                (i === this.debugSelectedIndex ? "outline:2px solid #f1c40f;" : "");
+            th.addEventListener("click", () => {
+                this.debugSelectedIndex = i;
+                this._renderDebugHistory(history);
+                this.selectDebugEntry(history, i);
+            });
+            strip.appendChild(th);
+        });
+    },
+
+    selectDebugEntry(history, i) {
+        const entry = history[i];
+        if (!entry) return;
+        this.updateDebugSnapshot(entry.img);
+        const sum = document.getElementById("live-debug-summary");
+        if (sum) {
+            sum.textContent = `[${entry.time}] ${entry.summary}`;
+            sum.style.color = entry.warning ? "#ff5252" : "#8ca0b8";
+        }
+    },
+
     updateScrollStatus(status, count = 0) {
         const scrollGuide = document.getElementById("live-scroll-guide");
         if (!scrollGuide) return;
@@ -66,27 +110,33 @@ export const ScannerHUD = {
         }
     },
 
-    updateDetectedItems(sessionInventory) {
+    // sessionRelics es opcional (Map relicName->qty) — reliquias detectadas en el mismo grid
+    // de inventario vía el fallback de OCRService.getRelicMatch. Se pintan aparte (acento cian)
+    // porque se persisten en un sitio distinto (state.inventory, no primeInventory).
+    updateDetectedItems(sessionInventory, sessionRelics = null) {
         const listContainer = document.getElementById("live-inventory-items-list");
         const countEl = document.getElementById("live-inv-count");
         const hud = document.getElementById("inv-hud");
+        const sh = TEXTS[state.currentLang]?.scannerHUD;
 
-        if (countEl) countEl.innerText = sessionInventory.size;
+        const relicCount = sessionRelics ? sessionRelics.size : 0;
+        const totalCount = sessionInventory.size + relicCount;
+
+        if (countEl) countEl.innerText = totalCount;
         if (!listContainer) return;
 
-        if (sessionInventory.size > 0 && hud && hud.style.display === "none") {
+        if (totalCount > 0 && hud && hud.style.display === "none") {
             hud.style.display = "block";
         }
         const items = Array.from(sessionInventory.entries()).map(([name, qty]) => ({ name, qty }));
         items.sort((a, b) => a.name.localeCompare(b.name));
 
-        if (items.length === 0) {
-            const sh = TEXTS[state.currentLang]?.scannerHUD;
+        if (items.length === 0 && relicCount === 0) {
             listContainer.innerHTML = `<div style="text-align:center;color:#444;font-size:0.75em;padding:20px 0;">${sh?.lblEmpty || "PRESS SCAN TO START"}</div>`;
             return;
         }
 
-        listContainer.innerHTML = items.map(item => {
+        let html = items.map(item => {
             const shortName = item.name.replace(/PRIME/gi, "").trim();
             return `
                 <div style="display:flex;justify-content:space-between;align-items:center;
@@ -98,5 +148,25 @@ export const ScannerHUD = {
                 </div>
             `;
         }).join("");
+
+        if (relicCount > 0) {
+            const relicItems = Array.from(sessionRelics.entries()).map(([name, qty]) => ({ name, qty }));
+            relicItems.sort((a, b) => a.name.localeCompare(b.name));
+
+            html += `<div style="margin-top:8px;padding-top:6px;border-top:1px dashed rgba(0,229,255,0.25);
+                    color:#00e5ff;font-weight:800;font-size:0.72em;letter-spacing:0.5px;">${sh?.lblRelicsDetected || "RELICS"}</div>`;
+
+            html += relicItems.map(item => `
+                <div style="display:flex;justify-content:space-between;align-items:center;
+                    background:rgba(0,229,255,0.06);padding:5px 8px;border-radius:4px;
+                    border-left:2px solid rgba(0,229,255,0.7);
+                    font-size:0.78em;gap:6px;">
+                    <span style="color:#ddd;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:190px;">${item.name}</span>
+                    <span style="color:#00e5ff;font-weight:900;flex-shrink:0;">×${item.qty}</span>
+                </div>
+            `).join("");
+        }
+
+        listContainer.innerHTML = html;
     }
 };

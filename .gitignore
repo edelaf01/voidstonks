@@ -29,6 +29,8 @@ deploy/temp_inspect.html
 # scripts-actu ignorado SALVO lo que necesita el workflow retrain-ml.yml en CI
 # (regla /dir a secas impediría re-incluir hijos; por eso /dir/* + negaciones)
 /scripts-actu/*
+# build-dist.mjs lo necesita el workflow deploy.yml en CI (minifica deploy/ -> dist/).
+!/scripts-actu/build-dist.mjs
 !/scripts-actu/ML-rivenvaluation/
 /scripts-actu/ML-rivenvaluation/*
 # Re-incluir SOLO los scripts .py (los que necesita retrain-ml.yml en CI). El .venv,
@@ -49,3 +51,5 @@ certs/dev.pem
 package.json
 deploy/MAINTENANCE_VOSFOR.md
 deploy/MAINTENANCE_VOSFOR.md
+dist/
+node_modules/

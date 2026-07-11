@@ -1,0 +1,21 @@
+{
+  "_comment": "Override de combat stats para armas donde WFCD/jsdelivr sirve datos malos o incompletos (típico en armas recién salidas). Se fusiona ENCIMA de los datos de WFCD en fetchWeaponCombatStats (override gana). fireModes = modos de disparo (Normal, Alt-Fire...) con stats propios; damageTypes null = sin desglose IPS (p.ej. daño Tau puro). coScaling = escalado con Condition Overload, dato curado (no está en WFCD): 'multiplicative' (multiplica daño) | 'additive' (suma plano); omitir si se desconoce. Borra una entrada cuando WFCD ya tenga el arma correcta. Forma = la de statsDB (ver rivens.service.js).",
+  "Haalvu": {
+    "damage": 33,
+    "critChance": 25,
+    "critMult": 2.5,
+    "statusChance": 19,
+    "fireRate": 13,
+    "magazine": 150,
+    "reload": 1,
+    "type": "Rifle",
+    "damageTypes": null,
+    "radial": null,
+    "multishot": 1,
+    "coScaling": "additive",
+    "fireModes": [
+      { "name": "Normal", "damage": 33, "damageTypes": null, "critChance": 25, "critMult": 2.5, "statusChance": 19, "fireRate": 13 },
+      { "name": "Alt-Fire", "damage": 34, "damageTypes": null, "critChance": 20, "critMult": 1.8, "statusChance": 26, "fireRate": 12 }
+    ]
+  }
+}

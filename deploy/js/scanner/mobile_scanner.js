@@ -1,5 +1,5 @@
 import { getPriceValue, getSlug } from "../api.js";
-import { showToast } from "../ui.components/ui_components.js";
+import { showToast, escapeHTML } from "../ui.components/ui_components.js";
 import { state } from "../state.js";
 import { TEXTS } from "../config.js";
 import { OCRService } from "../services/ocr.service.js";
@@ -554,6 +554,9 @@ export class MobileScanner {
    * Reutilizado por la captura de cámara y por la subida de fotos del debug scanner.
    */
   async processStrips(mainCvs) {
+    // El pool arranca con 1 worker (menos RAM en el escaneo en vivo); para procesar una FOTO
+    // sí interesa el 2º worker (las tiras se OCRean en paralelo) — se crea aquí bajo demanda.
+    await OCRRepository.ensureSecondWorker().catch(() => {});
     const workers = OCRRepository.workers;
     if (!workers || workers.length === 0) {
       showToast("Esperando motor OCR...", "warning");
@@ -610,7 +613,7 @@ export class MobileScanner {
 
       if (debugLog && this.debugMode) {
         const div = document.createElement("div");
-        div.innerHTML = `<span style="color:#00e5ff">ROI ${idx}:</span> ${(data.text || "").replaceAll("\n", " ")}`;
+        div.innerHTML = `<span style="color:#00e5ff">ROI ${idx}:</span> ${escapeHTML((data.text || "").replaceAll("\n", " "))}`;
         debugLog.appendChild(div);
       }
       if (sideGallery && this.debugMode) {

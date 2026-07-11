@@ -1,10 +1,23 @@
 export const WORKER_URL = "https://api.voidstonks.com/";
-export const APP_VERSION = 2.50;
+export const APP_VERSION = 2.60;
 export const UPDATE_HISTORY_DATA = {
   es: `
 <div class="update-block">
   <div class="update-header">
-    <span class="update-version">v2.5.0 (Actual)</span>
+    <span class="update-version">v2.6.0 (Actual)</span>
+    <span class="update-date">2026-07-11</span>
+  </div>
+  <ul class="update-list">
+    <li><strong>Ficha de armas mejorada:</strong> las armas con disparo alternativo ahora muestran cada modo por separado (Normal, Alt-Fire...) con sus propios stats. Además una etiqueta te dice si el arma escala Condition Overload de forma multiplicativa o plana.</li>
+    <li><strong>Nueva arma: Haalvu.</strong></li>
+    <li><strong>Disposiciones de riven al día:</strong> actualizadas al último reajuste del juego.</li>
+    <li><strong>Escáner más fiable:</strong> detecta recompensas que antes se saltaba (sobre todo con fondos claros) y reconoce mejor las piezas del inventario, sin confundir el icono de fundición con un número.</li>
+    <li><strong>Copiar recompensas:</strong> al escanear una recompensa puedes pegarla en el chat al instante.</li>
+  </ul>
+</div>
+<div class="update-block old">
+  <div class="update-header">
+    <span class="update-version">v2.5.0</span>
     <span class="update-date">2026-07-04</span>
   </div>
   <ul class="update-list">
@@ -220,7 +233,20 @@ export const UPDATE_HISTORY_DATA = {
   en: `
 <div class="update-block">
   <div class="update-header">
-    <span class="update-version">v2.5.0 (Current)</span>
+    <span class="update-version">v2.6.0 (Current)</span>
+    <span class="update-date">2026-07-11</span>
+  </div>
+  <ul class="update-list">
+    <li><strong>Better weapon panel:</strong> weapons with an alternate fire now show each mode separately (Normal, Alt-Fire...) with its own stats. There's also a tag telling you whether the weapon scales Condition Overload multiplicatively or flat.</li>
+    <li><strong>New weapon: Haalvu.</strong></li>
+    <li><strong>Riven dispositions updated:</strong> synced to the game's latest disposition pass.</li>
+    <li><strong>More reliable scanner:</strong> picks up rewards it used to miss (especially on bright backgrounds) and recognizes inventory parts better, no longer mistaking the foundry icon for a number.</li>
+    <li><strong>Copy rewards:</strong> paste a scanned reward straight into chat.</li>
+  </ul>
+</div>
+<div class="update-block old">
+  <div class="update-header">
+    <span class="update-version">v2.5.0</span>
     <span class="update-date">2026-07-04</span>
   </div>
   <ul class="update-list">
@@ -908,6 +934,7 @@ export const TEXTS = {
       scrollNext: "SIGUIENTE PÁGINA",
       scrollDone: "LISTO",
       lblDetected: "ITEMS DETECTADOS",
+      lblRelicsDetected: "RELIQUIAS",
       lblEmpty: "PULSA SCAN PÁGINA PARA EMPEZAR",
       btnOpenLog: "LOG IMÁGENES",
       finished: "¡FINALIZADO!",
@@ -934,6 +961,8 @@ export const TEXTS = {
       autoSyncTooltip: "SI: Sincroniza TODO con el VISTO (Prioridad OCR). NO: Solo añade +1 a la pieza que elijas manualmente.",
       autoCopyLabel: "AUTO-COPY",
       autoCopyTooltip: "SI: Copia automáticamente los resultados al portapapeles después de cada escaneo en formato chat de Warframe.",
+      toastCopied: "Resultados copiados al portapapeles",
+      toastCopyQueued: "Pestaña sin foco: se copiará al volver (instala la extensión AutoCopy para copiar en vivo)",
       rewardSelectedConfirmation: "{item} SELECCIONADA +1",
       addBtn: "✓ AÑADIR AL INVENTARIO",
       lblSeen: "Vista",
@@ -1461,6 +1490,7 @@ export const TEXTS = {
       scrollNext: "SCAN NEXT PAGE",
       scrollDone: "DONE",
       lblDetected: "DETECTED ITEMS",
+      lblRelicsDetected: "RELICS",
       lblEmpty: "PRESS SCAN PAGE TO START",
       btnOpenLog: "IMAGE LOGS",
       finished: "FINISHED!",
@@ -1739,6 +1769,8 @@ export const TEXTS = {
       autoSyncTooltip: "YES: Sync EVERYTHING with SEEN (OCR Priority). NO: Only add +1 to the part you manually choose.",
       autoCopyLabel: "AUTO-COPY",
       autoCopyTooltip: "YES: Automatically copies results to clipboard after each scan in Warframe chat format.",
+      toastCopied: "Results copied to clipboard",
+      toastCopyQueued: "Tab unfocused: will copy when you return (install the AutoCopy extension for live copy)",
       rewardSelectedConfirmation: "{item} SELECTED +1",
       addBtn: "✓ ADD TO INVENTORY",
       lblSeen: "Seen",

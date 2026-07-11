@@ -3,6 +3,7 @@ import { TEXTS } from "../config.js";
 import { getSlug, getPriceValue } from "../api.js";
 import { showToast, escapeHTML } from "./ui_components.js";
 import { renderItemsInPiP } from "../utils/pip_overlay.js";
+import { ClipboardService } from "../services/clipboard.service.js";
 import { getItemIcon } from "../utils/ui_utils.js";
 
 /**
@@ -88,8 +89,14 @@ export const ScannerModal = {
                     const p = i.price || 0;
                     return p > 0 ? `[${i.name}] ${p} :platinum:` : `[${i.name}]`;
                 }).join(", ") + " - voidstonks";
-                navigator.clipboard.writeText(text).then(() => {
-                    showToast(TEXTS[state.currentLang].rewardScanner.toastCopied || "Results copied to clipboard");
+                // ClipboardService: extensión (copia sin foco) → clipboard nativo → cola
+                // al recuperar el foco. El write directo fallaba en silencio mientras se
+                // jugaba porque la pestaña no tiene el foco.
+                ClipboardService.copy(text).then((via) => {
+                    const t = TEXTS[state.currentLang].rewardScanner;
+                    showToast(via === "queued"
+                        ? (t.toastCopyQueued || "Se copiará al volver a la pestaña")
+                        : (t.toastCopied || "Copiado al portapapeles"));
                 }).catch(console.warn);
             }
         }
@@ -286,6 +293,10 @@ globalThis.closeScanModal = () => {
     if (state.autoSyncRewards && ScannerModal.currentResults && !ScannerModal.isHistoric) {
         ScannerModal.currentResults.forEach(item => {
             if (!item.name) return;
+            // "Crafted": el juego OCULTA el número de Owned (podrías tener 9 pero solo pone
+            // "Crafted"). Como no sabemos el conteo real, NO tocamos el inventario de ese ítem
+            // — se deja como estaba para no machacar el conteo bueno con un 0.
+            if (item.crafted) return;
             const currentAppQty = state.primeInventory[item.name] || 0;
             const isSelected = (globalThis.selectedScanItem === item.name);
             const ocrOwned = (typeof item.owned === 'number') ? item.owned : currentAppQty;
