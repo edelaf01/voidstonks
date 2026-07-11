@@ -5,21 +5,37 @@ import { OpenCVRepository } from "../repositories/opencv.repository.js";
 import { ScannerHUD } from "../ui.components/ui_scanner_hud.js";
 import { ScannerModal } from "../ui.components/ui_scanner_modal.js";
 import { initializeOCRDatabase } from "../repositories/api.repository.js";
+import { escapeHTML } from "../ui.components/ui_components.js";
 
 export const ScannerService = {
     isScanning: false,
     scanInterval: null,
     currentRate: 1200,
+    RIVEN_RATE_ACTIVE: 400,
+    RIVEN_RATE_IDLE: 1000,
     lastTrackedRelic: "",
     sessionInventory: new Map(),
+    sessionRelics: new Map(),
     detectionLocked: false,
     scanCounter: 0,
     inventoryHasScanned: false,
     qtyVotes: new Map(),
+    relicQtyVotes: new Map(),
     lastStableHash: null,
     virtualCanvas: null,
     lastHashL: null,
     lastHashR: null,
+    lastNoResultHash: null,
+    lastNoResultTime: 0,
+    lastHeaderHash: null,
+    lastHeaderText: null,
+    lastHeaderOcrTime: 0,
+    lastRivenContextType: null,
+    lastTwoCardHash: null,
+    oneCardStreak: 0,
+    newCardStreak: 0,
+    weaponSwitchCandidate: null,
+    weaponSwitchStreak: 0,
     rivenConsensusBuffer: [],
 
     async start() {
@@ -30,8 +46,21 @@ export const ScannerService = {
         this.detectionLocked = false;
         this.lastHashL = null;
         this.lastHashR = null;
+        this.lastNoResultHash = null;
+        this.lastNoResultTime = 0;
+        this.lastHeaderHash = null;
+        this.lastHeaderText = null;
+        this.lastHeaderOcrTime = 0;
+        this.lastRivenContextType = null;
+        this.lastTwoCardHash = null;
+        this.oneCardStreak = 0;
+        this.newCardStreak = 0;
+        this.weaponSwitchCandidate = null;
+        this.weaponSwitchStreak = 0;
         this.rivenConsensusBuffer = [];
         this.qtyVotes = new Map();
+        this.sessionRelics = new Map();
+        this.relicQtyVotes = new Map();
         globalThis.ScannerService = this;
         if (!this.virtualCanvas) {
             this.virtualCanvas = document.createElement("canvas");
@@ -88,12 +117,38 @@ export const ScannerService = {
 
         const worker1 = OCRRepository.workers[0];
         if (!worker1) return;
-        const { data: headerData } = await OCRRepository.recognize(worker1, virtualCanvas, {}, { text: true });
 
-        const rawContext = VisionService.determineContext(headerData.text);
+        const headerHash = this._smallCanvasHash(virtualCanvas);
+        const headerCacheFresh = this.lastHeaderOcrTime && (Date.now() - this.lastHeaderOcrTime < 2500);
+        let headerText;
+        if (this.lastHeaderText !== null && headerCacheFresh && this._compareHashes(headerHash, this.lastHeaderHash, 6)) {
+            headerText = this.lastHeaderText;
+        } else {
+            const headerTheme = VisionService.finalizeVirtualCanvas(virtualCanvas);
+            const { data: headerData } = await OCRRepository.recognize(worker1, virtualCanvas, {}, { text: true });
+            headerText = headerData.text || "";
+
+            if (headerTheme && VisionService.determineContext(headerText) === "UNKNOWN") {
+                if (!this._altHeaderCvs) this._altHeaderCvs = document.createElement("canvas");
+                VisionService.prepareVirtualCanvas(video, this._altHeaderCvs);
+                const altCtx = this._altHeaderCvs.getContext("2d", { willReadFrequently: true });
+                VisionService.applyThemeDistanceThreshold(altCtx, this._altHeaderCvs.width, this._altHeaderCvs.height, headerTheme);
+                const { data: altData } = await OCRRepository.recognize(worker1, this._altHeaderCvs, {}, { text: true });
+                const altText = altData.text || "";
+                if (VisionService.determineContext(altText) !== "UNKNOWN") {
+                    console.log(`[SCAN] Header rescatado por binarización de tema: "${altText.trim().slice(0, 60)}"`);
+                    headerText = altText;
+                }
+            }
+            this.lastHeaderText = headerText;
+            this.lastHeaderHash = headerHash;
+            this.lastHeaderOcrTime = Date.now();
+        }
+
+        const rawContext = VisionService.determineContext(headerText);
         const now = Date.now();
 
-        const textUpper = (headerData.text || "").toUpperCase();
+        const textUpper = headerText.toUpperCase();
         const containsAnchor = textUpper.includes("MODS") || textUpper.includes("MODIFICADORES") ||
                                textUpper.includes("CYCLE") || textUpper.includes("CICLO") || textUpper.includes("CICLAR") ||
                                textUpper.includes("KUVA") || textUpper.includes("KUYVA") ||
@@ -102,13 +157,14 @@ export const ScannerService = {
         
         if (rawContext === "INVENTORY_MODS" || rawContext === "ITEM_DETAILS" || containsAnchor) {
             this.lastRivenContextTime = now;
+            this.lastRivenContextType = rawContext === "ITEM_DETAILS" ? "ITEM_DETAILS" : "INVENTORY_MODS";
         }
 
         let routedContext = rawContext;
 
         if (this.lastRivenContextTime && (now - this.lastRivenContextTime < 8000)) {
             if (rawContext === "UNKNOWN" || rawContext === "INVENTORY") {
-                routedContext = "INVENTORY_MODS";
+                routedContext = this.lastRivenContextType || "INVENTORY_MODS";
             } else if (rawContext === "RELICS" || rawContext === "REWARD") {
                 this.lastRivenContextTime = 0;
             }
@@ -124,15 +180,15 @@ export const ScannerService = {
             this.latchedContext = routedContext;
         }
 
-        console.log(`[SCAN] Context Raw: ${rawContext} | Latched: ${this.latchedContext} | Header: "${(headerData.text || "").trim().slice(0, 60)}"`);
+        console.log(`[SCAN] Context Raw: ${rawContext} | Latched: ${this.latchedContext} | Header: "${headerText.trim().slice(0, 60)}"`);
         await this.routeFrameAction(this.latchedContext, video, dims);
 
         ScannerHUD.updateFrameCounter(this.scanCounter);
     },
 
-    recordQtyVote(itemName, qtyResult) {
-        let votes = this.qtyVotes.get(itemName);
-        if (!votes) { votes = new Map(); this.qtyVotes.set(itemName, votes); }
+    recordQtyVote(itemName, qtyResult, votesMap = this.qtyVotes, targetMap = this.sessionInventory) {
+        let votes = votesMap.get(itemName);
+        if (!votes) { votes = new Map(); votesMap.set(itemName, votes); }
 
         const readOk = /\d/.test(qtyResult.raw || "");
         if (readOk) {
@@ -140,7 +196,7 @@ export const ScannerService = {
         }
 
         const consensus = this.modeQty(votes);
-        this.sessionInventory.set(itemName, consensus !== null ? consensus : qtyResult.qty);
+        targetMap.set(itemName, consensus !== null ? consensus : qtyResult.qty);
     },
 
     modeQty(votes) {
@@ -158,6 +214,8 @@ export const ScannerService = {
     lastFrameHash: null,
     scrollDirectionAccumulator: 0,
     lastRowLums: null,
+    sawScrollSinceScan: false,
+    debugHistory: [],
 
     async routeFrameAction(contextType, video, dims) {
         ScannerHUD.updateContext(contextType);
@@ -167,6 +225,7 @@ export const ScannerService = {
                 this.currentRate = 3000;
                 this.autoScrollHash = null;
                 this.lastFrameHash = null;
+                this.sawScrollSinceScan = false;
                 if (this.autoScrollStableTimer) {
                     clearTimeout(this.autoScrollStableTimer);
                     this.autoScrollStableTimer = null;
@@ -202,8 +261,8 @@ export const ScannerService = {
 
             let bestDy = 0;
             let mseZero = 0;
+            let minError = Infinity;
             if (this.lastRowLums) {
-                let minError = Infinity;
                 for (let dy = -6; dy <= 6; dy++) {
                     let errorSum = 0;
                     let count = 0;
@@ -229,6 +288,7 @@ export const ScannerService = {
 
             if (isScrolling) {
                 this.scrollDirectionAccumulator += bestDy;
+                this.sawScrollSinceScan = true;
                 if (this.autoScrollStableTimer) {
                     clearTimeout(this.autoScrollStableTimer);
                     this.autoScrollStableTimer = null;
@@ -237,15 +297,15 @@ export const ScannerService = {
                 return;
             }
 
-            const hasPageChanged = !this.autoScrollHash || Math.abs(currentHash - this.autoScrollHash) >= 120;
-            const isScrollDown = this.scrollDirectionAccumulator > 1;
+            const hasPageChanged = !this.autoScrollHash || this.sawScrollSinceScan || Math.abs(currentHash - this.autoScrollHash) >= 120;
             const isFirstScan = !this.autoScrollHash;
 
             if (hasPageChanged && !this.autoScrollStableTimer && !this.detectionLocked) {
-                if (!isFirstScan && this.scrollDirectionAccumulator < 0) {
+                if (!isFirstScan && this.scrollDirectionAccumulator <= -3) {
                     this.scrollDirectionAccumulator = 0;
+                    this.sawScrollSinceScan = false;
                     this.autoScrollHash = currentHash;
-                    ScannerHUD.updateScrollStatus("done", this.sessionInventory.size);
+                    ScannerHUD.updateScrollStatus("done", this.sessionInventory.size + this.sessionRelics.size);
                     return;
                 }
 
@@ -253,6 +313,7 @@ export const ScannerService = {
 
                 this.autoScrollStableTimer = setTimeout(async () => {
                     this.scrollDirectionAccumulator = 0;
+                    this.sawScrollSinceScan = false;
                     if (!globalThis.state.autoScanEnabled || this.detectionLocked) {
                         this.autoScrollStableTimer = null;
                         return;
@@ -270,11 +331,11 @@ export const ScannerService = {
                 }, 800);
             } else if (!this.autoScrollStableTimer) {
                 this.scrollDirectionAccumulator = 0;
-                ScannerHUD.updateScrollStatus("done", this.sessionInventory.size);
+                ScannerHUD.updateScrollStatus("done", this.sessionInventory.size + this.sessionRelics.size);
             }
 
         } else if (contextType === "INVENTORY_MODS" || contextType === "ITEM_DETAILS" || (globalThis.state.scannerModsMode && contextType === "INVENTORY")) {
-            this.currentRate = 1200;
+            this.currentRate = this.RIVEN_RATE_ACTIVE;
             if (this.detectionLocked) return;
             await this.processRivenCard(video, dims, contextType);
         } else if (contextType === "RELICS") {
@@ -287,6 +348,12 @@ export const ScannerService = {
             this.currentRate = 1200;
             await this.processRewards(video, dims);
         } else {
+            if (contextType === "UNKNOWN" && VisionService.hasRivenTextHint(video)) {
+                this.currentRate = this.RIVEN_RATE_ACTIVE;
+                if (this.detectionLocked) return;
+                await this.processRivenCard(video, dims, "ITEM_DETAILS");
+                return;
+            }
             if (globalThis.RivenScannerHUD) globalThis.RivenScannerHUD.dismiss();
             this.currentRate = globalThis.state.autoScanEnabled ? 1000 : 3000;
         }
@@ -306,6 +373,19 @@ export const ScannerService = {
             if (a.stats[i].isPositive !== b.stats[i].isPositive) return false;
         }
         return true;
+    },
+
+    _isSameRivenIdentity(a, b) {
+        if (!a && !b) return true;
+        if (!a || !b) return false;
+        if (a.weaponName !== b.weaponName) return false;
+        if (a.rolls !== null && b.rolls !== null && a.rolls !== b.rolls) return false;
+        const namesA = new Set(a.stats.map(s => s.name));
+        const namesB = new Set(b.stats.map(s => s.name));
+        let overlap = 0;
+        for (const n of namesA) if (namesB.has(n)) overlap++;
+        const minLen = Math.min(namesA.size, namesB.size);
+        return overlap >= Math.max(1, minLen - 1);
     },
 
     _isBetterOrEqualRead(newRiven, oldRiven) {
@@ -333,25 +413,42 @@ export const ScannerService = {
         return false;
     },
 
-    _getCanvasHash(canvas) {
-        if (!canvas) return "";
-        const tiny = document.createElement("canvas");
-        tiny.width = 8;
-        tiny.height = 8;
-        const ctx = tiny.getContext("2d");
-        const startY = Math.floor(canvas.height * 0.45);
-        const sourceH = canvas.height - startY;
-        ctx.drawImage(canvas, 0, startY, canvas.width, sourceH, 0, 0, 8, 8);
-        const imgData = ctx.getImageData(0, 0, 8, 8).data;
+    _tinyCvs: null,
+    _tinyCtx() {
+        if (!this._tinyCvs) {
+            this._tinyCvs = document.createElement("canvas");
+            this._tinyCvs.width = 16;
+            this._tinyCvs.height = 9;
+        }
+        return this._tinyCvs.getContext("2d", { willReadFrequently: true });
+    },
+
+    _hashFromTiny(ctx) {
+        const d = ctx.getImageData(0, 0, 16, 9).data;
         let hash = "";
-        for (let i = 0; i < imgData.length; i += 4) {
-            const avg = Math.floor((imgData[i] + imgData[i+1] + imgData[i+2]) / 3);
+        for (let i = 0; i < d.length; i += 4) {
+            const avg = Math.floor((d[i] + d[i + 1] + d[i + 2]) / 3);
             hash += avg.toString(16).padStart(2, "0");
         }
         return hash;
     },
 
-    _compareHashes(hash1, hash2) {
+    _getVideoRegionHash(video, crop) {
+        const ctx = this._tinyCtx();
+        ctx.drawImage(video,
+            Math.floor(video.videoWidth * crop.x), Math.floor(video.videoHeight * crop.y),
+            Math.floor(video.videoWidth * crop.w), Math.floor(video.videoHeight * crop.h),
+            0, 0, 16, 9);
+        return this._hashFromTiny(ctx);
+    },
+
+    _smallCanvasHash(canvas) {
+        const ctx = this._tinyCtx();
+        ctx.drawImage(canvas, 0, 0, canvas.width, canvas.height, 0, 0, 16, 9);
+        return this._hashFromTiny(ctx);
+    },
+
+    _compareHashes(hash1, hash2, tolerance = 18) {
         if (!hash1 || !hash2) return false;
         if (hash1.length !== hash2.length) return false;
         let diff = 0;
@@ -361,7 +458,7 @@ export const ScannerService = {
             diff += Math.abs(val1 - val2);
         }
         const avgDiff = diff / (hash1.length / 2);
-        return avgDiff < 18;
+        return avgDiff < tolerance;
     },
 
     _rivenFingerprint(parsed) {
@@ -404,15 +501,15 @@ export const ScannerService = {
             return lines.map(L => L.ws.sort((a, b) => a.bbox.x0 - b.bbox.x0).map(w => w.text).join(" ")).join("\n");
         };
 
-        const gapThresh = Math.max(canvasWidth * 0.07, 80);
+        const gapThresh = Math.max(canvasWidth * 0.03, 40);
         const clusterByX = (ws) => {
-            const items = ws.map(w => ({ w, cx: (w.bbox.x0 + w.bbox.x1) / 2 })).sort((a, b) => a.cx - b.cx);
+            const items = ws.slice().sort((a, b) => a.bbox.x0 - b.bbox.x0);
             const groups = [[]];
-            let prev = null;
-            for (const it of items) {
-                if (prev !== null && it.cx - prev > gapThresh) groups.push([]);
-                groups[groups.length - 1].push(it.w);
-                prev = it.cx;
+            let maxX1 = null;
+            for (const w of items) {
+                if (maxX1 !== null && w.bbox.x0 - maxX1 > gapThresh) groups.push([]);
+                groups[groups.length - 1].push(w);
+                maxX1 = maxX1 === null ? w.bbox.x1 : Math.max(maxX1, w.bbox.x1);
             }
             return groups;
         };
@@ -453,31 +550,59 @@ export const ScannerService = {
 
         const cardCrop = contextType === "ITEM_DETAILS" ? VisionService.RIVEN_ITEM_DETAILS_CROP : VisionService.RIVEN_CARD_CROP;
 
+        const hash = this._getVideoRegionHash(video, cardCrop);
+
+        if ((this.lastParsedL || this.lastParsedR) && this._compareHashes(hash, this.lastHashL)) {
+            this.lastRivenContextTime = Date.now();
+            this.lastRivenContextType = contextType === "ITEM_DETAILS" ? "ITEM_DETAILS" : "INVENTORY_MODS";
+            this.currentRate = this.RIVEN_RATE_IDLE;
+            return;
+        }
+
+        if (this._compareHashes(hash, this.lastNoResultHash) && (Date.now() - this.lastNoResultTime < 3000)) {
+            return;
+        }
+
         const canvases = VisionService.prepareRivenCardCanvases(video, scale, cardCrop);
-        const hash = canvases.map(c => this._getCanvasHash(c)).join("|");
 
         if (globalThis.dumpRivenCrops) {
             canvases.forEach((c, i) => console.log(`[RIVEN CROP ${canvases.length > 1 ? `C${i + 1}` : "C"}] ${c.toDataURL("image/png")}`));
             globalThis.dumpRivenCrops = false;
         }
 
-        if ((this.lastParsedL || this.lastParsedR) && this._sameCombinedHash(hash, this.lastHashL)) {
-            this.lastRivenContextTime = Date.now();
-            return;
-        }
+        const { RivenOCRService } = await import("./riven_ocr.service.js?v=3");
 
-        const worker = OCRRepository.workers[1] || OCRRepository.workers[0];
-        const { RivenOCRService } = await import("./riven_ocr.service.js?v=2");
-
-        const reads = await Promise.all(canvases.map(c => OCRRepository.recognize(worker, c, {}, { blocks: true })));
+        if (canvases.length > 1) await OCRRepository.ensureSecondWorker().catch(() => {});
+        const pool = OCRRepository.workers.filter(Boolean);
+        const reads = await Promise.all(canvases.map((c, i) =>
+            OCRRepository.recognize(pool[i % pool.length] || pool[0], c, {}, { blocks: true })));
         const entries = [];
         reads.forEach((res, ci) => {
             const cardTexts = this._wordsToCards(res.data, canvases[ci].width) || [res.data.text || ""];
-            cardTexts.forEach((text) => {
-                const parsed = RivenOCRService.parseRivenCard(text);
-                const label = `C${entries.length + 1}`;
-                this._logRivenRead(label, text, parsed, canvases[ci]);
-                entries.push({ res, text, parsed, canvas: canvases[ci] });
+            let cardEntries = cardTexts.map(text => ({
+                res, text, parsed: RivenOCRService.parseRivenCard(text), canvas: canvases[ci],
+            }));
+
+            if (cardEntries.length >= 2) {
+                const validCount = cardEntries.filter(e => e.parsed && e.parsed.weaponName).length;
+                if (validCount < 2) {
+                    const fullText = res.data.text || "";
+                    const fullParsed = RivenOCRService.parseRivenCard(fullText);
+                    const wName = cardEntries.find(e => e.parsed?.weaponName)?.parsed.weaponName || fullParsed?.weaponName || "";
+                    const wKey = (wName.split(" ")[0] || "").toUpperCase();
+                    const colsWithWeapon = wKey.length >= 4
+                        ? cardEntries.filter(e => e.text.toUpperCase().includes(wKey)).length
+                        : cardEntries.length;
+                    if (fullParsed && fullParsed.weaponName && colsWithWeapon <= 1) {
+                        console.log(`[OCR DIAG] split fantasma revertido: ${cardEntries.length} columnas -> 1 carta (texto completo)`);
+                        cardEntries = [{ res, text: fullText, parsed: fullParsed, canvas: canvases[ci] }];
+                    }
+                }
+            }
+
+            cardEntries.forEach((e) => {
+                this._logRivenRead(`C${entries.length + 1}`, e.text, e.parsed, e.canvas);
+                entries.push(e);
             });
         });
 
@@ -487,7 +612,16 @@ export const ScannerService = {
         const MIN_CONF = 0.5;
         const valids = entries.filter(e => e.parsed && (e.parsed.validation?.confidence ?? 0) >= MIN_CONF);
 
-        if (valids.length || hasCardAnchor) this.lastRivenContextTime = Date.now();
+        if (valids.length || hasCardAnchor) {
+            this.lastRivenContextTime = Date.now();
+            this.lastRivenContextType = contextType === "ITEM_DETAILS" ? "ITEM_DETAILS" : "INVENTORY_MODS";
+        }
+
+        if (!valids.length) {
+            console.log(`[RIVEN OCR] sin parse válido en este frame (${contextType || "reroll"}) — se cachea el hash y no se reintenta hasta que la pantalla cambie`);
+        }
+        this.lastNoResultHash = valids.length ? null : hash;
+        if (!valids.length) this.lastNoResultTime = Date.now();
 
         const currentFP = valids.map(e => this._rivenFingerprint(e.parsed)).join("||") || "none";
         this.rivenConsensusBuffer.push(currentFP);
@@ -495,35 +629,104 @@ export const ScannerService = {
         const matchCount = this.rivenConsensusBuffer.filter(fp => fp === currentFP).length;
         const hasConsensus = matchCount >= 2;
 
-        const parsedL = valids[0]?.parsed || null;
-        const parsedR = valids[1]?.parsed || null;
+        let rawL = valids[0]?.parsed || null;
+        let rawR = valids[1]?.parsed || null;
+        const shownCards = [this.lastParsedL, this.lastParsedR].filter(Boolean);
+        const shownCount = shownCards.length;
 
-        const shownCount = (this.lastParsedL ? 1 : 0) + (this.lastParsedR ? 1 : 0);
-        const revealsMore = valids.length > shownCount;
+        if (shownCount === 2 && rawL && !rawR) {
+            const matchesL = this._isSameRivenIdentity(rawL, this.lastParsedL);
+            const matchesR = this._isSameRivenIdentity(rawL, this.lastParsedR);
+            if (matchesR && !matchesL) { rawR = rawL; rawL = null; }
+        }
 
-        const newWeapons = valids.map(e => e.parsed.weaponName).filter(Boolean).sort().join("|");
-        const shownWeapons = [this.lastParsedL, this.lastParsedR].filter(Boolean)
-            .map(p => p.weaponName).filter(Boolean).sort().join("|");
-        const weaponChanged = newWeapons !== "" && newWeapons !== shownWeapons;
+        let revealsMore = valids.length > shownCount;
 
-        if (!hasConsensus && !revealsMore && !weaponChanged && (this.lastParsedL || this.lastParsedR)) {
+        if (revealsMore && shownCount >= 1) {
+            const otherShown = shownCards[0];
+            const newCard = [rawL, rawR].find(p => p && !shownCards.some(s => this._isSameRivenIdentity(p, s)));
+            const sameWeaponAsShown = !newCard || newCard.weaponName === otherShown.weaponName;
+            if (!sameWeaponAsShown) {
+                this.newCardStreak = (this.newCardStreak || 0) + 1;
+                if (this.newCardStreak < 2) revealsMore = false;
+            } else {
+                this.newCardStreak = 0;
+            }
+        } else {
+            this.newCardStreak = 0;
+        }
+
+        const newWeapons = [...new Set(valids.map(e => e.parsed.weaponName).filter(Boolean))].sort().join("|");
+        const shownWeapons = [...new Set(shownCards.map(p => p.weaponName).filter(Boolean))].sort().join("|");
+        let weaponChanged = newWeapons !== "" && newWeapons !== shownWeapons;
+
+        let weaponSwitchPending = false;
+        if (weaponChanged && shownCards.length) {
+            if (this.weaponSwitchCandidate === newWeapons) {
+                this.weaponSwitchStreak++;
+            } else {
+                this.weaponSwitchCandidate = newWeapons;
+                this.weaponSwitchStreak = 1;
+            }
+            if (this.weaponSwitchStreak < 2) {
+                weaponChanged = false;
+                weaponSwitchPending = true;
+            }
+        } else {
+            this.weaponSwitchCandidate = null;
+            this.weaponSwitchStreak = 0;
+        }
+
+        let dropExtra = false;
+        if (valids.length < shownCount) {
+            this.oneCardStreak++;
+            const DOWNGRADE_STREAK = 4;
+            if (this.oneCardStreak >= DOWNGRADE_STREAK || weaponChanged) {
+                dropExtra = true;
+                this.oneCardStreak = 0;
+            }
+        } else {
+            this.oneCardStreak = 0;
+        }
+
+        const mergeSlot = (raw, shown) => {
+            if (!raw) return shown;
+            if (shown && this._isSameRivenIdentity(raw, shown)) {
+                return this._isBetterOrEqualRead(raw, shown) ? raw : shown;
+            }
+            if (shown && weaponSwitchPending && raw.weaponName !== shown.weaponName) return shown;
+            return raw;
+        };
+
+        let finalL = mergeSlot(rawL, this.lastParsedL);
+        let finalR = mergeSlot(rawR, this.lastParsedR);
+        if (dropExtra) {
+            if (!rawL) finalL = null;
+            if (!rawR) finalR = null;
+        }
+
+        const anyUpgrade = (finalL && finalL !== this.lastParsedL && this._isSameRivenIdentity(finalL, this.lastParsedL)) ||
+                            (finalR && finalR !== this.lastParsedR && this._isSameRivenIdentity(finalR, this.lastParsedR));
+
+        if ((this.lastParsedL || this.lastParsedR) && !hasConsensus && !revealsMore && !weaponChanged && !anyUpgrade) {
             console.log(`[RIVEN OCR] Consensus: ${matchCount}/3 — waiting for confirmation`);
             if (globalThis._scannerDebug) this._renderRivenDebug(entries, false);
             return;
         }
 
-        const lastFP = [this.lastParsedL, this.lastParsedR].filter(Boolean)
-            .map(p => this._rivenFingerprint(p)).join("||") || "none";
-        const shouldUpdate = currentFP !== "none" && currentFP !== lastFP;
+        const changed = !this._isSameRiven(finalL, this.lastParsedL) || !this._isSameRiven(finalR, this.lastParsedR);
 
-        if (globalThis._scannerDebug) this._renderRivenDebug(entries, shouldUpdate);
+        if (globalThis._scannerDebug) this._renderRivenDebug(entries, changed);
 
-        if (!shouldUpdate) return;
+        if (!weaponSwitchPending) {
+            this.lastHashL = hash;
+            this.lastHashR = null;
+        }
 
-        this.lastParsedL = parsedL;
-        this.lastParsedR = parsedR;
-        this.lastHashL = hash;
-        this.lastHashR = null;
+        if (!changed) return;
+
+        this.lastParsedL = finalL;
+        this.lastParsedR = finalR;
 
         let screenshotDataURL = null;
         try {
@@ -542,7 +745,7 @@ export const ScannerService = {
         }
 
         if (globalThis.showRivenAppraisal) {
-            globalThis.showRivenAppraisal(parsedL, parsedR, screenshotDataURL);
+            globalThis.showRivenAppraisal(this.lastParsedL, this.lastParsedR, screenshotDataURL);
         }
     },
 
@@ -659,6 +862,7 @@ export const ScannerService = {
         }
 
         const namesCanvas = VisionService.prepareRewardNamesCanvas(video, width, height, scale);
+        await OCRRepository.ensureSecondWorker();
         const w0 = OCRRepository.workers[0];
         const w1 = OCRRepository.workers[1] || w0;
         const [metaRes, namesRes] = await Promise.all([
@@ -781,6 +985,8 @@ export const ScannerService = {
             }
             dCtx.setLineDash([]);
 
+            this.lastRawOcrLog = [];
+            const scanStats = { cells: cellRects.length, matched: 0, relics: 0, empty: 0, unmatched: 0, none: 0 };
             const activeCells = [];
             for (const cell of cellRects) {
                 const textSrcY = Math.round(cellH * 0.58);
@@ -796,6 +1002,7 @@ export const ScannerService = {
                 }
 
                 if (whitePixelCount < 40) {
+                    scanStats.empty++;
                     this.lastRawOcrLog.push(`[r${cell.r}c${cell.c}] SKIPPED (empty)`);
                     const relX = cell.sx - gridZone.x;
                     const relY = cell.sy - gridZone.y;
@@ -807,9 +1014,9 @@ export const ScannerService = {
                 }
             }
 
+            await Promise.all([OCRRepository.ensureSecondWorker(), OCRRepository.ensureBadgeWorkers()]);
             const workers = OCRRepository.workers;
             const bWorkers = OCRRepository.badgeWorkers;
-            this.lastRawOcrLog = [];
 
             let cellIndex = 0;
             const runWorker = async (worker, bWorker) => {
@@ -821,23 +1028,36 @@ export const ScannerService = {
                     const combinedText = await OCRService.extractCellText(worker, textCvs);
 
                     if (!combinedText) {
+                        scanStats.none++;
                         this.lastRawOcrLog.push(`[r${cell.r}c${cell.c}] NONE`);
                         continue;
                     }
 
                     let logStr = `[r${cell.r}c${cell.c}] OCR: ${combinedText.join(" ")}`;
                     let bestItem = OCRService.getValidItemMatch(combinedText);
-                    
+                    let fallbackText = null;
+
                     if (!bestItem) {
                         const fullCellCvs = VisionService.cropThemeBinarized(snapshot, cell.sx, Math.max(0, cell.sy - 16), cellW, cellH + 16, theme);
-                        const fallbackText = await OCRService.extractCellText(worker, fullCellCvs);
+                        fallbackText = await OCRService.extractCellText(worker, fullCellCvs);
                         if (fallbackText && fallbackText.length) {
                             logStr = `[r${cell.r}c${cell.c}] OCR (fallback): ${fallbackText.join(" ")}`;
                             bestItem = OCRService.getValidItemMatch(fallbackText);
                         }
                     }
 
+                    let relicMatch = null;
+                    let relicText = combinedText;
+                    if (!bestItem) {
+                        relicMatch = OCRService.getRelicMatch(combinedText);
+                        if (!relicMatch && fallbackText && fallbackText.length) {
+                            relicMatch = OCRService.getRelicMatch(fallbackText);
+                            if (relicMatch) relicText = fallbackText;
+                        }
+                    }
+
                     if (bestItem) {
+                        scanStats.matched++;
                         const badgeCanvas = VisionService.extractBadgeByColor(snapshot, cell, cellW, cellH, theme);
                         const qtyResult = await OCRService.extractCellQuantity(bWorker, badgeCanvas);
 
@@ -887,7 +1107,58 @@ export const ScannerService = {
                             dCtx.lineWidth = 1.5;
                             dCtx.strokeRect(bX, bY, bW, bH);
                         }
+                    } else if (relicMatch) {
+                        scanStats.relics++;
+                        const badgeCanvas = VisionService.extractBadgeByColor(snapshot, cell, cellW, cellH, theme);
+                        const qtyResult = await OCRService.extractCellQuantity(bWorker, badgeCanvas);
+
+                        const relicSrc = relicText === combinedText ? "1st-pass" : "fallback";
+                        logStr += ` || RELIC (${relicSrc}): ${relicMatch} || BDG: ${qtyResult.raw}`;
+                        this.lastRawOcrLog.push(logStr);
+
+                        this.recordQtyVote(relicMatch, qtyResult, this.relicQtyVotes, this.sessionRelics);
+
+                        const relX = cell.sx - gridZone.x;
+                        const relY = cell.sy - gridZone.y;
+
+                        dCtx.fillStyle = "rgba(10, 15, 28, 0.98)";
+                        dCtx.fillRect(relX, relY + cellH - 50, cellW, 50);
+
+                        dCtx.fillStyle = "rgba(0, 229, 255, 0.9)";
+                        dCtx.fillRect(relX, relY + cellH - 50, cellW, 1.5);
+
+                        dCtx.fillStyle = "#ffb300";
+                        dCtx.font = "italic 9px system-ui, -apple-system, sans-serif";
+                        const rawText = relicText.join(" ");
+                        const badgeRawText = qtyResult.raw ? qtyResult.raw.trim().replaceAll(/\s+/g, " ") : "Ø";
+                        const maxCharsItem = Math.floor(cellW / 5.5);
+                        const truncatedItem = rawText.length > maxCharsItem ? rawText.slice(0, maxCharsItem - 3) + "..." : rawText;
+                        dCtx.fillText(truncatedItem, relX + 6, relY + cellH - 37);
+                        dCtx.fillText(`BDG: "${badgeRawText}"`, relX + 6, relY + cellH - 25);
+
+                        dCtx.fillStyle = "#00e5ff";
+                        dCtx.font = "bold 12px system-ui, -apple-system, sans-serif";
+                        dCtx.fillText(relicMatch, relX + 6, relY + cellH - 8);
+
+                        const shiftLeft = (cell.c === 0) ? 14 : 2;
+                        dCtx.fillStyle = "rgba(0, 0, 0, 0.85)";
+                        dCtx.fillRect(relX - shiftLeft, relY + 4, 44 + (shiftLeft - 2), 18);
+                        dCtx.fillStyle = "#00e5ff";
+                        dCtx.font = "bold 11px monospace";
+                        const consensusQty = this.sessionRelics.get(relicMatch) ?? qtyResult.qty;
+                        dCtx.fillText(`x${consensusQty}`, relX - shiftLeft + 8, relY + 17);
+
+                        if (badgeCanvas) {
+                            const bX = (badgeCanvas.cropX !== undefined ? badgeCanvas.cropX : cell.sx) - gridZone.x;
+                            const bY = badgeCanvas.bestY - gridZone.y;
+                            const bW = badgeCanvas.cropW !== undefined ? badgeCanvas.cropW : Math.round(cellW * 0.28);
+                            const bH = badgeCanvas.cropH !== undefined ? badgeCanvas.cropH : Math.round(cellH * 0.12);
+                            dCtx.strokeStyle = "rgba(0, 229, 255, 0.85)";
+                            dCtx.lineWidth = 1.5;
+                            dCtx.strokeRect(bX, bY, bW, bH);
+                        }
                     } else {
+                        scanStats.unmatched++;
                         this.lastRawOcrLog.push(logStr);
                         const relX = cell.sx - gridZone.x;
                         const relY = cell.sy - gridZone.y;
@@ -925,11 +1196,27 @@ export const ScannerService = {
                 }
                 await Promise.all(workerPromises);
 
-                ScannerHUD.updateScrollStatus("done", this.sessionInventory.size);
-                ScannerHUD.updateDetectedItems(this.sessionInventory);
+                ScannerHUD.updateScrollStatus("done", this.sessionInventory.size + this.sessionRelics.size);
+                ScannerHUD.updateDetectedItems(this.sessionInventory, this.sessionRelics);
 
-                if (ScannerHUD.updateDebugSnapshot) {
-                    ScannerHUD.updateDebugSnapshot(debugCanvas.toDataURL("image/jpeg", 0.7));
+                const expected = autoGrid.rows * autoGrid.cols;
+                const fails = scanStats.unmatched + scanStats.none;
+                const hasWarning = fails > 0 || scanStats.cells < expected;
+                const summary = `cells ${scanStats.cells}/${expected} · match ${scanStats.matched}`
+                    + ` · relic ${scanStats.relics} · empty ${scanStats.empty} · fail ${fails}`
+                    + (autoGrid.phaseShift ? ` · dy ${autoGrid.phaseShift > 0 ? "+" : ""}${autoGrid.phaseShift}px` : "");
+                this.lastRawOcrLog.push(`[SUMMARY] ${summary}`);
+
+                this.debugHistory.unshift({
+                    time: new Date().toLocaleTimeString([], { hour12: false }),
+                    img: debugCanvas.toDataURL("image/jpeg", 0.6),
+                    log: [...this.lastRawOcrLog],
+                    summary,
+                    warning: hasWarning
+                });
+                if (this.debugHistory.length > 10) this.debugHistory.length = 10;
+                if (ScannerHUD.updateDebugHistory) {
+                    ScannerHUD.updateDebugHistory(this.debugHistory);
                     this.lastDebugUpdate = Date.now() + 5000;
                 }
             } catch (e) {
@@ -966,8 +1253,8 @@ function addRewardDebugLog(tag, msg, type = "info") {
 
     entry.innerHTML = `
         <span style="color:#555;">[${timeStr}]</span>
-        <span style="color:${colors[type]}; font-weight:bold;">${tag.toUpperCase()}</span>
-        <span style="color:#eee;">${msg}</span>
+        <span style="color:${colors[type]}; font-weight:bold;">${escapeHTML(tag).toUpperCase()}</span>
+        <span style="color:#eee;">${escapeHTML(msg)}</span>
     `;
 
     container.appendChild(entry);

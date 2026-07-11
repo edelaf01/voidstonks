@@ -5,6 +5,7 @@ import { warmupPrices } from "../api.js";
 import { ScannerService } from "../services/scanner.service.js";
 import { OCRService } from "../services/ocr.service.js";
 import { ScannerModal } from "../ui.components/ui_scanner_modal.js";
+import { ScannerHUD } from "../ui.components/ui_scanner_hud.js";
 import { OCRRepository } from "../repositories/ocr.repository.js";
 import { WF_THEMES } from "../services/vision.service.js";
 
@@ -40,9 +41,15 @@ globalThis.copyScannerDebugLog = async () => {
       logLines.push("\n[Inventory Scan Cache]: EMPTY");
     }
 
-    const rawOcr = globalThis.ScannerService?.lastRawOcrLog;
-    if (rawOcr && rawOcr.length > 0) {
-      logLines.push("\n[RAW OCR Per Cell]", rawOcr.sort().join("\n"));
+    const hist = ScannerService.debugHistory;
+    const selected = hist && hist[ScannerHUD.debugSelectedIndex];
+    if (selected) {
+      logLines.push(`\n[Scan ${selected.time}] ${selected.summary}`, "[RAW OCR Per Cell]", [...selected.log].sort().join("\n"));
+    } else {
+      const rawOcr = globalThis.ScannerService?.lastRawOcrLog;
+      if (rawOcr && rawOcr.length > 0) {
+        logLines.push("\n[RAW OCR Per Cell]", rawOcr.sort().join("\n"));
+      }
     }
 
     const logText = logLines.join("\n");
@@ -165,6 +172,18 @@ globalThis.saveLiveInventory = () => {
     state.primeInventory[name] = count;
   }
   ScannerService.sessionInventory.clear();
+
+  for (const [name, count] of ScannerService.sessionRelics) {
+    const existing = state.inventory.find(r => r.name === name);
+    if (existing) {
+      existing.count = count;
+    } else {
+      state.inventory.push({ name, count });
+    }
+  }
+  ScannerService.sessionRelics.clear();
+  ScannerService.relicQtyVotes.clear();
+
   showToast(sh.saved);
   saveAppState();
 
