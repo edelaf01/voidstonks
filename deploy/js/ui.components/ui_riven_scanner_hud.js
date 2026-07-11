@@ -1,5 +1,6 @@
 import { state } from "../state.js";
 import { TEXTS } from "../config.js";
+import { escapeHTML } from "./ui_components.js";
 
 export const RivenScannerHUD = {
     container: null,
@@ -284,7 +285,8 @@ export const RivenScannerHUD = {
         const posCount = riven.stats.filter(x => x.isPositive).length;
         const hasNeg = riven.stats.some(x => !x.isPositive);
         const statsHtml = riven.stats.map((s, i) => {
-            const prefix = s.isPositive ? "+" : "-";
+            const displayInverted = /^recoil$/i.test(s.name);
+            const prefix = (s.isPositive !== displayInverted) ? "+" : "-";
             const textColor = s.isPositive ? "#00ff88" : "#ff6b6b";
 
             const des = this._statDesirability(meta, s.name, s.isPositive);
@@ -298,11 +300,11 @@ export const RivenScannerHUD = {
                 if (ge.isPositive) {
                     const c = ge.tier === "S" ? "#ffd700" : ge.tier === "A" ? "#ff8c00" : ge.tier === "B" ? "#00e5ff" : "#888";
                     const lbl = ge.tier === "S" ? "TOP" : ge.tier === "A" ? (isEs ? "BUENO" : "GOOD") : ge.tier === "B" ? (isEs ? "MEDIO" : "MID") : (isEs ? "FLOJO" : "WEAK");
-                    const popTitle = isEs ? `Popularidad en ${riven.weaponName}: ${ge.weight}` : `Popularity on ${riven.weaponName}: ${ge.weight}`;
+                    const popTitle = isEs ? `Popularidad en ${escapeHTML(riven.weaponName)}: ${ge.weight}` : `Popularity on ${escapeHTML(riven.weaponName)}: ${ge.weight}`;
                     desBadge = `<span title="${popTitle}" style="font-weight:700; font-size:0.7em; letter-spacing:0.5px; padding:1px 7px; border-radius:999px; background:${c}22; color:${c}; border:1px solid ${c}66;">${lbl}</span>`;
                 } else {
                     const c = ge.badness < 0.40 ? "#00ff88" : ge.badness < 0.70 ? "#ff8c00" : "#ff4d4d";
-                    const dmgTitle = isEs ? `Daño en ${riven.weaponName}: ${ge.badness}` : `Damage on ${riven.weaponName}: ${ge.badness}`;
+                    const dmgTitle = isEs ? `Daño en ${escapeHTML(riven.weaponName)}: ${ge.badness}` : `Damage on ${escapeHTML(riven.weaponName)}: ${ge.badness}`;
                     desBadge = `<span title="${dmgTitle}" style="font-weight:700; font-size:0.7em; letter-spacing:0.5px; padding:1px 7px; border-radius:999px; background:${c}22; color:${c}; border:1px solid ${c}66;">${ge.label}</span>`;
                 }
             }
@@ -368,7 +370,7 @@ export const RivenScannerHUD = {
                     ${heroHtml}
 
                     <div class="riven-weapon-row">
-                        <span class="weapon-name">${title}</span>
+                        <span class="weapon-name">${escapeHTML(title)}</span>
                         <span style="display:flex; gap:6px; align-items:center;">${rollsInfo}${capBtnHtml}</span>
                     </div>
 
@@ -389,7 +391,7 @@ export const RivenScannerHUD = {
     },
 
     async _renderComparison(rollA, rollB) {
-        const { RivenOCRService } = await import("../services/riven_ocr.service.js?v=2");
+        const { RivenOCRService } = await import("../services/riven_ocr.service.js?v=3");
         const comparison = await RivenOCRService.compareRolls(rollA, rollB);
 
         if (!comparison) {
@@ -407,7 +409,8 @@ export const RivenScannerHUD = {
             const hasNeg = roll.stats.some(x => !x.isPositive);
             
             return roll.stats.map(s => {
-                const prefix = s.isPositive ? "+" : "-";
+                const displayInverted = /^recoil$/i.test(s.name);
+                const prefix = (s.isPositive !== displayInverted) ? "+" : "-";
                 const textColor = s.isPositive ? "#00ff78" : "#ff6b6b";
                 const des = this._statDesirability(meta, s.name, s.isPositive);
                 const desBadge = des
