@@ -1062,6 +1062,12 @@ export const VisionService = {
         const tCtx = tempCvs.getContext("2d", { willReadFrequently: true });
         tCtx.drawImage(snapshot, cell.sx, startY, safeW, safeH, 0, 0, safeW, safeH);
 
+        const srcData = tCtx.getImageData(0, 0, safeW, safeH).data;
+        const srcLuma = new Float32Array(safeW * safeH);
+        for (let p = 0; p < srcLuma.length; p++) {
+            srcLuma[p] = 0.299 * srcData[p * 4] + 0.587 * srcData[p * 4 + 1] + 0.114 * srcData[p * 4 + 2];
+        }
+
         this.applyClusteringThreshold(tCtx, safeW, safeH, theme);
 
         const imgData = tCtx.getImageData(0, 0, safeW, safeH);
@@ -1142,6 +1148,29 @@ export const VisionService = {
                     px[pixelIdx * 4 + 2] = 255;
                 }
                 comp.erased = true;
+            }
+        }
+
+        let maxAvgLuma = 0;
+        for (const comp of components) {
+            if (comp.erased) continue;
+            let sum = 0;
+            for (const idx of comp.pixels) sum += srcLuma[idx];
+            comp.avgLuma = sum / comp.pixels.length;
+            if (comp.avgLuma > maxAvgLuma) maxAvgLuma = comp.avgLuma;
+        }
+        if (maxAvgLuma > 0) {
+            for (const comp of components) {
+                if (comp.erased) continue;
+                if (comp.avgLuma < maxAvgLuma * 0.5) {
+                    for (const pixelIdx of comp.pixels) {
+                        px[pixelIdx * 4] = 255;
+                        px[pixelIdx * 4 + 1] = 255;
+                        px[pixelIdx * 4 + 2] = 255;
+                    }
+                    comp.erased = true;
+                    comp.hardErased = true;
+                }
             }
         }
 
