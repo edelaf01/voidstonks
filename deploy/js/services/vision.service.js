@@ -1219,16 +1219,19 @@ export const VisionService = {
             }
         }
 
-        for (const comp of components) {
-            if (comp.erased) continue;
-            if (comp.minY > safeH * 0.55) {
-                for (const pixelIdx of comp.pixels) {
-                    px[pixelIdx * 4] = 255;
-                    px[pixelIdx * 4 + 1] = 255;
-                    px[pixelIdx * 4 + 2] = 255;
+        const hasHigherDigit = components.some(c => !c.erased && c.minY <= safeH * 0.55);
+        if (hasHigherDigit) {
+            for (const comp of components) {
+                if (comp.erased) continue;
+                if (comp.minY > safeH * 0.55) {
+                    for (const pixelIdx of comp.pixels) {
+                        px[pixelIdx * 4] = 255;
+                        px[pixelIdx * 4 + 1] = 255;
+                        px[pixelIdx * 4 + 2] = 255;
+                    }
+                    comp.erased = true;
+                    comp.hardErased = true;
                 }
-                comp.erased = true;
-                comp.hardErased = true;
             }
         }
 
