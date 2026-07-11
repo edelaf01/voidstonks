@@ -1384,20 +1384,24 @@ export const VisionService = {
 
         // Filtro POSICIONAL: el icono de fundición (mano+pieza) vive en una fila POR DEBAJO
         // del badge y a veces pasa el filtro de forma (w/h < 0.92) → Tesseract lo lee como
-        // "A" y el repair A→4 lo convierte en "4". Los dígitos reales están en la fila
-        // superior del crop, junto al checkmark. hardErased: excluido también de la red de
-        // seguridad — si se restaurase, el icono se leería como "4" en TODOS los frames y
-        // el consenso temporal lo daría por bueno (caso Carrier Prime BP con cantidad 1).
-        for (const comp of components) {
-            if (comp.erased) continue;
-            if (comp.minY > safeH * 0.55) {
-                for (const pixelIdx of comp.pixels) {
-                    px[pixelIdx * 4] = 255;
-                    px[pixelIdx * 4 + 1] = 255;
-                    px[pixelIdx * 4 + 2] = 255;
+        // "A" y el repair A→4 lo convierte en "4". Se borra SOLO si existe un candidato de
+        // dígito MÁS ARRIBA (el dígito real está junto al checkmark, el icono debajo). Si el
+        // único componente que queda es el de abajo, es el propio dígito (a esta resolución
+        // cae cerca del umbral) y NO se toca — borrarlo dejaba leer el checkmark como "0" en
+        // filas enteras. hardErased se excluye de la red de seguridad (icono nunca vuelve).
+        const hasHigherDigit = components.some(c => !c.erased && c.minY <= safeH * 0.55);
+        if (hasHigherDigit) {
+            for (const comp of components) {
+                if (comp.erased) continue;
+                if (comp.minY > safeH * 0.55) {
+                    for (const pixelIdx of comp.pixels) {
+                        px[pixelIdx * 4] = 255;
+                        px[pixelIdx * 4 + 1] = 255;
+                        px[pixelIdx * 4 + 2] = 255;
+                    }
+                    comp.erased = true;
+                    comp.hardErased = true;
                 }
-                comp.erased = true;
-                comp.hardErased = true;
             }
         }
 
