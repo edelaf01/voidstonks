@@ -59,15 +59,9 @@ export const OCRRepository = {
                     return w;
                 };
 
-                const results = await Promise.all([
-                    createStandardWorker(),
-                    createStandardWorker(),
-                    createBadgeWorker(),
-                    createBadgeWorker()
-                ]);
-
-                this.workers = [results[0], results[1]];
-                this.badgeWorkers = [results[2], results[3]];
+                this._createStandardWorker = createStandardWorker;
+                this._createBadgeWorker = createBadgeWorker;
+                this.workers = [await createStandardWorker()];
 
                 return true;
             } catch (e) {
@@ -81,6 +75,25 @@ export const OCRRepository = {
         return Promise.race([this.initPromise, timeoutPromise]);
     },
 
+    async ensureSecondWorker() {
+        if (this.workers[1]) return;
+        if (!this._createStandardWorker) return;
+        if (!this._w2Promise) {
+            this._w2Promise = this._createStandardWorker().then(w => { this.workers[1] = w; });
+        }
+        await this._w2Promise;
+    },
+
+    async ensureBadgeWorkers() {
+        if (this.badgeWorkers.length) return;
+        if (!this._createBadgeWorker) return;
+        if (!this._badgePromise) {
+            this._badgePromise = Promise.all([this._createBadgeWorker(), this._createBadgeWorker()])
+                .then(ws => { this.badgeWorkers = ws; });
+        }
+        await this._badgePromise;
+    },
+
     terminateAll() {
         [...this.workers, ...new Set(this.badgeWorkers)].forEach(w => {
             if (w) {
@@ -90,6 +103,8 @@ export const OCRRepository = {
         this.workers = [];
         this.badgeWorkers = [];
         this.initPromise = null;
+        this._w2Promise = null;
+        this._badgePromise = null;
     },
 
     async recognize(worker, image, options = {}, output = undefined) {

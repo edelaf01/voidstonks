@@ -1,5 +1,6 @@
 import { state } from "../state.js";
 import { OCRRepository } from "../repositories/ocr.repository.js";
+import { VisionService } from "./vision.service.js";
 
 export const OCRService = {
     cachedDbItems: [],
@@ -58,8 +59,32 @@ export const OCRService = {
         return (longer.length - this.editDistance(longer, shorter)) / longer.length;
     },
 
+    RELIC_TIERS: ["LITH", "MESO", "NEO", "AXI", "REQUIEM"],
+    RELIC_NOISE_TOKENS: new Set([
+        "RELIC", "RADIANT", "INTACT", "EXCEPTIONAL", "FLAWLESS",
+        "RELIQUIA", "RADIANTE", "INTACTA", "EXCEPCIONAL", "IMPECABLE"
+    ]),
+
+    _fixRelicDigits(s) {
+        return s
+            .replaceAll("Z", "2").replaceAll("S", "5").replaceAll("B", "8")
+            .replaceAll("G", "6").replaceAll("O", "0").replaceAll(/[IL]/g, "1");
+    },
+
+    _fixRelicCode(codeRaw, isRequiem) {
+        let code = codeRaw;
+        if (!isRequiem && code.length >= 2) {
+            code = this._fixRelicDigits(code);
+        } else if (isRequiem) {
+            code = code
+                .replaceAll("1", "I").replaceAll("0", "O").replaceAll("2", "II")
+                .replaceAll("3", "III").replaceAll("4", "IV");
+        }
+        return code;
+    },
+
     parseRelicSelection(ocrText) {
-        const tiers = ["LITH", "MESO", "NEO", "AXI", "REQUIEM"];
+        const tiers = this.RELIC_TIERS;
         const text = ocrText.toUpperCase();
         const pattern = tiers.join("|");
         const match = new RegExp(String.raw`(${pattern})[\s\S]*?([A-Z][0-9]{1,2}|[IVX]+)`, "i").exec(text);
@@ -68,22 +93,86 @@ export const OCRService = {
         const tier = match[1].toUpperCase();
         const codeRaw = match[2].trim().replaceAll(/\s+/g, "");
         const isRequiem = tier === "REQUIEM";
-
-        let code = codeRaw;
-        if (!isRequiem && code.length >= 2) {
-            code = code
-                .replaceAll("Z", "2").replaceAll("S", "5").replaceAll("B", "8")
-                .replaceAll("G", "6").replaceAll("O", "0").replaceAll(/[IL]/g, "1");
-        } else if (isRequiem) {
-            code = code
-                .replaceAll("1", "I").replaceAll("0", "O").replaceAll("2", "II")
-                .replaceAll("3", "III").replaceAll("4", "IV");
-        }
+        const code = this._fixRelicCode(codeRaw, isRequiem);
 
         if (code && code.length >= 1) {
             const foundRelic = `${tier} ${code}`.toUpperCase();
             const exists = state.allRelicNames?.some(n => n.toUpperCase() === foundRelic);
             return exists ? foundRelic : null;
+        }
+        return null;
+    },
+
+    getRelicMatch(combinedText) {
+        if (!combinedText) return null;
+        const rawWords = Array.isArray(combinedText) ? combinedText : combinedText.split(/\s+/);
+        const words = rawWords
+            .map(w => (w || "").toString().toUpperCase().replaceAll(/[^A-Z0-9]/g, ""))
+            .filter(w => w.length > 0 && !this.RELIC_NOISE_TOKENS.has(w));
+
+        const tiers = this.RELIC_TIERS;
+
+        for (let i = 0; i < words.length; i++) {
+            const word = words[i];
+            const tierWord = word
+                .replaceAll("0", "O").replaceAll("1", "I")
+                .replaceAll("5", "S").replaceAll("8", "B");
+            let tier = null;
+            let remainder = "";
+
+            for (const t of tiers) {
+                if (tierWord === t) { tier = t; break; }
+                if (tierWord.length > t.length && tierWord.startsWith(t)) { tier = t; remainder = word.slice(t.length); break; }
+            }
+            if (!tier) {
+                for (const t of tiers) {
+                    if (this.getSimilarity(tierWord, t) >= 0.75) { tier = t; break; }
+                }
+            }
+            if (!tier) {
+                for (const t of tiers) {
+                    if (word.length !== t.length) continue;
+                    let mismatches = 0;
+                    let mismatchesAreDigits = true;
+                    for (let k = 0; k < t.length; k++) {
+                        if (tierWord[k] !== t[k]) {
+                            mismatches++;
+                            if (!/[0-9]/.test(word[k])) { mismatchesAreDigits = false; break; }
+                        }
+                    }
+                    if (mismatchesAreDigits && mismatches === 1) { tier = t; break; }
+                }
+            }
+            if (!tier) continue;
+
+            let codeRaw = remainder;
+            if (!codeRaw) {
+                for (let j = i + 1; j < Math.min(i + 3, words.length); j++) {
+                    const cand = words[j];
+                    if (/^[A-Z][0-9]{1,2}$/.test(cand) || /^[IVX]+$/.test(cand) || /^[A-Z][A-Z0-9]$/.test(cand) || /^[0-9][0-9]{1,2}$/.test(cand)) {
+                        codeRaw = cand;
+                        break;
+                    }
+                }
+            }
+            if (!codeRaw) continue;
+
+            const isRequiem = tier === "REQUIEM";
+            const DIGIT_TO_CODE_LETTER = { "1": "I", "0": "O", "8": "B", "5": "S", "6": "G", "2": "Z" };
+            let code;
+            if (isRequiem) {
+                code = this._fixRelicCode(codeRaw, true);
+            } else if (codeRaw.length >= 2) {
+                const lead = DIGIT_TO_CODE_LETTER[codeRaw.charAt(0)] || codeRaw.charAt(0);
+                code = lead + this._fixRelicDigits(codeRaw.slice(1));
+            } else {
+                code = codeRaw;
+            }
+            if (!code) continue;
+
+            const foundRelicUpper = `${tier} ${code}`.toUpperCase();
+            const canonical = state.allRelicNames?.find(n => n.toUpperCase() === foundRelicUpper);
+            if (canonical) return canonical;
         }
         return null;
     },
@@ -310,13 +399,28 @@ export const OCRService = {
         if (!badgeCanvas) return { qty: 1, raw: "" };
         const { data } = await OCRRepository.recognize(worker, badgeCanvas);
         if (!data || !data.words) return { qty: 1, raw: "" };
-        return this._badgeToQty(this._repairBadgeWords(data.words));
+        const repaired = this._repairBadgeWords(data.words);
+
+        const digits = repaired.badgeNums.map(w => w.text.replace(/\D/g, "")).join("");
+        if (/[69]/.test(digits)) {
+            const fixed = VisionService.disambiguate69(badgeCanvas, digits);
+            if (fixed !== digits) {
+                const val = Number.parseInt(fixed);
+                return {
+                    qty: (val > 1 && val < 1000) ? val : 1,
+                    raw: `${repaired.rawTexts} [69fix ${digits}->${fixed}]`
+                };
+            }
+        }
+        return this._badgeToQty(repaired);
     },
 
     getValidItemMatch(combinedText) {
         if (!this.cachedDbItems.length) this.initMatcherData();
 
-        const textWords = Array.isArray(combinedText) ? combinedText : combinedText.split(/\s+/);
+        // split OCR words on separators: Tesseract glues "CARRIER.PRIME"
+        const rawWords = Array.isArray(combinedText) ? combinedText : combinedText.split(/\s+/);
+        const textWords = rawWords.flatMap(w => w.split(/[^A-Za-z0-9]+/).filter(Boolean));
 
         if (textWords.length === 0) return null;
 

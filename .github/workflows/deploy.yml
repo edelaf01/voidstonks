@@ -17,15 +17,29 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     name: Deploy
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # Minifica el JS a dist/ (deploy/ conserva los comentarios). Ver scripts-actu/build-dist.mjs.
+      - name: Build minified dist
+        run: |
+          npm install --no-save esbuild@0.24.0
+          node scripts-actu/build-dist.mjs
 
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
           accountId: ${{ secrets.CF_ACCOUNT_ID }}
-          workingDirectory: 'deploy'
+          # Publica la copia minificada, no el fuente.
+          workingDirectory: 'dist'
           # OJO: cambia "voidstonks" por el nombre EXACTO de tu proyecto de Pages
           # (Cloudflare dashboard > Workers & Pages > tu proyecto).
           command: pages deploy . --project-name=voidstonks
