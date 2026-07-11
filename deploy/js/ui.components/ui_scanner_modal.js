@@ -3,6 +3,7 @@ import { TEXTS } from "../config.js";
 import { getSlug, getPriceValue } from "../api.js";
 import { showToast, escapeHTML } from "./ui_components.js";
 import { renderItemsInPiP } from "../utils/pip_overlay.js";
+import { ClipboardService } from "../services/clipboard.service.js";
 import { getItemIcon } from "../utils/ui_utils.js";
 
 /**
@@ -88,8 +89,14 @@ export const ScannerModal = {
                     const p = i.price || 0;
                     return p > 0 ? `[${i.name}] ${p} :platinum:` : `[${i.name}]`;
                 }).join(", ") + " - voidstonks";
-                navigator.clipboard.writeText(text).then(() => {
-                    showToast(TEXTS[state.currentLang].rewardScanner.toastCopied || "Results copied to clipboard");
+                // ClipboardService: extensión (copia sin foco) → clipboard nativo → cola
+                // al recuperar el foco. El write directo fallaba en silencio mientras se
+                // jugaba porque la pestaña no tiene el foco.
+                ClipboardService.copy(text).then((via) => {
+                    const t = TEXTS[state.currentLang].rewardScanner;
+                    showToast(via === "queued"
+                        ? (t.toastCopyQueued || "Se copiará al volver a la pestaña")
+                        : (t.toastCopied || "Copiado al portapapeles"));
                 }).catch(console.warn);
             }
         }

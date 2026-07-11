@@ -454,7 +454,7 @@ const loadLFGPreset = function (index) {
   }
 
   generateLFGMessage();
-  showToast(`Preset "${p.name}" cargado`);
+  showToast(`Preset "${escapeHTML(p.name)}" cargado`);
 };
 
 const deleteLFGPreset = function (index) {

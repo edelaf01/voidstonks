@@ -116,10 +116,45 @@ export const RivenOCRService = {
         return bestMatch;
     },
 
+    // El nombre capturado por PCT_RE puede arrastrar la línea SIGUIENTE cuando a esa le falta su
+    // valor (p.ej. el curse "-23.1% Ammo Maximum" pierde el número en el OCR y queda "Zoom Ammo
+    // Maximum", que _matchStat resolvía a "Ammo Maximum": el curse aparecía como positivo con el
+    // valor del Zoom). El stat correcto es el que EMPIEZA en la primera palabra (el valor
+    // pertenece al nombre inmediatamente posterior): probamos prefijos crecientes y nos quedamos
+    // con el match más largo cuyas formas cubren esa primera palabra ("Damage to Grineer" sigue
+    // ganando a "Damage"). Si ninguno ancla (p.ej. "Weapon Recoil", cuyo name_en es solo
+    // "Recoil"), caemos al comportamiento previo con el nombre completo.
+    _matchStatAnchored(rawName) {
+        const words = rawName.split(/\s+/).filter(Boolean);
+        const first = (words[0] || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+        let anchored = null;
+        if (first.length >= 3) {
+            for (let k = 1; k <= Math.min(5, words.length); k++) {
+                const m = this._matchStat(words.slice(0, k).join(" "));
+                if (!m) continue;
+                const statDef = RIVEN_STATS.find(s => s.name_en === m);
+                const formWords = `${m}/${statDef?.name_es || ""}`.toLowerCase().split(/[\s/]+/).filter(Boolean);
+                if (formWords.some(w => w === first || w.includes(first) || first.includes(w))) {
+                    anchored = m; // el prefijo anclado más largo gana (se sobreescribe al crecer k)
+                }
+            }
+        }
+        return anchored || this._matchStat(rawName);
+    },
+
     /**
      * Matches raw OCR text with a weapon name from state.allRivenNames.
      */
     _matchWeapon(rawName) {
+        return this._matchWeaponScored(rawName)?.name || null;
+    },
+
+    // Igual que _matchWeapon pero devolviendo la CALIDAD del match: { name, tier, dist }.
+    // tier 3 = exacto, 2 = substring, 1 = Levenshtein (texto completo o palabra a palabra).
+    // El que elige el arma entre varias líneas candidatas necesita la calidad para que un match
+    // exacto ("Gotva Prime") gane siempre a uno difuso ("ignido" → "Ignis"), aunque el difuso
+    // esté en una línea más cercana al bloque de stats.
+    _matchWeaponScored(rawName) {
         if (!state.allRivenNames || state.allRivenNames.length === 0) {
             import("./rivens.service.js").then(m => m.fetchRivenWeapons()).catch(() => {});
             return null;
@@ -129,7 +164,7 @@ export const RivenOCRService = {
 
         // 1. Exact match
         const exact = state.allRivenNames.find(n => n.toLowerCase() === clean);
-        if (exact) return exact;
+        if (exact) return { name: exact, tier: 3, dist: 0 };
 
         // 2. Substring match (whole weapon name contained in text, or vice versa)
         // Only allow substring matching if the substring is at least 4 chars to prevent false matches
@@ -139,7 +174,7 @@ export const RivenOCRService = {
             if (nl.length < 4 || clean.length < 4) return false;
             return clean.includes(nl) || nl.includes(clean);
         });
-        if (sub) return sub;
+        if (sub) return { name: sub, tier: 2, dist: 0 };
 
         // 3. Levenshtein match for the whole text (handles minor typos)
         let bestDist = Infinity;
@@ -156,7 +191,7 @@ export const RivenOCRService = {
                 bestMatch = name;
             }
         }
-        if (bestMatch) return bestMatch;
+        if (bestMatch) return { name: bestMatch, tier: 1, dist: bestDist };
 
         // 4. Word-by-word matching: check if any word in the text fuzzy matches a weapon name
         const words = clean.split(" ").filter(w => w.length >= 3);
@@ -174,7 +209,7 @@ export const RivenOCRService = {
             }
         }
 
-        return bestMatch;
+        return bestMatch ? { name: bestMatch, tier: 1, dist: bestDist } : null;
     },
 
     /**
@@ -321,7 +356,14 @@ export const RivenOCRService = {
             // Pass 1b: a single stat can wrap across lines (e.g. "+82.2% Fire Rate (x2 for / Bows)"),
             // so join the stat block and split it on each "<number>%" anchor rather than by line.
             // Each match is one stat: sign + value + the name up to the next anchor (or end).
-            const statBlock = contentLines.slice(firstStatIdx).join(" ").replace(/\bMR\s*\d+/ig, " ");
+            // El calificador condicional "(x2 for Bows)" se elimina GLOBALMENTE antes de ambos
+            // regex: el OCR lo parte en líneas ("(x2 for" / "Bows)") o lo funde con otras palabras
+            // ("x2 for Rate"), y si sobrevive, MULT_RE lo captura como un falso stat multiplicador
+            // (+100% de lo que sea). Solo un token tras "for" — un curse real "x0.7 Damage..." no
+            // lleva "for" y no se ve afectado.
+            const statBlock = contentLines.slice(firstStatIdx).join(" ")
+                .replace(/\bMR\s*\d+/ig, " ")
+                .replace(/\(?\s*x\s*\d+\s+for\s+[a-z)]+\)?/ig, " ");
 
             // Percentage stats. Each name runs up to the next "<number>%" OR an "x<mult>" curse
             // marker, so a faction curse ("x0.8 Damage to Grineer") is not swallowed into a name.
@@ -336,6 +378,9 @@ export const RivenOCRService = {
                 let value = parseFloat(m[2].replace(/[,\s]+/g, "."));
                 // Recover a dropped decimal point (e.g. 1215 → 121.5, 822 → 82.2)
                 if (value > 450 && value < 9999) value = parseFloat((value / 10).toFixed(1));
+                // Ningún stat real de riven baja de ~15% ni con disposición mínima: un valor
+                // diminuto ("+5% Puncture") es ruido del arte que casualmente casó con un nombre.
+                if (value < 8) continue;
                 // Strip wrapped qualifiers like "(x2 for Bows)" / "x2 for Bows" before matching the name
                 const name = m[3]
                     .replace(/\([^)]*\)/g, " ")
@@ -343,11 +388,23 @@ export const RivenOCRService = {
                     .replace(/[^\w\s/]/g, " ")
                     .replace(/\s+/g, " ")
                     .trim();
-                const matchedName = this._matchStat(name);
+                const matchedName = this._matchStatAnchored(name);
                 if (matchedName) {
                     // Elemental damage (Heat/Cold/Electric/Toxin) can only roll positive on a
                     // riven — if OCR read a minus on it, the sign is a misread, so force positive.
-                    const isPositive = /^(heat|cold|electric|toxin)$/i.test(matchedName) ? true : (sign === "+");
+                    let isPositive;
+                    if (/^(heat|cold|electric|toxin)$/i.test(matchedName)) {
+                        isPositive = true;
+                    } else if (/^recoil$/i.test(matchedName)) {
+                        // El recoil es un stat INVERTIDO: la carta muestra el buff con signo
+                        // negativo ("-89.5% Weapon Recoil" = menos retroceso = bueno) y el curse
+                        // en positivo. Sin esta inversión, una carta legítima con recoil-buff +
+                        // curse normal suma 2 "negativos" y la validación estructural la rechaza
+                        // entera (el roll nuevo nunca aparecía).
+                        isPositive = sign === "-";
+                    } else {
+                        isPositive = sign === "+";
+                    }
                     stats.push({ name: matchedName, value, isPositive, matched: true });
                 }
             }
@@ -356,13 +413,30 @@ export const RivenOCRService = {
             //   "x1.74 Damage to Corpus" → +74% (positive),  "x0.8 Damage to Grineer" → -20% (curse).
             // So a multiplier >1 is positive and <1 is negative. The "(x2 for Bows)" conditional
             // qualifier is skipped because its trailing text ("for Bows") matches no stat name.
-            const MULT_RE = /x\s*(\d+(?:[.,]\d+)?)\s+([a-zA-Z][a-zA-Z\s/]+?)\s*(?=\s*(?:[+\-–—]?\s*\d|x\s*\d|$))/gi;
+            // El nombre puede terminar en un dígito, otro "x<mult>", el fin del bloque O el primer
+            // carácter fuera de su clase: el ruido del arte tras el curse ("x0.7 Damage to Grineer
+            // A / N Om ye ... CYCLE FOR -.900") no deja ningún dígito limpio detrás, y con el
+            // lookahead original (solo dígito/fin) el regex no cerraba nunca y el curse se PERDÍA
+            // en casi todos los frames. Como la basura sigue siendo mayormente letras, además
+            // probamos el nombre por prefijos decrecientes de palabras (4→2) contra _matchStat:
+            // "Damage to Grineer A / N Om..." casa en el prefijo de 3 palabras.
+            const MULT_RE = /x\s*(\d+(?:[.,]\d+)?)\s+([a-zA-Z][a-zA-Z\s/]+?)\s*(?=\s*(?:[+\-–—]?\s*\d|x\s*\d|$)|[^a-zA-Z\s/])/gi;
+            // El formato multiplicador SOLO existe para daño a facción, así que casamos la facción
+            // directamente en vez de pasar por _matchStat: si el OCR pierde el "to" ("x0.7 Damage
+            // Grineer"), la forma "Damage to Grineer" fallaba (exige todas sus palabras) y ganaba
+            // el genérico "Damage". La facción es la única palabra discriminante y sobrevive bien
+            // al OCR; sin facción reconocible, se descarta (nunca era otro stat).
+            const FACTION_MULT = [
+                { re: /GRIN|GRJN|GR1N|GRTN/i, name: "Damage to Grineer" },
+                { re: /CORP|C0RP|CDRP/i, name: "Damage to Corpus" },
+                { re: /INFES|1NFES|NFEST|INFST/i, name: "Damage to Infested" },
+            ];
             let mm;
             while ((mm = MULT_RE.exec(statBlock)) !== null) {
                 const mult = parseFloat(mm[1].replace(",", "."));
                 if (!(mult > 0) || mult === 1) continue;
                 const name = mm[2].replace(/[^\w\s/]/g, " ").replace(/\s+/g, " ").trim();
-                const matchedName = this._matchStat(name);
+                const matchedName = FACTION_MULT.find(f => f.re.test(name))?.name || null;
                 if (matchedName && !stats.some(s => s.name === matchedName)) {
                     const value = parseFloat((Math.abs(mult - 1) * 100).toFixed(1));
                     stats.push({ name: matchedName, value, isPositive: mult > 1, matched: true });
@@ -370,50 +444,78 @@ export const RivenOCRService = {
             }
 
             // Pass 2: weapon & riven name from the content lines above the stat block.
+            // Elige por CALIDAD de match entre TODAS las líneas candidatas, no por cercanía al
+            // bloque de stats: el nombre del riven envuelto a 2 líneas ("Gotva Prime Croni-" /
+            // "ignido") deja su continuación como la línea MÁS cercana a los stats, y esa
+            // continuación puede casar por Levenshtein con otra arma ("ignido" → "Ignis", dist 2),
+            // alternando el arma mostrada según cómo saliera el OCR en cada frame. Un match
+            // exacto/substring del arma real debe ganar siempre; a igualdad de tier gana la menor
+            // distancia, y a igualdad total la línea más cercana a los stats (comportamiento previo).
+            let bestW = null;
             for (let i = firstStatIdx - 1; i >= 0; i--) {
                 const norm = contentLines[i];
-                if (norm.length <= 2 || norm.match(/^\d/) || norm.includes("%")) continue;
+                // El arte mete tokens espurios pegados a la línea del nombre: un dígito delante
+                // ("4 Scourge Cronidex") hacía saltar el guard ^\d, y un "%" suelto detrás
+                // ("Stug Sati-ignidex a%") el de includes("%") — y el arma se perdía. Recortamos
+                // la basura no alfabética inicial y solo descartamos la línea si es un stat REAL
+                // (dígito+%, STAT_ANCHOR), no por un % huérfano del ruido.
+                const lineTxt = norm.replace(/^[^A-Za-z]+/, "");
+                if (lineTxt.length <= 2 || STAT_ANCHOR.test(norm)) continue;
 
-                const words = norm.split(" ");
-                let matchedW = null;
+                const words = lineTxt.split(" ");
+                let cand = null;
                 if (words.length >= 2) {
                     const firstWord = words[0];
                     const restWords = words.slice(0, words.length - 1).join(" ");
-                    matchedW = this._matchWeapon(restWords) || this._matchWeapon(firstWord) || this._matchWeapon(norm);
+                    cand = this._matchWeaponScored(restWords) || this._matchWeaponScored(firstWord) || this._matchWeaponScored(lineTxt);
                 } else {
-                    matchedW = this._matchWeapon(norm);
+                    cand = this._matchWeaponScored(lineTxt);
                 }
 
-                if (matchedW) {
-                    weaponName = matchedW;
+                if (cand && (!bestW || cand.tier > bestW.tier || (cand.tier === bestW.tier && cand.dist < bestW.dist))) {
+                    bestW = { ...cand, norm };
+                }
+            }
 
-                    // Clean Riven name to exclude OCR garbage prefix (like "sd aa")
-                    let wIdx = norm.toLowerCase().indexOf(matchedW.toLowerCase());
-                    if (wIdx === -1) {
-                        const wordsLower = norm.toLowerCase().split(" ");
-                        let bestWordIdx = -1;
-                        let bestWordDist = Infinity;
-                        for (let k = 0; k < wordsLower.length; k++) {
-                            const d = this._levenshtein(wordsLower[k].replace(/[^a-z0-9]/g, ""), matchedW.toLowerCase());
-                            if (d < bestWordDist && d <= 2) {
-                                bestWordDist = d;
-                                bestWordIdx = k;
-                            }
+            if (bestW) {
+                weaponName = bestW.name;
+                const norm = bestW.norm;
+
+                // Clean Riven name to exclude OCR garbage prefix (like "sd aa")
+                let wIdx = norm.toLowerCase().indexOf(weaponName.toLowerCase());
+                if (wIdx === -1) {
+                    const wordsLower = norm.toLowerCase().split(" ");
+                    let bestWordIdx = -1;
+                    let bestWordDist = Infinity;
+                    for (let k = 0; k < wordsLower.length; k++) {
+                        const d = this._levenshtein(wordsLower[k].replace(/[^a-z0-9]/g, ""), weaponName.toLowerCase());
+                        if (d < bestWordDist && d <= 2) {
+                            bestWordDist = d;
+                            bestWordIdx = k;
                         }
-                        if (bestWordIdx !== -1) {
-                            rivenName = norm.split(" ").slice(bestWordIdx).join(" ");
-                        } else {
-                            rivenName = norm;
-                        }
-                    } else {
-                        rivenName = norm.substring(wIdx).trim();
                     }
-                    break; // Found the closest weapon name, stop searching!
+                    if (bestWordIdx !== -1) {
+                        rivenName = norm.split(" ").slice(bestWordIdx).join(" ");
+                    } else {
+                        rivenName = norm;
+                    }
+                } else {
+                    rivenName = norm.substring(wIdx).trim();
                 }
             }
         }
 
         if (!weaponName && stats.length === 0) return null;
+
+        // Una carta real NUNCA tiene 4 positivos (2-3 buffs + 0-1 curse): si el parse dio 4 stats
+        // todos positivos es que el ruido del arte se comió el "-" del curse (p.ej. "v7 91.9%
+        // Ammo Maximum"), y el curse es SIEMPRE la última línea de stats de la carta → recupera
+        // el signo ahí en vez de rechazar la carta entera. Los elementales nunca son curse, así
+        // que si la última es un elemental no hay recuperación posible (carta rota de verdad).
+        if (stats.length === 4 && stats.every(s => s.isPositive)) {
+            const last = stats[stats.length - 1];
+            if (!/^(heat|cold|electric|toxin)$/i.test(last.name)) last.isPositive = false;
+        }
 
         // Riven card structural validation (2-3 positives, 0-1 negatives, 2-4 total)
         const positives = stats.filter(s => s.isPositive);
