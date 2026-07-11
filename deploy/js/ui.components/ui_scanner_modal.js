@@ -293,12 +293,16 @@ globalThis.closeScanModal = () => {
     if (state.autoSyncRewards && ScannerModal.currentResults && !ScannerModal.isHistoric) {
         ScannerModal.currentResults.forEach(item => {
             if (!item.name) return;
-            // "Crafted": el juego OCULTA el número de Owned (podrías tener 9 pero solo pone
-            // "Crafted"). Como no sabemos el conteo real, NO tocamos el inventario de ese ítem
-            // — se deja como estaba para no machacar el conteo bueno con un 0.
-            if (item.crafted) return;
             const currentAppQty = state.primeInventory[item.name] || 0;
             const isSelected = (globalThis.selectedScanItem === item.name);
+            // "Crafted": el juego OCULTA el número de Owned (podrías tener 9 pero solo pone
+            // "Crafted"). No sabemos el conteo real, así que NO lo sobrescribimos: si el usuario
+            // seleccionó esta recompensa, sumamos +1 sobre lo que ya tenía (9→10, 0→1); si no,
+            // se deja intacto.
+            if (item.crafted) {
+                if (isSelected) state.primeInventory[item.name] = currentAppQty + 1;
+                return;
+            }
             const ocrOwned = (typeof item.owned === 'number') ? item.owned : currentAppQty;
             state.primeInventory[item.name] = ocrOwned + (isSelected ? 1 : 0);
         });
