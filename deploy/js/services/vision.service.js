@@ -1265,6 +1265,16 @@ export const VisionService = {
         const tCtx = tempCvs.getContext("2d", { willReadFrequently: true });
         tCtx.drawImage(snapshot, cell.sx, startY, safeW, safeH, 0, 0, safeW, safeH);
 
+        // Luma de ORIGEN antes de binarizar: la trama esquemática de fondo de los PLANOS es
+        // tenue, el badge (número) es brillante. Se usa después para descartar componentes
+        // tenues (ruido del plano que la K-means metía en el cluster "texto" → falso dígito,
+        // p.ej. Frost Systems 11→1).
+        const srcData = tCtx.getImageData(0, 0, safeW, safeH).data;
+        const srcLuma = new Float32Array(safeW * safeH);
+        for (let p = 0; p < srcLuma.length; p++) {
+            srcLuma[p] = 0.299 * srcData[p * 4] + 0.587 * srcData[p * 4 + 1] + 0.114 * srcData[p * 4 + 2];
+        }
+
         // 2. Binarize using dynamic K-Means color clustering seeded by the exact detected theme
         this.applyClusteringThreshold(tCtx, safeW, safeH, theme);
 
@@ -1355,6 +1365,34 @@ export const VisionService = {
                     px[pixelIdx * 4 + 2] = 255;
                 }
                 comp.erased = true;
+            }
+        }
+
+        // Filtro de BRILLO (ruido de la trama de los PLANOS): el badge (checkmark+número) es
+        // brillante; la trama esquemática de fondo de un plano es tenue pero la K-means la metía
+        // en el cluster "texto". Se calcula el brillo medio de cada componente sobre la imagen
+        // ORIGINAL y se descartan los muy por debajo del componente más brillante (el badge).
+        // hardErased: no vuelve por la red de seguridad. Arregla p.ej. Frost Systems 11→1.
+        let maxAvgLuma = 0;
+        for (const comp of components) {
+            if (comp.erased) continue;
+            let sum = 0;
+            for (const idx of comp.pixels) sum += srcLuma[idx];
+            comp.avgLuma = sum / comp.pixels.length;
+            if (comp.avgLuma > maxAvgLuma) maxAvgLuma = comp.avgLuma;
+        }
+        if (maxAvgLuma > 0) {
+            for (const comp of components) {
+                if (comp.erased) continue;
+                if (comp.avgLuma < maxAvgLuma * 0.5) {
+                    for (const pixelIdx of comp.pixels) {
+                        px[pixelIdx * 4] = 255;
+                        px[pixelIdx * 4 + 1] = 255;
+                        px[pixelIdx * 4 + 2] = 255;
+                    }
+                    comp.erased = true;
+                    comp.hardErased = true;
+                }
             }
         }
 
