@@ -1182,22 +1182,32 @@ export const ScannerService = {
         this.detectionLocked = true;
 
         try {
-            // 1. Ensure calibration exists (single-zone format)
-            if (globalThis.LiveCalibration && !globalThis.LiveCalibration.hasCalibration()) {
-                console.log("[INV] No calibration found. Starting zone calibration...");
-                const calibCvs = document.createElement("canvas");
-                calibCvs.width = width;
-                calibCvs.height = height;
-                const calibCtx = calibCvs.getContext("2d", { willReadFrequently: true });
-                calibCtx.drawImage(snapshot, 0, 0);
-                await globalThis.LiveCalibration.runCalibrationFlow(
-                    calibCtx.getImageData(0, 0, width, height)
-                );
-                return;
+            // 1. AUTODETECCIÓN por frame: intenta encontrar la rejilla en los propios
+            // píxeles (sin calibración). Si hay señal, se usa SIEMPRE (se autoajusta a
+            // scroll/resolución); la calibración manual guardada queda como fallback.
+            let calibData = VisionService.detectGridAutoCalib(snapshot, width, height);
+
+            if (!calibData) {
+                calibData = globalThis.LiveCalibration?.getGrid() || null;
+                if (calibData) {
+                    console.log("[INV] Auto-grid sin señal este frame — usando calibración manual guardada.");
+                }
             }
 
-            const calibData = globalThis.LiveCalibration?.getGrid();
+            // Último recurso: sin autodetección ni calibración guardada, abre el modal
             if (!calibData?.gridZone) {
+                if (globalThis.LiveCalibration && !globalThis.LiveCalibration.hasCalibration()) {
+                    console.log("[INV] Sin auto-grid ni calibración. Abriendo calibración manual...");
+                    const calibCvs = document.createElement("canvas");
+                    calibCvs.width = width;
+                    calibCvs.height = height;
+                    const calibCtx = calibCvs.getContext("2d", { willReadFrequently: true });
+                    calibCtx.drawImage(snapshot, 0, 0);
+                    await globalThis.LiveCalibration.runCalibrationFlow(
+                        calibCtx.getImageData(0, 0, width, height)
+                    );
+                    return;
+                }
                 console.warn("[INV] No grid zone calibration available.");
                 return;
             }
