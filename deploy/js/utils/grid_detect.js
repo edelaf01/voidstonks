@@ -197,12 +197,21 @@ export function bestArithmeticChain(items, minPitch, maxPitch, tol = 0.12) {
                 }
             }
 
-            // Prioridad: nº de filas > alineación de columnas > masa
+            // Prioridad: cadenas de ≥3 filas primero; entre ellas manda la MASA
+            // (las bandas de nombres pesan ~10× más que las de badges de
+            // cantidad, que forman una cadena paralela al mismo pitch y pueden
+            // incluso ser más largas si una fila cortada muestra solo badges);
+            // después alineación de columnas y por último longitud.
             const cand = { len: members.length, alignment, mass, members: members.map(m => m.pos) };
-            if (!best ||
-                cand.len > best.len ||
-                (cand.len === best.len && cand.alignment > best.alignment) ||
-                (cand.len === best.len && cand.alignment === best.alignment && cand.mass > best.mass)) {
+            const q = c => [c.len >= 3 ? 1 : 0, c.mass, c.alignment, c.len];
+            const gt = (a, b) => {
+                const qa = q(a), qb = q(b);
+                for (let s = 0; s < qa.length; s++) {
+                    if (qa[s] !== qb[s]) return qa[s] > qb[s];
+                }
+                return false;
+            };
+            if (!best || gt(cand, best)) {
                 const steps = [];
                 for (let s = 1; s < members.length; s++) steps.push(members[s].pos - members[s - 1].pos);
                 cand.pitch = steps.reduce((a, b) => a + b, 0) / steps.length;
@@ -277,7 +286,7 @@ export function detectInventoryGrid(img, opts = {}) {
     })).filter(bb => bb.blocks.length >= 1);
     trace.bandBlocks = bandBlocks.map(bb => ({ y0: bb.band.y0, blocks: bb.blocks.length }));
     if (bandBlocks.length < 2) {
-        trace.fail = `bandas con bloques válidos insuficientes (${bandBlocks.length} < 2) — ¿bloques demasiado anchos (>35% del frame) o ruido?`;
+        trace.fail = `bandas con bloques válidos insuficientes (${bandBlocks.length} < 2) — ¿bloques de borde a borde (>90% del frame) o ruido?`;
         return null;
     }
 
@@ -285,7 +294,11 @@ export function detectInventoryGrid(img, opts = {}) {
     // El HUD (título INVENTORY/SELL, buscador…) y los paneles laterales (SELL
     // ITEMS, TOTAL…) crean bandas a alturas arbitrarias: solo las filas reales
     // forman una progresión equiespaciada. Nos quedamos con esa cadena.
-    const chainItems = bandBlocks.map(bb => ({
+    // Las bandas del ~20% superior son SIEMPRE HUD (título, pestañas, buscador:
+    // ≤17% en todas las capturas reales; el grid nunca empieza antes del 23%)
+    // y pueden engancharse a la cadena con paso casualmente consistente.
+    const hudLimit = height * 0.2;
+    const chainItems = bandBlocks.filter(bb => bb.band.y0 >= hudLimit).map(bb => ({
         pos: bb.band.y0,
         mass: bb.blocks.reduce((s, bl) => s + bl.mass, 0),
         centers: bb.blocks.map(bl => bl.cx),
@@ -301,8 +314,52 @@ export function detectInventoryGrid(img, opts = {}) {
         return null;
     }
     const cellH = Math.round(chain.pitch);
-    const chainSet = new Set(chain.members);
-    const rowBands = bandBlocks.filter(bb => chainSet.has(bb.band.y0));
+
+    // --- Re-anclaje de filas: ¿la cadena son NOMBRES o BADGES/otros? ---
+    // Los badges de cantidad forman una cadena paralela al mismo pitch (una por
+    // fila, desfasada ~0.6·cellH de los nombres). El pitch de la cadena vale
+    // igual, pero la fase debe anclarse en los nombres: se pliega el perfil de
+    // filas módulo cellH dentro del rango del grid y se busca el ARCO más
+    // pesado (los nombres concentran mucha más masa que badges o restos).
+    const base = chain.members[0];
+    const last = chain.members[chain.members.length - 1];
+    const foldY0 = Math.max(Math.ceil(hudLimit), base - cellH);
+    const foldY1 = Math.min(height - 1, last + cellH);
+    const fold = new Float32Array(cellH);
+    for (let y = foldY0; y <= foldY1; y++) {
+        fold[((y - base) % cellH + cellH) % cellH] += prof[y];
+    }
+    const arcLen = Math.max(2, Math.round(cellH * 0.35));
+    let arcSum = 0;
+    for (let i = 0; i < arcLen; i++) arcSum += fold[i];
+    let bestArc = 0, bestArcSum = arcSum;
+    for (let s = 1; s < cellH; s++) {
+        arcSum += fold[(s + arcLen - 1) % cellH] - fold[s - 1];
+        if (arcSum > bestArcSum) { bestArcSum = arcSum; bestArc = s; }
+    }
+    // Top de banda de nombres en fase: base + bestArc (mod cellH), representado
+    // lo más cerca posible de base
+    const nameBase = base + (bestArc <= cellH / 2 ? bestArc : bestArc - cellH);
+
+    // Filas = bandas cualificadas que caen en los slots nameBase + k·cellH
+    const rowBands = [];
+    const usedTops = [];
+    for (let t = nameBase - Math.ceil((nameBase - hudLimit) / cellH) * cellH; t < height; t += cellH) {
+        if (t < hudLimit - cellH * 0.2) continue;
+        let bb = null;
+        for (const cand2 of bandBlocks) {
+            if (cand2.band.y0 >= hudLimit && Math.abs(cand2.band.y0 - t) <= cellH * 0.2 &&
+                (!bb || Math.abs(cand2.band.y0 - t) < Math.abs(bb.band.y0 - t))) {
+                bb = cand2;
+            }
+        }
+        if (bb && !rowBands.includes(bb)) { rowBands.push(bb); usedTops.push(bb.band.y0); }
+    }
+    trace.rowBands = usedTops;
+    if (rowBands.length < o.rows) {
+        trace.fail = `solo ${rowBands.length} filas de nombres tras re-anclar (<${o.rows})`;
+        return null;
+    }
 
     // --- Pitch horizontal (cellW) por AUTOCORRELACIÓN del perfil de columnas ---
     // Los nombres largos fusionan bloques de celdas vecinas (el hueco entre
@@ -389,10 +446,40 @@ export function detectInventoryGrid(img, opts = {}) {
 
     // Bordes de celda: e ≡ r* (mod cellW). El izquierdo es el mayor borde
     // ≤ xMin; el derecho, el menor borde ≥ xMax.
-    const gridXf = xMin - mod(xMin - bestR2, cellW);
+    let gridXf = xMin - mod(xMin - bestR2, cellW);
     let rightEdge = gridXf;
     while (rightEdge < xMax) rightEdge += cellW;
-    const cols = Math.round((rightEdge - gridXf) / cellW);
+    let cols = Math.round((rightEdge - gridXf) / cellW);
+
+    // --- AÍSLA la zona del grid: recorte por ocupación de celda ---
+    // Texto ajeno a la misma altura que una fila (contador de platino, panel
+    // lateral) estira xMin/xMax y cuela columnas fantasma. Las columnas reales
+    // tienen nombres en (casi) todas las filas: nos quedamos con la racha
+    // contigua de celdas más larga con ocupación significativa.
+    if (cols >= 2) {
+        const occ = new Array(cols).fill(0);
+        for (let k = 0; k < cols; k++) {
+            const a = Math.max(0, Math.round(gridXf + k * cellW));
+            const b = Math.min(width - 1, Math.round(gridXf + (k + 1) * cellW));
+            for (let x = a; x <= b; x++) occ[k] += colProf[x];
+        }
+        const maxOcc = Math.max(...occ);
+        const occThr2 = maxOcc * 0.15;
+        let bs = 0, bl = 0, cs = -1;
+        for (let k = 0; k <= cols; k++) {
+            if (k < cols && occ[k] >= occThr2) {
+                if (cs < 0) cs = k;
+                if (k - cs + 1 > bl) { bl = k - cs + 1; bs = cs; }
+            } else {
+                cs = -1;
+            }
+        }
+        if (bl >= 1 && bl < cols) {
+            trace.trimmedCols = { before: cols, kept: bl, from: bs };
+            gridXf += bs * cellW;
+            cols = bl;
+        }
+    }
     // <3 columnas visibles no da confianza; >12 es imposible en Warframe ⇒ señal rota
     if (cols < o.minCols || cols > o.maxCols) {
         trace.fail = `columnas fuera de rango: ${cols}`;
@@ -403,12 +490,12 @@ export function detectInventoryGrid(img, opts = {}) {
     // --- Fase vertical: top de celda desde la PRIMERA banda de la cadena ---
     // (no la primera banda global, que puede ser el título del HUD;
     // detectRowPhase/_applyRowPhase afina el desfase real después)
-    const firstTop = chain.members[0];
+    const firstTop = usedTops[0];
     const gridY = Math.round(firstTop - cellH * o.nameBandOffset);
 
     // Una banda por fila real detectada (puede haber una 4ª fila asomando);
     // las celdas que caigan fuera del frame las filtra _applyRowPhase después.
-    const rows = chain.members.length;
+    const rows = rowBands.length;
     const gridW = Math.min(cols * cellW, width - gridX);
     const gridH = Math.min(rows * cellH, height - Math.max(0, gridY));
 
