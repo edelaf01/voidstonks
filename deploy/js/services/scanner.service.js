@@ -964,21 +964,28 @@ export const ScannerService = {
         this.detectionLocked = true;
 
         try {
-            if (globalThis.LiveCalibration && !globalThis.LiveCalibration.hasCalibration()) {
-                console.log("[INV] No calibration found. Starting zone calibration...");
-                const calibCvs = document.createElement("canvas");
-                calibCvs.width = width;
-                calibCvs.height = height;
-                const calibCtx = calibCvs.getContext("2d", { willReadFrequently: true });
-                calibCtx.drawImage(snapshot, 0, 0);
-                await globalThis.LiveCalibration.runCalibrationFlow(
-                    calibCtx.getImageData(0, 0, width, height)
-                );
-                return;
+            let calibData = VisionService.detectGridAutoCalib(snapshot, width, height);
+
+            if (!calibData) {
+                calibData = globalThis.LiveCalibration?.getGrid() || null;
+                if (calibData) {
+                    console.log("[INV] Auto-grid sin señal este frame — usando calibración manual guardada.");
+                }
             }
 
-            const calibData = globalThis.LiveCalibration?.getGrid();
             if (!calibData?.gridZone) {
+                if (globalThis.LiveCalibration && !globalThis.LiveCalibration.hasCalibration()) {
+                    console.log("[INV] Sin auto-grid ni calibración. Abriendo calibración manual...");
+                    const calibCvs = document.createElement("canvas");
+                    calibCvs.width = width;
+                    calibCvs.height = height;
+                    const calibCtx = calibCvs.getContext("2d", { willReadFrequently: true });
+                    calibCtx.drawImage(snapshot, 0, 0);
+                    await globalThis.LiveCalibration.runCalibrationFlow(
+                        calibCtx.getImageData(0, 0, width, height)
+                    );
+                    return;
+                }
                 console.warn("[INV] No grid zone calibration available.");
                 return;
             }
