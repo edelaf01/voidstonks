@@ -951,9 +951,12 @@ export const VisionService = {
             const ctx = cvs.getContext("2d", { willReadFrequently: true });
             ctx.drawImage(snapshot, 0, 0, width, height);
             const img = ctx.getImageData(0, 0, width, height);
-            const calib = detectInventoryGrid(img);
+            const trace = {};
+            const calib = detectInventoryGrid(img, { trace });
             if (calib) {
                 console.log(`[VisionService] Auto-grid SIN calibración: ${calib.rows}r × ${calib.cols}c cellW=${calib.cellW} cellH=${calib.cellH} conf=${calib.confidence.toFixed(2)}`, calib.gridZone);
+            } else {
+                console.warn("[VisionService] Auto-grid sin señal:", trace.fail || "?", trace);
             }
             return calib;
         } catch (e) {
