@@ -168,11 +168,18 @@ export function bestArithmeticChain(items, minPitch, maxPitch, tol = 0.12) {
                 }
             }
 
+            // chains of ≥3 rows first; then MASS (name bands weigh ~10× the quantity badge bands, which form a parallel
+            // chain at the same pitch); then column alignment and length
             const cand = { len: members.length, alignment, mass, members: members.map(m => m.pos) };
-            if (!best ||
-                cand.len > best.len ||
-                (cand.len === best.len && cand.alignment > best.alignment) ||
-                (cand.len === best.len && cand.alignment === best.alignment && cand.mass > best.mass)) {
+            const q = c => [c.len >= 3 ? 1 : 0, c.mass, c.alignment, c.len];
+            const gt = (a, b) => {
+                const qa = q(a), qb = q(b);
+                for (let s = 0; s < qa.length; s++) {
+                    if (qa[s] !== qb[s]) return qa[s] > qb[s];
+                }
+                return false;
+            };
+            if (!best || gt(cand, best)) {
                 const steps = [];
                 for (let s = 1; s < members.length; s++) steps.push(members[s].pos - members[s - 1].pos);
                 cand.pitch = steps.reduce((a, b) => a + b, 0) / steps.length;
@@ -236,11 +243,12 @@ export function detectInventoryGrid(img, opts = {}) {
     })).filter(bb => bb.blocks.length >= 1);
     trace.bandBlocks = bandBlocks.map(bb => ({ y0: bb.band.y0, blocks: bb.blocks.length }));
     if (bandBlocks.length < 2) {
-        trace.fail = `bandas con bloques válidos insuficientes (${bandBlocks.length} < 2) — ¿bloques demasiado anchos (>35% del frame) o ruido?`;
+        trace.fail = `bandas con bloques válidos insuficientes (${bandBlocks.length} < 2) — ¿bloques de borde a borde (>90% del frame) o ruido?`;
         return null;
     }
 
-    const chainItems = bandBlocks.map(bb => ({
+    const hudLimit = height * 0.2;
+    const chainItems = bandBlocks.filter(bb => bb.band.y0 >= hudLimit).map(bb => ({
         pos: bb.band.y0,
         mass: bb.blocks.reduce((s, bl) => s + bl.mass, 0),
         centers: bb.blocks.map(bl => bl.cx),
@@ -255,8 +263,44 @@ export function detectInventoryGrid(img, opts = {}) {
         return null;
     }
     const cellH = Math.round(chain.pitch);
-    const chainSet = new Set(chain.members);
-    const rowBands = bandBlocks.filter(bb => chainSet.has(bb.band.y0));
+
+    const base = chain.members[0];
+    const last = chain.members[chain.members.length - 1];
+    const foldY0 = Math.max(Math.ceil(hudLimit), base - cellH);
+    const foldY1 = Math.min(height - 1, last + cellH);
+    const fold = new Float32Array(cellH);
+    for (let y = foldY0; y <= foldY1; y++) {
+        fold[((y - base) % cellH + cellH) % cellH] += prof[y];
+    }
+    const arcLen = Math.max(2, Math.round(cellH * 0.35));
+    let arcSum = 0;
+    for (let i = 0; i < arcLen; i++) arcSum += fold[i];
+    let bestArc = 0, bestArcSum = arcSum;
+    for (let s = 1; s < cellH; s++) {
+        arcSum += fold[(s + arcLen - 1) % cellH] - fold[s - 1];
+        if (arcSum > bestArcSum) { bestArcSum = arcSum; bestArc = s; }
+    }
+    // name band top in phase: base + bestArc (mod cellH), as close to base as possible
+    const nameBase = base + (bestArc <= cellH / 2 ? bestArc : bestArc - cellH);
+
+    const rowBands = [];
+    const usedTops = [];
+    for (let t = nameBase - Math.ceil((nameBase - hudLimit) / cellH) * cellH; t < height; t += cellH) {
+        if (t < hudLimit - cellH * 0.2) continue;
+        let bb = null;
+        for (const cand2 of bandBlocks) {
+            if (cand2.band.y0 >= hudLimit && Math.abs(cand2.band.y0 - t) <= cellH * 0.2 &&
+                (!bb || Math.abs(cand2.band.y0 - t) < Math.abs(bb.band.y0 - t))) {
+                bb = cand2;
+            }
+        }
+        if (bb && !rowBands.includes(bb)) { rowBands.push(bb); usedTops.push(bb.band.y0); }
+    }
+    trace.rowBands = usedTops;
+    if (rowBands.length < o.rows) {
+        trace.fail = `solo ${rowBands.length} filas de nombres tras re-anclar (<${o.rows})`;
+        return null;
+    }
 
     // horizontal pitch (cellW) by AUTOCORRELATION of the column profile: long names merge neighbour cell
     // blocks, so block centers are NOT reliable; the profile periodicity is
@@ -335,10 +379,38 @@ export function detectInventoryGrid(img, opts = {}) {
     const bestR2 = mod(bestStart + Math.floor(bestLen / 2), cellW);
 
     // cell borders: e ≡ r* (mod cellW). Left = largest border ≤ xMin; right = smallest border ≥ xMax
-    const gridXf = xMin - mod(xMin - bestR2, cellW);
+    let gridXf = xMin - mod(xMin - bestR2, cellW);
     let rightEdge = gridXf;
     while (rightEdge < xMax) rightEdge += cellW;
-    const cols = Math.round((rightEdge - gridXf) / cellW);
+    let cols = Math.round((rightEdge - gridXf) / cellW);
+
+    // ISOLATE the grid zone by cell occupancy: foreign text at row height (plat counter, side panel) stretches
+    // xMin/xMax. Real columns have names in (almost) every row: keep the longest contiguous run of occupied
+    // cells
+    if (cols >= 2) {
+        const occ = new Array(cols).fill(0);
+        for (let k = 0; k < cols; k++) {
+            const a = Math.max(0, Math.round(gridXf + k * cellW));
+            const b = Math.min(width - 1, Math.round(gridXf + (k + 1) * cellW));
+            for (let x = a; x <= b; x++) occ[k] += colProf[x];
+        }
+        const maxOcc = Math.max(...occ);
+        const occThr2 = maxOcc * 0.15;
+        let bs = 0, bl = 0, cs = -1;
+        for (let k = 0; k <= cols; k++) {
+            if (k < cols && occ[k] >= occThr2) {
+                if (cs < 0) cs = k;
+                if (k - cs + 1 > bl) { bl = k - cs + 1; bs = cs; }
+            } else {
+                cs = -1;
+            }
+        }
+        if (bl >= 1 && bl < cols) {
+            trace.trimmedCols = { before: cols, kept: bl, from: bs };
+            gridXf += bs * cellW;
+            cols = bl;
+        }
+    }
     // <3 visible columns gives no confidence; >12 is impossible in Warframe
     if (cols < o.minCols || cols > o.maxCols) {
         trace.fail = `columnas fuera de rango: ${cols}`;
@@ -346,10 +418,10 @@ export function detectInventoryGrid(img, opts = {}) {
     }
     const gridX = Math.max(0, Math.round(gridXf));
 
-    const firstTop = chain.members[0];
+    const firstTop = usedTops[0];
     const gridY = Math.round(firstTop - cellH * o.nameBandOffset);
 
-    const rows = chain.members.length;
+    const rows = rowBands.length;
     const gridW = Math.min(cols * cellW, width - gridX);
     const gridH = Math.min(rows * cellH, height - Math.max(0, gridY));
 
