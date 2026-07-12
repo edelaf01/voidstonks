@@ -266,10 +266,13 @@ export function detectInventoryGrid(img, opts = {}) {
 
     // Bloques de texto por banda; una banda de nombres real tiene ≥1 bloque
     // "tamaño nombre" (ni una línea de HUD a todo lo ancho, ni un punto suelto)
+    // Nombres anchos y a 2 líneas pueden FUSIONAR celdas vecinas en un solo
+    // bloque (el hueco entre celdas es menor que el alto de banda): el filtro
+    // de ancho debe tolerarlo — solo descarta líneas de borde a borde.
     const bandBlocks = bands.map(b => ({
         band: b,
         blocks: blocksInBand(img, b.y0, b.y1, o).filter(bl =>
-            (bl.x1 - bl.x0) < width * 0.35
+            (bl.x1 - bl.x0) < width * 0.9
         ),
     })).filter(bb => bb.blocks.length >= 1);
     trace.bandBlocks = bandBlocks.map(bb => ({ y0: bb.band.y0, blocks: bb.blocks.length }));
@@ -301,44 +304,101 @@ export function detectInventoryGrid(img, opts = {}) {
     const chainSet = new Set(chain.members);
     const rowBands = bandBlocks.filter(bb => chainSet.has(bb.band.y0));
 
-    // --- Pitch horizontal (cellW): SOLO con bloques de las bandas de la cadena ---
-    const hDiffs = [];
+    // --- Pitch horizontal (cellW) por AUTOCORRELACIÓN del perfil de columnas ---
+    // Los nombres largos fusionan bloques de celdas vecinas (el hueco entre
+    // celdas puede ser menor que un espacio entre palabras a 2 líneas), así que
+    // los centros de bloque NO son fiables. La periodicidad del perfil sumado
+    // sobre las filas de la cadena sí lo es, y no depende de ningún umbral de
+    // separación.
+    const colProf = new Float32Array(width);
+    const { data } = img;
     for (const bb of rowBands) {
-        const cs = bb.blocks.map(b => b.cx).sort((a, b) => a - b);
-        for (let i = 1; i < cs.length; i++) hDiffs.push(cs[i] - cs[i - 1]);
+        for (let y = bb.band.y0; y <= bb.band.y1; y++) {
+            const off = y * width * 4;
+            for (let x = 0; x < width; x++) {
+                const i = off + x * 4;
+                const mx = Math.max(data[i], data[i + 1], data[i + 2]);
+                if (mx > o.brightThresh) colProf[x]++;
+            }
+        }
     }
-    const hPitch = estimatePitch(hDiffs);
-    if (!hPitch) {
-        trace.fail = "sin pitch horizontal (¿una sola columna con ítems?)";
+
+    const minQ = Math.max(8, Math.floor(cellH * 0.5));
+    const maxQ = Math.min(width >> 1, Math.ceil(cellH * 1.8));
+    let bestQ = 0, bestR = -1;
+    for (let q = minQ; q <= maxQ; q++) {
+        let r = 0;
+        for (let x = 0; x + q < width; x++) r += colProf[x] * colProf[x + q];
+        if (r > bestR) { bestR = r; bestQ = q; }
+    }
+    if (!bestQ || bestR <= 0) {
+        trace.fail = "sin periodicidad horizontal en las filas detectadas";
         return null;
     }
-    const cellW = Math.round(hPitch.pitch);
-    // Aspecto de celda plausible del inventario de Warframe
-    if (cellW < cellH * 0.5 || cellW > cellH * 1.8) {
-        trace.fail = `aspecto de celda implausible: cellW ${cellW} vs cellH ${cellH}`;
+    const cellW = bestQ;
+
+    // --- Fase horizontal: las FRONTERAS entre celdas son valles sin texto ---
+    // Busca el desfase b que minimiza el perfil en x = b + k·cellW dentro del
+    // rango ocupado por texto; ahí están los bordes de celda.
+    let xMin = -1, xMax = -1;
+    let maxP = 0;
+    for (let x = 0; x < width; x++) if (colProf[x] > maxP) maxP = colProf[x];
+    const occThr = Math.max(1, maxP * 0.05);
+    for (let x = 0; x < width; x++) {
+        if (colProf[x] >= occThr) { if (xMin < 0) xMin = x; xMax = x; }
+    }
+    if (xMin < 0 || xMax - xMin < cellW) {
+        trace.fail = "rango horizontal ocupado demasiado estrecho";
         return null;
     }
 
-    // --- Fase horizontal: asigna índice de columna a cada centro de bloque ---
-    const centers = rowBands.flatMap(bb => bb.blocks.map(b => b.cx)).sort((a, b) => a - b);
-    const ref = centers[0];
-    const lefts = [];
-    let minCi = Infinity, maxCi = -Infinity;
-    for (const cx of centers) {
-        const ci = Math.round((cx - ref) / cellW);
-        minCi = Math.min(minCi, ci);
-        maxCi = Math.max(maxCi, ci);
-        lefts.push(cx - ci * cellW - cellW / 2);
+    // Se evalúa cada CLASE DE RESIDUO r (mod cellW): los bordes de celda están
+    // en x ≡ r*, la clase con menos texto. Solo se muestrea dentro del rango
+    // ocupado [xMin, xMax] para no premiar fases con bordes en el vacío.
+    const mod = (a, m) => ((a % m) + m) % m;
+    const win = Math.max(2, Math.round(cellW * 0.03));
+    const avgByR = new Float32Array(cellW).fill(Infinity);
+    let bestValley = Infinity;
+    for (let r = 0; r < cellW; r++) {
+        let s = 0, n = 0;
+        for (let x = xMin + mod(r - xMin, cellW); x <= xMax; x += cellW) {
+            for (let dx = -win; dx <= win; dx++) {
+                const xx = x + dx;
+                if (xx >= xMin && xx <= xMax) { s += colProf[xx]; n++; }
+            }
+        }
+        if (!n) continue;
+        avgByR[r] = s / n;
+        if (avgByR[r] < bestValley) bestValley = avgByR[r];
     }
-    lefts.sort((a, b) => a - b);
-    const gridXfloat = lefts[Math.floor(lefts.length / 2)] + minCi * cellW;
-    const cols = maxCi - minCi + 1;
+    // El valle puede ser ancho (nombres cortos ⇒ mucho hueco entre celdas): el
+    // borde real es su CENTRO, no cualquier punto del fondo. Se toma el centro
+    // de la racha circular más larga de residuos ~al nivel del mínimo.
+    const tau = bestValley * 1.2 + 0.5;
+    let runStart = -1, runLen = 0, bestStart = 0, bestLen = 0;
+    for (let r = 0; r < cellW * 2; r++) {
+        if (avgByR[r % cellW] <= tau) {
+            if (runStart < 0) runStart = r;
+            runLen = r - runStart + 1;
+            if (runLen > bestLen && runLen <= cellW) { bestLen = runLen; bestStart = runStart; }
+        } else {
+            runStart = -1;
+        }
+    }
+    const bestR2 = mod(bestStart + Math.floor(bestLen / 2), cellW);
+
+    // Bordes de celda: e ≡ r* (mod cellW). El izquierdo es el mayor borde
+    // ≤ xMin; el derecho, el menor borde ≥ xMax.
+    const gridXf = xMin - mod(xMin - bestR2, cellW);
+    let rightEdge = gridXf;
+    while (rightEdge < xMax) rightEdge += cellW;
+    const cols = Math.round((rightEdge - gridXf) / cellW);
     // <3 columnas visibles no da confianza; >12 es imposible en Warframe ⇒ señal rota
     if (cols < o.minCols || cols > o.maxCols) {
         trace.fail = `columnas fuera de rango: ${cols}`;
         return null;
     }
-    const gridX = Math.max(0, Math.round(gridXfloat));
+    const gridX = Math.max(0, Math.round(gridXf));
 
     // --- Fase vertical: top de celda desde la PRIMERA banda de la cadena ---
     // (no la primera banda global, que puede ser el título del HUD;
@@ -346,12 +406,14 @@ export function detectInventoryGrid(img, opts = {}) {
     const firstTop = chain.members[0];
     const gridY = Math.round(firstTop - cellH * o.nameBandOffset);
 
-    const rows = o.rows;
+    // Una banda por fila real detectada (puede haber una 4ª fila asomando);
+    // las celdas que caigan fuera del frame las filtra _applyRowPhase después.
+    const rows = chain.members.length;
     const gridW = Math.min(cols * cellW, width - gridX);
     const gridH = Math.min(rows * cellH, height - Math.max(0, gridY));
 
-    // Confianza: cuántas evidencias respaldan los dos pitches
-    const confidence = Math.min(1, (chain.members.length + hPitch.support) / 8);
+    // Confianza: filas corroboradas y columnas encontradas
+    const confidence = Math.min(1, (chain.members.length + cols) / 10);
 
     return {
         gridZone: { x: gridX, y: Math.max(0, gridY), w: gridW, h: gridH },
