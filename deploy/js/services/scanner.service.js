@@ -1041,7 +1041,15 @@ export const ScannerService = {
             }
             dCtx.setLineDash([]);
 
+            const agInfo = `AG ${calibData.auto ? "auto" : "manual"} ${autoGrid.rows}r×${autoGrid.cols}c cell ${cellW}×${cellH} zone ${gridZone.x},${gridZone.y} dy ${autoGrid.phaseShift || 0}${calibData.traceSummary?.halfPitchFixed ? " HPfix" : ""}`;
+            dCtx.fillStyle = "rgba(0,0,0,0.72)";
+            dCtx.fillRect(0, 0, dCtx.measureText(agInfo).width + 160, 20);
+            dCtx.fillStyle = "#00e5ff";
+            dCtx.font = "bold 13px monospace";
+            dCtx.fillText(agInfo, 6, 14);
+
             this.lastRawOcrLog = [];
+            this.lastRawOcrLog.push(`[AUTO-GRID] ${agInfo} · rowBands ${JSON.stringify(calibData.traceSummary?.rowBands || [])} · chain ${JSON.stringify(calibData.traceSummary?.chain || null)}`);
             const scanStats = { cells: cellRects.length, matched: 0, relics: 0, empty: 0, unmatched: 0, none: 0 };
             const activeCells = [];
             for (const cell of cellRects) {

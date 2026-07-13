@@ -3,7 +3,7 @@ const DEFAULTS = {
     strideX: 2,          // horizontal sampling for the row profile
     minBandH: 6,         // px: lower bands are noise
     maxBandHFrac: 0.25,  // taller than 25% of the image = background/art, not text
-    mergeGapY: 5,
+    mergeGapY: 12,
     bandMassFloor: 0.22, // min mass relative to the strongest band (drops badges/HUD)
     nameBandOffset: 0.60,
     rows: 3,             // Warframe's inventory always shows 3 rows
@@ -17,11 +17,14 @@ export function rowProfile(img, opts = {}) {
     const prof = new Float32Array(height);
     for (let y = 0; y < height; y++) {
         let cnt = 0;
+        let prevBright = false;
         const off = y * width * 4;
         for (let x = 0; x < width; x += o.strideX) {
             const i = off + x * 4;
             const mx = Math.max(data[i], data[i + 1], data[i + 2]);
-            if (mx > o.brightThresh) cnt++;
+            const bright = mx > o.brightThresh;
+            if (bright && !prevBright) cnt++;
+            prevBright = bright;
         }
         prof[y] = cnt;
     }
@@ -81,10 +84,13 @@ export function blocksInBand(img, y0, y1, opts = {}) {
     const col = new Float32Array(width);
     for (let y = y0; y <= y1; y++) {
         const off = y * width * 4;
+        let prevBright = false;
         for (let x = 0; x < width; x++) {
             const i = off + x * 4;
             const mx = Math.max(data[i], data[i + 1], data[i + 2]);
-            if (mx > o.brightThresh) col[x]++;
+            const bright = mx > o.brightThresh;
+            if (bright && !prevBright) col[x]++;
+            prevBright = bright;
         }
     }
 
@@ -333,10 +339,13 @@ export function detectInventoryGrid(img, opts = {}) {
     for (const bb of rowBands) {
         for (let y = bb.band.y0; y <= bb.band.y1; y++) {
             const off = y * width * 4;
+            let prevBright = false;
             for (let x = 0; x < width; x++) {
                 const i = off + x * 4;
                 const mx = Math.max(data[i], data[i + 1], data[i + 2]);
-                if (mx > o.brightThresh) colProf[x]++;
+                const bright = mx > o.brightThresh;
+                if (bright && !prevBright) colProf[x]++;
+                prevBright = bright;
             }
         }
     }
