@@ -812,6 +812,194 @@ body {
   border-radius: 0 0 0 8px;
 }
 
+.fissure-filters-bar {
+  display: flex;
+  justify-content: center;
+  padding: 6px 10px;
+  border-bottom: 1px solid #333;
+  flex-shrink: 0;
+}
+
+.fissure-filters-toggle {
+  background: transparent;
+  border: 1px solid #333;
+  color: #aaa;
+  font-size: 0.75em;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  padding: 5px 12px;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.fissure-filters-toggle:hover {
+  border-color: var(--wf-blue);
+  color: var(--wf-blue);
+}
+
+.fissure-filters-panel {
+  padding: 10px;
+  border-bottom: 1px solid #333;
+  background: #14161a;
+  flex-shrink: 0;
+  max-height: 260px;
+  overflow-y: auto;
+  transition: max-height 0.3s ease, opacity 0.3s ease, padding 0.3s ease;
+}
+
+.fissure-filters-panel.collapsed {
+  max-height: 0;
+  opacity: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  overflow: hidden;
+  border-bottom: 0;
+}
+
+.fissure-filters-section {
+  margin-bottom: 10px;
+}
+
+/* Categoría de Arbitration (rotación horaria) sobre el listado de fisuras.
+   Mismo aspecto que los grupos de tier, con acento dorado propio. */
+.fissure-arby-bar {
+  flex-shrink: 0;
+}
+
+.arby-group .tier-header-btn {
+  color: #ffd76e;
+}
+
+.arby-tier {
+  display: inline-block;
+  background: #5a4a1e;
+  color: #ffd76e;
+  font-size: 0.72em;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 3px;
+  margin-left: 5px;
+  cursor: help;
+  border: 1px solid #c9a53e;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+.arby-tier.big {
+  font-size: 0.8em;
+  padding: 2px 7px;
+  box-shadow: 0 0 5px rgba(255, 215, 110, 0.3);
+}
+
+.arby-next-title {
+  padding: 6px 8px 2px;
+  font-size: 0.72em;
+  color: #888;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* Columnas fijas: tiempo | misión | tier. Misma zona por fila aunque el texto varíe. */
+.arby-next-row {
+  display: grid;
+  grid-template-columns: 4.6em 1fr auto;
+  align-items: center;
+  column-gap: 8px;
+  padding: 4px 10px;
+  min-height: 34px;
+  font-size: 0.85em;
+  color: #bbb;
+}
+
+.arby-next-row + .arby-next-row {
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.arby-next-time {
+  color: #ffd76e;
+  font-weight: 600;
+  white-space: nowrap;
+  text-align: right;
+}
+
+/* Texto completo: se parte en varias líneas en vez de cortarse con "..." */
+.arby-next-info {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.arby-next-row .arby-tier {
+  justify-self: end;
+  margin-left: 0;
+  min-width: 1.6em;
+  text-align: center;
+}
+
+.arby-tier-empty {
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.15);
+  color: #666;
+  cursor: default;
+  box-shadow: none;
+}
+
+.arby-note {
+  padding: 6px 10px 8px;
+  font-size: 0.7em;
+  color: #777;
+  font-style: italic;
+}
+
+.fissure-filters-title {
+  display: block;
+  font-size: 0.75em;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #888;
+  margin-bottom: 6px;
+}
+
+.fissure-filters-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 6px;
+}
+
+.fissure-filters-grid .lfg-checkbox-wrapper,
+.fissure-filters-section .lfg-checkbox-wrapper {
+  padding: 8px 6px;
+}
+
+.fissure-filters-grid .lfg-label,
+.fissure-filters-section .lfg-label {
+  font-size: 0.8em;
+}
+
+.fissure-filters-reset {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid #333;
+  color: #aaa;
+  font-size: 0.75em;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  padding: 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.fissure-filters-reset:hover {
+  border-color: #f05;
+  color: #f05;
+}
+
 .fissure-group {
   margin-bottom: 5px;
   border: 1px solid #333;
@@ -1003,6 +1191,20 @@ body {
   border-radius: 3px;
   margin-left: 5px;
   box-shadow: 0 0 5px #fff;
+}
+
+.rj-tag {
+  display: inline-block;
+  background: #35506b;
+  color: #cfe6ff;
+  font-size: 0.7em;
+  font-weight: 700;
+  padding: 1px 4px;
+  border-radius: 3px;
+  margin-left: 5px;
+  cursor: help;
+  border: 1px solid #6fa8dc;
+  box-shadow: 0 0 5px rgba(100, 170, 255, 0.3);
 }
 
 .sp-icon {
