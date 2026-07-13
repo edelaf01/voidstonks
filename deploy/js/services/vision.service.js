@@ -1,4 +1,5 @@
 import { OpenCVRepository } from "../repositories/opencv.repository.js";
+import { detectInventoryGrid } from "../utils/grid_detect.js";
 
 
 
@@ -1111,6 +1112,39 @@ export const VisionService = {
         // Extremely robust regex including common Tesseract/OCR garblings for FISSURE and VOID (e.g. F5UR, FI55, F1SS, V0ID)
         if (/REWA|WARD|ARDS|FISSU|FISSI|FISR|F5UR|FSUR|FI55|F1SS|FISS|FISU|VOID|V0ID|V01D/.test(text)) return "REWARD";
         return "UNKNOWN";
+    },
+
+    /**
+     * Autodetección de la rejilla SIN calibración manual: delega en la lógica
+     * pura de grid_detect.js (testeable offline) y devuelve calibData en el
+     * mismo formato que la calibración guardada, o null si no hay confianza.
+     */
+    detectGridAutoCalib(snapshot, width, height) {
+        try {
+            const cvs = this._themeCvs;
+            cvs.width = width; cvs.height = height;
+            const ctx = cvs.getContext("2d", { willReadFrequently: true });
+            ctx.drawImage(snapshot, 0, 0, width, height);
+            const img = ctx.getImageData(0, 0, width, height);
+            const trace = {};
+            const calib = detectInventoryGrid(img, { trace });
+            if (calib) {
+                console.log(`[VisionService] Auto-grid SIN calibración: ${calib.rows}r × ${calib.cols}c cellW=${calib.cellW} cellH=${calib.cellH} conf=${calib.confidence.toFixed(2)}`, calib.gridZone);
+                // La traza también en éxito: una geometría plausible pero mal
+                // anclada solo se diagnostica viendo bandas/cadena/filas usadas.
+                console.log("[VisionService] Auto-grid traza:", JSON.stringify(trace));
+                // Adjunta la traza para que el overlay de debug la imprima:
+                // así cualquier pantallazo del debug se autoexplica.
+                calib.traceSummary = trace;
+            } else {
+                // Diagnóstico: por qué no hubo detección este frame
+                console.warn("[VisionService] Auto-grid sin señal:", trace.fail || "?", JSON.stringify(trace));
+            }
+            return calib;
+        } catch (e) {
+            console.warn("[VisionService] detectGridAutoCalib falló:", e);
+            return null;
+        }
     },
 
     /**

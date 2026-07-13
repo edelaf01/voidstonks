@@ -18,6 +18,7 @@ export const ScannerService = {
     lastTrackedRelic: "",
     sessionInventory: new Map(),
     sessionRelics: new Map(), // relicName -> qty de consenso (fallback de reliquias en el grid de inventario)
+    _autoCalibCache: null, // rejilla autodetectada cacheada { key: "WxH", calib } — detectar cuesta un frame completo
     detectionLocked: false,
     scanCounter: 0,
     inventoryHasScanned: false,
@@ -1182,22 +1183,44 @@ export const ScannerService = {
         this.detectionLocked = true;
 
         try {
-            // 1. Ensure calibration exists (single-zone format)
-            if (globalThis.LiveCalibration && !globalThis.LiveCalibration.hasCalibration()) {
-                console.log("[INV] No calibration found. Starting zone calibration...");
-                const calibCvs = document.createElement("canvas");
-                calibCvs.width = width;
-                calibCvs.height = height;
-                const calibCtx = calibCvs.getContext("2d", { willReadFrequently: true });
-                calibCtx.drawImage(snapshot, 0, 0);
-                await globalThis.LiveCalibration.runCalibrationFlow(
-                    calibCtx.getImageData(0, 0, width, height)
-                );
-                return;
+            // 1. AUTODETECCIÓN con caché: detectar la rejilla cuesta un getImageData
+            // de frame completo + perfiles, así que se hace UNA vez y se reutiliza
+            // mientras el tamaño de frame no cambie (la rejilla del juego es fija; el
+            // desfase por scroll lo corrige _applyRowPhase por frame, que es barato).
+            // Si una página entera sale sin ningún match, la caché se invalida y el
+            // siguiente frame re-detecta.
+            const calibKey = `${width}x${height}`;
+            let calibData = null;
+            if (this._autoCalibCache?.key === calibKey) {
+                calibData = this._autoCalibCache.calib;
+            } else {
+                calibData = VisionService.detectGridAutoCalib(snapshot, width, height);
+                if (calibData) {
+                    this._autoCalibCache = { key: calibKey, calib: calibData };
+                }
             }
 
-            const calibData = globalThis.LiveCalibration?.getGrid();
+            if (!calibData) {
+                calibData = globalThis.LiveCalibration?.getGrid() || null;
+                if (calibData) {
+                    console.log("[INV] Auto-grid sin señal este frame — usando calibración manual guardada.");
+                }
+            }
+
+            // Último recurso: sin autodetección ni calibración guardada, abre el modal
             if (!calibData?.gridZone) {
+                if (globalThis.LiveCalibration && !globalThis.LiveCalibration.hasCalibration()) {
+                    console.log("[INV] Sin auto-grid ni calibración. Abriendo calibración manual...");
+                    const calibCvs = document.createElement("canvas");
+                    calibCvs.width = width;
+                    calibCvs.height = height;
+                    const calibCtx = calibCvs.getContext("2d", { willReadFrequently: true });
+                    calibCtx.drawImage(snapshot, 0, 0);
+                    await globalThis.LiveCalibration.runCalibrationFlow(
+                        calibCtx.getImageData(0, 0, width, height)
+                    );
+                    return;
+                }
                 console.warn("[INV] No grid zone calibration available.");
                 return;
             }
@@ -1260,10 +1283,21 @@ export const ScannerService = {
             }
             dCtx.setLineDash([]); // Reset line dash
 
+            // La geometría detectada, impresa EN el overlay: cualquier pantallazo
+            // del debug se autoexplica (versión, rejilla, zona, traza del auto-grid).
+            const agInfo = `AG ${calibData.auto ? "auto" : "manual"} ${autoGrid.rows}r×${autoGrid.cols}c cell ${cellW}×${cellH} zone ${gridZone.x},${gridZone.y} dy ${autoGrid.phaseShift || 0}${calibData.traceSummary?.halfPitchFixed ? " HPfix" : ""}`;
+            dCtx.fillStyle = "rgba(0,0,0,0.72)";
+            dCtx.fillRect(0, 0, dCtx.measureText(agInfo).width + 160, 20);
+            dCtx.fillStyle = "#00e5ff";
+            dCtx.font = "bold 13px monospace";
+            dCtx.fillText(agInfo, 6, 14);
+
             // 4. Extract active non-empty cells
             // El reset del log va ANTES de este loop: reseteándolo después (como antes) se
             // perdían las entradas "SKIPPED (empty)" que este loop ya había registrado.
             this.lastRawOcrLog = [];
+            // Traza del auto-grid también en el log exportable de debug
+            this.lastRawOcrLog.push(`[AUTO-GRID] ${agInfo} · rowBands ${JSON.stringify(calibData.traceSummary?.rowBands || [])} · chain ${JSON.stringify(calibData.traceSummary?.chain || null)}`);
             // Contadores del escaneo para el summary/aviso del debug: en teoría cada página
             // debe rendir rows×cols celdas; si fallan matches o faltan celdas, se marca.
             const scanStats = { cells: cellRects.length, matched: 0, relics: 0, empty: 0, unmatched: 0, none: 0 };
@@ -1320,6 +1354,15 @@ export const ScannerService = {
                     }
 
                     let logStr = `[r${cell.r}c${cell.c}] OCR: ${combinedText.join(" ")}`;
+
+                    // Guardia de riven ANTES de matchear: el nombre de un riven ("VULKAR CRITACAN",
+                    // "RIFLE RIVEN MOD") puede matchear difusamente contra un prime part y colarse
+                    // en el inventario como falso positivo. Los rivens tienen su propio pipeline.
+                    if (this._isRivenCellText(combinedText)) {
+                        this.lastRawOcrLog.push(logStr + " || RIVEN (ignored in inventory grid)");
+                        continue;
+                    }
+
                     let bestItem = OCRService.getValidItemMatch(combinedText);
                     let fallbackText = null;
 
@@ -1480,38 +1523,45 @@ export const ScannerService = {
                             dCtx.strokeRect(bX, bY, bW, bH);
                         }
                     } else {
-                        scanStats.unmatched++;
-                        this.lastRawOcrLog.push(logStr);
-                        // Clean, premium thin red border for unmatched cells instead of heavy solid blocks
-                        const relX = cell.sx - gridZone.x;
-                        const relY = cell.sy - gridZone.y;
-                        dCtx.strokeStyle = "rgba(255, 30, 80, 0.6)";
-                        dCtx.lineWidth = 2;
-                        dCtx.strokeRect(relX + 2, relY + 2, cellW - 4, cellH - 4);
+                        // Segunda oportunidad de la guardia de riven: la primera lectura pudo salir
+                        // ruidosa y solo el OCR de celda completa (fallbackText) revela "RIVEN".
+                        if (this._isRivenCellText(fallbackText)) {
+                            // Riven detectado: solo loguear, no registrar como UNMATCHED ni agregarlo al inventario
+                            this.lastRawOcrLog.push(logStr + " || RIVEN (ignored in inventory grid)");
+                        } else {
+                            scanStats.unmatched++;
+                            this.lastRawOcrLog.push(logStr);
+                            // Clean, premium thin red border for unmatched cells instead of heavy solid blocks
+                            const relX = cell.sx - gridZone.x;
+                            const relY = cell.sy - gridZone.y;
+                            dCtx.strokeStyle = "rgba(255, 30, 80, 0.6)";
+                            dCtx.lineWidth = 2;
+                            dCtx.strokeRect(relX + 2, relY + 2, cellW - 4, cellH - 4);
 
-                        // Draw a single elegant red-tinted opaque label block at the bottom
-                        dCtx.fillStyle = "rgba(25, 10, 15, 0.98)";
-                        dCtx.fillRect(relX, relY + cellH - 50, cellW, 50);
-                        
-                        // Thin red line top separator
-                        dCtx.fillStyle = "rgba(255, 30, 80, 0.7)";
-                        dCtx.fillRect(relX, relY + cellH - 50, cellW, 1.5);
+                            // Draw a single elegant red-tinted opaque label block at the bottom
+                            dCtx.fillStyle = "rgba(25, 10, 15, 0.98)";
+                            dCtx.fillRect(relX, relY + cellH - 50, cellW, 50);
 
-                        // 1. Raw Tesseract OCR Text (Red-orange, italic, 9px)
-                        dCtx.fillStyle = "#ff5252";
-                        dCtx.font = "italic 9px system-ui, -apple-system, sans-serif";
-                        const rawText = combinedText ? combinedText.join(" ") : "EMPTY";
-                        const maxCharsItem = Math.floor(cellW / 5.5);
-                        const truncatedItem = rawText.length > maxCharsItem ? rawText.slice(0, maxCharsItem - 3) + "..." : rawText;
-                        dCtx.fillText(truncatedItem, relX + 6, relY + cellH - 37);
+                            // Thin red line top separator
+                            dCtx.fillStyle = "rgba(255, 30, 80, 0.7)";
+                            dCtx.fillRect(relX, relY + cellH - 50, cellW, 1.5);
 
-                        // Line 2: Raw Badge Text
-                        dCtx.fillText(`BDG: "Ø"`, relX + 6, relY + cellH - 25);
+                            // 1. Raw Tesseract OCR Text (Red-orange, italic, 9px)
+                            dCtx.fillStyle = "#ff5252";
+                            dCtx.font = "italic 9px system-ui, -apple-system, sans-serif";
+                            const rawText = combinedText ? combinedText.join(" ") : "EMPTY";
+                            const maxCharsItem = Math.floor(cellW / 5.5);
+                            const truncatedItem = rawText.length > maxCharsItem ? rawText.slice(0, maxCharsItem - 3) + "..." : rawText;
+                            dCtx.fillText(truncatedItem, relX + 6, relY + cellH - 37);
 
-                        // 2. Unmatched Status Label (Gray, bold, 12px)
-                        dCtx.fillStyle = "#8c9eff";
-                        dCtx.font = "bold 12px system-ui, -apple-system, sans-serif";
-                        dCtx.fillText("UNMATCHED CELL", relX + 6, relY + cellH - 8);
+                            // Line 2: Raw Badge Text
+                            dCtx.fillText(`BDG: "Ø"`, relX + 6, relY + cellH - 25);
+
+                            // 2. Unmatched Status Label (Gray, bold, 12px)
+                            dCtx.fillStyle = "#8c9eff";
+                            dCtx.font = "bold 12px system-ui, -apple-system, sans-serif";
+                            dCtx.fillText("UNMATCHED CELL", relX + 6, relY + cellH - 8);
+                        }
                     }
                 }
             };
@@ -1546,6 +1596,14 @@ export const ScannerService = {
                     + (autoGrid.phaseShift ? ` · dy ${autoGrid.phaseShift > 0 ? "+" : ""}${autoGrid.phaseShift}px` : "");
                 this.lastRawOcrLog.push(`[SUMMARY] ${summary}`);
 
+                // Página con celdas activas y CERO matches ⇒ la rejilla cacheada ya no
+                // vale (cambio de resolución/pantalla): re-detectar en el próximo frame.
+                if (this._autoCalibCache && activeCells.length > 0 &&
+                    scanStats.matched === 0 && scanStats.relics === 0) {
+                    console.warn("[INV] Página sin ningún match con la rejilla cacheada — invalidando caché del auto-grid.");
+                    this._autoCalibCache = null;
+                }
+
                 // Historial de debug: imagen anotada + log + summary por escaneo (máx 10
                 // entradas para no crecer en RAM). El HUD lo pinta como miniaturas clicables.
                 this.debugHistory.unshift({
@@ -1569,6 +1627,17 @@ export const ScannerService = {
         } finally {
             this.detectionLocked = false;
         }
+    },
+
+    // Heurística de riven sobre las palabras OCR de una celda del grid de inventario:
+    // "RIVEN" explícito o "MOD" + clase de arma ("RIFLE RIVEN MOD" velado, aunque el OCR
+    // pierda la palabra RIVEN). Los rivens revelados sin "RIVEN" legible ("VULKAR CRITACAN")
+    // no se pueden distinguir por keyword; el sufijo inventado rara vez matchea un ítem real.
+    _isRivenCellText(words) {
+        if (!words || !words.length) return false;
+        const t = words.join(" ").toUpperCase();
+        if (t.includes("RIVEN")) return true;
+        return t.includes("MOD") && /RIFLE|PISTOL|SHOTGUN|SNIPER|MELEE|ARCHGUN|KITGUN/.test(t);
     },
 
 };

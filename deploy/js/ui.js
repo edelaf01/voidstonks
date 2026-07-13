@@ -31,7 +31,7 @@ import { populateRivenSelects, initRivenMarketIndex, updateIndexTranslations, fi
 import { applyArbTexts } from "./ui.components/ui_arbitrage.js";
 import { initVosforTab, renderVosforTab } from "./ui.components/ui_vosfor.js?v=2.9";
 import { initSyncPanel } from "./ui.components/ui_sync.js";
-import { initFissurePanel, updateRecommendedMissions } from "./ui.components/ui_fissures.js";
+import { initFissurePanel, updateRecommendedMissions } from "./ui.components/ui_fissures.js?v=1.1";
 import { state, saveAppState, updateInventoryCount } from "./state.js";
 import { renderBountiesTab } from "./ui.components/ui_bounties.js";
 import { renderInventory, renderPrimeInventory } from "./ui.components/ui_inventory.js";
