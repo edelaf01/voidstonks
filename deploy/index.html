@@ -38,7 +38,7 @@
   <link rel="stylesheet" href="css/components/riven-scanner.css?v=1.0" />
   <link rel="stylesheet" href="css/components/modals.css?v=1.0" />
   <link rel="stylesheet" href="css/components/header.css?v=1.0" />
-  <link rel="stylesheet" href="styles.css?v=3.3" />
+  <link rel="stylesheet" href="styles.css?v=3.4" />
   <link rel="stylesheet" href="css/components/riven-grader.css?v=1.3" />
   <link rel="stylesheet" href="css/components/vosfor.css?v=1.2" />
   <link rel="icon" type="image/png" href="https://wiki.warframe.com/images/VoidTraces.png" />
@@ -419,29 +419,6 @@
             gap: 5px;
             align-items: center;
           ">
-        <button id="btn-recalibrate" onclick="globalThis.LiveCalibration.clearCalibration()" style="
-              flex: 1;
-              background: none;
-              border: 1px solid rgba(255, 180, 50, 0.4);
-              color: #c8963a;
-              font-size: 0.6em;
-              padding: 5px 6px;
-              cursor: pointer;
-              border-radius: 4px;
-              font-weight: 700;
-              letter-spacing: 0.5px;
-              transition: all 0.15s;
-            " onmouseover="
-              this.style.background = 'rgba(255,180,50,0.1)';
-              this.style.borderColor = 'rgba(255,180,50,0.7)';
-              this.style.color = '#f0b040';
-            " onmouseout="
-              this.style.background = 'none';
-              this.style.borderColor = 'rgba(255,180,50,0.4)';
-              this.style.color = '#c8963a';
-            " title="Reset calibration and redo from scratch">
-          ⊹ RECALIBRATE
-        </button>
 
         <button id="btn-open-grid-editor" onclick="globalThis.openGridEditor()" style="
               flex: 1;
@@ -467,24 +444,6 @@
           ✎ EDIT CELLS
         </button>
 
-        <button onclick="globalThis.resetGridOffsets()" style="
-              background: none;
-              border: 1px solid rgba(255, 255, 255, 0.1);
-              color: #353d4a;
-              font-size: 0.6em;
-              padding: 5px 7px;
-              cursor: pointer;
-              border-radius: 4px;
-              transition: all 0.15s;
-            " onmouseover="
-              this.style.color = '#e07070';
-              this.style.borderColor = 'rgba(224,112,112,0.4)';
-            " onmouseout="
-              this.style.color = '#353d4a';
-              this.style.borderColor = 'rgba(255,255,255,0.1)';
-            " title="Reset all cell fine-tune offsets">
-          ↺
-        </button>
       </div>
 
       <div id="btn-close-grid-editor" style="
@@ -1700,7 +1659,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-  <script type="module" src="js/main.js?v=2.6.0"></script>
+  <script type="module" src="js/main.js?v=2.6.1"></script>
 </body>
 
 </html>

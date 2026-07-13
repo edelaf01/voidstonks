@@ -16,6 +16,7 @@ export const ScannerService = {
     lastTrackedRelic: "",
     sessionInventory: new Map(),
     sessionRelics: new Map(),
+    _autoCalibCache: null,
     detectionLocked: false,
     scanCounter: 0,
     inventoryHasScanned: false,
@@ -915,7 +916,16 @@ export const ScannerService = {
         this.detectionLocked = true;
 
         try {
-            let calibData = VisionService.detectGridAutoCalib(snapshot, width, height);
+            const calibKey = `${width}x${height}`;
+            let calibData = null;
+            if (this._autoCalibCache?.key === calibKey) {
+                calibData = this._autoCalibCache.calib;
+            } else {
+                calibData = VisionService.detectGridAutoCalib(snapshot, width, height);
+                if (calibData) {
+                    this._autoCalibCache = { key: calibKey, calib: calibData };
+                }
+            }
 
             if (!calibData) {
                 calibData = globalThis.LiveCalibration?.getGrid() || null;
@@ -1049,6 +1059,12 @@ export const ScannerService = {
                     }
 
                     let logStr = `[r${cell.r}c${cell.c}] OCR: ${combinedText.join(" ")}`;
+
+                    if (this._isRivenCellText(combinedText)) {
+                        this.lastRawOcrLog.push(logStr + " || RIVEN (ignored in inventory grid)");
+                        continue;
+                    }
+
                     let bestItem = OCRService.getValidItemMatch(combinedText);
                     let fallbackText = null;
 
@@ -1173,32 +1189,36 @@ export const ScannerService = {
                             dCtx.strokeRect(bX, bY, bW, bH);
                         }
                     } else {
-                        scanStats.unmatched++;
-                        this.lastRawOcrLog.push(logStr);
-                        const relX = cell.sx - gridZone.x;
-                        const relY = cell.sy - gridZone.y;
-                        dCtx.strokeStyle = "rgba(255, 30, 80, 0.6)";
-                        dCtx.lineWidth = 2;
-                        dCtx.strokeRect(relX + 2, relY + 2, cellW - 4, cellH - 4);
+                        if (this._isRivenCellText(fallbackText)) {
+                            this.lastRawOcrLog.push(logStr + " || RIVEN (ignored in inventory grid)");
+                        } else {
+                            scanStats.unmatched++;
+                            this.lastRawOcrLog.push(logStr);
+                            const relX = cell.sx - gridZone.x;
+                            const relY = cell.sy - gridZone.y;
+                            dCtx.strokeStyle = "rgba(255, 30, 80, 0.6)";
+                            dCtx.lineWidth = 2;
+                            dCtx.strokeRect(relX + 2, relY + 2, cellW - 4, cellH - 4);
 
-                        dCtx.fillStyle = "rgba(25, 10, 15, 0.98)";
-                        dCtx.fillRect(relX, relY + cellH - 50, cellW, 50);
-                        
-                        dCtx.fillStyle = "rgba(255, 30, 80, 0.7)";
-                        dCtx.fillRect(relX, relY + cellH - 50, cellW, 1.5);
+                            dCtx.fillStyle = "rgba(25, 10, 15, 0.98)";
+                            dCtx.fillRect(relX, relY + cellH - 50, cellW, 50);
 
-                        dCtx.fillStyle = "#ff5252";
-                        dCtx.font = "italic 9px system-ui, -apple-system, sans-serif";
-                        const rawText = combinedText ? combinedText.join(" ") : "EMPTY";
-                        const maxCharsItem = Math.floor(cellW / 5.5);
-                        const truncatedItem = rawText.length > maxCharsItem ? rawText.slice(0, maxCharsItem - 3) + "..." : rawText;
-                        dCtx.fillText(truncatedItem, relX + 6, relY + cellH - 37);
+                            dCtx.fillStyle = "rgba(255, 30, 80, 0.7)";
+                            dCtx.fillRect(relX, relY + cellH - 50, cellW, 1.5);
 
-                        dCtx.fillText(`BDG: "Ø"`, relX + 6, relY + cellH - 25);
+                            dCtx.fillStyle = "#ff5252";
+                            dCtx.font = "italic 9px system-ui, -apple-system, sans-serif";
+                            const rawText = combinedText ? combinedText.join(" ") : "EMPTY";
+                            const maxCharsItem = Math.floor(cellW / 5.5);
+                            const truncatedItem = rawText.length > maxCharsItem ? rawText.slice(0, maxCharsItem - 3) + "..." : rawText;
+                            dCtx.fillText(truncatedItem, relX + 6, relY + cellH - 37);
 
-                        dCtx.fillStyle = "#8c9eff";
-                        dCtx.font = "bold 12px system-ui, -apple-system, sans-serif";
-                        dCtx.fillText("UNMATCHED CELL", relX + 6, relY + cellH - 8);
+                            dCtx.fillText(`BDG: "Ø"`, relX + 6, relY + cellH - 25);
+
+                            dCtx.fillStyle = "#8c9eff";
+                            dCtx.font = "bold 12px system-ui, -apple-system, sans-serif";
+                            dCtx.fillText("UNMATCHED CELL", relX + 6, relY + cellH - 8);
+                        }
                     }
                 }
             };
@@ -1222,6 +1242,12 @@ export const ScannerService = {
                     + (autoGrid.phaseShift ? ` · dy ${autoGrid.phaseShift > 0 ? "+" : ""}${autoGrid.phaseShift}px` : "");
                 this.lastRawOcrLog.push(`[SUMMARY] ${summary}`);
 
+                if (this._autoCalibCache && activeCells.length > 0 &&
+                    scanStats.matched === 0 && scanStats.relics === 0) {
+                    console.warn("[INV] Página sin ningún match con la rejilla cacheada — invalidando caché del auto-grid.");
+                    this._autoCalibCache = null;
+                }
+
                 this.debugHistory.unshift({
                     time: new Date().toLocaleTimeString([], { hour12: false }),
                     img: debugCanvas.toDataURL("image/jpeg", 0.6),
@@ -1243,6 +1269,13 @@ export const ScannerService = {
         } finally {
             this.detectionLocked = false;
         }
+    },
+
+    _isRivenCellText(words) {
+        if (!words || !words.length) return false;
+        const t = words.join(" ").toUpperCase();
+        if (t.includes("RIVEN")) return true;
+        return t.includes("MOD") && /RIFLE|PISTOL|SHOTGUN|SNIPER|MELEE|ARCHGUN|KITGUN/.test(t);
     },
 
 };
