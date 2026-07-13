@@ -23,7 +23,7 @@ const DEFAULTS = {
     strideX: 2,          // muestreo horizontal para el perfil de filas
     minBandH: 6,         // px: banda más baja que esto = ruido
     maxBandHFrac: 0.25,  // banda más alta que 25% de la imagen = fondo/arte, no texto
-    mergeGapY: 5,        // px: une las 2 líneas de un nombre partido en dos renglones
+    mergeGapY: 12,       // px: une las 2 líneas de un nombre (hueco real medido: 9px a 1440p)
     bandMassFloor: 0.22, // masa mínima relativa a la banda más fuerte (filtra badges/HUD)
     nameBandOffset: 0.60, // top de celda ≈ top de banda de nombre − 0.60·cellH (fase fina la ajusta detectRowPhase)
     rows: 3,             // el inventario de Warframe siempre muestra 3 filas
@@ -31,18 +31,27 @@ const DEFAULTS = {
     maxCols: 12,
 };
 
-/** Perfil de brillo por fila: nº de píxeles "de texto" en cada scanline. */
+/**
+ * Perfil de "texto" por fila: nº de TRANSICIONES oscuro→brillante por scanline.
+ * El texto tiene decenas de transiciones por línea (bordes de letras); un
+ * brillo del arte metálico de las cards es un bloque continuo con ~2. Contar
+ * transiciones (en vez de píxeles brillantes) hace que los nombres dominen
+ * los perfiles y el arte/reflejos apenas puntúe.
+ */
 export function rowProfile(img, opts = {}) {
     const o = { ...DEFAULTS, ...opts };
     const { data, width, height } = img;
     const prof = new Float32Array(height);
     for (let y = 0; y < height; y++) {
         let cnt = 0;
+        let prevBright = false;
         const off = y * width * 4;
         for (let x = 0; x < width; x += o.strideX) {
             const i = off + x * 4;
             const mx = Math.max(data[i], data[i + 1], data[i + 2]);
-            if (mx > o.brightThresh) cnt++;
+            const bright = mx > o.brightThresh;
+            if (bright && !prevBright) cnt++;
+            prevBright = bright;
         }
         prof[y] = cnt;
     }
@@ -102,12 +111,18 @@ export function blocksInBand(img, y0, y1, opts = {}) {
     const o = { ...DEFAULTS, ...opts };
     const { data, width } = img;
     const col = new Float32Array(width);
+    // Igual que rowProfile: TRANSICIONES oscuro→brillante, no píxeles. Un
+    // reflejo sólido del arte solo puntúa en su borde izquierdo (≈nada);
+    // el texto puntúa en cada trazo de letra.
     for (let y = y0; y <= y1; y++) {
         const off = y * width * 4;
+        let prevBright = false;
         for (let x = 0; x < width; x++) {
             const i = off + x * 4;
             const mx = Math.max(data[i], data[i + 1], data[i + 2]);
-            if (mx > o.brightThresh) col[x]++;
+            const bright = mx > o.brightThresh;
+            if (bright && !prevBright) col[x]++;
+            prevBright = bright;
         }
     }
 
@@ -400,10 +415,13 @@ export function detectInventoryGrid(img, opts = {}) {
     for (const bb of rowBands) {
         for (let y = bb.band.y0; y <= bb.band.y1; y++) {
             const off = y * width * 4;
+            let prevBright = false;
             for (let x = 0; x < width; x++) {
                 const i = off + x * 4;
                 const mx = Math.max(data[i], data[i + 1], data[i + 2]);
-                if (mx > o.brightThresh) colProf[x]++;
+                const bright = mx > o.brightThresh;
+                if (bright && !prevBright) colProf[x]++;
+                prevBright = bright;
             }
         }
     }

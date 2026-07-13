@@ -1133,6 +1133,9 @@ export const VisionService = {
                 // La traza también en éxito: una geometría plausible pero mal
                 // anclada solo se diagnostica viendo bandas/cadena/filas usadas.
                 console.log("[VisionService] Auto-grid traza:", JSON.stringify(trace));
+                // Adjunta la traza para que el overlay de debug la imprima:
+                // así cualquier pantallazo del debug se autoexplica.
+                calib.traceSummary = trace;
             } else {
                 // Diagnóstico: por qué no hubo detección este frame
                 console.warn("[VisionService] Auto-grid sin señal:", trace.fail || "?", JSON.stringify(trace));
