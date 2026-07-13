@@ -214,11 +214,14 @@ export async function fetchLiveArcanePrice(slug) {
             o.order_type === "buy" && (o.user.status === "ingame" || o.user.status === "online"));
         const buysR0 = buys.filter((o) => o.mod_rank === 0).sort((a, b) => b.platinum - a.platinum);
 
-        // Media de las 3 más baratas (misma métrica que el worker): el ask mínimo a pelo
-        // reintroduce el problema de los precios anómalos que el equilibrado evita
-        const avg3 = (orders) => {
-            const n = Math.min(3, orders.length);
-            return n > 0 ? Math.round(orders.slice(0, n).reduce((s, o) => s + o.platinum, 0) / n) : 0;
+        // MEDIANA de las 5 más baratas (misma métrica que el worker): la media de 3 se
+        // disparaba con un solo listado erróneo (r0 listado a precio de r5) cuando hay
+        // pocos vendedores; la mediana ignora ese outlier
+        const med5 = (orders) => {
+            const c = orders.slice(0, Math.min(5, orders.length)).map((o) => o.platinum);
+            if (!c.length) return 0;
+            const mid = Math.floor(c.length / 2);
+            return c.length % 2 ? c[mid] : Math.round((c[mid - 1] + c[mid]) / 2);
         };
 
         // MERGE con lo existente: h/v/vm (histórico y volumen real) no cambian con un
@@ -226,12 +229,12 @@ export async function fetchLiveArcanePrice(slug) {
         const existing = ARC_STATS.get(slug) || {};
         const stats = {
             ...existing,
-            p: r0Orders[0]?.platinum ?? existing.p ?? 0,
-            pe: avg3(r0Orders) || existing.pe || 0,
+            p: med5(r0Orders) || existing.p || 0,
+            pe: med5(r0Orders) || existing.pe || 0,
             s: r0Orders.length || existing.s || 0,
             d: buysR0.length || existing.d || 0,
             bb: buysR0[0]?.platinum ?? existing.bb ?? 0,
-            pem: avg3(maxRankOrders) || existing.pem || 0,
+            pem: med5(maxRankOrders) || existing.pem || 0,
             rm: maxRankOrders[0]?.mod_rank || existing.rm || 0,
         };
 

@@ -210,3 +210,12 @@ export async function getActiveFissures() {
     // porque el worker puede tardar en frío; la frecuencia real la limita la cache en memoria del servicio.
     return fetchWithTimeout(`${WORKER_URL}?type=fissures`, { timeout: 15000 });
 }
+
+/**
+ * Fetches the current + upcoming Arbitration rotations. Mismo flujo que las fisuras:
+ * worker principal -> wf-parser (que lee el calendario determinista de browse.wf).
+ * @returns {Promise<Response>}
+ */
+export async function getArbitration() {
+    return fetchWithTimeout(`${WORKER_URL}?type=arbitration`, { timeout: 15000 });
+}

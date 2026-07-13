@@ -34,6 +34,15 @@ const RIVEN_NAMING_DICT = {
   "damage_vs_infested": { prefix: "Pura", suffix: "ada" }
 };
 
+// Formas alternativas que la carta muestra pero el catálogo no recoge en name_en/name_es:
+// la carta dice "-X% Weapon Recoil" pero el stat se llama solo "Recoil". Sin esto, la
+// primera palabra ("weapon") no ancla en _matchStatAnchored y una línea fusionada tipo
+// "Weapon Recoil Puncture" (la línea siguiente perdió su valor) cae al match del nombre
+// completo, donde "Puncture" empata a una palabra con "Recoil" y gana por orden de catálogo.
+const STAT_ALIASES = {
+    "weapon_recoil": ["weapon recoil", "retroceso del arma"]
+};
+
 /**
  * Service for parsing Riven card OCR output and comparing rolls.
  */
@@ -65,6 +74,17 @@ export const RivenOCRService = {
         for (const c of candidates) {
             for (const s of RIVEN_STATS) {
                 if (s.name_en.toLowerCase() === c || s.name_es.toLowerCase() === c) return s.name_en;
+            }
+        }
+
+        // 1b. Aliases conocidos (ver STAT_ALIASES arriba): match exacto de la forma completa
+        // que muestra la carta, antes del word-match para no depender de empates.
+        for (const c of candidates) {
+            for (const [slug, aliases] of Object.entries(STAT_ALIASES)) {
+                if (aliases.some(alias => alias === c)) {
+                    const stat = RIVEN_STATS.find(s => s.slug === slug);
+                    if (stat) return stat.name_en;
+                }
             }
         }
 
@@ -133,7 +153,8 @@ export const RivenOCRService = {
                 const m = this._matchStat(words.slice(0, k).join(" "));
                 if (!m) continue;
                 const statDef = RIVEN_STATS.find(s => s.name_en === m);
-                const formWords = `${m}/${statDef?.name_es || ""}`.toLowerCase().split(/[\s/]+/).filter(Boolean);
+                const aliasWords = (STAT_ALIASES[statDef?.slug] || []).join(" ");
+                const formWords = `${m}/${statDef?.name_es || ""} ${aliasWords}`.toLowerCase().split(/[\s/]+/).filter(Boolean);
                 if (formWords.some(w => w === first || w.includes(first) || first.includes(w))) {
                     anchored = m; // el prefijo anclado más largo gana (se sobreescribe al crecer k)
                 }
