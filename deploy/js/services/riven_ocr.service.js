@@ -34,6 +34,10 @@ const RIVEN_NAMING_DICT = {
   "damage_vs_infested": { prefix: "Pura", suffix: "ada" }
 };
 
+const STAT_ALIASES = {
+    "weapon_recoil": ["weapon recoil", "retroceso del arma"]
+};
+
 export const RivenOCRService = {
 
     _normalize(text) {
@@ -54,6 +58,15 @@ export const RivenOCRService = {
         for (const c of candidates) {
             for (const s of RIVEN_STATS) {
                 if (s.name_en.toLowerCase() === c || s.name_es.toLowerCase() === c) return s.name_en;
+            }
+        }
+
+        for (const c of candidates) {
+            for (const [slug, aliases] of Object.entries(STAT_ALIASES)) {
+                if (aliases.some(alias => alias === c)) {
+                    const stat = RIVEN_STATS.find(s => s.slug === slug);
+                    if (stat) return stat.name_en;
+                }
             }
         }
 
@@ -104,7 +117,8 @@ export const RivenOCRService = {
                 const m = this._matchStat(words.slice(0, k).join(" "));
                 if (!m) continue;
                 const statDef = RIVEN_STATS.find(s => s.name_en === m);
-                const formWords = `${m}/${statDef?.name_es || ""}`.toLowerCase().split(/[\s/]+/).filter(Boolean);
+                const aliasWords = (STAT_ALIASES[statDef?.slug] || []).join(" ");
+                const formWords = `${m}/${statDef?.name_es || ""} ${aliasWords}`.toLowerCase().split(/[\s/]+/).filter(Boolean);
                 if (formWords.some(w => w === first || w.includes(first) || first.includes(w))) {
                     anchored = m;
                 }
