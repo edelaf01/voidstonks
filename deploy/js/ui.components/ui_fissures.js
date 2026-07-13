@@ -1,9 +1,29 @@
 import { state } from "../state.js";
 import { TEXTS } from "../config.js";
-import { fetchBestFissures } from "../services/fissures.service.js";
+import {
+  fetchBestFissures,
+  fetchArbitration,
+  getFissurePrefs,
+  saveFissurePrefs,
+  DEFAULT_MISSION_TYPES,
+  RAILJACK_MISSION_TYPES,
+} from "../services/fissures.service.js";
 import { escapeHTML } from "./ui_components.js";
 
 let fissureLoadPromise = null;
+
+const AVAILABLE_MISSION_TYPES = [
+  "Capture",
+  "Extermination",
+  "Rescue",
+  "Sabotage",
+  "Void Cascade",
+  "Disruption",
+  "Survival",
+  "Defense",
+  "Mobile Defense",
+  "Spy",
+];
 
 export async function updateRecommendedMissions(tier) {
   const listArea = document.getElementById("fissures-list-area");
@@ -36,6 +56,10 @@ export function renderMissionRow(m) {
     ? `<span class="sp-icon" data-tooltip="${t.tooltips.steelPath}">SP</span>`
     : "";
 
+  const rjTag = m.isStorm
+    ? `<span class="rj-tag" data-tooltip="${t.tooltips.railjack}">RJ</span>`
+    : "";
+
   return `
         <div class="mission-item ${m.isSP ? "sp-row" : ""}">
             <div class="m-info">
@@ -43,6 +67,7 @@ export function renderMissionRow(m) {
                     ${escapeHTML(translatedType)}
                     ${omniaTag}
                     ${spTag}
+                    ${rjTag}
                 </span>
                 <span class="m-node">${escapeHTML(m.node)}</span>
             </div>
@@ -51,6 +76,72 @@ export function renderMissionRow(m) {
             </div>
         </div>
     `;
+}
+
+function renderFissureFiltersPanel(prefs) {
+  const t = TEXTS[state.currentLang];
+
+  const typeCheckboxes = AVAILABLE_MISSION_TYPES.map((type) => {
+    const label = t.modes[type.toLowerCase()] || type;
+    const checked = prefs.missionTypes.includes(type) ? "checked" : "";
+    return `
+        <label class="lfg-checkbox-wrapper">
+            <input type="checkbox" class="fissure-pref-type" value="${escapeHTML(type)}" ${checked}>
+            <span class="lfg-label">${escapeHTML(label)}</span>
+        </label>`;
+  }).join("");
+
+  const rjTypeCheckboxes = RAILJACK_MISSION_TYPES.map((type) => {
+    const label = t.modes[type.toLowerCase()] || type;
+    const checked = prefs.railjackTypes.includes(type) ? "checked" : "";
+    return `
+        <label class="lfg-checkbox-wrapper">
+            <input type="checkbox" class="fissure-pref-rjtype" value="${escapeHTML(type)}" ${checked}>
+            <span class="lfg-label">${escapeHTML(label)}</span>
+        </label>`;
+  }).join("");
+
+  return `
+        <div class="fissure-filters-section">
+            <span class="fissure-filters-title">${escapeHTML(t.fissurePrefs.missionTypes)}</span>
+            <div class="fissure-filters-grid">${typeCheckboxes}</div>
+        </div>
+        <div class="fissure-filters-section">
+            <label class="lfg-checkbox-wrapper">
+                <input type="checkbox" id="fissure-pref-omnia" ${prefs.includeOmnia ? "checked" : ""}>
+                <span class="lfg-label">${escapeHTML(t.fissurePrefs.omnia)}</span>
+            </label>
+            <label class="lfg-checkbox-wrapper">
+                <input type="checkbox" id="fissure-pref-railjack" ${prefs.includeRailjack ? "checked" : ""}>
+                <span class="lfg-label">${escapeHTML(t.fissurePrefs.railjack)}</span>
+            </label>
+        </div>
+        <div class="fissure-filters-section" id="fissure-rj-types-section" ${prefs.includeRailjack ? "" : 'style="display:none;"'}>
+            <span class="fissure-filters-title">${escapeHTML(t.fissurePrefs.railjackTypes)}</span>
+            <div class="fissure-filters-grid">${rjTypeCheckboxes}</div>
+        </div>
+        <button type="button" class="fissure-filters-reset" id="fissure-filters-reset">${escapeHTML(t.fissurePrefs.reset)}</button>
+    `;
+}
+
+function readAndSaveFissurePrefsFromPanel(filtersPanel) {
+  const selectedTypes = Array.from(
+    filtersPanel.querySelectorAll(".fissure-pref-type:checked"),
+  ).map((el) => el.value);
+
+  const selectedRjTypes = Array.from(
+    filtersPanel.querySelectorAll(".fissure-pref-rjtype:checked"),
+  ).map((el) => el.value);
+
+  const newPrefs = {
+    missionTypes: selectedTypes,
+    includeOmnia: document.getElementById("fissure-pref-omnia")?.checked ?? true,
+    includeRailjack: document.getElementById("fissure-pref-railjack")?.checked ?? false,
+    railjackTypes: selectedRjTypes,
+  };
+
+  saveFissurePrefs(newPrefs);
+  return newPrefs;
 }
 
 export function toggleTierGroup(element) {
@@ -70,6 +161,8 @@ export function highlightFissureTier(tier) {
 
   document.querySelectorAll(".fissure-group").forEach((group) => {
     const groupTier = group.dataset.tier;
+
+    if (groupTier === "arbitration") return;
 
     if (groupTier === normalizedTier || groupTier === "omnia") {
       group.classList.remove("collapsed");
@@ -97,18 +190,29 @@ export async function initFissurePanel() {
     document.body.appendChild(missionDiv);
   }
 
+  const fissurePrefs = getFissurePrefs();
+
   missionDiv.innerHTML = `
       <div id="mission-toggle-btn" class="mission-toggle-btn" onclick="document.getElementById('best-missions-container').classList.toggle('open')">
          <img src="assets/fissureicon.webp" class="toggle-img" alt="Fisuras">
       </div>
-      
+
       <div class="panel-main-header" id="fissure-panel-header" style="cursor:pointer;" onclick="initFissurePanel()">
           <svg class="gauss-icon" id="gauss-runner" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
             <path d="M18.5,5.5 C18.5,5.5 14,8 12,10 C10,12 5,11 2,12 C5,13 9,14 11,16 C13,18 16,19 18.5,19 C16,17 14,14 14,12 C14,10 16,7 18.5,5.5 Z M22,2 L20,4 C20,4 17,7 17,12 C17,17 20,20 20,20 L22,22" fill="currentColor"/>
           </svg>
           <span>${t.lblRecommended || "Fisuras Activas"}</span>
       </div>
-      
+
+      <div class="fissure-filters-bar">
+          <button type="button" class="fissure-filters-toggle" id="fissure-filters-toggle">${escapeHTML(t.fissurePrefs.toggle)}</button>
+      </div>
+      <div class="fissure-filters-panel collapsed" id="fissure-filters-panel">
+          ${renderFissureFiltersPanel(fissurePrefs)}
+      </div>
+
+      <div class="fissure-arby-bar" id="fissure-arby-bar" style="display:none;"></div>
+
       <div class="fissures-scroll-area" id="fissures-list-area">
          <div style="padding:10px; text-align:center; color:#666;">Cargando...</div>
       </div>
@@ -129,6 +233,40 @@ export async function initFissurePanel() {
     header.onmouseleave = () => clearTimeout(runTimeout);
   }
 
+  const filtersToggleBtn = document.getElementById("fissure-filters-toggle");
+  const filtersPanel = document.getElementById("fissure-filters-panel");
+  if (filtersToggleBtn && filtersPanel) {
+    filtersToggleBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      filtersPanel.classList.toggle("collapsed");
+    });
+    filtersPanel.addEventListener("click", (e) => e.stopPropagation());
+    filtersPanel.addEventListener("change", (e) => {
+      if (!e.target.matches("input[type=checkbox]")) return;
+      if (e.target.id === "fissure-pref-railjack") {
+        const rjSection = document.getElementById("fissure-rj-types-section");
+        if (rjSection) rjSection.style.display = e.target.checked ? "" : "none";
+      }
+      readAndSaveFissurePrefsFromPanel(filtersPanel);
+      // re-filters the memory cache, no refetch
+      renderMissionList();
+    });
+
+    const resetBtn = document.getElementById("fissure-filters-reset");
+    if (resetBtn) {
+      resetBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        saveFissurePrefs({
+          missionTypes: [...DEFAULT_MISSION_TYPES],
+          includeOmnia: true,
+          includeRailjack: false,
+          railjackTypes: [...RAILJACK_MISSION_TYPES],
+        });
+        initFissurePanel();
+      });
+    }
+  }
+
 
   if (!globalThis._fissureRefreshInterval) {
     globalThis._fissureRefreshInterval = setInterval(() => {
@@ -140,10 +278,142 @@ export async function initFissurePanel() {
     }, 150 * 1000);
   }
 
+  await renderMissionList();
+  renderArbitrationBar();
+
+  if (!globalThis._fissureCountdownInterval) {
+    globalThis._fissureCountdownInterval = setInterval(() => {
+      let expiredFound = false;
+      document.querySelectorAll(".m-eta[data-expiry]").forEach((el) => {
+        const expiryStr = el.getAttribute("data-expiry");
+        if (!expiryStr) return;
+        const expiry = new Date(expiryStr);
+        const now = new Date();
+        const diffMs = expiry - now;
+        if (diffMs <= 0) {
+          el.innerText = state.currentLang === "es" ? "Expirado" : "Expired";
+          expiredFound = true;
+        } else {
+          const totalSecs = Math.floor(diffMs / 1000);
+          const hrs = Math.floor(totalSecs / 3600);
+          const mins = Math.floor((totalSecs % 3600) / 60);
+          const secs = totalSecs % 60;
+
+          if (hrs > 0) {
+            el.innerText = `${hrs}h ${mins}m ${secs}s`;
+          } else if (mins > 0) {
+            el.innerText = `${mins}m ${secs}s`;
+          } else {
+            el.innerText = `${secs}s`;
+          }
+        }
+      });
+      // upcoming arbitration rotations: same tick, minutes recomputed from data-starts
+      const startsIn = TEXTS[state.currentLang]?.arbitration?.startsIn || "en";
+      document.querySelectorAll(".arby-next-time[data-starts]").forEach((el) => {
+        const diffMins = Math.max(0, Math.round((new Date(el.getAttribute("data-starts")) - Date.now()) / 60000));
+        const rel = diffMins >= 60
+          ? `${Math.floor(diffMins / 60)}h ${String(diffMins % 60).padStart(2, "0")}m`
+          : `${diffMins}m`;
+        el.textContent = `${startsIn} ${rel}`;
+      });
+
+      if (expiredFound) {
+        const now = Date.now();
+        if (!globalThis._fissureLastExpiryRefresh || now - globalThis._fissureLastExpiryRefresh > 60000) {
+          globalThis._fissureLastExpiryRefresh = now;
+          console.log("[FISSURES]: Fissure expired, refreshing list...");
+          if (globalThis._fissureCountdownInterval) {
+            clearInterval(globalThis._fissureCountdownInterval);
+            globalThis._fissureCountdownInterval = null;
+          }
+          initFissurePanel();
+        }
+      }
+    }, 1000);
+  }
+}
+
+/**
+ * Arbitration as its own collapsible category, like the tiers: current mission, faction, community
+ * tier, countdown and upcoming rotations. Hidden if the parser fails.
+ */
+async function renderArbitrationBar() {
+  const box = document.getElementById("fissure-arby-bar");
+  if (!box) return;
+  try {
+    const arby = await fetchArbitration();
+    const cur = arby?.current;
+    if (!cur) {
+      box.style.display = "none";
+      return;
+    }
+    const t = TEXTS[state.currentLang];
+    const typeOf = (m) => t.modes[(m.type || "").toLowerCase()] || m.type || "";
+    const tierTag = (m, big) => m.tier
+      ? `<span class="arby-tier${big ? " big" : ""}" data-tooltip="${escapeHTML(t.arbitration.tierTooltip)}">${escapeHTML(m.tier)}</span>`
+      : "";
+
+    const upcomingRows = (arby.upcoming || []).slice(0, 3).map((m) => {
+      const diffMins = Math.max(0, Math.round((new Date(m.activation) - Date.now()) / 60000));
+      const rel = diffMins >= 60
+        ? `${Math.floor(diffMins / 60)}h ${String(diffMins % 60).padStart(2, "0")}m`
+        : `${diffMins}m`;
+      const tier = m.tier
+        ? tierTag(m)
+        : `<span class="arby-tier arby-tier-empty">–</span>`;
+      return `
+          <div class="arby-next-row">
+              <span class="arby-next-time" data-starts="${m.activation}">${escapeHTML(t.arbitration.startsIn)} ${rel}</span>
+              <span class="arby-next-info">${escapeHTML(typeOf(m))} — ${escapeHTML(m.node)}</span>
+              ${tier}
+          </div>`;
+    }).join("");
+
+    box.style.display = "";
+    box.innerHTML = `
+        <div class="fissure-group arby-group" data-tier="arbitration">
+            <button class="tier-header-btn" type="button">
+                <span>${escapeHTML(t.arbitration.title)}</span> <span class="arrow-icon">▼</span>
+            </button>
+            <div class="tier-content">
+                <div class="mission-item arby-current">
+                    <div class="m-info">
+                        <span class="m-type">${escapeHTML(typeOf(cur))} ${tierTag(cur, true)}</span>
+                        <span class="m-node">${escapeHTML(cur.node)} · ${escapeHTML(cur.enemy)}</span>
+                    </div>
+                    <div class="m-timer-box">
+                        <span class="m-eta" data-expiry="${cur.expiry}"></span>
+                    </div>
+                </div>
+                ${upcomingRows ? `<div class="arby-next-title">${escapeHTML(t.arbitration.next)}</div>${upcomingRows}` : ""}
+                <div class="arby-note">${escapeHTML(t.arbitration.tierNote)}</div>
+            </div>
+        </div>`;
+
+    const group = box.querySelector(".arby-group");
+    box.querySelector(".tier-header-btn").addEventListener("click", (e) => {
+      e.stopPropagation();
+      toggleTierGroup(group);
+    });
+  } catch {
+    box.style.display = "none";
+  }
+}
+
+/**
+ * Fissure list grouped by tier, already filtered by the user's prefs. Does not touch the header or the
+ * filters, so it can run after a prefs change.
+ */
+async function renderMissionList() {
+  const listArea = document.getElementById("fissures-list-area");
+  if (!listArea) return;
+
   let allMissions = await fetchBestFissures();
 
   allMissions = allMissions.filter(m => !m.expiry || (new Date(m.expiry) - Date.now()) > 0);
 
+  // Railjack missions (isStorm) carry a real tier: grouped there and tagged "RJ"
   const tiersOrder = ["Lith", "Meso", "Neo", "Axi", "Requiem", "Omnia"];
   const tiersData = {
     Lith: [],
@@ -160,23 +430,11 @@ export async function initFissurePanel() {
     if (tiersData[tName]) tiersData[tName].push(m);
   });
 
-  const listArea = document.getElementById("fissures-list-area");
   listArea.innerHTML = "";
 
-  const efficientTypes = new Set([
-    "Capture",
-    "Extermination",
-    "Rescue",
-    "Sabotage",
-    "Void Cascade",
-  ]);
-
   tiersOrder.forEach((tierName) => {
-    const allTierMissions = tiersData[tierName];
-
-    const efficientMissions = allTierMissions.filter(
-      (m) => efficientTypes.has(m.type) || m.tier === "Omnia",
-    );
+    // fetchBestFissures already applies the prefs: only grouping here
+    const efficientMissions = tiersData[tierName];
 
     const groupDiv = document.createElement("div");
     groupDiv.className = "fissure-group collapsed";
@@ -229,46 +487,5 @@ export async function initFissurePanel() {
   if (state.selectedRelic) {
     const tier = state.selectedRelic.split(" ")[0];
     highlightFissureTier(tier);
-  }
-  if (!globalThis._fissureCountdownInterval) {
-    globalThis._fissureCountdownInterval = setInterval(() => {
-      let expiredFound = false;
-      document.querySelectorAll(".m-eta[data-expiry]").forEach((el) => {
-        const expiryStr = el.getAttribute("data-expiry");
-        if (!expiryStr) return;
-        const expiry = new Date(expiryStr);
-        const now = new Date();
-        const diffMs = expiry - now;
-        if (diffMs <= 0) {
-          el.innerText = state.currentLang === "es" ? "Expirado" : "Expired";
-          expiredFound = true;
-        } else {
-          const totalSecs = Math.floor(diffMs / 1000);
-          const hrs = Math.floor(totalSecs / 3600);
-          const mins = Math.floor((totalSecs % 3600) / 60);
-          const secs = totalSecs % 60;
-
-          if (hrs > 0) {
-            el.innerText = `${hrs}h ${mins}m ${secs}s`;
-          } else if (mins > 0) {
-            el.innerText = `${mins}m ${secs}s`;
-          } else {
-            el.innerText = `${secs}s`;
-          }
-        }
-      });
-      if (expiredFound) {
-        const now = Date.now();
-        if (!globalThis._fissureLastExpiryRefresh || now - globalThis._fissureLastExpiryRefresh > 60000) {
-          globalThis._fissureLastExpiryRefresh = now;
-          console.log("[FISSURES]: Fissure expired, refreshing list...");
-          if (globalThis._fissureCountdownInterval) {
-            clearInterval(globalThis._fissureCountdownInterval);
-            globalThis._fissureCountdownInterval = null;
-          }
-          initFissurePanel();
-        }
-      }
-    }, 1000);
   }
 }

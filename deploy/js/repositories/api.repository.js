@@ -187,3 +187,11 @@ export async function getActiveBounties() {
 export async function getActiveFissures() {
     return fetchWithTimeout(`${WORKER_URL}?type=fissures`, { timeout: 15000 });
 }
+
+/**
+ * Fetches the current + upcoming Arbitration rotations. 
+ * @returns {Promise<Response>}
+ */
+export async function getArbitration() {
+    return fetchWithTimeout(`${WORKER_URL}?type=arbitration`, { timeout: 15000 });
+}
