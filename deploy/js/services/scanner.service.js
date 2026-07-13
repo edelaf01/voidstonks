@@ -1270,10 +1270,21 @@ export const ScannerService = {
             }
             dCtx.setLineDash([]); // Reset line dash
 
+            // La geometría detectada, impresa EN el overlay: cualquier pantallazo
+            // del debug se autoexplica (versión, rejilla, zona, traza del auto-grid).
+            const agInfo = `AG ${calibData.auto ? "auto" : "manual"} ${autoGrid.rows}r×${autoGrid.cols}c cell ${cellW}×${cellH} zone ${gridZone.x},${gridZone.y} dy ${autoGrid.phaseShift || 0}${calibData.traceSummary?.halfPitchFixed ? " HPfix" : ""}`;
+            dCtx.fillStyle = "rgba(0,0,0,0.72)";
+            dCtx.fillRect(0, 0, dCtx.measureText(agInfo).width + 160, 20);
+            dCtx.fillStyle = "#00e5ff";
+            dCtx.font = "bold 13px monospace";
+            dCtx.fillText(agInfo, 6, 14);
+
             // 4. Extract active non-empty cells
             // El reset del log va ANTES de este loop: reseteándolo después (como antes) se
             // perdían las entradas "SKIPPED (empty)" que este loop ya había registrado.
             this.lastRawOcrLog = [];
+            // Traza del auto-grid también en el log exportable de debug
+            this.lastRawOcrLog.push(`[AUTO-GRID] ${agInfo} · rowBands ${JSON.stringify(calibData.traceSummary?.rowBands || [])} · chain ${JSON.stringify(calibData.traceSummary?.chain || null)}`);
             // Contadores del escaneo para el summary/aviso del debug: en teoría cada página
             // debe rendir rows×cols celdas; si fallan matches o faltan celdas, se marca.
             const scanStats = { cells: cellRects.length, matched: 0, relics: 0, empty: 0, unmatched: 0, none: 0 };
