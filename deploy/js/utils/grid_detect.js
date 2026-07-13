@@ -262,7 +262,7 @@ export function detectInventoryGrid(img, opts = {}) {
             : "sin cadena de filas equiespaciadas (¿solo HUD/paneles, sin grid visible?)";
         return null;
     }
-    const cellH = Math.round(chain.pitch);
+    let cellH = Math.round(chain.pitch);
 
     const base = chain.members[0];
     const last = chain.members[chain.members.length - 1];
@@ -296,6 +296,30 @@ export function detectInventoryGrid(img, opts = {}) {
         }
         if (bb && !rowBands.includes(bb)) { rowBands.push(bb); usedTops.push(bb.band.y0); }
     }
+    // HALF PITCH guard: badges almost halfway between name rows let a cellH/2 pitch through. Alternate rows then
+    // have very uneven masses (names ≫ badges): the real pitch is double and the heavy ones stay
+    if (rowBands.length >= 5) {
+        const bandMass = bb => bb.blocks.reduce((s, bl) => s + bl.mass, 0);
+        let even = 0, odd = 0;
+        for (const bb of rowBands) {
+            const k = Math.round((bb.band.y0 - rowBands[0].band.y0) / cellH);
+            if (k % 2 === 0) even += bandMass(bb);
+            else odd += bandMass(bb);
+        }
+        if (Math.min(even, odd) < Math.max(even, odd) * 0.6) {
+            const keepParity = even >= odd ? 0 : 1;
+            const kept = rowBands.filter(bb =>
+                Math.round((bb.band.y0 - rowBands[0].band.y0) / cellH) % 2 === keepParity
+            );
+            trace.halfPitchFixed = { cellHBefore: cellH, kept: kept.map(bb => bb.band.y0) };
+            cellH *= 2;
+            rowBands.length = 0;
+            rowBands.push(...kept);
+            usedTops.length = 0;
+            usedTops.push(...kept.map(bb => bb.band.y0));
+        }
+    }
+
     trace.rowBands = usedTops;
     if (rowBands.length < o.rows) {
         trace.fail = `solo ${rowBands.length} filas de nombres tras re-anclar (<${o.rows})`;
