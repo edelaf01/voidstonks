@@ -1130,9 +1130,12 @@ export const VisionService = {
             const calib = detectInventoryGrid(img, { trace });
             if (calib) {
                 console.log(`[VisionService] Auto-grid SIN calibración: ${calib.rows}r × ${calib.cols}c cellW=${calib.cellW} cellH=${calib.cellH} conf=${calib.confidence.toFixed(2)}`, calib.gridZone);
+                // La traza también en éxito: una geometría plausible pero mal
+                // anclada solo se diagnostica viendo bandas/cadena/filas usadas.
+                console.log("[VisionService] Auto-grid traza:", JSON.stringify(trace));
             } else {
                 // Diagnóstico: por qué no hubo detección este frame
-                console.warn("[VisionService] Auto-grid sin señal:", trace.fail || "?", trace);
+                console.warn("[VisionService] Auto-grid sin señal:", trace.fail || "?", JSON.stringify(trace));
             }
             return calib;
         } catch (e) {
