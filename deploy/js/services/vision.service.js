@@ -955,8 +955,9 @@ export const VisionService = {
             const calib = detectInventoryGrid(img, { trace });
             if (calib) {
                 console.log(`[VisionService] Auto-grid SIN calibración: ${calib.rows}r × ${calib.cols}c cellW=${calib.cellW} cellH=${calib.cellH} conf=${calib.confidence.toFixed(2)}`, calib.gridZone);
+                console.log("[VisionService] Auto-grid traza:", JSON.stringify(trace));
             } else {
-                console.warn("[VisionService] Auto-grid sin señal:", trace.fail || "?", trace);
+                console.warn("[VisionService] Auto-grid sin señal:", trace.fail || "?", JSON.stringify(trace));
             }
             return calib;
         } catch (e) {
