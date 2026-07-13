@@ -1,4 +1,5 @@
 import { OpenCVRepository } from "../repositories/opencv.repository.js";
+import { detectInventoryGrid } from "../utils/grid_detect.js";
 
 
 
@@ -990,6 +991,36 @@ export const VisionService = {
         if (/RELI|ELIC|REFI|NEME/.test(text)) return "RELICS";
         if (/REWA|WARD|ARDS|FISSU|FISSI|FISR|F5UR|FSUR|FI55|F1SS|FISS|FISU|VOID|V0ID|V01D/.test(text)) return "REWARD";
         return "UNKNOWN";
+    },
+
+    /**
+     * Grid autodetection without manual calibration (grid_detect.js): returns calibData in the saved
+     * calibration format, or null without confidence.
+     */
+    detectGridAutoCalib(snapshot, width, height) {
+        try {
+            const cvs = this._themeCvs;
+            cvs.width = width; cvs.height = height;
+            const ctx = cvs.getContext("2d", { willReadFrequently: true });
+            ctx.drawImage(snapshot, 0, 0, width, height);
+            const img = ctx.getImageData(0, 0, width, height);
+            const trace = {};
+            const calib = detectInventoryGrid(img, { trace });
+            if (calib) {
+                console.log(`[VisionService] Auto-grid SIN calibración: ${calib.rows}r × ${calib.cols}c cellW=${calib.cellW} cellH=${calib.cellH} conf=${calib.confidence.toFixed(2)}`, calib.gridZone);
+                // trace on success too: a plausible but misanchored geometry only shows in the bands
+                console.log("[VisionService] Auto-grid traza:", JSON.stringify(trace));
+                // attached so the debug overlay prints it
+                calib.traceSummary = trace;
+            } else {
+                // why there was no detection this frame
+                console.warn("[VisionService] Auto-grid sin señal:", trace.fail || "?", JSON.stringify(trace));
+            }
+            return calib;
+        } catch (e) {
+            console.warn("[VisionService] detectGridAutoCalib falló:", e);
+            return null;
+        }
     },
 
      buildAutoGrid(snapshot, gridZone, theme, calibData) {
