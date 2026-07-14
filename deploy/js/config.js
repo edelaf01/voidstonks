@@ -1,10 +1,19 @@
 export const WORKER_URL = "https://api.voidstonks.com/";
-export const APP_VERSION = 2.60;
+export const APP_VERSION = 2.61;
 export const UPDATE_HISTORY_DATA = {
   es: `
 <div class="update-block">
   <div class="update-header">
-    <span class="update-version">v2.6.0 (Actual)</span>
+    <span class="update-version">v2.6.1 (Actual)</span>
+    <span class="update-date">2026-07-15</span>
+  </div>
+  <ul class="update-list">
+    <li><strong>Corrección de fisuras:</strong> Las fisuras recomendadas y arbitraciones ahora se muestran siempre correctamente.</li>
+  </ul>
+</div>
+<div class="update-block old">
+  <div class="update-header">
+    <span class="update-version">v2.6.0</span>
     <span class="update-date">2026-07-11</span>
   </div>
   <ul class="update-list">
@@ -233,7 +242,16 @@ export const UPDATE_HISTORY_DATA = {
   en: `
 <div class="update-block">
   <div class="update-header">
-    <span class="update-version">v2.6.0 (Current)</span>
+    <span class="update-version">v2.6.1 (Current)</span>
+    <span class="update-date">2026-07-15</span>
+  </div>
+  <ul class="update-list">
+    <li><strong>Fissures fix:</strong> Recommended fissures and arbitrations now always display correctly.</li>
+  </ul>
+</div>
+<div class="update-block old">
+  <div class="update-header">
+    <span class="update-version">v2.6.0</span>
     <span class="update-date">2026-07-11</span>
   </div>
   <ul class="update-list">

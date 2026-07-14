@@ -1,5 +1,6 @@
 import { OpenCVRepository } from "../repositories/opencv.repository.js";
 import { detectInventoryGrid } from "../utils/grid_detect.js";
+import { offBandComponentIndices } from "../utils/badge_filters.js";
 
 
 
@@ -1477,6 +1478,28 @@ export const VisionService = {
             }
         }
 
+        // Filtro de BANDA: el badge (checkmark + dígitos) vive en UNA sola fila de texto.
+        // El arte del ítem que entra por la derecha del crop puede pasar el filtro de forma:
+        // una línea vertical fina del esquema del plano tiene exactamente la firma de un "1"
+        // (Ballistica 3→"31") y un bloque alto de arte brillante cae dentro de los límites
+        // de altura y contamina el crop final (Banshee 9→"Ø"). Ancla = el superviviente más
+        // BRILLANTE (el filtro de luma ya garantizó que el badge domina el brillo); se borra
+        // todo superviviente cuyo centro vertical se aleje del centro del ancla más de la
+        // mitad de la altura del menor de los dos (el arte vive en otra banda; los dígitos
+        // y el checkmark comparten centro aunque sus alturas difieran). hardErased: arte
+        // nunca vuelve por la red de seguridad. La regla pura vive en utils/badge_filters.js
+        // (testeada con datos de componentes reales en tests/badge-band-filter.test.mjs).
+        for (const i of offBandComponentIndices(components)) {
+            const comp = components[i];
+            for (const pixelIdx of comp.pixels) {
+                px[pixelIdx * 4] = 255;
+                px[pixelIdx * 4 + 1] = 255;
+                px[pixelIdx * 4 + 2] = 255;
+            }
+            comp.erased = true;
+            comp.hardErased = true;
+        }
+
         // Red de seguridad: si el filtro de forma no dejó NINGÚN componente (caso raro), preferimos
         // una lectura posiblemente contaminada a devolver vacío — el consenso descarta el ruido.
         // Restauramos todo salvo las líneas de borde ya borradas antes.
@@ -1639,7 +1662,11 @@ export const VisionService = {
 
             const holeCy = holeYSum / holeArea;
             const centerY = (b.minY + b.maxY) / 2;
-            const margin = bh * 0.06;
+            // Margen CONSERVADOR: un 6/9 bien formado tiene el lazo a ~25% del alto del
+            // centro; solo volteamos cuando está CLARAMENTE arriba/abajo (>15%). Cerca del
+            // centro es ambiguo (crop distorsionado a ~15px) y voltear hacía daño —volteaba
+            // 9 correctos a 6 (Mirage Systems). Ahí respetamos el OCR y que decida el consenso.
+            const margin = bh * 0.15;
             if (holeCy > centerY + margin) out += "6";
             else if (holeCy < centerY - margin) out += "9";
             else out += ch;

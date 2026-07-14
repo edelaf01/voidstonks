@@ -3,7 +3,6 @@
  */
 export const OCRRepository = {
     workers: [],
-    badgeWorkers: [],
     initPromise: null,
 
     /**
@@ -56,23 +55,13 @@ export const OCRRepository = {
                     return w;
                 };
 
-                const createBadgeWorker = async () => {
-                    const w = await tess.createWorker("eng", 1, LOCAL_LANG);
-                    await w.setParameters({
-                        tessedit_char_whitelist: " 0123456789",
-                        tessedit_pageseg_mode: "7",
-                        user_defined_dictionary_priority: "1",
-                    });
-                    return w;
-                };
-
                 // Arranca con UN solo worker: el escaneo de rivens y la detección de contexto
-                // corren secuenciales sobre workers[0], así que los otros 3 (2º estándar + 2 de
-                // badges) solo pagaban RAM (una instancia WASM cada uno) sin aportar nada hasta
-                // que el usuario escanea el grid de inventario o recompensas. Esos se crean
-                // perezosamente con ensureSecondWorker()/ensureBadgeWorkers().
+                // corren secuenciales sobre workers[0], así que el 2º worker estándar solo pagaba
+                // RAM (una instancia WASM) sin aportar nada hasta que el usuario escanea el grid de
+                // inventario o recompensas. Se crea perezosamente con ensureSecondWorker(). Las
+                // CANTIDADES ya no usan Tesseract (template-matching en utils/badge_digit_ocr.js),
+                // por eso no hay workers de badges.
                 this._createStandardWorker = createStandardWorker;
-                this._createBadgeWorker = createBadgeWorker;
                 this.workers = [await createStandardWorker()];
 
                 return true;
@@ -98,31 +87,18 @@ export const OCRRepository = {
         await this._w2Promise;
     },
 
-    // Crea los 2 workers de badges (solo dígitos, cantidades del grid) bajo demanda.
-    async ensureBadgeWorkers() {
-        if (this.badgeWorkers.length) return;
-        if (!this._createBadgeWorker) return;
-        if (!this._badgePromise) {
-            this._badgePromise = Promise.all([this._createBadgeWorker(), this._createBadgeWorker()])
-                .then(ws => { this.badgeWorkers = ws; });
-        }
-        await this._badgePromise;
-    },
-
     /**
      * Shuts down all workers.
      */
     terminateAll() {
-        [...this.workers, ...new Set(this.badgeWorkers)].forEach(w => {
+        this.workers.forEach(w => {
             if (w) {
                 w.terminate();
             }
         });
         this.workers = [];
-        this.badgeWorkers = [];
         this.initPromise = null;
         this._w2Promise = null;
-        this._badgePromise = null;
     },
 
     /**

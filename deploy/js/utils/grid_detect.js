@@ -313,8 +313,18 @@ export function detectInventoryGrid(img, opts = {}) {
     // ≤17% en todas las capturas reales; el grid nunca empieza antes del 23%)
     // y pueden engancharse a la cadena con paso casualmente consistente.
     const hudLimit = height * 0.2;
-    const chainItems = bandBlocks.filter(bb => bb.band.y0 >= hudLimit).map(bb => ({
-        pos: bb.band.y0,
+    // Ancla de fila = BASE de la banda (y1), no el top (y0). Los nombres de los
+    // ítems están anclados ABAJO en la card: un nombre a 2 líneas crece hacia
+    // ARRIBA, así que su top (y0) salta ~una altura de línea entre filas de 1 y 2
+    // líneas (±15% del pitch a 1440p) y rompe la cadena aritmética; su base (y1)
+    // se mantiene en la misma baseline y las filas quedan equidistantes. El top real
+    // del nombre lo re-deriva el fold de abajo.
+    // El filtro de HUD es por BASELINE (y1), no por top (y0): al FINAL de la lista la
+    // 1ª fila se scrollea hacia arriba y su top y0 cae dentro de la franja HUD (<0.2·h)
+    // aunque su baseline y1 esté bien abajo (fila real); filtrar por y0 la descartaba
+    // ("solo 2 filas"). El HUD real (título/pestañas/buscador) tiene y1 ≤ ~0.16·h.
+    const chainItems = bandBlocks.filter(bb => bb.band.y1 >= hudLimit).map(bb => ({
+        pos: bb.band.y1,
         mass: bb.blocks.reduce((s, bl) => s + bl.mass, 0),
         centers: bb.blocks.map(bl => bl.cx),
     }));
@@ -336,8 +346,12 @@ export function detectInventoryGrid(img, opts = {}) {
     // igual, pero la fase debe anclarse en los nombres: se pliega el perfil de
     // filas módulo cellH dentro del rango del grid y se busca el ARCO más
     // pesado (los nombres concentran mucha más masa que badges o restos).
-    const base = chain.members[0];
-    const last = chain.members[chain.members.length - 1];
+    // La cadena se ancló en la BASE de banda (y1) para un pitch robusto, pero el
+    // fold necesita el TOP del nombre (y0) como referencia de fase. Recuperamos el
+    // y0 de la banda de cada extremo de la cadena.
+    const y1ToTop = new Map(bandBlocks.map(bb => [bb.band.y1, bb.band.y0]));
+    const base = y1ToTop.get(chain.members[0]) ?? chain.members[0];
+    const last = y1ToTop.get(chain.members[chain.members.length - 1]) ?? chain.members[chain.members.length - 1];
     const foldY0 = Math.max(Math.ceil(hudLimit), base - cellH);
     const foldY1 = Math.min(height - 1, last + cellH);
     const fold = new Float32Array(cellH);
@@ -356,17 +370,29 @@ export function detectInventoryGrid(img, opts = {}) {
     // lo más cerca posible de base
     const nameBase = base + (bestArc <= cellH / 2 ? bestArc : bestArc - cellH);
 
-    // Filas = bandas cualificadas que caen en los slots nameBase + k·cellH
+    // Filas del grid. Se matchea cada slot k por DOBLE criterio (dinámico, no asume
+    // resolución): una banda cae en la fila k si su TOP (y0) coincide con el slot de
+    // top (nameBase + k·cellH) O su BASE (y1) con el slot de baseline (baseY1 + k·cellH).
+    //   - y1/baseline: robusto cuando el arte del ítem se fusiona con el nombre por
+    //     ARRIBA (banda alta, p.ej. la fila central de armas) y desplaza el top y0.
+    //   - y0/top: robusto cuando una fila ASOMA cortada por abajo (final de lista) y
+    //     su baseline y1 queda fuera del frame.
+    // usedTops guarda el y0 real del nombre para el resto del pipeline.
+    const baseY1 = chain.members[0];
     const rowBands = [];
     const usedTops = [];
-    for (let t = nameBase - Math.ceil((nameBase - hudLimit) / cellH) * cellH; t < height; t += cellH) {
-        if (t < hudLimit - cellH * 0.2) continue;
-        let bb = null;
+    const tol = cellH * 0.2;
+    const kMin = Math.floor((hudLimit - baseY1) / cellH) - 1;
+    const kMax = Math.ceil((height - baseY1) / cellH) + 1;
+    for (let k = kMin; k <= kMax; k++) {
+        const topSlot = nameBase + k * cellH;
+        const baseSlot = baseY1 + k * cellH;
+        if (baseSlot < hudLimit && topSlot < hudLimit) continue;
+        let bb = null, bbErr = Infinity;
         for (const cand2 of bandBlocks) {
-            if (cand2.band.y0 >= hudLimit && Math.abs(cand2.band.y0 - t) <= cellH * 0.2 &&
-                (!bb || Math.abs(cand2.band.y0 - t) < Math.abs(bb.band.y0 - t))) {
-                bb = cand2;
-            }
+            if (cand2.band.y1 < hudLimit) continue;
+            const err = Math.min(Math.abs(cand2.band.y0 - topSlot), Math.abs(cand2.band.y1 - baseSlot));
+            if (err <= tol && err < bbErr) { bb = cand2; bbErr = err; }
         }
         if (bb && !rowBands.includes(bb)) { rowBands.push(bb); usedTops.push(bb.band.y0); }
     }
@@ -563,4 +589,29 @@ export function detectInventoryGrid(img, opts = {}) {
         auto: true,
         confidence,
     };
+}
+
+/**
+ * Guarda de plausibilidad para una calibración de rejilla GUARDADA (manual) que se
+ * va a usar como fallback cuando el auto-grid no da señal este frame. La calibración
+ * manual deriva las columnas de un simple ratio de aspecto de la caja arrastrada
+ * (live_calibration.saveGrid), así que una caja mal dibujada (p.ej. toda la pantalla)
+ * produce una rejilla basura —celdas enormes, columnas equivocadas, la zona invade el
+ * panel de venta de la derecha— y recorta ítems/badges partidos. Preferimos NO escanear
+ * a escanear con una rejilla basura.
+ *
+ * Una rejilla de inventario real ocupa ~11% del ancho por celda y ~20% del alto por
+ * fila, y su zona no llega al panel lateral (~65% del ancho). Se rechaza si la zona
+ * abarca casi todo el frame o si las celdas son desproporcionadamente grandes.
+ *
+ * @returns {boolean} true si la calibración es implausible y NO debe usarse.
+ */
+export function isImplausibleFallbackGrid(calib, frameW, frameH) {
+    if (!calib || !frameW || !frameH) return true;
+    const zone = calib.gridZone;
+    if (!zone || !zone.w || !zone.h) return true;
+    if (zone.w > frameW * 0.85) return true; // zona invade el panel de venta / todo el ancho
+    if (calib.cellW && calib.cellW > frameW * 0.16) return true; // celdas demasiado anchas (pocas columnas)
+    if (calib.cellH && calib.cellH > frameH * 0.28) return true; // filas demasiado altas
+    return false;
 }

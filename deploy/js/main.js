@@ -1,3 +1,4 @@
+import "./utils/debug_log.js"; // PRIMERO: silencia console.log/info/debug/warn si DEBUG_LOGS=false
 import { initCanvas } from "./utils/canvas.js";
 import {
   downloadRelics,
