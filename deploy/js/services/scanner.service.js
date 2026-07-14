@@ -1,4 +1,5 @@
 import { VisionService, WF_THEMES } from "./vision.service.js";
+import { isImplausibleFallbackGrid } from "../utils/grid_detect.js";
 import { OCRService } from "./ocr.service.js";
 import { OCRRepository } from "../repositories/ocr.repository.js";
 import { OpenCVRepository } from "../repositories/opencv.repository.js";
@@ -1201,8 +1202,14 @@ export const ScannerService = {
             }
 
             if (!calibData) {
-                calibData = globalThis.LiveCalibration?.getGrid() || null;
-                if (calibData) {
+                const saved = globalThis.LiveCalibration?.getGrid() || null;
+                // La calibración manual adivina columnas por ratio de aspecto; una caja
+                // mal dibujada da una rejilla basura (celdas enormes, zona sobre el panel
+                // de venta) que parte ítems y badges. Preferimos no escanear a recortar mal.
+                if (saved && isImplausibleFallbackGrid(saved, width, height)) {
+                    console.warn(`[INV] Calibración manual guardada implausible (zona ${saved.gridZone?.w}x${saved.gridZone?.h}, celda ${saved.cellW}x${saved.cellH} sobre frame ${width}x${height}) — descartada; se reintentará auto-grid.`);
+                } else if (saved) {
+                    calibData = saved;
                     console.log("[INV] Auto-grid sin señal este frame — usando calibración manual guardada.");
                 }
             }
@@ -1331,15 +1338,14 @@ export const ScannerService = {
                 }
             }
 
-            // Los workers extra (2º estándar + badges de cantidades) se crean aquí la primera
-            // vez: solo el escaneo del grid los usa, y tenerlos vivos desde el arranque costaba
-            // ~3 instancias WASM de RAM también en modo riven.
-            await Promise.all([OCRRepository.ensureSecondWorker(), OCRRepository.ensureBadgeWorkers()]);
+            // Solo se crea el 2º worker estándar (nombres): las CANTIDADES ya no usan Tesseract
+            // sino template-matching de dígitos (utils/badge_digit_ocr.js), así que los 2 workers
+            // de badges se eliminaron — 2 instancias WASM menos de RAM.
+            await OCRRepository.ensureSecondWorker();
             const workers = OCRRepository.workers;
-            const bWorkers = OCRRepository.badgeWorkers;
 
             let cellIndex = 0;
-            const runWorker = async (worker, bWorker) => {
+            const runWorker = async (worker) => {
                 while (cellIndex < activeCells.length) {
                     const task = activeCells[cellIndex++];
                     if (!task) break;
@@ -1407,7 +1413,7 @@ export const ScannerService = {
                         scanStats.matched++;
                         // 4b. Extract badge (quantity) using improved color-based crop
                         const badgeCanvas = VisionService.extractBadgeByColor(snapshot, cell, cellW, cellH, theme);
-                        const qtyResult = await OCRService.extractCellQuantity(bWorker, badgeCanvas);
+                        const qtyResult = await OCRService.extractCellQuantity(null, badgeCanvas);
 
                         logStr += ` || BDG: ${qtyResult.raw}`;
                         this.lastRawOcrLog.push(logStr);
@@ -1472,7 +1478,7 @@ export const ScannerService = {
                         // 4c. Misma lectura de badge que los prime items, pero votando en los maps
                         // de reliquias: no se mezcla con sessionInventory (se persisten por separado).
                         const badgeCanvas = VisionService.extractBadgeByColor(snapshot, cell, cellW, cellH, theme);
-                        const qtyResult = await OCRService.extractCellQuantity(bWorker, badgeCanvas);
+                        const qtyResult = await OCRService.extractCellQuantity(null, badgeCanvas);
 
                         // Indica qué lectura matcheó la reliquia (la original o la del fallback).
                         const relicSrc = relicText === combinedText ? "1st-pass" : "fallback";
@@ -1571,7 +1577,7 @@ export const ScannerService = {
                 const workerPromises = [];
                 const activeWorkerCount = Math.min(workers.length, activeCells.length);
                 for (let w = 0; w < activeWorkerCount; w++) {
-                    workerPromises.push(runWorker(workers[w], bWorkers[w]));
+                    workerPromises.push(runWorker(workers[w]));
                 }
                 await Promise.all(workerPromises);
 

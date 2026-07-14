@@ -1,5 +1,7 @@
 import { getActiveFissures, getArbitration } from "../repositories/api.repository.js";
 
+globalThis._serverTimeOffset = globalThis._serverTimeOffset || 0;
+
 // Cache en memoria del worldstate (global y de cambio lento): limita las llamadas al worker
 // (límite 100k/día) y evita parpadeos al re-renderizar el panel.
 const FISSURE_TTL = 120 * 1000; // 2 min
@@ -96,6 +98,15 @@ export async function fetchBestFissures(force = false) {
             const res = await getActiveFissures();
             if (!res.ok) throw new Error("Error al conectar con el Worldstate");
 
+            // 1. Intentar sincronizar con la cabecera Date del servidor (funciona tras desplegar CORS fix)
+            const serverDateStr = res.headers.get("Date");
+            if (serverDateStr) {
+                const parsedMs = new Date(serverDateStr).getTime();
+                if (!isNaN(parsedMs)) {
+                    globalThis._serverTimeOffset = Date.now() - parsedMs;
+                }
+            }
+
             let fissures = await res.json();
 
             if (typeof fissures === "string") {
@@ -112,7 +123,24 @@ export async function fetchBestFissures(force = false) {
                 throw new TypeError("El Worldstate no ha devuelto un array válido de fisuras.");
             }
 
-            const now = new Date();
+            // 2. Auto-detección de desfase del reloj del cliente a partir de los propios datos.
+            //    El servidor SOLO devuelve fisuras activas (expiry > serverNow). Si el Date.now()
+            //    del cliente ya supera la primera expiración, el reloj local va adelantado.
+            if (fissures.length > 0 && !globalThis._serverTimeOffset) {
+                const expiryTimes = fissures.map(f => new Date(f.expiry).getTime());
+                const activationTimes = fissures.map(f => new Date(f.activation).getTime());
+                const earliestExpiry = Math.min(...expiryTimes);
+                const latestActivation = Math.max(...activationTimes);
+
+                if (Date.now() > earliestExpiry) {
+                    // El reloj va adelantado: la mejor estimación del "ahora real" es el punto
+                    // medio entre la activación más reciente y la expiración más próxima.
+                    globalThis._serverTimeOffset = Date.now() - (latestActivation + earliestExpiry) / 2;
+                    console.warn(`[FISSURES] Desfase de reloj detectado: ${Math.round(globalThis._serverTimeOffset / 60000)}min. Corrigiendo.`);
+                }
+            }
+
+            const now = new Date(Date.now() - (globalThis._serverTimeOffset || 0));
 
             allFissures = fissures.reduce((acc, f) => {
                 const expiryDate = new Date(f.expiry);
@@ -160,7 +188,7 @@ let _arbyCache = { data: null };
  */
 export async function fetchArbitration(force = false) {
     const cached = _arbyCache.data;
-    if (!force && cached?.current && new Date(cached.current.expiry) > new Date()) {
+    if (!force && cached?.current && new Date(cached.current.expiry) > new Date(Date.now() - (globalThis._serverTimeOffset || 0))) {
         return cached;
     }
     try {

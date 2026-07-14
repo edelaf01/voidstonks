@@ -1,5 +1,7 @@
 import { state } from "../state.js";
 import { TEXTS } from "../config.js";
+
+globalThis._serverTimeOffset = globalThis._serverTimeOffset || 0;
 import {
   fetchBestFissures,
   fetchArbitration,
@@ -293,11 +295,12 @@ export async function initFissurePanel() {
   if (!globalThis._fissureCountdownInterval) {
     globalThis._fissureCountdownInterval = setInterval(() => {
       let expiredFound = false;
+      const syncedNow = Date.now() - (globalThis._serverTimeOffset || 0);
       document.querySelectorAll(".m-eta[data-expiry]").forEach((el) => {
         const expiryStr = el.getAttribute("data-expiry");
         if (!expiryStr) return;
         const expiry = new Date(expiryStr);
-        const now = new Date();
+        const now = new Date(syncedNow);
         const diffMs = expiry - now;
         if (diffMs <= 0) {
           el.innerText = state.currentLang === "es" ? "Expirado" : "Expired";
@@ -322,7 +325,7 @@ export async function initFissurePanel() {
       // y el refresh del panel ya trae la lista nueva.
       const startsIn = TEXTS[state.currentLang]?.arbitration?.startsIn || "en";
       document.querySelectorAll(".arby-next-time[data-starts]").forEach((el) => {
-        const diffMins = Math.max(0, Math.round((new Date(el.getAttribute("data-starts")) - Date.now()) / 60000));
+        const diffMins = Math.max(0, Math.round((new Date(el.getAttribute("data-starts")) - syncedNow) / 60000));
         const rel = diffMins >= 60
           ? `${Math.floor(diffMins / 60)}h ${String(diffMins % 60).padStart(2, "0")}m`
           : `${diffMins}m`;
@@ -332,7 +335,7 @@ export async function initFissurePanel() {
       if (expiredFound) {
         // Cooldown de 60s: si el refresh devuelve datos cacheados que aún contienen la fisura
         // expirada, sin este guard se re-disparaba el ciclo expired→refresh cada segundo.
-        const now = Date.now();
+        const now = syncedNow;
         if (!globalThis._fissureLastExpiryRefresh || now - globalThis._fissureLastExpiryRefresh > 60000) {
           globalThis._fissureLastExpiryRefresh = now;
           console.log("[FISSURES]: Fissure expired, refreshing list...");
@@ -372,7 +375,7 @@ async function renderArbitrationBar() {
 
     const upcomingRows = (arby.upcoming || []).slice(0, 3).map((m) => {
       // Tiempo relativo hasta la rotación: no depende de la zona horaria del cliente.
-      const diffMins = Math.max(0, Math.round((new Date(m.activation) - Date.now()) / 60000));
+      const diffMins = Math.max(0, Math.round((new Date(m.activation) - (Date.now() - (globalThis._serverTimeOffset || 0))) / 60000));
       const rel = diffMins >= 60
         ? `${Math.floor(diffMins / 60)}h ${String(diffMins % 60).padStart(2, "0")}m`
         : `${diffMins}m`;
@@ -433,7 +436,7 @@ async function renderMissionList() {
   // en retirarlas, y pintarlas con data-expiry en el pasado hacía que el countdown disparara
   // "expired → refresh" en bucle cada segundo (el refresh recibía la misma lista con la fisura
   // caducada dentro).
-  allMissions = allMissions.filter(m => !m.expiry || (new Date(m.expiry) - Date.now()) > 0);
+  allMissions = allMissions.filter(m => !m.expiry || (new Date(m.expiry) - (Date.now() - (globalThis._serverTimeOffset || 0))) > 0);
 
   // Las misiones de Railjack (isStorm) traen tier real (Lith/Meso/Neo/Axi): se agrupan en su
   // tier como las demás, distinguidas con la etiqueta "RJ" en la fila.
