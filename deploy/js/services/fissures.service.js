@@ -1,5 +1,7 @@
 import { getActiveFissures, getArbitration } from "../repositories/api.repository.js";
 
+globalThis._serverTimeOffset = globalThis._serverTimeOffset || 0;
+
 const FISSURE_TTL = 120 * 1000;
 let _fissureCache = { data: null, ts: 0 };
 
@@ -72,6 +74,14 @@ export async function fetchBestFissures(force = false) {
             const res = await getActiveFissures();
             if (!res.ok) throw new Error("Error al conectar con el Worldstate");
 
+            const serverDateStr = res.headers.get("Date");
+            if (serverDateStr) {
+                const parsedMs = new Date(serverDateStr).getTime();
+                if (!isNaN(parsedMs)) {
+                    globalThis._serverTimeOffset = Date.now() - parsedMs;
+                }
+            }
+
             let fissures = await res.json();
 
             if (typeof fissures === "string") {
@@ -88,7 +98,19 @@ export async function fetchBestFissures(force = false) {
                 throw new TypeError("El Worldstate no ha devuelto un array válido de fisuras.");
             }
 
-            const now = new Date();
+            if (fissures.length > 0 && !globalThis._serverTimeOffset) {
+                const expiryTimes = fissures.map(f => new Date(f.expiry).getTime());
+                const activationTimes = fissures.map(f => new Date(f.activation).getTime());
+                const earliestExpiry = Math.min(...expiryTimes);
+                const latestActivation = Math.max(...activationTimes);
+
+                if (Date.now() > earliestExpiry) {
+                    globalThis._serverTimeOffset = Date.now() - (latestActivation + earliestExpiry) / 2;
+                    console.warn(`[FISSURES] Desfase de reloj detectado: ${Math.round(globalThis._serverTimeOffset / 60000)}min. Corrigiendo.`);
+                }
+            }
+
+            const now = new Date(Date.now() - (globalThis._serverTimeOffset || 0));
 
             allFissures = fissures.reduce((acc, f) => {
                 const expiryDate = new Date(f.expiry);
@@ -128,7 +150,7 @@ let _arbyCache = { data: null };
 
 export async function fetchArbitration(force = false) {
     const cached = _arbyCache.data;
-    if (!force && cached?.current && new Date(cached.current.expiry) > new Date()) {
+    if (!force && cached?.current && new Date(cached.current.expiry) > new Date(Date.now() - (globalThis._serverTimeOffset || 0))) {
         return cached;
     }
     try {

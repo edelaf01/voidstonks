@@ -1,3 +1,4 @@
+import "./utils/debug_log.js";
 import { initCanvas } from "./utils/canvas.js";
 import {
   downloadRelics,
