@@ -1,4 +1,5 @@
 import { VisionService, WF_THEMES } from "./vision.service.js";
+import { isImplausibleFallbackGrid } from "../utils/grid_detect.js";
 import { OCRService } from "./ocr.service.js";
 import { OCRRepository } from "../repositories/ocr.repository.js";
 import { OpenCVRepository } from "../repositories/opencv.repository.js";
@@ -977,8 +978,13 @@ export const ScannerService = {
             }
 
             if (!calibData) {
-                calibData = globalThis.LiveCalibration?.getGrid() || null;
-                if (calibData) {
+                const saved = globalThis.LiveCalibration?.getGrid() || null;
+                // manual calibration guesses columns by aspect ratio; a bad box gives a garbage grid: better not to
+                // scan than to crop wrong
+                if (saved && isImplausibleFallbackGrid(saved, width, height)) {
+                    console.warn(`[INV] Calibración manual guardada implausible (zona ${saved.gridZone?.w}x${saved.gridZone?.h}, celda ${saved.cellW}x${saved.cellH} sobre frame ${width}x${height}) — descartada; se reintentará auto-grid.`);
+                } else if (saved) {
+                    calibData = saved;
                     console.log("[INV] Auto-grid sin señal este frame — usando calibración manual guardada.");
                 }
             }
@@ -1088,12 +1094,11 @@ export const ScannerService = {
                 }
             }
 
-            await Promise.all([OCRRepository.ensureSecondWorker(), OCRRepository.ensureBadgeWorkers()]);
+            await OCRRepository.ensureSecondWorker();
             const workers = OCRRepository.workers;
-            const bWorkers = OCRRepository.badgeWorkers;
 
             let cellIndex = 0;
-            const runWorker = async (worker, bWorker) => {
+            const runWorker = async (worker) => {
                 while (cellIndex < activeCells.length) {
                     const task = activeCells[cellIndex++];
                     if (!task) break;
@@ -1140,7 +1145,7 @@ export const ScannerService = {
                     if (bestItem) {
                         scanStats.matched++;
                         const badgeCanvas = VisionService.extractBadgeByColor(snapshot, cell, cellW, cellH, theme);
-                        const qtyResult = await OCRService.extractCellQuantity(bWorker, badgeCanvas);
+                        const qtyResult = await OCRService.extractCellQuantity(null, badgeCanvas);
 
                         logStr += ` || BDG: ${qtyResult.raw}`;
                         this.lastRawOcrLog.push(logStr);
@@ -1192,7 +1197,7 @@ export const ScannerService = {
                     } else if (relicMatch) {
                         scanStats.relics++;
                         const badgeCanvas = VisionService.extractBadgeByColor(snapshot, cell, cellW, cellH, theme);
-                        const qtyResult = await OCRService.extractCellQuantity(bWorker, badgeCanvas);
+                        const qtyResult = await OCRService.extractCellQuantity(null, badgeCanvas);
 
                         const relicSrc = relicText === combinedText ? "1st-pass" : "fallback";
                         logStr += ` || RELIC (${relicSrc}): ${relicMatch} || BDG: ${qtyResult.raw}`;
@@ -1279,7 +1284,7 @@ export const ScannerService = {
                 const workerPromises = [];
                 const activeWorkerCount = Math.min(workers.length, activeCells.length);
                 for (let w = 0; w < activeWorkerCount; w++) {
-                    workerPromises.push(runWorker(workers[w], bWorkers[w]));
+                    workerPromises.push(runWorker(workers[w]));
                 }
                 await Promise.all(workerPromises);
 

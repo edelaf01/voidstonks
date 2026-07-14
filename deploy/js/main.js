@@ -1,3 +1,4 @@
+import "./utils/debug_log.js"; // must stay first: silences the console in production
 import { initCanvas } from "./utils/canvas.js";
 import {
   downloadRelics,

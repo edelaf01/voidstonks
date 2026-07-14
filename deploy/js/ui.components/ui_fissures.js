@@ -1,5 +1,7 @@
 import { state } from "../state.js";
 import { TEXTS } from "../config.js";
+
+globalThis._serverTimeOffset = globalThis._serverTimeOffset || 0;
 import {
   fetchBestFissures,
   fetchArbitration,
@@ -284,11 +286,12 @@ export async function initFissurePanel() {
   if (!globalThis._fissureCountdownInterval) {
     globalThis._fissureCountdownInterval = setInterval(() => {
       let expiredFound = false;
+      const syncedNow = Date.now() - (globalThis._serverTimeOffset || 0);
       document.querySelectorAll(".m-eta[data-expiry]").forEach((el) => {
         const expiryStr = el.getAttribute("data-expiry");
         if (!expiryStr) return;
         const expiry = new Date(expiryStr);
-        const now = new Date();
+        const now = new Date(syncedNow);
         const diffMs = expiry - now;
         if (diffMs <= 0) {
           el.innerText = state.currentLang === "es" ? "Expirado" : "Expired";
@@ -311,7 +314,7 @@ export async function initFissurePanel() {
       // upcoming arbitration rotations: same tick, minutes recomputed from data-starts
       const startsIn = TEXTS[state.currentLang]?.arbitration?.startsIn || "en";
       document.querySelectorAll(".arby-next-time[data-starts]").forEach((el) => {
-        const diffMins = Math.max(0, Math.round((new Date(el.getAttribute("data-starts")) - Date.now()) / 60000));
+        const diffMins = Math.max(0, Math.round((new Date(el.getAttribute("data-starts")) - syncedNow) / 60000));
         const rel = diffMins >= 60
           ? `${Math.floor(diffMins / 60)}h ${String(diffMins % 60).padStart(2, "0")}m`
           : `${diffMins}m`;
@@ -319,7 +322,7 @@ export async function initFissurePanel() {
       });
 
       if (expiredFound) {
-        const now = Date.now();
+        const now = syncedNow;
         if (!globalThis._fissureLastExpiryRefresh || now - globalThis._fissureLastExpiryRefresh > 60000) {
           globalThis._fissureLastExpiryRefresh = now;
           console.log("[FISSURES]: Fissure expired, refreshing list...");
@@ -355,7 +358,7 @@ async function renderArbitrationBar() {
       : "";
 
     const upcomingRows = (arby.upcoming || []).slice(0, 3).map((m) => {
-      const diffMins = Math.max(0, Math.round((new Date(m.activation) - Date.now()) / 60000));
+      const diffMins = Math.max(0, Math.round((new Date(m.activation) - (Date.now() - (globalThis._serverTimeOffset || 0))) / 60000));
       const rel = diffMins >= 60
         ? `${Math.floor(diffMins / 60)}h ${String(diffMins % 60).padStart(2, "0")}m`
         : `${diffMins}m`;
@@ -411,7 +414,7 @@ async function renderMissionList() {
 
   let allMissions = await fetchBestFissures();
 
-  allMissions = allMissions.filter(m => !m.expiry || (new Date(m.expiry) - Date.now()) > 0);
+  allMissions = allMissions.filter(m => !m.expiry || (new Date(m.expiry) - (Date.now() - (globalThis._serverTimeOffset || 0))) > 0);
 
   // Railjack missions (isStorm) carry a real tier: grouped there and tagged "RJ"
   const tiersOrder = ["Lith", "Meso", "Neo", "Axi", "Requiem", "Omnia"];

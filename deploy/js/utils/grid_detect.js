@@ -254,8 +254,8 @@ export function detectInventoryGrid(img, opts = {}) {
     }
 
     const hudLimit = height * 0.2;
-    const chainItems = bandBlocks.filter(bb => bb.band.y0 >= hudLimit).map(bb => ({
-        pos: bb.band.y0,
+    const chainItems = bandBlocks.filter(bb => bb.band.y1 >= hudLimit).map(bb => ({
+        pos: bb.band.y1,
         mass: bb.blocks.reduce((s, bl) => s + bl.mass, 0),
         centers: bb.blocks.map(bl => bl.cx),
     }));
@@ -270,8 +270,12 @@ export function detectInventoryGrid(img, opts = {}) {
     }
     let cellH = Math.round(chain.pitch);
 
-    const base = chain.members[0];
-    const last = chain.members[chain.members.length - 1];
+    // row re-anchoring: are the chain NAMES or BADGES? Quantity badges form a parallel chain at the same pitch,
+    // ~0.6·cellH off. The pitch holds, but the phase must anchor on names: fold the row profile modulo cellH and
+    // take the heaviest ARC. The chain anchored on y1; the fold needs the name TOP (y0)
+    const y1ToTop = new Map(bandBlocks.map(bb => [bb.band.y1, bb.band.y0]));
+    const base = y1ToTop.get(chain.members[0]) ?? chain.members[0];
+    const last = y1ToTop.get(chain.members[chain.members.length - 1]) ?? chain.members[chain.members.length - 1];
     const foldY0 = Math.max(Math.ceil(hudLimit), base - cellH);
     const foldY1 = Math.min(height - 1, last + cellH);
     const fold = new Float32Array(cellH);
@@ -289,16 +293,26 @@ export function detectInventoryGrid(img, opts = {}) {
     // name band top in phase: base + bestArc (mod cellH), as close to base as possible
     const nameBase = base + (bestArc <= cellH / 2 ? bestArc : bestArc - cellH);
 
+    // grid rows: a band falls in row k if its TOP (y0) matches the top slot (nameBase + k·cellH) OR its BASE
+    // (y1) the baseline slot (baseY1 + k·cellH).
+    //   - y1: holds when item art merges with the name from ABOVE and moves y0.
+    //   - y0: holds when a row PEEKS cut at the bottom and its y1 is off the frame.
+    // usedTops keeps the real name y0 for the rest of the pipeline
+    const baseY1 = chain.members[0];
     const rowBands = [];
     const usedTops = [];
-    for (let t = nameBase - Math.ceil((nameBase - hudLimit) / cellH) * cellH; t < height; t += cellH) {
-        if (t < hudLimit - cellH * 0.2) continue;
-        let bb = null;
+    const tol = cellH * 0.2;
+    const kMin = Math.floor((hudLimit - baseY1) / cellH) - 1;
+    const kMax = Math.ceil((height - baseY1) / cellH) + 1;
+    for (let k = kMin; k <= kMax; k++) {
+        const topSlot = nameBase + k * cellH;
+        const baseSlot = baseY1 + k * cellH;
+        if (baseSlot < hudLimit && topSlot < hudLimit) continue;
+        let bb = null, bbErr = Infinity;
         for (const cand2 of bandBlocks) {
-            if (cand2.band.y0 >= hudLimit && Math.abs(cand2.band.y0 - t) <= cellH * 0.2 &&
-                (!bb || Math.abs(cand2.band.y0 - t) < Math.abs(bb.band.y0 - t))) {
-                bb = cand2;
-            }
+            if (cand2.band.y1 < hudLimit) continue;
+            const err = Math.min(Math.abs(cand2.band.y0 - topSlot), Math.abs(cand2.band.y1 - baseSlot));
+            if (err <= tol && err < bbErr) { bb = cand2; bbErr = err; }
         }
         if (bb && !rowBands.includes(bb)) { rowBands.push(bb); usedTops.push(bb.band.y0); }
     }
@@ -475,4 +489,23 @@ export function detectInventoryGrid(img, opts = {}) {
         auto: true,
         confidence,
     };
+}
+
+/**
+ * Plausibility guard for a SAVED (manual) grid calibration used as fallback when the auto grid gives no
+ * signal this frame. Manual calibration derives the columns from the aspect ratio of the dragged box, so a
+ * badly drawn box gives a junk grid, and not scanning beats scanning with it. A real inventory grid takes
+ * ~11% of the width per cell and ~20% of the height per row, and its zone stays clear of the side panel
+ * (~65% of the width).
+ *
+ * @returns {boolean} true when the calibration is implausible and must NOT be used.
+ */
+export function isImplausibleFallbackGrid(calib, frameW, frameH) {
+    if (!calib || !frameW || !frameH) return true;
+    const zone = calib.gridZone;
+    if (!zone || !zone.w || !zone.h) return true;
+    if (zone.w > frameW * 0.85) return true; // zone spills into the sell panel / full width
+    if (calib.cellW && calib.cellW > frameW * 0.16) return true; // cells too wide (few columns)
+    if (calib.cellH && calib.cellH > frameH * 0.28) return true; // rows too tall
+    return false;
 }

@@ -1,6 +1,6 @@
 import { state } from "../state.js";
 import { OCRRepository } from "../repositories/ocr.repository.js";
-import { VisionService } from "./vision.service.js";
+import { readBadgeDigits } from "../utils/badge_digit_ocr.js";
 
 export const OCRService = {
     cachedDbItems: [],
@@ -395,24 +395,16 @@ export const OCRService = {
         return { qty: 1, raw: rawTexts };
     },
 
+    // Quantity of one frame by digit template matching (utils/badge_digit_ocr.js).
+    // `worker` is unused; scanner.service.js still passes it.
     async extractCellQuantity(worker, badgeCanvas) {
         if (!badgeCanvas) return { qty: 1, raw: "" };
-        const { data } = await OCRRepository.recognize(worker, badgeCanvas);
-        if (!data || !data.words) return { qty: 1, raw: "" };
-        const repaired = this._repairBadgeWords(data.words);
-
-        const digits = repaired.badgeNums.map(w => w.text.replace(/\D/g, "")).join("");
-        if (/[69]/.test(digits)) {
-            const fixed = VisionService.disambiguate69(badgeCanvas, digits);
-            if (fixed !== digits) {
-                const val = Number.parseInt(fixed);
-                return {
-                    qty: (val > 1 && val < 1000) ? val : 1,
-                    raw: `${repaired.rawTexts} [69fix ${digits}->${fixed}]`
-                };
-            }
-        }
-        return this._badgeToQty(repaired);
+        const ctx = badgeCanvas.getContext("2d");
+        const imgData = ctx.getImageData(0, 0, badgeCanvas.width, badgeCanvas.height);
+        const raw = readBadgeDigits(imgData);
+        if (!raw) return { qty: 1, raw: "" };
+        const val = Number.parseInt(raw);
+        return { qty: (val > 1 && val < 1000) ? val : 1, raw };
     },
 
     getValidItemMatch(combinedText) {
@@ -467,6 +459,7 @@ export const OCRService = {
             if (t === "BLUEPRINT" && /^(BLU|BLA|B1U|3LU)/i.test(w) && (w.includes("INT") || w.includes("INI") || w.includes("EPR"))) return "BLUEPRINT";
             if (t === "NEUROPTICS" && /^(NEU|NEPT)/i.test(w) && w.includes("TICS")) return "NEUROPTICS";
             if (t === "GAUNTLET" && (w === "ES" || w === "RES" || w === "ON" || w === "RESON" || w === "AR" || w === "AS" || w === "ER" || w === "RE" || /^(GAU|GNT|AN|RES)/i.test(w) || w.endsWith("ON"))) return "GAUNTLET";
+            if (t === "LIMB" && w.length <= 5 && w !== "LINK" && (/^L[IYM]/.test(w) || ["UMB", "IMB", "MB"].includes(w))) return "LIMB";
             return w;
         };
 
