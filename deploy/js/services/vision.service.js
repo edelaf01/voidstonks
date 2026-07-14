@@ -1,5 +1,6 @@
 import { OpenCVRepository } from "../repositories/opencv.repository.js";
 import { detectInventoryGrid } from "../utils/grid_detect.js";
+import { offBandComponentIndices } from "../utils/badge_filters.js";
 
 
 
@@ -1230,6 +1231,17 @@ export const VisionService = {
             }
         }
 
+        for (const i of offBandComponentIndices(components)) {
+            const comp = components[i];
+            for (const pixelIdx of comp.pixels) {
+                px[pixelIdx * 4] = 255;
+                px[pixelIdx * 4 + 1] = 255;
+                px[pixelIdx * 4 + 2] = 255;
+            }
+            comp.erased = true;
+            comp.hardErased = true;
+        }
+
         if (!components.some(c => !c.erased)) {
             for (const comp of components) {
                 if (comp.width > 18 && comp.height <= 3) continue;
@@ -1370,7 +1382,7 @@ export const VisionService = {
 
             const holeCy = holeYSum / holeArea;
             const centerY = (b.minY + b.maxY) / 2;
-            const margin = bh * 0.06;
+            const margin = bh * 0.15;
             if (holeCy > centerY + margin) out += "6";
             else if (holeCy < centerY - margin) out += "9";
             else out += ch;

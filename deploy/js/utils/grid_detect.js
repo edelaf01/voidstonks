@@ -228,8 +228,8 @@ export function detectInventoryGrid(img, opts = {}) {
     }
 
     const hudLimit = height * 0.2;
-    const chainItems = bandBlocks.filter(bb => bb.band.y0 >= hudLimit).map(bb => ({
-        pos: bb.band.y0,
+    const chainItems = bandBlocks.filter(bb => bb.band.y1 >= hudLimit).map(bb => ({
+        pos: bb.band.y1,
         mass: bb.blocks.reduce((s, bl) => s + bl.mass, 0),
         centers: bb.blocks.map(bl => bl.cx),
     }));
@@ -243,8 +243,9 @@ export function detectInventoryGrid(img, opts = {}) {
     }
     let cellH = Math.round(chain.pitch);
 
-    const base = chain.members[0];
-    const last = chain.members[chain.members.length - 1];
+    const y1ToTop = new Map(bandBlocks.map(bb => [bb.band.y1, bb.band.y0]));
+    const base = y1ToTop.get(chain.members[0]) ?? chain.members[0];
+    const last = y1ToTop.get(chain.members[chain.members.length - 1]) ?? chain.members[chain.members.length - 1];
     const foldY0 = Math.max(Math.ceil(hudLimit), base - cellH);
     const foldY1 = Math.min(height - 1, last + cellH);
     const fold = new Float32Array(cellH);
@@ -261,16 +262,21 @@ export function detectInventoryGrid(img, opts = {}) {
     }
     const nameBase = base + (bestArc <= cellH / 2 ? bestArc : bestArc - cellH);
 
+    const baseY1 = chain.members[0];
     const rowBands = [];
     const usedTops = [];
-    for (let t = nameBase - Math.ceil((nameBase - hudLimit) / cellH) * cellH; t < height; t += cellH) {
-        if (t < hudLimit - cellH * 0.2) continue;
-        let bb = null;
+    const tol = cellH * 0.2;
+    const kMin = Math.floor((hudLimit - baseY1) / cellH) - 1;
+    const kMax = Math.ceil((height - baseY1) / cellH) + 1;
+    for (let k = kMin; k <= kMax; k++) {
+        const topSlot = nameBase + k * cellH;
+        const baseSlot = baseY1 + k * cellH;
+        if (baseSlot < hudLimit && topSlot < hudLimit) continue;
+        let bb = null, bbErr = Infinity;
         for (const cand2 of bandBlocks) {
-            if (cand2.band.y0 >= hudLimit && Math.abs(cand2.band.y0 - t) <= cellH * 0.2 &&
-                (!bb || Math.abs(cand2.band.y0 - t) < Math.abs(bb.band.y0 - t))) {
-                bb = cand2;
-            }
+            if (cand2.band.y1 < hudLimit) continue;
+            const err = Math.min(Math.abs(cand2.band.y0 - topSlot), Math.abs(cand2.band.y1 - baseSlot));
+            if (err <= tol && err < bbErr) { bb = cand2; bbErr = err; }
         }
         if (bb && !rowBands.includes(bb)) { rowBands.push(bb); usedTops.push(bb.band.y0); }
     }
@@ -434,4 +440,14 @@ export function detectInventoryGrid(img, opts = {}) {
         auto: true,
         confidence,
     };
+}
+
+export function isImplausibleFallbackGrid(calib, frameW, frameH) {
+    if (!calib || !frameW || !frameH) return true;
+    const zone = calib.gridZone;
+    if (!zone || !zone.w || !zone.h) return true;
+    if (zone.w > frameW * 0.85) return true;
+    if (calib.cellW && calib.cellW > frameW * 0.16) return true;
+    if (calib.cellH && calib.cellH > frameH * 0.28) return true;
+    return false;
 }
