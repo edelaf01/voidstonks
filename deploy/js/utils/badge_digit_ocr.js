@@ -98,7 +98,7 @@ export function segmentDigits(canvasLike) {
                 bmp[y * NW + x] = isBlack(sy * W + sx) ? 1 : 0;
             }
         }
-        return bmp;
+        return { bmp, minX: c.minX, maxX: c.maxX };
     });
 }
 
@@ -110,15 +110,23 @@ const MIN_IOU = 0.6;
  * when no digit is left.
  */
 export function readBadgeDigits(canvasLike) {
-    let out = "";
+    const digits = [];
     for (const comp of segmentDigits(canvasLike)) {
         let best = "", bestScore = -1;
         for (const [digit, tmpl] of Object.entries(DIGIT_TEMPLATES)) {
-            const score = iou(comp, tmpl);
+            const score = iou(comp.bmp, tmpl);
             if (score > bestScore) { bestScore = score; best = digit; }
         }
         if (bestScore < MIN_IOU) continue; // not a digit: checkmark/foundry/art
-        out += best;
+        digits.push({ d: best, minX: comp.minX, maxX: comp.maxX });
+    }
+    if (!digits.length) return "";
+    const widths = digits.map(g => g.maxX - g.minX + 1);
+    const avgW = widths.reduce((a, b) => a + b, 0) / widths.length;
+    let out = digits[0].d;
+    for (let k = 1; k < digits.length; k++) {
+        if (digits[k].minX - digits[k - 1].maxX > avgW * 1.4) break;
+        out += digits[k].d;
     }
     return out;
 }

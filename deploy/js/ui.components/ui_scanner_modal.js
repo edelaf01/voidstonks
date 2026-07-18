@@ -197,14 +197,24 @@ export const ScannerModal = {
             : 100 / n;
         const halfPct = gapPct / 2;
 
-        for (let i = 1; i < n; i++) {
-            const prev = positionedItems[i - 1];
-            const curr = positionedItems[i];
-            if (curr.leftPct - prev.leftPct < gapPct) {
-                curr.leftPct = prev.leftPct + gapPct;
-            }
-        }
+        // anti-overlap that keeps the centering: force the minimum gap, re-anchor the group on its original
+        // centroid, then clamp inside the wrapper
         if (n > 0) {
+            const centroidBefore = positionedItems.reduce((s, it) => s + it.leftPct, 0) / n;
+
+            for (let i = 1; i < n; i++) {
+                const prev = positionedItems[i - 1];
+                const curr = positionedItems[i];
+                if (curr.leftPct - prev.leftPct < gapPct) {
+                    curr.leftPct = prev.leftPct + gapPct;
+                }
+            }
+
+            const centroidAfter = positionedItems.reduce((s, it) => s + it.leftPct, 0) / n;
+            const shift = centroidBefore - centroidAfter;
+            if (shift !== 0) positionedItems.forEach(it => { it.leftPct += shift; });
+
+            // clamp inside the wrapper keeping the gap, from both ends
             const maxLeft = 100 - halfPct;
             if (positionedItems[n - 1].leftPct > maxLeft) positionedItems[n - 1].leftPct = maxLeft;
             for (let i = n - 2; i >= 0; i--) {
@@ -212,7 +222,14 @@ export const ScannerModal = {
                     positionedItems[i].leftPct = positionedItems[i + 1].leftPct - gapPct;
                 }
             }
-            if (positionedItems[0].leftPct < halfPct) positionedItems[0].leftPct = halfPct;
+            if (positionedItems[0].leftPct < halfPct) {
+                positionedItems[0].leftPct = halfPct;
+                for (let i = 1; i < n; i++) {
+                    if (positionedItems[i].leftPct < positionedItems[i - 1].leftPct + gapPct) {
+                        positionedItems[i].leftPct = positionedItems[i - 1].leftPct + gapPct;
+                    }
+                }
+            }
         }
 
         const fragment = document.createDocumentFragment();

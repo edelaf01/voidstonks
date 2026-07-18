@@ -184,14 +184,25 @@ export async function getActiveBounties() {
 }
 
 /** @returns {Promise<Response>} */
-export async function getActiveFissures() {
-    return fetchWithTimeout(`${WORKER_URL}?type=fissures`, { timeout: 15000 });
+export async function getActiveFissures(force = false) {
+    const opts = { timeout: 15000 };
+    let url = `${WORKER_URL}?type=fissures&v=2`;
+    if (force) url += `&_cb=${Date.now()}`;
+    return fetchWithTimeout(url, opts);
 }
 
 /**
  * Fetches the current + upcoming Arbitration rotations. 
  * @returns {Promise<Response>}
  */
-export async function getArbitration() {
-    return fetchWithTimeout(`${WORKER_URL}?type=arbitration`, { timeout: 15000 });
+export async function getArbitration(force = false) {
+    const opts = { timeout: 15000 };
+    let url = `${WORKER_URL}?type=arbitration`;
+    if (force) url += `&_cb=${Date.now()}`;
+    return fetchWithTimeout(url, opts);
+}
+
+/** @returns {Promise<Response>} */
+export async function getServerTime() {
+    return fetchWithTimeout(`${WORKER_URL}?type=time`, { cache: "no-store", timeout: 10000 });
 }

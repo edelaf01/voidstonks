@@ -1,30 +1,91 @@
+/**
+ * Inventory grid autodetection, no manual calibration. Pure over an ImageData-like { data, width, height }
+ * (no DOM, testable in Node).
+ *
+ * Item NAMES are text on a fixed band of each card: 3 horizontal bands with pitch cellH (rows) and, inside
+ * each, text blocks with pitch cellW (columns). Quantity badges are tiny next to them and drop by band mass.
+ * The result has the same format as the saved manual calibration (gridZone + cellW/cellH/cols/rows).
+ *
+ * The signal is edge density by |Δluma| between neighbour samples, not an absolute brightness threshold:
+ * light Warframe themes push the whole background over any threshold, while a letter stroke makes an edge
+ * both light on dark and dark on light.
+ */
+
+/** Perceptual luma (0..255), base of the edge signal. */
+export const luma = (r, g, b) => 0.299 * r + 0.587 * g + 0.114 * b;
+
+/**
+ * Luma of a scanline smoothed with a box filter of `radius`: averages per-pixel noise without erasing
+ * stroke edges. Returns Float32Array(width).
+ */
+export function smoothedLumaRow(data, off, width, radius) {
+    const raw = new Float32Array(width);
+    for (let x = 0; x < width; x++) {
+        const i = off + x * 4;
+        raw[x] = luma(data[i], data[i + 1], data[i + 2]);
+    }
+    if (radius <= 0) return raw;
+    const out = new Float32Array(width);
+    let sum = 0;
+    for (let x = 0; x <= radius && x < width; x++) sum += raw[x];
+    let count = Math.min(radius, width - 1) + 1;
+    for (let x = 0; x < width; x++) {
+        out[x] = sum / count;
+        const add = x + radius + 1, rem = x - radius;
+        if (add < width) { sum += raw[add]; count++; }
+        if (rem >= 0) { sum -= raw[rem]; count--; }
+    }
+    return out;
+}
+
 const DEFAULTS = {
-    brightThresh: 185,
+    edgeDelta: 26,       // |Δluma| between neighbour samples that counts as a stroke edge
+    edgeSmooth: 0,       // anti-noise box filter radius; 0 = no smoothing
+    bgDistSq: 70 * 70,     // min dist² to the background color for an "ink" pixel
+    mergeColSq: 45 * 45,   // merges candidate colors closer than this (antialias/compression)
+    nameTolSq: 80 * 80,    // dist² to the name color (metallic art sits beyond 110)
+    maxInkCands: 4,        // max name color candidates to try
     strideX: 2,          // horizontal sampling for the row profile
     minBandH: 6,         // px: lower bands are noise
     maxBandHFrac: 0.25,  // taller than 25% of the image = background/art, not text
     mergeGapY: 12,
     bandMassFloor: 0.22, // min mass relative to the strongest band (drops badges/HUD)
-    nameBandOffset: 0.60,
+    nameBandOffset: 0.75, // cell top ≈ name band top − 0.75·cellH
+    nameBaselineOffset: 0.92, // cell top ≈ name BASELINE (y1) − 0.92·cellH
     rows: 3,             // Warframe's inventory always shows 3 rows
     minCols: 3,
     maxCols: 12,
 };
 
+/**
+ * Row "text" profile: number of EDGES (large |Δluma|) per scanline. Text has dozens per line, a metallic
+ * art highlight is a solid block with ~2.
+ */
 export function rowProfile(img, opts = {}) {
     const o = { ...DEFAULTS, ...opts };
     const { data, width, height } = img;
     const prof = new Float32Array(height);
+    // color signal: with a name color mask the row profile counts name color pixels, not edges
+    if (o.inkMask) {
+        const mask = o.inkMask;
+        for (let y = 0; y < height; y++) {
+            let cnt = 0;
+            const rowOff = y * width;
+            for (let x = 0; x < width; x += o.strideX) cnt += mask[rowOff + x];
+            prof[y] = cnt;
+        }
+        return prof;
+    }
     for (let y = 0; y < height; y++) {
         let cnt = 0;
-        let prevBright = false;
-        const off = y * width * 4;
-        for (let x = 0; x < width; x += o.strideX) {
-            const i = off + x * 4;
-            const mx = Math.max(data[i], data[i + 1], data[i + 2]);
-            const bright = mx > o.brightThresh;
-            if (bright && !prevBright) cnt++;
-            prevBright = bright;
+        let inEdge = false;
+        const sm = smoothedLumaRow(data, y * width * 4, width, o.edgeSmooth);
+        let prevL = sm[0];
+        for (let x = o.strideX; x < width; x += o.strideX) {
+            const edge = Math.abs(sm[x] - prevL) > o.edgeDelta;
+            if (edge && !inEdge) cnt++;
+            inEdge = edge;
+            prevL = sm[x];
         }
         prof[y] = cnt;
     }
@@ -82,16 +143,26 @@ export function blocksInBand(img, y0, y1, opts = {}) {
     const o = { ...DEFAULTS, ...opts };
     const { data, width } = img;
     const col = new Float32Array(width);
-    for (let y = y0; y <= y1; y++) {
-        const off = y * width * 4;
-        let prevBright = false;
-        for (let x = 0; x < width; x++) {
-            const i = off + x * 4;
-            const mx = Math.max(data[i], data[i + 1], data[i + 2]);
-            const bright = mx > o.brightThresh;
-            if (bright && !prevBright) col[x]++;
-            prevBright = bright;
+    // color signal: name color pixels per column in the band
+    if (o.inkMask) {
+        const mask = o.inkMask;
+        for (let y = y0; y <= y1; y++) {
+            const rowOff = y * width;
+            for (let x = 0; x < width; x++) col[x] += mask[rowOff + x];
         }
+    } else {
+    // like rowProfile: EDGES by |Δluma|, not pixels over a threshold
+    for (let y = y0; y <= y1; y++) {
+        const sm = smoothedLumaRow(data, y * width * 4, width, o.edgeSmooth);
+        let inEdge = false;
+        let prevL = sm[0];
+        for (let x = 1; x < width; x++) {
+            const edge = Math.abs(sm[x] - prevL) > o.edgeDelta;
+            if (edge && !inEdge) col[x]++;
+            inEdge = edge;
+            prevL = sm[x];
+        }
+    }
     }
 
     const bandH = y1 - y0 + 1;
@@ -226,7 +297,105 @@ export function estimatePitch(diffs, tol = 0.12) {
     return best;
 }
 
+/**
+ * Dominant frame colors for the name color signal: { bg:[r,g,b], cands:[[r,g,b]…] }, the BACKGROUND
+ * (global color mode) and candidate "ink" colors. One is the NAME color, another is usually the metallic
+ * ART; detectInventoryGrid keeps the one giving thin bands.
+ */
+export function colorInkCandidates(img, opts = {}) {
+    const o = { ...DEFAULTS, ...opts };
+    const { data, width, height } = img;
+    const key = (r, g, b) => ((r >> 3) << 10) | ((g >> 3) << 5) | (b >> 3);
+    const unq = k => [((k >> 10) & 31) << 3, ((k >> 5) & 31) << 3, (k & 31) << 3];
+    const hist = new Map();
+    for (let y = 0; y < height; y += o.strideX) {
+        const rowOff = y * width * 4;
+        for (let x = 0; x < width; x += o.strideX) {
+            const i = rowOff + x * 4;
+            const kk = key(data[i], data[i + 1], data[i + 2]);
+            hist.set(kk, (hist.get(kk) || 0) + 1);
+        }
+    }
+    let bgKey = 0, bgC = -1;
+    for (const [k, c] of hist) if (c > bgC) { bgC = c; bgKey = k; }
+    const bg = unq(bgKey);
+    const entries = [...hist.entries()]
+        .map(([k, c]) => ({ c, col: unq(k) }))
+        .filter(e => {
+            const dr = e.col[0] - bg[0], dg = e.col[1] - bg[1], db = e.col[2] - bg[2];
+            return dr * dr + dg * dg + db * db > o.bgDistSq;
+        })
+        .sort((a, b) => b.c - a.c);
+    const cands = [];
+    for (const e of entries) {
+        if (cands.some(c => {
+            const dr = c[0] - e.col[0], dg = c[1] - e.col[1], db = c[2] - e.col[2];
+            return dr * dr + dg * dg + db * db < o.mergeColSq;
+        })) continue;
+        cands.push(e.col);
+        if (cands.length >= o.maxInkCands) break;
+    }
+    return { bg, cands };
+}
+
+/** Uint8Array(width·height) mask: 1 where the pixel is within √tolSq of the color. */
+function colorInkMask(img, col, tolSq) {
+    const { data, width, height } = img;
+    const mask = new Uint8Array(width * height);
+    const [cr, cg, cb] = col;
+    for (let i = 0, p = 0; p < mask.length; p++, i += 4) {
+        const dr = data[i] - cr, dg = data[i + 1] - cg, db = data[i + 2] - cb;
+        if (dr * dr + dg * dg + db * db <= tolSq) mask[p] = 1;
+    }
+    return mask;
+}
+
+/**
+ * Full detection. img = { data, width, height } (ImageData-like). Returns calibData for buildAutoGrid, or
+ * null without enough confidence (the caller falls back to the saved manual calibration).
+ *
+ * Two signals:
+ *   1) EDGES (|Δluma|): primary, works on most themes.
+ *   2) NAME COLOR (fallback): when (1) collapses (a light textured background floods the edges, or metallic
+ *      art steals the anchor), each candidate color is tried and the THINNEST row bands win.
+ */
 export function detectInventoryGrid(img, opts = {}) {
+    const o = { ...DEFAULTS, ...opts };
+    if (!img?.data || !img.width || !img.height) return null;
+
+    const edgeRes = detectInventoryGridCore(img, opts);
+    if (edgeRes) return edgeRes;
+
+    // name color fallback: keeps the valid grid whose row band is the thinnest (text, not metallic art)
+    const outerTrace = opts.trace || {};
+    const { bg, cands } = colorInkCandidates(img, o);
+    outerTrace.colorFallback = { bg, cands, tried: [] };
+    let best = null;
+    for (const col of cands) {
+        const mask = colorInkMask(img, col, o.nameTolSq);
+        const subTrace = {};
+        const res = detectInventoryGridCore(img, { ...opts, inkMask: mask, trace: subTrace });
+        outerTrace.colorFallback.tried.push({
+            col, ok: !!res,
+            nameBandFrac: res ? +res.nameBandFrac.toFixed(3) : null,
+            fail: res ? null : subTrace.fail,
+        });
+        if (!res) continue;
+        if (!best || res.nameBandFrac < best.nameBandFrac) { best = res; best._nameColor = col; }
+    }
+    if (best) {
+        best.colorAnchored = true;
+        // PAGE level name color (the one that anchored the grid), passed to the per-cell binarization: detecting it
+        // per cell lost white text on textured themes
+        best.nameColor = best._nameColor;
+        delete best._nameColor;
+        return best;
+    }
+    outerTrace.fail = outerTrace.fail || "sin señal de bordes ni de color de nombre";
+    return null;
+}
+
+function detectInventoryGridCore(img, opts = {}) {
     const o = { ...DEFAULTS, ...opts };
     const { width, height } = img;
     if (!img?.data || !width || !height) return null;
@@ -237,7 +406,7 @@ export function detectInventoryGrid(img, opts = {}) {
     const bands = findBands(prof, height, o);
     trace.bands = bands.map(b => ({ y0: b.y0, y1: b.y1, mass: Math.round(b.mass) }));
     if (bands.length < 2) {
-        trace.fail = `bandas de texto insuficientes (${bands.length} < 2) — ¿texto por debajo del umbral de brillo ${o.brightThresh}?`;
+        trace.fail = `bandas de texto insuficientes (${bands.length} < 2) — ¿contraste de bordes por debajo de edgeDelta ${o.edgeDelta}?`;
         return null;
     }
 
@@ -352,14 +521,19 @@ export function detectInventoryGrid(img, opts = {}) {
     const { data } = img;
     for (const bb of rowBands) {
         for (let y = bb.band.y0; y <= bb.band.y1; y++) {
-            const off = y * width * 4;
-            let prevBright = false;
-            for (let x = 0; x < width; x++) {
-                const i = off + x * 4;
-                const mx = Math.max(data[i], data[i + 1], data[i + 2]);
-                const bright = mx > o.brightThresh;
-                if (bright && !prevBright) colProf[x]++;
-                prevBright = bright;
+            if (o.inkMask) {
+                const rowOff = y * width;
+                for (let x = 0; x < width; x++) colProf[x] += o.inkMask[rowOff + x];
+                continue;
+            }
+            const sm = smoothedLumaRow(data, y * width * 4, width, o.edgeSmooth);
+            let inEdge = false;
+            let prevL = sm[0];
+            for (let x = 1; x < width; x++) {
+                const edge = Math.abs(sm[x] - prevL) > o.edgeDelta;
+                if (edge && !inEdge) colProf[x]++;
+                inEdge = edge;
+                prevL = sm[x];
             }
         }
     }
@@ -465,14 +639,21 @@ export function detectInventoryGrid(img, opts = {}) {
     }
     const gridX = Math.max(0, Math.round(gridXf));
 
-    const firstTop = usedTops[0];
-    const gridY = Math.round(firstTop - cellH * o.nameBandOffset);
+    const firstBand = rowBands[0].band;
+    const gridY = firstBand.y1
+        ? Math.round(firstBand.y1 - cellH * o.nameBaselineOffset)
+        : Math.round(usedTops[0] - cellH * o.nameBandOffset);
 
     const rows = rowBands.length;
     const gridW = Math.min(cols * cellW, width - gridX);
     const gridH = Math.min(rows * cellH, height - Math.max(0, gridY));
 
     const confidence = Math.min(1, (chain.members.length + cols) / 10);
+
+    // RELATIVE thickness of the row bands (median), the tie breaker between candidate colors: the NAME is a thin
+    // strip (~0.12-0.24·cellH), metallic ART a tall block (~0.45·cellH)
+    const bandHs = rowBands.map(bb => bb.band.y1 - bb.band.y0 + 1).sort((a, b) => a - b);
+    const nameBandFrac = bandHs.length ? bandHs[bandHs.length >> 1] / cellH : 1;
 
     return {
         gridZone: { x: gridX, y: Math.max(0, gridY), w: gridW, h: gridH },
@@ -488,6 +669,7 @@ export function detectInventoryGrid(img, opts = {}) {
         rows,
         auto: true,
         confidence,
+        nameBandFrac,
     };
 }
 

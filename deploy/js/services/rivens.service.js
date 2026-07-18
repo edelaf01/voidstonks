@@ -38,7 +38,7 @@ function normalizeRivenWeaponType(item) {
 }
 
 export async function fetchRivenWeapons() {
-    const CACHE_KEY = "voidstonkscache_weapons_v9";
+    const CACHE_KEY = "voidstonkscache_weapons_v10";
     const ONE_DAY = 24 * 60 * 60 * 1000;
     try {
         const cached = await dbHelper.get(CACHE_KEY);
@@ -82,8 +82,13 @@ export async function fetchRivenWeapons() {
             if (metaRes.ok) {
                 const metaData = await metaRes.json();
                 const statsObj = metaData.data ? metaData.data : metaData;
+                // metastats sources spell names differently ("Ax 52" vs "Ax-52"): canonicalize by slug
+                // against weaponMap.
+                const slugOf = (n) => n.toLowerCase().replaceAll("&", "and").replaceAll(/[^a-z0-9]+/g, "_").replaceAll(/^_+|_+$/g, "");
+                const canonicalBySlug = {};
+                Object.keys(state.weaponMap).forEach((n) => { canonicalBySlug[slugOf(n)] = n; });
                 Object.keys(statsObj).forEach((rawName) => {
-                    const wName = rawName.replace(/ And /g, " & ");
+                    const wName = canonicalBySlug[slugOf(rawName)] || rawName.replace(/ And /g, " & ");
                     if (EXCLUDED_COMPONENTS.has(wName.toUpperCase())) return;
                     if (!state.weaponMap[wName]) {
                         const metaItem = statsObj[wName];

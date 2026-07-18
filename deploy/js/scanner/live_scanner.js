@@ -200,6 +200,49 @@ globalThis.saveLiveInventory = () => {
   if (globalThis.renderPrimeInventory) globalThis.renderPrimeInventory();
 };
 
+/** Clears the scan session without saving (the HUD ✕ button). */
+globalThis.clearLiveSessionInventory = () => {
+  const sh = TEXTS[state.currentLang].scannerHUD;
+  ScannerService.sessionInventory.clear();
+  ScannerService.sessionRelics.clear();
+  ScannerService.qtyVotes.clear();
+  ScannerService.relicQtyVotes.clear();
+  ScannerService.inventoryHasScanned = false;
+
+  ScannerHUD.updateDetectedItems(ScannerService.sessionInventory, ScannerService.sessionRelics);
+  showToast(sh.cleared ?? "Sesión limpiada");
+};
+
+//TODO not in use, remove?
+/**
+ * resets the grid completely: clears cached autodetection (_autoCalibCache) and saved manual
+ * calibration so the next frame autodetects from scratch (grid_detect.js)
+ */
+globalThis.resetGrid = () => {
+  ScannerService._autoCalibCache = null;
+  ScannerService.detectionLocked = false;
+  ScannerService.inventoryHasScanned = false;
+  globalThis.LiveCalibration?.clearCalibration?.();
+  console.log("[INV] Grid reseteado — se re-autodetectará en el próximo escaneo.");
+  showToast("Grid reseteado");
+};
+
+/**
+ * DEBUG: downloads the current frame
+ */
+globalThis.dumpScanFrame = () => {
+  const video = document.getElementById("live-video");
+  if (!video || !video.videoWidth) { showToast("Escáner no activo"); return; }
+  const c = document.createElement("canvas");
+  c.width = video.videoWidth; c.height = video.videoHeight;
+  c.getContext("2d").drawImage(video, 0, 0);
+  const a = document.createElement("a");
+  a.href = c.toDataURL("image/png");
+  a.download = `scan-frame-${video.videoWidth}x${video.videoHeight}-${Date.now()}.png`;
+  a.click();
+  console.log(`[DEBUG] Frame volcado: ${video.videoWidth}x${video.videoHeight}`);
+};
+
 globalThis.manualPrecisionScan = async () => {
   if (!liveStream?.active) return showToast("START SCANNER FIRST");
   state.isPrecisionScanActive = true;

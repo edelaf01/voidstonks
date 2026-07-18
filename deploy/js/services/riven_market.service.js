@@ -516,6 +516,24 @@ export async function loadDynamicMetaStats() {
         }
     };
 
+    // metastats.json fills weapons the hardcoded snapshot lacks (Ax-52, EFV...); the hardcoded
+    // entry wins.
+    try {
+        const staticRes = await fetch("metastats.json");
+        if (staticRes.ok) {
+            let staticMeta = await staticRes.json();
+            if (staticMeta?.data && typeof staticMeta.data === "object" && !Array.isArray(staticMeta.data)) {
+                staticMeta = staticMeta.data;
+            }
+            staticMeta = cleanMetadataKeys(staticMeta);
+            for (const [key, val] of Object.entries(staticMeta)) {
+                if (!loadedData[key]) loadedData[key] = val;
+            }
+        }
+    } catch (staticErr) {
+        console.warn("Could not merge static metastats.json into baseline:", staticErr);
+    }
+
     dynamicMetaStats = { ...loadedData };
     baselineMetaStats = { ...loadedData };
     globalThis.dynamicMetaStats = dynamicMetaStats;
@@ -857,8 +875,16 @@ export function getMetaStats(weaponName, weaponType) {
                     "de_unrolled",
                     "de_rerolled"
                 ];
+                // The worker sends DE metrics empty but defined (official_median: 0, de_unrolled: {}):
+                // for them 0/{} counts as missing. wfm_* stay strict: a live 0 is real.
+                const deMetrics = new Set(["popularity_pct", "official_median", "official_stddev", "official_avg_price", "de_unrolled", "de_rerolled"]);
+                const isEmptyDeVal = (v) => v === undefined || v === null || v === 0 ||
+                    (typeof v === "object" && Object.keys(v).length === 0);
                 for (const metric of fallbackMetrics) {
-                    if (rawMeta[metric] === undefined || rawMeta[metric] === null) {
+                    const missing = deMetrics.has(metric)
+                        ? isEmptyDeVal(rawMeta[metric])
+                        : (rawMeta[metric] === undefined || rawMeta[metric] === null);
+                    if (missing && baselineMeta[metric] !== undefined && baselineMeta[metric] !== null) {
                         rawMeta[metric] = baselineMeta[metric];
                     }
                 }

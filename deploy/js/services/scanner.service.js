@@ -2,6 +2,7 @@ import { VisionService, WF_THEMES } from "./vision.service.js";
 import { isImplausibleFallbackGrid } from "../utils/grid_detect.js";
 import { OCRService } from "./ocr.service.js";
 import { OCRRepository } from "../repositories/ocr.repository.js";
+import { PaddleRepository } from "../repositories/paddle.repository.js";
 import { OpenCVRepository } from "../repositories/opencv.repository.js";
 import { ScannerHUD } from "../ui.components/ui_scanner_hud.js";
 import { ScannerModal } from "../ui.components/ui_scanner_modal.js";
@@ -930,6 +931,15 @@ export const ScannerService = {
         const foundItems = OCRService.parseRewards({ words: mergedWords, imageW: ocrCanvas.width });
         console.log(`[REWARD] Items found: ${foundItems.length}`, foundItems.map(i => i.name));
 
+        const rMarginX = Math.floor(width * 0.08);
+        const rCropW = width - rMarginX * 2;
+        const rOcrW = ocrCanvas.width || 1;
+        foundItems.forEach(item => {
+            if (typeof item.xPos === "number") {
+                item.xPos = (rMarginX + (item.xPos / rOcrW) * rCropW) * scale;
+            }
+        });
+
         clearRewardDebugLogs();
         const cleanOcrText = rawOcr.replaceAll(/\n+/g, ' ').trim();
         addRewardDebugLog("OCR", `Read: ${cleanOcrText}`, "info");
@@ -1069,9 +1079,9 @@ export const ScannerService = {
             const scanStats = { cells: cellRects.length, matched: 0, relics: 0, empty: 0, unmatched: 0, none: 0 };
             const activeCells = [];
             for (const cell of cellRects) {
-                const textSrcY = Math.round(cellH * 0.58);
-                const textSrcH = cellH - textSrcY;
-                const textCvs = VisionService.cropThemeBinarized(snapshot, cell.sx, cell.sy + textSrcY, cellW, textSrcH, theme);
+                const textSrcY = Math.round(cellH * 0.50);
+                const textSrcH = Math.round(cellH * 0.48);
+                const textCvs = VisionService.cropThemeBinarized(snapshot, cell.sx, cell.sy + textSrcY, cellW, textSrcH, theme, calibData?.nameColor);
 
                 const tCtx = textCvs.getContext("2d");
                 const imgData = tCtx.getImageData(0, 0, textCvs.width, textCvs.height);
@@ -1081,7 +1091,7 @@ export const ScannerService = {
                     if (pixels[p] > 200) whitePixelCount++;
                 }
 
-                if (whitePixelCount < 40) {
+                if (whitePixelCount < 20) {
                     scanStats.empty++;
                     this.lastRawOcrLog.push(`[r${cell.r}c${cell.c}] SKIPPED (empty)`);
                     const relX = cell.sx - gridZone.x;
@@ -1092,6 +1102,7 @@ export const ScannerService = {
                 } else {
                     activeCells.push({ cell, textCvs });
                 }
+                await new Promise((r) => setTimeout(r, 0));
             }
 
             await OCRRepository.ensureSecondWorker();
@@ -1104,7 +1115,19 @@ export const ScannerService = {
                     if (!task) break;
 
                     const { cell, textCvs } = task;
-                    const combinedText = await OCRService.extractCellText(worker, textCvs);
+                    let combinedText;
+                    if (globalThis.OCR_ENGINE === "paddle") {
+                        const ty = Math.round(cellH * 0.50), th = Math.round(cellH * 0.48);
+                        const colorCvs = VisionService.cropColor(snapshot, cell.sx, cell.sy + ty, cellW, th, 2);
+                        try {
+                            combinedText = await PaddleRepository.recognizeWords(colorCvs);
+                        } catch (e) {
+                            console.warn("[Paddle] fallo, cae a Tesseract:", e);
+                            combinedText = await OCRService.extractCellText(worker, textCvs);
+                        }
+                    } else {
+                        combinedText = await OCRService.extractCellText(worker, textCvs);
+                    }
 
                     if (!combinedText) {
                         scanStats.none++;
@@ -1124,12 +1147,26 @@ export const ScannerService = {
                     let fallbackText = null;
 
                     if (!bestItem) {
-                        const fullCellCvs = VisionService.cropThemeBinarized(snapshot, cell.sx, Math.max(0, cell.sy - 16), cellW, cellH + 16, theme);
+                        const fallbackY = Math.floor(cellH * 0.73);
+                        const fallbackH = Math.floor(cellH * 0.26);
+                        const fullCellCvs = VisionService.cropThemeBinarized(snapshot, cell.sx, cell.sy + fallbackY, cellW, fallbackH, theme, calibData?.nameColor);
                         fallbackText = await OCRService.extractCellText(worker, fullCellCvs);
                         if (fallbackText && fallbackText.length) {
                             logStr = `[r${cell.r}c${cell.c}] OCR (fallback): ${fallbackText.join(" ")}`;
                             bestItem = OCRService.getValidItemMatch(fallbackText);
                         }
+                    }
+
+                    if (!bestItem && globalThis.OCR_ENGINE !== "paddle" && globalThis.OCR_PADDLE_FALLBACK) {
+                        const ty = Math.round(cellH * 0.50), th = Math.round(cellH * 0.48);
+                        const colorCvs = VisionService.cropColor(snapshot, cell.sx, cell.sy + ty, cellW, th, 2);
+                        try {
+                            const pWords = await PaddleRepository.recognizeWords(colorCvs);
+                            if (pWords) {
+                                const pMatch = OCRService.getValidItemMatch(pWords);
+                                if (pMatch) { bestItem = pMatch; combinedText = pWords; logStr += " [paddle]"; }
+                            }
+                        } catch (e) { console.warn("[Paddle fallback] error:", e); }
                     }
 
                     let relicMatch = null;
@@ -1144,8 +1181,13 @@ export const ScannerService = {
 
                     if (bestItem) {
                         scanStats.matched++;
-                        const badgeCanvas = VisionService.extractBadgeByColor(snapshot, cell, cellW, cellH, theme);
-                        const qtyResult = await OCRService.extractCellQuantity(null, badgeCanvas);
+                        let qtyResult = await OCRService.extractCellQuantity(null,
+                            VisionService.extractBadgeBright(snapshot, cell, cellW, cellH));
+                        if (!/\d/.test(qtyResult.raw || "")) {
+                            const altR = await OCRService.extractCellQuantity(null,
+                                VisionService.extractBadgeByColor(snapshot, cell, cellW, cellH, theme));
+                            if (/\d/.test(altR.raw || "")) qtyResult = altR;
+                        }
 
                         logStr += ` || BDG: ${qtyResult.raw}`;
                         this.lastRawOcrLog.push(logStr);
@@ -1185,19 +1227,24 @@ export const ScannerService = {
                         const consensusQty = this.sessionInventory.get(bestItem.originalName) ?? qtyResult.qty;
                         dCtx.fillText(`x${consensusQty}`, relX - shiftLeft + 8, relY + 17);
 
-                        if (badgeCanvas) {
-                            const bX = (badgeCanvas.cropX !== undefined ? badgeCanvas.cropX : cell.sx) - gridZone.x;
-                            const bY = badgeCanvas.bestY - gridZone.y;
-                            const bW = badgeCanvas.cropW !== undefined ? badgeCanvas.cropW : Math.round(cellW * 0.28);
-                            const bH = badgeCanvas.cropH !== undefined ? badgeCanvas.cropH : Math.round(cellH * 0.12);
+                        {
+                            const bX = cell.sx - gridZone.x;
+                            const bY = cell.sy + Math.round(cellH * 0.08) - gridZone.y;
+                            const bW = Math.round(cellW * 0.40);
+                            const bH = Math.round(cellH * 0.17);
                             dCtx.strokeStyle = "rgba(255, 193, 7, 0.85)";
                             dCtx.lineWidth = 1.5;
                             dCtx.strokeRect(bX, bY, bW, bH);
                         }
                     } else if (relicMatch) {
                         scanStats.relics++;
-                        const badgeCanvas = VisionService.extractBadgeByColor(snapshot, cell, cellW, cellH, theme);
-                        const qtyResult = await OCRService.extractCellQuantity(null, badgeCanvas);
+                        let qtyResult = await OCRService.extractCellQuantity(null,
+                            VisionService.extractBadgeBright(snapshot, cell, cellW, cellH));
+                        if (!/\d/.test(qtyResult.raw || "")) {
+                            const altR = await OCRService.extractCellQuantity(null,
+                                VisionService.extractBadgeByColor(snapshot, cell, cellW, cellH, theme));
+                            if (/\d/.test(altR.raw || "")) qtyResult = altR;
+                        }
 
                         const relicSrc = relicText === combinedText ? "1st-pass" : "fallback";
                         logStr += ` || RELIC (${relicSrc}): ${relicMatch} || BDG: ${qtyResult.raw}`;
@@ -1235,11 +1282,11 @@ export const ScannerService = {
                         const consensusQty = this.sessionRelics.get(relicMatch) ?? qtyResult.qty;
                         dCtx.fillText(`x${consensusQty}`, relX - shiftLeft + 8, relY + 17);
 
-                        if (badgeCanvas) {
-                            const bX = (badgeCanvas.cropX !== undefined ? badgeCanvas.cropX : cell.sx) - gridZone.x;
-                            const bY = badgeCanvas.bestY - gridZone.y;
-                            const bW = badgeCanvas.cropW !== undefined ? badgeCanvas.cropW : Math.round(cellW * 0.28);
-                            const bH = badgeCanvas.cropH !== undefined ? badgeCanvas.cropH : Math.round(cellH * 0.12);
+                        {
+                            const bX = cell.sx - gridZone.x;
+                            const bY = cell.sy + Math.round(cellH * 0.08) - gridZone.y;
+                            const bW = Math.round(cellW * 0.40);
+                            const bH = Math.round(cellH * 0.17);
                             dCtx.strokeStyle = "rgba(0, 229, 255, 0.85)";
                             dCtx.lineWidth = 1.5;
                             dCtx.strokeRect(bX, bY, bW, bH);
@@ -1282,7 +1329,8 @@ export const ScannerService = {
 
             try {
                 const workerPromises = [];
-                const activeWorkerCount = Math.min(workers.length, activeCells.length);
+                const maxWorkers = globalThis.OCR_ENGINE === "paddle" ? 1 : workers.length;
+                const activeWorkerCount = Math.min(maxWorkers, activeCells.length);
                 for (let w = 0; w < activeWorkerCount; w++) {
                     workerPromises.push(runWorker(workers[w]));
                 }
