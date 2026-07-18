@@ -1,10 +1,30 @@
 export const WORKER_URL = "https://api.voidstonks.com/";
-export const APP_VERSION = 2.61;
+export const APP_VERSION = 2.63;
 export const UPDATE_HISTORY_DATA = {
   es: `
 <div class="update-block">
   <div class="update-header">
-    <span class="update-version">v2.6.1 (Actual)</span>
+    <span class="update-version">v2.6.3 (Actual)</span>
+    <span class="update-date">2026-07-18</span>
+  </div>
+  <ul class="update-list">
+    <li><strong>Calculadora de Ducados:</strong> Añadida una herramienta de Ducados en el inventario para ver rápidamente el valor de tus piezas Prime.</li>
+    <li><strong>Guía de Usuario:</strong> Añadida una guía de usuario que se irá expandiendo en el futuro.</li>
+    <li><strong>Correcciones:</strong> Solucionado un problema por el que las Fisuras y Arbitraciones no se actualizaban o desaparecían de la lista.</li>
+  </ul>
+</div>
+<div class="update-block old">
+  <div class="update-header">
+    <span class="update-version">v2.6.2</span>
+    <span class="update-date">2026-07-18</span>
+  </div>
+  <ul class="update-list">
+    <li><strong>Escáner de recompensas más preciso:</strong> las tarjetas ahora aparecen bien alineadas debajo de su recompensa y ya no se intercambian entre recompensas con nombres parecidos.</li>
+  </ul>
+</div>
+<div class="update-block old">
+  <div class="update-header">
+    <span class="update-version">v2.6.1</span>
     <span class="update-date">2026-07-15</span>
   </div>
   <ul class="update-list">
@@ -242,7 +262,27 @@ export const UPDATE_HISTORY_DATA = {
   en: `
 <div class="update-block">
   <div class="update-header">
-    <span class="update-version">v2.6.1 (Current)</span>
+    <span class="update-version">v2.6.3 (Current)</span>
+    <span class="update-date">2026-07-18</span>
+  </div>
+  <ul class="update-list">
+    <li><strong>Inventory Ducat Calculator:</strong> Added a Ducats tool overlay for the inventory to calculate the value of your Prime parts.</li>
+    <li><strong>User Guide:</strong> Added a new user guide that will be expanded in the future.</li>
+    <li><strong>Bug Fixes:</strong> Fixed an issue where Fissures and Arbitrations were failing to update or disappearing from the list.</li>
+  </ul>
+</div>
+<div class="update-block old">
+  <div class="update-header">
+    <span class="update-version">v2.6.2</span>
+    <span class="update-date">2026-07-18</span>
+  </div>
+  <ul class="update-list">
+    <li><strong>More accurate reward scanner:</strong> cards now line up correctly under their reward and no longer get swapped between rewards with similar names.</li>
+  </ul>
+</div>
+<div class="update-block old">
+  <div class="update-header">
+    <span class="update-version">v2.6.1</span>
     <span class="update-date">2026-07-15</span>
   </div>
   <ul class="update-list">
@@ -283,7 +323,7 @@ export const UPDATE_HISTORY_DATA = {
       <ul>
         <li>Everything visible without scrolling, on mobile and desktop: estimated price and grade (S/A/B/C/F) up front, everything else as compact chips.</li>
         <li>The per-stat grade table (value, ideal range and grade) now sits next to the riven card.</li>
-        <li>No more jargon: every value explains itself on hover or tap ("Demand", "Typical price", "Wanted stats"...), in English and Spanish.</li>
+        <li>No more jargon: every value explains itself on hover or tap ("Demand", "Typical price", "Wanted stats"...</li>
       </ul>
     </li>
     <li><strong>More accurate appraisals</strong>
@@ -922,6 +962,24 @@ export const TEXTS = {
       confirmDeleteSet: "¿Borrar set completo?",
       lblMarketSet: "PRECIO MERCADO",
     },
+    ducanator: {
+      tabTitle: "Ducados",
+      desc: "Compara el valor en ducados y en platino de tus partes prime: qué fundir con Baro Ki'Teer y qué conviene vender en el mercado.",
+      filters: "Filtros",
+      fundSection: "Fundir por ducados",
+      keepSection: "Mejor vender",
+      fundableParts: "piezas a fundir",
+      effTitle: "Ducados por platino",
+      empty: "Sin partes prime con valor en ducados. Escanea o añade partes primero.",
+      searchPlaceholder: "Buscar parte prime...",
+      ownedOnly: "Solo lo que tengo",
+      threshold: "Umbral para fundir (plat)",
+      colItem: "Objeto",
+      colPlat: "Plat",
+      colDucats: "Ducados",
+      colRatio: "Ratio",
+      sortHint: "Clic para ordenar",
+    },
     scanner: {
       starting: "INICIANDO...",
       active: "ESCANER ACTIVO",
@@ -957,6 +1015,7 @@ export const TEXTS = {
       btnOpenLog: "LOG IMÁGENES",
       finished: "¡FINALIZADO!",
       saved: "Guardado",
+      cleared: "Sesión limpiada",
       autoScanOn: "⟳ AUTO SCAN ACTIVO",
       autoScanOff: "AUTO SCAN DESACTIVADO",
       autoScanDesc: "↓ Haz scroll en el inventario. Se escaneará automático al estabilizar. Asegúrate de mostrar filas completas.",
@@ -1509,6 +1568,24 @@ export const TEXTS = {
       confirmDeleteSet: "Delete entire set?",
       lblMarketSet: "MARKET SET",
     },
+    ducanator: {
+      tabTitle: "Ducats",
+      desc: "Compares the ducat and platinum value of your prime parts: what to trade to Baro Ki'Teer and what is worth selling on the market instead.",
+      filters: "Filters",
+      fundSection: "Trade for ducats",
+      keepSection: "Better to sell",
+      fundableParts: "fundable parts",
+      effTitle: "Ducats per platinum",
+      empty: "No prime parts with ducat value. Scan or add parts first.",
+      searchPlaceholder: "Search prime part...",
+      ownedOnly: "Only what I own",
+      threshold: "Trade threshold (plat)",
+      colItem: "Item",
+      colPlat: "Plat",
+      colDucats: "Ducats",
+      colRatio: "Ratio",
+      sortHint: "Click to sort",
+    },
     scanner: {
       starting: "STARTING...",
       active: "SCANNER ACTIVE",
@@ -1544,6 +1621,7 @@ export const TEXTS = {
       btnOpenLog: "IMAGE LOGS",
       finished: "FINISHED!",
       saved: "Saved",
+      cleared: "Session cleared",
       autoScanOn: "⟳ AUTO SCAN ON",
       autoScanOff: "AUTO SCAN OFF",
       autoScanDesc: "↓ Scroll gently. It scans automatically when stable. Make sure full rows are visible.",

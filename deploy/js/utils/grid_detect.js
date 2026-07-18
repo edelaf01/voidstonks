@@ -16,42 +16,112 @@
  * El resultado usa el MISMO formato que la calibración manual guardada
  * (gridZone + cellW/cellH/cols/rows), así buildAutoGrid y detectRowPhase
  * (ajuste fino de fase vertical) siguen funcionando sin cambios.
+ *
+ * SEÑAL: densidad de BORDES por |Δluma| entre muestras vecinas, NO un umbral
+ * absoluto de brillo. Un umbral absoluto (p.ej. "canal máx > 185 = texto")
+ * asume fondo oscuro; con los temas de fondo claros de Warframe (magenta,
+ * cian…) el fondo entero supera el umbral y el texto deja de producir
+ * transiciones → la detección colapsa y cae a la calibración manual. |Δluma|
+ * es invariante al color/brillo del fondo Y al color del texto: un trazo de
+ * letra crea un borde tanto si es claro-sobre-oscuro como oscuro-sobre-claro
+ * (blanco, dorado, o incluso el teal oscuro del tema "Tenno" sobre magenta).
+ * El fondo plano y los reflejos sólidos del arte casi no tienen bordes.
  */
 
+/** Luma perceptual (0..255). Base de la señal de bordes, independiente del tema. */
+export const luma = (r, g, b) => 0.299 * r + 0.587 * g + 0.114 * b;
+
+/**
+ * Luma de una scanline suavizada con un box filter de radio `radius`.
+ * El suavizado promedia el ruido por-píxel (aleatorio → se cancela) sin borrar
+ * los bordes de trazo (coherentes en varios px). Sin él, el ruido de captura
+ * dispararía |Δluma| como si fuera texto. Devuelve Float32Array(width).
+ */
+export function smoothedLumaRow(data, off, width, radius) {
+    const raw = new Float32Array(width);
+    for (let x = 0; x < width; x++) {
+        const i = off + x * 4;
+        raw[x] = luma(data[i], data[i + 1], data[i + 2]);
+    }
+    if (radius <= 0) return raw;
+    const out = new Float32Array(width);
+    let sum = 0;
+    for (let x = 0; x <= radius && x < width; x++) sum += raw[x];
+    let count = Math.min(radius, width - 1) + 1;
+    for (let x = 0; x < width; x++) {
+        out[x] = sum / count;
+        const add = x + radius + 1, rem = x - radius;
+        if (add < width) { sum += raw[add]; count++; }
+        if (rem >= 0) { sum -= raw[rem]; count--; }
+    }
+    return out;
+}
+
 const DEFAULTS = {
-    brightThresh: 185,   // canal máximo, igual que detectRowPhase (cubre texto blanco y de tema)
+    edgeDelta: 26,       // |Δluma| entre muestras vecinas para contar un borde de trazo (independiente del tema)
+    edgeSmooth: 0,       // radio del box filter anti-ruido; 0 = sin suavizar (los bordes de trazo ya son robustos). Subir solo con ruido de captura extremo
+    // --- Señal de COLOR DE NOMBRE (fallback cuando la de bordes colapsa) ---
+    // Con fondo CLARO texturizado (nebulosa/estrellas) el ruido mete bordes por
+    // todas partes y la señal |Δluma| se satura (todo el frame supera edgeDelta →
+    // una sola banda gigante → sin cadena). Y con arte metálico muy contrastado la
+    // fase puede engancharse al arte (más bordes que el texto). La señal de color
+    // resuelve ambos: los NOMBRES se renderizan en UN color consistente (el del
+    // tema); contamos píxeles cercanos a ESE color. El arte metálico es de OTRO
+    // color (no puntúa) y los brillos del fondo texturizado son dispersos (no
+    // forman banda). Se prueba como fallback y se elige el color cuya cadena de
+    // filas tenga las BANDAS MÁS FINAS (el nombre es una franja fina; el arte, un
+    // bloque alto), de modo que el anclaje caiga en el nombre y no en el arte.
+    bgDistSq: 70 * 70,     // dist² mínima al color de fondo para considerar un píxel "tinta" (candidato a color de nombre)
+    mergeColSq: 45 * 45,   // funde colores candidatos más cercanos que esto (antialias/compresión del mismo color)
+    nameTolSq: 80 * 80,    // dist² para marcar un píxel como del color de nombre (excluye el arte metálico, a >110)
+    maxInkCands: 4,        // nº máximo de colores candidatos a probar como "color de nombre"
     strideX: 2,          // muestreo horizontal para el perfil de filas
     minBandH: 6,         // px: banda más baja que esto = ruido
     maxBandHFrac: 0.25,  // banda más alta que 25% de la imagen = fondo/arte, no texto
     mergeGapY: 12,       // px: une las 2 líneas de un nombre (hueco real medido: 9px a 1440p)
     bandMassFloor: 0.22, // masa mínima relativa a la banda más fuerte (filtra badges/HUD)
-    nameBandOffset: 0.60, // top de celda ≈ top de banda de nombre − 0.60·cellH (fase fina la ajusta detectRowPhase)
+    nameBandOffset: 0.75, // top de celda ≈ top de banda de nombre − 0.75·cellH (el nombre empieza al ~75% de la celda)
+    nameBaselineOffset: 0.92, // top de celda ≈ BASELINE de nombre (y1) − 0.92·cellH (la baseline de texto está al ~92% del alto de celda, permitiendo que el crop de badge al top 0% atrape el icono x1/x2 perfecto y la zona de nombre 22% no interfiera)
     rows: 3,             // el inventario de Warframe siempre muestra 3 filas
     minCols: 3,
     maxCols: 12,
 };
 
 /**
- * Perfil de "texto" por fila: nº de TRANSICIONES oscuro→brillante por scanline.
- * El texto tiene decenas de transiciones por línea (bordes de letras); un
- * brillo del arte metálico de las cards es un bloque continuo con ~2. Contar
- * transiciones (en vez de píxeles brillantes) hace que los nombres dominen
- * los perfiles y el arte/reflejos apenas puntúe.
+ * Perfil de "texto" por fila: nº de BORDES (|Δluma| grande) por scanline.
+ * El texto tiene decenas de bordes por línea (cada trazo de letra entra y sale);
+ * un brillo del arte metálico de las cards es un bloque continuo con ~2. Contar
+ * bordes por |Δluma| (en vez de píxeles sobre un umbral absoluto de brillo) hace
+ * que los nombres dominen los perfiles y el arte/reflejos apenas puntúe, y
+ * funciona con cualquier tema de fondo/letra (no asume fondo oscuro).
  */
 export function rowProfile(img, opts = {}) {
     const o = { ...DEFAULTS, ...opts };
     const { data, width, height } = img;
     const prof = new Float32Array(height);
+    // Señal de COLOR: si hay máscara de color de nombre, el perfil de fila es el
+    // nº de píxeles del color del nombre por scanline (no bordes). Los nombres
+    // forman bandas densas; el arte (otro color) y el ruido de fondo (disperso) no.
+    if (o.inkMask) {
+        const mask = o.inkMask;
+        for (let y = 0; y < height; y++) {
+            let cnt = 0;
+            const rowOff = y * width;
+            for (let x = 0; x < width; x += o.strideX) cnt += mask[rowOff + x];
+            prof[y] = cnt;
+        }
+        return prof;
+    }
     for (let y = 0; y < height; y++) {
         let cnt = 0;
-        let prevBright = false;
-        const off = y * width * 4;
-        for (let x = 0; x < width; x += o.strideX) {
-            const i = off + x * 4;
-            const mx = Math.max(data[i], data[i + 1], data[i + 2]);
-            const bright = mx > o.brightThresh;
-            if (bright && !prevBright) cnt++;
-            prevBright = bright;
+        let inEdge = false;
+        const sm = smoothedLumaRow(data, y * width * 4, width, o.edgeSmooth);
+        let prevL = sm[0];
+        for (let x = o.strideX; x < width; x += o.strideX) {
+            const edge = Math.abs(sm[x] - prevL) > o.edgeDelta;
+            if (edge && !inEdge) cnt++;
+            inEdge = edge;
+            prevL = sm[x];
         }
         prof[y] = cnt;
     }
@@ -111,19 +181,28 @@ export function blocksInBand(img, y0, y1, opts = {}) {
     const o = { ...DEFAULTS, ...opts };
     const { data, width } = img;
     const col = new Float32Array(width);
-    // Igual que rowProfile: TRANSICIONES oscuro→brillante, no píxeles. Un
-    // reflejo sólido del arte solo puntúa en su borde izquierdo (≈nada);
-    // el texto puntúa en cada trazo de letra.
-    for (let y = y0; y <= y1; y++) {
-        const off = y * width * 4;
-        let prevBright = false;
-        for (let x = 0; x < width; x++) {
-            const i = off + x * 4;
-            const mx = Math.max(data[i], data[i + 1], data[i + 2]);
-            const bright = mx > o.brightThresh;
-            if (bright && !prevBright) col[x]++;
-            prevBright = bright;
+    // Señal de COLOR: nº de píxeles del color del nombre por columna en la banda.
+    if (o.inkMask) {
+        const mask = o.inkMask;
+        for (let y = y0; y <= y1; y++) {
+            const rowOff = y * width;
+            for (let x = 0; x < width; x++) col[x] += mask[rowOff + x];
         }
+    } else {
+    // Igual que rowProfile: BORDES por |Δluma|, no píxeles sobre umbral. Un
+    // reflejo sólido del arte solo puntúa en sus dos bordes (≈nada); el texto
+    // puntúa en cada trazo de letra. Independiente del tema de fondo/letra.
+    for (let y = y0; y <= y1; y++) {
+        const sm = smoothedLumaRow(data, y * width * 4, width, o.edgeSmooth);
+        let inEdge = false;
+        let prevL = sm[0];
+        for (let x = 1; x < width; x++) {
+            const edge = Math.abs(sm[x] - prevL) > o.edgeDelta;
+            if (edge && !inEdge) col[x]++;
+            inEdge = edge;
+            prevL = sm[x];
+        }
+    }
     }
 
     const bandH = y1 - y0 + 1;
@@ -269,11 +348,115 @@ export function estimatePitch(diffs, tol = 0.12) {
 }
 
 /**
+ * Colores dominantes del frame para la señal de color de nombre.
+ * Devuelve { bg:[r,g,b], cands:[[r,g,b]…] }: el FONDO (moda de color global) y los
+ * colores "tinta" candidatos (modas de los píxeles lejos del fondo, fusionando los
+ * cercanos). Uno de los candidatos es el color del NOMBRE; otro suele ser el ARTE
+ * metálico. detectInventoryGrid los prueba y se queda con el que da bandas finas.
+ */
+export function colorInkCandidates(img, opts = {}) {
+    const o = { ...DEFAULTS, ...opts };
+    const { data, width, height } = img;
+    const key = (r, g, b) => ((r >> 3) << 10) | ((g >> 3) << 5) | (b >> 3);
+    const unq = k => [((k >> 10) & 31) << 3, ((k >> 5) & 31) << 3, (k & 31) << 3];
+    const hist = new Map();
+    for (let y = 0; y < height; y += o.strideX) {
+        const rowOff = y * width * 4;
+        for (let x = 0; x < width; x += o.strideX) {
+            const i = rowOff + x * 4;
+            const kk = key(data[i], data[i + 1], data[i + 2]);
+            hist.set(kk, (hist.get(kk) || 0) + 1);
+        }
+    }
+    let bgKey = 0, bgC = -1;
+    for (const [k, c] of hist) if (c > bgC) { bgC = c; bgKey = k; }
+    const bg = unq(bgKey);
+    const entries = [...hist.entries()]
+        .map(([k, c]) => ({ c, col: unq(k) }))
+        .filter(e => {
+            const dr = e.col[0] - bg[0], dg = e.col[1] - bg[1], db = e.col[2] - bg[2];
+            return dr * dr + dg * dg + db * db > o.bgDistSq;
+        })
+        .sort((a, b) => b.c - a.c);
+    const cands = [];
+    for (const e of entries) {
+        if (cands.some(c => {
+            const dr = c[0] - e.col[0], dg = c[1] - e.col[1], db = c[2] - e.col[2];
+            return dr * dr + dg * dg + db * db < o.mergeColSq;
+        })) continue;
+        cands.push(e.col);
+        if (cands.length >= o.maxInkCands) break;
+    }
+    return { bg, cands };
+}
+
+/** Máscara Uint8Array(width·height): 1 donde el píxel está a <√nameTolSq del color. */
+function colorInkMask(img, col, tolSq) {
+    const { data, width, height } = img;
+    const mask = new Uint8Array(width * height);
+    const [cr, cg, cb] = col;
+    for (let i = 0, p = 0; p < mask.length; p++, i += 4) {
+        const dr = data[i] - cr, dg = data[i + 1] - cg, db = data[i + 2] - cb;
+        if (dr * dr + dg * dg + db * db <= tolSq) mask[p] = 1;
+    }
+    return mask;
+}
+
+/**
  * Detección completa. img = { data, width, height } (ImageData-like).
  * Devuelve calibData compatible con buildAutoGrid o null si la señal no da
  * confianza suficiente (⇒ el caller cae a la calibración manual guardada).
+ *
+ * Estrategia de DOS señales:
+ *   1) BORDES (|Δluma|): rápida y probada; primaria. Funciona en la mayoría de
+ *      temas (fondo oscuro/claro, texto de cualquier color) y es la que valida el
+ *      banco de capturas reales.
+ *   2) COLOR DE NOMBRE (fallback): cuando (1) colapsa —fondo claro texturizado que
+ *      satura los bordes, o arte metálico que roba el anclaje— se prueba contando
+ *      píxeles del color del nombre. Se ensaya cada color candidato del frame y se
+ *      elige el que produce las bandas de fila más FINAS (el nombre, no el arte).
  */
 export function detectInventoryGrid(img, opts = {}) {
+    const o = { ...DEFAULTS, ...opts };
+    if (!img?.data || !img.width || !img.height) return null;
+
+    // (1) Señal de bordes (primaria).
+    const edgeRes = detectInventoryGridCore(img, opts);
+    if (edgeRes) return edgeRes;
+
+    // (2) Fallback por color de nombre. Prueba cada color candidato; se queda con
+    // el grid válido cuya banda de fila sea la más fina (texto, no arte metálico).
+    const outerTrace = opts.trace || {};
+    const { bg, cands } = colorInkCandidates(img, o);
+    outerTrace.colorFallback = { bg, cands, tried: [] };
+    let best = null;
+    for (const col of cands) {
+        const mask = colorInkMask(img, col, o.nameTolSq);
+        const subTrace = {};
+        const res = detectInventoryGridCore(img, { ...opts, inkMask: mask, trace: subTrace });
+        outerTrace.colorFallback.tried.push({
+            col, ok: !!res,
+            nameBandFrac: res ? +res.nameBandFrac.toFixed(3) : null,
+            fail: res ? null : subTrace.fail,
+        });
+        if (!res) continue;
+        if (!best || res.nameBandFrac < best.nameBandFrac) { best = res; best._nameColor = col; }
+    }
+    if (best) {
+        best.colorAnchored = true;
+        // Color del NOMBRE a nivel de PÁGINA (el que ancló la rejilla). Se pasa a la
+        // binarización por celda para no re-detectarlo por-celda (frágil con arte/
+        // compresión): en temas de fondo texturizado el texto blanco se perdía en
+        // celdas concretas porque la moda de la franja inferior elegía otro color.
+        best.nameColor = best._nameColor;
+        delete best._nameColor;
+        return best;
+    }
+    outerTrace.fail = outerTrace.fail || "sin señal de bordes ni de color de nombre";
+    return null;
+}
+
+function detectInventoryGridCore(img, opts = {}) {
     const o = { ...DEFAULTS, ...opts };
     const { width, height } = img;
     if (!img?.data || !width || !height) return null;
@@ -284,7 +467,7 @@ export function detectInventoryGrid(img, opts = {}) {
     const bands = findBands(prof, height, o);
     trace.bands = bands.map(b => ({ y0: b.y0, y1: b.y1, mass: Math.round(b.mass) }));
     if (bands.length < 2) {
-        trace.fail = `bandas de texto insuficientes (${bands.length} < 2) — ¿texto por debajo del umbral de brillo ${o.brightThresh}?`;
+        trace.fail = `bandas de texto insuficientes (${bands.length} < 2) — ¿contraste de bordes por debajo de edgeDelta ${o.edgeDelta}?`;
         return null;
     }
 
@@ -440,14 +623,19 @@ export function detectInventoryGrid(img, opts = {}) {
     const { data } = img;
     for (const bb of rowBands) {
         for (let y = bb.band.y0; y <= bb.band.y1; y++) {
-            const off = y * width * 4;
-            let prevBright = false;
-            for (let x = 0; x < width; x++) {
-                const i = off + x * 4;
-                const mx = Math.max(data[i], data[i + 1], data[i + 2]);
-                const bright = mx > o.brightThresh;
-                if (bright && !prevBright) colProf[x]++;
-                prevBright = bright;
+            if (o.inkMask) {
+                const rowOff = y * width;
+                for (let x = 0; x < width; x++) colProf[x] += o.inkMask[rowOff + x];
+                continue;
+            }
+            const sm = smoothedLumaRow(data, y * width * 4, width, o.edgeSmooth);
+            let inEdge = false;
+            let prevL = sm[0];
+            for (let x = 1; x < width; x++) {
+                const edge = Math.abs(sm[x] - prevL) > o.edgeDelta;
+                if (edge && !inEdge) colProf[x]++;
+                inEdge = edge;
+                prevL = sm[x];
             }
         }
     }
@@ -529,6 +717,11 @@ export function detectInventoryGrid(img, opts = {}) {
     // tienen nombres en (casi) todas las filas: nos quedamos con la racha
     // contigua de celdas más larga con ocupación significativa.
     if (cols >= 2) {
+        // Ocupación de cada columna = en CUÁNTAS FILAS tiene texto significativo.
+        // maxRow[ri] normaliza por fila (el arte de una fila no infla otras). Una
+        // columna cuenta como "ocupada en la fila ri" si su masa en esa fila supera
+        // el 12% del máximo de la fila. Así el panel de venta / starfield (texto en
+        // pocas filas) no sostiene columnas fantasma frente al grid (texto en todas).
         const occ = new Array(cols).fill(0);
         for (let k = 0; k < cols; k++) {
             const a = Math.max(0, Math.round(gridXf + k * cellW));
@@ -559,11 +752,18 @@ export function detectInventoryGrid(img, opts = {}) {
     }
     const gridX = Math.max(0, Math.round(gridXf));
 
-    // --- Fase vertical: top de celda desde la PRIMERA banda de la cadena ---
-    // (no la primera banda global, que puede ser el título del HUD;
-    // detectRowPhase/_applyRowPhase afina el desfase real después)
-    const firstTop = usedTops[0];
-    const gridY = Math.round(firstTop - cellH * o.nameBandOffset);
+    // --- Fase vertical: top de celda desde la BASELINE (y1) de la primera fila ---
+    // Se ancla por la BASE del nombre (y1), NO por el top (y0): cuando el arte
+    // metálico del ítem tiene mucho borde (temas vistosos) se FUSIONA con el nombre
+    // en una sola banda alta cuyo y0 es el top del ARTE (no del nombre) → anclar por
+    // y0 dejaba la celda ~0.6·cellH demasiado arriba y el recorte de nombre caía
+    // sobre el arte. El y1 (baseline del texto) es inmune a esa fusión (el arte funde
+    // por arriba). Fallback a y0 si por algún motivo no hay y1. (detectRowPhase afina
+    // el resto, pero ahora parte de un anclaje correcto.)
+    const firstBand = rowBands[0].band;
+    const gridY = firstBand.y1
+        ? Math.round(firstBand.y1 - cellH * o.nameBaselineOffset)
+        : Math.round(usedTops[0] - cellH * o.nameBandOffset);
 
     // Una banda por fila real detectada (puede haber una 4ª fila asomando);
     // las celdas que caigan fuera del frame las filtra _applyRowPhase después.
@@ -573,6 +773,13 @@ export function detectInventoryGrid(img, opts = {}) {
 
     // Confianza: filas corroboradas y columnas encontradas
     const confidence = Math.min(1, (chain.members.length + cols) / 10);
+
+    // Grosor RELATIVO de las bandas de fila (mediana). Sirve para desempatar entre
+    // colores candidatos en la señal de color: el NOMBRE es una franja fina
+    // (~0.12–0.24·cellH); el ARTE metálico, un bloque alto (~0.45·cellH). Al elegir
+    // el color con la banda más fina, el anclaje cae en el nombre y no en el arte.
+    const bandHs = rowBands.map(bb => bb.band.y1 - bb.band.y0 + 1).sort((a, b) => a - b);
+    const nameBandFrac = bandHs.length ? bandHs[bandHs.length >> 1] / cellH : 1;
 
     return {
         gridZone: { x: gridX, y: Math.max(0, gridY), w: gridW, h: gridH },
@@ -588,6 +795,7 @@ export function detectInventoryGrid(img, opts = {}) {
         rows,
         auto: true,
         confidence,
+        nameBandFrac,
     };
 }
 

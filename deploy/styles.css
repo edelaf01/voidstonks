@@ -5632,3 +5632,449 @@ button[onclick*="importInventory"]:hover {
   gap: 8px;
 }
 
+
+/* ============================================================
+   Toggle de idioma para prosa estática (SEO)
+   .lang-es visible por defecto (coincide con <html lang="es">).
+   updateStaticTexts() pone body[data-lang="en"] para cambiar.
+   ============================================================ */
+.lang-en {
+  display: none;
+}
+body[data-lang="en"] .lang-en {
+  display: revert;
+}
+body[data-lang="en"] .lang-es {
+  display: none;
+}
+
+/* ============================================================
+   Contenido editorial estático de la home
+   ============================================================ */
+.site-content {
+  max-width: 1000px;
+  margin: 24px auto 8px;
+  padding: 0 20px;
+  color: #c9d3dc;
+  line-height: 1.65;
+  font-size: 15px;
+}
+/* Desplegable "Sobre VoidStonks": cerrado por defecto, contenido
+   sigue en el HTML (Google lo indexa) pero no estorba la herramienta. */
+.site-about {
+  border: 1px solid rgba(0, 229, 255, 0.14);
+  border-radius: 10px;
+  background: rgba(15, 17, 21, 0.5);
+}
+.site-about > summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 12px 18px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  color: var(--wf-blue);
+  text-align: center;
+}
+.site-about > summary::-webkit-details-marker {
+  display: none;
+}
+.site-about > summary::after {
+  content: " ▾";
+  opacity: 0.7;
+}
+.site-about[open] > summary::after {
+  content: " ▴";
+}
+.site-about[open] {
+  padding: 0 22px 22px;
+}
+.site-content h2 {
+  color: var(--wf-blue);
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  margin: 36px 0 14px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(0, 229, 255, 0.2);
+}
+.site-content h3 {
+  color: #eaf6ff;
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0 0 8px;
+}
+.site-content p {
+  margin: 0 0 14px;
+}
+.site-content strong {
+  color: #eaf6ff;
+}
+.content-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 18px;
+  margin-bottom: 8px;
+}
+.content-grid article {
+  background: var(--wf-card);
+  border: 1px solid rgba(0, 229, 255, 0.12);
+  border-radius: 10px;
+  padding: 18px 20px;
+}
+.content-grid article p {
+  margin: 0;
+  font-size: 14px;
+}
+.content-cta {
+  text-align: center;
+  font-size: 15px;
+  margin: 24px 0 8px;
+}
+.site-content a {
+  color: var(--wf-blue);
+  text-decoration: none;
+  border-bottom: 1px solid rgba(0, 229, 255, 0.4);
+}
+.site-content a:hover {
+  border-bottom-color: var(--wf-blue);
+}
+.content-faq details {
+  background: var(--wf-card);
+  border: 1px solid rgba(0, 229, 255, 0.12);
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 10px;
+}
+.content-faq summary {
+  cursor: pointer;
+  font-weight: 700;
+  color: #eaf6ff;
+  list-style: none;
+}
+.content-faq summary::-webkit-details-marker {
+  display: none;
+}
+.content-faq summary::before {
+  content: "+";
+  color: var(--wf-blue);
+  font-weight: 800;
+  margin-right: 10px;
+}
+.content-faq details[open] summary::before {
+  content: "−";
+}
+.content-faq details p {
+  margin: 12px 0 0;
+  font-size: 14px;
+}
+
+/* CTA de guía: integrado en los controles del header (derecha), alineado a la
+   fila — antes flotaba suelto en el hueco central con un margin-top que lo
+   descolgaba verticalmente del header sticky de 65px. */
+.header-guide-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  white-space: nowrap;
+  color: var(--wf-blue);
+  text-decoration: none;
+  background: rgba(0, 229, 255, 0.08);
+  border: 1px solid rgba(0, 229, 255, 0.4);
+  border-radius: 20px;
+  transition: background 0.2s, box-shadow 0.2s, transform 0.15s;
+}
+.header-guide-cta:hover {
+  background: rgba(0, 229, 255, 0.16);
+  box-shadow: 0 0 14px rgba(0, 229, 255, 0.25);
+  transform: translateY(-1px);
+}
+.header-guide-cta:focus-visible {
+  outline: 2px solid var(--wf-blue);
+  outline-offset: 2px;
+}
+.guide-cta-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+/* Móvil: versión corta (solo icono + "Guía"/"Guide") para no saturar los
+   controles centrados/escalados del header móvil. */
+@media (max-width: 768px) {
+  .header-guide-cta .lang-es,
+  .header-guide-cta .lang-en {
+    display: none !important;
+  }
+  .header-guide-cta::after {
+    content: "Guía";
+  }
+  body[data-lang="en"] .header-guide-cta::after {
+    content: "Guide";
+  }
+  .header-guide-cta {
+    padding: 6px 10px;
+  }
+}
+.header-guide-cta .lang-en,
+.header-guide-cta .lang-es {
+  display: inline;
+}
+body[data-lang="en"] .header-guide-cta .lang-es {
+  display: none;
+}
+.header-guide-cta .lang-en {
+  display: none;
+}
+body[data-lang="en"] .header-guide-cta .lang-en {
+  display: inline;
+}
+
+/* ===== Ducat/plat ratio tag (relic + prime part rows) ===== */
+.ratio-tag {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 1px;
+  font-weight: 700;
+  color: #8fe3ff;
+  cursor: help;
+  white-space: nowrap;
+}
+.ratio-tag:empty {
+  display: none;
+}
+.ratio-num {
+  font-size: 0.9em;
+}
+.ratio-unit {
+  font-size: 0.6em;
+  opacity: 0.6;
+  text-transform: lowercase;
+}
+.inv-meta .ratio-tag {
+  font-size: 0.85em;
+}
+
+/* ===== Ducanator standalone tab filters ===== */
+.ducat-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.25);
+  border-bottom: 1px solid rgba(221, 169, 56, 0.2);
+}
+.ducat-desc {
+  margin: 0;
+  font-size: 0.9em;
+  line-height: 1.45;
+  color: #999;
+}
+.ducat-adv summary {
+  cursor: pointer;
+  font-size: 0.8em;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #ccc;
+  user-select: none;
+}
+.ducat-adv[open] summary {
+  color: var(--wf-gold-text);
+  margin-bottom: 8px;
+}
+.ducat-adv .ducat-filter-row + .ducat-filter-row {
+  margin-top: 8px;
+}
+.ducat-filter-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.ducat-filter-row #ducat-sort {
+  flex: 1;
+  min-width: 160px;
+  font-size: 0.85em;
+  padding: 5px;
+}
+.ducat-owned-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.82em;
+  color: #ccc;
+  white-space: nowrap;
+  cursor: pointer;
+}
+#ducat-threshold-label {
+  font-size: 0.82em;
+  color: #ccc;
+  white-space: nowrap;
+}
+#ducat-threshold {
+  flex: 1;
+  min-width: 100px;
+  accent-color: var(--wf-gold-text);
+}
+.ducat-threshold-val {
+  font-weight: 700;
+  color: var(--wf-gold-text);
+  min-width: 42px;
+  text-align: right;
+}
+
+/* ===== Ducanator (prime part ducat-efficiency view) ===== */
+.duc-panel {
+  display: flex;
+  flex-direction: column;
+}
+.duc-summary {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 12px 14px 6px;
+  background: linear-gradient(180deg, rgba(221, 169, 56, 0.12), transparent);
+}
+.duc-summary-main {
+  font-size: 1.6em;
+  font-weight: 800;
+  color: var(--wf-gold-text);
+}
+.duc-summary-sub {
+  font-size: 0.8em;
+  color: #999;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.duc-section-header {
+  padding: 14px 14px 6px;
+  font-size: 0.85em;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--wf-gold-text);
+  border-bottom: 1px solid rgba(221, 169, 56, 0.2);
+}
+.duc-section-header .duc-section-count {
+  color: #888;
+  font-weight: 600;
+}
+.duc-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 64px 84px 76px;
+  gap: 10px;
+  padding: 6px 14px;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: #14100a;
+  border-bottom: 1px solid rgba(221, 169, 56, 0.35);
+}
+.duc-th {
+  appearance: none;
+  background: none;
+  border: none;
+  padding: 6px 2px;
+  font: inherit;
+  font-size: 0.8em;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #999;
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.15s;
+}
+.duc-th.num {
+  text-align: right;
+}
+.duc-th:hover {
+  color: #fff;
+}
+.duc-th.active {
+  color: var(--wf-gold-text);
+}
+.duc-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 64px 84px 76px;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  background: rgba(0, 0, 0, 0.2);
+  box-sizing: border-box;
+  transition: background 0.15s;
+}
+.duc-row:hover {
+  background: rgba(221, 169, 56, 0.07);
+}
+.duc-name-col {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+/* Larger icons; margins from the shared inventory icon class are neutralized
+   so the grid stays aligned. Hover growth is inherited from .item-icon-small. */
+.duc-img {
+  width: 48px !important;
+  height: 48px !important;
+  margin: 0 !important;
+  flex-shrink: 0;
+  object-fit: contain;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.04);
+}
+.duc-img-empty {
+  display: inline-block;
+}
+.duc-name-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.duc-plat {
+  font-size: 1.05em;
+  color: #cfe8ff;
+  white-space: nowrap;
+  text-align: right;
+}
+.duc-name-col .part-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.duc-link {
+  color: inherit;
+  text-decoration: none;
+}
+.duc-link:hover {
+  color: var(--wf-gold-text);
+}
+.duc-sub {
+  font-size: 0.82em;
+  color: #888;
+}
+.duc-ducats {
+  color: var(--wf-gold-text);
+  font-weight: 700;
+  font-size: 1.05em;
+  white-space: nowrap;
+  text-align: right;
+}
+.duc-name-col .part-name {
+  font-size: 1.05em;
+}
+.duc-eff {
+  font-size: 1.1em;
+  font-weight: 800;
+  color: #fff;
+  min-width: 34px;
+  text-align: right;
+  cursor: help;
+}

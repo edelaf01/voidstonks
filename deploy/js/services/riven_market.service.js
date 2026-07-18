@@ -516,6 +516,26 @@ export async function loadDynamicMetaStats() {
         }
     };
 
+    // El snapshot hardcodeado de arriba no cubre armas recientes (Ax-52, EFV…): sin entrada en
+    // el baseline, la herencia defensiva de getMetaStats no tenía de dónde sacar las medianas
+    // DE cuando el worker las sirve vacías, y la caja "DE Real" salía toda N/A. El metastats.json
+    // estático sí las trae, así que lo fusionamos como underlay (el hardcodeado gana si existe).
+    try {
+        const staticRes = await fetch("metastats.json");
+        if (staticRes.ok) {
+            let staticMeta = await staticRes.json();
+            if (staticMeta?.data && typeof staticMeta.data === "object" && !Array.isArray(staticMeta.data)) {
+                staticMeta = staticMeta.data;
+            }
+            staticMeta = cleanMetadataKeys(staticMeta);
+            for (const [key, val] of Object.entries(staticMeta)) {
+                if (!loadedData[key]) loadedData[key] = val;
+            }
+        }
+    } catch (staticErr) {
+        console.warn("Could not merge static metastats.json into baseline:", staticErr);
+    }
+
     dynamicMetaStats = { ...loadedData };
     baselineMetaStats = { ...loadedData };
     globalThis.dynamicMetaStats = dynamicMetaStats;
@@ -881,8 +901,19 @@ export function getMetaStats(weaponName, weaponType) {
                     "de_unrolled",
                     "de_rerolled"
                 ];
+                // El worker /rivens sirve las métricas DE "vacías pero definidas" (official_median: 0,
+                // de_unrolled: {}) cuando su pipeline no las tiene, y eso bloqueaba la herencia del
+                // baseline → caja "DE Real" toda N/A (p.ej. Ax-52). Para las métricas DE, 0/{} cuenta
+                // como ausente. Las wfm_* mantienen la regla estricta: un 0 del mercado en vivo es
+                // información real y no debe taparse con un baseline viejo.
+                const deMetrics = new Set(["popularity_pct", "official_median", "official_stddev", "official_avg_price", "de_unrolled", "de_rerolled"]);
+                const isEmptyDeVal = (v) => v === undefined || v === null || v === 0 ||
+                    (typeof v === "object" && Object.keys(v).length === 0);
                 for (const metric of fallbackMetrics) {
-                    if (rawMeta[metric] === undefined || rawMeta[metric] === null) {
+                    const missing = deMetrics.has(metric)
+                        ? isEmptyDeVal(rawMeta[metric])
+                        : (rawMeta[metric] === undefined || rawMeta[metric] === null);
+                    if (missing && baselineMeta[metric] !== undefined && baselineMeta[metric] !== null) {
                         rawMeta[metric] = baselineMeta[metric];
                     }
                 }

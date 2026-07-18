@@ -225,6 +225,58 @@ globalThis.saveLiveInventory = () => {
 };
 
 /**
+ * Descarta la sesión de escaneo actual SIN persistir: vacía los items/reliquias
+ * detectados y sus votos de cantidad, y refresca el HUD. (El botón ✕ del HUD.)
+ */
+globalThis.clearLiveSessionInventory = () => {
+  const sh = TEXTS[state.currentLang].scannerHUD;
+  ScannerService.sessionInventory.clear();
+  ScannerService.sessionRelics.clear();
+  ScannerService.qtyVotes.clear();
+  ScannerService.relicQtyVotes.clear();
+  ScannerService.inventoryHasScanned = false;
+
+  ScannerHUD.updateDetectedItems(ScannerService.sessionInventory, ScannerService.sessionRelics);
+  showToast(sh.cleared ?? "Sesión limpiada");
+};
+
+/**
+ * Resetea la rejilla por completo: descarta la autodetección cacheada
+ * (_autoCalibCache) Y la calibración manual guardada, de modo que el siguiente
+ * frame vuelva a autodetectar desde cero (grid_detect.js). Útil si la rejilla
+ * quedó anclada mal (p.ej. tras un cambio de resolución/tema) o para forzar
+ * una re-detección limpia.
+ */
+globalThis.resetGrid = () => {
+  ScannerService._autoCalibCache = null;
+  ScannerService.detectionLocked = false;
+  ScannerService.inventoryHasScanned = false;
+  globalThis.LiveCalibration?.clearCalibration?.();
+  console.log("[INV] Grid reseteado — se re-autodetectará en el próximo escaneo.");
+  showToast("Grid reseteado");
+};
+
+/**
+ * DEBUG: descarga el frame EXACTO que ve la app (del <video>, a su resolución real
+ * videoWidth×videoHeight — no el screenshot fullscreen del monitor). Sirve para
+ * reproducir offline bugs que dependen de la resolución/ventana del juego (p.ej. el
+ * conteo de columnas cuando el inventario no llena todo el ancho). Ejecutar en consola:
+ *   globalThis.dumpScanFrame()
+ */
+globalThis.dumpScanFrame = () => {
+  const video = document.getElementById("live-video");
+  if (!video || !video.videoWidth) { showToast("Escáner no activo"); return; }
+  const c = document.createElement("canvas");
+  c.width = video.videoWidth; c.height = video.videoHeight;
+  c.getContext("2d").drawImage(video, 0, 0);
+  const a = document.createElement("a");
+  a.href = c.toDataURL("image/png");
+  a.download = `scan-frame-${video.videoWidth}x${video.videoHeight}-${Date.now()}.png`;
+  a.click();
+  console.log(`[DEBUG] Frame volcado: ${video.videoWidth}x${video.videoHeight}`);
+};
+
+/**
  * Triggers a manual, high-precision inventory grid scan.
  */
 globalThis.manualPrecisionScan = async () => {

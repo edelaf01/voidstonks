@@ -114,7 +114,7 @@ export function segmentDigits(canvasLike) {
                 bmp[y * NW + x] = isBlack(sy * W + sx) ? 1 : 0;
             }
         }
-        return bmp;
+        return { bmp, minX: c.minX, maxX: c.maxX };
     });
 }
 
@@ -132,15 +132,29 @@ const MIN_IOU = 0.6;
  * descartar no queda ningún dígito.
  */
 export function readBadgeDigits(canvasLike) {
-    let out = "";
+    // 1) Acepta como dígito los componentes con IoU suficiente, guardando su X.
+    const digits = [];
     for (const comp of segmentDigits(canvasLike)) {
         let best = "", bestScore = -1;
         for (const [digit, tmpl] of Object.entries(DIGIT_TEMPLATES)) {
-            const score = iou(comp, tmpl);
+            const score = iou(comp.bmp, tmpl);
             if (score > bestScore) { bestScore = score; best = digit; }
         }
         if (bestScore < MIN_IOU) continue; // no es un dígito: checkmark/fundición/arte
-        out += best;
+        digits.push({ d: best, minX: comp.minX, maxX: comp.maxX });
+    }
+    if (!digits.length) return "";
+    // 2) El badge es el RACIMO IZQUIERDO de dígitos (pegado al checkmark). Con el crop
+    // ancho (para capturar el 2º dígito de "27") entra también el fondo de ESQUEMA de los
+    // PLANOS: trazos verticales que matchean "1". Van separados del número por un hueco, así
+    // que nos quedamos con los dígitos contiguos desde el primero y cortamos en el 1er hueco
+    // grande (> 1.4× ancho medio de dígito). Un número real ("27") tiene huecos pequeños.
+    const widths = digits.map(g => g.maxX - g.minX + 1);
+    const avgW = widths.reduce((a, b) => a + b, 0) / widths.length;
+    let out = digits[0].d;
+    for (let k = 1; k < digits.length; k++) {
+        if (digits[k].minX - digits[k - 1].maxX > avgW * 1.4) break;
+        out += digits[k].d;
     }
     return out;
 }

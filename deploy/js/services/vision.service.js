@@ -32,6 +32,41 @@ export const WF_THEMES = [
 // This accounts for JPEG compression and anti-aliasing on real screenshots.
 const THEME_TOL_SQ = 1944;
 
+// Colores REALES del texto de los NOMBRES por tema (a intensidad plena), medidos
+// por el usuario. OJO: NO son el acento brillante de la UI (WF_THEMES); el juego
+// renderiza el nombre más apagado (p.ej. Stalker acento=(255,61,51) pero el nombre
+// es (153,31,35)). cropThemeBinarized AJUSTA (snap) el color de texto auto-detectado
+// al de esta tabla cuando está cerca, para binarizar por el color exacto del tema.
+export const NAME_TEXT_COLORS = [
+    { name: "White", r: 255, g: 255, b: 255 }, // conquera/legacy/lunar renewal/deadlock/fortuna/high-contrast usan blanco
+    { name: "Equinox", r: 158, g: 159, b: 167 },
+    { name: "High Contrast Blue", r: 102, g: 176, b: 255 },
+    { name: "Stalker", r: 153, g: 31, b: 35 },
+    { name: "Vitruvian", r: 190, g: 169, b: 102 },
+    { name: "Zephyr Harrier", r: 195, g: 107, b: 12 },
+    { name: "Baruuk", r: 238, g: 193, b: 105 },
+    { name: "Corpus", r: 35, g: 201, b: 245 },
+    { name: "Dark Lotus", r: 140, g: 119, b: 147 },
+    { name: "Grineer", r: 255, g: 189, b: 102 },
+    { name: "Lotus", r: 36, g: 184, b: 242 },
+    { name: "Nidus", r: 140, g: 38, b: 92 },
+    { name: "Orokin", r: 46, g: 65, b: 55 },
+    { name: "Pom-2", r: 130, g: 224, b: 151 },
+    { name: "Tenno", r: 9, g: 78, b: 106 },
+];
+
+// Ajusta un color RGB al color de nombre de tema más cercano si cae dentro de
+// tolerancia (dist² < 55²); si no, lo deja igual (tema no catalogado).
+export function snapToThemeTextColor(r, g, b) {
+    let best = null, bestD = 55 * 55;
+    for (const t of NAME_TEXT_COLORS) {
+        const dr = r - t.r, dg = g - t.g, db = b - t.b;
+        const d = dr * dr + dg * dg + db * db;
+        if (d < bestD) { bestD = d; best = t; }
+    }
+    return best ? [best.r, best.g, best.b] : [r, g, b];
+}
+
 /**
  * Service for vision logic.
  */
@@ -394,8 +429,76 @@ export const VisionService = {
         return peaks;
     },
 
-    cropThemeBinarized(sourceCvs, sx, sy, sw, sh, theme) {
+    /**
+     * Recorte de la banda de nombre a COLOR (sin binarizar), escalado `S`x para
+     * darle resolución al OCR. Para PaddleOCR, que lee el color directamente y no
+     * necesita nuestra binarización por tema.
+     */
+    cropColor(sourceCvs, sx, sy, sw, sh, S = 2) {
+        const cvs = document.createElement("canvas");
+        cvs.width = Math.round(sw * S); cvs.height = Math.round(sh * S);
+        const ctx = cvs.getContext("2d", { willReadFrequently: true });
+        ctx.imageSmoothingEnabled = true;
+        ctx.drawImage(sourceCvs, sx, sy, sw, sh, 0, 0, cvs.width, cvs.height);
+        return cvs;
+    },
+
+    /** Umbral de Otsu sobre un histograma de luma (256 bins) y su total. */
+    _otsuThreshold(hist, total) {
+        let sum = 0; for (let i = 0; i < 256; i++) sum += i * hist[i];
+        let sumB = 0, wB = 0, maxV = 0, thr = 0;
+        for (let i = 0; i < 256; i++) {
+            wB += hist[i]; if (!wB) continue;
+            const wF = total - wB; if (!wF) break;
+            sumB += i * hist[i];
+            const mB = sumB / wB, mF = (sum - sumB) / wF;
+            const v = wB * wF * (mB - mF) * (mB - mF);
+            if (v > maxV) { maxV = v; thr = i; }
+        }
+        return thr;
+    },
+
+    /**
+     * Extrae el badge de cantidad por BRILLO (no por color de tema). El número + el
+     * checkmark son BLANCOS brillantes en la esquina superior-izquierda de la celda,
+     * lo más claro de esa zona; el arte/fondo del tema es de brillo medio. Un umbral
+     * de Otsu elevado hacia el brillo los aísla ENTEROS, sin depender de detectar el
+     * color de tema — que fallaba (p.ej. tema mal detectado → el "4" de Odonata se
+     * binarizaba a medias por K-means y leía "1"). Caja ceñida al alto del dígito para
+     * que segmentDigits (exige componentes ≥40% del alto de la caja) no lo filtre.
+     * Devuelve un canvas dígitos-negros-sobre-blanco (escala 3x) para readBadgeDigits.
+     */
+    extractBadgeBright(snapshot, cell, cellW, cellH) {
         const S = 3;
+        const w = Math.round(cellW * 0.40), h = Math.round(cellH * 0.17);
+        const sx = cell.sx, sy = Math.max(0, cell.sy + Math.round(cellH * 0.08));
+        const cvs = document.createElement("canvas");
+        cvs.width = w * S; cvs.height = h * S;
+        const ctx = cvs.getContext("2d", { willReadFrequently: true });
+        ctx.imageSmoothingEnabled = true;
+        ctx.drawImage(snapshot, sx, sy, w, h, 0, 0, cvs.width, cvs.height);
+        const im = ctx.getImageData(0, 0, cvs.width, cvs.height);
+        const px = im.data, N = px.length / 4;
+        const lum = new Float32Array(N), hist = new Uint32Array(256);
+        for (let i = 0; i < N; i++) {
+            const l = 0.299 * px[i * 4] + 0.587 * px[i * 4 + 1] + 0.114 * px[i * 4 + 2];
+            lum[i] = l; hist[Math.min(255, Math.max(0, Math.round(l)))]++;
+        }
+        const thr = Math.max(this._otsuThreshold(hist, N) + 15, 110);
+        for (let i = 0; i < N; i++) {
+            const v = lum[i] >= thr ? 0 : 255;
+            px[i * 4] = px[i * 4 + 1] = px[i * 4 + 2] = v;
+        }
+        ctx.putImageData(im, 0, 0);
+        return cvs;
+    },
+
+    cropThemeBinarized(sourceCvs, sx, sy, sw, sh, theme, nameColorHint, scale) {
+        // 3x: validado — a 2x se pierden lecturas en temas de bajo contraste (p.ej.
+        // Akjagara Barrel en el tema rojo). El coste (~38ms/celda) se amortigua
+        // cediendo el hilo a la UI entre celdas en el bucle del scanner, no bajando
+        // la resolución del OCR. `scale` permite ajustarlo por caller si hace falta.
+        const S = scale || 3;
         const cvs = document.createElement("canvas");
         cvs.width = sw * S; cvs.height = sh * S;
         const ctx = cvs.getContext("2d", { willReadFrequently: true });
@@ -404,68 +507,214 @@ export const VisionService = {
         const imgData = ctx.getImageData(0, 0, cvs.width, cvs.height);
         const px = imgData.data;
 
-        const targetThemes = theme ? [theme, ...WF_THEMES] : WF_THEMES;
-        // Relaxed tolerance (45px distance) to capture full, thick letter strokes including anti-aliasing
-        const tolSq = theme ? 45 * 45 : 35 * 35;
+        // Binarización por COLOR DE TEXTO auto-detectado (independiente del tema).
+        // El diseño correcto es binarizar por el color del texto del tema: eso
+        // rechaza el ARTE del ítem (que es de otro color) y deja solo las letras.
+        // Antes se usaba el catálogo WF_THEMES para el color; si el tema no estaba
+        // (o se detectaba mal) el texto se perdía. Y una variante por "todo lo que
+        // difiere del fondo" marcaba también el arte metálico → rompía la primera
+        // palabra (p.ej. "Acceltra"→"AC WHEEOY KI E"). Aquí medimos DOS colores del
+        // propio recorte: (1) el FONDO = moda de color; (2) el TEXTO = moda de los
+        // píxeles lejos del fondo. Luego marcamos como tinta solo lo cercano al
+        // color de texto. Funciona con cualquier tema (blanco, dorado, rojo, teal…)
+        // y rechaza el arte salvo que sea del mismo color que el texto.
+        const QKEY = (r, g, b) => ((r >> 3) << 10) | ((g >> 3) << 5) | (b >> 3);
+        const UNQ = (k) => [((k >> 10) & 31) << 3, ((k >> 5) & 31) << 3, (k & 31) << 3];
 
+        // (1) Fondo = moda de color (el fondo domina el área de la banda de nombre).
+        const bgHist = new Map();
+        let bgKey = 0, bgCount = -1;
         for (let i = 0; i < px.length; i += 4) {
-            const r = px[i], g = px[i + 1], b = px[i + 2];
-            const luma = 0.299 * r + 0.587 * g + 0.114 * b;
-            let isText = false;
+            const key = QKEY(px[i], px[i + 1], px[i + 2]);
+            const c = (bgHist.get(key) || 0) + 1;
+            bgHist.set(key, c);
+            if (c > bgCount) { bgCount = c; bgKey = key; }
+        }
+        const [bgR, bgG, bgB] = UNQ(bgKey);
 
-            for (const t of targetThemes) {
-                const dr = r - t.r, dg = g - t.g, db = b - t.b;
-                if (dr * dr + dg * dg + db * db < tolSq) {
-                    isText = true;
-                    break;
-                }
-                if (t.actualR !== undefined) {
-                    const dar = r - t.actualR, dag = g - t.actualG, dab = b - t.actualB;
-                    if (dar * dar + dag * dag + dab * dab < tolSq) {
-                        isText = true;
-                        break;
-                    }
+        // (2) Color de TEXTO = moda de color de los píxeles lejos del fondo, pero
+        // MEDIDA SOLO EN LA FRANJA INFERIOR del recorte. El nombre siempre va abajo;
+        // el arte del ítem invade por ARRIBA (caso "Receiver": la "C" dorada metálica
+        // llena la mitad superior). Si midiéramos el color de texto sobre todo el
+        // recorte, el arte —que tiene más píxeles— ganaría la moda y binarizaríamos
+        // el arte en vez del nombre (nombre perdido). Muestrear abajo da el color
+        // real del texto (rojo apagado del tema, no el rojo brillante de la UI ni el
+        // dorado del arte). NOTA: el color de texto del catálogo/tema es el acento
+        // BRILLANTE de la UI, distinto del nombre renderizado, por eso se auto-mide.
+        const bgTolSq = 45 * 45;
+        const txTolSq = 66 * 66;
+        const cw = cvs.width, ch = cvs.height;
+        const bandY0 = Math.floor(ch * 0.45); // franja inferior (~segunda línea del nombre)
+
+        let txR, txG, txB;
+        if (nameColorHint) {
+            // COLOR DE NOMBRE A NIVEL DE PÁGINA (lo determinó grid_detect sobre TODAS
+            // las celdas). Mucho más robusto que re-detectarlo por-celda: con arte +
+            // compresión, la moda de la franja inferior de UNA celda elige a veces el
+            // color del arte y se pierde el texto (p.ej. blanco sobre nebulosa). Aquí
+            // usamos directamente el color de página y solo comprobamos que la celda
+            // tenga suficiente tinta de ESE color (si no, celda vacía → blanco).
+            [txR, txG, txB] = nameColorHint;
+            let near = 0, bandTotal = 0;
+            for (let y = bandY0; y < ch; y++) {
+                for (let x = 0; x < cw; x++) {
+                    bandTotal++;
+                    const i = (y * cw + x) * 4;
+                    const dr = px[i] - txR, dg = px[i + 1] - txG, db = px[i + 2] - txB;
+                    if (dr * dr + dg * dg + db * db < txTolSq) near++;
                 }
             }
-
-            // Universal fallback for solid white/light text across all themes
-            if (luma > 180) {
-                isText = true;
+            if (near < bandTotal * 0.008) {
+                for (let i = 0; i < px.length; i += 4) px[i] = px[i + 1] = px[i + 2] = 255;
+                ctx.putImageData(imgData, 0, 0);
+                return cvs;
             }
+        } else {
+            const txHist = new Map();
+            let txKey = -1, txCount = -1, bandTotal = 0, candidates = 0;
+            for (let y = bandY0; y < ch; y++) {
+                for (let x = 0; x < cw; x++) {
+                    bandTotal++;
+                    const i = (y * cw + x) * 4;
+                    const dr = px[i] - bgR, dg = px[i + 1] - bgG, db = px[i + 2] - bgB;
+                    if (dr * dr + dg * dg + db * db <= bgTolSq) continue; // es fondo
+                    candidates++;
+                    const key = QKEY(px[i], px[i + 1], px[i + 2]);
+                    const c = (txHist.get(key) || 0) + 1;
+                    txHist.set(key, c);
+                    if (c > txCount) { txCount = c; txKey = key; }
+                }
+            }
+            // Recorte sin tinta en la franja inferior (celda vacía): todo blanco y salir.
+            if (txKey < 0 || candidates < bandTotal * 0.01) {
+                for (let i = 0; i < px.length; i += 4) px[i] = px[i + 1] = px[i + 2] = 255;
+                ctx.putImageData(imgData, 0, 0);
+                return cvs;
+            }
+            // Snap al color de nombre EXACTO del tema (tabla NAME_TEXT_COLORS) si está
+            // cerca; corrige la deriva por antialias/compresión de la moda auto-medida.
+            [txR, txG, txB] = snapToThemeTextColor(...UNQ(txKey));
+        }
 
+        // Tinta = píxeles cercanos al color de TEXTO, lejanos del FONDO y con suficiente separación de brillo sobre el fondo.
+        const bgLum = bgR * 0.299 + bgG * 0.587 + bgB * 0.114;
+        for (let i = 0; i < px.length; i += 4) {
+            const drBg = px[i] - bgR, dgBg = px[i + 1] - bgG, dbBg = px[i + 2] - bgB;
+            if (drBg * drBg + dgBg * dgBg + dbBg * dbBg <= bgTolSq) {
+                px[i] = px[i + 1] = px[i + 2] = 255;
+                continue;
+            }
+            const lum = px[i] * 0.299 + px[i + 1] * 0.587 + px[i + 2] * 0.114;
+            if (lum < bgLum + 12) {
+                px[i] = px[i + 1] = px[i + 2] = 255;
+                continue;
+            }
+            const dr = px[i] - txR, dg = px[i + 1] - txG, db = px[i + 2] - txB;
+            const isText = dr * dr + dg * dg + db * db < txTolSq;
             px[i] = px[i + 1] = px[i + 2] = isText ? 0 : 255;
         }
 
-        // Apply an ultra-high-quality, morphological 3x3 cross binary dilation kernel
-        // to fill in fine anti-aliasing line gaps while keeping inner loops of lowercase
-        // letters (like 'e', 'a', 'o') perfectly hollow, open, and highly legible for Tesseract.
-        const dilatedImgData = ctx.createImageData(cvs.width, cvs.height);
-        const dPx = dilatedImgData.data;
-        const w = cvs.width;
-        const h = cvs.height;
-
-        // Initialize output as all white (255)
-        for (let i = 0; i < dPx.length; i += 4) {
-            dPx[i] = dPx[i + 1] = dPx[i + 2] = 255;
-            dPx[i + 3] = 255;
-        }
-
+        // Filtro rápido de aislamiento (despeckle): elimina puntos negros sueltos de ruido de compresión de video (1x1 px)
+        // que no pertenecen a trazos de letras, dejando un fondo blanco prístino y sin "mosquitas" para el OCR.
+        const w = cvs.width, h = cvs.height;
         for (let y = 1; y < h - 1; y++) {
             for (let x = 1; x < w - 1; x++) {
                 const idx = (y * w + x) * 4;
-                if (px[idx] === 0) { // Black pixel found
-                    dPx[idx] = dPx[idx + 1] = dPx[idx + 2] = 0; // Center
-                    dPx[idx - 4] = dPx[idx - 3] = dPx[idx - 2] = 0; // Left
-                    dPx[idx + 4] = dPx[idx + 5] = dPx[idx + 6] = 0; // Right
-                    const topIdx = idx - w * 4;
-                    dPx[topIdx] = dPx[topIdx + 1] = dPx[topIdx + 2] = 0; // Top
-                    const botIdx = idx + w * 4;
-                    dPx[botIdx] = dPx[botIdx + 1] = dPx[botIdx + 2] = 0; // Bottom
+                if (px[idx] === 0) {
+                    if (px[idx - 4] === 255 && px[idx + 4] === 255 && px[idx - w * 4] === 255 && px[idx + w * 4] === 255) {
+                        px[idx] = px[idx + 1] = px[idx + 2] = 255;
+                    }
                 }
             }
         }
 
-        ctx.putImageData(dilatedImgData, 0, 0);
+        // AISLAR SOLO LAS LETRAS: en temas de FONDO texturizado (nebulosa/estrellas)
+        // el fondo tiene brillos/estrellas del MISMO color que el texto blanco → el
+        // color no los separa, pero la FORMA sí: las letras son componentes altos y
+        // conectados; las estrellas, manchitas pequeñas aisladas. Etiquetamos
+        // componentes (4-conexión) y borramos los que NO son "texto" (altura <
+        // ~20% del recorte) salvo que estén pegados en X y cerca en Y a un
+        // componente de texto (puntos de i/j, tildes). Así el ruido de fondo
+        // desaparece y solo quedan los trazos legibles.
+        const N = w * h;
+        const label = new Int32Array(N).fill(-1); // -1 sin visitar
+        const stack = new Int32Array(N);
+        const H_TEXT = Math.max(16, Math.round(h * 0.20)); // alto mínimo para "texto"
+        const NEAR_Y = Math.round(h * 0.12);
+        const comps = []; // { minX, maxX, minY, maxY, isText }
+        for (let p = 0; p < N; p++) {
+            if (px[p * 4] !== 0 || label[p] !== -1) continue;
+            // flood fill 4-conexión del componente de tinta que empieza en p
+            let sp = 0; stack[sp++] = p; label[p] = comps.length;
+            let minX = w, maxX = 0, minY = h, maxY = 0;
+            while (sp > 0) {
+                const q = stack[--sp];
+                const qx = q % w, qy = (q / w) | 0;
+                if (qx < minX) minX = qx; if (qx > maxX) maxX = qx;
+                if (qy < minY) minY = qy; if (qy > maxY) maxY = qy;
+                if (qx > 0 && px[(q - 1) * 4] === 0 && label[q - 1] === -1) { label[q - 1] = comps.length; stack[sp++] = q - 1; }
+                if (qx < w - 1 && px[(q + 1) * 4] === 0 && label[q + 1] === -1) { label[q + 1] = comps.length; stack[sp++] = q + 1; }
+                if (qy > 0 && px[(q - w) * 4] === 0 && label[q - w] === -1) { label[q - w] = comps.length; stack[sp++] = q - w; }
+                if (qy < h - 1 && px[(q + w) * 4] === 0 && label[q + w] === -1) { label[q + w] = comps.length; stack[sp++] = q + w; }
+            }
+            comps.push({ minX, maxX, minY, maxY, isText: (maxY - minY + 1) >= H_TEXT });
+        }
+        // Decide qué componentes conservar: los de texto, y los pequeños que estén
+        // pegados en X y cerca en Y a alguno de texto (puntos de i/j, tildes).
+        const texts = comps.filter(c => c.isText);
+        const keep = comps.map(c => {
+            if (c.isText) return true;
+            for (const t of texts) {
+                const xOverlap = c.minX <= t.maxX && c.maxX >= t.minX;
+                const yGap = c.maxY < t.minY ? t.minY - c.maxY : (c.minY > t.maxY ? c.minY - t.maxY : 0);
+                if (xOverlap && yGap <= NEAR_Y) return true;
+            }
+            return false;
+        });
+        // Si NO hay ningún componente de texto (celda de arte puro o ruido), no
+        // borres nada: deja que el OCR devuelva vacío y lo gestione el caller.
+        if (texts.length > 0) {
+            for (let p = 0; p < N; p++) {
+                if (px[p * 4] === 0 && !keep[label[p]]) {
+                    px[p * 4] = px[p * 4 + 1] = px[p * 4 + 2] = 255;
+                }
+            }
+        }
+
+        // BANDA DE NOMBRE DINÁMICA: nos quedamos SOLO con el racimo INFERIOR de líneas
+        // de texto (1, 2 o 3), descartando el arte del mismo color que quede arriba
+        // separado por un hueco. Así NO se asume en qué fracción de la celda cae el
+        // nombre: el recorte de entrada solo debe ser "generoso" y aquí se acota al
+        // texto real por su densidad de tinta por fila. El nombre es un grupo de líneas
+        // contiguas (huecos pequeños entre líneas); el hueco arte↔nombre es grande.
+        if (texts.length > 0) {
+            const rowInk = new Int32Array(h);
+            let maxRow = 0;
+            for (let y = 0; y < h; y++) {
+                let cnt = 0; const off = y * w * 4;
+                for (let x = 0; x < w; x++) if (px[off + x * 4] === 0) cnt++;
+                rowInk[y] = cnt;
+                if (cnt > maxRow) maxRow = cnt;
+            }
+            const rowThr = Math.max(2, maxRow * 0.08);
+            const maxGap = Math.round(h * 0.10); // hueco arte↔nombre > hueco entre líneas
+            let bottom = -1, top = -1, gap = 0;
+            for (let y = h - 1; y >= 0; y--) {
+                if (rowInk[y] >= rowThr) { if (bottom < 0) bottom = y; top = y; gap = 0; }
+                else if (bottom >= 0 && ++gap > maxGap) break;
+            }
+            if (top >= 0) {
+                const pad = Math.round(h * 0.02);
+                const y0 = Math.max(0, top - pad), y1 = Math.min(h - 1, bottom + pad);
+                for (let y = 0; y < h; y++) {
+                    if (y >= y0 && y <= y1) continue;
+                    const off = y * w * 4;
+                    for (let x = 0; x < w; x++) { const i = off + x * 4; px[i] = px[i + 1] = px[i + 2] = 255; }
+                }
+            }
+        }
+
+        ctx.putImageData(imgData, 0, 0);
         return cvs;
     },
 
@@ -491,10 +740,12 @@ export const VisionService = {
 
     createTextCanvas(ocrCanvas, cell, grid) {
         const TEXT_SCALE = 3;
-        // Crop starting higher up (22% of cell height) to perfectly capture 2-line item names,
-        // and add 8% bottom padding to guarantee no letters on the bottom line are cut off.
-        const textSrcY = Math.floor(grid.cellH * 0.22);
-        const textSrcH = grid.cellH - textSrcY + Math.floor(grid.cellH * 0.08);
+        // Ahora que el grid se ancla con precisión al techo físico de la tarjeta (0%),
+        // el nombre de 1 o 2 líneas vive estrictamente en la franja inferior de la placa (76% al 97%).
+        // Empezar en 76% elimina por completo las puntas inferiores de las armas 3D (Akarius, Akbronco, Afuris)
+        // que cuelgan hasta el 72%-75% y provocaban que Tesseract empastara la 'AK'/'A' inicial (generando 'ROLO', 'RANC', 'AGARI').
+        const textSrcY = Math.floor(grid.cellH * 0.76);
+        const textSrcH = Math.floor(grid.cellH * 0.21);
         const textCvs = this._textCvs;
         textCvs.width = grid.cellW * TEXT_SCALE;
         textCvs.height = textSrcH * TEXT_SCALE;
@@ -611,11 +862,15 @@ export const VisionService = {
         }
         let l1 = 0.299 * c1[0] + 0.587 * c1[1] + 0.114 * c1[2], l2 = 0.299 * c2[0] + 0.587 * c2[1] + 0.114 * c2[2];
         let textC = l2 > l1 ? c2 : c1, bgC = l2 > l1 ? c1 : c2;
+        let bgL = Math.min(l1, l2);
         for (let i = 0; i < px.length; i += 4) {
             let r = px[i], g = px[i + 1], b = px[i + 2];
             let dT = Math.abs(r - textC[0]) + Math.abs(g - textC[1]) + Math.abs(b - textC[2]);
             let dB = Math.abs(r - bgC[0]) + Math.abs(g - bgC[1]) + Math.abs(b - bgC[2]);
-            px[i] = px[i + 1] = px[i + 2] = (dT < dB * 1.2) ? 0 : 255;
+            let lum = 0.299 * r + 0.587 * g + 0.114 * b;
+            // Rechazar únicamente lo que esté muy cerca del cluster de fondo o por debajo en brillo
+            let isBgNoise = lum < bgL + 15 || dT >= dB * 1.05;
+            px[i] = px[i + 1] = px[i + 2] = isBgNoise ? 255 : 0;
         }
         ctx.putImageData(imgData, 0, 0);
     },
@@ -746,33 +1001,60 @@ export const VisionService = {
         };
 
         // 1ª pasada: detectar el HUE dominante del texto (= color de UI elegido por el jugador).
-        // Histograma de tono de los píxeles saturados y brillantes (las letras del nombre).
+        // Histograma de tono de los píxeles saturados y MUY brillantes (las letras del nombre).
+        // El texto del nombre es fino y brillante (v alto); el TINTE de misión (rojo Steel Path,
+        // verde/azul de facción...) tiñe TODO el fondo/roca y es saturado pero de brillo medio y
+        // ocupa la mayoría del recorte. Sin defensa, ese tinte gana el histograma y se toma como
+        // "color del nombre" -> se enmascara medio frame como texto y el OCR de nombres lee basura
+        // (la pasada grayscale salva el frame, pero un tema de nombre poco saturado se perdería).
+        // Defensa GENÉRICA, sin asumir color ni posición:
+        //   (a) v alto (>0.62): el nombre brilla más que el tinte de fondo.
+        //   (b) un bin que ocupe una fracción enorme del recorte NO es texto (el texto es minoría);
+        //       se descarta como tinte de fondo antes de elegir el pico.
+        const totalPx = px.length / 4;
         const bins = new Array(36).fill(0);
         const hsum = new Array(36).fill(0);
         for (let i = 0; i < px.length; i += 4) {
             const [h, s, v] = toHSV(px[i], px[i + 1], px[i + 2]);
-            if (v > 0.47 && s > 0.55) {
+            if (v > 0.62 && s > 0.55) {
                 const bi = Math.min(35, Math.floor(h * 36));
                 bins[bi]++; hsum[bi] += h;
             }
         }
-        let peak = 0;
-        for (let i = 1; i < 36; i++) if (bins[i] > bins[peak]) peak = i;
-        const Hd = bins[peak] >= 20 ? hsum[peak] / bins[peak] : null; // null = tema crema/claro
+        // Un tinte de misión cubre grandes áreas planas; el texto del nombre nunca llega a ~18%
+        // del recorte. Anula los bins que superan ese techo (son fondo teñido, no letras).
+        const TINT_CAP = totalPx * 0.18;
+        let peak = -1;
+        for (let i = 0; i < 36; i++) {
+            if (bins[i] > TINT_CAP) continue;
+            if (peak < 0 || bins[i] > bins[peak]) peak = i;
+        }
+        const Hd = (peak >= 0 && bins[peak] >= 20) ? hsum[peak] / bins[peak] : null; // null = crema/claro o solo tinte
 
         // 2ª pasada: texto del nombre -> negro, resto -> blanco.
-        for (let i = 0; i < px.length; i += 4) {
-            const [h, s, v] = toHSV(px[i], px[i + 1], px[i + 2]);
-            let isText;
-            if (Hd === null) {
-                isText = v > 0.78 && s < 0.45;                 // fallback temas crema/claros: texto brillante
-            } else {
-                let hd = Math.abs(h - Hd); if (hd > 0.5) hd = 1 - hd;
-                isText = v > 0.30 && s > 0.45 && hd < 0.125;   // ~±45°: texto del color del tema, saturado
+        // El texto real ocupa una fracción pequeña del recorte. Si la máscara por hue sale MUY
+        // densa (>22%), no está aislando letras sino la ilustración dorada / el borde del tinte:
+        // en ese caso el hue elegido es basura -> se cae a la máscara de texto brillante neutra
+        // (v alto, poca saturación), que aísla los nombres blancos/claros que la pasada grayscale
+        // ya lee bien y no inyecta ruido de color. Genérico: sin asumir color ni posición.
+        const buildMask = (useHue) => {
+            let textCount = 0;
+            for (let i = 0; i < px.length; i += 4) {
+                const [h, s, v] = toHSV(px[i], px[i + 1], px[i + 2]);
+                let isText;
+                if (!useHue) {
+                    isText = v > 0.78 && s < 0.45;                 // texto brillante (crema/claros, o rescate anti-tinte)
+                } else {
+                    let hd = Math.abs(h - Hd); if (hd > 0.5) hd = 1 - hd;
+                    isText = v > 0.30 && s > 0.45 && hd < 0.125;   // ~±45°: texto del color del tema, saturado
+                }
+                px[i] = px[i + 1] = px[i + 2] = isText ? 0 : 255;
+                if (isText) textCount++;
             }
-            const val = isText ? 0 : 255;
-            px[i] = px[i + 1] = px[i + 2] = val;
-        }
+            return textCount / totalPx;
+        };
+        const density = buildMask(Hd !== null);
+        if (Hd !== null && density > 0.22) buildMask(false); // hue eligió tinte/ilustración -> rehacer neutro
         ctx.putImageData(img, 0, 0);
         return cvs;
     },
@@ -1227,17 +1509,23 @@ export const VisionService = {
         const ctx = snapshot.getContext("2d", { willReadFrequently: true });
         const data = ctx.getImageData(zx, zy, zw, zh).data;
 
-        // Píxeles "de texto" por scanline. Se usa el canal MÁXIMO (no luma): cubre tanto
-        // nombres blancos/crema como el texto naranja del tema, cuya luma es demasiado baja.
+        // Densidad de BORDES (|Δluma| entre muestras vecinas) por scanline, NO
+        // píxeles sobre un umbral absoluto de brillo. Un umbral absoluto asume
+        // fondo oscuro; con los temas de fondo claros (magenta, cian…) el fondo
+        // entero lo supera y la fase se rompe. |Δluma| es invariante al tema de
+        // fondo y de letra (blanco/crema, naranja, o teal oscuro del tema).
+        const EDGE_DELTA = 32;
         const bright = new Float32Array(zh);
         let totalBright = 0;
         for (let y = 0; y < zh; y++) {
             let cnt = 0;
             const rowOff = y * zw * 4;
-            for (let x = 0; x < zw; x += 4) {
+            let prevL = 0.299 * data[rowOff] + 0.587 * data[rowOff + 1] + 0.114 * data[rowOff + 2];
+            for (let x = 4; x < zw; x += 4) {
                 const i = rowOff + x * 4;
-                const mx = Math.max(data[i], data[i + 1], data[i + 2]);
-                if (mx > 185) cnt++;
+                const L = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+                if (Math.abs(L - prevL) > EDGE_DELTA) cnt++;
+                prevL = L;
             }
             bright[y] = cnt;
             totalBright += cnt;
@@ -1252,19 +1540,15 @@ export const VisionService = {
             return s;
         };
 
-        const half = Math.floor(cellH / 2);
-        let bestDy = 0;
-        let bestScore = -Infinity;
-        for (let dy = -half; dy <= half; dy += 2) {
-            let score = 0;
-            for (const top of rowTops) {
-                const t = top - zy + dy;
-                score += band(t + cellH * 0.58, t + cellH * 0.92);
-                score -= 2 * band(t - cellH * 0.04, t + cellH * 0.04);
-            }
-            if (score > bestScore) { bestScore = score; bestDy = dy; }
-        }
-        return Math.abs(bestDy) <= 4 ? 0 : bestDy;
+        // DESHABILITADO: la función de scoring basada en densidad de bordes NO
+        // distingue fiablemente el texto del nombre del arte metálico de las cards.
+        // Con cualquier rango >0 el óptimo siempre sube (dy<0) porque la
+        // ilustración tiene más bordes que el texto. grid_detect.js ya ancla las
+        // filas por la baseline del nombre — el desfase residual es despreciable.
+        // Si en el futuro necesitamos corregir el scroll clampado al final de
+        // lista, habrá que usar una señal diferente (p.ej. contraste de color
+        // del fondo entre celdas, o detección de la línea separadora).
+        return 0;
     },
 
     // Aplica detectRowPhase a un grid recién construido: desplaza las filas al desfase
@@ -1287,7 +1571,7 @@ export const VisionService = {
      */
     extractBadgeByColor(snapshot, cell, cellW, cellH, theme) {
         // 1. Crop a very generous top-left area starting exactly at cell.sx (35% of cell width)
-        const safeW = Math.round(cellW * 0.35);
+        const safeW = Math.round(cellW * 0.55);
         // Start crop higher to prevent clipping the top hook of 6 or top bar of 7 and 5
         const padTop = 12;
         const startY = Math.max(0, cell.sy - padTop);

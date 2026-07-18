@@ -138,6 +138,7 @@ export async function renderInventory() {
         if (sortMode === "plat_intact") return valB.intact - valA.intact;
         if (sortMode === "plat_rad") return valB.rad - valA.rad;
         if (sortMode === "ducats") return valB.ducats - valA.ducats;
+        if (sortMode === "ratio") return ducatRatio(valB.ducats, valB.intact) - ducatRatio(valA.ducats, valA.intact);
         return 0;
       });
     }
@@ -160,6 +161,7 @@ export async function renderInventory() {
                 <div class="inv-meta">
                    <span class="relic-status-tag ${isVaulted ? "vaulted" : "active"}">${isVaulted ? (TEXTS[state.currentLang].vaulted || "VAULTED") : (TEXTS[state.currentLang].active || "ACTIVE")}</span>
                    <span id="duc-${safeId}" class="ducat-tag">... <span class="ducat-icon-inline"></span></span>
+                   <span id="ratio-${safeId}" class="ratio-tag" title="${escapeHTML((TEXTS[state.currentLang].ducanator || {}).effTitle || "Ducados por platino")}">...</span>
                 </div>
             </div>
             <div class="inv-price-tag">
@@ -208,6 +210,7 @@ async function triggerPriceFetch(relicList) {
       const safeId = rName.replaceAll(/[^a-zA-Z0-9]/g, "");
       const priceEl = document.getElementById(`price-${safeId}`);
       const ducEl = document.getElementById(`duc-${safeId}`);
+      const ratioEl = document.getElementById(`ratio-${safeId}`);
 
       if (!priceEl) continue;
 
@@ -221,6 +224,7 @@ async function triggerPriceFetch(relicList) {
           setTimeout(() => (priceEl.style.color = ""), 1000);
         }
         if (ducEl) ducEl.innerHTML = `${stats.ducats} <span class="ducat-icon-inline"></span>`;
+        if (ratioEl) ratioEl.innerHTML = formatDucatRatio(stats.ducats, stats.intact);
       }
     }
 
@@ -547,6 +551,182 @@ export function openSetDetail(setName) {
 }
 
 let lastRenderedHash = "";
+// Ducat value for a single prime part (canonical source: itemsDatabase).
+function getPartDucats(partName) {
+  const info = state.itemsDatabase?.[partName];
+  return info && info[0]?.ducats ? info[0].ducats : 0;
+}
+
+// Ducats-per-platinum efficiency, as a numeric score.
+// No plat (unknown/zero) but ducats -> Infinity (best); no ducats -> 0.
+function ducatRatio(ducats, plat) {
+  if (!ducats || ducats <= 0) return 0;
+  if (!plat || plat <= 0) return Infinity;
+  return ducats / plat;
+}
+
+// Renders the ratio as a small labelled tag (∞ / N.N duc·pl⁻¹).
+function formatDucatRatio(ducats, plat) {
+  const r = ducatRatio(ducats, plat);
+  if (r === 0) return "";
+  const txt = r === Infinity ? "∞" : r.toFixed(1);
+  return `<span class="ratio-num">${txt}</span><span class="ratio-unit">d/pl</span>`;
+}
+
+/**
+ * Ducanator view: flat list of the prime parts you own (qty > 0), ranked by
+ * ducat-per-platinum efficiency so you fund what gives many ducats but little
+ * plat, and keep what is worth more sold. Reuses MEMORY_CACHE / getPriceValue.
+ */
+export function renderDucanatorView(list, opts = {}) {
+  const t = TEXTS[state.currentLang];
+  const dt = t.ducanator || {};
+
+  const searchInput = (opts.search || "").toLowerCase();
+  const ownedOnly = opts.ownedOnly !== false; // default: only what you own
+  const sortCol = opts.sortCol || "ratio"; // name | plat | ducats | ratio
+  const sortDir = opts.sortDir || -1; // -1 desc (most profitable first), 1 asc
+  // Prices at/below this many plat are "safe to fund" (won't waste a sale).
+  const KEEP_PLAT_THRESHOLD = Number.isFinite(opts.threshold) ? opts.threshold : 15;
+  // Called again once missing prices arrive, to re-rank with real data.
+  const rerender = opts.rerender || null;
+
+  const rows = Object.entries(state.primeInventory)
+    .filter(([name, qty]) => !ownedOnly || qty > 0)
+    .filter(([name]) => !searchInput || name.toLowerCase().includes(searchInput))
+    .map(([name, qty]) => {
+      const ducats = getPartDucats(name);
+      const cachedRaw = globalThis.MEMORY_CACHE?.get(getSlug(name));
+      const plat = cachedRaw !== undefined ? (Number.parseInt(cachedRaw, 10) || 0) : null;
+      // Efficiency = ducats per plat sacrificed. Unknown/zero plat -> best score.
+      const eff = ducatRatio(ducats, plat === null ? 0 : plat);
+      return { name, qty, ducats, plat, eff };
+    })
+    .filter((r) => r.ducats > 0);
+
+  const effNum = (r) => (r.eff === Infinity ? Number.MAX_VALUE : r.eff);
+  rows.sort((a, b) => {
+    let cmp;
+    if (sortCol === "name") cmp = a.name.localeCompare(b.name);
+    else if (sortCol === "plat") cmp = (a.plat ?? -1) - (b.plat ?? -1);
+    else if (sortCol === "ducats") cmp = a.ducats - b.ducats;
+    else cmp = effNum(a) - effNum(b); // ratio
+    return cmp * sortDir;
+  });
+
+  let fundableDucats = 0;
+  let fundableParts = 0;
+  const fundRows = [];
+  const keepRows = [];
+
+  rows.forEach((r) => {
+    const platReady = r.plat !== null;
+    const shouldFund = !platReady || r.plat <= KEEP_PLAT_THRESHOLD;
+    if (shouldFund) {
+      fundableDucats += r.ducats * r.qty;
+      fundableParts += r.qty;
+    }
+    const effTxt = r.eff === Infinity ? "∞" : r.eff.toFixed(1);
+    const platTxt = platReady ? `${r.plat}` : "...";
+    const icon = getItemIcon(r.name);
+    const iconHtml = icon
+      ? `<img src="${icon}" class="duc-img item-icon-small" loading="lazy" onerror="this.style.visibility='hidden'">`
+      : `<span class="duc-img duc-img-empty"></span>`;
+
+    const html = `
+      <div class="duc-row">
+        <div class="duc-name-col">
+          ${iconHtml}
+          <div class="duc-name-text">
+            <a href="https://warframe.market/items/${getSlug(r.name)}" target="_blank" class="part-name duc-link">${escapeHTML(r.name)}</a>
+            <span class="duc-sub">x${r.qty}</span>
+          </div>
+        </div>
+        <div class="duc-plat">${platTxt} <span class="plat-icon-inline"></span></div>
+        <div class="duc-ducats">${r.ducats} <img src="assets/Ducats.webp" class="ducat-icon" style="width:14px;height:14px;object-fit:contain;vertical-align:middle;"></div>
+        <div class="duc-eff" title="${escapeHTML(dt.effTitle || "Ducats per platinum")}">${effTxt}<span class="ratio-unit">d/pl</span></div>
+      </div>`;
+    (shouldFund ? fundRows : keepRows).push(html);
+  });
+
+  // Clickable column headers: click sorts by that column, click again flips direction.
+  const arrowFor = (c) => (c === sortCol ? (sortDir === -1 ? " ▼" : " ▲") : "");
+  const th = (c, label, extraClass = "") => `
+      <button class="duc-th ${extraClass} ${c === sortCol ? "active" : ""}" onclick="globalThis.setDucatSort('${c}')" title="${escapeHTML(dt.sortHint || "Click to sort")}">${escapeHTML(label)}${arrowFor(c)}</button>`;
+  const headerRow = `
+      <div class="duc-head">
+        ${th("name", dt.colItem || "Item")}
+        ${th("plat", dt.colPlat || "Plat", "num")}
+        ${th("ducats", dt.colDucats || "Ducats", "num")}
+        ${th("ratio", dt.colRatio || "Ratio", "num")}
+      </div>`;
+
+  const emptyMsg = dt.empty || "No prime parts with ducat value. Scan or add parts first.";
+  const section = (label, items) => items.length === 0 ? "" : `
+      <div class="duc-section-header">${escapeHTML(label)} <span class="duc-section-count">(${items.length})</span></div>
+      <div class="duc-list">${items.join("")}</div>`;
+
+  list.innerHTML = `
+    <div class="duc-panel">
+      <div class="duc-summary">
+        <span class="duc-summary-main">${fundableDucats.toLocaleString()} <img src="assets/Ducats.webp" class="ducat-icon" style="width:15px;height:15px;object-fit:contain;vertical-align:middle;"></span>
+        <span class="duc-summary-sub">${(dt.fundableParts || "fundable parts")}: ${fundableParts}</span>
+      </div>
+      ${rows.length === 0
+        ? `<div style="padding:20px;text-align:center;color:#666;">${escapeHTML(emptyMsg)}</div>`
+        : headerRow + section(dt.fundSection || "Trade for ducats", fundRows) + section(dt.keepSection || "Better to sell", keepRows)}
+    </div>`;
+
+  // Fetch missing plat prices, then re-rank once they land.
+  const pending = rows.filter((r) => r.plat === null);
+  if (pending.length > 0) {
+    globalThis.ducanatorFetchId = (globalThis.ducanatorFetchId || 0) + 1;
+    const fetchId = globalThis.ducanatorFetchId;
+    Promise.all(pending.map((r) => getPriceValue(r.name, getSlug(r.name)))).then(() => {
+      if (globalThis.ducanatorFetchId !== fetchId) return;
+      if (rerender) rerender();
+    });
+  }
+}
+
+// Column sort state for the Ducats tab (default: ratio, most profitable first).
+let ducatSortCol = "ratio";
+let ducatSortDir = -1;
+
+export function setDucatSort(col) {
+  if (ducatSortCol === col) {
+    ducatSortDir = -ducatSortDir;
+  } else {
+    ducatSortCol = col;
+    ducatSortDir = col === "name" ? 1 : -1; // names A-Z, numbers high-to-low
+  }
+  renderDucanatorTab();
+}
+
+// Standalone Ducanator tab: reads its own filter controls and renders into #ducat-content.
+export function renderDucanatorTab() {
+  const list = document.getElementById("ducat-content");
+  if (!list) return;
+  const opts = {
+    search: document.getElementById("ducat-search")?.value || "",
+    ownedOnly: document.getElementById("ducat-owned-only")?.checked !== false,
+    sortCol: ducatSortCol,
+    sortDir: ducatSortDir,
+    threshold: Number.parseInt(document.getElementById("ducat-threshold")?.value ?? "15", 10),
+    rerender: () => {
+      if (state.activeTab !== "ducat") return;
+      renderDucanatorTab();
+    },
+  };
+  renderDucanatorView(list, opts);
+}
+
+export function updateDucatThreshold(val) {
+  const out = document.getElementById("ducat-threshold-val");
+  if (out) out.innerHTML = `${val}<span class="plat-icon-inline"></span>`;
+  renderDucanatorTab();
+}
+
 export function renderPrimeInventory() {
   const list = document.getElementById("inventory-list-parts");
   if (!list) return;
@@ -776,6 +956,12 @@ export function renderPrimeInventory() {
 
                 <div class="row-info">
                    <a href="https://warframe.market/items/${getSlug(partName)}" target="_blank" class="market-link-icon-mini" onclick="event.stopPropagation()">↗</a>
+                   <span class="ratio-tag" id="ratio-p-${safeId}" title="${escapeHTML((TEXTS[state.currentLang].ducanator || {}).effTitle || "Ducados por platino")}">${(() => {
+                  const dv = getPartDucats(partName);
+                  const cached = globalThis.MEMORY_CACHE?.get(getSlug(partName));
+                  const p = (cached !== undefined && !Number.isNaN(Number.parseInt(cached, 10))) ? Number.parseInt(cached, 10) : null;
+                  return p !== null ? formatDucatRatio(dv, p) : "";
+                })()}</span>
                    <span class="price-badge-small" id="price-p-${safeId}" data-qty="${qty}" data-item="${escapeHTML(partName)}">${(() => {
                   const cached = globalThis.MEMORY_CACHE?.get(getSlug(partName));
                   if (cached !== undefined && !Number.isNaN(Number.parseInt(cached, 10))) return Number.parseInt(cached, 10);
@@ -787,6 +973,8 @@ export function renderPrimeInventory() {
                       badgeEl.classList.remove("price-loading-blink");
                       updatePrimeTotalValue();
                     }
+                    const ratioEl = document.getElementById(`ratio-p-${safeId}`);
+                    if (ratioEl) ratioEl.innerHTML = formatDucatRatio(getPartDucats(partName), price);
                   });
                   return "...";
                 })()} <span class="plat-icon-inline"></span></span>
@@ -1089,6 +1277,9 @@ Object.assign(globalThis, {
   openSetDetail,
   renderInventory,
   renderPrimeInventory,
+  renderDucanatorTab,
+  setDucatSort,
+  updateDucatThreshold,
   clearInventory,
   toggleInventoryPanel,
   exportInventory,
