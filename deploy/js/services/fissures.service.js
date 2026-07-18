@@ -1,6 +1,32 @@
-import { getActiveFissures, getArbitration } from "../repositories/api.repository.js";
+import { getActiveFissures, getArbitration, getServerTime } from "../repositories/api.repository.js";
 
 globalThis._serverTimeOffset = globalThis._serverTimeOffset || 0;
+
+// Sincronización de reloj: UNA llamada mínima no cacheable por sesión. La cabecera Date de las
+// respuestas de datos NO sirve para esto: llegan de la caché edge/navegador (con SWR) con la
+// Date de cuando se generaron, y usarla inflaba los contadores con la antigüedad de la respuesta
+// (p. ej. mostrar 1h27m cuando quedaban 40m).
+let _clockSyncPromise = null;
+let _clockSynced = false;
+
+function syncServerClock() {
+    if (!_clockSyncPromise) {
+        _clockSyncPromise = (async () => {
+            try {
+                const res = await getServerTime();
+                if (!res.ok) return;
+                const body = await res.json();
+                if (typeof body?.now === "number") {
+                    globalThis._serverTimeOffset = Date.now() - body.now;
+                    _clockSynced = true;
+                }
+            } catch (e) {
+                console.warn("[FISSURES] No se pudo sincronizar el reloj con el servidor:", e);
+            }
+        })();
+    }
+    return _clockSyncPromise;
+}
 
 // Cache en memoria del worldstate (global y de cambio lento): limita las llamadas al worker
 // (límite 100k/día) y evita parpadeos al re-renderizar el panel.
@@ -95,17 +121,10 @@ export async function fetchBestFissures(force = false) {
         allFissures = _fissureCache.data;
     } else {
         try {
-            const res = await getActiveFissures();
+            // El ping de hora corre en paralelo al fetch de datos; solo se espera al final.
+            const clockSync = syncServerClock();
+            const res = await getActiveFissures(force);
             if (!res.ok) throw new Error("Error al conectar con el Worldstate");
-
-            // 1. Intentar sincronizar con la cabecera Date del servidor (funciona tras desplegar CORS fix)
-            const serverDateStr = res.headers.get("Date");
-            if (serverDateStr) {
-                const parsedMs = new Date(serverDateStr).getTime();
-                if (!isNaN(parsedMs)) {
-                    globalThis._serverTimeOffset = Date.now() - parsedMs;
-                }
-            }
 
             let fissures = await res.json();
 
@@ -123,10 +142,13 @@ export async function fetchBestFissures(force = false) {
                 throw new TypeError("El Worldstate no ha devuelto un array válido de fisuras.");
             }
 
-            // 2. Auto-detección de desfase del reloj del cliente a partir de los propios datos.
-            //    El servidor SOLO devuelve fisuras activas (expiry > serverNow). Si el Date.now()
-            //    del cliente ya supera la primera expiración, el reloj local va adelantado.
-            if (fissures.length > 0 && !globalThis._serverTimeOffset) {
+            await clockSync;
+
+            // Respaldo si el ping de hora falló: auto-detección de desfase a partir de los propios
+            // datos. El servidor SOLO devuelve fisuras activas (expiry > serverNow). Si el Date.now()
+            // del cliente ya supera la primera expiración, el reloj local va adelantado. Solo corre
+            // sin sincronización real: con datos stale del caché daría un falso positivo.
+            if (!_clockSynced && fissures.length > 0 && !globalThis._serverTimeOffset) {
                 const expiryTimes = fissures.map(f => new Date(f.expiry).getTime());
                 const activationTimes = fissures.map(f => new Date(f.activation).getTime());
                 const earliestExpiry = Math.min(...expiryTimes);
@@ -192,7 +214,7 @@ export async function fetchArbitration(force = false) {
         return cached;
     }
     try {
-        const res = await getArbitration();
+        const res = await getArbitration(force);
         if (!res.ok) throw new Error(`Arbitration HTTP ${res.status}`);
         const payload = await res.json();
         // El worker principal devuelve el objeto directo; el parser lo envuelve en {data}.

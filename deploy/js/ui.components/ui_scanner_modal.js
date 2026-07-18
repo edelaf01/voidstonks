@@ -208,16 +208,28 @@ export const ScannerModal = {
             : 100 / n;
         const halfPct = gapPct / 2;
 
-        for (let i = 1; i < n; i++) {
-            const prev = positionedItems[i - 1];
-            const curr = positionedItems[i];
-            if (curr.leftPct - prev.leftPct < gapPct) {
-                curr.leftPct = prev.leftPct + gapPct;
-            }
-        }
-        // Reencaje dentro del wrapper: si el empuje hacia la derecha desborda,
-        // se recoloca en cascada hacia la izquierda manteniendo el gap.
+        // Anti-solape que PRESERVA EL CENTRADO. El empuje solo-a-la-derecha
+        // expandía el grupo desde el badge más a la izquierda, corriendo todos los
+        // demás (y el centroide) hacia la derecha respecto a sus recompensas. En su
+        // lugar: (1) fuerza el gap mínimo, (2) reancla el grupo a su centroide
+        // original, y (3) clampa dentro del wrapper. Así, cuando los badges caben,
+        // cada uno queda centrado en su recompensa; si no caben, se reparten simétricos.
         if (n > 0) {
+            const centroidBefore = positionedItems.reduce((s, it) => s + it.leftPct, 0) / n;
+
+            for (let i = 1; i < n; i++) {
+                const prev = positionedItems[i - 1];
+                const curr = positionedItems[i];
+                if (curr.leftPct - prev.leftPct < gapPct) {
+                    curr.leftPct = prev.leftPct + gapPct;
+                }
+            }
+
+            const centroidAfter = positionedItems.reduce((s, it) => s + it.leftPct, 0) / n;
+            const shift = centroidBefore - centroidAfter;
+            if (shift !== 0) positionedItems.forEach(it => { it.leftPct += shift; });
+
+            // Clamp dentro del wrapper conservando el gap (cascada por ambos extremos).
             const maxLeft = 100 - halfPct;
             if (positionedItems[n - 1].leftPct > maxLeft) positionedItems[n - 1].leftPct = maxLeft;
             for (let i = n - 2; i >= 0; i--) {
@@ -225,7 +237,14 @@ export const ScannerModal = {
                     positionedItems[i].leftPct = positionedItems[i + 1].leftPct - gapPct;
                 }
             }
-            if (positionedItems[0].leftPct < halfPct) positionedItems[0].leftPct = halfPct;
+            if (positionedItems[0].leftPct < halfPct) {
+                positionedItems[0].leftPct = halfPct;
+                for (let i = 1; i < n; i++) {
+                    if (positionedItems[i].leftPct < positionedItems[i - 1].leftPct + gapPct) {
+                        positionedItems[i].leftPct = positionedItems[i - 1].leftPct + gapPct;
+                    }
+                }
+            }
         }
 
         const fragment = document.createDocumentFragment();

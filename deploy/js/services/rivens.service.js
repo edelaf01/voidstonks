@@ -47,11 +47,12 @@ function normalizeRivenWeaponType(item) {
  * Loads weapon database, updates state.weaponMap and state.allRivenNames.
  */
 export async function fetchRivenWeapons() {
-    // v9 (jul 2026): +Haalvu, dedup de strikes de Zaw/Grimoire y 38 disposiciones del último
-    // update. Bumpear la versión invalida la caché de IndexedDB de todos los clientes para que
-    // reconstruyan weaponMap desde el cleaned_weapons.json nuevo en la siguiente carga (sin
-    // esperar el TTL de 24h). Súbela cada vez que cambien los datos de armas.
-    const CACHE_KEY = "voidstonkscache_weapons_v9";
+    // v10 (jul 2026): dedup por slug de las claves de metastats ("Ax 52" duplicaba a "Ax-52",
+    // ídem EFV-5/EFV-8/Riot-848/Dark Split-Sword). Bumpear la versión invalida la caché de
+    // IndexedDB de todos los clientes para que reconstruyan weaponMap desde el
+    // cleaned_weapons.json nuevo en la siguiente carga (sin esperar el TTL de 24h).
+    // Súbela cada vez que cambien los datos de armas.
+    const CACHE_KEY = "voidstonkscache_weapons_v10";
     const ONE_DAY = 24 * 60 * 60 * 1000;
     try {
         const cached = await dbHelper.get(CACHE_KEY);
@@ -97,10 +98,15 @@ export async function fetchRivenWeapons() {
             if (metaRes.ok) {
                 const metaData = await metaRes.json();
                 const statsObj = metaData.data ? metaData.data : metaData;
+                // Las fuentes de metastats publican el mismo arma con separadores distintos que
+                // cleaned_weapons ("Ax 52" vs "Ax-52", "Sigma And Octantis" vs "Sigma & Octantis"),
+                // lo que duplicaba la entrada en allRivenNames y la copia extra salía sin datos.
+                // Canonicalizamos por slug contra los nombres ya cargados en weaponMap.
+                const slugOf = (n) => n.toLowerCase().replaceAll("&", "and").replaceAll(/[^a-z0-9]+/g, "_").replaceAll(/^_+|_+$/g, "");
+                const canonicalBySlug = {};
+                Object.keys(state.weaponMap).forEach((n) => { canonicalBySlug[slugOf(n)] = n; });
                 Object.keys(statsObj).forEach((rawName) => {
-                    // DE weeklyRivens uses "Sigma And Octantis" while cleaned_weapons uses "Sigma & Octantis".
-                    // Normalize to canonical & form so duplicates don't appear in allRivenNames.
-                    const wName = rawName.replace(/ And /g, " & ");
+                    const wName = canonicalBySlug[slugOf(rawName)] || rawName.replace(/ And /g, " & ");
                     if (EXCLUDED_COMPONENTS.has(wName.toUpperCase())) return;
                     if (!state.weaponMap[wName]) {
                         const metaItem = statsObj[wName];

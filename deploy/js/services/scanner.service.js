@@ -2,6 +2,7 @@ import { VisionService, WF_THEMES } from "./vision.service.js";
 import { isImplausibleFallbackGrid } from "../utils/grid_detect.js";
 import { OCRService } from "./ocr.service.js";
 import { OCRRepository } from "../repositories/ocr.repository.js";
+import { PaddleRepository } from "../repositories/paddle.repository.js";
 import { OpenCVRepository } from "../repositories/opencv.repository.js";
 import { ScannerHUD } from "../ui.components/ui_scanner_hud.js";
 import { ScannerModal } from "../ui.components/ui_scanner_modal.js";
@@ -1144,6 +1145,19 @@ export const ScannerService = {
         const foundItems = OCRService.parseRewards({ words: mergedWords, imageW: ocrCanvas.width });
         console.log(`[REWARD] Items found: ${foundItems.length}`, foundItems.map(i => i.name));
 
+        // xPos llega en coordenadas del RECORTE de OCR (prepareRewardOCRCanvas: recorta un
+        // marginX = width*0.08 por lado y escala ×scale). El modal (renderBadges) lo interpreta
+        // en el espacio del FRAME COMPLETO ×scale, así que sin remapear los badges caían ~8%
+        // a la izquierda (offset del margen) y comprimidos. Reproyectamos a frame-completo×scale.
+        const rMarginX = Math.floor(width * 0.08);
+        const rCropW = width - rMarginX * 2;
+        const rOcrW = ocrCanvas.width || 1;
+        foundItems.forEach(item => {
+            if (typeof item.xPos === "number") {
+                item.xPos = (rMarginX + (item.xPos / rOcrW) * rCropW) * scale;
+            }
+        });
+
         clearRewardDebugLogs();
         const cleanOcrText = rawOcr.replaceAll(/\n+/g, ' ').trim();
         addRewardDebugLog("OCR", `Read: ${cleanOcrText}`, "info");
@@ -1310,12 +1324,16 @@ export const ScannerService = {
             const scanStats = { cells: cellRects.length, matched: 0, relics: 0, empty: 0, unmatched: 0, none: 0 };
             const activeCells = [];
             for (const cell of cellRects) {
-                // Crop precisely the bottom portion of the card (starting at 58% height) 
-                // where the 1-line or 2-line item names are printed, completely avoiding 
-                // the weapon/warframe illustration in the middle of the card.
-                const textSrcY = Math.round(cellH * 0.58);
-                const textSrcH = cellH - textSrcY;
-                const textCvs = VisionService.cropThemeBinarized(snapshot, cell.sx, cell.sy + textSrcY, cellW, textSrcH, theme);
+                // Recorte de la banda de NOMBRE. Debe cubrir nombres de 1, 2 Y 3
+                // líneas (los warframes largos como "Atlas Prime / Neuroptics /
+                // Blueprint" ocupan 3 líneas). Un recorte estrecho abajo (0.76–0.97)
+                // clipaba la 1ª línea de los de 3 → se perdía el nombre del frame y
+                // quedaba "Neuroptics Blueprint" (ambiguo → UNMATCHED). Ampliamos a
+                // 0.56–0.98: el arte que entre por arriba lo rechaza el aislado por
+                // COLOR DE TEXTO (no dependemos de evitar el arte con la geometría).
+                const textSrcY = Math.round(cellH * 0.50);
+                const textSrcH = Math.round(cellH * 0.48);
+                const textCvs = VisionService.cropThemeBinarized(snapshot, cell.sx, cell.sy + textSrcY, cellW, textSrcH, theme, calibData?.nameColor);
 
                 const tCtx = textCvs.getContext("2d");
                 const imgData = tCtx.getImageData(0, 0, textCvs.width, textCvs.height);
@@ -1325,7 +1343,7 @@ export const ScannerService = {
                     if (pixels[p] > 200) whitePixelCount++;
                 }
 
-                if (whitePixelCount < 40) {
+                if (whitePixelCount < 20) {
                     scanStats.empty++;
                     this.lastRawOcrLog.push(`[r${cell.r}c${cell.c}] SKIPPED (empty)`);
                     const relX = cell.sx - gridZone.x;
@@ -1336,6 +1354,12 @@ export const ScannerService = {
                 } else {
                     activeCells.push({ cell, textCvs });
                 }
+                // CEDE el hilo a la UI tras cada celda: cropThemeBinarized cuesta ~38ms
+                // (varias pasadas + connected-components a 3x); sin este yield, 18-24
+                // celdas seguidas bloquean el main thread ~1s y la pantalla se congela.
+                // (No se baja la escala del OCR: a 2x se pierden lecturas en temas de
+                // bajo contraste — validado offline.)
+                await new Promise((r) => setTimeout(r, 0));
             }
 
             // Solo se crea el 2º worker estándar (nombres): las CANTIDADES ya no usan Tesseract
@@ -1351,7 +1375,22 @@ export const ScannerService = {
                     if (!task) break;
 
                     const { cell, textCvs } = task;
-                    const combinedText = await OCRService.extractCellText(worker, textCvs);
+                    // MOTOR OCR seleccionable (paralelo). "paddle" (globalThis.OCR_ENGINE)
+                    // lee la banda de nombre a COLOR directamente (sin binarizar) con PaddleOCR;
+                    // por defecto usa Tesseract sobre el recorte binarizado como hasta ahora.
+                    let combinedText;
+                    if (globalThis.OCR_ENGINE === "paddle") {
+                        const ty = Math.round(cellH * 0.50), th = Math.round(cellH * 0.48);
+                        const colorCvs = VisionService.cropColor(snapshot, cell.sx, cell.sy + ty, cellW, th, 2);
+                        try {
+                            combinedText = await PaddleRepository.recognizeWords(colorCvs);
+                        } catch (e) {
+                            console.warn("[Paddle] fallo, cae a Tesseract:", e);
+                            combinedText = await OCRService.extractCellText(worker, textCvs);
+                        }
+                    } else {
+                        combinedText = await OCRService.extractCellText(worker, textCvs);
+                    }
 
                     if (!combinedText) {
                         scanStats.none++;
@@ -1372,14 +1411,35 @@ export const ScannerService = {
                     let bestItem = OCRService.getValidItemMatch(combinedText);
                     let fallbackText = null;
 
-                    // Fallback: if no match, try full cell OCR (captures text at top/left like Octavia Prime Blueprint)
+                    // Fallback: if no match in normal text strip (76%-97%), try a slightly wider window (73%-99%)
+                    // to capture any stylized letters that might extend just above or below without invading the 58%-70% weapon art zone.
                     if (!bestItem) {
-                        const fullCellCvs = VisionService.cropThemeBinarized(snapshot, cell.sx, Math.max(0, cell.sy - 16), cellW, cellH + 16, theme);
+                        const fallbackY = Math.floor(cellH * 0.73);
+                        const fallbackH = Math.floor(cellH * 0.26);
+                        const fullCellCvs = VisionService.cropThemeBinarized(snapshot, cell.sx, cell.sy + fallbackY, cellW, fallbackH, theme, calibData?.nameColor);
                         fallbackText = await OCRService.extractCellText(worker, fullCellCvs);
                         if (fallbackText && fallbackText.length) {
                             logStr = `[r${cell.r}c${cell.c}] OCR (fallback): ${fallbackText.join(" ")}`;
                             bestItem = OCRService.getValidItemMatch(fallbackText);
                         }
+                    }
+
+                    // Fallback con PaddleOCR (opt-in: globalThis.OCR_PADDLE_FALLBACK): lee la
+                    // banda de nombre a COLOR con PP-OCRv5, robusto a cualquier tema/contraste.
+                    // Solo corre en las celdas que Tesseract NO resolvió → Paddle se ejecuta en
+                    // muy pocas celdas y se carga en diferido (la 1ª vez que hace falta), evitando
+                    // su coste/RAM en las 18. Lo mejor de ambos: velocidad de Tesseract + precisión
+                    // de Paddle donde de verdad importa.
+                    if (!bestItem && globalThis.OCR_ENGINE !== "paddle" && globalThis.OCR_PADDLE_FALLBACK) {
+                        const ty = Math.round(cellH * 0.50), th = Math.round(cellH * 0.48);
+                        const colorCvs = VisionService.cropColor(snapshot, cell.sx, cell.sy + ty, cellW, th, 2);
+                        try {
+                            const pWords = await PaddleRepository.recognizeWords(colorCvs);
+                            if (pWords) {
+                                const pMatch = OCRService.getValidItemMatch(pWords);
+                                if (pMatch) { bestItem = pMatch; combinedText = pWords; logStr += " [paddle]"; }
+                            }
+                        } catch (e) { console.warn("[Paddle fallback] error:", e); }
                     }
 
                     // Segundo fallback: la pestaña RELIQUIAS del inventario usa el MISMO grid/badges
@@ -1411,9 +1471,16 @@ export const ScannerService = {
 
                     if (bestItem) {
                         scanStats.matched++;
-                        // 4b. Extract badge (quantity) using improved color-based crop
-                        const badgeCanvas = VisionService.extractBadgeByColor(snapshot, cell, cellW, cellH, theme);
-                        const qtyResult = await OCRService.extractCellQuantity(null, badgeCanvas);
+                        // 4b. Badge (cantidad) por BRILLO — robusto, no depende del color de tema
+                        // (que a veces se detecta mal y binariza el número a medias → "4"→"1").
+                        // Si no saca dígito, respaldo por color de tema.
+                        let qtyResult = await OCRService.extractCellQuantity(null,
+                            VisionService.extractBadgeBright(snapshot, cell, cellW, cellH));
+                        if (!/\d/.test(qtyResult.raw || "")) {
+                            const altR = await OCRService.extractCellQuantity(null,
+                                VisionService.extractBadgeByColor(snapshot, cell, cellW, cellH, theme));
+                            if (/\d/.test(altR.raw || "")) qtyResult = altR;
+                        }
 
                         logStr += ` || BDG: ${qtyResult.raw}`;
                         this.lastRawOcrLog.push(logStr);
@@ -1463,22 +1530,29 @@ export const ScannerService = {
                         const consensusQty = this.sessionInventory.get(bestItem.originalName) ?? qtyResult.qty;
                         dCtx.fillText(`x${consensusQty}`, relX - shiftLeft + 8, relY + 17);
 
-                        // Highlight the exact auto-calibrated cropping region of the badge in golden outline
-                        if (badgeCanvas) {
-                            const bX = (badgeCanvas.cropX !== undefined ? badgeCanvas.cropX : cell.sx) - gridZone.x;
-                            const bY = badgeCanvas.bestY - gridZone.y;
-                            const bW = badgeCanvas.cropW !== undefined ? badgeCanvas.cropW : Math.round(cellW * 0.28);
-                            const bH = badgeCanvas.cropH !== undefined ? badgeCanvas.cropH : Math.round(cellH * 0.12);
+                        // Recuadro dorado del área de badge en el overlay de debug: la caja FIJA
+                        // de extractBadgeBright (el extractor primario; ya no hay metadatos de
+                        // crop dinámico como con el viejo badgeCanvas por color).
+                        {
+                            const bX = cell.sx - gridZone.x;
+                            const bY = cell.sy + Math.round(cellH * 0.08) - gridZone.y;
+                            const bW = Math.round(cellW * 0.40);
+                            const bH = Math.round(cellH * 0.17);
                             dCtx.strokeStyle = "rgba(255, 193, 7, 0.85)";
                             dCtx.lineWidth = 1.5;
                             dCtx.strokeRect(bX, bY, bW, bH);
                         }
                     } else if (relicMatch) {
                         scanStats.relics++;
-                        // 4c. Misma lectura de badge que los prime items, pero votando en los maps
-                        // de reliquias: no se mezcla con sessionInventory (se persisten por separado).
-                        const badgeCanvas = VisionService.extractBadgeByColor(snapshot, cell, cellW, cellH, theme);
-                        const qtyResult = await OCRService.extractCellQuantity(null, badgeCanvas);
+                        // 4c. Misma lectura de badge que los prime items (brillo + respaldo color),
+                        // pero votando en los maps de reliquias (no se mezcla con sessionInventory).
+                        let qtyResult = await OCRService.extractCellQuantity(null,
+                            VisionService.extractBadgeBright(snapshot, cell, cellW, cellH));
+                        if (!/\d/.test(qtyResult.raw || "")) {
+                            const altR = await OCRService.extractCellQuantity(null,
+                                VisionService.extractBadgeByColor(snapshot, cell, cellW, cellH, theme));
+                            if (/\d/.test(altR.raw || "")) qtyResult = altR;
+                        }
 
                         // Indica qué lectura matcheó la reliquia (la original o la del fallback).
                         const relicSrc = relicText === combinedText ? "1st-pass" : "fallback";
@@ -1519,11 +1593,12 @@ export const ScannerService = {
                         const consensusQty = this.sessionRelics.get(relicMatch) ?? qtyResult.qty;
                         dCtx.fillText(`x${consensusQty}`, relX - shiftLeft + 8, relY + 17);
 
-                        if (badgeCanvas) {
-                            const bX = (badgeCanvas.cropX !== undefined ? badgeCanvas.cropX : cell.sx) - gridZone.x;
-                            const bY = badgeCanvas.bestY - gridZone.y;
-                            const bW = badgeCanvas.cropW !== undefined ? badgeCanvas.cropW : Math.round(cellW * 0.28);
-                            const bH = badgeCanvas.cropH !== undefined ? badgeCanvas.cropH : Math.round(cellH * 0.12);
+                        // Caja FIJA de extractBadgeBright (mismo motivo que en prime items).
+                        {
+                            const bX = cell.sx - gridZone.x;
+                            const bY = cell.sy + Math.round(cellH * 0.08) - gridZone.y;
+                            const bW = Math.round(cellW * 0.40);
+                            const bH = Math.round(cellH * 0.17);
                             dCtx.strokeStyle = "rgba(0, 229, 255, 0.85)";
                             dCtx.lineWidth = 1.5;
                             dCtx.strokeRect(bX, bY, bW, bH);
@@ -1575,7 +1650,10 @@ export const ScannerService = {
             try {
                 // Dynamically load-balance Tesseract workers to maximize parallel scan throughput
                 const workerPromises = [];
-                const activeWorkerCount = Math.min(workers.length, activeCells.length);
+                // Con PaddleOCR se serializa a 1 "worker": el servicio ONNX es único y no
+                // es seguro llamarlo en paralelo. Con Tesseract se balancea entre los workers.
+                const maxWorkers = globalThis.OCR_ENGINE === "paddle" ? 1 : workers.length;
+                const activeWorkerCount = Math.min(maxWorkers, activeCells.length);
                 for (let w = 0; w < activeWorkerCount; w++) {
                     workerPromises.push(runWorker(workers[w]));
                 }

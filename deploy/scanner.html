@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8" />
+  <title>El escáner de inventario de Warframe que funciona desde el navegador — VoidStonks</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description"
+    content="VoidStonks incluye el único escáner de Warframe que lee tu inventario y tus recompensas desde el navegador, sin instalar nada y procesando todo en tu dispositivo. Cómo funciona y por qué es distinto." />
+  <meta name="keywords"
+    content="Warframe, escáner inventario, scanner, OCR, reliquias, prime, riven scanner, sin instalar, navegador, consola, VoidStonks" />
+  <meta name="author" content="Parcialsobriedad" />
+  <meta name="robots" content="index, follow" />
+  <link rel="canonical" href="https://voidstonks.com/scanner.html" />
+  <link rel="icon" type="image/png" href="https://wiki.warframe.com/images/VoidTraces.png" />
+
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://voidstonks.com/scanner.html" />
+  <meta property="og:title" content="El escáner de Warframe que funciona desde el navegador — VoidStonks" />
+  <meta property="og:description"
+    content="Lee tu inventario y tus recompensas de Warframe desde el navegador, sin instalar nada. Cómo funciona el escáner de VoidStonks." />
+  <meta property="og:image" content="https://wiki.warframe.com/images/VoidProjectionsIcon.png" />
+
+  <!-- Google AdSense -->
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4559331797280612"
+    crossorigin="anonymous"></script>
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": "El escáner de inventario de Warframe que funciona desde el navegador",
+    "description": "Cómo funciona el escáner de VoidStonks: lee inventario, recompensas y rivens de Warframe desde el navegador, sin instalar nada y procesando localmente.",
+    "author": { "@type": "Person", "name": "Parcialsobriedad" },
+    "publisher": { "@type": "Organization", "name": "VoidStonks" },
+    "mainEntityOfPage": "https://voidstonks.com/scanner.html",
+    "inLanguage": "es"
+  }
+  </script>
+
+  <style>
+    :root { --bg:#0b0e13; --panel:#12171f; --border:rgba(0,229,255,0.18); --text:#d7e2ea; --muted:#8ea0ad; --accent:#00e5ff; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:radial-gradient(1200px 600px at 50% -10%,#101821,var(--bg)); color:var(--text); font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; line-height:1.68; padding:40px 16px 80px; }
+    .wrap { max-width:880px; margin:0 auto; background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:32px clamp(18px,4vw,44px); }
+    a { color:var(--accent); text-decoration:none; } a:hover { text-decoration:underline; }
+    h1 { font-size:1.7rem; margin:0 0 4px; color:#fff; line-height:1.25; }
+    h2 { font-size:1.3rem; margin:40px 0 10px; color:var(--accent); border-bottom:1px solid var(--border); padding-bottom:6px; }
+    h3 { font-size:1.05rem; margin:22px 0 6px; color:#fff; }
+    p,li { color:var(--text); } .muted { color:var(--muted); font-size:0.9rem; } ul { padding-left:20px; }
+    li { margin:4px 0; }
+    .lead { font-size:1.05rem; color:#e7eef4; }
+    .topbar { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:22px; flex-wrap:wrap; }
+    .back { font-size:0.9rem; }
+    .lang-toggle { display:inline-flex; border:1px solid var(--border); border-radius:8px; overflow:hidden; }
+    .lang-toggle button { background:transparent; color:var(--muted); border:0; padding:6px 14px; font:inherit; font-size:0.85rem; cursor:pointer; transition:background .15s,color .15s; }
+    .lang-toggle button.active { background:var(--accent); color:#04121a; font-weight:700; }
+    .toc { background:rgba(0,0,0,0.25); border:1px solid var(--border); border-radius:10px; padding:14px 18px; margin:18px 0 8px; }
+    .toc ul { margin:6px 0 0; } .toc li { margin:2px 0; }
+    .callout { background:rgba(0,229,255,0.06); border-left:3px solid var(--accent); border-radius:0 8px 8px 0; padding:12px 16px; margin:16px 0; }
+    .device { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:14px; margin:16px 0; }
+    .device div { background:rgba(0,0,0,0.22); border:1px solid var(--border); border-radius:10px; padding:14px 16px; }
+    .device h3 { margin-top:0; }
+    .related { margin-top:28px; padding-top:16px; border-top:1px solid var(--border); font-size:0.95rem; }
+    [data-lang] { display:none; } [data-lang].show { display:block; }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <a class="back" href="index.html">&larr; VoidStonks</a>
+      <div class="lang-toggle" role="group" aria-label="Language">
+        <button type="button" data-set-lang="en">EN</button>
+        <button type="button" data-set-lang="es">ES</button>
+      </div>
+    </div>
+
+    <!-- ================= ESPAÑOL ================= -->
+    <section data-lang="es">
+      <h1>El escáner de inventario que funciona desde el navegador</h1>
+      <p class="lead">La mayoría de herramientas de Warframe que «leen tu pantalla» son programas que
+        tienes que descargar e instalar en un PC. VoidStonks incluye algo que, hasta donde sabemos,
+        no existe en ningún otro sitio: un escáner que lee tu inventario, tus recompensas y tus rivens
+        <strong>directamente desde el navegador</strong>, sin instalar nada y sin subir tus imágenes a
+        ningún servidor.</p>
+
+      <div class="toc">
+        <strong>Contenido</strong>
+        <ul>
+          <li><a href="#e-que">Qué hace el escáner</a></li>
+          <li><a href="#e-distinto">Por qué es distinto</a></li>
+          <li><a href="#e-como">Cómo funciona la lectura</a></li>
+          <li><a href="#e-dispositivos">En PC y en móvil</a></li>
+          <li><a href="#e-consola">Versión móvil para jugadores de consola</a></li>
+          <li><a href="#e-privacidad">Privacidad: todo local</a></li>
+        </ul>
+      </div>
+
+      <h2 id="e-que">Qué hace el escáner</h2>
+      <p>El escáner de VoidStonks reconoce lo que aparece en la pantalla de Warframe y lo convierte en
+        datos con precio. Tiene tres usos principales:</p>
+      <ul>
+        <li><strong>Inventario</strong>: en la pantalla de venta detecta la rejilla de objetos, lee el
+          nombre y la cantidad de cada pieza Prime y te la tasa en lote, sin teclear nada.</li>
+        <li><strong>Recompensas de Fisura</strong>: en la pantalla de selección de recompensa, al
+          final de una misión de reliquia, lee las opciones y te dice al instante cuál vale más
+          platino.</li>
+        <li><strong>Rivens</strong>: en la pantalla de reroll lee el arma y las estadísticas del mod y
+          las mete directamente en el tasador.</li>
+      </ul>
+
+      <h2 id="e-distinto">Por qué es distinto</h2>
+      <p>Lo habitual en Warframe es usar overlays o apps de escritorio que hay que instalar, que solo
+        funcionan en PC y que a veces requieren permisos delicados. El escáner de VoidStonks rompe con
+        eso:</p>
+      <ul>
+        <li><strong>No se instala nada</strong>: es una web. Abres la página y ya está.</li>
+        <li><strong>Funciona en el navegador</strong>, así que no depende de tu sistema operativo.</li>
+        <li><strong>No necesitas cuenta ni login.</strong></li>
+        <li>El reconocimiento de imagen <strong>corre en tu dispositivo</strong>, no en un servidor.</li>
+      </ul>
+      <div class="callout">
+        <p style="margin:0;">No conocemos otro escáner de Warframe que funcione íntegramente desde el
+          navegador. Si tú conoces alguno, nos encantaría saberlo — pero esa es justo la razón por la
+          que existe esta herramienta.</p>
+      </div>
+
+      <h2 id="e-como">Cómo funciona la lectura</h2>
+      <p>Por dentro, el escáner combina visión por computador para localizar la rejilla de objetos y
+        reconocimiento óptico de caracteres (OCR) para leer los textos. Como un solo fotograma puede
+        leer mal un dígito pequeño o un nombre borroso, el escáner <strong>lee varios fotogramas
+        seguidos y se queda con el valor más frecuente</strong> por objeto. Por eso conviene mantener
+        la misma pantalla quieta unos segundos: cuantas más lecturas coincidan, más fiable es el
+        resultado.</p>
+      <p>Para el inventario, además, detecta la rejilla automáticamente por cada fotograma, sin que
+        tengas que calibrar nada a mano.</p>
+
+      <h2 id="e-dispositivos">En PC y en móvil</h2>
+      <div class="device">
+        <div>
+          <h3>🖥️ En PC</h3>
+          <p>Al abrir el escáner, el navegador te pide compartir la ventana o la pantalla de Warframe.
+            El escáner analiza ese vídeo en tiempo real mientras juegas en la misma máquina o en otra
+            pantalla.</p>
+        </div>
+        <div>
+          <h3>📱 En móvil</h3>
+          <p>Puedes apuntar con la cámara del teléfono a la pantalla donde corre Warframe (por ejemplo
+            tu TV o monitor), y el escáner lee desde la cámara. Ideal si juegas en consola y llevas el
+            móvil al lado.</p>
+        </div>
+      </div>
+
+      <h2 id="e-consola">Versión móvil para jugadores de consola</h2>
+      <p>Los jugadores de consola son quienes menos herramientas tienen: no pueden instalar overlays
+        ni apps de escritorio junto al juego. Por eso estamos <strong>trabajando en una versión móvil
+        del escáner</strong> pensada precisamente para ellos: apuntas con el teléfono a la tele,
+        escaneas tu inventario o tus recompensas, y consultas los precios sin salir del sofá y sin
+        tocar el PC. Es la forma más natural de llevar una herramienta de mercado a PlayStation, Xbox
+        o Switch.</p>
+
+      <h2 id="e-privacidad">Privacidad: todo local</h2>
+      <p>El escáner procesa las imágenes <strong>en tu propio dispositivo</strong>. Tus capturas y el
+        vídeo de tu pantalla <strong>no se suben a ningún servidor</strong> ni se guardan en la nube.
+        Las librerías de visión solo se cargan cuando abres el escáner, y al cerrarlo se libera la
+        memoria que usan. Puedes leer los detalles en la
+        <a href="privacy.html">Política de Privacidad</a>.</p>
+
+      <p class="related">Sigue leyendo: <a href="riven-appraisal.html">cómo se tasa un
+        riven</a> · <a href="guide.html">guía de uso completa</a> ·
+        <a href="index.html">abrir VoidStonks</a>.</p>
+      <p class="muted" style="margin-top:28px;">VoidStonks no está afiliado ni respaldado por Digital
+        Extremes. Warframe™ es una marca registrada de Digital Extremes Ltd.</p>
+    </section>
+
+    <!-- ================= ENGLISH ================= -->
+    <section data-lang="en">
+      <h1>The inventory scanner that works in your browser</h1>
+      <p class="lead">Most Warframe tools that «read your screen» are programs you have to download and
+        install on a PC. VoidStonks includes something that, as far as we know, does not exist
+        anywhere else: a scanner that reads your inventory, your rewards and your rivens
+        <strong>straight from the browser</strong>, with nothing to install and without uploading your
+        images to any server.</p>
+
+      <div class="toc">
+        <strong>Contents</strong>
+        <ul>
+          <li><a href="#g-what">What the scanner does</a></li>
+          <li><a href="#g-different">Why it is different</a></li>
+          <li><a href="#g-how">How reading works</a></li>
+          <li><a href="#g-devices">On PC and mobile</a></li>
+          <li><a href="#g-console">Mobile version for console players</a></li>
+          <li><a href="#g-privacy">Privacy: everything local</a></li>
+        </ul>
+      </div>
+
+      <h2 id="g-what">What the scanner does</h2>
+      <p>The VoidStonks scanner recognises what appears on the Warframe screen and turns it into priced
+        data. It has three main uses:</p>
+      <ul>
+        <li><strong>Inventory</strong>: on the sell screen it detects the item grid, reads the name and
+          quantity of each Prime part and prices it in bulk, without typing anything.</li>
+        <li><strong>Fissure rewards</strong>: on the reward selection screen at the end of a relic
+          mission, it reads the options and tells you instantly which one is worth more platinum.</li>
+        <li><strong>Rivens</strong>: on the reroll screen it reads the weapon and the mod's stats and
+          feeds them straight into the appraiser.</li>
+      </ul>
+
+      <h2 id="g-different">Why it is different</h2>
+      <p>The usual approach in Warframe is overlays or desktop apps you have to install, that only work
+        on PC and sometimes need sensitive permissions. The VoidStonks scanner breaks with that:</p>
+      <ul>
+        <li><strong>Nothing to install</strong>: it is a website. Open the page and you are ready.</li>
+        <li><strong>It works in the browser</strong>, so it does not depend on your operating
+          system.</li>
+        <li><strong>No account or login needed.</strong></li>
+        <li>Image recognition <strong>runs on your device</strong>, not on a server.</li>
+      </ul>
+      <div class="callout">
+        <p style="margin:0;">We do not know of any other Warframe scanner that runs entirely from the
+          browser. If you know one, we would love to hear about it — but that is precisely why this
+          tool exists.</p>
+      </div>
+
+      <h2 id="g-how">How reading works</h2>
+      <p>Under the hood, the scanner combines computer vision to locate the item grid with optical
+        character recognition (OCR) to read the text. Because a single frame can misread a small digit
+        or a blurry name, the scanner <strong>reads several frames in a row and keeps the most frequent
+        value</strong> per item. That is why it helps to keep the same screen steady for a few seconds:
+        the more readings agree, the more reliable the result.</p>
+      <p>For the inventory it also detects the grid automatically on every frame, with no manual
+        calibration.</p>
+
+      <h2 id="g-devices">On PC and mobile</h2>
+      <div class="device">
+        <div>
+          <h3>🖥️ On PC</h3>
+          <p>When you open the scanner, the browser asks you to share the Warframe window or screen.
+            The scanner analyses that video in real time while you play on the same machine or another
+            display.</p>
+        </div>
+        <div>
+          <h3>📱 On mobile</h3>
+          <p>You can point your phone's camera at the screen running Warframe (your TV or monitor, for
+            example) and the scanner reads from the camera. Ideal if you play on console with your
+            phone next to you.</p>
+        </div>
+      </div>
+
+      <h2 id="g-console">Mobile version for console players</h2>
+      <p>Console players have the fewest tools: they cannot install overlays or desktop apps alongside
+        the game. That is why we are <strong>working on a mobile version of the scanner</strong> aimed
+        precisely at them: point your phone at the TV, scan your inventory or your rewards, and check
+        prices without leaving the couch and without touching a PC. It is the most natural way to bring
+        a market tool to PlayStation, Xbox or Switch.</p>
+
+      <h2 id="g-privacy">Privacy: everything local</h2>
+      <p>The scanner processes images <strong>on your own device</strong>. Your screenshots and your
+        screen video <strong>are not uploaded to any server</strong> nor stored in the cloud. The
+        vision libraries only load when you open the scanner, and closing it frees the memory they use.
+        You can read the details in the <a href="privacy.html">Privacy Policy</a>.</p>
+
+      <p class="related">Keep reading: <a href="riven-appraisal.html">how a riven is
+        appraised</a> · <a href="guide.html">full user guide</a> ·
+        <a href="index.html">open VoidStonks</a>.</p>
+      <p class="muted" style="margin-top:28px;">VoidStonks is not affiliated with or endorsed by
+        Digital Extremes. Warframe™ is a trademark of Digital Extremes Ltd.</p>
+    </section>
+  </div>
+
+  <script>
+    (function () {
+      var lang = "es";
+      try { var s = JSON.parse(localStorage.getItem("voidStonks_save") || "{}"); if (s.lang === "es" || s.lang === "en") lang = s.lang; } catch (e) {}
+      function apply(l) {
+        lang = l; document.documentElement.lang = l;
+        document.querySelectorAll("[data-lang]").forEach(function (x) { x.classList.toggle("show", x.getAttribute("data-lang") === l); });
+        document.querySelectorAll("[data-set-lang]").forEach(function (b) { b.classList.toggle("active", b.getAttribute("data-set-lang") === l); });
+      }
+      document.querySelectorAll("[data-set-lang]").forEach(function (b) { b.addEventListener("click", function () { apply(b.getAttribute("data-set-lang")); }); });
+      apply(lang);
+    })();
+  </script>
+</body>
+
+</html>

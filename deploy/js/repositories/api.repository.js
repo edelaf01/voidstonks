@@ -204,11 +204,11 @@ export async function getActiveBounties() {
  * Fetches active fissure data from the worker with cache-busting.
  * @returns {Promise<Response>}
  */
-export async function getActiveFissures() {
-    // Sin cache-buster ni no-store: el worldstate es global y de cambio lento, así navegador/edge
-    // pueden cachearlo (clave para el límite de 100k llamadas/día con muchos usuarios). Timeout 15s
-    // porque el worker puede tardar en frío; la frecuencia real la limita la cache en memoria del servicio.
-    return fetchWithTimeout(`${WORKER_URL}?type=fissures`, { timeout: 15000 });
+export async function getActiveFissures(force = false) {
+    const opts = { timeout: 15000 };
+    let url = `${WORKER_URL}?type=fissures&v=2`;
+    if (force) url += `&_cb=${Date.now()}`;
+    return fetchWithTimeout(url, opts);
 }
 
 /**
@@ -216,6 +216,18 @@ export async function getActiveFissures() {
  * worker principal -> wf-parser (que lee el calendario determinista de browse.wf).
  * @returns {Promise<Response>}
  */
-export async function getArbitration() {
-    return fetchWithTimeout(`${WORKER_URL}?type=arbitration`, { timeout: 15000 });
+export async function getArbitration(force = false) {
+    const opts = { timeout: 15000 };
+    let url = `${WORKER_URL}?type=arbitration`;
+    if (force) url += `&_cb=${Date.now()}`;
+    return fetchWithTimeout(url, opts);
+}
+
+/**
+ * Pide la hora del servidor para sincronizar los contadores del cliente. no-store porque
+ * cualquier caché (edge o navegador) devolvería una hora vieja.
+ * @returns {Promise<Response>}
+ */
+export async function getServerTime() {
+    return fetchWithTimeout(`${WORKER_URL}?type=time`, { cache: "no-store", timeout: 10000 });
 }

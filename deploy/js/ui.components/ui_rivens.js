@@ -101,9 +101,10 @@ function isStatAllowedForWeaponType(statName, weaponType) {
   return isMelee ? !RANGED_ONLY_STATS.has(n) : !MELEE_ONLY_STATS.has(n);
 }
 
-// Elemental damage (Heat/Cold/Electric/Toxin) can only roll POSITIVE on a riven — never as a
-// negative/curse — so it must never appear in a "worst negatives" list.
-const CANT_BE_NEGATIVE = /\b(heat|cold|electric|toxin)\b/i;
+// Stats that can only roll POSITIVE on a riven — never as a negative/curse — so they must
+// never appear in any negatives list: elemental damage (Heat/Cold/Electric/Toxin) and
+// Punch Through. ("punch" no matchea "Puncture Damage", que sí puede ser negativa.)
+const CANT_BE_NEGATIVE = /\b(heat|cold|electric|toxin|punch)\b/i;
 
 const RIVEN_NAMING_DICT = {
   "critical_chance": { prefix: "Crita", suffix: "cron" },
@@ -3950,7 +3951,7 @@ function renderMetaStats(weaponName, weaponType, targetId = "meta-stats-containe
   // arruina) + stats con peso de datos 0.4-0.7. Excluye harmless y las WORST (stats top).
   const midNeg = [...new Set([...(meta.midNeg || []), ...FACTION_NEGS, ...(meta.midPos || []), ..._dataMid])]
     .filter(allow)
-    .filter(s => !_worstSet.has(String(s).toLowerCase()) && !harmlessSet.has(String(s).toLowerCase()));
+    .filter(s => !_worstSet.has(String(s).toLowerCase()) && !harmlessSet.has(String(s).toLowerCase()) && !CANT_BE_NEGATIVE.test(s));
   const midNegHtml = midNeg.length > 0 ? midNeg.map(s => `
     <span style="background: rgba(234, 179, 8, 0.08); border: 1px solid rgba(234, 179, 8, 0.18); color: #eab308; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 4px; display: inline-block; margin-bottom: 4px; font-weight: 500;">
       <span style="font-size: 9px; background: rgba(234, 179, 8, 0.18); color: #eab308; padding: 1px 4px; border-radius: 3px; margin-right: 5px; font-weight: 700; text-transform: uppercase;">MID</span>- ${getLocalizedStatName(s)}
@@ -4679,8 +4680,8 @@ export function filterRivenIndex(resetPagination = true) {
     let scoreB = 0;
 
     if (sortBy === "popularity") {
-      scoreA = dataA.popularity_pct || 0;
-      scoreB = dataB.popularity_pct || 0;
+      scoreA = dataA.popularity_pct ?? dataA.liquidity_score ?? 0;
+      scoreB = dataB.popularity_pct ?? dataB.liquidity_score ?? 0;
     } else if (sortBy === "price-official") {
       scoreA = getUnrolledMedian(dataA);
       scoreB = getUnrolledMedian(dataB);
@@ -4707,8 +4708,8 @@ export function filterRivenIndex(resetPagination = true) {
       const volMultiplierA = realVolumeA >= 3 ? 1.0 : (realVolumeA > 0 ? 0.4 : 0.05);
       const volMultiplierB = realVolumeB >= 3 ? 1.0 : (realVolumeB > 0 ? 0.4 : 0.05);
 
-      scoreA = calculateRealPotential(dataA) * (dataA.popularity_pct || 0.1) * volMultiplierA;
-      scoreB = calculateRealPotential(dataB) * (dataB.popularity_pct || 0.1) * volMultiplierB;
+      scoreA = calculateRealPotential(dataA) * (dataA.popularity_pct ?? dataA.liquidity_score ?? 0.1) * volMultiplierA;
+      scoreB = calculateRealPotential(dataB) * (dataB.popularity_pct ?? dataB.liquidity_score ?? 0.1) * volMultiplierB;
     }
 
     if (scoreA !== scoreB) {
@@ -5148,8 +5149,10 @@ export function renderRivenIndexList(items) {
 
       // "Worst negatives" = a negative rolled on a stat the weapon WANTS (its positives) — that
       // ruins value. Derive from the positives, excluding the desirable/neutral negatives and
-      // elemental damage (which can never roll negative), so harmless stats (e.g. Zoom, Heat on
-      // Acceltra) never show up here.
+      // stats that can never roll negative (elementos, Punch Through), so harmless stats
+      // (e.g. Zoom, Heat on Acceltra) never show up here.
+      bestNeg = bestNeg.filter(s => !CANT_BE_NEGATIVE.test(s));
+      midNeg = midNeg.filter(s => !CANT_BE_NEGATIVE.test(s));
       const goodNegSet = new Set([...bestNeg, ...midNeg].map(x => String(x).toLowerCase()));
       // Híbrido (anti-survivorship): bricks = inverso de los positivos + curse/worst de DE (cubren
       // las negativas que arruinan valor pero casi no se listan), + negWorst observado en WFM.

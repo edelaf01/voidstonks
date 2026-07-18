@@ -59,6 +59,46 @@ export const OCRService = {
         return (longer.length - this.editDistance(longer, shorter)) / longer.length;
     },
 
+    // Grupos de caracteres que el OCR confunde entre sí (misma silueta en la fuente).
+    // Genérico: en vez de listas de alias por arma, la sustitución ENTRE miembros del
+    // mismo grupo cuesta poco en similarityOCR, así "ACCELLRA"≈"ACCELTRA", "FRIME"≈"PRIME",
+    // "RECELVER"≈"RECEIVER", etc. se resuelven solos, sin hardcodear cada caso.
+    _ocrConfMap: (() => {
+        const groups = ["O0QDCG", "IL1T|J", "S5", "B8", "G6", "Z2", "UV", "NMH", "PF", "EF", "RT", "VY", "A4", "KR", "W"];
+        const map = new Map();
+        for (const g of groups) for (const ch of g) map.set(ch, (map.get(ch) || "") + g);
+        return map;
+    })(),
+
+    /**
+     * Similitud [0..1] CONSCIENTE de confusiones OCR: Levenshtein ponderado donde
+     * sustituir un carácter por otro de su mismo grupo de confusión cuesta 0.4 en
+     * vez de 1. Reemplaza a las listas de alias/normalizadores por-caso: los errores
+     * TÍPICOS de OCR (letra por letra parecida) dejan de penalizar, así que el match
+     * correcto gana por similitud sin reglas hardcodeadas. Las lecturas SALVAJES
+     * (basura sin parecido) siguen cayendo por debajo del umbral → territorio Paddle.
+     */
+    similarityOCR(a, b) {
+        a = a.toUpperCase(); b = b.toUpperCase();
+        const m = a.length, n = b.length;
+        if (!m || !n) return m === n ? 1 : 0;
+        let prev = new Float32Array(n + 1), cur = new Float32Array(n + 1);
+        for (let j = 0; j <= n; j++) prev[j] = j;
+        for (let i = 1; i <= m; i++) {
+            cur[0] = i;
+            const ca = a[i - 1];
+            const conf = this._ocrConfMap.get(ca);
+            for (let j = 1; j <= n; j++) {
+                const cb = b[j - 1];
+                const sub = ca === cb ? 0 : (conf && conf.includes(cb) ? 0.4 : 1);
+                cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + sub);
+            }
+            [prev, cur] = [cur, prev];
+        }
+        const longer = Math.max(m, n);
+        return (longer - prev[n]) / longer;
+    },
+
     RELIC_TIERS: ["LITH", "MESO", "NEO", "AXI", "REQUIEM"],
     // Ruido típico de la UI de selección de reliquia/inventario que no forma parte del código.
     RELIC_NOISE_TOKENS: new Set([
@@ -230,14 +270,23 @@ export const OCRService = {
                 return;
             }
 
+            // Normalización por similitud CONSCIENTE DE CONFUSIONES OCR (similarityOCR),
+            // igual que getValidItemMatch — el parser de rewards se había quedado con la
+            // Levenshtein plana a 0.75 y descartaba nombres con confusiones típicas
+            // (p.ej. "CALIBAN" leído con li→ñ/h bajo el tinte rojo de fin de misión):
+            // la palabra se tiraba y el ancla de la carta nunca llegaba a existir.
+            // Se elige el MEJOR token (no el primero que pasa) para no colar un token
+            // mediocre cuando existe otro más parecido.
             let matchedToken = knownTokens.includes(text) ? text : null;
             if (!matchedToken) {
+                // Umbral por longitud: en palabras ≥7 ("CALIBAN") 2 errores no-confundibles
+                // dan 0.714 — legítimo para nombres largos; en cortas sería demasiado laxo.
+                let best = null, bestScore = text.length >= 7 ? 0.70 : 0.72;
                 for (const token of knownTokens) {
-                    if (this.getSimilarity(text, token) >= 0.75) {
-                        matchedToken = token;
-                        break;
-                    }
+                    const s = this.similarityOCR(text, token);
+                    if (s > bestScore) { bestScore = s; best = token; }
                 }
+                matchedToken = best;
             }
 
             if (matchedToken) {
@@ -284,10 +333,21 @@ export const OCRService = {
                 const minRatio = isStrip ? 0.55 : 0.65;
 
                 if (ratio > minRatio && this._countValidTokens(searchTokens, localWords) >= minWords) {
-                    // Centro de gravedad X: promedio de la posición de todas las palabras que componen el nombre
-                    const matchedWords = localWords.filter(w => searchTokens.includes(w.text));
-                    const avgX = matchedWords.length > 0 
-                        ? matchedWords.reduce((s, w) => s + w.x, 0) / matchedWords.length 
+                    // Centro de gravedad X del NOMBRE, anclado al anchor. Promediar TODAS las
+                    // palabras de searchTokens en localWords cruzaba las X de recompensas
+                    // adyacentes: los tokens genéricos ("PRIME", "BLADE", "BLUEPRINT") aparecen
+                    // en ambas columnas, y el "PRIME" del vecino se colaba en la ventana ancha
+                    // (MARGIN_RIGHT 18%) arrastrando el avgX -> Tipedo y Fang salían con las X
+                    // intercambiadas. Fix: para cada token del nombre nos quedamos con la
+                    // aparición MÁS CERCANA al anchor (el 1er token es único por recompensa),
+                    // descartando el duplicado de la columna vecina.
+                    const matchedWords = searchTokens
+                        .map(tok => localWords
+                            .filter(w => w.text === tok)
+                            .sort((a, b) => Math.abs(a.x - anchor.x) - Math.abs(b.x - anchor.x))[0])
+                        .filter(Boolean);
+                    const avgX = matchedWords.length > 0
+                        ? matchedWords.reduce((s, w) => s + w.x, 0) / matchedWords.length
                         : anchor.x;
 
                     itemMatches.push({
@@ -463,7 +523,8 @@ export const OCRService = {
 
         if (textWords.length === 0) return null;
 
-        const isOptionalBlueprint = (targetComp, prevWordDB) => {
+        const isOptionalWord = (targetComp, prevWordDB) => {
+            if (targetComp === "PRIME" || targetComp === "P" || targetComp === "PR") return true;
             if (targetComp !== "BLUEPRINT") return false;
             return ["NEUROPTICS", "SYSTEMS", "CHASSIS", "HARNESS", "WINGS", "CARAPACE", "CEREBRUM", "FORMA"].includes(prevWordDB);
         };
@@ -472,51 +533,20 @@ export const OCRService = {
             const cleanOCR = ocrStr.toUpperCase().replaceAll(/[^A-Z0-9]/g, "");
             const cleanDB = dbFirstWord.toUpperCase().replaceAll(/[^A-Z0-9]/g, "");
             if (cleanOCR === cleanDB) return true;
-            
-            // Robust custom mapping for "BO" (Bo Prime items) which Tesseract commonly misreads as 3E, 36, AO, 8O, SO, etc.
-            if (cleanDB === "BO" && ["3E", "30", "36", "3B", "3b", "86", "8b", "80", "8O", "SO", "AO", "DO", "CO", "B0", "O0"].includes(cleanOCR)) {
-                return true;
-            }
-
-            // Robust custom mapping for "DAKRA" misread as "DALIA" / "DAKLA" due to letter merges
-            if (cleanDB === "DAKRA" && ["DALIA", "DAKLA", "DACRA", "DARRA", "DATRA"].includes(cleanOCR)) {
-                return true;
-            }
-
-            // Robust custom mapping for "HYDROID" misread as "DROID" due to border crops
-            if (cleanDB === "HYDROID" && cleanOCR === "DROID") {
-                return true;
-            }
-
-            // Robust custom mapping for "FANG" misread as ZANC, FANC, ZANG, EANG, ANC due to stylization
-            if (cleanDB === "FANG" && ["ZANC", "FANC", "ZANG", "EANG", "ANG", "ANC"].includes(cleanOCR)) {
-                return true;
-            }
-
-            // Robust custom mapping for "AFURIS" misread as "AFUNS" due to letter merges (ri -> n)
-            if (cleanDB === "AFURIS" && ["AFUNS", "AFUNIS", "AFUR1S", "AFUN1S"].includes(cleanOCR)) {
-                return true;
-            }
-
             if (cleanOCR.length < 3 || cleanDB.length < 3) return cleanOCR === cleanDB;
-            const similarityThreshold = dbFirstWord.length <= 3 ? 0.8 : 0.70;
-            return this.getSimilarity(cleanOCR, cleanDB) >= similarityThreshold;
+            // GENÉRICO: umbral por similitud CONSCIENTE DE CONFUSIONES OCR — sin listas de
+            // alias por arma. Los errores típicos (letra por otra de silueta parecida) casi
+            // no penalizan, así que el match correcto gana por similitud. Las lecturas SALVAJES
+            // (basura irreconocible) quedan por debajo del umbral → las rescata PaddleOCR.
+            const thr = cleanDB.length <= 4 ? 0.72 : 0.62;
+            return this.similarityOCR(cleanOCR, cleanDB) >= thr;
         };
 
-        const normalizeComponent = (word, targetComp) => {
-            const w = word.toUpperCase();
-            const t = targetComp.toUpperCase();
-            if (t === "RECEIVER" && /^(KEC|REC|CELV|RES)/i.test(w) && (w.includes("VE") || w.includes("IV"))) return "RECEIVER";
-            if (t === "HANDLE" && /^(FAN|HAN|AN)/i.test(w) && w.includes("LE")) return "HANDLE";
-            if (t === "BLUEPRINT" && /^(BLU|BLA|B1U|3LU)/i.test(w) && (w.includes("INT") || w.includes("INI") || w.includes("EPR"))) return "BLUEPRINT";
-            if (t === "NEUROPTICS" && /^(NEU|NEPT)/i.test(w) && w.includes("TICS")) return "NEUROPTICS";
-            if (t === "GAUNTLET" && (w === "ES" || w === "RES" || w === "ON" || w === "RESON" || w === "AR" || w === "AS" || w === "ER" || w === "RE" || /^(GAU|GNT|AN|RES)/i.test(w) || w.endsWith("ON"))) return "GAUNTLET";
-            // "LIMB" (Ballistica/Paris/Cernos Upper/Lower Limb) suele llegar recortado o
-            // estilizado: LY, LIY, LMB (L1MB sin dígitos), LIME, LIMS, UMB... Solo palabras
-            // cortas que empiezan por L+I/Y/M (o colas UMB/IMB/MB); LINK se excluye explícitamente.
-            if (t === "LIMB" && w.length <= 5 && w !== "LINK" && (/^L[IYM]/.test(w) || ["UMB", "IMB", "MB"].includes(w))) return "LIMB";
-            return w;
-        };
+        // Los COMPONENTES (Barrel/Receiver/Blueprint/Link/...) se casan por similitud
+        // CONSCIENTE DE OCR, sin normalizadores regex por-componente. Umbral de componente
+        // más bajo que el de arma porque son palabras conocidas y cortas; el conjunto se
+        // valida por el resto del nombre. Lecturas de componente salvajes → item sin match → Paddle.
+        const COMP_THR = 0.6;
 
         const attemptItemMatch = (startIndex, item, lookAheadLimit, ocrWords) => {
             const matchedIndices = [startIndex];
@@ -529,20 +559,18 @@ export const OCRService = {
                     if (nextIdx >= ocrWords.length) continue;
 
                     const cleanWord = ocrWords[nextIdx].replaceAll(/[^A-Z]/g, "");
-                    const normWord = normalizeComponent(cleanWord, targetComp);
 
                     let combinedWord = cleanWord;
                     if (nextIdx + 1 < ocrWords.length) {
                         combinedWord += ocrWords[nextIdx + 1].replaceAll(/[^A-Z]/g, "");
                     }
-                    const normCombined = normalizeComponent(combinedWord, targetComp);
 
-                    if (this.getSimilarity(normWord, targetComp) >= 0.70) {
+                    if (this.similarityOCR(cleanWord, targetComp) >= COMP_THR) {
                         matchedIndices.push(nextIdx);
                         currentPos = nextIdx;
                         found = true;
                         break;
-                    } else if (this.getSimilarity(normCombined, targetComp) >= 0.70) {
+                    } else if (this.similarityOCR(combinedWord, targetComp) >= COMP_THR) {
                         matchedIndices.push(nextIdx);
                         matchedIndices.push(nextIdx + 1);
                         currentPos = nextIdx + 1;
@@ -550,13 +578,15 @@ export const OCRService = {
                         break;
                     }
                 }
-                if (!found && !isOptionalBlueprint(targetComp, item.searchWords[j - 1])) return null;
+                if (!found && !isOptionalWord(targetComp, item.searchWords[j - 1])) return null;
             }
             return matchedIndices;
         };
 
         let bestItem = null;
         let longestMatch = 0;
+        let bestWords = 0;
+        let bestScore = -1;
 
         for (const item of this.cachedDbItems) {
             for (let i = 0; i < textWords.length; i++) {
@@ -573,8 +603,27 @@ export const OCRService = {
 
                 if (isMatch) {
                     const matched = attemptItemMatch(i + matchedIndexOffset, item, 4, textWords);
-                    if (matched && matched.length > longestMatch) {
+                    if (!matched) continue;
+                    // Selección por CALIDAD, no por orden de la BD: entre items que casan
+                    // el MISMO nº de palabras (p.ej. "BOLTOR PRIME BARREL" casa tanto Boltor
+                    // como Akbolto vía alias), gana el de mayor similitud de PRIMERA PALABRA.
+                    // "BOLTOR"≈"BOLTOR"=1.0 gana a "BOLTOR"≈"AKBOLTO"≈0.57 — genérico, sin
+                    // hardcodear qué palabra va con cuál.
+                    const ocrFirst = (matchedIndexOffset
+                        ? textWords[i] + textWords[i + 1]
+                        : textWords[i]).toUpperCase().replaceAll(/[^A-Z0-9]/g, "");
+                    const score = this.similarityOCR(ocrFirst, item.firstWord.toUpperCase());
+                    // Prioridad: (1) más palabras OCR cubiertas; (2) item MÁS ESPECÍFICO
+                    // (más componentes) — evita que "Harrow Blueprint" (2) fusione
+                    // "CHASSIS BLUEPRINT" y empate con "Harrow Chassis Blueprint" (3);
+                    // (3) mayor similitud de 1ª palabra (Boltor vs Akbolto). Todo genérico.
+                    const words = item.searchWords.length;
+                    if (matched.length > longestMatch
+                        || (matched.length === longestMatch && words > bestWords)
+                        || (matched.length === longestMatch && words === bestWords && score > bestScore)) {
                         longestMatch = matched.length;
+                        bestWords = words;
+                        bestScore = score;
                         bestItem = item;
                     }
                 }

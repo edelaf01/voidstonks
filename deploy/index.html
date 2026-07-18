@@ -32,6 +32,54 @@
     content="Optimiza tu farm de reliquias y consulta precios de Rivens al instante." />
   <meta property="twitter:image" content="https://wiki.warframe.com/images/Void_Projections_Icon.png" />
 
+  <!-- Datos estructurados: descripción de la app + FAQ (SEO / rich results) -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebApplication",
+        "name": "VoidStonks",
+        "url": "https://voidstonks.com/",
+        "applicationCategory": "GameApplication",
+        "operatingSystem": "Web",
+        "description": "Herramienta web gratuita y no oficial para Warframe: precios de Rivens, reliquias del Vacío, sets Prime, calculadora de Vosfor y escáner de inventario por cámara.",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+      },
+      {
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "¿VoidStonks es gratis?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Sí. Es una herramienta gratuita y no oficial, hecha por y para la comunidad de Warframe." }
+          },
+          {
+            "@type": "Question",
+            "name": "¿De dónde salen los precios?",
+            "acceptedAnswer": { "@type": "Answer", "text": "De Warframe.market (órdenes reales de jugadores), las tablas de recompensas oficiales del juego y estadísticas agregadas de rivens. Los datos se actualizan de forma continua." }
+          },
+          {
+            "@type": "Question",
+            "name": "¿Está afiliado a Digital Extremes?",
+            "acceptedAnswer": { "@type": "Answer", "text": "No. VoidStonks es un proyecto de fans, no oficial. Warframe y todos sus contenidos son marcas y propiedad de Digital Extremes." }
+          },
+          {
+            "@type": "Question",
+            "name": "¿Necesito instalar algo?",
+            "acceptedAnswer": { "@type": "Answer", "text": "No. Funciona directamente en el navegador, tanto en PC como en móvil. El escáner por cámara solo pide permiso cuando lo abres tú." }
+          },
+          {
+            "@type": "Question",
+            "name": "¿Es seguro usar el escáner?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Sí. El reconocimiento de imagen se ejecuta localmente en tu dispositivo; tus capturas de pantalla no se suben a ningún servidor." }
+          }
+        ]
+      }
+    ]
+  }
+  </script>
+
   <link rel="stylesheet" href="css/components/inventory.css?v=1.4" />
   <link rel="stylesheet" href="css/components/sets.css?v=1.0" />
   <link rel="stylesheet" href="css/components/relics.css?v=1.0" />
@@ -485,6 +533,29 @@
           ✎ EDIT CELLS
         </button>
 
+        <button id="btn-reset-grid" onclick="globalThis.resetGrid()" style="
+              background: none;
+              border: 1px solid rgba(255, 180, 50, 0.35);
+              color: #c8963a;
+              font-size: 0.6em;
+              padding: 5px 8px;
+              cursor: pointer;
+              border-radius: 4px;
+              font-weight: 700;
+              letter-spacing: 0.5px;
+              transition: all 0.15s;
+            " onmouseover="
+              this.style.background = 'rgba(255,180,50,0.1)';
+              this.style.borderColor = 'rgba(255,180,50,0.7)';
+              this.style.color = '#f0b040';
+            " onmouseout="
+              this.style.background = 'none';
+              this.style.borderColor = 'rgba(255,180,50,0.35)';
+              this.style.color = '#c8963a';
+            " title="Descarta la rejilla autodetectada y la calibración guardada; se re-autodetecta en el próximo escaneo">
+          ↺ RESET GRID
+        </button>
+
         <!-- Reset de offsets deshabilitado junto con la recalibración manual.
         <button onclick="globalThis.resetGridOffsets()" style="
               background: none;
@@ -791,6 +862,7 @@
         <option value="plat_intact">AVG Plat value (intact)</option>
         <option value="plat_rad">AVG Plat value (radiant)</option>
         <option value="ducats">Ducats per relic</option>
+        <option value="ratio">Ratio ducados/plat (mayor a menor)</option>
       </select>
     </div>
 
@@ -840,6 +912,11 @@
       Optimización de Farm y Mercado
     </div>
     <div class="header-controls">
+      <a href="guide.html" class="header-guide-cta" id="txt-header-guide-cta"
+        title="Guía paso a paso / Step-by-step guide">
+        <span class="guide-cta-icon">📖</span>
+        <span class="lang-es">Cómo usar VoidStonks</span><span class="lang-en">How to use VoidStonks</span>
+      </a>
       <div id="scanner-section" class="scanner-wrapper">
         <div class="scanner-info-icon"
           data-tooltip="This feature uses OCR to read your screen. Only works inside missions during the reward selection screen and while you are in your inventory. the prime section, you will get a voidscanner to help you scan your prime parts.">
@@ -969,6 +1046,10 @@
         <button id="btn-vosfor" class="tab-btn vosfor" onclick="switchTab('vosfor')">
           <img src="https://wiki.warframe.com/w/Special:FilePath/Vosfor.png" onerror="this.onerror=null; this.src='https://raw.githubusercontent.com/WFCD/warframe-items/master/data/img/vosfor.png';" class="tab-icon-img" alt="Vosfor Icon" />
           <span id="tab-vosfor-text">Vosfor</span>
+        </button>
+        <button id="btn-ducat" class="tab-btn ducat" onclick="switchTab('ducat')">
+          <img src="assets/Ducats.webp" class="tab-icon-img" alt="Ducanator Icon" />
+          <span id="tab-ducat-text">Ducados</span>
         </button>
       </div>
     </div>
@@ -1455,6 +1536,33 @@
           </div>
         </div>
       </div>
+
+      <div id="mode-ducat" class="hidden">
+        <div id="ducat-filters" class="ducat-filters">
+          <p id="ducat-desc" class="ducat-desc"></p>
+
+          <input type="text" id="ducat-search" class="wf-input" oninput="globalThis.renderDucanatorTab()" />
+
+          <details class="ducat-adv">
+            <summary id="ducat-adv-label"></summary>
+
+            <div class="ducat-filter-row">
+              <label class="ducat-owned-toggle">
+                <input type="checkbox" id="ducat-owned-only" checked onchange="globalThis.renderDucanatorTab()" />
+                <span id="ducat-owned-label"></span>
+              </label>
+            </div>
+
+            <div class="ducat-filter-row">
+              <label id="ducat-threshold-label" for="ducat-threshold"></label>
+              <input type="range" id="ducat-threshold" min="0" max="50" value="15" step="1"
+                oninput="globalThis.updateDucatThreshold(this.value)" />
+              <span id="ducat-threshold-val" class="ducat-threshold-val">15<span class="plat-icon-inline"></span></span>
+            </div>
+          </details>
+        </div>
+        <div id="ducat-content" class="fissures-scroll-area"></div>
+      </div>
     </div>
 
     <div id="footer-relic" class="footer-output">
@@ -1466,6 +1574,241 @@
   </div>
 
   <div id="toast-container" class="wf-toast-container"></div>
+
+  <!-- ============================================================
+       CONTENIDO EDITORIAL ESTÁTICO (SEO / valor de página)
+       Prosa real legible sin JS. Bilingüe: .lang-es visible por
+       defecto (coincide con <html lang="es">), .lang-en la muestra
+       el toggle de idioma vía body[data-lang="en"] (ver styles.css
+       y updateStaticTexts en js/ui.js).
+       ============================================================ -->
+  <section class="site-content" aria-label="Sobre VoidStonks">
+    <details class="site-about">
+      <summary>
+        <span class="lang-es">Sobre VoidStonks · Guía · Preguntas frecuentes</span><span class="lang-en">About VoidStonks · Guide · FAQ</span>
+      </summary>
+    <div class="lang-es">
+      <h2>¿Qué es VoidStonks?</h2>
+      <p>
+        <strong>VoidStonks</strong> es una herramienta web gratuita y no oficial para jugadores de
+        <strong>Warframe</strong> que quieren aprovechar al máximo su tiempo de farmeo y su platino.
+        Reúne en un solo lugar los datos de mercado de la comunidad, las tablas de recompensas
+        oficiales y las estadísticas de rivens del meta, para que sepas de un vistazo qué merece la
+        pena vender, qué reliquia del Vacío abrir y cuánto vale realmente tu mod Riven.
+      </p>
+
+      <h2>Qué puedes hacer con la app</h2>
+      <div class="content-grid">
+        <article>
+          <h3>Reliquias del Vacío</h3>
+          <p>
+            Introduce cualquier reliquia (Lith, Meso, Neo o Axi) y VoidStonks te muestra sus
+            recompensas, el precio en platino de cada una y qué refinamiento maximiza tu beneficio
+            esperado. Incluye un panel de inventario y un escáner por cámara que lee las recompensas
+            directamente de la pantalla de selección al terminar una misión de Fisura.
+          </p>
+        </article>
+        <article>
+          <h3>Sets Prime</h3>
+          <p>
+            Busca cualquier set Prime y consulta el precio de cada pieza por separado y del conjunto
+            completo. El seguidor de sets te indica qué partes te faltan para terminar de construir
+            tu Warframe o tu arma, y cuánto costaría comprarlas frente a farmearlas.
+          </p>
+        </article>
+        <article>
+          <h3>Tasador de Rivens</h3>
+          <p>
+            Pega las estadísticas de tu mod Riven y obtén una estimación de precio basada en ventas
+            reales del mercado, la disposición del arma y el peso en el meta de cada estadística. Un
+            modelo entrenado con miles de ventas posiciona tu tirada en la curva de precios del arma
+            y te avisa si el mercado está inflado o es poco líquido.
+          </p>
+        </article>
+        <article>
+          <h3>Farms y LFG</h3>
+          <p>
+            Consulta las Fisuras del Vacío activas en tiempo real y genera mensajes de «busco grupo»
+            listos para copiar al chat del juego, con la actividad y el número de jugadores ya
+            rellenados.
+          </p>
+        </article>
+        <article>
+          <h3>Calculadora de Vosfor</h3>
+          <p>
+            Calcula el valor esperado de los packs de Loid y decide si te conviene vender un arcano
+            en el mercado o disolverlo en Vosfor, con un simulador de objetivo para planificar tus
+            compras de forma óptima.
+          </p>
+        </article>
+        <article>
+          <h3>Escáner de inventario</h3>
+          <p>
+            Usa la cámara o una captura de pantalla para leer tu inventario de piezas Prime y tus
+            Rivens sin teclear nada a mano. El reconocimiento de imagen se ejecuta localmente en tu
+            dispositivo.
+            <br><em style="font-size:0.9rem; color:#aaa;">Versión de escritorio completa. Escáner móvil en desarrollo en inglés y español.</em>
+          </p>
+        </article>
+      </div>
+
+      <p class="content-cta">
+        ¿Primera vez aquí? Lee la <a href="guide.html">guía de uso completa paso a paso</a> o elige
+        una pestaña arriba para empezar.
+      </p>
+      <p class="content-cta">
+        Artículos: <a href="riven-appraisal.html">cómo se tasa un Riven</a> ·
+        <a href="scanner.html">el escáner de Warframe en el navegador</a>.
+      </p>
+
+      <h2>Preguntas frecuentes</h2>
+      <div class="content-faq">
+        <details>
+          <summary>¿VoidStonks es gratis?</summary>
+          <p>Sí. Es una herramienta gratuita y no oficial, hecha por y para la comunidad de Warframe.</p>
+        </details>
+        <details>
+          <summary>¿De dónde salen los precios?</summary>
+          <p>
+            De Warframe.market (órdenes reales de jugadores), las tablas de recompensas oficiales del
+            juego y estadísticas agregadas de rivens. Los datos se actualizan de forma continua.
+          </p>
+        </details>
+        <details>
+          <summary>¿Está afiliado a Digital Extremes?</summary>
+          <p>
+            No. VoidStonks es un proyecto de fans, no oficial. Warframe y todos sus contenidos son
+            marcas y propiedad de Digital Extremes.
+          </p>
+        </details>
+        <details>
+          <summary>¿Necesito instalar algo?</summary>
+          <p>
+            No. Funciona directamente en el navegador, tanto en PC como en móvil. El escáner por
+            cámara solo pide permiso cuando lo abres tú.
+          </p>
+        </details>
+        <details>
+          <summary>¿Es seguro usar el escáner?</summary>
+          <p>
+            Sí. El reconocimiento de imagen se ejecuta localmente en tu dispositivo; tus capturas de
+            pantalla no se suben a ningún servidor.
+          </p>
+        </details>
+      </div>
+    </div>
+
+    <div class="lang-en">
+      <h2>What is VoidStonks?</h2>
+      <p>
+        <strong>VoidStonks</strong> is a free, unofficial web tool for <strong>Warframe</strong>
+        players who want to make the most of their farming time and their platinum. It brings
+        together community market data, official reward tables and meta riven statistics in one
+        place, so you can tell at a glance what is worth selling, which Void relic to open and how
+        much your Riven mod is really worth.
+      </p>
+
+      <h2>What you can do</h2>
+      <div class="content-grid">
+        <article>
+          <h3>Void Relics</h3>
+          <p>
+            Enter any relic (Lith, Meso, Neo or Axi) and VoidStonks shows its rewards, the platinum
+            price of each one and which refinement maximises your expected profit. It includes an
+            inventory panel and a camera scanner that reads rewards straight from the selection
+            screen at the end of a Fissure mission.
+          </p>
+        </article>
+        <article>
+          <h3>Prime Sets</h3>
+          <p>
+            Search any Prime set and check the price of every part individually and of the full set.
+            The set tracker tells you which parts you are missing to finish building your Warframe or
+            weapon, and what it would cost to buy them versus farming them.
+          </p>
+        </article>
+        <article>
+          <h3>Riven Appraiser</h3>
+          <p>
+            Paste your Riven mod stats and get a price estimate based on real market sales, the
+            weapon's disposition and how much each stat weighs in the meta. A model trained on
+            thousands of sales places your roll on the weapon's price curve and warns you when the
+            market is inflated or illiquid.
+          </p>
+        </article>
+        <article>
+          <h3>Farms &amp; LFG</h3>
+          <p>
+            Check the active Void Fissures in real time and generate ready-to-paste «looking for
+            group» messages for the in-game chat, with the activity and player count already filled
+            in.
+          </p>
+        </article>
+        <article>
+          <h3>Vosfor Calculator</h3>
+          <p>
+            Work out the expected value of Loid packs and decide whether to sell an arcane on the
+            market or dissolve it into Vosfor, with a target simulator to plan your purchases
+            optimally.
+          </p>
+        </article>
+        <article>
+          <h3>Inventory Scanner</h3>
+          <p>
+            Use your camera or a screenshot to read your inventory of Prime parts and Rivens without
+            typing anything by hand. Image recognition runs locally on your device.
+            <br><em style="font-size:0.9rem; color:#aaa;">Desktop version fully featured. Mobile scanner in development in English and Spanish.</em>
+          </p>
+        </article>
+      </div>
+
+      <p class="content-cta">
+        First time here? Read the <a href="guide.html">full step-by-step user guide</a> or pick a
+        tab above to get started.
+      </p>
+      <p class="content-cta">
+        Articles: <a href="riven-appraisal.html">how a Riven is appraised</a> ·
+        <a href="scanner.html">the Warframe scanner that runs in the browser</a>.
+      </p>
+
+      <h2>Frequently asked questions</h2>
+      <div class="content-faq">
+        <details>
+          <summary>Is VoidStonks free?</summary>
+          <p>Yes. It is a free, unofficial tool made by and for the Warframe community.</p>
+        </details>
+        <details>
+          <summary>Where do the prices come from?</summary>
+          <p>
+            From Warframe.market (real player orders), the game's official reward tables and
+            aggregated riven statistics. The data is updated continuously.
+          </p>
+        </details>
+        <details>
+          <summary>Is it affiliated with Digital Extremes?</summary>
+          <p>
+            No. VoidStonks is an unofficial fan project. Warframe and all related content are
+            trademarks and property of Digital Extremes.
+          </p>
+        </details>
+        <details>
+          <summary>Do I need to install anything?</summary>
+          <p>
+            No. It runs straight in your browser, on both PC and mobile. The camera scanner only
+            asks for permission when you open it.
+          </p>
+        </details>
+        <details>
+          <summary>Is the scanner safe to use?</summary>
+          <p>
+            Yes. Image recognition runs locally on your device; your screenshots are never uploaded
+            to any server.
+          </p>
+        </details>
+      </div>
+    </div>
+    </details>
+  </section>
 
   <footer class="site-footer">
     <div class="footer-row">
@@ -1489,6 +1832,15 @@
       <button id="btn-footer-updates" class="footer-link-btn" onclick="globalThis.openUpdateHistory()">
         Novedades
       </button>
+    </div>
+    <div class="footer-row" style="margin-top: 8px; font-size: 0.85em">
+      <a href="riven-appraisal.html" class="footer-link">
+        <span class="lang-es">Cómo se tasa un Riven</span><span class="lang-en">How a Riven is appraised</span>
+      </a>
+      <span class="footer-separator">|</span>
+      <a href="scanner.html" class="footer-link">
+        <span class="lang-es">Escáner en el navegador</span><span class="lang-en">Browser scanner</span>
+      </a>
     </div>
     <div class="footer-row" style="margin-top: 8px; font-size: 0.85em">
       <a href="guide.html" class="footer-link" id="txt-guide-link">Guía</a>

@@ -1,0 +1,397 @@
+<!doctype html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8" />
+  <title>Cómo se tasa un Riven: disposición, meta y precio — VoidStonks (Warframe)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description"
+    content="Explicación completa de cómo se valora un mod Riven en Warframe: disposición del arma, peso meta de cada estadística, magnitud de la tirada, combos elementales, el modelo de precio y el contraste con el mercado en vivo." />
+  <meta name="keywords"
+    content="Warframe, Riven, tasar riven, precio riven, disposición, riven disposition, riven price, meta stats, godroll, VoidStonks" />
+  <meta name="author" content="Parcialsobriedad" />
+  <meta name="robots" content="index, follow" />
+  <link rel="canonical" href="https://voidstonks.com/riven-appraisal.html" />
+  <link rel="icon" type="image/png" href="https://wiki.warframe.com/images/VoidTraces.png" />
+
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://voidstonks.com/riven-appraisal.html" />
+  <meta property="og:title" content="Cómo se tasa un Riven en Warframe — VoidStonks" />
+  <meta property="og:description"
+    content="Disposición, peso meta, magnitud de la tirada, combos elementales y mercado: la metodología completa de tasación de rivens de VoidStonks." />
+  <meta property="og:image" content="https://wiki.warframe.com/images/VoidProjectionsIcon.png" />
+
+  <!-- Google AdSense -->
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4559331797280612"
+    crossorigin="anonymous"></script>
+
+  <!-- Datos estructurados: artículo -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": "Cómo se tasa un Riven en Warframe",
+    "description": "Metodología completa de valoración de mods Riven: disposición, peso meta de cada estadística, magnitud de la tirada, combos elementales, modelo de precio y contraste con el mercado en vivo.",
+    "author": { "@type": "Person", "name": "Parcialsobriedad" },
+    "publisher": { "@type": "Organization", "name": "VoidStonks" },
+    "mainEntityOfPage": "https://voidstonks.com/riven-appraisal.html",
+    "inLanguage": "es"
+  }
+  </script>
+
+  <style>
+    :root { --bg:#0b0e13; --panel:#12171f; --border:rgba(0,229,255,0.18); --text:#d7e2ea; --muted:#8ea0ad; --accent:#00e5ff; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:radial-gradient(1200px 600px at 50% -10%,#101821,var(--bg)); color:var(--text); font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; line-height:1.68; padding:40px 16px 80px; }
+    .wrap { max-width:880px; margin:0 auto; background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:32px clamp(18px,4vw,44px); }
+    a { color:var(--accent); text-decoration:none; } a:hover { text-decoration:underline; }
+    h1 { font-size:1.7rem; margin:0 0 4px; color:#fff; line-height:1.25; }
+    h2 { font-size:1.3rem; margin:40px 0 10px; color:var(--accent); border-bottom:1px solid var(--border); padding-bottom:6px; }
+    h3 { font-size:1.05rem; margin:22px 0 6px; color:#fff; }
+    p,li { color:var(--text); } .muted { color:var(--muted); font-size:0.9rem; } ul { padding-left:20px; }
+    li { margin:4px 0; }
+    .lead { font-size:1.05rem; color:#e7eef4; }
+    .topbar { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:22px; flex-wrap:wrap; }
+    .back { font-size:0.9rem; }
+    .lang-toggle { display:inline-flex; border:1px solid var(--border); border-radius:8px; overflow:hidden; }
+    .lang-toggle button { background:transparent; color:var(--muted); border:0; padding:6px 14px; font:inherit; font-size:0.85rem; cursor:pointer; transition:background .15s,color .15s; }
+    .lang-toggle button.active { background:var(--accent); color:#04121a; font-weight:700; }
+    .toc { background:rgba(0,0,0,0.25); border:1px solid var(--border); border-radius:10px; padding:14px 18px; margin:18px 0 8px; }
+    .toc ul { margin:6px 0 0; } .toc li { margin:2px 0; }
+    .callout { background:rgba(0,229,255,0.06); border-left:3px solid var(--accent); border-radius:0 8px 8px 0; padding:12px 16px; margin:16px 0; }
+    table { width:100%; border-collapse:collapse; margin:14px 0; font-size:0.92rem; }
+    th,td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--border); }
+    th { color:var(--accent); font-weight:700; }
+    code { background:rgba(0,0,0,0.4); border:1px solid var(--border); border-radius:4px; padding:1px 6px; font-size:0.9em; }
+    .related { margin-top:28px; padding-top:16px; border-top:1px solid var(--border); font-size:0.95rem; }
+    [data-lang] { display:none; } [data-lang].show { display:block; }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <a class="back" href="index.html">&larr; VoidStonks</a>
+      <div class="lang-toggle" role="group" aria-label="Language">
+        <button type="button" data-set-lang="en">EN</button>
+        <button type="button" data-set-lang="es">ES</button>
+      </div>
+    </div>
+
+    <!-- ================= ESPAÑOL ================= -->
+    <section data-lang="es">
+      <h1>Cómo se tasa un Riven en Warframe</h1>
+      <p class="lead">Poner precio a un Riven es de las cosas más confusas de Warframe: cada mod es
+        único, no hay precio de tienda y el valor depende de varios factores que se multiplican
+        entre sí. Esta página explica, paso a paso, la metodología que usa el tasador de VoidStonks
+        para convertir un puñado de estadísticas en un rango de platino realista.</p>
+
+      <div class="toc">
+        <strong>Contenido</strong>
+        <ul>
+          <li><a href="#e-porque">Por qué un Riven no tiene un precio fijo</a></li>
+          <li><a href="#e-dispo">1. La disposición del arma</a></li>
+          <li><a href="#e-meta">2. El peso meta de cada estadística</a></li>
+          <li><a href="#e-roll">3. La magnitud de la tirada</a></li>
+          <li><a href="#e-elem">4. Combos elementales</a></li>
+          <li><a href="#e-neg">5. El negativo: cuándo importa</a></li>
+          <li><a href="#e-modelo">6. Del score al precio: el modelo</a></li>
+          <li><a href="#e-mercado">7. Contraste con el mercado en vivo</a></li>
+          <li><a href="#e-honesto">8. Hasta dónde te puedes fiar</a></li>
+        </ul>
+      </div>
+
+      <h2 id="e-porque">Por qué un Riven no tiene un precio fijo</h2>
+      <p>Un mod Riven se genera con estadísticas aleatorias: de dos a tres bonos positivos y, a
+        veces, un negativo, cada uno con una magnitud dentro de un rango. Dos rivens del mismo arma
+        pueden valer 20 platino o 3.000 según qué combinación salga. Por eso no basta con «mirar el
+        mercado»: para tasar hay que entender <em>qué</em> hace bueno a un roll y <em>cuánto</em> pesa
+        cada factor. VoidStonks descompone la tasación en capas que luego combina.</p>
+
+      <h2 id="e-dispo">1. La disposición del arma</h2>
+      <p>La <strong>disposición</strong> (disposition) es un multiplicador que Digital Extremes asigna
+        a cada arma, aproximadamente entre 0,5 y 1,55. Las armas poco usadas tienen disposición alta
+        (números de estadística más grandes) y las armas ya fuertes tienen disposición baja (números
+        más pequeños). La disposición cambia cada pocos meses.</p>
+      <p>Su efecto en el precio es doble y no siempre intuitivo:</p>
+      <ul>
+        <li>Sube o baja la magnitud posible de cada bono, así que fija el «techo» de lo que puede dar
+          un roll.</li>
+        <li>En un arma de <strong>disposición baja</strong>, cada punto de estadística es más escaso
+          y por tanto más valioso. Por eso VoidStonks <strong>amplifica</strong> ciertos aciertos en
+          armas de disposición baja en lugar de penalizarlas por tener números pequeños.</li>
+      </ul>
+
+      <h2 id="e-meta">2. El peso meta de cada estadística</h2>
+      <p>No todas las estadísticas valen lo mismo. En un arma crítica, «probabilidad de crítico» y
+        «daño de crítico» valen mucho; «tamaño del cargador» casi nada. VoidStonks asigna a cada
+        estadística un <strong>peso</strong> entre 0 y 1 según lo que la comunidad realmente busca
+        para <em>esa</em> arma en concreto.</p>
+      <p>El peso no es una lista fija: se calcula mezclando dos fuentes:</p>
+      <ul>
+        <li><strong>Peso propio del arma</strong>: derivado de las ventas reales de rivens de esa
+          arma (qué estadísticas aparecen en los rivens que se venden caros).</li>
+        <li><strong>Peso base por tipo de arma</strong>: un patrón general (crítica, estado, daño…)
+          que sirve de red de seguridad cuando el arma tiene pocas ventas.</li>
+      </ul>
+      <div class="callout">
+        <p style="margin:0;">La mezcla se pondera por la <strong>liquidez</strong> del arma: cuantas
+          más ventas reales hay, más manda el peso propio del arma; cuando hay pocos datos, se apoya
+          en el patrón base. En términos simples: <code>peso = α · propio + (1−α) · base</code>,
+          donde <code>α</code> crece con el número de ventas. Así un arma con mercado activo se tasa
+          con sus propios datos y una rara no se dispara por ruido.</p>
+      </div>
+      <p>Algunos matices que aplica el tasador:</p>
+      <ul>
+        <li>Una estadística claramente meta pesa <strong>1,0</strong>; una de gama media, alrededor
+          de <strong>0,85</strong>. Los positivos de gama media <em>también</em> suman: el valor es
+          continuo, no un simple «bueno o basura».</li>
+        <li>El daño por facción (Grineer/Corpus/Infestado) es nicho: se valora como algo intermedio,
+          ni basura total ni godroll, para que sume algo sin inflar el roll.</li>
+      </ul>
+
+      <h2 id="e-roll">3. La magnitud de la tirada</h2>
+      <p>Tener la estadística correcta no basta; importa <em>cuán alta</em> salió. Para cada bono,
+        VoidStonks calcula su calidad como su posición dentro del rango posible:</p>
+      <p><code>calidad = (valor − mínimo) / (máximo − mínimo)</code>, recortada entre 0 y 1.</p>
+      <p>Un +150 % de daño en un rango de +90 % a +160 % es casi perfecto (calidad ≈ 0,86); el mismo
+        número en un rango mayor sería mediocre. Cuando una estadística ya meta sale además muy alta
+        (calidad &gt; 0,8), su peso recibe un empujón extra: es la diferencia entre «buen riven» y
+        «godroll».</p>
+
+      <h2 id="e-elem">4. Combos elementales y el orden de los stats</h2>
+      <p>Dos bonos elementales pueden fusionarse en un elemento compuesto más potente —Viral,
+        Corrosivo, Radiación, Gas, Magnético o Explosivo— y eso ahorra un espacio de mod muy valioso,
+        así que sube el valor del riven. Los compuestos más buscados (como Viral o Corrosivo) aportan
+        más que los secundarios.</p>
+      <p>Pero hay un matiz que mucha gente pasa por alto: <strong>el orden de las estadísticas en el
+        riven importa</strong>. En Warframe los elementos se combinan siguiendo el orden de los mods,
+        así que la posición de cada elemento dentro del riven —y cómo encaja con los demás elementales
+        que montes en el arma— puede dar un compuesto distinto, mejor o peor, con exactamente los
+        mismos dos bonos. Por eso dos rivens con los mismos stats no siempre rinden igual en la
+        práctica: uno puede formar justo el elemento que quieres y otro obligarte a recolocar tu
+        build.</p>
+      <p>VoidStonks reconoce cuándo un riven puede formar un compuesto fuerte y lo suma al valor; cómo
+        aprovechar ese orden en concreto depende del resto de tu build, así que conviene revisarlo al
+        montar el arma. En armas de disposición baja este ahorro pesa aún más, porque conseguir el
+        elemento correcto «gratis» en el riven libera un hueco que de otro modo sería carísimo.</p>
+
+      <h2 id="e-neg">5. El negativo: cuándo importa</h2>
+      <p>Muchos rivens traen una estadística negativa. La clave no es tener un negativo, sino
+        <em>cuál</em>: un negativo «inofensivo» (que no toca lo que el arma necesita, como
+        −recarga en un arma cuerpo a cuerpo, o −daño a una facción que no usas) apenas resta valor, e
+        incluso puede aumentar la magnitud de los positivos. Un negativo que golpea una estadística
+        clave del arma sí penaliza. El tasador tiene esto en cuenta al valorar el conjunto, no solo
+        los positivos por su cuenta.</p>
+
+      <h2 id="e-modelo">6. Del score al precio: el modelo</h2>
+      <p>Con todo lo anterior, el tasador construye una <strong>puntuación</strong> del roll (suma de
+        pesos por magnitud, más los bonos elementales y los ajustes por disposición). Pero una
+        puntuación no es platino. Para convertirla en precio, VoidStonks usa un modelo entrenado con
+        miles de ventas reales de rivens.</p>
+      <p>En lugar de escupir un único número, el modelo <strong>coloca tu puntuación sobre la curva
+        de precios de esa arma</strong>: por eso el resultado es un rango (bajo · mediano · alto). La
+        misma puntuación se traduce en más platino en un arma popular y cara, y en menos en un arma
+        con mercado pequeño. El modelo se destila a un formato ligero para que la valoración sea
+        instantánea en el navegador, sin subir nada a un servidor.</p>
+
+      <h2 id="e-mercado">7. Contraste con el mercado en vivo</h2>
+      <p>La estimación del modelo se compara además con los anuncios reales de Warframe.market en ese
+        momento y con un <strong>mes de historial de precios</strong>. De ahí sale un indicador de
+        mercado que te avisa de en qué situación está el arma:</p>
+      <ul>
+        <li><strong>Inflado / burbuja</strong>: los anuncios actuales están muy por encima de la
+          mediana histórica.</li>
+        <li><strong>Por debajo de la mediana</strong>: buen momento para comprar, precios bajos.</li>
+        <li><strong>Ilíquido</strong>: hay tan pocos anuncios que cualquier precio es poco fiable.</li>
+      </ul>
+      <p>Este matiz importa porque los <em>asks</em> (lo que la gente pide) casi nunca son el precio
+        al que de verdad se cierra la venta. Un puñado de anuncios altos no significa que tu riven se
+        venda a ese precio.</p>
+
+      <h2 id="e-honesto">8. Hasta dónde te puedes fiar</h2>
+      <p>Seremos honestos: tasar rivens tiene un límite de precisión que ninguna herramienta puede
+        saltarse, porque el propio mercado es ruidoso (dos rivens casi idénticos se venden a precios
+        distintos según quién y cuándo). El error típico de este tipo de estimación ronda el 50 %, así
+        que trata el número como una <strong>orientación</strong>, no como un veredicto. La forma
+        correcta de usarlo:</p>
+      <ul>
+        <li>Para saber si un riven es basura, decente o godroll: el tasador acierta de sobra.</li>
+        <li>Para poner precio exacto antes de vender: usa el rango como punto de partida y contrasta
+          con los anuncios en vivo (botón de refresco ↻).</li>
+      </ul>
+
+      <p class="related">Sigue leyendo: <a href="guide.html">guía de uso completa de VoidStonks</a>
+        · <a href="index.html">abrir el tasador de rivens</a>.</p>
+      <p class="muted" style="margin-top:28px;">VoidStonks no está afiliado ni respaldado por Digital
+        Extremes. Warframe™ es una marca registrada de Digital Extremes Ltd. Los precios y datos son
+        estimaciones con fines informativos.</p>
+    </section>
+
+    <!-- ================= ENGLISH ================= -->
+    <section data-lang="en">
+      <h1>How a Riven is appraised in Warframe</h1>
+      <p class="lead">Pricing a Riven is one of the most confusing things in Warframe: every mod is
+        unique, there is no shop price, and the value depends on several factors that multiply each
+        other. This page explains, step by step, the methodology VoidStonks uses to turn a handful of
+        stats into a realistic platinum range.</p>
+
+      <div class="toc">
+        <strong>Contents</strong>
+        <ul>
+          <li><a href="#g-why">Why a Riven has no fixed price</a></li>
+          <li><a href="#g-dispo">1. Weapon disposition</a></li>
+          <li><a href="#g-meta">2. The meta weight of each stat</a></li>
+          <li><a href="#g-roll">3. Roll magnitude</a></li>
+          <li><a href="#g-elem">4. Elemental combos</a></li>
+          <li><a href="#g-neg">5. The negative: when it matters</a></li>
+          <li><a href="#g-model">6. From score to price: the model</a></li>
+          <li><a href="#g-market">7. Cross-check against the live market</a></li>
+          <li><a href="#g-honest">8. How much you can trust it</a></li>
+        </ul>
+      </div>
+
+      <h2 id="g-why">Why a Riven has no fixed price</h2>
+      <p>A Riven mod is generated with random stats: two to three positive bonuses and, sometimes, a
+        negative, each with a magnitude within a range. Two rivens for the same weapon can be worth 20
+        platinum or 3,000 depending on the combination. That is why «just check the market» is not
+        enough: to appraise one you have to understand <em>what</em> makes a roll good and
+        <em>how much</em> each factor weighs. VoidStonks breaks the appraisal into layers and then
+        combines them.</p>
+
+      <h2 id="g-dispo">1. Weapon disposition</h2>
+      <p><strong>Disposition</strong> is a multiplier Digital Extremes assigns to each weapon, roughly
+        between 0.5 and 1.55. Rarely used weapons get a high disposition (bigger stat numbers) and
+        already-strong weapons get a low disposition (smaller numbers). Disposition changes every few
+        months.</p>
+      <p>Its effect on price is twofold and not always intuitive:</p>
+      <ul>
+        <li>It raises or lowers the possible magnitude of each bonus, setting the «ceiling» of what a
+          roll can give.</li>
+        <li>On a <strong>low-disposition</strong> weapon each stat point is scarcer and therefore more
+          valuable. That is why VoidStonks <strong>amplifies</strong> certain good hits on
+          low-disposition weapons instead of penalising them for having small numbers.</li>
+      </ul>
+
+      <h2 id="g-meta">2. The meta weight of each stat</h2>
+      <p>Not all stats are worth the same. On a crit weapon, «critical chance» and «critical damage»
+        are worth a lot; «magazine capacity» almost nothing. VoidStonks gives each stat a
+        <strong>weight</strong> between 0 and 1 based on what the community actually wants for
+        <em>that specific</em> weapon.</p>
+      <p>The weight is not a fixed list: it is computed by blending two sources:</p>
+      <ul>
+        <li><strong>Weapon-specific weight</strong>: derived from real riven sales for that weapon
+          (which stats show up on the rivens that sell high).</li>
+        <li><strong>Base weight by weapon type</strong>: a general pattern (crit, status, damage…)
+          that acts as a safety net when the weapon has few sales.</li>
+      </ul>
+      <div class="callout">
+        <p style="margin:0;">The blend is weighted by the weapon's <strong>liquidity</strong>: the
+          more real sales there are, the more the weapon-specific weight rules; with little data it
+          leans on the base pattern. In simple terms: <code>weight = α · own + (1−α) · base</code>,
+          where <code>α</code> grows with the number of sales. So an actively traded weapon is
+          appraised on its own data and a rare one is not thrown off by noise.</p>
+      </div>
+      <p>Some nuances the appraiser applies:</p>
+      <ul>
+        <li>A clearly meta stat weighs <strong>1.0</strong>; a mid-tier one about <strong>0.85</strong>.
+          Mid-tier positives <em>also</em> add value: the score is continuous, not just «good or
+          trash».</li>
+        <li>Faction damage (Grineer/Corpus/Infested) is niche: it is valued as something in between,
+          neither total trash nor a godroll, so it adds a little without inflating the roll.</li>
+      </ul>
+
+      <h2 id="g-roll">3. Roll magnitude</h2>
+      <p>Having the right stat is not enough; <em>how high</em> it rolled matters. For each bonus,
+        VoidStonks computes its quality as its position within the possible range:</p>
+      <p><code>quality = (value − min) / (max − min)</code>, clamped between 0 and 1.</p>
+      <p>A +150% damage roll in a +90% to +160% range is nearly perfect (quality ≈ 0.86); the same
+        number in a wider range would be mediocre. When an already-meta stat also rolls very high
+        (quality &gt; 0.8), its weight gets an extra push: that is the difference between a «good
+        riven» and a «godroll».</p>
+
+      <h2 id="g-elem">4. Elemental combos and stat order</h2>
+      <p>Two elemental bonuses can fuse into a stronger compound element —Viral, Corrosive, Radiation,
+        Gas, Magnetic or Blast— and that saves a very valuable mod slot, so it raises the riven's
+        value. The most sought-after compounds (like Viral or Corrosive) add more than the secondary
+        ones.</p>
+      <p>But there is a nuance many people overlook: <strong>the order of the stats on the riven
+        matters</strong>. In Warframe elements combine following mod order, so the position of each
+        element within the riven —and how it fits with the other elementals you put on the weapon— can
+        produce a different compound, better or worse, with exactly the same two bonuses. That is why
+        two rivens with the same stats do not always perform the same in practice: one may form
+        exactly the element you want and another force you to rearrange your build.</p>
+      <p>VoidStonks recognises when a riven can form a strong compound and adds it to the value; how to
+        exploit that order in particular depends on the rest of your build, so it is worth checking
+        when you build the weapon. On low-disposition weapons this saving matters even more, because
+        getting the right element «for free» on the riven frees a slot that would otherwise be very
+        expensive.</p>
+
+      <h2 id="g-neg">5. The negative: when it matters</h2>
+      <p>Many rivens come with a negative stat. The key is not having a negative, but <em>which</em>
+        one: a «harmless» negative (one that does not touch what the weapon needs, like −reload on a
+        melee weapon, or −damage to a faction you do not use) barely reduces value, and can even
+        increase the magnitude of the positives. A negative that hits a key stat of the weapon does
+        penalise. The appraiser accounts for this when valuing the whole roll, not just the positives
+        on their own.</p>
+
+      <h2 id="g-model">6. From score to price: the model</h2>
+      <p>With all of the above, the appraiser builds a <strong>score</strong> for the roll (sum of
+        weights times magnitude, plus the elemental bonuses and disposition adjustments). But a score
+        is not platinum. To turn it into a price, VoidStonks uses a model trained on thousands of real
+        riven sales.</p>
+      <p>Instead of spitting out a single number, the model <strong>places your score on that weapon's
+        price curve</strong>: that is why the result is a range (low · median · high). The same score
+        translates into more platinum on a popular, expensive weapon, and less on one with a small
+        market. The model is distilled into a lightweight format so the appraisal is instant in your
+        browser, with nothing uploaded to a server.</p>
+
+      <h2 id="g-market">7. Cross-check against the live market</h2>
+      <p>The model's estimate is also compared with the real Warframe.market listings at that moment
+        and with a <strong>month of price history</strong>. From that comes a market badge that tells
+        you the situation of the weapon:</p>
+      <ul>
+        <li><strong>Inflated / bubble</strong>: current listings are well above the historical
+          median.</li>
+        <li><strong>Below median</strong>: a good time to buy, low prices.</li>
+        <li><strong>Illiquid</strong>: there are so few listings that any price is unreliable.</li>
+      </ul>
+      <p>This matters because <em>asks</em> (what people ask for) are almost never the price the sale
+        actually closes at. A handful of high listings does not mean your riven sells at that
+        price.</p>
+
+      <h2 id="g-honest">8. How much you can trust it</h2>
+      <p>Let us be honest: appraising rivens has a precision limit no tool can beat, because the
+        market itself is noisy (two nearly identical rivens sell at different prices depending on who
+        and when). The typical error of this kind of estimate is around 50%, so treat the number as
+        <strong>guidance</strong>, not a verdict. The right way to use it:</p>
+      <ul>
+        <li>To tell whether a riven is trash, decent or a godroll: the appraiser nails it.</li>
+        <li>To set an exact price before selling: use the range as a starting point and cross-check
+          with live listings (refresh button ↻).</li>
+      </ul>
+
+      <p class="related">Keep reading: <a href="guide.html">full VoidStonks user guide</a>
+        · <a href="index.html">open the riven appraiser</a>.</p>
+      <p class="muted" style="margin-top:28px;">VoidStonks is not affiliated with or endorsed by
+        Digital Extremes. Warframe™ is a trademark of Digital Extremes Ltd. Prices and data are
+        estimates for informational purposes.</p>
+    </section>
+  </div>
+
+  <script>
+    (function () {
+      var lang = "es";
+      try { var s = JSON.parse(localStorage.getItem("voidStonks_save") || "{}"); if (s.lang === "es" || s.lang === "en") lang = s.lang; } catch (e) {}
+      function apply(l) {
+        lang = l; document.documentElement.lang = l;
+        document.querySelectorAll("[data-lang]").forEach(function (x) { x.classList.toggle("show", x.getAttribute("data-lang") === l); });
+        document.querySelectorAll("[data-set-lang]").forEach(function (b) { b.classList.toggle("active", b.getAttribute("data-set-lang") === l); });
+      }
+      document.querySelectorAll("[data-set-lang]").forEach(function (b) { b.addEventListener("click", function () { apply(b.getAttribute("data-set-lang")); }); });
+      apply(lang);
+    })();
+  </script>
+</body>
+
+</html>
