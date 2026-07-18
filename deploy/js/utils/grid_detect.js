@@ -1,11 +1,41 @@
+// inventory grid autodetection from item name text bands without manual calibration
+
+export const luma = (r, g, b) => 0.299 * r + 0.587 * g + 0.114 * b;
+
+export function smoothedLumaRow(data, off, width, radius) {
+    const raw = new Float32Array(width);
+    for (let x = 0; x < width; x++) {
+        const i = off + x * 4;
+        raw[x] = luma(data[i], data[i + 1], data[i + 2]);
+    }
+    if (radius <= 0) return raw;
+    const out = new Float32Array(width);
+    let sum = 0;
+    for (let x = 0; x <= radius && x < width; x++) sum += raw[x];
+    let count = Math.min(radius, width - 1) + 1;
+    for (let x = 0; x < width; x++) {
+        out[x] = sum / count;
+        const add = x + radius + 1, rem = x - radius;
+        if (add < width) { sum += raw[add]; count++; }
+        if (rem >= 0) { sum -= raw[rem]; count--; }
+    }
+    return out;
+}
+
 const DEFAULTS = {
-    brightThresh: 185,
+    edgeDelta: 26,
+    edgeSmooth: 0,
+    bgDistSq: 70 * 70,
+    mergeColSq: 45 * 45,
+    nameTolSq: 80 * 80,
+    maxInkCands: 4,
     strideX: 2,
     minBandH: 6,
     maxBandHFrac: 0.25,
     mergeGapY: 12,
     bandMassFloor: 0.22,
-    nameBandOffset: 0.60,
+    nameBandOffset: 0.75,
+    nameBaselineOffset: 0.92,
     rows: 3,
     minCols: 3,
     maxCols: 12,
@@ -15,16 +45,26 @@ export function rowProfile(img, opts = {}) {
     const o = { ...DEFAULTS, ...opts };
     const { data, width, height } = img;
     const prof = new Float32Array(height);
+    if (o.inkMask) {
+        const mask = o.inkMask;
+        for (let y = 0; y < height; y++) {
+            let cnt = 0;
+            const rowOff = y * width;
+            for (let x = 0; x < width; x += o.strideX) cnt += mask[rowOff + x];
+            prof[y] = cnt;
+        }
+        return prof;
+    }
     for (let y = 0; y < height; y++) {
         let cnt = 0;
-        let prevBright = false;
-        const off = y * width * 4;
-        for (let x = 0; x < width; x += o.strideX) {
-            const i = off + x * 4;
-            const mx = Math.max(data[i], data[i + 1], data[i + 2]);
-            const bright = mx > o.brightThresh;
-            if (bright && !prevBright) cnt++;
-            prevBright = bright;
+        let inEdge = false;
+        const sm = smoothedLumaRow(data, y * width * 4, width, o.edgeSmooth);
+        let prevL = sm[0];
+        for (let x = o.strideX; x < width; x += o.strideX) {
+            const edge = Math.abs(sm[x] - prevL) > o.edgeDelta;
+            if (edge && !inEdge) cnt++;
+            inEdge = edge;
+            prevL = sm[x];
         }
         prof[y] = cnt;
     }
@@ -74,16 +114,24 @@ export function blocksInBand(img, y0, y1, opts = {}) {
     const o = { ...DEFAULTS, ...opts };
     const { data, width } = img;
     const col = new Float32Array(width);
-    for (let y = y0; y <= y1; y++) {
-        const off = y * width * 4;
-        let prevBright = false;
-        for (let x = 0; x < width; x++) {
-            const i = off + x * 4;
-            const mx = Math.max(data[i], data[i + 1], data[i + 2]);
-            const bright = mx > o.brightThresh;
-            if (bright && !prevBright) col[x]++;
-            prevBright = bright;
+    if (o.inkMask) {
+        const mask = o.inkMask;
+        for (let y = y0; y <= y1; y++) {
+            const rowOff = y * width;
+            for (let x = 0; x < width; x++) col[x] += mask[rowOff + x];
         }
+    } else {
+    for (let y = y0; y <= y1; y++) {
+        const sm = smoothedLumaRow(data, y * width * 4, width, o.edgeSmooth);
+        let inEdge = false;
+        let prevL = sm[0];
+        for (let x = 1; x < width; x++) {
+            const edge = Math.abs(sm[x] - prevL) > o.edgeDelta;
+            if (edge && !inEdge) col[x]++;
+            inEdge = edge;
+            prevL = sm[x];
+        }
+    }
     }
 
     const bandH = y1 - y0 + 1;
@@ -201,7 +249,87 @@ export function estimatePitch(diffs, tol = 0.12) {
     return best;
 }
 
+export function colorInkCandidates(img, opts = {}) {
+    const o = { ...DEFAULTS, ...opts };
+    const { data, width, height } = img;
+    const key = (r, g, b) => ((r >> 3) << 10) | ((g >> 3) << 5) | (b >> 3);
+    const unq = k => [((k >> 10) & 31) << 3, ((k >> 5) & 31) << 3, (k & 31) << 3];
+    const hist = new Map();
+    for (let y = 0; y < height; y += o.strideX) {
+        const rowOff = y * width * 4;
+        for (let x = 0; x < width; x += o.strideX) {
+            const i = rowOff + x * 4;
+            const kk = key(data[i], data[i + 1], data[i + 2]);
+            hist.set(kk, (hist.get(kk) || 0) + 1);
+        }
+    }
+    let bgKey = 0, bgC = -1;
+    for (const [k, c] of hist) if (c > bgC) { bgC = c; bgKey = k; }
+    const bg = unq(bgKey);
+    const entries = [...hist.entries()]
+        .map(([k, c]) => ({ c, col: unq(k) }))
+        .filter(e => {
+            const dr = e.col[0] - bg[0], dg = e.col[1] - bg[1], db = e.col[2] - bg[2];
+            return dr * dr + dg * dg + db * db > o.bgDistSq;
+        })
+        .sort((a, b) => b.c - a.c);
+    const cands = [];
+    for (const e of entries) {
+        if (cands.some(c => {
+            const dr = c[0] - e.col[0], dg = c[1] - e.col[1], db = c[2] - e.col[2];
+            return dr * dr + dg * dg + db * db < o.mergeColSq;
+        })) continue;
+        cands.push(e.col);
+        if (cands.length >= o.maxInkCands) break;
+    }
+    return { bg, cands };
+}
+
+function colorInkMask(img, col, tolSq) {
+    const { data, width, height } = img;
+    const mask = new Uint8Array(width * height);
+    const [cr, cg, cb] = col;
+    for (let i = 0, p = 0; p < mask.length; p++, i += 4) {
+        const dr = data[i] - cr, dg = data[i + 1] - cg, db = data[i + 2] - cb;
+        if (dr * dr + dg * dg + db * db <= tolSq) mask[p] = 1;
+    }
+    return mask;
+}
+
 export function detectInventoryGrid(img, opts = {}) {
+    const o = { ...DEFAULTS, ...opts };
+    if (!img?.data || !img.width || !img.height) return null;
+
+    const edgeRes = detectInventoryGridCore(img, opts);
+    if (edgeRes) return edgeRes;
+
+    const outerTrace = opts.trace || {};
+    const { bg, cands } = colorInkCandidates(img, o);
+    outerTrace.colorFallback = { bg, cands, tried: [] };
+    let best = null;
+    for (const col of cands) {
+        const mask = colorInkMask(img, col, o.nameTolSq);
+        const subTrace = {};
+        const res = detectInventoryGridCore(img, { ...opts, inkMask: mask, trace: subTrace });
+        outerTrace.colorFallback.tried.push({
+            col, ok: !!res,
+            nameBandFrac: res ? +res.nameBandFrac.toFixed(3) : null,
+            fail: res ? null : subTrace.fail,
+        });
+        if (!res) continue;
+        if (!best || res.nameBandFrac < best.nameBandFrac) { best = res; best._nameColor = col; }
+    }
+    if (best) {
+        best.colorAnchored = true;
+        best.nameColor = best._nameColor;
+        delete best._nameColor;
+        return best;
+    }
+    outerTrace.fail = outerTrace.fail || "sin señal de bordes ni de color de nombre";
+    return null;
+}
+
+function detectInventoryGridCore(img, opts = {}) {
     const o = { ...DEFAULTS, ...opts };
     const { width, height } = img;
     if (!img?.data || !width || !height) return null;
@@ -211,7 +339,7 @@ export function detectInventoryGrid(img, opts = {}) {
     const bands = findBands(prof, height, o);
     trace.bands = bands.map(b => ({ y0: b.y0, y1: b.y1, mass: Math.round(b.mass) }));
     if (bands.length < 2) {
-        trace.fail = `bandas de texto insuficientes (${bands.length} < 2) — ¿texto por debajo del umbral de brillo ${o.brightThresh}?`;
+        trace.fail = `bandas de texto insuficientes (${bands.length} < 2) — ¿contraste de bordes por debajo de edgeDelta ${o.edgeDelta}?`;
         return null;
     }
 
@@ -314,14 +442,19 @@ export function detectInventoryGrid(img, opts = {}) {
     const { data } = img;
     for (const bb of rowBands) {
         for (let y = bb.band.y0; y <= bb.band.y1; y++) {
-            const off = y * width * 4;
-            let prevBright = false;
-            for (let x = 0; x < width; x++) {
-                const i = off + x * 4;
-                const mx = Math.max(data[i], data[i + 1], data[i + 2]);
-                const bright = mx > o.brightThresh;
-                if (bright && !prevBright) colProf[x]++;
-                prevBright = bright;
+            if (o.inkMask) {
+                const rowOff = y * width;
+                for (let x = 0; x < width; x++) colProf[x] += o.inkMask[rowOff + x];
+                continue;
+            }
+            const sm = smoothedLumaRow(data, y * width * 4, width, o.edgeSmooth);
+            let inEdge = false;
+            let prevL = sm[0];
+            for (let x = 1; x < width; x++) {
+                const edge = Math.abs(sm[x] - prevL) > o.edgeDelta;
+                if (edge && !inEdge) colProf[x]++;
+                inEdge = edge;
+                prevL = sm[x];
             }
         }
     }
@@ -416,14 +549,19 @@ export function detectInventoryGrid(img, opts = {}) {
     }
     const gridX = Math.max(0, Math.round(gridXf));
 
-    const firstTop = usedTops[0];
-    const gridY = Math.round(firstTop - cellH * o.nameBandOffset);
+    const firstBand = rowBands[0].band;
+    const gridY = firstBand.y1
+        ? Math.round(firstBand.y1 - cellH * o.nameBaselineOffset)
+        : Math.round(usedTops[0] - cellH * o.nameBandOffset);
 
     const rows = rowBands.length;
     const gridW = Math.min(cols * cellW, width - gridX);
     const gridH = Math.min(rows * cellH, height - Math.max(0, gridY));
 
     const confidence = Math.min(1, (chain.members.length + cols) / 10);
+
+    const bandHs = rowBands.map(bb => bb.band.y1 - bb.band.y0 + 1).sort((a, b) => a - b);
+    const nameBandFrac = bandHs.length ? bandHs[bandHs.length >> 1] / cellH : 1;
 
     return {
         gridZone: { x: gridX, y: Math.max(0, gridY), w: gridW, h: gridH },
@@ -439,6 +577,7 @@ export function detectInventoryGrid(img, opts = {}) {
         rows,
         auto: true,
         confidence,
+        nameBandFrac,
     };
 }
 

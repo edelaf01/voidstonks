@@ -1,6 +1,28 @@
-import { getActiveFissures, getArbitration } from "../repositories/api.repository.js";
+import { getActiveFissures, getArbitration, getServerTime } from "../repositories/api.repository.js";
 
 globalThis._serverTimeOffset = globalThis._serverTimeOffset || 0;
+
+let _clockSyncPromise = null;
+let _clockSynced = false;
+
+function syncServerClock() {
+    if (!_clockSyncPromise) {
+        _clockSyncPromise = (async () => {
+            try {
+                const res = await getServerTime();
+                if (!res.ok) return;
+                const body = await res.json();
+                if (typeof body?.now === "number") {
+                    globalThis._serverTimeOffset = Date.now() - body.now;
+                    _clockSynced = true;
+                }
+            } catch (e) {
+                console.warn("[FISSURES] No se pudo sincronizar el reloj con el servidor:", e);
+            }
+        })();
+    }
+    return _clockSyncPromise;
+}
 
 const FISSURE_TTL = 120 * 1000;
 let _fissureCache = { data: null, ts: 0 };
@@ -71,16 +93,9 @@ export async function fetchBestFissures(force = false) {
         allFissures = _fissureCache.data;
     } else {
         try {
-            const res = await getActiveFissures();
+            const clockSync = syncServerClock();
+            const res = await getActiveFissures(force);
             if (!res.ok) throw new Error("Error al conectar con el Worldstate");
-
-            const serverDateStr = res.headers.get("Date");
-            if (serverDateStr) {
-                const parsedMs = new Date(serverDateStr).getTime();
-                if (!isNaN(parsedMs)) {
-                    globalThis._serverTimeOffset = Date.now() - parsedMs;
-                }
-            }
 
             let fissures = await res.json();
 
@@ -98,7 +113,10 @@ export async function fetchBestFissures(force = false) {
                 throw new TypeError("El Worldstate no ha devuelto un array válido de fisuras.");
             }
 
-            if (fissures.length > 0 && !globalThis._serverTimeOffset) {
+            await clockSync;
+
+            // server only returns active fissures: an expiry in the past means the local clock runs ahead
+            if (!_clockSynced && fissures.length > 0 && !globalThis._serverTimeOffset) {
                 const expiryTimes = fissures.map(f => new Date(f.expiry).getTime());
                 const activationTimes = fissures.map(f => new Date(f.activation).getTime());
                 const earliestExpiry = Math.min(...expiryTimes);
@@ -154,7 +172,7 @@ export async function fetchArbitration(force = false) {
         return cached;
     }
     try {
-        const res = await getArbitration();
+        const res = await getArbitration(force);
         if (!res.ok) throw new Error(`Arbitration HTTP ${res.status}`);
         const payload = await res.json();
         const data = payload?.data ?? payload ?? null;

@@ -22,6 +22,35 @@ export const WF_THEMES = [
 
 const THEME_TOL_SQ = 1944;
 
+// measured theme name text colors and voting across cells to pick the binarization color
+export const NAME_TEXT_COLORS = [
+    { name: "White", r: 255, g: 255, b: 255 },
+    { name: "Equinox", r: 158, g: 159, b: 167 },
+    { name: "High Contrast Blue", r: 102, g: 176, b: 255 },
+    { name: "Stalker", r: 153, g: 31, b: 35 },
+    { name: "Vitruvian", r: 190, g: 169, b: 102 },
+    { name: "Zephyr Harrier", r: 195, g: 107, b: 12 },
+    { name: "Baruuk", r: 238, g: 193, b: 105 },
+    { name: "Corpus", r: 35, g: 201, b: 245 },
+    { name: "Dark Lotus", r: 140, g: 119, b: 147 },
+    { name: "Grineer", r: 255, g: 189, b: 102 },
+    { name: "Lotus", r: 36, g: 184, b: 242 },
+    { name: "Nidus", r: 140, g: 38, b: 92 },
+    { name: "Orokin", r: 46, g: 65, b: 55 },
+    { name: "Pom-2", r: 130, g: 224, b: 151 },
+    { name: "Tenno", r: 9, g: 78, b: 106 },
+];
+
+export function snapToThemeTextColor(r, g, b) {
+    let best = null, bestD = 55 * 55;
+    for (const t of NAME_TEXT_COLORS) {
+        const dr = r - t.r, dg = g - t.g, db = b - t.b;
+        const d = dr * dr + dg * dg + db * db;
+        if (d < bestD) { bestD = d; best = t; }
+    }
+    return best ? [best.r, best.g, best.b] : [r, g, b];
+}
+
 export const VisionService = {
     _sharedCvs: document.createElement("canvas"),
     _themeCvs: document.createElement("canvas"),
@@ -325,8 +354,56 @@ export const VisionService = {
         return peaks;
     },
 
-    cropThemeBinarized(sourceCvs, sx, sy, sw, sh, theme) {
+    cropColor(sourceCvs, sx, sy, sw, sh, S = 2) {
+        const cvs = document.createElement("canvas");
+        cvs.width = Math.round(sw * S); cvs.height = Math.round(sh * S);
+        const ctx = cvs.getContext("2d", { willReadFrequently: true });
+        ctx.imageSmoothingEnabled = true;
+        ctx.drawImage(sourceCvs, sx, sy, sw, sh, 0, 0, cvs.width, cvs.height);
+        return cvs;
+    },
+
+    _otsuThreshold(hist, total) {
+        let sum = 0; for (let i = 0; i < 256; i++) sum += i * hist[i];
+        let sumB = 0, wB = 0, maxV = 0, thr = 0;
+        for (let i = 0; i < 256; i++) {
+            wB += hist[i]; if (!wB) continue;
+            const wF = total - wB; if (!wF) break;
+            sumB += i * hist[i];
+            const mB = sumB / wB, mF = (sum - sumB) / wF;
+            const v = wB * wF * (mB - mF) * (mB - mF);
+            if (v > maxV) { maxV = v; thr = i; }
+        }
+        return thr;
+    },
+
+    extractBadgeBright(snapshot, cell, cellW, cellH) {
         const S = 3;
+        const w = Math.round(cellW * 0.40), h = Math.round(cellH * 0.17);
+        const sx = cell.sx, sy = Math.max(0, cell.sy + Math.round(cellH * 0.08));
+        const cvs = document.createElement("canvas");
+        cvs.width = w * S; cvs.height = h * S;
+        const ctx = cvs.getContext("2d", { willReadFrequently: true });
+        ctx.imageSmoothingEnabled = true;
+        ctx.drawImage(snapshot, sx, sy, w, h, 0, 0, cvs.width, cvs.height);
+        const im = ctx.getImageData(0, 0, cvs.width, cvs.height);
+        const px = im.data, N = px.length / 4;
+        const lum = new Float32Array(N), hist = new Uint32Array(256);
+        for (let i = 0; i < N; i++) {
+            const l = 0.299 * px[i * 4] + 0.587 * px[i * 4 + 1] + 0.114 * px[i * 4 + 2];
+            lum[i] = l; hist[Math.min(255, Math.max(0, Math.round(l)))]++;
+        }
+        const thr = Math.max(this._otsuThreshold(hist, N) + 15, 110);
+        for (let i = 0; i < N; i++) {
+            const v = lum[i] >= thr ? 0 : 255;
+            px[i * 4] = px[i * 4 + 1] = px[i * 4 + 2] = v;
+        }
+        ctx.putImageData(im, 0, 0);
+        return cvs;
+    },
+
+    cropThemeBinarized(sourceCvs, sx, sy, sw, sh, theme, nameColorHint, scale) {
+        const S = scale || 3;
         const cvs = document.createElement("canvas");
         cvs.width = sw * S; cvs.height = sh * S;
         const ctx = cvs.getContext("2d", { willReadFrequently: true });
@@ -335,62 +412,162 @@ export const VisionService = {
         const imgData = ctx.getImageData(0, 0, cvs.width, cvs.height);
         const px = imgData.data;
 
-        const targetThemes = theme ? [theme, ...WF_THEMES] : WF_THEMES;
-        const tolSq = theme ? 45 * 45 : 35 * 35;
+        const QKEY = (r, g, b) => ((r >> 3) << 10) | ((g >> 3) << 5) | (b >> 3);
+        const UNQ = (k) => [((k >> 10) & 31) << 3, ((k >> 5) & 31) << 3, (k & 31) << 3];
 
+        const bgHist = new Map();
+        let bgKey = 0, bgCount = -1;
         for (let i = 0; i < px.length; i += 4) {
-            const r = px[i], g = px[i + 1], b = px[i + 2];
-            const luma = 0.299 * r + 0.587 * g + 0.114 * b;
-            let isText = false;
+            const key = QKEY(px[i], px[i + 1], px[i + 2]);
+            const c = (bgHist.get(key) || 0) + 1;
+            bgHist.set(key, c);
+            if (c > bgCount) { bgCount = c; bgKey = key; }
+        }
+        const [bgR, bgG, bgB] = UNQ(bgKey);
 
-            for (const t of targetThemes) {
-                const dr = r - t.r, dg = g - t.g, db = b - t.b;
-                if (dr * dr + dg * dg + db * db < tolSq) {
-                    isText = true;
-                    break;
-                }
-                if (t.actualR !== undefined) {
-                    const dar = r - t.actualR, dag = g - t.actualG, dab = b - t.actualB;
-                    if (dar * dar + dag * dag + dab * dab < tolSq) {
-                        isText = true;
-                        break;
-                    }
+        const bgTolSq = 45 * 45;
+        const txTolSq = 66 * 66;
+        const cw = cvs.width, ch = cvs.height;
+        const bandY0 = Math.floor(ch * 0.45);
+
+        let txR, txG, txB;
+        if (nameColorHint) {
+            [txR, txG, txB] = nameColorHint;
+            let near = 0, bandTotal = 0;
+            for (let y = bandY0; y < ch; y++) {
+                for (let x = 0; x < cw; x++) {
+                    bandTotal++;
+                    const i = (y * cw + x) * 4;
+                    const dr = px[i] - txR, dg = px[i + 1] - txG, db = px[i + 2] - txB;
+                    if (dr * dr + dg * dg + db * db < txTolSq) near++;
                 }
             }
-
-            if (luma > 180) {
-                isText = true;
+            if (near < bandTotal * 0.008) {
+                for (let i = 0; i < px.length; i += 4) px[i] = px[i + 1] = px[i + 2] = 255;
+                ctx.putImageData(imgData, 0, 0);
+                return cvs;
             }
+        } else {
+            const txHist = new Map();
+            let txKey = -1, txCount = -1, bandTotal = 0, candidates = 0;
+            for (let y = bandY0; y < ch; y++) {
+                for (let x = 0; x < cw; x++) {
+                    bandTotal++;
+                    const i = (y * cw + x) * 4;
+                    const dr = px[i] - bgR, dg = px[i + 1] - bgG, db = px[i + 2] - bgB;
+                    if (dr * dr + dg * dg + db * db <= bgTolSq) continue;
+                    candidates++;
+                    const key = QKEY(px[i], px[i + 1], px[i + 2]);
+                    const c = (txHist.get(key) || 0) + 1;
+                    txHist.set(key, c);
+                    if (c > txCount) { txCount = c; txKey = key; }
+                }
+            }
+            if (txKey < 0 || candidates < bandTotal * 0.01) {
+                for (let i = 0; i < px.length; i += 4) px[i] = px[i + 1] = px[i + 2] = 255;
+                ctx.putImageData(imgData, 0, 0);
+                return cvs;
+            }
+            [txR, txG, txB] = snapToThemeTextColor(...UNQ(txKey));
+        }
 
+        const bgLum = bgR * 0.299 + bgG * 0.587 + bgB * 0.114;
+        for (let i = 0; i < px.length; i += 4) {
+            const drBg = px[i] - bgR, dgBg = px[i + 1] - bgG, dbBg = px[i + 2] - bgB;
+            if (drBg * drBg + dgBg * dgBg + dbBg * dbBg <= bgTolSq) {
+                px[i] = px[i + 1] = px[i + 2] = 255;
+                continue;
+            }
+            const lum = px[i] * 0.299 + px[i + 1] * 0.587 + px[i + 2] * 0.114;
+            if (lum < bgLum + 12) {
+                px[i] = px[i + 1] = px[i + 2] = 255;
+                continue;
+            }
+            const dr = px[i] - txR, dg = px[i + 1] - txG, db = px[i + 2] - txB;
+            const isText = dr * dr + dg * dg + db * db < txTolSq;
             px[i] = px[i + 1] = px[i + 2] = isText ? 0 : 255;
         }
 
-        const dilatedImgData = ctx.createImageData(cvs.width, cvs.height);
-        const dPx = dilatedImgData.data;
-        const w = cvs.width;
-        const h = cvs.height;
-
-        for (let i = 0; i < dPx.length; i += 4) {
-            dPx[i] = dPx[i + 1] = dPx[i + 2] = 255;
-            dPx[i + 3] = 255;
-        }
-
+        const w = cvs.width, h = cvs.height;
         for (let y = 1; y < h - 1; y++) {
             for (let x = 1; x < w - 1; x++) {
                 const idx = (y * w + x) * 4;
                 if (px[idx] === 0) {
-                    dPx[idx] = dPx[idx + 1] = dPx[idx + 2] = 0;
-                    dPx[idx - 4] = dPx[idx - 3] = dPx[idx - 2] = 0;
-                    dPx[idx + 4] = dPx[idx + 5] = dPx[idx + 6] = 0;
-                    const topIdx = idx - w * 4;
-                    dPx[topIdx] = dPx[topIdx + 1] = dPx[topIdx + 2] = 0;
-                    const botIdx = idx + w * 4;
-                    dPx[botIdx] = dPx[botIdx + 1] = dPx[botIdx + 2] = 0;
+                    if (px[idx - 4] === 255 && px[idx + 4] === 255 && px[idx - w * 4] === 255 && px[idx + w * 4] === 255) {
+                        px[idx] = px[idx + 1] = px[idx + 2] = 255;
+                    }
                 }
             }
         }
 
-        ctx.putImageData(dilatedImgData, 0, 0);
+        const N = w * h;
+        const label = new Int32Array(N).fill(-1);
+        const stack = new Int32Array(N);
+        const H_TEXT = Math.max(16, Math.round(h * 0.20));
+        const NEAR_Y = Math.round(h * 0.12);
+        const comps = [];
+        for (let p = 0; p < N; p++) {
+            if (px[p * 4] !== 0 || label[p] !== -1) continue;
+            let sp = 0; stack[sp++] = p; label[p] = comps.length;
+            let minX = w, maxX = 0, minY = h, maxY = 0;
+            while (sp > 0) {
+                const q = stack[--sp];
+                const qx = q % w, qy = (q / w) | 0;
+                if (qx < minX) minX = qx; if (qx > maxX) maxX = qx;
+                if (qy < minY) minY = qy; if (qy > maxY) maxY = qy;
+                if (qx > 0 && px[(q - 1) * 4] === 0 && label[q - 1] === -1) { label[q - 1] = comps.length; stack[sp++] = q - 1; }
+                if (qx < w - 1 && px[(q + 1) * 4] === 0 && label[q + 1] === -1) { label[q + 1] = comps.length; stack[sp++] = q + 1; }
+                if (qy > 0 && px[(q - w) * 4] === 0 && label[q - w] === -1) { label[q - w] = comps.length; stack[sp++] = q - w; }
+                if (qy < h - 1 && px[(q + w) * 4] === 0 && label[q + w] === -1) { label[q + w] = comps.length; stack[sp++] = q + w; }
+            }
+            comps.push({ minX, maxX, minY, maxY, isText: (maxY - minY + 1) >= H_TEXT });
+        }
+        const texts = comps.filter(c => c.isText);
+        const keep = comps.map(c => {
+            if (c.isText) return true;
+            for (const t of texts) {
+                const xOverlap = c.minX <= t.maxX && c.maxX >= t.minX;
+                const yGap = c.maxY < t.minY ? t.minY - c.maxY : (c.minY > t.maxY ? c.minY - t.maxY : 0);
+                if (xOverlap && yGap <= NEAR_Y) return true;
+            }
+            return false;
+        });
+        if (texts.length > 0) {
+            for (let p = 0; p < N; p++) {
+                if (px[p * 4] === 0 && !keep[label[p]]) {
+                    px[p * 4] = px[p * 4 + 1] = px[p * 4 + 2] = 255;
+                }
+            }
+        }
+
+        if (texts.length > 0) {
+            const rowInk = new Int32Array(h);
+            let maxRow = 0;
+            for (let y = 0; y < h; y++) {
+                let cnt = 0; const off = y * w * 4;
+                for (let x = 0; x < w; x++) if (px[off + x * 4] === 0) cnt++;
+                rowInk[y] = cnt;
+                if (cnt > maxRow) maxRow = cnt;
+            }
+            const rowThr = Math.max(2, maxRow * 0.08);
+            const maxGap = Math.round(h * 0.10);
+            let bottom = -1, top = -1, gap = 0;
+            for (let y = h - 1; y >= 0; y--) {
+                if (rowInk[y] >= rowThr) { if (bottom < 0) bottom = y; top = y; gap = 0; }
+                else if (bottom >= 0 && ++gap > maxGap) break;
+            }
+            if (top >= 0) {
+                const pad = Math.round(h * 0.02);
+                const y0 = Math.max(0, top - pad), y1 = Math.min(h - 1, bottom + pad);
+                for (let y = 0; y < h; y++) {
+                    if (y >= y0 && y <= y1) continue;
+                    const off = y * w * 4;
+                    for (let x = 0; x < w; x++) { const i = off + x * 4; px[i] = px[i + 1] = px[i + 2] = 255; }
+                }
+            }
+        }
+
+        ctx.putImageData(imgData, 0, 0);
         return cvs;
     },
 
@@ -415,8 +592,8 @@ export const VisionService = {
 
     createTextCanvas(ocrCanvas, cell, grid) {
         const TEXT_SCALE = 3;
-        const textSrcY = Math.floor(grid.cellH * 0.22);
-        const textSrcH = grid.cellH - textSrcY + Math.floor(grid.cellH * 0.08);
+        const textSrcY = Math.floor(grid.cellH * 0.76);
+        const textSrcH = Math.floor(grid.cellH * 0.21);
         const textCvs = this._textCvs;
         textCvs.width = grid.cellW * TEXT_SCALE;
         textCvs.height = textSrcH * TEXT_SCALE;
@@ -530,11 +707,14 @@ export const VisionService = {
         }
         let l1 = 0.299 * c1[0] + 0.587 * c1[1] + 0.114 * c1[2], l2 = 0.299 * c2[0] + 0.587 * c2[1] + 0.114 * c2[2];
         let textC = l2 > l1 ? c2 : c1, bgC = l2 > l1 ? c1 : c2;
+        let bgL = Math.min(l1, l2);
         for (let i = 0; i < px.length; i += 4) {
             let r = px[i], g = px[i + 1], b = px[i + 2];
             let dT = Math.abs(r - textC[0]) + Math.abs(g - textC[1]) + Math.abs(b - textC[2]);
             let dB = Math.abs(r - bgC[0]) + Math.abs(g - bgC[1]) + Math.abs(b - bgC[2]);
-            px[i] = px[i + 1] = px[i + 2] = (dT < dB * 1.2) ? 0 : 255;
+            let lum = 0.299 * r + 0.587 * g + 0.114 * b;
+            let isBgNoise = lum < bgL + 15 || dT >= dB * 1.05;
+            px[i] = px[i + 1] = px[i + 2] = isBgNoise ? 255 : 0;
         }
         ctx.putImageData(imgData, 0, 0);
     },
@@ -640,31 +820,42 @@ export const VisionService = {
             return [h, mx === 0 ? 0 : d / mx, mx];
         };
 
+        const totalPx = px.length / 4;
         const bins = new Array(36).fill(0);
         const hsum = new Array(36).fill(0);
         for (let i = 0; i < px.length; i += 4) {
             const [h, s, v] = toHSV(px[i], px[i + 1], px[i + 2]);
-            if (v > 0.47 && s > 0.55) {
+            if (v > 0.62 && s > 0.55) {
                 const bi = Math.min(35, Math.floor(h * 36));
                 bins[bi]++; hsum[bi] += h;
             }
         }
-        let peak = 0;
-        for (let i = 1; i < 36; i++) if (bins[i] > bins[peak]) peak = i;
-        const Hd = bins[peak] >= 20 ? hsum[peak] / bins[peak] : null;
-
-        for (let i = 0; i < px.length; i += 4) {
-            const [h, s, v] = toHSV(px[i], px[i + 1], px[i + 2]);
-            let isText;
-            if (Hd === null) {
-                isText = v > 0.78 && s < 0.45;
-            } else {
-                let hd = Math.abs(h - Hd); if (hd > 0.5) hd = 1 - hd;
-                isText = v > 0.30 && s > 0.45 && hd < 0.125;
-            }
-            const val = isText ? 0 : 255;
-            px[i] = px[i + 1] = px[i + 2] = val;
+        const TINT_CAP = totalPx * 0.18;
+        let peak = -1;
+        for (let i = 0; i < 36; i++) {
+            if (bins[i] > TINT_CAP) continue;
+            if (peak < 0 || bins[i] > bins[peak]) peak = i;
         }
+        const Hd = (peak >= 0 && bins[peak] >= 20) ? hsum[peak] / bins[peak] : null;
+
+        const buildMask = (useHue) => {
+            let textCount = 0;
+            for (let i = 0; i < px.length; i += 4) {
+                const [h, s, v] = toHSV(px[i], px[i + 1], px[i + 2]);
+                let isText;
+                if (!useHue) {
+                    isText = v > 0.78 && s < 0.45;
+                } else {
+                    let hd = Math.abs(h - Hd); if (hd > 0.5) hd = 1 - hd;
+                    isText = v > 0.30 && s > 0.45 && hd < 0.125;
+                }
+                px[i] = px[i + 1] = px[i + 2] = isText ? 0 : 255;
+                if (isText) textCount++;
+            }
+            return textCount / totalPx;
+        };
+        const density = buildMask(Hd !== null);
+        if (Hd !== null && density > 0.22) buildMask(false);
         ctx.putImageData(img, 0, 0);
         return cvs;
     },
@@ -1026,15 +1217,18 @@ export const VisionService = {
         const ctx = snapshot.getContext("2d", { willReadFrequently: true });
         const data = ctx.getImageData(zx, zy, zw, zh).data;
 
+        const EDGE_DELTA = 32;
         const bright = new Float32Array(zh);
         let totalBright = 0;
         for (let y = 0; y < zh; y++) {
             let cnt = 0;
             const rowOff = y * zw * 4;
-            for (let x = 0; x < zw; x += 4) {
+            let prevL = 0.299 * data[rowOff] + 0.587 * data[rowOff + 1] + 0.114 * data[rowOff + 2];
+            for (let x = 4; x < zw; x += 4) {
                 const i = rowOff + x * 4;
-                const mx = Math.max(data[i], data[i + 1], data[i + 2]);
-                if (mx > 185) cnt++;
+                const L = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+                if (Math.abs(L - prevL) > EDGE_DELTA) cnt++;
+                prevL = L;
             }
             bright[y] = cnt;
             totalBright += cnt;
@@ -1049,19 +1243,7 @@ export const VisionService = {
             return s;
         };
 
-        const half = Math.floor(cellH / 2);
-        let bestDy = 0;
-        let bestScore = -Infinity;
-        for (let dy = -half; dy <= half; dy += 2) {
-            let score = 0;
-            for (const top of rowTops) {
-                const t = top - zy + dy;
-                score += band(t + cellH * 0.58, t + cellH * 0.92);
-                score -= 2 * band(t - cellH * 0.04, t + cellH * 0.04);
-            }
-            if (score > bestScore) { bestScore = score; bestDy = dy; }
-        }
-        return Math.abs(bestDy) <= 4 ? 0 : bestDy;
+        return 0;
     },
 
     _applyRowPhase(snapshot, gridZone, grid) {
@@ -1076,7 +1258,7 @@ export const VisionService = {
     },
 
     extractBadgeByColor(snapshot, cell, cellW, cellH, theme) {
-        const safeW = Math.round(cellW * 0.35);
+        const safeW = Math.round(cellW * 0.55);
         const padTop = 12;
         const startY = Math.max(0, cell.sy - padTop);
         const safeH = Math.round(cellH * 0.25) + padTop;

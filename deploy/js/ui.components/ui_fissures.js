@@ -182,7 +182,7 @@ export function highlightFissureTier(tier) {
   });
 }
 
-export async function initFissurePanel() {
+export async function initFissurePanel(forceRefetch = false) {
   let missionDiv = document.getElementById("best-missions-container");
   const t = TEXTS[state.currentLang];
 
@@ -195,11 +195,11 @@ export async function initFissurePanel() {
   const fissurePrefs = getFissurePrefs();
 
   missionDiv.innerHTML = `
-      <div id="mission-toggle-btn" class="mission-toggle-btn" onclick="document.getElementById('best-missions-container').classList.toggle('open')">
+      <div id="mission-toggle-btn" class="mission-toggle-btn">
          <img src="assets/fissureicon.webp" class="toggle-img" alt="Fisuras">
       </div>
 
-      <div class="panel-main-header" id="fissure-panel-header" style="cursor:pointer;" onclick="initFissurePanel()">
+      <div class="panel-main-header" id="fissure-panel-header" style="cursor:pointer;">
           <svg class="gauss-icon" id="gauss-runner" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
             <path d="M18.5,5.5 C18.5,5.5 14,8 12,10 C10,12 5,11 2,12 C5,13 9,14 11,16 C13,18 16,19 18.5,19 C16,17 14,14 14,12 C14,10 16,7 18.5,5.5 Z M22,2 L20,4 C20,4 17,7 17,12 C17,17 20,20 20,20 L22,22" fill="currentColor"/>
           </svg>
@@ -222,6 +222,23 @@ export async function initFissurePanel() {
 
   const header = document.getElementById("fissure-panel-header");
   const runner = document.getElementById("gauss-runner");
+  const toggleBtn = document.getElementById("mission-toggle-btn");
+
+  if (toggleBtn) {
+    toggleBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const panel = document.getElementById("best-missions-container");
+      if (panel) {
+        const isOpening = !panel.classList.contains("open");
+        panel.classList.toggle("open");
+        if (isOpening) {
+           renderMissionList(true);
+           renderArbitrationBar();
+        }
+      }
+    });
+  }
+
   let runTimeout;
   if (header && runner) {
     header.onmouseenter = () => {
@@ -233,6 +250,7 @@ export async function initFissurePanel() {
       }, 2000);
     };
     header.onmouseleave = () => clearTimeout(runTimeout);
+    header.addEventListener("click", () => initFissurePanel(true));
   }
 
   const filtersToggleBtn = document.getElementById("fissure-filters-toggle");
@@ -272,14 +290,15 @@ export async function initFissurePanel() {
   if (!globalThis._fissureRefreshInterval) {
     globalThis._fissureRefreshInterval = setInterval(() => {
       const panel = document.getElementById("best-missions-container");
-      if (panel?.classList.contains("open")) {
+      const hasMissions = document.querySelectorAll(".mission-item").length > 0;
+      if (panel?.classList.contains("open") || !hasMissions) {
         console.log("[FISSURES]: Auto-refreshing missions...");
-        initFissurePanel();
+        initFissurePanel(true);
       }
     }, 150 * 1000);
   }
 
-  await renderMissionList();
+  await renderMissionList(forceRefetch);
   renderArbitrationBar();
 
   if (!globalThis._fissureCountdownInterval) {
@@ -295,6 +314,8 @@ export async function initFissurePanel() {
         if (diffMs <= 0) {
           el.innerText = state.currentLang === "es" ? "Expirado" : "Expired";
           expiredFound = true;
+          const row = el.closest(".mission-item");
+          if (row) setTimeout(() => row.style.display = "none", 1000);
         } else {
           const totalSecs = Math.floor(diffMs / 1000);
           const hrs = Math.floor(totalSecs / 3600);
@@ -320,15 +341,13 @@ export async function initFissurePanel() {
       });
 
       if (expiredFound) {
-        const now = syncedNow;
-        if (!globalThis._fissureLastExpiryRefresh || now - globalThis._fissureLastExpiryRefresh > 60000) {
-          globalThis._fissureLastExpiryRefresh = now;
-          console.log("[FISSURES]: Fissure expired, refreshing list...");
-          if (globalThis._fissureCountdownInterval) {
-            clearInterval(globalThis._fissureCountdownInterval);
-            globalThis._fissureCountdownInterval = null;
-          }
-          initFissurePanel();
+        if (!globalThis._fissureRefreshPending) {
+          globalThis._fissureRefreshPending = true;
+          console.log("[FISSURES]: Fissure expired, waiting 65s for API cache to clear before refreshing...");
+          setTimeout(() => {
+            globalThis._fissureRefreshPending = false;
+            initFissurePanel(true);
+          }, 65000);
         }
       }
     }, 1000);
@@ -339,9 +358,22 @@ async function renderArbitrationBar() {
   const box = document.getElementById("fissure-arby-bar");
   if (!box) return;
   try {
-    const arby = await fetchArbitration();
-    const cur = arby?.current;
-    if (!cur) {
+    const arby = await fetchArbitration(true);
+    let cur = arby?.current;
+    let upcoming = arby?.upcoming || [];
+    const syncedNow = new Date(Date.now() - (globalThis._serverTimeOffset || 0));
+
+    if (cur && new Date(cur.expiry) <= syncedNow) {
+      const activeIdx = upcoming.findIndex(m => new Date(m.activation) <= syncedNow && new Date(m.expiry) > syncedNow);
+      if (activeIdx !== -1) {
+        cur = upcoming[activeIdx];
+        upcoming = upcoming.slice(activeIdx + 1);
+      } else {
+        cur = null;
+      }
+    }
+
+    if (!cur || new Date(cur.expiry) <= syncedNow) {
       box.style.display = "none";
       return;
     }
@@ -351,7 +383,7 @@ async function renderArbitrationBar() {
       ? `<span class="arby-tier${big ? " big" : ""}" data-tooltip="${escapeHTML(t.arbitration.tierTooltip)}">${escapeHTML(m.tier)}</span>`
       : "";
 
-    const upcomingRows = (arby.upcoming || []).slice(0, 3).map((m) => {
+    const upcomingRows = upcoming.slice(0, 3).map((m) => {
       const diffMins = Math.max(0, Math.round((new Date(m.activation) - (Date.now() - (globalThis._serverTimeOffset || 0))) / 60000));
       const rel = diffMins >= 60
         ? `${Math.floor(diffMins / 60)}h ${String(diffMins % 60).padStart(2, "0")}m`
@@ -398,13 +430,21 @@ async function renderArbitrationBar() {
   }
 }
 
-async function renderMissionList() {
+async function renderMissionList(forceRefetch = false) {
   const listArea = document.getElementById("fissures-list-area");
   if (!listArea) return;
 
-  let allMissions = await fetchBestFissures();
+  let allMissions = await fetchBestFissures(forceRefetch);
+  const syncedNow = Date.now() - (globalThis._serverTimeOffset || 0);
 
-  allMissions = allMissions.filter(m => !m.expiry || (new Date(m.expiry) - (Date.now() - (globalThis._serverTimeOffset || 0))) > 0);
+  let validMissions = allMissions.filter(m => !m.expiry || (new Date(m.expiry) - syncedNow) > 0);
+
+  if (validMissions.length === 0 && !forceRefetch) {
+      allMissions = await fetchBestFissures(true);
+      validMissions = allMissions.filter(m => !m.expiry || (new Date(m.expiry) - syncedNow) > 0);
+  }
+
+  allMissions = validMissions;
 
   const tiersOrder = ["Lith", "Meso", "Neo", "Axi", "Requiem", "Omnia"];
   const tiersData = {

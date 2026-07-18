@@ -59,6 +59,34 @@ export const OCRService = {
         return (longer.length - this.editDistance(longer, shorter)) / longer.length;
     },
 
+    _ocrConfMap: (() => {
+        const groups = ["O0QDCG", "IL1T|J", "S5", "B8", "G6", "Z2", "UV", "NMH", "PF", "EF", "RT", "VY", "A4", "KR", "W"];
+        const map = new Map();
+        for (const g of groups) for (const ch of g) map.set(ch, (map.get(ch) || "") + g);
+        return map;
+    })(),
+
+    similarityOCR(a, b) {
+        a = a.toUpperCase(); b = b.toUpperCase();
+        const m = a.length, n = b.length;
+        if (!m || !n) return m === n ? 1 : 0;
+        let prev = new Float32Array(n + 1), cur = new Float32Array(n + 1);
+        for (let j = 0; j <= n; j++) prev[j] = j;
+        for (let i = 1; i <= m; i++) {
+            cur[0] = i;
+            const ca = a[i - 1];
+            const conf = this._ocrConfMap.get(ca);
+            for (let j = 1; j <= n; j++) {
+                const cb = b[j - 1];
+                const sub = ca === cb ? 0 : (conf && conf.includes(cb) ? 0.4 : 1);
+                cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + sub);
+            }
+            [prev, cur] = [cur, prev];
+        }
+        const longer = Math.max(m, n);
+        return (longer - prev[n]) / longer;
+    },
+
     RELIC_TIERS: ["LITH", "MESO", "NEO", "AXI", "REQUIEM"],
     RELIC_NOISE_TOKENS: new Set([
         "RELIC", "RADIANT", "INTACT", "EXCEPTIONAL", "FLAWLESS",
@@ -198,12 +226,12 @@ export const OCRService = {
 
             let matchedToken = knownTokens.includes(text) ? text : null;
             if (!matchedToken) {
+                let best = null, bestScore = text.length >= 7 ? 0.70 : 0.72;
                 for (const token of knownTokens) {
-                    if (this.getSimilarity(text, token) >= 0.75) {
-                        matchedToken = token;
-                        break;
-                    }
+                    const s = this.similarityOCR(text, token);
+                    if (s > bestScore) { bestScore = s; best = token; }
                 }
+                matchedToken = best;
             }
 
             if (matchedToken) {
@@ -250,9 +278,13 @@ export const OCRService = {
                 const minRatio = isStrip ? 0.55 : 0.65;
 
                 if (ratio > minRatio && this._countValidTokens(searchTokens, localWords) >= minWords) {
-                    const matchedWords = localWords.filter(w => searchTokens.includes(w.text));
-                    const avgX = matchedWords.length > 0 
-                        ? matchedWords.reduce((s, w) => s + w.x, 0) / matchedWords.length 
+                    const matchedWords = searchTokens
+                        .map(tok => localWords
+                            .filter(w => w.text === tok)
+                            .sort((a, b) => Math.abs(a.x - anchor.x) - Math.abs(b.x - anchor.x))[0])
+                        .filter(Boolean);
+                    const avgX = matchedWords.length > 0
+                        ? matchedWords.reduce((s, w) => s + w.x, 0) / matchedWords.length
                         : anchor.x;
 
                     itemMatches.push({
@@ -413,7 +445,8 @@ export const OCRService = {
 
         if (textWords.length === 0) return null;
 
-        const isOptionalBlueprint = (targetComp, prevWordDB) => {
+        const isOptionalWord = (targetComp, prevWordDB) => {
+            if (targetComp === "PRIME" || targetComp === "P" || targetComp === "PR") return true;
             if (targetComp !== "BLUEPRINT") return false;
             return ["NEUROPTICS", "SYSTEMS", "CHASSIS", "HARNESS", "WINGS", "CARAPACE", "CEREBRUM", "FORMA"].includes(prevWordDB);
         };
@@ -422,43 +455,12 @@ export const OCRService = {
             const cleanOCR = ocrStr.toUpperCase().replaceAll(/[^A-Z0-9]/g, "");
             const cleanDB = dbFirstWord.toUpperCase().replaceAll(/[^A-Z0-9]/g, "");
             if (cleanOCR === cleanDB) return true;
-            
-            if (cleanDB === "BO" && ["3E", "30", "36", "3B", "3b", "86", "8b", "80", "8O", "SO", "AO", "DO", "CO", "B0", "O0"].includes(cleanOCR)) {
-                return true;
-            }
-
-            if (cleanDB === "DAKRA" && ["DALIA", "DAKLA", "DACRA", "DARRA", "DATRA"].includes(cleanOCR)) {
-                return true;
-            }
-
-            if (cleanDB === "HYDROID" && cleanOCR === "DROID") {
-                return true;
-            }
-
-            if (cleanDB === "FANG" && ["ZANC", "FANC", "ZANG", "EANG", "ANG", "ANC"].includes(cleanOCR)) {
-                return true;
-            }
-
-            if (cleanDB === "AFURIS" && ["AFUNS", "AFUNIS", "AFUR1S", "AFUN1S"].includes(cleanOCR)) {
-                return true;
-            }
-
             if (cleanOCR.length < 3 || cleanDB.length < 3) return cleanOCR === cleanDB;
-            const similarityThreshold = dbFirstWord.length <= 3 ? 0.8 : 0.70;
-            return this.getSimilarity(cleanOCR, cleanDB) >= similarityThreshold;
+            const thr = cleanDB.length <= 4 ? 0.72 : 0.62;
+            return this.similarityOCR(cleanOCR, cleanDB) >= thr;
         };
 
-        const normalizeComponent = (word, targetComp) => {
-            const w = word.toUpperCase();
-            const t = targetComp.toUpperCase();
-            if (t === "RECEIVER" && /^(KEC|REC|CELV|RES)/i.test(w) && (w.includes("VE") || w.includes("IV"))) return "RECEIVER";
-            if (t === "HANDLE" && /^(FAN|HAN|AN)/i.test(w) && w.includes("LE")) return "HANDLE";
-            if (t === "BLUEPRINT" && /^(BLU|BLA|B1U|3LU)/i.test(w) && (w.includes("INT") || w.includes("INI") || w.includes("EPR"))) return "BLUEPRINT";
-            if (t === "NEUROPTICS" && /^(NEU|NEPT)/i.test(w) && w.includes("TICS")) return "NEUROPTICS";
-            if (t === "GAUNTLET" && (w === "ES" || w === "RES" || w === "ON" || w === "RESON" || w === "AR" || w === "AS" || w === "ER" || w === "RE" || /^(GAU|GNT|AN|RES)/i.test(w) || w.endsWith("ON"))) return "GAUNTLET";
-            if (t === "LIMB" && w.length <= 5 && w !== "LINK" && (/^L[IYM]/.test(w) || ["UMB", "IMB", "MB"].includes(w))) return "LIMB";
-            return w;
-        };
+        const COMP_THR = 0.6;
 
         const attemptItemMatch = (startIndex, item, lookAheadLimit, ocrWords) => {
             const matchedIndices = [startIndex];
@@ -471,20 +473,18 @@ export const OCRService = {
                     if (nextIdx >= ocrWords.length) continue;
 
                     const cleanWord = ocrWords[nextIdx].replaceAll(/[^A-Z]/g, "");
-                    const normWord = normalizeComponent(cleanWord, targetComp);
 
                     let combinedWord = cleanWord;
                     if (nextIdx + 1 < ocrWords.length) {
                         combinedWord += ocrWords[nextIdx + 1].replaceAll(/[^A-Z]/g, "");
                     }
-                    const normCombined = normalizeComponent(combinedWord, targetComp);
 
-                    if (this.getSimilarity(normWord, targetComp) >= 0.70) {
+                    if (this.similarityOCR(cleanWord, targetComp) >= COMP_THR) {
                         matchedIndices.push(nextIdx);
                         currentPos = nextIdx;
                         found = true;
                         break;
-                    } else if (this.getSimilarity(normCombined, targetComp) >= 0.70) {
+                    } else if (this.similarityOCR(combinedWord, targetComp) >= COMP_THR) {
                         matchedIndices.push(nextIdx);
                         matchedIndices.push(nextIdx + 1);
                         currentPos = nextIdx + 1;
@@ -492,13 +492,15 @@ export const OCRService = {
                         break;
                     }
                 }
-                if (!found && !isOptionalBlueprint(targetComp, item.searchWords[j - 1])) return null;
+                if (!found && !isOptionalWord(targetComp, item.searchWords[j - 1])) return null;
             }
             return matchedIndices;
         };
 
         let bestItem = null;
         let longestMatch = 0;
+        let bestWords = 0;
+        let bestScore = -1;
 
         for (const item of this.cachedDbItems) {
             for (let i = 0; i < textWords.length; i++) {
@@ -515,8 +517,18 @@ export const OCRService = {
 
                 if (isMatch) {
                     const matched = attemptItemMatch(i + matchedIndexOffset, item, 4, textWords);
-                    if (matched && matched.length > longestMatch) {
+                    if (!matched) continue;
+                    const ocrFirst = (matchedIndexOffset
+                        ? textWords[i] + textWords[i + 1]
+                        : textWords[i]).toUpperCase().replaceAll(/[^A-Z0-9]/g, "");
+                    const score = this.similarityOCR(ocrFirst, item.firstWord.toUpperCase());
+                    const words = item.searchWords.length;
+                    if (matched.length > longestMatch
+                        || (matched.length === longestMatch && words > bestWords)
+                        || (matched.length === longestMatch && words === bestWords && score > bestScore)) {
                         longestMatch = matched.length;
+                        bestWords = words;
+                        bestScore = score;
                         bestItem = item;
                     }
                 }

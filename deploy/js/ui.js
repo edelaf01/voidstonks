@@ -86,7 +86,7 @@ export function switchTab(mode) {
   document.body.classList.add(`theme-${mode}`);
 
   if (mode === "bounties" && mainCard) mainCard.classList.add("theme-bounties");
-  ["relic", "set", "riven", "profile", "lfg", "bounties", "vosfor"].forEach((m) => {
+  ["relic", "set", "riven", "profile", "lfg", "bounties", "vosfor", "ducat"].forEach((m) => {
     document.getElementById("mode-" + m)?.classList.add("hidden");
   });
   document.getElementById("mode-" + mode)?.classList.remove("hidden");
@@ -102,6 +102,8 @@ export function switchTab(mode) {
     }
   } else if (mode === "vosfor") {
     initVosforTab().catch(console.error);
+  } else if (mode === "ducat") {
+    if (typeof globalThis.renderDucanatorTab === "function") globalThis.renderDucanatorTab();
   }
 
   const footer = document.getElementById("footer-relic");
@@ -190,9 +192,22 @@ function updateNavTabs(t) {
   setTab("btn-lfg", t.menuLfg || "LFG", t.tooltips.tabLfg);
   setTab("btn-bounties", t.menuBounties || "Farms", t.tooltips.tabBounties);
   setTab("btn-vosfor", t.vosfor?.tabName || "Vosfor", t.vosfor?.tabTip);
+  setTab("btn-ducat", t.ducanator?.tabTitle || "Ducanator", t.ducanator?.tabTitle);
+  updateDucatFilterLabels(t);
+}
+
+function updateDucatFilterLabels(t) {
+  const d = t.ducanator || {};
+  setText("ducat-desc", d.desc);
+  setText("ducat-adv-label", d.filters);
+  setPlaceholder("ducat-search", d.searchPlaceholder);
+  setText("ducat-owned-label", d.ownedOnly);
+  setText("ducat-threshold-label", d.threshold);
 }
 
 function updateStaticTexts(t) {
+  document.body.dataset.lang = state.currentLang;
+
   setText("txt-header-title", t.headerTitle);
   setText("txt-header-sub", t.headerSub);
   setText("txt-footer-data", t.footerData);
@@ -438,6 +453,9 @@ export function updateUILabels() {
   }
   applyArbTexts();
   if (state.activeTab === "vosfor") renderVosforTab().catch(console.error);
+  if (state.activeTab === "ducat" && typeof globalThis.renderDucanatorTab === "function") {
+    globalThis.renderDucanatorTab();
+  }
   triggerSideEffects(t);
 }
 
