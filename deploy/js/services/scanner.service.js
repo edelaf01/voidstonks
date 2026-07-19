@@ -1,6 +1,6 @@
 import { VisionService, WF_THEMES } from "./vision.service.js";
 import { isImplausibleFallbackGrid } from "../utils/grid_detect.js";
-import { OCRService } from "./ocr.service.js";
+import { OCRService } from "./ocr.service.js?v=264";
 import { OCRRepository } from "../repositories/ocr.repository.js";
 import { PaddleRepository } from "../repositories/paddle.repository.js";
 import { OpenCVRepository } from "../repositories/opencv.repository.js";
@@ -1127,14 +1127,24 @@ export const ScannerService = {
         // Mismo recorte/escala que ocrCanvas -> las cajas de palabra comparten coordenadas, así que
         // parseRewards (que separa columnas por X) fusiona nombres (color) + Owned/Crafted (grayscale).
         // Las DOS pasadas corren EN PARALELO (workers distintos) -> no suman latencia frente a una sola.
+        // prepareRewardNamesCanvas devuelve null si su máscara salió densa (= ruido, no letras):
+        // en ese caso NO se corre la pasada de nombres — su OCR inyectaría decenas de palabras
+        // basura en mergedWords (anclas espurias tipo "Ris") sin aportar ningún nombre real.
         const namesCanvas = VisionService.prepareRewardNamesCanvas(video, width, height, scale);
-        await OCRRepository.ensureSecondWorker(); // el 2º worker se crea perezoso (RAM)
-        const w0 = OCRRepository.workers[0];
-        const w1 = OCRRepository.workers[1] || w0;
-        const [metaRes, namesRes] = await Promise.all([
-            OCRRepository.recognize(w0, ocrCanvas, {}, { blocks: true }),
-            OCRRepository.recognize(w1, namesCanvas, {}, { blocks: true }),
-        ]);
+        let metaRes, namesRes;
+        if (namesCanvas) {
+            await OCRRepository.ensureSecondWorker(); // el 2º worker se crea perezoso (RAM)
+            const w0 = OCRRepository.workers[0];
+            const w1 = OCRRepository.workers[1] || w0;
+            [metaRes, namesRes] = await Promise.all([
+                OCRRepository.recognize(w0, ocrCanvas, {}, { blocks: true }),
+                OCRRepository.recognize(w1, namesCanvas, {}, { blocks: true }),
+            ]);
+        } else {
+            console.log("[REWARD] Names pass skipped: noisy mask");
+            metaRes = await OCRRepository.recognize(OCRRepository.workers[0], ocrCanvas, {}, { blocks: true });
+            namesRes = { data: { text: "", words: [] } };
+        }
         const data = metaRes.data;
         const rawOcr = data.text || "";
         console.log(`[REWARD] OCR raw (grayscale/badges): "${rawOcr.replaceAll(/\n+/g, " ").trim().slice(0, 120)}"`);
@@ -1161,6 +1171,10 @@ export const ScannerService = {
         clearRewardDebugLogs();
         const cleanOcrText = rawOcr.replaceAll(/\n+/g, ' ').trim();
         addRewardDebugLog("OCR", `Read: ${cleanOcrText}`, "info");
+        // La pasada de NOMBRES (máscara por color) es la que rescata nombres que el grayscale
+        // garblea (p.ej. 1ª línea de nombres a 2-3 líneas pegada al arte dorado); sin verla en
+        // el panel no se puede diagnosticar cuál de las dos pasadas falló.
+        addRewardDebugLog("OCR2", namesCanvas ? `Names: ${namesRaw.replaceAll(/\n+/g, " ").trim()}` : "Names: (skipped - noisy mask)", "info");
         addRewardDebugLog("SCAN", `Items found: ${foundItems.length}`, foundItems.length > 0 ? "match" : "warn");
 
         // Guard de contexto: la pantalla de FIN DE MISIÓN muestra partes prime en su grid

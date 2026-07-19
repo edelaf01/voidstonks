@@ -9,8 +9,16 @@ import {
   generateDotsHtml,
   generateSetProgressTooltip,
 } from "../utils/ui_utils.js";
+// Mismo especificador (?v=1.1) que ui.js/main.js: otro distinto crearía una segunda instancia
+// del módulo con su propio estado interno.
+import { updateRecommendedMissions } from "./ui_fissures.js?v=1.1";
 
 let debounceTimer;
+
+// Última reliquia con la que se abrió el panel de fisuras: manualRelicUpdate también corre en
+// re-renders (cambio de idioma, debounce del input), y sin este guard el panel se re-abriría
+// aunque el usuario lo hubiera cerrado.
+let lastFissureRelic = null;
 
 export function findBestRelicMatch(inputVal) {
   if (!inputVal) return "";
@@ -155,6 +163,12 @@ export function manualRelicUpdate() {
       items.forEach((item) => fragment.appendChild(createRelicDropRow(item)));
       listDiv.replaceChildren(fragment);
       generateMessage();
+
+      if (state.selectedRelic !== lastFissureRelic) {
+        lastFissureRelic = state.selectedRelic;
+        document.getElementById("best-missions-container")?.classList.add("open");
+        updateRecommendedMissions(state.selectedRelic.split(" ")[0]).catch(console.error);
+      }
     }
   } catch (e) {
     console.error("Error en manualRelicUpdate:", e);

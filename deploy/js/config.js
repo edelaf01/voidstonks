@@ -1,7 +1,21 @@
 export const WORKER_URL = "https://api.voidstonks.com/";
-export const APP_VERSION = 2.63;
+export const APP_VERSION = "2.64";
 export const UPDATE_HISTORY_DATA = {
   es: `
+<div class="update-block">
+  <div class="version-header">Versión 2.64</div>
+  <div class="version-date">19 de Julio de 2026</div>
+  <ul>
+    <li><b>Escáner de recompensas de fisura reescrito:</b> ahora lee correctamente los nombres largos y los que ocupan 2 o 3 líneas (ej. "Yareli Prime Chassis Blueprint", "Grendel Prime Neuroptics Blueprint"), que antes desaparecían o salían cortados.</li>
+    <li><b>Arreglado — recompensas fantasma:</b> con el tinte rojo de misión (Steel Path) podían aparecer recompensas falsas (ej. un mod Requiem "Ris" que no estaba en pantalla) robando el sitio a la real. Ya no ocurre.</li>
+    <li><b>Arreglado — blueprints que no se detectaban:</b> algunos blueprints (ej. "Gunsen Prime Blueprint" junto a un nombre de 2 líneas, o "Limbo Prime Blueprint") se descartaban por error. Ahora se detectan siempre.</li>
+    <li><b>Mejor lectura con tinte de misión:</b> reparada la pasada de lectura por color; los nombres se reconocen mejor bajo cualquier tinte y tema de color, y los contadores Owned/Crafted se asignan a su tarjeta correcta.</li>
+    <li><b>Alarmas de fisuras — filtro Steel Path:</b> ahora puedes elegir si la alarma salta solo con fisuras Steel Path, solo con normales, o con ambas.</li>
+    <li><b>Alarmas de arbitración:</b> nuevo bloque en el panel de fisuras para avisarte cuando la arbitración activa cumpla un tier comunitario mínimo (S–F) y/o un tipo de misión concreto.</li>
+    <li><b>Próxima arbitración S:</b> el panel de arbitración muestra cuándo llega la siguiente rotación tier S (con cuenta atrás en vivo), o te avisa si no hay ninguna en las próximas 12 h.</li>
+    <li><b>Cachés purgables:</b> Subida general de versión interna para garantizar que el navegador descargue el código nuevo y no uno obsoleto.</li>
+  </ul>
+</div>
 <div class="update-block">
   <div class="update-header">
     <span class="update-version">v2.6.3 (Actual)</span>
@@ -260,6 +274,20 @@ export const UPDATE_HISTORY_DATA = {
 </div>
 `,
   en: `
+<div class="update-block">
+  <div class="version-header">Version 2.64</div>
+  <div class="version-date">July 19, 2026</div>
+  <ul>
+    <li><b>Fissure reward scanner rewritten:</b> long names and names spanning 2-3 lines (e.g. "Yareli Prime Chassis Blueprint", "Grendel Prime Neuroptics Blueprint") are now read correctly — they used to vanish or come out truncated.</li>
+    <li><b>Fixed — ghost rewards:</b> under the red mission tint (Steel Path) fake rewards could appear (e.g. a Requiem mod "Ris" that wasn't on screen) stealing the real one's spot. No longer happens.</li>
+    <li><b>Fixed — undetected blueprints:</b> some blueprints (e.g. "Gunsen Prime Blueprint" next to a 2-line name, or "Limbo Prime Blueprint") were wrongly discarded. They are now always detected.</li>
+    <li><b>Better reading under mission tint:</b> the color reading pass has been repaired; names are recognized more reliably under any tint and UI color theme, and Owned/Crafted counters are assigned to their correct card.</li>
+    <li><b>Fissure alarms — Steel Path filter:</b> you can now choose whether an alarm fires only for Steel Path fissures, only for normal ones, or both.</li>
+    <li><b>Arbitration alarms:</b> new block in the fissures panel to alert you when the active Arbitration meets a minimum community tier (S–F) and/or a specific mission type.</li>
+    <li><b>Next S-tier Arbitration:</b> the Arbitration panel now shows when the next S-tier rotation arrives (with a live countdown), or tells you if there's none in the next 12 h.</li>
+    <li><b>Cache Busting:</b> Internal version bump to guarantee the browser downloads the new code and not an obsolete cached file.</li>
+  </ul>
+</div>
 <div class="update-block">
   <div class="update-header">
     <span class="update-version">v2.6.3 (Current)</span>
@@ -1117,6 +1145,7 @@ export const TEXTS = {
       interception: "Intercepción",
       excavation: "Excavación",
       alchemy: "Alquimia",
+      defection: "Defección",
       "infested salvage": "Salvamento Infestado",
       "dark sector defense": "Defensa (Sector Oscuro)",
       "dark sector survival": "Supervivencia (Sector Oscuro)",
@@ -1165,6 +1194,71 @@ export const TEXTS = {
       railjackTypes: "Tipos de misión Railjack",
       reset: "Restaurar por defecto",
     },
+    farmAlarms: {
+      toggle: "Alarmas",
+      title: "Alarmas de rotación",
+      enable: "Activar alarmas",
+      sound: "Sonido",
+      browserBtn: "Permitir notificaciones del navegador",
+      browserOn: "Notificaciones del navegador activas",
+      browserBlocked: "Notificaciones bloqueadas por el navegador",
+      browserUnsupported: "Este navegador no soporta notificaciones",
+      faction: "Sindicato",
+      anyFaction: "Cualquier sindicato",
+      minTier: "Tier mínimo",
+      missionType: "Tipo de misión",
+      anyType: "Cualquier tipo",
+      challenge: "Desafío",
+      anyChallenge: "Cualquier desafío",
+      challenges: "Desafíos (opcional — sin marcar = cualquiera)",
+      tierSpecial: "NARMER / CODA",
+      addRule: "Añadir alarma",
+      dupRule: "Ya existe esa alarma",
+      noRules: "Sin alarmas configuradas. Añade una: se te avisará cuando la rotación traiga una misión que cumpla el tier y sindicato elegidos.",
+      firedTitle: "Farm disponible",
+      futureNote: "Las alarmas de fisuras se configuran en el panel de fisuras (botón Filtros).",
+      delete: "Eliminar alarma",
+      collapseAll: "Plegar todo",
+      expandAll: "Desplegar todo",
+    },
+    fissureAlarms: {
+      title: "Alarmas de fisuras",
+      tier: "Tier",
+      anyTier: "Cualquier tier",
+      missionType: "Tipo de misión",
+      anyType: "Cualquier tipo",
+      planet: "Planeta",
+      anyPlanet: "Cualquier planeta",
+      source: "Origen",
+      srcAny: "Normal + Railjack",
+      srcNormal: "Solo normal",
+      srcRailjack: "Solo Railjack",
+      spLabel: "Steel Path",
+      spAny: "SP + normal",
+      spOnly: "Solo Steel Path",
+      spNo: "Sin Steel Path",
+      addRule: "Añadir alarma",
+      dupRule: "Ya existe esa alarma",
+      noRules: "Sin alarmas de fisuras. Añade una: se te avisará cuando aparezca una fisura que cumpla tier, tipo, planeta, origen y Steel Path.",
+      firedTitle: "Fisura disponible",
+      delete: "Eliminar alarma",
+    },
+    arbyAlarms: {
+      title: "Alarmas de arbitración",
+      tag: "Arbitración",
+      minTier: "Tier mínimo",
+      anyTier: "Cualquier tier",
+      tierAtLeast: "Tier ≥",
+      firedTitle: "Arbitración disponible",
+    },
+    optimalPicker: {
+      emptyTitle: "No hay misiones óptimas en esta rotación.",
+      emptyDesc:
+        "Puedes marcar tus propias óptimas: pasa a \"MOSTRANDO TODO\" y pulsa la estrella (☆) de cualquier misión dentro de su sindicato para que aparezca aquí. Con la estrella llena (★) la quitas. Tu selección se recuerda en rotaciones futuras.",
+      btnShowAll: "Ver todas las misiones",
+      markTip: "Marcar como óptima (aparecerá en SOLO ÓPTIMAS)",
+      unmarkTip: "Quitar de óptimas",
+    },
     arbitration: {
       title: "Arbitración",
       next: "Siguientes rotaciones",
@@ -1172,6 +1266,9 @@ export const TEXTS = {
       tierTooltip:
         "Tier del nodo según la comunidad: mide lo bueno que es para farmear Esencia de Vitus por la densidad y velocidad de aparición de enemigos. S = el mejor, luego A, B, C, D... F = el peor.",
       tierNote: "Tier S-F: valoración comunitaria del nodo (densidad y ritmo de enemigos).",
+      nextS: "Próxima S",
+      noNextS: "Sin arbitración tier S en las próximas 12 h.",
+      sActiveNow: "Arbitración tier S activa ahora",
     },
     rivenHud: {
       compareTitle: "COMPARACIÓN DE ROLLS",
@@ -1711,6 +1808,7 @@ export const TEXTS = {
       interception: "Interception",
       excavation: "Excavation",
       alchemy: "Alchemy",
+      defection: "Defection",
       "infested salvage": "Infested Salvage",
       "dark sector defense": "Defense (Dark Sector)",
       "dark sector survival": "Survival (Dark Sector)",
@@ -1741,6 +1839,71 @@ export const TEXTS = {
       railjackTypes: "Railjack mission types",
       reset: "Reset to default",
     },
+    farmAlarms: {
+      toggle: "Alarms",
+      title: "Rotation alarms",
+      enable: "Enable alarms",
+      sound: "Sound",
+      browserBtn: "Allow browser notifications",
+      browserOn: "Browser notifications active",
+      browserBlocked: "Notifications blocked by the browser",
+      browserUnsupported: "This browser does not support notifications",
+      faction: "Syndicate",
+      anyFaction: "Any syndicate",
+      minTier: "Minimum tier",
+      missionType: "Mission type",
+      anyType: "Any type",
+      challenge: "Challenge",
+      anyChallenge: "Any challenge",
+      challenges: "Challenges (optional — none checked = any)",
+      tierSpecial: "NARMER / CODA",
+      addRule: "Add alarm",
+      dupRule: "That alarm already exists",
+      noRules: "No alarms configured. Add one: you'll be alerted when a rotation brings a mission matching the chosen tier and syndicate.",
+      firedTitle: "Farm available",
+      futureNote: "Fissure alarms are configured in the fissures panel (Filters button).",
+      delete: "Delete alarm",
+      collapseAll: "Collapse all",
+      expandAll: "Expand all",
+    },
+    fissureAlarms: {
+      title: "Fissure alarms",
+      tier: "Tier",
+      anyTier: "Any tier",
+      missionType: "Mission type",
+      anyType: "Any type",
+      planet: "Planet",
+      anyPlanet: "Any planet",
+      source: "Source",
+      srcAny: "Normal + Railjack",
+      srcNormal: "Normal only",
+      srcRailjack: "Railjack only",
+      spLabel: "Steel Path",
+      spAny: "SP + normal",
+      spOnly: "Steel Path only",
+      spNo: "No Steel Path",
+      addRule: "Add alarm",
+      dupRule: "That alarm already exists",
+      noRules: "No fissure alarms. Add one: you'll be alerted when a fissure matching tier, type, planet, source and Steel Path appears.",
+      firedTitle: "Fissure available",
+      delete: "Delete alarm",
+    },
+    arbyAlarms: {
+      title: "Arbitration alarms",
+      tag: "Arbitration",
+      minTier: "Minimum tier",
+      anyTier: "Any tier",
+      tierAtLeast: "Tier ≥",
+      firedTitle: "Arbitration available",
+    },
+    optimalPicker: {
+      emptyTitle: "No optimal missions in this rotation.",
+      emptyDesc:
+        "You can pick your own optimals: switch to \"SHOWING ALL\" and tap the star (☆) on any mission within its syndicate to make it appear here. Tap the filled star (★) to remove it. Your selection is remembered across rotations.",
+      btnShowAll: "Show all missions",
+      markTip: "Mark as optimal (will appear in OPTIMAL ONLY)",
+      unmarkTip: "Remove from optimals",
+    },
     arbitration: {
       title: "Arbitration",
       next: "Upcoming rotations",
@@ -1748,6 +1911,9 @@ export const TEXTS = {
       tierTooltip:
         "Community node tier: rates how good the node is for farming Vitus Essence based on enemy density and spawn rate. S = best, then A, B, C, D... F = worst.",
       tierNote: "Tier S-F: community rating of the node (enemy density and spawn rate).",
+      nextS: "Next S",
+      noNextS: "No S-tier Arbitration in the next 12 h.",
+      sActiveNow: "S-tier Arbitration active now",
     },
     menuSet: "Set",
     menuRiven: "Riven",
@@ -2240,9 +2406,9 @@ export const CHALLENGE_MAP = {
   ZarimanFindMelicaCacheChallenge: "Find Melica's Cache",
   ZarimanFloodCompleteWavesVeryHardChallenge: "Complete rounds",
   VaniaSafeCracker: "Crack Safe",
-  VaniaAbilityKillVeryHard: " Kill using abilities",
-  VaniaAbilityKillHard: " Kill using abilities",
-  VaniaAbilityKillEasy: " Kill using abilities",
+  VaniaAbilityKillVeryHard: "Kill X enemies with Warframe abilities",
+  VaniaAbilityKillHard: "Kill X enemies with Warframe abilities",
+  VaniaAbilityKillEasy: "Kill X enemies with Warframe abilities",
   EntratiLabLootCratesChallenge: "Loot Crates",
   EntratiLabKillVoidRigEasyChallenge: "Kill Necramech",
   EntratiLabRangedMechWeakpointChallenge: "Mech Weakpoints",

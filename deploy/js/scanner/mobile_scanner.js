@@ -2,7 +2,7 @@ import { getPriceValue, getSlug } from "../api.js";
 import { showToast, escapeHTML } from "../ui.components/ui_components.js";
 import { state } from "../state.js";
 import { TEXTS } from "../config.js";
-import { OCRService } from "../services/ocr.service.js";
+import { OCRService } from "../services/ocr.service.js?v=264";
 import { OCRRepository } from "../repositories/ocr.repository.js";
 import { OpenCVEngine } from "../utils/opencv_engine.js";
 

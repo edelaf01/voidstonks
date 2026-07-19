@@ -4,13 +4,24 @@ import { TEXTS } from "../config.js";
 globalThis._serverTimeOffset = globalThis._serverTimeOffset || 0;
 import {
   fetchBestFissures,
+  fetchAllFissures,
   fetchArbitration,
+  fetchActiveArbitration,
   getFissurePrefs,
   saveFissurePrefs,
   DEFAULT_MISSION_TYPES,
   RAILJACK_MISSION_TYPES,
 } from "../services/fissures.service.js";
-import { escapeHTML } from "./ui_components.js";
+import {
+  getAlarmPrefs,
+  saveAlarmPrefs,
+  addAlarmRule,
+  removeAlarmRule,
+  startAlarmWatcher,
+  sendBrowserNotification,
+  ARBY_TIER_ORDER,
+} from "../services/alerts.service.js";
+import { escapeHTML, showToast } from "./ui_components.js";
 
 let fissureLoadPromise = null;
 
@@ -23,11 +34,35 @@ const AVAILABLE_MISSION_TYPES = [
   "Sabotage",
   "Void Cascade",
   "Disruption",
+  "Excavation",
   "Survival",
   "Defense",
   "Mobile Defense",
   "Spy",
 ];
+
+// Tipos de misión que rotan en Arbitración (endless). "Dark Sector X" cuenta como X
+// en el matcher, así que no hace falta listarlos.
+const ARBY_MISSION_TYPES = [
+  "Defense",
+  "Survival",
+  "Interception",
+  "Excavation",
+  "Disruption",
+  "Defection",
+  "Infested Salvage",
+  "Alchemy",
+];
+
+// Localizaciones donde pueden aparecer fisuras (el planeta se extrae del nodo, p.ej.
+// "Kiliken (Venus)"). "Veil" es la Proxima del Velo, exclusiva de Railjack.
+const FISSURE_PLANETS = [
+  "Earth", "Venus", "Mercury", "Mars", "Phobos", "Deimos", "Ceres", "Jupiter",
+  "Europa", "Saturn", "Uranus", "Neptune", "Pluto", "Sedna", "Eris",
+  "Void", "Lua", "Kuva Fortress", "Zariman", "Veil",
+];
+
+const FISSURE_TIERS = ["Lith", "Meso", "Neo", "Axi", "Requiem", "Omnia"];
 
 export async function updateRecommendedMissions(tier) {
   const listArea = document.getElementById("fissures-list-area");
@@ -124,8 +159,132 @@ function renderFissureFiltersPanel(prefs) {
             <span class="fissure-filters-title">${escapeHTML(t.fissurePrefs.railjackTypes)}</span>
             <div class="fissure-filters-grid">${rjTypeCheckboxes}</div>
         </div>
+        <div class="fissure-filters-section fissure-alarm-section">
+            <span class="fissure-filters-title">🔔 ${escapeHTML(t.fissureAlarms.title)}</span>
+            <div class="alarm-builder">
+                <select id="fissure-alarm-tier" class="alarm-select" aria-label="${escapeHTML(t.fissureAlarms.tier)}">
+                    <option value="any">${escapeHTML(t.fissureAlarms.anyTier)}</option>
+                    ${FISSURE_TIERS.map((tier) => `<option value="${tier}">${tier}</option>`).join("")}
+                </select>
+                <select id="fissure-alarm-type" class="alarm-select" aria-label="${escapeHTML(t.fissureAlarms.missionType)}">
+                    <option value="any">${escapeHTML(t.fissureAlarms.anyType)}</option>
+                    ${[...new Set([...AVAILABLE_MISSION_TYPES, ...RAILJACK_MISSION_TYPES])].map(
+                      (type) => `<option value="${escapeHTML(type)}">${escapeHTML(t.modes[type.toLowerCase()] || type)}</option>`,
+                    ).join("")}
+                </select>
+                <select id="fissure-alarm-planet" class="alarm-select" aria-label="${escapeHTML(t.fissureAlarms.planet)}">
+                    <option value="any">${escapeHTML(t.fissureAlarms.anyPlanet)}</option>
+                    ${FISSURE_PLANETS.map((p) => `<option value="${escapeHTML(p)}">${escapeHTML(p)}</option>`).join("")}
+                </select>
+                <select id="fissure-alarm-source" class="alarm-select" aria-label="${escapeHTML(t.fissureAlarms.source)}">
+                    <option value="any">${escapeHTML(t.fissureAlarms.srcAny)}</option>
+                    <option value="normal">${escapeHTML(t.fissureAlarms.srcNormal)}</option>
+                    <option value="railjack">${escapeHTML(t.fissureAlarms.srcRailjack)}</option>
+                </select>
+                <select id="fissure-alarm-sp" class="alarm-select" aria-label="${escapeHTML(t.fissureAlarms.spLabel)}">
+                    <option value="any">${escapeHTML(t.fissureAlarms.spAny)}</option>
+                    <option value="sp">${escapeHTML(t.fissureAlarms.spOnly)}</option>
+                    <option value="normal">${escapeHTML(t.fissureAlarms.spNo)}</option>
+                </select>
+                <button type="button" class="dashed-btn alarm-add-btn" id="fissure-alarm-add">+ ${escapeHTML(t.fissureAlarms.addRule)}</button>
+            </div>
+            <span class="fissure-filters-title">🔔 ${escapeHTML(t.arbyAlarms.title)}</span>
+            <div class="alarm-builder">
+                <select id="arby-alarm-tier" class="alarm-select" aria-label="${escapeHTML(t.arbyAlarms.minTier)}">
+                    <option value="any">${escapeHTML(t.arbyAlarms.anyTier)}</option>
+                    ${[...ARBY_TIER_ORDER].reverse().map((tier) => `<option value="${tier}">${escapeHTML(t.arbyAlarms.tierAtLeast)} ${tier}</option>`).join("")}
+                </select>
+                <select id="arby-alarm-type" class="alarm-select" aria-label="${escapeHTML(t.fissureAlarms.missionType)}">
+                    <option value="any">${escapeHTML(t.fissureAlarms.anyType)}</option>
+                    ${ARBY_MISSION_TYPES.map(
+                      (type) => `<option value="${escapeHTML(type)}">${escapeHTML(t.modes[type.toLowerCase()] || type)}</option>`,
+                    ).join("")}
+                </select>
+                <button type="button" class="dashed-btn alarm-add-btn" id="arby-alarm-add">+ ${escapeHTML(t.fissureAlarms.addRule)}</button>
+            </div>
+            <div class="alarm-rules-list" id="fissure-alarm-rules">${renderFissureAlarmRules(t)}</div>
+        </div>
         <button type="button" class="fissure-filters-reset" id="fissure-filters-reset">${escapeHTML(t.fissurePrefs.reset)}</button>
     `;
+}
+
+// Lista de reglas de alarma de fisuras + arbitración (las de bounty viven en Farms).
+function renderFissureAlarmRules(t) {
+  const rules = getAlarmPrefs().rules.filter((r) => r.kind === "fissure" || r.kind === "arbitration");
+  if (rules.length === 0) {
+    return `<div class="alarm-no-rules">${escapeHTML(t.fissureAlarms.noRules)}</div>`;
+  }
+  return rules.map((r) => {
+    let parts;
+    let dotColor;
+    if (r.kind === "arbitration") {
+      dotColor = "#ffb86c";
+      parts = [
+        t.arbyAlarms.tag,
+        (r.minTier || "any") === "any" ? t.arbyAlarms.anyTier : `${t.arbyAlarms.tierAtLeast} ${r.minTier}`,
+        (r.type || "any") === "any" ? t.fissureAlarms.anyType : (t.modes[r.type.toLowerCase()] || r.type),
+      ];
+    } else {
+      dotColor = "#8be9fd";
+      parts = [
+        (r.tier || "any") === "any" ? t.fissureAlarms.anyTier : r.tier,
+        (r.type || "any") === "any" ? t.fissureAlarms.anyType : (t.modes[r.type.toLowerCase()] || r.type),
+        (r.planet || "any") === "any" ? t.fissureAlarms.anyPlanet : r.planet,
+      ];
+      const source = r.source || "any";
+      if (source !== "any") parts.push(source === "railjack" ? "RJ" : t.fissureAlarms.srcNormal);
+      const sp = r.sp || "any";
+      if (sp !== "any") parts.push(sp === "sp" ? "SP" : t.fissureAlarms.spNo);
+    }
+    return `
+        <div class="alarm-rule" data-rule-id="${escapeHTML(r.id)}">
+            <span class="alarm-rule-dot" style="background:${dotColor};"></span>
+            <span class="alarm-rule-desc">${escapeHTML(parts.join(" · "))}</span>
+            <button type="button" class="alarm-rule-del" title="${escapeHTML(t.fissureAlarms.delete)}">×</button>
+        </div>`;
+  }).join("");
+}
+
+// Toast + notificación nativa cuando saltan alarmas de fisuras. El sonido ya lo
+// emite evaluateAlarms según la preferencia global.
+function handleFissureAlarmHits(hits) {
+  const t = TEXTS[state.currentLang];
+  if (!hits || hits.length === 0) return;
+  const lines = hits.slice(0, 4).map(({ item }) => {
+    const typeTxt = t.modes[(item.type || "").toLowerCase()] || item.type;
+    return `${item.tier} · ${typeTxt} — ${item.node}${item.isStorm ? " (RJ)" : ""}${item.isSP ? " [SP]" : ""}`;
+  });
+  const more = hits.length > 4 ? ` +${hits.length - 4}` : "";
+  sendBrowserNotification(t.fissureAlarms.firedTitle, lines.join("\n") + more);
+  showToast(`<b>${escapeHTML(t.fissureAlarms.firedTitle)}</b><br>${lines.map(escapeHTML).join("<br>")}${more}`, {
+    tag: "fissure-alarm",
+    type: "success",
+    duration: 30000,
+  });
+}
+
+function startFissureAlarmWatcher() {
+  startAlarmWatcher(() => fetchAllFissures(), handleFissureAlarmHits, "fissure");
+}
+
+// Toast + notificación cuando salta una alarma de arbitración.
+function handleArbitrationAlarmHits(hits) {
+  const t = TEXTS[state.currentLang];
+  if (!hits || hits.length === 0) return;
+  const lines = hits.map(({ item }) => {
+    const typeTxt = t.modes[(item.type || "").toLowerCase()] || item.type;
+    return `${item.tier ? `[${item.tier}] ` : ""}${typeTxt} — ${item.node}`;
+  });
+  sendBrowserNotification(t.arbyAlarms.firedTitle, lines.join("\n"));
+  showToast(`<b>${escapeHTML(t.arbyAlarms.firedTitle)}</b><br>${lines.map(escapeHTML).join("<br>")}`, {
+    tag: "arby-alarm",
+    type: "success",
+    duration: 30000,
+  });
+}
+
+function startArbitrationAlarmWatcher() {
+  startAlarmWatcher(() => fetchActiveArbitration(), handleArbitrationAlarmHits, "arbitration");
 }
 
 // Lee el estado de los checkboxes del panel de filtros y guarda las preferencias resultantes.
@@ -268,6 +427,65 @@ export async function initFissurePanel(forceRefetch = false) {
     });
     // Evita que un click dentro del panel de filtros colapse/re-cargue el panel principal.
     filtersPanel.addEventListener("click", (e) => e.stopPropagation());
+
+    // Alarmas de fisuras: alta y borrado por delegación (la lista se re-renderiza entera,
+    // así los handlers sobreviven sin re-bindear).
+    filtersPanel.addEventListener("click", (e) => {
+      const tt = TEXTS[state.currentLang];
+      const rulesBox = document.getElementById("fissure-alarm-rules");
+
+      if (e.target.id === "fissure-alarm-add") {
+        const added = addAlarmRule({
+          kind: "fissure",
+          tier: document.getElementById("fissure-alarm-tier")?.value || "any",
+          type: document.getElementById("fissure-alarm-type")?.value || "any",
+          planet: document.getElementById("fissure-alarm-planet")?.value || "any",
+          source: document.getElementById("fissure-alarm-source")?.value || "any",
+          sp: document.getElementById("fissure-alarm-sp")?.value || "any",
+        });
+        if (!added) {
+          showToast(tt.fissureAlarms.dupRule, { tag: "fissure-alarm-dup", duration: 4000 });
+          return;
+        }
+        // Como en bounties: crear la primera regla enciende el master para evitar
+        // "configuré la alarma pero no salta".
+        const prefs = getAlarmPrefs();
+        if (!prefs.enabled) {
+          prefs.enabled = true;
+          saveAlarmPrefs(prefs);
+        }
+        startFissureAlarmWatcher();
+        if (rulesBox) rulesBox.innerHTML = renderFissureAlarmRules(tt);
+        return;
+      }
+
+      if (e.target.id === "arby-alarm-add") {
+        const added = addAlarmRule({
+          kind: "arbitration",
+          minTier: document.getElementById("arby-alarm-tier")?.value || "any",
+          type: document.getElementById("arby-alarm-type")?.value || "any",
+        });
+        if (!added) {
+          showToast(tt.fissureAlarms.dupRule, { tag: "fissure-alarm-dup", duration: 4000 });
+          return;
+        }
+        const prefs = getAlarmPrefs();
+        if (!prefs.enabled) {
+          prefs.enabled = true;
+          saveAlarmPrefs(prefs);
+        }
+        startArbitrationAlarmWatcher();
+        if (rulesBox) rulesBox.innerHTML = renderFissureAlarmRules(tt);
+        return;
+      }
+
+      const delBtn = e.target.closest(".alarm-rule-del");
+      if (delBtn && delBtn.closest("#fissure-alarm-rules")) {
+        const id = delBtn.closest(".alarm-rule")?.dataset.ruleId;
+        if (id) removeAlarmRule(id);
+        if (rulesBox) rulesBox.innerHTML = renderFissureAlarmRules(tt);
+      }
+    });
     filtersPanel.addEventListener("change", (e) => {
       if (!e.target.matches("input[type=checkbox]")) return;
       // El subfiltro de tipos de Railjack solo tiene sentido con el toggle activo.
@@ -310,6 +528,15 @@ export async function initFissurePanel(forceRefetch = false) {
 
   await renderMissionList(forceRefetch);
   renderArbitrationBar();
+
+  // Reanuda los watchers de alarmas al cargar si el usuario ya tenía reglas.
+  const alarmPrefs = getAlarmPrefs();
+  if (alarmPrefs.enabled && alarmPrefs.rules.some((r) => r.kind === "fissure")) {
+    startFissureAlarmWatcher();
+  }
+  if (alarmPrefs.enabled && alarmPrefs.rules.some((r) => r.kind === "arbitration")) {
+    startArbitrationAlarmWatcher();
+  }
 
   // Active client-side countdown timer to update dynamically and refresh on expiration
   if (!globalThis._fissureCountdownInterval) {
@@ -405,12 +632,28 @@ async function renderArbitrationBar() {
       ? `<span class="arby-tier${big ? " big" : ""}" data-tooltip="${escapeHTML(t.arbitration.tierTooltip)}">${escapeHTML(m.tier)}</span>`
       : "";
 
-    const upcomingRows = upcoming.slice(0, 3).map((m) => {
-      // Tiempo relativo hasta la rotación: no depende de la zona horaria del cliente.
-      const diffMins = Math.max(0, Math.round((new Date(m.activation) - (Date.now() - (globalThis._serverTimeOffset || 0))) / 60000));
-      const rel = diffMins >= 60
+    // Tiempo relativo hasta una activación: no depende de la zona horaria del cliente.
+    const relTo = (activation) => {
+      const diffMins = Math.max(0, Math.round((new Date(activation) - (Date.now() - (globalThis._serverTimeOffset || 0))) / 60000));
+      return diffMins >= 60
         ? `${Math.floor(diffMins / 60)}h ${String(diffMins % 60).padStart(2, "0")}m`
         : `${diffMins}m`;
+    };
+
+    // Próxima rotación tier S dentro de la ventana del parser (~12h). El span usa
+    // .arby-next-time[data-starts], así el tick global lo mantiene actualizado solo.
+    let nextSLine;
+    if ((cur.tier || "").toUpperCase() === "S") {
+      nextSLine = `<div class="arby-next-s">⭐ ${escapeHTML(t.arbitration.sActiveNow)}</div>`;
+    } else {
+      const nextS = upcoming.find((m) => (m.tier || "").toUpperCase() === "S" && new Date(m.activation) > syncedNow);
+      nextSLine = nextS
+        ? `<div class="arby-next-s">⭐ ${escapeHTML(t.arbitration.nextS)}: ${escapeHTML(typeOf(nextS))} — ${escapeHTML(nextS.node)} · <span class="arby-next-time" data-starts="${nextS.activation}">${escapeHTML(t.arbitration.startsIn)} ${relTo(nextS.activation)}</span></div>`
+        : `<div class="arby-next-s arby-next-s-none">${escapeHTML(t.arbitration.noNextS)}</div>`;
+    }
+
+    const upcomingRows = upcoming.slice(0, 3).map((m) => {
+      const rel = relTo(m.activation);
       const tier = m.tier
         ? tierTag(m)
         : `<span class="arby-tier arby-tier-empty">–</span>`;
@@ -438,6 +681,7 @@ async function renderArbitrationBar() {
                         <span class="m-eta" data-expiry="${cur.expiry}"></span>
                     </div>
                 </div>
+                ${nextSLine}
                 ${upcomingRows ? `<div class="arby-next-title">${escapeHTML(t.arbitration.next)}</div>${upcomingRows}` : ""}
                 <div class="arby-note">${escapeHTML(t.arbitration.tierNote)}</div>
             </div>

@@ -6,6 +6,7 @@ import {
     ZARIMAN_DATA,
     OPTIMAL_FILTERS,
     ALLY_MAP,
+    VANIA_NAMES,
 } from "../config.js";
 import { dbHelper } from "../repositories/storage.repository.js";
 import { getActiveBounties } from "../repositories/api.repository.js";
@@ -31,14 +32,17 @@ function getTechType(uName, nodeKey) {
 }
 
 function getMissionName(job, techType, faction, isLich, nodeKey, allyKey) {
+    // En Höllvania (1999) los tipos usan su nombre propio: Alchemy no existe
+    // como tal, es "Legacyte Harvest" (VANIA_NAMES).
+    const displayType = faction === "The Hex" ? (VANIA_NAMES[techType] || techType) : techType;
     if (faction === "The Hex") {
         if (isLich) return "Coda bounty/ antivirus";
         if (techType === "Capture") return "Capture Antivirus";
         const allyName = ALLY_MAP[allyKey];
-        if (allyName) return `${allyName}'s Bounty (${techType})`;
+        if (allyName) return `${allyName}'s Bounty (${displayType})`;
     }
-    if (NODE_MAP[nodeKey]) return `${techType} (${NODE_MAP[nodeKey]})`;
-    return job.type || job.title || techType;
+    if (NODE_MAP[nodeKey]) return `${displayType} (${NODE_MAP[nodeKey]})`;
+    return job.type || job.title || displayType;
 }
 
 function checkIsOptimal(key, info) {

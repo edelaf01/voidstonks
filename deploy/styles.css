@@ -954,6 +954,23 @@ body {
   font-style: italic;
 }
 
+/* Aviso de la próxima arbitración tier S (o de que no hay en la ventana). */
+.arby-next-s {
+  padding: 5px 10px;
+  font-size: 0.8em;
+  color: #d8d8d8;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.arby-next-s .arby-next-time {
+  text-align: left;
+}
+
+.arby-next-s-none {
+  color: #777;
+  font-style: italic;
+}
+
 .fissure-filters-title {
   display: block;
   font-size: 0.75em;

@@ -110,11 +110,13 @@ function passesPrefs(f, prefs) {
 }
 
 /**
- * Fetches active fissure missions from the worker and les aplica las preferencias del usuario.
+ * Fetches TODAS las fisuras activas normalizadas (incl. Railjack), sin aplicar las preferencias
+ * de vista del usuario. Es la fuente para el panel (que luego filtra por prefs) y para las
+ * alarmas de fisuras (que deben ver todo, no solo lo que el usuario muestra).
  * @param {boolean} [force=false] - Ignora la cache en memoria y fuerza recarga.
  * @returns {Promise<Array>}
  */
-export async function fetchBestFissures(force = false) {
+export async function fetchAllFissures(force = false) {
     let allFissures;
 
     if (!force && _fissureCache.data && (Date.now() - _fissureCache.ts < FISSURE_TTL)) {
@@ -195,8 +197,45 @@ export async function fetchBestFissures(force = false) {
         }
     }
 
+    return allFissures;
+}
+
+/**
+ * Fisuras activas con las preferencias de vista del usuario aplicadas (tipos, Omnia, Railjack).
+ * @param {boolean} [force=false] - Ignora la cache en memoria y fuerza recarga.
+ * @returns {Promise<Array>}
+ */
+export async function fetchBestFissures(force = false) {
+    const allFissures = await fetchAllFissures(force);
     const prefs = getFissurePrefs();
     return allFissures.filter((f) => passesPrefs(f, prefs));
+}
+
+// Tiers comunitarios de Arbitración por NODO (discord.gg/Arbitrations, VE/min con squad
+// óptimo). FALLBACK cliente: el parser ya trae el tier desde browse.wf/arbyTiers, pero si
+// esa fuente falla o no cubre el nodo, sin esto el badge no se pinta y las alarmas por
+// tier mínimo no pueden disparar. Clave = nombre base del nodo (sin "(Planeta)").
+const ARBY_NODE_TIERS = {
+    "Tyana Pass": "S", "Alator": "S", "Callisto": "S", "Xini": "S", "Cytherean": "S",
+    "Munio": "A", "Seimeni": "A", "Cinxia": "A", "Casta": "A", "Oestrus": "A", "Hyf": "A",
+    "Larzac": "B", "Sechura": "B", "Hydron": "B", "Helene": "B", "Ose": "B", "Akkad": "B",
+    "Kala-azar": "B", "Odin": "B", "Mithra": "B", "Belenus": "B", "Taranis": "B",
+    "Coba": "C", "Spear": "C", "Kadesh": "C", "Paimon": "C", "Lith": "C",
+    "Stephano": "C", "Tessera": "C", "Outer Terminus": "C",
+    "Umbriel": "D", "Cerberus": "D", "Lares": "D", "Sangeru": "D", "Sinai": "D",
+    "Gulliver": "D", "Romula": "D", "Proteus": "D", "Io": "D", "Stöfler": "D", "Gaia": "D",
+};
+
+// Nombre base del nodo: "Sechura (Pluto)" -> "Sechura".
+const arbyBaseNode = (node) => (node || "").replace(/\s*\([^)]*\)\s*$/, "").trim();
+
+// Rellena m.tier con el fallback comunitario cuando el parser no lo trae.
+function fillArbyTier(m) {
+    if (m && !m.tier) {
+        const t = ARBY_NODE_TIERS[arbyBaseNode(m.node)];
+        if (t) m.tier = t;
+    }
+    return m;
 }
 
 // La Arbitration rota cada hora en punto: la cache en memoria vale hasta la expiración de la
@@ -219,10 +258,31 @@ export async function fetchArbitration(force = false) {
         const payload = await res.json();
         // El worker principal devuelve el objeto directo; el parser lo envuelve en {data}.
         const data = payload?.data ?? payload ?? null;
-        if (data?.current) _arbyCache = { data };
+        if (data?.current) {
+            fillArbyTier(data.current);
+            (data.upcoming || []).forEach(fillArbyTier);
+            _arbyCache = { data };
+        }
         return data?.current ? data : cached;
     } catch (e) {
         console.error("Error obteniendo Arbitration:", e);
         return cached || null;
     }
+}
+
+/**
+ * Arbitración ACTIVA ahora mismo como lista para el motor de alarmas: si la
+ * "current" del parser ya expiró, promociona la rotación de `upcoming` que esté
+ * en curso (misma lógica que renderArbitrationBar). [] si no hay ninguna válida.
+ */
+export async function fetchActiveArbitration() {
+    const arby = await fetchArbitration();
+    const now = new Date(Date.now() - (globalThis._serverTimeOffset || 0));
+    let cur = arby?.current;
+    if (cur && new Date(cur.expiry) <= now) {
+        cur = (arby.upcoming || []).find(
+            (m) => new Date(m.activation) <= now && new Date(m.expiry) > now,
+        ) || null;
+    }
+    return cur && new Date(cur.expiry) > now ? [cur] : [];
 }
