@@ -214,49 +214,103 @@ export function getRelicDropTooltip(tierName) {
 
   if (sources.length > 0) {
     html += `<div style='margin:12px 0 6px 0; font-weight:800; color:#aaa; font-size:0.95em; text-transform:uppercase;'>Farming Sources (${sources.length})</div>`;
-    html += "<ul class='tooltip-list' style='font-size:1.0em;'>";
+    html += buildGroupedSourcesHtml(sources);
   } else {
     html += `<div style="color:#888; font-style:italic; font-size:0.85em; margin-top:8px;">${TEXTS[state.currentLang].vaulted || "Vaulted"}</div>`;
   }
 
-  sources.forEach((s, index) => {
-    let locText = "";
+  return html;
+}
 
-    if (s.type === "mission") {
-      locText = `<span class="t-loc">${escapeHTML(
-          s.location,
-      )}</span> <span style="color:#888">-</span> ${escapeHTML(
-          s.mission,
-      )} <span class='rot-badge'>${escapeHTML(s.rotation)}</span>`;
-    } else {
-      let stage = s.rotation
-          .replaceAll("Rotation ", "")
-          .replaceAll("Stage ", "St.");
-      locText = `<span class="t-loc">${escapeHTML(
-          s.location,
-      )}</span> <span style="color:#888">-</span> ${escapeHTML(
-          s.mission,
-      )} <span class='rot-badge'>${escapeHTML(stage)}</span>`;
+// Misiones de una pasada, de más rápida a más lenta
+const SHORT_MISSION_RANK = {
+  "Capture": 0, "Exterminate": 1, "Rescue": 2, "Sabotage": 3,
+  "Spy": 4, "Hive": 5, "Assassination": 6, "Hijack": 7,
+  "Mobile Defense": 8, "Assault": 9, "Junction": 10,
+};
+
+// Modos endless: la recompensa depende de la rotación (A/B/C)
+const ENDLESS_MODES = new Set([
+  "Survival", "Conjunction Survival", "Defense", "Interception",
+  "Excavation", "Disruption", "Defection", "Infested Salvage", "Salvage",
+  "Sanctuary Onslaught", "Elite Sanctuary Onslaught",
+  "Void Cascade", "Void Flood", "Void Armageddon", "Alchemy",
+]);
+
+function sourceGroupRank(s) {
+  if (s.type !== "mission") return 300;
+  if (ENDLESS_MODES.has(s.mission)) return 100;
+  const r = SHORT_MISSION_RANK[s.mission];
+  return r !== undefined ? r : 50;
+}
+
+function buildGroupedSourcesHtml(sources) {
+  const isES = state.currentLang === "es";
+
+  const groups = new Map();
+  sources.forEach((s) => {
+    const key = `${s.type}|${s.mission}`;
+    if (!groups.has(key)) {
+      groups.set(key, { mission: s.mission, rank: sourceGroupRank(s), rows: [] });
     }
-
-    const isTop = index < 5;
-    const rowClass = isTop ? "top-drop" : "";
-
-    let chanceColor = "#888";
-    if (s.chance > 10) chanceColor = "var(--wf-gold-text)";
-    else if (s.chance > 5) chanceColor = "var(--wf-blue)";
-
-    const sanitizedLocText = locText;
-
-    html += `<li class="${rowClass}">
-      <div class="t-row">${sanitizedLocText}</div>
-      <span class='drop-chance' style="color:${chanceColor}">${s.chance.toFixed(
-        2,
-    )}%</span>
-    </li>`;
+    groups.get(key).rows.push(s);
   });
 
-  html += "</ul>";
+  const topFive = new Set(
+      [...sources].sort((a, b) => b.chance - a.chance).slice(0, 5),
+  );
+
+  const sortedGroups = [...groups.values()].sort((a, b) => {
+    if (a.rank !== b.rank) return a.rank - b.rank;
+    return Math.max(...b.rows.map((r) => r.chance)) - Math.max(...a.rows.map((r) => r.chance));
+  });
+
+  let html = "";
+  sortedGroups.forEach((g) => {
+    const isEndless = g.rank === 100;
+    const isBounty = g.rank === 300;
+
+    g.rows.sort((a, b) => {
+      if (isEndless || isBounty) {
+        const rotCmp = String(a.rotation).localeCompare(String(b.rotation));
+        if (rotCmp !== 0) return rotCmp;
+      }
+      return b.chance - a.chance;
+    });
+
+    let tag = "";
+    if (isEndless) {
+      tag = `<span style='font-weight:600; color:#888; text-transform:none; font-size:0.85em;'>${isES ? "endless · por rotación" : "endless · by rotation"}</span>`;
+    } else if (isBounty) {
+      tag = `<span style='font-weight:600; color:#888; text-transform:none; font-size:0.85em;'>${isES ? "por fase" : "by stage"}</span>`;
+    }
+
+    html += `<div style='display:flex; align-items:baseline; gap:8px; margin:10px 0 2px 0; font-weight:800; color:#ddd; font-size:0.9em; text-transform:uppercase; border-bottom:1px solid #444; padding-bottom:2px;'>${escapeHTML(g.mission)} ${tag}</div>`;
+    html += "<ul class='tooltip-list' style='font-size:1.0em;'>";
+
+    g.rows.forEach((s) => {
+      const rot = s.type === "mission"
+        ? s.rotation
+        : String(s.rotation).replaceAll("Rotation ", "").replaceAll("Stage ", "St.");
+      const locText = `<span class="t-loc">${escapeHTML(
+          s.location,
+      )}</span> <span class='rot-badge'>${escapeHTML(rot)}</span>`;
+
+      const rowClass = topFive.has(s) ? "top-drop" : "";
+
+      let chanceColor = "#888";
+      if (s.chance > 10) chanceColor = "var(--wf-gold-text)";
+      else if (s.chance > 5) chanceColor = "var(--wf-blue)";
+
+      html += `<li class="${rowClass}">
+        <div class="t-row">${locText}</div>
+        <span class='drop-chance' style="color:${chanceColor}">${s.chance.toFixed(2)}%</span>
+      </li>`;
+    });
+
+    html += "</ul>";
+  });
+
   return html;
 }
 

@@ -176,3 +176,466 @@
 .drop-name.mod {
     color: #aaa;
 }
+/* ==============================================
+   FARMS TAB — header, chips, grupos plegables y alarmas
+   ============================================== */
+
+.farms-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 4px;
+    padding: 0 5px;
+    flex-wrap: wrap;
+}
+
+.farms-title {
+    margin: 0;
+    border-radius: 4px;
+    flex-grow: 1;
+}
+
+.farms-actions {
+    display: flex;
+    gap: 8px;
+    align-items: stretch;
+}
+
+.farm-action-btn {
+    font-weight: 800;
+    font-size: 0.75em;
+    padding: 0 12px;
+    height: 46px;
+    border: 1px solid #444;
+    color: #888;
+    background: transparent;
+    cursor: pointer;
+    border-radius: 4px;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    transition: color 0.2s, border-color 0.2s, background 0.2s;
+}
+
+.farm-action-btn:hover {
+    color: #fff;
+    border-color: #666;
+}
+
+.farm-action-btn.active-filter {
+    /* --wf-blue es cian claro: el texto debe ser oscuro para tener contraste */
+    color: #062a30;
+    font-weight: 900;
+    background: var(--wf-blue);
+    border-color: var(--wf-blue);
+}
+
+.farm-action-btn.active-filter .alarm-count {
+    background: rgba(0, 0, 0, 0.25);
+    color: #062a30;
+}
+
+.farm-action-btn .alarm-count {
+    font-size: 0.9em;
+    background: rgba(0, 0, 0, 0.35);
+    border-radius: 8px;
+    padding: 1px 6px;
+    min-width: 10px;
+}
+
+.farm-action-btn .alarm-count:empty {
+    display: none;
+}
+
+/* ---- Chips de sindicato ---- */
+.farm-chipbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 0 5px;
+    margin-bottom: 6px;
+}
+
+.farm-chip {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid color-mix(in srgb, var(--chip-color) 45%, transparent);
+    color: var(--chip-color);
+    border-radius: 14px;
+    padding: 4px 10px;
+    font-size: 0.72em;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: opacity 0.2s, background 0.2s;
+}
+
+.farm-chip .chip-count {
+    background: rgba(0, 0, 0, 0.4);
+    border-radius: 8px;
+    padding: 0 5px;
+    font-size: 0.9em;
+}
+
+.farm-chip.off {
+    opacity: 0.35;
+    filter: grayscale(0.8);
+    border-style: dashed;
+}
+
+.farm-chip:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+/* ---- Grupos de facción plegables ---- */
+.faction-group {
+    margin-bottom: 4px;
+}
+
+.faction-header-btn {
+    cursor: pointer;
+    user-select: none;
+}
+
+.faction-header-btn:hover {
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0.09) 0%, transparent 80%);
+}
+
+.faction-count {
+    font-size: 0.7em;
+    color: #ccc;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    padding: 1px 7px;
+    vertical-align: middle;
+    margin-left: 6px;
+}
+
+.faction-top-standing {
+    font-size: 0.65em;
+    color: #8f8;
+    opacity: 0.8;
+    margin-left: 4px;
+    vertical-align: middle;
+}
+
+.faction-header-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.faction-timer {
+    font-size: 0.9em;
+    color: #fff;
+    font-family: monospace;
+    background: rgba(0, 0, 0, 0.3);
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+.faction-group .faction-body {
+    overflow: hidden;
+    max-height: 5000px;
+    transition: max-height 0.35s ease;
+}
+
+.faction-group.collapsed .faction-body {
+    max-height: 0;
+}
+
+.faction-group .arrow-icon {
+    display: inline-block;
+    transition: transform 0.25s;
+    color: #888;
+    font-size: 0.8em;
+}
+
+.faction-group.collapsed .arrow-icon {
+    transform: rotate(-90deg);
+}
+
+/* ---- Panel de alarmas ---- */
+.farm-alarm-panel {
+    background: #14171b;
+    border: 1px solid #2c313a;
+    border-radius: 6px;
+    padding: 14px;
+    margin: 0 5px 12px 5px;
+    overflow: hidden;
+    transition: max-height 0.3s ease, padding 0.3s ease, opacity 0.3s ease;
+    max-height: 600px;
+    opacity: 1;
+}
+
+.farm-alarm-panel.collapsed {
+    max-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    border-width: 0;
+    opacity: 0;
+    margin-bottom: 0;
+}
+
+.alarm-panel-title {
+    font-weight: 800;
+    text-transform: uppercase;
+    font-size: 0.8em;
+    letter-spacing: 1px;
+    color: var(--wf-gold-text);
+    margin-bottom: 10px;
+}
+
+.alarm-toggles {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 18px;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.alarm-notif-status {
+    font-size: 0.75em;
+    font-weight: 700;
+}
+
+.alarm-notif-status.ok {
+    color: #6f6;
+}
+
+.alarm-notif-status.bad {
+    color: #f66;
+}
+
+.alarm-notif-btn,
+.alarm-add-btn {
+    font-size: 0.75em;
+    font-weight: 800;
+    padding: 6px 12px;
+    border: 1px dashed #555;
+    background: transparent;
+    color: #aaa;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.alarm-notif-btn:hover,
+.alarm-add-btn:hover {
+    color: #fff;
+    border-color: var(--wf-blue);
+}
+
+.alarm-builder {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.alarm-select {
+    background: #0f1113;
+    color: #ddd;
+    border: 1px solid #333;
+    border-radius: 4px;
+    padding: 6px 8px;
+    font-size: 0.8em;
+    flex: 1 1 140px;
+    min-width: 120px;
+}
+
+.alarm-rules-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.alarm-rule {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid #2c313a;
+    border-radius: 4px;
+    padding: 6px 10px;
+    font-size: 0.8em;
+    color: #ddd;
+}
+
+.alarm-rule-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.alarm-rule-desc {
+    flex: 1;
+}
+
+.alarm-rule-del {
+    background: transparent;
+    border: none;
+    color: #888;
+    font-size: 1.2em;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0 4px;
+}
+
+.alarm-rule-del:hover {
+    color: #f66;
+}
+
+.alarm-no-rules {
+    font-size: 0.78em;
+    color: #888;
+    line-height: 1.4;
+}
+
+.alarm-future-note {
+    margin-top: 10px;
+    font-size: 0.7em;
+    color: #666;
+    font-style: italic;
+}
+
+@media (max-width: 480px) {
+    .farms-header {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .farms-actions {
+        justify-content: stretch;
+    }
+
+    .farms-actions .farm-action-btn {
+        flex: 1;
+        justify-content: center;
+        height: 40px;
+    }
+
+    .faction-header-right {
+        flex-direction: row;
+        gap: 8px;
+    }
+}
+
+/* ---- Selector de misiones óptimas (estrella por misión) ---- */
+.bounty-side-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.optimal-star {
+    background: transparent;
+    border: 1px solid #3a3f47;
+    border-radius: 4px;
+    color: #666;
+    font-size: 1.05em;
+    line-height: 1;
+    padding: 5px 8px;
+    cursor: pointer;
+    transition: color 0.2s, border-color 0.2s, transform 0.1s;
+}
+
+.optimal-star:hover {
+    color: var(--wf-gold-text);
+    border-color: var(--wf-gold-text);
+    transform: scale(1.1);
+}
+
+.optimal-star.on {
+    color: var(--wf-gold-text);
+    border-color: color-mix(in srgb, var(--wf-gold-text) 50%, transparent);
+    background: rgba(197, 168, 86, 0.08);
+    text-shadow: 0 0 6px rgba(197, 168, 86, 0.5);
+}
+
+/* ---- Estado vacío de la pestaña de óptimas ---- */
+.optimal-empty {
+    border: 1px dashed #3a3f47;
+    border-radius: 8px;
+    padding: 28px 20px;
+    margin: 10px 5px;
+    text-align: center;
+    color: #aaa;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+}
+
+.optimal-empty-title {
+    font-weight: 800;
+    font-size: 1em;
+    color: #ddd;
+}
+
+.optimal-empty-desc {
+    font-size: 0.82em;
+    line-height: 1.5;
+    max-width: 480px;
+    color: #999;
+}
+
+.optimal-empty-btn {
+    font-weight: 800;
+    font-size: 0.8em;
+    padding: 10px 18px;
+    border: 1px solid var(--wf-blue);
+    color: var(--wf-blue);
+    background: transparent;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.optimal-empty-btn:hover {
+    background: var(--wf-blue);
+    color: #062a30;
+    font-weight: 900;
+}
+
+@media (max-width: 480px) {
+    .bounty-side-actions {
+        width: 100%;
+        justify-content: stretch;
+    }
+
+    .bounty-side-actions .bounty-rewards-btn {
+        flex: 1;
+    }
+}
+
+/* ---- Multiselección de desafíos en el builder de alarmas ---- */
+.alarm-challenge-box {
+    margin-bottom: 12px;
+    border: 1px solid #2c313a;
+    border-radius: 4px;
+    padding: 8px 10px;
+    background: rgba(0, 0, 0, 0.15);
+}
+
+.alarm-challenge-title {
+    font-size: 0.7em;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #888;
+    margin-bottom: 6px;
+}
+
+.alarm-challenge-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 2px 12px;
+    max-height: 160px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    font-size: 0.85em;
+}

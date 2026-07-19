@@ -1037,13 +1037,21 @@ export const VisionService = {
         // en ese caso el hue elegido es basura -> se cae a la máscara de texto brillante neutra
         // (v alto, poca saturación), que aísla los nombres blancos/claros que la pasada grayscale
         // ya lee bien y no inyecta ruido de color. Genérico: sin asumir color ni posición.
-        const buildMask = (useHue) => {
+        // vMin/sMax del modo neutro: el par laxo (0.78/0.45) es el histórico; el estricto
+        // (0.85/0.28) recorta el fondo abrillantado por el tinte (rocas rosadas ~s 0.35-0.5)
+        // conservando las letras crema (v>0.9, s<0.2) — verificado offline en 3 frames Steel Path.
+        // OJO: buildMask escribe la máscara SOBRE px. Las pasadas siguientes de la escalera
+        // deben leer los píxeles ORIGINALES (orig): leer px re-masked invertía la máscara
+        // anterior (todo lo no-texto quedaba blanco puro = "texto brillante") y el rescate
+        // neutro devolvía basura densa — el origen real del ruido de la pasada de nombres.
+        const orig = px.slice();
+        const buildMask = (useHue, vMin = 0.78, sMax = 0.45) => {
             let textCount = 0;
             for (let i = 0; i < px.length; i += 4) {
-                const [h, s, v] = toHSV(px[i], px[i + 1], px[i + 2]);
+                const [h, s, v] = toHSV(orig[i], orig[i + 1], orig[i + 2]);
                 let isText;
                 if (!useHue) {
-                    isText = v > 0.78 && s < 0.45;                 // texto brillante (crema/claros, o rescate anti-tinte)
+                    isText = v > vMin && s < sMax;                 // texto brillante (crema/claros, o rescate anti-tinte)
                 } else {
                     let hd = Math.abs(h - Hd); if (hd > 0.5) hd = 1 - hd;
                     isText = v > 0.30 && s > 0.45 && hd < 0.125;   // ~±45°: texto del color del tema, saturado
@@ -1053,8 +1061,15 @@ export const VisionService = {
             }
             return textCount / totalPx;
         };
-        const density = buildMask(Hd !== null);
-        if (Hd !== null && density > 0.22) buildMask(false); // hue eligió tinte/ilustración -> rehacer neutro
+        // Escalera de máscaras: hue del tema -> neutra laxa -> neutra estricta. El texto real de
+        // 4 nombres nunca pasa de ~6% del recorte; una máscara más densa es fondo, no letras.
+        let density = buildMask(Hd !== null);
+        if (Hd !== null && density > 0.22) density = buildMask(false); // hue eligió tinte/ilustración -> rehacer neutro
+        if (density > 0.10) density = buildMask(false, 0.85, 0.28);    // neutra laxa cogió fondo teñido -> estricta
+        // Si ni la estricta aisló letras, esta pasada no aporta: su OCR metería decenas de
+        // palabras basura en mergedWords y fabrica anclas espurias (el "Ri/ris" -> requiem
+        // "Ris" salía de aquí). null = saltar la pasada; la grayscale ya lee los nombres claros.
+        if (density > 0.10) return null;
         ctx.putImageData(img, 0, 0);
         return cvs;
     },

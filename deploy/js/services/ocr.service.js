@@ -310,7 +310,9 @@ export const OCRService = {
         const itemMatches = [];
 
         const MARGIN_LEFT = isStrip ? (imgW * 0.3) : (imgW * 0.05);
-        const MARGIN_RIGHT = isStrip ? imgW : (imgW * 0.18);
+        // Ampliado de 0.18 a 0.26 para nombres largos en 1 sola línea (ej. "Gunsen Prime Blueprint"),
+        // donde el ancla ("Gunsen") está muy a la izquierda y el último token cae a casi 25% de distancia.
+        const MARGIN_RIGHT = isStrip ? imgW : (imgW * 0.26);
 
         const allFirstTokens = new Set(this.cachedDbItems.map(item => item.searchWords[0]));
         const globalAnchors = validWords.filter(w => allFirstTokens.has(w.text)).sort((a, b) => a.x - b.x);
@@ -321,13 +323,34 @@ export const OCRService = {
 
             for (const anchor of anchors) {
                 const nextAnchor = isStrip ? null : globalAnchors.find(a => a.x > anchor.x + (imgW * 0.05));
+                // OJO: cortar la ventana ANTES de nextAnchor (zona de exclusión) o extenderla a
+                // imgW cuando no hay nextAnchor rompe frames reales: un token basura del tinte
+                // que normaliza a un requiem de 1 token ("ris") se vuelve ancla espuria, la
+                // exclusión amputa los tokens legítimos del nombre anterior ("Prime String") y
+                // el requiem gana la consolidación. El clamp a nextAnchor.x - 1 ya aísla columnas;
+                // el caso Quassus (nombre largo en la última columna) lo cubre MARGIN_RIGHT 0.26.
                 const maxRightX = nextAnchor ? Math.min(anchor.x + MARGIN_RIGHT, nextAnchor.x - 1) : anchor.x + MARGIN_RIGHT;
 
-                const localWords = validWords.filter(w => w.x >= (anchor.x - MARGIN_LEFT) && w.x <= maxRightX);
+                // MARGIN_LEFT existe para las líneas 2-3 de un nombre multilínea (centradas bajo
+                // la línea 1, pueden asomar a la izquierda del ancla). Pero una palabra a la
+                // izquierda del ancla EN SU MISMA LÍNEA nunca es del propio nombre (el ancla es
+                // la 1ª palabra de la línea 1): es la cola del vecino ("...Chassis | Khora...")
+                // y roba el match o dispara la penalización de partes. Se excluye por Y.
+                const sameLineTol = imgW * 0.008;
+                const localWords = validWords.filter(w =>
+                    w.x >= (anchor.x - MARGIN_LEFT) && w.x <= maxRightX &&
+                    (isStrip || !(w.x < anchor.x && Math.abs(w.y - anchor.y) < sameLineTol))
+                );
                 const metadata = this.extractInventoryMetadata(localWords);
 
                 const localSoupText = localWords.map(w => w.text).join(" ");
-                const ratio = this._calculateMatchRatio(dbItem, localSoupText, localWords);
+                // La PENALIZACIÓN por partes (main-blueprint vs "X Prime <Parte>") solo debe ver
+                // palabras del PROPIO nombre: los tokens de una carta quedan a ≤~0.09W de su ancla,
+                // pero la 2ª línea de un nombre multilínea VECINO ("Neuroptics" de "Grendel Prime /
+                // Neuroptics Blueprint") queda a la izquierda del ancla vecina (el clamp no la corta,
+                // ~0.17W) y colaba un wfPart en la sopa -> "Gunsen Prime Blueprint" moría con -0.6.
+                const penaltyWords = isStrip ? localWords : localWords.filter(w => Math.abs(w.x - anchor.x) <= imgW * 0.13);
+                const ratio = this._calculateMatchRatio(dbItem, localSoupText, localWords, penaltyWords);
 
                 const minWords = searchTokens.length === 1 ? 1 : (isStrip ? 1 : 2);
                 const minRatio = isStrip ? 0.55 : 0.65;
@@ -375,7 +398,11 @@ export const OCRService = {
         return count;
     },
 
-    _calculateMatchRatio(dbItem, localSoupText, localWords) {
+    // localWords: ventana completa de la columna (puntúa los tokens del nombre, que pueden
+    // repartirse en 2-3 líneas). penaltyWords: SOLO palabras pegadas al ancla (≤0.13W) — la
+    // penalización decide "main blueprint vs parte" y un wfPart/wpnPart de la 2ª línea de un
+    // nombre VECINO no debe dispararla (queda dentro de la ventana pero lejos del ancla).
+    _calculateMatchRatio(dbItem, localSoupText, localWords, penaltyWords = localWords) {
         const wfParts = ["CHASSIS", "SYSTEMS", "NEUROPTICS", "HARNESS", "WINGS", "CARAPACE", "CEREBRUM"];
         const wpnParts = ["BARREL", "RECEIVER", "STOCK", "BLADE", "HILT", "HEAD", "MOTOR", "GRIP", "STRING", "LIMB", "LINK", "POUCH", "GUARD", "DISC", "STARS", "BAND", "BOOT"];
         const searchTokens = dbItem.searchWords;
@@ -391,14 +418,19 @@ export const OCRService = {
         let ratio = matchScore / searchTokens.length;
         const name = dbItem.originalName.toUpperCase();
         const isMainBlueprint = name.endsWith("BLUEPRINT") && !wfParts.some(p => name.includes(p));
-        const soupHasWfPart = wfParts.some(p => localSoupText.includes(p) || localWords.some(w => this.getSimilarity(w.text, p) > 0.7));
+        // Partes por TOKEN EXACTO, no substring de la sopa: "LIMBO" contiene "LIMB" y la
+        // penalización por substring mataba "Limbo Prime Blueprint" (-0.8) siempre.
+        const soupHasToken = (tok) => penaltyWords.some(w => w.text === tok);
+        const soupHasWfPart = wfParts.some(p => soupHasToken(p) || penaltyWords.some(w => this.getSimilarity(w.text, p) > 0.7));
 
-        if (wpnParts.some(p => localSoupText.includes(p))) {
+        if (wpnParts.some(soupHasToken)) {
             if (isMainBlueprint) ratio -= 0.8;
         } else if (soupHasWfPart) {
             if (isMainBlueprint) ratio -= 0.6;
-        } else if (localSoupText.includes("BLUEPRINT")) {
-            if (wpnParts.some(p => name.includes(p))) ratio -= 0.6;
+        } else if (soupHasToken("BLUEPRINT")) {
+            // También por token en el NOMBRE: "LIMBO" contiene "LIMB" como substring.
+            const nameTokens = name.split(/[^A-Z0-9]+/);
+            if (wpnParts.some(p => nameTokens.includes(p))) ratio -= 0.6;
         }
         return ratio;
     },
