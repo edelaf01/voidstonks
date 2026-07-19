@@ -255,7 +255,7 @@ export const OCRService = {
         const itemMatches = [];
 
         const MARGIN_LEFT = isStrip ? (imgW * 0.3) : (imgW * 0.05);
-        const MARGIN_RIGHT = isStrip ? imgW : (imgW * 0.18);
+        const MARGIN_RIGHT = isStrip ? imgW : (imgW * 0.26);
 
         const allFirstTokens = new Set(this.cachedDbItems.map(item => item.searchWords[0]));
         const globalAnchors = validWords.filter(w => allFirstTokens.has(w.text)).sort((a, b) => a.x - b.x);
@@ -268,11 +268,16 @@ export const OCRService = {
                 const nextAnchor = isStrip ? null : globalAnchors.find(a => a.x > anchor.x + (imgW * 0.05));
                 const maxRightX = nextAnchor ? Math.min(anchor.x + MARGIN_RIGHT, nextAnchor.x - 1) : anchor.x + MARGIN_RIGHT;
 
-                const localWords = validWords.filter(w => w.x >= (anchor.x - MARGIN_LEFT) && w.x <= maxRightX);
+                const sameLineTol = imgW * 0.008;
+                const localWords = validWords.filter(w =>
+                    w.x >= (anchor.x - MARGIN_LEFT) && w.x <= maxRightX &&
+                    (isStrip || !(w.x < anchor.x && Math.abs(w.y - anchor.y) < sameLineTol))
+                );
                 const metadata = this.extractInventoryMetadata(localWords);
 
                 const localSoupText = localWords.map(w => w.text).join(" ");
-                const ratio = this._calculateMatchRatio(dbItem, localSoupText, localWords);
+                const penaltyWords = isStrip ? localWords : localWords.filter(w => Math.abs(w.x - anchor.x) <= imgW * 0.13);
+                const ratio = this._calculateMatchRatio(dbItem, localSoupText, localWords, penaltyWords);
 
                 const minWords = searchTokens.length === 1 ? 1 : (isStrip ? 1 : 2);
                 const minRatio = isStrip ? 0.55 : 0.65;
@@ -312,7 +317,7 @@ export const OCRService = {
         return count;
     },
 
-    _calculateMatchRatio(dbItem, localSoupText, localWords) {
+    _calculateMatchRatio(dbItem, localSoupText, localWords, penaltyWords = localWords) {
         const wfParts = ["CHASSIS", "SYSTEMS", "NEUROPTICS", "HARNESS", "WINGS", "CARAPACE", "CEREBRUM"];
         const wpnParts = ["BARREL", "RECEIVER", "STOCK", "BLADE", "HILT", "HEAD", "MOTOR", "GRIP", "STRING", "LIMB", "LINK", "POUCH", "GUARD", "DISC", "STARS", "BAND", "BOOT"];
         const searchTokens = dbItem.searchWords;
@@ -328,14 +333,16 @@ export const OCRService = {
         let ratio = matchScore / searchTokens.length;
         const name = dbItem.originalName.toUpperCase();
         const isMainBlueprint = name.endsWith("BLUEPRINT") && !wfParts.some(p => name.includes(p));
-        const soupHasWfPart = wfParts.some(p => localSoupText.includes(p) || localWords.some(w => this.getSimilarity(w.text, p) > 0.7));
+        const soupHasToken = (tok) => penaltyWords.some(w => w.text === tok);
+        const soupHasWfPart = wfParts.some(p => soupHasToken(p) || penaltyWords.some(w => this.getSimilarity(w.text, p) > 0.7));
 
-        if (wpnParts.some(p => localSoupText.includes(p))) {
+        if (wpnParts.some(soupHasToken)) {
             if (isMainBlueprint) ratio -= 0.8;
         } else if (soupHasWfPart) {
             if (isMainBlueprint) ratio -= 0.6;
-        } else if (localSoupText.includes("BLUEPRINT")) {
-            if (wpnParts.some(p => name.includes(p))) ratio -= 0.6;
+        } else if (soupHasToken("BLUEPRINT")) {
+            const nameTokens = name.split(/[^A-Z0-9]+/);
+            if (wpnParts.some(p => nameTokens.includes(p))) ratio -= 0.6;
         }
         return ratio;
     },

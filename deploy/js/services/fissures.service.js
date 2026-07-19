@@ -86,7 +86,7 @@ function passesPrefs(f, prefs) {
     return typeMatch || omniaMatch;
 }
 
-export async function fetchBestFissures(force = false) {
+export async function fetchAllFissures(force = false) {
     let allFissures;
 
     if (!force && _fissureCache.data && (Date.now() - _fissureCache.ts < FISSURE_TTL)) {
@@ -160,8 +160,34 @@ export async function fetchBestFissures(force = false) {
         }
     }
 
+    return allFissures;
+}
+
+export async function fetchBestFissures(force = false) {
+    const allFissures = await fetchAllFissures(force);
     const prefs = getFissurePrefs();
     return allFissures.filter((f) => passesPrefs(f, prefs));
+}
+
+const ARBY_NODE_TIERS = {
+    "Tyana Pass": "S", "Alator": "S", "Callisto": "S", "Xini": "S", "Cytherean": "S",
+    "Munio": "A", "Seimeni": "A", "Cinxia": "A", "Casta": "A", "Oestrus": "A", "Hyf": "A",
+    "Larzac": "B", "Sechura": "B", "Hydron": "B", "Helene": "B", "Ose": "B", "Akkad": "B",
+    "Kala-azar": "B", "Odin": "B", "Mithra": "B", "Belenus": "B", "Taranis": "B",
+    "Coba": "C", "Spear": "C", "Kadesh": "C", "Paimon": "C", "Lith": "C",
+    "Stephano": "C", "Tessera": "C", "Outer Terminus": "C",
+    "Umbriel": "D", "Cerberus": "D", "Lares": "D", "Sangeru": "D", "Sinai": "D",
+    "Gulliver": "D", "Romula": "D", "Proteus": "D", "Io": "D", "Stöfler": "D", "Gaia": "D",
+};
+
+const arbyBaseNode = (node) => (node || "").replace(/\s*\([^)]*\)\s*$/, "").trim();
+
+function fillArbyTier(m) {
+    if (m && !m.tier) {
+        const t = ARBY_NODE_TIERS[arbyBaseNode(m.node)];
+        if (t) m.tier = t;
+    }
+    return m;
 }
 
 let _arbyCache = { data: null };
@@ -176,10 +202,26 @@ export async function fetchArbitration(force = false) {
         if (!res.ok) throw new Error(`Arbitration HTTP ${res.status}`);
         const payload = await res.json();
         const data = payload?.data ?? payload ?? null;
-        if (data?.current) _arbyCache = { data };
+        if (data?.current) {
+            fillArbyTier(data.current);
+            (data.upcoming || []).forEach(fillArbyTier);
+            _arbyCache = { data };
+        }
         return data?.current ? data : cached;
     } catch (e) {
         console.error("Error obteniendo Arbitration:", e);
         return cached || null;
     }
+}
+
+export async function fetchActiveArbitration() {
+    const arby = await fetchArbitration();
+    const now = new Date(Date.now() - (globalThis._serverTimeOffset || 0));
+    let cur = arby?.current;
+    if (cur && new Date(cur.expiry) <= now) {
+        cur = (arby.upcoming || []).find(
+            (m) => new Date(m.activation) <= now && new Date(m.expiry) > now,
+        ) || null;
+    }
+    return cur && new Date(cur.expiry) > now ? [cur] : [];
 }
