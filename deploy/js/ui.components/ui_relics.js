@@ -9,8 +9,12 @@ import {
   generateDotsHtml,
   generateSetProgressTooltip,
 } from "../utils/ui_utils.js";
+// same specifier (?v=1.1) as ui.js/main.js: another one loads a second module instance
+import { updateRecommendedMissions } from "./ui_fissures.js?v=1.1";
 
 let debounceTimer;
+
+let lastFissureRelic = null;
 
 export function findBestRelicMatch(inputVal) {
   if (!inputVal) return "";
@@ -148,6 +152,12 @@ export function manualRelicUpdate() {
       items.forEach((item) => fragment.appendChild(createRelicDropRow(item)));
       listDiv.replaceChildren(fragment);
       generateMessage();
+
+      if (state.selectedRelic !== lastFissureRelic) {
+        lastFissureRelic = state.selectedRelic;
+        document.getElementById("best-missions-container")?.classList.add("open");
+        updateRecommendedMissions(state.selectedRelic.split(" ")[0]).catch(console.error);
+      }
     }
   } catch (e) {
     console.error("Error en manualRelicUpdate:", e);

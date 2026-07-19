@@ -1,6 +1,6 @@
 import { MobileScanner } from "./mobile_scanner.js";
 import { OCRRepository } from "../repositories/ocr.repository.js";
-import { OCRService } from "../services/ocr.service.js";
+import { OCRService } from "../services/ocr.service.js?v=264";
 import { showToast } from "../ui.components/ui_components.js";
 
 

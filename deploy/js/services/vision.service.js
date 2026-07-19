@@ -838,13 +838,14 @@ export const VisionService = {
         }
         const Hd = (peak >= 0 && bins[peak] >= 20) ? hsum[peak] / bins[peak] : null;
 
-        const buildMask = (useHue) => {
+        const orig = px.slice();
+        const buildMask = (useHue, vMin = 0.78, sMax = 0.45) => {
             let textCount = 0;
             for (let i = 0; i < px.length; i += 4) {
-                const [h, s, v] = toHSV(px[i], px[i + 1], px[i + 2]);
+                const [h, s, v] = toHSV(orig[i], orig[i + 1], orig[i + 2]);
                 let isText;
                 if (!useHue) {
-                    isText = v > 0.78 && s < 0.45;
+                    isText = v > vMin && s < sMax;
                 } else {
                     let hd = Math.abs(h - Hd); if (hd > 0.5) hd = 1 - hd;
                     isText = v > 0.30 && s > 0.45 && hd < 0.125;
@@ -854,8 +855,10 @@ export const VisionService = {
             }
             return textCount / totalPx;
         };
-        const density = buildMask(Hd !== null);
-        if (Hd !== null && density > 0.22) buildMask(false);
+        let density = buildMask(Hd !== null);
+        if (Hd !== null && density > 0.22) density = buildMask(false);
+        if (density > 0.10) density = buildMask(false, 0.85, 0.28);
+        if (density > 0.10) return null;
         ctx.putImageData(img, 0, 0);
         return cvs;
     },
