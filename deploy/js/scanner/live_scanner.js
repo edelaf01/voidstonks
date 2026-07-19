@@ -3,7 +3,7 @@ import { showToast } from "../ui.components/ui_components.js";
 import { TEXTS } from "../config.js";
 import { warmupPrices } from "../api.js";
 import { ScannerService } from "../services/scanner.service.js";
-import { OCRService } from "../services/ocr.service.js";
+import { OCRService } from "../services/ocr.service.js?v=264";
 import { ScannerModal } from "../ui.components/ui_scanner_modal.js";
 import { ScannerHUD } from "../ui.components/ui_scanner_hud.js";
 import { OCRRepository } from "../repositories/ocr.repository.js";

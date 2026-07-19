@@ -91,10 +91,12 @@ function passesPrefs(f, prefs) {
 }
 
 /**
+ * All active fissures, Railjack included, without view prefs. Feeds the panel and
+ * the fissure alarms.
  * @param {boolean} [force=false]
  * @returns {Promise<Array>}
  */
-export async function fetchBestFissures(force = false) {
+export async function fetchAllFissures(force = false) {
     let allFissures;
 
     if (!force && _fissureCache.data && (Date.now() - _fissureCache.ts < FISSURE_TTL)) {
@@ -170,8 +172,42 @@ export async function fetchBestFissures(force = false) {
         }
     }
 
+    return allFissures;
+}
+
+/**
+ * Active fissures with the user's view prefs applied.
+ * @param {boolean} [force=false]
+ * @returns {Promise<Array>}
+ */
+export async function fetchBestFissures(force = false) {
+    const allFissures = await fetchAllFissures(force);
     const prefs = getFissurePrefs();
     return allFissures.filter((f) => passesPrefs(f, prefs));
+}
+
+// Community Arbitration tiers by node (discord.gg/Arbitrations), used when the parser
+// brings no tier. Key = node name without "(Planet)".
+const ARBY_NODE_TIERS = {
+    "Tyana Pass": "S", "Alator": "S", "Callisto": "S", "Xini": "S", "Cytherean": "S",
+    "Munio": "A", "Seimeni": "A", "Cinxia": "A", "Casta": "A", "Oestrus": "A", "Hyf": "A",
+    "Larzac": "B", "Sechura": "B", "Hydron": "B", "Helene": "B", "Ose": "B", "Akkad": "B",
+    "Kala-azar": "B", "Odin": "B", "Mithra": "B", "Belenus": "B", "Taranis": "B",
+    "Coba": "C", "Spear": "C", "Kadesh": "C", "Paimon": "C", "Lith": "C",
+    "Stephano": "C", "Tessera": "C", "Outer Terminus": "C",
+    "Umbriel": "D", "Cerberus": "D", "Lares": "D", "Sangeru": "D", "Sinai": "D",
+    "Gulliver": "D", "Romula": "D", "Proteus": "D", "Io": "D", "Stöfler": "D", "Gaia": "D",
+};
+
+// "Sechura (Pluto)" -> "Sechura"
+const arbyBaseNode = (node) => (node || "").replace(/\s*\([^)]*\)\s*$/, "").trim();
+
+function fillArbyTier(m) {
+    if (m && !m.tier) {
+        const t = ARBY_NODE_TIERS[arbyBaseNode(m.node)];
+        if (t) m.tier = t;
+    }
+    return m;
 }
 
 let _arbyCache = { data: null };
@@ -191,10 +227,30 @@ export async function fetchArbitration(force = false) {
         const payload = await res.json();
         // the main worker returns the object, the parser wraps it in {data}
         const data = payload?.data ?? payload ?? null;
-        if (data?.current) _arbyCache = { data };
+        if (data?.current) {
+            fillArbyTier(data.current);
+            (data.upcoming || []).forEach(fillArbyTier);
+            _arbyCache = { data };
+        }
         return data?.current ? data : cached;
     } catch (e) {
         console.error("Error obteniendo Arbitration:", e);
         return cached || null;
     }
+}
+
+/**
+ * Active Arbitration as a list for the alarm engine: if "current" expired, the running
+ * `upcoming` rotation takes its place. [] when there is none.
+ */
+export async function fetchActiveArbitration() {
+    const arby = await fetchArbitration();
+    const now = new Date(Date.now() - (globalThis._serverTimeOffset || 0));
+    let cur = arby?.current;
+    if (cur && new Date(cur.expiry) <= now) {
+        cur = (arby.upcoming || []).find(
+            (m) => new Date(m.activation) <= now && new Date(m.expiry) > now,
+        ) || null;
+    }
+    return cur && new Date(cur.expiry) > now ? [cur] : [];
 }

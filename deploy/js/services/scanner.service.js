@@ -1,6 +1,6 @@
 import { VisionService, WF_THEMES } from "./vision.service.js";
 import { isImplausibleFallbackGrid } from "../utils/grid_detect.js";
-import { OCRService } from "./ocr.service.js";
+import { OCRService } from "./ocr.service.js?v=264";
 import { OCRRepository } from "../repositories/ocr.repository.js";
 import { PaddleRepository } from "../repositories/paddle.repository.js";
 import { OpenCVRepository } from "../repositories/opencv.repository.js";
@@ -913,14 +913,23 @@ export const ScannerService = {
             if (debugImg) debugImg.src = ocrCanvas.toDataURL("image/jpeg", 0.85);
         }
 
+        // 2nd pass: names by theme color mask, same crop and scale as ocrCanvas so the word boxes share
+        // coordinates. Runs in parallel with the grayscale pass. null = dense mask (noise), no names pass.
         const namesCanvas = VisionService.prepareRewardNamesCanvas(video, width, height, scale);
-        await OCRRepository.ensureSecondWorker();
-        const w0 = OCRRepository.workers[0];
-        const w1 = OCRRepository.workers[1] || w0;
-        const [metaRes, namesRes] = await Promise.all([
-            OCRRepository.recognize(w0, ocrCanvas, {}, { blocks: true }),
-            OCRRepository.recognize(w1, namesCanvas, {}, { blocks: true }),
-        ]);
+        let metaRes, namesRes;
+        if (namesCanvas) {
+            await OCRRepository.ensureSecondWorker();
+            const w0 = OCRRepository.workers[0];
+            const w1 = OCRRepository.workers[1] || w0;
+            [metaRes, namesRes] = await Promise.all([
+                OCRRepository.recognize(w0, ocrCanvas, {}, { blocks: true }),
+                OCRRepository.recognize(w1, namesCanvas, {}, { blocks: true }),
+            ]);
+        } else {
+            console.log("[REWARD] Names pass skipped: noisy mask");
+            metaRes = await OCRRepository.recognize(OCRRepository.workers[0], ocrCanvas, {}, { blocks: true });
+            namesRes = { data: { text: "", words: [] } };
+        }
         const data = metaRes.data;
         const rawOcr = data.text || "";
         console.log(`[REWARD] OCR raw (grayscale/badges): "${rawOcr.replaceAll(/\n+/g, " ").trim().slice(0, 120)}"`);
@@ -943,6 +952,7 @@ export const ScannerService = {
         clearRewardDebugLogs();
         const cleanOcrText = rawOcr.replaceAll(/\n+/g, ' ').trim();
         addRewardDebugLog("OCR", `Read: ${cleanOcrText}`, "info");
+        addRewardDebugLog("OCR2", namesCanvas ? `Names: ${namesRaw.replaceAll(/\n+/g, " ").trim()}` : "Names: (skipped - noisy mask)", "info");
         addRewardDebugLog("SCAN", `Items found: ${foundItems.length}`, foundItems.length > 0 ? "match" : "warn");
 
         const contextText = `${rawOcr} ${namesRaw}`.toUpperCase();

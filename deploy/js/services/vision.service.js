@@ -888,13 +888,16 @@ export const VisionService = {
         }
         const Hd = (peak >= 0 && bins[peak] >= 20) ? hsum[peak] / bins[peak] : null; // null = cream/light or tint only
 
-        const buildMask = (useHue) => {
+        // 2nd pass: name text -> black, rest -> white. A hue mask denser than 22% is art or tint: falls back
+        // to the neutral bright mask. buildMask writes over px, so later passes read `orig`.
+        const orig = px.slice();
+        const buildMask = (useHue, vMin = 0.78, sMax = 0.45) => {
             let textCount = 0;
             for (let i = 0; i < px.length; i += 4) {
-                const [h, s, v] = toHSV(px[i], px[i + 1], px[i + 2]);
+                const [h, s, v] = toHSV(orig[i], orig[i + 1], orig[i + 2]);
                 let isText;
                 if (!useHue) {
-                    isText = v > 0.78 && s < 0.45;                 // bright text (cream/light, or tint rescue)
+                    isText = v > vMin && s < sMax;                 // bright text (cream/light, or tint rescue)
                 } else {
                     let hd = Math.abs(h - Hd); if (hd > 0.5) hd = 1 - hd;
                     isText = v > 0.30 && s > 0.45 && hd < 0.125;   // ~±45°: saturated theme colored text
@@ -904,8 +907,11 @@ export const VisionService = {
             }
             return textCount / totalPx;
         };
-        const density = buildMask(Hd !== null);
-        if (Hd !== null && density > 0.22) buildMask(false); // the hue picked tint or art: redo neutral
+        // mask ladder: theme hue -> loose neutral -> strict neutral. Real text never goes over ~6% of the crop.
+        let density = buildMask(Hd !== null);
+        if (Hd !== null && density > 0.22) density = buildMask(false); // the hue picked tint or art: redo neutral
+        if (density > 0.10) density = buildMask(false, 0.85, 0.28);    // loose neutral caught tinted background: strict
+        if (density > 0.10) return null;
         ctx.putImageData(img, 0, 0);
         return cvs;
     },
