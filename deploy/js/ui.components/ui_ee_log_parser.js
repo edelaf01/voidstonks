@@ -1,3 +1,5 @@
+import { translatePattern, translateBreed, translateColorRarity } from './kubrow_translations.js';
+
 class SimpleEELogParser {
   constructor() {
     this.kubrows = [];
@@ -377,10 +379,13 @@ export class EELogParserUI {
     const rarityClass = `rarity-${kubrow.colors.rarityTier}`;
     const rarityLabel = {
       0: '?',
-      1: 'Common',
-      2: 'Uncommon',
-      3: 'Rare'
-    }[kubrow.colors.rarityTier] || 'Unknown';
+      1: 'Común',
+      2: 'Poco Común',
+      3: 'Raro'
+    }[kubrow.colors.rarityTier] || 'Desconocido';
+
+    const breedTranslated = translateBreed(kubrow.breed, 'es');
+    const patternTranslated = translatePattern(kubrow.pattern, 'es');
 
     card.innerHTML = `
       <div class="kubrow-card-header ${rarityClass}">
@@ -394,7 +399,7 @@ export class EELogParserUI {
         <h4 class="kubrow-name">${kubrow.name}</h4>
         <div class="kubrow-info">
           <span class="info-row">
-            <strong>Raza:</strong> ${kubrow.breed}
+            <strong>Raza:</strong> ${breedTranslated}
           </span>
           <span class="info-row">
             <strong>Nivel:</strong> ${kubrow.level}
@@ -403,7 +408,7 @@ export class EELogParserUI {
             <strong>Salud:</strong> ${kubrow.health}
           </span>
           <span class="info-row">
-            <strong>Patrón:</strong> ${kubrow.pattern}
+            <strong>Patrón:</strong> ${patternTranslated}
           </span>
         </div>
         <div class="kubrow-colors">
