@@ -37,14 +37,20 @@ class SimpleEELogParser {
   }
 
   parseKubrowEntity(line) {
+    if (!line.includes('setting owner')) return;
+
     const entityMatch = line.match(/(KubrowPetAvatar|KubrowShipAvatar)(\d+)/);
+    const playerMatch = line.match(/setting owner player to ([A-Za-z0-9_]+)/);
+
     if (entityMatch) {
       const entityType = entityMatch[1];
       const entityId = entityMatch[2];
+      const playerName = playerMatch ? playerMatch[1] : 'Unknown';
+
       this.kubrows.push({
         entityId,
         entityType,
-        playerName: 'Unknown',
+        playerName,
         timestamp: this.extractTimestamp(line),
         rawLine: line
       });
