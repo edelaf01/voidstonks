@@ -16,21 +16,35 @@ export const KUBROW_BREEDS = {
 };
 
 export const KUBROW_PATTERNS = {
-  // PatternF = Female patterns
-  'F': { es: 'Femenino', en: 'Female' },
-  'M': { es: 'Masculino', en: 'Male' },
-  'SkinF': { es: 'Piel Femenina', en: 'Female Skin' },
-  'SkinM': { es: 'Piel Masculina', en: 'Male Skin' },
-  'CardF': { es: 'Tarjeta Femenina', en: 'Female Card' },
-  'CardM': { es: 'Tarjeta Masculina', en: 'Male Card' },
+  // Asset types (not visual patterns, but texture/model variants)
+  'F': { es: 'Variante F', en: 'Variant F' },
+  'M': { es: 'Variante M', en: 'Variant M' },
 
-  // Specific pattern names
+  // Skin/texture variants
+  'SkinF': { es: 'Piel F', en: 'Skin F' },
+  'SkinM': { es: 'Piel M', en: 'Skin M' },
+  'SkinC': { es: 'Piel C', en: 'Skin C' },
+  'SkinA': { es: 'Piel A', en: 'Skin A' },
+  'SkinB': { es: 'Piel B', en: 'Skin B' },
+  'SkinD': { es: 'Piel D', en: 'Skin D' },
+  'SkinE': { es: 'Piel E', en: 'Skin E' },
+  'SkinG': { es: 'Piel G', en: 'Skin G' },
+  'SkinH': { es: 'Piel H', en: 'Skin H' },
+
+  // Card variants (UI/model card)
+  'CardF': { es: 'Card F', en: 'Card F' },
+  'CardM': { es: 'Card M', en: 'Card M' },
+  'CardC': { es: 'Card C', en: 'Card C' },
+
+  // Generic pattern names
   'PatternA': { es: 'Patrón A', en: 'Pattern A' },
   'PatternB': { es: 'Patrón B', en: 'Pattern B' },
   'PatternC': { es: 'Patrón C', en: 'Pattern C' },
   'PatternD': { es: 'Patrón D', en: 'Pattern D' },
   'PatternE': { es: 'Patrón E', en: 'Pattern E' },
   'PatternF': { es: 'Patrón F', en: 'Pattern F' },
+  'PatternG': { es: 'Patrón G', en: 'Pattern G' },
+  'PatternH': { es: 'Patrón H', en: 'Pattern H' },
 };
 
 export const KUBROW_COLORS = {
@@ -49,18 +63,23 @@ export const KUBROW_COLORS = {
 export const translatePattern = (pattern, lang = 'es') => {
   if (!pattern) return lang === 'es' ? 'Desconocido' : 'Unknown';
 
-  // Buscar match directo
+  // Buscar match directo primero
   const direct = KUBROW_PATTERNS[pattern];
   if (direct) return direct[lang];
 
-  // Buscar por contiene (ej: "PatternF" contiene "F")
-  for (const [key, value] of Object.entries(KUBROW_PATTERNS)) {
-    if (pattern.includes(key)) {
-      return value[lang];
+  // Extraer la última letra/código (ej: "SkinC" -> "C", "PatternF" -> "F")
+  const lastChar = pattern[pattern.length - 1];
+  if (/[A-Z]/.test(lastChar)) {
+    const variantKey = lastChar;
+    if (lang === 'es') {
+      return `Variante ${variantKey}`;
+    } else {
+      return `Variant ${variantKey}`;
     }
   }
 
-  return pattern; // Fallback: devolver el original si no hay match
+  // Fallback: devolver el original si no hay match
+  return pattern;
 };
 
 export const translateBreed = (breed, lang = 'es') => {
