@@ -180,7 +180,6 @@ export class EELogParserUI {
 
         <div class="ee-log-actions">
           <button id="exportBtn" class="btn btn-success" disabled>Export as JSON</button>
-          <button id="importBtn" class="btn btn-info" disabled>Import to Inventory</button>
         </div>
       </div>
     `;
@@ -192,7 +191,6 @@ export class EELogParserUI {
     const selectFileBtn = document.getElementById('selectFileBtn');
     const parseBtn = document.getElementById('parseBtn');
     const exportBtn = document.getElementById('exportBtn');
-    const importBtn = document.getElementById('importBtn');
     const searchInput = document.getElementById('kubrowSearch');
     const rarityFilter = document.getElementById('rarityFilter');
 
@@ -225,9 +223,6 @@ export class EELogParserUI {
 
     // Export
     exportBtn.addEventListener('click', () => this.exportJSON());
-
-    // Import to inventory
-    importBtn.addEventListener('click', () => this.importToInventory());
 
     // Search and filter
     searchInput.addEventListener('input', () => this.filterKubrows());
@@ -346,7 +341,6 @@ export class EELogParserUI {
       this.showStatus(`✓ Parsed ${this.kubrows.length} kubrows successfully`, false);
       this.displayResults();
       document.getElementById('exportBtn').disabled = false;
-      document.getElementById('importBtn').disabled = false;
     } catch (err) {
       this.showStatus(`✗ Error: ${err.message}`, false);
       console.error(err);
@@ -490,12 +484,6 @@ export class EELogParserUI {
     this.showStatus('✓ Exported JSON');
   }
 
-  importToInventory() {
-    // This would integrate with inventory.service.js
-    console.log('Importing', this.kubrows.length, 'kubrows to inventory');
-    this.showStatus('✓ Imported to inventory');
-    // TODO: Actually integrate with inventory system
-  }
 
   showStatus(message, showProgress = false) {
     const statusEl = document.getElementById('uploadStatus');
