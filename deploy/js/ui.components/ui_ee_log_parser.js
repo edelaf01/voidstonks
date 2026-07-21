@@ -252,29 +252,29 @@ export class EELogParserUI {
   getRandomColor(rarity) {
     const colorPalettes = {
       1: [ // Common (Mundane)
-        { primary: '#C49A6F', secondary: '#8B6F47' },
-        { primary: '#A0826D', secondary: '#6B5D52' },
-        { primary: '#9B8B7E', secondary: '#7A6B5D' },
-        { primary: '#B8956A', secondary: '#8B6F47' },
-        { primary: '#8B6F47', secondary: '#6B5032' }
+        { primary: '#C49A6F', secondary: '#8B6F47', tertiary: '#6B5032' },
+        { primary: '#A0826D', secondary: '#6B5D52', tertiary: '#4A3F36' },
+        { primary: '#9B8B7E', secondary: '#7A6B5D', tertiary: '#5A4A42' },
+        { primary: '#B8956A', secondary: '#8B6F47', tertiary: '#6B5527' },
+        { primary: '#8B6F47', secondary: '#6B5032', tertiary: '#4A3818' }
       ],
       2: [ // Uncommon (Mid)
-        { primary: '#6B4423', secondary: '#4A2F1A' },
-        { primary: '#A85433', secondary: '#7A3D24' },
-        { primary: '#708090', secondary: '#4A5568' },
-        { primary: '#9D8E7E', secondary: '#6B5D52' },
-        { primary: '#8B7355', secondary: '#5A4A3A' }
+        { primary: '#6B4423', secondary: '#4A2F1A', tertiary: '#2A1810' },
+        { primary: '#A85433', secondary: '#7A3D24', tertiary: '#52281A' },
+        { primary: '#708090', secondary: '#4A5568', tertiary: '#2A3A48' },
+        { primary: '#9D8E7E', secondary: '#6B5D52', tertiary: '#4A4238' },
+        { primary: '#8B7355', secondary: '#5A4A3A', tertiary: '#3A2A20' }
       ],
       3: [ // Rare (Vibrant)
-        { primary: '#D4AF37', secondary: '#FFD700' },
-        { primary: '#C0C0C0', secondary: '#E8E8E8' },
-        { primary: '#007FFF', secondary: '#1E90FF' },
-        { primary: '#FF6B9D', secondary: '#FFC0CB' },
-        { primary: '#00CED1', secondary: '#40E0D0' },
-        { primary: '#32CD32', secondary: '#7FFF7F' },
-        { primary: '#FF4500', secondary: '#FF6347' },
-        { primary: '#9932CC', secondary: '#DA70D6' },
-        { primary: '#FF1493', secondary: '#FF69B4' }
+        { primary: '#D4AF37', secondary: '#FFD700', tertiary: '#FFA500' },
+        { primary: '#C0C0C0', secondary: '#E8E8E8', tertiary: '#FFFFFF' },
+        { primary: '#007FFF', secondary: '#1E90FF', tertiary: '#4169E1' },
+        { primary: '#FF6B9D', secondary: '#FFC0CB', tertiary: '#FFB6C1' },
+        { primary: '#00CED1', secondary: '#40E0D0', tertiary: '#7FFFD4' },
+        { primary: '#32CD32', secondary: '#7FFF7F', tertiary: '#90EE90' },
+        { primary: '#FF4500', secondary: '#FF6347', tertiary: '#FF7F50' },
+        { primary: '#9932CC', secondary: '#DA70D6', tertiary: '#EE82EE' },
+        { primary: '#FF1493', secondary: '#FF69B4', tertiary: '#FFB6D9' }
       ]
     };
 
@@ -317,7 +317,14 @@ export class EELogParserUI {
 
       // Compile results
       this.parsedData = this.parser.compileResults();
-      this.kubrows = this.parsedData.kubrows.map((kb, idx) => {
+
+      // Solo contar kubrows que tengan 3 colores + 1 patrón (completamente definidos)
+      const validKubrows = this.parsedData.kubrows.filter((kb, idx) => {
+        const pattern = this.parsedData.patterns[idx % this.parsedData.patterns.length];
+        return pattern && pattern.length > 0; // Requiere al menos 1 patrón
+      });
+
+      this.kubrows = validKubrows.map((kb, idx) => {
         const rarity = this.getRandomRarity();
         const colors = this.getRandomColor(rarity.tier);
         return {
@@ -326,9 +333,10 @@ export class EELogParserUI {
           breed: 'Unknown',
           level: 0,
           health: 0,
-          color: {
+          colors: {
             primary: colors.primary,
             secondary: colors.secondary,
+            tertiary: colors.tertiary,
             rarity: rarity.label,
             rarityTier: rarity.tier
           },
@@ -382,18 +390,18 @@ export class EELogParserUI {
     const card = document.createElement('div');
     card.className = 'kubrow-card';
 
-    const rarityClass = `rarity-${kubrow.color.rarityTier}`;
+    const rarityClass = `rarity-${kubrow.colors.rarityTier}`;
     const rarityLabel = {
       0: '?',
       1: 'Common',
       2: 'Uncommon',
       3: 'Rare'
-    }[kubrow.color.rarityTier] || 'Unknown';
+    }[kubrow.colors.rarityTier] || 'Unknown';
 
     card.innerHTML = `
       <div class="kubrow-card-header ${rarityClass}">
         <div class="kubrow-color-preview">
-          <div class="color-swatch" style="background-color: ${kubrow.color.primary}; border-right: 2px solid ${kubrow.color.secondary};">
+          <div class="color-swatch" style="background: linear-gradient(90deg, ${kubrow.colors.primary}, ${kubrow.colors.secondary}, ${kubrow.colors.tertiary});">
             <span class="rarity-badge">${rarityLabel}</span>
           </div>
         </div>
@@ -402,37 +410,38 @@ export class EELogParserUI {
         <h4 class="kubrow-name">${kubrow.name}</h4>
         <div class="kubrow-info">
           <span class="info-row">
-            <strong>Breed:</strong> ${kubrow.breed}
+            <strong>Raza:</strong> ${kubrow.breed}
           </span>
           <span class="info-row">
-            <strong>Level:</strong> ${kubrow.level}
+            <strong>Nivel:</strong> ${kubrow.level}
           </span>
           <span class="info-row">
-            <strong>Health:</strong> ${kubrow.health}
+            <strong>Salud:</strong> ${kubrow.health}
           </span>
           <span class="info-row">
-            <strong>Pattern:</strong> ${kubrow.pattern}
-          </span>
-          <span class="info-row">
-            <strong>Player:</strong> ${kubrow.player}
+            <strong>Patrón:</strong> ${kubrow.pattern}
           </span>
         </div>
         <div class="kubrow-colors">
           <div class="color-item">
-            <span>Primary</span>
-            <div class="color-box" style="background-color: ${kubrow.color.primary};"></div>
-            <span>${kubrow.color.primary}</span>
+            <span>Primario</span>
+            <div class="color-box" style="background-color: ${kubrow.colors.primary};"></div>
+            <span>${kubrow.colors.primary}</span>
           </div>
           <div class="color-item">
-            <span>Secondary</span>
-            <div class="color-box" style="background-color: ${kubrow.color.secondary};"></div>
-            <span>${kubrow.color.secondary}</span>
+            <span>Secundario</span>
+            <div class="color-box" style="background-color: ${kubrow.colors.secondary};"></div>
+            <span>${kubrow.colors.secondary}</span>
+          </div>
+          <div class="color-item">
+            <span>Terciario</span>
+            <div class="color-box" style="background-color: ${kubrow.colors.tertiary};"></div>
+            <span>${kubrow.colors.tertiary}</span>
           </div>
         </div>
       </div>
       <div class="kubrow-card-footer">
-        <button class="btn-small btn-edit">Edit</button>
-        <button class="btn-small btn-delete">Delete</button>
+        <button class="btn-small btn-edit">Editar</button>
       </div>
     `;
 
