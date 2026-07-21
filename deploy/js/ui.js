@@ -37,6 +37,7 @@ import { renderBountiesTab } from "./ui.components/ui_bounties.js";
 import { renderInventory, renderPrimeInventory } from "./ui.components/ui_inventory.js";
 import { ScannerHUD } from "./ui.components/ui_scanner_hud.js";
 import { ScannerModal } from "./ui.components/ui_scanner_modal.js";
+import { EELogParserUI } from "./ui.components/ui_ee_log_parser.js";
 globalThis.TEXTS = TEXTS;
 
 const iconPathCache = new Map();
@@ -89,7 +90,7 @@ export function switchTab(mode) {
   document.body.classList.add(`theme-${mode}`);
 
   if (mode === "bounties" && mainCard) mainCard.classList.add("theme-bounties");
-  ["relic", "set", "riven", "profile", "lfg", "bounties", "vosfor", "ducat"].forEach((m) => {
+  ["relic", "set", "riven", "profile", "lfg", "bounties", "vosfor", "ducat", "eelog"].forEach((m) => {
     document.getElementById("mode-" + m)?.classList.add("hidden");
   });
   document.getElementById("mode-" + mode)?.classList.remove("hidden");
@@ -107,6 +108,10 @@ export function switchTab(mode) {
     initVosforTab().catch(console.error);
   } else if (mode === "ducat") {
     if (typeof globalThis.renderDucanatorTab === "function") globalThis.renderDucanatorTab();
+  } else if (mode === "eelog") {
+    if (!globalThis.eelogParser) {
+      globalThis.eelogParser = new EELogParserUI("eelog-parser-container");
+    }
   }
 
   const footer = document.getElementById("footer-relic");
