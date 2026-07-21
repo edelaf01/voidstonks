@@ -6506,11 +6506,15 @@ body[data-lang="en"] .header-guide-cta .lang-en {
   gap: 5px;
   align-items: center;
   font-size: 0.85em;
+  min-width: 70px;
 }
 
 .color-item span:first-child {
   color: #999;
   font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-size: 0.75em;
 }
 
 .color-box {
@@ -6518,12 +6522,14 @@ body[data-lang="en"] .header-guide-cta .lang-en {
   height: 40px;
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 4px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
 .color-item span:last-child {
   color: #ccc;
   font-family: monospace;
-  font-size: 0.8em;
+  font-size: 0.75em;
+  word-break: break-all;
 }
 
 .kubrow-card-footer {
