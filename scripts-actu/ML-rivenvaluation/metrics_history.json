@@ -134,5 +134,51 @@
    "p95": 95.9
   },
   "winsor_recortadas": 2710
+ },
+ {
+  "ts": "2026-07-20 06:43",
+  "filas": 144250,
+  "armas": 415,
+  "fecha_min": "2026-06-03",
+  "fecha_max": "2026-07-20",
+  "pct_mag": 0.698,
+  "r2_log": 0.754,
+  "r2_intra": 0.5556,
+  "spearman_intra": 0.692,
+  "auc_godroll": 0.812,
+  "mape_trade": 47.9,
+  "mape_global": 82.5,
+  "mape_mediano_arma": 89.0,
+  "cobertura": {
+   "p25": 27.5,
+   "p50": 50.3,
+   "p80": 82.2,
+   "p90": 91.3,
+   "p95": 96.3
+  },
+  "winsor_recortadas": 2878
+ },
+ {
+  "ts": "2026-07-27 07:00",
+  "filas": 157986,
+  "armas": 415,
+  "fecha_min": "2026-06-03",
+  "fecha_max": "2026-07-27",
+  "pct_mag": 0.727,
+  "r2_log": 0.7619,
+  "r2_intra": 0.5713,
+  "spearman_intra": 0.701,
+  "auc_godroll": 0.804,
+  "mape_trade": 47.2,
+  "mape_global": 80.4,
+  "mape_mediano_arma": 86.3,
+  "cobertura": {
+   "p25": 27.3,
+   "p50": 50.1,
+   "p80": 81.8,
+   "p90": 91.5,
+   "p95": 96.3
+  },
+  "winsor_recortadas": 3085
  }
 ]
