@@ -1,5 +1,5 @@
 import { VisionService, WF_THEMES } from "./vision.service.js";
-import { isImplausibleFallbackGrid } from "../utils/grid_detect.js";
+import { isImplausibleFallbackGrid, detectRewardBand } from "../utils/grid_detect.js";
 import { OCRService } from "./ocr.service.js?v=264";
 import { OCRRepository } from "../repositories/ocr.repository.js";
 import { PaddleRepository } from "../repositories/paddle.repository.js";
@@ -77,6 +77,7 @@ export const ScannerService = {
         await OCRRepository.warmUp();
         OpenCVRepository.waitReady().catch(() => { });
         OCRService.initMatcherData();
+        OCRRepository.ensureSecondWorker().catch(() => { });
         this.loop();
     },
 
@@ -323,9 +324,12 @@ export const ScannerService = {
                     }
 
                     const v = document.getElementById("live-video");
-                    const snapshot = document.createElement("canvas");
-                    snapshot.width = v.videoWidth; snapshot.height = v.videoHeight;
-                    snapshot.getContext("2d").drawImage(v, 0, 0);
+                    if (!this._invSnapshot) this._invSnapshot = document.createElement("canvas");
+                    const snapshot = this._invSnapshot;
+                    if (snapshot.width !== v.videoWidth || snapshot.height !== v.videoHeight) {
+                        snapshot.width = v.videoWidth; snapshot.height = v.videoHeight;
+                    }
+                    snapshot.getContext("2d", { willReadFrequently: true }).drawImage(v, 0, 0);
 
                     await this.processInventoryGrid(snapshot, dims.width, dims.height, dims.scale);
                     this.autoScrollHash = currentHash;
@@ -348,7 +352,7 @@ export const ScannerService = {
         } else if (contextType === "REWARD") {
             if (globalThis.RivenScannerHUD) globalThis.RivenScannerHUD.dismiss();
             if (this.detectionLocked) return;
-            this.currentRate = 1200;
+            this.currentRate = this.RIVEN_RATE_ACTIVE;
             await this.processRewards(video, dims);
         } else {
             if (contextType === "UNKNOWN" && VisionService.hasRivenTextHint(video)) {
@@ -747,7 +751,7 @@ export const ScannerService = {
             console.warn("Screenshot capture failed:", e);
         }
 
-        if (globalThis.showRivenAppraisal) {
+        if (globalThis.showRivenAppraisal && (this.lastParsedL || this.lastParsedR)) {
             globalThis.showRivenAppraisal(this.lastParsedL, this.lastParsedR, screenshotDataURL);
         }
     },
@@ -835,10 +839,9 @@ export const ScannerService = {
         }
     },
 
-    async processRewards(video, dims) {
-        const { width, height, scale } = dims;
-        const ocrCanvas = VisionService.prepareRewardOCRCanvas(video, width, height, scale);
-        console.log(`[REWARD] Canvas: ${ocrCanvas.width}x${ocrCanvas.height}`);
+    async _attemptRewardOCR(video, width, height, scale, preset, cropRect) {
+        const ocrCanvas = VisionService.prepareRewardOCRCanvas(video, width, height, scale, preset, cropRect);
+        console.log(`[REWARD] Canvas: ${ocrCanvas.width}x${ocrCanvas.height} (preset ${preset})`);
 
         if (globalThis.OpenCVEngine?.isReady) {
             globalThis.OpenCVEngine.processForOCR(ocrCanvas, "hard");
@@ -864,7 +867,7 @@ export const ScannerService = {
             if (debugImg) debugImg.src = ocrCanvas.toDataURL("image/jpeg", 0.85);
         }
 
-        const namesCanvas = VisionService.prepareRewardNamesCanvas(video, width, height, scale);
+        const namesCanvas = VisionService.prepareRewardNamesCanvas(video, width, height, scale, cropRect);
         let metaRes, namesRes;
         if (namesCanvas) {
             await OCRRepository.ensureSecondWorker();
@@ -889,12 +892,48 @@ export const ScannerService = {
         const foundItems = OCRService.parseRewards({ words: mergedWords, imageW: ocrCanvas.width });
         console.log(`[REWARD] Items found: ${foundItems.length}`, foundItems.map(i => i.name));
 
-        const rMarginX = Math.floor(width * 0.08);
-        const rCropW = width - rMarginX * 2;
+        return { rawOcr, namesRaw, foundItems, ocrCanvas, namesCanvas };
+    },
+
+    async processRewards(video, dims) {
+        const { width, height, scale } = dims;
+
+        const DETECT_W = 480;
+        const detScale = DETECT_W / width;
+        const detH = Math.round(height * detScale);
+        if (!this._rewardDetectCvs) this._rewardDetectCvs = document.createElement("canvas");
+        const detCvs = this._rewardDetectCvs;
+        detCvs.width = DETECT_W; detCvs.height = detH;
+        const detCtx = detCvs.getContext("2d", { willReadFrequently: true });
+        detCtx.drawImage(video, 0, 0, DETECT_W, detH);
+        const detImg = detCtx.getImageData(0, 0, DETECT_W, detH);
+        const band = detectRewardBand(detImg);
+        const cropRect = band ? {
+            x: band.x / detScale, y: band.y / detScale,
+            w: band.w / detScale, h: band.h / detScale,
+        } : null;
+        console.log(cropRect
+            ? `[REWARD] Banda detectada: ${band.cardCount} cards en x=${Math.round(cropRect.x)} y=${Math.round(cropRect.y)} ${Math.round(cropRect.w)}x${Math.round(cropRect.h)}`
+            : "[REWARD] Banda no detectada, usando recorte fijo de respaldo");
+
+        const PRESET_ORDER = ["STANDARD", "LOW_LIGHT", "HIGH_GLARE"];
+        let result = null;
+        for (const preset of PRESET_ORDER) {
+            result = await this._attemptRewardOCR(video, width, height, scale, preset, cropRect);
+            if (result.foundItems.length > 0) {
+                if (preset !== "STANDARD") console.log(`[REWARD] Rescatado por preset adaptativo: ${preset}`);
+                break;
+            }
+        }
+        const { rawOcr, namesRaw, foundItems, ocrCanvas, namesCanvas } = result;
+
+        const rMarginX = cropRect ? Math.floor(cropRect.w * 0.06) : Math.floor(width * 0.08);
+        const rCropXBase = cropRect ? Math.floor(cropRect.x) : 0;
+        const rCropW = (cropRect ? cropRect.w : width) - rMarginX * 2;
         const rOcrW = ocrCanvas.width || 1;
         foundItems.forEach(item => {
             if (typeof item.xPos === "number") {
-                item.xPos = (rMarginX + (item.xPos / rOcrW) * rCropW) * scale;
+                item.xPos = (rCropXBase + rMarginX + (item.xPos / rOcrW) * rCropW) * scale;
             }
         });
 
@@ -957,6 +996,10 @@ export const ScannerService = {
             }
 
             if (!calibData?.gridZone) {
+                if (/KUBROW|KUBR|CHESA|HURAS|SAHASA|RAKSA|SUNIKA|HELMINTH|KAVAT/i.test(this.lastHeaderText || "")) {
+                    console.log("[INV] Omitiendo modal de calibración porque la pantalla es de kubrow.");
+                    return;
+                }
                 if (globalThis.LiveCalibration && !globalThis.LiveCalibration.hasCalibration()) {
                     console.log("[INV] Sin auto-grid ni calibración. Abriendo calibración manual...");
                     const calibCvs = document.createElement("canvas");
@@ -975,14 +1018,13 @@ export const ScannerService = {
 
             const { gridZone } = calibData;
 
-            const theme = VisionService.detectThemeFromSnapshot(
+            let theme = VisionService.detectThemeFromSnapshot(
                 snapshot,
                 gridZone.x, gridZone.y, gridZone.w, gridZone.h
             );
             if (!theme) {
-                console.warn("[INV] Theme detection inconclusive this frame — skipping.");
-                ScannerHUD.updateScrollStatus("done", 0);
-                return;
+                theme = { name: "Neutral", r: 240, g: 240, b: 240, actualR: 240, actualG: 240, actualB: 240 };
+                console.warn("[INV] Theme inconclusive — using neutral pseudo-theme (relics tab / tinted UI).");
             }
             console.log(`[INV] Theme detected: ${theme.name} (r:${theme.r} g:${theme.g} b:${theme.b})`);
 
@@ -1063,7 +1105,7 @@ export const ScannerService = {
             }
 
             await OCRRepository.ensureSecondWorker();
-            const workers = OCRRepository.workers;
+            const workers = OCRRepository.workers.filter(Boolean);
 
             let cellIndex = 0;
             const runWorker = async (worker) => {
@@ -1099,40 +1141,42 @@ export const ScannerService = {
                         continue;
                     }
 
-                    let bestItem = OCRService.getValidItemMatch(combinedText);
+                    let relicText = combinedText;
+                    let relicMatch = OCRService.getRelicMatch(combinedText);
+                    let bestItem = relicMatch ? null : OCRService.getValidItemMatch(combinedText);
                     let fallbackText = null;
 
-                    if (!bestItem) {
+                    if (!bestItem && !relicMatch) {
                         const fallbackY = Math.floor(cellH * 0.73);
                         const fallbackH = Math.floor(cellH * 0.26);
                         const fullCellCvs = VisionService.cropThemeBinarized(snapshot, cell.sx, cell.sy + fallbackY, cellW, fallbackH, theme, calibData?.nameColor);
                         fallbackText = await OCRService.extractCellText(worker, fullCellCvs);
                         if (fallbackText && fallbackText.length) {
                             logStr = `[r${cell.r}c${cell.c}] OCR (fallback): ${fallbackText.join(" ")}`;
-                            bestItem = OCRService.getValidItemMatch(fallbackText);
+                            relicMatch = OCRService.getRelicMatch(fallbackText);
+                            if (relicMatch) {
+                                relicText = fallbackText;
+                            } else {
+                                bestItem = OCRService.getValidItemMatch(fallbackText);
+                            }
                         }
                     }
 
-                    if (!bestItem && globalThis.OCR_ENGINE !== "paddle" && globalThis.OCR_PADDLE_FALLBACK) {
+                    if (!bestItem && !relicMatch && globalThis.OCR_ENGINE !== "paddle" && globalThis.OCR_PADDLE_FALLBACK) {
                         const ty = Math.round(cellH * 0.50), th = Math.round(cellH * 0.48);
                         const colorCvs = VisionService.cropColor(snapshot, cell.sx, cell.sy + ty, cellW, th, 2);
                         try {
                             const pWords = await PaddleRepository.recognizeWords(colorCvs);
                             if (pWords) {
-                                const pMatch = OCRService.getValidItemMatch(pWords);
-                                if (pMatch) { bestItem = pMatch; combinedText = pWords; logStr += " [paddle]"; }
+                                relicMatch = OCRService.getRelicMatch(pWords);
+                                if (relicMatch) {
+                                    relicText = pWords;
+                                } else {
+                                    const pMatch = OCRService.getValidItemMatch(pWords);
+                                    if (pMatch) { bestItem = pMatch; combinedText = pWords; logStr += " [paddle]"; }
+                                }
                             }
                         } catch (e) { console.warn("[Paddle fallback] error:", e); }
-                    }
-
-                    let relicMatch = null;
-                    let relicText = combinedText;
-                    if (!bestItem) {
-                        relicMatch = OCRService.getRelicMatch(combinedText);
-                        if (!relicMatch && fallbackText && fallbackText.length) {
-                            relicMatch = OCRService.getRelicMatch(fallbackText);
-                            if (relicMatch) relicText = fallbackText;
-                        }
                     }
 
                     if (bestItem) {

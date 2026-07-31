@@ -520,21 +520,64 @@ function detectInventoryGridCore(img, opts = {}) {
     let cols = Math.round((rightEdge - gridXf) / cellW);
 
     if (cols >= 2) {
+        const perRow = rowBands.map((bb) => {
+            const prof = new Float32Array(width);
+            for (let y = bb.band.y0; y <= bb.band.y1; y++) {
+                if (o.inkMask) {
+                    const rowOff = y * width;
+                    for (let x = 0; x < width; x++) prof[x] += o.inkMask[rowOff + x];
+                    continue;
+                }
+                const sm = smoothedLumaRow(data, y * width * 4, width, o.edgeSmooth);
+                let inEdge = false, prevL = sm[0];
+                for (let x = 1; x < width; x++) {
+                    const edge = Math.abs(sm[x] - prevL) > o.edgeDelta;
+                    if (edge && !inEdge) prof[x]++;
+                    inEdge = edge;
+                    prevL = sm[x];
+                }
+            }
+            return prof;
+        });
+
         const occ = new Array(cols).fill(0);
-        for (let k = 0; k < cols; k++) {
-            const a = Math.max(0, Math.round(gridXf + k * cellW));
-            const b = Math.min(width - 1, Math.round(gridXf + (k + 1) * cellW));
-            for (let x = a; x <= b; x++) occ[k] += colProf[x];
+        for (const prof of perRow) {
+            const massK = [];
+            for (let k = 0; k < cols; k++) {
+                const a = Math.max(0, Math.round(gridXf + k * cellW));
+                const b = Math.min(width - 1, Math.round(gridXf + (k + 1) * cellW));
+                let s = 0;
+                for (let x = a; x <= b; x++) s += prof[x];
+                massK.push(s);
+            }
+            const rowMax = Math.max(...massK);
+            if (rowMax <= 0) continue;
+            for (let k = 0; k < cols; k++) if (massK[k] >= rowMax * 0.12) occ[k]++;
         }
-        const maxOcc = Math.max(...occ);
-        const occThr2 = maxOcc * 0.15;
+        trace.occCols = [...occ];
         let bs = 0, bl = 0, cs = -1;
         for (let k = 0; k <= cols; k++) {
-            if (k < cols && occ[k] >= occThr2) {
+            if (k < cols && occ[k] >= 1) {
                 if (cs < 0) cs = k;
                 if (k - cs + 1 > bl) { bl = k - cs + 1; bs = cs; }
             } else {
                 cs = -1;
+            }
+        }
+        const maxOcc = Math.max(...occ);
+        if (maxOcc >= 3) {
+            let strongFirst = -1, strongLast = -1;
+            for (let k = bs; k < bs + bl; k++) {
+                if (occ[k] >= maxOcc) { if (strongFirst < 0) strongFirst = k; strongLast = k; }
+            }
+            if (strongFirst >= 0) {
+                let strongCount = 0;
+                for (let k = strongFirst; k <= strongLast; k++) if (occ[k] >= maxOcc) strongCount++;
+                const span = strongLast - strongFirst + 1;
+                if (strongCount === span && span >= o.minCols) {
+                    bs = strongFirst;
+                    bl = span;
+                }
             }
         }
         if (bl >= 1 && bl < cols) {
@@ -589,4 +632,63 @@ export function isImplausibleFallbackGrid(calib, frameW, frameH) {
     if (calib.cellW && calib.cellW > frameW * 0.16) return true;
     if (calib.cellH && calib.cellH > frameH * 0.28) return true;
     return false;
+}
+
+const REWARD_DEFAULTS = {
+    ...DEFAULTS,
+    // with a webcam aimed at a monitor the game fills part of frame: searched over whole height
+    minCardW: 0.08,
+    maxCards: 4,
+    minCards: 1,
+};
+
+export function detectRewardBand(img, opts = {}) {
+    const o = { ...REWARD_DEFAULTS, ...opts };
+    if (!img?.data || !img.width || !img.height) return null;
+
+    const tryBands = (bandOpts) => {
+        const prof = rowProfile(img, bandOpts);
+        return findBands(prof, img.height, bandOpts);
+    };
+
+    const pickBest = (bands, bandOpts) => {
+        let best = null;
+        for (const band of bands) {
+            const blocks = blocksInBand(img, band.y0, band.y1, bandOpts)
+                .filter(b => (b.x1 - b.x0) >= img.width * o.minCardW);
+            if (blocks.length < o.minCards || blocks.length > o.maxCards) continue;
+            if (!best || band.mass > best.band.mass) best = { band, blocks };
+        }
+        return best;
+    };
+
+    let bands = tryBands(o);
+    let result = pickBest(bands, o);
+
+    if (!result) {
+        const { cands } = colorInkCandidates(img, o);
+        for (const col of cands) {
+            const mask = colorInkMask(img, col, o.nameTolSq);
+            const colorOpts = { ...o, inkMask: mask };
+            const cBands = tryBands(colorOpts);
+            const cResult = pickBest(cBands, colorOpts);
+            if (cResult && (!result || cResult.band.mass > result.band.mass)) result = cResult;
+        }
+    }
+
+    if (!result) return null;
+
+    const { band, blocks } = result;
+    const x0 = Math.min(...blocks.map(b => b.x0));
+    const x1 = Math.max(...blocks.map(b => b.x1));
+    const padX = (x1 - x0) * 0.15;
+    const padYTop = (band.y1 - band.y0) * 3.0;
+    const padYBottom = (band.y1 - band.y0) * 1.2;
+
+    const x = Math.max(0, x0 - padX);
+    const w = Math.min(img.width - x, (x1 - x0) + padX * 2);
+    const y = Math.max(0, band.y0 - padYTop);
+    const h = Math.min(img.height - y, (band.y1 - band.y0) + padYTop + padYBottom);
+
+    return { x, y, w, h, cardCount: blocks.length, cardBoxes: blocks };
 }
