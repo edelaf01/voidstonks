@@ -2,6 +2,37 @@ import { OpenCVRepository } from "../repositories/opencv.repository.js";
 import { detectInventoryGrid } from "../utils/grid_detect.js";
 import { offBandComponentIndices } from "../utils/badge_filters.js";
 
+// Grabar la PANTALLA del juego con la cámara del móvil (no el mundo real) hace que el
+// autofocus/auto-exposición/balance de blancos "libres" del navegador oscilen buscando un
+// punto óptimo que no existe (un panel emisor de luz no se comporta como una escena normal):
+// eso produce frames borrosos o sobre/sub-expuestos de forma intermitente, justo la causa
+// más común de que el OCR falle un frame de cada N sin motivo aparente. applyConstraints con
+// modo continuo (no manual: el móvil no tiene forma de fijar un valor absoluto razonable de
+// antemano) deja que el driver seq mantenga foco/exposición estables sobre un sujeto quieto
+// (la pantalla no se mueve) en vez de recalcularlos por ruido de frame a frame. Envuelto en
+// try/catch por track: la mayoría de navegadores (Safari iOS, muchos Android WebView) no
+// soportan estas capabilities y helpers.applyConstraints tira TypeError si se le pasa una
+// constraint no soportada en el objeto — hay que probarlas una a una.
+export async function applyBestCameraConstraints(stream) {
+    const track = stream?.getVideoTracks?.()[0];
+    if (!track || !track.getCapabilities) return;
+    let caps;
+    try { caps = track.getCapabilities(); } catch { return; }
+    if (!caps) return;
+
+    const wanted = {};
+    if (caps.focusMode?.includes("continuous")) wanted.focusMode = "continuous";
+    if (caps.exposureMode?.includes("continuous")) wanted.exposureMode = "continuous";
+    if (caps.whiteBalanceMode?.includes("continuous")) wanted.whiteBalanceMode = "continuous";
+    if (Object.keys(wanted).length === 0) return;
+
+    try {
+        await track.applyConstraints({ advanced: [wanted] });
+    } catch (e) {
+        console.warn("[Vision] Camera constraints not applied:", e);
+    }
+}
+
 
 
 /**
@@ -470,7 +501,10 @@ export const VisionService = {
      */
     extractBadgeBright(snapshot, cell, cellW, cellH) {
         const S = 3;
-        const w = Math.round(cellW * 0.40), h = Math.round(cellH * 0.17);
+        // 0.40·cellW sólo daba para checkmark + 2 dígitos: con cellW=277 son 111px y la 3ª cifra
+        // (que empieza hacia x115) caía FUERA del recorte, así que "119" se leía "11" y "129"
+        // "12" — sistemático en todos los badges de 3 cifras. 0.62 deja sitio a 4 cifras.
+        const w = Math.round(cellW * 0.62), h = Math.round(cellH * 0.17);
         const sx = cell.sx, sy = Math.max(0, cell.sy + Math.round(cellH * 0.08));
         const cvs = document.createElement("canvas");
         cvs.width = w * S; cvs.height = h * S;
@@ -939,14 +973,31 @@ export const VisionService = {
     /**
      * Prepares canvas for reward detection.
      */
-    prepareRewardOCRCanvas(video, width, height, scale) {
+    // Escalera de filtros para el reintento adaptativo: si el preset ESTÁNDAR no produce
+    // ningún item, el frame en sí puede ser bueno pero el contraste/brillo fijo (calibrado
+    // para exposición "normal" de cámara) puede recortar en negro o quemar en blanco cuando
+    // la foto a la pantalla llegó más oscura/clara de lo habitual. LOW_LIGHT sube el brillo
+    // para fotos oscuras (habitación con poca luz, pantalla lejos); HIGH_GLARE baja contraste
+    // y brillo para fotos donde el reflejo/brillo del panel quema el texto a blanco puro.
+    REWARD_OCR_PRESETS: {
+        STANDARD: "grayscale(100%) contrast(400%) brightness(1.3)",
+        LOW_LIGHT: "grayscale(100%) contrast(320%) brightness(1.9)",
+        HIGH_GLARE: "grayscale(100%) contrast(260%) brightness(0.85)",
+    },
+
+    prepareRewardOCRCanvas(video, width, height, scale, preset = "STANDARD", cropRect = null) {
+        // cropRect (de detectRewardBand, en píxeles del frame): la foto puede venir de una
+        // webcam apuntando a un MONITOR EXTERNO donde el juego no llena el encuadre (bisel,
+        // pared, techo alrededor) — el % fijo de abajo asume pantalla completa y recorta en
+        // el sitio equivocado. Si hay detección real, se usa; si no (o fallback), el % fijo.
+        const marginX = cropRect ? Math.floor(cropRect.w * 0.06) : Math.floor(width * 0.08);
+        const rCropY = cropRect ? Math.floor(cropRect.y) : Math.floor(height * 0.185);
+        const rCropH = cropRect ? Math.floor(cropRect.h) : Math.floor(height * 0.255);
+        const rCropXBase = cropRect ? Math.floor(cropRect.x) : 0;
         // Crop strictly inside the clean dark translucent bounds of the reward cards (Y = 18.5% to 44%)
         // to completely eliminate the busy backgrounds and player names below the cards!
-        const rCropY = Math.floor(height * 0.185);
-        const rCropH = Math.floor(height * 0.255);
-        // Trim 8% from each side — rewards are centered, extremes are empty background
-        const marginX = Math.floor(width * 0.08);
-        const cropW = width - marginX * 2;
+        // Trim from each side — rewards are centered, extremes are empty background
+        const cropW = (cropRect ? cropRect.w : width) - marginX * 2;
         const targetW = Math.floor(cropW * scale);
         const targetH = Math.floor(rCropH * scale);
 
@@ -956,8 +1007,8 @@ export const VisionService = {
         const ctx = cvs.getContext("2d", { willReadFrequently: true });
 
         // Grayscale + high contrast to maximize text/background separation.
-        ctx.filter = "grayscale(100%) contrast(400%) brightness(1.3)";
-        ctx.drawImage(video, marginX, rCropY, cropW, rCropH, 0, 0, targetW, targetH);
+        ctx.filter = this.REWARD_OCR_PRESETS[preset] || this.REWARD_OCR_PRESETS.STANDARD;
+        ctx.drawImage(video, rCropXBase + marginX, rCropY, cropW, rCropH, 0, 0, targetW, targetH);
         ctx.filter = "none";
         return cvs;
     },
@@ -970,11 +1021,15 @@ export const VisionService = {
     // menos saturado y no domina) y aislamos ese tono. Así funciona con cualquier color del catálogo y a
     // cualquier resolución/nº de recompensas. (Los badges N Owned/Crafted los lee la pasada grayscale;
     // processRewards fusiona ambas listas de palabras antes de parseRewards.)
-    prepareRewardNamesCanvas(video, width, height, scale) {
-        const rCropY = Math.floor(height * 0.185);
-        const rCropH = Math.floor(height * 0.255);
-        const marginX = Math.floor(width * 0.08);
-        const cropW = width - marginX * 2;
+    prepareRewardNamesCanvas(video, width, height, scale, cropRect = null) {
+        // Mismo cropRect (de detectRewardBand) que prepareRewardOCRCanvas — ambas pasadas
+        // deben compartir EXACTAMENTE el mismo recorte para que sus cajas de palabra (bbox)
+        // sigan en el mismo sistema de coordenadas y parseRewards pueda fusionarlas por X.
+        const marginX = cropRect ? Math.floor(cropRect.w * 0.06) : Math.floor(width * 0.08);
+        const rCropY = cropRect ? Math.floor(cropRect.y) : Math.floor(height * 0.185);
+        const rCropH = cropRect ? Math.floor(cropRect.h) : Math.floor(height * 0.255);
+        const rCropXBase = cropRect ? Math.floor(cropRect.x) : 0;
+        const cropW = (cropRect ? cropRect.w : width) - marginX * 2;
         const targetW = Math.floor(cropW * scale);
         const targetH = Math.floor(rCropH * scale);
 
@@ -982,7 +1037,7 @@ export const VisionService = {
         cvs.width = targetW;
         cvs.height = targetH;
         const ctx = cvs.getContext("2d", { willReadFrequently: true });
-        ctx.drawImage(video, marginX, rCropY, cropW, rCropH, 0, 0, targetW, targetH);
+        ctx.drawImage(video, rCropXBase + marginX, rCropY, cropW, rCropH, 0, 0, targetW, targetH);
 
         const img = ctx.getImageData(0, 0, targetW, targetH);
         const px = img.data;
@@ -1344,7 +1399,10 @@ export const VisionService = {
             const bx0 = Math.max(0, cx0 - pad), by0 = Math.max(0, minY - pad);
             const bx1 = Math.min(targetW - 1, cx1 + pad), by1 = Math.min(targetH - 1, maxY + pad);
             const bw = bx1 - bx0 + 1, bh = by1 - by0 + 1;
-            if (bw < 40 || bh < 30) continue;
+            // Descarta recortes demasiado estrechos/bajos para ser una carta. Relativo al tamaño
+            // de trabajo (antes 40x30 absolutos): con el stream a menor resolución esos píxeles
+            // representan una fracción mayor de la carta, y al revés a 4K colaban tiras de arte.
+            if (bw < Math.max(40, targetW * 0.05) || bh < Math.max(30, targetH * 0.05)) continue;
 
             ctx.putImageData(new ImageData(binPx, targetW, targetH), 0, 0);
             // Canvases de salida reutilizados (máx 2): el consumidor (OCR + panel debug) los usa
@@ -1585,15 +1643,26 @@ export const VisionService = {
      * Fully self-calibrating and dynamic. Immune to grid calibration offsets and theme variations.
      */
     extractBadgeByColor(snapshot, cell, cellW, cellH, theme) {
-        // 1. Crop a very generous top-left area starting exactly at cell.sx (35% of cell width)
-        const safeW = Math.round(cellW * 0.55);
-        // Start crop higher to prevent clipping the top hook of 6 or top bar of 7 and 5
-        const padTop = 12;
+        // 1. Crop a very generous top-left area starting exactly at cell.sx.
+        // 0.55·cellW deja el badge cerca del borde derecho: a 1440p un número de 3 cifras acaba
+        // a ~25px del límite, así que una 4ª cifra se saldría. Se amplía lo justo para que quepa
+        // otro dígito SIN llegar a la zona donde el arte del ítem compite con el número: medido
+        // en la captura Ballistica, un bloque de arte cae a solo 13px del dígito (frente a los
+        // 10px que separan dígitos), demasiado cerca para distinguirlo por distancia, así que
+        // ampliar de más mete arte que los filtros no saben rechazar.
+        const safeW = Math.min(cellW, Math.round(cellW * 0.68));
+        // Start crop higher to prevent clipping the top hook of 6 or top bar of 7 and 5.
+        // Relativo a cellH: 12px fijos eran ~4% de celda a 1440p pero ~6% a 1080p, así que
+        // el margen superior cambiaba de tamaño efectivo según el cliente.
+        const padTop = Math.max(6, Math.round(cellH * 0.04));
         const startY = Math.max(0, cell.sy - padTop);
         // Use a taller vertical search window to guarantee digit presence
         const safeH = Math.round(cellH * 0.25) + padTop;
 
-        const tempCvs = document.createElement("canvas");
+        // Canvas REUTILIZADO (_tempBadgeCvs, ya declarado arriba para esto): esta función corre
+        // una vez POR CELDA (18 por escaneo), así que crear uno nuevo cada vez generaba basura
+        // proporcional al número de celdas en cada pasada del auto-scroll.
+        const tempCvs = this._tempBadgeCvs;
         tempCvs.width = safeW;
         tempCvs.height = safeH;
         const tCtx = tempCvs.getContext("2d", { willReadFrequently: true });
@@ -1690,9 +1759,14 @@ export const VisionService = {
             return null;
         }
 
-        // Erase horizontal border lines (the selection box border) to break merge bridges
+        // Erase horizontal border lines (the selection box border) to break merge bridges.
+        // Umbrales RELATIVOS a safeH: en píxeles absolutos (18/3) el filtro se comportaba
+        // distinto a 1080p, 1440p y 4K — a baja resolución empezaba a comerse dígitos y a
+        // alta dejaba pasar bordes. safeH ≈ 0.25·cellH, así que escala con el cliente.
+        const lineMinW = Math.max(6, safeH * 0.22);
+        const lineMaxH = Math.max(2, safeH * 0.04);
         for (const comp of components) {
-            if (comp.width > 18 && comp.height <= 3) {
+            if (comp.width > lineMinW && comp.height <= lineMaxH) {
                 for (const pixelIdx of comp.pixels) {
                     px[pixelIdx * 4] = 255;
                     px[pixelIdx * 4 + 1] = 255;
@@ -1738,9 +1812,14 @@ export const VisionService = {
         //   - dígito        = MÁS ALTO QUE ANCHO (w/h ≲ 0.9) y ocupa buena parte del alto del crop
         // Esto sustituye a la heurística frágil de "mayor hueco" (que dejaba el checkmark → "93"
         // o se comía el dígito → Ø). El consenso temporal (scanner.service) remata lo que quede.
+        // El techo de altura era safeH*0.80: con la ventana de búsqueda ampliada dejaba pasar
+        // BLOQUES DE ARTE (medidos en Banshee r2c5: 24x48, 29x44, 20x48 sobre safeH=87, es decir
+        // h/safeH≈0.55) que además desplazaban el ancla de banda/posición y borraban el dígito
+        // real. Un dígito de badge mide ~21-22px sobre safeH=87 (≈0.25), así que 0.45 deja
+        // holgura de sobra para dígitos altos (6/7/9 con asta) y corta el arte por debajo.
         const isDigitShaped = (c) => {
             const ar = c.width / c.height;
-            return ar <= 0.92 && c.height >= safeH * 0.20 && c.height <= safeH * 0.80;
+            return ar >= 0.12 && ar <= 0.92 && c.height >= safeH * 0.20 && c.height <= safeH * 0.80;
         };
         for (const comp of components) {
             if (comp.erased) continue;
@@ -1751,6 +1830,30 @@ export const VisionService = {
                     px[pixelIdx * 4 + 2] = 255;
                 }
                 comp.erased = true;
+            }
+        }
+
+        // Filtro de FILA INFERIOR: el recorte se extiende hacia abajo lo bastante como para
+        // pillar el borde superior de la celda de ABAJO, y un bloque de arte de esa fila puede
+        // pasar el filtro de forma y además ser MÁS BRILLANTE que los dígitos — con lo que
+        // secuestra el ancla del filtro de BANDA (que se ancla en el más brillante) y termina
+        // borrando los dígitos buenos. Se ancla en el componente más ALTO en pantalla, que
+        // siempre pertenece al badge, y se descarta lo que quede en otra banda vertical.
+        // Verificado en Ballistica r2c1: bloque x0-21/y59-85, centro a 36px del badge.
+        const aliveComps = components.filter((c) => !c.erased);
+        const topAnchor = aliveComps.reduce((best, c) => (!best || c.minY < best.minY ? c : best), null);
+        if (topAnchor) {
+            const anchorCy = (topAnchor.minY + topAnchor.maxY) / 2;
+            for (const comp of aliveComps) {
+                const cy = (comp.minY + comp.maxY) / 2;
+                if (Math.abs(cy - anchorCy) <= 0.6 * Math.max(comp.height, topAnchor.height)) continue;
+                for (const pixelIdx of comp.pixels) {
+                    px[pixelIdx * 4] = 255;
+                    px[pixelIdx * 4 + 1] = 255;
+                    px[pixelIdx * 4 + 2] = 255;
+                }
+                comp.erased = true;
+                comp.hardErased = true;
             }
         }
 
@@ -1804,7 +1907,7 @@ export const VisionService = {
         // Restauramos todo salvo las líneas de borde ya borradas antes.
         if (!components.some(c => !c.erased)) {
             for (const comp of components) {
-                if (comp.width > 18 && comp.height <= 3) continue; // líneas de borde: siguen fuera
+                if (comp.width > lineMinW && comp.height <= lineMaxH) continue; // líneas de borde: siguen fuera
                 if (comp.hardErased) continue; // icono de fundición: nunca vuelve
                 comp.erased = false;
                 for (const pixelIdx of comp.pixels) {
@@ -1843,6 +1946,9 @@ export const VisionService = {
         const digitH = cropEndY - cropStartY + 1;
 
         const SCALE = 4;
+        // NO reutilizar un canvas compartido aquí: el badge se DEVUELVE al llamador y hay
+        // consumidores (tests, panel de depuración) que recogen varios antes de leerlos, así
+        // que reciclarlo hace que todos apunten al último. Se crea uno nuevo a propósito.
         const badgeCvs = document.createElement("canvas");
         badgeCvs.width = digitW * SCALE;
         badgeCvs.height = digitH * SCALE;

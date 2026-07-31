@@ -11,6 +11,7 @@ import {
 } from "../utils/ui_utils.js";
 
 import { manualRelicUpdate } from "./ui_relics.js";
+import { renderFissureSetRecommendations } from "./ui_sets.js";
 
 const TARGET_SVG_INLINE = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36" width="22" height="22" style="filter:drop-shadow(0 0 2px rgba(0,204,204,0.5));">
   <defs>
@@ -733,6 +734,10 @@ export function renderPrimeInventory() {
 
   const panel = document.getElementById("inventory-sidebar");
   if (panel && !panel.classList.contains("open")) return;
+
+  renderFissureSetRecommendations().catch((e) =>
+    console.warn("[INVENTORY] Error renderizando recomendaciones de fisuras:", e),
+  );
 
   const searchInput = (document.getElementById("prime-inv-search")?.value || "").toLowerCase();
   const sortMode = document.getElementById("prime-inv-sort")?.value || "alpha";

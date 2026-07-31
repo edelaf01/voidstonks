@@ -329,6 +329,13 @@
     filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.6));
 }
 
+/* El boton "Más" y su abanico son exclusivos de movil */
+.tab-more-btn,
+.tab-fan,
+.tab-fan-overlay {
+    display: none;
+}
+
 /* ---- Forms ---- */
 .form-group {
     margin-bottom: 15px;

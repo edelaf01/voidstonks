@@ -9,6 +9,7 @@ import {
   fetchActiveArbitration,
   getFissurePrefs,
   saveFissurePrefs,
+  getObservedMissionTypes,
   DEFAULT_MISSION_TYPES,
   RAILJACK_MISSION_TYPES,
 } from "../services/fissures.service.js";
@@ -25,20 +26,32 @@ import { escapeHTML, showToast } from "./ui_components.js";
 
 let fissureLoadPromise = null;
 
-// Tipos de misión que el usuario puede activar/desactivar (subconjunto de t.modes disponible
-// en ambos idiomas). Railjack y Omnia se controlan aparte porque no son "tipos" normales.
+// Tipos de misión que el usuario puede activar/desactivar, agrupados como los agrupa el juego:
+// velocidad (objetivo único), continuas (una reliquia por rotación) y Omnia (Lua/Zariman/Deimos,
+// admiten cualquier reliquia clásica). Excluidos a propósito porque DE nunca los rota como
+// fisura: Asesinato, Deserción, Salvamento Infestado, Índice y Arena.
+// La lista NO es la fuente de verdad: renderFissureFiltersPanel la fusiona con los tipos
+// realmente presentes en los datos, así un tipo nuevo sigue siendo filtrable sin tocar código.
 const AVAILABLE_MISSION_TYPES = [
+  // Velocidad (objetivo único)
   "Capture",
   "Extermination",
   "Rescue",
   "Sabotage",
-  "Void Cascade",
-  "Disruption",
-  "Excavation",
+  "Spy",
+  "Mobile Defense",
+  "Assault", // solo Fortaleza Kuva
+  // Continuas (consumen reliquia por rotación)
   "Survival",
   "Defense",
-  "Mobile Defense",
-  "Spy",
+  "Interception",
+  "Excavation",
+  "Disruption",
+  // Omnia (admiten cualquier reliquia clásica)
+  "Void Cascade",
+  "Void Flood",
+  "Alchemy",
+  "Conjunction Survival",
 ];
 
 // Tipos de misión que rotan en Arbitración (endless). "Dark Sector X" cuenta como X
@@ -117,10 +130,39 @@ export function renderMissionRow(m) {
     `;
 }
 
-function renderFissureFiltersPanel(prefs) {
+// Lista fija + lo que traen los datos ahora mismo: un tipo que DE añada aparece como casilla
+// en cuanto sale en una fisura, sin esperar a tocar el código.
+function mergeWithObserved(baseList, observed) {
+  return [...new Set([...baseList, ...observed])].sort((a, b) => a.localeCompare(b));
+}
+
+// Actualiza los textos del shell (header, botón de filtros, contenido del panel de filtros)
+// sin reconstruir la estructura estática completa. Se llama en cada refreshing de initFissurePanel
+// para que cambios de idioma/tipos observados se reflejen sin causar parpadeo del shell.
+function updateFissurePanelTexts() {
   const t = TEXTS[state.currentLang];
 
-  const typeCheckboxes = AVAILABLE_MISSION_TYPES.map((type) => {
+  const headerSpan = document.querySelector("#fissure-panel-header span");
+  if (headerSpan) {
+    headerSpan.textContent = t.lblRecommended || "Fisuras Activas";
+  }
+
+  const filtersToggleBtn = document.getElementById("fissure-filters-toggle");
+  if (filtersToggleBtn) {
+    filtersToggleBtn.textContent = escapeHTML(t.fissurePrefs.toggle);
+  }
+
+  const fPanel = document.getElementById("fissure-filters-panel");
+  if (fPanel && !fPanel.contains(document.activeElement)) {
+    fPanel.innerHTML = renderFissureFiltersPanel(getFissurePrefs());
+  }
+}
+
+function renderFissureFiltersPanel(prefs) {
+  const t = TEXTS[state.currentLang];
+  const observed = getObservedMissionTypes();
+
+  const typeCheckboxes = mergeWithObserved(AVAILABLE_MISSION_TYPES, observed.normal).map((type) => {
     const label = t.modes[type.toLowerCase()] || type;
     const checked = prefs.missionTypes.includes(type) ? "checked" : "";
     return `
@@ -130,7 +172,7 @@ function renderFissureFiltersPanel(prefs) {
         </label>`;
   }).join("");
 
-  const rjTypeCheckboxes = RAILJACK_MISSION_TYPES.map((type) => {
+  const rjTypeCheckboxes = mergeWithObserved(RAILJACK_MISSION_TYPES, observed.railjack).map((type) => {
     const label = t.modes[type.toLowerCase()] || type;
     const checked = prefs.railjackTypes.includes(type) ? "checked" : "";
     return `
@@ -345,9 +387,12 @@ export function highlightFissureTier(tier) {
   });
 }
 
-export async function initFissurePanel(forceRefetch = false) {
-  let missionDiv = document.getElementById("best-missions-container");
+// Construye el shell estático del panel (header, toggle, filters bar, contenedores vacíos para datos).
+// Se ejecuta solo si #best-missions-container no existe aún o no está completamente construido.
+// Marca missionDiv.dataset.shellBuilt = "1" al terminar para evitar reconstrucciones posteriores.
+function buildFissurePanelShell(missionDiv) {
   const t = TEXTS[state.currentLang];
+  const fissurePrefs = getFissurePrefs();
 
   if (!missionDiv) {
     missionDiv = document.createElement("div");
@@ -355,9 +400,7 @@ export async function initFissurePanel(forceRefetch = false) {
     document.body.appendChild(missionDiv);
   }
 
-  const fissurePrefs = getFissurePrefs();
-
-  // Update static part of the HTML
+  // Construir el HTML estático del shell (solo una vez)
   missionDiv.innerHTML = `
       <div id="mission-toggle-btn" class="mission-toggle-btn">
          <img src="assets/fissureicon.webp" class="toggle-img" alt="Fisuras">
@@ -384,6 +427,7 @@ export async function initFissurePanel(forceRefetch = false) {
       </div>
     `;
 
+  // Atar listeners al shell (solo una vez)
   const header = document.getElementById("fissure-panel-header");
   const runner = document.getElementById("gauss-runner");
   const toggleBtn = document.getElementById("mission-toggle-btn");
@@ -513,7 +557,7 @@ export async function initFissurePanel(forceRefetch = false) {
     }
   }
 
-
+  // Armar intervalos globales de actualización (solo una vez)
   if (!globalThis._fissureRefreshInterval) {
     globalThis._fissureRefreshInterval = setInterval(() => {
       const panel = document.getElementById("best-missions-container");
@@ -526,19 +570,6 @@ export async function initFissurePanel(forceRefetch = false) {
     }, 150 * 1000); // 2.5 min (la cache en memoria de 2 min garantiza datos frescos sin spam)
   }
 
-  await renderMissionList(forceRefetch);
-  renderArbitrationBar();
-
-  // Reanuda los watchers de alarmas al cargar si el usuario ya tenía reglas.
-  const alarmPrefs = getAlarmPrefs();
-  if (alarmPrefs.enabled && alarmPrefs.rules.some((r) => r.kind === "fissure")) {
-    startFissureAlarmWatcher();
-  }
-  if (alarmPrefs.enabled && alarmPrefs.rules.some((r) => r.kind === "arbitration")) {
-    startArbitrationAlarmWatcher();
-  }
-
-  // Active client-side countdown timer to update dynamically and refresh on expiration
   if (!globalThis._fissureCountdownInterval) {
     globalThis._fissureCountdownInterval = setInterval(() => {
       let expiredFound = false;
@@ -593,6 +624,35 @@ export async function initFissurePanel(forceRefetch = false) {
         }
       }
     }, 1000);
+  }
+
+  // Marcar el shell como construido para evitar reconstrucciones futuras
+  missionDiv.dataset.shellBuilt = "1";
+  return missionDiv;
+}
+
+export async function initFissurePanel(forceRefetch = false) {
+  let missionDiv = document.getElementById("best-missions-container");
+
+  // Solo construir el shell si no existe o no está completamente construido (primera vez)
+  if (!missionDiv || !missionDiv.dataset.shellBuilt) {
+    missionDiv = buildFissurePanelShell(missionDiv);
+  }
+
+  // Actualizar datos (siempre, en cada llamada)
+  await renderMissionList(forceRefetch);
+  renderArbitrationBar();
+
+  // Actualizar textos y contenido dinámico del panel (siempre)
+  updateFissurePanelTexts();
+
+  // Reanuda los watchers de alarmas al cargar si el usuario ya tenía reglas.
+  const alarmPrefs = getAlarmPrefs();
+  if (alarmPrefs.enabled && alarmPrefs.rules.some((r) => r.kind === "fissure")) {
+    startFissureAlarmWatcher();
+  }
+  if (alarmPrefs.enabled && alarmPrefs.rules.some((r) => r.kind === "arbitration")) {
+    startArbitrationAlarmWatcher();
   }
 }
 

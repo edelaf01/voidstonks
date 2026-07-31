@@ -1,5 +1,5 @@
 import { VisionService, WF_THEMES } from "./vision.service.js";
-import { isImplausibleFallbackGrid } from "../utils/grid_detect.js";
+import { isImplausibleFallbackGrid, detectRewardBand } from "../utils/grid_detect.js";
 import { OCRService } from "./ocr.service.js?v=264";
 import { OCRRepository } from "../repositories/ocr.repository.js";
 import { PaddleRepository } from "../repositories/paddle.repository.js";
@@ -81,6 +81,10 @@ export const ScannerService = {
         await OCRRepository.warmUp();
         OpenCVRepository.waitReady().catch(() => { });
         OCRService.initMatcherData();
+        // Precalienta el 2º worker Tesseract ahora (en paralelo, sin bloquear el loop): si se
+        // crea perezosamente al llegar la 1ª pantalla REWARD, esa creación (cientos de ms) se
+        // suma a la latencia del frame más importante para detectar la recompensa cuanto antes.
+        OCRRepository.ensureSecondWorker().catch(() => { });
         this.loop();
     },
 
@@ -385,9 +389,17 @@ export const ScannerService = {
                     }
 
                     const v = document.getElementById("live-video");
-                    const snapshot = document.createElement("canvas");
-                    snapshot.width = v.videoWidth; snapshot.height = v.videoHeight;
-                    snapshot.getContext("2d").drawImage(v, 0, 0);
+                    // Canvas REUTILIZADO entre escaneos: crear uno nuevo por escaneo dejaba a
+                    // merced del GC un buffer del tamaño COMPLETO del stream (14 MB a 1440p,
+                    // 32 MB a 4K), y el auto-scroll escanea una página tras otra, así que se
+                    // acumulaban más rápido de lo que el recolector los liberaba → la pestaña
+                    // acababa cayendo por memoria. Reasignar el mismo canvas reusa el buffer.
+                    if (!this._invSnapshot) this._invSnapshot = document.createElement("canvas");
+                    const snapshot = this._invSnapshot;
+                    if (snapshot.width !== v.videoWidth || snapshot.height !== v.videoHeight) {
+                        snapshot.width = v.videoWidth; snapshot.height = v.videoHeight;
+                    }
+                    snapshot.getContext("2d", { willReadFrequently: true }).drawImage(v, 0, 0);
 
                     await this.processInventoryGrid(snapshot, dims.width, dims.height, dims.scale);
                     this.autoScrollHash = currentHash;
@@ -416,7 +428,10 @@ export const ScannerService = {
         } else if (contextType === "REWARD") {
             if (globalThis.RivenScannerHUD) globalThis.RivenScannerHUD.dismiss();
             if (this.detectionLocked) return;
-            this.currentRate = 1200;
+            // Igualado al ritmo activo de rivens (400ms): detectionLocked corta el loop en
+            // cuanto hay match, así que un poll más rápido no añade coste, solo reduce la
+            // latencia hasta detectar la pantalla de recompensa desde que aparece en cámara.
+            this.currentRate = this.RIVEN_RATE_ACTIVE;
             await this.processRewards(video, dims);
         } else {
             // UNKNOWN: el popup "Item Details" de un riven linkeado (desde el chat/mercado) no
@@ -989,7 +1004,12 @@ export const ScannerService = {
             console.warn("Screenshot capture failed:", e);
         }
 
-        if (globalThis.showRivenAppraisal) {
+        // Solo se notifica a la UI si queda ALGO que mostrar: cuando el OCR falla en las dos
+        // posiciones (finalL y finalR a null en las sueltas de arriba) llamar al HUD con
+        // (null, null) hacía que _renderSingle petara con TypeError sobre riven.weaponName,
+        // abortando el render y dejando la vista anterior a medias. Sin lectura válida es
+        // mejor conservar lo ya mostrado y esperar al frame siguiente.
+        if (globalThis.showRivenAppraisal && (this.lastParsedL || this.lastParsedR)) {
             globalThis.showRivenAppraisal(this.lastParsedL, this.lastParsedR, screenshotDataURL);
         }
     },
@@ -1091,10 +1111,11 @@ export const ScannerService = {
         }
     },
 
-    async processRewards(video, dims) {
-        const { width, height, scale } = dims;
-        const ocrCanvas = VisionService.prepareRewardOCRCanvas(video, width, height, scale);
-        console.log(`[REWARD] Canvas: ${ocrCanvas.width}x${ocrCanvas.height}`);
+    // Ejecuta un intento completo de OCR+parse de recompensas con un preset de binarización dado.
+    // Devuelve { rawOcr, namesRaw, foundItems, ocrCanvas, namesCanvas }.
+    async _attemptRewardOCR(video, width, height, scale, preset, cropRect) {
+        const ocrCanvas = VisionService.prepareRewardOCRCanvas(video, width, height, scale, preset, cropRect);
+        console.log(`[REWARD] Canvas: ${ocrCanvas.width}x${ocrCanvas.height} (preset ${preset})`);
 
         if (globalThis.OpenCVEngine?.isReady) {
             globalThis.OpenCVEngine.processForOCR(ocrCanvas, "hard");
@@ -1130,7 +1151,7 @@ export const ScannerService = {
         // prepareRewardNamesCanvas devuelve null si su máscara salió densa (= ruido, no letras):
         // en ese caso NO se corre la pasada de nombres — su OCR inyectaría decenas de palabras
         // basura en mergedWords (anclas espurias tipo "Ris") sin aportar ningún nombre real.
-        const namesCanvas = VisionService.prepareRewardNamesCanvas(video, width, height, scale);
+        const namesCanvas = VisionService.prepareRewardNamesCanvas(video, width, height, scale, cropRect);
         let metaRes, namesRes;
         if (namesCanvas) {
             await OCRRepository.ensureSecondWorker(); // el 2º worker se crea perezoso (RAM)
@@ -1155,16 +1176,68 @@ export const ScannerService = {
         const foundItems = OCRService.parseRewards({ words: mergedWords, imageW: ocrCanvas.width });
         console.log(`[REWARD] Items found: ${foundItems.length}`, foundItems.map(i => i.name));
 
+        return { rawOcr, namesRaw, foundItems, ocrCanvas, namesCanvas };
+    },
+
+    async processRewards(video, dims) {
+        const { width, height, scale } = dims;
+
+        // Localiza DÓNDE están las cards de recompensa en el frame, en vez de asumir que
+        // ocupan siempre Y 18.5%-44% del encuadre completo. Esa asunción se rompe cuando la
+        // "cámara" es en realidad una webcam apuntando a un monitor externo: el juego solo
+        // llena una fracción del encuadre (bisel, pared, techo alrededor), y el % fijo cae
+        // sobre fondo vacío. Se detecta sobre un downscale barato (detectRewardBand solo
+        // necesita ver la banda de texto, no leerlo) y se reescala el rect a resolución real.
+        const DETECT_W = 480;
+        const detScale = DETECT_W / width;
+        const detH = Math.round(height * detScale);
+        if (!this._rewardDetectCvs) this._rewardDetectCvs = document.createElement("canvas");
+        const detCvs = this._rewardDetectCvs;
+        detCvs.width = DETECT_W; detCvs.height = detH;
+        const detCtx = detCvs.getContext("2d", { willReadFrequently: true });
+        detCtx.drawImage(video, 0, 0, DETECT_W, detH);
+        const detImg = detCtx.getImageData(0, 0, DETECT_W, detH);
+        const band = detectRewardBand(detImg);
+        const cropRect = band ? {
+            x: band.x / detScale, y: band.y / detScale,
+            w: band.w / detScale, h: band.h / detScale,
+        } : null;
+        console.log(cropRect
+            ? `[REWARD] Banda detectada: ${band.cardCount} cards en x=${Math.round(cropRect.x)} y=${Math.round(cropRect.y)} ${Math.round(cropRect.w)}x${Math.round(cropRect.h)}`
+            : "[REWARD] Banda no detectada, usando recorte fijo de respaldo");
+
+        // Adaptador automático: si el preset ESTÁNDAR no lee ningún item, el recorte puede ser
+        // correcto pero la exposición real de la foto (habitación oscura, reflejo del panel)
+        // no encaja con el contraste/brillo fijo calibrado para condiciones normales. En vez de
+        // esperar al siguiente frame con los MISMOS parámetros que ya fallaron, se reintenta acto
+        // seguido con presets alternativos sobre el mismo frame — más barato que perder ~1-2
+        // ciclos de poll adivinando a ciegas. Tope de 3 intentos totales: no vale la pena seguir
+        // insistiendo en un frame que ni con brillo/contraste extremos da texto (probablemente no
+        // es realmente la pantalla de recompensas, o está totalmente fuera de foco).
+        const PRESET_ORDER = ["STANDARD", "LOW_LIGHT", "HIGH_GLARE"];
+        let result = null;
+        for (const preset of PRESET_ORDER) {
+            result = await this._attemptRewardOCR(video, width, height, scale, preset, cropRect);
+            if (result.foundItems.length > 0) {
+                if (preset !== "STANDARD") console.log(`[REWARD] Rescatado por preset adaptativo: ${preset}`);
+                break;
+            }
+        }
+        const { rawOcr, namesRaw, foundItems, ocrCanvas, namesCanvas } = result;
+
         // xPos llega en coordenadas del RECORTE de OCR (prepareRewardOCRCanvas: recorta un
-        // marginX = width*0.08 por lado y escala ×scale). El modal (renderBadges) lo interpreta
-        // en el espacio del FRAME COMPLETO ×scale, así que sin remapear los badges caían ~8%
-        // a la izquierda (offset del margen) y comprimidos. Reproyectamos a frame-completo×scale.
-        const rMarginX = Math.floor(width * 0.08);
-        const rCropW = width - rMarginX * 2;
+        // marginX por lado y escala ×scale). El modal (renderBadges) lo interpreta en el
+        // espacio del FRAME COMPLETO ×scale, así que sin remapear los badges caían desplazados
+        // por el offset del margen. Reproyectamos a frame-completo×scale — usando el MISMO
+        // origen (cropRect.x, o 0 si no hubo detección) y margen que usó prepareRewardOCRCanvas,
+        // no el % fijo de antes: con cropRect variable, width*0.08 ya no es el offset real.
+        const rMarginX = cropRect ? Math.floor(cropRect.w * 0.06) : Math.floor(width * 0.08);
+        const rCropXBase = cropRect ? Math.floor(cropRect.x) : 0;
+        const rCropW = (cropRect ? cropRect.w : width) - rMarginX * 2;
         const rOcrW = ocrCanvas.width || 1;
         foundItems.forEach(item => {
             if (typeof item.xPos === "number") {
-                item.xPos = (rMarginX + (item.xPos / rOcrW) * rCropW) * scale;
+                item.xPos = (rCropXBase + rMarginX + (item.xPos / rOcrW) * rCropW) * scale;
             }
         });
 
@@ -1244,6 +1317,10 @@ export const ScannerService = {
 
             // Último recurso: sin autodetección ni calibración guardada, abre el modal
             if (!calibData?.gridZone) {
+                if (/KUBROW|KUBR|CHESA|HURAS|SAHASA|RAKSA|SUNIKA|HELMINTH|KAVAT/i.test(this.lastHeaderText || "")) {
+                    console.log("[INV] Omitiendo modal de calibración porque la pantalla es de kubrow.");
+                    return;
+                }
                 if (globalThis.LiveCalibration && !globalThis.LiveCalibration.hasCalibration()) {
                     console.log("[INV] Sin auto-grid ni calibración. Abriendo calibración manual...");
                     const calibCvs = document.createElement("canvas");
@@ -1265,14 +1342,19 @@ export const ScannerService = {
             // 2. Detect UI theme from within the calibrated zone.
             // detectThemeFromSnapshot devuelve null si no hay señal suficiente
             // (weight < 0.001 y sin tema estable previo): saltamos este frame en vez de crashear.
-            const theme = VisionService.detectThemeFromSnapshot(
+            let theme = VisionService.detectThemeFromSnapshot(
                 snapshot,
                 gridZone.x, gridZone.y, gridZone.w, gridZone.h
             );
             if (!theme) {
-                console.warn("[INV] Theme detection inconclusive this frame — skipping.");
-                ScannerHUD.updateScrollStatus("done", 0);
-                return;
+                // Pestaña de RELIQUIAS (o tinte de misión fuerte): en la zona del grid apenas hay
+                // píxeles del acento del tema (todo es arte dorado + nombres blancos) y el peso
+                // cae a ~0 → antes se saltaban TODOS los frames y el escáner "no funcionaba".
+                // La binarización de nombres ya es independiente del tema (cropThemeBinarized
+                // automide fondo/texto) y la cantidad se lee por brillo, así que un pseudo-tema
+                // neutro brillante solo afecta al fallback de badge por color.
+                theme = { name: "Neutral", r: 240, g: 240, b: 240, actualR: 240, actualG: 240, actualB: 240 };
+                console.warn("[INV] Theme inconclusive — using neutral pseudo-theme (relics tab / tinted UI).");
             }
             console.log(`[INV] Theme detected: ${theme.name} (r:${theme.r} g:${theme.g} b:${theme.b})`);
 
@@ -1380,7 +1462,7 @@ export const ScannerService = {
             // sino template-matching de dígitos (utils/badge_digit_ocr.js), así que los 2 workers
             // de badges se eliminaron — 2 instancias WASM menos de RAM.
             await OCRRepository.ensureSecondWorker();
-            const workers = OCRRepository.workers;
+            const workers = OCRRepository.workers.filter(Boolean);
 
             let cellIndex = 0;
             const runWorker = async (worker) => {
@@ -1422,54 +1504,44 @@ export const ScannerService = {
                         continue;
                     }
 
-                    let bestItem = OCRService.getValidItemMatch(combinedText);
+                    let relicText = combinedText;
+                    let relicMatch = OCRService.getRelicMatch(combinedText);
+                    let bestItem = relicMatch ? null : OCRService.getValidItemMatch(combinedText);
                     let fallbackText = null;
 
-                    // Fallback: if no match in normal text strip (76%-97%), try a slightly wider window (73%-99%)
-                    // to capture any stylized letters that might extend just above or below without invading the 58%-70% weapon art zone.
-                    if (!bestItem) {
+                    // Fallback: si no hay match en la banda normal (76%-97%), probamos ventana más amplia (73%-99%)
+                    if (!bestItem && !relicMatch) {
                         const fallbackY = Math.floor(cellH * 0.73);
                         const fallbackH = Math.floor(cellH * 0.26);
                         const fullCellCvs = VisionService.cropThemeBinarized(snapshot, cell.sx, cell.sy + fallbackY, cellW, fallbackH, theme, calibData?.nameColor);
                         fallbackText = await OCRService.extractCellText(worker, fullCellCvs);
                         if (fallbackText && fallbackText.length) {
                             logStr = `[r${cell.r}c${cell.c}] OCR (fallback): ${fallbackText.join(" ")}`;
-                            bestItem = OCRService.getValidItemMatch(fallbackText);
+                            relicMatch = OCRService.getRelicMatch(fallbackText);
+                            if (relicMatch) {
+                                relicText = fallbackText;
+                            } else {
+                                bestItem = OCRService.getValidItemMatch(fallbackText);
+                            }
                         }
                     }
 
-                    // Fallback con PaddleOCR (opt-in: globalThis.OCR_PADDLE_FALLBACK): lee la
-                    // banda de nombre a COLOR con PP-OCRv5, robusto a cualquier tema/contraste.
-                    // Solo corre en las celdas que Tesseract NO resolvió → Paddle se ejecuta en
-                    // muy pocas celdas y se carga en diferido (la 1ª vez que hace falta), evitando
-                    // su coste/RAM en las 18. Lo mejor de ambos: velocidad de Tesseract + precisión
-                    // de Paddle donde de verdad importa.
-                    if (!bestItem && globalThis.OCR_ENGINE !== "paddle" && globalThis.OCR_PADDLE_FALLBACK) {
+                    // Fallback con PaddleOCR (opt-in: globalThis.OCR_PADDLE_FALLBACK)
+                    if (!bestItem && !relicMatch && globalThis.OCR_ENGINE !== "paddle" && globalThis.OCR_PADDLE_FALLBACK) {
                         const ty = Math.round(cellH * 0.50), th = Math.round(cellH * 0.48);
                         const colorCvs = VisionService.cropColor(snapshot, cell.sx, cell.sy + ty, cellW, th, 2);
                         try {
                             const pWords = await PaddleRepository.recognizeWords(colorCvs);
                             if (pWords) {
-                                const pMatch = OCRService.getValidItemMatch(pWords);
-                                if (pMatch) { bestItem = pMatch; combinedText = pWords; logStr += " [paddle]"; }
+                                relicMatch = OCRService.getRelicMatch(pWords);
+                                if (relicMatch) {
+                                    relicText = pWords;
+                                } else {
+                                    const pMatch = OCRService.getValidItemMatch(pWords);
+                                    if (pMatch) { bestItem = pMatch; combinedText = pWords; logStr += " [paddle]"; }
+                                }
                             }
                         } catch (e) { console.warn("[Paddle fallback] error:", e); }
-                    }
-
-                    // Segundo fallback: la pestaña RELIQUIAS del inventario usa el MISMO grid/badges
-                    // que las prime parts ("LITH C1 RELIC", etc.) — si no matcheó como prime item,
-                    // probamos el matcher de reliquias. PRIMERO sobre la lectura original (la banda
-                    // de nombre es más limpia: el OCR de celda completa arrastra ruido del arte de
-                    // la reliquia y puede corromper una primera pasada buena), y si falla, sobre la
-                    // del fallback. relicText = la lectura que realmente matcheó (para el debug).
-                    let relicMatch = null;
-                    let relicText = combinedText;
-                    if (!bestItem) {
-                        relicMatch = OCRService.getRelicMatch(combinedText);
-                        if (!relicMatch && fallbackText && fallbackText.length) {
-                            relicMatch = OCRService.getRelicMatch(fallbackText);
-                            if (relicMatch) relicText = fallbackText;
-                        }
                     }
 
                     // Debug log disabled for production performance boost (reduces console render lag)

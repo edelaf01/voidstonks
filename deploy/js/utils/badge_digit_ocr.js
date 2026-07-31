@@ -101,8 +101,13 @@ export function segmentDigits(canvasLike) {
         }
         comps.push({ minX, maxX, minY, maxY, area });
     }
+    // Área mínima RELATIVA al tamaño del crop: `area >= 15` en píxeles absolutos descartaba
+    // dígitos finos ("1") cuando el stream venía a menor resolución — a 1440p un "1" tiene
+    // área de sobra, pero escalado a 1080p/720p se acerca al umbral y desaparecía el dígito.
+    // H*W*0.004 equivale a ~15px en los crops nativos con los que se calibró.
+    const minArea = Math.max(4, H * W * 0.004);
     const digitComps = comps
-        .filter((c) => (c.maxY - c.minY + 1) >= H * 0.4 && c.area >= 15)
+        .filter((c) => (c.maxY - c.minY + 1) >= H * 0.4 && c.area >= minArea)
         .sort((a, b) => a.minX - b.minX);
     return digitComps.map((c) => {
         const bw = c.maxX - c.minX + 1, bh = c.maxY - c.minY + 1;
@@ -149,11 +154,22 @@ export function readBadgeDigits(canvasLike) {
     // PLANOS: trazos verticales que matchean "1". Van separados del número por un hueco, así
     // que nos quedamos con los dígitos contiguos desde el primero y cortamos en el 1er hueco
     // grande (> 1.4× ancho medio de dígito). Un número real ("27") tiene huecos pequeños.
-    const widths = digits.map(g => g.maxX - g.minX + 1);
-    const avgW = widths.reduce((a, b) => a + b, 0) / widths.length;
+    // MEDIANA, no media: un "1" es mucho más fino que el resto de dígitos, así que en números
+    // con varios unos ("119", "111", y peor cuanto más largo el número) la media caía y el
+    // umbral de hueco se volvía demasiado estricto, arriesgando cortar el número antes de
+    // tiempo. La mediana es estable frente a esos dígitos finos y no asume nº de dígitos.
+    const widths = digits.map(g => g.maxX - g.minX + 1).sort((a, b) => a - b);
+    const mid = widths.length >> 1;
+    const avgW = widths.length % 2 ? widths[mid] : (widths[mid - 1] + widths[mid]) / 2;
+    // El hueco se mide contra el ancho MEDIANO de dígito, así que el umbral escala solo con la
+    // resolución. Medido sobre capturas reales a 1440p: dígitos consecutivos de un mismo número
+    // están a 10-11px (≈0.8× ancho de dígito) y el arte más cercano a 44px (≈3×). 1.4× cae con
+    // holgura entre ambos, y no asume cuántos dígitos tiene el número: mientras el siguiente
+    // componente esté PEGADO, el número continúa (vale para 2, 3, 4 o más cifras).
+    const GAP_RATIO = 1.4;
     let out = digits[0].d;
     for (let k = 1; k < digits.length; k++) {
-        if (digits[k].minX - digits[k - 1].maxX > avgW * 1.4) break;
+        if (digits[k].minX - digits[k - 1].maxX > avgW * GAP_RATIO) break;
         out += digits[k].d;
     }
     return out;

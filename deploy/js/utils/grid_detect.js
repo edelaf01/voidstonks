@@ -722,21 +722,88 @@ function detectInventoryGridCore(img, opts = {}) {
         // columna cuenta como "ocupada en la fila ri" si su masa en esa fila supera
         // el 12% del máximo de la fila. Así el panel de venta / starfield (texto en
         // pocas filas) no sostiene columnas fantasma frente al grid (texto en todas).
+        // Perfil de columna POR FILA (no la suma global): así se puede exigir
+        // presencia en VARIAS filas. Sumando la masa total, una columna con mucho
+        // texto en UNA sola fila (panel lateral "SELECT ITEMS…") puntúa igual que
+        // una del grid con nombres en las tres, y las columnas fantasma sobrevivían.
+        const perRow = rowBands.map((bb) => {
+            const prof = new Float32Array(width);
+            for (let y = bb.band.y0; y <= bb.band.y1; y++) {
+                if (o.inkMask) {
+                    const rowOff = y * width;
+                    for (let x = 0; x < width; x++) prof[x] += o.inkMask[rowOff + x];
+                    continue;
+                }
+                const sm = smoothedLumaRow(data, y * width * 4, width, o.edgeSmooth);
+                let inEdge = false, prevL = sm[0];
+                for (let x = 1; x < width; x++) {
+                    const edge = Math.abs(sm[x] - prevL) > o.edgeDelta;
+                    if (edge && !inEdge) prof[x]++;
+                    inEdge = edge;
+                    prevL = sm[x];
+                }
+            }
+            return prof;
+        });
+
+        // occ[k] = en cuántas filas la columna k tiene texto significativo
+        // (>12% del máximo de ESA fila, para que el arte de una fila no infle otras).
         const occ = new Array(cols).fill(0);
-        for (let k = 0; k < cols; k++) {
-            const a = Math.max(0, Math.round(gridXf + k * cellW));
-            const b = Math.min(width - 1, Math.round(gridXf + (k + 1) * cellW));
-            for (let x = a; x <= b; x++) occ[k] += colProf[x];
+        for (const prof of perRow) {
+            const massK = [];
+            for (let k = 0; k < cols; k++) {
+                const a = Math.max(0, Math.round(gridXf + k * cellW));
+                const b = Math.min(width - 1, Math.round(gridXf + (k + 1) * cellW));
+                let s = 0;
+                for (let x = a; x <= b; x++) s += prof[x];
+                massK.push(s);
+            }
+            const rowMax = Math.max(...massK);
+            if (rowMax <= 0) continue;
+            for (let k = 0; k < cols; k++) if (massK[k] >= rowMax * 0.12) occ[k]++;
         }
-        const maxOcc = Math.max(...occ);
-        const occThr2 = maxOcc * 0.15;
+        trace.occCols = [...occ];
+        // Racha contigua de columnas con texto en alguna fila: una columna del grid
+        // puede estar vacía en TODAS las filas visibles (inventario a medio llenar),
+        // así que la ocupación por sí sola no distingue "columna del grid vacía" de
+        // "texto ajeno". Lo que sí las separa es la CONTIGÜIDAD: dentro del grid los
+        // huecos quedan rodeados de columnas ocupadas, mientras que el panel lateral
+        // está separado del grid por al menos una columna vacía.
         let bs = 0, bl = 0, cs = -1;
         for (let k = 0; k <= cols; k++) {
-            if (k < cols && occ[k] >= occThr2) {
+            if (k < cols && occ[k] >= 1) {
                 if (cs < 0) cs = k;
                 if (k - cs + 1 > bl) { bl = k - cs + 1; bs = cs; }
             } else {
                 cs = -1;
+            }
+        }
+        // Si la racha sigue siendo mayor que un grid plausible, se recortan por los
+        // EXTREMOS las columnas flojas (ocupación muy por debajo del máximo): el
+        // panel lateral pegado al grid aparece en una fila suelta, mientras que las
+        // columnas reales del grid aparecen en (casi) todas. El interior nunca se
+        // toca: ahí los huecos son legítimos.
+        // Solo se recorta cuando la racha excede lo que el ancho ocupado por columnas
+        // FUERTES (presentes en todas las filas) justifica: si hay 6 columnas al
+        // máximo y la racha mide 8, las 2 flojas de los extremos son el panel lateral.
+        // Si el grid está a medio llenar (varias columnas flojas repartidas), no hay
+        // bloque fuerte dominante y no se toca nada.
+        const maxOcc = Math.max(...occ);
+        if (maxOcc >= 3) {
+            let strongFirst = -1, strongLast = -1;
+            for (let k = bs; k < bs + bl; k++) {
+                if (occ[k] >= maxOcc) { if (strongFirst < 0) strongFirst = k; strongLast = k; }
+            }
+            // El bloque fuerte debe ser CONTIGUO y cubrir casi toda su extensión para
+            // considerarlo "el grid" (evita recortar por un pico aislado).
+            if (strongFirst >= 0) {
+                let strongCount = 0;
+                for (let k = strongFirst; k <= strongLast; k++) if (occ[k] >= maxOcc) strongCount++;
+                const span = strongLast - strongFirst + 1;
+                if (strongCount === span && span >= o.minCols) {
+                    bs = strongFirst;
+                    bl = span;
+                }
             }
         }
         if (bl >= 1 && bl < cols) {
@@ -822,4 +889,91 @@ export function isImplausibleFallbackGrid(calib, frameW, frameH) {
     if (calib.cellW && calib.cellW > frameW * 0.16) return true; // celdas demasiado anchas (pocas columnas)
     if (calib.cellH && calib.cellH > frameH * 0.28) return true; // filas demasiado altas
     return false;
+}
+
+const REWARD_DEFAULTS = {
+    ...DEFAULTS,
+    // Las cards de recompensa NO están donde el frame de cámara "dice" que deberían
+    // (18.5%-44% de altura) cuando la foto viene de una webcam apuntando a un monitor
+    // externo en vez de la propia pantalla del móvil: el juego solo ocupa una fracción
+    // del encuadre (bisel, pared, techo alrededor). Se busca la banda en TODO el alto
+    // del frame, no en un recorte fijo — la señal (texto brillante en banda ancha) es
+    // la misma que detecta nombres de inventario, solo que aquí buscamos LA banda más
+    // fuerte de todo el frame en vez de una cadena de 3 filas equiespaciadas.
+    minCardW: 0.08,   // una card de recompensa nunca es más angosta que ~8% del ancho de SU banda
+    maxCards: 4,
+    minCards: 1,
+};
+
+/**
+ * Localiza la banda de nombres de recompensa (2-4 cards horizontales) en CUALQUIER
+ * posición del frame, sin asumir que el juego ocupa el encuadre completo de cámara.
+ * Reutiliza la misma señal que detectInventoryGrid (bordes |Δluma|, con fallback a
+ * color de tinta dominante) pero busca la banda de mayor masa en vez de una cadena
+ * arithmetic de filas — las cards de recompensa son una fila ÚNICA, no una rejilla.
+ *
+ * Devuelve { x, y, w, h, cardCount, cardBoxes } en PÍXELES del frame de entrada, o
+ * null si no se encontró ninguna banda plausible (frame no es la pantalla de rewards,
+ * o está demasiado borroso/oscuro para que el texto produzca señal).
+ */
+export function detectRewardBand(img, opts = {}) {
+    const o = { ...REWARD_DEFAULTS, ...opts };
+    if (!img?.data || !img.width || !img.height) return null;
+
+    const tryBands = (bandOpts) => {
+        const prof = rowProfile(img, bandOpts);
+        return findBands(prof, img.height, bandOpts);
+    };
+
+    const pickBest = (bands, bandOpts) => {
+        let best = null;
+        for (const band of bands) {
+            const blocks = blocksInBand(img, band.y0, band.y1, bandOpts)
+                .filter(b => (b.x1 - b.x0) >= img.width * o.minCardW);
+            if (blocks.length < o.minCards || blocks.length > o.maxCards) continue;
+            // La banda real de recompensas es la de mayor masa total de texto entre
+            // las que producen un nº plausible de bloques (2-4): el HUD (título,
+            // contador "2", nombres de squad bajo las cards) también produce bandas,
+            // pero su masa de texto es muchísimo menor que 2-4 nombres de ítem juntos.
+            if (!best || band.mass > best.band.mass) best = { band, blocks };
+        }
+        return best;
+    };
+
+    // (1) Señal de bordes (primaria) sobre todo el frame.
+    let bands = tryBands(o);
+    let result = pickBest(bands, o);
+
+    // (2) Fallback color de tinta dominante — mismo motivo que detectInventoryGrid:
+    // fondo claro texturizado satura los bordes y la banda de nombres deja de
+    // sobresalir del ruido.
+    if (!result) {
+        const { cands } = colorInkCandidates(img, o);
+        for (const col of cands) {
+            const mask = colorInkMask(img, col, o.nameTolSq);
+            const colorOpts = { ...o, inkMask: mask };
+            const cBands = tryBands(colorOpts);
+            const cResult = pickBest(cBands, colorOpts);
+            if (cResult && (!result || cResult.band.mass > result.band.mass)) result = cResult;
+        }
+    }
+
+    if (!result) return null;
+
+    const { band, blocks } = result;
+    const x0 = Math.min(...blocks.map(b => b.x0));
+    const x1 = Math.max(...blocks.map(b => b.x1));
+    // Margen alrededor del bounding box ajustado de los NOMBRES: el recorte real de
+    // recompensas (prepareRewardOCRCanvas) necesita ver también el badge Owned/Crafted
+    // encima y algo de aire a los lados — los nombres solos son más angostos que la card.
+    const padX = (x1 - x0) * 0.15;
+    const padYTop = (band.y1 - band.y0) * 3.0;
+    const padYBottom = (band.y1 - band.y0) * 1.2;
+
+    const x = Math.max(0, x0 - padX);
+    const w = Math.min(img.width - x, (x1 - x0) + padX * 2);
+    const y = Math.max(0, band.y0 - padYTop);
+    const h = Math.min(img.height - y, (band.y1 - band.y0) + padYTop + padYBottom);
+
+    return { x, y, w, h, cardCount: blocks.length, cardBoxes: blocks };
 }

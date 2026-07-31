@@ -1,145 +1,247 @@
 /**
  * Warframe Kubrow data translations
- * Mapea paths/códigos de Warframe a nombres legibles en ES/EN
+ * Mapea códigos internos de assets (los que aparecen tal cual en el EE.log) a los
+ * nombres reales que el juego muestra al jugador.
+ *
+ * FUENTE: wikitext crudo de los módulos Lua del Warframe Wiki oficial (que reflejan
+ * el Public Export real del juego), descargado vía ?action=raw:
+ *   - https://wiki.warframe.com/index.php?title=Module:Cosmetics/data/pattern&action=raw
+ *   - https://wiki.warframe.com/index.php?title=Module:Cosmetics/data/genemaskingkit&action=raw
+ *
+ * Todo lo que sigue son datos verificados contra esas fuentes. NO se inventan
+ * mapeos: si un código no está en la tabla, se muestra el código crudo en vez de
+ * adivinar un nombre (ver fallback en translatePattern/translateColor más abajo).
  */
 
-export const KUBROW_BREEDS = {
-  'Huras': { es: 'Huras', en: 'Huras' },
-  'Sunika': { es: 'Sunika', en: 'Sunika' },
-  'Raksa': { es: 'Raksa', en: 'Raksa' },
-  'Sahasa': { es: 'Sahasa', en: 'Sahasa' },
-  'Chesa': { es: 'Chesa', en: 'Chesa' },
-  'Adarza': { es: 'Adarza', en: 'Adarza' },
-  'Smeeta': { es: 'Smeeta', en: 'Smeeta' },
-  'Vasili': { es: 'Vasili', en: 'Vasili' },
-  'Khora': { es: 'Khora Deluxe', en: 'Khora Deluxe' },
-};
-
+// KubrowPetPattern<X> -> nombre real del patrón de pelaje.
+// InternalName completo = /Lotus/Types/Game/KubrowPet/Patterns/KubrowPetPattern<X>
 export const KUBROW_PATTERNS = {
-  // Asset types (not visual patterns, but texture/model variants)
-  'F': { es: 'Variante F', en: 'Variant F' },
-  'M': { es: 'Variante M', en: 'Variant M' },
-
-  // Skin/texture variants
-  'SkinF': { es: 'Piel F', en: 'Skin F' },
-  'SkinM': { es: 'Piel M', en: 'Skin M' },
-  'SkinC': { es: 'Piel C', en: 'Skin C' },
-  'SkinA': { es: 'Piel A', en: 'Skin A' },
-  'SkinB': { es: 'Piel B', en: 'Skin B' },
-  'SkinD': { es: 'Piel D', en: 'Skin D' },
-  'SkinE': { es: 'Piel E', en: 'Skin E' },
-  'SkinG': { es: 'Piel G', en: 'Skin G' },
-  'SkinH': { es: 'Piel H', en: 'Skin H' },
-
-  // Card variants (UI/model card)
-  'CardF': { es: 'Card F', en: 'Card F' },
-  'CardM': { es: 'Card M', en: 'Card M' },
-  'CardC': { es: 'Card C', en: 'Card C' },
-
-  // Generic pattern names
-  'PatternA': { es: 'Patrón A', en: 'Pattern A' },
-  'PatternB': { es: 'Patrón B', en: 'Pattern B' },
-  'PatternC': { es: 'Patrón C', en: 'Pattern C' },
-  'PatternD': { es: 'Patrón D', en: 'Pattern D' },
-  'PatternE': { es: 'Patrón E', en: 'Pattern E' },
-  'PatternF': { es: 'Patrón F', en: 'Pattern F' },
-  'PatternG': { es: 'Patrón G', en: 'Pattern G' },
-  'PatternH': { es: 'Patrón H', en: 'Pattern H' },
+  KubrowPetPatternA: { es: 'Patrón de Pelaje Rayado', en: 'Striped Fur Pattern' },
+  KubrowPetPatternB: { es: 'Patrón de Pelaje Manchado', en: 'Patchy Fur Pattern' },
+  KubrowPetPatternC: { es: 'Patrón de Pelaje Hound', en: 'Hound Fur Pattern' },
+  KubrowPetPatternD: { es: 'Patrón de Pelaje Domino', en: 'Domino Fur Pattern' },
+  KubrowPetPatternE: { es: 'Patrón de Pelaje Merle', en: 'Merle Fur Pattern' },
+  KubrowPetPatternF: { es: 'Patrón de Pelaje Lotus', en: 'Lotus Fur Pattern' },
+  KubrowPetPatternG: { es: 'Patrón de Pelaje Jaspeado', en: 'Mottled Fur Pattern' },
+  KubrowPetPatternH: { es: 'Patrón de Pelaje Brindle', en: 'Brindle Fur Pattern' },
+  KubrowPetPatternI: { es: 'Patrón de Pelaje Tigrol', en: 'Tigrol Fur Pattern' },
+  KubrowPetPatternDiamond: { es: 'Patrón de Pelaje Atrox', en: 'Atrox Fur Pattern' },
+  KubrowPetPatternLiquid: { es: 'Patrón de Pelaje Arklut', en: 'Arklut Fur Pattern' },
+  KubrowPetPatternXmasA: { es: 'Patrón Nart-Deer', en: 'Nart-Deer Pattern' },
+  KubrowPetPatternXmasB: { es: 'Patrón Nistlebrush', en: 'Nistlebrush Pattern' },
+  KubrowPetPatternXmasC: { es: 'Patrón Nariz Carmesí', en: 'Crimson Nose Pattern' },
+  FeralKubrowPattern: { es: 'Patrón Kubrow Salvaje', en: 'Underbrush Kubrow Pattern' },
+  DrahkKubrowPattern: { es: 'Patrón Kubrow Drahk', en: 'Drahk Kubrow Pattern' },
+  KubrowPetPatternPrimeA: { es: 'Patrón de Pelaje Kavasa Prime', en: 'Kavasa Prime Fur Pattern' },
+  KubrowPetPatternPrimeTraderA: { es: 'Patrón de Pelaje Nexus', en: 'Nexus Fur Pattern' },
+  KubrowPetPatternCephalon: { es: 'Patrón de Pelaje Neura', en: 'Neura Fur Pattern' },
+  KubrowPetPatternDuviriWolf: { es: 'Patrón de Pelaje Fabled Kubrow', en: 'Fabled Kubrow Fur Pattern' },
+  KubrowPetPatternInfested: { es: 'Patrón Helminth', en: 'Helminth Pattern' },
+  HelminthPetPatternClassic: { es: 'Patrón Helminth Degenerado', en: 'Helminth Degenerate Pattern' },
+  WukongPrimeKubrowPattern: { es: 'Patrón de Pelaje Tang Prime', en: 'Tang Prime Kubrow Fur Pattern' },
+  KubrowPetPatternHelminthDeluxe: { es: 'Piel Helminth Charger Metus', en: 'Helminth Charger Metus Skin' },
 };
 
+// KubrowPetColor<X> -> nombre real del color. InternalName completo =
+// /Lotus/Types/Game/KubrowPet/Colors/KubrowPetColor<X>
 export const KUBROW_COLORS = {
-  // Color rarities
-  'Mundane': { es: 'Común', en: 'Common' },
-  'Mid': { es: 'Medio', en: 'Uncommon' },
-  'Vibrant': { es: 'Vibrante', en: 'Rare' },
-
-  // Specific color names (from Warframe)
-  'Drahk': { es: 'Drahk', en: 'Drahk' },
-  'Cephalon': { es: 'Cefalón', en: 'Cephalon' },
-  'DuviriWolf': { es: 'Lobo Duviri', en: 'Duviri Wolf' },
-  'Nexus': { es: 'Nexo', en: 'Nexus' },
+  KubrowPetColorVibrantG: 'Alad Blue',
+  KubrowPetColorVibrantB: 'Ambulas Black',
+  KubrowPetColorVibrantA: 'Anyo Grey',
+  KubrowPetColorMundaneI: 'Arid Brown',
+  KubrowPetColorMundaneA: 'Ash Grey',
+  KubrowPetColorSolsticeMundane: 'Bombard White',
+  KubrowPetColorXmasVibrantA: 'Brokk Brown',
+  KubrowPetColorMidContest: 'Condroc Brown',
+  KubrowPetColorDuviriWolfMid: 'Conspirator Green',
+  KubrowPetColorMundaneC: 'Corpus Grey',
+  KubrowColorWukongPrimeMundane: 'Corrupted Gold',
+  KubrowPetColorDuviriWolfMundane: 'Courtier Red',
+  KubrowPetColorCephalonVibrant: 'Crewman Grey',
+  KubrowPetColorMidF: 'Darvo Blue',
+  KubrowPetColorMidB: 'Derelict Black',
+  KubrowColorWukongPrimeVibrant: 'Derelict White',
+  KubrowPetColorDaybreakMundane: 'Dusk Pink',
+  KubrowPetColorMundaneB: 'Earth Brown',
+  KubrowPetColorMidI: 'Eris Black',
+  KubrowPetColorDaybreakMid: 'Evening Purple',
+  KubrowPetColorKavatBase: 'Executioner Grey',
+  KubrowPetColorMidLiquid: 'Fomorian Grey',
+  KubrowPetColorMundaneJ: 'Forest Grey',
+  KubrowPetColorMundaneF: 'Gallium Grey',
+  KubrowPetColorMundaneG: 'Grustrag Grey',
+  KubrowPetColorDuviriWolfVibrant: 'Harbinger Red',
+  KubrowPetColorMundaneD: 'Hek Green',
+  KubrowPetColorKavatSecondary: 'Hyacinth Blue',
+  KubrowPetColorFeralVibrant: 'Inaros Brown',
+  KubrowPetColorMidD: 'Infested Black',
+  KubrowPetColorXmasMidB: 'Jadeleaf Green',
+  KubrowPetColorVibrantE: 'Jupiter Brown',
+  KubrowPetColorPrimeA: 'Kavasa White',
+  KubrowPetColorMundaneDiamond: "Ki'Teer Grey",
+  KubrowPetColorMundaneE: 'Kril Brown',
+  KubrowPetColorCephalonMid: 'Liset Grey',
+  KubrowPetColorVibrantI: 'Lotus Purple',
+  KubrowPetColorXmasMidA: 'Lotus White',
+  KubrowPetColorFeralMid: 'Maggot Pink',
+  KubrowPetColorSolsticeVibrant: 'Manic Black',
+  KubrowPetColorMidC: 'Mars Red',
+  KubrowPetColorMidH: 'Mercury Brown',
+  KubrowPetColorDrahkVibrant: 'Mirage Purple',
+  KubrowPetColorVibrantK: 'Mirage Red',
+  KubrowPetColorCephalonMundane: 'Mirage White',
+  KubrowPetColorDaybreakVibrant: 'Morning Yellow',
+  KubrowPetColorMundaneContest: 'Mud Puddle Brown',
+  KubrowPetColorMidJ: 'Nova Grey',
+  KubrowPetColorXmasMundaneB: 'Nova White',
+  KubrowPetColorMidG: 'Ordis Grey',
+  KubrowPetColorPrimeD: 'Origin Brown',
+  KubrowPetColorPrimeC: 'Orokin Gold',
+  KubrowPetColorDrahkMid: 'Osprey Blue',
+  KubrowPetColorVibrantContest: 'Ostron Brown',
+  KubrowPetColorPrimeTraderMidA: 'Perrin Blue',
+  KubrowPetColorMundaneK: 'Phobos Brown',
+  KubrowPetColorVibrantF: 'Phorid Red',
+  KubrowPetColorDuviriWolfAccent: 'Princely Gold',
+  KubrowPetColorPrimeTraderVibrantA: 'Rakta Red',
+  KubrowPetColorKavatTertiary: 'Regor Green',
+  KubrowPetColorMidK: 'Rhino Brown',
+  KubrowPetColorDrahkMundane: 'Rubedo Red',
+  KubrowPetColorVibrantD: 'Sargas Brown',
+  KubrowPetColorMundaneH: 'Saturn Brown',
+  KubrowPetColorMidA: 'Sedna Grey',
+  KubrowPetColorVibrantC: 'Shadow Grey',
+  KubrowPetColorFeralMundane: 'Singularity Black',
+  KubrowPetColorMundaneLiquid: 'Specter White',
+  KubrowPetColorMidDiamond: 'Star White',
+  KubrowPetColorXmasMundaneA: 'Tenno Red',
+  KubrowColorWukongPrimeMid: 'Tidal Blue',
+  KubrowPetColorXmasVibrantB: 'Trinity Red',
+  KubrowPetColorVibrantJ: 'Valkyr Brown',
+  KubrowPetColorVibrantLiquid: 'Vandal Blue',
+  KubrowPetColorPrimeTraderMundaneA: 'Vaykor White',
+  KubrowPetColorVibrantH: 'Venus Brown',
+  KubrowPetColorMidE: 'Void Black',
+  KubrowPetColorSolsticeMid: 'Wukong Blue',
+  KubrowPetColorVibrantDiamond: 'Wyrm Blue',
 };
 
-export const translatePattern = (pattern, lang = 'es') => {
-  if (!pattern) return lang === 'es' ? 'Desconocido' : 'Unknown';
+// Sufijo de intensidad -> nivel legible. Confirmado: Mundane/Mid/Vibrant son niveles
+// de saturación del mismo color base (la letra), no nombres de color en sí mismos.
+export const KUBROW_COLOR_TIERS = {
+  Mundane: { es: 'Apagado', en: 'Mundane' },
+  Mid: { es: 'Medio', en: 'Mid' },
+  Vibrant: { es: 'Vibrante', en: 'Vibrant' },
+  Accent: { es: 'Acento', en: 'Accent' },
+};
 
-  // Buscar match directo primero
-  const direct = KUBROW_PATTERNS[pattern];
-  if (direct) return direct[lang];
+// Niveles de rareza de color según la Kubrow Pricing Guide & Colour Chart de la
+// comunidad (Warframe Kubrow & Kavat Breeders discord). El chart clasifica los
+// colores de la genética estándar en tres grados por su intensidad:
+//   Mundane<letra> -> Común    (p.ej. MundaneA = Ash Grey)
+//   Mid<letra>     -> Poco común (p.ej. MidE = Void Black)
+//   Vibrant<letra> -> Raro      (p.ej. VibrantD = Sargas Brown/Gold)
+// Los colores fuera de esa genética (eventos, Prime, Contest, razas especiales)
+// no están tabulados en el chart pero el propio chart señala que los "special
+// themed" se venden por más, así que los marcamos como Muy raro.
+// FUENTE: https://docs.google.com/spreadsheets/d/1AYotnmwCnnFzbQnyyJ0_XMxDDiaahgHvcC27UIa_RLM
+// Los `color` reutilizan la paleta de rarezas de la app (variables --wf-common /
+// --wf-uncommon / --wf-rare / --wf-riven de styles.css) para que la ventana de
+// kubrow combine con reliquias, sets y rivens.
+export const KUBROW_RARITY_LEVELS = {
+  0: { es: 'Común', en: 'Common', color: '#cd7f32' }, // --wf-common (bronce)
+  1: { es: 'Poco común', en: 'Uncommon', color: '#c0c0c0' }, // --wf-uncommon (plata)
+  2: { es: 'Raro', en: 'Rare', color: '#e6c200' }, // --wf-rare (oro)
+  3: { es: 'Muy raro', en: 'Very Rare', color: '#a235e2' }, // --wf-riven (púrpura)
+};
 
-  // Extraer la última letra/código (ej: "SkinC" -> "C", "PatternF" -> "F")
-  const lastChar = pattern[pattern.length - 1];
-  if (/[A-Z]/.test(lastChar)) {
-    const variantKey = lastChar;
-    if (lang === 'es') {
-      return `Variante ${variantKey}`;
-    } else {
-      return `Variant ${variantKey}`;
-    }
+// Reglas de segmento de código -> nivel de rareza. Se evalúan en orden; la primera
+// que coincida gana. Los tres primeros grados salen tal cual del colour chart de la
+// comunidad; el resto (temáticos/Prime) se marca como Muy raro porque no está en el
+// chart y el chart indica que esos se venden por encima.
+const RARITY_RULES = [
+  // Temáticos / limitados / Prime: fuera de la genética estándar del chart.
+  { test: /(Prime|Contest|Xmas|Solstice|Daybreak|DuviriWolf|Cephalon|Drahk|Feral|Diamond|Liquid)/i, level: 3 },
+  // Genética estándar tabulada en el chart (Mundane/Mid/Vibrant + letra).
+  { test: /Vibrant/i, level: 2 }, // Rare
+  { test: /Mid/i, level: 1 }, // Uncommon
+  { test: /Mundane/i, level: 0 }, // Common
+];
+
+/**
+ * Devuelve el nivel de rareza (0-3) de un código de color de kubrow según el
+ * colour chart de la comunidad. Si el código no encaja en ninguna regla conocida
+ * (p.ej. paletas Kavat base) se asume Común (0).
+ */
+export const getColorRarityLevel = (colorCode) => {
+  if (!colorCode) return 0;
+  for (const rule of RARITY_RULES) {
+    if (rule.test.test(colorCode)) return rule.level;
   }
-
-  // Fallback: devolver el original si no hay match
-  return pattern;
+  return 0;
 };
 
-export const translateBreed = (breed, lang = 'es') => {
-  if (!breed || breed === 'Unknown') return lang === 'es' ? 'Desconocida' : 'Unknown';
+// Índice inverso nombre-real -> nivel de rareza, para clasificar los colores que el
+// extractor de imagen devuelve como nombre ("Void Black") en vez de código interno.
+export const KUBROW_COLOR_RARITY_BY_NAME = {};
+for (const [code, name] of Object.entries(KUBROW_COLORS)) {
+  KUBROW_COLOR_RARITY_BY_NAME[name] = getColorRarityLevel(code);
+}
 
-  // Buscar match directo
-  const direct = KUBROW_BREEDS[breed];
-  if (direct) return direct[lang];
-
-  return breed; // Fallback
-};
-
-export const translateColorRarity = (rarity, lang = 'es') => {
-  if (!rarity) return lang === 'es' ? '?' : '?';
-
-  const direct = KUBROW_COLORS[rarity];
-  if (direct) return direct[lang];
-
-  return rarity;
+/**
+ * Traduce un código de patrón (tal como aparece en el EE.log, ej. "KubrowPetPatternC")
+ * al nombre real que el juego muestra. Si no está en la tabla verificada, devuelve el
+ * código crudo — nunca se inventa un nombre plausible.
+ */
+export const translatePattern = (patternCode, lang = 'es') => {
+  if (!patternCode) return lang === 'es' ? 'Desconocido' : 'Unknown';
+  const entry = KUBROW_PATTERNS[patternCode];
+  if (entry) return entry[lang];
+  return patternCode; // sin match verificado: se muestra el código crudo, no una adivinanza
 };
 
 /**
- * Traduce nombres de archivos asset de Warframe
- * Ej: "/Lotus/Types/Game/KubrowPet/Patterns/KubrowPetPatternF" -> "Patrón F"
+ * Traduce un código de color (ej. "KubrowPetColorDrahkMid") al nombre real.
+ * Igual que translatePattern: sin match verificado, devuelve el código crudo.
  */
-export const translateAssetPath = (path, lang = 'es') => {
-  if (!path) return lang === 'es' ? 'Desconocido' : 'Unknown';
+export const translateColor = (colorCode) => {
+  if (!colorCode) return null;
+  return KUBROW_COLORS[colorCode] || colorCode;
+};
 
-  // Extraer el último componente del path
-  const match = path.match(/([A-Za-z0-9]+)$/);
-  if (match) {
-    const component = match[1];
-
-    // Patrón
-    if (path.includes('Pattern')) {
-      return translatePattern(component, lang);
-    }
-
-    // Color
-    if (path.includes('Color')) {
-      return translateColorRarity(component, lang);
-    }
-
-    // Raza
-    for (const breed of Object.keys(KUBROW_BREEDS)) {
-      if (component.includes(breed)) {
-        return translateBreed(breed, lang);
-      }
-    }
+/**
+ * Traduce el sufijo de intensidad de un código de color, si lo tiene.
+ * Ej. "KubrowPetColorDrahkMid" -> "Mid" -> "Medio"
+ */
+export const translateColorTier = (colorCode, lang = 'es') => {
+  if (!colorCode) return null;
+  for (const tier of Object.keys(KUBROW_COLOR_TIERS)) {
+    if (colorCode.endsWith(tier)) return KUBROW_COLOR_TIERS[tier][lang];
   }
+  return null;
+};
 
-  return path;
+/**
+ * Devuelve el nivel de rareza (0-3) de un color dado por nombre real ("Void Black")
+ * o por código interno ("KubrowPetColorVibrantG"). Fallback a Común (0).
+ */
+export const getColorRarity = (colorNameOrCode) => {
+  if (!colorNameOrCode) return 0;
+  if (colorNameOrCode in KUBROW_COLOR_RARITY_BY_NAME) {
+    return KUBROW_COLOR_RARITY_BY_NAME[colorNameOrCode];
+  }
+  return getColorRarityLevel(colorNameOrCode);
 };
 
 export default {
   translatePattern,
-  translateBreed,
-  translateColorRarity,
-  translateAssetPath,
-  KUBROW_BREEDS,
+  translateColor,
+  translateColorTier,
+  getColorRarity,
+  getColorRarityLevel,
   KUBROW_PATTERNS,
   KUBROW_COLORS,
+  KUBROW_COLOR_TIERS,
+  KUBROW_RARITY_LEVELS,
+  KUBROW_COLOR_RARITY_BY_NAME,
 };
