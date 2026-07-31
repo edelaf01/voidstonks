@@ -15,7 +15,6 @@ export const ScannerHUD = {
         if (contextType === "INVENTORY") {
             if (hud) hud.style.display = "block";
             this.setUIBadge(badge, sh.statusInventory, "#f1c40f", "rgba(241,196,15,0.4)", "rgba(241,196,15,0.1)");
-
             const msgEl = document.getElementById("live-inv-msg");
             if (msgEl) msgEl.innerText = sh.statusIdle;
         } else {
@@ -127,6 +126,11 @@ export const ScannerHUD = {
 
         if (totalCount > 0 && hud && hud.style.display === "none") {
             hud.style.display = "block";
+        }
+
+        if (relicCount > sessionInventory.size) {
+            const badge = document.getElementById("hud-context-badge");
+            this.setUIBadge(badge, sh?.statusRelics || "RELIQUIAS", "#00e5ff", "rgba(0,229,255,0.4)", "rgba(0,229,255,0.1)");
         }
         const items = Array.from(sessionInventory.entries()).map(([name, qty]) => ({ name, qty }));
         items.sort((a, b) => a.name.localeCompare(b.name));

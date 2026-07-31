@@ -64,7 +64,7 @@ export const OCRService = {
     // mismo grupo cuesta poco en similarityOCR, así "ACCELLRA"≈"ACCELTRA", "FRIME"≈"PRIME",
     // "RECELVER"≈"RECEIVER", etc. se resuelven solos, sin hardcodear cada caso.
     _ocrConfMap: (() => {
-        const groups = ["O0QDCG", "IL1T|J", "S5", "B8", "G6", "Z2", "UV", "NMH", "PF", "EF", "RT", "VY", "A4", "KR", "W"];
+        const groups = ["O0QDCG", "IL1T|J", "S5", "B8", "G6", "Z2", "UV", "NMH", "PF", "EF", "RT", "VY", "A4", "KR", "W", "Q9"];
         const map = new Map();
         for (const g of groups) for (const ch of g) map.set(ch, (map.get(ch) || "") + g);
         return map;
@@ -106,147 +106,140 @@ export const OCRService = {
         "RELIQUIA", "RADIANTE", "INTACTA", "EXCEPCIONAL", "IMPECABLE"
     ]),
 
-    // Correcciones letra->dígito típicas del OCR sobre la parte NUMÉRICA de un código.
-    _fixRelicDigits(s) {
-        return s
-            .replaceAll("Z", "2").replaceAll("S", "5").replaceAll("B", "8")
-            .replaceAll("G", "6").replaceAll("O", "0").replaceAll(/[IL]/g, "1");
+    // Forma romana de un código Requiem leído en arábigo ("2" -> "II"). Regla de
+    // DOMINIO (los códigos Requiem son números romanos), no un alias por-caso.
+    _romanizeRequiem(code) {
+        return code
+            .replaceAll("1", "I").replaceAll("0", "O").replaceAll("2", "II")
+            .replaceAll("3", "III").replaceAll("4", "IV");
     },
 
-    // Repara los errores típicos de OCR letra<->dígito del código de reliquia
-    // (p.ej. "O1" -> "01", o para Requiem el sentido inverso dígito->romano).
-    // Factorizado de parseRelicSelection para reutilizarlo también en getRelicMatch.
-    _fixRelicCode(codeRaw, isRequiem) {
-        let code = codeRaw;
-        if (!isRequiem && code.length >= 2) {
-            code = this._fixRelicDigits(code);
-        } else if (isRequiem) {
-            code = code
-                .replaceAll("1", "I").replaceAll("0", "O").replaceAll("2", "II")
-                .replaceAll("3", "III").replaceAll("4", "IV");
-        }
-        return code;
-    },
-
+    // Pantalla de selección/refinamiento: mismo matcher genérico que el inventario,
+    // devolviendo "TIER CODIGO" en mayúsculas (formato histórico del flujo de track).
     parseRelicSelection(ocrText) {
-        const tiers = this.RELIC_TIERS;
-        const text = ocrText.toUpperCase();
-        const pattern = tiers.join("|");
-        const match = new RegExp(String.raw`(${pattern})[\s\S]*?([A-Z][0-9]{1,2}|[IVX]+)`, "i").exec(text);
-        if (!match) return null;
-
-        const tier = match[1].toUpperCase();
-        const codeRaw = match[2].trim().replaceAll(/\s+/g, "");
-        const isRequiem = tier === "REQUIEM";
-        const code = this._fixRelicCode(codeRaw, isRequiem);
-
-        if (code && code.length >= 1) {
-            const foundRelic = `${tier} ${code}`.toUpperCase();
-            const exists = state.allRelicNames?.some(n => n.toUpperCase() === foundRelic);
-            return exists ? foundRelic : null;
-        }
-        return null;
+        const canonical = this.getRelicMatch(ocrText);
+        return canonical ? canonical.toUpperCase().replace(/\s+RELIC$/, "") : null;
     },
 
-    // Match de reliquia para el flujo del inventario (grid de celdas del escáner de items).
-    // A diferencia de parseRelicSelection (texto libre de una sola pantalla), aquí recibimos
-    // el array de palabras OCR de UNA celda (mayúsculas), como getValidItemMatch. Localiza el
-    // tier (fuzzy, aguanta L1TH/MES0/NE0/AX1), el código pegado o en la palabra siguiente, y
-    // devuelve el nombre CANÓNICO tal como figura en state.allRelicNames (no en mayúsculas),
-    // para que case con el resto de la app (helpers de inventario, etc.).
+    // ---- Matching GENÉRICO de reliquias (mismo diseño que getValidItemMatch) ----
+    // Nada de mapas/alias por-caso: TODA la tolerancia a errores OCR pasa por
+    // similarityOCR (grupos de confusión compartidos) contra el catálogo REAL
+    // (state.allRelicNames), con umbral + margen de unicidad. Las únicas reglas
+    // extra son de DOMINIO: los tiers son alfabéticos, los códigos son
+    // letra+dígitos (Requiem: romanos) y la cola de una palabra puede traer
+    // ruido del arte de la celda.
+
+    _relicIndexCache: null,
+    // tier -> [{ code, canonical }], derivado de state.allRelicNames (data-driven).
+    _relicIndex() {
+        const names = state.allRelicNames || [];
+        if (this._relicIndexCache && this._relicIndexCache._n === names.length) return this._relicIndexCache;
+        const idx = new Map();
+        for (const canonical of names) {
+            const parts = canonical.toUpperCase().replace(/\s+RELIC$/, "").split(/\s+/);
+            if (parts.length !== 2) continue;
+            const [tier, code] = parts;
+            if (!idx.has(tier)) idx.set(tier, []);
+            idx.get(tier).push({ code, canonical });
+        }
+        idx._n = names.length;
+        this._relicIndexCache = idx;
+        return idx;
+    },
+
+    // Similitud de un candidato de TIER: similarityOCR más dos variantes de dominio
+    // (con pequeña penalización para que el match limpio siempre gane):
+    //  (a) los tiers no llevan dígitos -> una cola de dígitos en el candidato es
+    //      ruido/código pegado y se puede descartar;
+    //  (b) glifo fino perdido al final ("AX" por AXI) -> comparar contra el prefijo
+    //      del tier de la misma longitud.
+    _relicTierScore(word, tier) {
+        let s = this.similarityOCR(word, tier);
+        const stripped = word.replace(/[0-9]+$/, "");
+        if (stripped !== word && stripped.length >= 2) {
+            s = Math.max(s, this.similarityOCR(stripped, tier.slice(0, Math.max(stripped.length, 2))) - 0.08);
+        }
+        if (word.length >= 2 && word.length < tier.length) {
+            s = Math.max(s, this.similarityOCR(word, tier.slice(0, word.length)) - 0.08);
+        }
+        return s;
+    },
+
+    // Devuelve el nombre CANÓNICO tal como figura en state.allRelicNames (con o sin
+    // sufijo " Relic", según lo tenga la DB), o null. Acepta array de palabras OCR
+    // (celda del inventario) o texto libre (pantalla de selección).
     getRelicMatch(combinedText) {
-        if (!combinedText) return null;
+        if (!combinedText || !state.allRelicNames?.length) return null;
         const rawWords = Array.isArray(combinedText) ? combinedText : combinedText.split(/\s+/);
         const words = rawWords
             .map(w => (w || "").toString().toUpperCase().replaceAll(/[^A-Z0-9]/g, ""))
             .filter(w => w.length > 0 && !this.RELIC_NOISE_TOKENS.has(w));
-
-        const tiers = this.RELIC_TIERS;
+        const index = this._relicIndex();
 
         for (let i = 0; i < words.length; i++) {
             const word = words[i];
-            // Normalizamos los errores típicos dígito->letra SOLO para comparar el tier
-            // (NE0->NEO, AX1->AXI...): el fuzzy con umbral 0.75 no tolera 1 error en tiers
-            // de 3 letras (2/3 ≈ 0.67), y bajar el umbral colaría basura como "NEC"/"AXL".
-            // Los reemplazos son 1:1 (misma longitud), así que los índices del prefijo
-            // valen igual sobre la palabra ORIGINAL, de donde sale el remainder del código.
-            const tierWord = word
-                .replaceAll("0", "O").replaceAll("1", "I")
-                .replaceAll("5", "S").replaceAll("8", "B");
-            let tier = null;
-            let remainder = "";
 
-            // Match exacto o prefijo pegado (p.ej. token único "LITHC1" o "AX1C3")
-            for (const t of tiers) {
-                if (tierWord === t) { tier = t; break; }
-                if (tierWord.length > t.length && tierWord.startsWith(t)) { tier = t; remainder = word.slice(t.length); break; }
+            // 1) TIER por similitud (cubre L1TH/MES0/AXT/NEC/AX/AX0 sin mapas por-caso).
+            let tier = null, tierS = 0;
+            for (const t of this.RELIC_TIERS) {
+                const s = this._relicTierScore(word, t);
+                if (s > tierS) { tierS = s; tier = t; }
             }
-            // Fuzzy sobre la palabra normalizada (aguanta L1TH, MES0, NE0, AX1 y erratas de letra)
-            if (!tier) {
-                for (const t of tiers) {
-                    if (this.getSimilarity(tierWord, t) >= 0.75) { tier = t; break; }
-                }
+            let glueRemainder = "";
+            if (tierS < 0.78) {
+                // tier+código PEGADOS en un token ("LITHC1"): prefijo exacto del tier.
+                tier = this.RELIC_TIERS.find(t => word.length > t.length && word.startsWith(t)) || null;
+                if (!tier) continue;
+                glueRemainder = word.slice(tier.length);
             }
-            // Último recurso: dígito OCR cuya normalización 1:1 NO da la letra correcta
-            // (p.ej. "AX0" -> "AXO": ni prefijo de AXI ni pasa el fuzzy, 2/3 < 0.75).
-            // Aceptamos el tier si la palabra ORIGINAL tiene su misma longitud, difiere en
-            // UNA posición como máximo, y toda discrepancia es un DÍGITO en la original
-            // (= ruido OCR seguro). Una letra discrepante ("NEC") sigue fuera: no bajamos
-            // el umbral porque colaría cualquier palabra de 3 letras con 1 error.
-            if (!tier) {
-                for (const t of tiers) {
-                    if (word.length !== t.length) continue;
-                    let mismatches = 0;
-                    let mismatchesAreDigits = true;
-                    for (let k = 0; k < t.length; k++) {
-                        if (tierWord[k] !== t[k]) {
-                            mismatches++;
-                            if (!/[0-9]/.test(word[k])) { mismatchesAreDigits = false; break; }
+            const codes = index.get(tier);
+            if (!codes?.length) continue;
+
+            // 2) Candidatos de CÓDIGO: remainder pegado, las 2 palabras siguientes y la
+            // unión de adyacentes cortas (código partido por el OCR: "AL" + "4").
+            const cands = new Set();
+            if (glueRemainder.length >= 1 && glueRemainder.length <= 4) cands.add(glueRemainder);
+            for (let j = i + 1; j < Math.min(i + 3, words.length); j++) {
+                const w = words[j];
+                if (w.length >= 1 && w.length <= 4) cands.add(w);
+                const joined = w + (words[j + 1] || "");
+                if (words[j + 1] && joined.length <= 4) cands.add(joined);
+            }
+            const isRequiem = tier === "REQUIEM";
+            if (isRequiem) {
+                for (const c of [...cands]) cands.add(this._romanizeRequiem(c));
+            }
+            if (cands.size === 0) continue;
+
+            // 3) Mejor código por similitud con MARGEN de unicidad. La cola del candidato
+            // puede ser ruido del arte ("A160" -> A16): se prueba recortarla con
+            // penalización — salvo en Requiem, donde el código es romano y cada glifo
+            // final es señal ("IL" = II, no I).
+            let best = null, bestS = 0, second = 0;
+            for (const { code, canonical } of codes) {
+                let s = 0;
+                for (const cand of cands) {
+                    let cs = this.similarityOCR(cand, code);
+                    if (!isRequiem) {
+                        // Penalización 0.17/char: mayor que el coste de una confusión de
+                        // grupo al final (0.4/3 ≈ 0.13), para que "K1J" prefiera K11
+                        // (J≈1) antes que recortar a K1; y menor que un error real, para
+                        // que "A160" siga cayendo a A16.
+                        for (let k = 1; k <= 2 && cand.length - k >= 2; k++) {
+                            cs = Math.max(cs, this.similarityOCR(cand.slice(0, cand.length - k), code) - 0.17 * k);
                         }
                     }
-                    if (mismatchesAreDigits && mismatches === 1) { tier = t; break; }
+                    if (cs > s) s = cs;
                 }
+                if (s > bestS) { second = bestS; bestS = s; best = canonical; }
+                else if (s > second) second = s;
             }
-            if (!tier) continue;
-
-            // El código: o viene pegado al tier, o es una de las 2 palabras siguientes
-            // (tolera un token de ruido intermedio que _normalizeOCRWords ya filtró aquí arriba).
-            let codeRaw = remainder;
-            if (!codeRaw) {
-                for (let j = i + 1; j < Math.min(i + 3, words.length); j++) {
-                    const cand = words[j];
-                    // El patrón todo-dígitos cubre la LETRA del código leída como dígito
-                    // ("11" = I1, "12" = I2): es seguro porque al final SIEMPRE se valida
-                    // contra state.allRelicNames — si no existe la reliquia, devuelve null.
-                    if (/^[A-Z][0-9]{1,2}$/.test(cand) || /^[IVX]+$/.test(cand) || /^[A-Z][A-Z0-9]$/.test(cand) || /^[0-9][0-9]{1,2}$/.test(cand)) {
-                        codeRaw = cand;
-                        break;
-                    }
-                }
-            }
-            if (!codeRaw) continue;
-
-            const isRequiem = tier === "REQUIEM";
-            // A diferencia de parseRelicSelection (que corrige el código entero), aquí el código
-            // es letra + 1-2 dígitos: la corrección letra->dígito solo aplica a la parte numérica,
-            // o rompería la letra del código (p.ej. "G1" -> "61" y "Neo G1" jamás matchearía).
-            // Y al revés: si la LETRA del código llegó como dígito ("11" -> I1), la mapeamos
-            // dígito->letra solo en la primera posición.
-            const DIGIT_TO_CODE_LETTER = { "1": "I", "0": "O", "8": "B", "5": "S", "6": "G", "2": "Z" };
-            let code;
-            if (isRequiem) {
-                code = this._fixRelicCode(codeRaw, true);
-            } else if (codeRaw.length >= 2) {
-                const lead = DIGIT_TO_CODE_LETTER[codeRaw.charAt(0)] || codeRaw.charAt(0);
-                code = lead + this._fixRelicDigits(codeRaw.slice(1));
-            } else {
-                code = codeRaw;
-            }
-            if (!code) continue;
-
-            const foundRelicUpper = `${tier} ${code}`.toUpperCase();
-            const canonical = state.allRelicNames?.find(n => n.toUpperCase() === foundRelicUpper);
-            if (canonical) return canonical;
+            // Umbral bajo + MARGEN de unicidad: la señal fuerte es que el ganador destaque
+            // sobre el 2º (varias confusiones seguidas hunden la similitud absoluta —
+            // "ILL"≈III 0.73— pero el margen sigue siendo enorme). Un margen holgado
+            // permite bajar el corte sin admitir basura, que puntúa plano contra todo.
+            if (bestS >= 0.70 && (bestS - second) >= 0.10) return best;
+            if (bestS >= 0.80 && (bestS - second) >= 0.03) return best;
         }
         return null;
     },
@@ -279,14 +272,20 @@ export const OCRService = {
             // mediocre cuando existe otro más parecido.
             let matchedToken = knownTokens.includes(text) ? text : null;
             if (!matchedToken) {
-                // Umbral por longitud: en palabras ≥7 ("CALIBAN") 2 errores no-confundibles
-                // dan 0.714 — legítimo para nombres largos; en cortas sería demasiado laxo.
-                let best = null, bestScore = text.length >= 7 ? 0.70 : 0.72;
+                // Umbral alto sobre similarityOCR: un token del juego MAL LEÍDO difiere de
+                // su forma real en sustituciones de glifo PARECIDO, que cuestan 0.4 cada
+                // una — medido sobre casos reales queda en ~0.92-0.95 ("FRO5T", "STVANAX",
+                // "RECELVER", "CAL1BAN"). Una palabra AJENA del fondo ("POST", "FRONT",
+                // "ROST"…) difiere en letras SIN parecido o en longitud y no pasa de ~0.80.
+                // Con el umbral viejo (0.72) "POST" se convertía en "FROST" y fabricaba un
+                // ancla fantasma que robaba "Prime Chassis Blueprint" a la recompensa vecina.
+                const minScore = 0.85;
+                let best = null, bestScore = 0;
                 for (const token of knownTokens) {
                     const s = this.similarityOCR(text, token);
                     if (s > bestScore) { bestScore = s; best = token; }
                 }
-                matchedToken = best;
+                matchedToken = bestScore >= minScore ? best : null;
             }
 
             if (matchedToken) {

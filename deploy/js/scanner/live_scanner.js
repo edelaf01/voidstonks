@@ -170,6 +170,26 @@ globalThis.showTrackConfirm = (relicName) => {
 /**
  * UI Hook called when a user selects a reward from the modal or PiP.
  */
+/**
+ * Sincroniza el inventario con la cantidad que MOSTRABA EL JUEGO ("N Owned" en el badge).
+ *
+ * Es una asignación, no una suma: el badge dice cuántos tienes en total, así que sumar +1
+ * sobre lo que la app tuviera guardado arrastra cualquier desfase previo (juego 14, app 3 →
+ * quedaría en 4, igual de mal). Misma semántica que saveLiveInventory con el grid.
+ *
+ * `crafted` no toca el inventario: significa que ya está forjado, no cuántos quedan.
+ *
+ * @returns {boolean} true si se sincronizó desde el juego.
+ */
+globalThis.syncRewardFromGame = (itemName, owned) => {
+    if (!itemName || typeof owned !== "number" || owned <= 0) return false;
+    if (state.primeInventory[itemName] === owned) return true;   // ya coincide
+    state.primeInventory[itemName] = owned;
+    saveAppState();
+    if (globalThis.renderPrimeInventory) globalThis.renderPrimeInventory();
+    return true;
+};
+
 globalThis.selectRewardToInventory = (itemName) => {
   const modal = globalThis.ScannerModal;
   if (modal) modal.selectedItem = itemName;

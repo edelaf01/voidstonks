@@ -1,28 +1,15 @@
+import { OpenCVRepository } from "../repositories/opencv.repository.js";
+
 export class OpenCVEngine {
     static isReady = false;
     static statusCallback = null;
 
     static waitReady(timeout = 30000) {
-        if (this.isReady) return Promise.resolve(true);
-        if (this.initializationPromise) return this.initializationPromise;
-
-        this.initializationPromise = new Promise((resolve) => {
-            const check = () => {
-                if (globalThis.cv?.getBuildInformation) {
-                    this.isReady = true;
-                    this.initializationPromise = null;
-                    this.log("VISION ENGINE READY", "#2ecc71");
-                    resolve(true);
-                } else {
-                    setTimeout(check, 100);
-                }
-            };
-            check();
-            this.injectScript("https://docs.opencv.org/4.5.4/opencv.js");
+        return OpenCVRepository.waitReady(timeout).then(ready => {
+            this.isReady = ready;
+            if (ready) this.log("VISION ENGINE READY", "#2ecc71");
+            return ready;
         });
-
-        const timeoutPromise = new Promise(r => setTimeout(() => r(false), timeout));
-        return Promise.race([this.initializationPromise, timeoutPromise]);
     }
 
     static log(msg, color = "#f1c40f") {
@@ -31,13 +18,7 @@ export class OpenCVEngine {
     }
 
     static injectScript(url) {
-        return new Promise((resolve, reject) => {
-            const script = document.createElement("script");
-            script.src = url; script.async = true;
-            script.onload = () => resolve();
-            script.onerror = () => reject(new Error("Fail"));
-            document.head.appendChild(script);
-        });
+        return OpenCVRepository.injectScript(url);
     }
 
     /**

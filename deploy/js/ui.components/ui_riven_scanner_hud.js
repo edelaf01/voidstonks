@@ -153,8 +153,14 @@ export const RivenScannerHUD = {
         if (parsedL && parsedR) {
             await this._renderComparison(parsedL, parsedR);
         } else {
-            // Otherwise, render the single card detected
+            // Otherwise, render the single card detected. Si NO hay ninguna carta parseada
+            // (ambas null: el OCR falló en este frame) NO se renderiza: _renderSingle
+            // desreferencia riven.weaponName y lanzaba un TypeError que abortaba el render a
+            // medias, dejando el HUD con el contenido del frame anterior — el usuario veía
+            // "a veces solo se lee un riven". Se conserva lo mostrado y se espera al siguiente
+            // frame, que es justo lo que hace el consenso temporal.
             const activeCard = parsedL || parsedR;
+            if (!activeCard) return;
             await this._renderSingle(activeCard);
         }
 
@@ -181,7 +187,7 @@ export const RivenScannerHUD = {
             const stillShown = this.lastL?.weaponName === weaponName || this.lastR?.weaponName === weaponName;
             if (stillShown && this.container && this.container.style.display !== "none") {
                 if (this.lastL && this.lastR) await this._renderComparison(this.lastL, this.lastR);
-                else await this._renderSingle(this.lastL || this.lastR);
+                else if (this.lastL || this.lastR) await this._renderSingle(this.lastL || this.lastR);
             }
         } catch (e) {
             console.warn("[HUD] no se pudo cargar el historial de " + weaponName, e);

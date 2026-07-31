@@ -23,7 +23,7 @@ import {
 } from "./ui.components/ui_relics.js";
 import {
   renderSetTracker,
-} from "./ui.components/ui_sets.js?v=1.9";
+} from "./ui.components/ui_sets.js?v=2.0";
 import {
   updateLFGUI,
 } from "./ui.components/ui_lfg.js";
@@ -37,7 +37,11 @@ import { renderBountiesTab } from "./ui.components/ui_bounties.js";
 import { renderInventory, renderPrimeInventory } from "./ui.components/ui_inventory.js";
 import { ScannerHUD } from "./ui.components/ui_scanner_hud.js";
 import { ScannerModal } from "./ui.components/ui_scanner_modal.js";
-import { EELogParserUI } from "./ui.components/ui_ee_log_parser.js";
+// Traductor de Kubrows (EE.log) DESACTIVADO: su pestaña está oculta en index.html porque la
+// lectura del log no da el resultado esperado. El import se deja comentado para que sus
+// ~96 KB (parser + traducciones + paleta de colores) no viajen en cada visita; al
+// reactivar el botón hay que descomentar también esta línea y su uso en switchTab.
+// import { EELogParserUI } from "./ui.components/ui_ee_log_parser.js";
 globalThis.TEXTS = TEXTS;
 
 const iconPathCache = new Map();
@@ -108,10 +112,6 @@ export function switchTab(mode) {
     initVosforTab().catch(console.error);
   } else if (mode === "ducat") {
     if (typeof globalThis.renderDucanatorTab === "function") globalThis.renderDucanatorTab();
-  } else if (mode === "eelog") {
-    if (!globalThis.eelogParser) {
-      globalThis.eelogParser = new EELogParserUI("eelog-parser-container");
-    }
   }
 
   const footer = document.getElementById("footer-relic");
@@ -205,6 +205,8 @@ function updateNavTabs(t) {
   setTab("btn-bounties", t.menuBounties || "Farms", t.tooltips.tabBounties);
   setTab("btn-vosfor", t.vosfor?.tabName || "Vosfor", t.vosfor?.tabTip);
   setTab("btn-ducat", t.ducanator?.tabTitle || "Ducanator", t.ducanator?.tabTitle);
+  // setTab() borraria el chevron al reescribir el innerHTML: solo el <span>.
+  setText("tab-more-text", t.menuMore || "Más");
   updateDucatFilterLabels(t);
 }
 

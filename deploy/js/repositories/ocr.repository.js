@@ -80,9 +80,14 @@ export const OCRRepository = {
     // grid de inventario). Idempotente; memoiza la promesa para no crear dos en carrera.
     async ensureSecondWorker() {
         if (this.workers[1]) return;
-        if (!this._createStandardWorker) return; // warmUp no completado: workers[1]||workers[0] cubre
+        if (!this._createStandardWorker) return;
         if (!this._w2Promise) {
-            this._w2Promise = this._createStandardWorker().then(w => { this.workers[1] = w; });
+            this._w2Promise = this._createStandardWorker()
+                .then(w => { this.workers[1] = w; })
+                .catch(e => {
+                    console.warn("[OCR Repo] Second worker failed to init:", e);
+                    this.workers[1] = null;
+                });
         }
         await this._w2Promise;
     },

@@ -1,24 +1,50 @@
 export const WORKER_URL = "https://api.voidstonks.com/";
-export const APP_VERSION = "2.64";
+export const APP_VERSION = "2.66";
 export const UPDATE_HISTORY_DATA = {
   es: `
 <div class="update-block">
-  <div class="version-header">Versión 2.64</div>
-  <div class="version-date">19 de Julio de 2026</div>
-  <ul>
-    <li><b>Escáner de recompensas de fisura reescrito:</b> ahora lee correctamente los nombres largos y los que ocupan 2 o 3 líneas (ej. "Yareli Prime Chassis Blueprint", "Grendel Prime Neuroptics Blueprint"), que antes desaparecían o salían cortados.</li>
-    <li><b>Arreglado — recompensas fantasma:</b> con el tinte rojo de misión (Steel Path) podían aparecer recompensas falsas (ej. un mod Requiem "Ris" que no estaba en pantalla) robando el sitio a la real. Ya no ocurre.</li>
-    <li><b>Arreglado — blueprints que no se detectaban:</b> algunos blueprints (ej. "Gunsen Prime Blueprint" junto a un nombre de 2 líneas, o "Limbo Prime Blueprint") se descartaban por error. Ahora se detectan siempre.</li>
-    <li><b>Mejor lectura con tinte de misión:</b> reparada la pasada de lectura por color; los nombres se reconocen mejor bajo cualquier tinte y tema de color, y los contadores Owned/Crafted se asignan a su tarjeta correcta.</li>
-    <li><b>Alarmas de fisuras — filtro Steel Path:</b> ahora puedes elegir si la alarma salta solo con fisuras Steel Path, solo con normales, o con ambas.</li>
-    <li><b>Alarmas de arbitración:</b> nuevo bloque en el panel de fisuras para avisarte cuando la arbitración activa cumpla un tier comunitario mínimo (S–F) y/o un tipo de misión concreto.</li>
-    <li><b>Próxima arbitración S:</b> el panel de arbitración muestra cuándo llega la siguiente rotación tier S (con cuenta atrás en vivo), o te avisa si no hay ninguna en las próximas 12 h.</li>
-    <li><b>Cachés purgables:</b> Subida general de versión interna para garantizar que el navegador descargue el código nuevo y no uno obsoleto.</li>
+  <div class="update-header">
+    <span class="update-version">v2.6.6 (Actual)</span>
+    <span class="update-date">2026-07-29</span>
+  </div>
+  <ul class="update-list">
+    <li><strong>Escáner móvil renovado.</strong> Apunta a la pantalla y dispara: ya no hay que alinear la caja ni indicar cuántas recompensas hay. Escanea 3 veces más rápido (menos de 1 segundo), lee bien los nombres largos y de dos líneas, y avisa con vibración al detectarlas. La pantalla del móvil no se apaga mientras lo tienes abierto, así que puedes dejarlo apoyado apuntando al monitor.</li>
+    <li><strong>Resultados más claros.</strong> Se ven las cuatro recompensas a la vez en vertical y en horizontal, con el icono de cada pieza. Añadir una ya no cierra la lista, así que puedes registrar varias seguidas. Si algo falla, te dice qué corregir: acercarte, evitar el reflejo o sujetar el móvil más recto.</li>
+    <li><strong>Inventario corregido.</strong> El escáner ahora usa la cantidad que muestra el juego en lugar de sumar de uno en uno, así que se acabaron los desajustes. Nuevo botón para cuadrar las cuatro recompensas de golpe.</li>
   </ul>
 </div>
-<div class="update-block">
+<div class="update-block old">
   <div class="update-header">
-    <span class="update-version">v2.6.3 (Actual)</span>
+    <span class="update-version">v2.6.5</span>
+    <span class="update-date">2026-07-25</span>
+  </div>
+  <ul class="update-list">
+    <li><strong>Nuevo: Fisuras para tus sets.</strong> En Inventario, un bloque te dice qué fisura activa te conviene para completar tus sets, y te avisa si sale más a cuenta comprar la pieza que farmearla.</li>
+    <li><strong>Cantidades del inventario corregidas:</strong> las que llevaban varios "1" (119, 111...) salían a medias.</li>
+    <li><strong>Menos recompensas fantasma</strong> durante el escaneo.</li>
+    <li><strong>El escáner de rivens ya no se queda colgado</strong> ni pierde la última lectura buena.</li>
+  </ul>
+</div>
+<div class="update-block old">
+  <div class="update-header">
+    <span class="update-version">v2.6.4</span>
+    <span class="update-date">2026-07-19</span>
+  </div>
+  <ul class="update-list">
+    <li><strong>Escáner de recompensas mejorado:</strong> los nombres largos salían cortados o no se detectaban.</li>
+    <li><strong>Recompensas fantasma corregidas</strong> en Camino de Acero y en la pantalla de fin de misión.</li>
+    <li><strong>Los planos ya no se pierden</strong> al escanear.</li>
+    <li><strong>Lectura correcta con cualquier tinte de misión,</strong> y cada contador va a su tarjeta.</li>
+    <li><strong>Filtro de Camino de Acero en alarmas:</strong> puedes elegir si las alarmas de fisuras se activan solo en Camino de Acero, en misiones normales o en ambas.</li>
+    <li><strong>Alarmas de arbitración:</strong> avisos cuando la arbitración activa cumpla el tier o tipo de misión que elijas.</li>
+    <li><strong>Próxima arbitración S:</strong> cuenta atrás en vivo para la siguiente rotación tier S.</li>
+    <li><strong>Escáner de reliquias reparado:</strong> la pestaña RELIQUIAS no escaneaba nada; ahora lee la página entera, Requiem incluidas.</li>
+    <li><strong>Cantidades bien leídas en la última columna</strong> del inventario.</li>
+  </ul>
+</div>
+<div class="update-block old">
+  <div class="update-header">
+    <span class="update-version">v2.6.3</span>
     <span class="update-date">2026-07-18</span>
   </div>
   <ul class="update-list">
@@ -275,22 +301,48 @@ export const UPDATE_HISTORY_DATA = {
 `,
   en: `
 <div class="update-block">
-  <div class="version-header">Version 2.64</div>
-  <div class="version-date">July 19, 2026</div>
-  <ul>
-    <li><b>Fissure reward scanner rewritten:</b> long names and names spanning 2-3 lines (e.g. "Yareli Prime Chassis Blueprint", "Grendel Prime Neuroptics Blueprint") are now read correctly — they used to vanish or come out truncated.</li>
-    <li><b>Fixed — ghost rewards:</b> under the red mission tint (Steel Path) fake rewards could appear (e.g. a Requiem mod "Ris" that wasn't on screen) stealing the real one's spot. No longer happens.</li>
-    <li><b>Fixed — undetected blueprints:</b> some blueprints (e.g. "Gunsen Prime Blueprint" next to a 2-line name, or "Limbo Prime Blueprint") were wrongly discarded. They are now always detected.</li>
-    <li><b>Better reading under mission tint:</b> the color reading pass has been repaired; names are recognized more reliably under any tint and UI color theme, and Owned/Crafted counters are assigned to their correct card.</li>
-    <li><b>Fissure alarms — Steel Path filter:</b> you can now choose whether an alarm fires only for Steel Path fissures, only for normal ones, or both.</li>
-    <li><b>Arbitration alarms:</b> new block in the fissures panel to alert you when the active Arbitration meets a minimum community tier (S–F) and/or a specific mission type.</li>
-    <li><b>Next S-tier Arbitration:</b> the Arbitration panel now shows when the next S-tier rotation arrives (with a live countdown), or tells you if there's none in the next 12 h.</li>
-    <li><b>Cache Busting:</b> Internal version bump to guarantee the browser downloads the new code and not an obsolete cached file.</li>
+  <div class="update-header">
+    <span class="update-version">v2.6.6 (Current)</span>
+    <span class="update-date">2026-07-29</span>
+  </div>
+  <ul class="update-list">
+    <li><strong>Mobile scanner revamped.</strong> Point at the screen and shoot: no lining up a box, no telling it how many rewards there are. Scans 3× faster (under a second), reads long and two-line names properly, and buzzes when it detects them. Your phone screen stays on while it's open, so you can prop it up facing the monitor.</li>
+    <li><strong>Clearer results.</strong> All four rewards visible at once in portrait and landscape, each with its item icon. Adding one no longer closes the list, so you can register several in a row. If something fails, it tells you what to fix: get closer, avoid glare, or hold the phone straighter.</li>
+    <li><strong>Inventory fixed.</strong> The scanner now uses the count the game shows instead of adding one at a time, so no more drift. New button to square all four rewards at once.</li>
   </ul>
 </div>
-<div class="update-block">
+<div class="update-block old">
   <div class="update-header">
-    <span class="update-version">v2.6.3 (Current)</span>
+    <span class="update-version">v2.6.5</span>
+    <span class="update-date">2026-07-25</span>
+  </div>
+  <ul class="update-list">
+    <li><strong>New: Fissures for your sets.</strong> In Inventory, a block shows which active fissure helps complete your sets, and flags when buying the part beats farming it.</li>
+    <li><strong>Inventory quantities fixed:</strong> the ones with several "1"s (119, 111...) came through half-read.</li>
+    <li><strong>Fewer ghost rewards</strong> while scanning.</li>
+    <li><strong>The Riven scanner no longer freezes</strong> or loses its last good reading.</li>
+  </ul>
+</div>
+<div class="update-block old">
+  <div class="update-header">
+    <span class="update-version">v2.6.4</span>
+    <span class="update-date">2026-07-19</span>
+  </div>
+  <ul class="update-list">
+    <li><strong>Reward scanner improved:</strong> long names used to arrive cut off or undetected.</li>
+    <li><strong>Ghost rewards fixed:</strong> fake rewards under Steel Path red tint no longer appear or replace real rewards. End-of-mission screen text (bonuses, player names) can no longer be mistaken for a Warframe name and change the detected reward either.</li>
+    <li><strong>Undetected blueprints fixed:</strong> blueprints previously discarded by error are now reliably detected.</li>
+    <li><strong>Correct reading under any mission tint,</strong> with each counter landing on its own card.</li>
+    <li><strong>Steel Path filter for fissure alarms:</strong> options added to trigger alarms for Steel Path fissures, normal fissures, or both.</li>
+    <li><strong>Arbitration alarms:</strong> new panel block to alert you when active Arbitrations meet a chosen community tier or mission type.</li>
+    <li><strong>Next S-tier Arbitration:</strong> live countdown added for upcoming S-tier rotations, with notifications if none occur within 12 hours.</li>
+    <li><strong>Relic scanner fixed:</strong> the RELICS inventory tab scanned nothing; it now reads all 18 cells per page, Requiem relics included, and tolerates typical OCR misreads in relic names.</li>
+    <li><strong>Correct quantities in the last column</strong> of the inventory.</li>
+  </ul>
+</div>
+<div class="update-block old">
+  <div class="update-header">
+    <span class="update-version">v2.6.3</span>
     <span class="update-date">2026-07-18</span>
   </div>
   <ul class="update-list">
@@ -1077,6 +1129,44 @@ export const TEXTS = {
       tagCompletes: "¡COMPLETA SET!",
       title: "RECOMPENSAS DETECTADAS",
       mobileHint: "Toca 'AÑADIR' para registrar en inventario",
+      camTitle: "ESCÁNER DE RECOMPENSAS",
+      camHint: "Encuadra la fila de recompensas y dispara",
+      camReady: "LISTO",
+      camPreparing: "PREPARANDO...",
+      camReading: "LEYENDO...",
+      camNoResults: "No he podido leer las recompensas",
+      camRetry: "REINTENTAR",
+      camUpload: "Subir foto",
+      camClose: "Cerrar",
+      camTipFraming: "No encontré la pantalla. Acércate y encuadra la fila de recompensas.",
+      camTipQuality: "Vi la fila pero no pude leer los nombres. Evita el reflejo y sujeta firme.",
+      camHowTitle: "CÓMO ESCANEAR",
+      camHowSteps: [
+        "Apunta a la pantalla de recompensas del juego.",
+        "Que se vea la fila entera: el <b>nombre</b> de cada recompensa y su etiqueta <b>Owned</b> o <b>Crafted</b> encima.",
+        "No hace falta encuadrar exacto ni alinear nada: dispara y listo.",
+      ],
+      camHowGot: "ENTENDIDO",
+      camHowBtn: "¿Cómo escanear?",
+      lblGameOwned: "EN JUEGO",
+      lblCrafted: "FORJADO",
+      lblNoBadge: "sin dato",
+      cardAdd: "AÑADIR",
+      toastEngineWait: "Esperando motor OCR...",
+      toastSourceNotReady: "Fuente no lista...",
+      toastCaptureError: "Error en la captura",
+      toastProcessing: "Procesando, espera...",
+      toastInvalidImage: "Imagen no válida",
+      toastPhotoError: "Error procesando la foto",
+      pickerTitle: "CORREGIR RESULTADO",
+      pickerSearch: "Buscar parte...",
+      cardAdded: "AÑADIDO",
+      cardClose: "CERRAR",
+      camTipTilted: "La foto salió torcida. Sujeta el móvil más recto respecto a la pantalla.",
+      syncedFromGame: "{item}: inventario = {n} (según el juego)",
+      syncAllBtn: "SINCRONIZAR TODO",
+      syncAllDone: "{n} sincronizadas con el juego",
+      syncAllNone: "Ninguna recompensa traía cantidad legible",
     },
     history: {
       title: "DETECCIONES RECIENTES",
@@ -1145,6 +1235,7 @@ export const TEXTS = {
       interception: "Intercepción",
       excavation: "Excavación",
       alchemy: "Alquimia",
+      "conjunction survival": "Supervivencia en Conjunción",
       defection: "Defección",
       "infested salvage": "Salvamento Infestado",
       "dark sector defense": "Defensa (Sector Oscuro)",
@@ -1185,6 +1276,24 @@ export const TEXTS = {
     lblFissures: "Fisuras Activas",
     lblInventory: "Inventario",
     menuRelic: "Reliquia",
+    menuMore: "Más",
+    fissureSetRecs: {
+      title: "Fisuras para tus sets",
+      missing: "faltan",
+      runsShort: "runs",
+      buyBadge: "Sale más a cuenta comprarla",
+      buyPrice: "Comprar",
+      maxMissing: "Máx. piezas restantes",
+      anyMissing: "Cualquiera",
+      buyOnlyFilter: "Solo donde sale a cuenta comprar",
+      emptyFiltered: "Ningún set coincide con estos filtros.",
+      filtersTitle: "Filtros",
+      maxMissingHelp: "Muestra solo sets a los que les falten como mucho esas piezas. Útil para centrarte en los que casi tienes terminados.",
+      buyOnlyHelp: "Deja solo las piezas cuyo precio en el mercado es más barato que el coste estimado de farmearlas.",
+      moreMissionsHint: "¿Faltan misiones? Los tipos de misión que ves aquí dependen de tus filtros de fisuras. Ábrelos en el panel de Fisuras → Filtros para añadir más.",
+      guideTitle: "¿Cómo funciona esto?",
+      guideText: "Cruza las fisuras activas ahora mismo con los sets Prime que te faltan. Por cada pieza que te falta muestra: en qué fisura activa puede caer, los runs promedio esperados para conseguirla (radiante, 4 jugadores), y su precio de compra suelta en el mercado. Si comprarla sale claramente más barato que farmearla, aparece marcada.",
+    },
     fissurePrefs: {
       toggle: "Filtros",
       title: "Personalizar fisuras",
@@ -1808,6 +1917,7 @@ export const TEXTS = {
       interception: "Interception",
       excavation: "Excavation",
       alchemy: "Alchemy",
+      "conjunction survival": "Conjunction Survival",
       defection: "Defection",
       "infested salvage": "Infested Salvage",
       "dark sector defense": "Defense (Dark Sector)",
@@ -1830,6 +1940,24 @@ export const TEXTS = {
     lblFissures: "Active Fissures",
     lblInventory: "Inventory",
     menuRelic: "Relic",
+    menuMore: "More",
+    fissureSetRecs: {
+      title: "Fissures for your sets",
+      missing: "missing",
+      runsShort: "runs",
+      buyBadge: "Better to buy it",
+      buyPrice: "Buy",
+      maxMissing: "Max. missing parts",
+      anyMissing: "Any",
+      buyOnlyFilter: "Only where buying is worth it",
+      emptyFiltered: "No sets match these filters.",
+      filtersTitle: "Filters",
+      maxMissingHelp: "Shows only sets missing at most that many parts. Useful to focus on the ones you have nearly finished.",
+      buyOnlyHelp: "Keeps only the parts whose market price is cheaper than the estimated cost of farming them.",
+      moreMissionsHint: "Missing missions? The mission types shown here depend on your fissure filters. Open the Fissures panel → Filters to add more.",
+      guideTitle: "How does this work?",
+      guideText: "Cross-references fissures active right now with your incomplete Prime sets. For each missing part it shows: which active fissure can drop it, the expected average runs to get it (radiant, 4 players), and its buy price as a loose part on the market. If buying it is clearly cheaper than farming it, it gets flagged.",
+    },
     fissurePrefs: {
       toggle: "Filters",
       title: "Customize fissures",
@@ -2102,7 +2230,46 @@ export const TEXTS = {
       tagBestPl: "BEST PLAT!",
       tagBestDuc: "BEST DUCAT!",
       tagCompletes: "COMPLETES SET!",
+      title: "DETECTED REWARDS",
       mobileHint: "Tap 'ADD' to register in inventory",
+      camTitle: "REWARD SCANNER",
+      camHint: "Frame the reward row and shoot",
+      camReady: "READY",
+      camPreparing: "PREPARING...",
+      camReading: "READING...",
+      camNoResults: "Couldn't read the rewards",
+      camRetry: "RETRY",
+      camUpload: "Upload photo",
+      camClose: "Close",
+      camTipFraming: "Couldn't find the screen. Get closer and frame the reward row.",
+      camTipQuality: "Found the row but couldn't read the names. Avoid glare and hold steady.",
+      camHowTitle: "HOW TO SCAN",
+      camHowSteps: [
+        "Point at the game's reward screen.",
+        "Make sure the whole row is visible: each reward's <b>name</b> and its <b>Owned</b> or <b>Crafted</b> tag above it.",
+        "No need to frame it exactly or line anything up: just shoot.",
+      ],
+      camHowGot: "GOT IT",
+      camHowBtn: "How to scan?",
+      lblGameOwned: "IN GAME",
+      lblCrafted: "CRAFTED",
+      lblNoBadge: "no data",
+      cardAdd: "ADD",
+      toastEngineWait: "Waiting for OCR engine...",
+      toastSourceNotReady: "Source not ready...",
+      toastCaptureError: "Capture error",
+      toastProcessing: "Processing, please wait...",
+      toastInvalidImage: "Invalid image",
+      toastPhotoError: "Error processing the photo",
+      pickerTitle: "FIX RESULT",
+      pickerSearch: "Search part...",
+      cardAdded: "ADDED",
+      cardClose: "CLOSE",
+      camTipTilted: "The photo came out tilted. Hold the phone straighter to the screen.",
+      syncedFromGame: "{item}: inventory = {n} (per the game)",
+      syncAllBtn: "SYNC ALL",
+      syncAllDone: "{n} synced with the game",
+      syncAllNone: "No reward had a readable count",
     },
     history: {
       title: "RECENT DETECTIONS",

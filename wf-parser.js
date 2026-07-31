@@ -40,14 +40,33 @@ function parseDate(deDateObj) {
     return Date.now() + 86400000;
 }
 
+function getRandomHeaders() {
+    const userAgents = [
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:123.0) Gecko/20100101 Firefox/123.0",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.3 Safari/605.1.15",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36 Edg/121.0.0.0"
+    ];
+    return {
+        "User-Agent": userAgents[Math.floor(Math.random() * userAgents.length)],
+        "Accept": "application/json, text/plain, */*",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Cache-Control": "no-cache",
+        "Pragma": "no-cache"
+    };
+}
+
 async function fetchRawWorldstate() {
     const targetUrl = "https://content.warframe.com/dynamic/worldState.php";
+    const altTargetUrl = "https://api.warframe.com/cdn/worldState.php";
     const now = Date.now();
 
     const proxies = [
         `https://api.codetabs.com/v1/proxy?quest=${targetUrl}&t=${now}`,
         `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}&t=${now}`,
-        `https://corsproxy.io/?${encodeURIComponent(targetUrl + '?t=' + now)}`
+        `https://corsproxy.io/?${encodeURIComponent(targetUrl + '?t=' + now)}`,
+        `https://corsproxy.io/?${encodeURIComponent(altTargetUrl + '?t=' + now)}`
     ];
 
     let lastError = "";
@@ -55,10 +74,7 @@ async function fetchRawWorldstate() {
     for (const proxyUrl of proxies) {
         try {
             const res = await fetch(proxyUrl, {
-                headers: {
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-                    "Accept": "application/json"
-                }
+                headers: getRandomHeaders()
             });
 
             if (res.ok) {
@@ -85,7 +101,7 @@ async function getFissuresWithFallback(env, SOL_NODES) {
     // 1. Try WarframeStat.us
     try {
         const res = await fetch("https://api.warframestat.us/pc/fissures", {
-            headers: { "User-Agent": "VoidStonks-Parser/1.2" }
+            headers: getRandomHeaders()
         });
         if (res.ok) {
             const data = await res.json();
@@ -112,7 +128,7 @@ async function getFissuresWithFallback(env, SOL_NODES) {
     // 2. Try Tenno.tools
     try {
         const res = await fetch("https://api.tenno.tools/worldstate/pc/fissures", {
-            headers: { "User-Agent": "VoidStonks-Parser/1.2" }
+            headers: getRandomHeaders()
         });
         if (res.ok) {
             const data = await res.json();

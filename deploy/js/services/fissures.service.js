@@ -211,6 +211,23 @@ export async function fetchBestFissures(force = false) {
     return allFissures.filter((f) => passesPrefs(f, prefs));
 }
 
+/**
+ * Tipos de misión presentes ahora mismo en los datos, separados por origen. El panel de filtros
+ * los fusiona con su lista fija: si DE saca un tipo nuevo (o falta uno en la lista), sigue siendo
+ * filtrable en vez de quedar oculto sin casilla. Lee la cache, no dispara fetch.
+ * @returns {{normal: string[], railjack: string[]}}
+ */
+export function getObservedMissionTypes() {
+    const data = _fissureCache.data || [];
+    const normal = new Set();
+    const railjack = new Set();
+    for (const f of data) {
+        if (!f.type) continue;
+        (f.isStorm ? railjack : normal).add(f.type);
+    }
+    return { normal: [...normal], railjack: [...railjack] };
+}
+
 // Tiers comunitarios de Arbitración por NODO (discord.gg/Arbitrations, VE/min con squad
 // óptimo). FALLBACK cliente: el parser ya trae el tier desde browse.wf/arbyTiers, pero si
 // esa fuente falla o no cubre el nodo, sin esto el badge no se pinta y las alarmas por
