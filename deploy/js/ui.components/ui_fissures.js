@@ -9,6 +9,7 @@ import {
   fetchActiveArbitration,
   getFissurePrefs,
   saveFissurePrefs,
+  getObservedMissionTypes,
   DEFAULT_MISSION_TYPES,
   RAILJACK_MISSION_TYPES,
 } from "../services/fissures.service.js";
@@ -26,17 +27,25 @@ import { escapeHTML, showToast } from "./ui_components.js";
 let fissureLoadPromise = null;
 
 const AVAILABLE_MISSION_TYPES = [
+  // single objective
   "Capture",
   "Extermination",
   "Rescue",
   "Sabotage",
-  "Void Cascade",
-  "Disruption",
-  "Excavation",
+  "Spy",
+  "Mobile Defense",
+  "Assault", // Kuva Fortress only
+  // endless
   "Survival",
   "Defense",
-  "Mobile Defense",
-  "Spy",
+  "Interception",
+  "Excavation",
+  "Disruption",
+  // Omnia 
+  "Void Cascade",
+  "Void Flood",
+  "Alchemy",
+  "Conjunction Survival",
 ];
 
 // mission types that rotate in Arbitrations
@@ -113,10 +122,36 @@ export function renderMissionRow(m) {
     `;
 }
 
-function renderFissureFiltersPanel(prefs) {
+// fixed list plus what the data brings: a new DE type shows up without code changes
+function mergeWithObserved(baseList, observed) {
+  return [...new Set([...baseList, ...observed])].sort((a, b) => a.localeCompare(b));
+}
+
+// updates the shell texts without rebuilding it, so language changes do not flicker
+function updateFissurePanelTexts() {
   const t = TEXTS[state.currentLang];
 
-  const typeCheckboxes = AVAILABLE_MISSION_TYPES.map((type) => {
+  const headerSpan = document.querySelector("#fissure-panel-header span");
+  if (headerSpan) {
+    headerSpan.textContent = t.lblRecommended || "Fisuras Activas";
+  }
+
+  const filtersToggleBtn = document.getElementById("fissure-filters-toggle");
+  if (filtersToggleBtn) {
+    filtersToggleBtn.textContent = escapeHTML(t.fissurePrefs.toggle);
+  }
+
+  const fPanel = document.getElementById("fissure-filters-panel");
+  if (fPanel && !fPanel.contains(document.activeElement)) {
+    fPanel.innerHTML = renderFissureFiltersPanel(getFissurePrefs());
+  }
+}
+
+function renderFissureFiltersPanel(prefs) {
+  const t = TEXTS[state.currentLang];
+  const observed = getObservedMissionTypes();
+
+  const typeCheckboxes = mergeWithObserved(AVAILABLE_MISSION_TYPES, observed.normal).map((type) => {
     const label = t.modes[type.toLowerCase()] || type;
     const checked = prefs.missionTypes.includes(type) ? "checked" : "";
     return `
@@ -126,7 +161,7 @@ function renderFissureFiltersPanel(prefs) {
         </label>`;
   }).join("");
 
-  const rjTypeCheckboxes = RAILJACK_MISSION_TYPES.map((type) => {
+  const rjTypeCheckboxes = mergeWithObserved(RAILJACK_MISSION_TYPES, observed.railjack).map((type) => {
     const label = t.modes[type.toLowerCase()] || type;
     const checked = prefs.railjackTypes.includes(type) ? "checked" : "";
     return `
@@ -336,17 +371,16 @@ export function highlightFissureTier(tier) {
   });
 }
 
-export async function initFissurePanel(forceRefetch = false) {
-  let missionDiv = document.getElementById("best-missions-container");
+// static shell, built once (missionDiv.dataset.shellBuilt)
+function buildFissurePanelShell(missionDiv) {
   const t = TEXTS[state.currentLang];
+  const fissurePrefs = getFissurePrefs();
 
   if (!missionDiv) {
     missionDiv = document.createElement("div");
     missionDiv.id = "best-missions-container";
     document.body.appendChild(missionDiv);
   }
-
-  const fissurePrefs = getFissurePrefs();
 
   missionDiv.innerHTML = `
       <div id="mission-toggle-btn" class="mission-toggle-btn">
@@ -499,7 +533,6 @@ export async function initFissurePanel(forceRefetch = false) {
     }
   }
 
-
   if (!globalThis._fissureRefreshInterval) {
     globalThis._fissureRefreshInterval = setInterval(() => {
       const panel = document.getElementById("best-missions-container");
@@ -510,17 +543,6 @@ export async function initFissurePanel(forceRefetch = false) {
         initFissurePanel(true);
       }
     }, 150 * 1000);
-  }
-
-  await renderMissionList(forceRefetch);
-  renderArbitrationBar();
-
-  const alarmPrefs = getAlarmPrefs();
-  if (alarmPrefs.enabled && alarmPrefs.rules.some((r) => r.kind === "fissure")) {
-    startFissureAlarmWatcher();
-  }
-  if (alarmPrefs.enabled && alarmPrefs.rules.some((r) => r.kind === "arbitration")) {
-    startArbitrationAlarmWatcher();
   }
 
   if (!globalThis._fissureCountdownInterval) {
@@ -575,6 +597,30 @@ export async function initFissurePanel(forceRefetch = false) {
         }
       }
     }, 1000);
+  }
+
+  missionDiv.dataset.shellBuilt = "1";
+  return missionDiv;
+}
+
+export async function initFissurePanel(forceRefetch = false) {
+  let missionDiv = document.getElementById("best-missions-container");
+
+  if (!missionDiv || !missionDiv.dataset.shellBuilt) {
+    missionDiv = buildFissurePanelShell(missionDiv);
+  }
+
+  await renderMissionList(forceRefetch);
+  renderArbitrationBar();
+
+  updateFissurePanelTexts();
+
+  const alarmPrefs = getAlarmPrefs();
+  if (alarmPrefs.enabled && alarmPrefs.rules.some((r) => r.kind === "fissure")) {
+    startFissureAlarmWatcher();
+  }
+  if (alarmPrefs.enabled && alarmPrefs.rules.some((r) => r.kind === "arbitration")) {
+    startArbitrationAlarmWatcher();
   }
 }
 

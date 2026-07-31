@@ -129,7 +129,9 @@ export const RivenScannerHUD = {
         if (parsedL && parsedR) {
             await this._renderComparison(parsedL, parsedR);
         } else {
+            // no parsed card (OCR failed this frame): keep what is shown and wait for the next frame
             const activeCard = parsedL || parsedR;
+            if (!activeCard) return;
             await this._renderSingle(activeCard);
         }
 
@@ -151,7 +153,7 @@ export const RivenScannerHUD = {
             const stillShown = this.lastL?.weaponName === weaponName || this.lastR?.weaponName === weaponName;
             if (stillShown && this.container && this.container.style.display !== "none") {
                 if (this.lastL && this.lastR) await this._renderComparison(this.lastL, this.lastR);
-                else await this._renderSingle(this.lastL || this.lastR);
+                else if (this.lastL || this.lastR) await this._renderSingle(this.lastL || this.lastR);
             }
         } catch (e) {
             console.warn("[HUD] no se pudo cargar el historial de " + weaponName, e);

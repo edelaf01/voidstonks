@@ -152,6 +152,20 @@ globalThis.showTrackConfirm = (relicName) => {
 /**
  * UI Hook called when a user selects a reward from the modal or PiP.
  */
+//TODO no pip at the moment drop it off maybe
+/**
+ * syncs inventory with the quantity shown in-game ("N Owned" badge)
+ * @returns {boolean} true if synced from the game
+ */
+globalThis.syncRewardFromGame = (itemName, owned) => {
+    if (!itemName || typeof owned !== "number" || owned <= 0) return false;
+    if (state.primeInventory[itemName] === owned) return true;
+    state.primeInventory[itemName] = owned;
+    saveAppState();
+    if (globalThis.renderPrimeInventory) globalThis.renderPrimeInventory();
+    return true;
+};
+
 globalThis.selectRewardToInventory = (itemName) => {
   const modal = globalThis.ScannerModal;
   if (modal) modal.selectedItem = itemName;

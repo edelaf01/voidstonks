@@ -60,7 +60,7 @@ export const OCRService = {
     },
 
     _ocrConfMap: (() => {
-        const groups = ["O0QDCG", "IL1T|J", "S5", "B8", "G6", "Z2", "UV", "NMH", "PF", "EF", "RT", "VY", "A4", "KR", "W"];
+        const groups = ["O0QDCG", "IL1T|J", "S5", "B8", "G6", "Z2", "UV", "NMH", "PF", "EF", "RT", "VY", "A4", "KR", "W", "Q9"];
         const map = new Map();
         for (const g of groups) for (const ch of g) map.set(ch, (map.get(ch) || "") + g);
         return map;
@@ -97,114 +97,117 @@ export const OCRService = {
         "RELIQUIA", "RADIANTE", "INTACTA", "EXCEPCIONAL", "IMPECABLE"
     ]),
 
-    _fixRelicDigits(s) {
-        return s
-            .replaceAll("Z", "2").replaceAll("S", "5").replaceAll("B", "8")
-            .replaceAll("G", "6").replaceAll("O", "0").replaceAll(/[IL]/g, "1");
-    },
-
-    _fixRelicCode(codeRaw, isRequiem) {
-        let code = codeRaw;
-        if (!isRequiem && code.length >= 2) {
-            code = this._fixRelicDigits(code);
-        } else if (isRequiem) {
-            code = code
-                .replaceAll("1", "I").replaceAll("0", "O").replaceAll("2", "II")
-                .replaceAll("3", "III").replaceAll("4", "IV");
-        }
-        return code;
+    // Requiem codes are Roman numerals: "2" -> "II"
+    _romanizeRequiem(code) {
+        return code
+            .replaceAll("1", "I").replaceAll("0", "O").replaceAll("2", "II")
+            .replaceAll("3", "III").replaceAll("4", "IV");
     },
 
     parseRelicSelection(ocrText) {
-        const tiers = this.RELIC_TIERS;
-        const text = ocrText.toUpperCase();
-        const pattern = tiers.join("|");
-        const match = new RegExp(String.raw`(${pattern})[\s\S]*?([A-Z][0-9]{1,2}|[IVX]+)`, "i").exec(text);
-        if (!match) return null;
-
-        const tier = match[1].toUpperCase();
-        const codeRaw = match[2].trim().replaceAll(/\s+/g, "");
-        const isRequiem = tier === "REQUIEM";
-        const code = this._fixRelicCode(codeRaw, isRequiem);
-
-        if (code && code.length >= 1) {
-            const foundRelic = `${tier} ${code}`.toUpperCase();
-            const exists = state.allRelicNames?.some(n => n.toUpperCase() === foundRelic);
-            return exists ? foundRelic : null;
-        }
-        return null;
+        const canonical = this.getRelicMatch(ocrText);
+        return canonical ? canonical.toUpperCase().replace(/\s+RELIC$/, "") : null;
     },
 
+    // Generic relic matching, same design as getValidItemMatch: all OCR tolerance goes through
+    // similarityOCR against state.allRelicNames, with threshold and uniqueness margin. Only domain
+    // rules on top: tiers are letters, codes are letter+digits (Requiem: Roman) and a word tail can
+    // carry art noise.
+
+    _relicIndexCache: null,
+    // tier -> [{ code, canonical }] from state.allRelicNames
+    _relicIndex() {
+        const names = state.allRelicNames || [];
+        if (this._relicIndexCache && this._relicIndexCache._n === names.length) return this._relicIndexCache;
+        const idx = new Map();
+        for (const canonical of names) {
+            const parts = canonical.toUpperCase().replace(/\s+RELIC$/, "").split(/\s+/);
+            if (parts.length !== 2) continue;
+            const [tier, code] = parts;
+            if (!idx.has(tier)) idx.set(tier, []);
+            idx.get(tier).push({ code, canonical });
+        }
+        idx._n = names.length;
+        this._relicIndexCache = idx;
+        return idx;
+    },
+
+    _relicTierScore(word, tier) {
+        let s = this.similarityOCR(word, tier);
+        const stripped = word.replace(/[0-9]+$/, "");
+        if (stripped !== word && stripped.length >= 2) {
+            s = Math.max(s, this.similarityOCR(stripped, tier.slice(0, Math.max(stripped.length, 2))) - 0.08);
+        }
+        if (word.length >= 2 && word.length < tier.length) {
+            s = Math.max(s, this.similarityOCR(word, tier.slice(0, word.length)) - 0.08);
+        }
+        return s;
+    },
+
+    // Canonical name as in state.allRelicNames, or null. Takes OCR words (inventory cell) or free
+    // text (selection screen).
     getRelicMatch(combinedText) {
-        if (!combinedText) return null;
+        if (!combinedText || !state.allRelicNames?.length) return null;
         const rawWords = Array.isArray(combinedText) ? combinedText : combinedText.split(/\s+/);
         const words = rawWords
             .map(w => (w || "").toString().toUpperCase().replaceAll(/[^A-Z0-9]/g, ""))
             .filter(w => w.length > 0 && !this.RELIC_NOISE_TOKENS.has(w));
-
-        const tiers = this.RELIC_TIERS;
+        const index = this._relicIndex();
 
         for (let i = 0; i < words.length; i++) {
             const word = words[i];
-            const tierWord = word
-                .replaceAll("0", "O").replaceAll("1", "I")
-                .replaceAll("5", "S").replaceAll("8", "B");
-            let tier = null;
-            let remainder = "";
 
-            for (const t of tiers) {
-                if (tierWord === t) { tier = t; break; }
-                if (tierWord.length > t.length && tierWord.startsWith(t)) { tier = t; remainder = word.slice(t.length); break; }
+            // 1) tier by similarity
+            let tier = null, tierS = 0;
+            for (const t of this.RELIC_TIERS) {
+                const s = this._relicTierScore(word, t);
+                if (s > tierS) { tierS = s; tier = t; }
             }
-            if (!tier) {
-                for (const t of tiers) {
-                    if (this.getSimilarity(tierWord, t) >= 0.75) { tier = t; break; }
-                }
+            let glueRemainder = "";
+            if (tierS < 0.78) {
+                // tier and code glued in one token ("LITHC1")
+                tier = this.RELIC_TIERS.find(t => word.length > t.length && word.startsWith(t)) || null;
+                if (!tier) continue;
+                glueRemainder = word.slice(tier.length);
             }
-            if (!tier) {
-                for (const t of tiers) {
-                    if (word.length !== t.length) continue;
-                    let mismatches = 0;
-                    let mismatchesAreDigits = true;
-                    for (let k = 0; k < t.length; k++) {
-                        if (tierWord[k] !== t[k]) {
-                            mismatches++;
-                            if (!/[0-9]/.test(word[k])) { mismatchesAreDigits = false; break; }
+            const codes = index.get(tier);
+            if (!codes?.length) continue;
+
+            const cands = new Set();
+            if (glueRemainder.length >= 1 && glueRemainder.length <= 4) cands.add(glueRemainder);
+            for (let j = i + 1; j < Math.min(i + 3, words.length); j++) {
+                const w = words[j];
+                if (w.length >= 1 && w.length <= 4) cands.add(w);
+                const joined = w + (words[j + 1] || "");
+                if (words[j + 1] && joined.length <= 4) cands.add(joined);
+            }
+            const isRequiem = tier === "REQUIEM";
+            if (isRequiem) {
+                for (const c of [...cands]) cands.add(this._romanizeRequiem(c));
+            }
+            if (cands.size === 0) continue;
+
+            // 3) Best code by similarity with uniqueness margin. The tail can be art noise ("A160" -> A16),
+            // except in Requiem, where every Roman glyph counts.
+            let best = null, bestS = 0, second = 0;
+            for (const { code, canonical } of codes) {
+                let s = 0;
+                for (const cand of cands) {
+                    let cs = this.similarityOCR(cand, code);
+                    if (!isRequiem) {
+                        // 0.17 per char: above a group confusion at the end, below a real error
+                        for (let k = 1; k <= 2 && cand.length - k >= 2; k++) {
+                            cs = Math.max(cs, this.similarityOCR(cand.slice(0, cand.length - k), code) - 0.17 * k);
                         }
                     }
-                    if (mismatchesAreDigits && mismatches === 1) { tier = t; break; }
+                    if (cs > s) s = cs;
                 }
+                if (s > bestS) { second = bestS; bestS = s; best = canonical; }
+                else if (s > second) second = s;
             }
-            if (!tier) continue;
-
-            let codeRaw = remainder;
-            if (!codeRaw) {
-                for (let j = i + 1; j < Math.min(i + 3, words.length); j++) {
-                    const cand = words[j];
-                    if (/^[A-Z][0-9]{1,2}$/.test(cand) || /^[IVX]+$/.test(cand) || /^[A-Z][A-Z0-9]$/.test(cand) || /^[0-9][0-9]{1,2}$/.test(cand)) {
-                        codeRaw = cand;
-                        break;
-                    }
-                }
-            }
-            if (!codeRaw) continue;
-
-            const isRequiem = tier === "REQUIEM";
-            const DIGIT_TO_CODE_LETTER = { "1": "I", "0": "O", "8": "B", "5": "S", "6": "G", "2": "Z" };
-            let code;
-            if (isRequiem) {
-                code = this._fixRelicCode(codeRaw, true);
-            } else if (codeRaw.length >= 2) {
-                const lead = DIGIT_TO_CODE_LETTER[codeRaw.charAt(0)] || codeRaw.charAt(0);
-                code = lead + this._fixRelicDigits(codeRaw.slice(1));
-            } else {
-                code = codeRaw;
-            }
-            if (!code) continue;
-
-            const foundRelicUpper = `${tier} ${code}`.toUpperCase();
-            const canonical = state.allRelicNames?.find(n => n.toUpperCase() === foundRelicUpper);
-            if (canonical) return canonical;
+            // Low threshold plus uniqueness margin: garbage scores flat against everything.
+            if (bestS >= 0.70 && (bestS - second) >= 0.10) return best;
+            if (bestS >= 0.80 && (bestS - second) >= 0.03) return best;
         }
         return null;
     },
@@ -232,12 +235,15 @@ export const OCRService = {
             // first that passes
             let matchedToken = knownTokens.includes(text) ? text : null;
             if (!matchedToken) {
-                let best = null, bestScore = text.length >= 7 ? 0.70 : 0.72;
+                // high threshold: a misread game token differs by look-alike glyphs ("FRO5T", "CAL1BAN"), a foreign
+                // background word ("POST", "FRONT") does not, and at 0.72 "POST" became "FROST"
+                const minScore = 0.85;
+                let best = null, bestScore = 0;
                 for (const token of knownTokens) {
                     const s = this.similarityOCR(text, token);
                     if (s > bestScore) { bestScore = s; best = token; }
                 }
-                matchedToken = best;
+                matchedToken = bestScore >= minScore ? best : null;
             }
 
             if (matchedToken) {

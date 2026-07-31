@@ -186,6 +186,22 @@ export async function fetchBestFissures(force = false) {
     return allFissures.filter((f) => passesPrefs(f, prefs));
 }
 
+/**
+ * Mission types present in the data right now, by source, so a new type stays
+ * filterable. Reads the cache only.
+ * @returns {{normal: string[], railjack: string[]}}
+ */
+export function getObservedMissionTypes() {
+    const data = _fissureCache.data || [];
+    const normal = new Set();
+    const railjack = new Set();
+    for (const f of data) {
+        if (!f.type) continue;
+        (f.isStorm ? railjack : normal).add(f.type);
+    }
+    return { normal: [...normal], railjack: [...railjack] };
+}
+
 // Community Arbitration tiers by node (discord.gg/Arbitrations), used when the parser
 // brings no tier. Key = node name without "(Planet)".
 const ARBY_NODE_TIERS = {

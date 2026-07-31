@@ -326,6 +326,12 @@
     filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.6));
 }
 
+.tab-more-btn,
+.tab-fan,
+.tab-fan-overlay {
+    display: none;
+}
+
 /* forms */
 .form-group {
     margin-bottom: 15px;

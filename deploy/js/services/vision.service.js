@@ -2,6 +2,29 @@ import { OpenCVRepository } from "../repositories/opencv.repository.js";
 import { detectInventoryGrid } from "../utils/grid_detect.js";
 import { offBandComponentIndices } from "../utils/badge_filters.js";
 
+// Filming the game screen with a phone makes the browser's free autofocus, exposure and white
+// balance hunt and blur frames: continuous modes keep them steady. Tried one by one, since most
+// browsers throw on an unsupported constraint.
+export async function applyBestCameraConstraints(stream) {
+    const track = stream?.getVideoTracks?.()[0];
+    if (!track || !track.getCapabilities) return;
+    let caps;
+    try { caps = track.getCapabilities(); } catch { return; }
+    if (!caps) return;
+
+    const wanted = {};
+    if (caps.focusMode?.includes("continuous")) wanted.focusMode = "continuous";
+    if (caps.exposureMode?.includes("continuous")) wanted.exposureMode = "continuous";
+    if (caps.whiteBalanceMode?.includes("continuous")) wanted.whiteBalanceMode = "continuous";
+    if (Object.keys(wanted).length === 0) return;
+
+    try {
+        await track.applyConstraints({ advanced: [wanted] });
+    } catch (e) {
+        console.warn("[Vision] Camera constraints not applied:", e);
+    }
+}
+
 
 
 export const WF_THEMES = [
@@ -403,7 +426,8 @@ export const VisionService = {
      */
     extractBadgeBright(snapshot, cell, cellW, cellH) {
         const S = 3;
-        const w = Math.round(cellW * 0.40), h = Math.round(cellH * 0.17);
+        // 0.62 leaves room for 3+ digits: at 0.40 the third digit fell outside
+        const w = Math.round(cellW * 0.62), h = Math.round(cellH * 0.17);
         const sx = cell.sx, sy = Math.max(0, cell.sy + Math.round(cellH * 0.08));
         const cvs = document.createElement("canvas");
         cvs.width = w * S; cvs.height = h * S;
@@ -815,11 +839,23 @@ export const VisionService = {
         return "UNKNOWN";
     },
 
-    prepareRewardOCRCanvas(video, width, height, scale) {
-        const rCropY = Math.floor(height * 0.185);
-        const rCropH = Math.floor(height * 0.255);
-        const marginX = Math.floor(width * 0.08);
-        const cropW = width - marginX * 2;
+    // filter ladder for the adaptive retry: LOW_LIGHT brightens dark photos, HIGH_GLARE lowers contrast
+    // when glare burns the text
+    REWARD_OCR_PRESETS: {
+        STANDARD: "grayscale(100%) contrast(400%) brightness(1.3)",
+        LOW_LIGHT: "grayscale(100%) contrast(320%) brightness(1.9)",
+        HIGH_GLARE: "grayscale(100%) contrast(260%) brightness(0.85)",
+    },
+
+    prepareRewardOCRCanvas(video, width, height, scale, preset = "STANDARD", cropRect = null) {
+        // cropRect from detectRewardBand: a webcam on an external monitor does not fill the frame; without
+        // it, the fixed %
+        const marginX = cropRect ? Math.floor(cropRect.w * 0.06) : Math.floor(width * 0.08);
+        const rCropY = cropRect ? Math.floor(cropRect.y) : Math.floor(height * 0.185);
+        const rCropH = cropRect ? Math.floor(cropRect.h) : Math.floor(height * 0.255);
+        const rCropXBase = cropRect ? Math.floor(cropRect.x) : 0;
+        // inside the dark card bounds (Y 18.5% to 44%), trimming the empty sides
+        const cropW = (cropRect ? cropRect.w : width) - marginX * 2;
         const targetW = Math.floor(cropW * scale);
         const targetH = Math.floor(rCropH * scale);
 
@@ -828,8 +864,8 @@ export const VisionService = {
         cvs.height = targetH;
         const ctx = cvs.getContext("2d", { willReadFrequently: true });
 
-        ctx.filter = "grayscale(100%) contrast(400%) brightness(1.3)";
-        ctx.drawImage(video, marginX, rCropY, cropW, rCropH, 0, 0, targetW, targetH);
+        ctx.filter = this.REWARD_OCR_PRESETS[preset] || this.REWARD_OCR_PRESETS.STANDARD;
+        ctx.drawImage(video, rCropXBase + marginX, rCropY, cropW, rCropH, 0, 0, targetW, targetH);
         ctx.filter = "none";
         return cvs;
     },
@@ -837,11 +873,13 @@ export const VisionService = {
     // Same crop as prepareRewardOCRCanvas but isolates the name by color: in gray the player's UI color
     // blends with the gold art, so the dominant hue of saturated pixels is isolated. Owned/Crafted
     // come from the grayscale pass.
-    prepareRewardNamesCanvas(video, width, height, scale) {
-        const rCropY = Math.floor(height * 0.185);
-        const rCropH = Math.floor(height * 0.255);
-        const marginX = Math.floor(width * 0.08);
-        const cropW = width - marginX * 2;
+    prepareRewardNamesCanvas(video, width, height, scale, cropRect = null) {
+        // same cropRect as prepareRewardOCRCanvas, so the word boxes share coordinates
+        const marginX = cropRect ? Math.floor(cropRect.w * 0.06) : Math.floor(width * 0.08);
+        const rCropY = cropRect ? Math.floor(cropRect.y) : Math.floor(height * 0.185);
+        const rCropH = cropRect ? Math.floor(cropRect.h) : Math.floor(height * 0.255);
+        const rCropXBase = cropRect ? Math.floor(cropRect.x) : 0;
+        const cropW = (cropRect ? cropRect.w : width) - marginX * 2;
         const targetW = Math.floor(cropW * scale);
         const targetH = Math.floor(rCropH * scale);
 
@@ -849,7 +887,7 @@ export const VisionService = {
         cvs.width = targetW;
         cvs.height = targetH;
         const ctx = cvs.getContext("2d", { willReadFrequently: true });
-        ctx.drawImage(video, marginX, rCropY, cropW, rCropH, 0, 0, targetW, targetH);
+        ctx.drawImage(video, rCropXBase + marginX, rCropY, cropW, rCropH, 0, 0, targetW, targetH);
 
         const img = ctx.getImageData(0, 0, targetW, targetH);
         const px = img.data;
@@ -1162,7 +1200,8 @@ export const VisionService = {
             const bx0 = Math.max(0, cx0 - pad), by0 = Math.max(0, minY - pad);
             const bx1 = Math.min(targetW - 1, cx1 + pad), by1 = Math.min(targetH - 1, maxY + pad);
             const bw = bx1 - bx0 + 1, bh = by1 - by0 + 1;
-            if (bw < 40 || bh < 30) continue;
+            // drops crops too small to be a card, relative to the working size
+            if (bw < Math.max(40, targetW * 0.05) || bh < Math.max(30, targetH * 0.05)) continue;
 
             ctx.putImageData(new ImageData(binPx, targetW, targetH), 0, 0);
             // output canvases reused (max 2): the consumer uses them synchronously in the same scan
@@ -1361,12 +1400,14 @@ export const VisionService = {
      * Quantity badge from the top-left of an inventory cell, by theme color clustering.
      */
     extractBadgeByColor(snapshot, cell, cellW, cellH, theme) {
-        const safeW = Math.round(cellW * 0.55);
-        const padTop = 12;
+        const safeW = Math.min(cellW, Math.round(cellW * 0.68));
+        // start higher so the top of 6, 7 and 5 is not clipped; relative to cellH
+        const padTop = Math.max(6, Math.round(cellH * 0.04));
         const startY = Math.max(0, cell.sy - padTop);
         const safeH = Math.round(cellH * 0.25) + padTop;
 
-        const tempCvs = document.createElement("canvas");
+        // reused canvas: this runs per cell
+        const tempCvs = this._tempBadgeCvs;
         tempCvs.width = safeW;
         tempCvs.height = safeH;
         const tCtx = tempCvs.getContext("2d", { willReadFrequently: true });
@@ -1451,8 +1492,11 @@ export const VisionService = {
             return null;
         }
 
+        // erase horizontal border lines (selection box) to break merge bridges; thresholds relative to safeH
+        const lineMinW = Math.max(6, safeH * 0.22);
+        const lineMaxH = Math.max(2, safeH * 0.04);
         for (const comp of components) {
-            if (comp.width > 18 && comp.height <= 3) {
+            if (comp.width > lineMinW && comp.height <= lineMaxH) {
                 for (const pixelIdx of comp.pixels) {
                     px[pixelIdx * 4] = 255;
                     px[pixelIdx * 4 + 1] = 255;
@@ -1487,7 +1531,7 @@ export const VisionService = {
 
         const isDigitShaped = (c) => {
             const ar = c.width / c.height;
-            return ar <= 0.92 && c.height >= safeH * 0.20 && c.height <= safeH * 0.80;
+            return ar >= 0.12 && ar <= 0.92 && c.height >= safeH * 0.20 && c.height <= safeH * 0.80;
         };
         for (const comp of components) {
             if (comp.erased) continue;
@@ -1498,6 +1542,23 @@ export const VisionService = {
                     px[pixelIdx * 4 + 2] = 255;
                 }
                 comp.erased = true;
+            }
+        }
+
+        const aliveComps = components.filter((c) => !c.erased);
+        const topAnchor = aliveComps.reduce((best, c) => (!best || c.minY < best.minY ? c : best), null);
+        if (topAnchor) {
+            const anchorCy = (topAnchor.minY + topAnchor.maxY) / 2;
+            for (const comp of aliveComps) {
+                const cy = (comp.minY + comp.maxY) / 2;
+                if (Math.abs(cy - anchorCy) <= 0.6 * Math.max(comp.height, topAnchor.height)) continue;
+                for (const pixelIdx of comp.pixels) {
+                    px[pixelIdx * 4] = 255;
+                    px[pixelIdx * 4 + 1] = 255;
+                    px[pixelIdx * 4 + 2] = 255;
+                }
+                comp.erased = true;
+                comp.hardErased = true;
             }
         }
 
@@ -1530,7 +1591,7 @@ export const VisionService = {
 
         if (!components.some(c => !c.erased)) {
             for (const comp of components) {
-                if (comp.width > 18 && comp.height <= 3) continue;
+                if (comp.width > lineMinW && comp.height <= lineMaxH) continue;
                 if (comp.hardErased) continue;
                 comp.erased = false;
                 for (const pixelIdx of comp.pixels) {

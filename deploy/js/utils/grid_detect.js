@@ -609,21 +609,68 @@ function detectInventoryGridCore(img, opts = {}) {
     // xMin/xMax. Real columns have names in (almost) every row: keep the longest contiguous run of occupied
     // cells
     if (cols >= 2) {
+        const perRow = rowBands.map((bb) => {
+            const prof = new Float32Array(width);
+            for (let y = bb.band.y0; y <= bb.band.y1; y++) {
+                if (o.inkMask) {
+                    const rowOff = y * width;
+                    for (let x = 0; x < width; x++) prof[x] += o.inkMask[rowOff + x];
+                    continue;
+                }
+                const sm = smoothedLumaRow(data, y * width * 4, width, o.edgeSmooth);
+                let inEdge = false, prevL = sm[0];
+                for (let x = 1; x < width; x++) {
+                    const edge = Math.abs(sm[x] - prevL) > o.edgeDelta;
+                    if (edge && !inEdge) prof[x]++;
+                    inEdge = edge;
+                    prevL = sm[x];
+                }
+            }
+            return prof;
+        });
+
+        // occ[k] = rows where column k has text
         const occ = new Array(cols).fill(0);
-        for (let k = 0; k < cols; k++) {
-            const a = Math.max(0, Math.round(gridXf + k * cellW));
-            const b = Math.min(width - 1, Math.round(gridXf + (k + 1) * cellW));
-            for (let x = a; x <= b; x++) occ[k] += colProf[x];
+        for (const prof of perRow) {
+            const massK = [];
+            for (let k = 0; k < cols; k++) {
+                const a = Math.max(0, Math.round(gridXf + k * cellW));
+                const b = Math.min(width - 1, Math.round(gridXf + (k + 1) * cellW));
+                let s = 0;
+                for (let x = a; x <= b; x++) s += prof[x];
+                massK.push(s);
+            }
+            const rowMax = Math.max(...massK);
+            if (rowMax <= 0) continue;
+            for (let k = 0; k < cols; k++) if (massK[k] >= rowMax * 0.12) occ[k]++;
         }
-        const maxOcc = Math.max(...occ);
-        const occThr2 = maxOcc * 0.15;
+        trace.occCols = [...occ];
+        // contiguous run of columns with text in some row: a grid column can be empty in EVERY visible row, so
+        // occupancy alone cannot tell it from foreign text. CONTIGUITY does: grid gaps are surrounded by occupied
+        // columns, the side panel is separated by at least one empty column
         let bs = 0, bl = 0, cs = -1;
         for (let k = 0; k <= cols; k++) {
-            if (k < cols && occ[k] >= occThr2) {
+            if (k < cols && occ[k] >= 1) {
                 if (cs < 0) cs = k;
                 if (k - cs + 1 > bl) { bl = k - cs + 1; bs = cs; }
             } else {
                 cs = -1;
+            }
+        }
+        const maxOcc = Math.max(...occ);
+        if (maxOcc >= 3) {
+            let strongFirst = -1, strongLast = -1;
+            for (let k = bs; k < bs + bl; k++) {
+                if (occ[k] >= maxOcc) { if (strongFirst < 0) strongFirst = k; strongLast = k; }
+            }
+            if (strongFirst >= 0) {
+                let strongCount = 0;
+                for (let k = strongFirst; k <= strongLast; k++) if (occ[k] >= maxOcc) strongCount++;
+                const span = strongLast - strongFirst + 1;
+                if (strongCount === span && span >= o.minCols) {
+                    bs = strongFirst;
+                    bl = span;
+                }
             }
         }
         if (bl >= 1 && bl < cols) {
@@ -690,4 +737,77 @@ export function isImplausibleFallbackGrid(calib, frameW, frameH) {
     if (calib.cellW && calib.cellW > frameW * 0.16) return true; // cells too wide (few columns)
     if (calib.cellH && calib.cellH > frameH * 0.28) return true; // rows too tall
     return false;
+}
+
+const REWARD_DEFAULTS = {
+    ...DEFAULTS,
+    // with a webcam aimed at an external monitor the game fills only part of the frame: the band is searched
+    // over the WHOLE frame height, not a fixed crop
+    minCardW: 0.08,   // a reward card is never narrower than ~8% of ITS band width
+    maxCards: 4,
+    minCards: 1,
+};
+
+/**
+ * Finds the reward name band (2-4 horizontal cards) ANYWHERE in the frame. Same signal as
+ * detectInventoryGrid (|Δluma| edges, dominant ink color fallback), but takes the heaviest band instead of
+ * an arithmetic chain: reward cards are ONE row.
+ *
+ * Returns { x, y, w, h, cardCount, cardBoxes } in input frame PIXELS, or null when no plausible band shows
+ * up.
+ */
+export function detectRewardBand(img, opts = {}) {
+    const o = { ...REWARD_DEFAULTS, ...opts };
+    if (!img?.data || !img.width || !img.height) return null;
+
+    const tryBands = (bandOpts) => {
+        const prof = rowProfile(img, bandOpts);
+        return findBands(prof, img.height, bandOpts);
+    };
+
+    const pickBest = (bands, bandOpts) => {
+        let best = null;
+        for (const band of bands) {
+            const blocks = blocksInBand(img, band.y0, band.y1, bandOpts)
+                .filter(b => (b.x1 - b.x0) >= img.width * o.minCardW);
+            if (blocks.length < o.minCards || blocks.length > o.maxCards) continue;
+            // the real reward band has the most text mass among those giving 2-4 blocks: the HUD (title, "2" counter,
+            // squad names under the cards) also makes bands, with far less mass
+            if (!best || band.mass > best.band.mass) best = { band, blocks };
+        }
+        return best;
+    };
+
+    let bands = tryBands(o);
+    let result = pickBest(bands, o);
+
+    // dominant ink color fallback: a light textured background floods the edges
+    if (!result) {
+        const { cands } = colorInkCandidates(img, o);
+        for (const col of cands) {
+            const mask = colorInkMask(img, col, o.nameTolSq);
+            const colorOpts = { ...o, inkMask: mask };
+            const cBands = tryBands(colorOpts);
+            const cResult = pickBest(cBands, colorOpts);
+            if (cResult && (!result || cResult.band.mass > result.band.mass)) result = cResult;
+        }
+    }
+
+    if (!result) return null;
+
+    const { band, blocks } = result;
+    const x0 = Math.min(...blocks.map(b => b.x0));
+    const x1 = Math.max(...blocks.map(b => b.x1));
+    // margin around the NAMES box: the reward crop (prepareRewardOCRCanvas) also needs the Owned/Crafted badge
+    // above and some air at the sides
+    const padX = (x1 - x0) * 0.15;
+    const padYTop = (band.y1 - band.y0) * 3.0;
+    const padYBottom = (band.y1 - band.y0) * 1.2;
+
+    const x = Math.max(0, x0 - padX);
+    const w = Math.min(img.width - x, (x1 - x0) + padX * 2);
+    const y = Math.max(0, band.y0 - padYTop);
+    const h = Math.min(img.height - y, (band.y1 - band.y0) + padYTop + padYBottom);
+
+    return { x, y, w, h, cardCount: blocks.length, cardBoxes: blocks };
 }

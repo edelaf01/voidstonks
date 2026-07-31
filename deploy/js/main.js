@@ -25,7 +25,7 @@ import {
   checkUpdates,
   toggleLangDropdown,
   setLanguageManual,
-} from "./ui.js?v=2.2";
+} from "./ui.js?v=2.3";
 import { initFissurePanel } from "./ui.components/ui_fissures.js?v=1.1";
 import { initSyncPanel } from "./ui.components/ui_sync.js";
 import { calculateCaps, renderProfileStats } from "./ui.components/ui_profile.js";
@@ -52,6 +52,7 @@ if ("serviceWorker" in navigator) {
   });
 }
 import { initVosforTab } from "./ui.components/ui_vosfor.js?v=2.9";
+import { initTabFan } from "./ui.components/ui_tab_fan.js?v=1.0";
 
 document.addEventListener("DOMContentLoaded", async () => {
   const urlParams = new URLSearchParams(globalThis.location.search);
@@ -76,6 +77,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   if (langSelect) langSelect.value = state.currentLang;
   changeLanguage();
   switchTab(state.activeTab || "relic");
+  initTabFan();
 
   if (state.activeTab === "lfg") initLFGPresets();
 
