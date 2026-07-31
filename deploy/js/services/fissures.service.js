@@ -169,6 +169,17 @@ export async function fetchBestFissures(force = false) {
     return allFissures.filter((f) => passesPrefs(f, prefs));
 }
 
+export function getObservedMissionTypes() {
+    const data = _fissureCache.data || [];
+    const normal = new Set();
+    const railjack = new Set();
+    for (const f of data) {
+        if (!f.type) continue;
+        (f.isStorm ? railjack : normal).add(f.type);
+    }
+    return { normal: [...normal], railjack: [...railjack] };
+}
+
 const ARBY_NODE_TIERS = {
     "Tyana Pass": "S", "Alator": "S", "Callisto": "S", "Xini": "S", "Cytherean": "S",
     "Munio": "A", "Seimeni": "A", "Cinxia": "A", "Casta": "A", "Oestrus": "A", "Hyf": "A",

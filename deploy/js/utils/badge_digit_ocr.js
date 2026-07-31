@@ -69,8 +69,9 @@ export function segmentDigits(canvasLike) {
         }
         comps.push({ minX, maxX, minY, maxY, area });
     }
+    const minArea = Math.max(4, H * W * 0.004);
     const digitComps = comps
-        .filter((c) => (c.maxY - c.minY + 1) >= H * 0.4 && c.area >= 15)
+        .filter((c) => (c.maxY - c.minY + 1) >= H * 0.4 && c.area >= minArea)
         .sort((a, b) => a.minX - b.minX);
     return digitComps.map((c) => {
         const bw = c.maxX - c.minX + 1, bh = c.maxY - c.minY + 1;
@@ -100,11 +101,13 @@ export function readBadgeDigits(canvasLike) {
         digits.push({ d: best, minX: comp.minX, maxX: comp.maxX });
     }
     if (!digits.length) return "";
-    const widths = digits.map(g => g.maxX - g.minX + 1);
-    const avgW = widths.reduce((a, b) => a + b, 0) / widths.length;
+    const widths = digits.map(g => g.maxX - g.minX + 1).sort((a, b) => a - b);
+    const mid = widths.length >> 1;
+    const avgW = widths.length % 2 ? widths[mid] : (widths[mid - 1] + widths[mid]) / 2;
+    const GAP_RATIO = 1.4;
     let out = digits[0].d;
     for (let k = 1; k < digits.length; k++) {
-        if (digits[k].minX - digits[k - 1].maxX > avgW * 1.4) break;
+        if (digits[k].minX - digits[k - 1].maxX > avgW * GAP_RATIO) break;
         out += digits[k].d;
     }
     return out;

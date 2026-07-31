@@ -147,6 +147,16 @@ globalThis.showTrackConfirm = (relicName) => {
   });
 };
 
+//TODO no pip at the moment drop it off maybe
+globalThis.syncRewardFromGame = (itemName, owned) => {
+    if (!itemName || typeof owned !== "number" || owned <= 0) return false;
+    if (state.primeInventory[itemName] === owned) return true;
+    state.primeInventory[itemName] = owned;
+    saveAppState();
+    if (globalThis.renderPrimeInventory) globalThis.renderPrimeInventory();
+    return true;
+};
+
 globalThis.selectRewardToInventory = (itemName) => {
   const modal = globalThis.ScannerModal;
   if (modal) modal.selectedItem = itemName;

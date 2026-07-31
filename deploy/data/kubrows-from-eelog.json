@@ -1,0 +1,416 @@
+{
+  "version": "1.0",
+  "timestamp": "2026-07-21T17:08:38.792Z",
+  "source": "ee.log",
+  "data": {
+    "kubrows": [
+      {
+        "id": "9",
+        "type": "KubrowShipAvatar",
+        "player": "Unknown",
+        "timestamp": 26.411
+      },
+      {
+        "id": "16",
+        "type": "KubrowShipAvatar",
+        "player": "Unknown",
+        "timestamp": 116.993
+      },
+      {
+        "id": "17",
+        "type": "KubrowShipAvatar",
+        "player": "Unknown",
+        "timestamp": 171.369
+      },
+      {
+        "id": "18",
+        "type": "KubrowShipAvatar",
+        "player": "Unknown",
+        "timestamp": 184.433
+      },
+      {
+        "id": "19",
+        "type": "KubrowShipAvatar",
+        "player": "Unknown",
+        "timestamp": 373.432
+      },
+      {
+        "id": "23",
+        "type": "KubrowShipAvatar",
+        "player": "Unknown",
+        "timestamp": 511.045
+      },
+      {
+        "id": "25",
+        "type": "KubrowShipAvatar",
+        "player": "Unknown",
+        "timestamp": 604.925
+      },
+      {
+        "id": "26",
+        "type": "KubrowShipAvatar",
+        "player": "Unknown",
+        "timestamp": 617.066
+      },
+      {
+        "id": "27",
+        "type": "KubrowShipAvatar",
+        "player": "Unknown",
+        "timestamp": 618.269
+      },
+      {
+        "id": "42",
+        "type": "KubrowShipAvatar",
+        "player": "Unknown",
+        "timestamp": 1685.601
+      },
+      {
+        "id": "47",
+        "type": "KubrowShipAvatar",
+        "player": "Unknown",
+        "timestamp": 2270.557
+      },
+      {
+        "id": "50",
+        "type": "KubrowShipAvatar",
+        "player": "Unknown",
+        "timestamp": 2280.076
+      },
+      {
+        "id": "51",
+        "type": "KubrowShipAvatar",
+        "player": "Unknown",
+        "timestamp": 2283.233
+      },
+      {
+        "id": "69",
+        "type": "KubrowShipAvatar",
+        "player": "Unknown",
+        "timestamp": 2468.527
+      },
+      {
+        "id": "88",
+        "type": "KubrowShipAvatar",
+        "player": "Unknown",
+        "timestamp": 3068.921
+      },
+      {
+        "id": "423",
+        "type": "KubrowShipAvatar",
+        "player": "Unknown",
+        "timestamp": 3393.679
+      },
+      {
+        "id": "428",
+        "type": "KubrowShipAvatar",
+        "player": "Unknown",
+        "timestamp": 3749.127
+      },
+      {
+        "id": "431",
+        "type": "KubrowShipAvatar",
+        "player": "Unknown",
+        "timestamp": 3753.047
+      },
+      {
+        "id": "432",
+        "type": "KubrowShipAvatar",
+        "player": "Unknown",
+        "timestamp": 3757.533
+      },
+      {
+        "id": "437",
+        "type": "KubrowShipAvatar",
+        "player": "Unknown",
+        "timestamp": 3798.842
+      },
+      {
+        "id": "540",
+        "type": "KubrowShipAvatar",
+        "player": "Unknown",
+        "timestamp": 5216.892
+      },
+      {
+        "id": "541",
+        "type": "KubrowShipAvatar",
+        "player": "Unknown",
+        "timestamp": 5373.716
+      },
+      {
+        "id": "546",
+        "type": "KubrowShipAvatar",
+        "player": "Unknown",
+        "timestamp": 5463.791
+      },
+      {
+        "id": "550",
+        "type": "KubrowShipAvatar",
+        "player": "Unknown",
+        "timestamp": 5475.252
+      },
+      {
+        "id": "554",
+        "type": "KubrowShipAvatar",
+        "player": "Unknown",
+        "timestamp": 5553.149
+      },
+      {
+        "id": "555",
+        "type": "KubrowShipAvatar",
+        "player": "Unknown",
+        "timestamp": 5719.365
+      },
+      {
+        "id": "559",
+        "type": "KubrowShipAvatar",
+        "player": "Unknown",
+        "timestamp": 5820.058
+      },
+      {
+        "id": "560",
+        "type": "KubrowShipAvatar",
+        "player": "Unknown",
+        "timestamp": 6002.86
+      },
+      {
+        "id": "564",
+        "type": "KubrowShipAvatar",
+        "player": "Unknown",
+        "timestamp": 6369.741
+      },
+      {
+        "id": "565",
+        "type": "KubrowShipAvatar",
+        "player": "Unknown",
+        "timestamp": 6608.384
+      },
+      {
+        "id": "569",
+        "type": "KubrowShipAvatar",
+        "player": "Unknown",
+        "timestamp": 6624.502
+      },
+      {
+        "id": "572",
+        "type": "KubrowPetAvatar",
+        "player": "Unknown",
+        "timestamp": 6886.53
+      },
+      {
+        "id": "576",
+        "type": "KubrowPetAvatar",
+        "player": "Unknown",
+        "timestamp": 7049.586
+      },
+      {
+        "id": "578",
+        "type": "KubrowPetAvatar",
+        "player": "Unknown",
+        "timestamp": 7053.306
+      },
+      {
+        "id": "580",
+        "type": "KubrowPetAvatar",
+        "player": "Unknown",
+        "timestamp": 7054.68
+      },
+      {
+        "id": "629",
+        "type": "KubrowPetAvatar",
+        "player": "Unknown",
+        "timestamp": 6947.069
+      },
+      {
+        "id": "632",
+        "type": "KubrowPetAvatar",
+        "player": "Unknown",
+        "timestamp": 6950.419
+      },
+      {
+        "id": "633",
+        "type": "KubrowPetAvatar",
+        "player": "Unknown",
+        "timestamp": 6956.391
+      },
+      {
+        "id": "637",
+        "type": "KubrowPetAvatar",
+        "player": "Unknown",
+        "timestamp": 6963.747
+      },
+      {
+        "id": "639",
+        "type": "KubrowPetAvatar",
+        "player": "Unknown",
+        "timestamp": 6965.395
+      },
+      {
+        "id": "642",
+        "type": "KubrowPetAvatar",
+        "player": "Unknown",
+        "timestamp": 6984.265
+      },
+      {
+        "id": "652",
+        "type": "KubrowPetAvatar",
+        "player": "Unknown",
+        "timestamp": 7133.614
+      },
+      {
+        "id": "654",
+        "type": "KubrowPetAvatar",
+        "player": "Unknown",
+        "timestamp": 6992.857
+      },
+      {
+        "id": "656",
+        "type": "KubrowPetAvatar",
+        "player": "Unknown",
+        "timestamp": 7133.909
+      },
+      {
+        "id": "657",
+        "type": "KubrowPetAvatar",
+        "player": "Unknown",
+        "timestamp": 6996.066
+      },
+      {
+        "id": "659",
+        "type": "KubrowPetAvatar",
+        "player": "Unknown",
+        "timestamp": 7001.141
+      },
+      {
+        "id": "660",
+        "type": "KubrowPetAvatar",
+        "player": "Unknown",
+        "timestamp": 7004.436
+      },
+      {
+        "id": "661",
+        "type": "KubrowPetAvatar",
+        "player": "Unknown",
+        "timestamp": 7006.517
+      },
+      {
+        "id": "663",
+        "type": "KubrowPetAvatar",
+        "player": "Unknown",
+        "timestamp": 7014.347
+      },
+      {
+        "id": "664",
+        "type": "KubrowPetAvatar",
+        "player": "Unknown",
+        "timestamp": 7016.109
+      },
+      {
+        "id": "665",
+        "type": "KubrowPetAvatar",
+        "player": "Unknown",
+        "timestamp": 7017.015
+      },
+      {
+        "id": "666",
+        "type": "KubrowPetAvatar",
+        "player": "Unknown",
+        "timestamp": 7018.446
+      },
+      {
+        "id": "667",
+        "type": "KubrowPetAvatar",
+        "player": "Unknown",
+        "timestamp": 7019.868
+      },
+      {
+        "id": "671",
+        "type": "KubrowPetAvatar",
+        "player": "Unknown",
+        "timestamp": 7022.075
+      },
+      {
+        "id": "673",
+        "type": "KubrowPetAvatar",
+        "player": "Unknown",
+        "timestamp": 7025.29
+      },
+      {
+        "id": "675",
+        "type": "KubrowPetAvatar",
+        "player": "Unknown",
+        "timestamp": 7026.686
+      },
+      {
+        "id": "676",
+        "type": "KubrowPetAvatar",
+        "player": "Unknown",
+        "timestamp": 7035.553
+      },
+      {
+        "id": "677",
+        "type": "KubrowPetAvatar",
+        "player": "Unknown",
+        "timestamp": 7036.406
+      },
+      {
+        "id": "679",
+        "type": "KubrowPetAvatar",
+        "player": "Unknown",
+        "timestamp": 7038.319
+      },
+      {
+        "id": "685",
+        "type": "KubrowPetAvatar",
+        "player": "Unknown",
+        "timestamp": 7083.567
+      },
+      {
+        "id": "715",
+        "type": "KubrowPetAvatar",
+        "player": "Unknown",
+        "timestamp": 11000.092
+      },
+      {
+        "id": "736",
+        "type": "KubrowShipAvatar",
+        "player": "Unknown",
+        "timestamp": 11046.491
+      },
+      {
+        "id": "746",
+        "type": "KubrowPetAvatar",
+        "player": "Unknown",
+        "timestamp": 11704.494
+      },
+      {
+        "id": "1050",
+        "type": "KubrowShipAvatar",
+        "player": "Unknown",
+        "timestamp": 13963.348
+      },
+      {
+        "id": "1255",
+        "type": "KubrowShipAvatar",
+        "player": "Unknown",
+        "timestamp": 15062.486
+      },
+      {
+        "id": "1345",
+        "type": "KubrowShipAvatar",
+        "player": "Unknown",
+        "timestamp": 15295.046
+      }
+    ],
+    "discoveredColors": [],
+    "summary": {
+      "totalKubrows": 66,
+      "uniqueBreeds": 1,
+      "colorVariants": 0
+    }
+  },
+  "instructions": {
+    "colors": "Import \"discoveredColors\" into kubrow color database",
+    "kubrows": "Use kubrows array with formatForApp() to populate inventory",
+    "integration": "Feed into scanner.service.js::processInventoryGrid() for OCR-less inventory sync"
+  }
+}
