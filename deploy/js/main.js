@@ -58,6 +58,7 @@ if ("serviceWorker" in navigator) {
 import { initVosforTab } from "./ui.components/ui_vosfor.js?v=2.9";
 import "./ui.components/ui_orders.js?v=1.0";
 import { initTabFan } from "./ui.components/ui_tab_fan.js?v=1.1";
+import { initMobileFooter } from "./ui.components/ui_mobile_footer.js?v=1.0";
 
 document.addEventListener("DOMContentLoaded", async () => {
   const urlParams = new URLSearchParams(globalThis.location.search);
@@ -83,6 +84,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   changeLanguage();
   switchTab(state.activeTab || "relic");
   initTabFan();
+  initMobileFooter();
 
   if (state.activeTab === "lfg") initLFGPresets();
 

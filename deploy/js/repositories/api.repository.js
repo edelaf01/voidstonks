@@ -197,7 +197,11 @@ export async function getArcaneBatch(chunk) {
  * @returns {Promise<Response>}
  */
 export async function getActiveBounties() {
-    return fetchWithTimeout(`${WORKER_URL}?type=active_bounties`);
+    // &v=2 estrena una clave de caché en Cloudflare: la respuesta anterior se cacheó con
+    // stale-while-revalidate=86400 (24h) y servía bounties caducadas ("ROTATING") tras
+    // cada rotación. La versión nueva del worker ya declara swr corto; el parámetro evita
+    // seguir golpeando la copia envenenada mientras esa expira. Mismo truco que fissures.
+    return fetchWithTimeout(`${WORKER_URL}?type=active_bounties&v=2`);
 }
 
 /**

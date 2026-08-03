@@ -3529,9 +3529,70 @@ body.theme-bounties {
     padding-bottom: 30vh !important;
   }
 
-  .header-subtitle,
+  .header-subtitle {
+    display: none !important;
+  }
+
+  /* El footer estaba oculto del todo en movil, y con el se perdian los enlaces legales
+     (Privacidad, Terminos), Guia, Contacto y Novedades: no habia forma de llegar a ellos
+     desde el movil. Ahora initMobileFooter() lo mueve dentro de .content-area —el unico
+     contenedor con scroll aqui— para que aparezca al final del recorrido. Fuera de ella
+     quedaba en una zona sin scroll, tapado por la barra de pestañas.
+     Solo se muestra ya movido (.in-scroll): en su sitio original seguiria siendo
+     inalcanzable. */
   .site-footer {
     display: none !important;
+  }
+
+  /* Con el footer dentro del scroll, el colchon de 30vh de .content-area queda ENTRE el
+     contenido y el footer, dejando un hueco enorme antes de los enlaces. El colchon pasa
+     al propio footer (que ahora es el ultimo elemento) para que siga librando la barra de
+     pestañas fija sin ese vacio en medio. */
+  .content-area:has(> .site-footer.in-scroll) {
+    padding-bottom: 0 !important;
+  }
+
+  .site-footer.in-scroll {
+    display: block !important;
+    /* Anula el fijado/posicion de escritorio: aqui es un bloque mas del scroll. */
+    position: static !important;
+    width: auto !important;
+    margin: 24px -10px 0 !important;
+    padding: 18px 16px calc(96px + env(safe-area-inset-bottom, 0px)) !important;
+    font-size: 0.8em !important;
+    background: rgba(0, 0, 0, 0.25) !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
+  }
+
+  /* Enlaces mas separados: a 0.8em y con el dedo, los separadores "|" no bastan para
+     acertar el enlace correcto. */
+  .site-footer.in-scroll .footer-row {
+    gap: 4px 10px !important;
+    margin-top: 10px !important;
+    line-height: 1.9 !important;
+  }
+
+  .site-footer.in-scroll .footer-link,
+  .site-footer.in-scroll .contact-link,
+  .site-footer.in-scroll .footer-link-btn {
+    padding: 4px 6px !important;
+  }
+
+  /* El disclaimer de escritorio va flotando sobre la pagina (position:fixed). Dentro del
+     scroll no tiene sentido: se lee como el ultimo parrafo del footer. */
+  .site-footer.in-scroll .footer-disclaimer {
+    position: static !important;
+    transform: none !important;
+    width: auto !important;
+    max-width: none !important;
+    margin-top: 14px !important;
+    padding: 10px 0 0 !important;
+    background: none !important;
+    box-shadow: none !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.06) !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    font-size: 0.95em !important;
   }
 
   .site-header {

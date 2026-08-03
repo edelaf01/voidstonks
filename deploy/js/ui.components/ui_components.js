@@ -309,11 +309,15 @@ export function initGlobalTooltipSystem() {
 export function initDisclaimerSystem() {
   setTimeout(() => {
     const disclaimer = document.getElementById("txt-disclaimer");
-    if (disclaimer) {
-      disclaimer.classList.add("fade-out");
-      setTimeout(() => {
-        disclaimer.style.display = "none";
-      }, 2000);
-    }
+    if (!disclaimer) return;
+    // En movil el disclaimer viaja dentro del footer al final del scroll (ver
+    // ui_mobile_footer.js): ahi es el ultimo parrafo de una pagina, no un aviso
+    // flotante que estorbe, y auto-ocultarlo dejaria un hueco raro al final.
+    // Ademas este display:none es inline y se impondria al CSS que lo muestra.
+    if (disclaimer.closest(".site-footer.in-scroll")) return;
+    disclaimer.classList.add("fade-out");
+    setTimeout(() => {
+      disclaimer.style.display = "none";
+    }, 2000);
   }, 8000);
 }

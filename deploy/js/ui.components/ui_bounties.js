@@ -3,7 +3,7 @@ import { TEXTS, VANIA_NAMES, CHALLENGE_MAP } from "../config.js";
 import { fetchActiveBounties } from "../api.js";
 import { escapeHTML, showToast } from "./ui_components.js";
 import { exposeGlobals } from "../utils/global_registry.js";
-import { serverNow } from "../utils/server_clock.js";
+import { serverNow, isClockSynced } from "../utils/server_clock.js";
 import {
   getAlarmPrefs,
   saveAlarmPrefs,
@@ -736,19 +736,28 @@ export async function renderBountiesTab(force = false) {
     const now = serverNow();
     let anyExpired = false;
 
+    // Sin reloj sincronizado no nos fiamos de un negativo pequeño: con el reloj del
+    // sistema desajustado, un desfase de minutos marcaba TODO como ROTATING aunque
+    // quedara casi una hora. Solo se da por caducado lo que lo esté por MÁS de ese
+    // margen; cuando el reloj sí está sincronizado, el margen es 0 (exacto).
+    const margin = isClockSynced() ? 0 : 5 * 60 * 1000;
+
     expiryTimes.forEach((item) => {
       const el = document.getElementById(item.id);
       if (!el) return;
       const diff = item.at - now;
-      if (diff <= 0) {
+      if (diff <= -margin) {
         anyExpired = true;
         el.textContent = t.lblRotating || "ROTATING...";
         el.classList.add("expired");
         return;
       }
-      const h = Math.floor(diff / (1000 * 60 * 60));
-      const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-      const s = Math.floor((diff % (1000 * 60)) / 1000);
+      // En la ventana de margen (reloj sin sincronizar), diff puede ser algo negativo:
+      // se muestra 0 en vez de "-3s" hasta que la sincronización aclare la hora real.
+      const safe = Math.max(0, diff);
+      const h = Math.floor(safe / (1000 * 60 * 60));
+      const m = Math.floor((safe % (1000 * 60 * 60)) / (1000 * 60));
+      const s = Math.floor((safe % (1000 * 60)) / 1000);
       el.classList.remove("expired");
       // La última hora es cuando decides si te da tiempo: se resalta.
       el.classList.toggle("urgent", diff < 3600000);
