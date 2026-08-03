@@ -1,4 +1,5 @@
 import { state } from "../state.js";
+import { escapeHTML } from "../ui.components/ui_components.js";
 
 let pipWindow = null;
 
@@ -216,7 +217,7 @@ function makeBadgeEl(doc, item) {
 
     card.innerHTML = `
     ${tags.length ? `<div class="pip-badge-tags">${tags.join("")}</div>` : ""}
-    <div class="pip-badge-name">${name.toUpperCase()}</div>
+    <div class="pip-badge-name">${escapeHTML(name.toUpperCase())}</div>
     <div class="pip-badge-meta">
       ${t.owned}: <strong style="color:#00ff78">${Math.max(owned || 0, 0)}</strong>
       &nbsp;|&nbsp;

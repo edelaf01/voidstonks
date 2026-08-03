@@ -182,7 +182,6 @@ export function generateLFGMessage() {
     } else if (act === "eda") {
       const eliteEl = document.getElementById("lfg-eda-elite");
       const prefix = eliteEl?.checked
-
         ? state.currentLang === "es"
           ? "Élite "
           : "Elite "

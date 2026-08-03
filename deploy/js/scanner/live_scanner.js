@@ -260,9 +260,7 @@ globalThis.toggleAutoScrollScan = () => {
   const btn = document.getElementById("btn-auto-scan");
   if (btn) {
     btn.dataset.active = state.autoScanEnabled ? "1" : "0";
-    btn.style.color = state.autoScanEnabled ? "#00ff78" : "#4a7a5a";
-    btn.style.borderColor = state.autoScanEnabled ? "#00ff78" : "rgba(0,255,120,0.25)";
-    btn.style.background = state.autoScanEnabled ? "rgba(0,255,120,0.15)" : "rgba(0,255,120,0.06)";
+    btn.setAttribute("aria-pressed", state.autoScanEnabled ? "true" : "false");
   }
   const sh2 = TEXTS[state.currentLang].scannerHUD;
   showToast(state.autoScanEnabled ? sh2.autoScanOn : sh2.autoScanOff);

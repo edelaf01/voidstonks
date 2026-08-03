@@ -1,28 +1,7 @@
-import { getActiveFissures, getArbitration, getServerTime } from "../repositories/api.repository.js";
+import { getActiveFissures, getArbitration } from "../repositories/api.repository.js";
+import { serverNow, syncServerClock } from "../utils/server_clock.js";
 
-globalThis._serverTimeOffset = globalThis._serverTimeOffset || 0;
-
-let _clockSyncPromise = null;
 let _clockSynced = false;
-
-function syncServerClock() {
-    if (!_clockSyncPromise) {
-        _clockSyncPromise = (async () => {
-            try {
-                const res = await getServerTime();
-                if (!res.ok) return;
-                const body = await res.json();
-                if (typeof body?.now === "number") {
-                    globalThis._serverTimeOffset = Date.now() - body.now;
-                    _clockSynced = true;
-                }
-            } catch (e) {
-                console.warn("[FISSURES] No se pudo sincronizar el reloj con el servidor:", e);
-            }
-        })();
-    }
-    return _clockSyncPromise;
-}
 
 const FISSURE_TTL = 120 * 1000;
 let _fissureCache = { data: null, ts: 0 };

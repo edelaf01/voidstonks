@@ -1,7 +1,11 @@
 export const DEBUG_LOGS = false;
 
+const FORCE_LOGS_WHILE_DEBUGGING = true;
+
+const stored = typeof localStorage !== "undefined" ? localStorage.getItem("vs_debug_logs") : null;
 const enabled = DEBUG_LOGS
-    || (typeof localStorage !== "undefined" && localStorage.getItem("vs_debug_logs") === "1");
+    || stored === "1"
+    || (FORCE_LOGS_WHILE_DEBUGGING && stored !== "0");
 
 if (!enabled && typeof console !== "undefined") {
     const noop = () => {};

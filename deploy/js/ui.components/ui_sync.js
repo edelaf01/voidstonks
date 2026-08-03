@@ -185,6 +185,7 @@ function startReceiver() {
         if (box) {
           box.innerText = data.val;
           box.style.animation = "none";
+          void box.offsetHeight;
           box.style.animation = "pulse 0.5s ease";
         }
         statusMsg.innerText = TEXTS[state.currentLang].sync.success;

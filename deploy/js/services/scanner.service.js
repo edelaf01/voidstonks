@@ -77,7 +77,6 @@ export const ScannerService = {
         await OCRRepository.warmUp();
         OpenCVRepository.waitReady().catch(() => { });
         OCRService.initMatcherData();
-        OCRRepository.ensureSecondWorker().catch(() => { });
         this.loop();
     },
 
@@ -870,7 +869,7 @@ export const ScannerService = {
         const namesCanvas = VisionService.prepareRewardNamesCanvas(video, width, height, scale, cropRect);
         let metaRes, namesRes;
         if (namesCanvas) {
-            await OCRRepository.ensureSecondWorker();
+            OCRRepository.ensureSecondWorker().catch(() => { });
             const w0 = OCRRepository.workers[0];
             const w1 = OCRRepository.workers[1] || w0;
             [metaRes, namesRes] = await Promise.all([
@@ -1104,14 +1103,18 @@ export const ScannerService = {
                 await new Promise((r) => setTimeout(r, 0));
             }
 
+            console.log(`[INV] Preparadas ${activeCells.length} celdas activas; arrancando worker OCR...`);
             await OCRRepository.ensureSecondWorker();
             const workers = OCRRepository.workers.filter(Boolean);
+            console.log(`[INV] Workers OCR listos: ${workers.length}`);
 
             let cellIndex = 0;
             const runWorker = async (worker) => {
                 while (cellIndex < activeCells.length) {
                     const task = activeCells[cellIndex++];
                     if (!task) break;
+
+                    console.log(`[INV] celda ${cellIndex}/${activeCells.length} (r${task.cell.r}c${task.cell.c})...`);
 
                     const { cell, textCvs } = task;
                     let combinedText;
@@ -1365,6 +1368,7 @@ export const ScannerService = {
                 }
             } catch (e) {
                 console.error("[INV] Grid processing failed:", e);
+                ScannerHUD.updateScrollStatus("done", this.sessionInventory.size + this.sessionRelics.size);
             } finally {
                 this.detectionLocked = false;
             }

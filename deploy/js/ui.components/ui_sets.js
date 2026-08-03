@@ -676,6 +676,16 @@ export function renderSetTracker() {
   const badgeBorder = totalFullSets > 0 ? "rgba(221,169,56,0.3)" : "rgba(100,100,100,0.2)";
   const setBadge = `<span style="color:${badgeColor}; font-weight:bold; font-size:0.8em; background:${badgeBg}; border:1px solid ${badgeBorder}; padding:2px 6px; border-radius:4px; text-transform:uppercase; white-space:nowrap; text-align:center;">(${totalFullSets} ${t.countMsg || "Sets"})</span>`;
 
+  const alreadyListed = totalFullSets > 0 && globalThis.isSetListed?.(setSlug);
+  const canPublish = globalThis.canPublishToWfm?.();
+
+  const sellBtnHtml = totalFullSets === 0 ? ""
+    : alreadyListed
+      ? `<span class="set-listed-tag" title="${escapeHTML(t.setListedTitle)}">${escapeHTML(t.setListed)}</span>`
+      : canPublish
+        ? `<button type="button" class="set-sell-btn" onclick="event.stopPropagation(); globalThis.sellSetFromInventory('${escapeHTML(state.currentActiveSet).replaceAll("'", "\\'")}')" title="${escapeHTML(t.sellSetTitle)}">${escapeHTML(t.sellSet)}</button>`
+        : "";
+
   const relicImgHtml = `<img src="assets/relic.webp" style="width:14px; height:14px; object-fit:contain; vertical-align:middle; margin-right:3px;">`;
 
   const runsBadgeHtml = stats.avgRuns > 0
@@ -719,6 +729,7 @@ export function renderSetTracker() {
           <span style="font-weight:bold; font-size:1.15em; color:var(--wf-gold-text); filter:drop-shadow(0 2px 4px rgba(221,169,56,0.3));">${state.currentActiveSet}</span>
         </a>
         ${setBadge}
+        ${sellBtnHtml}
       </div>
 
       <div class="tracker-sim-controls" onclick="event.stopPropagation()">
@@ -995,7 +1006,7 @@ Object.assign(globalThis, {
   openSetFromRelicReward: (partName) => {
     const setName = getSetName(partName);
     if (setName === "Otros") return;
-    switchTab("set");
+    globalThis.switchTab("set");
     const input = document.getElementById("setItemInput");
     if (input) {
       input.value = setName;
