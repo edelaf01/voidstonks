@@ -1,7 +1,7 @@
 import { MobileScanner } from "./mobile_scanner.js";
 import { OCRRepository } from "../repositories/ocr.repository.js";
 import { OCRService } from "../services/ocr.service.js?v=264";
-import { showToast } from "../ui.components/ui_components.js";
+import { escapeHTML, showToast } from "../ui.components/ui_components.js";
 
 
 export class MobileDebugScanner extends MobileScanner {
@@ -56,7 +56,7 @@ export class MobileDebugScanner extends MobileScanner {
                 if (matches.length > 0) {
                     const entry = document.createElement("div");
                     entry.style.cssText = "padding:2px 0; border-bottom:1px solid #222;";
-                    entry.innerHTML = `<span style="color:#00ff78;">[${new Date().toLocaleTimeString()}]</span> ${matches.map(m => m.name).join(", ")}`;
+                    entry.innerHTML = `<span style="color:#00ff78;">[${new Date().toLocaleTimeString()}]</span> ${matches.map(m => escapeHTML(m.name)).join(", ")}`;
                     this.liveLog.prepend(entry);
                 } else if (this.frameCounter % 10 === 0) {
                     const entry = document.createElement("div");

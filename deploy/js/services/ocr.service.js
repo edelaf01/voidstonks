@@ -138,7 +138,7 @@ export const OCRService = {
         if (stripped !== word && stripped.length >= 2) {
             s = Math.max(s, this.similarityOCR(stripped, tier.slice(0, Math.max(stripped.length, 2))) - 0.08);
         }
-        if (word.length >= 2 && word.length < tier.length) {
+        if (word.length >= 2 && word.length < tier.length && tier.length - word.length <= 1) {
             s = Math.max(s, this.similarityOCR(word, tier.slice(0, word.length)) - 0.08);
         }
         return s;
@@ -184,6 +184,14 @@ export const OCRService = {
             const isRequiem = tier === "REQUIEM";
             if (isRequiem) {
                 for (const c of [...cands]) cands.add(this._romanizeRequiem(c));
+            } else {
+                // The first char of a code is always a letter, so a digit there is an OCR error: put back the
+                // candidate letters ("05" -> O5).
+                const DIGIT_AS_LETTER = { "0": "O", "1": "I", "2": "Z", "4": "A", "5": "S", "6": "G", "8": "B" };
+                for (const c of [...cands]) {
+                    const letter = DIGIT_AS_LETTER[c[0]];
+                    if (letter) cands.add(letter + c.slice(1));
+                }
             }
             if (cands.size === 0) continue;
 
@@ -322,17 +330,6 @@ export const OCRService = {
             }
         }
         return this._consolidateMatches(itemMatches, imgW);
-    },
-
-    _countValidTokens(searchTokens, localWords) {
-        let count = 0;
-        const localTexts = localWords.map(lw => lw.text);
-        searchTokens.forEach(token => {
-            if (localTexts.some(lt => lt === token || this.getSimilarity(lt, token) > 0.8)) {
-                count++;
-            }
-        });
-        return count;
     },
 
     // localWords: full column window, scores the name tokens. penaltyWords: only words next to the

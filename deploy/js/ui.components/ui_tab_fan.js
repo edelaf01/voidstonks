@@ -1,32 +1,112 @@
-const PRIMARY_TABS = ["relic", "set", "riven", "bounties"];
+/**
+ * Tab fan: the tabs that do not fit in the bar open over a veil. On mobile a tap opens it, or hold and
+ * slide to an option and release.
+ *
+ * No fixed list: reflowTabs() measures the bar and hides from the tail whatever does not fit, so a new
+ * <button class="tab-btn"> in the HTML just fits in.
+ */
+
+// minimum usable desktop tab width: below it the icon and the label overlap
+const MIN_TAB_PX = 104;
+
+// mobile tabs sit in a fixed grid: more than four makes the labels unreadable
+const MOBILE_MAX_TABS = 4;
+const MOBILE_BREAKPOINT = 768;
 
 const LONG_PRESS_MS = 220;
 
 let fanEl = null;
 let overlayEl = null;
 let moreBtn = null;
+let tabsEl = null;
 let isOpen = false;
 let longPressTimer = null;
 let dragMode = false;
 let pointerMoved = false;
 let highlightedItem = null;
+let reflowing = false;
 // ignores the synthetic click the browser sends after pointerup
 let suppressClick = false;
 // the tap's deferred click lands on the fresh veil and would close it, so that window is skipped
 let openedAt = 0;
 
-function getOverflowTabs() {
-  return Array.from(document.querySelectorAll(".tabs .tab-btn"))
+function getAllTabButtons() {
+  if (!tabsEl) return [];
+  return Array.from(tabsEl.querySelectorAll(".tab-btn"))
     .filter((btn) => btn.id && btn.id.startsWith("btn-"))
-    .filter((btn) => !btn.classList.contains("tab-more-btn"))
-    .map((btn) => btn.id.slice("btn-".length))
-    .filter((mode) => !PRIMARY_TABS.includes(mode));
+    .filter((btn) => !btn.classList.contains("tab-more-btn"));
 }
 
+function getOverflowTabs() {
+  return getAllTabButtons()
+    .filter((btn) => btn.classList.contains("is-overflow"))
+    .map((btn) => btn.id.slice("btn-".length));
+}
+
+/**
+ * Measured on the container, not on the buttons: with flex:1 every button already comes shrunk.
+ */
+export function reflowTabs() {
+  const all = getAllTabButtons();
+  if (!tabsEl || all.length === 0 || reflowing) return;
+
+  // reflowTabs writes classes on the buttons the MutationObserver watches: without this lock it re-entered
+  reflowing = true;
+  try {
+    applyReflow(all);
+  } finally {
+    // in a microtask: this pass's mutations reach the observer after the block
+    queueMicrotask(() => { reflowing = false; });
+  }
+}
+
+function applyReflow(all) {
+  const isMobile = globalThis.innerWidth <= MOBILE_BREAKPOINT;
+  const barWidth = tabsEl.clientWidth;
+  if (barWidth === 0) return; // bar without layout yet (hidden tab): retried when shown
+
+  let visibleCount;
+  if (isMobile) {
+    visibleCount = MOBILE_MAX_TABS;
+  } else {
+    // reserve the "More" slot only when something overflows
+    const fitsAll = Math.floor(barWidth / MIN_TAB_PX) >= all.length;
+    const usable = fitsAll ? barWidth : barWidth - MIN_TAB_PX;
+    visibleCount = Math.max(1, Math.min(all.length, Math.floor(usable / MIN_TAB_PX)));
+  }
+
+  // the active tab never hides: it swaps places with the last visible one
+  const activeIndex = all.findIndex((btn) => btn.classList.contains("active"));
+  const order = all.map((_, i) => i);
+  if (activeIndex >= visibleCount) {
+    order[visibleCount - 1] = activeIndex;
+    order[activeIndex] = visibleCount - 1;
+  }
+
+  order.forEach((tabIndex, slot) => {
+    const btn = all[tabIndex];
+    const hidden = slot >= visibleCount;
+    btn.classList.toggle("is-overflow", hidden);
+    // visual order follows the slots, not the HTML, so the swapped active tab stays next to its neighbours
+    btn.style.order = String(slot);
+  });
+
+  const overflowCount = all.length - visibleCount;
+  moreBtn.classList.toggle("is-needed", overflowCount > 0);
+  moreBtn.style.order = String(all.length);
+
+  if (isOpen && overflowCount === 0) closeFan();
+}
+
+/**
+ * Prefers the text <span> (#tab-<mode>-text): tabs whose icon is an emoji in a <span> showed the emoji
+ * twice.
+ */
 function getTabLabel(mode) {
   const btn = document.getElementById("btn-" + mode);
   if (!btn) return mode;
-  return btn.textContent.trim() || mode;
+  const span = document.getElementById(`tab-${mode}-text`);
+  return (span?.textContent || btn.textContent).trim() || mode;
 }
 
 function getTabIconSrc(mode) {
@@ -52,6 +132,16 @@ function buildFanItems() {
       img.alt = "";
       img.className = "tab-fan-icon";
       item.appendChild(img);
+    } else {
+      // no <img>: the icon can be an emoji inside <span class="tab-icon-img">
+      const emoji = document.querySelector(`#btn-${mode} .tab-icon-img`)?.textContent?.trim();
+      if (emoji) {
+        const glyph = document.createElement("span");
+        glyph.className = "tab-fan-icon";
+        glyph.setAttribute("aria-hidden", "true");
+        glyph.textContent = emoji;
+        item.appendChild(glyph);
+      }
     }
 
     const span = document.createElement("span");
@@ -82,6 +172,23 @@ function selectMode(mode) {
   }
 }
 
+/**
+ * Anchors the menu under the "More" button, desktop only. On mobile the CSS places it, so the
+ * properties are cleared.
+ */
+function placeFan() {
+  if (globalThis.innerWidth <= MOBILE_BREAKPOINT) {
+    fanEl.style.top = "";
+    fanEl.style.left = "";
+    return;
+  }
+  const r = moreBtn.getBoundingClientRect();
+  fanEl.style.top = `${Math.round(r.bottom)}px`;
+  const width = fanEl.offsetWidth || 190;
+  const left = Math.min(Math.max(8, r.right - width), globalThis.innerWidth - width - 8);
+  fanEl.style.left = `${Math.round(left)}px`;
+}
+
 function openFan({ drag = false } = {}) {
   if (isOpen) return;
   buildFanItems();
@@ -94,6 +201,8 @@ function openFan({ drag = false } = {}) {
   overlayEl.hidden = false;
   fanEl.hidden = false;
   void fanEl.offsetWidth;
+  // after removing [hidden]: placeFan measures the real width, and hidden it would be 0
+  placeFan();
   overlayEl.classList.add("is-open");
   fanEl.classList.add("is-open");
 
@@ -219,8 +328,26 @@ export function initTabFan() {
   fanEl = document.getElementById("tab-fan");
   overlayEl = document.getElementById("tab-fan-overlay");
   moreBtn = document.getElementById("btn-tab-more");
+  tabsEl = document.querySelector(".tabs");
 
-  if (!fanEl || !overlayEl || !moreBtn) return;
+  if (!fanEl || !overlayEl || !moreBtn || !tabsEl) return;
+
+  reflowTabs();
+
+  // ResizeObserver, not just window resize: the bar also changes width on its own (scrollbar, zoom, side
+  // panels)
+  if (globalThis.ResizeObserver) {
+    new ResizeObserver(() => reflowTabs()).observe(tabsEl);
+  } else {
+    globalThis.addEventListener("resize", () => reflowTabs());
+  }
+
+  // switchTab knows nothing about the fan: watching .active rescues the open tab from the overflow
+  new MutationObserver(() => reflowTabs()).observe(tabsEl, {
+    subtree: true,
+    attributes: true,
+    attributeFilter: ["class"],
+  });
 
   const hasPointer = Boolean(globalThis.PointerEvent);
 
@@ -252,6 +379,19 @@ export function initTabFan() {
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && isOpen) closeFan();
   });
+
+  // on desktop the menu has no veil behind it, so the outside click is caught here
+  document.addEventListener("click", (e) => {
+    if (!isOpen || globalThis.innerWidth <= MOBILE_BREAKPOINT) return;
+    if (Date.now() - openedAt < 350) return;
+    if (fanEl.contains(e.target) || moreBtn.contains(e.target)) return;
+    closeFan();
+  });
+
+  // position:fixed does not follow the page scroll: reposition it
+  globalThis.addEventListener("scroll", () => {
+    if (isOpen) placeFan();
+  }, { passive: true });
 
   globalThis.addEventListener("resize", () => {
     if (isOpen) closeFan();

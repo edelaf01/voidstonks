@@ -2620,10 +2620,10 @@ function buildStatsTable(stats, weaponData, buffCount, hasNeg, isEs) {
     const row = document.createElement("div");
     row.className = `st-row${isNegStat ? " neg" : ""}`;
     row.innerHTML = `
-      <span class="st-name" title="${stat.name}">${stat.name}</span>
+      <span class="st-name" title="${escapeHTML(stat.name)}">${escapeHTML(stat.name)}</span>
       <span class="st-val">${isNegStat ? "−" : "+"}${Math.abs(stat.value)}%</span>
-      <span class="st-ideal">${res.range}</span>
-      <span class="st-grade ${color}">${res.grade}</span>`;
+      <span class="st-ideal">${escapeHTML(String(res.range))}</span>
+      <span class="st-grade ${color}">${escapeHTML(String(res.grade))}</span>`;
     table.appendChild(row);
   });
   return table;
@@ -3707,9 +3707,6 @@ function renderMetaStats(weaponName, weaponType, targetId = "meta-stats-containe
   const container = document.getElementById(targetId);
   if (!container) return;
 
-  const cacheKey = `${weaponName}_${weaponType}_${state.currentLang}`;
-  if (container.dataset.lastRenderedKey === cacheKey) return;
-
   const meta = getMetaStats(weaponName, weaponType);
   if (!meta) {
     container.style.display = "none";
@@ -3735,6 +3732,9 @@ function renderMetaStats(weaponName, weaponType, targetId = "meta-stats-containe
       : ["Zoom", "Recoil", "Ammo Maximum"];
     meta._genericRecs = true;
   }
+
+  const cacheKey = `${weaponName}_${weaponType}_${state.currentLang}_${meta._genericRecs ? "gen" : "real"}`;
+  if (container.dataset.lastRenderedKey === cacheKey) return;
 
   const isEs = state.currentLang === "es";
 

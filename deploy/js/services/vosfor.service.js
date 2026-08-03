@@ -249,10 +249,13 @@ function meanBy(items, fn) {
  * Expected value of a Loid pack: per pull, rarity weight x mean realizable R0 price of
  * that rarity, plus the pack's average liquidity.
  */
+// Realizable price, not the raw ask: the ask is weighted by real liquidity (closed sales
+// per day) with the best buy as floor.
 function realizablePrice(ask, vol, bestBuy, thr) {
     if (!ask || ask <= 0) return 0;
     const liq = Math.max(0.15, Math.min(1, vol / thr));
-    return Math.max(bestBuy || 0, ask * liq);
+    const floor = Math.min(bestBuy || 0, ask);
+    return Math.max(floor, ask * liq);
 }
 export function realizableR0(st) {
     return st ? realizablePrice(st.pe || 0, (st.v || 0) + (st.vm || 0), st.bb || 0, 5) : 0;

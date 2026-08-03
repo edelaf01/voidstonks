@@ -88,7 +88,7 @@ export function switchTab(mode) {
   document.body.classList.add(`theme-${mode}`);
 
   if (mode === "bounties" && mainCard) mainCard.classList.add("theme-bounties");
-  ["relic", "set", "riven", "profile", "lfg", "bounties", "vosfor", "ducat", "eelog"].forEach((m) => {
+  ["relic", "set", "riven", "profile", "lfg", "bounties", "vosfor", "ducat", "eelog", "orders"].forEach((m) => {
     document.getElementById("mode-" + m)?.classList.add("hidden");
   });
   document.getElementById("mode-" + mode)?.classList.remove("hidden");
@@ -106,6 +106,8 @@ export function switchTab(mode) {
     initVosforTab().catch(console.error);
   } else if (mode === "ducat") {
     if (typeof globalThis.renderDucanatorTab === "function") globalThis.renderDucanatorTab();
+  } else if (mode === "orders") {
+    if (typeof globalThis.initOrdersTab === "function") globalThis.initOrdersTab();
   }
 
   const footer = document.getElementById("footer-relic");
@@ -195,6 +197,7 @@ function updateNavTabs(t) {
   setTab("btn-bounties", t.menuBounties || "Farms", t.tooltips.tabBounties);
   setTab("btn-vosfor", t.vosfor?.tabName || "Vosfor", t.vosfor?.tabTip);
   setTab("btn-ducat", t.ducanator?.tabTitle || "Ducanator", t.ducanator?.tabTitle);
+  setText("tab-orders-text", t.menuOrders || "Mis órdenes");
   setText("tab-more-text", t.menuMore || "Más");
   updateDucatFilterLabels(t);
 }
@@ -202,7 +205,6 @@ function updateNavTabs(t) {
 function updateDucatFilterLabels(t) {
   const d = t.ducanator || {};
   setText("ducat-desc", d.desc);
-  setText("ducat-adv-label", d.filters);
   setPlaceholder("ducat-search", d.searchPlaceholder);
   setText("ducat-owned-label", d.ownedOnly);
   setText("ducat-threshold-label", d.threshold);

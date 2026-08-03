@@ -423,12 +423,37 @@ function detectInventoryGridCore(img, opts = {}) {
     }
 
     const hudLimit = height * 0.2;
-    const chainItems = bandBlocks.filter(bb => bb.band.y1 >= hudLimit).map(bb => ({
+    const toItem = bb => ({
         pos: bb.band.y1,
         mass: bb.blocks.reduce((s, bl) => s + bl.mass, 0),
         centers: bb.blocks.map(bl => bl.cx),
-    }));
+    });
+    const chainItems = bandBlocks.filter(bb => bb.band.y1 >= hudLimit).map(toItem);
     const chain = bestArithmeticChain(chainItems, height * 0.12, height * 0.5);
+
+    if (chain && chain.members.length >= 2) {
+        const pitch = chain.pitch;
+        const first = chain.members[0];
+        const firstCenters = bandBlocks.find(bb => bb.band.y1 === first)?.blocks.map(bl => bl.cx) || [];
+        const tolY = pitch * 0.12;
+        const tolX = pitch * 0.15;
+        let bestPrev = null, bestErr = Infinity;
+        for (const bb of bandBlocks) {
+            if (bb.band.y1 >= hudLimit) continue;   // already in the chain
+            const err = Math.abs(bb.band.y1 - (first - pitch));
+            if (err > tolY || err >= bestErr) continue;
+            const centers = bb.blocks.map(bl => bl.cx);
+            const aligned = centers.filter(a => firstCenters.some(b => Math.abs(a - b) <= tolX)).length;
+            // at least 2 matching columns (or all, if the row has 1 cell): one can be chance
+            if (aligned >= Math.min(2, centers.length)) { bestPrev = bb; bestErr = err; }
+        }
+        if (bestPrev) {
+            chain.members.unshift(bestPrev.band.y1);
+            chainItems.push(toItem(bestPrev));
+            trace.clippedTopRow = { y1: bestPrev.band.y1, y0: bestPrev.band.y0 };
+        }
+    }
+
     trace.chain = chain ? { pitch: Math.round(chain.pitch), members: chain.members } : null;
     // the 3 inventory rows are required: any pair of bands makes a "chain"
     if (!chain || chain.members.length < o.rows) {
@@ -445,7 +470,9 @@ function detectInventoryGridCore(img, opts = {}) {
     const y1ToTop = new Map(bandBlocks.map(bb => [bb.band.y1, bb.band.y0]));
     const base = y1ToTop.get(chain.members[0]) ?? chain.members[0];
     const last = y1ToTop.get(chain.members[chain.members.length - 1]) ?? chain.members[chain.members.length - 1];
-    const foldY0 = Math.max(Math.ceil(hudLimit), base - cellH);
+    // the fold starts at the top of the highest name in the chain, not at hudLimit: a readmitted cut row lives
+    // above hudLimit
+    const foldY0 = Math.max(0, Math.min(Math.ceil(hudLimit), base), base - cellH);
     const foldY1 = Math.min(height - 1, last + cellH);
     const fold = new Float32Array(cellH);
     for (let y = foldY0; y <= foldY1; y++) {
@@ -471,15 +498,18 @@ function detectInventoryGridCore(img, opts = {}) {
     const rowBands = [];
     const usedTops = [];
     const tol = cellH * 0.2;
-    const kMin = Math.floor((hudLimit - baseY1) / cellH) - 1;
+    // effective HUD ceiling: a readmitted cut row has its baseline BELOW hudLimit and these two filters would
+    // drop it again
+    const rowFloor = Math.min(hudLimit, chain.members[0]);
+    const kMin = Math.floor((rowFloor - baseY1) / cellH) - 1;
     const kMax = Math.ceil((height - baseY1) / cellH) + 1;
     for (let k = kMin; k <= kMax; k++) {
         const topSlot = nameBase + k * cellH;
         const baseSlot = baseY1 + k * cellH;
-        if (baseSlot < hudLimit && topSlot < hudLimit) continue;
+        if (baseSlot < rowFloor && topSlot < rowFloor) continue;
         let bb = null, bbErr = Infinity;
         for (const cand2 of bandBlocks) {
-            if (cand2.band.y1 < hudLimit) continue;
+            if (cand2.band.y1 < rowFloor) continue;
             const err = Math.min(Math.abs(cand2.band.y0 - topSlot), Math.abs(cand2.band.y1 - baseSlot));
             if (err <= tol && err < bbErr) { bb = cand2; bbErr = err; }
         }
@@ -691,9 +721,26 @@ function detectInventoryGridCore(img, opts = {}) {
         ? Math.round(firstBand.y1 - cellH * o.nameBaselineOffset)
         : Math.round(usedTops[0] - cellH * o.nameBandOffset);
 
-    const rows = rowBands.length;
+    let rows = rowBands.length;
+
+    let gridYTop = gridY;
+    if (cellH > 0) {
+        while (gridYTop < 0) gridYTop += cellH;
+    } else {
+        gridYTop = Math.max(0, gridYTop);
+    }
+
+    if (cellH > 0) {
+        const dropped = Math.ceil(Math.max(0, -gridY) / cellH);
+        rows = Math.max(rows - dropped, Math.min(rowBands.length, o.rows));
+    }
+    if (rows < 1) {
+        trace.fail = "todas las filas quedan fuera del frame tras alinear la fase";
+        return null;
+    }
+
     const gridW = Math.min(cols * cellW, width - gridX);
-    const gridH = Math.min(rows * cellH, height - Math.max(0, gridY));
+    const gridH = Math.min(rows * cellH, height - gridYTop);
 
     const confidence = Math.min(1, (chain.members.length + cols) / 10);
 
@@ -703,9 +750,9 @@ function detectInventoryGridCore(img, opts = {}) {
     const nameBandFrac = bandHs.length ? bandHs[bandHs.length >> 1] / cellH : 1;
 
     return {
-        gridZone: { x: gridX, y: Math.max(0, gridY), w: gridW, h: gridH },
+        gridZone: { x: gridX, y: gridYTop, w: gridW, h: gridH },
         gridX,
-        gridY: Math.max(0, gridY),
+        gridY: gridYTop,
         gridW,
         gridH,
         cellW,

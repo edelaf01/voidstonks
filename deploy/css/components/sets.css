@@ -650,3 +650,38 @@
     padding: 2px 8px;
     border-radius: 3px;
 }
+/* market shortcut from the tracker, only shown once the set is complete */
+.set-sell-btn {
+    padding: 3px 10px;
+    font-family: inherit;
+    font-size: 0.72em;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    white-space: nowrap;
+    color: var(--wf-green, #81c784);
+    background: rgba(66, 245, 108, 0.12);
+    border: 1px solid rgba(66, 245, 108, 0.4);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.18s ease, filter 0.18s ease;
+}
+
+.set-sell-btn:hover {
+    background: rgba(66, 245, 108, 0.2);
+    filter: brightness(1.12);
+}
+
+/* already listed: informs instead of inviting; no border or pointer so it does not read as a button */
+.set-listed-tag {
+    padding: 3px 10px;
+    font-size: 0.72em;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    white-space: nowrap;
+    color: #7fb3d5;
+    background: rgba(127, 179, 213, 0.12);
+    border: 1px solid rgba(127, 179, 213, 0.3);
+    border-radius: 4px;
+}

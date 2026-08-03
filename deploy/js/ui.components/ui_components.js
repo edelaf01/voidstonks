@@ -5,6 +5,7 @@ import {
   TIER_URLS,
 } from "../config.js";
 import { state } from "../state.js";
+import { exposeGlobals } from "../utils/global_registry.js";
 
 export function preloadCriticalAssets() {
   const assets = [
@@ -34,7 +35,9 @@ export function showToast(message, options = {}) {
     duration = 60000,
     tag = null,
     onClose = null,
-    type = "info"
+    type = "info",
+    // text by default; html:true callers escape every value they interpolate
+    html = false
   } = options;
 
   if (tag && activeToasts.has(tag)) {
@@ -45,11 +48,12 @@ export function showToast(message, options = {}) {
 
   const toast = document.createElement("div");
   toast.className = `wf-toast ${type}`;
+  // emoji icons render differently per platform; swap for inline SVG once there is an icon set
   const icon = type === "error" ? "⚠️" : (type === "success" ? "✓" : "ℹ");
 
   toast.innerHTML = `
     <span class="toast-icon">${icon}</span>
-    <span class="toast-message">${message}</span>
+    <span class="toast-message">${html ? message : escapeHTML(String(message ?? ""))}</span>
     <span class="toast-close">×</span>
   `;
 
@@ -101,6 +105,10 @@ export function showCustomConfirm(message, onConfirm) {
 export function closeOrokinConfirm() {
   document.getElementById("orokin-confirm-modal")?.classList.add("hidden");
 }
+
+// showToast for the scanner scripts, plain <script> that do not import; closeOrokinConfirm for the
+// confirm modal inline onclick
+exposeGlobals({ showToast, closeOrokinConfirm }, "ui.components/ui_components.js");
 
 export async function checkUpdates() {
   const lastSeenVersion = localStorage.getItem("last_seen_version");

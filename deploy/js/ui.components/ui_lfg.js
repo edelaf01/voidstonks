@@ -173,6 +173,8 @@ export function generateLFGMessage() {
       msg = `H ${activityName}`;
     } else if (act === "temporal") {
       const eliteEl = document.getElementById("lfg-temp-elite");
+      // same Élite/Elite prefix as the 'eda' branch below: move both to an elitePrefix(checkboxId) helper
+      // if a third activity shows up
       const prefix = eliteEl?.checked
         ? state.currentLang === "es"
           ? "Élite "
@@ -182,7 +184,6 @@ export function generateLFGMessage() {
     } else if (act === "eda") {
       const eliteEl = document.getElementById("lfg-eda-elite");
       const prefix = eliteEl?.checked
-
         ? state.currentLang === "es"
           ? "Élite "
           : "Elite "

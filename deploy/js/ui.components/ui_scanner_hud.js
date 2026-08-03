@@ -1,5 +1,6 @@
 import { state } from "../state.js";
 import { TEXTS } from "../config.js";
+import { exposeGlobals } from "../utils/global_registry.js";
 
 export const ScannerHUD = {
     updateContext(contextType) {
@@ -166,3 +167,17 @@ export const ScannerHUD = {
         listContainer.innerHTML = html;
     }
 };
+
+export function toggleScannerHud() {
+    const body = document.getElementById("inv-hud-body");
+    const btn = document.getElementById("hud-collapse-btn");
+    if (!body) return;
+    const open = body.style.display === "none";
+    body.style.display = open ? "flex" : "none";
+    if (btn) {
+        btn.textContent = open ? "▾" : "▸";
+        btn.setAttribute("aria-expanded", String(open));
+    }
+}
+
+exposeGlobals({ toggleScannerHud }, "ui.components/ui_scanner_hud.js");

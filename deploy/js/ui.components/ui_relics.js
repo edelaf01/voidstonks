@@ -186,6 +186,7 @@ function renderRelicStatusBadge(relicName) {
     statusBadge.dataset.tooltip = t.vaulted;
   }
 }
+// builds the whole row in one innerHTML; split it by block if it needs changes again
 function createRelicDropRow(item) {
   const row = document.createElement("div");
   row.className = "component-row";
