@@ -291,11 +291,11 @@ export function initGlobalTooltipSystem() {
 export function initDisclaimerSystem() {
   setTimeout(() => {
     const disclaimer = document.getElementById("txt-disclaimer");
-    if (disclaimer) {
-      disclaimer.classList.add("fade-out");
-      setTimeout(() => {
-        disclaimer.style.display = "none";
-      }, 2000);
-    }
+    if (!disclaimer) return;
+    if (disclaimer.closest(".site-footer.in-scroll")) return;
+    disclaimer.classList.add("fade-out");
+    setTimeout(() => {
+      disclaimer.style.display = "none";
+    }, 2000);
   }, 8000);
 }
