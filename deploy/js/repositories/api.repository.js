@@ -150,7 +150,7 @@ export async function getArcaneBatch(chunk) {
 }
 
 export async function getActiveBounties() {
-    return fetchWithTimeout(`${WORKER_URL}?type=active_bounties`);
+    return fetchWithTimeout(`${WORKER_URL}?type=active_bounties&v=2`);
 }
 
 export async function getActiveFissures(force = false) {

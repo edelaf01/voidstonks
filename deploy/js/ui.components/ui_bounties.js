@@ -3,7 +3,7 @@ import { TEXTS, VANIA_NAMES, CHALLENGE_MAP } from "../config.js";
 import { fetchActiveBounties } from "../api.js";
 import { escapeHTML, showToast } from "./ui_components.js";
 import { exposeGlobals } from "../utils/global_registry.js";
-import { serverNow } from "../utils/server_clock.js";
+import { serverNow, isClockSynced } from "../utils/server_clock.js";
 import {
   getAlarmPrefs,
   saveAlarmPrefs,
@@ -682,19 +682,22 @@ export async function renderBountiesTab(force = false) {
     const now = serverNow();
     let anyExpired = false;
 
+    const margin = isClockSynced() ? 0 : 5 * 60 * 1000;
+
     expiryTimes.forEach((item) => {
       const el = document.getElementById(item.id);
       if (!el) return;
       const diff = item.at - now;
-      if (diff <= 0) {
+      if (diff <= -margin) {
         anyExpired = true;
         el.textContent = t.lblRotating || "ROTATING...";
         el.classList.add("expired");
         return;
       }
-      const h = Math.floor(diff / (1000 * 60 * 60));
-      const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-      const s = Math.floor((diff % (1000 * 60)) / 1000);
+      const safe = Math.max(0, diff);
+      const h = Math.floor(safe / (1000 * 60 * 60));
+      const m = Math.floor((safe % (1000 * 60 * 60)) / (1000 * 60));
+      const s = Math.floor((safe % (1000 * 60)) / 1000);
       el.classList.remove("expired");
       el.classList.toggle("urgent", diff < 3600000);
       el.textContent = `${t.lblEndsIn || "Ends:"} ${h}h ${m}m ${s}s`;
