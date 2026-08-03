@@ -25,6 +25,41 @@ const SKIP = (name, path) =>
     name.startsWith("tesseract") ||
     path.includes("opencv");
 
+/**
+ * Sello de versión del build. En CI viene el SHA del commit; en local, la fecha, para que
+ * dos builds seguidos no colisionen.
+ */
+const BUILD_ID = (process.env.GITHUB_SHA || "").slice(0, 8) || `dev${Date.now().toString(36)}`;
+
+/**
+ * Reescribe TODOS los ?v=… a un mismo sello por build, y añade uno a los imports que no lo
+ * llevan.
+ *
+ * El versionado manual venía fallando de dos maneras a la vez: unos imports llevaban ?v= y
+ * otros no (ui_vosfor.js?v=2.9 sí, ui_bounties.js no), y el que lo llevaba había que acordarse
+ * de subirlo. Cuando se olvidaba, Cloudflare seguía sirviendo el módulo anterior durante horas
+ * y el resultado era HTML nuevo ejecutando JS viejo: contadores parados, estilos a medias.
+ *
+ * Con un sello único por commit basta con que el HTML esté fresco (lo garantiza _headers) para
+ * que TODA la cadena de módulos se invalide de golpe.
+ */
+function stampVersions(code) {
+    return code
+        // Rutas ya versionadas: se unifican al sello del build.
+        .replace(/(["'])([^"']+\.(?:js|css))\?v=[^"']*\1/g, `$1$2?v=${BUILD_ID}$1`)
+        // Imports estáticos relativos sin versión (los que se quedaban cacheados).
+        .replace(/(from\s*|import\s*)(["'])(\.{1,2}\/[^"']+\.js)\2/g,
+            `$1$2$3?v=${BUILD_ID}$2`)
+        // import() dinámico: lo usan el scanner, los servicios de riven y el vigilante de
+        // precios. Se cargan en caliente, así que sin sello son justo los que más tiempo
+        // pueden quedarse en una versión vieja dentro de una sesión ya abierta.
+        .replace(/(import\s*\(\s*)(["'])(\.{1,2}\/[^"']+\.js)\2/g,
+            `$1$2$3?v=${BUILD_ID}$2`)
+        // <script src> y <link href> locales sin versión.
+        .replace(/((?:src|href)=)(["'])((?!https?:|\/\/)[^"']+\.(?:js|css))\2/g,
+            `$1$2$3?v=${BUILD_ID}$2`);
+}
+
 async function walk(dir) {
     const out = [];
     for (const ent of await readdir(dir, { withFileTypes: true })) {
@@ -41,7 +76,7 @@ async function main() {
     await cp(SRC, OUT, { recursive: true });
 
     const files = await walk(OUT);
-    let minified = 0, skipped = 0;
+    let minified = 0, skipped = 0, stamped = 0;
     for (const f of files) {
         if (extname(f) !== ".js") continue;
         const name = f.split("/").pop();
@@ -55,13 +90,32 @@ async function main() {
             format: "esm",
             legalComments: "none",
         });
-        await writeFile(f, res.code, "utf8");
+        // El sello va DESPUÉS de minificar: esbuild reescribe los literales de import y
+        // borraría un ?v= puesto antes.
+        await writeFile(f, stampVersions(res.code), "utf8");
         minified++;
+        stamped++;
     }
-    // Sanity: el tamaño de dist no debe ser mayor que el de deploy (la minificación reduce).
-    console.log(`[build-dist] Minificados ${minified} archivos JS, saltados ${skipped} (vendored). Salida en ${OUT}/`);
+
+    // El HTML no se minifica (ver cabecera), pero sí se sella: es la raíz de la cadena.
+    for (const f of files) {
+        if (extname(f) !== ".html") continue;
+        await writeFile(f, stampVersions(await readFile(f, "utf8")), "utf8");
+        stamped++;
+    }
+
+    console.log(`[build-dist] Minificados ${minified} JS, saltados ${skipped} (vendored).`);
+    console.log(`[build-dist] Sello de versión ?v=${BUILD_ID} en ${stamped} archivos. Salida en ${OUT}/`);
+
     // Verificación básica: dist debe existir y contener index.html.
     await stat(join(OUT, "index.html"));
+
+    // Guarda: si el HTML publicado se quedara sin sellar, los usuarios volverían a arrastrar
+    // módulos viejos y el síntoma sería difícil de atribuir. Mejor romper el deploy aquí.
+    const html = await readFile(join(OUT, "index.html"), "utf8");
+    if (!html.includes(`?v=${BUILD_ID}`)) {
+        throw new Error("index.html quedó sin sello de versión: revisa stampVersions()");
+    }
 }
 
 main().catch((e) => { console.error("[build-dist] FALLO:", e); process.exit(1); });

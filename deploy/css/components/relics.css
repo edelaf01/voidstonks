@@ -23,7 +23,8 @@
 .faction-header {
     background: linear-gradient(90deg,
             rgba(255, 255, 255, 0.05) 0%,
-            transparent 80%);
+            transparent 80%),
+        var(--wf-bg);
     border-left-width: 4px;
     border-left-style: solid;
     padding: 12px 15px;
@@ -34,6 +35,13 @@
     margin-top: 10px;
     margin-bottom: 5px;
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+    /* Sticky: en grupos largos se perdía de vista a qué sindicato pertenecía la
+       misión que estabas leyendo, y el contador de rotación vive aquí. El fondo
+       lleva --wf-bg detrás del degradado porque las tarjetas pasan por debajo.
+       top ≈ alto de .farm-chipbar, que se pega por encima (z-index 4). */
+    position: sticky;
+    top: 40px;
+    z-index: 3;
 }
 
 .faction-name {
@@ -190,62 +198,173 @@
     flex-wrap: wrap;
 }
 
+/* Título propio en vez de .panel-main-header: aquel traía glow, letter-spacing de
+   2px y un hover que teñía la cabecera de rosa — mucho ruido para un encabezado
+   que solo tiene que situarte. */
 .farms-title {
-    margin: 0;
-    border-radius: 4px;
-    flex-grow: 1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1 1 auto;
+    min-width: 0;
+    padding-left: 10px;
+    font-size: 0.95rem;
+    font-weight: 800;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    color: #e8eaed;
+    border-left: 3px solid var(--wf-blue);
+}
+
+.farms-title .info-icon {
+    font-size: 0.85em;
+    opacity: 0.65;
+    cursor: help;
+    transition: opacity 0.18s;
+}
+
+.farms-title .info-icon:hover {
+    opacity: 1;
 }
 
 .farms-actions {
     display: flex;
     gap: 8px;
-    align-items: stretch;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+/* Segmento Óptimas | Todas. Sustituye al botón que cambiaba de texto ("SOLO
+   ÓPTIMAS" / "MOSTRANDO TODO"): había que leerlo entero para saber en qué modo
+   estabas, y no se veía que existiera la otra opción. */
+.farm-segment {
+    display: inline-flex;
+    padding: 3px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 8px;
+}
+
+.farm-seg-btn {
+    padding: 6px 13px;
+    font-family: inherit;
+    font-size: 0.76rem;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    color: #9aa0aa;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: color 0.18s, background 0.18s;
+}
+
+.farm-seg-btn:hover:not(.active) {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.farm-seg-btn.active {
+    color: #062a30;
+    background: var(--wf-blue);
 }
 
 .farm-action-btn {
-    font-weight: 800;
-    font-size: 0.75em;
-    padding: 0 12px;
-    height: 46px;
-    border: 1px solid #444;
-    color: #888;
-    background: transparent;
-    cursor: pointer;
-    border-radius: 4px;
     display: inline-flex;
     align-items: center;
-    gap: 5px;
-    transition: color 0.2s, border-color 0.2s, background 0.2s;
+    gap: 6px;
+    padding: 8px 13px;
+    font-family: inherit;
+    font-size: 0.76rem;
+    font-weight: 700;
+    color: #9aa0aa;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: color 0.18s, border-color 0.18s, background 0.18s;
 }
 
 .farm-action-btn:hover {
     color: #fff;
-    border-color: #666;
+    border-color: rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.06);
 }
 
+.farm-btn-icon {
+    font-size: 0.95em;
+    line-height: 1;
+}
+
+/* En pantallas estrechas el título y los controles no caben en una línea: el
+   texto de la campana se va (queda icono + contador, que es lo informativo) y el
+   segmento se estira para que ambas opciones sigan siendo cómodas de tocar. */
+@media (max-width: 560px) {
+    .farms-header {
+        gap: 8px;
+    }
+
+    .farms-title {
+        flex-basis: 100%;
+    }
+
+    .farms-actions {
+        flex: 1 1 100%;
+    }
+
+    .farm-segment {
+        flex: 1 1 auto;
+    }
+
+    .farm-seg-btn {
+        flex: 1 1 0;
+    }
+
+    .farm-btn-label {
+        display: none;
+    }
+}
+
+/* Ámbar, no cian: el cian ya marca el segmento activo de al lado, y dos botones
+   contiguos del mismo color no dejan ver que dicen cosas distintas. */
 .farm-action-btn.active-filter {
-    /* --wf-blue es cian claro: el texto debe ser oscuro para tener contraste */
-    color: #062a30;
-    font-weight: 900;
-    background: var(--wf-blue);
-    border-color: var(--wf-blue);
+    color: #ffd98a;
+    border-color: rgba(255, 193, 7, 0.5);
+    background: rgba(255, 193, 7, 0.12);
+}
+
+.farm-action-btn.active-filter .farm-btn-icon {
+    filter: drop-shadow(0 0 5px rgba(255, 193, 7, 0.7));
 }
 
 .farm-action-btn.active-filter .alarm-count {
-    background: rgba(0, 0, 0, 0.25);
-    color: #062a30;
+    color: #2a1f05;
+    background: #ffc107;
 }
 
 .farm-action-btn .alarm-count {
-    font-size: 0.9em;
-    background: rgba(0, 0, 0, 0.35);
+    font-size: 0.88em;
+    font-weight: 800;
+    background: rgba(255, 255, 255, 0.12);
     border-radius: 8px;
     padding: 1px 6px;
     min-width: 10px;
+    text-align: center;
 }
 
 .farm-action-btn .alarm-count:empty {
     display: none;
+}
+
+.farm-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 40px;
+    color: #888;
 }
 
 /* ---- Chips de sindicato ---- */
@@ -253,8 +372,14 @@
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
-    padding: 0 5px;
+    padding: 6px 5px;
     margin-bottom: 6px;
+    /* Sticky por encima de las cabeceras de grupo (z-index 3): son el filtro y
+       deben seguir alcanzables al recorrer una rotación larga. */
+    position: sticky;
+    top: 0;
+    z-index: 4;
+    background: var(--wf-bg);
 }
 
 .farm-chip {
@@ -332,9 +457,21 @@
     font-size: 0.9em;
     color: #fff;
     font-family: monospace;
+    font-variant-numeric: tabular-nums;
     background: rgba(0, 0, 0, 0.3);
     padding: 2px 6px;
     border-radius: 4px;
+    white-space: nowrap;
+}
+
+.faction-timer.urgent {
+    color: #ffcf6b;
+    background: rgba(255, 193, 7, 0.14);
+}
+
+.faction-timer.expired {
+    color: #ff8080;
+    background: rgba(255, 68, 68, 0.16);
 }
 
 .faction-group .faction-body {
@@ -356,6 +493,159 @@
 
 .faction-group.collapsed .arrow-icon {
     transform: rotate(-90deg);
+}
+
+/* ---- Tarjeta de misión ---- */
+/* Sustituyen a los estilos inline que montaba getBountyMissionHtml. */
+.bounty-type {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.bounty-tech {
+    padding: 2px 7px;
+    font-size: 0.66em;
+    font-weight: 800;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    color: var(--wf-blue);
+    background: rgba(0, 229, 255, 0.1);
+    border-radius: 4px;
+}
+
+.bounty-name {
+    flex: 1;
+    min-width: 0;
+    font-weight: 600;
+    color: #fff;
+}
+
+/* Las no-óptimas se atenúan, pero solo el texto: bajar la opacidad de la tarjeta
+   entera (como hacía el inline) apagaba también el badge de tier y el borde SP,
+   que son justo lo que distingue una fila de otra al recorrer la lista. */
+.bounty-wrapper:not(.optimal-farm) .bounty-info {
+    opacity: 0.72;
+}
+
+/* --tier-color lo pone el JS según el tier. */
+.tier-badge {
+    padding: 1px 6px;
+    font-size: 0.7em;
+    font-weight: 900;
+    border-radius: 3px;
+    white-space: nowrap;
+    color: var(--tier-color, #888);
+    border: 1px solid color-mix(in srgb, var(--tier-color, #888) 40%, transparent);
+}
+
+.tier-badge.special {
+    background: color-mix(in srgb, var(--tier-color, #888) 12%, transparent);
+}
+
+.bounty-levels {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 5px;
+    font-size: 0.82em;
+}
+
+.bounty-lvl {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-weight: 700;
+    color: #aaa;
+}
+
+.bounty-lvl.is-sp {
+    color: #ff6b6b;
+}
+
+.bounty-lvl-sep {
+    color: #444;
+}
+
+/* El standing es lo que se compara entre misiones del mismo sindicato: se lee como
+   dato con peso propio, no como paréntesis colgando del nivel. */
+.bounty-standing {
+    padding: 0 5px;
+    font-size: 0.92em;
+    font-weight: 800;
+    color: #8f8;
+    background: rgba(136, 255, 136, 0.1);
+    border-radius: 3px;
+}
+
+.bounty-wrapper.optimal-farm {
+    border-color: rgba(197, 168, 86, 0.45);
+}
+
+.bounty-condition {
+    display: flex;
+    align-items: baseline;
+    gap: 7px;
+    margin-top: 9px;
+    padding: 6px 10px;
+    font-size: 0.82em;
+    line-height: 1.4;
+    color: #ccc;
+    white-space: normal;
+    background: rgba(255, 255, 255, 0.04);
+    border-left: 3px solid #666;
+    border-radius: 0 4px 4px 0;
+}
+
+.bounty-condition-tag {
+    flex-shrink: 0;
+    font-size: 0.78em;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    color: #8f8;
+}
+
+.bounty-side-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+/* --reward-color lo pone el JS con el color del sindicato. */
+.bounty-rewards-btn::after {
+    content: " ▾";
+    display: inline-block;
+    font-size: 0.85em;
+    transition: transform 0.25s;
+}
+
+.bounty-rewards-btn.open::after {
+    transform: rotate(180deg);
+}
+
+/* ---- Aviso de estrategia (Ostrons/Aya) ---- */
+.farm-tip {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin: 0 0 12px;
+    padding: 11px 13px;
+    font-size: 0.84rem;
+    line-height: 1.45;
+    color: #ddd;
+    background: rgba(197, 168, 86, 0.08);
+    border: 1px solid rgba(197, 168, 86, 0.35);
+    border-radius: 7px;
+}
+
+.farm-tip-title {
+    font-size: 0.74rem;
+    font-weight: 800;
+    letter-spacing: 0.7px;
+    color: var(--wf-gold-text);
 }
 
 /* ---- Panel de alarmas ---- */

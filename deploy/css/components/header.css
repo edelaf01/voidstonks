@@ -284,6 +284,11 @@
 
 .tab-btn {
     flex: 1;
+    /* min-width:0 deja que flex encoja el boton por debajo de su contenido: sin
+       esto el nowrap del texto fijaba un ancho minimo y ocho pestañas empujaban
+       la barra fuera de la tarjeta en cuanto la ventana bajaba de ~1000px. El
+       reparto real (cuantas caben) lo decide reflowTabs(). */
+    min-width: 0;
     padding: 10px 5px;
     background: 0 0;
     border: 0;
@@ -291,7 +296,10 @@
     cursor: pointer;
     font-weight: 700;
     font-size: 0.85em;
-    transition: 0.3s;
+    /* Solo color/fondo/borde. Con `transition: 0.3s` (todas las propiedades)
+       cualquier cambio de reparto —abrir "Más", esconder una pestaña— animaba
+       tambien flex-basis y padding, y la fila entera se veia deslizarse. */
+    transition: background 0.3s, color 0.3s, border-color 0.3s;
     border-bottom: 3px solid transparent;
     display: flex;
     align-items: center;
@@ -300,6 +308,17 @@
     z-index: 1;
     position: relative;
     margin-bottom: -2px;
+}
+
+/* Etiqueta: se recorta con puntos suspensivos antes que desbordar el boton. */
+.tab-btn > span:not(.tab-more-chevron) {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Las que reflowTabs() manda al abanico. */
+.tab-btn.is-overflow {
+    display: none;
 }
 
 .tab-btn:hover {
@@ -314,9 +333,13 @@
     border-bottom-color: var(--active-theme-color);
 }
 
+/* 2rem, no 3rem: a 48px el icono era mas alto que la propia barra (45px), obligaba
+   a cada pestaña a pedir ~120px y era el motivo de que ocho no cupieran en pantallas
+   normales. A 32px siguen reconociendose y entran dos pestañas mas antes del abanico. */
 .tab-icon-img {
-    width: 3rem;
-    height: 3rem;
+    width: 2rem;
+    height: 2rem;
+    flex-shrink: 0;
     object-fit: contain;
     vertical-align: middle;
     margin-right: 6px;
@@ -329,11 +352,129 @@
     filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.6));
 }
 
-/* El boton "Más" y su abanico son exclusivos de movil */
-.tab-more-btn,
-.tab-fan,
+/* El icono de Reliquia es una escena con cuatro reliquias, no una silueta unica: a 32px
+   se le pierde el detalle. Se agranda solo este, con margen negativo para que no empuje
+   al resto de pestañas y no deshaga el ajuste de ancho de arriba. */
+#btn-relic .tab-icon-img {
+    width: 2.5rem;
+    height: 2.5rem;
+    margin-top: -0.25rem;
+    margin-bottom: -0.25rem;
+}
+
+/* ---- Desbordamiento de pestañas (escritorio) ----
+   El boton "Más" solo aparece cuando reflowTabs() ha escondido alguna: sin
+   .is-needed ocupa un hueco para abrir un menu vacio. */
+.tab-more-btn {
+    display: none;
+}
+
+.tab-more-btn.is-needed {
+    display: flex;
+    flex: 0 0 auto;
+    gap: 5px;
+    padding-left: 14px;
+    padding-right: 14px;
+}
+
+.tab-more-btn .tab-more-chevron {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.1rem;
+    height: 1.1rem;
+}
+
+.tab-more-btn .tab-more-chevron svg {
+    width: 100%;
+    height: 100%;
+    transition: transform 0.25s ease;
+}
+
+.tab-more-btn.is-open {
+    color: #fff;
+    background: #222;
+}
+
+.tab-more-btn.is-open .tab-more-chevron svg {
+    transform: rotate(180deg);
+}
+
+/* En escritorio el abanico es un desplegable anclado bajo el boton, no el velo a
+   pantalla completa de movil: aqui hay sitio y taparlo todo para elegir una
+   pestaña resulta desproporcionado. El velo se reserva para el modo tactil. */
 .tab-fan-overlay {
     display: none;
+}
+
+/* position:fixed, no absolute: #tab-fan vive fuera de .card (su overflow:hidden
+   recortaria el menu), asi que en el flujo normal es un bloque hermano al final del
+   body y al mostrarlo empujaba la pagina hacia abajo. Fijo lo saca del flujo; las
+   coordenadas las pone placeFan() a partir del boton. */
+.tab-fan {
+    display: none;
+    position: fixed;
+    z-index: 6000;
+    min-width: 190px;
+    padding: 6px;
+    background: #1a1d22;
+    border: 1px solid #2f343c;
+    border-radius: 0 0 10px 10px;
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.55);
+}
+
+.tab-fan:not([hidden]) {
+    display: block;
+}
+
+.tab-fan-item {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    width: 100%;
+    padding: 9px 11px;
+    font-family: inherit;
+    font-size: 0.84em;
+    font-weight: 700;
+    text-align: left;
+    color: #b9bfc8;
+    background: none;
+    border: 0;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: color 0.15s, background 0.15s;
+}
+
+.tab-fan-item:hover,
+.tab-fan-item.is-highlighted {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.07);
+}
+
+.tab-fan-item.is-active {
+    color: var(--active-theme-color);
+    background: rgba(255, 255, 255, 0.05);
+}
+
+/* Sirve para <img> y para el <span> con emoji (Mis ordenes): el centrado flex no
+   afecta a la imagen y alinea el glifo en la misma caja. */
+.tab-fan-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.6rem;
+    height: 1.6rem;
+    flex-shrink: 0;
+    object-fit: contain;
+    font-size: 1.1rem;
+    line-height: 1;
+}
+
+.tab-fan-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 /* ---- Forms ---- */
@@ -524,4 +665,36 @@ option {
     border-color: var(--wf-blue);
     color: var(--wf-blue);
     background: rgba(0, 229, 255, 0.05);
+}
+/* ---- Badge "WIP" en una pestaña en construcción ----
+   En flujo (no absoluto): la barra reparte el ancho con reflowTabs() y un badge
+   posicionado se saldría al encoger. El punto que late lo distingue sin depender del
+   texto, para cuando la pestaña queda en modo icono. */
+.tab-wip-badge {
+    margin-left: 5px;
+    padding: 1px 5px;
+    font-size: 0.6em;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    color: #1a1e24;
+    background: var(--wf-gold-text, #dda938);
+    border-radius: 4px;
+    vertical-align: middle;
+    flex-shrink: 0;
+}
+
+/* La pestaña en construcción se ve algo apagada, para que no invite tanto como las
+   que sí funcionan. El badge se queda a plena intensidad. */
+.tab-btn.is-wip:not(.active) {
+    opacity: 0.72;
+}
+
+@media (max-width: 768px) {
+    /* En móvil, donde el texto puede ocultarse, el badge se reduce a un punto. */
+    .tab-wip-badge {
+        font-size: 0;
+        padding: 4px;
+        margin-left: 4px;
+        border-radius: 50%;
+    }
 }

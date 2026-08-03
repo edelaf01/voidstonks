@@ -33,6 +33,9 @@ export default [
                 Tesseract: "readonly",
                 Chart: "readonly",
                 state: "writable",
+                // Expuesto en globalThis por ui_components.js: los scripts planos del
+                // scanner (no-módulos) no pueden importarlo.
+                showToast: "readonly",
                 ScannerService: "writable",
                 RivenScannerHUD: "writable",
                 OpenCVEngine: "writable",

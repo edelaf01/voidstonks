@@ -1,32 +1,15 @@
-import { getActiveFissures, getArbitration, getServerTime } from "../repositories/api.repository.js";
-
-globalThis._serverTimeOffset = globalThis._serverTimeOffset || 0;
+import { getActiveFissures, getArbitration } from "../repositories/api.repository.js";
+import { serverNow, syncServerClock } from "../utils/server_clock.js";
 
 // Sincronización de reloj: UNA llamada mínima no cacheable por sesión. La cabecera Date de las
 // respuestas de datos NO sirve para esto: llegan de la caché edge/navegador (con SWR) con la
 // Date de cuando se generaron, y usarla inflaba los contadores con la antigüedad de la respuesta
 // (p. ej. mostrar 1h27m cuando quedaban 40m).
-let _clockSyncPromise = null;
+//
+// La implementación vive en utils/server_clock.js: farms tenía el mismo problema (contador en
+// negativo => "ROTATING" con la rotación viva) y tener dos copias del cálculo las dejaba
+// divergir. _clockSynced sigue aquí porque solo lo usa el rescate por heurística de más abajo.
 let _clockSynced = false;
-
-function syncServerClock() {
-    if (!_clockSyncPromise) {
-        _clockSyncPromise = (async () => {
-            try {
-                const res = await getServerTime();
-                if (!res.ok) return;
-                const body = await res.json();
-                if (typeof body?.now === "number") {
-                    globalThis._serverTimeOffset = Date.now() - body.now;
-                    _clockSynced = true;
-                }
-            } catch (e) {
-                console.warn("[FISSURES] No se pudo sincronizar el reloj con el servidor:", e);
-            }
-        })();
-    }
-    return _clockSyncPromise;
-}
 
 // Cache en memoria del worldstate (global y de cambio lento): limita las llamadas al worker
 // (límite 100k/día) y evita parpadeos al re-renderizar el panel.
@@ -131,7 +114,8 @@ export async function fetchAllFissures(force = false) {
             let fissures = await res.json();
 
             if (typeof fissures === "string") {
-                try { fissures = JSON.parse(fissures); } catch (e) {//TODO elaborar mas el handler igual esto no hace falta
+                // Algunas respuestas del parser llegan como string JSON en vez de objeto.
+                try { fissures = JSON.parse(fissures); } catch (e) {
                     console.error("Error al parsear las fisuras", e);
                 }
             }

@@ -52,9 +52,8 @@ class GridCellEditor {
         try {
             const s = localStorage.getItem('vs_scanner_grid_offset');
             if (s) return JSON.parse(s);
-        } catch (e) {
-            Ç
-            //SHOULD CATCH
+        } catch {
+            // localStorage no disponible o JSON corrupto: se cae al offset neutro.
         }
         return { dx: 0, dy: 0 };
     }

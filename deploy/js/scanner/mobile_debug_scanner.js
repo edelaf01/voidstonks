@@ -1,7 +1,7 @@
 import { MobileScanner } from "./mobile_scanner.js";
 import { OCRRepository } from "../repositories/ocr.repository.js";
 import { OCRService } from "../services/ocr.service.js?v=264";
-import { showToast } from "../ui.components/ui_components.js";
+import { escapeHTML, showToast } from "../ui.components/ui_components.js";
 
 
 export class MobileDebugScanner extends MobileScanner {
@@ -58,7 +58,7 @@ export class MobileDebugScanner extends MobileScanner {
                 if (matches.length > 0) {
                     const entry = document.createElement("div");
                     entry.style.cssText = "padding:2px 0; border-bottom:1px solid #222;";
-                    entry.innerHTML = `<span style="color:#00ff78;">[${new Date().toLocaleTimeString()}]</span> ${matches.map(m => m.name).join(", ")}`;
+                    entry.innerHTML = `<span style="color:#00ff78;">[${new Date().toLocaleTimeString()}]</span> ${matches.map(m => escapeHTML(m.name)).join(", ")}`;
                     this.liveLog.prepend(entry);
                 } else if (this.frameCounter % 10 === 0) {
                     // Show heartbeat every 10 frames if empty to show it's working
@@ -267,7 +267,8 @@ export class MobileDebugScanner extends MobileScanner {
         guide.style.maxWidth = "none";
         guide.style.userSelect = "none";
         guide.style.overflow = "visible";
-        //TODO mal uso z index en general 
+        // z-index ad-hoc: este overlay compite con el HUD y el modal del escáner.
+        // Falta una escala de capas común (--z-hud/--z-modal) en vez de números sueltos.
         guide.style.zIndex = "1000000";
 
         const handle = document.createElement("div");

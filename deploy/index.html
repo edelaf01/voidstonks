@@ -82,14 +82,15 @@
 
   <link rel="stylesheet" href="css/components/inventory.css?v=1.4" />
   <link rel="stylesheet" href="css/components/sets.css?v=1.0" />
-  <link rel="stylesheet" href="css/components/relics.css?v=1.1" />
-  <link rel="stylesheet" href="css/components/scanner.css?v=1.0" />
+  <link rel="stylesheet" href="css/components/relics.css?v=1.2" />
+  <link rel="stylesheet" href="css/components/scanner.css?v=1.1" />
   <link rel="stylesheet" href="css/components/riven-scanner.css?v=1.0" />
   <link rel="stylesheet" href="css/components/modals.css?v=1.0" />
-  <link rel="stylesheet" href="css/components/header.css?v=1.1" />
-  <link rel="stylesheet" href="styles.css?v=3.6" />
+  <link rel="stylesheet" href="css/components/header.css?v=1.2" />
+  <link rel="stylesheet" href="styles.css?v=3.7" />
   <link rel="stylesheet" href="css/components/riven-grader.css?v=1.3" />
-  <link rel="stylesheet" href="css/components/vosfor.css?v=1.2" />
+  <link rel="stylesheet" href="css/components/vosfor.css?v=1.4" />
+  <link rel="stylesheet" href="css/components/orders.css?v=1.0" />
   <link rel="icon" type="image/png" href="https://wiki.warframe.com/images/VoidTraces.png" />
 
   <!-- OpenCV y Tesseract se cargan BAJO DEMANDA al abrir el escáner
@@ -251,456 +252,109 @@
     </div>
   </div>
 
-  <!-- Floating Scanner HUD -->
-  <div id="inv-hud" style="
-        display: none;
-        position: fixed;
-        top: 80px;
-        right: 20px;
-        width: 290px;
-        z-index: 10001;
-        font-family: &quot;Segoe UI&quot;, system-ui, sans-serif;
-        user-select: none;
-        color: #e0e0e0;
-      ">
-    <!-- ── HEADER  ──────────────────────── -->
-    <div id="inv-hud-header" style="
-          background: linear-gradient(135deg, #0a0c14 0%, #0d1322 100%);
-          border: 1px solid rgba(0, 229, 255, 0.4);
-          border-bottom: none;
-          border-radius: 8px 8px 0 0;
-          padding: 9px 12px;
-          cursor: grab;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-        ">
-      <!-- Left: icon + title + counter -->
-      <div style="display: flex; align-items: center; gap: 8px">
-        <span id="hud-status-dot" style="
-              width: 7px;
-              height: 7px;
-              border-radius: 50%;
-              background: #00e5ff;
-              box-shadow: 0 0 8px #00e5ff;
-              display: inline-block;
-              flex-shrink: 0;
-            "></span>
-        <span id="hud-title" style="
-              font-size: 0.7em;
-              font-weight: 800;
-              letter-spacing: 2px;
-              color: #00e5ff;
-            ">VOIDSCANNER</span>
-        <span id="live-inv-count" style="
-              font-weight: 900;
-              color: #f1c40f;
-              padding: 1px 7px;
-              background: rgba(241, 196, 15, 0.12);
-              border: 1px solid rgba(241, 196, 15, 0.25);
-              border-radius: 10px;
-              font-size: 0.75em;
-            ">0</span>
+  <!-- Floating Scanner HUD. Los estilos viven en css/components/scanner.css
+       (#inv-hud y .hud-*); antes iban inline con el :hover emulado en JS. -->
+  <!-- display inline a propósito: ScannerHUD.updateDetectedItems compara
+       hud.style.display === "none" para decidir si reabrirlo, y con el display
+       solo en la hoja esa lectura devuelve "" y el HUD no volvía a aparecer. -->
+  <div id="inv-hud" style="display: none">
+    <!-- ── HEADER (asa de arrastre) ──────────────────────── -->
+    <div id="inv-hud-header" class="hud-header">
+      <div class="hud-header-left">
+        <span id="hud-status-dot" class="hud-status-dot"></span>
+        <span id="hud-title" class="hud-title">VOIDSCANNER</span>
+        <span id="live-inv-count" class="hud-count">0</span>
       </div>
-      <!-- Right -->
-      <div style="display: flex; align-items: center; gap: 5px">
-        <span id="hud-context-badge" style="
-              font-size: 0.58em;
-              font-weight: 700;
-              letter-spacing: 1px;
-              padding: 2px 7px;
-              border-radius: 10px;
-              background: rgba(0, 229, 255, 0.12);
-              border: 1px solid rgba(0, 229, 255, 0.3);
-              color: #00e5ff;
-            ">IDLE</span>
+      <div class="hud-header-right">
+        <span id="hud-context-badge" class="hud-context-badge">IDLE</span>
 
-        <button id="btn-debug-toggle" onclick="globalThis.toggleScannerDebug()"
-          title="Toggle debug mode (shows OCR diagnostic image)" style="
-              background: none;
-              border: 1px solid #2a3040;
-              color: #506070;
-              font-size: 0.58em;
-              padding: 2px 6px;
-              cursor: pointer;
-              border-radius: 4px;
-              transition: all 0.2s;
-              letter-spacing: 1px;
-            ">
+        <button type="button" id="btn-debug-toggle" class="hud-icon-btn" onclick="globalThis.toggleScannerDebug()"
+          title="Toggle debug mode (shows OCR diagnostic image)">
           DBG
         </button>
-        <button id="hud-collapse-btn" onclick="
-              (function () {
-                var b = document.getElementById('inv-hud-body');
-                var open = b.style.display !== 'none';
-                b.style.display = open ? 'none' : 'flex';
-                document.getElementById('hud-collapse-btn').textContent = open
-                  ? '▸'
-                  : '▾';
-              })()
-            " style="
-              background: rgba(255, 255, 255, 0.03);
-              border: 1px solid #2a3040;
-              color: #506070;
-              font-size: 0.65em;
-              cursor: pointer;
-              padding: 2px 6px;
-              border-radius: 4px;
-              line-height: 1.2;
-              transition: all 0.2s;
-            ">
+        <button type="button" id="hud-collapse-btn" class="hud-icon-btn is-collapse"
+          onclick="globalThis.toggleScannerHud()" aria-expanded="true" aria-controls="inv-hud-body">
           ▾
         </button>
       </div>
     </div>
 
-    <div id="inv-hud-body" style="
-          background: rgba(9, 11, 18, 0.96);
-          border: 1px solid rgba(0, 229, 255, 0.2);
-          border-top: 1px solid rgba(0, 229, 255, 0.08);
-          border-radius: 0 0 8px 8px;
-          backdrop-filter: blur(12px);
-          box-shadow:
-            0 8px 32px rgba(0, 0, 0, 0.7),
-            inset 0 1px 0 rgba(0, 229, 255, 0.05);
-          display: flex;
-          flex-direction: column;
-          overflow: hidden;
-        ">
-      <div style="
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 5px 12px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-            font-size: 0.6em;
-            color: #506070;
-            letter-spacing: 1px;
-          ">
+    <div id="inv-hud-body" class="hud-body">
+      <div class="hud-statusbar">
         <span id="live-inv-msg">READY</span>
-        <span id="hud-scan-counter" style="color: #2a3a4a">FRAMES: 0</span>
+        <span id="hud-scan-counter" class="hud-frames">FRAMES: 0</span>
       </div>
 
-      <div style="
-            display: flex;
-            gap: 6px;
-            padding: 9px 10px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-          ">
-        <button id="btn-manual-scan" onclick="globalThis.manualPrecisionScan()" style="
-              flex: 2;
-              background: rgba(0, 229, 255, 0.1);
-              border: 1px solid rgba(0, 229, 255, 0.55);
-              color: #00e5ff;
-              font-size: 0.68em;
-              padding: 7px 4px;
-              cursor: pointer;
-              border-radius: 5px;
-              font-weight: 800;
-              letter-spacing: 1px;
-              box-shadow: 0 0 14px rgba(0, 229, 255, 0.2);
-              transition: all 0.15s;
-              white-space: nowrap;
-            " onmouseover="
-              this.style.background = 'rgba(0,229,255,0.2)';
-              this.style.boxShadow = '0 0 22px rgba(0,229,255,0.4)';
-            " onmouseout="
-              this.style.background = 'rgba(0,229,255,0.1)';
-              this.style.boxShadow = '0 0 14px rgba(0,229,255,0.2)';
-            ">
+      <div class="hud-actions">
+        <button type="button" id="btn-manual-scan" class="hud-btn primary" onclick="globalThis.manualPrecisionScan()">
           ⌖ SCAN PAGE
         </button>
 
-        <button id="btn-auto-scan" onclick="globalThis.toggleAutoScrollScan()"
-          title="Auto-scan when page changes after scroll" style="
-              flex: 1.2;
-              background: rgba(0, 255, 120, 0.06);
-              border: 1px solid rgba(0, 255, 120, 0.25);
-              color: #4a7a5a;
-              font-size: 0.62em;
-              padding: 7px 4px;
-              cursor: pointer;
-              border-radius: 5px;
-              font-weight: 800;
-              letter-spacing: 0.5px;
-              transition: all 0.2s;
-              white-space: nowrap;
-            " onmouseover="this.style.background = 'rgba(0,255,120,0.12)'" onmouseout="
-              this.style.background =
-                document.getElementById('btn-auto-scan').dataset.active === '1'
-                  ? 'rgba(0,255,120,0.15)'
-                  : 'rgba(0,255,120,0.06)'
-            " data-active="0">
+        <button type="button" id="btn-auto-scan" class="hud-btn toggle" data-active="0"
+          onclick="globalThis.toggleAutoScrollScan()" title="Auto-scan when page changes after scroll">
           ⟳ AUTO
         </button>
 
-        <button id="btn-save-inv" onclick="globalThis.saveLiveInventory()" style="
-              flex: 1.5;
-              background: rgba(0, 229, 255, 0.06);
-              border: 1px solid rgba(0, 229, 255, 0.25);
-              color: #7cada8;
-              font-size: 0.68em;
-              padding: 7px 4px;
-              cursor: pointer;
-              border-radius: 5px;
-              font-weight: 700;
-              letter-spacing: 0.5px;
-              transition: all 0.15s;
-            " onmouseover="
-              this.style.background = 'rgba(0,229,255,0.12)';
-              this.style.color = '#00e5ff';
-            " onmouseout="
-              this.style.background = 'rgba(0,229,255,0.06)';
-              this.style.color = '#7cada8';
-            ">
+        <button type="button" id="btn-save-inv" class="hud-btn save" onclick="globalThis.saveLiveInventory()">
           ↓ SAVE
         </button>
 
-        <button onclick="globalThis.clearLiveSessionInventory()" title="Clear this scan session" style="
-              background: none;
-              border: 1px solid rgba(255, 255, 255, 0.1);
-              color: #506070;
-              font-size: 0.68em;
-              padding: 7px 8px;
-              cursor: pointer;
-              border-radius: 5px;
-              transition: all 0.15s;
-            " onmouseover="
-              this.style.color = '#e07070';
-              this.style.borderColor = 'rgba(224,112,112,0.4)';
-            " onmouseout="
-              this.style.color = '#506070';
-              this.style.borderColor = 'rgba(255,255,255,0.1)';
-            ">
+        <button type="button" class="hud-btn danger" onclick="globalThis.clearLiveSessionInventory()"
+          title="Clear this scan session">
           ✕
         </button>
       </div>
 
-      <div style="
-            padding: 0 10px 8px;
-            display: flex;
-            gap: 5px;
-            align-items: center;
-          ">
+      <div class="hud-subactions">
         <!-- RECALIBRATE deshabilitado: la rejilla se autodetecta (grid_detect.js) y se
-             cachea; la calibración manual ya solo existe como fallback interno.
-        <button id="btn-recalibrate" onclick="globalThis.LiveCalibration.clearCalibration()" style="
-              flex: 1;
-              background: none;
-              border: 1px solid rgba(255, 180, 50, 0.4);
-              color: #c8963a;
-              font-size: 0.6em;
-              padding: 5px 6px;
-              cursor: pointer;
-              border-radius: 4px;
-              font-weight: 700;
-              letter-spacing: 0.5px;
-              transition: all 0.15s;
-            " onmouseover="
-              this.style.background = 'rgba(255,180,50,0.1)';
-              this.style.borderColor = 'rgba(255,180,50,0.7)';
-              this.style.color = '#f0b040';
-            " onmouseout="
-              this.style.background = 'none';
-              this.style.borderColor = 'rgba(255,180,50,0.4)';
-              this.style.color = '#c8963a';
-            " title="Reset calibration and redo from scratch">
-          ⊹ RECALIBRATE
-        </button>
-        -->
+             cachea; la calibración manual ya solo existe como fallback interno. -->
 
-        <button id="btn-open-grid-editor" onclick="globalThis.openGridEditor()" style="
-              flex: 1;
-              background: none;
-              border: 1px solid rgba(0, 229, 255, 0.3);
-              color: #5090a0;
-              font-size: 0.6em;
-              padding: 5px 6px;
-              cursor: pointer;
-              border-radius: 4px;
-              font-weight: 700;
-              letter-spacing: 0.5px;
-              transition: all 0.15s;
-            " onmouseover="
-              this.style.background = 'rgba(0,229,255,0.1)';
-              this.style.borderColor = 'rgba(0,229,255,0.6)';
-              this.style.color = '#00e5ff';
-            " onmouseout="
-              this.style.background = 'none';
-              this.style.borderColor = 'rgba(0,229,255,0.3)';
-              this.style.color = '#5090a0';
-            " title="Fine-tune individual cell positions by dragging">
+        <button type="button" id="btn-open-grid-editor" class="hud-btn-sm cyan" onclick="globalThis.openGridEditor()"
+          title="Fine-tune individual cell positions by dragging">
           ✎ EDIT CELLS
         </button>
 
-        <button id="btn-reset-grid" onclick="globalThis.resetGrid()" style="
-              background: none;
-              border: 1px solid rgba(255, 180, 50, 0.35);
-              color: #c8963a;
-              font-size: 0.6em;
-              padding: 5px 8px;
-              cursor: pointer;
-              border-radius: 4px;
-              font-weight: 700;
-              letter-spacing: 0.5px;
-              transition: all 0.15s;
-            " onmouseover="
-              this.style.background = 'rgba(255,180,50,0.1)';
-              this.style.borderColor = 'rgba(255,180,50,0.7)';
-              this.style.color = '#f0b040';
-            " onmouseout="
-              this.style.background = 'none';
-              this.style.borderColor = 'rgba(255,180,50,0.35)';
-              this.style.color = '#c8963a';
-            " title="Descarta la rejilla autodetectada y la calibración guardada; se re-autodetecta en el próximo escaneo">
+        <button type="button" id="btn-reset-grid" class="hud-btn-sm amber" onclick="globalThis.resetGrid()"
+          title="Descarta la rejilla autodetectada y la calibración guardada; se re-autodetecta en el próximo escaneo">
           ↺ RESET GRID
         </button>
 
-        <!-- Reset de offsets deshabilitado junto con la recalibración manual.
-        <button onclick="globalThis.resetGridOffsets()" style="
-              background: none;
-              border: 1px solid rgba(255, 255, 255, 0.1);
-              color: #353d4a;
-              font-size: 0.6em;
-              padding: 5px 7px;
-              cursor: pointer;
-              border-radius: 4px;
-              transition: all 0.15s;
-            " onmouseover="
-              this.style.color = '#e07070';
-              this.style.borderColor = 'rgba(224,112,112,0.4)';
-            " onmouseout="
-              this.style.color = '#353d4a';
-              this.style.borderColor = 'rgba(255,255,255,0.1)';
-            " title="Reset all cell fine-tune offsets">
-          ↺
-        </button>
-        -->
+        <!-- Reset de offsets deshabilitado junto con la recalibración manual. -->
       </div>
 
-      <div id="btn-close-grid-editor" style="
-            position: fixed;
-            top: 12px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 5001;
-            background: rgba(0, 10, 20, 0.9);
-            border: 1px solid rgba(0, 229, 255, 0.5);
-            border-radius: 6px;
-            padding: 7px 18px;
-            display: none;
-            align-items: center;
-            gap: 12px;
-            font-family: &quot;Segoe UI&quot;, sans-serif;
-            box-shadow: 0 4px 20px rgba(0, 229, 255, 0.2);
-          ">
-        <span id="edit-mode-title" style="
-              font-size: 0.72em;
-              font-weight: 700;
-              letter-spacing: 1.5px;
-              color: #00e5ff;
-            ">CELL EDITOR ACTIVE</span>
-        <span id="edit-mode-guide" style="font-size: 0.65em; color: #506070">Click a cell to select · Drag or ↑↓←→ to
-          nudge</span>
-        <button id="btn-edit-done" onclick="globalThis.closeGridEditor()" style="
-              background: rgba(0, 229, 255, 0.15);
-              border: 1px solid rgba(0, 229, 255, 0.5);
-              color: #00e5ff;
-              font-size: 0.68em;
-              padding: 4px 12px;
-              border-radius: 4px;
-              cursor: pointer;
-              font-weight: 700;
-            ">
+      <div id="btn-close-grid-editor" class="hud-edit-bar">
+        <span id="edit-mode-title" class="hud-edit-title">CELL EDITOR ACTIVE</span>
+        <span id="edit-mode-guide" class="hud-edit-guide">Click a cell to select · Drag or ↑↓←→ to nudge</span>
+        <button type="button" id="btn-edit-done" class="hud-edit-done" onclick="globalThis.closeGridEditor()">
           ✓ DONE
         </button>
       </div>
 
-      <div id="live-debug-snapshot" style="display: none; padding: 0 10px 8px">
-        <div style="
-              display: flex;
-              justify-content: space-between;
-              align-items: center;
-              margin-bottom: 4px;
-            ">
-          <span id="lbl-ocr-debug" style="
-                font-size: 0.58em;
-                color: #506070;
-                font-weight: 700;
-                letter-spacing: 1px;
-                text-transform: uppercase;
-              ">OCR Debug Snapshot</span>
-          <button id="btn-copy-debug-log" onclick="globalThis.copyScannerDebugLog()" style="
-                background: none;
-                border: 1px solid rgba(0, 229, 255, 0.3);
-                color: #00e5ff;
-                font-size: 0.58em;
-                padding: 2px 7px;
-                border-radius: 3px;
-                cursor: pointer;
-                font-weight: 700;
-              ">
+      <!-- display inline: scanner.service.js decide si volcar la imagen de debug
+           leyendo dbgPanel.style.display === "block". -->
+      <div id="live-debug-snapshot" class="hud-debug" style="display: none">
+        <div class="hud-debug-head">
+          <span id="lbl-ocr-debug" class="hud-debug-label">OCR Debug Snapshot</span>
+          <button type="button" id="btn-copy-debug-log" class="hud-debug-copy"
+            onclick="globalThis.copyScannerDebugLog()">
             COPY LOG
           </button>
         </div>
-        <img id="live-debug-snapshot-img" src="" alt="" style="
-              width: 100%;
-              border-radius: 4px;
-              border: 1px solid #1a2030;
-              display: none;
-            " />
-        <div id="live-debug-summary" style="
-              font-size: 0.58em;
-              color: #8ca0b8;
-              font-family: monospace;
-              margin-top: 4px;
-              white-space: nowrap;
-              overflow-x: auto;
-            "></div>
-        <div id="live-debug-history" style="
-              display: flex;
-              gap: 4px;
-              overflow-x: auto;
-              margin-top: 6px;
-              padding-bottom: 2px;
-            "></div>
+        <img id="live-debug-snapshot-img" class="hud-debug-img" src="" alt="" />
+        <div id="live-debug-summary" class="hud-debug-summary"></div>
+        <div id="live-debug-history" class="hud-debug-history"></div>
       </div>
 
-      <div id="lbl-detected-items" style="
-            padding: 0 10px 4px;
-            font-size: 0.58em;
-            color: #2a3a50;
-            font-weight: 700;
-            letter-spacing: 1px;
-          ">
+      <div id="lbl-detected-items" class="hud-list-label">
         DETECTED ITEMS
       </div>
-      <div id="live-inventory-items-list" style="
-            height: 300px;
-            overflow-y: auto;
-            padding: 0 10px 8px;
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-          ">
-        <div id="lbl-scan-empty-state" style="
-              text-align: center;
-              color: #1e2a38;
-              font-size: 0.75em;
-              padding: 30px 0;
-              letter-spacing: 1px;
-            ">
+      <div id="live-inventory-items-list" class="hud-list">
+        <div id="lbl-scan-empty-state" class="hud-empty">
           PRESS SCAN PAGE TO START
         </div>
       </div>
 
-      <div id="live-scroll-guide" style="
-            border-top: 1px solid rgba(0, 229, 255, 0.06);
-            padding: 7px 12px;
-            font-size: 0.82em;
-            color: #2a3a50;
-            text-align: center;
-          "></div>
+      <div id="live-scroll-guide" class="hud-scroll-guide"></div>
     </div>
   </div>
 
@@ -716,7 +370,7 @@
         dragging = true;
         offX = e.clientX - hud.getBoundingClientRect().left;
         offY = e.clientY - hud.getBoundingClientRect().top;
-        handle.style.cursor = "grabbing";
+        handle.classList.add("dragging");
         e.preventDefault();
       });
       document.addEventListener("mousemove", (e) => {
@@ -727,7 +381,7 @@
       });
       document.addEventListener("mouseup", () => {
         dragging = false;
-        handle.style.cursor = "grab";
+        handle.classList.remove("dragging");
       });
     })();
   </script>
@@ -880,6 +534,14 @@
         <option value="sets_asc">Sets a completar (Cerquitas de terminar)</option>
         <option value="plat_desc">Valor Total en Platino</option>
       </select>
+
+      <!-- Solo aparece cuando el mercado en vivo contradice algun precio guardado.
+           El contador lo mantiene refreshStaleChip(). -->
+      <button type="button" id="inv-stale-chip" class="inv-stale-chip" style="display:none"
+        onclick="globalThis.toggleStaleFilter()">
+        <span id="inv-stale-label">Precio desactualizado</span>
+        <span class="inv-chip-count">0</span>
+      </button>
     </div>
 
     <div id="inventory-list" class="fissures-scroll-area"></div>
@@ -1024,7 +686,7 @@
     <div class="card-top-bar">
       <div class="tabs">
         <button id="btn-relic" class="tab-btn active" onclick="switchTab('relic')">
-          <img src="assets/relic.webp" class="tab-icon-img" alt="Relic Icon" />
+          <img src="assets/remolino.webp" class="tab-icon-img" alt="Relic Icon" />
           <span id="tab-relic-text">Reliquia</span>
         </button>
 
@@ -1048,6 +710,12 @@
         <button id="btn-vosfor" class="tab-btn vosfor" onclick="switchTab('vosfor')">
           <img src="https://wiki.warframe.com/w/Special:FilePath/Vosfor.png" onerror="this.onerror=null; this.src='https://raw.githubusercontent.com/WFCD/warframe-items/master/data/img/vosfor.png';" class="tab-icon-img" alt="Vosfor Icon" />
           <span id="tab-vosfor-text">Vosfor</span>
+        </button>
+        <button id="btn-orders" class="tab-btn orders is-wip" onclick="switchTab('orders')"
+          data-tooltip="Esperando a que warframe.market habilite un inicio de sesión seguro (OAuth) para apps externas.">
+          <span class="tab-icon-img" aria-hidden="true">📋</span>
+          <span id="tab-orders-text">Mis órdenes</span>
+          <span class="tab-wip-badge" aria-hidden="true">WIP</span>
         </button>
         <button id="btn-ducat" class="tab-btn ducat" onclick="switchTab('ducat')">
           <img src="assets/Ducats.webp" class="tab-icon-img" alt="Ducanator Icon" />
@@ -1552,6 +1220,10 @@
         <div id="vosfor-content"></div>
       </div>
 
+      <div id="mode-orders" class="hidden">
+        <div id="orders-content"></div>
+      </div>
+
       <div id="mode-bounties" class="hidden">
         <div id="bounties-list-container" class="fissures-scroll-area" style="overflow: visible">
           <div style="text-align: center; padding: 20px; color: #666">
@@ -1563,27 +1235,28 @@
 
       <div id="mode-ducat" class="hidden">
         <div id="ducat-filters" class="ducat-filters">
-          <p id="ducat-desc" class="ducat-desc"></p>
-
-          <input type="text" id="ducat-search" class="wf-input" oninput="globalThis.renderDucanatorTab()" />
-
-          <details class="ducat-adv">
-            <summary id="ducat-adv-label"></summary>
-
-            <div class="ducat-filter-row">
-              <label class="ducat-owned-toggle">
-                <input type="checkbox" id="ducat-owned-only" checked onchange="globalThis.renderDucanatorTab()" />
-                <span id="ducat-owned-label"></span>
-              </label>
+          <div class="ducat-bar">
+            <div class="ducat-search-wrap">
+              <span class="ducat-search-icon" aria-hidden="true">⌕</span>
+              <input type="text" id="ducat-search" class="ducat-search" oninput="globalThis.renderDucanatorTab()" />
+              <button type="button" id="ducat-search-clear" class="ducat-search-clear hidden"
+                onclick="globalThis.clearDucatSearch()" aria-label="Clear">×</button>
             </div>
 
-            <div class="ducat-filter-row">
+            <button type="button" id="ducat-owned-chip" class="ducat-chip active"
+              onclick="globalThis.toggleDucatOwned()" aria-pressed="true">
+              <input type="checkbox" id="ducat-owned-only" checked hidden />
+              <span id="ducat-owned-label"></span>
+            </button>
+
+            <div class="ducat-threshold-wrap">
               <label id="ducat-threshold-label" for="ducat-threshold"></label>
               <input type="range" id="ducat-threshold" min="0" max="50" value="15" step="1"
                 oninput="globalThis.updateDucatThreshold(this.value)" />
               <span id="ducat-threshold-val" class="ducat-threshold-val">15<span class="plat-icon-inline"></span></span>
             </div>
-          </details>
+          </div>
+          <p id="ducat-desc" class="ducat-desc"></p>
         </div>
         <div id="ducat-content" class="fissures-scroll-area"></div>
       </div>
@@ -2162,7 +1835,7 @@
   <div id="tab-fan-overlay" class="tab-fan-overlay" hidden></div>
   <div id="tab-fan" class="tab-fan" role="menu" aria-label="Más pestañas" hidden></div>
 
-  <script type="module" src="js/main.js?v=2.6.2"></script>
+  <script type="module" src="js/main.js?v=2.6.8"></script>
 </body>
 
 </html>

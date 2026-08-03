@@ -319,12 +319,13 @@ globalThis.manualPrecisionScan = async () => {
  */
 globalThis.toggleAutoScrollScan = () => {
   state.autoScanEnabled = !state.autoScanEnabled;
+  // Solo el dataset: el color lo pinta .hud-btn.toggle[data-active="1"] en scanner.css.
+  // Poniéndolo inline aquí, el estilo ganaba al :hover y el botón se quedaba con el
+  // color de encendido pegado al pasar el ratón por encima.
   const btn = document.getElementById("btn-auto-scan");
   if (btn) {
     btn.dataset.active = state.autoScanEnabled ? "1" : "0";
-    btn.style.color = state.autoScanEnabled ? "#00ff78" : "#4a7a5a";
-    btn.style.borderColor = state.autoScanEnabled ? "#00ff78" : "rgba(0,255,120,0.25)";
-    btn.style.background = state.autoScanEnabled ? "rgba(0,255,120,0.15)" : "rgba(0,255,120,0.06)";
+    btn.setAttribute("aria-pressed", state.autoScanEnabled ? "true" : "false");
   }
   const sh2 = TEXTS[state.currentLang].scannerHUD;
   showToast(state.autoScanEnabled ? sh2.autoScanOn : sh2.autoScanOff);

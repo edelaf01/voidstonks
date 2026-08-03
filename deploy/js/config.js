@@ -1,10 +1,71 @@
 export const WORKER_URL = "https://api.voidstonks.com/";
-export const APP_VERSION = "2.66";
+export const APP_VERSION = "2.7";
 export const UPDATE_HISTORY_DATA = {
   es: `
-<div class="update-block">
+<nav class="update-index" aria-label="Versiones">
+  <span class="update-index-label">Versiones</span>
+  <a href="#v27" class="update-index-link is-current">v2.7</a>
+  <a href="#v2661" class="update-index-link">v2.6.6.1</a>
+  <a href="#v266" class="update-index-link">v2.6.6</a>
+  <a href="#v265" class="update-index-link">v2.6.5</a>
+  <a href="#v264" class="update-index-link">v2.6.4</a>
+</nav>
+<div class="update-block" id="v27">
   <div class="update-header">
-    <span class="update-version">v2.6.6 (Actual)</span>
+    <span class="update-version">v2.7 (Actual)</span>
+    <span class="update-date">2026-08-03</span>
+  </div>
+
+  <p class="update-lead">
+    Nueva pestaña <strong>Mis órdenes</strong>: conecta tu cuenta de warframe.market y
+    gestiona tus ventas sin salir de la app.
+  </p>
+
+  <h4 class="update-section">Qué puedes hacer</h4>
+  <ul class="update-list">
+    <li><strong>Ver tus órdenes con el precio del mercado al lado</strong>, para saber cuáles están fuera de precio.</li>
+    <li><strong>Editar precio, cantidad y rango</strong>, marcar vendido, ocultar o borrar.</li>
+    <li><strong>Publicar sets del inventario</strong>: los que tienes completos salen con un precio sugerido.</li>
+    <li><strong>Precios en vivo</strong>: la app escucha el mercado y los actualiza según pasan.</li>
+    <li><strong>Avisos</strong> si alguien te rebaja o si tu precio se ha quedado desfasado.</li>
+  </ul>
+
+  <h4 class="update-section">En pantalla</h4>
+  <ul class="update-list">
+    <li><strong>Botón «Vender»</strong> en el inventario y en el tracker de sets, con etiqueta «En venta» en los ya publicados.</li>
+    <li><strong>Icono nuevo</strong> en la pestaña de reliquias.</li>
+    <li><strong>Mods y arcanos por rango</strong>: rango 0 y rango 10 son mercados distintos y ya no se mezclan.</li>
+  </ul>
+
+  <h4 class="update-section">Arreglos</h4>
+  <ul class="update-list">
+    <li><strong>Los ítems no cargaban</strong> por un fallo del servidor con inventarios grandes. Resuelto.</li>
+    <li><strong>Iconos rotos</strong> en ítems sin imagen propia, como los mods.</li>
+    <li><strong>Menos llamadas al servidor</strong> al abrir la pestaña de órdenes.</li>
+  </ul>
+
+  <p class="update-foot">
+    <em>Warframe.market aún no permite conectar apps externas sin contraseña: hasta que
+    abran su sistema oficial, algunas cuentas solo podrán leer sus órdenes. La app lo
+    indica cuando pasa. Tus datos se cifran en el navegador y la contraseña no se guarda.</em>
+  </p>
+</div>
+<div class="update-block old" id="v2661">
+  <div class="update-header">
+    <span class="update-version">v2.6.6.1</span>
+    <span class="update-date">2026-08-01</span>
+  </div>
+  <ul class="update-list">
+    <li><strong>Parche pequeño: limpieza interna y arreglos sueltos.</strong> Sin funciones nuevas.</li>
+    <li><strong>Botones que no respondían.</strong> "Cancelar" en el aviso de borrar inventario no cerraba la ventana, y "RESET DEFAULTS" en los ajustes del escáner no hacía nada. Ambos arreglados.</li>
+    <li><strong>Menos memoria en el móvil.</strong> Al cerrar el escáner ya se libera todo lo que usaba; antes había que recargar la página. Además, el escáner solo carga el segundo motor de lectura cuando de verdad hace falta.</li>
+    <li><strong>Textos corregidos.</strong> Algunas etiquetas repetidas mostraban la versión equivocada (por ejemplo "Destroy Crates" en vez de "Loot Crates").</li>
+    <li><strong>Avisos más seguros.</strong> Los nombres que vienen del mercado o del escáner ya no pueden colarse como código en los mensajes emergentes.</li>
+  </ul>
+</div>
+<div class="update-block old" id="v266">
+  <div class="update-header">
+    <span class="update-version">v2.6.6</span>
     <span class="update-date">2026-07-29</span>
   </div>
   <ul class="update-list">
@@ -13,7 +74,7 @@ export const UPDATE_HISTORY_DATA = {
     <li><strong>Inventario corregido.</strong> El escáner ahora usa la cantidad que muestra el juego en lugar de sumar de uno en uno, así que se acabaron los desajustes. Nuevo botón para cuadrar las cuatro recompensas de golpe.</li>
   </ul>
 </div>
-<div class="update-block old">
+<div class="update-block old" id="v265">
   <div class="update-header">
     <span class="update-version">v2.6.5</span>
     <span class="update-date">2026-07-25</span>
@@ -25,7 +86,7 @@ export const UPDATE_HISTORY_DATA = {
     <li><strong>El escáner de rivens ya no se queda colgado</strong> ni pierde la última lectura buena.</li>
   </ul>
 </div>
-<div class="update-block old">
+<div class="update-block old" id="v264">
   <div class="update-header">
     <span class="update-version">v2.6.4</span>
     <span class="update-date">2026-07-19</span>
@@ -300,9 +361,69 @@ export const UPDATE_HISTORY_DATA = {
 </div>
 `,
   en: `
-<div class="update-block">
+<nav class="update-index" aria-label="Versions">
+  <span class="update-index-label">Versions</span>
+  <a href="#v27" class="update-index-link is-current">v2.7</a>
+  <a href="#v2661" class="update-index-link">v2.6.6.1</a>
+  <a href="#v266" class="update-index-link">v2.6.6</a>
+  <a href="#v265" class="update-index-link">v2.6.5</a>
+  <a href="#v264" class="update-index-link">v2.6.4</a>
+</nav>
+<div class="update-block" id="v27">
   <div class="update-header">
-    <span class="update-version">v2.6.6 (Current)</span>
+    <span class="update-version">v2.7 (Current)</span>
+    <span class="update-date">2026-08-03</span>
+  </div>
+
+  <p class="update-lead">
+    New <strong>My orders</strong> tab: connect your warframe.market account and manage
+    your sales without leaving the app.
+  </p>
+
+  <h4 class="update-section">What you can do</h4>
+  <ul class="update-list">
+    <li><strong>See your orders with the market price next to them</strong>, so you know which ones are off market.</li>
+    <li><strong>Edit price, quantity and rank</strong>, mark as sold, hide or delete.</li>
+    <li><strong>List sets from your inventory</strong>: the ones you own complete come with a suggested price.</li>
+    <li><strong>Live prices</strong>: the app listens to the market and updates them as they go by.</li>
+    <li><strong>Alerts</strong> when someone undercuts you or your price falls behind.</li>
+  </ul>
+
+  <h4 class="update-section">On screen</h4>
+  <ul class="update-list">
+    <li><strong>"Sell" button</strong> in the inventory and the set tracker, with a "Listed" tag on the ones already up.</li>
+    <li><strong>New icon</strong> on the relics tab.</li>
+    <li><strong>Mods and arcanes by rank</strong>: rank 0 and rank 10 are different markets and are no longer mixed.</li>
+  </ul>
+
+  <h4 class="update-section">Fixes</h4>
+  <ul class="update-list">
+    <li><strong>Items failed to load</strong> due to a server error with large inventories. Fixed.</li>
+    <li><strong>Broken icons</strong> on items without their own image, such as mods.</li>
+    <li><strong>Fewer server calls</strong> when opening the orders tab.</li>
+  </ul>
+
+  <p class="update-foot">
+    <em>Warframe.market does not allow third-party apps to connect without a password yet they have a secure way for users to authenticate but its only available once they finish their OAuth implementation,
+     no ETA yet. So a bit of whats to come would be inventory sync with your market account listings with notifications and more :-). Meanwhile enjoy the prettier ui and bug fixes on my part.</em>
+  </p>
+</div>
+<div class="update-block old" id="v2661">
+  <div class="update-header">
+    <span class="update-version">v2.6.6.1</span>
+    <span class="update-date">2026-08-01</span>
+  </div>
+  <ul class="update-list">
+    <li><strong>Small patch: internal cleanup and loose fixes.</strong> No new features.</li>
+    <li><strong>Buttons that did nothing.</strong> "Cancel" on the clear-inventory prompt didn't close the dialog, and "RESET DEFAULTS" in the scanner settings had no effect. Both fixed.</li>
+    <li><strong>Lower memory on mobile.</strong> Closing the scanner now frees everything it was using; before, only a page reload did. The scanner also loads its second reading engine only when it's actually needed.</li>
+    <li><strong>Text fixes.</strong> A few duplicated labels showed the wrong wording (for example "Destroy Crates" instead of "Loot Crates").</li>
+    <li><strong>Safer notifications.</strong> Names coming from the market or the scanner can no longer leak into pop-up messages as code.</li>
+  </ul>
+</div>
+<div class="update-block old" id="v266">
+  <div class="update-header">
+    <span class="update-version">v2.6.6</span>
     <span class="update-date">2026-07-29</span>
   </div>
   <ul class="update-list">
@@ -311,7 +432,7 @@ export const UPDATE_HISTORY_DATA = {
     <li><strong>Inventory fixed.</strong> The scanner now uses the count the game shows instead of adding one at a time, so no more drift. New button to square all four rewards at once.</li>
   </ul>
 </div>
-<div class="update-block old">
+<div class="update-block old" id="v265">
   <div class="update-header">
     <span class="update-version">v2.6.5</span>
     <span class="update-date">2026-07-25</span>
@@ -323,7 +444,7 @@ export const UPDATE_HISTORY_DATA = {
     <li><strong>The Riven scanner no longer freezes</strong> or loses its last good reading.</li>
   </ul>
 </div>
-<div class="update-block old">
+<div class="update-block old" id="v264">
   <div class="update-header">
     <span class="update-version">v2.6.4</span>
     <span class="update-date">2026-07-19</span>
@@ -678,7 +799,7 @@ export const UPDATE_HISTORY_DATA = {
 </div>
 <div class="update-block old">
   <div class="update-header">
-    <span class="update-version">v1.2.4 (Current)</span>
+    <span class="update-version">v1.2.4</span>
     <span class="update-date">2026-01-14</span>
   </div>
   <ul class="update-list">
@@ -1008,6 +1129,14 @@ export const TEXTS = {
     },
     menuBounties: "Farms",
     lblFastFarms: "Misiones Rápidas Activas",
+    lblChallenge: "DESAFÍO",
+    lblViewRewards: "Recompensas",
+    lblRotating: "ROTANDO...",
+    loadingWorldstate: "Cargando Worldstate...",
+    lblOptimalOnly: "Óptimas",
+    lblShowAll: "Todas",
+    ayaStrategyTitle: "ESTRATEGIA AYA (EQUIPO)",
+    ayaStrategyBody: "Empieza una recompensa T5 (Nv. 40-60, NO Steel Path). Entra en las Llanuras y FALLA la misión de inmediato. Mira la consola de la tienda: si sale Captura o Rescate, acéptala ahí.",
     inventory: {
       title: "Inventario",
       empty: "Inventario vacío. Usa el escáner.",
@@ -1276,6 +1405,7 @@ export const TEXTS = {
     lblFissures: "Fisuras Activas",
     lblInventory: "Inventario",
     menuRelic: "Reliquia",
+    menuOrders: "Mis órdenes",
     menuMore: "Más",
     fissureSetRecs: {
       title: "Fisuras para tus sets",
@@ -1302,6 +1432,11 @@ export const TEXTS = {
       railjack: "Incluir Ferro de Batalla (Railjack)",
       railjackTypes: "Tipos de misión Railjack",
       reset: "Restaurar por defecto",
+      loading: "Cargando fisuras…",
+      pathNormal: "Normal",
+      pathSteel: "Steel Path",
+      noneInTier: "Sin fisuras eficientes",
+      expired: "Expirado",
     },
     farmAlarms: {
       toggle: "Alarmas",
@@ -1410,6 +1545,17 @@ export const TEXTS = {
     msgCopied: "¡COPIADO!",
     noStock: "Sin datos",
     countMsg: "items",
+    sellSet: "Vender",
+    sellSetTitle: "Publicar este set en warframe.market",
+    setListed: "En venta",
+    setListedTitle: "Ya tienes este set publicado en warframe.market",
+    liveNowTitle: "Precio de un listing visto ahora mismo en warframe.market (no es la mediana)",
+    staleChip: "Precio desactualizado",
+    staleChipTitle: "Ver solo los ítems cuyo precio no cuadra con el mercado",
+    staleChipWatching: "Vigilando precios",
+    staleChipWatchingTitle: "Comparando tus precios con el mercado en vivo. Los desvíos aparecen aquí según pasan los ítems por el mercado.",
+    staleUpTitle: "El mercado está pagando más de lo que dice este precio: podrías estar vendiendo barato",
+    staleDownTitle: "El mercado está por debajo de este precio: puede que no se venda",
     defaultRelic: "RELIQUIA",
     errLoad: "Error de conexión.",
     loading: "Cargando...",
@@ -1650,6 +1796,14 @@ export const TEXTS = {
       sortLiq: "Liquidez",
       sortBalanced: "Balanceado",
       calcTitle: "Calculadora de Vosfor (Loid)",
+      toolSellTitle: "¿Vender o disolver?",
+      toolSellSub: "Consulta un arcano y te decimos qué renta más",
+      toolCalcTitle: "Calculadora de tiradas",
+      toolCalcSub: "Cuántos packs sacas con tu Vosfor y cuál rinde más",
+      toolTargetTitle: "Arcano objetivo",
+      toolTargetSub: "Probabilidad de conseguir el arcano que buscas",
+      toolRankingTitle: "Ranking de rentabilidad",
+      toolRankingSub: "Los mejores packs y arcanos ahora mismo",
       calcLabel: "Tu Vosfor:",
       calcSub: "Simula cuántas tiradas de Loid puedes comprar y qué colección rinde más:",
       maxPlatTitle: "MÁXIMO PLAT (EV)",
@@ -1928,18 +2082,16 @@ export const TEXTS = {
     msgNoBountiesTitle: "No optimal missions active.",
     msgNoBountiesDesc:
       "No T4/T5 Exterminates or Angel hunts available in this cycle.",
-    menuBounties: "Farms",
-    lblFastFarms: "Active Fast Farms",
     manualAdd: "Add relic to Inventory",
     addGuide:
       "ℹTwo ways to adD relics: Manually press the add relic to inventory when you select a relic  or Scanner (Camera). Images are processed 100% locally on your device.",
-    lblProfit: "Profitability (Avg)",
     lblProfitSolo: "Profitability (Solo)",
     lblProfitSquad: "Profitability ({n} Players)",
     lblRecommended: "Recommended Fissures:",
     lblFissures: "Active Fissures",
     lblInventory: "Inventory",
     menuRelic: "Relic",
+    menuOrders: "My orders",
     menuMore: "More",
     fissureSetRecs: {
       title: "Fissures for your sets",
@@ -1966,6 +2118,11 @@ export const TEXTS = {
       railjack: "Include Railjack",
       railjackTypes: "Railjack mission types",
       reset: "Reset to default",
+      loading: "Loading fissures…",
+      pathNormal: "Normal",
+      pathSteel: "Steel Path",
+      noneInTier: "No efficient fissures",
+      expired: "Expired",
     },
     farmAlarms: {
       toggle: "Alarms",
@@ -2058,6 +2215,17 @@ export const TEXTS = {
     msgCopied: "COPIED!",
     noStock: "No Data",
     countMsg: "items",
+    sellSet: "Sell",
+    sellSetTitle: "List this set on warframe.market",
+    setListed: "Listed",
+    setListedTitle: "You already have this set listed on warframe.market",
+    liveNowTitle: "Price from a listing seen right now on warframe.market (not the median)",
+    staleChip: "Outdated price",
+    staleChipTitle: "Show only items whose price does not match the market",
+    staleChipWatching: "Watching prices",
+    staleChipWatchingTitle: "Comparing your prices against the live market. Mismatches show up here as items go through the market.",
+    staleUpTitle: "The market is paying more than this price says: you could be underselling",
+    staleDownTitle: "The market is below this price: it may not sell",
     defaultRelic: "RELIC",
     errLoad: "Connection Error.",
     loading: "Loading...",
@@ -2117,6 +2285,14 @@ export const TEXTS = {
     lblLfgPlayers: "Players Needed",
     menuBounties: "Farms",
     lblFastFarms: "Active Fast Farms",
+    lblChallenge: "CHALLENGE",
+    lblViewRewards: "Rewards",
+    lblRotating: "ROTATING...",
+    loadingWorldstate: "Loading Worldstate...",
+    lblOptimalOnly: "Optimal",
+    lblShowAll: "All",
+    ayaStrategyTitle: "AYA STRATEGY (TEAM)",
+    ayaStrategyBody: "Start a T5 bounty (Lvl 40-60, NON-Steel Path). Enter the Plains and FAIL the mission immediately. Check the tent console: if Capture or Rescue comes up, accept it there.",
     fastFarmGuide:
       "Only shows T4/T5 bounties with fast objectives (Exterminate, Angel, <6min).",
     tooltips: {
@@ -2172,7 +2348,6 @@ export const TEXTS = {
       profit: "Profit Taker",
       eda: "Deep Archimedea",
       archon: "Archon Hunt",
-      netra: "Netracells",
       sortie: "Sortie",
       arbi: "Arbitration",
       netra: "Netracells",
@@ -2369,6 +2544,14 @@ export const TEXTS = {
       sortLiq: "Liquidity",
       sortBalanced: "Balanced",
       calcTitle: "Vosfor Calculator (Loid)",
+      toolSellTitle: "Sell or dissolve?",
+      toolSellSub: "Look up an arcane and we tell you which pays more",
+      toolCalcTitle: "Pull calculator",
+      toolCalcSub: "How many packs your Vosfor buys and which pays best",
+      toolTargetTitle: "Target arcane",
+      toolTargetSub: "Odds of getting the arcane you are after",
+      toolRankingTitle: "Profitability ranking",
+      toolRankingSub: "Best packs and arcanes right now",
       calcLabel: "Your Vosfor:",
       calcSub: "Simulate how many Loid pulls you can buy and which collection pays best:",
       maxPlatTitle: "Max Plat (EV)",
@@ -2576,8 +2759,6 @@ export const CHALLENGE_MAP = {
   VaniaAbilityKillVeryHard: "Kill X enemies with Warframe abilities",
   VaniaAbilityKillHard: "Kill X enemies with Warframe abilities",
   VaniaAbilityKillEasy: "Kill X enemies with Warframe abilities",
-  EntratiLabLootCratesChallenge: "Loot Crates",
-  EntratiLabKillVoidRigEasyChallenge: "Kill Necramech",
   EntratiLabRangedMechWeakpointChallenge: "Mech Weakpoints",
   EntratiLabKillFlyingMurmurChallenge: "Kill Flying Murmur",
   EntratiLabKillMurmurVeryHardChallenge: "Kill Murmur",

@@ -685,6 +685,24 @@ export function renderSetTracker() {
   const badgeBorder = totalFullSets > 0 ? "rgba(221,169,56,0.3)" : "rgba(100,100,100,0.2)";
   const setBadge = `<span style="color:${badgeColor}; font-weight:bold; font-size:0.8em; background:${badgeBg}; border:1px solid ${badgeBorder}; padding:2px 6px; border-radius:4px; text-transform:uppercase; white-space:nowrap; text-align:center;">(${totalFullSets} ${t.countMsg || "Sets"})</span>`;
 
+  // Puente al mercado: teniendo el set completo, el siguiente paso natural es venderlo.
+  // Solo redirige —publicar vive en la pestaña de órdenes, que ya sabe de sesión, precios
+  // y estado de publicación—; duplicar eso aquí sería mantener dos veces lo mismo.
+  //
+  // Si ya está en venta se dice, en vez de invitar a publicarlo otra vez. El dato sale
+  // del último cruce que hizo la pestaña de órdenes: se consulta por globalThis para no
+  // meterle a esta vista, que es de datos locales, una dependencia de la API.
+  const alreadyListed = totalFullSets > 0 && globalThis.isSetListed?.(setSlug);
+  // Sin sesión que autorice a publicar no se ofrece el botón: acabaría en un aviso.
+  const canPublish = globalThis.canPublishToWfm?.();
+
+  const sellBtnHtml = totalFullSets === 0 ? ""
+    : alreadyListed
+      ? `<span class="set-listed-tag" title="${escapeHTML(t.setListedTitle)}">${escapeHTML(t.setListed)}</span>`
+      : canPublish
+        ? `<button type="button" class="set-sell-btn" onclick="event.stopPropagation(); globalThis.sellSetFromInventory('${escapeHTML(state.currentActiveSet).replaceAll("'", "\\'")}')" title="${escapeHTML(t.sellSetTitle)}">${escapeHTML(t.sellSet)}</button>`
+        : "";
+
   const relicImgHtml = `<img src="assets/relic.webp" style="width:14px; height:14px; object-fit:contain; vertical-align:middle; margin-right:3px;">`;
 
   const runsBadgeHtml = stats.avgRuns > 0
@@ -728,6 +746,7 @@ export function renderSetTracker() {
           <span style="font-weight:bold; font-size:1.15em; color:var(--wf-gold-text); filter:drop-shadow(0 2px 4px rgba(221,169,56,0.3));">${state.currentActiveSet}</span>
         </a>
         ${setBadge}
+        ${sellBtnHtml}
       </div>
 
       <div class="tracker-sim-controls" onclick="event.stopPropagation()">
@@ -1006,7 +1025,8 @@ Object.assign(globalThis, {
   openSetFromRelicReward: (partName) => {
     const setName = getSetName(partName);
     if (setName === "Otros") return;
-    switchTab("set");
+    // globalThis, no import: ui.js importa este módulo y el inverso sería un ciclo.
+    globalThis.switchTab("set");
     const input = document.getElementById("setItemInput");
     if (input) {
       input.value = setName;

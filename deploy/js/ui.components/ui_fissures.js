@@ -116,7 +116,7 @@ export function renderMissionRow(m) {
         <div class="mission-item ${m.isSP ? "sp-row" : ""}">
             <div class="m-info">
                 <span class="m-type">
-                    ${escapeHTML(translatedType)}
+                    <span class="m-type-name">${escapeHTML(translatedType)}</span>
                     ${omniaTag}
                     ${spTag}
                     ${rjTag}
@@ -147,9 +147,11 @@ function updateFissurePanelTexts() {
     headerSpan.textContent = t.lblRecommended || "Fisuras Activas";
   }
 
-  const filtersToggleBtn = document.getElementById("fissure-filters-toggle");
-  if (filtersToggleBtn) {
-    filtersToggleBtn.textContent = escapeHTML(t.fissurePrefs.toggle);
+  // Solo el texto: el botón lleva además un icono como hermano, y escribir sobre el
+  // botón entero (textContent) lo borraba al cambiar de idioma.
+  const filtersToggleText = document.querySelector("#fissure-filters-toggle .fissure-filters-text");
+  if (filtersToggleText) {
+    filtersToggleText.textContent = t.fissurePrefs.toggle;
   }
 
   const fPanel = document.getElementById("fissure-filters-panel");
@@ -157,6 +159,8 @@ function updateFissurePanelTexts() {
     fPanel.innerHTML = renderFissureFiltersPanel(getFissurePrefs());
   }
 }
+
+
 
 function renderFissureFiltersPanel(prefs) {
   const t = TEXTS[state.currentLang];
@@ -302,6 +306,7 @@ function handleFissureAlarmHits(hits) {
     tag: "fissure-alarm",
     type: "success",
     duration: 30000,
+    html: true, // el mensaje monta <b>/<br> y ya escapa cada dato que interpola
   });
 }
 
@@ -322,6 +327,7 @@ function handleArbitrationAlarmHits(hits) {
     tag: "arby-alarm",
     type: "success",
     duration: 30000,
+    html: true, // el mensaje monta <b>/<br> y ya escapa cada dato que interpola
   });
 }
 
@@ -414,7 +420,10 @@ function buildFissurePanelShell(missionDiv) {
       </div>
 
       <div class="fissure-filters-bar">
-          <button type="button" class="fissure-filters-toggle" id="fissure-filters-toggle">${escapeHTML(t.fissurePrefs.toggle)}</button>
+          <button type="button" class="fissure-filters-toggle" id="fissure-filters-toggle" aria-expanded="false">
+            <span class="fissure-filters-icon">⚙</span>
+            <span class="fissure-filters-text">${escapeHTML(t.fissurePrefs.toggle)}</span>
+          </button>
       </div>
       <div class="fissure-filters-panel collapsed" id="fissure-filters-panel">
           ${renderFissureFiltersPanel(fissurePrefs)}
@@ -423,7 +432,7 @@ function buildFissurePanelShell(missionDiv) {
       <div class="fissure-arby-bar" id="fissure-arby-bar" style="display:none;"></div>
 
       <div class="fissures-scroll-area" id="fissures-list-area">
-         <div style="padding:10px; text-align:center; color:#666;">Cargando...</div>
+         <div class="fissure-loading"><div class="spinner"></div><span>${escapeHTML(t.fissurePrefs.loading)}</span></div>
       </div>
     `;
 
@@ -467,7 +476,9 @@ function buildFissurePanelShell(missionDiv) {
   if (filtersToggleBtn && filtersPanel) {
     filtersToggleBtn.addEventListener("click", (e) => {
       e.stopPropagation();
-      filtersPanel.classList.toggle("collapsed");
+      const open = !filtersPanel.classList.toggle("collapsed");
+      filtersToggleBtn.classList.toggle("open", open);
+      filtersToggleBtn.setAttribute("aria-expanded", String(open));
     });
     // Evita que un click dentro del panel de filtros colapse/re-cargue el panel principal.
     filtersPanel.addEventListener("click", (e) => e.stopPropagation());
@@ -581,7 +592,8 @@ function buildFissurePanelShell(missionDiv) {
         const now = new Date(syncedNow);
         const diffMs = expiry - now;
         if (diffMs <= 0) {
-          el.innerText = state.currentLang === "es" ? "Expirado" : "Expired";
+          el.textContent = TEXTS[state.currentLang].fissurePrefs.expired;
+          el.classList.add("expired");
           expiredFound = true;
           // Ocultar la fisura para que no se quede atascada mostrando 'Expirado' durante el cooldown
           const row = el.closest(".mission-item");
@@ -592,12 +604,16 @@ function buildFissurePanelShell(missionDiv) {
           const mins = Math.floor((totalSecs % 3600) / 60);
           const secs = totalSecs % 60;
 
+          // Bajo 5 min ya no da tiempo a entrar con margen: se resalta para poder
+          // descartarla de un vistazo sin leer el número.
+          el.classList.toggle("urgent", diffMs < 300000);
+
           if (hrs > 0) {
-            el.innerText = `${hrs}h ${mins}m ${secs}s`;
+            el.textContent = `${hrs}h ${mins}m ${secs}s`;
           } else if (mins > 0) {
-            el.innerText = `${mins}m ${secs}s`;
+            el.textContent = `${mins}m ${secs}s`;
           } else {
-            el.innerText = `${secs}s`;
+            el.textContent = `${secs}s`;
           }
         }
       });
@@ -766,6 +782,7 @@ async function renderMissionList(forceRefetch = false) {
   const listArea = document.getElementById("fissures-list-area");
   if (!listArea) return;
 
+  const t = TEXTS[state.currentLang];
   let allMissions = await fetchBestFissures(forceRefetch);
   const syncedNow = Date.now() - (globalThis._serverTimeOffset || 0);
 
@@ -805,13 +822,19 @@ async function renderMissionList(forceRefetch = false) {
     const efficientMissions = tiersData[tierName];
 
     const groupDiv = document.createElement("div");
-    groupDiv.className = "fissure-group collapsed";
+    // is-empty apaga el grupo entero: sin fisuras del tier no hay nada que abrir, y
+    // manteniéndolos a plena intensidad la lista parecía llena cuando no lo estaba.
+    groupDiv.className = `fissure-group collapsed${efficientMissions.length === 0 ? " is-empty" : ""}`;
     groupDiv.id = `group-${tierName.toLowerCase()}`;
     groupDiv.dataset.tier = tierName.toLowerCase();
 
     const headerBtn = document.createElement("button");
     headerBtn.className = "tier-header-btn";
-    headerBtn.innerHTML = `<span>${tierName} (${efficientMissions.length})</span> <span class="arrow-icon">▼</span>`;
+    headerBtn.type = "button";
+    headerBtn.innerHTML =
+      `<span class="tier-name">${tierName}</span>` +
+      `<span class="tier-count">${efficientMissions.length}</span>` +
+      `<span class="arrow-icon">▼</span>`;
     headerBtn.addEventListener("click", (e) => {
       e.stopPropagation();
       toggleTierGroup(groupDiv);
@@ -821,14 +844,9 @@ async function renderMissionList(forceRefetch = false) {
     contentDiv.className = "tier-content";
 
     if (efficientMissions.length === 0) {
-      const noDataMsg =
-        state.currentLang === "es"
-          ? "No se han detectado fisuras eficientes"
-          : "No efficient fissures detected";
-
       contentDiv.innerHTML = `
             <div class="no-fissures-msg">
-                <span class="warning-icon">⚠</span> ${noDataMsg}
+                <span class="warning-icon">⚠</span> ${escapeHTML(t.fissurePrefs.noneInTier)}
             </div>
         `;
     } else {
@@ -836,12 +854,15 @@ async function renderMissionList(forceRefetch = false) {
       const normal = efficientMissions.filter((m) => !m.isSP);
       const sp = efficientMissions.filter((m) => m.isSP);
 
+      // El separador solo se pinta si hay ambos grupos: con un único path la etiqueta
+      // no distingue nada y solo roba altura en un panel que ya va justo de alto.
+      const needSep = normal.length > 0 && sp.length > 0;
       if (normal.length > 0) {
-        html += `<div style="padding:4px 8px; font-size:0.75em; color:#666; font-weight:bold;">NORMAL</div>`;
+        if (needSep) html += `<div class="path-sep">${escapeHTML(t.fissurePrefs.pathNormal)}</div>`;
         normal.forEach((m) => (html += renderMissionRow(m)));
       }
       if (sp.length > 0) {
-        html += `<div style="padding:4px 8px; font-size:0.75em; color:#a55; font-weight:bold; margin-top:5px;">STEEL PATH</div>`;
+        if (needSep) html += `<div class="path-sep is-sp">${escapeHTML(t.fissurePrefs.pathSteel)}</div>`;
         sp.forEach((m) => (html += renderMissionRow(m)));
       }
       contentDiv.innerHTML = html;

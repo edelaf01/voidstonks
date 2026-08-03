@@ -185,8 +185,10 @@ function startReceiver() {
         if (box) {
           box.innerText = data.val;
           box.style.animation = "none";
-          // TODO sure go ahead why this does nothing ?
-          // box.offsetHeight;
+          // Leer offsetHeight fuerza un reflow: sin él el navegador agrupa el "none" y el
+          // "pulse" en el mismo frame y la animación no se reinicia. La lectura parece
+          // inútil pero es justamente el efecto que se busca (no la borres).
+          void box.offsetHeight;
           box.style.animation = "pulse 0.5s ease";
         }
         statusMsg.innerText = TEXTS[state.currentLang].sync.success;

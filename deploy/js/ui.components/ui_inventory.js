@@ -12,6 +12,7 @@ import {
 
 import { manualRelicUpdate } from "./ui_relics.js";
 import { renderFissureSetRecommendations } from "./ui_sets.js";
+import { exposeGlobals } from "../utils/global_registry.js";
 
 const TARGET_SVG_INLINE = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36" width="22" height="22" style="filter:drop-shadow(0 0 2px rgba(0,204,204,0.5));">
   <defs>
@@ -272,7 +273,9 @@ export function selectRelicFromInv(name) {
   const input = document.getElementById("relicInput");
   if (input) input.value = name;
 
-  switchTab("relic");
+  // Vía globalThis (lo publica main.js), no import: ui.js ya importa este módulo y
+  // el import inverso crearía un ciclo que rompe la carga. Ver tests/import-graph.
+  globalThis.switchTab("relic");
   toggleInventoryPanel(false);
   manualRelicUpdate();
 }
@@ -543,15 +546,45 @@ export function toggleInvSet(safeSetId) {
 }
 
 export function openSetDetail(setName) {
-  switchTab("set");
+  // Vía globalThis (switchTab lo publica main.js; handleSetTyping, ui_sets.js): importarlos
+  // crearía un ciclo de carga. Ver el test de ciclos en tests/import-graph.test.mjs.
+  globalThis.switchTab("set");
   const input = document.getElementById("setItemInput");
   if (input) {
     input.value = setName;
-    handleSetTyping();
+    globalThis.handleSetTyping();
   }
 }
 
 let lastRenderedHash = "";
+
+/**
+ * Etiqueta de mercado en la cabecera de un set: "Vender" si está completo y sin
+ * publicar, "En venta" si ya lo tienes listado en warframe.market.
+ *
+ * El estado sale del último cruce que hizo la pestaña de órdenes, consultado por
+ * globalThis: el inventario es una vista de datos locales y no debe pedir nada a la
+ * red para pintarse. Sin cruce previo se ofrece "Vender", que solo redirige.
+ *
+ * @param {string} setName nombre del set ("Ash Prime")
+ * @param {number} numSets sets completos que tiene el usuario
+ */
+function sellTagHtml(setName, numSets) {
+  if (setName === "Otros" || numSets < 1) return "";
+
+  const t = TEXTS[state.currentLang];
+  if (globalThis.isSetListed?.(getSlug(setName + " Set"))) {
+    return `<span class="set-listed-tag" title="${escapeHTML(t.setListedTitle)}">${escapeHTML(t.setListed)}</span>`;
+  }
+
+  // Sin sesión utilizable no se ofrece: el botón acabaría en un aviso, y un botón que
+  // nunca funciona es peor que su ausencia. La sesión vive en sessionStorage, así que
+  // esto cambia al reconectar y el inventario se repinta.
+  if (!globalThis.canPublishToWfm?.()) return "";
+
+  return `<button type="button" class="set-sell-btn" data-action="go-sell-set" data-setname="${escapeHTML(setName)}" title="${escapeHTML(t.sellSetTitle)}">${escapeHTML(t.sellSet)}</button>`;
+}
+
 // Ducat value for a single prime part (canonical source: itemsDatabase).
 function getPartDucats(partName) {
   const info = state.itemsDatabase?.[partName];
@@ -617,8 +650,13 @@ export function renderDucanatorView(list, opts = {}) {
 
   let fundableDucats = 0;
   let fundableParts = 0;
+  let keepPlat = 0;
   const fundRows = [];
   const keepRows = [];
+
+  // Infinity (plat desconocido) queda fuera del máximo a propósito: si entrara, una
+  // sola pieza sin precio dejaría las barras del resto en casi nada.
+  const maxFiniteEff = rows.reduce((m, r) => (r.eff !== Infinity && r.eff > m ? r.eff : m), 0);
 
   rows.forEach((r) => {
     const platReady = r.plat !== null;
@@ -626,26 +664,35 @@ export function renderDucanatorView(list, opts = {}) {
     if (shouldFund) {
       fundableDucats += r.ducats * r.qty;
       fundableParts += r.qty;
+    } else {
+      keepPlat += r.plat * r.qty;
     }
     const effTxt = r.eff === Infinity ? "∞" : r.eff.toFixed(1);
     const platTxt = platReady ? `${r.plat}` : "...";
+    // Ancho relativo al mejor ratio; suelo del 6% para que una fila floja siga siendo visible.
+    const effPct = r.eff === Infinity
+      ? 100
+      : (maxFiniteEff > 0 ? Math.max(6, Math.round((r.eff / maxFiniteEff) * 100)) : 0);
     const icon = getItemIcon(r.name);
     const iconHtml = icon
       ? `<img src="${icon}" class="duc-img item-icon-small" loading="lazy" onerror="this.style.visibility='hidden'">`
       : `<span class="duc-img duc-img-empty"></span>`;
+    const qtyHtml = r.qty > 1 ? `<span class="duc-qty">×${r.qty}</span>` : "";
 
     const html = `
-      <div class="duc-row">
+      <div class="duc-row${shouldFund ? " is-fund" : ""}">
         <div class="duc-name-col">
-          ${iconHtml}
+          <span class="duc-img-wrap">${iconHtml}${qtyHtml}</span>
           <div class="duc-name-text">
             <a href="https://warframe.market/items/${getSlug(r.name)}" target="_blank" class="part-name duc-link">${escapeHTML(r.name)}</a>
-            <span class="duc-sub">x${r.qty}</span>
           </div>
         </div>
-        <div class="duc-plat">${platTxt} <span class="plat-icon-inline"></span></div>
-        <div class="duc-ducats">${r.ducats} <img src="assets/Ducats.webp" class="ducat-icon" style="width:14px;height:14px;object-fit:contain;vertical-align:middle;"></div>
-        <div class="duc-eff" title="${escapeHTML(dt.effTitle || "Ducats per platinum")}">${effTxt}<span class="ratio-unit">d/pl</span></div>
+        <div class="duc-plat${platReady ? "" : " is-pending"}">${platTxt}<span class="plat-icon-inline"></span></div>
+        <div class="duc-ducats">${r.ducats}<span class="ducat-icon-inline"></span></div>
+        <div class="duc-eff" title="${escapeHTML(dt.effTitle || "Ducats per platinum")}">
+          <span class="duc-eff-bar" style="width:${effPct}%"></span>
+          <span class="duc-eff-num">${effTxt}</span>
+        </div>
       </div>`;
     (shouldFund ? fundRows : keepRows).push(html);
   });
@@ -663,19 +710,33 @@ export function renderDucanatorView(list, opts = {}) {
       </div>`;
 
   const emptyMsg = dt.empty || "No prime parts with ducat value. Scan or add parts first.";
-  const section = (label, items) => items.length === 0 ? "" : `
-      <div class="duc-section-header">${escapeHTML(label)} <span class="duc-section-count">(${items.length})</span></div>
-      <div class="duc-list">${items.join("")}</div>`;
+  const section = (label, items, kind) => items.length === 0 ? "" : `
+      <div class="duc-section duc-section-${kind}">
+        <div class="duc-section-header">
+          <span class="duc-section-dot"></span>
+          ${escapeHTML(label)}
+          <span class="duc-section-count">${items.length}</span>
+        </div>
+        <div class="duc-list">${items.join("")}</div>
+      </div>`;
 
   list.innerHTML = `
     <div class="duc-panel">
       <div class="duc-summary">
-        <span class="duc-summary-main">${fundableDucats.toLocaleString()} <img src="assets/Ducats.webp" class="ducat-icon" style="width:15px;height:15px;object-fit:contain;vertical-align:middle;"></span>
-        <span class="duc-summary-sub">${(dt.fundableParts || "fundable parts")}: ${fundableParts}</span>
+        <div class="duc-stat duc-stat-gold">
+          <span class="duc-stat-val">${fundableDucats.toLocaleString()}<span class="ducat-icon-inline"></span></span>
+          <span class="duc-stat-label">${escapeHTML(dt.fundSection || "Trade for ducats")} · ${fundableParts}</span>
+        </div>
+        <div class="duc-stat duc-stat-plat">
+          <span class="duc-stat-val">${keepPlat.toLocaleString()}<span class="plat-icon-inline"></span></span>
+          <span class="duc-stat-label">${escapeHTML(dt.keepSection || "Better to sell")} · ${keepRows.length}</span>
+        </div>
       </div>
       ${rows.length === 0
-        ? `<div style="padding:20px;text-align:center;color:#666;">${escapeHTML(emptyMsg)}</div>`
-        : headerRow + section(dt.fundSection || "Trade for ducats", fundRows) + section(dt.keepSection || "Better to sell", keepRows)}
+        ? `<div class="duc-empty">${escapeHTML(emptyMsg)}</div>`
+        : headerRow
+          + section(dt.fundSection || "Trade for ducats", fundRows, "fund")
+          + section(dt.keepSection || "Better to sell", keepRows, "keep")}
     </div>`;
 
   // Fetch missing plat prices, then re-rank once they land.
@@ -704,12 +765,36 @@ export function setDucatSort(col) {
   renderDucanatorTab();
 }
 
+// El checkbox sigue en el DOM (oculto) porque es donde renderDucanatorTab lee el estado;
+// el chip solo es su cara visible.
+export function toggleDucatOwned() {
+  const cb = document.getElementById("ducat-owned-only");
+  if (!cb) return;
+  cb.checked = !cb.checked;
+  const chip = document.getElementById("ducat-owned-chip");
+  if (chip) {
+    chip.classList.toggle("active", cb.checked);
+    chip.setAttribute("aria-pressed", String(cb.checked));
+  }
+  renderDucanatorTab();
+}
+
+export function clearDucatSearch() {
+  const input = document.getElementById("ducat-search");
+  if (!input) return;
+  input.value = "";
+  input.focus();
+  renderDucanatorTab();
+}
+
 // Standalone Ducanator tab: reads its own filter controls and renders into #ducat-content.
 export function renderDucanatorTab() {
   const list = document.getElementById("ducat-content");
   if (!list) return;
+  const search = document.getElementById("ducat-search")?.value || "";
+  document.getElementById("ducat-search-clear")?.classList.toggle("hidden", search === "");
   const opts = {
-    search: document.getElementById("ducat-search")?.value || "",
+    search,
     ownedOnly: document.getElementById("ducat-owned-only")?.checked !== false,
     sortCol: ducatSortCol,
     sortDir: ducatSortDir,
@@ -927,6 +1012,7 @@ export function renderPrimeInventory() {
 
           <div class="header-info">
              <span class="set-count-badge" style="display:${numSets > 0 ? "inline-block" : "none"};">${numSets} ${numSets === 1 ? 'SET' : 'SETS'}</span>
+             ${sellTagHtml(setName, numSets)}
              <span class="set-total-price" id="set-price-${safeSetId}">0 <span class="plat-icon-inline"></span></span>
              <span id="set-mkt-${safeSetId}" class="set-price-marker" style="display:none;">...</span>
           </div>
@@ -1119,6 +1205,181 @@ export async function updatePrimeTotalValue() {
     totalEl.textContent = new Intl.NumberFormat().format(totalGlobal);
     totalEl.classList.remove("loading-blink");
   }
+
+  initLivePrices();
+}
+
+/** Suscripción al flujo de precios en vivo. Solo se engancha una vez. */
+let liveHooked = false;
+
+/**
+ * Enciende los precios en vivo del inventario.
+ *
+ * El flujo de WFM solo trae ~3,4% del catálogo cada 3 minutos, así que esto NO da
+ * precio a todo: refina los ítems que pasen por el flujo mientras la pestaña está
+ * abierta. El precio base (mediana de prices_batch) sigue siendo el que manda.
+ */
+async function initLivePrices() {
+  if (liveHooked) return;
+  liveHooked = true;
+
+  try {
+    const { startLivePrices, onLivePrice, onStalePrice } =
+      await import("../services/wfm_live_prices.service.js");
+
+    onLivePrice(({ slug, plat }) => paintLivePrice(slug, plat));
+    onStalePrice(({ slug, diff }) => paintStale(slug, diff));
+
+    if (await startLivePrices()) {
+      // El chip se muestra ya, en estado "vigilando": los desvíos llegan a cuentagotas
+      // y sin esto la función parecería no existir hasta que saltara el primero.
+      refreshStaleChip();
+    } else {
+      liveHooked = false; // sin inventario o sin socket: se reintenta
+    }
+  } catch {
+    liveHooked = false; // los precios en vivo son un extra: su fallo no rompe el inventario
+  }
+}
+
+/**
+ * Marca en la UI el precio recién visto en el mercado.
+ *
+ * No pisa el precio base: lo acompaña. El precio base es una mediana de las 5 más
+ * baratas; esto es UN listing concreto, y presentarlos como lo mismo sería engañoso.
+ */
+function paintLivePrice(slug, plat) {
+  // El badge se localiza por el nombre del ítem, que es lo que guarda data-item.
+  for (const badge of document.querySelectorAll(".price-badge-small[data-item]")) {
+    if (getSlug(badge.dataset.item) !== slug) continue;
+
+    let tag = badge.parentElement?.querySelector(".price-live-tag");
+    if (!tag) {
+      tag = document.createElement("span");
+      tag.className = "price-live-tag";
+      badge.after(tag);
+    }
+    tag.textContent = `${plat}p`;
+    tag.title = TEXTS[state.currentLang].liveNowTitle || "";
+
+    // Reinicia la animación aunque el nodo ya existiera: sin esto, un precio nuevo
+    // sobre el mismo ítem pasaría desapercibido.
+    tag.classList.remove("is-fresh");
+    void tag.offsetWidth;
+    tag.classList.add("is-fresh");
+  }
+
+  paintLiveSetHeader(slug);
+}
+
+/**
+ * Señala que el precio guardado ya no cuadra con lo que se ve en el mercado.
+ *
+ * La flecha indica hacia dónde se ha movido: hacia arriba el ítem vale más de lo que
+ * dice la app (venderías barato), hacia abajo menos. Sin dirección el aviso obligaría a
+ * abrir cada ítem para saber si te perjudica.
+ */
+function paintStale(slug, diff) {
+  const t = TEXTS[state.currentLang];
+  const up = diff > 0;
+  const pct = Math.round(Math.abs(diff) * 100);
+
+  for (const badge of document.querySelectorAll(".price-badge-small[data-item]")) {
+    if (getSlug(badge.dataset.item) !== slug) continue;
+
+    // La fila se marca entera para que el chip de filtro pueda seleccionarla.
+    const row = badge.closest(".inv-row-mini") || badge.parentElement;
+    row?.classList.add("is-price-stale");
+
+    let tag = row?.querySelector(".price-stale-tag");
+    if (!tag) {
+      tag = document.createElement("span");
+      tag.className = "price-stale-tag";
+      badge.after(tag);
+    }
+    tag.textContent = `${up ? "▲" : "▼"}${pct}%`;
+    tag.classList.toggle("is-up", up);
+    tag.title = (up ? t.staleUpTitle : t.staleDownTitle) || "";
+  }
+
+  refreshStaleChip();
+}
+
+/**
+ * Muestra solo los ítems cuyo precio contradice al mercado, o vuelve a mostrarlos todos.
+ *
+ * Filtra sobre el DOM ya pintado en vez de repintar el inventario: repintar perdería las
+ * marcas, que llegan por el socket y no se pueden reconstruir.
+ */
+export function toggleStaleFilter() {
+  const chip = document.getElementById("inv-stale-chip");
+  if (!chip) return;
+
+  const on = chip.classList.toggle("is-active");
+
+  for (const row of document.querySelectorAll(".inv-row-mini")) {
+    row.style.display = (on && !row.classList.contains("is-price-stale")) ? "none" : "";
+  }
+
+  // Un set sin ninguna pieza marcada sobra en pantalla mientras el filtro esté activo.
+  for (const group of document.querySelectorAll(".inv-set-group")) {
+    const hasStale = group.querySelector(".is-price-stale");
+    group.style.display = (on && !hasStale) ? "none" : "";
+    // Se despliega para que las piezas marcadas se vean sin tener que abrir cada set.
+    if (on && hasStale) group.classList.remove("collapsed");
+  }
+}
+
+/** Actualiza el contador del chip de filtro, si está en pantalla. */
+function refreshStaleChip() {
+  const chip = document.getElementById("inv-stale-chip");
+  if (!chip) return;
+
+  const t = TEXTS[state.currentLang];
+  const n = document.querySelectorAll(".is-price-stale").length;
+
+  // Visible siempre que la vigilancia esté activa, aunque no haya desvíos: si solo
+  // apareciera al detectar uno, no habría forma de saber si está funcionando o si
+  // simplemente no hay nada que avisar. Los desvíos llegan por el socket, a cuentagotas.
+  chip.style.display = "";
+  chip.classList.toggle("is-empty", n === 0);
+  chip.disabled = n === 0;
+
+  const count = chip.querySelector(".inv-chip-count");
+  if (count) count.textContent = String(n);
+
+  // El HTML trae el texto en español; aquí se ajusta al idioma activo.
+  const label = document.getElementById("inv-stale-label");
+  if (label) label.textContent = (n === 0 ? t.staleChipWatching : t.staleChip) || label.textContent;
+
+  chip.title = (n === 0 ? t.staleChipWatchingTitle : t.staleChipTitle) || "";
+}
+
+/**
+ * Señala en la cabecera del set que alguna de sus piezas tiene precio recién visto.
+ *
+ * Solo un indicador, no una cifra: sumar un listing suelto al subtotal mezclaría una
+ * mediana con un dato puntual y daría un total que no significa nada.
+ */
+function paintLiveSetHeader(slug) {
+  const setName = Object.keys(state.primeInventory || {})
+    .find(name => getSlug(name) === slug);
+  if (!setName) return;
+
+  const safeSetId = getSetName(setName).replaceAll(/[^a-zA-Z0-9]/g, "");
+  const header = document.getElementById(`set-price-${safeSetId}`)?.parentElement;
+  if (!header) return;
+
+  let dot = header.querySelector(".set-live-dot");
+  if (!dot) {
+    dot = document.createElement("span");
+    dot.className = "set-live-dot";
+    dot.title = TEXTS[state.currentLang].liveNowTitle || "";
+    header.appendChild(dot);
+  }
+  dot.classList.remove("is-fresh");
+  void dot.offsetWidth;
+  dot.classList.add("is-fresh");
 }
 
 function calculateGroupSubtotal(setName, groupData) {
@@ -1269,7 +1530,7 @@ export function importInventory() {
   input.click();
 }
 
-Object.assign(globalThis, {
+exposeGlobals({
   modifyInv,
   selectRelicFromInv,
   filterInvTier,
@@ -1285,11 +1546,14 @@ Object.assign(globalThis, {
   renderDucanatorTab,
   setDucatSort,
   updateDucatThreshold,
+  toggleDucatOwned,
+  clearDucatSearch,
   clearInventory,
   toggleInventoryPanel,
   exportInventory,
   importInventory,
-});
+  toggleStaleFilter,
+}, "ui.components/ui_inventory.js");
 
 document.addEventListener("click", (e) => {
   const actionTarget = e.target.closest("[data-action]");
@@ -1319,6 +1583,12 @@ document.addEventListener("click", (e) => {
       break;
     case "modify-prime-part":
       requestAnimationFrame(() => modifyPrimePart(data.part, Number.parseInt(data.amount)));
+      break;
+    case "go-sell-set":
+      // La cabecera del set es clicable (despliega/pliega): sin esto, publicar
+      // colapsaría el grupo a la vez.
+      e.stopPropagation();
+      globalThis.sellSetFromInventory?.(data.setname);
       break;
   }
 });

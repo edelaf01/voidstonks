@@ -210,3 +210,158 @@
 .inv-set-header:hover {
     background: rgba(35, 45, 60, 0.8);
 }
+/* ---------- Precio en vivo (flujo de warframe.market) ---------- */
+/* Se pinta AL LADO del precio base, no encima: el base es la mediana de las 5 más
+   baratas y esto es un listing suelto. Presentarlos igual sería engañoso. */
+.price-live-tag {
+    margin-left: 5px;
+    padding: 1px 5px;
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    color: #7ee081;
+    background: rgba(66, 245, 108, 0.12);
+    border: 1px solid rgba(66, 245, 108, 0.32);
+    border-radius: 3px;
+    white-space: nowrap;
+}
+
+.set-live-dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    margin-left: 6px;
+    border-radius: 50%;
+    background: #7ee081;
+    vertical-align: middle;
+    flex-shrink: 0;
+}
+
+/* Destello al llegar un precio nuevo: sin esto, una actualización sobre un ítem que ya
+   tenía etiqueta pasaría desapercibida. */
+.price-live-tag.is-fresh,
+.set-live-dot.is-fresh {
+    animation: live-price-flash 1.6s ease-out;
+}
+
+@keyframes live-price-flash {
+    0% {
+        box-shadow: 0 0 0 0 rgba(66, 245, 108, 0.55);
+        filter: brightness(1.5);
+    }
+    100% {
+        box-shadow: 0 0 0 7px rgba(66, 245, 108, 0);
+        filter: brightness(1);
+    }
+}
+
+/* Respeta a quien pide menos movimiento: el color ya distingue el dato. */
+@media (prefers-reduced-motion: reduce) {
+    .price-live-tag.is-fresh,
+    .set-live-dot.is-fresh {
+        animation: none;
+    }
+}
+
+/* ---------- Precio desactualizado ---------- */
+/* El mercado en vivo contradice al precio que sirvió el worker. Ámbar y no rojo: no es
+   un error, es un dato que conviene revisar. */
+.price-stale-tag {
+    margin-left: 4px;
+    padding: 1px 5px;
+    font-size: 0.62rem;
+    font-weight: 700;
+    color: #e8b866;
+    background: rgba(221, 169, 56, 0.14);
+    border: 1px solid rgba(221, 169, 56, 0.38);
+    border-radius: 3px;
+    white-space: nowrap;
+}
+
+/* Al alza el aviso importa más: significa que podrías estar vendiendo por debajo. */
+.price-stale-tag.is-up {
+    color: #7ee081;
+    background: rgba(66, 245, 108, 0.12);
+    border-color: rgba(66, 245, 108, 0.35);
+}
+
+.inv-row-mini.is-price-stale {
+    background: rgba(221, 169, 56, 0.05);
+    box-shadow: inset 2px 0 0 0 rgba(221, 169, 56, 0.5);
+}
+
+.inv-stale-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    align-self: flex-start;
+    padding: 5px 11px;
+    font-family: inherit;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #e8b866;
+    background: rgba(221, 169, 56, 0.1);
+    border: 1px solid rgba(221, 169, 56, 0.35);
+    border-radius: 14px;
+    cursor: pointer;
+    transition: background 0.18s ease, border-color 0.18s ease;
+}
+
+.inv-stale-chip:hover {
+    background: rgba(221, 169, 56, 0.18);
+}
+
+/* Activo = solo se ven los desactualizados. Se invierte el contraste para que quede
+   claro que hay un filtro puesto y que la lista no está completa. */
+.inv-stale-chip.is-active {
+    color: #1a1e24;
+    background: var(--wf-gold-text, #dda938);
+    border-color: var(--wf-gold-text, #dda938);
+}
+
+.inv-chip-count {
+    padding: 0 6px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    background: rgba(0, 0, 0, 0.22);
+    border-radius: 9px;
+}
+
+.inv-stale-chip.is-active .inv-chip-count {
+    background: rgba(0, 0, 0, 0.3);
+}
+
+/* "Vigilando": el chip existe pero no hay nada que filtrar todavía. Apagado y sin
+   cursor de acción, para que no invite a pulsarlo. */
+.inv-stale-chip.is-empty {
+    color: #8e8e8e;
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(255, 255, 255, 0.12);
+    cursor: default;
+}
+
+.inv-stale-chip.is-empty:hover {
+    background: rgba(255, 255, 255, 0.04);
+}
+
+/* Punto latiendo: distingue "vigilando" de "desactivado" sin añadir texto. */
+.inv-stale-chip.is-empty::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    animation: stale-watch-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes stale-watch-pulse {
+    0%, 100% { opacity: 0.25; }
+    50% { opacity: 0.9; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .inv-stale-chip.is-empty::before {
+        animation: none;
+        opacity: 0.6;
+    }
+}

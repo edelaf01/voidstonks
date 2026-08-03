@@ -506,12 +506,48 @@ function detectInventoryGridCore(img, opts = {}) {
     // 1ª fila se scrollea hacia arriba y su top y0 cae dentro de la franja HUD (<0.2·h)
     // aunque su baseline y1 esté bien abajo (fila real); filtrar por y0 la descartaba
     // ("solo 2 filas"). El HUD real (título/pestañas/buscador) tiene y1 ≤ ~0.16·h.
-    const chainItems = bandBlocks.filter(bb => bb.band.y1 >= hudLimit).map(bb => ({
+    const toItem = bb => ({
         pos: bb.band.y1,
         mass: bb.blocks.reduce((s, bl) => s + bl.mass, 0),
         centers: bb.blocks.map(bl => bl.cx),
-    }));
+    });
+    const chainItems = bandBlocks.filter(bb => bb.band.y1 >= hudLimit).map(toItem);
     const chain = bestArithmeticChain(chainItems, height * 0.12, height * 0.5);
+
+    // --- Fila CORTADA por arriba: readmisión de una banda filtrada como HUD ---
+    // Al bajar y volver a subir, el juego clampa el scroll a media fila: la 1ª fila
+    // entra recortada y su nombre queda ENTERO dentro de la franja HUD (y1 < 0.2·h),
+    // así que el filtro de arriba la tira junto al título/buscador. Sin ella la cadena
+    // ancla en la 2ª fila y TODA la rejilla baja una celda: las filas de abajo se ven
+    // completas y la primera queda cortada — justo el síntoma reportado.
+    // Readmitir por posición sola reabriría la puerta al HUD (que este filtro existe
+    // para rechazar), así que se exigen las DOS señales que solo cumple una fila real:
+    // caer a exactamente un `pitch` por encima del primer miembro, y ALINEAR en columnas
+    // con él (los nombres comparten las x de las celdas; el título/buscador, no).
+    if (chain && chain.members.length >= 2) {
+        const pitch = chain.pitch;
+        const first = chain.members[0];
+        const firstCenters = bandBlocks.find(bb => bb.band.y1 === first)?.blocks.map(bl => bl.cx) || [];
+        const tolY = pitch * 0.12;
+        const tolX = pitch * 0.15;
+        let bestPrev = null, bestErr = Infinity;
+        for (const bb of bandBlocks) {
+            if (bb.band.y1 >= hudLimit) continue;   // ya está en la cadena
+            const err = Math.abs(bb.band.y1 - (first - pitch));
+            if (err > tolY || err >= bestErr) continue;
+            const centers = bb.blocks.map(bl => bl.cx);
+            const aligned = centers.filter(a => firstCenters.some(b => Math.abs(a - b) <= tolX)).length;
+            // Al menos 2 columnas coincidentes (o todas, si la fila tiene 1 sola celda):
+            // una coincidencia suelta puede ser casualidad, dos ya son la rejilla.
+            if (aligned >= Math.min(2, centers.length)) { bestPrev = bb; bestErr = err; }
+        }
+        if (bestPrev) {
+            chain.members.unshift(bestPrev.band.y1);
+            chainItems.push(toItem(bestPrev));
+            trace.clippedTopRow = { y1: bestPrev.band.y1, y0: bestPrev.band.y0 };
+        }
+    }
+
     trace.chain = chain ? { pitch: Math.round(chain.pitch), members: chain.members } : null;
     // Se exigen las 3 filas del inventario: con 2 bandas cualquier par forma
     // "cadena" y el pitch no está corroborado (2 pasos consistentes sí lo están).
@@ -535,7 +571,10 @@ function detectInventoryGridCore(img, opts = {}) {
     const y1ToTop = new Map(bandBlocks.map(bb => [bb.band.y1, bb.band.y0]));
     const base = y1ToTop.get(chain.members[0]) ?? chain.members[0];
     const last = y1ToTop.get(chain.members[chain.members.length - 1]) ?? chain.members[chain.members.length - 1];
-    const foldY0 = Math.max(Math.ceil(hudLimit), base - cellH);
+    // El fold arranca en el top del nombre más alto de la cadena (no en hudLimit): con una
+    // fila cortada readmitida, su nombre vive por encima de hudLimit y recortar ahí lo
+    // dejaría fuera de la fase.
+    const foldY0 = Math.max(0, Math.min(Math.ceil(hudLimit), base), base - cellH);
     const foldY1 = Math.min(height - 1, last + cellH);
     const fold = new Float32Array(cellH);
     for (let y = foldY0; y <= foldY1; y++) {
@@ -565,15 +604,20 @@ function detectInventoryGridCore(img, opts = {}) {
     const rowBands = [];
     const usedTops = [];
     const tol = cellH * 0.2;
-    const kMin = Math.floor((hudLimit - baseY1) / cellH) - 1;
+    // Techo efectivo del HUD: si se readmitió una fila cortada (arriba), su baseline
+    // está POR DEBAJO de hudLimit y estos dos filtros la volverían a tirar, dejando el
+    // grid otra vez desplazado una celda. Bajar el techo hasta ella la deja pasar sin
+    // reabrir la franja al HUD real, que queda por encima.
+    const rowFloor = Math.min(hudLimit, chain.members[0]);
+    const kMin = Math.floor((rowFloor - baseY1) / cellH) - 1;
     const kMax = Math.ceil((height - baseY1) / cellH) + 1;
     for (let k = kMin; k <= kMax; k++) {
         const topSlot = nameBase + k * cellH;
         const baseSlot = baseY1 + k * cellH;
-        if (baseSlot < hudLimit && topSlot < hudLimit) continue;
+        if (baseSlot < rowFloor && topSlot < rowFloor) continue;
         let bb = null, bbErr = Infinity;
         for (const cand2 of bandBlocks) {
-            if (cand2.band.y1 < hudLimit) continue;
+            if (cand2.band.y1 < rowFloor) continue;
             const err = Math.min(Math.abs(cand2.band.y0 - topSlot), Math.abs(cand2.band.y1 - baseSlot));
             if (err <= tol && err < bbErr) { bb = cand2; bbErr = err; }
         }
@@ -834,9 +878,37 @@ function detectInventoryGridCore(img, opts = {}) {
 
     // Una banda por fila real detectada (puede haber una 4ª fila asomando);
     // las celdas que caigan fuera del frame las filtra _applyRowPhase después.
-    const rows = rowBands.length;
+    let rows = rowBands.length;
+
+    // Fila cortada por ARRIBA (scroll clampado): su top real es NEGATIVO. Recortar la
+    // zona a y=0 sin más desplazaría la FASE y todas las filas de abajo quedarían
+    // descuadradas (el bug que se está arreglando). La rejilla debe seguir cayendo en la
+    // retícula real, así que se avanza un cellH entero —perdiendo esa fila, que de todos
+    // modos entra recortada— en vez de mover el origen a un punto fuera de fase.
+    let gridYTop = gridY;
+    if (cellH > 0) {
+        while (gridYTop < 0) gridYTop += cellH;
+    } else {
+        gridYTop = Math.max(0, gridYTop);
+    }
+
+    // Solo se descuentan las filas que el avance de fase dejó FUERA del frame por arriba;
+    // el resto se conserva. Nunca se inventan filas a partir del alto disponible: hacerlo
+    // añadía una fila fantasma en scrolls normales (celdas vacías que el OCR recorre en
+    // cada página). Y nunca se devuelven menos de las reales por una fila cortada, porque
+    // ese rows se queda CACHEADO (la caché va por tamaño de frame, no por scroll) y el
+    // resto de la sesión escanearía una fila de menos en todas las páginas.
+    if (cellH > 0) {
+        const dropped = Math.ceil(Math.max(0, -gridY) / cellH);
+        rows = Math.max(rows - dropped, Math.min(rowBands.length, o.rows));
+    }
+    if (rows < 1) {
+        trace.fail = "todas las filas quedan fuera del frame tras alinear la fase";
+        return null;
+    }
+
     const gridW = Math.min(cols * cellW, width - gridX);
-    const gridH = Math.min(rows * cellH, height - Math.max(0, gridY));
+    const gridH = Math.min(rows * cellH, height - gridYTop);
 
     // Confianza: filas corroboradas y columnas encontradas
     const confidence = Math.min(1, (chain.members.length + cols) / 10);
@@ -849,9 +921,9 @@ function detectInventoryGridCore(img, opts = {}) {
     const nameBandFrac = bandHs.length ? bandHs[bandHs.length >> 1] / cellH : 1;
 
     return {
-        gridZone: { x: gridX, y: Math.max(0, gridY), w: gridW, h: gridH },
+        gridZone: { x: gridX, y: gridYTop, w: gridW, h: gridH },
         gridX,
-        gridY: Math.max(0, gridY),
+        gridY: gridYTop,
         gridW,
         gridH,
         cellW,

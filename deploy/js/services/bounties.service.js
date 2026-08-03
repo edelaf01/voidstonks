@@ -10,6 +10,7 @@ import {
 } from "../config.js";
 import { dbHelper } from "../repositories/storage.repository.js";
 import { getActiveBounties } from "../repositories/api.repository.js";
+import { serverNow, syncServerClock } from "../utils/server_clock.js";
 
 //Helpers for classification
 
@@ -135,19 +136,24 @@ const WORKER_URL_KEY = "active_bounties_cache";
 
 /**
  * Fetches, processes and caches all active bounty missions across all factions.
+ * @param {boolean} [force] Ignora la caché local. Lo usa el refetch de rotación: con
+ *   el suelo de 60s del expiryTime, la entrada recién guardada sigue vigente y sin
+ *   esto el reintento se respondía a sí mismo con las misiones caducadas.
  * @returns {Promise<Array>}
  */
-export async function fetchActiveBounties() {
+export async function fetchActiveBounties(force = false) {
     try {
+        // El desfase se mide una vez por sesión; a partir de ahí serverNow() es instantáneo.
+        await syncServerClock();
+
         const cached = await dbHelper.get(WORKER_URL_KEY);
-        if (cached?.expiryTime > Date.now()) return cached.data;
+        if (!force && cached?.expiryTime > serverNow()) return cached.data;
 
         const res = await getActiveBounties();
         if (!res.ok) return [];
 
         const { ws = [], tt = [], oracle = {} } = await res.json();
-        const now = Date.now();
-        const tzOptions = { hour12: false };
+        const now = serverNow();
         const realExpiry = oracle.expiry ? Number(oracle.expiry) : (now + 600000);
 
         const factionMap = [
@@ -224,7 +230,12 @@ export async function fetchActiveBounties() {
         });
 
         allMissions.sort((a, b) => b.standing - a.standing);
-        const expiryTime = oracle.expiry ? Number(oracle.expiry) : now + 600000;
+        // Suelo de 60s sobre el expiry del oracle. Justo tras una rotación el origen
+        // sigue sirviendo el ciclo viejo unos segundos, así que oracle.expiry ya está
+        // en el pasado: guardarlo tal cual dejaba la entrada nacida caducada y CADA
+        // render volvía a pedir (bucle de refetch con el contador en ROTATING).
+        const rawExpiry = oracle.expiry ? Number(oracle.expiry) : now + 600000;
+        const expiryTime = Math.max(rawExpiry, now + 60000);
         await dbHelper.set(WORKER_URL_KEY, { expiryTime, data: allMissions });
         return allMissions;
     } catch (e) {

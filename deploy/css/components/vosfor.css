@@ -11,6 +11,144 @@
     font-size: 0.92rem;
 }
 
+/* --- Herramientas plegables ---
+   Las cuatro calculadoras iban abiertas y seguidas: la pestaña abría con ~4
+   pantallas de controles antes del primer pack, y ninguna decía qué resolvía.
+   Cabecera uniforme + subtítulo, y solo la que usas queda abierta. */
+.vos-tools {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.vos-tool {
+    background: rgba(0, 0, 0, 0.22);
+    border: 1px solid rgba(224, 176, 255, 0.16);
+    border-radius: 10px;
+    overflow: hidden;
+    transition: border-color 0.18s;
+}
+
+.vos-tool.open {
+    border-color: rgba(224, 176, 255, 0.4);
+}
+
+.vos-tool-head {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    width: 100%;
+    padding: 11px 13px;
+    font: inherit;
+    text-align: left;
+    color: inherit;
+    background: none;
+    border: none;
+    cursor: pointer;
+    transition: background 0.18s;
+}
+
+.vos-tool-head:hover {
+    background: rgba(224, 176, 255, 0.06);
+}
+
+.vos-tool-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 26px;
+    font-size: 1.05rem;
+    line-height: 1;
+}
+
+.vos-tool-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.vos-tool-title {
+    font-size: 0.92rem;
+    font-weight: 800;
+    letter-spacing: 0.3px;
+    color: #f0e0ff;
+}
+
+.vos-tool-sub {
+    font-size: 0.74rem;
+    line-height: 1.35;
+    color: #9a92a5;
+}
+
+.vos-tool-arrow {
+    flex-shrink: 0;
+    font-size: 0.9rem;
+    color: #b39ddb;
+    transition: transform 0.25s;
+}
+
+.vos-tool.open .vos-tool-arrow {
+    transform: rotate(180deg);
+}
+
+/* Se colapsa con grid-template-rows (no max-height) para no tener que adivinar
+   una altura: estas herramientas cambian de alto al escribir en sus campos. */
+/* El overflow va aquí, en el contenedor del grid, no en el hijo: el hijo tiene su
+   propio padding, que 0fr no colapsa, y asomaba una franja de la tarjeta por debajo
+   de la cabecera aun estando plegada. */
+.vos-tool-body {
+    display: grid;
+    grid-template-rows: 0fr;
+    overflow: hidden;
+    transition: grid-template-rows 0.28s ease;
+}
+
+.vos-tool.open .vos-tool-body {
+    grid-template-rows: 1fr;
+}
+
+.vos-tool-body > * {
+    min-height: 0;
+}
+
+/* 0fr colapsa la FILA, no la caja del hijo: los widgets traen padding:16px propio
+   (.vosfor-calc-widget y compañía), y ademas position:relative + z-index, que crea
+   contexto de apilamiento y hace que el overflow:hidden del padre no los recorte de
+   forma fiable. Resultado: plegado seguia asomando una franja con "TU VOSFOR",
+   "COLECCIÓN / ARCANO OBJETIVO" y los chips del ranking bajo la cabecera.
+   Anulando padding y ocultando el contenido al plegar, plegado = solo cabecera. */
+/* El margen ya lo anula el bloque de mas abajo (margin:0 !important); aqui solo
+   hace falta el padding, que es lo que seguia dando alto a la franja. */
+.vos-tool:not(.open) .vos-tool-body > * {
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    /* visibility, no display:none: display cortaria la transicion de despliegue. */
+    visibility: hidden;
+}
+
+.vos-tool.open .vos-tool-body > * {
+    visibility: visible;
+    /* Solo al abrir: si se retrasara tambien al cerrar, el contenido seguiria
+       visible durante los 0.28s del plegado. */
+    transition: visibility 0s linear 0.28s;
+}
+
+/* Las tarjetas ya no ponen su propio marco: lo pone .vos-tool. El !important y el
+   [style] son para ganar a los estilos inline de borde/sombra que traen algunas
+   (p. ej. #vosfor-sell-widget), que si no dibujarían una caja dentro de otra. */
+.vos-tool-body .vosfor-calc-widget,
+.vos-tool-body .vosfor-target-widget,
+.vos-tool-body .vosfor-ranking-section {
+    margin: 0 !important;
+    border: none !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
 /* --- Image & Thumbnail Styles --- */
 .vosfor-arc-img {
     width: 56px;
@@ -178,16 +316,6 @@
     margin-bottom: 12px;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
     backdrop-filter: blur(10px);
-}
-
-.vosfor-target-title {
-    font-size: 1.05rem;
-    font-weight: 800;
-    color: #7ecbff;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 12px;
 }
 
 .vosfor-target-controls {
@@ -406,14 +534,6 @@
     color: #42f56c;
 }
 
-.vosfor-calc-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    margin-bottom: 12px;
-    flex-wrap: wrap;
-}
 
 .vosfor-preset-group {
     display: flex;
@@ -524,12 +644,18 @@
     color: #ffffff !important;
 }
 
+/* Sin el título (ahora vive en la cabecera de .vos-tool), el grupo del input es
+   lo único que queda: se estira en vez de quedarse descolgado a la derecha por
+   el space-between que compensaba al título. */
 .vosfor-calc-header {
     display: flex;
     align-items: flex-start;
-    justify-content: space-between;
     gap: 16px;
     margin-bottom: 12px;
+}
+
+.vosfor-calc-header > div {
+    max-width: none !important;
 }
 
 @media (max-width: 640px) {
@@ -537,16 +663,6 @@
         flex-direction: column;
         align-items: stretch;
     }
-}
-
-.vosfor-calc-title {
-    font-size: 1.1rem;
-    font-weight: 700;
-    color: #e0b0ff;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-shrink: 0;
 }
 
 .vosfor-calc-input-group {

@@ -280,10 +280,16 @@ function meanBy(items, fn) {
 // liquidez real (ventas cerradas/día, r0+rmax) y ponemos como suelo lo que ofrecen los
 // compradores (best buy). Así un arcano casi sin ventas cuenta solo una fracción de su ask,
 // y el EV del pack deja de inflarse con precios de listings que nadie paga.
+// El suelo de best-buy no puede pasar del ask: hay pujas muy por encima del precio de
+// venta (en Arcane Hot Shot había compras de R0 a 96p con 40 vendedores pidiendo ~23p,
+// gente que paga de más para rankear a R5, que vale ~500p). Tomarlas como precio hacía
+// que el panel anunciara "R0 96" para algo que se vende a 23. El suelo sigue rescatando
+// al arcano de mercado muerto, pero nunca por encima de lo que piden los vendedores.
 function realizablePrice(ask, vol, bestBuy, thr) {
     if (!ask || ask <= 0) return 0;
     const liq = Math.max(0.15, Math.min(1, vol / thr));  // vol>=thr ventas/día = precio pleno; muerto ≈15%
-    return Math.max(bestBuy || 0, ask * liq);            // al menos lo que pagan los compradores
+    const floor = Math.min(bestBuy || 0, ask);           // el suelo nunca por encima del ask
+    return Math.max(floor, ask * liq);
 }
 // R0: umbral 5 ventas/día para crédito pleno (volumen r0 + rmax).
 export function realizableR0(st) {
