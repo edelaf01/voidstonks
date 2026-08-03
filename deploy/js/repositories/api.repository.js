@@ -180,7 +180,7 @@ export async function getArcaneBatch(chunk) {
 
 /** @returns {Promise<Response>} */
 export async function getActiveBounties() {
-    return fetchWithTimeout(`${WORKER_URL}?type=active_bounties`);
+    return fetchWithTimeout(`${WORKER_URL}?type=active_bounties&v=2`);
 }
 
 /** @returns {Promise<Response>} */

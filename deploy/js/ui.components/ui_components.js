@@ -296,11 +296,13 @@ export function initGlobalTooltipSystem() {
 export function initDisclaimerSystem() {
   setTimeout(() => {
     const disclaimer = document.getElementById("txt-disclaimer");
-    if (disclaimer) {
-      disclaimer.classList.add("fade-out");
-      setTimeout(() => {
-        disclaimer.style.display = "none";
-      }, 2000);
-    }
+    if (!disclaimer) return;
+    // on mobile the disclaimer lives in the scrolling footer (see ui_mobile_footer.js), and this inline
+    // display:none would override its CSS
+    if (disclaimer.closest(".site-footer.in-scroll")) return;
+    disclaimer.classList.add("fade-out");
+    setTimeout(() => {
+      disclaimer.style.display = "none";
+    }, 2000);
   }, 8000);
 }
