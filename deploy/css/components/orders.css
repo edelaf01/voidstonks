@@ -1,0 +1,1290 @@
+/* =============================================
+   ORDERS.CSS - Mis órdenes de Warframe Market
+   Usa las variables de tema de styles.css para
+   integrarse con el resto de la app.
+   ============================================= */
+
+#orders-content {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    width: 100%;
+    color: #e0e0e0;
+    font-size: 0.92rem;
+}
+
+/* ---------- Estados genéricos ---------- */
+.orders-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 38px 18px;
+    text-align: center;
+}
+
+.orders-state-icon {
+    font-size: 2.2rem;
+    opacity: 0.75;
+    line-height: 1;
+}
+
+.orders-state-text {
+    margin: 0;
+    opacity: 0.72;
+    line-height: 1.5;
+    max-width: 320px;
+}
+
+.orders-spinner {
+    width: 30px;
+    height: 30px;
+    border: 3px solid rgba(255, 255, 255, 0.12);
+    border-top-color: var(--active-theme-color, var(--wf-blue));
+    border-radius: 50%;
+    animation: orders-spin 0.75s linear infinite;
+}
+
+@keyframes orders-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* ---------- Login ---------- */
+.orders-login {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    width: 100%;
+    max-width: 400px;
+    margin: 0 auto;
+    padding: 22px;
+    background: var(--wf-card);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 12px;
+    box-shadow: 0 6px 22px rgba(0, 0, 0, 0.45);
+}
+
+.orders-login-head {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    text-align: center;
+}
+
+.orders-title {
+    margin: 0;
+    font-size: 1.08rem;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    color: var(--active-theme-color, var(--wf-blue));
+}
+
+.orders-intro {
+    margin: 0;
+    font-size: 0.85rem;
+    line-height: 1.45;
+    opacity: 0.72;
+}
+
+.orders-field {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.orders-label {
+    font-size: 0.74rem;
+    font-weight: 600;
+    letter-spacing: 0.7px;
+    text-transform: uppercase;
+    opacity: 0.62;
+}
+
+.orders-input {
+    width: 100%;
+    padding: 11px 13px;
+    font-size: 0.95rem;
+    font-family: inherit;
+    color: #e0e0e0;
+    background: var(--wf-input-bg);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    outline: none;
+    transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.orders-input:focus {
+    border-color: var(--active-theme-color, var(--wf-blue));
+    box-shadow: 0 0 0 3px rgba(0, 229, 255, 0.12);
+}
+
+.orders-input:disabled {
+    opacity: 0.5;
+}
+
+/* ---------- Botones ---------- */
+.orders-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 16px;
+    font-size: 0.93rem;
+    font-family: inherit;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    color: #05161c;
+    background: var(--active-theme-color, var(--wf-blue));
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: filter 0.18s ease, transform 0.12s ease;
+}
+
+.orders-btn:hover:not(:disabled) {
+    filter: brightness(1.14);
+}
+
+.orders-btn:active:not(:disabled) {
+    transform: translateY(1px);
+}
+
+.orders-btn:disabled {
+    opacity: 0.55;
+    cursor: default;
+}
+
+.orders-btn-ghost {
+    padding: 7px 13px;
+    font-size: 0.8rem;
+    font-family: inherit;
+    font-weight: 600;
+    color: #e0e0e0;
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 7px;
+    cursor: pointer;
+    transition: background 0.18s ease, border-color 0.18s ease;
+}
+
+.orders-btn-ghost:hover {
+    background: rgba(255, 255, 255, 0.07);
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+.orders-btn-ghost.danger:hover {
+    color: var(--wf-error);
+    border-color: rgba(255, 68, 68, 0.5);
+    background: rgba(255, 68, 68, 0.08);
+}
+
+.orders-btn-spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(0, 0, 0, 0.25);
+    border-top-color: #05161c;
+    border-radius: 50%;
+    animation: orders-spin 0.7s linear infinite;
+}
+
+/* ---------- Mensajes ---------- */
+.orders-msg {
+    margin: 0;
+    padding: 9px 11px;
+    font-size: 0.82rem;
+    line-height: 1.4;
+    border-radius: 7px;
+    border: 1px solid transparent;
+}
+
+.orders-msg.error {
+    color: #ff9b9b;
+    background: rgba(255, 68, 68, 0.09);
+    border-color: rgba(255, 68, 68, 0.28);
+}
+
+.orders-msg.note {
+    color: #ffd98a;
+    background: rgba(255, 193, 7, 0.07);
+    border-color: rgba(255, 193, 7, 0.25);
+}
+
+.orders-msg-hint {
+    display: block;
+    margin-top: 4px;
+    font-size: 0.72rem;
+    opacity: 0.6;
+    font-family: monospace;
+}
+
+/* ---------- Sesión iniciada ---------- */
+.orders-bar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 11px 13px;
+    background: var(--wf-card);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 10px;
+}
+
+.orders-avatar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 34px;
+    height: 34px;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #05161c;
+    background: var(--active-theme-color, var(--wf-blue));
+    border-radius: 50%;
+}
+
+.orders-identity {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-width: 0;
+    line-height: 1.3;
+}
+
+.orders-user {
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.orders-status {
+    font-size: 0.72rem;
+    opacity: 0.6;
+}
+
+.orders-actions {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    flex-shrink: 0;
+}
+
+/* ---------- Listado ---------- */
+/* ---------- Cifras en platino ---------- */
+/* El icono va como <span> de fondo (.plat-icon-inline, global): hereda el tamaño
+   del contexto vía em para no tener que declararlo cifra a cifra. */
+.plat-num {
+    font-variant-numeric: tabular-nums;
+}
+
+.order-price .plat-icon-inline,
+.os-val .plat-icon-inline {
+    width: 0.75em;
+    height: 0.75em;
+    margin-left: 3px;
+}
+
+.om-val .plat-icon-inline,
+.om-delta .plat-icon-inline,
+.om-depth-item .plat-icon-inline,
+.market-plat .plat-icon-inline,
+.market-stat-value .plat-icon-inline,
+.order-act-plat .plat-icon-inline {
+    width: 0.85em;
+    height: 0.85em;
+    margin-left: 2px;
+}
+
+.om-depth-qty {
+    margin-left: 3px;
+    opacity: 0.75;
+}
+
+.order-act-plat {
+    display: inline-flex;
+    align-items: center;
+    font-weight: 700;
+    opacity: 0.9;
+}
+
+/* ---------- Resumen agregado ---------- */
+.orders-summary {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+.os-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    padding: 9px 12px;
+    border: 1px solid transparent;
+    border-radius: 9px;
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.os-sell {
+    border-color: rgba(0, 229, 255, 0.25);
+    background: linear-gradient(135deg, rgba(0, 229, 255, 0.11), rgba(0, 229, 255, 0.02));
+}
+
+.os-buy {
+    border-color: rgba(162, 53, 226, 0.3);
+    background: linear-gradient(135deg, rgba(162, 53, 226, 0.14), rgba(162, 53, 226, 0.03));
+}
+
+.os-val {
+    display: inline-flex;
+    align-items: center;
+    font-size: 1.3rem;
+    font-weight: 800;
+    line-height: 1.15;
+}
+
+.os-sell .os-val {
+    color: var(--wf-blue);
+}
+
+.os-buy .os-val {
+    color: #c07ff0;
+}
+
+.os-label {
+    font-size: 0.63rem;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    opacity: 0.55;
+}
+
+.orders-section-head {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 0 2px;
+}
+
+.orders-section-title {
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    opacity: 0.72;
+}
+
+.orders-count {
+    font-size: 0.74rem;
+    opacity: 0.5;
+}
+
+.orders-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.order-card {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 4px 10px;
+    padding: 9px 11px;
+    background: var(--wf-card);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-left: 3px solid transparent;
+    border-radius: 9px;
+    transition: border-color 0.18s ease;
+}
+
+.order-card:hover {
+    border-color: rgba(255, 255, 255, 0.16);
+}
+
+.order-card.sell {
+    border-left-color: var(--wf-blue);
+}
+
+.order-card.buy {
+    border-left-color: var(--wf-riven);
+}
+
+/* Oculta: rayas + miniatura desaturada, no opacidad sobre toda la tarjeta. El precio
+   y el mercado siguen haciendo falta para decidir si republicarla. */
+.order-card.is-hidden {
+    border-left-style: dashed;
+    background: repeating-linear-gradient(
+        135deg,
+        transparent,
+        transparent 7px,
+        rgba(255, 255, 255, 0.022) 7px,
+        rgba(255, 255, 255, 0.022) 14px
+    ), var(--wf-card);
+}
+
+.order-card.is-hidden .order-thumb {
+    filter: grayscale(0.75);
+    opacity: 0.7;
+}
+
+.order-card.is-hidden .order-thumb:hover {
+    filter: grayscale(0) drop-shadow(0 0 8px var(--active-theme-color, var(--wf-blue)));
+    opacity: 1;
+}
+
+.order-card.is-hidden .order-name {
+    opacity: 0.72;
+}
+
+/* Badge "oculta" en el meta: es la etiqueta que dice por qué la tarjeta se ve así. */
+.order-hidden-tag {
+    padding: 1px 6px;
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--wf-gold-text);
+    background: rgba(197, 168, 86, 0.14);
+    border-radius: 3px;
+}
+
+/* Rango del mod/arcano. Discreto por defecto y resaltado a rango máximo, que es la
+   variante que se vende cara: distinguirlas de un vistazo importa más que el número. */
+.order-rank {
+    padding: 1px 6px;
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    color: #b9b9b9;
+    background: rgba(255, 255, 255, 0.07);
+    border-radius: 3px;
+}
+
+.order-rank.is-max {
+    color: var(--active-theme-color);
+    background: rgba(255, 255, 255, 0.05);
+    box-shadow: inset 0 0 0 1px currentColor;
+}
+
+.order-act.toggle:hover {
+    color: var(--wf-gold-text);
+    border-color: rgba(197, 168, 86, 0.5);
+    background: rgba(197, 168, 86, 0.1);
+}
+
+/* Sin fondo ni borde: los thumbs de WFM ya vienen con alfa. */
+.order-thumb {
+    grid-row: span 2;
+    width: 38px;
+    height: 38px;
+    object-fit: contain;
+    position: relative;
+    z-index: 1;
+    transition: transform 0.2s ease, filter 0.2s ease;
+}
+
+/* Zoom al pasar por encima, mismo gesto que .item-icon-small en el inventario.
+   El z-index alto es lo que evita que la tarjeta siguiente tape la imagen ampliada. */
+.order-thumb:hover {
+    transform: scale(2.4);
+    filter: drop-shadow(0 0 8px var(--active-theme-color, var(--wf-blue)));
+    z-index: 9999;
+}
+
+.order-body {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.order-name {
+    font-weight: 600;
+    color: inherit;
+    text-decoration: none;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+a.order-name:hover {
+    color: var(--active-theme-color, var(--wf-blue));
+    text-decoration: underline;
+}
+
+.order-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 7px;
+    font-size: 0.74rem;
+    opacity: 0.62;
+}
+
+.order-type {
+    padding: 1px 6px;
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    border-radius: 3px;
+}
+
+/* ---------- Resumen de mercado en la tarjeta ---------- */
+.order-market {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 10px;
+    font-size: 0.73rem;
+    line-height: 1.35;
+}
+
+/* Reserva la altura para que la lista no dé un salto al llegar los precios. */
+.order-market.om-loading {
+    min-height: 1.1em;
+}
+
+.om-stat {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 4px;
+    white-space: nowrap;
+}
+
+.om-label {
+    font-size: 0.66rem;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+    opacity: 0.45;
+}
+
+.om-val {
+    display: inline-flex;
+    align-items: center;
+    font-weight: 700;
+    opacity: 0.92;
+}
+
+.om-depth {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.om-depth-item {
+    display: inline-flex;
+    align-items: center;
+    padding: 1px 5px;
+    font-size: 0.66rem;
+    opacity: 0.6;
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 3px;
+    white-space: nowrap;
+}
+
+.om-delta {
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.68rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.om-delta.ok {
+    color: var(--wf-green);
+}
+
+.om-delta.warn {
+    color: var(--wf-gold-text);
+}
+
+/* Reservado para el estado vacío ("sin listings"), que reutiliza el hueco. */
+.om-sample {
+    font-size: 0.7rem;
+    opacity: 0.5;
+}
+
+.om-tag {
+    padding: 1px 6px;
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    border-radius: 3px;
+    white-space: nowrap;
+}
+
+.om-tag.ok {
+    color: var(--wf-green);
+    background: rgba(79, 189, 79, 0.13);
+}
+
+/* Mejor precio visto en vivo por el WebSocket. */
+.om-live {
+    padding: 1px 6px;
+    font-size: 0.66rem;
+    font-weight: 700;
+    color: var(--wf-green);
+    background: rgba(79, 189, 79, 0.13);
+    border-radius: 3px;
+    white-space: nowrap;
+}
+
+/* Alguien ha listado el mismo ítem por debajo de tu precio. */
+.order-card.is-undercut {
+    border-left-color: var(--wf-gold-text);
+}
+
+.order-card.is-undercut .order-price {
+    color: var(--wf-gold-text);
+}
+
+.om-tag.warn {
+    color: var(--wf-gold-text);
+    background: rgba(197, 168, 86, 0.13);
+}
+
+.order-card.sell .order-type {
+    color: #05161c;
+    background: var(--wf-blue);
+}
+
+.order-card.buy .order-type {
+    color: #ffffff;
+    background: var(--wf-riven);
+}
+
+.order-price {
+    grid-row: span 2;
+    align-self: center;
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 9px;
+    font-size: 1.1rem;
+    font-weight: 800;
+    color: var(--active-theme-color, var(--wf-blue));
+    background: rgba(255, 255, 255, 0.04);
+    border-radius: 7px;
+    white-space: nowrap;
+}
+
+.order-card.buy .order-price {
+    color: #c07ff0;
+}
+
+/* ---------- Acciones de orden ---------- */
+.order-card.is-busy {
+    opacity: 0.55;
+    pointer-events: none;
+}
+
+.order-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    grid-column: 1 / -1;
+    padding-top: 7px;
+    margin-top: 2px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* Atenuada hasta el foco: cuatro botones por orden dominaban la lista. :focus-within
+   es imprescindible — solo con :hover, el botón enfocado por teclado quedaba invisible.
+   En táctil no aplica la media query, así que siguen siempre visibles. */
+@media (hover: hover) and (pointer: fine) {
+    .order-actions {
+        opacity: 0.35;
+        transition: opacity 0.18s ease;
+    }
+
+    .order-card:hover .order-actions,
+    .order-card:focus-within .order-actions {
+        opacity: 1;
+    }
+}
+
+.order-act {
+    padding: 5px 10px;
+    font-size: 0.73rem;
+    font-family: inherit;
+    font-weight: 600;
+    color: #e0e0e0;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+}
+
+.order-act:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.28);
+}
+
+.order-act.ok:hover {
+    color: var(--wf-green);
+    border-color: rgba(79, 189, 79, 0.55);
+    background: rgba(79, 189, 79, 0.1);
+}
+
+.order-act.danger:hover {
+    color: var(--wf-error);
+    border-color: rgba(255, 68, 68, 0.5);
+    background: rgba(255, 68, 68, 0.09);
+}
+
+/* ---------- Filtros ---------- */
+/* Fondo opaco obligatorio: al ser sticky, las tarjetas pasan por debajo. */
+.orders-filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    position: sticky;
+    top: 0;
+    z-index: 4;
+    padding: 6px 2px;
+    margin: 0 -2px;
+    background: var(--wf-bg);
+}
+
+.orders-chips {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.orders-chip {
+    padding: 6px 12px;
+    font-size: 0.78rem;
+    font-family: inherit;
+    font-weight: 600;
+    color: #e0e0e0;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 20px;
+    cursor: pointer;
+    transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+}
+
+.orders-chip:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.orders-chip.active {
+    color: #05161c;
+    background: var(--active-theme-color, var(--wf-blue));
+    border-color: transparent;
+}
+
+.orders-search {
+    flex: 1 1 160px;
+    min-width: 0;
+    padding: 8px 12px;
+    font-size: 0.85rem;
+}
+
+/* ---------- Modal de edición ---------- */
+.orders-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: var(--z-modal-backdrop, 9999);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    background: rgba(0, 0, 0, 0.72);
+    backdrop-filter: blur(2px);
+    animation: orders-fade 0.15s ease;
+}
+
+@keyframes orders-fade {
+    from {
+        opacity: 0;
+    }
+}
+
+.orders-modal {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    width: 100%;
+    max-width: 420px;
+    max-height: 88vh;
+    overflow-y: auto;
+    padding: 20px;
+    background: var(--wf-card);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    box-shadow: 0 14px 44px rgba(0, 0, 0, 0.6);
+}
+
+.orders-modal-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+}
+
+.orders-modal-title {
+    flex: 1 1 auto;
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--active-theme-color, var(--wf-blue));
+    line-height: 1.3;
+}
+
+.orders-modal-x {
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    font-size: 1.3rem;
+    line-height: 1;
+    color: #e0e0e0;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    opacity: 0.6;
+}
+
+.orders-modal-x:hover {
+    opacity: 1;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.orders-modal-form {
+    display: flex;
+    gap: 10px;
+}
+
+.orders-modal-form .orders-field {
+    flex: 1 1 0;
+}
+
+.orders-modal-foot {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+}
+
+.orders-modal-foot .orders-btn {
+    min-width: 110px;
+}
+
+/* ---------- Bloque de mercado ---------- */
+.orders-market {
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+    padding: 12px;
+    background: rgba(0, 0, 0, 0.28);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 9px;
+}
+
+.market-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
+    gap: 8px;
+}
+
+.market-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.market-stat-label {
+    font-size: 0.66rem;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    opacity: 0.55;
+}
+
+.market-stat-value {
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--active-theme-color, var(--wf-blue));
+}
+
+.market-quick {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.market-listings {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.market-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.82rem;
+}
+
+.market-dot {
+    flex-shrink: 0;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--wf-uncommon);
+}
+
+.market-dot.ingame {
+    background: var(--wf-green);
+}
+
+.market-user {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    opacity: 0.8;
+}
+
+.market-qty {
+    flex-shrink: 0;
+    font-size: 0.74rem;
+    opacity: 0.5;
+}
+
+.market-plat {
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+    font-weight: 700;
+    color: var(--active-theme-color, var(--wf-blue));
+}
+
+/* ---------- Móvil ---------- */
+@media (max-width: 520px) {
+    .orders-login {
+        max-width: 100%;
+        padding: 18px 15px;
+    }
+
+    .orders-identity {
+        flex-basis: calc(100% - 44px);
+    }
+
+    .orders-actions {
+        flex: 1 1 100%;
+    }
+
+    .orders-btn-ghost {
+        flex: 1 1 0;
+    }
+
+    .os-val {
+        font-size: 1.1rem;
+    }
+
+    .os-stat {
+        padding: 7px 10px;
+    }
+
+    /* La búsqueda baja a su propia línea: compartiendo fila con tres chips le
+       quedaban ~60px y no se veía lo tecleado. */
+    .orders-search {
+        flex-basis: 100%;
+    }
+
+    .order-card {
+        gap: 3px 8px;
+        padding: 8px 10px;
+    }
+
+    .order-thumb {
+        width: 32px;
+        height: 32px;
+    }
+
+    /* Con poco ancho, la profundidad del libro es lo primero que sobra: la mediana,
+       el mejor precio y el delta siguen cabiendo y bastan para decidir.
+       Ojo: no ocultar .om-sample, que ahora es el aviso "sin listings". */
+    .om-depth {
+        display: none;
+    }
+
+    .order-act {
+        flex: 1 1 auto;
+        text-align: center;
+    }
+}
+
+/* ---------- Publicar desde el inventario ---------- */
+.orders-inv {
+    margin-top: 26px;
+    padding-top: 18px;
+    border-top: 1px solid rgba(255, 255, 255, 0.09);
+}
+
+.orders-inv-hint {
+    margin: 0 0 12px;
+    font-size: 0.78rem;
+    color: #9a9a9a;
+}
+
+.orders-inv-stale-head {
+    margin: 4px 0 2px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--wf-gold-text);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+}
+
+/* Rejilla, no flex: el precio y el botón quedan alineados entre filas aunque los
+   nombres midan cosas muy distintas. */
+.inv-row {
+    display: grid;
+    grid-template-columns: 34px minmax(0, 1fr) 74px auto auto;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    margin-bottom: 6px;
+    background: var(--wf-card);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 7px;
+}
+
+.inv-row.is-stale {
+    grid-template-columns: minmax(0, 1fr) auto;
+    border-color: rgba(197, 168, 86, 0.3);
+    background: rgba(197, 168, 86, 0.06);
+}
+
+.inv-thumb {
+    width: 34px;
+    height: 34px;
+    object-fit: contain;
+}
+
+.inv-info {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.inv-name {
+    font-size: 0.85rem;
+    color: #e6e6e6;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.inv-meta {
+    font-size: 0.7rem;
+    color: #8e8e8e;
+}
+
+.inv-price {
+    width: 100%;
+    padding: 5px 7px;
+    font-family: inherit;
+    font-size: 0.85rem;
+    color: #e6e6e6;
+    text-align: right;
+    background: var(--wf-input-bg);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 5px;
+}
+
+.inv-suggested {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.7rem;
+    color: #8e8e8e;
+    white-space: nowrap;
+}
+
+.inv-suggested-label {
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+/* La fila publicada se queda como acuse de recibo en vez de desaparecer: ver que el
+   cambio surtió efecto importa más que recuperar el hueco. */
+.inv-row.is-done {
+    grid-template-columns: 1fr;
+    border-color: rgba(79, 189, 79, 0.35);
+    background: rgba(79, 189, 79, 0.08);
+}
+
+.inv-done {
+    font-size: 0.8rem;
+    color: var(--wf-green);
+}
+
+@media (max-width: 560px) {
+    .inv-row {
+        grid-template-columns: 30px minmax(0, 1fr) 66px auto;
+    }
+    /* El sugerido se cae en móvil: el precio ya viene puesto en el campo. */
+    .inv-suggested {
+        display: none;
+    }
+}
+
+/* ---------- Qué hace esta pestaña ---------- */
+/* Los indicadores de las tarjetas (fuera de precio, rango, precio en vivo) solo se
+   entienden sabiendo que la pestaña cruza tus órdenes con el mercado. Se dice arriba,
+   una vez, en vez de repetirlo por tarjeta. */
+.orders-about {
+    padding: 11px 14px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-left: 2px solid var(--active-theme-color, var(--wf-blue));
+    border-radius: 8px;
+}
+
+.orders-about-what {
+    margin: 0;
+    font-size: 0.83rem;
+    line-height: 1.45;
+    color: #c6c6c6;
+}
+
+.orders-about-caps {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+    margin: 9px 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.orders-about-caps li {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.75rem;
+    color: #9a9a9a;
+}
+
+/* La marca va en ::before para no repetir un <span> por cada capacidad. */
+.orders-about-caps li::before {
+    content: "✓";
+    font-weight: 700;
+    color: var(--wf-green, #7ee081);
+}
+
+@media (max-width: 560px) {
+    .orders-about-caps {
+        gap: 5px 10px;
+    }
+
+    .orders-about-caps li {
+        font-size: 0.72rem;
+    }
+}
+
+/* ---------- Aviso de privacidad plegable ---------- */
+/* El texto completo ocupaba más que el propio formulario y se leía antes que él, lo que
+   transmitía más riesgo del que hay. Resumen a la vista, detalle a un clic. */
+.orders-disclaimer {
+    font-size: 0.78rem;
+    color: #8e8e8e;
+    border-top: 1px solid rgba(255, 255, 255, 0.07);
+    padding-top: 10px;
+}
+
+.orders-disclaimer-head {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    cursor: pointer;
+    list-style: none;
+    color: #9a9a9a;
+    transition: color 0.18s ease;
+}
+
+.orders-disclaimer-head:hover {
+    color: #ccc;
+}
+
+/* Se oculta el triángulo nativo (distinto en cada navegador) y se pone uno propio. */
+.orders-disclaimer-head::-webkit-details-marker {
+    display: none;
+}
+
+.orders-disclaimer-head::before {
+    content: "›";
+    display: inline-block;
+    font-size: 1.1em;
+    line-height: 1;
+    transition: transform 0.18s ease;
+}
+
+.orders-disclaimer[open] .orders-disclaimer-head::before {
+    transform: rotate(90deg);
+}
+
+.orders-disclaimer-body {
+    margin: 9px 0 0;
+    padding-left: 14px;
+    font-size: 0.75rem;
+    line-height: 1.55;
+    color: #8a8a8a;
+    border-left: 2px solid rgba(255, 255, 255, 0.1);
+}
+
+/* ---------- Aviso "en construcción" con toggle ---------- */
+.orders-wip {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 12px;
+    max-width: 460px;
+    margin: 24px auto;
+    padding: 30px 24px;
+    background: var(--wf-card);
+    border: 1px solid rgba(255, 193, 7, 0.25);
+    border-radius: 14px;
+    box-shadow: 0 6px 22px rgba(0, 0, 0, 0.4);
+}
+
+.orders-wip-icon {
+    font-size: 2.6rem;
+    line-height: 1;
+}
+
+.orders-wip-title {
+    margin: 0;
+    font-size: 1.15rem;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: #ffd98a;
+}
+
+.orders-wip-text {
+    margin: 0;
+    font-size: 0.86rem;
+    line-height: 1.55;
+    color: #c2c2c2;
+}
+
+/* El "por qué" completo va en el title del texto: cursor de ayuda para insinuarlo. */
+.orders-wip-text[title] {
+    cursor: help;
+    border-bottom: 1px dotted rgba(255, 217, 138, 0.4);
+    display: inline-block;
+    padding-bottom: 1px;
+}
+

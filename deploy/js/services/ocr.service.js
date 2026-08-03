@@ -159,7 +159,12 @@ export const OCRService = {
         if (stripped !== word && stripped.length >= 2) {
             s = Math.max(s, this.similarityOCR(stripped, tier.slice(0, Math.max(stripped.length, 2))) - 0.08);
         }
-        if (word.length >= 2 && word.length < tier.length) {
+        // El prefijo solo rescata UN glifo fino perdido al final ("AX" por AXI, "NE" por
+        // NEO). Sin ese límite, un fragmento de 2 letras valía como tier entero: "RE"
+        // puntuaba 0.92 contra REQUIEM (5 glifos ausentes) y cualquier celda con basura
+        // que contuviera "RE" —"...FO RE SM..."— se anotaba como Requiem I. Un falso
+        // positivo es peor que un fallo: mete una reliquia inexistente en el inventario.
+        if (word.length >= 2 && word.length < tier.length && tier.length - word.length <= 1) {
             s = Math.max(s, this.similarityOCR(word, tier.slice(0, word.length)) - 0.08);
         }
         return s;
@@ -208,6 +213,19 @@ export const OCRService = {
             const isRequiem = tier === "REQUIEM";
             if (isRequiem) {
                 for (const c of [...cands]) cands.add(this._romanizeRequiem(c));
+            } else {
+                // La INICIAL de un código de reliquia es SIEMPRE una letra (A1, O5, K11…),
+                // así que un dígito ahí es un fallo de OCR seguro. Sin corregirlo, "O5"
+                // leído "05" empataba a 0.800 contra C5/D5/G5/O5 —la O y el 0 están en el
+                // mismo grupo de confusión, y con ellos C/D/G/Q— el margen de unicidad
+                // caía a 0 y la celda salía UNMATCHED (visto en vivo con Axi O5 y Axi O6).
+                // Reponer las letras candidatas deshace el empate: "O5" casa exacto (1.0)
+                // y las demás se quedan en 0.8.
+                const DIGIT_AS_LETTER = { "0": "O", "1": "I", "2": "Z", "4": "A", "5": "S", "6": "G", "8": "B" };
+                for (const c of [...cands]) {
+                    const letter = DIGIT_AS_LETTER[c[0]];
+                    if (letter) cands.add(letter + c.slice(1));
+                }
             }
             if (cands.size === 0) continue;
 
@@ -384,17 +402,6 @@ export const OCRService = {
             }
         }
         return this._consolidateMatches(itemMatches, imgW);
-    },
-
-    _countValidTokens(searchTokens, localWords) {
-        let count = 0;
-        const localTexts = localWords.map(lw => lw.text);
-        searchTokens.forEach(token => {
-            if (localTexts.some(lt => lt === token || this.getSimilarity(lt, token) > 0.8)) {
-                count++;
-            }
-        });
-        return count;
     },
 
     // localWords: ventana completa de la columna (puntúa los tokens del nombre, que pueden

@@ -2,6 +2,8 @@ import { state, saveAppState } from "../state.js";
 import { TEXTS, VANIA_NAMES, CHALLENGE_MAP } from "../config.js";
 import { fetchActiveBounties } from "../api.js";
 import { escapeHTML, showToast } from "./ui_components.js";
+import { exposeGlobals } from "../utils/global_registry.js";
+import { serverNow } from "../utils/server_clock.js";
 import {
   getAlarmPrefs,
   saveAlarmPrefs,
@@ -19,6 +21,12 @@ import {
 let bountyInterval = null;
 // El panel de alarmas se re-renderiza junto al tab: recordamos si estaba abierto.
 let alarmPanelOpen = false;
+// Freno del refetch de rotación. A nivel de módulo A PROPÓSITO: como `let` dentro de
+// renderBountiesTab() se reiniciaba a 0 en cada render, y el propio reintento llama a
+// renderBountiesTab() — el límite no llegaba a aplicarse nunca y, mientras el
+// worldstate no publicaba la rotación, la pestaña se repintaba en bucle cada ~5s
+// clavada en ROTATING.
+let rotationReloadAt = 0;
 
 const TIER_COLORS = {
   NARMER: "#ffaa00",
@@ -113,23 +121,24 @@ function getTierColor(tier) {
 function getLevelDisplay(m) {
   if (m.isDual) {
     return `
-      <div style="display: flex; align-items: center; gap: 8px; font-size: 0.82em; margin-top: 4px; flex-wrap: wrap;">
-        <span style="color: #aaa;">Lvl ${m.level} <b style="color:#888">(+${m.standing})</b></span>
-        <span style="color: #444;">|</span>
-        <span style="color: #ff4d4d;">SP ${m.levelSP} <b style="color:#ff4d4d99">(+${m.standingSP})</b></span>
+      <div class="bounty-levels">
+        <span class="bounty-lvl">Lvl ${m.level}<b class="bounty-standing">+${m.standing}</b></span>
+        <span class="bounty-lvl-sep">|</span>
+        <span class="bounty-lvl is-sp">SP ${m.levelSP}<b class="bounty-standing">+${m.standingSP}</b></span>
       </div>`;
   }
   const tag = m.isSP ? "STEEL PATH" : "NORMAL PATH";
-  const lvlColor = m.isSP ? "#ff4d4d" : "#aaa";
   return `
-      <div style="color: ${lvlColor}; font-weight: bold; font-size: 0.85em; margin-top: 4px;">
-        ${tag} (Lvl ${m.level}) <span style="color: #888; font-weight: normal;">(+${m.standing})</span>
+      <div class="bounty-levels">
+        <span class="bounty-lvl ${m.isSP ? "is-sp" : ""}">${tag} · Lvl ${m.level}<b class="bounty-standing">+${m.standing}</b></span>
       </div>`;
 }
 
 function getRewardsContent(m) {
   if (!m.detailedRewards) {
-    const rewardListHtml = m.rewards.map((r) => `<li class="drop-item">${r}</li>`).join("");
+    // rewardPool viene crudo del worldstate (processJobRewards no lo valida contra
+    // catálogo), así que se escapa igual que los drops detallados de abajo.
+    const rewardListHtml = m.rewards.map((r) => `<li class="drop-item">${escapeHTML(r)}</li>`).join("");
     return `<ul class="drop-list">${rewardListHtml}</ul>`;
   }
   return m.detailedRewards.map((stage) => {
@@ -144,15 +153,13 @@ function getRewardsContent(m) {
 function getTierBadgeHtml(m, tierColor) {
   if (m.hideTier) return "";
   const tierLabel = m.tier;
-  const hasBg = m.tier === 6 || m.tier === "NARMER";
-  const bg = hasBg ? "rgba(255,170,0,0.1)" : "transparent";
+  const special = m.tier === 6 || m.tier === "NARMER";
   const label = typeof tierLabel === "string" ? tierLabel : `TIER ${tierLabel}`;
-  return `<span style="color: ${tierColor}; border: 1px solid ${tierColor}44; padding: 1px 6px; font-size: 0.7em; border-radius: 3px; font-weight: 900; background: ${bg}">${label}</span>`;
+  return `<span class="tier-badge ${special ? "special" : ""}" style="--tier-color:${tierColor};">${escapeHTML(label)}</span>`;
 }
 
 function getBountyMissionHtml(m, index, key, color, isOpt, t) {
   const uniqueId = `drops-${key}-${index}`.replaceAll(/\s+/g, "");
-  const opacity = isOpt ? "1" : "0.7";
   const tierColor = getTierColor(m.tier);
   const levelDisplay = getLevelDisplay(m);
   const rewardsContent = getRewardsContent(m);
@@ -165,32 +172,42 @@ function getBountyMissionHtml(m, index, key, color, isOpt, t) {
         data-optkey="${escapeHTML(optimalKey(m))}" data-opt="${isOpt ? "1" : "0"}"
         title="${escapeHTML(starTip)}" aria-label="${escapeHTML(starTip)}">${isOpt ? "★" : "☆"}</button>`;
   const conditionHtml = m.condition
-    ? `<div style="background: rgba(255,255,255,0.05); border-left: 3px solid #666; padding: 6px 12px; margin-top: 10px; font-size: 0.85em; color: #ccc; white-space: normal;">CHALLENGE: ${m.condition}</div>`
+    ? `<div class="bounty-condition"><span class="bounty-condition-tag">${escapeHTML(t.lblChallenge || "CHALLENGE")}</span>${escapeHTML(m.condition)}</div>`
     : "";
+  const techType = m.factionKey === "The Hex"
+    ? (VANIA_NAMES[m.technicalType] || m.technicalType)
+    : m.technicalType;
 
   return `
-    <div class="bounty-wrapper ${spClass} ${optimalClass}" style="opacity:${opacity};">
+    <div class="bounty-wrapper ${spClass} ${optimalClass}">
         <div class="bounty-header-row">
             <div class="bounty-info">
-               <div class="bounty-type" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-                  <span style="color:var(--wf-blue); font-weight:900; font-size:0.75em; text-transform:uppercase; border-right:1px solid #444; padding-right:8px;">
-                    ${m.factionKey === "The Hex" ? (VANIA_NAMES[m.technicalType] || m.technicalType) : m.technicalType}
-                  </span>
+               <div class="bounty-type">
+                  <span class="bounty-tech">${escapeHTML(techType)}</span>
                   ${tierBadgeHtml}
-                  <span style="color: #fff; font-weight: 600; flex: 1;">${m.type}</span>
+                  <span class="bounty-name">${escapeHTML(m.type)}</span>
                 </div>
                 ${levelDisplay}
                 ${conditionHtml}
             </div>
             <div class="bounty-side-actions">
                 ${starHtml}
-                <button class="bounty-rewards-btn" style="color: ${color};" onclick="document.getElementById('${uniqueId}').classList.toggle('open')">
-                    VIEW REWARDS
+                <button type="button" class="bounty-rewards-btn" style="--reward-color:${color};" aria-expanded="false" onclick="globalThis.toggleBountyDrawer(this, '${uniqueId}')">
+                    ${escapeHTML(t.lblViewRewards || "REWARDS")}
                 </button>
             </div>
         </div>
         <div id="${uniqueId}" class="bounty-drops-drawer">${rewardsContent}</div>
     </div>`;
+}
+
+/** Abre/cierra el cajón de recompensas y refleja el estado en el botón. */
+export function toggleBountyDrawer(btn, drawerId) {
+  const drawer = document.getElementById(drawerId);
+  if (!drawer) return;
+  const open = drawer.classList.toggle("open");
+  btn.classList.toggle("open", open);
+  btn.setAttribute("aria-expanded", String(open));
 }
 
 // ---- Panel de alarmas ----
@@ -386,6 +403,7 @@ function handleAlarmHits(hits) {
     tag: "farm-alarm",
     type: "success",
     duration: 30000,
+    html: true, // el mensaje monta <b>/<br> y ya escapa cada dato que interpola
   });
 }
 
@@ -498,24 +516,30 @@ function bindAlarmPanel(container, t) {
 function buildHeaderHtml(t) {
   const alarmPrefs = getAlarmPrefs();
   const nBounty = alarmPrefs.rules.filter((r) => (r.kind || "bounty") === "bounty").length;
-  const toggleText = state.showAllFarms
-    ? (state.currentLang === "en" ? "SHOWING ALL" : "MOSTRANDO TODO")
-    : (state.currentLang === "en" ? "OPTIMAL ONLY" : "SOLO ÓPTIMAS");
   const alarmActive = alarmPrefs.enabled && nBounty > 0;
 
   return `
       <div class="farms-header">
-          <div class="panel-main-header farms-title">
-            <span id="lbl-fast-farms-title">${t.lblFastFarms || "Active Farms"}</span>
-            <span class="info-icon" id="bounties-guide-icon" data-tooltip="${t.fastFarmGuide}">ℹ️</span>
+          <div class="farms-title">
+            <span id="lbl-fast-farms-title">${escapeHTML(t.lblFastFarms || "Active Farms")}</span>
+            <span class="info-icon" id="bounties-guide-icon" data-tooltip="${escapeHTML(t.fastFarmGuide || "")}">ℹ️</span>
           </div>
           <div class="farms-actions">
-              <button type="button" id="farm-alarms-btn" class="dashed-btn farm-action-btn ${alarmActive ? "active-filter" : ""}">
-                🔔 ${escapeHTML(t.farmAlarms.toggle)}
+              <div class="farm-segment" role="group">
+                <button type="button" class="farm-seg-btn ${state.showAllFarms ? "" : "active"}"
+                  data-showall="0" aria-pressed="${state.showAllFarms ? "false" : "true"}">
+                  ${escapeHTML(t.lblOptimalOnly || "Optimal")}
+                </button>
+                <button type="button" class="farm-seg-btn ${state.showAllFarms ? "active" : ""}"
+                  data-showall="1" aria-pressed="${state.showAllFarms ? "true" : "false"}">
+                  ${escapeHTML(t.lblShowAll || "All")}
+                </button>
+              </div>
+              <button type="button" id="farm-alarms-btn" class="farm-action-btn ${alarmActive ? "active-filter" : ""}"
+                aria-expanded="${alarmPanelOpen ? "true" : "false"}" title="${escapeHTML(t.farmAlarms.toggle)}">
+                <span class="farm-btn-icon">🔔</span>
+                <span class="farm-btn-label">${escapeHTML(t.farmAlarms.toggle)}</span>
                 <span class="alarm-count">${nBounty > 0 ? nBounty : ""}</span>
-              </button>
-              <button type="button" id="farm-filter-btn" class="dashed-btn farm-action-btn ${state.showAllFarms ? "active-filter" : ""}">
-                ${toggleText}
               </button>
           </div>
       </div>
@@ -537,7 +561,11 @@ function buildChipbarHtml(groups, viewPrefs) {
   return chips ? `<div class="farm-chipbar">${chips}</div>` : "";
 }
 
-export async function renderBountiesTab() {
+/**
+ * @param {boolean} [force] Salta la caché local. Solo lo pone el refetch de rotación:
+ *   un render normal debe seguir aprovechando la caché.
+ */
+export async function renderBountiesTab(force = false) {
   const container = document.getElementById("bounties-list-container");
   if (!container) return;
 
@@ -548,13 +576,13 @@ export async function renderBountiesTab() {
 
   container.innerHTML = `
       ${headerHTML}
-      <div style="display:flex; flex-direction:column; align-items:center; padding:40px; color:#888;">
+      <div class="farm-loading">
          <div class="spinner"></div>
-         <div style="margin-top:10px">...</div>
+         <div>${escapeHTML(t.loadingWorldstate || "Loading Worldstate...")}</div>
       </div>`;
   bindAlarmPanel(container, t);
 
-  const allBounties = await fetchActiveBounties();
+  const allBounties = await fetchActiveBounties(force);
 
   // Evalúa las alarmas sobre TODA la rotación (no solo lo visible) y arranca
   // el watcher en segundo plano para las rotaciones siguientes.
@@ -619,7 +647,7 @@ export async function renderBountiesTab() {
 
     const expiryId = `timer-${key.replaceAll(/\s+/g, "")}`;
     if (missions[0]?.expiry) {
-      expiryTimes.push({ id: expiryId, date: new Date(missions[0].expiry) });
+      expiryTimes.push({ id: expiryId, at: new Date(missions[0].expiry).getTime() });
     }
 
     const isCollapsed = viewPrefs.collapsed.includes(key);
@@ -641,12 +669,10 @@ export async function renderBountiesTab() {
 
     if (key === "Ostrons") {
       html += `
-        <div style="border: 1px solid var(--wf-gold-text); background: rgba(197, 168, 86, 0.1); padding: 12px; margin-bottom: 15px; border-radius: 6px; color: #ddd; font-size: 0.85rem; line-height: 1.4;">
-          <strong style="color: var(--wf-gold-text);">ℹ AYA STRATEGY (TEAM):</strong>
-          Start T5 Bounty (Lvl 40-60, NON-SP). Enter Plains, FAIL mission immediately.
-          Check Tent console for Capture/Rescue. Accept there.
-        </div>
-      `;
+        <div class="farm-tip">
+          <strong class="farm-tip-title">${escapeHTML(t.ayaStrategyTitle || "AYA STRATEGY (TEAM)")}</strong>
+          <span>${escapeHTML(t.ayaStrategyBody || "")}</span>
+        </div>`;
     }
     missions.forEach((m, index) => {
       html += getBountyMissionHtml(m, index, key, config.color, isEffectiveOptimal(m, optOverrides), t);
@@ -700,22 +726,47 @@ export async function renderBountiesTab() {
     });
   });
 
+  // Al llegar a cero hay que RECARGAR, no solo pintar "ROTATING": los datos siguen en
+  // IndexedDB con el expiry viejo y nadie vuelve a pedirlos, así que con la app abierta
+  // durante una rotación el contador se quedaba clavado en ROTATING indefinidamente.
+  // El margen de 5s evita pedir antes de que el worldstate publique la rotación nueva.
   const updateTimers = () => {
-    const now = new Date();
+    // serverNow(), no Date.now(): con el reloj del sistema adelantado unos minutos el
+    // contador salía en negativo y marcaba ROTATING con la rotación aún viva.
+    const now = serverNow();
+    let anyExpired = false;
+
     expiryTimes.forEach((item) => {
       const el = document.getElementById(item.id);
       if (!el) return;
-      const diff = item.date - now;
+      const diff = item.at - now;
       if (diff <= 0) {
-        el.innerText = "ROTATING...";
-        el.style.color = "#f44";
+        anyExpired = true;
+        el.textContent = t.lblRotating || "ROTATING...";
+        el.classList.add("expired");
         return;
       }
       const h = Math.floor(diff / (1000 * 60 * 60));
       const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
       const s = Math.floor((diff % (1000 * 60)) / 1000);
-      el.innerText = `${t.lblEndsIn || "Ends:"} ${h}h ${m}m ${s}s`;
+      el.classList.remove("expired");
+      // La última hora es cuando decides si te da tiempo: se resalta.
+      el.classList.toggle("urgent", diff < 3600000);
+      el.textContent = `${t.lblEndsIn || "Ends:"} ${h}h ${m}m ${s}s`;
     });
+
+    if (!anyExpired) return;
+    // Un reintento cada 30s como mucho: si el worldstate aún no ha rotado, la
+    // respuesta trae el mismo expiry y sin freno volveríamos a pedir en bucle.
+    const ts = Date.now();
+    if (ts < rotationReloadAt) return;
+    rotationReloadAt = ts + 30000;
+    setTimeout(() => {
+      // force: la entrada que acabamos de guardar tiene 60s de vida por el suelo del
+      // expiryTime, así que sin esto el reintento se respondería con las mismas
+      // misiones caducadas y ROTATING no se iría nunca.
+      if (state.activeTab === "bounties") renderBountiesTab(true);
+    }, 5000);
   };
 
   updateTimers();
@@ -723,20 +774,25 @@ export async function renderBountiesTab() {
 }
 
 function bindHeaderButtons(container) {
-  container.querySelector("#farm-filter-btn")?.addEventListener("click", () => {
-    state.showAllFarms = !state.showAllFarms;
-    saveAppState();
-    renderBountiesTab();
+  container.querySelectorAll(".farm-seg-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const next = btn.dataset.showall === "1";
+      if (next === state.showAllFarms) return; // ya activo: no repintar por nada
+      state.showAllFarms = next;
+      saveAppState();
+      renderBountiesTab();
+    });
   });
 }
 
-Object.assign(globalThis, {
+exposeGlobals({
   toggleFarmsFilter: () => {
     state.showAllFarms = !state.showAllFarms;
     saveAppState();
     renderBountiesTab();
   },
-});
+  toggleBountyDrawer,
+}, "ui.components/ui_bounties.js");
 
 // Arranque del watcher aunque el usuario no abra el tab Farms: si hay alarmas
 // activas guardadas, empezamos a vigilar rotaciones a los pocos segundos de

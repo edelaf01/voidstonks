@@ -37,7 +37,11 @@ import {
   toggleInventoryPanel,
   renderInventory,
   clearInventory,
+  renderPrimeInventory,
 } from "./ui.components/ui_inventory.js";
+import { manualRelicUpdate } from "./ui.components/ui_relics.js";
+import { renderSetTracker } from "./ui.components/ui_sets.js";
+import { initLFGPresets } from "./ui.components/ui_lfg.js";
 import {
   handleRivenInput,
   openRivenMarket,
@@ -52,7 +56,8 @@ if ("serviceWorker" in navigator) {
   });
 }
 import { initVosforTab } from "./ui.components/ui_vosfor.js?v=2.9";
-import { initTabFan } from "./ui.components/ui_tab_fan.js?v=1.0";
+import "./ui.components/ui_orders.js?v=1.0";
+import { initTabFan } from "./ui.components/ui_tab_fan.js?v=1.1";
 
 document.addEventListener("DOMContentLoaded", async () => {
   const urlParams = new URLSearchParams(globalThis.location.search);

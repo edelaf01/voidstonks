@@ -81,10 +81,12 @@ export const ScannerService = {
         await OCRRepository.warmUp();
         OpenCVRepository.waitReady().catch(() => { });
         OCRService.initMatcherData();
-        // Precalienta el 2º worker Tesseract ahora (en paralelo, sin bloquear el loop): si se
-        // crea perezosamente al llegar la 1ª pantalla REWARD, esa creación (cientos de ms) se
-        // suma a la latencia del frame más importante para detectar la recompensa cuanto antes.
-        OCRRepository.ensureSecondWorker().catch(() => { });
+        // El 2º worker Tesseract NO se precalienta aquí: es una instancia WASM completa
+        // (~40-60MB) y arrancar el escáner no implica que vaya a hacer falta — sólo lo usan
+        // las pantallas de recompensas, el grid de inventario y el reroll de 2 cartas.
+        // Cada uno de esos puntos llama a ensureSecondWorker() justo antes de necesitarlo y
+        // cae a workers[0] si aún no está listo, así que crearlo aquí sólo adelantaba RAM
+        // que en una sesión de sólo-rivens no se llega a usar nunca.
         this.loop();
     },
 
@@ -1154,7 +1156,12 @@ export const ScannerService = {
         const namesCanvas = VisionService.prepareRewardNamesCanvas(video, width, height, scale, cropRect);
         let metaRes, namesRes;
         if (namesCanvas) {
-            await OCRRepository.ensureSecondWorker(); // el 2º worker se crea perezoso (RAM)
+            // Se lanza la creación del 2º worker pero NO se espera: bloquear aquí metía
+            // cientos de ms (arranque de una instancia WASM) justo en el primer frame de
+            // recompensa, que es el que más corre prisa. Si aún no está, las dos pasadas
+            // caen a workers[0] —secuenciales, algo más lentas pero sin frame perdido— y a
+            // partir del siguiente frame ya hay paralelismo real.
+            OCRRepository.ensureSecondWorker().catch(() => { });
             const w0 = OCRRepository.workers[0];
             const w1 = OCRRepository.workers[1] || w0;
             [metaRes, namesRes] = await Promise.all([
@@ -1461,14 +1468,21 @@ export const ScannerService = {
             // Solo se crea el 2º worker estándar (nombres): las CANTIDADES ya no usan Tesseract
             // sino template-matching de dígitos (utils/badge_digit_ocr.js), así que los 2 workers
             // de badges se eliminaron — 2 instancias WASM menos de RAM.
+            // Trazas de PROGRESO del tramo mudo: entre updateScrollStatus("scanning") y el
+            // "done" final no se emitía nada, así que un cuelgue aquí (worker que no arranca,
+            // celda que no resuelve) dejaba el HUD en "scanning" sin ninguna pista de dónde.
+            console.log(`[INV] Preparadas ${activeCells.length} celdas activas; arrancando worker OCR...`);
             await OCRRepository.ensureSecondWorker();
             const workers = OCRRepository.workers.filter(Boolean);
+            console.log(`[INV] Workers OCR listos: ${workers.length}`);
 
             let cellIndex = 0;
             const runWorker = async (worker) => {
                 while (cellIndex < activeCells.length) {
                     const task = activeCells[cellIndex++];
                     if (!task) break;
+
+                    console.log(`[INV] celda ${cellIndex}/${activeCells.length} (r${task.cell.r}c${task.cell.c})...`);
 
                     const { cell, textCvs } = task;
                     // MOTOR OCR seleccionable (paralelo). "paddle" (globalThis.OCR_ENGINE)
@@ -1790,6 +1804,10 @@ export const ScannerService = {
                 }
             } catch (e) {
                 console.error("[INV] Grid processing failed:", e);
+                // Sin esto el HUD se queda en "scanning" para siempre cuando el escaneo
+                // revienta a mitad: el "done" vive al final del try y nunca se alcanza,
+                // así que el usuario ve un cuelgue en vez del error.
+                ScannerHUD.updateScrollStatus("done", this.sessionInventory.size + this.sessionRelics.size);
             } finally {
                 this.detectionLocked = false;
             }

@@ -106,7 +106,7 @@
     <!-- ================= ENGLISH ================= -->
     <section data-lang="en">
       <h1>Privacy Policy</h1>
-      <p class="muted">Last updated: July 2026</p>
+      <p class="muted">Last updated: August 2026</p>
 
       <p>
         VoidStonks is an unofficial Warframe tool. This policy explains what data is handled when you
@@ -119,23 +119,65 @@
         identifiable data on our servers. Your settings, inventory and progress are stored
         <strong>locally in your browser</strong> (localStorage) and are never sent to us.
       </p>
+      <p>
+        The only exception is the optional Warframe.market connection described in section 2, which
+        you have to start yourself.
+      </p>
 
-      <h2>2. Camera &amp; screen capture</h2>
+      <h2>2. Connecting your Warframe.market account (optional)</h2>
+      <p>
+        The "My orders" tab lets you sign in to <a href="https://warframe.market/" target="_blank" rel="noopener">warframe.market</a>
+        to view and manage your own orders. This is <strong>entirely optional</strong>: every other
+        feature works without it.
+      </p>
+      <p>
+        Warframe.market does not yet allow third-party apps to connect without a password (their
+        OAuth is not open to external developers), so <strong>your email and password pass through
+        the VoidStonks server</strong> on their way to warframe.market. Specifically:
+      </p>
+      <ul>
+        <li>
+          Your credentials are <strong>encrypted in your browser</strong> before being sent, using a
+          key that only our server can undo. They are never readable in transit.
+        </li>
+        <li>
+          They are used <strong>once</strong>, to sign in to warframe.market, and are
+          <strong>never stored, logged or written to any database</strong>.
+        </li>
+        <li>
+          Only the resulting session token is kept, and only in your browser's memory for the tab
+          (sessionStorage). It <strong>expires after 3 hours</strong> and is invalidated on
+          warframe.market when you sign out.
+        </li>
+        <li>
+          To limit abuse we keep a temporary counter of failed sign-in attempts for 15 minutes. Your
+          email is stored <strong>hashed (SHA-256)</strong> in that counter, never in plain text.
+        </li>
+      </ul>
+      <p>
+        We want to be straightforward about the limit of this: since the password must reach
+        warframe.market, our server necessarily handles it for an instant. We do not keep it, and the
+        source code is public so this can be verified, but you are placing trust in that. If you
+        prefer not to, simply do not use this feature. If warframe.market opens up OAuth, we will
+        switch to it so that passwords never touch our infrastructure.
+      </p>
+
+      <h2>3. Camera &amp; screen capture</h2>
       <p>
         The relic/riven scanner may request permission to use your <strong>camera</strong> or
         <strong>capture your screen</strong>. That processing (OCR) happens <strong>entirely on your
         device</strong>; images are never uploaded or stored on any server.
       </p>
 
-      <h2>3. Third-party services</h2>
+      <h2>4. Third-party services</h2>
       <p>To function, your browser connects to the following external services:</p>
       <ul>
         <li><a href="https://warframe.market/" target="_blank" rel="noopener">Warframe.market</a>: market price data.</li>
-        <li>VoidStonks' own backend (api.voidstonks.com), which relays public Warframe game data such as relics, missions and fissures.</li>
+        <li>VoidStonks' own backend (api.voidstonks.com), which relays public Warframe game data such as relics, missions and fissures, and — only if you use the feature in section 2 — forwards your sign-in to warframe.market.</li>
         <li>Content delivery networks (jsDelivr, unpkg) that serve the vision/OCR libraries used by the scanner.</li>
       </ul>
 
-      <h2>4. Advertising &amp; cookies</h2>
+      <h2>5. Advertising &amp; cookies</h2>
       <p>
         This site displays ads through <strong>Google AdSense</strong>. Third-party vendors, including
         Google, use cookies to serve ads based on your prior visits to this and other websites.
@@ -156,13 +198,13 @@
         </li>
       </ul>
 
-      <h2>5. Your choices</h2>
+      <h2>6. Your choices</h2>
       <p>
         You can erase all local app data by clearing your browser storage for this site, and you can
         manage or withdraw your advertising consent at any time via the site's privacy notice.
       </p>
 
-      <h2>6. Contact</h2>
+      <h2>7. Contact</h2>
       <p>
         For privacy questions, reach out via the author's profile:
         <a href="https://forums.warframe.com/profile/4069424-parcialsobriedad/" target="_blank" rel="noopener">w/Parcialsobriedad</a>.
@@ -177,7 +219,7 @@
     <!-- ================= ESPAÑOL ================= -->
     <section data-lang="es">
       <h1>Política de Privacidad</h1>
-      <p class="muted">Última actualización: julio de 2026</p>
+      <p class="muted">Última actualización: agosto de 2026</p>
 
       <p>
         VoidStonks es una herramienta no oficial para Warframe. Esta política explica qué datos
@@ -190,23 +232,65 @@
         identificables en nuestros servidores. Tu configuración, inventario y progreso se guardan
         <strong>localmente en tu navegador</strong> (localStorage) y nunca se envían a nosotros.
       </p>
+      <p>
+        La única excepción es la conexión opcional con Warframe.market que se describe en el
+        apartado 2, y que tienes que iniciar tú.
+      </p>
 
-      <h2>2. Cámara y captura de pantalla</h2>
+      <h2>2. Conectar tu cuenta de Warframe.market (opcional)</h2>
+      <p>
+        La pestaña "Mis órdenes" permite iniciar sesión en <a href="https://warframe.market/" target="_blank" rel="noopener">warframe.market</a>
+        para ver y gestionar tus propias órdenes. Es <strong>totalmente opcional</strong>: el resto de
+        funciones anda sin ello.
+      </p>
+      <p>
+        Warframe.market todavía no permite que las apps externas se conecten sin contraseña (su OAuth
+        no está abierto a terceros), así que <strong>tu email y tu contraseña pasan por el servidor de
+        VoidStonks</strong> camino de warframe.market. En concreto:
+      </p>
+      <ul>
+        <li>
+          Tus credenciales se <strong>cifran en tu navegador</strong> antes de enviarse, con una clave
+          que solo nuestro servidor puede deshacer. Nunca son legibles por el camino.
+        </li>
+        <li>
+          Se usan <strong>una sola vez</strong>, para iniciar sesión en warframe.market, y
+          <strong>no se guardan, ni se registran, ni se escriben en ninguna base de datos</strong>.
+        </li>
+        <li>
+          Solo se conserva el token de sesión resultante, y únicamente en la memoria de la pestaña de
+          tu navegador (sessionStorage). <strong>Caduca a las 3 horas</strong> y se invalida en
+          warframe.market al pulsar "Salir".
+        </li>
+        <li>
+          Para limitar abusos guardamos durante 15 minutos un contador temporal de intentos fallidos.
+          Tu email se almacena ahí <strong>hasheado (SHA-256)</strong>, nunca en claro.
+        </li>
+      </ul>
+      <p>
+        Queremos ser claros con el límite de todo esto: como la contraseña tiene que llegar a
+        warframe.market, nuestro servidor la maneja por fuerza durante un instante. No la guardamos, y
+        el código es público para poder comprobarlo, pero estás depositando una confianza. Si
+        prefieres no hacerlo, simplemente no uses esta función. Si warframe.market abre OAuth,
+        migraremos para que las contraseñas no toquen nunca nuestra infraestructura.
+      </p>
+
+      <h2>3. Cámara y captura de pantalla</h2>
       <p>
         El escáner de reliquias/rivens puede pedir permiso para usar tu <strong>cámara</strong> o
         <strong>capturar pantalla</strong>. Ese procesamiento (OCR) ocurre <strong>íntegramente en
         tu dispositivo</strong>; las imágenes no se suben ni se almacenan en ningún servidor.
       </p>
 
-      <h2>3. Servicios de terceros</h2>
+      <h2>4. Servicios de terceros</h2>
       <p>Para funcionar, tu navegador se conecta a los siguientes servicios externos:</p>
       <ul>
         <li><a href="https://warframe.market/" target="_blank" rel="noopener">Warframe.market</a>: datos de precios de mercado.</li>
-        <li>El propio backend de VoidStonks (api.voidstonks.com), que retransmite datos públicos del juego como reliquias, misiones y fisuras.</li>
+        <li>El propio backend de VoidStonks (api.voidstonks.com), que retransmite datos públicos del juego como reliquias, misiones y fisuras y, solo si usas la función del apartado 2, reenvía tu inicio de sesión a warframe.market.</li>
         <li>Redes de distribución de contenido (jsDelivr, unpkg) que sirven las librerías de visión/OCR que usa el escáner.</li>
       </ul>
 
-      <h2>4. Publicidad y cookies</h2>
+      <h2>5. Publicidad y cookies</h2>
       <p>
         Este sitio muestra anuncios a través de <strong>Google AdSense</strong>. Proveedores
         externos, incluido Google, usan cookies para mostrar anuncios basados en tus visitas a este
@@ -228,14 +312,14 @@
         </li>
       </ul>
 
-      <h2>5. Tus opciones</h2>
+      <h2>6. Tus opciones</h2>
       <p>
         Puedes borrar todos los datos locales de la app limpiando el almacenamiento del navegador
         para este sitio, y gestionar o retirar tu consentimiento publicitario en cualquier momento
         desde el aviso de privacidad del sitio.
       </p>
 
-      <h2>6. Contacto</h2>
+      <h2>7. Contacto</h2>
       <p>
         Para dudas sobre privacidad, contacta a través del perfil del autor:
         <a href="https://forums.warframe.com/profile/4069424-parcialsobriedad/" target="_blank" rel="noopener">w/Parcialsobriedad</a>.

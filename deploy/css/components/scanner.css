@@ -407,3 +407,430 @@
     width: 11px;
     height: 11px;
 }
+
+/* ==================================================
+   VOIDSCANNER HUD — panel flotante del escáner de inventario
+
+   El HUD vivía con ~450 líneas de style="" en index.html y con :hover
+   reimplementado a mano en onmouseover/onmouseout por cada botón: seis pares
+   de handlers que había que mantener sincronizados con los colores, y que se
+   quedaban pegados al estado equivocado cuando el botón cambiaba de estado
+   (btn-auto-scan ya necesitaba leer su propio dataset dentro del onmouseout
+   para deshacer el hover). Aquí es una clase por pieza y :hover del navegador.
+   ================================================== */
+
+#inv-hud {
+    display: none;
+    position: fixed;
+    top: 80px;
+    right: 20px;
+    width: 290px;
+    z-index: 10001;
+    font-family: "Segoe UI", system-ui, sans-serif;
+    user-select: none;
+    color: #e0e0e0;
+}
+
+/* ---- Cabecera (asa de arrastre) ---- */
+.hud-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 9px 12px;
+    background: linear-gradient(135deg, #0a0c14 0%, #0d1322 100%);
+    border: 1px solid rgba(0, 229, 255, 0.4);
+    border-bottom: none;
+    border-radius: 8px 8px 0 0;
+    cursor: grab;
+}
+
+.hud-header.dragging {
+    cursor: grabbing;
+}
+
+.hud-header-left,
+.hud-header-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.hud-header-right {
+    gap: 5px;
+}
+
+.hud-status-dot {
+    display: inline-block;
+    flex-shrink: 0;
+    width: 7px;
+    height: 7px;
+    background: #00e5ff;
+    border-radius: 50%;
+    box-shadow: 0 0 8px #00e5ff;
+}
+
+.hud-title {
+    font-size: 0.7em;
+    font-weight: 800;
+    letter-spacing: 2px;
+    color: #00e5ff;
+}
+
+.hud-count {
+    padding: 1px 7px;
+    font-size: 0.75em;
+    font-weight: 900;
+    color: #f1c40f;
+    background: rgba(241, 196, 15, 0.12);
+    border: 1px solid rgba(241, 196, 15, 0.25);
+    border-radius: 10px;
+}
+
+.hud-context-badge {
+    padding: 2px 7px;
+    font-size: 0.58em;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: #00e5ff;
+    background: rgba(0, 229, 255, 0.12);
+    border: 1px solid rgba(0, 229, 255, 0.3);
+    border-radius: 10px;
+}
+
+/* ---- Botones de la cabecera (DBG, plegar) ---- */
+.hud-icon-btn {
+    padding: 2px 6px;
+    font-family: inherit;
+    font-size: 0.58em;
+    line-height: 1.2;
+    letter-spacing: 1px;
+    color: #506070;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid #2a3040;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+
+.hud-icon-btn:hover {
+    color: #00e5ff;
+    border-color: rgba(0, 229, 255, 0.5);
+    background: rgba(0, 229, 255, 0.08);
+}
+
+.hud-icon-btn.is-collapse {
+    font-size: 0.65em;
+}
+
+/* Estado activo del modo debug: lo enciende toggleScannerDebug(). */
+.hud-icon-btn.active {
+    color: #ffd98a;
+    border-color: rgba(255, 193, 7, 0.5);
+    background: rgba(255, 193, 7, 0.12);
+}
+
+/* ---- Cuerpo ---- */
+.hud-body {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: rgba(9, 11, 18, 0.96);
+    border: 1px solid rgba(0, 229, 255, 0.2);
+    border-top: 1px solid rgba(0, 229, 255, 0.08);
+    border-radius: 0 0 8px 8px;
+    backdrop-filter: blur(12px);
+    box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.7),
+        inset 0 1px 0 rgba(0, 229, 255, 0.05);
+}
+
+.hud-statusbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 5px 12px;
+    font-size: 0.6em;
+    letter-spacing: 1px;
+    color: #506070;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.hud-frames {
+    color: #2a3a4a;
+}
+
+/* ---- Fila de acciones principal ---- */
+.hud-actions {
+    display: flex;
+    gap: 6px;
+    padding: 9px 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.hud-btn {
+    padding: 7px 4px;
+    font-family: inherit;
+    font-size: 0.68em;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+    background: none;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 5px;
+    color: #506070;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s, background 0.15s, box-shadow 0.15s;
+}
+
+/* Acción primaria: es la que se pulsa en cada página del inventario, así que va
+   resaltada y ocupa el doble de ancho que las secundarias. */
+.hud-btn.primary {
+    flex: 2;
+    font-weight: 800;
+    letter-spacing: 1px;
+    color: #00e5ff;
+    background: rgba(0, 229, 255, 0.1);
+    border-color: rgba(0, 229, 255, 0.55);
+    box-shadow: 0 0 14px rgba(0, 229, 255, 0.2);
+}
+
+.hud-btn.primary:hover {
+    background: rgba(0, 229, 255, 0.2);
+    box-shadow: 0 0 22px rgba(0, 229, 255, 0.4);
+}
+
+.hud-btn.toggle {
+    flex: 1.2;
+    font-size: 0.62em;
+    font-weight: 800;
+    color: #4a7a5a;
+    background: rgba(0, 255, 120, 0.06);
+    border-color: rgba(0, 255, 120, 0.25);
+}
+
+.hud-btn.toggle:hover {
+    color: #7ee2a0;
+    background: rgba(0, 255, 120, 0.12);
+}
+
+/* data-active lo pone toggleAutoScrollScan(): antes el estado encendido se pintaba
+   desde el onmouseout leyendo el dataset, y al salir del botón sin volver a entrar
+   el color se quedaba en el del hover. */
+.hud-btn.toggle[data-active="1"] {
+    color: #00ff78;
+    background: rgba(0, 255, 120, 0.15);
+    border-color: rgba(0, 255, 120, 0.6);
+}
+
+.hud-btn.save {
+    flex: 1.5;
+    color: #7cada8;
+    background: rgba(0, 229, 255, 0.06);
+    border-color: rgba(0, 229, 255, 0.25);
+}
+
+.hud-btn.save:hover {
+    color: #00e5ff;
+    background: rgba(0, 229, 255, 0.12);
+}
+
+.hud-btn.danger {
+    padding: 7px 8px;
+}
+
+.hud-btn.danger:hover {
+    color: #e07070;
+    border-color: rgba(224, 112, 112, 0.4);
+}
+
+/* ---- Fila secundaria (rejilla) ---- */
+.hud-subactions {
+    display: flex;
+    gap: 5px;
+    align-items: center;
+    padding: 0 10px 8px;
+}
+
+.hud-btn-sm {
+    padding: 5px 6px;
+    font-family: inherit;
+    font-size: 0.6em;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    background: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+
+.hud-btn-sm.cyan {
+    flex: 1;
+    color: #5090a0;
+    border: 1px solid rgba(0, 229, 255, 0.3);
+}
+
+.hud-btn-sm.cyan:hover {
+    color: #00e5ff;
+    border-color: rgba(0, 229, 255, 0.6);
+    background: rgba(0, 229, 255, 0.1);
+}
+
+.hud-btn-sm.amber {
+    color: #c8963a;
+    border: 1px solid rgba(255, 180, 50, 0.35);
+    padding: 5px 8px;
+}
+
+.hud-btn-sm.amber:hover {
+    color: #f0b040;
+    border-color: rgba(255, 180, 50, 0.7);
+    background: rgba(255, 180, 50, 0.1);
+}
+
+/* ---- Barra del editor de celdas (fija, fuera del HUD) ---- */
+.hud-edit-bar {
+    position: fixed;
+    top: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 5001;
+    display: none;
+    align-items: center;
+    gap: 12px;
+    padding: 7px 18px;
+    font-family: "Segoe UI", sans-serif;
+    background: rgba(0, 10, 20, 0.9);
+    border: 1px solid rgba(0, 229, 255, 0.5);
+    border-radius: 6px;
+    box-shadow: 0 4px 20px rgba(0, 229, 255, 0.2);
+}
+
+.hud-edit-title {
+    font-size: 0.72em;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    color: #00e5ff;
+}
+
+.hud-edit-guide {
+    font-size: 0.65em;
+    color: #506070;
+}
+
+.hud-edit-done {
+    padding: 4px 12px;
+    font-family: inherit;
+    font-size: 0.68em;
+    font-weight: 700;
+    color: #00e5ff;
+    background: rgba(0, 229, 255, 0.15);
+    border: 1px solid rgba(0, 229, 255, 0.5);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.hud-edit-done:hover {
+    background: rgba(0, 229, 255, 0.3);
+}
+
+/* ---- Bloque de debug OCR ---- */
+.hud-debug {
+    display: none;
+    padding: 0 10px 8px;
+}
+
+.hud-debug-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+
+.hud-debug-label {
+    font-size: 0.58em;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: #506070;
+}
+
+.hud-debug-copy {
+    padding: 2px 7px;
+    font-family: inherit;
+    font-size: 0.58em;
+    font-weight: 700;
+    color: #00e5ff;
+    background: none;
+    border: 1px solid rgba(0, 229, 255, 0.3);
+    border-radius: 3px;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+}
+
+.hud-debug-copy:hover {
+    background: rgba(0, 229, 255, 0.1);
+    border-color: rgba(0, 229, 255, 0.6);
+}
+
+.hud-debug-img {
+    display: none;
+    width: 100%;
+    border: 1px solid #1a2030;
+    border-radius: 4px;
+}
+
+.hud-debug-summary {
+    margin-top: 4px;
+    font-family: monospace;
+    font-size: 0.58em;
+    color: #8ca0b8;
+    white-space: nowrap;
+    overflow-x: auto;
+}
+
+.hud-debug-history {
+    display: flex;
+    gap: 4px;
+    margin-top: 6px;
+    padding-bottom: 2px;
+    overflow-x: auto;
+}
+
+/* ---- Lista de detecciones ---- */
+.hud-list-label {
+    padding: 0 10px 4px;
+    font-size: 0.58em;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: #2a3a50;
+}
+
+.hud-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    height: 300px;
+    padding: 0 10px 8px;
+    overflow-y: auto;
+}
+
+.hud-empty {
+    padding: 30px 0;
+    font-size: 0.75em;
+    letter-spacing: 1px;
+    text-align: center;
+    color: #1e2a38;
+}
+
+.hud-scroll-guide {
+    padding: 7px 12px;
+    font-size: 0.82em;
+    text-align: center;
+    color: #2a3a50;
+    border-top: 1px solid rgba(0, 229, 255, 0.06);
+}

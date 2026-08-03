@@ -372,6 +372,10 @@ export class MobileScanner {
     this.discoveryActive = false;
     this.releaseWakeLock();
     if (this.discoveryTimer) clearTimeout(this.discoveryTimer);
+    // Los workers de Tesseract son instancias WASM (~40-60MB cada una) y este close()
+    // sólo paraba la cámara: al cerrar el escáner en móvil la RAM se quedaba retenida
+    // hasta recargar la página. El siguiente escaneo los recrea con warmUp().
+    OCRRepository.terminateAll();
     globalThis.mobileScanner = null;
     globalThis.currentScanner = null;
   }
@@ -508,7 +512,7 @@ export class MobileScanner {
         const owned = (state.primeInventory && state.primeInventory[nameU]) || 0;
         const priceText = typeof price === "number" ? price : "—";
         label.innerHTML = `
-          <div class="pmb-name">${nameU}</div>
+          <div class="pmb-name">${escapeHTML(nameU)}</div>
           <div class="pmb-data">
             <div class="pmb-price"><span style="width:8px;height:8px;background:#f1c40f;border-radius:50%;display:inline-block;"></span> ${priceText}</div>
             <div class="pmb-owned">INV: ${owned}</div>

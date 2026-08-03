@@ -173,7 +173,8 @@ export function generateLFGMessage() {
       msg = `H ${activityName}`;
     } else if (act === "temporal") {
       const eliteEl = document.getElementById("lfg-temp-elite");
-      //TODO deja vu not following DRY
+      // Duplicado con la rama 'eda' de abajo: mismo prefijo Élite/Elite.
+      // Unificar en un helper elitePrefix(checkboxId) si se añade una tercera actividad.
       const prefix = eliteEl?.checked
         ? state.currentLang === "es"
           ? "Élite "
@@ -182,9 +183,8 @@ export function generateLFGMessage() {
       msg = `H ${prefix}${activityName}`;
     } else if (act === "eda") {
       const eliteEl = document.getElementById("lfg-eda-elite");
+      // Duplicado con la rama 'temporal' de arriba (ver nota allí).
       const prefix = eliteEl?.checked
-        //TODO deja vu not following DRY
-
         ? state.currentLang === "es"
           ? "Élite "
           : "Elite "

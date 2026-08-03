@@ -190,7 +190,8 @@ function renderRelicStatusBadge(relicName) {
     statusBadge.dataset.tooltip = t.vaulted;
   }
 }
-//TODO Too complex , 16 out of 15 close
+// Complejidad alta: monta toda la fila (rareza, precio, ducados, set, tooltip) en un solo
+// innerHTML. Trocear en subfunciones por bloque si hay que tocarla otra vez.
 function createRelicDropRow(item) {
   const row = document.createElement("div");
   row.className = "component-row";
@@ -204,7 +205,6 @@ function createRelicDropRow(item) {
     item.name.includes("Forma Blueprint") ||
     item.name.includes("Kuva") ||
     item.name === "Riven Sliver";
-  //TODO FIX LINT
   let rarityKey =
     item.chance <= 5 ? "rare" : item.chance <= 11 ? "uncommon" : "common";
   if (isUntradable) {
@@ -377,7 +377,6 @@ export function generateMessage() {
   const ref = document.getElementById("refinement");
   const refText = ref.options[ref.selectedIndex]?.text || "Intact";
   const link = state.selectedRelic
-    //TODO FIX LINT should look into translations too
     ? state.currentLang === "en"
       ? `[${rName} Relic]`
       : `[Reliquia ${rName}]`
@@ -403,7 +402,6 @@ export function renderRelicsForPartInline(partName, container) {
     .sort((a, b) => a.relic.localeCompare(b.relic))
     .forEach((info) => {
       const btn = document.createElement("div");
-      //TODO FIX LINT
       const rc =
         info.chance <= 5 ? "rare" : info.chance <= 22 ? "uncommon" : "common";
       const tier = info.relic.split(" ")[0].toLowerCase();
@@ -417,9 +415,6 @@ export function renderRelicsForPartInline(partName, container) {
       const statusClass = isVaulted ? "vaulted" : "active";
       const statusText = isVaulted ? (t.vaulted || "VAULTED") : (t.active || "ACTIVE");
       const vaultHtml = `<span class="status-badge ${statusClass}" style="font-size:0.65em; padding:2px 6px; border-radius:4px;">${statusText}</span>`;
-      //i should be using this but apparently not
-      //const averages = state.relicAverages ? state.relicAverages[info.relic] : null;
-      //TODO FIX LINT and why do i need this?
       btn.style.height = "auto";
       btn.style.minHeight = "min-content";
 

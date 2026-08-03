@@ -821,23 +821,59 @@ body {
   flex-shrink: 0;
 }
 
+/* Mismo botón de acción que en Farms (.farm-action-btn): icono + etiqueta, esquinas
+   suaves y estado activo por color, en vez de la píldora de 20px que no se parecía
+   a ningún otro control de la app. */
 .fissure-filters-toggle {
-  background: transparent;
-  border: 1px solid #333;
-  color: #aaa;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 13px;
+  font-family: inherit;
   font-size: 0.75em;
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 1px;
-  padding: 5px 12px;
-  border-radius: 20px;
+  color: #9aa0aa;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: color 0.18s, border-color 0.18s, background 0.18s;
 }
 
 .fissure-filters-toggle:hover {
-  border-color: var(--wf-blue);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.fissure-filters-toggle.open {
   color: var(--wf-blue);
+  border-color: rgba(0, 229, 255, 0.5);
+  background: rgba(0, 229, 255, 0.12);
+}
+
+.fissure-filters-icon {
+  font-size: 1.05em;
+  line-height: 1;
+  transition: transform 0.3s ease;
+}
+
+.fissure-filters-toggle.open .fissure-filters-icon {
+  transform: rotate(90deg);
+}
+
+/* Mismo bloque de carga que Farms (.farm-loading): spinner sobre etiqueta, en vez
+   del "Cargando..." suelto que no indicaba actividad. */
+.fissure-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 30px 10px;
+  font-size: 0.85em;
+  color: #888;
 }
 
 .fissure-filters-panel {
@@ -861,6 +897,12 @@ body {
 
 .fissure-filters-section {
   margin-bottom: 10px;
+}
+
+/* Las alarmas no son un filtro más (no cambian lo que se ve, avisan de lo que
+   aparece): ámbar, el mismo color con el que Farms marca su campana. */
+.fissure-alarm-section .fissure-filters-title {
+  border-left-color: var(--wf-gold-text);
 }
 
 /* Categoría de Arbitration (rotación horaria) sobre el listado de fisuras.
@@ -972,14 +1014,18 @@ body {
   font-style: italic;
 }
 
+/* Mismo encabezado de sección que el panel de alarmas de Farms: borde izquierdo
+   como ancla en vez de texto gris suelto, que se perdía entre las casillas. */
 .fissure-filters-title {
   display: block;
-  font-size: 0.75em;
+  padding-left: 7px;
+  margin-bottom: 7px;
+  font-size: 0.73em;
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 1px;
-  color: #888;
-  margin-bottom: 6px;
+  color: #c8ccd2;
+  border-left: 3px solid var(--wf-blue);
 }
 
 .fissure-filters-grid {
@@ -1017,22 +1063,24 @@ body {
 
 .fissure-filters-reset {
   width: 100%;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid #333;
-  color: #aaa;
+  padding: 7px;
+  font-family: inherit;
   font-size: 0.75em;
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 1px;
-  padding: 6px;
-  border-radius: 4px;
+  color: #9aa0aa;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: color 0.18s, border-color 0.18s, background 0.18s;
 }
 
 .fissure-filters-reset:hover {
-  border-color: #f05;
-  color: #f05;
+  color: #ff8080;
+  border-color: rgba(255, 80, 80, 0.5);
+  background: rgba(255, 80, 80, 0.1);
 }
 
 .fissure-set-recs {
@@ -1269,12 +1317,12 @@ body {
 }
 
 .fissure-group {
-  margin-bottom: 5px;
-  border: 1px solid #333;
-  border-radius: 4px;
-  background: #15171b;
+  margin-bottom: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.22);
   overflow: hidden;
-  transition: all 0.3s ease;
+  transition: border-color 0.25s ease, box-shadow 0.25s ease, opacity 0.25s ease;
 }
 
 .fissure-group.active {
@@ -1282,21 +1330,68 @@ body {
   box-shadow: 0 0 10px rgba(197, 168, 86, 0.2);
 }
 
+/* Un tier sin fisuras no se puede farmear ahora mismo: se atenúa para que al recorrer
+   la columna solo destaquen los que tienen algo dentro. Se atenúa el grupo, no el
+   texto, porque la fila entera es lo que deja de ser accionable. */
+.fissure-group.is-empty {
+  opacity: 0.45;
+}
+
+.fissure-group.is-empty:hover {
+  opacity: 0.75;
+}
+
 .tier-header-btn {
   width: 100%;
-  padding: 8px 12px;
-  background: #1f2329;
-  color: #aaa;
+  padding: 9px 12px;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  color: #c8ccd2;
+  font-family: inherit;
+  font-size: 0.82em;
   font-weight: 800;
+  letter-spacing: 0.8px;
   text-transform: uppercase;
   border: 0;
   border-bottom: 1px solid transparent;
   text-align: left;
   cursor: pointer;
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  transition: background 0.2s;
+  transition: background 0.2s, color 0.2s;
+}
+
+.tier-header-btn:hover {
+  background: rgba(255, 255, 255, 0.07);
+  color: #fff;
+}
+
+.tier-name {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* El contador iba entre paréntesis pegado al nombre ("Lith (3)"): separado se lee
+   de un vistazo al bajar por la columna sin parsear el texto. Sin relleno de color:
+   el número es un dato de apoyo y compitiendo con el nombre del tier ensuciaba una
+   columna en la que ya hay bastantes acentos cian. */
+.tier-count {
+  flex-shrink: 0;
+  min-width: 1.5em;
+  padding: 1px 6px;
+  font-size: 0.9em;
+  font-weight: 800;
+  text-align: center;
+  color: #9aa0aa;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+}
+
+/* El tier resaltado por la reliquia seleccionada sí tiñe el número: es el único
+   sitio donde el contador ayuda a localizar el grupo al que te ha llevado. */
+.fissure-group.active .tier-count {
+  color: var(--wf-gold-text);
+  background: rgba(197, 168, 86, 0.15);
 }
 
 .fissure-group.active .tier-header-btn {
@@ -1346,19 +1441,17 @@ body {
 }
 
 .no-fissures-msg {
-  padding: 15px 10px;
-  background: rgba(255, 165, 0, 0.05);
-  border-left: 3px solid #666;
-  color: #888;
-  font-size: 0.85em;
-  font-style: italic;
+  padding: 12px 10px;
+  background: rgba(255, 255, 255, 0.02);
+  color: #6b7280;
+  font-size: 0.82em;
   text-align: center;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  margin: 5px;
-  border-radius: 0 4px 4px 0;
+  margin: 4px;
+  border-radius: 6px;
 }
 
 .fissure-group.active .no-fissures-msg {
@@ -1375,59 +1468,80 @@ body {
   filter: drop-shadow(0 0 5px rgba(204, 170, 0, 0.2));
 }
 
+/* Separador Normal / Steel Path dentro de un tier. Solo aparece si hay ambos
+   (lo decide renderMissionList): con un único path no separa nada. */
+.path-sep {
+  padding: 7px 10px 3px;
+  font-size: 0.68em;
+  font-weight: 800;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: #6b7280;
+}
+
+.path-sep.is-sp {
+  color: #c96a6a;
+}
+
 .mission-item {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  background: #1a1c20;
-  border: 1px solid #444;
-  border-left: 4px solid #444;
-  border-radius: 4px;
-  padding: 10px 12px;
+  gap: 2px;
+  margin: 4px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-left: 3px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  padding: 9px 11px;
   min-width: 140px;
   flex: 1;
-  transition: all 0.2s ease;
+  transition: background 0.18s ease, border-color 0.18s ease;
   position: relative;
   z-index: 1;
 }
 
+/* Sin translateX/scale: el panel es una columna estrecha con scroll, y desplazar y
+   agrandar la fila bajo el cursor movía las de al lado y desbordaba el borde del
+   panel. El resalte va por color, que no cambia la geometría. */
 .mission-item:hover {
-  z-index: 100 !important;
-  background: rgba(35, 38, 43, 0.95);
-  border-color: var(--wf-blue);
+  background: rgba(0, 229, 255, 0.07);
+  border-color: rgba(0, 229, 255, 0.35);
   border-left-color: var(--wf-blue);
-  transform: translateX(5px) scale(1.02);
-  box-shadow: 0 0 15px rgba(0, 229, 255, 0.2);
 }
 
 .m-type {
   font-weight: 800;
-  font-size: 0.95rem;
+  font-size: 0.88rem;
   color: #fff;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin-bottom: 4px;
-  text-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+  letter-spacing: 0.4px;
   display: flex;
   align-items: center;
+  gap: 5px;
   flex-wrap: wrap;
 }
 
+.m-type-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .m-node {
-  font-size: 0.85rem;
-  color: #ccc;
+  font-size: 0.8rem;
+  color: #9aa0aa;
   font-weight: 500;
 }
 
+/* El timer va en la misma fila que el nodo: el borde superior + fila propia gastaba
+   ~20px por misión, y en una lista de 8 fisuras eso es una pantalla entera de scroll. */
 .m-timer-box {
-  margin-top: 8px;
-  border-top: 1px solid #333;
-  padding-top: 4px;
+  margin-top: 5px;
   text-align: right;
 }
 
 .m-eta {
-  font-size: 0.85rem;
+  font-size: 0.78rem;
   color: var(--wf-blue);
   font-family: monospace;
   font-weight: 700;
@@ -1436,9 +1550,45 @@ body {
   border-radius: 4px;
 }
 
+/* Últimos 5 minutos: parpadeo suave para que se note sin mirar el número. */
+.m-eta.urgent {
+  color: #ffd98a;
+  background: rgba(255, 193, 7, 0.15);
+  animation: etaUrgentPulse 1.6s ease-in-out infinite;
+}
+
+.m-eta.expired {
+  color: #888;
+  background: rgba(255, 255, 255, 0.06);
+  animation: none;
+}
+
+@keyframes etaUrgentPulse {
+  0%, 100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.55;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .m-eta.urgent {
+    animation: none;
+  }
+}
+
 .mission-item.sp-row {
-  border-color: #722 #722 #722 #f44;
-  background: linear-gradient(90deg, rgba(50, 0, 0, 0.3) 0, transparent 100%);
+  border-color: rgba(255, 68, 68, 0.25);
+  border-left-color: #f44;
+  background: rgba(80, 0, 0, 0.18);
+}
+
+.mission-item.sp-row:hover {
+  background: rgba(255, 68, 68, 0.1);
+  border-color: rgba(255, 68, 68, 0.45);
+  border-left-color: #ff6b6b;
 }
 
 .mission-item.sp-row .m-type {
@@ -1448,6 +1598,11 @@ body {
 .mission-item.sp-row .m-eta {
   color: #f77;
   background: rgba(255, 50, 50, 0.15);
+}
+
+.mission-item.sp-row .m-eta.urgent {
+  color: #ffd98a;
+  background: rgba(255, 193, 7, 0.18);
 }
 
 .omnia-tag.big {
@@ -2786,6 +2941,25 @@ body.theme-bounties {
   margin-bottom: 15px;
 }
 
+/* .spinner llevaba tiempo usándose (Farms, fisuras, el modal de carga de index.html)
+   sin estar definido en ninguna hoja: era un div de 0×0 y las pantallas de carga
+   salían con el texto solo, sin ninguna señal de actividad. */
+.spinner {
+  width: 26px;
+  height: 26px;
+  border: 3px solid rgba(255, 255, 255, 0.15);
+  border-radius: 50%;
+  border-top-color: var(--wf-blue);
+  animation: spin 0.9s linear infinite;
+  flex-shrink: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation-duration: 2.4s;
+  }
+}
+
 .inventory-badge-btn {
   background: var(--wf-blue, #00e5ff) !important;
   color: #000 !important;
@@ -3068,6 +3242,8 @@ body.theme-bounties {
 /* Updates Modal */
 .update-block {
   margin-bottom: 25px;
+  /* El salto del indice dejaria el titulo bajo la barra pegajosa: se compensa su alto. */
+  scroll-margin-top: 60px;
 }
 
 .update-block.old {
@@ -3106,6 +3282,82 @@ body.theme-bounties {
 
 .update-list li::marker {
   color: var(--wf-blue);
+}
+
+/* ---- Indice de versiones ----
+   Con 19 versiones acumuladas el modal era un scroll ciego: esto da salto directo.
+   Pegajoso arriba para no perderlo al bajar. */
+.update-index {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: -20px -20px 18px;
+  padding: 12px 20px;
+  background: #1a1e24;
+  border-bottom: 1px solid #333;
+}
+
+.update-index-label {
+  margin-right: 4px;
+  font-size: 0.72em;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: #777;
+}
+
+.update-index-link {
+  padding: 3px 9px;
+  font-size: 0.78em;
+  font-weight: 600;
+  color: #bbb;
+  text-decoration: none;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 11px;
+  transition: background 0.18s ease, color 0.18s ease;
+}
+
+.update-index-link:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.update-index-link.is-current {
+  color: #1a1e24;
+  background: var(--wf-gold-text);
+  border-color: var(--wf-gold-text);
+}
+
+/* ---- Secciones dentro de una version ----
+   La v2.7 trae varias funciones a la vez: sin agrupar, la lista se lee como un muro. */
+.update-lead {
+  margin: 0 0 16px;
+  font-size: 0.95em;
+  line-height: 1.5;
+  color: #ddd;
+}
+
+.update-section {
+  margin: 16px 0 7px;
+  font-size: 0.78em;
+  font-weight: 700;
+  letter-spacing: 0.9px;
+  text-transform: uppercase;
+  color: var(--wf-blue);
+}
+
+.update-foot {
+  margin: 16px 0 0;
+  padding-top: 12px;
+  font-size: 0.85em;
+  line-height: 1.45;
+  color: #999;
+  border-top: 1px solid #2a2a2a;
 }
 
 /* =========================================
@@ -3208,6 +3460,15 @@ body.theme-bounties {
   .tab-icon-img {
     width: 1.5rem;
     height: 1.5rem;
+  }
+
+  /* Reliquia lleva cuatro objetos en la imagen: necesita mas tamaño que el resto para
+     seguir leyendose. El margen negativo evita que crezca el alto de la barra. */
+  #btn-relic .tab-icon-img {
+    width: 1.95rem;
+    height: 1.95rem;
+    margin-top: -0.22rem;
+    margin-bottom: -0.22rem;
   }
 
   #global-tooltip,
@@ -3433,12 +3694,9 @@ body.theme-bounties {
     flex-wrap: nowrap !important;
   }
 
-  .tabs #btn-lfg,
-  .tabs #btn-vosfor,
-  .tabs #btn-ducat,
-  .tabs #btn-eelog {
-    display: none !important;
-  }
+  /* Que pestañas se esconden lo decide reflowTabs() midiendo la barra, no una
+     lista de ids aqui: esa lista habia que ampliarla a mano con cada pestaña
+     nueva y era invisible desde el JS que construye el abanico. */
 
   .tab-btn {
     /* Stack icon over label. 5 slots (4 tabs + "Más") = 20% each, and the
@@ -3474,13 +3732,22 @@ body.theme-bounties {
     flex-shrink: 0 !important;
   }
 
+  /* Necesita !important para ganar a la regla de arriba, que ya lo usa. */
+  #btn-relic .tab-icon-img {
+    width: 2.1rem !important;
+    height: 2.1rem !important;
+    margin-top: -0.22rem !important;
+    margin-bottom: -0.22rem !important;
+  }
+
   .tab-btn.active {
     background: rgba(255, 255, 255, 0.06) !important;
     box-shadow: inset 0 3px 0 0 var(--active-theme-color) !important;
   }
 
   /* ---- Boton "Más" ---- */
-  .tab-more-btn {
+  /* .is-needed lo pone reflowTabs() cuando de verdad hay pestañas escondidas. */
+  .tab-more-btn.is-needed {
     display: flex !important;
     -webkit-tap-highlight-color: transparent !important;
     -webkit-touch-callout: none !important;
@@ -3753,11 +4020,15 @@ button[onclick*="importInventory"]:hover {
   flex-shrink: 0;
   padding: 6px 12px;
   font-size: 0.75em;
+  font-weight: 700;
   white-space: nowrap;
   height: fit-content;
+  /* El color del sindicato llega en --reward-color; currentColor pinta el borde. */
+  color: var(--reward-color, var(--active-theme-color));
   background: rgba(0, 0, 0, 0.3);
   border: 1px solid currentColor;
   border-radius: 4px;
+  cursor: pointer;
 }
 
 .bounty-rewards-btn:hover {
@@ -6319,132 +6590,233 @@ body[data-lang="en"] .header-guide-cta .lang-en {
 }
 
 /* ===== Ducanator standalone tab filters ===== */
+/* El umbral va siempre visible, no dentro de un <details>: es lo que decide en qué
+   sección cae cada pieza, y plegado hacía parecer que la partición fuese fija. */
 .ducat-filters {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 12px;
-  background: rgba(0, 0, 0, 0.25);
-  border-bottom: 1px solid rgba(221, 169, 56, 0.2);
+  padding: 10px 12px;
+  background: rgba(0, 0, 0, 0.3);
+  border-bottom: 1px solid rgba(197, 168, 86, 0.22);
 }
-.ducat-desc {
-  margin: 0;
-  font-size: 0.9em;
-  line-height: 1.45;
-  color: #999;
-}
-.ducat-adv summary {
-  cursor: pointer;
-  font-size: 0.8em;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: #ccc;
-  user-select: none;
-}
-.ducat-adv[open] summary {
-  color: var(--wf-gold-text);
-  margin-bottom: 8px;
-}
-.ducat-adv .ducat-filter-row + .ducat-filter-row {
-  margin-top: 8px;
-}
-.ducat-filter-row {
+.ducat-bar {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   flex-wrap: wrap;
 }
-.ducat-filter-row #ducat-sort {
-  flex: 1;
-  min-width: 160px;
-  font-size: 0.85em;
-  padding: 5px;
-}
-.ducat-owned-toggle {
-  display: inline-flex;
+.ducat-search-wrap {
+  position: relative;
+  flex: 1 1 180px;
+  min-width: 150px;
+  display: flex;
   align-items: center;
-  gap: 5px;
-  font-size: 0.82em;
-  color: #ccc;
-  white-space: nowrap;
+}
+.ducat-search-icon {
+  position: absolute;
+  left: 9px;
+  font-size: 1.1em;
+  color: #6d7480;
+  pointer-events: none;
+}
+.ducat-search {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 7px 26px 7px 26px;
+  font: inherit;
+  font-size: 0.88em;
+  color: #e8e8e8;
+  background: var(--wf-input-bg);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  transition: border-color 0.15s;
+}
+.ducat-search:focus {
+  outline: none;
+  border-color: var(--wf-gold-text);
+}
+.ducat-search-clear {
+  position: absolute;
+  right: 6px;
+  appearance: none;
+  background: none;
+  border: none;
+  padding: 0 4px;
+  font-size: 1.2em;
+  line-height: 1;
+  color: #8a8a8a;
   cursor: pointer;
 }
+.ducat-search-clear:hover {
+  color: #fff;
+}
+.ducat-chip {
+  appearance: none;
+  padding: 7px 12px;
+  font: inherit;
+  font-size: 0.8em;
+  font-weight: 700;
+  white-space: nowrap;
+  color: #9aa0aa;
+  background: var(--wf-input-bg);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.ducat-chip:hover {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.28);
+}
+.ducat-chip.active {
+  color: #1a1508;
+  background: var(--wf-gold-text);
+  border-color: var(--wf-gold-text);
+}
+.ducat-threshold-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 240px;
+  min-width: 210px;
+}
 #ducat-threshold-label {
-  font-size: 0.82em;
-  color: #ccc;
+  font-size: 0.78em;
+  color: #9aa0aa;
   white-space: nowrap;
 }
 #ducat-threshold {
   flex: 1;
-  min-width: 100px;
+  min-width: 80px;
   accent-color: var(--wf-gold-text);
 }
 .ducat-threshold-val {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
   font-weight: 700;
+  font-size: 0.88em;
   color: var(--wf-gold-text);
-  min-width: 42px;
-  text-align: right;
+  min-width: 40px;
+  justify-content: flex-end;
+}
+.ducat-desc {
+  margin: 8px 0 0;
+  font-size: 0.78em;
+  line-height: 1.4;
+  color: #7b818b;
 }
 
 /* ===== Ducanator (prime part ducat-efficiency view) ===== */
+/* --duc-cols la comparten .duc-head y .duc-row: duplicar el grid los desalineaba
+   en cuanto se tocaba uno solo. */
 .duc-panel {
+  --duc-cols: minmax(0, 1fr) 58px 68px 88px;
   display: flex;
   flex-direction: column;
 }
 .duc-summary {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  padding: 12px 14px 6px;
-  background: linear-gradient(180deg, rgba(221, 169, 56, 0.12), transparent);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: 10px 12px;
 }
-.duc-summary-main {
-  font-size: 1.6em;
+.duc-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: rgba(255, 255, 255, 0.03);
+}
+.duc-stat-gold {
+  border-color: rgba(197, 168, 86, 0.35);
+  background: linear-gradient(135deg, rgba(197, 168, 86, 0.16), rgba(197, 168, 86, 0.03));
+}
+.duc-stat-plat {
+  border-color: rgba(0, 229, 255, 0.22);
+  background: linear-gradient(135deg, rgba(0, 229, 255, 0.1), rgba(0, 229, 255, 0.02));
+}
+.duc-stat-val {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 1.45em;
   font-weight: 800;
+  line-height: 1.1;
+}
+.duc-stat-gold .duc-stat-val {
   color: var(--wf-gold-text);
 }
-.duc-summary-sub {
-  font-size: 0.8em;
-  color: #999;
+.duc-stat-plat .duc-stat-val {
+  color: #7fd8ea;
+}
+.duc-stat-label {
+  font-size: 0.68em;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.6px;
+  color: #868c96;
+}
+.duc-empty {
+  padding: 30px 20px;
+  text-align: center;
+  color: #6b7079;
+  font-size: 0.9em;
 }
 .duc-section-header {
-  padding: 14px 14px 6px;
-  font-size: 0.85em;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 12px 12px 6px;
+  font-size: 0.76em;
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 1px;
-  color: var(--wf-gold-text);
-  border-bottom: 1px solid rgba(221, 169, 56, 0.2);
+  color: #b9bec7;
 }
-.duc-section-header .duc-section-count {
-  color: #888;
-  font-weight: 600;
+.duc-section-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.duc-section-fund .duc-section-dot {
+  background: var(--wf-gold-text);
+  box-shadow: 0 0 6px rgba(197, 168, 86, 0.8);
+}
+.duc-section-keep .duc-section-dot {
+  background: #00e5ff;
+  box-shadow: 0 0 6px rgba(0, 229, 255, 0.6);
+}
+.duc-section-count {
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 0.9em;
+  color: #9aa0aa;
+  background: rgba(255, 255, 255, 0.07);
 }
 .duc-head {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 64px 84px 76px;
-  gap: 10px;
-  padding: 6px 14px;
+  grid-template-columns: var(--duc-cols);
+  gap: 8px;
+  padding: 4px 12px;
   position: sticky;
   top: 0;
   z-index: 5;
-  background: #14100a;
-  border-bottom: 1px solid rgba(221, 169, 56, 0.35);
+  background: #12141a;
+  border-bottom: 1px solid rgba(197, 168, 86, 0.3);
 }
 .duc-th {
   appearance: none;
   background: none;
   border: none;
-  padding: 6px 2px;
+  padding: 5px 0;
   font: inherit;
-  font-size: 0.8em;
+  font-size: 0.72em;
   font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: #999;
+  letter-spacing: 0.6px;
+  color: #82878f;
   text-align: left;
   cursor: pointer;
   white-space: nowrap;
@@ -6461,31 +6833,39 @@ body[data-lang="en"] .header-guide-cta .lang-en {
 }
 .duc-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 64px 84px 76px;
+  grid-template-columns: var(--duc-cols);
   align-items: center;
-  gap: 10px;
-  padding: 12px 14px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-  background: rgba(0, 0, 0, 0.2);
+  gap: 8px;
+  padding: 6px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.045);
+  border-left: 2px solid transparent;
+  background: rgba(0, 0, 0, 0.18);
   box-sizing: border-box;
   transition: background 0.15s;
 }
+.duc-row.is-fund {
+  border-left-color: rgba(197, 168, 86, 0.5);
+}
 .duc-row:hover {
-  background: rgba(221, 169, 56, 0.07);
+  background: rgba(197, 168, 86, 0.08);
 }
 .duc-name-col {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   min-width: 0;
 }
-/* Larger icons; margins from the shared inventory icon class are neutralized
-   so the grid stays aligned. Hover growth is inherited from .item-icon-small. */
-.duc-img {
-  width: 48px !important;
-  height: 48px !important;
-  margin: 0 !important;
+.duc-img-wrap {
+  position: relative;
   flex-shrink: 0;
+  line-height: 0;
+}
+/* Margins from the shared inventory icon class are neutralized so the grid stays
+   aligned. Hover growth is inherited from .item-icon-small. */
+.duc-img {
+  width: 34px !important;
+  height: 34px !important;
+  margin: 0 !important;
   object-fit: contain;
   border-radius: 4px;
   background: rgba(255, 255, 255, 0.04);
@@ -6493,51 +6873,103 @@ body[data-lang="en"] .header-guide-cta .lang-en {
 .duc-img-empty {
   display: inline-block;
 }
+.duc-qty {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  min-width: 14px;
+  padding: 0 3px;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 14px;
+  text-align: center;
+  color: #0f1115;
+  background: var(--wf-gold-text);
+  border-radius: 7px;
+}
 .duc-name-text {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
   min-width: 0;
 }
-.duc-plat {
-  font-size: 1.05em;
-  color: #cfe8ff;
-  white-space: nowrap;
-  text-align: right;
-}
 .duc-name-col .part-name {
+  display: block;
+  font-size: 0.92em;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .duc-link {
-  color: inherit;
+  color: #dfe3e8;
   text-decoration: none;
 }
 .duc-link:hover {
   color: var(--wf-gold-text);
 }
-.duc-sub {
-  font-size: 0.82em;
-  color: #888;
+.duc-plat {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+  font-size: 0.92em;
+  color: #9fc6da;
+  white-space: nowrap;
+}
+.duc-plat.is-pending {
+  color: #5f656e;
 }
 .duc-ducats {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
   color: var(--wf-gold-text);
   font-weight: 700;
-  font-size: 1.05em;
+  font-size: 0.92em;
   white-space: nowrap;
-  text-align: right;
-}
-.duc-name-col .part-name {
-  font-size: 1.05em;
 }
 .duc-eff {
-  font-size: 1.1em;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 3px 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.05);
+  overflow: hidden;
+  cursor: help;
+}
+.duc-eff-bar {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: linear-gradient(90deg, rgba(197, 168, 86, 0.25), rgba(197, 168, 86, 0.6));
+  transition: width 0.25s;
+}
+.duc-eff-num {
+  position: relative;
+  font-size: 0.9em;
   font-weight: 800;
   color: #fff;
-  min-width: 34px;
-  text-align: right;
-  cursor: help;
+}
+
+/* En móvil el umbral se lleva su propia línea: en la barra compartida el slider
+   quedaba con ~40px útiles y era imposible ajustarlo con el dedo. */
+@media (max-width: 560px) {
+  .ducat-threshold-wrap {
+    flex-basis: 100%;
+  }
+  .duc-panel {
+    --duc-cols: minmax(0, 1fr) 48px 58px 72px;
+  }
+  .duc-head,
+  .duc-row {
+    padding-left: 8px;
+    padding-right: 8px;
+    gap: 6px;
+  }
+  .ducat-desc {
+    display: none;
+  }
 }
 
 /* =========================================

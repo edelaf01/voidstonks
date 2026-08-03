@@ -1,4 +1,32 @@
 import { rawState, get, set, subscribe } from "./store/state.store.js";
+import { exposeGlobals } from "./utils/global_registry.js";
+
+// Valores de fábrica del pipeline de visión. Se sacan aparte para que el botón
+// "RESET DEFAULTS" del escáner y el estado inicial no puedan divergir.
+export const DEFAULT_VISION_SETTINGS = Object.freeze({
+  thresholdC: -15,
+  claheClip: 5,
+  hsvHueTol: 25,
+  bilateralD: 5,
+  tesseractPSM: 6,
+  dilation: 0,
+  erosion: 0,
+  autoCalibrate: false,
+  blockSize: 31,
+  sigmaColor: 75,
+  sigmaSpace: 75,
+  contrast: 1.0,
+  brightness: 0,
+  gamma: 1.0,
+  ocrLang: "eng",
+  showROI: true,
+  medianBlur: 9,
+  sharpen: 1,
+  sharpnessMin: 0,
+  glareMax: 0.12,
+  satMin: 55,
+  valMin: 110,
+});
 
 // Inicializa el estado en bruto del store
 Object.assign(rawState, {
@@ -32,30 +60,7 @@ Object.assign(rawState, {
   autoSyncRewards: true,
   autoCopyScanResults: false,
   scannerModsMode: false,
-  visionSettings: {
-    thresholdC: -15,
-    claheClip: 5,
-    hsvHueTol: 25,
-    bilateralD: 5,
-    tesseractPSM: 6,
-    dilation: 0,
-    erosion: 0,
-    autoCalibrate: false,
-    blockSize: 31,
-    sigmaColor: 75,
-    sigmaSpace: 75,
-    contrast: 1.0,
-    brightness: 0,
-    gamma: 1.0,
-    ocrLang: "eng",
-    showROI: true,
-    medianBlur: 9,
-    sharpen: 1,
-    sharpnessMin: 0,
-    glareMax: 0.12,
-    satMin: 55,
-    valMin: 110
-  }
+  visionSettings: { ...DEFAULT_VISION_SETTINGS }
 });
 
 export const state = new Proxy(rawState, {
@@ -191,14 +196,32 @@ export function updateInventoryBatch(relicList) {
   state.inventory = state.inventory.filter((i) => i.count > 0);
 }
 
-globalThis.state = state;
-
 /**
  * V187: Helper global para actualizar settings de visión desde la UI
  */
-globalThis.updateVisionSetting = (key, value) => {
+const updateVisionSetting = (key, value) => {
   if (state.visionSettings) {
     state.visionSettings[key] = value;
     saveAppState();
   }
 };
+
+/**
+ * Devuelve el pipeline de visión a valores de fábrica ("RESET DEFAULTS" del escáner).
+ * El botón existía en index.html desde antes, pero la función no estaba implementada:
+ * pulsarlo lanzaba "resetVisionSettings is not a function" y no reseteaba nada.
+ */
+const resetVisionSettings = () => {
+  state.visionSettings = { ...DEFAULT_VISION_SETTINGS };
+  saveAppState();
+  // El panel de ajustes lee los valores al pintarse, así que hay que refrescar los
+  // controles ya montados o seguirían enseñando los valores viejos.
+  globalThis.syncScannerModeUI?.();
+  globalThis.showToast?.(
+    state.currentLang === "es" ? "Ajustes de visión restaurados" : "Vision settings reset",
+  );
+};
+
+// state y los helpers de visión los consumen el HTML inline y los scripts planos del
+// escáner (live_calibration.js, live_grid_editor.js), que no pueden importar.
+exposeGlobals({ state, updateVisionSetting, resetVisionSettings }, "state.js");
