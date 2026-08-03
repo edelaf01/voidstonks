@@ -160,8 +160,6 @@ function updateFissurePanelTexts() {
   }
 }
 
-
-
 function renderFissureFiltersPanel(prefs) {
   const t = TEXTS[state.currentLang];
   const observed = getObservedMissionTypes();

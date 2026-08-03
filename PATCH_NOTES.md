@@ -1,115 +1,79 @@
 # Notas de parche
 
-## Conexión con Warframe Market (nuevo)
-
-Ya puedes conectar tu cuenta de warframe.market desde la app.
-
-**Mis órdenes** — pestaña nueva con tus órdenes activas.
-
-- La sesión se abre con email y contraseña: warframe.market no permite todavía conectar
-  aplicaciones externas de otra forma. Tus datos pasan por el servidor de VoidStonks para
-  reenviarlos; no se guardan ni se registran, y el código es público para que puedas
-  comprobarlo. La sesión caduca a las 3 horas y al salir se cierra también en
-  warframe.market.
-- Si la sesión no permite editar, la pestaña pasa a solo lectura en vez de fallar: se ven
-  tus órdenes públicas y se avisa de la limitación.
-- Filtros por tipo con contador. El que se queda a 0 se oculta, y la lista vuelve a
-  "todas" en lugar de quedarse en blanco.
-
-**Precios en vivo** — mientras la app está abierta, escucha las órdenes que se van
-publicando en el mercado.
-
-- En el inventario, las piezas que pasan por el mercado se marcan con el precio recién
-  visto. Acompaña al precio de siempre, no lo sustituye: el precio base es una mediana y
-  esto es una orden concreta, así que se distinguen.
-- Avisa cuando alguien publica tu mismo ítem por debajo de tu precio, y cuando aparece una
-  venta muy por debajo de lo normal.
-- En Vosfor, un botón consulta el precio en vivo del arcano que estés mirando.
-- No hace falta conectar la cuenta: el mercado se escucha igual sin sesión. Conectarla
-  añade el aviso de competencia, que necesita saber cuáles son tus órdenes.
-- Se apoya en una conexión ya abierta y filtra en tu propio navegador: no añade carga a la
-  API de warframe.market.
-
-**Sets** — teniendo un set completo, un acceso directo lleva a venderlo en la pestaña de
-órdenes. Si ya lo tienes publicado se indica, en vez de invitar a publicarlo otra vez.
-
 ## Fisuras
 
-- Rediseño de la lista para igualarla al resto de la app.
-- Los tiers sin fisuras se atenúan: antes la columna parecía llena aunque no hubiera nada
-  que farmear.
-- Contador con aviso: los últimos 5 minutos se resaltan para descartar de un vistazo una
-  fisura a la que ya no llegas.
-- El separador Normal / Steel Path solo aparece cuando hay de los dos.
+- Lista rediseñada.
+- Los tiers sin fisuras se atenúan.
+- Los últimos 5 minutos de cada fisura se resaltan.
 
 **Corregido**
 
-- "Expired" salía siempre en inglés, aunque la app estuviera en español.
-- Las filas se desplazaban y se agrandaban al pasar el ratón, moviendo las de al lado y
-  desbordando el borde del panel.
+- "Expired" salía siempre en inglés.
+- Las filas se movían al pasar el ratón.
 
 ## Farms
 
 **Corregido**
 
-- Los contadores se quedaban clavados en "ROTATING..." al cambiar la rotación y no
-  volvían solos: había que recargar la página. Además, mientras tanto la pestaña se
-  repetía la consulta en bucle. Ahora reintenta de forma espaciada hasta que llega la
-  rotación nueva.
+- Los contadores se quedaban clavados en "ROTATING..." y había que recargar la página.
 
 ## VoidScanner
 
-- Panel reescrito: mismos botones y misma disposición, pero los estilos salen de la hoja
-  en vez de ir incrustados uno a uno.
-
 **Corregido**
 
-- El botón AUTO se quedaba con el color de "encendido" pegado al pasar el ratón por
-  encima, aunque estuviera apagado.
-- Las pantallas de "cargando" no mostraban ningún indicador de actividad: el icono
-  giratorio nunca se llegó a definir y quedaba invisible (afectaba también a Farms).
+- El botón AUTO se quedaba con el color de encendido al pasar el ratón.
+- Las pantallas de carga no mostraban el icono de actividad (también en Farms).
 
 ## Pestañas
 
-- Cuando no caben todas, las que sobran pasan al menú "Más" automáticamente según el
-  ancho de la ventana. Antes había una lista fija y la barra se salía de la tarjeta.
-- La pestaña en la que estás nunca se esconde en ese menú.
-- El menú "Más" solo aparece si de verdad hay algo detrás.
+- Las que no caben pasan solas al menú "Más" según el ancho de la ventana.
 
 **Corregido**
 
 - "Mis órdenes" no cambiaba de idioma.
-- Al abrir "Más", la barra entera se movía ligeramente.
+- Al abrir "Más" se movía toda la barra.
 
-## Vosfor
-
-- Las cuatro calculadoras van plegadas, con un subtítulo que dice qué resuelve cada una.
-  Antes la pestaña abría con varias pantallas de controles seguidos.
+## Móvil
 
 **Corregido**
 
-- Plegadas seguían asomando trozos de su contenido bajo el título.
+- El pie de página no se veía: Privacidad, Términos, Guía, Contacto y Novedades eran
+  inalcanzables. Ahora aparece al final del scroll.
+
+## Vosfor
+
+- Las calculadoras van plegadas, con un subtítulo que dice qué resuelve cada una.
+
+**Corregido**
+
+- Plegadas asomaba parte de su contenido.
 
 ## Escáner de inventario
 
 **Corregido**
 
-- Se colaban reliquias inexistentes en el inventario: un resto de texto con "RE" bastaba
-  para anotar un "Requiem I" que no existía.
-- Códigos como "O5" se leían "05" y la celda se quedaba sin identificar.
-- La primera fila, si el juego la dejaba cortada a media altura, se descartaba entera.
+- Se colaban reliquias inexistentes en el inventario.
+- Códigos como "O5" se leían mal y la celda quedaba sin identificar.
+- La primera fila se descartaba si el juego la dejaba cortada.
 
-## Rendimiento y mantenimiento
+## Rendimiento
 
-- Despliegues: al publicar una versión nueva, quien tuviera la app abierta seguía
-  ejecutando el código anterior durante horas, y los síntomas parecían fallos nuevos.
-  Ahora la página se refresca sola con cada despliegue.
-- Los ficheros pesados (imágenes, datos del escáner) dejan de volver a descargarse en
-  cada visita.
-- Todos los contadores de la app miden contra la hora del servidor. Con el reloj del
-  sistema adelantado unos minutos, una misión con casi una hora por delante podía
-  aparecer como caducada.
-- Limpieza de código: estilos incrustados movidos a las hojas correspondientes, botones
-  registrados en un índice común (que avisa si un botón se queda sin función detrás) y
-  numeración de versiones automática en cada publicación, que antes se llevaba a mano y
-  se olvidaba.
+- Al publicar una versión nueva, la app dejaba de ejecutar código viejo durante horas.
+- Las imágenes y datos pesados ya no se descargan en cada visita.
+- Los contadores miden contra la hora del servidor, no la del sistema.
+
+---
+
+# Próximamente
+
+## Warframe Market
+
+- **Mis órdenes**: pestaña nueva para conectar tu cuenta y ver tus órdenes activas, con
+  filtros por tipo.
+- **Precios en vivo**: el inventario marca los precios que van pasando por el mercado,
+  junto al precio de siempre. También en Vosfor, por arcano.
+- Avisos cuando alguien lista por debajo de tu precio o aparece un chollo.
+- Con un set completo, acceso directo para venderlo.
+
+La sesión usa email y contraseña, caduca a las 3 horas y al salir se cierra también en
+warframe.market. Los precios en vivo funcionan sin conectar la cuenta.
