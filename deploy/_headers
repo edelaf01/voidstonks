@@ -1,0 +1,39 @@
+# Cabeceras de caché para Cloudflare Pages.
+#
+# El problema que resuelve: por defecto Pages sirve todo con max-age=14400 (4h). Tras un
+# despliegue, quien tuviera la app abierta seguía ejecutando el JS anterior durante horas,
+# y los síntomas parecían bugs nuevos (contadores parados, estilos a medias) cuando en
+# realidad era código viejo mezclado con HTML nuevo.
+#
+# La regla: el HTML nunca se cachea, porque es quien nombra las versiones de todo lo demás.
+# Si el HTML está fresco, sus ?v=<sha> apuntan al build actual y el navegador descarga lo
+# que haya cambiado. Los .js/.css llevan TTL corto como red de seguridad (si el ?v= fallara,
+# el desfase dura minutos y no horas).
+
+/
+  Cache-Control: no-cache
+
+/index.html
+  Cache-Control: no-cache
+
+# Los módulos y hojas llevan ?v=<sha-del-commit> reescrito por build-dist.mjs en CI, así que
+# una URL concreta es inmutable en la práctica. El TTL corto cubre el caso de que algún
+# import se quede sin versionar.
+/js/*
+  Cache-Control: public, max-age=300, must-revalidate
+
+/css/*
+  Cache-Control: public, max-age=300, must-revalidate
+
+/styles.css
+  Cache-Control: public, max-age=300, must-revalidate
+
+# Imágenes, fuentes y modelos: su contenido no cambia sin cambiar de nombre, y algunos pesan
+# mucho (tessdata, opencv). Un año, y que el navegador no vuelva a preguntar.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Datos de la app (catálogos, JSON generados): cambian con los despliegues pero no son
+# críticos al segundo. Una hora, revalidando.
+/assets/json/*
+  Cache-Control: public, max-age=3600, must-revalidate

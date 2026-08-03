@@ -1,6 +1,7 @@
 import { state } from "../state.js";
 import { TEXTS } from "../config.js";
 import { escapeHTML } from "./ui_components.js";
+import { exposeGlobals } from "../utils/global_registry.js";
 import { JADE_SHADOWS_IMG } from "../assets/jade_custom_img.js";
 import {
     loadVosforData,
@@ -91,6 +92,15 @@ let packSort = "balanced";
 let userVosfor = 600;
 let searchQuery = "";
 let showGuide = false;
+
+const TOOL_KEYS = ["sell", "calc", "target", "ranking"];
+let openTools = new Set(["sell"]);
+
+try {
+    const saved = JSON.parse(localStorage.getItem("vosfor_open_tools") || "null");
+    if (Array.isArray(saved)) openTools = new Set(saved.filter((k) => TOOL_KEYS.includes(k)));
+} catch {}
+
 let activeRankTab = "packs";
 let activeRankSubToggle = "r0";
 let rankLimit = 5;
@@ -693,7 +703,6 @@ function rankingLeaderboardCard(bestRate) {
     return `
     <div class="vosfor-ranking-section">
       <div class="vosfor-ranking-header">
-        <div class="vosfor-ranking-title">${escapeHTML(t.rankingTitle || "Ranking de Rentabilidad")}</div>
         ${nav}
         ${limitNav}
       </div>
@@ -1162,10 +1171,6 @@ function targetArcaneSimulatorCard() {
 
     return `
     <div id="vosfor-target-widget" class="vosfor-target-widget">
-      <div class="vosfor-target-title">
-        ${vosforIcon(24)}
-        ${escapeHTML(t.targetSimTitle || "Simulador de Arcano Objetivo")}
-      </div>
       <div class="vosfor-target-controls">
         <div>
           <label style="font-size:0.78rem;color:#aaa;display:block;margin-bottom:4px;">${escapeHTML(t.targetSimPackLabel || "Colección:")}</label>
@@ -1406,13 +1411,6 @@ function sellSimulatorCard() {
 
     return `
     <div id="vosfor-sell-widget" class="vosfor-target-widget" style="border-color:rgba(66,245,108,0.5); box-shadow: 0 4px 20px rgba(66,245,108,0.15);">
-      <div class="vosfor-target-title" style="color:#42f56c; font-size:1.15rem; text-shadow: 0 1px 4px rgba(0,0,0,0.8);">
-        ${vosforIcon(24)}
-        ${escapeHTML(state.currentLang === "es" ? "¿Vender o Disolver en Vosfor?" : "Sell or Dissolve for Vosfor?")}
-      </div>
-      <div style="font-size:0.82rem; color:#aaa; margin-bottom:12px;">
-        ${escapeHTML(state.currentLang === "es" ? "Descubre al instante si te conviene más vender este arcano por platino en el mercado, o disolverlo para comprar packs de Loid." : "Instantly find out if you should sell this arcane for plat on the market, or dissolve it to buy Loid packs.")}
-      </div>
       <div class="vosfor-target-controls">
         <div style="position:relative;">
           <label style="font-size:0.78rem;color:#aaa;display:block;margin-bottom:4px;">${escapeHTML(t.sellSimArcLabel || "Arcano:")}</label>
@@ -2143,10 +2141,6 @@ function calculatorWidgetCard(data) {
     return `
     <div class="vosfor-calc-widget">
       <div class="vosfor-calc-header">
-        <div class="vosfor-calc-title">
-          ${vosforIcon(26)}
-          ${escapeHTML(t.calcTitle || "Calculadora de Vosfor")}
-        </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;width:100%;max-width:280px;flex-shrink:0;">
           <div class="vosfor-calc-input-group" style="width:100%;">
             <label for="vosfor-input-field">${escapeHTML(t.calcLabel || "Tu Vosfor:")}</label>
@@ -2268,10 +2262,16 @@ export async function renderVosforTab() {
     box.innerHTML = `
       <div class="vosfor-container">
         ${guideBoxCard()}
-        ${sellSimulatorCard()}
-        ${calculatorWidgetCard(vosData)}
-        ${targetArcaneSimulatorCard()}
-        ${rankingLeaderboardCard(bestRate)}
+        <div class="vos-tools">
+          ${toolSection("sell", vosforIcon(20), t.toolSellTitle || "¿Vender o disolver?",
+    t.toolSellSub || "", sellSimulatorCard())}
+          ${toolSection("calc", vosforIcon(20), t.toolCalcTitle || "Calculadora",
+    t.toolCalcSub || "", calculatorWidgetCard(vosData))}
+          ${toolSection("target", vosforIcon(20), t.toolTargetTitle || "Arcano objetivo",
+    t.toolTargetSub || "", targetArcaneSimulatorCard())}
+          ${toolSection("ranking", "🏆", t.toolRankingTitle || "Ranking",
+    t.toolRankingSub || "", rankingLeaderboardCard(bestRate))}
+        </div>
         ${pixCard(bestBalancedRate)}
         ${searchAndControlsBar()}
         ${searchResultsCard(bestRate)}
@@ -2387,6 +2387,30 @@ export function toggleVosforGuide() {
     renderVosforTab();
 }
 
+function toolSection(key, icon, title, subtitle, bodyHtml) {
+    const open = openTools.has(key);
+    return `
+    <section class="vos-tool ${open ? "open" : ""}" data-tool="${escapeHTML(key)}">
+      <button type="button" class="vos-tool-head" onclick="toggleVosforTool('${escapeHTML(key)}')"
+        aria-expanded="${open ? "true" : "false"}">
+        <span class="vos-tool-icon">${icon}</span>
+        <span class="vos-tool-text">
+          <span class="vos-tool-title">${escapeHTML(title)}</span>
+          <span class="vos-tool-sub">${escapeHTML(subtitle)}</span>
+        </span>
+        <span class="vos-tool-arrow">▾</span>
+      </button>
+      <div class="vos-tool-body">${bodyHtml}</div>
+    </section>`;
+}
+
+export function toggleVosforTool(key) {
+    if (openTools.has(key)) openTools.delete(key);
+    else openTools.add(key);
+    localStorage.setItem("vosfor_open_tools", JSON.stringify([...openTools]));
+    renderVosforTab();
+}
+
 export function toggleVosforExpandAll() {
     expandAllPacks = !expandAllPacks;
     renderVosforTab();
@@ -2478,8 +2502,9 @@ export async function onGlobalRefresh() {
     }
 }
 
-Object.assign(globalThis, {
+exposeGlobals({
     initVosforTab,
+    toggleVosforTool,
     setVosforRankTab,
     setVosforRankSubToggle,
     setVosforRankLimit,
@@ -2512,4 +2537,4 @@ Object.assign(globalThis, {
     onLivePriceCheck,
     onGlobalRefresh,
     handleArcaneTyping: onVosforSearchInput,
-});
+}, "ui.components/ui_vosfor.js");

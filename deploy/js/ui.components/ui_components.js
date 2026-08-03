@@ -5,6 +5,7 @@ import {
   TIER_URLS,
 } from "../config.js";
 import { state } from "../state.js";
+import { exposeGlobals } from "../utils/global_registry.js";
 
 export function preloadCriticalAssets() {
   const assets = [
@@ -34,7 +35,8 @@ export function showToast(message, options = {}) {
     duration = 60000,
     tag = null,
     onClose = null,
-    type = "info"
+    type = "info",
+    html = false
   } = options;
 
   if (tag && activeToasts.has(tag)) {
@@ -49,7 +51,7 @@ export function showToast(message, options = {}) {
 
   toast.innerHTML = `
     <span class="toast-icon">${icon}</span>
-    <span class="toast-message">${message}</span>
+    <span class="toast-message">${html ? message : escapeHTML(String(message ?? ""))}</span>
     <span class="toast-close">×</span>
   `;
 
@@ -101,6 +103,8 @@ export function showCustomConfirm(message, onConfirm) {
 export function closeOrokinConfirm() {
   document.getElementById("orokin-confirm-modal")?.classList.add("hidden");
 }
+
+exposeGlobals({ showToast, closeOrokinConfirm }, "ui.components/ui_components.js");
 
 export async function checkUpdates() {
   const lastSeenVersion = localStorage.getItem("last_seen_version");

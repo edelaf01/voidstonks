@@ -1,4 +1,30 @@
 import { rawState, get, set, subscribe } from "./store/state.store.js";
+import { exposeGlobals } from "./utils/global_registry.js";
+
+export const DEFAULT_VISION_SETTINGS = Object.freeze({
+  thresholdC: -15,
+  claheClip: 5,
+  hsvHueTol: 25,
+  bilateralD: 5,
+  tesseractPSM: 6,
+  dilation: 0,
+  erosion: 0,
+  autoCalibrate: false,
+  blockSize: 31,
+  sigmaColor: 75,
+  sigmaSpace: 75,
+  contrast: 1.0,
+  brightness: 0,
+  gamma: 1.0,
+  ocrLang: "eng",
+  showROI: true,
+  medianBlur: 9,
+  sharpen: 1,
+  sharpnessMin: 0,
+  glareMax: 0.12,
+  satMin: 55,
+  valMin: 110,
+});
 
 Object.assign(rawState, {
   currentLang: "en",
@@ -31,30 +57,7 @@ Object.assign(rawState, {
   autoSyncRewards: true,
   autoCopyScanResults: false,
   scannerModsMode: false,
-  visionSettings: {
-    thresholdC: -15,
-    claheClip: 5,
-    hsvHueTol: 25,
-    bilateralD: 5,
-    tesseractPSM: 6,
-    dilation: 0,
-    erosion: 0,
-    autoCalibrate: false,
-    blockSize: 31,
-    sigmaColor: 75,
-    sigmaSpace: 75,
-    contrast: 1.0,
-    brightness: 0,
-    gamma: 1.0,
-    ocrLang: "eng",
-    showROI: true,
-    medianBlur: 9,
-    sharpen: 1,
-    sharpnessMin: 0,
-    glareMax: 0.12,
-    satMin: 55,
-    valMin: 110
-  }
+  visionSettings: { ...DEFAULT_VISION_SETTINGS }
 });
 
 export const state = new Proxy(rawState, {
@@ -180,11 +183,20 @@ export function updateInventoryBatch(relicList) {
   state.inventory = state.inventory.filter((i) => i.count > 0);
 }
 
-globalThis.state = state;
-
-globalThis.updateVisionSetting = (key, value) => {
+const updateVisionSetting = (key, value) => {
   if (state.visionSettings) {
     state.visionSettings[key] = value;
     saveAppState();
   }
 };
+
+const resetVisionSettings = () => {
+  state.visionSettings = { ...DEFAULT_VISION_SETTINGS };
+  saveAppState();
+  globalThis.syncScannerModeUI?.();
+  globalThis.showToast?.(
+    state.currentLang === "es" ? "Ajustes de visión restaurados" : "Vision settings reset",
+  );
+};
+
+exposeGlobals({ state, updateVisionSetting, resetVisionSettings }, "state.js");

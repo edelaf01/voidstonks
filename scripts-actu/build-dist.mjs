@@ -11,6 +11,19 @@ const SKIP = (name, path) =>
     name.startsWith("tesseract") ||
     path.includes("opencv");
 
+const BUILD_ID = (process.env.GITHUB_SHA || "").slice(0, 8) || `dev${Date.now().toString(36)}`;
+
+function stampVersions(code) {
+    return code
+        .replace(/(["'])([^"']+\.(?:js|css))\?v=[^"']*\1/g, `$1$2?v=${BUILD_ID}$1`)
+        .replace(/(from\s*|import\s*)(["'])(\.{1,2}\/[^"']+\.js)\2/g,
+            `$1$2$3?v=${BUILD_ID}$2`)
+        .replace(/(import\s*\(\s*)(["'])(\.{1,2}\/[^"']+\.js)\2/g,
+            `$1$2$3?v=${BUILD_ID}$2`)
+        .replace(/((?:src|href)=)(["'])((?!https?:|\/\/)[^"']+\.(?:js|css))\2/g,
+            `$1$2$3?v=${BUILD_ID}$2`);
+}
+
 async function walk(dir) {
     const out = [];
     for (const ent of await readdir(dir, { withFileTypes: true })) {
@@ -27,7 +40,7 @@ async function main() {
     await cp(SRC, OUT, { recursive: true });
 
     const files = await walk(OUT);
-    let minified = 0, skipped = 0;
+    let minified = 0, skipped = 0, stamped = 0;
     for (const f of files) {
         if (extname(f) !== ".js") continue;
         const name = f.split("/").pop();
@@ -39,11 +52,26 @@ async function main() {
             format: "esm",
             legalComments: "none",
         });
-        await writeFile(f, res.code, "utf8");
+        await writeFile(f, stampVersions(res.code), "utf8");
         minified++;
+        stamped++;
     }
-    console.log(`[build-dist] Minificados ${minified} archivos JS, saltados ${skipped} (vendored). Salida en ${OUT}/`);
+
+    for (const f of files) {
+        if (extname(f) !== ".html") continue;
+        await writeFile(f, stampVersions(await readFile(f, "utf8")), "utf8");
+        stamped++;
+    }
+
+    console.log(`[build-dist] Minificados ${minified} JS, saltados ${skipped} (vendored).`);
+    console.log(`[build-dist] Sello de versión ?v=${BUILD_ID} en ${stamped} archivos. Salida en ${OUT}/`);
+
     await stat(join(OUT, "index.html"));
+
+    const html = await readFile(join(OUT, "index.html"), "utf8");
+    if (!html.includes(`?v=${BUILD_ID}`)) {
+        throw new Error("index.html quedó sin sello de versión: revisa stampVersions()");
+    }
 }
 
 main().catch((e) => { console.error("[build-dist] FALLO:", e); process.exit(1); });
