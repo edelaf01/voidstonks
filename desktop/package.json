@@ -1,0 +1,16 @@
+{
+  "name": "voidstonks-desktop",
+  "version": "2.7.0",
+  "private": true,
+  "description": "VoidStonks empaquetado como app de escritorio (Tauri). El frontend es ../deploy tal cual.",
+  "scripts": {
+    "//dev": "Arranca la ventana con la app dentro, recompilando el Rust al vuelo.",
+    "dev": "tauri dev",
+    "//build": "Genera AppImage + .deb + .rpm en src-tauri/target/release/bundle/",
+    "build": "tauri build",
+    "tauri": "tauri"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2"
+  }
+}
