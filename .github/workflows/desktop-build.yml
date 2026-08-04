@@ -1,0 +1,85 @@
+name: Build Desktop
+
+# Compila la app de escritorio para Windows y Linux a la vez. Cada plataforma se compila
+# en su propio runner (Tauri no hace cross-compile de Linux a Windows), así que la matriz
+# levanta los dos SO en paralelo y sube los instaladores como artefactos.
+#
+# Se dispara al empujar un tag "desktop-v*" (p. ej. desktop-v2.7.0), no en cada push:
+# compilar Rust es lento y no hace falta en cada cambio de la web.
+on:
+  push:
+    tags:
+      - 'desktop-v*'
+  workflow_dispatch: {}   # y a mano desde Actions > Build Desktop > Run workflow
+
+concurrency:
+  group: desktop-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false   # que un fallo en Windows no cancele el de Linux ni al revés
+      matrix:
+        include:
+          - platform: ubuntu-22.04    # AppImage + .deb + .rpm
+          - platform: windows-latest  # .exe (NSIS) + .msi
+
+    runs-on: ${{ matrix.platform }}
+    name: ${{ matrix.platform }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Librerías del sistema que Tauri necesita en Linux (WebKitGTK, etc.). En Windows
+      # no hace falta nada equivalente: el WebView2 ya viene con el sistema.
+      - name: Dependencias del sistema (Linux)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            libsoup-3.0-dev
+
+      - name: Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      # Acelera las recompilaciones cacheando lo que Cargo ya construyó.
+      - name: Cache de Rust
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri
+
+      - name: Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Instalar CLI de Tauri
+        working-directory: desktop
+        run: npm install
+
+      # Compila y empaqueta. tauri-action sube los instaladores como artefactos del run.
+      - name: Compilar y empaquetar
+        uses: tauri-apps/tauri-action@v0
+        with:
+          projectPath: desktop
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Deja los instaladores descargables desde la pestaña del run, por si no se publican
+      # como release.
+      - name: Subir instaladores
+        uses: actions/upload-artifact@v4
+        with:
+          name: voidstonks-${{ matrix.platform }}
+          path: |
+            desktop/src-tauri/target/release/bundle/**/*.AppImage
+            desktop/src-tauri/target/release/bundle/**/*.deb
+            desktop/src-tauri/target/release/bundle/**/*.rpm
+            desktop/src-tauri/target/release/bundle/**/*.exe
+            desktop/src-tauri/target/release/bundle/**/*.msi
+          if-no-files-found: ignore
