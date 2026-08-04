@@ -17,37 +17,34 @@ export const UPDATE_HISTORY_DATA = {
   </div>
 
   <p class="update-lead">
-    Nueva pestaña <strong>Mis órdenes</strong>: conecta tu cuenta de warframe.market y
-    gestiona tus ventas sin salir de la app.
+    Nueva pestaña <strong>Mis órdenes</strong>: gestiona tus ventas de warframe.market
+    desde la app.
   </p>
 
   <h4 class="update-section">Qué puedes hacer</h4>
   <ul class="update-list">
-    <li><strong>Ver tus órdenes con el precio del mercado al lado</strong>, para saber cuáles están fuera de precio.</li>
+    <li><strong>Ver tus órdenes</strong> con el precio del mercado al lado.</li>
     <li><strong>Editar precio, cantidad y rango</strong>, marcar vendido, ocultar o borrar.</li>
-    <li><strong>Publicar sets del inventario</strong>: los que tienes completos salen con un precio sugerido.</li>
-    <li><strong>Precios en vivo</strong>: la app escucha el mercado y los actualiza según pasan.</li>
-    <li><strong>Avisos</strong> si alguien te rebaja o si tu precio se ha quedado desfasado.</li>
+    <li><strong>Publicar sets del inventario</strong> con un precio sugerido.</li>
+    <li><strong>Precios en vivo</strong>, actualizados solos.</li>
+    <li><strong>Avisos</strong> si alguien te rebaja.</li>
   </ul>
 
   <h4 class="update-section">En pantalla</h4>
   <ul class="update-list">
     <li><strong>Botón «Vender»</strong> en el inventario y en el tracker de sets, con etiqueta «En venta» en los ya publicados.</li>
-    <li><strong>Icono nuevo</strong> en la pestaña de reliquias.</li>
-    <li><strong>Mods y arcanos por rango</strong>: rango 0 y rango 10 son mercados distintos y ya no se mezclan.</li>
+    <li><strong>Mods y arcanos por rango</strong>: el precio de rango 0 y el de rango máximo se muestran por separado.</li>
   </ul>
 
   <h4 class="update-section">Arreglos</h4>
   <ul class="update-list">
-    <li><strong>Los ítems no cargaban</strong> por un fallo del servidor con inventarios grandes. Resuelto.</li>
-    <li><strong>Iconos rotos</strong> en ítems sin imagen propia, como los mods.</li>
-    <li><strong>Menos llamadas al servidor</strong> al abrir la pestaña de órdenes.</li>
+    <li><strong>Los ítems no cargaban</strong> con inventarios grandes.</li>
+    <li><strong>Iconos rotos</strong> en mods y otros ítems sin imagen propia.</li>
   </ul>
 
   <p class="update-foot">
-    <em>Warframe.market aún no permite conectar apps externas sin contraseña: hasta que
-    abran su sistema oficial, algunas cuentas solo podrán leer sus órdenes. La app lo
-    indica cuando pasa. Tus datos se cifran en el navegador y la contraseña no se guarda.</em>
+    <em>Algunas cuentas solo podrán leer sus órdenes, no editarlas. La app lo indica
+    cuando pasa. Tu contraseña no se guarda.</em>
   </p>
 </div>
 <div class="update-block old" id="v2661">
@@ -376,36 +373,33 @@ export const UPDATE_HISTORY_DATA = {
   </div>
 
   <p class="update-lead">
-    New <strong>My orders</strong> tab: connect your warframe.market account and manage
-    your sales without leaving the app.
+    New <strong>My orders</strong> tab: manage your warframe.market sales from the app.
   </p>
 
   <h4 class="update-section">What you can do</h4>
   <ul class="update-list">
-    <li><strong>See your orders with the market price next to them</strong>, so you know which ones are off market.</li>
+    <li><strong>See your orders</strong> with the market price next to them.</li>
     <li><strong>Edit price, quantity and rank</strong>, mark as sold, hide or delete.</li>
-    <li><strong>List sets from your inventory</strong>: the ones you own complete come with a suggested price.</li>
-    <li><strong>Live prices</strong>: the app listens to the market and updates them as they go by.</li>
-    <li><strong>Alerts</strong> when someone undercuts you or your price falls behind.</li>
+    <li><strong>List sets from your inventory</strong> with a suggested price.</li>
+    <li><strong>Live prices</strong>, updated on their own.</li>
+    <li><strong>Alerts</strong> when someone undercuts you.</li>
   </ul>
 
   <h4 class="update-section">On screen</h4>
   <ul class="update-list">
     <li><strong>"Sell" button</strong> in the inventory and the set tracker, with a "Listed" tag on the ones already up.</li>
-    <li><strong>New icon</strong> on the relics tab.</li>
-    <li><strong>Mods and arcanes by rank</strong>: rank 0 and rank 10 are different markets and are no longer mixed.</li>
+    <li><strong>Mods and arcanes by rank</strong>: rank 0 and max rank prices are shown separately.</li>
   </ul>
 
   <h4 class="update-section">Fixes</h4>
   <ul class="update-list">
-    <li><strong>Items failed to load</strong> due to a server error with large inventories. Fixed.</li>
-    <li><strong>Broken icons</strong> on items without their own image, such as mods.</li>
-    <li><strong>Fewer server calls</strong> when opening the orders tab.</li>
+    <li><strong>Items failed to load</strong> with large inventories.</li>
+    <li><strong>Broken icons</strong> on mods and other items without their own image.</li>
   </ul>
 
   <p class="update-foot">
-    <em>Warframe.market does not allow third-party apps to connect without a password yet they have a secure way for users to authenticate but its only available once they finish their OAuth implementation,
-     no ETA yet. So a bit of whats to come would be inventory sync with your market account listings with notifications and more :-). Meanwhile enjoy the prettier ui and bug fixes on my part.</em>
+    <em>Some accounts can only read their orders, not edit them. The app tells you when
+    that happens. Your password is never stored.</em>
   </p>
 </div>
 <div class="update-block old" id="v2661">
