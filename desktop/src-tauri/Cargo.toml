@@ -1,0 +1,27 @@
+[package]
+name = "voidstonks-desktop"
+version = "2.7.0"
+description = "VoidStonks — compañero de Warframe, versión de escritorio"
+authors = ["edelaf01"]
+edition = "2021"
+# Rust 1.77+ lo pide Tauri 2. rustup instala uno más nuevo por defecto.
+rust-version = "1.77.2"
+
+# El binario y la lib comparten nombre base; main.rs llama a la lib (patrón de Tauri 2,
+# necesario para que el mismo código sirva en escritorio y, si algún día, en móvil).
+[lib]
+name = "voidstonks_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-opener = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[features]
+# Deja que Tauri controle la consola en release; en debug se ve para depurar.
+custom-protocol = ["tauri/custom-protocol"]
