@@ -48,7 +48,9 @@ deploy/rootCA.pem
 .gitignore
 certs/dev-key.pem
 certs/dev.pem
-package.json
+# Solo el de la raíz: la barra inicial ancla la regla ahí. Sin ella, "package.json"
+# ignoraba también el de desktop/, que SÍ debe versionarse (el build de Tauri lo necesita).
+/package.json
 deploy/MAINTENANCE_VOSFOR.md
 deploy/MAINTENANCE_VOSFOR.md
 dist/
