@@ -1,18 +1,47 @@
 export const WORKER_URL = "https://api.voidstonks.com/";
-export const APP_VERSION = "2.7";
+export const APP_VERSION = "2.7.1";
 export const UPDATE_HISTORY_DATA = {
   es: `
 <nav class="update-index" aria-label="Versiones">
   <span class="update-index-label">Versiones</span>
-  <a href="#v27" class="update-index-link is-current">v2.7</a>
+  <a href="#v271" class="update-index-link is-current">v2.7.1</a>
+  <a href="#v27" class="update-index-link">v2.7</a>
   <a href="#v2661" class="update-index-link">v2.6.6.1</a>
   <a href="#v266" class="update-index-link">v2.6.6</a>
   <a href="#v265" class="update-index-link">v2.6.5</a>
   <a href="#v264" class="update-index-link">v2.6.4</a>
 </nav>
-<div class="update-block" id="v27">
+<div class="update-block" id="v271">
   <div class="update-header">
-    <span class="update-version">v2.7 (Actual)</span>
+    <span class="update-version">v2.7.1 (Actual)</span>
+    <span class="update-date">2026-08-04</span>
+  </div>
+
+  <p class="update-lead">
+    <strong>Tasación de rivens rehecha.</strong> Los precios salían altos, y cuanto más popular era el
+    arma, peor. Ahora siguen lo que los rivens se <em>venden</em>, no lo que piden los vendedores.
+  </p>
+  <ul class="update-list">
+    <li><strong>Las armas populares ya no salen infladas.</strong> Era donde más se desviaba el precio.</li>
+    <li><strong>Ahora cuenta cuánto rolaron tus stats</strong>, no solo cuáles son: un crítico rolado
+    al mínimo ya no puntúa como un godroll.</li>
+    <li><strong>Las negativas se juzgan por arma.</strong> −Multishot destroza un rifle que vive de él,
+    pero apenas afecta a un melee. El retroceso y el daño por facción dejan de ser inofensivos por
+    decreto.</li>
+    <li><strong>Negativas imposibles.</strong> Los elementales y la perforación no pueden salir como
+    maldición: si el escáner lee un menos ahí, lo corrige.</li>
+    <li><strong>Arreglado:</strong> un arma con una sola venta cara se tasaba entera por ella, y en
+    algunas armas de poco volumen el godroll y el roll basura salían al mismo precio.</li>
+  </ul>
+
+  <p class="update-foot">
+    <em>La tasación es una guía: dos rivens idénticos se listan a precios distintos porque cada
+    vendedor pone lo que quiere. Usa el rango, no el número único.</em>
+  </p>
+</div>
+<div class="update-block old" id="v27">
+  <div class="update-header">
+    <span class="update-version">v2.7</span>
     <span class="update-date">2026-08-03</span>
   </div>
 
@@ -360,15 +389,43 @@ export const UPDATE_HISTORY_DATA = {
   en: `
 <nav class="update-index" aria-label="Versions">
   <span class="update-index-label">Versions</span>
-  <a href="#v27" class="update-index-link is-current">v2.7</a>
+  <a href="#v271" class="update-index-link is-current">v2.7.1</a>
+  <a href="#v27" class="update-index-link">v2.7</a>
   <a href="#v2661" class="update-index-link">v2.6.6.1</a>
   <a href="#v266" class="update-index-link">v2.6.6</a>
   <a href="#v265" class="update-index-link">v2.6.5</a>
   <a href="#v264" class="update-index-link">v2.6.4</a>
 </nav>
-<div class="update-block" id="v27">
+<div class="update-block" id="v271">
   <div class="update-header">
-    <span class="update-version">v2.7 (Current)</span>
+    <span class="update-version">v2.7.1 (Current)</span>
+    <span class="update-date">2026-08-04</span>
+  </div>
+
+  <p class="update-lead">
+    <strong>Riven appraisal rebuilt.</strong> Prices were too high, and the more popular the weapon,
+    the worse it got. Now they follow what rivens actually <em>sell</em> for, not what sellers ask.
+  </p>
+  <ul class="update-list">
+    <li><strong>Popular weapons are no longer overpriced.</strong> That's where the price drifted most.</li>
+    <li><strong>How high your stats rolled now counts</strong>, not just which ones: a crit roll at the
+    lowest values no longer scores like a godroll.</li>
+    <li><strong>Negatives are judged per weapon.</strong> −Multishot wrecks a rifle that lives on it but
+    barely touches a melee. Recoil and faction damage are no longer harmless by decree.</li>
+    <li><strong>Impossible negatives.</strong> Elemental damage and Punch Through can't roll as a curse:
+    if the scanner reads a minus there, it corrects it.</li>
+    <li><strong>Fixed:</strong> a weapon with a single expensive sale was priced off that one trade, and
+    on some low-volume weapons the godroll and the trash roll came out at the same price.</li>
+  </ul>
+
+  <p class="update-foot">
+    <em>Appraisals are a guide: two identical rivens get listed at different prices because each seller
+    picks their own. Use the range, not the single number.</em>
+  </p>
+</div>
+<div class="update-block old" id="v27">
+  <div class="update-header">
+    <span class="update-version">v2.7</span>
     <span class="update-date">2026-08-03</span>
   </div>
 
@@ -1101,6 +1158,25 @@ export function resolveBaseStatKey(nameEn, typeIdx) {
     return typeIdx === 3 ? "Attack Speed" : "Fire Rate";
   }
   return BASE_STAT_ALIAS[nameEn] || nameEn;
+}
+
+// Stats que el juego NUNCA genera como MALDICIÓN (negativa), aunque sí existan como positivo:
+// los cuatro elementales y Punch Through. Un riven con "-Heat" o "-Punch Through" es imposible,
+// así que si aparece uno es un error de OCR (signo mal leído) y no un roll a tasar.
+// El entrenamiento ya lo filtra (IMPOSSIBLE_NEGATIVES en ML_local.py); esto pone la misma regla
+// al alcance del front, que no la tenía y por tanto tasaba negativas inexistentes.
+export const IMPOSSIBLE_NEGATIVE_STATS = [
+  "Heat", "Cold", "Toxin", "Electric",
+  "Heat Damage", "Cold Damage", "Toxin Damage", "Electric Damage",
+  "Punch Through",
+];
+
+// ¿Puede este stat rolar como negativa? Tolera las variantes de nombre del OCR y del modelo
+// ("Heat" vs "Heat Damage") resolviendo primero la clave canónica de RIVEN_BASE_STATS.
+export function canBeNegative(nameEn, typeIdx = null) {
+  const key = resolveBaseStatKey(String(nameEn || "").trim(), typeIdx);
+  const nl = key.toLowerCase();
+  return !IMPOSSIBLE_NEGATIVE_STATS.some(s => s.toLowerCase() === nl);
 }
 
 // (Buffs vs Curses)

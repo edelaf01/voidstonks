@@ -584,7 +584,9 @@ globalThis.updateTrackerSim = function (refinement, squadSize, targetPart) {
     const t = TEXTS[state.currentLang];
 
     const stats = calculateSetStats(state.trackerRefinement, state.trackerSquadSize, state.selectedTrackerPart);
-    const relicImgHtml = `<img src="assets/relic.webp" style="width:14px; height:14px; object-fit:contain; vertical-align:middle; margin-right:3px;">`;
+    // 18px y no 14: el icono son cuatro reliquias sobre un remolino, y por debajo de ese
+  // tamaño se funden en una mancha.
+  const relicImgHtml = `<img src="assets/remolino.webp" style="width:18px; height:18px; object-fit:contain; vertical-align:middle; margin-right:3px;">`;
 
     summaryWrapper.innerHTML = stats.avgRuns > 0
       ? `<div class="tracker-runs-summary-badge" title="${st.runsEstTitle}">${relicImgHtml} ${st.runsFormat.replace("{n}", stats.avgRuns.toFixed(1))}</div>`
@@ -703,7 +705,9 @@ export function renderSetTracker() {
         ? `<button type="button" class="set-sell-btn" onclick="event.stopPropagation(); globalThis.sellSetFromInventory('${escapeHTML(state.currentActiveSet).replaceAll("'", "\\'")}')" title="${escapeHTML(t.sellSetTitle)}">${escapeHTML(t.sellSet)}</button>`
         : "";
 
-  const relicImgHtml = `<img src="assets/relic.webp" style="width:14px; height:14px; object-fit:contain; vertical-align:middle; margin-right:3px;">`;
+  // 18px y no 14: el icono son cuatro reliquias sobre un remolino, y por debajo de ese
+  // tamaño se funden en una mancha.
+  const relicImgHtml = `<img src="assets/remolino.webp" style="width:18px; height:18px; object-fit:contain; vertical-align:middle; margin-right:3px;">`;
 
   const runsBadgeHtml = stats.avgRuns > 0
     ? `<div class="tracker-runs-summary-badge" title="${st.runsEstTitle}">${relicImgHtml} ${st.runsFormat.replace("{n}", stats.avgRuns.toFixed(1))}</div>`
