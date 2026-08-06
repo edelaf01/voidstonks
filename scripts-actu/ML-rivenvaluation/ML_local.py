@@ -491,6 +491,14 @@ for stat in [s for s in df_ml["stat_neg"].dropna().unique() if s != "None"]:
 df_ml["num_pos"] = sum(((df_ml[f"stat_pos{i}"].notna()) & (df_ml[f"stat_pos{i}"] != "None")).astype(int) for i in (1, 2, 3))
 df_ml["has_neg"] = ((df_ml["stat_neg"].notna()) & (df_ml["stat_neg"] != "None")).astype(int)
 
+# NO añadir aquí interacciones de num_pos/has_neg (seg, seg_x_synergy, npos_x_synergy,
+# neg_x_synergy, seg_x_nivel, neg_x_dispo): probadas y descartadas en 2026-08-04. Entraban
+# altísimas en importancia (seg_x_synergy 2ª global, 0.067) y desplazaban a num_pos/has_neg del
+# top 15, pero el A/B con dataset IDÉNTICO (167362 filas, mismo split) no movió nada:
+# R2intra 0.5543->0.5542, MAPEtrade 47.2->47.1, AUC 0.801->0.802. Importancia alta con métrica
+# plana = reparto distinto de la misma señal, no señal nueva; las dummies has_pos_stat_* y
+# synergy_score ya la contenían. El margen real está en el target (asks, no ventas), no en
+# recombinar features existentes.
 # FEATURES CURADAS (jun 2026): fuera volatility_index/trend_7d_pct/web_min/web_max (ruido o
 # redundancia colineal con wfm_avg) y los hist_* de volatilidad/trend/meta_shift (corr ~0).
 # Dentro: re_pop/re_std/re_med/re_max (godrolls oficiales), wfm_vs_off (prima meta), ceil_mult.
@@ -534,6 +542,99 @@ _recortadas = int((df_ml["price"] > _cap_final).sum())
 df_ml["price"] = np.minimum(df_ml["price"], _cap_final)
 print(f"  Winsor consciente de régimen: {int(_tiene_nivel.sum())} filas con nivel del día "
       f"({_tiene_nivel.mean()*100:.0f}%), {_recortadas} precios recortados.")
+
+# ====================================================================
+# CALIBRADO A PRECIO DE VENTA (por arma)
+# ====================================================================
+# `price` viene de buyout_price de las subastas de WFM: es lo que PIDE el vendedor, no lo que se
+# paga. Medido (ago 2026, 443k filas / 379 armas con ventas reales): la mediana de asks está a
+# 2.7× la mediana de ventas reales de DE, pero el sesgo NO es uniforme — 7.1× en el cuartil
+# superior de liquidez frente a 1.1× en el inferior. En las armas populares la venta real cae en
+# el p0 de los asks: NINGÚN ask baja al precio real. Por eso el modelo (entrenado sobre asks)
+# sobreestimaba justo en las armas populares, y por eso el front lo tenía DESCONECTADO y fijaba
+# el precio con una curva heurística.
+#
+# Un factor global NO sirve: en armas nicho el ask ya está casi en precio de venta (1.1×) y lo
+# hundiría. La calibración es POR ARMA.
+#
+# OJO — POR QUÉ NO ES UN ESCALAR. La primera versión hacía factor = de_med / ask_med y lo
+# multiplicaba a TODOS los listings del arma. Eso mete un error de categoría: la mediana de DE es el
+# centro de MEZCLAR trash y godrolls (Dual Toxocyst: DE registra ventas de 21p a 9000p, mediana
+# 243p), así que aplastar el arma entera con 0.08 dejaba el godroll de 9000p en 720p cuando DE tiene
+# ventas reales de godroll a 9000p. Medido: el combo CC+Multishot+CD de esa arma está en el
+# percentil 69 de sus asks, NO en la mediana.
+#
+# Lo correcto es mapear RANGO a RANGO conservando la posición del roll dentro de su arma:
+#   pos = percentil del ask dentro de su arma  ->  precio de venta al MISMO percentil.
+# DE da tres anclas (min_price, median, max_price) y se interpola en log entre ellas, así que un
+# trash cae cerca del mínimo vendido, un roll medio en la mediana y un godroll cerca del máximo
+# realmente vendido. El nivel global baja (deja de predecir asks) sin comprimir la dispersión, que
+# es justo lo que el tasador necesita para distinguir un godroll de un trash.
+_CAL_MIN_POP = float(os.environ.get("CAL_VENTA_MIN_POP", "3"))
+
+# DESACTIVADO POR DEFECTO (CAL_VENTA=1 para activarlo). El mapeo de arriba es correcto en su idea,
+# pero descansa en dos cosas que HOY no se pueden verificar:
+#   1. DE solo publica 3 números por arma (min/median/max de de_rerolled). Todo el reescalado de un
+#      arma cuelga de esos 3 puntos, mientras las etiquetas son 100% asks.
+#   2. Asume que el ORDEN de los asks es el orden de las ventas. Y sabemos que no lo es: los rivens
+#      SIN maldición se piden más baratos que la mediana de su arma en el 85% del catálogo (mediana
+#      120p sin negativa contra 400p con negativa), porque valen menos para rolar, no porque se
+#      vendan por menos. El percentil de ask no es la calidad del roll.
+# Con el mapeo activo un CC/Multishot/CD sin negativa de Dual Toxocyst sale ~89p cuando el mercado
+# pide ~2750p por ese mismo roll, y no hay forma de comprobar cuál se acerca al precio pagado: DE no
+# desglosa sus ventas por combo de stats.
+#
+# Se deja implementado y medido para poder activarlo en cuanto haya señal de VENTAS por roll (ver
+# NOTAS-PARCHE: guardar el id de subasta permite detectar listings que desaparecen, y una venta
+# confirmada sí ordena por calidad). Mientras tanto el target sigue en asks, que al menos es
+# internamente consistente y comparable con lo que el usuario ve en warframe.market.
+_CAL_ON = os.environ.get("CAL_VENTA", "0") != "0"
+VENTA_INFO = {}
+df_ml["price_ask"] = df_ml["price"]          # se conserva para diagnóstico/comparativas
+_precio_cal = df_ml["price"].astype(float).copy()
+
+for _w, _idx in df_ml.groupby("weapon").groups.items():
+    _rec = lookup_macro(_w)
+    _dre = (_rec.get("de_rerolled") or {}) if _rec else {}
+    _dun = (_rec.get("de_unrolled") or {}) if _rec else {}
+    _rmed = _dre.get("median") or 0
+    _rpop = _dre.get("pop") or 0
+    _rmin = _dre.get("min_price") or 0
+    _rmax = _dre.get("max_price") or 0
+    _asks = df_ml.loc[_idx, "price"].astype(float)
+
+    _ok = (_CAL_ON and _rmed > 0 and _rpop >= _CAL_MIN_POP and len(_asks) >= 5)
+    if not _ok:
+        VENTA_INFO[_w] = {"de_med": _rmed, "pop": _rpop, "fiable": False}
+        continue
+
+    # Anclas de VENTA reales de DE. Sin min/max usables se cae a múltiplos de la mediana: la
+    # dispersión típica medida en el catálogo es ~0.45× la mediana abajo y ~5× arriba.
+    _lo = _rmin if 0 < _rmin < _rmed else max(1.0, _rmed * 0.45)
+    _hi = _rmax if _rmax > _rmed else _rmed * 5.0
+    # El max de DE es UNA venta (el récord), así que se acota para que un outlier no estire el techo.
+    _hi = min(_hi, _rmed * 8.0)
+
+    # Percentil de cada ask DENTRO de su arma -> mismo percentil en la escala de ventas.
+    # Interpolación en log (los precios son multiplicativos) con la mediana como punto central,
+    # así el p50 de asks cae exactamente en la mediana de ventas de DE.
+    _p = _asks.rank(pct=True).to_numpy()
+    _lg = np.where(
+        _p <= 0.5,
+        np.log(_lo) + (np.log(_rmed) - np.log(_lo)) * (_p / 0.5),
+        np.log(_rmed) + (np.log(_hi) - np.log(_rmed)) * ((_p - 0.5) / 0.5),
+    )
+    _precio_cal.loc[_idx] = np.exp(_lg)
+    VENTA_INFO[_w] = {"de_med": _rmed, "de_lo": round(float(_lo), 1), "de_hi": round(float(_hi), 1),
+                      "pop": _rpop, "ask_med": round(float(_asks.median()), 1), "fiable": True}
+
+df_ml["price"] = _precio_cal
+_n_fiable = sum(1 for v in VENTA_INFO.values() if v["fiable"])
+_rat = (df_ml["price"] / df_ml["price_ask"]).replace([np.inf, -np.inf], np.nan).dropna()
+print(f"  Calibrado a precio de VENTA (percentil->percentil): {_n_fiable}/{len(VENTA_INFO)} armas con "
+      f"anclas reales de DE (re_pop>={_CAL_MIN_POP:.0f}). "
+      f"venta/ask: mediana {_rat.median():.2f}× [p10 {_rat.quantile(.10):.2f}× / p90 {_rat.quantile(.90):.2f}×]. "
+      f"El resto se queda en escala de ask (marcado no fiable).")
 
 # ENTRENAMIENTO BALANCEADO: peso por muestra para que cada ARMA y cada TIER (trash/mid/godroll)
 # contribuyan ~igual. Sin esto, las armas con muchos listados y su rango de precio dominante mandan
@@ -590,6 +691,21 @@ X_train = df_ml.iloc[tr2_idx][columnas_micro]; y_train = y_all.values[tr2_idx]; 
 X_es = df_ml.iloc[es_idx][columnas_micro];     y_es = y_all.values[es_idx]
 X_test = df_ml.iloc[te_idx][columnas_micro];   y_test = y_all.values[te_idx]
 weapon_test = df_ml["weapon"].values[te_idx]
+
+# FUGA DE COMBOS entre train y test. El dedup es por (arma, stats, precio), así que el MISMO riven
+# listado a precios distintos deja varias filas y el split estratificado puede repartirlas a ambos
+# lados: el modelo ve el combo en train y lo "reconoce" en test. Medido (ago 2026, 167k filas): el
+# 36% del dataset son combos con >1 fila (CV de precio intra-combo 0.28) y el 32% del test tiene su
+# combo ya visto en train, donde un oráculo que memoriza la mediana del combo comete 30% de error
+# frente al 67% en combos inéditos. No se cambia el split (estratificar por arma es necesario para
+# que el one-hot del arma esté entrenado en test), pero SÍ se reporta el desglose: sin él, el MAPE
+# publicado parece mejor de lo que generaliza y se optimiza contra una métrica que se autoengaña.
+_kcombo = [c for c in ["weapon", "stat_pos1", "stat_pos2", "stat_pos3", "stat_neg"] if c in df_ml.columns]
+_combo_all = df_ml[_kcombo].fillna("None").astype(str).agg("|".join, axis=1).values
+_combos_tr = set(_combo_all[tr2_idx]) | set(_combo_all[es_idx])
+_visto_te = np.array([c in _combos_tr for c in _combo_all[te_idx]])
+print(f"  Fuga de combos en test: {_visto_te.sum()}/{len(_visto_te)} ({_visto_te.mean()*100:.0f}%) "
+      f"con su combo ya visto en train.")
 print(f"Matrices: train={X_train.shape[0]} | early-stop={X_es.shape[0]} | test={X_test.shape[0]} | features={len(columnas_micro)}")
 print(f"¿one-hot de arma presente? {'sí' if any(c.startswith('weapon_') for c in columnas_micro) else 'NO'}")
 
@@ -686,6 +802,44 @@ mape = float(ape_all.mean() * 100)
 # El MAPE global lo infla el trash barato (un 10pl vs 30pl = 200% de error y da igual).
 mask_trade = real_test >= 200
 mape_trade = float(ape_all[mask_trade].mean() * 100) if mask_trade.any() else float("nan")
+
+# MAPE partido por si el combo del test ya se vio en train. El de combos INÉDITOS es el que dice
+# cómo se comporta con un roll que nunca ha visto, que es el caso real del tasador.
+mape_visto = mape_inedito = float("nan")
+try:
+    _mt = mask_trade & _visto_te
+    _mi = mask_trade & (~_visto_te)
+    if _mt.any():
+        mape_visto = float(ape_all[_mt].mean() * 100)
+    if _mi.any():
+        mape_inedito = float(ape_all[_mi].mean() * 100)
+    print(f"  MAPE trade por fuga: combo visto {mape_visto:.1f}% (n={int(_mt.sum())}) | "
+          f"combo INÉDITO {mape_inedito:.1f}% (n={int(_mi.sum())})  <- el honesto")
+except Exception as _e:
+    print(f"  [WARN] no se pudo desglosar el MAPE por fuga: {_e}")
+
+# TECHO IRREDUCIBLE: dos rivens IDÉNTICOS (misma arma, mismos pos, misma neg) se listan a precios
+# distintos porque cada vendedor pone lo que quiere. Ese desacuerdo es varianza DENTRO del target:
+# ningún modelo puede predecirlo con estas features. Se mide como el MAPE que cometería un oráculo
+# que acertase la mediana de cada combo. Medido en ago 2026: ~25% (y la magnitud no lo explica —
+# combos con magnitud dan 25.0% vs 24.3% sin ella, y la correlación magnitud-precio intra-combo es
+# ~-0.28). Sirve para saber cuánto margen queda de verdad: perseguir un MAPE por debajo de este
+# suelo es perseguir ruido, y sobreajustaría.
+try:
+    _kc = ["weapon", "stat_pos1", "stat_pos2", "stat_pos3", "stat_neg"]
+    _dcombo = df_ml[[c for c in _kc if c in df_ml.columns]].fillna("None").astype(str).agg("|".join, axis=1)
+    _oracle = []
+    for _c, _s in df_ml.groupby(_dcombo)["price"]:
+        if len(_s) >= 5:
+            _m = _s.median()
+            if _m > 0:
+                _oracle.append(float(np.mean(np.abs(_s - _m) / np.clip(_s, 5, None)) * 100))
+    mape_piso = float(np.median(_oracle)) if _oracle else float("nan")
+    print(f"  Techo irreducible (MAPE de un oráculo perfecto): {mape_piso:.1f} % "
+          f"sobre {len(_oracle)} combos con >=5 listados.")
+except Exception as _e:
+    mape_piso = float("nan")
+    print(f"  [WARN] no se pudo medir el techo irreducible: {_e}")
 # AUC de detección de godroll (precio real >= p90 del arma en train)
 _gp90_tr = pd.Series(np.expm1(y_train)).groupby(df_ml["weapon"].values[tr2_idx]).quantile(0.90)
 _thr = pd.Series(weapon_test).map(_gp90_tr).fillna(np.quantile(np.expm1(y_train), 0.90)).values
@@ -785,6 +939,12 @@ _hist_runs.append({
     "auc_godroll": round(float(auc_god), 3),
     "mape_trade": round(float(mape_trade), 1), "mape_global": round(float(mape), 1),
     "mape_mediano_arma": round(float(per["mape"].median()), 1),
+    # suelo del mercado + cuánto del margen real (mape_trade - piso) se ha cerrado
+    "mape_piso": (round(float(mape_piso), 1) if np.isfinite(mape_piso) else None),
+    # honestidad de la métrica: cuánto del MAPE sale de combos ya vistos en train
+    "mape_trade_inedito": (round(float(mape_inedito), 1) if np.isfinite(mape_inedito) else None),
+    "fuga_combos_pct": round(float(_visto_te.mean()) * 100, 1),
+    "venta_calibrada": _n_fiable, "venta_armas": len(VENTA_INFO),
     "cobertura": {f"p{int(a*100)}": round(float((y_test <= _qpred_test[a]).mean()) * 100, 1) for a in QUANTILES},
     "winsor_recortadas": _recortadas,
 })
@@ -795,6 +955,12 @@ if len(_hist_runs) >= 2:
           f"R2intra {_prev_run['r2_intra']:.3f}->{_cur_run['r2_intra']:.3f} | "
           f"MAPEtrade {_prev_run['mape_trade']:.0f}%->{_cur_run['mape_trade']:.0f}% | "
           f"filas +{_cur_run['filas'] - _prev_run['filas']}")
+    # Margen REAL que queda: la distancia al suelo del mercado, no a 0%.
+    if _cur_run.get("mape_piso"):
+        _gap = _cur_run["mape_trade"] - _cur_run["mape_piso"]
+        print(f"  MARGEN vs techo irreducible: {_cur_run['mape_trade']:.0f}% actual - "
+              f"{_cur_run['mape_piso']:.0f}% suelo = {_gap:.0f} puntos de mejora POSIBLE. "
+              f"Por debajo del suelo solo hay ruido de vendedor.")
 print(f"  histórico de métricas: {_METRICS_LOG} ({len(_hist_runs)} runs)")
 
 
@@ -1296,10 +1462,16 @@ if os.environ.get("SLIM_EXPORT", "1") == "1":
         _m = pd.to_numeric(df_ml[c], errors="coerce").median()
         _def[c] = float(_m) if pd.notna(_m) else 0.0
     json.dump(_def, open(os.path.join(_OUT, "feature_defaults_slim.json"), "w"))
+    # `venta` = factor de calibrado ask->venta por arma y si su ancla es fiable. El front lo usa para
+    # decidir si se fía del p50 del modelo (arma calibrada) o cae a la curva anclada a DE.
     json.dump({"drift": CAL_DRIFT, "synlo": CAL_SYNLO, "nsamp": CAL_NSAMP,
                "precision": (PRECISION_ARMA if "PRECISION_ARMA" in dir() else {}),
-               "quantiles": QUANTILES}, open(os.path.join(_OUT, "calibracion_por_arma.json"), "w"))
-    # price_bands.json (deciles REALES por arma) + stat_weights.json (tiers) -> bundle deploy completo
+               "quantiles": QUANTILES, "venta": VENTA_INFO,
+               "venta_min_pop": _CAL_MIN_POP},
+              open(os.path.join(_OUT, "calibracion_por_arma.json"), "w"))
+    # price_bands.json: deciles de df_ml["price"], que YA está calibrado a precio de venta arriba,
+    # así que floor/typical/ceiling dejan de ser deciles de ASKS (antes lo eran, y el front los
+    # usaba como si fueran ventas). stat_weights.json = tiers -> bundle deploy completo.
     _pb, _grp = {}, df_ml.groupby("weapon")["price"]
     for _wp in df_ml["weapon"].unique():
         _s = _grp.get_group(_wp); _q = [int(round(_s.quantile(x / 10))) for x in range(1, 10)]

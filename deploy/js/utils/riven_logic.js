@@ -228,6 +228,64 @@ function resolveStatWeight(nameLower, weapon, weaponData, statBaseline) {
   return null;
 }
 
+/**
+ * ¿Los pesos por arma del ML discriminan, o están saturados?
+ *
+ * En armas de poco volumen el entrenamiento empata media tabla al máximo: Seer trae 8 de sus 30
+ * pesos a 1.0 — con Zoom y Recoil junto a Critical Damage. Un dato así no ordena nada, y usarlo
+ * hace que un -Zoom brickee el riven o que Zoom aparezca como mejor positivo. Pasa en 31 de 608
+ * armas (5%); en esos casos se cae al prior global, que sí ordena.
+ *
+ * Umbral en 25% Y al menos 6 empates: con >33% Seer se colaba, y el mínimo de 6 evita el falso
+ * positivo en tablas cortas (un arma sana con CC/CD/Multishot a 1.0 son 3 empates legítimos).
+ * @returns {boolean} true si los pesos NO sirven para discriminar.
+ */
+export function areWeightsDegenerate(dynWeightsRaw) {
+  const vals = dynWeightsRaw && typeof dynWeightsRaw === "object"
+    ? Object.values(dynWeightsRaw).map(v => parseFloat(v)).filter(Number.isFinite) : [];
+  const empates = vals.filter(v => v >= 0.999).length;
+  return vals.length >= 12 && empates >= 6 && (empates / vals.length) >= 0.25;
+}
+
+// Cortes de tier compartidos por positivos y negativos: un stat que el arma quiere con peso >=0.7 es
+// TOP (y perderlo como negativa arruina), 0.4-0.7 es medio, por debajo da igual. Los negativos ya
+// usaban estos mismos números en ui_rivens.js; aquí se centralizan para que no se separen.
+export const STAT_TIER_TOP = 0.7;
+export const STAT_TIER_MID = 0.4;
+
+/**
+ * Gradúa TODOS los stats de un arma en best/mid/meh usando SUS pesos del ML.
+ *
+ * Existe porque las listas curadas `pos`/`midPos` llegan vacías en 556 de 620 armas, así que el 90%
+ * del catálogo caía en una lista genérica idéntica para todas — cuando el ML sí publica pesos por
+ * arma para 608. Y varían de verdad: en Bo, Critical Chance es 0.48 (medio, no top) y en Kuva Bramma
+ * Toxin Damage llega a 1.00.
+ *
+ * @param {object} weapon      arma con dynamic_weights
+ * @param {object} [statBaseline] prior global por stat, para armas sin pesos fiables
+ * @returns {{best:string[],mid:string[],meh:string[],fuente:string,pesos:object}|null}
+ */
+export function gradeWeaponStats(weapon, statBaseline = null) {
+  const raw = (weapon && weapon.dynamic_weights) || null;
+  const propios = raw && !areWeightsDegenerate(raw) ? raw : null;
+  const tabla = propios || (statBaseline && typeof statBaseline === "object" ? statBaseline : null);
+  if (!tabla) return null;
+
+  const orden = Object.entries(tabla)
+    .map(([k, v]) => [k, parseFloat(v)])
+    .filter(([, v]) => Number.isFinite(v))
+    .sort((a, b) => b[1] - a[1]);
+  if (!orden.length) return null;
+
+  const best = [], mid = [], meh = [];
+  for (const [nombre, peso] of orden) {
+    if (peso >= STAT_TIER_TOP) best.push(nombre);
+    else if (peso >= STAT_TIER_MID) mid.push(nombre);
+    else meh.push(nombre);
+  }
+  return { best, mid, meh, fuente: propios ? "arma" : "prior", pesos: Object.fromEntries(orden) };
+}
+
 export function calculateAdvancedPredictivePrice(weapon, itemAttributes, tiers, desirabilityMultiplier = 1.0, weaponData = null, statBaseline = null) {
   const bestPositives = Array.isArray(weapon.pos) ? weapon.pos : (weapon.pos?.best || []);
   const midPositives = weapon.midPos || [];
@@ -301,6 +359,14 @@ export function calculateAdvancedPredictivePrice(weapon, itemAttributes, tiers, 
 
       const resolvedWeight = resolveStatWeight(nameLower, weapon, weaponData, statBaseline);
 
+      // ORDEN DE PREFERENCIA, de más específico a más genérico:
+      //   1. resolveStatWeight -> peso del ML de ESTE arma, mezclado con el prior global según la
+      //      liquidez (alpha = liquidez/25). Cubre 606 de 620 armas y los 31 stats del juego, porque
+      //      el prior (_global.pos del bundle) los trae todos. Es la vía normal.
+      //   2. Las constantes de abajo son el ÚLTIMO RECURSO: solo se alcanzan si no hay ni pesos del
+      //      arma ni prior, o sea si el bundle de ML no cargó. Son a dedo y no distinguen un Critical
+      //      Damage de un Range, así que no conviene ampliar este camino: si falta un caso, lo que hay
+      //      que arreglar es el prior, no añadir otro número aquí.
       let attributeWeight;
       if (resolvedWeight !== null) {
         attributeWeight = resolvedWeight;
@@ -312,11 +378,14 @@ export function calculateAdvancedPredictivePrice(weapon, itemAttributes, tiers, 
         attributeWeight = 0;
       }
 
-      // Daño por facción (Grineer/Corpus/Infested): decente pero nicho. Suelo ~0.30 para que no cuente
-      // como trash total (peso 0) ni como meta; sube algo el score sin convertir el riven en godroll.
-      if (/\b(grineer|corpus|infested)\b/i.test(nameLower)) {
-        attributeWeight = Math.max(attributeWeight, 0.30);
-      }
+      // NO se pone un suelo al daño por facción (Grineer/Corpus/Infested). Lo hubo (0.30) con la idea
+      // de que "es nicho pero no basura", y era un hardcodeo que contradecía al dato: el ML les da
+      // peso mediano 0.010 —el MISMO que Zoom, Recoil o Ammo Maximum— y el suelo lo pisaba en el 91-96%
+      // de las armas, regalando +4.1 puntos de score frente a un stat que el modelo valora igual.
+      // En ventas reales tampoco se sostiene: un riven con +Daño vs Grineer se vende a 0.56× uno sin
+      // él (Corpus 0.50×, Infested 0.45×), en el mismo rango que Reload Speed 0.56× o Ammo Maximum
+      // 0.48×, que nunca tuvieron suelo. Las armas donde la facción SÍ vale se detectan solas: el ML
+      // les da hasta 1.00 y ese peso se respeta.
 
       const range = attr.maxIdeal - attr.minIdeal;
       if (range > 0) {
@@ -388,7 +457,13 @@ export function calculateAdvancedPredictivePrice(weapon, itemAttributes, tiers, 
   // 3. CURVA AJUSTADA DE VALORACIÓN COMERCIAL (La presencia del stat dicta el tier de precio, la calidad del roll define la posición dentro del tier)
   let finalPrice = 0;
 
-  if (effectiveMetaRatio >= 0.80) {
+  // La curva godroll pedía SOLO stats meta (effectiveMetaRatio), no magnitud: un CC/CD rolado al
+  // mínimo entraba igual y su suelo era el 50% de tiers.godroll (~9.7× las ventas reales de DE en
+  // armas populares), así que un roll mediocre de arma meta se tasaba como godroll. Un godroll de
+  // verdad necesita stats meta Y que hayan rolado alto, así que exigimos también magnitud decente.
+  // Los stats meta con magnitud floja caen a la curva de good-reroll, que es el centroide real.
+  const isGodrollCombo = effectiveMetaRatio >= 0.80 && avgRollQuality >= 0.60;
+  if (isGodrollCombo) {
     // Godroll Curve: floors at 50% of tiers.godroll to preserve massive inherent value of perfect stat combos.
     const floorGodroll = tiers.godroll * 0.50;
     finalPrice = floorGodroll + (Math.pow(avgRollQuality, 1.3) * (tiers.godroll - floorGodroll));
@@ -407,21 +482,19 @@ export function calculateAdvancedPredictivePrice(weapon, itemAttributes, tiers, 
     finalPrice = tiers.trash * (0.8 + avgRollQuality * 0.4);
   }
 
-  // 4. PENALIZADOR DINÁMICO DE NEGATIVAS CRÍTICAS (-dmg, status duration, cc, cd, etc. penalizan fuertemente)
-  // Match EXACTO por nombre completo: "damage" no debe coincidir con "finisher damage" ni "faction damage".
-  const universalCriticalNegs = new Set([
-    "critical chance", "critical damage", "damage", "base damage", "multishot",
-    "fire rate", "attack speed", "melee damage", "range", "status duration"
-  ]);
-
-  const brickNegs = new Set([
-    "multishot", "critical chance", "critical damage", "damage", "base damage", "melee damage"
-  ]);
-
-  // Negativas mitigables (moderadas) que penalizan levemente en lugar de destruir el precio
-  const mitigableNegs = [
-    "ammo maximum", "magazine capacity", "reload speed", "impact", "puncture", "status chance", "projectile speed", "recoil"
-  ];
+  // 4. PENALIZADOR DINÁMICO DE NEGATIVAS CRÍTICAS
+  // Antes había tres listas de stats en duro (universalCriticalNegs / brickNegs / mitigableNegs).
+  // Se han retirado: el peso del stat COMO POSITIVO en ESTA arma (posWeightOf, más abajo) ya
+  // clasifica lo mismo y encima con datos. Los umbrales salen de la distribución real del prior
+  // global de stat_weights.json, donde los tres grupos NO se solapan:
+  //   CC/CD/Damage/Multishot/BaseDamage .. 0.70-1.00  -> stat-killer (era universal/brick)
+  //   status chance, projectile speed ....  0.28-0.37  -> mitigable
+  //   ammo, magazine, impact, zoom, recoil  0.01-0.18  -> inofensiva
+  // Además las listas fallaban por los dos lados: "range" y "status duration" estaban entre las
+  // críticas universales aunque su peso global es 0.89 (solo melee) y 0.16 respectivamente, y
+  // "recoil"/"vs Corpus" eran siempre inofensivas cuando llegan a 0.65/0.81 en ciertas armas.
+  const NEG_KILLER = 0.60;    // perder un stat top del arma
+  const NEG_MITIGABLE = 0.25; // molesta pero suele tener workaround
 
   const bestNegatives = Array.isArray(weapon.neg) ? weapon.neg : (weapon.neg?.best || []);
 
@@ -429,7 +502,19 @@ export function calculateAdvancedPredictivePrice(weapon, itemAttributes, tiers, 
   // Un best positive que aparece como negativa es un stat-killer (maldición); un mid positive
   // como negativa penaliza menos (suele haber workaround). Reutiliza la misma señal que usamos
   // para ponderar positivos, de modo que se adapta por arma sin listas en duro.
-  const dynWeights = (weapon && weapon.dynamic_weights) || (weaponData && weaponData.dynamic_weights);
+  const dynWeightsRaw = (weapon && weapon.dynamic_weights) || (weaponData && weaponData.dynamic_weights);
+
+  // Con poco volumen los pesos por arma SATURAN: Seer trae 8 stats empatados a 1.0 (Critical Damage
+  // junto a Zoom y Recoil), así que "el stat top del arma" deja de significar nada y cualquier
+  // negativa brickeaba el riven — Seer con SUS mejores positivos se tasaba a 0.25× su mediana.
+  // Pasa en 31 de 608 armas (5%). Si más de un tercio de los pesos está pegado al máximo, el dato
+  // no discrimina: se descarta y se usa el prior global de stat_weights (vía statBaseline), que sí
+  // ordena los stats. No se toca nada en las armas con datos sanos.
+  // El detalle del umbral vive en areWeightsDegenerate (una sola definición: la UI gradúa los tiers
+  // con el mismo criterio vía gradeWeaponStats, y si divergieran el panel mostraría como BEST un
+  // stat que la tasación considera basura).
+  const dynWeights = areWeightsDegenerate(dynWeightsRaw) ? null : dynWeightsRaw;
+
   const posWeightOf = (nameLower) => {
     if (dynWeights && typeof dynWeights === "object") {
       const key = Object.keys(dynWeights).find(k => {
@@ -437,6 +522,18 @@ export function calculateAdvancedPredictivePrice(weapon, itemAttributes, tiers, 
         return kl === nameLower || kl.includes(nameLower) || nameLower.includes(kl);
       });
       if (key && dynWeights[key] != null) return parseFloat(dynWeights[key]) || 0;
+    }
+    // Sin peso propio fiable: prior global por stat (statBaseline), que ordena bien CC/CD/Multishot
+    // frente a zoom/recoil/ammo. Antes se caía directo a las listas pos/midPos del arma.
+    if (statBaseline && typeof statBaseline === "object") {
+      const bk = Object.keys(statBaseline).find(k => {
+        const kl = k.toLowerCase();
+        return kl === nameLower || kl.includes(nameLower) || nameLower.includes(kl);
+      });
+      if (bk && statBaseline[bk] != null) {
+        const bv = parseFloat(statBaseline[bk]);
+        if (Number.isFinite(bv)) return bv;
+      }
     }
     const inList = (list) => Array.isArray(list) && list.some(p => {
       const pl = p.toLowerCase();
@@ -447,44 +544,55 @@ export function calculateAdvancedPredictivePrice(weapon, itemAttributes, tiers, 
     return 0;
   };
 
+  // ¿El stat está entre los MEJORES de esta arma? Un umbral absoluto no vale para decidir el brick:
+  // multishot tiene peso 1.00 en la mediana de armas pero 0.01 en su p10 (escopetas/melees donde de
+  // verdad no aporta), así que un corte fijo en 0.60 dejaría sin brickear 239 de 608 armas donde el
+  // stat sí es top. Lo medimos RELATIVO: entra en brick si está en el tercio alto de los pesos de
+  // ESA arma y además no es irrelevante en absoluto.
+  const _dwVals = dynWeights && typeof dynWeights === "object"
+    ? Object.values(dynWeights).map(v => parseFloat(v)).filter(Number.isFinite).sort((a, b) => b - a)
+    : [];
+  const _topRef = _dwVals.length ? _dwVals[Math.min(_dwVals.length - 1, 2)] : null; // 3º mejor peso
+  const esStatTopDelArma = (w) => _topRef != null
+    ? (w >= Math.max(NEG_MITIGABLE, _topRef * 0.9))
+    : (w >= NEG_KILLER);
+
   let isBricked = false;
 
   itemAttributes.forEach(attr => {
     if (!attr.isPositive) {
       const negName = attr.name.toLowerCase();
-      // Faction damage negatives (Damage to Grineer/Corpus/Infested) are always harmless — exclude from hard penalty logic
-      const isFactionDmgNeg = negName.includes(" to ") || negName.includes("vs");
-      const isGoodNegative = isFactionDmgNeg ||
-        bestNegatives.some(b => b.toLowerCase().includes(negName) || negName.includes(b.toLowerCase()));
-      const isUniversalBad = !isFactionDmgNeg && universalCriticalNegs.has(negName);
-      const isMitigable = !isFactionDmgNeg && mitigableNegs.some(m => negName.includes(m));
+      // Negativa BUSCADA por el arma (neg_tier.buff del histórico, p.ej. zoom en Cyngas): sigue
+      // siendo un dato de la propia arma, no una lista en duro.
+      const isGoodNegative = bestNegatives.some(b => b.toLowerCase().includes(negName) || negName.includes(b.toLowerCase()));
 
-      // El generico "damage" ya lo cubre universalCriticalNegs; evitamos que el fuzzy match
-      // de posWeightOf lo confunda con "critical damage" u otros stats con "damage".
-      const negPosWeight = (isFactionDmgNeg || negName === "damage" || negName === "base damage")
-        ? 0 : posWeightOf(negName);
-      const isTopPositiveAsNeg = !isGoodNegative && negPosWeight >= 0.8;
-      const isMidPositiveAsNeg = !isGoodNegative && negPosWeight >= 0.4 && negPosWeight < 0.8;
+      // El daño lo dicta el peso del stat en ESTA arma. "damage"/"base damage" se piden exactos
+      // porque el fuzzy match de posWeightOf los confundiría con "critical damage".
+      const negPosWeight = (negName === "damage" || negName === "base damage")
+        ? (posWeightOf("base damage / melee damage") || posWeightOf("damage") || 0)
+        : posWeightOf(negName);
 
-      const isBrick = !isFactionDmgNeg && brickNegs.has(negName);
-      if (isBrick && !isGoodNegative) {
+      // Un stat top del arma como negativa la deja bricked: es la misma señal que antes daba
+      // brickNegs, pero por arma (un -Range en un melee que vive del alcance sí brickea; el mismo
+      // -Range en un rifle no) y sin lista que mantener.
+      if (!isGoodNegative && esStatTopDelArma(negPosWeight)) {
         isBricked = true;
       }
 
       if (isGoodNegative) {
         // Negativa inofensiva o buscada (ej: zoom en Cyngas, neg_tier.buff) otorga multiplicador positivo
         finalPrice *= 1.20;
-      } else if (isUniversalBad || isTopPositiveAsNeg) {
-        // Stat-killer: un crítico universal o un best positive del arma como negativa hunde el valor
+      } else if (esStatTopDelArma(negPosWeight)) {
+        // Stat-killer: perder un stat top del arma hunde el valor
         finalPrice *= (effectiveMetaRatio >= 0.80) ? 0.25 : 0.10;
-      } else if (isMidPositiveAsNeg) {
+      } else if (negPosWeight >= 0.4) {
         // Mid positive como negativa: penaliza notablemente pero suele tener workaround, no destruye
         finalPrice *= 0.70;
-      } else if (isMitigable) {
-        // Negativa mitigable / moderada (ej: -ammo max, -reload, +retroceso) penaliza levemente (15%)
+      } else if (negPosWeight >= NEG_MITIGABLE) {
+        // Negativa mitigable / moderada (ej: -status chance, -projectile speed) penaliza levemente
         finalPrice *= 0.85;
       } else {
-        // Negativa neutra/inofensiva genérica (stat trash como negativa)
+        // Negativa irrelevante en esta arma (zoom, recoil, ammo, facción): casi un buff
         finalPrice *= 1.10;
       }
     }
@@ -506,7 +614,14 @@ export function calculateAdvancedPredictivePrice(weapon, itemAttributes, tiers, 
     // The absolute minimum commercial value of a Riven is always its trash/unrolled price (tiers.trash)
     penalizedPrice = Math.max(penalizedPrice, tiers.trash);
   }
-  const rawScore = Math.round(((finalMetaRatio * 0.85) + (avgRollQuality * 0.15)) * 100);
+  // El score reparte 55% meta / 45% magnitud (antes 85/15). Con 85/15 la magnitud solo movía 15
+  // puntos: un CC/CD rolado al MÍNIMO puntuaba 85/100 igual que un godroll, y como el score es lo
+  // que posiciona el precio sobre la curva convexa (levelMap en riven_ml.js), un roll medio de un
+  // arma popular salía a ~5x la mediana de ventas reales de DE. Medido sobre las 379 armas con
+  // ventas DE: un roll medio (CC+CD magnitud 50%) pasa de 93/100 -> ~70/100 y de 5.3x -> ~1.7x.
+  // El meta sigue mandando (un CC/CD basura no supera a un stat trash perfecto), pero la magnitud
+  // ya separa el godroll del roll mediocre, que es lo que el mercado paga distinto.
+  const rawScore = Math.round(((finalMetaRatio * 0.55) + (avgRollQuality * 0.45)) * 100);
   // Bug fix: for bricked Rivens, clamp adjustedScore to a max of 20 regardless of raw score
   // (a bricked Riven is always trash-tier, the score should reflect that)
   const adjustedScore = isBricked
@@ -562,6 +677,22 @@ export function calculateHybridTiers(weapon, weaponHistory = null) {
   let offMedian = weapon.official_median || 0; // Base unrolled median
   let offStdDev = weapon.official_stddev || 0;
   let reMedian = (weapon.de_rerolled && weapon.de_rerolled.median !== undefined) ? weapon.de_rerolled.median : 0;
+
+  // La "mediana" de rerolled con 1-2 ventas NO es un precio típico, es una anécdota, y de ella
+  // cuelga todo el tier goodReroll (reMedian*1.6 + ...). Casos reales medidos: Attica de_rerolled
+  // .median=1150 con pop=1 sobre un unrolled de 14pl (82×) -> goodReroll 2044pl para un arma que
+  // vende a decenas; Akvasto 700 con pop=2 (70× su unrolled). Eso generaba la cola alta del p90:
+  // las armas de la cola tenían goodReroll a 13.5× sus ventas reales frente a 2.2× en el resto,
+  // y 31 de 38 tenían menos de 3 ventas.
+  //
+  // Con poco volumen acotamos el rerolled a un múltiplo del unrolled (que sí tiene ventas): el
+  // premium por rolar es real, pero es ~2-4×, no 80×. Con volumen suficiente se respeta el dato.
+  const _rePop = (weapon.de_rerolled && weapon.de_rerolled.pop) || 0;
+  const _unMedian = (weapon.de_unrolled && weapon.de_unrolled.median) || offMedian || 0;
+  if (reMedian > 0 && _rePop < 3 && _unMedian > 0) {
+    const _capAnecdota = _unMedian * 4;
+    if (reMedian > _capAnecdota) reMedian = _capAnecdota;
+  }
 
   // Integrate historical price estimations from API history logs
   let histWfmAvg = 0;
@@ -647,9 +778,20 @@ export function calculateHybridTiers(weapon, weaponHistory = null) {
     clampMultiplier = Math.max(clampMultiplier, 22.0); // Allow much higher WFM pricing scale for top meta/Incarnon weapons
   }
 
-  const baseRefMedian = offMedian > 0 ? offMedian : (reMedian > 0 ? reMedian : 50);
-  if (wfmAvg > baseRefMedian * clampMultiplier) {
-    wfmAvg = baseRefMedian * clampMultiplier + (wfmAvg - baseRefMedian * clampMultiplier) * 0.15;
+  // El clamp se aplica sobre el UNROLLED (official_median), pero wfmAvg son asks de rivens ROLADOS:
+  // comparar ambos infla el límite por el premium de rolar. Cuando hay mediana real de rerolled la
+  // usamos como referencia, que es la magnitud que wfmAvg intenta estimar.
+  //
+  // Además el clamp estaba INVERTIDO respecto al riesgo: las armas populares son las que tienen los
+  // asks más especulativos (medido: asks/ventas reales de DE = 17.7× en el cuartil superior de
+  // liquidez frente a 3.9× en el inferior) y justo a esas se les daba el clamp más laxo (22× contra
+  // 5.5×). Resultado: tiers.godroll salía a ~15× las ventas reales en armas meta y el tasador
+  // heurístico sobrevaloraba ~11×. Con referencia rerolled el clamp muerde donde debe; el margen
+  // extra de las meta se mantiene (siguen cotizando caro de verdad), pero acotado.
+  const baseRefMedian = reMedian > 0 ? reMedian : (offMedian > 0 ? offMedian : 50);
+  const clampRef = reMedian > 0 ? Math.min(clampMultiplier, 6.0) : clampMultiplier;
+  if (wfmAvg > baseRefMedian * clampRef) {
+    wfmAvg = baseRefMedian * clampRef + (wfmAvg - baseRefMedian * clampRef) * 0.15;
   }
 
   const isUnpopular = (popularity < 25.0 || realVolume < 25) && !(isHighValue && hasBasicVolume) && !isMetaWeapon;
@@ -682,8 +824,11 @@ export function calculateHybridTiers(weapon, weaponHistory = null) {
   if (reMedian > 0) {
     goodReroll = Math.round(reMedian * 1.6 + Math.min(wfmAvg * 0.15, reMedian * 2));
   } else {
+    // Sin rerolled real caemos a los asks (wfmAvg*0.3), pero el ask está inflado sobre la venta
+    // (medido: 17.7× en el cuartil superior de liquidez), así que sin un tope el tier se despega
+    // del precio real del arma. Lo acotamos a un múltiplo del suelo de transacciones reales.
     goodReroll = wfmAvg > 0
-      ? Math.round(wfmAvg * 0.3)
+      ? Math.min(Math.round(wfmAvg * 0.3), Math.round(trash * 5))
       : Math.round(trash * (isUnpopular ? 1.8 : 2.5)); // tighter multiplier when no real trade data
   }
 
@@ -709,8 +854,27 @@ export function calculateHybridTiers(weapon, weaponHistory = null) {
         // WFM listings are ASK prices (speculative), not completed sales. Weight the real
         // DE-record prediction at least as much as the WFM scale so a few high listings can't
         // inflate the godroll past what the weapon actually trades for. Applies to all weapons.
-        const baseWfmScale = wfmAvg * (1.2 + Math.min(stdDevScale * 0.5, 1.5));
-        godroll = Math.round(deGodroll * 0.5 + baseWfmScale * 0.5);
+        //
+        // El ask ya viene inflado sobre la venta real (medido: 17.7× la mediana de ventas de DE en el
+        // cuartil superior de liquidez), así que MULTIPLICARLO otra vez por 1.2-2.7 era el término que
+        // fijaba el techo: deGodroll salía a 5.0× las ventas reales y tiers.godroll acababa en 12.4×.
+        // El ask entra como PISO orientativo del techo, no amplificado, y con el peso del dato real
+        // (DE) por delante. Se sigue respetando el observedMax*1.3 de más abajo.
+        // El 0.3 era FIJO, y ahí entraba la inflación: da igual que el ask sea 2× el precio real de
+        // venta o 20×, pesaba lo mismo. Torid pide 7337p con mediana real de 429p (17×), así que ese
+        // 0.3 metía +2201p de un precio que nadie paga. Ahora el peso decae con la credibilidad del
+        // ask: se conserva entero mientras el ask esté en el rango sano (<=3× la venta real) y baja
+        // hasta 0.05 en las armas con burbuja. No se anula nunca — el ask sigue siendo información
+        // sobre el techo al que la gente ASPIRA, solo deja de fijar el precio.
+        // El descuento es UNIDIRECCIONAL a propósito: solo se aplica cuando el ask tira del precio
+        // hacia ARRIBA (ask > deGodroll). Si el ask queda por debajo hace de freno, y quitarle peso
+        // lo soltaba: medido, el tramo 3-8× subía un 18% en vez de bajar.
+        const _askRatio = baseRef > 0 ? wfmAvg / baseRef : 0;
+        const _credibilidad = (_askRatio > 3 && wfmAvg > deGodroll)
+          ? Math.max(0.15, 3 / _askRatio) : 1;
+        const _pesoAsk = 0.30 * _credibilidad;
+        const baseWfmScale = wfmAvg;
+        godroll = Math.round(deGodroll * (1 - _pesoAsk) + baseWfmScale * _pesoAsk);
       } else {
         godroll = Math.round(deGodroll * 0.6 + Math.min(wfmAvg * 0.8, baseRef * 20) * 0.4);
       }
@@ -769,7 +933,20 @@ export function calculateHybridTiers(weapon, weaponHistory = null) {
 export function classifyWeaponMarket(meta, band = null) {
   if (!meta) return null;
   const b = band || meta.band || {};
-  let typical = b.typical || meta.official_median || 0;
+  // El denominador tiene que ser comparable con el numerador: wfm_avg es el ask de rivens ROLADOS,
+  // así que dividir por official_median (mediana de rivens SIN rolar) mezclaba peras y manzanas e
+  // inflaba el ratio ~3×. Medido sobre 237 armas con muestra fiable: con official_median el 97% del
+  // catálogo salía "burbuja" (p50=39.5×); con de_rerolled.median baja a 79% (p50=13.4×). Un flag que
+  // se dispara en casi todo no informa de nada.
+  const _deReMed = (meta.de_rerolled && meta.de_rerolled.median) || 0;
+  const _deRePop = (meta.de_rerolled && meta.de_rerolled.pop) || 0;
+  // ¿El denominador es comparable de verdad? Solo si DE trae muestra de rivens ROLADOS. Con pop<3
+  // (el 61% del catálogo: 371 de 608 armas) hay que caer a official_median, que es de rivens SIN
+  // ROLAR, y el ratio se dispara por construcción: Cestra tiene UNA venta registrada y sale 56×
+  // (ask 1016 / unrolled 18). Cantar "sobreprecio" con eso es inventarse un veredicto, así que se
+  // marca la referencia como no fiable y más abajo se informa de la falta de datos.
+  const refFiable = _deReMed > 0 && _deRePop >= 3;
+  let typical = refFiable ? _deReMed : (b.typical || meta.official_median || 0);
   const wfm = meta.wfm_avg_price || meta.wfm_avg || 0;
   const vol = b.vol_dia != null ? b.vol_dia : (meta.wfm_market_sample || 0);
   const trend = b.trend != null ? b.trend : (meta.trend_7d_pct || 0);
@@ -792,36 +969,53 @@ export function classifyWeaponMarket(meta, band = null) {
 
   const isEs = state.currentLang === "es";
 
+  // UMBRAL. El 8 original venía de la intuición "ask sano = 1.5-3× el valor real", pero el mercado
+  // entero de rivens pide muy por encima de lo que se vende: con el denominador correcto la mediana
+  // del catálogo es 13.4× y el p75 son 23.6×. Con 8 se marcaba el 79% de las armas. 24 ≈ p75 deja
+  // "burbuja" para el cuartil realmente especulativo, que es lo que el badge quiere decir.
+  // Ojo al leerlo: que un arma NO sea burbuja no significa que su ask sea justo — la inflación de
+  // los asks es sistémica (ver el 0.3 del tier godroll, que ya se descuenta por credibilidad).
+  const RATIO_BURBUJA = 24;
+
   let flag, label, emoji, advice;
-  if (ratio >= 8) {
+  if (refFiable && ratio >= RATIO_BURBUJA) {
     flag = "bubble"; emoji = "🫧";
-    label = isEs ? "Burbuja especulativa" : "Speculative bubble";
+    label = isEs ? "Sobreprecio · mucha oferta" : "Overpriced · heavy supply";
     advice = isEs
-      ? "Los asks están muy por encima del valor real. Demanda baja: difícil de vender al precio listado."
-      : "Asks are way above real value. Low demand: hard to sell at listed price.";
+      ? `Aquí se pide ${ratio}× lo que se paga de verdad, y eso es más que en 3 de cada 4 armas. Hay cola de vendedores esperando: si quieres venderlo esta semana, ponte por debajo de los que ves listados.`
+      : `Sellers here ask ${ratio}x what actually gets paid, more than in 3 out of 4 weapons. There is a queue of sellers waiting: to sell this week, price below the listings you can see.`;
   } else if (vol > 0 && vol < 12) {
     flag = "illiquid"; emoji = "🧊";
-    label = isEs ? "Poco líquido" : "Illiquid";
+    label = isEs ? "Mercado dormido" : "Quiet market";
     advice = isEs
-      ? "Pocos listados/día. Puede tardar en venderse; ajusta el precio a la baja para liquidar."
-      : "Few listings/day. Slow to sell; lower price to liquidate.";
+      ? "Casi nadie mueve rivens de esta arma. El precio que veas es poco fiable por falta de muestra, y colocarlo puede llevar semanas: cuenta con rebajar si tienes prisa."
+      : "Hardly anyone trades rivens for this weapon. Any price you see is unreliable for lack of sample, and selling can take weeks: expect to discount if you are in a hurry.";
+  } else if (!refFiable) {
+    // Ni burbuja ni sano: simplemente no hay con qué juzgarlo. Decirlo es más útil que fingir.
+    flag = "nodata"; emoji = "?";
+    label = isEs ? "Sin ventas suficientes" : "Not enough sales";
+    advice = isEs
+      ? "Digital Extremes apenas registra ventas de rivens de esta arma, así que no hay precio de referencia fiable. Fíjate en la calidad del roll y en lo que piden otros, y no te sorprenda si las cifras bailan mucho."
+      : "Digital Extremes barely records any riven sales for this weapon, so there is no reliable reference price. Go by the quality of the roll and what others are asking, and do not be surprised if numbers swing a lot.";
   } else if (vol >= 35 && ratio < 4) {
     flag = "meta"; emoji = "🔥";
-    label = isEs ? "Meta / demanda real" : "Meta / real demand";
+    label = isEs ? "Arma meta · se vende" : "Meta weapon · sells";
     advice = isEs
-      ? "Mucho volumen y asks sanos: se vende rápido cerca del precio justo."
-      : "High volume and healthy asks: sells quickly close to fair price.";
+      ? "Mucho movimiento y lo que piden se acerca a lo que se paga. Puedes pedir el precio estimado sin miedo: hay compradores buscando."
+      : "Plenty of movement and asking prices are close to what gets paid. You can ask the estimated price with confidence: buyers are looking.";
   } else {
     flag = "mid"; emoji = "·";
-    label = isEs ? "Demanda media" : "Moderate demand";
+    label = isEs ? "Mercado normal" : "Normal market";
     advice = isEs
-      ? "Liquidez moderada. Precio justo razonable; paciencia para el techo."
-      : "Moderate liquidity. Fair price is reasonable; patience needed for top value.";
+      ? "Ni chollo ni trampa. El precio estimado es una buena referencia; si quieres el máximo, tendrás que esperar al comprador adecuado."
+      : "Neither a steal nor a trap. The estimate is a solid reference; to get top value you will have to wait for the right buyer.";
   }
   if (trend >= 25) {
     advice += isEs ? ` ▲ Subiendo (+${Math.round(trend)}% 7d).` : ` ▲ Rising (+${Math.round(trend)}% 7d).`;
   } else if (trend <= -25) {
     advice += isEs ? ` ▼ Enfriándose (${Math.round(trend)}% 7d).` : ` ▼ Cooling down (${Math.round(trend)}% 7d).`;
   }
-  return { flag, label, emoji, ratio, vol, trend, advice };
+  // `refFiable` sale fuera para que la UI no pinte el ratio cuando el denominador no es comparable:
+  // "piden 56× su valor" es falso si ese 56 nace de dividir entre la mediana de rivens sin rolar.
+  return { flag, label, emoji, ratio, vol, trend, advice, refFiable };
 }

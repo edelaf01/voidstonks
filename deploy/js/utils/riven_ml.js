@@ -56,7 +56,20 @@ export async function loadRivenML() {
       quantiles, qmodels, order, defaults, idx,
       bands: bands || {}, statWeights: statWeights || {},
       cal: cal || {}, drift: (cal && cal.drift) || {}, synlo: (cal && cal.synlo) || {}, nsamp: (cal && cal.nsamp) || {},
+      // venta: calibrado ask->venta por arma que exporta ML_local.py. Solo las armas con
+      // `fiable: true` tienen el modelo entrenado en escala de precio de VENTA.
+      venta: (cal && cal.venta) || {},
     };
+    // Prior global de stats (31 stats con peso del ML: CD 1.00, Multishot 0.90, CC 0.89, Range 0.89,
+    // ... Zoom/Recoil abajo). Se publica en state para que la TASACIÓN pueda interpolar los stats de
+    // los que no hay dato del arma. Antes ese hueco lo tapaban dos constantes a dedo (1.0 para los
+    // stats de la lista `pos` y 0.85 para `midPos`), que no distinguían un Critical Damage de un
+    // Range en un arma de fuego. Va aquí y no vía worker porque el bundle es local: si el endpoint de
+    // metastats falla, el prior sigue disponible.
+    const _prior = statWeights && statWeights._global && statWeights._global.pos;
+    if (_prior && typeof _prior === "object" && !state.rivenStatPrior) {
+      state.rivenStatPrior = _prior;
+    }
     return _ml;
   })();
   return _loading;
@@ -142,9 +155,12 @@ export async function gradeRiven(weaponName, stats) {
       // Perder un stat top (CC/CD/Multishot) arruina; un stat irrelevante (Zoom, Recoil, facción)
       // como negativa es inofensivo. (No usamos el peso "neg" del histórico: está confundido por
       // el precio — las negativas inofensivas salen en godrolls caros y darían daño alto erróneo.)
-      const nl = s.name.toLowerCase();
-      const harmless = /zoom|recoil|\bto |vs |faction/.test(nl); // negativas universalmente inofensivas
-      let b = harmless ? 0.05 : (lookup(W.pos, s.name) ?? lookup(base.pos, s.name) ?? 0.30);
+      // El peso del stat COMO POSITIVO ya mide esto por arma, así que no hace falta una lista de
+      // "inofensivas": los datos las separan solas (global: zoom 0.01, recoil 0.09, facción 0.08-0.12
+      // frente a CC/CD/Multishot 0.89-1.00). El regex /zoom|recoil|vs |faction/ además MENTÍA en las
+      // armas donde ese stat sí vale: forzaba 0.05 a un recoil que llega a 0.65 y a un "vs Corpus"
+      // que llega a 0.81 según el arma. Sin lista, cada arma usa su propio peso.
+      let b = lookup(W.pos, s.name) ?? lookup(base.pos, s.name) ?? 0.30;
       b = Math.max(0.05, Math.min(1, b));
       negFactor *= (1 - 0.6 * b);
       out.push({ name: s.name, isPositive: false, badness: +b.toFixed(2), label: negLabel(b) });
@@ -228,7 +244,10 @@ export async function mlBandEstimate(weaponName, itemAttributes, scoreOverride =
   } else {
     mx = Math.min(mx, med * 8); // cap raw outlier DE max at 8x median
   }
-  const floor = (de && de.floor > 0) ? de.floor : Math.round(med * 0.5);
+  // El floor NUNCA puede superar la mediana: en armas de poco volumen el unrolled real puede salir
+  // por encima del rerolled (Amphis: unrolled 135 vs rerolled 90) y entonces el Math.max(floor,...)
+  // de abajo aplastaba TODA la banda a un punto — godroll y trash daban los dos 135pl.
+  const floor = Math.min((de && de.floor > 0) ? de.floor : Math.round(med * 0.5), Math.round(med * 0.5));
   let sale;
   if (s <= 0.5) {
     sale = Math.round(floor + (med - floor) * (s / 0.5));
@@ -445,10 +464,10 @@ async function buildFeatureVector(weapon, itemAttributes, weaponData = null, rer
       posMags.push(a.value / maxVal);
     } else {
       hasNegCurse = 1;
-      const nl = name.toLowerCase();
-      const harmless = /zoom|recoil|\bto |vs |faction/.test(nl);
+      // Sin lista de "inofensivas": dynamic_weights ya da el peso del stat en ESTA arma (ver el
+      // mismo razonamiento en gradeRiven). El regex forzaba 0.05 incluso donde el stat sí importa.
       const k = dwKey(name);
-      let b = harmless ? 0.05 : (k ? (parseFloat(dw[k]) || 0.30) : 0.30);
+      let b = (k ? (parseFloat(dw[k]) || 0.30) : 0.30);
       b = Math.max(0.05, Math.min(1.0, b));
       negPenalty *= (1.0 - 0.6 * b);
 
@@ -507,7 +526,7 @@ async function buildFeatureVector(weapon, itemAttributes, weaponData = null, rer
 // arma (drift del history) y con flag de CONFIANZA. El p50 es el "precio justo"; p25 venta rápida;
 // p80/p90/p95 techo godroll (precio REAL de mercado, no asks especulativos).
 export async function predictRivenMLBand(weapon, itemAttributes, weaponData = null, rerolls = 0, scoreOverride = null) {
-  const { ml, synergy } = await buildFeatureVector(weapon, itemAttributes, weaponData, rerolls);
+  const { ml, vec, synergy } = await buildFeatureVector(weapon, itemAttributes, weaponData, rerolls);
   const wname = weapon.name || weapon.weaponName;
   const qs = ml.quantiles && ml.quantiles.length ? ml.quantiles : [0.25, 0.5, 0.8, 0.9, 0.95];
   const drift = _byWeapon(ml.drift, wname) || 1.0;
@@ -526,11 +545,32 @@ export async function predictRivenMLBand(weapon, itemAttributes, weaponData = nu
   const deRe = weapon.de_rerolled || (weaponData && weaponData.de_rerolled) || {};
   const deUn = weapon.de_unrolled || (weaponData && weaponData.de_unrolled) || {};
   const usaDE = (deRe.median > 0 || deUn.median > 0);
-  const deMed = usaDE ? (deRe.median > 0 ? deRe.median : deUn.median) : (b ? b.typical : 50);
+  // deMed es EL ancla de toda la banda, así que un rerolled anecdótico la desplaza entera. La
+  // "mediana" de rerolled con 1-2 ventas no es un precio típico: Attica trae median=1150 con pop=1
+  // sobre un unrolled de 14pl (82×), Akvasto 700 con pop=2 (70×). Con poco volumen la acotamos a
+  // un múltiplo del unrolled (que sí tiene ventas): el premium por rolar es ~2-4×, no 80×.
+  let deMedRaw = usaDE ? (deRe.median > 0 ? deRe.median : deUn.median) : (b ? b.typical : 50);
+  if (deRe.median > 0 && (deRe.pop || 0) < 3 && deUn.median > 0 && deMedRaw > deUn.median * 4) {
+    deMedRaw = deUn.median * 4;
+  }
+  const deMed = deMedRaw;
   let deMax = (deRe.max_price || deRe.max || 0);
   // Techo godroll ACOTADO: un godroll real vale ~3-8× la mediana, NO 25×. El 25× (asks outlier de
   // un día) arrastraba los rolls medios hacia arriba por la curva convexa -> sobreprecio (un 66%
   // salía a ~3× el típico). Cap a 8× (con datos) / 5× (sin datos de max) = techo de mercado creíble.
+  //
+  // max_price es UNA venta (el récord del arma), así que en la mitad del catálogo se iba por encima
+  // del cap y TODAS esas armas acababan con el mismo skew=8 -> la curva convexa daba el mismo
+  // multiplicador al arma con dispersión real 2× que a la de 50×. Medido: skew mediano 9.1×, y 178
+  // de 346 armas tocaban el cap. Preferimos un techo ROBUSTO (mediana + 2σ de las ventas rerolled),
+  // que sí distingue un arma de precio estable de una dispersa; max_price solo lo acota por arriba.
+  // σ solo es evidencia con VOLUMEN: con una sola venta (pop=1) sale σ=0, que no significa "precio
+  // sin dispersión" sino "no sabemos". Sin ese guard el techo colapsaba a la mediana y la banda
+  // entera se aplanaba a un punto (Amphis: godroll y trash daban los dos 135pl). Suelo de 3× para
+  // que el godroll siempre tenga recorrido sobre el típico.
+  const deSd = (deRe.stddev > 0 && (deRe.pop || 0) >= 3) ? deRe.stddev : 0;
+  const robustMax = deSd > 0 ? Math.max(deMed + 2 * deSd, deMed * 3) : 0;
+  if (robustMax > deMed) deMax = deMax > deMed ? Math.min(deMax, robustMax) : robustMax;
   deMax = deMax > deMed ? Math.min(deMax, deMed * 8) : deMed * 5;
   const deFloor = Math.max(1, Math.round(Math.min(deMed, deUn.median || deMed) * 0.45));
   const levelMap = (f) => {   // f(0..1) calidad -> precio de venta real
@@ -548,12 +588,22 @@ export async function predictRivenMLBand(weapon, itemAttributes, weaponData = nu
   let mult = 1.0;
   const neg = itemAttributes.find(a => !a.isPositive);
   const dw = weapon.dynamic_weights || (weaponData && weaponData.dynamic_weights) || {};
-  const BRICK = new Set(["Critical Chance", "Critical Damage", "Base Damage / Melee Damage", "Multishot", "Fire Rate / Attack Speed"]);
+  // BRICK = perder un stat que en ESTA arma es top. La lista fija (CC/CD/BaseDamage/Multishot/
+  // FireRate) era redundante con el umbral de peso —esos stats puntúan 0.70-1.00 en el prior global,
+  // muy por encima del 0.6— y además fallaba en los dos sentidos: no marcaba un -Range en un melee
+  // que lo tiene a 1.00, y marcaba un -Fire Rate en armas donde no importa. Ahora sale solo del peso,
+  // con el prior global de stat_weights como respaldo cuando el arma no trae dynamic_weights.
   let esBrick = false;
   if (neg) {
     const nm = MODEL_STAT_MAP[neg.name] || neg.name;
-    const wneg = parseFloat(dw[Object.keys(dw).find(k => k.toLowerCase() === nm.toLowerCase())] || 0);
-    esBrick = BRICK.has(nm) || wneg >= 0.6;
+    const dwKeyNeg = Object.keys(dw).find(k => k.toLowerCase() === nm.toLowerCase());
+    let wneg = dwKeyNeg ? parseFloat(dw[dwKeyNeg]) : NaN;
+    if (!Number.isFinite(wneg)) {
+      const gpos = (ml.statWeights && ml.statWeights._global && ml.statWeights._global.pos) || {};
+      const gk = Object.keys(gpos).find(k => k.toLowerCase() === nm.toLowerCase());
+      wneg = gk ? parseFloat(gpos[gk]) : 0;
+    }
+    esBrick = Number.isFinite(wneg) && wneg >= 0.6;
   }
   // Premio de riven SIN ROLAR (+25%): un buyer paga de más por poder rolar él mismo. Solo aplica
   // cuando SABEMOS que es un 0-roll (scanner con rolls=0). El tasador manual pasa rerolls=null
@@ -565,9 +615,36 @@ export async function predictRivenMLBand(weapon, itemAttributes, weaponData = nu
   const OFF = { 0.25: -0.12, 0.50: 0.0, 0.80: 0.10, 0.90: 0.15, 0.95: 0.20 };
   const floor = deFloor;
   const out = {};
-  for (const a of qs) {
-    const f = Math.max(0, Math.min(1, s + (OFF[a] != null ? OFF[a] : 0)));
-    out[a] = Math.max(floor, Math.round(levelMap(f) * mult));
+
+  // === MODELO vs CURVA ===
+  // Hasta ahora el modelo entrenado no fijaba NINGÚN precio: rawPredictModel no se llamaba y la
+  // banda salía entera de levelMap. Estaba desconectado a propósito porque el entrenamiento iba
+  // sobre ASKS de WFM (inflados hasta 26× la venta real en armas populares) y sobreestimaba.
+  // Desde el calibrado ask->venta por arma de ML_local.py el target YA está en escala de venta
+  // (medido: 1.00× las ventas reales de DE en todos los cuartiles de liquidez), así que el modelo
+  // vuelve a ser la fuente del precio en las armas que tienen ancla fiable.
+  //
+  // Las armas SIN ancla (re_pop < 3, ~58% del catálogo) siguen en escala de ask en el modelo, así
+  // que para esas se mantiene la curva anclada a DE: es peor tener un precio inflado que uno
+  // aproximado. `usaModelo` distingue los dos casos y sale en el retorno para que la UI lo pueda
+  // mostrar (fuente: "ml" / "curva").
+  const vinfo = _byWeapon(ml.venta, wname);
+  const qmods = ml.qmodels || {};
+  const usaModelo = !!(vinfo && vinfo.fiable) && Object.keys(qmods).length > 0;
+
+  if (usaModelo) {
+    // El modelo predice en espacio log1p (y_all = log1p(price) en el entrenamiento) -> expm1.
+    // Cada cuantil tiene su propio modelo, así que la banda sale directa del modelo, sin OFF.
+    for (const a of qs) {
+      const m = qmods[a] || qmods[0.5];
+      if (!m) continue;
+      out[a] = Math.max(floor, Math.round(Math.expm1(rawPredictModel(m, vec))));
+    }
+  } else {
+    for (const a of qs) {
+      const f = Math.max(0, Math.min(1, s + (OFF[a] != null ? OFF[a] : 0)));
+      out[a] = Math.max(floor, Math.round(levelMap(f) * mult));
+    }
   }
   // orden no decreciente por si el redondeo/clamp cruza
   let prev = 0;
@@ -582,6 +659,7 @@ export async function predictRivenMLBand(weapon, itemAttributes, weaponData = nu
   return {
     p25: p(0.25), p50: p(0.5), p80: p(0.8), p90: p(0.9), p95: p(0.95),
     price: p(0.5), floor, drift: +drift.toFixed(3),
+    fuente: usaModelo ? "ml" : "curva",
     confianza: lowConf ? "baja" : "alta",
     aviso: lowConf
       ? (esTrash ? "Roll de gama baja: precio orientativo (usa la banda, no el valor único)."

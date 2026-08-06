@@ -1,5 +1,5 @@
 import { state } from "../state.js";
-import { RIVEN_STATS, TEXTS, WORKER_URL } from "../config.js";
+import { RIVEN_STATS, TEXTS, WORKER_URL, canBeNegative } from "../config.js";
 import { RIVEN_API_BASE, fetchWeaponHistory, fetchCurrentRivens, extractFamilyName } from "../repositories/riven.repository.js";
 import {
   calculateRivenGrade,
@@ -8,7 +8,10 @@ import {
   calculateWebPotential,
   calculateRivenPotential,
   calculateAdvancedPredictivePrice,
-  calculateHybridTiers
+  calculateHybridTiers,
+  gradeWeaponStats,
+  STAT_TIER_TOP,
+  STAT_TIER_MID
 } from "../utils/riven_logic.js";
 import { getRivenSlug, fetchRivenAverage } from "../api.js";
 import { getMetaStats, fetchSimilarRivens } from "../services/riven_market.service.js?v=1.9";
@@ -27,39 +30,45 @@ let gradeDebounceTimer;
 let emptyShowcaseInterval = null;
 let emptyShowcaseTimeouts = [];
 
+// Textos de los tooltips de métricas. Reglas al editarlos:
+//   - SIN etiquetas HTML: se pintan con innerText (ui_components.js), así que un <b> se ve como
+//     "<b>" literal. Antes pasaba en `max` y salía "<b>[DATOS REALES...]</b>" en pantalla.
+//   - SIN comillas dobles: van dentro de un atributo data-tooltip="...".
+//   - Cada uno dice QUÉ es el número y QUÉ hacer con él. Definir el término sin más ("premium de
+//     reroll: el premium de los rerolls") no le sirve a nadie.
 function getRivenTooltip(key, isEs) {
   const tooltips = {
     trend: {
-      es: "Una puntuación del 0 al 100 que indica cómo de 'caliente' está el arma en el Meta actual basándose en su volumen real de intercambios.",
-      en: "A score from 0 to 100 indicating how 'hot' the weapon is in the current Meta based on its real trading volume."
+      es: "Cuánto se mueve esta arma en el mercado, de 0 a 100. Se calcula con el volumen real de intercambios, no con las ofertas publicadas. Alto = hay gente comprando y vendiendo; bajo = arma olvidada, te costará colocarla.",
+      en: "How much this weapon actually moves, from 0 to 100. Based on real trade volume, not on posted listings. High = people are buying and selling; low = forgotten weapon, hard to offload."
     },
     unrolled: {
-      es: " El precio mediano de transacciones reales completadas dentro del juego para un Riven sin ciclos (Unrolled). Representa el costo real de entrada.",
-      en: "The median price of real in-game completed transactions for a cycled-zero Riven (Unrolled). Represents the true baseline cost."
+      es: "Lo que se paga por un riven de esta arma SIN CICLAR (0 rerolls), según ventas reales registradas por Digital Extremes. Es el precio de entrada: lo que costaría comprarlo para rolarlo tú.",
+      en: "What an UNROLLED riven for this weapon sells for (0 rerolls), from real sales recorded by Digital Extremes. This is the entry price: what it would cost you to buy one and roll it yourself."
     },
     rerolled: {
-      es: " El precio mediano de transacciones reales completadas dentro del juego para un Riven ya ciclado (Rerolled). Lo que se paga en promedio.",
-      en: " The median price of real in-game completed transactions for a rolled Riven (Rerolled). What is paid on average."
+      es: "Precio mediano de ventas REALES de rivens ya ciclados de esta arma. Ojo: la mediana mezcla basura y godrolls, así que un roll bueno vale bastante más que este número y uno malo bastante menos.",
+      en: "Median price of REAL completed sales for rolled rivens of this weapon. Note: the median mixes trash and godrolls, so a good roll is worth well above this number and a bad one well below."
     },
     max: {
-      es: "<b>[DATOS REALES - DIGITAL EXTREMES]</b> El precio más alto registrado oficialmente en transacciones reales de juego. Indica el techo absoluto de venta para un God Roll.",
-      en: "<b>[REAL DATA - DIGITAL EXTREMES]</b> The highest price officially recorded in real in-game transactions. Indicates the absolute ceiling value for a God Roll."
+      es: "Datos reales de Digital Extremes: el precio más alto que se ha pagado de verdad por un riven de esta arma. Es el techo de un godroll perfecto, no un precio al que puedas aspirar con un roll normal.",
+      en: "Real Digital Extremes data: the highest price actually paid for a riven of this weapon. It is the ceiling for a perfect godroll, not a price you can expect for an average roll."
     },
     wfm: {
-      es: " La media de precios de ofertas activas publicadas por jugadores en la web. Tiende a ser más alta que el precio real.",
-      en: " The average of active listing prices posted by players on the website. Tends to be higher than real trade prices."
+      es: "Media de lo que los vendedores PIDEN en Warframe.Market. No es lo que se paga: medido sobre el catálogo, los precios pedidos están en la mediana unas 13 veces por encima de las ventas reales de DE. Úsalo para ver la competencia, nunca para fijar tu precio.",
+      en: "Average of what sellers ASK on Warframe.Market. It is not what gets paid: measured across the catalogue, asking prices sit around 13 times above DE real sales at the median. Use it to size up the competition, never to set your price."
     },
     potential: {
-      es: "¿Cuánto se puede revalorizar este Riven? Muestra el índice de potencial basado en el margen WFM, premium de Rerolls, techos de Godroll y popularidad.",
-      en: "How much can this Riven revalue? Shows the potential index based on WFM margin, Reroll premium, Godroll ceilings, and popularity."
+      es: "Cuánto margen de revalorización tiene este riven: cruza el hueco con los precios pedidos, el premium por ciclar y el techo de godroll del arma.",
+      en: "How much revaluation headroom this riven has: combines the gap to asking prices, the reroll premium and the weapon godroll ceiling."
     },
     potentialNA: {
-      es: "No se puede calcular el potencial porque no hay datos de precio base para esta variante.",
-      en: "Cannot calculate potential because there are no base pricing statistics for this variant."
+      es: "No se puede calcular el potencial: Digital Extremes no publica ventas de esta variante, así que no hay precio base con el que comparar.",
+      en: "Potential cannot be calculated: Digital Extremes publishes no sales for this variant, so there is no base price to compare against."
     },
     variation: {
-      es: "Variación estimada del precio oficial en los últimos 7 días.",
-      en: "Estimated official price variation in the last 7 days."
+      es: "Cuánto ha subido o bajado el precio oficial en los últimos 7 días.",
+      en: "How much the official price has moved up or down over the last 7 days."
     }
   };
   return tooltips[key] ? (isEs ? tooltips[key].es : tooltips[key].en) : "";
@@ -104,7 +113,9 @@ function isStatAllowedForWeaponType(statName, weaponType) {
 // Stats that can only roll POSITIVE on a riven — never as a negative/curse — so they must
 // never appear in any negatives list: elemental damage (Heat/Cold/Electric/Toxin) and
 // Punch Through. ("punch" no matchea "Puncture Damage", que sí puede ser negativa.)
-const CANT_BE_NEGATIVE = /\b(heat|cold|electric|toxin|punch)\b/i;
+// La regla vive en config.js (canBeNegative), junto al resto del conocimiento de stats; aquí
+// solo se adapta a la interfaz `.test(nombre)` que ya usan las listas de recomendaciones.
+const CANT_BE_NEGATIVE = { test: (s) => !canBeNegative(s) };
 
 const RIVEN_NAMING_DICT = {
   "critical_chance": { prefix: "Crita", suffix: "cron" },
@@ -2479,11 +2490,24 @@ export function computeDesirabilityMultiplier(stats, meta, weaponData) {
   const wType = (weaponData?.t || "").toLowerCase();
   const isMelee = wType === "melee" || wType === "zaw" || wType === "glaive";
 
-  // Universal fallbacks: cuando el índice meta no tiene el arma, los stats universalmente
-  // buenos (crit, daño, multidisparo, elementos) no deben tratarse como basura.
+  // PRIMERO los pesos del ML de este arma, con el prior global interpolado por liquidez para los
+  // stats que el arma no tiene medidos. Antes esta función solo miraba `meta.pos`/`meta.midPos`, que
+  // dependía de que el panel los hubiese rellenado antes (acoplamiento por orden de render), y si no
+  // caía en las listas universales de abajo.
+  const _grado = gradeWeaponStats(meta || {}, state.rivenStatBaseline?.stat_weights ?? state.rivenStatPrior ?? null);
+  const _gBest = _grado && _grado.best.length ? _grado.best : null;
+  const _gMid = _grado && _grado.best.length ? _grado.mid : null;
+
+  // Universal fallbacks: solo se usan si no hay NI pesos del arma NI prior (bundle de ML sin cargar).
+  // Ojo con "Damage" a secas: por el matching tolerante empareja con 13 stats distintos y `find`
+  // devolvería Critical Damage. `matchMeta` lo trata como caso especial más abajo; no lo copies a una
+  // lista nueva sin ese cuidado.
   const universalGodPos = isMelee
     ? ["Melee Damage", "Critical Chance", "Critical Damage", "Damage", "Range", "Attack Speed"]
     : ["Multishot", "Critical Chance", "Critical Damage", "Damage"];
+  // Heat/Cold/Toxin NO son "mid" medidos: en melee dan 0.67×/0.83× y en fuego Heat 0.83× y Cold
+  // 0.80× (por debajo de 1 = restan). Solo Toxin en fuego llega a 1.15×. Se dejan porque este camino
+  // es el último recurso y prefiere no marcar basura un elemento, pero el dato manda cuando existe.
   const universalMidPos = isMelee
     ? ["Initial Combo", "Combo Duration", "Toxin", "Heat", "Cold", "Electricity"]
     : ["Fire Rate", "Toxin", "Heat", "Cold", "Electricity"];
@@ -2514,9 +2538,19 @@ export function computeDesirabilityMultiplier(stats, meta, weaponData) {
         (Array.isArray(meta?.midNeg) && meta.midNeg.some(matchMeta)) ||
         ["zoom", "recoil", "ammo maximum", "status duration", "magazine capacity"].some(t => normLower.includes(t));
 
-      const isBrick = !isFactionDmgNeg && brickNegs.includes(normalized);
-      const isRuined = !isFactionDmgNeg && ruinedNegs.includes(normalized);
-      const isUniversalBadNeg = !isFactionDmgNeg && universalCriticalNegs.includes(normalized);
+      // Una negativa arruina el riven en la medida en que el ARMA quiere ese stat como positivo: es
+      // la misma idea que usa la tasación (NEG_KILLER) y evita las listas fijas, que fallaban en los
+      // dos sentidos — `brickNegs` marcaba Status Chance como ruina cuando mide 0.95× (neutro), y
+      // `universalCriticalNegs` incluía Status Duration (0.97×, neutro) mientras dejaba fuera -Range
+      // en melee, que sí es de las peores (el arma lo valora 1.00 y -Range mide 0.78×).
+      const _pesoNeg = _grado && _grado.pesos
+        ? (Object.entries(_grado.pesos).find(([k]) => matchMeta(k)) || [null, 0])[1] : null;
+      const isBrick = !isFactionDmgNeg && (_pesoNeg != null
+        ? _pesoNeg >= STAT_TIER_TOP : brickNegs.includes(normalized));
+      const isRuined = !isFactionDmgNeg && (_pesoNeg != null
+        ? _pesoNeg >= STAT_TIER_TOP : ruinedNegs.includes(normalized));
+      const isUniversalBadNeg = !isFactionDmgNeg && (_pesoNeg != null
+        ? _pesoNeg >= STAT_TIER_MID : universalCriticalNegs.includes(normalized));
 
       if (isBrick) hasBrickNegative = true;
 
@@ -2528,8 +2562,9 @@ export function computeDesirabilityMultiplier(stats, meta, weaponData) {
       // Negativas inofensivas (Finisher Damage, recoil, daño por facción, etc.) no penalizan
     } else {
       positiveCount++;
-      const isMeta = Array.isArray(meta?.pos) && meta.pos.some(matchMeta);
-      const isMid = Array.isArray(meta?.midPos) && meta.midPos.some(matchMeta);
+      // El grado del ML manda; `meta.pos` queda como respaldo.
+      const isMeta = _gBest ? _gBest.some(matchMeta) : (Array.isArray(meta?.pos) && meta.pos.some(matchMeta));
+      const isMid = _gMid ? _gMid.some(matchMeta) : (Array.isArray(meta?.midPos) && meta.midPos.some(matchMeta));
       const isExplicitTrash = (Array.isArray(meta?.neg) && meta.neg.some(matchMeta)) ||
         ["zoom", "recoil"].some(t => normLower.includes(t));
       const isUniGod = universalGodPos.includes(normalized);
@@ -2593,7 +2628,7 @@ export function appraiseParsedRiven(weaponName, stats, meta = null) {
     const rangeInfo = getRivenStatRange(weaponData, internalName, !s.isPositive, buffCount, hasNeg) || { min: 0, max: 0 };
     return { isPositive: s.isPositive, name: internalName, value: Math.abs(s.value), minIdeal: Math.abs(rangeInfo.min), maxIdeal: Math.abs(rangeInfo.max) };
   });
-  const prediction = calculateAdvancedPredictivePrice(m, itemAttributes, tiers, desirabilityMultiplier, weaponData, state.rivenStatBaseline?.stat_weights ?? null);
+  const prediction = calculateAdvancedPredictivePrice(m, itemAttributes, tiers, desirabilityMultiplier, weaponData, state.rivenStatBaseline?.stat_weights ?? state.rivenStatPrior ?? null);
 
   // Nota: la tasación del MODELO (XGBoost slim, anclada a banda robusta) se calcula en cada vista
   // visible (HUD del escáner y tarjetas del estimador), no aquí, para no duplicar predicciones.
@@ -2771,12 +2806,15 @@ function renderMlChip(estCard, prec, bandQ, isEs) {
 function renderMarketChip(estCard, mk, isEs) {
   const el = estCard.querySelector("[data-market-line]");
   if (!el || !mk) return;
-  const col = { meta: "#4ade80", bubble: "#f87171", illiquid: "#60a5fa", mid: "#cbd5e1" }[mk.flag] || "#cbd5e1";
+  const col = { meta: "#4ade80", bubble: "#f87171", illiquid: "#60a5fa", mid: "#cbd5e1", nodata: "#9ca3af" }[mk.flag] || "#cbd5e1";
   el.style.display = "inline-flex"; el.style.color = col;
   el.title = mk.advice;
   const extras = [
     mk.vol ? `${mk.vol} ${isEs ? "anuncios/día" : "listings/day"}` : null,
-    mk.ratio && mk.ratio >= 2 ? (isEs ? `piden ${mk.ratio}× su valor` : `asking ${mk.ratio}× its value`) : null,
+    // El ratio solo se muestra si su denominador son ventas reales de rivens rolados; si no, el
+    // número existe pero no significa lo que parece (ver refFiable en classifyWeaponMarket).
+    (mk.refFiable && mk.ratio >= 2)
+      ? (isEs ? `piden ${mk.ratio}× lo que se paga` : `asking ${mk.ratio}× what gets paid`) : null,
   ].filter(Boolean).join(" · ");
   el.innerHTML = `<span class="gsc-dot" style="background:${col}; box-shadow:0 0 6px ${col};"></span> <b>${mk.label}</b>${extras ? ` <span style="opacity:.6;">· ${extras}</span>` : ""}`;
 }
@@ -2829,7 +2867,7 @@ function generateRollResultsDOM(roll, weaponData, weaponName, currentRank, scale
     };
   });
 
-  const appraisal = calculateAdvancedPredictivePrice(meta || { name: weaponName, wfm_avg_price: basePrice, official_median: basePrice }, itemAttributes, tiersObj, desirabilityMultiplier, weaponData, state.rivenStatBaseline?.stat_weights ?? null);
+  const appraisal = calculateAdvancedPredictivePrice(meta || { name: weaponName, wfm_avg_price: basePrice, official_median: basePrice }, itemAttributes, tiersObj, desirabilityMultiplier, weaponData, state.rivenStatBaseline?.stat_weights ?? state.rivenStatPrior ?? null);
 
   // EXPERIMENTAL (no destructivo): modelo XGBoost slim (lazy-load), ANCLADO a la banda robusta
   // (mediana histórica DE + techo acotado) para no fiarse de outliers de un día.
@@ -3197,7 +3235,7 @@ export function calculateModalGrade() {
       };
     });
 
-    const appraisal = calculateAdvancedPredictivePrice(meta || { name: weaponName, wfm_avg_price: basePrice, official_median: basePrice }, itemAttributes, tiersObj, desirabilityMultiplier, weaponData, state.rivenStatBaseline?.stat_weights ?? null);
+    const appraisal = calculateAdvancedPredictivePrice(meta || { name: weaponName, wfm_avg_price: basePrice, official_median: basePrice }, itemAttributes, tiersObj, desirabilityMultiplier, weaponData, state.rivenStatBaseline?.stat_weights ?? state.rivenStatPrior ?? null);
 
     // EXPERIMENTAL (no destructivo): modelo XGBoost slim (lazy-load), ANCLADO a la banda robusta.
     {
@@ -3865,18 +3903,45 @@ function renderMetaStats(weaponName, weaponType, targetId = "meta-stats-containe
   // mistaken for the curated meta.
   const _typeStr = String(weaponType || meta.t || "").toLowerCase();
   const _isMeleeType = _typeStr.includes("melee") || _typeStr.includes("zaw") || _typeStr.includes("glaive");
-  if (!(meta.pos && meta.pos.length) && !(meta.midPos && meta.midPos.length)) {
+  // Listas medidas sobre el dataset (ratio = precio mediano CON el stat / SIN él, calculado dentro
+  // de cada arma para no confundirlo con "esta arma es cara"; 163 armas melee, 252 de fuego):
+  //   MELEE  +CritDmg 4.81 +CritChance 3.33 +AttackSpeed 2.49 +MeleeDmg 2.02 +Range 2.00 | +Electric 1.10
+  //   FUEGO  +CritDmg 3.33 +Multishot 3.16 +CritChance 2.80 | +BaseDmg 1.67 +Toxin 1.15 +FireRate 1.10
+  // Correcciones frente a la lista anterior, todas por dato:
+  //   - Attack Speed FALTABA en melee y es el 3.º mejor (2.49×), por encima de Melee Damage y Range.
+  //   - Combo Duration estaba como MID en melee y mide 0.46×: es de los que más RESTAN, no medio.
+  //   - Heat/Toxin como MID en melee miden 0.67× y 0.83× (por debajo de 1 = quitan valor). En fuego
+  //     Toxin sí llega a 1.15× y se queda; Heat (0.83×) sale también de la lista de fuego.
+  // Se usan los nombres CANÓNICOS ("Base Damage / Melee Damage", no "Melee Damage"): son los únicos
+  // que getLocalizedStatName sabe traducir, así que los cortos que había antes se quedaban en inglés
+  // aunque la app estuviera en español.
+  // PRIMERO los pesos del ML de ESTA arma. Las listas curadas llegan vacías en 556 de 620 armas, así
+  // que sin esto el 90% del catálogo mostraba la misma lista genérica aunque el ML publique pesos
+  // propios para 608. Y la diferencia es real: en Bo, Critical Chance es 0.48 (medio, no top); en
+  // Kuva Bramma, Toxin Damage llega a 1.00. Los cortes y el guard de pesos saturados los pone
+  // gradeWeaponStats, compartido con la tasación para que el panel no contradiga al precio.
+  const _grado = gradeWeaponStats(meta, state.rivenStatBaseline?.stat_weights ?? state.rivenStatPrior ?? null);
+  if (_grado && _grado.best.length) {
+    meta.pos = _grado.best;
+    meta.midPos = _grado.mid;
+    // "estimado" solo si ni siquiera hay pesos del arma y se tiró del prior global.
+    if (_grado.fuente !== "arma") meta._genericRecs = true;
+  } else if (!(meta.pos && meta.pos.length) && !(meta.midPos && meta.midPos.length)) {
     meta.pos = _isMeleeType
-      ? ["Melee Damage", "Critical Chance", "Critical Damage", "Range"]
-      : ["Multishot", "Critical Chance", "Critical Damage", "Damage"];
+      ? ["Critical Damage", "Critical Chance", "Fire Rate / Attack Speed",
+        "Base Damage / Melee Damage", "Range"]
+      : ["Critical Damage", "Multishot", "Critical Chance", "Base Damage / Melee Damage"];
     meta.midPos = _isMeleeType
-      ? ["Combo Duration", "Toxin", "Heat"]
-      : ["Fire Rate", "Toxin", "Heat"];
+      ? ["Electric Damage"]
+      : ["Toxin Damage", "Fire Rate / Attack Speed"];
     meta._genericRecs = true;
   }
   if (!(meta.neg && meta.neg.length)) {
+    // Negativas medidas como INOCUAS (>1 = el riven vale MÁS con ellas que con otra maldición):
+    //   MELEE  -Impact 3.62 -Puncture 3.00 -FinisherDmg 2.69 -HeavyAtkEff 2.12 -Slash 1.80 -Combo 1.51
+    //   FUEGO  -Zoom 3.00 -Impact 3.00 -Puncture 2.67 -Recoil 2.00 -Slash 1.54 -AmmoMax 1.50
     meta.neg = _isMeleeType
-      ? ["Combo Duration", "Finisher Damage"]
+      ? ["Finisher Damage", "Heavy Attack Efficiency", "Combo Duration"]
       : ["Zoom", "Recoil", "Ammo Maximum"];
     meta._genericRecs = true;
   }
@@ -3926,8 +3991,15 @@ function renderMetaStats(weaponName, weaponType, targetId = "meta-stats-containe
   // universalmente inofensivas/mitigables, EXCLUYENDO las que el arma QUIERE como positivo (esas serían
   // ruinosas) y las que no pueden rolear negativas (elementos). Antes solo salían las de meta.neg (2-3).
   // Facción NO va aquí: es "meh" (se prefiere sin negativa de facción) -> va a MID, con Infested primero.
+  // Ratios medidos (precio con ESTA negativa / con otra negativa, intra-arma). Los de melee solo
+  // aparecen en melee porque `allow` filtra por tipo de arma.
+  //   FUEGO  Zoom 3.00 · Impact 3.00 · Puncture 2.67 · Recoil 2.00 · Slash 1.54 · AmmoMax 1.50
+  //          Magazine 1.25 · Projectile 1.21 · Reload 1.20
+  //   MELEE  Impact 3.62 · Puncture 3.00 · FinisherDmg 2.69 · HeavyAtkEff 2.12 · Slash 1.80
+  // Slash faltaba y mide por encima de Ammo Maximum y Magazine Capacity, que sí estaban.
   const HARMLESS_NEG_CANDIDATES = ["Zoom", "Recoil", "Impact Damage", "Puncture Damage",
-    "Ammo Maximum", "Magazine Capacity", "Reload Speed", "Projectile Speed"];
+    "Ammo Maximum", "Magazine Capacity", "Reload Speed", "Projectile Speed", "Slash Damage",
+    "Finisher Damage", "Heavy Attack Efficiency"];
   // PRIORIDAD AL RANKING DE DATOS: un stat que los pesos por arma (dynamic_weights) marcan valioso
   // NO puede ser harmless/mid aunque esté en mis listas hardcodeadas -> manda el dato.
   const _dw = meta.dynamic_weights || {};
@@ -3935,8 +4007,12 @@ function renderMetaStats(weaponName, weaponType, targetId = "meta-stats-containe
   // Ranking CONTINUO del daño de un negativo = cuánto quiere el arma ese stat como positivo:
   //   peso >=0.7 (stat TOP) -> perderlo ARRUINA (WORST);  0.4-0.7 (stat medio) -> daño MEDIO (MID).
   // Antes cualquier stat "querido" (incl. mid-positivos como Fire Rate) caía en WORST por igual.
-  const _dataWorst = Object.keys(_dw).filter(k => parseFloat(_dw[k]) >= 0.7);
-  const _dataMid = Object.keys(_dw).filter(k => { const v = parseFloat(_dw[k]); return v >= 0.4 && v < 0.7; });
+  // Mismos cortes que gradúan los positivos (STAT_TIER_TOP/MID en riven_logic.js): si divergieran,
+  // un stat podría salir como BEST positivo y a la vez su negativa como "daño medio".
+  const _dataWorst = Object.keys(_dw).filter(k => parseFloat(_dw[k]) >= STAT_TIER_TOP);
+  const _dataMid = Object.keys(_dw).filter(k => {
+    const v = parseFloat(_dw[k]); return v >= STAT_TIER_MID && v < STAT_TIER_TOP;
+  });
   const _worstSet = new Set([...(meta.pos || []), ..._dataWorst].map(x => String(x).toLowerCase()));
   const _wantedSet = new Set([...(meta.pos || []), ...(meta.midPos || []), ..._dataWantedNames].map(x => String(x).toLowerCase()));
   const _curatedNeg = new Set((meta.neg || []).map(x => String(x).toLowerCase()));
@@ -3950,9 +4026,11 @@ function renderMetaStats(weaponName, weaponType, targetId = "meta-stats-containe
     return `<span style="background: rgba(0, 229, 255, ${isCurated ? "0.15" : "0.07"}); border: 1px solid rgba(0, 229, 255, ${isCurated ? "0.45" : "0.22"}); color: #00e5ff; ${isCurated ? "text-shadow: 0 0 6px rgba(0,229,255,0.5); box-shadow: 0 0 8px rgba(0,229,255,0.15); font-weight: bold;" : "font-weight: 500;"} padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 4px; display: inline-block; margin-bottom: 4px;">${badge}- ${getLocalizedStatName(s)}</span>`;
   }).join("");
 
-  // MID negativas = las del endpoint + las de FACCIÓN ("meh": se prefiere sin facción; Infested
-  // primero por ser la menos mala). Excluye las que el arma quiere y las ya marcadas harmless.
-  const FACTION_NEGS = ["Damage Vs Infested", "Damage Vs Grineer", "Damage Vs Corpus"];
+  // MID negativas = las del endpoint + las de FACCIÓN. Van a MID y no a "inocuas" porque su ratio
+  // medido se queda corto: -Infested 1.38× · -Corpus 1.20× · -Grineer 1.00× (frente a -Zoom 3.00× o
+  // -Impact 3.00×). El orden es el del dato, de la menos mala a la más mala; antes Grineer y Corpus
+  // estaban al revés.
+  const FACTION_NEGS = ["Damage Vs Infested", "Damage Vs Corpus", "Damage Vs Grineer"];
   // MID negativas = facciones + las MID-positivas del arma (perder un stat medio duele pero NO
   // arruina) + stats con peso de datos 0.4-0.7. Excluye harmless y las WORST (stats top).
   const midNeg = [...new Set([...(meta.midNeg || []), ...FACTION_NEGS, ...(meta.midPos || []), ..._dataMid])]
@@ -4000,7 +4078,11 @@ function renderMetaStats(weaponName, weaponType, targetId = "meta-stats-containe
     const pop = (meta.popularity_pct !== undefined && meta.popularity_pct !== null)
       ? `${Math.round(meta.popularity_pct)}/100`
       : "0/100";
-    const sample = meta.wfm_market_sample ? `${meta.wfm_market_sample} trades` : "N/A";
+    // "trades" era falso: wfm_market_sample cuenta OFERTAS activas muestreadas en WFM, no ventas
+    // cerradas. Las ventas reales solo las publica DE (de_unrolled / de_rerolled).
+    const sample = meta.wfm_market_sample
+      ? `${meta.wfm_market_sample} ${isEs ? "ofertas" : "listings"}`
+      : "N/A";
 
     const stddevVal = meta.official_stddev || 0;
     let riskLabel = "", riskColor = "", riskTooltip = "";
@@ -4048,42 +4130,61 @@ function renderMetaStats(weaponName, weaponType, targetId = "meta-stats-containe
     const liqVal = meta.liquidity_score ?? 0;
     const rerollPct = Math.round((typeof meta.rerolled_premium_ratio === "number" ? meta.rerolled_premium_ratio : 0) * 100);
 
-    const liqTooltip = isEs ? "Liquidez (0-100): Rapidez para comprar/vender. A mayor valor, más fácil y rápido es encontrar comprador." : "Liquidity (0-100): How fast this Riven buys/sells. Higher means easier and faster to find a buyer.";
-    const volTooltip = isEs ? "Volatilidad: Cuánto fluctúa el precio. ALTA = los precios suben y bajan con fuerza (más riesgo de especulación)." : "Volatility: How much the price swings. HIGH = prices spike and drop a lot (more speculation risk).";
-    const rerollTooltip = isEs ? "Premium de reroll: cuánto sube el valor en rivens con muchos rerolls frente a uno sin tocar." : "Reroll premium: how much value is added for high-reroll rivens versus an unrolled one.";
+    const liqTooltip = isEs
+      ? "De 0 a 100: lo rápido que se encuentra comprador para esta arma. Por debajo de 30 tendrás que bajar el precio o esperar semanas; por encima de 70 se coloca en días."
+      : "From 0 to 100: how quickly a buyer turns up for this weapon. Below 30 you will have to cut the price or wait weeks; above 70 it moves in days.";
+    const volTooltip = isEs
+      ? "Cuánto baila el precio de un día para otro. ALTA significa que dos vendedores piden cifras muy distintas por rivens parecidos: hay margen para negociar, pero también para equivocarse."
+      : "How much the price swings from day to day. HIGH means two sellers ask very different amounts for similar rivens: room to haggle, but also room to get it wrong.";
+    const rerollTooltip = isEs
+      ? "Cuánto más se paga por un riven ya ciclado que por uno recién sacado. Si es alto, merece la pena rolar antes de vender; si es bajo, véndelo tal cual."
+      : "How much more a rolled riven fetches versus a fresh one. If it is high, rolling before selling pays off; if it is low, sell it as is.";
 
     const plat = `<img src="assets/relic_contents/platinum.webp" style="width:11px;height:11px;object-fit:contain;vertical-align:-1px;">`;
     const info = `<span class="info-icon" style="font-size:0.6rem;opacity:0.7;">ℹ</span>`;
     // One "label …… value" row inside a group.
-    const row = (label, value, tip) =>
-      `<div style="display:flex; justify-content:space-between; align-items:center; gap:8px; padding:2px 0; ${tip ? "cursor:help;" : ""}" ${tip ? `data-tooltip="${tip}"` : ""}>
+    // `kind` marca el ORIGEN del número y es lo único que cambia el color, a propósito: un precio
+    // pedido y una venta real se leían idénticos (mismo dorado, misma tipografía) aunque difieran
+    // ~13×, y esa es justo la confusión que hace que alguien liste a 5000p y no venda nunca.
+    //   "real" = venta cerrada (datos de DE)  -> dorado, el dato en el que confiar
+    //   "ask"  = lo que piden en WFM          -> gris azulado y en cursiva, dato de referencia
+    const row = (label, value, tip, kind = "") => {
+      const valStyle = kind === "ask"
+        ? "color:#8fa3bf; font-weight:600; font-style:italic; white-space:nowrap;"
+        : "color:var(--wf-gold-text); font-weight:700; white-space:nowrap;";
+      return `<div style="display:flex; justify-content:space-between; align-items:center; gap:8px; padding:2px 0; ${tip ? "cursor:help;" : ""}" ${tip ? `data-tooltip="${tip}"` : ""}>
          <span style="color:#8a8a93;">${label} ${tip ? info : ""}</span>
-         <span style="color:var(--wf-gold-text); font-weight:700; white-space:nowrap;">${value}</span>
+         <span style="${valStyle}">${value}</span>
        </div>`;
+    };
     const groupHeader = (txt) =>
       `<div style="font-size:9px; color:#6b7280; text-transform:uppercase; font-weight:800; letter-spacing:0.06em; margin:8px 0 2px;">${txt}</div>`;
 
+    // Los nombres dicen de dónde sale cada número, porque mezclarlos es el error caro: official_median
+    // es la mediana de rivens SIN CICLAR (verificado: coincide con de_unrolled.median en 608/608
+    // armas), así que "Precio típico" hacía creer que era la referencia de un riven ya rolado. Y lo
+    // de WFM son precios PEDIDOS, ~13× las ventas reales: si no lo pone, se lee como valor de mercado.
     const priceRows =
-      row(isEs ? "Precio típico (mediana)" : "Typical price (median)", officialPrice, baseTooltip) +
-      row(isEs ? "Media de mercado (WFM)" : "Market avg (WFM)", `${wfmPrice}${sample !== "N/A" ? ` · ${sample}` : ""}`, premiumTooltip) +
-      (rangeText ? row(isEs ? "Rango habitual" : "Usual range", rangeText, premiumTooltip) : "") +
+      row(isEs ? "Venta real · sin ciclar" : "Real sale · unrolled", officialPrice, baseTooltip, "real") +
+      row(isEs ? "Piden en WFM" : "Asking on WFM", `${wfmPrice}${sample !== "N/A" ? ` · ${sample}` : ""}`, premiumTooltip, "ask") +
+      (rangeText ? row(isEs ? "Rango de lo que piden" : "Asking range", rangeText, premiumTooltip, "ask") : "") +
       (riskLabel ? row(isEs ? "Estabilidad" : "Stability", `<span style="color:${riskColor}">${riskLabel}</span> <span style="color:#666;font-weight:400;">σ${stddevVal}p</span>`, riskTooltip) : "");
 
     const demandRows =
-      row(isEs ? "Popularidad" : "Popularity", pop, trendTooltip) +
-      row(isEs ? "Liquidez" : "Liquidity", `${liqVal}/100`, liqTooltip);
+      row(isEs ? "Volumen de intercambio" : "Trade volume", pop, trendTooltip) +
+      row(isEs ? "Rapidez de venta" : "Sale speed", `${liqVal}/100`, liqTooltip);
 
     const rerollRows =
-      row(isEs ? "Premium de reroll" : "Reroll premium", `+${rerollPct}%`, rerollTooltip) +
+      row(isEs ? "Extra por ciclar" : "Reroll markup", `+${rerollPct}%`, rerollTooltip) +
       row(isEs ? "Volatilidad" : "Volatility", `<span style="color:${volColor}">${volWord}</span>`, volTooltip);
 
     extraHtml = `
       <div style="margin-top:8px; padding-top:8px; border-top:1px dashed rgba(255,255,255,0.1); font-size:11px;">
-        ${groupHeader(`${isEs ? "PRECIO" : "PRICE"} (plat)`)}
+        ${groupHeader(isEs ? "PRECIOS DEL ARMA (plat)" : "WEAPON PRICES (plat)")}
         ${priceRows}
-        ${groupHeader(isEs ? "DEMANDA" : "DEMAND")}
+        ${groupHeader(isEs ? "¿SE VENDE FÁCIL?" : "DOES IT SELL?")}
         ${demandRows}
-        ${groupHeader("REROLL")}
+        ${groupHeader(isEs ? "¿MERECE LA PENA ROLARLO?" : "WORTH ROLLING?")}
         ${rerollRows}
       </div>
     `;
@@ -4939,10 +5040,10 @@ export function renderRivenIndexList(items) {
         realBadgeStyle = "color: #00e5ff; background: rgba(0, 229, 255, 0.08); border: 1px solid rgba(0, 229, 255, 0.2);";
       }
 
-      const realLabel = isEs ? "POTENCIAL REAL" : "REAL POTENTIAL";
+      const realLabel = isEs ? "TECHO REAL" : "REAL CEILING";
       const realTooltip = isEs
-        ? "Potencial de Intercambio Real (DE): Muestra cuánto se puede revalorizar este Riven basándose únicamente en transacciones oficiales en el juego (incremento por ciclos, techo godroll y volatilidad)."
-        : "Real Trade Potential (DE): Shows how much this Riven can revalue using pure official in-game trade transactions (Reroll markup, godroll ceiling, volatility).";
+        ? "Cuántas veces su precio de entrada puede llegar a valer este riven si sale un buen roll, contando solo VENTAS REALES de Digital Extremes. x2 es poco margen; a partir de x4 el arma premia mucho rolarla."
+        : "How many times its entry price this riven could reach with a good roll, counting only REAL Digital Extremes sales. x2 is little headroom; from x4 up, rolling this weapon pays off a lot.";
       const realBadgeHtml = `<span class="index-price-diff" style="${realBadgeStyle}; cursor: help;" data-tooltip="${realTooltip}">${realLabel}: x${realMult} <span class="info-icon" style="font-size: 0.65rem; margin-left: 2px;">ℹ</span></span>`;
 
       // 2. Web Potential (WFM)
@@ -4957,10 +5058,10 @@ export function renderRivenIndexList(items) {
         webBadgeStyle = "color: #00e5ff; background: rgba(0, 229, 255, 0.08); border: 1px solid rgba(0, 229, 255, 0.2);";
       }
 
-      const webLabel = isEs ? "POTENCIAL WEB" : "WEB POTENTIAL";
+      const webLabel = isEs ? "TECHO PEDIDO" : "ASKING CEILING";
       const webTooltip = isEs
-        ? "Potencial de Escaparate Web (WFM): Muestra el índice de revalorización especulativa basándose en el margen de ofertas activas en Warframe.Market y la liquidez online."
-        : "Web Listings Potential (WFM): Shows the speculative revaluation index based on active Warframe.Market listings markup and active online liquidity.";
+        ? "El mismo múltiplo pero calculado con los precios que PIDEN en Warframe.Market. Sale bastante más alto que el techo real porque nadie paga los precios de escaparate: sirve para ver hasta dónde aspira la gente, no para fijar el tuyo."
+        : "The same multiple but computed from Warframe.Market ASKING prices. It comes out well above the real ceiling because nobody pays shop-window prices: use it to see what people aim for, not to set yours.";
       const webBadgeHtml = `<span class="index-price-diff" style="${webBadgeStyle}; cursor: help;" data-tooltip="${webTooltip}">${webLabel}: x${webMult} <span class="info-icon" style="font-size: 0.65rem; margin-left: 2px;">ℹ</span></span>`;
 
       potentialHtml = `<span class="potential-badges-row" style="display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; vertical-align: middle;">${realBadgeHtml}${webBadgeHtml}</span>`;

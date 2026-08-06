@@ -1,5 +1,5 @@
 import { state } from "../state.js";
-import { RIVEN_STATS, RIVEN_BASE_STATS, WEAPON_TYPE_IDX, RIVEN_WEIGHTS, resolveBaseStatKey } from "../config.js";
+import { RIVEN_STATS, RIVEN_BASE_STATS, WEAPON_TYPE_IDX, RIVEN_WEIGHTS, resolveBaseStatKey, canBeNegative } from "../config.js";
 
 const RIVEN_NAMING_DICT = {
   "critical_chance": { prefix: "Crita", suffix: "cron" },
@@ -411,10 +411,13 @@ export const RivenOCRService = {
                     .trim();
                 const matchedName = this._matchStatAnchored(name);
                 if (matchedName) {
-                    // Elemental damage (Heat/Cold/Electric/Toxin) can only roll positive on a
-                    // riven — if OCR read a minus on it, the sign is a misread, so force positive.
+                    // Hay stats que el juego NUNCA genera como maldición (los cuatro elementales y
+                    // Punch Through): si el OCR leyó un menos ahí, el signo es un error de lectura.
+                    // La lista vive en config.js (canBeNegative) junto a RIVEN_BASE_STATS, que es
+                    // donde está el resto del conocimiento de stats; antes este regex solo cubría
+                    // los elementales y dejaba pasar "-Punch Through", que no existe.
                     let isPositive;
-                    if (/^(heat|cold|electric|toxin)$/i.test(matchedName)) {
+                    if (!canBeNegative(matchedName)) {
                         isPositive = true;
                     } else if (/^recoil$/i.test(matchedName)) {
                         // El recoil es un stat INVERTIDO: la carta muestra el buff con signo
@@ -531,11 +534,11 @@ export const RivenOCRService = {
         // Una carta real NUNCA tiene 4 positivos (2-3 buffs + 0-1 curse): si el parse dio 4 stats
         // todos positivos es que el ruido del arte se comió el "-" del curse (p.ej. "v7 91.9%
         // Ammo Maximum"), y el curse es SIEMPRE la última línea de stats de la carta → recupera
-        // el signo ahí en vez de rechazar la carta entera. Los elementales nunca son curse, así
-        // que si la última es un elemental no hay recuperación posible (carta rota de verdad).
+        // el signo ahí en vez de rechazar la carta entera. Si la última es un stat que no puede
+        // rolar como curse (elemental, Punch Through) no hay recuperación posible: carta rota.
         if (stats.length === 4 && stats.every(s => s.isPositive)) {
             const last = stats[stats.length - 1];
-            if (!/^(heat|cold|electric|toxin)$/i.test(last.name)) last.isPositive = false;
+            if (canBeNegative(last.name)) last.isPositive = false;
         }
 
         // Riven card structural validation (2-3 positives, 0-1 negatives, 2-4 total)
