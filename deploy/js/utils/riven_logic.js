@@ -206,6 +206,37 @@ function resolveStatWeight(nameLower, weapon, weaponData, statBaseline) {
   return null;
 }
 
+export function areWeightsDegenerate(dynWeightsRaw) {
+  const vals = dynWeightsRaw && typeof dynWeightsRaw === "object"
+    ? Object.values(dynWeightsRaw).map(v => parseFloat(v)).filter(Number.isFinite) : [];
+  const empates = vals.filter(v => v >= 0.999).length;
+  return vals.length >= 12 && empates >= 6 && (empates / vals.length) >= 0.25;
+}
+
+export const STAT_TIER_TOP = 0.7;
+export const STAT_TIER_MID = 0.4;
+
+export function gradeWeaponStats(weapon, statBaseline = null) {
+  const raw = (weapon && weapon.dynamic_weights) || null;
+  const propios = raw && !areWeightsDegenerate(raw) ? raw : null;
+  const tabla = propios || (statBaseline && typeof statBaseline === "object" ? statBaseline : null);
+  if (!tabla) return null;
+
+  const orden = Object.entries(tabla)
+    .map(([k, v]) => [k, parseFloat(v)])
+    .filter(([, v]) => Number.isFinite(v))
+    .sort((a, b) => b[1] - a[1]);
+  if (!orden.length) return null;
+
+  const best = [], mid = [], meh = [];
+  for (const [nombre, peso] of orden) {
+    if (peso >= STAT_TIER_TOP) best.push(nombre);
+    else if (peso >= STAT_TIER_MID) mid.push(nombre);
+    else meh.push(nombre);
+  }
+  return { best, mid, meh, fuente: propios ? "arma" : "prior", pesos: Object.fromEntries(orden) };
+}
+
 export function calculateAdvancedPredictivePrice(weapon, itemAttributes, tiers, desirabilityMultiplier = 1.0, weaponData = null, statBaseline = null) {
   const bestPositives = Array.isArray(weapon.pos) ? weapon.pos : (weapon.pos?.best || []);
   const midPositives = weapon.midPos || [];
@@ -285,10 +316,6 @@ export function calculateAdvancedPredictivePrice(weapon, itemAttributes, tiers, 
         attributeWeight = 0;
       }
 
-      if (/\b(grineer|corpus|infested)\b/i.test(nameLower)) {
-        attributeWeight = Math.max(attributeWeight, 0.30);
-      }
-
       const range = attr.maxIdeal - attr.minIdeal;
       if (range > 0) {
         const quality = (attr.value - attr.minIdeal) / range;
@@ -346,7 +373,8 @@ export function calculateAdvancedPredictivePrice(weapon, itemAttributes, tiers, 
 
   let finalPrice = 0;
 
-  if (effectiveMetaRatio >= 0.80) {
+  const isGodrollCombo = effectiveMetaRatio >= 0.80 && avgRollQuality >= 0.60;
+  if (isGodrollCombo) {
     const floorGodroll = tiers.godroll * 0.50;
     finalPrice = floorGodroll + (Math.pow(avgRollQuality, 1.3) * (tiers.godroll - floorGodroll));
   } else if (effectiveMetaRatio >= 0.50) {
@@ -361,22 +389,15 @@ export function calculateAdvancedPredictivePrice(weapon, itemAttributes, tiers, 
     finalPrice = tiers.trash * (0.8 + avgRollQuality * 0.4);
   }
 
-  const universalCriticalNegs = new Set([
-    "critical chance", "critical damage", "damage", "base damage", "multishot",
-    "fire rate", "attack speed", "melee damage", "range", "status duration"
-  ]);
-
-  const brickNegs = new Set([
-    "multishot", "critical chance", "critical damage", "damage", "base damage", "melee damage"
-  ]);
-
-  const mitigableNegs = [
-    "ammo maximum", "magazine capacity", "reload speed", "impact", "puncture", "status chance", "projectile speed", "recoil"
-  ];
+  const NEG_KILLER = 0.60;
+  const NEG_MITIGABLE = 0.25;
 
   const bestNegatives = Array.isArray(weapon.neg) ? weapon.neg : (weapon.neg?.best || []);
 
-  const dynWeights = (weapon && weapon.dynamic_weights) || (weaponData && weaponData.dynamic_weights);
+  const dynWeightsRaw = (weapon && weapon.dynamic_weights) || (weaponData && weaponData.dynamic_weights);
+
+  const dynWeights = areWeightsDegenerate(dynWeightsRaw) ? null : dynWeightsRaw;
+
   const posWeightOf = (nameLower) => {
     if (dynWeights && typeof dynWeights === "object") {
       const key = Object.keys(dynWeights).find(k => {
@@ -384,6 +405,16 @@ export function calculateAdvancedPredictivePrice(weapon, itemAttributes, tiers, 
         return kl === nameLower || kl.includes(nameLower) || nameLower.includes(kl);
       });
       if (key && dynWeights[key] != null) return parseFloat(dynWeights[key]) || 0;
+    }
+    if (statBaseline && typeof statBaseline === "object") {
+      const bk = Object.keys(statBaseline).find(k => {
+        const kl = k.toLowerCase();
+        return kl === nameLower || kl.includes(nameLower) || nameLower.includes(kl);
+      });
+      if (bk && statBaseline[bk] != null) {
+        const bv = parseFloat(statBaseline[bk]);
+        if (Number.isFinite(bv)) return bv;
+      }
     }
     const inList = (list) => Array.isArray(list) && list.some(p => {
       const pl = p.toLowerCase();
@@ -394,34 +425,37 @@ export function calculateAdvancedPredictivePrice(weapon, itemAttributes, tiers, 
     return 0;
   };
 
+  const _dwVals = dynWeights && typeof dynWeights === "object"
+    ? Object.values(dynWeights).map(v => parseFloat(v)).filter(Number.isFinite).sort((a, b) => b - a)
+    : [];
+  const _topRef = _dwVals.length ? _dwVals[Math.min(_dwVals.length - 1, 2)] : null;
+  const esStatTopDelArma = (w) => _topRef != null
+    ? (w >= Math.max(NEG_MITIGABLE, _topRef * 0.9))
+    : (w >= NEG_KILLER);
+
   let isBricked = false;
 
   itemAttributes.forEach(attr => {
     if (!attr.isPositive) {
       const negName = attr.name.toLowerCase();
-      const isFactionDmgNeg = negName.includes(" to ") || negName.includes("vs");
-      const isGoodNegative = isFactionDmgNeg ||
-        bestNegatives.some(b => b.toLowerCase().includes(negName) || negName.includes(b.toLowerCase()));
-      const isUniversalBad = !isFactionDmgNeg && universalCriticalNegs.has(negName);
-      const isMitigable = !isFactionDmgNeg && mitigableNegs.some(m => negName.includes(m));
+      const isGoodNegative = bestNegatives.some(b => b.toLowerCase().includes(negName) || negName.includes(b.toLowerCase()));
 
-      const negPosWeight = (isFactionDmgNeg || negName === "damage" || negName === "base damage")
-        ? 0 : posWeightOf(negName);
-      const isTopPositiveAsNeg = !isGoodNegative && negPosWeight >= 0.8;
-      const isMidPositiveAsNeg = !isGoodNegative && negPosWeight >= 0.4 && negPosWeight < 0.8;
+      // exact match: posWeightOf's fuzzy match would confuse them with critical damage
+      const negPosWeight = (negName === "damage" || negName === "base damage")
+        ? (posWeightOf("base damage / melee damage") || posWeightOf("damage") || 0)
+        : posWeightOf(negName);
 
-      const isBrick = !isFactionDmgNeg && brickNegs.has(negName);
-      if (isBrick && !isGoodNegative) {
+      if (!isGoodNegative && esStatTopDelArma(negPosWeight)) {
         isBricked = true;
       }
 
       if (isGoodNegative) {
         finalPrice *= 1.20;
-      } else if (isUniversalBad || isTopPositiveAsNeg) {
+      } else if (esStatTopDelArma(negPosWeight)) {
         finalPrice *= (effectiveMetaRatio >= 0.80) ? 0.25 : 0.10;
-      } else if (isMidPositiveAsNeg) {
+      } else if (negPosWeight >= 0.4) {
         finalPrice *= 0.70;
-      } else if (isMitigable) {
+      } else if (negPosWeight >= NEG_MITIGABLE) {
         finalPrice *= 0.85;
       } else {
         finalPrice *= 1.10;
@@ -440,7 +474,7 @@ export function calculateAdvancedPredictivePrice(weapon, itemAttributes, tiers, 
   } else {
     penalizedPrice = Math.max(penalizedPrice, tiers.trash);
   }
-  const rawScore = Math.round(((finalMetaRatio * 0.85) + (avgRollQuality * 0.15)) * 100);
+  const rawScore = Math.round(((finalMetaRatio * 0.55) + (avgRollQuality * 0.45)) * 100);
   const adjustedScore = isBricked
     ? Math.min(20, Math.max(5, Math.round(rawScore * 0.10)))
     : Math.max(10, Math.min(100, Math.round(rawScore * desirabilityFactor)));
@@ -484,6 +518,13 @@ export function calculateHybridTiers(weapon, weaponHistory = null) {
   let offMedian = weapon.official_median || 0;
   let offStdDev = weapon.official_stddev || 0;
   let reMedian = (weapon.de_rerolled && weapon.de_rerolled.median !== undefined) ? weapon.de_rerolled.median : 0;
+
+  const _rePop = (weapon.de_rerolled && weapon.de_rerolled.pop) || 0;
+  const _unMedian = (weapon.de_unrolled && weapon.de_unrolled.median) || offMedian || 0;
+  if (reMedian > 0 && _rePop < 3 && _unMedian > 0) {
+    const _capAnecdota = _unMedian * 4;
+    if (reMedian > _capAnecdota) reMedian = _capAnecdota;
+  }
 
   let histWfmAvg = 0;
   let histWfmMax = 0;
@@ -552,9 +593,10 @@ export function calculateHybridTiers(weapon, weaponHistory = null) {
     clampMultiplier = Math.max(clampMultiplier, 22.0);
   }
 
-  const baseRefMedian = offMedian > 0 ? offMedian : (reMedian > 0 ? reMedian : 50);
-  if (wfmAvg > baseRefMedian * clampMultiplier) {
-    wfmAvg = baseRefMedian * clampMultiplier + (wfmAvg - baseRefMedian * clampMultiplier) * 0.15;
+  const baseRefMedian = reMedian > 0 ? reMedian : (offMedian > 0 ? offMedian : 50);
+  const clampRef = reMedian > 0 ? Math.min(clampMultiplier, 6.0) : clampMultiplier;
+  if (wfmAvg > baseRefMedian * clampRef) {
+    wfmAvg = baseRefMedian * clampRef + (wfmAvg - baseRefMedian * clampRef) * 0.15;
   }
 
   const isUnpopular = (popularity < 25.0 || realVolume < 25) && !(isHighValue && hasBasicVolume) && !isMetaWeapon;
@@ -585,7 +627,7 @@ export function calculateHybridTiers(weapon, weaponHistory = null) {
     goodReroll = Math.round(reMedian * 1.6 + Math.min(wfmAvg * 0.15, reMedian * 2));
   } else {
     goodReroll = wfmAvg > 0
-      ? Math.round(wfmAvg * 0.3)
+      ? Math.min(Math.round(wfmAvg * 0.3), Math.round(trash * 5))
       : Math.round(trash * (isUnpopular ? 1.8 : 2.5));
   }
 
@@ -603,8 +645,12 @@ export function calculateHybridTiers(weapon, weaponHistory = null) {
 
     if (wfmAvg > 0) {
       if (wfmAvg > baseRef * 2) {
-        const baseWfmScale = wfmAvg * (1.2 + Math.min(stdDevScale * 0.5, 1.5));
-        godroll = Math.round(deGodroll * 0.5 + baseWfmScale * 0.5);
+        const _askRatio = baseRef > 0 ? wfmAvg / baseRef : 0;
+        const _credibilidad = (_askRatio > 3 && wfmAvg > deGodroll)
+          ? Math.max(0.15, 3 / _askRatio) : 1;
+        const _pesoAsk = 0.30 * _credibilidad;
+        const baseWfmScale = wfmAvg;
+        godroll = Math.round(deGodroll * (1 - _pesoAsk) + baseWfmScale * _pesoAsk);
       } else {
         godroll = Math.round(deGodroll * 0.6 + Math.min(wfmAvg * 0.8, baseRef * 20) * 0.4);
       }
@@ -644,7 +690,10 @@ export function calculateHybridTiers(weapon, weaponHistory = null) {
 export function classifyWeaponMarket(meta, band = null) {
   if (!meta) return null;
   const b = band || meta.band || {};
-  let typical = b.typical || meta.official_median || 0;
+  const _deReMed = (meta.de_rerolled && meta.de_rerolled.median) || 0;
+  const _deRePop = (meta.de_rerolled && meta.de_rerolled.pop) || 0;
+  const refFiable = _deReMed > 0 && _deRePop >= 3;
+  let typical = refFiable ? _deReMed : (b.typical || meta.official_median || 0);
   const wfm = meta.wfm_avg_price || meta.wfm_avg || 0;
   const vol = b.vol_dia != null ? b.vol_dia : (meta.wfm_market_sample || 0);
   const trend = b.trend != null ? b.trend : (meta.trend_7d_pct || 0);
@@ -664,36 +713,45 @@ export function classifyWeaponMarket(meta, band = null) {
 
   const isEs = state.currentLang === "es";
 
+  // around the catalog's p75: the whole riven market asks far above what sells
+  const RATIO_BURBUJA = 24;
+
   let flag, label, emoji, advice;
-  if (ratio >= 8) {
+  if (refFiable && ratio >= RATIO_BURBUJA) {
     flag = "bubble"; emoji = "🫧";
-    label = isEs ? "Burbuja especulativa" : "Speculative bubble";
+    label = isEs ? "Sobreprecio · mucha oferta" : "Overpriced · heavy supply";
     advice = isEs
-      ? "Los asks están muy por encima del valor real. Demanda baja: difícil de vender al precio listado."
-      : "Asks are way above real value. Low demand: hard to sell at listed price.";
+      ? `Aquí se pide ${ratio}× lo que se paga de verdad, y eso es más que en 3 de cada 4 armas. Hay cola de vendedores esperando: si quieres venderlo esta semana, ponte por debajo de los que ves listados.`
+      : `Sellers here ask ${ratio}x what actually gets paid, more than in 3 out of 4 weapons. There is a queue of sellers waiting: to sell this week, price below the listings you can see.`;
   } else if (vol > 0 && vol < 12) {
     flag = "illiquid"; emoji = "🧊";
-    label = isEs ? "Poco líquido" : "Illiquid";
+    label = isEs ? "Mercado dormido" : "Quiet market";
     advice = isEs
-      ? "Pocos listados/día. Puede tardar en venderse; ajusta el precio a la baja para liquidar."
-      : "Few listings/day. Slow to sell; lower price to liquidate.";
+      ? "Casi nadie mueve rivens de esta arma. El precio que veas es poco fiable por falta de muestra, y colocarlo puede llevar semanas: cuenta con rebajar si tienes prisa."
+      : "Hardly anyone trades rivens for this weapon. Any price you see is unreliable for lack of sample, and selling can take weeks: expect to discount if you are in a hurry.";
+  } else if (!refFiable) {
+    flag = "nodata"; emoji = "?";
+    label = isEs ? "Sin ventas suficientes" : "Not enough sales";
+    advice = isEs
+      ? "Digital Extremes apenas registra ventas de rivens de esta arma, así que no hay precio de referencia fiable. Fíjate en la calidad del roll y en lo que piden otros, y no te sorprenda si las cifras bailan mucho."
+      : "Digital Extremes barely records any riven sales for this weapon, so there is no reliable reference price. Go by the quality of the roll and what others are asking, and do not be surprised if numbers swing a lot.";
   } else if (vol >= 35 && ratio < 4) {
     flag = "meta"; emoji = "🔥";
-    label = isEs ? "Meta / demanda real" : "Meta / real demand";
+    label = isEs ? "Arma meta · se vende" : "Meta weapon · sells";
     advice = isEs
-      ? "Mucho volumen y asks sanos: se vende rápido cerca del precio justo."
-      : "High volume and healthy asks: sells quickly close to fair price.";
+      ? "Mucho movimiento y lo que piden se acerca a lo que se paga. Puedes pedir el precio estimado sin miedo: hay compradores buscando."
+      : "Plenty of movement and asking prices are close to what gets paid. You can ask the estimated price with confidence: buyers are looking.";
   } else {
     flag = "mid"; emoji = "·";
-    label = isEs ? "Demanda media" : "Moderate demand";
+    label = isEs ? "Mercado normal" : "Normal market";
     advice = isEs
-      ? "Liquidez moderada. Precio justo razonable; paciencia para el techo."
-      : "Moderate liquidity. Fair price is reasonable; patience needed for top value.";
+      ? "Ni chollo ni trampa. El precio estimado es una buena referencia; si quieres el máximo, tendrás que esperar al comprador adecuado."
+      : "Neither a steal nor a trap. The estimate is a solid reference; to get top value you will have to wait for the right buyer.";
   }
   if (trend >= 25) {
     advice += isEs ? ` ▲ Subiendo (+${Math.round(trend)}% 7d).` : ` ▲ Rising (+${Math.round(trend)}% 7d).`;
   } else if (trend <= -25) {
     advice += isEs ? ` ▼ Enfriándose (${Math.round(trend)}% 7d).` : ` ▼ Cooling down (${Math.round(trend)}% 7d).`;
   }
-  return { flag, label, emoji, ratio, vol, trend, advice };
+  return { flag, label, emoji, ratio, vol, trend, advice, refFiable };
 }

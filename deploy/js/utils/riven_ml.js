@@ -46,7 +46,13 @@ export async function loadRivenML() {
       quantiles, qmodels, order, defaults, idx,
       bands: bands || {}, statWeights: statWeights || {},
       cal: cal || {}, drift: (cal && cal.drift) || {}, synlo: (cal && cal.synlo) || {}, nsamp: (cal && cal.nsamp) || {},
+      venta: (cal && cal.venta) || {},
     };
+    // global stat prior, in state so the appraisal can interpolate stats without weapon data
+    const _prior = statWeights && statWeights._global && statWeights._global.pos;
+    if (_prior && typeof _prior === "object" && !state.rivenStatPrior) {
+      state.rivenStatPrior = _prior;
+    }
     return _ml;
   })();
   return _loading;
@@ -116,9 +122,7 @@ export async function gradeRiven(weaponName, stats) {
       posW.push(w);
       out.push({ name: s.name, isPositive: true, weight: +w.toFixed(2), tier: posTier(w), popular: w >= 0.45 });
     } else {
-      const nl = s.name.toLowerCase();
-      const harmless = /zoom|recoil|\bto |vs |faction/.test(nl);
-      let b = harmless ? 0.05 : (lookup(W.pos, s.name) ?? lookup(base.pos, s.name) ?? 0.30);
+      let b = lookup(W.pos, s.name) ?? lookup(base.pos, s.name) ?? 0.30;
       b = Math.max(0.05, Math.min(1, b));
       negFactor *= (1 - 0.6 * b);
       out.push({ name: s.name, isPositive: false, badness: +b.toFixed(2), label: negLabel(b) });
@@ -183,7 +187,8 @@ export async function mlBandEstimate(weaponName, itemAttributes, scoreOverride =
   } else {
     mx = Math.min(mx, med * 8);
   }
-  const floor = (de && de.floor > 0) ? de.floor : Math.round(med * 0.5);
+  // the floor can never exceed the median: on low volume unrolled can sell above rerolled
+  const floor = Math.min((de && de.floor > 0) ? de.floor : Math.round(med * 0.5), Math.round(med * 0.5));
   let sale;
   if (s <= 0.5) {
     sale = Math.round(floor + (med - floor) * (s / 0.5));
@@ -370,10 +375,8 @@ async function buildFeatureVector(weapon, itemAttributes, weaponData = null, rer
       posMags.push(a.value / maxVal);
     } else {
       hasNegCurse = 1;
-      const nl = name.toLowerCase();
-      const harmless = /zoom|recoil|\bto |vs |faction/.test(nl);
       const k = dwKey(name);
-      let b = harmless ? 0.05 : (k ? (parseFloat(dw[k]) || 0.30) : 0.30);
+      let b = (k ? (parseFloat(dw[k]) || 0.30) : 0.30);
       b = Math.max(0.05, Math.min(1.0, b));
       negPenalty *= (1.0 - 0.6 * b);
 
@@ -424,7 +427,7 @@ async function buildFeatureVector(weapon, itemAttributes, weaponData = null, rer
 }
 
 export async function predictRivenMLBand(weapon, itemAttributes, weaponData = null, rerolls = 0, scoreOverride = null) {
-  const { ml, synergy } = await buildFeatureVector(weapon, itemAttributes, weaponData, rerolls);
+  const { ml, vec, synergy } = await buildFeatureVector(weapon, itemAttributes, weaponData, rerolls);
   const wname = weapon.name || weapon.weaponName;
   const qs = ml.quantiles && ml.quantiles.length ? ml.quantiles : [0.25, 0.5, 0.8, 0.9, 0.95];
   const drift = _byWeapon(ml.drift, wname) || 1.0;
@@ -437,8 +440,15 @@ export async function predictRivenMLBand(weapon, itemAttributes, weaponData = nu
   const deRe = weapon.de_rerolled || (weaponData && weaponData.de_rerolled) || {};
   const deUn = weapon.de_unrolled || (weaponData && weaponData.de_unrolled) || {};
   const usaDE = (deRe.median > 0 || deUn.median > 0);
-  const deMed = usaDE ? (deRe.median > 0 ? deRe.median : deUn.median) : (b ? b.typical : 50);
+  let deMedRaw = usaDE ? (deRe.median > 0 ? deRe.median : deUn.median) : (b ? b.typical : 50);
+  if (deRe.median > 0 && (deRe.pop || 0) < 3 && deUn.median > 0 && deMedRaw > deUn.median * 4) {
+    deMedRaw = deUn.median * 4;
+  }
+  const deMed = deMedRaw;
   let deMax = (deRe.max_price || deRe.max || 0);
+  const deSd = (deRe.stddev > 0 && (deRe.pop || 0) >= 3) ? deRe.stddev : 0;
+  const robustMax = deSd > 0 ? Math.max(deMed + 2 * deSd, deMed * 3) : 0;
+  if (robustMax > deMed) deMax = deMax > deMed ? Math.min(deMax, robustMax) : robustMax;
   deMax = deMax > deMed ? Math.min(deMax, deMed * 8) : deMed * 5;
   const deFloor = Math.max(1, Math.round(Math.min(deMed, deUn.median || deMed) * 0.45));
   const levelMap = (f) => {
@@ -450,21 +460,39 @@ export async function predictRivenMLBand(weapon, itemAttributes, weaponData = nu
   let mult = 1.0;
   const neg = itemAttributes.find(a => !a.isPositive);
   const dw = weapon.dynamic_weights || (weaponData && weaponData.dynamic_weights) || {};
-  const BRICK = new Set(["Critical Chance", "Critical Damage", "Base Damage / Melee Damage", "Multishot", "Fire Rate / Attack Speed"]);
   let esBrick = false;
   if (neg) {
     const nm = MODEL_STAT_MAP[neg.name] || neg.name;
-    const wneg = parseFloat(dw[Object.keys(dw).find(k => k.toLowerCase() === nm.toLowerCase())] || 0);
-    esBrick = BRICK.has(nm) || wneg >= 0.6;
+    const dwKeyNeg = Object.keys(dw).find(k => k.toLowerCase() === nm.toLowerCase());
+    let wneg = dwKeyNeg ? parseFloat(dw[dwKeyNeg]) : NaN;
+    if (!Number.isFinite(wneg)) {
+      const gpos = (ml.statWeights && ml.statWeights._global && ml.statWeights._global.pos) || {};
+      const gk = Object.keys(gpos).find(k => k.toLowerCase() === nm.toLowerCase());
+      wneg = gk ? parseFloat(gpos[gk]) : 0;
+    }
+    esBrick = Number.isFinite(wneg) && wneg >= 0.6;
   }
   if (rerolls === 0) mult *= 1.25;
 
   const OFF = { 0.25: -0.12, 0.50: 0.0, 0.80: 0.10, 0.90: 0.15, 0.95: 0.20 };
   const floor = deFloor;
   const out = {};
-  for (const a of qs) {
-    const f = Math.max(0, Math.min(1, s + (OFF[a] != null ? OFF[a] : 0)));
-    out[a] = Math.max(floor, Math.round(levelMap(f) * mult));
+
+  const vinfo = _byWeapon(ml.venta, wname);
+  const qmods = ml.qmodels || {};
+  const usaModelo = !!(vinfo && vinfo.fiable) && Object.keys(qmods).length > 0;
+
+  if (usaModelo) {
+    for (const a of qs) {
+      const m = qmods[a] || qmods[0.5];
+      if (!m) continue;
+      out[a] = Math.max(floor, Math.round(Math.expm1(rawPredictModel(m, vec))));
+    }
+  } else {
+    for (const a of qs) {
+      const f = Math.max(0, Math.min(1, s + (OFF[a] != null ? OFF[a] : 0)));
+      out[a] = Math.max(floor, Math.round(levelMap(f) * mult));
+    }
   }
   let prev = 0;
   for (const a of qs) { out[a] = Math.max(out[a], prev); prev = out[a]; }
@@ -477,6 +505,7 @@ export async function predictRivenMLBand(weapon, itemAttributes, weaponData = nu
   return {
     p25: p(0.25), p50: p(0.5), p80: p(0.8), p90: p(0.9), p95: p(0.95),
     price: p(0.5), floor, drift: +drift.toFixed(3),
+    fuente: usaModelo ? "ml" : "curva",
     confianza: lowConf ? "baja" : "alta",
     aviso: lowConf
       ? (esTrash ? "Roll de gama baja: precio orientativo (usa la banda, no el valor único)."

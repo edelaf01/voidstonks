@@ -412,6 +412,50 @@ df_ml["price"] = np.minimum(df_ml["price"], _cap_final)
 print(f"  Winsor consciente de régimen: {int(_tiene_nivel.sum())} filas con nivel del día "
       f"({_tiene_nivel.mean()*100:.0f}%), {_recortadas} precios recortados.")
 
+_CAL_MIN_POP = float(os.environ.get("CAL_VENTA_MIN_POP", "3"))
+
+_CAL_ON = os.environ.get("CAL_VENTA", "0") != "0"
+VENTA_INFO = {}
+df_ml["price_ask"] = df_ml["price"]
+_precio_cal = df_ml["price"].astype(float).copy()
+
+for _w, _idx in df_ml.groupby("weapon").groups.items():
+    _rec = lookup_macro(_w)
+    _dre = (_rec.get("de_rerolled") or {}) if _rec else {}
+    _dun = (_rec.get("de_unrolled") or {}) if _rec else {}
+    _rmed = _dre.get("median") or 0
+    _rpop = _dre.get("pop") or 0
+    _rmin = _dre.get("min_price") or 0
+    _rmax = _dre.get("max_price") or 0
+    _asks = df_ml.loc[_idx, "price"].astype(float)
+
+    _ok = (_CAL_ON and _rmed > 0 and _rpop >= _CAL_MIN_POP and len(_asks) >= 5)
+    if not _ok:
+        VENTA_INFO[_w] = {"de_med": _rmed, "pop": _rpop, "fiable": False}
+        continue
+
+    _lo = _rmin if 0 < _rmin < _rmed else max(1.0, _rmed * 0.45)
+    _hi = _rmax if _rmax > _rmed else _rmed * 5.0
+    _hi = min(_hi, _rmed * 8.0)
+
+    _p = _asks.rank(pct=True).to_numpy()
+    _lg = np.where(
+        _p <= 0.5,
+        np.log(_lo) + (np.log(_rmed) - np.log(_lo)) * (_p / 0.5),
+        np.log(_rmed) + (np.log(_hi) - np.log(_rmed)) * ((_p - 0.5) / 0.5),
+    )
+    _precio_cal.loc[_idx] = np.exp(_lg)
+    VENTA_INFO[_w] = {"de_med": _rmed, "de_lo": round(float(_lo), 1), "de_hi": round(float(_hi), 1),
+                      "pop": _rpop, "ask_med": round(float(_asks.median()), 1), "fiable": True}
+
+df_ml["price"] = _precio_cal
+_n_fiable = sum(1 for v in VENTA_INFO.values() if v["fiable"])
+_rat = (df_ml["price"] / df_ml["price_ask"]).replace([np.inf, -np.inf], np.nan).dropna()
+print(f"  Calibrado a precio de VENTA (percentil->percentil): {_n_fiable}/{len(VENTA_INFO)} armas con "
+      f"anclas reales de DE (re_pop>={_CAL_MIN_POP:.0f}). "
+      f"venta/ask: mediana {_rat.median():.2f}× [p10 {_rat.quantile(.10):.2f}× / p90 {_rat.quantile(.90):.2f}×]. "
+      f"El resto se queda en escala de ask (marcado no fiable).")
+
 def _tier_weights(g):
     try:
         tier = pd.qcut(g, 3, labels=False, duplicates="drop")
@@ -451,6 +495,13 @@ X_train = df_ml.iloc[tr2_idx][columnas_micro]; y_train = y_all.values[tr2_idx]; 
 X_es = df_ml.iloc[es_idx][columnas_micro];     y_es = y_all.values[es_idx]
 X_test = df_ml.iloc[te_idx][columnas_micro];   y_test = y_all.values[te_idx]
 weapon_test = df_ml["weapon"].values[te_idx]
+
+_kcombo = [c for c in ["weapon", "stat_pos1", "stat_pos2", "stat_pos3", "stat_neg"] if c in df_ml.columns]
+_combo_all = df_ml[_kcombo].fillna("None").astype(str).agg("|".join, axis=1).values
+_combos_tr = set(_combo_all[tr2_idx]) | set(_combo_all[es_idx])
+_visto_te = np.array([c in _combos_tr for c in _combo_all[te_idx]])
+print(f"  Fuga de combos en test: {_visto_te.sum()}/{len(_visto_te)} ({_visto_te.mean()*100:.0f}%) "
+      f"con su combo ya visto en train.")
 print(f"Matrices: train={X_train.shape[0]} | early-stop={X_es.shape[0]} | test={X_test.shape[0]} | features={len(columnas_micro)}")
 print(f"¿one-hot de arma presente? {'sí' if any(c.startswith('weapon_') for c in columnas_micro) else 'NO'}")
 
@@ -526,6 +577,35 @@ r2 = r2_score(y_test, y_pred_log)
 mape = float(ape_all.mean() * 100)
 mask_trade = real_test >= 200
 mape_trade = float(ape_all[mask_trade].mean() * 100) if mask_trade.any() else float("nan")
+
+mape_visto = mape_inedito = float("nan")
+try:
+    _mt = mask_trade & _visto_te
+    _mi = mask_trade & (~_visto_te)
+    if _mt.any():
+        mape_visto = float(ape_all[_mt].mean() * 100)
+    if _mi.any():
+        mape_inedito = float(ape_all[_mi].mean() * 100)
+    print(f"  MAPE trade por fuga: combo visto {mape_visto:.1f}% (n={int(_mt.sum())}) | "
+          f"combo INÉDITO {mape_inedito:.1f}% (n={int(_mi.sum())})  <- el honesto")
+except Exception as _e:
+    print(f"  [WARN] no se pudo desglosar el MAPE por fuga: {_e}")
+
+try:
+    _kc = ["weapon", "stat_pos1", "stat_pos2", "stat_pos3", "stat_neg"]
+    _dcombo = df_ml[[c for c in _kc if c in df_ml.columns]].fillna("None").astype(str).agg("|".join, axis=1)
+    _oracle = []
+    for _c, _s in df_ml.groupby(_dcombo)["price"]:
+        if len(_s) >= 5:
+            _m = _s.median()
+            if _m > 0:
+                _oracle.append(float(np.mean(np.abs(_s - _m) / np.clip(_s, 5, None)) * 100))
+    mape_piso = float(np.median(_oracle)) if _oracle else float("nan")
+    print(f"  Techo irreducible (MAPE de un oráculo perfecto): {mape_piso:.1f} % "
+          f"sobre {len(_oracle)} combos con >=5 listados.")
+except Exception as _e:
+    mape_piso = float("nan")
+    print(f"  [WARN] no se pudo medir el techo irreducible: {_e}")
 _gp90_tr = pd.Series(np.expm1(y_train)).groupby(df_ml["weapon"].values[tr2_idx]).quantile(0.90)
 _thr = pd.Series(weapon_test).map(_gp90_tr).fillna(np.quantile(np.expm1(y_train), 0.90)).values
 _god_true = (real_test >= _thr).astype(int)
@@ -613,6 +693,10 @@ _hist_runs.append({
     "auc_godroll": round(float(auc_god), 3),
     "mape_trade": round(float(mape_trade), 1), "mape_global": round(float(mape), 1),
     "mape_mediano_arma": round(float(per["mape"].median()), 1),
+    "mape_piso": (round(float(mape_piso), 1) if np.isfinite(mape_piso) else None),
+    "mape_trade_inedito": (round(float(mape_inedito), 1) if np.isfinite(mape_inedito) else None),
+    "fuga_combos_pct": round(float(_visto_te.mean()) * 100, 1),
+    "venta_calibrada": _n_fiable, "venta_armas": len(VENTA_INFO),
     "cobertura": {f"p{int(a*100)}": round(float((y_test <= _qpred_test[a]).mean()) * 100, 1) for a in QUANTILES},
     "winsor_recortadas": _recortadas,
 })
@@ -623,6 +707,11 @@ if len(_hist_runs) >= 2:
           f"R2intra {_prev_run['r2_intra']:.3f}->{_cur_run['r2_intra']:.3f} | "
           f"MAPEtrade {_prev_run['mape_trade']:.0f}%->{_cur_run['mape_trade']:.0f}% | "
           f"filas +{_cur_run['filas'] - _prev_run['filas']}")
+    if _cur_run.get("mape_piso"):
+        _gap = _cur_run["mape_trade"] - _cur_run["mape_piso"]
+        print(f"  MARGEN vs techo irreducible: {_cur_run['mape_trade']:.0f}% actual - "
+              f"{_cur_run['mape_piso']:.0f}% suelo = {_gap:.0f} puntos de mejora POSIBLE. "
+              f"Por debajo del suelo solo hay ruido de vendedor.")
 print(f"  histórico de métricas: {_METRICS_LOG} ({len(_hist_runs)} runs)")
 
 
@@ -1063,7 +1152,9 @@ if os.environ.get("SLIM_EXPORT", "1") == "1":
     json.dump(_def, open(os.path.join(_OUT, "feature_defaults_slim.json"), "w"))
     json.dump({"drift": CAL_DRIFT, "synlo": CAL_SYNLO, "nsamp": CAL_NSAMP,
                "precision": (PRECISION_ARMA if "PRECISION_ARMA" in dir() else {}),
-               "quantiles": QUANTILES}, open(os.path.join(_OUT, "calibracion_por_arma.json"), "w"))
+               "quantiles": QUANTILES, "venta": VENTA_INFO,
+               "venta_min_pop": _CAL_MIN_POP},
+              open(os.path.join(_OUT, "calibracion_por_arma.json"), "w"))
     _pb, _grp = {}, df_ml.groupby("weapon")["price"]
     for _wp in df_ml["weapon"].unique():
         _s = _grp.get_group(_wp); _q = [int(round(_s.quantile(x / 10))) for x in range(1, 10)]

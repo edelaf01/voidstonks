@@ -1,5 +1,5 @@
 import { state } from "../state.js";
-import { RIVEN_STATS, RIVEN_BASE_STATS, WEAPON_TYPE_IDX, RIVEN_WEIGHTS, resolveBaseStatKey } from "../config.js";
+import { RIVEN_STATS, RIVEN_BASE_STATS, WEAPON_TYPE_IDX, RIVEN_WEIGHTS, resolveBaseStatKey, canBeNegative } from "../config.js";
 
 const RIVEN_NAMING_DICT = {
   "critical_chance": { prefix: "Crita", suffix: "cron" },
@@ -320,7 +320,7 @@ export const RivenOCRService = {
                 const matchedName = this._matchStatAnchored(name);
                 if (matchedName) {
                     let isPositive;
-                    if (/^(heat|cold|electric|toxin)$/i.test(matchedName)) {
+                    if (!canBeNegative(matchedName)) {
                         isPositive = true;
                     } else if (/^recoil$/i.test(matchedName)) {
                         // recoil is inverted: the card shows the buff with a minus and the curse with a plus
@@ -400,9 +400,10 @@ export const RivenOCRService = {
 
         if (!weaponName && stats.length === 0) return null;
 
+        // a real card never has 4 positives: art noise ate the curse "-", curse is always the last line
         if (stats.length === 4 && stats.every(s => s.isPositive)) {
             const last = stats[stats.length - 1];
-            if (!/^(heat|cold|electric|toxin)$/i.test(last.name)) last.isPositive = false;
+            if (canBeNegative(last.name)) last.isPositive = false;
         }
 
         const positives = stats.filter(s => s.isPositive);
