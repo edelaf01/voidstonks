@@ -1,5 +1,5 @@
 import { state } from "../state.js";
-import { RIVEN_STATS, RIVEN_BASE_STATS, WEAPON_TYPE_IDX, RIVEN_WEIGHTS, resolveBaseStatKey } from "../config.js";
+import { RIVEN_STATS, RIVEN_BASE_STATS, WEAPON_TYPE_IDX, RIVEN_WEIGHTS, resolveBaseStatKey, canBeNegative } from "../config.js";
 
 const RIVEN_NAMING_DICT = {
   "critical_chance": { prefix: "Crita", suffix: "cron" },
@@ -356,8 +356,9 @@ export const RivenOCRService = {
                     .trim();
                 const matchedName = this._matchStatAnchored(name);
                 if (matchedName) {
+                    // Stats the game never rolls as a curse (canBeNegative in config.js): a minus there is a misread.
                     let isPositive;
-                    if (/^(heat|cold|electric|toxin)$/i.test(matchedName)) {
+                    if (!canBeNegative(matchedName)) {
                         isPositive = true;
                     } else if (/^recoil$/i.test(matchedName)) {
                         // Recoil is inverted: the card shows the buff with a minus and the curse with a plus.
@@ -446,9 +447,11 @@ export const RivenOCRService = {
 
         if (!weaponName && stats.length === 0) return null;
 
+        // A real card never has 4 positives: art noise ate the curse "-", and the curse is always the
+        // last line, so the sign comes back there. If that stat cannot be a curse, the card is broken.
         if (stats.length === 4 && stats.every(s => s.isPositive)) {
             const last = stats[stats.length - 1];
-            if (!/^(heat|cold|electric|toxin)$/i.test(last.name)) last.isPositive = false;
+            if (canBeNegative(last.name)) last.isPositive = false;
         }
 
         // 2-3 positives, 0-1 negatives, 2-4 total
