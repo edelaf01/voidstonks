@@ -53,6 +53,15 @@ export async function loadRivenML() {
     if (_prior && typeof _prior === "object" && !state.rivenStatPrior) {
       state.rivenStatPrior = _prior;
     }
+    if (statWeights && typeof statWeights === "object" && !state.rivenStatWeights) {
+      state.rivenStatWeights = statWeights;
+      if (typeof globalThis.refreshCurrentRivenMetaStats === "function") {
+        try { globalThis.refreshCurrentRivenMetaStats(); } catch {}
+      }
+    }
+    if (cal && typeof cal.peso_magnitud === "number" && cal.peso_magnitud > 0) {
+      state.rivenPesoMagnitud = cal.peso_magnitud;
+    }
     return _ml;
   })();
   return _loading;

@@ -466,7 +466,10 @@ export function calculateAdvancedPredictivePrice(weapon, itemAttributes, tiers, 
   } else {
     penalizedPrice = Math.max(penalizedPrice, tiers.trash);
   }
-  const rawScore = Math.round(((finalMetaRatio * 0.55) + (avgRollQuality * 0.45)) * 100);
+  const _pesoMag = Math.min(0.35, Math.max(0.15,
+    (typeof state !== "undefined" && typeof state.rivenPesoMagnitud === "number")
+      ? state.rivenPesoMagnitud : 0.25));
+  const rawScore = Math.round(((finalMetaRatio * (1 - _pesoMag)) + (avgRollQuality * _pesoMag)) * 100);
   const adjustedScore = isBricked
     ? Math.min(20, Math.max(5, Math.round(rawScore * 0.10)))
     : Math.max(10, Math.min(100, Math.round(rawScore * desirabilityFactor)));
