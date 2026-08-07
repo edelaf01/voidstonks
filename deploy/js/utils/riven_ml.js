@@ -474,6 +474,10 @@ export async function predictRivenMLBand(weapon, itemAttributes, weaponData = nu
   }
   const deMed = deMedRaw;
   let deMax = (deRe.max_price || deRe.max || 0);
+  // capped godroll ceiling: median + 2σ of rerolled sales, max_price only bounds it from above. σ only
+  // counts with volume (one sale gives σ=0, which means "unknown").
+  // The 8x cap clips most weapons and is unresolved: raising it did not move the heuristic appraisal
+  // (calculateAdvancedPredictivePrice rules there). Measure this path alone before touching it.
   const deSd = (deRe.stddev > 0 && (deRe.pop || 0) >= 3) ? deRe.stddev : 0;
   const robustMax = deSd > 0 ? Math.max(deMed + 2 * deSd, deMed * 3) : 0;
   if (robustMax > deMed) deMax = deMax > deMed ? Math.min(deMax, robustMax) : robustMax;
