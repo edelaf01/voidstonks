@@ -568,6 +568,15 @@ export async function predictRivenMLBand(weapon, itemAttributes, weaponData = nu
   // sin dispersión" sino "no sabemos". Sin ese guard el techo colapsaba a la mediana y la banda
   // entera se aplanaba a un punto (Amphis: godroll y trash daban los dos 135pl). Suelo de 3× para
   // que el godroll siempre tenga recorrido sobre el típico.
+  // MEDIDO Y SIN RESOLVER (2026-08-07): este cap de 8x recorta al 91% de las armas. El techo real
+  // sobre 136 armas con ventas fiables es p25=17x, mediana=33x, p75=61x la mediana — y NO es ruido
+  // de outlier: las armas con pop>=20 dan 45x, o sea que con más datos sube. Tampoco se puede
+  // estimar con sigma (sd/med=2.7, cola derecha 34x la izquierda: med+2σ da 6.4x y comprime igual).
+  // Contexto: la mediana de DE cae en el percentil 3 del recorrido [min,max] porque casi todo lo que
+  // se vende es trash, así que NO es "el precio típico" sino casi el suelo.
+  // Se probó a subir el cap y no movió la tasación heurística (godroll 332p -> 332p en 136 armas):
+  // ahí manda calculateAdvancedPredictivePrice, no esta banda. Antes de tocarlo hay que poder medir
+  // esta ruta de forma aislada; subirlo a ciegas cambia precios de producción sin evidencia.
   const deSd = (deRe.stddev > 0 && (deRe.pop || 0) >= 3) ? deRe.stddev : 0;
   const robustMax = deSd > 0 ? Math.max(deMed + 2 * deSd, deMed * 3) : 0;
   if (robustMax > deMed) deMax = deMax > deMed ? Math.min(deMax, robustMax) : robustMax;

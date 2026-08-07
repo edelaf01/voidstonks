@@ -1,6 +1,6 @@
 import { state } from "../state.js";
 import { RIVEN_STATS, TEXTS, WORKER_URL, canBeNegative } from "../config.js";
-import { RIVEN_API_BASE, fetchWeaponHistory, fetchCurrentRivens, extractFamilyName } from "../repositories/riven.repository.js";
+import { RIVEN_API_BASE, fetchWeaponHistory, fetchCurrentRivens, extractFamilyName, VARIANT_PREFIXES, VARIANT_SUFFIXES } from "../repositories/riven.repository.js";
 import {
   calculateRivenGrade,
   getRivenStatRange,
@@ -24,6 +24,12 @@ import { escapeHTML, showToast } from "./ui_components.js";
 globalThis.DEFAULT_WEAPON_SVG = DEFAULT_WEAPON_SVG;
 const DEFAULT_WEAPON_DATA_URL = "data:image/svg+xml;utf8," + encodeURIComponent(DEFAULT_WEAPON_SVG);
 globalThis.DEFAULT_WEAPON_DATA_URL = DEFAULT_WEAPON_DATA_URL;
+
+// Declarado arriba a propósito: _hitosDataset() lo lee al construir el gráfico, y ese render puede
+// dispararse durante la evaluación del módulo (ui.js llama a updateUILabels a nivel de módulo). Con
+// la declaración abajo caía en la zona muerta temporal y el ReferenceError dejaba el gráfico sin
+// pintar, así que los botones de rango parecían no hacer nada.
+let _curioCache = null;   // { globales:[], eventos:[] }
 
 let rivenDebounceTimer;
 let gradeDebounceTimer;
@@ -55,8 +61,8 @@ function getRivenTooltip(key, isEs) {
       en: "Real Digital Extremes data: the highest price actually paid for a riven of this weapon. It is the ceiling for a perfect godroll, not a price you can expect for an average roll."
     },
     wfm: {
-      es: "Media de lo que los vendedores PIDEN en Warframe.Market. No es lo que se paga: medido sobre el catálogo, los precios pedidos están en la mediana unas 13 veces por encima de las ventas reales de DE. Úsalo para ver la competencia, nunca para fijar tu precio.",
-      en: "Average of what sellers ASK on Warframe.Market. It is not what gets paid: measured across the catalogue, asking prices sit around 13 times above DE real sales at the median. Use it to size up the competition, never to set your price."
+      es: "Media de lo que los vendedores PIDEN en Warframe.Market. No es lo que se paga: los precios pedidos están un orden de magnitud por encima de las ventas reales que publica Digital Extremes. Úsalo para ver la competencia, nunca para fijar tu precio.",
+      en: "Average of what sellers ASK on Warframe.Market. It is not what gets paid: asking prices run an order of magnitude above the real sales Digital Extremes publishes. Use it to size up the competition, never to set your price."
     },
     potential: {
       es: "Cuánto margen de revalorización tiene este riven: cruza el hueco con los precios pedidos, el premium por ciclar y el techo de godroll del arma.",
@@ -102,6 +108,98 @@ const RANGED_ONLY_STATS = new Set([
   "multishot", "punch through", "recoil", "weapon recoil", "magazine capacity",
   "ammo maximum", "reload speed", "projectile speed", "projectile flight speed", "zoom",
 ]);
+
+/**
+ * Pesos de stats resolviendo la FAMILIA cuando el arma concreta no los trae.
+ *
+ * Un riven de Warframe pertenece a la familia, no a la variante: el mismo mod entra en Obex y en
+ * Prisma Obex, así que comparten el pool de stats y su valor relativo. Pero los metastats se
+ * indexan por nombre exacto, y hay 21 armas sin `dynamic_weights` propios — al mostrar una de ellas
+ * salía el aviso "· estimado" mientras su hermana sí se graduaba con datos, para el MISMO riven.
+ *
+ * @returns {object} el propio meta, o una copia con los dynamic_weights de la familia.
+ */
+function metaConPesosDeFamilia(meta, weaponName) {
+  if (!meta) return meta;
+
+  const familia = extractFamilyName(String(weaponName || meta.name || ""));
+  if (!familia) return meta;
+  const tabla = globalThis.dynamicMetaStats || {};
+  const fl = familia.toLowerCase();
+  const clave = Object.keys(tabla).find(k => k.toLowerCase() === fl);
+  const fam = clave ? tabla[clave] : null;
+  if (!fam) return meta;
+
+  // Un riven de Warframe sirve para TODA la familia (el mismo mod entra en Obex y en Prisma Obex),
+  // así que la guía de atributos tiene que ser idéntica entre variantes. El endpoint las indexa por
+  // nombre exacto y devuelve listas curadas DISTINTAS por variante: en Obex, -Combo Duration salía
+  // como "peor negativa" y en Prisma Obex como "inocua BEST", para el mismo mod. Se toman del arma
+  // base las listas y los pesos, y NADA más: disposición, precios y liquidez sí son de cada variante.
+  const salida = { ...meta };
+  for (const campo of ["dynamic_weights", "pos", "midPos", "neg", "midNeg", "pos_tier"]) {
+    const propio = meta[campo];
+    const vacio = !propio || (Array.isArray(propio) ? !propio.length : !Object.keys(propio).length);
+    const deFam = fam[campo];
+    const famTiene = deFam && (Array.isArray(deFam) ? deFam.length : Object.keys(deFam).length);
+    if (famTiene && (vacio || clave.toLowerCase() !== String(weaponName || "").toLowerCase())) {
+      salida[campo] = deFam;
+    }
+  }
+  return salida;
+}
+
+/**
+ * Pesos FINOS por stat del bundle de ML (`stat_weights.json`), aplanando los tiers S/A/B/F.
+ *
+ * Sirven para ordenar DENTRO de un tier, que es lo que `dynamic_weights` no permite: allí los mejores
+ * stats saturan a 1.00 (Torid da CD/CC/Multishot los tres a 1.00) mientras que aquí se ve que
+ * Multishot 0.998 manda sobre CD 0.756 y CC 0.754. Busca por nombre exacto y luego por familia.
+ */
+function pesosFinosDeArma(weaponName, tipo = "pos") {
+  const tabla = state.rivenStatWeights;
+  if (!tabla || typeof tabla !== "object") return null;
+  // Prisma Obex no está en stat_weights.json pero Obex sí: el riven es el mismo, así que la familia
+  // resuelve el hueco igual que en metaConPesosDeFamilia.
+  const candidatos = [String(weaponName || ""), extractFamilyName(String(weaponName || ""))];
+  for (const nombre of candidatos) {
+    if (!nombre) continue;
+    const nl = nombre.toLowerCase();
+    const clave = Object.keys(tabla).find(k => k.toLowerCase() === nl);
+    // En `neg` un peso ALTO significa maldición inocua (Obex: Puncture 1.000 > Impact 0.947), así que
+    // el mismo criterio de "más alto = mejor" vale para los dos grupos.
+    const grupo = clave && tabla[clave] && tabla[clave][tipo];
+    if (!grupo || typeof grupo !== "object") continue;
+    const plano = {};
+    for (const tier of Object.values(grupo)) {
+      if (tier && typeof tier === "object") Object.assign(plano, tier);
+    }
+    if (Object.keys(plano).length) return plano;
+  }
+  return null;
+}
+
+/**
+ * Stats de un arma cuyo peso NO sale de sus propias subastas, sino del prior global.
+ *
+ * `ML_local` los marca en `baja_confianza`: son stats que nunca aparecieron en un listado de esa
+ * arma, así que su peso es una suposición razonable, no evidencia. Sirven para TASAR (si tu riven
+ * lleva ese stat hay que ponerle precio igual), pero recomendarlos en la guía sería inventar: le
+ * estarías diciendo al usuario "busca este stat" sin que nadie lo haya vendido nunca en esa arma.
+ * Mediana del catálogo: 12% de los stats por arma.
+ */
+function statsSinDatoPropio(weaponName) {
+  const tabla = state.rivenStatWeights;
+  if (!tabla || typeof tabla !== "object") return new Set();
+  const candidatos = [String(weaponName || ""), extractFamilyName(String(weaponName || ""))];
+  for (const nombre of candidatos) {
+    if (!nombre) continue;
+    const nl = nombre.toLowerCase();
+    const clave = Object.keys(tabla).find(k => k.toLowerCase() === nl);
+    const lista = clave && tabla[clave] && tabla[clave].baja_confianza;
+    if (Array.isArray(lista)) return new Set(lista.map(s => String(s).toLowerCase()));
+  }
+  return new Set();
+}
 
 function isStatAllowedForWeaponType(statName, weaponType) {
   const n = (statName || "").toLowerCase().trim();
@@ -749,7 +847,8 @@ export function renderHistoryWithRange() {
           borderWidth: 1,
           yAxisID: "yVolume",
           barPercentage: 0.4
-        }
+        },
+        _hitosDataset(weaponName, labels, wfmPrices, isEs)
       ]
     },
     options: {
@@ -1023,6 +1122,32 @@ function getDispositionData(details, basic) {
     circlesHtml += `<div class="dispo-circle ${i <= circles ? "filled" : ""}"></div>`;
   }
   return { value: dispoValue, circles, circlesHtml };
+}
+
+// Marca sobre la línea de WFM los días en que se detectó un movimiento (curiosidades.json). Se
+// dibuja como scatter y no como anotación porque así no hace falta el plugin chartjs-annotation:
+// un dataset más y Chart.js ya lo posiciona contra los mismos ejes.
+function _hitosDataset(weaponName, labels, wfmPrices, isEs) {
+  const puntos = new Array(labels.length).fill(null);
+  for (const e of _curioEventosDe(weaponName)) {
+    const i = labels.indexOf(e.fecha);
+    if (i >= 0) puntos[i] = wfmPrices[i];
+  }
+  return {
+    type: "line",
+    label: isEs ? "Movimientos" : "Movements",
+    data: puntos,
+    pointStyle: "triangle",
+    pointRadius: 7,
+    pointHoverRadius: 10,
+    borderColor: "#eab308",
+    backgroundColor: "rgba(234, 179, 8, 0.85)",
+    borderWidth: 1,
+    showLine: false,
+    spanGaps: false,
+    fill: false,
+    yAxisID: "yLeft",
+  };
 }
 
 function getWeaponImagePath(weaponName, details) {
@@ -1860,25 +1985,10 @@ export function getNakedName(name) {
   if (s === "dual decurions" || s === "prisma dual decurions") s = "dual decurion";
   if (s === "pangolin sword") s = "pangolin";
 
-  const prefixes = [
-    "kuva ",
-    "tenet ",
-    "coda ",
-    "carmine ",
-    "rakta ",
-    "synoid ",
-    "sancti ",
-    "vaykor ",
-    "telos ",
-    "secura ",
-    "mk1 ",
-    "mk1-",
-    "prisma ",
-    "mara ",
-    "dex ",
-    "prime ",
-  ];
-  const suffixes = [" prime", " vandal", " wraith", " prisma", " coda"];
+  // Misma fuente que extractFamilyName: duplicar la lista fue lo que dejó a Ceti Lacera suelta en
+  // el buscador tras arreglar la familia. "prime " va aparte porque aquí también actúa de prefijo.
+  const prefixes = [...VARIANT_PREFIXES.map(p => p.toLowerCase()), "prime "];
+  const suffixes = VARIANT_SUFFIXES.map(x => x.toLowerCase());
 
   for (const pre of prefixes) {
     if (s.startsWith(pre)) {
@@ -2494,7 +2604,8 @@ export function computeDesirabilityMultiplier(stats, meta, weaponData) {
   // stats que el arma no tiene medidos. Antes esta función solo miraba `meta.pos`/`meta.midPos`, que
   // dependía de que el panel los hubiese rellenado antes (acoplamiento por orden de render), y si no
   // caía en las listas universales de abajo.
-  const _grado = gradeWeaponStats(meta || {}, state.rivenStatBaseline?.stat_weights ?? state.rivenStatPrior ?? null);
+  const _grado = gradeWeaponStats(metaConPesosDeFamilia(meta || {}, meta?.name || weaponData?.name),
+    state.rivenStatBaseline?.stat_weights ?? state.rivenStatPrior ?? null);
   const _gBest = _grado && _grado.best.length ? _grado.best : null;
   const _gMid = _grado && _grado.best.length ? _grado.mid : null;
 
@@ -3891,11 +4002,17 @@ function renderMetaStats(weaponName, weaponType, targetId = "meta-stats-containe
   const container = document.getElementById(targetId);
   if (!container) return;
 
-  const meta = getMetaStats(weaponName, weaponType);
-  if (!meta) {
+  const metaRaw = getMetaStats(weaponName, weaponType);
+  if (!metaRaw) {
     container.style.display = "none";
     return;
   }
+  // La guía se construye sobre la FAMILIA: el riven es el mismo para todas las variantes, así que
+  // Obex y Prisma Obex deben mostrar exactamente los mismos stats buenos y malos. Se sigue mutando
+  // `meta` más abajo (pos/midPos/_genericRecs), pero ahora sobre la copia normalizada, no sobre el
+  // objeto cacheado de la variante — así una variante no contamina la guía de su hermana.
+  const meta = metaConPesosDeFamilia(metaRaw, weaponName);
+  renderCuriosidadesArma(weaponName);   // se autooculta si esta arma no tuvo movimientos
 
   // Generic fallback for weapons with no curated riven recommendations (e.g. kitguns, whose
   // pos/neg arrays come empty from the metastats source). Without this the guide renders blank.
@@ -3920,12 +4037,16 @@ function renderMetaStats(weaponName, weaponType, targetId = "meta-stats-containe
   // propios para 608. Y la diferencia es real: en Bo, Critical Chance es 0.48 (medio, no top); en
   // Kuva Bramma, Toxin Damage llega a 1.00. Los cortes y el guard de pesos saturados los pone
   // gradeWeaponStats, compartido con la tasación para que el panel no contradiga al precio.
-  const _grado = gradeWeaponStats(meta, state.rivenStatBaseline?.stat_weights ?? state.rivenStatPrior ?? null);
+  const _grado = gradeWeaponStats(meta,
+    state.rivenStatBaseline?.stat_weights ?? state.rivenStatPrior ?? null);
   if (_grado && _grado.best.length) {
     meta.pos = _grado.best;
     meta.midPos = _grado.mid;
-    // "estimado" solo si ni siquiera hay pesos del arma y se tiró del prior global.
-    if (_grado.fuente !== "arma") meta._genericRecs = true;
+    // Se ASIGNA, no se acumula: `meta` es el objeto cacheado de metastats y se muta en cada render.
+    // El primer render ocurre antes de que cargue el bundle de ML, así que cae en la rama genérica y
+    // deja _genericRecs = true; sin reasignarlo aquí, el aviso "· estimado" se quedaba pegado para
+    // siempre aunque el repintado posterior ya graduara con los pesos reales del arma.
+    meta._genericRecs = _grado.fuente !== "arma";
   } else if (!(meta.pos && meta.pos.length) && !(meta.midPos && meta.midPos.length)) {
     meta.pos = _isMeleeType
       ? ["Critical Damage", "Critical Chance", "Fire Rate / Attack Speed",
@@ -3952,7 +4073,14 @@ function renderMetaStats(weaponName, weaponType, targetId = "meta-stats-containe
   // genéricos ("estimado"). Cuando los metastats terminan de cargar, refreshCurrentRivenMetaStats()
   // repinta con el mismo arma/tipo/idioma; con la clave antigua eso daba la MISMA cacheKey y salía
   // por el return, dejando los estimados hasta un refresco completo de la página.
-  const cacheKey = `${weaponName}_${weaponType}_${state.currentLang}_${meta._genericRecs ? "gen" : "real"}`;
+  // La clave incluye si los pesos FINOS del bundle ya están cargados: son los que desempatan dentro
+  // de BEST/inocuas para marcar los TOP. loadRivenML() es asíncrono, así que el primer render no los
+  // tiene y sin este trozo de clave el repintado posterior salía por el return y nunca se marcaba nada.
+  const _finos = state.rivenStatWeights ? "f" : "nf";
+  // La clave va por FAMILIA, no por variante: la guía es idéntica para Obex y Prisma Obex (mismo
+  // riven), así que alternar entre ellas repintaba un contenido igual y eso era el parpadeo.
+  const _fam = extractFamilyName(String(weaponName || "")) || weaponName;
+  const cacheKey = `${_fam}_${weaponType}_${state.currentLang}_${meta._genericRecs ? "gen" : "real"}_${_finos}`;
   if (container.dataset.lastRenderedKey === cacheKey) return;
 
   const isEs = state.currentLang === "es";
@@ -3966,10 +4094,50 @@ function renderMetaStats(weaponName, weaponType, targetId = "meta-stats-containe
 
   // Build beautiful positive and negative guides (best, mid & worst)
   // Filtramos stats que no aplican al tipo de arma (p. ej. Heavy Attack Efficiency en no-melee)
-  const allow = (s) => isStatAllowedForWeaponType(s, weaponType);
+  // `allow` filtra por tipo de arma (un melee no rola Multishot) Y por evidencia: los stats cuyo peso
+  // viene del prior en vez de las subastas del arma no se RECOMIENDAN, aunque sí se siguen usando
+  // para tasar. Guarda: si ocultarlos dejaría la lista de BEST vacía (12 de 415 armas) se muestran
+  // igual, porque una guía en blanco es peor que una basada en el prior.
+  const _sinDato = statsSinDatoPropio(weaponName);
+  const _tipoOk = (s) => isStatAllowedForWeaponType(s, weaponType);
+  const _bestConDato = (meta.pos || []).filter(s => _tipoOk(s) && !_sinDato.has(String(s).toLowerCase()));
+  const _ocultarSinDato = _bestConDato.length > 0;
+  const allow = (s) => _tipoOk(s)
+    && !(_ocultarSinDato && _sinDato.has(String(s).toLowerCase()));
+
+  // DENTRO de BEST hay jerarquía: en la mayoría de armas 1 o 2 stats son los realmente decisivos y el
+  // resto acompañan. Se marcan con "TOP" los que están a >=95% del peso máximo del arma, con tope de
+  // 2 para que el énfasis siga significando algo (si 4 salieran marcados, no destaca ninguno).
+  // Cuando los pesos empatan (armas de poco volumen saturan a 1.00) no se marca nada: no hay
+  // jerarquía real que mostrar y marcar todo equivaldría a no marcar.
+  // Los finos primero: dynamic_weights empata los mejores a 1.00 y no dejaría marcar ninguno.
+  // NO se vuelve a encoger hacia el prior aquí: ML_local._mezclar ya lo hace al exportar, con
+  // shrinkage bayesiano por tamaño de muestra (K_PRIOR=8: b = (n·local + 8·global)/(n+8)). Repetirlo
+  // en el front sería aplicar el prior dos veces y aplanar de más las armas con datos propios buenos.
+  const _pesosPos = pesosFinosDeArma(weaponName, "pos") || meta.dynamic_weights || {};
+  const _pesosNeg = pesosFinosDeArma(weaponName, "neg") || {};
+  const _destacar = (lista, pesos) => {
+    const conPeso = (lista || []).filter(allow)
+      .map(s => [s, parseFloat(pesos[s])])
+      .filter(([, v]) => Number.isFinite(v))
+      .sort((a, b) => b[1] - a[1]);
+    if (conPeso.length < 2) return new Set();
+    const max = conPeso[0][1];
+    const cerca = conPeso.filter(([, v]) => v >= max * 0.95);
+    if (cerca.length > 2 || cerca.length === conPeso.length) return new Set();
+    return new Set(cerca.map(([s]) => s));
+  };
+  const _mejores = _destacar(meta.pos, _pesosPos);
+  const _tipTop = isEs
+    ? "El stat con más peso de esta arma: es el que decide el precio, más que los otros del grupo."
+    : "This weapon's highest-weighted stat: it drives the price more than the others in the group.";
+  const _tipTopNeg = isEs
+    ? "La maldición menos dañina de esta arma: es la que menos resta al precio de todo el grupo."
+    : "This weapon's least harmful curse: it costs less value than any other in the group.";
+
   const bestPosHtml = (meta.pos || []).filter(allow).map(s => `
-    <span style="background: rgba(0, 255, 120, 0.15); border: 1px solid rgba(0, 255, 120, 0.45); color: #00ff78; text-shadow: 0 0 6px rgba(0, 255, 120, 0.5); box-shadow: 0 0 8px rgba(0, 255, 120, 0.15); padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 4px; display: inline-block; margin-bottom: 4px; font-weight: bold;">
-      <span style="font-size: 9px; background: #00ff78; color: #000; padding: 1px 4px; border-radius: 3px; margin-right: 5px; font-weight: 900; text-transform: uppercase;">BEST</span>+ ${getLocalizedStatName(s)}
+    <span ${_mejores.has(s) ? `data-tooltip="${_tipTop}" style="cursor:help; ` : "style=\""}background: rgba(0, 255, 120, ${_mejores.has(s) ? "0.28" : "0.15"}); border: 1px solid rgba(0, 255, 120, ${_mejores.has(s) ? "0.85" : "0.45"}); color: #00ff78; text-shadow: 0 0 6px rgba(0, 255, 120, 0.5); box-shadow: 0 0 ${_mejores.has(s) ? "12px rgba(0,255,120,0.4)" : "8px rgba(0, 255, 120, 0.15)"}; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 4px; display: inline-block; margin-bottom: 4px; font-weight: bold;">
+      <span style="font-size: 9px; background: #00ff78; color: #000; padding: 1px 4px; border-radius: 3px; margin-right: 5px; font-weight: 900; text-transform: uppercase;">${_mejores.has(s) ? "TOP" : "BEST"}</span>+ ${getLocalizedStatName(s)}
     </span>
   `).join("");
 
@@ -4020,10 +4188,18 @@ function renderMetaStats(weaponName, weaponType, targetId = "meta-stats-containe
     .filter(allow)
     .filter(s => !_wantedSet.has(String(s).toLowerCase()) && !CANT_BE_NEGATIVE.test(s));
   const harmlessSet = new Set(harmlessAll.map(x => String(x).toLowerCase()));
+  // Mismo criterio que en los positivos: la maldición MENOS dañina del arma se marca TOP. En `neg` el
+  // peso alto es "inocua", así que sigue siendo "más alto = mejor" (Obex: Puncture 1.000 > Impact 0.947).
+  const _mejoresNeg = _destacar(harmlessAll, _pesosNeg);
   const bestNegHtml = harmlessAll.map(s => {
+    const isTop = _mejoresNeg.has(s);
     const isCurated = _curatedNeg.has(String(s).toLowerCase());
-    const badge = isCurated ? `<span style="font-size: 9px; background: #00e5ff; color: #000; padding: 1px 4px; border-radius: 3px; margin-right: 5px; font-weight: 900; text-transform: uppercase;">BEST</span>` : "";
-    return `<span style="background: rgba(0, 229, 255, ${isCurated ? "0.15" : "0.07"}); border: 1px solid rgba(0, 229, 255, ${isCurated ? "0.45" : "0.22"}); color: #00e5ff; ${isCurated ? "text-shadow: 0 0 6px rgba(0,229,255,0.5); box-shadow: 0 0 8px rgba(0,229,255,0.15); font-weight: bold;" : "font-weight: 500;"} padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 4px; display: inline-block; margin-bottom: 4px;">${badge}- ${getLocalizedStatName(s)}</span>`;
+    const fuerte = isTop || isCurated;
+    const badge = fuerte
+      ? `<span style="font-size: 9px; background: #00e5ff; color: #000; padding: 1px 4px; border-radius: 3px; margin-right: 5px; font-weight: 900; text-transform: uppercase;">${isTop ? "TOP" : "BEST"}</span>`
+      : "";
+    const tip = isTop ? ` data-tooltip="${_tipTopNeg}"` : "";
+    return `<span${tip} style="${isTop ? "cursor:help; " : ""}background: rgba(0, 229, 255, ${isTop ? "0.28" : isCurated ? "0.15" : "0.07"}); border: 1px solid rgba(0, 229, 255, ${isTop ? "0.85" : isCurated ? "0.45" : "0.22"}); color: #00e5ff; ${fuerte ? `text-shadow: 0 0 6px rgba(0,229,255,0.5); box-shadow: 0 0 ${isTop ? "12px rgba(0,229,255,0.4)" : "8px rgba(0,229,255,0.15)"}; font-weight: bold;` : "font-weight: 500;"} padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 4px; display: inline-block; margin-bottom: 4px;">${badge}- ${getLocalizedStatName(s)}</span>`;
   }).join("");
 
   // MID negativas = las del endpoint + las de FACCIÓN. Van a MID y no a "inocuas" porque su ratio
@@ -4152,13 +4328,13 @@ function renderMetaStats(weaponName, weaponType, targetId = "meta-stats-containe
       const valStyle = kind === "ask"
         ? "color:#8fa3bf; font-weight:600; font-style:italic; white-space:nowrap;"
         : "color:var(--wf-gold-text); font-weight:700; white-space:nowrap;";
-      return `<div style="display:flex; justify-content:space-between; align-items:center; gap:8px; padding:2px 0; ${tip ? "cursor:help;" : ""}" ${tip ? `data-tooltip="${tip}"` : ""}>
+      return `<div style="display:flex; justify-content:space-between; align-items:center; gap:10px; padding:3px 0; ${tip ? "cursor:help;" : ""}" ${tip ? `data-tooltip="${tip}"` : ""}>
          <span style="color:#8a8a93;">${label} ${tip ? info : ""}</span>
          <span style="${valStyle}">${value}</span>
        </div>`;
     };
     const groupHeader = (txt) =>
-      `<div style="font-size:9px; color:#6b7280; text-transform:uppercase; font-weight:800; letter-spacing:0.06em; margin:8px 0 2px;">${txt}</div>`;
+      `<div style="font-size:10.5px; color:#8b93a1; text-transform:uppercase; font-weight:800; letter-spacing:0.06em; margin:10px 0 4px;">${txt}</div>`;
 
     // Los nombres dicen de dónde sale cada número, porque mezclarlos es el error caro: official_median
     // es la mediana de rivens SIN CICLAR (verificado: coincide con de_unrolled.median en 608/608
@@ -4179,7 +4355,7 @@ function renderMetaStats(weaponName, weaponType, targetId = "meta-stats-containe
       row(isEs ? "Volatilidad" : "Volatility", `<span style="color:${volColor}">${volWord}</span>`, volTooltip);
 
     extraHtml = `
-      <div style="margin-top:8px; padding-top:8px; border-top:1px dashed rgba(255,255,255,0.1); font-size:11px;">
+      <div style="margin-top:8px; padding-top:8px; border-top:1px dashed rgba(255,255,255,0.1); font-size:12.5px; line-height:1.5;">
         ${groupHeader(isEs ? "PRECIOS DEL ARMA (plat)" : "WEAPON PRICES (plat)")}
         ${priceRows}
         ${groupHeader(isEs ? "¿SE VENDE FÁCIL?" : "DOES IT SELL?")}
@@ -4241,11 +4417,10 @@ function renderMetaStats(weaponName, weaponType, targetId = "meta-stats-containe
             ` : ""}
             
             ${worstPosHtml ? `
-              <div style="font-size: 9px; color: #94a3b8; font-weight: 700; text-transform: uppercase; margin-top: 6px; margin-bottom: 4px; display: flex; align-items: center; gap: 4px;">
-                <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #94a3b8;"></span>
-                ${isEs ? "POSITIVOS MEH (REGULARES)" : "MEH POSITIVES"}
-              </div>
-              <div>${worstPosHtml}</div>
+              <details class="guia-plegable">
+                <summary><span class="guia-punto" style="background:#94a3b8;"></span>${isEs ? "POSITIVOS MEH (REGULARES)" : "MEH POSITIVES"}<span class="guia-n">${(meta.pos_meh_n || 0) || ""}</span></summary>
+                <div>${worstPosHtml}</div>
+              </details>
             ` : ""}
           </div>
           
@@ -4258,11 +4433,10 @@ function renderMetaStats(weaponName, weaponType, targetId = "meta-stats-containe
             <div>${bestNegHtml}</div>
 
             ${midNegHtml ? `
-              <div style="font-size: 9px; color: #eab308; font-weight: 700; text-transform: uppercase; margin-top: 6px; margin-bottom: 4px; display: flex; align-items: center; gap: 4px;">
-                <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #eab308;"></span>
-                ${isEs ? "NEGATIVOS MEDIOS" : "MID NEGATIVES"}
-              </div>
-              <div>${midNegHtml}</div>
+              <details class="guia-plegable">
+                <summary><span class="guia-punto" style="background:#eab308;"></span>${isEs ? "NEGATIVOS MEDIOS" : "MID NEGATIVES"}</summary>
+                <div>${midNegHtml}</div>
+              </details>
             ` : ""}
             
             ${worstNegHtml ? `
@@ -4281,6 +4455,262 @@ function renderMetaStats(weaponName, weaponType, targetId = "meta-stats-containe
   }
   container.style.display = "block";
   container.dataset.lastRenderedKey = cacheKey;
+}
+
+// ---- Carrusel de curiosidades de mercado -------------------------------------------------
+// Datos que genera curiosidades_gen.py a diario. Dos usos: el carrusel GLOBAL del índice (mezcla
+// datos de todo el mercado con movimientos concretos) y uno POR ARMA en su ficha, que solo aparece
+// si esa arma tuvo algún movimiento.
+let _curioIdx = 0;
+let _curioTimer = null;
+
+// Chip + color por tipo. El color es la señal rápida: verde sube de verdad, rojo cae, ámbar humo.
+const CURIO_TIPOS = {
+  especulacion: { es: "Solo humo", en: "Just hype", clase: "curio-t-humo" },
+  subida_venta: { es: "Se revaloriza", en: "Gaining value", clase: "curio-t-sube" },
+  bajada_venta: { es: "Pierde valor", en: "Losing value", clase: "curio-t-baja" },
+  desplome_ask: { es: "Burbuja pinchada", en: "Bubble popped", clase: "curio-t-pincha" },
+  convergencia: { es: "Se paga más", en: "Paying more", clase: "curio-t-sube" },
+  global_brecha: { es: "Dato del mercado", en: "Market fact", clase: "curio-t-global" },
+  global_tendencia: { es: "Esta semana", en: "This week", clase: "curio-t-global" },
+  global_actividad: { es: "Ahora mismo", en: "Right now", clase: "curio-t-global" },
+  global_saturada: { es: "Más competencia", en: "Most crowded", clase: "curio-t-global" },
+};
+
+// curiosidades.json guarda el arma en minúsculas (viene del CSV); para mostrarla se busca la grafía
+// real del catálogo, que es la que el usuario reconoce ("Riot-848", no "riot-848").
+// Lee de la caché ya cargada: el gráfico se pinta al vuelo y no debe esperar a un fetch.
+function _curioEventosDe(weaponName) {
+  if (!_curioCache || !Array.isArray(_curioCache.eventos)) return [];
+  const nl = String(weaponName || "").toLowerCase();
+  const fam = extractFamilyName(String(weaponName || "")).toLowerCase();
+  return _curioCache.eventos.filter(e => {
+    const a = String(e.arma || "").toLowerCase();
+    return a === nl || a === fam;
+  });
+}
+
+function _curioNombre(bruto) {
+  const n = String(bruto || "");
+  const k = state.weaponMap
+    ? Object.keys(state.weaponMap).find(x => x.toLowerCase() === n.toLowerCase()) : null;
+  return k || n;
+}
+
+function _curioFrase(e, isEs) {
+  const arma = `<span class="curio-arma">${escapeHTML(_curioNombre(e.arma))}</span>`;
+  const num = (v) => `${v > 0 ? "+" : ""}${v}%`;
+  const pinta = (v) => `<span class="${v > 0 ? "curio-sube" : "curio-baja"}">${num(v)}</span>`;
+  switch (e.tipo) {
+    case "global_brecha":
+      // Se dice "rolados" y "estimado" a propósito: la venta de rolados no se observa directamente
+      // (DE solo publica la de sin rolar), se deduce del premium por ciclar. Sin ese matiz la frase
+      // afirmaría un dato medido que no lo es.
+      return isEs
+        ? `Por un riven ya rolado se PIDEN ${e.ask}p de media y se PAGAN unos ${e.venta}p: <b>${e.valor}× de diferencia</b>. Fíjate en lo que se vende, no en el escaparate.`
+        : `For an already-rolled riven sellers ASK ${e.ask}p on average while buyers PAY around ${e.venta}p: <b>a ${e.valor}× gap</b>. Watch what sells, not the shop window.`;
+    case "global_tendencia":
+      return isEs
+        ? `El mercado de rivens se movió ${pinta(e.valor)} esta semana (mediana ${e.de}p → ${e.a}p).`
+        : `The riven market moved ${pinta(e.valor)} this week (median ${e.de}p → ${e.a}p).`;
+    case "global_actividad":
+      return isEs
+        ? `Hoy hay <b>${e.valor}</b> de ${e.total} armas con mercado activo. El resto tardarán en venderse.`
+        : `<b>${e.valor}</b> of ${e.total} weapons have an active market today. The rest will be slow to sell.`;
+    case "global_saturada":
+      return isEs
+        ? `${arma} es donde más competencia tienes ahora: <b>${e.valor} ofertas</b> vivas a la vez.`
+        : `${arma} is the most crowded right now: <b>${e.valor} live listings</b> at once.`;
+    case "especulacion":
+      return isEs
+        ? `Los vendedores de ${arma} subieron lo que piden ${pinta(e.ask_pct)} (${e.ask_de}p → ${e.ask_a}p) y las ventas reales no se movieron. <span class="curio-quieto">Piden más, pero nadie paga más.</span>`
+        : `${arma} sellers raised asks ${pinta(e.ask_pct)} (${e.ask_de}p → ${e.ask_a}p) while real sales stood still. <span class="curio-quieto">They ask more, nobody pays more.</span>`;
+    case "subida_venta":
+      return isEs
+        ? `${arma} se está pagando ${pinta(e.venta_pct)} más que hace una semana (${e.venta_de}p → ${e.venta_a}p en ventas reales).`
+        : `${arma} is selling ${pinta(e.venta_pct)} higher than a week ago (${e.venta_de}p → ${e.venta_a}p in real sales).`;
+    case "bajada_venta":
+      return isEs
+        ? `${arma} se paga ${pinta(e.venta_pct)} respecto a la semana pasada (${e.venta_de}p → ${e.venta_a}p). Si lo tienes, no esperes.`
+        : `${arma} is selling ${pinta(e.venta_pct)} versus last week (${e.venta_de}p → ${e.venta_a}p). If you hold one, do not wait.`;
+    case "desplome_ask":
+      return isEs
+        ? `Lo que piden por ${arma} cayó ${pinta(e.ask_pct)} (${e.ask_de}p → ${e.ask_a}p): los precios de escaparate se están ajustando.`
+        : `Asking prices for ${arma} fell ${pinta(e.ask_pct)} (${e.ask_de}p → ${e.ask_a}p): shop-window prices are correcting.`;
+    case "convergencia":
+      return isEs
+        ? `En ${arma} sube lo que se PAGA (${pinta(e.venta_pct)}) sin que suba lo que se pide: la brecha se cierra.`
+        : `On ${arma} what people PAY is rising (${pinta(e.venta_pct)}) while asks hold: the gap is closing.`;
+    default:
+      return arma;
+  }
+}
+
+// El movimiento se mide sobre una ventana de 7 días, así que se muestra el TRAMO. Fingir un día
+// exacto sería más limpio visualmente y menos cierto.
+function _curioTramo(e, isEs) {
+  if (!e.fecha) return "";
+  const mes = (iso) => {
+    const [, m, d] = String(iso).split("-");
+    const M = isEs
+      ? ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"]
+      : ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    return { d: String(Number(d)), m: M[Number(m) - 1] || "" };
+  };
+  const b = mes(e.fecha);
+  if (!e.desde) return `<span class="curio-fecha">${b.d} ${b.m}</span>`;
+  const a = mes(e.desde);
+  // Mismo mes: "10-17 jun". Distinto: "28 jun - 5 jul".
+  const txt = a.m === b.m ? `${a.d}-${b.d} ${b.m}` : `${a.d} ${a.m} - ${b.d} ${b.m}`;
+  return `<span class="curio-fecha">${escapeHTML(txt)}</span>`;
+}
+
+// Global = datos del mercado primero (orientan) y luego los movimientos, intercalados.
+function _curioLista() {
+  if (!_curioCache) return [];
+  const g = _curioCache.globales || [];
+  const ev = _curioCache.eventos || [];
+  const out = [];
+  for (let i = 0; i < Math.max(g.length, ev.length); i++) {
+    if (i < g.length) out.push(g[i]);
+    for (let k = 0; k < 3 && i * 3 + k < ev.length; k++) out.push(ev[i * 3 + k]);
+  }
+  return out;
+}
+
+// DE publica su tabla semanal los lunes y mueve ~380 armas de golpe. Situar el movimiento respecto
+// a esa fecha distingue una reacción al dato nuevo de un vaivén cualquiera, que es justo lo que hace
+// que el dato sea curioso y no anecdótico.
+function _curioWeekly(e, isEs) {
+  const d = e.dias_tras_weekly;
+  if (d == null || d > 2) return "";
+  const txt = d === 0
+    ? (isEs ? "el día del weekly" : "on weekly day")
+    : (isEs ? `${d}d tras el weekly` : `${d}d after weekly`);
+  return `<span class="curio-weekly">${txt}</span>`;
+}
+
+function _pintaCurio(cont, lista, idx) {
+  const txt = cont.querySelector("[data-curio-texto]");
+  const dots = cont.querySelector("[data-curio-dots]");
+  if (!txt || !lista.length) return;
+  const isEs = state.currentLang === "es";
+  const e = lista[idx % lista.length];
+  // Reutiliza los nodos en vez de rehacer el innerHTML entero: al reemplazarlo, el <img> del icono
+  // se recreaba y volvía a cargar, y eso era el parpadeo. Solo se toca el src cuando cambia el arma.
+  let icono = txt.querySelector(".curio-icon");
+  let cuerpo = txt.querySelector(".curio-cuerpo");
+  if (!cuerpo) {
+    txt.innerHTML = `<img class="curio-icon" alt="" loading="lazy">
+      <div class="curio-cuerpo"><div class="curio-cab"></div><div class="curio-frase"></div></div>`;
+    icono = txt.querySelector(".curio-icon");
+    cuerpo = txt.querySelector(".curio-cuerpo");
+    icono.onerror = () => { icono.style.visibility = "hidden"; };
+  }
+  const src = e.arma ? getWeaponImagePath(_curioNombre(e.arma), null) : "";
+  if (src && icono.getAttribute("src") !== src) {
+    icono.setAttribute("src", src);
+    icono.style.visibility = "visible";
+  } else if (!src) {
+    icono.removeAttribute("src");
+    icono.style.visibility = "hidden";
+  }
+  const meta = CURIO_TIPOS[e.tipo] || { es: "Mercado", en: "Market", clase: "curio-t-global" };
+  cuerpo.querySelector(".curio-cab").innerHTML =
+    `<span class="curio-chip ${meta.clase}">${isEs ? meta.es : meta.en}</span>`
+    + _curioTramo(e, isEs) + _curioWeekly(e, isEs);
+  const frase = cuerpo.querySelector(".curio-frase");
+  frase.innerHTML = _curioFrase(e, isEs);
+  frase.classList.remove("curio-entra");
+  void frase.offsetWidth;            // fuerza reflow para reiniciar la animación de entrada
+  frase.classList.add("curio-entra");
+  if (e.arma) {
+    txt.title = isEs ? `Ver ${_curioNombre(e.arma)}` : `View ${_curioNombre(e.arma)}`;
+    txt.onclick = () => {
+      const input = document.getElementById("rivenWeaponInput");
+      if (!input) return;
+      input.value = _curioNombre(e.arma);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      input.scrollIntoView({ behavior: "smooth", block: "center" });
+    };
+    txt.style.cursor = "pointer";
+  } else {
+    txt.title = ""; txt.onclick = null; txt.style.cursor = "default";
+  }
+  if (dots) {
+    const n = Math.min(lista.length, 8);
+    dots.innerHTML = Array.from({ length: n },
+      (_, i) => `<span class="${i === (idx % lista.length) % n ? "on" : ""}"></span>`).join("");
+  }
+}
+
+async function _cargaCurios() {
+  if (_curioCache) return _curioCache;
+  try {
+    const r = await fetch("assets/ml/curiosidades.json");
+    if (!r.ok) return null;
+    _curioCache = await r.json();
+  } catch { return null; }
+  return _curioCache;
+}
+
+export async function renderCuriosidades() {
+  const cont = document.getElementById("rivenCuriosidades");
+  if (!cont) return;
+  const d = await _cargaCurios();
+  const lista = _curioLista();
+  if (!d || !lista.length) return;
+  cont.classList.remove("hidden");
+  // Arranca por el principio y NO al azar: el generador ordena por fecha descendente, así que la
+  // primera tarjeta es el movimiento más reciente. Los repintados posteriores respetan la posición
+  // actual (renderRivenIndexList corre en cada orden/búsqueda y no debe reiniciar la rotación).
+  _pintaCurio(cont, lista, _curioIdx);
+
+  const mueve = (paso) => {
+    _curioIdx = (_curioIdx + paso + lista.length) % lista.length;
+    _pintaCurio(cont, lista, _curioIdx);
+    if (_curioTimer) { clearInterval(_curioTimer); _curioTimer = setInterval(() => mueve(1), 9000); }
+  };
+  if (!cont.dataset.listo) {
+    cont.querySelector("[data-curio-prev]")?.addEventListener("click", () => mueve(-1));
+    cont.querySelector("[data-curio-next]")?.addEventListener("click", () => mueve(1));
+    // Pausa al pasar por encima: si estás leyendo, no debe cambiar bajo el cursor.
+    cont.addEventListener("mouseenter", () => { clearInterval(_curioTimer); _curioTimer = null; });
+    cont.addEventListener("mouseleave", () => { if (!_curioTimer) _curioTimer = setInterval(() => mueve(1), 9000); });
+    cont.dataset.listo = "1";
+  }
+  if (!_curioTimer) _curioTimer = setInterval(() => mueve(1), 9000);
+}
+
+/** Carrusel de la ficha del arma: solo sale si ESA arma tuvo movimientos. */
+export async function renderCuriosidadesArma(weaponName) {
+  const cont = document.getElementById("rivenCuriosidadesArma");
+  if (!cont) return;
+  cont.classList.add("hidden");
+  const d = await _cargaCurios();
+  if (!d) return;
+  const nl = String(weaponName || "").toLowerCase();
+  // También por familia: el riven es el mismo para todas las variantes.
+  const fam = extractFamilyName(String(weaponName || "")).toLowerCase();
+  const suyos = (d.eventos || []).filter(e => {
+    const a = String(e.arma || "").toLowerCase();
+    return a === nl || a === fam;
+  });
+  if (!suyos.length) return;
+  cont.classList.remove("hidden");
+  let i = 0;
+  _pintaCurio(cont, suyos, i);
+  if (!cont.dataset.listo) {
+    cont.querySelector("[data-curio-prev]")?.addEventListener("click",
+      () => _pintaCurio(cont, suyos, (i = (i - 1 + suyos.length) % suyos.length)));
+    cont.querySelector("[data-curio-next]")?.addEventListener("click",
+      () => _pintaCurio(cont, suyos, (i = (i + 1) % suyos.length)));
+    cont.dataset.listo = "1";
+  }
+  // Sin auto-avance aquí: son 1-2 eventos y el usuario está mirando la ficha, no paseando.
+  cont.querySelectorAll("[data-curio-prev],[data-curio-next]").forEach(b => {
+    b.style.display = suyos.length > 1 ? "" : "none";
+  });
 }
 
 export function refreshCurrentRivenMetaStats() {
@@ -4361,34 +4791,36 @@ export function updateSortHelpTooltip() {
   const helpIcon = document.getElementById("indexSortHelpIcon");
   if (!helpIcon) return;
 
+  // Cada tooltip dice para QUÉ sirve ese orden, no qué campo ordena. El usuario que abre esta lista
+  // está decidiendo qué arma mirar, así que lo útil es "para qué me sirve", no la definición.
   const tooltips = {
     popularity: {
-      es: "Popularidad: Ordena según el volumen real de intercambio y demanda en el Meta actual (0-100).",
-      en: "Popularity: Sort by real trading volume and meta demand in the current Meta (0-100)."
+      es: "Las armas cuyos rivens más se mueven. Empieza por aquí si quieres vender rápido: hay compradores buscando.",
+      en: "The weapons whose rivens change hands most. Start here if you want a quick sale: buyers are actively looking."
     },
     "price-official": {
-      es: "Mediana del Juego: Ordena por el precio mediano real de transacciones oficiales completadas (Unrolled).",
-      en: "Game Median: Sort by official completed real trade median price (Unrolled)."
+      es: "Ordena por lo que se PAGA de verdad, según las ventas que publica Digital Extremes. Es el dato más fiable que existe, aunque va de rivens sin ciclar.",
+      en: "Sorts by what actually gets PAID, from the sales Digital Extremes publishes. The most reliable figure available, though it covers unrolled rivens."
     },
     "price-wfm": {
-      es: "Precio Premium: Ordena por el precio promedio de ofertas de escaparate publicadas en Warframe.Market.",
-      en: "Premium Price: Sort by average active storefront listing price on Warframe.Market."
+      es: "Ordena por lo que los vendedores PIDEN en Warframe.Market. Ojo: pedir no es cobrar, los asks están muy por encima de las ventas reales.",
+      en: "Sorts by what sellers ASK on Warframe.Market. Careful: asking is not getting, asks run far above real sales."
     },
     "potential-real": {
-      es: "Potencial Real (DE): Ordena por el potencial basado exclusivamente en transacciones reales en el juego (ciclos, techo godroll, volatilidad).",
-      en: "Real Potential (DE): Sort by potential index based purely on real in-game completed trade transactions (cycles, godroll ceiling, volatility)."
+      es: "Cuánto puede multiplicar su precio un buen roll, contando solo ventas reales. Alto = el arma premia rolarla.",
+      en: "How much a good roll can multiply the price, counting real sales only. High = this weapon rewards rolling."
     },
     "potential-web": {
-      es: "Potencial Web (WFM): Ordena por el potencial especulativo basado en ofertas activas en Warframe.Market y la liquidez online.",
-      en: "Web Potential (WFM): Sort by speculative potential index based on active Warframe.Market storefront listings markup and online liquidity."
+      es: "El mismo múltiplo pero con los precios pedidos. Sale más alto porque nadie paga el escaparate: úsalo para ver hasta dónde aspira la gente.",
+      en: "The same multiple but from asking prices. It runs higher because nobody pays shop-window prices: use it to see what people aim for."
     },
     arbitrage: {
-      es: "Oportunidad de Arbitraje: Ordena por el margen neto de beneficio estimado en Platino (Precio Web WFM menos Mediana Real del Juego).",
-      en: "Arbitrage Opportunity: Sort by estimated net Platinum profit margin (Web WFM Price minus Real In-Game Median)."
+      es: "El hueco entre lo que se pide y lo que se paga. Un hueco enorme suele significar armas sobrevaloradas, no chollos.",
+      en: "The gap between what is asked and what is paid. A huge gap usually means overpriced weapons, not bargains."
     },
     kuva: {
-      es: "Inversión de Kuva: Ordena según el mejor retorno de inversión al ciclar. Combina alta popularidad en el Meta (demanda líquida) con elevado potencial de multiplicador.",
-      en: "Kuva Investment: Sort by the best return on investment when cycling. Combines high Meta popularity (liquid demand) with high price multiplier potential."
+      es: "Dónde compensa gastar kuva: armas con demanda real Y margen de subida al salir un buen roll. Si una de las dos falla, no baja aunque el multiplicador sea alto.",
+      en: "Where spending kuva pays off: weapons with real demand AND room to climb when a good roll lands. If either is missing, it will not rank high however big the multiplier."
     }
   };
 
@@ -4405,51 +4837,36 @@ export function updateIndexTranslations() {
   const searchInput = document.getElementById("indexSearchInput");
   if (searchInput) searchInput.placeholder = isEs ? "Buscar arma..." : "Search weapon...";
 
-  const optPop = document.getElementById("opt-sort-pop");
-  if (optPop) optPop.innerText = isEs ? "Popularidad" : "Popularity";
-  const optCustomPop = document.getElementById("opt-custom-pop");
-  if (optCustomPop) optCustomPop.innerText = isEs ? "Popularidad" : "Popularity";
-
-  const optOfficial = document.getElementById("opt-sort-official");
-  if (optOfficial) optOfficial.innerText = isEs ? "Mediana del Juego" : "Game Median";
-  const optCustomOfficial = document.getElementById("opt-custom-official");
-  if (optCustomOfficial) optCustomOfficial.innerText = isEs ? "Mediana del Juego" : "Game Median";
-
-  const optWfm = document.getElementById("opt-sort-wfm");
-  if (optWfm) optWfm.innerText = isEs ? "Precio Premium" : "Premium Price";
-  const optCustomWfm = document.getElementById("opt-custom-wfm");
-  if (optCustomWfm) optCustomWfm.innerText = isEs ? "Precio Premium" : "Premium Price";
-
-  const optPotentialReal = document.getElementById("opt-sort-potential-real");
-  if (optPotentialReal) optPotentialReal.innerText = isEs ? "Potencial Real (DE)" : "Real Potential (DE)";
-  const optCustomPotentialReal = document.getElementById("opt-custom-potential-real");
-  if (optCustomPotentialReal) optCustomPotentialReal.innerText = isEs ? "Potencial Real (DE)" : "Real Potential (DE)";
-
-  const optPotentialWeb = document.getElementById("opt-sort-potential-web");
-  if (optPotentialWeb) optPotentialWeb.innerText = isEs ? "Potencial Web (WFM)" : "Web Potential (WFM)";
-  const optCustomPotentialWeb = document.getElementById("opt-custom-potential-web");
-  if (optCustomPotentialWeb) optCustomPotentialWeb.innerText = isEs ? "Potencial Web (WFM)" : "Web Potential (WFM)";
-
-  const optArbitrage = document.getElementById("opt-sort-arbitrage");
-  if (optArbitrage) optArbitrage.innerText = isEs ? "Oportunidad de Arbitraje" : "Arbitrage Opportunity";
-  const optCustomArbitrage = document.getElementById("opt-custom-arbitrage");
-  if (optCustomArbitrage) optCustomArbitrage.innerText = isEs ? "Oportunidad de Arbitraje" : "Arbitrage Opportunity";
-
-  const optKuva = document.getElementById("opt-sort-kuva");
-  if (optKuva) optKuva.innerText = isEs ? "Inversión de Kuva" : "Kuva Investment";
-  const optCustomKuva = document.getElementById("opt-custom-kuva");
-  if (optCustomKuva) optCustomKuva.innerText = isEs ? "Inversión de Kuva" : "Kuva Investment";
+  // Etiquetas de ordenación en UN solo sitio: cada una estaba escrita tres veces (el <option>, el
+  // item del desplegable y el texto del botón) y bastaba tocar dos para que el botón dijera una cosa
+  // y la lista otra. Los nombres dicen QUÉ ordenan, no de qué tabla salen:
+  //   "Mediana del Juego" -> nadie sabe qué juego ni qué mediana; es el precio al que se VENDE.
+  //   "Precio Premium"    -> sonaba a calidad y son precios PEDIDOS, ~13× por encima de la venta.
+  //   "Potencial Real/Web"-> un "potencial" sin unidad; son TECHOS, y se alinean con la ficha del arma.
+  //   "Arbitraje"         -> término de bolsa; es la diferencia entre lo que piden y lo que se paga.
+  const SORT_LABELS = {
+    "popularity": [isEs ? "Más intercambiadas" : "Most traded", "sort-pop", "custom-pop"],
+    "price-official": [isEs ? "Precio de venta real" : "Real sale price", "sort-official", "custom-official"],
+    "price-wfm": [isEs ? "Lo que piden en WFM" : "Asking price on WFM", "sort-wfm", "custom-wfm"],
+    "potential-real": [isEs ? "Techo real (se paga)" : "Real ceiling (paid)", "sort-potential-real", "custom-potential-real"],
+    "potential-web": [isEs ? "Techo pedido (WFM)" : "Asking ceiling (WFM)", "sort-potential-web", "custom-potential-web"],
+    "arbitrage": [isEs ? "Diferencia pedido vs real" : "Asking vs real gap", "sort-arbitrage", "custom-arbitrage"],
+    "kuva": [isEs ? "Rentabilidad al rolar" : "Payoff for rolling", "sort-kuva", "custom-kuva"],
+  };
+  for (const [, [texto, idOpt, idCustom]] of Object.entries(SORT_LABELS)) {
+    const a = document.getElementById(`opt-${idOpt}`);
+    if (a) a.innerText = texto;
+    const b = document.getElementById(`opt-${idCustom}`);
+    if (b) b.innerText = texto;
+  }
 
   const triggerText = document.getElementById("indexSortTriggerText");
   if (triggerText) {
     const val = document.getElementById("indexSortSelect")?.value || "popularity";
-    if (val === "popularity") triggerText.innerText = isEs ? "Popularidad" : "Popularity";
-    else if (val === "price-official") triggerText.innerText = isEs ? "Mediana del Juego" : "Game Median";
-    else if (val === "price-wfm") triggerText.innerText = isEs ? "Precio Premium" : "Premium Price";
-    else if (val === "potential" || val === "potential-real") triggerText.innerText = isEs ? "Potencial Real (DE)" : "Real Potential (DE)";
-    else if (val === "potential-web") triggerText.innerText = isEs ? "Potencial Web (WFM)" : "Web Potential (WFM)";
-    else if (val === "arbitrage") triggerText.innerText = isEs ? "Oportunidad de Arbitraje" : "Arbitrage Opportunity";
-    else if (val === "kuva") triggerText.innerText = isEs ? "Inversión de Kuva" : "Kuva Investment";
+    // "potential" es el valor antiguo del selector, aún guardado en localStorage de usuarios viejos.
+    const clave = val === "potential" ? "potential-real" : val;
+    const entrada = SORT_LABELS[clave] || SORT_LABELS["popularity"];
+    triggerText.innerText = entrada[0];
   }
 
   const loadingText = document.getElementById("lbl-index-loading");
@@ -4826,6 +5243,8 @@ export function filterRivenIndex(resetPagination = true) {
   });
 
   renderRivenIndexList(items);
+  // El carrusel vive sobre la lista del índice y se autoprotege si el JSON no existe.
+  renderCuriosidades();
 }
 
 // Sibling variants pre-computation map for O(1) rendering speed
@@ -5522,6 +5941,8 @@ Object.assign(globalThis, {
   openRivenMarket,
   getNakedName,
   refreshCurrentRivenMetaStats,
+  renderCuriosidades,
+  renderCuriosidadesArma,
   initRivenMarketIndex,
   filterRivenIndex,
   toggleRivenIndexDetails,
