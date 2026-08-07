@@ -9,8 +9,8 @@ on:
   workflow_dispatch:
     inputs:
       xgb_n:
-        description: "n_estimators del modelo full (diagnóstico CI)"
-        default: "400"
+        description: "n_estimators del modelo full. VACÍO = presupuesto por cuantil (recomendado). Un número fuerza el mismo para los 5 y desactiva la mejora."
+        default: ""
       slim_n:
         description: "n_estimators del modelo slim publicado (400 seguro; subir vigila el LÍMITE de 25MB de Cloudflare Pages en model_quantiles_slim.json)"
         default: "400"
@@ -62,7 +62,11 @@ jobs:
           VOIDSTONKS_CSV: ${{ github.workspace }}/_cron/historial_precios/dataset_raw_ml.csv
           VOIDSTONKS_WEAPONS: ${{ github.workspace }}/deploy/assets/json/cleaned_weapons.json
           DEPLOY_ML_DIR: ${{ github.workspace }}/deploy/assets/ml
-          XGB_N: ${{ github.event.inputs.xgb_n || '400' }}     # full = solo diagnóstico en CI (no se commitea)
+          # SIN valor por defecto a propósito: si XGB_N llega definido, ML_local salta el presupuesto
+          # POR CUANTIL (1300/2600/1000/500/400) y entrena los cinco con el mismo número, que es la
+          # configuración vieja y peor (MAPEtrade 46.3% frente a 45.8%). Solo se pasa si alguien lo
+          # rellena a mano para un run rápido de diagnóstico.
+          XGB_N: ${{ github.event.inputs.xgb_n }}
           SLIM_N: ${{ github.event.inputs.slim_n || '400' }}   # slim publicado; 400 mantiene el cuantiles < 25MB (límite Pages)
           SLIM_DEPTH: ${{ github.event.inputs.slim_depth || '5' }} # 5 = seguro; 6 hincha el cuantiles a ~25MB y peta el deploy
           SLIM_EXPORT: '1'
