@@ -271,6 +271,10 @@ export function gradeWeaponStats(weapon, statBaseline = null) {
   const tabla = propios || (statBaseline && typeof statBaseline === "object" ? statBaseline : null);
   if (!tabla) return null;
 
+  // Sin encogimiento extra: los pesos que llegan aquí YA vienen mezclados con el prior global en el
+  // entrenamiento (ML_local._mezclar, shrinkage bayesiano con K_PRIOR=8 sobre el nº de listados
+  // locales del stat). Volver a mezclarlos aplicaría el prior dos veces y borraría la señal de las
+  // armas que sí tienen datos propios suficientes.
   const orden = Object.entries(tabla)
     .map(([k, v]) => [k, parseFloat(v)])
     .filter(([, v]) => Number.isFinite(v))
@@ -309,26 +313,32 @@ export function calculateAdvancedPredictivePrice(weapon, itemAttributes, tiers, 
     if (nameLower.includes("heat")) hasHeat = true;
   });
 
+  // BONUS POR COMBO ELEMENTAL, calibrado con el mercado. El ratio de abajo es el precio mediano de
+  // los rivens con ESE par de elementos frente a los que llevan otro par, medido DENTRO de cada arma:
+  //   Viral (Tox+Cold)   1.44x   <- el único que se paga de verdad
+  //   Radiación (Heat+El) 1.10x
+  //   Corrosivo (Tox+El) 1.07x
+  //   Blast (Heat+Cold)  0.95x   \
+  //   Magnético (Cold+El) 0.89x   |  se pagan IGUAL o PEOR: no llevan bonus
+  //   Gas (Tox+Heat)     0.76x   /
+  // Antes Corrosivo cobraba lo mismo que Viral (+0.25) sin acercarse a su premium, y Gas/Magnético/
+  // Blast cobraban bonus cuando el mercado los paga por debajo de la media. `comboName` se rellena
+  // solo si hay bonus: la UI lo usa para anunciar "sinergia elemental" al nivel de un godroll, y
+  // decir eso de un Gas a 0.76x era engañar.
+  // Contexto que conviene no perder: llevar DOS elementos vale 0.75x que llevar uno solo (406 armas),
+  // porque gastas dos de los tres huecos en algo que no es crit/multishot. El bonus solo compensa
+  // dentro de ese peaje, no lo anula.
   let elementComboBonus = 0;
   let comboName = "";
   if (hasToxin && hasCold) {
-    elementComboBonus = 0.25; // Viral!
+    elementComboBonus = 0.25; // Viral: 1.44x medido
     comboName = "Viral";
-  } else if (hasToxin && hasElectric) {
-    elementComboBonus = 0.25; // Corrosive!
-    comboName = "Corrosive";
   } else if (hasHeat && hasElectric) {
-    elementComboBonus = 0.15; // Radiation
+    elementComboBonus = 0.10; // Radiación: 1.10x
     comboName = "Radiation";
-  } else if (hasToxin && hasHeat) {
-    elementComboBonus = 0.15; // Gas
-    comboName = "Gas";
-  } else if (hasCold && hasElectric) {
-    elementComboBonus = 0.10; // Magnetic
-    comboName = "Magnetic";
-  } else if (hasHeat && hasCold) {
-    elementComboBonus = 0.10; // Blast
-    comboName = "Blast";
+  } else if (hasToxin && hasElectric) {
+    elementComboBonus = 0.10; // Corrosivo: 1.07x
+    comboName = "Corrosive";
   }
 
   const dispo = weaponData ? (weaponData.disposition || weaponData.d || 1) : 1;

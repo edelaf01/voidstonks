@@ -771,3 +771,138 @@
 .gsc-badge.grade-b { background: linear-gradient(135deg, var(--grade-b), #0099cc); color: #000; }
 .gsc-badge.grade-c { background: linear-gradient(135deg, var(--grade-c), #6a4b9c); color: #fff; }
 .gsc-badge.grade-f { background: #2a2a33; color: #888; }
+
+/* ---- Carrusel de curiosidades de mercado ----
+   Dos instancias: el global del índice y el de la ficha del arma. Mismo componente, el de la ficha
+   solo cambia márgenes. El chip de color es la lectura rápida: verde sube, rojo cae, ámbar humo. */
+.riven-curiosidades {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: -4px 0 20px;
+  padding: 10px 10px 10px 12px;
+  background: linear-gradient(90deg, rgba(155, 89, 182, 0.10), rgba(0, 0, 0, 0.24) 45%);
+  border: 1px solid rgba(155, 89, 182, 0.22);
+  border-radius: 10px;
+}
+.riven-curiosidades.hidden { display: none; }
+.riven-curiosidades-arma { margin: 12px 0 0; padding: 8px 8px 8px 10px; }
+
+.curio-viewport { flex: 1 1 auto; min-width: 0; }
+
+.curio-texto { display: flex; align-items: flex-start; gap: 10px; }
+.curio-frase.curio-entra { animation: curio-in 0.35s ease-out; }
+@keyframes curio-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .curio-frase.curio-entra { animation: none; }
+}
+
+.curio-icon {
+  width: 46px; height: 46px;
+  flex: 0 0 auto;
+  object-fit: contain;
+  filter: drop-shadow(0 0 6px rgba(0, 0, 0, 0.6));
+}
+.curio-cuerpo { flex: 1 1 auto; min-width: 0; }
+.curio-cab { display: flex; align-items: center; gap: 7px; margin-bottom: 3px; }
+
+.curio-chip {
+  font-size: 10.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 3px 7px;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+.curio-t-sube   { background: rgba(74, 222, 128, 0.16); color: #4ade80; border: 1px solid rgba(74, 222, 128, 0.35); }
+.curio-t-baja   { background: rgba(248, 113, 113, 0.16); color: #f87171; border: 1px solid rgba(248, 113, 113, 0.35); }
+.curio-t-humo   { background: rgba(234, 179, 8, 0.16); color: #eab308; border: 1px solid rgba(234, 179, 8, 0.35); }
+.curio-t-pincha { background: rgba(96, 165, 250, 0.16); color: #60a5fa; border: 1px solid rgba(96, 165, 250, 0.35); }
+.curio-t-global { background: rgba(197, 154, 252, 0.16); color: #c59afc; border: 1px solid rgba(197, 154, 252, 0.35); }
+
+.curio-fecha { font-size: 11.5px; color: #6b7280; white-space: nowrap; }
+
+.curio-frase { font-size: 14.5px; line-height: 1.5; color: #dbe3ee; }
+.curio-texto:hover .curio-frase { color: #e8eef7; }
+.curio-frase b { color: #e8eef7; }
+.curio-arma   { color: #c59afc; font-weight: 700; }
+.curio-sube   { color: #4ade80; font-weight: 700; }
+.curio-baja   { color: #f87171; font-weight: 700; }
+.curio-quieto { color: #8fa3bf; font-style: italic; }
+
+.curio-nav {
+  flex: 0 0 auto;
+  width: 26px; height: 54px;
+  background: transparent;
+  border: 1px solid rgba(155, 89, 182, 0.22);
+  border-radius: 6px;
+  color: #c59afc;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.curio-nav:hover { background: rgba(155, 89, 182, 0.18); }
+
+.curio-dots { display: flex; gap: 4px; margin-top: 8px; padding-left: 56px; }
+.curio-dots span {
+  width: 5px; height: 5px; border-radius: 50%;
+  background: rgba(197, 154, 252, 0.28);
+  transition: background 0.2s ease;
+}
+.curio-dots span.on { background: #c59afc; }
+
+@media (max-width: 640px) {
+  .curio-nav { width: 30px; }        /* dedo, no ratón */
+  .curio-icon { width: 36px; height: 36px; }
+  .curio-frase { font-size: 13.5px; }
+  .curio-dots { padding-left: 46px; }
+}
+
+/* Marca los movimientos que caen justo tras la publicación semanal de DE: son reacción al dato
+   nuevo, no vaivén. Solo se pinta cuando aplica, así que destaca por rareza. */
+.curio-weekly {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 3px 6px;
+  border-radius: 3px;
+  white-space: nowrap;
+  background: rgba(0, 229, 255, 0.12);
+  color: #00e5ff;
+  border: 1px solid rgba(0, 229, 255, 0.3);
+}
+
+/* Secciones "meh" de la guía plegadas por defecto. Son 18 stats de relleno que empujaban lo
+   accionable (BEST y WORST) fuera de la pantalla. <details> nativo: sin JS y accesible por teclado. */
+.guia-plegable { margin-top: 6px; }
+.guia-plegable > summary {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #94a3b8;
+  cursor: pointer;
+  list-style: none;
+  padding: 3px 0;
+  user-select: none;
+}
+.guia-plegable > summary::-webkit-details-marker { display: none; }
+.guia-plegable > summary::after {
+  content: "▾";
+  margin-left: auto;
+  font-size: 9px;
+  opacity: 0.65;
+  transition: transform 0.18s ease;
+}
+.guia-plegable[open] > summary::after { transform: rotate(180deg); }
+.guia-plegable > summary:hover { color: #cbd5e1; }
+.guia-plegable > div { padding-top: 3px; }
+.guia-punto { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }

@@ -89,6 +89,7 @@
   <link rel="stylesheet" href="css/components/header.css?v=1.2" />
   <link rel="stylesheet" href="styles.css?v=3.7" />
   <link rel="stylesheet" href="css/components/riven-grader.css?v=1.3" />
+  <link rel="stylesheet" href="css/components/riven-module.css?v=1.0" />
   <link rel="stylesheet" href="css/components/vosfor.css?v=1.4" />
   <link rel="stylesheet" href="css/components/orders.css?v=1.0" />
   <link rel="icon" type="image/png" href="https://wiki.warframe.com/images/VoidTraces.png" />
@@ -977,6 +978,15 @@
               <!-- GOD ROLL STATS: populated dynamically by renderMetaStats() -->
               <div id="meta-stats-container" class="recommended-god-roll-card" style="display:none;"></div>
 
+              <!-- Movimientos recientes de ESTA arma. Solo aparece si curiosidades.json trae alguno. -->
+              <div id="rivenCuriosidadesArma" class="riven-curiosidades riven-curiosidades-arma hidden" aria-live="polite">
+                <button type="button" data-curio-prev class="curio-nav" aria-label="Anterior">‹</button>
+                <div class="curio-viewport">
+                  <div data-curio-texto class="curio-texto"></div>
+                </div>
+                <button type="button" data-curio-next class="curio-nav" aria-label="Siguiente">›</button>
+              </div>
+
             </div>
           </div>
 
@@ -1028,6 +1038,17 @@
             style="color: #c59afc; margin-bottom: 20px; font-weight: 800; text-transform: uppercase; letter-spacing: 1.5px; text-shadow: 0 0 10px rgba(155, 89, 182, 0.3);">
             TENDENCIAS GLOBALES DE RIVEN</h2>
 
+          <!-- Carrusel de movimientos bruscos. Lo rellena renderCuriosidades() desde
+               assets/ml/curiosidades.json; si el fichero no existe se queda oculto. -->
+          <div id="rivenCuriosidades" class="riven-curiosidades hidden" aria-live="polite">
+            <button type="button" data-curio-prev class="curio-nav" aria-label="Anterior">‹</button>
+            <div class="curio-viewport">
+              <div data-curio-texto class="curio-texto"></div>
+              <div class="curio-dots" data-curio-dots></div>
+            </div>
+            <button type="button" data-curio-next class="curio-nav" aria-label="Siguiente">›</button>
+          </div>
+
           <div class="index-controls"
             style="margin-bottom: 20px; display: flex; gap: 15px; flex-wrap: wrap; align-items: center;">
             <input type="text" id="indexSearchInput" placeholder="Buscar arma o familia..." class="wf-input riven-input"
@@ -1036,20 +1057,20 @@
             <div style="display: flex; align-items: center; gap: 8px;">
               <!-- Hidden native select for 100% logic compatibility -->
               <select id="indexSortSelect" style="display: none;">
-                <option id="opt-sort-pop" value="popularity" selected>Popularidad</option>
-                <option id="opt-sort-official" value="price-official">Mediana del Juego</option>
-                <option id="opt-sort-wfm" value="price-wfm">Precio Premium</option>
-                <option id="opt-sort-potential-real" value="potential-real">Potencial Real (DE)</option>
-                <option id="opt-sort-potential-web" value="potential-web">Potencial Web (WFM)</option>
-                <option id="opt-sort-arbitrage" value="arbitrage">Oportunidad de Arbitraje</option>
-                <option id="opt-sort-kuva" value="kuva">Inversión de Kuva</option>
+                <option id="opt-sort-pop" value="popularity" selected>Más intercambiadas</option>
+                <option id="opt-sort-official" value="price-official">Precio de venta real</option>
+                <option id="opt-sort-wfm" value="price-wfm">Lo que piden en WFM</option>
+                <option id="opt-sort-potential-real" value="potential-real">Techo real (se paga)</option>
+                <option id="opt-sort-potential-web" value="potential-web">Techo pedido (WFM)</option>
+                <option id="opt-sort-arbitrage" value="arbitrage">Diferencia pedido vs real</option>
+                <option id="opt-sort-kuva" value="kuva">Rentabilidad al rolar</option>
               </select>
 
               <!-- UI Dropdown Selector -->
               <div class="custom-select-container" style="position: relative; max-width: 240px; width: 190px;">
                 <div id="indexSortTrigger" class="wf-input riven-input"
                   style="padding: 10px 30px 10px 12px; font-weight: bold; background: rgba(0, 0, 0, 0.25); border: 1px solid rgba(162, 53, 226, 0.3); color: #fff; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: space-between; position: relative; user-select: none; transition: all 0.2s ease;">
-                  <span id="indexSortTriggerText">Popularidad</span>
+                  <span id="indexSortTriggerText">Más intercambiadas</span>
                   <span id="indexSortTriggerArrow"
                     style="font-size: 0.6rem; color: var(--wf-blue); pointer-events: none; transition: transform 0.2s ease; position: absolute; right: 12px; top: 50%; transform: translateY(-50%);">▼</span>
                 </div>
@@ -1058,25 +1079,24 @@
                   style="position: absolute; top: 100%; left: 0; right: 0; background: #111; border: 1px solid rgba(162, 53, 226, 0.5) !important; border-radius: 0 0 6px 6px; overflow-y: auto; max-height: 250px; overscroll-behavior: contain; z-index: var(--z-dropdown); box-shadow: 0 8px 24px rgba(0,0,0,0.6);">
                   <div class="dropdown-item active-sort-item" data-value="popularity"
                     style="padding: 10px 12px; cursor: pointer; transition: all 0.2s; border-bottom: 1px solid #222;"
-                    id="opt-custom-pop">Popularidad</div>
+                    id="opt-custom-pop">Más intercambiadas</div>
                   <div class="dropdown-item" data-value="price-official"
                     style="padding: 10px 12px; cursor: pointer; transition: all 0.2s; border-bottom: 1px solid #222;"
-                    id="opt-custom-official">Mediana del Juego</div>
+                    id="opt-custom-official">Precio de venta real</div>
                   <div class="dropdown-item" data-value="price-wfm"
                     style="padding: 10px 12px; cursor: pointer; transition: all 0.2s; border-bottom: 1px solid #222;"
-                    id="opt-custom-wfm">Precio Premium</div>
+                    id="opt-custom-wfm">Lo que piden en WFM</div>
                   <div class="dropdown-item" data-value="potential-real"
                     style="padding: 10px 12px; cursor: pointer; transition: all 0.2s; border-bottom: 1px solid #222;"
-                    id="opt-custom-potential-real">Potencial Real (DE)</div>
+                    id="opt-custom-potential-real">Techo real (se paga)</div>
                   <div class="dropdown-item" data-value="potential-web"
                     style="padding: 10px 12px; cursor: pointer; transition: all 0.2s; border-bottom: 1px solid #222;"
-                    id="opt-custom-potential-web">Potencial Web (WFM)</div>
+                    id="opt-custom-potential-web">Techo pedido (WFM)</div>
                   <div class="dropdown-item" data-value="arbitrage"
                     style="padding: 10px 12px; cursor: pointer; transition: all 0.2s; border-bottom: 1px solid #222;"
-                    id="opt-custom-arbitrage">Oportunidad de Arbitraje</div>
+                    id="opt-custom-arbitrage">Diferencia pedido vs real</div>
                   <div class="dropdown-item" data-value="kuva"
-                    style="padding: 10px 12px; cursor: pointer; transition: all 0.2s;" id="opt-custom-kuva">Inversión de
-                    Kuva</div>
+                    style="padding: 10px 12px; cursor: pointer; transition: all 0.2s;" id="opt-custom-kuva">Rentabilidad al rolar</div>
                 </div>
               </div>
 

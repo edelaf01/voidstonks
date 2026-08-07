@@ -1,0 +1,71 @@
+name: Curiosidades de mercado (diario)
+
+# Regenera SOLO el carrusel de curiosidades (deploy/assets/ml/curiosidades.json).
+#
+# Va aparte del reentreno a propósito: los asks de WFM se mueven todos los días, así que un carrusel
+# que solo se refresca los lunes cuenta noticias de hace una semana. Esto no toca el modelo —lee
+# history_series.json y hace cuentas— así que tarda segundos en vez de los ~20 min de XGBoost.
+on:
+  schedule:
+    - cron: '30 5 * * *'     # diario 05:30 UTC, después del oráculo (02:00) que llena el CSV
+  workflow_dispatch:
+    inputs:
+      dias:
+        description: "Ventana de recencia en días (cuánto atrás mirar movimientos)"
+        default: "21"
+
+jobs:
+  curiosidades:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Checkout del repo de datos (CSV del oráculo)
+        uses: actions/checkout@v4
+        with:
+          repository: edelaf01/Voidstonks-cron
+          path: _cron
+          # MISMO secreto que usa retrain-ml.yml. Voidstonks-cron es privado, así que sin este PAT
+          # el checkout falla; GITHUB_TOKEN no sirve porque solo cubre este repositorio.
+          token: ${{ secrets.CRON_DATASET_PAT }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Dependencias
+        run: pip install pandas numpy requests
+
+      - name: Descargar serie history
+        working-directory: scripts-actu/ML-rivenvaluation
+        env:
+          VOIDSTONKS_CSV: ${{ github.workspace }}/_cron/historial_precios/dataset_raw_ml.csv
+        run: python history_fetch.py
+
+      - name: Generar curiosidades
+        working-directory: scripts-actu/ML-rivenvaluation
+        env:
+          DEPLOY_ML_DIR: ${{ github.workspace }}/deploy/assets/ml
+          CURIOS_DIAS: ${{ github.event.inputs.dias || '21' }}
+        run: python curiosidades_gen.py
+
+      - name: Commit si hay eventos nuevos
+        run: |
+          git config user.email "actions@github.com"
+          git config user.name "Curiosidades Bot"
+          git add deploy/assets/ml/curiosidades.json
+          # Sin cambios = mercado tranquilo ese día; no es un fallo.
+          if git diff --staged --quiet; then
+            echo "Sin movimientos nuevos; nada que commitear."
+            exit 0
+          fi
+          git commit -m "🤖 Curiosidades de mercado $(date -u +%F)"
+          # El reentreno de los lunes toca los MISMOS ficheros de deploy/assets/ml: si coincide,
+          # se reintegra en vez de fallar el push.
+          git pull --rebase --autostash origin "${GITHUB_REF_NAME}" || true
+          git push

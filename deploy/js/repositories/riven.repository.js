@@ -62,6 +62,21 @@ export async function fetchWeaponHistory(weaponName) {
  * Extracts base family name from a weapon.
  * E.g., "Soma Prime" -> "Soma", "Kuva Bramma" -> "Bramma"
  */
+// Prefijos y sufijos que marcan una VARIANTE del mismo arma base. Se exportan porque la misma
+// lista hacía falta en dos sitios con propósitos distintos —resolver datos de familia y agrupar el
+// buscador— y estaban duplicadas: al añadir 'Ceti' en una, Ceti Lacera seguía saliendo suelta en el
+// buscador porque la otra copia no se tocó.
+export const VARIANT_PREFIXES = [
+  'Kuva ', 'Tenet ', 'Prisma ', 'Dex ', 'Mara ', 'Mk1-', 'Mk1 ', 'Ceti ',
+  'Mutalist ', 'Sancti ', 'Secura ', 'Rakta ', 'Telos ',
+  'Synoid ', 'Vaykor ', 'Coda ', 'Carmine ', 'Shadow ',
+];
+
+export const VARIANT_SUFFIXES = [
+  ' Prime', ' Wraith', ' Vandal', ' Prisma', ' Dex',
+  ' Blueprint', ' Umbra', ' Coda',
+];
+
 export function extractFamilyName(weaponName) {
   const overrides = {
     "prisma dual decurions": "Dual Decurion",
@@ -83,16 +98,8 @@ export function extractFamilyName(weaponName) {
     return overrides[lowerName];
   }
 
-  const prefixes = [
-    'Kuva ', 'Tenet ', 'Prisma ', 'Dex ', 'Mara ', 'Mk1-',
-    'Mutalist ', 'Sancti ', 'Secura ', 'Rakta ', 'Telos ',
-    'Synoid ', 'Vaykor ', 'Coda ', 'Carmine ', 'Shadow ',
-  ];
-
-  const suffixes = [
-    ' Prime', ' Wraith', ' Vandal', ' Prisma', ' Dex',
-    ' Blueprint', ' Umbra',
-  ];
+  const prefixes = VARIANT_PREFIXES;
+  const suffixes = VARIANT_SUFFIXES;
 
   let name = weaponName.trim();
 
