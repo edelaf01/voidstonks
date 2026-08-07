@@ -36,9 +36,11 @@ jobs:
         with:
           repository: edelaf01/Voidstonks-cron
           path: _cron
-          # PAT con permiso de LECTURA a Voidstonks-cron (Settings > Secrets > Actions).
-          # Si el repo fuese público, este token no es necesario.
-          token: ${{ secrets.CRON_DATASET_PAT }}
+          # PAT con permiso de LECTURA a Voidstonks-cron (Settings > Secrets > Actions > Repository).
+          # Se prueba primero DATASET_READ_PAT y se cae a CRON_DATASET_PAT: el viejo se conserva, y
+          # así el workflow funciona con cualquiera de los dos sin tocar nada más.
+          # Si el repo fuese público este token no haría falta (el job de curiosidades ya no lo usa).
+          token: ${{ secrets.DATASET_READ_PAT || secrets.CRON_DATASET_PAT }}
 
       - name: Setup Python
         uses: actions/setup-python@v5
