@@ -7,6 +7,13 @@ on:
     paths:
       - 'deploy/**'
   workflow_dispatch: {}   # permite lanzar el deploy a mano desde Actions > Deploy Site > Run workflow
+  # Los commits del bot de curiosidades usan el GITHUB_TOKEN por defecto, y GitHub NO dispara
+  # workflows con pushes hechos con ese token (salvaguarda anti-recursión). Sin este disparador el
+  # JSON se actualizaba en el repo pero la web seguía sirviendo el anterior hasta el siguiente push
+  # humano. workflow_run se lanza al terminar el otro workflow, sin necesitar un PAT.
+  workflow_run:
+    workflows: ["Curiosidades de mercado (diario)", "Reentrenar Riven ML (banda cuantiles)"]
+    types: [completed]
 
 # Evita que dos pushes seguidos lancen deploys en paralelo (y cancela el anterior).
 concurrency:
@@ -17,6 +24,9 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     name: Deploy
+    # workflow_run salta con "completed" aunque el workflow anterior haya FALLADO, así que sin este
+    # guard un run roto de curiosidades lanzaría un deploy para nada.
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     permissions:
       contents: read
     steps:
