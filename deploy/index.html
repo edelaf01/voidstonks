@@ -941,13 +941,6 @@
               <!-- GOD ROLL STATS: populated dynamically by renderMetaStats() -->
               <div id="meta-stats-container" class="recommended-god-roll-card" style="display:none;"></div>
 
-              <div id="rivenCuriosidadesArma" class="riven-curiosidades riven-curiosidades-arma hidden" aria-live="polite">
-                <button type="button" data-curio-prev class="curio-nav" aria-label="Anterior">‹</button>
-                <div class="curio-viewport">
-                  <div data-curio-texto class="curio-texto"></div>
-                </div>
-                <button type="button" data-curio-next class="curio-nav" aria-label="Siguiente">›</button>
-              </div>
 
             </div>
           </div>
@@ -988,6 +981,16 @@
                 VARIANTS
               </h4>
               <div id="riven-variants-carousel" class="variants-carousel-scroll"></div>
+            </div>
+
+            <!-- recent moves for THIS weapon, under the chart and variants;
+                 only shown when curiosidades.json has some for it -->
+            <div id="rivenCuriosidadesArma" class="riven-curiosidades riven-curiosidades-arma hidden" aria-live="polite">
+              <button type="button" data-curio-prev class="curio-nav" aria-label="Anterior">‹</button>
+              <div class="curio-viewport">
+                <div data-curio-texto class="curio-texto"></div>
+              </div>
+              <button type="button" data-curio-next class="curio-nav" aria-label="Siguiente">›</button>
             </div>
           </div>
         </div>

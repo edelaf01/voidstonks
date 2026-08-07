@@ -656,10 +656,17 @@ class QuantileModel:
 # trains with slightly higher alpha on upper quantiles to compensate for tail shrinkage and hit REAL
 # coverage targets
 _ALPHA_TRAIN = {0.25: 0.25, 0.50: 0.50, 0.80: 0.845, 0.90: 0.935, 0.95: 0.975}
+# tree budget per quantile: median requires ~10x more trees than p95 to resolve subtle differences across
+# average rolls without blowing up bundle size
+_N_POR_CUANTIL = {0.25: 1300, 0.50: 2600, 0.80: 1000, 0.90: 500, 0.95: 400}
 qmodels = {}
 for a in QUANTILES:
     a_tr = _ALPHA_TRAIN.get(a, a)
-    m = xgb.XGBRegressor(objective="reg:quantileerror", quantile_alpha=a_tr, random_state=42, **_QPARAMS)
+    # per-quantile budget applies only when XGB_N is not forced by env (CI uses 400 for fast runs)
+    _qp = dict(_QPARAMS)
+    if not os.environ.get("XGB_N"):
+        _qp["n_estimators"] = _N_POR_CUANTIL.get(a, _qp["n_estimators"])
+    m = xgb.XGBRegressor(objective="reg:quantileerror", quantile_alpha=a_tr, random_state=42, **_qp)
     # sample weights by price are NOT passed to quantile regression: weighting by price shifts the estimated
     # quantile and breaks the fit
     _fit_kw = {"sample_weight": w_recencia} if _RECENCIA_ON else {}
@@ -1322,10 +1329,14 @@ if os.environ.get("SLIM_EXPORT", "1") == "1":
     _sp = dict(n_estimators=_SN, learning_rate=0.05, max_depth=_SD, subsample=0.85,
                colsample_bytree=0.6, min_child_weight=4, reg_lambda=2.5, reg_alpha=0.1,
                tree_method="hist", n_jobs=-1, device=os.environ.get("XGB_DEVICE", "cpu"))
+    # slim model scales trees proportionally across SLIM_N because Cloudflare Pages caps the bundle at 25 MB
+    _SLIM_MULT = {0.25: 1.6, 0.50: 3.0, 0.80: 1.2, 0.90: 0.7, 0.95: 0.5}
     _bundle = {"quantiles": QUANTILES, "alpha_train": _ALPHA_TRAIN, "models": {}}
     for a in QUANTILES:
+        _spa = dict(_sp)
+        _spa["n_estimators"] = max(120, int(_SN * _SLIM_MULT.get(a, 1.0)))
         _sm = xgb.XGBRegressor(objective="reg:quantileerror", quantile_alpha=_ALPHA_TRAIN.get(a, a),
-                               random_state=42, **_sp)
+                               random_state=42, **_spa)
         _sm.fit(X_train, y_train)
         _tmp = os.path.join(_OUT, f"_q{int(a*100)}.json"); _sm.get_booster().save_model(_tmp)
         _bundle["models"][str(a)] = json.load(open(_tmp)); os.remove(_tmp)
@@ -1336,10 +1347,36 @@ if os.environ.get("SLIM_EXPORT", "1") == "1":
         _m = pd.to_numeric(df_ml[c], errors="coerce").median()
         _def[c] = float(_m) if pd.notna(_m) else 0.0
     json.dump(_def, open(os.path.join(_OUT, "feature_defaults_slim.json"), "w"))
+    # measured meta vs magnitude split for frontend score: bounds magnitude weight to [0.15, 0.35] so low-roll
+    # godrolls do not score max while avoiding over-penalizing
+    _peso_mag = 0.25
+    try:
+        _dm = df_micro_clean[df_micro_clean["mag_pos1"].notna()].copy()
+        _dm["_combo"] = _dm[["weapon", "stat_pos1", "stat_pos2", "stat_pos3", "stat_neg"]] \
+            .fillna("None").astype(str).agg("|".join, axis=1)
+        _dm["_mag"] = _dm[["mag_pos1", "mag_pos2", "mag_pos3"]].mean(axis=1)
+        _rat = []
+        for _c, _g in _dm.groupby("_combo"):
+            if len(_g) < 8 or _g["_mag"].std() <= 0:
+                continue
+            _q = _g["_mag"].quantile([0.25, 0.75])
+            _lo = _g[_g["_mag"] <= _q.iloc[0]]["price"].median()
+            _hi = _g[_g["_mag"] >= _q.iloc[1]]["price"].median()
+            if _lo and _lo > 0 and _hi > 0:
+                _rat.append(_hi / _lo)
+        _ef_mag = float(np.median(_rat)) if len(_rat) >= 15 else 1.20
+        _ef_stat = max(float(np.median(list(GLOBAL_POS.values()) or [1.0])) and 3.33, 1.01)
+        _lm, _ls = np.log(max(_ef_mag, 1.01)), np.log(_ef_stat)
+        _peso_mag = round(min(0.35, max(0.15, _lm / (_lm + _ls))), 3)
+        print(f"  Reparto score: magnitud {_peso_mag:.2f} / meta {1 - _peso_mag:.2f} "
+              f"(efecto magnitud {_ef_mag:.2f}x sobre {len(_rat)} combos)")
+    except Exception as _e:
+        print(f"[WARN] no se pudo medir el reparto del score, se deja 0.25: {_e}")
+
     json.dump({"drift": CAL_DRIFT, "synlo": CAL_SYNLO, "nsamp": CAL_NSAMP,
                "precision": (PRECISION_ARMA if "PRECISION_ARMA" in dir() else {}),
                "quantiles": QUANTILES, "venta": VENTA_INFO,
-               "venta_min_pop": _CAL_MIN_POP},
+               "venta_min_pop": _CAL_MIN_POP, "peso_magnitud": _peso_mag},
               open(os.path.join(_OUT, "calibracion_por_arma.json"), "w"))
     # price_bands.json deciles reflect calibrated sale prices rather than raw asks, completing the deploy
     # bundle alongside stat_weights.json

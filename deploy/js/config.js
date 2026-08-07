@@ -1,19 +1,55 @@
 export const WORKER_URL = "https://api.voidstonks.com/";
-export const APP_VERSION = "2.7.1";
+export const APP_VERSION = "2.7.2";
 export const UPDATE_HISTORY_DATA = {
   es: `
 <nav class="update-index" aria-label="Versiones">
   <span class="update-index-label">Versiones</span>
-  <a href="#v271" class="update-index-link is-current">v2.7.1</a>
+  <a href="#v272" class="update-index-link is-current">v2.7.2</a>
+  <a href="#v271" class="update-index-link">v2.7.1</a>
   <a href="#v27" class="update-index-link">v2.7</a>
   <a href="#v2661" class="update-index-link">v2.6.6.1</a>
   <a href="#v266" class="update-index-link">v2.6.6</a>
   <a href="#v265" class="update-index-link">v2.6.5</a>
   <a href="#v264" class="update-index-link">v2.6.4</a>
 </nav>
+<div class="update-block" id="v272">
+  <div class="update-header">
+    <span class="update-version">v2.7.2 (Actual)</span>
+    <span class="update-date">2026-08-07</span>
+  </div>
+
+  <p class="update-lead">
+    <strong>Los stats se valoran arma por arma.</strong> Antes casi todas compartían la misma lista de
+    stats buenos; ahora cada una usa sus propios datos de mercado.
+  </p>
+  <ul class="update-list">
+    <li><strong>El 98% de las armas ya se gradúa con sus propios datos</strong> (antes el 10%). En Bo,
+    Critical Chance baja a medio y suben Alcance y Velocidad de Ataque; en Kuva Bramma, Toxina sube a
+    lo más alto. Antes todas veían Crítico y Multidisparo.</li>
+    <li><strong>Se marcan los 1-2 stats decisivos</strong> dentro de los mejores, con etiqueta TOP.</li>
+    <li><strong>Las variantes comparten ficha.</strong> Obex y Prisma Obex son el mismo riven, así que
+    ya no muestran recomendaciones distintas ni contradictorias.</li>
+    <li><strong>Combos elementales medidos.</strong> Viral se paga (1.4× frente a otros pares) y se
+    premia; Gas se paga menos (0.76×) y ya no cobra bonus. Corrosivo cobraba lo mismo que Viral sin
+    merecerlo.</li>
+    <li><strong>El aviso de sobreprecio ya distingue.</strong> Marcaba el 87% de las armas; ahora el
+    42%, y las que no tienen ventas suficientes lo dicen en vez de inventar un veredicto.</li>
+    <li><strong>Carrusel de movimientos del mercado</strong> en el índice y en la ficha del arma:
+    subidas y bajadas bruscas de los últimos 21 días, con el tramo de fechas y si coinciden con la
+    publicación semanal de Digital Extremes. Se actualiza a diario.</li>
+    <li><strong>Textos y filtros reescritos.</strong> "Mediana del Juego" pasa a "Precio de venta
+    real" y "Precio Premium" a "Lo que piden en WFM": eran el mismo tipo de dato en apariencia y se
+    diferencian en un orden de magnitud.</li>
+  </ul>
+  <p class="update-note">
+    Precisión: sobre 1434 subastas reales, la app ordena los rolls como el mercado en el
+    <strong>85%</strong> de las armas. El error medio sigue en el <strong>47%</strong>: dos rivens
+    idénticos se listan a precios distintos, y eso no lo arregla ningún ajuste.
+  </p>
+</div>
 <div class="update-block" id="v271">
   <div class="update-header">
-    <span class="update-version">v2.7.1 (Actual)</span>
+    <span class="update-version">v2.7.1</span>
     <span class="update-date">2026-08-04</span>
   </div>
 
@@ -389,16 +425,52 @@ export const UPDATE_HISTORY_DATA = {
   en: `
 <nav class="update-index" aria-label="Versions">
   <span class="update-index-label">Versions</span>
-  <a href="#v271" class="update-index-link is-current">v2.7.1</a>
+  <a href="#v272" class="update-index-link is-current">v2.7.2</a>
+  <a href="#v271" class="update-index-link">v2.7.1</a>
   <a href="#v27" class="update-index-link">v2.7</a>
   <a href="#v2661" class="update-index-link">v2.6.6.1</a>
   <a href="#v266" class="update-index-link">v2.6.6</a>
   <a href="#v265" class="update-index-link">v2.6.5</a>
   <a href="#v264" class="update-index-link">v2.6.4</a>
 </nav>
+<div class="update-block" id="v272">
+  <div class="update-header">
+    <span class="update-version">v2.7.2 (Current)</span>
+    <span class="update-date">2026-08-07</span>
+  </div>
+
+  <p class="update-lead">
+    <strong>Stats are now valued weapon by weapon.</strong> Almost every weapon used to share the same
+    list of good stats; each one now uses its own market data.
+  </p>
+  <ul class="update-list">
+    <li><strong>98% of weapons are now graded from their own data</strong> (previously 10%). On Bo,
+    Critical Chance drops to mid while Range and Attack Speed rise; on Kuva Bramma, Toxin reaches the
+    top tier. Before, every weapon showed Critical and Multishot.</li>
+    <li><strong>The 1-2 decisive stats are highlighted</strong> among the best ones, tagged TOP.</li>
+    <li><strong>Variants share one guide.</strong> Obex and Prisma Obex are the same riven, so they no
+    longer show different or contradictory recommendations.</li>
+    <li><strong>Elemental combos measured.</strong> Viral does get paid for (1.4x versus other pairs)
+    and is rewarded; Gas sells for less (0.76x) and no longer earns a bonus. Corrosive was paid the
+    same as Viral without deserving it.</li>
+    <li><strong>The overpriced warning now discriminates.</strong> It flagged 87% of weapons; now 42%,
+    and those without enough sales say so instead of inventing a verdict.</li>
+    <li><strong>Market movement carousel</strong> on the index and on each weapon page: sharp rises and
+    drops over the last 21 days, with the date range and whether they line up with the Digital
+    Extremes weekly release. Updated daily.</li>
+    <li><strong>Labels and filters rewritten.</strong> "Game Median" becomes "Real sale price" and
+    "Premium Price" becomes "Asking price on WFM": they looked like the same kind of figure and differ
+    by an order of magnitude.</li>
+  </ul>
+  <p class="update-note">
+    Accuracy: across 1434 real auctions, the app ranks rolls like the market does on
+    <strong>85%</strong> of weapons. Average error stays at <strong>47%</strong>: two identical rivens
+    get listed at different prices, and no amount of tuning fixes that.
+  </p>
+</div>
 <div class="update-block" id="v271">
   <div class="update-header">
-    <span class="update-version">v2.7.1 (Current)</span>
+    <span class="update-version">v2.7.1</span>
     <span class="update-date">2026-08-04</span>
   </div>
 
