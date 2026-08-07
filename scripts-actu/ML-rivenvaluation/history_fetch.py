@@ -6,6 +6,7 @@ liquidity_score, wfm_market_sample, rerolled_premium_ratio, volatility_index}, .
 Se une luego por (arma, fecha) a cada fila de entrenamiento como NIVEL DE MERCADO de ese día
 (medición independiente del precio de la propia subasta -> sin fuga). Captura la deriva diaria.
 """
+import json
 import os, json, time, sys
 import pandas as pd
 import requests
@@ -18,7 +19,19 @@ OUT = "history_series.json"
 KEEP = ["date", "wfm_avg_price", "official_median", "liquidity_score",
         "wfm_market_sample", "rerolled_premium_ratio", "volatility_index"]
 
-weapons = sorted(pd.read_csv(LOCAL_CSV, usecols=["weapon"]).weapon.dropna().unique())
+# El CSV solo aporta la LISTA de armas (el histórico viene del worker, sin autenticación), así que
+# si no está se saca del catálogo de este mismo repo. Con eso el job de curiosidades ya no necesita
+# clonar el repo privado del oráculo ni su PAT: era la única razón del checkout, y fallaba con "Bad
+# credentials" cuando el secreto no estaba configurado.
+if os.path.exists(LOCAL_CSV):
+    weapons = sorted(pd.read_csv(LOCAL_CSV, usecols=["weapon"]).weapon.dropna().unique())
+else:
+    _cat = os.environ.get("VOIDSTONKS_WEAPONS",
+        os.path.join(os.path.dirname(__file__), "..", "..", "deploy", "assets", "json",
+                     "cleaned_weapons.json"))
+    with open(_cat, encoding="utf-8") as _f:
+        weapons = sorted({str(w.get("name", "")).strip() for w in json.load(_f) if w.get("name")})
+    print(f"(sin CSV) lista de armas desde el catálogo: {_cat}")
 print(f"armas a consultar: {len(weapons)}")
 
 sess = requests.Session()
