@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """caches the full daily series from /api/history for all weapons to history_series.json"""
+import json
 import os, json, time, sys
 import pandas as pd
 import requests
@@ -12,7 +13,16 @@ OUT = "history_series.json"
 KEEP = ["date", "wfm_avg_price", "official_median", "liquidity_score",
         "wfm_market_sample", "rerolled_premium_ratio", "volatility_index"]
 
-weapons = sorted(pd.read_csv(LOCAL_CSV, usecols=["weapon"]).weapon.dropna().unique())
+# falls back to repo catalog if local CSV is missing so private oracle checkout is not needed
+if os.path.exists(LOCAL_CSV):
+    weapons = sorted(pd.read_csv(LOCAL_CSV, usecols=["weapon"]).weapon.dropna().unique())
+else:
+    _cat = os.environ.get("VOIDSTONKS_WEAPONS",
+        os.path.join(os.path.dirname(__file__), "..", "..", "deploy", "assets", "json",
+                     "cleaned_weapons.json"))
+    with open(_cat, encoding="utf-8") as _f:
+        weapons = sorted({str(w.get("name", "")).strip() for w in json.load(_f) if w.get("name")})
+    print(f"(sin CSV) lista de armas desde el catálogo: {_cat}")
 print(f"armas a consultar: {len(weapons)}")
 
 sess = requests.Session()
