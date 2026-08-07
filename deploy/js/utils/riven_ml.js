@@ -70,6 +70,25 @@ export async function loadRivenML() {
     if (_prior && typeof _prior === "object" && !state.rivenStatPrior) {
       state.rivenStatPrior = _prior;
     }
+    // La tabla completa por arma, para que la UI pueda ORDENAR dentro de un tier y marcar los TOP.
+    // `dynamic_weights` (metastats) satura: en Torid, CD/CC/Multishot valen 1.00 los tres y no hay
+    // forma de saber cuál manda. Aquí los tiers traen el peso fino (Multishot 0.998 vs CD 0.756).
+    // Es la MISMA referencia ya cargada, no una copia: no cuesta memoria extra.
+    if (statWeights && typeof statWeights === "object" && !state.rivenStatWeights) {
+      state.rivenStatWeights = statWeights;
+      // Repinta la guía: si el panel ya se dibujó sin estos pesos, sus marcas TOP están vacías y no
+      // hay otro evento que las traiga. Vía globalThis y no por import para no crear el ciclo
+      // ui_rivens -> riven_ml -> ui_rivens (ui.js ejecuta al importarse; ver CLAUDE.md).
+      if (typeof globalThis.refreshCurrentRivenMetaStats === "function") {
+        try { globalThis.refreshCurrentRivenMetaStats(); } catch { /* panel no montado aún */ }
+      }
+    }
+    // Reparto meta/magnitud del score, MEDIDO en el entrenamiento (calibracion_por_arma.json).
+    // Estaba a mano en riven_logic.js y así nadie sabía si el número seguía vigente; ahora se
+    // recalcula en cada reentreno desde el efecto real de la magnitud sobre el precio.
+    if (cal && typeof cal.peso_magnitud === "number" && cal.peso_magnitud > 0) {
+      state.rivenPesoMagnitud = cal.peso_magnitud;
+    }
     return _ml;
   })();
   return _loading;

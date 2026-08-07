@@ -978,14 +978,6 @@
               <!-- GOD ROLL STATS: populated dynamically by renderMetaStats() -->
               <div id="meta-stats-container" class="recommended-god-roll-card" style="display:none;"></div>
 
-              <!-- Movimientos recientes de ESTA arma. Solo aparece si curiosidades.json trae alguno. -->
-              <div id="rivenCuriosidadesArma" class="riven-curiosidades riven-curiosidades-arma hidden" aria-live="polite">
-                <button type="button" data-curio-prev class="curio-nav" aria-label="Anterior">‹</button>
-                <div class="curio-viewport">
-                  <div data-curio-texto class="curio-texto"></div>
-                </div>
-                <button type="button" data-curio-next class="curio-nav" aria-label="Siguiente">›</button>
-              </div>
 
             </div>
           </div>
@@ -1027,6 +1019,16 @@
                 VARIANTS
               </h4>
               <div id="riven-variants-carousel" class="variants-carousel-scroll"></div>
+            </div>
+
+            <!-- Movimientos recientes de ESTA arma: debajo de la gráfica y de las variantes, en la
+                 columna derecha. Solo aparece si curiosidades.json trae alguno para ella. -->
+            <div id="rivenCuriosidadesArma" class="riven-curiosidades riven-curiosidades-arma hidden" aria-live="polite">
+              <button type="button" data-curio-prev class="curio-nav" aria-label="Anterior">‹</button>
+              <div class="curio-viewport">
+                <div data-curio-texto class="curio-texto"></div>
+              </div>
+              <button type="button" data-curio-next class="curio-nav" aria-label="Siguiente">›</button>
             </div>
           </div>
         </div>
