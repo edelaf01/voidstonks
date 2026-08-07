@@ -631,7 +631,21 @@ export function calculateAdvancedPredictivePrice(weapon, itemAttributes, tiers, 
   // ventas DE: un roll medio (CC+CD magnitud 50%) pasa de 93/100 -> ~70/100 y de 5.3x -> ~1.7x.
   // El meta sigue mandando (un CC/CD basura no supera a un stat trash perfecto), pero la magnitud
   // ya separa el godroll del roll mediocre, que es lo que el mercado paga distinto.
-  const rawScore = Math.round(((finalMetaRatio * 0.55) + (avgRollQuality * 0.45)) * 100);
+  // AJUSTADO A 75/25 (era 55/45) porque el 45% no estaba respaldado por el mercado. Medido sobre
+  // 43 combos con muestra suficiente: dentro del MISMO combo, la magnitud correlaciona con el precio
+  // (+0.427, y 28 de los 43 con corr>0.3) pero su efecto es de solo 1.20x entre el cuartil alto y el
+  // bajo. La identidad del stat mueve hasta 3.33x (Critical Damage). En escala log eso deja la
+  // magnitud en ~13% de la señal, así que un 45% penalizaba unas tres veces más de lo que el mercado
+  // paga: dos stats iguales con magnitudes algo distintas se separaban demasiado en el score.
+  // No se baja al 15% original porque entonces un CC/CD rolado al mínimo volvía a puntuar como un
+  // godroll (el problema que arregló v2.7.1); el 25% conserva esa separación acotada al efecto real.
+  // El peso lo MIDE el entrenamiento y llega en calibracion_por_arma.json (state.rivenPesoMagnitud);
+  // el 0.25 es solo el respaldo para cuando el bundle aún no ha cargado. Acotado a [0.15, 0.35] aquí
+  // también: si un reentreno exportara un valor absurdo, no debe poder romper la tasación del front.
+  const _pesoMag = Math.min(0.35, Math.max(0.15,
+    (typeof state !== "undefined" && typeof state.rivenPesoMagnitud === "number")
+      ? state.rivenPesoMagnitud : 0.25));
+  const rawScore = Math.round(((finalMetaRatio * (1 - _pesoMag)) + (avgRollQuality * _pesoMag)) * 100);
   // Bug fix: for bricked Rivens, clamp adjustedScore to a max of 20 regardless of raw score
   // (a bricked Riven is always trash-tier, the score should reflect that)
   const adjustedScore = isBricked

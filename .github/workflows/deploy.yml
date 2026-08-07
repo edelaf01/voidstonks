@@ -24,9 +24,15 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     name: Deploy
-    # workflow_run salta con "completed" aunque el workflow anterior haya FALLADO, así que sin este
-    # guard un run roto de curiosidades lanzaría un deploy para nada.
-    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
+    # Dos guards para workflow_run, que es más laxo que `push`:
+    #   - "completed" salta aunque el workflow anterior haya FALLADO -> se exige conclusion success.
+    #   - se dispara sea cual sea la rama del run origen, y actions/checkout en ese contexto saca la
+    #     rama por defecto: sin comprobar head_branch, un run manual en una feature branch acabaría
+    #     publicando main. El disparador `push` ya está acotado a main; esto lo iguala.
+    if: >-
+      ${{ github.event_name != 'workflow_run' ||
+          (github.event.workflow_run.conclusion == 'success' &&
+           github.event.workflow_run.head_branch == 'main') }}
     permissions:
       contents: read
     steps:
