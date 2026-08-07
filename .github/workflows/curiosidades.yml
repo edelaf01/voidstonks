@@ -24,15 +24,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Checkout del repo de datos (CSV del oráculo)
-        uses: actions/checkout@v4
-        with:
-          repository: edelaf01/Voidstonks-cron
-          path: _cron
-          # MISMO secreto que usa retrain-ml.yml. Voidstonks-cron es privado, así que sin este PAT
-          # el checkout falla; GITHUB_TOKEN no sirve porque solo cubre este repositorio.
-          token: ${{ secrets.CRON_DATASET_PAT }}
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -44,7 +35,10 @@ jobs:
       - name: Descargar serie history
         working-directory: scripts-actu/ML-rivenvaluation
         env:
-          VOIDSTONKS_CSV: ${{ github.workspace }}/_cron/historial_precios/dataset_raw_ml.csv
+          # Sin VOIDSTONKS_CSV a propósito: history_fetch.py saca la lista de armas del catálogo de
+          # este repo y el histórico del worker (sin auth). Así este job NO necesita clonar el repo
+          # privado del oráculo ni su PAT, que es lo que fallaba con "Bad credentials".
+          VOIDSTONKS_WEAPONS: ${{ github.workspace }}/deploy/assets/json/cleaned_weapons.json
         run: python history_fetch.py
 
       - name: Generar curiosidades
