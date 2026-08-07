@@ -259,26 +259,18 @@ export function calculateAdvancedPredictivePrice(weapon, itemAttributes, tiers, 
     if (nameLower.includes("heat")) hasHeat = true;
   });
 
+  // only the pairs the market pays a premium for get a bonus: Viral, Radiation and Corrosive
   let elementComboBonus = 0;
   let comboName = "";
   if (hasToxin && hasCold) {
     elementComboBonus = 0.25;
     comboName = "Viral";
-  } else if (hasToxin && hasElectric) {
-    elementComboBonus = 0.25;
-    comboName = "Corrosive";
   } else if (hasHeat && hasElectric) {
-    elementComboBonus = 0.15;
+    elementComboBonus = 0.10;
     comboName = "Radiation";
-  } else if (hasToxin && hasHeat) {
-    elementComboBonus = 0.15;
-    comboName = "Gas";
-  } else if (hasCold && hasElectric) {
+  } else if (hasToxin && hasElectric) {
     elementComboBonus = 0.10;
-    comboName = "Magnetic";
-  } else if (hasHeat && hasCold) {
-    elementComboBonus = 0.10;
-    comboName = "Blast";
+    comboName = "Corrosive";
   }
 
   const dispo = weaponData ? (weaponData.disposition || weaponData.d || 1) : 1;
