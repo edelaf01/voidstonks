@@ -38,6 +38,18 @@ export async function fetchWeaponHistory(weaponName) {
   return Array.isArray(result) ? result : (result.data || []);
 }
 
+// groups weapon variants toward the base weapon for fallback stat weights
+export const VARIANT_PREFIXES = [
+  'Kuva ', 'Tenet ', 'Prisma ', 'Dex ', 'Mara ', 'Mk1-', 'Mk1 ', 'Ceti ',
+  'Mutalist ', 'Sancti ', 'Secura ', 'Rakta ', 'Telos ',
+  'Synoid ', 'Vaykor ', 'Coda ', 'Carmine ', 'Shadow ',
+];
+
+export const VARIANT_SUFFIXES = [
+  ' Prime', ' Wraith', ' Vandal', ' Prisma', ' Dex',
+  ' Blueprint', ' Umbra', ' Coda',
+];
+
 export function extractFamilyName(weaponName) {
   const overrides = {
     "prisma dual decurions": "Dual Decurion",
@@ -59,16 +71,8 @@ export function extractFamilyName(weaponName) {
     return overrides[lowerName];
   }
 
-  const prefixes = [
-    'Kuva ', 'Tenet ', 'Prisma ', 'Dex ', 'Mara ', 'Mk1-',
-    'Mutalist ', 'Sancti ', 'Secura ', 'Rakta ', 'Telos ',
-    'Synoid ', 'Vaykor ', 'Coda ', 'Carmine ', 'Shadow ',
-  ];
-
-  const suffixes = [
-    ' Prime', ' Wraith', ' Vandal', ' Prisma', ' Dex',
-    ' Blueprint', ' Umbra',
-  ];
+  const prefixes = VARIANT_PREFIXES;
+  const suffixes = VARIANT_SUFFIXES;
 
   let name = weaponName.trim();
 

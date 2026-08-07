@@ -27,7 +27,7 @@ antes = df_micro.shape[0]
 df_micro.drop_duplicates(subset=clave_dedup, keep="last", inplace=True)
 print(f"Reposts exactos eliminados: {antes - df_micro.shape[0]} (conservada la varianza de precio).")
 
-PREFIJOS = r"\b(kuva|tenet|prisma|mara|dex|synoid|telos|vaykor|secura|rakta|sancti|coda|carmine|mk1|mk-1)\b"
+PREFIJOS = r"\b(kuva|tenet|prisma|mara|dex|synoid|telos|vaykor|secura|rakta|sancti|coda|carmine|ceti|mk1|mk-1)\b"
 SUFIJOS = r"\b(prime|vandal|wraith|incarnon)\b"
 
 EXCEPCIONES_FAMILIA = {
@@ -395,6 +395,11 @@ cols_numericas = ["official_median", "wfm_avg", "official_median_missing", "wfm_
                   "has_mag", "mag_pos_avg", "mag_pos1_norm", "mag_pos2_norm", "mag_pos3_norm",
                   "mag_neg_norm",
                   "hist_day_drift", "hist_day_offdrift", "hist_day_liq", "hist_day_sample", "hist_day_rerprem"]
+if os.environ.get("SIN_SYNERGY", "0") != "0":
+    _fuera = {"synergy_score", "dispo_x_synergy", "popularity_pct_x_synergy"}
+    cols_numericas = [c for c in cols_numericas if c not in _fuera]
+    print(f"  SIN_SYNERGY activo: fuera {sorted(_fuera)} -> {len(cols_numericas)} numéricas")
+
 cols_dummies = [c for c in df_ml.columns if c.startswith("has_pos_stat_") or c.startswith("has_neg_stat_")]
 columnas_micro = [c for c in cols_numericas if c in df_ml.columns] + cols_dummies
 
@@ -438,7 +443,8 @@ for _w, _idx in df_ml.groupby("weapon").groups.items():
     _hi = _rmax if _rmax > _rmed else _rmed * 5.0
     _hi = min(_hi, _rmed * 8.0)
 
-    _p = _asks.rank(pct=True).to_numpy()
+    _cal_q = df_ml.loc[_idx, "synergy_score"].astype(float)
+    _p = (_cal_q.rank(pct=True) if _cal_q.nunique() > 1 else _asks.rank(pct=True)).to_numpy()
     _lg = np.where(
         _p <= 0.5,
         np.log(_lo) + (np.log(_rmed) - np.log(_lo)) * (_p / 0.5),
@@ -477,6 +483,28 @@ df_ml["sample_w"] = df_ml["sample_w"] * pop_wt
 _gp90 = df_ml.groupby("weapon")["price"].transform(lambda s: s.quantile(0.90))
 _godroll_mask = df_ml["price"] >= _gp90
 df_ml.loc[_godroll_mask, "sample_w"] *= (1 + np.log1p(df_ml.loc[_godroll_mask, "price"] - _gp90[_godroll_mask]))
+_RECENCIA_ON = os.environ.get("RECENCIA", "0") != "0"
+_VIDA_MEDIA_DIAS = float(os.environ.get("RECENCIA_HALFLIFE", "30"))
+df_ml["w_recencia"] = 1.0
+if _RECENCIA_ON and "fecha" in df_ml.columns:
+    _f = pd.to_datetime(df_ml["fecha"], errors="coerce")
+    _edad = (_f.max() - _f).dt.days.fillna(_VIDA_MEDIA_DIAS * 2).clip(lower=0)
+    _dia = pd.to_datetime(df_ml["fecha"], errors="coerce").dt.date
+    _med_dia = df_ml.groupby(["weapon", _dia])["price"].transform("median")
+    _serie_arma = df_ml.assign(_md=_med_dia).drop_duplicates(subset=["weapon", "fecha"])
+    _vol = (_serie_arma.groupby("weapon")["_md"].std()
+            / _serie_arma.groupby("weapon")["_md"].median().clip(lower=1)).fillna(0.0)
+    _cv = df_ml["weapon"].map(_vol).fillna(float(_vol.median())).clip(0, 2)
+    _cv_med = float(_cv.median()) or 1.0
+    _factor = (_cv_med / _cv.clip(lower=0.05)).clip(1 / 3, 4)
+    _hl = (_VIDA_MEDIA_DIAS * _factor).clip(lower=7)
+    _w_rec = np.power(0.5, _edad / _hl)
+    print(f"  Recencia adaptativa: vida media {_hl.min():.0f}-{_hl.max():.0f}d "
+          f"(base {_VIDA_MEDIA_DIAS:.0f}d, cv mediano {_cv_med:.2f})")
+    df_ml["w_recencia"] = _w_rec / _w_rec.mean()
+    print(f"  Recencia: vida media {_VIDA_MEDIA_DIAS:.0f}d | peso medio "
+          f"{_w_rec.mean():.2f} | filas de >60d: {(_edad > 60).sum()}")
+
 _wcount = df_ml["weapon"].map(df_ml["weapon"].value_counts())
 df_ml["sample_w"] = df_ml["sample_w"] / _wcount
 df_ml["sample_w"] = df_ml["sample_w"] / df_ml["sample_w"].mean()
@@ -491,7 +519,7 @@ tr_idx, te_idx = train_test_split(idx_all, test_size=0.18, random_state=42,
 tr2_idx, es_idx = train_test_split(tr_idx, test_size=0.12, random_state=42,
                                    stratify=df_ml["weapon"].values[tr_idx])
 
-X_train = df_ml.iloc[tr2_idx][columnas_micro]; y_train = y_all.values[tr2_idx]; w_train = df_ml["sample_w"].values[tr2_idx]
+X_train = df_ml.iloc[tr2_idx][columnas_micro]; y_train = y_all.values[tr2_idx]; w_train = df_ml["sample_w"].values[tr2_idx]; w_recencia = df_ml["w_recencia"].values[tr2_idx]
 X_es = df_ml.iloc[es_idx][columnas_micro];     y_es = y_all.values[es_idx]
 X_test = df_ml.iloc[te_idx][columnas_micro];   y_test = y_all.values[te_idx]
 weapon_test = df_ml["weapon"].values[te_idx]
@@ -547,7 +575,8 @@ qmodels = {}
 for a in QUANTILES:
     a_tr = _ALPHA_TRAIN.get(a, a)
     m = xgb.XGBRegressor(objective="reg:quantileerror", quantile_alpha=a_tr, random_state=42, **_QPARAMS)
-    m.fit(X_train, y_train, eval_set=[(X_es, y_es)], verbose=False)
+    _fit_kw = {"sample_weight": w_recencia} if _RECENCIA_ON else {}
+    m.fit(X_train, y_train, eval_set=[(X_es, y_es)], verbose=False, **_fit_kw)
     qmodels[a] = m
     print(f"  XGB cuantil etiqueta={a} (α_train={a_tr}) best_iter={getattr(m, 'best_iteration', '?')}")
 optimized_xgb = QuantileModel(qmodels, QUANTILES, columnas_micro)
@@ -1125,6 +1154,21 @@ trash_ordenado = {k: v for k, v in sorted(precios_suelo_reales.items(), key=lamb
 with open("voidstonks_trash_prices_rangos.json", "w", encoding="utf-8") as f:
     json.dump(trash_ordenado, f, indent=4, ensure_ascii=False)
 print("Rangos trash guardados.")
+
+
+from curiosidades_gen import _generar_curiosidades  # noqa: E402
+
+_curios = _generar_curiosidades(HIST_SERIES)
+if _curios:
+    _dest_cur = os.environ.get("DEPLOY_ML_DIR", "generado")
+    os.makedirs(_dest_cur, exist_ok=True)
+    with open(os.path.join(_dest_cur, "curiosidades.json"), "w", encoding="utf-8") as f:
+        json.dump({"generado": str(pd.Timestamp.now("UTC").date()), "eventos": _curios},
+                  f, indent=1, ensure_ascii=False)
+    _n_solo = sum(1 for e in _curios if e["solo_ask"])
+    print(f"Curiosidades guardadas: {len(_curios)} eventos ({_n_solo} de solo-ask).")
+else:
+    print("Curiosidades: sin eventos que superen los filtros de ruido.")
 
 
 if os.environ.get("SLIM_EXPORT", "1") == "1":
