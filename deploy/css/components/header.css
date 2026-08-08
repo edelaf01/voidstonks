@@ -565,21 +565,35 @@ option {
     position: relative;
 }
 
-.dropdown-item:hover {
-    background: var(--active-theme-color) !important;
-    color: #050505 !important;
-    font-weight: 700;
-    border-left: 4px solid #000;
-    padding-left: 20px;
+/* El hover se limita a punteros reales: en tactil se queda "pegado" tras el primer toque y,
+   como mueve el texto (padding-left) y escala la imagen, el navegador interpreta ese primer
+   toque como "mostrar hover" y se come el click -> habia que tocar dos veces para elegir. */
+@media (hover: hover) {
+    .dropdown-item:hover {
+        background: var(--active-theme-color) !important;
+        color: #050505 !important;
+        font-weight: 700;
+        border-left: 4px solid #000;
+        padding-left: 20px;
+    }
+
+    .dropdown-item:hover img {
+        background: #000 !important;
+        transform: scale(1.35);
+    }
+}
+
+/* En tactil el feedback lo da :active, que solo dura lo que dura el toque y no desplaza nada. */
+@media (hover: none) {
+    .dropdown-item:active {
+        background: var(--active-theme-color) !important;
+        color: #050505 !important;
+        font-weight: 700;
+    }
 }
 
 .dropdown-item img {
     transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275), background 0.2s ease;
-}
-
-.dropdown-item:hover img {
-    background: #000 !important;
-    transform: scale(1.35);
 }
 
 .dropdown-item.active-sort-item {

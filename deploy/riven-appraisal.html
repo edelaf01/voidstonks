@@ -131,8 +131,9 @@
       <ul>
         <li><strong>Peso propio del arma</strong>: derivado de las ventas reales de rivens de esa
           arma (qué estadísticas aparecen en los rivens que se venden caros).</li>
-        <li><strong>Peso base por tipo de arma</strong>: un patrón general (crítica, estado, daño…)
-          que sirve de red de seguridad cuando el arma tiene pocas ventas.</li>
+        <li><strong>Peso base global</strong>: un patrón calculado sobre todo el catálogo (Daño de
+          Crítico 1,00, Multidisparo 0,90, Prob. de Crítico 0,89…) que sirve de red de seguridad
+          cuando el arma tiene pocas ventas de ese stat en concreto.</li>
       </ul>
       <div class="callout">
         <p style="margin:0;">La mezcla se pondera por la <strong>liquidez</strong> del arma: cuantas
@@ -146,8 +147,10 @@
         <li>Una estadística claramente meta pesa <strong>1,0</strong>; una de gama media, alrededor
           de <strong>0,85</strong>. Los positivos de gama media <em>también</em> suman: el valor es
           continuo, no un simple «bueno o basura».</li>
-        <li>El daño por facción (Grineer/Corpus/Infestado) es nicho: se valora como algo intermedio,
-          ni basura total ni godroll, para que sume algo sin inflar el roll.</li>
+        <li>El daño por facción (Grineer/Corpus/Infestado) <strong>ya no recibe trato especial</strong>.
+          Tenía un suelo fijo, pero el dato lo desmiente: el modelo le da el mismo peso que a Zoom o
+          Munición Máxima, y en ventas reales un riven con +Daño vs Grineer se vende a 0,56× uno sin
+          él. Ahora vale lo que su arma diga, sin regalo.</li>
       </ul>
 
       <h2 id="e-roll">3. La magnitud de la tirada</h2>
@@ -158,12 +161,34 @@
         número en un rango mayor sería mediocre. Cuando una estadística ya meta sale además muy alta
         (calidad &gt; 0,8), su peso recibe un empujón extra: es la diferencia entre «buen riven» y
         «godroll».</p>
+      <div class="callout">
+        <p style="margin:0;">¿<strong>Cuánto</strong> pesa la magnitud frente a <em>qué</em>
+          estadísticas tienes? El tasador ya no lo decide a dedo: lo <strong>mide</strong> en cada
+          reentreno. Dentro de un mismo conjunto de stats, un roll del cuartil alto de magnitud se
+          vende un <strong>38 % más caro</strong> que uno del cuartil bajo — mientras que la identidad
+          del stat mueve hasta <strong>3,3×</strong>. En escala logarítmica eso deja la magnitud en un
+          <strong>21 %</strong> del score y el resto para el peso meta. Antes ese reparto era 45 %, que
+          penalizaba unas tres veces más de lo que el mercado paga: dos rivens con los mismos stats y
+          magnitudes algo distintas se separaban demasiado en precio.</p>
+      </div>
 
       <h2 id="e-elem">4. Combos elementales y el orden de los stats</h2>
-      <p>Dos bonos elementales pueden fusionarse en un elemento compuesto más potente —Viral,
-        Corrosivo, Radiación, Gas, Magnético o Explosivo— y eso ahorra un espacio de mod muy valioso,
-        así que sube el valor del riven. Los compuestos más buscados (como Viral o Corrosivo) aportan
-        más que los secundarios.</p>
+      <p>Dos bonos elementales pueden fusionarse en un compuesto —Viral, Corrosivo, Radiación, Gas,
+        Magnético o Explosivo— y eso ahorra un espacio de mod. Pero <strong>no todos se pagan</strong>,
+        y el mercado es tajante. Comparando el precio de cada par contra los demás, dentro de la misma
+        arma:</p>
+      <ul>
+        <li><strong>Viral</strong> (Toxina+Frío): <strong>1,44×</strong>. El único que se paga de
+          verdad, y el tasador lo premia.</li>
+        <li><strong>Radiación</strong> 1,10× y <strong>Corrosivo</strong> 1,07×: bonus pequeño.
+          Corrosivo cobraba lo mismo que Viral sin acercarse a su premium.</li>
+        <li><strong>Gas</strong> 0,76×, <strong>Magnético</strong> 0,89×, <strong>Explosivo</strong>
+          0,95×: se pagan igual o <em>peor</em> que un par cualquiera, así que <strong>no llevan
+          bonus</strong>. Antes sí lo cobraban.</li>
+      </ul>
+      <p>Y un contexto que conviene tener presente: llevar <strong>dos</strong> elementos vale 0,75×
+        que llevar uno solo, porque gastas dos de los tres huecos en algo que no es crítico ni
+        multidisparo. El bonus de Viral compensa dentro de ese peaje; no lo anula.</p>
       <p>Pero hay un matiz que mucha gente pasa por alto: <strong>el orden de las estadísticas en el
         riven importa</strong>. En Warframe los elementos se combinan siguiendo el orden de los mods,
         así que la posición de cada elemento dentro del riven —y cómo encaja con los demás elementales
@@ -297,8 +322,10 @@
         <li>A clearly meta stat weighs <strong>1.0</strong>; a mid-tier one about <strong>0.85</strong>.
           Mid-tier positives <em>also</em> add value: the score is continuous, not just «good or
           trash».</li>
-        <li>Faction damage (Grineer/Corpus/Infested) is niche: it is valued as something in between,
-          neither total trash nor a godroll, so it adds a little without inflating the roll.</li>
+        <li>Faction damage (Grineer/Corpus/Infested) <strong>no longer gets special treatment</strong>.
+          It used to have a fixed floor, but the data says otherwise: the model rates it the same as
+          Zoom or Ammo Maximum, and in real sales a riven with +Damage vs Grineer sells at 0.56x one
+          without it. It is now worth whatever its weapon says, with no handout.</li>
       </ul>
 
       <h2 id="g-roll">3. Roll magnitude</h2>
@@ -311,9 +338,17 @@
         riven» and a «godroll».</p>
 
       <h2 id="g-elem">4. Elemental combos and stat order</h2>
-      <p>Two elemental bonuses can fuse into a stronger compound element —Viral, Corrosive, Radiation,
-        Gas, Magnetic or Blast— and that saves a very valuable mod slot, so it raises the riven's
-        value. The most sought-after compounds (like Viral or Corrosive) add more than the secondary
+      <p>Two elemental bonuses can fuse into a compound —Viral, Corrosive, Radiation, Gas, Magnetic or
+        Blast— which saves a mod slot. But <strong>not all of them get paid for</strong>, and the market
+        is blunt about it. Comparing each pair against the others within the same weapon:
+        <strong>Viral</strong> (Toxin+Cold) <strong>1.44x</strong> — the only one truly paid for, and
+        the appraiser rewards it; <strong>Radiation</strong> 1.10x and <strong>Corrosive</strong> 1.07x
+        get a small bonus (Corrosive used to be paid like Viral without earning it); and
+        <strong>Gas</strong> 0.76x, <strong>Magnetic</strong> 0.89x and <strong>Blast</strong> 0.95x
+        sell the same or <em>worse</em> than any other pair, so they <strong>get no bonus</strong>.
+        Context worth keeping in mind: carrying <strong>two</strong> elements is worth 0.75x carrying
+        one, because you spend two of three slots on something that is not crit or multishot.
+        Previously the most sought-after compounds (like Viral or Corrosive) added more than secondary
         ones.</p>
       <p>But there is a nuance many people overlook: <strong>the order of the stats on the riven
         matters</strong>. In Warframe elements combine following mod order, so the position of each
