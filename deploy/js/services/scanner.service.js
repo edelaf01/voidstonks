@@ -1476,6 +1476,89 @@ export const ScannerService = {
             const workers = OCRRepository.workers.filter(Boolean);
             console.log(`[INV] Workers OCR listos: ${workers.length}`);
 
+            // Partes prime encontradas en esta página, PENDIENTES de confirmar. Una página del
+            // inventario es de un solo tipo (la pestaña RELIQUIAS solo enseña reliquias), así
+            // que si la página resulta ser de reliquias, una "parte prime" suelta no es una
+            // parte: es una celda con el nombre ilegible que el matcher difuso ha rellenado.
+            // Así entraron "Jahu" y "Forma Blueprint" en el inventario desde celdas de reliquia.
+            const pendingItems = [];
+
+            // Etiqueta de ítem del overlay de debug. Vive fuera del bucle porque ahora se pinta
+            // en la fase de commit, cuando ya se sabe de qué tipo era la página.
+            const drawItemCell = ({ cell, bestItem, qtyResult, itemText }) => {
+                const relX = cell.sx - gridZone.x;
+                const relY = cell.sy - gridZone.y;
+
+                // Draw a single elegant opaque label block at the bottom of the card to fully cover underlying text
+                dCtx.fillStyle = "rgba(10, 15, 28, 0.98)";
+                dCtx.fillRect(relX, relY + cellH - 50, cellW, 50);
+
+                // Thin cyan line top separator for premium feel
+                dCtx.fillStyle = "rgba(0, 229, 255, 0.7)";
+                dCtx.fillRect(relX, relY + cellH - 50, cellW, 1.5);
+
+                // 1. Raw Tesseract OCR Text (Amber, italic, 9px)
+                dCtx.fillStyle = "#ffb300";
+                dCtx.font = "italic 9px system-ui, -apple-system, sans-serif";
+                const rawText = itemText.join(" ");
+                const badgeRawText = qtyResult.raw ? qtyResult.raw.trim().replaceAll(/\s+/g, " ") : "Ø";
+                const maxCharsItem = Math.floor(cellW / 5.5);
+                const truncatedItem = rawText.length > maxCharsItem ? rawText.slice(0, maxCharsItem - 3) + "..." : rawText;
+                dCtx.fillText(truncatedItem, relX + 6, relY + cellH - 37);
+
+                // Line 2: Raw Badge Text
+                dCtx.fillText(`BDG: "${badgeRawText}"`, relX + 6, relY + cellH - 25);
+
+                // 2. Clean Matched Catalog Name (Green, bold, 12px)
+                dCtx.fillStyle = "#00ff78";
+                dCtx.font = "bold 12px system-ui, -apple-system, sans-serif";
+                const shortName = bestItem.originalName.replace(/Prime/gi, "").trim();
+                dCtx.fillText(shortName, relX + 6, relY + cellH - 8);
+
+                // Draw a premium, beautiful pill badge at the TOP-LEFT exactly over the physical badge
+                const shiftLeft = (cell.c === 0) ? 14 : 2;
+                dCtx.fillStyle = "rgba(0, 0, 0, 0.85)";
+                dCtx.fillRect(relX - shiftLeft, relY + 4, 44 + (shiftLeft - 2), 18);
+                dCtx.fillStyle = "#ffc107"; // elegant amber/gold
+                dCtx.font = "bold 11px monospace";
+                // Muestra la cantidad de CONSENSO (moda entre frames), no la del frame único.
+                const consensusQty = this.sessionInventory.get(bestItem.originalName) ?? qtyResult.qty;
+                dCtx.fillText(`x${consensusQty}`, relX - shiftLeft + 8, relY + 17);
+
+                // Recuadro dorado del área de badge en el overlay de debug: la caja FIJA
+                // de extractBadgeBright (el extractor primario; ya no hay metadatos de
+                // crop dinámico como con el viejo badgeCanvas por color).
+                const bY = cell.sy + Math.round(cellH * 0.08) - gridZone.y;
+                dCtx.strokeStyle = "rgba(255, 193, 7, 0.85)";
+                dCtx.lineWidth = 1.5;
+                dCtx.strokeRect(relX, bY, Math.round(cellW * 0.40), Math.round(cellH * 0.17));
+            };
+
+            // Celda descartada por no cuadrar con el tipo de la página: mismo aviso rojo que
+            // una celda sin match, porque para el inventario es exactamente eso.
+            const drawDiscardedCell = ({ cell, bestItem, itemText }) => {
+                const relX = cell.sx - gridZone.x;
+                const relY = cell.sy - gridZone.y;
+                dCtx.strokeStyle = "rgba(255, 30, 80, 0.6)";
+                dCtx.lineWidth = 2;
+                dCtx.strokeRect(relX + 2, relY + 2, cellW - 4, cellH - 4);
+                dCtx.fillStyle = "rgba(25, 10, 15, 0.98)";
+                dCtx.fillRect(relX, relY + cellH - 50, cellW, 50);
+                dCtx.fillStyle = "rgba(255, 30, 80, 0.7)";
+                dCtx.fillRect(relX, relY + cellH - 50, cellW, 1.5);
+                dCtx.fillStyle = "#ff5252";
+                dCtx.font = "italic 9px system-ui, -apple-system, sans-serif";
+                const rawText = itemText.join(" ");
+                const maxCharsItem = Math.floor(cellW / 5.5);
+                dCtx.fillText(rawText.length > maxCharsItem ? rawText.slice(0, maxCharsItem - 3) + "..." : rawText,
+                    relX + 6, relY + cellH - 37);
+                dCtx.fillText(`≠ ${bestItem.originalName}`, relX + 6, relY + cellH - 25);
+                dCtx.fillStyle = "#8c9eff";
+                dCtx.font = "bold 12px system-ui, -apple-system, sans-serif";
+                // Etiqueta en inglés como el resto del overlay de debug ("UNMATCHED CELL", "BDG").
+                dCtx.fillText("DISCARDED (RELIC PAGE)", relX + 6, relY + cellH - 8);
+            };
+
             let cellIndex = 0;
             const runWorker = async (worker) => {
                 while (cellIndex < activeCells.length) {
@@ -1518,9 +1601,15 @@ export const ScannerService = {
                         continue;
                     }
 
+                    // itemText/relicText = la lectura que REALMENTE produjo el match. El overlay
+                    // de debug pintaba siempre combinedText (1ª pasada), así que cuando el match
+                    // salía del fallback la etiqueta mostraba un texto que no casaba con el
+                    // nombre de debajo — justo el caso que hay que poder leer en una captura.
                     let relicText = combinedText;
-                    let relicMatch = OCRService.getRelicMatch(combinedText);
-                    let bestItem = relicMatch ? null : OCRService.getValidItemMatch(combinedText);
+                    let itemText = combinedText;
+                    const readable = !this._isGarbledCellText(combinedText);
+                    let relicMatch = readable ? OCRService.getRelicMatch(combinedText) : null;
+                    let bestItem = (readable && !relicMatch) ? OCRService.getValidItemMatch(combinedText) : null;
                     let fallbackText = null;
 
                     // Fallback: si no hay match en la banda normal (76%-97%), probamos ventana más amplia (73%-99%)
@@ -1531,11 +1620,18 @@ export const ScannerService = {
                         fallbackText = await OCRService.extractCellText(worker, fullCellCvs);
                         if (fallbackText && fallbackText.length) {
                             logStr = `[r${cell.r}c${cell.c}] OCR (fallback): ${fallbackText.join(" ")}`;
+                            // La ventana del fallback mide su propio color de texto sobre una
+                            // franja distinta, así que puede binarizar el arte en vez del nombre:
+                            // mismo filtro de ilegible que en la pasada normal.
+                            if (this._isGarbledCellText(fallbackText)) fallbackText = null;
+                        }
+                        if (fallbackText && fallbackText.length) {
                             relicMatch = OCRService.getRelicMatch(fallbackText);
                             if (relicMatch) {
                                 relicText = fallbackText;
                             } else {
                                 bestItem = OCRService.getValidItemMatch(fallbackText);
+                                if (bestItem) itemText = fallbackText;
                             }
                         }
                     }
@@ -1552,7 +1648,7 @@ export const ScannerService = {
                                     relicText = pWords;
                                 } else {
                                     const pMatch = OCRService.getValidItemMatch(pWords);
-                                    if (pMatch) { bestItem = pMatch; combinedText = pWords; logStr += " [paddle]"; }
+                                    if (pMatch) { bestItem = pMatch; combinedText = pWords; itemText = pWords; logStr += " [paddle]"; }
                                 }
                             }
                         } catch (e) { console.warn("[Paddle fallback] error:", e); }
@@ -1570,7 +1666,6 @@ export const ScannerService = {
                     */
 
                     if (bestItem) {
-                        scanStats.matched++;
                         // 4b. Badge (cantidad) por BRILLO — robusto, no depende del color de tema
                         // (que a veces se detecta mal y binariza el número a medias → "4"→"1").
                         // Si no saca dígito, respaldo por color de tema.
@@ -1583,65 +1678,9 @@ export const ScannerService = {
                         }
 
                         logStr += ` || BDG: ${qtyResult.raw}`;
-                        this.lastRawOcrLog.push(logStr);
-
-                        // Consenso temporal: la lectura de un frame es frágil (dígito ~15px), pero
-                        // el nombre del ítem es fiable. Acumulamos votos de cantidad por ítem a lo
-                        // largo de los frames y guardamos la MODA. Así los errores aleatorios de un
-                        // frame se diluyen y la cantidad final es robusta.
-                        this.recordQtyVote(bestItem.originalName, qtyResult);
-
-                        const relX = cell.sx - gridZone.x;
-                        const relY = cell.sy - gridZone.y;
-
-                        // Draw a single elegant opaque label block at the bottom of the card to fully cover underlying text
-                        dCtx.fillStyle = "rgba(10, 15, 28, 0.98)";
-                        dCtx.fillRect(relX, relY + cellH - 50, cellW, 50);
-                        
-                        // Thin cyan line top separator for premium feel
-                        dCtx.fillStyle = "rgba(0, 229, 255, 0.7)";
-                        dCtx.fillRect(relX, relY + cellH - 50, cellW, 1.5);
-
-                        // 1. Raw Tesseract OCR Text (Amber, italic, 9px)
-                        dCtx.fillStyle = "#ffb300";
-                        dCtx.font = "italic 9px system-ui, -apple-system, sans-serif";
-                        const rawText = combinedText.join(" ");
-                        const badgeRawText = qtyResult.raw ? qtyResult.raw.trim().replaceAll(/\s+/g, " ") : "Ø";
-                        const maxCharsItem = Math.floor(cellW / 5.5);
-                        const truncatedItem = rawText.length > maxCharsItem ? rawText.slice(0, maxCharsItem - 3) + "..." : rawText;
-                        dCtx.fillText(truncatedItem, relX + 6, relY + cellH - 37);
-
-                        // Line 2: Raw Badge Text
-                        dCtx.fillText(`BDG: "${badgeRawText}"`, relX + 6, relY + cellH - 25);
-
-                        // 2. Clean Matched Catalog Name (Green, bold, 12px)
-                        dCtx.fillStyle = "#00ff78";
-                        dCtx.font = "bold 12px system-ui, -apple-system, sans-serif";
-                        const shortName = bestItem.originalName.replace(/Prime/gi, "").trim();
-                        dCtx.fillText(shortName, relX + 6, relY + cellH - 8);
-
-                        // Draw a premium, beautiful pill badge at the TOP-LEFT exactly over the physical badge
-                        const shiftLeft = (cell.c === 0) ? 14 : 2;
-                        dCtx.fillStyle = "rgba(0, 0, 0, 0.85)";
-                        dCtx.fillRect(relX - shiftLeft, relY + 4, 44 + (shiftLeft - 2), 18);
-                        dCtx.fillStyle = "#ffc107"; // elegant amber/gold
-                        dCtx.font = "bold 11px monospace";
-                        // Muestra la cantidad de CONSENSO (moda entre frames), no la del frame único.
-                        const consensusQty = this.sessionInventory.get(bestItem.originalName) ?? qtyResult.qty;
-                        dCtx.fillText(`x${consensusQty}`, relX - shiftLeft + 8, relY + 17);
-
-                        // Recuadro dorado del área de badge en el overlay de debug: la caja FIJA
-                        // de extractBadgeBright (el extractor primario; ya no hay metadatos de
-                        // crop dinámico como con el viejo badgeCanvas por color).
-                        {
-                            const bX = cell.sx - gridZone.x;
-                            const bY = cell.sy + Math.round(cellH * 0.08) - gridZone.y;
-                            const bW = Math.round(cellW * 0.40);
-                            const bH = Math.round(cellH * 0.17);
-                            dCtx.strokeStyle = "rgba(255, 193, 7, 0.85)";
-                            dCtx.lineWidth = 1.5;
-                            dCtx.strokeRect(bX, bY, bW, bH);
-                        }
+                        // NO se apunta todavía: una parte prime solo cuenta si la PÁGINA no
+                        // resulta ser de reliquias (ver el commit tras el Promise.all).
+                        pendingItems.push({ cell, bestItem, qtyResult, itemText, logStr });
                     } else if (relicMatch) {
                         scanStats.relics++;
                         // 4c. Misma lectura de badge que los prime items (brillo + respaldo color),
@@ -1741,7 +1780,18 @@ export const ScannerService = {
                             // 2. Unmatched Status Label (Gray, bold, 12px)
                             dCtx.fillStyle = "#8c9eff";
                             dCtx.font = "bold 12px system-ui, -apple-system, sans-serif";
-                            dCtx.fillText("UNMATCHED CELL", relX + 6, relY + cellH - 8);
+                            dCtx.fillText(readable ? "UNMATCHED CELL" : "GARBLED (UNREADABLE)", relX + 6, relY + cellH - 8);
+
+                            // Y sobre el arte —que no aporta nada— se pinta EL RECORTE BINARIZADO
+                            // que se le pasó a Tesseract. Es la única forma de diagnosticar esto:
+                            // el fallo solo existe en el frame en vivo (sobre la captura de
+                            // escritorio del mismo inventario, las 18 celdas binarizan limpias),
+                            // así que una captura del overlay tiene que enseñar la ENTRADA real
+                            // del OCR, no la pantalla del juego.
+                            const bandH = Math.round((cellH - 54) * 0.6);
+                            dCtx.fillStyle = "#fff";
+                            dCtx.fillRect(relX + 4, relY + 4, cellW - 8, bandH);
+                            dCtx.drawImage(textCvs, relX + 4, relY + 4, cellW - 8, bandH);
                         }
                     }
                 }
@@ -1758,6 +1808,29 @@ export const ScannerService = {
                     workerPromises.push(runWorker(workers[w]));
                 }
                 await Promise.all(workerPromises);
+
+                // Commit de las partes prime pendientes, ya con la página entera vista.
+                // Si la mayoría de celdas casaron RELIQUIA, la página es la pestaña de
+                // reliquias y las partes prime sueltas son celdas mal leídas: se descartan
+                // en vez de apuntarse. El mínimo de 3 evita decidir con ruido, y exigir el
+                // DOBLE que ítems deja pasar una página normal de partes prime (0 reliquias).
+                const relicPage = scanStats.relics >= 3 && scanStats.relics >= 2 * pendingItems.length;
+                for (const pending of pendingItems) {
+                    if (relicPage) {
+                        scanStats.unmatched++;
+                        this.lastRawOcrLog.push(`${pending.logStr} || DESCARTADO (página de reliquias): ${pending.bestItem.originalName}`);
+                        drawDiscardedCell(pending);
+                        continue;
+                    }
+                    scanStats.matched++;
+                    this.lastRawOcrLog.push(pending.logStr);
+                    // Consenso temporal: la lectura de un frame es frágil (dígito ~15px), pero
+                    // el nombre del ítem es fiable. Acumulamos votos de cantidad por ítem a lo
+                    // largo de los frames y guardamos la MODA. Así los errores aleatorios de un
+                    // frame se diluyen y la cantidad final es robusta.
+                    this.recordQtyVote(pending.bestItem.originalName, pending.qtyResult);
+                    drawItemCell(pending);
+                }
 
                 // Console logs disabled for production performance boost (reduces console render lag)
                 /*
@@ -1821,6 +1894,23 @@ export const ScannerService = {
     // "RIVEN" explícito o "MOD" + clase de arma ("RIFLE RIVEN MOD" velado, aunque el OCR
     // pierda la palabra RIVEN). Los rivens revelados sin "RIVEN" legible ("VULKAR CRITACAN")
     // no se pueden distinguir por keyword; el sufijo inventado rara vez matchea un ítem real.
+    // ¿La lectura de una celda es TEXTO o es ruido binarizado? El nombre más largo del
+    // juego ("Atlas Prime Neuroptics Blueprint") son 4 palabras, y una reliquia 3
+    // ("Axi H7 Relic"); aunque el OCR parta alguna, no se llega a 9 tokens. Cuando la
+    // binarización falla y marca como tinta el arte o la onda roja del fondo, Tesseract
+    // devuelve una ristra de fragmentos sueltos — vistos en vivo: "HEJO . YE : L 5, - AL
+    // 5 ER . OT NE WL" (que se apuntó como "Neo W1") o "OO BN TO TI A I - -AF A IP FR LE
+    // BOO SE PE EARN" ("Forma Blueprint"). Ningún matcher debería opinar sobre eso: la
+    // celda se marca ilegible y el frame siguiente lo reintenta.
+    _isGarbledCellText(words) {
+        if (!words || !words.length) return false;
+        const tokens = words.join(" ").toUpperCase().split(/[^A-Z0-9]+/).filter(Boolean);
+        if (tokens.length > 8) return true;
+        // Fragmentos de UN glifo: un nombre real trae como mucho uno (un código partido
+        // por el OCR, "AL" + "4"). Dos o más es ruido.
+        return tokens.filter(t => t.length === 1).length >= 2;
+    },
+
     _isRivenCellText(words) {
         if (!words || !words.length) return false;
         const t = words.join(" ").toUpperCase();

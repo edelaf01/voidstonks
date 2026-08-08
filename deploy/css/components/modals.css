@@ -939,12 +939,29 @@
   cursor: pointer;
 }
 
-.ic-icon-col.has-variants:hover {
-  width: var(--hover-width, 58px);
-  border-color: rgba(212, 175, 55, 0.55);
-  background: rgba(10, 15, 30, 0.96);
-  backdrop-filter: blur(12px);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5), 0 0 12px rgba(212, 175, 55, 0.15);
+@media (hover: hover) {
+  .ic-icon-col.has-variants:hover {
+    width: var(--hover-width, 58px);
+    border-color: rgba(212, 175, 55, 0.55);
+    background: rgba(10, 15, 30, 0.96);
+    backdrop-filter: blur(12px);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5), 0 0 12px rgba(212, 175, 55, 0.15);
+  }
+}
+
+/* En tactil no hay hover: la fila de variantes era inalcanzable (solo se podia elegir la
+   variante activa). Se muestra desplegada de salida, limitada al ancho de la tarjeta y con
+   scroll horizontal propio, para que cada variante sea un objetivo de toque directo.
+   Solo bajo 600px, que es donde .index-card-header apila en columna y queda sitio libre a la
+   derecha del icono; en fila la columna expandida taparia el nombre del arma. */
+@media (hover: none) and (max-width: 600px) {
+  .ic-icon-col.has-variants {
+    width: min(var(--hover-width, 58px), calc(100vw - 90px));
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    border-color: rgba(212, 175, 55, 0.35);
+    background: rgba(10, 15, 30, 0.9);
+  }
 }
 
 .ic-variants-inline-row {

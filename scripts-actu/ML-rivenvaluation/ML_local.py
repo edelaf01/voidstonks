@@ -260,6 +260,15 @@ for arma in df_micro["weapon"].unique():
     fila["re_max"] = _rx
     fila["wfm_vs_off"] = _wa / (_om + 1.0)
     fila["ceil_mult"] = _rx / (_rm + 1.0)
+    # NO añadir aquí el bloque de de_unrolled (un_std, un_pop, un_min, un_max, re_min) ni la relación
+    # un_sigmas_a_re = (re_med - un_med)/un_std: probados y descartados el 2026-08-08.
+    # Parecía el hueco más claro de todo el dataset —98% de cobertura y sin usar— y la σ de sin rolar
+    # es justo lo que conecta un_med con re_med (medido: re_med ~ un_med + 1σ, ratio 1.18x). Aun así:
+    #   103 features  R2intra 0.5767 · MAPEtrade 45.8% · AUC 0.813
+    #   109 features  R2intra 0.5773 · MAPEtrade 45.9% · AUC 0.813
+    # Y NINGUNA de las seis entró en el top 15 de importancia, o sea que el modelo ni las miró: ya
+    # infería la dispersión desde official_median y el resto del bloque de precios. Que un campo esté
+    # sin usar no significa que aporte información nueva.
     macro_rows.append(fila)
 
 df_macro = pd.DataFrame(macro_rows) if macro_rows else pd.DataFrame(columns=["weapon"] + MACRO_FIELDS)
@@ -517,6 +526,28 @@ cols_numericas = ["official_median", "wfm_avg", "official_median_missing", "wfm_
 # SIN_SYNERGY=1 saca synergy_score y sus derivadas. Es el test que decide si la mejora de la
 # calibración por calidad es real o FUGA: esa calibración construye el target CON synergy_score, así
 # que si además es feature el modelo se estaría leyendo a sí mismo.
+# CRUDO=1 quita las 11 features COMPUESTAS y deja solo las medidas directas. PROBADO el 2026-08-08
+# con 1.5x de presupuesto de árboles (mismo test set, 32026 filas):
+#   103 features  R2intra 0.5773 · MAPEtrade 45.9% · AUC 0.813 · armas<40% 32
+#    92 features  R2intra 0.5757 · MAPEtrade 46.5% · AUC 0.811 · armas<40% 29
+# El modelo recupera el 99.7% del R2 SIN ellas, incluso sin popularity_pct_x_synergy, que es la nº1
+# en importancia: puede reconstruirlas. Pero lo paga con 0.6 puntos de MAPE y un 48% más de árboles
+# en la mediana (3610 frente a 2444). Y p25/p80 convergen ANTES (759 vs 1159, 526 vs 895), que es
+# señal de quedarse sin información, no de aprender más rápido.
+# Conclusión: el pre-masticado es CASI redundante pero no gratis. Se mantiene porque 0.6 puntos de
+# MAPE y un modelo más pequeño valen más que quitar 11 líneas de cálculo.
+if os.environ.get("CRUDO", "0") != "0":
+    _compuestas = {
+        "synergy_score", "dispo_x_synergy", "popularity_pct_x_synergy",   # sinergia y sus cruces
+        "wfm_vs_off", "ceil_mult", "meta_signal", "fatigue_index",         # ratios a mano
+        "median_consistency", "mag_pos_avg",                              # agregados derivados
+        "official_median_missing", "wfm_avg_missing",                      # banderas de ausencia
+    }
+    _antes = len(cols_numericas)
+    cols_numericas = [c for c in cols_numericas if c not in _compuestas]
+    print(f"  CRUDO: fuera {_antes - len(cols_numericas)} features compuestas "
+          f"-> {len(cols_numericas)} numéricas (solo medidas directas)")
+
 if os.environ.get("SIN_SYNERGY", "0") != "0":
     _fuera = {"synergy_score", "dispo_x_synergy", "popularity_pct_x_synergy"}
     cols_numericas = [c for c in cols_numericas if c not in _fuera]
@@ -831,10 +862,25 @@ COMMON = dict(n_estimators=int(os.environ.get("XGB_N", "2000")), learning_rate=0
 # Es intrínsecamente roll-aware (la banda se ensancha según features del roll) y anclado al mercado
 # real (entrenado sobre precios reales). Métrica clave: COBERTURA (% reales <= cuantil ≈ alpha).
 QUANTILES = [0.25, 0.50, 0.80, 0.90, 0.95]   # p90/p95 = techo godroll (precio real, no ask troll)
-_QPARAMS = dict(n_estimators=int(os.environ.get("XGB_N", "2000")), learning_rate=0.03,
-                max_depth=10, subsample=0.85, colsample_bytree=0.6, min_child_weight=4,
-                reg_lambda=2.5, reg_alpha=0.1, tree_method="hist", n_jobs=-1,
+# Hiperparámetros configurables por entorno para poder hacer A/B sin editar el fichero.
+# PROFUNDIDAD YA PROBADA (2026-08-08): depth=7 + min_child_weight=12 sale PEOR con presupuesto de
+# árboles escalado x2.5 para que convergieran (R2intra 0.5773->0.5720, MAPEtrade 45.9->46.7%, armas
+# con MAPE<40% 32->27). La hipótesis era que con el 80% de combos únicos depth=10 memorizaba; es
+# falsa: el modelo necesita esa profundidad para representar interacciones entre stats que un árbol
+# de 7 niveles no alcanza. Y sale carísimo — pedía ~12500 árboles frente a 5149 para rendir menos.
+# Aprendizaje transferible: depth y n_estimators están ACOPLADOS. Cada nivel que quitas se paga con
+# ~2x iteraciones, así que un A/B de profundidad sin reescalar el presupuesto no concluye nada.
+_QPARAMS = dict(n_estimators=int(os.environ.get("XGB_N", "2000")),
+                learning_rate=float(os.environ.get("XGB_LR", "0.03")),
+                max_depth=int(os.environ.get("XGB_DEPTH", "10")),
+                subsample=float(os.environ.get("XGB_SUB", "0.85")),
+                colsample_bytree=float(os.environ.get("XGB_COL", "0.6")),
+                min_child_weight=int(os.environ.get("XGB_MCW", "4")),
+                reg_lambda=float(os.environ.get("XGB_L2", "2.5")), reg_alpha=0.1,
+                tree_method="hist", n_jobs=-1,
                 device=os.environ.get("XGB_DEVICE", "cpu"), early_stopping_rounds=80)
+print(f"  Hiperparámetros: depth={_QPARAMS['max_depth']} lr={_QPARAMS['learning_rate']} "
+      f"mcw={_QPARAMS['min_child_weight']} col={_QPARAMS['colsample_bytree']} l2={_QPARAMS['reg_lambda']}")
 
 class QuantileModel:
     """3 XGBRegressor (reg:quantileerror) para p25/p50/p80 en espacio log. .predict devuelve p50
@@ -876,7 +922,12 @@ for a in QUANTILES:
     # que el run de diagnóstico sea rápido, y ahí no queremos árboles de sobra).
     _qp = dict(_QPARAMS)
     if not os.environ.get("XGB_N"):
-        _qp["n_estimators"] = _N_POR_CUANTIL.get(a, _qp["n_estimators"])
+        # XGB_NMULT escala el presupuesto: los óptimos de _N_POR_CUANTIL se midieron con depth=10, y
+        # árboles más simples (depth menor, min_child_weight mayor) necesitan MÁS iteraciones. Sin
+        # escalarlo, un A/B de profundidad compara una config truncada contra otra completa y no
+        # concluye nada (pasó el 2026-08-08: los cinco cuantiles topaban con el límite).
+        _mult = float(os.environ.get("XGB_NMULT", "1"))
+        _qp["n_estimators"] = int(_N_POR_CUANTIL.get(a, _qp["n_estimators"]) * _mult)
     m = xgb.XGBRegressor(objective="reg:quantileerror", quantile_alpha=a_tr, random_state=42, **_qp)
     # `w_train` (tiers por precio + popularidad + boost de godrolls) NO se pasa, y es deliberado
     # aunque parezca un olvido: se probó y hunde el modelo. A/B con el mismo dataset (175903 filas):
@@ -1424,21 +1475,83 @@ df_pos = df_pos[df_pos["stat"] != "None"]
 df_neg = df_micro_clean[["weapon", "price", "price_rel", "stat_neg"]].rename(columns={"stat_neg": "stat"})
 df_neg = df_neg[(df_neg["stat"].notna()) & (df_neg["stat"] != "None")]
 
-def _pesos(df_long, value_col, min_vol):
-    """{stat: (peso 0..1, volumen)} por mediana normalizada al rango observado del grupo."""
+# ESCALA FIJA de los pesos (antes: min-max dentro de la propia ejecución).
+#
+# El min-max normalizaba contra el mejor y el peor stat QUE SALIERAN esa vez: el tope valía
+# 1.00 y el suelo 0.01 SIEMPRE, así que el número no significaba nada por sí solo y cualquier
+# stat que entrara o saliera reescalaba a todos los demás. En producción eso se veía como
+# Torid sirviendo 25 stats a 0.01 y tres a 1.00, y como stats que entraban y salían de la guía
+# entre corridas al cruzar el corte de servido.
+#
+# Ahora el peso sale del RATIO (mediana del precio CON ese stat / mediana del arma) llevado a
+# una escala logarítmica de anclas FIJAS: un 0.60 significa lo mismo esta semana, la que viene
+# y en cualquier arma. Anclas medidas sobre el dataset real (177k filas tras dedup, 415 armas):
+#   POS  ratio p5=0.25  p50=0.70  p95=2.50  -> [0.30, 2.00]
+#   NEG  ratio p5=0.18  p50=0.89  p95=4.00  -> [0.25, 3.00]
+# Medido con el generador real (415 armas), comparando la corrida con el dataset a 31-jul contra
+# la del dataset completo — es decir, una semana de datos nuevos:
+#   stats que llegan a la web:   pos 5589 -> 8781   neg 3355 -> 5751
+#   stats que DESAPARECEN de una corrida a la siguiente: pos 3.5% -> 0.4%   neg 4.5% -> 0.3%
+# (el tramo final de esa caída lo pone la histéresis de los cortes, más abajo).
+ESCALA_ANCLAS = {"pos": (0.30, 2.00), "neg": (0.25, 3.00)}
+
+# Evidencia mínima para RECOMENDAR un stat. Ya no se tiran esas filas del cálculo (el peso usa
+# todo lo acumulado y el shrinkage por volumen se encarga de no creérselo), solo se marca el
+# stat como baja confianza para que la guía de la web no lo proponga.
+MIN_EVIDENCIA = {"pos": 3, "neg": 2}
+
+
+def _peso_fijo(mediana, base, lado):
+    lo, hi = ESCALA_ANCLAS[lado]
+    ratio = mediana / (base if base else 1.0)
+    w = (np.log(max(ratio, 1e-6)) - np.log(lo)) / (np.log(hi) - np.log(lo))
+    return round(float(min(1.0, max(0.01, w))), 3)
+
+
+def _pesos(df_long, value_col, lado, base=None, min_vol=1):
+    """{stat: (peso 0..1, volumen)} en escala fija.
+
+    min_vol=1 por defecto: se usa TODO lo acumulado y es `_mezclar` quien pondera por volumen.
+    `base` es la referencia del grupo (mediana del arma, o del conjunto para el prior global).
+    """
     if df_long.empty:
         return {}
     agr = df_long.groupby("stat").agg(m=(value_col, "median"), vol=(value_col, "count")).reset_index()
     agr = agr[agr["vol"] >= min_vol]
     if agr.empty:
         return {}
-    mx, mn = agr["m"].max(), agr["m"].min()
-    rng = (mx - mn) or 1.0
-    return {r["stat"]: (round(0.01 + 0.99 * ((r["m"] - mn) / rng), 3), int(r["vol"])) for _, r in agr.iterrows()}
+    ref = base if base else float(df_long[value_col].median())
+    return {r["stat"]: (_peso_fijo(r["m"], ref, lado), int(r["vol"])) for _, r in agr.iterrows()}
+
+
+def _promover_lider(pesos, corte, banda=0.90, tope=4):
+    """Garantiza que el GRUPO LÍDER del arma entre entero en el tier superior.
+
+    La escala es ABSOLUTA y el worker clasifica por valor, no por ranking: sin esta guarda, un
+    arma cuyos stats no lleguen al corte se queda sin lista de "mejores" en la web, y otra con
+    tres stats casi empatados enseña solo uno (Torid: Multishot 0.688 dentro, CC/CD 0.635 fuera,
+    cuando la diferencia real entre ellos es ruido).
+
+    Grupo líder = hasta `tope` stats que estén a >=`banda` del mejor del arma. Se escalan en
+    bloque hasta que el MENOR de ellos cruza el corte, así que se conserva el orden y las
+    proporciones internas. El resto de la escala no se toca: sigue siendo absoluta y comparable.
+    """
+    if not pesos:
+        return pesos
+    orden = sorted(pesos.items(), key=lambda kv: -kv[1])
+    mx = orden[0][1]
+    if mx <= 0:
+        return pesos
+    lider = {s for s, v in orden[:tope] if v >= banda * mx}
+    minimo = min(pesos[s] for s in lider)
+    if minimo >= corte:
+        return pesos
+    f = (corte + 0.005) / minimo
+    return {s: (round(min(1.0, v * f), 3) if s in lider else v) for s, v in pesos.items()}
 
 # 1) PRIOR GLOBAL por stat (todas las armas, sobre precio relativo)
-glob_pos = _pesos(df_pos, "price_rel", min_vol=25)
-glob_neg = _pesos(df_neg, "price_rel", min_vol=20)
+glob_pos = _pesos(df_pos, "price_rel", "pos", min_vol=25)
+glob_neg = _pesos(df_neg, "price_rel", "neg", min_vol=20)
 GLOBAL_POS = {s: w for s, (w, _) in glob_pos.items()}
 GLOBAL_NEG = {s: w for s, (w, _) in glob_neg.items()}
 
@@ -1468,19 +1581,41 @@ export_maestro_real = {"_global": {
     "model_importance_neg": dict(sorted(MODEL_IMP_NEG.items(), key=lambda x: -x[1])),
 }}
 
+# Pesos de la corrida ANTERIOR (el bundle publicado que ya está en el repo). Solo se usan para
+# la HISTÉRESIS de los cortes de tier: un stat que ya estaba dentro no se cae por bajar unas
+# milésimas, tiene que bajar de verdad. Sin esto los que rondan el corte parpadean cada semana.
+_PREV_W = {}
+try:
+    _prev_path = os.path.join(os.environ.get("DEPLOY_ML_DIR", "generado"), "stat_weights.json")
+    with open(_prev_path, encoding="utf-8") as _f:
+        for _arma, _m in json.load(_f).items():
+            if _arma == "_global" or not isinstance(_m, dict):
+                continue
+            _PREV_W[_arma] = {lado: {s: v for tier in (_m.get(lado) or {}).values()
+                                     for s, v in (tier or {}).items()} for lado in ("pos", "neg")}
+    print(f"[HISTÉRESIS] pesos previos de {len(_PREV_W)} armas desde {_prev_path}")
+except Exception as _e:
+    print(f"[HISTÉRESIS] sin pesos previos ({_e}); primera corrida con cortes limpios.")
+
+HISTERESIS = 0.03  # margen por debajo del corte que conserva el tier anterior
+
+med_por_arma = df_micro_clean.groupby("weapon")["price"].median()
+
 for arma in df_micro_clean["weapon"].unique():
     tidx = _weapon_tidx.get(limpiar_chars(arma))  # None si no se tipó -> no filtra
-    loc_pos = _pesos(df_pos[df_pos["weapon"] == arma], "price", min_vol=3)
-    loc_neg = _pesos(df_neg[df_neg["weapon"] == arma], "price", min_vol=2)
+    _base = float(med_por_arma.get(arma, 0.0) or 0.0)
+    loc_pos = _pesos(df_pos[df_pos["weapon"] == arma], "price", "pos", base=_base)
+    loc_neg = _pesos(df_neg[df_neg["weapon"] == arma], "price", "neg", base=_base)
 
     pesos_pos_arma, pesos_neg_arma, baja_confianza = {}, {}, []
+    baja_confianza_neg = []
     for stat in ALL_POSSIBLE_STATS:
         if not stat_ok(stat, tidx):  # stat imposible para este arquetipo -> fuera
             continue
         wl, nl = loc_pos.get(stat, (None, 0))
         val, src = _mezclar(wl, nl, GLOBAL_POS.get(stat))
         pesos_pos_arma[stat] = val
-        if src in ("global", "prior"):
+        if src in ("global", "prior") or nl < MIN_EVIDENCIA["pos"]:
             baja_confianza.append(stat)
     for stat in ALL_POSSIBLE_STATS:
         if stat in IMPOSSIBLE_NEGATIVES:
@@ -1491,22 +1626,46 @@ for arma in df_micro_clean["weapon"].unique():
         wg = GLOBAL_NEG.get(stat)
         if wg is None:  # sin prior global de la negativa: un gran positivo es mala negativa
             wg = round(max(0.01, min(1.0, 1.01 - pesos_pos_arma.get(stat, 0.30))), 3)
-        val, _src = _mezclar(wl, nl, wg)
+        val, src_n = _mezclar(wl, nl, wg)
         pesos_neg_arma[stat] = val
+        if src_n in ("global", "prior") or nl < MIN_EVIDENCIA["neg"]:
+            baja_confianza_neg.append(stat)
+
+    pesos_pos_arma = _promover_lider(pesos_pos_arma, 0.75)
+    pesos_neg_arma = _promover_lider(pesos_neg_arma, 0.70)
+
+    _prev = _PREV_W.get(arma, {})
+
+    def _tier(stat, p, cortes, lado, previos=_prev):
+        """Tier del stat, con histéresis: si ya estaba en uno mejor y sigue a <=HISTERESIS del
+        corte, lo conserva. El peso que se exporta es el nuevo; solo se estabiliza la etiqueta."""
+        nombres = ("S", "A", "B", "F")
+        actual = next((n for n, c in zip(nombres, cortes) if p >= c), "F")
+        antes = (previos.get(lado) or {}).get(stat)
+        if antes is None:
+            return actual
+        prev_tier = next((n for n, c in zip(nombres, cortes) if antes >= c), "F")
+        if nombres.index(prev_tier) < nombres.index(actual):
+            corte_prev = cortes[nombres.index(prev_tier)]
+            if p >= corte_prev - HISTERESIS:
+                return prev_tier
+        return actual
 
     meta = {"pos": {"S": {}, "A": {}, "B": {}, "F": {}}, "neg": {"S": {}, "A": {}, "B": {}, "F": {}}}
     for s, p in pesos_pos_arma.items():
-        tier = "S" if p >= 0.75 else "A" if p >= 0.45 else "B" if p >= 0.15 else "F"
-        meta["pos"][tier][s] = p
+        meta["pos"][_tier(s, p, (0.75, 0.45, 0.15, 0.0), "pos")][s] = p
     for s, p in pesos_neg_arma.items():
-        tier = "S" if p >= 0.70 else "A" if p >= 0.40 else "B" if p >= 0.15 else "F"
-        meta["neg"][tier][s] = p
+        meta["neg"][_tier(s, p, (0.70, 0.40, 0.15, 0.0), "neg")][s] = p
 
     pop = df_micro_clean.loc[df_micro_clean["weapon"] == arma, "popularity_pct"]
     meta["popularity"] = round(float(pop.iloc[0]), 2) if not pop.empty else 0.0
     meta["mejores_pos"] = sorted(meta["pos"]["S"], key=lambda s: -pesos_pos_arma[s])[:4]
     meta["mejores_neg"] = sorted(meta["neg"]["S"], key=lambda s: -pesos_neg_arma[s])[:3]
-    meta["baja_confianza"] = baja_confianza  # stats sin datos locales (posible sesgo de supervivencia)
+    # Dos listas, una por lado: la confianza del POSITIVO no dice nada del NEGATIVO. Torid tiene
+    # 561 subastas con -Zoom (dato de sobra) y casi ninguna con +Zoom; con una sola lista, la UI
+    # daba Zoom por "sin dato" y lo borraba de los mejores negativos del arma.
+    meta["baja_confianza"] = baja_confianza          # sin datos locales del stat como POSITIVO
+    meta["baja_confianza_neg"] = baja_confianza_neg  # ... y como NEGATIVO
     export_maestro_real[arma] = meta
 
 with open("voidstonks_tiers_dinamicos_pesos.json", "w", encoding="utf-8") as f:
