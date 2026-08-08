@@ -1166,6 +1166,69 @@ export const ScannerService = {
             const workers = OCRRepository.workers.filter(Boolean);
             console.log(`[INV] Workers OCR listos: ${workers.length}`);
 
+            const pendingItems = [];
+
+            const drawItemCell = ({ cell, bestItem, qtyResult, itemText }) => {
+                const relX = cell.sx - gridZone.x;
+                const relY = cell.sy - gridZone.y;
+
+                dCtx.fillStyle = "rgba(10, 15, 28, 0.98)";
+                dCtx.fillRect(relX, relY + cellH - 50, cellW, 50);
+
+                dCtx.fillStyle = "rgba(0, 229, 255, 0.7)";
+                dCtx.fillRect(relX, relY + cellH - 50, cellW, 1.5);
+
+                dCtx.fillStyle = "#ffb300";
+                dCtx.font = "italic 9px system-ui, -apple-system, sans-serif";
+                const rawText = itemText.join(" ");
+                const badgeRawText = qtyResult.raw ? qtyResult.raw.trim().replaceAll(/\s+/g, " ") : "Ø";
+                const maxCharsItem = Math.floor(cellW / 5.5);
+                const truncatedItem = rawText.length > maxCharsItem ? rawText.slice(0, maxCharsItem - 3) + "..." : rawText;
+                dCtx.fillText(truncatedItem, relX + 6, relY + cellH - 37);
+
+                dCtx.fillText(`BDG: "${badgeRawText}"`, relX + 6, relY + cellH - 25);
+
+                dCtx.fillStyle = "#00ff78";
+                dCtx.font = "bold 12px system-ui, -apple-system, sans-serif";
+                const shortName = bestItem.originalName.replace(/Prime/gi, "").trim();
+                dCtx.fillText(shortName, relX + 6, relY + cellH - 8);
+
+                const shiftLeft = (cell.c === 0) ? 14 : 2;
+                dCtx.fillStyle = "rgba(0, 0, 0, 0.85)";
+                dCtx.fillRect(relX - shiftLeft, relY + 4, 44 + (shiftLeft - 2), 18);
+                dCtx.fillStyle = "#ffc107";
+                dCtx.font = "bold 11px monospace";
+                const consensusQty = this.sessionInventory.get(bestItem.originalName) ?? qtyResult.qty;
+                dCtx.fillText(`x${consensusQty}`, relX - shiftLeft + 8, relY + 17);
+
+                const bY = cell.sy + Math.round(cellH * 0.08) - gridZone.y;
+                dCtx.strokeStyle = "rgba(255, 193, 7, 0.85)";
+                dCtx.lineWidth = 1.5;
+                dCtx.strokeRect(relX, bY, Math.round(cellW * 0.40), Math.round(cellH * 0.17));
+            };
+
+            const drawDiscardedCell = ({ cell, bestItem, itemText }) => {
+                const relX = cell.sx - gridZone.x;
+                const relY = cell.sy - gridZone.y;
+                dCtx.strokeStyle = "rgba(255, 30, 80, 0.6)";
+                dCtx.lineWidth = 2;
+                dCtx.strokeRect(relX + 2, relY + 2, cellW - 4, cellH - 4);
+                dCtx.fillStyle = "rgba(25, 10, 15, 0.98)";
+                dCtx.fillRect(relX, relY + cellH - 50, cellW, 50);
+                dCtx.fillStyle = "rgba(255, 30, 80, 0.7)";
+                dCtx.fillRect(relX, relY + cellH - 50, cellW, 1.5);
+                dCtx.fillStyle = "#ff5252";
+                dCtx.font = "italic 9px system-ui, -apple-system, sans-serif";
+                const rawText = itemText.join(" ");
+                const maxCharsItem = Math.floor(cellW / 5.5);
+                dCtx.fillText(rawText.length > maxCharsItem ? rawText.slice(0, maxCharsItem - 3) + "..." : rawText,
+                    relX + 6, relY + cellH - 37);
+                dCtx.fillText(`≠ ${bestItem.originalName}`, relX + 6, relY + cellH - 25);
+                dCtx.fillStyle = "#8c9eff";
+                dCtx.font = "bold 12px system-ui, -apple-system, sans-serif";
+                dCtx.fillText("DISCARDED (RELIC PAGE)", relX + 6, relY + cellH - 8);
+            };
+
             let cellIndex = 0;
             const runWorker = async (worker) => {
                 while (cellIndex < activeCells.length) {
@@ -1204,8 +1267,10 @@ export const ScannerService = {
                     }
 
                     let relicText = combinedText;
-                    let relicMatch = OCRService.getRelicMatch(combinedText);
-                    let bestItem = relicMatch ? null : OCRService.getValidItemMatch(combinedText);
+                    let itemText = combinedText;
+                    const readable = !this._isGarbledCellText(combinedText);
+                    let relicMatch = readable ? OCRService.getRelicMatch(combinedText) : null;
+                    let bestItem = (readable && !relicMatch) ? OCRService.getValidItemMatch(combinedText) : null;
                     let fallbackText = null;
 
                     if (!bestItem && !relicMatch) {
@@ -1215,11 +1280,15 @@ export const ScannerService = {
                         fallbackText = await OCRService.extractCellText(worker, fullCellCvs);
                         if (fallbackText && fallbackText.length) {
                             logStr = `[r${cell.r}c${cell.c}] OCR (fallback): ${fallbackText.join(" ")}`;
+                            if (this._isGarbledCellText(fallbackText)) fallbackText = null;
+                        }
+                        if (fallbackText && fallbackText.length) {
                             relicMatch = OCRService.getRelicMatch(fallbackText);
                             if (relicMatch) {
                                 relicText = fallbackText;
                             } else {
                                 bestItem = OCRService.getValidItemMatch(fallbackText);
+                                if (bestItem) itemText = fallbackText;
                             }
                         }
                     }
@@ -1236,14 +1305,13 @@ export const ScannerService = {
                                     relicText = pWords;
                                 } else {
                                     const pMatch = OCRService.getValidItemMatch(pWords);
-                                    if (pMatch) { bestItem = pMatch; combinedText = pWords; logStr += " [paddle]"; }
+                                    if (pMatch) { bestItem = pMatch; combinedText = pWords; itemText = pWords; logStr += " [paddle]"; }
                                 }
                             }
                         } catch (e) { console.warn("[Paddle fallback] error:", e); }
                     }
 
                     if (bestItem) {
-                        scanStats.matched++;
                         let qtyResult = await OCRService.extractCellQuantity(null,
                             VisionService.extractBadgeBright(snapshot, cell, cellW, cellH));
                         if (!/\d/.test(qtyResult.raw || "")) {
@@ -1253,52 +1321,8 @@ export const ScannerService = {
                         }
 
                         logStr += ` || BDG: ${qtyResult.raw}`;
-                        this.lastRawOcrLog.push(logStr);
-
-                        // time consensus: one frame's digit is fragile, the item name is not. The mode of the votes wins.
-                        this.recordQtyVote(bestItem.originalName, qtyResult);
-
-                        const relX = cell.sx - gridZone.x;
-                        const relY = cell.sy - gridZone.y;
-
-                        dCtx.fillStyle = "rgba(10, 15, 28, 0.98)";
-                        dCtx.fillRect(relX, relY + cellH - 50, cellW, 50);
-                        
-                        dCtx.fillStyle = "rgba(0, 229, 255, 0.7)";
-                        dCtx.fillRect(relX, relY + cellH - 50, cellW, 1.5);
-
-                        dCtx.fillStyle = "#ffb300";
-                        dCtx.font = "italic 9px system-ui, -apple-system, sans-serif";
-                        const rawText = combinedText.join(" ");
-                        const badgeRawText = qtyResult.raw ? qtyResult.raw.trim().replaceAll(/\s+/g, " ") : "Ø";
-                        const maxCharsItem = Math.floor(cellW / 5.5);
-                        const truncatedItem = rawText.length > maxCharsItem ? rawText.slice(0, maxCharsItem - 3) + "..." : rawText;
-                        dCtx.fillText(truncatedItem, relX + 6, relY + cellH - 37);
-
-                        dCtx.fillText(`BDG: "${badgeRawText}"`, relX + 6, relY + cellH - 25);
-
-                        dCtx.fillStyle = "#00ff78";
-                        dCtx.font = "bold 12px system-ui, -apple-system, sans-serif";
-                        const shortName = bestItem.originalName.replace(/Prime/gi, "").trim();
-                        dCtx.fillText(shortName, relX + 6, relY + cellH - 8);
-
-                        const shiftLeft = (cell.c === 0) ? 14 : 2;
-                        dCtx.fillStyle = "rgba(0, 0, 0, 0.85)";
-                        dCtx.fillRect(relX - shiftLeft, relY + 4, 44 + (shiftLeft - 2), 18);
-                        dCtx.fillStyle = "#ffc107";
-                        dCtx.font = "bold 11px monospace";
-                        const consensusQty = this.sessionInventory.get(bestItem.originalName) ?? qtyResult.qty;
-                        dCtx.fillText(`x${consensusQty}`, relX - shiftLeft + 8, relY + 17);
-
-                        {
-                            const bX = cell.sx - gridZone.x;
-                            const bY = cell.sy + Math.round(cellH * 0.08) - gridZone.y;
-                            const bW = Math.round(cellW * 0.40);
-                            const bH = Math.round(cellH * 0.17);
-                            dCtx.strokeStyle = "rgba(255, 193, 7, 0.85)";
-                            dCtx.lineWidth = 1.5;
-                            dCtx.strokeRect(bX, bY, bW, bH);
-                        }
+                        // not recorded yet: a prime part only counts if the page is not a relic page (see after Promise.all)
+                        pendingItems.push({ cell, bestItem, qtyResult, itemText, logStr });
                     } else if (relicMatch) {
                         scanStats.relics++;
                         let qtyResult = await OCRService.extractCellQuantity(null,
@@ -1384,7 +1408,12 @@ export const ScannerService = {
 
                             dCtx.fillStyle = "#8c9eff";
                             dCtx.font = "bold 12px system-ui, -apple-system, sans-serif";
-                            dCtx.fillText("UNMATCHED CELL", relX + 6, relY + cellH - 8);
+                            dCtx.fillText(readable ? "UNMATCHED CELL" : "GARBLED (UNREADABLE)", relX + 6, relY + cellH - 8);
+
+                            const bandH = Math.round((cellH - 54) * 0.6);
+                            dCtx.fillStyle = "#fff";
+                            dCtx.fillRect(relX + 4, relY + 4, cellW - 8, bandH);
+                            dCtx.drawImage(textCvs, relX + 4, relY + 4, cellW - 8, bandH);
                         }
                     }
                 }
@@ -1398,6 +1427,23 @@ export const ScannerService = {
                     workerPromises.push(runWorker(workers[w]));
                 }
                 await Promise.all(workerPromises);
+
+                // commit pending prime parts with the whole page seen: if most cells matched a relic it is the relic
+                // tab and loose parts are misreads. Min 3, and twice the items, so a normal parts page passes.
+                const relicPage = scanStats.relics >= 3 && scanStats.relics >= 2 * pendingItems.length;
+                for (const pending of pendingItems) {
+                    if (relicPage) {
+                        scanStats.unmatched++;
+                        this.lastRawOcrLog.push(`${pending.logStr} || DESCARTADO (página de reliquias): ${pending.bestItem.originalName}`);
+                        drawDiscardedCell(pending);
+                        continue;
+                    }
+                    scanStats.matched++;
+                    this.lastRawOcrLog.push(pending.logStr);
+                    // time consensus: one frame's digit is fragile, the item name is not. The mode of the votes wins.
+                    this.recordQtyVote(pending.bestItem.originalName, pending.qtyResult);
+                    drawItemCell(pending);
+                }
 
                 ScannerHUD.updateScrollStatus("done", this.sessionInventory.size + this.sessionRelics.size);
                 ScannerHUD.updateDetectedItems(this.sessionInventory, this.sessionRelics);
@@ -1440,6 +1486,13 @@ export const ScannerService = {
         } finally {
             this.detectionLocked = false;
         }
+    },
+
+    _isGarbledCellText(words) {
+        if (!words || !words.length) return false;
+        const tokens = words.join(" ").toUpperCase().split(/[^A-Z0-9]+/).filter(Boolean);
+        if (tokens.length > 8) return true;
+        return tokens.filter(t => t.length === 1).length >= 2;
     },
 
     _isRivenCellText(words) {

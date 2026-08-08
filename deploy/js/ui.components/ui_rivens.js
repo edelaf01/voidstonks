@@ -20,6 +20,7 @@ import {
   DEFAULT_WEAPON_SVG,
 } from "../utils/ui_utils.js";
 import { escapeHTML, showToast } from "./ui_components.js";
+import { onTap } from "../utils/tap.js";
 
 globalThis.DEFAULT_WEAPON_SVG = DEFAULT_WEAPON_SVG;
 const DEFAULT_WEAPON_DATA_URL = "data:image/svg+xml;utf8," + encodeURIComponent(DEFAULT_WEAPON_SVG);
@@ -148,15 +149,21 @@ function pesosFinosDeArma(weaponName, tipo = "pos") {
   return null;
 }
 
-function statsSinDatoPropio(weaponName) {
+/**
+ * Weapon stats whose weight comes from the global prior, not from its own auctions
+ * (`baja_confianza` in ML_local). Fine to appraise, not to recommend in the guide.
+ * Negatives are not filtered until `baja_confianza_neg` exists.
+ */
+function statsSinDatoPropio(weaponName, grupo = "pos") {
   const tabla = state.rivenStatWeights;
   if (!tabla || typeof tabla !== "object") return new Set();
+  const campo = grupo === "neg" ? "baja_confianza_neg" : "baja_confianza";
   const candidatos = [String(weaponName || ""), extractFamilyName(String(weaponName || ""))];
   for (const nombre of candidatos) {
     if (!nombre) continue;
     const nl = nombre.toLowerCase();
     const clave = Object.keys(tabla).find(k => k.toLowerCase() === nl);
-    const lista = clave && tabla[clave] && tabla[clave].baja_confianza;
+    const lista = clave && tabla[clave] && tabla[clave][campo];
     if (Array.isArray(lista)) return new Set(lista.map(s => String(s).toLowerCase()));
   }
   return new Set();
@@ -417,8 +424,9 @@ function rebuildCustomOptions(sel, dropdown, input) {
       item.style.color = "var(--wf-gold-text)";
     }
 
-    item.onmousedown = (e) => {
-      e.preventDefault();
+    // onTap, not click: on mobile a click on these divs got lost (see utils/tap.js). preventDown keeps
+    // the focus on the input
+    onTap(item, (e) => {
       e.stopPropagation();
       sel.value = opt.value;
       input.value = opt.value ? opt.textContent : "";
@@ -426,7 +434,7 @@ function rebuildCustomOptions(sel, dropdown, input) {
 
       sel.dispatchEvent(new Event("change", { bubbles: true }));
       if (typeof sel.onchange === "function") sel.onchange();
-    };
+    }, { preventDown: true });
     return item;
   });
 
@@ -2168,7 +2176,7 @@ export function handleRivenInput() {
 
           item.appendChild(textSpan);
           item.appendChild(img);
-          item.onclick = () => selectRivenWeapon(name);
+          onTap(item, () => selectRivenWeapon(name));
           return item;
         }),
       );
@@ -3877,11 +3885,20 @@ function renderMetaStats(weaponName, weaponType, targetId = "meta-stats-containe
   const _ocultarSinDato = _bestConDato.length > 0;
   const allow = (s) => _tipoOk(s)
     && !(_ocultarSinDato && _sinDato.has(String(s).toLowerCase()));
+  // negative lists are filtered with the negative side confidence (see statsSinDatoPropio)
+  const _sinDatoNeg = statsSinDatoPropio(weaponName, "neg");
+  const _ocultarSinDatoNeg = _sinDatoNeg.size > 0
+    && (meta.neg || []).some(s => _tipoOk(s) && !_sinDatoNeg.has(String(s).toLowerCase()));
+  const allowNeg = (s) => _tipoOk(s)
+    && !(_ocultarSinDatoNeg && _sinDatoNeg.has(String(s).toLowerCase()));
 
+  // TOP marks stats at >= 95% of the weapon's top weight, at most 2; tied weights mark nothing. Fine
+  // weights first, dynamic_weights ties the best at 1.00. No second shrink to the prior here, ML_local
+  // already does it on export
   const _pesosPos = pesosFinosDeArma(weaponName, "pos") || meta.dynamic_weights || {};
   const _pesosNeg = pesosFinosDeArma(weaponName, "neg") || {};
-  const _destacar = (lista, pesos) => {
-    const conPeso = (lista || []).filter(allow)
+  const _destacar = (lista, pesos, filtro = allow) => {
+    const conPeso = (lista || []).filter(filtro)
       .map(s => [s, parseFloat(pesos[s])])
       .filter(([, v]) => Number.isFinite(v))
       .sort((a, b) => b[1] - a[1]);
@@ -3937,11 +3954,11 @@ function renderMetaStats(weaponName, weaponType, targetId = "meta-stats-containe
   const _wantedSet = new Set([...(meta.pos || []), ...(meta.midPos || []), ..._dataWantedNames].map(x => String(x).toLowerCase()));
   const _curatedNeg = new Set((meta.neg || []).map(x => String(x).toLowerCase()));
   const harmlessAll = [...new Set([...(meta.neg || []), ...HARMLESS_NEG_CANDIDATES])]
-    .filter(allow)
+    .filter(allowNeg)
     .filter(s => !_wantedSet.has(String(s).toLowerCase()) && !CANT_BE_NEGATIVE.test(s));
   const harmlessSet = new Set(harmlessAll.map(x => String(x).toLowerCase()));
   // the least harmful curse gets TOP; in `neg` a high weight means harmless
-  const _mejoresNeg = _destacar(harmlessAll, _pesosNeg);
+  const _mejoresNeg = _destacar(harmlessAll, _pesosNeg, allowNeg);
   const bestNegHtml = harmlessAll.map(s => {
     const isTop = _mejoresNeg.has(s);
     const isCurated = _curatedNeg.has(String(s).toLowerCase());
@@ -3959,7 +3976,7 @@ function renderMetaStats(weaponName, weaponType, targetId = "meta-stats-containe
   // MID negatives: factions, the weapon's mid positives and data weights 0.4-0.7, without harmless and
   // WORST
   const midNeg = [...new Set([...(meta.midNeg || []), ...FACTION_NEGS, ...(meta.midPos || []), ..._dataMid])]
-    .filter(allow)
+    .filter(allowNeg)
     .filter(s => !_worstSet.has(String(s).toLowerCase()) && !harmlessSet.has(String(s).toLowerCase()) && !CANT_BE_NEGATIVE.test(s));
   const midNegHtml = midNeg.length > 0 ? midNeg.map(s => `
     <span style="background: rgba(234, 179, 8, 0.08); border: 1px solid rgba(234, 179, 8, 0.18); color: #eab308; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 4px; display: inline-block; margin-bottom: 4px; font-weight: 500;">
