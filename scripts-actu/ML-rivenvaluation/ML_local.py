@@ -220,6 +220,8 @@ for arma in df_micro["weapon"].unique():
     fila["re_max"] = _rx
     fila["wfm_vs_off"] = _wa / (_om + 1.0)
     fila["ceil_mult"] = _rx / (_rm + 1.0)
+    # do NOT add de_unrolled features: tested and discarded, NONE entered top 15 importance because the model
+    # already infers dispersion from official_median
     macro_rows.append(fila)
 
 df_macro = pd.DataFrame(macro_rows) if macro_rows else pd.DataFrame(columns=["weapon"] + MACRO_FIELDS)
@@ -440,6 +442,20 @@ cols_numericas = ["official_median", "wfm_avg", "official_median_missing", "wfm_
                   "has_mag", "mag_pos_avg", "mag_pos1_norm", "mag_pos2_norm", "mag_pos3_norm",
                   "mag_neg_norm",
                   "hist_day_drift", "hist_day_offdrift", "hist_day_liq", "hist_day_sample", "hist_day_rerprem"]
+# SIN_SYNERGY=1 removes synergy features to test for target leakage, and CRUDO=1 drops composite features
+# to keep only direct measurements
+if os.environ.get("CRUDO", "0") != "0":
+    _compuestas = {
+        "synergy_score", "dispo_x_synergy", "popularity_pct_x_synergy",   # synergy and cross terms
+        "wfm_vs_off", "ceil_mult", "meta_signal", "fatigue_index",         # manual ratios
+        "median_consistency", "mag_pos_avg",                              # derived aggregates
+        "official_median_missing", "wfm_avg_missing",                      # missing value flags
+    }
+    _antes = len(cols_numericas)
+    cols_numericas = [c for c in cols_numericas if c not in _compuestas]
+    print(f"  CRUDO: fuera {_antes - len(cols_numericas)} features compuestas "
+          f"-> {len(cols_numericas)} numéricas (solo medidas directas)")
+
 if os.environ.get("SIN_SYNERGY", "0") != "0":
     _fuera = {"synergy_score", "dispo_x_synergy", "popularity_pct_x_synergy"}
     cols_numericas = [c for c in cols_numericas if c not in _fuera]
@@ -629,10 +645,19 @@ COMMON = dict(n_estimators=int(os.environ.get("XGB_N", "2000")), learning_rate=0
 # quantile training: the model learns the price BAND for each roll (p25 quick sale, p50 fair price, p80
 # optimistic ceiling), evaluated by coverage
 QUANTILES = [0.25, 0.50, 0.80, 0.90, 0.95]   # p90/p95 is the godroll ceiling on real prices rather than troll asks
-_QPARAMS = dict(n_estimators=int(os.environ.get("XGB_N", "2000")), learning_rate=0.03,
-                max_depth=10, subsample=0.85, colsample_bytree=0.6, min_child_weight=4,
-                reg_lambda=2.5, reg_alpha=0.1, tree_method="hist", n_jobs=-1,
+# depth=10 is required to represent stat interactions: shallower trees (depth=7) score worse even with
+# 2.5x tree budget
+_QPARAMS = dict(n_estimators=int(os.environ.get("XGB_N", "2000")),
+                learning_rate=float(os.environ.get("XGB_LR", "0.03")),
+                max_depth=int(os.environ.get("XGB_DEPTH", "10")),
+                subsample=float(os.environ.get("XGB_SUB", "0.85")),
+                colsample_bytree=float(os.environ.get("XGB_COL", "0.6")),
+                min_child_weight=int(os.environ.get("XGB_MCW", "4")),
+                reg_lambda=float(os.environ.get("XGB_L2", "2.5")), reg_alpha=0.1,
+                tree_method="hist", n_jobs=-1,
                 device=os.environ.get("XGB_DEVICE", "cpu"), early_stopping_rounds=80)
+print(f"  Hiperparámetros: depth={_QPARAMS['max_depth']} lr={_QPARAMS['learning_rate']} "
+      f"mcw={_QPARAMS['min_child_weight']} col={_QPARAMS['colsample_bytree']} l2={_QPARAMS['reg_lambda']}")
 
 class QuantileModel:
     """quantile ensemble in log space: .predict returns p50 and .predict_quantiles returns the sorted
@@ -665,7 +690,9 @@ for a in QUANTILES:
     # per-quantile budget applies only when XGB_N is not forced by env (CI uses 400 for fast runs)
     _qp = dict(_QPARAMS)
     if not os.environ.get("XGB_N"):
-        _qp["n_estimators"] = _N_POR_CUANTIL.get(a, _qp["n_estimators"])
+        # XGB_NMULT scales tree budgets because shallower trees need more iterations to converge
+        _mult = float(os.environ.get("XGB_NMULT", "1"))
+        _qp["n_estimators"] = int(_N_POR_CUANTIL.get(a, _qp["n_estimators"]) * _mult)
     m = xgb.XGBRegressor(objective="reg:quantileerror", quantile_alpha=a_tr, random_state=42, **_qp)
     # sample weights by price are NOT passed to quantile regression: weighting by price shifts the estimated
     # quantile and breaks the fit
@@ -1169,21 +1196,54 @@ df_pos = df_pos[df_pos["stat"] != "None"]
 df_neg = df_micro_clean[["weapon", "price", "price_rel", "stat_neg"]].rename(columns={"stat_neg": "stat"})
 df_neg = df_neg[(df_neg["stat"].notna()) & (df_neg["stat"] != "None")]
 
-def _pesos(df_long, value_col, min_vol):
-    """returns {stat: (weight 0..1, volume)} by median normalized to the group observed range"""
+# fixed scale for stat weights: maps (median price with stat / weapon median) onto fixed log anchors so
+# scores remain stable and comparable across runs
+ESCALA_ANCLAS = {"pos": (0.30, 2.00), "neg": (0.25, 3.00)}
+
+# minimum evidence to recommend a stat: low-sample stats are kept for weights but flagged as low
+# confidence in web guides
+MIN_EVIDENCIA = {"pos": 3, "neg": 2}
+
+
+def _peso_fijo(mediana, base, lado):
+    lo, hi = ESCALA_ANCLAS[lado]
+    ratio = mediana / (base if base else 1.0)
+    w = (np.log(max(ratio, 1e-6)) - np.log(lo)) / (np.log(hi) - np.log(lo))
+    return round(float(min(1.0, max(0.01, w))), 3)
+
+
+def _pesos(df_long, value_col, lado, base=None, min_vol=1):
+    """returns {stat: (weight 0..1, volume)} on a fixed scale relative to base reference"""
     if df_long.empty:
         return {}
     agr = df_long.groupby("stat").agg(m=(value_col, "median"), vol=(value_col, "count")).reset_index()
     agr = agr[agr["vol"] >= min_vol]
     if agr.empty:
         return {}
-    mx, mn = agr["m"].max(), agr["m"].min()
-    rng = (mx - mn) or 1.0
-    return {r["stat"]: (round(0.01 + 0.99 * ((r["m"] - mn) / rng), 3), int(r["vol"])) for _, r in agr.iterrows()}
+    ref = base if base else float(df_long[value_col].median())
+    return {r["stat"]: (_peso_fijo(r["m"], ref, lado), int(r["vol"])) for _, r in agr.iterrows()}
+
+
+def _promover_lider(pesos, corte, banda=0.90, tope=4):
+    """scales the weapon's top stat cluster together into the top tier
+    prevents weapons whose stats fall just below absolute thresholds from showing empty recommendations
+    """
+    if not pesos:
+        return pesos
+    orden = sorted(pesos.items(), key=lambda kv: -kv[1])
+    mx = orden[0][1]
+    if mx <= 0:
+        return pesos
+    lider = {s for s, v in orden[:tope] if v >= banda * mx}
+    minimo = min(pesos[s] for s in lider)
+    if minimo >= corte:
+        return pesos
+    f = (corte + 0.005) / minimo
+    return {s: (round(min(1.0, v * f), 3) if s in lider else v) for s, v in pesos.items()}
 
 # 1) GLOBAL PRIOR per stat across all weapons on relative price
-glob_pos = _pesos(df_pos, "price_rel", min_vol=25)
-glob_neg = _pesos(df_neg, "price_rel", min_vol=20)
+glob_pos = _pesos(df_pos, "price_rel", "pos", min_vol=25)
+glob_neg = _pesos(df_neg, "price_rel", "neg", min_vol=20)
 GLOBAL_POS = {s: w for s, (w, _) in glob_pos.items()}
 GLOBAL_NEG = {s: w for s, (w, _) in glob_neg.items()}
 
@@ -1213,19 +1273,40 @@ export_maestro_real = {"_global": {
     "model_importance_neg": dict(sorted(MODEL_IMP_NEG.items(), key=lambda x: -x[1])),
 }}
 
+# previous run weights provide HYSTERESIS for tier cuts, preventing stats near cutoffs from flickering
+# each week
+_PREV_W = {}
+try:
+    _prev_path = os.path.join(os.environ.get("DEPLOY_ML_DIR", "generado"), "stat_weights.json")
+    with open(_prev_path, encoding="utf-8") as _f:
+        for _arma, _m in json.load(_f).items():
+            if _arma == "_global" or not isinstance(_m, dict):
+                continue
+            _PREV_W[_arma] = {lado: {s: v for tier in (_m.get(lado) or {}).values()
+                                     for s, v in (tier or {}).items()} for lado in ("pos", "neg")}
+    print(f"[HISTÉRESIS] pesos previos de {len(_PREV_W)} armas desde {_prev_path}")
+except Exception as _e:
+    print(f"[HISTÉRESIS] sin pesos previos ({_e}); primera corrida con cortes limpios.")
+
+HISTERESIS = 0.03  # margin below threshold that preserves previous tier
+
+med_por_arma = df_micro_clean.groupby("weapon")["price"].median()
+
 for arma in df_micro_clean["weapon"].unique():
     tidx = _weapon_tidx.get(limpiar_chars(arma))  # None if untyped, disabling filtering
-    loc_pos = _pesos(df_pos[df_pos["weapon"] == arma], "price", min_vol=3)
-    loc_neg = _pesos(df_neg[df_neg["weapon"] == arma], "price", min_vol=2)
+    _base = float(med_por_arma.get(arma, 0.0) or 0.0)
+    loc_pos = _pesos(df_pos[df_pos["weapon"] == arma], "price", "pos", base=_base)
+    loc_neg = _pesos(df_neg[df_neg["weapon"] == arma], "price", "neg", base=_base)
 
     pesos_pos_arma, pesos_neg_arma, baja_confianza = {}, {}, []
+    baja_confianza_neg = []
     for stat in ALL_POSSIBLE_STATS:
         if not stat_ok(stat, tidx):  # drops impossible stats for this archetype
             continue
         wl, nl = loc_pos.get(stat, (None, 0))
         val, src = _mezclar(wl, nl, GLOBAL_POS.get(stat))
         pesos_pos_arma[stat] = val
-        if src in ("global", "prior"):
+        if src in ("global", "prior") or nl < MIN_EVIDENCIA["pos"]:
             baja_confianza.append(stat)
     for stat in ALL_POSSIBLE_STATS:
         if stat in IMPOSSIBLE_NEGATIVES:
@@ -1236,22 +1317,44 @@ for arma in df_micro_clean["weapon"].unique():
         wg = GLOBAL_NEG.get(stat)
         if wg is None:  # missing negative global prior: a strong positive is a bad negative
             wg = round(max(0.01, min(1.0, 1.01 - pesos_pos_arma.get(stat, 0.30))), 3)
-        val, _src = _mezclar(wl, nl, wg)
+        val, src_n = _mezclar(wl, nl, wg)
         pesos_neg_arma[stat] = val
+        if src_n in ("global", "prior") or nl < MIN_EVIDENCIA["neg"]:
+            baja_confianza_neg.append(stat)
+
+    pesos_pos_arma = _promover_lider(pesos_pos_arma, 0.75)
+    pesos_neg_arma = _promover_lider(pesos_neg_arma, 0.70)
+
+    _prev = _PREV_W.get(arma, {})
+
+    def _tier(stat, p, cortes, lado, previos=_prev):
+        """returns stat tier with hysteresis to preserve previous tier within HISTERESIS margin of threshold"""
+        nombres = ("S", "A", "B", "F")
+        actual = next((n for n, c in zip(nombres, cortes) if p >= c), "F")
+        antes = (previos.get(lado) or {}).get(stat)
+        if antes is None:
+            return actual
+        prev_tier = next((n for n, c in zip(nombres, cortes) if antes >= c), "F")
+        if nombres.index(prev_tier) < nombres.index(actual):
+            corte_prev = cortes[nombres.index(prev_tier)]
+            if p >= corte_prev - HISTERESIS:
+                return prev_tier
+        return actual
 
     meta = {"pos": {"S": {}, "A": {}, "B": {}, "F": {}}, "neg": {"S": {}, "A": {}, "B": {}, "F": {}}}
     for s, p in pesos_pos_arma.items():
-        tier = "S" if p >= 0.75 else "A" if p >= 0.45 else "B" if p >= 0.15 else "F"
-        meta["pos"][tier][s] = p
+        meta["pos"][_tier(s, p, (0.75, 0.45, 0.15, 0.0), "pos")][s] = p
     for s, p in pesos_neg_arma.items():
-        tier = "S" if p >= 0.70 else "A" if p >= 0.40 else "B" if p >= 0.15 else "F"
-        meta["neg"][tier][s] = p
+        meta["neg"][_tier(s, p, (0.70, 0.40, 0.15, 0.0), "neg")][s] = p
 
     pop = df_micro_clean.loc[df_micro_clean["weapon"] == arma, "popularity_pct"]
     meta["popularity"] = round(float(pop.iloc[0]), 2) if not pop.empty else 0.0
     meta["mejores_pos"] = sorted(meta["pos"]["S"], key=lambda s: -pesos_pos_arma[s])[:4]
     meta["mejores_neg"] = sorted(meta["neg"]["S"], key=lambda s: -pesos_neg_arma[s])[:3]
-    meta["baja_confianza"] = baja_confianza  # stats without local data (potential survivorship bias)
+    # separate confidence lists for positives and negatives: positive confidence does not reflect negative
+    # evidence
+    meta["baja_confianza"] = baja_confianza          # low local data for stat as POSITIVE
+    meta["baja_confianza_neg"] = baja_confianza_neg  # ... and as NEGATIVE
     export_maestro_real[arma] = meta
 
 with open("voidstonks_tiers_dinamicos_pesos.json", "w", encoding="utf-8") as f:
