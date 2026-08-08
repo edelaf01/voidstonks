@@ -64,7 +64,15 @@ export const OCRService = {
     // mismo grupo cuesta poco en similarityOCR, así "ACCELLRA"≈"ACCELTRA", "FRIME"≈"PRIME",
     // "RECELVER"≈"RECEIVER", etc. se resuelven solos, sin hardcodear cada caso.
     _ocrConfMap: (() => {
-        const groups = ["O0QDCG", "IL1T|J", "S5", "B8", "G6", "Z2", "UV", "NMH", "PF", "EF", "RT", "VY", "A4", "KR", "W", "Q9"];
+        // "O6": en la fuente del juego el bucle del 6 ocupa casi todo el glifo y el gancho
+        // superior se pierde al binarizar. Visto en vivo: "Axi C6 Relic" salió como
+        // "AXI CO RELIC" y la celda quedó UNMATCHED — los grupos NO son transitivos, así que
+        // tener "O0QDCG" y "G6" por separado no hacía que O y 6 se parecieran entre sí.
+        // Solo se empareja con la LETRA O, no con el dígito 0: mezclar 6 y 0 haría que un
+        // "A16" legítimo pasara por "A10" cuando el catálogo no tiene el A16 (inventar una
+        // reliquia distinta es peor que no matchear); la letra en un hueco de dígito, en
+        // cambio, ya es de por sí un fallo de OCR.
+        const groups = ["O0QDCG", "IL1T|J", "S5", "B8", "G6", "O6", "Z2", "UV", "NMH", "PF", "EF", "RT", "VY", "A4", "KR", "W", "Q9"];
         const map = new Map();
         for (const g of groups) for (const ch of g) map.set(ch, (map.get(ch) || "") + g);
         return map;
@@ -190,6 +198,11 @@ export const OCRService = {
                 const s = this._relicTierScore(word, t);
                 if (s > tierS) { tierS = s; tier = t; }
             }
+            // Un tier rescatado de un fragmento de DOS letras ("AX"→AXI, "NE"→NEO) es
+            // evidencia floja: "NE" aparece en cualquier basura. Visto en vivo: una celda
+            // ilegible dio "…OT NE WL" y se apuntó como "Neo W1" (WL≈W1 = 0.80). Cuando el
+            // tier viene de ahí, el CÓDIGO tiene que ser casi exacto para compensar.
+            const weakTier = tier !== null && word.length === 2 && word.length < tier.length;
             let glueRemainder = "";
             if (tierS < 0.78) {
                 // tier+código PEGADOS en un token ("LITHC1"): prefijo exacto del tier.
@@ -202,17 +215,24 @@ export const OCRService = {
 
             // 2) Candidatos de CÓDIGO: remainder pegado, las 2 palabras siguientes y la
             // unión de adyacentes cortas (código partido por el OCR: "AL" + "4").
-            const cands = new Set();
-            if (glueRemainder.length >= 1 && glueRemainder.length <= 4) cands.add(glueRemainder);
+            // Map candidato -> PENALIZACIÓN: las variantes reconstruidas por reglas de dominio
+            // valen menos que lo que el OCR leyó de verdad, para que una lectura literal
+            // siempre gane a una reconstruida (si no, "AL4" empataba a 1.0 entre A14 y A4).
+            const cands = new Map();
+            const addCand = (c, pen = 0) => {
+                if (!c || c.length > 4) return;
+                const prev = cands.get(c);
+                if (prev === undefined || pen < prev) cands.set(c, pen);
+            };
+            if (glueRemainder.length >= 1) addCand(glueRemainder);
             for (let j = i + 1; j < Math.min(i + 3, words.length); j++) {
                 const w = words[j];
-                if (w.length >= 1 && w.length <= 4) cands.add(w);
-                const joined = w + (words[j + 1] || "");
-                if (words[j + 1] && joined.length <= 4) cands.add(joined);
+                if (w.length >= 1) addCand(w);
+                if (words[j + 1]) addCand(w + words[j + 1]);
             }
             const isRequiem = tier === "REQUIEM";
             if (isRequiem) {
-                for (const c of [...cands]) cands.add(this._romanizeRequiem(c));
+                for (const c of [...cands.keys()]) addCand(this._romanizeRequiem(c));
             } else {
                 // La INICIAL de un código de reliquia es SIEMPRE una letra (A1, O5, K11…),
                 // así que un dígito ahí es un fallo de OCR seguro. Sin corregirlo, "O5"
@@ -222,9 +242,25 @@ export const OCRService = {
                 // Reponer las letras candidatas deshace el empate: "O5" casa exacto (1.0)
                 // y las demás se quedan en 0.8.
                 const DIGIT_AS_LETTER = { "0": "O", "1": "I", "2": "Z", "4": "A", "5": "S", "6": "G", "8": "B" };
-                for (const c of [...cands]) {
+                // De la SEGUNDA posición en adelante el código es NUMÉRICO, así que una LETRA
+                // ahí sobra: es ruido del arte pegado al código. Visto en vivo: "Axi O5" salió
+                // como "AXI OO5" y se quedaba en 0.67 contra O5 (bajo el corte de 0.70) →
+                // UNMATCHED. Se prueba borrando ese glifo, con la misma penalización que
+                // recortar la cola: la letra puede ser también un dígito mal leído, y en ese
+                // caso el mapa de confusiones (L≈1, O≈0…) ya lo puntúa mejor sin borrar nada
+                // — "AL"+"4" tiene que seguir cayendo en A14, no en A4 ni en A1.
+                // No hay LETTER_AS_DIGIT: convertir la letra en dígito daría un match EXACTO
+                // (1.0) a una lectura reconstruida y aplastaría el margen de unicidad, que es
+                // justo la señal que distingue el código bueno del vecino.
+                for (const [c, pen] of [...cands]) {
                     const letter = DIGIT_AS_LETTER[c[0]];
-                    if (letter) cands.add(letter + c.slice(1));
+                    if (letter) addCand(letter + c.slice(1), pen);
+                    // Solo si queda un código de 2+ glifos: recortar "CO" a "C" no identifica
+                    // nada y empataría contra toda la letra C del catálogo.
+                    if (c.length <= 2) continue;
+                    for (let k = 1; k < c.length; k++) {
+                        if (/[A-Z]/.test(c[k])) addCand(c.slice(0, k) + c.slice(k + 1), pen + 0.17);
+                    }
                 }
             }
             if (cands.size === 0) continue;
@@ -236,7 +272,7 @@ export const OCRService = {
             let best = null, bestS = 0, second = 0;
             for (const { code, canonical } of codes) {
                 let s = 0;
-                for (const cand of cands) {
+                for (const [cand, pen] of cands) {
                     let cs = this.similarityOCR(cand, code);
                     if (!isRequiem) {
                         // Penalización 0.17/char: mayor que el coste de una confusión de
@@ -247,6 +283,7 @@ export const OCRService = {
                             cs = Math.max(cs, this.similarityOCR(cand.slice(0, cand.length - k), code) - 0.17 * k);
                         }
                     }
+                    cs -= pen;
                     if (cs > s) s = cs;
                 }
                 if (s > bestS) { second = bestS; bestS = s; best = canonical; }
@@ -256,6 +293,7 @@ export const OCRService = {
             // sobre el 2º (varias confusiones seguidas hunden la similitud absoluta —
             // "ILL"≈III 0.73— pero el margen sigue siendo enorme). Un margen holgado
             // permite bajar el corte sin admitir basura, que puntúa plano contra todo.
+            if (weakTier && bestS < 0.85) continue;
             if (bestS >= 0.70 && (bestS - second) >= 0.10) return best;
             if (bestS >= 0.80 && (bestS - second) >= 0.03) return best;
         }
@@ -580,6 +618,18 @@ export const OCRService = {
             return this.similarityOCR(cleanOCR, cleanDB) >= thr;
         };
 
+        // Listón para un match que NO se apoya en ningún componente: la primera palabra es
+        // TODA la prueba, así que los umbrales base (pensados para que el resto del nombre
+        // valide el conjunto) se quedan cortos y cualquier basura de 3-4 letras entra. Pasa
+        // con los ítems de una palabra —los mods Requiem: Jahu, Khra, Ris, Vome…— y con los
+        // que tienen el resto OPCIONAL, como "Forma Blueprint" (isOptionalWord deja caer
+        // BLUEPRINT detrás de FORMA), que se sostiene solo con "FORMA".
+        // Los dos casos se vieron en vivo en el mismo grid de reliquias: celdas con el texto
+        // ilegible (el arte de la reliquia cae sobre el nombre) se apuntaron como "Jahu" y
+        // como "Forma Blueprint". Con 0.85 solo pasan confusiones de glifo ("F0RMA"=0.92,
+        // "JAHV"=0.90), no una letra que falte o sobre (0.80 y 0.75).
+        const UNCORROBORATED_THR = 0.85;
+
         // Los COMPONENTES (Barrel/Receiver/Blueprint/Link/...) se casan por similitud
         // CONSCIENTE DE OCR, sin normalizadores regex por-componente. Umbral de componente
         // más bajo que el de arma porque son palabras conocidas y cortas; el conjunto se
@@ -651,6 +701,9 @@ export const OCRService = {
                         ? textWords[i] + textWords[i + 1]
                         : textWords[i]).toUpperCase().replaceAll(/[^A-Z0-9]/g, "");
                     const score = this.similarityOCR(ocrFirst, item.firstWord.toUpperCase());
+                    // matched.length === 1: NINGÚN componente respaldó el match (el ítem es de
+                    // una palabra, o el resto era opcional). Ver UNCORROBORATED_THR.
+                    if (matched.length === 1 && score < UNCORROBORATED_THR) continue;
                     // Prioridad: (1) más palabras OCR cubiertas; (2) item MÁS ESPECÍFICO
                     // (más componentes) — evita que "Harrow Blueprint" (2) fusione
                     // "CHASSIS BLUEPRINT" y empate con "Harrow Chassis Blueprint" (3);
