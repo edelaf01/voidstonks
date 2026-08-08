@@ -60,7 +60,7 @@ export const OCRService = {
     },
 
     _ocrConfMap: (() => {
-        const groups = ["O0QDCG", "IL1T|J", "S5", "B8", "G6", "Z2", "UV", "NMH", "PF", "EF", "RT", "VY", "A4", "KR", "W", "Q9"];
+        const groups = ["O0QDCG", "IL1T|J", "S5", "B8", "G6", "O6", "Z2", "UV", "NMH", "PF", "EF", "RT", "VY", "A4", "KR", "W", "Q9"];
         const map = new Map();
         for (const g of groups) for (const ch of g) map.set(ch, (map.get(ch) || "") + g);
         return map;
@@ -149,6 +149,7 @@ export const OCRService = {
                 const s = this._relicTierScore(word, t);
                 if (s > tierS) { tierS = s; tier = t; }
             }
+            const weakTier = tier !== null && word.length === 2 && word.length < tier.length;
             let glueRemainder = "";
             if (tierS < 0.78) {
                 tier = this.RELIC_TIERS.find(t => word.length > t.length && word.startsWith(t)) || null;
@@ -158,22 +159,30 @@ export const OCRService = {
             const codes = index.get(tier);
             if (!codes?.length) continue;
 
-            const cands = new Set();
-            if (glueRemainder.length >= 1 && glueRemainder.length <= 4) cands.add(glueRemainder);
+            const cands = new Map();
+            const addCand = (c, pen = 0) => {
+                if (!c || c.length > 4) return;
+                const prev = cands.get(c);
+                if (prev === undefined || pen < prev) cands.set(c, pen);
+            };
+            if (glueRemainder.length >= 1) addCand(glueRemainder);
             for (let j = i + 1; j < Math.min(i + 3, words.length); j++) {
                 const w = words[j];
-                if (w.length >= 1 && w.length <= 4) cands.add(w);
-                const joined = w + (words[j + 1] || "");
-                if (words[j + 1] && joined.length <= 4) cands.add(joined);
+                if (w.length >= 1) addCand(w);
+                if (words[j + 1]) addCand(w + words[j + 1]);
             }
             const isRequiem = tier === "REQUIEM";
             if (isRequiem) {
-                for (const c of [...cands]) cands.add(this._romanizeRequiem(c));
+                for (const c of [...cands.keys()]) addCand(this._romanizeRequiem(c));
             } else {
                 const DIGIT_AS_LETTER = { "0": "O", "1": "I", "2": "Z", "4": "A", "5": "S", "6": "G", "8": "B" };
-                for (const c of [...cands]) {
+                for (const [c, pen] of [...cands]) {
                     const letter = DIGIT_AS_LETTER[c[0]];
-                    if (letter) cands.add(letter + c.slice(1));
+                    if (letter) addCand(letter + c.slice(1), pen);
+                    if (c.length <= 2) continue;
+                    for (let k = 1; k < c.length; k++) {
+                        if (/[A-Z]/.test(c[k])) addCand(c.slice(0, k) + c.slice(k + 1), pen + 0.17);
+                    }
                 }
             }
             if (cands.size === 0) continue;
@@ -181,18 +190,20 @@ export const OCRService = {
             let best = null, bestS = 0, second = 0;
             for (const { code, canonical } of codes) {
                 let s = 0;
-                for (const cand of cands) {
+                for (const [cand, pen] of cands) {
                     let cs = this.similarityOCR(cand, code);
                     if (!isRequiem) {
                         for (let k = 1; k <= 2 && cand.length - k >= 2; k++) {
                             cs = Math.max(cs, this.similarityOCR(cand.slice(0, cand.length - k), code) - 0.17 * k);
                         }
                     }
+                    cs -= pen;
                     if (cs > s) s = cs;
                 }
                 if (s > bestS) { second = bestS; bestS = s; best = canonical; }
                 else if (s > second) second = s;
             }
+            if (weakTier && bestS < 0.85) continue;
             if (bestS >= 0.70 && (bestS - second) >= 0.10) return best;
             if (bestS >= 0.80 && (bestS - second) >= 0.03) return best;
         }
@@ -452,6 +463,8 @@ export const OCRService = {
             return this.similarityOCR(cleanOCR, cleanDB) >= thr;
         };
 
+        const UNCORROBORATED_THR = 0.85;
+
         const COMP_THR = 0.6;
 
         const attemptItemMatch = (startIndex, item, lookAheadLimit, ocrWords) => {
@@ -514,6 +527,7 @@ export const OCRService = {
                         ? textWords[i] + textWords[i + 1]
                         : textWords[i]).toUpperCase().replaceAll(/[^A-Z0-9]/g, "");
                     const score = this.similarityOCR(ocrFirst, item.firstWord.toUpperCase());
+                    if (matched.length === 1 && score < UNCORROBORATED_THR) continue;
                     const words = item.searchWords.length;
                     if (matched.length > longestMatch
                         || (matched.length === longestMatch && words > bestWords)
