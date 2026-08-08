@@ -411,6 +411,9 @@ async function buildFeatureVector(weapon, itemAttributes, weaponData = null, rer
   set("re_max", reMax);
   set("wfm_vs_off", (wfm || 0) / (ofmv + 1));
   set("ceil_mult", reMax / (reMed + 1));
+  // El bloque de de_unrolled (un_std/un_pop/un_min/un_max/re_min) se probó y no aporta: ver el
+  // comentario en ML_local.py. Si vuelve a entrar en el modelo, hay que reflejarlo AQUÍ también o el
+  // navegador enviaría los defaults de entrenamiento, que es peor que no tener la feature.
   // history del día: en el front (sin fecha) se asume día normal -> drift/ratios neutros = 1
   set("hist_day_drift", 1.0);
   set("hist_day_offdrift", 1.0);

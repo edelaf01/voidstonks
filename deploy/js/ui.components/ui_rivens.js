@@ -20,6 +20,7 @@ import {
   DEFAULT_WEAPON_SVG,
 } from "../utils/ui_utils.js";
 import { escapeHTML, showToast } from "./ui_components.js";
+import { onTap } from "../utils/tap.js";
 
 globalThis.DEFAULT_WEAPON_SVG = DEFAULT_WEAPON_SVG;
 const DEFAULT_WEAPON_DATA_URL = "data:image/svg+xml;utf8," + encodeURIComponent(DEFAULT_WEAPON_SVG);
@@ -186,16 +187,24 @@ function pesosFinosDeArma(weaponName, tipo = "pos") {
  * lleva ese stat hay que ponerle precio igual), pero recomendarlos en la guía sería inventar: le
  * estarías diciendo al usuario "busca este stat" sin que nadie lo haya vendido nunca en esa arma.
  * Mediana del catálogo: 12% de los stats por arma.
+ *
+ * `grupo` importa: `baja_confianza` solo mira los POSITIVOS del arma, y aplicarla también a las
+ * negativas borraba stats con datos de sobra. Torid tiene 561 subastas con -Zoom, pero como
+ * +Zoom casi no se lista, Zoom caía en `baja_confianza` y desaparecía de "mejores negativos".
+ * `baja_confianza_neg` (mismo cálculo sobre el lado negativo) llega con el próximo reentreno;
+ * mientras no esté, las negativas NO se filtran, que es lo correcto: sin lista propia no hay
+ * evidencia de que falte el dato.
  */
-function statsSinDatoPropio(weaponName) {
+function statsSinDatoPropio(weaponName, grupo = "pos") {
   const tabla = state.rivenStatWeights;
   if (!tabla || typeof tabla !== "object") return new Set();
+  const campo = grupo === "neg" ? "baja_confianza_neg" : "baja_confianza";
   const candidatos = [String(weaponName || ""), extractFamilyName(String(weaponName || ""))];
   for (const nombre of candidatos) {
     if (!nombre) continue;
     const nl = nombre.toLowerCase();
     const clave = Object.keys(tabla).find(k => k.toLowerCase() === nl);
-    const lista = clave && tabla[clave] && tabla[clave].baja_confianza;
+    const lista = clave && tabla[clave] && tabla[clave][campo];
     if (Array.isArray(lista)) return new Set(lista.map(s => String(s).toLowerCase()));
   }
   return new Set();
@@ -472,8 +481,9 @@ function rebuildCustomOptions(sel, dropdown, input) {
       item.style.color = "var(--wf-gold-text)";
     }
 
-    item.onmousedown = (e) => {
-      e.preventDefault(); // Prevent input blur
+    // onTap y no `click`: en móvil el click sobre estos <div> se perdía (ver utils/tap.js).
+    // preventDown mantiene el foco en el input, que es lo que hacía el mousedown original.
+    onTap(item, (e) => {
       e.stopPropagation();
       sel.value = opt.value;
       input.value = opt.value ? opt.textContent : "";
@@ -482,7 +492,7 @@ function rebuildCustomOptions(sel, dropdown, input) {
       // Dispatch change event to update metrics and exclusions
       sel.dispatchEvent(new Event("change", { bubbles: true }));
       if (typeof sel.onchange === "function") sel.onchange();
-    };
+    }, { preventDown: true });
     return item;
   });
 
@@ -2271,7 +2281,7 @@ export function handleRivenInput() {
 
           item.appendChild(textSpan);
           item.appendChild(img);
-          item.onclick = () => selectRivenWeapon(name);
+          onTap(item, () => selectRivenWeapon(name));
           return item;
         }),
       );
@@ -4104,6 +4114,13 @@ function renderMetaStats(weaponName, weaponType, targetId = "meta-stats-containe
   const _ocultarSinDato = _bestConDato.length > 0;
   const allow = (s) => _tipoOk(s)
     && !(_ocultarSinDato && _sinDato.has(String(s).toLowerCase()));
+  // Las listas de NEGATIVAS se filtran con la confianza del lado negativo, no con la de los
+  // positivos: son evidencias distintas (ver statsSinDatoPropio).
+  const _sinDatoNeg = statsSinDatoPropio(weaponName, "neg");
+  const _ocultarSinDatoNeg = _sinDatoNeg.size > 0
+    && (meta.neg || []).some(s => _tipoOk(s) && !_sinDatoNeg.has(String(s).toLowerCase()));
+  const allowNeg = (s) => _tipoOk(s)
+    && !(_ocultarSinDatoNeg && _sinDatoNeg.has(String(s).toLowerCase()));
 
   // DENTRO de BEST hay jerarquía: en la mayoría de armas 1 o 2 stats son los realmente decisivos y el
   // resto acompañan. Se marcan con "TOP" los que están a >=95% del peso máximo del arma, con tope de
@@ -4111,13 +4128,17 @@ function renderMetaStats(weaponName, weaponType, targetId = "meta-stats-containe
   // Cuando los pesos empatan (armas de poco volumen saturan a 1.00) no se marca nada: no hay
   // jerarquía real que mostrar y marcar todo equivaldría a no marcar.
   // Los finos primero: dynamic_weights empata los mejores a 1.00 y no dejaría marcar ninguno.
+  // Ese empate viene de la escala min-max vieja del pipeline; con la escala fija (ML_local.py)
+  // solo quedan empatados los del grupo líder que se promueve al tier alto, así que la guarda
+  // de abajo sigue haciendo falta pero se dispara mucho menos.
   // NO se vuelve a encoger hacia el prior aquí: ML_local._mezclar ya lo hace al exportar, con
   // shrinkage bayesiano por tamaño de muestra (K_PRIOR=8: b = (n·local + 8·global)/(n+8)). Repetirlo
   // en el front sería aplicar el prior dos veces y aplanar de más las armas con datos propios buenos.
   const _pesosPos = pesosFinosDeArma(weaponName, "pos") || meta.dynamic_weights || {};
   const _pesosNeg = pesosFinosDeArma(weaponName, "neg") || {};
-  const _destacar = (lista, pesos) => {
-    const conPeso = (lista || []).filter(allow)
+  // El filtro va como parámetro: las listas de negativas se criban con allowNeg, no con allow.
+  const _destacar = (lista, pesos, filtro = allow) => {
+    const conPeso = (lista || []).filter(filtro)
       .map(s => [s, parseFloat(pesos[s])])
       .filter(([, v]) => Number.isFinite(v))
       .sort((a, b) => b[1] - a[1]);
@@ -4185,12 +4206,12 @@ function renderMetaStats(weaponName, weaponType, targetId = "meta-stats-containe
   const _wantedSet = new Set([...(meta.pos || []), ...(meta.midPos || []), ..._dataWantedNames].map(x => String(x).toLowerCase()));
   const _curatedNeg = new Set((meta.neg || []).map(x => String(x).toLowerCase()));
   const harmlessAll = [...new Set([...(meta.neg || []), ...HARMLESS_NEG_CANDIDATES])]
-    .filter(allow)
+    .filter(allowNeg)
     .filter(s => !_wantedSet.has(String(s).toLowerCase()) && !CANT_BE_NEGATIVE.test(s));
   const harmlessSet = new Set(harmlessAll.map(x => String(x).toLowerCase()));
   // Mismo criterio que en los positivos: la maldición MENOS dañina del arma se marca TOP. En `neg` el
   // peso alto es "inocua", así que sigue siendo "más alto = mejor" (Obex: Puncture 1.000 > Impact 0.947).
-  const _mejoresNeg = _destacar(harmlessAll, _pesosNeg);
+  const _mejoresNeg = _destacar(harmlessAll, _pesosNeg, allowNeg);
   const bestNegHtml = harmlessAll.map(s => {
     const isTop = _mejoresNeg.has(s);
     const isCurated = _curatedNeg.has(String(s).toLowerCase());
@@ -4210,7 +4231,7 @@ function renderMetaStats(weaponName, weaponType, targetId = "meta-stats-containe
   // MID negativas = facciones + las MID-positivas del arma (perder un stat medio duele pero NO
   // arruina) + stats con peso de datos 0.4-0.7. Excluye harmless y las WORST (stats top).
   const midNeg = [...new Set([...(meta.midNeg || []), ...FACTION_NEGS, ...(meta.midPos || []), ..._dataMid])]
-    .filter(allow)
+    .filter(allowNeg)
     .filter(s => !_worstSet.has(String(s).toLowerCase()) && !harmlessSet.has(String(s).toLowerCase()) && !CANT_BE_NEGATIVE.test(s));
   const midNegHtml = midNeg.length > 0 ? midNeg.map(s => `
     <span style="background: rgba(234, 179, 8, 0.08); border: 1px solid rgba(234, 179, 8, 0.18); color: #eab308; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 4px; display: inline-block; margin-bottom: 4px; font-weight: 500;">
