@@ -1,4 +1,5 @@
 import { state } from "../state.js";
+import { damageMeta } from "../utils/damage_types.js";
 import { RIVEN_STATS, TEXTS, WORKER_URL, canBeNegative } from "../config.js";
 import { RIVEN_API_BASE, fetchWeaponHistory, fetchCurrentRivens, extractFamilyName, VARIANT_PREFIXES, VARIANT_SUFFIXES } from "../repositories/riven.repository.js";
 import {
@@ -1220,28 +1221,10 @@ function buildStatsHtml(weaponName) {
 
   let dmgBreakdownHtml = "";
   if (stats.damageTypes && Object.keys(stats.damageTypes).length > 0) {
-    const dmgMeta = {
-      impact: { label: state.currentLang === "es" ? "Impacto" : "Impact", color: "#8ca8b3" },
-      puncture: { label: state.currentLang === "es" ? "Perforación" : "Puncture", color: "#a89984" },
-      slash: { label: state.currentLang === "es" ? "Cortante" : "Slash", color: "#cf5e5e" },
-      heat: { label: state.currentLang === "es" ? "Calor" : "Heat", color: "#ff8c00" },
-      cold: { label: state.currentLang === "es" ? "Frío" : "Cold", color: "#00bfff" },
-      electricity: { label: state.currentLang === "es" ? "Electricidad" : "Electric", color: "#dda0dd" },
-      toxin: { label: state.currentLang === "es" ? "Toxina" : "Toxin", color: "#32cd32" },
-      blast: { label: state.currentLang === "es" ? "Explosión" : "Blast", color: "#e67e22" },
-      corrosive: { label: state.currentLang === "es" ? "Corrosivo" : "Corrosive", color: "#2ecc71" },
-      gas: { label: state.currentLang === "es" ? "Gas" : "Gas", color: "#f1c40f" },
-      magnetic: { label: state.currentLang === "es" ? "Magnético" : "Magnetic", color: "#9b59b6" },
-      radiation: { label: state.currentLang === "es" ? "Radiación" : "Radiation", color: "#e74c3c" },
-      viral: { label: state.currentLang === "es" ? "Viral" : "Viral", color: "#e84393" },
-      void: { label: state.currentLang === "es" ? "Vacío" : "Void", color: "#1abc9c" },
-      true: { label: state.currentLang === "es" ? "Verdadero" : "True", color: "#ffffff" }
-    };
-
     let entries = Object.entries(stats.damageTypes)
       .map(([key, val]) => {
         const k = key.toLowerCase();
-        const meta = dmgMeta[k] || { label: key.charAt(0).toUpperCase() + key.slice(1), color: "#aaa" };
+        const meta = damageMeta(k, state.currentLang);
         return { key: k, label: meta.label, color: meta.color, value: val };
       })
       .filter(e => e.value > 0)
@@ -1274,28 +1257,10 @@ function buildStatsHtml(weaponName) {
 
     let radialDmgBreakdown = "";
     if (stats.radial.damageTypes) {
-      const radialDmgMeta = {
-        impact: { label: state.currentLang === "es" ? "Impacto" : "Impact", color: "#8ca8b3" },
-        puncture: { label: state.currentLang === "es" ? "Perforación" : "Puncture", color: "#a89984" },
-        slash: { label: state.currentLang === "es" ? "Cortante" : "Slash", color: "#cf5e5e" },
-        heat: { label: state.currentLang === "es" ? "Calor" : "Heat", color: "#ff8c00" },
-        cold: { label: state.currentLang === "es" ? "Frío" : "Cold", color: "#00bfff" },
-        electricity: { label: state.currentLang === "es" ? "Electricidad" : "Electric", color: "#dda0dd" },
-        toxin: { label: state.currentLang === "es" ? "Toxina" : "Toxin", color: "#32cd32" },
-        blast: { label: state.currentLang === "es" ? "Explosión" : "Blast", color: "#e67e22" },
-        corrosive: { label: state.currentLang === "es" ? "Corrosivo" : "Corrosive", color: "#2ecc71" },
-        gas: { label: state.currentLang === "es" ? "Gas" : "Gas", color: "#f1c40f" },
-        magnetic: { label: state.currentLang === "es" ? "Magnético" : "Magnetic", color: "#9b59b6" },
-        radiation: { label: state.currentLang === "es" ? "Radiación" : "Radiation", color: "#e74c3c" },
-        viral: { label: state.currentLang === "es" ? "Viral" : "Viral", color: "#e84393" },
-        void: { label: state.currentLang === "es" ? "Vacío" : "Void", color: "#1abc9c" },
-        true: { label: state.currentLang === "es" ? "Verdadero" : "True", color: "#ffffff" }
-      };
-
       const radialEntries = Object.entries(stats.radial.damageTypes)
         .map(([key, val]) => {
           const k = key.toLowerCase();
-          const meta = radialDmgMeta[k] || { label: key.charAt(0).toUpperCase() + key.slice(1), color: "#aaa" };
+          const meta = damageMeta(k, state.currentLang);
           return { key: k, label: meta.label, color: meta.color, value: val };
         })
         .filter(e => e.value > 0);
@@ -1367,29 +1332,12 @@ function buildStatsHtml(weaponName) {
   const labels = statLabels[state.currentLang === "es" ? "es" : "en"];
 
   // Desglose de daño por tipo (IPS/elementos) reutilizable para el arma y para cada modo.
-  const dmgMetaShared = {
-    impact: { label: state.currentLang === "es" ? "Impacto" : "Impact", color: "#8ca8b3" },
-    puncture: { label: state.currentLang === "es" ? "Perforación" : "Puncture", color: "#a89984" },
-    slash: { label: state.currentLang === "es" ? "Cortante" : "Slash", color: "#cf5e5e" },
-    heat: { label: state.currentLang === "es" ? "Calor" : "Heat", color: "#ff8c00" },
-    cold: { label: state.currentLang === "es" ? "Frío" : "Cold", color: "#00bfff" },
-    electricity: { label: state.currentLang === "es" ? "Electricidad" : "Electric", color: "#dda0dd" },
-    toxin: { label: state.currentLang === "es" ? "Toxina" : "Toxin", color: "#32cd32" },
-    blast: { label: state.currentLang === "es" ? "Explosión" : "Blast", color: "#e67e22" },
-    corrosive: { label: state.currentLang === "es" ? "Corrosivo" : "Corrosive", color: "#2ecc71" },
-    gas: { label: state.currentLang === "es" ? "Gas" : "Gas", color: "#f1c40f" },
-    magnetic: { label: state.currentLang === "es" ? "Magnético" : "Magnetic", color: "#9b59b6" },
-    radiation: { label: state.currentLang === "es" ? "Radiación" : "Radiation", color: "#e74c3c" },
-    viral: { label: state.currentLang === "es" ? "Viral" : "Viral", color: "#e84393" },
-    void: { label: state.currentLang === "es" ? "Vacío" : "Void", color: "#1abc9c" },
-    true: { label: state.currentLang === "es" ? "Verdadero" : "True", color: "#ffffff" }
-  };
   const renderTypeRows = (damageTypes, small = false) => {
     if (!damageTypes) return "";
     const entries = Object.entries(damageTypes)
       .map(([key, val]) => {
         const k = key.toLowerCase();
-        const meta = dmgMetaShared[k] || { label: key.charAt(0).toUpperCase() + key.slice(1), color: "#aaa" };
+        const meta = damageMeta(k, state.currentLang);
         return { key: k, label: meta.label, color: meta.color, value: val };
       })
       .filter(e => e.value > 0).sort((a, b) => b.value - a.value);

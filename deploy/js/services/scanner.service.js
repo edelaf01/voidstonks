@@ -1441,12 +1441,20 @@ export const ScannerService = {
                 const tCtx = textCvs.getContext("2d");
                 const imgData = tCtx.getImageData(0, 0, textCvs.width, textCvs.height);
                 const pixels = imgData.data;
-                let whitePixelCount = 0;
+                // TINTA = negro (0); cropThemeBinarized devuelve texto NEGRO sobre fondo
+                // BLANCO. Contar los píxeles >200 contaba el FONDO: una celda vacía sale
+                // toda blanca (~347k de 354k píxeles), nunca bajaba de 20 y el filtro no
+                // descartaba nada — se mandaban al OCR celdas sin ítem, y el ruido del arte
+                // o de un aviso de Ordis encima podía acabar casando algo que no está ahí.
+                // Una celda realmente vacía da tinta 0 (cropThemeBinarized sale en blanco
+                // por el gate de tinta); una con nombre da ~6000. El corte en 20 es el que
+                // se pretendía y deja fuera solo lo verdaderamente vacío.
+                let inkPixelCount = 0;
                 for (let p = 0; p < pixels.length; p += 4) {
-                    if (pixels[p] > 200) whitePixelCount++;
+                    if (pixels[p] < 55) inkPixelCount++;
                 }
 
-                if (whitePixelCount < 20) {
+                if (inkPixelCount < 20) {
                     scanStats.empty++;
                     this.lastRawOcrLog.push(`[r${cell.r}c${cell.c}] SKIPPED (empty)`);
                     const relX = cell.sx - gridZone.x;
