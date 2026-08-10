@@ -135,7 +135,7 @@ export function blocksInBand(img, y0, y1, opts = {}) {
     }
 
     const bandH = y1 - y0 + 1;
-    const gap = Math.max(6, Math.round(bandH * 1.2));
+    const gap = o.blockGap ?? Math.max(6, Math.round(bandH * 1.2));
     const blocks = [];
     let start = -1, lastOn = -1, mass = 0;
     for (let x = 0; x <= width; x++) {
@@ -343,12 +343,20 @@ function detectInventoryGridCore(img, opts = {}) {
         return null;
     }
 
+    const narrowEnough = bl => (bl.x1 - bl.x0) < width * 0.9;
     const bandBlocks = bands.map(b => ({
         band: b,
-        blocks: blocksInBand(img, b.y0, b.y1, o).filter(bl =>
-            (bl.x1 - bl.x0) < width * 0.9
-        ),
+        blocks: blocksInBand(img, b.y0, b.y1, o).filter(narrowEnough),
     })).filter(bb => bb.blocks.length >= 1);
+
+    const rescuedBands = [];
+    for (const b of bands) {
+        if (bandBlocks.some(bb => bb.band === b) || b.y1 < height * 0.2) continue;
+        const tight = { ...o, blockGap: Math.max(6, Math.round((b.y1 - b.y0 + 1) * 0.12)) };
+        const retry = blocksInBand(img, b.y0, b.y1, tight).filter(narrowEnough);
+        if (retry.length >= 3) rescuedBands.push({ band: b, blocks: retry });
+    }
+    trace.rescuedBands = rescuedBands.map(bb => bb.band.y0);
     trace.bandBlocks = bandBlocks.map(bb => ({ y0: bb.band.y0, blocks: bb.blocks.length }));
     if (bandBlocks.length < 2) {
         trace.fail = `bandas con bloques válidos insuficientes (${bandBlocks.length} < 2) — ¿bloques de borde a borde (>90% del frame) o ruido?`;
@@ -426,7 +434,7 @@ function detectInventoryGridCore(img, opts = {}) {
         const baseSlot = baseY1 + k * cellH;
         if (baseSlot < rowFloor && topSlot < rowFloor) continue;
         let bb = null, bbErr = Infinity;
-        for (const cand2 of bandBlocks) {
+        for (const cand2 of [...bandBlocks, ...rescuedBands]) {
             if (cand2.band.y1 < rowFloor) continue;
             const err = Math.min(Math.abs(cand2.band.y0 - topSlot), Math.abs(cand2.band.y1 - baseSlot));
             if (err <= tol && err < bbErr) { bb = cand2; bbErr = err; }
