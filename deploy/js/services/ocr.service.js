@@ -64,15 +64,13 @@ export const OCRService = {
     // mismo grupo cuesta poco en similarityOCR, así "ACCELLRA"≈"ACCELTRA", "FRIME"≈"PRIME",
     // "RECELVER"≈"RECEIVER", etc. se resuelven solos, sin hardcodear cada caso.
     _ocrConfMap: (() => {
-        // "O6": en la fuente del juego el bucle del 6 ocupa casi todo el glifo y el gancho
-        // superior se pierde al binarizar. Visto en vivo: "Axi C6 Relic" salió como
-        // "AXI CO RELIC" y la celda quedó UNMATCHED — los grupos NO son transitivos, así que
-        // tener "O0QDCG" y "G6" por separado no hacía que O y 6 se parecieran entre sí.
-        // Solo se empareja con la LETRA O, no con el dígito 0: mezclar 6 y 0 haría que un
-        // "A16" legítimo pasara por "A10" cuando el catálogo no tiene el A16 (inventar una
-        // reliquia distinta es peor que no matchear); la letra en un hueco de dígito, en
-        // cambio, ya es de por sí un fallo de OCR.
-        const groups = ["O0QDCG", "IL1T|J", "S5", "B8", "G6", "O6", "Z2", "UV", "NMH", "PF", "EF", "RT", "VY", "A4", "KR", "W", "Q9"];
+        // NO existe grupo "O6". Se probó (para rescatar "Axi C6" leído "AXI CO") y produce
+        // FALSOS POSITIVOS: visto en vivo, "Axi S9" salió como "AXI SO" y con "O6" activo
+        // ganaba S6 (0.80) sobre S9 (0.50) — se contaba una reliquia que no está. La misma
+        // lectura "X + O" fue C6 en una captura y S9 en otra: cuando el OCR pierde el dígito
+        // la lectura es genuinamente ambigua y hay que dejarla sin match, no adivinarla.
+        // Sin este grupo ambas quedan empatadas a 0.50 y el margen de unicidad las descarta.
+        const groups = ["O0QDCG", "IL1T|J", "S5", "B8", "G6", "Z2", "UV", "NMH", "PF", "EF", "RT", "VY", "A4", "KR", "W", "Q9"];
         const map = new Map();
         for (const g of groups) for (const ch of g) map.set(ch, (map.get(ch) || "") + g);
         return map;
@@ -107,7 +105,9 @@ export const OCRService = {
         return (longer - prev[n]) / longer;
     },
 
-    RELIC_TIERS: ["LITH", "MESO", "NEO", "AXI", "REQUIEM"],
+    // VANGUARD entra como era propia: sus 4 reliquias (C1/E1/M1/P1) aparecen en el
+    // inventario junto a las demás y sin esto ni se intentaban casar.
+    RELIC_TIERS: ["LITH", "MESO", "NEO", "AXI", "REQUIEM", "VANGUARD"],
     // Ruido típico de la UI de selección de reliquia/inventario que no forma parte del código.
     RELIC_NOISE_TOKENS: new Set([
         "RELIC", "RADIANT", "INTACT", "EXCEPTIONAL", "FLAWLESS",
@@ -185,9 +185,18 @@ export const OCRService = {
         if (!combinedText || !state.allRelicNames?.length) return null;
         const rawWords = Array.isArray(combinedText) ? combinedText : combinedText.split(/\s+/);
         const words = rawWords
-            .map(w => (w || "").toString().toUpperCase().replaceAll(/[^A-Z0-9]/g, ""))
+            .map(w => (w || "").toString().toUpperCase()
+                .replaceAll(/[|!¡\][]/g, "I")   // barra vertical: i/I/1 finos leídos como signo
+                .replaceAll(/\?/g, "7")          // el 7 con remate curvo sale como "?"
+                .replaceAll(/[^A-Z0-9]/g, ""))
             .filter(w => w.length > 0 && !this.RELIC_NOISE_TOKENS.has(w));
         const index = this._relicIndex();
+        // ¿La celda dice literalmente "RELIC"/"RELIQUIA"? Entonces ES una reliquia y el
+        // único problema es leer el código; la basura de una celda ilegible ("…OT NE WL")
+        // no trae esa palabra. Sirve para relajar la guardia de tier flojo de abajo sin
+        // reabrirla a la basura, que es lo que esa guardia protege.
+        const saysRelic = rawWords.some(w => /^(RELIC|RELIQUIA)S?$/.test(
+            (w || "").toString().toUpperCase().replaceAll(/[^A-Z]/g, "")));
 
         for (let i = 0; i < words.length; i++) {
             const word = words[i];
@@ -220,7 +229,11 @@ export const OCRService = {
             // siempre gane a una reconstruida (si no, "AL4" empataba a 1.0 entre A14 y A4).
             const cands = new Map();
             const addCand = (c, pen = 0) => {
-                if (!c || c.length > 4) return;
+                // 6 y no 4: el código más largo del catálogo es "ETERNA" (Requiem Eterna).
+                // Con el tope en 4 nunca llegaba a ser candidato y esa reliquia no se podía
+                // casar. El resto de códigos son LETRA+2 cifras, así que el margen de
+                // unicidad sigue decidiendo igual.
+                if (!c || c.length > 6) return;
                 const prev = cands.get(c);
                 if (prev === undefined || pen < prev) cands.set(c, pen);
             };
@@ -262,6 +275,19 @@ export const OCRService = {
                         if (/[A-Z]/.test(c[k])) addCand(c.slice(0, k) + c.slice(k + 1), pen + 0.17);
                     }
                 }
+                // CERO A LA IZQUIERDA IMPOSIBLE. Los 763 códigos de era normal del catálogo
+                // son LETRA + número de 1 o 2 cifras que empieza en 1-9 (la letra es la
+                // inicial del ítem raro de la reliquia); ni uno solo lleva cero delante.
+                // Así que un '0' pegado a la letra es un glifo DUPLICADO del OCR: "Axi O5"
+                // salió como "AXI O05" —la O y el 0 son el mismo trazo, leído dos veces, una
+                // como letra y otra como dígito—. La regla de la letra sobrante no lo tocaba
+                // (el '0' es un DÍGITO), el candidato se quedaba en 0.67 contra O5, bajo el
+                // corte de 0.70, y la celda salía UNMATCHED con el recorte perfectamente
+                // legible. Va después del mapa dígito→letra para que "005" pase por "O05".
+                for (const [c, pen] of [...cands]) {
+                    const m = /^([A-Z])0+([1-9][0-9]?)$/.exec(c);
+                    if (m) addCand(m[1] + m[2], pen + 0.17);
+                }
             }
             if (cands.size === 0) continue;
 
@@ -274,7 +300,15 @@ export const OCRService = {
                 let s = 0;
                 for (const [cand, pen] of cands) {
                     let cs = this.similarityOCR(cand, code);
-                    if (!isRequiem) {
+                    // Un candidato ya BIEN FORMADO (letra + 1-2 dígitos, la forma de todos
+                    // los códigos del catálogo) no se recorta: la cola no es ruido, es parte
+                    // del código. Si aun así no está en el catálogo, la respuesta correcta es
+                    // "no lo conozco", no truncarlo hasta que encaje. Visto en vivo: "Axi A21"
+                    // y "Axi A22" (que la BD no tiene, se quedó en A20) se anotaban como
+                    // "Axi A2" — un recuento falso, peor que no leer nada. "A160" (3 dígitos,
+                    // imposible en el catálogo) sí es ruido del arte y se sigue recortando.
+                    const wellFormed = /^[A-Z][0-9]{1,2}$/.test(cand);
+                    if (!isRequiem && !wellFormed) {
                         // Penalización 0.17/char: mayor que el coste de una confusión de
                         // grupo al final (0.4/3 ≈ 0.13), para que "K1J" prefiera K11
                         // (J≈1) antes que recortar a K1; y menor que un error real, para
@@ -293,7 +327,7 @@ export const OCRService = {
             // sobre el 2º (varias confusiones seguidas hunden la similitud absoluta —
             // "ILL"≈III 0.73— pero el margen sigue siendo enorme). Un margen holgado
             // permite bajar el corte sin admitir basura, que puntúa plano contra todo.
-            if (weakTier && bestS < 0.85) continue;
+            if (weakTier && !saysRelic && bestS < 0.85) continue;
             if (bestS >= 0.70 && (bestS - second) >= 0.10) return best;
             if (bestS >= 0.80 && (bestS - second) >= 0.03) return best;
         }

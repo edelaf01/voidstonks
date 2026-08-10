@@ -92,6 +92,7 @@
   <link rel="stylesheet" href="css/components/riven-module.css?v=1.0" />
   <link rel="stylesheet" href="css/components/vosfor.css?v=1.4" />
   <link rel="stylesheet" href="css/components/orders.css?v=1.0" />
+  <link rel="stylesheet" href="css/components/lich-weapons.css?v=1.0" />
   <link rel="icon" type="image/png" href="https://wiki.warframe.com/images/VoidTraces.png" />
 
   <!-- OpenCV y Tesseract se cargan BAJO DEMANDA al abrir el escáner
@@ -1247,12 +1248,25 @@
       </div>
 
       <div id="mode-bounties" class="hidden">
+        <div class="farms-subnav" role="tablist">
+          <button type="button" class="farms-sub-btn active" data-subview="bounties" role="tab"
+            aria-selected="true" onclick="globalThis.switchFarmsSubview('bounties')">
+            <span class="farms-sub-icon" aria-hidden="true">🎯</span>
+            <span class="farms-sub-label">Misiones</span>
+          </button>
+          <button type="button" class="farms-sub-btn" data-subview="weapons" role="tab"
+            aria-selected="false" onclick="globalThis.switchFarmsSubview('weapons')">
+            <span class="farms-sub-icon" aria-hidden="true">⚔️</span>
+            <span class="farms-sub-label">Armas en rotación</span>
+          </button>
+        </div>
         <div id="bounties-list-container" class="fissures-scroll-area" style="overflow: visible">
           <div style="text-align: center; padding: 20px; color: #666">
             <div class="spinner" style="margin: 0 auto 10px auto"></div>
             Cargando Worldstate...
           </div>
         </div>
+        <div id="lich-weapons-container" class="hidden"></div>
       </div>
 
       <div id="mode-ducat" class="hidden">

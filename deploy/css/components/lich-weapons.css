@@ -1,0 +1,394 @@
+/* ==============================================
+   FARMS — subnav de apartados y armas en rotación (Eleanor / Ergo Glast)
+   ============================================== */
+
+/* Subnav de la pestaña Farms. Va por encima de .farms-header (que ya tiene su propio
+   segmento Óptimas|Todas), así que se distingue con pastilla ancha y borde inferior:
+   dos segmentos idénticos apilados serían indistinguibles. */
+.farms-subnav {
+    display: flex;
+    gap: 6px;
+    margin: 0 5px 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.farms-sub-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 10px 12px;
+    font-family: inherit;
+    font-size: 0.82rem;
+    font-weight: 800;
+    letter-spacing: 0.4px;
+    color: #9aa0aa;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 9px;
+    cursor: pointer;
+    transition: color 0.18s, border-color 0.18s, background 0.18s;
+}
+
+.farms-sub-btn:hover:not(.active) {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.farms-sub-btn.active {
+    color: #062a30;
+    background: var(--wf-blue);
+    border-color: var(--wf-blue);
+}
+
+.farms-sub-icon {
+    font-size: 1em;
+    line-height: 1;
+}
+
+.farms-sub-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* ---- Cabecera del apartado ---- */
+
+.lw-header {
+    padding: 0 5px 10px 10px;
+    border-left: 3px solid var(--wf-blue);
+    margin-bottom: 14px;
+}
+
+.lw-title {
+    font-size: 0.95rem;
+    font-weight: 800;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    color: #e8eaed;
+}
+
+.lw-subtitle {
+    margin-top: 3px;
+    font-size: 0.76rem;
+    color: #8b929c;
+    line-height: 1.45;
+}
+
+/* ---- Tienda ---- */
+
+.lw-vendor {
+    margin-bottom: 22px;
+}
+
+.lw-vendor-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding: 10px 12px;
+    background: linear-gradient(90deg,
+            color-mix(in srgb, var(--vendor-color) 14%, transparent) 0%,
+            rgba(0, 0, 0, 0) 70%);
+    border-left: 3px solid var(--vendor-color);
+    border-radius: 0 8px 8px 0;
+}
+
+.lw-vendor-id {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.lw-vendor-name {
+    font-size: 0.92rem;
+    font-weight: 800;
+    letter-spacing: 0.4px;
+    color: var(--vendor-color);
+}
+
+.lw-vendor-sub {
+    font-size: 0.72rem;
+    color: #9aa0aa;
+}
+
+.lw-vendor-meta {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.lw-batch {
+    padding: 3px 9px;
+    font-size: 0.7rem;
+    font-weight: 900;
+    letter-spacing: 0.6px;
+    color: #0b0d10;
+    background: var(--vendor-color);
+    border-radius: 5px;
+    white-space: nowrap;
+}
+
+.lw-timer {
+    font-family: "Courier New", monospace;
+    font-size: 0.84rem;
+    font-weight: 700;
+    color: #d6dae0;
+    white-space: nowrap;
+}
+
+/* Última hora de la ventana: es cuando decides si compras ya o esperas al lote nuevo. */
+.lw-timer.urgent {
+    color: #ffb74d;
+}
+
+.lw-timer.expired {
+    color: var(--wf-error);
+}
+
+.lw-next {
+    font-size: 0.68rem;
+    color: #7d838d;
+    white-space: nowrap;
+}
+
+/* ---- Rejilla de armas ---- */
+
+.lw-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.lw-card {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px;
+    background: rgba(255, 255, 255, 0.025);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-left: 2px solid color-mix(in srgb, var(--vendor-color) 55%, transparent);
+    border-radius: 8px;
+}
+
+.lw-card-head {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+}
+
+.lw-card-img {
+    width: 40px;
+    height: 40px;
+    flex: 0 0 40px;
+    object-fit: contain;
+}
+
+.lw-card-id {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.lw-card-name {
+    font-size: 0.83rem;
+    font-weight: 800;
+    color: #e8eaed;
+    line-height: 1.2;
+}
+
+.lw-card-cat {
+    font-size: 0.68rem;
+    color: #8b929c;
+}
+
+.lw-card-wiki {
+    flex: 0 0 auto;
+    padding: 2px 5px;
+    font-size: 0.8rem;
+    color: #7d838d;
+    text-decoration: none;
+    border-radius: 4px;
+    transition: color 0.18s, background 0.18s;
+}
+
+.lw-card-wiki:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+/* ---- Bonus de valencia ---- */
+
+.lw-bonus {
+    padding: 6px 8px;
+    background: color-mix(in srgb, var(--bonus-color) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--bonus-color) 35%, transparent);
+    border-radius: 6px;
+}
+
+.lw-bonus-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+}
+
+.lw-bonus-el {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.74rem;
+    font-weight: 700;
+    color: var(--bonus-color);
+}
+
+.lw-bonus-pct {
+    font-size: 0.86rem;
+    font-weight: 900;
+    color: var(--bonus-color);
+}
+
+/* Barra medida sobre el rango real que genera el juego (25-60%): sobre 100 todos los
+   rolls parecerían mediocres y no se distinguiría un 30 de un 55. */
+.lw-bonus-bar {
+    height: 3px;
+    margin-top: 5px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.lw-bonus-bar i {
+    display: block;
+    height: 100%;
+    background: var(--bonus-color);
+    border-radius: 2px;
+}
+
+.lw-bonus.is-missing {
+    font-size: 0.7rem;
+    font-style: italic;
+    color: #7d838d;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px dashed rgba(255, 255, 255, 0.12);
+}
+
+/* ---- Daño y stats ---- */
+
+.lw-dmg-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+}
+
+.lw-dmg-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 2px 6px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--dmg-color);
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 4px;
+}
+
+.dmg-type-icon {
+    object-fit: contain;
+    vertical-align: middle;
+}
+
+.lw-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(64px, 1fr));
+    gap: 4px 8px;
+    margin: 0;
+}
+
+.lw-stat {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.lw-stat dt {
+    font-size: 0.62rem;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+    color: #7d838d;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.lw-stat dd {
+    margin: 0;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #d6dae0;
+}
+
+.lw-card-foot {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    padding-top: 7px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.lw-mr {
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--wf-gold-text);
+}
+
+.lw-disp {
+    display: inline-flex;
+    gap: 3px;
+    cursor: help;
+}
+
+.lw-disp i {
+    width: 6px;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 50%;
+}
+
+.lw-disp i.on {
+    background: var(--wf-riven);
+}
+
+.lw-disclaimer {
+    padding: 8px 10px;
+    font-size: 0.68rem;
+    font-style: italic;
+    color: #7d838d;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 6px;
+}
+
+@media (max-width: 560px) {
+    .lw-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .lw-vendor-head {
+        align-items: flex-start;
+    }
+
+    .farms-sub-btn {
+        padding: 9px 8px;
+        font-size: 0.76rem;
+    }
+}
