@@ -537,7 +537,6 @@ function buildHeaderHtml(t) {
               </div>
               <button type="button" id="farm-alarms-btn" class="farm-action-btn ${alarmActive ? "active-filter" : ""}"
                 aria-expanded="${alarmPanelOpen ? "true" : "false"}" title="${escapeHTML(t.farmAlarms.toggle)}">
-                <span class="farm-btn-icon">🔔</span>
                 <span class="farm-btn-label">${escapeHTML(t.farmAlarms.toggle)}</span>
                 <span class="alarm-count">${nBounty > 0 ? nBounty : ""}</span>
               </button>
