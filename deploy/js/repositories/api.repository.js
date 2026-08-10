@@ -228,6 +228,21 @@ export async function getArbitration(force = false) {
 }
 
 /**
+ * Rotación de armas de adversario (Eleanor / Ergo Glast). El worker calcula la ventana
+ * activa y adjunta stats y bonus de valencia.
+ * @returns {Promise<Response>}
+ */
+export async function getLichWeapons(force = false) {
+    let url = `${WORKER_URL}?type=lich_weapons`;
+    // El ttl del worker vence justo al rotar, pero su stale-while-revalidate deja al edge
+    // servir la ventana vieja hasta 5 min más. Solo en el refetch de rotación se estrena
+    // clave de caché para ver el lote nuevo al momento; un render normal debe seguir
+    // cayendo en la entrada compartida.
+    if (force) url += `&_cb=${Date.now()}`;
+    return fetchWithTimeout(url, { timeout: 15000 });
+}
+
+/**
  * Pide la hora del servidor para sincronizar los contadores del cliente. no-store porque
  * cualquier caché (edge o navegador) devolvería una hora vieja.
  * @returns {Promise<Response>}

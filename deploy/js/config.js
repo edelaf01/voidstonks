@@ -1,4 +1,33 @@
-export const WORKER_URL = "https://api.voidstonks.com/";
+const PROD_WORKER_URL = "https://api.voidstonks.com/";
+
+/**
+ * URL del worker, con desvío opcional a un `wrangler dev` local.
+ *
+ * El worker se despliega aparte del sitio, así que un endpoint recién escrito todavía no
+ * existe en api.voidstonks.com: la pestaña que lo consume sale vacía y no hay forma de
+ * probarla desde el navegador. Con esto:
+ *
+ *     localStorage.setItem("vs_worker_url", "http://127.0.0.1:8787/")   // y recarga
+ *
+ * SOLO desde localhost a propósito. En producción, cualquiera capaz de escribir en el
+ * localStorage del usuario redirigiría todas las peticiones —incluidas las que llevan el
+ * JWT de warframe.market— a un servidor ajeno.
+ */
+function resolveWorkerUrl() {
+  const loc = globalThis.location;
+  if (!loc || typeof globalThis.localStorage === "undefined") return PROD_WORKER_URL;
+  if (!["localhost", "127.0.0.1", "[::1]"].includes(loc.hostname)) return PROD_WORKER_URL;
+  try {
+    const raw = globalThis.localStorage.getItem("vs_worker_url");
+    // http(s) explícito: el valor acaba en fetch() y una URL de otro esquema no es un worker.
+    if (!raw || !/^https?:\/\//.test(raw)) return PROD_WORKER_URL;
+    return raw.endsWith("/") ? raw : `${raw}/`;
+  } catch {
+    return PROD_WORKER_URL;
+  }
+}
+
+export const WORKER_URL = resolveWorkerUrl();
 export const APP_VERSION = "2.7.2";
 export const UPDATE_HISTORY_DATA = {
   es: `
@@ -1607,6 +1636,43 @@ export const TEXTS = {
       collapseAll: "Plegar todo",
       expandAll: "Desplegar todo",
     },
+    farmsBountiesTab: "Misiones",
+    lichWeapons: {
+      tab: "Armas en rotación",
+      title: "Armas en rotación",
+      subtitle:
+        "Tiendas de armas de adversario. El catálogo y el bonus de valencia cambian cada 4 días a las 00:00 UTC.",
+      loading: "Calculando rotación...",
+      emptyTitle: "No se pudo cargar la rotación de armas.",
+      emptyDesc: "Vuelve a entrar en unos minutos.",
+      batch: "LOTE",
+      nextBatch: "Después:",
+      nextBonuses: "Después: nuevos bonus",
+      price: "{n} × {currency}",
+      currencies: {
+        "Live Heartcell": "Célula Cardíaca Viva",
+        "Corrupted Holokey": "Holollave Corrupta",
+      },
+      vendors: {
+        eleanor: { name: "Eleanor · Armas Coda", where: "Höllvania (1999)" },
+        glast: { name: "Ergo Glast · Armas Tenet", where: "Cualquier relé" },
+      },
+      categories: { Primary: "Primaria", Secondary: "Secundaria", Melee: "Cuerpo a cuerpo" },
+      bonusUnknown: "Bonus aún sin reportar",
+      bonusSource:
+        "El elemento y el porcentaje del bonus son aleatorios en cada rotación y no los publica ninguna API: los reportan los jugadores en la wiki, así que pueden tardar en aparecer al empezar una ventana.",
+      disposition: "Disposición de riven",
+      wiki: "Abrir en la wiki",
+      statDamage: "Daño",
+      statCrit: "Crítico",
+      statCritMult: "Mult. crít.",
+      statStatus: "Estado",
+      statFireRate: "Cadencia",
+      statAttackSpeed: "Velocidad",
+      statMultishot: "Multidisparo",
+      statMagazine: "Cargador",
+      statReload: "Recarga",
+    },
     fissureAlarms: {
       title: "Alarmas de fisuras",
       tier: "Tier",
@@ -2292,6 +2358,43 @@ export const TEXTS = {
       delete: "Delete alarm",
       collapseAll: "Collapse all",
       expandAll: "Expand all",
+    },
+    farmsBountiesTab: "Bounties",
+    lichWeapons: {
+      tab: "Weapon rotation",
+      title: "Weapon rotation",
+      subtitle:
+        "Adversary weapon shops. Stock and valence bonus change every 4 days at 00:00 UTC.",
+      loading: "Computing rotation...",
+      emptyTitle: "Could not load the weapon rotation.",
+      emptyDesc: "Come back in a few minutes.",
+      batch: "BATCH",
+      nextBatch: "Next:",
+      nextBonuses: "Next: new bonuses",
+      price: "{n} × {currency}",
+      currencies: {
+        "Live Heartcell": "Live Heartcell",
+        "Corrupted Holokey": "Corrupted Holokey",
+      },
+      vendors: {
+        eleanor: { name: "Eleanor · Coda weapons", where: "Höllvania (1999)" },
+        glast: { name: "Ergo Glast · Tenet weapons", where: "Any relay" },
+      },
+      categories: { Primary: "Primary", Secondary: "Secondary", Melee: "Melee" },
+      bonusUnknown: "Bonus not reported yet",
+      bonusSource:
+        "The bonus element and percentage are rolled per rotation and no API publishes them: players report them on the wiki, so they can lag behind at the start of a window.",
+      disposition: "Riven disposition",
+      wiki: "Open on the wiki",
+      statDamage: "Damage",
+      statCrit: "Crit",
+      statCritMult: "Crit mult.",
+      statStatus: "Status",
+      statFireRate: "Fire rate",
+      statAttackSpeed: "Attack speed",
+      statMultishot: "Multishot",
+      statMagazine: "Magazine",
+      statReload: "Reload",
     },
     fissureAlarms: {
       title: "Fissure alarms",
