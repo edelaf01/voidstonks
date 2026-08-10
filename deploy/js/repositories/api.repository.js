@@ -202,6 +202,16 @@ export async function getArbitration(force = false) {
     return fetchWithTimeout(url, opts);
 }
 
+/**
+ * Rotación de armas de adversario y glast
+ * @returns {Promise<Response>}
+ */
+export async function getLichWeapons(force = false) {
+    let url = `${WORKER_URL}?type=lich_weapons`;
+    if (force) url += `&_cb=${Date.now()}`;
+    return fetchWithTimeout(url, { timeout: 15000 });
+}
+
 /** @returns {Promise<Response>} */
 export async function getServerTime() {
     return fetchWithTimeout(`${WORKER_URL}?type=time`, { cache: "no-store", timeout: 10000 });
