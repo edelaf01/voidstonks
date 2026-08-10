@@ -60,7 +60,8 @@ export const OCRService = {
     },
 
     _ocrConfMap: (() => {
-        const groups = ["O0QDCG", "IL1T|J", "S5", "B8", "G6", "O6", "Z2", "UV", "NMH", "PF", "EF", "RT", "VY", "A4", "KR", "W", "Q9"];
+        // no "O6" group: it gave false positives ("AXI SO" became S6 instead of S9)
+        const groups = ["O0QDCG", "IL1T|J", "S5", "B8", "G6", "Z2", "UV", "NMH", "PF", "EF", "RT", "VY", "A4", "KR", "W", "Q9"];
         const map = new Map();
         for (const g of groups) for (const ch of g) map.set(ch, (map.get(ch) || "") + g);
         return map;
@@ -87,7 +88,7 @@ export const OCRService = {
         return (longer - prev[n]) / longer;
     },
 
-    RELIC_TIERS: ["LITH", "MESO", "NEO", "AXI", "REQUIEM"],
+    RELIC_TIERS: ["LITH", "MESO", "NEO", "AXI", "REQUIEM", "VANGUARD"],
     RELIC_NOISE_TOKENS: new Set([
         "RELIC", "RADIANT", "INTACT", "EXCEPTIONAL", "FLAWLESS",
         "RELIQUIA", "RADIANTE", "INTACTA", "EXCEPCIONAL", "IMPECABLE"
@@ -137,9 +138,14 @@ export const OCRService = {
         if (!combinedText || !state.allRelicNames?.length) return null;
         const rawWords = Array.isArray(combinedText) ? combinedText : combinedText.split(/\s+/);
         const words = rawWords
-            .map(w => (w || "").toString().toUpperCase().replaceAll(/[^A-Z0-9]/g, ""))
+            .map(w => (w || "").toString().toUpperCase()
+                .replaceAll(/[|!¡\][]/g, "I")
+                .replaceAll(/\?/g, "7")
+                .replaceAll(/[^A-Z0-9]/g, ""))
             .filter(w => w.length > 0 && !this.RELIC_NOISE_TOKENS.has(w));
         const index = this._relicIndex();
+        const saysRelic = rawWords.some(w => /^(RELIC|RELIQUIA)S?$/.test(
+            (w || "").toString().toUpperCase().replaceAll(/[^A-Z]/g, "")));
 
         for (let i = 0; i < words.length; i++) {
             const word = words[i];
@@ -161,7 +167,7 @@ export const OCRService = {
 
             const cands = new Map();
             const addCand = (c, pen = 0) => {
-                if (!c || c.length > 4) return;
+                if (!c || c.length > 6) return;
                 const prev = cands.get(c);
                 if (prev === undefined || pen < prev) cands.set(c, pen);
             };
@@ -184,6 +190,10 @@ export const OCRService = {
                         if (/[A-Z]/.test(c[k])) addCand(c.slice(0, k) + c.slice(k + 1), pen + 0.17);
                     }
                 }
+                for (const [c, pen] of [...cands]) {
+                    const m = /^([A-Z])0+([1-9][0-9]?)$/.exec(c);
+                    if (m) addCand(m[1] + m[2], pen + 0.17);
+                }
             }
             if (cands.size === 0) continue;
 
@@ -192,7 +202,8 @@ export const OCRService = {
                 let s = 0;
                 for (const [cand, pen] of cands) {
                     let cs = this.similarityOCR(cand, code);
-                    if (!isRequiem) {
+                    const wellFormed = /^[A-Z][0-9]{1,2}$/.test(cand);
+                    if (!isRequiem && !wellFormed) {
                         for (let k = 1; k <= 2 && cand.length - k >= 2; k++) {
                             cs = Math.max(cs, this.similarityOCR(cand.slice(0, cand.length - k), code) - 0.17 * k);
                         }
@@ -203,7 +214,7 @@ export const OCRService = {
                 if (s > bestS) { second = bestS; bestS = s; best = canonical; }
                 else if (s > second) second = s;
             }
-            if (weakTier && bestS < 0.85) continue;
+            if (weakTier && !saysRelic && bestS < 0.85) continue;
             if (bestS >= 0.70 && (bestS - second) >= 0.10) return best;
             if (bestS >= 0.80 && (bestS - second) >= 0.03) return best;
         }
