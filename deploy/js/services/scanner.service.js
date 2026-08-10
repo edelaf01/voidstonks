@@ -1142,12 +1142,12 @@ export const ScannerService = {
                 const tCtx = textCvs.getContext("2d");
                 const imgData = tCtx.getImageData(0, 0, textCvs.width, textCvs.height);
                 const pixels = imgData.data;
-                let whitePixelCount = 0;
+                let inkPixelCount = 0;
                 for (let p = 0; p < pixels.length; p += 4) {
-                    if (pixels[p] > 200) whitePixelCount++;
+                    if (pixels[p] < 55) inkPixelCount++;
                 }
 
-                if (whitePixelCount < 20) {
+                if (inkPixelCount < 20) {
                     scanStats.empty++;
                     this.lastRawOcrLog.push(`[r${cell.r}c${cell.c}] SKIPPED (empty)`);
                     const relX = cell.sx - gridZone.x;

@@ -60,7 +60,9 @@ export const OCRService = {
     },
 
     _ocrConfMap: (() => {
-        const groups = ["O0QDCG", "IL1T|J", "S5", "B8", "G6", "O6", "Z2", "UV", "NMH", "PF", "EF", "RT", "VY", "A4", "KR", "W", "Q9"];
+        // No "O6" group: it gave false positives ("AXI SO" became S6 instead of S9). A lost digit is
+        // ambiguous and stays unmatched.
+        const groups = ["O0QDCG", "IL1T|J", "S5", "B8", "G6", "Z2", "UV", "NMH", "PF", "EF", "RT", "VY", "A4", "KR", "W", "Q9"];
         const map = new Map();
         for (const g of groups) for (const ch of g) map.set(ch, (map.get(ch) || "") + g);
         return map;
@@ -91,7 +93,8 @@ export const OCRService = {
         return (longer - prev[n]) / longer;
     },
 
-    RELIC_TIERS: ["LITH", "MESO", "NEO", "AXI", "REQUIEM"],
+    // Vanguard counts as an era: its 4 relics show in the inventory
+    RELIC_TIERS: ["LITH", "MESO", "NEO", "AXI", "REQUIEM", "VANGUARD"],
     RELIC_NOISE_TOKENS: new Set([
         "RELIC", "RADIANT", "INTACT", "EXCEPTIONAL", "FLAWLESS",
         "RELIQUIA", "RADIANTE", "INTACTA", "EXCEPCIONAL", "IMPECABLE"
@@ -150,9 +153,15 @@ export const OCRService = {
         if (!combinedText || !state.allRelicNames?.length) return null;
         const rawWords = Array.isArray(combinedText) ? combinedText : combinedText.split(/\s+/);
         const words = rawWords
-            .map(w => (w || "").toString().toUpperCase().replaceAll(/[^A-Z0-9]/g, ""))
+            .map(w => (w || "").toString().toUpperCase()
+                .replaceAll(/[|!¡\][]/g, "I")   // thin i/I/1 read as a bar
+                .replaceAll(/\?/g, "7")
+                .replaceAll(/[^A-Z0-9]/g, ""))
             .filter(w => w.length > 0 && !this.RELIC_NOISE_TOKENS.has(w));
         const index = this._relicIndex();
+        // the cell literally says RELIC: only the code is in doubt, so the weak tier guard can relax
+        const saysRelic = rawWords.some(w => /^(RELIC|RELIQUIA)S?$/.test(
+            (w || "").toString().toUpperCase().replaceAll(/[^A-Z]/g, "")));
 
         for (let i = 0; i < words.length; i++) {
             const word = words[i];
@@ -180,7 +189,8 @@ export const OCRService = {
             // literal read always wins.
             const cands = new Map();
             const addCand = (c, pen = 0) => {
-                if (!c || c.length > 4) return;
+                // 6, not 4: the longest code is "ETERNA" (Requiem Eterna)
+                if (!c || c.length > 6) return;
                 const prev = cands.get(c);
                 if (prev === undefined || pen < prev) cands.set(c, pen);
             };
@@ -208,6 +218,12 @@ export const OCRService = {
                         if (/[A-Z]/.test(c[k])) addCand(c.slice(0, k) + c.slice(k + 1), pen + 0.17);
                     }
                 }
+                // No code has a leading zero after the letter, so a '0' there is a glyph read twice
+                // ("O05" -> O5).
+                for (const [c, pen] of [...cands]) {
+                    const m = /^([A-Z])0+([1-9][0-9]?)$/.exec(c);
+                    if (m) addCand(m[1] + m[2], pen + 0.17);
+                }
             }
             if (cands.size === 0) continue;
 
@@ -218,7 +234,10 @@ export const OCRService = {
                 let s = 0;
                 for (const [cand, pen] of cands) {
                     let cs = this.similarityOCR(cand, code);
-                    if (!isRequiem) {
+                    // A well-formed code (letter + 1-2 digits) is not trimmed: if it is not in the catalog, the
+                    // answer is "unknown", not a truncated match.
+                    const wellFormed = /^[A-Z][0-9]{1,2}$/.test(cand);
+                    if (!isRequiem && !wellFormed) {
                         // 0.17 per char: above a group confusion at the end, below a real error
                         for (let k = 1; k <= 2 && cand.length - k >= 2; k++) {
                             cs = Math.max(cs, this.similarityOCR(cand.slice(0, cand.length - k), code) - 0.17 * k);
@@ -231,7 +250,7 @@ export const OCRService = {
                 else if (s > second) second = s;
             }
             // Low threshold plus uniqueness margin: garbage scores flat against everything.
-            if (weakTier && bestS < 0.85) continue;
+            if (weakTier && !saysRelic && bestS < 0.85) continue;
             if (bestS >= 0.70 && (bestS - second) >= 0.10) return best;
             if (bestS >= 0.80 && (bestS - second) >= 0.03) return best;
         }
