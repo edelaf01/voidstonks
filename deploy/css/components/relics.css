@@ -293,14 +293,11 @@
     background: rgba(255, 255, 255, 0.06);
 }
 
-.farm-btn-icon {
-    font-size: 0.95em;
-    line-height: 1;
-}
-
-/* En pantallas estrechas el título y los controles no caben en una línea: el
-   texto de la campana se va (queda icono + contador, que es lo informativo) y el
-   segmento se estira para que ambas opciones sigan siendo cómodas de tocar. */
+/* En pantallas estrechas el título y los controles no caben en una línea: el título pasa a
+   ocupar su propia fila y el segmento se estira para que ambas opciones sigan siendo
+   cómodas de tocar. El texto del botón de alarmas SE QUEDA: antes se ocultaba porque el
+   icono de campana bastaba para identificarlo, pero sin icono el botón se quedaría en un
+   número suelto sin decir de qué. */
 @media (max-width: 560px) {
     .farms-header {
         gap: 8px;
@@ -321,10 +318,6 @@
     .farm-seg-btn {
         flex: 1 1 0;
     }
-
-    .farm-btn-label {
-        display: none;
-    }
 }
 
 /* Ámbar, no cian: el cian ya marca el segmento activo de al lado, y dos botones
@@ -333,10 +326,6 @@
     color: #ffd98a;
     border-color: rgba(255, 193, 7, 0.5);
     background: rgba(255, 193, 7, 0.12);
-}
-
-.farm-action-btn.active-filter .farm-btn-icon {
-    filter: drop-shadow(0 0 5px rgba(255, 193, 7, 0.7));
 }
 
 .farm-action-btn.active-filter .alarm-count {
@@ -725,15 +714,55 @@
     margin-bottom: 12px;
 }
 
+/* Los <select> del panel de alarmas (Farms y rotación de armas).
+   Traían la apariencia nativa del sistema: fondo y flecha del SO, tipografía distinta a la
+   del resto y sin estado de foco, así que rompían con los botones de al lado. Se igualan a
+   .farm-action-btn (mismo fondo, borde y radio) y la flecha se dibuja aquí. */
 .alarm-select {
-    background: #0f1113;
-    color: #ddd;
-    border: 1px solid #333;
-    border-radius: 4px;
-    padding: 6px 8px;
-    font-size: 0.8em;
-    flex: 1 1 140px;
-    min-width: 120px;
+    appearance: none;
+    font-family: inherit;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #d6dae0;
+    background-color: rgba(0, 0, 0, 0.3);
+    /* Chevron propio; el nativo no se puede teñir y desentonaba en gris del sistema. */
+    background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%228%22%20viewBox%3D%220%200%2012%208%22%3E%3Cpath%20fill%3D%22none%22%20stroke%3D%22%239aa0aa%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20d%3D%22M1%201.5%206%206.5%2011%201.5%22%2F%3E%3C%2Fsvg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    /* El padding derecho reserva el hueco del chevron: sin él, las opciones largas
+       (nombres de arma) se le montan encima. */
+    padding: 8px 30px 8px 11px;
+    flex: 1 1 150px;
+    min-width: 130px;
+    /* Un <select> no corta con puntos suspensivos por su cuenta: la opción larga se
+       cortaba a hachazos contra el hueco del chevron ("Ergo Glast · Tenet wea"). */
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    cursor: pointer;
+    transition: color 0.18s, border-color 0.18s, background-color 0.18s;
+}
+
+.alarm-select:hover {
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.3);
+    background-color: rgba(255, 255, 255, 0.06);
+}
+
+.alarm-select:focus-visible {
+    outline: none;
+    color: #fff;
+    border-color: var(--wf-blue);
+    background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%228%22%20viewBox%3D%220%200%2012%208%22%3E%3Cpath%20fill%3D%22none%22%20stroke%3D%22%2300e5ff%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20d%3D%22M1%201.5%206%206.5%2011%201.5%22%2F%3E%3C%2Fsvg%3E");
+}
+
+/* La lista desplegada la pinta el sistema, no la hoja: sin esto, en Firefox/Linux salía
+   con el fondo claro del escritorio y el texto claro heredado se volvía ilegible. */
+.alarm-select option {
+    background: #12151a;
+    color: #e8eaed;
 }
 
 .alarm-rules-list {
