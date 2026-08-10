@@ -33,7 +33,7 @@ import { initVosforTab, renderVosforTab } from "./ui.components/ui_vosfor.js?v=2
 import { initSyncPanel } from "./ui.components/ui_sync.js";
 import { initFissurePanel, updateRecommendedMissions } from "./ui.components/ui_fissures.js?v=1.1";
 import { state, saveAppState, updateInventoryCount } from "./state.js";
-import { renderBountiesTab } from "./ui.components/ui_bounties.js";
+import { renderFarmsTab } from "./ui.components/ui_farms.js";
 import { renderInventory, renderPrimeInventory } from "./ui.components/ui_inventory.js";
 import { ScannerHUD } from "./ui.components/ui_scanner_hud.js";
 import { ScannerModal } from "./ui.components/ui_scanner_modal.js";
@@ -147,7 +147,7 @@ export function switchTab(mode) {
     }
   }
   if (mode === "bounties") {
-    renderBountiesTab();
+    renderFarmsTab();
     document.querySelector(".card").classList.add("theme-bounties");
   } else {
     const card = document.querySelector(".card");
@@ -417,7 +417,7 @@ function triggerSideEffects(t) {
   if (modeLfg && !modeLfg.classList.contains("hidden")) updateLFGUI();
 
   if (state.currentActiveSet) renderSetTracker();
-  if (state.activeTab === "bounties") renderBountiesTab();
+  if (state.activeTab === "bounties") renderFarmsTab();
 
   const relicInput = document.getElementById("relicInput");
   const tier = relicInput ? relicInput.value.split(" ")[0] : "";
