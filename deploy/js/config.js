@@ -10,7 +10,12 @@ function resolveWorkerUrl() {
   try {
     const raw = globalThis.localStorage.getItem("vs_worker_url");
     if (!raw || !/^https?:\/\//.test(raw)) return PROD_WORKER_URL;
-    return raw.endsWith("/") ? raw : `${raw}/`;
+    const url = raw.endsWith("/") ? raw : `${raw}/`;
+    console.warn(
+      `[CONFIG] Worker desviado a ${url} (vs_worker_url). Si la app no carga datos, ` +
+      "el worker local no está levantado: localStorage.removeItem(\"vs_worker_url\") y recarga.",
+    );
+    return url;
   } catch {
     return PROD_WORKER_URL;
   }
@@ -1632,8 +1637,8 @@ export const TEXTS = {
         "Corrupted Holokey": "Holollave Corrupta",
       },
       vendors: {
-        eleanor: { name: "Eleanor · Armas Coda", where: "Höllvania (1999)" },
-        glast: { name: "Ergo Glast · Armas Tenet", where: "Cualquier relé" },
+        eleanor: { name: "Eleanor · Armas Coda", short: "Eleanor", where: "Höllvania (1999)" },
+        glast: { name: "Ergo Glast · Armas Tenet", short: "Ergo Glast", where: "Cualquier relé" },
       },
       categories: { Primary: "Primaria", Secondary: "Secundaria", Melee: "Cuerpo a cuerpo" },
       bonusUnknown: "Bonus aún sin reportar",
@@ -1641,6 +1646,21 @@ export const TEXTS = {
         "El elemento y el porcentaje del bonus son aleatorios en cada rotación y no los publica ninguna API: los reportan los jugadores en la wiki, así que pueden tardar en aparecer al empezar una ventana.",
       disposition: "Disposición de riven",
       wiki: "Abrir en la wiki",
+      alarms: {
+        toggle: "Recordatorios",
+        title: "Recordatorios de rotación",
+        vendor: "Tienda",
+        anyVendor: "Cualquier tienda",
+        weapon: "Arma",
+        anyWeapon: "Cualquier arma",
+        element: "Elemento",
+        anyElement: "Cualquier elemento",
+        minPercent: "Bonus mínimo",
+        addRule: "Añadir recordatorio",
+        noRules: "Sin recordatorios. Añade uno y te avisaremos cuando una rotación traiga ese arma con el elemento y el porcentaje que buscas.",
+        firedTitle: "Arma en rotación",
+        note: "Un arma sin bonus reportado todavía no dispara, pero sigue vigilada: saltará en cuanto el dato aparezca dentro de esta misma ventana.",
+      },
       statDamage: "Daño",
       statCrit: "Crítico",
       statCritMult: "Mult. crít.",
@@ -2355,8 +2375,8 @@ export const TEXTS = {
         "Corrupted Holokey": "Corrupted Holokey",
       },
       vendors: {
-        eleanor: { name: "Eleanor · Coda weapons", where: "Höllvania (1999)" },
-        glast: { name: "Ergo Glast · Tenet weapons", where: "Any relay" },
+        eleanor: { name: "Eleanor · Coda weapons", short: "Eleanor", where: "Höllvania (1999)" },
+        glast: { name: "Ergo Glast · Tenet weapons", short: "Ergo Glast", where: "Any relay" },
       },
       categories: { Primary: "Primary", Secondary: "Secondary", Melee: "Melee" },
       bonusUnknown: "Bonus not reported yet",
@@ -2364,6 +2384,21 @@ export const TEXTS = {
         "The bonus element and percentage are rolled per rotation and no API publishes them: players report them on the wiki, so they can lag behind at the start of a window.",
       disposition: "Riven disposition",
       wiki: "Open on the wiki",
+      alarms: {
+        toggle: "Reminders",
+        title: "Rotation reminders",
+        vendor: "Vendor",
+        anyVendor: "Any vendor",
+        weapon: "Weapon",
+        anyWeapon: "Any weapon",
+        element: "Element",
+        anyElement: "Any element",
+        minPercent: "Minimum bonus",
+        addRule: "Add reminder",
+        noRules: "No reminders yet. Add one and you'll be alerted when a rotation brings that weapon with the element and percentage you want.",
+        firedTitle: "Weapon in rotation",
+        note: "A weapon whose bonus is not reported yet does not fire, but stays watched: it will alert as soon as the value shows up within this same window.",
+      },
       statDamage: "Damage",
       statCrit: "Crit",
       statCritMult: "Crit mult.",

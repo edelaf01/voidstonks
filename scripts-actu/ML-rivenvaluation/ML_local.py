@@ -635,7 +635,15 @@ ENSEMBLE_SPECS = [
     dict(random_state=7,    max_depth=12, colsample_bytree=0.50),
     dict(random_state=2024, max_depth=8,  colsample_bytree=0.70),
 ]
-COMMON = dict(n_estimators=int(os.environ.get("XGB_N", "2000")), learning_rate=0.025, subsample=0.85,
+def _env_num(name, default, cast=int):
+    """reads a numeric hyperparameter from env, treating empty string as unset
+    GitHub Actions passes empty strings for unset inputs on cron runs, breaking int("")
+    """
+    raw = os.environ.get(name, "")
+    return cast(raw) if str(raw).strip() else cast(default)
+
+
+COMMON = dict(n_estimators=_env_num("XGB_N", 2000), learning_rate=0.025, subsample=0.85,
               min_child_weight=4, reg_lambda=2.5, reg_alpha=0.1,
               tree_method="hist", n_jobs=-1, eval_metric="rmse",
               early_stopping_rounds=60,
@@ -647,13 +655,13 @@ COMMON = dict(n_estimators=int(os.environ.get("XGB_N", "2000")), learning_rate=0
 QUANTILES = [0.25, 0.50, 0.80, 0.90, 0.95]   # p90/p95 is the godroll ceiling on real prices rather than troll asks
 # depth=10 is required to represent stat interactions: shallower trees (depth=7) score worse even with
 # 2.5x tree budget
-_QPARAMS = dict(n_estimators=int(os.environ.get("XGB_N", "2000")),
-                learning_rate=float(os.environ.get("XGB_LR", "0.03")),
-                max_depth=int(os.environ.get("XGB_DEPTH", "10")),
-                subsample=float(os.environ.get("XGB_SUB", "0.85")),
-                colsample_bytree=float(os.environ.get("XGB_COL", "0.6")),
-                min_child_weight=int(os.environ.get("XGB_MCW", "4")),
-                reg_lambda=float(os.environ.get("XGB_L2", "2.5")), reg_alpha=0.1,
+_QPARAMS = dict(n_estimators=_env_num("XGB_N", 2000),
+                learning_rate=_env_num("XGB_LR", 0.03, float),
+                max_depth=_env_num("XGB_DEPTH", 10),
+                subsample=_env_num("XGB_SUB", 0.85, float),
+                colsample_bytree=_env_num("XGB_COL", 0.6, float),
+                min_child_weight=_env_num("XGB_MCW", 4),
+                reg_lambda=_env_num("XGB_L2", 2.5, float), reg_alpha=0.1,
                 tree_method="hist", n_jobs=-1,
                 device=os.environ.get("XGB_DEVICE", "cpu"), early_stopping_rounds=80)
 print(f"  Hiperparámetros: depth={_QPARAMS['max_depth']} lr={_QPARAMS['learning_rate']} "
@@ -689,9 +697,9 @@ for a in QUANTILES:
     a_tr = _ALPHA_TRAIN.get(a, a)
     # per-quantile budget applies only when XGB_N is not forced by env (CI uses 400 for fast runs)
     _qp = dict(_QPARAMS)
-    if not os.environ.get("XGB_N"):
+    if not os.environ.get("XGB_N", "").strip():
         # XGB_NMULT scales tree budgets because shallower trees need more iterations to converge
-        _mult = float(os.environ.get("XGB_NMULT", "1"))
+        _mult = _env_num("XGB_NMULT", 1, float)
         _qp["n_estimators"] = int(_N_POR_CUANTIL.get(a, _qp["n_estimators"]) * _mult)
     m = xgb.XGBRegressor(objective="reg:quantileerror", quantile_alpha=a_tr, random_state=42, **_qp)
     # sample weights by price are NOT passed to quantile regression: weighting by price shifts the estimated
@@ -1428,7 +1436,7 @@ if os.environ.get("SLIM_EXPORT", "1") == "1":
     import gzip as _gz
     _OUT = os.environ.get("DEPLOY_ML_DIR", "generado")
     os.makedirs(_OUT, exist_ok=True)
-    _SN = int(os.environ.get("SLIM_N", "400")); _SD = int(os.environ.get("SLIM_DEPTH", "5"))
+    _SN = _env_num("SLIM_N", 400); _SD = _env_num("SLIM_DEPTH", 5)
     _sp = dict(n_estimators=_SN, learning_rate=0.05, max_depth=_SD, subsample=0.85,
                colsample_bytree=0.6, min_child_weight=4, reg_lambda=2.5, reg_alpha=0.1,
                tree_method="hist", n_jobs=-1, device=os.environ.get("XGB_DEVICE", "cpu"))

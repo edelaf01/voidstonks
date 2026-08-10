@@ -4,9 +4,6 @@ import { serverNow, syncServerClock } from "../utils/server_clock.js";
 
 const CACHE_KEY = "lich_weapons_cache";
 
-const BONUS_RETRY_MS = 30 * 60 * 1000;
-const MIN_CACHE_MS = 60 * 1000;
-
 /**
  * @param {object} payload
  * @returns {Array}
@@ -17,6 +14,21 @@ function normalizeVendors(payload) {
 }
 
 /**
+ * Last good response, only while its window is still open.
+ * @returns {Promise<Array>}
+ */
+async function lastKnownGood() {
+    const cached = await dbHelper.get(CACHE_KEY);
+    const vendors = Array.isArray(cached?.data) ? cached.data : [];
+    if (vendors.length === 0) return [];
+    const soonestEnd = Math.min(...vendors.map((v) => Number(v.end) || 0));
+    return soonestEnd > serverNow() ? vendors : [];
+}
+
+/**
+ * Active Eleanor (Coda) and Ergo Glast (Tenet) rotation. Always asks the worker: its
+ * Cache-Control lets the browser cache answer repeats. IndexedDB is only the fallback
+ * when the request fails.
  * @param {boolean} [force]
  * @returns {Promise<Array>}
  */
@@ -25,25 +37,17 @@ export async function fetchLichWeapons(force = false) {
         // unsynced, a skewed clock sees the window as expired and refetches in a loop
         await syncServerClock();
 
-        const cached = await dbHelper.get(CACHE_KEY);
-        if (!force && cached?.expiryTime > serverNow()) return cached.data;
-
         const res = await getLichWeapons(force);
-        if (!res.ok) return cached?.data || [];
-
-        const payload = await res.json();
-        const vendors = normalizeVendors(payload);
-        if (vendors.length === 0) return cached?.data || [];
-
-        const now = serverNow();
-        const soonestEnd = Math.min(...vendors.map((v) => Number(v.end) || 0));
-        const pending = vendors.some((v) => v.weapons.some((w) => !w.bonus));
-        const ceiling = pending ? Math.min(now + BONUS_RETRY_MS, soonestEnd) : soonestEnd;
-        const expiryTime = Math.max(now + MIN_CACHE_MS, ceiling);
-        await dbHelper.set(CACHE_KEY, { expiryTime, data: vendors });
-        return vendors;
+        if (res.ok) {
+            const vendors = normalizeVendors(await res.json());
+            if (vendors.length > 0) {
+                await dbHelper.set(CACHE_KEY, { data: vendors });
+                return vendors;
+            }
+        }
+        return lastKnownGood();
     } catch (e) {
         console.error("Lich weapons error:", e);
-        return [];
+        return lastKnownGood().catch(() => []);
     }
 }

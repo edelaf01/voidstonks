@@ -284,11 +284,10 @@
     background: rgba(255, 255, 255, 0.06);
 }
 
-.farm-btn-icon {
-    font-size: 0.95em;
-    line-height: 1;
-}
-
+/*
+ * on narrow screens the title gets its own row and the segment stretches to stay easy to tap
+ * the alarm button keeps its text: without the icon it would be a bare number
+ */
 @media (max-width: 560px) {
     .farms-header {
         gap: 8px;
@@ -309,10 +308,6 @@
     .farm-seg-btn {
         flex: 1 1 0;
     }
-
-    .farm-btn-label {
-        display: none;
-    }
 }
 
 /* amber, not cyan: cyan already marks the active segment next to it */
@@ -320,10 +315,6 @@
     color: #ffd98a;
     border-color: rgba(255, 193, 7, 0.5);
     background: rgba(255, 193, 7, 0.12);
-}
-
-.farm-action-btn.active-filter .farm-btn-icon {
-    filter: drop-shadow(0 0 5px rgba(255, 193, 7, 0.7));
 }
 
 .farm-action-btn.active-filter .alarm-count {
@@ -707,15 +698,49 @@
     margin-bottom: 12px;
 }
 
+/* alarm panel <select>s (Farms and weapon rotation), matched to .farm-action-btn with the arrow drawn here */
 .alarm-select {
-    background: #0f1113;
-    color: #ddd;
-    border: 1px solid #333;
-    border-radius: 4px;
-    padding: 6px 8px;
-    font-size: 0.8em;
-    flex: 1 1 140px;
-    min-width: 120px;
+    appearance: none;
+    font-family: inherit;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #d6dae0;
+    background-color: rgba(0, 0, 0, 0.3);
+    /* own chevron, the native one cannot be tinted */
+    background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%228%22%20viewBox%3D%220%200%2012%208%22%3E%3Cpath%20fill%3D%22none%22%20stroke%3D%22%239aa0aa%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20d%3D%22M1%201.5%206%206.5%2011%201.5%22%2F%3E%3C%2Fsvg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    /* right padding reserves the chevron space so long options do not overlap it */
+    padding: 8px 30px 8px 11px;
+    flex: 1 1 150px;
+    min-width: 130px;
+    /* a <select> does not add an ellipsis by itself */
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    cursor: pointer;
+    transition: color 0.18s, border-color 0.18s, background-color 0.18s;
+}
+
+.alarm-select:hover {
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.3);
+    background-color: rgba(255, 255, 255, 0.06);
+}
+
+.alarm-select:focus-visible {
+    outline: none;
+    color: #fff;
+    border-color: var(--wf-blue);
+    background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%228%22%20viewBox%3D%220%200%2012%208%22%3E%3Cpath%20fill%3D%22none%22%20stroke%3D%22%2300e5ff%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20d%3D%22M1%201.5%206%206.5%2011%201.5%22%2F%3E%3C%2Fsvg%3E");
+}
+
+/* the open list is drawn by the system: without this Firefox/Linux showed a light background with light text */
+.alarm-select option {
+    background: #12151a;
+    color: #e8eaed;
 }
 
 .alarm-rules-list {
