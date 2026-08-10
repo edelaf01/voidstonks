@@ -167,6 +167,12 @@ export async function getArbitration(force = false) {
     return fetchWithTimeout(url, opts);
 }
 
+export async function getLichWeapons(force = false) {
+    let url = `${WORKER_URL}?type=lich_weapons`;
+    if (force) url += `&_cb=${Date.now()}`;
+    return fetchWithTimeout(url, { timeout: 15000 });
+}
+
 export async function getServerTime() {
     return fetchWithTimeout(`${WORKER_URL}?type=time`, { cache: "no-store", timeout: 10000 });
 }
