@@ -1,0 +1,17 @@
+{
+  "name": "voidstonks",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "dev:worker": "wrangler dev worker-code.js --port 8787 --ip 127.0.0.1 --compatibility-date 2024-11-01",
+    "dev:site": "node scripts/serve-deploy.mjs",
+    "build": "node scripts-actu/build-dist.mjs",
+    "lint": "eslint --no-error-on-unmatched-pattern deploy/js extension worker-code.js tests",
+    "baseline:arquitectura": "node -e \"import('./tests/_helpers/architecture-rules.mjs').then(m=>console.log(JSON.stringify(m.snapshot(),null,2)))\" > tests/_baseline/architecture-debt.json"
+  },
+  "devDependencies": {
+    "eslint": "^9.39.5",
+    "globals": "^17.8.0"
+  }
+}

@@ -609,7 +609,9 @@ body {
 }
 
 .inv-meta {
-  font-size: 0.7em;
+  /* 0.8em y no menos: dentro se encadenan más em (.ratio-tag → .ratio-unit) y con
+     0.7em el sufijo "d/pl" caía a ~5.7px. */
+  font-size: 0.8em;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -6167,19 +6169,120 @@ button[onclick*="importInventory"]:hover {
   filter: drop-shadow(0 4px 8px rgba(68, 255, 136, 0.35));
 }
 
+/* ---- Carrusel de sets (pestaña Set, sin búsqueda activa) ----
+   Anclado a .empty-showcase-container: ui_rivens.js reutiliza los nombres .showcase-card
+   / .showcase-img / .showcase-name para su propio escaparate. */
+
+.empty-showcase-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 18px 12px 8px;
+  box-sizing: border-box;
+  text-align: center;
+  width: 100%;
+}
+
+.empty-showcase-container .showcase-heading {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--wf-gold-text);
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  text-shadow: 0 0 10px rgba(0, 229, 255, 0.15);
+}
+
+.empty-showcase-container .showcase-subheading {
+  font-size: 0.7rem;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 16px;
+}
+
+/* Era una altura fija de 520px. Con dvh sigue al alto REAL de la ventana, que en movil
+   cambia al plegarse la barra del navegador — vh no se entera y el carrusel quedaba
+   cortado por debajo. */
 .ticker-grid-expanded {
   display: grid;
   grid-template-columns: repeat(1, minmax(0, 1fr));
-  gap: 32px;
+  gap: 24px;
   width: 100%;
   max-width: 1400px;
   margin: 0 auto;
-  padding: 0 24px;
-  height: 520px;
+  padding: 0 16px;
+  box-sizing: border-box;
+  height: clamp(380px, 72vh, 1100px);
+  height: clamp(380px, 72dvh, 1100px);
   overflow: hidden;
   position: relative;
-  mask-image: linear-gradient(to bottom, transparent, black 10%, black 90%, transparent);
-  -webkit-mask-image: linear-gradient(to bottom, transparent, black 10%, black 90%, transparent);
+  mask-image: linear-gradient(to bottom, transparent, black 8%, black 92%, transparent);
+  -webkit-mask-image: linear-gradient(to bottom, transparent, black 8%, black 92%, transparent);
+}
+
+.empty-showcase-container .showcase-card {
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.045) 0%, rgba(255, 255, 255, 0.012) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 12px;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  box-sizing: border-box;
+  font-family: inherit;
+  text-align: center;
+  cursor: pointer;
+  transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+    background 0.35s ease, border-color 0.35s ease, box-shadow 0.35s ease;
+}
+
+.empty-showcase-container .showcase-card:hover,
+.empty-showcase-container .showcase-card:focus-visible {
+  background: color-mix(in srgb, var(--active-theme-color) 10%, transparent);
+  border-color: color-mix(in srgb, var(--active-theme-color) 45%, transparent);
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.45),
+    0 0 18px color-mix(in srgb, var(--active-theme-color) 25%, transparent);
+  transform: translateY(-3px);
+  outline: none;
+}
+
+.empty-showcase-container .showcase-card:hover .showcase-img,
+.empty-showcase-container .showcase-card:focus-visible .showcase-img {
+  transform: scale(1.14);
+}
+
+.empty-showcase-container .showcase-card:active {
+  transform: translateY(0) scale(0.985);
+}
+
+/* Sin `filter` a propósito. Los iconos son webp de 256x256 y aquí se dibujan a 62 px, así
+   que resolución sobra: lo que los ablandaba era el drop-shadow. Un filter convierte al
+   elemento en raíz de filtrado — se pinta en un búfer aparte, se difumina y se compone — y
+   ese búfer vive dentro de .ticker-column-large, que es una capa que se desplaza sola: el
+   resultado se acaba remuestreando en posiciones fraccionarias de píxel. Por eso se veían
+   blandas las imágenes y no los nombres, que están en la misma tarjeta pero sin filtro.
+   La profundidad ya la da la sombra de la propia tarjeta. */
+.empty-showcase-container .showcase-img {
+  width: 96px;
+  height: 62px;
+  object-fit: contain;
+  transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.empty-showcase-container .showcase-name {
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  margin-top: 10px;
+  color: #eef1f5;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 100%;
 }
 
 @media (min-width: 768px) {
@@ -6199,8 +6302,11 @@ button[onclick*="importInventory"]:hover {
   flex-direction: column;
   gap: 20px;
   width: 100%;
+  /* will-change basta para que la columna sea su propia capa. `backface-visibility: hidden`
+     era el truco de antes para lo mismo, y sumarlo no promociona "más": lo que hace es
+     mandar el contenido por una ruta de rasterizado que en pantallas HiDPI puede acabar
+     texturizándolo por debajo de su densidad real. Se quitó buscando imágenes más nítidas. */
   will-change: transform;
-  backface-visibility: hidden;
   transform: translate3d(0, 0, 0);
 }
 
@@ -6226,6 +6332,24 @@ button[onclick*="importInventory"]:hover {
 
 .ticker-grid-expanded:hover .ticker-column-large {
   animation-play-state: paused;
+}
+
+/* En táctil no hay hover con el que parar el carrusel: el foco al tocar una tarjeta
+   hace de freno mientras se lee. */
+.ticker-grid-expanded:focus-within .ticker-column-large {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ticker-column-large {
+    animation: none !important;
+  }
+
+  /* Sin desplazamiento el duplicado de tarjetas no aporta nada y la columna se sale
+     del contenedor: se recorta a lo que cabe y se puede recorrer a mano. */
+  .ticker-grid-expanded {
+    overflow-y: auto;
+  }
 }
 
 @keyframes verticalLargeScroll {
@@ -6657,12 +6781,12 @@ body[data-lang="en"] .header-guide-cta .lang-en {
   font-size: 0.9em;
 }
 .ratio-unit {
-  font-size: 0.6em;
-  opacity: 0.6;
+  font-size: 0.72em;
+  opacity: 0.7;
   text-transform: lowercase;
 }
 .inv-meta .ratio-tag {
-  font-size: 0.85em;
+  font-size: 1em;
 }
 
 /* ===== Ducanator standalone tab filters ===== */
@@ -7976,4 +8100,231 @@ body[data-lang="en"] .header-guide-cta .lang-en {
   .search-input, .filter-select {
     min-width: 100%;
   }
+}
+
+/* ============================================================
+   Inventario de reliquias: chips de OBJETIVO y línea de sets
+   ============================================================ */
+
+#inv-goals-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+/* Mismo lenguaje visual que .inv-tier-btn, pero sin flex:1: los rótulos son de largo
+   muy distinto ("Plat/run" contra "Ducados por plat") y repartir a partes iguales
+   cortaba los largos. */
+#inv-goals-row .inv-goal-btn {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #888;
+  padding: 5px 9px;
+  font-size: 0.72em;
+  font-weight: 700;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+#inv-goals-row .inv-goal-btn:hover {
+  background: rgba(0, 229, 255, 0.08);
+  color: #fff;
+  border-color: rgba(0, 229, 255, 0.3);
+}
+
+#inv-goals-row .inv-goal-btn.active {
+  background: var(--wf-blue);
+  color: #050505;
+  border-color: var(--wf-blue);
+  box-shadow: 0 0 10px rgba(0, 229, 255, 0.3);
+}
+
+.inv-vaulted-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78em;
+  color: #9aa;
+  cursor: pointer;
+  user-select: none;
+}
+
+.inv-vaulted-toggle input {
+  accent-color: var(--wf-blue);
+  cursor: pointer;
+}
+
+/* Línea propia bajo .inv-meta, NO dentro: metida ahí eran 6 elementos en un flex de
+   panel estrecho y todo se partía en dos renglones (ver captura del 11-08).
+   Tamaño en rem a propósito: .inv-name-group ya viene reducido y encadenar otro em
+   dejaba el texto por debajo de lo legible. */
+#inventory-container .inv-goal-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 5px;
+  font-size: 0.72rem;
+  line-height: 1.3;
+}
+
+#inventory-container .inv-goal-tag {
+  color: #00e5ff;
+  font-weight: 700;
+  background: rgba(0, 229, 255, 0.08);
+  border: 1px solid rgba(0, 229, 255, 0.22);
+  border-radius: 4px;
+  padding: 1px 6px;
+  white-space: nowrap;
+}
+
+#inventory-container .inv-goal-tag.none {
+  color: #667;
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.08);
+  font-weight: 600;
+}
+
+#inventory-container .inv-goal-set {
+  color: #c9d1d9;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#inventory-container .inv-goal-more {
+  color: #7d8590;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 3px;
+  padding: 1px 5px;
+  white-space: nowrap;
+}
+
+/* ============================================================
+   Rutas para cerrar sets (#farm-routes)
+   ============================================================ */
+
+#farm-routes {
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 6px;
+  padding: 10px;
+}
+
+#farm-routes .fr-title {
+  font-size: 0.8em;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--wf-blue);
+  margin-bottom: 8px;
+}
+
+#farm-routes .fr-count {
+  color: #7d8590;
+  font-weight: 600;
+}
+
+#farm-routes .fr-empty {
+  font-size: 0.78em;
+  color: #7d8590;
+}
+
+#farm-routes .fr-set + .fr-set {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+#farm-routes .fr-set-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+#farm-routes .fr-set-name {
+  font-weight: 700;
+  color: #e6edf3;
+  font-size: 0.86em;
+}
+
+#farm-routes .fr-set-prog {
+  font-size: 0.74em;
+  color: #7d8590;
+}
+
+#farm-routes .fr-badge {
+  font-size: 0.7em;
+  font-weight: 700;
+  color: #050505;
+  background: var(--wf-green, #42f56c);
+  border-radius: 3px;
+  padding: 1px 6px;
+}
+
+#farm-routes .fr-parts {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+}
+
+/* Cada pieza en su renglón, con la acción a la derecha. En rem porque el bloque cuelga de
+   un panel que ya reduce el tamaño y encadenar em lo dejaba ilegible. */
+#farm-routes .fr-part {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  padding: 4px 0 4px 8px;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  border-left: 2px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Verde solo si de verdad puedes ir ahora: es la única señal que hay que mirar. */
+#farm-routes .fr-part.ready {
+  border-left-color: var(--wf-green, #42f56c);
+}
+
+#farm-routes .fr-name {
+  color: #c9d1d9;
+  flex: 1 1 100%;
+}
+
+/* Es un <button> de verdad (táctil), pero tiene que leerse como el texto del plan:
+   se le quita todo el chrome y solo se marca como pulsable al pasar por encima. */
+#farm-routes .fr-go {
+  font: inherit;
+  font-weight: 700;
+  color: var(--wf-green, #42f56c);
+  background: none;
+  border: 0;
+  border-bottom: 1px dashed rgba(66, 245, 108, 0.4);
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+}
+
+#farm-routes .fr-go:hover,
+#farm-routes .fr-go:focus-visible {
+  filter: brightness(1.25);
+  border-bottom-style: solid;
+}
+
+#farm-routes .fr-go.wait { border-bottom-color: rgba(208, 163, 76, 0.4); }
+#farm-routes .fr-go.need { border-bottom-color: rgba(140, 158, 255, 0.4); }
+
+#farm-routes .fr-go.wait { color: #d0a34c; }
+#farm-routes .fr-go.need { color: #8c9eff; }
+
+#farm-routes .fr-where {
+  color: #9aa7b4;
+}
+
+#farm-routes .fr-dim {
+  color: #6e7681;
 }

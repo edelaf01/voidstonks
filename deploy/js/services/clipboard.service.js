@@ -1,7 +1,3 @@
-import { state } from "../state.js";
-import { TEXTS } from "../config.js";
-import { showToast } from "../ui.components/ui_components.js";
-
 /**
  * Copia robusta al portapapeles para resultados del scanner (auto-copy).
  * Problema real: mientras se juega, la pestaña NO tiene el foco y
@@ -18,6 +14,11 @@ export const ClipboardService = {
     extensionReady: false,
     _pending: null,
     _seq: 0,
+
+    // La cola se vacía sola al recuperar el foco, así que no hay `await` de nadie a quien
+    // devolverle el resultado: quien quiera avisar pone aquí su callback. Antes el service
+    // llamaba a showToast directamente, y eso le ataba el DOM a una capa que no pinta.
+    onPendingCopied: null,
 
     init() {
         window.addEventListener("message", (ev) => {
@@ -71,8 +72,7 @@ export const ClipboardService = {
         try {
             await navigator.clipboard.writeText(text);
             this._pending = null;
-            const t = TEXTS[state.currentLang]?.rewardScanner;
-            showToast(t?.toastCopied || "Copiado al portapapeles");
+            this.onPendingCopied?.();
         } catch { /* la ventana aún no acepta escritura; se reintenta en el próximo focus */ }
     },
 };

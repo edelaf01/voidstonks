@@ -238,6 +238,14 @@
     white-space: nowrap;
 }
 
+.hud-chip.ml {
+    border-color: rgba(179, 154, 255, 0.35);
+}
+
+.hud-chip.score {
+    border-color: rgba(0, 229, 255, 0.25);
+}
+
 .hud-chip span {
     font-size: 0.8em;
     color: #5a6578;
@@ -256,17 +264,9 @@
     color: #8a7aa0;
 }
 
-.hud-chip.ml {
-    border-color: rgba(179, 154, 255, 0.35);
-}
-
 .hud-chip.ml span,
 .hud-chip.ml strong {
     color: #b39aff;
-}
-
-.hud-chip.score {
-    border-color: rgba(0, 229, 255, 0.25);
 }
 
 .hud-chip.score span,

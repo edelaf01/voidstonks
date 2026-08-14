@@ -1,0 +1,472 @@
+import { state, saveAppState, updateInventoryCount } from "../../state.js";
+import { TEXTS } from "../../config.js";
+import { escapeHTML, showToast, showCustomConfirm } from "../ui_components.js";
+
+import { manualRelicUpdate } from "./ui_relics.js";
+import { exposeGlobals } from "../../utils/global_registry.js";
+import { ducatRatio, formatDucatRatio } from "./ui_ducanator.js";
+import { inventorySignature } from "../../utils/inventory/inventory_signature.js";
+import { goalMetaHtml, renderInvGoalChips, relicRuns, compareByGoalSets } from "./ui_inventory_goals.js";
+import { calculateRelicValue } from "../../services/inventory/relics.service.js";
+import {
+  renderPrimeInventory,
+  modifyPrimePart,
+  deletePrimeSet,
+  decrementPrimeSet,
+  toggleInvSet,
+} from "./ui_prime_inventory.js";
+
+
+
+export function toggleInventoryPanel(forceOpen = false) {
+  const panel = document.getElementById("inventory-container");
+  if (forceOpen) panel.classList.add("open");
+  else panel.classList.toggle("open");
+  if (panel.classList.contains("open")) {
+    if (state.currentInvView === "parts") renderPrimeInventory();
+    else renderInventory();
+  }
+}
+
+export function clearInventory() {
+  const isParts = state.currentInvView === "parts";
+  const t = TEXTS[state.currentLang];
+  const confirmMsg = isParts
+    ? t.purgeConfirmParts || "OROKIN PURGE: Delete ALL Prime Inventory?"
+    : t.purgeConfirmRelics || "OROKIN PURGE: Delete ALL saved Relics?";
+
+  showCustomConfirm(confirmMsg, () => {
+    if (isParts) {
+      state.primeInventory = {};
+      renderPrimeInventory();
+    } else {
+      state.inventory = [];
+      renderInventory();
+    }
+    saveAppState();
+    showToast("Inventory cleared");
+  });
+}
+
+let lastInventoryHash = "";
+
+export async function renderInventory() {
+  const list = document.getElementById("inventory-list");
+  if (!list) return;
+
+  list.classList.remove("inventory-loading");
+  renderInvGoalChips();
+
+  const goal = state.invGoal || "sets";
+  const newHash = inventorySignature(state.inventory) + state.invSearchVal + state.invFilterTier
+    + goal + state.invOnlyActive + state.currentLang + JSON.stringify(state.primeInventory).length;
+  if (newHash === lastInventoryHash && list.children.length > 0) {
+    return;
+  }
+  lastInventoryHash = newHash;
+
+  if (!state.inventory || state.inventory.length === 0) {
+    const emptyMsg = TEXTS[state.currentLang]?.inventory?.empty || "Inventory empty";
+    list.innerHTML = `<div style="padding:20px; text-align:center; color:#666;">${emptyMsg}</div>`;
+    return;
+  }
+
+  list.innerHTML = `<div style="padding:40px; text-align:center; color:#00E5FF; font-weight:bold; letter-spacing:1px; animation: pulse 1s infinite alternate;">LOADING INVENTORY...</div>`;
+
+  globalThis.relicRenderId = (globalThis.relicRenderId || 0) + 1;
+  const currentRenderId = globalThis.relicRenderId;
+
+  setTimeout(async () => {
+    if (globalThis.relicRenderId !== currentRenderId) return;
+
+    const filtered = state.inventory.filter((item) => {
+      const name = (typeof item === "string" ? item : item.name).toUpperCase();
+      if (
+        state.invSearchVal &&
+        !name.toLowerCase().includes(state.invSearchVal.toLowerCase())
+      )
+        return false;
+      if (state.invFilterTier !== "ALL") {
+        let tier = name.split(" ")[0];
+        if (tier === "VANGUARD") tier = "AXI";
+        if (tier !== state.invFilterTier) return false;
+      }
+      // Una vaulted no se puede volver a farmear: al planificar runs, estorba.
+      if (state.invOnlyActive) {
+        const raw = typeof item === "string" ? item : item.name;
+        if (state.relicStatusDB[raw] === "vaulted") return false;
+      }
+      return true;
+    });
+
+    if (goal === "recent") {
+      filtered.reverse();
+    } else if (goal === "sets") {
+      // No necesita precios: sale de las tasas de drop y del inventario de piezas prime,
+      // así que ordena al instante sin esperar a warframe.market.
+      const runs = new Map();
+      for (const item of filtered) {
+        const name = typeof item === "string" ? item : item.name;
+        runs.set(name, relicRuns(name, typeof item === "string" ? 1 : item.count || 1));
+      }
+      filtered.sort((a, b) => compareByGoalSets(
+        runs.get(typeof a === "string" ? a : a.name),
+        runs.get(typeof b === "string" ? b : b.name),
+      ));
+    } else {
+      const valueMap = new Map();
+
+      // Por TANDAS, no todo de golpe: cada reliquia pide el precio de sus ~6 drops, así
+      // que con un inventario grande un Promise.all sobre la lista entera dispara miles
+      // de lecturas a la vez y deja el hilo bloqueado hasta que resuelven todas.
+      const ok = await forEachRelicChunk(filtered, currentRenderId, async (name) => {
+        valueMap.set(name, await calculateRelicValue(name));
+      });
+      if (!ok) return;
+
+      filtered.sort((a, b) => {
+        const nameA = typeof a === "string" ? a : a.name;
+        const nameB = typeof b === "string" ? b : b.name;
+        const valA = valueMap.get(nameA);
+        const valB = valueMap.get(nameB);
+
+        if (!valA) return 1;
+        if (!valB) return -1;
+
+        if (goal === "plat") return valB.intact - valA.intact;
+        if (goal === "ducats") return valB.ducats - valA.ducats;
+        if (goal === "ratio") return ducatRatio(valB.ducats, valB.intact) - ducatRatio(valA.ducats, valA.intact);
+        return 0;
+      });
+    }
+
+    const fragment = document.createDocumentFragment();
+
+    filtered.forEach((item) => {
+      const itemName = typeof item === "string" ? item : item.name;
+      const count = item.count || 1;
+      const isVaulted = state.relicStatusDB[itemName] === "vaulted";
+      const safeId = itemName.replaceAll(/[^a-zA-Z0-9]/g, "");
+
+      const row = document.createElement("div");
+      row.className = "inv-row";
+      row.dataset.relic = itemName;
+
+      row.innerHTML = `
+            <div class="inv-name-group" data-action="select-relic-from-inv" data-relic="${escapeHTML(itemName)}">
+                <div class="inv-name">${escapeHTML(itemName)}</div>
+                <div class="inv-meta">
+                   <span class="relic-status-tag ${isVaulted ? "vaulted" : "active"}">${isVaulted ? (TEXTS[state.currentLang].vaulted || "VAULTED") : (TEXTS[state.currentLang].active || "ACTIVE")}</span>
+                   <span id="duc-${safeId}" class="ducat-tag">... <span class="ducat-icon-inline"></span></span>
+                   <span id="ratio-${safeId}" class="ratio-tag" title="${escapeHTML((TEXTS[state.currentLang].ducanator || {}).effTitle || "Ducados por platino")}">...</span>
+                </div>
+                ${goal === "sets" ? `<div class="inv-goal-line">${goalMetaHtml(itemName, count)}</div>` : ""}
+            </div>
+            <div class="inv-price-tag">
+                <span id="price-${safeId}" class="price-val">...<span class="plat-icon"></span></span>
+                <span class="qty-label">x${count}</span>
+            </div>
+            <div class="inv-qty-controls">
+                <button class="inv-btn minus" data-action="modify-inv" data-relic="${escapeHTML(itemName)}" data-amount="-1">−</button>
+                <button class="inv-btn plus" data-action="modify-inv" data-relic="${escapeHTML(itemName)}" data-amount="1">+</button>
+            </div>
+      `;
+      fragment.appendChild(row);
+    });
+
+    if (globalThis.relicRenderId !== currentRenderId) return;
+
+    list.innerHTML = "";
+    list.appendChild(fragment);
+
+    triggerPriceFetch(filtered);
+  }, 10);
+}
+
+/**
+ * Recorre las reliquias en tandas cediendo el hilo, y aborta si cambió el filtro. La tanda
+ * acota las peticiones vivas: cada reliquia pide ~6 drops, así que 25 son ~150 en vuelo.
+ * Sin tope, un inventario de 500 lanzaba ~3000 y la pestaña se quedaba clavada.
+ * @returns {Promise<boolean>} false si se canceló a mitad.
+ */
+async function forEachRelicChunk(relicList, renderId, fn) {
+  const CHUNK = 25;
+  for (let i = 0; i < relicList.length; i += CHUNK) {
+    if (globalThis.relicRenderId !== renderId) return false;
+    await Promise.all(relicList.slice(i, i + CHUNK).map((item) => {
+      const name = typeof item === "string" ? item : item.name;
+      return fn(name);
+    }));
+    await new Promise((r) => setTimeout(r, 0));
+  }
+  return globalThis.relicRenderId === renderId;
+}
+
+/**
+ * Rellena precio/ducados/ratio de cada fila según resuelven.
+ *
+ * Antes lo hacía un setInterval de 1 s repetido 15 veces que en CADA vuelta recalculaba
+ * TODAS las filas: con 500 reliquias, ~45.000 promesas para pintar 500 números, y cada
+ * cambio de orden volvía a empezar. Tampoco se precalientan ya los precios con un <div>
+ * desechable por drop (3000 nodos detached por render): calculateRelicValue pide esos
+ * mismos precios y getPriceValue ya deduplica lo que está en vuelo.
+ */
+async function triggerPriceFetch(relicList) {
+  const renderId = globalThis.relicRenderId;
+  await forEachRelicChunk(relicList, renderId, async (rName) => {
+    const stats = await calculateRelicValue(rName);
+    const safeId = rName.replaceAll(/[^a-zA-Z0-9]/g, "");
+    const priceEl = document.getElementById(`price-${safeId}`);
+    if (!priceEl) return;
+    priceEl.innerHTML = `${stats.intact}<span class="plat-icon-inline"></span>`;
+    priceEl.classList.remove("price-loading");
+    const ducEl = document.getElementById(`duc-${safeId}`);
+    const ratioEl = document.getElementById(`ratio-${safeId}`);
+    if (ducEl) ducEl.innerHTML = `${stats.ducats} <span class="ducat-icon-inline"></span>`;
+    if (ratioEl) ratioEl.innerHTML = formatDucatRatio(stats.ducats, stats.intact);
+  });
+}
+
+export function modifyInv(name, amount) {
+  const oldLength = state.inventory ? state.inventory.length : 0;
+  updateInventoryCount(name, amount);
+  saveAppState();
+
+  const safeNameHtml = escapeHTML(name);
+  const row = document.querySelector(`.inv-row[data-relic="${safeNameHtml}"]`);
+
+  if (state.inventory.length < oldLength) {
+    if (row) row.remove();
+    return;
+  }
+
+  const itemMatch = state.inventory.find(
+    (i) => (typeof i === "string" ? i : i.name) === name
+  );
+
+  if (!itemMatch) {
+    renderInventory();
+    return;
+  }
+
+  const newQty = typeof itemMatch === "string" ? 1 : itemMatch.count || itemMatch.qty || 1;
+
+  if (row) {
+    const qtySpan = row.querySelector(".qty-label");
+    if (qtySpan) qtySpan.textContent = `x${newQty}`;
+  } else {
+    renderInventory();
+  }
+}
+
+export function selectRelicFromInv(name) {
+  state.selectedRelic = name;
+  const input = document.getElementById("relicInput");
+  if (input) input.value = name;
+
+  // Vía globalThis (lo publica main.js), no import: ui.js ya importa este módulo y
+  // el import inverso crearía un ciclo que rompe la carga. Ver tests/import-graph.
+  globalThis.switchTab("relic");
+  toggleInventoryPanel(false);
+  manualRelicUpdate();
+}
+
+export function filterInvTier(tier) {
+  state.invFilterTier = tier;
+  document.querySelectorAll(".inv-tier-btn").forEach((btn) => {
+    btn.classList.remove("active");
+    if (
+      btn.innerText === tier ||
+      (tier === "REQUIEM" && btn.innerText === "REQ") ||
+      (tier === "ALL" && btn.innerText === "ALL")
+    ) {
+      btn.classList.add("active");
+    }
+  });
+  renderInventory();
+}
+
+export function addCurrentToInv() {
+  if (!state.selectedRelic) return;
+
+  updateInventoryCount(state.selectedRelic, 1);
+  saveAppState();
+
+  const msg =
+    state.currentLang === "es"
+      ? `${state.selectedRelic} añadida al inventario.`
+      : `${state.selectedRelic} added to inventory.`;
+
+  showToast(msg);
+
+  const btn = document.querySelector("#manual-add-container button");
+  if (btn) {
+    const originalText = btn.innerText;
+    btn.innerText = "✔ OK";
+    setTimeout(() => {
+      btn.innerText = originalText;
+    }, 1000);
+  }
+
+  renderInventory();
+}
+export function switchInvView(view) {
+  if (state.currentInvView === view && document.getElementById("inventory-list")?.innerHTML.length > 50) return;
+  state.currentInvView = view;
+  const relicControls = document.getElementById("relic-inv-controls");
+  const primeControls = document.getElementById("prime-inv-controls");
+  const tabRelics = document.getElementById("inv-tab-relics");
+  const tabParts = document.getElementById("inv-tab-parts");
+
+  const listRelics = document.getElementById("inventory-list");
+  const listParts = document.getElementById("inventory-list-parts");
+
+  if (view === "relics") {
+    if (relicControls) relicControls.style.display = "flex";
+    if (primeControls) primeControls.style.display = "none";
+    tabRelics.classList.add("active");
+    tabParts.classList.remove("active");
+    if (listRelics) listRelics.style.display = "";
+    if (listParts) listParts.style.display = "none";
+    renderInventory();
+  } else {
+    if (relicControls) relicControls.style.display = "none";
+    if (primeControls) primeControls.style.display = "flex";
+    tabParts.classList.add("active");
+    tabRelics.classList.remove("active");
+    if (listRelics) listRelics.style.display = "none";
+    if (listParts) listParts.style.display = "";
+    renderPrimeInventory();
+  }
+}
+
+
+
+export function exportInventory() {
+  if (
+    (!state.inventory || state.inventory.length === 0) &&
+    Object.keys(state.primeInventory || {}).length === 0
+  ) {
+    return showToast("Inventory is completely empty.");
+  }
+
+  try {
+    const exportData = {
+      relics: state.inventory || [],
+      parts: state.primeInventory || {},
+    };
+    const dataStr = JSON.stringify(exportData, null, 2);
+    const blob = new Blob([dataStr], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `voidstonks_inv_${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    showToast("Inventory downloaded");
+  } catch (e) {
+    console.error("Error exportando:", e);
+    showToast("Error exporting file.");
+  }
+}
+
+export function importInventory() {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = ".json";
+
+  input.onchange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+
+      if (data?.relics !== undefined && data.parts !== undefined) {
+        if (
+          confirm(
+            `Archivo de inventario dual cargado.\n\nThis will overwrite your entire inventory (Relics & Parts). Are you sure?`
+          )
+        ) {
+          state.inventory = data.relics;
+          state.primeInventory = data.parts;
+          saveAppState();
+          renderInventory();
+          renderPrimeInventory();
+          showToast("Successfully updated complete inventory.");
+        }
+      } else if (Array.isArray(data)) {
+        if (
+          confirm(
+            `Archivo Legacy cargado con ${data.length} items.\n\nThis will overwrite your current relic inventory. Are you sure?`
+          )
+        ) {
+          state.inventory = data;
+          saveAppState();
+          renderInventory();
+          showToast("Successfully updated relic inventory.");
+        }
+      } else {
+        showToast("File has incorrect format: ERROR");
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("Error reading JSON file.");
+    }
+  };
+  input.click();
+}
+
+exposeGlobals({
+  modifyInv,
+  selectRelicFromInv,
+  filterInvTier,
+  addCurrentToInv,
+  switchInvView,
+  renderInventory,
+  clearInventory,
+  toggleInventoryPanel,
+  exportInventory,
+  importInventory,
+}, "ui.components/inventory/ui_inventory.js");
+
+document.addEventListener("click", (e) => {
+  const actionTarget = e.target.closest("[data-action]");
+  if (!actionTarget) return;
+
+  const action = actionTarget.dataset.action;
+  const data = actionTarget.dataset;
+
+  switch (action) {
+    case "select-relic-from-inv":
+      selectRelicFromInv(data.relic);
+      break;
+    case "modify-inv":
+      requestAnimationFrame(() => modifyInv(data.relic, Number.parseInt(data.amount)));
+      break;
+    case "add-current-to-inv":
+      requestAnimationFrame(() => addCurrentToInv());
+      break;
+    case "toggle-inv-set":
+      requestAnimationFrame(() => toggleInvSet(data.setid));
+      break;
+    case "delete-prime-set":
+      requestAnimationFrame(() => deletePrimeSet(data.setname));
+      break;
+    case "decrement-prime-set":
+      requestAnimationFrame(() => decrementPrimeSet(data.setname));
+      break;
+    case "modify-prime-part":
+      requestAnimationFrame(() => modifyPrimePart(data.part, Number.parseInt(data.amount)));
+      break;
+    case "go-sell-set":
+      // La cabecera del set es clicable (despliega/pliega): sin esto, publicar
+      // colapsaría el grupo a la vez.
+      e.stopPropagation();
+      globalThis.sellSetFromInventory?.(data.setname);
+      break;
+  }
+});

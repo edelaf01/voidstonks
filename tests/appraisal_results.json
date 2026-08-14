@@ -1,0 +1,56 @@
+[
+  {
+    "weapon": "Torid",
+    "roll": "Godroll",
+    "score": 85,
+    "heuristic": 2110,
+    "mlRaw": 617,
+    "mlPrice": 3338,
+    "range": "[234 - 13400]"
+  },
+  {
+    "weapon": "Torid",
+    "roll": "Trash",
+    "score": 10,
+    "heuristic": 250,
+    "mlRaw": 458,
+    "mlPrice": 281,
+    "range": "[234 - 13400]"
+  },
+  {
+    "weapon": "Bubonico",
+    "roll": "Godroll",
+    "score": 59,
+    "heuristic": 283,
+    "mlRaw": 120,
+    "mlPrice": 98,
+    "range": "[30 - 2500]"
+  },
+  {
+    "weapon": "Bubonico",
+    "roll": "Trash",
+    "score": 10,
+    "heuristic": 30,
+    "mlRaw": 86,
+    "mlPrice": 39,
+    "range": "[30 - 2500]"
+  },
+  {
+    "weapon": "Amphis",
+    "roll": "Godroll",
+    "score": 95,
+    "heuristic": 658,
+    "mlRaw": 125,
+    "mlPrice": 703,
+    "range": "[15 - 800]"
+  },
+  {
+    "weapon": "Amphis",
+    "roll": "Trash",
+    "score": 27,
+    "heuristic": 15,
+    "mlRaw": 47,
+    "mlPrice": 186,
+    "range": "[15 - 800]"
+  }
+]

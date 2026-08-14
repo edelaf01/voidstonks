@@ -52,6 +52,11 @@ Object.assign(rawState, {
   inventory: [],
   invFilterTier: "ALL",
   invSearchVal: "",
+  // Objetivo del inventario de reliquias: qué quieres sacar de abrirlas. Manda sobre el
+  // orden Y sobre el dato que se enseña en cada fila. Por defecto "sets" porque es la
+  // pregunta que se hace uno al mirar el inventario: qué abro para terminar algo.
+  invGoal: "sets",
+  invOnlyActive: false,
   showAllFarms: false,
   primeInventory: {},
   primeManifest: [],
@@ -100,7 +105,19 @@ export function saveAppState() {
       visionSettings: state.visionSettings,
     };
 
-    localStorage.setItem("voidStonks_save", JSON.stringify(data));
+    try {
+      localStorage.setItem("voidStonks_save", JSON.stringify(data));
+    } catch (e) {
+      // Sin este aviso, quedarse sin cuota (inventarios grandes) perdía el guardado sin
+      // que nada lo dijera: la app seguía enseñando los datos en memoria y se iban al
+      // recargar. El usuario tiene que enterarse en el momento.
+      console.error("[state] no se pudo guardar en localStorage:", e);
+      globalThis.showToast?.(
+        state.currentLang === "es"
+          ? "No se pudo guardar: almacenamiento lleno"
+          : "Save failed: storage full",
+      );
+    }
     saveTimer = null;
   }, 1000);
 }
@@ -163,13 +180,11 @@ export function hydrateDOM(domValues) {
 
 export function updateInventoryCount(relicName, change) {
   if (state.inventory.length > 0 && typeof state.inventory[0] === "string") {
-    const newInv = [];
-    state.inventory.forEach((name) => {
-      const existing = newInv.find((i) => i.name === name);
-      if (existing) existing.count++;
-      else newInv.push({ name, count: 1 });
-    });
-    state.inventory = newInv;
+    // Con un find() por elemento la migración del formato viejo (array de strings) era
+    // O(n²) sobre TODO el inventario, y corre al primer +/- que se pulse.
+    const counts = new Map();
+    for (const name of state.inventory) counts.set(name, (counts.get(name) || 0) + 1);
+    state.inventory = [...counts].map(([name, count]) => ({ name, count }));
   }
 
   const itemIndex = state.inventory.findIndex((i) => i.name === relicName);

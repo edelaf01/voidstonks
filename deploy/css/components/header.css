@@ -90,6 +90,14 @@
     border-radius: 4px;
 }
 
+.lang-trigger img,
+.lang-option-item img {
+    border-radius: 2px;
+    width: 18px;
+    height: auto;
+    box-shadow: 0 0 2px rgba(255, 255, 255, 0.3);
+}
+
 .lang-option-item {
     padding: 10px;
     display: flex;
@@ -105,14 +113,6 @@
     background: var(--wf-blue);
     color: #000;
     font-weight: 700;
-}
-
-.lang-trigger img,
-.lang-option-item img {
-    border-radius: 2px;
-    width: 18px;
-    height: auto;
-    box-shadow: 0 0 2px rgba(255, 255, 255, 0.3);
 }
 
 /* ---- Main Card ---- */
@@ -377,6 +377,11 @@
     padding-right: 14px;
 }
 
+.tab-more-btn.is-open {
+    color: #fff;
+    background: #222;
+}
+
 .tab-more-btn .tab-more-chevron {
     display: flex;
     align-items: center;
@@ -389,11 +394,6 @@
     width: 100%;
     height: 100%;
     transition: transform 0.25s ease;
-}
-
-.tab-more-btn.is-open {
-    color: #fff;
-    background: #222;
 }
 
 .tab-more-btn.is-open .tab-more-chevron svg {
@@ -592,14 +592,14 @@ option {
     }
 }
 
-.dropdown-item img {
-    transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275), background 0.2s ease;
-}
-
 .dropdown-item.active-sort-item {
     background: rgba(162, 53, 226, 0.15);
     color: var(--wf-riven);
     font-weight: bold;
+}
+
+.dropdown-item img {
+    transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275), background 0.2s ease;
 }
 
 /* ---- Buttons ---- */

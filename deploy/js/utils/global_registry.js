@@ -20,8 +20,8 @@
  * Esto es solo el puente hacia el HTML y los scripts no-módulo.
  *
  * Uso:
- *     import { exposeGlobals } from "../utils/global_registry.js";
- *     exposeGlobals({ closeScanner, captureRelics }, "utils/scanner.js");
+ *     import { exposeGlobals } from "./global_registry.js";
+ *     exposeGlobals({ closeScanner, captureRelics }, "scanner/scanner_controller.js");
  */
 
 const registry = new Map(); // nombre -> módulo que lo publicó

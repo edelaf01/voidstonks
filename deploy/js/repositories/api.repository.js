@@ -16,6 +16,65 @@ async function fetchWithTimeout(url, options = {}) {
     }
 }
 
+/* --------------------------------------------------------------------------------------
+ * Política de caché HTTP
+ *
+ * El ttl que calcula el worker NO llega al navegador. El zone de Cloudflare reescribe el
+ * Cache-Control de TODO lo que sirve desde su caché a `max-age=18000` (5 h). Medido contra
+ * producción, mismo endpoint y con 3 s de diferencia:
+ *
+ *   x-cache: MISS         -> cache-control: public, max-age=1135   (lo que dice el worker)
+ *   cf-cache-status: HIT  -> cache-control: public, max-age=18000
+ *
+ * Es configuración de zona, no del worker: el mismo código servido desde
+ * wf-parser.edelamf0.workers.dev (un *.workers.dev, sin Cache Rules) devuelve su max-age=300
+ * intacto. O sea que desde este repo NO se puede arreglar en el origen, solo aquí.
+ *
+ * Consecuencia: cualquier respuesta se queda hasta 5 h guardada en el navegador, que la
+ * sirve sin salir a la red. Para las bounties (rotan cada 2,5 h) eso significaba leer el
+ * ciclo anterior durante dos rotaciones, con el expiry ya pasado: "ROTATING" clavado del que
+ * no se salía ni forzando el refetch ni recargando la página.
+ *
+ * Así que el cliente declara la vida de cada dato y se protege él. Tres clases, por USO:
+ *
+ *   rotating  Caduca a una hora concreta (fisuras, bounties, arbitración, armas de lich).
+ *             Estos datos ya se cachean por rotación aguas arriba (IndexedDB o memoria), así
+ *             que si una petición llega hasta aquí es porque esa copia caducó: la del
+ *             navegador está igual de vieja y no debe responder nunca. -> fetchRotating()
+ *   live      Solo vale el valor de AHORA: la hora del servidor y el buzón de sync. Ni
+ *             cachear ni revalidar; una copia es directamente un dato falso. -> fetchLive()
+ *   catálogo  Cambia con los parches del juego (relics_opt, prime_items_list, aya, precios).
+ *             Aquí la caché del navegador es justo lo que se quiere y las 5 h no molestan:
+ *             se piden con fetchWithTimeout a pelo y sin opciones de caché.
+ * ------------------------------------------------------------------------------------ */
+
+/**
+ * Datos que caducan a una hora concreta. `no-cache` obliga al navegador a revalidar siempre
+ * (Cloudflare ignora el no-cache del cliente, así que el edge sigue absorbiendo la carga y
+ * el worker no ve ni una petición más).
+ * @param {string} query Querystring del worker, sin el "?" inicial.
+ * @param {{force?: boolean, timeout?: number}} [opts] force estrena clave de caché para
+ *   esquivar también al edge: su stale-while-revalidate le deja servir la ventana vieja un
+ *   par de minutos más, justo los que importan cuando se acaba de rotar.
+ * @returns {Promise<Response>}
+ */
+async function fetchRotating(query, { force = false, timeout = 15000 } = {}) {
+    let url = `${WORKER_URL}?${query}`;
+    if (force) url += `&_cb=${Date.now()}`;
+    return fetchWithTimeout(url, { cache: "no-cache", timeout });
+}
+
+/**
+ * Datos de los que solo sirve el valor actual. `no-store` en vez de `no-cache`: aquí ni
+ * siquiera interesa revalidar contra una copia, porque no hay copia que pueda valer.
+ * @param {string} query Querystring del worker, sin el "?" inicial.
+ * @param {{timeout?: number}} [opts]
+ * @returns {Promise<Response>}
+ */
+async function fetchLive(query, { timeout = 10000 } = {}) {
+    return fetchWithTimeout(`${WORKER_URL}?${query}`, { cache: "no-store", timeout });
+}
+
 /**
  * Loads raw relic/mission/bounty data from IDB cache or worker.
  * @param {string} cacheKey
@@ -77,7 +136,7 @@ export async function fetchPrimeManifest() {
         state.entitiesDB = data;
         console.log("Entities Manifest Loaded:", data.length, "items");
         
-        const { updateDucatsDB } = await import("../services/relics.service.js");
+        const { updateDucatsDB } = await import("../services/inventory/relics.service.js");
         updateDucatsDB(data);
 
         if (resWeapons && resWeapons.ok) {
@@ -151,7 +210,11 @@ export async function fetchActiveResurgence() {
  * @returns {Promise<Response>}
  */
 export async function sendSyncMessage(code, val) {
-    return fetchWithTimeout(`${WORKER_URL}?type=sync_set&id=${code}&val=${encodeURIComponent(val)}`);
+    // El buzón vive 60s en KV, pero la escritura viaja en un GET: si el navegador responde
+    // desde su caché, NO llega a salir la petición y el mensaje no se escribe. Reenviar el
+    // mismo texto con el mismo código (el caso típico: "no le ha llegado, dale otra vez")
+    // no hacía nada durante 5 h.
+    return fetchLive(`type=sync_set&id=${code}&val=${encodeURIComponent(val)}`, { timeout: 8000 });
 }
 
 /**
@@ -160,7 +223,9 @@ export async function sendSyncMessage(code, val) {
  * @returns {Promise<Response>}
  */
 export async function getSyncMessage(code) {
-    return fetchWithTimeout(`${WORKER_URL}?type=sync_get&id=${code}`);
+    // Buzón efímero (60s de vida en KV) que se consulta en bucle esperando al otro
+    // dispositivo: la respuesta cacheada es justo el mensaje viejo que se quiere superar.
+    return fetchLive(`type=sync_get&id=${code}`, { timeout: 8000 });
 }
 
 /**
@@ -170,7 +235,13 @@ export async function getSyncMessage(code) {
  * @returns {Promise<Response>}
  */
 export async function getProfileData(username, platform) {
-    return fetchWithTimeout(`${WORKER_URL}?type=profile&platform=${platform}&user=${encodeURIComponent(username)}`);
+    // El worker le pone 300s de ttl porque un perfil cambia al jugar, y quien lo consulta
+    // dos veces seguidas es porque espera ver el cambio. Con la reescritura del zone la
+    // segunda consulta ni salía a la red en 5 h: se revalida siempre.
+    return fetchWithTimeout(
+        `${WORKER_URL}?type=profile&platform=${platform}&user=${encodeURIComponent(username)}`,
+        { cache: "no-cache" },
+    );
 }
 
 /**
@@ -180,6 +251,18 @@ export async function getProfileData(username, platform) {
  */
 export async function getPricesBatch(chunk) {
     return fetchWithTimeout(`${WORKER_URL}?type=prices_batch&q=${chunk.join(",")}`);
+}
+
+/**
+ * Mapa slug->precio de todo el catálogo prime (~750 entradas, 4 KB comprimido).
+ *
+ * Url fija a propósito: es lo que hace que el edge sirva la MISMA entrada a todos los
+ * clientes. Un lote `q=<slugs>` lleva el inventario del usuario en la clave de caché y
+ * por eso nunca acierta; pedirlo entero sale más barato que describir el subconjunto.
+ * @returns {Promise<Response>}
+ */
+export async function getPricesSnapshot() {
+    return fetchWithTimeout(`${WORKER_URL}?type=prices_snapshot`, { timeout: 15000 });
 }
 
 /**
@@ -194,14 +277,16 @@ export async function getArcaneBatch(chunk) {
 
 /**
  * Fetches active bounty data from the worker.
+ * @param {boolean} [force] Reintento tras una rotación: además de revalidar, esquiva la
+ *   copia del edge (ver abajo).
  * @returns {Promise<Response>}
  */
-export async function getActiveBounties() {
+export async function getActiveBounties(force = false) {
     // &v=2 estrena una clave de caché en Cloudflare: la respuesta anterior se cacheó con
     // stale-while-revalidate=86400 (24h) y servía bounties caducadas ("ROTATING") tras
     // cada rotación. La versión nueva del worker ya declara swr corto; el parámetro evita
     // seguir golpeando la copia envenenada mientras esa expira. Mismo truco que fissures.
-    return fetchWithTimeout(`${WORKER_URL}?type=active_bounties&v=2`);
+    return fetchRotating("type=active_bounties&v=2", { force });
 }
 
 /**
@@ -209,10 +294,7 @@ export async function getActiveBounties() {
  * @returns {Promise<Response>}
  */
 export async function getActiveFissures(force = false) {
-    const opts = { timeout: 15000 };
-    let url = `${WORKER_URL}?type=fissures&v=2`;
-    if (force) url += `&_cb=${Date.now()}`;
-    return fetchWithTimeout(url, opts);
+    return fetchRotating("type=fissures&v=2", { force });
 }
 
 /**
@@ -221,10 +303,7 @@ export async function getActiveFissures(force = false) {
  * @returns {Promise<Response>}
  */
 export async function getArbitration(force = false) {
-    const opts = { timeout: 15000 };
-    let url = `${WORKER_URL}?type=arbitration`;
-    if (force) url += `&_cb=${Date.now()}`;
-    return fetchWithTimeout(url, opts);
+    return fetchRotating("type=arbitration", { force });
 }
 
 /**
@@ -233,6 +312,7 @@ export async function getArbitration(force = false) {
  * @returns {Promise<Response>}
  */
 export async function getLichWeapons(force = false) {
+<<<<<<< Updated upstream
     let url = `${WORKER_URL}?type=lich_weapons`;
     // El ttl del worker vence justo al rotar, pero su stale-while-revalidate deja al edge
     // servir la ventana vieja hasta 5 min más. Solo en el refetch de rotación se estrena
@@ -240,13 +320,21 @@ export async function getLichWeapons(force = false) {
     // cayendo en la entrada compartida.
     if (force) url += `&_cb=${Date.now()}`;
     return fetchWithTimeout(url, { timeout: 15000 });
+=======
+    // &v=2 estrena clave de caché. Mientras el handler no estaba desplegado, el worker
+    // respondía a este tipo con su fallback {"status":"Ready"} y max-age=86400: los
+    // navegadores que llegaron a pedirlo se guardaron ESA respuesta 24 h y seguían
+    // sirviéndosela a sí mismos sin salir a la red, así que el apartado salía vacío
+    // aunque el worker ya estuviera bien. Mismo truco que bounties y fisuras.
+    return fetchRotating("type=lich_weapons&v=2", { force });
+>>>>>>> Stashed changes
 }
 
 /**
- * Pide la hora del servidor para sincronizar los contadores del cliente. no-store porque
- * cualquier caché (edge o navegador) devolvería una hora vieja.
+ * Pide la hora del servidor para sincronizar los contadores del cliente. Es LA referencia
+ * de todos los contadores: una hora cacheada desajusta justo lo que viene a corregir.
  * @returns {Promise<Response>}
  */
 export async function getServerTime() {
-    return fetchWithTimeout(`${WORKER_URL}?type=time`, { cache: "no-store", timeout: 10000 });
+    return fetchLive("type=time");
 }

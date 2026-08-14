@@ -1,7 +1,6 @@
-import { calculateRivenGrade } from "./utils/riven_logic.js";
+import { calculateRivenGrade } from "./utils/rivens/riven_logic.js";
 import {
   TEXTS,
-  TIER_URLS,
   RIVEN_STATS,
   DROP_CHANCES,
   WORKER_URL,
@@ -20,21 +19,22 @@ import {
   manualRelicUpdate,
   updateRelicTotal,
   generateMessage,
-} from "./ui.components/ui_relics.js";
-import {
-  renderSetTracker,
-} from "./ui.components/ui_sets.js?v=2.0";
+} from "./ui.components/inventory/ui_relics.js";
+import { initSetSearchHelp } from "./ui.components/inventory/ui_sets.js?v=2.0";
+import { renderSetTracker } from "./ui.components/inventory/ui_set_tracker.js";
 import {
   updateLFGUI,
 } from "./ui.components/ui_lfg.js";
-import { populateRivenSelects, initRivenMarketIndex, updateIndexTranslations, filterRivenIndex, stopRivenShowcase } from "./ui.components/ui_rivens.js?v=1.11";
-import { applyArbTexts } from "./ui.components/ui_arbitrage.js";
+import { populateRivenSelects, initRivenMarketIndex, updateIndexTranslations, filterRivenIndex, stopRivenShowcase } from "./ui.components/rivens/ui_rivens.js?v=1.11";
+import { applyArbTexts } from "./ui.components/rivens/ui_arbitrage.js";
 import { initVosforTab, renderVosforTab } from "./ui.components/ui_vosfor.js?v=2.9";
-import { initSyncPanel } from "./ui.components/ui_sync.js";
-import { initFissurePanel, updateRecommendedMissions } from "./ui.components/ui_fissures.js?v=1.1";
+import { initSyncPanel } from "./ui.components/market/ui_sync.js";
+import { initFissurePanel, updateRecommendedMissions } from "./ui.components/farms/ui_fissures.js?v=1.1";
+import { exposeGlobals } from "./utils/global_registry.js";
 import { state, saveAppState, updateInventoryCount } from "./state.js";
-import { renderFarmsTab } from "./ui.components/ui_farms.js";
-import { renderInventory, renderPrimeInventory } from "./ui.components/ui_inventory.js";
+import { renderFarmsTab } from "./ui.components/farms/ui_farms.js";
+import { renderInventory } from "./ui.components/inventory/ui_inventory.js";
+import { renderPrimeInventory } from "./ui.components/inventory/ui_prime_inventory.js";
 import { ScannerHUD } from "./ui.components/ui_scanner_hud.js";
 import { ScannerModal } from "./ui.components/ui_scanner_modal.js";
 // Traductor de Kubrows (EE.log) DESACTIVADO: su pestaña está oculta en index.html porque la
@@ -45,20 +45,6 @@ import { ScannerModal } from "./ui.components/ui_scanner_modal.js";
 globalThis.TEXTS = TEXTS;
 
 const iconPathCache = new Map();
-
-/**
- * Preloads critical UI assets to avoid network calls during interaction.
- */
-export function preloadCriticalAssets() {
-  const assets = [
-    "assets/relic_contents/platinum.webp",
-    ...Object.values(TIER_URLS),
-  ];
-  assets.forEach((url) => {
-    const img = new Image();
-    img.src = url;
-  });
-}
 
 export function finishLoading() {
   const loadEl = document.getElementById("loading");
@@ -247,6 +233,8 @@ function updateStaticTexts(t) {
   setText("lbl-missing", t.lblMiss);
   setText("lbl-profit", t.lblProfit);
   setText("lbl-search-item", t.lblItem);
+  // Se remonta con cada cambio de idioma: el texto de la ayuda vive dentro del botón.
+  initSetSearchHelp();
   setText("lbl-riven-weapon", t.lblRivenW);
   setText("lbl-riven-stats", t.lblRivenS);
   setText("btn-riven-search", t.rivenSearch);
@@ -485,24 +473,6 @@ export function updateUILabels() {
 state.subscribe("currentLang", updateUILabels);
 updateUILabels();
 
-globalThis.selectRelicFromPreview = function (relicName) {
-  switchTab("relic");
-
-  const input = document.getElementById("relicInput");
-  if (input) {
-    input.value = relicName;
-    state.selectedRelic = relicName;
-    manualRelicUpdate();
-  }
-
-  const status = state.relicStatusDB ? state.relicStatusDB[relicName] : null;
-  let msg = `Navigated to ${relicName}`;
-  if (status) {
-    if (status === "vaulted") msg += " (VAULTED)";
-    else msg += " (ACTIVE)";
-  }
-  showToast(msg);
-};
 function resetLoadingStyle(element) {
   if (!element) return;
   element.style.opacity = "1";
@@ -679,7 +649,7 @@ export function updatePriceUI(element, price) {
   if (document.getElementById("relic-profit-display")) updateRelicTotal();
 }
 
-globalThis.selectRelicFromPreview = function (relicName) {
+function selectRelicFromPreview(relicName) {
   switchTab("relic");
   const input = document.getElementById("relicInput");
   if (input) {
@@ -696,7 +666,7 @@ globalThis.selectRelicFromPreview = function (relicName) {
   showToast(msg);
 };
 
-globalThis.findRelicsForItem = function (itemName) {
+function findRelicsForItem(itemName) {
   const setInput = document.getElementById("setItemInput");
   if (setInput) {
     let searchTerm = itemName;
@@ -711,25 +681,27 @@ globalThis.findRelicsForItem = function (itemName) {
     setInput.value = searchTerm;
     switchTab("set");
     setInput.focus();
-    const event = new Event("keyup");
-    setInput.dispatchEvent(event);
+    // "input", no "keyup": el campo escucha oninput y con keyup no se disparaba nada.
+    setInput.dispatchEvent(new Event("input"));
   }
 };
 
-Object.assign(globalThis, {
-  showToast,
+// showToast lo publica ui_components.js y saveAppState main.js: repetirlos aquí era un
+// pisotón silencioso (ganaba el último módulo en evaluarse).
+exposeGlobals({
   finishLoading,
   closeUpdateModal,
   showCustomConfirm,
   updatePriceUI,
   manualRelicUpdate,
-  saveAppState,
   openUpdateHistory,
 
   handleInvSearch: (val) => {
     state.invSearchVal = val.toLowerCase().trim();
     renderInventory();
   },
-});
+  selectRelicFromPreview,
+  findRelicsForItem,
+}, "ui.js");
 
 export { checkUpdates, initGlobalTooltipSystem, initDisclaimerSystem, closeUpdateModal } from "./ui.components/ui_components.js";

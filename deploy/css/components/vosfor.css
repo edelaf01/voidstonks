@@ -33,6 +33,10 @@
     border-color: rgba(224, 176, 255, 0.4);
 }
 
+.vos-tool.open .vos-tool-arrow {
+    transform: rotate(180deg);
+}
+
 .vos-tool-head {
     display: flex;
     align-items: center;
@@ -90,10 +94,6 @@
     transition: transform 0.25s;
 }
 
-.vos-tool.open .vos-tool-arrow {
-    transform: rotate(180deg);
-}
-
 /* Se colapsa con grid-template-rows (no max-height) para no tener que adivinar
    una altura: estas herramientas cambian de alto al escribir en sus campos. */
 /* El overflow va aquí, en el contenedor del grid, no en el hijo: el hijo tiene su
@@ -106,12 +106,12 @@
     transition: grid-template-rows 0.28s ease;
 }
 
-.vos-tool.open .vos-tool-body {
-    grid-template-rows: 1fr;
-}
-
 .vos-tool-body > * {
     min-height: 0;
+}
+
+.vos-tool.open .vos-tool-body {
+    grid-template-rows: 1fr;
 }
 
 /* 0fr colapsa la FILA, no la caja del hijo: los widgets traen padding:16px propio
