@@ -1,4 +1,4 @@
-import { getPricesBatch } from "./api.repository.js";
+import { getPricesBatch, getPricesSnapshot } from "./api.repository.js";
 import { getSlug } from "../utils/slugs.utils.js";
 
 
@@ -100,6 +100,56 @@ async function savePriceToCache(slug, price) {
     }
 }
 
+
+/* --- Snapshot de precios prime -------------------------------------------------
+ *
+ * El catálogo prime entero cabe en 4 KB comprimidos, así que se baja de una vez en vez
+ * de pedir los slugs que hagan falta. Lo que se ahorra no es ancho de banda: una sesión
+ * que abría reliquias encadenaba ~30 lotes de 25 slugs, separados 300 ms y sin poder
+ * cachearse en el edge (la clave era el inventario del usuario). La cola de lotes sigue
+ * viva para lo que el snapshot no cubre: mods, arcanos, ítems fuera del catálogo.
+ */
+const SNAPSHOT_KEY = "prices_snapshot_doc";
+const SNAPSHOT_TTL = 6 * 60 * 60 * 1000;
+let snapshotPromise = null;
+
+function applySnapshot(prices) {
+    if (!prices) return;
+    for (const slug in prices) {
+        // Sin pisar lo que ya hay: una entrada en memoria viene del IDB del usuario o de
+        // wfm_live_prices, y ambas son más específicas que la mediana del snapshot.
+        if (!MEMORY_CACHE.has(slug)) MEMORY_CACHE.set(slug, prices[slug]);
+    }
+}
+
+async function loadPriceSnapshot() {
+    try {
+        const cached = await dbHelper.get(SNAPSHOT_KEY);
+        if (cached && Date.now() - cached.time < SNAPSHOT_TTL) {
+            applySnapshot(cached.p);
+            return;
+        }
+    } catch (e) {
+        console.warn("Snapshot local ignorado:", e);
+    }
+
+    try {
+        const res = await getPricesSnapshot();
+        if (!res.ok) return;
+        const doc = await res.json();
+        if (!doc?.p || !Object.keys(doc.p).length) return;
+        applySnapshot(doc.p);
+        await dbHelper.set(SNAPSHOT_KEY, { time: Date.now(), p: doc.p });
+    } catch (e) {
+        console.warn("Snapshot de precios no disponible:", e);
+    }
+}
+
+/** Baja (una sola vez por sesión) el snapshot de precios prime a MEMORY_CACHE. */
+export function ensurePriceSnapshot() {
+    if (!snapshotPromise) snapshotPromise = loadPriceSnapshot();
+    return snapshotPromise;
+}
 
 const PENDING_REQUESTS = new Map();
 const RETRY_COUNTS = new Map();
@@ -210,6 +260,15 @@ export function getPriceValue(itemName, itemSlug) {
         } catch (e) {
             console.warn(`Error reading price cache for ${itemSlug}:`, e);
         }
+
+        // El snapshot resuelve aquí la inmensa mayoría de los prime: solo lo que no trae
+        // (mods, arcanos, ítems nuevos) llega a la cola de lotes.
+        await ensurePriceSnapshot();
+        if (MEMORY_CACHE.has(itemSlug)) {
+            resolve(MEMORY_CACHE.get(itemSlug));
+            return;
+        }
+
         if (!PENDING_REQUESTS.has(itemSlug)) PENDING_REQUESTS.set(itemSlug, []);
         PENDING_REQUESTS.get(itemSlug).push(resolve);
         if (!batchTimer) batchTimer = setTimeout(processQueue, currentBackoff);

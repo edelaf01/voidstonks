@@ -1,0 +1,329 @@
+/* UI-KIT — primitivas reutilizables para ui_loader.js y ui_hints.js.
+   Prefijo vs- porque son las únicas reglas de la app sin pestaña que las acote:
+   con un nombre genérico chocarían con cualquier componente (ver CLAUDE.md). */
+
+/* ---------- Carga ---------- */
+
+.vs-spinner {
+  display: inline-block;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.14);
+  border-top-color: var(--active-theme-color, #00e5ff);
+  animation: vs-spin 0.85s linear infinite;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+
+.vs-spinner-sm {
+  width: 14px;
+  height: 14px;
+}
+
+.vs-spinner-md {
+  width: 24px;
+  height: 24px;
+  border-width: 3px;
+}
+
+.vs-spinner-lg {
+  width: 40px;
+  height: 40px;
+  border-width: 4px;
+}
+
+@keyframes vs-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.vs-loading-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 40px 20px;
+  width: 100%;
+}
+
+.vs-loading-label {
+  font-size: 0.78rem;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #8a8f98;
+}
+
+.vs-skeleton-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  padding: 6px 0;
+}
+
+.vs-skeleton-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.015);
+}
+
+.vs-skeleton-icon,
+.vs-skeleton-line {
+  display: block;
+  border-radius: 6px;
+  background: linear-gradient(90deg,
+      rgba(255, 255, 255, 0.05) 25%,
+      rgba(255, 255, 255, 0.11) 50%,
+      rgba(255, 255, 255, 0.05) 75%);
+  background-size: 240% 100%;
+  animation: vs-skeleton-sweep 1.4s ease-in-out infinite;
+}
+
+.vs-skeleton-icon {
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+}
+
+.vs-skeleton-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.vs-skeleton-line {
+  height: 10px;
+  width: 45%;
+}
+
+.vs-skeleton-line.wide {
+  width: 80%;
+}
+
+@keyframes vs-skeleton-sweep {
+  0% {
+    background-position: 140% 0;
+  }
+
+  100% {
+    background-position: -40% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+  .vs-spinner {
+    animation-duration: 2.4s;
+  }
+
+  .vs-skeleton-icon,
+  .vs-skeleton-line {
+    animation: none;
+  }
+}
+
+/* El padding derecho se reserva siempre, no solo con .is-busy: si apareciera con el
+   estado, el texto del campo daría un salto en cada pulsación. */
+.vs-input-loading {
+  position: relative;
+  display: block;
+  width: 100%;
+}
+
+.vs-input-loading>input {
+  width: 100%;
+  padding-right: 38px;
+  box-sizing: border-box;
+}
+
+.vs-input-spinner {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  pointer-events: none;
+}
+
+.vs-input-loading.is-busy .vs-input-spinner {
+  opacity: 1;
+}
+
+/* ---------- Ayuda contextual ---------- */
+
+.vs-help {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+.vs-help-btn {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.06);
+  color: #cfd4db;
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+}
+
+.vs-help-btn:hover,
+.vs-help-btn[aria-expanded="true"] {
+  background: color-mix(in srgb, var(--active-theme-color, #00e5ff) 22%, transparent);
+  border-color: var(--active-theme-color, #00e5ff);
+  color: #fff;
+}
+
+.vs-help-btn:focus-visible {
+  outline: 2px solid var(--active-theme-color, #00e5ff);
+  outline-offset: 2px;
+}
+
+.vs-help-panel {
+  display: none;
+  position: absolute;
+  top: calc(100% + 8px);
+  width: max-content;
+  max-width: min(340px, 78vw);
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--active-theme-color, #00e5ff) 40%, transparent);
+  border-radius: 10px;
+  background: #14171c;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
+  z-index: var(--z-dropdown, 1000);
+  text-align: left;
+  white-space: normal;
+}
+
+.vs-help-panel.open {
+  display: block;
+  animation: vs-help-in 0.16s ease-out;
+}
+
+.vs-help-left {
+  left: -6px;
+}
+
+.vs-help-right {
+  right: -6px;
+}
+
+@keyframes vs-help-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.vs-help-title {
+  font-size: 0.74rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--active-theme-color, #00e5ff);
+  margin-bottom: 6px;
+}
+
+.vs-help-text {
+  margin: 0 0 8px;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: #c3c8d0;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.vs-help-text:last-child {
+  margin-bottom: 0;
+}
+
+/* En pantallas estrechas el panel se ancla al borde de la ventana en vez de al botón:
+   colgando del "?" se salía por la derecha y quedaba medio texto fuera. */
+@media (max-width: 600px) {
+  .vs-help-panel {
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    top: auto;
+    width: auto;
+    max-width: none;
+  }
+}
+
+/* ---------- Pistas de una línea ---------- */
+
+.vs-tip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  margin: 10px 0;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--active-theme-color, #00e5ff) 28%, transparent);
+  border-left-width: 3px;
+  background: color-mix(in srgb, var(--active-theme-color, #00e5ff) 8%, rgba(0, 0, 0, 0.25));
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: #d2d7de;
+}
+
+.vs-tip-icon {
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+
+.vs-tip-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.vs-tip-close {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: #7f858e;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.vs-tip-close:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+/* Flotante: se pega abajo sin empujar el contenido ni mover el layout. */
+.vs-tip-floating {
+  position: sticky;
+  bottom: 12px;
+  z-index: var(--z-card, 10);
+  backdrop-filter: blur(6px);
+  background: color-mix(in srgb, var(--active-theme-color, #00e5ff) 10%, rgba(12, 14, 18, 0.92));
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}

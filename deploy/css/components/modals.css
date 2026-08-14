@@ -313,6 +313,10 @@
   box-shadow: 0 0 20px rgba(0, 229, 255, 0.3);
 }
 
+.modal-badge:hover .currency-icon {
+  transform: scale(1.2);
+}
+
 .selected-reward {
   border-color: #00ff78 !important;
   box-shadow: 0 0 25px rgba(0, 255, 120, 0.4) !important;
@@ -382,10 +386,6 @@
   height: 16px;
   object-fit: contain;
   transition: transform 0.2s;
-}
-
-.modal-badge:hover .currency-icon {
-  transform: scale(1.2);
 }
 
 .best-badge {
@@ -985,6 +985,10 @@
   flex-shrink: 0;
 }
 
+.ic-icon-col .variant-hover-item.active-variant {
+  order: -1;
+}
+
 .ic-icon-col .variant-hover-item img {
   width: 52px;
   height: 52px;
@@ -995,10 +999,6 @@
 
 .ic-icon-col .variant-hover-item:hover img {
   transform: scale(1.08);
-}
-
-.ic-icon-col .variant-hover-item.active-variant {
-  order: -1;
 }
 
 .ic-icon-col .variant-hover-item.active-variant img {

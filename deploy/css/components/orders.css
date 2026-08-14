@@ -333,9 +333,17 @@
     background: linear-gradient(135deg, rgba(0, 229, 255, 0.11), rgba(0, 229, 255, 0.02));
 }
 
+.os-sell .os-val {
+    color: var(--wf-blue);
+}
+
 .os-buy {
     border-color: rgba(162, 53, 226, 0.3);
     background: linear-gradient(135deg, rgba(162, 53, 226, 0.14), rgba(162, 53, 226, 0.03));
+}
+
+.os-buy .os-val {
+    color: #c07ff0;
 }
 
 .os-val {
@@ -344,14 +352,6 @@
     font-size: 1.3rem;
     font-weight: 800;
     line-height: 1.15;
-}
-
-.os-sell .os-val {
-    color: var(--wf-blue);
-}
-
-.os-buy .os-val {
-    color: #c07ff0;
 }
 
 .os-label {
@@ -1046,9 +1046,12 @@ a.order-name:hover {
     letter-spacing: 0.4px;
 }
 
+/* Anclado a #orders-content: .inv-row/.inv-name/.inv-meta ya existen en styles.css y
+   orders.css carga después, así que sin ancla se colaban en el panel de reliquias. */
+
 /* Rejilla, no flex: el precio y el botón quedan alineados entre filas aunque los
    nombres midan cosas muy distintas. */
-.inv-row {
+#orders-content .inv-row {
     display: grid;
     grid-template-columns: 34px minmax(0, 1fr) 74px auto auto;
     align-items: center;
@@ -1060,10 +1063,23 @@ a.order-name:hover {
     border-radius: 7px;
 }
 
-.inv-row.is-stale {
+#orders-content .inv-row.is-stale {
     grid-template-columns: minmax(0, 1fr) auto;
     border-color: rgba(197, 168, 86, 0.3);
     background: rgba(197, 168, 86, 0.06);
+}
+
+#orders-content .inv-name {
+    font-size: 0.85rem;
+    color: #e6e6e6;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+#orders-content .inv-meta {
+    font-size: 0.7rem;
+    color: #8e8e8e;
 }
 
 .inv-thumb {
@@ -1076,19 +1092,6 @@ a.order-name:hover {
     display: flex;
     flex-direction: column;
     min-width: 0;
-}
-
-.inv-name {
-    font-size: 0.85rem;
-    color: #e6e6e6;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.inv-meta {
-    font-size: 0.7rem;
-    color: #8e8e8e;
 }
 
 .inv-price {
@@ -1119,7 +1122,7 @@ a.order-name:hover {
 
 /* La fila publicada se queda como acuse de recibo en vez de desaparecer: ver que el
    cambio surtió efecto importa más que recuperar el hueco. */
-.inv-row.is-done {
+#orders-content .inv-row.is-done {
     grid-template-columns: 1fr;
     border-color: rgba(79, 189, 79, 0.35);
     background: rgba(79, 189, 79, 0.08);
@@ -1131,7 +1134,7 @@ a.order-name:hover {
 }
 
 @media (max-width: 560px) {
-    .inv-row {
+    #orders-content .inv-row {
         grid-template-columns: 30px minmax(0, 1fr) 66px auto;
     }
     /* El sugerido se cae en móvil: el precio ya viene puesto en el campo. */

@@ -181,6 +181,10 @@
     box-sizing: border-box;
 }
 
+.inv-set-header:hover {
+    background: rgba(35, 45, 60, 0.8);
+}
+
 .inv-set-header .header-controls {
     display: flex;
     flex-direction: column;
@@ -205,10 +209,6 @@
     justify-content: center;
     gap: 2px;
     flex-shrink: 0;
-}
-
-.inv-set-header:hover {
-    background: rgba(35, 45, 60, 0.8);
 }
 /* ---------- Precio en vivo (flujo de warframe.market) ---------- */
 /* Se pinta AL LADO del precio base, no encima: el base es la mediana de las 5 más

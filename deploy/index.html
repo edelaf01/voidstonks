@@ -87,12 +87,13 @@
   <link rel="stylesheet" href="css/components/riven-scanner.css?v=1.0" />
   <link rel="stylesheet" href="css/components/modals.css?v=1.0" />
   <link rel="stylesheet" href="css/components/header.css?v=1.2" />
-  <link rel="stylesheet" href="styles.css?v=3.7" />
+  <link rel="stylesheet" href="styles.css?v=3.8" />
   <link rel="stylesheet" href="css/components/riven-grader.css?v=1.3" />
   <link rel="stylesheet" href="css/components/riven-module.css?v=1.0" />
   <link rel="stylesheet" href="css/components/vosfor.css?v=1.4" />
-  <link rel="stylesheet" href="css/components/orders.css?v=1.0" />
+  <link rel="stylesheet" href="css/components/orders.css?v=1.1" />
   <link rel="stylesheet" href="css/components/lich-weapons.css?v=1.0" />
+  <link rel="stylesheet" href="css/components/ui-kit.css?v=1.0" />
   <link rel="icon" type="image/png" href="https://wiki.warframe.com/images/VoidTraces.png" />
 
   <!-- OpenCV y Tesseract se cargan BAJO DEMANDA al abrir el escáner
@@ -512,19 +513,30 @@
         </button>
       </div>
 
-      <select id="inv-sort" class="wf-input" onchange="globalThis.renderInventory()"
-        style="font-size: 0.85em; padding: 5px">
-        <option value="recent">Recently added</option>
-        <option value="plat_intact">AVG Plat value (intact)</option>
-        <option value="plat_rad">AVG Plat value (radiant)</option>
-        <option value="ducats">Ducats per relic</option>
-        <option value="ratio">Ratio ducados/plat (mayor a menor)</option>
-      </select>
+      <!-- Chips de OBJETIVO: qué quieres sacar de abrir, no qué métrica ordenar. Todos
+           hablan por RUN para que se puedan comparar entre sí. Los rótulos los pone
+           renderInvGoalChips() según el idioma. -->
+      <div class="inv-goals-row" id="inv-goals-row">
+        <button class="inv-goal-btn active" data-goal="sets" onclick="globalThis.filterInvGoal('sets')"></button>
+        <button class="inv-goal-btn" data-goal="plat" onclick="globalThis.filterInvGoal('plat')"></button>
+        <button class="inv-goal-btn" data-goal="ducats" onclick="globalThis.filterInvGoal('ducats')"></button>
+        <button class="inv-goal-btn" data-goal="ratio" onclick="globalThis.filterInvGoal('ratio')"></button>
+        <button class="inv-goal-btn" data-goal="recent" onclick="globalThis.filterInvGoal('recent')"></button>
+      </div>
+
+      <label class="inv-vaulted-toggle">
+        <input type="checkbox" id="inv-only-active" onchange="globalThis.toggleInvOnlyActive(this.checked)" />
+        <span id="inv-only-active-label"></span>
+      </label>
     </div>
 
     <div id="prime-inv-controls" class="inventory-controls"
       style="padding: 10px; display: none; flex-direction: column; gap: 8px">
       <div class="fissure-set-recs collapsed" id="fissure-set-recs" style="display:none;"></div>
+
+      <!-- Rutas para cerrar los sets que tienes a medias: qué reliquia abrir, cuántas
+           tienes y en qué misión, cruzado con las fisuras vivas. Lo pinta renderFarmRoutes(). -->
+      <div class="farm-routes" id="farm-routes" style="display:none;"></div>
 
       <input type="text" id="prime-inv-search" class="wf-input" placeholder="Buscar Set o Parte..."
         onkeyup="globalThis.renderPrimeInventory()" style="padding: 8px; font-size: 0.9em" />
@@ -837,7 +849,13 @@
       </div>
       <div id="mode-set" class="hidden">
         <div class="form-group">
-          <label id="lbl-search-item">Buscar Item / Set</label>
+          <div class="set-search-labelrow">
+            <label id="lbl-search-item" for="setItemInput">Buscar Item / Set</label>
+            <!-- El "?" lo monta ui_sets.js aquí y no dentro del <label>: updateUILabels()
+                 reescribe el label con innerText en cada cambio de idioma y se llevaría
+                 por delante cualquier hijo que colgase de él. -->
+            <span id="set-search-help"></span>
+          </div>
           <input class="wf-input orokin-input" type="text" id="setItemInput" placeholder="Ej: Xaku, Wisp..."
             oninput="handleSetTyping()" autocomplete="off" />
         </div>

@@ -6,6 +6,7 @@ import {
 } from "../config.js";
 import { state } from "../state.js";
 import { exposeGlobals } from "../utils/global_registry.js";
+import { getRelicDropTooltip } from "./ui_tooltips.js";
 
 export function preloadCriticalAssets() {
   const assets = [
@@ -18,12 +19,11 @@ export function preloadCriticalAssets() {
   });
 }
 
-export function escapeHTML(str) {
-  if (!str) return "";
-  const p = document.createElement("p");
-  p.textContent = str;
-  return p.innerHTML;
-}
+// Vive en utils/ (no necesita DOM). Se importa Y se reexporta —no `export ... from`— porque
+// showToast lo usa aquí dentro: el reexport puro no trae el binding al scope del módulo.
+// Se mantiene expuesto desde aquí porque medio repo lo importa de este módulo.
+import { escapeHTML } from "../utils/escape_html.js";
+export { escapeHTML };
 
 /**
  * Dynamic Toast Manager
@@ -198,8 +198,10 @@ export function initGlobalTooltipSystem() {
     const textContent = target.dataset.tooltip;
     const relicName = target.dataset.tooltipRelic;
 
-    if (relicName && globalThis.getRelicDropTooltip) {
-      htmlContent = globalThis.getRelicDropTooltip(relicName);
+    // Importado, no leído de globalThis: nadie lo publicaba, así que la guarda era siempre
+    // falsa y el tooltip de drops de reliquia no llegaba a salir nunca.
+    if (relicName) {
+      htmlContent = getRelicDropTooltip(relicName);
     }
 
     if (htmlContent) {

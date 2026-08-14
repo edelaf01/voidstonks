@@ -1,22 +1,20 @@
 import "./utils/debug_log.js"; // PRIMERO: silencia console.log/info/debug/warn si DEBUG_LOGS=false
 import { initCanvas } from "./utils/canvas.js";
-import {
-  downloadRelics,
-  fetchRivenWeapons,
-  fetchUserProfile,
-  fetchPrimeManifest,
-  warmupPrices,
-  preloadPricesToMemory,
-} from "./api.js";
+import { downloadRelics } from "./services/inventory/relics.service.js";
+import { fetchRivenWeapons } from "./services/rivens/rivens.service.js";
+import { fetchUserProfile } from "./services/profile.service.js";
+import { fetchPrimeManifest } from "./repositories/api.repository.js";
+import { warmupPrices } from "./services/inventory/inventory.service.js";
+import { preloadPricesToMemory, ensurePriceSnapshot } from "./repositories/storage.repository.js";
+import { exposeGlobals } from "./utils/global_registry.js";
 import { state, loadAppState, saveAppState, hydrateDOM } from "./state.js";
 import { startLiveSession, stopLiveSession } from "./scanner/live_scanner.js";
 import { openPiP, initPiP } from "./utils/pip_overlay.js";
 import {
   openScanner,
   closeScanner,
-  captureRelics,
   handleFileUpload,
-} from "./utils/scanner.js";
+} from "./scanner/scanner_controller.js";
 import {
   switchTab,
   changeLanguage,
@@ -26,9 +24,9 @@ import {
   toggleLangDropdown,
   setLanguageManual,
 } from "./ui.js?v=2.3";
-import { initFissurePanel } from "./ui.components/ui_fissures.js?v=1.1";
-import { initSyncPanel } from "./ui.components/ui_sync.js";
-import { calculateCaps, renderProfileStats } from "./ui.components/ui_profile.js";
+import { initFissurePanel } from "./ui.components/farms/ui_fissures.js?v=1.1";
+import { initSyncPanel } from "./ui.components/market/ui_sync.js";
+import { calculateCaps, renderProfileStats } from "./ui.components/market/ui_profile.js";
 import {
   initGlobalTooltipSystem,
   preloadCriticalAssets,
@@ -37,16 +35,16 @@ import {
   toggleInventoryPanel,
   renderInventory,
   clearInventory,
-  renderPrimeInventory,
-} from "./ui.components/ui_inventory.js";
-import { manualRelicUpdate } from "./ui.components/ui_relics.js";
-import { renderSetTracker } from "./ui.components/ui_sets.js";
+} from "./ui.components/inventory/ui_inventory.js";
+import { renderPrimeInventory } from "./ui.components/inventory/ui_prime_inventory.js";
+import { manualRelicUpdate } from "./ui.components/inventory/ui_relics.js";
+import { renderSetTracker } from "./ui.components/inventory/ui_set_tracker.js";
 import { initLFGPresets } from "./ui.components/ui_lfg.js";
 import {
   handleRivenInput,
   openRivenMarket,
   updateSelectExclusions,
-} from "./ui.components/ui_rivens.js?v=1.11";
+} from "./ui.components/rivens/ui_rivens.js?v=1.11";
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.getRegistrations().then(function (registrations) {
     for (let registration of registrations) {
@@ -56,7 +54,7 @@ if ("serviceWorker" in navigator) {
   });
 }
 import { initVosforTab } from "./ui.components/ui_vosfor.js?v=2.9";
-import "./ui.components/ui_orders.js?v=1.0";
+import "./ui.components/market/ui_orders.js?v=1.0";
 import { initTabFan } from "./ui.components/ui_tab_fan.js?v=1.1";
 import { initMobileFooter } from "./ui.components/ui_mobile_footer.js?v=1.0";
 
@@ -155,6 +153,9 @@ async function loadAsyncData() {
     //Preload should look into this later TODO no deberia hacer esto
     initFissurePanel().catch(console.error);
     preloadPricesToMemory().catch(console.error);
+    // Se lanza aquí, en paralelo con la descarga de reliquias: cuando la primera reliquia
+    // se pinta, sus 6 precios ya están en memoria y no generan ninguna petición.
+    ensurePriceSnapshot().catch(console.error);
     await Promise.all([fetchRivenWeapons(), fetchPrimeManifest()]);
     await downloadRelics();
     if (state.selectedRelic) {
@@ -177,7 +178,7 @@ document.addEventListener("visibilitychange", () => {
 let activeScannerInstance = null;
 let isScannerActive = false;
 
-globalThis.startMobileScanner = async function () {
+async function startMobileScanner() {
   const scanBtn = document.getElementById("mobile-scan-btn");
 
   if (isScannerActive && activeScannerInstance) {
@@ -321,8 +322,10 @@ document.addEventListener("visibilitychange", () => {
 });
 globalThis.switchTab = wrapperSwitchTab;
 
-Object.assign(globalThis, {
-  startMobileScanner: globalThis.startMobileScanner,
+// Los handlers inline de index.html. Los que publica su propio módulo (inventario, escáner)
+// NO se repiten aquí: el registro avisaría del choque, y hasta ahora se pisaban en silencio.
+exposeGlobals({
+  startMobileScanner,
   switchTab: wrapperSwitchTab,
   changeLanguage,
   handleRivenInput,
@@ -333,17 +336,11 @@ Object.assign(globalThis, {
   toggleLangDropdown,
   setLanguageManual,
   openScanner,
-  closeScanner,
-  captureRelics,
   handleFileUpload,
-  toggleInventoryPanel,
-  renderInventory,
-  clearInventory,
   startLiveSession,
   stopLiveSession,
   checkUpdates,
   updateSelectExclusions,
   saveAppState,
-  renderPrimeInventory,
   togglePiP: openPiP,
-});
+}, "main.js");

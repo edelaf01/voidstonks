@@ -456,6 +456,10 @@
   flex-shrink: 0;
 }
 
+.index-card-img-area .variant-hover-item.active-variant {
+  order: -1;
+}
+
 .index-card-img-area .variant-hover-item img {
   width: 52px;
   height: 52px;
@@ -466,10 +470,6 @@
 
 .index-card-img-area .variant-hover-item:hover img {
   transform: scale(1.08);
-}
-
-.index-card-img-area .variant-hover-item.active-variant {
-  order: -1;
 }
 
 .index-card-img-area .variant-hover-item.active-variant img {

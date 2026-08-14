@@ -354,6 +354,36 @@
     overflow-y: auto;
 }
 
+/* El <label> es display:block por regla global; la fila lo pone en línea con el "?"
+   sin tocar esa regla, que afecta a todos los formularios de la app. */
+.set-search-labelrow {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    margin-bottom: 8px;
+}
+
+.set-search-labelrow label {
+    margin-bottom: 0;
+}
+
+.set-search-empty {
+    text-align: center;
+    color: #7b818a;
+    font-size: 0.88rem;
+    line-height: 1.5;
+    max-width: 460px;
+    margin: 24px auto 4px;
+}
+
+.set-search-more {
+    text-align: center;
+    color: #6f757e;
+    font-size: 0.76rem;
+    letter-spacing: 0.3px;
+    padding: 6px 10px 18px;
+}
+
 .set-container {
     margin-bottom: 25px;
     border: 1px solid #333;
@@ -559,15 +589,15 @@
     box-shadow: 0 0 12px rgba(221, 169, 56, 0.35) !important;
 }
 
-.tracker-item:hover .item-icon-small {
-    transform: scale(2) !important;
-    z-index: 10000 !important;
-}
-
 .tracker-item.done {
     opacity: 0.4;
     text-decoration: line-through;
     border-color: #222;
+}
+
+.tracker-item:hover .item-icon-small {
+    transform: scale(2) !important;
+    z-index: 10000 !important;
 }
 
 .tracker-item .market-link-icon {
