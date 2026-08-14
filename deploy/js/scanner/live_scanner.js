@@ -1,13 +1,13 @@
 import { state, saveAppState } from "../state.js";
 import { showToast } from "../ui.components/ui_components.js";
 import { TEXTS } from "../config.js";
-import { warmupPrices } from "../api.js";
-import { ScannerService } from "../services/scanner.service.js";
-import { OCRService } from "../services/ocr.service.js?v=264";
+import { warmupPrices } from "../services/inventory/inventory.service.js";
+import { ScannerService } from "../services/scanner/scanner.service.js";
+import { OCRService } from "../services/scanner/ocr.service.js?v=264";
 import { ScannerModal } from "../ui.components/ui_scanner_modal.js";
 import { ScannerHUD } from "../ui.components/ui_scanner_hud.js";
 import { OCRRepository } from "../repositories/ocr.repository.js";
-import { WF_THEMES } from "../services/vision.service.js";
+import { WF_THEMES } from "../services/scanner/vision.service.js";
 
 globalThis._OCRService = OCRService;
 globalThis._ScannerModal = ScannerModal;
@@ -130,7 +130,7 @@ export function stopLiveSession() {
 }
 
 globalThis.showRivenAppraisal = async (parsedL, parsedR, screenshotDataURL) => {
-  const { RivenScannerHUD } = await import("../ui.components/ui_riven_scanner_hud.js");
+  const { RivenScannerHUD } = await import("../ui.components/rivens/ui_riven_scanner_hud.js");
   RivenScannerHUD.show(parsedL, parsedR, screenshotDataURL);
 };
 
@@ -183,12 +183,15 @@ globalThis.saveLiveInventory = () => {
   }
   ScannerService.sessionInventory.clear();
 
+  const byName = new Map(state.inventory.map(r => [r.name, r]));
   for (const [name, count] of ScannerService.sessionRelics) {
-    const existing = state.inventory.find(r => r.name === name);
+    const existing = byName.get(name);
     if (existing) {
       existing.count = count;
     } else {
-      state.inventory.push({ name, count });
+      const entry = { name, count };
+      state.inventory.push(entry);
+      byName.set(name, entry);
     }
   }
   ScannerService.sessionRelics.clear();
@@ -220,6 +223,9 @@ globalThis.clearLiveSessionInventory = () => {
 //TODO not in use, remove?
 globalThis.resetGrid = () => {
   ScannerService._autoCalibCache = null;
+  ScannerService._nameColorCache = null;
+  ScannerService._frameZoneCache = null;
+  ScannerService._invQueue?.clear();
   ScannerService.detectionLocked = false;
   ScannerService.inventoryHasScanned = false;
   globalThis.LiveCalibration?.clearCalibration?.();

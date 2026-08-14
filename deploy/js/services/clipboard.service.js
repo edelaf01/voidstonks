@@ -1,12 +1,10 @@
-import { state } from "../state.js";
-import { TEXTS } from "../config.js";
-import { showToast } from "../ui.components/ui_components.js";
-
 // clipboard copy for scanner results without focus via extension, writeText or on focus return
 export const ClipboardService = {
     extensionReady: false,
     _pending: null,
     _seq: 0,
+
+    onPendingCopied: null,
 
     init() {
         window.addEventListener("message", (ev) => {
@@ -58,8 +56,7 @@ export const ClipboardService = {
         try {
             await navigator.clipboard.writeText(text);
             this._pending = null;
-            const t = TEXTS[state.currentLang]?.rewardScanner;
-            showToast(t?.toastCopied || "Copiado al portapapeles");
+            this.onPendingCopied?.();
         } catch {}
     },
 };

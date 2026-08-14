@@ -1,10 +1,16 @@
 import { state, saveAppState } from "../state.js";
 import { TEXTS } from "../config.js";
-import { getSlug, getPriceValue } from "../api.js";
+import { getPriceValue } from "../services/market/prices.service.js";
+import { getSlug } from "../utils/slugs.utils.js";
 import { showToast, escapeHTML } from "./ui_components.js";
 import { renderItemsInPiP } from "../utils/pip_overlay.js";
 import { ClipboardService } from "../services/clipboard.service.js";
 import { getItemIcon } from "../utils/ui_utils.js";
+
+ClipboardService.onPendingCopied = () => {
+  const t = TEXTS[state.currentLang]?.rewardScanner;
+  showToast(t?.toastCopied || "Copiado al portapapeles");
+};
 
 export const ScannerModal = {
     currentResults: [],

@@ -1,0 +1,55 @@
+// bounded queue of video crops with a canvas pool to decouple capture from processing
+export function createFrameQueue({ max = 3, process }) {
+    const pool = [];
+    const queue = [];
+    let busy = false;
+
+    const acquire = (w, h) => {
+        const cvs = pool.pop() || document.createElement("canvas");
+        if (cvs.width !== w) cvs.width = w;
+        if (cvs.height !== h) cvs.height = h;
+        return cvs;
+    };
+
+    const drain = async () => {
+        if (busy) return;
+        busy = true;
+        try {
+            while (queue.length) {
+                const job = queue.shift();
+                try {
+                    await process(job);
+                } catch (e) {
+                    console.error("[FrameQueue] fallo procesando un frame:", e);
+                } finally {
+                    if (pool.length < max) pool.push(job.cvs);
+                }
+            }
+        } finally {
+            busy = false;
+        }
+    };
+
+    return {
+        get size() { return queue.length; },
+        get isFull() { return queue.length >= max; },
+        get isBusy() { return busy; },
+
+        enqueue(source, sx, sy, sw, sh, meta = null) {
+            if (queue.length >= max) return false;
+            const cvs = acquire(sw, sh);
+            cvs.getContext("2d", { willReadFrequently: true })
+                .drawImage(source, sx, sy, sw, sh, 0, 0, sw, sh);
+            queue.push({ cvs, meta });
+            drain();
+            return true;
+        },
+
+        clear() {
+            while (queue.length) {
+                const job = queue.pop();
+                if (pool.length < max) pool.push(job.cvs);
+            }
+        },
+    };
+}
