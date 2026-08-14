@@ -1,0 +1,42 @@
+name: Tests
+
+# Corre la suite y el lint en cada push y cada PR. Hasta ahora los tests solo existían en
+# local, así que un cambio que rompiera una regla de ARCHITECTURE.md llegaba a producción
+# igual (deploy/ se publica tal cual, sin build).
+#
+# En CI faltan dos ficheros que están en .gitignore a propósito: worker-code.js y el cache
+# de la API de ML. Los ~138 tests que dependen de ellos salen en SKIP con el motivo escrito,
+# no en rojo (ver tests/_helpers/optional-source.mjs). Los otros ~504 sí corren, y entre
+# ellos están los de arquitectura, XSS, registro de globals y ciclos de imports, que son los
+# que pillan lo que no se ve al recargar el navegador.
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch: {}
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      # `npm test` es node --test pelado y no necesita dependencias, pero el lint sí
+      # (eslint + globals), y ci las instala desde el lock sin tocar package.json.
+      - run: npm ci
+
+      - name: Tests
+        run: npm test
+
+      # El objetivo es 0 errores; los warnings heredados (no-unused-vars) no rompen el build.
+      - name: Lint
+        run: npm run lint

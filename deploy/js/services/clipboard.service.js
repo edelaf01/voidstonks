@@ -1,7 +1,3 @@
-import { state } from "../state.js";
-import { TEXTS } from "../config.js";
-import { showToast } from "../ui.components/ui_components.js";
-
 /**
  * Clipboard copy for scanner results. While playing, the tab has no focus and
  * navigator.clipboard fails, so it tries in order:
@@ -13,6 +9,9 @@ export const ClipboardService = {
     extensionReady: false,
     _pending: null,
     _seq: 0,
+
+    // called when a pending copy lands after focus returns
+    onPendingCopied: null,
 
     init() {
         window.addEventListener("message", (ev) => {
@@ -64,8 +63,7 @@ export const ClipboardService = {
         try {
             await navigator.clipboard.writeText(text);
             this._pending = null;
-            const t = TEXTS[state.currentLang]?.rewardScanner;
-            showToast(t?.toastCopied || "Copiado al portapapeles");
+            this.onPendingCopied?.();
         } catch {}
     },
 };

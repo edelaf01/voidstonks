@@ -28,6 +28,10 @@
     border-color: rgba(224, 176, 255, 0.4);
 }
 
+.vos-tool.open .vos-tool-arrow {
+    transform: rotate(180deg);
+}
+
 .vos-tool-head {
     display: flex;
     align-items: center;
@@ -85,10 +89,6 @@
     transition: transform 0.25s;
 }
 
-.vos-tool.open .vos-tool-arrow {
-    transform: rotate(180deg);
-}
-
 /*
  * collapsed with grid-template-rows, not max-height, since these tools change height as you type
  * overflow goes here, not on the child: 0fr does not collapse the child's padding
@@ -100,12 +100,12 @@
     transition: grid-template-rows 0.28s ease;
 }
 
-.vos-tool.open .vos-tool-body {
-    grid-template-rows: 1fr;
-}
-
 .vos-tool-body > * {
     min-height: 0;
+}
+
+.vos-tool.open .vos-tool-body {
+    grid-template-rows: 1fr;
 }
 
 /*

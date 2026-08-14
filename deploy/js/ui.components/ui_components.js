@@ -6,6 +6,7 @@ import {
 } from "../config.js";
 import { state } from "../state.js";
 import { exposeGlobals } from "../utils/global_registry.js";
+import { getRelicDropTooltip } from "./ui_tooltips.js";
 
 export function preloadCriticalAssets() {
   const assets = [
@@ -18,12 +19,10 @@ export function preloadCriticalAssets() {
   });
 }
 
-export function escapeHTML(str) {
-  if (!str) return "";
-  const p = document.createElement("p");
-  p.textContent = str;
-  return p.innerHTML;
-}
+// Imported and re-exported, not `export ... from`: showToast uses it here, and half the repo imports
+// it from this module.
+import { escapeHTML } from "../utils/escape_html.js";
+export { escapeHTML };
 
 const activeToasts = new Map();
 
@@ -188,8 +187,8 @@ export function initGlobalTooltipSystem() {
     const textContent = target.dataset.tooltip;
     const relicName = target.dataset.tooltipRelic;
 
-    if (relicName && globalThis.getRelicDropTooltip) {
-      htmlContent = globalThis.getRelicDropTooltip(relicName);
+    if (relicName) {
+      htmlContent = getRelicDropTooltip(relicName);
     }
 
     if (htmlContent) {

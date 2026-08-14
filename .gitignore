@@ -40,17 +40,19 @@ deploy/temp_inspect.html
 # histórico; el workflow retrain-ml.yml lo commitea.
 !/scripts-actu/ML-rivenvaluation/metrics_history.json
 scripts-actu/img/
-/tests
+# tests/ SÍ se versiona: las reglas de ARCHITECTURE.md solo sirven si el test que las
+# comprueba viaja con el repo. Fuera quedan los volcados de depuración sueltos, que no los
+# usa ningún test (1,7 MB). El fixture de _fixtures/ sí entra: lo necesitan 3 tests de OCR.
+tests/_debug_user*.png
 deploy/rootCA.crt
 /.codebase-memory
-tests/import-graph.test.mjs
 deploy/rootCA.pem
 .gitignore
 certs/dev-key.pem
 certs/dev.pem
-# Solo el de la raíz: la barra inicial ancla la regla ahí. Sin ella, "package.json"
-# ignoraba también el de desktop/, que SÍ debe versionarse (el build de Tauri lo necesita).
-/package.json
+# El package.json de la raíz se versiona junto con tests/: sin él no viajan `npm test`,
+# `npm run lint` ni `npm run baseline:arquitectura`, y las reglas se quedan sin forma de
+# ejecutarse en otra máquina. (El de desktop/ siempre estuvo dentro: lo necesita el build de Tauri.)
 deploy/MAINTENANCE_VOSFOR.md
 deploy/MAINTENANCE_VOSFOR.md
 dist/

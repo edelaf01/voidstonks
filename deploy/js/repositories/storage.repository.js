@@ -1,4 +1,4 @@
-import { getPricesBatch } from "./api.repository.js";
+import { getPricesBatch, getPricesSnapshot } from "./api.repository.js";
 import { getSlug } from "../utils/slugs.utils.js";
 
 
@@ -98,6 +98,46 @@ async function savePriceToCache(slug, price) {
     }
 }
 
+
+// --- Snapshot de precios prime -------------------------------------------------
+const SNAPSHOT_KEY = "prices_snapshot_doc";
+const SNAPSHOT_TTL = 6 * 60 * 60 * 1000;
+let snapshotPromise = null;
+
+function applySnapshot(prices) {
+    if (!prices) return;
+    for (const slug in prices) {
+        if (!MEMORY_CACHE.has(slug)) MEMORY_CACHE.set(slug, prices[slug]);
+    }
+}
+
+async function loadPriceSnapshot() {
+    try {
+        const cached = await dbHelper.get(SNAPSHOT_KEY);
+        if (cached && Date.now() - cached.time < SNAPSHOT_TTL) {
+            applySnapshot(cached.p);
+            return;
+        }
+    } catch (e) {
+        console.warn("Snapshot local ignorado:", e);
+    }
+
+    try {
+        const res = await getPricesSnapshot();
+        if (!res.ok) return;
+        const doc = await res.json();
+        if (!doc?.p || !Object.keys(doc.p).length) return;
+        applySnapshot(doc.p);
+        await dbHelper.set(SNAPSHOT_KEY, { time: Date.now(), p: doc.p });
+    } catch (e) {
+        console.warn("Snapshot de precios no disponible:", e);
+    }
+}
+
+export function ensurePriceSnapshot() {
+    if (!snapshotPromise) snapshotPromise = loadPriceSnapshot();
+    return snapshotPromise;
+}
 
 const PENDING_REQUESTS = new Map();
 const RETRY_COUNTS = new Map();
@@ -204,6 +244,13 @@ export function getPriceValue(itemName, itemSlug) {
         } catch (e) {
             console.warn(`Error reading price cache for ${itemSlug}:`, e);
         }
+
+        await ensurePriceSnapshot();
+        if (MEMORY_CACHE.has(itemSlug)) {
+            resolve(MEMORY_CACHE.get(itemSlug));
+            return;
+        }
+
         if (!PENDING_REQUESTS.has(itemSlug)) PENDING_REQUESTS.set(itemSlug, []);
         PENDING_REQUESTS.get(itemSlug).push(resolve);
         if (!batchTimer) batchTimer = setTimeout(processQueue, currentBackoff);

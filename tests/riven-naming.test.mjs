@@ -1,0 +1,154 @@
+// generated riven names ("Visi-critacan") from positive stats
+// used on cards and for scanner Levenshtein correction; mismatched tables make the scanner "correct"
+// toward nonexistent names
+// previously duplicated and drifted between ui_rivens.js and riven_ocr.service.js
+
+import { test } from "node:test";
+import assert from "node:assert/strict";
+
+globalThis.localStorage = { getItem: () => null, setItem() {}, removeItem() {} };
+
+const { RIVEN_STATS } = await import("../deploy/js/config.js");
+const { RIVEN_NAMING_DICT, normalizeStatName, generateRivenName } = await import(
+  "../deploy/js/utils/rivens/riven_naming.js"
+);
+
+// THIS test catches slug drift: generateRivenName looks up RIVEN_NAMING_DICT[statDef.slug] and missing
+// keys silently drop the stat; ui_rivens.js used invalid slugs melee_range and flight_speed (real slugs
+// are range and projectile_flight_speed), dropping Range and Flight Speed
+test("cada clave del diccionario es un slug que existe en RIVEN_STATS", () => {
+  const slugsReales = new Set(RIVEN_STATS.map((s) => s.slug));
+  const muertas = Object.keys(RIVEN_NAMING_DICT).filter((k) => !slugsReales.has(k));
+  assert.deepEqual(muertas, [],
+    "estas entradas no las va a encontrar nadie: el stat se cae del nombre sin avisar");
+});
+
+test("los stats que aún no tienen nombre son exactamente estos tres", () => {
+  const sinNombre = RIVEN_STATS.filter((s) => !RIVEN_NAMING_DICT[s.slug]).map((s) => s.slug).sort();
+  assert.deepEqual(sinNombre, ["finisher_damage", "heavy_attack_efficiency", "initial_combo"]);
+});
+
+test("ningún prefijo ni sufijo queda vacío", () => {
+  for (const [slug, { prefix, suffix }] of Object.entries(RIVEN_NAMING_DICT)) {
+    assert.ok(prefix && suffix, `${slug} necesita prefijo y sufijo`);
+    assert.match(prefix, /^[A-Z]/, `${slug}: el prefijo se usa capitalizado`);
+  }
+});
+
+// ocr and API output abbreviated stats; the rest of the codebase uses long form
+test("las abreviaturas del OCR se expanden", () => {
+  assert.equal(normalizeStatName("Crit Chance"), "Critical Chance");
+  assert.equal(normalizeStatName("Crit Dmg"), "Critical Damage");
+  assert.equal(normalizeStatName("Stats Chance"), "Status Chance");
+  assert.equal(normalizeStatName("  Multishot  "), "Multishot");
+});
+
+// "Crit" only expands as a whole word: without \b, "Critical" would become "Criticalical"
+test("la expansión no se come palabras que ya están completas", () => {
+  assert.equal(normalizeStatName("Critical Chance"), "Critical Chance");
+  assert.equal(normalizeStatName("Status Chance"), "Status Chance");
+});
+
+// one stat with two names: Fire Rate on guns and Attack Speed on melee; resolving wrong looks up a
+// nonexistent range
+test("cadencia y velocidad de ataque son el mismo stat según el arma", () => {
+  assert.equal(normalizeStatName("Fire Rate / Attack Speed", "Melee"), "Attack Speed");
+  assert.equal(normalizeStatName("Fire Rate / Attack Speed", "Rifle"), "Fire Rate");
+  assert.equal(normalizeStatName("Fire Rate / Attack Speed"), "Fire Rate", "por defecto, a distancia");
+});
+
+test("sin nombre devuelve cadena vacía", () => {
+  for (const v of ["", null, undefined]) assert.equal(normalizeStatName(v), "");
+});
+
+// mock weapon with flat ranges so stat value sets strength, isolating ORDER which decides where each
+// fragment goes
+const arma = { name: "Bramma", t: "Rifle", disposition: 1.0 };
+const stat = (name, value) => ({ name, value });
+
+/** at rank 8 with no curse, stat rank is nominal */
+const nombrar = (stats) => generateRivenName("Kuva Bramma", stats, arma, stats.length, false, 8);
+
+test("un solo positivo usa su prefijo y su propio sufijo", () => {
+  const n = nombrar([stat("Critical Chance", 100)]);
+  assert.equal(n, "Kuva Bramma Critacron");
+});
+
+// with two positives, the second only provides the suffix: game rule making relative strength order matter
+test("con dos positivos manda el prefijo del más fuerte y el sufijo del otro", () => {
+  const fuerte = nombrar([stat("Critical Chance", 200), stat("Multishot", 10)]);
+  assert.equal(fuerte, "Kuva Bramma Critacan", "Crita- (crítico) + -can (multidisparo)");
+
+  // reversing the strengths reverses the roles
+  const alReves = nombrar([stat("Critical Chance", 10), stat("Multishot", 200)]);
+  assert.equal(alReves, "Kuva Bramma Saticron", "Sati- (multidisparo) + -cron (crítico)");
+});
+
+// order is NOT by raw value but by relative strength against the center of ITS range: 200% Multishot is a
+// much stronger roll than 300% Critical Chance because the range is narrower, so "Sati-" leads
+test("con tres, el del medio aporta su prefijo en minúscula tras un guion", () => {
+  const n = nombrar([
+    stat("Critical Chance", 300),
+    stat("Multishot", 200),
+    stat("Critical Damage", 100),
+  ]);
+  assert.equal(n, "Kuva Bramma Sati-critatis");
+  assert.match(n, /^Kuva Bramma [A-Z][a-z]+-[a-z]+$/, "prefijo, guion, prefijo en minúscula y sufijo");
+});
+
+// increasing one stat value without touching others can change which stat provides the prefix
+test("el orden lo decide la fuerza relativa, no el número más grande", () => {
+  const pocoMultishot = nombrar([stat("Critical Chance", 200), stat("Multishot", 10)]);
+  const muchoMultishot = nombrar([stat("Critical Chance", 200), stat("Multishot", 200)]);
+  assert.notEqual(pocoMultishot, muchoMultishot,
+    "el mismo 200 % de crítico cambia de papel según lo bueno que sea el otro stat");
+});
+
+test("el nombre va capitalizado y lleva el arma delante", () => {
+  const n = nombrar([stat("Multishot", 50)]);
+  assert.ok(n.startsWith("Kuva Bramma "), n);
+  const generado = n.slice("Kuva Bramma ".length);
+  assert.match(generado, /^[A-Z]/, "la primera letra del nombre generado va en mayúscula");
+});
+
+test("sin positivos o sin datos del arma no se inventa un nombre", () => {
+  assert.equal(generateRivenName("Kuva Bramma", [], arma, 0, false, 8), "");
+  assert.equal(generateRivenName("Kuva Bramma", null, arma, 0, false, 8), "");
+  assert.equal(generateRivenName("Kuva Bramma", [stat("Multishot", 50)], null, 1, false, 8), "");
+});
+
+// stats unlisted by the game or invalid for the weapon are dropped, composing the name from remaining
+// stats
+test("un stat sin entrada en la tabla no rompe el nombre", () => {
+  const n = nombrar([stat("Inventado No Existe", 100), stat("Critical Chance", 50)]);
+  assert.equal(n, "Kuva Bramma Critacron", "queda el nombre de un solo stat");
+
+  assert.equal(nombrar([stat("Inventado No Existe", 100)]), "",
+    "si no queda ninguno, mejor vacío que un nombre falso");
+});
+
+// what extraction fixed: previously these two slugs were missing from the component table, silently
+// dropping the stat from names
+test("Alcance y Velocidad de proyectil sí aportan al nombre", () => {
+  const melee = { name: "Nikana", t: "Melee", disposition: 1.0 };
+  const conRango = generateRivenName("Nikana", [stat("Range", 100)], melee, 1, false, 8);
+  assert.equal(conRango, "Nikana Loctatox", "Alcance usa el slug `range`");
+
+  const conVelocidad = generateRivenName(
+    "Kuva Bramma", [stat("Projectile Speed", 100)], arma, 1, false, 8);
+  assert.equal(conVelocidad, "Kuva Bramma Concinak", "Velocidad de proyectil usa `projectile_flight_speed`");
+});
+
+// scanner Levenshtein correction matches possible names: diverging tables would "correct" toward names
+// cards never display
+test("el escáner y la tarjeta comparten la misma tabla", async () => {
+  const { readFileSync } = await import("node:fs");
+  for (const f of [
+    "deploy/js/ui.components/rivens/ui_rivens.js",
+    "deploy/js/services/rivens/riven_ocr.service.js",
+  ]) {
+    const src = readFileSync(f, "utf8");
+    assert.ok(!/const RIVEN_NAMING_DICT\s*=/.test(src),
+      `${f} vuelve a tener su propia copia de la tabla`);
+  }
+});
