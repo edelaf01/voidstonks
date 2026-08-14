@@ -1,8 +1,8 @@
 // reads the last KubrowPetColor set from EE.log and turns it into real names ranked by rarity
 
 import { state } from '../state.js';
-import { translateColor, translateColorTier, getColorRarity, KUBROW_RARITY_LEVELS } from './kubrow_translations.js';
-import { COLOR_DESCRIPTIONS, PALETA_WARFRAME } from '../utils/kubrow_color_extractor.js';
+import { translateColor, translateColorTier, getColorRarity, KUBROW_RARITY_LEVELS } from '../utils/vision/kubrow_translations.js';
+import { COLOR_DESCRIPTIONS, PALETA_WARFRAME } from '../utils/vision/kubrow_color_extractor.js';
 
 const SAVED_KEY = 'voidStonks_kubrows';
 

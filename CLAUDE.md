@@ -6,9 +6,18 @@
   la carpeta tal cual; no hay paso de build en local. Un error en `deploy/` va directo a
   producción. La minificación (que quita los comentarios) ocurre solo en CI vía
   `scripts-actu/build-dist.mjs`, así que **los comentarios de `deploy/` no cuestan bytes en prod**.
-- **Antes de dar algo por terminado: `npm test`.** Son ~340 tests y tardan ~25s.
+- **Antes de dar algo por terminado: `npm test`.** Son ~745 tests y tardan ~65s.
 - **`npm run lint`** (ESLint ya instalado). El objetivo es **0 errores**; los warnings
   restantes son casi todos `no-unused-vars` heredados.
+- **Dónde va cada cosa y qué puede importar qué: [`ARCHITECTURE.md`](ARCHITECTURE.md).**
+  En corto: la carpeta de primer nivel es la **capa** (`services/`, `repositories/`,
+  `ui.components/`, `utils/`) y la de segundo el **dominio** (`rivens/`, `market/`, `inventory/`,
+  `farms/`, `vision/`…). Solo hay subcarpeta a partir de 4 ficheros; lo transversal se queda en
+  la raíz de su capa.
+  Casi todas esas reglas las comprueba `tests/architecture.test.mjs`, así que romperlas pone
+  `npm test` en rojo con el nombre de la regla. Lo que ya estaba mal el día que se escribieron
+  está congelado en `tests/_baseline/architecture-debt.json` e inventariado en
+  [`DEUDA.md`](DEUDA.md): no puede crecer, y al arreglar algo hay que borrarlo del baseline.
 - El usuario hace sus propios commits. No hagas `git add` / `commit` / `push`.
 
 ## Comentarios: convención
@@ -38,6 +47,18 @@ es **explicar el porqué, no el qué**.
 - `//TODO FIX LINT` y demás marcadores sin contenido: o se arregla, o se explica qué falta
   y por qué no se hizo. Un TODO sin acción concreta es ruido que sobrevive años.
 - Código comentado. Para eso está git.
+- Comentario en cada función solo por tenerlo. Una firma clara ya se explica sola; el
+  comentario va **en la línea concreta** que no se deduce, no encabezando todo el bloque.
+- JSDoc que repita los tipos que ya se ven (`@param {string} name  el nombre`). Documenta
+  el parámetro solo si su valor tiene una restricción o un efecto que no se ve en la firma.
+
+**Densidad:** menos comentarios y mejor colocados. Si al releer el diff un comentario no
+cambia lo que haría quien lo lea, sobra.
+
+**Por defecto, ninguno.** El comentario es la excepción y hay que justificarla con uno de
+los casos de arriba: es el criterio explícito del dueño del repo, no una preferencia de
+estilo. Aplica también a las explicaciones largas de cabecera — un bloque de 15 líneas para
+justificar un endpoint se queda en 5 con lo que de verdad no se deduce del código.
 
 **Idioma:** español para las explicaciones nuevas (es lo mayoritario). No traduzcas los
 comentarios en inglés que ya existen: no aporta y ensucia el diff.
@@ -132,6 +153,24 @@ No hay una regla única y es fácil equivocarse de archivo:
 
 Antes de añadir estilos, `grep` de la clase: si el bloque ya está en `styles.css`, amplíalo
 ahí en vez de abrir un componente nuevo a medias.
+
+**Los `.css` de componentes no están aislados.** Todos se cargan en la misma cascada y
+`index.html` los mete **después** de `styles.css` en varios casos (`orders.css`,
+`riven-*.css`, `vosfor.css`, `lich-weapons.css`, `ui-kit.css`). Un selector desnudo con un
+nombre genérico se aplica a toda la app, y al ir después gana a igualdad de especificidad.
+Ya pasó: `orders.css` definía `.inv-row` / `.inv-name` / `.inv-meta`, que también son las
+filas del panel lateral de reliquias, y les imponía nombres cortados con ellipsis y meta en
+gris.
+
+Al añadir estilos a un componente, **ancla la regla al contenedor de su pestaña**
+(`#orders-content .inv-row`) salvo que el nombre sea claramente exclusivo. Antes de crear
+una clase, `grep` del nombre: si ya existe en otro archivo, o la reutilizas de verdad o
+eliges otro nombre.
+
+**Cuidado con encadenar `em`.** Los tamaños se multiplican por anidamiento y es fácil bajar
+de lo legible sin darse cuenta: `.inv-meta` (0.7em) → `.ratio-tag` (0.85em) → `.ratio-unit`
+(0.6em) dejaba el sufijo en **5.7px**. Si un bloque ya reduce el tamaño, sus hijos usan
+`1em` o `rem`, no otro `0.x em`.
 
 Iconos de moneda: `.plat-icon-inline` y `.ducat-icon-inline` (definidos al principio de
 `styles.css`, disponibles en toda la app) en lugar de escribir "p" o "d" a mano. Se dimensionan

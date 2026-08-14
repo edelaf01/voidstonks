@@ -16,6 +16,18 @@ async function fetchWithTimeout(url, options = {}) {
     }
 }
 
+// worker ttl does not reach the browser, so the client declares data lifetimes
+
+async function fetchRotating(query, { force = false, timeout = 15000 } = {}) {
+    let url = `${WORKER_URL}?${query}`;
+    if (force) url += `&_cb=${Date.now()}`;
+    return fetchWithTimeout(url, { cache: "no-cache", timeout });
+}
+
+async function fetchLive(query, { timeout = 10000 } = {}) {
+    return fetchWithTimeout(`${WORKER_URL}?${query}`, { cache: "no-store", timeout });
+}
+
 export async function loadRelicsData(cacheKey, cacheTtl) {
     try {
         const cachedRecord = await dbHelper.get(cacheKey);
@@ -68,7 +80,7 @@ export async function fetchPrimeManifest() {
         state.entitiesDB = data;
         console.log("Entities Manifest Loaded:", data.length, "items");
         
-        const { updateDucatsDB } = await import("../services/relics.service.js");
+        const { updateDucatsDB } = await import("../services/inventory/relics.service.js");
         updateDucatsDB(data);
 
         if (resWeapons && resWeapons.ok) {
@@ -130,49 +142,55 @@ export async function fetchActiveResurgence() {
 }
 
 export async function sendSyncMessage(code, val) {
-    return fetchWithTimeout(`${WORKER_URL}?type=sync_set&id=${code}&val=${encodeURIComponent(val)}`);
+    return fetchLive(`type=sync_set&id=${code}&val=${encodeURIComponent(val)}`, { timeout: 8000 });
 }
 
 export async function getSyncMessage(code) {
-    return fetchWithTimeout(`${WORKER_URL}?type=sync_get&id=${code}`);
+    return fetchLive(`type=sync_get&id=${code}`, { timeout: 8000 });
 }
 
 export async function getProfileData(username, platform) {
-    return fetchWithTimeout(`${WORKER_URL}?type=profile&platform=${platform}&user=${encodeURIComponent(username)}`);
+    //TODO disabled at the moment must delete profile stuff
+    return fetchWithTimeout(
+        `${WORKER_URL}?type=profile&platform=${platform}&user=${encodeURIComponent(username)}`,
+        { cache: "no-cache" },
+    );
 }
 
 export async function getPricesBatch(chunk) {
     return fetchWithTimeout(`${WORKER_URL}?type=prices_batch&q=${chunk.join(",")}`);
 }
 
+export async function getPricesSnapshot() {
+    return fetchWithTimeout(`${WORKER_URL}?type=prices_snapshot`, { timeout: 15000 });
+}
+
 export async function getArcaneBatch(chunk) {
     return fetchWithTimeout(`${WORKER_URL}?type=arcane_batch&q=${chunk.join(",")}`, { timeout: 25000 });
 }
 
-export async function getActiveBounties() {
-    return fetchWithTimeout(`${WORKER_URL}?type=active_bounties&v=2`);
+export async function getActiveBounties(force = false) {
+    return fetchRotating("type=active_bounties&v=2", { force });
 }
 
 export async function getActiveFissures(force = false) {
-    const opts = { timeout: 15000 };
-    let url = `${WORKER_URL}?type=fissures&v=2`;
-    if (force) url += `&_cb=${Date.now()}`;
-    return fetchWithTimeout(url, opts);
+    return fetchRotating("type=fissures&v=2", { force });
 }
 
 export async function getArbitration(force = false) {
-    const opts = { timeout: 15000 };
-    let url = `${WORKER_URL}?type=arbitration`;
-    if (force) url += `&_cb=${Date.now()}`;
-    return fetchWithTimeout(url, opts);
+    return fetchRotating("type=arbitration", { force });
 }
 
 export async function getLichWeapons(force = false) {
+<<<<<<< Updated upstream
     let url = `${WORKER_URL}?type=lich_weapons`;
     if (force) url += `&_cb=${Date.now()}`;
     return fetchWithTimeout(url, { timeout: 15000 });
+=======
+    return fetchRotating("type=lich_weapons&v=2", { force });
+>>>>>>> Stashed changes
 }
 
 export async function getServerTime() {
-    return fetchWithTimeout(`${WORKER_URL}?type=time`, { cache: "no-store", timeout: 10000 });
+    return fetchLive("type=time");
 }
