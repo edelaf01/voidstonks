@@ -96,7 +96,7 @@ export class MobileScanner {
       let seen = false;
       try { seen = localStorage.getItem("vs_scanner_howto_seen") === "1"; } catch { seen = false; }
       if (!seen) this.showHowTo();
-    } catch (err) { showToast("Error: " + err.message); this.close(); }
+    } catch (err) { showToast((TEXTS[state.currentLang]?.scanner?.toastError || "Error: {msg}").replace("{msg}", err.message)); this.close(); }
   }
 
   /**

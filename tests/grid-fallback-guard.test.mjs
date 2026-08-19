@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { isImplausibleFallbackGrid } from "../deploy/js/utils/vision/grid_detect.js";
+import { isImplausibleFallbackGrid } from "../deploy/js/utils/vision/plausibility.js";
 
 // Rechazo de calibraciones manuales guardadas basura como fallback del auto-grid.
 // Datos reales: la detección automática sobre la captura de inventario 2531x1412 da

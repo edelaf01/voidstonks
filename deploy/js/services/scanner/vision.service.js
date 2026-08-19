@@ -306,14 +306,14 @@ export const VisionService = {
         const actualG = bestStats.count > 0 ? Math.round(bestStats.gSum / bestStats.count) : bestTheme.g;
         const actualB = bestStats.count > 0 ? Math.round(bestStats.bSum / bestStats.count) : bestTheme.b;
 
-        console.log(`[VisionService] Theme detected: ${bestTheme.name} (weight: ${maxWeight.toFixed(4)}, catalog: rgb(${bestTheme.r},${bestTheme.g},${bestTheme.b}), actual: rgb(${actualR},${actualG},${actualB}))`);
-
+        // El guard va ANTES del log: al revés anunciaba temas que descartaba acto seguido.
         if (maxWeight < 0.001) {
-            if (globalThis.state && globalThis.state.lastStableTheme) {
-                return globalThis.state.lastStableTheme;
-            }
-            return null;
+            const estable = globalThis.state?.lastStableTheme;
+            console.log(`[VisionService] Sin tema fiable (peso ${maxWeight.toFixed(4)}) — se mantiene ${estable ? estable.name : "ninguno"}`);
+            return estable || null;
         }
+
+        console.log(`[VisionService] Theme detected: ${bestTheme.name} (weight: ${maxWeight.toFixed(4)}, catalog: rgb(${bestTheme.r},${bestTheme.g},${bestTheme.b}), actual: rgb(${actualR},${actualG},${actualB}))`);
 
         const result = {
             name: bestTheme.name,

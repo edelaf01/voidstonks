@@ -312,22 +312,12 @@ export async function getArbitration(force = false) {
  * @returns {Promise<Response>}
  */
 export async function getLichWeapons(force = false) {
-<<<<<<< Updated upstream
-    let url = `${WORKER_URL}?type=lich_weapons`;
-    // El ttl del worker vence justo al rotar, pero su stale-while-revalidate deja al edge
-    // servir la ventana vieja hasta 5 min más. Solo en el refetch de rotación se estrena
-    // clave de caché para ver el lote nuevo al momento; un render normal debe seguir
-    // cayendo en la entrada compartida.
-    if (force) url += `&_cb=${Date.now()}`;
-    return fetchWithTimeout(url, { timeout: 15000 });
-=======
     // &v=2 estrena clave de caché. Mientras el handler no estaba desplegado, el worker
     // respondía a este tipo con su fallback {"status":"Ready"} y max-age=86400: los
     // navegadores que llegaron a pedirlo se guardaron ESA respuesta 24 h y seguían
     // sirviéndosela a sí mismos sin salir a la red, así que el apartado salía vacío
     // aunque el worker ya estuviera bien. Mismo truco que bounties y fisuras.
     return fetchRotating("type=lich_weapons&v=2", { force });
->>>>>>> Stashed changes
 }
 
 /**

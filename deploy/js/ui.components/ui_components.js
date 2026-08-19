@@ -26,6 +26,21 @@ import { escapeHTML } from "../utils/escape_html.js";
 export { escapeHTML };
 
 /**
+ * Bloque de lista vacía: el mensaje, y debajo la ruta alternativa para llenarla.
+ *
+ * `scannerHint` solo se pinta si el escáner está de verdad en pantalla. styles.css lo oculta
+ * por debajo de 768px, y el texto que había mandaba a usarlo igualmente: en un móvil, la
+ * primera pantalla de la app apuntaba a algo que no existe ahí.
+ */
+export function emptyStateHtml(message, scannerHint = "") {
+  const scannerOnScreen = document.getElementById("scanner-section")?.offsetParent != null;
+  const hint = scannerHint && scannerOnScreen
+    ? `<div style="margin-top:6px; font-size:0.85em; opacity:0.7;">${escapeHTML(scannerHint)}</div>`
+    : "";
+  return `<div style="padding:20px 16px; text-align:center; color:#888; line-height:1.5;">${escapeHTML(message)}${hint}</div>`;
+}
+
+/**
  * Dynamic Toast Manager
  * Handles stackable, closable, and persistent notifications.
  */
@@ -168,6 +183,12 @@ export function initGlobalTooltipSystem() {
       left = e.clientX - tWidth - offset;
     if (top + tHeight > globalThis.innerHeight)
       top = e.clientY - tHeight - offset;
+
+    // El volteo de arriba asume que al otro lado sí cabe, y en móvil no: un tooltip de 340px
+    // abierto cerca del borde derecho de una pantalla de 360 se iba a un left negativo y se
+    // leía cortado. positionMegaTooltip ya clampaba; esto le faltaba.
+    if (left < 8) left = 8;
+    if (top < 8) top = 8;
 
     tooltipEl.style.left = `${left}px`;
     tooltipEl.style.top = `${top}px`;

@@ -84,6 +84,20 @@
     color: #fff;
 }
 
+/* Cuántas tienes de esa reliquia. En rem y no en em: cuelga de .relic-name (0.95em), que a su
+   vez cuelga del chip, y encadenar otro 0.x em lo dejaba por debajo de lo legible. */
+.relic-owned {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--wf-blue);
+    background: rgba(0, 229, 255, 0.12);
+    border: 1px solid rgba(0, 229, 255, 0.3);
+    border-radius: 3px;
+    padding: 0 4px;
+    white-space: nowrap;
+    vertical-align: middle;
+}
+
 .relic-img {
     width: 24px;
     max-height: 24px;
@@ -720,4 +734,203 @@
     background: rgba(127, 179, 213, 0.12);
     border: 1px solid rgba(127, 179, 213, 0.3);
     border-radius: 4px;
+}
+
+/* ---- Puente "los tienes a medias" (ui_sets_bridge.js) ---- */
+/*
+ * Va anclado a #setResults y no suelto: `.sets-bridge-*` son nombres nuevos, pero la tira vive
+ * dentro del panel lateral de reliquias en algunas resoluciones y CLAUDE.md documenta ya un caso
+ * (.inv-row de orders.css) donde un nombre genérico sin anclar se comió filas de otra pestaña.
+ */
+#setResults .sets-bridge {
+    margin: 0 0 16px;
+    padding: 10px 12px;
+    background: rgba(221, 169, 56, 0.05);
+    border: 1px solid rgba(221, 169, 56, 0.18);
+    border-radius: 8px;
+}
+
+/* Cabecera en fila: rótulo, contador y orden. El selector se va a la derecha con margin-left
+   auto en vez de un justify-content, para que rótulo y contador sigan juntos. */
+/* Rejilla en vez de una fila que envuelve: el buscador ocupa su propio renglón a ancho
+   completo y los selectores van debajo. Apretados todos en una sola fila, el input se quedaba
+   en un hueco de dos centímetros y no se leía como un buscador. */
+#setResults .sets-bridge-head {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+#setResults .sets-bridge-headline {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+#setResults .sets-bridge-controls {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+#setResults .sets-bridge-title {
+    color: var(--wf-gold-text);
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+/* El total, no lo que se ve: seis chips no distinguen "tengo seis" de "tengo veintitrés y me
+   enseñas seis". */
+#setResults .sets-bridge-count {
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: #0d0f13;
+    background: var(--wf-gold-text);
+    border-radius: 9px;
+    padding: 1px 7px;
+}
+
+#setResults .sets-bridge-sort {
+    margin-left: auto;
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 100%;
+    font-size: 0.72rem;
+    padding: 3px 6px;
+}
+
+/* Se lee como un enlace, no como otro chip: es una acción sobre la tira, no un set más. */
+#setResults .sets-bridge-more {
+    margin-top: 8px;
+    padding: 0;
+    font: inherit;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: none;
+    color: var(--wf-gold-text);
+    background: none;
+    border: 0;
+    border-bottom: 1px dashed rgba(221, 169, 56, 0.45);
+    cursor: pointer;
+    box-shadow: none;
+}
+
+#setResults .sets-bridge-more:hover,
+#setResults .sets-bridge-more:focus-visible {
+    border-bottom-style: solid;
+    background: none;
+    color: var(--wf-gold-text);
+}
+
+/* La ganancia, apagada: el gancho es cuánto te falta; el platino solo desempata. */
+#setResults .sets-bridge-gain {
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: #8fd0a8;
+    white-space: nowrap;
+}
+
+#setResults .sets-bridge-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+/* Reset del chrome de <button>: es un <button> por lo táctil (utils/tap.js), pero tiene que
+   leerse como un chip, no como un botón. */
+#setResults .sets-bridge-chip {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+    max-width: 100%;
+    margin: 0;
+    padding: 6px 10px;
+    font: inherit;
+    font-size: 0.82rem;
+    text-transform: none;
+    color: #d7dde5;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+}
+
+#setResults .sets-bridge-chip:hover,
+#setResults .sets-bridge-chip:focus-visible {
+    color: #fff;
+    background: rgba(221, 169, 56, 0.14);
+    border-color: rgba(221, 169, 56, 0.4);
+    box-shadow: none;
+}
+
+#setResults .sets-bridge-name {
+    font-weight: 700;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* `rem` y no `em`: el chip ya está a 0.78rem y encadenar otro 0.x lo dejaba por debajo de lo
+   legible (el tropiezo de .ratio-unit a 5,7px que documenta CLAUDE.md). */
+#setResults .sets-bridge-left {
+    font-size: 0.68rem;
+    color: #8b95a3;
+    white-space: nowrap;
+}
+
+/* A una pieza del final es el gancho de toda la tira: se marca. */
+#setResults .sets-bridge-left.is-close {
+    color: var(--wf-green, #42f56c);
+    font-weight: 700;
+}
+
+/* Filtros propios de la tira. `min-width: 0` en los tres: la cabecera es flex y el ancho
+   intrínseco de un <input> (generoso en Firefox) empujaba al selector fuera de la fila. */
+/* Tamaño de campo, no de etiqueta: 0.72rem con 3px de padding daba una caja de ~20px de alto
+   en la que no cabía el cursor cómodamente, y en táctil quedaba por debajo del objetivo mínimo
+   razonable. Ancho completo porque es el control principal de la tira. */
+#setResults .sets-bridge-filter {
+    width: 100%;
+    padding: 9px 12px;
+    font-size: 0.9rem;
+}
+
+#setResults .sets-bridge-max,
+#setResults .sets-bridge-era {
+    flex: 1 1 7rem;
+    min-width: 0;
+    font-size: 0.82rem;
+    padding: 7px 8px;
+}
+
+/* El selector de orden dejó de ir pegado a la derecha: con tres controles en la fila, el
+   margin-left auto los separaba en dos bloques desiguales. */
+#setResults .sets-bridge-sort {
+    margin-left: 0;
+    flex: 1 1 10rem;
+    min-width: 0;
+    font-size: 0.82rem;
+    padding: 7px 8px;
+}
+
+/* El icono del set. 22px es donde una silueta de warframe todavía se distingue de otra; por
+   debajo son todas la misma mancha. `flex-shrink: 0` para que no lo aplaste un nombre largo. */
+#setResults .sets-bridge-icon {
+    width: 22px;
+    height: 22px;
+    object-fit: contain;
+    flex-shrink: 0;
+    align-self: center;
+}
+
+#setResults .sets-bridge-empty {
+    font-size: 0.75rem;
+    color: #8b95a3;
+    padding: 4px 0 2px;
 }

@@ -44,10 +44,15 @@ test("sin el canvas en la página no se hace nada ni se falla", () => {
   assert.doesNotThrow(() => initCanvas());
 });
 
-test("con el canvas, arranca y anima sin errores", () => {
-  conCanvas(() => {
+// El primer frame se pinta síncrono y los siguientes los encadena un temporizador a 15 Hz, no
+// un requestAnimationFrame corriendo a la frecuencia del monitor. Por eso hay que esperar un
+// pulso para ver el segundo: si el encadenado se rompiera, el fondo se quedaría congelado tras
+// el primer frame y ningún test síncrono lo notaría.
+test("con el canvas, arranca y encadena frames", async () => {
+  await conCanvas(async () => {
     assert.doesNotThrow(() => initCanvas());
-    assert.ok(frames > 0, "tiene que haber pedido al menos un frame");
+    await new Promise((r) => globalThis.setTimeout(r, 150));
+    assert.ok(frames > 0, "el bucle tiene que haberse encadenado solo");
   });
 });
 

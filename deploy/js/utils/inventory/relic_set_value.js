@@ -108,6 +108,25 @@ export function relicSetValue(drops, deps) {
 }
 
 /**
+ * Qué set poner en seguimiento al abrir la ficha de una reliquia, o `null` para no tocarlo.
+ *
+ * Separado de quien pinta porque son las dos reglas que evitan que navegar reliquias vaya
+ * pisando el panel, y una regresión ahí no se ve: el panel simplemente cambia de set y
+ * parece que lo pediste tú.
+ *
+ * @param value      resultado de relicSetValue() para esa reliquia
+ * @param currentSet el set que ya se está siguiendo, si hay alguno
+ */
+export function pickSetToTrack(value, currentSet) {
+  // La reliquia no cierra nada tuyo: no hay nada mejor que ofrecer que lo que ya hubiera.
+  if (!value?.bestSet) return null;
+  // El set que ya sigues sale en esta reliquia: se respeta. Cambiarlo por una diferencia de
+  // una pieza tiraría por delante una elección deliberada.
+  if (currentSet && value.missing.some((m) => m.set === currentSet)) return null;
+  return value.bestSet;
+}
+
+/**
  * Textos ya formateados de un resultado, para que el componente solo los envuelva en HTML.
  * @param t textos del idioma activo: { runs, nothing, lastPart, missing }
  */

@@ -59,7 +59,7 @@ export function renderDucanatorView(list, opts = {}) {
     .filter(([name]) => !searchInput || name.toLowerCase().includes(searchInput))
     .map(([name, qty]) => {
       const ducats = getPartDucats(name);
-      const cachedRaw = globalThis.MEMORY_CACHE?.get(getSlug(name));
+      const cachedRaw = MEMORY_CACHE.get(getSlug(name));
       const plat = cachedRaw !== undefined ? (Number.parseInt(cachedRaw, 10) || 0) : null;
       // Efficiency = ducats per plat sacrificed. Unknown/zero plat -> best score.
       const eff = ducatRatio(ducats, plat === null ? 0 : plat);
@@ -90,11 +90,16 @@ export function renderDucanatorView(list, opts = {}) {
   rows.forEach((r) => {
     const platReady = r.plat !== null;
     const shouldFund = !platReady || r.plat <= KEEP_PLAT_THRESHOLD;
-    if (shouldFund) {
-      fundableDucats += r.ducats * r.qty;
-      fundableParts += r.qty;
-    } else {
-      keepPlat += r.plat * r.qty;
+    // Sin precio todavía la fila se coloca en "cambiar por ducados", que es donde acabará la
+    // mayoría, pero NO suma al total: en el primer pintado no se sabe aún nada y el número
+    // dorado salía con el inventario entero dentro, para desinflarse al llegar los precios.
+    if (platReady) {
+      if (shouldFund) {
+        fundableDucats += r.ducats * r.qty;
+        fundableParts += r.qty;
+      } else {
+        keepPlat += r.plat * r.qty;
+      }
     }
     const effTxt = r.eff === Infinity ? "∞" : r.eff.toFixed(1);
     const platTxt = platReady ? `${r.plat}` : "...";
@@ -138,7 +143,10 @@ export function renderDucanatorView(list, opts = {}) {
         ${th("ratio", dt.colRatio || "Ratio", "num")}
       </div>`;
 
-  const emptyMsg = dt.empty || "No prime parts with ducat value. Scan or add parts first.";
+  const emptyMsg = dt.empty || "No prime parts with ducat value.";
+  // La pista explica QUÉ hace la pestaña, no solo que está vacía: es el primer contacto de
+  // quien nunca la ha abierto, y "sin partes prime" no dice para qué sirve Ducados.
+  const emptyHint = dt.emptyHint || "";
   const section = (label, items, kind) => items.length === 0 ? "" : `
       <div class="duc-section duc-section-${kind}">
         <div class="duc-section-header">
@@ -162,7 +170,9 @@ export function renderDucanatorView(list, opts = {}) {
         </div>
       </div>
       ${rows.length === 0
-        ? `<div class="duc-empty">${escapeHTML(emptyMsg)}</div>`
+        ? `<div class="duc-empty">${escapeHTML(emptyMsg)}`
+          + (emptyHint ? `<span class="duc-empty-hint">${escapeHTML(emptyHint)}</span>` : "")
+          + `</div>`
         : headerRow
           + section(dt.fundSection || "Trade for ducats", fundRows, "fund")
           + section(dt.keepSection || "Better to sell", keepRows, "keep")}

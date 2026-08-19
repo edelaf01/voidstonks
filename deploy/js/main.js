@@ -1,8 +1,9 @@
 import "./utils/debug_log.js"; // PRIMERO: silencia console.log/info/debug/warn si DEBUG_LOGS=false
 import { initCanvas } from "./utils/canvas.js";
 import { downloadRelics } from "./services/inventory/relics.service.js";
+import { renderFarmRoutes } from "./ui.components/farms/ui_farm_routes.js";
 import { fetchRivenWeapons } from "./services/rivens/rivens.service.js";
-import { fetchUserProfile } from "./services/profile.service.js";
+// import { fetchUserProfile } from "./services/profile.service.js";  // ver nota del perfil abajo
 import { fetchPrimeManifest } from "./repositories/api.repository.js";
 import { warmupPrices } from "./services/inventory/inventory.service.js";
 import { preloadPricesToMemory, ensurePriceSnapshot } from "./repositories/storage.repository.js";
@@ -26,7 +27,12 @@ import {
 } from "./ui.js?v=2.3";
 import { initFissurePanel } from "./ui.components/farms/ui_fissures.js?v=1.1";
 import { initSyncPanel } from "./ui.components/market/ui_sync.js";
-import { calculateCaps, renderProfileStats } from "./ui.components/market/ui_profile.js";
+// Perfil / calculadora de MR DESACTIVADO, igual que el traductor de Kubrows: no hay pestaña
+// que lo aloje. renderProfileStats() pinta en #profile-data y calculateCaps() lee #mrInput, y
+// ninguno de los dos existe en index.html desde hace tiempo — se publicaban tres globales que
+// nadie podía invocar. El módulo y profile.service.js quedan intactos; para reactivarlo hacen
+// falta el marcado y descomentar estas líneas y sus entradas de exposeGlobals.
+// import { calculateCaps, renderProfileStats } from "./ui.components/market/ui_profile.js";
 import {
   initGlobalTooltipSystem,
   preloadCriticalAssets,
@@ -164,6 +170,12 @@ async function loadAsyncData() {
       manualRelicUpdate();
     }
     if (state.currentActiveSet) renderSetTracker();
+
+    // Las rutas necesitan setsDatabase/itemsDatabase, que acaban de llegar. switchTab() ya las
+    // pidió al arrancar, pero eso corre ANTES de esta descarga: el panel se encontraba las bases
+    // vacías, se ocultaba y no volvía a intentarlo — solo reaparecía al cambiar de pestaña y
+    // volver, que es cuando switchTab se ejecuta otra vez.
+    renderFarmRoutes().catch((e) => console.warn("[rutas] tras cargar datos:", e));
 
     warmupPrices().catch(console.error);
   } catch (error) {
@@ -330,9 +342,6 @@ exposeGlobals({
   changeLanguage,
   handleRivenInput,
   openRivenMarket,
-  fetchUserProfile,
-  calculateCaps,
-  renderProfileStats,
   toggleLangDropdown,
   setLanguageManual,
   openScanner,

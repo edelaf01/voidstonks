@@ -327,3 +327,34 @@
   background: color-mix(in srgb, var(--active-theme-color, #00e5ff) 10%, rgba(12, 14, 18, 0.92));
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
 }
+
+/* ---- Estados vacíos con pista de uso ---- */
+/*
+ * Un "no hay nada" describe el estado; la pista dice para qué sirve el apartado. Quien lee un
+ * estado vacío suele ser justo quien nunca ha usado esa función, así que es el mejor sitio para
+ * explicarla — y el único que se ve sin tener que buscar ayuda.
+ *
+ * `rem` y no `em`: este bloque cuelga de un contenedor que ya reduce el tamaño, y encadenar
+ * otro 0.x deja la pista por debajo de lo legible (el tropiezo de .ratio-unit a 5,7px que
+ * documenta CLAUDE.md).
+ *
+ * .duc-empty NO está aquí: ya vivía en styles.css y se amplió allí, que es la regla del repo
+ * para lo que ya existe en la hoja monolítica.
+ */
+.lfg-empty {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 6px 5px;
+    font-size: 0.8rem;
+    font-style: italic;
+    color: #6e7681;
+}
+
+.lfg-empty-hint {
+    font-size: 0.75rem;
+    font-style: normal;
+    line-height: 1.4;
+    color: #8b95a3;
+    max-width: 62ch;
+}

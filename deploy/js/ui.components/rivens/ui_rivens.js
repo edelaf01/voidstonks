@@ -2087,7 +2087,7 @@ export function selectRivenWeapon(name) {
 
 export function openRivenMarket() {
   const inputVal = document.getElementById("rivenWeaponInput")?.value.trim();
-  if (!inputVal) return showToast("Por favor selecciona un arma primero");
+  if (!inputVal) return showToast(TEXTS[state.currentLang]?.errNoWeapon || "Pick a weapon first.");
 
   let url = `https://warframe.market/auctions/search?type=riven&weapon_url_name=${getRivenSlug(inputVal)}&polarity=any&sort_by=price_asc`;
 
@@ -4207,7 +4207,7 @@ export function renderRivenIndexList(items) {
               
               <!-- Group 1: REAL DATA (DE OFFICIAL TRADES) -->
               <div class="price-group-section de-official">
-                <div style="font-size: 8px; color: var(--wf-gold-text); font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid rgba(212, 175, 55, 0.15); padding-bottom: 2px; margin-bottom: 2px; display: flex; align-items: center; gap: 4px;">
+                <div style="font-size: 10px; color: var(--wf-gold-text); font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid rgba(212, 175, 55, 0.15); padding-bottom: 2px; margin-bottom: 2px; display: flex; align-items: center; gap: 4px;">
                   <span>${isEs ? "DATOS REALES (DE)" : "REAL DATA (DE)"}</span>
                 </div>
                 <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
@@ -4230,7 +4230,7 @@ export function renderRivenIndexList(items) {
 
               <!-- Group 2: WEB DATA (WFM ACTIVE SHOWCASE) -->
               <div class="price-group-section wfm-web">
-                <div style="font-size: 8px; color: var(--wf-blue); font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid rgba(0, 229, 255, 0.15); padding-bottom: 2px; margin-bottom: 2px;">
+                <div style="font-size: 10px; color: var(--wf-blue); font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid rgba(0, 229, 255, 0.15); padding-bottom: 2px; margin-bottom: 2px;">
                   ${isEs ? "DATOS WEB (WFM)" : "WEB DATA (WFM)"}
                 </div>
                 <span class="index-card-price-span" data-tooltip="${wfmTooltip}" style="cursor: help; display: inline-flex; align-items: center; gap: 4px; height: 100%;">
@@ -4242,7 +4242,7 @@ export function renderRivenIndexList(items) {
               <!-- Group 3: MARKET VOLATILITY / RISK -->
               ${volatilityHtml ? `
               <div class="price-group-section market-risk">
-                <div style="font-size: 8px; color: #a0a0a5; font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 2px; margin-bottom: 2px;">
+                <div style="font-size: 10px; color: #a0a0a5; font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 2px; margin-bottom: 2px;">
                   ${isEs ? "RIESGO DE MERCADO" : "MARKET RISK"}
                 </div>
                 <div style="display: inline-flex; align-items: center; height: 100%;">

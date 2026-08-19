@@ -904,6 +904,14 @@
     white-space: nowrap;
 }
 
+/* En movil la columna del titulo se queda en ~97px y "Fast Sale (Liquidity)" con nowrap
+   medía 123: el distintivo asomaba fuera de la tarjeta. Partirlo es preferible a recortarlo. */
+@media (max-width: 600px) {
+    .vosfor-pack-title .badge-vosfor {
+        white-space: normal;
+    }
+}
+
 .badge-best-spend {
     background: rgba(66, 245, 108, 0.15);
     color: #42f56c;

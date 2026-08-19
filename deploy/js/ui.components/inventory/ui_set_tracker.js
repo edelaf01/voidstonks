@@ -1,9 +1,11 @@
 import { state } from "../../state.js";
 import { exposeGlobals } from "../../utils/global_registry.js";
-import { TEXTS } from "../../config.js";
+import { TEXTS, DROP_CHANCES } from "../../config.js";
+import { relicSetValue, pickSetToTrack } from "../../utils/inventory/relic_set_value.js";
 import { escapeHTML } from "../../utils/escape_html.js";
 import { showToast } from "../ui_components.js";
 import { getSlug } from "../../utils/slugs.utils.js";
+import { addToQueue } from "../../services/market/prices.service.js";
 import {
   getItemIcon,
   getSetName,
@@ -36,6 +38,9 @@ const SIM_TEXTS = {
     partRunsTitle: "Promedio estimado: ~{runs} runs para 1 copia",
     descText: "De media obtienes <strong>{targetName}</strong> en <strong>~{avgRuns} runs</strong> jugando con <strong>{players} jugador(es)</strong> usando reliquia <strong>{refName}</strong>.",
     rangeText: "Caso Mejor: <strong>{bestRuns} run(s)</strong> | Promedio: <strong>~{avgRuns} runs</strong> | Caso Peor (95% suerte): <strong>~{worstRuns} runs</strong>.",
+    setsBadgeOne: "set completo",
+    setsBadgeMany: "sets completos",
+    setPriceTitle: "Precio del set entero en warframe.market",
   },
   en: {
     allPartsLabel: "this whole Set",
@@ -59,8 +64,48 @@ const SIM_TEXTS = {
     partRunsTitle: "Estimated average: ~{runs} runs for 1 copy",
     descText: "On average you obtain <strong>{targetName}</strong> in <strong>~{avgRuns} runs</strong> playing with <strong>{players} player(s)</strong> using <strong>{refName}</strong> relics.",
     rangeText: "Best Case: <strong>{bestRuns} run(s)</strong> | Average: <strong>~{avgRuns} runs</strong> | Worst Case (95% luck): <strong>~{worstRuns} runs</strong>.",
+    setsBadgeOne: "full set",
+    setsBadgeMany: "full sets",
+    setPriceTitle: "Price of the whole set on warframe.market",
   }
 };
+
+/**
+ * Fija el seguimiento al set que esta reliquia te deja más cerca de cerrar.
+ *
+ * `relicSetValue` ya resuelve el "más cerca" con el matiz que importa: un set EMPEZADO gana
+ * a uno intacto, porque si no los sets de 2 piezas ganaban siempre a los warframes de 5.
+ *
+ * Dos frenos, para que abrir reliquias no vaya pisando el panel:
+ *  - Si la reliquia no cierra nada tuyo (`bestSet` nulo), se deja como estaba.
+ *  - Si el set que ya sigues está entre lo que suelta, se respeta: cambiarlo sería tirar
+ *    por delante una elección deliberada por una diferencia de una pieza.
+ */
+export function trackBestSetForRelic(relicName) {
+  const drops = state.relicsDatabase?.[relicName];
+  if (!Array.isArray(drops) || drops.length === 0) return;
+
+  const value = relicSetValue(drops, {
+    setsDatabase: state.setsDatabase,
+    primeInventory: state.primeInventory,
+    getSetName,
+    getRequiredCount,
+    dropChances: DROP_CHANCES[state.refinement] || DROP_CHANCES.Rad,
+    squadSize: state.squadSize || 4,
+  });
+
+  const target = pickSetToTrack(value, state.currentActiveSet);
+  if (!target) return;
+
+  const parts = Object.keys(state.itemsDatabase || {}).filter(
+    (n) => (n === target || n.startsWith(target + " ")) && !n.endsWith(" Set"),
+  );
+  if (parts.length === 0) return;
+
+  state.currentActiveSet = target;
+  state.activeSetParts = parts;
+  renderSetTracker();
+}
 
 export function getPartShortName(partName, setName) {
   if (!partName) return "";
@@ -222,7 +267,11 @@ export function renderSetTracker() {
   const badgeColor = totalFullSets > 0 ? "var(--wf-gold-text)" : "#666";
   const badgeBg = totalFullSets > 0 ? "rgba(221,169,56,0.15)" : "rgba(100,100,100,0.1)";
   const badgeBorder = totalFullSets > 0 ? "rgba(221,169,56,0.3)" : "rgba(100,100,100,0.2)";
-  const setBadge = `<span style="color:${badgeColor}; font-weight:bold; font-size:0.8em; background:${badgeBg}; border:1px solid ${badgeBorder}; padding:2px 6px; border-radius:4px; text-transform:uppercase; white-space:nowrap; text-align:center;">(${totalFullSets} ${t.countMsg || "Sets"})</span>`;
+  // `totalFullSets` son SETS COMPLETOS que ya tienes, pero el rótulo salía de countMsg
+  // ("items"), así que el badge decía "(1 ITEMS)" junto a un set de 4 piezas. El fallback
+  // "Sets" nunca entraba porque countMsg sí existe.
+  const setsWord = totalFullSets === 1 ? st.setsBadgeOne : st.setsBadgeMany;
+  const setBadge = `<span style="color:${badgeColor}; font-weight:bold; font-size:0.8em; background:${badgeBg}; border:1px solid ${badgeBorder}; padding:2px 6px; border-radius:4px; text-transform:uppercase; white-space:nowrap; text-align:center;">${totalFullSets} ${setsWord}</span>`;
 
   // Puente al mercado: teniendo el set completo, el siguiente paso natural es venderlo.
   // Solo redirige —publicar vive en la pestaña de órdenes, que ya sabe de sesión, precios
@@ -287,6 +336,7 @@ export function renderSetTracker() {
           <span style="font-weight:bold; font-size:1.15em; color:var(--wf-gold-text); filter:drop-shadow(0 2px 4px rgba(221,169,56,0.3));">${state.currentActiveSet}</span>
         </a>
         ${setBadge}
+        <span id="tracker-set-price" class="price-badge loading" title="${escapeHTML(st.setPriceTitle)}">...</span>
         ${sellBtnHtml}
       </div>
 
@@ -314,6 +364,11 @@ export function renderSetTracker() {
     </div>
     <div id="tracker-explanation-wrapper">${explanationHtml}</div>
   `;
+
+  // Mismo camino que usa la pestaña Set para su badge de precio: addToQueue resuelve contra
+  // la caché de precios y updatePriceUI le quita el "loading". Va después del innerHTML
+  // porque necesita el nodo ya montado.
+  addToQueue(state.currentActiveSet + " Set", document.getElementById("tracker-set-price"));
 
   state.activeSetParts.forEach((partName) => {
     const wrapper = document.createElement("div");
@@ -462,7 +517,7 @@ export function renderSetTracker() {
       globalThis.modifyPrimePart(partName, 1);
       state.completedParts.add(partName);
       renderSetTracker();
-      showToast(`${partName} +1`);
+      showToast((TEXTS[state.currentLang]?.setTab?.partAdded || "{part} +1").replace("{part}", partName));
     };
 
     controlsDiv.appendChild(btnMinus);

@@ -173,10 +173,31 @@ function buildFanItems() {
       }
     }
 
+    // Etiqueta y, debajo, la frase que explica la pestaña.
+    //
+    // En movil solo caben cuatro pestañas (MOBILE_MAX_TABS) y el resto vive aqui dentro, asi
+    // que este menu es el UNICO sitio donde se descubren Vosfor, Ducados, Farms, LFG y Mis
+    // ordenes. Con el nombre a secas hay que entrar en cada una para saber que hace.
+    //
+    // El texto sale del data-tooltip que updateNavTabs() ya pone en cada boton: la misma
+    // frase que en escritorio se ve al pasar por encima, aqui impresa. Una sola fuente, asi
+    // que no puede acabar diciendo una cosa el tooltip y otra el menu.
+    const textos = document.createElement("span");
+    textos.className = "tab-fan-text";
+
     const span = document.createElement("span");
     span.className = "tab-fan-label";
     span.textContent = getTabLabel(mode);
-    item.appendChild(span);
+    textos.appendChild(span);
+
+    const desc = document.getElementById("btn-" + mode)?.dataset.tooltip;
+    if (desc) {
+      const p = document.createElement("span");
+      p.className = "tab-fan-desc";
+      p.textContent = desc;
+      textos.appendChild(p);
+    }
+    item.appendChild(textos);
 
     if (document.getElementById("btn-" + mode)?.classList.contains("active")) {
       item.classList.add("is-active");

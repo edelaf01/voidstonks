@@ -960,31 +960,6 @@ function detectInventoryGridCore(img, opts = {}) {
     };
 }
 
-/**
- * Guarda de plausibilidad para una calibración de rejilla GUARDADA (manual) que se
- * va a usar como fallback cuando el auto-grid no da señal este frame. La calibración
- * manual deriva las columnas de un simple ratio de aspecto de la caja arrastrada
- * (live_calibration.saveGrid), así que una caja mal dibujada (p.ej. toda la pantalla)
- * produce una rejilla basura —celdas enormes, columnas equivocadas, la zona invade el
- * panel de venta de la derecha— y recorta ítems/badges partidos. Preferimos NO escanear
- * a escanear con una rejilla basura.
- *
- * Una rejilla de inventario real ocupa ~11% del ancho por celda y ~20% del alto por
- * fila, y su zona no llega al panel lateral (~65% del ancho). Se rechaza si la zona
- * abarca casi todo el frame o si las celdas son desproporcionadamente grandes.
- *
- * @returns {boolean} true si la calibración es implausible y NO debe usarse.
- */
-export function isImplausibleFallbackGrid(calib, frameW, frameH) {
-    if (!calib || !frameW || !frameH) return true;
-    const zone = calib.gridZone;
-    if (!zone || !zone.w || !zone.h) return true;
-    if (zone.w > frameW * 0.85) return true; // zona invade el panel de venta / todo el ancho
-    if (calib.cellW && calib.cellW > frameW * 0.16) return true; // celdas demasiado anchas (pocas columnas)
-    if (calib.cellH && calib.cellH > frameH * 0.28) return true; // filas demasiado altas
-    return false;
-}
-
 const REWARD_DEFAULTS = {
     ...DEFAULTS,
     // Las cards de recompensa NO están donde el frame de cámara "dice" que deberían
@@ -996,7 +971,7 @@ const REWARD_DEFAULTS = {
     // fuerte de todo el frame en vez de una cadena de 3 filas equiespaciadas.
     minCardW: 0.08,   // una card de recompensa nunca es más angosta que ~8% del ancho de SU banda
     maxCards: 4,
-    minCards: 1,
+    minCards: 2,      // con 1 bloque no se distingue "recompensa suelta" de la barra de título
 };
 
 /**

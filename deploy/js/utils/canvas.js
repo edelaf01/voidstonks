@@ -2,9 +2,10 @@ export function initCanvas() {
   const canvas = document.getElementById("void-traces-canvas");
   if (!canvas) return;
 
-  const ctx = canvas.getContext("2d", { alpha: true });
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = "high";
+  // Sin imageSmoothing: solo afecta a drawImage y aquí solo se pintan líneas y arcos.
+  // `desynchronized` deja al navegador saltarse la sincronía con el resto de la página, que es
+  // exactamente lo que quieres de un fondo decorativo: nunca debe hacer esperar a la UI.
+  const ctx = canvas.getContext("2d", { alpha: true, desynchronized: true });
   const TARGET_FPS = 15;
   const SPEED_MULTI = 2;
   const PARTICLE_COUNT = 15;
@@ -50,7 +51,6 @@ export function initCanvas() {
     grid = [],
     particles = [];
   const frameDelay = 1000 / TARGET_FPS;
-  let then = Date.now();
   const directions = [
     { dx: 0, dy: -1 }, // 0: N
     { dx: 1, dy: -1 }, // 1: NE
@@ -241,11 +241,10 @@ export function initCanvas() {
         }
       }
     }
-    draw() {
+    draw(activeColor) {
       if (this.path.length < 2) return;
       const sx = (x) => x * CELL_SIZE + CELL_SIZE / 2;
       const sy = (y) => y * CELL_SIZE + CELL_SIZE / 2;
-      const activeColor = getThemeColorRGB();
       ctx.lineWidth = 2;
       ctx.lineCap = "square";
       ctx.lineJoin = "bevel";
@@ -295,7 +294,10 @@ export function initCanvas() {
   }
 
   function initSystem() {
-    const dpr = window.devicePixelRatio || 1;
+    // Acotado a 1,5: el backing store crece con el CUADRADO del dpr, así que en un 4K a dpr 2
+    // son ~15 M de píxeles que hay que limpiar y repintar enteros cada frame. Para unas líneas
+    // de 2px translúcidas de fondo, la diferencia entre 1,5 y 2 no se ve; la factura de GPU sí.
+    const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
     width = window.innerWidth;
     height = window.innerHeight;
     canvas.width = width * dpr;
@@ -316,23 +318,40 @@ export function initCanvas() {
   });
   initSystem();
 
-  function animate() {
-    requestAnimationFrame(animate);
-    const now = Date.now();
-    const elapsed = now - then;
-    if (elapsed > frameDelay) {
-      then = now - (elapsed % frameDelay);
+  function frame() {
+    if (Math.random() < 0.05) spawnBus();
 
-      if (Math.random() < 0.05) {
-        spawnBus();
-      }
+    // UNA resolución de color por frame, no una por partícula. getComputedStyle fuerza un
+    // recálculo de estilo del documento entero: a 15 partículas x 15 fps eran 225 recálculos
+    // por segundo provocados por un adorno del fondo. Es lo más caro que había aquí.
+    const activeColor = getThemeColorRGB();
 
-      ctx.clearRect(0, 0, width, height);
-      for (let i = 0; i < SPEED_MULTI; i++) {
-        particles.forEach((p) => p.update());
-      }
-      particles.forEach((p) => p.draw());
-    }
+    ctx.clearRect(0, 0, width, height);
+    for (let i = 0; i < SPEED_MULTI; i++) particles.forEach((p) => p.update());
+    particles.forEach((p) => p.draw(activeColor));
+
+    schedule();
   }
-  animate();
+
+  // setTimeout marca el ritmo y rAF solo decide el instante de pintado. Antes el rAF corría a
+  // la frecuencia del monitor y descartaba 9 de cada 10 frames por un contador: en un panel de
+  // 144 Hz eran ~145 despertares por segundo para pintar 15, y con eso ni la CPU ni la GPU
+  // llegan a entrar en reposo. Además, con la pestaña de fondo el navegador frena el
+  // setTimeout y no dispara el rAF, así que se detiene solo sin vigilar nada.
+  let pending;
+  function schedule() {
+    clearTimeout(pending);
+    pending = setTimeout(() => requestAnimationFrame(frame), frameDelay);
+  }
+
+  // Quien pide menos movimiento se queda con el fondo quieto: se pinta un frame y se para.
+  const quieto = window.matchMedia?.("(prefers-reduced-motion: reduce)");
+  if (quieto?.matches) {
+    particles.forEach((p) => p.update());
+    particles.forEach((p) => p.draw(getThemeColorRGB()));
+  } else {
+    // El primer frame se pinta ya y él mismo encadena el siguiente: arrancar por el temporizador
+    // dejaba el fondo en blanco los primeros 66 ms de cada carga.
+    frame();
+  }
 }

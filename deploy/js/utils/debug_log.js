@@ -15,12 +15,12 @@
  */
 export const DEBUG_LOGS = false;
 
-// Diagnóstico del cuelgue del escáner: mientras dure, los logs quedan ACTIVOS por
-// defecto sin tocar DEBUG_LOGS (que debe seguir en false: `tests/debug-log.test.mjs`
-// falla si se despliega en true, y esa guarda vale la pena conservarla).
-// Para volver a silenciarlos, en la consola del navegador:
+// Interruptor para dejar los logs ACTIVOS por defecto durante una investigación, sin tocar
+// DEBUG_LOGS (que debe seguir en false: `tests/debug-log.test.mjs` falla si se despliega en
+// true, y esa guarda vale la pena conservarla). En false, que es lo normal en producción.
+// Con él puesto, se silencian caso por caso con:
 //     localStorage.setItem("vs_debug_logs", "0")   // y recarga
-const FORCE_LOGS_WHILE_DEBUGGING = true;
+const FORCE_LOGS_WHILE_DEBUGGING = false;
 
 const stored = typeof localStorage !== "undefined" ? localStorage.getItem("vs_debug_logs") : null;
 const enabled = DEBUG_LOGS
