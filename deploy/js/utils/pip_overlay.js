@@ -1,5 +1,5 @@
 import { state } from "../state.js";
-import { escapeHTML } from "../ui.components/ui_components.js";
+import { escapeHTML } from "./escape_html.js";
 
 let pipWindow = null;
 

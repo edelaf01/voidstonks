@@ -1,22 +1,27 @@
-const MOBILE_BREAKPOINT = 768;
+// moves site-content and footer inside the scrolling container on mobile
 
-let footerEl = null;
-let originalParent = null;
-let originalNext = null;
+const MOBILE_BREAKPOINT = 768;
+const SELECTORS = [".site-content", ".site-footer"];
+
+let blocks = [];
 let movedToScroll = false;
 
 function moveIntoScroll() {
   const contentArea = document.querySelector(".content-area");
-  if (!contentArea || movedToScroll || !footerEl) return;
-  contentArea.appendChild(footerEl);
-  footerEl.classList.add("in-scroll");
+  if (!contentArea || movedToScroll || !blocks.length) return;
+  for (const b of blocks) {
+    contentArea.appendChild(b.el);
+    b.el.classList.add("in-scroll");
+  }
   movedToScroll = true;
 }
 
 function restore() {
-  if (!movedToScroll || !footerEl || !originalParent) return;
-  originalParent.insertBefore(footerEl, originalNext);
-  footerEl.classList.remove("in-scroll");
+  if (!movedToScroll || !blocks.length) return;
+  for (const b of blocks) {
+    b.anchor.parentNode?.insertBefore(b.el, b.anchor);
+    b.el.classList.remove("in-scroll");
+  }
   movedToScroll = false;
 }
 
@@ -26,11 +31,15 @@ function apply() {
 }
 
 export function initMobileFooter() {
-  footerEl = document.querySelector(".site-footer");
-  if (!footerEl) return;
-
-  originalParent = footerEl.parentElement;
-  originalNext = footerEl.nextElementSibling;
+  // fixed anchor comment node: the next sibling can move and insertBefore threw NotFoundError
+  blocks = SELECTORS.map((sel) => {
+    const el = document.querySelector(sel);
+    if (!el) return null;
+    const anchor = document.createComment(`vs-anchor:${sel}`);
+    el.parentElement.insertBefore(anchor, el);
+    return { el, anchor };
+  }).filter(Boolean);
+  if (!blocks.length) return;
 
   apply();
   globalThis.addEventListener("resize", apply);

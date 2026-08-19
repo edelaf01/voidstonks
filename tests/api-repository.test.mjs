@@ -1,0 +1,130 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+
+globalThis.localStorage = { getItem: () => null, setItem() {}, removeItem() {} };
+
+const llamadas = [];
+let responder = async () => ({ ok: true, status: 200, json: async () => ({}) });
+
+globalThis.fetch = async (url, init) => {
+  llamadas.push({ url: String(url), init });
+  return responder(String(url), init);
+};
+
+const api = await import("../deploy/js/repositories/api.repository.js");
+
+const ultima = () => llamadas.at(-1);
+const reset = () => { llamadas.length = 0; };
+
+test("los datos que rotan se piden con no-cache", async () => {
+  reset();
+  for (const pedir of [api.getActiveBounties, api.getActiveFissures, api.getArbitration, api.getLichWeapons]) {
+    await pedir();
+    assert.equal(ultima().init.cache, "no-cache", ultima().url);
+  }
+});
+
+test("forzar el refresco estrena clave de caché para esquivar también al edge", async () => {
+  reset();
+  await api.getActiveBounties(false);
+  assert.ok(!ultima().url.includes("_cb="), "sin force no se ensucia la URL");
+
+  await api.getActiveBounties(true);
+  assert.match(ultima().url, /[?&]_cb=\d+/, "con force sí");
+});
+
+test("lo que solo vale ahora se pide con no-store", async () => {
+  reset();
+  await api.getServerTime();
+  assert.equal(ultima().init.cache, "no-store");
+
+  await api.sendSyncMessage("1234", "hola");
+  assert.equal(ultima().init.cache, "no-store");
+
+  await api.getSyncMessage("1234");
+  assert.equal(ultima().init.cache, "no-store");
+});
+
+test("el catálogo NO desactiva la caché del navegador", async () => {
+  reset();
+  responder = async () => ({ ok: true, status: 200, json: async () => ({ p: {} }) });
+
+  await api.getPricesSnapshot();
+  assert.equal(ultima().init.cache, undefined, "el snapshot de precios se cachea");
+
+  await api.getPricesBatch(["ash_prime_set"]);
+  assert.equal(ultima().init.cache, undefined, "los lotes de precios también");
+});
+
+test("cada petición lleva una señal de aborto viva", async () => {
+  reset();
+  await api.getActiveFissures();
+  const { signal } = ultima().init;
+  assert.ok(signal, "sin signal no hay timeout posible");
+  assert.equal(signal.aborted, false, "no puede llegar ya abortada");
+  assert.equal(typeof signal.addEventListener, "function");
+});
+
+test("si la petición se aborta, el error sale afuera y no se traga", async () => {
+  reset();
+  responder = async () => { throw new Error("AbortError"); };
+  await assert.rejects(() => api.getServerTime(), /AbortError/);
+  responder = async () => ({ ok: true, status: 200, json: async () => ({}) });
+});
+
+test("si una de las tres respuestas falla, no se construye una base a medias", async () => {
+  reset();
+  responder = async (url) => ({
+    ok: !url.includes("bounties_opt"),
+    status: url.includes("bounties_opt") ? 502 : 200,
+    json: async () => ({}),
+  });
+
+  await assert.rejects(() => api.loadRelicsData("clave_test", 60000), /Partial/);
+  responder = async () => ({ ok: true, status: 200, json: async () => ({}) });
+});
+
+test("las tres piezas del catálogo se piden a la vez, no en cadena", async () => {
+  reset();
+  let simultaneas = 0;
+  let maximo = 0;
+  responder = async () => {
+    simultaneas++;
+    maximo = Math.max(maximo, simultaneas);
+    await new Promise((r) => setTimeout(r, 10));
+    simultaneas--;
+    return { ok: true, status: 200, json: async () => ({}) };
+  };
+
+  await api.loadRelicsData("clave_test2", 60000);
+  assert.equal(maximo, 3, "las tres deben solaparse");
+  responder = async () => ({ ok: true, status: 200, json: async () => ({}) });
+});
+
+test("el resultado rellena las claves que falten en vez de dejarlas sin definir", async () => {
+  reset();
+  responder = async () => ({ ok: true, status: 200, json: async () => ({}) });
+
+  const datos = await api.loadRelicsData("clave_test3", 60000);
+  assert.deepEqual(datos.relics, []);
+  assert.deepEqual(datos.missionRewards, {});
+  assert.deepEqual(datos.cetusBountyRewards, []);
+  assert.deepEqual(datos.solarisBountyRewards, []);
+  assert.deepEqual(datos.zarimanRewards, []);
+  assert.deepEqual(datos.deimosRewards, []);
+});
+
+test("los slugs se codifican al ir en la querystring", async () => {
+  reset();
+  await api.getProfileData("Tenno Con Espacio", "pc");
+  assert.ok(!ultima().url.includes("Tenno Con Espacio"), ultima().url);
+  assert.match(ultima().url, /Tenno(%20|\+)Con/);
+});
+
+test("el buzón de sync codifica el mensaje: puede llevar corchetes y comas", async () => {
+  reset();
+  await api.sendSyncMessage("1234", "[Lith A1] x3, [Axi Z9] x1");
+  const u = ultima().url;
+  assert.ok(!u.includes("[Lith A1]"), "sin codificar, los corchetes rompen la URL");
+  assert.match(u, /id=1234/);
+});

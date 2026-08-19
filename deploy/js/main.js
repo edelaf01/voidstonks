@@ -1,22 +1,20 @@
 import "./utils/debug_log.js";
 import { initCanvas } from "./utils/canvas.js";
-import {
-  downloadRelics,
-  fetchRivenWeapons,
-  fetchUserProfile,
-  fetchPrimeManifest,
-  warmupPrices,
-  preloadPricesToMemory,
-} from "./api.js";
+import { downloadRelics } from "./services/inventory/relics.service.js";
+import { renderFarmRoutes } from "./ui.components/farms/ui_farm_routes.js";
+import { fetchRivenWeapons } from "./services/rivens/rivens.service.js";
+import { fetchPrimeManifest } from "./repositories/api.repository.js";
+import { warmupPrices } from "./services/inventory/inventory.service.js";
+import { preloadPricesToMemory, ensurePriceSnapshot } from "./repositories/storage.repository.js";
+import { exposeGlobals } from "./utils/global_registry.js";
 import { state, loadAppState, saveAppState, hydrateDOM } from "./state.js";
 import { startLiveSession, stopLiveSession } from "./scanner/live_scanner.js";
 import { openPiP, initPiP } from "./utils/pip_overlay.js";
 import {
   openScanner,
   closeScanner,
-  captureRelics,
   handleFileUpload,
-} from "./utils/scanner.js";
+} from "./scanner/scanner_controller.js";
 import {
   switchTab,
   changeLanguage,
@@ -26,9 +24,8 @@ import {
   toggleLangDropdown,
   setLanguageManual,
 } from "./ui.js?v=2.3";
-import { initFissurePanel } from "./ui.components/ui_fissures.js?v=1.1";
-import { initSyncPanel } from "./ui.components/ui_sync.js";
-import { calculateCaps, renderProfileStats } from "./ui.components/ui_profile.js";
+import { initFissurePanel } from "./ui.components/farms/ui_fissures.js?v=1.1";
+import { initSyncPanel } from "./ui.components/market/ui_sync.js";
 import {
   initGlobalTooltipSystem,
   preloadCriticalAssets,
@@ -37,16 +34,16 @@ import {
   toggleInventoryPanel,
   renderInventory,
   clearInventory,
-  renderPrimeInventory,
-} from "./ui.components/ui_inventory.js";
-import { manualRelicUpdate } from "./ui.components/ui_relics.js";
-import { renderSetTracker } from "./ui.components/ui_sets.js";
+} from "./ui.components/inventory/ui_inventory.js";
+import { renderPrimeInventory } from "./ui.components/inventory/ui_prime_inventory.js";
+import { manualRelicUpdate } from "./ui.components/inventory/ui_relics.js";
+import { renderSetTracker } from "./ui.components/inventory/ui_set_tracker.js";
 import { initLFGPresets } from "./ui.components/ui_lfg.js";
 import {
   handleRivenInput,
   openRivenMarket,
   updateSelectExclusions,
-} from "./ui.components/ui_rivens.js?v=1.11";
+} from "./ui.components/rivens/ui_rivens.js?v=1.11";
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.getRegistrations().then(function (registrations) {
     for (let registration of registrations) {
@@ -56,7 +53,7 @@ if ("serviceWorker" in navigator) {
   });
 }
 import { initVosforTab } from "./ui.components/ui_vosfor.js?v=2.9";
-import "./ui.components/ui_orders.js?v=1.0";
+import "./ui.components/market/ui_orders.js?v=1.0";
 import { initTabFan } from "./ui.components/ui_tab_fan.js?v=1.1";
 import { initMobileFooter } from "./ui.components/ui_mobile_footer.js?v=1.0";
 
@@ -153,6 +150,7 @@ async function loadAsyncData() {
   try {
     initFissurePanel().catch(console.error);
     preloadPricesToMemory().catch(console.error);
+    ensurePriceSnapshot().catch(console.error);
     await Promise.all([fetchRivenWeapons(), fetchPrimeManifest()]);
     await downloadRelics();
     if (state.selectedRelic) {
@@ -161,6 +159,8 @@ async function loadAsyncData() {
       manualRelicUpdate();
     }
     if (state.currentActiveSet) renderSetTracker();
+
+    renderFarmRoutes().catch((e) => console.warn("[rutas] tras cargar datos:", e));
 
     warmupPrices().catch(console.error);
   } catch (error) {
@@ -175,7 +175,7 @@ document.addEventListener("visibilitychange", () => {
 let activeScannerInstance = null;
 let isScannerActive = false;
 
-globalThis.startMobileScanner = async function () {
+async function startMobileScanner() {
   const scanBtn = document.getElementById("mobile-scan-btn");
 
   if (isScannerActive && activeScannerInstance) {
@@ -319,29 +319,20 @@ document.addEventListener("visibilitychange", () => {
 });
 globalThis.switchTab = wrapperSwitchTab;
 
-Object.assign(globalThis, {
-  startMobileScanner: globalThis.startMobileScanner,
+exposeGlobals({
+  startMobileScanner,
   switchTab: wrapperSwitchTab,
   changeLanguage,
   handleRivenInput,
   openRivenMarket,
-  fetchUserProfile,
-  calculateCaps,
-  renderProfileStats,
   toggleLangDropdown,
   setLanguageManual,
   openScanner,
-  closeScanner,
-  captureRelics,
   handleFileUpload,
-  toggleInventoryPanel,
-  renderInventory,
-  clearInventory,
   startLiveSession,
   stopLiveSession,
   checkUpdates,
   updateSelectExclusions,
   saveAppState,
-  renderPrimeInventory,
   togglePiP: openPiP,
-});
+}, "main.js");
