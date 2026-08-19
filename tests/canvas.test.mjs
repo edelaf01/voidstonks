@@ -38,10 +38,12 @@ test("sin el canvas en la página no se hace nada ni se falla", () => {
   assert.doesNotThrow(() => initCanvas());
 });
 
-test("con el canvas, arranca y anima sin errores", () => {
-  conCanvas(() => {
+// the first frame paints synchronously and the next ones are chained by a 15 Hz timer, so the second needs one tick
+test("con el canvas, arranca y encadena frames", async () => {
+  await conCanvas(async () => {
     assert.doesNotThrow(() => initCanvas());
-    assert.ok(frames > 0, "tiene que haber pedido al menos un frame");
+    await new Promise((r) => globalThis.setTimeout(r, 150));
+    assert.ok(frames > 0, "el bucle tiene que haberse encadenado solo");
   });
 });
 

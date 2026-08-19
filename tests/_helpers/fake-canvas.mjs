@@ -161,6 +161,8 @@ function crearContexto(canvas) {
     fillText() {},
     strokeText() {},
     beginPath() {}, closePath() {}, moveTo() {}, lineTo() {}, stroke() {}, fill() {},
+    // the animated background (canvas.js) uses `arc`, and whether it gets there depends on Math.random()
+    arc() {}, arcTo() {}, ellipse() {}, rect() {}, quadraticCurveTo() {}, bezierCurveTo() {},
     save() {}, restore() {}, translate() {}, scale() {}, rotate() {}, setTransform() {},
     measureText: (t) => ({ width: String(t).length * 6 }),
   };

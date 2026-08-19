@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { isImplausibleFallbackGrid } from "../deploy/js/utils/vision/grid_detect.js";
+import { isImplausibleFallbackGrid } from "../deploy/js/utils/vision/plausibility.js";
 
 // rejecting junk saved manual calibrations as the auto grid fallback
 // auto detection on the 2531x1412 inventory capture gives zone (56,254,1662,873), cell 277x291, 6 columns

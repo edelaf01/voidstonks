@@ -1,7 +1,8 @@
 import { state, saveAppState } from "../../state.js";
-import { TEXTS, DROP_CHANCES } from "../../config.js";
+import { TEXTS } from "../../config.js";
 import { addToQueue, getPriceValue } from "../../services/market/prices.service.js";
 import { getSlug } from "../../utils/slugs.utils.js";
+import { relicOpenEV, REFINEMENT_KEYS } from "../../utils/inventory/relic_drop_odds.utils.js";
 import { escapeHTML } from "../ui_components.js";
 import {
   getItemIcon,
@@ -15,6 +16,7 @@ import {
 } from "../ui_tooltips.js";
 // same specifier (?v=1.1) as ui.js/main.js: another one would load a second module instance
 import { updateRecommendedMissions } from "../farms/ui_fissures.js?v=1.1";
+import { trackBestSetForRelic } from "./ui_set_tracker.js";
 
 let debounceTimer;
 
@@ -117,6 +119,9 @@ export function handleRelicTyping() {
         dropdown.style.display = "none";
         document.getElementById("relic-contents")?.classList.remove("hidden");
         manualRelicUpdate();
+        // here and not in manualRelicUpdate(), which runs on every input: picking from the dropdown is when you
+        // have really chosen
+        trackBestSetForRelic(itemObj.relicName);
       };
       dropdown.appendChild(item);
     });
@@ -264,26 +269,22 @@ export function updateRelicTotal() {
   if (!state.selectedRelic || !state.relicsDatabase[state.selectedRelic])
     return;
   const items = state.relicsDatabase[state.selectedRelic];
-  const refinement = document.getElementById("refinement").value;
-  const squadSize = state.playerCount || 1;
+  const refinement = REFINEMENT_KEYS[document.getElementById("refinement").value] || "intact";
+  const squadSize = state.squadSize || 4;
   const badges = document.querySelectorAll("#relic-drops-list .price-badge");
 
-  const data = items.map((item) => ({
-    ...item,
-    rarityType:
-      item.chance < 5 ? "rare" : item.chance < 20 ? "uncommon" : "common",
-    price:
-      Number.parseInt(
-        Array.from(badges).find((b) => b.dataset.item === item.name)?.innerText,
-      ) || 0,
-  }));
+  const priceOf = (item) =>
+    Number.parseInt(
+      Array.from(badges).find((b) => b.dataset.item === item.name)?.innerText,
+      10,
+    ) || 0;
 
-  const totalEV = calculateSquadEV(data, refinement, squadSize);
-  const ducatEV = calculateSquadEV(
-    data.map((i) => ({ ...i, price: i.ducats })),
+  const totalEV = relicOpenEV(items, { refinement, squadSize, valueOf: priceOf });
+  const ducatEV = relicOpenEV(items, {
     refinement,
     squadSize,
-  );
+    valueOf: (i) => i.ducats || 0,
+  });
 
   const disp = document.getElementById("relic-profit-display");
   if (disp) {
@@ -341,31 +342,6 @@ export function updateRelicVerdict(relicName, openEV) {
         ${es ? "Abrir" : "Open"} ~<b>${openEV.toFixed(1)}</b> · ${es ? "Vender" : "Sell"} ~<b>${sellPrice}</b> · ${ctx}
       </span>`;
   });
-}
-
-export function calculateSquadEV(items, refinement, squadSize) {
-  const rates = DROP_CHANCES[refinement] || DROP_CHANCES.Intact;
-  const itemsWithProb = items
-    .map((i) => ({
-      price: i.price || 0,
-      prob:
-        i.rarityType === "rare"
-          ? rates.rare
-          : i.rarityType === "uncommon"
-            ? rates.uncommon / 2
-            : rates.common / 3,
-    }))
-    .sort((a, b) => a.price - b.price);
-
-  let ev = 0,
-    acc = 0;
-  for (let item of itemsWithProb) {
-    let nextAcc = acc + item.prob;
-    ev +=
-      item.price * (Math.pow(nextAcc, squadSize) - Math.pow(acc, squadSize));
-    acc = nextAcc;
-  }
-  return ev;
 }
 
 export function generateMessage() {
@@ -440,6 +416,7 @@ export function renderRelicsForPartInline(partName, container) {
         if (searchInput) searchInput.value = info.relic;
         if (globalThis.manualRelicUpdate) globalThis.manualRelicUpdate();
         if (globalThis.switchTab) globalThis.switchTab("relic");
+        trackBestSetForRelic(info.relic);
       };
       grid.appendChild(btn);
     });

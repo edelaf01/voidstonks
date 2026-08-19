@@ -321,3 +321,22 @@
   background: color-mix(in srgb, var(--active-theme-color, #00e5ff) 10%, rgba(12, 14, 18, 0.92));
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
 }
+
+/* empty states with a usage tip */
+.lfg-empty {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 6px 5px;
+    font-size: 0.8rem;
+    font-style: italic;
+    color: #6e7681;
+}
+
+.lfg-empty-hint {
+    font-size: 0.75rem;
+    font-style: normal;
+    line-height: 1.4;
+    color: #8b95a3;
+    max-width: 62ch;
+}

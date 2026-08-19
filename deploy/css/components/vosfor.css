@@ -887,6 +887,13 @@
     white-space: nowrap;
 }
 
+/* on mobile the title column is ~97px and "Fast Sale (Liquidity)" stuck out of the card; wrapping beats clipping */
+@media (max-width: 600px) {
+    .vosfor-pack-title .badge-vosfor {
+        white-space: normal;
+    }
+}
+
 .badge-best-spend {
     background: rgba(66, 245, 108, 0.15);
     color: #42f56c;

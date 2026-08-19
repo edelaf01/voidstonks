@@ -24,6 +24,14 @@ export function preloadCriticalAssets() {
 import { escapeHTML } from "../utils/escape_html.js";
 export { escapeHTML };
 
+export function emptyStateHtml(message, scannerHint = "") {
+  const scannerOnScreen = document.getElementById("scanner-section")?.offsetParent != null;
+  const hint = scannerHint && scannerOnScreen
+    ? `<div style="margin-top:6px; font-size:0.85em; opacity:0.7;">${escapeHTML(scannerHint)}</div>`
+    : "";
+  return `<div style="padding:20px 16px; text-align:center; color:#888; line-height:1.5;">${escapeHTML(message)}${hint}</div>`;
+}
+
 const activeToasts = new Map();
 
 export function showToast(message, options = {}) {
@@ -157,6 +165,10 @@ export function initGlobalTooltipSystem() {
       left = e.clientX - tWidth - offset;
     if (top + tHeight > globalThis.innerHeight)
       top = e.clientY - tHeight - offset;
+
+    // on mobile the flip can overflow too: clamp to the edge
+    if (left < 8) left = 8;
+    if (top < 8) top = 8;
 
     tooltipEl.style.left = `${left}px`;
     tooltipEl.style.top = `${top}px`;

@@ -67,8 +67,14 @@ test("un ítem sin componentes no rompe la carga del catálogo", () => {
   assert.deepEqual(state.ducatsDatabase, {});
 });
 
-function reliquia(nombre, drops, precios = {}) {
+/**
+ * seeds a relic with its drops and prices in memory; defaults to solo so values do not depend on state
+ * default squad size
+ */
+function reliquia(nombre, drops, precios = {}, squadSize = 1) {
   state.relicsDatabase = { [nombre]: drops };
+  // squadSize, not playerCount: the recruitment "needed" counter no longer feeds odds
+  state.squadSize = squadSize;
   MEMORY_CACHE.clear();
   for (const [slug, plat] of Object.entries(precios)) MEMORY_CACHE.set(slug, plat);
   return nombre;
@@ -140,6 +146,36 @@ test("los precios de una reliquia se piden a la vez, no en cadena", async () => 
   const t0 = Date.now();
   await calculateRelicValue(r);
   assert.ok(Date.now() - t0 < 200, "no debería encadenar esperas");
+});
+
+// in a squad of 4 the group picks the BEST reward, heavily weighting expensive drops over raw rates
+// previously showed solo values while the Relics tab accounted for squad, giving conflicting values
+test("la escuadra sube el valor: te quedas con la mejor de 4 tiradas", async () => {
+  const drops = [
+    { name: "Raro", chance: 2 },
+    { name: "Comun1", chance: 25.33 },
+    { name: "Comun2", chance: 25.33 },
+    { name: "Comun3", chance: 25.33 },
+  ];
+  const precios = { raro: 200, comun1: 10, comun2: 10, comun3: 10 };
+
+  const solo = await calculateRelicValue(reliquia("Lith S", drops, precios, 1));
+  const grupo = await calculateRelicValue(reliquia("Lith S", drops, precios, 4));
+
+  assert.ok(grupo.intact > solo.intact, `4 jugadores deberían valer más: ${grupo.intact} vs ${solo.intact}`);
+  // rare chance of being the best of 4 jumps from 2% to ~7.8%, driving almost the entire increase
+  assert.ok(grupo.intact > solo.intact * 1.5, `el salto se queda corto: ${grupo.intact} vs ${solo.intact}`);
+});
+
+// an unlisted reward is unpriced (0): previously treated as implicitly above the highest price, eating
+// into relic value in squads
+test("un hueco sin valorar cuenta como 0, no como el mejor premio", async () => {
+  const r = reliquia("Lith H", [{ name: "Raro", chance: 2 }], { raro: 100 }, 4);
+  const v = await calculateRelicValue(r);
+
+  // P(best of 4 is rare) = 1 - 0.98^4 = 0.0776
+  const esperado = 100 * (1 - Math.pow(1 - 0.02, 4));
+  assert.equal(v.intact, Number(esperado.toFixed(1)));
 });
 
 test("un precio desconocido cuenta como 0 y no contamina el total", async () => {

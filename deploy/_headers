@@ -37,3 +37,10 @@
 # críticos al segundo. Una hora, revalidando.
 /assets/json/*
   Cache-Control: public, max-age=3600, must-revalidate
+
+# assets/ml/ NO es contenido inmutable: curiosidades.json lo reescribe el bot cada día y el
+# bundle del modelo cambia con el reentreno de los lunes. Con la regla de /assets/* el
+# navegador se los quedaba UN AÑO, así que un visitante recurrente nunca veía las
+# curiosidades nuevas por mucho que el despliegue las publicara.
+/assets/ml/*
+  Cache-Control: public, max-age=3600, must-revalidate

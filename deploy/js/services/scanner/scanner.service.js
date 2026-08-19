@@ -1,5 +1,7 @@
 import { VisionService, WF_THEMES } from "./vision.service.js";
-import { isImplausibleFallbackGrid, detectRewardBand } from "../../utils/vision/grid_detect.js";
+import { freezeFrame, releaseFrame } from "../../utils/vision/frame_freeze.js";
+import { nextLatchedContext, INITIAL_LATCH } from "../../utils/vision/context_latch.js";
+import { isImplausibleFallbackGrid, detectPlausibleRewardBand } from "../../utils/vision/plausibility.js";
 import { OCRService } from "./ocr.service.js?v=264";
 import { OCRRepository } from "../../repositories/ocr.repository.js";
 import { PaddleRepository } from "../../repositories/paddle.repository.js";
@@ -50,7 +52,7 @@ export const ScannerService = {
         if (this.isScanning) return;
         this.isScanning = true;
         this.latchedContext = "UNKNOWN";
-        this.unknownFrameCount = 0;
+        this.ctxLatch = INITIAL_LATCH;
         this.detectionLocked = false;
         this.lastHashL = null;
         this.lastHashR = null;
@@ -113,7 +115,8 @@ export const ScannerService = {
     },
 
     latchedContext: "UNKNOWN",
-    unknownFrameCount: 0,
+    // hysteresis state, made and consumed by context_latch.js
+    ctxLatch: INITIAL_LATCH,
     lastRivenContextTime: 0,
 
     async processFrame(video, virtualCanvas) {
@@ -178,15 +181,9 @@ export const ScannerService = {
             }
         }
 
-        if (routedContext === "UNKNOWN") {
-            this.unknownFrameCount++;
-            if (this.unknownFrameCount >= 3) {
-                this.latchedContext = "UNKNOWN";
-            }
-        } else {
-            this.unknownFrameCount = 0;
-            this.latchedContext = routedContext;
-        }
+        this.ctxLatch = nextLatchedContext(this.ctxLatch, routedContext);
+        this.latchedContext = this.ctxLatch.latched;
+        if (this.latchedContext !== "REWARD") this._rewardFrameCvs = releaseFrame(this._rewardFrameCvs);
 
         console.log(`[SCAN] Context Raw: ${rawContext} | Latched: ${this.latchedContext} | Header: "${headerText.trim().slice(0, 60)}"`);
         await this.routeFrameAction(this.latchedContext, video, dims);
@@ -930,8 +927,8 @@ export const ScannerService = {
         }
     },
 
-    async _attemptRewardOCR(video, width, height, scale, preset, cropRect) {
-        const ocrCanvas = VisionService.prepareRewardOCRCanvas(video, width, height, scale, preset, cropRect);
+    async _attemptRewardOCR(frame, width, height, scale, preset, cropRect) {
+        const ocrCanvas = VisionService.prepareRewardOCRCanvas(frame, width, height, scale, preset, cropRect);
         console.log(`[REWARD] Canvas: ${ocrCanvas.width}x${ocrCanvas.height} (preset ${preset})`);
 
         // canvas is already grayscale from the CSS filter; invert: bright text -> black, dark -> white
@@ -956,7 +953,7 @@ export const ScannerService = {
 
         // 2nd pass: names by theme color mask, same crop and scale as ocrCanvas so the word boxes share
         // coordinates. Runs in parallel with the grayscale pass. null = dense mask (noise), no names pass.
-        const namesCanvas = VisionService.prepareRewardNamesCanvas(video, width, height, scale, cropRect);
+        const namesCanvas = VisionService.prepareRewardNamesCanvas(frame, width, height, scale, cropRect);
         let metaRes, namesRes;
         if (namesCanvas) {
             // not awaited: until the 2nd worker exists both passes run on workers[0]
@@ -988,16 +985,19 @@ export const ScannerService = {
     async processRewards(video, dims) {
         const { width, height, scale } = dims;
 
-        const DETECT_W = 480;
+        // one frame for the whole flow: band, OCR presets and modal photo (freezeFrame)
+        const frame = this._rewardFrameCvs = freezeFrame(video, width, height, this._rewardFrameCvs);
+
+        const DETECT_W = 720; // 480 left the name row under minBandH except at exactly 1080p
         const detScale = DETECT_W / width;
         const detH = Math.round(height * detScale);
         if (!this._rewardDetectCvs) this._rewardDetectCvs = document.createElement("canvas");
         const detCvs = this._rewardDetectCvs;
         detCvs.width = DETECT_W; detCvs.height = detH;
         const detCtx = detCvs.getContext("2d", { willReadFrequently: true });
-        detCtx.drawImage(video, 0, 0, DETECT_W, detH);
+        detCtx.drawImage(frame, 0, 0, DETECT_W, detH);
         const detImg = detCtx.getImageData(0, 0, DETECT_W, detH);
-        const band = detectRewardBand(detImg);
+        const band = detectPlausibleRewardBand(detImg);
         const cropRect = band ? {
             x: band.x / detScale, y: band.y / detScale,
             w: band.w / detScale, h: band.h / detScale,
@@ -1009,7 +1009,7 @@ export const ScannerService = {
         const PRESET_ORDER = ["STANDARD", "LOW_LIGHT", "HIGH_GLARE"];
         let result = null;
         for (const preset of PRESET_ORDER) {
-            result = await this._attemptRewardOCR(video, width, height, scale, preset, cropRect);
+            result = await this._attemptRewardOCR(frame, width, height, scale, preset, cropRect);
             if (result.foundItems.length > 0) {
                 if (preset !== "STANDARD") console.log(`[REWARD] Rescatado por preset adaptativo: ${preset}`);
                 break;
@@ -1052,10 +1052,8 @@ export const ScannerService = {
             });
 
             this.detectionLocked = true;
-            const snapshot = document.createElement("canvas");
-            snapshot.width = width; snapshot.height = height;
-            snapshot.getContext("2d").drawImage(video, 0, 0, width, height);
-            ScannerModal.open(snapshot.toDataURL("image/jpeg", 0.85), foundItems, width, height, scale, rawOcr);
+            // the same frame that was read, so photo and badges match
+            ScannerModal.open(frame.toDataURL("image/jpeg", 0.85), foundItems, width, height, scale, rawOcr);
         }
     },
 
@@ -1463,15 +1461,16 @@ export const ScannerService = {
                     this._nameColorCache = null;
                 }
 
+                // image only with the panel open: hidden <img> entries cost ~1.9 GB
                 this.debugHistory.unshift({
                     time: new Date().toLocaleTimeString([], { hour12: false }),
-                    img: debugCanvas.toDataURL("image/jpeg", 0.6),
+                    img: ScannerHUD.isDebugOpen() ? debugCanvas.toDataURL("image/jpeg", 0.6) : null,
                     log: [...this.lastRawOcrLog],
                     summary,
                     warning: hasWarning
                 });
                 if (this.debugHistory.length > 10) this.debugHistory.length = 10;
-                if (ScannerHUD.updateDebugHistory) {
+                if (ScannerHUD.isDebugOpen() && ScannerHUD.updateDebugHistory) {
                     ScannerHUD.updateDebugHistory(this.debugHistory);
                     this.lastDebugUpdate = Date.now() + 5000;
                 }

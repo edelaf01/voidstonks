@@ -16,6 +16,7 @@ import {
   generateDotsHtml,
 } from "../ui_tooltips.js";
 import { getPartRarity, calculatePartExpectedRuns, DROP_RATES_BY_RARITY } from "../../utils/inventory/relic_drop_odds.utils.js";
+import { getRelicCounts } from "../../utils/inventory/relic_counts.js";
 import { fetchAllFissures } from "../../services/farms/fissures.service.js";
 import {
   getFissureSetRecommendations,
@@ -28,6 +29,7 @@ import { buildSearchIndex, searchIndex } from "../../utils/fuzzy_search.js";
 import { setInputLoading, showLoadingIn } from "../ui_loader.js";
 import { createHelpButton, createTip } from "../ui_hints.js";
 import { renderEmptySetsShowcase } from "./ui_sets_showcase.js";
+import { renderSetsBridge, bridgeTargetFrom } from "./ui_sets_bridge.js";
 import { renderSetTracker, updateMacroTracker } from "./ui_set_tracker.js";
 let debounceTimer;
 globalThis.DEFAULT_WEAPON_SVG = DEFAULT_WEAPON_SVG;
@@ -161,7 +163,10 @@ export function searchSet() {
   container.innerHTML = "";
 
   if (query.length < 2) {
-    renderEmptySetsShowcase(container);
+    // the bridge first and the carousel below: your half done sets matter more, but with an empty
+    // inventory the carousel is all there is
+    renderSetsBridge(container);
+    renderEmptySetsShowcase(container, { append: true });
     return;
   }
 
@@ -202,6 +207,8 @@ export function searchSet() {
     .slice(0, MAX_SET_CARDS);
 
   // the whole set is painted even when one part matched: you want to see what the set lacks
+  renderSetsBridge(container);
+
   rankedSets.forEach(([setName]) => {
     const parts = partsOfSet(setName);
     createSetCard(setName, parts.length > 0 ? parts : [setName], container, false);
@@ -235,7 +242,24 @@ function insertRelicTip(container, t) {
   if (tip) firstGrid.parentNode.insertBefore(tip, firstGrid);
 }
 
+// delegated on #setResults: the strip repaints on every search, and per chip listeners would dangle
+// on the old DOM
+function initSetsBridgeDelegation() {
+  const container = document.getElementById("setResults");
+  if (!container || container.dataset.bridgeWired) return;
+  container.dataset.bridgeWired = "1";
+  container.addEventListener("click", (e) => {
+    const setName = bridgeTargetFrom(e.target);
+    if (!setName) return;
+    const input = document.getElementById("setItemInput");
+    if (!input) return;
+    input.value = setName;
+    searchSet();
+  });
+}
+
 export function initSetSearchHelp() {
+  initSetsBridgeDelegation();
   const slot = document.getElementById("set-search-help");
   if (!slot) return;
 
@@ -289,6 +313,9 @@ function createSetCard(title, itemNames, parent, isSingle = false) {
 
   header.appendChild(rightWrapper);
   setContainer.appendChild(header);
+
+  // once per card, not per chip: it walks the whole inventory
+  const owned = getRelicCounts();
 
   itemNames.forEach((itemName) => {
     if (!isSingle && !itemName.includes(title)) return;
@@ -347,6 +374,7 @@ function createSetCard(title, itemNames, parent, isSingle = false) {
 
       relicsInfo.sort((a, b) => a.relic.localeCompare(b.relic));
       const abbr = TEXTS[state.currentLang].rarityAbbr;
+      const setTabTexts = TEXTS[state.currentLang].setTab || {};
 
       relicsInfo.forEach((info) => {
         const btn = document.createElement("div");
@@ -370,9 +398,16 @@ function createSetCard(title, itemNames, parent, isSingle = false) {
 
         btn.className = `relic-chip ${rc}`;
 
+        // copies of THAT relic, inside the name span (the header is a two child space-between). Only when you
+        // have some.
+        const qty = owned[info.relic] || 0;
+        const ownedHtml = qty > 0
+            ? ` <span class="relic-owned" title="${escapeHTML((setTabTexts.relicOwned || "You own {n}").replace("{n}", qty))}">×${qty}</span>`
+            : "";
+
         btn.innerHTML = `
             <div class="relic-chip-header">
-                <span class="relic-name">${escapeHTML(info.relic)}</span>
+                <span class="relic-name">${escapeHTML(info.relic)}${ownedHtml}</span>
                 <span class="relic-era-icon ${tier.toLowerCase()}"></span>
             </div>
             <div class="chip-footer">
@@ -438,7 +473,8 @@ function openSetFromRelicReward(partName) {
     );
     if (allParts.length > 0) {
       activateSetTracker(setName, allParts);
-      import("../ui_components.js").then(m => m.showToast(`Tracking ${setName} Set`));
+      import("../ui_components.js").then((m) => m.showToast(
+      (TEXTS[state.currentLang]?.setTab?.trackingToast || "Tracking {set}").replace("{set}", setName)));
     }
 }
 
@@ -475,7 +511,8 @@ setTimeout(() => {
               (n) => (n === setName || n.startsWith(setName + " ")) && !n.endsWith(" Set")
             );
             activateSetTracker(setName, allParts);
-            import("../ui_components.js").then(c => c.showToast("Tracking: " + setName));
+            import("../ui_components.js").then((c) => c.showToast(
+              (TEXTS[state.currentLang]?.setTab?.trackingToast || "Tracking {set}").replace("{set}", setName)));
           }
         });
       }

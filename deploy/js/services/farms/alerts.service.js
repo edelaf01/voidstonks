@@ -3,7 +3,11 @@
 const PREFS_KEY = "vs_farm_alarms_v1";
 const FIRED_KEY = "vs_farm_alarms_fired_v1";
 
-export const ALARM_KINDS = ["bounty", "fissure", "arbitration"];
+export const ALARM_KINDS = ["bounty", "fissure", "arbitration", "weapon"];
+
+// Max min valence bonus for weapons
+export const VALENCE_MIN = 25;
+export const VALENCE_MAX = 60;
 
 // Tiers comunitarios de Arbitración, de peor a mejor).
 export const ARBY_TIER_ORDER = ["F", "D", "C", "B", "A", "S"];
@@ -60,6 +64,21 @@ export function addAlarmRule(rule) {
     dup = prefs.rules.some(
       (r) => r.kind === "arbitration" && (r.minTier || "any") === newRule.minTier
         && (r.type || "any") === newRule.type,
+    );
+  } else if (rule.kind === "weapon") {
+    // weapon rotation reminder: alert when weapon rolls element at or above X%
+    newRule = {
+      id,
+      kind: "weapon",
+      vendor: rule.vendor || "any", // "any" | "eleanor" | "glast"
+      weapon: rule.weapon || "any",
+      element: rule.element || "any",
+      minPercent: Math.min(VALENCE_MAX, Math.max(VALENCE_MIN, Number(rule.minPercent) || VALENCE_MIN)),
+    };
+    dup = prefs.rules.some(
+      (r) => r.kind === "weapon" && (r.vendor || "any") === newRule.vendor
+        && (r.weapon || "any") === newRule.weapon && (r.element || "any") === newRule.element
+        && Number(r.minPercent) === newRule.minPercent,
     );
   } else if (rule.kind === "fissure") {
     //fissure rule by tier, type, planet, source and sp or not
@@ -174,6 +193,16 @@ const MATCHERS = {
     if ((rule.planet || "any") !== "any" && rule.planet !== planetOfNode(f.node)) return false;
     return true;
   },
+  // w: { name, vendorKey, bonus: { element, percent } }
+  weapon(rule, w) {
+    if ((rule.vendor || "any") !== "any" && rule.vendor !== w.vendorKey) return false;
+    if ((rule.weapon || "any") !== "any" && rule.weapon !== w.name) return false;
+    //no found bonus as of now 
+    if (!w.bonus) return false;
+    const el = (rule.element || "any");
+    if (el !== "any" && el.toLowerCase() !== String(w.bonus.element).toLowerCase()) return false;
+    return Number(w.bonus.percent) >= Number(rule.minPercent || 0);
+  },
   // m: { node, type, enemy, tier ("S".."F" | null), expiry }
   arbitration(rule, m) {
     const norm = (t) => (t || "").replace(/^dark sector /i, "");
@@ -208,7 +237,9 @@ export function evaluateAlarms(kind, items) {
       const expiry = Number(new Date(item.expiry)) || now + 3600000;
       if (expiry <= now) continue;
       if (!matcher(rule, item)) continue;
-      const key = `${rule.id}|${item.factionKey || item.node || "?"}|${item.uName || item.type}|${expiry}`;
+      // factionKey identifica bounties
+      const kindKey = item.factionKey || item.vendorKey || item.node || "?";
+      const key = `${rule.id}|${kindKey}|${item.uName || item.name || item.type}|${expiry}`;
       if (fired[key]) continue;
       fired[key] = expiry;
       hits.push({ rule, item });

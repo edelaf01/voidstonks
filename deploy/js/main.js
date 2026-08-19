@@ -1,8 +1,9 @@
 import "./utils/debug_log.js"; // must stay first: silences the console in production
 import { initCanvas } from "./utils/canvas.js";
 import { downloadRelics } from "./services/inventory/relics.service.js";
+import { renderFarmRoutes } from "./ui.components/farms/ui_farm_routes.js";
 import { fetchRivenWeapons } from "./services/rivens/rivens.service.js";
-import { fetchUserProfile } from "./services/profile.service.js";
+// import { fetchUserProfile } from "./services/profile.service.js";
 import { fetchPrimeManifest } from "./repositories/api.repository.js";
 import { warmupPrices } from "./services/inventory/inventory.service.js";
 import { preloadPricesToMemory, ensurePriceSnapshot } from "./repositories/storage.repository.js";
@@ -26,7 +27,8 @@ import {
 } from "./ui.js?v=2.3";
 import { initFissurePanel } from "./ui.components/farms/ui_fissures.js?v=1.1";
 import { initSyncPanel } from "./ui.components/market/ui_sync.js";
-import { calculateCaps, renderProfileStats } from "./ui.components/market/ui_profile.js";
+// profile / MR calculator disabled: no tab hosts it
+// import { calculateCaps, renderProfileStats } from "./ui.components/market/ui_profile.js";
 import {
   initGlobalTooltipSystem,
   preloadCriticalAssets,
@@ -162,6 +164,8 @@ async function loadAsyncData() {
       manualRelicUpdate();
     }
     if (state.currentActiveSet) renderSetTracker();
+
+    renderFarmRoutes().catch((e) => console.warn("[rutas] tras cargar datos:", e));
 
     warmupPrices().catch(console.error);
   } catch (error) {
@@ -326,9 +330,6 @@ exposeGlobals({
   changeLanguage,
   handleRivenInput,
   openRivenMarket,
-  fetchUserProfile,
-  calculateCaps,
-  renderProfileStats,
   toggleLangDropdown,
   setLanguageManual,
   openScanner,

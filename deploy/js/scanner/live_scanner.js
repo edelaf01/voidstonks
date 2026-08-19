@@ -55,10 +55,12 @@ globalThis.copyScannerDebugLog = async () => {
     const logText = logLines.join("\n");
     await navigator.clipboard.writeText(logText);
   } catch (e) {
-    showToast("Error copiando log");
+    showToast(st().toastLogCopyError);
     console.error(e);
   }
 };
+
+const st = () => TEXTS[state.currentLang]?.scanner || {};
 
 let liveStream = null;
 let isStartingSession = false;
@@ -100,7 +102,7 @@ export async function startLiveSession() {
     liveStream.getVideoTracks()[0].onended = () => stopLiveSession();
   } catch (e) {
     console.error("Scanner startup failed:", e);
-    showToast("Error: " + e.message);
+    showToast((st().toastError || "Error: {msg}").replace("{msg}", e.message));
     stopLiveSession();
   } finally {
     isStartingSession = false;
@@ -244,7 +246,7 @@ globalThis.resetGrid = () => {
   ScannerService.inventoryHasScanned = false;
   globalThis.LiveCalibration?.clearCalibration?.();
   console.log("[INV] Grid reseteado — se re-autodetectará en el próximo escaneo.");
-  showToast("Grid reseteado");
+  showToast(st().toastGridReset);
 };
 
 /**
@@ -252,7 +254,7 @@ globalThis.resetGrid = () => {
  */
 globalThis.dumpScanFrame = () => {
   const video = document.getElementById("live-video");
-  if (!video || !video.videoWidth) { showToast("Escáner no activo"); return; }
+  if (!video || !video.videoWidth) { showToast(st().toastNotActive); return; }
   const c = document.createElement("canvas");
   c.width = video.videoWidth; c.height = video.videoHeight;
   c.getContext("2d").drawImage(video, 0, 0);
@@ -264,7 +266,7 @@ globalThis.dumpScanFrame = () => {
 };
 
 globalThis.manualPrecisionScan = async () => {
-  if (!liveStream?.active) return showToast("START SCANNER FIRST");
+  if (!liveStream?.active) return showToast(st().toastStartFirst);
   state.isPrecisionScanActive = true;
   const sh = TEXTS[state.currentLang].scannerHUD;
   showToast(sh.autoScanScanning);

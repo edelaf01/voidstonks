@@ -91,6 +91,17 @@ export function relicSetValue(drops, deps) {
 }
 
 /**
+ * Which set to track when opening a relic's card, or `null` to leave it. Kept apart from the painter:
+ * these two rules stop browsing relics from overwriting the panel.
+ */
+export function pickSetToTrack(value, currentSet) {
+  if (!value?.bestSet) return null;
+  // the set you already track drops here: respected
+  if (currentSet && value.missing.some((m) => m.set === currentSet)) return null;
+  return value.bestSet;
+}
+
+/**
  * Formatted texts of a result, the component only wraps them in HTML.
  */
 export function describeRelicRuns(r, t) {

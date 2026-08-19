@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { installFakeDocument } from "./_helpers/fake-canvas.mjs";
 
 installFakeDocument();
@@ -189,4 +190,36 @@ test("una celda de riven se reconoce por su nombre o por su categoría", () => {
   assert.equal(S._isRivenCellText(["MELEE", "MOD"]), true);
   assert.equal(S._isRivenCellText(["BRATON", "PRIME", "BLUEPRINT"]), false);
   assert.equal(S._isRivenCellText(["MOD"]), false, "'MOD' a secas no basta");
+});
+
+// checked on SOURCE instead of running on purpose: a structural invariant ("expensive call sits behind
+// this guard") whose live reproduction would need the full OCR stack and a browser decoding images
+const SRC = readFileSync(new URL("../deploy/js/services/scanner/scanner.service.js", import.meta.url), "utf8");
+
+// cost 1.9 GB of tab memory on a large inventory: each scanned page ran toDataURL on the whole grid and
+// the HUD rebuilt its 10 thumbnails; browsers decode each <img> EVEN IF its container has display:none,
+// discarding and recreating ~6 MB x 10 per page until GC choked
+test("la imagen del historial de debug no se genera con el panel cerrado", () => {
+  const i = SRC.indexOf("this.debugHistory.unshift(");
+  assert.notEqual(i, -1, "falta el historial de debug");
+  const bloque = SRC.slice(i - 800, i + 400);
+
+  assert.match(bloque, /img:\s*ScannerHUD\.isDebugOpen\(\) \?/,
+    "el toDataURL solo puede hacerse con el panel abierto");
+});
+
+test("con el panel cerrado tampoco se repintan las miniaturas", () => {
+  const i = SRC.indexOf("this.debugHistory.unshift(");
+  const cola = SRC.slice(i, i + 900);
+  assert.match(cola, /if \(ScannerHUD\.isDebugOpen\(\) && ScannerHUD\.updateDebugHistory\)/,
+    "reconstruir las 10 <img> es justo lo que costaba la RAM");
+});
+
+// log entries are strings needed by "COPY LOG": always saved, otherwise debugging a scan would require
+// reproducing it with the panel open
+test("el log del escaneo se sigue guardando aunque el panel esté cerrado", () => {
+  const i = SRC.indexOf("this.debugHistory.unshift(");
+  const bloque = SRC.slice(i, i + 400);
+  assert.match(bloque, /log:\s*\[\.\.\.this\.lastRawOcrLog\]/);
+  assert.ok(!/log:\s*debugVisible/.test(bloque), "el log no puede depender del panel");
 });

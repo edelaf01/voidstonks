@@ -1,22 +1,41 @@
 import { state } from "../../state.js";
 import { getSlug } from "../../utils/slugs.utils.js";
+import { getRequiredCount } from "../../utils/ui_utils.js";
 import { getPriceValue } from "../../repositories/storage.repository.js";
-import { calculatePartExpectedRuns } from "../../utils/inventory/relic_drop_odds.utils.js";
+import { calculatePartExpectedRuns, getPlayerOdds } from "../../utils/inventory/relic_drop_odds.utils.js";
 
 // below this share of the full set price, buying the part beats farming it
 const BUY_INSTEAD_RATIO = 0.15;
 
-const RECS_PREFS_KEY = "vs_fissure_set_recs_prefs";
-const DEFAULT_RECS_PREFS = { maxMissing: 0, buyOnly: false };
+const RECS_PREFS_KEY = "vs_farm_routes_filters_v2";
+const DEFAULT_RECS_PREFS = {
+    maxMissing: 0, buyOnly: false, query: "", minPerHour: 0, minGain: 0, sortBy: "near", era: "",
+    bestFor: "",
+};
+const SORT_KEYS = new Set(["near", "perHour", "gain"]);
+// Requiem relics also complete parts (Kuva/Tenet)
+export const RELIC_ERAS = ["Lith", "Meso", "Neo", "Axi", "Requiem"];
+const ERA_KEYS = new Set(["", ...RELIC_ERAS]);
+// "" = any; filters by the refinement where the route is cheapest
+export const REFINEMENT_KEYS_FILTER = ["intact", "exceptional", "flawless", "radiant"];
+const BESTFOR_KEYS = new Set(["", ...REFINEMENT_KEYS_FILTER]);
 
 export function getSetRecsPrefs() {
     try {
         const raw = localStorage.getItem(RECS_PREFS_KEY);
         if (!raw) return { ...DEFAULT_RECS_PREFS };
         const parsed = JSON.parse(raw);
+        // a stored NaN would fail every comparison and empty the list
+        const umbral = (v) => (Number.isFinite(v) && v > 0 ? Math.floor(v) : 0);
         return {
             maxMissing: Number.isInteger(parsed.maxMissing) ? parsed.maxMissing : 0,
             buyOnly: typeof parsed.buyOnly === "boolean" ? parsed.buyOnly : false,
+            query: typeof parsed.query === "string" ? parsed.query : "",
+            minPerHour: umbral(parsed.minPerHour),
+            minGain: umbral(parsed.minGain),
+            sortBy: SORT_KEYS.has(parsed.sortBy) ? parsed.sortBy : "near",
+            era: ERA_KEYS.has(parsed.era) ? parsed.era : "",
+            bestFor: BESTFOR_KEYS.has(parsed.bestFor) ? parsed.bestFor : "",
         };
     } catch (e) {
         return { ...DEFAULT_RECS_PREFS };
@@ -31,30 +50,76 @@ export function saveSetRecsPrefs(prefs) {
     }
 }
 
-function applyRecsPrefs(recommendations, prefs) {
+// recommendations keep their parts in `.matches`, routes in `.missing`
+const MATCHES = (rec) => rec.matches;
+
+/**
+ * Eras of every relic that drops a missing part, not only the recommended one.
+ */
+export function erasOf(rec, piecesOf = MATCHES) {
+    const eras = new Set();
+    for (const m of piecesOf(rec) || []) {
+        for (const src of m.relics || m.fissures || []) if (src?.tier) eras.add(src.tier);
+    }
+    return eras;
+}
+
+function applyRecsPrefs(recommendations, prefs, piecesOf = MATCHES) {
     let filtered = recommendations;
+
+    // matches the set name and its part names
+    const query = normalizeQuery(prefs.query);
+    if (query) {
+        filtered = filtered.filter((rec) =>
+            normalizeQuery(rec.setName).includes(query)
+            || (piecesOf(rec) || []).some((m) => normalizeQuery(m.part).includes(query)));
+    }
+
     if (prefs.maxMissing > 0) {
         filtered = filtered.filter((rec) => rec.missingCount <= prefs.maxMissing);
     }
+
+    if (prefs.era) {
+        filtered = filtered.filter((rec) => erasOf(rec, piecesOf).has(prefs.era));
+    }
+
+    // "best for intact" = closes sooner without spending traces
+    if (prefs.bestFor) {
+        filtered = filtered.filter((rec) => rec.bestRefinement === prefs.bestFor);
+    }
+
+    // an unpriced route fails a minimum on purpose; sorting keeps it at the end instead
+    if (prefs.minPerHour > 0) {
+        filtered = filtered.filter((rec) => (rec.platPerHour ?? 0) >= prefs.minPerHour);
+    }
+    if (prefs.minGain > 0) {
+        filtered = filtered.filter((rec) => (rec.gain ?? 0) >= prefs.minGain);
+    }
     if (prefs.buyOnly) {
-        filtered = filtered
-            .map((rec) => ({ ...rec, matches: rec.matches.filter((m) => m.betterToBuy) }))
-            .filter((rec) => rec.matches.length > 0);
+        // keeps the whole route: each part line is the farming plan
+        filtered = filtered.filter((rec) => (piecesOf(rec) || []).some((m) => m.betterToBuy));
     }
     return filtered;
 }
 
-// state.refinement holds the UI label ("Rad"); the rates use lowercase
-const REFINEMENT_KEYS = { Intact: "intact", Exceptional: "exceptional", Flawless: "flawless", Rad: "radiant" };
+/**
+ * Lowercase without accents. Shared with the Set tab strip so both searches match.
+ */
+export function normalizeQuery(text) {
+    return String(text || "")
+        .normalize("NFD").replaceAll(/[\u0300-\u036f]/g, "")
+        .toLowerCase().trim();
+}
 
 function normalizeFissureTier(tier) {
     if (tier === "Vanguard") return "Axi";
     return tier;
 }
 
+// some sets need 2 of the same part
 function getMissingParts(setName) {
     const parts = state.setsDatabase?.[setName] || [];
-    return parts.filter((p) => !(state.primeInventory?.[p] > 0));
+    return parts.filter((p) => (state.primeInventory?.[p] || 0) < (getRequiredCount(setName, p) || 1));
 }
 
 export function getFissureSetRecommendations(activeFissures) {
@@ -70,8 +135,7 @@ export function getFissureSetRecommendations(activeFissures) {
     }
     if (fissuresByTier.size === 0) return [];
 
-    const refinement = REFINEMENT_KEYS[state.refinement] || "radiant";
-    const squadSize = Math.min(4, Math.max(1, state.playerCount || 4));
+    const { refinement, squadSize } = getPlayerOdds();
 
     const recommendations = [];
 
@@ -123,12 +187,12 @@ export function getFissureSetRecommendations(activeFissures) {
     return recommendations;
 }
 
-export async function attachSetPrices(recommendations) {
+export async function attachSetPrices(recommendations, piecesOf = MATCHES) {
     await Promise.all(recommendations.map(async (rec) => {
         const setItemName = `${rec.setName} Set`;
         rec.setPricePlat = await getPriceValue(setItemName, getSlug(setItemName));
 
-        await Promise.all(rec.matches.map(async (m) => {
+        await Promise.all(piecesOf(rec).map(async (m) => {
             m.buyPricePlat = await getPriceValue(m.part, getSlug(m.part));
             const ratio = rec.setPricePlat > 0 ? m.buyPricePlat / rec.setPricePlat : 0;
             m.betterToBuy = m.buyPricePlat > 0 && ratio > 0 && ratio <= BUY_INSTEAD_RATIO;
@@ -137,6 +201,6 @@ export async function attachSetPrices(recommendations) {
     return recommendations;
 }
 
-export function filterSetRecommendations(recommendations, prefs = getSetRecsPrefs()) {
-    return applyRecsPrefs(recommendations, prefs);
+export function filterSetRecommendations(recommendations, prefs = getSetRecsPrefs(), piecesOf = MATCHES) {
+    return applyRecsPrefs(recommendations, prefs, piecesOf);
 }

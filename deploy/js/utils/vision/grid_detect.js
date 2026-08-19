@@ -778,32 +778,13 @@ function detectInventoryGridCore(img, opts = {}) {
     };
 }
 
-/**
- * Plausibility guard for a SAVED (manual) grid calibration used as fallback when the auto grid gives no
- * signal this frame. Manual calibration derives the columns from the aspect ratio of the dragged box, so a
- * badly drawn box gives a junk grid, and not scanning beats scanning with it. A real inventory grid takes
- * ~11% of the width per cell and ~20% of the height per row, and its zone stays clear of the side panel
- * (~65% of the width).
- *
- * @returns {boolean} true when the calibration is implausible and must NOT be used.
- */
-export function isImplausibleFallbackGrid(calib, frameW, frameH) {
-    if (!calib || !frameW || !frameH) return true;
-    const zone = calib.gridZone;
-    if (!zone || !zone.w || !zone.h) return true;
-    if (zone.w > frameW * 0.85) return true; // zone spills into the sell panel / full width
-    if (calib.cellW && calib.cellW > frameW * 0.16) return true; // cells too wide (few columns)
-    if (calib.cellH && calib.cellH > frameH * 0.28) return true; // rows too tall
-    return false;
-}
-
 const REWARD_DEFAULTS = {
     ...DEFAULTS,
     // with a webcam aimed at an external monitor the game fills only part of the frame: the band is searched
     // over the WHOLE frame height, not a fixed crop
     minCardW: 0.08,   // a reward card is never narrower than ~8% of ITS band width
     maxCards: 4,
-    minCards: 1,
+    minCards: 2,      // with 1 block a lone reward cannot be told from the title bar
 };
 
 /**

@@ -1,5 +1,6 @@
 import { state } from "../../state.js";
 import { OCRRepository } from "../../repositories/ocr.repository.js";
+import { recoverClippedToken } from "../../utils/vision/clipped_token.js";
 import { readBadgeDigits } from "../../utils/vision/badge_digit_ocr.js";
 
 export const OCRService = {
@@ -289,6 +290,10 @@ export const OCRService = {
                     if (s > bestScore) { bestScore = s; best = token; }
                 }
                 matchedToken = bestScore >= minScore ? best : null;
+                if (!matchedToken) {
+                    matchedToken = recoverClippedToken(
+                        text, knownTokens, (a, b) => this.similarityOCR(a, b));
+                }
             }
 
             if (matchedToken) {
@@ -361,7 +366,8 @@ export const OCRService = {
                         tokens: searchTokens.length,
                         x: avgX,
                         owned: metadata.owned,
-                        crafted: metadata.crafted
+                        crafted: metadata.crafted,
+                        ownedRead: metadata.ownedRead === true
                     });
                 }
             }
@@ -428,29 +434,38 @@ export const OCRService = {
             imgW: imgW,
             owned: item.owned,
             crafted: item.crafted,
+            // the auto-sync only writes when this is true
+            ownedRead: item.ownedRead === true,
             ratio: item.ratio,
             confidence: 0.95
         }));
     },
 
+    /**
+     * Card label: "3 Owned" or "Crafted". `ownedRead` says whether the number was really read: the
+     * auto-sync writes it into primeInventory. The game draws no label at 0, so an unread count is
+     * null, never 0.
+     */
     extractInventoryMetadata(wordsArray) {
-        if (!wordsArray || wordsArray.length === 0) return { owned: 0, crafted: 0 };
+        const sinLeer = { owned: null, crafted: 0, ownedRead: false };
+        if (!wordsArray || wordsArray.length === 0) return sinLeer;
         const text = wordsArray.map(w => w.text).join(" ").toUpperCase();
 
         if (text.includes("CRAFTED") || text.includes("FORJA") || /CRAFT/i.test(text)) {
-            return { owned: 0, crafted: 1 };
+            return { owned: null, crafted: 1, ownedRead: false };
         }
 
         const strongMatch = text.match(/(\d+)\s*(?:OWNED|0WNED|QWNED|UWNED|OWNE|OWED|OWN|0WN|PROPIO|PROP)/);
         if (strongMatch && strongMatch[1]) {
-            return { owned: parseInt(strongMatch[1], 10), crafted: 0 };
+            return { owned: parseInt(strongMatch[1], 10), crafted: 0, ownedRead: true };
         }
 
+        // tag seen but not its number: 1 is fine to draw, not to write
         if (/OWNED|0WNED|OWNE|OWED|OWN|PROPIO|PROP/i.test(text)) {
-            return { owned: 1, crafted: 0 };
+            return { owned: 1, crafted: 0, ownedRead: false };
         }
 
-        return { owned: 0, crafted: 0 };
+        return sinLeer;
     },
 
     async extractCellText(worker, textCanvas) {

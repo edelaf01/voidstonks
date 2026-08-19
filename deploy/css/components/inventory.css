@@ -141,9 +141,14 @@
     font-size: 0.85em;
     text-transform: uppercase;
     line-height: 1.2;
-    word-break: break-word;
+    /* break between words, never inside one: a long name gets an ellipsis instead of a column of letters */
+    overflow-wrap: normal;
+    word-break: normal;
+    overflow: hidden;
+    text-overflow: ellipsis;
     flex: 1;
-    min-width: 0;
+    /* floor: below this the title is unreadable, overflowing is better than collapsing */
+    min-width: 5ch;
 }
 
 .set-count-badge {

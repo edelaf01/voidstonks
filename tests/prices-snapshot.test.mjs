@@ -16,7 +16,7 @@ const invSrc = read("../deploy/js/services/inventory/inventory.service.js");
 /** as in lich-weapons.test.mjs: the source up to `export default` has no side effects */
 function workerInternals() {
     const head = workerSrc.slice(0, workerSrc.search(/^export default\b/m));
-    return new Function(`${head}\nreturn { PriceSnapshot, Utils };`)();
+    return new Function(`${head}\nreturn { PriceSnapshot, Utils, EdgeCache };`)();
 }
 
 const { PriceSnapshot } = workerSrc ? workerInternals() : {};
@@ -71,9 +71,9 @@ test("prices_batch resuelve los prime desde el snapshot", async () => {
     // one KV read per batch instead of 25; only what the snapshot misses goes down to the individual KV
     const body = handlerBody("prices_batch");
     const snapshotAt = body.indexOf("PriceSnapshot.read");
-    const kvAt = body.indexOf("KVHelper.get(env, `price_");
-    assert.ok(snapshotAt !== -1 && kvAt !== -1);
-    assert.ok(snapshotAt < kvAt, "el snapshot se consulta antes que el KV por slug");
+    const perItemAt = body.indexOf("EdgeCache.getMany");
+    assert.ok(snapshotAt !== -1 && perItemAt !== -1);
+    assert.ok(snapshotAt < perItemAt, "el snapshot se consulta antes que la caché por slug");
 });
 
 test("el cron refresca el snapshot", () => {
@@ -83,7 +83,7 @@ test("el cron refresca el snapshot", () => {
 
 test("un documento corrupto no tumba la respuesta", async () => {
     const env = fakeEnv({ [PriceSnapshot.KEY]: "{no es json" });
-    assert.deepEqual(await PriceSnapshot.read(env), { v: 1, t: 0, p: {} });
+    assert.deepEqual(await PriceSnapshot.read(env), { v: 1, t: 0, cursor: 0, p: {} });
 });
 
 test("el cursor rota y no reempieza por el mismo slug", async () => {
@@ -98,7 +98,9 @@ test("el cursor rota y no reempieza por el mismo slug", async () => {
 
     await snapshot.refresh(env, ctx);
     assert.deepEqual(asked, ["item_0", "item_1", "item_2", "item_3"]);
-    assert.equal(await env.VOID_KV.get(PriceSnapshot.CURSOR_KEY), "4");
+    // the cursor travels INSIDE the document: two writes per tick were 576 a day with a 5 min cron, out of the
+    // 1,000 the free KV plan gives
+    assert.equal(JSON.parse(await env.VOID_KV.get(PriceSnapshot.KEY)).cursor, 4);
 
     await snapshot.refresh(env, ctx);
     assert.deepEqual(asked.slice(4), ["item_4", "item_5", "item_6", "item_7"]);
@@ -119,7 +121,7 @@ test("un 429 corta el tick sin perder lo ya refrescado", async () => {
     const doc = JSON.parse(await env.VOID_KV.get(PriceSnapshot.KEY));
     assert.deepEqual(doc.p, { a: 5, b: 5 });
     // the cursor stays where it stopped: the next tick resumes at "c" instead of repeating
-    assert.equal(await env.VOID_KV.get(PriceSnapshot.CURSOR_KEY), "2");
+    assert.equal(doc.cursor, 2);
 });
 
 test("el precio es la mediana de las 5 ventas online más baratas", () => {
@@ -155,4 +157,75 @@ test("el chunk del cliente cabe en el lote que acepta el worker", () => {
             assert.ok(Number(size) <= limit, `chunk de ${size} contra un límite de ${limit}`);
         }
     }
+});
+
+// KV quota: the free plan gives 1,000 writes and 100,000 reads a day, and going over fails without a clear
+// error (KV starts failing and the app loses prices)
+// these cases pin the three cuts, all easy to undo unnoticed
+
+test("el cron del snapshot escribe UNA vez por tick, no dos", async () => {
+    // it was two keys (document + cursor) = 576 writes/day with a 5 min cron, over half the daily budget to
+    // store a number
+    const env = fakeEnv({ [PriceSnapshot.UNIVERSE_KEY]: JSON.stringify(["a", "b"]) });
+    let escrituras = 0;
+    const put = env.VOID_KV.put.bind(env.VOID_KV);
+    env.VOID_KV.put = async (k, v) => { escrituras++; return put(k, v); };
+
+    const snapshot = Object.create(PriceSnapshot);
+    snapshot.PACE_MS = 0;
+    snapshot.fetchPrice = async () => ({ price: 3 });
+
+    await snapshot.refresh(env, ctx);
+    assert.equal(escrituras, 1, "solo el documento");
+});
+
+test("un tick que no refresca nada no gasta escritura", async () => {
+    // WFM answers 429 on the first slug: nothing to store, and writing the document anyway spent quota to
+    // leave it unchanged
+    const env = fakeEnv({ [PriceSnapshot.UNIVERSE_KEY]: JSON.stringify(["a", "b"]) });
+    let escrituras = 0;
+    const put = env.VOID_KV.put.bind(env.VOID_KV);
+    env.VOID_KV.put = async (k, v) => { escrituras++; return put(k, v); };
+
+    const snapshot = Object.create(PriceSnapshot);
+    snapshot.PACE_MS = 0;
+    snapshot.fetchPrice = async () => ({ rateLimited: true });
+
+    const r = await snapshot.refresh(env, ctx);
+    assert.equal(escrituras, 0);
+    assert.equal(r.skipped, true);
+});
+
+test("un tick que solo poda slugs retirados SÍ escribe", () => {
+    // the other side: if the universe shrank there is a real change to persist, even with no price refreshed
+    const body = workerSrc.slice(workerSrc.indexOf("async refresh(env, ctx)"));
+    assert.match(body.slice(0, 2500), /if \(!refreshed && !podados\)/,
+        "la guarda tiene que mirar también lo podado");
+});
+
+test("los precios por slug van a la caché del edge, no a KV", () => {
+    // 25 slugs per batch against 100,000 reads/day is ~4,000 requests and out; the edge cache has no quota but
+    // each access is a subrequest, hence the budget
+    for (const handler of ["prices_batch", "price"]) {
+        const body = handlerBody(handler);
+        assert.ok(!/KVHelper\.(get|put)\([^)]*price_/.test(body),
+            `${handler} sigue usando KV para los precios por slug`);
+        assert.match(body, /EdgeCache\.(get|getMany|put)/, `${handler} debe usar la caché del edge`);
+    }
+});
+
+test("los arcanos también salen de KV", () => {
+    const body = handlerBody("arcane_batch");
+    assert.ok(!/KVHelper\.(get|put)\([^)]*arc_/.test(body), "arc_ sigue en KV");
+    assert.match(body, /EdgeCache\.getMany\(slugs, s => `arc_\$\{s\}`, 10\)/,
+        "con presupuesto: cada arcano no cacheado cuesta además 2 fetches a WFM");
+});
+
+// the edge cache is PER DATA CENTRE and can evict before the TTL; the KV snapshot guarantees a price
+// exists for everyone, while on the edge a cold colo would have no prices until the cron came by, which it
+// never does
+test("el snapshot compartido se queda en KV", () => {
+    const body = handlerBody("prices_snapshot");
+    assert.match(body, /PriceSnapshot\.read\(env\)/);
+    assert.ok(!body.includes("EdgeCache"), "el documento global no puede depender de un solo colo");
 });
