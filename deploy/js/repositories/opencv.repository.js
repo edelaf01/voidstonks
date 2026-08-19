@@ -33,20 +33,37 @@ export const OpenCVRepository = {
                 await this.injectScript("https://docs.opencv.org/4.5.4/opencv.js");
             } catch (e) {
                 console.warn("[OpenCV] Primary CDN failed, fallback to unpkg...");
-                await this.injectScript("https://unpkg.com/@techstark/opencv-js@4.5.4-beta.3/dist/opencv.js");
+                try {
+                    await this.injectScript("https://unpkg.com/@techstark/opencv-js@4.5.4-beta.3/dist/opencv.js");
+                } catch (e2) {
+                    // Sin los dos CDN esto RECHAZABA, y quien llama espera un booleano: el escáner
+                    // móvil lo captura en su try general y se cierra entero, saltándose su propio
+                    // `if (!success) setVisionStatus("ERROR")`. Sin OpenCV se pierde el enfoque y
+                    // el aviso de reflejo, pero la detección de color y la binarización son JS
+                    // puro y siguen funcionando: se degrada, no se cae.
+                    console.warn("[OpenCV] Fallback CDN failed too; continuing without OpenCV.");
+                    return false;
+                }
             }
 
+            // El sondeo lleva su propia fecha límite. El Promise.race de abajo resuelve false al
+            // vencer el timeout, pero eso NO paraba este intervalo: si OpenCV no llegaba (CDN
+            // caído, wasm bloqueado), seguía despertando cada 100 ms el resto de la sesión.
             return new Promise((resolve) => {
+                const fin = Date.now() + timeout;
                 const interval = setInterval(() => {
                     if (check()) {
                         clearInterval(interval);
                         resolve(true);
+                    } else if (Date.now() >= fin) {
+                        clearInterval(interval);
+                        resolve(false);
                     }
                 }, 100);
             });
         })();
 
-        const timeoutPromise = new Promise(r => setTimeout(() => r(false), timeout));
+        const timeoutPromise = new Promise((r) => setTimeout(() => r(false), timeout));
         return Promise.race([this.initializationPromise, timeoutPromise]);
     },
 

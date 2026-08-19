@@ -60,7 +60,8 @@
           <li><a href="#g-riven">3. Riven tab</a></li>
           <li><a href="#g-farms">4. Farms and LFG tabs</a></li>
           <li><a href="#g-vosfor">5. Vosfor tab</a></li>
-          <li><a href="#g-scanner">6. Inventory scanner</a></li>
+          <li><a href="#g-ducat">6. Ducats tab</a></li>
+          <li><a href="#g-scanner">7. Inventory scanner</a></li>
         </ul>
       </div>
 
@@ -79,14 +80,24 @@
       <p>Type a relic name (for example "Meso F2") to list its six possible rewards, each with its current market value and drop rarity (Common, Uncommon, Rare).</p>
       <h3>Profitability</h3>
       <p>The tab shows the expected value of running the relic, so you can compare relics before spending Void Traces to refine them. Rewards with low liquidity are flagged so one rare that does not sell does not inflate the relic's value.</p>
+      <h3>Suggested routes</h3>
+      <p>Below the search box you get your half-finished Prime sets, with the exact relic to crack for each missing part and which fissure to run it in. Click a relic and its contents open right there, without switching tabs.</p>
+      <p><strong>It needs to know what you own first.</strong> Scan your inventory with the live scanner or add the relics and parts by hand from the inventory panel. Until then there is nothing to cross-reference and the panel comes up empty.</p>
+      <p>Each route shows what you gain by finishing it, the estimated platinum per hour, and which <strong>refinement</strong> makes it cheapest. That last one matters: refining raises the odds of rare parts but <em>lowers</em> those of commons, so a set that only needs commons is faster cracked intact — and saves you 100 Void Traces per relic.</p>
+      <p>Filters narrow by name, relic era, parts left, platinum per hour and minimum gain. Picking an era does two things: it keeps routes you can advance with that era, and it makes the recommended relic be one of them — the same part drops from several eras. If a filter empties the list, the panel says which one it was and how many routes are behind it.</p>
+      <p>Closing the set fastest and earning the most platinum are different questions, so a relic holding something expensive gets a second tag: refining it is worth <em>this much</em> extra platinum, at <em>this many</em> traces. It only shows up when the gain justifies the traces.</p>
+      <p>The switch at the top flips to the <strong>by relic</strong> view: of the ones you already own, which get you closer to more sets in a single crack. A relic with three rewards you need beats one with a single useful drop, because almost any result helps. It has its own filters — one search box covering relic, set and part name, plus era, sort order and "only ones I can crack now".</p>
+      <p>The refinement and squad selectors match the numbers to how you actually play. Cracking in a squad of four raises each part's odds a lot (four relics get opened and the group keeps the best reward), so solo estimates are much longer.</p>
       <h3>Inventory panel</h3>
-      <p>The Relic, Set and Farms tabs share an inventory panel where you store the parts you own. The app uses it to track what you still need and to price your parts in bulk.</p>
+      <p>The Relic, Set and Farms tabs share an inventory panel where you store the parts you own. The app uses it to track what you still need and to price your parts in bulk. Suggested routes are there too, so you can check them while going through your parts.</p>
 
       <h2 id="g-set">2. Prime Set tab</h2>
       <h3>Search a set</h3>
       <p>Enter a Warframe or weapon name (for example "Mesa Prime") to list every part in the set, the price of each part, and the price of the complete set. The full set usually sells for more than the sum of its parts, which is the information needed to decide between selling parts or selling the set.</p>
       <h3>Set tracker</h3>
-      <p>Mark the parts you already have to see your completion progress and which parts are left to farm.</p>
+      <p>Mark the parts you already have to see your completion progress and which parts are left to farm. The header also shows the full set's price and how many complete sets you can already build.</p>
+      <h3>Your half-finished sets</h3>
+      <p>Above the results there is a strip with your unfinished sets, sorted by how little they need. It is there for what you were not looking for: you go to check a weapon and notice a warframe is one part away. Click one and it searches it. It has its own search box and era filter, independent from the search above.</p>
 
       <h2 id="g-riven">3. Riven tab</h2>
       <h3>Riven appraiser</h3>
@@ -114,7 +125,16 @@
       <h3>Target simulator</h3>
       <p>Estimates how much Vosfor you need and the probability of pulling a specific arcane, to compare grinding packs against buying it directly.</p>
 
-      <h2 id="g-scanner">6. Inventory scanner</h2>
+      <h3>Syncing and failed reads</h3>
+      <p>With auto-sync on, closing the reward window matches your counts to what the game shows. When it cannot read a card's "N Owned" tag, that part is flagged <strong>UNREAD</strong> and left alone: whatever you had saved stays. The two numbers on each card come from different places — "in game" is what the OCR read, "saved" is what the app holds.</p>
+
+      <h2 id="g-ducat">6. Ducats tab</h2>
+      <h3>Trade or sell</h3>
+      <p>Compares, part by part, the ducat value against the platinum value of your Prime parts: what to take to Baro Ki'Teer and what is worth selling on the market instead. It needs to know what you own, so add parts from the Set tab or scan your inventory first.</p>
+      <h3>Threshold</h3>
+      <p>The slider sets the platinum value below which a part counts as tradeable. The ratio column shows the ducats you get for every platinum you give up, which is what sorts the list.</p>
+
+      <h2 id="g-scanner">7. Inventory scanner</h2>
       <h3>Starting a scan</h3>
       <p>Open the scanner and share the Warframe window when the browser asks. Processing is done locally on your device. On the Sell/Inventory screen the scanner detects the item grid automatically.</p>
       <h3>How reading works</h3>
@@ -140,13 +160,14 @@
           <li><a href="#e-riven">3. Pestaña Riven</a></li>
           <li><a href="#e-farms">4. Pestañas Farms y LFG</a></li>
           <li><a href="#e-vosfor">5. Pestaña Vosfor</a></li>
-          <li><a href="#e-scanner">6. Escáner de inventario</a></li>
+          <li><a href="#e-ducat">6. Pestaña Ducados</a></li>
+          <li><a href="#e-scanner">7. Escáner de inventario</a></li>
         </ul>
       </div>
 
       <h2 id="e-context">General</h2>
       <h3>Navegación</h3>
-      <p>La fila de iconos de arriba cambia entre las pestañas: Reliquia, Set, Riven, Farms, LFG y Vosfor. Cada pestaña tiene su propio color. La app guarda localmente en el navegador tu pestaña actual, el idioma y los objetos guardados. No hace falta cuenta ni login.</p>
+      <p>La fila de iconos de arriba cambia entre las pestañas: Reliquia, Set, Riven, Farms, LFG, Vosfor y Ducados. En móvil solo caben cuatro; el resto está detrás del botón «Más», que las lista con una línea explicando cada una. Cada pestaña tiene su propio color. La app guarda localmente en el navegador tu pestaña actual, el idioma y los objetos guardados. No hace falta cuenta ni login.</p>
       <h3>Idioma</h3>
       <p>El selector de la cabecera cambia la interfaz entre español e inglés. Estas páginas de información tienen un botón EN/ES aparte, arriba.</p>
       <h3>Precios</h3>
@@ -159,14 +180,24 @@
       <p>Escribe el nombre de una reliquia (por ejemplo "Meso F2") para listar sus seis recompensas posibles, cada una con su valor de mercado actual y su rareza de drop (Común, Poco común, Raro).</p>
       <h3>Rentabilidad</h3>
       <p>La pestaña muestra el valor esperado de correr la reliquia, para comparar reliquias antes de gastar Trazas Void en refinarlas. Las recompensas con poca liquidez se marcan, para que un raro que no se vende no infle el valor de la reliquia.</p>
+      <h3>Rutas aconsejadas</h3>
+      <p>Debajo del buscador tienes tus sets Prime a medias, con la reliquia concreta que abrir para cada pieza que falta y en qué fisura. Pulsa una reliquia y su contenido se despliega ahí mismo, sin cambiar de pestaña.</p>
+      <p><strong>Antes necesita saber qué tienes.</strong> Escanea tu inventario con el escáner en vivo o añade las reliquias y las piezas a mano desde el panel de inventario. Hasta entonces no hay nada que cruzar y el panel sale vacío.</p>
+      <p>Cada ruta indica cuánto ganas al cerrarla, el platino por hora estimado y con qué <strong>refinamiento</strong> sale más barata. Ese último dato importa: refinar sube la probabilidad de las piezas raras pero <em>baja</em> la de las comunes, así que a un set al que solo le faltan comunes le sale mejor abrir en intacta — y te ahorras 100 Trazas Void por reliquia.</p>
+      <p>Los filtros acotan por nombre, era de la reliquia, piezas restantes, platino por hora y ganancia mínima. Elegir una era hace dos cosas: deja las rutas que puedes avanzar con esa era y hace que la reliquia recomendada sea de ella — una misma pieza cae de varias. Si algún filtro deja la lista vacía, el panel dice cuál es y cuántas rutas hay detrás.</p>
+      <p>Cerrar el set antes y sacar más platino son preguntas distintas, así que una reliquia con algo caro dentro lleva una segunda etiqueta: refinarla renta <em>tanto</em> platino de más, a <em>tantos</em> vestigios. Solo aparece cuando la ganancia justifica el gasto.</p>
+      <p>El conmutador de arriba cambia a la vista <strong>por reliquia</strong>: de las que ya tienes, cuáles te acercan a más sets de una sola apertura. Una reliquia con tres recompensas que te sirven vale más que una con una sola, porque casi cualquier resultado te aporta. Tiene sus propios filtros: una búsqueda que mira a la vez reliquia, set y pieza, más era, orden y «solo las que puedo abrir ahora».</p>
+      <p>Los selectores de refinamiento y escuadra ajustan los cálculos a cómo juegas de verdad. Abrir en escuadra de cuatro sube mucho la probabilidad de cada pieza (se abren cuatro reliquias y el grupo se queda con la mejor recompensa), así que en solitario los tiempos estimados se disparan.</p>
       <h3>Panel de inventario</h3>
-      <p>Las pestañas Reliquia, Set y Farms comparten un panel de inventario donde guardas las piezas que tienes. La app lo usa para saber qué te falta y para tasar tus piezas en lote.</p>
+      <p>Las pestañas Reliquia, Set y Farms comparten un panel de inventario donde guardas las piezas que tienes. La app lo usa para saber qué te falta y para tasar tus piezas en lote. Las rutas aconsejadas también están ahí, para consultarlas mientras repasas tus piezas.</p>
 
       <h2 id="e-set">2. Pestaña Set Prime</h2>
       <h3>Buscar un set</h3>
       <p>Introduce el nombre de un Warframe o arma (por ejemplo "Mesa Prime") para listar cada pieza del set, el precio de cada una y el precio del set completo. El set completo suele venderse por más que la suma de sus piezas, que es la información necesaria para decidir entre vender piezas o vender el set.</p>
       <h3>Seguidor de sets</h3>
-      <p>Marca las piezas que ya tienes para ver tu progreso de completado y qué piezas faltan por farmear.</p>
+      <p>Marca las piezas que ya tienes para ver tu progreso de completado y qué piezas faltan por farmear. La cabecera muestra además el precio del set entero y cuántos completos te salen ya con lo que tienes.</p>
+      <h3>Los tienes a medias</h3>
+      <p>Sobre los resultados aparece una tira con tus sets sin terminar, ordenados por lo que menos les queda. Sirve para encontrar de rebote lo que no ibas buscando: vas a mirar un arma y ves que a un warframe le falta una sola pieza. Pulsa uno y lo busca. Tiene su propio buscador y filtro por era, independientes de la búsqueda de arriba.</p>
 
       <h2 id="e-riven">3. Pestaña Riven</h2>
       <h3>Tasador de Rivens</h3>
@@ -194,7 +225,16 @@
       <h3>Simulador de objetivo</h3>
       <p>Estima cuánto Vosfor necesitas y la probabilidad de sacar un arcano concreto, para comparar grindear packs con comprarlo directamente.</p>
 
-      <h2 id="e-scanner">6. Escáner de inventario</h2>
+      <h3>Sincronización y lecturas fallidas</h3>
+      <p>Con la sincronización automática puesta, al cerrar la ventana de recompensas la app iguala tus cantidades a lo que dice el juego. Cuando no consigue leer la etiqueta «N Owned» de una tarjeta, esa pieza sale marcada como <strong>SIN LEER</strong> y no se toca: se queda lo que ya tenías guardado. Los dos números de cada tarjeta vienen de sitios distintos — «en juego» es lo leído por OCR y «guardadas» lo que tiene la app.</p>
+
+      <h2 id="e-ducat">6. Pestaña Ducados</h2>
+      <h3>Fundir o vender</h3>
+      <p>Compara, pieza a pieza, el valor en ducados frente al valor en platino de tus partes Prime: qué conviene llevarle a Baro Ki'Teer y qué sale más a cuenta vender en el mercado. Necesita saber qué tienes, así que primero añade piezas desde la pestaña Set o escanea tu inventario.</p>
+      <h3>Umbral</h3>
+      <p>El deslizador fija por debajo de cuántos platinos das una pieza por fundible. La columna de ratio muestra los ducados que sacas por cada platino que renuncias, que es lo que ordena la lista.</p>
+
+      <h2 id="e-scanner">7. Escáner de inventario</h2>
       <h3>Iniciar un escaneo</h3>
       <p>Abre el escáner y comparte la ventana de Warframe cuando el navegador lo pida. El procesado se hace localmente en tu dispositivo. En la pantalla de Venta/Inventario el escáner detecta la rejilla de objetos automáticamente.</p>
       <h3>Cómo funciona la lectura</h3>

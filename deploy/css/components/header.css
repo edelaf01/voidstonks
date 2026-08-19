@@ -90,6 +90,14 @@
     border-radius: 4px;
 }
 
+.lang-trigger img,
+.lang-option-item img {
+    border-radius: 2px;
+    width: 18px;
+    height: auto;
+    box-shadow: 0 0 2px rgba(255, 255, 255, 0.3);
+}
+
 .lang-option-item {
     padding: 10px;
     display: flex;
@@ -105,14 +113,6 @@
     background: var(--wf-blue);
     color: #000;
     font-weight: 700;
-}
-
-.lang-trigger img,
-.lang-option-item img {
-    border-radius: 2px;
-    width: 18px;
-    height: auto;
-    box-shadow: 0 0 2px rgba(255, 255, 255, 0.3);
 }
 
 /* ---- Main Card ---- */
@@ -377,6 +377,11 @@
     padding-right: 14px;
 }
 
+.tab-more-btn.is-open {
+    color: #fff;
+    background: #222;
+}
+
 .tab-more-btn .tab-more-chevron {
     display: flex;
     align-items: center;
@@ -389,11 +394,6 @@
     width: 100%;
     height: 100%;
     transition: transform 0.25s ease;
-}
-
-.tab-more-btn.is-open {
-    color: #fff;
-    background: #222;
 }
 
 .tab-more-btn.is-open .tab-more-chevron svg {
@@ -470,11 +470,45 @@
     line-height: 1;
 }
 
+/* El icono deja de centrarse verticalmente contra dos lineas de texto: con la descripcion
+   debajo, `align-items: center` lo dejaba flotando a media altura del bloque. */
+.tab-fan-item {
+    align-items: flex-start;
+}
+
+.tab-fan-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
 .tab-fan-label {
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+/* La frase SI se parte en varias lineas: recortarla con ellipsis la dejaria en "Compara el
+   valor en ducados y en pla...", que no explica nada. Dos lineas como maximo — es un menu,
+   no la guia. `rem` y no `em` porque el item ya reduce a 0.84em y encadenar bajaba de lo
+   legible (mismo tropiezo que documenta CLAUDE.md con .ratio-unit a 5,7px). */
+.tab-fan-desc {
+    font-size: 0.72rem;
+    font-weight: 500;
+    line-height: 1.3;
+    color: #8b95a3;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.tab-fan-item:hover .tab-fan-desc,
+.tab-fan-item.is-highlighted .tab-fan-desc {
+    color: #aab3bf;
 }
 
 /* ---- Forms ---- */
@@ -592,14 +626,14 @@ option {
     }
 }
 
-.dropdown-item img {
-    transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275), background 0.2s ease;
-}
-
 .dropdown-item.active-sort-item {
     background: rgba(162, 53, 226, 0.15);
     color: var(--wf-riven);
     font-weight: bold;
+}
+
+.dropdown-item img {
+    transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275), background 0.2s ease;
 }
 
 /* ---- Buttons ---- */
@@ -711,4 +745,29 @@ option {
         margin-left: 4px;
         border-radius: 50%;
     }
+}
+
+/* Autofill del navegador.
+ *
+ * Chrome pinta los campos autorellenados con su propio fondo blanco y texto oscuro, y NO se
+ * puede quitar con `background`: la regla del agente de usuario gana siempre. El único
+ * mecanismo que funciona es tapar el fondo con una sombra interior enorme y forzar el color
+ * del texto con -webkit-text-fill-color, que sí respeta.
+ *
+ * Sin esto, el buscador de "Rutas aconsejadas" (y cualquier otro campo que el navegador
+ * decidiera recordar) se quedaba en blanco sobre blanco en cuanto se aceptaba una sugerencia.
+ *
+ * La transición de 9999s es el truco conocido para el ANIMADO del autofill: Chrome aplica su
+ * fondo con una animación de entrada, así que sin retrasarla indefinidamente el blanco asoma
+ * una fracción de segundo antes de que la sombra lo tape.
+ */
+.wf-input:-webkit-autofill,
+.wf-input:-webkit-autofill:hover,
+.wf-input:-webkit-autofill:focus,
+.wf-input:-webkit-autofill:active {
+    -webkit-text-fill-color: #eee;
+    -webkit-box-shadow: 0 0 0 1000px var(--wf-input-bg, #0a0b0d) inset;
+    box-shadow: 0 0 0 1000px var(--wf-input-bg, #0a0b0d) inset;
+    caret-color: #eee;
+    transition: background-color 9999s ease-out 0s;
 }

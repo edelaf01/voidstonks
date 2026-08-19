@@ -1,14 +1,15 @@
-import { getPriceValue, getSlug } from "../api.js";
+import { getPriceValue } from "../repositories/storage.repository.js";
+import { getSlug } from "../utils/slugs.utils.js";
 import { showToast, escapeHTML } from "../ui.components/ui_components.js";
 import { state } from "../state.js";
 import { TEXTS } from "../config.js";
-import { OCRService } from "../services/ocr.service.js?v=264";
+import { OCRService } from "../services/scanner/ocr.service.js?v=264";
 import { OCRRepository } from "../repositories/ocr.repository.js";
-import { OpenCVEngine } from "../utils/opencv_engine.js";
+import { OpenCVEngine } from "../services/scanner/opencv_engine.service.js";
 import { PaddleRepository } from "../repositories/paddle.repository.js";
 import { getItemIcon } from "../utils/ui_utils.js";
-import { applyBestCameraConstraints } from "../services/vision.service.js";
-import { scanRewardPhoto, scanRewardBurst } from "../utils/reward_photo_ocr.js";
+import { applyBestCameraConstraints } from "../services/scanner/vision.service.js";
+import { scanRewardPhoto, scanRewardBurst } from "../utils/vision/reward_photo_ocr.js";
 
 /**
  * MobileScanner - Modularized and Optimized for Production
@@ -95,7 +96,7 @@ export class MobileScanner {
       let seen = false;
       try { seen = localStorage.getItem("vs_scanner_howto_seen") === "1"; } catch { seen = false; }
       if (!seen) this.showHowTo();
-    } catch (err) { showToast("Error: " + err.message); this.close(); }
+    } catch (err) { showToast((TEXTS[state.currentLang]?.scanner?.toastError || "Error: {msg}").replace("{msg}", err.message)); this.close(); }
   }
 
   /**

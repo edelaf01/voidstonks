@@ -1,10 +1,20 @@
 import { state, saveAppState } from "../state.js";
+import { pickBestForSets } from "../utils/inventory/reward_set_pick.js";
+import { getSetName, getRequiredCount } from "../utils/ui_utils.js";
 import { TEXTS } from "../config.js";
-import { getSlug, getPriceValue } from "../api.js";
+import { getPriceValue } from "../services/market/prices.service.js";
+import { getSlug } from "../utils/slugs.utils.js";
 import { showToast, escapeHTML } from "./ui_components.js";
 import { renderItemsInPiP } from "../utils/pip_overlay.js";
 import { ClipboardService } from "../services/clipboard.service.js";
 import { getItemIcon } from "../utils/ui_utils.js";
+
+// El aviso de la copia diferida lo pone la UI: el service se limita a vaciar la cola cuando
+// la ventana recupera el foco y avisar por aquí.
+ClipboardService.onPendingCopied = () => {
+  const t = TEXTS[state.currentLang]?.rewardScanner;
+  showToast(t?.toastCopied || "Copiado al portapapeles");
+};
 
 /**
  * Component for the Scanner Success/Results Modal.
@@ -247,43 +257,70 @@ export const ScannerModal = {
             }
         }
 
+        // La tercera pregunta, además de "cuál vale más" y "cuál rinde en ducados": cuál me
+        // cierra algo. Se calcula una vez para las cuatro, no por tarjeta.
+        const bestSet = pickBestForSets(positionedItems, {
+            setsDatabase: state.setsDatabase,
+            primeInventory: state.primeInventory,
+            getSetName,
+            getRequiredCount,
+        });
+
         const fragment = document.createDocumentFragment();
         positionedItems.forEach((item) => {
             const isBestPl = item.price === maxPl && item.price > 0;
             const isBestEff = item.potential === maxPotential && item.potential > 0;
 
-            this.createBadge(item, fragment, isBestPl, isBestEff, badgeScale);
+            this.createBadge(item, fragment, isBestPl, isBestEff, badgeScale,
+                bestSet && bestSet.name === item.name ? bestSet : null);
         });
 
         badgesContainer.innerHTML = "";
         badgesContainer.appendChild(fragment);
     },
 
-    createBadge(item, container, isBestPl, isBestEff, badgeScale = 1) {
+    createBadge(item, container, isBestPl, isBestEff, badgeScale = 1, bestSet = null) {
         const badge = document.createElement("div");
-        badge.className = `modal-badge ${isBestPl ? "best-pl" : ""} ${isBestEff ? "best-duc" : ""}`;
+        badge.className = `modal-badge ${isBestPl ? "best-pl" : ""} ${isBestEff ? "best-duc" : ""} ${bestSet ? "best-set-finisher" : ""}`;
         badge.style.left = `${item.leftPct}%`;
         if (badgeScale < 1) badge.style.setProperty("--badge-scale", badgeScale);
 
         const t = TEXTS[state.currentLang].rewardScanner;
         const appOwned = state.primeInventory?.[item.name] || 0;
 
-        const isZero = item.owned === 0;
-        const statusColor = item.crafted ? "#888" : (isZero ? "#ff4b2b" : "#00ff78");
-        const statusText = item.crafted ? "CRAFTED" : `${item.owned} ${t.lblSeen.toUpperCase()}`;
+        // "0 SEEN" decía dos cosas distintas —"no tienes ninguna" y "no pude leer la etiqueta"—
+        // con el mismo texto y el mismo rojo. Sin lectura fiable se dice que no se leyó, que es
+        // además el aviso de que el auto-sync no va a tocar esa pieza.
+        const sinLectura = !item.crafted && !item.ownedRead;
+        const statusColor = item.crafted ? "#888" : (sinLectura ? "#e0932f" : "#00ff78");
+        const statusText = item.crafted
+            ? "CRAFTED"
+            : (sinLectura ? (t.lblUnread || "?") : `${item.owned} ${t.lblSeen.toUpperCase()}`);
+        // Los dos números salen de sitios distintos y se llamaban casi igual, así que juntos
+        // parecían contradecirse ("SIN LEER" encima de "OWNED: 3"). El tooltip lo cierra.
+        const statusTitle = item.crafted
+            ? (t.lblSeenTitle || "")
+            : (sinLectura ? (t.lblUnreadTitle || "") : (t.lblSeenTitle || ""));
 
         badge.innerHTML = `
         <div class="modal-badge-link">
             <div class="modal-badge-labels">
+                ${bestSet ? `<div class="best-badge set-finisher${bestSet.left === 0 ? "" : " near"}" data-tooltip="${escapeHTML(
+        (bestSet.left === 0
+            ? (t.tagBestSetTitleDone || "")
+            : (t.tagBestSetTitle || "").replace("{left}", String(bestSet.left)))
+            .replace("{set}", bestSet.set))}">${
+        escapeHTML(bestSet.left === 0 ? (t.tagBestSet || "") : (t.tagBestSetNear || ""))}</div>` : ""}
                 ${isBestPl ? `<div class="best-badge pl">${t.tagBestPl}</div>` : ""}
                 ${isBestEff ? `<div class="best-badge duc">${t.tagBestDuc}</div>` : ""}
             </div>
             <div class="modal-badge-content-wrapper">
                 <div class="metadata-row">
-                    <div class="inventory-app-count" style="border-color:${statusColor}; color:${statusColor}; font-weight:bold; border:1px solid; padding:2px 6px; border-radius:4px;">
+                    <div class="inventory-app-count" data-tooltip="${escapeHTML(statusTitle)}"
+                         style="border-color:${statusColor}; color:${statusColor}; font-weight:bold; border:1px solid; padding:2px 6px; border-radius:4px;">
                         ${statusText}
                     </div>
-                    <div class="app-owned-info">${t.lblInv.toUpperCase()}: ${appOwned}</div>
+                    <div class="app-owned-info" data-tooltip="${escapeHTML(t.lblInvTitle || "")}">${t.lblInv.toUpperCase()}: ${appOwned}</div>
                 </div>
                 <div class="modal-badge-name">${escapeHTML(item.name.toUpperCase())}</div>
                 <div class="modal-badge-row">
@@ -322,8 +359,18 @@ globalThis.closeScanModal = () => {
                 if (isSelected) state.primeInventory[item.name] = currentAppQty + 1;
                 return;
             }
-            const ocrOwned = (typeof item.owned === 'number') ? item.owned : currentAppQty;
-            state.primeInventory[item.name] = ocrOwned + (isSelected ? 1 : 0);
+            // Sin lectura FIABLE del número no se sobrescribe nada. La guarda de antes miraba
+            // `typeof item.owned === 'number'`, pero una lectura fallida devolvía 0 —que es un
+            // número— así que pasaba y escribía cero: con auto-sync puesto, eso BORRABA las
+            // piezas guardadas. Es el caso de la captura con las cuatro tarjetas en "0 SEEN"
+            // mientras el juego mostraba "3 Owned".
+            //
+            // Un 0 leído no existe: el juego no pinta etiqueta cuando no tienes ninguna.
+            if (!item.ownedRead) {
+                if (isSelected) state.primeInventory[item.name] = currentAppQty + 1;
+                return;
+            }
+            state.primeInventory[item.name] = item.owned + (isSelected ? 1 : 0);
         });
         saveAppState();
         if (globalThis.renderPrimeInventory) globalThis.renderPrimeInventory();

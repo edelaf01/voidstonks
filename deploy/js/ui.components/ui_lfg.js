@@ -11,6 +11,18 @@ export function changeLFGCount(n) {
   generateLFGMessage();
 }
 
+/**
+ * Bloque de "aquí no hay nada" con la pista de para qué sirve.
+ *
+ * El "No hay presets guardados" a secas describe el estado y no la utilidad: quien nunca los ha
+ * usado no se entera de que existen ni de cómo estrenarlos, que es justo quien lee ese mensaje.
+ */
+function emptyHintHtml(titulo, pista) {
+  return `<div class="lfg-empty">${escapeHTML(titulo || "")}`
+    + (pista ? `<span class="lfg-empty-hint">${escapeHTML(pista)}</span>` : "")
+    + `</div>`;
+}
+
 export function updateLFGUI() {
   initLFGPresets();
   const act = document.getElementById("lfgActivity").value;
@@ -21,9 +33,12 @@ export function updateLFGUI() {
 
   container.innerHTML = "";
 
+  // Hoy todo esto sale de TEXTS (constantes del bundle, sin markup), pero es el único sitio de
+  // la app que interpolaba en innerHTML sin pasar por escapeHTML. Si mañana los textos vienen
+  // de un JSON remoto, la defensa ya está puesta y no hay que acordarse.
   const createInfo = (text) => {
     if (!text) return "";
-    return `<div style="margin-bottom:10px; font-size:0.85em; color:#888; border-left:2px solid var(--active-theme-color, var(--wf-blue)); padding-left:8px;">${text}</div>`;
+    return `<div style="margin-bottom:10px; font-size:0.85em; color:#888; border-left:2px solid var(--active-theme-color, var(--wf-blue)); padding-left:8px;">${escapeHTML(text)}</div>`;
   };
 
   if (act === "eda") {
@@ -31,27 +46,27 @@ export function updateLFGUI() {
             ${createInfo(tips.eda)}
             <label class="lfg-checkbox-wrapper" style="margin-bottom:10px;">
                 <input type="checkbox" id="lfg-eda-elite" checked onchange="generateLFGMessage()"> 
-                <span class="lfg-label">${roles.elite}</span>
+                <span class="lfg-label">${escapeHTML(roles.elite)}</span>
             </label>`;
   } else if (act === "temporal") {
     container.innerHTML = `
             ${createInfo(tips.temporal)}
             <label class="lfg-checkbox-wrapper" style="margin-bottom:10px;">
                 <input type="checkbox" id="lfg-temp-elite" onchange="generateLFGMessage()"> 
-                <span class="lfg-label">${roles.elite}</span>
+                <span class="lfg-label">${escapeHTML(roles.elite)}</span>
             </label>`;
   } else if (act === "netra") {
     container.innerHTML = createInfo(tips.netra);
   } else if (act === "eidolon") {
     container.innerHTML = `
             <div style="margin-bottom:10px;">
-                <label style="font-size:0.8em; color:#888; margin-bottom:5px; display:block;">Pace / Ritmo <span data-tooltip="${tips.rotation || "Rotation info"
+                <label style="font-size:0.8em; color:#888; margin-bottom:5px; display:block;">Pace / Ritmo <span data-tooltip="${escapeHTML(tips.rotation || "Rotation info")
       }">(?)</span></label>
                 <select id="lfg-eidolon-runs" class="wf-input" onchange="generateLFGMessage()">
-                    <option value="3x3">${roles.run3x3}</option>
-                    <option value="5x3">${roles.run5x3}</option>
-                    <option value="6x3">${roles.run6x3}</option>
-                    <option value="casual">${roles.casual}</option>
+                    <option value="3x3">${escapeHTML(roles.run3x3)}</option>
+                    <option value="5x3">${escapeHTML(roles.run5x3)}</option>
+                    <option value="6x3">${escapeHTML(roles.run6x3)}</option>
+                    <option value="casual">${escapeHTML(roles.casual)}</option>
                 </select>
             </div>
             <div class="lfg-grid">
@@ -75,15 +90,15 @@ export function updateLFGUI() {
     container.innerHTML = `
             ${createInfo(tips.arbi)}
             <select id="lfg-arbi-type" class="wf-input" onchange="generateLFGMessage()">
-                <option value="Meta">${roles.meta}</option>
-                <option value="Normal">${roles.casual}</option>
+                <option value="Meta">${escapeHTML(roles.meta)}</option>
+                <option value="Normal">${escapeHTML(roles.casual)}</option>
             </select>`;
   } else if (act === "circuit") {
     container.innerHTML = `
             ${createInfo(tips.circuit)}
             <select id="lfg-circuit-mode" class="wf-input" onchange="generateLFGMessage()">
-                <option value="normal">${roles.normal || "Normal"}</option>
-                <option value="SP">${roles.steelpath || "Steel Path"}</option>
+                <option value="normal">${escapeHTML(roles.normal || "Normal")}</option>
+                <option value="SP">${escapeHTML(roles.steelpath || "Steel Path")}</option>
             </select>`;
   } else if (act === "eso" || act === "so") {
     container.innerHTML = `
@@ -107,7 +122,7 @@ export function updateLFGUI() {
     container.innerHTML = `
             ${createInfo(tips.kuva)}
             <select id="lfg-kuva-type" class="wf-input" onchange="generateLFGMessage()">
-                <option value="Survival">${roles.kuvaSurvival || "Survival"}</option>
+                <option value="Survival">${escapeHTML(roles.kuvaSurvival || "Survival")}</option>
                 <option value="Flood">Flood</option>
                 <option value="Siphon">Siphon</option>
             </select>`;
@@ -122,7 +137,7 @@ export function updateLFGUI() {
   } else if (act === "radshare") {
     container.innerHTML = `
             <div style="padding:10px; background:#1a1c20; border:1px dashed #444; color:#aaa; font-size:0.9em;">
-                <span data-tooltip="${tips.radshare || ""}">${t.lfgOpts.radshareInfo
+                <span data-tooltip="${escapeHTML(tips.radshare || "")}">${escapeHTML(t.lfgOpts.radshareInfo)
       }</span>
             </div>`;
   }
@@ -130,8 +145,8 @@ export function updateLFGUI() {
 }
 
 function createCheckbox(val, label, tip = "") {
-  const tooltip = tip ? `data-tooltip="${tip}"` : "";
-  return `<label class="lfg-checkbox-wrapper"><input type="checkbox" class="lfg-role" value="${val}" onchange="generateLFGMessage()"> <span class="lfg-label" ${tooltip}>${label}</span></label>`;
+  const tooltip = tip ? `data-tooltip="${escapeHTML(tip)}"` : "";
+  return `<label class="lfg-checkbox-wrapper"><input type="checkbox" class="lfg-role" value="${escapeHTML(val)}" onchange="generateLFGMessage()"> <span class="lfg-label" ${tooltip}>${escapeHTML(label)}</span></label>`;
 }
 
 export function generateLFGMessage() {
@@ -235,7 +250,11 @@ export function toggleLfgDropdown() {
 
 export function selectLfgOption(value, text) {
   document.getElementById("lfgActivity").value = value;
-  document.getElementById("lfgSelectedText").innerText = text;
+  // El `text` que llega es el rótulo inglés escrito en el onclick del HTML. Usarlo tal cual
+  // dejaba el selector cerrado en inglés tras elegir en español, hasta que un cambio de
+  // idioma lo reescribía. La traducción manda; `text` solo cubre una clave sin traducir.
+  const label = TEXTS[state.currentLang]?.lfgOpts?.[value] || text;
+  document.getElementById("lfgSelectedText").innerText = label;
   document.getElementById("lfgDropdown").classList.add("hidden");
   updateLFGUI();
   saveAppState();
@@ -283,9 +302,7 @@ export function renderTradePresets() {
                   style="width:100%; resize:vertical; margin-bottom:8px; font-size:0.85em;">${escapeHTML(currentText)}</textarea>`;
 
   if (!state.tradePresets || state.tradePresets.length === 0) {
-    html += `<div style="font-size:0.8em; color:#555; font-style:italic; padding:5px;">${escapeHTML(
-      t.empty || "No saved trade messages.",
-    )}</div>`;
+    html += emptyHintHtml(t.empty || "No saved trade messages.", t.emptyHint);
   } else {
     html += `<div class="presets-list">`;
     state.tradePresets.forEach((p, index) => {
@@ -354,9 +371,7 @@ export function renderLFGPresets() {
                 </div>`;
 
   if (!state.lfgPresets || state.lfgPresets.length === 0) {
-    html += `<div style="font-size:0.8em; color:#555; font-style:italic; padding:5px;">${escapeHTML(
-      t.empty,
-    )}</div>`;
+    html += emptyHintHtml(t.empty, t.emptyHint);
   } else {
     html += `<div class="presets-list">`;
     state.lfgPresets.forEach((p, index) => {
@@ -454,7 +469,8 @@ const loadLFGPreset = function (index) {
   }
 
   generateLFGMessage();
-  showToast(`Preset "${escapeHTML(p.name)}" cargado`);
+  showToast((TEXTS[state.currentLang]?.lfgPresets?.loaded || 'Preset "{name}" loaded')
+    .replace("{name}", p.name));
 };
 
 const deleteLFGPreset = function (index) {
@@ -483,6 +499,7 @@ export function copyText() {
   const textToCopy = document.getElementById("finalMessage").innerText;
   navigator.clipboard
     .writeText(textToCopy)
-    .then(() => import("./ui_components.js").then(m => m.showToast("Message Copied!")))
+    .then(() => import("./ui_components.js").then((m) =>
+      m.showToast(TEXTS[state.currentLang]?.sync?.copied || "Message copied!")))
     .catch((err) => console.error("Error al copiar: ", err));
 }

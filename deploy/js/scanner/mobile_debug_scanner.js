@@ -1,7 +1,12 @@
 import { MobileScanner } from "./mobile_scanner.js";
 import { OCRRepository } from "../repositories/ocr.repository.js";
-import { OCRService } from "../services/ocr.service.js?v=264";
+import { OCRService } from "../services/scanner/ocr.service.js?v=264";
 import { escapeHTML, showToast } from "../ui.components/ui_components.js";
+import { TEXTS } from "../config.js";
+import { state } from "../state.js";
+
+/** Textos del escáner en el idioma activo; se lee en cada uso porque cambia en caliente. */
+const st = () => TEXTS[state.currentLang]?.scanner || {};
 
 
 export class MobileDebugScanner extends MobileScanner {
@@ -22,7 +27,7 @@ export class MobileDebugScanner extends MobileScanner {
         } catch (e) {
             console.warn("MobileDebugScanner: Camera blocked/unavailable. Loading UI anyway.", e);
             this.createOverlay();
-            showToast("Camera blocked - Use SCREEN mode", "warning");
+            showToast(st().toastCameraBlocked, "warning");
         }
 
         this.initDebugUI();
@@ -477,10 +482,10 @@ export class MobileDebugScanner extends MobileScanner {
                 this.video.srcObject = this.stream;
                 await this.video.play();
             }
-            showToast("Cambiado a CAPTURA DE PANTALLA");
+            showToast(st().toastSwitchedToScreen);
         } catch (e) {
             console.error("SCREEN CAPTURE ERROR:", e);
-            showToast("Error al capturar pantalla");
+            showToast(st().toastScreenError);
         }
     }
 
