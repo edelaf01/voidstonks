@@ -18,16 +18,37 @@ function getTier(index, isNarmer, isLich) {
     return index + 1;
 }
 
-function getTechType(uName, nodeKey) {
-    const chall = uName.toLowerCase();
-    if (chall.includes("mobdef")) return "Mobile Defense";
-    if (chall.includes("exterminate")) return "Exterminate";
-    if (chall.includes("cascade")) return "Void Cascade";
-    if (chall.includes("armageddon")) return "Void Armageddon";
-    if (chall.includes("flood")) return "Void Flood";
-    if (chall.includes("capture")) return "Capture";
-    if (chall.includes("defense")) return "Defense";
-    return NODE_TO_TYPE[nodeKey] || "Bounty";
+//TODO is it really neccesary to store this here? 
+const TECH_TYPE_FRAGMENTS = [
+    ["mobdef", "Mobile Defense"],
+    ["mobile defense", "Mobile Defense"],
+    ["exterminate", "Exterminate"],
+    ["cascade", "Void Cascade"],
+    ["armageddon", "Void Armageddon"],
+    ["flood", "Void Flood"],
+    ["capture", "Capture"],
+    ["rescue", "Rescue"],
+    ["excavat", "Excavation"],
+    ["sabotage", "Sabotage"],
+    ["spy", "Spy"],
+    ["assassinat", "Assassination"],
+    ["defense", "Defense"],
+];
+
+function matchTechType(text) {
+    const s = String(text || "").toLowerCase();
+    if (!s) return null;
+    for (const [frag, tipo] of TECH_TYPE_FRAGMENTS) if (s.includes(frag)) return tipo;
+    return null;
+}
+
+// order matters: title overrides misleading ids (AssassinateBountyCap is a capture)
+function getTechType(uName, nodeKey, title = "", jobId = "") {
+    return matchTechType(uName)
+        || matchTechType(title)
+        || matchTechType(jobId)
+        || NODE_TO_TYPE[nodeKey]
+        || "Bounty";
 }
 
 function getMissionName(job, techType, faction, isLich, nodeKey, allyKey) {
@@ -63,7 +84,7 @@ function extractJobInfo(job, source, faction, oracleJob = null, index = 0) {
         job.type?.toLowerCase().includes("narmer");
 
     const tier = getTier(index, isNarmer, isLich);
-    const techType = getTechType(uName, nodeKey);
+    const techType = getTechType(uName, nodeKey, job.type || job.title || "", job.id || "");
     const missionName = getMissionName(job, techType, faction, isLich, nodeKey, allyKey);
 
     const challengeKey = Object.keys(CHALLENGE_MAP).find((k) => uName.includes(k));

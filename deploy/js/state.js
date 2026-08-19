@@ -30,6 +30,7 @@ Object.assign(rawState, {
   currentLang: "en",
   activeTab: "relic",
   playerCount: 1,
+  squadSize: 4,
   lfgCount: 1,
   relicSourcesDatabase: {},
   selectedRelic: "",
@@ -85,6 +86,7 @@ export function saveAppState() {
       username: state.username || "",
       mr: state.mr || 0,
       currentActiveSet: state.currentActiveSet,
+      squadSize: state.squadSize,
       activeSetParts: state.activeSetParts,
       completedParts: Array.from(state.completedParts),
       lfgPresets: state.lfgPresets,
@@ -128,6 +130,7 @@ export function loadAppState() {
       state.completedParts = new Set(data.completedParts || []);
     }
     if (typeof data.showAllFarms !== "undefined") state.showAllFarms = data.showAllFarms;
+    if (Number.isFinite(data.squadSize)) state.squadSize = Math.min(4, Math.max(1, data.squadSize));
     if (data.lfgPresets) state.lfgPresets = data.lfgPresets;
     if (data.tradePresets) state.tradePresets = data.tradePresets;
     if (data.arbSettings) state.arbSettings = { ...state.arbSettings, ...data.arbSettings };

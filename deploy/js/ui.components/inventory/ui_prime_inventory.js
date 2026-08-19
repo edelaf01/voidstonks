@@ -4,6 +4,7 @@ import { addToQueue, getPriceValue } from "../../services/market/prices.service.
 import { warmupPrices } from "../../services/inventory/inventory.service.js";
 import { getSlug } from "../../utils/slugs.utils.js";
 import { escapeHTML } from "../../utils/escape_html.js";
+import { emptyStateHtml } from "../ui_components.js";
 import {
   getItemIcon,
   getSetName,
@@ -11,7 +12,6 @@ import {
   calculateTotalFullSets,
 } from "../../utils/ui_utils.js";
 import { generateDotsHtml } from "../ui_tooltips.js";
-import { renderFissureSetRecommendations } from "./ui_set_recs.js";
 import { renderFarmRoutes } from "../farms/ui_farm_routes.js";
 import { getPartDucats, formatDucatRatio } from "./ui_ducanator.js";
 import { calculateGroupSubtotal } from "../../services/inventory/inventory_value.service.js";
@@ -117,6 +117,10 @@ export function modifyPrimePart(name, amount) {
       if (state.currentActiveSet === setName && typeof globalThis.renderSetTracker === "function") {
         globalThis.renderSetTracker();
       }
+
+      if (state.activeTab === "relic") {
+        renderFarmRoutes().catch((e) => console.warn("[INVENTORY] Error renderizando rutas:", e));
+      }
     }
 
     const rewardCounts = document.querySelectorAll(`.app-owned-val[data-part="${safePartHtml}"]`);
@@ -177,9 +181,14 @@ export function decrementPrimeSet(setName) {
   }
 }
 
+// openSetGroups in memory: rebuilding innerHTML closed the set being filled
+const openSetGroups = new Set();
+
 export function toggleInvSet(safeSetId) {
   const el = document.getElementById(`set-group-${safeSetId}`);
-  if (el) el.classList.toggle("collapsed");
+  if (!el) return;
+  if (el.classList.toggle("collapsed")) openSetGroups.delete(safeSetId);
+  else openSetGroups.add(safeSetId);
 }
 
 export function openSetDetail(setName) {
@@ -213,12 +222,7 @@ export function renderPrimeInventory() {
   const panel = document.getElementById("inventory-sidebar");
   if (panel && !panel.classList.contains("open")) return;
 
-  renderFissureSetRecommendations().catch((e) =>
-    console.warn("[INVENTORY] Error renderizando recomendaciones de fisuras:", e),
-  );
-  renderFarmRoutes().catch((e) =>
-    console.warn("[INVENTORY] Error renderizando rutas de farmeo:", e),
-  );
+  renderFarmRoutes().catch((e) => console.warn("[INVENTORY] Error renderizando rutas:", e));
 
   const searchInput = (document.getElementById("prime-inv-search")?.value || "").toLowerCase();
   const sortMode = document.getElementById("prime-inv-sort")?.value || "alpha";
@@ -329,8 +333,11 @@ export function renderPrimeInventory() {
   });
 
   if (setNames.length === 0) {
-    const emptyMsg = TEXTS[state.currentLang].inventory.empty || "Inventory empty";
-    list.innerHTML = `<div style="padding:20px; text-align:center; color:#666;">${emptyMsg}</div>`;
+    const inv = TEXTS[state.currentLang]?.inventory;
+    list.innerHTML = emptyStateHtml(
+      inv?.emptyParts || "No prime parts saved yet.",
+      inv?.emptyScannerHint,
+    );
     return;
   }
 
@@ -380,7 +387,7 @@ export function renderPrimeInventory() {
         }
 
         let groupHtml = `
-      <div class="inv-set-group collapsed" id="set-group-${safeSetId}">
+      <div class="inv-set-group${openSetGroups.has(safeSetId) ? "" : " collapsed"}" id="set-group-${safeSetId}">
         <div class="inv-set-header" data-action="toggle-inv-set" data-setid="${safeSetId}" style="cursor:pointer;">
           <div class="header-controls">
             <div style="display:flex; gap:4px;">

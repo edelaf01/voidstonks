@@ -76,3 +76,58 @@ test("un escuadrón de 0 no divide por cero: devuelve Infinity", () => {
   const p = conDrops("p", [{ rarity: "Rare", chance: 2 }]);
   assert.equal(calculatePartExpectedRuns(p, "radiant", 0), Infinity);
 });
+
+const { runsForRarity, normalizeRarity, getPlayerOdds } = await import(
+  "../deploy/js/utils/inventory/relic_drop_odds.utils.js"
+);
+
+test("normalizeRarity cae en la misma trampa que getPartRarity y la esquiva", () => {
+  assert.equal(normalizeRarity("Uncommon"), "uncommon");
+  assert.equal(normalizeRarity("VERY UNCOMMON"), "uncommon");
+  assert.equal(normalizeRarity("Common"), "common");
+  assert.equal(normalizeRarity("Rare"), "rare");
+  assert.equal(normalizeRarity("Legendary"), null);
+  assert.equal(normalizeRarity(undefined), null);
+});
+
+test("con radiante, una poco común pide MENOS runs que una común", () => {
+  const comun = runsForRarity("Common", "radiant", 4);
+  const pocoComun = runsForRarity("Uncommon", "radiant", 4);
+  assert.ok(pocoComun < comun, `poco común ${pocoComun} debería costar menos que común ${comun}`);
+
+  assert.ok(runsForRarity("Common", "intact", 4) < runsForRarity("Uncommon", "intact", 4));
+});
+
+test("runsForRarity coincide con el cálculo de la pieza cuando hay una sola reliquia", () => {
+  const p = conDrops("p", [{ rarity: "Rare", chance: 2 }]);
+  assert.equal(runsForRarity("Rare", "radiant", 4), calculatePartExpectedRuns(p, "radiant", 4));
+});
+
+test("una rareza desconocida no se inventa un número", () => {
+  assert.equal(runsForRarity("Legendary", "radiant", 4), null);
+  assert.equal(runsForRarity("Rare", "ultra", 4), null);
+});
+
+test("getPlayerOdds traduce la etiqueta de la UI y acota la escuadra", () => {
+  state.refinement = "Rad";
+  state.squadSize = 4;
+  assert.deepEqual(getPlayerOdds(), { refinement: "radiant", squadSize: 4 });
+
+  state.refinement = "Intact";
+  state.squadSize = 9;
+  assert.deepEqual(getPlayerOdds(), { refinement: "intact", squadSize: 4 }, "más de 4 no existe");
+
+  state.refinement = undefined;
+  state.squadSize = 1;
+  assert.deepEqual(getPlayerOdds(), { refinement: "radiant", squadSize: 1 }, "en solitario");
+
+  state.squadSize = 0;
+  assert.deepEqual(getPlayerOdds(), { refinement: "radiant", squadSize: 4 });
+});
+
+test("getPlayerOdds ignora el contador de reclutamiento", () => {
+  state.refinement = "Rad";
+  state.squadSize = 4;
+  state.playerCount = 1;
+  assert.equal(getPlayerOdds().squadSize, 4, "«faltan 1» no significa escuadra de 1");
+});

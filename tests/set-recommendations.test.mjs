@@ -17,6 +17,7 @@ const {
   filterSetRecommendations,
   getSetRecsPrefs,
   saveSetRecsPrefs,
+  erasOf,
 } = await import("../deploy/js/services/inventory/set_recommendations.service.js");
 
 const fisura = (tier, node, type = "Survival") => ({ tier, node, type });
@@ -42,6 +43,33 @@ test("solo se recomiendan sets a los que les falta alguna pieza", () => {
 
   state.primeInventory = { "Mag Prime Neuroptics": 1, "Mag Prime Chassis": 1 };
   assert.deepEqual(getFissureSetRecommendations([fisura("Axi", "Xini")]), []);
+});
+
+// getRequiredCount caches by "set::piece" without invalidating: reusing Mag Prime poisons counts
+test("una pieza que se pide por duplicado sigue faltando con una sola copia", () => {
+  escenario();
+  state.setsDatabase = { "Volt Prime": ["Volt Prime Neuroptics", "Volt Prime Chassis"] };
+  state.itemsDatabase = {
+    "Volt Prime Neuroptics": [{ tier: "Lith", ducats: 15, rarity: "Common", chance: 25.33 }],
+    "Volt Prime Chassis": [{ tier: "Axi", ducats: 100, rarity: "Rare", chance: 2 }],
+  };
+  state.primeManifest = [{
+    name: "Volt Prime",
+    components: [
+      { name: "Neuroptics", itemCount: 1 },
+      { name: "Chassis", itemCount: 2 },
+    ],
+  }];
+  state.primeInventory = { "Volt Prime Neuroptics": 1, "Volt Prime Chassis": 1 };
+
+  const recs = getFissureSetRecommendations([fisura("Axi", "Xini")]);
+  assert.equal(recs.length, 1, "con 1 de 2 Chassis el set no está cerrado");
+  assert.deepEqual(recs[0].missingParts, ["Volt Prime Chassis"]);
+
+  state.primeInventory = { "Volt Prime Neuroptics": 1, "Volt Prime Chassis": 2 };
+  assert.deepEqual(getFissureSetRecommendations([fisura("Axi", "Xini")]), []);
+
+  state.primeManifest = [];
 });
 
 test("una fisura Vanguard cuenta como Axi", () => {
@@ -169,7 +197,7 @@ test("el filtro por piezas restantes y por 'solo comprar' acota la lista", async
 });
 
 test("unas preferencias corruptas caen a los valores por defecto", () => {
-  const porDefecto = { maxMissing: 0, buyOnly: false };
+  const porDefecto = { maxMissing: 0, buyOnly: false, query: "", minPerHour: 0, minGain: 0, sortBy: "near", era: "", bestFor: "" };
   for (const basura of ["{no es json", '{"maxMissing":"tres"}', '{"buyOnly":"sí"}', "null"]) {
     almacen.set("vs_fissure_set_recs_prefs", basura);
     assert.deepEqual(getSetRecsPrefs(), porDefecto, basura);
@@ -179,6 +207,171 @@ test("unas preferencias corruptas caen a los valores por defecto", () => {
 });
 
 test("las preferencias válidas se guardan y se releen", () => {
-  saveSetRecsPrefs({ maxMissing: 2, buyOnly: true });
-  assert.deepEqual(getSetRecsPrefs(), { maxMissing: 2, buyOnly: true });
+  saveSetRecsPrefs({ maxMissing: 2, buyOnly: true, query: "saryn", minPerHour: 100, minGain: 50, sortBy: "gain", era: "Neo", bestFor: "intact" });
+  assert.deepEqual(getSetRecsPrefs(),
+    { maxMissing: 2, buyOnly: true, query: "saryn", minPerHour: 100, minGain: 50, sortBy: "gain", era: "Neo", bestFor: "intact" });
+});
+
+test("umbrales inválidos se sanean a 0 y un orden desconocido cae al de serie", () => {
+  almacen.set("vs_farm_routes_filters_v2", JSON.stringify(
+    { minPerHour: null, minGain: -20, sortBy: "loQueSea", era: "Vanguard" }));
+  const p = getSetRecsPrefs();
+  assert.equal(p.minPerHour, 0);
+  assert.equal(p.minGain, 0, "un umbral negativo no filtra nada, es no tenerlo");
+  assert.equal(p.sortBy, "near");
+  assert.equal(p.era, "", "una era inventada no filtra nada, es no tenerla");
+});
+
+test("los umbrales de platino esconden también lo que no se ha podido valorar", () => {
+  const rutas = [
+    { setName: "Cara", missingCount: 1, matches: [], platPerHour: 200, gain: 90 },
+    { setName: "Barata", missingCount: 1, matches: [], platPerHour: 30, gain: 10 },
+    { setName: "SinPrecio", missingCount: 1, matches: [], platPerHour: null, gain: null },
+  ];
+  const base = { maxMissing: 0, buyOnly: false, query: "" };
+  const porHora = filterSetRecommendations(rutas, { ...base, minPerHour: 100, minGain: 0 });
+  assert.deepEqual(porHora.map((r) => r.setName), ["Cara"]);
+  const porGanancia = filterSetRecommendations(rutas, { ...base, minPerHour: 0, minGain: 50 });
+  assert.deepEqual(porGanancia.map((r) => r.setName), ["Cara"]);
+});
+
+const recs = [
+  { setName: "Saryn Prime", missingCount: 2, matches: [{ part: "Saryn Prime Chassis" }] },
+  { setName: "Volt Prime", missingCount: 1, matches: [{ part: "Volt Prime Neuroptics" }] },
+  { setName: "Ash Prime", missingCount: 3, matches: [{ part: "Ash Prime Systems" }] },
+];
+
+test("busca por el nombre del set", () => {
+  const r = filterSetRecommendations(recs, { maxMissing: 0, buyOnly: false, query: "saryn" });
+  assert.deepEqual(r.map((x) => x.setName), ["Saryn Prime"]);
+});
+
+test("busca también en el nombre de las piezas", () => {
+  const r = filterSetRecommendations(recs, { maxMissing: 0, buyOnly: false, query: "neuroptics" });
+  assert.deepEqual(r.map((x) => x.setName), ["Volt Prime"]);
+});
+
+test("no distingue mayúsculas ni acentos", () => {
+  for (const q of ["SARYN", "sáryn", "  Saryn  "]) {
+    const r = filterSetRecommendations(recs, { maxMissing: 0, buyOnly: false, query: q });
+    assert.equal(r.length, 1, `falló con ${JSON.stringify(q)}`);
+  }
+});
+
+test("sin búsqueda no se filtra nada", () => {
+  for (const q of ["", "   ", undefined, null]) {
+    const r = filterSetRecommendations(recs, { maxMissing: 0, buyOnly: false, query: q });
+    assert.equal(r.length, 3, `falló con ${JSON.stringify(q)}`);
+  }
+});
+
+test("la búsqueda se combina con el resto de filtros", () => {
+  const r = filterSetRecommendations(recs, { maxMissing: 1, buyOnly: false, query: "prime" });
+  assert.deepEqual(r.map((x) => x.setName), ["Volt Prime"], "los tres llevan 'prime'; solo uno pasa el tope");
+});
+
+test("la búsqueda se persiste con el resto de preferencias", () => {
+  saveSetRecsPrefs({ maxMissing: 2, buyOnly: true, query: "saryn" });
+  const p = getSetRecsPrefs();
+  assert.equal(p.query, "saryn");
+  assert.equal(p.maxMissing, 2);
+});
+
+test("una preferencia corrupta no deja el panel sin filtro de nombre", () => {
+  saveSetRecsPrefs({ maxMissing: 0, buyOnly: false, query: 42 });
+  assert.equal(getSetRecsPrefs().query, "", "un número no es una búsqueda");
+});
+
+const uiSrc = await import("node:fs").then((fs) =>
+  fs.readFileSync(new URL("../deploy/js/ui.components/farms/ui_farm_routes.js", import.meta.url), "utf8"));
+
+test("la lista que se filtra son TODAS las rutas, sin recortar", () => {
+  assert.match(uiSrc, /_allRoutes = buildFarmRoutes/, "hay que guardar la lista entera");
+  assert.match(uiSrc, /Number\.MAX_SAFE_INTEGER/,
+    "buildFarmRoutes recorta por su cuenta: hay que pedirle todas y recortar después de filtrar");
+});
+
+test("primero se filtra y luego se recorta", () => {
+  const fn = uiSrc.slice(uiSrc.indexOf("async function applyFiltersAndRender"));
+  const filtro = fn.indexOf("filterSetRecommendations(_allRoutes");
+  const recorte = fn.indexOf(".slice(0, MAX_ROUTES)");
+  assert.ok(filtro !== -1 && recorte !== -1, "faltan el filtro o el recorte");
+  assert.ok(filtro < recorte, "el recorte tiene que ir después del filtro");
+});
+
+test("los precios solo se piden para lo que se va a pintar", () => {
+  const fn = uiSrc.slice(uiSrc.indexOf("async function applyFiltersAndRender"));
+  assert.match(fn, /await attachSetPrices\(page, piezas\)/);
+  assert.doesNotMatch(uiSrc, /attachSetPrices\(_allRoutes/, "no sobre la lista entera");
+});
+
+test("un repintado viejo no pisa al nuevo", () => {
+  assert.match(uiSrc, /const token = \(_renderTokens\.get\(raiz\) \|\| 0\) \+ 1/);
+  assert.match(uiSrc, /_renderTokens\.set\(raiz, token\)/);
+  assert.match(uiSrc, /if \(token !== _renderTokens\.get\(raiz\)\) return/);
+});
+
+test("el filtro pinta sin esperar a los precios", () => {
+  const fn = uiSrc.slice(uiSrc.indexOf("async function applyFiltersAndRender"));
+  const pintaAntes = fn.indexOf("if (!prefs.buyOnly) pintar(page)");
+  const esperaPrecios = fn.indexOf("await attachSetPrices(page, piezas)");
+  assert.ok(pintaAntes !== -1, "falta el pintado inmediato");
+  assert.ok(pintaAntes < esperaPrecios, "el pintado tiene que ir antes de esperar precios");
+  assert.match(fn, /prefs\.buyOnly \? filterSetRecommendations\(page, prefs, piezas\) : page/);
+});
+
+const conEras = [
+  {
+    setName: "Gara Prime", missingCount: 1,
+    missing: [{ part: "Gara Prime Systems", relics: [
+      { relic: "Meso P13", tier: "Meso" }, { relic: "Neo N20", tier: "Neo" },
+    ] }],
+  },
+  {
+    setName: "Nidus Prime", missingCount: 1,
+    missing: [{ part: "Nidus Prime Neuroptics", relics: [{ relic: "Lith N4", tier: "Lith" }] }],
+  },
+];
+const piezas = (r) => r.missing;
+const sinFiltro = { maxMissing: 0, buyOnly: false, query: "", minPerHour: 0, minGain: 0 };
+
+test("la era mira todas las reliquias de la pieza, no solo la primera", () => {
+  const neo = filterSetRecommendations(conEras, { ...sinFiltro, era: "Neo" }, piezas);
+  assert.deepEqual(neo.map((r) => r.setName), ["Gara Prime"],
+    "Neo es la SEGUNDA reliquia de esa pieza y tiene que contar igual");
+
+  const lith = filterSetRecommendations(conEras, { ...sinFiltro, era: "Lith" }, piezas);
+  assert.deepEqual(lith.map((r) => r.setName), ["Nidus Prime"]);
+});
+
+test("sin era elegida no se filtra nada", () => {
+  const todo = filterSetRecommendations(conEras, { ...sinFiltro, era: "" }, piezas);
+  assert.equal(todo.length, 2);
+});
+
+test("erasOf también entiende la forma de las recomendaciones de fisura", () => {
+  const rec = { setName: "Volt Prime", matches: [{ part: "Volt Prime Chassis", fissures: [{ tier: "Axi" }] }] };
+  assert.deepEqual([...erasOf(rec)], ["Axi"]);
+});
+
+const conRefino = [
+  { setName: "Comunes", missingCount: 1, missing: [], bestRefinement: "intact" },
+  { setName: "Raras", missingCount: 1, missing: [], bestRefinement: "radiant" },
+  { setName: "SinEstimar", missingCount: 1, missing: [], bestRefinement: null },
+];
+
+test("bestFor deja solo las rutas que rinden con ESE refinamiento", () => {
+  const base = { maxMissing: 0, buyOnly: false, query: "", minPerHour: 0, minGain: 0, era: "" };
+  const intactas = filterSetRecommendations(conRefino, { ...base, bestFor: "intact" }, (r) => r.missing);
+  assert.deepEqual(intactas.map((r) => r.setName), ["Comunes"]);
+
+  const radiantes = filterSetRecommendations(conRefino, { ...base, bestFor: "radiant" }, (r) => r.missing);
+  assert.deepEqual(radiantes.map((r) => r.setName), ["Raras"]);
+});
+
+test("sin refinamiento elegido no se filtra, y lo no estimado no se cuela", () => {
+  const base = { maxMissing: 0, buyOnly: false, query: "", minPerHour: 0, minGain: 0, era: "" };
+  assert.equal(filterSetRecommendations(conRefino, { ...base, bestFor: "" }, (r) => r.missing).length, 3);
+  const flawless = filterSetRecommendations(conRefino, { ...base, bestFor: "flawless" }, (r) => r.missing);
+  assert.deepEqual(flawless, []);
 });

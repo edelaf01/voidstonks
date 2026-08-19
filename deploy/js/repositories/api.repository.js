@@ -182,13 +182,7 @@ export async function getArbitration(force = false) {
 }
 
 export async function getLichWeapons(force = false) {
-<<<<<<< Updated upstream
-    let url = `${WORKER_URL}?type=lich_weapons`;
-    if (force) url += `&_cb=${Date.now()}`;
-    return fetchWithTimeout(url, { timeout: 15000 });
-=======
     return fetchRotating("type=lich_weapons&v=2", { force });
->>>>>>> Stashed changes
 }
 
 export async function getServerTime() {

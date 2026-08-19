@@ -674,22 +674,12 @@ function detectInventoryGridCore(img, opts = {}) {
     };
 }
 
-export function isImplausibleFallbackGrid(calib, frameW, frameH) {
-    if (!calib || !frameW || !frameH) return true;
-    const zone = calib.gridZone;
-    if (!zone || !zone.w || !zone.h) return true;
-    if (zone.w > frameW * 0.85) return true;
-    if (calib.cellW && calib.cellW > frameW * 0.16) return true;
-    if (calib.cellH && calib.cellH > frameH * 0.28) return true;
-    return false;
-}
-
 const REWARD_DEFAULTS = {
     ...DEFAULTS,
     // with a webcam aimed at a monitor the game fills part of frame: searched over whole height
     minCardW: 0.08,
     maxCards: 4,
-    minCards: 1,
+    minCards: 2,
 };
 
 export function detectRewardBand(img, opts = {}) {

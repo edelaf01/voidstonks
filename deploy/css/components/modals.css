@@ -409,6 +409,13 @@
   box-shadow: 0 0 10px rgba(162, 155, 254, 0.4);
 }
 
+.best-badge.set-finisher.near {
+  background: none;
+  color: #a29bfe;
+  border: 1px solid rgba(162, 155, 254, 0.5);
+  box-shadow: none;
+}
+
 .modal-badge-labels {
   position: absolute;
   top: 12px;
@@ -916,8 +923,14 @@
 
 /* no hover on touch: the variant strip shows expanded with its own horizontal scroll */
 @media (hover: none) and (max-width: 600px) {
+  .ic-icon-wrapper {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+  }
+
   .ic-icon-col.has-variants {
-    width: min(var(--hover-width, 58px), calc(100vw - 90px));
+    width: min(var(--hover-width, 58px), 100%);
     overflow-x: auto;
     overscroll-behavior-x: contain;
     border-color: rgba(212, 175, 55, 0.35);

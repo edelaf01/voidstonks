@@ -57,164 +57,291 @@ function getRandomHeaders() {
     };
 }
 
+/**
+ * Worldstate crudo de DE. DIRECTO primero, proxies solo si eso falla.
+ *
+ * Un Worker no tiene el problema de CORS del navegador, así que puede pedirle a DE sin
+ * intermediarios: menos saltos, menos latencia y ninguna dependencia de terceros que
+ * caducan. Los proxies se quedan como red de seguridad por si DE bloquea el rango de IPs
+ * de Cloudflare algún día.
+ *
+ * `content.warframe.com/dynamic/worldState.php` devuelve 404 desde que DE lo movió (medido
+ * 2026-08-15). Se deja en la lista por si vuelve, pero el que responde es el CDN.
+ */
+const DE_WORLDSTATE_URLS = [
+    "https://api.warframe.com/cdn/worldState.php",
+    "https://content.warframe.com/dynamic/worldState.php"
+];
+
+/**
+ * Ninguna petición a un tercero puede comerse el presupuesto de la invocación.
+ *
+ * El cliente aborta a los 8 s (fetchWithTimeout en api.repository.js), así que una fuente que
+ * tarde 20 s no es "lenta": es un fallo que además se lleva por delante a las que vienen
+ * detrás. Sin esto, la cascada llegó a tardar 36 s y el navegador solo veía un AbortError.
+ */
+const SOURCE_TIMEOUT_MS = 4000;
+
+async function fetchWithDeadline(url, ms = SOURCE_TIMEOUT_MS) {
+    const ctrl = new AbortController();
+    const id = setTimeout(() => ctrl.abort(), ms);
+    try {
+        return await fetch(url, { headers: getRandomHeaders(), signal: ctrl.signal });
+    } finally {
+        clearTimeout(id);
+    }
+}
+
+/**
+ * Worldstate crudo de DE, directo. Sin proxies: los proxies van aparte y de últimos.
+ *
+ * `content.warframe.com/dynamic/worldState.php` devuelve 404 desde que DE lo movió (medido
+ * 2026-08-15). Se deja por si vuelve, pero el que responde es el CDN de api.warframe.com.
+ */
 async function fetchRawWorldstate() {
-    const targetUrl = "https://content.warframe.com/dynamic/worldState.php";
-    const altTargetUrl = "https://api.warframe.com/cdn/worldState.php";
+    for (const url of DE_WORLDSTATE_URLS) {
+        try {
+            const res = await fetchWithDeadline(url);
+            if (!res.ok) continue;
+            const json = await res.json();
+            if (json.ActiveMissions) return json;
+        } catch (e) {
+            console.warn(`[worldstate] ${url}: ${e.message}`);
+        }
+    }
+    throw new Error("DE no respondió por vía directa");
+}
+
+/**
+ * Worldstate a través de proxies públicos. Va el ÚLTIMO de la cascada, no pegado al intento
+ * directo: son lentos y poco fiables, y probarlos antes que warframestat.us/tenno.tools
+ * multiplicaba por diez el tiempo de respuesta para acabar usando igualmente un tercero.
+ */
+async function fetchRawWorldstateViaProxies() {
     const now = Date.now();
-
+    const target = DE_WORLDSTATE_URLS[0];
     const proxies = [
-        `https://api.codetabs.com/v1/proxy?quest=${targetUrl}&t=${now}`,
-        `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}&t=${now}`,
-        `https://corsproxy.io/?${encodeURIComponent(targetUrl + '?t=' + now)}`,
-        `https://corsproxy.io/?${encodeURIComponent(altTargetUrl + '?t=' + now)}`
+        `https://api.codetabs.com/v1/proxy?quest=${target}&t=${now}`,
+        `https://api.allorigins.win/raw?url=${encodeURIComponent(target)}&t=${now}`,
+        `https://corsproxy.io/?${encodeURIComponent(target + '?t=' + now)}`
     ];
-
-    let lastError = "";
 
     for (const proxyUrl of proxies) {
         try {
-            const res = await fetch(proxyUrl, {
-                headers: getRandomHeaders()
-            });
-
-            if (res.ok) {
-                const text = await res.text();
-                try {
-                    const json = JSON.parse(text);
-                    if (json.ActiveMissions) return json;
-                } catch (e) {
-                    lastError = "El proxy devolvió HTML en lugar de JSON.";
-                    continue;
-                }
-            } else {
-                lastError = `Proxy falló con status ${res.status}`;
-            }
-        } catch (error) {
-            lastError = `Error de red con el proxy: ${error.message}`;
+            const res = await fetchWithDeadline(proxyUrl);
+            if (!res.ok) continue;
+            const json = JSON.parse(await res.text());
+            if (json.ActiveMissions) return json;
+        } catch (e) {
+            console.warn(`[worldstate] proxy: ${e.message}`);
         }
     }
-
-    throw new Error(`Imposible penetrar el cortafuegos. Último error: ${lastError}`);
+    throw new Error("Ningún proxy devolvió el worldstate");
 }
 
-async function getFissuresWithFallback(env, SOL_NODES) {
-    // 1. Try WarframeStat.us
-    try {
-        const res = await fetch("https://api.warframestat.us/pc/fissures", {
-            headers: getRandomHeaders()
-        });
-        if (res.ok) {
-            const data = await res.json();
-            if (Array.isArray(data) && data.length > 0) {
-                return data.map(f => ({
-                    id: f.id || String(Date.now()),
-                    activation: f.activation,
-                    expiry: f.expiry,
-                    node: f.node,
-                    enemy: f.enemy || "Unknown",
-                    missionType: f.missionType || "Unknown",
-                    tier: f.tier,
-                    tierNum: f.tierNum || 0,
-                    nodeKey: f.node || f.nodeKey,
-                    isStorm: !!f.isStorm,
-                    isHard: !!f.isHard
-                }));
-            }
-        }
-    } catch (e) {
-        console.warn("WarframeStat.us API failed:", e.message);
-    }
+// DE manda el tipo como "MT_MOBILE_DEFENSE". Traducirlo aquí evita depender de dict_solNodes
+// para el dato que más se usa aguas abajo: los minutos por run, los filtros de tipo y las
+// alarmas. Antes salía de SOL_NODES[node].type, que es el tipo HABITUAL del nodo, no el de
+// esta rotación.
+const MISSION_TYPES = {
+    MT_EXCAVATE: "Excavation", MT_SABOTAGE: "Sabotage", MT_RESCUE: "Rescue",
+    MT_CAPTURE: "Capture", MT_TERRITORY: "Interception", MT_ARTIFACT: "Disruption",
+    MT_MOBILE_DEFENSE: "Mobile Defense", MT_INTEL: "Spy", MT_DEFENSE: "Defense",
+    MT_EXTERMINATION: "Extermination", MT_SURVIVAL: "Survival", MT_ASSASSINATION: "Assassination",
+    MT_ASSAULT: "Assault", MT_EVACUATION: "Defection", MT_ALCHEMY: "Alchemy",
+    MT_CORRUPTION: "Void Flood", MT_VOID_CASCADE: "Void Cascade", MT_ARENA: "Arena",
+    MT_JUNCTION: "Junction", MT_LANDSCAPE: "Free Roam", MT_HIVE: "Hive",
+    MT_RAILJACK: "Skirmish", MT_VOLATILE: "Volatile", MT_ORPHIX: "Orphix",
+    MT_PURIFY: "Purify", MT_ARMAGEDDON: "Void Armageddon"
+};
 
-    // 2. Try Tenno.tools
-    try {
-        const res = await fetch("https://api.tenno.tools/worldstate/pc/fissures", {
-            headers: getRandomHeaders()
-        });
-        if (res.ok) {
-            const data = await res.json();
-            const list = Array.isArray(data) ? data : (data && Array.isArray(data.fissures) ? data.fissures : []);
-            if (list.length > 0) {
-                return list.map(f => ({
-                    id: f.id || String(Date.now()),
-                    activation: f.activation,
-                    expiry: f.expiry,
-                    node: f.node,
-                    enemy: f.enemy || "Unknown",
-                    missionType: f.missionType || "Unknown",
-                    tier: f.tier,
-                    tierNum: f.tierNum || 0,
-                    nodeKey: f.node,
-                    isStorm: !!f.isStorm,
-                    isHard: !!f.isHard
-                }));
-            }
-        }
-    } catch (e) {
-        console.warn("Tenno.tools API failed:", e.message);
-    }
+function prettyMissionType(mt) {
+    if (!mt) return null;
+    if (MISSION_TYPES[mt]) return MISSION_TYPES[mt];
+    // Un MT_ nuevo de DE se enseña legible en vez de "Unknown".
+    const limpio = String(mt).replace(/^MT_/, "").toLowerCase()
+        .replace(/(^|_)(\w)/g, (_, __, c) => " " + c.toUpperCase()).trim();
+    return limpio || null;
+}
 
-    // 3. Fallback to raw worldstate + proxies
-    const rawState = await fetchRawWorldstate();
+/**
+ * Fisuras de la lista que SIGUEN VIVAS.
+ *
+ * Es la comprobación que faltaba y la que provocó el apagón del 2026-08-15: warframestat.us
+ * estuvo tres horas devolviendo 200 con 35 fisuras bien formadas y TODAS caducadas. La cascada
+ * la daba por buena —tenía datos, ¿no?— y nunca pasaba a la siguiente fuente. "Responde" no es
+ * "funciona".
+ */
+function liveFissures(list) {
     const now = Date.now();
+    return (list || []).filter(f => {
+        const t = Date.parse(f.expiry);
+        return Number.isFinite(t) && t > now;
+    });
+}
 
-    const normalMissions = (rawState.ActiveMissions || [])
-        .map(mission => {
-            const expiryMs = parseDate(mission.Expiry);
-            const activationMs = parseDate(mission.Activation);
-            const tierInfo = DE_DICTS.tiers[mission.Modifier] || { name: 'Unknown', num: 0 };
+// "SolNode310" es la clave interna de DE, no un sitio al que ir. Si salen sin traducir es que
+// falta dict_solNodes en KV: los datos son frescos pero no se pueden ENSEÑAR, y además rompe el
+// matcher de planeta de las alarmas del cliente. Cuenta como fuente inservible, igual que la
+// caducidad, para caer a otra que sí sepa nombrarlos.
+const RAW_NODE_KEY = /^(SolNode|CrewBattleNode|ClanNode|SettlementNode)\d+$/;
 
-            const nodeData = SOL_NODES[mission.Node] || {};
-            const nodeName = nodeData.value || mission.Node;
+// Índice numérico de la era a partir de su nombre. Las fuentes de terceros no siempre mandan
+// tierNum (tenno.tools no lo trae), y dejarlo en 0 haría que dos fuentes describieran la misma
+// fisura de forma distinta.
+const TIER_NUM_BY_NAME = Object.fromEntries(
+    Object.values(DE_DICTS.tiers).map(t => [t.name, t.num])
+);
 
-            return {
-                id: mission._id?.$oid || mission._id || String(activationMs),
-                activation: new Date(activationMs).toISOString(),
-                expiry: new Date(expiryMs).toISOString(),
-                expiryMs: expiryMs,
-                node: nodeName,
-                enemy: nodeData.enemy || "Unknown",
-                missionType: nodeData.type || "Unknown",
-                tier: tierInfo.name,
-                tierNum: tierInfo.num,
-                nodeKey: nodeName,
-                isStorm: false,
-                isHard: !!mission.Hard
-            };
-        });
+function namesResolved(list) {
+    return !list.some(f => RAW_NODE_KEY.test(f.node));
+}
 
-    // Las fisuras de Railjack NO están en ActiveMissions: viven en la sección VoidStorms
-    // (con ActiveMissionTier en vez de Modifier). Sin esto, el fallback nunca devuelve storms.
-    const stormMissions = (rawState.VoidStorms || [])
-        .map(storm => {
-            const expiryMs = parseDate(storm.Expiry);
-            const activationMs = parseDate(storm.Activation);
-            const tierInfo = DE_DICTS.tiers[storm.ActiveMissionTier] || { name: 'Unknown', num: 0 };
+// --- Fuente 1: DE, que es la verdad -----------------------------------------------------------
 
-            const nodeData = SOL_NODES[storm.Node] || {};
-            const nodeName = nodeData.value || storm.Node;
+async function fissuresFromDE(SOL_NODES, cargarWorldstate = fetchRawWorldstate) {
+    const rawState = await cargarWorldstate();
+    const nodeInfo = key => SOL_NODES[key] || {};
 
-            return {
-                id: storm._id?.$oid || storm._id || String(activationMs),
-                activation: new Date(activationMs).toISOString(),
-                expiry: new Date(expiryMs).toISOString(),
-                expiryMs: expiryMs,
-                node: nodeName,
-                enemy: nodeData.enemy || "Unknown",
-                missionType: nodeData.type || "Unknown",
-                tier: tierInfo.name,
-                tierNum: tierInfo.num,
-                nodeKey: nodeName,
-                isStorm: true,
-                isHard: false
-            };
-        });
+    const normalMissions = (rawState.ActiveMissions || []).map(mission => {
+        const tierInfo = DE_DICTS.tiers[mission.Modifier] || { name: 'Unknown', num: 0 };
+        const info = nodeInfo(mission.Node);
+        const nodeName = info.value || mission.Node;
 
-    return [...normalMissions, ...stormMissions]
-        .filter(f => f.expiryMs > now)
-        .map(f => {
-            delete f.expiryMs;
-            return f;
-        });
+        return {
+            id: mission._id?.$oid || mission._id || String(parseDate(mission.Activation)),
+            activation: new Date(parseDate(mission.Activation)).toISOString(),
+            expiry: new Date(parseDate(mission.Expiry)).toISOString(),
+            node: nodeName,
+            enemy: info.enemy || "Unknown",
+            // El de DE manda: es el de ESTA rotación. El del diccionario queda de respaldo.
+            missionType: prettyMissionType(mission.MissionType) || info.type || "Unknown",
+            tier: tierInfo.name,
+            tierNum: tierInfo.num,
+            nodeKey: nodeName,
+            isStorm: false,
+            isHard: !!mission.Hard
+        };
+    });
+
+    // Las fisuras de Railjack NO están en ActiveMissions: viven en VoidStorms, con
+    // ActiveMissionTier en vez de Modifier y sin MissionType propio.
+    const stormMissions = (rawState.VoidStorms || []).map(storm => {
+        const tierInfo = DE_DICTS.tiers[storm.ActiveMissionTier] || { name: 'Unknown', num: 0 };
+        const info = nodeInfo(storm.Node);
+        const nodeName = info.value || storm.Node;
+
+        return {
+            id: storm._id?.$oid || storm._id || String(parseDate(storm.Activation)),
+            activation: new Date(parseDate(storm.Activation)).toISOString(),
+            expiry: new Date(parseDate(storm.Expiry)).toISOString(),
+            node: nodeName,
+            enemy: info.enemy || "Unknown",
+            missionType: info.type || "Skirmish",
+            tier: tierInfo.name,
+            tierNum: tierInfo.num,
+            nodeKey: nodeName,
+            isStorm: true,
+            isHard: false
+        };
+    });
+
+    return [...normalMissions, ...stormMissions];
+}
+
+// --- Fuente 2: warframestat.us ---------------------------------------------------------------
+
+async function fissuresFromWarframeStat() {
+    const res = await fetchWithDeadline("https://api.warframestat.us/pc/fissures");
+    if (!res.ok) return [];
+    const data = await res.json();
+    if (!Array.isArray(data)) return [];
+
+    return data.map(f => ({
+        id: f.id || String(Date.now()),
+        activation: f.activation,
+        expiry: f.expiry,
+        node: f.node,
+        enemy: f.enemy || "Unknown",
+        missionType: f.missionType || "Unknown",
+        tier: f.tier,
+        tierNum: f.tierNum || TIER_NUM_BY_NAME[f.tier] || 0,
+        nodeKey: f.node || f.nodeKey,
+        isStorm: !!f.isStorm,
+        isHard: !!f.isHard
+    }));
+}
+
+// --- Fuente 3: tenno.tools -------------------------------------------------------------------
+
+async function fissuresFromTennoTools() {
+    const res = await fetchWithDeadline("https://api.tenno.tools/worldstate/pc/fissures");
+    if (!res.ok) return [];
+    const data = await res.json();
+
+    // La lista vive en `fissures.data`. El código anterior comprobaba Array.isArray(data.fissures),
+    // y `fissures` es un objeto {time, data}: siempre daba [], así que este respaldo NUNCA entró.
+    const list = Array.isArray(data) ? data
+        : (Array.isArray(data?.fissures?.data) ? data.fissures.data
+            : (Array.isArray(data?.fissures) ? data.fissures : []));
+
+    return list.map(f => {
+        // Aquí los tiempos van en SEGUNDOS y el nodo como "Planeta/Nodo"; el resto de la app
+        // espera milisegundos y "Nodo (Planeta)" — sin darle la vuelta, el matcher de planeta
+        // de las alarmas no reconoce ninguno.
+        const [planeta, nodo] = String(f.location || "").split("/");
+        const nodeName = nodo ? `${nodo} (${planeta})` : (f.location || f.node || "Unknown");
+
+        return {
+            id: f.id || String(Date.now()),
+            activation: new Date((f.start ?? 0) * 1000).toISOString(),
+            expiry: new Date((f.end ?? 0) * 1000).toISOString(),
+            node: nodeName,
+            enemy: f.faction || f.enemy || "Unknown",
+            missionType: f.missionType || "Unknown",
+            tier: f.tier,
+            tierNum: f.tierNum || TIER_NUM_BY_NAME[f.tier] || 0,
+            nodeKey: nodeName,
+            isStorm: !!f.isStorm,
+            isHard: !!f.hard
+        };
+    });
+}
+
+/**
+ * Cascada de fuentes, con DE primero porque es la verdad y las demás son copias suyas.
+ *
+ * Una fuente solo se acepta si pasa DOS filtros: trae fisuras vivas y sabe nombrar los nodos.
+ * Cualquiera de los dos que falle la descarta y se pasa a la siguiente, en vez de servir datos
+ * inservibles con un 200 por delante.
+ */
+async function getFissuresWithFallback(env, SOL_NODES) {
+    const fuentes = [
+        ["DE", () => fissuresFromDE(SOL_NODES)],
+        ["warframestat.us", fissuresFromWarframeStat],
+        ["tenno.tools", fissuresFromTennoTools],
+        // Los proxies de últimos: solo si los tres anteriores no han dado nada servible.
+        ["DE (proxies)", () => fissuresFromDE(SOL_NODES, fetchRawWorldstateViaProxies)]
+    ];
+
+    for (const [nombre, cargar] of fuentes) {
+        try {
+            const vivas = liveFissures(await cargar());
+            if (!vivas.length) {
+                console.warn(`[fisuras] ${nombre}: sin fisuras vivas, pasando a la siguiente`);
+                continue;
+            }
+            if (!namesResolved(vivas)) {
+                console.warn(`[fisuras] ${nombre}: ${vivas.length} vivas pero con nodos sin traducir (¿falta dict_solNodes en KV?)`);
+                continue;
+            }
+            return vivas;
+        } catch (e) {
+            console.warn(`[fisuras] ${nombre} falló:`, e.message);
+        }
+    }
+
+    return [];
 }
 
 /* Ventana de Arbitrations: el calendario completo de browse.wf pesa ~1MB, así que solo se

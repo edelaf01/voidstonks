@@ -57,8 +57,9 @@ test("un ítem sin componentes no rompe la carga del catálogo", () => {
   assert.deepEqual(state.ducatsDatabase, {});
 });
 
-function reliquia(nombre, drops, precios = {}) {
+function reliquia(nombre, drops, precios = {}, squadSize = 1) {
   state.relicsDatabase = { [nombre]: drops };
+  state.squadSize = squadSize;
   MEMORY_CACHE.clear();
   for (const [slug, plat] of Object.entries(precios)) MEMORY_CACHE.set(slug, plat);
   return nombre;
@@ -125,6 +126,30 @@ test("los precios de una reliquia se piden a la vez, no en cadena", async () => 
   const t0 = Date.now();
   await calculateRelicValue(r);
   assert.ok(Date.now() - t0 < 200, "no debería encadenar esperas");
+});
+
+test("la escuadra sube el valor: te quedas con la mejor de 4 tiradas", async () => {
+  const drops = [
+    { name: "Raro", chance: 2 },
+    { name: "Comun1", chance: 25.33 },
+    { name: "Comun2", chance: 25.33 },
+    { name: "Comun3", chance: 25.33 },
+  ];
+  const precios = { raro: 200, comun1: 10, comun2: 10, comun3: 10 };
+
+  const solo = await calculateRelicValue(reliquia("Lith S", drops, precios, 1));
+  const grupo = await calculateRelicValue(reliquia("Lith S", drops, precios, 4));
+
+  assert.ok(grupo.intact > solo.intact, `4 jugadores deberían valer más: ${grupo.intact} vs ${solo.intact}`);
+  assert.ok(grupo.intact > solo.intact * 1.5, `el salto se queda corto: ${grupo.intact} vs ${solo.intact}`);
+});
+
+test("un hueco sin valorar cuenta como 0, no como el mejor premio", async () => {
+  const r = reliquia("Lith H", [{ name: "Raro", chance: 2 }], { raro: 100 }, 4);
+  const v = await calculateRelicValue(r);
+
+  const esperado = 100 * (1 - Math.pow(1 - 0.02, 4));
+  assert.equal(v.intact, Number(esperado.toFixed(1)));
 });
 
 test("un precio desconocido cuenta como 0 y no contamina el total", async () => {

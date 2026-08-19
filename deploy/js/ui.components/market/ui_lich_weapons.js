@@ -1,11 +1,3 @@
-<<<<<<< Updated upstream:deploy/js/ui.components/ui_lich_weapons.js
-import { state } from "../state.js";
-import { TEXTS } from "../config.js";
-import { escapeHTML } from "./ui_components.js";
-import { damageMeta, damageIconHtml } from "../utils/damage_types.js";
-import { fetchLichWeapons } from "../services/lich_weapons.service.js";
-import { serverNow, isClockSynced } from "../utils/server_clock.js";
-=======
 import { state } from "../../state.js";
 import { TEXTS } from "../../config.js";
 import { escapeHTML, showToast } from "../ui_components.js";
@@ -25,10 +17,12 @@ import {
   VALENCE_MIN,
   VALENCE_MAX,
 } from "../../services/farms/alerts.service.js";
->>>>>>> Stashed changes:deploy/js/ui.components/market/ui_lich_weapons.js
 
 let rotationInterval = null;
 let rotationReloadAt = 0;
+let alarmPanelOpen = false;
+
+const VALENCE_ELEMENTS = ["Impact", "Heat", "Cold", "Electricity", "Toxin", "Magnetic", "Radiation"];
 
 const VENDOR_STYLE = {
   eleanor: { color: "#42f56c", icon: "assets/farm.webp" },
@@ -172,6 +166,215 @@ function vendorHtml(vendor, t) {
       </section>`;
 }
 
+function flattenForAlarms(vendors) {
+  return vendors.flatMap((v) =>
+    v.weapons.map((w) => ({ ...w, vendorKey: v.key, expiry: v.end })),
+  );
+}
+
+function catalogueOf(vendors, vendorKey) {
+  const pick = vendorKey === "any" ? vendors : vendors.filter((v) => v.key === vendorKey);
+  const names = pick.flatMap((v) => (Array.isArray(v.catalogue) ? v.catalogue : v.weapons.map((w) => w.name)));
+  return [...new Set(names)].sort();
+}
+
+function ruleLabel(rule, t) {
+  const L = t.lichWeapons;
+  const vendor = rule.vendor === "any"
+    ? L.alarms.anyVendor
+    : (L.vendors[rule.vendor]?.short || L.vendors[rule.vendor]?.name || rule.vendor);
+  const weapon = (rule.weapon || "any") === "any" ? L.alarms.anyWeapon : rule.weapon;
+  const element = (rule.element || "any") === "any"
+    ? L.alarms.anyElement
+    : damageMeta(rule.element, state.currentLang).label;
+  return `${vendor} · ${weapon} · ${element} ≥ ${rule.minPercent}%`;
+}
+
+function alarmPanelHtml(vendors, t) {
+  const L = t.lichWeapons;
+  const prefs = getAlarmPrefs();
+  const notif = notificationState();
+
+  let browserRow;
+  if (notif === "granted") {
+    browserRow = `<span class="alarm-notif-status ok">✓ ${escapeHTML(t.farmAlarms.browserOn)}</span>`;
+  } else if (notif === "denied") {
+    browserRow = `<span class="alarm-notif-status bad">${escapeHTML(t.farmAlarms.browserBlocked)}</span>`;
+  } else if (notif === "unsupported") {
+    browserRow = `<span class="alarm-notif-status bad">${escapeHTML(t.farmAlarms.browserUnsupported)}</span>`;
+  } else {
+    browserRow = `<button type="button" class="dashed-btn alarm-notif-btn" id="lw-alarm-notif-btn">${escapeHTML(t.farmAlarms.browserBtn)}</button>`;
+  }
+
+  const vendorOptions = [`<option value="any">${escapeHTML(L.alarms.anyVendor)}</option>`]
+    .concat(vendors.map((v) => {
+      const info = L.vendors[v.key];
+      return `<option value="${escapeHTML(v.key)}">${escapeHTML(info?.short || info?.name || v.key)}</option>`;
+    }))
+    .join("");
+
+  const weaponOptions = [`<option value="any">${escapeHTML(L.alarms.anyWeapon)}</option>`]
+    .concat(catalogueOf(vendors, "any").map((n) => `<option value="${escapeHTML(n)}">${escapeHTML(n)}</option>`))
+    .join("");
+
+  const elementOptions = [`<option value="any">${escapeHTML(L.alarms.anyElement)}</option>`]
+    .concat(VALENCE_ELEMENTS.map((e) => {
+      const label = damageMeta(e, state.currentLang).label;
+      return `<option value="${escapeHTML(e)}">${escapeHTML(label)}</option>`;
+    })).join("");
+
+  const percentOptions = [];
+  for (let p = VALENCE_MIN; p <= VALENCE_MAX; p += 5) {
+    percentOptions.push(`<option value="${p}" ${p === 45 ? "selected" : ""}>≥ ${p}%</option>`);
+  }
+
+  const rules = prefs.rules.filter((r) => r.kind === "weapon");
+  const rulesHtml = rules.length === 0
+    ? `<div class="alarm-no-rules">${escapeHTML(L.alarms.noRules)}</div>`
+    : rules.map((r) => {
+      const color = (r.element || "any") === "any"
+        ? "#888"
+        : damageMeta(r.element, state.currentLang).color;
+      return `
+          <div class="alarm-rule" data-rule-id="${escapeHTML(r.id)}">
+              <span class="alarm-rule-dot" style="background:${color};"></span>
+              <span class="alarm-rule-desc">${escapeHTML(ruleLabel(r, t))}</span>
+              <button type="button" class="alarm-rule-del" title="${escapeHTML(t.farmAlarms.delete)}">×</button>
+          </div>`;
+    }).join("");
+
+  return `
+      <div class="alarm-panel-title">${escapeHTML(L.alarms.title)}</div>
+      <div class="alarm-toggles">
+          <label class="lfg-checkbox-wrapper">
+              <input type="checkbox" id="lw-alarm-enable" ${prefs.enabled ? "checked" : ""}>
+              <span class="lfg-label">${escapeHTML(t.farmAlarms.enable)}</span>
+          </label>
+          <label class="lfg-checkbox-wrapper">
+              <input type="checkbox" id="lw-alarm-sound" ${prefs.sound ? "checked" : ""}>
+              <span class="lfg-label">${escapeHTML(t.farmAlarms.sound)}</span>
+          </label>
+          ${browserRow}
+      </div>
+      <div class="alarm-builder">
+          <select id="lw-alarm-vendor" class="alarm-select" aria-label="${escapeHTML(L.alarms.vendor)}">${vendorOptions}</select>
+          <select id="lw-alarm-weapon" class="alarm-select" aria-label="${escapeHTML(L.alarms.weapon)}">${weaponOptions}</select>
+          <select id="lw-alarm-element" class="alarm-select" aria-label="${escapeHTML(L.alarms.element)}">${elementOptions}</select>
+          <select id="lw-alarm-percent" class="alarm-select" aria-label="${escapeHTML(L.alarms.minPercent)}">${percentOptions.join("")}</select>
+          <button type="button" class="dashed-btn alarm-add-btn" id="lw-alarm-add">+ ${escapeHTML(L.alarms.addRule)}</button>
+      </div>
+      <div class="alarm-rules-list">${rulesHtml}</div>
+      <div class="alarm-future-note">${escapeHTML(L.alarms.note)}</div>
+  `;
+}
+
+function handleAlarmHits(hits) {
+  const t = TEXTS[state.currentLang];
+  if (!hits || hits.length === 0) return;
+  const lines = hits.slice(0, 4).map(({ item }) => {
+    const el = damageMeta(item.bonus.element, state.currentLang).label;
+    return `${item.name}: ${el} +${pct(item.bonus.percent)}%`;
+  });
+  const more = hits.length > 4 ? ` +${hits.length - 4}` : "";
+  const title = t.lichWeapons.alarms.firedTitle;
+  sendBrowserNotification(title, lines.join("\n") + more);
+  showToast(`<b>${escapeHTML(title)}</b><br>${lines.map(escapeHTML).join("<br>")}${more}`, {
+    tag: "lw-alarm",
+    type: "success",
+    duration: 30000,
+    html: true,
+  });
+}
+
+async function alarmSource() {
+  return flattenForAlarms(await fetchLichWeapons());
+}
+
+function bindAlarmPanel(container, vendors, t) {
+  const panel = container.querySelector("#lw-alarm-panel");
+  if (!panel) return;
+
+  const refresh = () => {
+    panel.innerHTML = alarmPanelHtml(vendors, t);
+    bindControls();
+    const btn = container.querySelector("#lw-alarms-btn");
+    const prefs = getAlarmPrefs();
+    const n = prefs.rules.filter((r) => r.kind === "weapon").length;
+    if (btn) {
+      btn.classList.toggle("active-filter", prefs.enabled && n > 0);
+      const count = btn.querySelector(".alarm-count");
+      if (count) count.textContent = n > 0 ? String(n) : "";
+    }
+  };
+
+  function bindControls() {
+    panel.querySelector("#lw-alarm-enable")?.addEventListener("change", (e) => {
+      const prefs = getAlarmPrefs();
+      prefs.enabled = e.target.checked;
+      saveAlarmPrefs(prefs);
+      if (prefs.enabled) startAlarmWatcher(alarmSource, handleAlarmHits, "weapon");
+      refresh();
+    });
+
+    panel.querySelector("#lw-alarm-sound")?.addEventListener("change", (e) => {
+      const prefs = getAlarmPrefs();
+      prefs.sound = e.target.checked;
+      saveAlarmPrefs(prefs);
+    });
+
+    panel.querySelector("#lw-alarm-notif-btn")?.addEventListener("click", async () => {
+      await requestNotifyPermission();
+      refresh();
+    });
+
+    panel.querySelector("#lw-alarm-vendor")?.addEventListener("change", (e) => {
+      const sel = panel.querySelector("#lw-alarm-weapon");
+      if (!sel) return;
+      const prev = sel.value;
+      const names = catalogueOf(vendors, e.target.value);
+      sel.innerHTML = [`<option value="any">${escapeHTML(t.lichWeapons.alarms.anyWeapon)}</option>`]
+        .concat(names.map((n) => `<option value="${escapeHTML(n)}" ${n === prev ? "selected" : ""}>${escapeHTML(n)}</option>`))
+        .join("");
+    });
+
+    panel.querySelector("#lw-alarm-add")?.addEventListener("click", () => {
+      const added = addAlarmRule({
+        kind: "weapon",
+        vendor: panel.querySelector("#lw-alarm-vendor")?.value || "any",
+        weapon: panel.querySelector("#lw-alarm-weapon")?.value || "any",
+        element: panel.querySelector("#lw-alarm-element")?.value || "any",
+        minPercent: Number(panel.querySelector("#lw-alarm-percent")?.value) || VALENCE_MIN,
+      });
+      if (!added) {
+        showToast(t.farmAlarms.dupRule, { tag: "lw-alarm-dup", duration: 4000 });
+        return;
+      }
+      const prefs = getAlarmPrefs();
+      if (!prefs.enabled) {
+        prefs.enabled = true;
+        saveAlarmPrefs(prefs);
+      }
+      startAlarmWatcher(alarmSource, handleAlarmHits, "weapon");
+      refresh();
+    });
+
+    panel.querySelectorAll(".alarm-rule-del").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const id = btn.closest(".alarm-rule")?.dataset.ruleId;
+        if (id) removeAlarmRule(id);
+        refresh();
+      });
+    });
+  }
+
+  bindControls();
+
+  container.querySelector("#lw-alarms-btn")?.addEventListener("click", () => {
+    alarmPanelOpen = !alarmPanelOpen;
+    panel.classList.toggle("collapsed", !alarmPanelOpen);
+  });
+}
+
 export async function renderLichWeaponsTab(force = false) {
   const container = document.getElementById("lich-weapons-container");
   if (!container) return;
@@ -201,13 +404,33 @@ export async function renderLichWeaponsTab(force = false) {
     return;
   }
 
+  const alarmPrefs = getAlarmPrefs();
+  const nRules = alarmPrefs.rules.filter((r) => r.kind === "weapon").length;
+
   container.innerHTML = `
       <div class="lw-header">
-          <div class="lw-title">${escapeHTML(L.title)}</div>
-          <div class="lw-subtitle">${escapeHTML(L.subtitle)}</div>
+          <div class="lw-head-row">
+            <div>
+              <div class="lw-title">${escapeHTML(L.title)}</div>
+              <div class="lw-subtitle">${escapeHTML(L.subtitle)}</div>
+            </div>
+            <button type="button" id="lw-alarms-btn" class="farm-action-btn ${alarmPrefs.enabled && nRules > 0 ? "active-filter" : ""}"
+              aria-expanded="${alarmPanelOpen ? "true" : "false"}" title="${escapeHTML(L.alarms.toggle)}">
+              <span class="farm-btn-label">${escapeHTML(L.alarms.toggle)}</span>
+              <span class="alarm-count">${nRules > 0 ? nRules : ""}</span>
+            </button>
+          </div>
+      </div>
+      <div id="lw-alarm-panel" class="farm-alarm-panel ${alarmPanelOpen ? "" : "collapsed"}">
+          ${alarmPanelHtml(vendors, t)}
       </div>
       ${vendors.map((v) => vendorHtml(v, t)).join("")}
       <div class="lw-disclaimer">${escapeHTML(L.bonusSource)}</div>`;
+
+  bindAlarmPanel(container, vendors, t);
+
+  handleAlarmHits(evaluateAlarms("weapon", flattenForAlarms(vendors)));
+  if (getAlarmPrefs().enabled) startAlarmWatcher(alarmSource, handleAlarmHits, "weapon");
 
   startRotationTimers(vendors, t);
 }

@@ -12,7 +12,7 @@ const invSrc = read("../deploy/js/services/inventory/inventory.service.js");
 
 function workerInternals() {
     const head = workerSrc.slice(0, workerSrc.search(/^export default\b/m));
-    return new Function(`${head}\nreturn { PriceSnapshot, Utils };`)();
+    return new Function(`${head}\nreturn { PriceSnapshot, Utils, EdgeCache };`)();
 }
 
 const { PriceSnapshot } = workerSrc ? workerInternals() : {};
@@ -61,9 +61,9 @@ test("un snapshot vacío no se cachea", () => {
 test("prices_batch resuelve los prime desde el snapshot", async () => {
     const body = handlerBody("prices_batch");
     const snapshotAt = body.indexOf("PriceSnapshot.read");
-    const kvAt = body.indexOf("KVHelper.get(env, `price_");
-    assert.ok(snapshotAt !== -1 && kvAt !== -1);
-    assert.ok(snapshotAt < kvAt, "el snapshot se consulta antes que el KV por slug");
+    const perItemAt = body.indexOf("EdgeCache.getMany");
+    assert.ok(snapshotAt !== -1 && perItemAt !== -1);
+    assert.ok(snapshotAt < perItemAt, "el snapshot se consulta antes que la caché por slug");
 });
 
 test("el cron refresca el snapshot", () => {
@@ -73,7 +73,7 @@ test("el cron refresca el snapshot", () => {
 
 test("un documento corrupto no tumba la respuesta", async () => {
     const env = fakeEnv({ [PriceSnapshot.KEY]: "{no es json" });
-    assert.deepEqual(await PriceSnapshot.read(env), { v: 1, t: 0, p: {} });
+    assert.deepEqual(await PriceSnapshot.read(env), { v: 1, t: 0, cursor: 0, p: {} });
 });
 
 test("el cursor rota y no reempieza por el mismo slug", async () => {
@@ -88,7 +88,7 @@ test("el cursor rota y no reempieza por el mismo slug", async () => {
 
     await snapshot.refresh(env, ctx);
     assert.deepEqual(asked, ["item_0", "item_1", "item_2", "item_3"]);
-    assert.equal(await env.VOID_KV.get(PriceSnapshot.CURSOR_KEY), "4");
+    assert.equal(JSON.parse(await env.VOID_KV.get(PriceSnapshot.KEY)).cursor, 4);
 
     await snapshot.refresh(env, ctx);
     assert.deepEqual(asked.slice(4), ["item_4", "item_5", "item_6", "item_7"]);
@@ -108,7 +108,7 @@ test("un 429 corta el tick sin perder lo ya refrescado", async () => {
     await snapshot.refresh(env, ctx);
     const doc = JSON.parse(await env.VOID_KV.get(PriceSnapshot.KEY));
     assert.deepEqual(doc.p, { a: 5, b: 5 });
-    assert.equal(await env.VOID_KV.get(PriceSnapshot.CURSOR_KEY), "2");
+    assert.equal(doc.cursor, 2);
 });
 
 test("el precio es la mediana de las 5 ventas online más baratas", () => {
@@ -142,4 +142,61 @@ test("el chunk del cliente cabe en el lote que acepta el worker", () => {
             assert.ok(Number(size) <= limit, `chunk de ${size} contra un límite de ${limit}`);
         }
     }
+});
+
+test("el cron del snapshot escribe UNA vez por tick, no dos", async () => {
+    const env = fakeEnv({ [PriceSnapshot.UNIVERSE_KEY]: JSON.stringify(["a", "b"]) });
+    let escrituras = 0;
+    const put = env.VOID_KV.put.bind(env.VOID_KV);
+    env.VOID_KV.put = async (k, v) => { escrituras++; return put(k, v); };
+
+    const snapshot = Object.create(PriceSnapshot);
+    snapshot.PACE_MS = 0;
+    snapshot.fetchPrice = async () => ({ price: 3 });
+
+    await snapshot.refresh(env, ctx);
+    assert.equal(escrituras, 1, "solo el documento");
+});
+
+test("un tick que no refresca nada no gasta escritura", async () => {
+    const env = fakeEnv({ [PriceSnapshot.UNIVERSE_KEY]: JSON.stringify(["a", "b"]) });
+    let escrituras = 0;
+    const put = env.VOID_KV.put.bind(env.VOID_KV);
+    env.VOID_KV.put = async (k, v) => { escrituras++; return put(k, v); };
+
+    const snapshot = Object.create(PriceSnapshot);
+    snapshot.PACE_MS = 0;
+    snapshot.fetchPrice = async () => ({ rateLimited: true });
+
+    const r = await snapshot.refresh(env, ctx);
+    assert.equal(escrituras, 0);
+    assert.equal(r.skipped, true);
+});
+
+test("un tick que solo poda slugs retirados SÍ escribe", () => {
+    const body = workerSrc.slice(workerSrc.indexOf("async refresh(env, ctx)"));
+    assert.match(body.slice(0, 2500), /if \(!refreshed && !podados\)/,
+        "la guarda tiene que mirar también lo podado");
+});
+
+test("los precios por slug van a la caché del edge, no a KV", () => {
+    for (const handler of ["prices_batch", "price"]) {
+        const body = handlerBody(handler);
+        assert.ok(!/KVHelper\.(get|put)\([^)]*price_/.test(body),
+            `${handler} sigue usando KV para los precios por slug`);
+        assert.match(body, /EdgeCache\.(get|getMany|put)/, `${handler} debe usar la caché del edge`);
+    }
+});
+
+test("los arcanos también salen de KV", () => {
+    const body = handlerBody("arcane_batch");
+    assert.ok(!/KVHelper\.(get|put)\([^)]*arc_/.test(body), "arc_ sigue en KV");
+    assert.match(body, /EdgeCache\.getMany\(slugs, s => `arc_\$\{s\}`, 10\)/,
+        "con presupuesto: cada arcano no cacheado cuesta además 2 fetches a WFM");
+});
+
+test("el snapshot compartido se queda en KV", () => {
+    const body = handlerBody("prices_snapshot");
+    assert.match(body, /PriceSnapshot\.read\(env\)/);
+    assert.ok(!body.includes("EdgeCache"), "el documento global no puede depender de un solo colo");
 });
