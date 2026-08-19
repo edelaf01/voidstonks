@@ -32,7 +32,16 @@ export const DEFAULT_VISION_SETTINGS = Object.freeze({
 Object.assign(rawState, {
   currentLang: "en",
   activeTab: "relic",
+  // Cuántos jugadores te FALTAN para la escuadra. Solo alimenta el mensaje de reclutamiento
+  // ("H [Lith D1] Rad 1/4"), que es para lo que se puso el contador.
   playerCount: 1,
+  // Con cuántos abres las reliquias. Es lo que decide las probabilidades: en escuadra de 4 se
+  // abren 4 y te quedas con la mejor recompensa, así que una rara radiante pasa de 10% a ~34%.
+  //
+  // Campo aparte porque antes esto salía de `playerCount`, o sea del contador "Faltan": poner
+  // "me falta 1 jugador" calculaba las runs como si jugaras SOLO. Y como arrancaba en 1, quien
+  // nunca tocó ese contador tenía toda la app estimando en solitario. 4 es el caso normal.
+  squadSize: 4,
   lfgCount: 1,
   relicSourcesDatabase: {},
   selectedRelic: "",
@@ -52,6 +61,11 @@ Object.assign(rawState, {
   inventory: [],
   invFilterTier: "ALL",
   invSearchVal: "",
+  // Objetivo del inventario de reliquias: qué quieres sacar de abrirlas. Manda sobre el
+  // orden Y sobre el dato que se enseña en cada fila. Por defecto "sets" porque es la
+  // pregunta que se hace uno al mirar el inventario: qué abro para terminar algo.
+  invGoal: "sets",
+  invOnlyActive: false,
   showAllFarms: false,
   primeInventory: {},
   primeManifest: [],
@@ -86,6 +100,7 @@ export function saveAppState() {
       username: state.username || "", // Requires UI to update state.username
       mr: state.mr || 0, // Requires UI to update state.mr
       currentActiveSet: state.currentActiveSet,
+      squadSize: state.squadSize,
       activeSetParts: state.activeSetParts,
       completedParts: Array.from(state.completedParts),
       lfgPresets: state.lfgPresets,
@@ -100,7 +115,19 @@ export function saveAppState() {
       visionSettings: state.visionSettings,
     };
 
-    localStorage.setItem("voidStonks_save", JSON.stringify(data));
+    try {
+      localStorage.setItem("voidStonks_save", JSON.stringify(data));
+    } catch (e) {
+      // Sin este aviso, quedarse sin cuota (inventarios grandes) perdía el guardado sin
+      // que nada lo dijera: la app seguía enseñando los datos en memoria y se iban al
+      // recargar. El usuario tiene que enterarse en el momento.
+      console.error("[state] no se pudo guardar en localStorage:", e);
+      globalThis.showToast?.(
+        state.currentLang === "es"
+          ? "No se pudo guardar: almacenamiento lleno"
+          : "Save failed: storage full",
+      );
+    }
     saveTimer = null;
   }, 1000);
 }
@@ -125,6 +152,8 @@ export function loadAppState() {
       state.completedParts = new Set(data.completedParts || []);
     }
     if (typeof data.showAllFarms !== "undefined") state.showAllFarms = data.showAllFarms;
+    // Se acota al rango válido: una escuadra de 0 o de 7 tiraría abajo el cálculo de odds.
+    if (Number.isFinite(data.squadSize)) state.squadSize = Math.min(4, Math.max(1, data.squadSize));
     if (data.lfgPresets) state.lfgPresets = data.lfgPresets;
     if (data.tradePresets) state.tradePresets = data.tradePresets;
     if (data.arbSettings) state.arbSettings = { ...state.arbSettings, ...data.arbSettings };
@@ -163,13 +192,11 @@ export function hydrateDOM(domValues) {
 
 export function updateInventoryCount(relicName, change) {
   if (state.inventory.length > 0 && typeof state.inventory[0] === "string") {
-    const newInv = [];
-    state.inventory.forEach((name) => {
-      const existing = newInv.find((i) => i.name === name);
-      if (existing) existing.count++;
-      else newInv.push({ name, count: 1 });
-    });
-    state.inventory = newInv;
+    // Con un find() por elemento la migración del formato viejo (array de strings) era
+    // O(n²) sobre TODO el inventario, y corre al primer +/- que se pulse.
+    const counts = new Map();
+    for (const name of state.inventory) counts.set(name, (counts.get(name) || 0) + 1);
+    state.inventory = [...counts].map(([name, count]) => ({ name, count }));
   }
 
   const itemIndex = state.inventory.findIndex((i) => i.name === relicName);

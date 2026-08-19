@@ -283,6 +283,26 @@
   border-color: rgba(255, 255, 255, 0.25);
 }
 
+.gsc-flag.cyan {
+  border-color: rgba(0, 229, 255, 0.25);
+  background: rgba(0, 229, 255, 0.06);
+}
+
+.gsc-flag.green {
+  border-color: rgba(0, 255, 120, 0.18);
+  background: rgba(0, 255, 120, 0.05);
+}
+
+.gsc-flag.amber {
+  border-color: rgba(224, 176, 0, 0.25);
+  background: rgba(224, 176, 0, 0.06);
+}
+
+.gsc-flag.red {
+  border-color: rgba(255, 68, 68, 0.25);
+  background: rgba(255, 68, 68, 0.07);
+}
+
 .gsc-flag summary {
   cursor: pointer;
   padding: 5px 8px;
@@ -300,31 +320,11 @@
   color: #ddd;
 }
 
-.gsc-flag.cyan {
-  border-color: rgba(0, 229, 255, 0.25);
-  background: rgba(0, 229, 255, 0.06);
-}
-
 .gsc-flag.cyan summary { color: var(--riven-cyan); }
-
-.gsc-flag.green {
-  border-color: rgba(0, 255, 120, 0.18);
-  background: rgba(0, 255, 120, 0.05);
-}
 
 .gsc-flag.green summary { color: #00ff78; }
 
-.gsc-flag.amber {
-  border-color: rgba(224, 176, 0, 0.25);
-  background: rgba(224, 176, 0, 0.06);
-}
-
 .gsc-flag.amber summary { color: #e0b000; }
-
-.gsc-flag.red {
-  border-color: rgba(255, 68, 68, 0.25);
-  background: rgba(255, 68, 68, 0.07);
-}
 
 .gsc-flag.red summary { color: #ff8888; }
 
@@ -390,16 +390,16 @@
   text-overflow: ellipsis;
 }
 
-.grade-card.compact .grade-info > div:nth-child(2) {
-  font-size: 0.68em;
-  color: #aaa;
-  white-space: nowrap;
-}
-
 .grade-card.compact .grade-track {
   grid-column: 1 / -1;
   height: 3px;
   margin-top: 3px;
+}
+
+.grade-card.compact .grade-info > div:nth-child(2) {
+  font-size: 0.68em;
+  color: #aaa;
+  white-space: nowrap;
 }
 
 /* Comparativa del modal: columnas que apilan en pantallas estrechas */

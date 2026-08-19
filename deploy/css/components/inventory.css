@@ -143,9 +143,18 @@
     font-size: 0.85em;
     text-transform: uppercase;
     line-height: 1.2;
-    word-break: break-word;
+    /* Parte entre palabras, nunca dentro de una. Con break-word y el título como único hermano
+       flexible de la cabecera, al estrecharse el panel se quedaba en ~20px y "ACCELTRA PRIME"
+       salía como una columna de letras. Ahora la palabra que no cabe se recorta con puntos
+       suspensivos, que se lee mal pero se lee. */
+    overflow-wrap: normal;
+    word-break: normal;
+    overflow: hidden;
+    text-overflow: ellipsis;
     flex: 1;
-    min-width: 0;
+    /* Suelo: por debajo de esto el título deja de ser legible y es mejor que desborde la
+       cabecera —visible y arreglable— que dejarlo colapsar en silencio. */
+    min-width: 5ch;
 }
 
 .set-count-badge {
@@ -181,6 +190,10 @@
     box-sizing: border-box;
 }
 
+.inv-set-header:hover {
+    background: rgba(35, 45, 60, 0.8);
+}
+
 .inv-set-header .header-controls {
     display: flex;
     flex-direction: column;
@@ -205,10 +218,6 @@
     justify-content: center;
     gap: 2px;
     flex-shrink: 0;
-}
-
-.inv-set-header:hover {
-    background: rgba(35, 45, 60, 0.8);
 }
 /* ---------- Precio en vivo (flujo de warframe.market) ---------- */
 /* Se pinta AL LADO del precio base, no encima: el base es la mediana de las 5 más

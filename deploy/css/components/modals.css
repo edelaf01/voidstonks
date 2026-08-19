@@ -313,6 +313,10 @@
   box-shadow: 0 0 20px rgba(0, 229, 255, 0.3);
 }
 
+.modal-badge:hover .currency-icon {
+  transform: scale(1.2);
+}
+
 .selected-reward {
   border-color: #00ff78 !important;
   box-shadow: 0 0 25px rgba(0, 255, 120, 0.4) !important;
@@ -384,10 +388,6 @@
   transition: transform 0.2s;
 }
 
-.modal-badge:hover .currency-icon {
-  transform: scale(1.2);
-}
-
 .best-badge {
   font-size: 0.7rem;
   font-weight: 900;
@@ -409,10 +409,22 @@
   box-shadow: 0 0 15px rgba(0, 229, 255, 0.5);
 }
 
+/* La recompensa que te CIERRA un set. La clase existía desde que se diseñó el overlay PiP pero
+   nunca se llegó a poner en ninguna tarjeta; el modal la usa desde que se calcula de verdad
+   (utils/inventory/reward_set_pick.js). */
 .best-badge.set-finisher {
   background: #a29bfe;
   color: #000;
   box-shadow: 0 0 10px rgba(162, 155, 254, 0.4);
+}
+
+/* "Te acerca" pero no cierra: mismo color, apagado. Compite en la misma columna que "más
+   platino" y "mejor ducados", y a igual intensidad las tres se anulan entre sí. */
+.best-badge.set-finisher.near {
+  background: none;
+  color: #a29bfe;
+  border: 1px solid rgba(162, 155, 254, 0.5);
+  box-shadow: none;
 }
 
 .modal-badge-labels {
@@ -955,8 +967,18 @@
    Solo bajo 600px, que es donde .index-card-header apila en columna y queda sitio libre a la
    derecha del icono; en fila la columna expandida taparia el nombre del arma. */
 @media (hover: none) and (max-width: 600px) {
+  /* El envoltorio pasa a ocupar el ancho de la tarjeta para que la tira crezca DENTRO de
+     ella. Antes el tope era calc(100vw - 90px), que da por hecho que el icono empieza
+     pegado al margen izquierdo; con la cabecera apilada el icono va centrado (x≈160) y las
+     armas con muchas variantes se salian de la pantalla por la derecha. */
+  .ic-icon-wrapper {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+  }
+
   .ic-icon-col.has-variants {
-    width: min(var(--hover-width, 58px), calc(100vw - 90px));
+    width: min(var(--hover-width, 58px), 100%);
     overflow-x: auto;
     overscroll-behavior-x: contain;
     border-color: rgba(212, 175, 55, 0.35);
@@ -985,6 +1007,10 @@
   flex-shrink: 0;
 }
 
+.ic-icon-col .variant-hover-item.active-variant {
+  order: -1;
+}
+
 .ic-icon-col .variant-hover-item img {
   width: 52px;
   height: 52px;
@@ -995,10 +1021,6 @@
 
 .ic-icon-col .variant-hover-item:hover img {
   transform: scale(1.08);
-}
-
-.ic-icon-col .variant-hover-item.active-variant {
-  order: -1;
 }
 
 .ic-icon-col .variant-hover-item.active-variant img {

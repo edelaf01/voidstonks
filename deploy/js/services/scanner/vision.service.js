@@ -1,0 +1,2088 @@
+import { OpenCVRepository } from "../../repositories/opencv.repository.js";
+import { detectInventoryGrid } from "../../utils/vision/grid_detect.js";
+import { offBandComponentIndices } from "../../utils/vision/badge_filters.js";
+import { NAME_TEXT_COLORS, snapToThemeTextColor, nameColorCandidates } from "../../utils/vision/name_color.js";
+// La tabla y el snap viven en utils/, pero varios módulos y tests los importan
+// históricamente desde aquí.
+export { NAME_TEXT_COLORS, snapToThemeTextColor };
+
+// Grabar la PANTALLA del juego con la cámara del móvil (no el mundo real) hace que el
+// autofocus/auto-exposición/balance de blancos "libres" del navegador oscilen buscando un
+// punto óptimo que no existe (un panel emisor de luz no se comporta como una escena normal):
+// eso produce frames borrosos o sobre/sub-expuestos de forma intermitente, justo la causa
+// más común de que el OCR falle un frame de cada N sin motivo aparente. applyConstraints con
+// modo continuo (no manual: el móvil no tiene forma de fijar un valor absoluto razonable de
+// antemano) deja que el driver seq mantenga foco/exposición estables sobre un sujeto quieto
+// (la pantalla no se mueve) en vez de recalcularlos por ruido de frame a frame. Envuelto en
+// try/catch por track: la mayoría de navegadores (Safari iOS, muchos Android WebView) no
+// soportan estas capabilities y helpers.applyConstraints tira TypeError si se le pasa una
+// constraint no soportada en el objeto — hay que probarlas una a una.
+export async function applyBestCameraConstraints(stream) {
+    const track = stream?.getVideoTracks?.()[0];
+    if (!track || !track.getCapabilities) return;
+    let caps;
+    try { caps = track.getCapabilities(); } catch { return; }
+    if (!caps) return;
+
+    const wanted = {};
+    if (caps.focusMode?.includes("continuous")) wanted.focusMode = "continuous";
+    if (caps.exposureMode?.includes("continuous")) wanted.exposureMode = "continuous";
+    if (caps.whiteBalanceMode?.includes("continuous")) wanted.whiteBalanceMode = "continuous";
+    if (Object.keys(wanted).length === 0) return;
+
+    try {
+        await track.applyConstraints({ advanced: [wanted] });
+    } catch (e) {
+        console.warn("[Vision] Camera constraints not applied:", e);
+    }
+}
+
+
+
+/**
+ * Known Warframe UI theme text colors (Secondary highlight colors used for item names).
+ * Values perfectly mirror WFInfo's ThemeSecondary.
+ * Each entry: { name, r, g, b, tol } — used for theme detection and RGB Euclidean thresholding.
+ */
+export const WF_THEMES = [
+    { name: "Legacy", r: 232, g: 213, b: 93 },
+    { name: "Vitruvian", r: 245, g: 227, b: 173 },
+    { name: "Stalker", r: 255, g: 61, b: 51 },
+    { name: "Baruuk", r: 236, g: 211, b: 162 },
+    { name: "Corpus", r: 111, g: 229, b: 253 },
+    { name: "Fortuna", r: 255, g: 115, b: 230 },
+    { name: "Grineer", r: 255, g: 224, b: 153 },
+    { name: "Lotus", r: 255, g: 241, b: 191 },
+    { name: "Nidus", r: 245, g: 73, b: 93 },
+    { name: "Orokin", r: 178, g: 125, b: 5 },
+    // Tema por defecto moderno de Warframe (naranja/dorado brillante). El catálogo
+    // solo tenía el "Orokin" apagado (178,125,5), que queda a >tolerancia del naranja
+    // real de la UI actual (~227,128,20) → detección con weight 0. Medido de captura real.
+    { name: "Default", r: 227, g: 128, b: 20 },
+    { name: "Tenno", r: 6, g: 106, b: 74 },
+    { name: "High Contrast", r: 255, g: 255, b: 0 },
+];
+
+// 10% of max Euclidean distance (sqrt(3)*255 ≈ 441): (441*0.10)^2 ≈ 1944
+// This accounts for JPEG compression and anti-aliasing on real screenshots.
+const THEME_TOL_SQ = 1944;
+
+// Histograma de color cuantizado (clave de 15 bits ⇒ 32768 cubetas) reutilizado entre
+// llamadas. Con un Map costaba 6,4 ms por celda y con el typed array 1,1 ms: son ~95 ms
+// menos por página, y esto corre en el hilo principal mientras el usuario scrollea.
+// Compartirlo es seguro porque quien lo usa es síncrono de principio a fin — no hay await
+// por medio en el que otra llamada pueda colarse.
+const COLOR_HIST = new Uint32Array(32768);
+
+// Etiquetas y pila del etiquetado de componentes, por el mismo motivo (2 × 1,4 MB por
+// celda). Crecen al mayor recorte visto y ya no se vuelven a pedir.
+let LABELS = new Int32Array(0);
+let STACK = new Int32Array(0);
+const scratchLabels = (n) => {
+    if (LABELS.length < n) LABELS = new Int32Array(n);
+    LABELS.fill(-1, 0, n);
+    return LABELS;
+};
+const scratchStack = (n) => {
+    if (STACK.length < n) STACK = new Int32Array(n);
+    return STACK;
+};
+
+/**
+ * Service for vision logic.
+ */
+export const VisionService = {
+    // Shared canvases 
+    _sharedCvs: document.createElement("canvas"),
+    _themeCvs: document.createElement("canvas"),
+    _filterCvs: document.createElement("canvas"),
+    _textCvs: document.createElement("canvas"),
+    _tempBadgeCvs: document.createElement("canvas"),
+    _badgeCvs: document.createElement("canvas"),
+    _relicSelectionCvs: document.createElement("canvas"),
+    _rewardCvs: document.createElement("canvas"),
+    _rewardNamesCvs: document.createElement("canvas"),
+    _rivenCvs: document.createElement("canvas"),
+    _inventoryCvs: document.createElement("canvas"),
+    /**
+     * Generates a simple hash of a frame to detect stability.
+     */
+    getFrameHash(ctx, w, h) {
+        const data = ctx.getImageData(0, 0, w, h).data;
+        let hash = 0;
+        const step = Math.floor(data.length / 64) || 4;
+        for (let i = 0; i < data.length; i += step) {
+            hash += data[i];
+        }
+        return hash;
+    },
+
+    /**
+     * Detects if a checkmark (tick) exists in a specific region.
+     */
+    detectCheckmark(snapshot, x, y, w, h) {
+        const cvs = this._sharedCvs;
+        cvs.width = w;
+        cvs.height = h;
+        const ctx = cvs.getContext("2d", { willReadFrequently: true }); ctx.drawImage(snapshot, x, y, w, h, 0, 0, w, h);
+
+        const data = ctx.getImageData(0, 0, w, h).data;
+        let brightnessSum = 0;
+        for (let i = 0; i < data.length; i += 4) {
+            brightnessSum += (data[i] + data[i + 1] + data[i + 2]) / 3;
+        }
+        const avgBrightness = brightnessSum / (data.length / 4);
+        let highPoints = 0;
+        for (let i = 0; i < data.length; i += 4) {
+            let l = (data[i] + data[i + 1] + data[i + 2]) / 3;
+            if (l > avgBrightness * 1.8 && l > 100) highPoints++;
+        }
+        return highPoints > (w * h * 0.05);
+    },
+
+    /**
+     * Uses OpenCV to find text rows in a canvas.
+     */
+    async findTextRows(canvas) {
+        const ready = await OpenCVRepository.waitReady();
+        if (!ready) return [];
+
+        return OpenCVRepository.run((cv) => {
+            const rects = [];
+            let src, gray, binary, morph, k, contours, hierarchy;
+            try {
+                src = cv.imread(canvas);
+                gray = new cv.Mat();
+                cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+
+                binary = new cv.Mat();
+                cv.adaptiveThreshold(gray, binary, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, 31, 10);
+
+                morph = new cv.Mat();
+                k = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(25, 3));
+                cv.dilate(binary, morph, k);
+                k.delete();
+                k = null;
+
+                contours = new cv.MatVector();
+                hierarchy = new cv.Mat();
+                cv.findContours(morph, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+
+                for (let i = 0; i < contours.size(); i++) {
+                    let r = cv.boundingRect(contours.get(i));
+                    if (r.width > canvas.width * 0.3 && r.height > 15 && r.height < 150) {
+                        rects.push({ x: r.x, y: r.y, width: r.width, height: r.height });
+                    }
+                }
+            } finally {
+                if (src) src.delete();
+                if (gray) gray.delete();
+                if (binary) binary.delete();
+                if (morph) morph.delete();
+                if (k) k.delete();
+                if (contours) contours.delete();
+                if (hierarchy) hierarchy.delete();
+            }
+
+            return rects.sort((a, b) => a.y - b.y);
+        }) || [];
+    },
+    /**
+     * Prepares a virtual canvas for OCR from a video frame.
+     */
+    prepareVirtualCanvas(video, canvas) {
+        const width = video.videoWidth;
+        const height = video.videoHeight;
+        const scale = 1080 / height;
+
+        // Crop strictly the top-left area (45% width, 12% height) where the screen title header
+        // (e.g. "VOID FISSURE/REWARDS", "INVENTORY", "RELIC REFINEMENT") is always located.
+        // This completely avoids the middle/right background graphic and sparks from skewing
+        // the K-means clustering threshold, ensuring 100% stable context detection.
+        const hCropW = Math.floor(width * 0.45);
+        const hCropH = Math.floor(height * 0.12);
+
+        canvas.width = Math.floor(hCropW * scale);
+        canvas.height = Math.floor(hCropH * scale);
+
+        const ctx = canvas.getContext("2d", { willReadFrequently: true });
+        ctx.drawImage(video, 0, 0, hCropW, hCropH, 0, 0, canvas.width, canvas.height);
+
+        return { width, height, scale };
+    },
+
+    // Detección de tema + umbralizado del header, SEPARADOS del draw: solo hace falta pagarlos
+    // cuando el header cambió de verdad (el scanner lo decide por hash del canvas crudo). En una
+    // pantalla quieta ni se re-detecta el tema ni se re-umbraliza — antes corrían en cada tick.
+    finalizeVirtualCanvas(canvas) {
+        const ctx = canvas.getContext("2d", { willReadFrequently: true });
+        const theme = this.detectThemeFromSnapshot(canvas, 0, 0, canvas.width, canvas.height);
+        this.applyClusteringThreshold(ctx, canvas.width, canvas.height, theme);
+        return theme; // el caller lo reutiliza para el reintento de binarización del header
+    },
+
+    // Binarización ALTERNATIVA del header por distancia estricta al color del tema.
+    // La K-means de applyClusteringThreshold falla cuando el fondo es CLARO y cercano al
+    // color del tema (p.ej. "VOID FISSURE/REWARDS" naranja sobre cielo rojo/rosa de una
+    // misión: el cielo cae en el cluster "texto" y el canvas sale negro → OCR basura →
+    // contexto UNKNOWN y la recompensa no se escanea). El texto del header es SIEMPRE del
+    // color del tema, así que clasificar por distancia Manhattan al color real detectado
+    // (con umbral fijo) separa texto de un fondo claro sin depender del contraste global.
+    applyThemeDistanceThreshold(ctx, w, h, theme, maxDist = 130) {
+        const tR = theme.actualR ?? theme.r, tG = theme.actualG ?? theme.g, tB = theme.actualB ?? theme.b;
+        const imgData = ctx.getImageData(0, 0, w, h);
+        const px = imgData.data;
+        for (let i = 0; i < px.length; i += 4) {
+            const d = Math.abs(px[i] - tR) + Math.abs(px[i + 1] - tG) + Math.abs(px[i + 2] - tB);
+            px[i] = px[i + 1] = px[i + 2] = d < maxDist ? 0 : 255;
+        }
+        ctx.putImageData(imgData, 0, 0);
+    },
+
+    /**
+     * Detects the active Warframe UI theme by sampling a region of the snapshot.
+     * Uses a weighted voting system: it finds the closest theme for each pixel,
+     * and adds a weight of 1 / (distance + 1)^4. This ensures that a few exact
+     * text pixels (distance ~0) vastly outweigh a large background of slightly
+     * mismatched color (e.g. red lighting), preventing false "Stalker" detection.
+     */
+    detectThemeFromSnapshot(snapshot, sampleX, sampleY, sampleW, sampleH) {
+        const cvs = this._themeCvs;
+        cvs.width = sampleW; cvs.height = sampleH;
+        const ctx = cvs.getContext("2d", { willReadFrequently: true });
+        ctx.drawImage(snapshot, sampleX, sampleY, sampleW, sampleH, 0, 0, sampleW, sampleH);
+
+        const px = ctx.getImageData(0, 0, sampleW, sampleH).data;
+
+        // Group pixels by their closest theme to find the winning theme AND
+        // to compute the average dynamic RGB of the actual text on screen.
+        const themeStats = new Array(WF_THEMES.length).fill(0).map(() => ({ rSum: 0, gSum: 0, bSum: 0, count: 0, weight: 0 }));
+
+        for (let i = 0; i < px.length; i += 16) { // stride of 4 pixels for speed
+            const r = px[i], g = px[i + 1], b = px[i + 2];
+
+            // Text is extremely bright. Ignore dark background pixels
+            // entirely so ambient lighting doesn't skew detection.
+            const luma = 0.299 * r + 0.587 * g + 0.114 * b;
+            if (luma < 100) continue;
+
+            // For each bright pixel, find the closest theme by Manhattan distance
+            let bestThemeIdx = 0;
+            let bestDist = Infinity;
+
+            for (let t = 0; t < WF_THEMES.length; t++) {
+                const theme = WF_THEMES[t];
+                const dist = Math.abs(r - theme.r) + Math.abs(g - theme.g) + Math.abs(b - theme.b);
+                if (dist < bestDist) {
+                    bestDist = dist;
+                    bestThemeIdx = t;
+                }
+            }
+
+            // Exact matches get weight 1.0, distance 10 gets 0.00006
+            const w = 1 / Math.pow(bestDist + 1, 4);
+            themeStats[bestThemeIdx].weight += w;
+            themeStats[bestThemeIdx].rSum += r;
+            themeStats[bestThemeIdx].gSum += g;
+            themeStats[bestThemeIdx].bSum += b;
+            themeStats[bestThemeIdx].count += 1;
+        }
+
+        let maxWeight = -1;
+        let bestThemeIdx = 0;
+        for (let t = 0; t < WF_THEMES.length; t++) {
+            if (themeStats[t].weight > maxWeight) {
+                maxWeight = themeStats[t].weight;
+                bestThemeIdx = t;
+            }
+        }
+
+        const bestTheme = WF_THEMES[bestThemeIdx];
+        const bestStats = themeStats[bestThemeIdx];
+
+        // Compute the ACTUAL average color of pixels that voted for this theme.
+        // This accounts for bloom, glow, and JPEG compression — closer to the real on-screen color.
+        const actualR = bestStats.count > 0 ? Math.round(bestStats.rSum / bestStats.count) : bestTheme.r;
+        const actualG = bestStats.count > 0 ? Math.round(bestStats.gSum / bestStats.count) : bestTheme.g;
+        const actualB = bestStats.count > 0 ? Math.round(bestStats.bSum / bestStats.count) : bestTheme.b;
+
+        // El guard va ANTES del log: al revés anunciaba temas que descartaba acto seguido.
+        if (maxWeight < 0.001) {
+            const estable = globalThis.state?.lastStableTheme;
+            console.log(`[VisionService] Sin tema fiable (peso ${maxWeight.toFixed(4)}) — se mantiene ${estable ? estable.name : "ninguno"}`);
+            return estable || null;
+        }
+
+        console.log(`[VisionService] Theme detected: ${bestTheme.name} (weight: ${maxWeight.toFixed(4)}, catalog: rgb(${bestTheme.r},${bestTheme.g},${bestTheme.b}), actual: rgb(${actualR},${actualG},${actualB}))`);
+
+        const result = {
+            name: bestTheme.name,
+            r: bestTheme.r,
+            g: bestTheme.g,
+            b: bestTheme.b,
+            actualR,
+            actualG,
+            actualB,
+        };
+
+        if (globalThis.state) {
+            globalThis.state.lastStableTheme = result;
+        }
+
+        return result;
+    },
+
+    /**
+     * Creates a binarized OCR canvas for inventory scanning.
+     * Uses grayscale+high contrast then inverts: bright text -> black, dark background -> white.
+     */
+    createFilteredOcrCanvas(snapshot, width, height, grid) {
+        const cvs = this._filterCvs;
+        cvs.width = width; cvs.height = height;
+        const ctx = cvs.getContext("2d", { willReadFrequently: true });
+
+        ctx.filter = "grayscale(100%) contrast(400%) brightness(1.3)";
+        ctx.drawImage(snapshot, 0, 0);
+        ctx.filter = "none";
+
+        // Invert: bright=text -> black(0), dark=background -> white(255)
+        const imgData = ctx.getImageData(0, 0, width, height);
+        const px = imgData.data;
+        for (let i = 0; i < px.length; i += 4) {
+            const v = px[i] > 128 ? 0 : 255;
+            px[i] = px[i + 1] = px[i + 2] = v;
+        }
+        ctx.putImageData(imgData, 0, 0);
+        return cvs;
+    },
+
+    /** Draws inventory area (original colors) and returns theme pixel mask + source canvas. */
+    buildThemeMask(video, width, height, scale) {
+        const cropY = Math.floor(height * 0.12);
+        const cropH = Math.floor(height * 0.78);
+        const cropW = Math.floor(width * 0.74);
+        const targetW = Math.floor(cropW * scale);
+        const targetH = Math.floor(cropH * scale);
+
+        const cvs = this._inventoryCvs;
+        cvs.width = targetW; cvs.height = targetH;
+        const ctx = cvs.getContext("2d", { willReadFrequently: true });
+        ctx.drawImage(video, 0, cropY, cropW, cropH, 0, 0, targetW, targetH);
+
+        const { data: px } = ctx.getImageData(0, 0, targetW, targetH);
+        const mask = new Uint8Array(targetW * targetH);
+        for (let i = 0; i < mask.length; i++) {
+            const r = px[i * 4], g = px[i * 4 + 1], b = px[i * 4 + 2];
+            for (const t of WF_THEMES) {
+                const dr = r - t.r, dg = g - t.g, db = b - t.b;
+                if (dr * dr + dg * dg + db * db < THEME_TOL_SQ) { mask[i] = 1; break; }
+            }
+        }
+        return { sourceCvs: cvs, mask, maskW: targetW, maskH: targetH };
+    },
+
+    /** Find rows/cols of inventory items from theme pixel density projections. */
+    detectInventoryGrid(mask, maskW, maskH) {
+        // Vertical projection
+        const rowDensity = new Float32Array(maskH);
+        for (let y = 0; y < maskH; y++)
+            for (let x = 0; x < maskW; x++) rowDensity[y] += mask[y * maskW + x];
+
+        const rowMax = Math.max(...rowDensity);
+        if (rowMax < 10) return null;
+
+        // adaptive minDist based on expected minimum cell sizes (at least 1/6.5th of screen)
+        // This prevents weapon details/decorations inside a card from creating duplicate row peaks.
+        const rowMinDist = Math.floor(maskH / 6.5);
+        const rowPeaks = this._findPeaks(rowDensity, rowMinDist, rowMax * 0.25);
+        if (!rowPeaks.length) return null;
+
+        // Horizontal projection around row peaks to reduce noise
+        const colDensity = new Float32Array(maskW);
+        for (const rp of rowPeaks) {
+            for (let y = Math.max(0, rp - 20); y <= Math.min(maskH - 1, rp + 20); y++)
+                for (let x = 0; x < maskW; x++) colDensity[x] += mask[y * maskW + x];
+        }
+        const colMax = Math.max(...colDensity);
+        if (colMax < 2) return null;
+
+        const colMinDist = Math.floor(maskW / 12);
+        const colPeaks = this._findPeaks(colDensity, colMinDist, colMax * 0.20);
+        if (!colPeaks.length) return null;
+
+        const avgSpacing = (arr) => arr.length < 2 ? null :
+            arr.slice(1).reduce((s, v, i) => s + v - arr[i], 0) / (arr.length - 1);
+
+        const cellH = avgSpacing(rowPeaks) ?? maskH / 4;
+        const cellW = avgSpacing(colPeaks) ?? maskW / 6;
+
+        return { rowPeaks, colPeaks, cellW: Math.round(cellW), cellH: Math.round(cellH) };
+    },
+
+    _findPeaks(density, minDist, threshold) {
+        // 1. Smooth density with moving average to merge letters into single blocks
+        const smoothDist = Math.floor(minDist / 2);
+        const smoothed = new Float32Array(density.length);
+        for (let i = 0; i < density.length; i++) {
+            let sum = 0, count = 0;
+            for (let j = Math.max(0, i - smoothDist); j <= Math.min(density.length - 1, i + smoothDist); j++) {
+                sum += density[j];
+                count++;
+            }
+            smoothed[i] = sum / count;
+        }
+
+        // 2. Find local maxima with minimum distance constraint
+        const peaks = [];
+        let last = -minDist;
+        for (let i = 1; i < smoothed.length - 1; i++) {
+            if (smoothed[i] >= threshold && smoothed[i] > smoothed[i - 1] && smoothed[i] >= smoothed[i + 1]) {
+                if (i - last >= minDist) {
+                    peaks.push(i);
+                    last = i;
+                } else if (smoothed[i] > smoothed[last]) {
+                    // Better peak found within minDist, replace the previous one
+                    peaks[peaks.length - 1] = i;
+                    last = i;
+                }
+            }
+        }
+        return peaks;
+    },
+
+    /**
+     * Recorte de la banda de nombre a COLOR (sin binarizar), escalado `S`x para
+     * darle resolución al OCR. Para PaddleOCR, que lee el color directamente y no
+     * necesita nuestra binarización por tema.
+     */
+    cropColor(sourceCvs, sx, sy, sw, sh, S = 2) {
+        const cvs = document.createElement("canvas");
+        cvs.width = Math.round(sw * S); cvs.height = Math.round(sh * S);
+        const ctx = cvs.getContext("2d", { willReadFrequently: true });
+        ctx.imageSmoothingEnabled = true;
+        ctx.drawImage(sourceCvs, sx, sy, sw, sh, 0, 0, cvs.width, cvs.height);
+        return cvs;
+    },
+
+    /** Umbral de Otsu sobre un histograma de luma (256 bins) y su total. */
+    _otsuThreshold(hist, total) {
+        let sum = 0; for (let i = 0; i < 256; i++) sum += i * hist[i];
+        let sumB = 0, wB = 0, maxV = 0, thr = 0;
+        for (let i = 0; i < 256; i++) {
+            wB += hist[i]; if (!wB) continue;
+            const wF = total - wB; if (!wF) break;
+            sumB += i * hist[i];
+            const mB = sumB / wB, mF = (sum - sumB) / wF;
+            const v = wB * wF * (mB - mF) * (mB - mF);
+            if (v > maxV) { maxV = v; thr = i; }
+        }
+        return thr;
+    },
+
+    /**
+     * Extrae el badge de cantidad por BRILLO (no por color de tema). El número + el
+     * checkmark son BLANCOS brillantes en la esquina superior-izquierda de la celda,
+     * lo más claro de esa zona; el arte/fondo del tema es de brillo medio. Un umbral
+     * de Otsu elevado hacia el brillo los aísla ENTEROS, sin depender de detectar el
+     * color de tema — que fallaba (p.ej. tema mal detectado → el "4" de Odonata se
+     * binarizaba a medias por K-means y leía "1"). Caja ceñida al alto del dígito para
+     * que segmentDigits (exige componentes ≥40% del alto de la caja) no lo filtre.
+     * Devuelve un canvas dígitos-negros-sobre-blanco (escala 3x) para readBadgeDigits.
+     */
+    extractBadgeBright(snapshot, cell, cellW, cellH) {
+        const S = 3;
+        // 0.40·cellW sólo daba para checkmark + 2 dígitos: con cellW=277 son 111px y la 3ª cifra
+        // (que empieza hacia x115) caía FUERA del recorte, así que "119" se leía "11" y "129"
+        // "12" — sistemático en todos los badges de 3 cifras. 0.62 deja sitio a 4 cifras.
+        const w = Math.round(cellW * 0.62), h = Math.round(cellH * 0.17);
+        const sx = cell.sx, sy = Math.max(0, cell.sy + Math.round(cellH * 0.08));
+        // Reciclado como los recortes de nombre: quien lo recibe lee sus píxeles al
+        // instante (extractCellQuantity empieza con getImageData) y no se lo queda.
+        const cvs = this._ringCanvas(w * S, h * S);
+        const ctx = cvs.getContext("2d", { willReadFrequently: true });
+        ctx.imageSmoothingEnabled = true;
+        ctx.drawImage(snapshot, sx, sy, w, h, 0, 0, cvs.width, cvs.height);
+        const im = ctx.getImageData(0, 0, cvs.width, cvs.height);
+        const px = im.data, N = px.length / 4;
+        const lum = new Float32Array(N), hist = new Uint32Array(256);
+        for (let i = 0; i < N; i++) {
+            const l = 0.299 * px[i * 4] + 0.587 * px[i * 4 + 1] + 0.114 * px[i * 4 + 2];
+            lum[i] = l; hist[Math.min(255, Math.max(0, Math.round(l)))]++;
+        }
+        const thr = Math.max(this._otsuThreshold(hist, N) + 15, 110);
+        for (let i = 0; i < N; i++) {
+            const v = lum[i] >= thr ? 0 : 255;
+            px[i * 4] = px[i * 4 + 1] = px[i * 4 + 2] = v;
+        }
+        ctx.putImageData(im, 0, 0);
+        return cvs;
+    },
+
+    // Canvas de recorte reciclados por tamaño. Los backing store de canvas no los libera
+    // el GC con la agilidad del heap normal, y aquí se pide uno de ~1,4 MB por celda: 18
+    // celdas × varias pasadas × una página tras otra dejaba el escáner en cientos de MB.
+    // El anillo permite que haya varios vivos a la vez (2 workers de OCR en paralelo + el
+    // que retiene el overlay de debug); con 6 sobra y el consumo queda plano.
+    _cropRings: new Map(),
+    _ringCanvas(w, h) {
+        const key = `${w}x${h}`;
+        // Los tamaños en juego son 2-3 (banda de nombre, ventana de respaldo, badge), pero
+        // cambian al cambiar de resolución. Sin tope, el índice acumularía anillos muertos
+        // de resoluciones pasadas; al pasarse se tira entero y se rehace con los vivos.
+        if (!this._cropRings.has(key) && this._cropRings.size >= 8) this._cropRings.clear();
+        let ring = this._cropRings.get(key);
+        if (!ring) {
+            ring = { i: 0, cvs: [] };
+            this._cropRings.set(key, ring);
+        }
+        let cvs = ring.cvs[ring.i];
+        if (!cvs) {
+            cvs = document.createElement("canvas");
+            cvs.width = w; cvs.height = h;
+            ring.cvs[ring.i] = cvs;
+        }
+        ring.i = (ring.i + 1) % 6;
+        return cvs;
+    },
+
+    cropThemeBinarized(sourceCvs, sx, sy, sw, sh, theme, nameColorHint, scale) {
+        // 3x: validado — a 2x se pierden lecturas en temas de bajo contraste (p.ej.
+        // Akjagara Barrel en el tema rojo). El coste (~38ms/celda) se amortigua
+        // cediendo el hilo a la UI entre celdas en el bucle del scanner, no bajando
+        // la resolución del OCR. `scale` permite ajustarlo por caller si hace falta.
+        const S = scale || 3;
+        const cvs = this._ringCanvas(sw * S, sh * S);
+        const ctx = cvs.getContext("2d", { willReadFrequently: true });
+        ctx.imageSmoothingEnabled = true;
+        ctx.drawImage(sourceCvs, sx, sy, sw, sh, 0, 0, cvs.width, cvs.height);
+        const imgData = ctx.getImageData(0, 0, cvs.width, cvs.height);
+        const px = imgData.data;
+
+        // Binarización por COLOR DE TEXTO auto-detectado (independiente del tema).
+        // El diseño correcto es binarizar por el color del texto del tema: eso
+        // rechaza el ARTE del ítem (que es de otro color) y deja solo las letras.
+        // Antes se usaba el catálogo WF_THEMES para el color; si el tema no estaba
+        // (o se detectaba mal) el texto se perdía. Y una variante por "todo lo que
+        // difiere del fondo" marcaba también el arte metálico → rompía la primera
+        // palabra (p.ej. "Acceltra"→"AC WHEEOY KI E"). Aquí medimos DOS colores del
+        // propio recorte: (1) el FONDO = moda de color; (2) el TEXTO = moda de los
+        // píxeles lejos del fondo. Luego marcamos como tinta solo lo cercano al
+        // color de texto. Funciona con cualquier tema (blanco, dorado, rojo, teal…)
+        // y rechaza el arte salvo que sea del mismo color que el texto.
+        const QKEY = (r, g, b) => ((r >> 3) << 10) | ((g >> 3) << 5) | (b >> 3);
+        const UNQ = (k) => [((k >> 10) & 31) << 3, ((k >> 5) & 31) << 3, (k & 31) << 3];
+
+        // (1) Fondo = moda de color (el fondo domina el área de la banda de nombre).
+        COLOR_HIST.fill(0);
+        let bgKey = 0, bgCount = -1;
+        for (let i = 0; i < px.length; i += 4) {
+            const key = QKEY(px[i], px[i + 1], px[i + 2]);
+            const c = ++COLOR_HIST[key];
+            if (c > bgCount) { bgCount = c; bgKey = key; }
+        }
+        const [bgR, bgG, bgB] = UNQ(bgKey);
+
+        // (2) Color de TEXTO = moda de color de los píxeles lejos del fondo, pero
+        // MEDIDA SOLO EN LA FRANJA INFERIOR del recorte. El nombre siempre va abajo;
+        // el arte del ítem invade por ARRIBA (caso "Receiver": la "C" dorada metálica
+        // llena la mitad superior). Si midiéramos el color de texto sobre todo el
+        // recorte, el arte —que tiene más píxeles— ganaría la moda y binarizaríamos
+        // el arte en vez del nombre (nombre perdido). Muestrear abajo da el color
+        // real del texto (rojo apagado del tema, no el rojo brillante de la UI ni el
+        // dorado del arte). NOTA: el color de texto del catálogo/tema es el acento
+        // BRILLANTE de la UI, distinto del nombre renderizado, por eso se auto-mide.
+        const bgTolSq = 45 * 45;
+        const txTolSq = 66 * 66;
+        const cw = cvs.width, ch = cvs.height;
+        const bandY0 = Math.floor(ch * 0.45); // franja inferior (~segunda línea del nombre)
+
+        let txR, txG, txB;
+        if (nameColorHint) {
+            // COLOR DE NOMBRE A NIVEL DE PÁGINA (lo determinó grid_detect sobre TODAS
+            // las celdas). Mucho más robusto que re-detectarlo por-celda: con arte +
+            // compresión, la moda de la franja inferior de UNA celda elige a veces el
+            // color del arte y se pierde el texto (p.ej. blanco sobre nebulosa). Aquí
+            // usamos directamente el color de página y solo comprobamos que la celda
+            // tenga suficiente tinta de ESE color (si no, celda vacía → blanco).
+            [txR, txG, txB] = nameColorHint;
+            const bandTotal = (ch - bandY0) * cw;
+            // Solo hace falta saber SI hay tinta suficiente, no cuánta: en una celda con
+            // nombre el corte se alcanza en las primeras filas y se sale.
+            const needed = bandTotal * 0.008;
+            let near = 0;
+            for (let y = bandY0; y < ch && near < needed; y++) {
+                for (let x = 0; x < cw; x++) {
+                    const i = (y * cw + x) * 4;
+                    const dr = px[i] - txR, dg = px[i + 1] - txG, db = px[i + 2] - txB;
+                    if (dr * dr + dg * dg + db * db < txTolSq) near++;
+                }
+            }
+            if (near < needed) {
+                for (let i = 0; i < px.length; i += 4) px[i] = px[i + 1] = px[i + 2] = 255;
+                ctx.putImageData(imgData, 0, 0);
+                return cvs;
+            }
+        } else {
+            COLOR_HIST.fill(0);
+            let txKey = -1, txCount = -1, bandTotal = 0, candidates = 0;
+            for (let y = bandY0; y < ch; y++) {
+                for (let x = 0; x < cw; x++) {
+                    bandTotal++;
+                    const i = (y * cw + x) * 4;
+                    const dr = px[i] - bgR, dg = px[i + 1] - bgG, db = px[i + 2] - bgB;
+                    if (dr * dr + dg * dg + db * db <= bgTolSq) continue; // es fondo
+                    candidates++;
+                    const key = QKEY(px[i], px[i + 1], px[i + 2]);
+                    const c = ++COLOR_HIST[key];
+                    if (c > txCount) { txCount = c; txKey = key; }
+                }
+            }
+            // Recorte sin tinta en la franja inferior (celda vacía): todo blanco y salir.
+            if (txKey < 0 || candidates < bandTotal * 0.01) {
+                for (let i = 0; i < px.length; i += 4) px[i] = px[i + 1] = px[i + 2] = 255;
+                ctx.putImageData(imgData, 0, 0);
+                return cvs;
+            }
+            // Snap al color de nombre EXACTO del tema (tabla NAME_TEXT_COLORS) si está
+            // cerca; corrige la deriva por antialias/compresión de la moda auto-medida.
+            [txR, txG, txB] = snapToThemeTextColor(...UNQ(txKey));
+        }
+
+        // Tinta = píxeles cercanos al color de TEXTO, lejanos del FONDO y con suficiente separación de brillo sobre el fondo.
+        const bgLum = bgR * 0.299 + bgG * 0.587 + bgB * 0.114;
+        for (let i = 0; i < px.length; i += 4) {
+            const drBg = px[i] - bgR, dgBg = px[i + 1] - bgG, dbBg = px[i + 2] - bgB;
+            if (drBg * drBg + dgBg * dgBg + dbBg * dbBg <= bgTolSq) {
+                px[i] = px[i + 1] = px[i + 2] = 255;
+                continue;
+            }
+            const lum = px[i] * 0.299 + px[i + 1] * 0.587 + px[i + 2] * 0.114;
+            if (lum < bgLum + 12) {
+                px[i] = px[i + 1] = px[i + 2] = 255;
+                continue;
+            }
+            const dr = px[i] - txR, dg = px[i + 1] - txG, db = px[i + 2] - txB;
+            const isText = dr * dr + dg * dg + db * db < txTolSq;
+            px[i] = px[i + 1] = px[i + 2] = isText ? 0 : 255;
+        }
+
+        // Filtro rápido de aislamiento (despeckle): elimina puntos negros sueltos de ruido de compresión de video (1x1 px)
+        // que no pertenecen a trazos de letras, dejando un fondo blanco prístino y sin "mosquitas" para el OCR.
+        const w = cvs.width, h = cvs.height;
+        for (let y = 1; y < h - 1; y++) {
+            for (let x = 1; x < w - 1; x++) {
+                const idx = (y * w + x) * 4;
+                if (px[idx] === 0) {
+                    if (px[idx - 4] === 255 && px[idx + 4] === 255 && px[idx - w * 4] === 255 && px[idx + w * 4] === 255) {
+                        px[idx] = px[idx + 1] = px[idx + 2] = 255;
+                    }
+                }
+            }
+        }
+
+        // AISLAR SOLO LAS LETRAS: en temas de FONDO texturizado (nebulosa/estrellas)
+        // el fondo tiene brillos/estrellas del MISMO color que el texto blanco → el
+        // color no los separa, pero la FORMA sí: las letras son componentes altos y
+        // conectados; las estrellas, manchitas pequeñas aisladas. Etiquetamos
+        // componentes (4-conexión) y borramos los que NO son "texto" (altura <
+        // ~20% del recorte) salvo que estén pegados en X y cerca en Y a un
+        // componente de texto (puntos de i/j, tildes). Así el ruido de fondo
+        // desaparece y solo quedan los trazos legibles.
+        const N = w * h;
+        // Buffers reaprovechados: son 2 × 1,4 MB por celda y se pedían nuevos en cada
+        // llamada. Igual que COLOR_HIST, esto es seguro porque la función es síncrona.
+        const label = scratchLabels(N);
+        const stack = scratchStack(N);
+        const H_TEXT = Math.max(16, Math.round(h * 0.20)); // alto mínimo para "texto"
+        const NEAR_Y = Math.round(h * 0.12);
+        const comps = []; // { minX, maxX, minY, maxY, isText }
+        for (let p = 0; p < N; p++) {
+            if (px[p * 4] !== 0 || label[p] !== -1) continue;
+            // flood fill 4-conexión del componente de tinta que empieza en p
+            let sp = 0; stack[sp++] = p; label[p] = comps.length;
+            let minX = w, maxX = 0, minY = h, maxY = 0;
+            while (sp > 0) {
+                const q = stack[--sp];
+                const qx = q % w, qy = (q / w) | 0;
+                if (qx < minX) minX = qx; if (qx > maxX) maxX = qx;
+                if (qy < minY) minY = qy; if (qy > maxY) maxY = qy;
+                if (qx > 0 && px[(q - 1) * 4] === 0 && label[q - 1] === -1) { label[q - 1] = comps.length; stack[sp++] = q - 1; }
+                if (qx < w - 1 && px[(q + 1) * 4] === 0 && label[q + 1] === -1) { label[q + 1] = comps.length; stack[sp++] = q + 1; }
+                if (qy > 0 && px[(q - w) * 4] === 0 && label[q - w] === -1) { label[q - w] = comps.length; stack[sp++] = q - w; }
+                if (qy < h - 1 && px[(q + w) * 4] === 0 && label[q + w] === -1) { label[q + w] = comps.length; stack[sp++] = q + w; }
+            }
+            comps.push({ minX, maxX, minY, maxY, isText: (maxY - minY + 1) >= H_TEXT });
+        }
+        // Decide qué componentes conservar: los de texto, y los pequeños que estén
+        // pegados en X y cerca en Y a alguno de texto (puntos de i/j, tildes).
+        const texts = comps.filter(c => c.isText);
+        const keep = comps.map(c => {
+            if (c.isText) return true;
+            for (const t of texts) {
+                const xOverlap = c.minX <= t.maxX && c.maxX >= t.minX;
+                const yGap = c.maxY < t.minY ? t.minY - c.maxY : (c.minY > t.maxY ? c.minY - t.maxY : 0);
+                if (xOverlap && yGap <= NEAR_Y) return true;
+            }
+            return false;
+        });
+        // Si NO hay ningún componente de texto (celda de arte puro o ruido), no
+        // borres nada: deja que el OCR devuelva vacío y lo gestione el caller.
+        if (texts.length > 0) {
+            for (let p = 0; p < N; p++) {
+                if (px[p * 4] === 0 && !keep[label[p]]) {
+                    px[p * 4] = px[p * 4 + 1] = px[p * 4 + 2] = 255;
+                }
+            }
+        }
+
+        // BANDA DE NOMBRE DINÁMICA: nos quedamos SOLO con el racimo INFERIOR de líneas
+        // de texto (1, 2 o 3), descartando el arte del mismo color que quede arriba
+        // separado por un hueco. Así NO se asume en qué fracción de la celda cae el
+        // nombre: el recorte de entrada solo debe ser "generoso" y aquí se acota al
+        // texto real por su densidad de tinta por fila. El nombre es un grupo de líneas
+        // contiguas (huecos pequeños entre líneas); el hueco arte↔nombre es grande.
+        if (texts.length > 0) {
+            const rowInk = new Int32Array(h);
+            let maxRow = 0;
+            for (let y = 0; y < h; y++) {
+                let cnt = 0; const off = y * w * 4;
+                for (let x = 0; x < w; x++) if (px[off + x * 4] === 0) cnt++;
+                rowInk[y] = cnt;
+                if (cnt > maxRow) maxRow = cnt;
+            }
+            const rowThr = Math.max(2, maxRow * 0.08);
+            const maxGap = Math.round(h * 0.10); // hueco arte↔nombre > hueco entre líneas
+            let bottom = -1, top = -1, gap = 0;
+            for (let y = h - 1; y >= 0; y--) {
+                if (rowInk[y] >= rowThr) { if (bottom < 0) bottom = y; top = y; gap = 0; }
+                else if (bottom >= 0 && ++gap > maxGap) break;
+            }
+            if (top >= 0) {
+                const pad = Math.round(h * 0.02);
+                const y0 = Math.max(0, top - pad), y1 = Math.min(h - 1, bottom + pad);
+                for (let y = 0; y < h; y++) {
+                    if (y >= y0 && y <= y1) continue;
+                    const off = y * w * 4;
+                    for (let x = 0; x < w; x++) { const i = off + x * 4; px[i] = px[i + 1] = px[i + 2] = 255; }
+                }
+            }
+        }
+
+        ctx.putImageData(imgData, 0, 0);
+        return cvs;
+    },
+
+    /**
+     * Colores candidatos a texto del nombre en la banda de una celda. Recorta igual
+     * que cropThemeBinarized (mismo 3x y mismo suavizado, para que los candidatos
+     * salgan de los MISMOS píxeles que luego se van a binarizar) y delega la medida.
+     */
+    nameBandColorCandidates(sourceCvs, sx, sy, sw, sh, max) {
+        const S = 3;
+        const cvs = document.createElement("canvas");
+        cvs.width = sw * S; cvs.height = sh * S;
+        const ctx = cvs.getContext("2d", { willReadFrequently: true });
+        ctx.imageSmoothingEnabled = true;
+        ctx.drawImage(sourceCvs, sx, sy, sw, sh, 0, 0, cvs.width, cvs.height);
+        return nameColorCandidates(ctx.getImageData(0, 0, cvs.width, cvs.height), max);
+    },
+
+    /** Crop badge region, apply grayscale+contrast+inversion, scale 3x for digit OCR. */
+    cropBadgeBinarized(sourceCvs, sx, sy, sw, sh) {
+        const S = 3;
+        const cvs = this._badgeCvs;
+        cvs.width = sw * S; cvs.height = sh * S;
+        const ctx = cvs.getContext("2d", { willReadFrequently: true });
+        ctx.imageSmoothingEnabled = false;
+        ctx.filter = "grayscale(100%) contrast(500%) brightness(1.5)";
+        ctx.drawImage(sourceCvs, sx, sy, sw, sh, 0, 0, cvs.width, cvs.height);
+        ctx.filter = "none";
+        const imgData = ctx.getImageData(0, 0, cvs.width, cvs.height);
+        const px = imgData.data;
+        for (let i = 0; i < px.length; i += 4) {
+            const v = px[i] > 128 ? 0 : 255;
+            px[i] = px[i + 1] = px[i + 2] = v;
+        }
+        ctx.putImageData(imgData, 0, 0);
+        return cvs;
+    },
+
+    createTextCanvas(ocrCanvas, cell, grid) {
+        const TEXT_SCALE = 3;
+        // Ahora que el grid se ancla con precisión al techo físico de la tarjeta (0%),
+        // el nombre de 1 o 2 líneas vive estrictamente en la franja inferior de la placa (76% al 97%).
+        // Empezar en 76% elimina por completo las puntas inferiores de las armas 3D (Akarius, Akbronco, Afuris)
+        // que cuelgan hasta el 72%-75% y provocaban que Tesseract empastara la 'AK'/'A' inicial (generando 'ROLO', 'RANC', 'AGARI').
+        const textSrcY = Math.floor(grid.cellH * 0.76);
+        const textSrcH = Math.floor(grid.cellH * 0.21);
+        const textCvs = this._textCvs;
+        textCvs.width = grid.cellW * TEXT_SCALE;
+        textCvs.height = textSrcH * TEXT_SCALE;
+        const tCtx = textCvs.getContext('2d');
+        tCtx.imageSmoothingEnabled = false;
+        tCtx.drawImage(ocrCanvas, cell.sx, cell.sy + textSrcY, grid.cellW, textSrcH, 0, 0, textCvs.width, textCvs.height);
+        return textCvs;
+    },
+
+    createBadgeCanvas(snapshot, cell, grid) {
+        // Skip the far-left tick by shifting the crop X offset by 10% of cell width
+        const bdgOffsetX = Math.floor(grid.cellW * 0.10);
+        const copyW = Math.floor(grid.cellW * 0.22);
+
+        const badgeH = Math.floor(grid.cellH * 0.11);
+        const BADGE_SCALE = 3;
+
+        const tempCvs = this._tempBadgeCvs;
+        tempCvs.width = copyW; tempCvs.height = badgeH;
+        const tCtx = tempCvs.getContext('2d');
+        tCtx.drawImage(snapshot, cell.sx + bdgOffsetX, cell.sy, copyW, badgeH, 0, 0, copyW, badgeH);
+
+        // Simplified Clustering ported from scanner_vision.js
+        this.applyClusteringToBadge(tCtx, copyW, badgeH);
+
+        const badgeCvs = this._badgeCvs;
+        badgeCvs.width = copyW * BADGE_SCALE;
+        badgeCvs.height = badgeH * BADGE_SCALE;
+        const bCtx = badgeCvs.getContext('2d');
+        bCtx.imageSmoothingEnabled = false;
+        bCtx.drawImage(tempCvs, 0, 0, copyW, badgeH, 0, 0, badgeCvs.width, badgeCvs.height);
+        return badgeCvs;
+    },
+
+    applyThemeToBadge(ctx, w, h, theme) {
+        const imgData = ctx.getImageData(0, 0, w, h);
+        const px = imgData.data;
+
+        const targetThemes = theme ? [theme] : WF_THEMES;
+        const tolSq = theme ? 55 * 55 : 45 * 45;
+
+        for (let i = 0; i < px.length; i += 4) {
+            const r = px[i], g = px[i + 1], b = px[i + 2];
+            const luma = 0.299 * r + 0.587 * g + 0.114 * b;
+            let isBadge = false;
+
+            for (const t of targetThemes) {
+                const dr = r - t.r, dg = g - t.g, db = b - t.b;
+                if (dr * dr + dg * dg + db * db < tolSq) {
+                    isBadge = true;
+                    break;
+                }
+                if (t.actualR !== undefined) {
+                    const dar = r - t.actualR, dag = g - t.actualG, dab = b - t.actualB;
+                    if (dar * dar + dag * dag + dab * dab < tolSq) {
+                        isBadge = true;
+                        break;
+                    }
+                }
+            }
+
+            if (luma > 165) {
+                isBadge = true;
+            }
+
+            px[i] = px[i + 1] = px[i + 2] = isBadge ? 0 : 255;
+        }
+        ctx.putImageData(imgData, 0, 0);
+    },
+
+    applyClusteringToBadge(ctx, w, h) {
+        const imgData = ctx.getImageData(0, 0, w, h);
+        const px = imgData.data;
+        
+        let maxL = 0;
+        for (let i = 0; i < px.length; i += 4) {
+            const l = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
+            if (l > maxL) maxL = l;
+        }
+        
+        // Dynamic adaptive threshold based on peak luminance (55% of maximum, minimum 50)
+        const thresh = Math.max(50, maxL * 0.55);
+        
+        for (let i = 0; i < px.length; i += 4) {
+            const l = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
+            px[i] = px[i + 1] = px[i + 2] = (l >= thresh) ? 0 : 255;
+        }
+        ctx.putImageData(imgData, 0, 0);
+    },
+
+    applyClusteringThreshold(ctx, w, h, theme) {
+        const imgData = ctx.getImageData(0, 0, w, h);
+        const px = imgData.data;
+        const samples = [];
+        for (let i = 0; i < px.length; i += 8) {
+            samples.push([px[i], px[i + 1], px[i + 2]]);
+        }
+        let c1 = [0, 0, 0], c2 = theme ? [theme.actualR || theme.r, theme.actualG || theme.g, theme.actualB || theme.b] : [255, 255, 255], minL = 255, maxL = 0;
+        for (const s of samples) {
+            let l = 0.299 * s[0] + 0.587 * s[1] + 0.114 * s[2];
+            if (l < minL) { minL = l; c1 = [...s]; }
+            if (!theme && l > maxL) { maxL = l; c2 = [...s]; }
+        }
+        for (let iter = 0; iter < 4; iter++) {
+            let s1 = [0, 0, 0], s2 = [0, 0, 0], n1 = 0, n2 = 0;
+            for (const s of samples) {
+                let d1 = Math.abs(s[0] - c1[0]) + Math.abs(s[1] - c1[1]) + Math.abs(s[2] - c1[2]);
+                let d2 = Math.abs(s[0] - c2[0]) + Math.abs(s[1] - c2[1]) + Math.abs(s[2] - c2[2]);
+                if (d1 < d2) { s1[0] += s[0]; s1[1] += s[1]; s1[2] += s[2]; n1++; }
+                else { s2[0] += s[0]; s2[1] += s[1]; s2[2] += s[2]; n2++; }
+            }
+            if (n1 > 0) { c1[0] = s1[0] / n1; c1[1] = s1[1] / n1; c1[2] = s1[2] / n1; }
+            if (n2 > 0) { c2[0] = s2[0] / n2; c2[1] = s2[1] / n2; c2[2] = s2[2] / n2; }
+        }
+        let l1 = 0.299 * c1[0] + 0.587 * c1[1] + 0.114 * c1[2], l2 = 0.299 * c2[0] + 0.587 * c2[1] + 0.114 * c2[2];
+        let textC = l2 > l1 ? c2 : c1, bgC = l2 > l1 ? c1 : c2;
+        let bgL = Math.min(l1, l2);
+        for (let i = 0; i < px.length; i += 4) {
+            let r = px[i], g = px[i + 1], b = px[i + 2];
+            let dT = Math.abs(r - textC[0]) + Math.abs(g - textC[1]) + Math.abs(b - textC[2]);
+            let dB = Math.abs(r - bgC[0]) + Math.abs(g - bgC[1]) + Math.abs(b - bgC[2]);
+            let lum = 0.299 * r + 0.587 * g + 0.114 * b;
+            // Rechazar únicamente lo que esté muy cerca del cluster de fondo o por debajo en brillo
+            let isBgNoise = lum < bgL + 15 || dT >= dB * 1.05;
+            px[i] = px[i + 1] = px[i + 2] = isBgNoise ? 255 : 0;
+        }
+        ctx.putImageData(imgData, 0, 0);
+    },
+
+    /**
+     * Prepares canvas for relic selection detection (Right side of screen).
+     */
+    prepareRelicSelectionCanvas(video, scale) {
+        const width = video.videoWidth;
+        const height = video.videoHeight;
+        const rsCropX = Math.floor(width * 0.5);
+        const rsCropY = Math.floor(height * 0.2);
+        const rsCropW = Math.floor(width * 0.5);
+        const rsCropH = Math.floor(height * 0.25);
+
+        const cvs = this._relicSelectionCvs;
+        cvs.width = Math.floor(rsCropW * scale * 0.75);
+        cvs.height = Math.floor(rsCropH * scale * 0.75);
+        const ctx = cvs.getContext("2d", { willReadFrequently: true });
+        ctx.filter = "grayscale(100%) brightness(1.2) contrast(300%)";
+        ctx.drawImage(video, rsCropX, rsCropY, rsCropW, rsCropH, 0, 0, cvs.width, cvs.height);
+        return cvs;
+    },
+
+    /**
+     * Prepares canvas for reward detection.
+     */
+    prepareRewardCanvas(snapshot, card, scale) {
+        const cvs = this._rewardCvs;
+        cvs.width = Math.floor(card.w * scale);
+        cvs.height = Math.floor(card.h * scale);
+        const ctx = cvs.getContext("2d", { willReadFrequently: true });
+        ctx.drawImage(snapshot, card.x, card.y, card.w, card.h, 0, 0, cvs.width, cvs.height);
+        return cvs;
+    },
+
+    /**
+     * Detects if a cell contains a valid reward.
+     */
+    detectReward(snapshot, card, scale) {
+        const cvs = this.prepareRewardCanvas(snapshot, card, scale);
+        const ctx = cvs.getContext("2d", { willReadFrequently: true });
+        const px = ctx.getImageData(0, 0, cvs.width, cvs.height).data;
+        let whitePixels = 0;
+        for (let i = 0; i < px.length; i += 4) {
+            const l = (px[i] + px[i + 1] + px[i + 2]) / 3;
+            if (l > 180) whitePixels++;
+        }
+        return whitePixels > (cvs.width * cvs.height * 0.02);
+    },
+
+    detectRewardTheme(snapshot, card, scale) {
+        const cvs = this.prepareRewardCanvas(snapshot, card, scale);
+        const ctx = cvs.getContext("2d", { willReadFrequently: true });
+        const text = ctx.getImageData(0, 0, cvs.width, cvs.height).data;
+        let maxL = 0;
+        for (let i = 0; i < text.length; i += 4) {
+            const l = (text[i] + text[i + 1] + text[i + 2]) / 3;
+            if (l > maxL) maxL = l;
+        }
+        if (maxL < 100) return "UNKNOWN";
+        if (maxL > 180) return "REWARD";
+        return "UNKNOWN";
+    },
+
+    /**
+     * Prepares canvas for reward detection.
+     */
+    // Escalera de filtros para el reintento adaptativo: si el preset ESTÁNDAR no produce
+    // ningún item, el frame en sí puede ser bueno pero el contraste/brillo fijo (calibrado
+    // para exposición "normal" de cámara) puede recortar en negro o quemar en blanco cuando
+    // la foto a la pantalla llegó más oscura/clara de lo habitual. LOW_LIGHT sube el brillo
+    // para fotos oscuras (habitación con poca luz, pantalla lejos); HIGH_GLARE baja contraste
+    // y brillo para fotos donde el reflejo/brillo del panel quema el texto a blanco puro.
+    REWARD_OCR_PRESETS: {
+        STANDARD: "grayscale(100%) contrast(400%) brightness(1.3)",
+        LOW_LIGHT: "grayscale(100%) contrast(320%) brightness(1.9)",
+        HIGH_GLARE: "grayscale(100%) contrast(260%) brightness(0.85)",
+    },
+
+    prepareRewardOCRCanvas(video, width, height, scale, preset = "STANDARD", cropRect = null) {
+        // cropRect (de detectRewardBand, en píxeles del frame): la foto puede venir de una
+        // webcam apuntando a un MONITOR EXTERNO donde el juego no llena el encuadre (bisel,
+        // pared, techo alrededor) — el % fijo de abajo asume pantalla completa y recorta en
+        // el sitio equivocado. Si hay detección real, se usa; si no (o fallback), el % fijo.
+        const marginX = cropRect ? Math.floor(cropRect.w * 0.06) : Math.floor(width * 0.08);
+        const rCropY = cropRect ? Math.floor(cropRect.y) : Math.floor(height * 0.185);
+        const rCropH = cropRect ? Math.floor(cropRect.h) : Math.floor(height * 0.255);
+        const rCropXBase = cropRect ? Math.floor(cropRect.x) : 0;
+        // Crop strictly inside the clean dark translucent bounds of the reward cards (Y = 18.5% to 44%)
+        // to completely eliminate the busy backgrounds and player names below the cards!
+        // Trim from each side — rewards are centered, extremes are empty background
+        const cropW = (cropRect ? cropRect.w : width) - marginX * 2;
+        const targetW = Math.floor(cropW * scale);
+        const targetH = Math.floor(rCropH * scale);
+
+        const cvs = this._rewardCvs;
+        cvs.width = targetW;
+        cvs.height = targetH;
+        const ctx = cvs.getContext("2d", { willReadFrequently: true });
+
+        // Grayscale + high contrast to maximize text/background separation.
+        ctx.filter = this.REWARD_OCR_PRESETS[preset] || this.REWARD_OCR_PRESETS.STANDARD;
+        ctx.drawImage(video, rCropXBase + marginX, rCropY, cropW, rCropH, 0, 0, targetW, targetH);
+        ctx.filter = "none";
+        return cvs;
+    },
+
+    // Mismo recorte que prepareRewardOCRCanvas pero AÍSLA EL TEXTO DEL NOMBRE POR COLOR (no por gris).
+    // Motivo: el nombre se dibuja en el COLOR DE UI QUE ELIGE EL JUGADOR (catálogo WF_THEMES: naranja,
+    // cian, verde, rosa, rojo...). Al pasar a gris su luminancia ≈ fondo + ilustración dorada y Tesseract
+    // lee basura ("Wudi ZOO Fiime" en vez de "Dual Zoren Prime"). En vez de un color fijo, detectamos el
+    // TONO (hue) dominante de los píxeles saturados (= las letras del nombre; el oro de la ilustración es
+    // menos saturado y no domina) y aislamos ese tono. Así funciona con cualquier color del catálogo y a
+    // cualquier resolución/nº de recompensas. (Los badges N Owned/Crafted los lee la pasada grayscale;
+    // processRewards fusiona ambas listas de palabras antes de parseRewards.)
+    prepareRewardNamesCanvas(video, width, height, scale, cropRect = null) {
+        // Mismo cropRect (de detectRewardBand) que prepareRewardOCRCanvas — ambas pasadas
+        // deben compartir EXACTAMENTE el mismo recorte para que sus cajas de palabra (bbox)
+        // sigan en el mismo sistema de coordenadas y parseRewards pueda fusionarlas por X.
+        const marginX = cropRect ? Math.floor(cropRect.w * 0.06) : Math.floor(width * 0.08);
+        const rCropY = cropRect ? Math.floor(cropRect.y) : Math.floor(height * 0.185);
+        const rCropH = cropRect ? Math.floor(cropRect.h) : Math.floor(height * 0.255);
+        const rCropXBase = cropRect ? Math.floor(cropRect.x) : 0;
+        const cropW = (cropRect ? cropRect.w : width) - marginX * 2;
+        const targetW = Math.floor(cropW * scale);
+        const targetH = Math.floor(rCropH * scale);
+
+        const cvs = this._rewardNamesCvs;
+        cvs.width = targetW;
+        cvs.height = targetH;
+        const ctx = cvs.getContext("2d", { willReadFrequently: true });
+        ctx.drawImage(video, rCropXBase + marginX, rCropY, cropW, rCropH, 0, 0, targetW, targetH);
+
+        const img = ctx.getImageData(0, 0, targetW, targetH);
+        const px = img.data;
+
+        const toHSV = (r, g, b) => {
+            r /= 255; g /= 255; b /= 255;
+            const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+            let h = 0;
+            if (d !== 0) {
+                if (mx === r) h = ((g - b) / d) % 6;
+                else if (mx === g) h = (b - r) / d + 2;
+                else h = (r - g) / d + 4;
+                h /= 6; if (h < 0) h += 1;
+            }
+            return [h, mx === 0 ? 0 : d / mx, mx]; // h,s,v en 0..1
+        };
+
+        // 1ª pasada: detectar el HUE dominante del texto (= color de UI elegido por el jugador).
+        // Histograma de tono de los píxeles saturados y MUY brillantes (las letras del nombre).
+        // El texto del nombre es fino y brillante (v alto); el TINTE de misión (rojo Steel Path,
+        // verde/azul de facción...) tiñe TODO el fondo/roca y es saturado pero de brillo medio y
+        // ocupa la mayoría del recorte. Sin defensa, ese tinte gana el histograma y se toma como
+        // "color del nombre" -> se enmascara medio frame como texto y el OCR de nombres lee basura
+        // (la pasada grayscale salva el frame, pero un tema de nombre poco saturado se perdería).
+        // Defensa GENÉRICA, sin asumir color ni posición:
+        //   (a) v alto (>0.62): el nombre brilla más que el tinte de fondo.
+        //   (b) un bin que ocupe una fracción enorme del recorte NO es texto (el texto es minoría);
+        //       se descarta como tinte de fondo antes de elegir el pico.
+        const totalPx = px.length / 4;
+        const bins = new Array(36).fill(0);
+        const hsum = new Array(36).fill(0);
+        for (let i = 0; i < px.length; i += 4) {
+            const [h, s, v] = toHSV(px[i], px[i + 1], px[i + 2]);
+            if (v > 0.62 && s > 0.55) {
+                const bi = Math.min(35, Math.floor(h * 36));
+                bins[bi]++; hsum[bi] += h;
+            }
+        }
+        // Un tinte de misión cubre grandes áreas planas; el texto del nombre nunca llega a ~18%
+        // del recorte. Anula los bins que superan ese techo (son fondo teñido, no letras).
+        const TINT_CAP = totalPx * 0.18;
+        let peak = -1;
+        for (let i = 0; i < 36; i++) {
+            if (bins[i] > TINT_CAP) continue;
+            if (peak < 0 || bins[i] > bins[peak]) peak = i;
+        }
+        const Hd = (peak >= 0 && bins[peak] >= 20) ? hsum[peak] / bins[peak] : null; // null = crema/claro o solo tinte
+
+        // 2ª pasada: texto del nombre -> negro, resto -> blanco.
+        // El texto real ocupa una fracción pequeña del recorte. Si la máscara por hue sale MUY
+        // densa (>22%), no está aislando letras sino la ilustración dorada / el borde del tinte:
+        // en ese caso el hue elegido es basura -> se cae a la máscara de texto brillante neutra
+        // (v alto, poca saturación), que aísla los nombres blancos/claros que la pasada grayscale
+        // ya lee bien y no inyecta ruido de color. Genérico: sin asumir color ni posición.
+        // vMin/sMax del modo neutro: el par laxo (0.78/0.45) es el histórico; el estricto
+        // (0.85/0.28) recorta el fondo abrillantado por el tinte (rocas rosadas ~s 0.35-0.5)
+        // conservando las letras crema (v>0.9, s<0.2) — verificado offline en 3 frames Steel Path.
+        // OJO: buildMask escribe la máscara SOBRE px. Las pasadas siguientes de la escalera
+        // deben leer los píxeles ORIGINALES (orig): leer px re-masked invertía la máscara
+        // anterior (todo lo no-texto quedaba blanco puro = "texto brillante") y el rescate
+        // neutro devolvía basura densa — el origen real del ruido de la pasada de nombres.
+        const orig = px.slice();
+        const buildMask = (useHue, vMin = 0.78, sMax = 0.45) => {
+            let textCount = 0;
+            for (let i = 0; i < px.length; i += 4) {
+                const [h, s, v] = toHSV(orig[i], orig[i + 1], orig[i + 2]);
+                let isText;
+                if (!useHue) {
+                    isText = v > vMin && s < sMax;                 // texto brillante (crema/claros, o rescate anti-tinte)
+                } else {
+                    let hd = Math.abs(h - Hd); if (hd > 0.5) hd = 1 - hd;
+                    isText = v > 0.30 && s > 0.45 && hd < 0.125;   // ~±45°: texto del color del tema, saturado
+                }
+                px[i] = px[i + 1] = px[i + 2] = isText ? 0 : 255;
+                if (isText) textCount++;
+            }
+            return textCount / totalPx;
+        };
+        // Escalera de máscaras: hue del tema -> neutra laxa -> neutra estricta. El texto real de
+        // 4 nombres nunca pasa de ~6% del recorte; una máscara más densa es fondo, no letras.
+        let density = buildMask(Hd !== null);
+        if (Hd !== null && density > 0.22) density = buildMask(false); // hue eligió tinte/ilustración -> rehacer neutro
+        if (density > 0.10) density = buildMask(false, 0.85, 0.28);    // neutra laxa cogió fondo teñido -> estricta
+        // Si ni la estricta aisló letras, esta pasada no aporta: su OCR metería decenas de
+        // palabras basura en mergedWords y fabrica anclas espurias (el "Ri/ris" -> requiem
+        // "Ris" salía de aquí). null = saltar la pasada; la grayscale ya lee los nombres claros.
+        if (density > 0.10) return null;
+        ctx.putImageData(img, 0, 0);
+        return cvs;
+    },
+
+    /**
+     * Converts RGB [0-255] to HSV [H: 0-360, S: 0-100, V: 0-100].
+     */
+    _rgbToHsv(r, g, b) {
+        r /= 255; g /= 255; b /= 255;
+        const max = Math.max(r, g, b), min = Math.min(r, g, b);
+        const d = max - min;
+        let h = 0, s = max === 0 ? 0 : (d / max) * 100, v = max * 100;
+        if (d !== 0) {
+            if (max === r) h = 60 * (((g - b) / d) % 6);
+            else if (max === g) h = 60 * (((b - r) / d) + 2);
+            else h = 60 * (((r - g) / d) + 4);
+            if (h < 0) h += 360;
+        }
+        return [h, s, v];
+    },
+
+    /**
+     * Prepares cropped and binarized canvas of left/right Riven cards using
+     * HSV color filtering to isolate the purple Riven text (#ac83d5) and
+     * reject background noise (lightning, diamonds, illustration particles).
+     *
+     * Crops ONLY the text zone (name + stats + MR/rolls) below the illustration.
+     */
+    // The Kuva reroll/cycle screen shows EITHER a single centered riven card OR two cards
+    // side by side (current roll vs new roll) which can sit slightly left/right, be smaller,
+    // and have dimmer text. RIVEN_CARD_CROP is a wide central band that contains either layout;
+    // prepareRivenCardCanvases splits it into 1-2 card text clusters automatically.
+    RIVEN_CARD_CROP: { x: 0.13, y: 0.50, w: 0.74, h: 0.40 },
+    // Popup "Item Details" de un riven linkeado: carta única CENTRADA y más arriba que el reroll.
+    RIVEN_ITEM_DETAILS_CROP: { x: 0.33, y: 0.30, w: 0.34, h: 0.40 },
+
+    // Test de PÍXEL barato para el popup "Item Details" de un riven linkeado: el popup no tiene
+    // header arriba-izquierda (el contexto cae en UNKNOWN), pero su carta muestra el texto lavanda
+    // característico (#ac83d5) en un rect fijo. Muestreamos el rect a 64x36 y contamos píxeles
+    // lavanda: si superan el umbral merece la pena gastar un OCR (el parser valida el resto).
+    _hintCvs: null,
+    hasRivenTextHint(video) {
+        const C = this.RIVEN_ITEM_DETAILS_CROP;
+        if (!this._hintCvs) {
+            this._hintCvs = document.createElement("canvas");
+            this._hintCvs.width = 64;
+            this._hintCvs.height = 36;
+        }
+        const ctx = this._hintCvs.getContext("2d", { willReadFrequently: true });
+        ctx.drawImage(video,
+            Math.floor(video.videoWidth * C.x), Math.floor(video.videoHeight * C.y),
+            Math.floor(video.videoWidth * C.w), Math.floor(video.videoHeight * C.h),
+            0, 0, 64, 36);
+        const d = ctx.getImageData(0, 0, 64, 36).data;
+        let lavender = 0;
+        for (let i = 0; i < d.length; i += 4) {
+            const r = d[i], g = d[i + 1], b = d[i + 2];
+            const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+            const s = mx === 0 ? 0 : (mx - mn) / mx;
+            if (b > r && r > g && s > 0.10 && s < 0.5 && mx > 80) lavender++;
+        }
+        // ~2300 muestras; el texto de la carta ocupa un % pequeño pero consistente del rect
+        return lavender >= 25;
+    },
+
+
+    // Binarizado DUAL en una sola pasada: bright (C=18/whiteMin=120) y dim (C=10/whiteMin=65)
+    // comparten luminancia, media móvil y clasificación de color por píxel — calcularlo una vez
+    // y emitir ambas máscaras es ~1.8x más rápido que dos pasadas de _binarizeRivenText, con
+    // salida BYTE-IDÉNTICA (verificado en el banco offline contra el corpus).
+    _binarizeRivenTextDual(src, brightPx, dimPx, targetW, targetH) {
+        const W = 25;
+        const L = new Uint8Array(targetW * targetH);
+        for (let i = 0; i < L.length; i++) {
+            const idx = i * 4;
+            L[i] = Math.round(0.299 * src[idx] + 0.587 * src[idx + 1] + 0.114 * src[idx + 2]);
+        }
+        for (let y = 0; y < targetH; y++) {
+            const rowOff = y * targetW;
+            let sum = 0, count = 0;
+            for (let x = 0; x <= W && x < targetW; x++) { sum += L[rowOff + x]; count++; }
+            for (let x = 0; x < targetW; x++) {
+                const oldX = x - W - 1, newX = x + W;
+                if (oldX >= 0) { sum -= L[rowOff + oldX]; count--; }
+                if (newX < targetW) { sum += L[rowOff + newX]; count++; }
+                const avg = sum / count;
+                const idx = (rowOff + x) * 4;
+                const val = L[rowOff + x];
+                const r = src[idx], g = src[idx + 1], b = src[idx + 2];
+                const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+                const s = mx === 0 ? 0 : (mx - mn) / mx;
+                const isLavender = (b > r && r > g && s > 0.12 && s < 0.45);
+                const red = (r > 90 && r - g > 30 && r - b > 30);
+                const brightText = red || (val > avg + 18 && (isLavender || (s < 0.18 && val > 120)));
+                const dimText = red || (val > avg + 10 && (isLavender || (s < 0.18 && val > 65)));
+                brightPx[idx] = brightPx[idx + 1] = brightPx[idx + 2] = brightText ? 0 : 255;
+                brightPx[idx + 3] = 255;
+                dimPx[idx] = dimPx[idx + 1] = dimPx[idx + 2] = dimText ? 0 : 255;
+                dimPx[idx + 3] = 255;
+            }
+        }
+    },
+
+    // Returns an array of 1-2 binarized, tightly-cropped card canvases (left-to-right).
+    prepareRivenCardCanvases(video, scale, crop) {
+        const width = video.videoWidth || video.width || 1920;
+        const height = video.videoHeight || video.height || 1080;
+
+        const C = crop || this.RIVEN_CARD_CROP;
+        const cropX = Math.floor(width * C.x);
+        const cropW = Math.floor(width * C.w);
+        const cropY = Math.floor(height * C.y);
+        const cropH = Math.floor(height * C.h);
+
+        // S=1.5 (antes 2): validado contra el corpus completo — calidad IGUAL O MEJOR (el texto
+        // queda ~25px de altura, el punto dulce de tesseract: recupera 2 curses y un signo que
+        // S=2 leía mal) con 2.25x menos píxeles que binarizar/copiar y ~55% menos RAM de buffers.
+        const S = 1.5;
+        const targetW = Math.floor(cropW * scale * S);
+        const targetH = Math.floor(cropH * scale * S);
+
+        const cvs = this._rivenCvs;
+        cvs.width = targetW;
+        cvs.height = targetH;
+        const ctx = cvs.getContext("2d", { willReadFrequently: true });
+        ctx.imageSmoothingEnabled = true;
+        ctx.filter = "none";
+        ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, targetW, targetH);
+
+        // Segmentación v3, validada OFFLINE contra el corpus de capturas reales (21/21 cartas bien
+        // localizadas): perfil por columna de RUNS con altura de GLIFO (el texto produce trazos
+        // verticales de ~4-40px a tH=864; el arte produce manchas altas o motas de 1-2px, así que
+        // esta métrica lo rechaza donde el conteo plano de píxeles metía clusters fantasma), carta
+        // central por masa del pase bright, corte por VALLE interior si el cluster es demasiado
+        // ancho para UNA carta (las cartas pueden ir casi pegadas y ningún hueco de columnas las
+        // separa), y carta lateral por RESTA del centro sobre el perfil dim (no por no-solape:
+        // cuando las cartas se tocan el cluster dim las fusiona y el solape descartaba la lateral).
+        const rawData = ctx.getImageData(0, 0, targetW, targetH);
+        const statsZoneStart = Math.floor(targetH * 0.38); // excluye flecha/triángulo decorativo de arriba
+        const minClusterW = Math.floor(targetW * 0.06);    // el roll lateral va "encogido" y estrecho
+        const gapTol = Math.floor(targetW * 0.045);
+        const runLo = Math.max(3, Math.round(targetH * 0.0046)); // ~4px a tH 864
+        const runHi = Math.round(targetH * 0.046);               // ~40px a tH 864
+
+        // Nº de runs verticales de texto con altura de glifo [runLo, runHi] por columna.
+        const glyphRunsPerCol = (binPx) => {
+            const counts = new Int32Array(targetW);
+            for (let x = 0; x < targetW; x++) {
+                let run = 0, n = 0;
+                for (let y = statsZoneStart; y < targetH; y++) {
+                    if (binPx[(y * targetW + x) * 4] === 0) { run++; continue; }
+                    if (run >= runLo && run <= runHi) n++;
+                    run = 0;
+                }
+                if (run >= runLo && run <= runHi) n++;
+                counts[x] = n;
+            }
+            return counts;
+        };
+
+        const clusterRanges = (counts) => {
+            const clusters = [];
+            let start = -1, lastActive = -1;
+            for (let x = 0; x < targetW; x++) {
+                if (counts[x] >= 3) { if (start === -1) start = x; lastActive = x; }
+                else if (start !== -1 && x - lastActive > gapTol) { clusters.push([start, lastActive]); start = -1; }
+            }
+            if (start !== -1) clusters.push([start, lastActive]);
+            return clusters.filter(c => (c[1] - c[0]) >= minClusterW);
+        };
+
+        const mass = (counts, [x0, x1]) => {
+            let s = 0;
+            for (let x = x0; x <= x1; x++) s += counts[x];
+            return s;
+        };
+
+        // Una carta ocupa <=~32% del ancho de la banda: un cluster más ancho son DOS cartas casi
+        // tocándose. Se corta en el valle interior de densidad, exigiendo que el valle sea bajo
+        // de verdad respecto a ambos lados (si no, es una carta única ancha y no se toca).
+        const splitWide = (rg, counts) => {
+            const [x0, x1] = rg;
+            const w = x1 - x0 + 1;
+            if (w <= targetW * 0.38) return [rg];
+            const k = Math.max(5, Math.floor(targetW * 0.01));
+            const sm = new Float32Array(w);
+            for (let i = 0; i < w; i++) {
+                let s = 0, n = 0;
+                for (let j = Math.max(0, i - (k >> 1)); j <= Math.min(w - 1, i + (k >> 1)); j++) { s += counts[x0 + j]; n++; }
+                sm[i] = s / n;
+            }
+            const lo = Math.floor(w * 0.25), hi = Math.floor(w * 0.75);
+            let cut = lo;
+            for (let i = lo; i < hi; i++) if (sm[i] < sm[cut]) cut = i;
+            let leftMax = 1, rightMax = 1;
+            for (let i = 0; i < cut; i++) leftMax = Math.max(leftMax, sm[i]);
+            for (let i = cut; i < w; i++) rightMax = Math.max(rightMax, sm[i]);
+            if (sm[cut] <= 0.35 * leftMax && sm[cut] <= 0.35 * rightMax) {
+                return [[x0, x0 + cut - 1], [x0 + cut + 1, x1]];
+            }
+            return [rg];
+        };
+
+        // Buffers reutilizados entre escaneos (se reasignan solo si cambia el tamaño) + binarizado
+        // DUAL de una sola pasada: ni copias intermedias ni segunda pasada completa.
+        if (!this._brightBuf || this._brightBuf.length !== rawData.data.length) {
+            this._brightBuf = new Uint8ClampedArray(rawData.data.length);
+            this._dimBuf = new Uint8ClampedArray(rawData.data.length);
+        }
+        const brightPx = this._brightBuf;
+        const dimPx = this._dimBuf;
+        this._binarizeRivenTextDual(rawData.data, brightPx, dimPx, targetW, targetH);
+
+        const bruns = glyphRunsPerCol(brightPx);
+        const druns = glyphRunsPerCol(dimPx);
+
+        // Máscara por tramo: bright si el texto brillante domina ahí (carta nueva, más limpia).
+        const maskFor = (rg) => (mass(bruns, rg) >= 0.55 * mass(druns, rg) ? brightPx : dimPx);
+
+        const plan = [];
+        const bclusters = clusterRanges(bruns);
+        if (!bclusters.length) {
+            // Sin carta brillante: clusters del pase dim (con corte de valle), máximo 2.
+            const dcl = [];
+            clusterRanges(druns).forEach(rg => dcl.push(...splitWide(rg, druns)));
+            (dcl.length ? dcl : [[0, targetW - 1]]).slice(0, 2)
+                .forEach(rg => plan.push({ range: rg, binPx: dimPx }));
+        } else {
+            let center = bclusters[0];
+            for (const rg of bclusters) if (mass(bruns, rg) > mass(bruns, center)) center = rg;
+
+            const parts = splitWide(center, druns);
+            if (parts.length === 2) {
+                parts.forEach(rg => plan.push({ range: rg, binPx: maskFor(rg) }));
+            } else {
+                plan.push({ range: center, binPx: brightPx });
+                // Lateral por RESTA: borra las columnas del centro (+margen) del perfil dim y el
+                // cluster restante con más masa es la carta vieja. El arte residual pierde por
+                // masa, y si colara, su OCR no parsea y el scanner lo descarta (un OCR extra).
+                const margin = Math.floor(targetW * 0.015);
+                const rem = Int32Array.from(druns);
+                for (let x = Math.max(0, center[0] - margin); x <= Math.min(targetW - 1, center[1] + margin); x++) rem[x] = 0;
+                const scand = clusterRanges(rem);
+                if (scand.length) {
+                    let side = scand[0];
+                    for (const rg of scand) if (mass(rem, rg) > mass(rem, side)) side = rg;
+                    if (mass(rem, side) >= 0.22 * mass(bruns, center)) {
+                        plan.push({ range: side, binPx: dimPx });
+                    }
+                }
+                plan.sort((a, b) => a.range[0] - b.range[0]); // izquierda -> derecha
+            }
+        }
+
+        const pad = Math.floor(6 * scale);
+        const out = [];
+        for (const { range, binPx } of plan) {
+            const [cx0, cx1] = range;
+            // Row-tighten sobre el binario propio de esta carta
+            let minY = 0, maxY = targetH - 1;
+            const rowCount = new Int32Array(targetH);
+            for (let y = 0; y < targetH; y++) {
+                let c = 0;
+                const rowOff = y * targetW;
+                for (let x = cx0; x <= cx1; x++) { if (binPx[(rowOff + x) * 4] === 0) c++; }
+                rowCount[y] = c;
+            }
+            const rowThresh = Math.max(2, Math.floor((cx1 - cx0) * 0.02));
+            while (minY < maxY && rowCount[minY] < rowThresh) minY++;
+            while (maxY > minY && rowCount[maxY] < rowThresh) maxY--;
+
+            const bx0 = Math.max(0, cx0 - pad), by0 = Math.max(0, minY - pad);
+            const bx1 = Math.min(targetW - 1, cx1 + pad), by1 = Math.min(targetH - 1, maxY + pad);
+            const bw = bx1 - bx0 + 1, bh = by1 - by0 + 1;
+            // Descarta recortes demasiado estrechos/bajos para ser una carta. Relativo al tamaño
+            // de trabajo (antes 40x30 absolutos): con el stream a menor resolución esos píxeles
+            // representan una fracción mayor de la carta, y al revés a 4K colaban tiras de arte.
+            if (bw < Math.max(40, targetW * 0.05) || bh < Math.max(30, targetH * 0.05)) continue;
+
+            ctx.putImageData(new ImageData(binPx, targetW, targetH), 0, 0);
+            // Canvases de salida reutilizados (máx 2): el consumidor (OCR + panel debug) los usa
+            // de forma síncrona dentro del mismo ciclo de escaneo, así que reciclarlos es seguro
+            // y evita crear/desechar canvases grandes en cada frame OCReado.
+            if (!this._rivenOutCvs) this._rivenOutCvs = [];
+            let oc = this._rivenOutCvs[out.length];
+            if (!oc) { oc = document.createElement("canvas"); this._rivenOutCvs[out.length] = oc; }
+            oc.width = bw;
+            oc.height = bh;
+            oc.getContext("2d").putImageData(ctx.getImageData(bx0, by0, bw, bh), 0, 0);
+            out.push(oc);
+        }
+
+        // Debug: globalThis.dumpRivenCrops = true vuelca en pantalla los recortes que recibe el OCR.
+        if (globalThis.dumpRivenCrops) this._dumpRivenCrops(out.length ? out : [cvs]);
+
+        return out.length ? out : [cvs];
+    },
+
+    // Muestra los recortes binarizados que se mandan al OCR (1 por carta detectada), para depurar
+    // la segmentación de los rerolls sin ir a ciegas. Activar con: globalThis.dumpRivenCrops = true
+    _dumpRivenCrops(canvases) {
+        let host = document.getElementById("__rivenDump");
+        if (!host) {
+            host = document.createElement("div");
+            host.id = "__rivenDump";
+            host.style.cssText = "position:fixed;top:0;left:0;z-index:999999;background:#000;padding:4px;display:flex;gap:6px;border:2px solid lime";
+            document.body.appendChild(host);
+        }
+        host.innerHTML = "";
+        canvases.forEach((c, i) => {
+            const clone = document.createElement("canvas");
+            clone.width = c.width;
+            clone.height = c.height;
+            clone.getContext("2d").drawImage(c, 0, 0);
+            clone.style.cssText = "outline:1px solid magenta;max-height:180px;height:auto";
+            clone.title = `card ${i} — ${c.width}x${c.height}`;
+            host.appendChild(clone);
+            console.log(`[rivenDump] card ${i}: ${c.width}x${c.height}`, c.toDataURL());
+        });
+    },
+
+    /**
+     * Determines the UI context from OCR'd header text.
+     */
+    determineContext(headerText) {
+        const text = headerText.toUpperCase();
+        
+        // Match INVENTORY and MODS even with OCR character substitutions
+        const hasInv = /INVEN|TORY|1NVENT|INV|VENT|SELL|TARIO/.test(text);
+        // Además de los garblings sueltos, un patrón anclado a la barra del header
+        // ("INVENTORY/XXXX"): el OCR degrada "MODS" con sustituciones tipo "NDDS" (M→N, O→D),
+        // pero la posición tras "/" lo desambigua sin riesgo de confundirlo con "/SELL"
+        // (la pantalla de venta de prime parts, que NO debe enrutar a rivens).
+        const hasMods = /MODS|MOD|M0DS|MOOS|MDDS|MDS|M0D5|M0D|MOO|MD|FICADORES|AGRIETADO|KUVA|KUYVA|CICLO|CICLAR|ATRIBU/.test(text) ||
+            /\/\s*[MNHW][O0DQC][DO0B][S5$]/.test(text);
+
+        if (/DETAIL|DETALL/.test(text)) return "ITEM_DETAILS"; // popup "Item Details" (riven linkeado, centrado)
+        if (hasMods) return "INVENTORY_MODS";
+        if (hasInv) return "INVENTORY";
+        if (/RELI|ELIC|REFI|NEME/.test(text)) return "RELICS";
+        // Extremely robust regex including common Tesseract/OCR garblings for FISSURE and VOID (e.g. F5UR, FI55, F1SS, V0ID)
+        if (/REWA|WARD|ARDS|FISSU|FISSI|FISR|F5UR|FSUR|FI55|F1SS|FISS|FISU|VOID|V0ID|V01D/.test(text)) return "REWARD";
+        return "UNKNOWN";
+    },
+
+    /**
+     * Autodetección de la rejilla SIN calibración manual: delega en la lógica
+     * pura de grid_detect.js (testeable offline) y devuelve calibData en el
+     * mismo formato que la calibración guardada, o null si no hay confianza.
+     */
+    detectGridAutoCalib(snapshot, width, height) {
+        try {
+            const cvs = this._themeCvs;
+            cvs.width = width; cvs.height = height;
+            const ctx = cvs.getContext("2d", { willReadFrequently: true });
+            ctx.drawImage(snapshot, 0, 0, width, height);
+            const img = ctx.getImageData(0, 0, width, height);
+            const trace = {};
+            const calib = detectInventoryGrid(img, { trace });
+            if (calib) {
+                console.log(`[VisionService] Auto-grid SIN calibración: ${calib.rows}r × ${calib.cols}c cellW=${calib.cellW} cellH=${calib.cellH} conf=${calib.confidence.toFixed(2)}`, calib.gridZone);
+                // La traza también en éxito: una geometría plausible pero mal
+                // anclada solo se diagnostica viendo bandas/cadena/filas usadas.
+                console.log("[VisionService] Auto-grid traza:", JSON.stringify(trace));
+                // Adjunta la traza para que el overlay de debug la imprima:
+                // así cualquier pantallazo del debug se autoexplica.
+                calib.traceSummary = trace;
+            } else {
+                // Diagnóstico: por qué no hubo detección este frame
+                console.warn("[VisionService] Auto-grid sin señal:", trace.fail || "?", JSON.stringify(trace));
+            }
+            return calib;
+        } catch (e) {
+            console.warn("[VisionService] detectGridAutoCalib falló:", e);
+            return null;
+        }
+    },
+
+    /**
+     * Detects the inventory grid automatically from a calibrated zone.
+     * Uses luminance-based bright-pixel mask since inventory item names are white/cream,
+     * NOT the theme secondary color (which is only used in the relic reward screen).
+     */
+     buildAutoGrid(snapshot, gridZone, theme, calibData) {
+        // If the user has manually edited the grid (or we have saved grid dimensions), respect it!
+        if (calibData && calibData.cellW && calibData.cols && calibData.rows) {
+            const cols = calibData.cols;
+            const rows = calibData.rows;
+            const cellW = calibData.cellW;
+            const cellH = calibData.cellH;
+            const gapX = calibData.gapX || 0;
+            const gapY = calibData.gapY || 0;
+            const gridX = calibData.gridX !== undefined ? calibData.gridX : gridZone.x;
+            const gridY = calibData.gridY !== undefined ? calibData.gridY : gridZone.y;
+
+            const cellRects = [];
+            for (let ri = 0; ri < rows; ri++) {
+                for (let ci = 0; ci < cols; ci++) {
+                    const sx = Math.round(gridX + ci * (cellW + gapX));
+                    const sy = Math.round(gridY + ri * (cellH + gapY));
+                    const cx = sx + cellW / 2;
+                    const cy = sy + cellH * 0.82;
+                    cellRects.push({ r: ri, c: ci, sx, sy, cx, cy });
+                }
+            }
+            console.log(`[buildAutoGrid] Snapped saved/edited grid layout: ${rows}r x ${cols}c, cellW=${cellW}, cellH=${cellH}`);
+            return this._applyRowPhase(snapshot, gridZone, { cellRects, cellW, cellH, cols, rows });
+        }
+
+        const { x: zx, y: zy, w: zw, h: zh } = gridZone;
+
+        // Since the Warframe inventory grid can show more columns on ultra-wide screens (e.g., 8 columns instead of 6),
+        // we dynamically calculate the column count using the calibrated zone's aspect ratio.
+        const rows = 3;
+        const aspectRatio = zw / zh;
+        let cols = Math.round(aspectRatio * rows);
+        if (cols < 3) cols = 3;
+        if (cols > 12) cols = 12;
+
+        const finalCellW = Math.round(zw / cols);
+        const finalCellH = Math.round(zh / rows);
+        const cellRects = [];
+
+        for (let ri = 0; ri < rows; ri++) {
+            for (let ci = 0; ci < cols; ci++) {
+                const sx = Math.round(zx + ci * finalCellW);
+                const sy = Math.round(zy + ri * finalCellH);
+
+                // We estimate the text center (cx, cy) in case any other function relies on it.
+                const cx = sx + finalCellW / 2;
+                const cy = sy + finalCellH * 0.82;
+
+                cellRects.push({ r: ri, c: ci, sx, sy, cx, cy });
+            }
+        }
+
+        console.log(`[buildAutoGrid] Snapped perfect ${rows}x${cols} grid to calibrated zone: cellW=${finalCellW}, cellH=${finalCellH}`);
+        return this._applyRowPhase(snapshot, gridZone, { cellRects, cellW: finalCellW, cellH: finalCellH, cols, rows });
+    },
+
+    /**
+     * Detecta el DESFASE VERTICAL real de las filas respecto al grid calibrado.
+     * Al llegar al FINAL del inventario el juego clampa el scroll a media fila y las
+     * cards quedan desplazadas respecto a la calibración fija: los nombres caen a
+     * mitad de celda y los badges quedan ilegibles (BDG "Ø" en toda la página).
+     * Señal usada, por scanline de la zona calibrada:
+     *   - banda de NOMBRE (0.58–0.92 del alto de celda): muchos píxeles claros (texto)
+     *   - línea de FRONTERA entre filas: oscura (separación entre cards)
+     * Se busca el dy ∈ [-cellH/2, +cellH/2] que maximiza texto-en-banda-de-nombre y
+     * penaliza brillo en las fronteras. Si la señal es débil (página casi vacía) o el
+     * mejor desfase es ruido (<= 4px), devuelve 0 y el grid queda como estaba.
+     */
+    detectRowPhase() {
+        // DESHABILITADO: la función de scoring por densidad de bordes NO distinguía el
+        // texto del nombre del arte metálico de las cards — con cualquier rango >0 el
+        // óptimo siempre subía (dy<0) porque la ilustración tiene más bordes que el texto.
+        // grid_detect.js ya ancla las filas por la baseline del nombre y el desfase
+        // residual es despreciable.
+        //
+        // El cálculo se ha quitado, no solo su resultado: montaba un getImageData de la
+        // zona ENTERA (1662×888 ≈ 5,9 MB) y recorría ~370k muestras en CADA frame para
+        // devolver 0. Si algún día hace falta corregir el scroll clampado del final de
+        // lista, hará falta una señal distinta (contraste de fondo entre celdas, o la
+        // línea separadora), no esta.
+        return 0;
+    },
+
+    // Aplica detectRowPhase a un grid recién construido: desplaza las filas al desfase
+    // real detectado y descarta las celdas que queden (parcialmente) fuera del frame.
+    // grid.phaseShift queda registrado para el log/summary de debug.
+    _applyRowPhase(snapshot, gridZone, grid) {
+        const rowTops = [...new Set(grid.cellRects.filter(c => c.c === 0).map(c => c.sy))];
+        const dy = this.detectRowPhase(snapshot, gridZone, rowTops, grid.cellH);
+        grid.phaseShift = dy;
+        if (dy === 0) return grid;
+        console.log(`[buildAutoGrid] Row phase shift: ${dy}px (scroll clampado, p.ej. final de lista) — realineando filas.`);
+        for (const cell of grid.cellRects) { cell.sy += dy; cell.cy += dy; }
+        grid.cellRects = grid.cellRects.filter(c => c.sy >= 0 && c.sy + grid.cellH <= snapshot.height);
+        return grid;
+    },
+
+    /**
+     * Extracts the quantity badge from the top-left of an inventory cell.
+     * Fully self-calibrating and dynamic. Immune to grid calibration offsets and theme variations.
+     */
+    extractBadgeByColor(snapshot, cell, cellW, cellH, theme) {
+        // 1. Crop a very generous top-left area starting exactly at cell.sx.
+        // 0.55·cellW deja el badge cerca del borde derecho: a 1440p un número de 3 cifras acaba
+        // a ~25px del límite, así que una 4ª cifra se saldría. Se amplía lo justo para que quepa
+        // otro dígito SIN llegar a la zona donde el arte del ítem compite con el número: medido
+        // en la captura Ballistica, un bloque de arte cae a solo 13px del dígito (frente a los
+        // 10px que separan dígitos), demasiado cerca para distinguirlo por distancia, así que
+        // ampliar de más mete arte que los filtros no saben rechazar.
+        const safeW = Math.min(cellW, Math.round(cellW * 0.68));
+        // Start crop higher to prevent clipping the top hook of 6 or top bar of 7 and 5.
+        // Relativo a cellH: 12px fijos eran ~4% de celda a 1440p pero ~6% a 1080p, así que
+        // el margen superior cambiaba de tamaño efectivo según el cliente.
+        const padTop = Math.max(6, Math.round(cellH * 0.04));
+        const startY = Math.max(0, cell.sy - padTop);
+        // Use a taller vertical search window to guarantee digit presence
+        const safeH = Math.round(cellH * 0.25) + padTop;
+
+        // Canvas REUTILIZADO (_tempBadgeCvs, ya declarado arriba para esto): esta función corre
+        // una vez POR CELDA (18 por escaneo), así que crear uno nuevo cada vez generaba basura
+        // proporcional al número de celdas en cada pasada del auto-scroll.
+        const tempCvs = this._tempBadgeCvs;
+        tempCvs.width = safeW;
+        tempCvs.height = safeH;
+        const tCtx = tempCvs.getContext("2d", { willReadFrequently: true });
+        tCtx.drawImage(snapshot, cell.sx, startY, safeW, safeH, 0, 0, safeW, safeH);
+
+        // Luma de ORIGEN antes de binarizar: la trama esquemática de fondo de los PLANOS es
+        // tenue, el badge (número) es brillante. Se usa después para descartar componentes
+        // tenues (ruido del plano que la K-means metía en el cluster "texto" → falso dígito,
+        // p.ej. Frost Systems 11→1).
+        const srcData = tCtx.getImageData(0, 0, safeW, safeH).data;
+        const srcLuma = new Float32Array(safeW * safeH);
+        for (let p = 0; p < srcLuma.length; p++) {
+            srcLuma[p] = 0.299 * srcData[p * 4] + 0.587 * srcData[p * 4 + 1] + 0.114 * srcData[p * 4 + 2];
+        }
+
+        // 2. Binarize using dynamic K-Means color clustering seeded by the exact detected theme
+        this.applyClusteringThreshold(tCtx, safeW, safeH, theme);
+
+        // 3. Find connected components on the binarized canvas
+        const imgData = tCtx.getImageData(0, 0, safeW, safeH);
+        const px = imgData.data;
+
+
+
+        // BFS-based Connected Component Labeling
+        const visited = new Uint8Array(safeW * safeH);
+        const components = [];
+
+        // Scan 100% of the cropped area to prevent any cutoffs
+        const scanW = safeW;
+        const scanH = safeH;
+
+        for (let y = 0; y < scanH; y++) {
+            for (let x = 0; x < scanW; x++) {
+                const idx = y * safeW + x;
+                // Black pixels are binarized text/digits
+                if (px[idx * 4] === 0 && !visited[idx]) {
+                    // Start BFS for new component
+                    const compPixels = [];
+                    const queue = [idx];
+                    visited[idx] = 1;
+                    let minX = x, maxX = x, minY = y, maxY = y;
+
+                    while (queue.length > 0) {
+                        const current = queue.shift();
+                        compPixels.push(current);
+                        const cx = current % safeW;
+                        const cy = Math.floor(current / safeW);
+
+                        if (cx < minX) minX = cx;
+                        if (cx > maxX) maxX = cx;
+                        if (cy < minY) minY = cy;
+                        if (cy > maxY) maxY = cy;
+
+                        // 8-connected neighbors using coordinates to prevent wrapping and digit splitting
+                        const neighbors = [];
+                        for (let dy = -1; dy <= 1; dy++) {
+                            for (let dx = -1; dx <= 1; dx++) {
+                                if (dx === 0 && dy === 0) continue;
+                                const nx = cx + dx;
+                                const ny = cy + dy;
+                                if (nx >= 0 && nx < safeW && ny >= 0 && ny < safeH) {
+                                    neighbors.push(ny * safeW + nx);
+                                }
+                            }
+                        }
+
+                        for (const n of neighbors) {
+                            if (px[n * 4] === 0 && !visited[n]) {
+                                visited[n] = 1;
+                                queue.push(n);
+                            }
+                        }
+                    }
+
+                    // Ignore tiny noise (less than 3 pixels)
+                    if (compPixels.length >= 3) {
+                        components.push({
+                            pixels: compPixels,
+                            minX,
+                            maxX,
+                            minY,
+                            maxY,
+                            width: maxX - minX + 1,
+                            height: maxY - minY + 1
+                        });
+                    }
+                }
+            }
+        }
+
+        // If no components found, return null
+        if (components.length === 0) {
+            return null;
+        }
+
+        // Erase horizontal border lines (the selection box border) to break merge bridges.
+        // Umbrales RELATIVOS a safeH: en píxeles absolutos (18/3) el filtro se comportaba
+        // distinto a 1080p, 1440p y 4K — a baja resolución empezaba a comerse dígitos y a
+        // alta dejaba pasar bordes. safeH ≈ 0.25·cellH, así que escala con el cliente.
+        const lineMinW = Math.max(6, safeH * 0.22);
+        const lineMaxH = Math.max(2, safeH * 0.04);
+        for (const comp of components) {
+            if (comp.width > lineMinW && comp.height <= lineMaxH) {
+                for (const pixelIdx of comp.pixels) {
+                    px[pixelIdx * 4] = 255;
+                    px[pixelIdx * 4 + 1] = 255;
+                    px[pixelIdx * 4 + 2] = 255;
+                }
+                comp.erased = true;
+            }
+        }
+
+        // Filtro de BRILLO (ruido de la trama de los PLANOS): el badge (checkmark+número) es
+        // brillante; la trama esquemática de fondo de un plano es tenue pero la K-means la metía
+        // en el cluster "texto". Se calcula el brillo medio de cada componente sobre la imagen
+        // ORIGINAL y se descartan los muy por debajo del componente más brillante (el badge).
+        // hardErased: no vuelve por la red de seguridad. Arregla p.ej. Frost Systems 11→1.
+        let maxAvgLuma = 0;
+        for (const comp of components) {
+            if (comp.erased) continue;
+            let sum = 0;
+            for (const idx of comp.pixels) sum += srcLuma[idx];
+            comp.avgLuma = sum / comp.pixels.length;
+            if (comp.avgLuma > maxAvgLuma) maxAvgLuma = comp.avgLuma;
+        }
+        if (maxAvgLuma > 0) {
+            for (const comp of components) {
+                if (comp.erased) continue;
+                if (comp.avgLuma < maxAvgLuma * 0.5) {
+                    for (const pixelIdx of comp.pixels) {
+                        px[pixelIdx * 4] = 255;
+                        px[pixelIdx * 4 + 1] = 255;
+                        px[pixelIdx * 4 + 2] = 255;
+                    }
+                    comp.erased = true;
+                    comp.hardErased = true;
+                }
+            }
+        }
+
+        // Aislar el/los DÍGITO(s) por FORMA (resolución-independiente). Verificado con harness
+        // offline sobre capturas reales del juego: la binarización K-means es perfecta y el fallo
+        // real era el borrado del checkmark. Firmas de forma:
+        //   - checkmark ✓  = componente CUADRADO (ancho≈alto, w/h≈1.0)  → NO es dígito
+        //   - arte del ítem = ANCHO o desproporcionado (w/h alto)        → NO es dígito
+        //   - dígito        = MÁS ALTO QUE ANCHO (w/h ≲ 0.9) y ocupa buena parte del alto del crop
+        // Esto sustituye a la heurística frágil de "mayor hueco" (que dejaba el checkmark → "93"
+        // o se comía el dígito → Ø). El consenso temporal (scanner.service) remata lo que quede.
+        // El techo de altura era safeH*0.80: con la ventana de búsqueda ampliada dejaba pasar
+        // BLOQUES DE ARTE (medidos en Banshee r2c5: 24x48, 29x44, 20x48 sobre safeH=87, es decir
+        // h/safeH≈0.55) que además desplazaban el ancla de banda/posición y borraban el dígito
+        // real. Un dígito de badge mide ~21-22px sobre safeH=87 (≈0.25), así que 0.45 deja
+        // holgura de sobra para dígitos altos (6/7/9 con asta) y corta el arte por debajo.
+        const isDigitShaped = (c) => {
+            const ar = c.width / c.height;
+            return ar >= 0.12 && ar <= 0.92 && c.height >= safeH * 0.20 && c.height <= safeH * 0.80;
+        };
+        for (const comp of components) {
+            if (comp.erased) continue;
+            if (!isDigitShaped(comp)) {
+                for (const pixelIdx of comp.pixels) {
+                    px[pixelIdx * 4] = 255;
+                    px[pixelIdx * 4 + 1] = 255;
+                    px[pixelIdx * 4 + 2] = 255;
+                }
+                comp.erased = true;
+            }
+        }
+
+        // Filtro de FILA INFERIOR: el recorte se extiende hacia abajo lo bastante como para
+        // pillar el borde superior de la celda de ABAJO, y un bloque de arte de esa fila puede
+        // pasar el filtro de forma y además ser MÁS BRILLANTE que los dígitos — con lo que
+        // secuestra el ancla del filtro de BANDA (que se ancla en el más brillante) y termina
+        // borrando los dígitos buenos. Se ancla en el componente más ALTO en pantalla, que
+        // siempre pertenece al badge, y se descarta lo que quede en otra banda vertical.
+        // Verificado en Ballistica r2c1: bloque x0-21/y59-85, centro a 36px del badge.
+        const aliveComps = components.filter((c) => !c.erased);
+        const topAnchor = aliveComps.reduce((best, c) => (!best || c.minY < best.minY ? c : best), null);
+        if (topAnchor) {
+            const anchorCy = (topAnchor.minY + topAnchor.maxY) / 2;
+            for (const comp of aliveComps) {
+                const cy = (comp.minY + comp.maxY) / 2;
+                if (Math.abs(cy - anchorCy) <= 0.6 * Math.max(comp.height, topAnchor.height)) continue;
+                for (const pixelIdx of comp.pixels) {
+                    px[pixelIdx * 4] = 255;
+                    px[pixelIdx * 4 + 1] = 255;
+                    px[pixelIdx * 4 + 2] = 255;
+                }
+                comp.erased = true;
+                comp.hardErased = true;
+            }
+        }
+
+        // Filtro POSICIONAL: el icono de fundición (mano+pieza) vive en una fila POR DEBAJO
+        // del badge y a veces pasa el filtro de forma (w/h < 0.92) → Tesseract lo lee como
+        // "A" y el repair A→4 lo convierte en "4". Se borra SOLO si existe un candidato de
+        // dígito MÁS ARRIBA (el dígito real está junto al checkmark, el icono debajo). Si el
+        // único componente que queda es el de abajo, es el propio dígito (a esta resolución
+        // cae cerca del umbral) y NO se toca — borrarlo dejaba leer el checkmark como "0" en
+        // filas enteras. hardErased se excluye de la red de seguridad (icono nunca vuelve).
+        const hasHigherDigit = components.some(c => !c.erased && c.minY <= safeH * 0.55);
+        if (hasHigherDigit) {
+            for (const comp of components) {
+                if (comp.erased) continue;
+                if (comp.minY > safeH * 0.55) {
+                    for (const pixelIdx of comp.pixels) {
+                        px[pixelIdx * 4] = 255;
+                        px[pixelIdx * 4 + 1] = 255;
+                        px[pixelIdx * 4 + 2] = 255;
+                    }
+                    comp.erased = true;
+                    comp.hardErased = true;
+                }
+            }
+        }
+
+        // Filtro de BANDA: el badge (checkmark + dígitos) vive en UNA sola fila de texto.
+        // El arte del ítem que entra por la derecha del crop puede pasar el filtro de forma:
+        // una línea vertical fina del esquema del plano tiene exactamente la firma de un "1"
+        // (Ballistica 3→"31") y un bloque alto de arte brillante cae dentro de los límites
+        // de altura y contamina el crop final (Banshee 9→"Ø"). Ancla = el superviviente más
+        // BRILLANTE (el filtro de luma ya garantizó que el badge domina el brillo); se borra
+        // todo superviviente cuyo centro vertical se aleje del centro del ancla más de la
+        // mitad de la altura del menor de los dos (el arte vive en otra banda; los dígitos
+        // y el checkmark comparten centro aunque sus alturas difieran). hardErased: arte
+        // nunca vuelve por la red de seguridad. La regla pura vive en utils/badge_filters.js
+        // (testeada con datos de componentes reales en tests/badge-band-filter.test.mjs).
+        for (const i of offBandComponentIndices(components)) {
+            const comp = components[i];
+            for (const pixelIdx of comp.pixels) {
+                px[pixelIdx * 4] = 255;
+                px[pixelIdx * 4 + 1] = 255;
+                px[pixelIdx * 4 + 2] = 255;
+            }
+            comp.erased = true;
+            comp.hardErased = true;
+        }
+
+        // Red de seguridad: si el filtro de forma no dejó NINGÚN componente (caso raro), preferimos
+        // una lectura posiblemente contaminada a devolver vacío — el consenso descarta el ruido.
+        // Restauramos todo salvo las líneas de borde ya borradas antes.
+        if (!components.some(c => !c.erased)) {
+            for (const comp of components) {
+                if (comp.width > lineMinW && comp.height <= lineMaxH) continue; // líneas de borde: siguen fuera
+                if (comp.hardErased) continue; // icono de fundición: nunca vuelve
+                comp.erased = false;
+                for (const pixelIdx of comp.pixels) {
+                    px[pixelIdx * 4] = 0; px[pixelIdx * 4 + 1] = 0; px[pixelIdx * 4 + 2] = 0;
+                }
+            }
+        }
+        tCtx.putImageData(imgData, 0, 0);
+
+        // Determine the bounding box of the remaining digit components
+        let digitMinX = safeW, digitMaxX = 0, digitMinY = safeH, digitMaxY = 0;
+        let hasDigits = false;
+        for (const comp of components) {
+            if (comp.erased) continue;
+            if (comp.minX < digitMinX) digitMinX = comp.minX;
+            if (comp.maxX > digitMaxX) digitMaxX = comp.maxX;
+            if (comp.minY < digitMinY) digitMinY = comp.minY;
+            if (comp.maxY > digitMaxY) digitMaxY = comp.maxY;
+            hasDigits = true;
+        }
+
+        // If no digits remain, return null
+        if (!hasDigits || digitMinX >= digitMaxX || digitMinY >= digitMaxY) {
+            return null;
+        }
+
+        // Add generous padding (8px horiz, 6px vert) for maximum Tesseract OCR precision and beautiful debug outlines
+        const padX = 8;
+        const padY = 6;
+        const cropStartX = Math.max(0, digitMinX - padX);
+        const cropStartY = Math.max(0, digitMinY - padY);
+        const cropEndX = Math.min(safeW - 1, digitMaxX + padX);
+        const cropEndY = Math.min(safeH - 1, digitMaxY + padY);
+
+        const digitW = cropEndX - cropStartX + 1;
+        const digitH = cropEndY - cropStartY + 1;
+
+        const SCALE = 4;
+        // NO reutilizar un canvas compartido aquí: el badge se DEVUELVE al llamador y hay
+        // consumidores (tests, panel de depuración) que recogen varios antes de leerlos, así
+        // que reciclarlo hace que todos apunten al último. Se crea uno nuevo a propósito.
+        // Este NO se recicla: el tamaño sale del recorte de dígitos y cambia en cada
+        // celda, así que el anillo (indexado por dimensiones) acumularía una entrada por
+        // tamaño visto. Además es la ruta de respaldo, solo se usa si el badge por brillo
+        // no saca dígito.
+        const badgeCvs = document.createElement("canvas");
+        badgeCvs.width = digitW * SCALE;
+        badgeCvs.height = digitH * SCALE;
+        const bCtx = badgeCvs.getContext("2d", { willReadFrequently: true });
+        // Scale the perfectly clustered binary image with high-quality bilinear smoothing
+        bCtx.imageSmoothingEnabled = true;
+        bCtx.imageSmoothingQuality = "high";
+        bCtx.drawImage(tempCvs, cropStartX, cropStartY, digitW, digitH, 0, 0, badgeCvs.width, badgeCvs.height);
+
+        // Re-binarize the smoothed high-resolution canvas to get perfectly smooth, solid vector-like black digits
+        const bImgData = bCtx.getImageData(0, 0, badgeCvs.width, badgeCvs.height);
+        const bPx = bImgData.data;
+        for (let i = 0; i < bPx.length; i += 4) {
+            const luma = bPx[i] * 0.299 + bPx[i + 1] * 0.587 + bPx[i + 2] * 0.114;
+            const val = luma < 180 ? 0 : 255;
+            bPx[i] = bPx[i + 1] = bPx[i + 2] = val;
+        }
+        bCtx.putImageData(bImgData, 0, 0);
+
+        // Attach properties for debug outline
+        badgeCvs.bestY = startY + cropStartY;
+        badgeCvs.bestOffset = cropStartY;
+        badgeCvs.cropX = cell.sx + cropStartX;
+        badgeCvs.cropY = startY + cropStartY;
+        badgeCvs.cropW = digitW;
+        badgeCvs.cropH = digitH;
+
+        return badgeCvs;
+    },
+
+    /**
+     * Desambiguación visual 6↔9 para los dígitos del badge. Tesseract sobre dígitos
+     * aislados pequeños no tiene línea base y a veces lee 6 como 9 (y viceversa):
+     * los dos glifos solo difieren en dónde está el lazo cerrado (abajo = 6, arriba = 9).
+     * Recibe el canvas del badge ya binarizado (dígitos negros sobre blanco) y la
+     * cadena de dígitos del OCR; corrige cada 6/9 según la posición de su lazo.
+     * Conservadora: si los blobs no mapean 1:1 con los dígitos, no toca nada.
+     */
+    disambiguate69(badgeCvs, digits) {
+        if (!/[69]/.test(digits)) return digits;
+        const w = badgeCvs.width, h = badgeCvs.height;
+        const ctx = badgeCvs.getContext("2d", { willReadFrequently: true });
+        const px = ctx.getImageData(0, 0, w, h).data;
+        const isBlack = (i) => px[i * 4] === 0;
+
+        // Etiquetar blobs negros (dígitos) con BFS de puntero (sin shift O(n²))
+        const labels = new Int32Array(w * h).fill(-1);
+        const blobs = [];
+        for (let start = 0; start < w * h; start++) {
+            if (!isBlack(start) || labels[start] !== -1) continue;
+            const id = blobs.length;
+            const queue = [start];
+            labels[start] = id;
+            let qi = 0, minX = w, maxX = 0, minY = h, maxY = 0, area = 0;
+            while (qi < queue.length) {
+                const cur = queue[qi++];
+                const cx = cur % w, cy = (cur - cx) / w;
+                if (cx < minX) minX = cx;
+                if (cx > maxX) maxX = cx;
+                if (cy < minY) minY = cy;
+                if (cy > maxY) maxY = cy;
+                area++;
+                for (let dy = -1; dy <= 1; dy++) {
+                    for (let dx = -1; dx <= 1; dx++) {
+                        if (!dx && !dy) continue;
+                        const nx = cx + dx, ny = cy + dy;
+                        if (nx < 0 || nx >= w || ny < 0 || ny >= h) continue;
+                        const n = ny * w + nx;
+                        if (isBlack(n) && labels[n] === -1) { labels[n] = id; queue.push(n); }
+                    }
+                }
+            }
+            blobs.push({ minX, maxX, minY, maxY, area });
+        }
+
+        // Solo blobs con forma de dígito, de izquierda a derecha; deben mapear 1:1 con la cadena
+        const digitBlobs = blobs
+            .filter(b => b.area >= 30 && (b.maxY - b.minY) >= h * 0.3)
+            .sort((a, b) => a.minX - b.minX);
+        if (digitBlobs.length !== digits.length) return digits;
+
+        let out = "";
+        for (let i = 0; i < digits.length; i++) {
+            const ch = digits[i];
+            if (ch !== "6" && ch !== "9") { out += ch; continue; }
+            const b = digitBlobs[i];
+            const bw = b.maxX - b.minX + 1, bh = b.maxY - b.minY + 1;
+
+            // Flood de blanco desde el borde del bbox: lo que quede sin visitar
+            // dentro y sea blanco es el lazo cerrado del glifo
+            const seen = new Uint8Array(bw * bh);
+            const idxOf = (x, y) => (y - b.minY) * bw + (x - b.minX);
+            const stack = [];
+            const trySeed = (x, y) => {
+                if (!isBlack(y * w + x) && !seen[idxOf(x, y)]) { seen[idxOf(x, y)] = 1; stack.push(y * w + x); }
+            };
+            for (let x = b.minX; x <= b.maxX; x++) { trySeed(x, b.minY); trySeed(x, b.maxY); }
+            for (let y = b.minY; y <= b.maxY; y++) { trySeed(b.minX, y); trySeed(b.maxX, y); }
+            while (stack.length) {
+                const cur = stack.pop();
+                const cx = cur % w, cy = (cur - cx) / w;
+                if (cx + 1 <= b.maxX) trySeed(cx + 1, cy);
+                if (cx - 1 >= b.minX) trySeed(cx - 1, cy);
+                if (cy + 1 <= b.maxY) trySeed(cx, cy + 1);
+                if (cy - 1 >= b.minY) trySeed(cx, cy - 1);
+            }
+
+            let holeArea = 0, holeYSum = 0;
+            for (let y = b.minY; y <= b.maxY; y++) {
+                for (let x = b.minX; x <= b.maxX; x++) {
+                    if (!isBlack(y * w + x) && !seen[idxOf(x, y)]) { holeArea++; holeYSum += y; }
+                }
+            }
+            // Sin lazo claro (glifo roto o relleno): respetar lo que dijo el OCR
+            if (holeArea < bh) { out += ch; continue; }
+
+            const holeCy = holeYSum / holeArea;
+            const centerY = (b.minY + b.maxY) / 2;
+            // Margen CONSERVADOR: un 6/9 bien formado tiene el lazo a ~25% del alto del
+            // centro; solo volteamos cuando está CLARAMENTE arriba/abajo (>15%). Cerca del
+            // centro es ambiguo (crop distorsionado a ~15px) y voltear hacía daño —volteaba
+            // 9 correctos a 6 (Mirage Systems). Ahí respetamos el OCR y que decida el consenso.
+            const margin = bh * 0.15;
+            if (holeCy > centerY + margin) out += "6";
+            else if (holeCy < centerY - margin) out += "9";
+            else out += ch;
+        }
+        return out;
+    },
+};

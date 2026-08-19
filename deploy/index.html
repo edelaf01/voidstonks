@@ -87,12 +87,13 @@
   <link rel="stylesheet" href="css/components/riven-scanner.css?v=1.0" />
   <link rel="stylesheet" href="css/components/modals.css?v=1.0" />
   <link rel="stylesheet" href="css/components/header.css?v=1.2" />
-  <link rel="stylesheet" href="styles.css?v=3.7" />
+  <link rel="stylesheet" href="styles.css?v=3.8" />
   <link rel="stylesheet" href="css/components/riven-grader.css?v=1.3" />
   <link rel="stylesheet" href="css/components/riven-module.css?v=1.0" />
   <link rel="stylesheet" href="css/components/vosfor.css?v=1.4" />
-  <link rel="stylesheet" href="css/components/orders.css?v=1.0" />
+  <link rel="stylesheet" href="css/components/orders.css?v=1.1" />
   <link rel="stylesheet" href="css/components/lich-weapons.css?v=1.0" />
+  <link rel="stylesheet" href="css/components/ui-kit.css?v=1.0" />
   <link rel="icon" type="image/png" href="https://wiki.warframe.com/images/VoidTraces.png" />
 
   <!-- OpenCV y Tesseract se cargan BAJO DEMANDA al abrir el escáner
@@ -271,8 +272,8 @@
         <span id="hud-context-badge" class="hud-context-badge">IDLE</span>
 
         <button type="button" id="btn-debug-toggle" class="hud-icon-btn" onclick="globalThis.toggleScannerDebug()"
-          title="Toggle debug mode (shows OCR diagnostic image)">
-          DBG
+          title="Enseña la imagen que está leyendo el OCR">
+          DIAG
         </button>
         <button type="button" id="hud-collapse-btn" class="hud-icon-btn is-collapse"
           onclick="globalThis.toggleScannerHud()" aria-expanded="true" aria-controls="inv-hud-body">
@@ -284,7 +285,9 @@
     <div id="inv-hud-body" class="hud-body">
       <div class="hud-statusbar">
         <span id="live-inv-msg">READY</span>
-        <span id="hud-scan-counter" class="hud-frames">FRAMES: 0</span>
+        <!-- Vacío a propósito: solo tiene sentido durante un escaneo, y lo rellena
+             ScannerHUD.updateFrameCounter(). Antes ponía "FRAMES: 0" fijo desde el arranque. -->
+        <span id="hud-scan-counter" class="hud-frames"></span>
       </div>
 
       <div class="hud-actions">
@@ -293,7 +296,8 @@
         </button>
 
         <button type="button" id="btn-auto-scan" class="hud-btn toggle" data-active="0"
-          onclick="globalThis.toggleAutoScrollScan()" title="Auto-scan when page changes after scroll">
+          onclick="globalThis.toggleAutoScrollScan()"
+          title="Escanea solo, en cuanto la página deja de moverse tras el scroll">
           ⟳ AUTO
         </button>
 
@@ -301,8 +305,9 @@
           ↓ SAVE
         </button>
 
-        <button type="button" class="hud-btn danger" onclick="globalThis.clearLiveSessionInventory()"
-          title="Clear this scan session">
+        <button type="button" id="btn-clear-session" class="hud-btn danger"
+          onclick="globalThis.clearLiveSessionInventory()"
+          title="Vacía lo detectado en esta sesión, sin tocar tu inventario guardado">
           ✕
         </button>
       </div>
@@ -312,13 +317,13 @@
              cachea; la calibración manual ya solo existe como fallback interno. -->
 
         <button type="button" id="btn-open-grid-editor" class="hud-btn-sm cyan" onclick="globalThis.openGridEditor()"
-          title="Fine-tune individual cell positions by dragging">
-          ✎ EDIT CELLS
+          title="Ajusta a mano la posición de cada celda arrastrándola">
+          ✎ EDITAR CELDAS
         </button>
 
         <button type="button" id="btn-reset-grid" class="hud-btn-sm amber" onclick="globalThis.resetGrid()"
-          title="Descarta la rejilla autodetectada y la calibración guardada; se re-autodetecta en el próximo escaneo">
-          ↺ RESET GRID
+          title="Descarta la rejilla detectada; se vuelve a detectar en el próximo escaneo">
+          ↺ REHACER REJILLA
         </button>
 
         <!-- Reset de offsets deshabilitado junto con la recalibración manual. -->
@@ -336,7 +341,7 @@
            leyendo dbgPanel.style.display === "block". -->
       <div id="live-debug-snapshot" class="hud-debug" style="display: none">
         <div class="hud-debug-head">
-          <span id="lbl-ocr-debug" class="hud-debug-label">OCR Debug Snapshot</span>
+          <span id="lbl-ocr-debug" class="hud-debug-label">Lo que lee el OCR</span>
           <button type="button" id="btn-copy-debug-log" class="hud-debug-copy"
             onclick="globalThis.copyScannerDebugLog()">
             COPY LOG
@@ -423,8 +428,8 @@
 
       <div id="rewards-dbg-text" class="hidden"
         style="background:#000; color:#ff9800; font-family:monospace; font-size:11px; padding:10px; margin:0 20px 10px; border:1px solid #333; max-height:160px; overflow-y:auto; border-radius:4px; line-height:1.4;">
-        <div style="color: #555; border-bottom: 1px solid #222; margin-bottom: 5px; padding-bottom: 2px;">SYSTEM
-          DIAGNOSTICS</div>
+        <div id="lbl-rewards-diagnostics"
+          style="color: #555; border-bottom: 1px solid #222; margin-bottom: 5px; padding-bottom: 2px;">DIAGNÓSTICO</div>
         <div id="rewards-raw-ocr-content"
           style="white-space: pre-wrap; word-break: break-all; display: flex; flex-direction: column; gap: 2px;">
           ...
@@ -453,23 +458,26 @@
     </div>
 
     <div class="inv-view-selector" style="display: flex; gap: 5px; padding: 10px 10px 0; background: #111">
+      <!-- Los rótulos los pone updateInventoryPanelLabels(); estos son solo el valor por
+           defecto del idioma del documento, para que no parpadee otro idioma al cargar. -->
       <button id="inv-tab-relics" class="inv-view-btn active" style="flex: 1"
         onclick="globalThis.switchInvView('relics')">
-        RELICS
+        Reliquias
       </button>
       <button id="inv-tab-parts" class="inv-view-btn" style="flex: 1" onclick="globalThis.switchInvView('parts')">
-        PRIME INVENTORY
+        Piezas Prime
       </button>
     </div>
     <div class="panel-main-header-refined">
       <button class="inv-action-btn export-btn" onclick="globalThis.exportInventory()" title="Export JSON">
         <span class="btn-icon">⬇</span>
-        <span class="btn-text">EXPORT</span>
+        <span class="btn-text">Exportar</span>
       </button>
 
       <div class="header-center">
         <span id="txt-inv-title">MY INVENTORY</span>
-        <span class="orokin-clear-btn" onclick="globalThis.clearInventory()" title="Orokin Purge (Clear Contextual)">
+        <span class="orokin-clear-btn" onclick="globalThis.clearInventory()"
+          title="Borrar todas las reliquias guardadas">
           <svg class="orokin-trash-svg" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path
               d="M7 21C6.45 21 5.979 20.804 5.587 20.412C5.195 20.02 4.99933 19.5493 5 19V6H4V4H9V3H15V4H20V6H19V19C19 19.55 18.804 20.021 18.412 20.413C18.02 20.805 17.5493 21.0007 17 21H7ZM7 19H17V6H7V19ZM9 17H11V8H9V17ZM13 17H15V8H13V17Z"
@@ -482,13 +490,13 @@
 
       <button class="inv-action-btn import-btn" onclick="globalThis.importInventory()" title="Import JSON">
         <span class="btn-icon">⬆</span>
-        <span class="btn-text">IMPORT</span>
+        <span class="btn-text">Importar</span>
       </button>
     </div>
 
     <div id="relic-inv-controls" class="inventory-controls"
       style="padding: 10px; display: flex; flex-direction: column; gap: 8px">
-      <input type="text" id="inv-search-input" class="wf-input" placeholder="Filtrar..."
+      <input type="text" id="inv-search-input" class="wf-input" autocomplete="off" placeholder="Filtrar..."
         oninput="globalThis.handleInvSearch(this.value)" style="padding: 8px; font-size: 0.9em" />
 
       <div class="inv-tiers-row">
@@ -512,21 +520,32 @@
         </button>
       </div>
 
-      <select id="inv-sort" class="wf-input" onchange="globalThis.renderInventory()"
-        style="font-size: 0.85em; padding: 5px">
-        <option value="recent">Recently added</option>
-        <option value="plat_intact">AVG Plat value (intact)</option>
-        <option value="plat_rad">AVG Plat value (radiant)</option>
-        <option value="ducats">Ducats per relic</option>
-        <option value="ratio">Ratio ducados/plat (mayor a menor)</option>
-      </select>
+      <!-- Chips de OBJETIVO: qué quieres sacar de abrir, no qué métrica ordenar. Todos
+           hablan por RUN para que se puedan comparar entre sí. Los rótulos los pone
+           renderInvGoalChips() según el idioma. -->
+      <div class="inv-goals-row" id="inv-goals-row">
+        <button class="inv-goal-btn active" data-goal="sets" onclick="globalThis.filterInvGoal('sets')"></button>
+        <button class="inv-goal-btn" data-goal="plat" onclick="globalThis.filterInvGoal('plat')"></button>
+        <button class="inv-goal-btn" data-goal="ducats" onclick="globalThis.filterInvGoal('ducats')"></button>
+        <button class="inv-goal-btn" data-goal="ratio" onclick="globalThis.filterInvGoal('ratio')"></button>
+        <button class="inv-goal-btn" data-goal="recent" onclick="globalThis.filterInvGoal('recent')"></button>
+      </div>
+
+      <label class="inv-vaulted-toggle">
+        <input type="checkbox" id="inv-only-active" onchange="globalThis.toggleInvOnlyActive(this.checked)" />
+        <span id="inv-only-active-label"></span>
+      </label>
     </div>
 
     <div id="prime-inv-controls" class="inventory-controls"
       style="padding: 10px; display: none; flex-direction: column; gap: 8px">
-      <div class="fissure-set-recs collapsed" id="fissure-set-recs" style="display:none;"></div>
+      <!-- Segunda instancia de "Rutas aconsejadas". La otra vive en la pestaña Reliquia, que es
+           donde tiene sitio (ancho de la card, 52vh) y donde pulsar una reliquia despliega su
+           contenido sin moverte. Esta es la de aquí al lado mientras repasas tus piezas.
+           Ninguna de las dos lleva `id`: ver renderFarmRoutes(). -->
+      <div class="farm-routes" data-fr-host="inventory" style="display:none;"></div>
 
-      <input type="text" id="prime-inv-search" class="wf-input" placeholder="Buscar Set o Parte..."
+      <input type="text" id="prime-inv-search" class="wf-input" autocomplete="off" placeholder="Buscar Set o Parte..."
         onkeyup="globalThis.renderPrimeInventory()" style="padding: 8px; font-size: 0.9em" />
 
       <select id="prime-inv-sort" class="wf-input" onchange="globalThis.renderPrimeInventory()"
@@ -772,6 +791,13 @@
             <div id="relicDropdown" class="dropdown-list hidden"></div>
           </div>
         </div>
+        <!-- Qué reliquia abrir y por qué. Va ANTES de los controles y del contenido porque es
+             la pregunta que se hace uno al entrar: #relic-contents está oculto hasta que eliges
+             una, así que sin esto la pantalla de arranque de la pestaña era un input vacío.
+             Pulsar una reliquia de una ruta rellena el buscador de arriba y despliega su
+             contenido aquí abajo, en la misma pantalla. -->
+        <div class="farm-routes" data-fr-host="relic" style="display:none;"></div>
+
         <div id="relic-controls-wrapper" style="
               margin-top: 20px;
               padding-top: 15px;
@@ -837,10 +863,21 @@
       </div>
       <div id="mode-set" class="hidden">
         <div class="form-group">
-          <label id="lbl-search-item">Buscar Item / Set</label>
+          <div class="set-search-labelrow">
+            <label id="lbl-search-item" for="setItemInput">Buscar Item / Set</label>
+            <!-- El "?" lo monta ui_sets.js aquí y no dentro del <label>: updateUILabels()
+                 reescribe el label con innerText en cada cambio de idioma y se llevaría
+                 por delante cualquier hijo que colgase de él. -->
+            <span id="set-search-help"></span>
+          </div>
           <input class="wf-input orokin-input" type="text" id="setItemInput" placeholder="Ej: Xaku, Wisp..."
             oninput="handleSetTyping()" autocomplete="off" />
         </div>
+        <!-- Tercer anfitrión de "Rutas aconsejadas" (los otros dos: pestaña Reliquia y panel
+             lateral de piezas Prime). El mismo módulo en los tres sitios donde se decide qué
+             farmear; ninguno lleva `id` porque son instancias — ver renderFarmRoutes(). -->
+        <div class="farm-routes" data-fr-host="set" style="display:none;"></div>
+
         <div id="setResults"></div>
       </div>
 
@@ -971,8 +1008,8 @@
                   BUSCAR PRECIO
                 </button>
 
-                <button class="premium-riven-btn btn-grade" onclick="openGradingModal()">
-                  GRADE RIVEN
+                <button class="premium-riven-btn btn-grade" id="btn-riven-grade" onclick="openGradingModal()">
+                  TASAR RIVEN
                 </button>
               </div>
 
@@ -1054,7 +1091,7 @@
 
           <div class="index-controls"
             style="margin-bottom: 20px; display: flex; gap: 15px; flex-wrap: wrap; align-items: center;">
-            <input type="text" id="indexSearchInput" placeholder="Buscar arma o familia..." class="wf-input riven-input"
+            <input type="text" id="indexSearchInput" placeholder="Buscar arma o familia..." class="wf-input riven-input" autocomplete="off"
               style="max-width: 320px; padding: 10px; border-color: rgba(162, 53, 226, 0.3); background: rgba(0, 0, 0, 0.25);" />
 
             <div style="display: flex; align-items: center; gap: 8px;">
@@ -1109,7 +1146,7 @@
 
             <button id="btn-index-sort-dir" class="wf-input"
               style="padding: 10px; width: 42px; height: 42px; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.25); border: 1px solid rgba(155, 89, 182, 0.2); color: #fff; border-radius: 6px; cursor: pointer; transition: all 0.3s ease; box-sizing: border-box;"
-              data-dir="desc" title="Cambiar dirección">
+              data-dir="desc" title="De mayor a menor · pulsa para invertir">
               <svg id="svg-sort-dir-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                 stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"
                 style="transition: transform 0.3s ease;">
@@ -1165,55 +1202,55 @@
               <span style="font-size: 0.8em">▼</span>
             </div>
             <div id="lfgDropdown" class="custom-dropdown hidden">
-              <div class="dropdown-item" onclick="selectLfgOption('eidolon', 'Eidolon Hunt')">
+              <div class="dropdown-item" data-lfg="eidolon" onclick="selectLfgOption('eidolon', 'Eidolon Hunt')">
                 Eidolon Hunt
               </div>
-              <div class="dropdown-item" onclick="selectLfgOption('profit', 'Profit Taker')">
+              <div class="dropdown-item" data-lfg="profit" onclick="selectLfgOption('profit', 'Profit Taker')">
                 Profit Taker
               </div>
-              <div class="dropdown-item" onclick="selectLfgOption('eda', 'Deep Archimedea')">
+              <div class="dropdown-item" data-lfg="eda" onclick="selectLfgOption('eda', 'Deep Archimedea')">
                 Deep Archimedea
               </div>
-              <div class="dropdown-item" onclick="selectLfgOption('temporal', 'Temporal Archimedea')">
+              <div class="dropdown-item" data-lfg="temporal" onclick="selectLfgOption('temporal', 'Temporal Archimedea')">
                 Temporal Archimedea
               </div>
-              <div class="dropdown-item" onclick="selectLfgOption('netra', 'Netracells')">
+              <div class="dropdown-item" data-lfg="netra" onclick="selectLfgOption('netra', 'Netracells')">
                 Netracells
               </div>
-              <div class="dropdown-item" onclick="selectLfgOption('archon', 'Archon Hunt')">
+              <div class="dropdown-item" data-lfg="archon" onclick="selectLfgOption('archon', 'Archon Hunt')">
                 Archon Hunt
               </div>
-              <div class="dropdown-item" onclick="selectLfgOption('sortie', 'Sortie')">
+              <div class="dropdown-item" data-lfg="sortie" onclick="selectLfgOption('sortie', 'Sortie')">
                 Sortie
               </div>
-              <div class="dropdown-item" onclick="selectLfgOption('arbi', 'Arbitration')">
+              <div class="dropdown-item" data-lfg="arbi" onclick="selectLfgOption('arbi', 'Arbitration')">
                 Arbitration
               </div>
-              <div class="dropdown-item" onclick="selectLfgOption('circuit', 'The Circuit (Duviri)')">
+              <div class="dropdown-item" data-lfg="circuit" onclick="selectLfgOption('circuit', 'The Circuit (Duviri)')">
                 The Circuit (Duviri)
               </div>
-              <div class="dropdown-item" onclick="selectLfgOption('eso', 'Elite Sanctuary Onslaught (ESO)')">
+              <div class="dropdown-item" data-lfg="eso" onclick="selectLfgOption('eso', 'Elite Sanctuary Onslaught (ESO)')">
                 Elite Sanctuary Onslaught (ESO)
               </div>
-              <div class="dropdown-item" onclick="selectLfgOption('so', 'Sanctuary Onslaught (SO)')">
+              <div class="dropdown-item" data-lfg="so" onclick="selectLfgOption('so', 'Sanctuary Onslaught (SO)')">
                 Sanctuary Onslaught (SO)
               </div>
-              <div class="dropdown-item" onclick="selectLfgOption('isovault', 'Isolation Vaults (Deimos)')">
+              <div class="dropdown-item" data-lfg="isovault" onclick="selectLfgOption('isovault', 'Isolation Vaults (Deimos)')">
                 Isolation Vaults (Deimos)
               </div>
-              <div class="dropdown-item" onclick="selectLfgOption('kuva', 'Kuva (Survival/Flood/Siphon)')">
+              <div class="dropdown-item" data-lfg="kuva" onclick="selectLfgOption('kuva', 'Kuva (Survival/Flood/Siphon)')">
                 Kuva (Survival/Flood/Siphon)
               </div>
-              <div class="dropdown-item" onclick="selectLfgOption('sirius', 'Sirius (Jade)')">
+              <div class="dropdown-item" data-lfg="sirius" onclick="selectLfgOption('sirius', 'Sirius (Jade)')">
                 Sirius (Jade)
               </div>
-              <div class="dropdown-item" onclick="selectLfgOption('orion', 'Orion (Jade)')">
+              <div class="dropdown-item" data-lfg="orion" onclick="selectLfgOption('orion', 'Orion (Jade)')">
                 Orion (Jade)
               </div>
-              <div class="dropdown-item" onclick="selectLfgOption('follie', 'Follie Hunt (Vesper)')">
+              <div class="dropdown-item" data-lfg="follie" onclick="selectLfgOption('follie', 'Follie Hunt (Vesper)')">
                 Follie Hunt (Vesper)
               </div>
-              <div class="dropdown-item" onclick="selectLfgOption('radshare', 'Radshare (Relics)')">
+              <div class="dropdown-item" data-lfg="radshare" onclick="selectLfgOption('radshare', 'Radshare (Relics)')">
                 Radshare (Relics)
               </div>
             </div>
@@ -1272,7 +1309,7 @@
           <div class="ducat-bar">
             <div class="ducat-search-wrap">
               <span class="ducat-search-icon" aria-hidden="true">⌕</span>
-              <input type="text" id="ducat-search" class="ducat-search" oninput="globalThis.renderDucanatorTab()" />
+              <input type="text" id="ducat-search" class="ducat-search" autocomplete="off" oninput="globalThis.renderDucanatorTab()" />
               <button type="button" id="ducat-search-clear" class="ducat-search-clear hidden"
                 onclick="globalThis.clearDucatSearch()" aria-label="Clear">×</button>
             </div>
@@ -1599,7 +1636,7 @@
     <div class="scan-result-card"
       style="max-width: 1140px; width: 95%; height: auto; max-height: 90vh; display: flex; flex-direction: column;">
       <div class="scan-header" style="flex-shrink: 0;">
-        <h3 id="grading-modal-title" style="text-shadow: 0 0 10px rgba(0, 229, 255, 0.4);">RIVEN GRADER</h3>
+        <h3 id="grading-modal-title" style="text-shadow: 0 0 10px rgba(0, 229, 255, 0.4);">TASADOR DE RIVENS</h3>
         <button class="close-modal-btn" onclick="closeGradingModal()">
           ✕
         </button>
@@ -1611,7 +1648,7 @@
         <div style="display: flex; flex-direction: column; gap: 16px;">
           <!-- Variant Carousel inside the Modal -->
           <div id="g-modal-variants-section" style="display: none; border-bottom: 1px dashed rgba(255,255,255,0.1); padding-bottom: 15px;">
-            <label style="font-size: 0.75rem; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; display: block;">
+            <label id="lbl-grading-variants" style="font-size: 0.75rem; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; display: block;">
               Variantes
             </label>
             <div id="g-modal-variants-carousel" class="variants-carousel-scroll" style="
@@ -1725,22 +1762,10 @@
       </div>
     </div>
   </div>
-  <div id="loadingOverlay" class="loading-overlay hidden">
-    <div class="spinner"></div>
-    <p>Escaneando Reliquias...</p>
-  </div>
-
-  <div id="toast" class="toast hidden">Scanner completed succesfully</div>
-
-  <div id="menuReliquias" class="relic-menu hidden">
-    <h2>Scan results</h2>
-    <div id="resultadosContainer"></div>
-
-    <div class="action-buttons">
-      <button id="btnAnadirInventario" disabled>Add to inventory</button>
-      <button id="btnLimpiar" disabled>Clean all</button>
-    </div>
-  </div>
+  <!-- Aquí vivían #loadingOverlay, #toast y #menuReliquias ("Scan results" + dos botones
+       permanentemente disabled): marcado de un escáner anterior, sin una sola referencia en
+       todo el repo. El escáner actual pinta en #scanned-results-panel y los avisos van por
+       showToast() / #toast-container. -->
   <div id="scanned-results-panel" class="results-drawer hidden">
     <div class="scan-header" style="
           display: flex;

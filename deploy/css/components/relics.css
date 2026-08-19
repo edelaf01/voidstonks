@@ -409,6 +409,20 @@
     margin-bottom: 4px;
 }
 
+.faction-group .faction-body {
+    overflow: hidden;
+    max-height: 5000px;
+    transition: max-height 0.35s ease;
+}
+
+.faction-group.collapsed .faction-body {
+    max-height: 0;
+}
+
+.faction-group.collapsed .arrow-icon {
+    transform: rotate(-90deg);
+}
+
 .faction-header-btn {
     cursor: pointer;
     user-select: none;
@@ -463,25 +477,11 @@
     background: rgba(255, 68, 68, 0.16);
 }
 
-.faction-group .faction-body {
-    overflow: hidden;
-    max-height: 5000px;
-    transition: max-height 0.35s ease;
-}
-
-.faction-group.collapsed .faction-body {
-    max-height: 0;
-}
-
 .faction-group .arrow-icon {
     display: inline-block;
     transition: transform 0.25s;
     color: #888;
     font-size: 0.8em;
-}
-
-.faction-group.collapsed .arrow-icon {
-    transform: rotate(-90deg);
 }
 
 /* ---- Tarjeta de misión ---- */
