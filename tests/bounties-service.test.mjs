@@ -227,3 +227,64 @@ test("forzar el refresco llega hasta la petición", async () => {
   assert.ok(p, "debe pedirse el endpoint de bounties");
   assert.match(p, /_cb=\d+/, "force debe estrenar clave de caché");
 });
+
+// --- Tipo de misión ---------------------------------------------------------------------
+//
+// `techType` es lo que compara checkIsOptimal, así que si sale mal la vista "Solo óptimas"
+// queda vacía sin dar ninguna pista: las tarjetas se pintan igual, solo que ninguna lleva
+// estrella. Se miraba únicamente el uniqueName, y en Cetus/Fortuna/Deimos ese campo es una
+// TABLA DE RECOMPENSAS, no el tipo — las 23 bounties vivas caían todas en "Bounty".
+
+test("el tipo sale del uniqueName cuando lo lleva", async () => {
+  conJobs("Ostron", [job({ uniqueName: "ZarimanExterminateFastCompleteChallenge" })]);
+  assert.equal((await misiones())[0].technicalType, "Exterminate");
+});
+
+// Forma real del worldstate: el uniqueName es la tabla de premios y el tipo solo está en el
+// título. Sin mirarlo, una captura de Cetus no se distingue de una excavación.
+test("con uniqueName de tabla de premios, el tipo sale del título", async () => {
+  conJobs("Ostron", [job({
+    uniqueName: "/Lotus/Types/Game/MissionDecks/EidolonJobMissionRewards/TierCTableBRewards",
+    type: "Search and Rescue",
+    id: "RescueBountyResc1787070250203",
+  })]);
+  assert.equal((await misiones())[0].technicalType, "Rescue");
+});
+
+// El id engaña y el título no: esta bounty se llama AssassinateBountyCap y es una CAPTURA.
+// Por eso el título va antes que el id.
+test("el título manda sobre el id cuando discrepan", async () => {
+  conJobs("Ostron", [job({
+    uniqueName: "/Lotus/Types/Game/MissionDecks/EidolonJobMissionRewards/TierATableARewards",
+    type: "Capture the New Grineer Commander",
+    id: "AssassinateBountyCap1787070250203",
+  })]);
+  assert.equal((await misiones())[0].technicalType, "Capture");
+});
+
+// Y al revés: títulos temáticos que no nombran la misión. Ahí el id es lo único que queda.
+test("si el título no dice la misión, se cae al id", async () => {
+  conJobs("Ostron", [job({
+    uniqueName: "/Lotus/Types/Game/MissionDecks/EidolonJobMissionRewards/TierATableARewards",
+    type: "Rise and Fall (Narmer)",
+    id: "AssassinateBountyAss1787070250203",
+  })]);
+  assert.equal((await misiones())[0].technicalType, "Assassination");
+});
+
+// Rescate es una misión de una pasada, igual que exterminio y captura: el panel de fisuras ya
+// lo contaba así y aquí no estaba. No se distingue camino normal de acero — checkIsOptimal no
+// mira isSP, así que una rápida lo es en los dos.
+test("rescate, exterminio y captura cuentan como misión rápida", async () => {
+  conJobs("Ostrons", [
+    job({ uniqueName: "x", type: "Search and Rescue", id: "RescueBountyResc1" }),
+    job({ uniqueName: "x", type: "Capture Their Leader", id: "AttritionBountyCap1" }),
+    job({ uniqueName: "SomeJobExterminate", type: "Cleanse", id: "z1" }),
+    job({ uniqueName: "x", type: "Core Samples", id: "DeimosExcavateBounty1" }),
+  ]);
+  const porTipo = Object.fromEntries((await misiones()).map((m) => [m.technicalType, m.isOptimal]));
+  assert.equal(porTipo.Rescue, true, "rescate tiene que entrar en las rápidas");
+  assert.equal(porTipo.Capture, true);
+  assert.equal(porTipo.Exterminate, true);
+  assert.equal(porTipo.Excavation, false, "una excavación no es de una pasada");
+});

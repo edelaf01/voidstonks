@@ -13,6 +13,10 @@
 import { state, saveAppState, updateInventoryBatch } from "../state.js";
 import { toggleInventoryPanel, renderInventory } from "../ui.components/inventory/ui_inventory.js";
 import { showToast } from "../ui.components/ui_components.js";
+import { TEXTS } from "../config.js";
+
+/** Textos del escáner en el idioma activo. Se lee en cada uso: el idioma cambia en caliente. */
+const st = () => TEXTS[state.currentLang]?.scanner || {};
 console.log(" [SCANNER] Script cargado correctamente.");
 let ocrWorker = null;
 let videoStream = null;
@@ -68,7 +72,7 @@ async function startCamera() {
     console.log(" [SCANNER] Cámara iniciada");
   } catch (e) {
     console.error(" [SCANNER] Error cámara:", e);
-    showToast("Error: Can't access camera.");
+    showToast(st().toastCameraDenied);
   }
 }
 
@@ -93,7 +97,7 @@ export async function captureRelics() {
   console.log(" [SCANNER] Capturando...");
   const video = document.getElementById("ocr-video");
   if (!videoStream || video.readyState < 2 || video.videoWidth === 0) {
-    return showToast("Cámara no lista...");
+    return showToast(st().toastCameraNotReady);
   }
   processImageSource(video);
 }
@@ -125,7 +129,7 @@ async function processImageSource(source) {
   if (w < 10 || h < 10) {
     console.warn(`[SCANNER] Imagen ignorada por tamaño incorrecto: ${w}x${h}`);
     if (loading) loading.classList.add("hidden");
-    showToast("Error: Imagen demasiado pequeña o inválida.");
+    showToast(st().toastImageTooSmall);
     return;
   }
 
@@ -204,7 +208,7 @@ async function processImageSource(source) {
       const OCRSvc = globalThis._OCRService;
       if (!OCRSvc) {
         console.warn("[SCANNER] OCRService not ready yet - start the live scanner first or wait for warm-up.");
-        showToast("Inicia el escáner en vivo primero para poder procesar recompensas.");
+        showToast(st().toastStartFirst);
       } else {
         OCRSvc.initMatcherData();
         ocrData.imageW = w;
@@ -215,7 +219,7 @@ async function processImageSource(source) {
           globalThis._ScannerModal.open(snap, foundItems, w, h, 1, text);
           showToast(`¡${foundItems.length} reward(s) detected!`);
         } else {
-          showToast("REWARDS: no items matched. Check console for OCR output.");
+          showToast(st().toastNoRewards);
         }
       }
     } else {
@@ -231,12 +235,12 @@ async function processImageSource(source) {
         if (resultsPanel) resultsPanel.classList.remove("hidden");
         showToast(`¡${found.length} relic(s) detected!`);
       } else {
-        showToast("No items detected. Check console for OCR output.");
+        showToast(st().toastNoItems);
       }
     }
   } catch (e) {
     console.error("[SCANNER] Error OCR:", e);
-    showToast("SCANNER ERROR TRY AGAIN.");
+    showToast(st().toastScanFailed);
   } finally {
     if (loading) loading.classList.add("hidden");
   }
@@ -306,7 +310,7 @@ function updateResultsUI() {
 }
 
 export function confirmScanResults() {
-  if (scannedInventory.length === 0) return showToast("Lista vacía");
+  if (scannedInventory.length === 0) return showToast(st().toastEmptyList);
 
   updateInventoryBatch(scannedInventory);
   saveAppState();
@@ -331,7 +335,7 @@ let isInventoryScanning = false;
 
 export async function startInventoryScrollScan() {
   try {
-    showToast("🚀 INITIALIZING OCR ENGINE...");
+    showToast(st().toastEngineInit);
 
     if (!globalThis.Tesseract) {
       const { OCRRepository } = await import("../repositories/ocr.repository.js");
@@ -367,7 +371,7 @@ export async function startInventoryScrollScan() {
     staticFrameCount = 0;
     isInventoryScanning = true;
 
-    showToast("⚡ READY. SCROLL SLOWLY AND STEADILY.");
+    showToast(st().toastEngineReady);
 
     const scanLoop = async () => {
       if (!isInventoryScanning) return;
@@ -386,7 +390,7 @@ export async function startInventoryScrollScan() {
     };
   } catch (err) {
     console.error("Error al iniciar:", err);
-    showToast("Error: " + err.message);
+    showToast((st().toastError || "Error: {msg}").replace("{msg}", err.message));
   }
 }
 

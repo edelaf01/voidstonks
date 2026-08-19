@@ -33,7 +33,7 @@ function relicRuns(relicName, stock) {
         setsDatabase: state.setsDatabase, primeInventory: state.primeInventory,
         getSetName, getRequiredCount, stock,
         dropChances: DROP_CHANCES[state.refinement] || DROP_CHANCES.Rad,
-        squadSize: state.playerCount || 1,
+        squadSize: state.squadSize || 4,
     });
 }
 

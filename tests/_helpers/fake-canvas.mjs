@@ -175,6 +175,11 @@ function crearContexto(canvas) {
     fillText() {},
     strokeText() {},
     beginPath() {}, closePath() {}, moveTo() {}, lineTo() {}, stroke() {}, fill() {},
+    // `arc` faltaba y el fondo animado (canvas.js) lo usa para la cabeza y la cola del trazo.
+    // Solo se llega a esas ramas si la partícula tiene camino recorrido, que depende de
+    // Math.random(): canvas.test.mjs fallaba con "ctx.arc is not a function" en ~1 de cada 5
+    // ejecuciones, y culpaba al tema que tocase en esa vuelta del bucle.
+    arc() {}, arcTo() {}, ellipse() {}, rect() {}, quadraticCurveTo() {}, bezierCurveTo() {},
     save() {}, restore() {}, translate() {}, scale() {}, rotate() {}, setTransform() {},
     measureText: (t) => ({ width: String(t).length * 6 }),
   };

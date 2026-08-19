@@ -75,9 +75,17 @@ test("un ítem sin componentes no rompe la carga del catálogo", () => {
 
 // --- Valor de una reliquia ---------------------------------------------------------------
 
-/** Deja una reliquia con sus drops y sus precios ya en memoria. */
-function reliquia(nombre, drops, precios = {}) {
+/**
+ * Deja una reliquia con sus drops y sus precios ya en memoria.
+ *
+ * En solitario salvo que se diga otra cosa: el valor depende de la escuadra que tenga puesta
+ * el jugador, así que sin fijarla estos números dependerían del default de state.
+ */
+function reliquia(nombre, drops, precios = {}, squadSize = 1) {
   state.relicsDatabase = { [nombre]: drops };
+  // squadSize y no playerCount: ese es el contador "Faltan" del mensaje de reclutamiento, y
+  // ya no alimenta las probabilidades (ver getPlayerOdds).
+  state.squadSize = squadSize;
   MEMORY_CACHE.clear();
   for (const [slug, plat] of Object.entries(precios)) MEMORY_CACHE.set(slug, plat);
   return nombre;
@@ -151,6 +159,39 @@ test("los precios de una reliquia se piden a la vez, no en cadena", async () => 
   const t0 = Date.now();
   await calculateRelicValue(r);
   assert.ok(Date.now() - t0 < 200, "no debería encadenar esperas");
+});
+
+// En escuadra se abren 4 reliquias y el grupo se queda con la MEJOR recompensa, así que el
+// premio caro pesa mucho más que su tasa suelta. Este número salía en solitario mientras la
+// pestaña de Reliquias contaba la escuadra: la misma reliquia valía dos platinos distintos
+// según desde dónde la mirases.
+test("la escuadra sube el valor: te quedas con la mejor de 4 tiradas", async () => {
+  const drops = [
+    { name: "Raro", chance: 2 },
+    { name: "Comun1", chance: 25.33 },
+    { name: "Comun2", chance: 25.33 },
+    { name: "Comun3", chance: 25.33 },
+  ];
+  const precios = { raro: 200, comun1: 10, comun2: 10, comun3: 10 };
+
+  const solo = await calculateRelicValue(reliquia("Lith S", drops, precios, 1));
+  const grupo = await calculateRelicValue(reliquia("Lith S", drops, precios, 4));
+
+  assert.ok(grupo.intact > solo.intact, `4 jugadores deberían valer más: ${grupo.intact} vs ${solo.intact}`);
+  // El raro pasa de 2 % a ~7,8 % de ser el mejor de 4: casi todo el salto viene de ahí.
+  assert.ok(grupo.intact > solo.intact * 1.5, `el salto se queda corto: ${grupo.intact} vs ${solo.intact}`);
+});
+
+// Con la lista incompleta el hueco que falta es un premio SIN valorar, o sea 0. Antes quedaba
+// implícito por encima del premio más caro (la probabilidad acumulada no llegaba a 1), y en
+// escuadra eso se comía el valor de la reliquia en vez de dejarlo igual.
+test("un hueco sin valorar cuenta como 0, no como el mejor premio", async () => {
+  const r = reliquia("Lith H", [{ name: "Raro", chance: 2 }], { raro: 100 }, 4);
+  const v = await calculateRelicValue(r);
+
+  // P(el mejor de 4 sea el raro) = 1 - 0.98^4 = 0.0776
+  const esperado = 100 * (1 - Math.pow(1 - 0.02, 4));
+  assert.equal(v.intact, Number(esperado.toFixed(1)));
 });
 
 test("un precio desconocido cuenta como 0 y no contamina el total", async () => {

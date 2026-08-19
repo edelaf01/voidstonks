@@ -40,7 +40,14 @@ export const ScannerHUD = {
 
     updateFrameCounter(count) {
         const counter = document.getElementById("hud-scan-counter");
-        if (counter) counter.textContent = count > 0 ? `FRAME ${count}` : "";
+        if (!counter) return;
+        const lbl = TEXTS[state.currentLang]?.scannerHUD?.lblFrame || "FRAME";
+        counter.textContent = count > 0 ? `${lbl} ${count}` : "";
+    },
+
+    /** ¿Está abierto el panel de debug? Quien produzca imágenes caras debe preguntarlo antes. */
+    isDebugOpen() {
+        return document.getElementById("live-debug-snapshot")?.style.display === "block";
     },
 
     updateDebugSnapshot(dataUrl) {
@@ -68,6 +75,9 @@ export const ScannerHUD = {
         if (!strip) return;
         strip.innerHTML = "";
         history.forEach((entry, i) => {
+            // Las entradas grabadas con el panel cerrado no llevan imagen (ver el porqué en
+            // scanner.service.js): sin esto el <img> se quedaba con src="null".
+            if (!entry.img) return;
             const th = document.createElement("img");
             th.src = entry.img;
             th.title = `[${entry.time}] ${entry.summary}`;
@@ -86,7 +96,7 @@ export const ScannerHUD = {
 
     selectDebugEntry(history, i) {
         const entry = history[i];
-        if (!entry) return;
+        if (!entry?.img) return;
         this.updateDebugSnapshot(entry.img);
         const sum = document.getElementById("live-debug-summary");
         if (sum) {

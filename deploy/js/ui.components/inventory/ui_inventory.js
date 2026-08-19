@@ -1,8 +1,9 @@
 import { state, saveAppState, updateInventoryCount } from "../../state.js";
 import { TEXTS } from "../../config.js";
-import { escapeHTML, showToast, showCustomConfirm } from "../ui_components.js";
+import { escapeHTML, showToast, showCustomConfirm, emptyStateHtml } from "../ui_components.js";
 
 import { manualRelicUpdate } from "./ui_relics.js";
+import { trackBestSetForRelic } from "./ui_set_tracker.js";
 import { exposeGlobals } from "../../utils/global_registry.js";
 import { ducatRatio, formatDucatRatio } from "./ui_ducanator.js";
 import { inventorySignature } from "../../utils/inventory/inventory_signature.js";
@@ -44,7 +45,7 @@ export function clearInventory() {
       renderInventory();
     }
     saveAppState();
-    showToast("Inventory cleared");
+    showToast(t.inventory?.toastCleared || "Inventory cleared");
   });
 }
 
@@ -66,8 +67,11 @@ export async function renderInventory() {
   lastInventoryHash = newHash;
 
   if (!state.inventory || state.inventory.length === 0) {
-    const emptyMsg = TEXTS[state.currentLang]?.inventory?.empty || "Inventory empty";
-    list.innerHTML = `<div style="padding:20px; text-align:center; color:#666;">${emptyMsg}</div>`;
+    const inv = TEXTS[state.currentLang]?.inventory;
+    list.innerHTML = emptyStateHtml(
+      inv?.emptyRelics || "No relics saved yet.",
+      inv?.emptyScannerHint,
+    );
     return;
   }
 
@@ -269,6 +273,7 @@ export function selectRelicFromInv(name) {
   globalThis.switchTab("relic");
   toggleInventoryPanel(false);
   manualRelicUpdate();
+  trackBestSetForRelic(name);
 }
 
 export function filterInvTier(tier) {
@@ -299,17 +304,42 @@ export function addCurrentToInv() {
 
   showToast(msg);
 
-  const btn = document.querySelector("#manual-add-container button");
-  if (btn) {
-    const originalText = btn.innerText;
-    btn.innerText = "✔ OK";
-    setTimeout(() => {
-      btn.innerText = originalText;
-    }, 1000);
-  }
+  // Aquí había un "✔ OK" temporal sobre el botón de #manual-add-container, que ya no existe
+  // en el HTML: la guarda era siempre falsa. La confirmación la da el toast de arriba.
 
   renderInventory();
 }
+/**
+ * Rótulos del panel lateral. Estaban escritos en inglés dentro del HTML y no pasaban por
+ * TEXTS, así que "RELICS", "PRIME INVENTORY", EXPORT e IMPORT se quedaban en inglés con la
+ * app en español. El título de la papelera cambia con la vista porque lo que borra también.
+ */
+export function updateInventoryPanelLabels() {
+  const t = TEXTS[state.currentLang]?.inventory || {};
+  const isParts = state.currentInvView === "parts";
+
+  const set = (id, text) => {
+    const el = document.getElementById(id);
+    if (el && text) el.textContent = text;
+  };
+  set("inv-tab-relics", t.viewRelics);
+  set("inv-tab-parts", t.viewParts);
+
+  const label = (sel, text) => {
+    const el = document.querySelector(sel);
+    if (el && text) el.textContent = text;
+  };
+  label(".export-btn .btn-text", t.btnExport);
+  label(".import-btn .btn-text", t.btnImport);
+
+  const purge = document.querySelector(".orokin-clear-btn");
+  const purgeTitle = isParts ? t.purgePartsTitle : t.purgeRelicsTitle;
+  if (purge && purgeTitle) {
+    purge.title = purgeTitle;
+    purge.setAttribute("aria-label", purgeTitle);
+  }
+}
+
 export function switchInvView(view) {
   if (state.currentInvView === view && document.getElementById("inventory-list")?.innerHTML.length > 50) return;
   state.currentInvView = view;
@@ -320,6 +350,8 @@ export function switchInvView(view) {
 
   const listRelics = document.getElementById("inventory-list");
   const listParts = document.getElementById("inventory-list-parts");
+
+  updateInventoryPanelLabels();
 
   if (view === "relics") {
     if (relicControls) relicControls.style.display = "flex";
@@ -343,11 +375,12 @@ export function switchInvView(view) {
 
 
 export function exportInventory() {
+  const t = TEXTS[state.currentLang]?.inventory || {};
   if (
     (!state.inventory || state.inventory.length === 0) &&
     Object.keys(state.primeInventory || {}).length === 0
   ) {
-    return showToast("Inventory is completely empty.");
+    return showToast(t.toastNothingToExport || "Nothing to export yet.");
   }
 
   try {
@@ -365,10 +398,10 @@ export function exportInventory() {
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
-    showToast("Inventory downloaded");
+    showToast(t.toastDownloaded || "Inventory downloaded");
   } catch (e) {
     console.error("Error exportando:", e);
-    showToast("Error exporting file.");
+    showToast(t.toastExportError || "Could not build the file.");
   }
 }
 
@@ -381,40 +414,36 @@ export function importInventory() {
     const file = e.target.files[0];
     if (!file) return;
 
+    // showCustomConfirm y no confirm(): los dos avisos mezclaban español e inglés en la misma
+    // frase, y el confirm nativo se salta el idioma y el estilo del resto de la app.
+    const t = TEXTS[state.currentLang]?.inventory || {};
+
     try {
       const text = await file.text();
       const data = JSON.parse(text);
 
       if (data?.relics !== undefined && data.parts !== undefined) {
-        if (
-          confirm(
-            `Archivo de inventario dual cargado.\n\nThis will overwrite your entire inventory (Relics & Parts). Are you sure?`
-          )
-        ) {
+        showCustomConfirm(t.confirmImportAll, () => {
           state.inventory = data.relics;
           state.primeInventory = data.parts;
           saveAppState();
           renderInventory();
           renderPrimeInventory();
-          showToast("Successfully updated complete inventory.");
-        }
+          showToast(t.toastImportedAll || "Full inventory updated");
+        });
       } else if (Array.isArray(data)) {
-        if (
-          confirm(
-            `Archivo Legacy cargado con ${data.length} items.\n\nThis will overwrite your current relic inventory. Are you sure?`
-          )
-        ) {
+        showCustomConfirm((t.confirmImportRelics || "").replace("{n}", data.length), () => {
           state.inventory = data;
           saveAppState();
           renderInventory();
-          showToast("Successfully updated relic inventory.");
-        }
+          showToast(t.toastImportedRelics || "Relic inventory updated");
+        });
       } else {
-        showToast("File has incorrect format: ERROR");
+        showToast(t.toastBadFormat || "That file is not in the expected format.");
       }
     } catch (err) {
       console.error(err);
-      showToast("Error reading JSON file.");
+      showToast(t.toastReadError || "Could not read the JSON file.");
     }
   };
   input.click();

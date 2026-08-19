@@ -10,6 +10,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { installFakeDocument } from "./_helpers/fake-canvas.mjs";
 
 installFakeDocument();
@@ -217,4 +218,40 @@ test("una celda de riven se reconoce por su nombre o por su categoría", () => {
   assert.equal(S._isRivenCellText(["MELEE", "MOD"]), true);
   assert.equal(S._isRivenCellText(["BRATON", "PRIME", "BLUEPRINT"]), false);
   assert.equal(S._isRivenCellText(["MOD"]), false, "'MOD' a secas no basta");
+});
+
+// --- Coste en RAM del historial de debug ----------------------------------------------------
+
+// Esto se comprueba sobre el FUENTE y no ejecutándolo a propósito: es un invariante
+// estructural ("esta llamada cara va detrás de esta guarda") que para reproducirlo de verdad
+// necesitaría el stack de OCR entero y un navegador que decodifique imágenes.
+const SRC = readFileSync(new URL("../deploy/js/services/scanner/scanner.service.js", import.meta.url), "utf8");
+
+// Costó 1,9 GB de pestaña en un inventario grande. Cada página escaneada hacía un toDataURL
+// de la zona de rejilla entera y el HUD reconstruía sus 10 miniaturas; el navegador decodifica
+// cada <img> AUNQUE su contenedor esté en display:none, así que eran ~6 MB × 10 tirados y
+// vueltos a crear por página, y el GC no daba abasto.
+test("la imagen del historial de debug no se genera con el panel cerrado", () => {
+  const i = SRC.indexOf("this.debugHistory.unshift(");
+  assert.notEqual(i, -1, "falta el historial de debug");
+  const bloque = SRC.slice(i - 800, i + 400);
+
+  assert.match(bloque, /img:\s*ScannerHUD\.isDebugOpen\(\) \?/,
+    "el toDataURL solo puede hacerse con el panel abierto");
+});
+
+test("con el panel cerrado tampoco se repintan las miniaturas", () => {
+  const i = SRC.indexOf("this.debugHistory.unshift(");
+  const cola = SRC.slice(i, i + 900);
+  assert.match(cola, /if \(ScannerHUD\.isDebugOpen\(\) && ScannerHUD\.updateDebugHistory\)/,
+    "reconstruir las 10 <img> es justo lo que costaba la RAM");
+});
+
+// El log son cadenas y lo necesita el botón "COPY LOG": ese sí se guarda siempre, o depurar
+// un escaneo obligaría a reproducirlo con el panel ya abierto.
+test("el log del escaneo se sigue guardando aunque el panel esté cerrado", () => {
+  const i = SRC.indexOf("this.debugHistory.unshift(");
+  const bloque = SRC.slice(i, i + 400);
+  assert.match(bloque, /log:\s*\[\.\.\.this\.lastRawOcrLog\]/);
+  assert.ok(!/log:\s*debugVisible/.test(bloque), "el log no puede depender del panel");
 });

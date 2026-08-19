@@ -526,7 +526,12 @@ body {
   display: flex;
   flex-direction: column;
   z-index: 900 !important;
-  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  /* SOLO transform, como la regla compartida de arriba. Con `all`, el panel animaba durante
+     0,4 s cada vez que su contenido cambiaba de tamaño — y al abrir Partes Prime eso pasa dos
+     veces: al intercambiar las vistas y otra vez cuando llegan las fisuras y aparece el bloque
+     de rutas. Se veía como si la pestaña se minimizara sola y dejaba la parte de arriba sin
+     verse. Lo único que debe animarse aquí es el deslizamiento de entrada. */
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   overflow: visible !important;
 }
 
@@ -582,6 +587,32 @@ body {
 }
 
 #inventory-list,
+/* La columna de controles scrollea POR SÍ MISMA.
+ *
+ * Es hija de #inventory-container, que está capado a max-height 80vh. Con "Fisuras para tus
+ * sets" y "Rutas aconsejadas" desplegados, más los chips, el buscador y el orden, la pila mide
+ * bastante más que eso: sin scroll propio, el sobrante simplemente no se podía ver — se llegaba
+ * hasta "máx. piezas restantes" y ahí se acababa la pestaña.
+ *
+ * min-height: 0 no es decorativo: sin él un hijo de flex no baja de su altura de contenido, así
+ * que el overflow nunca se activa y todo sigue igual de cortado.
+ *
+ * Hasta ahora esta clase no tenía NINGUNA regla; se pintaba solo con los estilos inline del
+ * HTML, y el display lo cambia switchInvView() — por eso aquí no se toca. */
+.inventory-controls {
+  /* NO se encoge. Es un hijo flex con min-height:0 (necesario para su scroll), y eso permitía
+     que el listado —que reclama todo el alto que puede— la aplastara hasta ~40px: se veía la
+     cabecera de rutas, medio subtítulo cortado, y el buscador y el orden directamente no
+     aparecían. El scroll propio se queda como válvula, pero la altura la manda su contenido. */
+  flex: 0 0 auto;
+  /* Y con tope, que es lo que evita el problema contrario: el lateral mide 80vh, así que
+     dejándole 45 quedan 35 largos para el listado pase lo que pase. */
+  max-height: 45vh;
+  overflow-y: auto;
+  min-height: 0;
+  overscroll-behavior: contain;
+}
+
 #inventory-list-parts {
   display: flex;
   flex-direction: column;
@@ -1085,61 +1116,19 @@ body {
   background: rgba(255, 80, 80, 0.1);
 }
 
-.fissure-set-recs {
-  margin: 0 0 14px;
-  border: 1px solid rgba(197, 168, 86, 0.3);
-  border-radius: 4px;
-  background: rgba(197, 168, 86, 0.05);
-  overflow: hidden;
-  height: 320px;
-  flex: 0 0 320px;
-  display: flex;
-  flex-direction: column;
-}
-
-.fissure-set-recs.collapsed {
-  height: 41px;
-  flex-basis: 41px;
-}
-
-.fissure-set-recs-toggle {
-  width: 100%;
-  padding: 8px 12px;
-  background: transparent;
-  color: var(--wf-gold-text);
-  font-weight: 800;
-  font-size: 0.9em;
-  border: 0;
-  text-align: left;
-  cursor: pointer;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-shrink: 0;
-}
-
-.fissure-set-recs-content {
-  flex: 1 1 auto;
-  overflow-y: auto;
-  transition: opacity 0.3s ease;
-  opacity: 1;
-  padding: 0 8px 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-height: 0;
-}
-
-.fissure-set-recs.collapsed .fissure-set-recs-content {
-  opacity: 0;
-  padding: 0 8px;
-  overflow: hidden;
-}
-
+/* NO lleva `position: sticky`, y no es un olvido.
+ *
+ * Con título, tres filtros —cada uno con su etiqueta y su texto de ayuda de dos líneas— y el
+ * aviso de las misiones, este bloque mide ~330px: más que el área que scrollea del panel. Un
+ * elemento pegado que no cabe entero no se puede terminar de ver, porque justamente no se
+ * mueve al scrollear: el desplegable de "máx. piezas restantes" y la casilla de debajo
+ * quedaban permanentemente por debajo del corte, sin forma de llegar a ellos.
+ *
+ * `flex-shrink: 0` por la otra mitad del problema: el contenedor es una columna flex, así que
+ * sin esto el bloque se comprimía para caber y su contenido se salía de la caja en vez de
+ * hacer scrollear al padre. */
 .set-rec-filters {
-  position: sticky;
-  top: 0;
-  z-index: 1;
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -1186,11 +1175,22 @@ body {
   line-height: 1.4;
 }
 
+/* `flex: 0 0 auto` no es cosmético: .alarm-select viene de relics.css con `flex: 1 1 140px`,
+   escrito para un contenedor en FILA donde ese 140px es el ancho. Aquí la fila es `column`,
+   así que el basis pasa a ser la ALTURA y el grow la estiraba: el desplegable salía como una
+   caja de 150px de alto. */
 .set-rec-filters .alarm-select {
   font-size: 0.92em;
   align-self: flex-start;
+  flex: 0 0 auto;
   min-width: 180px;
   max-width: 100%;
+}
+
+.set-rec-filters .set-rec-filter-input {
+  align-self: stretch;
+  padding: 6px 8px;
+  font-size: 0.92em;
 }
 
 .set-rec-filters .lfg-label {
@@ -1206,6 +1206,7 @@ body {
 }
 
 .set-rec-guide {
+  flex-shrink: 0;
   margin-bottom: 6px;
   font-size: 0.9em;
 }
@@ -1235,11 +1236,10 @@ body {
   line-height: 1.4;
 }
 
-.fissure-set-recs.collapsed .arrow-icon {
-  transform: rotate(-90deg);
-}
-
+/* Igual que los filtros: en una columna flex con scroll, sin esto las tarjetas se aplastan
+   unas contra otras en vez de dejar que el panel scrollee. */
 .set-rec-card {
+  flex-shrink: 0;
   background: #1a1c20;
   border: 1px solid #333;
   border-radius: 4px;
@@ -1817,7 +1817,14 @@ body.theme-bounties {
   margin-bottom: 10px;
 }
 
-#inventory-container button {
+/* :not() para los botones del panel de rutas. Ese panel se pinta en dos sitios —la pestaña
+   Reliquia y este lateral— y sus <button> son botones solo por lo táctil (utils/tap.js): tienen
+   que leerse como el texto del plan. Antes ganaban por especificidad (.farm-routes .fr-go era
+   (1,1,0) contra el (1,0,1) de aquí); al pasar el panel a clase para poder duplicarlo eso se
+   invierte, así que la exclusión pasa a ser explícita en vez de un accidente del cálculo.
+   Es además el arreglo de raíz: el siguiente <button> que alguien meta en este panel ya no
+   hereda fondo cian y texto negro sin pedirlo. */
+#inventory-container button:not(.fr-go):not(.fr-head) {
   background-color: #15171b;
   color: #888;
   border: 1px solid #444;
@@ -1832,7 +1839,7 @@ body.theme-bounties {
 }
 
 /* 2. Efecto Hover (al pasar el ratón) */
-#inventory-container button:hover {
+#inventory-container button:not(.fr-go):not(.fr-head):hover {
   background-color: var(--wf-blue);
   color: #000;
   border-color: var(--wf-blue);
@@ -2003,6 +2010,29 @@ body.theme-bounties {
   gap: 10px;
   width: 100%;
   position: relative;
+}
+
+/* .camera-btn no encoge y su texto es largo, asi que en movil se quedaba ~275px y dejaba el
+   input de reliquia —que es el control principal— en unos 85px. Apilados, el input recupera
+   el ancho completo y el boton (ademas deshabilitado, WIP) pasa debajo. */
+@media (max-width: 600px) {
+  .relic-input-wrapper {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .relic-input-wrapper .camera-btn {
+    width: 100%;
+    order: 2;
+  }
+
+  /* En flujo y no absoluto: #relicDropdown se ancla a top:100% del wrapper, que apilado
+     cae DEBAJO del boton y deja la lista de sugerencias despegada del input. Como item
+     flex se coloca justo bajo el input y empuja el boton hacia abajo. */
+  .relic-input-wrapper > #relicDropdown {
+    position: static;
+    order: 1;
+  }
 }
 
 .camera-btn {
@@ -2346,6 +2376,16 @@ body.theme-bounties {
   border-color: var(--wf-lfg);
   color: #fff;
   box-shadow: 0 0 10px rgba(66, 245, 108, 0.15);
+}
+
+/* El <label> ya hace de objetivo de toque; la casilla nativa de 13px solo se queda pequeña
+   al lado del texto en pantallas tactiles. */
+@media (pointer: coarse) {
+  .lfg-checkbox-wrapper input[type="checkbox"],
+  .inv-vaulted-toggle input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+  }
 }
 
 .lfg-label {
@@ -3488,13 +3528,15 @@ body.theme-bounties {
     margin-bottom: -0.22rem;
   }
 
-  #global-tooltip,
-  [data-tooltip]::after,
-  [data-tooltip-html] {
-    display: none !important;
-    opacity: 0 !important;
-    pointer-events: none !important;
-    visibility: hidden !important;
+  /* El tooltip global SÍ sale en móvil. Aquí se ocultaba con display:none, y era de la
+     época en la que solo se abría por hover; desde que ui_components.js resuelve el tap
+     sobre el disparador, esta regla dejaba muertos todos los ℹ️, los "(?)" y los tooltips
+     de las pestañas: seguían pintados y no respondían al tocarlos.
+     Lo único que hace falta es acotarlo a la pantalla — el max-width de 350px fijos se
+     salía por el lado en un móvil de 360. */
+  #global-tooltip {
+    max-width: min(340px, calc(100vw - 24px));
+    max-height: 60vh;
   }
 
   html,
@@ -4027,7 +4069,10 @@ body.theme-bounties {
     bottom: 2.5px !important;
   }
 
-  #footer-relic.footer-visible~.mobile-scan-fab {
+  /* body:has(...) y no "#footer-relic.footer-visible ~ .mobile-scan-fab": no son hermanos.
+     #footer-relic cuelga de #main-card y el FAB del body, asi que el combinador ~ no casaba
+     nunca y el FAB se quedaba en 84px, encima del boton COPY MESSAGE de la barra. */
+  body:has(#footer-relic.footer-visible) .mobile-scan-fab {
     bottom: 220px !important;
     transition: bottom 0.3s ease;
   }
@@ -4116,8 +4161,19 @@ button[onclick*="importInventory"]:hover {
 }
 
 @media (max-width: 480px) {
+  /* .bounty-side-actions no encoge (flex-shrink: 0), asi que la estrella y el boton de
+     recompensas se quedaban el ancho y .bounty-info bajaba a ~50px: "Lvl 110-115" y
+     "SP 210-215" se partian en tres lineas y .bounty-condition quedaba en 20px, dejando su
+     borde izquierdo suelto como una barra huerfana. En columna hay sitio para ambos. */
   .bounty-header-row {
     padding: 10px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .bounty-side-actions {
+    justify-content: flex-end;
   }
 
   .bounty-type {
@@ -4198,7 +4254,13 @@ button[onclick*="importInventory"]:hover {
 }
 
 /* Responsive Grid Adjustments */
-@media (max-width: 480px) {
+/* 600 y no 480: lo que se rompe no es el viewport, es el PANEL, que mide 450px. Entre 481 y
+   600 el panel sigue a 450 con la cabecera en una sola fila, y ahí ya no cabe — todos los
+   hermanos del título son flex-shrink:0 (controles, iconos, badge, precio, marcador de
+   mercado), así que el único que cede es el título, se queda en ~20px y su word-break lo
+   parte LETRA A LETRA: una columna vertical de caracteres. Este bloque es justo la cabecera
+   a dos filas que lo arregla; solo entraba demasiado tarde. */
+@media (max-width: 600px) {
   #inventory-container {
     width: 320px !important;
     max-width: 95vw !important;
@@ -5972,6 +6034,19 @@ button[onclick*="importInventory"]:hover {
   flex-wrap: wrap;
 }
 
+/* Los dos distintivos de techo juntos miden 331px y el nowrap en linea (ui_rivens.js) les
+   impedia partirse, asi que fijaban el ancho minimo de la tarjeta del indice muy por encima
+   de los 284px que hay en un movil de 390: la tarjeta salia centrada y asomando por ambos
+   lados. El nowrap se hereda, de modo que cada distintivo sigue entero; solo se apilan. */
+.potential-badges-row {
+  flex-wrap: wrap;
+  /* Al envolver, la fila ocupa el ancho entero y sus dos distintivos se quedaban alineados
+     a la izquierda mientras el resto de .index-card-top-line va centrado, que era lo que
+     hacia que la tarjeta se viera desalineada. Sin envolver no cambia nada: la fila mide
+     lo que su contenido. */
+  justify-content: center;
+}
+
 .index-card-weapon-name {
   font-weight: 800;
   font-size: 1.15rem;
@@ -6113,6 +6188,35 @@ button[onclick*="importInventory"]:hover {
     padding-top: 8px;
     width: 100%;
   }
+
+  /* Los min-width de 290/175/185px se pusieron "para no desbordar nunca", pero en un movil
+     de 390px la tarjeta mide 284: el grupo de 290 ya no cabia y se salia del viewport.
+     Aqui se apilan en vertical, que es donde si hay sitio. */
+  .index-card-price-groups > .price-group-section {
+    min-width: 0 !important;
+    flex-basis: 100% !important;
+  }
+
+  /* El nowrap acompañaba a esos min-width; sin ellos solo sirve para cortar el texto. */
+  .price-group-section,
+  .price-group-section span,
+  .price-group-section div {
+    white-space: normal;
+  }
+
+  /* La cabecera de REAL DATA (DE) es un flex (lleva icono), asi que se quedaba a la
+     izquierda mientras las de WEB DATA y MARKET RISK, que son divs normales, heredaban el
+     text-align:center de .index-card-info-area. */
+  .price-group-section > div:first-child {
+    justify-content: center;
+  }
+
+  /* Los "|" entre precios quedaban colgando al final de la linea al envolver. Se ocultan
+     porque aqui cada precio ya cae en su propia linea. El :not(:first-child) deja fuera el
+     div de cabecera, cuyo unico <span> es el titulo del grupo. */
+  .price-group-section > div:not(:first-child) > span:not(.index-card-price-span) {
+    display: none;
+  }
 }
 
 /* =========================================
@@ -6184,6 +6288,17 @@ button[onclick*="importInventory"]:hover {
   width: 100%;
 }
 
+/* La fila de tarjetas de muestra no envolvia, asi que su min-content (3 tarjetas de 110px
+   —imagen de 90 en linea + 20 de padding— mas 30 de huecos y 40 del contenedor = 400px)
+   marcaba el ancho minimo del panel dentro de una columna de 338: quedaba centrado
+   asomando 5px por cada lado de la pantalla. Envolviendo, el minimo baja a una tarjeta.
+   El :has acota la regla a la fila de tarjetas, que es un div sin clase generado en JS. */
+@media (max-width: 600px) {
+  .empty-showcase-container > div:has(> .showcase-card) {
+    flex-wrap: wrap;
+  }
+}
+
 .empty-showcase-container .showcase-heading {
   font-size: 1.15rem;
   font-weight: 800;
@@ -6207,12 +6322,15 @@ button[onclick*="importInventory"]:hover {
    cortado por debajo. */
 .ticker-grid-expanded {
   display: grid;
-  grid-template-columns: repeat(1, minmax(0, 1fr));
-  gap: 24px;
+  /* Dos columnas ya en movil: con una sola se veia unicamente el grupo de warframes
+     (las otras dos columnas caen a la fila 2 de la rejilla y las recorta el overflow),
+     y cada tarjeta ocupaba el ancho entero para nada. */
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
   width: 100%;
   max-width: 1400px;
   margin: 0 auto;
-  padding: 0 16px;
+  padding: 0 8px;
   box-sizing: border-box;
   height: clamp(380px, 72vh, 1100px);
   height: clamp(380px, 72dvh, 1100px);
@@ -6285,15 +6403,25 @@ button[onclick*="importInventory"]:hover {
   width: 100%;
 }
 
+/* Ya son dos columnas de base; a partir de aqui solo se recupera el aire de escritorio. */
 @media (min-width: 768px) {
   .ticker-grid-expanded {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 24px;
+    padding: 0 16px;
   }
 }
 
 @media (min-width: 1200px) {
   .ticker-grid-expanded {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* Por debajo de tres columnas la tercera cae a la fila 2 y no se ve nunca, pero seguia
+   animandose y cargando sus 20 iconos. */
+@media (max-width: 1199px) {
+  .ticker-column-large:nth-child(3) {
+    display: none;
   }
 }
 
@@ -6644,7 +6772,10 @@ body[data-lang="en"] .lang-es {
 }
 .content-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  /* min() y no 280px a secas: dentro de .site-about[open] (22px de padding por lado) la
+     caja baja de 280px en movil y auto-fit seguia imponiendo la columna de 280, sacando
+     las tarjetas 23px fuera del contenedor. */
+  grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
   gap: 18px;
   margin-bottom: 8px;
 }
@@ -6962,6 +7093,20 @@ body[data-lang="en"] .header-guide-cta .lang-en {
   text-align: center;
   color: #6b7079;
   font-size: 0.9em;
+  /* Columna para la pista de uso: el vacío dice QUÉ hace la pestaña, no solo que está vacía. */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+/* `rem` y no `em`: .duc-empty ya está en 0.9em y encadenar otro 0.x deja la pista por debajo de
+   lo legible (el tropiezo de .ratio-unit a 5,7px que documenta CLAUDE.md). */
+.duc-empty-hint {
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: #8b95a3;
+  max-width: 58ch;
 }
 .duc-section-header {
   display: flex;
@@ -8204,60 +8349,339 @@ body[data-lang="en"] .header-guide-cta .lang-en {
 }
 
 /* ============================================================
-   Rutas para cerrar sets (#farm-routes)
+   Rutas aconsejadas (.farm-routes)
    ============================================================ */
 
-#farm-routes {
+.farm-routes {
   background: rgba(0, 0, 0, 0.25);
   border: 1px solid rgba(255, 255, 255, 0.07);
   border-radius: 6px;
-  padding: 10px;
+  padding: 0;
+  /* Heredado de cuando compartía la columna de controles del lateral con el listado de piezas.
+     Ahí competía por el alto; aquí no, pero no estorba y evita sorpresas si vuelve a anidarse
+     en un contenedor flex. */
+  flex-shrink: 0;
+  margin-bottom: 18px;
 }
 
-#farm-routes .fr-title {
-  font-size: 0.8em;
+/* El techo está en el CUERPO y no en el contenedor: así la cabecera —que dice qué es esto y
+   lleva el botón de plegar— no se va con el scroll.
+
+   El panel vivía en el lateral de 80vh y este techo eran 34vh medidos contra él, con las 8
+   rutas apretadas en 340px: se veían dos y media. Ahora vive en la pestaña Reliquia, donde
+   scrollea .content-area, así que el límite ya no es repartir un cajón — es dejar alcanzable
+   lo que va debajo (#relic-contents con el desglose de la reliquia que elijas). De ahí 52vh:
+   entran ~6 rutas de un vistazo y el contenido sigue a un scroll corto. */
+.farm-routes .fr-body {
+  max-height: min(52vh, 620px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 10px 10px;
+}
+
+.farm-routes.collapsed .fr-body {
+  display: none;
+}
+
+/* La instancia del lateral comparte columna con el listado de piezas y solo tiene 350px de
+   ancho, así que su techo es el de siempre: con 52vh ahí el listado volvía a quedarse en su
+   min-height de 120px, que es justo por lo que este panel se mudó. */
+.farm-routes[data-fr-host="inventory"] .fr-body {
+  max-height: min(34vh, 340px);
+}
+
+/* En la pestaña Set las rutas van ANTES de los resultados de búsqueda, así que su techo es más
+   bajo que en Reliquia: ahí son la pantalla de entrada, aquí un acompañante de lo que buscas. */
+.farm-routes[data-fr-host="set"] .fr-body {
+  max-height: min(32vh, 380px);
+}
+
+/* Cabecera pulsable: pliega el panel entero. Es un <button> por lo táctil (utils/tap.js),
+   pero se lee como un título. */
+.farm-routes .fr-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 9px 10px;
+  /* Sin `font: inherit` el <button> se queda con la fuente del sistema y la cabecera deja de
+     parecerse al resto del panel. */
+  font: inherit;
+  background: none;
+  border: 0;
+  text-align: left;
+  cursor: pointer;
+}
+
+/* El mismo atropello que en .fr-go: `#inventory-container button:hover` es (1,1,1) y la regla
+   de aquí arriba (1,1,0), así que al pasar por encima la cabecera ENTERA se pintaba de cian
+   con el texto en negro. Se repone el fondo del panel y, ya que hace falta la regla, se
+   aprovecha para marcar que es pulsable —que es lo que el hover genérico intentaba decir. */
+.farm-routes .fr-head:hover,
+.farm-routes .fr-head:focus-visible {
+  background: rgba(255, 255, 255, 0.04);
+  color: inherit;
+  border: 0;
+  box-shadow: none;
+}
+
+.farm-routes .fr-arrow {
+  margin-left: auto;
+  color: #7d8590;
+  font-size: 0.7rem;
+  transition: transform 0.15s ease;
+}
+
+.farm-routes.collapsed .fr-arrow {
+  transform: rotate(-90deg);
+}
+
+/* Qué es el panel, en una línea y sin tener que abrir nada. Los tres colores y los números
+   sí se explican en la guía: aquí solo cabe el titular. */
+.farm-routes .fr-sub {
+  margin: 0 0 8px;
+  color: #9aa7b4;
+  font-size: 0.72rem;
+  line-height: 1.4;
+}
+
+/* Contrapunto apagado del badge verde "Puedes ahora": la ruta está en la lista, pero hoy no
+   se puede tocar. Va en la cabecera para no repetirlo en cada pieza. */
+/* "Mejor comprarla" en la línea de la pieza. En rem y no en em: cuelga de .fr-part, que ya
+   reduce el tamaño, y encadenar otro 0.x em lo dejaba por debajo de lo legible. */
+.farm-routes .fr-buy {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--wf-gold-text);
+  background: rgba(197, 168, 86, 0.12);
+  border: 1px solid rgba(197, 168, 86, 0.35);
+  border-radius: 3px;
+  padding: 0 5px;
+  margin-left: 6px;
+  white-space: nowrap;
+}
+
+/* Azul y no dorado como .fr-buy: son dos consejos distintos ("cómprala" / "refínala") y en
+   la misma línea el mismo color los hacía parecer el mismo aviso. */
+.farm-routes .fr-refine {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #8fd0ff;
+  background: rgba(93, 173, 226, 0.12);
+  border: 1px solid rgba(93, 173, 226, 0.38);
+  border-radius: 3px;
+  padding: 0 5px;
+  margin-left: 6px;
+  white-space: nowrap;
+}
+
+.farm-routes .set-rec-filters {
+  margin: 0 0 8px;
+  padding: 0;
+  background: none;
+  border: 0;
+}
+
+/* En FILA y con wrap, al revés que `.set-rec-filter-row` (que es `column`). El cuerpo del panel
+   tiene techo de 34vh: cuatro controles apilados se comían la mitad y dejaban una ruta y media
+   a la vista. El `min-width` de .alarm-select viene de arriba a 180px, pensado para una columna
+   de ~330px; con dos o tres por fila hay que soltarlo o no cabe ninguno. */
+.farm-routes .set-rec-filter-row {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.farm-routes .set-rec-filter-row .alarm-select {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: auto;
+}
+
+.farm-routes .set-rec-filter-row .set-rec-filter-input {
+  flex: 1 1 100%;
+}
+
+/* Los dos umbrales comparten fila con el orden: `8ch` da para "1000" y la flecha del number, y
+   `min-width: 0` evita que el ancho intrínseco del input (que en Firefox es generoso) empuje al
+   selector fuera de la fila. */
+.farm-routes .fr-num {
+  flex: 0 1 8ch;
+  min-width: 0;
+  padding: 6px 4px;
+  font-size: 0.92em;
+  text-align: center;
+}
+
+/* La fila de simulación no filtra: cambia con qué se calculan las runs. Se separa con una línea
+   para que no se lea como dos filtros más. */
+.farm-routes .fr-sim-row {
+  padding-top: 6px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.07);
+}
+
+.farm-routes .fr-waiting {
+  font-size: 0.7em;
+  font-weight: 700;
+  color: #7d8590;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 3px;
+  padding: 1px 6px;
+}
+
+/* Lo que ganas por cerrarlo y a qué ritmo. Va en la cabecera del set, al lado del progreso. */
+.farm-routes .fr-value {
+  font-size: 0.72em;
+  font-weight: 700;
+  color: var(--wf-green, #42f56c);
+  white-space: nowrap;
+  cursor: help;
+}
+
+.farm-routes .fr-title {
+  font-size: 0.8rem;
   font-weight: 800;
   letter-spacing: 0.5px;
   text-transform: uppercase;
   color: var(--wf-blue);
-  margin-bottom: 8px;
 }
 
-#farm-routes .fr-count {
+.farm-routes .fr-count {
   color: #7d8590;
   font-weight: 600;
+  font-size: 0.75rem;
 }
 
-#farm-routes .fr-empty {
-  font-size: 0.78em;
+.farm-routes .fr-empty {
+  font-size: 0.75rem;
+  line-height: 1.5;
   color: #7d8590;
 }
 
-#farm-routes .fr-set + .fr-set {
+/* --- Guía: qué significa cada color y de dónde sale cada número --- */
+
+/* Plegada de serie. Quien ya sabe leer el panel no vuelve a verla, y quien no, la tiene a un
+   clic en el sitio donde le surge la duda — no en una ayuda aparte. */
+.farm-routes .fr-guide {
+  margin-bottom: 8px;
+  font-size: 0.72rem;
+}
+
+.farm-routes .fr-guide summary {
+  color: #9aa7b4;
+  cursor: pointer;
+  list-style: none;
+  padding: 2px 0;
+}
+
+.farm-routes .fr-guide summary::-webkit-details-marker {
+  display: none;
+}
+
+.farm-routes .fr-guide summary::before {
+  content: "▸ ";
+  color: var(--wf-blue);
+}
+
+.farm-routes .fr-guide[open] summary::before {
+  content: "▾ ";
+}
+
+.farm-routes .fr-guide-body {
+  margin-top: 6px;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border-left: 2px solid rgba(140, 158, 255, 0.35);
+  border-radius: 0 4px 4px 0;
+  line-height: 1.45;
+}
+
+.farm-routes .fr-guide-h {
+  margin: 0 0 4px;
+  color: #c9d1d9;
+  font-weight: 700;
+}
+
+.farm-routes .fr-guide-h:not(:first-child) {
+  margin-top: 10px;
+}
+
+.farm-routes .fr-legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  color: #9aa7b4;
+}
+
+.farm-routes .fr-legend li {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 2px 0;
+}
+
+.farm-routes .fr-legend b {
+  color: #c9d1d9;
+  white-space: nowrap;
+}
+
+/* Los ejemplos de la columna de números ("120 p/h") son el mismo texto que se ve en las
+   tarjetas: se marcan igual para que se reconozcan de un vistazo. */
+.farm-routes .fr-numbers b {
+  color: var(--wf-green, #42f56c);
+}
+
+.farm-routes .fr-note {
+  margin: 8px 0 0;
+  color: #7d8590;
+}
+
+/* El punto de estado: lo mismo en la leyenda que en cada pieza. El color por sí solo no se
+   puede aprender —nadie adivina que ámbar es "tienes la reliquia pero no hay fisura"—, así
+   que la forma que aparece en las dos partes es lo que las une. */
+.farm-routes .fr-state {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  align-self: center;
+  background: var(--wf-green, #42f56c);
+}
+
+.farm-routes .fr-state.wait {
+  background: #d0a34c;
+}
+
+.farm-routes .fr-state.need {
+  background: #8c9eff;
+}
+
+.farm-routes .fr-set + .fr-set {
   margin-top: 10px;
   padding-top: 10px;
   border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
 
-#farm-routes .fr-set-head {
+.farm-routes .fr-set-head {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
 }
 
-#farm-routes .fr-set-name {
+.farm-routes .fr-set-name {
   font-weight: 700;
   color: #e6edf3;
   font-size: 0.86em;
 }
 
-#farm-routes .fr-set-prog {
+.farm-routes .fr-set-prog {
   font-size: 0.74em;
   color: #7d8590;
 }
 
-#farm-routes .fr-badge {
+.farm-routes .fr-badge {
   font-size: 0.7em;
   font-weight: 700;
   color: #050505;
@@ -8266,7 +8690,7 @@ body[data-lang="en"] .header-guide-cta .lang-en {
   padding: 1px 6px;
 }
 
-#farm-routes .fr-parts {
+.farm-routes .fr-parts {
   list-style: none;
   margin: 6px 0 0;
   padding: 0;
@@ -8274,7 +8698,7 @@ body[data-lang="en"] .header-guide-cta .lang-en {
 
 /* Cada pieza en su renglón, con la acción a la derecha. En rem porque el bloque cuelga de
    un panel que ya reduce el tamaño y encadenar em lo dejaba ilegible. */
-#farm-routes .fr-part {
+.farm-routes .fr-part {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
@@ -8285,19 +8709,33 @@ body[data-lang="en"] .header-guide-cta .lang-en {
   border-left: 2px solid rgba(255, 255, 255, 0.08);
 }
 
-/* Verde solo si de verdad puedes ir ahora: es la única señal que hay que mirar. */
-#farm-routes .fr-part.ready {
+/* El borde repite el color del punto, apagado: es lo que deja ver de un vistazo cuántas
+   piezas de la ruta están en cada estado sin leer una sola palabra. Solo el verde va a plena
+   intensidad — es la única señal que obliga a hacer algo. */
+.farm-routes .fr-part.ready {
   border-left-color: var(--wf-green, #42f56c);
 }
 
-#farm-routes .fr-name {
+.farm-routes .fr-part.wait {
+  border-left-color: rgba(208, 163, 76, 0.45);
+}
+
+.farm-routes .fr-part.need {
+  border-left-color: rgba(140, 158, 255, 0.45);
+}
+
+/* `1 1 100%` forzaba a la pieza a ocupar su propia fila, así que cada línea del plan eran
+   dos: 8 rutas no cabían ni con scroll. Con `auto` + un mínimo legible caen a dos filas solo
+   cuando de verdad no entran. */
+.farm-routes .fr-name {
   color: #c9d1d9;
-  flex: 1 1 100%;
+  flex: 1 1 auto;
+  min-width: 6ch;
 }
 
 /* Es un <button> de verdad (táctil), pero tiene que leerse como el texto del plan:
    se le quita todo el chrome y solo se marca como pulsable al pasar por encima. */
-#farm-routes .fr-go {
+.farm-routes .fr-go {
   font: inherit;
   font-weight: 700;
   color: var(--wf-green, #42f56c);
@@ -8309,22 +8747,163 @@ body[data-lang="en"] .header-guide-cta .lang-en {
   text-align: left;
 }
 
-#farm-routes .fr-go:hover,
-#farm-routes .fr-go:focus-visible {
+.farm-routes .fr-go:hover,
+.farm-routes .fr-go:focus-visible {
   filter: brightness(1.25);
   border-bottom-style: solid;
+  /* Los tres resets son contra `#inventory-container button:hover` (más arriba en esta hoja),
+     que viste TODOS los <button> del panel lateral con fondo cian y texto negro. Ese selector
+     es (1,1,1) y el de aquí arriba (1,1,0), así que en hover ganaba él: salía un rectángulo
+     azul claro con el nombre de la reliquia encima en verde, ámbar o azul —los colores de
+     estado, que sí ganan por (1,2,0)— y no se leía nada.
+     .fr-go es un <button> solo porque en táctil el click sobre un <div> se pierde
+     (utils/tap.js); tiene que leerse como el texto del plan, no como un botón. */
+  background: none;
+  box-shadow: none;
+  border-top: 0;
+  border-right: 0;
+  border-left: 0;
 }
 
-#farm-routes .fr-go.wait { border-bottom-color: rgba(208, 163, 76, 0.4); }
-#farm-routes .fr-go.need { border-bottom-color: rgba(140, 158, 255, 0.4); }
+.farm-routes .fr-go.wait { border-bottom-color: rgba(208, 163, 76, 0.4); }
+.farm-routes .fr-go.need { border-bottom-color: rgba(140, 158, 255, 0.4); }
 
-#farm-routes .fr-go.wait { color: #d0a34c; }
-#farm-routes .fr-go.need { color: #8c9eff; }
+/* Un selector por estado y los tres a (1,2,0), que es lo que hace falta para ganarle el
+   `color: #000` del hover genérico. El verde venía del `.fr-go` de arriba, a (1,1,0), así que
+   era el único de los tres que en hover se volvía negro. */
+.farm-routes .fr-go.ready { color: var(--wf-green, #42f56c); }
+.farm-routes .fr-go.wait { color: #d0a34c; }
+.farm-routes .fr-go.need { color: #8c9eff; }
 
-#farm-routes .fr-where {
+.farm-routes .fr-where {
   color: #9aa7b4;
 }
 
-#farm-routes .fr-dim {
+.farm-routes .fr-dim {
   color: #6e7681;
+}
+
+/* Las runs de la reliquia elegida. Apagadas: es el número que decide el orden, pero quien lee
+   la línea busca primero qué reliquia y dónde. */
+.farm-routes .fr-runs {
+  color: #6e7681;
+  white-space: nowrap;
+  cursor: help;
+}
+
+/* Cantidad de copias que faltan de una pieza (.fr-need) y sets que monta la ruta (.fr-multi).
+   Solo se pintan cuando son más de uno, así que llaman la atención por existir. */
+.farm-routes .fr-need {
+  font-size: 0.85em;
+  font-weight: 800;
+  color: var(--wf-gold-text);
+  white-space: nowrap;
+}
+
+.farm-routes .fr-multi {
+  font-size: 0.7em;
+  font-weight: 700;
+  color: #0d0f13;
+  background: var(--wf-gold-text);
+  border-radius: 3px;
+  padding: 1px 6px;
+  white-space: nowrap;
+}
+
+/* ---- Vista "por reliquia" del panel de rutas (fr-view-*, fr-pick-*) ---- */
+/*
+ * Es la cara inversa: en vez de "set → qué reliquia me lo cierra", "reliquia → qué me daría
+ * abrirla". Comparte cuerpo con la de rutas, así que reutiliza .fr-go, .fr-need y .fr-runs
+ * para que las dos se lean igual.
+ */
+.farm-routes .fr-views {
+  display: flex;
+  gap: 4px;
+  padding: 0 10px 8px;
+}
+
+.farm-routes .fr-view-btn {
+  flex: 1 1 auto;
+  padding: 5px 8px;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: none;
+  color: #8b95a3;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 5px;
+  cursor: pointer;
+  box-shadow: none;
+}
+
+.farm-routes .fr-view-btn.active {
+  color: #0d0f13;
+  background: var(--wf-gold-text);
+  border-color: var(--wf-gold-text);
+}
+
+.farm-routes .fr-pick + .fr-pick {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.farm-routes .fr-pick-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+}
+
+/* Las piezas van indentadas bajo su reliquia, con la misma sangría que .fr-part en la otra
+   vista: leídas en columna se ve de un vistazo cuántas aporta cada una. */
+.farm-routes .fr-pick-parts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  margin-top: 3px;
+  padding-left: 8px;
+  border-left: 2px solid rgba(255, 255, 255, 0.08);
+}
+
+.farm-routes .fr-pick.ready .fr-pick-parts {
+  border-left-color: var(--wf-green, #42f56c);
+}
+
+.farm-routes .fr-pick-part {
+  font-size: 0.72rem;
+  color: #c9d1d9;
+  white-space: nowrap;
+}
+
+/* Refinamiento con el que la ruta sale más barata. Solo destaca cuando es INTACTA, que es el
+   caso accionable: refinar ahí te hace ir más lento y encima cuesta 100 vestigios por reliquia.
+   Con los otros tres es información, no un aviso. */
+.farm-routes .fr-bestref {
+  font-size: 0.68em;
+  font-weight: 700;
+  color: #8b95a3;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 3px;
+  padding: 1px 5px;
+  white-space: nowrap;
+}
+
+.farm-routes .fr-bestref.is-cheap {
+  color: var(--wf-green, #42f56c);
+  border-color: rgba(66, 245, 108, 0.4);
+  background: rgba(66, 245, 108, 0.08);
+}
+
+/* La misión de una reliquia en la vista "por reliquia": va en su propio renglón bajo la
+   cabecera, como el plan de cada pieza en la vista por set, y con la misma sangría. */
+.farm-routes .fr-pick-where {
+  margin-top: 2px;
+  padding-left: 8px;
+  border-left: 2px solid rgba(255, 255, 255, 0.08);
+}
+
+.farm-routes .fr-pick.ready .fr-pick-where {
+  border-left-color: var(--wf-green, #42f56c);
 }

@@ -1,8 +1,12 @@
 import { state } from "../../state.js";
 import { loadRelicsData } from "../../repositories/api.repository.js";
-import { DROP_CHANCES } from "../../config.js";
 import { getSlug } from "../../utils/slugs.utils.js";
 import { getPriceValue } from "../../repositories/storage.repository.js";
+import {
+    getPlayerOdds,
+    rarityFromChance,
+    relicOpenEV,
+} from "../../utils/inventory/relic_drop_odds.utils.js";
 
 
 /**
@@ -211,62 +215,34 @@ export async function downloadRelics() {
     }
 }
 
+// Ducados de una pieza cuando el dato no los trae: son los tres valores fijos del juego.
+const DUCATS_BY_RARITY = { rare: 100, uncommon: 45, common: 15 };
+
 /**
  * Valor esperado de abrir UNA reliquia: platino intacta/radiante y ducados medios.
  * Vivía en ui_inventory.js, pero no pinta nada — es cálculo sobre precios y tasas de drop.
+ *
+ * Se enseñan los dos refinamientos porque es lo que decide si compensa refinar, pero la
+ * ESCUADRA sale de lo que tenga puesto el jugador: este número iba siempre en solitario
+ * mientras la pestaña de Reliquias contaba la escuadra, así que la misma reliquia valía dos
+ * platinos distintos según dónde la miraras.
  */
 export async function calculateRelicValue(relicName) {
   const drops = state.relicsDatabase[relicName];
   if (!drops) return { intact: 0, rad: 0, ducats: 0 };
 
-  let totalIntact = 0;
-  let totalRad = 0;
-  let avgDucats = 0;
+  const valued = await Promise.all(drops.map(async (d) => ({
+    ...d,
+    plat: await getPriceValue(d.name, getSlug(d.name)),
+    duc: d.ducats || DUCATS_BY_RARITY[rarityFromChance(d.chance)] || 15,
+  })));
 
-  const promises = drops.map(async (d) => {
-    const slug = getSlug(d.name);
-    const price = await getPriceValue(d.name, slug);
-
-    let fallbackDucats = 15;
-    if (d.chance < 5) {
-      fallbackDucats = 100;
-    } else if (d.chance < 20) {
-      fallbackDucats = 45;
-    }
-    const ducatValue = d.ducats || fallbackDucats;
-
-    let pIntact;
-    let pRad;
-
-    if (d.chance < 5) {
-      pIntact = DROP_CHANCES.Intact.rare;
-      pRad = DROP_CHANCES.Rad.rare;
-    } else if (d.chance < 20) {
-      pIntact = DROP_CHANCES.Intact.uncommon / 2;
-      pRad = DROP_CHANCES.Rad.uncommon / 2;
-    } else {
-      pIntact = DROP_CHANCES.Intact.common / 3;
-      pRad = DROP_CHANCES.Rad.common / 3;
-    }
-
-    return {
-      intactVal: price * pIntact,
-      radVal: price * pRad,
-      ducatVal: ducatValue * pIntact,
-    };
-  });
-
-  const results = await Promise.all(promises);
-
-  results.forEach((res) => {
-    totalIntact += res.intactVal;
-    totalRad += res.radVal;
-    avgDucats += res.ducatVal;
-  });
+  const { squadSize } = getPlayerOdds();
+  const ev = (refinement, valueOf) => relicOpenEV(valued, { refinement, squadSize, valueOf });
 
   return {
-    intact: Number.parseFloat(totalIntact.toFixed(1)),
-    rad: Number.parseFloat(totalRad.toFixed(1)),
-    ducats: Math.round(avgDucats),
+    intact: Number.parseFloat(ev("intact", (d) => d.plat).toFixed(1)),
+    rad: Number.parseFloat(ev("radiant", (d) => d.plat).toFixed(1)),
+    ducats: Math.round(ev("intact", (d) => d.duc)),
   };
 }

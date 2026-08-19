@@ -7,7 +7,8 @@ export const UPDATE_HISTORY_DATA = {
   es: `
 <nav class="update-index" aria-label="Versiones">
   <span class="update-index-label">Versiones</span>
-  <a href="#v272" class="update-index-link is-current">v2.7.2</a>
+  <a href="#v280" class="update-index-link is-current">v2.8</a>
+  <a href="#v272" class="update-index-link">v2.7.2</a>
   <a href="#v271" class="update-index-link">v2.7.1</a>
   <a href="#v27" class="update-index-link">v2.7</a>
   <a href="#v2661" class="update-index-link">v2.6.6.1</a>
@@ -15,9 +16,50 @@ export const UPDATE_HISTORY_DATA = {
   <a href="#v265" class="update-index-link">v2.6.5</a>
   <a href="#v264" class="update-index-link">v2.6.4</a>
 </nav>
+<div class="update-block" id="v280">
+  <div class="update-header">
+    <span class="update-version">v2.8 (Actual)</span>
+    <span class="update-date">2026-08-19</span>
+  </div>
+
+  <h4 class="update-section">Escáner</h4>
+  <ul class="update-list">
+    <li>Menos escaneos fallidos: ya no confunde la pantalla de reliquias con la de recompensas.</li>
+  </ul>
+
+  <h4 class="update-section">Rutas de farmeo (nuevo)</h4>
+  <p class="update-lead">
+    <strong>Qué reliquia abrir ahora mismo para cerrar un set que tienes a medias.</strong>
+    Cruza las piezas que te faltan con las fisuras abiertas y con las reliquias que ya tienes:
+    por cada pieza te dice cuál abrir, a qué misión ir y cuántas runs suele costar. La otra
+    cara, «Por reliquia», va al revés: de las que tienes, cuál te acerca a más sets de una
+    sola apertura.
+  </p>
+  <p class="update-lead">
+    Necesita saber qué tienes. Escanea tu inventario con el escáner en vivo o añade las
+    reliquias a mano: sin eso no hay nada que cruzar y el panel sale vacío.
+  </p>
+  <ul class="update-list">
+    <li>Ahora también en Reliquia y Set, no solo en el inventario.</li>
+    <li>Pulsa una reliquia y ves su contenido sin cambiar de pestaña.</li>
+    <li>Vista por reliquia: cuáles de las tuyas te acercan a más sets, con sus propios
+    filtros y órdenes.</li>
+    <li>Te dice si refinar renta: cuánto platino de más y a cuántos vestigios sale.</li>
+    <li>Filtros por era, platino por hora y ganancia. La era elegida decide además qué
+    reliquia se te recomienda.</li>
+    <li>Cuenta tu excedente: 4 planos = 4 sets.</li>
+    <li>Entran todos los sets, empezados o no.</li>
+  </ul>
+
+  <h4 class="update-section">Interfaz</h4>
+  <ul class="update-list">
+    <li>Tus sets a medias, a la vista en la pestaña Set.</li>
+    <li>Tooltips de vuelta en móvil; escáner e inventario traducidos.</li>
+  </ul>
+</div>
 <div class="update-block" id="v272">
   <div class="update-header">
-    <span class="update-version">v2.7.2 (Actual)</span>
+    <span class="update-version">v2.7.2</span>
     <span class="update-date">2026-08-07</span>
   </div>
 
@@ -428,7 +470,8 @@ export const UPDATE_HISTORY_DATA = {
   en: `
 <nav class="update-index" aria-label="Versions">
   <span class="update-index-label">Versions</span>
-  <a href="#v272" class="update-index-link is-current">v2.7.2</a>
+  <a href="#v280" class="update-index-link is-current">v2.8</a>
+  <a href="#v272" class="update-index-link">v2.7.2</a>
   <a href="#v271" class="update-index-link">v2.7.1</a>
   <a href="#v27" class="update-index-link">v2.7</a>
   <a href="#v2661" class="update-index-link">v2.6.6.1</a>
@@ -436,9 +479,46 @@ export const UPDATE_HISTORY_DATA = {
   <a href="#v265" class="update-index-link">v2.6.5</a>
   <a href="#v264" class="update-index-link">v2.6.4</a>
 </nav>
+<div class="update-block" id="v280">
+  <div class="update-header">
+    <span class="update-version">v2.8 (Current)</span>
+    <span class="update-date">2026-08-19</span>
+  </div>
+
+  <h4 class="update-section">Scanner</h4>
+  <ul class="update-list">
+    <li>Fewer failed scans: it no longer mistakes the relic screen for the reward one.</li>
+  </ul>
+
+  <h4 class="update-section">Farm routes (new)</h4>
+  <p class="update-lead">
+    <strong>Which relic to crack right now to finish a set you have half-built.</strong>
+    It cross-references the parts you are missing with the open fissures and with the relics
+    you already own: for each part it tells you which one to crack, which mission to run and
+    how many runs it usually takes. The other side, "By relic", works backwards: of the ones
+    you own, which gets you closer to more sets in a single crack.
+  </p>
+  <p class="update-lead">
+    It needs to know what you own. Scan your inventory with the live scanner or add the relics
+    by hand: without that there is nothing to cross-reference and the panel comes up empty.
+  </p>
+  <ul class="update-list">
+    <li>Click a relic and see its contents without switching tabs.</li>
+    <li>By-relic view: which of yours get you closer to more sets, with its own filters
+    and sort orders.</li>
+    <li>It tells you whether refining pays: how much extra platinum, and at how many traces.</li>
+    <li>Filters by era, platinum per hour and gain. The chosen era also decides which relic
+    gets recommended.</li>
+  </ul>
+
+  <h4 class="update-section">Interface</h4>
+  <ul class="update-list">
+    <li>Tooltips work on mobile again; scanner and inventory translated.</li>
+  </ul>
+</div>
 <div class="update-block" id="v272">
   <div class="update-header">
-    <span class="update-version">v2.7.2 (Current)</span>
+    <span class="update-version">v2.7.2</span>
     <span class="update-date">2026-08-07</span>
   </div>
 

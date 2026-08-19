@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { relicSetValue, partDropChance } from "../deploy/js/utils/inventory/relic_set_value.js";
+import { relicSetValue, partDropChance, pickSetToTrack } from "../deploy/js/utils/inventory/relic_set_value.js";
 
 // Tramo radiante de DROP_CHANCES (config.js).
 const RAD = { rare: 0.1, uncommon: 0.4, common: 0.5 };
@@ -119,4 +119,45 @@ test("partDropChance reparte la probabilidad entre las piezas del tramo", () => 
   assert.equal(partDropChance(2, RAD), 0.1);        // 1 rara
   assert.equal(partDropChance(11, RAD), 0.2);       // 2 poco comunes
   assert.ok(Math.abs(partDropChance(25, RAD) - 0.5 / 3) < 1e-9); // 3 comunes
+});
+
+// ── pickSetToTrack: qué set se pone en seguimiento al abrir la ficha de una reliquia ──
+//
+// Una reliquia lleva piezas de varios sets a la vez, así que "trackea el set de esta
+// reliquia" no está definido solo. Estas son las dos reglas que impiden que navegar
+// reliquias vaya pisando el panel; si se rompen, el síntoma es mudo: el panel cambia de set
+// y parece que lo pediste tú.
+
+test("pickSetToTrack: elige el set al que menos le falta", () => {
+  const owned = { "Nidus Prime Blueprint": 1, "Nidus Prime Neuroptics": 1, "Nidus Prime Chassis": 1 };
+  const v = relicSetValue(
+    [drop("Nidus Prime Systems", RARE), drop("Gara Prime Systems", COMMON)],
+    deps(owned),
+  );
+  assert.equal(pickSetToTrack(v, null), "Nidus Prime");
+});
+
+test("pickSetToTrack: si la reliquia no cierra nada tuyo, no se toca el seguimiento", () => {
+  const todo = Object.fromEntries(
+    [...SETS["Nidus Prime"], ...SETS["Gara Prime"]].map((p) => [p, 1]),
+  );
+  const v = relicSetValue([drop("Nidus Prime Systems", RARE)], deps(todo));
+  assert.equal(pickSetToTrack(v, "Gara Prime"), null);
+});
+
+test("pickSetToTrack: el set que ya sigues gana si sale en la reliquia", () => {
+  // A Gara le falta menos, pero el usuario venía siguiendo Nidus y Nidus está en la reliquia:
+  // cambiárselo por una pieza de diferencia sería pisarle la elección.
+  const owned = { "Gara Prime Blueprint": 1, "Gara Prime Neuroptics": 1, "Gara Prime Chassis": 1 };
+  const v = relicSetValue(
+    [drop("Gara Prime Systems", RARE), drop("Nidus Prime Systems", COMMON)],
+    deps(owned),
+  );
+  assert.equal(pickSetToTrack(v, null), "Gara Prime");
+  assert.equal(pickSetToTrack(v, "Nidus Prime"), null);
+});
+
+test("pickSetToTrack: si el set que sigues no sale, se cambia al que toca", () => {
+  const v = relicSetValue([drop("Nidus Prime Systems", RARE)], deps({}));
+  assert.equal(pickSetToTrack(v, "Gara Prime"), "Nidus Prime");
 });

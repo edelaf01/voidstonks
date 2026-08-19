@@ -20,16 +20,54 @@ function getTier(index, isNarmer, isLich) {
     return index + 1;
 }
 
-function getTechType(uName, nodeKey) {
-    const chall = uName.toLowerCase();
-    if (chall.includes("mobdef")) return "Mobile Defense";
-    if (chall.includes("exterminate")) return "Exterminate";
-    if (chall.includes("cascade")) return "Void Cascade";
-    if (chall.includes("armageddon")) return "Void Armageddon";
-    if (chall.includes("flood")) return "Void Flood";
-    if (chall.includes("capture")) return "Capture";
-    if (chall.includes("defense")) return "Defense";
-    return NODE_TO_TYPE[nodeKey] || "Bounty";
+// Fragmento -> tipo. En lista y no en cadena de ifs porque ahora se recorre sobre tres textos
+// distintos, y con ifs eso eran tres copias.
+const TECH_TYPE_FRAGMENTS = [
+    ["mobdef", "Mobile Defense"],
+    ["mobile defense", "Mobile Defense"],
+    ["exterminate", "Exterminate"],
+    ["cascade", "Void Cascade"],
+    ["armageddon", "Void Armageddon"],
+    ["flood", "Void Flood"],
+    ["capture", "Capture"],
+    ["rescue", "Rescue"],
+    ["excavat", "Excavation"],
+    ["sabotage", "Sabotage"],
+    ["spy", "Spy"],
+    ["assassinat", "Assassination"],
+    ["defense", "Defense"],
+];
+
+function matchTechType(text) {
+    const s = String(text || "").toLowerCase();
+    if (!s) return null;
+    for (const [frag, tipo] of TECH_TYPE_FRAGMENTS) if (s.includes(frag)) return tipo;
+    return null;
+}
+
+/**
+ * Tipo de misión de una bounty.
+ *
+ * Miraba solo el uniqueName, y en Cetus/Fortuna/Deimos ese campo es una TABLA DE RECOMPENSAS
+ * ("/Lotus/.../TierCTableBRewards"), no el tipo: las 23 bounties vivas caían todas al fallback
+ * "Bounty". Como `checkIsOptimal` compara contra este valor, la vista "Solo óptimas" no podía
+ * casar nunca con Exterminate ni Capture — y Rescue ni siquiera estaba en la lista, aunque el
+ * panel de fisuras sí lo cuenta como misión rápida (DEFAULT_MISSION_TYPES).
+ *
+ * Se miran tres textos, y el orden importa:
+ *  1. `uName` (challenge del oráculo o uniqueName): lo que ya funcionaba en Zariman y Deimos,
+ *     primero para no cambiar ni un caso de los que hoy aciertan.
+ *  2. El TÍTULO, que es el que dice la verdad cuando el id engaña: la bounty
+ *     `AssassinateBountyCap` se llama "Capture the New Grineer Commander" y es una captura.
+ *  3. El `id`, para los títulos temáticos que no nombran la misión ("Rise and Fall (Narmer)"
+ *     sobre `AssassinateBountyAss`).
+ */
+function getTechType(uName, nodeKey, title = "", jobId = "") {
+    return matchTechType(uName)
+        || matchTechType(title)
+        || matchTechType(jobId)
+        || NODE_TO_TYPE[nodeKey]
+        || "Bounty";
 }
 
 function getMissionName(job, techType, faction, isLich, nodeKey, allyKey) {
@@ -69,7 +107,7 @@ function extractJobInfo(job, source, faction, oracleJob = null, index = 0) {
         job.type?.toLowerCase().includes("narmer");
 
     const tier = getTier(index, isNarmer, isLich);
-    const techType = getTechType(uName, nodeKey);
+    const techType = getTechType(uName, nodeKey, job.type || job.title || "", job.id || "");
     const missionName = getMissionName(job, techType, faction, isLich, nodeKey, allyKey);
 
     const challengeKey = Object.keys(CHALLENGE_MAP).find((k) => uName.includes(k));

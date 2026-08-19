@@ -32,7 +32,16 @@ export const DEFAULT_VISION_SETTINGS = Object.freeze({
 Object.assign(rawState, {
   currentLang: "en",
   activeTab: "relic",
+  // Cuántos jugadores te FALTAN para la escuadra. Solo alimenta el mensaje de reclutamiento
+  // ("H [Lith D1] Rad 1/4"), que es para lo que se puso el contador.
   playerCount: 1,
+  // Con cuántos abres las reliquias. Es lo que decide las probabilidades: en escuadra de 4 se
+  // abren 4 y te quedas con la mejor recompensa, así que una rara radiante pasa de 10% a ~34%.
+  //
+  // Campo aparte porque antes esto salía de `playerCount`, o sea del contador "Faltan": poner
+  // "me falta 1 jugador" calculaba las runs como si jugaras SOLO. Y como arrancaba en 1, quien
+  // nunca tocó ese contador tenía toda la app estimando en solitario. 4 es el caso normal.
+  squadSize: 4,
   lfgCount: 1,
   relicSourcesDatabase: {},
   selectedRelic: "",
@@ -91,6 +100,7 @@ export function saveAppState() {
       username: state.username || "", // Requires UI to update state.username
       mr: state.mr || 0, // Requires UI to update state.mr
       currentActiveSet: state.currentActiveSet,
+      squadSize: state.squadSize,
       activeSetParts: state.activeSetParts,
       completedParts: Array.from(state.completedParts),
       lfgPresets: state.lfgPresets,
@@ -142,6 +152,8 @@ export function loadAppState() {
       state.completedParts = new Set(data.completedParts || []);
     }
     if (typeof data.showAllFarms !== "undefined") state.showAllFarms = data.showAllFarms;
+    // Se acota al rango válido: una escuadra de 0 o de 7 tiraría abajo el cálculo de odds.
+    if (Number.isFinite(data.squadSize)) state.squadSize = Math.min(4, Math.max(1, data.squadSize));
     if (data.lfgPresets) state.lfgPresets = data.lfgPresets;
     if (data.tradePresets) state.tradePresets = data.tradePresets;
     if (data.arbSettings) state.arbSettings = { ...state.arbSettings, ...data.arbSettings };

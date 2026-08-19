@@ -57,3 +57,4 @@ deploy/MAINTENANCE_VOSFOR.md
 deploy/MAINTENANCE_VOSFOR.md
 dist/
 node_modules/
+wf-parser.js

@@ -849,7 +849,22 @@ ENSEMBLE_SPECS = [
     dict(random_state=7,    max_depth=12, colsample_bytree=0.50),
     dict(random_state=2024, max_depth=8,  colsample_bytree=0.70),
 ]
-COMMON = dict(n_estimators=int(os.environ.get("XGB_N", "2000")), learning_rate=0.025, subsample=0.85,
+def _env_num(name, default, cast=int):
+    """Hiperparámetro numérico del entorno, tratando la cadena vacía como AUSENTE.
+
+    GitHub Actions define la variable IGUALMENTE cuando el input de workflow_dispatch no se
+    rellena, y en los runs por cron no se rellena nunca: llegaba XGB_N="" y el default de
+    os.environ.get no aplica (solo cubre la clave ausente), así que int("") reventaba el
+    reentreno antes de entrenar nada. Tumbó el cron del 2026-08-10.
+
+    El resto del script ya da por hecho que vacío == sin forzar (ver el presupuesto por
+    cuantil más abajo); esto lo hace cierto también aquí.
+    """
+    raw = os.environ.get(name, "")
+    return cast(raw) if str(raw).strip() else cast(default)
+
+
+COMMON = dict(n_estimators=_env_num("XGB_N", 2000), learning_rate=0.025, subsample=0.85,
               min_child_weight=4, reg_lambda=2.5, reg_alpha=0.1,
               tree_method="hist", n_jobs=-1, eval_metric="rmse",
               early_stopping_rounds=60,
@@ -870,13 +885,13 @@ QUANTILES = [0.25, 0.50, 0.80, 0.90, 0.95]   # p90/p95 = techo godroll (precio r
 # de 7 niveles no alcanza. Y sale carísimo — pedía ~12500 árboles frente a 5149 para rendir menos.
 # Aprendizaje transferible: depth y n_estimators están ACOPLADOS. Cada nivel que quitas se paga con
 # ~2x iteraciones, así que un A/B de profundidad sin reescalar el presupuesto no concluye nada.
-_QPARAMS = dict(n_estimators=int(os.environ.get("XGB_N", "2000")),
-                learning_rate=float(os.environ.get("XGB_LR", "0.03")),
-                max_depth=int(os.environ.get("XGB_DEPTH", "10")),
-                subsample=float(os.environ.get("XGB_SUB", "0.85")),
-                colsample_bytree=float(os.environ.get("XGB_COL", "0.6")),
-                min_child_weight=int(os.environ.get("XGB_MCW", "4")),
-                reg_lambda=float(os.environ.get("XGB_L2", "2.5")), reg_alpha=0.1,
+_QPARAMS = dict(n_estimators=_env_num("XGB_N", 2000),
+                learning_rate=_env_num("XGB_LR", 0.03, float),
+                max_depth=_env_num("XGB_DEPTH", 10),
+                subsample=_env_num("XGB_SUB", 0.85, float),
+                colsample_bytree=_env_num("XGB_COL", 0.6, float),
+                min_child_weight=_env_num("XGB_MCW", 4),
+                reg_lambda=_env_num("XGB_L2", 2.5, float), reg_alpha=0.1,
                 tree_method="hist", n_jobs=-1,
                 device=os.environ.get("XGB_DEVICE", "cpu"), early_stopping_rounds=80)
 print(f"  Hiperparámetros: depth={_QPARAMS['max_depth']} lr={_QPARAMS['learning_rate']} "
@@ -921,12 +936,12 @@ for a in QUANTILES:
     # El presupuesto por cuantil solo se aplica si no se ha forzado XGB_N por env (CI pasa 400 para
     # que el run de diagnóstico sea rápido, y ahí no queremos árboles de sobra).
     _qp = dict(_QPARAMS)
-    if not os.environ.get("XGB_N"):
+    if not os.environ.get("XGB_N", "").strip():
         # XGB_NMULT escala el presupuesto: los óptimos de _N_POR_CUANTIL se midieron con depth=10, y
         # árboles más simples (depth menor, min_child_weight mayor) necesitan MÁS iteraciones. Sin
         # escalarlo, un A/B de profundidad compara una config truncada contra otra completa y no
         # concluye nada (pasó el 2026-08-08: los cinco cuantiles topaban con el límite).
-        _mult = float(os.environ.get("XGB_NMULT", "1"))
+        _mult = _env_num("XGB_NMULT", 1, float)
         _qp["n_estimators"] = int(_N_POR_CUANTIL.get(a, _qp["n_estimators"]) * _mult)
     m = xgb.XGBRegressor(objective="reg:quantileerror", quantile_alpha=a_tr, random_state=42, **_qp)
     # `w_train` (tiers por precio + popularidad + boost de godrolls) NO se pasa, y es deliberado
@@ -1749,7 +1764,7 @@ if os.environ.get("SLIM_EXPORT", "1") == "1":
     import gzip as _gz
     _OUT = os.environ.get("DEPLOY_ML_DIR", "generado")
     os.makedirs(_OUT, exist_ok=True)
-    _SN = int(os.environ.get("SLIM_N", "400")); _SD = int(os.environ.get("SLIM_DEPTH", "5"))
+    _SN = _env_num("SLIM_N", 400); _SD = _env_num("SLIM_DEPTH", 5)
     _sp = dict(n_estimators=_SN, learning_rate=0.05, max_depth=_SD, subsample=0.85,
                colsample_bytree=0.6, min_child_weight=4, reg_lambda=2.5, reg_alpha=0.1,
                tree_method="hist", n_jobs=-1, device=os.environ.get("XGB_DEVICE", "cpu"))

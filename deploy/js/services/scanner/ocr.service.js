@@ -1,5 +1,6 @@
 import { state } from "../../state.js";
 import { OCRRepository } from "../../repositories/ocr.repository.js";
+import { recoverClippedToken } from "../../utils/vision/clipped_token.js";
 import { readBadgeDigits } from "../../utils/vision/badge_digit_ocr.js";
 
 export const OCRService = {
@@ -376,6 +377,13 @@ export const OCRService = {
                     if (s > bestScore) { bestScore = s; best = token; }
                 }
                 matchedToken = bestScore >= minScore ? best : null;
+                // Último recurso: al OCR le comió las primeras letras (el arte claro detrás del
+                // nombre). Sin esto el token se tira, y tirar "CHASSIS" convierte
+                // "Hildryn Prime Chassis Blueprint" en "Hildryn Prime Blueprint" — otro ítem.
+                if (!matchedToken) {
+                    matchedToken = recoverClippedToken(
+                        text, knownTokens, (a, b) => this.similarityOCR(a, b));
+                }
             }
 
             if (matchedToken) {
@@ -468,7 +476,8 @@ export const OCRService = {
                         tokens: searchTokens.length,
                         x: avgX,
                         owned: metadata.owned,
-                        crafted: metadata.crafted
+                        crafted: metadata.crafted,
+                        ownedRead: metadata.ownedRead === true
                     });
                 }
             }
@@ -540,29 +549,47 @@ export const OCRService = {
             imgW: imgW,
             owned: item.owned,
             crafted: item.crafted,
+            // Viaja hasta el modal: el auto-sync SOLO puede escribir si esto es true.
+            ownedRead: item.ownedRead === true,
             ratio: item.ratio,
             confidence: 0.95
         }));
     },
 
+    /**
+     * La etiqueta de la tarjeta: "3 Owned" o "Crafted".
+     *
+     * `ownedRead` dice si el NÚMERO se leyó de verdad, y no es un detalle: el auto-sync escribe
+     * `primeInventory[pieza] = owned`, así que un 0 de "no pude leer" borraba piezas guardadas.
+     * Antes los dos casos devolvían `owned: 0` y eran indistinguibles.
+     *
+     * Un 0 leído no existe: el juego NO pinta etiqueta cuando no tienes ninguna, así que
+     * `owned: 0` siempre significa "no se pudo leer". Por eso el fallback va a null y no a 0.
+     *
+     * Ver el vecino "crafted", donde este mismo razonamiento ya estaba: el juego oculta el
+     * número, no sabemos el conteo, no se sobrescribe.
+     */
     extractInventoryMetadata(wordsArray) {
-        if (!wordsArray || wordsArray.length === 0) return { owned: 0, crafted: 0 };
+        const sinLeer = { owned: null, crafted: 0, ownedRead: false };
+        if (!wordsArray || wordsArray.length === 0) return sinLeer;
         const text = wordsArray.map(w => w.text).join(" ").toUpperCase();
 
         if (text.includes("CRAFTED") || text.includes("FORJA") || /CRAFT/i.test(text)) {
-            return { owned: 0, crafted: 1 };
+            return { owned: null, crafted: 1, ownedRead: false };
         }
 
         const strongMatch = text.match(/(\d+)\s*(?:OWNED|0WNED|QWNED|UWNED|OWNE|OWED|OWN|0WN|PROPIO|PROP)/);
         if (strongMatch && strongMatch[1]) {
-            return { owned: parseInt(strongMatch[1], 10), crafted: 0 };
+            return { owned: parseInt(strongMatch[1], 10), crafted: 0, ownedRead: true };
         }
 
+        // Se vio el tag pero no su número. El 1 sigue valiendo para PINTAR ("tienes al menos
+        // una"), pero no se marca como leído: escribirlo dejaría en 1 a quien tuviera 9.
         if (/OWNED|0WNED|OWNE|OWED|OWN|PROPIO|PROP/i.test(text)) {
-            return { owned: 1, crafted: 0 };
+            return { owned: 1, crafted: 0, ownedRead: false };
         }
 
-        return { owned: 0, crafted: 0 };
+        return sinLeer;
     },
 
     async extractCellText(worker, textCanvas) {

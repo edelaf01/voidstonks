@@ -1,5 +1,7 @@
 import { VisionService, WF_THEMES } from "./vision.service.js";
-import { isImplausibleFallbackGrid, detectRewardBand } from "../../utils/vision/grid_detect.js";
+import { freezeFrame, releaseFrame } from "../../utils/vision/frame_freeze.js";
+import { nextLatchedContext, INITIAL_LATCH } from "../../utils/vision/context_latch.js";
+import { isImplausibleFallbackGrid, detectPlausibleRewardBand } from "../../utils/vision/plausibility.js";
 import { OCRService } from "./ocr.service.js?v=264";
 import { OCRRepository } from "../../repositories/ocr.repository.js";
 import { PaddleRepository } from "../../repositories/paddle.repository.js";
@@ -52,7 +54,7 @@ export const ScannerService = {
         if (this.isScanning) return;
         this.isScanning = true;
         this.latchedContext = "UNKNOWN";
-        this.unknownFrameCount = 0;
+        this.ctxLatch = INITIAL_LATCH;
         this.detectionLocked = false;
         this.lastHashL = null;
         this.lastHashR = null;
@@ -123,7 +125,8 @@ export const ScannerService = {
     },
 
     latchedContext: "UNKNOWN",
-    unknownFrameCount: 0,
+    // Estado de la histéresis, entero: lo produce y consume context_latch.js.
+    ctxLatch: INITIAL_LATCH,
     lastRivenContextTime: 0,
 
     async processFrame(video, virtualCanvas) {
@@ -218,16 +221,11 @@ export const ScannerService = {
             }
         }
 
-        // Hysteresis/Debounce logic for OCR context noise
-        if (routedContext === "UNKNOWN") {
-            this.unknownFrameCount++;
-            if (this.unknownFrameCount >= 3) {
-                this.latchedContext = "UNKNOWN";
-            }
-        } else {
-            this.unknownFrameCount = 0;
-            this.latchedContext = routedContext;
-        }
+        // La histéresis vive en utils/vision/context_latch.js (pura y con test).
+        this.ctxLatch = nextLatchedContext(this.ctxLatch, routedContext);
+        this.latchedContext = this.ctxLatch.latched;
+        // El frame congelado son ~15 MB a 1440p: fuera de la pantalla de recompensas se suelta.
+        if (this.latchedContext !== "REWARD") this._rewardFrameCvs = releaseFrame(this._rewardFrameCvs);
 
         console.log(`[SCAN] Context Raw: ${rawContext} | Latched: ${this.latchedContext} | Header: "${headerText.trim().slice(0, 60)}"`);
         await this.routeFrameAction(this.latchedContext, video, dims);
@@ -1166,8 +1164,9 @@ export const ScannerService = {
 
     // Ejecuta un intento completo de OCR+parse de recompensas con un preset de binarización dado.
     // Devuelve { rawOcr, namesRaw, foundItems, ocrCanvas, namesCanvas }.
-    async _attemptRewardOCR(video, width, height, scale, preset, cropRect) {
-        const ocrCanvas = VisionService.prepareRewardOCRCanvas(video, width, height, scale, preset, cropRect);
+    // `frame`: canvas congelado de processRewards, no el <video>.
+    async _attemptRewardOCR(frame, width, height, scale, preset, cropRect) {
+        const ocrCanvas = VisionService.prepareRewardOCRCanvas(frame, width, height, scale, preset, cropRect);
         console.log(`[REWARD] Canvas: ${ocrCanvas.width}x${ocrCanvas.height} (preset ${preset})`);
 
         // Antes esto iba tras un `if (globalThis.OpenCVEngine?.isReady)` que NUNCA se cumplía:
@@ -1204,7 +1203,7 @@ export const ScannerService = {
         // prepareRewardNamesCanvas devuelve null si su máscara salió densa (= ruido, no letras):
         // en ese caso NO se corre la pasada de nombres — su OCR inyectaría decenas de palabras
         // basura en mergedWords (anclas espurias tipo "Ris") sin aportar ningún nombre real.
-        const namesCanvas = VisionService.prepareRewardNamesCanvas(video, width, height, scale, cropRect);
+        const namesCanvas = VisionService.prepareRewardNamesCanvas(frame, width, height, scale, cropRect);
         let metaRes, namesRes;
         if (namesCanvas) {
             // Se lanza la creación del 2º worker pero NO se espera: bloquear aquí metía
@@ -1240,22 +1239,25 @@ export const ScannerService = {
     async processRewards(video, dims) {
         const { width, height, scale } = dims;
 
+        // UN frame para todo el flujo: banda, presets de OCR y foto del modal (ver freezeFrame).
+        const frame = this._rewardFrameCvs = freezeFrame(video, width, height, this._rewardFrameCvs);
+
         // Localiza DÓNDE están las cards de recompensa en el frame, en vez de asumir que
         // ocupan siempre Y 18.5%-44% del encuadre completo. Esa asunción se rompe cuando la
         // "cámara" es en realidad una webcam apuntando a un monitor externo: el juego solo
         // llena una fracción del encuadre (bisel, pared, techo alrededor), y el % fijo cae
         // sobre fondo vacío. Se detecta sobre un downscale barato (detectRewardBand solo
         // necesita ver la banda de texto, no leerlo) y se reescala el rect a resolución real.
-        const DETECT_W = 480;
+        const DETECT_W = 720; // 480 dejaba la fila de nombres bajo minBandH salvo a 1080p exactos
         const detScale = DETECT_W / width;
         const detH = Math.round(height * detScale);
         if (!this._rewardDetectCvs) this._rewardDetectCvs = document.createElement("canvas");
         const detCvs = this._rewardDetectCvs;
         detCvs.width = DETECT_W; detCvs.height = detH;
         const detCtx = detCvs.getContext("2d", { willReadFrequently: true });
-        detCtx.drawImage(video, 0, 0, DETECT_W, detH);
+        detCtx.drawImage(frame, 0, 0, DETECT_W, detH);
         const detImg = detCtx.getImageData(0, 0, DETECT_W, detH);
-        const band = detectRewardBand(detImg);
+        const band = detectPlausibleRewardBand(detImg);
         const cropRect = band ? {
             x: band.x / detScale, y: band.y / detScale,
             w: band.w / detScale, h: band.h / detScale,
@@ -1275,7 +1277,7 @@ export const ScannerService = {
         const PRESET_ORDER = ["STANDARD", "LOW_LIGHT", "HIGH_GLARE"];
         let result = null;
         for (const preset of PRESET_ORDER) {
-            result = await this._attemptRewardOCR(video, width, height, scale, preset, cropRect);
+            result = await this._attemptRewardOCR(frame, width, height, scale, preset, cropRect);
             if (result.foundItems.length > 0) {
                 if (preset !== "STANDARD") console.log(`[REWARD] Rescatado por preset adaptativo: ${preset}`);
                 break;
@@ -1331,10 +1333,8 @@ export const ScannerService = {
             });
 
             this.detectionLocked = true;
-            const snapshot = document.createElement("canvas");
-            snapshot.width = width; snapshot.height = height;
-            snapshot.getContext("2d").drawImage(video, 0, 0, width, height);
-            ScannerModal.open(snapshot.toDataURL("image/jpeg", 0.85), foundItems, width, height, scale, rawOcr);
+            // El MISMO frame que se leyó: así la foto y los badges se corresponden.
+            ScannerModal.open(frame.toDataURL("image/jpeg", 0.85), foundItems, width, height, scale, rawOcr);
         }
     },
 
@@ -1850,17 +1850,17 @@ export const ScannerService = {
                     this._nameColorCache = null;
                 }
 
-                // Historial de debug: imagen anotada + log + summary por escaneo (máx 10
-                // entradas para no crecer en RAM). El HUD lo pinta como miniaturas clicables.
+                // La imagen SOLO con el panel abierto: costaba ~1,9 GB (toDataURL de la rejilla
+                // entera por página + 10 <img> que el navegador decodifica aunque estén ocultas).
                 this.debugHistory.unshift({
                     time: new Date().toLocaleTimeString([], { hour12: false }),
-                    img: debugCanvas.toDataURL("image/jpeg", 0.6),
+                    img: ScannerHUD.isDebugOpen() ? debugCanvas.toDataURL("image/jpeg", 0.6) : null,
                     log: [...this.lastRawOcrLog],
                     summary,
                     warning: hasWarning
                 });
                 if (this.debugHistory.length > 10) this.debugHistory.length = 10;
-                if (ScannerHUD.updateDebugHistory) {
+                if (ScannerHUD.isDebugOpen() && ScannerHUD.updateDebugHistory) {
                     ScannerHUD.updateDebugHistory(this.debugHistory);
                     this.lastDebugUpdate = Date.now() + 5000;
                 }
