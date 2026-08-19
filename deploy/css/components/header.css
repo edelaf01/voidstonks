@@ -87,6 +87,14 @@
     border-radius: 4px;
 }
 
+.lang-trigger img,
+.lang-option-item img {
+    border-radius: 2px;
+    width: 18px;
+    height: auto;
+    box-shadow: 0 0 2px rgba(255, 255, 255, 0.3);
+}
+
 .lang-option-item {
     padding: 10px;
     display: flex;
@@ -102,14 +110,6 @@
     background: var(--wf-blue);
     color: #000;
     font-weight: 700;
-}
-
-.lang-trigger img,
-.lang-option-item img {
-    border-radius: 2px;
-    width: 18px;
-    height: auto;
-    box-shadow: 0 0 2px rgba(255, 255, 255, 0.3);
 }
 
 /* main card */
@@ -365,6 +365,11 @@
     padding-right: 14px;
 }
 
+.tab-more-btn.is-open {
+    color: #fff;
+    background: #222;
+}
+
 .tab-more-btn .tab-more-chevron {
     display: flex;
     align-items: center;
@@ -377,11 +382,6 @@
     width: 100%;
     height: 100%;
     transition: transform 0.25s ease;
-}
-
-.tab-more-btn.is-open {
-    color: #fff;
-    background: #222;
 }
 
 .tab-more-btn.is-open .tab-more-chevron svg {
@@ -452,11 +452,39 @@
     line-height: 1;
 }
 
+.tab-fan-item {
+    align-items: flex-start;
+}
+
+.tab-fan-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
 .tab-fan-label {
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.tab-fan-desc {
+    font-size: 0.72rem;
+    font-weight: 500;
+    line-height: 1.3;
+    color: #8b95a3;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.tab-fan-item:hover .tab-fan-desc,
+.tab-fan-item.is-highlighted .tab-fan-desc {
+    color: #aab3bf;
 }
 
 /* forms */
@@ -572,14 +600,14 @@ option {
     }
 }
 
-.dropdown-item img {
-    transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275), background 0.2s ease;
-}
-
 .dropdown-item.active-sort-item {
     background: rgba(162, 53, 226, 0.15);
     color: var(--wf-riven);
     font-weight: bold;
+}
+
+.dropdown-item img {
+    transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275), background 0.2s ease;
 }
 
 /* buttons */
@@ -690,4 +718,20 @@ option {
         margin-left: 4px;
         border-radius: 50%;
     }
+}
+
+/*
+ * browser autofill: Chrome paints its own white background that `background` cannot override
+ * huge inset shadow covers it and -webkit-text-fill-color fixes the text
+ * the 9999s transition delays Chrome's autofill animation so the white never flashes
+ */
+.wf-input:-webkit-autofill,
+.wf-input:-webkit-autofill:hover,
+.wf-input:-webkit-autofill:focus,
+.wf-input:-webkit-autofill:active {
+    -webkit-text-fill-color: #eee;
+    -webkit-box-shadow: 0 0 0 1000px var(--wf-input-bg, #0a0b0d) inset;
+    box-shadow: 0 0 0 1000px var(--wf-input-bg, #0a0b0d) inset;
+    caret-color: #eee;
+    transition: background-color 9999s ease-out 0s;
 }

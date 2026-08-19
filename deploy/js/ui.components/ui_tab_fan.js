@@ -144,10 +144,24 @@ function buildFanItems() {
       }
     }
 
+    // label and, below, the line that explains the tab: on mobile this menu is the only place to discover
+    // the hidden tabs. The text is the data-tooltip updateNavTabs() sets, one source for both
+    const textos = document.createElement("span");
+    textos.className = "tab-fan-text";
+
     const span = document.createElement("span");
     span.className = "tab-fan-label";
     span.textContent = getTabLabel(mode);
-    item.appendChild(span);
+    textos.appendChild(span);
+
+    const desc = document.getElementById("btn-" + mode)?.dataset.tooltip;
+    if (desc) {
+      const p = document.createElement("span");
+      p.className = "tab-fan-desc";
+      p.textContent = desc;
+      textos.appendChild(p);
+    }
+    item.appendChild(textos);
 
     if (document.getElementById("btn-" + mode)?.classList.contains("active")) {
       item.classList.add("is-active");

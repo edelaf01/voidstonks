@@ -1,7 +1,6 @@
-import { calculateRivenGrade } from "./utils/riven_logic.js";
+import { calculateRivenGrade } from "./utils/rivens/riven_logic.js";
 import {
   TEXTS,
-  TIER_URLS,
   RIVEN_STATS,
   DROP_CHANCES,
   WORKER_URL,
@@ -20,21 +19,23 @@ import {
   manualRelicUpdate,
   updateRelicTotal,
   generateMessage,
-} from "./ui.components/ui_relics.js";
-import {
-  renderSetTracker,
-} from "./ui.components/ui_sets.js?v=2.0";
+} from "./ui.components/inventory/ui_relics.js";
+import { initSetSearchHelp } from "./ui.components/inventory/ui_sets.js?v=2.0";
+import { renderSetTracker } from "./ui.components/inventory/ui_set_tracker.js";
 import {
   updateLFGUI,
 } from "./ui.components/ui_lfg.js";
-import { populateRivenSelects, initRivenMarketIndex, updateIndexTranslations, filterRivenIndex, stopRivenShowcase } from "./ui.components/ui_rivens.js?v=1.11";
-import { applyArbTexts } from "./ui.components/ui_arbitrage.js";
+import { populateRivenSelects, initRivenMarketIndex, updateIndexTranslations, filterRivenIndex, stopRivenShowcase } from "./ui.components/rivens/ui_rivens.js?v=1.11";
+import { applyArbTexts } from "./ui.components/rivens/ui_arbitrage.js";
 import { initVosforTab, renderVosforTab } from "./ui.components/ui_vosfor.js?v=2.9";
-import { initSyncPanel } from "./ui.components/ui_sync.js";
-import { initFissurePanel, updateRecommendedMissions } from "./ui.components/ui_fissures.js?v=1.1";
+import { initSyncPanel } from "./ui.components/market/ui_sync.js";
+import { initFissurePanel, updateRecommendedMissions } from "./ui.components/farms/ui_fissures.js?v=1.1";
+import { exposeGlobals } from "./utils/global_registry.js";
 import { state, saveAppState, updateInventoryCount } from "./state.js";
-import { renderFarmsTab } from "./ui.components/ui_farms.js";
-import { renderInventory, renderPrimeInventory } from "./ui.components/ui_inventory.js";
+import { renderFarmsTab } from "./ui.components/farms/ui_farms.js";
+import { renderFarmRoutes } from "./ui.components/farms/ui_farm_routes.js";
+import { renderInventory, updateInventoryPanelLabels } from "./ui.components/inventory/ui_inventory.js";
+import { renderPrimeInventory } from "./ui.components/inventory/ui_prime_inventory.js";
 import { ScannerHUD } from "./ui.components/ui_scanner_hud.js";
 import { ScannerModal } from "./ui.components/ui_scanner_modal.js";
 // Kubrow translator disabled: its tab is hidden
@@ -42,17 +43,6 @@ import { ScannerModal } from "./ui.components/ui_scanner_modal.js";
 globalThis.TEXTS = TEXTS;
 
 const iconPathCache = new Map();
-
-export function preloadCriticalAssets() {
-  const assets = [
-    "assets/relic_contents/platinum.webp",
-    ...Object.values(TIER_URLS),
-  ];
-  assets.forEach((url) => {
-    const img = new Image();
-    img.src = url;
-  });
-}
 
 export function finishLoading() {
   const loadEl = document.getElementById("loading");
@@ -88,7 +78,7 @@ export function switchTab(mode) {
   document.body.classList.add(`theme-${mode}`);
 
   if (mode === "bounties" && mainCard) mainCard.classList.add("theme-bounties");
-  ["relic", "set", "riven", "profile", "lfg", "bounties", "vosfor", "ducat", "eelog", "orders"].forEach((m) => {
+  ["relic", "set", "riven", "lfg", "bounties", "vosfor", "ducat", "eelog", "orders"].forEach((m) => {
     document.getElementById("mode-" + m)?.classList.add("hidden");
   });
   document.getElementById("mode-" + mode)?.classList.remove("hidden");
@@ -98,10 +88,13 @@ export function switchTab(mode) {
       initRivenMarketIndex().catch(console.error);
     }
     applyArbTexts();
+  } else if (mode === "relic") {
+    renderFarmRoutes().catch((e) => console.warn("[rutas] al abrir Reliquia:", e));
   } else if (mode === "set") {
     if (typeof globalThis.searchSet === "function") {
       globalThis.searchSet();
     }
+    renderFarmRoutes().catch((e) => console.warn("[rutas] al abrir Set:", e));
   } else if (mode === "vosfor") {
     initVosforTab().catch(console.error);
   } else if (mode === "ducat") {
@@ -122,9 +115,6 @@ export function switchTab(mode) {
       footer.style.display = "block";
       footer.style.borderTopColor = "#333";
       if (msgText) msgText.style.color = "#00e5ff";
-      else if (mode === "live") {
-        document.getElementById("mode-live").classList.remove("hidden");
-      }
     } else {
       footer.style.display = "none";
     }
@@ -192,11 +182,10 @@ function updateNavTabs(t) {
   setTab("btn-relic", t.menuRelic || "Reliquia", t.tooltips.tabRelic);
   setTab("btn-set", t.menuSet || "Set", t.tooltips.tabSet);
   setTab("btn-riven", t.menuRiven || "Riven", t.tooltips.tabRiven);
-  setTab("btn-profile", t.menuProfile || "Perfil", t.tooltips.tabProfile);
   setTab("btn-lfg", t.menuLfg || "LFG", t.tooltips.tabLfg);
   setTab("btn-bounties", t.menuBounties || "Farms", t.tooltips.tabBounties);
   setTab("btn-vosfor", t.vosfor?.tabName || "Vosfor", t.vosfor?.tabTip);
-  setTab("btn-ducat", t.ducanator?.tabTitle || "Ducanator", t.ducanator?.tabTitle);
+  setTab("btn-ducat", t.ducanator?.tabTitle || "Ducanator", t.ducanator?.desc);
   setText("tab-orders-text", t.menuOrders || "Mis órdenes");
   setText("tab-more-text", t.menuMore || "Más");
   updateDucatFilterLabels(t);
@@ -233,9 +222,30 @@ function updateStaticTexts(t) {
   setText("lbl-missing", t.lblMiss);
   setText("lbl-profit", t.lblProfit);
   setText("lbl-search-item", t.lblItem);
+  initSetSearchHelp();
   setText("lbl-riven-weapon", t.lblRivenW);
   setText("lbl-riven-stats", t.lblRivenS);
+  const btnDir = document.getElementById("btn-index-sort-dir");
+  if (btnDir) {
+    const pintaDir = () => {
+      const ri = TEXTS[state.currentLang]?.rivenIndex || {};
+      const txt = btnDir.getAttribute("data-dir") === "asc" ? ri.sortAsc : ri.sortDesc;
+      if (!txt) return;
+      btnDir.title = txt;
+      btnDir.setAttribute("aria-label", txt);
+    };
+    if (!btnDir.dataset.dirLabelWired) {
+      btnDir.dataset.dirLabelWired = "1";
+      btnDir.addEventListener("click", () => setTimeout(pintaDir, 0));
+    }
+    pintaDir();
+  }
+
   setText("btn-riven-search", t.rivenSearch);
+  setText("btn-riven-grade", t.rivenGradeBtn);
+  setText("grading-modal-title", t.rivenGradeTitle);
+  setText("lbl-grading-variants", t.rivenGradeVariants);
+  setText("riven-web-orders-label", t.rivenWebOrders);
 
   setText("txt-mod-preview", t.lblModPreview);
   setText("txt-weapon-guide", t.lblWeaponGuide);
@@ -245,22 +255,18 @@ function updateStaticTexts(t) {
   setText("lbl-riven-low-price", t.lblRivenLow);
   setText("lbl-riven-high-price", t.lblRivenHigh);
 
-  setText("lbl-username", t.lblUser);
-  setText("txt-mr-label", t.lblMrCalc);
   setText("lbl-lfg-activity", t.lblLfgActivity);
   setText("lbl-lfg-players", t.lblLfgPlayers);
   setText("btn-copy", t.btnCopy);
 
   setText("txt-inv-title", t.inventory?.title);
+  updateInventoryPanelLabels();
   setText("tracker-title", t.trackerTitle);
   setText("txt-fissure-title", t.lblFissures);
   setText("lbl-fast-farms-title", t.lblFastFarms || "Misiones Rápidas");
 
   const disclaimer = document.getElementById("txt-disclaimer");
   if (disclaimer) disclaimer.innerHTML = t.disclaimer;
-
-  const btnCheck = document.querySelector("#mode-profile button");
-  if (btnCheck) btnCheck.innerText = t.btnCheck;
 
   const guideText = document.getElementById("relic-add-guide");
   if (guideText) guideText.innerText = t.addGuide;
@@ -323,12 +329,9 @@ function updateSelectDropdowns(t) {
     });
   }
 
-  const lfgItems = document.querySelectorAll("#lfgDropdown .dropdown-item");
-  const lfgKeys = ["eidolon", "profit", "eda", "temporal", "netra", "archon", "sortie", "arbi", "radshare"];
-  lfgKeys.forEach((key, idx) => {
-    if (lfgItems[idx] && t.lfgOpts?.[key]) {
-      lfgItems[idx].innerText = t.lfgOpts[key];
-    }
+  document.querySelectorAll("#lfgDropdown .dropdown-item[data-lfg]").forEach((item) => {
+    const label = t.lfgOpts?.[item.dataset.lfg];
+    if (label) item.innerText = label;
   });
 
   const currentLfgVal = document.getElementById("lfgActivity")?.value;
@@ -368,10 +371,28 @@ function updateScannerAndCalib(t) {
     setText("edit-mode-title", sh.editTitle);
     setText("edit-mode-guide", sh.editGuide);
     setText("btn-edit-done", sh.btnDone);
-    setText("lbl-ocr-debug", sh.btnDebug + " Snapshot");
+    setText("lbl-ocr-debug", sh.lblDebugSnapshot);
     setText("btn-copy-debug-log", sh.btnCopyLog);
     setText("lbl-detected-items", sh.lblDetected);
     setText("lbl-scan-empty-state", sh.lblEmpty);
+
+    setText("btn-auto-scan", sh.btnAutoScan);
+    setText("btn-reset-grid", sh.btnResetGrid);
+    setText("lbl-rewards-diagnostics", sh.lblDiagnostics);
+    setText("hud-scan-counter", "");
+
+    const setTitle = (id, text) => {
+      const el = document.getElementById(id);
+      if (el && text) {
+        el.title = text;
+        el.setAttribute("aria-label", text);
+      }
+    };
+    setTitle("btn-debug-toggle", sh.titleDebug);
+    setTitle("btn-auto-scan", sh.titleAutoScan);
+    setTitle("btn-clear-session", sh.titleClearSession);
+    setTitle("btn-open-grid-editor", sh.titleEditCells);
+    setTitle("btn-reset-grid", sh.titleResetGrid);
   }
 
   const histLabel = document.querySelector("#btn-scan-history .history-btn-label");
@@ -468,24 +489,6 @@ export function updateUILabels() {
 state.subscribe("currentLang", updateUILabels);
 updateUILabels();
 
-globalThis.selectRelicFromPreview = function (relicName) {
-  switchTab("relic");
-
-  const input = document.getElementById("relicInput");
-  if (input) {
-    input.value = relicName;
-    state.selectedRelic = relicName;
-    manualRelicUpdate();
-  }
-
-  const status = state.relicStatusDB ? state.relicStatusDB[relicName] : null;
-  let msg = `Navigated to ${relicName}`;
-  if (status) {
-    if (status === "vaulted") msg += " (VAULTED)";
-    else msg += " (ACTIVE)";
-  }
-  showToast(msg);
-};
 function resetLoadingStyle(element) {
   if (!element) return;
   element.style.opacity = "1";
@@ -661,7 +664,7 @@ export function updatePriceUI(element, price) {
   if (document.getElementById("relic-profit-display")) updateRelicTotal();
 }
 
-globalThis.selectRelicFromPreview = function (relicName) {
+function selectRelicFromPreview(relicName) {
   switchTab("relic");
   const input = document.getElementById("relicInput");
   if (input) {
@@ -678,7 +681,7 @@ globalThis.selectRelicFromPreview = function (relicName) {
   showToast(msg);
 };
 
-globalThis.findRelicsForItem = function (itemName) {
+function findRelicsForItem(itemName) {
   const setInput = document.getElementById("setItemInput");
   if (setInput) {
     let searchTerm = itemName;
@@ -693,25 +696,25 @@ globalThis.findRelicsForItem = function (itemName) {
     setInput.value = searchTerm;
     switchTab("set");
     setInput.focus();
-    const event = new Event("keyup");
-    setInput.dispatchEvent(event);
+    // input, not keyup: the field listens to oninput
+    setInput.dispatchEvent(new Event("input"));
   }
 };
 
-Object.assign(globalThis, {
-  showToast,
+exposeGlobals({
   finishLoading,
   closeUpdateModal,
   showCustomConfirm,
   updatePriceUI,
   manualRelicUpdate,
-  saveAppState,
   openUpdateHistory,
 
   handleInvSearch: (val) => {
     state.invSearchVal = val.toLowerCase().trim();
     renderInventory();
   },
-});
+  selectRelicFromPreview,
+  findRelicsForItem,
+}, "ui.js");
 
 export { checkUpdates, initGlobalTooltipSystem, initDisclaimerSystem, closeUpdateModal } from "./ui.components/ui_components.js";

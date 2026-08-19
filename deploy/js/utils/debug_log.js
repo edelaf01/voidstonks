@@ -1,6 +1,9 @@
 export const DEBUG_LOGS = false;
 
-const FORCE_LOGS_WHILE_DEBUGGING = true;
+// keeps logs ON by default during an investigation without touching DEBUG_LOGS (which must stay false:
+// `tests/debug-log.test.mjs` fails if deployed as true). With it on, they are silenced case by case with:
+//     localStorage.setItem("vs_debug_logs", "0")   // and reload
+const FORCE_LOGS_WHILE_DEBUGGING = false;
 
 const stored = typeof localStorage !== "undefined" ? localStorage.getItem("vs_debug_logs") : null;
 const enabled = DEBUG_LOGS

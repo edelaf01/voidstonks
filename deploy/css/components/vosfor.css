@@ -28,6 +28,10 @@
     border-color: rgba(224, 176, 255, 0.4);
 }
 
+.vos-tool.open .vos-tool-arrow {
+    transform: rotate(180deg);
+}
+
 .vos-tool-head {
     display: flex;
     align-items: center;
@@ -85,10 +89,6 @@
     transition: transform 0.25s;
 }
 
-.vos-tool.open .vos-tool-arrow {
-    transform: rotate(180deg);
-}
-
 /*
  * collapsed with grid-template-rows, not max-height, since these tools change height as you type
  * overflow goes here, not on the child: 0fr does not collapse the child's padding
@@ -100,12 +100,12 @@
     transition: grid-template-rows 0.28s ease;
 }
 
-.vos-tool.open .vos-tool-body {
-    grid-template-rows: 1fr;
-}
-
 .vos-tool-body > * {
     min-height: 0;
+}
+
+.vos-tool.open .vos-tool-body {
+    grid-template-rows: 1fr;
 }
 
 /*
@@ -885,6 +885,13 @@
     gap: 4px;
     border: 1px solid;
     white-space: nowrap;
+}
+
+/* on mobile the title column is ~97px and "Fast Sale (Liquidity)" stuck out of the card; wrapping beats clipping */
+@media (max-width: 600px) {
+    .vosfor-pack-title .badge-vosfor {
+        white-space: normal;
+    }
 }
 
 .badge-best-spend {

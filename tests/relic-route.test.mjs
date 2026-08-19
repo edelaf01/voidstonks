@@ -1,0 +1,674 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import {
+  buildSetRoute, buildFarmRoutes, normalizeTier, bestFissure, missionMinutes, tiersOpenedBy,
+  bestRefinementFor,
+} from "../deploy/js/utils/inventory/relic_route.js";
+
+const setsDatabase = {
+  "Gara Prime": ["Gara Prime Blueprint", "Gara Prime Neuroptics", "Gara Prime Chassis", "Gara Prime Systems"],
+  "Nidus Prime": ["Nidus Prime Blueprint", "Nidus Prime Neuroptics"],
+};
+const itemsDatabase = {
+  "Gara Prime Chassis": [
+    { relic: "Meso P13 Relic", tier: "Meso", rarity: "Common", chance: 25 },
+    { relic: "Neo N20 Relic", tier: "Neo", rarity: "Rare", chance: 2 },
+  ],
+  "Gara Prime Systems": [{ relic: "Axi G1 Relic", tier: "Axi", rarity: "Rare", chance: 2 }],
+  "Nidus Prime Neuroptics": [{ relic: "Lith N4 Relic", tier: "Lith", rarity: "Common", chance: 25 }],
+};
+const relicSources = {
+  "Neo N20": [{ location: "Ío (Júpiter)", mission: "Defense", rotation: "B", chance: 11 }],
+  "Axi G1": [{ location: "Hydron (Sedna)", mission: "Defense", rotation: "C", chance: 10 }],
+};
+const base = {
+  setsDatabase, itemsDatabase, relicSources,
+  primeInventory: { "Gara Prime Blueprint": 1, "Gara Prime Neuroptics": 1, "Nidus Prime Blueprint": 1 },
+  relicCounts: { "Meso P13": 12 },
+  fissures: [{ node: "Ío (Júpiter)", type: "Defense", tier: "Meso", eta: "35m" }],
+  getRequiredCount: () => 1,
+};
+
+test("ruta: un set completo apunta al SIGUIENTE, no dice 'ya está'", () => {
+  const full = Object.fromEntries(setsDatabase["Gara Prime"].map((p) => [p, 1]));
+  const r = buildSetRoute("Gara Prime", { ...base, primeInventory: full });
+  assert.equal(r.built, 1, "ya tienes uno montado");
+  assert.equal(r.missingCount, 4, "para el segundo te faltan las cuatro");
+});
+
+// full set plus spare parts: previously reported "no unfinished sets" when actually one part away from a
+// second set
+test("rutas: con piezas de MÁS, el set sigue siendo recomendable", () => {
+  const sobras = {
+    "Gara Prime Blueprint": 3, "Gara Prime Neuroptics": 2,
+    "Gara Prime Chassis": 2, "Gara Prime Systems": 1,
+  };
+  const routes = buildFarmRoutes({ ...base, primeInventory: sobras });
+  const gara = routes.find((r) => r.setName === "Gara Prime");
+  assert.ok(gara, "un set con excedentes tiene que aparecer");
+  assert.equal(gara.built, 1);
+  assert.deepEqual(gara.missing.map((m) => m.part), ["Gara Prime Systems"],
+    "solo falta la pieza de la que no te sobra ninguna");
+});
+
+// owning the full set does not drop it from routes: you can farm the next one
+// missing count targets the second set (all 4 parts missing), sorting to the bottom rather than
+// disappearing from search
+test("rutas: un set completo SIN excedentes sigue en la lista, apuntando al siguiente", () => {
+  const justo = Object.fromEntries(setsDatabase["Gara Prime"].map((p) => [p, 1]));
+  const routes = buildFarmRoutes({ ...base, primeInventory: justo });
+  const gara = routes.find((r) => r.setName === "Gara Prime");
+  assert.ok(gara, "un set que ya tienes entero se sigue pudiendo farmear");
+  assert.equal(gara.built, 1);
+  assert.equal(gara.missingCount, 4, "las 4 piezas del SEGUNDO set");
+});
+
+test("ruta: set inexistente no revienta", () => {
+  assert.equal(buildSetRoute("No Existe Prime", base), null);
+});
+
+test("ruta: lista solo lo que falta", () => {
+  const r = buildSetRoute("Gara Prime", base);
+  assert.equal(r.totalParts, 4);
+  assert.equal(r.missingCount, 2);
+  assert.deepEqual(r.missing.map((m) => m.part), ["Gara Prime Chassis", "Gara Prime Systems"]);
+});
+
+test("ruta: primero la reliquia que TIENES y con fisura abierta", () => {
+  const chassis = buildSetRoute("Gara Prime", base).missing[0];
+  assert.equal(chassis.relics[0].relic, "Meso P13", "tienes 12 y hay fisura Meso");
+  assert.equal(chassis.relics[0].owned, 12);
+  assert.equal(chassis.relics[0].fissures.length, 1);
+  assert.equal(chassis.ready, true, "se puede ir a por ella ahora mismo");
+});
+
+test("ruta: si no tienes la reliquia, dice dónde farmearla", () => {
+  const systems = buildSetRoute("Gara Prime", base).missing[1];
+  assert.equal(systems.ready, false, "sin copias no se puede correr ya");
+  assert.equal(systems.relics[0].owned, 0);
+  assert.deepEqual(systems.relics[0].sources[0].location, "Hydron (Sedna)");
+});
+
+test("ruta: teniendo la reliquia no se molesta en decir dónde farmearla", () => {
+  const chassis = buildSetRoute("Gara Prime", base).missing[0];
+  assert.deepEqual(chassis.relics[0].sources, [], "ya la tienes: la fuente es ruido");
+});
+
+test("ruta: sin fisuras activas sigue dando plan, solo que nada está listo", () => {
+  const r = buildSetRoute("Gara Prime", { ...base, fissures: [] });
+  assert.equal(r.readyCount, 0);
+  assert.equal(r.missing[0].relics[0].owned, 12, "las copias se siguen viendo");
+});
+
+test("rutas: entran TODOS los sets, tocados o no", () => {
+  const routes = buildFarmRoutes(base);
+  const names = routes.map((r) => r.setName);
+  assert.ok(names.includes("Gara Prime"));
+  assert.ok(names.includes("Nidus Prime"));
+
+  // unstarted sets still appear because any set can be farmed: sorting prevents it from becoming a raw game
+  // catalog
+  const sinEmpezar = buildFarmRoutes({ ...base, primeInventory: {} });
+  assert.equal(sinEmpezar.length, 2);
+  assert.ok(sinEmpezar.every((r) => r.missingCount === r.totalParts));
+});
+
+// a set missing ONE piece stays on top rather than being buried under higher-paying intact sets
+test("rutas: lo cerca que estás manda sobre el platino por hora", () => {
+  const sets = { Cerca: ["Cerca A", "Cerca B"], Intacto: ["Int A", "Int B", "Int C"] };
+  const precios = { "Cerca Set": 25, "Intacto Set": 900 };
+  const routes = buildFarmRoutes({
+    setsDatabase: sets, itemsDatabase: {},
+    primeInventory: { "Cerca A": 1 },   // Cerca needs 1, Intacto needs all 3
+    relicCounts: {}, relicSources: {}, fissures: [],
+    getRequiredCount: () => 1,
+    getPrice: (n) => precios[n] || 0,
+    expectedRuns: () => 2,
+  });
+  assert.equal(routes[0].setName, "Cerca", `salió primero ${routes[0].setName}`);
+});
+
+// actionable now rules over missing count: Gara needs 2 parts but has an active Meso fissure, while Nidus
+// needs 1 with no fissure
+test("rutas: primero lo que se puede farmear ahora", () => {
+  const routes = buildFarmRoutes(base);
+  assert.equal(routes[0].setName, "Gara Prime", "es la accionable, aunque le falte una pieza más");
+  assert.equal(routes[0].readyCount > 0, true);
+});
+
+test("rutas: a igual accionabilidad, primero al que menos le falta", () => {
+  // with no active fissures nothing is actionable, falling back to fewest parts missing
+  const routes = buildFarmRoutes({ ...base, fissures: [] });
+  assert.equal(routes[0].setName, "Nidus Prime", "le falta 1; a Gara le faltan 2");
+});
+
+test("rutas: aguanta datos a medias sin romperse", () => {
+  assert.deepEqual(buildFarmRoutes({}), []);
+  const r = buildSetRoute("Gara Prime", { setsDatabase, primeInventory: base.primeInventory });
+  assert.equal(r.missingCount, 2);
+  assert.deepEqual(r.missing[0].relics, [], "sin itemsDatabase no hay reliquias, pero no explota");
+});
+
+test("normalizeTier: el worldstate llama Vanguard a Axi", () => {
+  assert.equal(normalizeTier("Vanguard"), "Axi");
+  assert.equal(normalizeTier("Meso"), "Meso");
+});
+
+// value and effort ("more platinum, less effort"): choosing the fastest mission rather than the first from
+// the worldstate
+// sorting by missing count alone ranked a 25p set ahead of a 300p set, and fissures[0] picked 7 min
+// Excavation over 2 min Capture
+
+test("de dos fisuras de la misma era se elige la misión más rápida", () => {
+  const lenta = { node: "A", type: "Excavation", tier: "Meso", expiry: 9e12 };
+  const rapida = { node: "B", type: "Capture", tier: "Meso", expiry: 9e12 };
+  assert.equal(bestFissure([lenta, rapida]).node, "B");
+});
+
+// a fissure expiring in 3 minutes leaves no time to open anything
+test("a igual rapidez gana la que más tiempo le queda", () => {
+  const pronto = { node: "A", type: "Capture", tier: "Meso", expiry: 1000 };
+  const tarde = { node: "B", type: "Capture", tier: "Meso", expiry: 9e12 };
+  assert.equal(bestFissure([pronto, tarde]).node, "B");
+});
+
+test('"Dark Sector Defense" dura lo que una Defense', () => {
+  assert.equal(missionMinutes("Dark Sector Defense"), missionMinutes("Defense"));
+});
+
+test("un tipo de misión desconocido no rompe el cálculo", () => {
+  assert.ok(Number.isFinite(missionMinutes("Modo Nuevo De DE")));
+  assert.ok(Number.isFinite(missionMinutes(undefined)));
+});
+
+// gain is NOT the set price: owned parts can be sold loose today, so building the set only awards the
+// difference
+test("la ganancia descuenta lo que ya valen sueltas las piezas que tienes", () => {
+  const precios = { "Gara Prime Set": 100, "Gara Prime Blueprint": 10, "Gara Prime Neuroptics": 15 };
+  const r = buildSetRoute("Gara Prime", { ...base, getPrice: (n) => precios[n] || 0 });
+  assert.equal(r.setValue, 100);
+  assert.equal(r.gain, 75, "100 del set menos 10+15 de las dos que ya tienes");
+});
+
+test("sin precios la ruta se construye igual, solo que sin valorar", () => {
+  const r = buildSetRoute("Gara Prime", base);
+  assert.equal(r.gain, null);
+  assert.equal(r.platPerHour, null);
+  assert.ok(r.missing.length > 0, "la ruta sigue sirviendo");
+});
+
+test("el esfuerzo sale de los runs de cada pieza por lo que dura su misión", () => {
+  const r = buildSetRoute("Gara Prime", {
+    ...base,
+    getPrice: () => 0,
+    expectedRuns: () => 2,
+  });
+  // 2 missing parts x 2 runs; one has a Meso fissure (Defense, 5 min) and the other none (default 6), so 2*5
+  // + 2*6 = 22
+  assert.equal(r.minutes, 22);
+});
+
+// plat/hour breaks ties between sets EQUALLY close: missing count rules first now that the full catalog is
+// included
+test("a igualdad de piezas restantes, manda el platino por hora", () => {
+  const sets = { Barato: ["Barato A", "Barato B"], Caro: ["Caro A", "Caro B"] };
+  const precios = { "Barato Set": 25, "Caro Set": 300 };
+  const routes = buildFarmRoutes({
+    setsDatabase: sets,
+    itemsDatabase: {},
+    primeInventory: { "Barato A": 1, "Caro A": 1 },   // both need 1
+    relicCounts: {}, relicSources: {}, fissures: [],
+    getRequiredCount: () => 1,
+    getPrice: (n) => precios[n] || 0,
+    expectedRuns: () => 2,
+  });
+  assert.equal(routes[0].setName, "Caro", `salió primero ${routes[0].setName}`);
+});
+
+// missing a price must not hide a set that is one piece away
+test("las rutas sin valorar van detrás, no desaparecen", () => {
+  const sets = { ConPrecio: ["CP A", "CP B"], SinPrecio: ["SP A", "SP B"] };
+  const routes = buildFarmRoutes({
+    setsDatabase: sets,
+    itemsDatabase: {},
+    primeInventory: { "CP A": 1, "SP A": 1 },
+    relicCounts: {}, relicSources: {}, fissures: [],
+    getRequiredCount: () => 1,
+    getPrice: (n) => (n === "ConPrecio Set" ? 200 : 0),
+    expectedRuns: () => 2,
+  });
+  assert.equal(routes.length, 2, "las dos siguen en la lista");
+  assert.equal(routes[0].setName, "ConPrecio");
+});
+
+// infinite runs means a part without a drop table: better no estimate than a made-up one
+test("si no se puede estimar el esfuerzo, no se inventa un platino por hora", () => {
+  const r = buildSetRoute("Gara Prime", {
+    ...base,
+    getPrice: (n) => (n === "Gara Prime Set" ? 100 : 0),
+    expectedRuns: () => Infinity,
+  });
+  assert.equal(r.minutes, null);
+  assert.equal(r.platPerHour, null);
+  assert.equal(r.gain, 100, "la ganancia sí se sabe");
+});
+
+test("cada pieza que falta trae ya elegida su fisura", () => {
+  const r = buildSetRoute("Gara Prime", base);
+  const chassis = r.missing.find((m) => m.part === "Gara Prime Chassis");
+  assert.equal(chassis.fissure?.node, "Ío (Júpiter)");
+});
+
+// getPrice returning a Promise resulted in Promise.resolve(0), where setValue > 0 failed silently and gain
+// was ALWAYS null
+// indistinguishable on screen from "no prices yet"
+test("un getPrice que devuelva promesas no cuela un valor falso", () => {
+  const r = buildSetRoute("Gara Prime", {
+    ...base,
+    getPrice: () => Promise.resolve(100),
+    expectedRuns: () => 2,
+  });
+  assert.equal(r.gain, null, "una promesa no es un precio: mejor sin valorar que con NaN");
+  assert.equal(r.platPerHour, null);
+});
+
+test("un precio no numérico tampoco se cuela", () => {
+  for (const malo of [() => "100", () => null, () => undefined, () => NaN]) {
+    const r = buildSetRoute("Gara Prime", { ...base, getPrice: malo, expectedRuns: () => 2 });
+    assert.ok(r.gain === null || Number.isFinite(r.gain), `getPrice ${malo()} dio ${r.gain}`);
+  }
+});
+
+const dosEras = {
+  setsDatabase: { "Hydroid Prime": ["Hydroid Blueprint", "Hydroid Systems"] },
+  itemsDatabase: {
+    // the SAME part drops from relics in two eras: "no fissure" is only true if NONE of them work
+    "Hydroid Systems": [
+      { relic: "Neo Z3 Relic", tier: "Neo", rarity: "Rare", chance: 2 },
+      { relic: "Meso Z2 Relic", tier: "Meso", rarity: "Common", chance: 25 },
+    ],
+  },
+  relicSources: {},
+  primeInventory: { "Hydroid Blueprint": 1 },
+  getRequiredCount: () => 1,
+};
+
+test("si una de las eras tiene fisura, la pieza cuenta como farmeable ahora", () => {
+  const r = buildSetRoute("Hydroid Prime", {
+    ...dosEras,
+    relicCounts: { "Neo Z3": 27, "Meso Z2": 14 },
+    // only Meso fissure active: Neo, despite having more copies, is not actionable
+    fissures: [{ node: "Ío", type: "Capture", tier: "Meso", expiry: 9e12 }],
+  });
+  assert.equal(r.readyCount, 1);
+  assert.equal(r.missing[0].relics[0].relic, "Meso Z2", "tiene que proponer la que SÍ se puede abrir");
+});
+
+test("sin fisura de ninguna de sus eras, la pieza no está lista", () => {
+  const r = buildSetRoute("Hydroid Prime", {
+    ...dosEras,
+    relicCounts: { "Neo Z3": 27, "Meso Z2": 14 },
+    fissures: [{ node: "Ío", type: "Capture", tier: "Axi", expiry: 9e12 }],
+  });
+  assert.equal(r.readyCount, 0);
+});
+
+// a 353 plat/hour route you cannot run right now is not an actionable recommendation
+test("una ruta accionable ahora va por delante de otra que rinde más pero no se puede hacer", () => {
+  const comun = {
+    itemsDatabase: {
+      "Rica A": [{ relic: "Neo R1 Relic", tier: "Neo", rarity: "Rare", chance: 2 }],
+      "Pobre A": [{ relic: "Meso P1 Relic", tier: "Meso", rarity: "Common", chance: 25 }],
+    },
+    relicSources: {},
+    relicCounts: { "Neo R1": 5, "Meso P1": 5 },
+    // only Meso fissure active: the high-value route (Neo) cannot be run right now
+    fissures: [{ node: "Ío", type: "Capture", tier: "Meso", expiry: 9e12 }],
+    getRequiredCount: () => 1,
+    getPrice: (n) => ({ "Rica Set": 400, "Pobre Set": 40 }[n] || 0),
+    expectedRuns: () => 2,
+  };
+  const routes = buildFarmRoutes({
+    ...comun,
+    setsDatabase: { Rica: ["Rica A", "Rica B"], Pobre: ["Pobre A", "Pobre B"] },
+    primeInventory: { "Rica B": 1, "Pobre B": 1 },
+  });
+
+  assert.equal(routes[0].setName, "Pobre", `salió primero ${routes[0].setName}`);
+  assert.ok(routes[0].readyCount > 0);
+  assert.equal(routes[1].readyCount, 0, "la cara sigue en la lista, solo que detrás");
+});
+
+// between two actionable routes, platinum per hour rules again
+test("entre dos accionables gana la que más rinde", () => {
+  const routes = buildFarmRoutes({
+    setsDatabase: { Rica: ["Rica A", "Rica B"], Pobre: ["Pobre A", "Pobre B"] },
+    itemsDatabase: {
+      "Rica A": [{ relic: "Meso R1 Relic", tier: "Meso", rarity: "Rare", chance: 2 }],
+      "Pobre A": [{ relic: "Meso P1 Relic", tier: "Meso", rarity: "Common", chance: 25 }],
+    },
+    relicSources: {},
+    primeInventory: { "Rica B": 1, "Pobre B": 1 },
+    relicCounts: { "Meso R1": 5, "Meso P1": 5 },
+    fissures: [{ node: "Ío", type: "Capture", tier: "Meso", expiry: 9e12 }],
+    getRequiredCount: () => 1,
+    getPrice: (n) => ({ "Rica Set": 400, "Pobre Set": 40 }[n] || 0),
+    expectedRuns: () => 2,
+  });
+  assert.equal(routes[0].setName, "Rica");
+});
+
+// worldstate sends expiry as ISO strings, not milliseconds: Number() produced NaN and broke the tiebreaker
+// on real data
+test("el desempate por tiempo restante entiende el expiry ISO del worldstate", () => {
+  const pronto = { node: "A", type: "Capture", tier: "Meso", expiry: "2026-08-15T13:10:30.694Z" };
+  const tarde = { node: "B", type: "Capture", tier: "Meso", expiry: "2026-08-15T18:00:00.000Z" };
+  assert.equal(bestFissure([pronto, tarde]).node, "B");
+});
+
+test("una fisura sin expiry no rompe la elección", () => {
+  const sin = { node: "A", type: "Capture", tier: "Meso" };
+  const con = { node: "B", type: "Capture", tier: "Meso", expiry: "2026-08-15T18:00:00.000Z" };
+  assert.equal(bestFissure([sin, con]).node, "B");
+  assert.ok(bestFissure([sin]));
+});
+
+// Omnia fissures (Lua / Zariman / Deimos) accept any classical relic
+// strict era matching made Omnia match nothing, reporting "waiting for fissure" despite three active Omnia
+// fissures
+
+test("una Omnia cuenta como fisura de las cuatro eras clásicas", () => {
+  assert.deepEqual(tiersOpenedBy({ tier: "Omnia" }).sort(), ["Axi", "Lith", "Meso", "Neo"]);
+});
+
+test("una fisura normal solo abre su propia era", () => {
+  assert.deepEqual(tiersOpenedBy({ tier: "Meso" }), ["Meso"]);
+  assert.deepEqual(tiersOpenedBy({ tier: "Vanguard" }), ["Axi"], "Vanguard es Axi");
+});
+
+// Requiem is a different system: Omnia does not open Requiem relics
+test("Omnia no cubre Requiem", () => {
+  assert.ok(!tiersOpenedBy({ tier: "Omnia" }).includes("Requiem"));
+});
+
+test("con una Omnia viva, una reliquia clásica que tienes SÍ se puede abrir", () => {
+  const r = buildSetRoute("Hydroid Prime", {
+    ...dosEras,
+    relicCounts: { "Neo Z3": 27, "Meso Z2": 14 },
+    // neither Neo nor Meso active, only Omnia: previously gave readyCount 0
+    fissures: [{ node: "Cambion Drift (Deimos)", type: "Alchemy", tier: "Omnia", expiry: "2026-08-15T18:00:00.000Z" }],
+  });
+  assert.equal(r.readyCount, 1, "la Omnia abre tanto la Neo como la Meso");
+  assert.equal(r.missing[0].relics[0].fissures.length, 1);
+});
+
+test("una Omnia no rescata una reliquia Requiem", () => {
+  const r = buildSetRoute("Requiem Set", {
+    setsDatabase: { "Requiem Set": ["Pieza A", "Pieza B"] },
+    itemsDatabase: { "Pieza A": [{ relic: "Requiem I Relic", tier: "Requiem", rarity: "Rare", chance: 2 }] },
+    relicSources: {},
+    primeInventory: { "Pieza B": 1 },
+    relicCounts: { "Requiem I": 5 },
+    fissures: [{ node: "Cambion Drift (Deimos)", type: "Alchemy", tier: "Omnia", expiry: "2026-08-15T18:00:00.000Z" }],
+    getRequiredCount: () => 1,
+  });
+  assert.equal(r.readyCount, 0);
+});
+
+/*
+ * which relic to recommend when a part drops from several
+ * choosing by drop table odds was doubly wrong: that rate is INTACT while the panel clocks radiant, and
+ * copy count weighed ahead of it
+ */
+
+// runs calculated from real game rates to decouple from other modules, classifying by PROBABILITY rather
+// than source labels
+const RATES = {
+  rare: { intact: 0.02, radiant: 0.10 },
+  uncommon: { intact: 0.11, radiant: 0.20 },
+  common: { intact: 0.2533, radiant: 0.1667 },
+};
+const runsCon = (refinamiento) => (drop) => {
+  const c = drop.chance;
+  const p = RATES[c > 17 ? "common" : c > 5 ? "uncommon" : "rare"][refinamiento];
+  return 1 / (1 - (1 - p) ** 4);
+};
+
+// warframe-drop-data labels everything non-rare as "Uncommon", including 25.33% commons: tests keep the
+// raw labels to avoid trusting them
+const dosReliquias = {
+  setsDatabase: { "X Prime": ["X Prime Blueprint", "X Prime Barrel"] },
+  itemsDatabase: {
+    "X Prime Barrel": [
+      { relic: "Lith C1 Relic", tier: "Lith", rarity: "Uncommon", chance: 25.33 },
+      { relic: "Meso U1 Relic", tier: "Meso", rarity: "Uncommon", chance: 11 },
+    ],
+  },
+  primeInventory: { "X Prime Blueprint": 1 },
+  relicCounts: { "Lith C1": 1, "Meso U1": 1 },
+  relicSources: {},
+  fissures: [],
+  getRequiredCount: () => 1,
+};
+
+const elegida = (route) => route.missing[0].relics[0].relic;
+
+test("con radiante gana la poco común, aunque la común tenga más probabilidad intacta", () => {
+  const r = buildSetRoute("X Prime", { ...dosReliquias, relicRuns: runsCon("radiant") });
+  assert.equal(elegida(r), "Meso U1", "20 % radiante bate al 16,67 % de la común");
+});
+
+test("con intactas gana la común: la recomendación sigue al refinamiento del jugador", () => {
+  const r = buildSetRoute("X Prime", { ...dosReliquias, relicRuns: runsCon("intact") });
+  assert.equal(elegida(r), "Lith C1");
+});
+
+// five copies of a rare take twice the runs of one common, but were recommended simply for having more
+// copies
+test("tener más copias ya no manda sobre las runs", () => {
+  const deps = {
+    ...dosReliquias,
+    itemsDatabase: {
+      "X Prime Barrel": [
+        { relic: "Lith C1 Relic", tier: "Lith", rarity: "Uncommon", chance: 25.33 },
+        { relic: "Meso R1 Relic", tier: "Meso", rarity: "Rare", chance: 2 },
+      ],
+    },
+    relicCounts: { "Lith C1": 1, "Meso R1": 5 },
+    relicRuns: runsCon("radiant"),
+  };
+  assert.equal(elegida(buildSetRoute("X Prime", deps)), "Lith C1");
+});
+
+// copies still break ties when runs are equal: same probability means five relics give five attempts
+test("a igualdad de runs, gana la que más copias tienes", () => {
+  const deps = {
+    ...dosReliquias,
+    itemsDatabase: {
+      "X Prime Barrel": [
+        { relic: "Lith C1 Relic", tier: "Lith", rarity: "Uncommon", chance: 25.33 },
+        { relic: "Meso C2 Relic", tier: "Meso", rarity: "Uncommon", chance: 25.33 },
+      ],
+    },
+    relicCounts: { "Lith C1": 1, "Meso C2": 5 },
+    relicRuns: runsCon("radiant"),
+  };
+  assert.equal(elegida(buildSetRoute("X Prime", deps)), "Meso C2");
+});
+
+// being able to open it NOW takes priority: a better relic without an active fissure is a reminder, not a
+// recommendation
+test("lo que se puede abrir ya gana a lo que pide menos runs", () => {
+  const deps = {
+    ...dosReliquias,
+    fissures: [{ node: "Ío", type: "Capture", tier: "Lith", eta: "35m" }],
+    relicRuns: runsCon("radiant"),
+  };
+  const r = buildSetRoute("X Prime", deps);
+  assert.equal(elegida(r), "Lith C1", "la Meso pide menos runs pero no hay fisura Meso");
+  assert.equal(r.readyCount, 1);
+});
+
+test("sin relicRuns el orden es el de antes: por probabilidad intacta", () => {
+  assert.equal(elegida(buildSetRoute("X Prime", dosReliquias)), "Lith C1");
+});
+
+test("cada reliquia lleva sus runs para que la UI las pueda pintar", () => {
+  const r = buildSetRoute("X Prime", { ...dosReliquias, relicRuns: runsCon("radiant") });
+  const [primera] = r.missing[0].relics;
+  assert.ok(Number.isFinite(primera.runs));
+  // 1 / (1 - 0.8^4) with radiant uncommon
+  assert.ok(Math.abs(primera.runs - 1 / (1 - 0.8 ** 4)) < 1e-9);
+});
+
+// estimated minutes must come from the recommended relic: expectedRuns() used the best relic rarity
+// regardless of ownership, underestimating farm time
+test("los minutos salen de la reliquia elegida, no del mejor caso de la pieza", () => {
+  const soloLaMala = {
+    ...dosReliquias,
+    itemsDatabase: {
+      "X Prime Barrel": [{ relic: "Meso R1 Relic", tier: "Meso", rarity: "Rare", chance: 2 }],
+    },
+    relicCounts: { "Meso R1": 1 },
+    // expectedRuns() baseline: getPartRarity takes the best relic rarity, estimating as if common was owned
+    expectedRuns: () => runsCon("radiant")({ chance: 25.33 }),
+    relicRuns: runsCon("radiant"),
+  };
+  const conElegida = buildSetRoute("X Prime", soloLaMala);
+  const sinElegida = buildSetRoute("X Prime", { ...soloLaMala, relicRuns: null });
+  assert.ok(conElegida.minutes > sinElegida.minutes,
+    `la rara debería costar más que las 6 runs del mejor caso (${conElegida.minutes} vs ${sinElegida.minutes})`);
+});
+
+
+// surplus parts: how many copies need to be farmed
+// with 4 of each part except blueprint, targeting "next set" asks for ONE blueprint and hides that three
+// more yield four sets
+// the surplus is already farmed; what remains is converting it
+const HP = ["HP Blueprint", "HP Neuroptics", "HP Chassis", "HP Systems"];
+const hydroid = {
+  setsDatabase: { "Hydroid Prime": HP },
+  itemsDatabase: Object.fromEntries(HP.map((p) => [p, [{ relic: "Lith A1", tier: "Lith", chance: 25 }]])),
+  relicSources: {}, relicCounts: {}, fissures: [], getRequiredCount: () => 1,
+};
+
+test("excedente: 4 de cada pieza menos una pide 4 copias y monta 4 sets", () => {
+  const inv = { "HP Neuroptics": 4, "HP Chassis": 4, "HP Systems": 4 };
+  const r = buildSetRoute("Hydroid Prime", { ...hydroid, primeInventory: inv });
+  assert.equal(r.missingCount, 1);
+  assert.equal(r.missing[0].part, "HP Blueprint");
+  assert.equal(r.missing[0].needed, 4, "cuatro planos, no uno");
+  assert.equal(r.setsUnlocked, 4);
+});
+
+test("excedente: sin hueco entre piezas se apunta al set siguiente, como siempre", () => {
+  const inv = { "HP Blueprint": 3, "HP Neuroptics": 4, "HP Chassis": 5, "HP Systems": 6 };
+  const r = buildSetRoute("Hydroid Prime", { ...hydroid, primeInventory: inv });
+  assert.equal(r.missing[0].needed, 1);
+  assert.equal(r.setsUnlocked, 1, "aquí el segundo cuello de botella YA es built + 1");
+});
+
+test("excedente: todas al mismo nivel piden una copia de cada", () => {
+  const inv = Object.fromEntries(HP.map((p) => [p, 4]));
+  const r = buildSetRoute("Hydroid Prime", { ...hydroid, primeInventory: inv });
+  assert.equal(r.missingCount, 4);
+  assert.ok(r.missing.every((m) => m.needed === 1));
+  assert.equal(r.setsUnlocked, 1);
+});
+
+// reward and effort must scale with copies, otherwise four sets are promised at the cost and time of one
+test("excedente: la ganancia y los minutos escalan con lo que falta", () => {
+  const inv = { "HP Neuroptics": 4, "HP Chassis": 4, "HP Systems": 4 };
+  const deps = { ...hydroid, primeInventory: inv, getPrice: (n) => (n.endsWith(" Set") ? 200 : 20), relicRuns: () => 3 };
+  const r = buildSetRoute("Hydroid Prime", deps);
+  assert.equal(r.gain, 560, "4 sets a 200 menos las 12 piezas sueltas que ya tenías");
+
+  const uno = buildSetRoute("Hydroid Prime", {
+    ...deps, primeInventory: { "HP Neuroptics": 1, "HP Chassis": 1, "HP Systems": 1 },
+  });
+  assert.ok(r.minutes > uno.minutes, `4 copias deben costar más que 1: ${r.minutes} vs ${uno.minutes}`);
+});
+
+// optimal refinement to close the route
+// refining raises rare and uncommon rates but LOWERS commons (25.3% intact -> 16.7% radiant): spending 100
+// traces on common-only sets slows progress
+const TASAS = {
+  rare: { intact: 0.02, exceptional: 0.04, flawless: 0.06, radiant: 0.10 },
+  uncommon: { intact: 0.11, exceptional: 0.13, flawless: 0.17, radiant: 0.20 },
+  common: { intact: 0.2533, exceptional: 0.2333, flawless: 0.20, radiant: 0.1667 },
+};
+// runs = 1/p for squad of 1, sufficient to compare refinements
+const runsDe = (rareza) => (drop, ref) => 1 / TASAS[rareza][ref];
+
+test("refinamiento: a un set de piezas COMUNES le sale mejor intacta", () => {
+  const missing = [{ needed: 1, relics: [{ relic: "Lith A1" }] }];
+  const r = bestRefinementFor(missing, runsDe("common"));
+  assert.equal(r.best, "intact", "radiante baja la tasa de comunes: refinar va peor");
+  assert.ok(r.runsBy.intact < r.runsBy.radiant);
+});
+
+test("refinamiento: a uno de piezas RARAS le sale mejor radiante", () => {
+  const missing = [{ needed: 1, relics: [{ relic: "Axi G1" }] }];
+  assert.equal(bestRefinementFor(missing, runsDe("rare")).best, "radiant");
+});
+
+test("refinamiento: las copias que faltan pesan en el total", () => {
+  const una = bestRefinementFor([{ needed: 1, relics: [{}] }], runsDe("rare"));
+  const cuatro = bestRefinementFor([{ needed: 4, relics: [{}] }], runsDe("rare"));
+  assert.equal(cuatro.runsBy.radiant, una.runsBy.radiant * 4);
+});
+
+// tie breaks by trace cost: otherwise the panel would recommend refining for zero gain
+test("refinamiento: a igualdad de runs gana el más barato", () => {
+  const plano = () => 5;
+  assert.equal(bestRefinementFor([{ needed: 1, relics: [{}] }], plano).best, "intact");
+});
+
+test("refinamiento: sin forma de estimar runs devuelve null, no un valor inventado", () => {
+  assert.equal(bestRefinementFor([{ needed: 1, relics: [{}] }], null), null);
+  assert.equal(bestRefinementFor([{ needed: 1, relics: [{}] }], () => null), null);
+  assert.equal(bestRefinementFor([], runsDe("rare")), null);
+});
+
+// era filter previously matched the route but displayed the fastest relic from another era (e.g. showing
+// Axi S16 under "Neo")
+test("la era elegida decide qué reliquia se recomienda", () => {
+    const deps = {
+        setsDatabase: { "P Prime": ["P Barrel", "P Blueprint"] },
+        itemsDatabase: {
+            "P Barrel": [
+                { relic: "Meso E3", tier: "Meso", chance: 25.33 },
+                { relic: "Neo V10", tier: "Neo", chance: 11 },
+                { relic: "Axi E1", tier: "Axi", chance: 2 },
+            ],
+        },
+        primeInventory: { "P Blueprint": 1 },
+        getRequiredCount: () => 1,
+    };
+    const relicDe = (d) => buildSetRoute("P Prime", d).missing[0].relics[0].relic;
+
+    assert.equal(relicDe(deps), "Meso E3", "sin era manda la rapidez");
+    assert.equal(relicDe({ ...deps, preferTier: "Neo" }), "Neo V10");
+    assert.equal(relicDe({ ...deps, preferTier: "Axi" }), "Axi E1");
+    // selecting an era the part does not drop from must not leave the row without a relic
+    assert.equal(relicDe({ ...deps, preferTier: "Lith" }), "Meso E3");
+});
+
+test("el veredicto de refinamiento se inyecta, no se calcula dentro", () => {
+    const deps = {
+        setsDatabase: { "P Prime": ["P Barrel", "P Blueprint"] },
+        itemsDatabase: { "P Barrel": [{ relic: "Meso E3", tier: "Meso", chance: 25.33 }] },
+        primeInventory: { "P Blueprint": 1 },
+        getRequiredCount: () => 1,
+    };
+    assert.equal(buildSetRoute("P Prime", deps).missing[0].refValue, null,
+        "sin la dependencia no hay veredicto, y no se rompe");
+
+    const visto = [];
+    const conVeredicto = buildSetRoute("P Prime", {
+        ...deps,
+        refinementValueOf: (relic) => { visto.push(relic); return { best: "radiant", worth: true }; },
+    });
+    assert.deepEqual(visto, ["Meso E3"], "se pregunta por la reliquia que se recomienda, no por todas");
+    assert.equal(conVeredicto.missing[0].refValue.worth, true);
+});

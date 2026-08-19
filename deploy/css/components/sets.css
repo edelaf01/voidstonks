@@ -81,6 +81,19 @@
     color: #fff;
 }
 
+/* rem, not em: hangs from .relic-name inside the chip, another 0.x em drops it below readable */
+.relic-owned {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--wf-blue);
+    background: rgba(0, 229, 255, 0.12);
+    border: 1px solid rgba(0, 229, 255, 0.3);
+    border-radius: 3px;
+    padding: 0 4px;
+    white-space: nowrap;
+    vertical-align: middle;
+}
+
 .relic-img {
     width: 24px;
     max-height: 24px;
@@ -351,6 +364,35 @@
     overflow-y: auto;
 }
 
+/* the global rule makes <label> block; this row puts it inline with the "?" without touching it */
+.set-search-labelrow {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    margin-bottom: 8px;
+}
+
+.set-search-labelrow label {
+    margin-bottom: 0;
+}
+
+.set-search-empty {
+    text-align: center;
+    color: #7b818a;
+    font-size: 0.88rem;
+    line-height: 1.5;
+    max-width: 460px;
+    margin: 24px auto 4px;
+}
+
+.set-search-more {
+    text-align: center;
+    color: #6f757e;
+    font-size: 0.76rem;
+    letter-spacing: 0.3px;
+    padding: 6px 10px 18px;
+}
+
 .set-container {
     margin-bottom: 25px;
     border: 1px solid #333;
@@ -555,15 +597,15 @@
     box-shadow: 0 0 12px rgba(221, 169, 56, 0.35) !important;
 }
 
-.tracker-item:hover .item-icon-small {
-    transform: scale(2) !important;
-    z-index: 10000 !important;
-}
-
 .tracker-item.done {
     opacity: 0.4;
     text-decoration: line-through;
     border-color: #222;
+}
+
+.tracker-item:hover .item-icon-small {
+    transform: scale(2) !important;
+    z-index: 10000 !important;
 }
 
 .tracker-item .market-link-icon {
@@ -684,4 +726,183 @@
     background: rgba(127, 179, 213, 0.12);
     border: 1px solid rgba(127, 179, 213, 0.3);
     border-radius: 4px;
+}
+
+/* "you have these halfway" strip (ui_sets_bridge.js) */
+#setResults .sets-bridge {
+    margin: 0 0 16px;
+    padding: 10px 12px;
+    background: rgba(221, 169, 56, 0.05);
+    border: 1px solid rgba(221, 169, 56, 0.18);
+    border-radius: 8px;
+}
+
+/* grid, not a wrapping row: the search box gets its own full-width line and the selectors go below */
+#setResults .sets-bridge-head {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+#setResults .sets-bridge-headline {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+#setResults .sets-bridge-controls {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+#setResults .sets-bridge-title {
+    color: var(--wf-gold-text);
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+/* the total, not what is shown: six chips cannot tell six apart from twenty-three */
+#setResults .sets-bridge-count {
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: #0d0f13;
+    background: var(--wf-gold-text);
+    border-radius: 9px;
+    padding: 1px 7px;
+}
+
+#setResults .sets-bridge-sort {
+    margin-left: auto;
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 100%;
+    font-size: 0.72rem;
+    padding: 3px 6px;
+}
+
+/* reads as a link, not another chip: it acts on the strip */
+#setResults .sets-bridge-more {
+    margin-top: 8px;
+    padding: 0;
+    font: inherit;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: none;
+    color: var(--wf-gold-text);
+    background: none;
+    border: 0;
+    border-bottom: 1px dashed rgba(221, 169, 56, 0.45);
+    cursor: pointer;
+    box-shadow: none;
+}
+
+#setResults .sets-bridge-more:hover,
+#setResults .sets-bridge-more:focus-visible {
+    border-bottom-style: solid;
+    background: none;
+    color: var(--wf-gold-text);
+}
+
+/* gain is muted: the hook is how much is missing, platinum only breaks ties */
+#setResults .sets-bridge-gain {
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: #8fd0a8;
+    white-space: nowrap;
+}
+
+#setResults .sets-bridge-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+/* <button> chrome reset: a button for touch (utils/tap.js) that must read as a chip */
+#setResults .sets-bridge-chip {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+    max-width: 100%;
+    margin: 0;
+    padding: 6px 10px;
+    font: inherit;
+    font-size: 0.82rem;
+    text-transform: none;
+    color: #d7dde5;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+}
+
+#setResults .sets-bridge-chip:hover,
+#setResults .sets-bridge-chip:focus-visible {
+    color: #fff;
+    background: rgba(221, 169, 56, 0.14);
+    border-color: rgba(221, 169, 56, 0.4);
+    box-shadow: none;
+}
+
+#setResults .sets-bridge-name {
+    font-weight: 700;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+#setResults .sets-bridge-left {
+    font-size: 0.68rem;
+    color: #8b95a3;
+    white-space: nowrap;
+}
+
+/* one part away is the hook of the whole strip, so it is highlighted */
+#setResults .sets-bridge-left.is-close {
+    color: var(--wf-green, #42f56c);
+    font-weight: 700;
+}
+
+/* strip filters; `min-width: 0` on all three: the intrinsic width of an <input> (large in Firefox) pushed the selector off the row */
+/* field size, not label size: 0.72rem with 3px padding gave a ~20px box too small for touch; full width since it is the main control */
+#setResults .sets-bridge-filter {
+    width: 100%;
+    padding: 9px 12px;
+    font-size: 0.9rem;
+}
+
+#setResults .sets-bridge-max,
+#setResults .sets-bridge-era {
+    flex: 1 1 7rem;
+    min-width: 0;
+    font-size: 0.82rem;
+    padding: 7px 8px;
+}
+
+#setResults .sets-bridge-sort {
+    margin-left: 0;
+    flex: 1 1 10rem;
+    min-width: 0;
+    font-size: 0.82rem;
+    padding: 7px 8px;
+}
+
+#setResults .sets-bridge-icon {
+    width: 22px;
+    height: 22px;
+    object-fit: contain;
+    flex-shrink: 0;
+    align-self: center;
+}
+
+#setResults .sets-bridge-empty {
+    font-size: 0.75rem;
+    color: #8b95a3;
+    padding: 4px 0 2px;
 }

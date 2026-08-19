@@ -1,0 +1,96 @@
+// inter-device sync mailbox (4-digit code, 60 s KV ttl)
+// ui_sync.js mapped res.status === 429 and res.ok twice with different text; this pins that translation
+// because confusing the three outcomes either tells the user to wait a minute for an unrelated error or
+// hides rate limiting
+
+import { test } from "node:test";
+import assert from "node:assert/strict";
+
+globalThis.localStorage = { getItem: () => null, setItem() {}, removeItem() {} };
+
+let respuesta = { ok: true, status: 200, json: async () => ({}) };
+let lanza = false;
+const urls = [];
+
+globalThis.fetch = async (url) => {
+  urls.push(String(url));
+  if (lanza) throw new Error("red caída");
+  return respuesta;
+};
+
+const { sendSync, pollSync, isValidSyncCode } = await import(
+  "../deploy/js/services/sync.service.js"
+);
+
+const responde = (status, cuerpo = {}) => {
+  lanza = false;
+  respuesta = { ok: status >= 200 && status < 300, status, json: async () => cuerpo };
+};
+
+test("solo valen códigos de exactamente 4 dígitos", () => {
+  for (const bueno of ["0000", "1234", "9999"]) assert.equal(isValidSyncCode(bueno), true, bueno);
+  for (const malo of ["123", "12345", "12a4", "", null, undefined, " 1234"]) {
+    assert.equal(isValidSyncCode(malo), false, String(malo));
+  }
+});
+
+test("un código inválido no llega a salir a la red", async () => {
+  const antes = urls.length;
+  assert.deepEqual(await sendSync("12", "hola"), { ok: false, reason: "invalid-code" });
+  assert.equal(urls.length, antes, "no debe generar tráfico");
+});
+
+test("enviar: los tres desenlaces se distinguen por nombre, no por código HTTP", async () => {
+  responde(200);
+  assert.deepEqual(await sendSync("1234", "hola"), { ok: true });
+
+  // 429 can be resolved by waiting while the rest cannot: confusing them showed the wrong warning
+  responde(429);
+  assert.deepEqual(await sendSync("1234", "hola"), { ok: false, reason: "rate-limit" });
+
+  responde(500);
+  assert.deepEqual(await sendSync("1234", "hola"), { ok: false, reason: "server" });
+});
+
+test("enviar: un fallo de red se reporta como error de servidor, no revienta", async () => {
+  lanza = true;
+  assert.deepEqual(await sendSync("1234", "hola"), { ok: false, reason: "server" });
+});
+
+test("recibir: 'todavía nada' es un resultado normal, no un error", async () => {
+  // the receiver polls every 3 s: treating an empty mailbox as an error would abort on the first tick before
+  // the other device sends
+  responde(200, {});
+  assert.deepEqual(await pollSync("1234"), { status: "waiting" });
+
+  responde(200, { val: null });
+  assert.deepEqual(await pollSync("1234"), { status: "waiting" });
+});
+
+test("recibir: el mensaje llega con su valor", async () => {
+  responde(200, { val: "Lith A1 x3" });
+  assert.deepEqual(await pollSync("1234"), { status: "received", value: "Lith A1 x3" });
+});
+
+test("recibir: límite y error de servidor sí cortan el bucle", async () => {
+  responde(429);
+  assert.deepEqual(await pollSync("1234"), { status: "rate-limit" });
+
+  responde(503);
+  assert.deepEqual(await pollSync("1234"), { status: "server" });
+});
+
+// an isolated network drop must not abort polling: a single failed tick would force generating a new code
+// and restarting from scratch
+test("recibir: un fallo de red puntual deja seguir esperando", async () => {
+  lanza = true;
+  assert.deepEqual(await pollSync("1234"), { status: "waiting" });
+});
+
+test("el código viaja en la petición", async () => {
+  responde(200, { val: "x" });
+  const antes = urls.length;
+  await pollSync("4321");
+  assert.match(urls.at(-1), /id=4321/);
+  assert.ok(urls.length > antes);
+});

@@ -17,6 +17,35 @@ async function fetchWithTimeout(url, options = {}) {
 }
 
 /**
+ * http cache policy: worker ttl does not reach the browser (`max-age=18000`, 5 h), so the
+ * client declares data lifetimes: rotating (fissures, bounties, arbitration, lich weapons),
+ * live (current value only), catalog (changes with game patches)
+ */
+
+/**
+ * data expiring at a specific time: `no-cache` forces the browser to always revalidate
+ * @param {string} query worker querystring without leading "?"
+ * @param {{force?: boolean, timeout?: number}} [opts] force uses a fresh cache key to bypass
+ *   edge stale-while-revalidate right after rotation
+ * @returns {Promise<Response>}
+ */
+async function fetchRotating(query, { force = false, timeout = 15000 } = {}) {
+    let url = `${WORKER_URL}?${query}`;
+    if (force) url += `&_cb=${Date.now()}`;
+    return fetchWithTimeout(url, { cache: "no-cache", timeout });
+}
+
+/**
+ * data where only the current value is valid: `no-store` instead of `no-cache`
+ * @param {string} query worker querystring without leading "?"
+ * @param {{timeout?: number}} [opts]
+ * @returns {Promise<Response>}
+ */
+async function fetchLive(query, { timeout = 10000 } = {}) {
+    return fetchWithTimeout(`${WORKER_URL}?${query}`, { cache: "no-store", timeout });
+}
+
+/**
  * @param {string} cacheKey
  * @param {number} cacheTtl
  * @returns {Promise<object>}
@@ -73,7 +102,7 @@ export async function fetchPrimeManifest() {
         state.entitiesDB = data;
         console.log("Entities Manifest Loaded:", data.length, "items");
         
-        const { updateDucatsDB } = await import("../services/relics.service.js");
+        const { updateDucatsDB } = await import("../services/inventory/relics.service.js");
         updateDucatsDB(data);
 
         if (resWeapons && resWeapons.ok) {
@@ -141,7 +170,7 @@ export async function fetchActiveResurgence() {
  */
 //TODO disabled at the moment
 export async function sendSyncMessage(code, val) {
-    return fetchWithTimeout(`${WORKER_URL}?type=sync_set&id=${code}&val=${encodeURIComponent(val)}`);
+    return fetchLive(`type=sync_set&id=${code}&val=${encodeURIComponent(val)}`, { timeout: 8000 });
 }
 
 /**
@@ -149,7 +178,8 @@ export async function sendSyncMessage(code, val) {
  * @returns {Promise<Response>}
  */
 export async function getSyncMessage(code) {
-    return fetchWithTimeout(`${WORKER_URL}?type=sync_get&id=${code}`);
+    //TODO disabled at the moment
+    return fetchLive(`type=sync_get&id=${code}`, { timeout: 8000 });
 }
 
 /**
@@ -158,7 +188,11 @@ export async function getSyncMessage(code) {
  * @returns {Promise<Response>}
  */
 export async function getProfileData(username, platform) {
-    return fetchWithTimeout(`${WORKER_URL}?type=profile&platform=${platform}&user=${encodeURIComponent(username)}`);
+    //TODO disabled at the moment must delete profile stuff
+    return fetchWithTimeout(
+        `${WORKER_URL}?type=profile&platform=${platform}&user=${encodeURIComponent(username)}`,
+        { cache: "no-cache" },
+    );
 }
 
 /**
@@ -170,6 +204,15 @@ export async function getPricesBatch(chunk) {
 }
 
 /**
+ * Mapa slug->precio de todo el catálogo prime 
+ *
+ * @returns {Promise<Response>}
+ */
+export async function getPricesSnapshot() {
+    return fetchWithTimeout(`${WORKER_URL}?type=prices_snapshot`, { timeout: 15000 });
+}
+
+/**
  * Fetches price + liquidity stats for a chunk of arcane slugs (Vosfor calculator).
  * @param {Array<string>} chunk
  * @returns {Promise<Response>}
@@ -178,17 +221,18 @@ export async function getArcaneBatch(chunk) {
     return fetchWithTimeout(`${WORKER_URL}?type=arcane_batch&q=${chunk.join(",")}`, { timeout: 25000 });
 }
 
-/** @returns {Promise<Response>} */
-export async function getActiveBounties() {
-    return fetchWithTimeout(`${WORKER_URL}?type=active_bounties&v=2`);
+/**
+ * Fetches active bounty data from the worker.
+ * @param {boolean} [force] retry after rotate
+ * @returns {Promise<Response>}
+ */
+export async function getActiveBounties(force = false) {
+    return fetchRotating("type=active_bounties&v=2", { force });
 }
 
 /** @returns {Promise<Response>} */
 export async function getActiveFissures(force = false) {
-    const opts = { timeout: 15000 };
-    let url = `${WORKER_URL}?type=fissures&v=2`;
-    if (force) url += `&_cb=${Date.now()}`;
-    return fetchWithTimeout(url, opts);
+    return fetchRotating("type=fissures&v=2", { force });
 }
 
 /**
@@ -196,10 +240,7 @@ export async function getActiveFissures(force = false) {
  * @returns {Promise<Response>}
  */
 export async function getArbitration(force = false) {
-    const opts = { timeout: 15000 };
-    let url = `${WORKER_URL}?type=arbitration`;
-    if (force) url += `&_cb=${Date.now()}`;
-    return fetchWithTimeout(url, opts);
+    return fetchRotating("type=arbitration", { force });
 }
 
 /**
@@ -207,12 +248,13 @@ export async function getArbitration(force = false) {
  * @returns {Promise<Response>}
  */
 export async function getLichWeapons(force = false) {
-    let url = `${WORKER_URL}?type=lich_weapons&v=2`;
-    if (force) url += `&_cb=${Date.now()}`;
-    return fetchWithTimeout(url, { timeout: 15000 });
+    return fetchRotating("type=lich_weapons&v=2", { force });
 }
 
-/** @returns {Promise<Response>} */
+/**
+ * fetches server time to sync client timers
+ * @returns {Promise<Response>}
+ */
 export async function getServerTime() {
-    return fetchWithTimeout(`${WORKER_URL}?type=time`, { cache: "no-store", timeout: 10000 });
+    return fetchLive("type=time");
 }

@@ -28,20 +28,29 @@ export const OpenCVRepository = {
                 await this.injectScript("https://docs.opencv.org/4.5.4/opencv.js");
             } catch (e) {
                 console.warn("[OpenCV] Primary CDN failed, fallback to unpkg...");
-                await this.injectScript("https://unpkg.com/@techstark/opencv-js@4.5.4-beta.3/dist/opencv.js");
+                try {
+                    await this.injectScript("https://unpkg.com/@techstark/opencv-js@4.5.4-beta.3/dist/opencv.js");
+                } catch (e2) {
+                    console.warn("[OpenCV] Fallback CDN failed too; continuing without OpenCV.");
+                    return false;
+                }
             }
 
             return new Promise((resolve) => {
+                const fin = Date.now() + timeout;
                 const interval = setInterval(() => {
                     if (check()) {
                         clearInterval(interval);
                         resolve(true);
+                    } else if (Date.now() >= fin) {
+                        clearInterval(interval);
+                        resolve(false);
                     }
                 }, 100);
             });
         })();
 
-        const timeoutPromise = new Promise(r => setTimeout(() => r(false), timeout));
+        const timeoutPromise = new Promise((r) => setTimeout(() => r(false), timeout));
         return Promise.race([this.initializationPromise, timeoutPromise]);
     },
 

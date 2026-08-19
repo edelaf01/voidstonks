@@ -30,6 +30,8 @@ Object.assign(rawState, {
   currentLang: "en",
   activeTab: "relic",
   playerCount: 1,
+  // players opening the relics, drives the drop odds
+  squadSize: 4,
   lfgCount: 1,
   relicSourcesDatabase: {},
   selectedRelic: "",
@@ -49,6 +51,8 @@ Object.assign(rawState, {
   inventory: [],
   invFilterTier: "ALL",
   invSearchVal: "",
+  invGoal: "sets",
+  invOnlyActive: false,
   showAllFarms: false,
   primeInventory: {},
   primeManifest: [],
@@ -83,6 +87,7 @@ export function saveAppState() {
       username: state.username || "",
       mr: state.mr || 0,
       currentActiveSet: state.currentActiveSet,
+      squadSize: state.squadSize,
       activeSetParts: state.activeSetParts,
       completedParts: Array.from(state.completedParts),
       lfgPresets: state.lfgPresets,
@@ -97,7 +102,16 @@ export function saveAppState() {
       visionSettings: state.visionSettings,
     };
 
-    localStorage.setItem("voidStonks_save", JSON.stringify(data));
+    try {
+      localStorage.setItem("voidStonks_save", JSON.stringify(data));
+    } catch (e) {
+      console.error("[state] no se pudo guardar en localStorage:", e);
+      globalThis.showToast?.(
+        state.currentLang === "es"
+          ? "No se pudo guardar: almacenamiento lleno"
+          : "Save failed: storage full",
+      );
+    }
     saveTimer = null;
   }, 1000);
 }
@@ -118,6 +132,7 @@ export function loadAppState() {
       state.completedParts = new Set(data.completedParts || []);
     }
     if (typeof data.showAllFarms !== "undefined") state.showAllFarms = data.showAllFarms;
+    if (Number.isFinite(data.squadSize)) state.squadSize = Math.min(4, Math.max(1, data.squadSize));
     if (data.lfgPresets) state.lfgPresets = data.lfgPresets;
     if (data.tradePresets) state.tradePresets = data.tradePresets;
     if (data.arbSettings) state.arbSettings = { ...state.arbSettings, ...data.arbSettings };
@@ -152,13 +167,9 @@ export function hydrateDOM(domValues) {
 
 export function updateInventoryCount(relicName, change) {
   if (state.inventory.length > 0 && typeof state.inventory[0] === "string") {
-    const newInv = [];
-    state.inventory.forEach((name) => {
-      const existing = newInv.find((i) => i.name === name);
-      if (existing) existing.count++;
-      else newInv.push({ name, count: 1 });
-    });
-    state.inventory = newInv;
+    const counts = new Map();
+    for (const name of state.inventory) counts.set(name, (counts.get(name) || 0) + 1);
+    state.inventory = [...counts].map(([name, count]) => ({ name, count }));
   }
 
   const itemIndex = state.inventory.findIndex((i) => i.name === relicName);
