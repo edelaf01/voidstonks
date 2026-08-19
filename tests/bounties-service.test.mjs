@@ -185,3 +185,49 @@ test("forzar el refresco llega hasta la petición", async () => {
   assert.ok(p, "debe pedirse el endpoint de bounties");
   assert.match(p, /_cb=\d+/, "force debe estrenar clave de caché");
 });
+
+test("el tipo sale del uniqueName cuando lo lleva", async () => {
+  conJobs("Ostron", [job({ uniqueName: "ZarimanExterminateFastCompleteChallenge" })]);
+  assert.equal((await misiones())[0].technicalType, "Exterminate");
+});
+
+test("con uniqueName de tabla de premios, el tipo sale del título", async () => {
+  conJobs("Ostron", [job({
+    uniqueName: "/Lotus/Types/Game/MissionDecks/EidolonJobMissionRewards/TierCTableBRewards",
+    type: "Search and Rescue",
+    id: "RescueBountyResc1787070250203",
+  })]);
+  assert.equal((await misiones())[0].technicalType, "Rescue");
+});
+
+test("el título manda sobre el id cuando discrepan", async () => {
+  conJobs("Ostron", [job({
+    uniqueName: "/Lotus/Types/Game/MissionDecks/EidolonJobMissionRewards/TierATableARewards",
+    type: "Capture the New Grineer Commander",
+    id: "AssassinateBountyCap1787070250203",
+  })]);
+  assert.equal((await misiones())[0].technicalType, "Capture");
+});
+
+test("si el título no dice la misión, se cae al id", async () => {
+  conJobs("Ostron", [job({
+    uniqueName: "/Lotus/Types/Game/MissionDecks/EidolonJobMissionRewards/TierATableARewards",
+    type: "Rise and Fall (Narmer)",
+    id: "AssassinateBountyAss1787070250203",
+  })]);
+  assert.equal((await misiones())[0].technicalType, "Assassination");
+});
+
+test("rescate, exterminio y captura cuentan como misión rápida", async () => {
+  conJobs("Ostrons", [
+    job({ uniqueName: "x", type: "Search and Rescue", id: "RescueBountyResc1" }),
+    job({ uniqueName: "x", type: "Capture Their Leader", id: "AttritionBountyCap1" }),
+    job({ uniqueName: "SomeJobExterminate", type: "Cleanse", id: "z1" }),
+    job({ uniqueName: "x", type: "Core Samples", id: "DeimosExcavateBounty1" }),
+  ]);
+  const porTipo = Object.fromEntries((await misiones()).map((m) => [m.technicalType, m.isOptimal]));
+  assert.equal(porTipo.Rescue, true, "rescate tiene que entrar en las rápidas");
+  assert.equal(porTipo.Capture, true);
+  assert.equal(porTipo.Exterminate, true);
+  assert.equal(porTipo.Excavation, false, "una excavación no es de una pasada");
+});

@@ -40,7 +40,7 @@ export function renderDucanatorView(list, opts = {}) {
     .filter(([name]) => !searchInput || name.toLowerCase().includes(searchInput))
     .map(([name, qty]) => {
       const ducats = getPartDucats(name);
-      const cachedRaw = globalThis.MEMORY_CACHE?.get(getSlug(name));
+      const cachedRaw = MEMORY_CACHE.get(getSlug(name));
       const plat = cachedRaw !== undefined ? (Number.parseInt(cachedRaw, 10) || 0) : null;
       const eff = ducatRatio(ducats, plat === null ? 0 : plat);
       return { name, qty, ducats, plat, eff };
@@ -69,11 +69,13 @@ export function renderDucanatorView(list, opts = {}) {
   rows.forEach((r) => {
     const platReady = r.plat !== null;
     const shouldFund = !platReady || r.plat <= KEEP_PLAT_THRESHOLD;
-    if (shouldFund) {
-      fundableDucats += r.ducats * r.qty;
-      fundableParts += r.qty;
-    } else {
-      keepPlat += r.plat * r.qty;
+    if (platReady) {
+      if (shouldFund) {
+        fundableDucats += r.ducats * r.qty;
+        fundableParts += r.qty;
+      } else {
+        keepPlat += r.plat * r.qty;
+      }
     }
     const effTxt = r.eff === Infinity ? "∞" : r.eff.toFixed(1);
     const platTxt = platReady ? `${r.plat}` : "...";
@@ -115,7 +117,8 @@ export function renderDucanatorView(list, opts = {}) {
         ${th("ratio", dt.colRatio || "Ratio", "num")}
       </div>`;
 
-  const emptyMsg = dt.empty || "No prime parts with ducat value. Scan or add parts first.";
+  const emptyMsg = dt.empty || "No prime parts with ducat value.";
+  const emptyHint = dt.emptyHint || "";
   const section = (label, items, kind) => items.length === 0 ? "" : `
       <div class="duc-section duc-section-${kind}">
         <div class="duc-section-header">
@@ -139,7 +142,9 @@ export function renderDucanatorView(list, opts = {}) {
         </div>
       </div>
       ${rows.length === 0
-        ? `<div class="duc-empty">${escapeHTML(emptyMsg)}</div>`
+        ? `<div class="duc-empty">${escapeHTML(emptyMsg)}`
+          + (emptyHint ? `<span class="duc-empty-hint">${escapeHTML(emptyHint)}</span>` : "")
+          + `</div>`
         : headerRow
           + section(dt.fundSection || "Trade for ducats", fundRows, "fund")
           + section(dt.keepSection || "Better to sell", keepRows, "keep")}

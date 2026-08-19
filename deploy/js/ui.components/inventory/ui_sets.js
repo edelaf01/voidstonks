@@ -16,6 +16,7 @@ import {
   generateDotsHtml,
 } from "../ui_tooltips.js";
 import { getPartRarity, calculatePartExpectedRuns, DROP_RATES_BY_RARITY } from "../../utils/inventory/relic_drop_odds.utils.js";
+import { getRelicCounts } from "../../utils/inventory/relic_counts.js";
 import { fetchAllFissures } from "../../services/farms/fissures.service.js";
 import {
   getFissureSetRecommendations,
@@ -28,6 +29,7 @@ import { buildSearchIndex, searchIndex } from "../../utils/fuzzy_search.js";
 import { setInputLoading, showLoadingIn } from "../ui_loader.js";
 import { createHelpButton, createTip } from "../ui_hints.js";
 import { renderEmptySetsShowcase } from "./ui_sets_showcase.js";
+import { renderSetsBridge, bridgeTargetFrom } from "./ui_sets_bridge.js";
 import { renderSetTracker, updateMacroTracker } from "./ui_set_tracker.js";
 let debounceTimer;
 globalThis.DEFAULT_WEAPON_SVG = DEFAULT_WEAPON_SVG;
@@ -147,7 +149,8 @@ export function searchSet() {
   container.innerHTML = "";
 
   if (query.length < 2) {
-    renderEmptySetsShowcase(container);
+    renderSetsBridge(container);
+    renderEmptySetsShowcase(container, { append: true });
     return;
   }
 
@@ -184,6 +187,8 @@ export function searchSet() {
     .sort((a, b) => (b[1] - a[1]) || a[0].localeCompare(b[0]))
     .slice(0, MAX_SET_CARDS);
 
+  renderSetsBridge(container);
+
   rankedSets.forEach(([setName]) => {
     const parts = partsOfSet(setName);
     createSetCard(setName, parts.length > 0 ? parts : [setName], container, false);
@@ -216,7 +221,22 @@ function insertRelicTip(container, t) {
   if (tip) firstGrid.parentNode.insertBefore(tip, firstGrid);
 }
 
+function initSetsBridgeDelegation() {
+  const container = document.getElementById("setResults");
+  if (!container || container.dataset.bridgeWired) return;
+  container.dataset.bridgeWired = "1";
+  container.addEventListener("click", (e) => {
+    const setName = bridgeTargetFrom(e.target);
+    if (!setName) return;
+    const input = document.getElementById("setItemInput");
+    if (!input) return;
+    input.value = setName;
+    searchSet();
+  });
+}
+
 export function initSetSearchHelp() {
+  initSetsBridgeDelegation();
   const slot = document.getElementById("set-search-help");
   if (!slot) return;
 
@@ -270,6 +290,8 @@ function createSetCard(title, itemNames, parent, isSingle = false) {
 
   header.appendChild(rightWrapper);
   setContainer.appendChild(header);
+
+  const owned = getRelicCounts();
 
   itemNames.forEach((itemName) => {
     if (!isSingle && !itemName.includes(title)) return;
@@ -328,6 +350,7 @@ function createSetCard(title, itemNames, parent, isSingle = false) {
 
       relicsInfo.sort((a, b) => a.relic.localeCompare(b.relic));
       const abbr = TEXTS[state.currentLang].rarityAbbr;
+      const setTabTexts = TEXTS[state.currentLang].setTab || {};
 
       relicsInfo.forEach((info) => {
         const btn = document.createElement("div");
@@ -351,9 +374,14 @@ function createSetCard(title, itemNames, parent, isSingle = false) {
 
         btn.className = `relic-chip ${rc}`;
 
+        const qty = owned[info.relic] || 0;
+        const ownedHtml = qty > 0
+            ? ` <span class="relic-owned" title="${escapeHTML((setTabTexts.relicOwned || "You own {n}").replace("{n}", qty))}">×${qty}</span>`
+            : "";
+
         btn.innerHTML = `
             <div class="relic-chip-header">
-                <span class="relic-name">${escapeHTML(info.relic)}</span>
+                <span class="relic-name">${escapeHTML(info.relic)}${ownedHtml}</span>
                 <span class="relic-era-icon ${tier.toLowerCase()}"></span>
             </div>
             <div class="chip-footer">
@@ -417,7 +445,8 @@ function openSetFromRelicReward(partName) {
     );
     if (allParts.length > 0) {
       activateSetTracker(setName, allParts);
-      import("../ui_components.js").then(m => m.showToast(`Tracking ${setName} Set`));
+      import("../ui_components.js").then((m) => m.showToast(
+      (TEXTS[state.currentLang]?.setTab?.trackingToast || "Tracking {set}").replace("{set}", setName)));
     }
 }
 
@@ -454,7 +483,8 @@ setTimeout(() => {
               (n) => (n === setName || n.startsWith(setName + " ")) && !n.endsWith(" Set")
             );
             activateSetTracker(setName, allParts);
-            import("../ui_components.js").then(c => c.showToast("Tracking: " + setName));
+            import("../ui_components.js").then((c) => c.showToast(
+              (TEXTS[state.currentLang]?.setTab?.trackingToast || "Tracking {set}").replace("{set}", setName)));
           }
         });
       }

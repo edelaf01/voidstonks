@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { installFakeDocument } from "./_helpers/fake-canvas.mjs";
 
 installFakeDocument();
@@ -168,4 +169,30 @@ test("una celda de riven se reconoce por su nombre o por su categoría", () => {
   assert.equal(S._isRivenCellText(["MELEE", "MOD"]), true);
   assert.equal(S._isRivenCellText(["BRATON", "PRIME", "BLUEPRINT"]), false);
   assert.equal(S._isRivenCellText(["MOD"]), false, "'MOD' a secas no basta");
+});
+
+const SRC = readFileSync(new URL("../deploy/js/services/scanner/scanner.service.js", import.meta.url), "utf8");
+
+// browsers decode each <img> even with display:none: rebuilding 10 thumbnails per page cost 1.9 GB
+test("la imagen del historial de debug no se genera con el panel cerrado", () => {
+  const i = SRC.indexOf("this.debugHistory.unshift(");
+  assert.notEqual(i, -1, "falta el historial de debug");
+  const bloque = SRC.slice(i - 800, i + 400);
+
+  assert.match(bloque, /img:\s*ScannerHUD\.isDebugOpen\(\) \?/,
+    "el toDataURL solo puede hacerse con el panel abierto");
+});
+
+test("con el panel cerrado tampoco se repintan las miniaturas", () => {
+  const i = SRC.indexOf("this.debugHistory.unshift(");
+  const cola = SRC.slice(i, i + 900);
+  assert.match(cola, /if \(ScannerHUD\.isDebugOpen\(\) && ScannerHUD\.updateDebugHistory\)/,
+    "reconstruir las 10 <img> es justo lo que costaba la RAM");
+});
+
+test("el log del escaneo se sigue guardando aunque el panel esté cerrado", () => {
+  const i = SRC.indexOf("this.debugHistory.unshift(");
+  const bloque = SRC.slice(i, i + 400);
+  assert.match(bloque, /log:\s*\[\.\.\.this\.lastRawOcrLog\]/);
+  assert.ok(!/log:\s*debugVisible/.test(bloque), "el log no puede depender del panel");
 });

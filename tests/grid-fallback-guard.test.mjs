@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { isImplausibleFallbackGrid } from "../deploy/js/utils/vision/grid_detect.js";
+import { isImplausibleFallbackGrid } from "../deploy/js/utils/vision/plausibility.js";
 
 test("acepta la rejilla real detectada (6x3, celdas ~11% ancho)", () => {
   const real = { gridZone: { x: 56, y: 254, w: 1662, h: 873 }, cellW: 277, cellH: 291, cols: 6, rows: 3 };

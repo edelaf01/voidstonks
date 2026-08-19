@@ -150,6 +150,7 @@ function crearContexto(canvas) {
     fillText() {},
     strokeText() {},
     beginPath() {}, closePath() {}, moveTo() {}, lineTo() {}, stroke() {}, fill() {},
+    arc() {}, arcTo() {}, ellipse() {}, rect() {}, quadraticCurveTo() {}, bezierCurveTo() {},
     save() {}, restore() {}, translate() {}, scale() {}, rotate() {}, setTransform() {},
     measureText: (t) => ({ width: String(t).length * 6 }),
   };

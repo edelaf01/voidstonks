@@ -141,9 +141,12 @@
     font-size: 0.85em;
     text-transform: uppercase;
     line-height: 1.2;
-    word-break: break-word;
+    overflow-wrap: normal;
+    word-break: normal;
+    overflow: hidden;
+    text-overflow: ellipsis;
     flex: 1;
-    min-width: 0;
+    min-width: 5ch;
 }
 
 .set-count-badge {

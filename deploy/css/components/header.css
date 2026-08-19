@@ -432,11 +432,39 @@
     line-height: 1;
 }
 
+.tab-fan-item {
+    align-items: flex-start;
+}
+
+.tab-fan-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
 .tab-fan-label {
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.tab-fan-desc {
+    font-size: 0.72rem;
+    font-weight: 500;
+    line-height: 1.3;
+    color: #8b95a3;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.tab-fan-item:hover .tab-fan-desc,
+.tab-fan-item.is-highlighted .tab-fan-desc {
+    color: #aab3bf;
 }
 
 .form-group {
@@ -659,4 +687,16 @@ option {
         margin-left: 4px;
         border-radius: 50%;
     }
+}
+
+/* chrome autofill white background is covered by an inset shadow and 9999s transition */
+.wf-input:-webkit-autofill,
+.wf-input:-webkit-autofill:hover,
+.wf-input:-webkit-autofill:focus,
+.wf-input:-webkit-autofill:active {
+    -webkit-text-fill-color: #eee;
+    -webkit-box-shadow: 0 0 0 1000px var(--wf-input-bg, #0a0b0d) inset;
+    box-shadow: 0 0 0 1000px var(--wf-input-bg, #0a0b0d) inset;
+    caret-color: #eee;
+    transition: background-color 9999s ease-out 0s;
 }

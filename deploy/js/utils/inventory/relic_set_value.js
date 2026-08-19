@@ -65,6 +65,12 @@ export function relicSetValue(drops, deps) {
   };
 }
 
+export function pickSetToTrack(value, currentSet) {
+  if (!value?.bestSet) return null;
+  if (currentSet && value.missing.some((m) => m.set === currentSet)) return null;
+  return value.bestSet;
+}
+
 export function describeRelicRuns(r, t) {
   if (!Number.isFinite(r.runs)) return { none: t.nothing };
   return {
