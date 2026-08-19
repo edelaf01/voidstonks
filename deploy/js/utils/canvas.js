@@ -2,9 +2,7 @@ export function initCanvas() {
   const canvas = document.getElementById("void-traces-canvas");
   if (!canvas) return;
 
-  const ctx = canvas.getContext("2d", { alpha: true });
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = "high";
+  const ctx = canvas.getContext("2d", { alpha: true, desynchronized: true });
   const TARGET_FPS = 15;
   const SPEED_MULTI = 2;
   const PARTICLE_COUNT = 15;
@@ -50,7 +48,6 @@ export function initCanvas() {
     grid = [],
     particles = [];
   const frameDelay = 1000 / TARGET_FPS;
-  let then = Date.now();
   const directions = [
     { dx: 0, dy: -1 },
     { dx: 1, dy: -1 },
@@ -237,11 +234,10 @@ export function initCanvas() {
         }
       }
     }
-    draw() {
+    draw(activeColor) {
       if (this.path.length < 2) return;
       const sx = (x) => x * CELL_SIZE + CELL_SIZE / 2;
       const sy = (y) => y * CELL_SIZE + CELL_SIZE / 2;
-      const activeColor = getThemeColorRGB();
       ctx.lineWidth = 2;
       ctx.lineCap = "square";
       ctx.lineJoin = "bevel";
@@ -291,7 +287,7 @@ export function initCanvas() {
   }
 
   function initSystem() {
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
     width = window.innerWidth;
     height = window.innerHeight;
     canvas.width = width * dpr;
@@ -312,23 +308,29 @@ export function initCanvas() {
   });
   initSystem();
 
-  function animate() {
-    requestAnimationFrame(animate);
-    const now = Date.now();
-    const elapsed = now - then;
-    if (elapsed > frameDelay) {
-      then = now - (elapsed % frameDelay);
+  function frame() {
+    if (Math.random() < 0.05) spawnBus();
 
-      if (Math.random() < 0.05) {
-        spawnBus();
-      }
+    const activeColor = getThemeColorRGB();
 
-      ctx.clearRect(0, 0, width, height);
-      for (let i = 0; i < SPEED_MULTI; i++) {
-        particles.forEach((p) => p.update());
-      }
-      particles.forEach((p) => p.draw());
-    }
+    ctx.clearRect(0, 0, width, height);
+    for (let i = 0; i < SPEED_MULTI; i++) particles.forEach((p) => p.update());
+    particles.forEach((p) => p.draw(activeColor));
+
+    schedule();
   }
-  animate();
+
+  let pending;
+  function schedule() {
+    clearTimeout(pending);
+    pending = setTimeout(() => requestAnimationFrame(frame), frameDelay);
+  }
+
+  const quieto = window.matchMedia?.("(prefers-reduced-motion: reduce)");
+  if (quieto?.matches) {
+    particles.forEach((p) => p.update());
+    particles.forEach((p) => p.draw(getThemeColorRGB()));
+  } else {
+    frame();
+  }
 }

@@ -15,7 +15,9 @@ import EELogTranslator from './ee-log-translator.js';
 
 async function main() {
   const logPath = process.argv[2] || '.claude/eelog/EE.log';
-  const outputPath = process.argv[3] || 'deploy/data/kubrows-from-eelog.json';
+  // Fuera de deploy/: ese directorio se copia entero a Cloudflare y este JSON es la salida de
+  // este script, no un dato que pida el navegador.
+  const outputPath = process.argv[3] || 'data/kubrows-from-eelog.json';
 
   console.log('[*] EE.log → Inventory Pipeline');
   console.log(`    Log: ${logPath}`);

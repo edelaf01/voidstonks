@@ -6,6 +6,7 @@ import {
 } from "../config.js";
 import { state } from "../state.js";
 import { exposeGlobals } from "../utils/global_registry.js";
+import { getRelicDropTooltip } from "./ui_tooltips.js";
 
 export function preloadCriticalAssets() {
   const assets = [
@@ -18,11 +19,15 @@ export function preloadCriticalAssets() {
   });
 }
 
-export function escapeHTML(str) {
-  if (!str) return "";
-  const p = document.createElement("p");
-  p.textContent = str;
-  return p.innerHTML;
+import { escapeHTML } from "../utils/escape_html.js";
+export { escapeHTML };
+
+export function emptyStateHtml(message, scannerHint = "") {
+  const scannerOnScreen = document.getElementById("scanner-section")?.offsetParent != null;
+  const hint = scannerHint && scannerOnScreen
+    ? `<div style="margin-top:6px; font-size:0.85em; opacity:0.7;">${escapeHTML(scannerHint)}</div>`
+    : "";
+  return `<div style="padding:20px 16px; text-align:center; color:#888; line-height:1.5;">${escapeHTML(message)}${hint}</div>`;
 }
 
 const activeToasts = new Map();
@@ -155,6 +160,9 @@ export function initGlobalTooltipSystem() {
     if (top + tHeight > globalThis.innerHeight)
       top = e.clientY - tHeight - offset;
 
+    if (left < 8) left = 8;
+    if (top < 8) top = 8;
+
     tooltipEl.style.left = `${left}px`;
     tooltipEl.style.top = `${top}px`;
   };
@@ -184,8 +192,8 @@ export function initGlobalTooltipSystem() {
     const textContent = target.dataset.tooltip;
     const relicName = target.dataset.tooltipRelic;
 
-    if (relicName && globalThis.getRelicDropTooltip) {
-      htmlContent = globalThis.getRelicDropTooltip(relicName);
+    if (relicName) {
+      htmlContent = getRelicDropTooltip(relicName);
     }
 
     if (htmlContent) {
