@@ -264,5 +264,33 @@
    "p95": 96.4
   },
   "winsor_recortadas": 3752
+ },
+ {
+  "ts": "2026-08-24 04:46",
+  "filas": 214816,
+  "armas": 415,
+  "fecha_min": "2026-06-03",
+  "fecha_max": "2026-08-24",
+  "pct_mag": 0.806,
+  "r2_log": 0.7735,
+  "r2_intra": 0.589,
+  "spearman_intra": 0.71,
+  "auc_godroll": 0.816,
+  "mape_trade": 46.5,
+  "mape_global": 77.7,
+  "mape_mediano_arma": 85.1,
+  "mape_piso": 27.4,
+  "mape_trade_inedito": 49.9,
+  "fuga_combos_pct": 34.6,
+  "venta_calibrada": 0,
+  "venta_armas": 415,
+  "cobertura": {
+   "p25": 28.3,
+   "p50": 51.0,
+   "p80": 81.6,
+   "p90": 91.8,
+   "p95": 96.5
+  },
+  "winsor_recortadas": 3960
  }
 ]
