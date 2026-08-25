@@ -3,6 +3,34 @@
    Forms, Dropdowns & General Buttons
    ===================================================== */
 
+/* Reset de los controles que abren o eligen algo y que antes eran <div onclick>.
+ *
+ * En tactil el click sobre un <div> se pierde con facilidad (ver utils/tap.js) y ademas un
+ * div no entra en la navegacion por teclado, asi que ahora son <button>. Un <button> no
+ * hereda ni la tipografia ni la caja, de modo que aqui se le devuelve la del div que era.
+ *
+ * Va ANTES que las clases que lo usan y con la misma especificidad (0,1,0) a proposito: asi
+ * cualquier propiedad que .lang-trigger, .lang-option-item o .dropdown-item ya declaren gana
+ * sobre este bloque, y el reset solo rellena lo que el navegador pone por su cuenta. */
+.vs-plain {
+    appearance: none;
+    -webkit-appearance: none;
+    background: none;
+    border: 0;
+    padding: 0;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    box-sizing: border-box;
+    cursor: pointer;
+}
+
+/* Los que ocupan una fila entera de una lista: un <button> encoge al contenido y un <div> no. */
+.vs-plain-block {
+    display: block;
+    width: 100%;
+}
+
 /* ---- Site Header ---- */
 .site-header {
     width: 100%;
@@ -68,11 +96,23 @@
     justify-content: space-between;
 }
 
-.lang-trigger:hover {
-    border-color: var(--wf-blue);
-    color: #fff;
-    background: rgba(0, 0, 0, 0.6);
-    box-shadow: 0 0 10px rgba(0, 229, 255, 0.2);
+/* El hover, solo donde existe de verdad. En tactil se queda "pegado" tras el primer toque y el
+   navegador lo interpreta como "mostrar hover" en vez de como un click, asi que habia que tocar
+   dos veces el selector de idioma para abrirlo. Mismo patron que .dropdown-item mas abajo. */
+@media (hover: hover) {
+    .lang-trigger:hover {
+        border-color: var(--wf-blue);
+        color: #fff;
+        background: rgba(0, 0, 0, 0.6);
+        box-shadow: 0 0 10px rgba(0, 229, 255, 0.2);
+    }
+}
+
+@media (hover: none) {
+    .lang-trigger:active {
+        border-color: var(--wf-blue);
+        color: #fff;
+    }
 }
 
 .lang-options {
@@ -109,10 +149,21 @@
     transition: background 0.2s;
 }
 
-.lang-option-item:hover {
-    background: var(--wf-blue);
-    color: #000;
-    font-weight: 700;
+/* El font-weight ensancha el texto, o sea que este hover MUEVE la fila: es justo el caso que
+   se come el toque. En tactil el feedback lo da :active, que dura lo que dura el dedo. */
+@media (hover: hover) {
+    .lang-option-item:hover {
+        background: var(--wf-blue);
+        color: #000;
+        font-weight: 700;
+    }
+}
+
+@media (hover: none) {
+    .lang-option-item:active {
+        background: var(--wf-blue);
+        color: #000;
+    }
 }
 
 /* ---- Main Card ---- */
@@ -252,7 +303,10 @@
     opacity: 1;
     visibility: visible;
     transition: opacity 1.5s ease-out, visibility 1.5s;
-    pointer-events: auto;
+    /* Es solo texto legal, pero flota 8 s sobre el centro-bajo de la pagina: con
+       pointer-events auto se tragaba los clics de los selectores de refinamiento y escuadra
+       que quedan debajo (1440x900). */
+    pointer-events: none;
 }
 
 .footer-disclaimer.fade-out {
@@ -738,6 +792,20 @@ option {
 }
 
 @media (max-width: 768px) {
+    /* En móvil no flota sobre la barra de navegación ni sobre el contenido: se integra en el flujo. */
+    .footer-disclaimer {
+        position: static;
+        transform: none;
+        width: auto;
+        max-width: none;
+        margin-top: 14px;
+        padding: 10px 0 0;
+        background: none;
+        box-shadow: none;
+        border-top: 1px solid rgba(255, 255, 255, 0.06);
+        pointer-events: auto;
+    }
+
     /* En móvil, donde el texto puede ocultarse, el badge se reduce a un punto. */
     .tab-wip-badge {
         font-size: 0;

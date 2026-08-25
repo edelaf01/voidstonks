@@ -1,4 +1,5 @@
 import { fetchWeaponHistory, fetchCurrentRivens } from "../../repositories/riven.repository.js";
+import { normalizeIndexFilters, INDEX_FILTER_DEFAULTS } from "../../utils/rivens/riven_index_filter.js";
 
 /**
  * Historial y catálogo de rivens: lo que el componente necesita del worker de rivens.
@@ -63,4 +64,29 @@ export async function getRivenIndex() {
     }
 
     return { ok: true, weapons, baseline };
+}
+
+// ---- Filtros del índice ----
+
+const FILTERS_KEY = "vs_riven_index_filters_v1";
+
+/**
+ * Filtros del índice, saneados. Aquí y no en el componente porque un ui.component no toca
+ * localStorage (ARCHITECTURE.md §A); los predicados viven aparte, en utils/rivens.
+ * @param {string[]} validTypes tipos presentes hoy: uno guardado que ya no exista cae a "".
+ */
+export function getIndexFilterPrefs(validTypes = []) {
+    try {
+        return normalizeIndexFilters(JSON.parse(localStorage.getItem(FILTERS_KEY)), validTypes);
+    } catch {
+        return { ...INDEX_FILTER_DEFAULTS };
+    }
+}
+
+export function saveIndexFilterPrefs(prefs) {
+    try {
+        localStorage.setItem(FILTERS_KEY, JSON.stringify(prefs));
+    } catch (e) {
+        console.warn("[riven-index] no se pudieron guardar los filtros:", e);
+    }
 }

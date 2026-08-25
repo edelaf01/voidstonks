@@ -6,8 +6,17 @@ import { ScannerService } from "../services/scanner/scanner.service.js";
 import { OCRService } from "../services/scanner/ocr.service.js?v=264";
 import { ScannerModal } from "../ui.components/ui_scanner_modal.js";
 import { ScannerHUD } from "../ui.components/ui_scanner_hud.js";
+import { showHowToPanel } from "../ui.components/ui_howto_panel.js";
+import { oneTimeNoticeSeen, markOneTimeNoticeSeen } from "../repositories/storage.repository.js";
 import { OCRRepository } from "../repositories/ocr.repository.js";
 import { WF_THEMES } from "../services/scanner/vision.service.js";
+import { mergeRelicCounts } from "../utils/inventory/relic_counts.js";
+import { RelicScreenService } from "../services/scanner/relic_screen.service.js";
+import { exposeGlobals } from "../utils/global_registry.js";
+
+// Clave propia y no la del escáner de móvil: son dos flujos distintos, y haber visto uno no
+// explica el otro.
+const HOWTO_KEY = "vs_live_howto_seen";
 
 globalThis._OCRService = OCRService;
 globalThis._ScannerModal = ScannerModal;
@@ -106,6 +115,16 @@ export async function startLiveSession() {
     }
 
     globalThis.syncScannerModeUI();
+
+    // Después de conceder el permiso, no antes: el panel taparía el diálogo del navegador.
+    if (!oneTimeNoticeSeen(HOWTO_KEY)) {
+      showHowToPanel({
+        title: t.howToTitle, steps: t.howToSteps || [], gotIt: t.howToGot,
+        onDismiss: () => markOneTimeNoticeSeen(HOWTO_KEY),
+      });
+    }
+
+    RelicScreenService.reset();
     await ScannerService.start();
     showToast(t.toastActive);
 
@@ -114,7 +133,11 @@ export async function startLiveSession() {
     liveStream.getVideoTracks()[0].onended = () => stopLiveSession();
   } catch (e) {
     console.error("Scanner startup failed:", e);
-    showToast((st().toastError || "Error: {msg}").replace("{msg}", e.message));
+    // Cancelar el selector de ventanas también llega aquí como NotAllowedError, y el mensaje
+    // crudo del navegador ("Permission denied") no dice qué hacer para seguir.
+    showToast(e.name === "NotAllowedError"
+      ? (st().toastShareDenied || "No window was shared.")
+      : (st().toastError || "Error: {msg}").replace("{msg}", e.message));
     stopLiveSession();
   } finally {
     isStartingSession = false;
@@ -134,7 +157,9 @@ export function stopLiveSession() {
   if (toggleBtn) {
     toggleBtn.classList.remove("active");
     const label = toggleBtn.querySelector(".label");
-    if (label) label.innerText = "LIVE SCANNER";
+    // Antes volvía a "LIVE SCANNER" a pelo, un tercer nombre para el mismo botón además del
+    // del HTML y el de la sesión activa, y encima siempre en inglés.
+    if (label) label.innerText = TEXTS[state.currentLang].scanner.idle;
   }
   const drawer = document.getElementById("scanner-drawer");
   if (drawer) {
@@ -152,6 +177,14 @@ export function stopLiveSession() {
 globalThis.showRivenAppraisal = async (parsedL, parsedR, screenshotDataURL) => {
   const { RivenScannerHUD } = await import("../ui.components/rivens/ui_riven_scanner_hud.js");
   RivenScannerHUD.show(parsedL, parsedR, screenshotDataURL);
+};
+
+// Las cantidades de la pantalla VOID RELICS/REFINEMENT se escriben en el inventario solas,
+// así que el aviso no es decorativo: es la única señal de que algo cambió sin pedirlo.
+RelicScreenService.onApplied = (changed) => {
+  const t = TEXTS[state.currentLang].scanner;
+  showToast((t.relicCountsApplied || "{n} relic counts updated").replace("{n}", String(changed.length)));
+  saveAppState();
 };
 
 /**
@@ -193,10 +226,22 @@ globalThis.syncRewardFromGame = (itemName, owned) => {
     return true;
 };
 
+/**
+ * Piezas dadas de alta A MANO desde la pantalla de selección de reliquia, aún sin confirmar
+ * por la de fin de misión.
+ *
+ * Las dos pantallas hablan de la MISMA pieza: primero eliges la recompensa, y al acabar la
+ * misión el juego te la enseña otra vez en el resumen. Sin esta lista, elegirla a mano y
+ * escanear el resumen la sumaría dos veces. Se vacía en cada alta automática, que es lo que
+ * marca el final de la partida.
+ */
+const pendingManualAdds = [];
+
 globalThis.selectRewardToInventory = (itemName) => {
   const modal = globalThis.ScannerModal;
   if (modal) modal.selectedItem = itemName;
   globalThis.selectedScanItem = itemName;
+  pendingManualAdds.push(itemName);
 
   const t = TEXTS[state.currentLang].rewardScanner;
   const msg = t.rewardSelectedConfirmation
@@ -213,6 +258,58 @@ globalThis.selectRewardToInventory = (itemName) => {
 };
 
 /**
+ * Alta automática de las piezas leídas en MISSION COMPLETE.
+ *
+ * Semántica de SUMA, no de asignación: esta pantalla enseña lo que acabas de recibir, no
+ * cuántas tienes. (El grid del inventario sí dice el total y por eso allí se asigna.)
+ *
+ * Se ofrece deshacer porque el alta ocurre sin que el usuario pulse nada: si el OCR se
+ * equivoca en un nombre, tiene que poder devolverlo sin ir a buscarlo al inventario.
+ */
+function commitMissionCompleteRewards(items) {
+  if (!state.autoAddMissionRewards || !items?.length) return;
+
+  const t = TEXTS[state.currentLang].scanner;
+  const previo = new Map();
+  const añadidas = [];
+
+  for (const { name, qty = 1 } of items) {
+    // Ya contada al elegirla en la pantalla de reliquia: se consume el apunte y no se suma.
+    const manual = pendingManualAdds.indexOf(name);
+    if (manual !== -1) { pendingManualAdds.splice(manual, 1); continue; }
+
+    if (!previo.has(name)) previo.set(name, state.primeInventory[name] || 0);
+    state.primeInventory[name] = (state.primeInventory[name] || 0) + qty;
+    añadidas.push(qty > 1 ? `${name} ×${qty}` : name);
+  }
+  pendingManualAdds.length = 0;
+  if (!añadidas.length) return;
+
+  saveAppState();
+  if (globalThis.renderPrimeInventory) globalThis.renderPrimeInventory();
+
+  const toast = showToast(`${t.mcAdded}: ${añadidas.join(", ")}`, { type: "success", tag: "mc-rewards" });
+  if (!toast) return;
+  const undo = document.createElement("button");
+  undo.className = "toast-action";
+  undo.textContent = t.mcUndo;
+  undo.onclick = () => {
+    for (const [name, count] of previo) {
+      if (count > 0) state.primeInventory[name] = count;
+      else delete state.primeInventory[name];
+    }
+    saveAppState();
+    if (globalThis.renderPrimeInventory) globalThis.renderPrimeInventory();
+    showToast(t.mcUndone, { tag: "mc-rewards" });
+  };
+  toast.appendChild(undo);
+}
+
+// Lo llama scanner.service.js por globalThis: un service no puede importar de scanner/
+// (capa superior), así que el global es el único camino — pero pasa por el registro.
+exposeGlobals({ commitMissionCompleteRewards }, "scanner/live_scanner.js");
+
+/**
  * Saves detected inventory items from the current session to the app state.
  */
 globalThis.saveLiveInventory = () => {
@@ -223,21 +320,8 @@ globalThis.saveLiveInventory = () => {
   ScannerService.sessionInventory.clear();
 
   // Reliquias detectadas en el mismo grid (fallback de OCRService.getRelicMatch): se persisten
-  // en state.inventory (array {name, count}), NO en primeInventory. Semántica "set" (igual que
-  // primeInventory): la cantidad de consenso reemplaza la existente, no se suma.
-  // Índice por nombre en vez de un find() por reliquia: guardar un escaneo largo sobre un
-  // inventario grande era O(escaneadas × guardadas) y se notaba al pulsar guardar.
-  const byName = new Map(state.inventory.map(r => [r.name, r]));
-  for (const [name, count] of ScannerService.sessionRelics) {
-    const existing = byName.get(name);
-    if (existing) {
-      existing.count = count;
-    } else {
-      const entry = { name, count };
-      state.inventory.push(entry);
-      byName.set(name, entry);
-    }
-  }
+  // en state.inventory (array {name, count}), NO en primeInventory.
+  state.inventory = mergeRelicCounts(state.inventory, ScannerService.sessionRelics);
   ScannerService.sessionRelics.clear();
   ScannerService.relicQtyVotes.clear();
 

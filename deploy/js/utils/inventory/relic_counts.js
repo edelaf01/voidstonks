@@ -21,3 +21,66 @@ export function getRelicCounts() {
     }
     return counts;
 }
+
+/** El nombre sin el sufijo " Relic", que es la forma en la que dos entradas se comparan. */
+export function relicKey(name) {
+    return String(name || "").replace(/\s+Relic$/i, "").trim().toUpperCase();
+}
+
+/**
+ * Mete las cantidades de un escaneo en el inventario, sin duplicar entradas.
+ *
+ * Semántica "set", igual que el inventario prime: lo escaneado REEMPLAZA la cantidad, no se
+ * suma — si no, escanear la misma página dos veces duplicaría todo.
+ *
+ * Lo que hay que resolver aquí es que las dos partes hablan idiomas distintos: el escáner
+ * devuelve el nombre canónico de `state.allRelicNames` (con " Relic" o sin él, según de dónde
+ * venga la base de datos) y el inventario guarda strings sueltos del formato viejo o
+ * `{name, count}` con cualquiera de las dos formas. Comparando `name` a secas —que es lo que
+ * hacía saveLiveInventory— "Neo N12 Relic" no encontraba a "Neo N12" y se apuntaba aparte:
+ * dos filas de la misma reliquia y el contador partido entre las dos.
+ *
+ * El nombre GUARDADO no se toca: quien ya estaba se queda como estaba y solo cambia su
+ * cantidad. Normalizarlo aquí sería migrar el inventario entero de rebote.
+ *
+ * @param inventory  state.inventory (mezcla de strings y {name, count})
+ * @param scanned    Map|Object de nombre canónico -> cantidad leída
+ * @returns array nuevo de {name, count}; las entradas a 0 desaparecen
+ */
+export function mergeRelicCounts(inventory, scanned) {
+    const out = [];
+    const index = new Map();
+
+    for (const item of inventory || []) {
+        const isString = typeof item === "string";
+        const name = (isString ? item : item?.name) || "";
+        const key = relicKey(name);
+        if (!key) continue;
+        const count = isString ? 1 : Number(item?.count) || 1;
+        const prev = index.get(key);
+        // El formato viejo repite la reliquia una vez por copia: al convertirlo a {name, count}
+        // hay que sumarlas, no quedarse con la última.
+        if (prev) prev.count += count;
+        else {
+            const entry = { name: String(name).trim(), count };
+            out.push(entry);
+            index.set(key, entry);
+        }
+    }
+
+    const pairs = scanned instanceof Map ? [...scanned] : Object.entries(scanned || {});
+    for (const [name, raw] of pairs) {
+        const key = relicKey(name);
+        if (!key) continue;
+        const count = Math.max(0, Math.round(Number(raw) || 0));
+        const prev = index.get(key);
+        if (prev) prev.count = count;
+        else if (count > 0) {
+            const entry = { name: String(name).trim(), count };
+            out.push(entry);
+            index.set(key, entry);
+        }
+    }
+
+    return out.filter((e) => e.count > 0);
+}

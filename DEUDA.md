@@ -468,6 +468,10 @@ En todos los casos era la misma función, así que el efecto de hoy era inocuo �
 exactamente el fallo que el registro existe para cazar. Ahora cada nombre lo publica un solo
 módulo: el que lo define.
 
+**2026-08-25:** migrado también el bloque `Object.assign(globalThis, {…})` de `ui_lfg.js`
+(11 nombres), que se quedó fuera de aquella pasada. Salió al tocar `copyText` para que avise
+cuando el portapapeles falla; su entrada ya no está en el baseline.
+
 **Tres funciones muertas, borradas:** `clearRivenSearch`, `previewRivenIndexWeapon` y
 `restoreRivenIndexPreview` (`ui_rivens.js`) estaban publicadas y **no las llamaba nadie** — cero
 apariciones en todo `deploy/`, y el botón `btn-clear-riven-search` que la primera manipulaba ya

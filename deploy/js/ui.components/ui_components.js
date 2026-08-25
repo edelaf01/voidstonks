@@ -6,6 +6,7 @@ import {
 } from "../config.js";
 import { state } from "../state.js";
 import { exposeGlobals } from "../utils/global_registry.js";
+import { isTouchPointer } from "../utils/tap.js";
 import { getRelicDropTooltip } from "./ui_tooltips.js";
 
 export function preloadCriticalAssets() {
@@ -32,10 +33,19 @@ export { escapeHTML };
  * por debajo de 768px, y el texto que había mandaba a usarlo igualmente: en un móvil, la
  * primera pantalla de la app apuntaba a algo que no existe ahí.
  */
-export function emptyStateHtml(message, scannerHint = "") {
-  const scannerOnScreen = document.getElementById("scanner-section")?.offsetParent != null;
-  const hint = scannerHint && scannerOnScreen
-    ? `<div style="margin-top:6px; font-size:0.85em; opacity:0.7;">${escapeHTML(scannerHint)}</div>`
+/**
+ * @param scannerHint  pista del escáner de escritorio; solo se pinta si está en pantalla.
+ * @param mobileHint   su equivalente donde manda el botón de la cámara. Sin esto, en móvil el
+ *   vacío se quedaba sin ninguna salida: la pista de escritorio se calla (bien, ese escáner no
+ *   existe ahí) y no había nada que la sustituyera.
+ */
+export function emptyStateHtml(message, scannerHint = "", mobileHint = "") {
+  const onScreen = (id) => document.getElementById(id)?.offsetParent != null;
+  const texto = onScreen("scanner-section") ? scannerHint
+    : onScreen("mobile-scan-btn") ? mobileHint
+      : "";
+  const hint = texto
+    ? `<div style="margin-top:6px; font-size:0.85em; opacity:0.7;">${escapeHTML(texto)}</div>`
     : "";
   return `<div style="padding:20px 16px; text-align:center; color:#888; line-height:1.5;">${escapeHTML(message)}${hint}</div>`;
 }
@@ -138,6 +148,14 @@ export async function checkUpdates() {
   const lastSeenVersion = localStorage.getItem("last_seen_version");
   const currentVersionStr = String(APP_VERSION);
 
+  // Sin la clave no es una actualización: es la PRIMERA visita. Abriendo el historial también
+  // ahí, el primer gesto de todo el que llegaba era cerrar el changelog de una herramienta que
+  // aún no había usado. Se sella la versión y se le deja entrar.
+  if (!lastSeenVersion) {
+    localStorage.setItem("last_seen_version", currentVersionStr);
+    return;
+  }
+
   if (lastSeenVersion !== currentVersionStr) {
     openUpdateHistory();
   }
@@ -157,6 +175,30 @@ export function closeUpdateModal() {
   document.getElementById("update-modal").classList.add("hidden");
   localStorage.setItem("last_seen_version", String(APP_VERSION));
   console.log("Versión guardada con éxito:", APP_VERSION);
+}
+
+// Cerrados, los paneles laterales siguen fuera de la pantalla pero dentro del orden de foco:
+// el tabulador recorre sus ~100 controles invisibles y el lector de pantalla los anuncia. Por
+// CSS no se puede arreglar (el bloque móvil les fuerza `visibility: visible !important`), así
+// que se marcan `inert`. Observer porque `.open` se pone desde media docena de sitios, y
+// `childList` porque el panel de fisuras se reconstruye cuando llegan datos nuevos.
+export function keepPanelInertWhileClosed(panel) {
+  if (!panel || panel.dataset.inertWatch) return;
+  panel.dataset.inertWatch = "1";
+  const sync = () => {
+    const cerrado = !panel.classList.contains("open");
+    for (const hijo of panel.children) {
+      // El asa es lo único pulsable con el panel cerrado: es la que lo abre.
+      if (hijo.id?.endsWith("toggle-btn")) continue;
+      hijo.inert = cerrado;
+    }
+  };
+  new MutationObserver(sync).observe(panel, {
+    attributes: true,
+    attributeFilter: ["class"],
+    childList: true,
+  });
+  sync();
 }
 
 export function initGlobalTooltipSystem() {
@@ -307,8 +349,17 @@ export function initGlobalTooltipSystem() {
   // (mismo contenido/posición que en desktop); tocar de nuevo el mismo, o fuera, lo cierra.
   // Sin esto, los usuarios de móvil no ven ningún tooltip (dissolve, veredicto, etc.).
   document.addEventListener("click", (e) => {
-    const target = e.target.closest("[data-tooltip], [data-tooltip-html], [data-tooltip-relic]");
+    let target = e.target.closest("[data-tooltip], [data-tooltip-html], [data-tooltip-relic]");
     if (e.target.closest("#global-tooltip")) return; // clic dentro del propio tooltip: ignorar
+    // En táctil el mismo toque dispara la acción del control y este listener: tocar la pestaña
+    // "Mis órdenes" cambiaba de vista Y dejaba encima el tooltip que describe la pestaña que
+    // acababas de abrir, para cerrarlo aparte.
+    //
+    // Solo se anula donde el toque CAMBIA LA PANTALLA de debajo (pestañas y enlaces): ahí el
+    // tooltip habla de algo que ya no estás mirando. En el resto —incluidos botones como el
+    // chip "solo mías" de Ducados, cuya acción es instantánea y visible— este click es la
+    // única forma de leer la ayuda en un móvil, así que apagarlo dejaría el texto inalcanzable.
+    if (target && isTouchPointer() && target.closest(".tab-btn, a[href]")) target = null;
     if (target) {
       const alreadyOpen = !tooltipEl.classList.contains("hidden") && currentHoverTarget === target;
       if (openTimer) clearTimeout(openTimer);

@@ -27,7 +27,12 @@ function collectInventorySlugs() {
     if (state.setsDatabase) {
         Object.keys(state.setsDatabase).forEach((setName) => {
             const parts = state.setsDatabase[setName];
-            if (state.settings?.showEmptyPrime || parts.some((p) => (state.primeInventory[p] || 0) > 0)) {
+            // Aquí NO entra showEmptyPrime a propósito. Este bucle recorre el catálogo entero, y
+            // con la casilla puesta pedía el precio de todas las piezas de todos los sets — miles
+            // de consultas a warframe.market por marcar un filtro de la lista. La casilla decide
+            // qué se PINTA (ui_prime_inventory.js), no cuánto se descarga; las piezas a 0 que sí
+            // tienes ya entran por collectInventorySlugs() unas líneas más arriba.
+            if (parts.some((p) => (state.primeInventory[p] || 0) > 0)) {
                 itemsToCheck.add(getSlug(`${setName} Set`));
                 parts.forEach((p) => itemsToCheck.add(getSlug(p)));
             }

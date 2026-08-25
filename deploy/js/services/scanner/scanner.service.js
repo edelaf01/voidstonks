@@ -3,6 +3,8 @@ import { freezeFrame, releaseFrame } from "../../utils/vision/frame_freeze.js";
 import { nextLatchedContext, INITIAL_LATCH } from "../../utils/vision/context_latch.js";
 import { isImplausibleFallbackGrid, detectPlausibleRewardBand } from "../../utils/vision/plausibility.js";
 import { OCRService } from "./ocr.service.js?v=264";
+import { SquadService } from "./squad.service.js";
+import { RelicScreenService } from "./relic_screen.service.js";
 import { OCRRepository } from "../../repositories/ocr.repository.js";
 import { PaddleRepository } from "../../repositories/paddle.repository.js";
 import { OpenCVRepository } from "../../repositories/opencv.repository.js";
@@ -10,18 +12,20 @@ import { ScannerHUD } from "../../ui.components/ui_scanner_hud.js";
 import { ScannerModal } from "../../ui.components/ui_scanner_modal.js";
 import { initializeOCRDatabase } from "../../repositories/api.repository.js";
 import { escapeHTML } from "../../utils/escape_html.js";
-import { electPageNameColor } from "./name_color.service.js";
+import { electPageNameColor, cellNameMask, hasInk, readCellWithOwnColor } from "./name_color.service.js";
+import { createCellOverlay } from "../../utils/vision/scan_overlay.js";
+import { detectRewardCells } from "../../utils/vision/mission_complete_grid.js";
+import { nextLedger, INITIAL_LEDGER } from "../../utils/inventory/reward_ledger.js";
 import { createFrameQueue } from "../../utils/vision/frame_queue.js";
+import { videoRegionHash, smallCanvasHash, compareHashes } from "../../utils/vision/frame_hash.js";
+import { rivenFingerprint } from "../../utils/rivens/riven_naming.js";
 
-/**
- */
 export const ScannerService = {
     isScanning: false,
     scanInterval: null,
     currentRate: 1200,
     RIVEN_RATE_ACTIVE: 400, // sin resultado mostrado aún, o el hash cambió: escanea rápido
     RIVEN_RATE_IDLE: 1000, // ya hay resultado y la pantalla está estática (hash-skip disparando): relaja el poll
-    lastTrackedRelic: "",
     sessionInventory: new Map(),
     sessionRelics: new Map(), // relicName -> qty de consenso (fallback de reliquias en el grid de inventario)
     _autoCalibCache: null, // rejilla autodetectada cacheada { key: "WxH", calib } — detectar cuesta un frame completo
@@ -154,10 +158,10 @@ export const ScannerService = {
         //    cada frame dejaba pasar cambios graduales (fade de transición) sin re-OCR jamás.
         //  - TTL: pase lo que pase, re-OCR cada 2.5s — acota cualquier colisión de hash a
         //    2.5s de ceguera máxima (la pantalla de recompensas dura ~10s).
-        const headerHash = this._smallCanvasHash(virtualCanvas);
+        const headerHash = smallCanvasHash(virtualCanvas);
         const headerCacheFresh = this.lastHeaderOcrTime && (Date.now() - this.lastHeaderOcrTime < 2500);
         let headerText;
-        if (this.lastHeaderText !== null && headerCacheFresh && this._compareHashes(headerHash, this.lastHeaderHash, 6)) {
+        if (this.lastHeaderText !== null && headerCacheFresh && compareHashes(headerHash, this.lastHeaderHash, 6)) {
             headerText = this.lastHeaderText;
         } else {
             // Solo cuando el header cambió: detección de tema + umbralizado (finalize) y OCR.
@@ -180,6 +184,23 @@ export const ScannerService = {
                 if (VisionService.determineContext(altText) !== "UNKNOWN") {
                     console.log(`[SCAN] Header rescatado por binarización de tema: "${altText.trim().slice(0, 60)}"`);
                     headerText = altText;
+                }
+            }
+
+            // Tercer intento: el título CENTRADO. MISSION COMPLETE no cae en el recorte
+            // izquierdo (de ahí sale "WARFRAME MIS"), así que sin esta pasada esa pantalla
+            // es invisible para el escáner. Va la última porque solo la necesita ella.
+            if (VisionService.determineContext(headerText) === "UNKNOWN") {
+                if (!this._centerHeaderCvs) this._centerHeaderCvs = document.createElement("canvas");
+                VisionService.prepareCenterHeaderCanvas(video, this._centerHeaderCvs);
+                const cCtx = this._centerHeaderCvs.getContext("2d", { willReadFrequently: true });
+                const cTheme = VisionService.detectThemeFromSnapshot(this._centerHeaderCvs, 0, 0, this._centerHeaderCvs.width, this._centerHeaderCvs.height);
+                VisionService.applyThemeDistanceThreshold(cCtx, this._centerHeaderCvs.width, this._centerHeaderCvs.height, cTheme);
+                const { data: cData } = await OCRRepository.recognize(worker1, this._centerHeaderCvs, {}, { text: true });
+                const cText = cData.text || "";
+                if (VisionService.determineContext(cText) !== "UNKNOWN") {
+                    console.log(`[SCAN] Contexto por título centrado: "${cText.trim().slice(0, 60)}"`);
+                    headerText = cText;
                 }
             }
             this.lastHeaderText = headerText;
@@ -322,8 +343,18 @@ export const ScannerService = {
     // canvas anotado), log, summary, warning }], más reciente primero, cap 10.
     debugHistory: [],
 
-    async routeFrameAction(contextType, video, dims) {
+    async routeFrameAction(rawContextType, video, dims) {
+        // El interruptor manual PRIME/RIVENS reencamina el contexto ANTES de anunciarlo. Antes
+        // el desvío vivía dentro del else-if de rivens, así que con "RIVENS" puesto sobre el
+        // inventario prime el HUD seguía diciendo INVENTORY mientras el pipeline leía cartas
+        // de riven: la única pista de que el modo estaba activo era el propio cajón.
+        const contextType = (globalThis.state.scannerModsMode && rawContextType === "INVENTORY")
+            ? "INVENTORY_MODS"
+            : rawContextType;
         ScannerHUD.updateContext(contextType);
+
+        // La pausa en misión no tiene cabecera propia: cae en UNKNOWN, o en RELICS cuando la fila de reliquias del squad entra en el recorte del header.
+        if ((contextType === "UNKNOWN" || contextType === "RELICS") && await SquadService.probe(video)) return;
 
         if (contextType === "INVENTORY") {
             if (!globalThis.state.autoScanEnabled) {
@@ -464,7 +495,7 @@ export const ScannerService = {
                 ScannerHUD.updateScrollStatus("done", this.sessionInventory.size + this.sessionRelics.size);
             }
 
-        } else if (contextType === "INVENTORY_MODS" || contextType === "ITEM_DETAILS" || (globalThis.state.scannerModsMode && contextType === "INVENTORY")) {
+        } else if (contextType === "INVENTORY_MODS" || contextType === "ITEM_DETAILS") {
             // Poll rápido por defecto para reaccionar casi al instante cuando el usuario reroll-ea o
             // cambia de riven / aún no hay nada mostrado. processRivenCard relaja este rate (ver
             // RIVEN_RATE_IDLE) cuando ya hay un resultado en pantalla y el hash-skip está disparando
@@ -475,7 +506,13 @@ export const ScannerService = {
         } else if (contextType === "RELICS") {
             if (globalThis.RivenScannerHUD) globalThis.RivenScannerHUD.dismiss();
             this.currentRate = 600;
-            await this.processRelicSelection(video, dims);
+            await RelicScreenService.process(video, dims);
+        } else if (contextType === "MISSION_COMPLETE") {
+            if (globalThis.RivenScannerHUD) globalThis.RivenScannerHUD.dismiss();
+            // La pantalla se queda hasta que el usuario pulse continuar, así que no hace falta
+            // correr: el ritmo lo marca el consenso de 2 lecturas iguales, no la prisa.
+            this.currentRate = 800;
+            await this.processMissionComplete(video, dims);
         } else if (contextType === "REWARD") {
             if (globalThis.RivenScannerHUD) globalThis.RivenScannerHUD.dismiss();
             if (this.detectionLocked) return;
@@ -575,75 +612,6 @@ export const ScannerService = {
         if (newConf > oldConf) return true;
 
         return false;
-    },
-
-    // Hash de la REGIÓN FIJA del vídeo (el rect de cardCrop sobre videoWidth/Height). Los canvases
-    // tight-cropped de prepareRivenCardCanvases jitteran de ancho entre frames (749–1538px con la
-    // pantalla QUIETA), así que un hash calculado sobre ellos nunca coincidía → el hash-skip y el
-    // rate IDLE no enganchaban jamás y se re-OCReaba cada frame. Hasheando el rect fijo del vídeo,
-    // una pantalla estática produce un hash estable aunque el tight-crop baile. Mismo formato hex
-    // que _getCanvasHash para poder reutilizar _compareHashes.
-    // Canvas 16x9 reutilizado por todos los hashes: crear uno nuevo por llamada (cada 400ms)
-    // generaba churn de GC innecesario.
-    _tinyCvs: null,
-    _tinyCtx() {
-        if (!this._tinyCvs) {
-            this._tinyCvs = document.createElement("canvas");
-            this._tinyCvs.width = 16;
-            this._tinyCvs.height = 9;
-        }
-        return this._tinyCvs.getContext("2d", { willReadFrequently: true });
-    },
-
-    _hashFromTiny(ctx) {
-        const d = ctx.getImageData(0, 0, 16, 9).data;
-        let hash = "";
-        for (let i = 0; i < d.length; i += 4) {
-            const avg = Math.floor((d[i] + d[i + 1] + d[i + 2]) / 3);
-            hash += avg.toString(16).padStart(2, "0");
-        }
-        return hash;
-    },
-
-    _getVideoRegionHash(video, crop) {
-        const ctx = this._tinyCtx();
-        ctx.drawImage(video,
-            Math.floor(video.videoWidth * crop.x), Math.floor(video.videoHeight * crop.y),
-            Math.floor(video.videoWidth * crop.w), Math.floor(video.videoHeight * crop.h),
-            0, 0, 16, 9);
-        return this._hashFromTiny(ctx);
-    },
-
-    // Hash barato de un canvas ya preparado (franja del header) para el skip del OCR de contexto.
-    _smallCanvasHash(canvas) {
-        const ctx = this._tinyCtx();
-        ctx.drawImage(canvas, 0, 0, canvas.width, canvas.height, 0, 0, 16, 9);
-        return this._hashFromTiny(ctx);
-    },
-
-    // tolerance: 18 (por defecto) para pantallas riven/inventario completas; el skip del
-    // HEADER usa 6 — el título es texto fino y con 18 los cambios de pantalla se colaban.
-    _compareHashes(hash1, hash2, tolerance = 18) {
-        if (!hash1 || !hash2) return false;
-        if (hash1.length !== hash2.length) return false;
-        let diff = 0;
-        for (let i = 0; i < hash1.length; i += 2) {
-            const val1 = parseInt(hash1.substring(i, i + 2), 16);
-            const val2 = parseInt(hash2.substring(i, i + 2), 16);
-            diff += Math.abs(val1 - val2);
-        }
-        const avgDiff = diff / (hash1.length / 2);
-        return avgDiff < tolerance;
-    },
-
-    /**
-     * Generates a fingerprint string from a parsed riven for consensus comparison.
-     */
-    _rivenFingerprint(parsed) {
-        if (!parsed) return "null";
-        const w = parsed.weaponName || "?";
-        const s = parsed.stats.map(st => `${st.isPositive ? "+" : "-"}${st.name}`).sort().join(",");
-        return `${w}|${s}`;
     },
 
     // Separa las palabras del OCR en cartas por su posición X (hueco grande = frontera entre cartas).
@@ -765,12 +733,12 @@ export const ScannerService = {
         // tight-crops jitteraba con la pantalla quieta (el ancho del recorte baila 749–1538px) y el
         // skip nunca enganchaba. Con el rect fijo, un frame estático coincide y ni siquiera pagamos
         // el coste de prepareRivenCardCanvases.
-        const hash = this._getVideoRegionHash(video, cardCrop);
+        const hash = videoRegionHash(video, cardCrop);
 
         // Skip OCR if we already have a result and the region hasn't changed. Pantalla estática ya
         // parseada -> relaja el rate de poll (menos CPU); en cuanto el hash cambie, el siguiente
         // frame ya vuelve a RIVEN_RATE_ACTIVE (fijado por defecto en routeFrameAction) para reaccionar rápido.
-        if ((this.lastParsedL || this.lastParsedR) && this._compareHashes(hash, this.lastHashL)) {
+        if ((this.lastParsedL || this.lastParsedR) && compareHashes(hash, this.lastHashL)) {
             this.lastRivenContextTime = Date.now();
             this.lastRivenContextType = contextType === "ITEM_DETAILS" ? "ITEM_DETAILS" : "INVENTORY_MODS";
             this.currentRate = this.RIVEN_RATE_IDLE;
@@ -784,7 +752,7 @@ export const ScannerService = {
         // en el fade-in de un popup (Item Details) y fallar, y el hash del fade casi completo queda
         // dentro del umbral del de la pantalla final — sin caducidad, ese fallo silenciaba la
         // pantalla buena para siempre. Reintentar cada 3s una pantalla estática cuesta casi nada.
-        if (this._compareHashes(hash, this.lastNoResultHash) && (Date.now() - this.lastNoResultTime < 3000)) {
+        if (compareHashes(hash, this.lastNoResultHash) && (Date.now() - this.lastNoResultTime < 3000)) {
             return;
         }
 
@@ -877,7 +845,7 @@ export const ScannerService = {
         if (!valids.length) this.lastNoResultTime = Date.now();
 
         // --- TEMPORAL CONSENSUS: require 2/3 matching fingerprints (of the whole card set) ---
-        const currentFP = valids.map(e => this._rivenFingerprint(e.parsed)).join("||") || "none";
+        const currentFP = valids.map(e => rivenFingerprint(e.parsed)).join("||") || "none";
         this.rivenConsensusBuffer.push(currentFP);
         if (this.rivenConsensusBuffer.length > 3) this.rivenConsensusBuffer.shift();
         const matchCount = this.rivenConsensusBuffer.filter(fp => fp === currentFP).length;
@@ -1070,7 +1038,7 @@ export const ScannerService = {
         if (!a || !b) return false;
         const pa = a.split("|"), pb = b.split("|");
         if (pa.length !== pb.length) return false;
-        return pa.every((h, i) => this._compareHashes(h, pb[i]));
+        return pa.every((h, i) => compareHashes(h, pb[i]));
     },
 
     /**
@@ -1148,20 +1116,6 @@ export const ScannerService = {
         ScannerHUD.updateDebugSnapshot(debugCvs.toDataURL("image/webp"));
     },
 
-    async processRelicSelection(video, dims) {
-        const { scale } = dims;
-        const canvas = VisionService.prepareRelicSelectionCanvas(video, scale);
-        const worker1 = OCRRepository.workers[0];
-        const { data } = await OCRRepository.recognize(worker1, canvas, {}, { text: true });
-
-        const relicMatch = OCRService.parseRelicSelection(data.text);
-        if (relicMatch && relicMatch !== this.lastTrackedRelic) {
-            this.lastTrackedRelic = relicMatch;
-            // Emit event or call UI
-            if (globalThis.showTrackConfirm) globalThis.showTrackConfirm(relicMatch, data.text);
-        }
-    },
-
     // Ejecuta un intento completo de OCR+parse de recompensas con un preset de binarización dado.
     // Devuelve { rawOcr, namesRaw, foundItems, ocrCanvas, namesCanvas }.
     // `frame`: canvas congelado de processRewards, no el <video>.
@@ -1234,6 +1188,79 @@ export const ScannerService = {
         console.log(`[REWARD] Items found: ${foundItems.length}`, foundItems.map(i => i.name));
 
         return { rawOcr, namesRaw, foundItems, ocrCanvas, namesCanvas };
+    },
+
+    /** Consenso/dedup de altas automáticas desde MISSION COMPLETE (utils/inventory/reward_ledger.js). */
+    mcLedger: INITIAL_LEDGER,
+    _mcFrameCvs: null,
+    _mcCellCvs: null,
+    _mcStableHash: null,
+
+    /**
+     * Lee la pantalla de fin de misión y da de alta las piezas prime que aparezcan.
+     *
+     * Es la pantalla que dice lo que de VERDAD recibiste: en la de selección de reliquia el
+     * usuario tiene que decirle a la app cuál eligió, y aquí ya está decidido.
+     *
+     * Cuatro puertas antes de escribir, todas baratas:
+     *   1. rejilla de ✓ — si no hay retícula, no es esta pantalla o está a medio abrir
+     *   2. contigüidad — un hueco en medio del panel es algo tapándolo (ver hasGap)
+     *   3. catálogo real de reliquias + isPrime — "Ayatan Amber Star" casa consigo mismo y
+     *      se queda fuera; lo que no sale de una reliquia no existe para el matcher
+     *   4. consenso — dos lecturas idénticas, y la firma impide repetir el alta por frame
+     */
+    async processMissionComplete(video, dims) {
+        const { width, height } = dims;
+        const frame = this._mcFrameCvs = freezeFrame(video, width, height, this._mcFrameCvs);
+
+        // La pantalla entra con una animación de barrido. Leer a media animación cuesta un
+        // OCR entero para tirarlo, así que primero se comprueba que ya está quieta.
+        const hash = smallCanvasHash(frame);
+        if (!compareHashes(hash, this._mcStableHash, 6)) {
+            this._mcStableHash = hash;
+            return;
+        }
+
+        const fCtx = frame.getContext("2d", { willReadFrequently: true });
+        const trace = {};
+        const grid = detectRewardCells(fCtx.getImageData(0, 0, width, height), { trace });
+        if (!grid) {
+            console.log(`[MC] Sin rejilla: ${trace.fail}`);
+            return;
+        }
+        console.log(`[MC] ${trace.cells} casillas · ${trace.cols}×${trace.rows} · paso ${trace.pitch}${grid.occluded ? " · TAPADA" : ""}`);
+
+        // El tooltip de "N OWNED" (sale al pasar el ratón por una celda) tapa hasta dos
+        // casillas. Leer así perdería en silencio la pieza que hubiera debajo, que es
+        // exactamente lo que un alta automática no se puede permitir. Se espera: el tooltip
+        // desaparece solo en cuanto el ratón se mueve.
+        if (grid.occluded) return;
+
+        const worker = OCRRepository.workers[0];
+        if (!worker) return;
+
+        if (!this._mcCellCvs) this._mcCellCvs = document.createElement("canvas");
+        const items = [];
+        for (const cell of grid.cells) {
+            // Sin rótulo es una carta de mod: ahorra un OCR y quita falsos del catálogo.
+            if (!cell.named) continue;
+            VisionService.prepareMissionCompleteCellCanvas(frame, cell, grid.accent, this._mcCellCvs);
+            const { data } = await OCRRepository.recognize(worker, this._mcCellCvs, {}, { text: true });
+            const raw = (data.text || "").toUpperCase();
+            // Celda a celda y no de una pasada al panel entero: así las palabras de una
+            // recompensa no pueden mezclarse con las de la vecina y fabricar un nombre que
+            // no está en pantalla.
+            const match = OCRService.getValidItemMatch(raw);
+            if (!match?.isPrime) continue;
+            items.push({ name: match.originalName, qty: cell.qty, cell });
+            console.log(`[MC] r${cell.row}c${cell.col}: ${match.originalName} ×${cell.qty}`);
+        }
+
+        const { ledger, commit } = nextLedger(this.mcLedger, items);
+        this.mcLedger = ledger;
+        if (commit?.length && typeof globalThis.commitMissionCompleteRewards === "function") {
+            globalThis.commitMissionCompleteRewards(commit);
+        }
     },
 
     async processRewards(video, dims) {
@@ -1470,7 +1497,7 @@ export const ScannerService = {
             this.lastRawOcrLog.push(`[AUTO-GRID] ${agInfo} · rowBands ${JSON.stringify(calibData.traceSummary?.rowBands || [])} · chain ${JSON.stringify(calibData.traceSummary?.chain || null)}`);
             // Contadores del escaneo para el summary/aviso del debug: en teoría cada página
             // debe rendir rows×cols celdas; si fallan matches o faltan celdas, se marca.
-            const scanStats = { cells: cellRects.length, matched: 0, relics: 0, empty: 0, unmatched: 0, none: 0 };
+            const scanStats = { cells: cellRects.length, matched: 0, relics: 0, empty: 0, unmatched: 0, none: 0, ownColor: 0 };
             // Recorte de la banda de NOMBRE. Debe cubrir nombres de 1, 2 Y 3
             // líneas (los warframes largos como "Atlas Prime / Neuroptics /
             // Blueprint" ocupan 3 líneas). Un recorte estrecho abajo (0.76–0.97)
@@ -1531,73 +1558,8 @@ export const ScannerService = {
             // Así entraron "Jahu" y "Forma Blueprint" en el inventario desde celdas de reliquia.
             const pendingItems = [];
 
-            // Etiqueta de celda resuelta del overlay de debug. La usan tanto las partes prime
-            // (acento verde) como las reliquias (cian): era el mismo bloque duplicado. Vive
-            // fuera del bucle porque se pinta en la fase de commit, cuando ya se sabe de qué
-            // tipo era la página. `accent` distingue de un vistazo qué se casó.
-            const drawResolvedCell = ({ cell, name, qtyResult, text, accent, qty }) => {
-                const relX = cell.sx - gridZone.x;
-                const relY = cell.sy - gridZone.y;
-
-                // Bloque opaco abajo: tapa por completo el nombre real de la tarjeta.
-                dCtx.fillStyle = "rgba(10, 15, 28, 0.98)";
-                dCtx.fillRect(relX, relY + cellH - 50, cellW, 50);
-                dCtx.fillStyle = accent;
-                dCtx.fillRect(relX, relY + cellH - 50, cellW, 1.5);
-
-                // Lectura CRUDA del OCR (ámbar) + texto crudo del badge.
-                dCtx.fillStyle = "#ffb300";
-                dCtx.font = "italic 9px system-ui, -apple-system, sans-serif";
-                const rawText = text.join(" ");
-                const badgeRawText = qtyResult.raw ? qtyResult.raw.trim().replaceAll(/\s+/g, " ") : "Ø";
-                const maxCharsItem = Math.floor(cellW / 5.5);
-                dCtx.fillText(rawText.length > maxCharsItem ? rawText.slice(0, maxCharsItem - 3) + "..." : rawText,
-                    relX + 6, relY + cellH - 37);
-                dCtx.fillText(`BDG: "${badgeRawText}"`, relX + 6, relY + cellH - 25);
-
-                // Nombre ya casado contra el catálogo.
-                dCtx.fillStyle = accent;
-                dCtx.font = "bold 12px system-ui, -apple-system, sans-serif";
-                dCtx.fillText(name, relX + 6, relY + cellH - 8);
-
-                // Píldora de cantidad justo encima del badge físico.
-                const shiftLeft = (cell.c === 0) ? 14 : 2;
-                dCtx.fillStyle = "rgba(0, 0, 0, 0.85)";
-                dCtx.fillRect(relX - shiftLeft, relY + 4, 44 + (shiftLeft - 2), 18);
-                dCtx.fillStyle = accent;
-                dCtx.font = "bold 11px monospace";
-                dCtx.fillText(`x${qty}`, relX - shiftLeft + 8, relY + 17);
-
-                // Recuadro del área de badge: la caja FIJA de extractBadgeBright.
-                dCtx.strokeStyle = accent;
-                dCtx.lineWidth = 1.5;
-                dCtx.strokeRect(relX, cell.sy + Math.round(cellH * 0.08) - gridZone.y,
-                    Math.round(cellW * 0.40), Math.round(cellH * 0.17));
-            };
-
-            // Celda sin resolver: borde y bloque rojos. Lo comparten la que no casó con nada
-            // y la descartada por no cuadrar con el tipo de página — para el inventario son
-            // lo mismo. `status` va en inglés como el resto del overlay.
-            const drawFailedCell = ({ cell, text, line2, status }) => {
-                const relX = cell.sx - gridZone.x;
-                const relY = cell.sy - gridZone.y;
-                dCtx.strokeStyle = "rgba(255, 30, 80, 0.6)";
-                dCtx.lineWidth = 2;
-                dCtx.strokeRect(relX + 2, relY + 2, cellW - 4, cellH - 4);
-                dCtx.fillStyle = "rgba(25, 10, 15, 0.98)";
-                dCtx.fillRect(relX, relY + cellH - 50, cellW, 50);
-                dCtx.fillStyle = "rgba(255, 30, 80, 0.7)";
-                dCtx.fillRect(relX, relY + cellH - 50, cellW, 1.5);
-                dCtx.fillStyle = "#ff5252";
-                dCtx.font = "italic 9px system-ui, -apple-system, sans-serif";
-                const maxCharsItem = Math.floor(cellW / 5.5);
-                dCtx.fillText(text.length > maxCharsItem ? text.slice(0, maxCharsItem - 3) + "..." : text,
-                    relX + 6, relY + cellH - 37);
-                dCtx.fillText(line2, relX + 6, relY + cellH - 25);
-                dCtx.fillStyle = "#8c9eff";
-                dCtx.font = "bold 12px system-ui, -apple-system, sans-serif";
-                dCtx.fillText(status, relX + 6, relY + cellH - 8);
-            };
+            const { drawResolved: drawResolvedCell, drawFailed: drawFailedCell } =
+                createCellOverlay(dCtx, gridZone, cellW, cellH);
 
             let cellIndex = 0;
             const runWorker = async (worker) => {
@@ -1608,15 +1570,10 @@ export const ScannerService = {
                     console.log(`[INV] celda ${cellIndex}/${activeCells.length} (r${task.cell.r}c${task.cell.c})...`);
 
                     const { cell } = task;
-                    const textCvs = VisionService.cropThemeBinarized(snapshot, cell.sx, cell.sy + textSrcY, cellW, textSrcH, theme, pageNameColor);
-
-                    // TINTA = negro; cropThemeBinarized devuelve texto NEGRO sobre BLANCO.
-                    // Una celda sin ítem sale toda blanca (tinta 0) y una con nombre da
-                    // ~6000, así que el corte en 20 deja fuera solo lo verdaderamente vacío.
-                    const pixels = textCvs.getContext("2d").getImageData(0, 0, textCvs.width, textCvs.height).data;
-                    let inkPixelCount = 0;
-                    for (let p = 0; p < pixels.length; p += 4) if (pixels[p] < 55) inkPixelCount++;
-                    if (inkPixelCount < 20) {
+                    const { cvs: textCvs, ink, ownColor: ownColorUsed } =
+                        cellNameMask(snapshot, cell, cellW, textSrcY, textSrcH, theme, pageNameColor);
+                    if (ownColorUsed) scanStats.ownColor++;
+                    if (!hasInk(ink)) {
                         scanStats.empty++;
                         this.lastRawOcrLog.push(`[r${cell.r}c${cell.c}] SKIPPED (empty)`);
                         dCtx.strokeStyle = "rgba(255, 255, 255, 0.04)";
@@ -1688,6 +1645,25 @@ export const ScannerService = {
                             } else {
                                 bestItem = OCRService.getValidItemMatch(fallbackText);
                                 if (bestItem) itemText = fallbackText;
+                            }
+                        }
+                    }
+
+                    // Antes de rendirse, la celda se relee con SU color: el de la página lo
+                    // vota el conjunto y puede no aislar el nombre en una card concreta.
+                    if (!bestItem && !relicMatch && pageNameColor && !ownColorUsed) {
+                        const ownText = await readCellWithOwnColor(worker, snapshot, cell, cellW, textSrcY, textSrcH, theme);
+                        if (ownText?.length && !this._isGarbledCellText(ownText)) {
+                            relicMatch = OCRService.getRelicMatch(ownText);
+                            if (relicMatch) {
+                                relicText = ownText;
+                            } else {
+                                bestItem = OCRService.getValidItemMatch(ownText);
+                                if (bestItem) itemText = ownText;
+                            }
+                            if (relicMatch || bestItem) {
+                                scanStats.ownColor++;
+                                logStr = `[r${cell.r}c${cell.c}] OCR (color propio): ${ownText.join(" ")}`;
                             }
                         }
                     }
@@ -1838,8 +1814,18 @@ export const ScannerService = {
                 const hasWarning = fails > 0 || scanStats.cells < expected;
                 const summary = `cells ${scanStats.cells}/${expected} · match ${scanStats.matched}`
                     + ` · relic ${scanStats.relics} · empty ${scanStats.empty} · fail ${fails}`
+                    + (scanStats.ownColor ? ` · own-color ${scanStats.ownColor}` : "")
                     + (autoGrid.phaseShift ? ` · dy ${autoGrid.phaseShift > 0 ? "+" : ""}${autoGrid.phaseShift}px` : "");
                 this.lastRawOcrLog.push(`[SUMMARY] ${summary}`);
+
+                // El color de página se cachea para toda la SESIÓN, así que una elección
+                // mala se arrastraba página tras página. Si media página ha tenido que
+                // rebinarizar con su propio color, ese color no vale: se tira y la
+                // siguiente página vuelve a elegir.
+                if (pageNameColor && scanStats.ownColor * 2 > scanStats.cells) {
+                    console.warn(`[INV] El color de página rgb(${pageNameColor.join(",")}) falló en ${scanStats.ownColor}/${scanStats.cells} celdas — se descarta y se reelige.`);
+                    this._nameColorCache = null;
+                }
 
                 // Página con celdas activas y CERO matches ⇒ la rejilla cacheada ya no
                 // vale (cambio de resolución/pantalla): re-detectar en el próximo frame.

@@ -18,13 +18,16 @@ import {
 } from "./scanner/scanner_controller.js";
 import {
   switchTab,
+  tabFromUrl,
+  initTabRouting,
+  refreshActiveTab,
   changeLanguage,
   initDisclaimerSystem,
   setupGlobalClickListeners,
   checkUpdates,
   toggleLangDropdown,
   setLanguageManual,
-} from "./ui.js?v=2.3";
+} from "./ui.js?v=2.4";
 import { initFissurePanel } from "./ui.components/farms/ui_fissures.js?v=1.1";
 import { initSyncPanel } from "./ui.components/market/ui_sync.js";
 // Perfil / calculadora de MR DESACTIVADO, igual que el traductor de Kubrows: no hay pestaña
@@ -35,6 +38,7 @@ import { initSyncPanel } from "./ui.components/market/ui_sync.js";
 // import { calculateCaps, renderProfileStats } from "./ui.components/market/ui_profile.js";
 import {
   initGlobalTooltipSystem,
+  keepPanelInertWhileClosed,
   preloadCriticalAssets,
 } from "./ui.components/ui_components.js";
 import {
@@ -43,7 +47,7 @@ import {
   clearInventory,
 } from "./ui.components/inventory/ui_inventory.js";
 import { renderPrimeInventory } from "./ui.components/inventory/ui_prime_inventory.js";
-import { manualRelicUpdate } from "./ui.components/inventory/ui_relics.js";
+import { manualRelicUpdate, updateProfitLabel } from "./ui.components/inventory/ui_relics.js";
 import { renderSetTracker } from "./ui.components/inventory/ui_set_tracker.js";
 import { initLFGPresets } from "./ui.components/ui_lfg.js";
 import {
@@ -61,6 +65,7 @@ if ("serviceWorker" in navigator) {
 }
 import { initVosforTab } from "./ui.components/ui_vosfor.js?v=2.9";
 import "./ui.components/market/ui_orders.js?v=1.0";
+import "./ui.components/ui_squad_run.js?v=1.0";
 import { initTabFan } from "./ui.components/ui_tab_fan.js?v=1.1";
 import { initMobileFooter } from "./ui.components/ui_mobile_footer.js?v=1.0";
 
@@ -72,11 +77,18 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
   const { domValues } = loadAppState();
   hydrateDOM(domValues);
+  // Después de loadAppState y no dentro de updateUILabels: el save escribe `lang` antes que
+  // `squadSize`, así que la pasada de idioma que dispara el primero todavía ve la escuadra por
+  // defecto y el rótulo se quedaba diciendo "4 Jugadores" a quien juega solo.
+  updateProfitLabel();
   checkUpdates();
   initCanvas();
   initDisclaimerSystem();
   setupGlobalClickListeners();
   initGlobalTooltipSystem();
+  for (const id of ["inventory-container", "best-missions-container"]) {
+    keepPanelInertWhileClosed(document.getElementById(id));
+  }
   // initSyncPanel();  // Interfaz de nube (sync) desactivada de momento
   preloadCriticalAssets();
   setupScannerDrawer();
@@ -86,7 +98,14 @@ document.addEventListener("DOMContentLoaded", async () => {
   const langSelect = document.getElementById("langSelect");
   if (langSelect) langSelect.value = state.currentLang;
   changeLanguage();
-  switchTab(state.activeTab || "relic");
+  // La URL manda sobre el save: si alguien te pasa voidstonks.com/#riven, ahí es donde
+  // quieres entrar, no en la pestaña que dejaste abierta la última vez.
+  initTabRouting();
+  switchTab(tabFromUrl() || state.activeTab || "relic");
+  // El panel de inventario nace en la vista de reliquias por HTML; solo hay que moverlo si
+  // el save dice otra cosa. Va después de switchTab porque el botón que lo abre depende de
+  // la pestaña activa.
+  if (state.currentInvView === "parts") globalThis.switchInvView?.("parts");
   initTabFan();
   initMobileFooter();
 
@@ -169,12 +188,16 @@ async function loadAsyncData() {
       if (input) input.value = state.selectedRelic;
       manualRelicUpdate();
     }
-    if (state.currentActiveSet) renderSetTracker();
+    renderSetTracker();
 
-    // Las rutas necesitan setsDatabase/itemsDatabase, que acaban de llegar. switchTab() ya las
-    // pidió al arrancar, pero eso corre ANTES de esta descarga: el panel se encontraba las bases
-    // vacías, se ocultaba y no volvía a intentarlo — solo reaparecía al cambiar de pestaña y
-    // volver, que es cuando switchTab se ejecuta otra vez.
+    // Todo lo que monta una pestaña necesita las bases que acaban de llegar. switchTab() ya lo
+    // pidió al arrancar, pero eso corre ANTES de esta descarga: la pestaña se encontraba las
+    // bases vacías y se quedaba a medias — solo se completaba al cambiar de pestaña y volver,
+    // que es cuando se ejecuta otra vez. Le pasaba al panel de rutas y le pasa igual a Set,
+    // Ducados, Riven y Farms.
+    refreshActiveTab();
+    // Y las rutas aparte: viven en tres pestañas Y en el cajón de inventario, que se abre
+    // desde cualquiera, así que se pintan esté el usuario donde esté.
     renderFarmRoutes().catch((e) => console.warn("[rutas] tras cargar datos:", e));
 
     warmupPrices().catch(console.error);

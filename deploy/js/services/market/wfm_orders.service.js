@@ -181,3 +181,32 @@ async function attachItemInfo(orders) {
         if (meta.maxRank) o.itemMaxRank = meta.maxRank;
     }
 }
+
+// ---- Preferencia de filtro del listado ----
+
+const FILTERS_KEY = "vs_orders_filters_v1";
+
+/**
+ * Chip de filtro elegido en "Mis órdenes". Persiste porque es una decisión, igual que los
+ * chips del inventario; la BÚSQUEDA no se guarda, que recuperar un texto a medias deja la
+ * lista casi vacía sin que se vea el motivo.
+ *
+ * Aquí y no en el componente: un ui.component no toca localStorage (ARCHITECTURE.md §A).
+ * @param {string[]} valid claves de filtro que existen hoy; cualquier otra cae a "all".
+ */
+export function getOrdersFilterType(valid) {
+    try {
+        const saved = localStorage.getItem(FILTERS_KEY);
+        return valid.includes(saved) ? saved : "all";
+    } catch {
+        return "all";
+    }
+}
+
+export function saveOrdersFilterType(type) {
+    try {
+        localStorage.setItem(FILTERS_KEY, type);
+    } catch (e) {
+        console.warn("[orders] no se pudo guardar el filtro:", e);
+    }
+}

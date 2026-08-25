@@ -18,6 +18,13 @@ export const ScannerHUD = {
             this.setUIBadge(badge, sh.statusInventory, "#f1c40f", "rgba(241,196,15,0.4)", "rgba(241,196,15,0.1)");
             const msgEl = document.getElementById("live-inv-msg");
             if (msgEl) msgEl.innerText = sh.statusIdle;
+        } else if (state.squadRun) {
+            // El panel del run vive DENTRO de este HUD, y esta función corre en cada frame:
+            // durante una misión el contexto es UNKNOWN, así que sin esta rama el HUD se
+            // volvía a esconder al frame siguiente de leer las reliquias del squad y el
+            // panel no llegaba a verse nunca.
+            if (hud) hud.style.display = "block";
+            this.setUIBadge(badge, sh.statusSquad, "#00e5ff", "rgba(0,229,255,0.4)", "rgba(0,229,255,0.1)");
         } else {
             if (hud) hud.style.display = "none";
             if (contextType === "INVENTORY_MODS") {

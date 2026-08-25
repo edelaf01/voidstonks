@@ -17,6 +17,7 @@ let fissureLoadPromise = null;
 globalThis._serverTimeOffset = globalThis._serverTimeOffset || 0;
 import {
   fetchBestFissures,
+  countHiddenFissures,
   fetchArbitration,
   getFissurePrefs,
   saveFissurePrefs,
@@ -319,7 +320,7 @@ function buildFissurePanelShell(missionDiv) {
   // Construir el HTML estático del shell (solo una vez)
   missionDiv.innerHTML = `
       <div id="mission-toggle-btn" class="mission-toggle-btn">
-         <img src="assets/fissureicon.webp" class="toggle-img" alt="Fisuras">
+         <img id="img-fissure-toggle" src="assets/fissureicon.webp" class="toggle-img" alt="${t.lblFissures || "Fisuras Activas"}">
       </div>
 
       <div class="panel-main-header" id="fissure-panel-header" style="cursor:pointer;">
@@ -705,6 +706,14 @@ async function renderMissionList(forceRefetch = false) {
   }
 
   allMissions = validMissions;
+
+  // "Filtros" era un botón mudo: con el valor de fábrica (4 tipos de misión) la lista sale
+  // recortada y nada lo decía. El número lo pinta el CSS con content: attr(data-hidden), y
+  // countHiddenFissures lee la misma cache que la lista: no hay otra petición.
+  const ocultas = await countHiddenFissures(syncedNow);
+  const fBtn = document.getElementById("fissure-filters-toggle");
+  if (fBtn) Object.assign(fBtn.dataset, { hidden: ocultas > 0 ? String(ocultas) : "",
+    tooltip: ocultas > 0 ? (t.fissurePrefs?.hiddenCount || "{n}").replace("{n}", String(ocultas)) : "" });
 
   // Las misiones de Railjack (isStorm) traen tier real (Lith/Meso/Neo/Axi): se agrupan en su
   // tier como las demás, distinguidas con la etiqueta "RJ" en la fila.
