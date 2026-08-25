@@ -1,4 +1,4 @@
-import { state, saveAppState } from "../../state.js";
+import { state } from "../../state.js";
 import { FARM_ROUTES_TEXTS } from "../../assets/farm_routes_texts.js";
 import { buildFarmRoutes } from "../../utils/inventory/relic_route.js";
 import { rankRelicPicks } from "../../utils/inventory/relic_picks.js";
@@ -11,7 +11,7 @@ import {
 import { getRelicCounts } from "../../utils/inventory/relic_counts.js";
 import { getSlug } from "../../utils/slugs.utils.js";
 import { getPartShortName } from "../inventory/ui_set_tracker.js";
-import { fetchAllFissures } from "../../services/farms/fissures.service.js";
+import { fetchAllFissures, fissuresUnavailable } from "../../services/farms/fissures.service.js";
 import { getFarmRoutesPrefs, saveFarmRoutesPrefs } from "../../services/inventory/farm_routes.service.js";
 import {
     attachSetPrices, filterSetRecommendations, getSetRecsPrefs, saveSetRecsPrefs, RELIC_ERAS,
@@ -341,7 +341,14 @@ async function applyFiltersAndRender(raiz, t) {
         for (const [activo, sin, titulo, pista, valor] of sospechosos) {
             if (!activo) continue;
             const sueltos = filterSetRecommendations(_allRoutes, { ...prefs, ...sin, buyOnly: false }, piezas);
-            if (sueltos.length > 0) return [(titulo || "").replace("{n}", String(valor)), pista];
+            if (sueltos.length === 0) continue;
+            // how far the closest route is, so the hint says how much to raise the filter. Only for max missing,
+            // the one filter whose value is a distance.
+            const cerca = "maxMissing" in sin
+                ? ` ${(t.emptyByMissingClosest || "").replace("{n}",
+                    String(Math.min(...sueltos.map((r) => r.missingCount))))}`
+                : "";
+            return [(titulo || "").replace("{n}", String(valor)), `${pista}${cerca}`];
         }
         if (prefs.query) {
             return [(t.emptyByQuery || "").replace("{q}", prefs.query), t.emptyByQueryHint];
@@ -392,6 +399,9 @@ async function renderRoutesInto(raiz) {
     } catch (e) {
         console.warn("[rutas] sin fisuras activas:", e);
     }
+    // and say so: with an empty list every relic showed "waiting for fissure", which is false
+    const sinFisuras = fissuresUnavailable();
+    if (sinFisuras) programarReintento();
 
     const relicCounts = getRelicCounts();
     const { refinement, squadSize } = getPlayerOdds();
@@ -457,6 +467,7 @@ async function renderRoutesInto(raiz) {
         + viewSwitchHtml(prefs.view, t)
         + `<div class="fr-body" data-fr="body">`
         + `<p class="fr-sub">${escapeHTML(esPicks ? t.picksSubtitle : t.subtitle)}</p>`
+        + (sinFisuras ? `<p class="fr-nofis">${escapeHTML(t.fissuresDown)}</p>` : "")
         + (esPicks ? "" : guideHtml(prefs, t))
         + (esPicks ? "" : filtersHtml(getSetRecsPrefs(), t, ft, getPlayerOdds()))
         + `<div data-fr="cards"></div>`
@@ -510,41 +521,40 @@ function bindPanelListeners(raiz, t) {
     const simSquad = raiz.querySelector('[data-fr="sim-squad"]');
 
     const numero = (el) => Math.max(0, Number.parseInt(el?.value, 10) || 0);
+    const guardar = () => saveSetRecsPrefs({
+        maxMissing: Number.parseInt(missing?.value, 10) || 0,
+        era: era?.value || "",
+        bestFor: bestFor?.checked ? (simRef?.value || "") : "",
+        buyOnly: !!buy?.checked,
+        query: query?.value || "",
+        sortBy: sort?.value || "near",
+        minPerHour: numero(minPh),
+        minGain: numero(minGain),
+    });
     const aplicar = () => {
-        saveSetRecsPrefs({
-            maxMissing: Number.parseInt(missing?.value, 10) || 0,
-            era: era?.value || "",
-            bestFor: bestFor?.checked ? (simRef?.value || "") : "",
-            buyOnly: !!buy?.checked,
-            query: query?.value || "",
-            sortBy: sort?.value || "near",
-            minPerHour: numero(minPh),
-            minGain: numero(minGain),
-        });
+        guardar();
         applyFiltersAndRender(raiz, t).catch((e) => console.warn("[rutas] filtro:", e));
     };
+    // what cannot apply over the built list needs a rebuild: the sort (buildFarmRoutes cuts after
+    // sorting) and the era (`preferTier` picks the relic per part)
+    const reconstruir = () => {
+        guardar();
+        renderFarmRoutes().catch((e) => console.warn("[rutas] filtro:", e));
+    };
     missing?.addEventListener("change", aplicar);
-    era?.addEventListener("change", aplicar);
     bestFor?.addEventListener("change", aplicar);
     buy?.addEventListener("change", aplicar);
     minPh?.addEventListener("change", aplicar);
     minGain?.addEventListener("change", aplicar);
-
-    sort?.addEventListener("change", () => {
-        saveSetRecsPrefs({ ...getSetRecsPrefs(), sortBy: sort.value });
-        renderFarmRoutes().catch((e) => console.warn("[rutas] orden:", e));
-    });
+    era?.addEventListener("change", reconstruir);
+    sort?.addEventListener("change", reconstruir);
 
     simRef?.addEventListener("change", () => {
         if (bestFor?.checked) saveSetRecsPrefs({ ...getSetRecsPrefs(), bestFor: simRef.value });
-        state.refinement = REFINEMENT_LABELS[simRef.value] || "Rad";
-        saveAppState();
-        renderFarmRoutes().catch((e) => console.warn("[rutas] refinamiento:", e));
+        globalThis.setRefinement?.(REFINEMENT_LABELS[simRef.value] || "Rad");
     });
     simSquad?.addEventListener("change", () => {
-        state.squadSize = Math.min(4, Math.max(1, Number.parseInt(simSquad.value, 10) || 4));
-        saveAppState();
-        renderFarmRoutes().catch((e) => console.warn("[rutas] escuadra:", e));
+        globalThis.setSquadSize?.(simSquad.value);
     });
 
     // the search is debounced: each pass saves the prefs synchronously and rebuilds every card
@@ -561,6 +571,31 @@ function bindPanelListeners(raiz, t) {
  * screen. fetchAllFissures caches 2 min, so it adds no traffic.
  */
 let routesInterval = null;
+let retryTimer = null;
+
+/**
+ * Short retry when fissures fail to load, instead of waiting for the 150 s refresh.
+ */
+function programarReintento() {
+    if (retryTimer) return;
+    retryTimer = setTimeout(() => {
+        retryTimer = null;
+        renderFarmRoutes().catch((e) => console.warn("[rutas] reintento:", e));
+    }, 12 * 1000);
+}
+
+/**
+ * Coalesced repaint when the inventory changes: +/- come in bursts and each pass rebuilds every route
+ * and pick.
+ */
+let refreshTimer = null;
+export function scheduleFarmRoutesRefresh() {
+    if (refreshTimer) clearTimeout(refreshTimer);
+    refreshTimer = setTimeout(() => {
+        refreshTimer = null;
+        renderFarmRoutes().catch((e) => console.warn("[rutas] inventario:", e));
+    }, 350);
+}
 
 function startRoutesRefresh() {
     if (routesInterval) return;
@@ -574,4 +609,4 @@ function startRoutesRefresh() {
     }, 150 * 1000);
 }
 
-exposeGlobals({ renderFarmRoutes }, "ui.components/farms/ui_farm_routes.js");
+exposeGlobals({ renderFarmRoutes, scheduleFarmRoutesRefresh }, "ui.components/farms/ui_farm_routes.js");

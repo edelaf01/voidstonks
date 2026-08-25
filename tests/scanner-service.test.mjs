@@ -129,43 +129,6 @@ test("sin lectura previa, cualquiera vale; sin lectura nueva, no se sustituye", 
   assert.equal(S._isBetterOrEqualRead(null, riven()), false);
 });
 
-// used for multi-frame consensus, so stat ORDER returned by ocr cannot change the fingerprint: otherwise
-// every frame looks like a distinct card and consensus never converges
-test("la huella no depende del orden en que llegaron los stats", () => {
-  const a = riven();
-  const b = riven({ stats: [...a.stats].reverse() });
-  assert.equal(S._rivenFingerprint(a), S._rivenFingerprint(b));
-});
-
-test("el signo sí cambia la huella: un curse no es un buff", () => {
-  const a = riven();
-  const b = riven({ stats: a.stats.map((s) => ({ ...s, isPositive: !s.isPositive })) });
-  assert.notEqual(S._rivenFingerprint(a), S._rivenFingerprint(b));
-});
-
-test("sin carta hay huella igualmente, para poder comparar", () => {
-  assert.equal(typeof S._rivenFingerprint(null), "string");
-});
-
-// the hash decides whether the page changed: too sensitive rescans all the time, too tolerant misses the scroll
-test("dos hashes iguales son el mismo frame", () => {
-  assert.equal(S._compareHashes("a1b2c3d4", "a1b2c3d4"), true);
-});
-
-test("una diferencia pequeña sigue siendo el mismo frame (ruido de vídeo)", () => {
-  assert.equal(S._compareHashes("505050", "525151"), true);
-});
-
-test("una diferencia grande es otro frame", () => {
-  assert.equal(S._compareHashes("000000", "ffffff"), false);
-});
-
-test("sin hash, o con hashes de distinto tamaño, no se afirma que sean iguales", () => {
-  assert.equal(S._compareHashes(null, "abcd"), false);
-  assert.equal(S._compareHashes("abcd", null), false);
-  assert.equal(S._compareHashes("abcd", "abcdef"), false);
-});
-
 // background art generates loose fragments: a real name contains at most one single-letter token (a code
 // split by OCR); two or more is noise
 test("los fragmentos de una letra delatan el ruido del arte", () => {

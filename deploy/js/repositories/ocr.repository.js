@@ -2,6 +2,8 @@
  * Tesseract.js worker pool and raw recognition.
  */
 export const OCRRepository = {
+    DEFAULT_PSM: "6",
+
     workers: [],
     initPromise: null,
 
@@ -42,7 +44,7 @@ export const OCRRepository = {
                     const w = await tess.createWorker("eng", 1, LOCAL_LANG);
                     await w.setParameters({
                         tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789:()+- '/%,.",
-                        tessedit_pageseg_mode: "6",
+                        tessedit_pageseg_mode: this.DEFAULT_PSM,
                         user_defined_dictionary_priority: "1",
                     });
                     return w;
@@ -86,6 +88,24 @@ export const OCRRepository = {
         this.workers = [];
         this.initPromise = null;
         this._w2Promise = null;
+    },
+
+    /**
+     * runs OCR with another PSM and restores the default: relic grid needs both because
+     * psm 6 catches names but misses loose counters, while psm 11 does the reverse
+     */
+    async recognizeWithPSM(worker, image, psm, output = undefined) {
+        if (!worker) return { data: { text: "", confidence: 0 } };
+        try {
+            await worker.setParameters({ tessedit_pageseg_mode: String(psm) });
+            return await worker.recognize(image, {}, output);
+        } catch (e) {
+            console.error("[OCR Repo] Recognize PSM Err:", e);
+            return { data: { text: "", confidence: 0 } };
+        } finally {
+            await worker.setParameters({ tessedit_pageseg_mode: this.DEFAULT_PSM })
+                .catch((e) => console.error("[OCR Repo] no se pudo restaurar el psm:", e));
+        }
     },
 
     async recognize(worker, image, options = {}, output = undefined) {

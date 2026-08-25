@@ -25,10 +25,13 @@ export function saveFarmRoutesPrefs(prefs) {
     }
 }
 
-const PICKS_KEY = "vs_relic_picks_v1";
-const PICKS_DEFAULTS = { query: "", era: "", readyOnly: false, sortBy: "useful" };
+/**
+ * Filters of the per-relic view, under their own key: they filter relics, not sets.
+ */
+const PICKS_KEY = "vs_relic_picks_v2";
+const PICKS_DEFAULTS = { query: "", era: "", readyOnly: false, sortBy: "best" };
 const PICKS_ERAS = new Set(["", "Lith", "Meso", "Neo", "Axi", "Requiem"]);
-const PICKS_SORTS = new Set(["useful", "odds", "value", "minutes"]);
+const PICKS_SORTS = new Set(["best", "useful", "odds", "value", "minutes"]);
 
 export function getRelicPicksPrefs() {
     try {

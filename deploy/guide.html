@@ -257,6 +257,12 @@
       }
       document.querySelectorAll("[data-set-lang]").forEach(function (b) { b.addEventListener("click", function () { apply(b.getAttribute("data-set-lang")); }); });
       apply(lang);
+
+      // jump to the anchor AFTER apply(): the other language section is display:none, so the target may not exist yet
+      if (location.hash) {
+        var destino = document.getElementById(location.hash.slice(1));
+        if (destino) destino.scrollIntoView();
+      }
     })();
   </script>
 </body>

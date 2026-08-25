@@ -457,6 +457,28 @@ export function activateSetTracker(setName, itemsInSet) {
   renderSetTracker();
 }
 
+/**
+ * Tracks the set a part belongs to. Shared by mouse drag and drop and touch long press.
+ * @returns {boolean}
+ */
+export function trackSetFromPart(itemName) {
+  const st = TEXTS[state.currentLang]?.setTab || {};
+  const setName = getSetName(itemName);
+
+  // "Otros" are loose parts (Forma, Kuva…): say so, or the gesture looks broken
+  if (setName === "Otros") {
+    showToast((st.dropNoSet || "{part} does not belong to any set").replace("{part}", itemName));
+    return false;
+  }
+
+  const allParts = Object.keys(state.itemsDatabase).filter(
+    (n) => (n === setName || n.startsWith(setName + " ")) && !n.endsWith(" Set"),
+  );
+  activateSetTracker(setName, allParts);
+  showToast((st.trackingToast || "Tracking {set}").replace("{set}", setName));
+  return true;
+}
+
 function openSetFromRelicReward(partName) {
     const setName = getSetName(partName);
     if (setName === "Otros") return;
@@ -484,6 +506,9 @@ exposeGlobals({
   updateMacroTracker,
   renderSetTracker,
   activateSetTracker,
+  // called by the long press drag in ui_relics.js; through the registry, since ui_sets.js does not import
+  // ui_relics.js
+  trackSetFromPart,
   openSetFromRelicReward,
 }, "ui.components/inventory/ui_sets.js");
 
@@ -491,31 +516,30 @@ setTimeout(() => {
   const trackerContainer = document.getElementById("set-tracker");
   if (trackerContainer && !trackerContainer.dataset.dndInit) {
     trackerContainer.dataset.dndInit = "true";
+    // the empty zone label turns into "drop here" while hovered: the only confirmation the spot accepts it
+    const setHint = (key) => {
+      const el = trackerContainer.querySelector(".tracker-dropzone-text");
+      const txt = TEXTS[state.currentLang]?.setTab?.[key];
+      if (el && txt) el.textContent = txt;
+    };
     trackerContainer.addEventListener("dragover", (e) => {
       e.preventDefault();
       e.dataTransfer.dropEffect = "copy";
       trackerContainer.classList.add("drag-hover");
+      setHint("dropActive");
     });
+    // without checking relatedTarget, hovering any child fires dragleave and the highlight flickers
     trackerContainer.addEventListener("dragleave", (e) => {
+      if (trackerContainer.contains(e.relatedTarget)) return;
       trackerContainer.classList.remove("drag-hover");
+      setHint("dropHint");
     });
     trackerContainer.addEventListener("drop", (e) => {
       e.preventDefault();
       trackerContainer.classList.remove("drag-hover");
+      setHint("dropHint");
       const itemName = e.dataTransfer.getData("text/plain");
-      if (itemName) {
-        import("../../utils/ui_utils.js").then((m) => {
-          const setName = m.getSetName(itemName);
-          if (setName !== "Otros") {
-            const allParts = Object.keys(state.itemsDatabase).filter(
-              (n) => (n === setName || n.startsWith(setName + " ")) && !n.endsWith(" Set")
-            );
-            activateSetTracker(setName, allParts);
-            import("../ui_components.js").then((c) => c.showToast(
-              (TEXTS[state.currentLang]?.setTab?.trackingToast || "Tracking {set}").replace("{set}", setName)));
-          }
-        });
-      }
+      if (itemName) trackSetFromPart(itemName);
     });
   }
 }, 500);

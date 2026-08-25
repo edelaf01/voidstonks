@@ -5,6 +5,16 @@ import { transform } from "esbuild";
 const SRC = "deploy";
 const OUT = "dist";
 
+const NO_PUBLICAR = (ruta) => {
+    const nombre = ruta.split("/").pop();
+    return nombre.endsWith(".md")
+        || nombre === ".assetsignore"
+        || nombre.endsWith(".pem")
+        || nombre.endsWith(".crt")
+        || nombre.endsWith(".bak")
+        || ruta.includes("/.wrangler");
+};
+
 const SKIP = (name, path) =>
     name.endsWith(".min.js") ||
     name.endsWith(".wasm.js") ||
@@ -37,7 +47,11 @@ async function walk(dir) {
 async function main() {
     await rm(OUT, { recursive: true, force: true });
     await mkdir(OUT, { recursive: true });
-    await cp(SRC, OUT, { recursive: true });
+    await cp(SRC, OUT, {
+        recursive: true,
+        // filter also applies to directories: returning false prunes the entire subtree (like .wrangler)
+        filter: (origen) => !NO_PUBLICAR(origen),
+    });
 
     const files = await walk(OUT);
     let minified = 0, skipped = 0, stamped = 0;

@@ -6,8 +6,16 @@ import { ScannerService } from "../services/scanner/scanner.service.js";
 import { OCRService } from "../services/scanner/ocr.service.js?v=264";
 import { ScannerModal } from "../ui.components/ui_scanner_modal.js";
 import { ScannerHUD } from "../ui.components/ui_scanner_hud.js";
+import { showHowToPanel } from "../ui.components/ui_howto_panel.js";
+import { oneTimeNoticeSeen, markOneTimeNoticeSeen } from "../repositories/storage.repository.js";
 import { OCRRepository } from "../repositories/ocr.repository.js";
 import { WF_THEMES } from "../services/scanner/vision.service.js";
+import { mergeRelicCounts } from "../utils/inventory/relic_counts.js";
+import { RelicScreenService } from "../services/scanner/relic_screen.service.js";
+import { exposeGlobals } from "../utils/global_registry.js";
+
+//Two contexts
+const HOWTO_KEY = "vs_live_howto_seen";
 
 globalThis._OCRService = OCRService;
 globalThis._ScannerModal = ScannerModal;
@@ -94,6 +102,15 @@ export async function startLiveSession() {
     }
 
     globalThis.syncScannerModeUI();
+
+    if (!oneTimeNoticeSeen(HOWTO_KEY)) {
+      showHowToPanel({
+        title: t.howToTitle, steps: t.howToSteps || [], gotIt: t.howToGot,
+        onDismiss: () => markOneTimeNoticeSeen(HOWTO_KEY),
+      });
+    }
+
+    RelicScreenService.reset();
     await ScannerService.start();
     showToast(t.toastActive);
 
@@ -102,7 +119,9 @@ export async function startLiveSession() {
     liveStream.getVideoTracks()[0].onended = () => stopLiveSession();
   } catch (e) {
     console.error("Scanner startup failed:", e);
-    showToast((st().toastError || "Error: {msg}").replace("{msg}", e.message));
+    showToast(e.name === "NotAllowedError"
+      ? (st().toastShareDenied || "No window was shared.")
+      : (st().toastError || "Error: {msg}").replace("{msg}", e.message));
     stopLiveSession();
   } finally {
     isStartingSession = false;
@@ -119,7 +138,7 @@ export function stopLiveSession() {
   if (toggleBtn) {
     toggleBtn.classList.remove("active");
     const label = toggleBtn.querySelector(".label");
-    if (label) label.innerText = "LIVE SCANNER";
+    if (label) label.innerText = TEXTS[state.currentLang].scanner.idle;
   }
   const drawer = document.getElementById("scanner-drawer");
   if (drawer) {
@@ -135,6 +154,12 @@ export function stopLiveSession() {
 globalThis.showRivenAppraisal = async (parsedL, parsedR, screenshotDataURL) => {
   const { RivenScannerHUD } = await import("../ui.components/rivens/ui_riven_scanner_hud.js");
   RivenScannerHUD.show(parsedL, parsedR, screenshotDataURL);
+};
+
+RelicScreenService.onApplied = (changed) => {
+  const t = TEXTS[state.currentLang].scanner;
+  showToast((t.relicCountsApplied || "{n} relic counts updated").replace("{n}", String(changed.length)));
+  saveAppState();
 };
 
 /** Called by ScannerService when a relic is detected. */
@@ -168,10 +193,16 @@ globalThis.syncRewardFromGame = (itemName, owned) => {
     return true;
 };
 
+/**
+ * items added manually from the relic selection screen, pending confirmation on mission complete
+ */
+const pendingManualAdds = [];
+
 globalThis.selectRewardToInventory = (itemName) => {
   const modal = globalThis.ScannerModal;
   if (modal) modal.selectedItem = itemName;
   globalThis.selectedScanItem = itemName;
+  pendingManualAdds.push(itemName);
 
   const t = TEXTS[state.currentLang].rewardScanner;
   const msg = t.rewardSelectedConfirmation
@@ -187,6 +218,49 @@ globalThis.selectRewardToInventory = (itemName) => {
   }
 };
 
+/**
+ * updates rewards read in mission complete context
+ */
+function commitMissionCompleteRewards(items) {
+  if (!state.autoAddMissionRewards || !items?.length) return;
+
+  const t = TEXTS[state.currentLang].scanner;
+  const previo = new Map();
+  const añadidas = [];
+
+  for (const { name, qty = 1 } of items) {
+    const manual = pendingManualAdds.indexOf(name);
+    if (manual !== -1) { pendingManualAdds.splice(manual, 1); continue; }
+
+    if (!previo.has(name)) previo.set(name, state.primeInventory[name] || 0);
+    state.primeInventory[name] = (state.primeInventory[name] || 0) + qty;
+    añadidas.push(qty > 1 ? `${name} ×${qty}` : name);
+  }
+  pendingManualAdds.length = 0;
+  if (!añadidas.length) return;
+
+  saveAppState();
+  if (globalThis.renderPrimeInventory) globalThis.renderPrimeInventory();
+
+  const toast = showToast(`${t.mcAdded}: ${añadidas.join(", ")}`, { type: "success", tag: "mc-rewards" });
+  if (!toast) return;
+  const undo = document.createElement("button");
+  undo.className = "toast-action";
+  undo.textContent = t.mcUndo;
+  undo.onclick = () => {
+    for (const [name, count] of previo) {
+      if (count > 0) state.primeInventory[name] = count;
+      else delete state.primeInventory[name];
+    }
+    saveAppState();
+    if (globalThis.renderPrimeInventory) globalThis.renderPrimeInventory();
+    showToast(t.mcUndone, { tag: "mc-rewards" });
+  };
+  toast.appendChild(undo);
+}
+
+exposeGlobals({ commitMissionCompleteRewards }, "scanner/live_scanner.js");
+
 globalThis.saveLiveInventory = () => {
   const sh = TEXTS[state.currentLang].scannerHUD;
   for (const [name, count] of ScannerService.sessionInventory) {
@@ -194,17 +268,7 @@ globalThis.saveLiveInventory = () => {
   }
   ScannerService.sessionInventory.clear();
 
-  const byName = new Map(state.inventory.map(r => [r.name, r]));
-  for (const [name, count] of ScannerService.sessionRelics) {
-    const existing = byName.get(name);
-    if (existing) {
-      existing.count = count;
-    } else {
-      const entry = { name, count };
-      state.inventory.push(entry);
-      byName.set(name, entry);
-    }
-  }
+  state.inventory = mergeRelicCounts(state.inventory, ScannerService.sessionRelics);
   ScannerService.sessionRelics.clear();
   ScannerService.relicQtyVotes.clear();
 

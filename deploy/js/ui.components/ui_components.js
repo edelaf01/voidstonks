@@ -6,6 +6,7 @@ import {
 } from "../config.js";
 import { state } from "../state.js";
 import { exposeGlobals } from "../utils/global_registry.js";
+import { isTouchPointer } from "../utils/tap.js";
 import { getRelicDropTooltip } from "./ui_tooltips.js";
 
 export function preloadCriticalAssets() {
@@ -24,10 +25,17 @@ export function preloadCriticalAssets() {
 import { escapeHTML } from "../utils/escape_html.js";
 export { escapeHTML };
 
-export function emptyStateHtml(message, scannerHint = "") {
-  const scannerOnScreen = document.getElementById("scanner-section")?.offsetParent != null;
-  const hint = scannerHint && scannerOnScreen
-    ? `<div style="margin-top:6px; font-size:0.85em; opacity:0.7;">${escapeHTML(scannerHint)}</div>`
+/**
+ * Empty list block: the message and, below, the other way to fill it. `scannerHint` only shows when the
+ * desktop scanner is on screen; `mobileHint` takes its place where the camera button leads.
+ */
+export function emptyStateHtml(message, scannerHint = "", mobileHint = "") {
+  const onScreen = (id) => document.getElementById(id)?.offsetParent != null;
+  const texto = onScreen("scanner-section") ? scannerHint
+    : onScreen("mobile-scan-btn") ? mobileHint
+      : "";
+  const hint = texto
+    ? `<div style="margin-top:6px; font-size:0.85em; opacity:0.7;">${escapeHTML(texto)}</div>`
     : "";
   return `<div style="padding:20px 16px; text-align:center; color:#888; line-height:1.5;">${escapeHTML(message)}${hint}</div>`;
 }
@@ -121,6 +129,12 @@ export async function checkUpdates() {
   const lastSeenVersion = localStorage.getItem("last_seen_version");
   const currentVersionStr = String(APP_VERSION);
 
+  // no key means a first visit, not an update: seal the version and skip the changelog
+  if (!lastSeenVersion) {
+    localStorage.setItem("last_seen_version", currentVersionStr);
+    return;
+  }
+
   if (lastSeenVersion !== currentVersionStr) {
     openUpdateHistory();
   }
@@ -139,6 +153,28 @@ export function closeUpdateModal() {
   document.getElementById("update-modal").classList.add("hidden");
   localStorage.setItem("last_seen_version", String(APP_VERSION));
   console.log("Versión guardada con éxito:", APP_VERSION);
+}
+
+// closed side panels stay off screen but in the focus order, and CSS cannot fix it (the mobile block
+// forces visibility), so they get `inert`. Observer because `.open` is set from many places, childList
+// because the fissure panel is rebuilt
+export function keepPanelInertWhileClosed(panel) {
+  if (!panel || panel.dataset.inertWatch) return;
+  panel.dataset.inertWatch = "1";
+  const sync = () => {
+    const cerrado = !panel.classList.contains("open");
+    for (const hijo of panel.children) {
+      // the handle is the only clickable thing on a closed panel: it opens it
+      if (hijo.id?.endsWith("toggle-btn")) continue;
+      hijo.inert = cerrado;
+    }
+  };
+  new MutationObserver(sync).observe(panel, {
+    attributes: true,
+    attributeFilter: ["class"],
+    childList: true,
+  });
+  sync();
 }
 
 export function initGlobalTooltipSystem() {
@@ -283,8 +319,11 @@ export function initGlobalTooltipSystem() {
 
   // touch: without hover, a tap on the trigger shows the tooltip; tapping it again or outside closes it
   document.addEventListener("click", (e) => {
-    const target = e.target.closest("[data-tooltip], [data-tooltip-html], [data-tooltip-relic]");
+    let target = e.target.closest("[data-tooltip], [data-tooltip-html], [data-tooltip-relic]");
     if (e.target.closest("#global-tooltip")) return; // tap inside the tooltip itself
+    // on touch the same tap runs the control and this listener. Only tabs and links drop the tooltip: they
+    // change the screen below. Elsewhere this tap is the only way to read the help on mobile
+    if (target && isTouchPointer() && target.closest(".tab-btn, a[href]")) target = null;
     if (target) {
       const alreadyOpen = !tooltipEl.classList.contains("hidden") && currentHoverTarget === target;
       if (openTimer) clearTimeout(openTimer);

@@ -1,6 +1,8 @@
 import { state, saveAppState } from "../state.js";
 import { TEXTS } from "../config.js";
 import { showToast, escapeHTML } from "./ui_components.js";
+import { ClipboardService } from "../services/clipboard.service.js";
+import { exposeGlobals } from "../utils/global_registry.js";
 
 let lfgRafId = null;
 
@@ -235,7 +237,8 @@ export function generateLFGMessage() {
 }
 
 export function toggleLfgDropdown() {
-  document.getElementById("lfgDropdown").classList.toggle("hidden");
+  const abierto = !document.getElementById("lfgDropdown").classList.toggle("hidden");
+  document.getElementById("lfgActivityInput")?.setAttribute("aria-expanded", String(abierto));
 }
 
 export function selectLfgOption(value, text) {
@@ -244,6 +247,7 @@ export function selectLfgOption(value, text) {
   const label = TEXTS[state.currentLang]?.lfgOpts?.[value] || text;
   document.getElementById("lfgSelectedText").innerText = label;
   document.getElementById("lfgDropdown").classList.add("hidden");
+  document.getElementById("lfgActivityInput")?.setAttribute("aria-expanded", "false");
   updateLFGUI();
   saveAppState();
 }
@@ -469,7 +473,7 @@ const deleteLFGPreset = function (index) {
   }
 };
 
-Object.assign(globalThis, {
+exposeGlobals({
   changeLFGCount,
   generateLFGMessage,
   toggleLfgDropdown,
@@ -481,13 +485,16 @@ Object.assign(globalThis, {
   loadTradePreset,
   deleteTradePreset,
   copyText,
-});
+}, "ui.components/ui_lfg.js");
 
 export function copyText() {
   const textToCopy = document.getElementById("finalMessage").innerText;
-  navigator.clipboard
-    .writeText(textToCopy)
-    .then(() => import("./ui_components.js").then((m) =>
-      m.showToast(TEXTS[state.currentLang]?.sync?.copied || "Message copied!")))
-    .catch((err) => console.error("Error al copiar: ", err));
+  // same cascade as the scanner (extension → native clipboard → queue until focus returns): with the game
+  // in front the tab has no focus
+  ClipboardService.copy(textToCopy).then((via) => {
+    const t = TEXTS[state.currentLang]?.clipboard;
+    showToast(via === "queued"
+      ? (t?.queued || "It will be copied when you come back to the tab")
+      : (t?.copied || "Message copied!"));
+  }).catch(console.warn);
 }

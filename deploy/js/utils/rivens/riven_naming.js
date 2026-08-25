@@ -94,3 +94,13 @@ export function generateRivenName(weaponName, positiveStats, weaponData, buffCou
     if (!rollName) return "";
     return `${weaponName} ${rollName.charAt(0).toUpperCase() + rollName.slice(1)}`;
 }
+
+/**
+ * Identity of a read riven: weapon plus stat names with sign, sorted. Values are left out: they are what
+ * the OCR misreads most, and two frames of the same riven must match.
+ */
+export function rivenFingerprint(parsed) {
+    if (!parsed) return "null";
+    const stats = parsed.stats.map((st) => `${st.isPositive ? "+" : "-"}${st.name}`).sort().join(",");
+    return `${parsed.weaponName || "?"}|${stats}`;
+}

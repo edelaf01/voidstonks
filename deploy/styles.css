@@ -367,6 +367,28 @@ body {
   flex: 1;
 }
 
+/*
+ * action button inside a toast (today only "undo"), placed before the ×
+ * so closing by accident is not what is at hand
+ */
+.wf-toast .toast-action {
+  order: 1;
+  background: none;
+  border: 1px solid var(--wf-gold-text, #d4a24a);
+  color: var(--wf-gold-text, #d4a24a);
+  font: inherit;
+  font-size: 0.8em;
+  letter-spacing: 0.05em;
+  padding: 3px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.wf-toast .toast-close {
+  order: 2;
+}
+
 /* side panels: shared */
 #inventory-container,
 #best-missions-container,
@@ -530,9 +552,12 @@ body {
   box-shadow: none !important;
 }
 
-#inv-toggle-btn:hover {
-  right: -45px;
-  width: 50px;
+/* widens the button itself; only for pointers that can hover, on touch the first tap was spent on the hover */
+@media (hover: hover) {
+  #inv-toggle-btn:hover {
+    right: -45px;
+    width: 50px;
+  }
 }
 
 #inventory-container.open .toggle-img {
@@ -768,10 +793,19 @@ body {
   display: flex !important;
 }
 
-.mission-toggle-btn:hover {
-  width: 50px;
-  left: -45px;
-  filter: brightness(1.2);
+@media (hover: hover) {
+  .mission-toggle-btn:hover {
+    width: 50px;
+    left: -45px;
+    filter: brightness(1.2);
+  }
+}
+
+/* nothing moves, so the tap reaches the onclick first time */
+@media (hover: none) {
+  .mission-toggle-btn:active {
+    filter: brightness(1.4);
+  }
 }
 
 #best-missions-container.open .toggle-img {
@@ -854,6 +888,23 @@ body {
   color: var(--wf-blue);
   border-color: rgba(0, 229, 255, 0.5);
   background: rgba(0, 229, 255, 0.12);
+}
+
+/*
+ * how many fissures the filters hide, from data-hidden set by renderMissionList
+ * amber, not the button color: it signals the list is trimmed; rem to avoid chaining em on the 0.75em button
+ */
+.fissure-filters-toggle[data-hidden]:not([data-hidden=""])::after {
+  content: attr(data-hidden);
+  font-size: 0.68rem;
+  font-weight: 800;
+  line-height: 1;
+  padding: 2px 6px;
+  border-radius: 10px;
+  color: #f0b429;
+  background: rgba(240, 180, 41, 0.16);
+  border: 1px solid rgba(240, 180, 41, 0.35);
+  font-variant-numeric: tabular-nums;
 }
 
 .fissure-filters-icon {
@@ -1636,11 +1687,20 @@ body {
   transition: all 0.2s;
 }
 
-.side-toggle-btn:hover {
-  background: #222;
-  filter: brightness(1.2);
-  width: 60px;
-  left: -60px;
+@media (hover: hover) {
+  .side-toggle-btn:hover {
+    background: #222;
+    filter: brightness(1.2);
+    width: 60px;
+    left: -60px;
+  }
+}
+
+@media (hover: none) {
+  .side-toggle-btn:active {
+    background: #222;
+    filter: brightness(1.4);
+  }
 }
 
 #cloud-sync-container.open .side-toggle-btn {
@@ -1946,6 +2006,22 @@ body.theme-bounties {
   border-top: 1px dashed #333;
 }
 
+/*
+ * refinement, squad and missing share a row of three; on a 390px phone each <select> clipped its own text
+ * !important because flex:1 is inline on each child
+ */
+@media (max-width: 600px) {
+  #relic-controls-wrapper > div {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  #relic-controls-wrapper > div > div {
+    flex: 1 1 100% !important;
+    margin-right: 0 !important;
+  }
+}
+
 .relic-input-wrapper {
   display: flex;
   align-items: center;
@@ -2053,6 +2129,22 @@ body.theme-bounties {
   flex-direction: column;
   gap: 15px;
   overflow: visible !important;
+}
+
+.analysis-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.relic-inv-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85em;
+  color: #888;
 }
 
 .total-profit-box {
@@ -3408,9 +3500,27 @@ body.theme-bounties {
   }
 }
 
-@media (max-width: 1280px) {
+/*
+ * the camera FAB is the MOBILE scanner entry: tied to where the desktop one hides (768px)
+ * and to pointers without hover, where getDisplayMedia does not exist
+ */
+@media (max-width: 768px), (hover: none) {
   .mobile-scan-fab {
     display: flex;
+  }
+}
+
+/* same condition reversed: where the FAB applies the desktop one does not */
+@media (hover: none) {
+  .scanner-wrapper,
+  .scanner-notice,
+  .scanner-info-icon {
+    display: none !important;
+  }
+}
+
+@media (max-width: 1280px) {
+  .mobile-scan-fab {
     bottom: 20px;
     right: 20px;
     width: 55px;
@@ -3549,6 +3659,8 @@ body.theme-bounties {
 
   /* inside the scroll the desktop floating disclaimer reads as the last footer paragraph */
   .site-footer.in-scroll .footer-disclaimer {
+    /* no longer floating: footer text, selectable */
+    pointer-events: auto !important;
     position: static !important;
     transform: none !important;
     width: auto !important;
@@ -3976,6 +4088,31 @@ body.theme-bounties {
 
   /* body:has(...), not "~": #footer-relic hangs from #main-card and the FAB from body, they are not siblings */
   body:has(#footer-relic.footer-visible) .mobile-scan-fab {
+    bottom: 220px !important;
+    transition: bottom 0.3s ease;
+  }
+
+  /* mobile toasts clear the tab bar (64px) and the safe area */
+  .wf-toast-container {
+    bottom: calc(74px + env(safe-area-inset-bottom, 0px)) !important;
+    width: calc(100% - 24px) !important;
+    max-width: min(400px, calc(100vw - 24px)) !important;
+    padding: 0 !important;
+  }
+
+  .wf-toast {
+    min-width: 0 !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .wf-toast .toast-close {
+    padding: 4px 8px;
+    font-size: 1.5em;
+    opacity: 0.7;
+  }
+
+  body:has(#footer-relic.footer-visible) .wf-toast-container {
     bottom: 220px !important;
     transition: bottom 0.3s ease;
   }
@@ -6234,9 +6371,9 @@ button[onclick*="importInventory"]:hover {
   letter-spacing: 0.3px;
   margin-top: 10px;
   color: #eef1f5;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.2;
   width: 100%;
 }
 
@@ -7129,7 +7266,14 @@ body[data-lang="en"] .header-guide-cta .lang-en {
     flex-basis: 100%;
   }
   .duc-panel {
-    --duc-cols: minmax(0, 1fr) 48px 58px 72px;
+    --duc-cols: minmax(0, 1fr) 42px 52px 64px;
+  }
+
+  /* the name identifies the part, so it may wrap to two lines even if the row grows */
+  .duc-name-col .part-name {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    line-height: 1.15;
   }
   .duc-head,
   .duc-row {
@@ -8285,12 +8429,27 @@ body[data-lang="en"] .header-guide-cta .lang-en {
   flex: 1 1 100%;
 }
 
+/*
+ * `9ch` fits "1000", the number arrow and the longest placeholder
+ * `min-width: 0` stops the input intrinsic width (large in Firefox) pushing the selector off the row
+ */
 .farm-routes .fr-num {
-  flex: 0 1 8ch;
+  flex: 0 1 9ch;
   min-width: 0;
   padding: 6px 4px;
   font-size: 0.92em;
   text-align: center;
+}
+
+/* on mobile the selector takes a full line and the two thresholds share the next one in halves */
+@media (max-width: 620px) {
+  .farm-routes .set-rec-filter-row .alarm-select {
+    flex: 1 1 100%;
+  }
+
+  .farm-routes .fr-num {
+    flex: 1 1 calc(50% - 6px);
+  }
 }
 
 .farm-routes .fr-sim-row {
@@ -8599,6 +8758,33 @@ body[data-lang="en"] .header-guide-cta .lang-en {
   border-color: var(--wf-gold-text);
 }
 
+/* "fissures could not load" notice; amber, not red: data is missing, nothing is broken */
+.farm-routes .fr-nofis {
+  margin: 0 10px 8px;
+  padding: 6px 8px;
+  font-size: 0.7rem;
+  line-height: 1.35;
+  color: var(--wf-gold-text);
+  background: rgba(192, 145, 49, 0.08);
+  border: 1px solid rgba(192, 145, 49, 0.35);
+  border-radius: 5px;
+}
+
+/*
+ * "closes X · 52%": the only label announcing platinum today, so the only one with a background
+ * green because gold is for quantities
+ */
+.farm-routes .fr-closes {
+  font-size: 0.7em;
+  font-weight: 800;
+  color: #0d0f13;
+  background: var(--wf-green, #42f56c);
+  border-radius: 3px;
+  padding: 1px 6px;
+  white-space: nowrap;
+  cursor: help;
+}
+
 .farm-routes .fr-pick + .fr-pick {
   margin-top: 8px;
   padding-top: 8px;
@@ -8630,6 +8816,21 @@ body[data-lang="en"] .header-guide-cta .lang-en {
   font-size: 0.72rem;
   color: #c9d1d9;
   white-space: nowrap;
+}
+
+/*
+ * what the part's set still misses, so "3 useful" tells close sets from unstarted ones
+ * 1em because .fr-pick-part is already 0.72rem
+ */
+.farm-routes .fr-pick-left {
+  font-size: 1em;
+  color: #8b95a3;
+}
+
+.farm-routes .fr-pick-last {
+  font-size: 1em;
+  font-weight: 700;
+  color: var(--wf-green, #42f56c);
 }
 
 /* refinement with the cheapest route; only highlighted when INTACT, the actionable case */
