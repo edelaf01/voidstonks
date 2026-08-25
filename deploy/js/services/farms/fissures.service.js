@@ -7,6 +7,8 @@ let _clockSynced = false;
 
 const FISSURE_TTL = 120 * 1000;
 let _fissureCache = { data: null, ts: 0 };
+let _inflight = null;
+let _fissuresUnavailable = false;
 
 // The cache holds every fissure, Railjack included, without the user's prefs:
 // changing prefs only refilters in memory.
@@ -78,79 +80,94 @@ function passesPrefs(f, prefs) {
  * @returns {Promise<Array>}
  */
 export async function fetchAllFissures(force = false) {
-    let allFissures;
-
     if (!force && _fissureCache.data && (Date.now() - _fissureCache.ts < FISSURE_TTL)) {
-        allFissures = _fissureCache.data;
-    } else {
-        try {
-            const clockSync = syncServerClock();
-            const res = await getActiveFissures(force);
-            if (!res.ok) throw new Error("Error al conectar con el Worldstate");
+        return _fissureCache.data;
+    }
+    // one request for every concurrent caller
+    if (force || !_inflight) {
+        _inflight = loadFissures(force).finally(() => { _inflight = null; });
+    }
+    return _inflight;
+}
 
-            let fissures = await res.json();
+/**
+ * Whether the last attempt had nothing to serve: "unknown" is not "no fissure".
+ */
+export function fissuresUnavailable() {
+    return _fissuresUnavailable;
+}
 
-            if (typeof fissures === "string") {
-                try { fissures = JSON.parse(fissures); } catch (e) {
-                    console.error("Error al parsear las fisuras", e);
-                }
+async function loadFissures(force) {
+    let allFissures;
+    try {
+        const clockSync = syncServerClock();
+        const res = await getActiveFissures(force);
+        if (!res.ok) throw new Error("Error al conectar con el Worldstate");
+
+        let fissures = await res.json();
+
+        if (typeof fissures === "string") {
+            try { fissures = JSON.parse(fissures); } catch (e) {
+                console.error("Error al parsear las fisuras", e);
             }
-            if (fissures && !Array.isArray(fissures) && Array.isArray(fissures.data)) {
-                fissures = fissures.data;
-            }
-
-            if (!Array.isArray(fissures)) {
-                console.error("[Worldstate Error] Expected array, got:", typeof fissures, fissures);
-                throw new TypeError("El Worldstate no ha devuelto un array válido de fisuras.");
-            }
-
-            await clockSync;
-
-            // Fallback when the time ping failed: the server only returns active fissures, so a
-            // first expiry already in the past means the local clock runs ahead. Never on stale cache.
-            if (!_clockSynced && fissures.length > 0 && !globalThis._serverTimeOffset) {
-                const expiryTimes = fissures.map(f => new Date(f.expiry).getTime());
-                const activationTimes = fissures.map(f => new Date(f.activation).getTime());
-                const earliestExpiry = Math.min(...expiryTimes);
-                const latestActivation = Math.max(...activationTimes);
-
-                if (Date.now() > earliestExpiry) {
-                    globalThis._serverTimeOffset = Date.now() - (latestActivation + earliestExpiry) / 2;
-                    console.warn(`[FISSURES] Desfase de reloj detectado: ${Math.round(globalThis._serverTimeOffset / 60000)}min. Corrigiendo.`);
-                }
-            }
-
-            const now = new Date(Date.now() - (globalThis._serverTimeOffset || 0));
-
-            allFissures = fissures.reduce((acc, f) => {
-                const expiryDate = new Date(f.expiry);
-                if (expiryDate <= now) return acc;
-
-                const diffMs = expiryDate - now;
-                const diffMins = Math.round(diffMs / 60000);
-                const timeText = diffMins >= 60
-                    ? `${Math.floor(diffMins / 60)}h ${diffMins % 60}m`
-                    : `${diffMins}m`;
-
-                acc.push({
-                    node: f.node,
-                    type: f.missionType,
-                    tier: f.tier,
-                    eta: timeText,
-                    expiry: f.expiry,
-                    isSP: f.isHard === true,
-                    isOmnia: f.tier === "Omnia",
-                    isStorm: f.isStorm === true,
-                });
-                return acc;
-            }, []);
-
-            _fissureCache = { data: allFissures, ts: Date.now() };
-        } catch (e) {
-            console.error("Error en Worldstate:", e);
-            // transient failure: serve the last good list
-            allFissures = _fissureCache.data || [];
         }
+        if (fissures && !Array.isArray(fissures) && Array.isArray(fissures.data)) {
+            fissures = fissures.data;
+        }
+
+        if (!Array.isArray(fissures)) {
+            console.error("[Worldstate Error] Expected array, got:", typeof fissures, fissures);
+            throw new TypeError("El Worldstate no ha devuelto un array válido de fisuras.");
+        }
+
+        await clockSync;
+
+        // Fallback when the time ping failed: the server only returns active fissures, so a
+        // first expiry already in the past means the local clock runs ahead. Never on stale cache.
+        if (!_clockSynced && fissures.length > 0 && !globalThis._serverTimeOffset) {
+            const expiryTimes = fissures.map(f => new Date(f.expiry).getTime());
+            const activationTimes = fissures.map(f => new Date(f.activation).getTime());
+            const earliestExpiry = Math.min(...expiryTimes);
+            const latestActivation = Math.max(...activationTimes);
+
+            if (Date.now() > earliestExpiry) {
+                globalThis._serverTimeOffset = Date.now() - (latestActivation + earliestExpiry) / 2;
+                console.warn(`[FISSURES] Desfase de reloj detectado: ${Math.round(globalThis._serverTimeOffset / 60000)}min. Corrigiendo.`);
+            }
+        }
+
+        const now = new Date(Date.now() - (globalThis._serverTimeOffset || 0));
+
+        allFissures = fissures.reduce((acc, f) => {
+            const expiryDate = new Date(f.expiry);
+            if (expiryDate <= now) return acc;
+
+            const diffMs = expiryDate - now;
+            const diffMins = Math.round(diffMs / 60000);
+            const timeText = diffMins >= 60
+                ? `${Math.floor(diffMins / 60)}h ${diffMins % 60}m`
+                : `${diffMins}m`;
+
+            acc.push({
+                node: f.node,
+                type: f.missionType,
+                tier: f.tier,
+                eta: timeText,
+                expiry: f.expiry,
+                isSP: f.isHard === true,
+                isOmnia: f.tier === "Omnia",
+                isStorm: f.isStorm === true,
+            });
+            return acc;
+        }, []);
+
+        _fissureCache = { data: allFissures, ts: Date.now() };
+        _fissuresUnavailable = false;
+    } catch (e) {
+        console.error("Error en Worldstate:", e);
+        // transient failure: serve the last good list
+        allFissures = _fissureCache.data || [];
+        _fissuresUnavailable = allFissures.length === 0;
     }
 
     return allFissures;
@@ -165,6 +182,17 @@ export async function fetchBestFissures(force = false) {
     const allFissures = await fetchAllFissures(force);
     const prefs = getFissurePrefs();
     return allFissures.filter((f) => passesPrefs(f, prefs));
+}
+
+/**
+ * How many active fissures the view prefs hide right now.
+ * @param {number} nowMs
+ */
+export async function countHiddenFissures(nowMs = Date.now()) {
+    const vivas = (f) => !f.expiry || (new Date(f.expiry) - nowMs) > 0;
+    const todas = (await fetchAllFissures()).filter(vivas);
+    const prefs = getFissurePrefs();
+    return todas.filter((f) => !passesPrefs(f, prefs)).length;
 }
 
 /**

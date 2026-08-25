@@ -35,11 +35,18 @@ export function snapToThemeTextColor(r, g, b) {
 const BG_TOL_SQ = 45 * 45;
 const TX_TOL_SQ = 66 * 66;
 
-export function nameColorCandidates(imgData, max = 5) {
-    const { data: px, width: cw, height: ch } = imgData;
-    const QKEY = (r, g, b) => ((r >> 3) << 10) | ((g >> 3) << 5) | (b >> 3);
-    const UNQ = (k) => [((k >> 10) & 31) << 3, ((k >> 5) & 31) << 3, (k & 31) << 3];
+// color quantized to 5 bits per channel: antialiasing spreads one stroke across dozens of near identical
+// tones
+const QKEY = (r, g, b) => ((r >> 3) << 10) | ((g >> 3) << 5) | (b >> 3);
+const UNQ = (k) => [((k >> 10) & 31) << 3, ((k >> 5) & 31) << 3, (k & 31) << 3];
 
+/**
+ * Ink color histogram of ONE cell's name band: the colors cropThemeBinarized could isolate there, with their
+ * pixel count. It MEASURES, rankPageNameColors decides with the other cells. Same filters as the
+ * binarization: a color it would drop cannot be the name color.
+ */
+export function bandInkHistogram(imgData, max = 10) {
+    const { data: px, width: cw, height: ch } = imgData;
     const bgHist = new Map();
     let bgKey = 0, bgCount = -1;
     for (let i = 0; i < px.length; i += 4) {
@@ -49,6 +56,7 @@ export function nameColorCandidates(imgData, max = 5) {
         if (c > bgCount) { bgCount = c; bgKey = key; }
     }
     const [bgR, bgG, bgB] = UNQ(bgKey);
+    const bgLum = bgR * 0.299 + bgG * 0.587 + bgB * 0.114;
 
     // only the bottom strip: the name is always at the bottom and the art spills from the top
     const bandY0 = Math.floor(ch * 0.45);
@@ -58,20 +66,74 @@ export function nameColorCandidates(imgData, max = 5) {
             const i = (y * cw + x) * 4;
             const dr = px[i] - bgR, dg = px[i + 1] - bgG, db = px[i + 2] - bgB;
             if (dr * dr + dg * dg + db * db <= BG_TOL_SQ) continue;
+            if (px[i] * 0.299 + px[i + 1] * 0.587 + px[i + 2] * 0.114 < bgLum + 12) continue;
             const key = QKEY(px[i], px[i + 1], px[i + 2]);
             txHist.set(key, (txHist.get(key) || 0) + 1);
         }
     }
+    return [...txHist.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, max)
+        .map(([key, count]) => ({ col: UNQ(key), count }));
+}
 
-    const out = [];
-    for (const [key] of [...txHist.entries()].sort((a, b) => b[1] - a[1])) {
-        const col = snapToThemeTextColor(...UNQ(key));
-        const dup = out.some(o => {
-            const dr = o[0] - col[0], dg = o[1] - col[1], db = o[2] - col[2];
+/**
+ * Name text candidate colors for a WHOLE page, ranked by the VOTE of its cells. It LISTS, the OCR against
+ * the catalog confirms. Voting across cells because inside ONE cell art and name take almost the same
+ * pixels, while the NAME color is the same in all 18 and each art brings its own.
+ *
+ * The BRIGHTEST member of the winning group is returned, not the most frequent: that one can be the smoothed
+ * edge, and binarizing by it leaves the core out and the letters HOLLOW.
+ */
+export function rankPageNameColors(histograms, max = 4) {
+    // one global count first: grouping on the fly makes the result depend on cell order, and the same page
+    // would vote differently on each pass
+    const totals = new Map(); // "r,g,b" -> { col, pixels, cells:Set }
+    histograms.forEach((hist, celda) => {
+        for (const { col, count } of hist) {
+            const key = col.join(",");
+            let t = totals.get(key);
+            if (!t) { t = { col, pixels: 0, cells: new Set() }; totals.set(key, t); }
+            t.pixels += count;
+            t.cells.add(celda);
+        }
+    });
+
+    // groups are seeded with the page's most frequent colors: tones the antialias spreads around a stroke fall
+    // within its core's ink tolerance and give the same mask
+    const groups = [];
+    for (const t of [...totals.values()].sort((a, b) => b.pixels - a.pixels)) {
+        let g = groups.find(G => {
+            const dr = G.seed[0] - t.col[0], dg = G.seed[1] - t.col[1], db = G.seed[2] - t.col[2];
             return dr * dr + dg * dg + db * db < TX_TOL_SQ;
         });
-        if (dup) continue;
-        out.push(col);
+        if (!g) { g = { seed: t.col, pixels: 0, cells: new Set(), members: [] }; groups.push(g); }
+        g.pixels += t.pixels;
+        for (const c of t.cells) g.cells.add(c);
+        g.members.push(t);
+    }
+
+    // how many cells beats how many pixels: an item's art can have more pixels than the name, but only in its
+    // cell
+    groups.sort((a, b) => b.cells.size - a.cells.size || b.pixels - a.pixels);
+
+    const out = [];
+    for (const g of groups) {
+        const top = Math.max(...g.members.map(m => m.pixels));
+        let best = null, bestLum = -1;
+        for (const m of g.members) {
+            // a handful of pixels does not define the stroke core: an art glint would take the whole group
+            if (m.pixels < top * 0.15) continue;
+            const lum = m.col[0] * 0.299 + m.col[1] * 0.587 + m.col[2] * 0.114;
+            if (lum > bestLum) { bestLum = lum; best = m.col; }
+        }
+        // two groups can end on the same representative and give the SAME mask; offering both only wastes an OCR
+        // pass
+        if (!best || out.some(o => {
+            const dr = o[0] - best[0], dg = o[1] - best[1], db = o[2] - best[2];
+            return dr * dr + dg * dg + db * db < TX_TOL_SQ;
+        })) continue;
+        out.push(best);
         if (out.length >= max) break;
     }
     return out;

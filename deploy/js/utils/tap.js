@@ -42,3 +42,15 @@ export function onTap(el, handler, opts = {}) {
     handler(e);
   });
 }
+
+/**
+ * Whether the primary pointer cannot hover without pressing: finger, not mouse.
+ *
+ * By `hover` and not by screen width or user agent: what matters is whether a mouse gesture (drag, :hover) can
+ * exist at all, and the pointer capability answers that. A wide tablet is touch and a narrow laptop is not.
+ *
+ * @returns {boolean} false when there is no matchMedia (Node, in tests).
+ */
+export function isTouchPointer() {
+  return globalThis.matchMedia?.("(hover: none)").matches ?? false;
+}

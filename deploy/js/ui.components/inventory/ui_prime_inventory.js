@@ -15,7 +15,7 @@ import { generateDotsHtml } from "../ui_tooltips.js";
 import { renderFarmRoutes } from "../farms/ui_farm_routes.js";
 import { getPartDucats, formatDucatRatio } from "./ui_ducanator.js";
 import { calculateGroupSubtotal } from "../../services/inventory/inventory_value.service.js";
-import { initLivePrices } from "./ui_inventory_live.js";
+import { initLivePrices, repaintLivePrices } from "./ui_inventory_live.js";
 import { exposeGlobals } from "../../utils/global_registry.js";
 
 const TARGET_SVG_INLINE = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36" width="22" height="22" style="filter:drop-shadow(0 0 2px rgba(0,204,204,0.5));">
@@ -244,7 +244,9 @@ export function renderPrimeInventory() {
   const searchInput = (document.getElementById("prime-inv-search")?.value || "").toLowerCase();
   const sortMode = document.getElementById("prime-inv-sort")?.value || "alpha";
 
-  const newHash = JSON.stringify(state.primeInventory) + state.currentLang + searchInput + sortMode;
+  // showEmptyPrime is part of the hash, or toggling it repainted nothing
+  const newHash = JSON.stringify(state.primeInventory) + state.currentLang + searchInput + sortMode
+    + (state.settings?.showEmptyPrime ? "|0s" : "");
   if (newHash === lastRenderedHash && list.children.length > 0) {
     setTimeout(updatePrimeTotalValue, 10);
     return;
@@ -323,7 +325,9 @@ export function renderPrimeInventory() {
     const potentialScore = (piecesOwned / allPossibleParts.length) + (farmablePieces * 0.5);
 
     if (numSets === 999) numSets = 0;
-    setMetrics.set(setName, { numSets, setTotalPlat, piecesOwned, potentialScore });
+    // what is MISSING, which is what "close to done" asks: counting owned parts favored big sets
+    const piecesMissing = allPossibleParts.length - piecesOwned;
+    setMetrics.set(setName, { numSets, setTotalPlat, piecesOwned, piecesMissing, potentialScore });
   });
 
   setNames.sort((a, b) => {
@@ -337,7 +341,11 @@ export function renderPrimeInventory() {
       if (metricA.numSets !== metricB.numSets) return metricB.numSets - metricA.numSets;
       return metricB.setTotalPlat - metricA.setTotalPlat;
     } else if (sortMode === "sets_asc") {
-      if (metricA.piecesOwned !== metricB.piecesOwned) return metricB.piecesOwned - metricA.piecesOwned;
+      // complete sets last: they are not "about to finish"
+      const doneA = metricA.piecesMissing === 0;
+      const doneB = metricB.piecesMissing === 0;
+      if (doneA !== doneB) return doneA ? 1 : -1;
+      if (metricA.piecesMissing !== metricB.piecesMissing) return metricA.piecesMissing - metricB.piecesMissing;
       return metricB.setTotalPlat - metricA.setTotalPlat;
     } else if (sortMode === "plat_desc") {
       return metricB.setTotalPlat - metricA.setTotalPlat;
@@ -354,6 +362,7 @@ export function renderPrimeInventory() {
     list.innerHTML = emptyStateHtml(
       inv?.emptyParts || "No prime parts saved yet.",
       inv?.emptyScannerHint,
+      inv?.emptyScannerHintMobile,
     );
     return;
   }
@@ -622,10 +631,33 @@ export async function updatePrimeTotalValue() {
   }
 
   initLivePrices();
+  // the list was just rebuilt: the live price marks were in the old DOM
+  repaintLivePrices();
+}
+
+/**
+ * Parts panel search, debounced: each pass rebuilds the whole list grouped by set.
+ */
+let searchDebounce;
+export function handlePrimeInvSearch() {
+  clearTimeout(searchDebounce);
+  searchDebounce = setTimeout(renderPrimeInventory, 120);
+}
+
+/**
+ * The "also show parts at 0" checkbox. Only decides what is painted: prices stay limited to your
+ * inventory (collectInventorySlugs).
+ */
+export function toggleShowEmptyPrime(checked) {
+  state.settings = { ...state.settings, showEmptyPrime: !!checked };
+  saveAppState();
+  renderPrimeInventory();
 }
 
 exposeGlobals({
   renderPrimeInventory,
+  toggleShowEmptyPrime,
+  handlePrimeInvSearch,
   modifyPrimePart,
   deletePrimeSet,
   decrementPrimeSet,

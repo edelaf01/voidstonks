@@ -1,6 +1,11 @@
 import { rawState, get, set, subscribe } from "./store/state.store.js";
 import { exposeGlobals } from "./utils/global_registry.js";
 
+export const TABS = ["relic", "set", "riven", "lfg", "bounties", "vosfor", "ducat", "eelog", "orders"];
+
+const INV_TIERS = ["ALL", "LITH", "MESO", "NEO", "AXI", "REQUIEM"];
+const INV_GOALS = ["sets", "plat", "ducats", "ratio", "recent"];
+
 export const DEFAULT_VISION_SETTINGS = Object.freeze({
   thresholdC: -15,
   claheClip: 5,
@@ -29,6 +34,7 @@ export const DEFAULT_VISION_SETTINGS = Object.freeze({
 Object.assign(rawState, {
   currentLang: "en",
   activeTab: "relic",
+  settings: { showEmptyPrime: false },
   playerCount: 1,
   // players opening the relics, drives the drop odds
   squadSize: 4,
@@ -53,14 +59,18 @@ Object.assign(rawState, {
   invSearchVal: "",
   invGoal: "sets",
   invOnlyActive: false,
+  // "relics" | "parts"
+  currentInvView: "relics",
   showAllFarms: false,
   primeInventory: {},
   primeManifest: [],
   autoScanEnabled: false,
   isPrecisionScanActive: false,
   autoSyncRewards: true,
+  autoAddMissionRewards: true,
   autoCopyScanResults: false,
   scannerModsMode: false,
+  squadRun: null,
   visionSettings: { ...DEFAULT_VISION_SETTINGS }
 });
 
@@ -81,6 +91,12 @@ export function saveAppState() {
   saveTimer = setTimeout(() => {
     const data = {
       lang: state.currentLang,
+      activeTab: state.activeTab,
+      invFilterTier: state.invFilterTier,
+      invGoal: state.invGoal,
+      invOnlyActive: state.invOnlyActive,
+      showEmptyPrime: !!state.settings?.showEmptyPrime,
+      currentInvView: state.currentInvView,
       relicInput: state.selectedRelic || "",
       refinement: state.refinement || "Rad",
       lfgActivity: state.lfgActivity || "eidolon",
@@ -97,6 +113,7 @@ export function saveAppState() {
       showAllFarms: state.showAllFarms,
       primeInventory: state.primeInventory,
       autoSyncRewards: state.autoSyncRewards,
+      autoAddMissionRewards: state.autoAddMissionRewards,
       autoCopyScanResults: state.autoCopyScanResults,
       scannerModsMode: state.scannerModsMode,
       visionSettings: state.visionSettings,
@@ -115,16 +132,40 @@ export function saveAppState() {
     saveTimer = null;
   }, 1000);
 }
+function detectLang() {
+  const nav = globalThis.navigator;
+  const preferidos = nav?.languages?.length ? nav.languages : [nav?.language];
+  for (const etiqueta of preferidos) {
+    const code = String(etiqueta || "").toLowerCase();
+    if (code.startsWith("es")) return "es";
+    if (code.startsWith("en")) return "en";
+  }
+  return "en";
+}
+
 /** @returns {{ activeTab: string, domValues: object }} */
 export function loadAppState() {
   const saved = localStorage.getItem("voidStonks_save");
   const domValues = {};
-  if (!saved) return { activeTab: "relic", domValues };
+  if (!saved) {
+    state.currentLang = detectLang();
+    return { activeTab: "relic", domValues };
+  }
 
   try {
     const data = JSON.parse(saved);
 
     state.currentLang = data.lang || "es";
+    if (TABS.includes(data.activeTab)) state.activeTab = data.activeTab;
+    if (INV_TIERS.includes(data.invFilterTier)) state.invFilterTier = data.invFilterTier;
+    if (INV_GOALS.includes(data.invGoal)) state.invGoal = data.invGoal;
+    if (typeof data.invOnlyActive === "boolean") state.invOnlyActive = data.invOnlyActive;
+    if (typeof data.showEmptyPrime === "boolean") {
+      state.settings = { ...state.settings, showEmptyPrime: data.showEmptyPrime };
+    }
+    if (data.currentInvView === "parts" || data.currentInvView === "relics") {
+      state.currentInvView = data.currentInvView;
+    }
     if (data.relicInput) state.selectedRelic = data.relicInput;
     if (data.currentActiveSet) {
       state.currentActiveSet = data.currentActiveSet;
@@ -139,6 +180,7 @@ export function loadAppState() {
     if (data.inventory) state.inventory = data.inventory;
     if (data.primeInventory) state.primeInventory = data.primeInventory;
     if (data.autoSyncRewards !== undefined) state.autoSyncRewards = data.autoSyncRewards;
+    if (data.autoAddMissionRewards !== undefined) state.autoAddMissionRewards = data.autoAddMissionRewards;
     if (data.autoCopyScanResults !== undefined) state.autoCopyScanResults = data.autoCopyScanResults;
     if (data.scannerModsMode !== undefined) state.scannerModsMode = data.scannerModsMode;
     if (data.visionSettings) state.visionSettings = { ...state.visionSettings, ...data.visionSettings };

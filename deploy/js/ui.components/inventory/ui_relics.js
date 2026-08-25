@@ -2,7 +2,7 @@ import { state, saveAppState } from "../../state.js";
 import { TEXTS } from "../../config.js";
 import { addToQueue, getPriceValue } from "../../services/market/prices.service.js";
 import { getSlug } from "../../utils/slugs.utils.js";
-import { relicOpenEV, REFINEMENT_KEYS } from "../../utils/inventory/relic_drop_odds.utils.js";
+import { relicOpenEV, getPlayerOdds } from "../../utils/inventory/relic_drop_odds.utils.js";
 import { escapeHTML } from "../ui_components.js";
 import {
   getItemIcon,
@@ -16,7 +16,9 @@ import {
 } from "../ui_tooltips.js";
 // same specifier (?v=1.1) as ui.js/main.js: another one would load a second module instance
 import { updateRecommendedMissions } from "../farms/ui_fissures.js?v=1.1";
-import { trackBestSetForRelic } from "./ui_set_tracker.js";
+import { trackBestSetForRelic, renderSetTracker } from "./ui_set_tracker.js";
+import { exposeGlobals } from "../../utils/global_registry.js";
+import { isTouchPointer } from "../../utils/tap.js";
 
 let debounceTimer;
 
@@ -161,22 +163,50 @@ export function manualRelicUpdate() {
     if (state.selectedRelic && state.relicsDatabase[state.selectedRelic]) {
       container.classList.remove("hidden");
       renderRelicStatusBadge(state.selectedRelic);
+      renderRelicInvCounter();
       const items = [...state.relicsDatabase[state.selectedRelic]].sort(
         (a, b) => b.chance - a.chance
       );
       const fragment = document.createDocumentFragment();
       items.forEach((item) => fragment.appendChild(createRelicDropRow(item)));
       listDiv.replaceChildren(fragment);
+      initLongPressDrag(listDiv);
       generateMessage();
 
       if (state.selectedRelic !== lastFissureRelic) {
         lastFissureRelic = state.selectedRelic;
-        document.getElementById("best-missions-container")?.classList.add("open");
+        // on mobile the panel covered the relic just searched: fissures are still fetched, it just does not
+        // open by itself
+        if (globalThis.innerWidth > 768) {
+          document.getElementById("best-missions-container")?.classList.add("open");
+        }
         updateRecommendedMissions(state.selectedRelic.split(" ")[0]).catch(console.error);
       }
     }
   } catch (e) {
     console.error("Error en manualRelicUpdate:", e);
+  }
+}
+
+// saved copies of the open relic. The old inventory was an array of repeated strings, migrated on the
+// first +/-, so both shapes are read
+export function renderRelicInvCounter() {
+  const rotulo = document.getElementById("txt-relic-inv-count");
+  if (!rotulo) return;
+  const relic = state.selectedRelic;
+  const n = (state.inventory || []).reduce((total, item) => {
+    if (typeof item === "string") return total + (item === relic ? 1 : 0);
+    return total + (item?.name === relic ? item.count || 0 : 0);
+  }, 0);
+  const t = TEXTS[state.currentLang]?.inventory || {};
+  rotulo.textContent = (t.relicInvCount || "In your inventory: {n}").replace("{n}", n);
+
+  // names the relic: a bare "+1" got confused with the part buttons below
+  const boton = document.getElementById("btn-relic-inv-add");
+  if (boton && relic) {
+    const titulo = (t.relicInvAddTitle || "Add {relic} to your inventory").replace("{relic}", relic);
+    boton.title = titulo;
+    boton.setAttribute("aria-label", titulo);
   }
 }
 
@@ -195,11 +225,105 @@ function renderRelicStatusBadge(relicName) {
     statusBadge.dataset.tooltip = t.vaulted;
   }
 }
+// longer than the tab fan's 220 ms: here the gesture competes with list scroll
+const LONG_PRESS_MS = 400;
+// moving more than this before the timer fires means scroll
+const MOVE_CANCEL_PX = 10;
+
+/**
+ * Long press drag: the touch version of HTML5 drag and drop, which fingers do not fire. Delegated on the
+ * list, since rows are rebuilt for every relic.
+ */
+function initLongPressDrag(listDiv) {
+  if (listDiv.dataset.lpDrag) return;
+  listDiv.dataset.lpDrag = "1";
+
+  let timer = null;
+  let dragging = false;
+  let row = null;
+  let itemName = "";
+  let startX = 0;
+  let startY = 0;
+
+  const tracker = () => document.getElementById("set-tracker");
+
+  const hint = (key) => {
+    const el = tracker()?.querySelector(".tracker-dropzone-text");
+    const txt = TEXTS[state.currentLang]?.setTab?.[key];
+    if (el && txt) el.textContent = txt;
+  };
+
+  const overTracker = (touch) => {
+    const t = tracker();
+    const el = document.elementFromPoint(touch.clientX, touch.clientY);
+    return !!(t && el && t.contains(el));
+  };
+
+  const cleanup = () => {
+    clearTimeout(timer);
+    timer = null;
+    row?.classList.remove("is-lifted");
+    tracker()?.classList.remove("drag-hover");
+    if (dragging) hint("dropHint");
+    dragging = false;
+    row = null;
+    itemName = "";
+  };
+
+  listDiv.addEventListener("touchstart", (e) => {
+    // a badly ended earlier gesture would leave the timer alive
+    cleanup();
+    if (e.touches.length !== 1) return;
+    row = e.target.closest(".component-row.is-draggable");
+    if (!row) return;
+    itemName = row.dataset.part || "";
+    startX = e.touches[0].clientX;
+    startY = e.touches[0].clientY;
+    timer = setTimeout(() => {
+      dragging = true;
+      row.classList.add("is-lifted");
+      // haptic cue that the gesture caught: the finger covers the row
+      navigator.vibrate?.(15);
+      tracker()?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }, LONG_PRESS_MS);
+  }, { passive: true });
+
+  // passive: false on purpose: preventDefault() cannot run in a passive listener
+  listDiv.addEventListener("touchmove", (e) => {
+    if (!row) return;
+    const t = e.touches[0];
+    if (!dragging) {
+      if (Math.hypot(t.clientX - startX, t.clientY - startY) > MOVE_CANCEL_PX) cleanup();
+      return;
+    }
+    e.preventDefault();
+    const over = overTracker(t);
+    tracker()?.classList.toggle("drag-hover", over);
+    hint(over ? "dropActive" : "dropHint");
+  }, { passive: false });
+
+  listDiv.addEventListener("touchend", (e) => {
+    const drop = dragging && itemName && overTracker(e.changedTouches[0]);
+    const name = itemName;
+    cleanup();
+    if (drop) globalThis.trackSetFromPart?.(name);
+  });
+
+  listDiv.addEventListener("touchcancel", cleanup);
+}
+
 // builds the whole row in one innerHTML; split it by block if it needs changes again
 function createRelicDropRow(item) {
   const row = document.createElement("div");
   row.className = "component-row";
+  // draggable to the set progress panel; .is-draggable and the tooltip announce it, since the cursor
+  // does not show on touch
   row.draggable = true;
+  row.classList.add("is-draggable");
+  // the name in the DOM too: the touch drag is delegated and only has the row under the finger
+  row.dataset.part = item.name;
+  const st = TEXTS[state.currentLang]?.setTab || {};
+  row.dataset.tooltip = (isTouchPointer() ? st.dragTipTouch : st.dragTip) || "";
   row.ondragstart = (e) => {
     e.dataTransfer.setData("text/plain", item.name);
     e.dataTransfer.effectAllowed = "copy";
@@ -269,8 +393,8 @@ export function updateRelicTotal() {
   if (!state.selectedRelic || !state.relicsDatabase[state.selectedRelic])
     return;
   const items = state.relicsDatabase[state.selectedRelic];
-  const refinement = REFINEMENT_KEYS[document.getElementById("refinement").value] || "intact";
-  const squadSize = state.squadSize || 4;
+  // getPlayerOdds, not the <select>: refinement is global, and one source avoids mixing DOM and state
+  const { refinement, squadSize } = getPlayerOdds();
   const badges = document.querySelectorAll("#relic-drops-list .price-badge");
 
   const priceOf = (item) =>
@@ -314,8 +438,7 @@ export function updateRelicVerdict(relicName, openEV) {
 
     const ref = document.getElementById("refinement");
     const refText = ref?.options[ref.selectedIndex]?.text || "";
-    const squad = `${state.playerCount}/4`;
-    const ctx = `${refText} · ${squad}`;
+    const ctx = `${refText} · ${getPlayerOdds().squadSize}/4`;
 
     if (!sellPrice || sellPrice <= 0) {
       box.classList.add("neutral");
@@ -423,14 +546,59 @@ export function renderRelicsForPartInline(partName, container) {
   container.appendChild(grid);
 }
 
-Object.assign(globalThis, {
+/**
+ * Refinement and squad are global: the verdict here, the inventory chips, the set tracker and the
+ * routes all use them. Both controls go through here and everything recomputes at once.
+ */
+export function setRefinement(label) {
+  state.refinement = label;
+  const select = document.getElementById("refinement");
+  if (select && select.value !== label) select.value = label;
+  saveAppState();
+  generateMessage();
+  refreshOddsDependents();
+}
+
+export function setSquadSize(size) {
+  state.squadSize = Math.min(4, Math.max(1, Number.parseInt(size, 10) || 4));
+  saveAppState();
+  refreshOddsDependents();
+}
+
+export function updateProfitLabel() {
+  const t = TEXTS[state.currentLang];
+  if (!t) return;
+  const { squadSize } = getPlayerOdds();
+
+  const label = document.getElementById("lbl-profit");
+  if (label) {
+    label.innerText = squadSize <= 1
+      ? t.lblProfitSolo
+      : (t.lblProfitSquad || "").replace("{n}", String(squadSize));
+  }
+
+  const select = document.getElementById("squadSize");
+  if (select && select.value !== String(squadSize)) select.value = String(squadSize);
+}
+
+export function refreshOddsDependents() {
+  updateProfitLabel();
+  updateRelicTotal();
+  if (state.currentActiveSet) renderSetTracker();
+  globalThis.renderInventory?.();
+  globalThis.renderFarmRoutes?.().catch((e) => console.warn("[rutas] tasas:", e));
+}
+
+exposeGlobals({
   handleRelicTyping,
   manualRelicUpdate,
   generateMessage,
   renderRelicsForPartInline,
+  setRefinement,
+  setSquadSize,
   changeCount: (n) => {
     state.playerCount = Math.max(1, Math.min(4, state.playerCount + n));
     document.getElementById("countDisplay").innerText = state.playerCount;
     generateMessage();
   },
-});
+}, "ui.components/inventory/ui_relics.js");

@@ -469,6 +469,82 @@
     background: rgba(221, 169, 56, 0.15) !important;
 }
 
+/* with no tracked set the panel becomes a drop zone; the dashed border tells it apart from the full one */
+#set-tracker.is-dropzone {
+    border-style: dashed !important;
+    border-color: rgba(221, 169, 56, 0.28) !important;
+    box-shadow: none !important;
+}
+
+.tracker-dropzone {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 14px 10px 10px;
+    text-align: center;
+}
+
+.tracker-dropzone-icon {
+    font-size: 1.3rem;
+    line-height: 1;
+    color: var(--wf-gold-text);
+    opacity: 0.75;
+}
+
+.tracker-dropzone-text {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--wf-gold-text);
+}
+
+/* rem, not em: the parent already shrinks the font */
+.tracker-dropzone-sub {
+    font-size: 0.72rem;
+    color: #8a8a8a;
+    line-height: 1.35;
+}
+
+/* the handle shows on hover only, always visible it turned the list into a row of icons */
+.component-row.is-draggable {
+    cursor: grab;
+}
+
+.component-row.is-draggable:active {
+    cursor: grabbing;
+}
+
+.component-row.is-draggable::before {
+    content: "⠿";
+    position: absolute;
+    left: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.7rem;
+    line-height: 1;
+    color: var(--wf-gold-text);
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    pointer-events: none;
+}
+
+.component-row.is-draggable:hover::before {
+    opacity: 0.55;
+}
+
+/* row lifted during a long press on touch; the finger covers it, so the signal has to stick out */
+.component-row.is-lifted {
+    border-color: var(--wf-gold-text) !important;
+    background: linear-gradient(90deg, rgba(221, 169, 56, 0.18) 0, rgba(221, 169, 56, 0.06) 100%) !important;
+    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.65) !important;
+    transform: scale(1.02) !important;
+    z-index: 9999;
+}
+
+.component-row.is-lifted::before {
+    opacity: 1;
+}
+
 .tracker-title {
     margin-bottom: 12px;
     padding-bottom: 10px;
@@ -583,6 +659,22 @@
     overflow: visible !important;
     position: relative;
     z-index: 1;
+}
+
+/*
+ * on narrow screens the part name is the only thing that can shrink and ended at 0px, so it gets the first line with the icon
+ * !important because ui_set_tracker.js sets `flex:1` inline
+ */
+@media (max-width: 620px) {
+    .tracker-item {
+        flex-wrap: wrap;
+        row-gap: 6px;
+    }
+
+    .tracker-item .t-name {
+        flex: 1 1 calc(100% - 44px) !important;
+        white-space: normal !important;
+    }
 }
 
 .tracker-item:hover {
@@ -820,6 +912,13 @@
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
+}
+
+/* expanded it can hold 110 sets: capped height with its own scroll keeps "Show less" in view */
+#setResults .sets-bridge.is-expanded .sets-bridge-row {
+    max-height: 46vh;
+    overflow-y: auto;
+    padding-right: 4px;
 }
 
 /* <button> chrome reset: a button for touch (utils/tap.js) that must read as a chip */

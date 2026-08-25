@@ -1,4 +1,4 @@
-import { state } from "../../state.js";
+import { state, saveAppState } from "../../state.js";
 import { DROP_CHANCES } from "../../config.js";
 import { getSetName, getRequiredCount } from "../../utils/ui_utils.js";
 import { relicSetValue, describeRelicRuns } from "../../utils/inventory/relic_set_value.js";
@@ -64,11 +64,13 @@ export function renderInvGoalChips() {
 
 export function filterInvGoal(goal) {
     state.invGoal = goal;
+    saveAppState();
     globalThis.renderInventory?.();
 }
 
 export function toggleInvOnlyActive(checked) {
     state.invOnlyActive = !!checked;
+    saveAppState();
     globalThis.renderInventory?.();
 }
 

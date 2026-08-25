@@ -158,3 +158,23 @@ async function attachItemInfo(orders) {
         if (meta.maxRank) o.itemMaxRank = meta.maxRank;
     }
 }
+
+const FILTERS_KEY = "vs_orders_filters_v1";
+
+/** @param {string[]} valid */
+export function getOrdersFilterType(valid) {
+    try {
+        const saved = localStorage.getItem(FILTERS_KEY);
+        return valid.includes(saved) ? saved : "all";
+    } catch {
+        return "all";
+    }
+}
+
+export function saveOrdersFilterType(type) {
+    try {
+        localStorage.setItem(FILTERS_KEY, type);
+    } catch (e) {
+        console.warn("[orders] no se pudo guardar el filtro:", e);
+    }
+}

@@ -12,6 +12,20 @@ import { exposeGlobals } from "../../utils/global_registry.js";
 let liveHooked = false;
 
 /**
+ * Seen in the stream, by slug, so any inventory repaint can restore the marks and the filter.
+ */
+const liveSeen = new Map();   // slug -> plat
+const staleSeen = new Map();  // slug -> diff
+
+/**
+ * Filter state in a variable, not the chip class, so it reapplies after a repaint.
+ */
+let staleFilterOn = false;
+
+/** True while repaintLivePrices rebuilds the marks: one chip count instead of N. */
+let repainting = false;
+
+/**
  * Turns on the inventory live prices. The WFM stream only brings ~3.4% of the catalog every 3 minutes:
  * it refines the items that pass by while the tab is open. The base price (prices_batch median) still
  * rules.
@@ -43,6 +57,7 @@ export async function initLivePrices() {
  * the 5 cheapest, this is one listing.
  */
 function paintLivePrice(slug, plat) {
+  liveSeen.set(slug, plat);
   for (const badge of document.querySelectorAll(".price-badge-small[data-item]")) {
     if (getSlug(badge.dataset.item) !== slug) continue;
 
@@ -69,6 +84,7 @@ function paintLivePrice(slug, plat) {
  * item is worth more than the app says (you would sell cheap).
  */
 function paintStale(slug, diff) {
+  staleSeen.set(slug, diff);
   const t = TEXTS[state.currentLang];
   const up = diff > 0;
   const pct = Math.round(Math.abs(diff) * 100);
@@ -91,14 +107,24 @@ function paintStale(slug, diff) {
     tag.title = (up ? t.staleUpTitle : t.staleDownTitle) || "";
   }
 
-  refreshStaleChip();
+  if (!repainting) refreshStaleChip();
 }
 
+/**
+ * Shows only the items whose price contradicts the market, or all again. Filters the painted DOM
+ * instead of repainting.
+ */
 export function toggleStaleFilter() {
-  const chip = document.getElementById("inv-stale-chip");
-  if (!chip) return;
+  staleFilterOn = !staleFilterOn;
+  applyStaleFilter();
+}
 
-  const on = chip.classList.toggle("is-active");
+/**
+ * Hides what is not flagged when the filter is on. Idempotent: safe after every repaint.
+ */
+function applyStaleFilter() {
+  const on = staleFilterOn;
+  document.getElementById("inv-stale-chip")?.classList.toggle("is-active", on);
 
   for (const row of document.querySelectorAll(".inv-row-mini")) {
     row.style.display = (on && !row.classList.contains("is-price-stale")) ? "none" : "";
@@ -109,6 +135,23 @@ export function toggleStaleFilter() {
     group.style.display = (on && !hasStale) ? "none" : "";
     if (on && hasStale) group.classList.remove("collapsed");
   }
+}
+
+/**
+ * Puts back over the freshly painted inventory what the stream already showed. Called by
+ * renderPrimeInventory at the end.
+ */
+export function repaintLivePrices() {
+  // paintStale refreshes the chip on every slug: one count at the end instead
+  repainting = true;
+  try {
+    for (const [slug, plat] of liveSeen) paintLivePrice(slug, plat);
+    for (const [slug, diff] of staleSeen) paintStale(slug, diff);
+  } finally {
+    repainting = false;
+  }
+  applyStaleFilter();
+  refreshStaleChip();
 }
 
 function refreshStaleChip() {

@@ -110,3 +110,24 @@ export function createTip({ text, icon = "👆", storageKey = "", variant = "" }
 
   return tip;
 }
+
+/**
+ * guide.html sections per tab; tabs without their own chapter fall back to "context".
+ */
+const GUIDE_SECTION = {
+  relic: "relic", set: "set", riven: "riven",
+  bounties: "farms", lfg: "farms",
+  vosfor: "vosfor", ducat: "ducat",
+  orders: "context", eelog: "context",
+};
+
+/**
+ * Points the header guide link to the active tab chapter. The anchor prefix depends on the language:
+ * guide.html holds both versions ("g-" English, "e-" Spanish).
+ */
+export function updateGuideLink(tab, lang) {
+  const cta = document.getElementById("txt-header-guide-cta");
+  if (!cta) return;
+  const seccion = GUIDE_SECTION[tab] || "context";
+  cta.href = `guide.html#${lang === "es" ? "e" : "g"}-${seccion}`;
+}

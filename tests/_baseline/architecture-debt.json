@@ -28,15 +28,15 @@
     "ui.components/ui_vosfor.js"
   ],
   "oversize": {
-    "scanner/mobile_scanner.js": 1039,
+    "scanner/mobile_scanner.js": 1026,
     "services/rivens/riven_market.service.js": 1145,
-    "services/scanner/scanner.service.js": 1941,
-    "services/scanner/vision.service.js": 2088,
-    "ui.components/market/ui_orders.js": 1599,
-    "ui.components/rivens/ui_rivens.js": 4332,
+    "services/scanner/scanner.service.js": 1927,
+    "services/scanner/vision.service.js": 2063,
+    "ui.components/market/ui_orders.js": 1582,
+    "ui.components/rivens/ui_rivens.js": 4328,
     "ui.components/ui_vosfor.js": 2299,
     "utils/rivens/riven_logic.js": 1045,
-    "utils/vision/grid_detect.js": 1073
+    "utils/vision/grid_detect.js": 1048
   },
   "looseGlobals": {
     "main.js": 1,
@@ -55,13 +55,11 @@
     "ui.components/inventory/ui_ducanator.js": 1,
     "ui.components/inventory/ui_inventory.js": 1,
     "ui.components/inventory/ui_prime_inventory.js": 3,
-    "ui.components/inventory/ui_relics.js": 1,
     "ui.components/inventory/ui_sets.js": 2,
     "ui.components/market/ui_sync.js": 1,
     "ui.components/rivens/ui_arbitrage.js": 1,
     "ui.components/rivens/ui_riven_scanner_hud.js": 2,
     "ui.components/rivens/ui_rivens.js": 9,
-    "ui.components/ui_lfg.js": 1,
     "ui.components/ui_tooltips.js": 1,
     "ui.js": 1,
     "utils/ui_utils.js": 1,

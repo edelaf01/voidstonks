@@ -5,13 +5,25 @@
  * Pure: everything comes in through `deps`, testable without a browser or live data.
  */
 
+/**
+ * How far this set can go and what it needs.
+ *
+ * `built` = whole sets you already have: the minimum copies across the parts. The target is NOT always
+ * `built + 1`: when ONE part sets the minimum, the target is the SECOND bottleneck. With [0,4,4,4] that
+ * is 4 sets for 4 blueprints; with [3,4,5,6] it is 4, the usual `built + 1`.
+ *
+ * @returns `needed` = copies to get of each missing part, by name.
+ */
 function setProgress(setName, parts, primeInventory, getRequiredCount) {
   const req = (p) => getRequiredCount(setName, p) || 1;
   const sets = new Map(parts.map((p) => [p, Math.floor((primeInventory[p] || 0) / req(p))]));
 
   const built = Math.min(...sets.values());
   const porEncima = [...sets.values()].filter((n) => n > built);
-  const target = porEncima.length > 0 ? Math.min(...porEncima) : built + 1;
+  // with SEVERAL parts at the minimum the surplus is not one part away: back to the next set, and the
+  // next pass picks up the surplus
+  const unSoloCuello = [...sets.values()].filter((n) => n === built).length === 1;
+  const target = (unSoloCuello && porEncima.length > 0) ? Math.min(...porEncima) : built + 1;
 
   const missingParts = [];
   const needed = {};

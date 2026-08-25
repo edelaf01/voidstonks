@@ -2,7 +2,7 @@ import { state, saveAppState, updateInventoryCount } from "../../state.js";
 import { TEXTS } from "../../config.js";
 import { escapeHTML, showToast, showCustomConfirm, emptyStateHtml } from "../ui_components.js";
 
-import { manualRelicUpdate } from "./ui_relics.js";
+import { manualRelicUpdate, renderRelicInvCounter } from "./ui_relics.js";
 import { trackBestSetForRelic } from "./ui_set_tracker.js";
 import { exposeGlobals } from "../../utils/global_registry.js";
 import { ducatRatio, formatDucatRatio } from "./ui_ducanator.js";
@@ -57,6 +57,7 @@ export async function renderInventory() {
 
   list.classList.remove("inventory-loading");
   renderInvGoalChips();
+  syncInvTierChips();
 
   const goal = state.invGoal || "sets";
   const newHash = inventorySignature(state.inventory) + state.invSearchVal + state.invFilterTier
@@ -71,6 +72,7 @@ export async function renderInventory() {
     list.innerHTML = emptyStateHtml(
       inv?.emptyRelics || "No relics saved yet.",
       inv?.emptyScannerHint,
+      inv?.emptyScannerHintMobile,
     );
     return;
   }
@@ -224,6 +226,10 @@ export function modifyInv(name, amount) {
   const oldLength = state.inventory ? state.inventory.length : 0;
   updateInventoryCount(name, amount);
   saveAppState();
+  renderRelicInvCounter();
+  // the suggested routes are computed on this inventory. Through globalThis (published by
+  // ui_farm_routes.js): importing it would close a load cycle
+  globalThis.scheduleFarmRoutesRefresh?.();
 
   const safeNameHtml = escapeHTML(name);
   const row = document.querySelector(`.inv-row[data-relic="${safeNameHtml}"]`);
@@ -259,23 +265,28 @@ export function selectRelicFromInv(name) {
 
   // through globalThis (published by main.js): importing it would close a load cycle (tests/import-graph)
   globalThis.switchTab("relic");
-  toggleInventoryPanel(false);
+  // close, not `toggleInventoryPanel(false)`, which toggles: these relic chips also show in the routes
+  // panel with the inventory closed
+  document.getElementById("inventory-container")?.classList.remove("open");
   manualRelicUpdate();
   trackBestSetForRelic(name);
 }
 
+/**
+ * Marks the active tier chip. Also called from renderInventory, since the tier survives reloads. By
+ * data-tier, not the label: REQUIEM reads "REQ".
+ */
+function syncInvTierChips() {
+  const tier = state.invFilterTier || "ALL";
+  document.querySelectorAll(".inv-tier-btn").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.tier === tier);
+  });
+}
+
 export function filterInvTier(tier) {
   state.invFilterTier = tier;
-  document.querySelectorAll(".inv-tier-btn").forEach((btn) => {
-    btn.classList.remove("active");
-    if (
-      btn.innerText === tier ||
-      (tier === "REQUIEM" && btn.innerText === "REQ") ||
-      (tier === "ALL" && btn.innerText === "ALL")
-    ) {
-      btn.classList.add("active");
-    }
-  });
+  saveAppState();
+  syncInvTierChips();
   renderInventory();
 }
 
@@ -284,6 +295,7 @@ export function addCurrentToInv() {
 
   updateInventoryCount(state.selectedRelic, 1);
   saveAppState();
+  globalThis.scheduleFarmRoutesRefresh?.();
 
   const msg =
     state.currentLang === "es"
@@ -291,6 +303,7 @@ export function addCurrentToInv() {
       : `${state.selectedRelic} added to inventory.`;
 
   showToast(msg);
+  renderRelicInvCounter();
 
   renderInventory();
 }
@@ -300,6 +313,7 @@ export function addCurrentToInv() {
  */
 export function updateInventoryPanelLabels() {
   const t = TEXTS[state.currentLang]?.inventory || {};
+  renderRelicInvCounter();
   const isParts = state.currentInvView === "parts";
 
   const set = (id, text) => {
@@ -322,11 +336,27 @@ export function updateInventoryPanelLabels() {
     purge.title = purgeTitle;
     purge.setAttribute("aria-label", purgeTitle);
   }
+
+  const showEmpty = document.getElementById("prime-show-empty");
+  if (showEmpty) showEmpty.checked = !!state.settings?.showEmptyPrime;
+  const showEmptyLbl = document.getElementById("prime-show-empty-label");
+  if (showEmptyLbl && t.showEmpty) {
+    showEmptyLbl.textContent = t.showEmpty;
+    showEmptyLbl.parentElement.dataset.tooltip = t.showEmptyHelp || "";
+  }
+
+  const toggle = document.getElementById("inv-toggle-btn");
+  const toggleTitle = isParts ? t.togglePartsTitle : t.toggleRelicsTitle;
+  if (toggle && toggleTitle) {
+    toggle.title = toggleTitle;
+    toggle.setAttribute("aria-label", toggleTitle);
+  }
 }
 
 export function switchInvView(view) {
   if (state.currentInvView === view && document.getElementById("inventory-list")?.innerHTML.length > 50) return;
   state.currentInvView = view;
+  saveAppState();
   const relicControls = document.getElementById("relic-inv-controls");
   const primeControls = document.getElementById("prime-inv-controls");
   const tabRelics = document.getElementById("inv-tab-relics");

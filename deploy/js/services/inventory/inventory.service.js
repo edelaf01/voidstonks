@@ -24,7 +24,9 @@ function collectInventorySlugs() {
     if (state.setsDatabase) {
         Object.keys(state.setsDatabase).forEach((setName) => {
             const parts = state.setsDatabase[setName];
-            if (state.settings?.showEmptyPrime || parts.some((p) => (state.primeInventory[p] || 0) > 0)) {
+            // showEmptyPrime stays out on purpose: it decides what is drawn, not what is downloaded,
+            // and here it would fetch every part of every set.
+            if (parts.some((p) => (state.primeInventory[p] || 0) > 0)) {
                 itemsToCheck.add(getSlug(`${setName} Set`));
                 parts.forEach((p) => itemsToCheck.add(getSlug(p)));
             }
