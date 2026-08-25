@@ -6,6 +6,7 @@ import {
 } from "../config.js";
 import { state } from "../state.js";
 import { exposeGlobals } from "../utils/global_registry.js";
+import { isTouchPointer } from "../utils/tap.js";
 import { getRelicDropTooltip } from "./ui_tooltips.js";
 
 export function preloadCriticalAssets() {
@@ -22,10 +23,13 @@ export function preloadCriticalAssets() {
 import { escapeHTML } from "../utils/escape_html.js";
 export { escapeHTML };
 
-export function emptyStateHtml(message, scannerHint = "") {
-  const scannerOnScreen = document.getElementById("scanner-section")?.offsetParent != null;
-  const hint = scannerHint && scannerOnScreen
-    ? `<div style="margin-top:6px; font-size:0.85em; opacity:0.7;">${escapeHTML(scannerHint)}</div>`
+export function emptyStateHtml(message, scannerHint = "", mobileHint = "") {
+  const onScreen = (id) => document.getElementById(id)?.offsetParent != null;
+  const texto = onScreen("scanner-section") ? scannerHint
+    : onScreen("mobile-scan-btn") ? mobileHint
+      : "";
+  const hint = texto
+    ? `<div style="margin-top:6px; font-size:0.85em; opacity:0.7;">${escapeHTML(texto)}</div>`
     : "";
   return `<div style="padding:20px 16px; text-align:center; color:#888; line-height:1.5;">${escapeHTML(message)}${hint}</div>`;
 }
@@ -115,6 +119,11 @@ export async function checkUpdates() {
   const lastSeenVersion = localStorage.getItem("last_seen_version");
   const currentVersionStr = String(APP_VERSION);
 
+  if (!lastSeenVersion) {
+    localStorage.setItem("last_seen_version", currentVersionStr);
+    return;
+  }
+
   if (lastSeenVersion !== currentVersionStr) {
     openUpdateHistory();
   }
@@ -133,6 +142,25 @@ export function closeUpdateModal() {
   document.getElementById("update-modal").classList.add("hidden");
   localStorage.setItem("last_seen_version", String(APP_VERSION));
   console.log("Versión guardada con éxito:", APP_VERSION);
+}
+
+// closed side panels stay in the focus order and CSS cannot fix it, so they get inert
+export function keepPanelInertWhileClosed(panel) {
+  if (!panel || panel.dataset.inertWatch) return;
+  panel.dataset.inertWatch = "1";
+  const sync = () => {
+    const cerrado = !panel.classList.contains("open");
+    for (const hijo of panel.children) {
+      if (hijo.id?.endsWith("toggle-btn")) continue;
+      hijo.inert = cerrado;
+    }
+  };
+  new MutationObserver(sync).observe(panel, {
+    attributes: true,
+    attributeFilter: ["class"],
+    childList: true,
+  });
+  sync();
 }
 
 export function initGlobalTooltipSystem() {
@@ -275,8 +303,10 @@ export function initGlobalTooltipSystem() {
   });
 
   document.addEventListener("click", (e) => {
-    const target = e.target.closest("[data-tooltip], [data-tooltip-html], [data-tooltip-relic]");
+    let target = e.target.closest("[data-tooltip], [data-tooltip-html], [data-tooltip-relic]");
     if (e.target.closest("#global-tooltip")) return;
+    // on touch the same tap runs the control, only tabs and links drop the tooltip
+    if (target && isTouchPointer() && target.closest(".tab-btn, a[href]")) target = null;
     if (target) {
       const alreadyOpen = !tooltipEl.classList.contains("hidden") && currentHoverTarget === target;
       if (openTimer) clearTimeout(openTimer);

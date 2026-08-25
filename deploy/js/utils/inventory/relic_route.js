@@ -6,7 +6,8 @@ function setProgress(setName, parts, primeInventory, getRequiredCount) {
 
   const built = Math.min(...sets.values());
   const porEncima = [...sets.values()].filter((n) => n > built);
-  const target = porEncima.length > 0 ? Math.min(...porEncima) : built + 1;
+  const unSoloCuello = [...sets.values()].filter((n) => n === built).length === 1;
+  const target = (unSoloCuello && porEncima.length > 0) ? Math.min(...porEncima) : built + 1;
 
   const missingParts = [];
   const needed = {};

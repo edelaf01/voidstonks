@@ -1,7 +1,8 @@
 import { OpenCVRepository } from "../../repositories/opencv.repository.js";
 import { detectInventoryGrid } from "../../utils/vision/grid_detect.js";
 import { offBandComponentIndices } from "../../utils/vision/badge_filters.js";
-import { NAME_TEXT_COLORS, snapToThemeTextColor, nameColorCandidates } from "../../utils/vision/name_color.js";
+import { accentMask } from "../../utils/vision/mission_complete_grid.js";
+import { NAME_TEXT_COLORS, snapToThemeTextColor, bandInkHistogram, rankPageNameColors } from "../../utils/vision/name_color.js";
 export { NAME_TEXT_COLORS, snapToThemeTextColor };
 
 export async function applyBestCameraConstraints(stream) {
@@ -42,7 +43,6 @@ export const WF_THEMES = [
     { name: "High Contrast", r: 255, g: 255, b: 0 },
 ];
 
-const THEME_TOL_SQ = 1944;
 
 const COLOR_HIST = new Uint32Array(32768);
 
@@ -61,15 +61,12 @@ const scratchStack = (n) => {
 export const VisionService = {
     _sharedCvs: document.createElement("canvas"),
     _themeCvs: document.createElement("canvas"),
-    _filterCvs: document.createElement("canvas"),
-    _textCvs: document.createElement("canvas"),
     _tempBadgeCvs: document.createElement("canvas"),
     _badgeCvs: document.createElement("canvas"),
     _relicSelectionCvs: document.createElement("canvas"),
     _rewardCvs: document.createElement("canvas"),
     _rewardNamesCvs: document.createElement("canvas"),
     _rivenCvs: document.createElement("canvas"),
-    _inventoryCvs: document.createElement("canvas"),
     getFrameHash(ctx, w, h) {
         const data = ctx.getImageData(0, 0, w, h).data;
         let hash = 0;
@@ -159,6 +156,74 @@ export const VisionService = {
         ctx.drawImage(video, 0, 0, hCropW, hCropH, 0, 0, canvas.width, canvas.height);
 
         return { width, height, scale };
+    },
+
+    prepareCenterHeaderCanvas(video, canvas) {
+        const width = video.videoWidth;
+        const height = video.videoHeight;
+        const scale = 1080 / height;
+
+        const sx = Math.floor(width * 0.28);
+        const sw = Math.floor(width * 0.44);
+        const sh = Math.floor(height * 0.12);
+
+        canvas.width = Math.floor(sw * scale);
+        canvas.height = Math.floor(sh * scale);
+
+        const ctx = canvas.getContext("2d", { willReadFrequently: true });
+        ctx.drawImage(video, sx, 0, sw, sh, 0, 0, canvas.width, canvas.height);
+
+        return { width, height, scale };
+    },
+
+    prepareMissionCompleteCellCanvas(frame, cell, accent, canvas) {
+        const fCtx = frame.getContext("2d", { willReadFrequently: true });
+        const cellImg = fCtx.getImageData(cell.x, cell.y, cell.w, cell.h);
+        const { mask } = accentMask(cellImg, accent, { x: 0, y: 0, w: cell.w, h: cell.h });
+
+        if (!this._mcMaskCvs) this._mcMaskCvs = document.createElement("canvas");
+        const small = this._mcMaskCvs;
+        small.width = cell.w; small.height = cell.h;
+        const sCtx = small.getContext("2d", { willReadFrequently: true });
+        const out = sCtx.createImageData(cell.w, cell.h);
+        for (let i = 0; i < mask.length; i++) {
+            const v = mask[i] ? 0 : 255;
+            out.data[i * 4] = out.data[i * 4 + 1] = out.data[i * 4 + 2] = v;
+            out.data[i * 4 + 3] = 255;
+        }
+        sCtx.putImageData(out, 0, 0);
+
+        const k = Math.max(2, Math.round(360 / Math.max(1, cell.w)));
+        canvas.width = cell.w * k;
+        canvas.height = cell.h * k;
+        const ctx = canvas.getContext("2d", { willReadFrequently: true });
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = "high";
+        ctx.drawImage(small, 0, 0, canvas.width, canvas.height);
+        return canvas;
+    },
+
+    _cropCvs: {},
+
+    prepareCropForOCR(video, crop, zoom, cacheKey) {
+        const canvas = this._cropCvs[cacheKey] ||= document.createElement("canvas");
+        const width = video.videoWidth;
+        const height = video.videoHeight;
+        const scale = (1080 / height) * zoom;
+
+        const sx = Math.floor(width * crop.x);
+        const sy = Math.floor(height * crop.y);
+        const sw = Math.floor(width * crop.w);
+        const sh = Math.floor(height * crop.h);
+
+        canvas.width = Math.max(1, Math.floor(sw * scale));
+        canvas.height = Math.max(1, Math.floor(sh * scale));
+
+        const ctx = canvas.getContext("2d", { willReadFrequently: true });
+        ctx.filter = "grayscale(100%) invert(100%)";
+        ctx.drawImage(video, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+        ctx.filter = "none";
+        return canvas;
     },
 
     finalizeVirtualCanvas(canvas) {
@@ -256,48 +321,7 @@ export const VisionService = {
         return result;
     },
 
-    createFilteredOcrCanvas(snapshot, width, height, grid) {
-        const cvs = this._filterCvs;
-        cvs.width = width; cvs.height = height;
-        const ctx = cvs.getContext("2d", { willReadFrequently: true });
 
-        ctx.filter = "grayscale(100%) contrast(400%) brightness(1.3)";
-        ctx.drawImage(snapshot, 0, 0);
-        ctx.filter = "none";
-
-        const imgData = ctx.getImageData(0, 0, width, height);
-        const px = imgData.data;
-        for (let i = 0; i < px.length; i += 4) {
-            const v = px[i] > 128 ? 0 : 255;
-            px[i] = px[i + 1] = px[i + 2] = v;
-        }
-        ctx.putImageData(imgData, 0, 0);
-        return cvs;
-    },
-
-    buildThemeMask(video, width, height, scale) {
-        const cropY = Math.floor(height * 0.12);
-        const cropH = Math.floor(height * 0.78);
-        const cropW = Math.floor(width * 0.74);
-        const targetW = Math.floor(cropW * scale);
-        const targetH = Math.floor(cropH * scale);
-
-        const cvs = this._inventoryCvs;
-        cvs.width = targetW; cvs.height = targetH;
-        const ctx = cvs.getContext("2d", { willReadFrequently: true });
-        ctx.drawImage(video, 0, cropY, cropW, cropH, 0, 0, targetW, targetH);
-
-        const { data: px } = ctx.getImageData(0, 0, targetW, targetH);
-        const mask = new Uint8Array(targetW * targetH);
-        for (let i = 0; i < mask.length; i++) {
-            const r = px[i * 4], g = px[i * 4 + 1], b = px[i * 4 + 2];
-            for (const t of WF_THEMES) {
-                const dr = r - t.r, dg = g - t.g, db = b - t.b;
-                if (dr * dr + dg * dg + db * db < THEME_TOL_SQ) { mask[i] = 1; break; }
-            }
-        }
-        return { sourceCvs: cvs, mask, maskW: targetW, maskH: targetH };
-    },
 
     detectInventoryGrid(mask, maskW, maskH) {
         const rowDensity = new Float32Array(maskH);
@@ -526,7 +550,7 @@ export const VisionService = {
         const N = w * h;
         const label = scratchLabels(N);
         const stack = scratchStack(N);
-        const H_TEXT = Math.max(16, Math.round(h * 0.20));
+        const H_TEXT = Math.max(12, Math.round(h * 0.06));
         const NEAR_Y = Math.round(h * 0.12);
         const comps = [];
         for (let p = 0; p < N; p++) {
@@ -594,14 +618,19 @@ export const VisionService = {
         return cvs;
     },
 
-    nameBandColorCandidates(sourceCvs, sx, sy, sw, sh, max) {
+    pageNameColorCandidates(sourceCvs, cells, cellW, sy, sh, max) {
+        const histograms = cells.map(cell =>
+            bandInkHistogram(this._nameBandImageData(sourceCvs, cell.sx, cell.sy + sy, cellW, sh)));
+        return rankPageNameColors(histograms, max);
+    },
+
+    _nameBandImageData(sourceCvs, sx, sy, sw, sh) {
         const S = 3;
-        const cvs = document.createElement("canvas");
-        cvs.width = sw * S; cvs.height = sh * S;
+        const cvs = this._ringCanvas(sw * S, sh * S);
         const ctx = cvs.getContext("2d", { willReadFrequently: true });
         ctx.imageSmoothingEnabled = true;
         ctx.drawImage(sourceCvs, sx, sy, sw, sh, 0, 0, cvs.width, cvs.height);
-        return nameColorCandidates(ctx.getImageData(0, 0, cvs.width, cvs.height), max);
+        return ctx.getImageData(0, 0, cvs.width, cvs.height);
     },
 
     cropBadgeBinarized(sourceCvs, sx, sy, sw, sh) {
@@ -623,96 +652,9 @@ export const VisionService = {
         return cvs;
     },
 
-    createTextCanvas(ocrCanvas, cell, grid) {
-        const TEXT_SCALE = 3;
-        const textSrcY = Math.floor(grid.cellH * 0.76);
-        const textSrcH = Math.floor(grid.cellH * 0.21);
-        const textCvs = this._textCvs;
-        textCvs.width = grid.cellW * TEXT_SCALE;
-        textCvs.height = textSrcH * TEXT_SCALE;
-        const tCtx = textCvs.getContext('2d');
-        tCtx.imageSmoothingEnabled = false;
-        tCtx.drawImage(ocrCanvas, cell.sx, cell.sy + textSrcY, grid.cellW, textSrcH, 0, 0, textCvs.width, textCvs.height);
-        return textCvs;
-    },
 
-    createBadgeCanvas(snapshot, cell, grid) {
-        const bdgOffsetX = Math.floor(grid.cellW * 0.10);
-        const copyW = Math.floor(grid.cellW * 0.22);
 
-        const badgeH = Math.floor(grid.cellH * 0.11);
-        const BADGE_SCALE = 3;
 
-        const tempCvs = this._tempBadgeCvs;
-        tempCvs.width = copyW; tempCvs.height = badgeH;
-        const tCtx = tempCvs.getContext('2d');
-        tCtx.drawImage(snapshot, cell.sx + bdgOffsetX, cell.sy, copyW, badgeH, 0, 0, copyW, badgeH);
-
-        this.applyClusteringToBadge(tCtx, copyW, badgeH);
-
-        const badgeCvs = this._badgeCvs;
-        badgeCvs.width = copyW * BADGE_SCALE;
-        badgeCvs.height = badgeH * BADGE_SCALE;
-        const bCtx = badgeCvs.getContext('2d');
-        bCtx.imageSmoothingEnabled = false;
-        bCtx.drawImage(tempCvs, 0, 0, copyW, badgeH, 0, 0, badgeCvs.width, badgeCvs.height);
-        return badgeCvs;
-    },
-
-    applyThemeToBadge(ctx, w, h, theme) {
-        const imgData = ctx.getImageData(0, 0, w, h);
-        const px = imgData.data;
-
-        const targetThemes = theme ? [theme] : WF_THEMES;
-        const tolSq = theme ? 55 * 55 : 45 * 45;
-
-        for (let i = 0; i < px.length; i += 4) {
-            const r = px[i], g = px[i + 1], b = px[i + 2];
-            const luma = 0.299 * r + 0.587 * g + 0.114 * b;
-            let isBadge = false;
-
-            for (const t of targetThemes) {
-                const dr = r - t.r, dg = g - t.g, db = b - t.b;
-                if (dr * dr + dg * dg + db * db < tolSq) {
-                    isBadge = true;
-                    break;
-                }
-                if (t.actualR !== undefined) {
-                    const dar = r - t.actualR, dag = g - t.actualG, dab = b - t.actualB;
-                    if (dar * dar + dag * dag + dab * dab < tolSq) {
-                        isBadge = true;
-                        break;
-                    }
-                }
-            }
-
-            if (luma > 165) {
-                isBadge = true;
-            }
-
-            px[i] = px[i + 1] = px[i + 2] = isBadge ? 0 : 255;
-        }
-        ctx.putImageData(imgData, 0, 0);
-    },
-
-    applyClusteringToBadge(ctx, w, h) {
-        const imgData = ctx.getImageData(0, 0, w, h);
-        const px = imgData.data;
-        
-        let maxL = 0;
-        for (let i = 0; i < px.length; i += 4) {
-            const l = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
-            if (l > maxL) maxL = l;
-        }
-        
-        const thresh = Math.max(50, maxL * 0.55);
-        
-        for (let i = 0; i < px.length; i += 4) {
-            const l = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
-            px[i] = px[i + 1] = px[i + 2] = (l >= thresh) ? 0 : 255;
-        }
-        ctx.putImageData(imgData, 0, 0);
-    },
 
     applyClusteringThreshold(ctx, w, h, theme) {
         const imgData = ctx.getImageData(0, 0, w, h);
@@ -1171,6 +1113,8 @@ export const VisionService = {
         const hasInv = /INVEN|TORY|1NVENT|INV|VENT|SELL|TARIO/.test(text);
         const hasMods = /MODS|MOD|M0DS|MOOS|MDDS|MDS|M0D5|M0D|MOO|MD|FICADORES|AGRIETADO|KUVA|KUYVA|CICLO|CICLAR|ATRIBU/.test(text) ||
             /\/\s*[MNHW][O0DQC][DO0B][S5$]/.test(text);
+
+        if (/M[I1L]SS?[I1L]ON\s*C[O0Q]MP|MIS[I1L][OÓ]N\s*C[O0Q]MPLET/.test(text)) return "MISSION_COMPLETE";
 
         if (/DETAIL|DETALL/.test(text)) return "ITEM_DETAILS";
         if (hasMods) return "INVENTORY_MODS";

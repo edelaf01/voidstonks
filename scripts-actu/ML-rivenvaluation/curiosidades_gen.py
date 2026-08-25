@@ -108,9 +108,10 @@ def _generar_curiosidades(path_series, top=40, dias_max=None):
     for lista in por_tipo.values():
         lista.sort(key=lambda e: (e["fecha"], max(abs(e["ask_pct"]), abs(e["venta_pct"] or 0))),
                    reverse=True)
+    orden = sorted(por_tipo, key=lambda t: (por_tipo[t][0]["fecha"], t), reverse=True)
     salida, i = [], 0
     while len(salida) < top and any(len(v) > i for v in por_tipo.values()):
-        for tipo in sorted(por_tipo):
+        for tipo in orden:
             if len(por_tipo[tipo]) > i and len(salida) < top:
                 salida.append(por_tipo[tipo][i])
         i += 1

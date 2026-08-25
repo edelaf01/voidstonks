@@ -187,6 +187,46 @@ test("un fallo del worker deja lo último bueno en pantalla, no una lista vacía
   });
 });
 
+test("varias peticiones a la vez comparten una sola llamada al worker", async () => {
+  respuestaFisuras = [cruda({ node: "Hepit (Void)" })];
+  await M.fetchAllFissures(true);
+  const antes = nFetch("type=fissures");
+
+  const [a, b, c] = await Promise.all([
+    M.fetchAllFissures(true), M.fetchAllFissures(), M.fetchAllFissures(),
+  ]);
+  assert.equal(nFetch("type=fissures"), antes + 1, "una sola llamada para las tres");
+  assert.deepEqual(a.map((f) => f.node), ["Hepit (Void)"]);
+  assert.deepEqual(b, a);
+  assert.deepEqual(c, a);
+});
+
+test("se sabe cuándo la lista vacía es un fallo y no una respuesta", async () => {
+  await sinRuido(async () => {
+    respuestaFisuras = [cruda({ node: "Buena" })];
+    await M.fetchAllFissures(true);
+    assert.equal(M.fissuresUnavailable(), false);
+
+    fisurasOk = false;
+    await M.fetchAllFissures(true);
+    assert.equal(M.fissuresUnavailable(), false, "con datos viejos que enseñar no se avisa");
+
+    fisurasOk = true;
+    respuestaFisuras = [];
+    await M.fetchAllFissures(true);
+    assert.equal(M.fissuresUnavailable(), false);
+
+    fisurasOk = false;
+    await M.fetchAllFissures(true);
+    assert.equal(M.fissuresUnavailable(), true);
+
+    fisurasOk = true;
+    respuestaFisuras = [cruda({ node: "Buena" })];
+    await M.fetchAllFissures(true);
+    assert.equal(M.fissuresUnavailable(), false);
+  });
+});
+
 test("cambiar de filtros no gasta una llamada al worker", async () => {
   respuestaFisuras = [cruda({ node: "Hepit (Void)" })];
   await M.fetchAllFissures(true);

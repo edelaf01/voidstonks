@@ -30,11 +30,11 @@ export function snapToThemeTextColor(r, g, b) {
 const BG_TOL_SQ = 45 * 45;
 const TX_TOL_SQ = 66 * 66;
 
-export function nameColorCandidates(imgData, max = 5) {
-    const { data: px, width: cw, height: ch } = imgData;
-    const QKEY = (r, g, b) => ((r >> 3) << 10) | ((g >> 3) << 5) | (b >> 3);
-    const UNQ = (k) => [((k >> 10) & 31) << 3, ((k >> 5) & 31) << 3, (k & 31) << 3];
+const QKEY = (r, g, b) => ((r >> 3) << 10) | ((g >> 3) << 5) | (b >> 3);
+const UNQ = (k) => [((k >> 10) & 31) << 3, ((k >> 5) & 31) << 3, (k & 31) << 3];
 
+export function bandInkHistogram(imgData, max = 10) {
+    const { data: px, width: cw, height: ch } = imgData;
     const bgHist = new Map();
     let bgKey = 0, bgCount = -1;
     for (let i = 0; i < px.length; i += 4) {
@@ -44,6 +44,7 @@ export function nameColorCandidates(imgData, max = 5) {
         if (c > bgCount) { bgCount = c; bgKey = key; }
     }
     const [bgR, bgG, bgB] = UNQ(bgKey);
+    const bgLum = bgR * 0.299 + bgG * 0.587 + bgB * 0.114;
 
     const bandY0 = Math.floor(ch * 0.45);
     const txHist = new Map();
@@ -52,20 +53,57 @@ export function nameColorCandidates(imgData, max = 5) {
             const i = (y * cw + x) * 4;
             const dr = px[i] - bgR, dg = px[i + 1] - bgG, db = px[i + 2] - bgB;
             if (dr * dr + dg * dg + db * db <= BG_TOL_SQ) continue;
+            if (px[i] * 0.299 + px[i + 1] * 0.587 + px[i + 2] * 0.114 < bgLum + 12) continue;
             const key = QKEY(px[i], px[i + 1], px[i + 2]);
             txHist.set(key, (txHist.get(key) || 0) + 1);
         }
     }
+    return [...txHist.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, max)
+        .map(([key, count]) => ({ col: UNQ(key), count }));
+}
 
-    const out = [];
-    for (const [key] of [...txHist.entries()].sort((a, b) => b[1] - a[1])) {
-        const col = snapToThemeTextColor(...UNQ(key));
-        const dup = out.some(o => {
-            const dr = o[0] - col[0], dg = o[1] - col[1], db = o[2] - col[2];
+export function rankPageNameColors(histograms, max = 4) {
+    const totals = new Map();
+    histograms.forEach((hist, celda) => {
+        for (const { col, count } of hist) {
+            const key = col.join(",");
+            let t = totals.get(key);
+            if (!t) { t = { col, pixels: 0, cells: new Set() }; totals.set(key, t); }
+            t.pixels += count;
+            t.cells.add(celda);
+        }
+    });
+
+    const groups = [];
+    for (const t of [...totals.values()].sort((a, b) => b.pixels - a.pixels)) {
+        let g = groups.find(G => {
+            const dr = G.seed[0] - t.col[0], dg = G.seed[1] - t.col[1], db = G.seed[2] - t.col[2];
             return dr * dr + dg * dg + db * db < TX_TOL_SQ;
         });
-        if (dup) continue;
-        out.push(col);
+        if (!g) { g = { seed: t.col, pixels: 0, cells: new Set(), members: [] }; groups.push(g); }
+        g.pixels += t.pixels;
+        for (const c of t.cells) g.cells.add(c);
+        g.members.push(t);
+    }
+
+    groups.sort((a, b) => b.cells.size - a.cells.size || b.pixels - a.pixels);
+
+    const out = [];
+    for (const g of groups) {
+        const top = Math.max(...g.members.map(m => m.pixels));
+        let best = null, bestLum = -1;
+        for (const m of g.members) {
+            if (m.pixels < top * 0.15) continue;
+            const lum = m.col[0] * 0.299 + m.col[1] * 0.587 + m.col[2] * 0.114;
+            if (lum > bestLum) { bestLum = lum; best = m.col; }
+        }
+        if (!best || out.some(o => {
+            const dr = o[0] - best[0], dg = o[1] - best[1], db = o[2] - best[2];
+            return dr * dr + dg * dg + db * db < TX_TOL_SQ;
+        })) continue;
+        out.push(best);
         if (out.length >= max) break;
     }
     return out;
