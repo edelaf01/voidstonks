@@ -378,6 +378,26 @@ body {
   flex: 1;
 }
 
+/* Botón de acción dentro de un toast (hoy solo "deshacer" del alta automática de piezas).
+   Va antes de la × para que cerrar sin querer no sea lo que queda a mano. */
+.wf-toast .toast-action {
+  order: 1;
+  background: none;
+  border: 1px solid var(--wf-gold-text, #d4a24a);
+  color: var(--wf-gold-text, #d4a24a);
+  font: inherit;
+  font-size: 0.8em;
+  letter-spacing: 0.05em;
+  padding: 3px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.wf-toast .toast-close {
+  order: 2;
+}
+
 /* =========================================
    6. PANELES LATERALES (Deslizantes)
    ========================================= */
@@ -548,10 +568,14 @@ body {
   box-shadow: none !important;
 }
 
-#inv-toggle-btn:hover {
-  right: -45px;
-  width: 50px;
-  /* Increased from 45px */
+/* Ensancha el propio boton: en tactil el primer toque se gastaba en pintar ese hover en vez de
+   abrir el panel. Se limita a los punteros que pueden posarse sin pulsar. */
+@media (hover: hover) {
+  #inv-toggle-btn:hover {
+    right: -45px;
+    width: 50px;
+    /* Increased from 45px */
+  }
 }
 
 #inventory-container.open .toggle-img {
@@ -797,10 +821,19 @@ body {
   display: flex !important;
 }
 
-.mission-toggle-btn:hover {
-  width: 50px;
-  left: -45px;
-  filter: brightness(1.2);
+@media (hover: hover) {
+  .mission-toggle-btn:hover {
+    width: 50px;
+    left: -45px;
+    filter: brightness(1.2);
+  }
+}
+
+/* Sin mover nada: el brillo se ve igual y el toque llega al onclick a la primera. */
+@media (hover: none) {
+  .mission-toggle-btn:active {
+    filter: brightness(1.4);
+  }
 }
 
 #best-missions-container.open .toggle-img {
@@ -885,6 +918,23 @@ body {
   color: var(--wf-blue);
   border-color: rgba(0, 229, 255, 0.5);
   background: rgba(0, 229, 255, 0.12);
+}
+
+/* Cuántas fisuras esconden los filtros. Sale de data-hidden, que lo anota renderMissionList:
+   así el contador no necesita ni un elemento ni una función que lo cree y lo borre.
+   En ámbar y no en el color del botón porque no es un rótulo más, es la señal de que lo que
+   ves está recortado. rem para no encadenar otro em sobre el 0.75em del botón. */
+.fissure-filters-toggle[data-hidden]:not([data-hidden=""])::after {
+  content: attr(data-hidden);
+  font-size: 0.68rem;
+  font-weight: 800;
+  line-height: 1;
+  padding: 2px 6px;
+  border-radius: 10px;
+  color: #f0b429;
+  background: rgba(240, 180, 41, 0.16);
+  border: 1px solid rgba(240, 180, 41, 0.35);
+  font-variant-numeric: tabular-nums;
 }
 
 .fissure-filters-icon {
@@ -1686,11 +1736,20 @@ body {
   transition: all 0.2s;
 }
 
-.side-toggle-btn:hover {
-  background: #222;
-  filter: brightness(1.2);
-  width: 60px;
-  left: -60px;
+@media (hover: hover) {
+  .side-toggle-btn:hover {
+    background: #222;
+    filter: brightness(1.2);
+    width: 60px;
+    left: -60px;
+  }
+}
+
+@media (hover: none) {
+  .side-toggle-btn:active {
+    background: #222;
+    filter: brightness(1.4);
+  }
 }
 
 #cloud-sync-container.open .side-toggle-btn {
@@ -2004,6 +2063,22 @@ body.theme-bounties {
   border-top: 1px dashed #333;
 }
 
+/* Refinamiento + Escuadra + Faltan van en una fila de tres. En un móvil de 390 px eso deja
+   cada <select> en ~130 px y el propio control corta su texto: "Radiante" se veía "Radiant" y
+   "4 jugadores", "4 jugad". El flex:1 va en el style inline de cada hijo, de ahí el
+   !important. */
+@media (max-width: 600px) {
+  #relic-controls-wrapper > div {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  #relic-controls-wrapper > div > div {
+    flex: 1 1 100% !important;
+    margin-right: 0 !important;
+  }
+}
+
 .relic-input-wrapper {
   display: flex;
   align-items: center;
@@ -2115,6 +2190,24 @@ body.theme-bounties {
   flex-direction: column;
   gap: 15px;
   overflow: visible !important;
+}
+
+.analysis-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.relic-inv-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  /* 1em y no otro 0.x em: .analysis-info ya viene reducido y encadenarlos deja el rótulo
+     por debajo de lo legible. */
+  font-size: 0.85em;
+  color: #888;
 }
 
 .total-profit-box {
@@ -3488,9 +3581,28 @@ body.theme-bounties {
   }
 }
 
-@media (max-width: 1280px) {
+/* El FAB de la cámara es la entrada al escáner en MÓVIL, y aparecía desde 1280px: en cualquier
+   portátil por debajo de esa anchura convivía con el escáner de la cabecera, dos botones para
+   dos escáneres distintos y nada que los distinguiera. Se ata al mismo punto donde se esconde
+   el de escritorio (768px) y, además, a los punteros sin hover: una tablet ancha es táctil, y
+   ahí getDisplayMedia —lo que usa el escáner de escritorio— no existe. */
+@media (max-width: 768px), (hover: none) {
   .mobile-scan-fab {
     display: flex;
+  }
+}
+
+/* Misma condición, al revés: donde vale el FAB no vale el de escritorio. */
+@media (hover: none) {
+  .scanner-wrapper,
+  .scanner-notice,
+  .scanner-info-icon {
+    display: none !important;
+  }
+}
+
+@media (max-width: 1280px) {
+  .mobile-scan-fab {
     bottom: 20px;
     right: 20px;
     width: 55px;
@@ -3640,6 +3752,8 @@ body.theme-bounties {
   /* El disclaimer de escritorio va flotando sobre la pagina (position:fixed). Dentro del
      scroll no tiene sentido: se lee como el ultimo parrafo del footer. */
   .site-footer.in-scroll .footer-disclaimer {
+    /* Aqui ya no flota: es texto del footer y se puede seleccionar. */
+    pointer-events: auto !important;
     position: static !important;
     transform: none !important;
     width: auto !important;
@@ -4073,6 +4187,31 @@ body.theme-bounties {
      #footer-relic cuelga de #main-card y el FAB del body, asi que el combinador ~ no casaba
      nunca y el FAB se quedaba en 84px, encima del boton COPY MESSAGE de la barra. */
   body:has(#footer-relic.footer-visible) .mobile-scan-fab {
+    bottom: 220px !important;
+    transition: bottom 0.3s ease;
+  }
+
+  /* Toasts en Móvil: libran la barra de pestañas (64px) + safe area para no tapar los botones */
+  .wf-toast-container {
+    bottom: calc(74px + env(safe-area-inset-bottom, 0px)) !important;
+    width: calc(100% - 24px) !important;
+    max-width: min(400px, calc(100vw - 24px)) !important;
+    padding: 0 !important;
+  }
+
+  .wf-toast {
+    min-width: 0 !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .wf-toast .toast-close {
+    padding: 4px 8px;
+    font-size: 1.5em;
+    opacity: 0.7;
+  }
+
+  body:has(#footer-relic.footer-visible) .wf-toast-container {
     bottom: 220px !important;
     transition: bottom 0.3s ease;
   }
@@ -6397,9 +6536,11 @@ button[onclick*="importInventory"]:hover {
   letter-spacing: 0.3px;
   margin-top: 10px;
   color: #eef1f5;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  /* Dos líneas antes que puntos suspensivos: los nombres largos ("Proboscis Cernos") se
+     quedaban en "Proboscis C…" y la tarjeta es justo para reconocer el arma. */
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.2;
   width: 100%;
 }
 
@@ -7304,7 +7445,16 @@ body[data-lang="en"] .header-guide-cta .lang-en {
     flex-basis: 100%;
   }
   .duc-panel {
-    --duc-cols: minmax(0, 1fr) 48px 58px 72px;
+    --duc-cols: minmax(0, 1fr) 42px 52px 64px;
+  }
+
+  /* Con 360 px de fila al nombre le quedaban 104 y "DUAL ZOREN PRIME BLUEPRINT" pide 205: se
+     leía "DUAL ZOREN PRI…". El nombre es lo que identifica la pieza, así que aquí se deja
+     partir en dos líneas aunque la fila crezca. */
+  .duc-name-col .part-name {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    line-height: 1.15;
   }
   .duc-head,
   .duc-row {
@@ -8503,15 +8653,30 @@ body[data-lang="en"] .header-guide-cta .lang-en {
   flex: 1 1 100%;
 }
 
-/* Los dos umbrales comparten fila con el orden: `8ch` da para "1000" y la flecha del number, y
-   `min-width: 0` evita que el ancho intrínseco del input (que en Firefox es generoso) empuje al
-   selector fuera de la fila. */
+/* Los dos umbrales comparten fila con el orden: `9ch` da para "1000" y la flecha del number, y
+   además para que se lea entero el placeholder más largo ("Gan. mín" / "Min gain") — con 8ch
+   se cortaba, y en móvil no hay hover que enseñe el tooltip. `min-width: 0` evita que el ancho
+   intrínseco del input (que en Firefox es generoso) empuje al selector fuera de la fila. */
 .farm-routes .fr-num {
-  flex: 0 1 8ch;
+  flex: 0 1 9ch;
   min-width: 0;
   padding: 6px 4px;
   font-size: 0.92em;
   text-align: center;
+}
+
+/* En móvil los tres controles no caben en una fila (el selector pide ~180 px y cada umbral 74),
+   así que uno de los dos umbrales caía solo a la línea de abajo, descolgado a la izquierda. Se
+   reparte a propósito: el selector ocupa una línea entera y los dos umbrales comparten la
+   siguiente a mitades. */
+@media (max-width: 620px) {
+  .farm-routes .set-rec-filter-row .alarm-select {
+    flex: 1 1 100%;
+  }
+
+  .farm-routes .fr-num {
+    flex: 1 1 calc(50% - 6px);
+  }
 }
 
 /* La fila de simulación no filtra: cambia con qué se calculan las runs. Se separa con una línea
@@ -8843,6 +9008,32 @@ body[data-lang="en"] .header-guide-cta .lang-en {
   border-color: var(--wf-gold-text);
 }
 
+/* Aviso de "no se han podido cargar las fisuras". Ámbar y no rojo: no está roto nada, es que
+   falta un dato, y el panel sigue sirviendo para decidir qué farmear. */
+.farm-routes .fr-nofis {
+  margin: 0 10px 8px;
+  padding: 6px 8px;
+  font-size: 0.7rem;
+  line-height: 1.35;
+  color: var(--wf-gold-text);
+  background: rgba(192, 145, 49, 0.08);
+  border: 1px solid rgba(192, 145, 49, 0.35);
+  border-radius: 5px;
+}
+
+/* "cierra X · 52%": la única etiqueta de la fila que anuncia platino hoy, así que es la única
+   con fondo. Verde y no dorado: el dorado ya lo llevan .fr-need y .fr-multi, que son cantidades. */
+.farm-routes .fr-closes {
+  font-size: 0.7em;
+  font-weight: 800;
+  color: #0d0f13;
+  background: var(--wf-green, #42f56c);
+  border-radius: 3px;
+  padding: 1px 6px;
+  white-space: nowrap;
+  cursor: help;
+}
+
 .farm-routes .fr-pick + .fr-pick {
   margin-top: 8px;
   padding-top: 8px;
@@ -8875,6 +9066,20 @@ body[data-lang="en"] .header-guide-cta .lang-en {
   font-size: 0.72rem;
   color: #c9d1d9;
   white-space: nowrap;
+}
+
+/* Lo que le falta al set de esa pieza. Sin esto, "3 te sirven" no distinguía tres piezas de
+   tres sets sin empezar de tres que dejan uno a punto. En 1em porque .fr-pick-part ya baja a
+   0.72rem y otro 0.x em lo dejaría ilegible. */
+.farm-routes .fr-pick-left {
+  font-size: 1em;
+  color: #8b95a3;
+}
+
+.farm-routes .fr-pick-last {
+  font-size: 1em;
+  font-weight: 700;
+  color: var(--wf-green, #42f56c);
 }
 
 /* Refinamiento con el que la ruta sale más barata. Solo destaca cuando es INTACTA, que es el

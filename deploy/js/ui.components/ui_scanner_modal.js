@@ -1,5 +1,6 @@
 import { state, saveAppState } from "../state.js";
 import { pickBestForSets } from "../utils/inventory/reward_set_pick.js";
+import { pickBestReward } from "../utils/inventory/reward_value.js";
 import { getSetName, getRequiredCount } from "../utils/ui_utils.js";
 import { TEXTS } from "../config.js";
 import { getPriceValue } from "../services/market/prices.service.js";
@@ -7,7 +8,9 @@ import { getSlug } from "../utils/slugs.utils.js";
 import { showToast, escapeHTML } from "./ui_components.js";
 import { renderItemsInPiP } from "../utils/pip_overlay.js";
 import { ClipboardService } from "../services/clipboard.service.js";
+import { SquadService } from "../services/scanner/squad.service.js";
 import { getItemIcon } from "../utils/ui_utils.js";
+import { chatLine } from "../utils/chat_link.js";
 
 // El aviso de la copia diferida lo pone la UI: el service se limita a vaciar la cola cuando
 // la ventana recupera el foco y avisar por aquí.
@@ -21,6 +24,8 @@ ClipboardService.onPendingCopied = () => {
  */
 export const ScannerModal = {
     currentResults: [],
+    setPrices: null,
+    bestValue: null,
     autoCloseTimer: null,
     AUTO_CLOSE_DELAY_MS: 20000,
     isHistoric: false,
@@ -35,6 +40,10 @@ export const ScannerModal = {
         this.isHistoric = isHistoric;
 
         this.currentResults = items;
+
+        // El run se acabó: lo que podía caer ya cayó y está en esta pantalla. Sin esto el
+        // panel "RUN ACTUAL" seguiría prometiendo las reliquias de la fisura anterior.
+        if (!isHistoric) SquadService.clear();
 
         const syncToggle = document.getElementById("sync-rewards-toggle");
         if (syncToggle) {
@@ -82,10 +91,20 @@ export const ScannerModal = {
             }
         }
 
+        this.setPrices = await this.fetchSetPrices(itemsWithDetails);
+        // Las tres etiquetas de siempre contestan tres preguntas distintas y ninguna decide.
+        // Esta pasa las cuatro a la misma unidad —platino que acabas teniendo— para poder
+        // compararlas de verdad.
+        this.bestValue = pickBestReward(itemsWithDetails, this.valuationDeps());
+
         this.renderBadges(itemsWithDetails, imgEl, width, height, scale);
 
         // Restore PiP update
-        renderItemsInPiP(itemsWithDetails);
+        renderItemsInPiP(itemsWithDetails.map((item) => ({
+            ...item,
+            isBestValue: this.bestValue?.name === item.name,
+            gainPl: this.bestValue?.name === item.name ? this.bestValue.value.plat : 0,
+        })));
 
         // Restore Auto-Actions
         this.handleAutoActions(itemsWithDetails);
@@ -95,10 +114,8 @@ export const ScannerModal = {
         if (state.autoCopyScanResults && items.length > 0) {
             const filtered = items.filter(i => !i.name.toUpperCase().includes("FORMA"));
             if (filtered.length > 0) {
-                const text = filtered.map(i => {
-                    const p = i.price || 0;
-                    return p > 0 ? `[${i.name}] ${p} :platinum:` : `[${i.name}]`;
-                }).join(", ") + " - voidstonks";
+                const text = filtered.map((i) => chatLine(i.name, i.price || 0))
+                    .join(", ") + " - voidstonks";
                 // ClipboardService: extensión (copia sin foco) → clipboard nativo → cola
                 // al recuperar el foco. El write directo fallaba en silencio mientras se
                 // jugaba porque la pestaña no tiene el foco.
@@ -158,6 +175,44 @@ export const ScannerModal = {
             }
             return { ...item, price, ducats, xPos: item.xPos || 0 };
         }));
+    },
+
+    valuationDeps() {
+        return {
+            setsDatabase: state.setsDatabase,
+            primeInventory: state.primeInventory,
+            getSetName,
+            getRequiredCount,
+            getPrice: (name) => this.setPrices?.get(name) || 0,
+        };
+    },
+
+    /**
+     * Precio del set al que pertenece cada recompensa y de TODAS sus piezas: la prima de
+     * montarlo es el set MENOS lo que valen sus piezas por separado, así que sin las piezas no
+     * se sabe si cerrarlo paga.
+     *
+     * Con tope de espera porque la pantalla del juego dura ~15 s y esto es un extra: lo que no
+     * llegue vale 0 y la valoración degrada sola a "la más cara", que es lo que había antes.
+     */
+    async fetchSetPrices(items, timeoutMs = 1500) {
+        const names = new Set();
+        for (const item of items) {
+            const setName = getSetName(item.name);
+            if (!setName || setName === "Otros" || setName === "Others") continue;
+            names.add(`${setName} Set`);
+            for (const part of state.setsDatabase?.[setName] || []) names.add(part);
+        }
+        const prices = new Map();
+        const lookups = [...names].map(async (name) => {
+            try { prices.set(name, (await getPriceValue(name, getSlug(name))) || 0); }
+            catch (e) { console.warn("[ScannerModal] sin precio para", name, e); }
+        });
+        await Promise.race([
+            Promise.all(lookups),
+            new Promise((resolve) => setTimeout(resolve, timeoutMs)),
+        ]);
+        return prices;
     },
 
     renderBadges(items, imgEl, width, height, scale) {
@@ -272,16 +327,39 @@ export const ScannerModal = {
             const isBestEff = item.potential === maxPotential && item.potential > 0;
 
             this.createBadge(item, fragment, isBestPl, isBestEff, badgeScale,
-                bestSet && bestSet.name === item.name ? bestSet : null);
+                bestSet && bestSet.name === item.name ? bestSet : null,
+                this.bestValue?.name === item.name ? this.bestValue : null);
         });
 
         badgesContainer.innerHTML = "";
         badgesContainer.appendChild(fragment);
     },
 
-    createBadge(item, container, isBestPl, isBestEff, badgeScale = 1, bestSet = null) {
+    /**
+     * La etiqueta del ganador: lo que te llevas de verdad, ya en platino.
+     *
+     * `clear` a false son dos tarjetas a un pelo (7,0 y 7,2): se marca igual, porque hay que
+     * elegir, pero el tooltip lo dice en vez de fingir una precisión que los precios de
+     * warframe.market no tienen.
+     */
+    valueTagHtml(best, t) {
+        const plat = best.value.plat;
+        if (plat < 1) return "";
+        const num = plat < 10 ? plat.toFixed(1) : String(Math.round(plat));
+        const why = {
+            set: (t.valWhySet || "").replace("{set}", best.value.set || "")
+                .replace("{premium}", String(Math.round(best.value.premium))),
+            ducats: t.valWhyDuc || "",
+            sell: t.valWhySell || "",
+        }[best.value.route] || "";
+        const tip = `${why}${best.clear ? "" : ` ${t.valWhyTight || ""}`}`.trim();
+        return `<div class="best-badge value${best.clear ? "" : " tight"}" data-tooltip="${escapeHTML(tip)}">`
+            + `${escapeHTML((t.tagBestValue || "").replace("{plat}", num))}</div>`;
+    },
+
+    createBadge(item, container, isBestPl, isBestEff, badgeScale = 1, bestSet = null, best = null) {
         const badge = document.createElement("div");
-        badge.className = `modal-badge ${isBestPl ? "best-pl" : ""} ${isBestEff ? "best-duc" : ""} ${bestSet ? "best-set-finisher" : ""}`;
+        badge.className = `modal-badge ${isBestPl ? "best-pl" : ""} ${isBestEff ? "best-duc" : ""} ${bestSet ? "best-set-finisher" : ""} ${best ? "best-value" : ""}`;
         badge.style.left = `${item.leftPct}%`;
         if (badgeScale < 1) badge.style.setProperty("--badge-scale", badgeScale);
 
@@ -305,6 +383,7 @@ export const ScannerModal = {
         badge.innerHTML = `
         <div class="modal-badge-link">
             <div class="modal-badge-labels">
+                ${best ? this.valueTagHtml(best, t) : ""}
                 ${bestSet ? `<div class="best-badge set-finisher${bestSet.left === 0 ? "" : " near"}" data-tooltip="${escapeHTML(
         (bestSet.left === 0
             ? (t.tagBestSetTitleDone || "")
@@ -394,10 +473,8 @@ globalThis.copyScanResultsToClipboard = () => {
     if (ScannerModal.currentResults.length === 0) return;
     const filtered = ScannerModal.currentResults.filter(i => !i.name.toUpperCase().includes("FORMA"));
     if (filtered.length > 0) {
-        const text = filtered.map(i => {
-            const p = i.price || 0;
-            return p > 0 ? `[${i.name}] ${p} :platinum:` : `[${i.name}]`;
-        }).join(", ") + " - voidstonks";
+        const text = filtered.map((i) => chatLine(i.name, i.price || 0))
+            .join(", ") + " - voidstonks";
         navigator.clipboard.writeText(text).then(() => {
             showToast(TEXTS[state.currentLang].rewardScanner.toastCopied || "Copied to clipboard");
         });

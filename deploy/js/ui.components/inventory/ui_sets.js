@@ -468,6 +468,31 @@ export function activateSetTracker(setName, itemsInSet) {
   renderSetTracker();
 }
 
+/**
+ * Pone en seguimiento el set al que pertenece una pieza. Lo comparten el arrastre con ratón
+ * (drop de HTML5) y la pulsación larga en táctil: dos caminos de entrada, una sola decisión
+ * sobre qué pasa al soltar.
+ * @returns {boolean} false si la pieza no pertenece a ningún set.
+ */
+export function trackSetFromPart(itemName) {
+  const st = TEXTS[state.currentLang]?.setTab || {};
+  const setName = getSetName(itemName);
+
+  // "Otros" son las piezas sueltas (Forma, Kuva…): soltarlas no hacía NADA, ni un aviso,
+  // así que el gesto parecía roto justo cuando se está aprendiendo.
+  if (setName === "Otros") {
+    showToast((st.dropNoSet || "{part} does not belong to any set").replace("{part}", itemName));
+    return false;
+  }
+
+  const allParts = Object.keys(state.itemsDatabase).filter(
+    (n) => (n === setName || n.startsWith(setName + " ")) && !n.endsWith(" Set"),
+  );
+  activateSetTracker(setName, allParts);
+  showToast((st.trackingToast || "Tracking {set}").replace("{set}", setName));
+  return true;
+}
+
 function openSetFromRelicReward(partName) {
     const setName = getSetName(partName);
     if (setName === "Otros") return;
@@ -495,6 +520,9 @@ exposeGlobals({
   updateMacroTracker,
   renderSetTracker,
   activateSetTracker,
+  // Lo llama el arrastre por pulsación larga desde ui_relics.js. Por el registro y no por
+  // import: ui_sets.js no importa ui_relics.js y no conviene abrir esa arista.
+  trackSetFromPart,
   openSetFromRelicReward,
 }, "ui.components/inventory/ui_sets.js");
 
@@ -502,31 +530,32 @@ setTimeout(() => {
   const trackerContainer = document.getElementById("set-tracker");
   if (trackerContainer && !trackerContainer.dataset.dndInit) {
     trackerContainer.dataset.dndInit = "true";
+    // El rótulo de la zona vacía cambia a "suelta aquí" mientras se sobrevuela: es la
+    // confirmación de que el sitio acepta lo que llevas, y no hay otra en un panel vacío.
+    const setHint = (key) => {
+      const el = trackerContainer.querySelector(".tracker-dropzone-text");
+      const txt = TEXTS[state.currentLang]?.setTab?.[key];
+      if (el && txt) el.textContent = txt;
+    };
     trackerContainer.addEventListener("dragover", (e) => {
       e.preventDefault();
       e.dataTransfer.dropEffect = "copy";
       trackerContainer.classList.add("drag-hover");
+      setHint("dropActive");
     });
+    // Sin comprobar relatedTarget, pasar por encima de cualquier hijo dispara dragleave y el
+    // resaltado parpadea mientras mueves el cursor DENTRO de la propia zona.
     trackerContainer.addEventListener("dragleave", (e) => {
+      if (trackerContainer.contains(e.relatedTarget)) return;
       trackerContainer.classList.remove("drag-hover");
+      setHint("dropHint");
     });
     trackerContainer.addEventListener("drop", (e) => {
       e.preventDefault();
       trackerContainer.classList.remove("drag-hover");
+      setHint("dropHint");
       const itemName = e.dataTransfer.getData("text/plain");
-      if (itemName) {
-        import("../../utils/ui_utils.js").then((m) => {
-          const setName = m.getSetName(itemName);
-          if (setName !== "Otros") {
-            const allParts = Object.keys(state.itemsDatabase).filter(
-              (n) => (n === setName || n.startsWith(setName + " ")) && !n.endsWith(" Set")
-            );
-            activateSetTracker(setName, allParts);
-            import("../ui_components.js").then((c) => c.showToast(
-              (TEXTS[state.currentLang]?.setTab?.trackingToast || "Tracking {set}").replace("{set}", setName)));
-          }
-        });
-      }
+      if (itemName) trackSetFromPart(itemName);
     });
   }
 }, 500);

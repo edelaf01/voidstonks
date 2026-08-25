@@ -589,6 +589,26 @@ test("excedente: sin hueco entre piezas se apunta al set siguiente, como siempre
   assert.equal(r.setsUnlocked, 1, "aquí el segundo cuello de botella YA es built + 1");
 });
 
+// El excedente solo se convierte cuando queda UN cuello de botella. Con varias piezas a cero,
+// apuntar al segundo cuello multiplica el farmeo entero: con 16 planos de Gara y las otras tres
+// a 0 la ruta pedía 48 piezas (16+16+16) para "16 sets", cuando lo que cierra un set es una de
+// cada. El síntoma es mudo — la ruta sale, con los minutos y el p/h multiplicados por 16.
+test("excedente: con varias piezas a cero se apunta al set siguiente, no al montón", () => {
+  const inv = { "HP Blueprint": 16 };
+  const r = buildSetRoute("Hydroid Prime", { ...hydroid, primeInventory: inv });
+  assert.equal(r.missingCount, 3);
+  assert.ok(r.missing.every((m) => m.needed === 1), "una copia de cada, no 16");
+  assert.equal(r.setsUnlocked, 1);
+});
+
+test("excedente: la conversión vuelve en cuanto queda un solo cuello de botella", () => {
+  const inv = { "HP Blueprint": 16, "HP Neuroptics": 3, "HP Chassis": 3 };
+  const r = buildSetRoute("Hydroid Prime", { ...hydroid, primeInventory: inv });
+  assert.equal(r.missing[0].part, "HP Systems");
+  assert.equal(r.missing[0].needed, 3, "hasta el segundo cuello (3), no hasta los 16 planos");
+  assert.equal(r.setsUnlocked, 3);
+});
+
 test("excedente: todas al mismo nivel piden una copia de cada", () => {
   const inv = Object.fromEntries(HP.map((p) => [p, 4]));
   const r = buildSetRoute("Hydroid Prime", { ...hydroid, primeInventory: inv });

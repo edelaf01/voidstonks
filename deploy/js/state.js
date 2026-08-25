@@ -1,6 +1,20 @@
 import { rawState, get, set, subscribe } from "./store/state.store.js";
 import { exposeGlobals } from "./utils/global_registry.js";
 
+/**
+ * Pestañas de la app, en el orden del HTML. Viven aquí —y no en config.js, que state.js no
+ * puede importar sin saltarse el contrato de capas— porque las necesitan dos sitios:
+ * loadAppState() para validar la pestaña guardada y switchTab() para esconder los #mode-*.
+ * Dos copias a mano acabarían discrepando y una pestaña nueva dejaría de restaurarse.
+ */
+export const TABS = ["relic", "set", "riven", "lfg", "bounties", "vosfor", "ducat", "eelog", "orders"];
+
+// Valores admitidos de los chips del panel de inventario. Solo los usa la validación del
+// save: si mañana se añade un chip, esta lista es lo único que hay que tocar para que su
+// elección sobreviva a la recarga.
+const INV_TIERS = ["ALL", "LITH", "MESO", "NEO", "AXI", "REQUIEM"];
+const INV_GOALS = ["sets", "plat", "ducats", "ratio", "recent"];
+
 // Valores de fábrica del pipeline de visión. Se sacan aparte para que el botón
 // "RESET DEFAULTS" del escáner y el estado inicial no puedan divergir.
 export const DEFAULT_VISION_SETTINGS = Object.freeze({
@@ -32,6 +46,9 @@ export const DEFAULT_VISION_SETTINGS = Object.freeze({
 Object.assign(rawState, {
   currentLang: "en",
   activeTab: "relic",
+  // `settings` no se inicializaba en ninguna parte, así que las tres lecturas de
+  // `state.settings?.showEmptyPrime` eran siempre undefined: una opción que no existía.
+  settings: { showEmptyPrime: false },
   // Cuántos jugadores te FALTAN para la escuadra. Solo alimenta el mensaje de reclutamiento
   // ("H [Lith D1] Rad 1/4"), que es para lo que se puso el contador.
   playerCount: 1,
@@ -66,14 +83,21 @@ Object.assign(rawState, {
   // pregunta que se hace uno al mirar el inventario: qué abro para terminar algo.
   invGoal: "sets",
   invOnlyActive: false,
+  // "relics" | "parts". Antes nacía undefined y solo lo escribía switchInvView; se declara
+  // aquí porque ahora se persiste con el resto de modos del panel.
+  currentInvView: "relics",
   showAllFarms: false,
   primeInventory: {},
   primeManifest: [],
   autoScanEnabled: false,
   isPrecisionScanActive: false,
   autoSyncRewards: true,
+  autoAddMissionRewards: true,
   autoCopyScanResults: false,
   scannerModsMode: false,
+  // Reliquias que lleva la escuadra en el run en curso (services/scanner/squad.service.js).
+  // No se persiste a propósito: muere con el run.
+  squadRun: null,
   visionSettings: { ...DEFAULT_VISION_SETTINGS }
 });
 
@@ -94,6 +118,17 @@ export function saveAppState() {
   saveTimer = setTimeout(() => {
     const data = {
       lang: state.currentLang,
+      // switchTab() ya llamaba a saveAppState() en cada cambio, pero activeTab no viajaba en
+      // este objeto: la escritura se hacía y la app seguía abriendo siempre en "relic".
+      activeTab: state.activeTab,
+      // Modos del panel de inventario. Se guarda lo que es una DECISIÓN (tier, objetivo,
+      // vaulted, vista) y no invSearchVal: recuperar una búsqueda a medias hace que el
+      // inventario parezca vacío al arrancar sin que se vea por qué.
+      invFilterTier: state.invFilterTier,
+      invGoal: state.invGoal,
+      invOnlyActive: state.invOnlyActive,
+      showEmptyPrime: !!state.settings?.showEmptyPrime,
+      currentInvView: state.currentInvView,
       relicInput: state.selectedRelic || "",
       refinement: state.refinement || "Rad", // Requires UI to update state.refinement
       lfgActivity: state.lfgActivity || "eidolon", // Requires UI to update state.lfgActivity
@@ -110,6 +145,7 @@ export function saveAppState() {
       showAllFarms: state.showAllFarms,
       primeInventory: state.primeInventory,
       autoSyncRewards: state.autoSyncRewards,
+      autoAddMissionRewards: state.autoAddMissionRewards,
       autoCopyScanResults: state.autoCopyScanResults,
       scannerModsMode: state.scannerModsMode,
       visionSettings: state.visionSettings,
@@ -132,6 +168,28 @@ export function saveAppState() {
   }, 1000);
 }
 /**
+ * Idioma de la PRIMERA visita, leído del navegador.
+ *
+ * Sin esto se arrancaba siempre en inglés: `currentLang` nace en "en" y la única línea que
+ * pone "es" está dentro del `try` de loadAppState(), o sea solo para quien ya tiene guardado.
+ * Como el HTML estático está escrito en español, un hispanohablante nuevo veía la página
+ * reescribirse sola al inglés a los pocos ms de cargar.
+ *
+ * Se recorre `languages` EN ORDEN y gana la primera que reconocemos: con ["en-US","es"] el
+ * usuario prefiere inglés, y un `some(startsWith("es"))` le habría puesto español.
+ */
+function detectLang() {
+  const nav = globalThis.navigator;
+  const preferidos = nav?.languages?.length ? nav.languages : [nav?.language];
+  for (const etiqueta of preferidos) {
+    const code = String(etiqueta || "").toLowerCase();
+    if (code.startsWith("es")) return "es";
+    if (code.startsWith("en")) return "en";
+  }
+  return "en";
+}
+
+/**
  * Restores app state from localStorage. Pure — no DOM access.
  * @returns {{ activeTab: string, domValues: object }} domValues contains raw
  *   input values that the caller should apply to the DOM via hydrateDOM().
@@ -139,12 +197,27 @@ export function saveAppState() {
 export function loadAppState() {
   const saved = localStorage.getItem("voidStonks_save");
   const domValues = {};
-  if (!saved) return { activeTab: "relic", domValues };
+  if (!saved) {
+    state.currentLang = detectLang();
+    return { activeTab: "relic", domValues };
+  }
 
   try {
     const data = JSON.parse(saved);
 
     state.currentLang = data.lang || "es";
+    // Se validan contra la lista de valores posibles: un save viejo (o tocado a mano) con una
+    // pestaña que ya no existe dejaba la app sin ningún #mode-* visible, o sea en blanco.
+    if (TABS.includes(data.activeTab)) state.activeTab = data.activeTab;
+    if (INV_TIERS.includes(data.invFilterTier)) state.invFilterTier = data.invFilterTier;
+    if (INV_GOALS.includes(data.invGoal)) state.invGoal = data.invGoal;
+    if (typeof data.invOnlyActive === "boolean") state.invOnlyActive = data.invOnlyActive;
+    if (typeof data.showEmptyPrime === "boolean") {
+      state.settings = { ...state.settings, showEmptyPrime: data.showEmptyPrime };
+    }
+    if (data.currentInvView === "parts" || data.currentInvView === "relics") {
+      state.currentInvView = data.currentInvView;
+    }
     if (data.relicInput) state.selectedRelic = data.relicInput;
     if (data.currentActiveSet) {
       state.currentActiveSet = data.currentActiveSet;
@@ -160,6 +233,7 @@ export function loadAppState() {
     if (data.inventory) state.inventory = data.inventory;
     if (data.primeInventory) state.primeInventory = data.primeInventory;
     if (data.autoSyncRewards !== undefined) state.autoSyncRewards = data.autoSyncRewards;
+    if (data.autoAddMissionRewards !== undefined) state.autoAddMissionRewards = data.autoAddMissionRewards;
     if (data.autoCopyScanResults !== undefined) state.autoCopyScanResults = data.autoCopyScanResults;
     if (data.scannerModsMode !== undefined) state.scannerModsMode = data.scannerModsMode;
     if (data.visionSettings) state.visionSettings = { ...state.visionSettings, ...data.visionSettings };

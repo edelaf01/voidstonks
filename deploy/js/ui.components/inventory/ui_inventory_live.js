@@ -16,6 +16,21 @@ import { exposeGlobals } from "../../utils/global_registry.js";
 let liveHooked = false;
 
 /**
+ * Lo visto en el flujo, por slug. Antes solo vivía en el DOM, así que CUALQUIER repintado del
+ * inventario —buscar, cambiar el orden, tocar una cantidad— se llevaba por delante las marcas
+ * y el filtro, dejando el chip encendido sin filtrar nada. Guardándolo se puede repintar.
+ */
+const liveSeen = new Map();   // slug -> plat
+const staleSeen = new Map();  // slug -> diff
+
+/** Estado del filtro. En variable y no en la clase del chip, para poder reaplicarlo tras un
+ *  repintado sin depender de que el chip siga en pantalla. */
+let staleFilterOn = false;
+
+/** Cierto mientras repaintLivePrices reconstruye las marcas: evita N recuentos del chip. */
+let repainting = false;
+
+/**
  * Enciende los precios en vivo del inventario.
  *
  * El flujo de WFM solo trae ~3,4% del catálogo cada 3 minutos, así que esto NO da
@@ -52,6 +67,7 @@ export async function initLivePrices() {
  * baratas; esto es UN listing concreto, y presentarlos como lo mismo sería engañoso.
  */
 function paintLivePrice(slug, plat) {
+  liveSeen.set(slug, plat);
   // El badge se localiza por el nombre del ítem, que es lo que guarda data-item.
   for (const badge of document.querySelectorAll(".price-badge-small[data-item]")) {
     if (getSlug(badge.dataset.item) !== slug) continue;
@@ -83,6 +99,7 @@ function paintLivePrice(slug, plat) {
  * abrir cada ítem para saber si te perjudica.
  */
 function paintStale(slug, diff) {
+  staleSeen.set(slug, diff);
   const t = TEXTS[state.currentLang];
   const up = diff > 0;
   const pct = Math.round(Math.abs(diff) * 100);
@@ -105,20 +122,26 @@ function paintStale(slug, diff) {
     tag.title = (up ? t.staleUpTitle : t.staleDownTitle) || "";
   }
 
-  refreshStaleChip();
+  if (!repainting) refreshStaleChip();
 }
 
 /**
  * Muestra solo los ítems cuyo precio contradice al mercado, o vuelve a mostrarlos todos.
  *
- * Filtra sobre el DOM ya pintado en vez de repintar el inventario: repintar perdería las
- * marcas, que llegan por el socket y no se pueden reconstruir.
+ * Filtra sobre el DOM ya pintado en vez de repintar el inventario: repintar tira el scroll y
+ * las secciones abiertas. Lo que se pinta se guarda en staleSeen/liveSeen, así que un
+ * repintado del inventario ya no se lleva por delante ni las marcas ni este filtro.
  */
 export function toggleStaleFilter() {
-  const chip = document.getElementById("inv-stale-chip");
-  if (!chip) return;
+  staleFilterOn = !staleFilterOn;
+  applyStaleFilter();
+}
 
-  const on = chip.classList.toggle("is-active");
+/** Esconde lo no marcado si el filtro está puesto. Idempotente: se puede llamar tras cada
+ *  repintado sin acumular efectos. */
+function applyStaleFilter() {
+  const on = staleFilterOn;
+  document.getElementById("inv-stale-chip")?.classList.toggle("is-active", on);
 
   for (const row of document.querySelectorAll(".inv-row-mini")) {
     row.style.display = (on && !row.classList.contains("is-price-stale")) ? "none" : "";
@@ -131,6 +154,25 @@ export function toggleStaleFilter() {
     // Se despliega para que las piezas marcadas se vean sin tener que abrir cada set.
     if (on && hasStale) group.classList.remove("collapsed");
   }
+}
+
+/**
+ * Vuelve a poner sobre el inventario recién pintado lo que ya se había visto en el flujo.
+ * Lo llama renderPrimeInventory al terminar: sin esto, buscar o reordenar borraba las marcas
+ * y el filtro, pero el chip seguía anunciándose activo.
+ */
+export function repaintLivePrices() {
+  // paintStale refresca el chip en cada slug; durante el repintado eso son N recuentos sobre
+  // todo el documento para el mismo resultado. Se hace uno solo al final.
+  repainting = true;
+  try {
+    for (const [slug, plat] of liveSeen) paintLivePrice(slug, plat);
+    for (const [slug, diff] of staleSeen) paintStale(slug, diff);
+  } finally {
+    repainting = false;
+  }
+  applyStaleFilter();
+  refreshStaleChip();
 }
 
 /** Actualiza el contador del chip de filtro, si está en pantalla. */

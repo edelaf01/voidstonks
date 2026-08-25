@@ -1,4 +1,4 @@
-import { state, saveAppState } from "../../state.js";
+import { state } from "../../state.js";
 import { FARM_ROUTES_TEXTS } from "../../assets/farm_routes_texts.js";
 import { buildFarmRoutes } from "../../utils/inventory/relic_route.js";
 import { rankRelicPicks } from "../../utils/inventory/relic_picks.js";
@@ -11,7 +11,7 @@ import {
 import { getRelicCounts } from "../../utils/inventory/relic_counts.js";
 import { getSlug } from "../../utils/slugs.utils.js";
 import { getPartShortName } from "../inventory/ui_set_tracker.js";
-import { fetchAllFissures } from "../../services/farms/fissures.service.js";
+import { fetchAllFissures, fissuresUnavailable } from "../../services/farms/fissures.service.js";
 import { getFarmRoutesPrefs, saveFarmRoutesPrefs } from "../../services/inventory/farm_routes.service.js";
 import {
     attachSetPrices, filterSetRecommendations, getSetRecsPrefs, saveSetRecsPrefs, RELIC_ERAS,
@@ -399,7 +399,16 @@ async function applyFiltersAndRender(raiz, t) {
         for (const [activo, sin, titulo, pista, valor] of sospechosos) {
             if (!activo) continue;
             const sueltos = filterSetRecommendations(_allRoutes, { ...prefs, ...sin, buyOnly: false }, piezas);
-            if (sueltos.length > 0) return [(titulo || "").replace("{n}", String(valor)), pista];
+            if (sueltos.length === 0) continue;
+            // A cuánto está la ruta más cercana. "Sube el filtro para verlas" no dice HASTA
+            // dónde, así que con 1 puesto y la más cercana a 3 hay que probar dos veces para
+            // descubrir que no tienes nada tan cerca. Solo aplica al de piezas restantes: es el
+            // único filtro cuyo valor es una distancia.
+            const cerca = "maxMissing" in sin
+                ? ` ${(t.emptyByMissingClosest || "").replace("{n}",
+                    String(Math.min(...sueltos.map((r) => r.missingCount))))}`
+                : "";
+            return [(titulo || "").replace("{n}", String(valor)), `${pista}${cerca}`];
         }
         if (prefs.query) {
             return [(t.emptyByQuery || "").replace("{q}", prefs.query), t.emptyByQueryHint];
@@ -464,6 +473,11 @@ async function renderRoutesInto(raiz) {
     } catch (e) {
         console.warn("[rutas] sin fisuras activas:", e);
     }
+    // Y cuando fallan hay que DECIRLO. Con la lista vacía, cada reliquia sale como "esperando
+    // fisura", que es una afirmación falsa —no es que no haya, es que no se sabe— y el panel se
+    // quedaba así hasta el refresco de 150 s, así que parecía roto.
+    const sinFisuras = fissuresUnavailable();
+    if (sinFisuras) programarReintento();
 
     const relicCounts = getRelicCounts();
     const { refinement, squadSize } = getPlayerOdds();
@@ -540,6 +554,7 @@ async function renderRoutesInto(raiz) {
         + viewSwitchHtml(prefs.view, t)
         + `<div class="fr-body" data-fr="body">`
         + `<p class="fr-sub">${escapeHTML(esPicks ? t.picksSubtitle : t.subtitle)}</p>`
+        + (sinFisuras ? `<p class="fr-nofis">${escapeHTML(t.fissuresDown)}</p>` : "")
         + (esPicks ? "" : guideHtml(prefs, t))
         + (esPicks ? "" : filtersHtml(getSetRecsPrefs(), t, ft, getPlayerOdds()))
         + `<div data-fr="cards"></div>`
@@ -594,34 +609,39 @@ function bindPanelListeners(raiz, t) {
     const simSquad = raiz.querySelector('[data-fr="sim-squad"]');
 
     const numero = (el) => Math.max(0, Number.parseInt(el?.value, 10) || 0);
+    const guardar = () => saveSetRecsPrefs({
+        maxMissing: Number.parseInt(missing?.value, 10) || 0,
+        era: era?.value || "",
+        bestFor: bestFor?.checked ? (simRef?.value || "") : "",
+        buyOnly: !!buy?.checked,
+        query: query?.value || "",
+        sortBy: sort?.value || "near",
+        minPerHour: numero(minPh),
+        minGain: numero(minGain),
+    });
     const aplicar = () => {
-        saveSetRecsPrefs({
-            maxMissing: Number.parseInt(missing?.value, 10) || 0,
-            era: era?.value || "",
-            bestFor: bestFor?.checked ? (simRef?.value || "") : "",
-            buyOnly: !!buy?.checked,
-            query: query?.value || "",
-            sortBy: sort?.value || "near",
-            minPerHour: numero(minPh),
-            minGain: numero(minGain),
-        });
+        guardar();
         applyFiltersAndRender(raiz, t).catch((e) => console.warn("[rutas] filtro:", e));
+    };
+    // Lo que no se puede aplicar sobre la lista ya construida: hay que volver a montarla.
+    //
+    //  - ORDEN: buildFarmRoutes recorta a las 8 primeras DESPUÉS de ordenar, así que reordenar
+    //    aquí solo barajaría esas ocho.
+    //  - ERA: entra como `preferTier` al construir y decide QUÉ reliquia se recomienda por
+    //    pieza. Filtrando sin reconstruir, elegir Lith seguía enseñando la Meso — justo el
+    //    fallo que preferTier existe para evitar.
+    const reconstruir = () => {
+        guardar();
+        renderFarmRoutes().catch((e) => console.warn("[rutas] filtro:", e));
     };
     // El desplegable y la casilla son discretos: un cambio, una pasada. Se aplican al momento.
     missing?.addEventListener("change", aplicar);
-    era?.addEventListener("change", aplicar);
     bestFor?.addEventListener("change", aplicar);
     buy?.addEventListener("change", aplicar);
     minPh?.addEventListener("change", aplicar);
     minGain?.addEventListener("change", aplicar);
-
-    // El ORDEN no se puede aplicar sobre la lista ya construida: buildFarmRoutes recorta a las
-    // 8 primeras DESPUÉS de ordenar, así que reordenar aquí solo barajaría esas ocho. Hay que
-    // reconstruir, igual que con refinamiento y escuadra.
-    sort?.addEventListener("change", () => {
-        saveSetRecsPrefs({ ...getSetRecsPrefs(), sortBy: sort.value });
-        renderFarmRoutes().catch((e) => console.warn("[rutas] orden:", e));
-    });
+    era?.addEventListener("change", reconstruir);
+    sort?.addEventListener("change", reconstruir);
 
     // Simulación: escribe en el estado global —es "con qué juego", no una preferencia de este
     // panel— y reconstruye, porque las runs y los minutos de cada ruta se calculan al montarla.
@@ -630,14 +650,14 @@ function bindPanelListeners(raiz, t) {
         // refinamiento cambia y bestFor se queda con el viejo, el panel filtra por uno y
         // calcula con otro.
         if (bestFor?.checked) saveSetRecsPrefs({ ...getSetRecsPrefs(), bestFor: simRef.value });
-        state.refinement = REFINEMENT_LABELS[simRef.value] || "Rad";
-        saveAppState();
-        renderFarmRoutes().catch((e) => console.warn("[rutas] refinamiento:", e));
+        // setRefinement guarda, sincroniza el <select> de la pestaña Reliquia y repinta
+        // TODO lo que calcula con estas tasas —este panel incluido—, así que aquí ya no hace
+        // falta un renderFarmRoutes propio. Va por globalThis: ui_relics.js lo publica y el
+        // import directo cerraría un ciclo.
+        globalThis.setRefinement?.(REFINEMENT_LABELS[simRef.value] || "Rad");
     });
     simSquad?.addEventListener("change", () => {
-        state.squadSize = Math.min(4, Math.max(1, Number.parseInt(simSquad.value, 10) || 4));
-        saveAppState();
-        renderFarmRoutes().catch((e) => console.warn("[rutas] escuadra:", e));
+        globalThis.setSquadSize?.(simSquad.value);
     });
 
     // La búsqueda NO. Cada pasada persiste las prefs (escritura síncrona, bloquea el hilo) y
@@ -662,6 +682,35 @@ function bindPanelListeners(raiz, t) {
  * que esto no añade tráfico — solo vuelve a cruzar lo que haya con el inventario.
  */
 let routesInterval = null;
+let retryTimer = null;
+
+/**
+ * Reintento corto cuando las fisuras no cargan. El refresco normal es de 150 s: esperar dos
+ * minutos y medio a que se arregle un timeout del worker es lo que hace que el panel parezca
+ * roto justo cuando lo estás mirando.
+ */
+function programarReintento() {
+    if (retryTimer) return;
+    retryTimer = setTimeout(() => {
+        retryTimer = null;
+        renderFarmRoutes().catch((e) => console.warn("[rutas] reintento:", e));
+    }, 12 * 1000);
+}
+
+/**
+ * Repintado coalescido para cuando cambia el inventario. Añadir reliquias no repintaba nada
+ * —ni el escáner ni los +/-—, así que la lista seguía siendo la de antes hasta el refresco de
+ * 150 s. Va con margen porque los +/- se pulsan en ráfaga y cada pasada reconstruye las 160
+ * rutas y las picks de todo el inventario.
+ */
+let refreshTimer = null;
+export function scheduleFarmRoutesRefresh() {
+    if (refreshTimer) clearTimeout(refreshTimer);
+    refreshTimer = setTimeout(() => {
+        refreshTimer = null;
+        renderFarmRoutes().catch((e) => console.warn("[rutas] inventario:", e));
+    }, 350);
+}
 
 function startRoutesRefresh() {
     if (routesInterval) return;
@@ -676,4 +725,4 @@ function startRoutesRefresh() {
     }, 150 * 1000);
 }
 
-exposeGlobals({ renderFarmRoutes }, "ui.components/farms/ui_farm_routes.js");
+exposeGlobals({ renderFarmRoutes, scheduleFarmRoutesRefresh }, "ui.components/farms/ui_farm_routes.js");

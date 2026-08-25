@@ -46,10 +46,13 @@ export function saveFarmRoutesPrefs(prefs) {
  * son reliquias. Compartir clave hacía que un "máx. 1 pieza restante" puesto en rutas dejara
  * la otra vista vacía sin ningún control que lo explicara.
  */
-const PICKS_KEY = "vs_relic_picks_v1";
-const PICKS_DEFAULTS = { query: "", era: "", readyOnly: false, sortBy: "useful" };
+// v2 al entrar el orden "la que más acerca a cerrar un set": el orden viejo ("más recompensas
+// que me sirven") quedaba guardado y seguía mandando, que es justo el que no distingue entre
+// una pieza que cierra un set y una de uno sin empezar.
+const PICKS_KEY = "vs_relic_picks_v2";
+const PICKS_DEFAULTS = { query: "", era: "", readyOnly: false, sortBy: "best" };
 const PICKS_ERAS = new Set(["", "Lith", "Meso", "Neo", "Axi", "Requiem"]);
-const PICKS_SORTS = new Set(["useful", "odds", "value", "minutes"]);
+const PICKS_SORTS = new Set(["best", "useful", "odds", "value", "minutes"]);
 
 export function getRelicPicksPrefs() {
     try {

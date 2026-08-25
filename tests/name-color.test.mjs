@@ -24,8 +24,9 @@ import { installFakeDocument, FakeCanvas } from "./_helpers/fake-canvas.mjs";
 
 installFakeDocument();
 const { VisionService } = await import("../deploy/js/services/scanner/vision.service.js");
-const { nameColorCandidates } = await import("../deploy/js/utils/vision/name_color.js");
+const { bandInkHistogram, rankPageNameColors } = await import("../deploy/js/utils/vision/name_color.js");
 const { electPageNameColor } = await import("../deploy/js/services/scanner/name_color.service.js");
+const { OCRService } = await import("../deploy/js/services/scanner/ocr.service.js");
 
 const FIXTURE = path.join(
     path.dirname(fileURLToPath(import.meta.url)),
@@ -74,13 +75,12 @@ for (const [label, opts] of [["frame nativo", {}], ["frame reescalado", { scale:
 
     test(`name color: el color del nombre está entre los candidatos (${label})`, () => {
         const cvs = loadCanvas(opts);
-        for (let c = 0; c < CELLS; c++) {
-            const cands = VisionService.nameBandColorCandidates(cvs, c * cellW, ty, cellW, th);
-            assert.ok(
-                cands.some(isNameColor),
-                `celda ${c}: ${JSON.stringify(cands)} no incluye el color del nombre`,
-            );
-        }
+        const celdas = Array.from({ length: CELLS }, (_, c) => ({ sx: c * cellW, sy: 0 }));
+        const cands = VisionService.pageNameColorCandidates(cvs, celdas, cellW, ty, th);
+        assert.ok(
+            cands.some(isNameColor),
+            `${JSON.stringify(cands)} no incluye el color del nombre`,
+        );
     });
 
     test(`name color: con el color de página todas las celdas quedan legibles (${label})`, () => {
@@ -121,10 +121,10 @@ test("name color: sin worker de OCR no se inventa un color", async () => {
     assert.equal(await electPageNameColor(null, null, [], 0, 0, 0, null), null);
 });
 
-test("name color: nameColorCandidates no repite tono y respeta el máximo", () => {
+test("name color: los candidatos no repiten tono y respetan el máximo", () => {
     const cvs = loadCanvas();
     const px = cvs.getContext("2d").getImageData(0, TEXT_SRC_Y, CELL_W, TEXT_SRC_H);
-    const cands = nameColorCandidates(px, 3);
+    const cands = rankPageNameColors([bandInkHistogram(px)], 3);
     assert.ok(cands.length > 0 && cands.length <= 3);
     for (let i = 0; i < cands.length; i++) {
         for (let j = i + 1; j < cands.length; j++) {
@@ -152,4 +152,128 @@ test("name color: sin color de página el reescalado rompe alguna celda", () => 
         fracs.some(f => f > 0.8),
         `midiendo por celda ninguna falló (${fracs.map(f => (f * 100).toFixed(0) + "%").join(", ")})`,
     );
+});
+
+// ===========================================================================
+// Voto de color entre celdas (utils/vision/name_color.js). Son los dos criterios
+// que sustituyen al "el color más frecuente de la primera celda que mires".
+// ===========================================================================
+
+test("voto de página: gana el color que sale en TODAS las celdas, no el que más píxeles tiene", () => {
+    // El arte de un ítem puede tener más píxeles que su nombre, pero solo está en su celda.
+    const nombre = [248, 128, 0];
+    const arte = [20, 200, 40];
+    const ranking = rankPageNameColors([
+        [{ col: arte, count: 9000 }, { col: nombre, count: 500 }],
+        [{ col: nombre, count: 500 }],
+        [{ col: nombre, count: 500 }],
+    ]);
+    assert.deepEqual(ranking[0], nombre);
+});
+
+test("voto de página: dentro del grupo se devuelve el núcleo del trazo, no el borde", () => {
+    // Binarizar por el borde suavizado deja el núcleo fuera de la tolerancia y salen
+    // letras huecas: el OCR las lee a medias. Aunque el borde tenga más píxeles, el
+    // color que hay que devolver es el brillante.
+    const borde = [200, 104, 8], nucleo = [248, 128, 0];
+    const ranking = rankPageNameColors([
+        [{ col: borde, count: 900 }, { col: nucleo, count: 600 }],
+        [{ col: borde, count: 900 }, { col: nucleo, count: 600 }],
+    ]);
+    assert.deepEqual(ranking[0], nucleo);
+});
+
+// ===========================================================================
+// Aislado de letras por FORMA (cropThemeBinarized). El filtro borra los
+// componentes que no son texto; el bug era que el listón de "es texto" estaba
+// por encima de la altura de una letra, así que solo lo pasaba un trazo que
+// puenteara dos líneas — y entonces borraba el nombre entero.
+// ===========================================================================
+
+/** Banda de nombre sintética: dos líneas de "letras" y, opcional, un trazo que las une. */
+function bandaSintetica({ puente }) {
+    const W = 277, H = 142;
+    const data = new Uint8ClampedArray(W * H * 4);
+    for (let i = 0; i < data.length; i += 4) {
+        data[i] = 8; data[i + 1] = 16; data[i + 2] = 32; data[i + 3] = 255;
+    }
+    const pinta = (x0, x1, y0, y1) => {
+        for (let y = y0; y <= y1; y++) {
+            for (let x = x0; x <= x1; x++) {
+                const i = (y * W + x) * 4;
+                data[i] = 248; data[i + 1] = 128; data[i + 2] = 0;
+            }
+        }
+    };
+    const LETRAS_X = [30, 45, 60, 75, 90];
+    const LINEAS = [[46, 68], [78, 100]]; // separadas como las dos líneas reales de un nombre
+    for (const [y0, y1] of LINEAS) for (const x of LETRAS_X) pinta(x, x + 5, y0, y1);
+    // El puente va lejos en X de las letras: si el filtro lo toma por el único "texto",
+    // las letras no se salvan por la regla de "pegado en X" y desaparecen.
+    if (puente) pinta(150, 155, LINEAS[0][0], LINEAS[1][1]);
+    return { data, width: W, height: H, LETRAS_X, LINEAS };
+}
+
+/** ¿Queda tinta en el rectángulo (coordenadas de la banda, el recorte va a 3x)? */
+function hayTinta(mask, x0, x1, y0, y1) {
+    const S = 3;
+    const d = mask.getContext("2d").getImageData(0, 0, mask.width, mask.height).data;
+    for (let y = y0 * S; y <= y1 * S; y++) {
+        for (let x = x0 * S; x <= x1 * S; x++) {
+            if (d[(y * mask.width + x) * 4] === 0) return true;
+        }
+    }
+    return false;
+}
+
+for (const puente of [false, true]) {
+    test(`aislado por forma: las letras sobreviven ${puente ? "con" : "sin"} un trazo que une las dos líneas`, () => {
+        const banda = bandaSintetica({ puente });
+        const mask = VisionService.cropThemeBinarized(banda, 0, 0, banda.width, banda.height, THEME, NAME_COLOR);
+        for (const [y0, y1] of banda.LINEAS) {
+            for (const x of banda.LETRAS_X) {
+                assert.ok(
+                    hayTinta(mask, x + 1, x + 4, y0 + 2, y1 - 2),
+                    `se borró la letra en x=${x}, línea ${y0}-${y1}`,
+                );
+            }
+        }
+    });
+}
+
+// ===========================================================================
+// Confirmación del color de página (services/scanner/name_color.service.js).
+// El color se cachea para toda la SESIÓN, así que darlo por bueno con UNA lectura
+// afortunada envenenaba todas las páginas siguientes.
+// ===========================================================================
+
+test("elección de color: una sola lectura buena no basta para quedarse con un color", async () => {
+    const FLOJO = [10, 20, 30], BUENO = [248, 128, 0];
+    const original = {
+        cands: VisionService.pageNameColorCandidates,
+        crop: VisionService.cropThemeBinarized,
+        text: OCRService.extractCellText,
+        item: OCRService.getValidItemMatch,
+        relic: OCRService.getRelicMatch,
+    };
+    try {
+        VisionService.pageNameColorCandidates = () => [FLOJO, BUENO];
+        VisionService.cropThemeBinarized = (...args) => ({ col: args[6] });
+        // FLOJO acierta en la primera celda y falla en el resto: es el patrón del color
+        // que solo pilla el borde de las letras.
+        let vistas = 0;
+        OCRService.extractCellText = async (_w, cvs) =>
+            (cvs.col === FLOJO ? (vistas++ === 0 ? ["ALGO"] : null) : ["ALGO"]);
+        OCRService.getValidItemMatch = () => "Item Prime Blueprint";
+        OCRService.getRelicMatch = () => null;
+
+        const celdas = [0, 1, 2, 3, 4, 5].map(i => ({ cell: { sx: i * 10, sy: 0 } }));
+        assert.deepEqual(await electPageNameColor({}, null, celdas, 10, 0, 10, THEME), BUENO);
+    } finally {
+        VisionService.pageNameColorCandidates = original.cands;
+        VisionService.cropThemeBinarized = original.crop;
+        OCRService.extractCellText = original.text;
+        OCRService.getValidItemMatch = original.item;
+        OCRService.getRelicMatch = original.relic;
+    }
 });

@@ -19,10 +19,10 @@
  * montados. El excedente ya lo has farmeado; lo que falta es convertirlo, y decir "te falta 1"
  * esconde justo eso.
  *
- * Así que el objetivo es el SEGUNDO cuello de botella: el menor recuento entre las piezas que
- * no están en el mínimo. Con [0,4,4,4] son 4 sets a cambio de 4 planos; con [3,4,5,6] sale 4,
- * que es el `built + 1` de siempre. Solo cambia cuando hay hueco de verdad, que es el caso que
- * no se veía.
+ * Así que cuando el mínimo lo marca UNA sola pieza, el objetivo es el SEGUNDO cuello de
+ * botella: el menor recuento entre las que no están en el mínimo. Con [0,4,4,4] son 4 sets a
+ * cambio de 4 planos; con [3,4,5,6] sale 4, que es el `built + 1` de siempre. Solo cambia
+ * cuando hay hueco de verdad, que es el caso que no se veía.
  *
  * @returns `needed` = copias que hay que conseguir de cada pieza que falta, por nombre.
  */
@@ -32,8 +32,13 @@ function setProgress(setName, parts, primeInventory, getRequiredCount) {
 
   const built = Math.min(...sets.values());
   const porEncima = [...sets.values()].filter((n) => n > built);
-  // Sin ninguna por encima, todas están al mismo nivel: el siguiente set es el único objetivo.
-  const target = porEncima.length > 0 ? Math.min(...porEncima) : built + 1;
+  // Con VARIAS piezas en el mínimo, el excedente no está a una pieza de convertirse y apuntar
+  // al segundo cuello multiplica el farmeo entero: con 16 planos de Gara y las otras tres a 0,
+  // la ruta pedía 16 Sistemas + 16 Chasis + 16 Neurópticos —48 piezas— cuando lo que cierra un
+  // set es UNA de cada. Ahí el objetivo vuelve a ser el set siguiente; el excedente no se
+  // pierde, lo recoge la siguiente pasada en cuanto quede un solo cuello de botella.
+  const unSoloCuello = [...sets.values()].filter((n) => n === built).length === 1;
+  const target = (unSoloCuello && porEncima.length > 0) ? Math.min(...porEncima) : built + 1;
 
   const missingParts = [];
   const needed = {};

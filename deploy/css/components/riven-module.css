@@ -807,7 +807,9 @@
   filter: drop-shadow(0 0 6px rgba(0, 0, 0, 0.6));
 }
 .curio-cuerpo { flex: 1 1 auto; min-width: 0; }
-.curio-cab { display: flex; align-items: center; gap: 7px; margin-bottom: 3px; }
+/* Con wrap: los tres rótulos (tipo, fechas y "1d tras el weekly") llevan nowrap y en un móvil
+   de 390 px el tercero se salía de la tarjeta por la derecha. */
+.curio-cab { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 7px; margin-bottom: 3px; }
 
 .curio-chip {
   font-size: 10.5px;
@@ -906,3 +908,89 @@
 .guia-plegable > summary:hover { color: #cbd5e1; }
 .guia-plegable > div { padding-top: 3px; }
 .guia-punto { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+
+
+/* ---- Filtros del índice ---- */
+/* Anclado a #index-filters-bar y con prefijo propio: riven-module.css se carga DESPUÉS de
+   styles.css, así que un selector genérico aquí ganaría en toda la app (ya pasó con .inv-row
+   en orders.css). */
+#index-filters-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+#index-filters-bar .riven-index-filter {
+    padding: 8px 10px;
+    font-size: 0.8rem;
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(162, 53, 226, 0.3);
+    color: #fff;
+    border-radius: 6px;
+}
+
+#index-filters-bar .riven-index-price {
+    width: 110px;
+}
+
+#index-filters-bar .riven-index-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.78rem;
+    color: #c9c2d6;
+    cursor: pointer;
+    user-select: none;
+}
+
+#index-filters-bar .riven-index-check input {
+    accent-color: #a235e2;
+    cursor: pointer;
+}
+
+#index-filters-bar .riven-index-reset {
+    padding: 7px 12px;
+    font-size: 0.74rem;
+    font-weight: 700;
+    color: #c59afc;
+    background: rgba(155, 89, 182, 0.12);
+    border: 1px solid rgba(155, 89, 182, 0.35);
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+#index-filters-bar .riven-index-reset:hover {
+    background: rgba(155, 89, 182, 0.25);
+}
+
+/* Cuántas se enseñan de cuántas hay. rem y no em: cuelga del contenedor del índice y
+   encadenar otro 0.x em lo dejaría por debajo de lo legible. */
+#index-results-container .riven-index-count {
+    display: block;
+    margin-bottom: 10px;
+    font-size: 0.74rem;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    color: #9a8fb0;
+    font-variant-numeric: tabular-nums;
+}
+
+#index-results-container .riven-index-empty {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 26px 18px;
+    text-align: center;
+    color: #c9c2d6;
+    font-weight: 600;
+    background: rgba(155, 89, 182, 0.05);
+    border: 1px dashed rgba(155, 89, 182, 0.3);
+    border-radius: 8px;
+}
+
+#index-results-container .riven-index-empty-hint {
+    font-size: 0.78rem;
+    font-weight: 400;
+    color: #8b8397;
+}

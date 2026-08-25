@@ -13,6 +13,7 @@ import {
   calculateTotalFullSets,
 } from "../../utils/ui_utils.js";
 import { generateDotsHtml } from "../ui_tooltips.js";
+import { isTouchPointer } from "../../utils/tap.js";
 import { getPartRarity, calculatePartExpectedRuns, DROP_RATES_BY_RARITY } from "../../utils/inventory/relic_drop_odds.utils.js";
 
 const SIM_TEXTS = {
@@ -229,10 +230,25 @@ export function renderSetTracker() {
   const lang = state.currentLang === "es" ? "es" : "en";
   const st = SIM_TEXTS[lang];
 
+  // Sin set activo el panel se escondía entero, y con él la ÚNICA diana del arrastre: para
+  // descubrir que puedes soltar una pieza aquí había que haber activado un set por otra vía.
+  // Vacío pero visible, el panel se explica solo y de paso anuncia el gesto por escrito.
   if (!state.currentActiveSet) {
-    container.style.display = "none";
+    const dz = t.setTab || {};
+    // En táctil el gesto es otro (mantener pulsado), así que el rótulo tiene que serlo
+    // también: "arrastra" a secas anuncia algo que con el dedo no ocurre.
+    const touch = isTouchPointer();
+    container.style.display = "block";
+    container.classList.add("is-dropzone");
+    if (title) title.textContent = t.trackerTitle || "Set Progress";
+    list.innerHTML = `<div class="tracker-dropzone">`
+      + `<span class="tracker-dropzone-icon" aria-hidden="true">⤓</span>`
+      + `<span class="tracker-dropzone-text">${escapeHTML((touch ? dz.dropHintTouch : dz.dropHint) || "")}</span>`
+      + `<span class="tracker-dropzone-sub">${escapeHTML((touch ? dz.dropHintSubTouch : dz.dropHintSub) || "")}</span>`
+      + `</div>`;
     return;
   }
+  container.classList.remove("is-dropzone");
 
   // Garantizar que siempre se muestren TODAS las piezas del Set juntas al mismo tiempo
   if (state.currentActiveSet && state.itemsDatabase) {

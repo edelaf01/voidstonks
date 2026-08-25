@@ -294,3 +294,18 @@ export function addToQueue(itemName, element) {
 export async function preloadPricesToMemory() {
     await dbHelper.preloadPrices();
 }
+
+/**
+ * Avisos de una sola vez ("cómo escanear"), recordados por clave.
+ *
+ * Viven aquí y no en el componente que los pinta porque ui.components/ no toca localStorage
+ * (ARCHITECTURE.md §A). En modo privado el acceso lanza: se devuelve false, o sea que el aviso
+ * se vuelve a enseñar — es la equivocación barata de las dos.
+ */
+export function oneTimeNoticeSeen(key) {
+    try { return localStorage.getItem(key) === "1"; } catch { return false; }
+}
+
+export function markOneTimeNoticeSeen(key) {
+    try { localStorage.setItem(key, "1"); } catch { /* modo privado */ }
+}

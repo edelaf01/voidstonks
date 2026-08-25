@@ -15,7 +15,7 @@ import { generateDotsHtml } from "../ui_tooltips.js";
 import { renderFarmRoutes } from "../farms/ui_farm_routes.js";
 import { getPartDucats, formatDucatRatio } from "./ui_ducanator.js";
 import { calculateGroupSubtotal } from "../../services/inventory/inventory_value.service.js";
-import { initLivePrices } from "./ui_inventory_live.js";
+import { initLivePrices, repaintLivePrices } from "./ui_inventory_live.js";
 import { exposeGlobals } from "../../utils/global_registry.js";
 
 const TARGET_SVG_INLINE = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36" width="22" height="22" style="filter:drop-shadow(0 0 2px rgba(0,204,204,0.5));">
@@ -264,7 +264,10 @@ export function renderPrimeInventory() {
   const searchInput = (document.getElementById("prime-inv-search")?.value || "").toLowerCase();
   const sortMode = document.getElementById("prime-inv-sort")?.value || "alpha";
 
-  const newHash = JSON.stringify(state.primeInventory) + state.currentLang + searchInput + sortMode;
+  // showEmptyPrime entra en la huella: sin él, marcar la casilla no repintaba nada porque el
+  // inventario no había cambiado.
+  const newHash = JSON.stringify(state.primeInventory) + state.currentLang + searchInput + sortMode
+    + (state.settings?.showEmptyPrime ? "|0s" : "");
   if (newHash === lastRenderedHash && list.children.length > 0) {
     setTimeout(updatePrimeTotalValue, 10);
     return;
@@ -344,7 +347,11 @@ export function renderPrimeInventory() {
     const potentialScore = (piecesOwned / allPossibleParts.length) + (farmablePieces * 0.5);
 
     if (numSets === 999) numSets = 0;
-    setMetrics.set(setName, { numSets, setTotalPlat, piecesOwned, potentialScore });
+    // Lo que FALTA, que es lo que de verdad pregunta el orden "cerquitas de terminar".
+    // Contar las piezas que tienes premia a los sets grandes: uno de 8 con 5 tuyas (faltan 3)
+    // se colaba por delante de uno de 4 con 3 (falta 1).
+    const piecesMissing = allPossibleParts.length - piecesOwned;
+    setMetrics.set(setName, { numSets, setTotalPlat, piecesOwned, piecesMissing, potentialScore });
   });
 
   setNames.sort((a, b) => {
@@ -358,7 +365,12 @@ export function renderPrimeInventory() {
       if (metricA.numSets !== metricB.numSets) return metricB.numSets - metricA.numSets;
       return metricB.setTotalPlat - metricA.setTotalPlat;
     } else if (sortMode === "sets_asc") {
-      if (metricA.piecesOwned !== metricB.piecesOwned) return metricB.piecesOwned - metricA.piecesOwned;
+      // Los ya completos al final: un set terminado no está "a punto de terminar", y con
+      // 0 piezas que faltan encabezaba justo la lista de lo que te queda por cerrar.
+      const doneA = metricA.piecesMissing === 0;
+      const doneB = metricB.piecesMissing === 0;
+      if (doneA !== doneB) return doneA ? 1 : -1;
+      if (metricA.piecesMissing !== metricB.piecesMissing) return metricA.piecesMissing - metricB.piecesMissing;
       return metricB.setTotalPlat - metricA.setTotalPlat;
     } else if (sortMode === "plat_desc") {
       return metricB.setTotalPlat - metricA.setTotalPlat;
@@ -375,6 +387,7 @@ export function renderPrimeInventory() {
     list.innerHTML = emptyStateHtml(
       inv?.emptyParts || "No prime parts saved yet.",
       inv?.emptyScannerHint,
+      inv?.emptyScannerHintMobile,
     );
     return;
   }
@@ -647,12 +660,40 @@ export async function updatePrimeTotalValue() {
   }
 
   initLivePrices();
+  // La lista se acaba de reconstruir: las marcas de precio en vivo iban en el DOM viejo.
+  repaintLivePrices();
 }
 
 // Los invoca index.html con onclick inline y, varios de ellos, otros módulos por globalThis
 // (el escáner en vivo, el tracker de sets, las órdenes) para refrescar sin importar la vista.
+/**
+ * Búsqueda del panel de piezas. Con debounce porque cada pasada reconstruye la lista entera
+ * agrupada por set: a una por pulsación se nota al teclear. Mismo margen que el buscador de
+ * la pestaña Set.
+ */
+let searchDebounce;
+export function handlePrimeInvSearch() {
+  clearTimeout(searchDebounce);
+  searchDebounce = setTimeout(renderPrimeInventory, 120);
+}
+
+/**
+ * Casilla "Mostrar también las piezas a 0".
+ *
+ * `state.settings.showEmptyPrime` se leía en tres sitios y no había forma de encenderlo: el
+ * objeto `settings` no lo creaba nadie. Decide solo lo que se PINTA — la petición de precios
+ * se queda acotada a tu inventario (ver collectInventorySlugs).
+ */
+export function toggleShowEmptyPrime(checked) {
+  state.settings = { ...state.settings, showEmptyPrime: !!checked };
+  saveAppState();
+  renderPrimeInventory();
+}
+
 exposeGlobals({
   renderPrimeInventory,
+  toggleShowEmptyPrime,
+  handlePrimeInvSearch,
   modifyPrimePart,
   deletePrimeSet,
   decrementPrimeSet,

@@ -116,6 +116,7 @@ function buildPipContent(targetDoc) {
     .pip-badge.best-duc { border-color: rgba(33,150,243,0.6); }
     .pip-badge.set-finisher { border-color: rgba(0,255,120,0.6); }
     .pip-badge.selected { border-color: #00ff78; box-shadow: 0 0 14px rgba(0,255,120,0.3); }
+    .pip-badge.best-value { border-color: #00ff78; box-shadow: 0 0 12px rgba(0,255,120,0.25); }
 
     .pip-badge-tags {
       display: flex; flex-wrap: wrap; gap: 3px;
@@ -127,6 +128,7 @@ function buildPipContent(targetDoc) {
     .pip-tag.pl { background: rgba(221,169,56,0.18); color: #daa520; border: 1px solid rgba(221,169,56,0.4); }
     .pip-tag.duc { background: rgba(33,150,243,0.15); color: #2196f3; border: 1px solid rgba(33,150,243,0.4); }
     .pip-tag.set { background: rgba(0,255,120,0.12); color: #00ff78; border: 1px solid rgba(0,255,120,0.35); }
+    .pip-tag.val { background: #00ff78; color: #000; border: 1px solid #00ff78; }
 
     .pip-badge-name {
       font-size: 10px; font-weight: 800; color: #fff;
@@ -195,7 +197,8 @@ function getLang() {
 }
 
 function makeBadgeEl(doc, item) {
-    const { name, price, ducats, owned, appOwned, isBestPl, isBestEff, isCompletingSet, isSelected } = item;
+    const { name, price, ducats, owned, appOwned, isBestPl, isBestEff, isCompletingSet, isSelected,
+        isBestValue, gainPl } = item;
     const lang = getLang();
     const t = lang === "en"
         ? { add: "CLICK TO ADD", inv: "OWNED", owned: "SEEN" }
@@ -204,9 +207,14 @@ function makeBadgeEl(doc, item) {
     const isForma = name.toUpperCase().includes("FORMA");
 
     const card = doc.createElement("div");
-    card.className = `pip-badge${isBestPl ? " best-pl" : ""}${isBestEff ? " best-duc" : ""}${isCompletingSet ? " set-finisher" : ""}${isSelected ? " selected" : ""}`;
+    card.className = `pip-badge${isBestPl ? " best-pl" : ""}${isBestEff ? " best-duc" : ""}${isCompletingSet ? " set-finisher" : ""}${isSelected ? " selected" : ""}${isBestValue ? " best-value" : ""}`;
 
     const tags = [];
+    // Lo que de verdad te llevas, ya sumadas venta suelta, prima del set y ducados. Va primero
+    // porque es la única que compara las otras tres entre sí (utils/inventory/reward_value.js).
+    if (isBestValue && gainPl >= 1) {
+        tags.push(`<span class="pip-tag val">+${gainPl < 10 ? gainPl.toFixed(1) : Math.round(gainPl)}p</span>`);
+    }
     if (isBestPl) tags.push(`<span class="pip-tag pl">BEST PLAT</span>`);
     if (isBestEff && !isForma) tags.push(`<span class="pip-tag duc">BEST DUC</span>`);
     if (isCompletingSet) tags.push(`<span class="pip-tag set">COMPLETES SET</span>`);

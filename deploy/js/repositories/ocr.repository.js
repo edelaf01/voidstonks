@@ -2,6 +2,9 @@
  * Repository for Tesseract.js worker management and raw recognition.
  */
 export const OCRRepository = {
+    // Bloque uniforme de texto. Lo comparte todo el escáner salvo recognizeWithPSM.
+    DEFAULT_PSM: "6",
+
     workers: [],
     initPromise: null,
 
@@ -49,7 +52,7 @@ export const OCRRepository = {
                     const w = await tess.createWorker("eng", 1, LOCAL_LANG);
                     await w.setParameters({
                         tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789:()+- '/%,.",
-                        tessedit_pageseg_mode: "6",
+                        tessedit_pageseg_mode: this.DEFAULT_PSM,
                         user_defined_dictionary_priority: "1",
                     });
                     return w;
@@ -109,6 +112,29 @@ export const OCRRepository = {
     /**
      * Executes recognition on an image.
      */
+    /**
+     * Reconoce con OTRO modo de segmentación y deja el worker como estaba.
+     *
+     * La rejilla de reliquias necesita las dos: con psm 6 (bloque uniforme) salen los
+     * nombres pero se pierden los contadores sueltos, y con psm 11 (texto disperso) al
+     * revés. El modo es un parámetro del worker, no de la llamada, así que hay que
+     * ponerlo y devolverlo — y por eso se restaura en un finally: si se queda en 11, la
+     * detección de contexto y el escáner de rivens leen peor sin que nada lo delate.
+     */
+    async recognizeWithPSM(worker, image, psm, output = undefined) {
+        if (!worker) return { data: { text: "", confidence: 0 } };
+        try {
+            await worker.setParameters({ tessedit_pageseg_mode: String(psm) });
+            return await worker.recognize(image, {}, output);
+        } catch (e) {
+            console.error("[OCR Repo] Recognize PSM Err:", e);
+            return { data: { text: "", confidence: 0 } };
+        } finally {
+            await worker.setParameters({ tessedit_pageseg_mode: this.DEFAULT_PSM })
+                .catch((e) => console.error("[OCR Repo] no se pudo restaurar el psm:", e));
+        }
+    },
+
     async recognize(worker, image, options = {}, output = undefined) {
         if (!worker) return { data: { text: "", confidence: 0 } };
         try {
