@@ -313,6 +313,14 @@
   box-shadow: 0 0 20px rgba(0, 229, 255, 0.3);
 }
 
+/* Después de .best-pl / .best-duc a propósito: la tarjeta ganadora suele llevar también una de
+   esas clases y el borde que tiene que verse es este. */
+.modal-badge.best-value {
+  border: 2px solid #00ff78;
+  box-shadow: 0 0 22px rgba(0, 255, 120, 0.35);
+  z-index: 30;
+}
+
 .modal-badge:hover .currency-icon {
   transform: scale(1.2);
 }
@@ -386,6 +394,24 @@
   height: 16px;
   object-fit: contain;
   transition: transform 0.2s;
+}
+
+/* El ganador de verdad: el único que compara las tres escalas (venta suelta, prima del set y
+   ducados) en platino. Va el primero de la columna y más alto que los otros tres a propósito;
+   los demás quedan como explicación de por qué. */
+.best-badge.value {
+  background: #00ff78;
+  color: #000;
+  box-shadow: 0 0 14px rgba(0, 255, 120, 0.55);
+}
+
+/* Gana por poco. Mismo sitio y misma información, sin el grito: la diferencia entre las dos
+   primeras cabe dentro del error de los precios de warframe.market. */
+.best-badge.value.tight {
+  background: none;
+  color: #00ff78;
+  border: 1px solid rgba(0, 255, 120, 0.5);
+  box-shadow: none;
 }
 
 .best-badge {

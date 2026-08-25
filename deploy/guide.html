@@ -258,6 +258,15 @@
       }
       document.querySelectorAll("[data-set-lang]").forEach(function (b) { b.addEventListener("click", function () { apply(b.getAttribute("data-set-lang")); }); });
       apply(lang);
+
+      // El salto al ancla, DESPUÉS de apply(): la sección del idioma que no toca está en
+      // display:none, así que si se llega con #e-riven mientras el navegador aún no ha
+      // mostrado la española, el destino no existe todavía y la página se queda arriba.
+      // Ahora que la app enlaza por capítulo (guide.html#e-riven) eso pasaría siempre.
+      if (location.hash) {
+        var destino = document.getElementById(location.hash.slice(1));
+        if (destino) destino.scrollIntoView();
+      }
     })();
   </script>
 </body>

@@ -1,6 +1,8 @@
 import { getPriceValue } from "../repositories/storage.repository.js";
 import { getSlug } from "../utils/slugs.utils.js";
 import { showToast, escapeHTML } from "../ui.components/ui_components.js";
+import { showHowToPanel } from "../ui.components/ui_howto_panel.js";
+import { oneTimeNoticeSeen, markOneTimeNoticeSeen } from "../repositories/storage.repository.js";
 import { state } from "../state.js";
 import { TEXTS } from "../config.js";
 import { OCRService } from "../services/scanner/ocr.service.js?v=264";
@@ -10,6 +12,8 @@ import { PaddleRepository } from "../repositories/paddle.repository.js";
 import { getItemIcon } from "../utils/ui_utils.js";
 import { applyBestCameraConstraints } from "../services/scanner/vision.service.js";
 import { scanRewardPhoto, scanRewardBurst } from "../utils/vision/reward_photo_ocr.js";
+
+const HOWTO_KEY_MOBILE = "vs_scanner_howto_seen";
 
 /**
  * MobileScanner - Modularized and Optimized for Production
@@ -93,10 +97,8 @@ export class MobileScanner {
       this.startDiscoveryLoop();
       this.acquireWakeLock();
 
-      let seen = false;
-      try { seen = localStorage.getItem("vs_scanner_howto_seen") === "1"; } catch { seen = false; }
-      if (!seen) this.showHowTo();
-    } catch (err) { showToast((TEXTS[state.currentLang]?.scanner?.toastError || "Error: {msg}").replace("{msg}", err.message)); this.close(); }
+      if (!oneTimeNoticeSeen(HOWTO_KEY_MOBILE)) this.showHowTo();
+    } catch (err) { const sc = TEXTS[state.currentLang]?.scanner || {}; showToast(err.name === "NotAllowedError" ? (sc.toastCamDenied || "No camera permission.") : (sc.toastError || "Error: {msg}").replace("{msg}", err.message)); this.close(); }  // NotAllowedError: mensaje propio; el crudo del navegador va en inglés y no dice qué hacer
   }
 
   /**
@@ -152,26 +154,11 @@ export class MobileScanner {
    * cada recompensa y su etiqueta Owned/Crafted encima — porque de ahí sale todo lo demás.
    */
   showHowTo() {
-    document.getElementById("scanner-howto")?.remove();
     const t = this.t;
-    const panel = document.createElement("div");
-    panel.id = "scanner-howto";
-    panel.style.cssText = "position:fixed; inset:0; background:rgba(6,10,15,0.92); backdrop-filter:blur(8px); z-index:3000020; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px; padding:28px; text-align:center; font-family:'Outfit',sans-serif;";
-    const steps = (t.camHowSteps || []).map((step, i) => `
-      <div style="display:flex; gap:12px; align-items:flex-start; text-align:left; max-width:340px;">
-        <div style="flex:0 0 22px; height:22px; border-radius:50%; background:rgba(0,229,255,0.15); border:1px solid rgba(0,229,255,0.5); color:#00e5ff; font-size:11px; font-weight:900; display:flex; align-items:center; justify-content:center;">${i + 1}</div>
-        <div style="color:#dde; font-size:13px; line-height:1.5;">${step}</div>
-      </div>`).join("");
-    panel.innerHTML = `
-      <div style="color:#00e5ff; font-weight:900; font-size:13px; letter-spacing:2px;">${escapeHTML(t.camHowTitle)}</div>
-      <div style="display:flex; flex-direction:column; gap:14px;">${steps}</div>
-      <button id="scanner-howto-ok" style="margin-top:6px; background:rgba(0,229,255,0.14); border:1px solid rgba(0,229,255,0.4); color:#00e5ff; font-size:12px; font-weight:900; padding:11px 34px; border-radius:12px; cursor:pointer;">${escapeHTML(t.camHowGot)}</button>
-    `;
-    panel.querySelector("#scanner-howto-ok").onclick = () => {
-      panel.remove();
-      try { localStorage.setItem("vs_scanner_howto_seen", "1"); } catch { /* modo privado */ }
-    };
-    document.body.appendChild(panel);
+    showHowToPanel({
+      title: t.camHowTitle, steps: t.camHowSteps || [], gotIt: t.camHowGot,
+      onDismiss: () => markOneTimeNoticeSeen(HOWTO_KEY_MOBILE),
+    });
   }
 
   /** La pista de encuadre sobra mientras se procesa: estorba sobre el panel de progreso. */

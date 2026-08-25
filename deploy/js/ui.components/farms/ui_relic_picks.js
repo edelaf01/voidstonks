@@ -1,6 +1,4 @@
-import { state, saveAppState } from "../../state.js";
 import { filterRelicPicks } from "../../utils/inventory/relic_picks.js";
-import { getSetName } from "../../utils/ui_utils.js";
 import { getPartShortName } from "../inventory/ui_set_tracker.js";
 import { REFINEMENT_LABELS, getPlayerOdds } from "../../utils/inventory/relic_drop_odds.utils.js";
 import { getRelicPicksPrefs, saveRelicPicksPrefs } from "../../services/inventory/farm_routes.service.js";
@@ -25,7 +23,7 @@ function filtersHtml(prefs, t, odds) {
     const refs = [["radiant", t.refRadiant], ["flawless", t.refFlawless],
         ["exceptional", t.refExceptional], ["intact", t.refIntact]];
     const squads = [[4, t.squad4], [3, t.squad3], [2, t.squad2], [1, t.squad1]];
-    const sorts = [["useful", t.picksSortUseful], ["odds", t.picksSortOdds],
+    const sorts = [["best", t.picksSortBest], ["useful", t.picksSortUseful], ["odds", t.picksSortOdds],
         ["value", t.picksSortValue], ["minutes", t.picksSortMinutes]];
 
     return `<div class="set-rec-filters">
@@ -63,12 +61,42 @@ function filtersHtml(prefs, t, odds) {
     </div>`;
 }
 
+/**
+ * Una pieza útil de la reliquia, con lo que le falta a SU set.
+ *
+ * Sin ese "2/4", "3 te sirven" valía igual para tres piezas de tres sets sin empezar que para
+ * tres que dejan uno a punto de cerrarse, que es justo lo que decide cuál abrir.
+ */
+function partHtml(part, t) {
+    const nombre = getPartShortName(part.name, part.set);
+    const ultima = part.missing === 1;
+    const falta = ultima
+        ? `<span class="fr-pick-last" data-tooltip="${escapeHTML((t.picksPartLastTitle || "").replace("{set}", part.set))}">${
+            escapeHTML(t.picksPartLast || "")}</span>`
+        : `<span class="fr-pick-left" data-tooltip="${escapeHTML((t.picksPartLeftTitle || "")
+            .replace("{set}", part.set).replace("{n}", String(part.missing)).replace("{total}", String(part.total)))}">${
+            part.missing}/${part.total}</span>`;
+    return `<span class="fr-pick-part">${escapeHTML(nombre)}`
+        + `<span class="fr-dim"> · ${escapeHTML(part.set)} </span>${falta}</span>`;
+}
+
 export function pickHtml(p, t) {
     const utiles = p.useful === 1
         ? t.picksUsefulOne
         : (t.picksUseful || "").replace("{n}", String(p.useful));
     const odds = Math.round(p.odds * 100);
     const estado = p.ready ? "ready" : "wait";
+    // Lo que decide el clic, y por eso va con nombre y probabilidad en vez de escondido en el
+    // orden: de dos reliquias con "6 te sirven", una cierra un set y la otra no acerca nada a
+    // rendir. Con más de uno se nombra el primero y se cuentan los demás: el nombre completo
+    // de tres sets no cabe en la fila.
+    const cierra = (p.closes?.length > 0)
+        ? `<span class="fr-closes" data-tooltip="${escapeHTML((t.picksClosesTitle || "")
+              .replace("{sets}", p.closes.join(", ")))}">${escapeHTML((t.picksCloses || "")
+              .replace("{set}", p.closes[0])
+              .replace("{more}", p.closes.length > 1 ? ` +${p.closes.length - 1}` : "")
+              .replace("{n}", String(Math.round((p.closeOdds || 0) * 100))))}</span>`
+        : "";
 
     return `<div class="fr-pick ${estado}">
       <div class="fr-pick-head">
@@ -76,6 +104,7 @@ export function pickHtml(p, t) {
                 data-action="select-relic-from-inv" data-relic="${escapeHTML(`${p.relic} Relic`)}"
                 title="${escapeHTML(p.relic)}">${escapeHTML(p.relic)}</button>
         <span class="fr-dim">${escapeHTML((t.picksCopies || "×{n}").replace("{n}", String(p.owned)))}</span>
+        ${cierra}
         <span class="fr-need" data-tooltip="${escapeHTML(t.picksUsefulTitle || "")}">${escapeHTML(utiles)}</span>
         <span class="fr-runs" data-tooltip="${escapeHTML((t.picksOddsTitle || "").replace("{n}", String(p.owned)))}">${
         escapeHTML((t.picksOdds || "{n}%").replace("{n}", String(odds)))}</span>
@@ -87,9 +116,7 @@ export function pickHtml(p, t) {
       </div>
       ${p.fissure ? `<div class="fr-pick-where"><span class="fr-where">${escapeHTML(p.fissure.type)} · ${
         escapeHTML(p.fissure.node)}${p.fissure.eta ? ` · ${escapeHTML(p.fissure.eta)}` : ""}</span></div>` : ""}
-      <div class="fr-pick-parts">${p.parts.map((part) =>
-        `<span class="fr-pick-part">${escapeHTML(getPartShortName(part, getSetName(part)))}`
-        + `<span class="fr-dim"> · ${escapeHTML(getSetName(part))}</span></span>`).join("")}</div>
+      <div class="fr-pick-parts">${p.parts.map((part) => partHtml(part, t)).join("")}</div>
     </div>`;
 }
 
@@ -155,7 +182,7 @@ export function renderRelicPicks(raiz, todas, t, onRebuild) {
         saveRelicPicksPrefs({
             query: query?.value || "",
             era: era?.value || "",
-            sortBy: sort?.value || "useful",
+            sortBy: sort?.value || "best",
             readyOnly: !!ready?.checked,
         });
         pintarLista(cuerpo, todas, t);
@@ -173,14 +200,16 @@ export function renderRelicPicks(raiz, todas, t, onRebuild) {
         debounce = setTimeout(aplicar, 120);
     });
 
+    // Mismo simulador que en "Rutas aconsejadas": escribe el refinamiento/escuadra GLOBALES,
+    // así que pasa por los setters que además sincronizan el <select> de la pestaña Reliquia y
+    // repintan los chips del inventario y el seguidor de sets. Va por globalThis (lo publica
+    // ui_relics.js): el import directo cerraría un ciclo.
     simRef?.addEventListener("change", () => {
-        state.refinement = REFINEMENT_LABELS[simRef.value] || "Rad";
-        saveAppState();
+        globalThis.setRefinement?.(REFINEMENT_LABELS[simRef.value] || "Rad");
         onRebuild?.();
     });
     simSquad?.addEventListener("change", () => {
-        state.squadSize = Math.min(4, Math.max(1, Number.parseInt(simSquad.value, 10) || 4));
-        saveAppState();
+        globalThis.setSquadSize?.(simSquad.value);
         onRebuild?.();
     });
 }

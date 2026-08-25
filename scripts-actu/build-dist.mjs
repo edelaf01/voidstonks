@@ -19,6 +19,25 @@ import { transform } from "esbuild";
 const SRC = "deploy";
 const OUT = "dist";
 
+/**
+ * Lo que NO se copia a dist/, y por tanto no se publica.
+ *
+ * `deploy/` es a la vez fuente y carpeta publicada, así que la documentación que vive junto al
+ * código acababa servida en voidstonks.com: `MAINTENANCE_VOSFOR.md` y
+ * `js/utils/native_bridge.contract.md` respondían 200 con `text/markdown`, y el propio
+ * `.assetsignore` publicaba la lista de lo que se pretendía esconder. Ese fichero no vale aquí:
+ * lo entiende Workers Assets, no `wrangler pages deploy`, que es lo que usa el workflow.
+ */
+const NO_PUBLICAR = (ruta) => {
+    const nombre = ruta.split("/").pop();
+    return nombre.endsWith(".md")
+        || nombre === ".assetsignore"
+        || nombre.endsWith(".pem")
+        || nombre.endsWith(".crt")
+        || nombre.endsWith(".bak")
+        || ruta.includes("/.wrangler");
+};
+
 const SKIP = (name, path) =>
     name.endsWith(".min.js") ||
     name.endsWith(".wasm.js") ||
@@ -73,7 +92,12 @@ async function walk(dir) {
 async function main() {
     await rm(OUT, { recursive: true, force: true });
     await mkdir(OUT, { recursive: true });
-    await cp(SRC, OUT, { recursive: true });
+    await cp(SRC, OUT, {
+        recursive: true,
+        // El filtro se aplica también a los directorios: devolver false en uno se lleva todo
+        // lo que cuelga (ver .wrangler).
+        filter: (origen) => !NO_PUBLICAR(origen),
+    });
 
     const files = await walk(OUT);
     let minified = 0, skipped = 0, stamped = 0;

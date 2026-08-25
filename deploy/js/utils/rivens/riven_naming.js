@@ -122,3 +122,16 @@ export function generateRivenName(weaponName, positiveStats, weaponData, buffCou
     if (!rollName) return "";
     return `${weaponName} ${rollName.charAt(0).toUpperCase() + rollName.slice(1)}`;
 }
+
+/**
+ * Firma de identidad de un riven leído: arma + conjunto de stats con su signo.
+ *
+ * Sirve para el consenso entre frames del escáner: dos lecturas del MISMO riven tienen que
+ * dar la misma cadena aunque los VALORES bailen (el OCR de los números es lo que más falla).
+ * Por eso van solo los nombres, y ordenados: el orden en que el OCR los saque no importa.
+ */
+export function rivenFingerprint(parsed) {
+    if (!parsed) return "null";
+    const stats = parsed.stats.map((st) => `${st.isPositive ? "+" : "-"}${st.name}`).sort().join(",");
+    return `${parsed.weaponName || "?"}|${stats}`;
+}

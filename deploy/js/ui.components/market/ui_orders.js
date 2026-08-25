@@ -1,5 +1,6 @@
 import { state } from "../../state.js";
 import { ORDERS_TEXTS as T } from "../../assets/orders_texts.js";
+import { renderOrdersUnderConstruction } from "./ui_orders_wip.js";
 import { applyIcon } from "../../utils/wfm_assets.js";
 import { exposeGlobals } from "../../utils/global_registry.js";
 import {
@@ -15,7 +16,7 @@ import {
     fetchMyOrders,
     editOrder,
     fetchItemMarket,
-    fetchMarketBatch
+    fetchMarketBatch, getOrdersFilterType, saveOrdersFilterType
 } from "../../services/market/wfm_orders.service.js";
 
 /**
@@ -62,8 +63,18 @@ const view = { current: VIEW.LOGIN, data: null };
  */
 let listCtx = null;
 
-/** Filtros del listado. Se conservan entre recargas. */
-const filters = { type: "all", query: "" };
+/** Predicado de cada chip. Comparten barra pero filtran ejes distintos: lado del
+ *  libro (sell/buy) y visibilidad (hidden/visible). */
+const FILTER_TESTS = {
+    all: () => true,
+    sell: (o) => (o.type || "").toLowerCase() === "sell",
+    buy: (o) => (o.type || "").toLowerCase() === "buy",
+    hidden: (o) => o.visible === false
+};
+
+/** Filtros del listado. El chip persiste (lo guarda el service: un componente no toca
+ *  localStorage); la búsqueda no, que reabrir con un texto a medias deja la lista casi vacía. */
+const filters = { type: getOrdersFilterType(Object.keys(FILTER_TESTS)), query: "" };
 
 // --- Helpers de DOM ---
 
@@ -742,16 +753,6 @@ function summaryBar(orders) {
     return bar;
 }
 
-/** Predicado de cada chip. Comparten barra pero filtran ejes distintos: lado del
- *  libro (sell/buy) y visibilidad (hidden/visible). */
-const FILTER_TESTS = {
-    all: () => true,
-    sell: (o) => (o.type || "").toLowerCase() === "sell",
-    buy: (o) => (o.type || "").toLowerCase() === "buy",
-    hidden: (o) => o.visible === false,
-    visible: (o) => o.visible !== false
-};
-
 /** Aplica los filtros activos sobre las órdenes. */
 function applyFilters(orders) {
     const q = filters.query.trim().toLowerCase();
@@ -788,7 +789,7 @@ function filterBar(orders, onChange) {
     // filters sobrevive a la recarga y el chip desaparece al quedarse sin resultados:
     // al mostrar la última orden oculta, "Ocultas" seguía activo pero ya no se dibujaba
     // y la lista quedaba vacía sin forma evidente de volver.
-    if (filters.type !== "all" && !counts[filters.type]) filters.type = "all";
+    if (filters.type !== "all" && !counts[filters.type]) saveOrdersFilterType(filters.type = "all");
 
     for (const [key, label] of defs) {
         // Un filtro sin resultados posibles solo estorba.
@@ -798,7 +799,7 @@ function filterBar(orders, onChange) {
         chip.type = "button";
         if (filters.type === key) chip.classList.add("active");
         chip.addEventListener("click", () => {
-            filters.type = key;
+            saveOrdersFilterType(filters.type = key);
             for (const c of chips.children) c.classList.remove("active");
             chip.classList.add("active");
             onChange();
@@ -1341,28 +1342,10 @@ async function loadOrders() {
  * listo para reactivarse el día que OAuth llegue: solo habrá que llamar a loadOrders()
  * en vez de a esto.
  */
-function renderUnderConstruction() {
-    const t = txt();
+export function initOrdersTab() {
     const root = document.getElementById("orders-content");
     if (!root) return;
-    root.replaceChildren();
-
-    const box = el("div", "orders-wip");
-    box.appendChild(el("div", "orders-wip-icon", "🚧"));
-    box.appendChild(el("h2", "orders-wip-title", t.wipTitle));
-
-    // El "por qué" va en el tooltip para no llenar la tarjeta de jerga: el usuario común
-    // ve un mensaje corto, y quien quiera el detalle lo tiene al pasar el ratón.
-    const text = el("p", "orders-wip-text", t.wipText);
-    text.title = t.wipTooltip;
-    box.appendChild(text);
-
-    root.appendChild(box);
-}
-
-export function initOrdersTab() {
-    if (!document.getElementById("orders-content")) return;
-    renderUnderConstruction();
+    renderOrdersUnderConstruction(root);
 }
 
 /**

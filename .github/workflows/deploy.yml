@@ -1,0 +1,59 @@
+name: Deploy Site
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'deploy/**'
+  workflow_dispatch: {}   # permite lanzar el deploy a mano desde Actions > Deploy Site > Run workflow
+  # Los commits del bot de curiosidades usan el GITHUB_TOKEN por defecto, y GitHub NO dispara
+  # workflows con pushes hechos con ese token (salvaguarda anti-recursión). Sin este disparador el
+  # JSON se actualizaba en el repo pero la web seguía sirviendo el anterior hasta el siguiente push
+  # humano. workflow_run se lanza al terminar el otro workflow, sin necesitar un PAT.
+  workflow_run:
+    workflows: ["Curiosidades de mercado (diario)", "Reentrenar Riven ML (banda cuantiles)"]
+    types: [completed]
+
+# Evita que dos pushes seguidos lancen deploys en paralelo (y cancela el anterior).
+concurrency:
+  group: deploy-pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    name: Deploy
+    # Dos guards para workflow_run, que es más laxo que `push`:
+    #   - "completed" salta aunque el workflow anterior haya FALLADO -> se exige conclusion success.
+    #   - se dispara sea cual sea la rama del run origen, y actions/checkout en ese contexto saca la
+    #     rama por defecto: sin comprobar head_branch, un run manual en una feature branch acabaría
+    #     publicando main. El disparador `push` ya está acotado a main; esto lo iguala.
+    if: >-
+      ${{ github.event_name != 'workflow_run' ||
+          (github.event.workflow_run.conclusion == 'success' &&
+           github.event.workflow_run.head_branch == 'main') }}
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # Minifica el JS a dist/ (deploy/ conserva los comentarios). Ver scripts-actu/build-dist.mjs.
+      - name: Build minified dist
+        run: |
+          npm install --no-save esbuild@0.24.0
+          node scripts-actu/build-dist.mjs
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CF_API_TOKEN }}
+          accountId: ${{ secrets.CF_ACCOUNT_ID }}
+          # Publica la copia minificada, no el fuente.
+          workingDirectory: 'dist'
+          command: pages deploy . --project-name=voidstonks

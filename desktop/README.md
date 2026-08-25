@@ -38,8 +38,15 @@ cd desktop
 ./check-requirements.sh     # dice qué falta y cómo instalarlo
 npm install                 # baja el CLI de Tauri
 npm run tauri dev           # abre la ventana con la app dentro (para probar)
+
+# Fedora 44+ necesita estas dos para el AppImage; el porqué, más abajo
+export APPIMAGE_EXTRACT_AND_RUN=1 NO_STRIP=1
 npm run tauri build         # genera los instaladores en src-tauri/target/release/bundle/
 ```
+
+**Un build fallido te deja sin el anterior.** `tauri build` vacía
+`src-tauri/target/release/bundle/appimage/` antes de empaquetar, así que si falla no queda
+nada: ni el nuevo ni el que ya tenías. Copia fuera de `target/` el AppImage que te sirva.
 
 ## Requisitos (Fedora)
 
@@ -53,6 +60,92 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 sudo dnf install webkit2gtk4.1-devel libsoup3-devel \
                  gtk3-devel librsvg2-devel \
                  openssl-devel curl wget file
+```
+
+### Fedora atómica (Bazzite, Silverblue, Kinoite)
+
+El `sudo dnf install` de arriba **no funciona en el host**: el sistema base es de solo
+lectura. Compila dentro de un contenedor, que además ahorra el reboot que obligaría a dar
+`rpm-ostree install`:
+
+```bash
+distrobox create --name voidstonks-build \
+  --image registry.fedoraproject.org/fedora-toolbox:latest -Y
+
+distrobox enter voidstonks-build -- bash -lc '
+  sudo dnf install -y webkit2gtk4.1-devel libsoup3-devel gtk3-devel librsvg2-devel \
+                      openssl-devel curl wget file patchelf xdg-utils \
+                      rust cargo gcc gcc-c++ make'
+```
+
+`xdg-utils` es el que se olvida: sin él el empaquetado muere con `xdg-open binary not
+found`, porque el bundler copia ese binario dentro del AppDir.
+
+Después, cada compilación:
+
+```bash
+distrobox enter voidstonks-build -- bash -lc '
+  cd ~/Escritorio/voidstonks/desktop
+  export APPIMAGE_EXTRACT_AND_RUN=1 NO_STRIP=1
+  npm run tauri build -- --bundles appimage'
+```
+
+Se limita a `appimage` a propósito: en un sistema atómico el `.rpm` obligaría a layering
+con reboot, mientras que el AppImage es un fichero suelto que arranca con doble clic. Se
+genera **dentro** del contenedor pero se ejecuta **en el host** sin instalar nada, porque
+lleva su propio WebKitGTK dentro.
+
+## Las dos variables del AppImage (Fedora 44+)
+
+Sin ellas `tauri build` termina en `failed to run linuxdeploy`, y ese mensaje no dice cuál
+de las dos causas —independientes entre sí— ha sido:
+
+- `APPIMAGE_EXTRACT_AND_RUN=1` — `linuxdeploy` se distribuye como AppImage tipo 2 y pide
+  **libfuse2**, que Fedora 44 ya no trae (solo `fusermount3`):
+  `dlopen(): error loading libfuse.so.2`. La variable lo auto-extrae en vez de montarlo.
+- `NO_STRIP=1` — el `strip` que `linuxdeploy` lleva empaquetado es viejo y no reconoce la
+  sección `.relr.dyn` de las librerías de Fedora 44:
+  ``strip: libzstd.so.1: unknown type [0x13] section `.relr.dyn` ``.
+
+Hoy en CI no hacen falta, porque `ubuntu-22.04` es lo bastante antiguo como para no tropezar
+con ninguna de las dos; el workflow las exporta igual para cuando jubilen ese runner.
+
+## Por qué `csp` está a `null`
+
+Con la CSP puesta la app **se pinta entera pero no responde a ninguna pulsación**, y no da
+ningún error visible. La causa: Tauri inyecta un `nonce` en `script-src` para sus propios
+scripts de arranque, y la spec de CSP manda **ignorar `'unsafe-inline'` en cuanto hay un
+nonce**. Como `index.html` resuelve ~118 handlers con `onclick="foo()"` inline (ver
+`CLAUDE.md`), se quedan todos muertos de golpe. En la web no ocurre porque ahí no hay CSP.
+
+Poner `'unsafe-inline'` en la CSP no lo arregla: ya estaba puesto, y es precisamente lo que
+el nonce anula. El arreglo de verdad sería migrar esos handlers a `addEventListener`, que es
+un cambio grande en `index.html` y en los módulos que publican en `globalThis`.
+
+Lo que se pierde: la CSP era defensa en profundidad frente a datos de warframe.market y del
+OCR. La primera línea sigue en pie —`escapeHTML` en todo lo que va a `innerHTML`, verificado
+por `tests/xss-escaping.test.mjs`—, pero conviene no perder de vista que aquí hay una red de
+seguridad menos.
+
+Efecto secundario: sin CSP vuelve a cargar `chart.js` desde `cdn.jsdelivr.net`
+(`index.html`), que la CSP bloqueaba por tener jsdelivr solo en `connect-src` y no en
+`script-src`.
+
+## Aviso conocido: `GStreamer element appsink not found`
+
+Sale por stderr al arrancar el AppImage. El AppDir lleva las librerías *core* de GStreamer
+(`libgstreamer-1.0.so.0`, `libgstapp-1.0.so.0`…) pero **ningún plugin**: el contenedor de
+compilación no tiene `gstreamer1-plugins-*`, así que `linuxdeploy-plugin-gstreamer` no
+encontró nada que copiar y solo llegó a ejecutarse el hook de GTK. Los elementos de verdad
+—`appsink` vive en `/usr/lib64/gstreamer-1.0/libgstapp.so`— se quedan fuera.
+
+Afecta a lo que WebKit reproduzca vía GStreamer, y el candidato es el `MediaStream` del
+scanner. **Sin verificar**: si el scanner falla al previsualizar la captura, prueba a
+instalar los plugins en el contenedor y recompilar.
+
+```bash
+distrobox enter voidstonks-build -- \
+  sudo dnf install -y gstreamer1-plugins-base gstreamer1-plugins-good
 ```
 
 ## Qué hace esta versión (fase 2)

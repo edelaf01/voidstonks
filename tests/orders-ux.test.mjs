@@ -12,6 +12,9 @@ import { ORDERS_TEXTS, assertBilingual } from "./_helpers/orders-texts.mjs";
 
 const P = new URL("../deploy/", import.meta.url);
 const src = readFileSync(new URL("js/ui.components/market/ui_orders.js", P), "utf8");
+// La pantalla de "en construcción" vive en su propio módulo: ui_orders.js ya está por
+// encima del techo de 800 líneas y solo puede encoger.
+const wip = readFileSync(new URL("js/ui.components/market/ui_orders_wip.js", P), "utf8");
 
 
 
@@ -91,15 +94,25 @@ test("el detalle sigue diciendo lo esencial", () => {
 test("la pestaña es solo el aviso 'en construcción', sin acceso", () => {
     // Hasta que warframe.market habilite OAuth, la versión web no puede ofrecer esto,
     // así que la pestaña no da forma de entrar: sería ofrecer algo que no funciona.
-    assert.match(src, /function renderUnderConstruction/, "falta el aviso de construcción");
+    assert.match(wip, /export function renderOrdersUnderConstruction/, "falta el aviso de construcción");
 
     const init = src.slice(src.indexOf("export function initOrdersTab"),
                            src.indexOf("export function initOrdersTab") + 260);
-    assert.match(init, /renderUnderConstruction\(\)/, "initOrdersTab debe pintar el aviso");
+    assert.match(init, /renderOrdersUnderConstruction\(root\)/, "initOrdersTab debe pintar el aviso");
     assert.ok(!/loadOrders\(\)|setView\(/.test(init),
         "initOrdersTab no debe abrir la funcionalidad real");
 
     assertBilingual(["wipTitle", "wipText", "wipTooltip"]);
+});
+
+test("el aviso adelanta para qué servirá la pestaña", () => {
+    // Solo el título y el motivo dejaban el viaje hasta la pestaña sin nada a cambio. Estas
+    // cinco cadenas ya existían en los dos idiomas y no las pintaba nadie.
+    assert.match(wip, /t\.tabWhat/, "debe decir qué será la pestaña");
+    for (const cap of ["tabCanSell", "tabCanEdit", "tabCanClose", "tabCanWatch"]) {
+        assert.ok(wip.includes(cap), `falta la capacidad ${cap}`);
+    }
+    assertBilingual(["tabWhat", "tabCanSell", "tabCanEdit", "tabCanClose", "tabCanWatch"]);
 });
 
 test("no quedan restos del toggle de preview", () => {
@@ -113,7 +126,7 @@ test("no quedan restos del toggle de preview", () => {
 
 test("el porqué va en un tooltip, no en un muro de texto", () => {
     // El mensaje visible es corto; el detalle (OAuth de terceros) se lee al pasar el ratón.
-    assert.match(src, /text\.title = t\.wipTooltip/, "el detalle debe ir en el title");
+    assert.match(wip, /text\.title = t\.wipTooltip/, "el detalle debe ir en el title");
     // La pestaña de la barra superior también avisa sin entrar.
     const html = readFileSync(new URL("index.html", P), "utf8");
     assert.match(html, /id="btn-orders"[\s\S]*?data-tooltip=/, "el botón debe llevar tooltip");

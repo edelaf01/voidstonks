@@ -1,7 +1,8 @@
 import { OpenCVRepository } from "../../repositories/opencv.repository.js";
 import { detectInventoryGrid } from "../../utils/vision/grid_detect.js";
 import { offBandComponentIndices } from "../../utils/vision/badge_filters.js";
-import { NAME_TEXT_COLORS, snapToThemeTextColor, nameColorCandidates } from "../../utils/vision/name_color.js";
+import { accentMask } from "../../utils/vision/mission_complete_grid.js";
+import { NAME_TEXT_COLORS, snapToThemeTextColor, bandInkHistogram, rankPageNameColors } from "../../utils/vision/name_color.js";
 // La tabla y el snap viven en utils/, pero varios módulos y tests los importan
 // históricamente desde aquí.
 export { NAME_TEXT_COLORS, snapToThemeTextColor };
@@ -63,9 +64,6 @@ export const WF_THEMES = [
     { name: "High Contrast", r: 255, g: 255, b: 0 },
 ];
 
-// 10% of max Euclidean distance (sqrt(3)*255 ≈ 441): (441*0.10)^2 ≈ 1944
-// This accounts for JPEG compression and anti-aliasing on real screenshots.
-const THEME_TOL_SQ = 1944;
 
 // Histograma de color cuantizado (clave de 15 bits ⇒ 32768 cubetas) reutilizado entre
 // llamadas. Con un Map costaba 6,4 ms por celda y con el typed array 1,1 ms: son ~95 ms
@@ -95,15 +93,12 @@ export const VisionService = {
     // Shared canvases 
     _sharedCvs: document.createElement("canvas"),
     _themeCvs: document.createElement("canvas"),
-    _filterCvs: document.createElement("canvas"),
-    _textCvs: document.createElement("canvas"),
     _tempBadgeCvs: document.createElement("canvas"),
     _badgeCvs: document.createElement("canvas"),
     _relicSelectionCvs: document.createElement("canvas"),
     _rewardCvs: document.createElement("canvas"),
     _rewardNamesCvs: document.createElement("canvas"),
     _rivenCvs: document.createElement("canvas"),
-    _inventoryCvs: document.createElement("canvas"),
     /**
      * Generates a simple hash of a frame to detect stability.
      */
@@ -209,6 +204,108 @@ export const VisionService = {
         ctx.drawImage(video, 0, 0, hCropW, hCropH, 0, 0, canvas.width, canvas.height);
 
         return { width, height, scale };
+    },
+
+    /**
+     * Recorte del título CENTRADO, para las pantallas que no lo ponen arriba a la izquierda.
+     *
+     * MISSION COMPLETE es la única así por ahora, y con el recorte normal (45 % izquierdo) el
+     * OCR devuelve "WARFRAME MIS": el título empieza pasado ese borde. Con 28–72 % se lee
+     * entero y limpio con cualquier psm.
+     */
+    prepareCenterHeaderCanvas(video, canvas) {
+        const width = video.videoWidth;
+        const height = video.videoHeight;
+        const scale = 1080 / height;
+
+        const sx = Math.floor(width * 0.28);
+        const sw = Math.floor(width * 0.44);
+        const sh = Math.floor(height * 0.12);
+
+        canvas.width = Math.floor(sw * scale);
+        canvas.height = Math.floor(sh * scale);
+
+        const ctx = canvas.getContext("2d", { willReadFrequently: true });
+        ctx.drawImage(video, sx, 0, sw, sh, 0, 0, canvas.width, canvas.height);
+
+        return { width, height, scale };
+    },
+
+    /**
+     * Recorta una casilla de MISSION COMPLETE dejando SOLO el texto del color del tema.
+     *
+     * En gris el nombre se funde con el arte del icono: las dos primeras líneas de
+     * "Revenant Prime Neuroptics Blueprint" caen encima del casco y el OCR devolvía solo
+     * "Neuroptics Blueprint". Con la máscara del color del tema sale el nombre entero.
+     *
+     * El arte del icono es gris/azul y los nombres de los MODS son blancos, así que ninguno
+     * de los dos entra en la máscara — un mod no puede confundirse con una pieza.
+     */
+    prepareMissionCompleteCellCanvas(frame, cell, accent, canvas) {
+        const fCtx = frame.getContext("2d", { willReadFrequently: true });
+        const cellImg = fCtx.getImageData(cell.x, cell.y, cell.w, cell.h);
+        const { mask } = accentMask(cellImg, accent, { x: 0, y: 0, w: cell.w, h: cell.h });
+
+        if (!this._mcMaskCvs) this._mcMaskCvs = document.createElement("canvas");
+        const small = this._mcMaskCvs;
+        small.width = cell.w; small.height = cell.h;
+        const sCtx = small.getContext("2d", { willReadFrequently: true });
+        const out = sCtx.createImageData(cell.w, cell.h);
+        for (let i = 0; i < mask.length; i++) {
+            const v = mask[i] ? 0 : 255; // texto NEGRO sobre blanco: lo que espera Tesseract
+            out.data[i * 4] = out.data[i * 4 + 1] = out.data[i * 4 + 2] = v;
+            out.data[i * 4 + 3] = 255;
+        }
+        sCtx.putImageData(out, 0, 0);
+
+        // Ampliar hasta ~360 px de lado: el OCR pierde los nombres a 2-3 líneas cuando la
+        // celda llega pequeña (a 720p la casilla mide 120 px).
+        const k = Math.max(2, Math.round(360 / Math.max(1, cell.w)));
+        canvas.width = cell.w * k;
+        canvas.height = cell.h * k;
+        const ctx = canvas.getContext("2d", { willReadFrequently: true });
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = "high";
+        ctx.drawImage(small, 0, 0, canvas.width, canvas.height);
+        return canvas;
+    },
+
+    /**
+     * Recorte para OCR de una zona del frame en escala de grises invertida.
+     *
+     * A diferencia del header y de las recompensas, aquí NO se binariza: el panel de
+     * escuadra y el menú de pausa son texto claro sobre un panel oscuro traslúcido, con
+     * contraste de sobra. Umbralizar solo añadía una forma de perderlo cuando el arte de
+     * fondo se cuela por la transparencia.
+     *
+     * `zoom` va sobre la normalización a 1080 de alto que usa todo el escáner: el texto
+     * del panel es pequeño y necesita 1.5×, mientras que el del menú es enorme y a 0.5×
+     * se lee igual por un tercio del tiempo de OCR.
+     *
+     * El canvas se cachea por `cacheKey` aquí dentro para que quien llame no tenga que
+     * tocar el DOM: services/ no puede (lo comprueba tests/architecture.test.mjs).
+     */
+    _cropCvs: {},
+
+    prepareCropForOCR(video, crop, zoom, cacheKey) {
+        const canvas = this._cropCvs[cacheKey] ||= document.createElement("canvas");
+        const width = video.videoWidth;
+        const height = video.videoHeight;
+        const scale = (1080 / height) * zoom;
+
+        const sx = Math.floor(width * crop.x);
+        const sy = Math.floor(height * crop.y);
+        const sw = Math.floor(width * crop.w);
+        const sh = Math.floor(height * crop.h);
+
+        canvas.width = Math.max(1, Math.floor(sw * scale));
+        canvas.height = Math.max(1, Math.floor(sh * scale));
+
+        const ctx = canvas.getContext("2d", { willReadFrequently: true });
+        ctx.filter = "grayscale(100%) invert(100%)";
+        ctx.drawImage(video, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+        ctx.filter = "none";
+        return canvas;
     },
 
     // Detección de tema + umbralizado del header, SEPARADOS del draw: solo hace falta pagarlos
@@ -332,54 +429,7 @@ export const VisionService = {
         return result;
     },
 
-    /**
-     * Creates a binarized OCR canvas for inventory scanning.
-     * Uses grayscale+high contrast then inverts: bright text -> black, dark background -> white.
-     */
-    createFilteredOcrCanvas(snapshot, width, height, grid) {
-        const cvs = this._filterCvs;
-        cvs.width = width; cvs.height = height;
-        const ctx = cvs.getContext("2d", { willReadFrequently: true });
 
-        ctx.filter = "grayscale(100%) contrast(400%) brightness(1.3)";
-        ctx.drawImage(snapshot, 0, 0);
-        ctx.filter = "none";
-
-        // Invert: bright=text -> black(0), dark=background -> white(255)
-        const imgData = ctx.getImageData(0, 0, width, height);
-        const px = imgData.data;
-        for (let i = 0; i < px.length; i += 4) {
-            const v = px[i] > 128 ? 0 : 255;
-            px[i] = px[i + 1] = px[i + 2] = v;
-        }
-        ctx.putImageData(imgData, 0, 0);
-        return cvs;
-    },
-
-    /** Draws inventory area (original colors) and returns theme pixel mask + source canvas. */
-    buildThemeMask(video, width, height, scale) {
-        const cropY = Math.floor(height * 0.12);
-        const cropH = Math.floor(height * 0.78);
-        const cropW = Math.floor(width * 0.74);
-        const targetW = Math.floor(cropW * scale);
-        const targetH = Math.floor(cropH * scale);
-
-        const cvs = this._inventoryCvs;
-        cvs.width = targetW; cvs.height = targetH;
-        const ctx = cvs.getContext("2d", { willReadFrequently: true });
-        ctx.drawImage(video, 0, cropY, cropW, cropH, 0, 0, targetW, targetH);
-
-        const { data: px } = ctx.getImageData(0, 0, targetW, targetH);
-        const mask = new Uint8Array(targetW * targetH);
-        for (let i = 0; i < mask.length; i++) {
-            const r = px[i * 4], g = px[i * 4 + 1], b = px[i * 4 + 2];
-            for (const t of WF_THEMES) {
-                const dr = r - t.r, dg = g - t.g, db = b - t.b;
-                if (dr * dr + dg * dg + db * db < THEME_TOL_SQ) { mask[i] = 1; break; }
-            }
-        }
-        return { sourceCvs: cvs, mask, maskW: targetW, maskH: targetH };
-    },
 
     /** Find rows/cols of inventory items from theme pixel density projections. */
     detectInventoryGrid(mask, maskW, maskH) {
@@ -693,7 +743,15 @@ export const VisionService = {
         // llamada. Igual que COLOR_HIST, esto es seguro porque la función es síncrona.
         const label = scratchLabels(N);
         const stack = scratchStack(N);
-        const H_TEXT = Math.max(16, Math.round(h * 0.20)); // alto mínimo para "texto"
+        // Listón de "es texto" sobre el alto del RECORTE, que lleva 1, 2 o 3 líneas: a 3x
+        // una letra mide 45-68 px de 426 (11-16%) y una mancha de compresión no pasa de 7.
+        // Estuvo en 0.20 (85 px), por ENCIMA de cualquier letra: `texts` salía vacío, el
+        // filtro no borraba nada y el nombre se salvaba de milagro. En cuanto un trazo
+        // puenteaba dos líneas, ese churro sí pasaba de 85, se quedaba de único "texto" y
+        // borraba el resto: "Akjagara Prime Blueprint" → "g lu", "Gyre Prime" → "Gy B". Qué
+        // trazos se tocan depende del reescalado del stream, así que cada pasada rompía
+        // celdas distintas.
+        const H_TEXT = Math.max(12, Math.round(h * 0.06));
         const NEAR_Y = Math.round(h * 0.12);
         const comps = []; // { minX, maxX, minY, maxY, isText }
         for (let p = 0; p < N; p++) {
@@ -773,18 +831,25 @@ export const VisionService = {
     },
 
     /**
-     * Colores candidatos a texto del nombre en la banda de una celda. Recorta igual
-     * que cropThemeBinarized (mismo 3x y mismo suavizado, para que los candidatos
-     * salgan de los MISMOS píxeles que luego se van a binarizar) y delega la medida.
+     * Candidatos a color de nombre de una PÁGINA entera, votados por sus celdas
+     * (ver rankPageNameColors). Mide todas las celdas: es lo que rompe el empate
+     * arte/nombre que dentro de una sola celda se decide a suerte.
      */
-    nameBandColorCandidates(sourceCvs, sx, sy, sw, sh, max) {
+    pageNameColorCandidates(sourceCvs, cells, cellW, sy, sh, max) {
+        const histograms = cells.map(cell =>
+            bandInkHistogram(this._nameBandImageData(sourceCvs, cell.sx, cell.sy + sy, cellW, sh)));
+        return rankPageNameColors(histograms, max);
+    },
+
+    // Recorta igual que cropThemeBinarized (mismo 3x y mismo suavizado) para que los
+    // colores se midan sobre los MISMOS píxeles que luego se van a binarizar.
+    _nameBandImageData(sourceCvs, sx, sy, sw, sh) {
         const S = 3;
-        const cvs = document.createElement("canvas");
-        cvs.width = sw * S; cvs.height = sh * S;
+        const cvs = this._ringCanvas(sw * S, sh * S);
         const ctx = cvs.getContext("2d", { willReadFrequently: true });
         ctx.imageSmoothingEnabled = true;
         ctx.drawImage(sourceCvs, sx, sy, sw, sh, 0, 0, cvs.width, cvs.height);
-        return nameColorCandidates(ctx.getImageData(0, 0, cvs.width, cvs.height), max);
+        return ctx.getImageData(0, 0, cvs.width, cvs.height);
     },
 
     /** Crop badge region, apply grayscale+contrast+inversion, scale 3x for digit OCR. */
@@ -807,103 +872,9 @@ export const VisionService = {
         return cvs;
     },
 
-    createTextCanvas(ocrCanvas, cell, grid) {
-        const TEXT_SCALE = 3;
-        // Ahora que el grid se ancla con precisión al techo físico de la tarjeta (0%),
-        // el nombre de 1 o 2 líneas vive estrictamente en la franja inferior de la placa (76% al 97%).
-        // Empezar en 76% elimina por completo las puntas inferiores de las armas 3D (Akarius, Akbronco, Afuris)
-        // que cuelgan hasta el 72%-75% y provocaban que Tesseract empastara la 'AK'/'A' inicial (generando 'ROLO', 'RANC', 'AGARI').
-        const textSrcY = Math.floor(grid.cellH * 0.76);
-        const textSrcH = Math.floor(grid.cellH * 0.21);
-        const textCvs = this._textCvs;
-        textCvs.width = grid.cellW * TEXT_SCALE;
-        textCvs.height = textSrcH * TEXT_SCALE;
-        const tCtx = textCvs.getContext('2d');
-        tCtx.imageSmoothingEnabled = false;
-        tCtx.drawImage(ocrCanvas, cell.sx, cell.sy + textSrcY, grid.cellW, textSrcH, 0, 0, textCvs.width, textCvs.height);
-        return textCvs;
-    },
 
-    createBadgeCanvas(snapshot, cell, grid) {
-        // Skip the far-left tick by shifting the crop X offset by 10% of cell width
-        const bdgOffsetX = Math.floor(grid.cellW * 0.10);
-        const copyW = Math.floor(grid.cellW * 0.22);
 
-        const badgeH = Math.floor(grid.cellH * 0.11);
-        const BADGE_SCALE = 3;
 
-        const tempCvs = this._tempBadgeCvs;
-        tempCvs.width = copyW; tempCvs.height = badgeH;
-        const tCtx = tempCvs.getContext('2d');
-        tCtx.drawImage(snapshot, cell.sx + bdgOffsetX, cell.sy, copyW, badgeH, 0, 0, copyW, badgeH);
-
-        // Simplified Clustering ported from scanner_vision.js
-        this.applyClusteringToBadge(tCtx, copyW, badgeH);
-
-        const badgeCvs = this._badgeCvs;
-        badgeCvs.width = copyW * BADGE_SCALE;
-        badgeCvs.height = badgeH * BADGE_SCALE;
-        const bCtx = badgeCvs.getContext('2d');
-        bCtx.imageSmoothingEnabled = false;
-        bCtx.drawImage(tempCvs, 0, 0, copyW, badgeH, 0, 0, badgeCvs.width, badgeCvs.height);
-        return badgeCvs;
-    },
-
-    applyThemeToBadge(ctx, w, h, theme) {
-        const imgData = ctx.getImageData(0, 0, w, h);
-        const px = imgData.data;
-
-        const targetThemes = theme ? [theme] : WF_THEMES;
-        const tolSq = theme ? 55 * 55 : 45 * 45;
-
-        for (let i = 0; i < px.length; i += 4) {
-            const r = px[i], g = px[i + 1], b = px[i + 2];
-            const luma = 0.299 * r + 0.587 * g + 0.114 * b;
-            let isBadge = false;
-
-            for (const t of targetThemes) {
-                const dr = r - t.r, dg = g - t.g, db = b - t.b;
-                if (dr * dr + dg * dg + db * db < tolSq) {
-                    isBadge = true;
-                    break;
-                }
-                if (t.actualR !== undefined) {
-                    const dar = r - t.actualR, dag = g - t.actualG, dab = b - t.actualB;
-                    if (dar * dar + dag * dag + dab * dab < tolSq) {
-                        isBadge = true;
-                        break;
-                    }
-                }
-            }
-
-            if (luma > 165) {
-                isBadge = true;
-            }
-
-            px[i] = px[i + 1] = px[i + 2] = isBadge ? 0 : 255;
-        }
-        ctx.putImageData(imgData, 0, 0);
-    },
-
-    applyClusteringToBadge(ctx, w, h) {
-        const imgData = ctx.getImageData(0, 0, w, h);
-        const px = imgData.data;
-        
-        let maxL = 0;
-        for (let i = 0; i < px.length; i += 4) {
-            const l = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
-            if (l > maxL) maxL = l;
-        }
-        
-        // Dynamic adaptive threshold based on peak luminance (55% of maximum, minimum 50)
-        const thresh = Math.max(50, maxL * 0.55);
-        
-        for (let i = 0; i < px.length; i += 4) {
-            const l = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
-            px[i] = px[i + 1] = px[i + 2] = (l >= thresh) ? 0 : 255;
-        }
-        ctx.putImageData(imgData, 0, 0);
-    },
 
     applyClusteringThreshold(ctx, w, h, theme) {
         const imgData = ctx.getImageData(0, 0, w, h);
@@ -1495,6 +1466,10 @@ export const VisionService = {
         // (la pantalla de venta de prime parts, que NO debe enrutar a rivens).
         const hasMods = /MODS|MOD|M0DS|MOOS|MDDS|MDS|M0D5|M0D|MOO|MD|FICADORES|AGRIETADO|KUVA|KUYVA|CICLO|CICLAR|ATRIBU/.test(text) ||
             /\/\s*[MNHW][O0DQC][DO0B][S5$]/.test(text);
+
+        // Va ANTES que el resto porque su recorte es otro (el título centrado) y no comparte
+        // vocabulario con ninguna: si llega aquí "MISSION COMPLETE", no puede ser otra cosa.
+        if (/M[I1L]SS?[I1L]ON\s*C[O0Q]MP|MIS[I1L][OÓ]N\s*C[O0Q]MPLET/.test(text)) return "MISSION_COMPLETE";
 
         if (/DETAIL|DETALL/.test(text)) return "ITEM_DETAILS"; // popup "Item Details" (riven linkeado, centrado)
         if (hasMods) return "INVENTORY_MODS";

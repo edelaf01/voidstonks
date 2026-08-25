@@ -114,3 +114,29 @@ export function createTip({ text, icon = "👆", storageKey = "", variant = "" }
 
   return tip;
 }
+
+/**
+ * Secciones de guide.html por pestaña. Farms y LFG comparten una; las que no tienen
+ * capítulo propio caen en "context", que es el general.
+ */
+const GUIDE_SECTION = {
+  relic: "relic", set: "set", riven: "riven",
+  bounties: "farms", lfg: "farms",
+  vosfor: "vosfor", ducat: "ducat",
+  orders: "context", eelog: "context",
+};
+
+/**
+ * Apunta el "Cómo usar VoidStonks" de la cabecera al capítulo de la pestaña activa.
+ *
+ * La guía cubre las siete áreas y tiene ancla por sección, pero solo se enlazaba a su
+ * principio desde la cabecera y el pie: nunca desde la pestaña en la que uno se pierde.
+ * El prefijo del ancla depende del idioma porque guide.html lleva las dos versiones en la
+ * misma página ("g-" la inglesa, "e-" la española) y esconde la que no toca.
+ */
+export function updateGuideLink(tab, lang) {
+  const cta = document.getElementById("txt-header-guide-cta");
+  if (!cta) return;
+  const seccion = GUIDE_SECTION[tab] || "context";
+  cta.href = `guide.html#${lang === "es" ? "e" : "g"}-${seccion}`;
+}

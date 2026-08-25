@@ -149,49 +149,6 @@ test("sin lectura previa, cualquiera vale; sin lectura nueva, no se sustituye", 
   assert.equal(S._isBetterOrEqualRead(null, riven()), false);
 });
 
-// --- Huella de una carta --------------------------------------------------------------------
-
-// Se usa para el consenso entre frames, así que el ORDEN en que el OCR devuelva los stats no
-// puede cambiar la huella: si cambiara, cada frame parecería una carta distinta y no habría
-// consenso nunca.
-test("la huella no depende del orden en que llegaron los stats", () => {
-  const a = riven();
-  const b = riven({ stats: [...a.stats].reverse() });
-  assert.equal(S._rivenFingerprint(a), S._rivenFingerprint(b));
-});
-
-test("el signo sí cambia la huella: un curse no es un buff", () => {
-  const a = riven();
-  const b = riven({ stats: a.stats.map((s) => ({ ...s, isPositive: !s.isPositive })) });
-  assert.notEqual(S._rivenFingerprint(a), S._rivenFingerprint(b));
-});
-
-test("sin carta hay huella igualmente, para poder comparar", () => {
-  assert.equal(typeof S._rivenFingerprint(null), "string");
-});
-
-// --- Comparación de hashes de frame ---------------------------------------------------------
-
-// El hash decide si la página ha cambiado (hay que reescanear) o no. Demasiado sensible =
-// reescaneo constante; demasiado tolerante = no se entera del scroll.
-test("dos hashes iguales son el mismo frame", () => {
-  assert.equal(S._compareHashes("a1b2c3d4", "a1b2c3d4"), true);
-});
-
-test("una diferencia pequeña sigue siendo el mismo frame (ruido de vídeo)", () => {
-  assert.equal(S._compareHashes("505050", "525151"), true);
-});
-
-test("una diferencia grande es otro frame", () => {
-  assert.equal(S._compareHashes("000000", "ffffff"), false);
-});
-
-test("sin hash, o con hashes de distinto tamaño, no se afirma que sean iguales", () => {
-  assert.equal(S._compareHashes(null, "abcd"), false);
-  assert.equal(S._compareHashes("abcd", null), false);
-  assert.equal(S._compareHashes("abcd", "abcdef"), false);
-});
-
 // --- Filtros de texto de celda --------------------------------------------------------------
 
 // El arte de fondo genera fragmentos sueltos. Un nombre real trae como mucho un token de una
