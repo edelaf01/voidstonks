@@ -16,6 +16,7 @@ let fissureLoadPromise = null;
 globalThis._serverTimeOffset = globalThis._serverTimeOffset || 0;
 import {
   fetchBestFissures,
+  countHiddenFissures,
   fetchArbitration,
   getFissurePrefs,
   saveFissurePrefs,
@@ -304,7 +305,7 @@ function buildFissurePanelShell(missionDiv) {
 
   missionDiv.innerHTML = `
       <div id="mission-toggle-btn" class="mission-toggle-btn">
-         <img src="assets/fissureicon.webp" class="toggle-img" alt="Fisuras">
+         <img id="img-fissure-toggle" src="assets/fissureicon.webp" class="toggle-img" alt="${t.lblFissures || "Fisuras Activas"}">
       </div>
 
       <div class="panel-main-header" id="fissure-panel-header" style="cursor:pointer;">
@@ -652,6 +653,11 @@ async function renderMissionList(forceRefetch = false) {
   }
 
   allMissions = validMissions;
+
+  const ocultas = await countHiddenFissures(syncedNow);
+  const fBtn = document.getElementById("fissure-filters-toggle");
+  if (fBtn) Object.assign(fBtn.dataset, { hidden: ocultas > 0 ? String(ocultas) : "",
+    tooltip: ocultas > 0 ? (t.fissurePrefs?.hiddenCount || "{n}").replace("{n}", String(ocultas)) : "" });
 
   const tiersOrder = ["Lith", "Meso", "Neo", "Axi", "Requiem", "Omnia"];
   const tiersData = {

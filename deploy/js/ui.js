@@ -19,6 +19,7 @@ import {
   manualRelicUpdate,
   updateRelicTotal,
   generateMessage,
+  updateProfitLabel,
 } from "./ui.components/inventory/ui_relics.js";
 import { initSetSearchHelp } from "./ui.components/inventory/ui_sets.js?v=2.0";
 import { renderSetTracker } from "./ui.components/inventory/ui_set_tracker.js";
@@ -31,12 +32,15 @@ import { initVosforTab, renderVosforTab } from "./ui.components/ui_vosfor.js?v=2
 import { initSyncPanel } from "./ui.components/market/ui_sync.js";
 import { initFissurePanel, updateRecommendedMissions } from "./ui.components/farms/ui_fissures.js?v=1.1";
 import { exposeGlobals } from "./utils/global_registry.js";
-import { state, saveAppState, updateInventoryCount } from "./state.js";
+import { readTabHash, writeTabHash, onTabHashChange } from "./utils/tab_hash.js";
+import { updateGuideLink } from "./ui.components/ui_hints.js";
+import { state, saveAppState, updateInventoryCount, TABS } from "./state.js";
 import { renderFarmsTab } from "./ui.components/farms/ui_farms.js";
 import { renderFarmRoutes } from "./ui.components/farms/ui_farm_routes.js";
 import { renderInventory, updateInventoryPanelLabels } from "./ui.components/inventory/ui_inventory.js";
 import { renderPrimeInventory } from "./ui.components/inventory/ui_prime_inventory.js";
 import { ScannerHUD } from "./ui.components/ui_scanner_hud.js";
+import { updateScannerLabels } from "./ui.components/ui_scanner_labels.js";
 import { ScannerModal } from "./ui.components/ui_scanner_modal.js";
 globalThis.TEXTS = TEXTS;
 
@@ -55,32 +59,7 @@ export function finishLoading() {
   if (state.selectedRelic) manualRelicUpdate();
 }
 
-export function switchTab(mode) {
-  state.activeTab = mode;
-  saveAppState();
-  document
-    .querySelectorAll(".tab-btn")
-    .forEach((b) => b.classList.remove("active"));
-  const btn = document.getElementById("btn-" + mode);
-  if (btn) btn.classList.add("active");
-
-  const mainCard = document.getElementById("main-card");
-  if (mainCard) {
-    mainCard.className = "card";
-    mainCard.classList.add(`theme-${mode}`);
-  }
-
-  document.body.className = document.body.className
-    .replace(/\btheme-\S+/g, "")
-    .trim();
-  document.body.classList.add(`theme-${mode}`);
-
-  if (mode === "bounties" && mainCard) mainCard.classList.add("theme-bounties");
-  ["relic", "set", "riven", "lfg", "bounties", "vosfor", "ducat", "eelog", "orders"].forEach((m) => {
-    document.getElementById("mode-" + m)?.classList.add("hidden");
-  });
-  document.getElementById("mode-" + mode)?.classList.remove("hidden");
-
+function initTabContent(mode) {
   if (mode === "riven") {
     if (typeof initRivenMarketIndex === "function") {
       initRivenMarketIndex().catch(console.error);
@@ -99,7 +78,62 @@ export function switchTab(mode) {
     if (typeof globalThis.renderDucanatorTab === "function") globalThis.renderDucanatorTab();
   } else if (mode === "orders") {
     if (typeof globalThis.initOrdersTab === "function") globalThis.initOrdersTab();
+  } else if (mode === "bounties") {
+    renderFarmsTab();
   }
+}
+
+export function refreshActiveTab() {
+  initTabContent(state.activeTab);
+}
+
+let navegandoPorHistorial = false;
+
+export function tabFromUrl() {
+  return readTabHash(TABS);
+}
+
+export function initTabRouting() {
+  onTabHashChange(TABS, (mode) => {
+    if (mode === state.activeTab) return;
+    navegandoPorHistorial = true;
+    try {
+      switchTab(mode);
+    } finally {
+      navegandoPorHistorial = false;
+    }
+  });
+}
+
+export function switchTab(mode) {
+  state.activeTab = mode;
+  saveAppState();
+  if (!navegandoPorHistorial) writeTabHash(mode);
+  updateGuideLink(mode, state.currentLang);
+  document
+    .querySelectorAll(".tab-btn")
+    .forEach((b) => b.classList.remove("active"));
+  const btn = document.getElementById("btn-" + mode);
+  if (btn) btn.classList.add("active");
+
+  const mainCard = document.getElementById("main-card");
+  if (mainCard) {
+    mainCard.className = "card";
+    mainCard.classList.add(`theme-${mode}`);
+  }
+
+  document.body.className = document.body.className
+    .replace(/\btheme-\S+/g, "")
+    .trim();
+  document.body.classList.add(`theme-${mode}`);
+
+  if (mode === "bounties" && mainCard) mainCard.classList.add("theme-bounties");
+  TABS.forEach((m) => {
+    document.getElementById("mode-" + m)?.classList.add("hidden");
+  });
+  document.getElementById("mode-" + mode)?.classList.remove("hidden");
+
+  initTabContent(mode);
 
   const footer = document.getElementById("footer-relic");
   const msgText = document.getElementById("finalMessage");
@@ -129,8 +163,7 @@ export function switchTab(mode) {
     }
   }
   if (mode === "bounties") {
-    renderFarmsTab();
-    document.querySelector(".card").classList.add("theme-bounties");
+    document.querySelector(".card")?.classList.add("theme-bounties");
   } else {
     const card = document.querySelector(".card");
     if (card) card.classList.remove("theme-bounties");
@@ -138,11 +171,6 @@ export function switchTab(mode) {
   const resultsPanel = document.getElementById("scanned-results-panel");
   if (resultsPanel) {
     resultsPanel.classList.add("hidden");
-  }
-  const overlay = document.getElementById("ocr-overlay");
-  if (overlay && !overlay.classList.contains("hidden")) {
-    overlay.classList.add("hidden");
-    if (globalThis.closeScanner) globalThis.closeScanner();
   }
   if (mode === "lfg") updateLFGUI();
   else generateMessage();
@@ -157,6 +185,11 @@ export function changeLanguage(langCode) {
 const setText = (id, text) => {
   const el = document.getElementById(id);
   if (el && text) el.innerText = text;
+};
+
+const setTooltip = (id, text) => {
+  const el = document.getElementById(id);
+  if (el && text) el.dataset.tooltip = text;
 };
 
 const setTab = (id, text, tip) => {
@@ -184,7 +217,7 @@ function updateNavTabs(t) {
   setTab("btn-bounties", t.menuBounties || "Farms", t.tooltips.tabBounties);
   setTab("btn-vosfor", t.vosfor?.tabName || "Vosfor", t.vosfor?.tabTip);
   setTab("btn-ducat", t.ducanator?.tabTitle || "Ducanator", t.ducanator?.desc);
-  setText("tab-orders-text", t.menuOrders || "Mis órdenes");
+  setText("tab-orders-text", t.menuOrders || "Órdenes");
   setText("tab-more-text", t.menuMore || "Más");
   updateDucatFilterLabels(t);
 }
@@ -194,6 +227,8 @@ function updateDucatFilterLabels(t) {
   setText("ducat-desc", d.desc);
   setPlaceholder("ducat-search", d.searchPlaceholder);
   setText("ducat-owned-label", d.ownedOnly);
+  const ownedChip = document.getElementById("ducat-owned-chip");
+  if (ownedChip && d.ownedOnlyTitle) ownedChip.dataset.tooltip = d.ownedOnlyTitle;
   setText("ducat-threshold-label", d.threshold);
 }
 
@@ -218,11 +253,13 @@ function updateStaticTexts(t) {
 
   setText("lbl-relic-name", t.lblRelic);
   setText("lbl-missing", t.lblMiss);
-  setText("lbl-profit", t.lblProfit);
+  setText("lbl-squad", t.lblSquad);
+  updateProfitLabel();
+  setTooltip("lbl-squad", t.lblSquadHelp);
+  setTooltip("lbl-missing", t.lblMissHelp);
   setText("lbl-search-item", t.lblItem);
   initSetSearchHelp();
   setText("lbl-riven-weapon", t.lblRivenW);
-  setText("lbl-riven-stats", t.lblRivenS);
   const btnDir = document.getElementById("btn-index-sort-dir");
   if (btnDir) {
     const pintaDir = () => {
@@ -242,6 +279,8 @@ function updateStaticTexts(t) {
   setText("btn-riven-search", t.rivenSearch);
   setText("btn-riven-grade", t.rivenGradeBtn);
   setText("grading-modal-title", t.rivenGradeTitle);
+  setText("btn-add-pos", t.rivenAddPos);
+  setText("btn-add-neg", t.rivenAddNeg);
   setText("lbl-grading-variants", t.rivenGradeVariants);
   setText("riven-web-orders-label", t.rivenWebOrders);
 
@@ -249,9 +288,6 @@ function updateStaticTexts(t) {
   setText("txt-weapon-guide", t.lblWeaponGuide);
   setText("txt-variants-header", t.rivenIndex?.variantsLabel || "VARIANTS");
 
-  setText("lbl-riven-median-price", t.lblRivenMedian);
-  setText("lbl-riven-low-price", t.lblRivenLow);
-  setText("lbl-riven-high-price", t.lblRivenHigh);
 
   setText("lbl-lfg-activity", t.lblLfgActivity);
   setText("lbl-lfg-players", t.lblLfgPlayers);
@@ -315,17 +351,9 @@ function updateSelectDropdowns(t) {
   };
 
   updateOptions("refinement", t.refs);
+  updateOptions("squadSize", t.squads);
   updateOptions("prime-inv-sort", t.inventory?.primeSort);
 
-  const relicSortSelect = document.getElementById("inv-sort");
-  if (relicSortSelect && t.inventory?.sort) {
-    Array.from(relicSortSelect.options).forEach((opt) => {
-      const key = opt.value;
-      if (key === "plat_intact") opt.innerText = t.inventory.sort.valIntact;
-      else if (key === "plat_rad") opt.innerText = t.inventory.sort.valRad;
-      else if (t.inventory.sort[key]) opt.innerText = t.inventory.sort[key];
-    });
-  }
 
   document.querySelectorAll("#lfgDropdown .dropdown-item[data-lfg]").forEach((item) => {
     const label = t.lfgOpts?.[item.dataset.lfg];
@@ -356,64 +384,6 @@ function updateRivenSelects(t) {
   });
 }
 
-function updateScannerAndCalib(t) {
-  const sh = t.scannerHUD;
-  if (sh) {
-    setText("hud-title", sh.title);
-    setText("hud-context-badge", sh.statusIdle);
-    setText("btn-debug-toggle", sh.btnDebug);
-    setText("btn-manual-scan", sh.btnScan);
-    setText("btn-save-inv", sh.btnSave);
-    setText("btn-recalibrate", sh.btnRecalibrate);
-    setText("btn-open-grid-editor", sh.btnEditCells);
-    setText("edit-mode-title", sh.editTitle);
-    setText("edit-mode-guide", sh.editGuide);
-    setText("btn-edit-done", sh.btnDone);
-    setText("lbl-ocr-debug", sh.lblDebugSnapshot);
-    setText("btn-copy-debug-log", sh.btnCopyLog);
-    setText("lbl-detected-items", sh.lblDetected);
-    setText("lbl-scan-empty-state", sh.lblEmpty);
-
-    setText("btn-auto-scan", sh.btnAutoScan);
-    setText("btn-reset-grid", sh.btnResetGrid);
-    setText("lbl-rewards-diagnostics", sh.lblDiagnostics);
-    setText("hud-scan-counter", "");
-
-    const setTitle = (id, text) => {
-      const el = document.getElementById(id);
-      if (el && text) {
-        el.title = text;
-        el.setAttribute("aria-label", text);
-      }
-    };
-    setTitle("btn-debug-toggle", sh.titleDebug);
-    setTitle("btn-auto-scan", sh.titleAutoScan);
-    setTitle("btn-clear-session", sh.titleClearSession);
-    setTitle("btn-open-grid-editor", sh.titleEditCells);
-    setTitle("btn-reset-grid", sh.titleResetGrid);
-  }
-
-  const histLabel = document.querySelector("#btn-scan-history .history-btn-label");
-  if (histLabel && t.history?.btnLabel) {
-    histLabel.innerText = t.history.btnLabel;
-  }
-
-  const histTitle = document.querySelector("#scan-history-dropdown .scan-history-title");
-  if (histTitle && t.history?.title) {
-    histTitle.innerText = t.history.title;
-  }
-
-  const histClear = document.querySelector("#scan-history-dropdown .scan-history-clear-btn");
-  if (histClear && t.history?.btnClearTooltip) {
-    histClear.title = t.history.btnClearTooltip;
-  }
-
-  const ct = t.calib;
-  if (ct) {
-    setText("lbl-calib-title", ct.title);
-    setText("btn-calib-skip", ct.btnSkip);
-  }
-}
 
 function triggerSideEffects(t) {
   populateRivenSelects();
@@ -421,7 +391,7 @@ function triggerSideEffects(t) {
   const modeLfg = document.getElementById("mode-lfg");
   if (modeLfg && !modeLfg.classList.contains("hidden")) updateLFGUI();
 
-  if (state.currentActiveSet) renderSetTracker();
+  renderSetTracker();
   if (state.activeTab === "bounties") renderFarmsTab();
 
   const relicInput = document.getElementById("relicInput");
@@ -464,11 +434,12 @@ export function updateUILabels() {
   if (!t) return;
 
   updateNavTabs(t);
+  updateGuideLink(state.activeTab, state.currentLang);
   updateStaticTexts(t);
   updateInputsAndContent(t);
   updateSelectDropdowns(t);
   updateRivenSelects(t);
-  updateScannerAndCalib(t);
+  updateScannerLabels(t);
   if (typeof updateIndexTranslations === "function") {
     updateIndexTranslations();
     if (state.rivenIndexData) {
@@ -494,13 +465,16 @@ function resetLoadingStyle(element) {
 
 export function toggleLangDropdown() {
   const list = document.getElementById("langOptionsList");
-  if (list) list.classList.toggle("hidden");
+  if (!list) return;
+  const abierto = !list.classList.toggle("hidden");
+  document.getElementById("langTrigger")?.setAttribute("aria-expanded", String(abierto));
 }
 
 export function setLanguageManual(langCode) {
   changeLanguage(langCode);
   updateLangButtonVisuals(langCode);
   document.getElementById("langOptionsList").classList.add("hidden");
+  document.getElementById("langTrigger")?.setAttribute("aria-expanded", "false");
 }
 
 function updateLangButtonVisuals(lang) {
@@ -520,6 +494,7 @@ export function bindInputsToState() {
   const listen = (id, prop) => {
     const el = document.getElementById(id);
     if (!el) return;
+    if (el.value !== "") state[prop] = el.value;
     el.addEventListener("change", (e) => {
       state[prop] = e.target.value;
       saveAppState();
@@ -538,6 +513,13 @@ export function bindInputsToState() {
 
 export function setupGlobalClickListeners() {
   bindInputsToState();
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    const fondos = [...document.querySelectorAll(".modal-backdrop[onclick]")]
+      .filter((f) => f.getClientRects().length > 0);
+    fondos.at(-1)?.click();
+  });
   document.addEventListener("click", (e) => {
     const target = e.target;
 

@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { rivenFingerprint } from "../deploy/js/utils/rivens/riven_naming.js";
 
 globalThis.localStorage = { getItem: () => null, setItem() {}, removeItem() {} };
 
@@ -126,3 +127,30 @@ test("el escáner y la tarjeta comparten la misma tabla", async () => {
       `${f} vuelve a tener su propia copia de la tabla`);
   }
 });
+
+const riven = (over = {}) => ({
+  weaponName: "Kuva Bramma",
+  stats: [
+    { name: "Critical Chance", isPositive: true },
+    { name: "Damage", isPositive: true },
+    { name: "Zoom", isPositive: false },
+  ],
+  ...over,
+});
+
+test("la huella no depende del orden en que llegaron los stats", () => {
+  const a = riven();
+  const b = riven({ stats: [...a.stats].reverse() });
+  assert.equal(rivenFingerprint(a), rivenFingerprint(b));
+});
+
+test("el signo sí cambia la huella: un curse no es un buff", () => {
+  const a = riven();
+  const b = riven({ stats: a.stats.map((s) => ({ ...s, isPositive: !s.isPositive })) });
+  assert.notEqual(rivenFingerprint(a), rivenFingerprint(b));
+});
+
+test("sin carta hay huella igualmente, para poder comparar", () => {
+  assert.equal(typeof rivenFingerprint(null), "string");
+});
+

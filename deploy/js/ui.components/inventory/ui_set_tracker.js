@@ -13,6 +13,7 @@ import {
   calculateTotalFullSets,
 } from "../../utils/ui_utils.js";
 import { generateDotsHtml } from "../ui_tooltips.js";
+import { isTouchPointer } from "../../utils/tap.js";
 import { getPartRarity, calculatePartExpectedRuns, DROP_RATES_BY_RARITY } from "../../utils/inventory/relic_drop_odds.utils.js";
 
 const SIM_TEXTS = {
@@ -217,9 +218,19 @@ export function renderSetTracker() {
   const st = SIM_TEXTS[lang];
 
   if (!state.currentActiveSet) {
-    container.style.display = "none";
+    const dz = t.setTab || {};
+    const touch = isTouchPointer();
+    container.style.display = "block";
+    container.classList.add("is-dropzone");
+    if (title) title.textContent = t.trackerTitle || "Set Progress";
+    list.innerHTML = `<div class="tracker-dropzone">`
+      + `<span class="tracker-dropzone-icon" aria-hidden="true">⤓</span>`
+      + `<span class="tracker-dropzone-text">${escapeHTML((touch ? dz.dropHintTouch : dz.dropHint) || "")}</span>`
+      + `<span class="tracker-dropzone-sub">${escapeHTML((touch ? dz.dropHintSubTouch : dz.dropHintSub) || "")}</span>`
+      + `</div>`;
     return;
   }
+  container.classList.remove("is-dropzone");
 
   if (state.currentActiveSet && state.itemsDatabase) {
     const fullParts = Object.keys(state.itemsDatabase).filter(

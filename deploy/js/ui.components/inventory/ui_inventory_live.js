@@ -6,6 +6,13 @@ import { exposeGlobals } from "../../utils/global_registry.js";
 
 let liveHooked = false;
 
+const liveSeen = new Map();
+const staleSeen = new Map();
+
+let staleFilterOn = false;
+
+let repainting = false;
+
 export async function initLivePrices() {
   if (liveHooked) return;
   liveHooked = true;
@@ -28,6 +35,7 @@ export async function initLivePrices() {
 }
 
 function paintLivePrice(slug, plat) {
+  liveSeen.set(slug, plat);
   for (const badge of document.querySelectorAll(".price-badge-small[data-item]")) {
     if (getSlug(badge.dataset.item) !== slug) continue;
 
@@ -50,6 +58,7 @@ function paintLivePrice(slug, plat) {
 }
 
 function paintStale(slug, diff) {
+  staleSeen.set(slug, diff);
   const t = TEXTS[state.currentLang];
   const up = diff > 0;
   const pct = Math.round(Math.abs(diff) * 100);
@@ -71,14 +80,17 @@ function paintStale(slug, diff) {
     tag.title = (up ? t.staleUpTitle : t.staleDownTitle) || "";
   }
 
-  refreshStaleChip();
+  if (!repainting) refreshStaleChip();
 }
 
 export function toggleStaleFilter() {
-  const chip = document.getElementById("inv-stale-chip");
-  if (!chip) return;
+  staleFilterOn = !staleFilterOn;
+  applyStaleFilter();
+}
 
-  const on = chip.classList.toggle("is-active");
+function applyStaleFilter() {
+  const on = staleFilterOn;
+  document.getElementById("inv-stale-chip")?.classList.toggle("is-active", on);
 
   for (const row of document.querySelectorAll(".inv-row-mini")) {
     row.style.display = (on && !row.classList.contains("is-price-stale")) ? "none" : "";
@@ -89,6 +101,18 @@ export function toggleStaleFilter() {
     group.style.display = (on && !hasStale) ? "none" : "";
     if (on && hasStale) group.classList.remove("collapsed");
   }
+}
+
+export function repaintLivePrices() {
+  repainting = true;
+  try {
+    for (const [slug, plat] of liveSeen) paintLivePrice(slug, plat);
+    for (const [slug, diff] of staleSeen) paintStale(slug, diff);
+  } finally {
+    repainting = false;
+  }
+  applyStaleFilter();
+  refreshStaleChip();
 }
 
 function refreshStaleChip() {

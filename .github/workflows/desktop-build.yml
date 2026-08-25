@@ -69,6 +69,12 @@ jobs:
           projectPath: desktop
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Hoy ubuntu-22.04 no las necesita, pero en cuanto el runner suba de versión el
+          # empaquetado del AppImage muere con "failed to run linuxdeploy" sin decir por qué:
+          # linuxdeploy es un AppImage tipo 2 y pide libfuse2 (que Fedora 44 ya no trae), y su
+          # strip empaquetado no reconoce la sección .relr.dyn de las libs recientes.
+          APPIMAGE_EXTRACT_AND_RUN: 1
+          NO_STRIP: 1
 
       # Deja los instaladores descargables desde la pestaña del run, por si no se publican
       # como release.

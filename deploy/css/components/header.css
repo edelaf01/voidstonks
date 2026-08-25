@@ -1,3 +1,22 @@
+/* same specificity (0,1,0) and placed before classes that use it so their own properties win */
+.vs-plain {
+    appearance: none;
+    -webkit-appearance: none;
+    background: none;
+    border: 0;
+    padding: 0;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    box-sizing: border-box;
+    cursor: pointer;
+}
+
+.vs-plain-block {
+    display: block;
+    width: 100%;
+}
+
 .site-header {
     width: 100%;
     background: rgba(10, 12, 16, 0.98);
@@ -61,11 +80,21 @@
     justify-content: space-between;
 }
 
-.lang-trigger:hover {
-    border-color: var(--wf-blue);
-    color: #fff;
-    background: rgba(0, 0, 0, 0.6);
-    box-shadow: 0 0 10px rgba(0, 229, 255, 0.2);
+/* hover only where it exists: on touch it sticks after the first tap and eats the click */
+@media (hover: hover) {
+    .lang-trigger:hover {
+        border-color: var(--wf-blue);
+        color: #fff;
+        background: rgba(0, 0, 0, 0.6);
+        box-shadow: 0 0 10px rgba(0, 229, 255, 0.2);
+    }
+}
+
+@media (hover: none) {
+    .lang-trigger:active {
+        border-color: var(--wf-blue);
+        color: #fff;
+    }
 }
 
 .lang-options {
@@ -102,10 +131,19 @@
     transition: background 0.2s;
 }
 
-.lang-option-item:hover {
-    background: var(--wf-blue);
-    color: #000;
-    font-weight: 700;
+@media (hover: hover) {
+    .lang-option-item:hover {
+        background: var(--wf-blue);
+        color: #000;
+        font-weight: 700;
+    }
+}
+
+@media (hover: none) {
+    .lang-option-item:active {
+        background: var(--wf-blue);
+        color: #000;
+    }
 }
 
 .card {
@@ -242,7 +280,7 @@
     opacity: 1;
     visibility: visible;
     transition: opacity 1.5s ease-out, visibility 1.5s;
-    pointer-events: auto;
+    pointer-events: none;
 }
 
 .footer-disclaimer.fade-out {
@@ -681,6 +719,19 @@ option {
 }
 
 @media (max-width: 768px) {
+    .footer-disclaimer {
+        position: static;
+        transform: none;
+        width: auto;
+        max-width: none;
+        margin-top: 14px;
+        padding: 10px 0 0;
+        background: none;
+        box-shadow: none;
+        border-top: 1px solid rgba(255, 255, 255, 0.06);
+        pointer-events: auto;
+    }
+
     .tab-wip-badge {
         font-size: 0;
         padding: 4px;
