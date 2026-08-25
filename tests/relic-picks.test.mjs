@@ -27,11 +27,23 @@ test("la era sale de la primera palabra, y Vanguard es Axi", () => {
   assert.equal(tierOfRelic(""), "");
 });
 
-test("manda cuántas recompensas te sirven, no cuántas copias tienes", () => {
+test("no mandan las copias que tienes, sino lo que te acerca a cerrar un set", () => {
   const r = rankRelicPicks({ ...base(), relicCounts: { "Lith TRIPLE": 1, "Meso UNA": 12 } });
   assert.equal(r[0].relic, "Lith TRIPLE");
   assert.equal(r[0].useful, 3);
   assert.equal(r[1].useful, 1);
+});
+
+// 87 of 767 relics have all 6 rewards useful: alphabetical ties pushed set-closing relics down
+test("la que CIERRA un set gana a la que trae más recompensas sueltas", () => {
+  const inv = { "Nidus Prime Neuroptics": 1 };
+  const r = rankRelicPicks({ ...base(inv), relicCounts: { "Lith TRIPLE": 1, "Meso UNA": 1 } });
+  assert.equal(r[0].relic, "Meso UNA");
+  assert.equal(r[0].useful, 1, "y aun así con menos recompensas útiles que la otra");
+  assert.deepEqual(r[0].closes, ["Nidus Prime"]);
+  assert.ok(r[0].closeOdds > 0.5, `probabilidad de cerrarlo en una apertura: ${r[0].closeOdds}`);
+  assert.equal(r[1].relic, "Lith TRIPLE");
+  assert.deepEqual(r[1].closes, [], "Gara sin empezar no se cierra con una pieza");
 });
 
 test("una reliquia sin nada que te falte no se recomienda", () => {
@@ -43,7 +55,7 @@ test("las piezas que ya tienes dejan de contar como útiles", () => {
   const inv = { "Gara Prime Blueprint": 1, "Gara Prime Neuroptics": 1 };
   const r = rankRelicPicks({ ...base(inv), relicCounts: { "Lith TRIPLE": 1 } });
   assert.equal(r[0].useful, 1, "solo queda el chassis");
-  assert.deepEqual(r[0].parts, ["Gara Prime Chassis"]);
+  assert.deepEqual(r[0].parts.map((x) => x.name), ["Gara Prime Chassis"]);
 });
 
 test("con fisuras conocidas, primero lo que se puede abrir ya", () => {
@@ -59,6 +71,21 @@ test("con fisuras conocidas, primero lo que se puede abrir ya", () => {
 test("sin datos de fisuras no se marca ninguna como lista", () => {
   const r = rankRelicPicks({ ...base(), relicCounts: { "Lith TRIPLE": 1 } });
   assert.equal(r[0].ready, false, "sin fisuras conocidas no se marca ninguna como lista");
+});
+
+test("cada pieza útil dice lo que le falta a SU set", () => {
+  const inv = { "Gara Prime Blueprint": 1, "Nidus Prime Neuroptics": 1 };
+  const r = rankRelicPicks({ ...base(inv), relicCounts: { "Lith TRIPLE": 1, "Meso UNA": 1 } });
+
+  const gara = r.find((x) => x.relic === "Lith TRIPLE").parts;
+  assert.deepEqual(gara.map((x) => [x.name, x.missing, x.total]), [
+    ["Gara Prime Neuroptics", 2, 3],
+    ["Gara Prime Chassis", 2, 3],
+  ], "faltan dos de las tres, y esta es una de ellas");
+
+  const nidus = r.find((x) => x.relic === "Meso UNA").parts;
+  assert.deepEqual(nidus.map((x) => [x.set, x.missing]), [["Nidus Prime", 1]],
+    "missing 1 es la última pieza: la fila la marca aparte");
 });
 
 test("los sets no se repiten aunque la reliquia dé dos piezas del mismo", () => {
@@ -105,9 +132,9 @@ test("sin precios la pick sale sin valorar, no a cero", () => {
 test("los filtros de la vista por reliquia", async () => {
     const { filterRelicPicks } = await import("../deploy/js/utils/inventory/relic_picks.js");
     const picks = [
-        { relic: "Axi S16", tier: "Axi", useful: 3, odds: 0.4, runs: 3, value: 20, minutes: 30, ready: true, sets: ["Saryn Prime"], parts: ["Saryn Prime Chassis"] },
-        { relic: "Meso B9", tier: "Meso", useful: 1, odds: 0.9, runs: 1, value: 60, minutes: 10, ready: true, sets: ["Nyx Prime"], parts: ["Nyx Prime Blueprint"] },
-        { relic: "Neo V10", tier: "Neo", useful: 2, odds: 0.2, runs: 9, value: null, minutes: null, ready: false, sets: ["Vasto Prime"], parts: ["Vasto Prime Barrel"] },
+        { relic: "Axi S16", tier: "Axi", useful: 3, progress: 0.17, closes: [], odds: 0.4, runs: 3, value: 20, minutes: 30, ready: true, sets: ["Saryn Prime"], parts: ["Saryn Prime Chassis"] },
+        { relic: "Meso B9", tier: "Meso", useful: 1, progress: 0.52, closes: ["Nyx Prime"], odds: 0.9, runs: 1, value: 60, minutes: 10, ready: true, sets: ["Nyx Prime"], parts: ["Nyx Prime Blueprint"] },
+        { relic: "Neo V10", tier: "Neo", useful: 2, progress: 0.06, closes: [], odds: 0.2, runs: 9, value: null, minutes: null, ready: false, sets: ["Vasto Prime"], parts: ["Vasto Prime Barrel"] },
     ];
     const nombres = (o) => filterRelicPicks(picks, o).map((p) => p.relic);
 
@@ -115,7 +142,8 @@ test("los filtros de la vista por reliquia", async () => {
     assert.deepEqual(nombres({ query: "axi" }), ["Axi S16"], "por reliquia");
     assert.deepEqual(nombres({ query: "saryn" }), ["Axi S16"], "por set");
     assert.deepEqual(nombres({ query: "chassis" }), ["Axi S16"], "por pieza");
-    assert.deepEqual(nombres({ readyOnly: true }), ["Axi S16", "Meso B9"]);
+    assert.deepEqual(nombres({ readyOnly: true }), ["Meso B9", "Axi S16"]);
+    assert.deepEqual(nombres({ sortBy: "best" }), ["Meso B9", "Axi S16", "Neo V10"]);
 
     assert.deepEqual(nombres({ sortBy: "value" }), ["Meso B9", "Axi S16", "Neo V10"]);
     assert.deepEqual(nombres({ sortBy: "minutes" }), ["Meso B9", "Axi S16", "Neo V10"]);

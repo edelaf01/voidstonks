@@ -1,6 +1,11 @@
 import { relicSetValue } from "./relic_set_value.js";
 import { bestFissure, missionMinutes, tiersOpenedBy } from "./relic_route.js";
 
+export function closenessWeight(setMissing) {
+  const quedan = Math.max(1, setMissing || 1);
+  return 1 / (quedan * quedan);
+}
+
 // worldstate calls Axi "Vanguard"
 export function tierOfRelic(relicName) {
   const tier = String(relicName || "").trim().split(/\s+/)[0] || "";
@@ -43,10 +48,16 @@ export function rankRelicPicks(deps, limit = 8) {
       if (precios.length > 0) valor = Math.round(precios.reduce((a, b) => a + b, 0) / precios.length);
     }
 
+    const cierran = v.missing.filter((m) => m.setMissing === 1);
+    const setsCerrados = [...new Set(cierran.map((m) => m.set))];
+
     picks.push({
       minutes: (Number.isFinite(v.runs) && fisura)
         ? Math.round(v.runs * missionMinutes(fisura.type))
         : null,
+      closes: setsCerrados,
+      closeOdds: 1 - cierran.reduce((p, m) => p * (1 - m.chance), 1),
+      progress: v.missing.reduce((s, m) => s + m.chance * closenessWeight(m.setMissing), 0),
       fissure: fisura,
       value: valor,
       relic,
@@ -56,20 +67,23 @@ export function rankRelicPicks(deps, limit = 8) {
       odds: v.odds,
       runs: v.runs,
       sets: [...new Set(v.missing.map((m) => m.set))],
-      parts: v.missing.map((m) => m.part),
+      parts: v.missing.map((m) => ({
+        name: m.part, set: m.set, missing: m.setMissing, total: m.setTotal,
+      })),
       ready: suyas.length > 0,
     });
   }
 
   picks.sort((a, b) =>
     ((b.ready) - (a.ready))
-    || (b.useful - a.useful)
+    || (b.progress - a.progress)
     || (b.odds - a.odds)
     || (a.runs - b.runs));
   return picks.slice(0, limit);
 }
 
 export const PICK_SORTS = {
+  best: (a, b) => (b.progress - a.progress) || (b.odds - a.odds) || (a.runs - b.runs),
   useful: (a, b) => (b.useful - a.useful) || (b.odds - a.odds) || (a.runs - b.runs),
   odds: (a, b) => (b.odds - a.odds) || (b.useful - a.useful),
   value: (a, b) => ((b.value ?? -1) - (a.value ?? -1)) || (b.useful - a.useful),
@@ -77,7 +91,7 @@ export const PICK_SORTS = {
 };
 
 export function filterRelicPicks(picks, prefs = {}) {
-  const { query = "", era = "", readyOnly = false, sortBy = "useful" } = prefs;
+  const { query = "", era = "", readyOnly = false, sortBy = "best" } = prefs;
   const q = String(query).trim().toLowerCase();
 
   const out = picks.filter((p) => {
@@ -86,8 +100,8 @@ export function filterRelicPicks(picks, prefs = {}) {
     if (!q) return true;
     return p.relic.toLowerCase().includes(q)
       || (p.sets || []).some((s) => String(s).toLowerCase().includes(q))
-      || (p.parts || []).some((x) => String(x).toLowerCase().includes(q));
+      || (p.parts || []).some((x) => String(x?.name || x).toLowerCase().includes(q));
   });
-  out.sort((a, b) => (b.ready - a.ready) || (PICK_SORTS[sortBy] || PICK_SORTS.useful)(a, b));
+  out.sort((a, b) => (b.ready - a.ready) || (PICK_SORTS[sortBy] || PICK_SORTS.best)(a, b));
   return out;
 }

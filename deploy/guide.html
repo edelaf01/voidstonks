@@ -255,6 +255,11 @@
       }
       document.querySelectorAll("[data-set-lang]").forEach(function (b) { b.addEventListener("click", function () { apply(b.getAttribute("data-set-lang")); }); });
       apply(lang);
+
+      if (location.hash) {
+        var destino = document.getElementById(location.hash.slice(1));
+        if (destino) destino.scrollIntoView();
+      }
     })();
   </script>
 </body>

@@ -98,101 +98,7 @@
 
 <body>
   <canvas id="void-traces-canvas"></canvas>
-  <div id="ocr-overlay" class="fullscreen-scanner hidden">
-    <div class="ocr-system-header">INVENTORY SCANNER</div>
 
-    <video id="ocr-video" autoplay playsinline class="scanner-video"></video>
-    <canvas id="ocr-canvas" class="hidden"></canvas>
-
-    <div class="scanner-ui">
-      <div style="position:absolute; top:15px; left:15px; display:flex; gap:10px;">
-        <button onclick="globalThis.closeScanner()" class="scanner-close-btn" style="position:static;">×</button>
-        <button onclick="document.getElementById('vision-tuning-panel').classList.toggle('hidden')"
-          class="orokin-btn-mini"
-          style="background:rgba(0,229,255,0.1); border:1px solid #00e5ff; color:#00e5ff; padding:5px 10px; border-radius:4px; font-size:10px; font-weight:800;">
-          🛠️ TUNING
-        </button>
-      </div>
-
-      <div class="scanner-guide">
-        <div class="guide-corner tl"></div>
-        <div class="guide-corner tr"></div>
-        <div class="guide-corner bl"></div>
-        <div class="guide-corner br"></div>
-        <div id="ocr-box-guide"></div>
-        <div id="ocr-labels-layer"></div>
-      </div>
-
-      <div id="vision-tuning-panel" class="hidden"
-        style="position:absolute; top:60px; left:15px; background:rgba(0,10,20,0.95); border:1px solid #00e5ff; border-radius:8px; padding:15px; width:220px; z-index:100; box-shadow:0 0 20px rgba(0,229,255,0.3); font-family:sans-serif;">
-        <div
-          style="color:#00e5ff; font-size:11px; font-weight:800; margin-bottom:12px; letter-spacing:1px; border-bottom:1px solid rgba(0,229,255,0.2); padding-bottom:5px;">
-          VISION ENGINE PARAMS</div>
-
-        <div style="margin-bottom:10px;">
-          <label for="threshC-input" style="display:block; color:#888; font-size:9px; margin-bottom:3px;">ADAPTIVE C:
-            <span id="val-threshC" style="color:#fff;">-15</span></label>
-          <input id="threshC-input" type="range" min="-30" max="5" value="-15" step="1"
-            style="width:100%; height:4px; accent-color:#00e5ff;"
-            oninput="document.getElementById('val-threshC').innerText = this.value; globalThis.updateVisionSetting('thresholdC', parseInt(this.value))">
-        </div>
-
-        <div style="margin-bottom:10px;">
-          <label for="clahe-input" style="display:block; color:#888; font-size:9px; margin-bottom:3px;">CLAHE CLIP:
-            <span id="val-clahe" style="color:#fff;">5</span></label>
-          <input id="clahe-input" type="range" min="1" max="10" value="5" step="0.5"
-            style="width:100%; height:4px; accent-color:#00e5ff;"
-            oninput="document.getElementById('val-clahe').innerText = parseFloat(this.value).toFixed(1); globalThis.updateVisionSetting('claheClip', parseFloat(this.value))">
-        </div>
-
-        <div style="margin-bottom:10px;">
-          <label for="hsv-input" style="display:block; color:#888; font-size:9px; margin-bottom:3px;">HSV HUE TOL: <span
-              id="val-hsv" style="color:#fff;">25</span></label>
-          <input id="hsv-input" type="range" min="1" max="50" value="25" step="1"
-            style="width:100%; height:4px; accent-color:#3dff70;"
-            oninput="document.getElementById('val-hsv').innerText = this.value; globalThis.updateVisionSetting('hsvHueTol', parseInt(this.value))">
-        </div>
-
-        <div style="margin-bottom:10px;">
-          <label style="display:block; color:#888; font-size:9px; margin-bottom:3px;">TESSERACT PSM: <span id="val-psm"
-              style="color:#fff;">6</span></label>
-          <select
-            style="width:100%; background:#111; color:#fff; border:1px solid #333; font-size:10px; border-radius:3px; padding:2px;"
-            onchange="document.getElementById('val-psm').innerText = this.value; globalThis.updateVisionSetting('tesseractPSM', parseInt(this.value))">
-            <option value="3">3 (Auto)</option>
-            <option value="6" selected>6 (Uniform Block)</option>
-            <option value="7">7 (Single Line)</option>
-            <option value="11">11 (Sparse Text)</option>
-          </select>
-        </div>
-
-        <button onclick="globalThis.resetVisionSettings()"
-          style="width:100%; margin-top:5px; background:rgba(255,100,100,0.1); border:1px solid #ff6464; color:#ff6464; font-size:9px; padding:4px; border-radius:4px; cursor:pointer;">RESET
-          DEFAULTS</button>
-      </div>
-
-      <div class="scanner-text">AIM TOWARDS YOUR RELIC INVENTORY</div>
-    </div>
-
-    <div class="scanner-actions-bar">
-      <button class="action-btn secondary" onclick="document.getElementById('file-upload').click()">
-        UPLOAD IMAGE
-      </button>
-      <input type="file" id="file-upload" multiple accept="image/*" hidden
-        onchange="globalThis.handleFileUpload(event)" />
-
-      <button onclick="globalThis.captureRelics()" class="shutter-btn"></button>
-
-      <button class="action-btn inventory-badge-btn" onclick="globalThis.toggleScannedList()">
-        DETECTED RELICS<span id="scanned-badge" class="badge-count hidden">0</span>
-      </button>
-    </div>
-  </div>
-
-  <div id="ocr-loading" class="ocr-loading-overlay hidden">
-    <div class="ocr-spinner"></div>
-    <p>Processing image ...</p>
-  </div>
   </div>
 
   <div id="scanner-drawer" class="scanner-drawer closed">
@@ -269,6 +175,8 @@
         <span id="live-inv-msg">READY</span>
         <span id="hud-scan-counter" class="hud-frames"></span>
       </div>
+
+      <div id="squad-run-panel" class="squad-panel" style="display: none"></div>
 
       <div class="hud-actions">
         <button type="button" id="btn-manual-scan" class="hud-btn primary" onclick="globalThis.manualPrecisionScan()">
@@ -373,7 +281,7 @@
     <div class="scan-result-card">
       <div class="scan-header">
         <div style="display:flex; align-items:center; gap:10px;">
-          <h3>REWARDS DETECTED</h3>
+          <h3 id="lbl-rewards-title">REWARDS DETECTED</h3>
           <button id="rewards-dbg-toggle" class="orokin-btn-mini" style="font-size:10px; padding:2px 5px;"
             onclick="document.getElementById('rewards-dbg-text').classList.toggle('hidden')">DBG</button>
         </div>
@@ -419,7 +327,7 @@
       </div>
 
       <div class="scan-footer">
-        <button class="action-btn confirm" onclick="closeScanModal()">
+        <button class="action-btn confirm" id="btn-continue-scan" onclick="closeScanModal()">
           CONTINUE SCANNING
         </button>
       </div>
@@ -428,9 +336,11 @@
 
 
   <div id="inventory-container">
-    <div id="inv-toggle-btn" class="mission-toggle-btn" onclick="toggleInventoryPanel()">
-      <img id="img-inv-toggle" src="assets/inv.relic.webp" class="toggle-img" alt="Inventory" />
-    </div>
+    <button type="button" id="inv-toggle-btn" class="mission-toggle-btn vs-plain"
+      title="Mi inventario de reliquias" aria-label="Mi inventario de reliquias"
+      onclick="toggleInventoryPanel()">
+      <img id="img-inv-toggle" src="assets/inv.relic.webp" class="toggle-img" alt="Inventario" />
+    </button>
 
     <div class="inv-view-selector" style="display: flex; gap: 5px; padding: 10px 10px 0; background: #111">
       <button id="inv-tab-relics" class="inv-view-btn active" style="flex: 1"
@@ -449,7 +359,7 @@
 
       <div class="header-center">
         <span id="txt-inv-title">MY INVENTORY</span>
-        <span class="orokin-clear-btn" onclick="globalThis.clearInventory()"
+        <button type="button" class="orokin-clear-btn vs-plain" onclick="globalThis.clearInventory()"
           title="Borrar todas las reliquias guardadas">
           <svg class="orokin-trash-svg" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path
@@ -458,7 +368,7 @@
             <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="0.5" stroke-dasharray="2 2"
               class="orokin-ring" />
           </svg>
-        </span>
+        </button>
       </div>
 
       <button class="inv-action-btn import-btn" onclick="globalThis.importInventory()" title="Import JSON">
@@ -473,22 +383,22 @@
         oninput="globalThis.handleInvSearch(this.value)" style="padding: 8px; font-size: 0.9em" />
 
       <div class="inv-tiers-row">
-        <button class="inv-tier-btn active" onclick="globalThis.filterInvTier('ALL')">
+        <button class="inv-tier-btn active" data-tier="ALL" onclick="globalThis.filterInvTier('ALL')">
           ALL
         </button>
-        <button class="inv-tier-btn" onclick="globalThis.filterInvTier('LITH')">
+        <button class="inv-tier-btn" data-tier="LITH" onclick="globalThis.filterInvTier('LITH')">
           LITH
         </button>
-        <button class="inv-tier-btn" onclick="globalThis.filterInvTier('MESO')">
+        <button class="inv-tier-btn" data-tier="MESO" onclick="globalThis.filterInvTier('MESO')">
           MESO
         </button>
-        <button class="inv-tier-btn" onclick="globalThis.filterInvTier('NEO')">
+        <button class="inv-tier-btn" data-tier="NEO" onclick="globalThis.filterInvTier('NEO')">
           NEO
         </button>
-        <button class="inv-tier-btn" onclick="globalThis.filterInvTier('AXI')">
+        <button class="inv-tier-btn" data-tier="AXI" onclick="globalThis.filterInvTier('AXI')">
           AXI
         </button>
-        <button class="inv-tier-btn" onclick="globalThis.filterInvTier('REQUIEM')">
+        <button class="inv-tier-btn" data-tier="REQUIEM" onclick="globalThis.filterInvTier('REQUIEM')">
           REQ
         </button>
       </div>
@@ -512,7 +422,7 @@
       <div class="farm-routes" data-fr-host="inventory" style="display:none;"></div>
 
       <input type="text" id="prime-inv-search" class="wf-input" autocomplete="off" placeholder="Buscar Set o Parte..."
-        onkeyup="globalThis.renderPrimeInventory()" style="padding: 8px; font-size: 0.9em" />
+        oninput="globalThis.handlePrimeInvSearch()" style="padding: 8px; font-size: 0.9em" />
 
       <select id="prime-inv-sort" class="wf-input" onchange="globalThis.renderPrimeInventory()"
         style="font-size: 0.85em; padding: 5px">
@@ -520,7 +430,14 @@
         <option value="sets_desc">Sets completados (Mayor a Menor)</option>
         <option value="sets_asc">Sets a completar (Cerquitas de terminar)</option>
         <option value="plat_desc">Valor Total en Platino</option>
+        <option value="relic_potential">Lo que puedo avanzar con mis reliquias</option>
       </select>
+
+      <label class="inv-vaulted-toggle">
+        <input type="checkbox" id="prime-show-empty"
+          onchange="globalThis.toggleShowEmptyPrime(this.checked)" />
+        <span id="prime-show-empty-label"></span>
+      </label>
 
       <button type="button" id="inv-stale-chip" class="inv-stale-chip" style="display:none"
         onclick="globalThis.toggleStaleFilter()">
@@ -534,13 +451,13 @@
   </div>
 
   <div id="best-missions-container">
-    <div id="mission-toggle-btn" class="mission-toggle-btn" onclick="
+    <button type="button" id="mission-toggle-btn" class="mission-toggle-btn vs-plain" onclick="
           document
             .getElementById('best-missions-container')
             .classList.toggle('open')
         ">
       <img id="img-fissure-toggle" src="assets/fissureicon.webp" class="toggle-img" alt="Fissures" />
-    </div>
+    </button>
     <div class="panel-main-header" id="fissure-panel-header">
       <svg class="gauss-icon" id="gauss-runner" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
         <path
@@ -567,8 +484,7 @@
         <span class="lang-es">Cómo usar VoidStonks</span><span class="lang-en">How to use VoidStonks</span>
       </a>
       <div id="scanner-section" class="scanner-wrapper">
-        <div class="scanner-info-icon"
-          data-tooltip="This feature uses OCR to read your screen. Only works inside missions during the reward selection screen and while you are in your inventory. the prime section, you will get a voidscanner to help you scan your prime parts.">
+        <div class="scanner-info-icon" id="scanner-info-icon">
           ℹ️
         </div>
 
@@ -608,50 +524,52 @@
         <div id="scanner-toggle" class="scanner-toggle-btn">
           <div class="toggle-content">
             <span class="icon-pulse">◉</span>
-            <span class="label">LIVE RELIC SCANNER</span>
+            <span class="label">ESCÁNER EN VIVO</span>
           </div>
           <span class="arrow-indicator">▼</span>
         </div>
 
         <div id="scanner-privacy-notice" class="scanner-notice hidden">
-          <div class="notice-header">⚠️ BETA FEATURE NOTICE</div>
+          <div class="notice-header" id="lbl-notice-title">⚠️ AVISO: FUNCIÓN EN BETA</div>
           <div class="notice-body">
-            <p>
-              To detect rewards, this tool needs permission to
-              <span style="color: #ff4444; font-weight: 900">"RECORD"</span>
-              your screen.
+            <p id="lbl-notice-perm">
+              Para leer la pantalla del juego, el navegador te pedirá permiso para GRABAR tu pantalla.
             </p>
-            <p style="font-size: 0.85em; color: #aaa">
-              When the browser popup appears, select the
-              <strong>Warframe Window</strong>.
+            <p id="lbl-notice-pick" style="font-size: 0.85em; color: #aaa">
+              Cuando salga la ventana del navegador, elige la ventana de WARFRAME.
             </p>
-            <p class="beta-warning">
-              THIS IS A <strong>BETA FEATURE</strong>, SO EXPECT FOR IT NOT TO
-              WORK PROPERLY OR CONTAIN BUGS.
+            <p id="lbl-notice-local" style="font-size: 0.85em; color: #aaa">
+              El reconocimiento corre en tu equipo: las capturas no se suben a ningún servidor.
+            </p>
+            <p class="beta-warning" id="lbl-notice-beta">
+              Está en BETA: puede fallar o leer mal.
             </p>
           </div>
           <button id="btn-accept-scan" class="action-btn confirm full-width">
-            I UNDERSTAND, START SCAN
+            ENTENDIDO, EMPEZAR
           </button>
         </div>
       </div>
 
       <div class="lang-custom-container" id="langSelectorWrapper">
-        <div class="lang-trigger" onclick="toggleLangDropdown()">
+        <button type="button" class="lang-trigger vs-plain" id="langTrigger" aria-haspopup="true"
+          aria-expanded="false" aria-controls="langOptionsList" onclick="toggleLangDropdown()">
           <img id="currentFlag" src="https://flagcdn.com/24x18/es.png" alt="ES" />
           <span id="currentLangText">ES</span>
           <span class="arrow-icon">▼</span>
-        </div>
+        </button>
 
-        <div class="lang-options hidden" id="langOptionsList">
-          <div class="lang-option-item" onclick="setLanguageManual('es')">
+        <div class="lang-options hidden" id="langOptionsList" role="menu">
+          <button type="button" class="lang-option-item vs-plain vs-plain-block" role="menuitem"
+            onclick="setLanguageManual('es')">
             <img src="https://flagcdn.com/24x18/es.png" alt="ES" />
             <span>Español</span>
-          </div>
-          <div class="lang-option-item" onclick="setLanguageManual('en')">
+          </button>
+          <button type="button" class="lang-option-item vs-plain vs-plain-block" role="menuitem"
+            onclick="setLanguageManual('en')">
             <img src="https://flagcdn.com/24x18/gb.png" alt="EN" />
             <span>English</span>
-          </div>
+          </button>
         </div>
       </div>
     </div>
@@ -727,10 +645,6 @@
             <input type="text" id="relicInput" placeholder="Ej: Lith G1..." autocomplete="off"
               oninput="globalThis.handleRelicTyping()" />
 
-            <button class="camera-btn" disabled title="SCAN YOUR RELIC INVENTORY (work in progress)" style="opacity:0.4; cursor: not-allowed;">
-              📷 Relic photo scan <span style="font-size:0.7em; font-weight:700; color:#ffb74d; border:1px solid #ffb74d; border-radius:4px; padding:0 4px; margin-left:4px;">🚧 WIP</span>
-            </button>
-
             <div id="relicDropdown" class="dropdown-list hidden"></div>
           </div>
         </div>
@@ -748,7 +662,7 @@
               ">
             <div style="flex: 1; margin-right: 10px">
               <label id="lbl-refinement">Refinamiento</label>
-              <select id="refinement" class="wf-input" onchange="generateMessage()">
+              <select id="refinement" class="wf-input" onchange="globalThis.setRefinement(this.value)">
                 <option value="Rad" data-key="rad">Radiante</option>
                 <option value="Flawless" data-key="flawless">Perfecta</option>
                 <option value="Exceptional" data-key="exceptional">
@@ -757,8 +671,17 @@
                 <option value="Intact" data-key="intact">Intacta</option>
               </select>
             </div>
+            <div style="flex: 1; margin-right: 10px">
+              <label id="lbl-squad">Escuadra</label>
+              <select id="squadSize" class="wf-input" onchange="globalThis.setSquadSize(this.value)">
+                <option value="4">4 jugadores</option>
+                <option value="3">3 jugadores</option>
+                <option value="2">2 jugadores</option>
+                <option value="1">Solo</option>
+              </select>
+            </div>
             <div>
-              <label id="lbl-missing">Faltan</label>
+              <label id="lbl-missing">Faltan (mensaje)</label>
               <div class="counter-inline" style="
                     width: 100%;
                     display: flex;
@@ -788,6 +711,10 @@
           <div id="relic-verdict" class="relic-verdict hidden"></div>
           <div class="analysis-info">
             <span id="lbl-content">Contenido:</span>
+            <span class="relic-inv-add">
+              <span id="txt-relic-inv-count">En tu inventario: 0</span>
+              <button class="mini-action-btn" id="btn-relic-inv-add" data-action="add-current-to-inv">+1</button>
+            </span>
           </div>
           <div id="relic-drops-list"></div>
 
@@ -1057,7 +984,9 @@
                 </div>
               </div>
 
-              <span id="indexSortHelpIcon" class="info-icon"
+              <div id="index-filters-bar" class="riven-index-filters"></div>
+
+            <span id="indexSortHelpIcon" class="info-icon"
                 style="cursor: help; font-size: 0.9rem; opacity: 0.8; padding: 6px;" data-tooltip="">ℹ</span>
             </div>
 
@@ -1087,7 +1016,9 @@
         <div class="form-group">
           <label id="lbl-lfg-activity">Actividad</label>
           <div class="custom-search-container" tabindex="0">
-            <div class="wf-input" id="lfgActivityInput" onclick="toggleLfgDropdown()" style="
+            <button type="button" class="wf-input vs-plain" id="lfgActivityInput"
+              aria-haspopup="true" aria-expanded="false" aria-controls="lfgDropdown"
+              onclick="toggleLfgDropdown()" style="
                   cursor: pointer;
                   display: flex;
                   align-items: center;
@@ -1095,60 +1026,61 @@
                 ">
               <span id="lfgSelectedText">Eidolon Hunt</span>
               <span style="font-size: 0.8em">▼</span>
+            </button>
+            <div id="lfgDropdown" class="custom-dropdown hidden" role="menu">
+              <button type="button" role="menuitem"
+                class="dropdown-item vs-plain vs-plain-block" data-lfg="eidolon"
+                onclick="selectLfgOption('eidolon', 'Eidolon Hunt')">Eidolon Hunt</button>
+              <button type="button" role="menuitem"
+                class="dropdown-item vs-plain vs-plain-block" data-lfg="profit"
+                onclick="selectLfgOption('profit', 'Profit Taker')">Profit Taker</button>
+              <button type="button" role="menuitem"
+                class="dropdown-item vs-plain vs-plain-block" data-lfg="eda"
+                onclick="selectLfgOption('eda', 'Deep Archimedea')">Deep Archimedea</button>
+              <button type="button" role="menuitem"
+                class="dropdown-item vs-plain vs-plain-block" data-lfg="temporal"
+                onclick="selectLfgOption('temporal', 'Temporal Archimedea')">Temporal Archimedea</button>
+              <button type="button" role="menuitem"
+                class="dropdown-item vs-plain vs-plain-block" data-lfg="netra"
+                onclick="selectLfgOption('netra', 'Netracells')">Netracells</button>
+              <button type="button" role="menuitem"
+                class="dropdown-item vs-plain vs-plain-block" data-lfg="archon"
+                onclick="selectLfgOption('archon', 'Archon Hunt')">Archon Hunt</button>
+              <button type="button" role="menuitem"
+                class="dropdown-item vs-plain vs-plain-block" data-lfg="sortie"
+                onclick="selectLfgOption('sortie', 'Sortie')">Sortie</button>
+              <button type="button" role="menuitem"
+                class="dropdown-item vs-plain vs-plain-block" data-lfg="arbi"
+                onclick="selectLfgOption('arbi', 'Arbitration')">Arbitration</button>
+              <button type="button" role="menuitem"
+                class="dropdown-item vs-plain vs-plain-block" data-lfg="circuit"
+                onclick="selectLfgOption('circuit', 'The Circuit (Duviri)')">The Circuit (Duviri)</button>
+              <button type="button" role="menuitem"
+                class="dropdown-item vs-plain vs-plain-block" data-lfg="eso"
+                onclick="selectLfgOption('eso', 'Elite Sanctuary Onslaught (ESO)')">Elite Sanctuary Onslaught (ESO)</button>
+              <button type="button" role="menuitem"
+                class="dropdown-item vs-plain vs-plain-block" data-lfg="so"
+                onclick="selectLfgOption('so', 'Sanctuary Onslaught (SO)')">Sanctuary Onslaught (SO)</button>
+              <button type="button" role="menuitem"
+                class="dropdown-item vs-plain vs-plain-block" data-lfg="isovault"
+                onclick="selectLfgOption('isovault', 'Isolation Vaults (Deimos)')">Isolation Vaults (Deimos)</button>
+              <button type="button" role="menuitem"
+                class="dropdown-item vs-plain vs-plain-block" data-lfg="kuva"
+                onclick="selectLfgOption('kuva', 'Kuva (Survival/Flood/Siphon)')">Kuva (Survival/Flood/Siphon)</button>
+              <button type="button" role="menuitem"
+                class="dropdown-item vs-plain vs-plain-block" data-lfg="sirius"
+                onclick="selectLfgOption('sirius', 'Sirius (Jade)')">Sirius (Jade)</button>
+              <button type="button" role="menuitem"
+                class="dropdown-item vs-plain vs-plain-block" data-lfg="orion"
+                onclick="selectLfgOption('orion', 'Orion (Jade)')">Orion (Jade)</button>
+              <button type="button" role="menuitem"
+                class="dropdown-item vs-plain vs-plain-block" data-lfg="follie"
+                onclick="selectLfgOption('follie', 'Follie Hunt (Vesper)')">Follie Hunt (Vesper)</button>
+              <button type="button" role="menuitem"
+                class="dropdown-item vs-plain vs-plain-block" data-lfg="radshare"
+                onclick="selectLfgOption('radshare', 'Radshare (Relics)')">Radshare (Relics)</button>
             </div>
-            <div id="lfgDropdown" class="custom-dropdown hidden">
-              <div class="dropdown-item" data-lfg="eidolon" onclick="selectLfgOption('eidolon', 'Eidolon Hunt')">
-                Eidolon Hunt
-              </div>
-              <div class="dropdown-item" data-lfg="profit" onclick="selectLfgOption('profit', 'Profit Taker')">
-                Profit Taker
-              </div>
-              <div class="dropdown-item" data-lfg="eda" onclick="selectLfgOption('eda', 'Deep Archimedea')">
-                Deep Archimedea
-              </div>
-              <div class="dropdown-item" data-lfg="temporal" onclick="selectLfgOption('temporal', 'Temporal Archimedea')">
-                Temporal Archimedea
-              </div>
-              <div class="dropdown-item" data-lfg="netra" onclick="selectLfgOption('netra', 'Netracells')">
-                Netracells
-              </div>
-              <div class="dropdown-item" data-lfg="archon" onclick="selectLfgOption('archon', 'Archon Hunt')">
-                Archon Hunt
-              </div>
-              <div class="dropdown-item" data-lfg="sortie" onclick="selectLfgOption('sortie', 'Sortie')">
-                Sortie
-              </div>
-              <div class="dropdown-item" data-lfg="arbi" onclick="selectLfgOption('arbi', 'Arbitration')">
-                Arbitration
-              </div>
-              <div class="dropdown-item" data-lfg="circuit" onclick="selectLfgOption('circuit', 'The Circuit (Duviri)')">
-                The Circuit (Duviri)
-              </div>
-              <div class="dropdown-item" data-lfg="eso" onclick="selectLfgOption('eso', 'Elite Sanctuary Onslaught (ESO)')">
-                Elite Sanctuary Onslaught (ESO)
-              </div>
-              <div class="dropdown-item" data-lfg="so" onclick="selectLfgOption('so', 'Sanctuary Onslaught (SO)')">
-                Sanctuary Onslaught (SO)
-              </div>
-              <div class="dropdown-item" data-lfg="isovault" onclick="selectLfgOption('isovault', 'Isolation Vaults (Deimos)')">
-                Isolation Vaults (Deimos)
-              </div>
-              <div class="dropdown-item" data-lfg="kuva" onclick="selectLfgOption('kuva', 'Kuva (Survival/Flood/Siphon)')">
-                Kuva (Survival/Flood/Siphon)
-              </div>
-              <div class="dropdown-item" data-lfg="sirius" onclick="selectLfgOption('sirius', 'Sirius (Jade)')">
-                Sirius (Jade)
-              </div>
-              <div class="dropdown-item" data-lfg="orion" onclick="selectLfgOption('orion', 'Orion (Jade)')">
-                Orion (Jade)
-              </div>
-              <div class="dropdown-item" data-lfg="follie" onclick="selectLfgOption('follie', 'Follie Hunt (Vesper)')">
-                Follie Hunt (Vesper)
-              </div>
-              <div class="dropdown-item" data-lfg="radshare" onclick="selectLfgOption('radshare', 'Radshare (Relics)')">
-                Radshare (Relics)
-              </div>
-            </div>
+
             <input type="hidden" id="lfgActivity" value="eidolon" />
           </div>
         </div>
@@ -1168,7 +1100,7 @@
 
         <div class="form-group">
           <label>Extra Info</label>
-          <input type="text" id="lfgExtra" class="wf-input" placeholder="+Info" onkeyup="generateLFGMessage()" />
+          <input type="text" id="lfgExtra" class="wf-input" placeholder="+Info" oninput="generateLFGMessage()" />
         </div>
       </div>
       <div id="mode-vosfor" class="hidden">
@@ -1640,30 +1572,8 @@
       </div>
     </div>
   </div>
-  <div id="scanned-results-panel" class="results-drawer hidden">
-    <div class="scan-header" style="
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-        ">
-      <h4 style="margin: 0; color: #fff">
-        DETECTED (<span id="scanned-total-count">0</span>)
-      </h4>
-      <button class="mini-action-btn" onclick="globalThis.clearScannedList()">
-        CLEAR
-      </button>
-    </div>
-
-    <div id="scanned-list" class="scanned-grid-container"></div>
-
-    <div class="scan-footer-actions" style="margin-top: 10px">
-      <button onclick="globalThis.confirmScanResults()" class="action-btn confirm" style="width: 100%">
-        ADD ALL RELICS
-      </button>
-    </div>
-  </div>
   <button id="mobile-scan-btn" class="mobile-scan-fab" onclick="globalThis.startMobileScanner()"
-    aria-label="Scan Relics">
+    aria-label="Escanear recompensas con la cámara">
     <img src="assets/scanner-icon.svg" alt="Scan Icon" class="fab-icon" />
   </button>
   <div id="orokin-confirm-modal" class="hidden">
@@ -1762,7 +1672,7 @@
   <div id="tab-fan-overlay" class="tab-fan-overlay" hidden></div>
   <div id="tab-fan" class="tab-fan" role="menu" aria-label="Más pestañas" hidden></div>
 
-  <script type="module" src="js/main.js?v=2.6.8"></script>
+  <script type="module" src="js/main.js?v=2.6.9"></script>
 </body>
 
 </html>

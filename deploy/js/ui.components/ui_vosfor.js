@@ -19,7 +19,6 @@ import {
     calculateVosforInvestment,
     ARC_STATS,
     fetchLiveArcanePrice,
-    clearArcaneCacheIDB,
     pixRank,
     HEX_ARCANES
 } from "../services/vosfor.service.js?v=2.7";
@@ -1838,25 +1837,12 @@ function calculatorWidgetCard(data) {
 
 function searchAndControlsBar() {
     const t = vosT();
-    const es = state.currentLang === "es";
-
-    const now = Date.now();
-    const lastGlobalRefresh = parseInt(localStorage.getItem("vosfor_last_global_refresh") || "0", 10);
-    const GLOBAL_REFRESH_COOLDOWN_MS = 60 * 60 * 1000;
-    const cooldownActive = now - lastGlobalRefresh < GLOBAL_REFRESH_COOLDOWN_MS;
-
-    const btnStyle = cooldownActive
-        ? "padding:6px 12px;font-size:0.8rem;border-color:rgba(100,100,100,0.5);color:#888;cursor:not-allowed;"
-        : "padding:6px 12px;font-size:0.8rem;border-color:rgba(224,176,64,0.5);color:#e8c88a;";
 
     return `
     <div class="vosfor-search-bar" style="display:flex; flex-wrap:wrap; gap:8px;">
       <input type="text" id="arcaneInput" class="wf-input vosfor-search-input" style="flex:1;min-width:200px;" placeholder="${escapeHTML(t.searchPlaceholder || "Buscar arcano por nombre (ej. Energize, Crescendo)...")}" autocomplete="off" value="${escapeHTML(searchQuery)}" oninput="globalThis.onVosforSearchInput(this.value)">
       <button class="vosfor-preset-btn" style="padding:6px 12px;font-size:0.8rem;" onclick="toggleVosforExpandAll()">
         ${expandAllPacks ? escapeHTML(t.collapseAll || "Contraer Todo") : escapeHTML(t.expandAll || "Desplegar Todo")}
-      </button>
-      <button id="global-refresh-btn" class="vosfor-preset-btn" style="${btnStyle}" onclick="globalThis.onGlobalRefresh()" ${cooldownActive ? "disabled" : ""}>
-        ${es ? "↻ Actualizar Precios" : "↻ Refresh Prices"}
       </button>
     </div>`;
 }
@@ -2129,49 +2115,6 @@ if (typeof window !== "undefined") {
     });
 }
 
-let lastGlobalRefresh = parseInt(localStorage.getItem("vosfor_last_global_refresh") || "0", 10);
-const GLOBAL_REFRESH_COOLDOWN_MS = 60 * 60 * 1000;
-
-export async function onGlobalRefresh() {
-    const btn = document.getElementById("global-refresh-btn");
-    if (!btn) return;
-
-    const now = Date.now();
-    const es = state.currentLang === "es";
-
-    if (now - lastGlobalRefresh < GLOBAL_REFRESH_COOLDOWN_MS) {
-        const remainingMinutes = Math.ceil((GLOBAL_REFRESH_COOLDOWN_MS - (now - lastGlobalRefresh)) / 60000);
-        alert(es
-            ? `Por favor, espera ${remainingMinutes} minutos antes de volver a actualizar todos los precios globales.`
-            : `Please wait ${remainingMinutes} minutes before refreshing all global prices again.`);
-        return;
-    }
-
-    btn.disabled = true;
-    btn.innerHTML = es ? "↻ Actualizando..." : "↻ Refreshing...";
-    btn.style.opacity = "0.6";
-
-    await clearArcaneCacheIDB();
-
-    try {
-        await requestAllPacks(true);
-        lastGlobalRefresh = Date.now();
-        localStorage.setItem("vosfor_last_global_refresh", lastGlobalRefresh.toString());
-    } catch (e) {
-        console.error("Global refresh error:", e);
-        btn.innerHTML = es ? "⚠ Error" : "⚠ Error";
-        btn.style.color = "#ff8888";
-        setTimeout(() => {
-            if (btn) {
-                btn.disabled = false;
-                btn.innerHTML = es ? "↻ Actualizar Precios" : "↻ Refresh Prices";
-                btn.style.opacity = "1";
-                btn.style.color = "#e8c88a";
-                btn.style.borderColor = "rgba(224,176,64,0.5)";
-            }
-        }, 4000);
-    }
-}
 
 exposeGlobals({
     initVosforTab,
@@ -2206,6 +2149,5 @@ exposeGlobals({
     onSellQtyChange,
     onSellRatePackChange,
     onLivePriceCheck,
-    onGlobalRefresh,
     handleArcaneTyping: onVosforSearchInput,
 }, "ui.components/ui_vosfor.js");
