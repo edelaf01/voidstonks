@@ -144,9 +144,14 @@ def _generar_curiosidades(path_series, top=40, dias_max=None):
         # mismo día. Ordenar por magnitud dejaba arriba siempre los mismos eventos viejos.
         lista.sort(key=lambda e: (e["fecha"], max(abs(e["ask_pct"]), abs(e["venta_pct"] or 0))),
                    reverse=True)
+    # La ronda arranca por el tipo que tiene el evento MÁS RECIENTE, no por orden alfabético.
+    # El carrusel abre por la primera tarjeta, así que con el orden alfabético esa tarjeta era
+    # la de "bajada_venta" aunque su evento fuera de ayer y hubiera uno de hoy en otro tipo.
+    # El nombre del tipo se queda solo como desempate, para que la salida siga siendo determinista.
+    orden = sorted(por_tipo, key=lambda t: (por_tipo[t][0]["fecha"], t), reverse=True)
     salida, i = [], 0
     while len(salida) < top and any(len(v) > i for v in por_tipo.values()):
-        for tipo in sorted(por_tipo):          # ronda equitativa entre tipos
+        for tipo in orden:                     # ronda equitativa entre tipos
             if len(por_tipo[tipo]) > i and len(salida) < top:
                 salida.append(por_tipo[tipo][i])
         i += 1

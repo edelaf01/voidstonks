@@ -15,6 +15,8 @@ let _clockSynced = false;
 // (límite 100k/día) y evita parpadeos al re-renderizar el panel.
 const FISSURE_TTL = 120 * 1000; // 2 min
 let _fissureCache = { data: null, ts: 0 };
+let _inflight = null;
+let _fissuresUnavailable = false;
 
 // La cache guarda TODAS las fisuras (incluidas Railjack), ya normalizadas pero SIN aplicar las
 // preferencias del usuario: así, cambiar de preferencias solo re-filtra en memoria y no gasta
@@ -100,85 +102,103 @@ function passesPrefs(f, prefs) {
  * @returns {Promise<Array>}
  */
 export async function fetchAllFissures(force = false) {
-    let allFissures;
-
     if (!force && _fissureCache.data && (Date.now() - _fissureCache.ts < FISSURE_TTL)) {
-        allFissures = _fissureCache.data;
-    } else {
-        try {
-            // El ping de hora corre en paralelo al fetch de datos; solo se espera al final.
-            const clockSync = syncServerClock();
-            const res = await getActiveFissures(force);
-            if (!res.ok) throw new Error("Error al conectar con el Worldstate");
+        return _fissureCache.data;
+    }
+    // Una sola petición para todos los que pidan a la vez. El panel de rutas se pinta en tres
+    // sitios y cada instancia pedía la suya: con el worker frío, la que se comía el timeout de
+    // 15 s pintaba "esperando fisura" sobre eras que el panel de al lado enseñaba abiertas.
+    if (force || !_inflight) {
+        _inflight = loadFissures(force).finally(() => { _inflight = null; });
+    }
+    return _inflight;
+}
 
-            let fissures = await res.json();
+/** Si el último intento se quedó sin datos que servir. Separa "no hay fisura de esa era" de
+ *  "no lo sabemos", que es la diferencia entre informar y mentir. */
+export function fissuresUnavailable() {
+    return _fissuresUnavailable;
+}
 
-            if (typeof fissures === "string") {
-                // Algunas respuestas del parser llegan como string JSON en vez de objeto.
-                try { fissures = JSON.parse(fissures); } catch (e) {
-                    console.error("Error al parsear las fisuras", e);
-                }
+async function loadFissures(force) {
+    let allFissures;
+    try {
+        // El ping de hora corre en paralelo al fetch de datos; solo se espera al final.
+        const clockSync = syncServerClock();
+        const res = await getActiveFissures(force);
+        if (!res.ok) throw new Error("Error al conectar con el Worldstate");
+
+        let fissures = await res.json();
+
+        if (typeof fissures === "string") {
+            // Algunas respuestas del parser llegan como string JSON en vez de objeto.
+            try { fissures = JSON.parse(fissures); } catch (e) {
+                console.error("Error al parsear las fisuras", e);
             }
-            if (fissures && !Array.isArray(fissures) && Array.isArray(fissures.data)) {
-                fissures = fissures.data;
-            }
-
-            if (!Array.isArray(fissures)) {
-                console.error("[Worldstate Error] Expected array, got:", typeof fissures, fissures);
-                throw new TypeError("El Worldstate no ha devuelto un array válido de fisuras.");
-            }
-
-            await clockSync;
-
-            // Respaldo si el ping de hora falló: auto-detección de desfase a partir de los propios
-            // datos. El servidor SOLO devuelve fisuras activas (expiry > serverNow). Si el Date.now()
-            // del cliente ya supera la primera expiración, el reloj local va adelantado. Solo corre
-            // sin sincronización real: con datos stale del caché daría un falso positivo.
-            if (!_clockSynced && fissures.length > 0 && !globalThis._serverTimeOffset) {
-                const expiryTimes = fissures.map(f => new Date(f.expiry).getTime());
-                const activationTimes = fissures.map(f => new Date(f.activation).getTime());
-                const earliestExpiry = Math.min(...expiryTimes);
-                const latestActivation = Math.max(...activationTimes);
-
-                if (Date.now() > earliestExpiry) {
-                    // El reloj va adelantado: la mejor estimación del "ahora real" es el punto
-                    // medio entre la activación más reciente y la expiración más próxima.
-                    globalThis._serverTimeOffset = Date.now() - (latestActivation + earliestExpiry) / 2;
-                    console.warn(`[FISSURES] Desfase de reloj detectado: ${Math.round(globalThis._serverTimeOffset / 60000)}min. Corrigiendo.`);
-                }
-            }
-
-            const now = new Date(Date.now() - (globalThis._serverTimeOffset || 0));
-
-            allFissures = fissures.reduce((acc, f) => {
-                const expiryDate = new Date(f.expiry);
-                if (expiryDate <= now) return acc;
-
-                const diffMs = expiryDate - now;
-                const diffMins = Math.round(diffMs / 60000);
-                const timeText = diffMins >= 60
-                    ? `${Math.floor(diffMins / 60)}h ${diffMins % 60}m`
-                    : `${diffMins}m`;
-
-                acc.push({
-                    node: f.node,
-                    type: f.missionType,
-                    tier: f.tier,
-                    eta: timeText,
-                    expiry: f.expiry,
-                    isSP: f.isHard === true,
-                    isOmnia: f.tier === "Omnia",
-                    isStorm: f.isStorm === true,
-                });
-                return acc;
-            }, []);
-
-            _fissureCache = { data: allFissures, ts: Date.now() };
-        } catch (e) {
-            console.error("Error en Worldstate:", e);
-            // Fallo transitorio (timeout/cold start): no vacíes la lista, devuelve lo último bueno.
-            allFissures = _fissureCache.data || [];
         }
+        if (fissures && !Array.isArray(fissures) && Array.isArray(fissures.data)) {
+            fissures = fissures.data;
+        }
+
+        if (!Array.isArray(fissures)) {
+            console.error("[Worldstate Error] Expected array, got:", typeof fissures, fissures);
+            throw new TypeError("El Worldstate no ha devuelto un array válido de fisuras.");
+        }
+
+        await clockSync;
+
+        // Respaldo si el ping de hora falló: auto-detección de desfase a partir de los propios
+        // datos. El servidor SOLO devuelve fisuras activas (expiry > serverNow). Si el Date.now()
+        // del cliente ya supera la primera expiración, el reloj local va adelantado. Solo corre
+        // sin sincronización real: con datos stale del caché daría un falso positivo.
+        if (!_clockSynced && fissures.length > 0 && !globalThis._serverTimeOffset) {
+            const expiryTimes = fissures.map(f => new Date(f.expiry).getTime());
+            const activationTimes = fissures.map(f => new Date(f.activation).getTime());
+            const earliestExpiry = Math.min(...expiryTimes);
+            const latestActivation = Math.max(...activationTimes);
+
+            if (Date.now() > earliestExpiry) {
+                // El reloj va adelantado: la mejor estimación del "ahora real" es el punto
+                // medio entre la activación más reciente y la expiración más próxima.
+                globalThis._serverTimeOffset = Date.now() - (latestActivation + earliestExpiry) / 2;
+                console.warn(`[FISSURES] Desfase de reloj detectado: ${Math.round(globalThis._serverTimeOffset / 60000)}min. Corrigiendo.`);
+            }
+        }
+
+        const now = new Date(Date.now() - (globalThis._serverTimeOffset || 0));
+
+        allFissures = fissures.reduce((acc, f) => {
+            const expiryDate = new Date(f.expiry);
+            if (expiryDate <= now) return acc;
+
+            const diffMs = expiryDate - now;
+            const diffMins = Math.round(diffMs / 60000);
+            const timeText = diffMins >= 60
+                ? `${Math.floor(diffMins / 60)}h ${diffMins % 60}m`
+                : `${diffMins}m`;
+
+            acc.push({
+                node: f.node,
+                type: f.missionType,
+                tier: f.tier,
+                eta: timeText,
+                expiry: f.expiry,
+                isSP: f.isHard === true,
+                isOmnia: f.tier === "Omnia",
+                isStorm: f.isStorm === true,
+            });
+            return acc;
+        }, []);
+
+        _fissureCache = { data: allFissures, ts: Date.now() };
+        _fissuresUnavailable = false;
+    } catch (e) {
+        console.error("Error en Worldstate:", e);
+        // Fallo transitorio (timeout/cold start): no vacíes la lista, devuelve lo último bueno.
+        allFissures = _fissureCache.data || [];
+        // Sin nada cacheado no hay lista vieja que valga: quien pinte con esto tiene que
+        // poder decir que no se sabe, no dar por hecho que no hay fisuras.
+        _fissuresUnavailable = allFissures.length === 0;
     }
 
     return allFissures;
@@ -193,6 +213,21 @@ export async function fetchBestFissures(force = false) {
     const allFissures = await fetchAllFissures(force);
     const prefs = getFissurePrefs();
     return allFissures.filter((f) => passesPrefs(f, prefs));
+}
+
+/**
+ * Cuántas fisuras activas esconden ahora mismo las preferencias de vista.
+ *
+ * El valor de fábrica solo enseña cuatro tipos de misión, así que quien no abra el panel de
+ * filtros ve una lista recortada sin ninguna señal de que lo está. Vive aquí y no en el
+ * componente porque es la misma pregunta que contestan fetchAll/fetchBest, y sale de restarlas.
+ * @param {number} nowMs reloj ya sincronizado con el servidor.
+ */
+export async function countHiddenFissures(nowMs = Date.now()) {
+    const vivas = (f) => !f.expiry || (new Date(f.expiry) - nowMs) > 0;
+    const todas = (await fetchAllFissures()).filter(vivas);
+    const prefs = getFissurePrefs();
+    return todas.filter((f) => !passesPrefs(f, prefs)).length;
 }
 
 /**

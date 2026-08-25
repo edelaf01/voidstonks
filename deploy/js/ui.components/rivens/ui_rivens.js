@@ -1,4 +1,6 @@
 import { state } from "../../state.js";
+import { renderIndexFilters, indexCountHtml, indexEmptyHtml } from "./ui_riven_index_filters.js";
+import { META_KEYS, EXCLUDED_COMPONENTS, isBaseWeapon, applyIndexFilters } from "../../utils/rivens/riven_index_filter.js";
 import { exposeGlobals } from "../../utils/global_registry.js";
 import { getWeaponImagePath } from "../../utils/rivens/weapon_image.js";
 import {
@@ -779,18 +781,18 @@ function renderEmptyShowcase(panel) {
         ${isEs ? "Selecciona un arma para tasar su valor" : "Select a weapon to appraise its value"}
       </div>
       
-      <div style="display: flex; gap: 15px; justify-content: center; width: 100%; margin-bottom: 25px;">
+      <div style="display: flex; gap: 15px; justify-content: center; width: 100%; margin-bottom: 25px; flex-wrap: wrap;"><!-- nombres a dos líneas: la tarjeta mide 110px y "Proboscis Cernos" se quedaba en "Proboscis C…" -->
         <div class="showcase-card" id="showcase-card-0" style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; padding: 15px 10px; display: flex; flex-direction: column; align-items: center; width: 110px; transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1); cursor: pointer;" onmouseover="this.style.background='rgba(155, 89, 182, 0.08)'; this.style.borderColor='rgba(155, 89, 182, 0.35)'; this.style.boxShadow='0 0 15px rgba(155, 89, 182, 0.2)';" onmouseout="this.style.background='rgba(255,255,255,0.02)'; this.style.borderColor='rgba(255,255,255,0.05)'; this.style.boxShadow='none';">
           <img class="showcase-img" style="width: 90px; height: 56px; object-fit: contain; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.5)); transition: all 0.5s;" src="${DEFAULT_WEAPON_DATA_URL}">
-          <span class="showcase-name" style="font-size: 0.72rem; font-weight: bold; margin-top: 10px; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%;">Acceltra</span>
+          <span class="showcase-name" style="font-size: 0.72rem; font-weight: bold; margin-top: 10px; color: #fff; overflow-wrap: anywhere; line-height: 1.15; width: 100%;">Acceltra</span>
         </div>
         <div class="showcase-card" id="showcase-card-1" style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; padding: 15px 10px; display: flex; flex-direction: column; align-items: center; width: 110px; transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1); cursor: pointer;" onmouseover="this.style.background='rgba(155, 89, 182, 0.08)'; this.style.borderColor='rgba(155, 89, 182, 0.35)'; this.style.boxShadow='0 0 15px rgba(155, 89, 182, 0.2)';" onmouseout="this.style.background='rgba(255,255,255,0.02)'; this.style.borderColor='rgba(255,255,255,0.05)'; this.style.boxShadow='none';">
           <img class="showcase-img" style="width: 90px; height: 56px; object-fit: contain; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.5)); transition: all 0.5s;" src="${DEFAULT_WEAPON_DATA_URL}">
-          <span class="showcase-name" style="font-size: 0.72rem; font-weight: bold; margin-top: 10px; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%;">Braton</span>
+          <span class="showcase-name" style="font-size: 0.72rem; font-weight: bold; margin-top: 10px; color: #fff; overflow-wrap: anywhere; line-height: 1.15; width: 100%;">Braton</span>
         </div>
         <div class="showcase-card" id="showcase-card-2" style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; padding: 15px 10px; display: flex; flex-direction: column; align-items: center; width: 110px; transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1); cursor: pointer;" onmouseover="this.style.background='rgba(155, 89, 182, 0.08)'; this.style.borderColor='rgba(155, 89, 182, 0.35)'; this.style.boxShadow='0 0 15px rgba(155, 89, 182, 0.2)';" onmouseout="this.style.background='rgba(255,255,255,0.02)'; this.style.borderColor='rgba(255,255,255,0.05)'; this.style.boxShadow='none';">
           <img class="showcase-img" style="width: 90px; height: 56px; object-fit: contain; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.5)); transition: all 0.5s;" src="${DEFAULT_WEAPON_DATA_URL}">
-          <span class="showcase-name" style="font-size: 0.72rem; font-weight: bold; margin-top: 10px; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%;">Rubico</span>
+          <span class="showcase-name" style="font-size: 0.72rem; font-weight: bold; margin-top: 10px; color: #fff; overflow-wrap: anywhere; line-height: 1.15; width: 100%;">Rubico</span>
         </div>
       </div>
       
@@ -3027,7 +3029,8 @@ export function openGradingModal() {
     if (weaponInput) weaponInput.value = name;
   }
 
-  if (!name) return alert("Selecciona un arma válida");
+  // Con showToast, no alert(): el aviso nativo sale siempre en español y bloquea la página.
+  if (!name) return showToast(TEXTS[state.currentLang]?.errNoWeapon || "Pick a weapon first.");
 
   let data = null;
   if (state.weaponMap) {
@@ -3038,7 +3041,7 @@ export function openGradingModal() {
     }
   }
 
-  if (!data) return alert("Selecciona un arma válida");
+  if (!data) return showToast(TEXTS[state.currentLang]?.errNoWeapon || "Pick a weapon first.");
 
   // Reconstruir los inputs de la tasación de forma dinámica y limpia
   const container = document.getElementById("grading-inputs-container");
@@ -3510,29 +3513,10 @@ export function filterRivenIndex(resetPagination = true) {
   const sortDir = document.getElementById("btn-index-sort-dir")?.getAttribute("data-dir") || "desc";
   const isAsc = sortDir === "asc";
 
-  const excludedComponents = new Set([
-    // Zaw Grips
-    "JAYAP", "KORB", "KROOSTRA", "KWATH", "LAKA", "PEYE", "SEEKALLA", "SHTUNG", "PLAGUE AKWIN", "PLAGUE BOKWIN",
-    // Zaw Links
-    "JAI", "RUHANG", "JAI II", "RUHANG II", "VARGEET JAI", "VARGEET RUHANG", "EKWANA JAI", "EKWANA RUHANG",
-    "VARGEET II JAI", "VARGEET II RUHANG", "EKWANA II JAI", "EKWANA II RUHANG", "VARGEET JAI II", "VARGEET RUHANG II",
-    "EKWANA JAI II", "EKWANA RUHANG II"
-  ]);
-
   const siblingsMap = getNakedToSiblingsMap();
-  const prefixesList = ["kuva", "tenet", "coda", "carmine", "rakta", "synoid", "sancti", "vaykor", "telos", "secura", "mk1", "prisma", "mara", "dex"];
-  const suffixesList = ["prime", "vandal", "wraith", "prisma", "coda"];
-  const isBaseWeapon = (wName) => {
-    const lower = wName.toLowerCase().trim();
-    const hasPrefix = prefixesList.some(p => lower.startsWith(p + " ") || lower.startsWith(p + "-"));
-    const hasSuffix = suffixesList.some(s => lower.endsWith(" " + s));
-    return !hasPrefix && !hasSuffix;
-  };
-
   let items = Object.entries(data).filter(([name]) => {
     const upper = name.toUpperCase();
-    if (upper === "NOTE" || upper === "STATUS" || upper === "VERSION" || upper === "TTL" || upper === "DATA" || upper === "ERROR") return false;
-    if (excludedComponents.has(name.toUpperCase())) return false;
+    if (META_KEYS.has(upper) || EXCLUDED_COMPONENTS.has(upper)) return false;
 
     // Deduplicate: If a weapon sibling has an original base version (e.g. Grattler), only show the base card in the index.
     const naked = getNakedName(name);
@@ -3558,6 +3542,14 @@ export function filterRivenIndex(resetPagination = true) {
       return false;
     });
   }
+
+  // Filtros: después de buscar (el contador cuenta sobre lo buscado) y antes de ordenar
+  // (ordenar lo descartado es trabajo tirado). `buscadas` se guarda para poder decir DESPUÉS
+  // cuál de los filtros dejó la lista vacía, que es lo que hace utilizable un estado vacío.
+  const buscadas = items;
+  const prefsIdx = renderIndexFilters(document.getElementById("index-filters-bar"),
+    Object.keys(data), state.weaponMap, () => filterRivenIndex(true));
+  items = applyIndexFilters(items, prefsIdx, state.weaponMap);
 
   const getUnrolledMedian = (data) => {
     if (data.de_unrolled && data.de_unrolled.median !== undefined && data.de_unrolled.median !== null && data.de_unrolled.median > 0) {
@@ -3609,13 +3601,17 @@ export function filterRivenIndex(resetPagination = true) {
       scoreB = calculateRealPotential(dataB) * (dataB.popularity_pct ?? dataB.liquidity_score ?? 0.1) * volMultiplierB;
     }
 
-    if (scoreA !== scoreB) {
-      return isAsc ? scoreA - scoreB : scoreB - scoreA;
-    }
+    // Sin datos de mercado, al fondo pase lo que pase: al invertir el orden encabezaban.
+    if ((scoreA > 0) !== (scoreB > 0)) return scoreA > 0 ? -1 : 1;
+    if (scoreA !== scoreB) return isAsc ? scoreA - scoreB : scoreB - scoreA;
     return a[0].localeCompare(b[0]);
   });
 
-  renderRivenIndexList(items);
+  const cont = document.getElementById("index-results-container");
+  if (items.length === 0 && buscadas.length > 0 && cont) {
+    cont.classList.remove("hidden");
+    cont.innerHTML = indexEmptyHtml(buscadas, prefsIdx, state.weaponMap);
+  } else renderRivenIndexList(items, indexCountHtml(items.length, buscadas.length));
   // El carrusel vive sobre la lista del índice y se autoprotege si el JSON no existe.
   renderCuriosidades();
 }
@@ -3647,7 +3643,7 @@ function getNakedToSiblingsMap() {
   return nakedToSiblingsMap;
 }
 
-export function renderRivenIndexList(items) {
+export function renderRivenIndexList(items, countHtml = "") {
   const container = document.getElementById("index-results-container");
   if (!container) return;
 
@@ -4281,7 +4277,7 @@ export function renderRivenIndexList(items) {
     `;
   }
 
-  container.innerHTML = html;
+  container.innerHTML = countHtml + html;
   container.classList.remove("hidden");
 }
 

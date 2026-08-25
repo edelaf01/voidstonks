@@ -45,3 +45,16 @@ export function onTap(el, handler, opts = {}) {
     handler(e);
   });
 }
+
+/**
+ * Si el puntero principal no puede pasar por encima sin pulsar: dedo, no ratón.
+ *
+ * Por `hover` y no por el ancho de pantalla ni por el user-agent: lo que hay que decidir es
+ * si un gesto de ratón (arrastrar, :hover) llega a existir, y eso lo contesta la capacidad
+ * del puntero. Una tablet ancha es táctil y un portátil estrecho no lo es.
+ *
+ * @returns {boolean} false si no hay matchMedia (Node, en los tests).
+ */
+export function isTouchPointer() {
+  return globalThis.matchMedia?.("(hover: none)").matches ?? false;
+}

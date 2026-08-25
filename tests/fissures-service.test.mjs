@@ -227,6 +227,59 @@ test("un fallo del worker deja lo último bueno en pantalla, no una lista vacía
   });
 });
 
+// El panel de rutas se pinta en tres sitios a la vez y cada instancia pedía sus fisuras. Con
+// el worker frío, la que se comía el timeout pintaba "esperando fisura" sobre eras que la de
+// al lado enseñaba abiertas — y el usuario lo veía como que el panel se rompía solo.
+test("varias peticiones a la vez comparten una sola llamada al worker", async () => {
+  respuestaFisuras = [cruda({ node: "Hepit (Void)" })];
+  await M.fetchAllFissures(true);
+  const antes = nFetch("type=fissures");
+
+  // Sin caché fresca (force) y en paralelo: es el arranque en frío de las tres instancias.
+  const [a, b, c] = await Promise.all([
+    M.fetchAllFissures(true), M.fetchAllFissures(), M.fetchAllFissures(),
+  ]);
+  assert.equal(nFetch("type=fissures"), antes + 1, "una sola llamada para las tres");
+  assert.deepEqual(a.map((f) => f.node), ["Hepit (Void)"]);
+  assert.deepEqual(b, a);
+  assert.deepEqual(c, a);
+});
+
+// "Esperando fisura" cuando lo que ha pasado es que no se pudo preguntar es una afirmación
+// falsa: no es que no haya fisura de esa era, es que no se sabe. Quien pinte necesita poder
+// distinguirlo para decirlo con palabras.
+test("se sabe cuándo la lista vacía es un fallo y no una respuesta", async () => {
+  await sinRuido(async () => {
+    respuestaFisuras = [cruda({ node: "Buena" })];
+    await M.fetchAllFissures(true);
+    assert.equal(M.fissuresUnavailable(), false);
+
+    // Falla PERO hay caché: se sirve lo último bueno, así que no hay nada que avisar.
+    fisurasOk = false;
+    await M.fetchAllFissures(true);
+    assert.equal(M.fissuresUnavailable(), false, "con datos viejos que enseñar no se avisa");
+
+    // Una respuesta vacía DE VERDAD (el worker contesta, no hay fisuras) tampoco avisa: es
+    // un dato, no un fallo.
+    fisurasOk = true;
+    respuestaFisuras = [];
+    await M.fetchAllFissures(true);
+    assert.equal(M.fissuresUnavailable(), false);
+
+    // Falla y no queda nada que servir: eso sí es "no lo sabemos", y es lo que separa
+    // "esperando fisura" de "no se ha podido preguntar".
+    fisurasOk = false;
+    await M.fetchAllFissures(true);
+    assert.equal(M.fissuresUnavailable(), true);
+
+    // Y se limpia en cuanto vuelve a haber datos.
+    fisurasOk = true;
+    respuestaFisuras = [cruda({ node: "Buena" })];
+    await M.fetchAllFissures(true);
+    assert.equal(M.fissuresUnavailable(), false);
+  });
+});
+
 test("cambiar de filtros no gasta una llamada al worker", async () => {
   respuestaFisuras = [cruda({ node: "Hepit (Void)" })];
   await M.fetchAllFissures(true);

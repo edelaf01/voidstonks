@@ -475,6 +475,85 @@
     background: rgba(221, 169, 56, 0.15) !important;
 }
 
+/* Panel sin set en seguimiento: en vez de esconderse, se ofrece como zona de soltar. El
+   borde discontinuo es lo que la distingue del panel "lleno", que lo lleva continuo. */
+#set-tracker.is-dropzone {
+    border-style: dashed !important;
+    border-color: rgba(221, 169, 56, 0.28) !important;
+    box-shadow: none !important;
+}
+
+.tracker-dropzone {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 14px 10px 10px;
+    text-align: center;
+}
+
+.tracker-dropzone-icon {
+    font-size: 1.3rem;
+    line-height: 1;
+    color: var(--wf-gold-text);
+    opacity: 0.75;
+}
+
+.tracker-dropzone-text {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--wf-gold-text);
+}
+
+/* rem y no em: el padre ya reduce el tamaño y encadenar otro 0.x em deja esto ilegible. */
+.tracker-dropzone-sub {
+    font-size: 0.72rem;
+    color: #8a8a8a;
+    line-height: 1.35;
+}
+
+/* El asa aparece al pasar por encima: marcar las filas a todas horas convertía la lista de
+   contenido de la reliquia en una fila de iconos. */
+.component-row.is-draggable {
+    cursor: grab;
+}
+
+.component-row.is-draggable:active {
+    cursor: grabbing;
+}
+
+.component-row.is-draggable::before {
+    content: "⠿";
+    position: absolute;
+    left: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.7rem;
+    line-height: 1;
+    color: var(--wf-gold-text);
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    pointer-events: none;
+}
+
+.component-row.is-draggable:hover::before {
+    opacity: 0.55;
+}
+
+/* Fila "en el aire" durante la pulsación larga en táctil. El dedo tapa la fila, así que la
+   señal tiene que salirse de debajo: borde dorado a lo ancho y sombra despegada. */
+.component-row.is-lifted {
+    border-color: var(--wf-gold-text) !important;
+    background: linear-gradient(90deg, rgba(221, 169, 56, 0.18) 0, rgba(221, 169, 56, 0.06) 100%) !important;
+    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.65) !important;
+    transform: scale(1.02) !important;
+    z-index: 9999;
+}
+
+.component-row.is-lifted::before {
+    opacity: 1;
+}
+
 .tracker-title {
     margin-bottom: 12px;
     padding-bottom: 10px;
@@ -589,6 +668,23 @@
     overflow: visible !important;
     position: relative;
     z-index: 1;
+}
+
+/* En pantallas estrechas el nombre de la pieza es lo ÚNICO que puede encoger de la fila (los
+   distintivos, los puntos y los +/- llevan nowrap), así que se quedaba en 0 px de ancho: las
+   piezas se leían como "S..", "R..", "B..". Se le da la primera línea junto al icono y lo demás
+   baja debajo. El !important es porque el `flex:1` lo pone un style inline en
+   ui_set_tracker.js. */
+@media (max-width: 620px) {
+    .tracker-item {
+        flex-wrap: wrap;
+        row-gap: 6px;
+    }
+
+    .tracker-item .t-name {
+        flex: 1 1 calc(100% - 44px) !important;
+        white-space: normal !important;
+    }
 }
 
 .tracker-item:hover {
@@ -838,6 +934,15 @@
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
+}
+
+/* Desplegada puede traer 110 sets: la página se volvía interminable y para cerrarla había que
+   bajar hasta el final a buscar "Ver menos". Con techo y scroll propio, el botón se queda
+   siempre a la vista justo debajo. */
+#setResults .sets-bridge.is-expanded .sets-bridge-row {
+    max-height: 46vh;
+    overflow-y: auto;
+    padding-right: 4px;
 }
 
 /* Reset del chrome de <button>: es un <button> por lo táctil (utils/tap.js), pero tiene que

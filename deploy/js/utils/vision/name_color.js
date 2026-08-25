@@ -38,27 +38,27 @@ export function snapToThemeTextColor(r, g, b) {
 const BG_TOL_SQ = 45 * 45;
 const TX_TOL_SQ = 66 * 66;
 
+// Color cuantizado a 5 bits por canal: el antialias del texto reparte el mismo trazo
+// entre decenas de tonos casi idénticos y sin cuantizar no hay moda que valga.
+const QKEY = (r, g, b) => ((r >> 3) << 10) | ((g >> 3) << 5) | (b >> 3);
+const UNQ = (k) => [((k >> 10) & 31) << 3, ((k >> 5) & 31) << 3, (k & 31) << 3];
+
 /**
- * Colores que podrían ser el texto del nombre en la banda inferior de un recorte de
- * celda ya escalado, de más a menos frecuentes y sin repetir tono. ENUMERA, no decide.
+ * Histograma de colores de TINTA de la banda de nombre de UNA celda: los colores que
+ * cropThemeBinarized podría llegar a aislar ahí, con cuántos píxeles tiene cada uno.
+ * MIDE, no decide: quién gana lo resuelve rankPageNameColors con el resto de celdas.
  *
- * Quedarse con el más frecuente —que es lo que hace cropThemeBinarized cuando nadie le
- * pasa un color— es un empate a suerte en la pestaña de RELIQUIAS: el arte marrón y el
- * nombre naranja ocupan casi los mismos píxeles de la banda (1.02% contra 1.90% en
- * captura de escritorio; 1.10% contra 1.00% en cuanto el stream de vídeo reescala el
- * frame). Ahí el ganador cambia de celda en celda y de frame en frame, y el mismo
- * inventario se lee distinto en cada pasada.
- *
- * max=5 porque con el frame de reliquias comprimido el color del nombre caía al 4º
- * puesto por número de píxeles: cortar antes lo dejaría fuera de la lista.
+ * Los filtros son los mismos que aplica la binarización (lejos del fondo, y con la
+ * separación de brillo sobre el fondo que exige la tinta). Un color que la
+ * binarización va a tirar no puede ser el color del nombre, así que enumerarlo solo
+ * gasta una pasada de OCR — y era por dónde se colaban los grises/rojos oscuros del
+ * arte que luego ganaban la elección.
  *
  * @param imgData  ImageData del recorte (el de la banda de nombre, ya a escala de OCR)
+ * @returns [{ col: [r,g,b], count }] de más a menos píxeles, sin agrupar
  */
-export function nameColorCandidates(imgData, max = 5) {
+export function bandInkHistogram(imgData, max = 10) {
     const { data: px, width: cw, height: ch } = imgData;
-    const QKEY = (r, g, b) => ((r >> 3) << 10) | ((g >> 3) << 5) | (b >> 3);
-    const UNQ = (k) => [((k >> 10) & 31) << 3, ((k >> 5) & 31) << 3, (k & 31) << 3];
-
     const bgHist = new Map();
     let bgKey = 0, bgCount = -1;
     for (let i = 0; i < px.length; i += 4) {
@@ -68,6 +68,7 @@ export function nameColorCandidates(imgData, max = 5) {
         if (c > bgCount) { bgCount = c; bgKey = key; }
     }
     const [bgR, bgG, bgB] = UNQ(bgKey);
+    const bgLum = bgR * 0.299 + bgG * 0.587 + bgB * 0.114;
 
     // Solo la franja inferior: el nombre siempre va abajo y el arte invade por arriba.
     const bandY0 = Math.floor(ch * 0.45);
@@ -77,22 +78,89 @@ export function nameColorCandidates(imgData, max = 5) {
             const i = (y * cw + x) * 4;
             const dr = px[i] - bgR, dg = px[i + 1] - bgG, db = px[i + 2] - bgB;
             if (dr * dr + dg * dg + db * db <= BG_TOL_SQ) continue;
+            if (px[i] * 0.299 + px[i + 1] * 0.587 + px[i + 2] * 0.114 < bgLum + 12) continue;
             const key = QKEY(px[i], px[i + 1], px[i + 2]);
             txHist.set(key, (txHist.get(key) || 0) + 1);
         }
     }
+    return [...txHist.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, max)
+        .map(([key, count]) => ({ col: UNQ(key), count }));
+}
 
-    const out = [];
-    for (const [key] of [...txHist.entries()].sort((a, b) => b[1] - a[1])) {
-        const col = snapToThemeTextColor(...UNQ(key));
-        // Dos colores más cercanos entre sí que la tolerancia de tinta producen la
-        // MISMA máscara: ofrecer los dos solo gasta una pasada de OCR.
-        const dup = out.some(o => {
-            const dr = o[0] - col[0], dg = o[1] - col[1], db = o[2] - col[2];
+/**
+ * Colores candidatos a texto del nombre para TODA una página, ordenados por el VOTO
+ * de sus celdas. ENUMERA, no decide: el que vale lo confirma el OCR contra el catálogo.
+ *
+ * Por qué votando entre celdas y no por celda: dentro de UNA celda el arte y el nombre
+ * ocupan casi los mismos píxeles de la banda (1.02% contra 1.90% en captura de
+ * escritorio; 1.10% contra 1.00% en cuanto el stream de vídeo reescala el frame), así
+ * que el ganador cambia de celda en celda y de pasada en pasada. Entre celdas no hay
+ * empate posible: el color del NOMBRE es el mismo en las 18, y cada arte trae el suyo.
+ *
+ * Dentro del grupo ganador se devuelve el miembro MÁS BRILLANTE, no el más frecuente.
+ * Los dos aíslan el nombre, pero el brillante es el núcleo del trazo y el frecuente
+ * puede ser el borde suavizado: binarizar por el borde deja el núcleo fuera de la bola
+ * de tolerancia y salen letras HUECAS, que el OCR lee a medias. Visto en vivo con
+ * rgb(195,107,12) —borde del naranja rgb(248,128,0)—: 3 de 18 celdas ilegibles.
+ *
+ * @param histograms  un bandInkHistogram por celda de la página
+ */
+export function rankPageNameColors(histograms, max = 4) {
+    // Un solo recuento global primero: agrupar sobre la marcha hace que el resultado
+    // dependa del orden en que llegan las celdas (el representante de un grupo cambia y
+    // con él a qué grupo cae el siguiente color), y entonces la misma página vota
+    // distinto en cada pasada — justo lo que este módulo existe para evitar.
+    const totals = new Map(); // "r,g,b" -> { col, pixels, cells:Set }
+    histograms.forEach((hist, celda) => {
+        for (const { col, count } of hist) {
+            const key = col.join(",");
+            let t = totals.get(key);
+            if (!t) { t = { col, pixels: 0, cells: new Set() }; totals.set(key, t); }
+            t.pixels += count;
+            t.cells.add(celda);
+        }
+    });
+
+    // Los grupos se siembran con los colores más frecuentes de la página: los tonos
+    // que el antialias reparte alrededor de un trazo caen dentro de la tolerancia de
+    // tinta de su núcleo, así que binarizar por cualquiera de ellos da la misma máscara.
+    const groups = [];
+    for (const t of [...totals.values()].sort((a, b) => b.pixels - a.pixels)) {
+        let g = groups.find(G => {
+            const dr = G.seed[0] - t.col[0], dg = G.seed[1] - t.col[1], db = G.seed[2] - t.col[2];
             return dr * dr + dg * dg + db * db < TX_TOL_SQ;
         });
-        if (dup) continue;
-        out.push(col);
+        if (!g) { g = { seed: t.col, pixels: 0, cells: new Set(), members: [] }; groups.push(g); }
+        g.pixels += t.pixels;
+        for (const c of t.cells) g.cells.add(c);
+        g.members.push(t);
+    }
+
+    // En cuántas celdas aparece manda sobre cuántos píxeles suma: el arte de un ítem
+    // puede tener más píxeles que el nombre, pero solo está en su celda.
+    groups.sort((a, b) => b.cells.size - a.cells.size || b.pixels - a.pixels);
+
+    const out = [];
+    for (const g of groups) {
+        const top = Math.max(...g.members.map(m => m.pixels));
+        let best = null, bestLum = -1;
+        for (const m of g.members) {
+            // Un puñado de píxeles no define el núcleo del trazo: sin este corte, un
+            // reflejo del arte a 3 píxeles se llevaría el grupo entero.
+            if (m.pixels < top * 0.15) continue;
+            const lum = m.col[0] * 0.299 + m.col[1] * 0.587 + m.col[2] * 0.114;
+            if (lum > bestLum) { bestLum = lum; best = m.col; }
+        }
+        // Dos grupos distintos pueden acabar en el mismo representante (sus núcleos caen
+        // en el mismo tono aunque sus semillas no se tocaran): producen la MISMA máscara,
+        // así que ofrecer los dos solo gasta una pasada de OCR.
+        if (!best || out.some(o => {
+            const dr = o[0] - best[0], dg = o[1] - best[1], db = o[2] - best[2];
+            return dr * dr + dg * dg + db * db < TX_TOL_SQ;
+        })) continue;
+        out.push(best);
         if (out.length >= max) break;
     }
     return out;

@@ -129,6 +129,36 @@ test("plegado y guía sobreviven al refresco automático", async () => {
         "basura = valores de serie");
 });
 
+// La era no es solo un filtro: entra como `preferTier` al CONSTRUIR y decide qué reliquia se
+// recomienda por pieza. Aplicándola sobre la lista ya montada, elegir Lith seguía enseñando la
+// reliquia Meso — el fallo que preferTier existe para evitar, y que no se ve en ningún test de
+// filtrado porque el filtro en sí acierta.
+test("la era y el orden reconstruyen la lista, no la filtran", () => {
+    assert.match(src, /preferTier: getSetRecsPrefs\(\)\.era/, "la era entra al construir");
+    assert.match(src, /era\?\.addEventListener\("change", reconstruir\)/);
+    assert.match(src, /sort\?\.addEventListener\("change", reconstruir\)/);
+    assert.match(src, /const reconstruir = \(\) => \{[\s\S]*?guardar\(\);[\s\S]*?renderFarmRoutes\(\)/,
+        "reconstruir guarda las prefs ANTES de volver a montar, o se pierde el cambio");
+    // Y los que sí se pueden aplicar sobre lo ya montado no pagan una reconstrucción.
+    for (const control of ["missing", "bestFor", "buy", "minPh", "minGain"]) {
+        assert.match(src, new RegExp(`${control}\\?\\.addEventListener\\("change", aplicar\\)`),
+            `${control} no necesita reconstruir la lista`);
+    }
+});
+
+// "Sube el filtro para verlas" no dice hasta dónde: con 1 puesto y la ruta más cercana a 3 hay
+// que ir probando valores para descubrir que no tienes nada tan cerca.
+test("el vacío por piezas restantes dice a cuánto está la más cercana", () => {
+    assertBilingual(["emptyByMissingClosest"]);
+    for (const lang of ["es", "en"]) {
+        assert.ok(FARM_ROUTES_TEXTS[lang].emptyByMissingClosest.includes("{n}"),
+            `emptyByMissingClosest debe llevar {n} en ${lang}`);
+    }
+    assert.match(src, /Math\.min\(\.\.\.sueltos\.map\(\(r\) => r\.missingCount\)\)/,
+        "la distancia sale de las rutas que pasan el resto de filtros, no de todas");
+    assert.match(src, /"maxMissing" in sin/, "solo ese filtro tiene una distancia que enseñar");
+});
+
 test("la lista no salta al principio cuando se repinta sola", () => {
     assert.match(src, /const scroll = body \? body\.scrollTop : 0/);
     assert.match(src, /newBody\.scrollTop = scroll/);
@@ -169,6 +199,56 @@ test("los textos de los tooltips de filtros existen en los dos idiomas", () => {
         "eraHelp", "simRefinementHelp", "simSquadHelp", "sortHelp", "minPerHourHelp", "minGainHelp",
         "picksQueryHelp", "picksEraHelp", "picksSortHelp", "picksReadyHelp",
     ]);
+});
+
+// "6 te sirven" es cierto y no sirve para elegir: con el inventario a medias lo cumplen casi
+// todas. Lo que decide el clic —que esa apertura te CIERRE un set— tiene que estar en la fila
+// con nombre y probabilidad, no solo dentro del orden.
+test("la fila dice qué set cierra la reliquia", () => {
+    assertBilingual(["picksSortBest", "picksCloses", "picksClosesTitle"]);
+    assert.match(picksSrc, /p\.closes\?\.length > 0/, "la etiqueta solo sale si cierra algo");
+    assert.match(picksSrc, /class="fr-closes"/);
+    assert.match(picksSrc, /replace\("\{n\}", String\(Math\.round\(\(p\.closeOdds \|\| 0\) \* 100\)\)\)/,
+        "con su probabilidad: 'cierra Nyx' al 2 % y al 52 % no son la misma decisión");
+    // Y el orden de serie es ese mismo criterio, no el recuento de recompensas útiles.
+    assert.match(picksSrc, /\["best", t\.picksSortBest\]/, "la opción existe en el desplegable");
+    assert.match(picksSrc, /sortBy: sort\?\.value \|\| "best"/);
+});
+
+// Añadir reliquias no repintaba el panel: ni los +/- del inventario ni el escáner, que mete
+// decenas de golpe. La lista seguía siendo la de antes hasta el refresco de 150 s, y como
+// además las fisuras que fallan dejan todo en "esperando", parecía que se rompía solo.
+test("el panel se entera de que ha cambiado el inventario de reliquias", () => {
+    const inv = readFileSync(
+        new URL("../deploy/js/ui.components/inventory/ui_inventory.js", import.meta.url), "utf8");
+    const scan = readFileSync(
+        new URL("../deploy/js/scanner/scanner_controller.js", import.meta.url), "utf8");
+
+    assert.match(src, /export function scheduleFarmRoutesRefresh\(\)/);
+    // Coalescido: los +/- se pulsan en ráfaga y cada pasada reconstruye las rutas enteras.
+    assert.match(src, /if \(refreshTimer\) clearTimeout\(refreshTimer\)/);
+    assert.match(src, /exposeGlobals\(\{ renderFarmRoutes, scheduleFarmRoutesRefresh \}/);
+
+    // Por globalThis y no import: ui.js ya importa ui_inventory, y el inverso cierra el ciclo
+    // que rompe la carga (ver tests/import-graph).
+    for (const [nombre, fuente] of [["ui_inventory", inv], ["scanner_controller", scan]]) {
+        assert.match(fuente, /globalThis\.scheduleFarmRoutesRefresh\?\.\(\)/,
+            `${nombre} no avisa al panel`);
+        assert.doesNotMatch(fuente, /from "..\/farms\/ui_farm_routes/,
+            `${nombre} no puede importar el panel`);
+    }
+});
+
+// Con la lista de fisuras vacía, CADA reliquia sale como "esperando fisura". Es falso cuando lo
+// que ha pasado es que no se pudo preguntar, y el panel se quedaba así hasta el refresco de
+// 150 s: el usuario lo ve como que se rompe hasta que cambias de pestaña y vuelves.
+test("si las fisuras no cargan se dice, y se reintenta pronto", () => {
+    assertBilingual(["fissuresDown"]);
+    assert.match(src, /const sinFisuras = fissuresUnavailable\(\)/);
+    assert.match(src, /if \(sinFisuras\) programarReintento\(\)/);
+    assert.match(src, /sinFisuras \? `<p class="fr-nofis">/, "el aviso se pinta en el cuerpo");
+    // Corto a propósito: el refresco normal es de 150 s.
+    assert.match(src, /retryTimer = setTimeout\([\s\S]*?12 \* 1000\)/);
 });
 
 // La vista "por reliquia" se pintaba literalmente sin un solo filtro mientras la de rutas

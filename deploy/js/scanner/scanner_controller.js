@@ -314,6 +314,9 @@ export function confirmScanResults() {
 
   updateInventoryBatch(scannedInventory);
   saveAppState();
+  // Un escaneo mete decenas de reliquias de golpe: sin esto, "Rutas aconsejadas" seguía
+  // recomendando sobre el inventario anterior hasta su refresco de 150 s.
+  globalThis.scheduleFarmRoutesRefresh?.();
 
   const capturedCount = scannedInventory.length;
   scannedInventory = [];

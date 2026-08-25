@@ -39,12 +39,30 @@ test("la era sale de la primera palabra, y Vanguard es Axi", () => {
   assert.equal(tierOfRelic(""), "");
 });
 
-test("manda cuántas recompensas te sirven, no cuántas copias tienes", () => {
+test("no mandan las copias que tienes, sino lo que te acerca a cerrar un set", () => {
   // 1 copia de la triple contra 12 de la que solo aporta una: gana la triple.
   const r = rankRelicPicks({ ...base(), relicCounts: { "Lith TRIPLE": 1, "Meso UNA": 12 } });
   assert.equal(r[0].relic, "Lith TRIPLE");
   assert.equal(r[0].useful, 3);
   assert.equal(r[1].useful, 1);
+});
+
+// El fallo que esto fija es el que hacía inútil la vista: contar recompensas útiles no
+// distingue entre la pieza que CIERRA un set y una de uno sin empezar. Con un inventario real,
+// 87 de las 767 reliquias tenían las 6 "útiles" y el orden lo acababa decidiendo el alfabeto:
+// de las 46 que podían cerrar un set, la primera salía la 8ª y las siguientes en el puesto
+// 138, el 160 y el 198.
+test("la que CIERRA un set gana a la que trae más recompensas sueltas", () => {
+  // A Nidus le falta solo el plano; de Gara no hay nada, así que sus tres piezas son de un set
+  // sin empezar. La de una sola recompensa útil tiene que ir primera.
+  const inv = { "Nidus Prime Neuroptics": 1 };
+  const r = rankRelicPicks({ ...base(inv), relicCounts: { "Lith TRIPLE": 1, "Meso UNA": 1 } });
+  assert.equal(r[0].relic, "Meso UNA");
+  assert.equal(r[0].useful, 1, "y aun así con menos recompensas útiles que la otra");
+  assert.deepEqual(r[0].closes, ["Nidus Prime"]);
+  assert.ok(r[0].closeOdds > 0.5, `probabilidad de cerrarlo en una apertura: ${r[0].closeOdds}`);
+  assert.equal(r[1].relic, "Lith TRIPLE");
+  assert.deepEqual(r[1].closes, [], "Gara sin empezar no se cierra con una pieza");
 });
 
 test("una reliquia sin nada que te falte no se recomienda", () => {
@@ -56,7 +74,7 @@ test("las piezas que ya tienes dejan de contar como útiles", () => {
   const inv = { "Gara Prime Blueprint": 1, "Gara Prime Neuroptics": 1 };
   const r = rankRelicPicks({ ...base(inv), relicCounts: { "Lith TRIPLE": 1 } });
   assert.equal(r[0].useful, 1, "solo queda el chassis");
-  assert.deepEqual(r[0].parts, ["Gara Prime Chassis"]);
+  assert.deepEqual(r[0].parts.map((x) => x.name), ["Gara Prime Chassis"]);
 });
 
 // Mismo criterio que el panel de rutas: una reliquia perfecta de una era sin fisura viva no es
@@ -74,6 +92,23 @@ test("con fisuras conocidas, primero lo que se puede abrir ya", () => {
 test("sin datos de fisuras no se marca ninguna como lista", () => {
   const r = rankRelicPicks({ ...base(), relicCounts: { "Lith TRIPLE": 1 } });
   assert.equal(r[0].ready, false, "sin fisuras conocidas no se marca ninguna como lista");
+});
+
+// "3 te sirven" vale igual para tres piezas de tres sets sin empezar que para tres que dejan
+// uno a punto de cerrarse; sin lo que le falta a cada set, la fila no dejaba distinguirlo.
+test("cada pieza útil dice lo que le falta a SU set", () => {
+  const inv = { "Gara Prime Blueprint": 1, "Nidus Prime Neuroptics": 1 };
+  const r = rankRelicPicks({ ...base(inv), relicCounts: { "Lith TRIPLE": 1, "Meso UNA": 1 } });
+
+  const gara = r.find((x) => x.relic === "Lith TRIPLE").parts;
+  assert.deepEqual(gara.map((x) => [x.name, x.missing, x.total]), [
+    ["Gara Prime Neuroptics", 2, 3],
+    ["Gara Prime Chassis", 2, 3],
+  ], "faltan dos de las tres, y esta es una de ellas");
+
+  const nidus = r.find((x) => x.relic === "Meso UNA").parts;
+  assert.deepEqual(nidus.map((x) => [x.set, x.missing]), [["Nidus Prime", 1]],
+    "missing 1 es la última pieza: la fila la marca aparte");
 });
 
 test("los sets no se repiten aunque la reliquia dé dos piezas del mismo", () => {
@@ -126,9 +161,10 @@ test("sin precios la pick sale sin valorar, no a cero", () => {
 test("los filtros de la vista por reliquia", async () => {
     const { filterRelicPicks } = await import("../deploy/js/utils/inventory/relic_picks.js");
     const picks = [
-        { relic: "Axi S16", tier: "Axi", useful: 3, odds: 0.4, runs: 3, value: 20, minutes: 30, ready: true, sets: ["Saryn Prime"], parts: ["Saryn Prime Chassis"] },
-        { relic: "Meso B9", tier: "Meso", useful: 1, odds: 0.9, runs: 1, value: 60, minutes: 10, ready: true, sets: ["Nyx Prime"], parts: ["Nyx Prime Blueprint"] },
-        { relic: "Neo V10", tier: "Neo", useful: 2, odds: 0.2, runs: 9, value: null, minutes: null, ready: false, sets: ["Vasto Prime"], parts: ["Vasto Prime Barrel"] },
+        { relic: "Axi S16", tier: "Axi", useful: 3, progress: 0.17, closes: [], odds: 0.4, runs: 3, value: 20, minutes: 30, ready: true, sets: ["Saryn Prime"], parts: ["Saryn Prime Chassis"] },
+        // Una sola recompensa útil, pero es la última pieza de Nyx: cierra el set.
+        { relic: "Meso B9", tier: "Meso", useful: 1, progress: 0.52, closes: ["Nyx Prime"], odds: 0.9, runs: 1, value: 60, minutes: 10, ready: true, sets: ["Nyx Prime"], parts: ["Nyx Prime Blueprint"] },
+        { relic: "Neo V10", tier: "Neo", useful: 2, progress: 0.06, closes: [], odds: 0.2, runs: 9, value: null, minutes: null, ready: false, sets: ["Vasto Prime"], parts: ["Vasto Prime Barrel"] },
     ];
     const nombres = (o) => filterRelicPicks(picks, o).map((p) => p.relic);
 
@@ -137,7 +173,10 @@ test("los filtros de la vista por reliquia", async () => {
     assert.deepEqual(nombres({ query: "axi" }), ["Axi S16"], "por reliquia");
     assert.deepEqual(nombres({ query: "saryn" }), ["Axi S16"], "por set");
     assert.deepEqual(nombres({ query: "chassis" }), ["Axi S16"], "por pieza");
-    assert.deepEqual(nombres({ readyOnly: true }), ["Axi S16", "Meso B9"]);
+    // De serie ordena por lo que más acerca a cerrar un set, así que la de UNA recompensa útil
+    // que completa Nyx va por delante de la de tres de un set sin empezar.
+    assert.deepEqual(nombres({ readyOnly: true }), ["Meso B9", "Axi S16"]);
+    assert.deepEqual(nombres({ sortBy: "best" }), ["Meso B9", "Axi S16", "Neo V10"]);
 
     // Lo que se pueda abrir YA manda sobre cualquier orden: una reliquia inmejorable de una era
     // sin fisura viva no es una recomendación. Por eso Neo V10 queda última aun sin filtrar.
