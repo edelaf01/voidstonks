@@ -90,7 +90,7 @@ export function renderSetsBridge(container) {
 
     const t = texts();
     const wrap = document.createElement("div");
-    wrap.className = "sets-bridge";
+    wrap.className = prefs.expanded ? "sets-bridge is-expanded" : "sets-bridge";
 
     const head = document.createElement("div");
     head.className = "sets-bridge-head";

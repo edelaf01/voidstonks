@@ -1,5 +1,6 @@
 import { state } from "../../state.js";
 import { ORDERS_TEXTS as T } from "../../assets/orders_texts.js";
+import { renderOrdersUnderConstruction } from "./ui_orders_wip.js";
 import { applyIcon } from "../../utils/wfm_assets.js";
 import { exposeGlobals } from "../../utils/global_registry.js";
 import {
@@ -15,7 +16,7 @@ import {
     fetchMyOrders,
     editOrder,
     fetchItemMarket,
-    fetchMarketBatch
+    fetchMarketBatch, getOrdersFilterType, saveOrdersFilterType
 } from "../../services/market/wfm_orders.service.js";
 
 const VIEW = {
@@ -45,7 +46,14 @@ const view = { current: VIEW.LOGIN, data: null };
 
 let listCtx = null;
 
-const filters = { type: "all", query: "" };
+const FILTER_TESTS = {
+    all: () => true,
+    sell: (o) => (o.type || "").toLowerCase() === "sell",
+    buy: (o) => (o.type || "").toLowerCase() === "buy",
+    hidden: (o) => o.visible === false
+};
+
+const filters = { type: getOrdersFilterType(Object.keys(FILTER_TESTS)), query: "" };
 
 function el(tag, className, text) {
     const node = document.createElement(tag);
@@ -622,14 +630,6 @@ function summaryBar(orders) {
     return bar;
 }
 
-const FILTER_TESTS = {
-    all: () => true,
-    sell: (o) => (o.type || "").toLowerCase() === "sell",
-    buy: (o) => (o.type || "").toLowerCase() === "buy",
-    hidden: (o) => o.visible === false,
-    visible: (o) => o.visible !== false
-};
-
 function applyFilters(orders) {
     const q = filters.query.trim().toLowerCase();
     const test = FILTER_TESTS[filters.type] || FILTER_TESTS.all;
@@ -659,7 +659,7 @@ function filterBar(orders, onChange) {
         ["hidden", t.filterHidden]
     ];
 
-    if (filters.type !== "all" && !counts[filters.type]) filters.type = "all";
+    if (filters.type !== "all" && !counts[filters.type]) saveOrdersFilterType(filters.type = "all");
 
     for (const [key, label] of defs) {
         if (key !== "all" && !counts[key]) continue;
@@ -668,7 +668,7 @@ function filterBar(orders, onChange) {
         chip.type = "button";
         if (filters.type === key) chip.classList.add("active");
         chip.addEventListener("click", () => {
-            filters.type = key;
+            saveOrdersFilterType(filters.type = key);
             for (const c of chips.children) c.classList.remove("active");
             chip.classList.add("active");
             onChange();
@@ -1126,26 +1126,10 @@ async function loadOrders() {
     setView(VIEW.ORDERS, res.orders);
 }
 
-function renderUnderConstruction() {
-    const t = txt();
+export function initOrdersTab() {
     const root = document.getElementById("orders-content");
     if (!root) return;
-    root.replaceChildren();
-
-    const box = el("div", "orders-wip");
-    box.appendChild(el("div", "orders-wip-icon", "🚧"));
-    box.appendChild(el("h2", "orders-wip-title", t.wipTitle));
-
-    const text = el("p", "orders-wip-text", t.wipText);
-    text.title = t.wipTooltip;
-    box.appendChild(text);
-
-    root.appendChild(box);
-}
-
-export function initOrdersTab() {
-    if (!document.getElementById("orders-content")) return;
-    renderUnderConstruction();
+    renderOrdersUnderConstruction(root);
 }
 
 export function isSetListed(slug) {

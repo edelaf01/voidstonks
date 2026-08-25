@@ -25,3 +25,8 @@ export function onTap(el, handler, opts = {}) {
     handler(e);
   });
 }
+
+// checks hover capability not screen width: a wide tablet is touch and a narrow laptop is not
+export function isTouchPointer() {
+  return globalThis.matchMedia?.("(hover: none)").matches ?? false;
+}

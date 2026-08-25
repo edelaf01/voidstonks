@@ -101,3 +101,17 @@ export function createTip({ text, icon = "👆", storageKey = "", variant = "" }
 
   return tip;
 }
+
+const GUIDE_SECTION = {
+  relic: "relic", set: "set", riven: "riven",
+  bounties: "farms", lfg: "farms",
+  vosfor: "vosfor", ducat: "ducat",
+  orders: "context", eelog: "context",
+};
+
+export function updateGuideLink(tab, lang) {
+  const cta = document.getElementById("txt-header-guide-cta");
+  if (!cta) return;
+  const seccion = GUIDE_SECTION[tab] || "context";
+  cta.href = `guide.html#${lang === "es" ? "e" : "g"}-${seccion}`;
+}

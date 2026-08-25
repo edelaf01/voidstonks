@@ -17,17 +17,21 @@ import {
 } from "./scanner/scanner_controller.js";
 import {
   switchTab,
+  tabFromUrl,
+  initTabRouting,
+  refreshActiveTab,
   changeLanguage,
   initDisclaimerSystem,
   setupGlobalClickListeners,
   checkUpdates,
   toggleLangDropdown,
   setLanguageManual,
-} from "./ui.js?v=2.3";
+} from "./ui.js?v=2.4";
 import { initFissurePanel } from "./ui.components/farms/ui_fissures.js?v=1.1";
 import { initSyncPanel } from "./ui.components/market/ui_sync.js";
 import {
   initGlobalTooltipSystem,
+  keepPanelInertWhileClosed,
   preloadCriticalAssets,
 } from "./ui.components/ui_components.js";
 import {
@@ -36,7 +40,7 @@ import {
   clearInventory,
 } from "./ui.components/inventory/ui_inventory.js";
 import { renderPrimeInventory } from "./ui.components/inventory/ui_prime_inventory.js";
-import { manualRelicUpdate } from "./ui.components/inventory/ui_relics.js";
+import { manualRelicUpdate, updateProfitLabel } from "./ui.components/inventory/ui_relics.js";
 import { renderSetTracker } from "./ui.components/inventory/ui_set_tracker.js";
 import { initLFGPresets } from "./ui.components/ui_lfg.js";
 import {
@@ -54,6 +58,7 @@ if ("serviceWorker" in navigator) {
 }
 import { initVosforTab } from "./ui.components/ui_vosfor.js?v=2.9";
 import "./ui.components/market/ui_orders.js?v=1.0";
+import "./ui.components/ui_squad_run.js?v=1.0";
 import { initTabFan } from "./ui.components/ui_tab_fan.js?v=1.1";
 import { initMobileFooter } from "./ui.components/ui_mobile_footer.js?v=1.0";
 
@@ -65,11 +70,15 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
   const { domValues } = loadAppState();
   hydrateDOM(domValues);
+  updateProfitLabel();
   checkUpdates();
   initCanvas();
   initDisclaimerSystem();
   setupGlobalClickListeners();
   initGlobalTooltipSystem();
+  for (const id of ["inventory-container", "best-missions-container"]) {
+    keepPanelInertWhileClosed(document.getElementById(id));
+  }
   preloadCriticalAssets();
   setupScannerDrawer();
   initPiP();
@@ -78,7 +87,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   const langSelect = document.getElementById("langSelect");
   if (langSelect) langSelect.value = state.currentLang;
   changeLanguage();
-  switchTab(state.activeTab || "relic");
+  initTabRouting();
+  switchTab(tabFromUrl() || state.activeTab || "relic");
+  if (state.currentInvView === "parts") globalThis.switchInvView?.("parts");
   initTabFan();
   initMobileFooter();
 
@@ -158,8 +169,9 @@ async function loadAsyncData() {
       if (input) input.value = state.selectedRelic;
       manualRelicUpdate();
     }
-    if (state.currentActiveSet) renderSetTracker();
+    renderSetTracker();
 
+    refreshActiveTab();
     renderFarmRoutes().catch((e) => console.warn("[rutas] tras cargar datos:", e));
 
     warmupPrices().catch(console.error);

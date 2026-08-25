@@ -1,4 +1,5 @@
 import { fetchWeaponHistory, fetchCurrentRivens } from "../../repositories/riven.repository.js";
+import { normalizeIndexFilters, INDEX_FILTER_DEFAULTS } from "../../utils/rivens/riven_index_filter.js";
 
 export async function getWeaponHistory(weaponName) {
     try {
@@ -32,4 +33,22 @@ export async function getRivenIndex() {
     }
 
     return { ok: true, weapons, baseline };
+}
+
+const FILTERS_KEY = "vs_riven_index_filters_v1";
+
+export function getIndexFilterPrefs(validTypes = []) {
+    try {
+        return normalizeIndexFilters(JSON.parse(localStorage.getItem(FILTERS_KEY)), validTypes);
+    } catch {
+        return { ...INDEX_FILTER_DEFAULTS };
+    }
+}
+
+export function saveIndexFilterPrefs(prefs) {
+    try {
+        localStorage.setItem(FILTERS_KEY, JSON.stringify(prefs));
+    } catch (e) {
+        console.warn("[riven-index] no se pudieron guardar los filtros:", e);
+    }
 }

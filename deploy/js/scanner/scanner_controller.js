@@ -293,6 +293,7 @@ export function confirmScanResults() {
 
   updateInventoryBatch(scannedInventory);
   saveAppState();
+  globalThis.scheduleFarmRoutesRefresh?.();
 
   const capturedCount = scannedInventory.length;
   scannedInventory = [];

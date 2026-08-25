@@ -264,3 +264,11 @@ export function addToQueue(itemName, element) {
 export async function preloadPricesToMemory() {
     await dbHelper.preloadPrices();
 }
+
+export function oneTimeNoticeSeen(key) {
+    try { return localStorage.getItem(key) === "1"; } catch { return false; }
+}
+
+export function markOneTimeNoticeSeen(key) {
+    try { localStorage.setItem(key, "1"); } catch {}
+}
