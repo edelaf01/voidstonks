@@ -2,6 +2,7 @@ import { state, saveAppState, updateInventoryBatch } from "../state.js";
 import { toggleInventoryPanel, renderInventory } from "../ui.components/inventory/ui_inventory.js";
 import { showToast } from "../ui.components/ui_components.js";
 import { TEXTS } from "../config.js";
+import { themeTextMask } from "../utils/vision/theme_mask.js";
 
 const st = () => TEXTS[state.currentLang]?.scanner || {};
 console.log(" [SCANNER] Script cargado correctamente.");
@@ -126,19 +127,10 @@ async function processImageSource(source) {
   processingCtx.drawImage(source, 0, 0, w, h);
 
   const themes = globalThis._WF_THEMES;
-  const TOL_SQ = 1944;
   const imageData = processingCtx.getImageData(0, 0, w, h);
   const data = imageData.data;
   if (themes?.length) {
-    for (let i = 0; i < data.length; i += 4) {
-      const r = data[i], g = data[i + 1], b = data[i + 2];
-      let isText = false;
-      for (const t of themes) {
-        const dr = r - t.r, dg = g - t.g, db = b - t.b;
-        if (dr * dr + dg * dg + db * db < TOL_SQ) { isText = true; break; }
-      }
-      data[i] = data[i + 1] = data[i + 2] = isText ? 0 : 255;
-    }
+    themeTextMask(imageData, themes);
   } else {
     for (let i = 0; i < data.length; i += 4) {
       const gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
@@ -331,7 +323,7 @@ export async function startInventoryScrollScan() {
       });
 
       await ocrWorker.setParameters({
-        tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789[] ",
+        tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 ",
         tessedit_pageseg_mode: globalThis.Tesseract.PSM.SPARSE_TEXT,
       });
     }

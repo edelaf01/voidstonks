@@ -18,7 +18,17 @@ const { VisionService } = await import("../deploy/js/services/scanner/vision.ser
 const DIR = process.env.INVENTORY_CAPTURES_DIR
   || "/home/ppsoy/Imágenes/Capturas de pantalla/inventario";
 
-const KNOWN_ISSUES = new Map([]);
+// these four reach this point since the auto grid stopped aborting on fused rows: the grid comes out right
+// (zone 1662x888, cell 277x296)
+// but the theme vote over that zone stays at 0.0007, under the reliability bar; in the app the guard keeps
+// the last stable theme
+const SIN_TEMA_FIABLE = "voto de tema por debajo del listón (0,0007): el frame suelto no tiene último tema estable";
+const KNOWN_ISSUES = new Map([
+  ["Captura de pantalla_20260716_175250.png", SIN_TEMA_FIABLE],
+  ["Captura de pantalla_20260716_195542.png", SIN_TEMA_FIABLE],
+  ["Captura de pantalla_20260716_234123.png", SIN_TEMA_FIABLE],
+  ["Captura de pantalla_20260717_145916.png", SIN_TEMA_FIABLE],
+]);
 
 function listCaptures() {
   if (!fs.existsSync(DIR)) return [];

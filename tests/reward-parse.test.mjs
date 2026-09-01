@@ -291,10 +291,36 @@ describe("prepareRewardNamesCanvas: escalera de máscaras y gate", () => {
     assert.ok(black > 0 && black / total < 0.10);
   });
 
-  test("fondo casi blanco: ninguna máscara aísla letras -> null (pasada saltada)", () => {
+  test("fondo casi blanco: lo aísla la máscara por color de tema", () => {
+    // bg v=0.92 s=0.09 passes both loose and strict masks (density ~1.0) and previously returned null
+    // resolved by theme mask measuring HUE similarity and local contrast rather than absolute brightness; pure
+    // white (WFInfo Deadlock) gives this frame a competing theme
     const frame = makeFrame([235, 226, 222], [250, 248, 245]);
     const cvs = VisionService.prepareRewardNamesCanvas(frame, FRAME_W, FRAME_H, 1);
-    assert.equal(cvs, null);
+    assert.ok(cvs instanceof FakeCanvas, "la máscara por tema debe rescatar el frame");
+    const { black, total } = maskStats(cvs);
+    // "letters" are 8 columns of 2 px × 15 rows = 240 px: checks that it isolates THE TEXT rather than marking
+    // arbitrary pixels
+    assert.equal(black, 240, "debe quedarse con las columnas de texto y nada más");
+    assert.ok(black / total < 0.10, `máscara limpia, densidad ${black / total}`);
+  });
+
+  // gate is the core purpose of the ladder: a dense mask injects hundreds of junk words into mergedWords
+  // creating spurious anchors ("Ri/ris" -> requiem "Ris")
+  // an additional ladder step must not allow arbitrary frames to return data
+  test("sin letras que aislar: null (pasada saltada)", () => {
+    const frame = makeFrame([235, 226, 222], [250, 248, 245]);
+    // clears the "letters", leaving raw off-white background
+    for (let i = 0; i < frame.data.length; i += 4) {
+      frame.data[i] = 235; frame.data[i + 1] = 226; frame.data[i + 2] = 222;
+    }
+    assert.equal(VisionService.prepareRewardNamesCanvas(frame, FRAME_W, FRAME_H, 1), null);
+  });
+
+  test("letras sin contraste real contra el fondo: null", () => {
+    // difference of 3 per channel: unreadable by OCR, any mask keeping this would be marking compression noise
+    const frame = makeFrame([235, 226, 222], [238, 229, 225]);
+    assert.equal(VisionService.prepareRewardNamesCanvas(frame, FRAME_W, FRAME_H, 1), null);
   });
 });
 
@@ -362,4 +388,36 @@ describe("prepareRewardNamesCanvas: barrido fuente × fondo × luminancia", () =
       });
     }
   }
+});
+
+// card geometry is the ONLY thing separating a valid correction from junk: "LOVOS"->LAVOS and
+// "FRONT"->FROST are both 1 glyph away and unique
+// the first falls inside a card, the second is background HUD
+test("un glifo mal se corrige dentro de una tarjeta, pero no fuera", () => {
+  const W = 1690;
+  const palabra = (t, x) => ({ text: t, confidence: 85, bbox: { x0: x, y0: 10, x1: x + 90, y1: 30 } });
+  const words = [palabra("Lovos", 500), palabra("Prime", 600), palabra("Ehassis", 700), palabra("Blueprint", 500)];
+  const columnas = [{ x0: 0.02, x1: 0.28 }, { x0: 0.27, x1: 0.53 }, { x0: 0.52, x1: 0.78 }];
+
+  // without columns the card is anchored by "PRIME", which distinguishes labels from HUD: no background junk
+  // pairs PRIME with a component word
+  // previously refused to correct without plausible columns and lost the entire card (measured in a real
+  // capture, "calisax" for "Caliban")
+  const sinCols = OCRService.parseRewards({ words, imageW: W });
+  assert.deepEqual(sinCols.map((r) => r.name), ["Lavos Prime Chassis Blueprint"]);
+
+  // without that anchor nothing is corrected
+  const soloHud = OCRService.parseRewards({
+    words: [palabra("Front", 500), palabra("Ehassis", 700), palabra("Blueprint", 500)], imageW: W,
+  });
+  assert.deepEqual(soloHud.map((r) => r.name), [], "sin PRIME cerca no es un rótulo, es HUD");
+
+  const conCols = OCRService.parseRewards({ words, imageW: W, columnas });
+  assert.deepEqual(conCols.map((r) => r.name), ["Lavos Prime Chassis Blueprint"]);
+
+  // same word OUTSIDE any column remains uncorrected
+  const fuera = OCRService.parseRewards({
+    words: [palabra("Lovos", 1600), ...words.slice(1)], imageW: W, columnas,
+  });
+  assert.deepEqual(fuera.map((r) => r.name), []);
 });

@@ -1,4 +1,5 @@
 import { detectRewardBand } from "./grid_detect.js";
+import { columnasDesdeCentros } from "./reward_cards.js";
 
 /**
  * Is what the vision just detected believable? Both guards ask that for two detections, for the same reason:
@@ -63,5 +64,10 @@ export function detectPlausibleRewardBand(img, opts = {}) {
     // the guard judges the REAL detection, before widening: full width would always pass the "more than a
     // quarter" cut
     if (isImplausibleRewardBand(rect, img?.width, img?.height)) return null;
-    return { ...rect, x: 0, w: img.width };
+    // the columns travel even when the crop widens to full width: without them parseRewards loses its three per
+    // card rescues (suffix, component and the in card token threshold)
+    const cajas = rect.cardBoxes || [];
+    const columnas = columnasDesdeCentros(cajas.map((b) => b.cx), img.width,
+        Math.max(0, ...cajas.map((b) => b.x1 - b.x0)) * 2);
+    return { ...rect, x: 0, w: img.width, columnas };
 }

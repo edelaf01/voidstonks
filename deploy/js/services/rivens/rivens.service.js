@@ -19,14 +19,24 @@ const HOUND_WEAPONS = new Set(["AKATEN", "BATOTEN", "LACERTEN"]);
 // Kitgun chambers are missing from cleaned_weapons.json and use Pistol riven stats.
 const KITGUN_WEAPONS = new Set(["CATCHMOON", "GAZE", "RATTLEGUTS", "TOMBFINGER", "VERMISPLICER", "SPORELACER"]);
 
+// Weapons whose main fire mode multiplies Condition Overload damage instead of adding it.
+// Source: rainy/Prof_Blocks_007 "Galvanized GunCO on Projectiles" sheet
+// (docs.google.com/spreadsheets/d/1ryemX4Y2vWy9LjuJ355bWVNuBhzLaHTTFqPeTNto9RA).
+// Closed list: anything not on the sheet adds flat. Weapons that only multiply in a secondary
+// mode stay out. Exact WFCD name, case sensitive.
 const MULTIPLICATIVE_CO = new Set([
-    "Acceltra", "Aeolak", "Alternox", "Alternox Prime", "Arca Plasmor", "Tenet Arca Plasmor",
-    "Basmu", "Battacor", "Bubonico", "Buzlok", "Catchmoon", "Cedo", "Cedo Prime",
-    "Coda Bassocyst", "Coda Hema", "Mutalist Cernos", "Cinta", "Cyanex", "Epitaph", "Exergis",
-    "Felarx", "Fulmin", "Harpak", "Hema", "Javlok", "Nataruk", "Quellor", "Scourge",
-    "Scourge Prime", "Sepulcrum", "Shedu", "Sporelacer", "Stahlta", "Steflos", "Seer",
-    "Kuva Seer", "Tenet Envoy", "Tenet Diplos", "Tenet Spirex", "Tombfinger", "Torid",
-    "Zakti", "Zakti Prime", "Zenith", "Zymos"
+    // Archgun
+    "Arbucep", "Corvas Prime", "Grattler", "Mandonel", "Velocitus",
+    // Primary
+    "Aeolak", "Alternox", "Alternox Prime", "Arca Plasmor", "Tenet Arca Plasmor",
+    "Basmu", "Battacor", "Bubonico", "Buzlok", "Cinta", "Coda Bassocyst", "Coda Hema",
+    "Exergis", "Felarx", "Fulmin", "Fulmin Prime", "Hema", "Javlok", "Mutalist Cernos",
+    "Nataruk", "Scourge", "Scourge Prime", "Shedu", "Stahlta", "Steflos", "Tenet Envoy",
+    "Torid",
+    // Secondary
+    "Aegrit", "Akarius", "Akarius Prime", "Catchmoon", "Cyanex", "Epitaph",
+    "Epitaph Prime", "Onos", "Seer", "Kuva Seer", "Sepulcrum", "Tenet Spirex",
+    "Tombfinger", "Zakti", "Zakti Prime"
 ]);
 
 // cleaned_weapons type -> riven stat category: Zaw Component and Hound weapons -> Melee.
@@ -134,7 +144,7 @@ export async function fetchRivenWeapons() {
 }
 
 async function fetchWeaponCombatStats() {
-    const CACHE_KEY = "voidstonkscache_combat_stats_v9";
+    const CACHE_KEY = "voidstonkscache_combat_stats_v10";
     const ONE_WEEK = 7 * 24 * 60 * 60 * 1000;
     try {
         const cached = await dbHelper.get(CACHE_KEY);
@@ -232,15 +242,9 @@ async function fetchWeaponCombatStats() {
                             }
                         }
 
-                        let coScaling = "additive";
-                        if (cat === "Melee" || item.type === "Melee") {
-                            coScaling = "multiplicative";
-                        } else if (MULTIPLICATIVE_CO.has(item.name)) {
-                            coScaling = "multiplicative";
-                        } else if (Array.isArray(item.attacks) && item.attacks.length > 0) {
-                            const shotType = (item.attacks.find(a => a.shot_type) || {}).shot_type || "";
-                            if (/projectile/i.test(shotType)) coScaling = "multiplicative";
-                        }
+                        // Fire modes (Normal, Alt-Fire, Charge...), only with 2 or more. Radial, slam and heavy are
+                        // shown apart. CO scaling is multiplicative only for MULTIPLICATIVE_CO.
+                        const coScaling = MULTIPLICATIVE_CO.has(item.name) ? "multiplicative" : "additive";
 
                         let fireModes = [];
                         if (Array.isArray(item.attacks)) {

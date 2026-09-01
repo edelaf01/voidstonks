@@ -163,6 +163,9 @@ function crearContexto(canvas) {
     beginPath() {}, closePath() {}, moveTo() {}, lineTo() {}, stroke() {}, fill() {},
     // the animated background (canvas.js) uses `arc`, and whether it gets there depends on Math.random()
     arc() {}, arcTo() {}, ellipse() {}, rect() {}, quadraticCurveTo() {}, bezierCurveTo() {},
+    // the animated background tints each stroke with a gradient; without this canvas.test.mjs fails once a particle moves
+    createLinearGradient: () => ({ addColorStop() {} }),
+    createRadialGradient: () => ({ addColorStop() {} }),
     save() {}, restore() {}, translate() {}, scale() {}, rotate() {}, setTransform() {},
     measureText: (t) => ({ width: String(t).length * 6 }),
   };

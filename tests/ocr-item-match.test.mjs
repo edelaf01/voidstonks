@@ -185,7 +185,11 @@ test("ocr.service: lecturas degradadas recuperables matchean por similitud gené
     { ocr: "AKJAGARS PRIME ARREL", expected: "Akjagara Prime Barrel" },
     { ocr: "AKJAGARA PRIME LINK", expected: "Akjagara Prime Link" },
     { ocr: "AKJAGARA FRIME RECEIVER", expected: "Akjagara Prime Receiver" },
-    { ocr: "AKBOLTO BLUEPRINT", expected: "Akbolto Prime Blueprint" },
+    // without "PRIME" it no longer matches: "Akbolto Blueprint" is a real part, and accepting it as the prime
+    // logged something that never dropped; in an automatic add a false positive is worse, and multi-frame
+    // consensus recovers the good read
+    { ocr: "AKBOLTO BLUEPRINT", expected: undefined },
+    { ocr: "AKBOLTO PRIME BLUEPRINT", expected: "Akbolto Prime Blueprint" },
   ];
 
   for (const { ocr, expected } of liveScanTests) {

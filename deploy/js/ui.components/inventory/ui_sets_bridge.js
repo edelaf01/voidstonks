@@ -77,10 +77,18 @@ function chipHtml(r, t) {
         chip.appendChild(img);
     }
 
+    const body = document.createElement("div");
+    body.className = "sets-bridge-body";
+    chip.appendChild(body);
+
     const name = document.createElement("span");
     name.className = "sets-bridge-name";
     name.textContent = r.setName;
-    chip.appendChild(name);
+    body.appendChild(name);
+
+    const meta = document.createElement("span");
+    meta.className = "sets-bridge-meta";
+    body.appendChild(meta);
 
     const left = document.createElement("span");
     left.className = "sets-bridge-left";
@@ -90,15 +98,27 @@ function chipHtml(r, t) {
         ? t.oneLeft
         : t.someLeft.replace("{n}", String(r.missingCount)).replace("{total}", String(r.totalParts));
     if (r.missingCount === 1) left.classList.add("is-close");
-    chip.appendChild(left);
+    meta.appendChild(left);
+
+    // how many sets it closes at once, or "1 missing" next to +245 does not add up
+    if (r.setsUnlocked > 1) {
+        const mult = document.createElement("span");
+        mult.className = "sets-bridge-mult";
+        mult.textContent = t.multTag.replace("{n}", String(r.setsUnlocked));
+        mult.title = t.multTitle.replace("{n}", String(r.setsUnlocked));
+        meta.appendChild(mult);
+    }
 
     // only when priced: a "+0" for a missing price reads as worthless
     if (r.gain > 0) {
         const gain = document.createElement("span");
         gain.className = "sets-bridge-gain";
         gain.textContent = t.gainTag.replace("{n}", String(r.gain));
+        // its own class next to the global one: the size changes here without redefining .plat-icon-inline
+        // (tests/architecture: class clash)
+        gain.appendChild(document.createElement("span")).className = "plat-icon-inline sets-bridge-plat";
         gain.title = t.gainTitle;
-        chip.appendChild(gain);
+        meta.appendChild(gain);
     }
     return chip;
 }

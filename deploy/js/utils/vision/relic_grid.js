@@ -54,13 +54,13 @@ export function parseRelicGrid({ nameWords, countWords } = {}, { matchRelic } = 
   const nameCells = groupWordCells(nameWords);
   const height = median(nameCells.map((c) => c.y1 - c.y0)) || 1;
 
-  const names = [];
-  for (const cell of nameCells) {
-    // "No Relic" is the "carry none" cell: the matcher drops it since NO matches no tier. "Relic" cannot be
-    // required like in the squad panel, that cell has it too
-    const name = matchRelic(cell.words);
-    if (name) names.push({ name, cx: (cell.x0 + cell.x1) / 2, y: cell.y0 });
-  }
+  // "No Relic" is the "carry none" cell: the matcher drops it since NO matches no tier. "Relic" cannot be
+  // required like in the squad panel, that cell has it too
+  const leerNombres = (cells) => cells
+    .map((cell) => ({ name: matchRelic(cell.words), cx: (cell.x0 + cell.x1) / 2, y: cell.y0 }))
+    .filter((n) => n.name);
+
+  const names = leerNombres(nameCells);
   if (!names.length) return [];
 
   // the grid is rebuilt from the names ONLY: they are the reliable signal and sit centered in their column,
@@ -68,40 +68,69 @@ export function parseRelicGrid({ nameWords, countWords } = {}, { matchRelic } = 
   const cols = bands(names.map((n) => n.cx), height * 3);
   const rows = bands(names.map((n) => n.y), height * 1.5);
 
+  /** Cell "row:column" of a name, or null when it falls in no band. */
+  const celdaDe = (n) => {
+    const col = bandOf(cols.centers, n.cx, cols.pitch * 0.5);
+    const row = bandOf(rows.centers, n.y, rows.pitch * 0.5);
+    return col < 0 || row < 0 ? null : `${row}:${col}`;
+  };
+
+  // the counts pass also reads names; when both disagree on the SAME cell it is dropped: a misread name logs a
+  // relic that is not on screen, and that goes unnoticed
+  const nombrePorCelda = new Map();
+  const nombreDudoso = new Set();
+  for (const n of names) {
+    const key = celdaDe(n);
+    if (!key) continue;
+    const prev = nombrePorCelda.get(key);
+    if (prev !== undefined && prev !== n.name) nombreDudoso.add(key);
+    else nombrePorCelda.set(key, n.name);
+  }
+  // VETO only: a name only the counts pass sees is not accepted, there is nothing to check it against and that
+  // pass eats glyphs ("Meso Vi" for Meso V13)
+  for (const n of leerNombres(groupWordCells(countWords || []))) {
+    const key = celdaDe(n);
+    if (key && nombrePorCelda.has(key) && nombrePorCelda.get(key) !== n.name) nombreDudoso.add(key);
+  }
+
   // both segmentation modes find different counts, so they are merged. Two reads on the SAME cell with
   // different values drop the cell: an invented quantity goes into the inventory unnoticed
-  const byCell = new Map();
-  const descartadas = new Set();
+  const candidatos = [];
   for (const words of [countWords, nameWords]) {
     for (const cell of groupWordCells(words || [])) {
       const m = COUNT.exec(cell.words.join(" ").trim());
-      if (!m) continue;
-      const cx = (cell.x0 + cell.x1) / 2;
-      const col = bandOf(cols.centers, cx, cols.pitch * 0.5);
-      if (col < 0) continue;
-      // the count is ABOVE its name: it goes to the first row below it, within one row step. Without that cap the
-      // count of a cell whose name was not read would hang on the next row
-      let row = -1;
-      rows.centers.forEach((c, i) => {
-        const dy = c - cell.y0;
-        if (dy > 0 && dy < rows.pitch && (row < 0 || c < rows.centers[row])) row = i;
-      });
-      if (row < 0) continue;
-
-      const key = `${row}:${col}`;
-      const prev = byCell.get(key);
-      if (prev !== undefined && prev !== Number(m[1])) descartadas.add(key);
-      byCell.set(key, Number(m[1]));
+      if (m) candidatos.push({ n: Number(m[1]), cx: (cell.x0 + cell.x1) / 2, y0: cell.y0, h: cell.y1 - cell.y0 });
     }
+  }
+  // all counts share one font size, so a box much taller than the median is text MERGED with the cell art,
+  // where the OCR invents digits
+  const alturaTipica = median(candidatos.map((c) => c.h)) || 1;
+
+  const byCell = new Map();
+  const descartadas = new Set();
+  for (const c of candidatos) {
+    if (c.h > alturaTipica * 1.5) continue;
+    const col = bandOf(cols.centers, c.cx, cols.pitch * 0.5);
+    if (col < 0) continue;
+    // the count is ABOVE its name: it goes to the first row below it, within one row step. Without that cap the
+    // count of a cell whose name was not read would hang on the next row
+    let row = -1;
+    rows.centers.forEach((centro, i) => {
+      const dy = centro - c.y0;
+      if (dy > 0 && dy < rows.pitch && (row < 0 || centro < rows.centers[row])) row = i;
+    });
+    if (row < 0) continue;
+
+    const key = `${row}:${col}`;
+    const prev = byCell.get(key);
+    if (prev !== undefined && prev !== c.n) descartadas.add(key);
+    byCell.set(key, c.n);
   }
 
   const out = [];
   for (const n of names) {
-    const col = bandOf(cols.centers, n.cx, cols.pitch * 0.5);
-    const row = bandOf(rows.centers, n.y, rows.pitch * 0.5);
-    if (col < 0 || row < 0) continue;
-    const key = `${row}:${col}`;
-    if (descartadas.has(key)) continue;
+    const key = celdaDe(n);
+    if (!key || descartadas.has(key) || nombreDudoso.has(key)) continue;
     const count = byCell.get(key);
     if (count !== undefined) out.push({ name: n.name, count });
   }

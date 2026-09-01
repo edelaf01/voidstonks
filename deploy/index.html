@@ -209,11 +209,6 @@
 
       <div class="hud-subactions">
 
-        <button type="button" id="btn-open-grid-editor" class="hud-btn-sm cyan" onclick="globalThis.openGridEditor()"
-          title="Ajusta a mano la posición de cada celda arrastrándola">
-          ✎ EDITAR CELDAS
-        </button>
-
         <button type="button" id="btn-reset-grid" class="hud-btn-sm amber" onclick="globalThis.resetGrid()"
           title="Descarta la rejilla detectada; se vuelve a detectar en el próximo escaneo">
           ↺ REHACER REJILLA
@@ -221,13 +216,6 @@
 
       </div>
 
-      <div id="btn-close-grid-editor" class="hud-edit-bar">
-        <span id="edit-mode-title" class="hud-edit-title">CELL EDITOR ACTIVE</span>
-        <span id="edit-mode-guide" class="hud-edit-guide">Click a cell to select · Drag or ↑↓←→ to nudge</span>
-        <button type="button" id="btn-edit-done" class="hud-edit-done" onclick="globalThis.closeGridEditor()">
-          ✓ DONE
-        </button>
-      </div>
 
       <!-- inline display: scanner.service.js checks dbgPanel.style.display === "block" before drawing the debug image -->
       <div id="live-debug-snapshot" class="hud-debug" style="display: none">
@@ -527,9 +515,7 @@
                 </svg>
               </button>
             </div>
-            <div id="scan-history-dropdown-list" class="scan-history-list">
-              <div class="scan-history-empty">No hay detecciones recientes disponibles.</div>
-            </div>
+            <div id="scan-history-dropdown-list" class="scan-history-list"></div>
           </div>
         </div>
 
@@ -560,6 +546,18 @@
               Está en BETA: puede fallar o leer mal.
             </p>
           </div>
+          <!-- scan settings, here because this panel is what LIVE SCANNER opens; labels from ui_scanner_hud.js -->
+          <div class="ocr-engine">
+            <span id="lbl-ocr-engine" class="ocr-engine-title">MOTOR DE LECTURA</span>
+            <div class="ocr-engine-opts" role="group" aria-labelledby="lbl-ocr-engine">
+              <button type="button" id="btn-engine-classic" class="ocr-engine-btn" data-active="1"
+                onclick="globalThis.setOcrEngine('tesseract')">CLÁSICO</button>
+              <button type="button" id="btn-engine-neural" class="ocr-engine-btn" data-active="0"
+                onclick="globalThis.setOcrEngine('paddle')">PRECISO</button>
+            </div>
+            <p id="lbl-ocr-engine-hint" class="ocr-engine-hint"></p>
+          </div>
+
           <button id="btn-accept-scan" class="action-btn confirm full-width">
             ENTENDIDO, EMPEZAR
           </button>
@@ -902,6 +900,14 @@
                   TASAR RIVEN
                 </button>
               </div>
+
+              <!-- the prices disclaimer fills the empty space under the buttons;
+                   updateUILabels() sets the text, this is the HTML language default -->
+              <p id="riven-disclaimer" class="riven-disclaimer">
+                Los precios de riven son orientativos: un mismo riven puede costar cualquier cosa.
+                Tómalos como referencia del volumen real de venta, con datos de Digital Extremes
+                y de warframe.market.
+              </p>
 
               <!-- GOD ROLL STATS: populated dynamically by renderMetaStats() -->
               <div id="meta-stats-container" class="recommended-god-roll-card" style="display:none;"></div>
@@ -1740,7 +1746,6 @@
 
   <!-- js/tesseract.min.js is injected on demand in OCRRepository.warmUp() -->
   <script src="js/scanner/live_calibration.js"></script>
-  <script src="js/scanner/live_grid_editor.js"></script>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
