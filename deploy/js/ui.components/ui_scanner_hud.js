@@ -1,6 +1,7 @@
 import { state } from "../state.js";
 import { TEXTS } from "../config.js";
 import { exposeGlobals } from "../utils/global_registry.js";
+import { aplicaMotor, estadoMotor, MOTOR_PRECISO } from "../services/scanner/ocr_engine.service.js";
 
 export const ScannerHUD = {
     updateContext(contextType) {
@@ -187,4 +188,22 @@ export function toggleScannerHud() {
     }
 }
 
-exposeGlobals({ toggleScannerHud }, "ui.components/ui_scanner_hud.js");
+export function renderOcrEngine() {
+    const sh = TEXTS[state.currentLang].scannerHUD;
+    const { elegido, listo } = estadoMotor();
+    const preciso = elegido === MOTOR_PRECISO;
+    const clasico = document.getElementById("btn-engine-classic");
+    const red = document.getElementById("btn-engine-neural");
+    if (clasico) { clasico.innerText = sh.engineClassic; clasico.dataset.active = preciso ? "0" : "1"; }
+    if (red) { red.innerText = sh.engineNeural; red.dataset.active = preciso ? "1" : "0"; }
+    const hint = document.getElementById("lbl-ocr-engine-hint");
+    if (hint) hint.innerText = preciso ? (listo ? sh.hintNeural : sh.hintNeuralLoading) : sh.hintClassic;
+}
+
+function setOcrEngine(motor) {
+    aplicaMotor(motor);
+    renderOcrEngine();
+    if (motor === MOTOR_PRECISO) setTimeout(renderOcrEngine, 2500);
+}
+
+exposeGlobals({ toggleScannerHud, setOcrEngine }, "ui.components/ui_scanner_hud.js");

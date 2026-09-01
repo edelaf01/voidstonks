@@ -82,3 +82,18 @@ export function makeRewardFrame(opts = {}) {
 
     return { data, width, height };
 }
+
+export function makeRewardFrameEnEncuadre({ width = 2560, height = 1440, ocupacion = 1, ...opts } = {}) {
+    if (ocupacion >= 1) return makeRewardFrame({ width, height, ...opts });
+    const gw = Math.round(width * ocupacion), gh = Math.round(height * ocupacion);
+    const juego = makeRewardFrame({ width: gw, height: gh, ...opts });
+    const data = new Uint8ClampedArray(width * height * 4);
+    for (let i = 0; i < data.length; i += 4) {
+        data[i] = 30; data[i + 1] = 28; data[i + 2] = 27; data[i + 3] = 255;
+    }
+    const ox = (width - gw) >> 1, oy = (height - gh) >> 1;
+    for (let y = 0; y < gh; y++) {
+        data.set(juego.data.subarray(y * gw * 4, (y + 1) * gw * 4), ((y + oy) * width + ox) * 4);
+    }
+    return { data, width, height };
+}

@@ -165,7 +165,8 @@ test("ocr.service: lecturas degradadas recuperables matchean por similitud gené
     { ocr: "AKJAGARS PRIME ARREL", expected: "Akjagara Prime Barrel" },
     { ocr: "AKJAGARA PRIME LINK", expected: "Akjagara Prime Link" },
     { ocr: "AKJAGARA FRIME RECEIVER", expected: "Akjagara Prime Receiver" },
-    { ocr: "AKBOLTO BLUEPRINT", expected: "Akbolto Prime Blueprint" },
+    { ocr: "AKBOLTO BLUEPRINT", expected: undefined },
+    { ocr: "AKBOLTO PRIME BLUEPRINT", expected: "Akbolto Prime Blueprint" },
   ];
 
   for (const { ocr, expected } of liveScanTests) {

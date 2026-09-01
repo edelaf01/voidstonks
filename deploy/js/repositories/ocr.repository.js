@@ -38,7 +38,7 @@ export const OCRRepository = {
                 const createStandardWorker = async () => {
                     const w = await tess.createWorker("eng", 1, LOCAL_LANG);
                     await w.setParameters({
-                        tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789:()+- '/%,.",
+                        tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789, ",
                         tessedit_pageseg_mode: this.DEFAULT_PSM,
                         user_defined_dictionary_priority: "1",
                     });

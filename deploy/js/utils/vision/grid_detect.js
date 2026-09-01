@@ -344,10 +344,8 @@ function detectInventoryGridCore(img, opts = {}) {
     }
 
     const narrowEnough = bl => (bl.x1 - bl.x0) < width * 0.9;
-    const bandBlocks = bands.map(b => ({
-        band: b,
-        blocks: blocksInBand(img, b.y0, b.y1, o).filter(narrowEnough),
-    })).filter(bb => bb.blocks.length >= 1);
+    const bandBlocks = bands.map(b => ({ band: b, blocks: blocksInBand(img, b.y0, b.y1, o).filter(narrowEnough) }))
+        .filter(bb => bb.blocks.length >= 1);
 
     const rescuedBands = [];
     for (const b of bands) {
@@ -358,6 +356,8 @@ function detectInventoryGridCore(img, opts = {}) {
     }
     trace.rescuedBands = rescuedBands.map(bb => bb.band.y0);
     trace.bandBlocks = bandBlocks.map(bb => ({ y0: bb.band.y0, blocks: bb.blocks.length }));
+
+    if (bandBlocks.length < 2) bandBlocks.push(...rescuedBands);
     if (bandBlocks.length < 2) {
         trace.fail = `bandas con bloques válidos insuficientes (${bandBlocks.length} < 2) — ¿bloques de borde a borde (>90% del frame) o ruido?`;
         return null;

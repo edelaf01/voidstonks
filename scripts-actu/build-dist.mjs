@@ -5,6 +5,7 @@ import { transform } from "esbuild";
 const SRC = "deploy";
 const OUT = "dist";
 
+// wrangler pages deploy does not respect .assetsignore
 const NO_PUBLICAR = (ruta) => {
     const nombre = ruta.split("/").pop();
     return nombre.endsWith(".md")
