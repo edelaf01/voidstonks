@@ -51,7 +51,11 @@ export const OCRRepository = {
                 const createStandardWorker = async () => {
                     const w = await tess.createWorker("eng", 1, LOCAL_LANG);
                     await w.setParameters({
-                        tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789:()+- '/%,.",
+                        // Solo lo que aparece en los rótulos: letras, dígitos y la coma de los
+                        // millares ("7,661"). El espacio NO es un carácter a reconocer sino el
+                        // separador del que vive todo el parseo — medido, sin él Tesseract pega
+                        // las palabras ("Steel Fccence" -> "SteelFccence").
+                        tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789, ",
                         tessedit_pageseg_mode: this.DEFAULT_PSM,
                         user_defined_dictionary_priority: "1",
                     });

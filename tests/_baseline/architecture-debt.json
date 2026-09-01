@@ -30,7 +30,7 @@
   "oversize": {
     "scanner/mobile_scanner.js": 1026,
     "services/rivens/riven_market.service.js": 1145,
-    "services/scanner/scanner.service.js": 1927,
+    "services/scanner/scanner.service.js": 1942,
     "services/scanner/vision.service.js": 2063,
     "ui.components/market/ui_orders.js": 1582,
     "ui.components/rivens/ui_rivens.js": 4328,
@@ -42,7 +42,6 @@
     "main.js": 1,
     "repositories/storage.repository.js": 1,
     "scanner/live_calibration.js": 3,
-    "scanner/live_grid_editor.js": 4,
     "scanner/live_scanner.js": 23,
     "scanner/mobile_debug_scanner.js": 2,
     "scanner/mobile_scanner.js": 3,

@@ -1,15 +1,17 @@
 import { state, saveAppState } from "../state.js";
+import { applyRewardCommit, undoRewardCommit } from "../utils/inventory/reward_commit.js";
 import { showToast } from "../ui.components/ui_components.js";
 import { TEXTS } from "../config.js";
 import { warmupPrices } from "../services/inventory/inventory.service.js";
 import { ScannerService } from "../services/scanner/scanner.service.js";
 import { OCRService } from "../services/scanner/ocr.service.js?v=264";
 import { ScannerModal } from "../ui.components/ui_scanner_modal.js";
-import { ScannerHUD } from "../ui.components/ui_scanner_hud.js";
+import { ScannerHUD, renderOcrEngine } from "../ui.components/ui_scanner_hud.js";
+import { restauraMotor } from "../services/scanner/ocr_engine.service.js";
 import { showHowToPanel } from "../ui.components/ui_howto_panel.js";
 import { oneTimeNoticeSeen, markOneTimeNoticeSeen } from "../repositories/storage.repository.js";
 import { OCRRepository } from "../repositories/ocr.repository.js";
-import { WF_THEMES } from "../services/scanner/vision.service.js";
+import { WF_THEMES_VOTABLES } from "../utils/vision/wf_themes.js";
 import { mergeRelicCounts } from "../utils/inventory/relic_counts.js";
 import { RelicScreenService } from "../services/scanner/relic_screen.service.js";
 import { exposeGlobals } from "../utils/global_registry.js";
@@ -21,7 +23,12 @@ const HOWTO_KEY = "vs_live_howto_seen";
 globalThis._OCRService = OCRService;
 globalThis._ScannerModal = ScannerModal;
 globalThis._OCRRepository = OCRRepository;
-globalThis._WF_THEMES = WF_THEMES;
+// Los CROMÁTICOS, no todos: esta lista la usa la máscara del escáner por foto, que cubre la
+// pantalla entera. Un tema acromático casa con cualquier gris de la interfaz porque
+// matchesThemeHue normaliza el brillo — medido sobre una captura real de inventario, con los 20
+// temas la tinta de la máscara pasaba del 4,62 % al 7,01 %, y eso es ruido para el OCR. La lista
+// completa se queda donde se midió que ayuda: la pasada de nombres de recompensas.
+globalThis._WF_THEMES = WF_THEMES_VOTABLES;
 
 let DEBUG_MODE = false;
 
@@ -90,6 +97,11 @@ export async function startLiveSession() {
   if (isStartingSession || liveStream?.active) return;
   isStartingSession = true;
 
+  // El motor elegido en una sesión anterior, y su descarga lanzada YA: si el modelo se pidiera
+  // al detectar la primera pantalla de recompensas, ese frame se perdería esperándolo.
+  restauraMotor();
+  renderOcrEngine();
+
   const toggleBtn = document.getElementById("scanner-toggle");
   const t = TEXTS[state.currentLang].scanner;
 
@@ -125,6 +137,10 @@ export async function startLiveSession() {
     }
 
     RelicScreenService.reset();
+    // Los apuntes de "ya la conté a mano" son de la partida anterior: si esa sesión acabó sin
+    // pasar por el resumen (misión abortada, escáner cerrado, auto-añadir apagado) se quedan
+    // vivos y se tragan la primera recompensa buena de esta.
+    pendingManualAdds.length = 0;
     await ScannerService.start();
     showToast(t.toastActive);
 
@@ -270,18 +286,9 @@ function commitMissionCompleteRewards(items) {
   if (!state.autoAddMissionRewards || !items?.length) return;
 
   const t = TEXTS[state.currentLang].scanner;
-  const previo = new Map();
-  const añadidas = [];
-
-  for (const { name, qty = 1 } of items) {
-    // Ya contada al elegirla en la pantalla de reliquia: se consume el apunte y no se suma.
-    const manual = pendingManualAdds.indexOf(name);
-    if (manual !== -1) { pendingManualAdds.splice(manual, 1); continue; }
-
-    if (!previo.has(name)) previo.set(name, state.primeInventory[name] || 0);
-    state.primeInventory[name] = (state.primeInventory[name] || 0) + qty;
-    añadidas.push(qty > 1 ? `${name} ×${qty}` : name);
-  }
+  const { inventario, previo, anadidas: añadidas } = applyRewardCommit(
+    state.primeInventory, items, pendingManualAdds);
+  state.primeInventory = inventario;
   pendingManualAdds.length = 0;
   if (!añadidas.length) return;
 
@@ -294,10 +301,7 @@ function commitMissionCompleteRewards(items) {
   undo.className = "toast-action";
   undo.textContent = t.mcUndo;
   undo.onclick = () => {
-    for (const [name, count] of previo) {
-      if (count > 0) state.primeInventory[name] = count;
-      else delete state.primeInventory[name];
-    }
+    state.primeInventory = undoRewardCommit(state.primeInventory, previo);
     saveAppState();
     if (globalThis.renderPrimeInventory) globalThis.renderPrimeInventory();
     showToast(t.mcUndone, { tag: "mc-rewards" });

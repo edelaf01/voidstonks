@@ -133,7 +133,7 @@ suggested price, and a warning when someone undercuts you.
 It is currently marked WIP and gated: it is waiting on warframe.market offering a proper OAuth
 login for third-party apps. The desktop build is where this is headed — a native login that
 keeps credentials out of any intermediate server (see
-[`deploy/js/utils/native_bridge.contract.md`](deploy/js/utils/native_bridge.contract.md)).
+[`NATIVE_BRIDGE.md`](NATIVE_BRIDGE.md)).
 
 ### LFG and cross-device sync
 

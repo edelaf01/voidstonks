@@ -1,7 +1,10 @@
-import { VisionService, WF_THEMES } from "./vision.service.js";
+import { VisionService } from "./vision.service.js";
 import { freezeFrame, releaseFrame } from "../../utils/vision/frame_freeze.js";
 import { nextLatchedContext, INITIAL_LATCH } from "../../utils/vision/context_latch.js";
-import { isImplausibleFallbackGrid, detectPlausibleRewardBand } from "../../utils/vision/plausibility.js";
+import { isImplausibleFallbackGrid } from "../../utils/vision/plausibility.js";
+import { localizaBandaRecompensas, candidatosDeRecorte, recorteDelRotulo } from "../../utils/vision/reward_band.js";
+import { leeRecompensas } from "./reward_read.service.js";
+import { motorActivo, MOTOR_PRECISO } from "./ocr_engine.service.js";
 import { OCRService } from "./ocr.service.js?v=264";
 import { SquadService } from "./squad.service.js";
 import { RelicScreenService } from "./relic_screen.service.js";
@@ -19,6 +22,10 @@ import { nextLedger, INITIAL_LEDGER } from "../../utils/inventory/reward_ledger.
 import { createFrameQueue } from "../../utils/vision/frame_queue.js";
 import { videoRegionHash, smallCanvasHash, compareHashes } from "../../utils/vision/frame_hash.js";
 import { rivenFingerprint } from "../../utils/rivens/riven_naming.js";
+import { labelFullyRead } from "../../utils/vision/name_lines.js";
+import { collectWords } from "../../utils/vision/ocr_words.js";
+import { hasComponentSiblings } from "../../utils/inventory/component_siblings.js";
+import { olvidaColorTexto } from "../../utils/vision/reward_preprocess.js";
 
 export const ScannerService = {
     isScanning: false,
@@ -82,11 +89,7 @@ export const ScannerService = {
             this.virtualCanvas = document.createElement("canvas");
             this.virtualCanvas.id = "scanner-virtual-canvas";
         }
-
-        // On-demand fetch of the fresh prime items reference list from worker/backend cache
         initializeOCRDatabase().catch(err => console.warn("Error fetching OCR reference database from backend:", err));
-
-        // Pre-fetch Riven weapons list on start to ensure Riven OCR is ready immediately
         import("../rivens/rivens.service.js").then(m => m.fetchRivenWeapons()).catch(err => console.warn("Error fetching Riven weapons:", err));
 
         await OCRRepository.warmUp();
@@ -146,18 +149,12 @@ export const ScannerService = {
         const worker1 = OCRRepository.workers[0];
         if (!worker1) return;
 
-        // Skip del OCR de cabecera por hash: la franja del header no cambia entre frames de una
-        // pantalla quieta, y OCRearla cada tick (400ms en modo riven) era el mayor consumo fijo
-        // de CPU del scanner. Si el hash coincide, reutilizamos el texto de la última lectura —
-        // todo el flujo de contexto (anclas, grace, histéresis) se comporta exactamente igual.
-        // Tres protecciones contra la "ceguera de contexto" (recompensas que no saltaban):
-        //  - tolerancia ESTRICTA (6, no 18): el título del header es texto fino que apenas
-        //    mueve la media de un downsample 16×9; con 18 el cambio gameplay→recompensas
-        //    podía quedar por debajo y se reutilizaba el texto basura cacheado del gameplay.
-        //  - baseline anclado al último frame OCREADO (no al frame anterior): actualizarlo
-        //    cada frame dejaba pasar cambios graduales (fade de transición) sin re-OCR jamás.
-        //  - TTL: pase lo que pase, re-OCR cada 2.5s — acota cualquier colisión de hash a
-        //    2.5s de ceguera máxima (la pantalla de recompensas dura ~10s).
+        // Skip del OCR de cabecera por hash: OCRear el header cada tick era el mayor consumo
+        // fijo de CPU. Tres protecciones contra la "ceguera de contexto":
+        //  - tolerancia ESTRICTA (6, no 18): el título es texto fino y con 18 el cambio
+        //    gameplay->recompensas quedaba por debajo, reutilizando texto basura.
+        //  - baseline anclado al último frame OCREADO: si no, un fade gradual nunca re-OCR.
+        //  - TTL de 2.5s: acota cualquier colisión de hash (la pantalla dura ~10s).
         const headerHash = smallCanvasHash(virtualCanvas);
         const headerCacheFresh = this.lastHeaderOcrTime && (Date.now() - this.lastHeaderOcrTime < 2500);
         let headerText;
@@ -244,10 +241,18 @@ export const ScannerService = {
 
         // La histéresis vive en utils/vision/context_latch.js (pura y con test).
         this.ctxLatch = nextLatchedContext(this.ctxLatch, routedContext);
+        // El color del texto solo puede cambiar con la pantalla: se recalcula al cambiar de
+        // contexto, no en cada frame.
+        if (this.ctxLatch.latched !== this.latchedContext) olvidaColorTexto();
         this.latchedContext = this.ctxLatch.latched;
-        // El frame congelado son ~15 MB a 1440p: fuera de la pantalla de recompensas se suelta.
-        if (this.latchedContext !== "REWARD") this._rewardFrameCvs = releaseFrame(this._rewardFrameCvs);
-
+        // El frame congelado son ~15 MB a 1440p: fuera de recompensas se suelta.
+        if (this.latchedContext !== "REWARD") {
+            // El frame son ~15 MB a 1440p, y los de la cadena de recompensas otros ~7 entre el
+            // recorte, la máscara de nombres, el downscale de detección y el de la franja.
+            this._rewardFrameCvs = releaseFrame(this._rewardFrameCvs);
+            this._rewardDetectCvs = releaseFrame(this._rewardDetectCvs);
+            VisionService.releaseRewardCanvases?.();
+        }
         console.log(`[SCAN] Context Raw: ${rawContext} | Latched: ${this.latchedContext} | Header: "${headerText.trim().slice(0, 60)}"`);
         await this.routeFrameAction(this.latchedContext, video, dims);
 
@@ -509,6 +514,8 @@ export const ScannerService = {
             await RelicScreenService.process(video, dims);
         } else if (contextType === "MISSION_COMPLETE") {
             if (globalThis.RivenScannerHUD) globalThis.RivenScannerHUD.dismiss();
+            // El run se acabó: el panel seguía prometiendo reliquias de una misión terminada.
+            if (globalThis.state?.squadRun) SquadService.clear();
             // La pantalla se queda hasta que el usuario pulse continuar, así que no hace falta
             // correr: el ritmo lo marca el consenso de 2 lecturas iguales, no la prisa.
             this.currentRate = 800;
@@ -1116,80 +1123,6 @@ export const ScannerService = {
         ScannerHUD.updateDebugSnapshot(debugCvs.toDataURL("image/webp"));
     },
 
-    // Ejecuta un intento completo de OCR+parse de recompensas con un preset de binarización dado.
-    // Devuelve { rawOcr, namesRaw, foundItems, ocrCanvas, namesCanvas }.
-    // `frame`: canvas congelado de processRewards, no el <video>.
-    async _attemptRewardOCR(frame, width, height, scale, preset, cropRect) {
-        const ocrCanvas = VisionService.prepareRewardOCRCanvas(frame, width, height, scale, preset, cropRect);
-        console.log(`[REWARD] Canvas: ${ocrCanvas.width}x${ocrCanvas.height} (preset ${preset})`);
-
-        // Antes esto iba tras un `if (globalThis.OpenCVEngine?.isReady)` que NUNCA se cumplía:
-        // ningún módulo publica ese global (OpenCVEngine se importa como clase), así que la
-        // binarización de recompensas siempre ha sido esta, y la calibración de la pasada de
-        // nombres está afinada sobre ella. Enchufar OpenCV aquí es un cambio de OCR, no una
-        // limpieza: haría falta medirlo contra las capturas de tests/_fixtures.
-        // Canvas is already grayscale from CSS filter.
-        // Invert: bright=text → black(0), dark=background → white(255)
-        const ctx = ocrCanvas.getContext("2d", { willReadFrequently: true });
-        const imgData = ctx.getImageData(0, 0, ocrCanvas.width, ocrCanvas.height);
-        const px = imgData.data;
-        let textPixels = 0;
-        for (let i = 0; i < px.length; i += 4) {
-            const v = px[i] > 128 ? 0 : 255;
-            if (v === 0) textPixels++;
-            px[i] = px[i + 1] = px[i + 2] = v;
-        }
-        ctx.putImageData(imgData, 0, 0);
-        const totalPx = px.length / 4;
-        console.log(`[REWARD] Binarization: ${textPixels} text pixels / ${totalPx} total (${(100 * textPixels / totalPx).toFixed(2)}%)`);
-
-        const dbgPanel = document.getElementById("live-debug-snapshot");
-        if (dbgPanel?.style.display === "block") {
-            const debugImg = document.getElementById("live-debug-snapshot-img");
-            if (debugImg) debugImg.src = ocrCanvas.toDataURL("image/jpeg", 0.85);
-        }
-
-        // 2ª pasada: NOMBRES por máscara de color del tema. El grayscale funde el color del nombre
-        // con el fondo/ilustración dorada y Tesseract lee basura; el filtro por color del tema lo aísla.
-        // Mismo recorte/escala que ocrCanvas -> las cajas de palabra comparten coordenadas, así que
-        // parseRewards (que separa columnas por X) fusiona nombres (color) + Owned/Crafted (grayscale).
-        // Las DOS pasadas corren EN PARALELO (workers distintos) -> no suman latencia frente a una sola.
-        // prepareRewardNamesCanvas devuelve null si su máscara salió densa (= ruido, no letras):
-        // en ese caso NO se corre la pasada de nombres — su OCR inyectaría decenas de palabras
-        // basura en mergedWords (anclas espurias tipo "Ris") sin aportar ningún nombre real.
-        const namesCanvas = VisionService.prepareRewardNamesCanvas(frame, width, height, scale, cropRect);
-        let metaRes, namesRes;
-        if (namesCanvas) {
-            // Se lanza la creación del 2º worker pero NO se espera: bloquear aquí metía
-            // cientos de ms (arranque de una instancia WASM) justo en el primer frame de
-            // recompensa, que es el que más corre prisa. Si aún no está, las dos pasadas
-            // caen a workers[0] —secuenciales, algo más lentas pero sin frame perdido— y a
-            // partir del siguiente frame ya hay paralelismo real.
-            OCRRepository.ensureSecondWorker().catch(() => { });
-            const w0 = OCRRepository.workers[0];
-            const w1 = OCRRepository.workers[1] || w0;
-            [metaRes, namesRes] = await Promise.all([
-                OCRRepository.recognize(w0, ocrCanvas, {}, { blocks: true }),
-                OCRRepository.recognize(w1, namesCanvas, {}, { blocks: true }),
-            ]);
-        } else {
-            console.log("[REWARD] Names pass skipped: noisy mask");
-            metaRes = await OCRRepository.recognize(OCRRepository.workers[0], ocrCanvas, {}, { blocks: true });
-            namesRes = { data: { text: "", words: [] } };
-        }
-        const data = metaRes.data;
-        const rawOcr = data.text || "";
-        console.log(`[REWARD] OCR raw (grayscale/badges): "${rawOcr.replaceAll(/\n+/g, " ").trim().slice(0, 120)}"`);
-        const namesRaw = namesRes.data?.text || "";
-        console.log(`[REWARD] OCR raw (color/nombres): "${namesRaw.replaceAll(/\n+/g, " ").trim().slice(0, 120)}"`);
-
-        const mergedWords = [...(namesRes.data?.words || []), ...(data.words || [])];
-        const foundItems = OCRService.parseRewards({ words: mergedWords, imageW: ocrCanvas.width });
-        console.log(`[REWARD] Items found: ${foundItems.length}`, foundItems.map(i => i.name));
-
-        return { rawOcr, namesRaw, foundItems, ocrCanvas, namesCanvas };
-    },
-
     /** Consenso/dedup de altas automáticas desde MISSION COMPLETE (utils/inventory/reward_ledger.js). */
     mcLedger: INITIAL_LEDGER,
     _mcFrameCvs: null,
@@ -1230,10 +1163,8 @@ export const ScannerService = {
         }
         console.log(`[MC] ${trace.cells} casillas · ${trace.cols}×${trace.rows} · paso ${trace.pitch}${grid.occluded ? " · TAPADA" : ""}`);
 
-        // El tooltip de "N OWNED" (sale al pasar el ratón por una celda) tapa hasta dos
-        // casillas. Leer así perdería en silencio la pieza que hubiera debajo, que es
-        // exactamente lo que un alta automática no se puede permitir. Se espera: el tooltip
-        // desaparece solo en cuanto el ratón se mueve.
+        // El tooltip de "N OWNED" tapa hasta dos casillas y leer así perdería en silencio la
+        // pieza de debajo. Se espera: desaparece solo en cuanto el ratón se mueve.
         if (grid.occluded) return;
 
         const worker = OCRRepository.workers[0];
@@ -1245,13 +1176,25 @@ export const ScannerService = {
             // Sin rótulo es una carta de mod: ahorra un OCR y quita falsos del catálogo.
             if (!cell.named) continue;
             VisionService.prepareMissionCompleteCellCanvas(frame, cell, grid.accent, this._mcCellCvs);
-            const { data } = await OCRRepository.recognize(worker, this._mcCellCvs, {}, { text: true });
+            const { data } = await OCRRepository.recognize(worker, this._mcCellCvs, {}, { text: true, blocks: true });
             const raw = (data.text || "").toUpperCase();
             // Celda a celda y no de una pasada al panel entero: así las palabras de una
             // recompensa no pueden mezclarse con las de la vecina y fabricar un nombre que
             // no está en pantalla.
             const match = OCRService.getValidItemMatch(raw);
             if (!match?.isPrime) continue;
+            // Un plano de warframe con hermanos de componente ("Xaku Prime Blueprint" frente a
+            // "Xaku Prime Neuroptics") puede ser el rótulo de al lado al que se le ha perdido la
+            // línea del medio: son piezas distintas y por texto no hay forma de separarlas. La
+            // tinta sí lo dice, así que se exige que lo leído explique el ancho de cada línea.
+            // Solo se paga en esos nombres —168 del catálogo—; el resto no pasa por aquí.
+            if (hasComponentSiblings(OCRService.cachedDbItems, match.originalName)) {
+                const { completo, cobertura } = labelFullyRead(this._mcCellCvs, collectWords(data));
+                if (!completo) {
+                    console.log(`[MC] r${cell.row}c${cell.col}: descarto "${match.originalName}" — lo leído explica el ${Math.round(cobertura * 100)}% de la tinta del rótulo`);
+                    continue;
+                }
+            }
             items.push({ name: match.originalName, qty: cell.qty, cell });
             console.log(`[MC] r${cell.row}c${cell.col}: ${match.originalName} ×${cell.qty}`);
         }
@@ -1269,48 +1212,53 @@ export const ScannerService = {
         // UN frame para todo el flujo: banda, presets de OCR y foto del modal (ver freezeFrame).
         const frame = this._rewardFrameCvs = freezeFrame(video, width, height, this._rewardFrameCvs);
 
-        // Localiza DÓNDE están las cards de recompensa en el frame, en vez de asumir que
-        // ocupan siempre Y 18.5%-44% del encuadre completo. Esa asunción se rompe cuando la
-        // "cámara" es en realidad una webcam apuntando a un monitor externo: el juego solo
-        // llena una fracción del encuadre (bisel, pared, techo alrededor), y el % fijo cae
-        // sobre fondo vacío. Se detecta sobre un downscale barato (detectRewardBand solo
-        // necesita ver la banda de texto, no leerlo) y se reescala el rect a resolución real.
-        const DETECT_W = 720; // 480 dejaba la fila de nombres bajo minBandH salvo a 1080p exactos
-        const detScale = DETECT_W / width;
-        const detH = Math.round(height * detScale);
-        if (!this._rewardDetectCvs) this._rewardDetectCvs = document.createElement("canvas");
-        const detCvs = this._rewardDetectCvs;
-        detCvs.width = DETECT_W; detCvs.height = detH;
-        const detCtx = detCvs.getContext("2d", { willReadFrequently: true });
-        detCtx.drawImage(frame, 0, 0, DETECT_W, detH);
-        const detImg = detCtx.getImageData(0, 0, DETECT_W, detH);
-        const band = detectPlausibleRewardBand(detImg);
-        const cropRect = band ? {
-            x: band.x / detScale, y: band.y / detScale,
-            w: band.w / detScale, h: band.h / detScale,
-        } : null;
+        // Dónde están las cards, en vez de asumir el 18,5-44 % del encuadre: esa asunción se
+        // rompe con una webcam apuntando a un monitor externo, donde el juego solo llena una
+        // fracción del frame y el % fijo cae sobre la pared (ver utils/vision/reward_band.js).
+        const { cropRect, columnas, cardCount, bandSource, cvs } = localizaBandaRecompensas(frame, width, height, this._rewardDetectCvs);
+        this._rewardDetectCvs = cvs;
         console.log(cropRect
-            ? `[REWARD] Banda detectada: ${band.cardCount} cards en x=${Math.round(cropRect.x)} y=${Math.round(cropRect.y)} ${Math.round(cropRect.w)}x${Math.round(cropRect.h)}`
+            ? `[REWARD] Banda detectada (${bandSource}): ${cardCount} cards en x=${Math.round(cropRect.x)} y=${Math.round(cropRect.y)} ${Math.round(cropRect.w)}x${Math.round(cropRect.h)}`
             : "[REWARD] Banda no detectada, usando recorte fijo de respaldo");
 
-        // Adaptador automático: si el preset ESTÁNDAR no lee ningún item, el recorte puede ser
-        // correcto pero la exposición real de la foto (habitación oscura, reflejo del panel)
-        // no encaja con el contraste/brillo fijo calibrado para condiciones normales. En vez de
-        // esperar al siguiente frame con los MISMOS parámetros que ya fallaron, se reintenta acto
-        // seguido con presets alternativos sobre el mismo frame — más barato que perder ~1-2
-        // ciclos de poll adivinando a ciegas. Tope de 3 intentos totales: no vale la pena seguir
-        // insistiendo en un frame que ni con brillo/contraste extremos da texto (probablemente no
-        // es realmente la pantalla de recompensas, o está totalmente fuera de foco).
+        // Dos escaleras sobre el MISMO frame, de dentro a fuera: por recorte (la banda detectada
+        // y el recorte calibrado fallan en capturas distintas, ver candidatosDeRecorte) y por
+        // preset de binarización (exposición/reflejo). Se queda con la lectura de MÁS
+        // recompensas, no con la primera que devuelva algo: una lectura de 1 no vale más que
+        // otra de 4 por llegar antes.
+        //
+        // El coste está acotado por dónde se corta: con la lectura completa (tantos nombres como
+        // cards contó la detección) se para en el primer intento, que es el caso normal; solo
+        // cuando NADA lee se recorre la escalera entera.
         const PRESET_ORDER = ["STANDARD", "LOW_LIGHT", "HIGH_GLARE"];
-        let result = null;
+        const candidatos = candidatosDeRecorte({ cropRect, columnas, cardCount },
+            recorteDelRotulo(frame, width, height, null));
+        let result = null, usado = null;
         for (const preset of PRESET_ORDER) {
-            result = await this._attemptRewardOCR(frame, width, height, scale, preset, cropRect);
-            if (result.foundItems.length > 0) {
-                if (preset !== "STANDARD") console.log(`[REWARD] Rescatado por preset adaptativo: ${preset}`);
-                break;
+            for (const cand of candidatos) {
+                const r = await leeRecompensas(frame, width, height, scale, preset, cand.cropRect, cand.columnas);
+                if (!result || r.foundItems.length > result.foundItems.length) { result = r; usado = { ...cand, preset }; }
+                if (result.foundItems.length >= cand.minimo) break;
             }
+            // Los RECORTES sí se agotan aunque la lectura vaya incompleta (el bucle de dentro):
+            // ahí está la ganancia. Los PRESETS no: son para la exposición de una foto de
+            // cámara y sobre captura directa no aportan nada — medido, mismo 133/135 y seis
+            // pasadas de OCR menos. Se escalan solo cuando no se leyó NADA, que es su caso.
+            if (result.foundItems.length > 0) break;
+        }
+        if (usado && (usado.preset !== "STANDARD" || usado.nombre !== candidatos[0].nombre)) {
+            console.log(`[REWARD] Leído con recorte "${usado.nombre}" y preset ${usado.preset}`);
         }
         const { rawOcr, namesRaw, foundItems, ocrCanvas, namesCanvas } = result;
+
+        // La instantánea del panel de depuración se pinta AQUÍ y no en la lectura: services/ no
+        // toca el DOM, y además así se ve el lienzo que ganó, no el último que se probó.
+        const dbgPanel = document.getElementById("live-debug-snapshot");
+        if (dbgPanel?.style.display === "block") {
+            const debugImg = document.getElementById("live-debug-snapshot-img");
+            if (debugImg) debugImg.src = ocrCanvas.toDataURL("image/jpeg", 0.85);
+        }
+        const cropUsado = usado?.cropRect || null;
 
         // xPos llega en coordenadas del RECORTE de OCR (prepareRewardOCRCanvas: recorta un
         // marginX por lado y escala ×scale). El modal (renderBadges) lo interpreta en el
@@ -1318,9 +1266,9 @@ export const ScannerService = {
         // por el offset del margen. Reproyectamos a frame-completo×scale — usando el MISMO
         // origen (cropRect.x, o 0 si no hubo detección) y margen que usó prepareRewardOCRCanvas,
         // no el % fijo de antes: con cropRect variable, width*0.08 ya no es el offset real.
-        const rMarginX = cropRect ? Math.floor(cropRect.w * 0.06) : Math.floor(width * 0.08);
-        const rCropXBase = cropRect ? Math.floor(cropRect.x) : 0;
-        const rCropW = (cropRect ? cropRect.w : width) - rMarginX * 2;
+        const rMarginX = cropUsado ? Math.floor(cropUsado.w * 0.06) : Math.floor(width * 0.08);
+        const rCropXBase = cropUsado ? Math.floor(cropUsado.x) : 0;
+        const rCropW = (cropUsado ? cropUsado.w : width) - rMarginX * 2;
         const rOcrW = ocrCanvas.width || 1;
         foundItems.forEach(item => {
             if (typeof item.xPos === "number") {
@@ -1331,9 +1279,8 @@ export const ScannerService = {
         clearRewardDebugLogs();
         const cleanOcrText = rawOcr.replaceAll(/\n+/g, ' ').trim();
         addRewardDebugLog("OCR", `Read: ${cleanOcrText}`, "info");
-        // La pasada de NOMBRES (máscara por color) es la que rescata nombres que el grayscale
-        // garblea (p.ej. 1ª línea de nombres a 2-3 líneas pegada al arte dorado); sin verla en
-        // el panel no se puede diagnosticar cuál de las dos pasadas falló.
+        // La pasada de NOMBRES rescata los que el grayscale garblea; sin verla en el panel
+        // no se puede diagnosticar cuál de las dos falló.
         addRewardDebugLog("OCR2", namesCanvas ? `Names: ${namesRaw.replaceAll(/\n+/g, " ").trim()}` : "Names: (skipped - noisy mask)", "info");
         addRewardDebugLog("SCAN", `Items found: ${foundItems.length}`, foundItems.length > 0 ? "match" : "warn");
 
@@ -1341,7 +1288,13 @@ export const ScannerService = {
         // de botín dentro de la misma banda de recorte y dispara falsos positivos. Su UI
         // fija ("MISSION COMPLETE", dropdown IMPORTANCE, caja SEARCH) no existe en la
         // pantalla de selección de recompensa de reliquia, así que sirve de descarte.
-        const contextText = `${rawOcr} ${namesRaw}`.toUpperCase();
+        // La CABECERA entra en el guard, no solo el recorte. El título "MISSION COMPLETE" está
+        // centrado y nunca cae dentro de la banda de recompensas: buscarlo en el texto del
+        // recorte solo funcionaba de rebote, porque el recorte ancho pillaba el "IMPORTANCE" o
+        // el "SEARCH" de esa pantalla — y dejó de pillarlos al ceñir el recorte al rótulo.
+        // Visto en vivo: el modal de recompensa se abría sobre la pantalla de fin de misión,
+        // que es otra lógica (ahí las piezas se SUMAN al inventario, no se eligen).
+        const contextText = `${rawOcr} ${namesRaw} ${this.lastHeaderText || ""}`.toUpperCase();
         const NON_REWARD_TOKENS = [
             "MISSION COMPLETE", "MISION COMPLETADA", "MISIÓN COMPLETADA",
             "IMPORTANCE", "IMPORTANCIA", "SEARCH", "BUSCAR",
@@ -1367,6 +1320,8 @@ export const ScannerService = {
 
     async processInventoryGrid(snapshot, width, height, scale) {
         if (this.detectionLocked) return;
+        // Se suelta en TODAS las salidas menos la del modal (ese lo suelta al cerrarse):
+        // processFrame() sale en su 1ª línea si sigue puesto, así que una fuga mata el escáner.
         this.detectionLocked = true;
 
         try {
@@ -1404,6 +1359,7 @@ export const ScannerService = {
             if (!calibData?.gridZone) {
                 if (/KUBROW|KUBR|CHESA|HURAS|SAHASA|RAKSA|SUNIKA|HELMINTH|KAVAT/i.test(this.lastHeaderText || "")) {
                     console.log("[INV] Omitiendo modal de calibración porque la pantalla es de kubrow.");
+                    this.detectionLocked = false;
                     return;
                 }
                 if (globalThis.LiveCalibration && !globalThis.LiveCalibration.hasCalibration()) {
@@ -1416,9 +1372,11 @@ export const ScannerService = {
                     await globalThis.LiveCalibration.runCalibrationFlow(
                         calibCtx.getImageData(0, 0, width, height)
                     );
+                    this.detectionLocked = false;
                     return;
                 }
                 console.warn("[INV] No grid zone calibration available.");
+                this.detectionLocked = false;
                 return;
             }
 
@@ -1448,6 +1406,7 @@ export const ScannerService = {
             if (!autoGrid || autoGrid.cellRects.length === 0) {
                 console.warn("[INV] Auto-grid detection failed — inventory may not be visible or zone needs recalibration.");
                 ScannerHUD.updateScrollStatus("done", 0);
+                this.detectionLocked = false;
                 return;
             }
 
@@ -1581,11 +1540,11 @@ export const ScannerService = {
                         dCtx.strokeRect(cell.sx - gridZone.x + 2, cell.sy - gridZone.y + 2, cellW - 4, cellH - 4);
                         continue;
                     }
-                    // MOTOR OCR seleccionable (paralelo). "paddle" (globalThis.OCR_ENGINE)
+                    // MOTOR OCR seleccionable (paralelo). El preciso (ocr_engine.service.js)
                     // lee la banda de nombre a COLOR directamente (sin binarizar) con PaddleOCR;
                     // por defecto usa Tesseract sobre el recorte binarizado como hasta ahora.
                     let combinedText;
-                    if (globalThis.OCR_ENGINE === "paddle") {
+                    if (motorActivo() === MOTOR_PRECISO) {
                         const ty = Math.round(cellH * 0.50), th = Math.round(cellH * 0.48);
                         const colorCvs = VisionService.cropColor(snapshot, cell.sx, cell.sy + ty, cellW, th, 2);
                         try {
@@ -1669,7 +1628,7 @@ export const ScannerService = {
                     }
 
                     // Fallback con PaddleOCR (opt-in: globalThis.OCR_PADDLE_FALLBACK)
-                    if (!bestItem && !relicMatch && globalThis.OCR_ENGINE !== "paddle" && globalThis.OCR_PADDLE_FALLBACK) {
+                    if (!bestItem && !relicMatch && motorActivo() !== MOTOR_PRECISO && globalThis.OCR_PADDLE_FALLBACK) {
                         const ty = Math.round(cellH * 0.50), th = Math.round(cellH * 0.48);
                         const colorCvs = VisionService.cropColor(snapshot, cell.sx, cell.sy + ty, cellW, th, 2);
                         try {
@@ -1764,7 +1723,7 @@ export const ScannerService = {
                 const workerPromises = [];
                 // Con PaddleOCR se serializa a 1 "worker": el servicio ONNX es único y no
                 // es seguro llamarlo en paralelo. Con Tesseract se balancea entre los workers.
-                const maxWorkers = globalThis.OCR_ENGINE === "paddle" ? 1 : workers.length;
+                const maxWorkers = motorActivo() === MOTOR_PRECISO ? 1 : workers.length;
                 const activeWorkerCount = Math.min(maxWorkers, activeCells.length);
                 for (let w = 0; w < activeWorkerCount; w++) {
                     workerPromises.push(runWorker(workers[w]));

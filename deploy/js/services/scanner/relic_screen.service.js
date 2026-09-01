@@ -1,7 +1,7 @@
 import { state } from "../../state.js";
 import { OCRRepository } from "../../repositories/ocr.repository.js";
 import { RELIC_GRID_CROP, parseRelicGrid } from "../../utils/vision/relic_grid.js";
-import { relicKey } from "../../utils/inventory/relic_counts.js";
+import { voteReadings, applyRelicCounts } from "../../utils/inventory/relic_votes.js";
 import { smallCanvasHash, compareHashes } from "../../utils/vision/frame_hash.js";
 import { collectWords } from "../../utils/vision/ocr_words.js";
 import { VisionService } from "./vision.service.js";
@@ -21,7 +21,6 @@ import { OCRService } from "./ocr.service.js";
 // Votos iguales que hacen falta para escribir una cantidad en el inventario. Dos y no uno
 // porque una cantidad mal leída PISA la que había y no queda rastro de cuál era; dos y no
 // tres porque la pantalla es estática y el tercer frame no aporta información nueva.
-const VOTES_TO_APPLY = 2;
 
 export const RelicScreenService = {
     onApplied: null,
@@ -77,19 +76,10 @@ export const RelicScreenService = {
         console.log(`[RELICS] ${read.length} reliquias con cantidad en pantalla`);
         if (!read.length) return;
 
-        const changed = [];
-        for (const { name, count } of read) {
-            let byCount = this.votes.get(name);
-            if (!byCount) { byCount = new Map(); this.votes.set(name, byCount); }
-            const n = (byCount.get(count) || 0) + 1;
-            byCount.set(count, n);
-            if (n < VOTES_TO_APPLY || this.applied.get(name) === count) continue;
-            this.applied.set(name, count);
-            changed.push({ name, count });
-        }
+        const changed = voteReadings(this, read);
         if (!changed.length) return;
 
-        applyCounts(changed);
+        state.inventory = applyRelicCounts(state.inventory, changed);
         console.log("[RELICS] inventario actualizado:", changed.map((c) => `${c.name}=${c.count}`).join(", "));
         this.onApplied?.(changed);
     },
@@ -103,38 +93,4 @@ export const RelicScreenService = {
     },
 };
 
-/**
- * Escribe las cantidades en state.inventory.
- *
- * Se hace entrada a entrada y no con mergeRelicCounts porque aquí solo se han leído las
- * reliquias VISIBLES en la rejilla: reconstruir el array entero desde lo escaneado dejaría
- * fuera todo lo que no cabe en pantalla.
- */
-function applyCounts(changed) {
-    if (!Array.isArray(state.inventory)) state.inventory = [];
-    // El formato viejo (strings repetidos) no se puede actualizar en sitio: se convierte,
-    // que es lo mismo que hace state.js en cuanto se pulsa un +/-.
-    if (state.inventory.some((i) => typeof i === "string")) {
-        const counts = new Map();
-        for (const i of state.inventory) {
-            const name = typeof i === "string" ? i : i?.name;
-            if (!name) continue;
-            const prev = counts.get(relicKey(name));
-            if (prev) prev.count += typeof i === "string" ? 1 : Number(i.count) || 1;
-            else counts.set(relicKey(name), { name, count: typeof i === "string" ? 1 : Number(i.count) || 1 });
-        }
-        state.inventory = [...counts.values()];
-    }
 
-    const byKey = new Map(state.inventory.map((i) => [relicKey(i?.name), i]));
-    for (const { name, count } of changed) {
-        const existing = byKey.get(relicKey(name));
-        if (existing) existing.count = count;
-        else if (count > 0) {
-            const entry = { name, count };
-            state.inventory.push(entry);
-            byKey.set(relicKey(name), entry);
-        }
-    }
-    state.inventory = state.inventory.filter((i) => (Number(i?.count) || 0) > 0);
-}

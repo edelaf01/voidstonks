@@ -32,6 +32,10 @@ export const BRIDGE_TEXTS = {
         showLess: "Ver menos",
         gainTag: "+{n}",
         gainTitle: "Platino que ganas al cerrarlo: lo que vale el set entero menos lo que ya podrías vender pieza a pieza.",
+        // "te falta 1" se queda corto cuando de las demás piezas tienes repuestos: esa pieza te
+        // falta SEIS veces y al conseguirla cierras seis sets, que es de dónde sale el platino.
+        multTag: "×{n} sets",
+        multTitle: "Te sobran las demás piezas: al completarla cierras {n} sets de golpe, y ese es el platino que ves.",
     },
     en: {
         title: "You have these half-finished",
@@ -54,5 +58,7 @@ export const BRIDGE_TEXTS = {
         showLess: "Show fewer",
         gainTag: "+{n}",
         gainTitle: "Platinum you gain by finishing it: what the full set is worth minus what you could already sell part by part.",
+        multTag: "×{n} sets",
+        multTitle: "You have the other parts spare: completing it closes {n} sets at once, and that is the platinum shown."
     },
 };

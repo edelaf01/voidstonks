@@ -690,53 +690,6 @@
     background: rgba(255, 180, 50, 0.1);
 }
 
-/* ---- Barra del editor de celdas (fija, fuera del HUD) ---- */
-.hud-edit-bar {
-    position: fixed;
-    top: 12px;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 5001;
-    display: none;
-    align-items: center;
-    gap: 12px;
-    padding: 7px 18px;
-    font-family: "Segoe UI", sans-serif;
-    background: rgba(0, 10, 20, 0.9);
-    border: 1px solid rgba(0, 229, 255, 0.5);
-    border-radius: 6px;
-    box-shadow: 0 4px 20px rgba(0, 229, 255, 0.2);
-}
-
-.hud-edit-title {
-    font-size: 0.72em;
-    font-weight: 700;
-    letter-spacing: 1.5px;
-    color: #00e5ff;
-}
-
-.hud-edit-guide {
-    font-size: 0.65em;
-    color: #506070;
-}
-
-.hud-edit-done {
-    padding: 4px 12px;
-    font-family: inherit;
-    font-size: 0.68em;
-    font-weight: 700;
-    color: #00e5ff;
-    background: rgba(0, 229, 255, 0.15);
-    border: 1px solid rgba(0, 229, 255, 0.5);
-    border-radius: 4px;
-    cursor: pointer;
-    transition: background 0.15s;
-}
-
-.hud-edit-done:hover {
-    background: rgba(0, 229, 255, 0.3);
-}
-
 /* ---- Bloque de debug OCR ---- */
 .hud-debug {
     display: none;
@@ -982,4 +935,63 @@
     text-align: right;
     font-weight: 700;
     color: #ddaa38;
+}
+
+/* Selector de motor de lectura. Anclado a #scanner-section: los selectores desnudos de este
+   fichero se aplican a toda la app y van DESPUÉS de styles.css (ver CLAUDE.md). */
+#scanner-section .ocr-engine {
+    margin: 12px 0;
+    padding-top: 10px;
+    border-top: 1px solid rgba(0, 229, 255, 0.15);
+    text-align: left;
+}
+
+#scanner-section .ocr-engine-title {
+    display: block;
+    color: #6b7a8f;
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    margin-bottom: 5px;
+}
+
+#scanner-section .ocr-engine-opts {
+    display: flex;
+    gap: 6px;
+}
+
+#scanner-section .ocr-engine-btn {
+    flex: 1;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: #8a97a8;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    padding: 5px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+#scanner-section .ocr-engine-btn:hover {
+    border-color: rgba(0, 229, 255, 0.5);
+    color: #cfe9f5;
+}
+
+#scanner-section .ocr-engine-btn[data-active="1"] {
+    background: rgba(0, 229, 255, 0.15);
+    border-color: #00e5ff;
+    color: #00e5ff;
+}
+
+/* El porqué de cada opción, que es lo que convierte dos botones en una elección informada.
+   El tamaño va en px y no en em: el bloque padre ya reduce, y encadenar otro 0.x em deja el
+   texto por debajo de lo legible (ver CLAUDE.md). */
+#scanner-section .ocr-engine-hint {
+    margin: 6px 0 0;
+    color: #6b7a8f;
+    font-size: 10px;
+    line-height: 1.35;
+    min-height: 2.7em;
 }
