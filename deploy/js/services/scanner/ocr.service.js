@@ -1,11 +1,15 @@
 import { state } from "../../state.js";
 import { OCRRepository } from "../../repositories/ocr.repository.js";
-import { recoverClippedToken } from "../../utils/vision/clipped_token.js";
 import { readBadgeDigits } from "../../utils/vision/badge_digit_ocr.js";
+import { splitFusedWord, catalogVocab } from "../../utils/vision/word_split.js";
+import { radioDeDedup, pasoEntreTarjetas, zonasDeRotulo } from "../../utils/vision/reward_cards.js";
+import { recuperaComponente, recuperaPorSufijo } from "../../utils/inventory/component_recover.js";
+import { normalizeOCRWords, tokensSinInformacion, tieneEvidenciaPropia } from "../../utils/inventory/ocr_words.js";
 
 export const OCRService = {
     cachedDbItems: [],
     knownParts: new Set(),
+    tokensGenericos: new Set(),
     dynamicRegex: null,
 
     initMatcherData() {
@@ -31,6 +35,7 @@ export const OCRService = {
         });
 
         this.knownParts = tempParts;
+        this.tokensGenericos = tokensSinInformacion(this.cachedDbItems);
     },
 
     editDistance(s1, s2) {
@@ -336,66 +341,7 @@ export const OCRService = {
     },
 
     _normalizeOCRWords(ocrData) {
-        const metaTokens = ["OWNED", "CRAFTED", "FORJA", "PROPIO", "PRDPIO", "0WNED", "OWN", "OWED"];
-        const validWords = [];
-        const knownTokens = Array.from(this.knownParts);
-
-        ocrData.words.forEach(w => {
-            let text = w.text.toUpperCase().replaceAll(/[^A-Z0-9]/g, "");
-            if (text.length < 1) return;
-
-            if (metaTokens.includes(text) || /^\d+$/.test(text)) {
-                validWords.push({
-                    text: text,
-                    x: (w.bbox.x0 + w.bbox.x1) / 2,
-                    y: (w.bbox.y0 + w.bbox.y1) / 2,
-                    raw: w.text
-                });
-                return;
-            }
-
-            // Normalización por similitud CONSCIENTE DE CONFUSIONES OCR (similarityOCR),
-            // igual que getValidItemMatch — el parser de rewards se había quedado con la
-            // Levenshtein plana a 0.75 y descartaba nombres con confusiones típicas
-            // (p.ej. "CALIBAN" leído con li→ñ/h bajo el tinte rojo de fin de misión):
-            // la palabra se tiraba y el ancla de la carta nunca llegaba a existir.
-            // Se elige el MEJOR token (no el primero que pasa) para no colar un token
-            // mediocre cuando existe otro más parecido.
-            let matchedToken = knownTokens.includes(text) ? text : null;
-            if (!matchedToken) {
-                // Umbral alto sobre similarityOCR: un token del juego MAL LEÍDO difiere de
-                // su forma real en sustituciones de glifo PARECIDO, que cuestan 0.4 cada
-                // una — medido sobre casos reales queda en ~0.92-0.95 ("FRO5T", "STVANAX",
-                // "RECELVER", "CAL1BAN"). Una palabra AJENA del fondo ("POST", "FRONT",
-                // "ROST"…) difiere en letras SIN parecido o en longitud y no pasa de ~0.80.
-                // Con el umbral viejo (0.72) "POST" se convertía en "FROST" y fabricaba un
-                // ancla fantasma que robaba "Prime Chassis Blueprint" a la recompensa vecina.
-                const minScore = 0.85;
-                let best = null, bestScore = 0;
-                for (const token of knownTokens) {
-                    const s = this.similarityOCR(text, token);
-                    if (s > bestScore) { bestScore = s; best = token; }
-                }
-                matchedToken = bestScore >= minScore ? best : null;
-                // Último recurso: al OCR le comió las primeras letras (el arte claro detrás del
-                // nombre). Sin esto el token se tira, y tirar "CHASSIS" convierte
-                // "Hildryn Prime Chassis Blueprint" en "Hildryn Prime Blueprint" — otro ítem.
-                if (!matchedToken) {
-                    matchedToken = recoverClippedToken(
-                        text, knownTokens, (a, b) => this.similarityOCR(a, b));
-                }
-            }
-
-            if (matchedToken) {
-                validWords.push({
-                    text: matchedToken,
-                    x: (w.bbox.x0 + w.bbox.x1) / 2,
-                    y: (w.bbox.y0 + w.bbox.y1) / 2,
-                    raw: w.text
-                });
-            }
-        });
-        return validWords;
+        return normalizeOCRWords(ocrData, this);
     },
     parseRewards(ocrData) {
         if (!ocrData?.words) return [];
@@ -410,6 +356,14 @@ export const OCRService = {
         // Ampliado de 0.18 a 0.26 para nombres largos en 1 sola línea (ej. "Gunsen Prime Blueprint"),
         // donde el ancla ("Gunsen") está muy a la izquierda y el último token cae a casi 25% de distancia.
         const MARGIN_RIGHT = isStrip ? imgW : (imgW * 0.26);
+
+        // Palabras CRUDAS con su X: el rescate del componente se conforma con 0.6 de parecido,
+        // pero normalizeOCRWords ya ha tirado a 0.85 lo que no resuelve contra el catálogo, y
+        // ahí se perdía justo el componente destrozado ("noatoptics" por "Neuroptics", medido
+        // 0.76). Sin él la tarjeta se da de alta como el plano principal, que es OTRA pieza.
+        // Mismo motivo por el que el rescate por sufijo de abajo también mira las crudas.
+        const crudas = (ocrData.words || []).filter(w => w?.bbox)
+            .map(w => ({ text: w.text, x: (w.bbox.x0 + w.bbox.x1) / 2 }));
 
         const allFirstTokens = new Set(this.cachedDbItems.map(item => item.searchWords[0]));
         const globalAnchors = validWords.filter(w => allFirstTokens.has(w.text)).sort((a, b) => a.x - b.x);
@@ -434,10 +388,22 @@ export const OCRService = {
                 // la 1ª palabra de la línea 1): es la cola del vecino ("...Chassis | Khora...")
                 // y roba el match o dispara la penalización de partes. Se excluye por Y.
                 const sameLineTol = imgW * 0.008;
+                // El rótulo es un bloque dentro de SU tarjeta: el "Neuroptics" del vecino se
+                // pegaba a este ancla.
+                const fx = anchor.x / imgW;
+                const suya = ocrData.columnas?.find((c) => fx >= c.x0 && fx <= c.x1);
                 const localWords = validWords.filter(w =>
                     w.x >= (anchor.x - MARGIN_LEFT) && w.x <= maxRightX &&
                     (isStrip || !(w.x < anchor.x && Math.abs(w.y - anchor.y) < sameLineTol))
                 );
+                // Solo para el rescate del componente: ahí el vecino sí envenenaba (su
+                // "Neuroptics" convertía un "Voruna Prime Chassis"), pero acotar el MATCH
+                // entero a la columna recortaba rótulos de varias líneas y perdía piezas.
+                const dentroDeSuya = (w) => suya
+                    ? (w.x / imgW >= suya.x0 && w.x / imgW <= suya.x1)
+                    : (w.x >= anchor.x - MARGIN_LEFT && w.x <= maxRightX);
+                const enColumna = suya ? localWords.filter(dentroDeSuya) : localWords;
+                const crudasColumna = crudas.filter(dentroDeSuya);
                 const metadata = this.extractInventoryMetadata(localWords);
 
                 const localSoupText = localWords.map(w => w.text).join(" ");
@@ -452,15 +418,12 @@ export const OCRService = {
                 const minWords = searchTokens.length === 1 ? 1 : (isStrip ? 1 : 2);
                 const minRatio = isStrip ? 0.55 : 0.65;
 
-                if (ratio > minRatio && this._countValidTokens(searchTokens, localWords) >= minWords) {
-                    // Centro de gravedad X del NOMBRE, anclado al anchor. Promediar TODAS las
-                    // palabras de searchTokens en localWords cruzaba las X de recompensas
-                    // adyacentes: los tokens genéricos ("PRIME", "BLADE", "BLUEPRINT") aparecen
-                    // en ambas columnas, y el "PRIME" del vecino se colaba en la ventana ancha
-                    // (MARGIN_RIGHT 18%) arrastrando el avgX -> Tipedo y Fang salían con las X
-                    // intercambiadas. Fix: para cada token del nombre nos quedamos con la
-                    // aparición MÁS CERCANA al anchor (el 1er token es único por recompensa),
-                    // descartando el duplicado de la columna vecina.
+                if (ratio > minRatio && this._countValidTokens(searchTokens, localWords) >= minWords
+                    && tieneEvidenciaPropia(searchTokens, localWords, this.tokensGenericos)) {
+                    // Centro de gravedad X del nombre, anclado al anchor. Los tokens genéricos
+                    // ("PRIME", "BLUEPRINT") salen en ambas columnas y el del vecino arrastraba
+                    // el avgX: Tipedo y Fang salían con las X intercambiadas. Por token se coge
+                    // la aparición MÁS CERCANA al anchor.
                     const matchedWords = searchTokens
                         .map(tok => localWords
                             .filter(w => w.text === tok)
@@ -471,7 +434,10 @@ export const OCRService = {
                         : anchor.x;
 
                     itemMatches.push({
-                        name: dbItem.originalName,
+                        // Un componente en la columna delata la palabra perdida (ver el módulo).
+                        name: recuperaComponente(dbItem.originalName,
+                            [...enColumna.map((w) => w.text), ...crudasColumna.map((w) => w.text)],
+                            (n) => n in (state.itemsDatabase || {}), (a, b) => this.similarityOCR(a, b)),
                         ratio: ratio,
                         tokens: searchTokens.length,
                         x: avgX,
@@ -482,7 +448,29 @@ export const OCRService = {
                 }
             }
         }
-        return this._consolidateMatches(itemMatches, imgW);
+        // Una tarjeta con texto pero sin ancla: la primera palabra quedó ilegible. La cola del
+        // rótulo ("PRIME BLUEPRINT", "PRIME NEUROPTICS BLUEPRINT") poda el catálogo y contra
+        // esos pocos sí se distingue.
+        const pasoCol = ocrData.columnas?.length
+            ? [...ocrData.columnas].map((c) => (c.x1 - c.x0) * imgW).sort((a, b) => a - b)[ocrData.columnas.length >> 1]
+            : pasoEntreTarjetas(itemMatches, imgW);
+        for (const z of zonasDeRotulo(ocrData.columnas, validWords, imgW, pasoCol)) {
+            if (itemMatches.some((m) => m.x >= z.x0 && m.x <= z.x1)) continue;
+            // Palabras CRUDAS, no las normalizadas: normalizeOCRWords TIRA la que no resuelve
+            // contra el catálogo, y esa es justo la primera del rótulo cuando llega mal leída.
+            // Con "Hydrbid" descartada, la zona se quedaba en "PRIME NEUROPTICS BLUEPRINT" y
+            // la cola no tenía contra qué distinguir: poda a las decenas de piezas con
+            // Neuroptics y ahí se acaba. Con la palabra cruda sí resuelve a Hydroid.
+            const dentro = crudas.filter((w) => w.x >= z.x0 && w.x <= z.x1);
+            if (!dentro.length) continue;
+            const nombre = recuperaPorSufijo(dentro.map((w) => w.text), Object.keys(state.itemsDatabase || {}),
+                (a, b) => this.similarityOCR(a, b));
+            if (nombre) {
+                itemMatches.push({ name: nombre, ratio: 0.7, tokens: 3, owned: 0, crafted: false, ownedRead: false,
+                    x: dentro.reduce((a, w) => a + w.x, 0) / dentro.length });
+            }
+        }
+        return this._consolidateMatches(itemMatches, imgW, ocrData.columnas);
     },
 
     // localWords: ventana completa de la columna (puntúa los tokens del nombre, que pueden
@@ -534,12 +522,13 @@ export const OCRService = {
         return count;
     },
 
-    _consolidateMatches(itemMatches, imgW) {
+    _consolidateMatches(itemMatches, imgW, columnas) {
         // Sort by ratio desc, then by specificity (more tokens = more specific) desc
         itemMatches.sort((a, b) => b.ratio - a.ratio || (b.tokens || 0) - (a.tokens || 0));
+        const radio = radioDeDedup(itemMatches, imgW, columnas);
         const finalItems = [];
         for (const match of itemMatches) {
-            if (!finalItems.some(f => Math.abs(match.x - f.x) < imgW * 0.1)) {
+            if (!finalItems.some(f => Math.abs(match.x - f.x) < radio)) {
                 finalItems.push(match);
             }
         }
@@ -656,7 +645,11 @@ export const OCRService = {
         // OCR por separadores no alfanuméricos antes de matchear; el caso inverso
         // (una palabra DB partida en dos por el OCR) ya lo cubre el join i+(i+1).
         const rawWords = Array.isArray(combinedText) ? combinedText : combinedText.split(/\s+/);
-        const textWords = rawWords.flatMap(w => w.split(/[^A-Za-z0-9]+/).filter(Boolean));
+        // A mayúsculas aquí: abajo se limpia con /[^A-Z]/ y el camino a color da el texto en mixto.
+        const crudas = rawWords.flatMap(w => w.split(/[^A-Za-z0-9]+/).filter(Boolean)).map(w => w.toUpperCase());
+        this._vocabCache ||= catalogVocab(this.cachedDbItems);
+        const textWords = crudas.flatMap((w) => (w.length >= 9 && !this._vocabCache.has(w)
+            && splitFusedWord(w, this._vocabCache)) || [w]);
 
         if (textWords.length === 0) return null;
 
@@ -679,16 +672,10 @@ export const OCRService = {
             return this.similarityOCR(cleanOCR, cleanDB) >= thr;
         };
 
-        // Listón para un match que NO se apoya en ningún componente: la primera palabra es
-        // TODA la prueba, así que los umbrales base (pensados para que el resto del nombre
-        // valide el conjunto) se quedan cortos y cualquier basura de 3-4 letras entra. Pasa
-        // con los ítems de una palabra —los mods Requiem: Jahu, Khra, Ris, Vome…— y con los
-        // que tienen el resto OPCIONAL, como "Forma Blueprint" (isOptionalWord deja caer
-        // BLUEPRINT detrás de FORMA), que se sostiene solo con "FORMA".
-        // Los dos casos se vieron en vivo en el mismo grid de reliquias: celdas con el texto
-        // ilegible (el arte de la reliquia cae sobre el nombre) se apuntaron como "Jahu" y
-        // como "Forma Blueprint". Con 0.85 solo pasan confusiones de glifo ("F0RMA"=0.92,
-        // "JAHV"=0.90), no una letra que falte o sobre (0.80 y 0.75).
+        // Listón para un match sin ningún componente que lo respalde (ítems de una palabra
+        // como los requiem, o con el resto opcional como "Forma Blueprint"): ahí la primera
+        // palabra es toda la prueba. Con 0.85 pasan confusiones de glifo ("F0RMA"=0.92,
+        // "JAHV"=0.90) pero no una letra que falte o sobre (0.80 y 0.75).
         const UNCORROBORATED_THR = 0.85;
 
         // Los COMPONENTES (Barrel/Receiver/Blueprint/Link/...) se casan por similitud
@@ -696,6 +683,7 @@ export const OCRService = {
         // más bajo que el de arma porque son palabras conocidas y cortas; el conjunto se
         // valida por el resto del nombre. Lecturas de componente salvajes → item sin match → Paddle.
         const COMP_THR = 0.6;
+        const PRIME_THR = 0.65, esPrime = (n) => /\bPRIME\b/i.test(n);
 
         const attemptItemMatch = (startIndex, item, lookAheadLimit, ocrWords) => {
             const matchedIndices = [startIndex];
@@ -729,6 +717,18 @@ export const OCRService = {
                 }
                 if (!found && !isOptionalWord(targetComp, item.searchWords[j - 1])) return null;
             }
+            // El juego dibuja "Ash Prime Systems Blueprint" y la BD guarda "Ash Prime Systems":
+            // ese BLUEPRINT sobrante lo explica ESTE ítem, así que cuenta como palabra cubierta.
+            // Sin contarlo, "Ash Prime Systems" (ASH+SYSTEMS) empataba a dos palabras con
+            // "Ash Prime Blueprint" (ASH+BLUEPRINT) —los dos existen en el catálogo— y el
+            // desempate caía en el ORDEN de la base: Systems y Chassis se guardaban como el
+            // plano del warframe SIEMPRE, aun leyendo el rótulo perfecto. Neuroptics se salvaba
+            // solo porque iba antes en la lista.
+            const siguiente = ocrWords[currentPos + 1]?.replaceAll(/[^A-Z]/g, "");
+            if (siguiente && isOptionalWord("BLUEPRINT", item.searchWords.at(-1))
+                && this.similarityOCR(siguiente, "BLUEPRINT") >= COMP_THR) {
+                matchedIndices.push(currentPos + 1);
+            }
             return matchedIndices;
         };
 
@@ -753,6 +753,11 @@ export const OCRService = {
                 if (isMatch) {
                     const matched = attemptItemMatch(i + matchedIndexOffset, item, 4, textWords);
                     if (!matched) continue;
+                    // Sin esto, "PRIME" opcional hacía que cada pieza NORMAL casara con su
+                    // prime. Medido: garblings de PRIME 0.80-1.00, "POINT" (la palabra real más
+                    // parecida) 0.52.
+                    if (esPrime(item.originalName) && !textWords.some((w) => this.similarityOCR(
+                        w.replaceAll(/[^A-Z0-9]/g, ""), "PRIME") >= PRIME_THR)) continue;
                     // Selección por CALIDAD, no por orden de la BD: entre items que casan
                     // el MISMO nº de palabras (p.ej. "BOLTOR PRIME BARREL" casa tanto Boltor
                     // como Akbolto vía alias), gana el de mayor similitud de PRIMERA PALABRA.

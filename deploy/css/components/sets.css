@@ -924,16 +924,39 @@
 
 /* La ganancia, apagada: el gancho es cuánto te falta; el platino solo desempata. */
 #setResults .sets-bridge-gain {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
     font-size: 0.68rem;
     font-weight: 700;
     color: #8fd0a8;
     white-space: nowrap;
 }
 
+/* El icono de platino hereda el tamaño del chip, que ya va reducido: a 14px (su tamaño global)
+   descuadraba la línea base del texto. */
+#setResults .sets-bridge-plat {
+    width: 12px;
+    height: 12px;
+}
+
+/* Cuántos sets cierra de golpe. En dorado como el resto de "premio", pero más apagado que la
+   ganancia: el número que decide es el platino. */
+#setResults .sets-bridge-mult {
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: var(--wf-gold-text, #dda938);
+    white-space: nowrap;
+}
+
+/* Rejilla y no flex: con flex cada chip medía lo que midiera su nombre y la tira quedaba con
+   piezas de anchos distintos y huecos al final de cada fila. `auto-fill` con un mínimo reparte
+   el ancho sobrante entre todas, así que son iguales y llenan el contenedor en cualquier
+   pantalla: una columna en móvil estrecho, cuatro o cinco en escritorio. */
 #setResults .sets-bridge-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+    gap: 8px;
 }
 
 /* Desplegada puede traer 110 sets: la página se volvía interminable y para cerrarla había que
@@ -948,12 +971,17 @@
 /* Reset del chrome de <button>: es un <button> por lo táctil (utils/tap.js), pero tiene que
    leerse como un chip, no como un botón. */
 #setResults .sets-bridge-chip {
-    display: inline-flex;
-    align-items: baseline;
-    gap: 6px;
+    display: grid;
+    grid-template-columns: 34px minmax(0, 1fr);
+    align-items: center;
+    gap: 9px;
+    /* Alto fijo: el nombre puede ocupar una línea o dos y sin esto las filas de la rejilla
+       bailaban de altura según el set más largo de cada una. */
+    min-height: 56px;
     max-width: 100%;
     margin: 0;
-    padding: 6px 10px;
+    padding: 7px 10px;
+    text-align: left;
     font: inherit;
     font-size: 0.82rem;
     text-transform: none;
@@ -973,12 +1001,31 @@
     box-shadow: none;
 }
 
-#setResults .sets-bridge-name {
-    font-weight: 700;
+#setResults .sets-bridge-body {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
     min-width: 0;
+}
+
+/* Dos líneas como mucho: "Dual Kamas Prime" cabe entero sin ensanchar el chip, y el tope
+   mantiene todas las piezas de la rejilla a la misma altura. */
+#setResults .sets-bridge-name {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
     overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    font-weight: 700;
+    line-height: 1.2;
+    min-width: 0;
+}
+
+#setResults .sets-bridge-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 3px 7px;
+    min-width: 0;
 }
 
 /* `rem` y no `em`: el chip ya está a 0.78rem y encadenar otro 0.x lo dejaba por debajo de lo
@@ -1026,11 +1073,12 @@
 
 /* El icono del set. 22px es donde una silueta de warframe todavía se distingue de otra; por
    debajo son todas la misma mancha. `flex-shrink: 0` para que no lo aplaste un nombre largo. */
+/* 34px y no 22: la silueta del warframe es lo que hace reconocer el set de un vistazo, y a
+   22 px con el arte oscuro de fondo apenas se distinguía cuál era. Ocupa su columna entera. */
 #setResults .sets-bridge-icon {
-    width: 22px;
-    height: 22px;
+    width: 34px;
+    height: 34px;
     object-fit: contain;
-    flex-shrink: 0;
     align-self: center;
 }
 

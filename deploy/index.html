@@ -330,11 +330,6 @@
         <!-- RECALIBRATE deshabilitado: la rejilla se autodetecta (grid_detect.js) y se
              cachea; la calibración manual ya solo existe como fallback interno. -->
 
-        <button type="button" id="btn-open-grid-editor" class="hud-btn-sm cyan" onclick="globalThis.openGridEditor()"
-          title="Ajusta a mano la posición de cada celda arrastrándola">
-          ✎ EDITAR CELDAS
-        </button>
-
         <button type="button" id="btn-reset-grid" class="hud-btn-sm amber" onclick="globalThis.resetGrid()"
           title="Descarta la rejilla detectada; se vuelve a detectar en el próximo escaneo">
           ↺ REHACER REJILLA
@@ -343,13 +338,6 @@
         <!-- Reset de offsets deshabilitado junto con la recalibración manual. -->
       </div>
 
-      <div id="btn-close-grid-editor" class="hud-edit-bar">
-        <span id="edit-mode-title" class="hud-edit-title">CELL EDITOR ACTIVE</span>
-        <span id="edit-mode-guide" class="hud-edit-guide">Click a cell to select · Drag or ↑↓←→ to nudge</span>
-        <button type="button" id="btn-edit-done" class="hud-edit-done" onclick="globalThis.closeGridEditor()">
-          ✓ DONE
-        </button>
-      </div>
 
       <!-- display inline: scanner.service.js decide si volcar la imagen de debug
            leyendo dbgPanel.style.display === "block". -->
@@ -662,9 +650,7 @@
                 </svg>
               </button>
             </div>
-            <div id="scan-history-dropdown-list" class="scan-history-list">
-              <div class="scan-history-empty">No hay detecciones recientes disponibles.</div>
-            </div>
+            <div id="scan-history-dropdown-list" class="scan-history-list"></div>
           </div>
         </div>
 
@@ -676,6 +662,7 @@
           </div>
           <span class="arrow-indicator">▼</span>
         </div>
+
         <!-- PIP y DEBUG retirados del menú (herramientas de desarrollo; el overlay PiP ya no existe).
         <button id="btn-pip-toggle" onclick="globalThis.togglePiP && globalThis.togglePiP()" title="Open Overlay (PiP)"
           style="display: none;">
@@ -708,6 +695,20 @@
               Está en BETA: puede fallar o leer mal.
             </p>
           </div>
+          <!-- Ajustes del escaneo, aquí porque este panel es lo que abre ESCÁNER EN VIVO y
+               es el momento en que se eligen: después ya está escaneando. Los rótulos los pone
+               ui_scanner_hud.js según el idioma. -->
+          <div class="ocr-engine">
+            <span id="lbl-ocr-engine" class="ocr-engine-title">MOTOR DE LECTURA</span>
+            <div class="ocr-engine-opts" role="group" aria-labelledby="lbl-ocr-engine">
+              <button type="button" id="btn-engine-classic" class="ocr-engine-btn" data-active="1"
+                onclick="globalThis.setOcrEngine('tesseract')">CLÁSICO</button>
+              <button type="button" id="btn-engine-neural" class="ocr-engine-btn" data-active="0"
+                onclick="globalThis.setOcrEngine('paddle')">PRECISO</button>
+            </div>
+            <p id="lbl-ocr-engine-hint" class="ocr-engine-hint"></p>
+          </div>
+
           <button id="btn-accept-scan" class="action-btn confirm full-width">
             ENTENDIDO, EMPEZAR
           </button>
@@ -1073,6 +1074,16 @@
                   TASAR RIVEN
                 </button>
               </div>
+
+              <!-- El aviso de que los precios son orientativos vivía debajo del escaparate de
+                   armas, en la columna derecha, donde dejaba un bloque de texto largo y un hueco
+                   grande. Aquí llena el sitio muerto que quedaba bajo los botones. El texto lo
+                   pone updateUILabels(); esto es solo el valor por defecto del idioma del HTML. -->
+              <p id="riven-disclaimer" class="riven-disclaimer">
+                Los precios de riven son orientativos: un mismo riven puede costar cualquier cosa.
+                Tómalos como referencia del volumen real de venta, con datos de Digital Extremes
+                y de warframe.market.
+              </p>
 
               <!-- GOD ROLL STATS: populated dynamically by renderMetaStats() -->
               <div id="meta-stats-container" class="recommended-god-roll-card" style="display:none;"></div>
@@ -1957,7 +1968,6 @@
 
   <!-- js/tesseract.min.js se inyecta bajo demanda en OCRRepository.warmUp() -->
   <script src="js/scanner/live_calibration.js"></script>
-  <script src="js/scanner/live_grid_editor.js"></script>
 
   <!-- New Vanilla Riven Modules -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>

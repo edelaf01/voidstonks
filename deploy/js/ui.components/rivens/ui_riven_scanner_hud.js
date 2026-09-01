@@ -2,6 +2,17 @@ import { state } from "../../state.js";
 import { TEXTS } from "../../config.js";
 import { escapeHTML } from "../ui_components.js";
 
+const AVISO_BANDA = {
+    trash: {
+        es: "Roll de gama baja: precio orientativo (usa la banda, no el valor único).",
+        en: "Low-end roll: ballpark price (use the band, not the single value).",
+    },
+    pocosDatos: {
+        es: "Pocos datos del arma: precio orientativo.",
+        en: "Little data for this weapon: ballpark price.",
+    },
+};
+
 /**
  * HUD Component for displaying live Riven Mod appraisals and roll comparisons.
  */
@@ -293,7 +304,7 @@ export const RivenScannerHUD = {
                 const _mlTitle = (isEs
                     ? `Según la IA: venta rápida ~${_bq.p25}p · precio justo ~${_bq.p50}p · godroll ~${_bq.p95}p`
                     : `Per the AI: quick sale ~${_bq.p25}p · fair price ~${_bq.p50}p · godroll ~${_bq.p95}p`)
-                    + (_bq.aviso ? ` · ${_bq.aviso}` : "");
+                    + (_bq.aviso ? ` · ${AVISO_BANDA[_bq.aviso][isEs ? "es" : "en"]}` : "");
                 mlChip = `
                     <div class="hud-chip ml" title="${_mlTitle}">
                         <span>${isEs ? "IA" : "AI"}${_warn}</span>

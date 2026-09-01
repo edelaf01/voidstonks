@@ -5,7 +5,7 @@
  * El navegador los resuelve contra `globalThis`, así que toda función invocada desde el
  * HTML tiene que estar publicada ahí — no es descuido, es el único mecanismo posible sin
  * reescribir el HTML a addEventListener. Lo mismo aplica a los scripts del scanner
- * (`live_calibration.js`, `live_grid_editor.js`), que se cargan como <script> plano y no
+ * (`live_calibration.js`), que se cargan como <script> plano y no
  * pueden importar.
  *
  * QUÉ APORTA sobre `globalThis.foo = foo`:

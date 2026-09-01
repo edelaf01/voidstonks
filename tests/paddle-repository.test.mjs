@@ -67,12 +67,14 @@ test("las palabras de una línea se reparten a lo ancho de su caja, en orden", a
   assert.deepEqual(words.map((w) => [w.bbox.x0, w.bbox.x1]), [[0, 100], [100, 200], [200, 300]]);
 });
 
-// El caso concreto que documenta el código: Paddle pega dos nombres y el matcher pierde el token
-// de ancla, así que ninguna recompensa casa.
-test("dos palabras pegadas se separan por el cambio de caja", async () => {
+// Las palabras pegadas NO se separan aquí: cortar en cada cambio de caja parte también las
+// palabras con una mayúscula por error de lectura ("ReceIver" -> "Rece Iver", medido, la pieza
+// se perdía). De eso se encarga splitFusedWords, que tiene el vocabulario del catálogo para
+// saber si hay algo que partir. Aquí solo se reparte la línea en sus palabras.
+test("las pegadas viajan enteras: el vocabulario decide dónde cortar", async () => {
   conServicio({ lines: [[linea("YareliPrime Blueprint", caja(0, 0, 300, 20))]] });
   const words = await P.recognizeWordsWithBoxes(null);
-  assert.deepEqual(words.map((w) => w.text), ["Yareli", "Prime", "Blueprint"]);
+  assert.deepEqual(words.map((w) => w.text), ["YareliPrime", "Blueprint"]);
 });
 
 // La confianza se usa como porcentaje aguas abajo, pero Paddle la da de 0 a 1.
@@ -149,15 +151,20 @@ test("la librería se carga una sola vez aunque se pida en paralelo", async () =
 
 // El TINY son 4,8 MB y ~630 ms por imagen frente a los 12 MB y ~1,5 s del modelo grande con la
 // misma precisión. Un cambio de modelo por defecto se nota en cada escaneo, así que se fija.
-test("por defecto se carga el modelo pequeño", async () => {
+test("por defecto se cargan los modelos que servimos nosotros", async () => {
   reiniciaPaddle();
   const ruido = console.log;
   console.log = () => {};
   try { await P.warmUp(); } finally { console.log = ruido; }
-  assert.deepEqual(globalThis.__paddleModelo, { nombre: "tiny" });
+  // Ya no se baja de HuggingFace: si ese host cae, el escáner seguía sin arrancar.
+  assert.deepEqual(globalThis.__paddleModelo, {
+    detection: "assets/ocr/PP-OCRv6_tiny_det.ort",
+    recognition: "assets/ocr/PP-OCRv6_tiny_rec.ort",
+    charactersDictionary: "assets/ocr/ppocrv6_tiny_dict.txt",
+  });
 });
 
-test("se puede pedir otro modelo, y uno inexistente cae al pequeño", async () => {
+test("se puede pedir otro modelo por nombre, y uno inexistente cae al nuestro", async () => {
   reiniciaPaddle();
   const ruido = console.log;
   console.log = () => {};
@@ -169,7 +176,8 @@ test("se puede pedir otro modelo, y uno inexistente cae al pequeño", async () =
     reiniciaPaddle();
     globalThis.PADDLE_MODEL = "MODELO_QUE_NO_EXISTE";
     await P.warmUp();
-    assert.deepEqual(globalThis.__paddleModelo, { nombre: "tiny" }, "no puede quedarse sin modelo");
+    assert.equal(globalThis.__paddleModelo.detection, "assets/ocr/PP-OCRv6_tiny_det.ort",
+      "no puede quedarse sin modelo");
   } finally {
     console.log = ruido;
     delete globalThis.PADDLE_MODEL;

@@ -204,7 +204,13 @@ test("ocr.service: lecturas degradadas recuperables matchean por similitud gené
     { ocr: "AKJAGARS PRIME ARREL", expected: "Akjagara Prime Barrel" },
     { ocr: "AKJAGARA PRIME LINK", expected: "Akjagara Prime Link" },
     { ocr: "AKJAGARA FRIME RECEIVER", expected: "Akjagara Prime Receiver" },
-    { ocr: "AKBOLTO BLUEPRINT", expected: "Akbolto Prime Blueprint" },
+    // Sin "PRIME" ya NO casa: "Akbolto Blueprint" es una pieza que existe de verdad en el
+    // juego, y aceptarla como la prime apuntaba en el inventario algo que no cayó. Se pierde
+    // recuperar un rótulo al que el OCR se comió "PRIME" entero; a cambio no se inventan
+    // piezas. En un alta automática el falso positivo es peor, y el consenso multi-frame
+    // recupera la lectura buena en otro frame.
+    { ocr: "AKBOLTO BLUEPRINT", expected: undefined },
+    { ocr: "AKBOLTO PRIME BLUEPRINT", expected: "Akbolto Prime Blueprint" },
   ];
 
   for (const { ocr, expected } of liveScanTests) {

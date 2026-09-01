@@ -1,6 +1,7 @@
 import { state } from "../state.js";
 import { TEXTS } from "../config.js";
 import { exposeGlobals } from "../utils/global_registry.js";
+import { aplicaMotor, estadoMotor, MOTOR_PRECISO } from "../services/scanner/ocr_engine.service.js";
 
 /**
  * Component for the Scanner HUD (status badges, counters, scroll guides).
@@ -209,4 +210,30 @@ export function toggleScannerHud() {
     }
 }
 
-exposeGlobals({ toggleScannerHud }, "ui.components/ui_scanner_hud.js");
+/**
+ * Pinta el selector de motor: cuál está activo y qué implica.
+ *
+ * El aviso de "preparando" no es decorativo: el motor preciso tarda en bajar su modelo y hasta
+ * que está se lee con el clásico. Sin decirlo, el usuario ve que ha elegido uno y que los
+ * resultados son los del otro, y parece que el botón no hace nada.
+ */
+export function renderOcrEngine() {
+    const sh = TEXTS[state.currentLang].scannerHUD;
+    const { elegido, listo } = estadoMotor();
+    const preciso = elegido === MOTOR_PRECISO;
+    const clasico = document.getElementById("btn-engine-classic");
+    const red = document.getElementById("btn-engine-neural");
+    if (clasico) { clasico.innerText = sh.engineClassic; clasico.dataset.active = preciso ? "0" : "1"; }
+    if (red) { red.innerText = sh.engineNeural; red.dataset.active = preciso ? "1" : "0"; }
+    const hint = document.getElementById("lbl-ocr-engine-hint");
+    if (hint) hint.innerText = preciso ? (listo ? sh.hintNeural : sh.hintNeuralLoading) : sh.hintClassic;
+}
+
+function setOcrEngine(motor) {
+    aplicaMotor(motor);
+    renderOcrEngine();
+    // El preciso tarda en cargar; se repinta cuando ya puede leer para que el aviso desaparezca.
+    if (motor === MOTOR_PRECISO) setTimeout(renderOcrEngine, 2500);
+}
+
+exposeGlobals({ toggleScannerHud, setOcrEngine }, "ui.components/ui_scanner_hud.js");

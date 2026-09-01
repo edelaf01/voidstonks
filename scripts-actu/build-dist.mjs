@@ -22,11 +22,12 @@ const OUT = "dist";
 /**
  * Lo que NO se copia a dist/, y por tanto no se publica.
  *
- * `deploy/` es a la vez fuente y carpeta publicada, así que la documentación que vive junto al
- * código acababa servida en voidstonks.com: `MAINTENANCE_VOSFOR.md` y
- * `js/utils/native_bridge.contract.md` respondían 200 con `text/markdown`, y el propio
- * `.assetsignore` publicaba la lista de lo que se pretendía esconder. Ese fichero no vale aquí:
- * lo entiende Workers Assets, no `wrangler pages deploy`, que es lo que usa el workflow.
+ * `deploy/` es a la vez fuente y carpeta publicada, así que cualquier documentación que caiga
+ * ahí acaba servida en voidstonks.com: los dos .md que había respondían 200 con `text/markdown`,
+ * y el propio `.assetsignore` publicaba la lista de lo que se pretendía esconder. Ese fichero no
+ * vale aquí: lo entiende Workers Assets, no `wrangler pages deploy`, que es lo que usa el
+ * workflow. Los .md ya viven fuera de deploy/, pero el filtro se queda: es la red que evita que
+ * el siguiente que caiga ahí se publique sin que nadie se entere.
  */
 const NO_PUBLICAR = (ruta) => {
     const nombre = ruta.split("/").pop();

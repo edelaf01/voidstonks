@@ -180,6 +180,10 @@ function crearContexto(canvas) {
     // Math.random(): canvas.test.mjs fallaba con "ctx.arc is not a function" en ~1 de cada 5
     // ejecuciones, y culpaba al tema que tocase en esa vuelta del bucle.
     arc() {}, arcTo() {}, ellipse() {}, rect() {}, quadraticCurveTo() {}, bezierCurveTo() {},
+    // El fondo animado tiñe cada trazo con un degradado cola->cabeza; sin esto, canvas.test.mjs
+    // muere con "ctx.createLinearGradient is not a function" en cuanto una partícula avanza.
+    createLinearGradient: () => ({ addColorStop() {} }),
+    createRadialGradient: () => ({ addColorStop() {} }),
     save() {}, restore() {}, translate() {}, scale() {}, rotate() {}, setTransform() {},
     measureText: (t) => ({ width: String(t).length * 6 }),
   };

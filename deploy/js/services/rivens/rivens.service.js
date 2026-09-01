@@ -20,18 +20,31 @@ const HOUND_WEAPONS = new Set(["AKATEN", "BATOTEN", "LACERTEN"]);
 // fallback with no type. They use Pistol (secondary) riven stats.
 const KITGUN_WEAPONS = new Set(["CATCHMOON", "GAZE", "RATTLEGUTS", "TOMBFINGER", "VERMISPLICER", "SPORELACER"]);
 
-// Armas con escalado de Condition Overload MULTIPLICATIVO en su comportamiento base
-// (curado de wiki Condition_Overload_(Mechanic)). Excluidas a propósito las que solo
-// multiplican en un modo puntual (Incarnon/carga/alt-fire) — ver comentario en la derivación.
+// Armas cuyo modo de disparo PRINCIPAL multiplica el daño de CO en vez de sumarlo.
+// Fuente: hoja de tests de rainy/Prof_Blocks_007 "Galvanized GunCO on Projectiles"
+// (docs.google.com/spreadsheets/d/1ryemX4Y2vWy9LjuJ355bWVNuBhzLaHTTFqPeTNto9RA),
+// columna "+Damage Math". Su regla de oro: lo que NO sale en la hoja suma plano, así
+// que esta lista es cerrada — no se deduce del tipo de arma ni del shot_type.
+// Excluidas a propósito las que solo multiplican en un modo secundario, porque marcar
+// el arma entera engañaría: Incarnon (Dread/Paris/Latron/Kunai/Miter/Angstrum), alt-fire
+// (Cedo, Zenith Disc, Tenet Plinx, Larkspur Prime, Phantasma/Trumna), carga (Quellor),
+// arpón (Harpak, Paracyst), contacto (Zymos, Catabolyst), ADS (Tenet Diplos) y los
+// melee que solo multiplican en su ataque pesado o de proyectil (Corufell, Syam,
+// Nepheri, Verdilac, Tatsu Prime, Exodia Contagion).
 // Match por nombre exacto tal cual llega de WFCD (case-sensitive).
 const MULTIPLICATIVE_CO = new Set([
-    "Acceltra", "Aeolak", "Alternox", "Alternox Prime", "Arca Plasmor", "Tenet Arca Plasmor",
-    "Basmu", "Battacor", "Bubonico", "Buzlok", "Catchmoon", "Cedo", "Cedo Prime",
-    "Coda Bassocyst", "Coda Hema", "Mutalist Cernos", "Cinta", "Cyanex", "Epitaph", "Exergis",
-    "Felarx", "Fulmin", "Harpak", "Hema", "Javlok", "Nataruk", "Quellor", "Scourge",
-    "Scourge Prime", "Sepulcrum", "Shedu", "Sporelacer", "Stahlta", "Steflos", "Seer",
-    "Kuva Seer", "Tenet Envoy", "Tenet Diplos", "Tenet Spirex", "Tombfinger", "Torid",
-    "Zakti", "Zakti Prime", "Zenith", "Zymos"
+    // Archgun
+    "Arbucep", "Corvas Prime", "Grattler", "Mandonel", "Velocitus",
+    // Primary
+    "Aeolak", "Alternox", "Alternox Prime", "Arca Plasmor", "Tenet Arca Plasmor",
+    "Basmu", "Battacor", "Bubonico", "Buzlok", "Cinta", "Coda Bassocyst", "Coda Hema",
+    "Exergis", "Felarx", "Fulmin", "Fulmin Prime", "Hema", "Javlok", "Mutalist Cernos",
+    "Nataruk", "Scourge", "Scourge Prime", "Shedu", "Stahlta", "Steflos", "Tenet Envoy",
+    "Torid",
+    // Secondary
+    "Aegrit", "Akarius", "Akarius Prime", "Catchmoon", "Cyanex", "Epitaph",
+    "Epitaph Prime", "Onos", "Seer", "Kuva Seer", "Sepulcrum", "Tenet Spirex",
+    "Tombfinger", "Zakti", "Zakti Prime"
 ]);
 
 // Maps a cleaned_weapons type to the riven stat category the rest of the app understands.
@@ -157,10 +170,10 @@ export async function fetchRivenWeapons() {
 }
 
 async function fetchWeaponCombatStats() {
-    // v9 (jul 2026): fuerza refetch para poblar los nuevos campos fireModes/coScaling en TODAS
-    // las armas (la caché v8 se generó antes de existir esos campos → salían solo en las del
-    // override, p.ej. Haalvu). Súbela cuando salga un arma nueva o cambie la forma de statsDB.
-    const CACHE_KEY = "voidstonkscache_combat_stats_v9";
+    // v10 (ago 2026): la v9 se generó con la regla vieja "proyectil ⇒ CO multiplicativo" y
+    // con melee siempre multiplicativo; sin bump, esos coScaling erróneos vivirían en la caché
+    // del cliente hasta una semana. Súbela cuando salga un arma nueva o cambie la forma de statsDB.
+    const CACHE_KEY = "voidstonkscache_combat_stats_v10";
     const ONE_WEEK = 7 * 24 * 60 * 60 * 1000;
     try {
         const cached = await dbHelper.get(CACHE_KEY);
@@ -269,25 +282,15 @@ async function fetchWeaponCombatStats() {
                         // crit_mult/status_chance/speed ya en su escala final. Excluimos radial/
                         // slam/heavy (se muestran aparte). Solo se puebla si hay ≥2 modos reales;
                         // el daño puede venir vacío ({}) en armas nuevas → lo cubre el override.
-                        // Escalado con Condition Overload (wiki Condition_Overload_(Mechanic)):
-                        //  1º) lista curada de armas MULTIPLICATIVAS SIEMPRE (base) — cubre las
-                        //      excepciones hitscan que la regla no pilla (Fulmin, Cedo, Shedu…).
-                        //  2º) fallback por shot_type: proyectil → multiplicativo, hitscan → aditivo.
-                        //  El override JSON (Haalvu) gana sobre todo. EXCLUIDAS a propósito las que
-                        //  solo multiplican en UN modo (Incarnon: Dread/Paris/Latron/Kunai/Miter;
-                        //  alt-fire: Phantasma/Trumna) — marcar el arma entera engañaría.
-                        // Default ADITIVO (el comportamiento "intended" de la wiki); así TODA
-                        // arma muestra la insignia aunque no haya shot_type. Melee: su mod CO es
-                        // multiplicativo siempre. Guns: set curado o proyectil → multiplicativo.
-                        let coScaling = "additive";
-                        if (cat === "Melee" || item.type === "Melee") {
-                            coScaling = "multiplicative";
-                        } else if (MULTIPLICATIVE_CO.has(item.name)) {
-                            coScaling = "multiplicative";
-                        } else if (Array.isArray(item.attacks) && item.attacks.length > 0) {
-                            const shotType = (item.attacks.find(a => a.shot_type) || {}).shot_type || "";
-                            if (/projectile/i.test(shotType)) coScaling = "multiplicative";
-                        }
+                        // Escalado con Condition Overload: multiplicativo SOLO si el arma está en
+                        // la lista cerrada de arriba. Sumar plano es el caso general — incluido el
+                        // melee ("Normal Melee Hits: Adds", CO va al mismo saco que Pressure Point)
+                        // y los proyectiles, que la hoja lista uno a uno como aditivos (Boltor,
+                        // Penta, Tonkor, Zarr, Kuva Bramma, Lenz, arcos, Acceltra, Kompressa…).
+                        // Por eso no hay fallback por shot_type ni por categoría: "proyectil ⇒
+                        // multiplicativo" es falso y marcaba en verde a docenas de armas planas.
+                        // El override JSON (Haalvu) gana sobre esto.
+                        const coScaling = MULTIPLICATIVE_CO.has(item.name) ? "multiplicative" : "additive";
 
                         let fireModes = [];
                         if (Array.isArray(item.attacks)) {

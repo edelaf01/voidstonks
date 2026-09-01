@@ -87,7 +87,8 @@ function wrapName(words, maxLineW) {
 }
 
 /**
- * items: nombres de la pool a colocar (izquierda->derecha).
+ * items: nombres de la pool a colocar (izquierda->derecha); un item puede ser el
+ * array de tokens ya degradado en vez del nombre limpio.
  * opts.rand: PRNG; opts.narrow: fuerza envolturas a 2-3 líneas; opts.badges:
  * array por columna: null | {owned:N} | {crafted:true}.
  * Devuelve { words, imageW } listo para parseRewards.
@@ -98,7 +99,9 @@ export function makeRewardFrame(items, { rand = Math.random, narrow = false, bad
   items.forEach((name, i) => {
     const cx = CENTER_X + (i - (k - 1) / 2) * PITCH;
     const maxW = narrow && rand() < 0.7 ? 180 : 260;
-    const lines = wrapName(name.split(" "), maxW);
+    // Un item puede llegar ya partido en tokens: así el fuzz inyecta el rótulo DEGRADADO
+    // (palabra perdida, fundida o con glifos confundidos) sin tener que recomponer el nombre.
+    const lines = wrapName(Array.isArray(name) ? name : name.split(" "), maxW);
     const y0 = NAMES_Y - ((lines.length - 1) * LINE_H) / 2;
     lines.forEach((line, li) => {
       const totalW = line.reduce((s, w) => s + w.length * CHAR_W, 0) + (line.length - 1) * WORD_GAP;

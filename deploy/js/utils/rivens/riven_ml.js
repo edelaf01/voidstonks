@@ -692,10 +692,7 @@ export async function predictRivenMLBand(weapon, itemAttributes, weaponData = nu
     price: p(0.5), floor, drift: +drift.toFixed(3),
     fuente: usaModelo ? "ml" : "curva",
     confianza: lowConf ? "baja" : "alta",
-    aviso: lowConf
-      ? (esTrash ? "Roll de gama baja: precio orientativo (usa la banda, no el valor único)."
-        : "Pocos datos del arma: precio orientativo.")
-      : null,
+    aviso: lowConf ? (esTrash ? "trash" : "pocosDatos") : null,
     regla: esBrick ? "BRICK" : (rerolls === 0 ? "0roll" : "q"),
   };
 }

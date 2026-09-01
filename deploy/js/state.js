@@ -324,5 +324,5 @@ const resetVisionSettings = () => {
 };
 
 // state y los helpers de visión los consumen el HTML inline y los scripts planos del
-// escáner (live_calibration.js, live_grid_editor.js), que no pueden importar.
+// escáner (live_calibration.js), que no pueden importar.
 exposeGlobals({ state, updateVisionSetting, resetVisionSettings }, "state.js");

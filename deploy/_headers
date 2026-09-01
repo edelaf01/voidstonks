@@ -28,9 +28,25 @@
 /styles.css
   Cache-Control: public, max-age=300, must-revalidate
 
-# Imágenes, fuentes y modelos: su contenido no cambia sin cambiar de nombre, y algunos pesan
-# mucho (tessdata, opencv). Un año, y que el navegador no vuelva a preguntar.
-/assets/*
+# Imágenes: su contenido no cambia sin cambiar de nombre. Un año, y que el navegador no vuelva
+# a preguntar.
+#
+# Por extensión y no `/assets/*`: Pages APLICA TODAS las reglas que casan y CONCATENA sus
+# valores, no gana la más específica. Con la regla ancha, curiosidades.json salía con
+# `max-age=31536000, immutable, max-age=3600, must-revalidate` en la misma cabecera —el año
+# manda— y el visitante recurrente se quedaba con las curiosidades del día que entró por
+# primera vez. El splat cruza carpetas, así que esto cubre también assets/relic_contents/.
+/assets/*.webp
+  Cache-Control: public, max-age=31536000, immutable
+
+/assets/*.png
+  Cache-Control: public, max-age=31536000, immutable
+
+/assets/*.svg
+  Cache-Control: public, max-age=31536000, immutable
+
+# Modelos de OCR: 6 MB que no cambian nunca para un nombre dado (la versión va en el fichero).
+/assets/*.ort
   Cache-Control: public, max-age=31536000, immutable
 
 # Datos de la app (catálogos, JSON generados): cambian con los despliegues pero no son
@@ -39,8 +55,6 @@
   Cache-Control: public, max-age=3600, must-revalidate
 
 # assets/ml/ NO es contenido inmutable: curiosidades.json lo reescribe el bot cada día y el
-# bundle del modelo cambia con el reentreno de los lunes. Con la regla de /assets/* el
-# navegador se los quedaba UN AÑO, así que un visitante recurrente nunca veía las
-# curiosidades nuevas por mucho que el despliegue las publicara.
+# bundle del modelo cambia con el reentreno de los lunes.
 /assets/ml/*
   Cache-Control: public, max-age=3600, must-revalidate

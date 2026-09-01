@@ -4,9 +4,15 @@ Se separa de ML_local.py porque NO necesita el modelo: solo lee history_series.j
 correr a diario (los asks de WFM se mueven todos los días) en vez de esperar al reentreno semanal,
 que tarda ~20 min de XGBoost para algo que aquí son dos segundos.
 
+Los eventos se ACUMULAN: cada ejecución añade lo que detecta hoy al fichero que ya había, en vez
+de reemplazarlo. El carrusel es un historial de movimientos notables, no la foto del día — si un
+arma se desplomó el martes eso sigue siendo interesante el jueves, y sustituyendo se perdía.
+
 Uso:  python curiosidades_gen.py            -> escribe en $DEPLOY_ML_DIR (o ./generado)
-Env:  CURIOS_DIAS=21   ventana de recencia en días
-      DEPLOY_ML_DIR    destino (en CI: deploy/assets/ml)
+Env:  CURIOS_DIAS=21              ventana de recencia para DETECTAR (cuánto atrás mirar)
+      CURIOS_HISTORIAL_DIAS=60    cuánto se conserva en el historial
+      CURIOS_MAX=240              tope de eventos guardados
+      DEPLOY_ML_DIR               destino (en CI: deploy/assets/ml)
 """
 import json
 import os
@@ -219,6 +225,74 @@ def _generar_globales(series):
     return out
 
 
+# Un mismo movimiento se sigue detectando varios días seguidos (el desplome del martes sigue
+# saliendo el miércoles con otra fecha). Guardarlos todos convierte el historial en un log
+# repetido, así que del mismo (arma, tipo) se conserva solo la lectura más reciente dentro de
+# esta ventana.
+REPETIDO_DIAS = 7
+
+# Lo de la última semana entra entero: es "lo que está pasando". De ahí hacia atrás el historial
+# se queda solo con lo NOTABLE, porque el carrusel enseña una decena de tarjetas y guardar 300
+# movimientos mediocres no los hace visibles, solo los entierra.
+FRESCOS_DIAS = 7
+ARCHIVO_MAX = 40
+
+
+def _nota(e):
+    """Cuánto merece sobrevivir un evento pasada la semana.
+
+    Tres cosas lo hacen memorable y las tres están ya en el evento: cuánto se movió, en un arma
+    que de verdad se comercia, y si fue pegado a la tabla semanal de DE (que es lo que convierte
+    un vaivén en una reacción). Un -87% en un arma con 2 ofertas no es una noticia, es ruido.
+    """
+    venta = abs(e.get("venta_pct") or 0)
+    ask = abs(e.get("ask_pct") or 0)
+    # La venta real pesa más que el ask: pedir 3000p lo hace cualquiera, venderlo no.
+    magnitud = max(venta * 1.5, ask)
+    liquidez = np.log1p(e.get("ofertas") or 0)
+    tras_weekly = e.get("dias_tras_weekly")
+    bonus = 1.25 if (tras_weekly is not None and tras_weekly <= 2) else 1.0
+    # solo_ask = no hubo ventas que lo respalden.
+    castigo = 0.6 if e.get("solo_ask") else 1.0
+    return float(magnitud * liquidez * bonus * castigo)
+
+
+def _fusiona_historial(nuevos, ruta, dias_historial, tope):
+    """Une lo detectado hoy con lo que ya hubiera, sin duplicados y con caducidad."""
+    previos = []
+    if os.path.exists(ruta):
+        try:
+            with open(ruta, "r", encoding="utf-8") as f:
+                previos = json.load(f).get("eventos") or []
+        except (json.JSONDecodeError, OSError, ValueError):
+            previos = []   # un fichero a medias no puede tumbar la generación del día
+
+    hoy = pd.Timestamp.now("UTC").date()
+    corte = str(hoy - pd.Timedelta(days=dias_historial))
+    fusion, ultima = [], {}
+    # Los de hoy primero: si un evento se redetecta, manda la lectura nueva.
+    for e in [*nuevos, *previos]:
+        fecha = e.get("fecha") or ""
+        if fecha < corte:
+            continue
+        clave = (e.get("arma"), e.get("tipo"))
+        anterior = ultima.get(clave)
+        if anterior is not None and abs((pd.Timestamp(fecha) - pd.Timestamp(anterior)).days) < REPETIDO_DIAS:
+            continue
+        ultima[clave] = fecha
+        fusion.append(e)
+    # Curado: la semana entera, y del resto solo los más notables.
+    frontera = str(hoy - pd.Timedelta(days=FRESCOS_DIAS))
+    frescos = [e for e in fusion if (e.get("fecha") or "") >= frontera]
+    archivo = [e for e in fusion if (e.get("fecha") or "") < frontera]
+    archivo.sort(key=_nota, reverse=True)
+    salida = frescos + archivo[:ARCHIVO_MAX]
+    # Descendente por fecha (el front pinta el primero como "lo más reciente"); el orden por
+    # fuerza de señal que trae el generador se conserva dentro de cada día porque sort es estable.
+    salida.sort(key=lambda e: e.get("fecha") or "", reverse=True)
+    return salida[:tope]
+
+
 if __name__ == "__main__":
     _ev = _generar_curiosidades(HIST_SERIES)
     with open(HIST_SERIES, "r", encoding="utf-8") as _f:
@@ -227,6 +301,10 @@ if __name__ == "__main__":
     _dest = os.environ.get("DEPLOY_ML_DIR", "generado")
     os.makedirs(_dest, exist_ok=True)
     _ruta = os.path.join(_dest, "curiosidades.json")
+    _antes = len(_ev)
+    _ev = _fusiona_historial(_ev, _ruta,
+                             int(os.environ.get("CURIOS_HISTORIAL_DIAS", 60)),
+                             int(os.environ.get("CURIOS_MAX", 240)))
     with open(_ruta, "w", encoding="utf-8") as f:
         # `serie_hasta` = último día del histórico del que salen los eventos. Va aparte de `generado`
         # a propósito: si la serie no se refresca, `generado` dice hoy y los eventos son de hace
@@ -235,7 +313,8 @@ if __name__ == "__main__":
         json.dump({"generado": str(pd.Timestamp.now("UTC").date()), "serie_hasta": _hasta,
                    "globales": _gl, "eventos": _ev}, f, indent=1, ensure_ascii=False)
     from collections import Counter
-    print(f"Curiosidades: {len(_ev)} eventos + {len(_gl)} globales -> {_ruta}")
+    print(f"Curiosidades: {len(_ev)} eventos en el historial "
+          f"({_antes} detectados hoy) + {len(_gl)} globales -> {_ruta}")
     if _ev:
         print("  por tipo:", dict(Counter(e["tipo"] for e in _ev)))
         print("  fechas  :", min(e["fecha"] for e in _ev), "->", max(e["fecha"] for e in _ev))

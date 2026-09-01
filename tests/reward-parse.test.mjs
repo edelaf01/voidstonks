@@ -301,13 +301,38 @@ describe("prepareRewardNamesCanvas: escalera de máscaras y gate", () => {
     assert.ok(black > 0 && black / total < 0.10);
   });
 
-  test("fondo casi blanco: ninguna máscara aísla letras -> null (pasada saltada)", () => {
-    // bg v=0.92 s=0.09 pasa laxa Y estricta -> densidad ~1.0 en ambas -> gate.
-    // Sin el gate, este frame metía cientos de palabras basura en mergedWords
-    // (anclas espurias tipo "Ris").
+  test("fondo casi blanco: lo aísla la máscara por color de tema", () => {
+    // Antes salía null: bg v=0.92 s=0.09 pasa la laxa Y la estricta (densidad ~1.0 en ambas)
+    // y no quedaba escalón. Lo resuelve la máscara por tema, que no mide brillo absoluto sino
+    // parecido de TONO más contraste con la vecindad — y desde que el blanco puro está en el
+    // catálogo de temas (WFInfo lo llama Deadlock), este frame tiene tema con el que competir.
     const frame = makeFrame([235, 226, 222], [250, 248, 245]);
     const cvs = VisionService.prepareRewardNamesCanvas(frame, FRAME_W, FRAME_H, 1);
-    assert.equal(cvs, null);
+    assert.ok(cvs instanceof FakeCanvas, "la máscara por tema debe rescatar el frame");
+    const { black, total } = maskStats(cvs);
+    // Las "letras" son 8 columnas de 2 px × 15 filas = 240 px. Se exige el número exacto: lo
+    // que hay que comprobar es que aísla EL TEXTO, no que marque algo.
+    assert.equal(black, 240, "debe quedarse con las columnas de texto y nada más");
+    assert.ok(black / total < 0.10, `máscara limpia, densidad ${black / total}`);
+  });
+
+  // La compuerta sigue siendo la razón de ser de la escalera: una máscara densa mete cientos de
+  // palabras basura en mergedWords y fabrica anclas espurias (el "Ri/ris" -> requiem "Ris"). Que
+  // ahora haya un escalón más no puede significar que cualquier frame devuelva algo.
+  test("sin letras que aislar: null (pasada saltada)", () => {
+    const frame = makeFrame([235, 226, 222], [250, 248, 245]);
+    // Borra las "letras": queda el fondo casi blanco a pelo.
+    for (let i = 0; i < frame.data.length; i += 4) {
+      frame.data[i] = 235; frame.data[i + 1] = 226; frame.data[i + 2] = 222;
+    }
+    assert.equal(VisionService.prepareRewardNamesCanvas(frame, FRAME_W, FRAME_H, 1), null);
+  });
+
+  test("letras sin contraste real contra el fondo: null", () => {
+    // Diferencia de 3 en cada canal: ni el OCR ni nadie lee eso, y una máscara que se lo
+    // quedara estaría marcando ruido de compresión.
+    const frame = makeFrame([235, 226, 222], [238, 229, 225]);
+    assert.equal(VisionService.prepareRewardNamesCanvas(frame, FRAME_W, FRAME_H, 1), null);
   });
 });
 
@@ -381,4 +406,36 @@ describe("prepareRewardNamesCanvas: barrido fuente × fondo × luminancia", () =
       });
     }
   }
+});
+
+// La geometría de las tarjetas es lo ÚNICO que separa una corrección buena de una basura:
+// "LOVOS"->LAVOS y "FRONT"->FROST son las dos un glifo de distancia y las dos únicas. Lo que
+// las distingue es que la primera cae dentro de una tarjeta y la segunda es HUD de fondo.
+test("un glifo mal se corrige dentro de una tarjeta, pero no fuera", () => {
+  const W = 1690;
+  const palabra = (t, x) => ({ text: t, confidence: 85, bbox: { x0: x, y0: 10, x1: x + 90, y1: 30 } });
+  const words = [palabra("Lovos", 500), palabra("Prime", 600), palabra("Ehassis", 700), palabra("Blueprint", 500)];
+  const columnas = [{ x0: 0.02, x1: 0.28 }, { x0: 0.27, x1: 0.53 }, { x0: 0.52, x1: 0.78 }];
+
+  // Sin columnas la tarjeta se localiza por su "PRIME", que es lo que separa un rótulo del HUD:
+  // ninguna basura del fondo lleva PRIME pegado a una palabra de componente. Antes esto se
+  // negaba a corregir y se perdía la carta entera cuando la detección no daba columnas
+  // plausibles — medido en una captura real, la de "calisax" por "Caliban".
+  const sinCols = OCRService.parseRewards({ words, imageW: W });
+  assert.deepEqual(sinCols.map((r) => r.name), ["Lavos Prime Chassis Blueprint"]);
+
+  // Y lo que protegía el caso anterior sigue en pie: sin ese ancla no se corrige nada.
+  const soloHud = OCRService.parseRewards({
+    words: [palabra("Front", 500), palabra("Ehassis", 700), palabra("Blueprint", 500)], imageW: W,
+  });
+  assert.deepEqual(soloHud.map((r) => r.name), [], "sin PRIME cerca no es un rótulo, es HUD");
+
+  const conCols = OCRService.parseRewards({ words, imageW: W, columnas });
+  assert.deepEqual(conCols.map((r) => r.name), ["Lavos Prime Chassis Blueprint"]);
+
+  // La misma palabra FUERA de toda columna sigue sin corregirse.
+  const fuera = OCRService.parseRewards({
+    words: [palabra("Lovos", 1600), ...words.slice(1)], imageW: W, columnas,
+  });
+  assert.deepEqual(fuera.map((r) => r.name), []);
 });

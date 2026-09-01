@@ -480,10 +480,8 @@ function detectInventoryGridCore(img, opts = {}) {
     // bloque (el hueco entre celdas es menor que el alto de banda): el filtro
     // de ancho debe tolerarlo — solo descarta líneas de borde a borde.
     const narrowEnough = bl => (bl.x1 - bl.x0) < width * 0.9;
-    const bandBlocks = bands.map(b => ({
-        band: b,
-        blocks: blocksInBand(img, b.y0, b.y1, o).filter(narrowEnough),
-    })).filter(bb => bb.blocks.length >= 1);
+    const bandBlocks = bands.map(b => ({ band: b, blocks: blocksInBand(img, b.y0, b.y1, o).filter(narrowEnough) }))
+        .filter(bb => bb.blocks.length >= 1);
 
     // Bandas DESCARTADAS que aún pueden ser una fila real: al final de la lista la última
     // fila queda a la altura de "TOTAL"/"SELL ITEMS" y, como el hueco de fusión sale del
@@ -491,10 +489,10 @@ function detectInventoryGridCore(img, opts = {}) {
     // se unen en UN bloque de borde a borde que el filtro del 90% tira — se perdía la fila
     // entera, justo la de Requiem/Vanguard. Se re-parten con un hueco pequeño, que separa
     // las celdas del panel.
-    // NO entran en la cadena: el pitch y el anclaje se calculan solo con las bandas limpias
-    // (meterlas movía el ancla y hacía perder una fila en otras capturas). Se consultan
-    // únicamente al rellenar los slots ya calculados, así que solo se usan si caen justo
-    // donde la rejilla dice que hay fila.
+    // NO entran en la cadena MIENTRAS haya bandas limpias: el pitch y el anclaje se calculan
+    // solo con esas (meterlas movía el ancla y hacía perder una fila en otras capturas). Si no
+    // queda ninguna —el arte funde el nombre en TODAS las filas y todas salen de borde a borde,
+    // visto en INVENTORY/SELL a 1662x1036— valen estas, que piden tres bloques estrechos.
     const rescuedBands = [];
     for (const b of bands) {
         if (bandBlocks.some(bb => bb.band === b) || b.y1 < height * 0.2) continue;
@@ -504,6 +502,8 @@ function detectInventoryGridCore(img, opts = {}) {
     }
     trace.rescuedBands = rescuedBands.map(bb => bb.band.y0);
     trace.bandBlocks = bandBlocks.map(bb => ({ y0: bb.band.y0, blocks: bb.blocks.length }));
+
+    if (bandBlocks.length < 2) bandBlocks.push(...rescuedBands);
     if (bandBlocks.length < 2) {
         trace.fail = `bandas con bloques válidos insuficientes (${bandBlocks.length} < 2) — ¿bloques de borde a borde (>90% del frame) o ruido?`;
         return null;
