@@ -2,13 +2,21 @@ export const PaddleRepository = {
     _service: null,
     _initPromise: null,
 
+    listo() { return !!this._service; },
+
     warmUp() {
         if (this._initPromise) return this._initPromise;
         this._initPromise = (async () => {
-            const cdn = globalThis.PADDLE_CDN || "https://esm.sh/ppu-paddle-ocr@latest/web";
+            const cdn = globalThis.PADDLE_CDN || "https://esm.sh/ppu-paddle-ocr@6.4.3/web";
             const mod = await import(/* @vite-ignore */ cdn);
             const { PaddleOcrService } = mod;
-            const model = mod[globalThis.PADDLE_MODEL || "V6_TINY_MODEL"] || mod.V6_TINY_MODEL;
+            const local = {
+                detection: "assets/ocr/PP-OCRv6_tiny_det.ort",
+                recognition: "assets/ocr/PP-OCRv6_tiny_rec.ort",
+                charactersDictionary: "assets/ocr/ppocrv6_tiny_dict.txt",
+            };
+            const pedido = globalThis.PADDLE_MODEL;
+            const model = (typeof pedido === "string" ? mod[pedido] : pedido) || local;
             this._service = new PaddleOcrService({ model });
             await this._service.initialize();
             console.log("[Paddle] listo (V6 TINY).");
@@ -31,10 +39,7 @@ export const PaddleRepository = {
         const lines = (res?.lines || []).flat().filter((l) => l?.box && l?.text);
         const words = [];
         for (const line of lines) {
-            const tokens = String(line.text)
-                .replace(/([a-z])([A-Z])/g, "$1 $2")
-                .split(/\s+/)
-                .filter(Boolean);
+            const tokens = String(line.text).split(/\s+/).filter(Boolean);
             if (!tokens.length) continue;
             const step = line.box.width / tokens.length;
             tokens.forEach((text, i) => words.push({

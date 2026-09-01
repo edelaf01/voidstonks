@@ -874,16 +874,31 @@
 }
 
 #setResults .sets-bridge-gain {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
     font-size: 0.68rem;
     font-weight: 700;
     color: #8fd0a8;
     white-space: nowrap;
 }
 
+#setResults .sets-bridge-plat {
+    width: 12px;
+    height: 12px;
+}
+
+#setResults .sets-bridge-mult {
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: var(--wf-gold-text, #dda938);
+    white-space: nowrap;
+}
+
 #setResults .sets-bridge-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+    gap: 8px;
 }
 
 #setResults .sets-bridge.is-expanded .sets-bridge-row {
@@ -893,12 +908,15 @@
 }
 
 #setResults .sets-bridge-chip {
-    display: inline-flex;
-    align-items: baseline;
-    gap: 6px;
+    display: grid;
+    grid-template-columns: 34px minmax(0, 1fr);
+    align-items: center;
+    gap: 9px;
+    min-height: 56px;
     max-width: 100%;
     margin: 0;
-    padding: 6px 10px;
+    padding: 7px 10px;
+    text-align: left;
     font: inherit;
     font-size: 0.82rem;
     text-transform: none;
@@ -918,12 +936,29 @@
     box-shadow: none;
 }
 
-#setResults .sets-bridge-name {
-    font-weight: 700;
+#setResults .sets-bridge-body {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
     min-width: 0;
+}
+
+#setResults .sets-bridge-name {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
     overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    font-weight: 700;
+    line-height: 1.2;
+    min-width: 0;
+}
+
+#setResults .sets-bridge-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 3px 7px;
+    min-width: 0;
 }
 
 #setResults .sets-bridge-left {
@@ -961,10 +996,9 @@
 }
 
 #setResults .sets-bridge-icon {
-    width: 22px;
-    height: 22px;
+    width: 34px;
+    height: 34px;
     object-fit: contain;
-    flex-shrink: 0;
     align-self: center;
 }
 

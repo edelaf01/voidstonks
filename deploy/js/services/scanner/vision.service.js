@@ -1,8 +1,12 @@
 import { OpenCVRepository } from "../../repositories/opencv.repository.js";
 import { detectInventoryGrid } from "../../utils/vision/grid_detect.js";
+import { maxChannelInvert } from "../../utils/vision/channel_max.js";
 import { offBandComponentIndices } from "../../utils/vision/badge_filters.js";
 import { accentMask } from "../../utils/vision/mission_complete_grid.js";
 import { NAME_TEXT_COLORS, snapToThemeTextColor, bandInkHistogram, rankPageNameColors } from "../../utils/vision/name_color.js";
+import { themeTextMask } from "../../utils/vision/theme_mask.js";
+import { inkRunRatio } from "../../utils/vision/ink_runs.js";
+import { maxChannelPreset } from "../../utils/vision/reward_preprocess.js";
 export { NAME_TEXT_COLORS, snapToThemeTextColor };
 
 export async function applyBestCameraConstraints(stream) {
@@ -27,21 +31,8 @@ export async function applyBestCameraConstraints(stream) {
 
 
 
-export const WF_THEMES = [
-    { name: "Legacy", r: 232, g: 213, b: 93 },
-    { name: "Vitruvian", r: 245, g: 227, b: 173 },
-    { name: "Stalker", r: 255, g: 61, b: 51 },
-    { name: "Baruuk", r: 236, g: 211, b: 162 },
-    { name: "Corpus", r: 111, g: 229, b: 253 },
-    { name: "Fortuna", r: 255, g: 115, b: 230 },
-    { name: "Grineer", r: 255, g: 224, b: 153 },
-    { name: "Lotus", r: 255, g: 241, b: 191 },
-    { name: "Nidus", r: 245, g: 73, b: 93 },
-    { name: "Orokin", r: 178, g: 125, b: 5 },
-    { name: "Default", r: 227, g: 128, b: 20 },
-    { name: "Tenno", r: 6, g: 106, b: 74 },
-    { name: "High Contrast", r: 255, g: 255, b: 0 },
-];
+import { WF_THEMES, WF_THEMES_VOTABLES } from "../../utils/vision/wf_themes.js";
+export { WF_THEMES };
 
 
 const COLOR_HIST = new Uint32Array(32768);
@@ -220,9 +211,8 @@ export const VisionService = {
         canvas.height = Math.max(1, Math.floor(sh * scale));
 
         const ctx = canvas.getContext("2d", { willReadFrequently: true });
-        ctx.filter = "grayscale(100%) invert(100%)";
         ctx.drawImage(video, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
-        ctx.filter = "none";
+        maxChannelInvert(ctx, canvas.width, canvas.height);
         return canvas;
     },
 
@@ -234,6 +224,7 @@ export const VisionService = {
     },
 
     applyThemeDistanceThreshold(ctx, w, h, theme, maxDist = 130) {
+        if (!theme) return;
         const tR = theme.actualR ?? theme.r, tG = theme.actualG ?? theme.g, tB = theme.actualB ?? theme.b;
         const imgData = ctx.getImageData(0, 0, w, h);
         const px = imgData.data;
@@ -252,7 +243,7 @@ export const VisionService = {
 
         const px = ctx.getImageData(0, 0, sampleW, sampleH).data;
 
-        const themeStats = new Array(WF_THEMES.length).fill(0).map(() => ({ rSum: 0, gSum: 0, bSum: 0, count: 0, weight: 0 }));
+        const themeStats = new Array(WF_THEMES_VOTABLES.length).fill(0).map(() => ({ rSum: 0, gSum: 0, bSum: 0, count: 0, weight: 0 }));
 
         for (let i = 0; i < px.length; i += 16) {
             const r = px[i], g = px[i + 1], b = px[i + 2];
@@ -263,8 +254,8 @@ export const VisionService = {
             let bestThemeIdx = 0;
             let bestDist = Infinity;
 
-            for (let t = 0; t < WF_THEMES.length; t++) {
-                const theme = WF_THEMES[t];
+            for (let t = 0; t < WF_THEMES_VOTABLES.length; t++) {
+                const theme = WF_THEMES_VOTABLES[t];
                 const dist = Math.abs(r - theme.r) + Math.abs(g - theme.g) + Math.abs(b - theme.b);
                 if (dist < bestDist) {
                     bestDist = dist;
@@ -282,14 +273,14 @@ export const VisionService = {
 
         let maxWeight = -1;
         let bestThemeIdx = 0;
-        for (let t = 0; t < WF_THEMES.length; t++) {
+        for (let t = 0; t < WF_THEMES_VOTABLES.length; t++) {
             if (themeStats[t].weight > maxWeight) {
                 maxWeight = themeStats[t].weight;
                 bestThemeIdx = t;
             }
         }
 
-        const bestTheme = WF_THEMES[bestThemeIdx];
+        const bestTheme = WF_THEMES_VOTABLES[bestThemeIdx];
         const bestStats = themeStats[bestThemeIdx];
 
         const actualR = bestStats.count > 0 ? Math.round(bestStats.rSum / bestStats.count) : bestTheme.r;
@@ -711,6 +702,12 @@ export const VisionService = {
         return cvs;
     },
 
+    releaseRewardCanvases() {
+        for (const cvs of [this._rewardCvs, this._rewardNamesCvs]) {
+            if (cvs) { cvs.width = 0; cvs.height = 0; }
+        }
+    },
+
     prepareRewardCanvas(snapshot, card, scale) {
         const cvs = this._rewardCvs;
         cvs.width = Math.floor(card.w * scale);
@@ -746,12 +743,6 @@ export const VisionService = {
         return "UNKNOWN";
     },
 
-    REWARD_OCR_PRESETS: {
-        STANDARD: "grayscale(100%) contrast(400%) brightness(1.3)",
-        LOW_LIGHT: "grayscale(100%) contrast(320%) brightness(1.9)",
-        HIGH_GLARE: "grayscale(100%) contrast(260%) brightness(0.85)",
-    },
-
     prepareRewardOCRCanvas(video, width, height, scale, preset = "STANDARD", cropRect = null) {
         const marginX = cropRect ? Math.floor(cropRect.w * 0.06) : Math.floor(width * 0.08);
         const rCropY = cropRect ? Math.floor(cropRect.y) : Math.floor(height * 0.185);
@@ -766,9 +757,8 @@ export const VisionService = {
         cvs.height = targetH;
         const ctx = cvs.getContext("2d", { willReadFrequently: true });
 
-        ctx.filter = this.REWARD_OCR_PRESETS[preset] || this.REWARD_OCR_PRESETS.STANDARD;
         ctx.drawImage(video, rCropXBase + marginX, rCropY, cropW, rCropH, 0, 0, targetW, targetH);
-        ctx.filter = "none";
+        maxChannelPreset(ctx, targetW, targetH, preset, WF_THEMES);
         return cvs;
     },
 
@@ -841,6 +831,15 @@ export const VisionService = {
         let density = buildMask(Hd !== null);
         if (Hd !== null && density > 0.22) density = buildMask(false);
         if (density > 0.10) density = buildMask(false, 0.85, 0.28);
+        const tramosPorTinta = (d) => inkRunRatio(d, targetW, targetH);
+        const escalera = px.slice();
+        img.data.set(orig);
+        const tintaTema = themeTextMask(img, WF_THEMES);
+        if (tramosPorTinta(escalera) >= tramosPorTinta(px)) {
+            img.data.set(escalera);
+        } else {
+            density = tintaTema / totalPx;
+        }
         if (density > 0.10) return null;
         ctx.putImageData(img, 0, 0);
         return cvs;

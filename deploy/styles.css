@@ -265,7 +265,9 @@ body {
   z-index: var(--z-back);
   pointer-events: none;
   opacity: 0.7;
+  /* plus-lighter blends on GPU without reading background; screen is fallback */
   mix-blend-mode: screen;
+  mix-blend-mode: plus-lighter;
 }
 
 .dashed-btn.red:hover {
@@ -6173,6 +6175,7 @@ button[onclick*="importInventory"]:hover {
   white-space: normal;
   overflow-wrap: anywhere;
   line-height: 1.2;
+  height: 2.4em;
   width: 100%;
 }
 

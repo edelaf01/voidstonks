@@ -39,47 +39,69 @@ export function parseRelicGrid({ nameWords, countWords } = {}, { matchRelic } = 
   const nameCells = groupWordCells(nameWords);
   const height = median(nameCells.map((c) => c.y1 - c.y0)) || 1;
 
-  const names = [];
-  for (const cell of nameCells) {
-    const name = matchRelic(cell.words);
-    if (name) names.push({ name, cx: (cell.x0 + cell.x1) / 2, y: cell.y0 });
-  }
+  const leerNombres = (cells) => cells
+    .map((cell) => ({ name: matchRelic(cell.words), cx: (cell.x0 + cell.x1) / 2, y: cell.y0 }))
+    .filter((n) => n.name);
+
+  const names = leerNombres(nameCells);
   if (!names.length) return [];
 
   // grid columns use names only because counts hug left edges and chain bands together
   const cols = bands(names.map((n) => n.cx), height * 3);
   const rows = bands(names.map((n) => n.y), height * 1.5);
 
-  const byCell = new Map();
-  const descartadas = new Set();
+  const celdaDe = (n) => {
+    const col = bandOf(cols.centers, n.cx, cols.pitch * 0.5);
+    const row = bandOf(rows.centers, n.y, rows.pitch * 0.5);
+    return col < 0 || row < 0 ? null : `${row}:${col}`;
+  };
+
+  const nombrePorCelda = new Map();
+  const nombreDudoso = new Set();
+  for (const n of names) {
+    const key = celdaDe(n);
+    if (!key) continue;
+    const prev = nombrePorCelda.get(key);
+    if (prev !== undefined && prev !== n.name) nombreDudoso.add(key);
+    else nombrePorCelda.set(key, n.name);
+  }
+  for (const n of leerNombres(groupWordCells(countWords || []))) {
+    const key = celdaDe(n);
+    if (key && nombrePorCelda.has(key) && nombrePorCelda.get(key) !== n.name) nombreDudoso.add(key);
+  }
+
+  const candidatos = [];
   for (const words of [countWords, nameWords]) {
     for (const cell of groupWordCells(words || [])) {
       const m = COUNT.exec(cell.words.join(" ").trim());
-      if (!m) continue;
-      const cx = (cell.x0 + cell.x1) / 2;
-      const col = bandOf(cols.centers, cx, cols.pitch * 0.5);
-      if (col < 0) continue;
-      let row = -1;
-      rows.centers.forEach((c, i) => {
-        const dy = c - cell.y0;
-        if (dy > 0 && dy < rows.pitch && (row < 0 || c < rows.centers[row])) row = i;
-      });
-      if (row < 0) continue;
-
-      const key = `${row}:${col}`;
-      const prev = byCell.get(key);
-      if (prev !== undefined && prev !== Number(m[1])) descartadas.add(key);
-      byCell.set(key, Number(m[1]));
+      if (m) candidatos.push({ n: Number(m[1]), cx: (cell.x0 + cell.x1) / 2, y0: cell.y0, h: cell.y1 - cell.y0 });
     }
+  }
+  const alturaTipica = median(candidatos.map((c) => c.h)) || 1;
+
+  const byCell = new Map();
+  const descartadas = new Set();
+  for (const c of candidatos) {
+    if (c.h > alturaTipica * 1.5) continue;
+    const col = bandOf(cols.centers, c.cx, cols.pitch * 0.5);
+    if (col < 0) continue;
+    let row = -1;
+    rows.centers.forEach((centro, i) => {
+      const dy = centro - c.y0;
+      if (dy > 0 && dy < rows.pitch && (row < 0 || centro < rows.centers[row])) row = i;
+    });
+    if (row < 0) continue;
+
+    const key = `${row}:${col}`;
+    const prev = byCell.get(key);
+    if (prev !== undefined && prev !== c.n) descartadas.add(key);
+    byCell.set(key, c.n);
   }
 
   const out = [];
   for (const n of names) {
-    const col = bandOf(cols.centers, n.cx, cols.pitch * 0.5);
-    const row = bandOf(rows.centers, n.y, rows.pitch * 0.5);
-    if (col < 0 || row < 0) continue;
-    const key = `${row}:${col}`;
-    if (descartadas.has(key)) continue;
+    const key = celdaDe(n);
+    if (!key || descartadas.has(key) || nombreDudoso.has(key)) continue;
     const count = byCell.get(key);
     if (count !== undefined) out.push({ name: n.name, count });
   }

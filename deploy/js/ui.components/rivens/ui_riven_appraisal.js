@@ -13,6 +13,17 @@ import {
 import { getMetaStats } from "../../services/rivens/riven_market.service.js?v=1.9";
 import { computeDesirabilityMultiplier } from "../../services/rivens/riven_appraisal.service.js";
 
+const AVISO_BANDA = {
+    trash: {
+        es: "Roll de gama baja: precio orientativo (usa la banda, no el valor único).",
+        en: "Low-end roll: ballpark price (use the band, not the single value).",
+    },
+    pocosDatos: {
+        es: "Pocos datos del arma: precio orientativo.",
+        en: "Little data for this weapon: ballpark price.",
+    },
+};
+
 export function buildAppraisalWarningsHtml({ appraisal, weaponData, desirabilityMultiplier, stats, priceCalculated, isEs }) {
   let warningHtml = "";
   if (appraisal.comboName) {
@@ -157,7 +168,7 @@ export function renderMlChip(estCard, prec, bandQ, isEs) {
       + `Según la IA: venta rápida ~${bandQ.p25}p · precio justo ~${bandQ.p50}p · buen roll ~${bandQ.p80}p · godroll ~${bandQ.p95}p`
     : `How far the prediction typically lands from the real price on this weapon (measured on sales the AI never saw). `
       + `Per the AI: quick sale ~${bandQ.p25}p · fair price ~${bandQ.p50}p · good roll ~${bandQ.p80}p · godroll ~${bandQ.p95}p`)
-    + (bandQ.aviso ? ` · ${bandQ.aviso}` : "");
+    + (bandQ.aviso ? ` · ${AVISO_BANDA[bandQ.aviso][isEs ? "es" : "en"]}` : "");
   el.innerHTML = `${isEs ? "IA" : "AI"}: ${precTxt}${warn}`;
 }
 

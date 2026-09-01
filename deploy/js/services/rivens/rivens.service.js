@@ -15,14 +15,17 @@ const HOUND_WEAPONS = new Set(["AKATEN", "BATOTEN", "LACERTEN"]);
 // kitgun chambers are missing from cleaned_weapons.json and use Pistol riven stats
 const KITGUN_WEAPONS = new Set(["CATCHMOON", "GAZE", "RATTLEGUTS", "TOMBFINGER", "VERMISPLICER", "SPORELACER"]);
 
+// weapons whose main fire mode multiplies Condition Overload damage instead of adding it
 const MULTIPLICATIVE_CO = new Set([
-    "Acceltra", "Aeolak", "Alternox", "Alternox Prime", "Arca Plasmor", "Tenet Arca Plasmor",
-    "Basmu", "Battacor", "Bubonico", "Buzlok", "Catchmoon", "Cedo", "Cedo Prime",
-    "Coda Bassocyst", "Coda Hema", "Mutalist Cernos", "Cinta", "Cyanex", "Epitaph", "Exergis",
-    "Felarx", "Fulmin", "Harpak", "Hema", "Javlok", "Nataruk", "Quellor", "Scourge",
-    "Scourge Prime", "Sepulcrum", "Shedu", "Sporelacer", "Stahlta", "Steflos", "Seer",
-    "Kuva Seer", "Tenet Envoy", "Tenet Diplos", "Tenet Spirex", "Tombfinger", "Torid",
-    "Zakti", "Zakti Prime", "Zenith", "Zymos"
+    "Arbucep", "Corvas Prime", "Grattler", "Mandonel", "Velocitus",
+    "Aeolak", "Alternox", "Alternox Prime", "Arca Plasmor", "Tenet Arca Plasmor",
+    "Basmu", "Battacor", "Bubonico", "Buzlok", "Cinta", "Coda Bassocyst", "Coda Hema",
+    "Exergis", "Felarx", "Fulmin", "Fulmin Prime", "Hema", "Javlok", "Mutalist Cernos",
+    "Nataruk", "Scourge", "Scourge Prime", "Shedu", "Stahlta", "Steflos", "Tenet Envoy",
+    "Torid",
+    "Aegrit", "Akarius", "Akarius Prime", "Catchmoon", "Cyanex", "Epitaph",
+    "Epitaph Prime", "Onos", "Seer", "Kuva Seer", "Sepulcrum", "Tenet Spirex",
+    "Tombfinger", "Zakti", "Zakti Prime"
 ]);
 
 function normalizeRivenWeaponType(item) {
@@ -125,7 +128,7 @@ export async function fetchRivenWeapons() {
 }
 
 async function fetchWeaponCombatStats() {
-    const CACHE_KEY = "voidstonkscache_combat_stats_v9";
+    const CACHE_KEY = "voidstonkscache_combat_stats_v10";
     const ONE_WEEK = 7 * 24 * 60 * 60 * 1000;
     try {
         const cached = await dbHelper.get(CACHE_KEY);
@@ -221,15 +224,7 @@ async function fetchWeaponCombatStats() {
                             }
                         }
 
-                        let coScaling = "additive";
-                        if (cat === "Melee" || item.type === "Melee") {
-                            coScaling = "multiplicative";
-                        } else if (MULTIPLICATIVE_CO.has(item.name)) {
-                            coScaling = "multiplicative";
-                        } else if (Array.isArray(item.attacks) && item.attacks.length > 0) {
-                            const shotType = (item.attacks.find(a => a.shot_type) || {}).shot_type || "";
-                            if (/projectile/i.test(shotType)) coScaling = "multiplicative";
-                        }
+                        const coScaling = MULTIPLICATIVE_CO.has(item.name) ? "multiplicative" : "additive";
 
                         let fireModes = [];
                         if (Array.isArray(item.attacks)) {
