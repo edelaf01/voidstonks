@@ -4,7 +4,9 @@ import { readBadgeDigits } from "../../utils/vision/badge_digit_ocr.js";
 import { splitFusedWord, catalogVocab } from "../../utils/vision/word_split.js";
 import { radioDeDedup, pasoEntreTarjetas, zonasDeRotulo } from "../../utils/vision/reward_cards.js";
 import { recuperaComponente, recuperaPorSufijo } from "../../utils/inventory/component_recover.js";
-import { normalizeOCRWords, tokensSinInformacion, tieneEvidenciaPropia } from "../../utils/inventory/ocr_words.js";
+import { normalizeOCRWords, tokensSinInformacion, tieneEvidenciaPropia, confirmaPrime } from "../../utils/inventory/ocr_words.js";
+
+const sinAcentos = (texto) => texto.normalize("NFD").replaceAll(/[\u0300-\u036f]/g, "");
 
 export const OCRService = {
     cachedDbItems: [],
@@ -114,6 +116,8 @@ export const OCRService = {
     },
 
     parseRelicSelection(ocrText) {
+        // without the panel label the matcher finds a relic in any garbage
+        if (!/R[E3][L1I][I1L]C|REWARD|RECOMPENS/i.test(ocrText)) return null;
         const canonical = this.getRelicMatch(ocrText);
         return canonical ? canonical.toUpperCase().replace(/\s+RELIC$/, "") : null;
     },
@@ -159,7 +163,7 @@ export const OCRService = {
         if (!combinedText || !state.allRelicNames?.length) return null;
         const rawWords = Array.isArray(combinedText) ? combinedText : combinedText.split(/\s+/);
         const words = rawWords
-            .map(w => (w || "").toString().toUpperCase()
+            .map(w => sinAcentos((w || "").toString()).toUpperCase()
                 .replaceAll(/[|!¡\][]/g, "I")   // thin i/I/1 read as a bar
                 .replaceAll(/\?/g, "7")
                 .replaceAll(/[^A-Z0-9]/g, ""))
@@ -515,7 +519,7 @@ export const OCRService = {
         // split OCR words on separators: Tesseract glues "CARRIER.PRIME"
         const rawWords = Array.isArray(combinedText) ? combinedText : combinedText.split(/\s+/);
         // uppercase here: the color path returns mixed case
-        const crudas = rawWords.flatMap(w => w.split(/[^A-Za-z0-9]+/).filter(Boolean)).map(w => w.toUpperCase());
+        const crudas = rawWords.flatMap(w => sinAcentos(w).split(/[^A-Za-z0-9]+/).filter(Boolean)).map(w => w.toUpperCase());
         this._vocabCache ||= catalogVocab(this.cachedDbItems);
         const textWords = crudas.flatMap((w) => (w.length >= 9 && !this._vocabCache.has(w)
             && splitFusedWord(w, this._vocabCache)) || [w]);
@@ -542,7 +546,7 @@ export const OCRService = {
         // Components match by OCR-aware similarity with a lower bar: short known words, checked by the
         // rest of the name.
         const COMP_THR = 0.6;
-        const PRIME_THR = 0.65, esPrime = (n) => /\bPRIME\b/i.test(n);
+        const PRIME_THR = 0.6, esPrime = (n) => /\bPRIME\b/i.test(n);
 
         const attemptItemMatch = (startIndex, item, lookAheadLimit, ocrWords) => {
             const matchedIndices = [startIndex];
@@ -608,8 +612,7 @@ export const OCRService = {
                     const matched = attemptItemMatch(i + matchedIndexOffset, item, 4, textWords);
                     if (!matched) continue;
                     // without this, the optional PRIME matched every normal part to its prime
-                    if (esPrime(item.originalName) && !textWords.some((w) => this.similarityOCR(
-                        w.replaceAll(/[^A-Z0-9]/g, ""), "PRIME") >= PRIME_THR)) continue;
+                    if (esPrime(item.originalName) && !confirmaPrime(textWords, this, PRIME_THR)) continue;
                     // same number of matched words: the best first word similarity wins ("BOLTOR" over "AKBOLTO")
                     const ocrFirst = (matchedIndexOffset
                         ? textWords[i] + textWords[i + 1]

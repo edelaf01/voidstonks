@@ -1,8 +1,12 @@
+import { montaTiras, repartePorTramos } from "../utils/vision/ocr_montage.js";
+
 export const PaddleRepository = {
     _service: null,
     _initPromise: null,
 
     listo() { return !!this._service; },
+
+    ultimoFallo: null,
 
     warmUp() {
         if (this._initPromise) return this._initPromise;
@@ -17,11 +21,17 @@ export const PaddleRepository = {
             };
             const pedido = globalThis.PADDLE_MODEL;
             const model = (typeof pedido === "string" ? mod[pedido] : pedido) || local;
-            this._service = new PaddleOcrService({ model });
+            this._service = new PaddleOcrService({ model, recognition: { strategy: "per-box" } });
             await this._service.initialize();
-            console.log("[Paddle] listo (V6 TINY).");
+            console.log(`[Paddle] listo (V6 TINY) · aislamiento de origen: ${globalThis.crossOriginIsolated === true}`);
+            this.ultimoFallo = null;
             return this._service;
         })();
+        this._initPromise.catch((e) => {
+            this.ultimoFallo = e;
+            this._initPromise = null;
+            console.error("[Paddle] no se pudo cargar el motor preciso; se lee con el clásico:", e);
+        });
         return this._initPromise;
     },
 
@@ -35,6 +45,32 @@ export const PaddleRepository = {
         const text = (res && res.text) ? res.text : "";
         const words = text.replace(/[^A-Za-z0-9]+/g, " ").trim().split(/\s+/).filter(Boolean);
         return words.length ? words.map((w) => w.toUpperCase()) : null;
+    },
+
+    /**
+     * reads multiple crops from the same frame in a single pass (see utils/vision/ocr_montage.js)
+     * @param tiras [{ clave, sx, sy, sw, sh }]
+     * @returns Map<clave, uppercase words> matching OCRService.extractCellText format
+     */
+    async recognizeStripWords(fuente, tiras, opciones = {}) {
+        const svc = await this.warmUp();
+        const salida = new Map();
+        for (const { canvas, tramos } of montaTiras(fuente, tiras, opciones)) {
+            const res = await svc.recognize(canvas);
+            const lineas = (res?.lines || []).flat().filter((l) => l?.box && l?.text);
+            for (const [clave, suyas] of repartePorTramos(lineas, tramos)) {
+                const palabras = suyas.map((l) => l.text).join(" ")
+                    .replace(/[^A-Za-z0-9]+/g, " ").trim().split(/\s+/).filter(Boolean);
+                salida.set(clave, palabras.length ? palabras.map((w) => w.toUpperCase()) : null);
+            }
+        }
+        return salida;
+    },
+
+    async recognizeLines(canvas) {
+        const svc = await this.warmUp();
+        const res = await svc.recognize(canvas);
+        return (res?.lines || []).flat().filter((l) => l?.box && l?.text);
     },
 
     /**

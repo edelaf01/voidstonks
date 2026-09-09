@@ -56,3 +56,28 @@ export function applyRelicCounts(inventory, changed) {
     // an entry with no name shows as an empty row the user cannot delete
     return lista.filter((i) => i?.name && (Number(i.count) || 0) > 0);
 }
+
+/**
+ * Relics RECEIVED at mission end ADD, unlike the grid, which assigns.
+ */
+export function sumaReliquias(inventory, recibidas) {
+    const lista = applyRelicCounts(inventory, []);
+    const total = new Map(lista.map((i) => [relicKey(i.name), { name: i.name, count: Number(i.count) || 0 }]));
+    for (const { name, qty } of recibidas || []) {
+        const n = Math.floor(Number(qty) || 1);
+        if (!name || n <= 0) continue;
+        // through an accumulator: two cells of the SAME relic would both read the old count
+        const previa = total.get(relicKey(name));
+        if (previa) previa.count += n;
+        else total.set(relicKey(name), { name, count: n });
+    }
+    return applyRelicCounts(lista, [...total.values()]);
+}
+
+/** The carried relic is consumed when the fissure ENDS, not when picked. */
+export function restaReliquia(inventory, name, n = 1) {
+    const lista = applyRelicCounts(inventory, []);
+    const actual = lista.find((i) => relicKey(i.name) === relicKey(name));
+    if (!actual) return lista;
+    return applyRelicCounts(lista, [{ name: actual.name, count: (Number(actual.count) || 0) - n }]);
+}

@@ -7,7 +7,9 @@ export const TESTS_ROOT = fileURLToPath(new URL("..", import.meta.url));
 
 // vendored: not our source and they skew every metric (tesseract.min.js is 5 MB on one line)
 // an explicit list on purpose, a substring pattern would also exclude a future file like ui_tesseract_panel.js
-const VENDORED = new Set(["tesseract.min.js", "tesseract-core.wasm.js"]);
+const VENDORED = new Set(["tesseract.min.js"]);
+// third-party folders (the Tesseract worker and cores we serve, Chart.js), excluded by path and not by file name
+const VENDORED_DIRS = ["tesseract"];
 
 function walk(dir, keep) {
   const out = [];
@@ -26,7 +28,9 @@ const toPosix = (p) => p.split(sep).join("/");
 
 /** every own module under deploy/js with its relative path, source and line count */
 export function modules() {
-  return walk(JS_ROOT, (p) => p.endsWith(".js") && !VENDORED.has(p.slice(p.lastIndexOf(sep) + 1)))
+  const esVendor = (p) => VENDORED.has(p.slice(p.lastIndexOf(sep) + 1))
+    || VENDORED_DIRS.some((d) => p.includes(`${sep}${d}${sep}`));
+  return walk(JS_ROOT, (p) => p.endsWith(".js") && !esVendor(p))
     .map((abs) => {
       const src = readFileSync(abs, "utf8");
       // same as `wc -l`: the final newline does not open a new line

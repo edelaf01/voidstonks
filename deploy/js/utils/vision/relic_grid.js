@@ -15,6 +15,8 @@ import { groupWordCells } from "./squad_panel.js";
 // on top
 export const RELIC_GRID_CROP = Object.freeze({ x: 0.03, y: 0.17, w: 0.57, h: 0.76 });
 
+// the count is drawn "x108": the OCR may split the x from the number or confuse the glyph, but the x must
+// be there. Bare digits on screen are art, not counts
 const COUNT = /^[xX×*]\s*(\d{1,3})$/;
 
 const median = (xs) => {
@@ -48,7 +50,7 @@ function bandOf(centers, v, tol) {
   return bestD <= tol ? best : -1;
 }
 
-export function parseRelicGrid({ nameWords, countWords } = {}, { matchRelic } = {}) {
+export function parseRelicGrid({ nameWords, countWords } = {}, { matchRelic, trace } = {}) {
   if (typeof matchRelic !== "function") return [];
 
   const nameCells = groupWordCells(nameWords);
@@ -128,11 +130,22 @@ export function parseRelicGrid({ nameWords, countWords } = {}, { matchRelic } = 
   }
 
   const out = [];
+  const perdidas = { sinCasilla: 0, descartada: 0, dudosa: 0, sinContador: 0 };
   for (const n of names) {
     const key = celdaDe(n);
-    if (!key || descartadas.has(key) || nombreDudoso.has(key)) continue;
+    if (!key) { perdidas.sinCasilla++; continue; }
+    if (descartadas.has(key)) { perdidas.descartada++; continue; }
+    if (nombreDudoso.has(key)) { perdidas.dudosa++; continue; }
     const count = byCell.get(key);
-    if (count !== undefined) out.push({ name: n.name, count });
+    if (count === undefined) { perdidas.sinContador++; continue; }
+    out.push({ name: n.name, count });
+  }
+  if (trace) {
+    Object.assign(trace, {
+      nombres: names.length, candidatosContador: candidatos.length,
+      contadoresConCasilla: byCell.size, alturaTipica, perdidas,
+      cols: cols.centers.length, filas: rows.centers.length,
+    });
   }
   return out;
 }

@@ -126,3 +126,35 @@ test("si el motor de red aún no ha cargado, se lee con el clásico sin esperarl
     aplicaMotor(MOTOR_CLASICO);
   }
 });
+
+describe("cascada por coste", () => {
+  test('con motor "preciso", si la red no lee nada NO se paga Tesseract', async () => {
+    // reward screen has a 15-second timer and Tesseract is 10x slower than the net (~1500 ms vs ~150 ms in
+    // browser)
+    // engines used to sit at the same loop tier, so a bad crop ran full Tesseract before trying the next crop
+    // seen in logs: crop 1 net 0, crop 1 Tesseract 0, crop 2 net 4 items
+    aplicaMotor(MOTOR_PRECISO);
+    PaddleRepository.listo = () => true;
+    PaddleRepository.recognizeWordsWithBoxes = async () => [];
+    let tesseract = 0;
+    OCRRepository.recognize = async () => { tesseract++; return { data: { text: "", words: [] } }; };
+
+    const frame = makeRewardFrameEnEncuadre();
+    const r = await leeRecompensas(frame, frame.width, frame.height, 1, "STANDARD", null, null, "preciso");
+    assert.deepEqual(r.foundItems, []);
+    assert.equal(tesseract, 0, "no debe llamarse a Tesseract en el barrido barato");
+  });
+
+  test('con motor "clasico" la red no se toca aunque esté cargada', async () => {
+    // preset ladder belongs to Tesseract: neural net does not binarise, so repeating per preset wastes 3x work
+    aplicaMotor(MOTOR_PRECISO);
+    PaddleRepository.listo = () => true;
+    let red = 0;
+    PaddleRepository.recognizeWordsWithBoxes = async () => { red++; return []; };
+    OCRRepository.recognize = async () => ({ data: { text: "", words: [] } });
+
+    const frame = makeRewardFrameEnEncuadre();
+    await leeRecompensas(frame, frame.width, frame.height, 1, "LOW_LIGHT", null, null, "clasico");
+    assert.equal(red, 0);
+  });
+});

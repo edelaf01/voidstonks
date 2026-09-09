@@ -84,6 +84,9 @@ function initTabContent(mode) {
     if (typeof globalThis.initOrdersTab === "function") globalThis.initOrdersTab();
   } else if (mode === "bounties") {
     renderFarmsTab();
+  } else if (mode === "inventory") {
+    renderInventory();
+    renderPrimeInventory();
   }
 }
 
@@ -242,8 +245,6 @@ function updateStaticTexts(t) {
   setText("txt-header-title", t.headerTitle);
   setText("txt-header-sub", t.headerSub);
   setText("txt-footer-data", t.footerData);
-  setText("txt-contact-label", t.contactLabel);
-  setText("txt-contact-link", t.contactLink);
   setText("btn-footer-updates", t.btnShowUpdates);
   setText("txt-privacy-link", t.privacyLink);
   setText("txt-guide-link", t.guideLink);

@@ -20,6 +20,8 @@ ClipboardService.onPendingCopied = () => {
 
 export const ScannerModal = {
     currentResults: [],
+    // the reward the user picked by hand on this screen; cleared when another arrives
+    selectedItem: null,
     setPrices: null,
     bestValue: null,
     autoCloseTimer: null,
@@ -36,6 +38,7 @@ export const ScannerModal = {
         this.isHistoric = isHistoric;
 
         this.currentResults = items;
+        this.selectedItem = null;
 
         // the run is over: without this the RUN panel would keep showing the previous fissure relics
         if (!isHistoric) SquadService.clear();
@@ -63,6 +66,7 @@ export const ScannerModal = {
 
         const itemsWithDetails = await this.enrichItemDetails(items, width, height, scale);
         this.currentResults = itemsWithDetails;
+        this.selectedItem = null;
 
         if (!state.scanHistory) state.scanHistory = [];
         const isDuplicate = state.scanHistory.length > 0 &&

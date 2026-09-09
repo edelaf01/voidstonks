@@ -279,3 +279,12 @@ test("ocr.service: un glifo espurio dentro del código no tumba el match", () =>
   OCRService._relicIndexCache = null;
 });
 
+
+test("una tilde del OCR no tira el match", () => {
+  // PaddleOCR has accents in its dictionary and sometimes places them ("KESTREL PRÍME BLUEPRINT"); the
+  // matcher splits words on [^A-Za-z0-9], so "PRÍME" became "PR" + "ME" and the part was lost
+  assert.equal(OCRService.getValidItemMatch("BALLISTICA PRÍME RECEIVER")?.originalName,
+    "Ballistica Prime Receiver");
+  assert.equal(OCRService.getValidItemMatch("VOLT PRÍME SYSTEMS BLUEPRÍNT")?.originalName,
+    OCRService.getValidItemMatch("VOLT PRIME SYSTEMS BLUEPRINT")?.originalName);
+});

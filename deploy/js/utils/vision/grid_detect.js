@@ -48,7 +48,7 @@ const DEFAULTS = {
     strideX: 2,          // horizontal sampling for the row profile
     minBandH: 6,         // px: lower bands are noise
     maxBandHFrac: 0.25,  // taller than 25% of the image = background/art, not text
-    mergeGapY: 12,
+    mergeGapYFrac: 0.0085, // of the height: joins the 2 lines of a name; in fixed px it loosens when rescaling
     bandMassFloor: 0.22, // min mass relative to the strongest band (drops badges/HUD)
     nameBandOffset: 0.75, // cell top ≈ name band top − 0.75·cellH
     nameBaselineOffset: 0.92, // cell top ≈ name BASELINE (y1) − 0.92·cellH
@@ -117,7 +117,7 @@ export function findBands(prof, height, opts = {}) {
     const merged = [];
     for (const r of runs) {
         const last = merged[merged.length - 1];
-        if (last && r.y0 - last.y1 <= o.mergeGapY) last.y1 = r.y1;
+        if (last && r.y0 - last.y1 <= Math.max(4, Math.round(height * o.mergeGapYFrac))) last.y1 = r.y1;
         else merged.push({ ...r });
     }
 

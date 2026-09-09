@@ -44,3 +44,24 @@ export function undoRewardCommit(primeInventory, previo) {
     }
     return inventario;
 }
+
+/**
+ * Manual pick on the rewards screen when something else was already picked. One screen gives ONE part,
+ * so re-picking CHANGES the choice.
+ *
+ * `aplicaYa` is false when the modal syncs on close: the part is not in the inventory yet.
+ */
+export function pickManualReward(primeInventory, pendientes, previa, nueva, aplicaYa = true) {
+    const inventario = { ...primeInventory };
+    const cola = [...pendientes];
+    if (previa === nueva) return { inventario, pendientes: cola, cambio: false };
+
+    if (previa) {
+        const i = cola.lastIndexOf(previa);
+        if (i !== -1) cola.splice(i, 1);
+        if (aplicaYa && contadorDe(inventario[previa]) > 0) inventario[previa] = contadorDe(inventario[previa]) - 1;
+    }
+    cola.push(nueva);
+    if (aplicaYa) inventario[nueva] = contadorDe(inventario[nueva]) + 1;
+    return { inventario, pendientes: cola, cambio: true };
+}

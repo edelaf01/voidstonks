@@ -63,6 +63,14 @@ export function normalizeOCRWords(ocrData, ctx) {
     return validWords;
 }
 
+// OCR splits PRIME ("PR"+"ME") and no piece reaches the threshold alone: also try each token joined to
+// the next
+export function confirmaPrime(words, ctx, umbral) {
+    const limpio = (w) => (w || "").replaceAll(/[^A-Z0-9]/g, "");
+    return words.some((w, i) => ctx.similarityOCR(limpio(w), "PRIME") >= umbral
+        || ctx.similarityOCR(limpio(w) + limpio(words[i + 1]), "PRIME") >= umbral);
+}
+
 /**
  * Tokens in so many catalog names that they tell NOTHING apart (PRIME, BLUEPRINT).
  */
