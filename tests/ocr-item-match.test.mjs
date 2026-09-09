@@ -309,3 +309,13 @@ test("ocr.service: un glifo espurio dentro del código no tumba el match", () =>
   OCRService._relicIndexCache = null;
 });
 
+
+test("una tilde del OCR no tira el match", () => {
+  // PaddleOCR tiene tildes en su diccionario y las coloca de vez en cuando: medido, un rótulo
+  // de fin de misión salía "KESTREL PRÍME BLUEPRINT". El matcher parte las palabras por
+  // [^A-Za-z0-9], así que "PRÍME" se convertía en "PR" + "ME" y la pieza se perdía entera.
+  assert.equal(OCRService.getValidItemMatch("BALLISTICA PRÍME RECEIVER")?.originalName,
+    "Ballistica Prime Receiver");
+  assert.equal(OCRService.getValidItemMatch("VOLT PRÍME SYSTEMS BLUEPRÍNT")?.originalName,
+    OCRService.getValidItemMatch("VOLT PRIME SYSTEMS BLUEPRINT")?.originalName);
+});

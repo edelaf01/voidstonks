@@ -16,7 +16,11 @@ export const TESTS_ROOT = fileURLToPath(new URL("..", import.meta.url));
 // Vendored: no son fuente propia y falsean cualquier métrica (tesseract.min.js son 5 MB en
 // una línea). Lista explícita a propósito: un patrón por subcadena dejaría fuera de TODAS las
 // reglas a cualquier fichero futuro que se llamase, p. ej., ui_tesseract_panel.js.
-const VENDORED = new Set(["tesseract.min.js", "tesseract-core.wasm.js"]);
+const VENDORED = new Set(["tesseract.min.js"]);
+// El worker y los cores de Tesseract, que ahora servimos nosotros en vez de traerlos de un CDN.
+// Es una carpeta entera de código de terceros: se excluye por RUTA y no por nombre para no
+// depender de cómo se llamen sus ficheros en la siguiente versión.
+const VENDORED_DIRS = ["tesseract"];
 
 function walk(dir, keep) {
   const out = [];
@@ -35,7 +39,9 @@ const toPosix = (p) => p.split(sep).join("/");
 
 /** Todos los módulos propios de deploy/js, con su ruta relativa, fuente y nº de líneas. */
 export function modules() {
-  return walk(JS_ROOT, (p) => p.endsWith(".js") && !VENDORED.has(p.slice(p.lastIndexOf(sep) + 1)))
+  const esVendor = (p) => VENDORED.has(p.slice(p.lastIndexOf(sep) + 1))
+    || VENDORED_DIRS.some((d) => p.includes(`${sep}${d}${sep}`));
+  return walk(JS_ROOT, (p) => p.endsWith(".js") && !esVendor(p))
     .map((abs) => {
       const src = readFileSync(abs, "utf8");
       // Mismo criterio que `wc -l`: el salto final no abre una línea nueva. Sin esto todos

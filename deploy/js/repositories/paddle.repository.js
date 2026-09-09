@@ -14,6 +14,8 @@
  * onnxruntime-web con hilos/WebGPU puede requerir aislamiento de origen (COOP/COEP)
  * — la librería incluye `coi-serviceworker.js` para ello si hiciera falta.
  */
+import { montaTiras, repartePorTramos } from "../utils/vision/ocr_montage.js";
+
 export const PaddleRepository = {
     _service: null,
     _initPromise: null,
@@ -25,7 +27,10 @@ export const PaddleRepository = {
      */
     listo() { return !!this._service; },
 
-    /** Carga la librería y arranca el servicio (una vez). */
+    /** Última carga fallida, para que la UI pueda decirlo en vez de quedarse en "preparando". */
+    ultimoFallo: null,
+
+    /** Carga la librería y arranca el servicio (una vez, o de nuevo si la anterior falló). */
     warmUp() {
         if (this._initPromise) return this._initPromise;
         this._initPromise = (async () => {
@@ -48,11 +53,30 @@ export const PaddleRepository = {
             // de por defecto ya es el nuestro.
             const pedido = globalThis.PADDLE_MODEL;
             const model = (typeof pedido === "string" ? mod[pedido] : pedido) || local;
-            this._service = new PaddleOcrService({ model });
+            // strategy "per-box": una inferencia de reconocimiento por caja detectada, en vez de
+            // agrupar por línea. Medido sobre las 18 celdas del inventario en cuatro
+            // resoluciones (nativa, 1080p, 720p, 540p): per-line 228/199/200/163 ms, per-box
+            // 199/166/173/164, cross-line 215/215/191/181 — y las tres leen 18/18 salvo
+            // cross-line, que se deja una a 540p.
+            this._service = new PaddleOcrService({ model, recognition: { strategy: "per-box" } });
             await this._service.initialize();
-            console.log("[Paddle] listo (V6 TINY).");
+            // `crossOriginIsolated` decide si onnxruntime-web puede usar WASM con HILOS. Sin
+            // aislamiento de origen se queda en uno solo, y ahí está la diferencia entre el
+            // ~1 s que tarda este mismo montaje fuera del navegador y los 5,6 s medidos dentro.
+            // Se registra porque no hay otra forma de saber cuál de los dos casos es.
+            console.log(`[Paddle] listo (V6 TINY) · aislamiento de origen: ${globalThis.crossOriginIsolated === true}`);
+            this.ultimoFallo = null;
             return this._service;
         })();
+        // Un fallo NO puede quedarse cacheado: la promesa rechazada se devolvía para siempre, así
+        // que un tropiezo puntual (CDN, un momento sin red) dejaba el motor preciso muerto toda
+        // la sesión y TODO pasaba a leerse con el clásico, más lento y peor, sin decir nada.
+        // console.error y no warn: debug_log.js silencia el resto en producción.
+        this._initPromise.catch((e) => {
+            this.ultimoFallo = e;
+            this._initPromise = null;
+            console.error("[Paddle] no se pudo cargar el motor preciso; se lee con el clásico:", e);
+        });
         return this._initPromise;
     },
 
@@ -68,6 +92,38 @@ export const PaddleRepository = {
         const text = (res && res.text) ? res.text : "";
         const words = text.replace(/[^A-Za-z0-9]+/g, " ").trim().split(/\s+/).filter(Boolean);
         return words.length ? words.map((w) => w.toUpperCase()) : null;
+    },
+
+    /**
+     * Lee VARIOS recortes del mismo frame en una sola pasada (ver utils/vision/ocr_montage.js).
+     *
+     * Una celda del inventario a la vez costaba 49 ms cada una porque cada llamada paga entera
+     * la red de detección; apiladas en un montaje salen a 12 ms. Sobre las 18 celdas de una
+     * página: 889 ms -> 209 ms, por debajo de los 420 ms de Tesseract sobre esos mismos recortes.
+     *
+     * @param tiras [{ clave, sx, sy, sw, sh }]
+     * @returns Map<clave, palabras en MAYÚSCULAS> — mismo formato que OCRService.extractCellText.
+     */
+    async recognizeStripWords(fuente, tiras, opciones = {}) {
+        const svc = await this.warmUp();
+        const salida = new Map();
+        for (const { canvas, tramos } of montaTiras(fuente, tiras, opciones)) {
+            const res = await svc.recognize(canvas);
+            const lineas = (res?.lines || []).flat().filter((l) => l?.box && l?.text);
+            for (const [clave, suyas] of repartePorTramos(lineas, tramos)) {
+                const palabras = suyas.map((l) => l.text).join(" ")
+                    .replace(/[^A-Za-z0-9]+/g, " ").trim().split(/\s+/).filter(Boolean);
+                salida.set(clave, palabras.length ? palabras.map((w) => w.toUpperCase()) : null);
+            }
+        }
+        return salida;
+    },
+
+    /** Líneas crudas con su caja, para quien reparte por posición (montajes). */
+    async recognizeLines(canvas) {
+        const svc = await this.warmUp();
+        const res = await svc.recognize(canvas);
+        return (res?.lines || []).flat().filter((l) => l?.box && l?.text);
     },
 
     /**

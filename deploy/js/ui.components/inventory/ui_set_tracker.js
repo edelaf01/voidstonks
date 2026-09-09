@@ -3,7 +3,7 @@ import { exposeGlobals } from "../../utils/global_registry.js";
 import { TEXTS, DROP_CHANCES } from "../../config.js";
 import { relicSetValue, pickSetToTrack } from "../../utils/inventory/relic_set_value.js";
 import { escapeHTML } from "../../utils/escape_html.js";
-import { showToast } from "../ui_components.js";
+import { showToast, qtyToast } from "../ui_components.js";
 import { getSlug } from "../../utils/slugs.utils.js";
 import { addToQueue } from "../../services/market/prices.service.js";
 import {
@@ -523,6 +523,7 @@ export function renderSetTracker() {
       if (state.primeInventory[partName] < requiredCount)
         state.completedParts.delete(partName);
       renderSetTracker();
+      showToast(qtyToast(partName, -1));
     };
 
     const btnPlus = document.createElement("button");
@@ -533,7 +534,7 @@ export function renderSetTracker() {
       globalThis.modifyPrimePart(partName, 1);
       state.completedParts.add(partName);
       renderSetTracker();
-      showToast((TEXTS[state.currentLang]?.setTab?.partAdded || "{part} +1").replace("{part}", partName));
+      showToast(qtyToast(partName, 1));
     };
 
     controlsDiv.appendChild(btnMinus);

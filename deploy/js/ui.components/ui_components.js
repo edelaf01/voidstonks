@@ -50,6 +50,11 @@ export function emptyStateHtml(message, scannerHint = "", mobileHint = "") {
   return `<div style="padding:20px 16px; text-align:center; color:#888; line-height:1.5;">${escapeHTML(message)}${hint}</div>`;
 }
 
+/** "{nombre} +1" / "{nombre} -3": mismo formato de operación+cantidad para todo botón de +/-. */
+export function qtyToast(name, delta) {
+  return `${name} ${delta > 0 ? "+" : ""}${delta}`;
+}
+
 /**
  * Dynamic Toast Manager
  * Handles stackable, closable, and persistent notifications.
@@ -142,7 +147,7 @@ export function closeOrokinConfirm() {
 // showToast: lo llaman los scripts del scanner, que van en <script> plano y no importan.
 // closeOrokinConfirm: el modal de confirmación lo invoca desde onclick inline; estaba
 // exportado pero sin publicar, así que "Cancelar" y el backdrop no cerraban el modal.
-exposeGlobals({ showToast, closeOrokinConfirm }, "ui.components/ui_components.js");
+exposeGlobals({ showToast, qtyToast, closeOrokinConfirm }, "ui.components/ui_components.js");
 
 export async function checkUpdates() {
   const lastSeenVersion = localStorage.getItem("last_seen_version");

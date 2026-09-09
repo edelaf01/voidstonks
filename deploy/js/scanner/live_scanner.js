@@ -1,5 +1,5 @@
 import { state, saveAppState } from "../state.js";
-import { applyRewardCommit, undoRewardCommit } from "../utils/inventory/reward_commit.js";
+import { applyRewardCommit, undoRewardCommit, pickManualReward } from "../utils/inventory/reward_commit.js";
 import { showToast } from "../ui.components/ui_components.js";
 import { TEXTS } from "../config.js";
 import { warmupPrices } from "../services/inventory/inventory.service.js";
@@ -13,6 +13,7 @@ import { oneTimeNoticeSeen, markOneTimeNoticeSeen } from "../repositories/storag
 import { OCRRepository } from "../repositories/ocr.repository.js";
 import { WF_THEMES_VOTABLES } from "../utils/vision/wf_themes.js";
 import { mergeRelicCounts } from "../utils/inventory/relic_counts.js";
+import { sumaReliquias, restaReliquia } from "../utils/inventory/relic_votes.js";
 import { RelicScreenService } from "../services/scanner/relic_screen.service.js";
 import { exposeGlobals } from "../utils/global_registry.js";
 
@@ -146,7 +147,9 @@ export async function startLiveSession() {
 
     if (toggleBtn) toggleBtn.querySelector(".label").innerText = t.active;
 
-    liveStream.getVideoTracks()[0].onended = () => stopLiveSession();
+    // El array llega vacío si el navegador cancela la pista nada más concederla.
+    const pista = liveStream.getVideoTracks()[0];
+    if (pista) pista.onended = () => stopLiveSession();
   } catch (e) {
     console.error("Scanner startup failed:", e);
     // Cancelar el selector de ventanas también llega aquí como NotAllowedError, y el mensaje
@@ -255,9 +258,21 @@ const pendingManualAdds = [];
 
 globalThis.selectRewardToInventory = (itemName) => {
   const modal = globalThis.ScannerModal;
+  const willSyncInClose = state.autoSyncRewards && modal && modal.currentResults && !modal.isHistoric;
+
+  // De una pantalla de recompensas se recibe UNA pieza, así que volver a elegir CAMBIA la
+  // elección; no suma otra. Antes las dos entraban en el inventario y en pendingManualAdds, y
+  // como el alta de fin de misión solo descuenta una copia, la pieza descartada se quedaba
+  // dentro para siempre: la última vista ganaba y la anterior no había forma de verla.
+  const { inventario, pendientes, cambio } = pickManualReward(
+    state.primeInventory, pendingManualAdds, modal?.selectedItem, itemName, !willSyncInClose);
+  if (!cambio) return;
+  state.primeInventory = inventario;
+  pendingManualAdds.length = 0;
+  pendingManualAdds.push(...pendientes);
+
   if (modal) modal.selectedItem = itemName;
   globalThis.selectedScanItem = itemName;
-  pendingManualAdds.push(itemName);
 
   const t = TEXTS[state.currentLang].rewardScanner;
   const msg = t.rewardSelectedConfirmation
@@ -265,9 +280,7 @@ globalThis.selectRewardToInventory = (itemName) => {
     : `Seleccionado: ${itemName}`;
   showToast(msg);
 
-  const willSyncInClose = state.autoSyncRewards && modal && modal.currentResults && !modal.isHistoric;
   if (!willSyncInClose) {
-    state.primeInventory[itemName] = (state.primeInventory[itemName] || 0) + 1;
     saveAppState();
     if (globalThis.renderPrimeInventory) globalThis.renderPrimeInventory();
   }
@@ -282,26 +295,42 @@ globalThis.selectRewardToInventory = (itemName) => {
  * Se ofrece deshacer porque el alta ocurre sin que el usuario pulse nada: si el OCR se
  * equivoca en un nombre, tiene que poder devolverlo sin ir a buscarlo al inventario.
  */
-function commitMissionCompleteRewards(items) {
-  if (!state.autoAddMissionRewards || !items?.length) return;
+function commitMissionCompleteRewards(items, gastada = null) {
+  // La lista de pendientes SOLO sirve para no contar dos veces con el alta automática. Si
+  // está apagada hay que vaciarla igual: si no, se arrastra a la misión siguiente y allí
+  // descuenta una pieza que sí tocaba sumar.
+  if (!state.autoAddMissionRewards) { pendingManualAdds.length = 0; return; }
+  const reliquias = (items || []).filter((i) => i.reliquia);
+  const piezas = (items || []).filter((i) => !i.reliquia);
+  if (!piezas.length && !reliquias.length && !gastada) return;
 
   const t = TEXTS[state.currentLang].scanner;
   const { inventario, previo, anadidas: añadidas } = applyRewardCommit(
-    state.primeInventory, items, pendingManualAdds);
+    state.primeInventory, piezas, pendingManualAdds);
   state.primeInventory = inventario;
   pendingManualAdds.length = 0;
-  if (!añadidas.length) return;
+
+  // Copia entrada a entrada: applyRelicCounts actualiza los objetos EN SITIO, así que guardar
+  // la referencia no serviría para deshacer.
+  const relicPrevio = (state.inventory || []).map((i) => (typeof i === "string" ? i : { ...i }));
+  if (reliquias.length) state.inventory = sumaReliquias(state.inventory, reliquias);
+  // La reliquia que llevaste se consume al TERMINAR la fisura, que es justo esta pantalla.
+  if (gastada) state.inventory = restaReliquia(state.inventory, gastada);
+  const movidas = [...añadidas, ...reliquias.map((r) => (r.qty > 1 ? `${r.name} ×${r.qty}` : r.name))];
+  if (gastada) movidas.push(`−1 ${gastada}`);
+  if (!movidas.length) return;
 
   saveAppState();
   if (globalThis.renderPrimeInventory) globalThis.renderPrimeInventory();
 
-  const toast = showToast(`${t.mcAdded}: ${añadidas.join(", ")}`, { type: "success", tag: "mc-rewards" });
+  const toast = showToast(`${t.mcAdded}: ${movidas.join(", ")}`, { type: "success", tag: "mc-rewards" });
   if (!toast) return;
   const undo = document.createElement("button");
   undo.className = "toast-action";
   undo.textContent = t.mcUndo;
   undo.onclick = () => {
     state.primeInventory = undoRewardCommit(state.primeInventory, previo);
+    state.inventory = relicPrevio;
     saveAppState();
     if (globalThis.renderPrimeInventory) globalThis.renderPrimeInventory();
     showToast(t.mcUndone, { tag: "mc-rewards" });

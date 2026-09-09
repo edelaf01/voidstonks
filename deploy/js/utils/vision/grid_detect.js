@@ -78,7 +78,7 @@ const DEFAULTS = {
     strideX: 2,          // muestreo horizontal para el perfil de filas
     minBandH: 6,         // px: banda más baja que esto = ruido
     maxBandHFrac: 0.25,  // banda más alta que 25% de la imagen = fondo/arte, no texto
-    mergeGapY: 12,       // px: une las 2 líneas de un nombre (hueco real medido: 9px a 1440p)
+    mergeGapYFrac: 0.0085, // del alto: une las 2 líneas de un nombre (12px medidos a 1440p). En px fijos el umbral se afloja al reescalar y cuela una 4ª fila
     bandMassFloor: 0.22, // masa mínima relativa a la banda más fuerte (filtra badges/HUD)
     nameBandOffset: 0.75, // top de celda ≈ top de banda de nombre − 0.75·cellH (el nombre empieza al ~75% de la celda)
     nameBaselineOffset: 0.92, // top de celda ≈ BASELINE de nombre (y1) − 0.92·cellH (la baseline de texto está al ~92% del alto de celda, permitiendo que el crop de badge al top 0% atrape el icono x1/x2 perfecto y la zona de nombre 22% no interfiera)
@@ -154,7 +154,7 @@ export function findBands(prof, height, opts = {}) {
     const merged = [];
     for (const r of runs) {
         const last = merged[merged.length - 1];
-        if (last && r.y0 - last.y1 <= o.mergeGapY) last.y1 = r.y1;
+        if (last && r.y0 - last.y1 <= Math.max(4, Math.round(height * o.mergeGapYFrac))) last.y1 = r.y1;
         else merged.push({ ...r });
     }
 

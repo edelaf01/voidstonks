@@ -106,6 +106,13 @@ function initTabContent(mode) {
     if (typeof globalThis.initOrdersTab === "function") globalThis.initOrdersTab();
   } else if (mode === "bounties") {
     renderFarmsTab();
+  } else if (mode === "inventory") {
+    // Faltaba, y era el único caso en que se NOTABA sin datos de red: updateUILabels() pinta el
+    // inventario al cargarse el módulo, o sea ANTES de loadAppState(), así que la primera vez se
+    // veía "No relics saved yet" con el inventario lleno y solo se arreglaba yendo a otra
+    // pestaña y volviendo — que es cuando esto se ejecutaba.
+    renderInventory();
+    renderPrimeInventory();
   }
 }
 
@@ -285,8 +292,6 @@ function updateStaticTexts(t) {
   setText("txt-header-title", t.headerTitle);
   setText("txt-header-sub", t.headerSub);
   setText("txt-footer-data", t.footerData);
-  setText("txt-contact-label", t.contactLabel);
-  setText("txt-contact-link", t.contactLink);
   setText("btn-footer-updates", t.btnShowUpdates);
   setText("txt-privacy-link", t.privacyLink);
   setText("txt-guide-link", t.guideLink);

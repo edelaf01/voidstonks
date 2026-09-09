@@ -1,6 +1,6 @@
 import { state, saveAppState, updateInventoryCount } from "../../state.js";
 import { TEXTS } from "../../config.js";
-import { escapeHTML, showToast, showCustomConfirm, emptyStateHtml } from "../ui_components.js";
+import { escapeHTML, showToast, showCustomConfirm, emptyStateHtml, qtyToast } from "../ui_components.js";
 
 import { manualRelicUpdate, renderRelicInvCounter } from "./ui_relics.js";
 import { trackBestSetForRelic } from "./ui_set_tracker.js";
@@ -238,6 +238,7 @@ export function modifyInv(name, amount) {
   updateInventoryCount(name, amount);
   saveAppState();
   renderRelicInvCounter();
+  showToast(qtyToast(name, amount));
   // "Rutas aconsejadas" se calcula sobre ESTE inventario y no se enteraba de que cambiara: se
   // quedaba con la lista de antes hasta el refresco de 150 s. Coalescido porque los +/- se
   // pulsan en ráfaga. Por globalThis (lo publica ui_farm_routes.js) y no import: ui.js ya
@@ -377,7 +378,12 @@ export function updateInventoryPanelLabels() {
 }
 
 export function switchInvView(view) {
-  if (state.currentInvView === view && document.getElementById("inventory-list")?.innerHTML.length > 50) return;
+  // El corte mira la lista de ESTA vista, no siempre la de reliquias. Con "partes" guardado, al
+  // arrancar updateUILabels() ya había rellenado la lista de RELIQUIAS con su mensaje de vacío
+  // (>50 caracteres) y este return se tragaba el cambio: la app abría con PRIME PARTS marcado
+  // pero enseñando los filtros y el "No relics saved yet" de reliquias.
+  const lista = document.getElementById(view === "relics" ? "inventory-list" : "inventory-list-parts");
+  if (state.currentInvView === view && lista?.style.display !== "none" && lista?.innerHTML.length > 50) return;
   state.currentInvView = view;
   saveAppState();
   const relicControls = document.getElementById("relic-inv-controls");

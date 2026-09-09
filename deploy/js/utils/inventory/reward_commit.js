@@ -45,3 +45,27 @@ export function undoRewardCommit(primeInventory, previo) {
     }
     return inventario;
 }
+
+/**
+ * Elegir a mano en la pantalla de recompensas, cuando ya se había elegido otra cosa.
+ *
+ * De una pantalla se recibe UNA pieza, así que reelegir CAMBIA la elección. Sumar las dos dejaba
+ * la descartada dentro para siempre: el alta de fin de misión solo descuenta una copia.
+ *
+ * `aplicaYa` es false cuando el modal sincroniza al cerrarse — ahí la pieza aún no está en el
+ * inventario, así que deshacerla sería restarle una que nunca se sumó.
+ */
+export function pickManualReward(primeInventory, pendientes, previa, nueva, aplicaYa = true) {
+    const inventario = { ...primeInventory };
+    const cola = [...pendientes];
+    if (previa === nueva) return { inventario, pendientes: cola, cambio: false };
+
+    if (previa) {
+        const i = cola.lastIndexOf(previa);
+        if (i !== -1) cola.splice(i, 1);
+        if (aplicaYa && contadorDe(inventario[previa]) > 0) inventario[previa] = contadorDe(inventario[previa]) - 1;
+    }
+    cola.push(nueva);
+    if (aplicaYa) inventario[nueva] = contadorDe(inventario[nueva]) + 1;
+    return { inventario, pendientes: cola, cambio: true };
+}

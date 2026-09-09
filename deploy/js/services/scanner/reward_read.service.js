@@ -11,6 +11,7 @@ import { OCRService } from "./ocr.service.js";
 import { OCRRepository } from "../../repositories/ocr.repository.js";
 import { PaddleRepository } from "../../repositories/paddle.repository.js";
 import { columnasEnRecorte } from "../../utils/vision/reward_cards.js";
+import { montaTiras, repartePorTramos } from "../../utils/vision/ocr_montage.js";
 import { motorActivo, MOTOR_PRECISO } from "./ocr_engine.service.js";
 
 /**
@@ -32,17 +33,58 @@ async function conPaddle(frame, width, height, scale, cropRect, columnas) {
     return { rawOcr, namesRaw: "", foundItems, ocrCanvas: colorCvs, namesCanvas: null };
 }
 
+/**
+ * Rótulos de las casillas de MISSION COMPLETE, todos de una pasada con PaddleOCR.
+ *
+ * Tesseract no puede con esta pantalla: el rótulo se dibuja ENCIMA del arte del ítem y, cuando
+ * ocupa tres líneas, la primera cae sobre la ilustración y se pierde entera. Medido en la
+ * captura de tema Vitruvian con "Yareli Prime / Neuroptics / Blueprint": la máscara por color
+ * de acento sale perfectamente legible, pero Tesseract lee "CE NEUROPTICS BLUEPRINT" —sin el
+ * nombre no hay nada que matchear— y no lo arregla ni recortar a la banda del rótulo (el texto
+ * y el arte quedan CONECTADOS en la máscara) ni filtrar componentes por altura. Paddle lee la
+ * línea completa porque trabaja sobre el color, sin binarizar.
+ *
+ * Va en un montaje (utils/vision/ocr_montage.js): 15 rótulos en una sola llamada, no quince.
+ *
+ * @param celdas casillas con rótulo, de detectRewardCells.
+ * @returns Map<"rFcC", texto en MAYÚSCULAS> o null si el motor no está cargado o falla.
+ */
+export async function leeRotulosMissionComplete(frame, celdas) {
+    if (!PaddleRepository.listo() || !celdas.length) return null;
+    // Mitad inferior de la casilla: ahí vive el rótulo y se deja fuera el grueso del arte.
+    const tiras = celdas.map((c) => ({
+        clave: `r${c.row}c${c.col}`,
+        sx: c.x, sy: c.y + Math.round(c.h * 0.55), sw: c.w, sh: Math.round(c.h * 0.45),
+    }));
+    try {
+        const salida = new Map();
+        for (const { canvas, tramos } of montaTiras(frame, tiras, { hueco: 10 })) {
+            const res = await PaddleRepository.recognizeLines(canvas);
+            for (const [clave, suyas] of repartePorTramos(res, tramos)) {
+                salida.set(clave, suyas.map((l) => l.text).join(" ").toUpperCase());
+            }
+        }
+        return salida;
+    } catch (e) {
+        console.warn("[MC] motor preciso falló, sigo con el clásico:", e);
+        return null;
+    }
+}
+
 // Devuelve { rawOcr, namesRaw, foundItems, ocrCanvas, namesCanvas }.
 // `frame`: canvas congelado de processRewards, no el <video>.
-export async function leeRecompensas(frame, width, height, scale, preset, cropRect, columnas) {
+export async function leeRecompensas(frame, width, height, scale, preset, cropRect, columnas, motor = "ambos") {
     // El motor de red no necesita ni preset ni binarización: un intento le basta. Solo se usa
     // si YA está cargado —quien lee frames en vivo no puede esperar a que bajen 4,8 MB— y si no
     // devuelve nada se sigue con el clásico, que no depende de nada externo. Misma red de
     // seguridad que la vía de foto: un CDN caído no puede dejar el escáner sin leer.
-    if (motorActivo() === MOTOR_PRECISO && PaddleRepository.listo()) {
+    if (motor !== "clasico" && motorActivo() === MOTOR_PRECISO && PaddleRepository.listo()) {
         const red = await conPaddle(frame, width, height, scale, cropRect, columnas)
             .catch((e) => { console.warn("[REWARD] motor preciso falló, sigo con el clásico:", e); return null; });
         if (red?.foundItems.length) return red;
+        // "preciso" = barrido barato: si esta ventana no lee, quien llama probará la siguiente
+        // en vez de pagar aquí una pasada de Tesseract, que cuesta un orden de magnitud más.
+        if (motor === "preciso") return { rawOcr: "", namesRaw: "", foundItems: [], ocrCanvas: null, namesCanvas: null };
     }
 
     const ocrCanvas = VisionService.prepareRewardOCRCanvas(frame, width, height, scale, preset, cropRect);

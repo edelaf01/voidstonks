@@ -1,6 +1,6 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { voteReadings, applyRelicCounts, VOTES_TO_APPLY } from "../deploy/js/utils/inventory/relic_votes.js";
+import { voteReadings, applyRelicCounts, sumaReliquias, restaReliquia, VOTES_TO_APPLY } from "../deploy/js/utils/inventory/relic_votes.js";
 
 // ===========================================================================
 // Lo que el escáner ESCRIBE en el inventario al leer la rejilla de reliquias.
@@ -104,5 +104,44 @@ describe("escritura en el inventario", () => {
         const inv = applyRelicCounts([], [{ name: "Axi K9", count: 4 }, { name: "Axi K9", count: 4 }]);
         assert.equal(inv.length, 1);
         assert.equal(inv[0].count, 4);
+    });
+});
+
+// Fin de misión: lo que ves ahí NO es cuántas tienes, es lo que acabas de ganar o gastar.
+describe("reliquias ganadas y gastadas en fin de misión", () => {
+    test("una reliquia recibida SUMA sobre lo que ya había", () => {
+        const inv = sumaReliquias([{ name: "Meso C6", count: 3 }], [{ name: "Meso C6", qty: 1 }]);
+        assert.deepEqual(inv, [{ name: "Meso C6", count: 4 }]);
+    });
+
+    test("una reliquia que no tenías se da de alta", () => {
+        assert.deepEqual(sumaReliquias([], [{ name: "Axi A1", qty: 2 }]), [{ name: "Axi A1", count: 2 }]);
+    });
+
+    test("dos casillas de la MISMA reliquia suman las dos", () => {
+        // Leyendo la lista en cada vuelta, la segunda casilla veía el conteo viejo y pisaba a la
+        // primera: de 3 recibiendo dos se quedaba en 4 en vez de 5.
+        const inv = sumaReliquias([{ name: "Meso C6", count: 3 }],
+            [{ name: "Meso C6", qty: 1 }, { name: "Meso C6", qty: 1 }]);
+        assert.deepEqual(inv, [{ name: "Meso C6", count: 5 }]);
+    });
+
+    test("el sufijo ' Relic' no duplica la entrada", () => {
+        const inv = sumaReliquias([{ name: "Lith A1 Relic", count: 2 }], [{ name: "Lith A1", qty: 1 }]);
+        assert.deepEqual(inv, [{ name: "Lith A1 Relic", count: 3 }]);
+    });
+
+    test("la reliquia que llevaste se descuenta al terminar", () => {
+        assert.deepEqual(restaReliquia([{ name: "Meso C6", count: 3 }], "Meso C6"),
+            [{ name: "Meso C6", count: 2 }]);
+    });
+
+    test("gastar la última la saca del inventario, no la deja en 0", () => {
+        assert.deepEqual(restaReliquia([{ name: "Neo N9", count: 1 }], "Neo N9"), []);
+    });
+
+    test("descontar una que no tienes no inventa una entrada en negativo", () => {
+        assert.deepEqual(restaReliquia([{ name: "Axi B2", count: 2 }], "Lith Z9"),
+            [{ name: "Axi B2", count: 2 }]);
     });
 });

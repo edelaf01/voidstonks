@@ -44,6 +44,59 @@ const QKEY = (r, g, b) => ((r >> 3) << 10) | ((g >> 3) << 5) | (b >> 3);
 const UNQ = (k) => [((k >> 10) & 31) << 3, ((k >> 5) & 31) << 3, (k & 31) << 3];
 
 /**
+ * Color con el que binarizar el texto de una banda, a partir de su histograma de tinta
+ * ([{ col, count }]) y del color de fondo.
+ *
+ * El antialias mezcla LINEALMENTE el glifo con lo que hay detrás, así que los píxeles de
+ * un trazo caen en el segmento fondo→núcleo: misma DIRECCIÓN desde el fondo, distinta
+ * longitud. Eso solo estorba cuando el stream reescala el frame y el trazo pasa a ser casi
+ * todo mezcla, y entonces rompe por dos sitios:
+ *
+ * - La MODA deja de ser el texto: su masa se reparte entre decenas de tonos de la rampa
+ *   mientras el gris plano del interior de la card sigue en uno solo. Medido sobre la
+ *   captura Ballistica reducida (90 celdas, 2531×1412 → 960×540): la moda acierta el color
+ *   del nombre en 43; agrupando por dirección, en 85, y ya no depende de la resolución.
+ * - Dentro del grupo, el extremo tampoco: binarizar por el núcleo real (248,128,0) a
+ *   960×540 deja fuera casi toda la rampa y el nombre sale roto ("A TILA FRIVE"). Se coge
+ *   el tono más lejano del fondo cuya BOLA de tolerancia (la de la binarización) siga
+ *   abarcando media rampa — a resolución nativa es el núcleo. Maximizar masa a secas se
+ *   pasa de frenada (1280×720 baja de 18/18 a 12/18) y el más frecuente devuelve el borde
+ *   del trazo, con las letras HUECAS (visto en vivo: 3 de 18 celdas ilegibles).
+ */
+export function rampCoreColor(bins, bg) {
+    if (!bins?.length) return null;
+    // cos ≥ 0.985 ≈ 10° de apertura: cabe la deriva de cuantizar a 5 bits sin que se
+    // fundan dos rampas distintas (el gris de la card está a >40° del naranja del nombre).
+    const COS_MIN = 0.985;
+    const groups = [];
+    for (const { col, count } of bins) {
+        const v = [col[0] - bg[0], col[1] - bg[1], col[2] - bg[2]];
+        const m = Math.hypot(v[0], v[1], v[2]);
+        if (!m) continue;
+        const u = [v[0] / m, v[1] / m, v[2] / m];
+        let g = groups.find(G => G.u[0] * u[0] + G.u[1] * u[1] + G.u[2] * u[2] >= COS_MIN);
+        if (!g) { g = { u, pixels: 0, members: [] }; groups.push(g); }
+        g.pixels += count;
+        g.members.push({ col, count, m });
+    }
+    if (!groups.length) return null;
+    let best = groups[0];
+    for (const g of groups) if (g.pixels > best.pixels) best = g;
+
+    let pick = null, pickM = -1, wide = null, wideMass = -1;
+    for (const c of best.members) {
+        let mass = 0;
+        for (const o of best.members) {
+            const dr = o.col[0] - c.col[0], dg = o.col[1] - c.col[1], db = o.col[2] - c.col[2];
+            if (dr * dr + dg * dg + db * db < TX_TOL_SQ) mass += o.count;
+        }
+        if (mass > wideMass) { wideMass = mass; wide = c.col; }
+        if (mass >= best.pixels * 0.5 && c.m > pickM) { pickM = c.m; pick = c.col; }
+    }
+    return pick || wide;
+}
+
+/**
  * Histograma de colores de TINTA de la banda de nombre de UNA celda: los colores que
  * cropThemeBinarized podría llegar a aislar ahí, con cuántos píxeles tiene cada uno.
  * MIDE, no decide: quién gana lo resuelve rankPageNameColors con el resto de celdas.

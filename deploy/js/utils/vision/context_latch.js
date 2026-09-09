@@ -66,3 +66,67 @@ export function nextLatchedContext(prev, raw) {
   }
   return { latched: s.latched, unknownCount: 0, pending: raw, pendingCount };
 }
+
+/**
+ * Contextos que CANCELAN la gracia de rivens: haber llegado a cualquiera de ellos significa que
+ * ya no estás en una pantalla de mods, por reciente que fuera la última.
+ */
+export const CANCELAN_GRACIA = Object.freeze(["RELICS", "REWARD", "MISSION_COMPLETE"]);
+
+/**
+ * A dónde va el frame teniendo en cuenta la gracia de rivens.
+ *
+ * La gracia tapa los huecos en que el header de la pantalla de rivens sale ilegible; sin ella el
+ * escáner abandonaba la carta a medio leer. Pero solo debe tapar huecos: MISSION_COMPLETE faltaba
+ * en la lista de cancelación, así que al terminar una misión los primeros frames —cuya cabecera
+ * aún no es legible— se re-enrutaban a INVENTORY_MODS y la pantalla se iba entera en OCR de
+ * rivens, dando la sensación de que el fin de misión no se detecta.
+ */
+export function enrutaGraciaRiven(raw, graciaActiva, tipoGracia) {
+  if (!graciaActiva) return { contexto: raw, cancelar: false };
+  if (CANCELAN_GRACIA.includes(raw)) return { contexto: raw, cancelar: true };
+  if (raw === "UNKNOWN" || raw === "INVENTORY") {
+    return { contexto: tipoGracia || "INVENTORY_MODS", cancelar: false };
+  }
+  return { contexto: raw, cancelar: false };
+}
+
+/** Corte por hash de la cabecera, y cuánto lo multiplica una racha de contexto estable. */
+export const TOL_HEADER_BASE = 6;
+const TOPE_HEADER_ESTABLE = 3;
+
+/**
+ * Cuánto puede moverse el recorte de cabecera antes de volver a pasarle el OCR.
+ *
+ * Arranca ESTRICTO (con 18 el salto gameplay->recompensas quedaba por debajo del corte y se
+ * reutilizaba texto viejo) y se afloja mientras el contexto no cambie. Medido en el navegador:
+ * sobre una pantalla quieta el hash se mueve igual —el recorte es píxel crudo del stream y el
+ * ruido de vídeo basta— así que se re-OCReaba en CADA frame, 206-287 ms de los ~300 del tick.
+ *
+ * Aflojar aquí no puede dejar ciego al escáner más de lo que ya permite su TTL, que fuerza la
+ * relectura pase lo que pase; y en cuanto el contexto cambia, se vuelve al corte estricto.
+ */
+export function toleranciaCabecera(estable = 0) {
+    return TOL_HEADER_BASE * (1 + Math.min(Math.max(estable, 0), TOPE_HEADER_ESTABLE));
+}
+
+/** Cada cuánto se puede repetir el OCR de cabecera, en ms, según la racha de contexto estable. */
+const INTERVALO_ESTABLE_MS = 300;
+const INTERVALO_MAXIMO_MS = 1200;
+
+/**
+ * Cada cuánto puede repetirse el OCR de cabecera.
+ *
+ * El corte por hash no basta y no es culpa del ruido: en la esquina del recorte hay un icono
+ * ANIMADO, y se ve en el propio texto que devuelve el OCR —"CB INVENTORYSELL", "BI
+ * INVENTORYSELL", "CBI INVENTORY SELL"— donde solo baila el glifo de delante. Con eso el hash
+ * cambia siempre y se pagaban 174-287 ms en CADA frame de un bucle de ~300 ms.
+ *
+ * Así que cuando el contexto lleva rato quieto se limita la FRECUENCIA. El tope deja ~1 lectura
+ * por segundo, y la pantalla de recompensas dura unos 15 s: sigue habiendo de sobra para
+ * engancharla. Con el contexto recién cambiado no se limita nada, que es cuando importa.
+ */
+export function intervaloCabecera(estable = 0) {
+    const rachas = Math.min(Math.max(estable, 0), TOPE_HEADER_ESTABLE);
+    return Math.min(rachas * INTERVALO_ESTABLE_MS, INTERVALO_MAXIMO_MS);
+}
