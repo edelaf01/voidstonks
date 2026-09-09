@@ -1,6 +1,7 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { normalizeOCRWords } from "../deploy/js/utils/inventory/ocr_words.js";
+import { normalizeOCRWords, confirmaPrime } from "../deploy/js/utils/inventory/ocr_words.js";
+import { OCRService } from "../deploy/js/services/scanner/ocr.service.js";
 
 const ctx = {
     knownParts: new Set(["BOLTOR", "PRIME", "STOCK", "LAVOS", "CHASSIS", "BLUEPRINT"]),
@@ -43,5 +44,29 @@ describe("normalizar las palabras del OCR", () => {
         assert.deepEqual(dentro.map((w) => w.text), ["LAVOS"]);
         const fuera = normalizeOCRWords({ words: [caja("LAVQS", 500)], imageW: 600, columnas: cols }, ctx);
         assert.deepEqual(fuera.map((w) => w.text), []);
+    });
+});
+
+describe("confirmar que el rótulo dice PRIME", () => {
+    const UMBRAL = 0.6;
+
+    test("PRIME entero, o con una confusión de glifo, se confirma", () => {
+        assert.equal(confirmaPrime(["BOLTOR", "PRIME", "STOCK"], OCRService, UMBRAL), true);
+        assert.equal(confirmaPrime(["BOLTOR", "FRIME", "STOCK"], OCRService, UMBRAL), true);
+    });
+
+    test("partido en dos tokens se confirma uniéndolo al siguiente", () => {
+        assert.equal(confirmaPrime(["AKSTILETTO", "PR", "ME", "LINK"], OCRService, UMBRAL), true);
+        assert.equal(confirmaPrime(["AKBRON", "OPR", "ME", "LINK"], OCRService, UMBRAL), true);
+    });
+
+    test("una palabra ajena parecida NO lo confirma", () => {
+        // "POINT" (0.52) is the real case behind the threshold: without it false primes were logged
+        assert.equal(confirmaPrime(["POINT"], OCRService, UMBRAL), false);
+        assert.equal(confirmaPrime(["BOLTOR", "STOCK"], OCRService, UMBRAL), false);
+    });
+
+    test("sin tokens no confirma nada", () => {
+        assert.equal(confirmaPrime([], OCRService, UMBRAL), false);
     });
 });

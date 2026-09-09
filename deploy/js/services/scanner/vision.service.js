@@ -1,9 +1,9 @@
 import { OpenCVRepository } from "../../repositories/opencv.repository.js";
 import { detectInventoryGrid } from "../../utils/vision/grid_detect.js";
 import { maxChannelInvert } from "../../utils/vision/channel_max.js";
-import { offBandComponentIndices } from "../../utils/vision/badge_filters.js";
+import { digitosPorAncla } from "../../utils/vision/badge_anchor.js";
 import { accentMask } from "../../utils/vision/mission_complete_grid.js";
-import { NAME_TEXT_COLORS, snapToThemeTextColor, bandInkHistogram, rankPageNameColors } from "../../utils/vision/name_color.js";
+import { NAME_TEXT_COLORS, snapToThemeTextColor, rampCoreColor, bandInkHistogram, rankPageNameColors } from "../../utils/vision/name_color.js";
 import { themeTextMask } from "../../utils/vision/theme_mask.js";
 import { inkRunRatio } from "../../utils/vision/ink_runs.js";
 import { maxChannelPreset } from "../../utils/vision/reward_preprocess.js";
@@ -31,6 +31,9 @@ export async function applyBestCameraConstraints(stream) {
 
 
 
+import { eligeTema } from "../../utils/vision/theme_vote.js";
+
+const FRAMES_PARA_CAMBIAR_TEMA = 3;
 import { WF_THEMES, WF_THEMES_VOTABLES } from "../../utils/vision/wf_themes.js";
 export { WF_THEMES };
 
@@ -52,6 +55,7 @@ const scratchStack = (n) => {
 export const VisionService = {
     _sharedCvs: document.createElement("canvas"),
     _themeCvs: document.createElement("canvas"),
+    _temaRacha: null,
     _tempBadgeCvs: document.createElement("canvas"),
     _badgeCvs: document.createElement("canvas"),
     _relicSelectionCvs: document.createElement("canvas"),
@@ -216,6 +220,25 @@ export const VisionService = {
         return canvas;
     },
 
+    prepareCropColorForOCR(video, crop, zoom, cacheKey) {
+        const canvas = this._cropCvs[cacheKey] ||= document.createElement("canvas");
+        const width = video.videoWidth;
+        const height = video.videoHeight;
+        const scale = (1080 / height) * zoom;
+
+        const sx = Math.floor(width * crop.x);
+        const sy = Math.floor(height * crop.y);
+        const sw = Math.floor(width * crop.w);
+        const sh = Math.floor(height * crop.h);
+
+        canvas.width = Math.max(1, Math.floor(sw * scale));
+        canvas.height = Math.max(1, Math.floor(sh * scale));
+
+        const ctx = canvas.getContext("2d", { willReadFrequently: true });
+        ctx.drawImage(video, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+        return canvas;
+    },
+
     finalizeVirtualCanvas(canvas) {
         const ctx = canvas.getContext("2d", { willReadFrequently: true });
         const theme = this.detectThemeFromSnapshot(canvas, 0, 0, canvas.width, canvas.height);
@@ -243,67 +266,31 @@ export const VisionService = {
 
         const px = ctx.getImageData(0, 0, sampleW, sampleH).data;
 
-        const themeStats = new Array(WF_THEMES_VOTABLES.length).fill(0).map(() => ({ rSum: 0, gSum: 0, bSum: 0, count: 0, weight: 0 }));
+        const voto = eligeTema(px, WF_THEMES_VOTABLES);
 
-        for (let i = 0; i < px.length; i += 16) {
-            const r = px[i], g = px[i + 1], b = px[i + 2];
-
-            const luma = 0.299 * r + 0.587 * g + 0.114 * b;
-            if (luma < 100) continue;
-
-            let bestThemeIdx = 0;
-            let bestDist = Infinity;
-
-            for (let t = 0; t < WF_THEMES_VOTABLES.length; t++) {
-                const theme = WF_THEMES_VOTABLES[t];
-                const dist = Math.abs(r - theme.r) + Math.abs(g - theme.g) + Math.abs(b - theme.b);
-                if (dist < bestDist) {
-                    bestDist = dist;
-                    bestThemeIdx = t;
-                }
-            }
-
-            const w = 1 / Math.pow(bestDist + 1, 4);
-            themeStats[bestThemeIdx].weight += w;
-            themeStats[bestThemeIdx].rSum += r;
-            themeStats[bestThemeIdx].gSum += g;
-            themeStats[bestThemeIdx].bSum += b;
-            themeStats[bestThemeIdx].count += 1;
-        }
-
-        let maxWeight = -1;
-        let bestThemeIdx = 0;
-        for (let t = 0; t < WF_THEMES_VOTABLES.length; t++) {
-            if (themeStats[t].weight > maxWeight) {
-                maxWeight = themeStats[t].weight;
-                bestThemeIdx = t;
-            }
-        }
-
-        const bestTheme = WF_THEMES_VOTABLES[bestThemeIdx];
-        const bestStats = themeStats[bestThemeIdx];
-
-        const actualR = bestStats.count > 0 ? Math.round(bestStats.rSum / bestStats.count) : bestTheme.r;
-        const actualG = bestStats.count > 0 ? Math.round(bestStats.gSum / bestStats.count) : bestTheme.g;
-        const actualB = bestStats.count > 0 ? Math.round(bestStats.bSum / bestStats.count) : bestTheme.b;
-
-        if (maxWeight < 0.001) {
+        if (!voto) {
             const estable = globalThis.state?.lastStableTheme;
-            console.log(`[VisionService] Sin tema fiable (peso ${maxWeight.toFixed(4)}) — se mantiene ${estable ? estable.name : "ninguno"}`);
+            console.log(`[VisionService] Sin tema fiable — se mantiene ${estable ? estable.name : "ninguno"}`);
             return estable || null;
         }
 
-        console.log(`[VisionService] Theme detected: ${bestTheme.name} (weight: ${maxWeight.toFixed(4)}, catalog: rgb(${bestTheme.r},${bestTheme.g},${bestTheme.b}), actual: rgb(${actualR},${actualG},${actualB}))`);
+        const estable = globalThis.state?.lastStableTheme;
+        if (estable && estable.name !== voto.tema.name) {
+            this._temaRacha = this._temaRacha?.name === voto.tema.name
+                ? { name: voto.tema.name, n: this._temaRacha.n + 1 }
+                : { name: voto.tema.name, n: 1 };
+            if (this._temaRacha.n < FRAMES_PARA_CAMBIAR_TEMA) {
+                console.log(`[VisionService] ${voto.tema.name} (${voto.afinidad.toFixed(3)}) ${this._temaRacha.n}/${FRAMES_PARA_CAMBIAR_TEMA} — se mantiene ${estable.name}`);
+                return estable;
+            }
+        } else {
+            this._temaRacha = null;
+        }
 
-        const result = {
-            name: bestTheme.name,
-            r: bestTheme.r,
-            g: bestTheme.g,
-            b: bestTheme.b,
-            actualR,
-            actualG,
-            actualB,
-        };
+        const { tema, actualR, actualG, actualB, afinidad } = voto;
+        console.log(`[VisionService] Theme detected: ${tema.name} (afinidad: ${afinidad.toFixed(3)}, catalog: rgb(${tema.r},${tema.g},${tema.b}), actual: rgb(${actualR},${actualG},${actualB}))`);
+
+        const result = { name: tema.name, r: tema.r, g: tema.g, b: tema.b, actualR, actualG, actualB };
 
         if (globalThis.state) {
             globalThis.state.lastStableTheme = result;
@@ -467,6 +454,7 @@ export const VisionService = {
         const txTolSq = 66 * 66;
         const cw = cvs.width, ch = cvs.height;
         const bandY0 = Math.floor(ch * 0.45);
+        const bgLum = bgR * 0.299 + bgG * 0.587 + bgB * 0.114;
 
         let txR, txG, txB;
         if (nameColorHint) {
@@ -488,28 +476,36 @@ export const VisionService = {
             }
         } else {
             COLOR_HIST.fill(0);
-            let txKey = -1, txCount = -1, bandTotal = 0, candidates = 0;
+            let bandTotal = 0, candidates = 0;
             for (let y = bandY0; y < ch; y++) {
                 for (let x = 0; x < cw; x++) {
                     bandTotal++;
                     const i = (y * cw + x) * 4;
                     const dr = px[i] - bgR, dg = px[i + 1] - bgG, db = px[i + 2] - bgB;
                     if (dr * dr + dg * dg + db * db <= bgTolSq) continue;
+                    if (px[i] * 0.299 + px[i + 1] * 0.587 + px[i + 2] * 0.114 < bgLum + 12) continue;
                     candidates++;
-                    const key = QKEY(px[i], px[i + 1], px[i + 2]);
-                    const c = ++COLOR_HIST[key];
-                    if (c > txCount) { txCount = c; txKey = key; }
+                    COLOR_HIST[QKEY(px[i], px[i + 1], px[i + 2])]++;
                 }
             }
-            if (txKey < 0 || candidates < bandTotal * 0.01) {
+            if (!candidates || candidates < bandTotal * 0.01) {
                 for (let i = 0; i < px.length; i += 4) px[i] = px[i + 1] = px[i + 2] = 255;
                 ctx.putImageData(imgData, 0, 0);
                 return cvs;
             }
-            [txR, txG, txB] = snapToThemeTextColor(...UNQ(txKey));
+            const bins = [];
+            for (let key = 0; key < COLOR_HIST.length; key++) {
+                if (COLOR_HIST[key]) bins.push({ col: UNQ(key), count: COLOR_HIST[key] });
+            }
+            const core = rampCoreColor(bins, [bgR, bgG, bgB]);
+            if (!core) {
+                for (let i = 0; i < px.length; i += 4) px[i] = px[i + 1] = px[i + 2] = 255;
+                ctx.putImageData(imgData, 0, 0);
+                return cvs;
+            }
+            [txR, txG, txB] = snapToThemeTextColor(...core);
         }
 
-        const bgLum = bgR * 0.299 + bgG * 0.587 + bgB * 0.114;
         for (let i = 0; i < px.length; i += 4) {
             const drBg = px[i] - bgR, dgBg = px[i + 1] - bgG, dbBg = px[i + 2] - bgB;
             if (drBg * drBg + dgBg * dgBg + dbBg * dbBg <= bgTolSq) {
@@ -688,9 +684,9 @@ export const VisionService = {
     prepareRelicSelectionCanvas(video, scale) {
         const width = video.videoWidth;
         const height = video.videoHeight;
-        const rsCropX = Math.floor(width * 0.5);
+        const rsCropX = Math.floor(width * 0.60);
         const rsCropY = Math.floor(height * 0.2);
-        const rsCropW = Math.floor(width * 0.5);
+        const rsCropW = width - rsCropX;
         const rsCropH = Math.floor(height * 0.25);
 
         const cvs = this._relicSelectionCvs;
@@ -1119,7 +1115,8 @@ export const VisionService = {
         if (hasMods) return "INVENTORY_MODS";
         if (hasInv) return "INVENTORY";
         if (/RELI|ELIC|REFI|NEME/.test(text)) return "RELICS";
-        if (/REWA|WARD|ARDS|FISSU|FISSI|FISR|F5UR|FSUR|FI55|F1SS|FISS|FISU|VOID|V0ID|V01D/.test(text)) return "REWARD";
+        // only REWARDS: VOID and FISSURE also show on the star chart fissure list
+        if (/REWA|WARD|ARDS/.test(text)) return "REWARD";
         return "UNKNOWN";
     },
 
@@ -1215,7 +1212,8 @@ export const VisionService = {
     },
 
     extractBadgeByColor(snapshot, cell, cellW, cellH, theme) {
-        const safeW = Math.min(cellW, Math.round(cellW * 0.68));
+        // 0.50 fits three digits: a wider one let a big white helmet take the K-means ink group
+        const safeW = Math.min(cellW, Math.round(cellW * 0.50));
         const padTop = Math.max(6, Math.round(cellH * 0.04));
         const startY = Math.max(0, cell.sy - padTop);
         const safeH = Math.round(cellH * 0.25) + padTop;
@@ -1242,45 +1240,43 @@ export const VisionService = {
         const visited = new Uint8Array(safeW * safeH);
         const components = [];
 
-        const scanW = safeW;
-        const scanH = safeH;
+        if (!this._pilaBadge || this._pilaBadge.length < safeW * safeH) {
+            this._pilaBadge = new Int32Array(safeW * safeH);
+        }
+        const pila = this._pilaBadge;
 
-        for (let y = 0; y < scanH; y++) {
-            for (let x = 0; x < scanW; x++) {
+        for (let y = 0; y < safeH; y++) {
+            for (let x = 0; x < safeW; x++) {
                 const idx = y * safeW + x;
                 if (px[idx * 4] === 0 && !visited[idx]) {
                     const compPixels = [];
-                    const queue = [idx];
+                    let sp = 0;
+                    pila[sp++] = idx;
                     visited[idx] = 1;
                     let minX = x, maxX = x, minY = y, maxY = y;
 
-                    while (queue.length > 0) {
-                        const current = queue.shift();
+                    while (sp > 0) {
+                        const current = pila[--sp];
                         compPixels.push(current);
                         const cx = current % safeW;
-                        const cy = Math.floor(current / safeW);
+                        const cy = (current - cx) / safeW;
 
                         if (cx < minX) minX = cx;
                         if (cx > maxX) maxX = cx;
                         if (cy < minY) minY = cy;
                         if (cy > maxY) maxY = cy;
 
-                        const neighbors = [];
-                        for (let dy = -1; dy <= 1; dy++) {
-                            for (let dx = -1; dx <= 1; dx++) {
-                                if (dx === 0 && dy === 0) continue;
-                                const nx = cx + dx;
-                                const ny = cy + dy;
-                                if (nx >= 0 && nx < safeW && ny >= 0 && ny < safeH) {
-                                    neighbors.push(ny * safeW + nx);
+                        const x0 = cx > 0 ? cx - 1 : 0;
+                        const x1 = cx < safeW - 1 ? cx + 1 : safeW - 1;
+                        const y0 = cy > 0 ? cy - 1 : 0;
+                        const y1 = cy < safeH - 1 ? cy + 1 : safeH - 1;
+                        for (let ny = y0; ny <= y1; ny++) {
+                            for (let nx = x0; nx <= x1; nx++) {
+                                const n = ny * safeW + nx;
+                                if (n !== current && px[n * 4] === 0 && !visited[n]) {
+                                    visited[n] = 1;
+                                    pila[sp++] = n;
                                 }
-                            }
-                        }
-
-                        for (const n of neighbors) {
-                            if (px[n * 4] === 0 && !visited[n]) {
-                                visited[n] = 1;
-                                queue.push(n);
                             }
                         }
                     }
@@ -1317,99 +1313,19 @@ export const VisionService = {
             }
         }
 
-        let maxAvgLuma = 0;
-        for (const comp of components) {
-            if (comp.erased) continue;
-            let sum = 0;
-            for (const idx of comp.pixels) sum += srcLuma[idx];
-            comp.avgLuma = sum / comp.pixels.length;
-            if (comp.avgLuma > maxAvgLuma) maxAvgLuma = comp.avgLuma;
-        }
-        if (maxAvgLuma > 0) {
-            for (const comp of components) {
-                if (comp.erased) continue;
-                if (comp.avgLuma < maxAvgLuma * 0.5) {
-                    for (const pixelIdx of comp.pixels) {
-                        px[pixelIdx * 4] = 255;
-                        px[pixelIdx * 4 + 1] = 255;
-                        px[pixelIdx * 4 + 2] = 255;
-                    }
-                    comp.erased = true;
-                    comp.hardErased = true;
-                }
-            }
-        }
-
-        const isDigitShaped = (c) => {
-            const ar = c.width / c.height;
-            return ar >= 0.12 && ar <= 0.92 && c.height >= safeH * 0.20 && c.height <= safeH * 0.80;
-        };
-        for (const comp of components) {
-            if (comp.erased) continue;
-            if (!isDigitShaped(comp)) {
-                for (const pixelIdx of comp.pixels) {
-                    px[pixelIdx * 4] = 255;
-                    px[pixelIdx * 4 + 1] = 255;
-                    px[pixelIdx * 4 + 2] = 255;
-                }
-                comp.erased = true;
-            }
-        }
-
-        const aliveComps = components.filter((c) => !c.erased);
-        const topAnchor = aliveComps.reduce((best, c) => (!best || c.minY < best.minY ? c : best), null);
-        if (topAnchor) {
-            const anchorCy = (topAnchor.minY + topAnchor.maxY) / 2;
-            for (const comp of aliveComps) {
-                const cy = (comp.minY + comp.maxY) / 2;
-                if (Math.abs(cy - anchorCy) <= 0.6 * Math.max(comp.height, topAnchor.height)) continue;
-                for (const pixelIdx of comp.pixels) {
-                    px[pixelIdx * 4] = 255;
-                    px[pixelIdx * 4 + 1] = 255;
-                    px[pixelIdx * 4 + 2] = 255;
-                }
-                comp.erased = true;
-                comp.hardErased = true;
-            }
-        }
-
-        const hasHigherDigit = components.some(c => !c.erased && c.minY <= safeH * 0.55);
-        if (hasHigherDigit) {
-            for (const comp of components) {
-                if (comp.erased) continue;
-                if (comp.minY > safeH * 0.55) {
-                    for (const pixelIdx of comp.pixels) {
-                        px[pixelIdx * 4] = 255;
-                        px[pixelIdx * 4 + 1] = 255;
-                        px[pixelIdx * 4 + 2] = 255;
-                    }
-                    comp.erased = true;
-                    comp.hardErased = true;
-                }
-            }
-        }
-
-        for (const i of offBandComponentIndices(components)) {
+        const elegidos = new Set(digitosPorAncla(components, safeW, safeH));
+        for (let i = 0; i < components.length; i++) {
+            if (elegidos.has(i)) continue;
             const comp = components[i];
+            if (comp.erased) continue;
             for (const pixelIdx of comp.pixels) {
                 px[pixelIdx * 4] = 255;
                 px[pixelIdx * 4 + 1] = 255;
                 px[pixelIdx * 4 + 2] = 255;
             }
             comp.erased = true;
-            comp.hardErased = true;
         }
 
-        if (!components.some(c => !c.erased)) {
-            for (const comp of components) {
-                if (comp.width > lineMinW && comp.height <= lineMaxH) continue;
-                if (comp.hardErased) continue;
-                comp.erased = false;
-                for (const pixelIdx of comp.pixels) {
-                    px[pixelIdx * 4] = 0; px[pixelIdx * 4 + 1] = 0; px[pixelIdx * 4 + 2] = 0;
-                }
-            }
-        }
         tCtx.putImageData(imgData, 0, 0);
 
         let digitMinX = safeW, digitMaxX = 0, digitMinY = safeH, digitMaxY = 0;

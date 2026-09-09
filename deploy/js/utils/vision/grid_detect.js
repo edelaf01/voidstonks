@@ -32,7 +32,7 @@ const DEFAULTS = {
     strideX: 2,
     minBandH: 6,
     maxBandHFrac: 0.25,
-    mergeGapY: 12,
+    mergeGapYFrac: 0.0085,
     bandMassFloor: 0.22,
     nameBandOffset: 0.75,
     nameBaselineOffset: 0.92,
@@ -92,7 +92,7 @@ export function findBands(prof, height, opts = {}) {
     const merged = [];
     for (const r of runs) {
         const last = merged[merged.length - 1];
-        if (last && r.y0 - last.y1 <= o.mergeGapY) last.y1 = r.y1;
+        if (last && r.y0 - last.y1 <= Math.max(4, Math.round(height * o.mergeGapYFrac))) last.y1 = r.y1;
         else merged.push({ ...r });
     }
 
