@@ -17,7 +17,6 @@ export function updateScannerLabels(t) {
     setText("btn-copy-debug-log", sh.btnCopyLog);
     setText("lbl-detected-items", sh.lblDetected);
     setText("lbl-scan-empty-state", sh.lblEmpty);
-    setText("lbl-ocr-engine", sh.lblEngine);
 
     setText("btn-auto-scan", sh.btnAutoScan);
     setText("btn-reset-grid", sh.btnResetGrid);
@@ -31,6 +30,7 @@ export function updateScannerLabels(t) {
         el.setAttribute("aria-label", text);
       }
     };
+    setTitle("btn-scanner-tutorial", t.scannerCoach?.btnTutorial);
     setTitle("btn-debug-toggle", sh.titleDebug);
     setTitle("btn-auto-scan", sh.titleAutoScan);
     setTitle("btn-clear-session", sh.titleClearSession);

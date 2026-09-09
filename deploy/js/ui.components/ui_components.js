@@ -34,6 +34,10 @@ export function emptyStateHtml(message, scannerHint = "", mobileHint = "") {
   return `<div style="padding:20px 16px; text-align:center; color:#888; line-height:1.5;">${escapeHTML(message)}${hint}</div>`;
 }
 
+export function qtyToast(name, delta) {
+  return `${name} ${delta > 0 ? "+" : ""}${delta}`;
+}
+
 const activeToasts = new Map();
 
 export function showToast(message, options = {}) {
@@ -113,7 +117,7 @@ export function closeOrokinConfirm() {
   document.getElementById("orokin-confirm-modal")?.classList.add("hidden");
 }
 
-exposeGlobals({ showToast, closeOrokinConfirm }, "ui.components/ui_components.js");
+exposeGlobals({ showToast, qtyToast, closeOrokinConfirm }, "ui.components/ui_components.js");
 
 export async function checkUpdates() {
   const lastSeenVersion = localStorage.getItem("last_seen_version");

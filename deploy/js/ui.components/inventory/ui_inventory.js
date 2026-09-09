@@ -1,6 +1,6 @@
 import { state, saveAppState, updateInventoryCount } from "../../state.js";
 import { TEXTS } from "../../config.js";
-import { escapeHTML, showToast, showCustomConfirm, emptyStateHtml } from "../ui_components.js";
+import { escapeHTML, showToast, showCustomConfirm, emptyStateHtml, qtyToast } from "../ui_components.js";
 
 import { manualRelicUpdate, renderRelicInvCounter } from "./ui_relics.js";
 import { trackBestSetForRelic } from "./ui_set_tracker.js";
@@ -218,6 +218,7 @@ export function modifyInv(name, amount) {
   updateInventoryCount(name, amount);
   saveAppState();
   renderRelicInvCounter();
+  showToast(qtyToast(name, amount));
   globalThis.scheduleFarmRoutesRefresh?.();
 
   const safeNameHtml = escapeHTML(name);
@@ -333,7 +334,8 @@ export function updateInventoryPanelLabels() {
 }
 
 export function switchInvView(view) {
-  if (state.currentInvView === view && document.getElementById("inventory-list")?.innerHTML.length > 50) return;
+  const lista = document.getElementById(view === "relics" ? "inventory-list" : "inventory-list-parts");
+  if (state.currentInvView === view && lista?.style.display !== "none" && lista?.innerHTML.length > 50) return;
   state.currentInvView = view;
   saveAppState();
   const relicControls = document.getElementById("relic-inv-controls");

@@ -212,8 +212,7 @@ Development happens in spare time, so the pace varies.
 ## Feedback
 
 Bug reports and suggestions are welcome, especially scanner failures with the debug capture
-attached — that is the only way OCR cases get fixed. Reach me at **w/Parcialsobriedad** on the
-Warframe forums.
+attached — that is the only way OCR cases get fixed.
 
 ---
 

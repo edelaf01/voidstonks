@@ -4,6 +4,7 @@ import { OCRService } from "./ocr.service.js";
 import { OCRRepository } from "../../repositories/ocr.repository.js";
 import { PaddleRepository } from "../../repositories/paddle.repository.js";
 import { columnasEnRecorte } from "../../utils/vision/reward_cards.js";
+import { montaTiras, repartePorTramos } from "../../utils/vision/ocr_montage.js";
 import { motorActivo, MOTOR_PRECISO } from "./ocr_engine.service.js";
 
 async function conPaddle(frame, width, height, scale, cropRect, columnas) {
@@ -16,11 +17,33 @@ async function conPaddle(frame, width, height, scale, cropRect, columnas) {
     return { rawOcr, namesRaw: "", foundItems, ocrCanvas: colorCvs, namesCanvas: null };
 }
 
-export async function leeRecompensas(frame, width, height, scale, preset, cropRect, columnas) {
-    if (motorActivo() === MOTOR_PRECISO && PaddleRepository.listo()) {
+export async function leeRotulosMissionComplete(frame, celdas) {
+    if (!PaddleRepository.listo() || !celdas.length) return null;
+    const tiras = celdas.map((c) => ({
+        clave: `r${c.row}c${c.col}`,
+        sx: c.x, sy: c.y + Math.round(c.h * 0.55), sw: c.w, sh: Math.round(c.h * 0.45),
+    }));
+    try {
+        const salida = new Map();
+        for (const { canvas, tramos } of montaTiras(frame, tiras, { hueco: 10 })) {
+            const res = await PaddleRepository.recognizeLines(canvas);
+            for (const [clave, suyas] of repartePorTramos(res, tramos)) {
+                salida.set(clave, suyas.map((l) => l.text).join(" ").toUpperCase());
+            }
+        }
+        return salida;
+    } catch (e) {
+        console.warn("[MC] motor preciso falló, sigo con el clásico:", e);
+        return null;
+    }
+}
+
+export async function leeRecompensas(frame, width, height, scale, preset, cropRect, columnas, motor = "ambos") {
+    if (motor !== "clasico" && motorActivo() === MOTOR_PRECISO && PaddleRepository.listo()) {
         const red = await conPaddle(frame, width, height, scale, cropRect, columnas)
             .catch((e) => { console.warn("[REWARD] motor preciso falló, sigo con el clásico:", e); return null; });
         if (red?.foundItems.length) return red;
+        if (motor === "preciso") return { rawOcr: "", namesRaw: "", foundItems: [], ocrCanvas: null, namesCanvas: null };
     }
 
     const ocrCanvas = VisionService.prepareRewardOCRCanvas(frame, width, height, scale, preset, cropRect);

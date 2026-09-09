@@ -5,13 +5,11 @@ let activo = null;
 export const MOTOR_CLASICO = "tesseract";
 export const MOTOR_PRECISO = "paddle";
 
-export function motorElegido() {
-    try {
-        return localStorage.getItem(CLAVE) === MOTOR_PRECISO ? MOTOR_PRECISO : MOTOR_CLASICO;
-    } catch {
-        return MOTOR_CLASICO;
-    }
-}
+const guardado = () => { try { return localStorage.getItem(CLAVE); } catch { return null; } };
+
+export function motorDecidido() { return guardado() !== null; }
+
+export function motorElegido() { return guardado() === MOTOR_PRECISO ? MOTOR_PRECISO : MOTOR_CLASICO; }
 
 export function aplicaMotor(motor) {
     const elegido = motor === MOTOR_PRECISO ? MOTOR_PRECISO : MOTOR_CLASICO;
@@ -25,9 +23,16 @@ export function aplicaMotor(motor) {
 
 export function motorActivo() { return activo || motorElegido(); }
 
-export function restauraMotor() { return aplicaMotor(motorElegido()); }
+export function restauraMotor() {
+    if (!motorDecidido()) return (activo = MOTOR_CLASICO);
+    return aplicaMotor(motorElegido());
+}
 
 export function estadoMotor() {
     const elegido = motorElegido();
-    return { elegido, listo: elegido !== MOTOR_PRECISO || PaddleRepository.listo() };
+    return {
+        decidido: motorDecidido(),
+        elegido,
+        listo: elegido !== MOTOR_PRECISO || PaddleRepository.listo(),
+    };
 }

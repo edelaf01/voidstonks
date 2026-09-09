@@ -18,10 +18,23 @@ PaddleRepository.warmUp = () => { calentadas++; return Promise.resolve({}); };
 beforeEach(() => { almacen.clear(); calentadas = 0; PaddleRepository._service = null; M.aplicaMotor(M.MOTOR_CLASICO); almacen.clear(); });
 
 describe("elección de motor", () => {
-  test("por defecto el clásico: es el que no depende de nada externo", () => {
+  test("sin contestar no se descarga nada y se lee con el clásico", () => {
+    assert.equal(M.motorDecidido(), false);
     assert.equal(M.motorElegido(), M.MOTOR_CLASICO);
     assert.equal(M.restauraMotor(), M.MOTOR_CLASICO);
     assert.equal(M.motorActivo(), M.MOTOR_CLASICO);
+    assert.equal(calentadas, 0, "arrancar el escáner sin respuesta no puede descargar el modelo");
+  });
+
+  test("arrancar sin respuesta no da la pregunta por contestada", () => {
+    M.restauraMotor();
+    assert.equal(M.motorDecidido(), false);
+  });
+
+  test("quien no quiera descargar nada puede quedarse en el clásico", () => {
+    M.aplicaMotor(M.MOTOR_CLASICO);
+    assert.equal(M.motorElegido(), M.MOTOR_CLASICO, "la preferencia se guarda");
+    assert.equal(M.restauraMotor(), M.MOTOR_CLASICO);
     assert.equal(calentadas, 0, "el clásico no descarga nada");
   });
 
@@ -37,18 +50,20 @@ describe("elección de motor", () => {
     assert.equal(calentadas, 1);
   });
 
-  test("un valor desconocido cae al clásico en vez de dejar el escáner sin motor", () => {
+  test("un valor desconocido cae al clásico, no deja el escáner sin motor", () => {
     almacen.set("vs_ocr_engine", "loquesea");
     assert.equal(M.motorElegido(), M.MOTOR_CLASICO);
     assert.equal(M.aplicaMotor("otro"), M.MOTOR_CLASICO);
+    assert.equal(calentadas, 0);
   });
 
   test("sin localStorage (modo privado) sigue funcionando, solo que sin recordar", () => {
     const real = globalThis.localStorage;
     globalThis.localStorage = { getItem() { throw new Error("bloqueado"); }, setItem() { throw new Error("bloqueado"); } };
     try {
-      assert.equal(M.motorElegido(), M.MOTOR_CLASICO);
-      assert.equal(M.aplicaMotor(M.MOTOR_PRECISO), M.MOTOR_PRECISO, "la sesión actual sí lo usa");
+      assert.equal(M.motorDecidido(), false, "sin poder leer la respuesta, se pregunta");
+      assert.equal(M.motorElegido(), M.MOTOR_CLASICO, "y mientras tanto no se descarga nada");
+      assert.equal(M.aplicaMotor(M.MOTOR_PRECISO), M.MOTOR_PRECISO, "se puede aceptar en la sesión");
     } finally {
       globalThis.localStorage = real;
     }
@@ -56,15 +71,19 @@ describe("elección de motor", () => {
 });
 
 describe("lo que ve el usuario mientras carga", () => {
+  test("sin contestar, la UI tiene que poder pintar la pregunta", () => {
+    assert.deepEqual(M.estadoMotor(), { decidido: false, elegido: M.MOTOR_CLASICO, listo: true });
+  });
+
   test("el motor preciso no se da por listo hasta que puede leer", () => {
     M.aplicaMotor(M.MOTOR_PRECISO);
-    assert.deepEqual(M.estadoMotor(), { elegido: M.MOTOR_PRECISO, listo: false });
+    assert.deepEqual(M.estadoMotor(), { decidido: true, elegido: M.MOTOR_PRECISO, listo: false });
     PaddleRepository._service = {};
-    assert.deepEqual(M.estadoMotor(), { elegido: M.MOTOR_PRECISO, listo: true });
+    assert.deepEqual(M.estadoMotor(), { decidido: true, elegido: M.MOTOR_PRECISO, listo: true });
   });
 
   test("el clásico está listo siempre: va dentro de la app", () => {
     M.aplicaMotor(M.MOTOR_CLASICO);
-    assert.deepEqual(M.estadoMotor(), { elegido: M.MOTOR_CLASICO, listo: true });
+    assert.deepEqual(M.estadoMotor(), { decidido: true, elegido: M.MOTOR_CLASICO, listo: true });
   });
 });

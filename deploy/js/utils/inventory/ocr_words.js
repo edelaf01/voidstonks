@@ -56,6 +56,12 @@ export function normalizeOCRWords(ocrData, ctx) {
     return validWords;
 }
 
+export function confirmaPrime(words, ctx, umbral) {
+    const limpio = (w) => (w || "").replaceAll(/[^A-Z0-9]/g, "");
+    return words.some((w, i) => ctx.similarityOCR(limpio(w), "PRIME") >= umbral
+        || ctx.similarityOCR(limpio(w) + limpio(words[i + 1]), "PRIME") >= umbral);
+}
+
 export function tokensSinInformacion(items, frac = 0.20, minMuestra = 20) {
     if (items.length < minMuestra) return new Set();
     const cuenta = new Map();
