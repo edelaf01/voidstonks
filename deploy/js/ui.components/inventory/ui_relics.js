@@ -396,7 +396,7 @@ function createRelicDropRow(item) {
     ${!isUntradable
       ? `<div class="actions-col-wrapper" style="margin-right:10px;">
         <a href="https://warframe.market/items/${getSlug(item.name)}" target="_blank" class="market-btn-mini" onclick="event.stopPropagation()" title="Warframe Market">${state.currentLang === "es" ? "MERCADO" : "MARKET"}</a>
-        <button class="mini-action-btn" data-action="modify-prime-part" data-part="${escapeHTML(item.name)}" data-amount="1" onclick="event.stopPropagation(); requestAnimationFrame(() => { globalThis.modifyPrimePart('${escapeHTML(item.name)}', 1); showToast('${escapeHTML(item.name)} +1'); })">+1</button>
+        <button class="mini-action-btn" data-action="modify-prime-part" data-part="${escapeHTML(item.name)}" data-amount="1" onclick="event.stopPropagation(); requestAnimationFrame(() => { globalThis.modifyPrimePart('${escapeHTML(item.name)}', 1); showToast(globalThis.qtyToast('${escapeHTML(item.name)}', 1)); })">+1</button>
       </div>`
       : `<div class="actions-col-wrapper" style="margin-right:10px;"></div>`
     }

@@ -4,7 +4,12 @@ import { readBadgeDigits } from "../../utils/vision/badge_digit_ocr.js";
 import { splitFusedWord, catalogVocab } from "../../utils/vision/word_split.js";
 import { radioDeDedup, pasoEntreTarjetas, zonasDeRotulo } from "../../utils/vision/reward_cards.js";
 import { recuperaComponente, recuperaPorSufijo } from "../../utils/inventory/component_recover.js";
-import { normalizeOCRWords, tokensSinInformacion, tieneEvidenciaPropia } from "../../utils/inventory/ocr_words.js";
+import { normalizeOCRWords, tokensSinInformacion, tieneEvidenciaPropia, confirmaPrime } from "../../utils/inventory/ocr_words.js";
+
+// El catálogo es ASCII pero PaddleOCR lleva tildes en su diccionario y las cuela: medido, un
+// rótulo salía "KESTREL PRÍME BLUEPRINT" y se perdía entero, porque las palabras se parten por
+// [^A-Za-z0-9] y "PRÍME" quedaba en "PR" + "ME".
+const sinAcentos = (texto) => texto.normalize("NFD").replaceAll(/[\u0300-\u036f]/g, "");
 
 export const OCRService = {
     cachedDbItems: [],
@@ -131,6 +136,9 @@ export const OCRService = {
     // Pantalla de selección/refinamiento: mismo matcher genérico que el inventario,
     // devolviendo "TIER CODIGO" en mayúsculas (formato histórico del flujo de track).
     parseRelicSelection(ocrText) {
+        // Sin exigir el rótulo del panel, el matcher saca una reliquia de CUALQUIER basura:
+        // medido, el "IMPORTANCE __¥__SEARCH a." de fin de misión devolvía "NEO S2".
+        if (!/R[E3][L1I][I1L]C|REWARD|RECOMPENS/i.test(ocrText)) return null;
         const canonical = this.getRelicMatch(ocrText);
         return canonical ? canonical.toUpperCase().replace(/\s+RELIC$/, "") : null;
     },
@@ -191,7 +199,7 @@ export const OCRService = {
         if (!combinedText || !state.allRelicNames?.length) return null;
         const rawWords = Array.isArray(combinedText) ? combinedText : combinedText.split(/\s+/);
         const words = rawWords
-            .map(w => (w || "").toString().toUpperCase()
+            .map(w => sinAcentos((w || "").toString()).toUpperCase()
                 .replaceAll(/[|!¡\][]/g, "I")   // barra vertical: i/I/1 finos leídos como signo
                 .replaceAll(/\?/g, "7")          // el 7 con remate curvo sale como "?"
                 .replaceAll(/[^A-Z0-9]/g, ""))
@@ -646,7 +654,7 @@ export const OCRService = {
         // (una palabra DB partida en dos por el OCR) ya lo cubre el join i+(i+1).
         const rawWords = Array.isArray(combinedText) ? combinedText : combinedText.split(/\s+/);
         // A mayúsculas aquí: abajo se limpia con /[^A-Z]/ y el camino a color da el texto en mixto.
-        const crudas = rawWords.flatMap(w => w.split(/[^A-Za-z0-9]+/).filter(Boolean)).map(w => w.toUpperCase());
+        const crudas = rawWords.flatMap(w => sinAcentos(w).split(/[^A-Za-z0-9]+/).filter(Boolean)).map(w => w.toUpperCase());
         this._vocabCache ||= catalogVocab(this.cachedDbItems);
         const textWords = crudas.flatMap((w) => (w.length >= 9 && !this._vocabCache.has(w)
             && splitFusedWord(w, this._vocabCache)) || [w]);
@@ -683,7 +691,7 @@ export const OCRService = {
         // más bajo que el de arma porque son palabras conocidas y cortas; el conjunto se
         // valida por el resto del nombre. Lecturas de componente salvajes → item sin match → Paddle.
         const COMP_THR = 0.6;
-        const PRIME_THR = 0.65, esPrime = (n) => /\bPRIME\b/i.test(n);
+        const PRIME_THR = 0.6, esPrime = (n) => /\bPRIME\b/i.test(n);
 
         const attemptItemMatch = (startIndex, item, lookAheadLimit, ocrWords) => {
             const matchedIndices = [startIndex];
@@ -756,8 +764,7 @@ export const OCRService = {
                     // Sin esto, "PRIME" opcional hacía que cada pieza NORMAL casara con su
                     // prime. Medido: garblings de PRIME 0.80-1.00, "POINT" (la palabra real más
                     // parecida) 0.52.
-                    if (esPrime(item.originalName) && !textWords.some((w) => this.similarityOCR(
-                        w.replaceAll(/[^A-Z0-9]/g, ""), "PRIME") >= PRIME_THR)) continue;
+                    if (esPrime(item.originalName) && !confirmaPrime(textWords, this, PRIME_THR)) continue;
                     // Selección por CALIDAD, no por orden de la BD: entre items que casan
                     // el MISMO nº de palabras (p.ej. "BOLTOR PRIME BARREL" casa tanto Boltor
                     // como Akbolto vía alias), gana el de mayor similitud de PRIMERA PALABRA.

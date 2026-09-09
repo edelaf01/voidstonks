@@ -28,8 +28,8 @@ function cuerpo(src, firma) {
 
 test("montar una pestaña es una función aparte, no un bloque dentro de switchTab", () => {
     const init = cuerpo(ui, "function initTabContent(mode)");
-    // Las siete pestañas que tienen algo que montar. Si se añade una y se deja solo en
-    // switchTab, vuelve el bug: se monta al entrar pero no cuando llegan los datos.
+    // Las pestañas que tienen algo que montar. Si se añade una y se deja solo en switchTab,
+    // vuelve el bug: se monta al entrar pero no cuando llegan los datos.
     for (const [modo, llamada] of [
         ["riven", "initRivenMarketIndex"],
         ["relic", "renderFarmRoutes"],
@@ -38,6 +38,10 @@ test("montar una pestaña es una función aparte, no un bloque dentro de switchT
         ["ducat", "renderDucanatorTab"],
         ["orders", "initOrdersTab"],
         ["bounties", "renderFarmsTab"],
+        // Inventario: no depende de la red, pero updateUILabels() lo pinta al CARGARSE el
+        // módulo, o sea antes de loadAppState(). Sin montarlo aquí, la primera vez se veía
+        // "No relics saved yet" con el inventario lleno hasta cambiar de pestaña y volver.
+        ["inventory", "renderInventory"],
     ]) {
         assert.ok(init.includes(`"${modo}"`), `initTabContent no cubre ${modo}`);
         assert.ok(init.includes(llamada), `${modo} debería montar con ${llamada}`);

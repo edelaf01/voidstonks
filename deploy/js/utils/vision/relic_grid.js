@@ -20,9 +20,10 @@ import { groupWordCells } from "./squad_panel.js";
 // mete tokens que el matcher tiene que descartar.
 export const RELIC_GRID_CROP = Object.freeze({ x: 0.03, y: 0.17, w: 0.57, h: 0.76 });
 
-// El contador se dibuja "x108". Se tolera que el OCR parta la x del número y las
-// confusiones del glifo, pero la x tiene que estar: sin ella, un "[30]" o cualquier cifra
-// suelta del arte entraría como cantidad, y una cantidad mal leída pisa el inventario.
+// El contador se dibuja "x108". Se tolera que el OCR parta la x del número y las confusiones
+// del glifo, pero la x tiene que estar. MEDIDO al intentar quitarla —admitiendo la cifra sola en
+// casillas que ya tenían nombre—: 48/76 aciertos y 0 errores pasaron a 40/76 y SIETE cantidades
+// inventadas. Las cifras sueltas de la pantalla son del arte, no contadores.
 const COUNT = /^[xX×*]\s*(\d{1,3})$/;
 
 const median = (xs) => {
@@ -65,7 +66,7 @@ function bandOf(centers, v, tol) {
  * @param matchRelic         (palabras) => nombre canónico o null (OCRService.getRelicMatch)
  * @returns [{ name, count }] — solo las casillas donde se leyeron AMBAS cosas
  */
-export function parseRelicGrid({ nameWords, countWords } = {}, { matchRelic } = {}) {
+export function parseRelicGrid({ nameWords, countWords } = {}, { matchRelic, trace } = {}) {
   if (typeof matchRelic !== "function") return [];
 
   const nameCells = groupWordCells(nameWords);
@@ -157,11 +158,22 @@ export function parseRelicGrid({ nameWords, countWords } = {}, { matchRelic } = 
   }
 
   const out = [];
+  const perdidas = { sinCasilla: 0, descartada: 0, dudosa: 0, sinContador: 0 };
   for (const n of names) {
     const key = celdaDe(n);
-    if (!key || descartadas.has(key) || nombreDudoso.has(key)) continue;
+    if (!key) { perdidas.sinCasilla++; continue; }
+    if (descartadas.has(key)) { perdidas.descartada++; continue; }
+    if (nombreDudoso.has(key)) { perdidas.dudosa++; continue; }
     const count = byCell.get(key);
-    if (count !== undefined) out.push({ name: n.name, count });
+    if (count === undefined) { perdidas.sinContador++; continue; }
+    out.push({ name: n.name, count });
+  }
+  if (trace) {
+    Object.assign(trace, {
+      nombres: names.length, candidatosContador: candidatos.length,
+      contadoresConCasilla: byCell.size, alturaTipica, perdidas,
+      cols: cols.centers.length, filas: rows.centers.length,
+    });
   }
   return out;
 }

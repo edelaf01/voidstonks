@@ -1,6 +1,6 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { applyRewardCommit, undoRewardCommit } from "../deploy/js/utils/inventory/reward_commit.js";
+import { applyRewardCommit, undoRewardCommit, pickManualReward } from "../deploy/js/utils/inventory/reward_commit.js";
 
 // ===========================================================================
 // Alta automática de recompensas en el inventario de piezas Prime.
@@ -152,4 +152,40 @@ describe("deshacer", () => {
         assert.equal(vuelta["Soma Prime Barrel"], 1);
         assert.equal(vuelta["Otra Prime Pieza"], 5, "lo ajeno al alta no se toca");
     });
+});
+
+describe("cambiar de idea en la pantalla de recompensas", () => {
+  test("reelegir sustituye: la descartada no se queda en el inventario", () => {
+    const a = pickManualReward({}, [], null, "Volt Prime Systems Blueprint");
+    assert.deepEqual(a.inventario, { "Volt Prime Systems Blueprint": 1 });
+    assert.deepEqual(a.pendientes, ["Volt Prime Systems Blueprint"]);
+
+    const b = pickManualReward(a.inventario, a.pendientes,
+      "Volt Prime Systems Blueprint", "Ash Prime Chassis Blueprint");
+    assert.deepEqual(b.inventario, { "Volt Prime Systems Blueprint": 0, "Ash Prime Chassis Blueprint": 1 });
+    assert.deepEqual(b.pendientes, ["Ash Prime Chassis Blueprint"],
+      "la descartada seguía pendiente y el alta de fin de misión le descontaba una copia");
+  });
+
+  test("volver a pulsar la MISMA no suma otra", () => {
+    const r = pickManualReward({ "Ash Prime Chassis Blueprint": 1 }, ["Ash Prime Chassis Blueprint"],
+      "Ash Prime Chassis Blueprint", "Ash Prime Chassis Blueprint");
+    assert.equal(r.cambio, false);
+    assert.deepEqual(r.inventario, { "Ash Prime Chassis Blueprint": 1 });
+  });
+
+  test("con sincronización al cerrar no se toca el inventario, solo la cola", () => {
+    const r = pickManualReward({}, ["Volt Prime Systems Blueprint"],
+      "Volt Prime Systems Blueprint", "Ash Prime Chassis Blueprint", false);
+    assert.deepEqual(r.inventario, {}, "restó una pieza que aún no se había sumado");
+    assert.deepEqual(r.pendientes, ["Ash Prime Chassis Blueprint"]);
+  });
+
+  test("tras sustituir, el alta de fin de misión no duplica ni se come la pieza", () => {
+    const { inventario, pendientes } = pickManualReward({}, [], "Volt Prime Systems Blueprint",
+      "Ash Prime Chassis Blueprint");
+    const r = applyRewardCommit(inventario, [{ name: "Ash Prime Chassis Blueprint", qty: 1 }], pendientes);
+    assert.equal(r.inventario["Ash Prime Chassis Blueprint"], 1);
+    assert.deepEqual(r.anadidas, []);
+  });
 });

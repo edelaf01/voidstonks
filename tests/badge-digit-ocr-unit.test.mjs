@@ -104,3 +104,18 @@ test("readBadgeDigits: mota de ruido demasiado pequeña/baja no cuenta como díg
   assert.deepEqual(segmentDigits(canvas), []);
   assert.equal(readBadgeDigits(canvas), "");
 });
+
+// ---------------------------------------------------------------------------
+// Desempate entre los dos dígitos más parecidos por su zona de DIFERENCIA.
+// ---------------------------------------------------------------------------
+
+test("entre 5 y 6 decide por donde las plantillas difieren, no por el IoU global", () => {
+  // El IoU reparte el voto entre todos los píxeles y dos dígitos que comparten el 80% de su
+  // forma se deciden por el ruido del contorno: medido sobre capturas reales, un "5" puntuaba
+  // 6@0.716 contra 5@0.713 (tres milésimas) y salía mal. Aquí se comprueba que la plantilla
+  // de cada dígito, leída tal cual, devuelve ese dígito y no su vecino más parecido.
+  for (const d of ["5", "6", "3", "8", "0"]) {
+    const cvs = canvasFromDigits(NW + 4, NH + 4, [{ x: 2, y: 2, bmp: DIGIT_TEMPLATES[d] }]);
+    assert.equal(readBadgeDigits(cvs), d, `la plantilla de ${d} debe leerse como ${d}`);
+  }
+});

@@ -1,0 +1,117 @@
+{
+  "tesseract/inventario/arreglar_malcount.png · nombres": {
+    "ok": 18,
+    "total": 18,
+    "mal": 0
+  },
+  "tesseract/inventario/arreglar_malcount.png · badges": {
+    "ok": 18,
+    "total": 18,
+    "mal": 0
+  },
+  "tesseract/inventario/baruuk.png · nombres": {
+    "ok": 18,
+    "total": 18,
+    "mal": 0
+  },
+  "tesseract/reliquias/1.png · rejilla": {
+    "ok": 18,
+    "total": 19,
+    "mal": 0
+  },
+  "tesseract/reliquias/3.png · rejilla": {
+    "ok": 15,
+    "total": 19,
+    "mal": 0
+  },
+  "tesseract/reliquias/4.png · rejilla": {
+    "ok": 18,
+    "total": 19,
+    "mal": 0
+  },
+  "tesseract/reliquias/6-ojo otro tema.png · rejilla": {
+    "ok": 17,
+    "total": 19,
+    "mal": 0
+  },
+  "tesseract/reliquias/reliquia seguida": {
+    "ok": 10,
+    "total": 10,
+    "mal": 0
+  },
+  "tesseract/recompensas/temas/fisura-red.png": {
+    "ok": 3,
+    "total": 3,
+    "mal": 0
+  },
+  "tesseract/recompensas/temas/caliban.png": {
+    "ok": 4,
+    "total": 4,
+    "mal": 0
+  },
+  "tesseract/recompensas/temas/nofuncanuevo.png": {
+    "ok": 0,
+    "total": 4,
+    "mal": 0
+  },
+  "tesseract/recompensas/temas/nofuncarecompensa.png": {
+    "ok": 4,
+    "total": 4,
+    "mal": 0
+  },
+  "tesseract/recompensas/temas/siguesinarreglar.png": {
+    "ok": 0,
+    "total": 4,
+    "mal": 0
+  },
+  "tesseract/recompensas/temas/siguesinfunciona.png": {
+    "ok": 4,
+    "total": 4,
+    "mal": 0
+  },
+  "tesseract/recompensas/temas/styanaxnodetecta.png": {
+    "ok": 4,
+    "total": 4,
+    "mal": 0
+  },
+  "tesseract/recompensas/mal.png": {
+    "ok": 4,
+    "total": 4,
+    "mal": 1
+  },
+  "paddle/inventario/arreglar_malcount.png · nombres": {
+    "ok": 18,
+    "total": 18,
+    "mal": 0
+  },
+  "paddle/inventario/baruuk.png · nombres": {
+    "ok": 18,
+    "total": 18,
+    "mal": 0
+  },
+  "paddle/reliquias/1.png · rejilla": {
+    "ok": 10,
+    "total": 19,
+    "mal": 0
+  },
+  "paddle/reliquias/3.png · rejilla": {
+    "ok": 12,
+    "total": 19,
+    "mal": 0
+  },
+  "paddle/reliquias/4.png · rejilla": {
+    "ok": 10,
+    "total": 19,
+    "mal": 0
+  },
+  "paddle/reliquias/6-ojo otro tema.png · rejilla": {
+    "ok": 18,
+    "total": 19,
+    "mal": 0
+  },
+  "paddle/reliquias/reliquia seguida": {
+    "ok": 10,
+    "total": 10,
+    "mal": 0
+  }
+}

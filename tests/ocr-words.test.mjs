@@ -1,6 +1,7 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { normalizeOCRWords } from "../deploy/js/utils/inventory/ocr_words.js";
+import { normalizeOCRWords, confirmaPrime } from "../deploy/js/utils/inventory/ocr_words.js";
+import { OCRService } from "../deploy/js/services/scanner/ocr.service.js";
 
 // Etapa que prepara las palabras del OCR para parseRewards. Salió de ocr.service.js, que estaba
 // en su techo de tamaño; aquí se puede probar sin arrastrar el servicio entero.
@@ -45,5 +46,31 @@ describe("normalizar las palabras del OCR", () => {
         assert.deepEqual(dentro.map((w) => w.text), ["LAVOS"]);
         const fuera = normalizeOCRWords({ words: [caja("LAVQS", 500)], imageW: 600, columnas: cols }, ctx);
         assert.deepEqual(fuera.map((w) => w.text), []);
+    });
+});
+
+// Con el similarityOCR REAL: lo que se prueba es el umbral contra confusiones de verdad.
+describe("confirmar que el rótulo dice PRIME", () => {
+    const UMBRAL = 0.6;
+
+    test("PRIME entero, o con una confusión de glifo, se confirma", () => {
+        assert.equal(confirmaPrime(["BOLTOR", "PRIME", "STOCK"], OCRService, UMBRAL), true);
+        assert.equal(confirmaPrime(["BOLTOR", "FRIME", "STOCK"], OCRService, UMBRAL), true);
+    });
+
+    test("partido en dos tokens se confirma uniéndolo al siguiente", () => {
+        // Sin la unión, ni "PR" (0.4) ni "ME" (0.4) llegan solos y la celda se quedaba sin match.
+        assert.equal(confirmaPrime(["AKSTILETTO", "PR", "ME", "LINK"], OCRService, UMBRAL), true);
+        assert.equal(confirmaPrime(["AKBRON", "OPR", "ME", "LINK"], OCRService, UMBRAL), true);
+    });
+
+    test("una palabra ajena parecida NO lo confirma", () => {
+        // "POINT" (0.52) es el caso real que motivó el umbral: sin él se apuntaban primes falsos.
+        assert.equal(confirmaPrime(["POINT"], OCRService, UMBRAL), false);
+        assert.equal(confirmaPrime(["BOLTOR", "STOCK"], OCRService, UMBRAL), false);
+    });
+
+    test("sin tokens no confirma nada", () => {
+        assert.equal(confirmaPrime([], OCRService, UMBRAL), false);
     });
 });

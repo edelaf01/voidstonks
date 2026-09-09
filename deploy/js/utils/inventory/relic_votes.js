@@ -59,3 +59,30 @@ export function applyRelicCounts(inventory, changed) {
     // vacía que el usuario no puede ni borrar.
     return lista.filter((i) => i?.name && (Number(i.count) || 0) > 0);
 }
+
+/**
+ * Reliquias RECIBIDAS en fin de misión: SUMA, al revés que la rejilla, que asigna. Esa pantalla
+ * enseña lo que acabas de ganar, no cuántas tienes.
+ */
+export function sumaReliquias(inventory, recibidas) {
+    const lista = applyRelicCounts(inventory, []);
+    const total = new Map(lista.map((i) => [relicKey(i.name), { name: i.name, count: Number(i.count) || 0 }]));
+    for (const { name, qty } of recibidas || []) {
+        const n = Math.floor(Number(qty) || 1);
+        if (!name || n <= 0) continue;
+        // Por acumulador y no leyendo la lista en cada vuelta: dos casillas de la MISMA reliquia
+        // leerían las dos el conteo viejo y la segunda pisaría a la primera.
+        const previa = total.get(relicKey(name));
+        if (previa) previa.count += n;
+        else total.set(relicKey(name), { name, count: n });
+    }
+    return applyRelicCounts(lista, [...total.values()]);
+}
+
+/** La reliquia que llevaste se consume al TERMINAR la fisura, no al elegirla. */
+export function restaReliquia(inventory, name, n = 1) {
+    const lista = applyRelicCounts(inventory, []);
+    const actual = lista.find((i) => relicKey(i.name) === relicKey(name));
+    if (!actual) return lista;
+    return applyRelicCounts(lista, [{ name: actual.name, count: (Number(actual.count) || 0) - n }]);
+}

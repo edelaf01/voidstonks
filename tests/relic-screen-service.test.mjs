@@ -5,6 +5,8 @@ import { installFakeDocument, FakeCanvas } from "./_helpers/fake-canvas.mjs";
 installFakeDocument(); // vision.service.js crea canvases al importarse
 const { RelicScreenService } = await import("../deploy/js/services/scanner/relic_screen.service.js");
 const { OCRRepository } = await import("../deploy/js/repositories/ocr.repository.js");
+const { PaddleRepository } = await import("../deploy/js/repositories/paddle.repository.js");
+const { aplicaMotor, MOTOR_CLASICO, MOTOR_PRECISO } = await import("../deploy/js/services/scanner/ocr_engine.service.js");
 const { state } = await import("../deploy/js/state.js");
 
 // ===========================================================================
@@ -149,6 +151,52 @@ describe("coste", () => {
   });
 });
 
+describe("motor de OCR seleccionado", () => {
+  // Antes leía SIEMPRE con Tesseract, ignorase lo que el usuario hubiera elegido en el HUD.
+  const listoOriginal = PaddleRepository.listo;
+  const recognizeConCajasOriginal = PaddleRepository.recognizeWordsWithBoxes;
+
+  test("con el preciso elegido y cargado, los NOMBRES van por Paddle y los CONTADORES por Tesseract", async () => {
+    scriptOCR(pantalla([["Meso C6", 108]]));
+    let paddleLlamado = 0, tesseractNombres = 0;
+    PaddleRepository.listo = () => true;
+    PaddleRepository.recognizeWordsWithBoxes = async () => { paddleLlamado++; return celda(["Meso", "C6", "Relic"], 100, 239); };
+    const recognizeOriginal = OCRRepository.recognize;
+    OCRRepository.recognize = async (...a) => { tesseractNombres++; return recognizeOriginal(...a); };
+    aplicaMotor(MOTOR_PRECISO);
+    try {
+      await RelicScreenService.readGrid(video(40));
+      RelicScreenService.lastGridHash = null;
+      await RelicScreenService.readGrid(video(60));
+      assert.deepEqual(state.inventory, [{ name: "Meso C6", count: 108 }]);
+      assert.ok(paddleLlamado > 0, "no llamó a Paddle para los nombres");
+      assert.equal(tesseractNombres, 0, "los contadores no necesitan también Tesseract para nombres");
+    } finally {
+      aplicaMotor(MOTOR_CLASICO);
+      OCRRepository.recognize = recognizeOriginal;
+      PaddleRepository.listo = listoOriginal;
+      PaddleRepository.recognizeWordsWithBoxes = recognizeConCajasOriginal;
+    }
+  });
+
+  test("si Paddle falla, cae a Tesseract para los nombres sin perder la lectura", async () => {
+    scriptOCR(pantalla([["Meso C6", 108]]));
+    PaddleRepository.listo = () => true;
+    PaddleRepository.recognizeWordsWithBoxes = async () => { throw new Error("modelo no disponible"); };
+    aplicaMotor(MOTOR_PRECISO);
+    try {
+      await RelicScreenService.readGrid(video(40));
+      RelicScreenService.lastGridHash = null;
+      await RelicScreenService.readGrid(video(60));
+      assert.deepEqual(state.inventory, [{ name: "Meso C6", count: 108 }]);
+    } finally {
+      aplicaMotor(MOTOR_CLASICO);
+      PaddleRepository.listo = listoOriginal;
+      PaddleRepository.recognizeWordsWithBoxes = recognizeConCajasOriginal;
+    }
+  });
+});
+
 describe("reset", () => {
   test("olvida los votos, así que hace falta consenso otra vez", async () => {
     scriptOCR(pantalla([["Meso C6", 108]]));
@@ -157,4 +205,41 @@ describe("reset", () => {
     await RelicScreenService.readGrid(video(60));
     assert.deepEqual(state.inventory, [], "el voto de antes del reset no debería contar");
   });
+});
+
+describe("coste por frame", () => {
+  test("el rótulo de la reliquia seguida no se re-OCRea en una pantalla quieta", async () => {
+    scriptOCR(pantalla([["Meso C6", 3]]));
+    let pasadas = 0;
+    OCRRepository.recognize = async (_w, _c, _o, output) => {
+      if (!output?.blocks) { pasadas++; return { data: { text: "" } }; }
+      return { data: { words: frames[0].nameWords } };
+    };
+    const v = video(40);
+    await RelicScreenService.trackSelected(v, { scale: 1 });
+    await RelicScreenService.trackSelected(v, { scale: 1 });
+    await RelicScreenService.trackSelected(v, { scale: 1 });
+    assert.equal(pasadas, 1, "corría un Tesseract entero en cada frame");
+  });
+
+  test("tras varias lecturas sin novedad hace falta un cambio mayor para releer", async () => {
+    scriptOCR(pantalla([["Meso C6", 3]]));
+    // Dos iguales aplican; a partir de ahí la pantalla está absorbida.
+    await RelicScreenService.readGrid(video(40));
+    await RelicScreenService.readGrid(video(70));
+    assert.equal(state.inventory[0].count, 3);
+    await RelicScreenService.readGrid(video(100));
+    assert.ok(RelicScreenService.lecturasSinNovedad > 0, "no contó la lectura como absorbida");
+
+    let lecturas = 0;
+    const antes = OCRRepository.recognizeWithPSM;
+    OCRRepository.recognizeWithPSM = async (...a) => { lecturas++; return antes(...a); };
+    // Una deriva que con el corte fijo de 6 SÍ habría releído: es lo que hacía el fondo animado.
+    await RelicScreenService.readGrid(video(108));
+    assert.equal(lecturas, 0, "releyó por una deriva del fondo");
+    // Un scroll mueve todo el recorte: eso sí tiene que releerse.
+    await RelicScreenService.readGrid(video(210));
+    assert.equal(lecturas, 1, "dejó de detectar el scroll");
+  });
+
 });

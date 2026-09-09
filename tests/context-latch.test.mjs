@@ -5,9 +5,9 @@
 // salte de RELICS a REWARD y vuelva, recortando y pasando OCR sobre zonas que no tocan — y el
 // síntoma es solo "va saltarín", sin ningún error.
 
-import { test } from "node:test";
+import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { nextLatchedContext, INITIAL_LATCH } from "../deploy/js/utils/vision/context_latch.js";
+import { nextLatchedContext, INITIAL_LATCH, enrutaGraciaRiven, toleranciaCabecera, TOL_HEADER_BASE, intervaloCabecera } from "../deploy/js/utils/vision/context_latch.js";
 
 /** Pasa una secuencia de contextos crudos y devuelve el enganchado tras cada uno. */
 function correr(secuencia, inicial = INITIAL_LATCH) {
@@ -77,4 +77,78 @@ test("salir de UNKNOWN engancha al primer frame", () => {
 test("pero cambiar entre dos contextos conocidos sigue pidiendo dos", () => {
   const s = { latched: "RELICS", unknownCount: 0, pending: null, pendingCount: 0 };
   assert.deepEqual(correr(["REWARD"], s), ["RELICS"]);
+});
+
+describe("gracia de rivens", () => {
+  test("sin gracia el contexto pasa tal cual", () => {
+    assert.deepEqual(enrutaGraciaRiven("UNKNOWN", false, "INVENTORY_MODS"),
+      { contexto: "UNKNOWN", cancelar: false });
+  });
+
+  test("durante la gracia, un header ilegible sigue leyéndose como la carta de riven", () => {
+    assert.equal(enrutaGraciaRiven("UNKNOWN", true, "ITEM_DETAILS").contexto, "ITEM_DETAILS");
+    assert.equal(enrutaGraciaRiven("INVENTORY", true, "INVENTORY_MODS").contexto, "INVENTORY_MODS");
+  });
+
+  test("llegar a fin de misión CANCELA la gracia", () => {
+    // Faltaba: sin esto, los primeros frames de MISSION COMPLETE (cabecera aún ilegible) se
+    // re-enrutaban a INVENTORY_MODS durante 8 s y la pantalla se iba entera en OCR de rivens.
+    assert.deepEqual(enrutaGraciaRiven("MISSION_COMPLETE", true, "INVENTORY_MODS"),
+      { contexto: "MISSION_COMPLETE", cancelar: true });
+  });
+
+  test("reliquias y recompensas también la cancelan", () => {
+    for (const ctx of ["RELICS", "REWARD"]) {
+      assert.deepEqual(enrutaGraciaRiven(ctx, true, "INVENTORY_MODS"), { contexto: ctx, cancelar: true });
+    }
+  });
+
+  test("tras cancelar, un header ilegible ya no se enruta a rivens", () => {
+    const { cancelar } = enrutaGraciaRiven("MISSION_COMPLETE", true, "INVENTORY_MODS");
+    assert.equal(cancelar, true);
+    assert.equal(enrutaGraciaRiven("UNKNOWN", false, "INVENTORY_MODS").contexto, "UNKNOWN");
+  });
+});
+
+describe("tolerancia del corte de cabecera", () => {
+  test("arranca estricta", () => {
+    // Con el corte flojo desde el principio, el salto gameplay->recompensas queda por debajo y
+    // el escáner reutiliza el texto viejo: se pierde la pantalla de elegir recompensa.
+    assert.equal(toleranciaCabecera(0), TOL_HEADER_BASE);
+  });
+
+  test("se afloja mientras el contexto no cambie", () => {
+    assert.ok(toleranciaCabecera(1) > toleranciaCabecera(0));
+    assert.ok(toleranciaCabecera(3) > toleranciaCabecera(1));
+  });
+
+  test("tiene tope: una racha larga no la deja crecer sin fin", () => {
+    assert.equal(toleranciaCabecera(50), toleranciaCabecera(3));
+  });
+
+  test("una racha negativa o ausente no rompe el corte", () => {
+    assert.equal(toleranciaCabecera(), TOL_HEADER_BASE);
+    assert.equal(toleranciaCabecera(-5), TOL_HEADER_BASE);
+  });
+});
+
+describe("cada cuánto se relee la cabecera", () => {
+  test("con el contexto recién cambiado no se limita nada", () => {
+    // Es justo cuando importa: el salto a la pantalla de recompensas no puede esperar.
+    assert.equal(intervaloCabecera(0), 0);
+  });
+
+  test("con el contexto quieto se espacía", () => {
+    assert.ok(intervaloCabecera(2) > intervaloCabecera(1));
+  });
+
+  test("el tope deja al menos una lectura por segundo", () => {
+    // La pantalla de recompensas dura unos 15 s: con esto siguen cabiendo más de diez lecturas.
+    assert.ok(intervaloCabecera(99) <= 1200);
+  });
+
+  test("una racha ausente o negativa no espacía nada", () => {
+    assert.equal(intervaloCabecera(), 0);
+    assert.equal(intervaloCabecera(-3), 0);
+  });
 });

@@ -424,7 +424,7 @@
     position: fixed;
     top: 80px;
     right: 20px;
-    width: 290px;
+    width: 320px;
     z-index: 10001;
     font-family: "Segoe UI", system-ui, sans-serif;
     user-select: none;
@@ -457,8 +457,24 @@
     min-width: 0;
 }
 
+/* Los controles no encogen y el título sí: con cuatro (badge, ?, DIAG, ▾) en 290 px el grupo se
+   comprimía y el texto del badge se salía por encima del botón de al lado. Ese mismo ancho, ya
+   con los cuatro controles fijos, dejaba tan poco sitio al lado izquierdo que "VOIDSCANNER" se
+   recortaba con elipsis siempre; de ahí que #inv-hud pasara a 320px. */
 .hud-header-right {
     gap: 5px;
+    flex-shrink: 0;
+}
+
+.hud-header-right > * {
+    flex-shrink: 0;
+}
+
+.hud-title {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .hud-status-dot {
@@ -848,6 +864,12 @@
     color: #dde6ea;
 }
 
+#squad-run-panel .squad-relic-x {
+    flex-shrink: 0;
+    font-weight: 800;
+    color: #00e5ff;
+}
+
 #squad-run-panel .squad-relic-ref {
     padding: 1px 5px;
     border-radius: 8px;
@@ -902,6 +924,23 @@
     text-overflow: ellipsis;
     white-space: nowrap;
 }
+
+/* Con etiqueta, el nombre se quedaba en "Gre…": la etiqueta y los números no encogen y en un
+   HUD de ~300 px no cabe todo en una línea. La etiqueta baja a la segunda y el nombre ocupa
+   la primera entera. Solo en las filas que la llevan (is-missing la pone el mismo JS). */
+#squad-run-panel .squad-drop.is-missing {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    grid-template-areas:
+        "name name name"
+        "tag chance plat";
+    row-gap: 1px;
+}
+
+#squad-run-panel .squad-drop.is-missing .squad-drop-name { grid-area: name; }
+#squad-run-panel .squad-drop.is-missing .squad-tag { grid-area: tag; justify-self: start; }
+#squad-run-panel .squad-drop.is-missing .squad-drop-chance { grid-area: chance; }
+#squad-run-panel .squad-drop.is-missing .squad-drop-plat { grid-area: plat; }
 
 #squad-run-panel .squad-drop.is-missing .squad-drop-name {
     color: #e6f2ea;
@@ -994,4 +1033,140 @@
     font-size: 10px;
     line-height: 1.35;
     min-height: 2.7em;
+}
+
+/* ── Tutorial del escáner ────────────────────────────────────────────────────
+   El "foco" no recorta nada de verdad: es un div del tamaño del elemento con una sombra
+   enorme, que oscurece TODO lo de fuera y deja el hueco limpio. Sin canvas y sin librería. */
+/* Por encima de #inv-hud (10001): si no, el HUD —que es justo lo que se explica— queda sobre
+   la capa que oscurece y no se resalta nada. */
+.coach-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 10002;
+    display: none;
+}
+
+.coach-hole {
+    position: fixed;
+    border-radius: 6px;
+    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.78);
+    outline: 2px solid #00e5ff;
+    /* El hueco solo enmarca: los clics del tour son de la ficha, y dejar pasar los de aquí
+       llevaría al usuario a tocar el HUD a medio explicar. */
+    pointer-events: none;
+    transition: top 0.18s ease, left 0.18s ease, width 0.18s ease, height 0.18s ease;
+}
+
+.coach-box {
+    position: fixed;
+    max-width: 520px;
+    margin: 0 auto;
+    padding: 12px 14px;
+    border: 1px solid rgba(0, 229, 255, 0.45);
+    border-radius: 8px;
+    background: #0b1620;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.6);
+}
+
+.coach-text {
+    margin: 0 0 10px;
+    color: #dde6ea;
+    font-size: 0.9em;
+    line-height: 1.45;
+}
+
+.coach-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.coach-step {
+    margin-right: auto;
+    color: #607590;
+    font-size: 0.78em;
+    font-weight: 700;
+}
+
+.coach-btn {
+    padding: 5px 12px;
+    border: 1px solid rgba(0, 229, 255, 0.5);
+    border-radius: 4px;
+    background: rgba(0, 229, 255, 0.12);
+    color: #00e5ff;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.coach-btn.ghost {
+    border-color: rgba(255, 255, 255, 0.18);
+    background: transparent;
+    color: #8ca0b8;
+}
+
+/* ── Lista de detectados ─────────────────────────────────────────────────────
+   Estaba con estilos en línea dentro del innerHTML: se repetían por fila y no había forma de
+   verlos aquí. Cabecera por grupo con su recuento, para separar piezas de reliquias. */
+#inv-hud .hud-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 8px 0 4px;
+    color: #607590;
+    font-size: 0.68em;
+    font-weight: 800;
+    letter-spacing: 1px;
+}
+
+#inv-hud .hud-group:first-child {
+    margin-top: 0;
+}
+
+#inv-hud .hud-group::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: rgba(0, 229, 255, 0.14);
+}
+
+#inv-hud .hud-group-n {
+    order: 2;
+    color: #8ca0b8;
+}
+
+#inv-hud .hud-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    margin-bottom: 2px;
+    padding: 5px 8px;
+    border-left: 2px solid rgba(0, 229, 255, 0.4);
+    border-radius: 4px;
+    background: rgba(0, 229, 255, 0.04);
+    font-size: 0.78em;
+}
+
+#inv-hud .hud-item.is-relic {
+    border-left-color: rgba(0, 229, 255, 0.75);
+    background: rgba(0, 229, 255, 0.07);
+}
+
+#inv-hud .hud-item-name {
+    overflow: hidden;
+    color: #ddd;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+#inv-hud .hud-item-qty {
+    flex-shrink: 0;
+    color: #f1c40f;
+    font-weight: 900;
+}
+
+#inv-hud .hud-item.is-relic .hud-item-qty {
+    color: #00e5ff;
 }

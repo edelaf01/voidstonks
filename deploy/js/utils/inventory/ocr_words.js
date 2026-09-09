@@ -76,6 +76,14 @@ export function normalizeOCRWords(ocrData, ctx) {
     return validWords;
 }
 
+// El OCR parte "PRIME" en dos ("PR"+"ME") y ningún fragmento llega solo al umbral: se prueba
+// también cada token unido al siguiente. Real: "Akbronco Prime Link" -> "AKBRON OPR ME LINK".
+export function confirmaPrime(words, ctx, umbral) {
+    const limpio = (w) => (w || "").replaceAll(/[^A-Z0-9]/g, "");
+    return words.some((w, i) => ctx.similarityOCR(limpio(w), "PRIME") >= umbral
+        || ctx.similarityOCR(limpio(w) + limpio(words[i + 1]), "PRIME") >= umbral);
+}
+
 /**
  * Tokens que salen en tantos nombres del catálogo que no distinguen NADA.
  *

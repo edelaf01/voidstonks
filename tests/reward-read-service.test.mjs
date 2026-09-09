@@ -133,3 +133,37 @@ test("si el motor de red aún no ha cargado, se lee con el clásico sin esperarl
     aplicaMotor(MOTOR_CLASICO);
   }
 });
+
+describe("cascada por coste", () => {
+  test('con motor "preciso", si la red no lee nada NO se paga Tesseract', async () => {
+    // La pantalla de recompensas tiene 15 segundos de reloj y Tesseract cuesta un orden de
+    // magnitud más que la red (medido en navegador: ~1500 ms contra ~150). Antes los dos motores
+    // estaban al mismo nivel del bucle, así que un recorte malo pagaba una pasada entera de
+    // Tesseract antes de probar el siguiente recorte. Visto en un log real: recorte 1 red 0
+    // ítems, recorte 1 Tesseract 0 ítems, recorte 2 red 4 ítems.
+    aplicaMotor(MOTOR_PRECISO);
+    PaddleRepository.listo = () => true;
+    PaddleRepository.recognizeWordsWithBoxes = async () => [];
+    let tesseract = 0;
+    OCRRepository.recognize = async () => { tesseract++; return { data: { text: "", words: [] } }; };
+
+    const frame = makeRewardFrameEnEncuadre();
+    const r = await leeRecompensas(frame, frame.width, frame.height, 1, "STANDARD", null, null, "preciso");
+    assert.deepEqual(r.foundItems, []);
+    assert.equal(tesseract, 0, "no debe llamarse a Tesseract en el barrido barato");
+  });
+
+  test('con motor "clasico" la red no se toca aunque esté cargada', async () => {
+    // La escalera de presets es de Tesseract: la red no binariza, así que repetirla por preset
+    // sería gastar tres veces lo mismo.
+    aplicaMotor(MOTOR_PRECISO);
+    PaddleRepository.listo = () => true;
+    let red = 0;
+    PaddleRepository.recognizeWordsWithBoxes = async () => { red++; return []; };
+    OCRRepository.recognize = async () => ({ data: { text: "", words: [] } });
+
+    const frame = makeRewardFrameEnEncuadre();
+    await leeRecompensas(frame, frame.width, frame.height, 1, "LOW_LIGHT", null, null, "clasico");
+    assert.equal(red, 0);
+  });
+});

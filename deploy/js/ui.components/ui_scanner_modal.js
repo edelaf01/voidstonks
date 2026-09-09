@@ -24,6 +24,8 @@ ClipboardService.onPendingCopied = () => {
  */
 export const ScannerModal = {
     currentResults: [],
+    // La recompensa que el usuario eligió A MANO en esta pantalla; se limpia al llegar otra.
+    selectedItem: null,
     setPrices: null,
     bestValue: null,
     autoCloseTimer: null,
@@ -40,6 +42,7 @@ export const ScannerModal = {
         this.isHistoric = isHistoric;
 
         this.currentResults = items;
+        this.selectedItem = null;
 
         // El run se acabó: lo que podía caer ya cayó y está en esta pantalla. Sin esto el
         // panel "RUN ACTUAL" seguiría prometiendo las reliquias de la fisura anterior.
@@ -68,6 +71,7 @@ export const ScannerModal = {
 
         const itemsWithDetails = await this.enrichItemDetails(items, width, height, scale);
         this.currentResults = itemsWithDetails;
+        this.selectedItem = null;
 
         // Save to past detections history (in-memory)
         if (!state.scanHistory) state.scanHistory = [];

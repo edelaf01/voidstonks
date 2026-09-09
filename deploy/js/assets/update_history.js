@@ -432,8 +432,7 @@ export const UPDATE_HISTORY_DATA = {
 
   <p class="update-foot">
     <em>El escaneo es experimental y habrá casos en los que el reconocimiento de letras falle.
-    Si os pasa, avisadme por <strong>w/Parcialsobriedad</strong> en los foros de Warframe con
-    la captura que dio error (modo debug) y lo tengo en cuenta para los ajustes. Gracias por
+    Si os pasa, la captura que dio error (modo debug) es lo que permite ajustarlo. Gracias por
     usar la app. ¡Disfrutad de <strong>Shadowgrafter</strong>!</em>
   </p>
 </div>
@@ -880,8 +879,7 @@ export const UPDATE_HISTORY_DATA = {
 
   <p class="update-foot">
     <em>Scanning is experimental and there will be cases where character recognition gets it
-    wrong. If it happens, let me know at <strong>w/Parcialsobriedad</strong> on the Warframe
-    forums with the screenshot that failed (debug mode) and I'll take it into account. Thanks
+    wrong. If it happens, the screenshot that failed (debug mode) is what makes it fixable. Thanks
     for using the app. Enjoy <strong>Shadowgrafter</strong>!</em>
   </p>
 </div>
