@@ -1,8 +1,12 @@
+import {
+    nextConsensus,
+    INITIAL_CONSENSUS,
+} from "./reward_consensus.js";
+
 export const CONSENSUS_FRAMES = 2;
 
 export const INITIAL_LEDGER = Object.freeze({
-    pending: null,
-    pendingCount: 0,
+    consensus: INITIAL_CONSENSUS,
     committed: null,
 });
 
@@ -16,18 +20,46 @@ export function readingSignature(items) {
 
 export function nextLedger(prev, items) {
     const s = { ...INITIAL_LEDGER, ...prev };
-    const sig = readingSignature(items);
+    const prevConsensus = s.consensus || INITIAL_CONSENSUS;
 
-    if (sig === "0") return { ledger: { ...s, pending: null, pendingCount: 0 }, commit: null };
+    if (s.committed && readingSignature(items) === s.committed) return { ledger: s, commit: null };
 
-    if (sig === s.committed) return { ledger: s, commit: null };
+    const { state: nextConsState, confirmed } = nextConsensus(prevConsensus, items);
 
-    const pendingCount = s.pending === sig ? s.pendingCount + 1 : 1;
-    if (pendingCount >= CONSENSUS_FRAMES) {
-        return {
-            ledger: { pending: null, pendingCount: 0, committed: sig },
-            commit: items,
-        };
+    const hasNewCommit = confirmed.length > 0;
+    const commit = hasNewCommit ? confirmed : null;
+
+    let committed = s.committed;
+    let nextItems = nextConsState.items;
+
+    if (hasNewCommit) {
+        committed = readingSignature(items);
+
+        const currentItemNames = new Set((items || []).map((it) => it?.name).filter(Boolean));
+        const pruned = {};
+        for (const [name, entry] of Object.entries(nextItems)) {
+            if (entry.confirmed && !currentItemNames.has(name)) {
+                continue;
+            }
+            pruned[name] = entry;
+        }
+        nextItems = pruned;
+    } else {
+        let pruned = null;
+        for (const [name, entry] of Object.entries(nextItems)) {
+            if (entry.score < 0.05) {
+                if (!pruned) pruned = { ...nextItems };
+                delete pruned[name];
+            }
+        }
+        if (pruned) nextItems = pruned;
     }
-    return { ledger: { ...s, pending: sig, pendingCount }, commit: null };
+
+    return {
+        ledger: {
+            consensus: { items: nextItems },
+            committed,
+        },
+        commit,
+    };
 }

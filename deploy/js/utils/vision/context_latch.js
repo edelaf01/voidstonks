@@ -35,3 +35,29 @@ export function nextLatchedContext(prev, raw) {
   }
   return { latched: s.latched, unknownCount: 0, pending: raw, pendingCount };
 }
+
+export const CANCELAN_GRACIA = Object.freeze(["RELICS", "REWARD", "MISSION_COMPLETE"]);
+
+export function enrutaGraciaRiven(raw, graciaActiva, tipoGracia) {
+  if (!graciaActiva) return { contexto: raw, cancelar: false };
+  if (CANCELAN_GRACIA.includes(raw)) return { contexto: raw, cancelar: true };
+  if (raw === "UNKNOWN" || raw === "INVENTORY") {
+    return { contexto: tipoGracia || "INVENTORY_MODS", cancelar: false };
+  }
+  return { contexto: raw, cancelar: false };
+}
+
+export const TOL_HEADER_BASE = 6;
+const TOPE_HEADER_ESTABLE = 3;
+
+export function toleranciaCabecera(estable = 0) {
+    return TOL_HEADER_BASE * (1 + Math.min(Math.max(estable, 0), TOPE_HEADER_ESTABLE));
+}
+
+const INTERVALO_ESTABLE_MS = 300;
+const INTERVALO_MAXIMO_MS = 1200;
+
+export function intervaloCabecera(estable = 0) {
+    const rachas = Math.min(Math.max(estable, 0), TOPE_HEADER_ESTABLE);
+    return Math.min(rachas * INTERVALO_ESTABLE_MS, INTERVALO_MAXIMO_MS);
+}

@@ -10,7 +10,11 @@ export function initCanvas() {
   const MIN_SEGMENT = 15;
   const TURN_PROBABILITY = 0.05;
   const BASE_MAX_LENGTH = 180;
-  const getThemeColorRGB = () => {
+  const HALO_WIDTH = 5;
+  const CORE_WIDTH = 1.6;
+  const VIA_R = 2.6;
+
+  const resolveThemeColorRGB = () => {
     const colorStr = getComputedStyle(document.body).getPropertyValue("--active-theme-color").trim();
     if (!colorStr) return "212, 175, 55";
 
@@ -39,6 +43,17 @@ export function initCanvas() {
     }
 
     return "212, 175, 55";
+  };
+
+  let colorCache = null;
+  let colorCacheKey = null;
+  const getThemeColorRGB = () => {
+    const key = document.body?.className ?? "";
+    if (key !== colorCacheKey || !colorCache) {
+      colorCacheKey = key;
+      colorCache = resolveThemeColorRGB();
+    }
+    return colorCache;
   };
 
   let width,
@@ -126,6 +141,7 @@ export function initCanvas() {
 
   class Particle {
     constructor() {
+      this.fase = Math.random() * Math.PI * 2;
       this.reset(true);
     }
     reset(isInitial = false) {
@@ -234,55 +250,63 @@ export function initCanvas() {
         }
       }
     }
-    draw(activeColor) {
+    draw(activeColor, tick) {
       if (this.path.length < 2) return;
       const sx = (x) => x * CELL_SIZE + CELL_SIZE / 2;
       const sy = (y) => y * CELL_SIZE + CELL_SIZE / 2;
-      ctx.lineWidth = 2;
-      ctx.lineCap = "square";
-      ctx.lineJoin = "bevel";
-      const opacity = this.state === "retracting" ? 0.3 : 0.8;
-      ctx.strokeStyle = `rgba(${activeColor}, ${opacity * this.alpha})`;
-      ctx.shadowBlur = 0;
+
+      const n = this.path.length;
+      const cola = this.path[0];
+      const cabeza = this.path[n - 1];
+      const base = (this.state === "retracting" ? 0.5 : 1) * this.alpha;
+      if (base <= 0) return;
+
+      const trazo = ctx.createLinearGradient(sx(cola.x), sy(cola.y), sx(cabeza.x), sy(cabeza.y));
+      trazo.addColorStop(0, `rgba(${activeColor}, 0)`);
+      trazo.addColorStop(0.3, `rgba(${activeColor}, 0.45)`);
+      trazo.addColorStop(1, `rgba(${activeColor}, 1)`);
+      ctx.strokeStyle = trazo;
+
       ctx.beginPath();
-      ctx.moveTo(sx(this.path[0].x), sy(this.path[0].y));
-      for (let i = 1; i < this.path.length; i++)
-        ctx.lineTo(sx(this.path[i].x), sy(this.path[i].y));
+      ctx.moveTo(sx(cola.x), sy(cola.y));
+      for (let i = 1; i < n; i++) ctx.lineTo(sx(this.path[i].x), sy(this.path[i].y));
+
+      ctx.globalAlpha = 0.1 * base;
+      ctx.lineWidth = HALO_WIDTH;
+      ctx.stroke();
+      ctx.globalAlpha = 0.85 * base;
+      ctx.lineWidth = CORE_WIDTH;
       ctx.stroke();
 
-      ctx.fillStyle = `rgba(${activeColor}, ${opacity * this.alpha})`;
-      for (let tIndex of this.turns) {
-        if (tIndex > 0 && tIndex < this.path.length) {
+      if (this.turns.length) {
+        ctx.beginPath();
+        for (const tIndex of this.turns) {
+          if (tIndex <= 0 || tIndex >= n) continue;
           const pt = this.path[tIndex];
-          ctx.beginPath();
-          ctx.arc(sx(pt.x), sy(pt.y), 2.5, 0, Math.PI * 2);
-          ctx.fill();
+          // moveTo to the circle edge: without it arc joins with a line from the previous via
+          ctx.moveTo(sx(pt.x) + VIA_R, sy(pt.y));
+          ctx.arc(sx(pt.x), sy(pt.y), VIA_R, 0, Math.PI * 2);
         }
+        ctx.globalAlpha = 0.9 * base;
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
       }
+
       if (this.state === "drawing") {
-        const head = this.path[this.path.length - 1];
-        const hx = sx(head.x);
-        const hy = sy(head.y);
+        const hx = sx(cabeza.x);
+        const hy = sy(cabeza.y);
+        ctx.globalAlpha = (0.7 + 0.3 * Math.sin(tick * 0.35 + this.fase)) * this.alpha;
         ctx.fillStyle = "#fff";
         ctx.beginPath();
-        ctx.moveTo(hx, hy - 4);
-        ctx.lineTo(hx + 4, hy);
-        ctx.lineTo(hx, hy + 4);
-        ctx.lineTo(hx - 4, hy);
+        ctx.moveTo(hx, hy - 3.5);
+        ctx.lineTo(hx + 3.5, hy);
+        ctx.lineTo(hx, hy + 3.5);
+        ctx.lineTo(hx - 3.5, hy);
         ctx.closePath();
         ctx.fill();
-        ctx.fillStyle = `rgba(${activeColor}, 1)`;
-        ctx.beginPath();
-        ctx.arc(hx, hy, 1.5, 0, Math.PI * 2);
-        ctx.fill();
       }
-      if (this.path.length > 0) {
-        const tail = this.path[0];
-        ctx.fillStyle = `rgba(${activeColor}, ${opacity * this.alpha})`;
-        ctx.beginPath();
-        ctx.arc(sx(tail.x), sy(tail.y), 2.5, 0, Math.PI * 2);
-        ctx.fill();
-      }
+
+      ctx.globalAlpha = 1;
     }
   }
 
@@ -293,6 +317,10 @@ export function initCanvas() {
     canvas.width = width * dpr;
     canvas.height = height * dpr;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    // setting canvas.width resets context state, so persistent styles are restored here
+    ctx.globalCompositeOperation = "lighter";
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
 
     cols = Math.ceil(width / CELL_SIZE);
     rows = Math.ceil(height / CELL_SIZE);
@@ -308,14 +336,15 @@ export function initCanvas() {
   });
   initSystem();
 
+  let tick = 0;
   function frame() {
     if (Math.random() < 0.05) spawnBus();
-
     const activeColor = getThemeColorRGB();
 
     ctx.clearRect(0, 0, width, height);
     for (let i = 0; i < SPEED_MULTI; i++) particles.forEach((p) => p.update());
-    particles.forEach((p) => p.draw(activeColor));
+    particles.forEach((p) => p.draw(activeColor, tick));
+    tick++;
 
     schedule();
   }
@@ -328,8 +357,12 @@ export function initCanvas() {
 
   const quieto = window.matchMedia?.("(prefers-reduced-motion: reduce)");
   if (quieto?.matches) {
-    particles.forEach((p) => p.update());
-    particles.forEach((p) => p.draw(getThemeColorRGB()));
+    for (let i = 0; i < 120; i++) {
+      if (i % 8 === 0) spawnBus();
+      particles.forEach((p) => p.update());
+    }
+    const activeColor = getThemeColorRGB();
+    particles.forEach((p) => p.draw(activeColor, 0));
   } else {
     frame();
   }

@@ -165,7 +165,8 @@ test("ocr.service: lecturas degradadas recuperables matchean por similitud gené
     { ocr: "AKJAGARS PRIME ARREL", expected: "Akjagara Prime Barrel" },
     { ocr: "AKJAGARA PRIME LINK", expected: "Akjagara Prime Link" },
     { ocr: "AKJAGARA FRIME RECEIVER", expected: "Akjagara Prime Receiver" },
-    { ocr: "AKBOLTO BLUEPRINT", expected: "Akbolto Prime Blueprint" },
+    { ocr: "AKBOLTO BLUEPRINT", expected: undefined },
+    { ocr: "AKBOLTO PRIME BLUEPRINT", expected: "Akbolto Prime Blueprint" },
   ];
 
   for (const { ocr, expected } of liveScanTests) {
@@ -239,3 +240,11 @@ test("ocr.service: un glifo espurio dentro del código no tumba el match", () =>
   OCRService._relicIndexCache = null;
 });
 
+
+test("una tilde del OCR no tira el match", () => {
+  // paddleOCR has accents in its dictionary and sometimes places them ("KESTREL PRÍME BLUEPRINT")
+  assert.equal(OCRService.getValidItemMatch("BALLISTICA PRÍME RECEIVER")?.originalName,
+    "Ballistica Prime Receiver");
+  assert.equal(OCRService.getValidItemMatch("VOLT PRÍME SYSTEMS BLUEPRÍNT")?.originalName,
+    OCRService.getValidItemMatch("VOLT PRIME SYSTEMS BLUEPRINT")?.originalName);
+});

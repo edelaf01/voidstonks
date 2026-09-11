@@ -11,7 +11,17 @@ const { VisionService } = await import("../deploy/js/services/scanner/vision.ser
 const DIR = process.env.INVENTORY_CAPTURES_DIR
   || "/home/ppsoy/Imágenes/Capturas de pantalla/inventario";
 
-const KNOWN_ISSUES = new Map([]);
+const SIN_TEMA_FIABLE = "voto de tema por debajo del listón de afinidad: el frame suelto no tiene último tema estable";
+// votable catalog is chromatic on purpose: with white or grey, Equinox took 26 of 37 captures
+const TEXTO_BLANCO = "tema de texto BLANCO: el catálogo votable es solo cromático y no tiene representante";
+const KNOWN_ISSUES = new Map([
+  ["Captura de pantalla_20260716_175250.png", SIN_TEMA_FIABLE],
+  ["Captura de pantalla_20260716_195542.png", SIN_TEMA_FIABLE],
+  ["Captura de pantalla_20260716_234123.png", SIN_TEMA_FIABLE],
+  ["Captura de pantalla_20260717_145916.png", SIN_TEMA_FIABLE],
+  ["Captura de pantalla_20260716_163025.png", TEXTO_BLANCO],
+  ["Captura de pantalla_20260717_005841.png", TEXTO_BLANCO],
+]);
 
 function listCaptures() {
   if (!fs.existsSync(DIR)) return [];

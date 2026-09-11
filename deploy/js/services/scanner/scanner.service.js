@@ -1,7 +1,11 @@
-import { VisionService, WF_THEMES } from "./vision.service.js";
+import { VisionService } from "./vision.service.js";
 import { freezeFrame, releaseFrame } from "../../utils/vision/frame_freeze.js";
-import { nextLatchedContext, INITIAL_LATCH } from "../../utils/vision/context_latch.js";
-import { isImplausibleFallbackGrid, detectPlausibleRewardBand } from "../../utils/vision/plausibility.js";
+import { nextLatchedContext, INITIAL_LATCH, enrutaGraciaRiven, toleranciaCabecera, intervaloCabecera } from "../../utils/vision/context_latch.js";
+import { isImplausibleFallbackGrid } from "../../utils/vision/plausibility.js";
+import { localizaBandaRecompensas, candidatosDeRecorte, recorteDelRotulo } from "../../utils/vision/reward_band.js";
+import { leeRecompensas, leeRotulosMissionComplete } from "./reward_read.service.js";
+import { leeCantidadBadge, relojBadges } from "./badge_read.service.js";
+import { motorActivo, MOTOR_PRECISO } from "./ocr_engine.service.js";
 import { OCRService } from "./ocr.service.js?v=264";
 import { SquadService } from "./squad.service.js";
 import { RelicScreenService } from "./relic_screen.service.js";
@@ -14,11 +18,19 @@ import { initializeOCRDatabase } from "../../repositories/api.repository.js";
 import { escapeHTML } from "../../utils/escape_html.js";
 import { electPageNameColor, cellNameMask, hasInk, readCellWithOwnColor } from "./name_color.service.js";
 import { createCellOverlay } from "../../utils/vision/scan_overlay.js";
+import { revisaRejillaCacheada } from "../../utils/vision/grid_cache.js";
 import { detectRewardCells } from "../../utils/vision/mission_complete_grid.js";
 import { nextLedger, INITIAL_LEDGER } from "../../utils/inventory/reward_ledger.js";
 import { createFrameQueue } from "../../utils/vision/frame_queue.js";
 import { videoRegionHash, smallCanvasHash, compareHashes } from "../../utils/vision/frame_hash.js";
+import { ESTADO_INICIAL as ESTADO_SIN_RESULTADO, saltaPorSinResultado, siguienteEstadoSinResultado } from "../../utils/vision/no_result_skip.js";
+import { cronometro } from "../../utils/perf.js";
+
 import { rivenFingerprint } from "../../utils/rivens/riven_naming.js";
+import { labelFullyRead } from "../../utils/vision/name_lines.js";
+import { collectWords } from "../../utils/vision/ocr_words.js";
+import { hasComponentSiblings } from "../../utils/inventory/component_siblings.js";
+import { olvidaColorTexto } from "../../utils/vision/reward_preprocess.js";
 
 export const ScannerService = {
     isScanning: false,
@@ -29,6 +41,7 @@ export const ScannerService = {
     sessionInventory: new Map(),
     sessionRelics: new Map(),
     _autoCalibCache: null,
+    _temaCache: null,
     _nameColorCache: null,
     _frameZoneCache: null,
     _invQueue: null,
@@ -41,8 +54,8 @@ export const ScannerService = {
     virtualCanvas: null,
     lastHashL: null,
     lastHashR: null,
-    lastNoResultHash: null,
-    lastNoResultTime: 0,
+    lastNoResult: ESTADO_SIN_RESULTADO,
+    lastRewardNoResult: ESTADO_SIN_RESULTADO,
     lastHeaderHash: null,
     lastHeaderText: null,
     lastHeaderOcrTime: 0,
@@ -62,8 +75,8 @@ export const ScannerService = {
         this.detectionLocked = false;
         this.lastHashL = null;
         this.lastHashR = null;
-        this.lastNoResultHash = null;
-        this.lastNoResultTime = 0;
+        this.lastNoResult = ESTADO_SIN_RESULTADO;
+        this.lastRewardNoResult = ESTADO_SIN_RESULTADO;
         this.lastHeaderHash = null;
         this.lastHeaderText = null;
         this.lastHeaderOcrTime = 0;
@@ -82,9 +95,7 @@ export const ScannerService = {
             this.virtualCanvas = document.createElement("canvas");
             this.virtualCanvas.id = "scanner-virtual-canvas";
         }
-
         initializeOCRDatabase().catch(err => console.warn("Error fetching OCR reference database from backend:", err));
-
         import("../rivens/rivens.service.js").then(m => m.fetchRivenWeapons()).catch(err => console.warn("Error fetching Riven weapons:", err));
 
         await OCRRepository.warmUp();
@@ -128,6 +139,7 @@ export const ScannerService = {
         if (this.detectionLocked) return;
         if (!this.isScanning) return;
         this.scanCounter++;
+        const reloj = cronometro("frame", 120);
 
         const dims = VisionService.prepareVirtualCanvas(video, virtualCanvas);
 
@@ -136,8 +148,11 @@ export const ScannerService = {
 
         const headerHash = smallCanvasHash(virtualCanvas);
         const headerCacheFresh = this.lastHeaderOcrTime && (Date.now() - this.lastHeaderOcrTime < 2500);
+        const tolHeader = toleranciaCabecera(this._headerEstable);
+        const enPausa = Date.now() - (this.lastHeaderOcrTime || 0) < intervaloCabecera(this._headerEstable);
         let headerText;
-        if (this.lastHeaderText !== null && headerCacheFresh && compareHashes(headerHash, this.lastHeaderHash, 6)) {
+        if (this.lastHeaderText !== null && headerCacheFresh
+            && (enPausa || compareHashes(headerHash, this.lastHeaderHash, tolHeader))) {
             headerText = this.lastHeaderText;
         } else {
             const headerTheme = VisionService.finalizeVirtualCanvas(virtualCanvas);
@@ -175,7 +190,10 @@ export const ScannerService = {
             this.lastHeaderOcrTime = Date.now();
         }
 
+        reloj.fase("cabecera");
         const rawContext = VisionService.determineContext(headerText);
+        this._headerEstable = rawContext === this._headerCtxPrevio ? (this._headerEstable || 0) + 1 : 0;
+        this._headerCtxPrevio = rawContext;
         const now = Date.now();
 
         const textUpper = headerText.toUpperCase();
@@ -190,22 +208,22 @@ export const ScannerService = {
             this.lastRivenContextType = rawContext === "ITEM_DETAILS" ? "ITEM_DETAILS" : "INVENTORY_MODS";
         }
 
-        let routedContext = rawContext;
-
-        if (this.lastRivenContextTime && (now - this.lastRivenContextTime < 8000)) {
-            if (rawContext === "UNKNOWN" || rawContext === "INVENTORY") {
-                routedContext = this.lastRivenContextType || "INVENTORY_MODS";
-            } else if (rawContext === "RELICS" || rawContext === "REWARD") {
-                this.lastRivenContextTime = 0;
-            }
-        }
+        const gracia = this.lastRivenContextTime && (now - this.lastRivenContextTime < 8000);
+        const { contexto: routedContext, cancelar } = enrutaGraciaRiven(
+            rawContext, gracia, this.lastRivenContextType);
+        if (cancelar) this.lastRivenContextTime = 0;
 
         this.ctxLatch = nextLatchedContext(this.ctxLatch, routedContext);
+        if (this.ctxLatch.latched !== this.latchedContext) olvidaColorTexto();
         this.latchedContext = this.ctxLatch.latched;
-        if (this.latchedContext !== "REWARD") this._rewardFrameCvs = releaseFrame(this._rewardFrameCvs);
-
+        if (this.latchedContext !== "REWARD") {
+            this._rewardFrameCvs = releaseFrame(this._rewardFrameCvs);
+            this._rewardDetectCvs = releaseFrame(this._rewardDetectCvs);
+            VisionService.releaseRewardCanvases?.();
+        }
         console.log(`[SCAN] Context Raw: ${rawContext} | Latched: ${this.latchedContext} | Header: "${headerText.trim().slice(0, 60)}"`);
         await this.routeFrameAction(this.latchedContext, video, dims);
+        reloj.fin(this.latchedContext);
 
         ScannerHUD.updateFrameCounter(this.scanCounter);
     },
@@ -379,6 +397,7 @@ export const ScannerService = {
                     }
 
                     const v = document.getElementById("live-video");
+                    if (!v?.videoWidth || !v.videoHeight) return;
                     if (!this._invSnapshot) this._invSnapshot = document.createElement("canvas");
                     const snapshot = this._invSnapshot;
                     if (snapshot.width !== v.videoWidth || snapshot.height !== v.videoHeight) {
@@ -405,6 +424,7 @@ export const ScannerService = {
             await RelicScreenService.process(video, dims);
         } else if (contextType === "MISSION_COMPLETE") {
             if (globalThis.RivenScannerHUD) globalThis.RivenScannerHUD.dismiss();
+            if (globalThis.state?.squadRun) SquadService.clear();
             this.currentRate = 800;
             await this.processMissionComplete(video, dims);
         } else if (contextType === "REWARD") {
@@ -569,9 +589,7 @@ export const ScannerService = {
             return;
         }
 
-        if (compareHashes(hash, this.lastNoResultHash) && (Date.now() - this.lastNoResultTime < 3000)) {
-            return;
-        }
+        if (saltaPorSinResultado(hash, this.lastNoResult, Date.now(), 3000)) return;
 
         const canvases = VisionService.prepareRivenCardCanvases(video, scale, cardCrop);
 
@@ -630,8 +648,7 @@ export const ScannerService = {
         if (!valids.length) {
             console.log(`[RIVEN OCR] sin parse válido en este frame (${contextType || "reroll"}) — se cachea el hash y no se reintenta hasta que la pantalla cambie`);
         }
-        this.lastNoResultHash = valids.length ? null : hash;
-        if (!valids.length) this.lastNoResultTime = Date.now();
+        this.lastNoResult = siguienteEstadoSinResultado(valids.length > 0, hash, Date.now());
 
         const currentFP = valids.map(e => rivenFingerprint(e.parsed)).join("||") || "none";
         this.rivenConsensusBuffer.push(currentFP);
@@ -829,57 +846,6 @@ export const ScannerService = {
         ScannerHUD.updateDebugSnapshot(debugCvs.toDataURL("image/webp"));
     },
 
-    async _attemptRewardOCR(frame, width, height, scale, preset, cropRect) {
-        const ocrCanvas = VisionService.prepareRewardOCRCanvas(frame, width, height, scale, preset, cropRect);
-        console.log(`[REWARD] Canvas: ${ocrCanvas.width}x${ocrCanvas.height} (preset ${preset})`);
-
-        const ctx = ocrCanvas.getContext("2d", { willReadFrequently: true });
-        const imgData = ctx.getImageData(0, 0, ocrCanvas.width, ocrCanvas.height);
-        const px = imgData.data;
-        let textPixels = 0;
-        for (let i = 0; i < px.length; i += 4) {
-            const v = px[i] > 128 ? 0 : 255;
-            if (v === 0) textPixels++;
-            px[i] = px[i + 1] = px[i + 2] = v;
-        }
-        ctx.putImageData(imgData, 0, 0);
-        const totalPx = px.length / 4;
-        console.log(`[REWARD] Binarization: ${textPixels} text pixels / ${totalPx} total (${(100 * textPixels / totalPx).toFixed(2)}%)`);
-
-        const dbgPanel = document.getElementById("live-debug-snapshot");
-        if (dbgPanel?.style.display === "block") {
-            const debugImg = document.getElementById("live-debug-snapshot-img");
-            if (debugImg) debugImg.src = ocrCanvas.toDataURL("image/jpeg", 0.85);
-        }
-
-        const namesCanvas = VisionService.prepareRewardNamesCanvas(frame, width, height, scale, cropRect);
-        let metaRes, namesRes;
-        if (namesCanvas) {
-            OCRRepository.ensureSecondWorker().catch(() => { });
-            const w0 = OCRRepository.workers[0];
-            const w1 = OCRRepository.workers[1] || w0;
-            [metaRes, namesRes] = await Promise.all([
-                OCRRepository.recognize(w0, ocrCanvas, {}, { blocks: true }),
-                OCRRepository.recognize(w1, namesCanvas, {}, { blocks: true }),
-            ]);
-        } else {
-            console.log("[REWARD] Names pass skipped: noisy mask");
-            metaRes = await OCRRepository.recognize(OCRRepository.workers[0], ocrCanvas, {}, { blocks: true });
-            namesRes = { data: { text: "", words: [] } };
-        }
-        const data = metaRes.data;
-        const rawOcr = data.text || "";
-        console.log(`[REWARD] OCR raw (grayscale/badges): "${rawOcr.replaceAll(/\n+/g, " ").trim().slice(0, 120)}"`);
-        const namesRaw = namesRes.data?.text || "";
-        console.log(`[REWARD] OCR raw (color/nombres): "${namesRaw.replaceAll(/\n+/g, " ").trim().slice(0, 120)}"`);
-
-        const mergedWords = [...(namesRes.data?.words || []), ...(data.words || [])];
-        const foundItems = OCRService.parseRewards({ words: mergedWords, imageW: ocrCanvas.width });
-        console.log(`[REWARD] Items found: ${foundItems.length}`, foundItems.map(i => i.name));
-
-        return { rawOcr, namesRaw, foundItems, ocrCanvas, namesCanvas };
-    },
-
     mcLedger: INITIAL_LEDGER,
     _mcFrameCvs: null,
     _mcCellCvs: null,
@@ -910,63 +876,88 @@ export const ScannerService = {
         if (!worker) return;
 
         if (!this._mcCellCvs) this._mcCellCvs = document.createElement("canvas");
+        const rotulos = await leeRotulosMissionComplete(frame, grid.cells.filter((c) => c.named));
+
         const items = [];
         for (const cell of grid.cells) {
             if (!cell.named) continue;
-            VisionService.prepareMissionCompleteCellCanvas(frame, cell, grid.accent, this._mcCellCvs);
-            const { data } = await OCRRepository.recognize(worker, this._mcCellCvs, {}, { text: true });
-            const raw = (data.text || "").toUpperCase();
+            const preciso = rotulos?.get(`r${cell.row}c${cell.col}`);
+            let data = null, raw = preciso || "";
+            if (!preciso) {
+                VisionService.prepareMissionCompleteCellCanvas(frame, cell, grid.accent, this._mcCellCvs);
+                ({ data } = await OCRRepository.recognize(worker, this._mcCellCvs, {}, { text: true, blocks: true }));
+                raw = (data.text || "").toUpperCase();
+            }
+            const relic = OCRService.getRelicMatch(raw);
+            if (relic) { items.push({ name: relic, qty: cell.qty, cell, reliquia: true }); continue; }
             const match = OCRService.getValidItemMatch(raw);
             if (!match?.isPrime) continue;
+            if (!preciso && hasComponentSiblings(OCRService.cachedDbItems, match.originalName)) {
+                const { completo, cobertura } = labelFullyRead(this._mcCellCvs, collectWords(data));
+                if (!completo) {
+                    console.log(`[MC] r${cell.row}c${cell.col}: descarto "${match.originalName}" — lo leído explica el ${Math.round(cobertura * 100)}% de la tinta del rótulo`);
+                    continue;
+                }
+            }
             items.push({ name: match.originalName, qty: cell.qty, cell });
             console.log(`[MC] r${cell.row}c${cell.col}: ${match.originalName} ×${cell.qty}`);
         }
 
         const { ledger, commit } = nextLedger(this.mcLedger, items);
         this.mcLedger = ledger;
-        if (commit?.length && typeof globalThis.commitMissionCompleteRewards === "function") {
-            globalThis.commitMissionCompleteRewards(commit);
+        const gastada = RelicScreenService.tomaReliquiaElegida();
+        if ((commit?.length || gastada) && typeof globalThis.commitMissionCompleteRewards === "function") {
+            globalThis.commitMissionCompleteRewards(commit || [], gastada);
         }
     },
 
     async processRewards(video, dims) {
         const { width, height, scale } = dims;
 
+        const bandHash = videoRegionHash(video, { x: 0, y: 0.185, w: 1, h: 0.255 });
+        if (saltaPorSinResultado(bandHash, this.lastRewardNoResult, Date.now(), 3000)) return;
+
         const frame = this._rewardFrameCvs = freezeFrame(video, width, height, this._rewardFrameCvs);
 
-        const DETECT_W = 720;
-        const detScale = DETECT_W / width;
-        const detH = Math.round(height * detScale);
-        if (!this._rewardDetectCvs) this._rewardDetectCvs = document.createElement("canvas");
-        const detCvs = this._rewardDetectCvs;
-        detCvs.width = DETECT_W; detCvs.height = detH;
-        const detCtx = detCvs.getContext("2d", { willReadFrequently: true });
-        detCtx.drawImage(frame, 0, 0, DETECT_W, detH);
-        const detImg = detCtx.getImageData(0, 0, DETECT_W, detH);
-        const band = detectPlausibleRewardBand(detImg);
-        const cropRect = band ? {
-            x: band.x / detScale, y: band.y / detScale,
-            w: band.w / detScale, h: band.h / detScale,
-        } : null;
+        const { cropRect, columnas, cardCount, bandSource, cvs } = localizaBandaRecompensas(frame, width, height, this._rewardDetectCvs);
+        this._rewardDetectCvs = cvs;
         console.log(cropRect
-            ? `[REWARD] Banda detectada: ${band.cardCount} cards en x=${Math.round(cropRect.x)} y=${Math.round(cropRect.y)} ${Math.round(cropRect.w)}x${Math.round(cropRect.h)}`
+            ? `[REWARD] Banda detectada (${bandSource}): ${cardCount} cards en x=${Math.round(cropRect.x)} y=${Math.round(cropRect.y)} ${Math.round(cropRect.w)}x${Math.round(cropRect.h)}`
             : "[REWARD] Banda no detectada, usando recorte fijo de respaldo");
 
-        const PRESET_ORDER = ["STANDARD", "LOW_LIGHT", "HIGH_GLARE"];
-        let result = null;
-        for (const preset of PRESET_ORDER) {
-            result = await this._attemptRewardOCR(frame, width, height, scale, preset, cropRect);
-            if (result.foundItems.length > 0) {
-                if (preset !== "STANDARD") console.log(`[REWARD] Rescatado por preset adaptativo: ${preset}`);
-                break;
-            }
+        const candidatos = candidatosDeRecorte({ cropRect, columnas, cardCount },
+            recorteDelRotulo(frame, width, height, null));
+        let result = null, usado = null;
+
+        for (const cand of candidatos) {
+            const r = await leeRecompensas(frame, width, height, scale, "STANDARD", cand.cropRect, cand.columnas, "preciso");
+            if (!result || r.foundItems.length > result.foundItems.length) { result = r; usado = { ...cand, preset: "STANDARD" }; }
+            if (result.foundItems.length >= cand.minimo) break;
+        }
+
+        if (!result?.foundItems.length) for (const cand of candidatos) {
+            const r = await leeRecompensas(frame, width, height, scale, "STANDARD", cand.cropRect, cand.columnas, "clasico");
+            if (!result || r.foundItems.length > result.foundItems.length) { result = r; usado = { ...cand, preset: "STANDARD" }; }
+            if (result.foundItems.length >= cand.minimo) break;
+        }
+        if (usado && (usado.preset !== "STANDARD" || usado.nombre !== candidatos[0].nombre)) {
+            console.log(`[REWARD] Leído con recorte "${usado.nombre}" y preset ${usado.preset}`);
         }
         const { rawOcr, namesRaw, foundItems, ocrCanvas, namesCanvas } = result;
 
-        const rMarginX = cropRect ? Math.floor(cropRect.w * 0.06) : Math.floor(width * 0.08);
-        const rCropXBase = cropRect ? Math.floor(cropRect.x) : 0;
-        const rCropW = (cropRect ? cropRect.w : width) - rMarginX * 2;
-        const rOcrW = ocrCanvas.width || 1;
+        this.lastRewardNoResult = siguienteEstadoSinResultado(foundItems.length > 0, bandHash, Date.now());
+
+        const dbgPanel = document.getElementById("live-debug-snapshot");
+        if (dbgPanel?.style.display === "block" && ocrCanvas) {
+            const debugImg = document.getElementById("live-debug-snapshot-img");
+            if (debugImg) debugImg.src = ocrCanvas.toDataURL("image/jpeg", 0.85);
+        }
+        const cropUsado = usado?.cropRect || null;
+
+        const rMarginX = cropUsado ? Math.floor(cropUsado.w * 0.06) : Math.floor(width * 0.08);
+        const rCropXBase = cropUsado ? Math.floor(cropUsado.x) : 0;
+        const rCropW = (cropUsado ? cropUsado.w : width) - rMarginX * 2;
+        const rOcrW = ocrCanvas?.width || 1;
         foundItems.forEach(item => {
             if (typeof item.xPos === "number") {
                 item.xPos = (rCropXBase + rMarginX + (item.xPos / rOcrW) * rCropW) * scale;
@@ -979,12 +970,14 @@ export const ScannerService = {
         addRewardDebugLog("OCR2", namesCanvas ? `Names: ${namesRaw.replaceAll(/\n+/g, " ").trim()}` : "Names: (skipped - noisy mask)", "info");
         addRewardDebugLog("SCAN", `Items found: ${foundItems.length}`, foundItems.length > 0 ? "match" : "warn");
 
-        const contextText = `${rawOcr} ${namesRaw}`.toUpperCase();
+        const contextText = `${rawOcr} ${namesRaw} ${this.lastHeaderText || ""}`.toUpperCase();
         const NON_REWARD_TOKENS = [
             "MISSION COMPLETE", "MISION COMPLETADA", "MISIÓN COMPLETADA",
             "IMPORTANCE", "IMPORTANCIA", "SEARCH", "BUSCAR",
         ];
-        const badToken = NON_REWARD_TOKENS.find(t => contextText.includes(t));
+        const ctxCabecera = VisionService.determineContext((this.lastHeaderText || "").toUpperCase());
+        const badToken = NON_REWARD_TOKENS.find(t => contextText.includes(t))
+            || (ctxCabecera === "RELICS" || ctxCabecera === "MISSION_COMPLETE" ? `cabecera ${ctxCabecera}` : null);
         if (badToken && foundItems.length > 0) {
             console.log(`[REWARD] Ignorado: pantalla fuera de contexto (token "${badToken}")`);
             addRewardDebugLog("CTX", `Skipped: end-of-mission screen detected ("${badToken}")`, "warn");
@@ -1003,6 +996,8 @@ export const ScannerService = {
     },
 
     async processInventoryGrid(snapshot, width, height, scale) {
+        const reloj = cronometro("inventario");
+        relojBadges.ms = 0; relojBadges.n = 0;
         if (this.detectionLocked) return;
         this.detectionLocked = true;
 
@@ -1031,6 +1026,7 @@ export const ScannerService = {
             if (!calibData?.gridZone) {
                 if (/KUBROW|KUBR|CHESA|HURAS|SAHASA|RAKSA|SUNIKA|HELMINTH|KAVAT/i.test(this.lastHeaderText || "")) {
                     console.log("[INV] Omitiendo modal de calibración porque la pantalla es de kubrow.");
+                    this.detectionLocked = false;
                     return;
                 }
                 if (globalThis.LiveCalibration && !globalThis.LiveCalibration.hasCalibration()) {
@@ -1043,28 +1039,36 @@ export const ScannerService = {
                     await globalThis.LiveCalibration.runCalibrationFlow(
                         calibCtx.getImageData(0, 0, width, height)
                     );
+                    this.detectionLocked = false;
                     return;
                 }
                 console.warn("[INV] No grid zone calibration available.");
+                this.detectionLocked = false;
                 return;
             }
 
             const { gridZone } = calibData;
 
-            let theme = VisionService.detectThemeFromSnapshot(
-                snapshot,
-                gridZone.x, gridZone.y, gridZone.w, gridZone.h
-            );
+            let theme = this._temaCache?.key === calibKey ? this._temaCache.theme : null;
+            if (!theme) {
+                theme = VisionService.detectThemeFromSnapshot(
+                    snapshot,
+                    gridZone.x, gridZone.y, gridZone.w, gridZone.h
+                );
+                if (theme) this._temaCache = { key: calibKey, theme };
+            }
             if (!theme) {
                 theme = { name: "Neutral", r: 240, g: 240, b: 240, actualR: 240, actualG: 240, actualB: 240 };
                 console.warn("[INV] Theme inconclusive — using neutral pseudo-theme (relics tab / tinted UI).");
             }
             console.log(`[INV] Theme detected: ${theme.name} (r:${theme.r} g:${theme.g} b:${theme.b})`);
 
+            reloj.fase("rejilla+tema");
             const autoGrid = VisionService.buildAutoGrid(snapshot, gridZone, theme, calibData);
             if (!autoGrid || autoGrid.cellRects.length === 0) {
                 console.warn("[INV] Auto-grid detection failed — inventory may not be visible or zone needs recalibration.");
                 ScannerHUD.updateScrollStatus("done", 0);
+                this.detectionLocked = false;
                 return;
             }
 
@@ -1110,7 +1114,7 @@ export const ScannerService = {
             const activeCells = cellRects.map(cell => ({ cell }));
 
             console.log(`[INV] Preparadas ${activeCells.length} celdas activas; arrancando worker OCR...`);
-            await OCRRepository.ensureSecondWorker();
+            if (motorActivo() !== MOTOR_PRECISO || !PaddleRepository.listo()) await OCRRepository.ensureWorkers(activeCells.length);
             const workers = OCRRepository.workers.filter(Boolean);
             console.log(`[INV] Workers OCR listos: ${workers.length}`);
 
@@ -1134,6 +1138,16 @@ export const ScannerService = {
             const { drawResolved: drawResolvedCell, drawFailed: drawFailedCell } =
                 createCellOverlay(dCtx, gridZone, cellW, cellH);
 
+            const bandaY = Math.round(cellH * 0.50), bandaH = Math.round(cellH * 0.48);
+            const clave = (cell) => `r${cell.r}c${cell.c}`;
+            let lotePreciso = null;
+            if (motorActivo() === MOTOR_PRECISO) {
+                const tiras = activeCells.map(({ cell }) =>
+                    ({ clave: clave(cell), sx: cell.sx, sy: cell.sy + bandaY, sw: cellW, sh: bandaH }));
+                lotePreciso = await PaddleRepository.recognizeStripWords(snapshot, tiras)
+                    .catch((e) => { console.warn("[Paddle] lote falló, voy celda a celda:", e); return null; });
+            }
+
             let cellIndex = 0;
             const runWorker = async (worker) => {
                 while (cellIndex < activeCells.length) {
@@ -1143,29 +1157,42 @@ export const ScannerService = {
                     console.log(`[INV] celda ${cellIndex}/${activeCells.length} (r${task.cell.r}c${task.cell.c})...`);
 
                     const { cell } = task;
-                    const { cvs: textCvs, ink, ownColor: ownColorUsed } =
-                        cellNameMask(snapshot, cell, cellW, textSrcY, textSrcH, theme, pageNameColor);
-                    if (ownColorUsed) scanStats.ownColor++;
-                    if (!hasInk(ink)) {
-                        scanStats.empty++;
-                        this.lastRawOcrLog.push(`[r${cell.r}c${cell.c}] SKIPPED (empty)`);
-                        dCtx.strokeStyle = "rgba(255, 255, 255, 0.04)";
-                        dCtx.lineWidth = 1;
-                        dCtx.strokeRect(cell.sx - gridZone.x + 2, cell.sy - gridZone.y + 2, cellW - 4, cellH - 4);
-                        continue;
+                    let textCvs = null, ownColorUsed = false;
+                    let ink = null;
+                    const mascaraNombre = () => {
+                        if (textCvs) return textCvs;
+                        const m = cellNameMask(snapshot, cell, cellW, textSrcY, textSrcH, theme, pageNameColor);
+                        textCvs = m.cvs; ink = m.ink; ownColorUsed = m.ownColor;
+                        if (ownColorUsed) scanStats.ownColor++;
+                        return textCvs;
+                    };
+                    const textoDelLote = lotePreciso?.get(clave(cell));
+                    if (!textoDelLote) {
+                        mascaraNombre();
+                        if (!hasInk(ink)) {
+                            scanStats.empty++;
+                            this.lastRawOcrLog.push(`[r${cell.r}c${cell.c}] SKIPPED (empty)`);
+                            dCtx.strokeStyle = "rgba(255, 255, 255, 0.04)";
+                            dCtx.lineWidth = 1;
+                            dCtx.strokeRect(cell.sx - gridZone.x + 2, cell.sy - gridZone.y + 2, cellW - 4, cellH - 4);
+                            continue;
+                        }
                     }
                     let combinedText;
-                    if (globalThis.OCR_ENGINE === "paddle") {
-                        const ty = Math.round(cellH * 0.50), th = Math.round(cellH * 0.48);
-                        const colorCvs = VisionService.cropColor(snapshot, cell.sx, cell.sy + ty, cellW, th, 2);
-                        try {
-                            combinedText = await PaddleRepository.recognizeWords(colorCvs);
-                        } catch (e) {
-                            console.warn("[Paddle] fallo, cae a Tesseract:", e);
-                            combinedText = await OCRService.extractCellText(worker, textCvs);
+                    if (motorActivo() === MOTOR_PRECISO) {
+                        if (textoDelLote) {
+                            combinedText = textoDelLote;
+                        } else {
+                            const colorCvs = VisionService.cropColor(snapshot, cell.sx, cell.sy + bandaY, cellW, bandaH, 2);
+                            try {
+                                combinedText = await PaddleRepository.recognizeWords(colorCvs);
+                            } catch (e) {
+                                console.warn("[Paddle] fallo, cae a Tesseract:", e);
+                                combinedText = await OCRService.extractCellText(worker, mascaraNombre());
+                            }
                         }
                     } else {
-                        combinedText = await OCRService.extractCellText(worker, textCvs);
+                        combinedText = await OCRService.extractCellText(worker, mascaraNombre());
                     }
 
                     if (!combinedText) {
@@ -1225,7 +1252,7 @@ export const ScannerService = {
                         }
                     }
 
-                    if (!bestItem && !relicMatch && globalThis.OCR_ENGINE !== "paddle" && globalThis.OCR_PADDLE_FALLBACK) {
+                    if (!bestItem && !relicMatch && motorActivo() !== MOTOR_PRECISO && globalThis.OCR_PADDLE_FALLBACK) {
                         const ty = Math.round(cellH * 0.50), th = Math.round(cellH * 0.48);
                         const colorCvs = VisionService.cropColor(snapshot, cell.sx, cell.sy + ty, cellW, th, 2);
                         try {
@@ -1244,25 +1271,13 @@ export const ScannerService = {
 
 
                     if (bestItem) {
-                        let qtyResult = await OCRService.extractCellQuantity(null,
-                            VisionService.extractBadgeBright(snapshot, cell, cellW, cellH));
-                        if (!/\d/.test(qtyResult.raw || "")) {
-                            const altR = await OCRService.extractCellQuantity(null,
-                                VisionService.extractBadgeByColor(snapshot, cell, cellW, cellH, theme));
-                            if (/\d/.test(altR.raw || "")) qtyResult = altR;
-                        }
+                        const qtyResult = await leeCantidadBadge(snapshot, cell, cellW, cellH, theme);
 
                         logStr += ` || BDG: ${qtyResult.raw}`;
                         pendingItems.push({ cell, bestItem, qtyResult, itemText, logStr });
                     } else if (relicMatch) {
                         scanStats.relics++;
-                        let qtyResult = await OCRService.extractCellQuantity(null,
-                            VisionService.extractBadgeBright(snapshot, cell, cellW, cellH));
-                        if (!/\d/.test(qtyResult.raw || "")) {
-                            const altR = await OCRService.extractCellQuantity(null,
-                                VisionService.extractBadgeByColor(snapshot, cell, cellW, cellH, theme));
-                            if (/\d/.test(altR.raw || "")) qtyResult = altR;
-                        }
+                        const qtyResult = await leeCantidadBadge(snapshot, cell, cellW, cellH, theme);
 
                         const relicSrc = relicText === combinedText ? "1st-pass" : "fallback";
                         logStr += ` || RELIC (${relicSrc}): ${relicMatch} || BDG: ${qtyResult.raw}`;
@@ -1291,7 +1306,7 @@ export const ScannerService = {
                             const bandH = Math.round((cellH - 54) * 0.6);
                             dCtx.fillStyle = "#fff";
                             dCtx.fillRect(relX + 4, relY + 4, cellW - 8, bandH);
-                            dCtx.drawImage(textCvs, relX + 4, relY + 4, cellW - 8, bandH);
+                            dCtx.drawImage(mascaraNombre(), relX + 4, relY + 4, cellW - 8, bandH);
                         }
                     }
                 }
@@ -1299,12 +1314,15 @@ export const ScannerService = {
 
             try {
                 const workerPromises = [];
-                const maxWorkers = globalThis.OCR_ENGINE === "paddle" ? 1 : workers.length;
+                const maxWorkers = lotePreciso ? 1 : workers.length;
                 const activeWorkerCount = Math.min(maxWorkers, activeCells.length);
                 for (let w = 0; w < activeWorkerCount; w++) {
                     workerPromises.push(runWorker(workers[w]));
                 }
                 await Promise.all(workerPromises);
+                reloj.fase("celdas");
+                const motorReal = lotePreciso ? "paddle" : `tesseract x${workers.length}`;
+                reloj.fin(`${motorReal} · ${relojBadges.n} badges ${relojBadges.ms.toFixed(0)} ms`);
 
                 const relicPage = scanStats.relics >= 3 && scanStats.relics >= 2 * pendingItems.length;
                 for (const pending of pendingItems) {
@@ -1345,11 +1363,14 @@ export const ScannerService = {
                     this._nameColorCache = null;
                 }
 
-                if (this._autoCalibCache && activeCells.length > 0 &&
-                    scanStats.matched === 0 && scanStats.relics === 0) {
-                    console.warn("[INV] Página sin ningún match con la rejilla cacheada — invalidando caché del auto-grid y del color de nombre.");
+                const aciertos = scanStats.matched + scanStats.relics;
+                const revision = revisaRejillaCacheada(aciertos, activeCells.length, this._gridReintentado);
+                this._gridReintentado = revision.yaReintentado;
+                if (this._autoCalibCache && revision.reDetectar) {
+                    console.warn(`[INV] Solo ${aciertos}/${activeCells.length} celdas casaron con lo cacheado — invalidando auto-grid, color de nombre y tema.`);
                     this._autoCalibCache = null;
                     this._nameColorCache = null;
+                    this._temaCache = null;
                 }
 
                 this.debugHistory.unshift({
@@ -1397,16 +1418,12 @@ function clearRewardDebugLogs() {
 }
 
 function addRewardDebugLog(tag, msg, type = "info") {
+    const parent = document.getElementById("rewards-dbg-text");
     const container = document.getElementById("rewards-raw-ocr-content");
-    if (!container) return;
+    if (!parent || !container || parent.classList.contains("hidden")) return;
 
     const entry = document.createElement("div");
-
-    const colors = {
-        info: "#ff9800",
-        match: "#00ff78",
-        warn: "#f1c40f"
-    };
+    const colors = { info: "#ff9800", match: "#00ff78", warn: "#f1c40f" };
 
     const now = new Date();
     const timeStr = now.toLocaleTimeString([], { hour12: false });
@@ -1418,7 +1435,5 @@ function addRewardDebugLog(tag, msg, type = "info") {
     `;
 
     container.appendChild(entry);
-
-    const parent = document.getElementById("rewards-dbg-text");
-    if (parent) parent.scrollTop = parent.scrollHeight;
+    parent.scrollTop = parent.scrollHeight;
 }

@@ -91,3 +91,10 @@ test("readBadgeDigits: mota de ruido demasiado pequeña/baja no cuenta como díg
   assert.deepEqual(segmentDigits(canvas), []);
   assert.equal(readBadgeDigits(canvas), "");
 });
+
+test("entre 5 y 6 decide por donde las plantillas difieren, no por el IoU global", () => {
+  for (const d of ["5", "6", "3", "8", "0"]) {
+    const cvs = canvasFromDigits(NW + 4, NH + 4, [{ x: 2, y: 2, bmp: DIGIT_TEMPLATES[d] }]);
+    assert.equal(readBadgeDigits(cvs), d, `la plantilla de ${d} debe leerse como ${d}`);
+  }
+});

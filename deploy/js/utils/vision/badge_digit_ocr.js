@@ -87,18 +87,33 @@ export function segmentDigits(canvasLike) {
     });
 }
 
-const MIN_IOU = 0.6;
+// the ✓ scores ~0.48-0.49 against "9", at 720p IoU shrinks and 0.55 is where it stops gaining
+const MIN_IOU = 0.55;
+
+function decidePorDiferencia(bmp, a, b) {
+    const ta = DIGIT_TEMPLATES[a], tb = DIGIT_TEMPLATES[b];
+    let soloA = 0, soloB = 0, nA = 0, nB = 0;
+    for (let i = 0; i < ta.length; i++) {
+        if (ta[i] && !tb[i]) { nA++; soloA += bmp[i]; }
+        else if (tb[i] && !ta[i]) { nB++; soloB += bmp[i]; }
+    }
+    if (!nA || !nB) return a;
+    return (soloA / nA) >= (soloB / nB) ? a : b;
+}
 
 export function readBadgeDigits(canvasLike) {
     const digits = [];
     for (const comp of segmentDigits(canvasLike)) {
-        let best = "", bestScore = -1;
+        let best = "", bestScore = -1, second = "", secondScore = -1;
         for (const [digit, tmpl] of Object.entries(DIGIT_TEMPLATES)) {
             const score = iou(comp.bmp, tmpl);
-            if (score > bestScore) { bestScore = score; best = digit; }
+            if (score > bestScore) {
+                second = best; secondScore = bestScore;
+                bestScore = score; best = digit;
+            } else if (score > secondScore) { secondScore = score; second = digit; }
         }
         if (bestScore < MIN_IOU) continue;
-        digits.push({ d: best, minX: comp.minX, maxX: comp.maxX });
+        digits.push({ d: second ? decidePorDiferencia(comp.bmp, best, second) : best, minX: comp.minX, maxX: comp.maxX });
     }
     if (!digits.length) return "";
     const widths = digits.map(g => g.maxX - g.minX + 1).sort((a, b) => a - b);

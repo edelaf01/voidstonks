@@ -33,6 +33,38 @@ const TX_TOL_SQ = 66 * 66;
 const QKEY = (r, g, b) => ((r >> 3) << 10) | ((g >> 3) << 5) | (b >> 3);
 const UNQ = (k) => [((k >> 10) & 31) << 3, ((k >> 5) & 31) << 3, (k & 31) << 3];
 
+export function rampCoreColor(bins, bg) {
+    if (!bins?.length) return null;
+    // cos >= 0.985 fits the 5 bit quantization drift without merging two different ramps
+    const COS_MIN = 0.985;
+    const groups = [];
+    for (const { col, count } of bins) {
+        const v = [col[0] - bg[0], col[1] - bg[1], col[2] - bg[2]];
+        const m = Math.hypot(v[0], v[1], v[2]);
+        if (!m) continue;
+        const u = [v[0] / m, v[1] / m, v[2] / m];
+        let g = groups.find(G => G.u[0] * u[0] + G.u[1] * u[1] + G.u[2] * u[2] >= COS_MIN);
+        if (!g) { g = { u, pixels: 0, members: [] }; groups.push(g); }
+        g.pixels += count;
+        g.members.push({ col, count, m });
+    }
+    if (!groups.length) return null;
+    let best = groups[0];
+    for (const g of groups) if (g.pixels > best.pixels) best = g;
+
+    let pick = null, pickM = -1, wide = null, wideMass = -1;
+    for (const c of best.members) {
+        let mass = 0;
+        for (const o of best.members) {
+            const dr = o.col[0] - c.col[0], dg = o.col[1] - c.col[1], db = o.col[2] - c.col[2];
+            if (dr * dr + dg * dg + db * db < TX_TOL_SQ) mass += o.count;
+        }
+        if (mass > wideMass) { wideMass = mass; wide = c.col; }
+        if (mass >= best.pixels * 0.5 && c.m > pickM) { pickM = c.m; pick = c.col; }
+    }
+    return pick || wide;
+}
+
 export function bandInkHistogram(imgData, max = 10) {
     const { data: px, width: cw, height: ch } = imgData;
     const bgHist = new Map();

@@ -164,6 +164,54 @@ def _generar_globales(series):
     return out
 
 
+REPETIDO_DIAS = 7
+
+FRESCOS_DIAS = 7
+ARCHIVO_MAX = 40
+
+
+def _nota(e):
+    venta = abs(e.get("venta_pct") or 0)
+    ask = abs(e.get("ask_pct") or 0)
+    magnitud = max(venta * 1.5, ask)
+    liquidez = np.log1p(e.get("ofertas") or 0)
+    tras_weekly = e.get("dias_tras_weekly")
+    bonus = 1.25 if (tras_weekly is not None and tras_weekly <= 2) else 1.0
+    castigo = 0.6 if e.get("solo_ask") else 1.0
+    return float(magnitud * liquidez * bonus * castigo)
+
+
+def _fusiona_historial(nuevos, ruta, dias_historial, tope):
+    previos = []
+    if os.path.exists(ruta):
+        try:
+            with open(ruta, "r", encoding="utf-8") as f:
+                previos = json.load(f).get("eventos") or []
+        except (json.JSONDecodeError, OSError, ValueError):
+            previos = []
+
+    hoy = pd.Timestamp.now("UTC").date()
+    corte = str(hoy - pd.Timedelta(days=dias_historial))
+    fusion, ultima = [], {}
+    for e in [*nuevos, *previos]:
+        fecha = e.get("fecha") or ""
+        if fecha < corte:
+            continue
+        clave = (e.get("arma"), e.get("tipo"))
+        anterior = ultima.get(clave)
+        if anterior is not None and abs((pd.Timestamp(fecha) - pd.Timestamp(anterior)).days) < REPETIDO_DIAS:
+            continue
+        ultima[clave] = fecha
+        fusion.append(e)
+    frontera = str(hoy - pd.Timedelta(days=FRESCOS_DIAS))
+    frescos = [e for e in fusion if (e.get("fecha") or "") >= frontera]
+    archivo = [e for e in fusion if (e.get("fecha") or "") < frontera]
+    archivo.sort(key=_nota, reverse=True)
+    salida = frescos + archivo[:ARCHIVO_MAX]
+    salida.sort(key=lambda e: e.get("fecha") or "", reverse=True)
+    return salida[:tope]
+
+
 if __name__ == "__main__":
     _ev = _generar_curiosidades(HIST_SERIES)
     with open(HIST_SERIES, "r", encoding="utf-8") as _f:
@@ -172,12 +220,17 @@ if __name__ == "__main__":
     _dest = os.environ.get("DEPLOY_ML_DIR", "generado")
     os.makedirs(_dest, exist_ok=True)
     _ruta = os.path.join(_dest, "curiosidades.json")
+    _antes = len(_ev)
+    _ev = _fusiona_historial(_ev, _ruta,
+                             int(os.environ.get("CURIOS_HISTORIAL_DIAS", 60)),
+                             int(os.environ.get("CURIOS_MAX", 240)))
     with open(_ruta, "w", encoding="utf-8") as f:
         _hasta = max((p.get("date") or "" for s_ in _series.values() for p in s_), default="")
         json.dump({"generado": str(pd.Timestamp.now("UTC").date()), "serie_hasta": _hasta,
                    "globales": _gl, "eventos": _ev}, f, indent=1, ensure_ascii=False)
     from collections import Counter
-    print(f"Curiosidades: {len(_ev)} eventos + {len(_gl)} globales -> {_ruta}")
+    print(f"Curiosidades: {len(_ev)} eventos en el historial "
+          f"({_antes} detectados hoy) + {len(_gl)} globales -> {_ruta}")
     if _ev:
         print("  por tipo:", dict(Counter(e["tipo"] for e in _ev)))
         print("  fechas  :", min(e["fecha"] for e in _ev), "->", max(e["fecha"] for e in _ev))

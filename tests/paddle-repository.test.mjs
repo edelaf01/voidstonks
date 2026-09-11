@@ -50,10 +50,10 @@ test("las palabras de una línea se reparten a lo ancho de su caja, en orden", a
   assert.deepEqual(words.map((w) => [w.bbox.x0, w.bbox.x1]), [[0, 100], [100, 200], [200, 300]]);
 });
 
-test("dos palabras pegadas se separan por el cambio de caja", async () => {
+test("las pegadas viajan enteras: el vocabulario decide dónde cortar", async () => {
   conServicio({ lines: [[linea("YareliPrime Blueprint", caja(0, 0, 300, 20))]] });
   const words = await P.recognizeWordsWithBoxes(null);
-  assert.deepEqual(words.map((w) => w.text), ["Yareli", "Prime", "Blueprint"]);
+  assert.deepEqual(words.map((w) => w.text), ["YareliPrime", "Blueprint"]);
 });
 
 test("la confianza se convierte a porcentaje", async () => {
@@ -121,15 +121,19 @@ test("la librería se carga una sola vez aunque se pida en paralelo", async () =
 });
 
 // tiny is 4.8 MB and ~630 ms vs 12 MB and ~1.5 s for large model with same accuracy: pinned
-test("por defecto se carga el modelo pequeño", async () => {
+test("por defecto se cargan los modelos que servimos nosotros", async () => {
   reiniciaPaddle();
   const ruido = console.log;
   console.log = () => {};
   try { await P.warmUp(); } finally { console.log = ruido; }
-  assert.deepEqual(globalThis.__paddleModelo, { nombre: "tiny" });
+  assert.deepEqual(globalThis.__paddleModelo, {
+    detection: "assets/ocr/PP-OCRv6_tiny_det.ort",
+    recognition: "assets/ocr/PP-OCRv6_tiny_rec.ort",
+    charactersDictionary: "assets/ocr/ppocrv6_tiny_dict.txt",
+  });
 });
 
-test("se puede pedir otro modelo, y uno inexistente cae al pequeño", async () => {
+test("se puede pedir otro modelo por nombre, y uno inexistente cae al nuestro", async () => {
   reiniciaPaddle();
   const ruido = console.log;
   console.log = () => {};
@@ -141,7 +145,8 @@ test("se puede pedir otro modelo, y uno inexistente cae al pequeño", async () =
     reiniciaPaddle();
     globalThis.PADDLE_MODEL = "MODELO_QUE_NO_EXISTE";
     await P.warmUp();
-    assert.deepEqual(globalThis.__paddleModelo, { nombre: "tiny" }, "no puede quedarse sin modelo");
+    assert.equal(globalThis.__paddleModelo.detection, "assets/ocr/PP-OCRv6_tiny_det.ort",
+      "no puede quedarse sin modelo");
   } finally {
     console.log = ruido;
     delete globalThis.PADDLE_MODEL;

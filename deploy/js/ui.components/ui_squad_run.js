@@ -9,12 +9,24 @@ const REF_KEY = { radiant: "rad", flawless: "flawless", exceptional: "exceptiona
 
 const plat = (n) => `${Math.round(n)}<span class="plat-icon-inline"></span>`;
 
+function agrupaRelics(relics) {
+    const grupos = new Map();
+    for (const r of relics || []) {
+        const clave = `${r?.name}|${r?.refinement || "intact"}`;
+        const previo = grupos.get(clave);
+        if (previo) previo.copias += 1;
+        else grupos.set(clave, { ...r, copias: 1 });
+    }
+    return [...grupos.values()];
+}
+
 function relicRow(relic, t) {
     const key = REF_KEY[relic.refinement] || "intact";
     const ref = t.refs?.[key] || key;
     const title = relic.assumedRefinement ? ` title="${escapeHTML(t.scannerHUD.squadAssumed)}"` : "";
+    const copias = relic.copias > 1 ? `<span class="squad-relic-x">×${relic.copias}</span>` : "";
     return `<div class="squad-relic">
-      <span class="squad-relic-name">${escapeHTML(relic.name)}</span>
+      <span class="squad-relic-name">${escapeHTML(relic.name)}</span>${copias}
       <span class="squad-relic-ref is-${escapeHTML(relic.refinement || "intact")}"${title}>${escapeHTML(ref)}${relic.assumedRefinement ? "?" : ""}</span>
       <span class="squad-relic-ev" title="${escapeHTML(t.scannerHUD.squadRelicEV)}">${relic.ev > 0 ? plat(relic.ev) : "—"}</span>
     </div>`;
@@ -61,7 +73,7 @@ export function renderSquadRun(run = state.squadRun) {
         ? `<span class="squad-ev" title="${escapeHTML(sh.squadRunEV)}">~${plat(run.runEV)}</span>`
         : ""}
       </div>
-      <div class="squad-relics">${run.relics.map((r) => relicRow(r, t)).join("")}</div>
+      <div class="squad-relics">${agrupaRelics(run.relics).map((r) => relicRow(r, t)).join("")}</div>
       ${run.drops?.length
         ? `<div class="squad-drops-label">${escapeHTML(sh.squadDrops)}</div>
            <div class="squad-drops">${run.drops.map((d) => dropRow(d, t)).join("")}</div>`

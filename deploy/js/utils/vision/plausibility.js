@@ -1,4 +1,5 @@
 import { detectRewardBand } from "./grid_detect.js";
+import { columnasDesdeCentros } from "./reward_cards.js";
 
 export function isImplausibleFallbackGrid(calib, frameW, frameH) {
     if (!calib || !frameW || !frameH) return true;
@@ -25,5 +26,8 @@ export function isImplausibleRewardBand(rect, frameW, frameH) {
 export function detectPlausibleRewardBand(img, opts = {}) {
     const rect = detectRewardBand(img, opts);
     if (isImplausibleRewardBand(rect, img?.width, img?.height)) return null;
-    return { ...rect, x: 0, w: img.width };
+    const cajas = rect.cardBoxes || [];
+    const columnas = columnasDesdeCentros(cajas.map((b) => b.cx), img.width,
+        Math.max(0, ...cajas.map((b) => b.x1 - b.x0)) * 2);
+    return { ...rect, x: 0, w: img.width, columnas };
 }
