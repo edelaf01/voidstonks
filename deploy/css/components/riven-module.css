@@ -994,3 +994,15 @@
     font-weight: 400;
     color: #8b8397;
 }
+
+/* Aviso de "los precios son orientativos". Estaba debajo del escaparate de armas, en la columna
+   derecha, como un párrafo largo en mayúsculas; aquí ocupa el hueco muerto que quedaba bajo los
+   botones y la columna derecha se queda solo con las tarjetas. */
+#mode-riven .riven-disclaimer {
+    margin: 16px 0 0;
+    font-size: 0.62rem;
+    line-height: 1.55;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+}

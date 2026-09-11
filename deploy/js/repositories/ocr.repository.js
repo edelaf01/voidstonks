@@ -1,6 +1,12 @@
 /**
  * Repository for Tesseract.js worker management and raw recognition.
  */
+/**
+ * Versión de tesseract.js que se usa. Tiene que coincidir con la del bundle de deploy/js y con
+ * la de los ficheros de deploy/js/tesseract/, que servimos nosotros; el test cruza las tres.
+ */
+const TESSERACT_VERSION = "7.0.0";
+
 export const OCRRepository = {
     // Bloque uniforme de texto. Lo comparte todo el escáner salvo recognizeWithPSM.
     DEFAULT_PSM: "6",
@@ -48,10 +54,33 @@ export const OCRRepository = {
                 // Se deja worker/core en el default (que ya funciona) para no tocar el wiring del WASM.
                 const LOCAL_LANG = { langPath: "js/", gzip: false };
 
+                // Worker y core SERVIDOS POR NOSOTROS, no por un CDN. Por defecto tesseract.js
+                // los baja de jsdelivr en cada arranque, así que un compromiso de ese paquete
+                // ejecuta código arbitrario en la página: es la misma superficie de ataque que
+                // tendría un <script src> a un tercero, solo que menos visible porque la URL la
+                // construye la librería sola concatenando su propia versión.
+                //
+                // `corePath` va como DIRECTORIO: la librería elige dentro según lo que soporte el
+                // navegador. Con oem=1 (solo LSTM) son tres variantes —relaxedsimd, simd y sin
+                // SIMD—; las legacy no se piden nunca y por eso no se sirven.
+                // tests/tesseract-version.test.mjs comprueba que están y que su huella es la del
+                // paquete oficial.
+                // La versión va en la RUTA, no en un ?v=: `corePath` es un directorio al que la
+                // librería le concatena el nombre del fichero, así que ahí no cabe una query. Y
+                // con la versión en la carpeta, los cores (3,7 MB cada uno) se pueden servir como
+                // inmutables sin miedo a caché vieja — subir de versión cambia la ruta entera.
+                // Ver la regla de /js/tesseract/* en deploy/_headers.
+                const BASE = `js/tesseract/${TESSERACT_VERSION}`;
+                const RUTAS = { workerPath: `${BASE}/worker.min.js`, corePath: `${BASE}/` };
+
                 const createStandardWorker = async () => {
-                    const w = await tess.createWorker("eng", 1, LOCAL_LANG);
+                    const w = await tess.createWorker("eng", 1, { ...LOCAL_LANG, ...RUTAS });
                     await w.setParameters({
-                        tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789:()+- '/%,.",
+                        // Solo lo que aparece en los rótulos: letras, dígitos y la coma de los
+                        // millares ("7,661"). El espacio NO es un carácter a reconocer sino el
+                        // separador del que vive todo el parseo — medido, sin él Tesseract pega
+                        // las palabras ("Steel Fccence" -> "SteelFccence").
+                        tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789, ",
                         tessedit_pageseg_mode: this.DEFAULT_PSM,
                         user_defined_dictionary_priority: "1",
                     });
@@ -64,6 +93,7 @@ export const OCRRepository = {
                 // inventario o recompensas. Se crea perezosamente con ensureSecondWorker(). Las
                 // CANTIDADES ya no usan Tesseract (template-matching en utils/badge_digit_ocr.js),
                 // por eso no hay workers de badges.
+                console.log(`[OCR Repo] Tesseract ${TESSERACT_VERSION}, worker y core servidos en local.`);
                 this._createStandardWorker = createStandardWorker;
                 this.workers = [await createStandardWorker()];
 
@@ -81,19 +111,43 @@ export const OCRRepository = {
 
     // Crea el 2º worker estándar bajo demanda (paraleliza las 2 pasadas de recompensas y el
     // grid de inventario). Idempotente; memoiza la promesa para no crear dos en carrera.
-    async ensureSecondWorker() {
-        if (this.workers[1]) return;
+    /**
+     * Tope del pool. Cada worker es una instancia WASM con su copia del traineddata, y el escáner
+     * ya es lo que más RAM consume de la app, así que no se escala sin límite. Cuatro es lo que
+     * hubo históricamente y lo que aguantaba; por debajo manda el número de núcleos, porque más
+     * workers que hilos no reparten nada y sí ocupan memoria.
+     */
+    MAX_WORKERS: 4,
+
+    /**
+     * Crea workers hasta tener `n`. Se piden justo antes de repartir una rejilla: con dos, las 18
+     * celdas del inventario se leen de nueve en nueve y se NOTA que van una a una.
+     *
+     * Los que falten se crean EN PARALELO: en serie, arrancar tres instancias WASM antes de la
+     * primera lectura es exactamente la espera que se quiere quitar.
+     */
+    async ensureWorkers(n = 2) {
         if (!this._createStandardWorker) return;
-        if (!this._w2Promise) {
-            this._w2Promise = this._createStandardWorker()
-                .then(w => { this.workers[1] = w; })
-                .catch(e => {
-                    console.warn("[OCR Repo] Second worker failed to init:", e);
-                    this.workers[1] = null;
+        const nucleos = globalThis.navigator?.hardwareConcurrency || 4;
+        const tope = Math.max(1, Math.min(this.MAX_WORKERS, nucleos - 1));
+        const objetivo = Math.min(n, tope);
+        const pendientes = [];
+        for (let i = this.workers.length; i < objetivo; i++) pendientes.push(i);
+        for (const i of pendientes) {
+            this._workerPromises ||= [];
+            this._workerPromises[i] ||= this._createStandardWorker()
+                .then((w) => { this.workers[i] = w; })
+                .catch((e) => {
+                    console.warn(`[OCR Repo] worker ${i} no arrancó:`, e);
+                    this.workers[i] = null;
                 });
         }
-        await this._w2Promise;
+        await Promise.all(pendientes.map((i) => this._workerPromises[i]));
+        this.workers = this.workers.filter(Boolean);
     },
+
+    /** Compatibilidad: el escáner de rivens solo necesita un segundo worker. */
+    async ensureSecondWorker() { return this.ensureWorkers(2); },
 
     /**
      * Shuts down all workers.
@@ -106,7 +160,7 @@ export const OCRRepository = {
         });
         this.workers = [];
         this.initPromise = null;
-        this._w2Promise = null;
+        this._workerPromises = null;
     },
 
     /**

@@ -281,7 +281,11 @@ body {
   z-index: var(--z-back);
   pointer-events: none;
   opacity: 0.7;
+  /* Las dos líneas son a propósito: `plus-lighter` es la única mezcla que el compositor
+     resuelve con una función de blending de la GPU (sumar), sin tener que leerse el fondo
+     como textura. `screen` queda debajo como respaldo para quien no la soporte. */
   mix-blend-mode: screen;
+  mix-blend-mode: plus-lighter;
 }
 
 /* =========================================
@@ -6537,10 +6541,15 @@ button[onclick*="importInventory"]:hover {
   margin-top: 10px;
   color: #eef1f5;
   /* Dos líneas antes que puntos suspensivos: los nombres largos ("Proboscis Cernos") se
-     quedaban en "Proboscis C…" y la tarjeta es justo para reconocer el arma. */
+     quedaban en "Proboscis C…" y la tarjeta es justo para reconocer el arma. El alto de las
+     dos líneas se reserva SIEMPRE: el escaparate va rotando de arma sola, y sin esto la
+     tarjeta crecía al tocarle un nombre largo y empujaba todo lo de debajo. */
   white-space: normal;
   overflow-wrap: anywhere;
   line-height: 1.2;
+  /* height y no min-height: con el mínimo, el redondeo de la caja de línea todavía movía la
+     tarjeta un píxel al pasar de un nombre corto a uno de dos líneas. */
+  height: 2.4em;
   width: 100%;
 }
 

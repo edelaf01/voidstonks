@@ -797,7 +797,7 @@ function renderEmptyShowcase(panel) {
       </div>
       
       <div style="font-size: 0.65rem; color: #555; text-transform: uppercase; letter-spacing: 0.5px;">
-        ${isEs ? "Armamento Popular del Mercado" : "Riven prices are subjective, any riven can cost any amount , take these prices as a reference of the real trading price volume as this data has beenprovided by DE and warframe market listings."}
+        ${isEs ? "Armamento popular del mercado" : "Popular market weapons"}
       </div>
     </div>`;
 

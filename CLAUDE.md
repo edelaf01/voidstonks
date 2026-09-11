@@ -6,7 +6,7 @@
   la carpeta tal cual; no hay paso de build en local. Un error en `deploy/` va directo a
   producción. La minificación (que quita los comentarios) ocurre solo en CI vía
   `scripts-actu/build-dist.mjs`, así que **los comentarios de `deploy/` no cuestan bytes en prod**.
-- **Antes de dar algo por terminado: `npm test`.** Son ~745 tests y tardan ~65s.
+- **Antes de dar algo por terminado: `npm test`.** Son ~1640 tests y tardan ~65s.
 - **`npm run lint`** (ESLint ya instalado). El objetivo es **0 errores**; los warnings
   restantes son casi todos `no-unused-vars` heredados.
 - **Dónde va cada cosa y qué puede importar qué: [`ARCHITECTURE.md`](ARCHITECTURE.md).**
@@ -19,6 +19,46 @@
   está congelado en `tests/_baseline/architecture-debt.json` e inventariado en
   [`DEUDA.md`](DEUDA.md): no puede crecer, y al arreglar algo hay que borrarlo del baseline.
 - El usuario hace sus propios commits. No hagas `git add` / `commit` / `push`.
+
+## Tests: qué se exige a un test
+
+El objetivo no es tener tests, es que **un cambio de comportamiento salga en rojo**. Un test que
+solo comprueba que una función existe o que no lanza deja pasar exactamente el bug que iba a
+detectar, y encima cuenta como cobertura.
+
+**Objetivos** (medir con `node --test --experimental-test-coverage`):
+
+- **≥ 70% de cobertura de ramas** en `deploy/js`. La rama es lo que importa: el `if` que nadie
+  recorre es donde vive el bug, y el porcentaje de líneas lo esconde.
+- **100% de métodos**: toda función exportada tiene al menos un test que la llama de verdad.
+
+**Punto de partida (2026-08-25):** de los 159 `.js` de `deploy/js`, 107 los carga algún test y en
+esos la cobertura media de ramas es del 86%. Los otros 52 no los importa nadie y **ni siquiera
+aparecen en el informe** — contarlos como 0 deja el conjunto en **~58% de ramas y ~53% de
+métodos**. Lo que falta es casi todo `ui.components/` y los puntos de entrada de `scanner/`.
+Del cómputo se excluyen `tesseract*.js` (vendorizado) y `assets/*.js` (datos, no lógica).
+
+**Qué cuenta y qué no:**
+
+- Cuenta: importar el módulo real, llamar a la función y comparar el resultado con un valor
+  escrito a mano — `assert.equal(calculateRealPotential(POPULAR), 5.8)`. Cada rama, su caso.
+- No cuenta: `doesNotThrow` como única aserción, `ok()` sobre la existencia de algo, ni leer el
+  fuente con `readFileSync` y buscar una cadena con regex. Lo último solo se admite cuando montar
+  el entorno cuesta más que lo que protege (`worker-code.js`, el orden de arranque de las
+  pestañas) y va justificado en la cabecera del fichero, como en `tests/tab-boot.test.mjs`.
+
+**Al editar código:**
+
+1. Si cambias el comportamiento a propósito, el test se actualiza **en el mismo cambio**, y su
+   diff es lo que documenta qué cambió.
+2. Si un test se pone en rojo y no tocaste ese test, **es una regresión**: se arregla el código.
+   Bajar una aserción, ampliar un margen o meter la infracción en
+   `tests/_baseline/architecture-debt.json` para que pase es tapar el síntoma — y es justo el
+   caso en el que la suite estaba haciendo su trabajo.
+3. Función nueva o rama nueva → caso nuevo en el mismo cambio. Un `if` sin test no está
+   terminado.
+4. Si un cambio pequeño obliga a tocar muchos tests, el problema suele ser que los tests fijan
+   la implementación en vez del resultado. Arregla el test, no lo repitas quince veces.
 
 ## Comentarios: convención
 
@@ -137,9 +177,9 @@ hacer una pasada masiva.
 
 ### Scripts planos vs módulos
 
-`live_calibration.js` y `live_grid_editor.js` se cargan con `<script>` normal, no como
-módulos: no pueden usar `import`. Lo que necesiten debe estar publicado en `globalThis`
-(p. ej. `ui_components.js` expone `showToast` ahí justo por esto).
+`live_calibration.js` se carga con `<script>` normal, no como módulo: no puede usar
+`import`. Lo que necesite debe estar publicado en `globalThis` (p. ej. `ui_components.js`
+expone `showToast` ahí justo por esto).
 
 ### Dónde vive el CSS
 

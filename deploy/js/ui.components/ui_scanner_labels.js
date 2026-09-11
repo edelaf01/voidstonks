@@ -22,14 +22,11 @@ export function updateScannerLabels(t) {
     setText("btn-manual-scan", sh.btnScan);
     setText("btn-save-inv", sh.btnSave);
     setText("btn-recalibrate", sh.btnRecalibrate);
-    setText("btn-open-grid-editor", sh.btnEditCells);
-    setText("edit-mode-title", sh.editTitle);
-    setText("edit-mode-guide", sh.editGuide);
-    setText("btn-edit-done", sh.btnDone);
     setText("lbl-ocr-debug", sh.lblDebugSnapshot);
     setText("btn-copy-debug-log", sh.btnCopyLog);
     setText("lbl-detected-items", sh.lblDetected);
     setText("lbl-scan-empty-state", sh.lblEmpty);
+    // lbl-ocr-engine lo pinta renderOcrEngine: alterna entre título y pregunta.
 
     // Estos cuatro no pasaban por TEXTS: se quedaban en "⟳ AUTO", "↺ RESET GRID",
     // "SYSTEM DIAGNOSTICS" y "FRAMES: 0" en inglés fijo, con el título en inglés también.
@@ -45,10 +42,10 @@ export function updateScannerLabels(t) {
         el.setAttribute("aria-label", text);
       }
     };
+    setTitle("btn-scanner-tutorial", t.scannerCoach?.btnTutorial);
     setTitle("btn-debug-toggle", sh.titleDebug);
     setTitle("btn-auto-scan", sh.titleAutoScan);
     setTitle("btn-clear-session", sh.titleClearSession);
-    setTitle("btn-open-grid-editor", sh.titleEditCells);
     setTitle("btn-reset-grid", sh.titleResetGrid);
   }
 

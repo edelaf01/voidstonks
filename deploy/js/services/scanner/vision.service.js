@@ -1,8 +1,12 @@
 import { OpenCVRepository } from "../../repositories/opencv.repository.js";
 import { detectInventoryGrid } from "../../utils/vision/grid_detect.js";
-import { offBandComponentIndices } from "../../utils/vision/badge_filters.js";
+import { maxChannelInvert } from "../../utils/vision/channel_max.js";
+import { digitosPorAncla } from "../../utils/vision/badge_anchor.js";
 import { accentMask } from "../../utils/vision/mission_complete_grid.js";
-import { NAME_TEXT_COLORS, snapToThemeTextColor, bandInkHistogram, rankPageNameColors } from "../../utils/vision/name_color.js";
+import { NAME_TEXT_COLORS, snapToThemeTextColor, rampCoreColor, bandInkHistogram, rankPageNameColors } from "../../utils/vision/name_color.js";
+import { themeTextMask } from "../../utils/vision/theme_mask.js";
+import { inkRunRatio } from "../../utils/vision/ink_runs.js";
+import { maxChannelPreset } from "../../utils/vision/reward_preprocess.js";
 // La tabla y el snap viven en utils/, pero varios módulos y tests los importan
 // históricamente desde aquí.
 export { NAME_TEXT_COLORS, snapToThemeTextColor };
@@ -40,29 +44,12 @@ export async function applyBestCameraConstraints(stream) {
 
 
 
-/**
- * Known Warframe UI theme text colors (Secondary highlight colors used for item names).
- * Values perfectly mirror WFInfo's ThemeSecondary.
- * Each entry: { name, r, g, b, tol } — used for theme detection and RGB Euclidean thresholding.
- */
-export const WF_THEMES = [
-    { name: "Legacy", r: 232, g: 213, b: 93 },
-    { name: "Vitruvian", r: 245, g: 227, b: 173 },
-    { name: "Stalker", r: 255, g: 61, b: 51 },
-    { name: "Baruuk", r: 236, g: 211, b: 162 },
-    { name: "Corpus", r: 111, g: 229, b: 253 },
-    { name: "Fortuna", r: 255, g: 115, b: 230 },
-    { name: "Grineer", r: 255, g: 224, b: 153 },
-    { name: "Lotus", r: 255, g: 241, b: 191 },
-    { name: "Nidus", r: 245, g: 73, b: 93 },
-    { name: "Orokin", r: 178, g: 125, b: 5 },
-    // Tema por defecto moderno de Warframe (naranja/dorado brillante). El catálogo
-    // solo tenía el "Orokin" apagado (178,125,5), que queda a >tolerancia del naranja
-    // real de la UI actual (~227,128,20) → detección con weight 0. Medido de captura real.
-    { name: "Default", r: 227, g: 128, b: 20 },
-    { name: "Tenno", r: 6, g: 106, b: 74 },
-    { name: "High Contrast", r: 255, g: 255, b: 0 },
-];
+import { eligeTema } from "../../utils/vision/theme_vote.js";
+
+// Frames seguidos que necesita un tema nuevo para relevar al vigente (~3 s al ritmo del escáner).
+const FRAMES_PARA_CAMBIAR_TEMA = 3;
+import { WF_THEMES, WF_THEMES_VOTABLES } from "../../utils/vision/wf_themes.js";
+export { WF_THEMES };
 
 
 // Histograma de color cuantizado (clave de 15 bits ⇒ 32768 cubetas) reutilizado entre
@@ -93,6 +80,8 @@ export const VisionService = {
     // Shared canvases 
     _sharedCvs: document.createElement("canvas"),
     _themeCvs: document.createElement("canvas"),
+    // { name, n }: frames seguidos que lleva ganando un tema distinto al vigente.
+    _temaRacha: null,
     _tempBadgeCvs: document.createElement("canvas"),
     _badgeCvs: document.createElement("canvas"),
     _relicSelectionCvs: document.createElement("canvas"),
@@ -302,9 +291,28 @@ export const VisionService = {
         canvas.height = Math.max(1, Math.floor(sh * scale));
 
         const ctx = canvas.getContext("2d", { willReadFrequently: true });
-        ctx.filter = "grayscale(100%) invert(100%)";
         ctx.drawImage(video, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
-        ctx.filter = "none";
+        maxChannelInvert(ctx, canvas.width, canvas.height);  // y no grayscale(): ver channel_max.js
+        return canvas;
+    },
+
+    /** Igual que prepareCropForOCR pero SIN invertir: para PaddleOCR, que lee el color directo. */
+    prepareCropColorForOCR(video, crop, zoom, cacheKey) {
+        const canvas = this._cropCvs[cacheKey] ||= document.createElement("canvas");
+        const width = video.videoWidth;
+        const height = video.videoHeight;
+        const scale = (1080 / height) * zoom;
+
+        const sx = Math.floor(width * crop.x);
+        const sy = Math.floor(height * crop.y);
+        const sw = Math.floor(width * crop.w);
+        const sh = Math.floor(height * crop.h);
+
+        canvas.width = Math.max(1, Math.floor(sw * scale));
+        canvas.height = Math.max(1, Math.floor(sh * scale));
+
+        const ctx = canvas.getContext("2d", { willReadFrequently: true });
+        ctx.drawImage(video, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
         return canvas;
     },
 
@@ -326,6 +334,10 @@ export const VisionService = {
     // color del tema, así que clasificar por distancia Manhattan al color real detectado
     // (con umbral fijo) separa texto de un fondo claro sin depender del contraste global.
     applyThemeDistanceThreshold(ctx, w, h, theme, maxDist = 130) {
+        // Sin tema no hay distancia que medir. Reventaba aquí en la pantalla de FIN DE MISIÓN,
+        // cuyo título centrado no da tema fiable: la excepción se la comía el catch del bucle y
+        // el contexto no se activaba nunca. El recorte sin binarizar se lee igual de bien.
+        if (!theme) return;
         const tR = theme.actualR ?? theme.r, tG = theme.actualG ?? theme.g, tB = theme.actualB ?? theme.b;
         const imgData = ctx.getImageData(0, 0, w, h);
         const px = imgData.data;
@@ -351,76 +363,37 @@ export const VisionService = {
 
         const px = ctx.getImageData(0, 0, sampleW, sampleH).data;
 
-        // Group pixels by their closest theme to find the winning theme AND
-        // to compute the average dynamic RGB of the actual text on screen.
-        const themeStats = new Array(WF_THEMES.length).fill(0).map(() => ({ rSum: 0, gSum: 0, bSum: 0, count: 0, weight: 0 }));
-
-        for (let i = 0; i < px.length; i += 16) { // stride of 4 pixels for speed
-            const r = px[i], g = px[i + 1], b = px[i + 2];
-
-            // Text is extremely bright. Ignore dark background pixels
-            // entirely so ambient lighting doesn't skew detection.
-            const luma = 0.299 * r + 0.587 * g + 0.114 * b;
-            if (luma < 100) continue;
-
-            // For each bright pixel, find the closest theme by Manhattan distance
-            let bestThemeIdx = 0;
-            let bestDist = Infinity;
-
-            for (let t = 0; t < WF_THEMES.length; t++) {
-                const theme = WF_THEMES[t];
-                const dist = Math.abs(r - theme.r) + Math.abs(g - theme.g) + Math.abs(b - theme.b);
-                if (dist < bestDist) {
-                    bestDist = dist;
-                    bestThemeIdx = t;
-                }
-            }
-
-            // Exact matches get weight 1.0, distance 10 gets 0.00006
-            const w = 1 / Math.pow(bestDist + 1, 4);
-            themeStats[bestThemeIdx].weight += w;
-            themeStats[bestThemeIdx].rSum += r;
-            themeStats[bestThemeIdx].gSum += g;
-            themeStats[bestThemeIdx].bSum += b;
-            themeStats[bestThemeIdx].count += 1;
-        }
-
-        let maxWeight = -1;
-        let bestThemeIdx = 0;
-        for (let t = 0; t < WF_THEMES.length; t++) {
-            if (themeStats[t].weight > maxWeight) {
-                maxWeight = themeStats[t].weight;
-                bestThemeIdx = t;
-            }
-        }
-
-        const bestTheme = WF_THEMES[bestThemeIdx];
-        const bestStats = themeStats[bestThemeIdx];
-
-        // Compute the ACTUAL average color of pixels that voted for this theme.
-        // This accounts for bloom, glow, and JPEG compression — closer to the real on-screen color.
-        const actualR = bestStats.count > 0 ? Math.round(bestStats.rSum / bestStats.count) : bestTheme.r;
-        const actualG = bestStats.count > 0 ? Math.round(bestStats.gSum / bestStats.count) : bestTheme.g;
-        const actualB = bestStats.count > 0 ? Math.round(bestStats.bSum / bestStats.count) : bestTheme.b;
+        const voto = eligeTema(px, WF_THEMES_VOTABLES);
 
         // El guard va ANTES del log: al revés anunciaba temas que descartaba acto seguido.
-        if (maxWeight < 0.001) {
+        if (!voto) {
             const estable = globalThis.state?.lastStableTheme;
-            console.log(`[VisionService] Sin tema fiable (peso ${maxWeight.toFixed(4)}) — se mantiene ${estable ? estable.name : "ninguno"}`);
+            console.log(`[VisionService] Sin tema fiable — se mantiene ${estable ? estable.name : "ninguno"}`);
             return estable || null;
         }
 
-        console.log(`[VisionService] Theme detected: ${bestTheme.name} (weight: ${maxWeight.toFixed(4)}, catalog: rgb(${bestTheme.r},${bestTheme.g},${bestTheme.b}), actual: rgb(${actualR},${actualG},${actualB}))`);
+        // El tema NO cambia a mitad de sesión: es una preferencia del menú de opciones. Así que
+        // un tema distinto solo releva al vigente si gana varios frames SEGUIDOS. Sin esto, un
+        // frame flojo bastaba para cambiarlo y el escáner alternaba: medido en vivo, una sesión
+        // de tema Vitruvian (afinidad 0,887) saltaba a Grineer (0,517) y volvía, y con el tema
+        // equivocado todas las máscaras por color de después leen mal.
+        const estable = globalThis.state?.lastStableTheme;
+        if (estable && estable.name !== voto.tema.name) {
+            this._temaRacha = this._temaRacha?.name === voto.tema.name
+                ? { name: voto.tema.name, n: this._temaRacha.n + 1 }
+                : { name: voto.tema.name, n: 1 };
+            if (this._temaRacha.n < FRAMES_PARA_CAMBIAR_TEMA) {
+                console.log(`[VisionService] ${voto.tema.name} (${voto.afinidad.toFixed(3)}) ${this._temaRacha.n}/${FRAMES_PARA_CAMBIAR_TEMA} — se mantiene ${estable.name}`);
+                return estable;
+            }
+        } else {
+            this._temaRacha = null;
+        }
 
-        const result = {
-            name: bestTheme.name,
-            r: bestTheme.r,
-            g: bestTheme.g,
-            b: bestTheme.b,
-            actualR,
-            actualG,
-            actualB,
-        };
+        const { tema, actualR, actualG, actualB, afinidad } = voto;
+        console.log(`[VisionService] Theme detected: ${tema.name} (afinidad: ${afinidad.toFixed(3)}, catalog: rgb(${tema.r},${tema.g},${tema.b}), actual: rgb(${actualR},${actualG},${actualB}))`);
+
+        const result = { name: tema.name, r: tema.r, g: tema.g, b: tema.b, actualR, actualG, actualB };
 
         if (globalThis.state) {
             globalThis.state.lastStableTheme = result;
@@ -645,6 +618,7 @@ export const VisionService = {
         const txTolSq = 66 * 66;
         const cw = cvs.width, ch = cvs.height;
         const bandY0 = Math.floor(ch * 0.45); // franja inferior (~segunda línea del nombre)
+        const bgLum = bgR * 0.299 + bgG * 0.587 + bgB * 0.114;
 
         let txR, txG, txB;
         if (nameColorHint) {
@@ -674,32 +648,45 @@ export const VisionService = {
             }
         } else {
             COLOR_HIST.fill(0);
-            let txKey = -1, txCount = -1, bandTotal = 0, candidates = 0;
+            let bandTotal = 0, candidates = 0;
             for (let y = bandY0; y < ch; y++) {
                 for (let x = 0; x < cw; x++) {
                     bandTotal++;
                     const i = (y * cw + x) * 4;
                     const dr = px[i] - bgR, dg = px[i + 1] - bgG, db = px[i + 2] - bgB;
                     if (dr * dr + dg * dg + db * db <= bgTolSq) continue; // es fondo
+                    // Mismo listón de brillo que aplica la tinta más abajo: un color que la
+                    // binarización va a descartar no puede ser el color del texto.
+                    if (px[i] * 0.299 + px[i + 1] * 0.587 + px[i + 2] * 0.114 < bgLum + 12) continue;
                     candidates++;
-                    const key = QKEY(px[i], px[i + 1], px[i + 2]);
-                    const c = ++COLOR_HIST[key];
-                    if (c > txCount) { txCount = c; txKey = key; }
+                    COLOR_HIST[QKEY(px[i], px[i + 1], px[i + 2])]++;
                 }
             }
             // Recorte sin tinta en la franja inferior (celda vacía): todo blanco y salir.
-            if (txKey < 0 || candidates < bandTotal * 0.01) {
+            if (!candidates || candidates < bandTotal * 0.01) {
+                for (let i = 0; i < px.length; i += 4) px[i] = px[i + 1] = px[i + 2] = 255;
+                ctx.putImageData(imgData, 0, 0);
+                return cvs;
+            }
+            const bins = [];
+            for (let key = 0; key < COLOR_HIST.length; key++) {
+                if (COLOR_HIST[key]) bins.push({ col: UNQ(key), count: COLOR_HIST[key] });
+            }
+            // NO la moda: al reescalar el frame el trazo es casi todo antialias y la moda se
+            // va al gris plano del interior de la card. rampCoreColor reúne el trazo por su
+            // rampa desde el fondo y devuelve el núcleo (ver utils/vision/name_color.js).
+            const core = rampCoreColor(bins, [bgR, bgG, bgB]);
+            if (!core) {
                 for (let i = 0; i < px.length; i += 4) px[i] = px[i + 1] = px[i + 2] = 255;
                 ctx.putImageData(imgData, 0, 0);
                 return cvs;
             }
             // Snap al color de nombre EXACTO del tema (tabla NAME_TEXT_COLORS) si está
-            // cerca; corrige la deriva por antialias/compresión de la moda auto-medida.
-            [txR, txG, txB] = snapToThemeTextColor(...UNQ(txKey));
+            // cerca; corrige la deriva por antialias/compresión del color auto-medido.
+            [txR, txG, txB] = snapToThemeTextColor(...core);
         }
 
         // Tinta = píxeles cercanos al color de TEXTO, lejanos del FONDO y con suficiente separación de brillo sobre el fondo.
-        const bgLum = bgR * 0.299 + bgG * 0.587 + bgB * 0.114;
         for (let i = 0; i < px.length; i += 4) {
             const drBg = px[i] - bgR, dgBg = px[i + 1] - bgG, dbBg = px[i + 2] - bgB;
             if (drBg * drBg + dgBg * dgBg + dbBg * dbBg <= bgTolSq) {
@@ -921,9 +908,14 @@ export const VisionService = {
     prepareRelicSelectionCanvas(video, scale) {
         const width = video.videoWidth;
         const height = video.videoHeight;
-        const rsCropX = Math.floor(width * 0.5);
+        // Empieza donde ACABA la rejilla (RELIC_GRID_CROP: x 0.03 + w 0.57). Con 0.5 el recorte
+        // se comía su última columna, así que junto al panel entraba también una reliquia de la
+        // rejilla y el seguimiento cogía esa: siempre la de arriba a la derecha, hubieras
+        // seleccionado algo o no. Medido en reliccount/1.png: entraban "Meso P5" (rejilla) y
+        // "Meso M4" (panel), y ganaba P5.
+        const rsCropX = Math.floor(width * 0.60);
         const rsCropY = Math.floor(height * 0.2);
-        const rsCropW = Math.floor(width * 0.5);
+        const rsCropW = width - rsCropX;
         const rsCropH = Math.floor(height * 0.25);
 
         const cvs = this._relicSelectionCvs;
@@ -933,6 +925,14 @@ export const VisionService = {
         ctx.filter = "grayscale(100%) brightness(1.2) contrast(300%)";
         ctx.drawImage(video, rsCropX, rsCropY, rsCropW, rsCropH, 0, 0, cvs.width, cvs.height);
         return cvs;
+    },
+
+    /** Suelta los lienzos de recompensas: 0x0 libera el backing store (~4 MB a 1440p), que el
+     *  navegador recupera mucho más despacio que el heap normal. */
+    releaseRewardCanvases() {
+        for (const cvs of [this._rewardCvs, this._rewardNamesCvs]) {
+            if (cvs) { cvs.width = 0; cvs.height = 0; }
+        }
     },
 
     /**
@@ -985,12 +985,6 @@ export const VisionService = {
     // la foto a la pantalla llegó más oscura/clara de lo habitual. LOW_LIGHT sube el brillo
     // para fotos oscuras (habitación con poca luz, pantalla lejos); HIGH_GLARE baja contraste
     // y brillo para fotos donde el reflejo/brillo del panel quema el texto a blanco puro.
-    REWARD_OCR_PRESETS: {
-        STANDARD: "grayscale(100%) contrast(400%) brightness(1.3)",
-        LOW_LIGHT: "grayscale(100%) contrast(320%) brightness(1.9)",
-        HIGH_GLARE: "grayscale(100%) contrast(260%) brightness(0.85)",
-    },
-
     prepareRewardOCRCanvas(video, width, height, scale, preset = "STANDARD", cropRect = null) {
         // cropRect (de detectRewardBand, en píxeles del frame): la foto puede venir de una
         // webcam apuntando a un MONITOR EXTERNO donde el juego no llena el encuadre (bisel,
@@ -1012,10 +1006,8 @@ export const VisionService = {
         cvs.height = targetH;
         const ctx = cvs.getContext("2d", { willReadFrequently: true });
 
-        // Grayscale + high contrast to maximize text/background separation.
-        ctx.filter = this.REWARD_OCR_PRESETS[preset] || this.REWARD_OCR_PRESETS.STANDARD;
         ctx.drawImage(video, rCropXBase + marginX, rCropY, cropW, rCropH, 0, 0, targetW, targetH);
-        ctx.filter = "none";
+        maxChannelPreset(ctx, targetW, targetH, preset, WF_THEMES);
         return cvs;
     },
 
@@ -1130,6 +1122,19 @@ export const VisionService = {
         // Si ni la estricta aisló letras, esta pasada no aporta: su OCR metería decenas de
         // palabras basura en mergedWords y fabrica anclas espurias (el "Ri/ris" -> requiem
         // "Ris" salía de aquí). null = saltar la pasada; la grayscale ya lee los nombres claros.
+        // La escalera elige por brillo ABSOLUTO, así que en la pantalla de fisura se quedaba el
+        // arte de la tarjeta y tiraba los rótulos tenues: 0 ítems en bucle con la densidad
+        // dentro de límites, o sea que la densidad no dice si hay TEXTO. Compite contra el tono
+        // del tema a cualquier brillo y gana la máscara más parecida a texto (ink_runs.js).
+        const tramosPorTinta = (d) => inkRunRatio(d, targetW, targetH);
+        const escalera = px.slice();
+        img.data.set(orig);
+        const tintaTema = themeTextMask(img, WF_THEMES);
+        if (tramosPorTinta(escalera) >= tramosPorTinta(px)) {
+            img.data.set(escalera);
+        } else {
+            density = tintaTema / totalPx;
+        }
         if (density > 0.10) return null;
         ctx.putImageData(img, 0, 0);
         return cvs;
@@ -1475,8 +1480,12 @@ export const VisionService = {
         if (hasMods) return "INVENTORY_MODS";
         if (hasInv) return "INVENTORY";
         if (/RELI|ELIC|REFI|NEME/.test(text)) return "RELICS";
-        // Extremely robust regex including common Tesseract/OCR garblings for FISSURE and VOID (e.g. F5UR, FI55, F1SS, V0ID)
-        if (/REWA|WARD|ARDS|FISSU|FISSI|FISR|F5UR|FSUR|FI55|F1SS|FISS|FISU|VOID|V0ID|V01D/.test(text)) return "REWARD";
+        // Solo la palabra REWARDS. "VOID" y "FISSURE" sueltos estaban de más y solo daban falsos
+        // positivos: los lleva también la LISTA DE FISURAS del mapa estelar, que no es nada que
+        // escanear, y ahí se gastaban nueve pasadas de OCR por frame para leer cero. Medido sobre
+        // las 7 capturas de recompensa del corpus: la cabecera real es "VOID FISSURE/REWARDS" y
+        // las 7 traen "REWARDS" legible, así que ninguna dependía de esas alternativas.
+        if (/REWA|WARD|ARDS/.test(text)) return "REWARD";
         return "UNKNOWN";
     },
 
@@ -1621,14 +1630,21 @@ export const VisionService = {
      * Fully self-calibrating and dynamic. Immune to grid calibration offsets and theme variations.
      */
     extractBadgeByColor(snapshot, cell, cellW, cellH, theme) {
-        // 1. Crop a very generous top-left area starting exactly at cell.sx.
-        // 0.55·cellW deja el badge cerca del borde derecho: a 1440p un número de 3 cifras acaba
-        // a ~25px del límite, así que una 4ª cifra se saldría. Se amplía lo justo para que quepa
-        // otro dígito SIN llegar a la zona donde el arte del ítem compite con el número: medido
-        // en la captura Ballistica, un bloque de arte cae a solo 13px del dígito (frente a los
-        // 10px que separan dígitos), demasiado cerca para distinguirlo por distancia, así que
-        // ampliar de más mete arte que los filtros no saben rechazar.
-        const safeW = Math.min(cellW, Math.round(cellW * 0.68));
+        // Ventana de búsqueda del badge, desde la esquina de la celda.
+        //
+        // Estaba en 0.68·cellW para que cupiera una CUARTA cifra, pero _badgeToQty descarta
+        // cualquier valor >= 1000, así que se pagaba arte a cambio de dígitos que el código tira
+        // igual. Y ese arte no es inofensivo: la K-means de applyClusteringThreshold reparte
+        // TODA la ventana en dos grupos, así que un casco prime blanco y grande —que en estas
+        // cards sube hasta la altura del badge— se lleva el grupo "tinta" y el badge entero se
+        // va al fondo. Medido en la captura arreglar_malcount (tema rojo oscuro, badge
+        // rgb(153,31,35)): las dos celdas de Neuroptics devolvían cadena vacía y el inventario
+        // apuntaba 1 en vez de 14 y 13.
+        //
+        // Barrido sobre esa captura y sobre la fixture Ballistica: 0.68 -> 15/18 y 16/16;
+        // 0.50 -> 18/18 y 16/16. Con 0.50 caben tres cifras de sobra (el número arranca a
+        // ~0.22·cellW y cada cifra ocupa ~0.054·cellW).
+        const safeW = Math.min(cellW, Math.round(cellW * 0.50));
         // Start crop higher to prevent clipping the top hook of 6 or top bar of 7 and 5.
         // Relativo a cellH: 12px fijos eran ~4% de celda a 1440p pero ~6% a 1080p, así que
         // el margen superior cambiaba de tamaño efectivo según el cliente.
@@ -1669,49 +1685,51 @@ export const VisionService = {
         const visited = new Uint8Array(safeW * safeH);
         const components = [];
 
-        // Scan 100% of the cropped area to prevent any cutoffs
-        const scanW = safeW;
-        const scanH = safeH;
+        // PILA en vez de cola con `shift()`, que desplaza el array entero en CADA píxel y hace el
+        // relleno cuadrático; y los 8 vecinos comprobados en sitio en vez de reservar un array por
+        // píxel. Del componente solo se usa el CONJUNTO de píxeles —para borrar los bordes—, no su
+        // orden, así que la pila da lo mismo: las 18 cantidades salen idénticas.
+        //
+        // La GANANCIA no está medida: en el banco de Node los costes de canvas dominan y el ruido
+        // entre vueltas (73-92 ms sobre el mismo código) es mayor que el efecto. Lo que sí está
+        // medido es que reservarla por celda sale caro (44 KB × 18), de ahí que se reutilice.
+        if (!this._pilaBadge || this._pilaBadge.length < safeW * safeH) {
+            this._pilaBadge = new Int32Array(safeW * safeH);
+        }
+        const pila = this._pilaBadge;
 
-        for (let y = 0; y < scanH; y++) {
-            for (let x = 0; x < scanW; x++) {
+        for (let y = 0; y < safeH; y++) {
+            for (let x = 0; x < safeW; x++) {
                 const idx = y * safeW + x;
-                // Black pixels are binarized text/digits
                 if (px[idx * 4] === 0 && !visited[idx]) {
-                    // Start BFS for new component
                     const compPixels = [];
-                    const queue = [idx];
+                    let sp = 0;
+                    pila[sp++] = idx;
                     visited[idx] = 1;
                     let minX = x, maxX = x, minY = y, maxY = y;
 
-                    while (queue.length > 0) {
-                        const current = queue.shift();
+                    while (sp > 0) {
+                        const current = pila[--sp];
                         compPixels.push(current);
                         const cx = current % safeW;
-                        const cy = Math.floor(current / safeW);
+                        const cy = (current - cx) / safeW;
 
                         if (cx < minX) minX = cx;
                         if (cx > maxX) maxX = cx;
                         if (cy < minY) minY = cy;
                         if (cy > maxY) maxY = cy;
 
-                        // 8-connected neighbors using coordinates to prevent wrapping and digit splitting
-                        const neighbors = [];
-                        for (let dy = -1; dy <= 1; dy++) {
-                            for (let dx = -1; dx <= 1; dx++) {
-                                if (dx === 0 && dy === 0) continue;
-                                const nx = cx + dx;
-                                const ny = cy + dy;
-                                if (nx >= 0 && nx < safeW && ny >= 0 && ny < safeH) {
-                                    neighbors.push(ny * safeW + nx);
+                        const x0 = cx > 0 ? cx - 1 : 0;
+                        const x1 = cx < safeW - 1 ? cx + 1 : safeW - 1;
+                        const y0 = cy > 0 ? cy - 1 : 0;
+                        const y1 = cy < safeH - 1 ? cy + 1 : safeH - 1;
+                        for (let ny = y0; ny <= y1; ny++) {
+                            for (let nx = x0; nx <= x1; nx++) {
+                                const n = ny * safeW + nx;
+                                if (n !== current && px[n * 4] === 0 && !visited[n]) {
+                                    visited[n] = 1;
+                                    pila[sp++] = n;
                                 }
-                            }
-                        }
-
-                        for (const n of neighbors) {
-                            if (px[n * 4] === 0 && !visited[n]) {
-                                visited[n] = 1;
-                                queue.push(n);
                             }
                         }
                     }
@@ -1754,145 +1772,24 @@ export const VisionService = {
             }
         }
 
-        // Filtro de BRILLO (ruido de la trama de los PLANOS): el badge (checkmark+número) es
-        // brillante; la trama esquemática de fondo de un plano es tenue pero la K-means la metía
-        // en el cluster "texto". Se calcula el brillo medio de cada componente sobre la imagen
-        // ORIGINAL y se descartan los muy por debajo del componente más brillante (el badge).
-        // hardErased: no vuelve por la red de seguridad. Arregla p.ej. Frost Systems 11→1.
-        let maxAvgLuma = 0;
-        for (const comp of components) {
-            if (comp.erased) continue;
-            let sum = 0;
-            for (const idx of comp.pixels) sum += srcLuma[idx];
-            comp.avgLuma = sum / comp.pixels.length;
-            if (comp.avgLuma > maxAvgLuma) maxAvgLuma = comp.avgLuma;
-        }
-        if (maxAvgLuma > 0) {
-            for (const comp of components) {
-                if (comp.erased) continue;
-                if (comp.avgLuma < maxAvgLuma * 0.5) {
-                    for (const pixelIdx of comp.pixels) {
-                        px[pixelIdx * 4] = 255;
-                        px[pixelIdx * 4 + 1] = 255;
-                        px[pixelIdx * 4 + 2] = 255;
-                    }
-                    comp.erased = true;
-                    comp.hardErased = true;
-                }
-            }
-        }
-
-        // Aislar el/los DÍGITO(s) por FORMA (resolución-independiente). Verificado con harness
-        // offline sobre capturas reales del juego: la binarización K-means es perfecta y el fallo
-        // real era el borrado del checkmark. Firmas de forma:
-        //   - checkmark ✓  = componente CUADRADO (ancho≈alto, w/h≈1.0)  → NO es dígito
-        //   - arte del ítem = ANCHO o desproporcionado (w/h alto)        → NO es dígito
-        //   - dígito        = MÁS ALTO QUE ANCHO (w/h ≲ 0.9) y ocupa buena parte del alto del crop
-        // Esto sustituye a la heurística frágil de "mayor hueco" (que dejaba el checkmark → "93"
-        // o se comía el dígito → Ø). El consenso temporal (scanner.service) remata lo que quede.
-        // El techo de altura era safeH*0.80: con la ventana de búsqueda ampliada dejaba pasar
-        // BLOQUES DE ARTE (medidos en Banshee r2c5: 24x48, 29x44, 20x48 sobre safeH=87, es decir
-        // h/safeH≈0.55) que además desplazaban el ancla de banda/posición y borraban el dígito
-        // real. Un dígito de badge mide ~21-22px sobre safeH=87 (≈0.25), así que 0.45 deja
-        // holgura de sobra para dígitos altos (6/7/9 con asta) y corta el arte por debajo.
-        const isDigitShaped = (c) => {
-            const ar = c.width / c.height;
-            return ar >= 0.12 && ar <= 0.92 && c.height >= safeH * 0.20 && c.height <= safeH * 0.80;
-        };
-        for (const comp of components) {
-            if (comp.erased) continue;
-            if (!isDigitShaped(comp)) {
-                for (const pixelIdx of comp.pixels) {
-                    px[pixelIdx * 4] = 255;
-                    px[pixelIdx * 4 + 1] = 255;
-                    px[pixelIdx * 4 + 2] = 255;
-                }
-                comp.erased = true;
-            }
-        }
-
-        // Filtro de FILA INFERIOR: el recorte se extiende hacia abajo lo bastante como para
-        // pillar el borde superior de la celda de ABAJO, y un bloque de arte de esa fila puede
-        // pasar el filtro de forma y además ser MÁS BRILLANTE que los dígitos — con lo que
-        // secuestra el ancla del filtro de BANDA (que se ancla en el más brillante) y termina
-        // borrando los dígitos buenos. Se ancla en el componente más ALTO en pantalla, que
-        // siempre pertenece al badge, y se descarta lo que quede en otra banda vertical.
-        // Verificado en Ballistica r2c1: bloque x0-21/y59-85, centro a 36px del badge.
-        const aliveComps = components.filter((c) => !c.erased);
-        const topAnchor = aliveComps.reduce((best, c) => (!best || c.minY < best.minY ? c : best), null);
-        if (topAnchor) {
-            const anchorCy = (topAnchor.minY + topAnchor.maxY) / 2;
-            for (const comp of aliveComps) {
-                const cy = (comp.minY + comp.maxY) / 2;
-                if (Math.abs(cy - anchorCy) <= 0.6 * Math.max(comp.height, topAnchor.height)) continue;
-                for (const pixelIdx of comp.pixels) {
-                    px[pixelIdx * 4] = 255;
-                    px[pixelIdx * 4 + 1] = 255;
-                    px[pixelIdx * 4 + 2] = 255;
-                }
-                comp.erased = true;
-                comp.hardErased = true;
-            }
-        }
-
-        // Filtro POSICIONAL: el icono de fundición (mano+pieza) vive en una fila POR DEBAJO
-        // del badge y a veces pasa el filtro de forma (w/h < 0.92) → Tesseract lo lee como
-        // "A" y el repair A→4 lo convierte en "4". Se borra SOLO si existe un candidato de
-        // dígito MÁS ARRIBA (el dígito real está junto al checkmark, el icono debajo). Si el
-        // único componente que queda es el de abajo, es el propio dígito (a esta resolución
-        // cae cerca del umbral) y NO se toca — borrarlo dejaba leer el checkmark como "0" en
-        // filas enteras. hardErased se excluye de la red de seguridad (icono nunca vuelve).
-        const hasHigherDigit = components.some(c => !c.erased && c.minY <= safeH * 0.55);
-        if (hasHigherDigit) {
-            for (const comp of components) {
-                if (comp.erased) continue;
-                if (comp.minY > safeH * 0.55) {
-                    for (const pixelIdx of comp.pixels) {
-                        px[pixelIdx * 4] = 255;
-                        px[pixelIdx * 4 + 1] = 255;
-                        px[pixelIdx * 4 + 2] = 255;
-                    }
-                    comp.erased = true;
-                    comp.hardErased = true;
-                }
-            }
-        }
-
-        // Filtro de BANDA: el badge (checkmark + dígitos) vive en UNA sola fila de texto.
-        // El arte del ítem que entra por la derecha del crop puede pasar el filtro de forma:
-        // una línea vertical fina del esquema del plano tiene exactamente la firma de un "1"
-        // (Ballistica 3→"31") y un bloque alto de arte brillante cae dentro de los límites
-        // de altura y contamina el crop final (Banshee 9→"Ø"). Ancla = el superviviente más
-        // BRILLANTE (el filtro de luma ya garantizó que el badge domina el brillo); se borra
-        // todo superviviente cuyo centro vertical se aleje del centro del ancla más de la
-        // mitad de la altura del menor de los dos (el arte vive en otra banda; los dígitos
-        // y el checkmark comparten centro aunque sus alturas difieran). hardErased: arte
-        // nunca vuelve por la red de seguridad. La regla pura vive en utils/badge_filters.js
-        // (testeada con datos de componentes reales en tests/badge-band-filter.test.mjs).
-        for (const i of offBandComponentIndices(components)) {
+        // Qué componentes son el NÚMERO: se ancla en el checkmark (utils/vision/badge_anchor.js).
+        // Antes iba una cascada de filtros —brillo medio, forma, fila, banda— que juzgaba cada
+        // componente por sus propiedades aisladas y era inestable: la misma captura a 2531x1412
+        // y reescalada a 2560x1440 se quedaba con los dos "1" del badge en un caso y con un
+        // borrón de arte en el otro, pese a binarizar igual. Medido, 86/96 -> 92/96.
+        const elegidos = new Set(digitosPorAncla(components, safeW, safeH));
+        for (let i = 0; i < components.length; i++) {
+            if (elegidos.has(i)) continue;
             const comp = components[i];
+            if (comp.erased) continue;
             for (const pixelIdx of comp.pixels) {
                 px[pixelIdx * 4] = 255;
                 px[pixelIdx * 4 + 1] = 255;
                 px[pixelIdx * 4 + 2] = 255;
             }
             comp.erased = true;
-            comp.hardErased = true;
         }
 
-        // Red de seguridad: si el filtro de forma no dejó NINGÚN componente (caso raro), preferimos
-        // una lectura posiblemente contaminada a devolver vacío — el consenso descarta el ruido.
-        // Restauramos todo salvo las líneas de borde ya borradas antes.
-        if (!components.some(c => !c.erased)) {
-            for (const comp of components) {
-                if (comp.width > lineMinW && comp.height <= lineMaxH) continue; // líneas de borde: siguen fuera
-                if (comp.hardErased) continue; // icono de fundición: nunca vuelve
-                comp.erased = false;
-                for (const pixelIdx of comp.pixels) {
-                    px[pixelIdx * 4] = 0; px[pixelIdx * 4 + 1] = 0; px[pixelIdx * 4 + 2] = 0;
-                }
-            }
-        }
         tCtx.putImageData(imgData, 0, 0);
 
         // Determine the bounding box of the remaining digit components
@@ -1912,7 +1809,10 @@ export const VisionService = {
             return null;
         }
 
-        // Add generous padding (8px horiz, 6px vert) for maximum Tesseract OCR precision and beautiful debug outlines
+        // Margen alrededor del número. En píxeles absolutos, pero medido: NO afecta a la lectura
+        // —segmentDigits recalcula la caja de cada componente, así que el margen solo cambia el
+        // contorno del recorte de depuración—. Barrido con 8/6, 0.09/0.07, 0.14/0.10 y 0.20/0.14
+        // de safeH: 94/96 en los cuatro. No merece la pena volverlo relativo.
         const padX = 8;
         const padY = 6;
         const cropStartX = Math.max(0, digitMinX - padX);

@@ -1,15 +1,29 @@
 import { state } from "../state.js";
 import { TEXTS } from "../config.js";
+import { escapeHTML } from "../utils/escape_html.js";
 import { exposeGlobals } from "../utils/global_registry.js";
+import { aplicaMotor, estadoMotor, MOTOR_PRECISO } from "../services/scanner/ocr_engine.service.js";
+import { avisaContexto } from "./ui_scanner_coach.js";
 
 /**
  * Component for the Scanner HUD (status badges, counters, scroll guides).
  */
 export const ScannerHUD = {
     updateContext(contextType) {
+        // Mismo motivo que updateScrollStatus: corre por frame y casi siempre repinta lo mismo.
+        // La clave lleva todo lo que lee la función; updateDetectedItems la invalida cuando pisa
+        // el badge, para que el siguiente frame lo restaure como hacía antes.
+        const clave = `${contextType}|${state.squadRun ? 1 : 0}|${state.currentLang}`;
+        if (clave === this._ultimoContexto) return;
+        this._ultimoContexto = clave;
         const sh = TEXTS[state.currentLang].scannerHUD;
         const hud = document.getElementById("inv-hud");
         const badge = document.getElementById("hud-context-badge");
+        this._ultimoTipo = contextType;
+        this._muestraBloques();
+        // La primera vez que aparece cada pantalla, una línea de qué está pasando. Va aquí
+        // porque la guarda de arriba ya garantiza que esto solo corre cuando el contexto CAMBIA.
+        avisaContexto(state.squadRun && contextType !== "INVENTORY" ? "SQUAD" : contextType);
 
         // The VOIDSCANNER inventory HUD is only for item scanning. The mod/riven context
         // (INVENTORY_MODS) uses the separate riven appraisal HUD, so keep this one hidden there.
@@ -34,6 +48,29 @@ export const ScannerHUD = {
             } else if (contextType === "REWARD") {
                 this.setUIBadge(badge, sh.statusReward, "#a0ff80", "rgba(160,255,128,0.3)", "rgba(160,255,128,0.08)");
             }
+        }
+    },
+
+    /** Contexto y nº de detectados actuales, que es lo que decide qué bloques del HUD sobran. */
+    _ultimoTipo: "UNKNOWN",
+    _detectados: 0,
+
+    /**
+     * Escanear/guardar/rehacer rejilla solo hacen algo en el inventario, y la lista de
+     * detectados con su rótulo ocupa media pantalla para decir "pulsa escanear" cuando estás
+     * mirando el run de la escuadra. Se ocultan salvo que sirvan de algo.
+     */
+    _muestraBloques() {
+        const inventario = this._ultimoTipo === "INVENTORY";
+        for (const id of ["hud-actions", "hud-subactions"]) {
+            const bloque = document.getElementById(id);
+            if (bloque) bloque.style.display = inventario ? "" : "none";
+        }
+        // La lista sí se queda si YA hay algo detectado: esconderla perdería lo escaneado de vista.
+        const conLista = inventario || this._detectados > 0;
+        for (const id of ["lbl-detected-items", "live-inventory-items-list"]) {
+            const bloque = document.getElementById(id);
+            if (bloque) bloque.style.display = conLista ? "" : "none";
         }
     },
 
@@ -115,6 +152,12 @@ export const ScannerHUD = {
     updateScrollStatus(status, count = 0) {
         const scrollGuide = document.getElementById("live-scroll-guide");
         if (!scrollGuide) return;
+        // El escáner llama a esto en CADA frame (300 ms en inventario), casi siempre con el mismo
+        // estado: reescribir el innerHTML idéntico obliga al navegador a reparsear y recrear los
+        // dos <div> tres veces por segundo mientras la pantalla ni se mueve.
+        const clave = `${status}|${count}|${state.currentLang}`;
+        if (clave === this._ultimoScroll) return;
+        this._ultimoScroll = clave;
         const sh = TEXTS[state.currentLang]?.scannerHUD;
 
         if (status === "detected") {
@@ -149,47 +192,38 @@ export const ScannerHUD = {
         if (relicCount > sessionInventory.size) {
             const badge = document.getElementById("hud-context-badge");
             this.setUIBadge(badge, sh?.statusRelics || "RELIQUIAS", "#00e5ff", "rgba(0,229,255,0.4)", "rgba(0,229,255,0.1)");
+            this._ultimoContexto = null;
         }
-        const items = Array.from(sessionInventory.entries()).map(([name, qty]) => ({ name, qty }));
-        items.sort((a, b) => a.name.localeCompare(b.name));
+        this._detectados = totalCount;
+        this._muestraBloques();
 
-        if (items.length === 0 && relicCount === 0) {
-            listContainer.innerHTML = `<div style="text-align:center;color:#444;font-size:0.75em;padding:20px 0;">${sh?.lblEmpty || "PRESS SCAN TO START"}</div>`;
+        if (totalCount === 0) {
+            listContainer.innerHTML = `<div class="hud-empty">${escapeHTML(sh?.lblEmpty || "PRESS SCAN TO START")}</div>`;
             return;
         }
 
-        let html = items.map(item => {
-            const shortName = item.name.replace(/PRIME/gi, "").trim();
-            return `
-                <div style="display:flex;justify-content:space-between;align-items:center;
-                    background:rgba(0,229,255,0.04);padding:5px 8px;border-radius:4px;
-                    border-left:2px solid rgba(0,229,255,0.4);
-                    font-size:0.78em;gap:6px;">
-                    <span style="color:#ddd;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:190px;">${shortName}</span>
-                    <span style="color:#f1c40f;font-weight:900;flex-shrink:0;">×${item.qty}</span>
-                </div>
-            `;
-        }).join("");
+        // El nombre va escapado aunque hoy salga de un catálogo cerrado: si mañana cambia de
+        // origen, la defensa ya está puesta (misma regla que el resto de innerHTML del repo).
+        const fila = (name, qty, clase, corto) => `<div class="hud-item ${clase}" title="${escapeHTML(name)}">
+            <span class="hud-item-name">${escapeHTML(corto)}</span>
+            <span class="hud-item-qty">×${escapeHTML(String(qty))}</span>
+          </div>`;
+        const orden = (mapa) => [...mapa.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+        const seccion = (titulo, entradas, clase, acorta = (n) => n) => entradas.length
+            ? `<div class="hud-group"><span>${escapeHTML(titulo)}</span><span class="hud-group-n">${entradas.length}</span></div>`
+              + entradas.map(([name, qty]) => fila(name, qty, clase, acorta(name))).join("")
+            : "";
 
-        if (relicCount > 0) {
-            const relicItems = Array.from(sessionRelics.entries()).map(([name, qty]) => ({ name, qty }));
-            relicItems.sort((a, b) => a.name.localeCompare(b.name));
-
-            html += `<div style="margin-top:8px;padding-top:6px;border-top:1px dashed rgba(0,229,255,0.25);
-                    color:#00e5ff;font-weight:800;font-size:0.72em;letter-spacing:0.5px;">${sh?.lblRelicsDetected || "RELICS"}</div>`;
-
-            html += relicItems.map(item => `
-                <div style="display:flex;justify-content:space-between;align-items:center;
-                    background:rgba(0,229,255,0.06);padding:5px 8px;border-radius:4px;
-                    border-left:2px solid rgba(0,229,255,0.7);
-                    font-size:0.78em;gap:6px;">
-                    <span style="color:#ddd;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:190px;">${item.name}</span>
-                    <span style="color:#00e5ff;font-weight:900;flex-shrink:0;">×${item.qty}</span>
-                </div>
-            `).join("");
+        // "PRIME" sale en casi todos los nombres y roba el ancho que necesita la pieza; el
+        // nombre entero se queda en el title.
+        const html = seccion(sh?.lblParts || "PRIME", orden(sessionInventory), "is-part",
+            (n) => n.replace(/PRIME/gi, "").replace(/\s+/g, " ").trim() || n)
+            + seccion(sh?.lblRelicsDetected || "RELICS", relicCount ? orden(sessionRelics) : [], "is-relic");
+        // Se repinta una vez por página escaneada; si nada cambió, no se toca el DOM.
+        if (html !== this._ultimaLista) {
+            this._ultimaLista = html;
+            listContainer.innerHTML = html;
         }
-
-        listContainer.innerHTML = html;
     }
 };
 
@@ -209,4 +243,44 @@ export function toggleScannerHud() {
     }
 }
 
-exposeGlobals({ toggleScannerHud }, "ui.components/ui_scanner_hud.js");
+/**
+ * Pinta la descarga del modelo preciso: la pregunta si no se ha contestado, y si ya se contestó,
+ * qué quedó elegido y qué implica.
+ *
+ * El aviso de "preparando" no es decorativo: el motor preciso tarda en bajar su modelo y hasta
+ * que está se lee con el clásico. Sin decirlo, el usuario ve que ha elegido uno y que los
+ * resultados son los del otro, y parece que el botón no hace nada.
+ */
+export function renderOcrEngine() {
+    const sh = TEXTS[state.currentLang].scannerHUD;
+    const { decidido, elegido, listo } = estadoMotor();
+    const preciso = elegido === MOTOR_PRECISO;
+    // Sin contestar no hay opción que resaltar: es una pregunta, no un estado.
+    const titulo = document.getElementById("lbl-ocr-engine");
+    if (titulo) titulo.innerText = decidido ? sh.lblEngine : sh.engineAsk;
+    const clasico = document.getElementById("btn-engine-classic");
+    const red = document.getElementById("btn-engine-neural");
+    if (clasico) {
+        clasico.innerText = decidido ? sh.engineClassic : sh.engineDecline;
+        clasico.dataset.active = decidido && !preciso ? "1" : "0";
+    }
+    if (red) {
+        red.innerText = decidido ? sh.engineNeural : sh.engineAccept;
+        red.dataset.active = decidido && preciso ? "1" : "0";
+    }
+    const hint = document.getElementById("lbl-ocr-engine-hint");
+    if (hint) {
+        hint.innerText = decidido
+            ? (preciso ? (listo ? sh.hintNeural : sh.hintNeuralLoading) : sh.hintClassic)
+            : sh.hintAsk;
+    }
+}
+
+function setOcrEngine(motor) {
+    aplicaMotor(motor);
+    renderOcrEngine();
+    // El preciso tarda en cargar; se repinta cuando ya puede leer para que el aviso desaparezca.
+    if (motor === MOTOR_PRECISO) setTimeout(renderOcrEngine, 2500);
+}
+
+exposeGlobals({ toggleScannerHud, setOcrEngine }, "ui.components/ui_scanner_hud.js");

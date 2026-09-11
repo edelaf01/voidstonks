@@ -34,7 +34,29 @@ const DIR = process.env.INVENTORY_CAPTURES_DIR
 // el recorte de columnas ahora mide ocupación POR FILA y se queda con el bloque
 // contiguo de columnas presentes en todas, así que el panel lateral ya no cuela
 // columnas fantasma.)
-const KNOWN_ISSUES = new Map([]);
+// Estos cuatro EMPEZARON a llegar hasta aquí cuando el auto-grid dejó de abortar con las filas
+// fusionadas (grid_detect: si ninguna banda pasa el filtro de ancho pero el rescate encontró
+// celdas, se usan las rescatadas). La rejilla sale bien —zona 1662x888, celda 277x296, la
+// geometría conocida—, pero el voto de tema sobre esa zona se queda en 0,0007, por debajo del
+// listón de fiabilidad, y devuelve null. En la app eso NO deja al escáner sin tema: el guard
+// mantiene el último estable. Aquí, con un frame suelto y sin historia, no hay último.
+const SIN_TEMA_FIABLE = "voto de tema por debajo del listón de afinidad: el frame suelto no tiene último tema estable";
+// Estas dos pintan el nombre de los ítems en BLANCO (comprobado recortando la banda del nombre:
+// "Odonata Prime Blueprint" blanco sobre fondo rojo, "Boltor Prime Receiver" blanco sobre teal).
+// El catálogo VOTABLE es solo cromático a propósito —con Deadlock y Equinox dentro, cualquier
+// blanco o gris de la interfaz gana el voto: medido, Equinox se lleva 26 de las 37 capturas,
+// incluidas las naranjas—, así que un tema de texto blanco no tiene representante y el ganador
+// se queda en afinidad 0,427 y 0,271, por debajo del listón de 0,50. Devolver null es correcto:
+// en la app se mantiene el último tema estable; aquí, con un frame suelto, no hay último.
+const TEXTO_BLANCO = "tema de texto BLANCO: el catálogo votable es solo cromático y no tiene representante";
+const KNOWN_ISSUES = new Map([
+  ["Captura de pantalla_20260716_175250.png", SIN_TEMA_FIABLE],
+  ["Captura de pantalla_20260716_195542.png", SIN_TEMA_FIABLE],
+  ["Captura de pantalla_20260716_234123.png", SIN_TEMA_FIABLE],
+  ["Captura de pantalla_20260717_145916.png", SIN_TEMA_FIABLE],
+  ["Captura de pantalla_20260716_163025.png", TEXTO_BLANCO],
+  ["Captura de pantalla_20260717_005841.png", TEXTO_BLANCO],
+]);
 
 function listCaptures() {
   if (!fs.existsSync(DIR)) return [];

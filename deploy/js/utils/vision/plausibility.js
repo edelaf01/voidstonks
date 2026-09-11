@@ -1,4 +1,5 @@
 import { detectRewardBand } from "./grid_detect.js";
+import { columnasDesdeCentros } from "./reward_cards.js";
 
 /**
  * ¿Es creíble lo que acaba de detectar la visión?
@@ -91,5 +92,12 @@ export function detectPlausibleRewardBand(img, opts = {}) {
     // La guarda juzga la detección REAL, antes de ensanchar: si no, el ancho completo aprobaría
     // siempre el corte de "más de un cuarto del frame".
     if (isImplausibleRewardBand(rect, img?.width, img?.height)) return null;
-    return { ...rect, x: 0, w: img.width };
+    // Las columnas viajan aunque el recorte se ensanche a todo el ancho. Sin ellas parseRewards
+    // pierde sus tres rescates por tarjeta (sufijo, componente y el umbral de token en tarjeta)
+    // y aquí es donde se perdían: solo las devolvía detectCardRow, que únicamente corre cuando
+    // ESTA detección falla, así que en el camino normal parseRewards nunca las veía.
+    const cajas = rect.cardBoxes || [];
+    const columnas = columnasDesdeCentros(cajas.map((b) => b.cx), img.width,
+        Math.max(0, ...cajas.map((b) => b.x1 - b.x0)) * 2);
+    return { ...rect, x: 0, w: img.width, columnas };
 }
