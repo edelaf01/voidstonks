@@ -273,7 +273,12 @@ body {
   z-index: var(--z-back);
   pointer-events: none;
   opacity: 0.7;
+  /*
+   * both lines on purpose: `plus-lighter` is the only blend the compositor does on the GPU without reading
+   * the background; `screen` is the fallback
+   */
   mix-blend-mode: screen;
+  mix-blend-mode: plus-lighter;
 }
 
 /* ui components */
@@ -6371,9 +6376,15 @@ button[onclick*="importInventory"]:hover {
   letter-spacing: 0.3px;
   margin-top: 10px;
   color: #eef1f5;
+  /*
+   * two lines rather than an ellipsis so long names stay recognisable
+   * the two-line height is ALWAYS reserved, otherwise the rotating showcase changes height
+   */
   white-space: normal;
   overflow-wrap: anywhere;
   line-height: 1.2;
+  /* height, not min-height: with a minimum the line box rounding still moved the card a pixel */
+  height: 2.4em;
   width: 100%;
 }
 

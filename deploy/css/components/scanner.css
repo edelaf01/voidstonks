@@ -402,7 +402,7 @@
     position: fixed;
     top: 80px;
     right: 20px;
-    width: 290px;
+    width: 320px;
     z-index: 10001;
     font-family: "Segoe UI", system-ui, sans-serif;
     user-select: none;
@@ -435,8 +435,21 @@
     min-width: 0;
 }
 
+/* controls do not shrink, the title does; that is why #inv-hud is 320px */
 .hud-header-right {
     gap: 5px;
+    flex-shrink: 0;
+}
+
+.hud-header-right > * {
+    flex-shrink: 0;
+}
+
+.hud-title {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .hud-status-dot {
@@ -665,52 +678,6 @@
     background: rgba(255, 180, 50, 0.1);
 }
 
-.hud-edit-bar {
-    position: fixed;
-    top: 12px;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 5001;
-    display: none;
-    align-items: center;
-    gap: 12px;
-    padding: 7px 18px;
-    font-family: "Segoe UI", sans-serif;
-    background: rgba(0, 10, 20, 0.9);
-    border: 1px solid rgba(0, 229, 255, 0.5);
-    border-radius: 6px;
-    box-shadow: 0 4px 20px rgba(0, 229, 255, 0.2);
-}
-
-.hud-edit-title {
-    font-size: 0.72em;
-    font-weight: 700;
-    letter-spacing: 1.5px;
-    color: #00e5ff;
-}
-
-.hud-edit-guide {
-    font-size: 0.65em;
-    color: #506070;
-}
-
-.hud-edit-done {
-    padding: 4px 12px;
-    font-family: inherit;
-    font-size: 0.68em;
-    font-weight: 700;
-    color: #00e5ff;
-    background: rgba(0, 229, 255, 0.15);
-    border: 1px solid rgba(0, 229, 255, 0.5);
-    border-radius: 4px;
-    cursor: pointer;
-    transition: background 0.15s;
-}
-
-.hud-edit-done:hover {
-    background: rgba(0, 229, 255, 0.3);
-}
-
 /* OCR debug block */
 .hud-debug {
     display: none;
@@ -869,6 +836,12 @@
     color: #dde6ea;
 }
 
+#squad-run-panel .squad-relic-x {
+    flex-shrink: 0;
+    font-weight: 800;
+    color: #00e5ff;
+}
+
 #squad-run-panel .squad-relic-ref {
     padding: 1px 5px;
     border-radius: 8px;
@@ -923,6 +896,21 @@
     white-space: nowrap;
 }
 
+/* the tag moves to the second line so the name gets the whole first one; only rows with is-missing */
+#squad-run-panel .squad-drop.is-missing {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    grid-template-areas:
+        "name name name"
+        "tag chance plat";
+    row-gap: 1px;
+}
+
+#squad-run-panel .squad-drop.is-missing .squad-drop-name { grid-area: name; }
+#squad-run-panel .squad-drop.is-missing .squad-tag { grid-area: tag; justify-self: start; }
+#squad-run-panel .squad-drop.is-missing .squad-drop-chance { grid-area: chance; }
+#squad-run-panel .squad-drop.is-missing .squad-drop-plat { grid-area: plat; }
+
 #squad-run-panel .squad-drop.is-missing .squad-drop-name {
     color: #e6f2ea;
 }
@@ -955,4 +943,191 @@
     text-align: right;
     font-weight: 700;
     color: #ddaa38;
+}
+
+#scanner-section .ocr-engine {
+    margin: 12px 0;
+    padding-top: 10px;
+    border-top: 1px solid rgba(0, 229, 255, 0.15);
+    text-align: left;
+}
+
+#scanner-section .ocr-engine-title {
+    display: block;
+    color: #6b7a8f;
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    margin-bottom: 5px;
+}
+
+#scanner-section .ocr-engine-opts {
+    display: flex;
+    gap: 6px;
+}
+
+#scanner-section .ocr-engine-btn {
+    flex: 1;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: #8a97a8;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    padding: 5px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+#scanner-section .ocr-engine-btn:hover {
+    border-color: rgba(0, 229, 255, 0.5);
+    color: #cfe9f5;
+}
+
+#scanner-section .ocr-engine-btn[data-active="1"] {
+    background: rgba(0, 229, 255, 0.15);
+    border-color: #00e5ff;
+    color: #00e5ff;
+}
+
+#scanner-section .ocr-engine-hint {
+    margin: 6px 0 0;
+    color: #6b7a8f;
+    font-size: 10px;
+    line-height: 1.35;
+    min-height: 2.7em;
+}
+
+/*
+ * scanner tutorial
+ * the spotlight is a div the size of the element with a huge shadow that darkens everything outside
+ */
+/* above #inv-hud (10001), otherwise the HUD being explained sits over the dark layer */
+.coach-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 10002;
+    display: none;
+}
+
+.coach-hole {
+    position: fixed;
+    border-radius: 6px;
+    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.78);
+    outline: 2px solid #00e5ff;
+    /* the hole only frames: letting clicks through would let the user touch the HUD mid-tour */
+    pointer-events: none;
+    transition: top 0.18s ease, left 0.18s ease, width 0.18s ease, height 0.18s ease;
+}
+
+.coach-box {
+    position: fixed;
+    max-width: 520px;
+    margin: 0 auto;
+    padding: 12px 14px;
+    border: 1px solid rgba(0, 229, 255, 0.45);
+    border-radius: 8px;
+    background: #0b1620;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.6);
+}
+
+.coach-text {
+    margin: 0 0 10px;
+    color: #dde6ea;
+    font-size: 0.9em;
+    line-height: 1.45;
+}
+
+.coach-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.coach-step {
+    margin-right: auto;
+    color: #607590;
+    font-size: 0.78em;
+    font-weight: 700;
+}
+
+.coach-btn {
+    padding: 5px 12px;
+    border: 1px solid rgba(0, 229, 255, 0.5);
+    border-radius: 4px;
+    background: rgba(0, 229, 255, 0.12);
+    color: #00e5ff;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.coach-btn.ghost {
+    border-color: rgba(255, 255, 255, 0.18);
+    background: transparent;
+    color: #8ca0b8;
+}
+
+/* detected list: one header per group with its count, separating parts from relics */
+#inv-hud .hud-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 8px 0 4px;
+    color: #607590;
+    font-size: 0.68em;
+    font-weight: 800;
+    letter-spacing: 1px;
+}
+
+#inv-hud .hud-group:first-child {
+    margin-top: 0;
+}
+
+#inv-hud .hud-group::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: rgba(0, 229, 255, 0.14);
+}
+
+#inv-hud .hud-group-n {
+    order: 2;
+    color: #8ca0b8;
+}
+
+#inv-hud .hud-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    margin-bottom: 2px;
+    padding: 5px 8px;
+    border-left: 2px solid rgba(0, 229, 255, 0.4);
+    border-radius: 4px;
+    background: rgba(0, 229, 255, 0.04);
+    font-size: 0.78em;
+}
+
+#inv-hud .hud-item.is-relic {
+    border-left-color: rgba(0, 229, 255, 0.75);
+    background: rgba(0, 229, 255, 0.07);
+}
+
+#inv-hud .hud-item-name {
+    overflow: hidden;
+    color: #ddd;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+#inv-hud .hud-item-qty {
+    flex-shrink: 0;
+    color: #f1c40f;
+    font-weight: 900;
+}
+
+#inv-hud .hud-item.is-relic .hud-item-qty {
+    color: #00e5ff;
 }

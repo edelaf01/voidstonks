@@ -1,6 +1,6 @@
 import { state, saveAppState, updateInventoryCount } from "../../state.js";
 import { TEXTS } from "../../config.js";
-import { escapeHTML, showToast, showCustomConfirm, emptyStateHtml } from "../ui_components.js";
+import { escapeHTML, showToast, showCustomConfirm, emptyStateHtml, qtyToast } from "../ui_components.js";
 
 import { manualRelicUpdate, renderRelicInvCounter } from "./ui_relics.js";
 import { trackBestSetForRelic } from "./ui_set_tracker.js";
@@ -227,6 +227,7 @@ export function modifyInv(name, amount) {
   updateInventoryCount(name, amount);
   saveAppState();
   renderRelicInvCounter();
+  showToast(qtyToast(name, amount));
   // the suggested routes are computed on this inventory. Through globalThis (published by
   // ui_farm_routes.js): importing it would close a load cycle
   globalThis.scheduleFarmRoutesRefresh?.();
@@ -354,7 +355,10 @@ export function updateInventoryPanelLabels() {
 }
 
 export function switchInvView(view) {
-  if (state.currentInvView === view && document.getElementById("inventory-list")?.innerHTML.length > 50) return;
+  // the guard checks this view's list, not always the relics one: on start the relics list already held
+  // its empty message and swallowed the switch to parts
+  const lista = document.getElementById(view === "relics" ? "inventory-list" : "inventory-list-parts");
+  if (state.currentInvView === view && lista?.style.display !== "none" && lista?.innerHTML.length > 50) return;
   state.currentInvView = view;
   saveAppState();
   const relicControls = document.getElementById("relic-inv-controls");

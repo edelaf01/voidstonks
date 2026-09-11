@@ -25,6 +25,8 @@ import { initSetSearchHelp } from "./ui.components/inventory/ui_sets.js?v=2.0";
 import { renderSetTracker } from "./ui.components/inventory/ui_set_tracker.js";
 import {
   updateLFGUI,
+  renderLFGPresets,
+  renderTradePresets,
 } from "./ui.components/ui_lfg.js";
 import { populateRivenSelects, initRivenMarketIndex, updateIndexTranslations, filterRivenIndex, stopRivenShowcase } from "./ui.components/rivens/ui_rivens.js?v=1.11";
 import { applyArbTexts } from "./ui.components/rivens/ui_arbitrage.js";
@@ -39,7 +41,7 @@ import { renderFarmsTab } from "./ui.components/farms/ui_farms.js";
 import { renderFarmRoutes } from "./ui.components/farms/ui_farm_routes.js";
 import { renderInventory, updateInventoryPanelLabels } from "./ui.components/inventory/ui_inventory.js";
 import { renderPrimeInventory } from "./ui.components/inventory/ui_prime_inventory.js";
-import { ScannerHUD } from "./ui.components/ui_scanner_hud.js";
+import { ScannerHUD, renderOcrEngine } from "./ui.components/ui_scanner_hud.js";
 import { updateScannerLabels } from "./ui.components/ui_scanner_labels.js";
 import { ScannerModal } from "./ui.components/ui_scanner_modal.js";
 // Kubrow translator disabled: its tab is hidden
@@ -56,7 +58,7 @@ export function finishLoading() {
   if (countEl) countEl.innerText = `${state.allRelicNames.length} reliquias`;
 
   const modeRelic = document.getElementById("mode-relic");
-  if (modeRelic) modeRelic.classList.remove("hidden");
+  if (modeRelic && state.activeTab === "relic") modeRelic.classList.remove("hidden");
 
   if (state.selectedRelic) manualRelicUpdate();
 }
@@ -82,6 +84,9 @@ function initTabContent(mode) {
     if (typeof globalThis.initOrdersTab === "function") globalThis.initOrdersTab();
   } else if (mode === "bounties") {
     renderFarmsTab();
+  } else if (mode === "inventory") {
+    renderInventory();
+    renderPrimeInventory();
   }
 }
 
@@ -240,8 +245,6 @@ function updateStaticTexts(t) {
   setText("txt-header-title", t.headerTitle);
   setText("txt-header-sub", t.headerSub);
   setText("txt-footer-data", t.footerData);
-  setText("txt-contact-label", t.contactLabel);
-  setText("txt-contact-link", t.contactLink);
   setText("btn-footer-updates", t.btnShowUpdates);
   setText("txt-privacy-link", t.privacyLink);
   setText("txt-guide-link", t.guideLink);
@@ -281,6 +284,7 @@ function updateStaticTexts(t) {
   setText("btn-riven-search", t.rivenSearch);
   setText("btn-riven-grade", t.rivenGradeBtn);
   setText("grading-modal-title", t.rivenGradeTitle);
+  setText("riven-disclaimer", t.rivenDisclaimer);
   setText("btn-add-pos", t.rivenAddPos);
   setText("btn-add-neg", t.rivenAddNeg);
   setText("lbl-grading-variants", t.rivenGradeVariants);
@@ -443,6 +447,7 @@ export function updateUILabels() {
   updateSelectDropdowns(t);
   updateRivenSelects(t);
   updateScannerLabels(t);
+  renderOcrEngine();
   if (typeof updateIndexTranslations === "function") {
     updateIndexTranslations();
     if (state.rivenIndexData) {
@@ -450,6 +455,8 @@ export function updateUILabels() {
     }
   }
   applyArbTexts();
+  renderLFGPresets();
+  renderTradePresets();
   if (state.activeTab === "vosfor") renderVosforTab().catch(console.error);
   if (state.activeTab === "ducat" && typeof globalThis.renderDucanatorTab === "function") {
     globalThis.renderDucanatorTab();

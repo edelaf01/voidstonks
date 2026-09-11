@@ -1,8 +1,12 @@
 import { OpenCVRepository } from "../../repositories/opencv.repository.js";
 import { detectInventoryGrid } from "../../utils/vision/grid_detect.js";
-import { offBandComponentIndices } from "../../utils/vision/badge_filters.js";
+import { maxChannelInvert } from "../../utils/vision/channel_max.js";
+import { digitosPorAncla } from "../../utils/vision/badge_anchor.js";
 import { accentMask } from "../../utils/vision/mission_complete_grid.js";
-import { NAME_TEXT_COLORS, snapToThemeTextColor, bandInkHistogram, rankPageNameColors } from "../../utils/vision/name_color.js";
+import { NAME_TEXT_COLORS, snapToThemeTextColor, rampCoreColor, bandInkHistogram, rankPageNameColors } from "../../utils/vision/name_color.js";
+import { themeTextMask } from "../../utils/vision/theme_mask.js";
+import { inkRunRatio } from "../../utils/vision/ink_runs.js";
+import { maxChannelPreset } from "../../utils/vision/reward_preprocess.js";
 // re-exported: several modules and tests import them from here
 export { NAME_TEXT_COLORS, snapToThemeTextColor };
 
@@ -31,22 +35,11 @@ export async function applyBestCameraConstraints(stream) {
 
 
 
-export const WF_THEMES = [
-    { name: "Legacy", r: 232, g: 213, b: 93 },
-    { name: "Vitruvian", r: 245, g: 227, b: 173 },
-    { name: "Stalker", r: 255, g: 61, b: 51 },
-    { name: "Baruuk", r: 236, g: 211, b: 162 },
-    { name: "Corpus", r: 111, g: 229, b: 253 },
-    { name: "Fortuna", r: 255, g: 115, b: 230 },
-    { name: "Grineer", r: 255, g: 224, b: 153 },
-    { name: "Lotus", r: 255, g: 241, b: 191 },
-    { name: "Nidus", r: 245, g: 73, b: 93 },
-    { name: "Orokin", r: 178, g: 125, b: 5 },
-    // modern default theme (bright orange)
-    { name: "Default", r: 227, g: 128, b: 20 },
-    { name: "Tenno", r: 6, g: 106, b: 74 },
-    { name: "High Contrast", r: 255, g: 255, b: 0 },
-];
+import { eligeTema } from "../../utils/vision/theme_vote.js";
+
+const FRAMES_PARA_CAMBIAR_TEMA = 3;
+import { WF_THEMES, WF_THEMES_VOTABLES } from "../../utils/vision/wf_themes.js";
+export { WF_THEMES };
 
 
 // quantized color histogram (15-bit key) reused across calls; safe because its users are fully
@@ -69,6 +62,8 @@ const scratchStack = (n) => {
 export const VisionService = {
     _sharedCvs: document.createElement("canvas"),
     _themeCvs: document.createElement("canvas"),
+    // { name, n }: frames in a row a different theme has been winning
+    _temaRacha: null,
     _tempBadgeCvs: document.createElement("canvas"),
     _badgeCvs: document.createElement("canvas"),
     _relicSelectionCvs: document.createElement("canvas"),
@@ -243,9 +238,28 @@ export const VisionService = {
         canvas.height = Math.max(1, Math.floor(sh * scale));
 
         const ctx = canvas.getContext("2d", { willReadFrequently: true });
-        ctx.filter = "grayscale(100%) invert(100%)";
         ctx.drawImage(video, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
-        ctx.filter = "none";
+        maxChannelInvert(ctx, canvas.width, canvas.height);  // not grayscale(): see channel_max.js
+        return canvas;
+    },
+
+    /** Like prepareCropForOCR but not inverted: for PaddleOCR, which reads color. */
+    prepareCropColorForOCR(video, crop, zoom, cacheKey) {
+        const canvas = this._cropCvs[cacheKey] ||= document.createElement("canvas");
+        const width = video.videoWidth;
+        const height = video.videoHeight;
+        const scale = (1080 / height) * zoom;
+
+        const sx = Math.floor(width * crop.x);
+        const sy = Math.floor(height * crop.y);
+        const sw = Math.floor(width * crop.w);
+        const sh = Math.floor(height * crop.h);
+
+        canvas.width = Math.max(1, Math.floor(sw * scale));
+        canvas.height = Math.max(1, Math.floor(sh * scale));
+
+        const ctx = canvas.getContext("2d", { willReadFrequently: true });
+        ctx.drawImage(video, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
         return canvas;
     },
 
@@ -260,6 +274,8 @@ export const VisionService = {
     // Alternative header binarization by distance to the theme color: K-means fails when the background
     // is light and close to the theme color. The header text is always the theme color.
     applyThemeDistanceThreshold(ctx, w, h, theme, maxDist = 130) {
+        // no theme, no distance: the centered MISSION COMPLETE title gives no reliable theme
+        if (!theme) return;
         const tR = theme.actualR ?? theme.r, tG = theme.actualG ?? theme.g, tB = theme.actualB ?? theme.b;
         const imgData = ctx.getImageData(0, 0, w, h);
         const px = imgData.data;
@@ -282,68 +298,32 @@ export const VisionService = {
 
         const px = ctx.getImageData(0, 0, sampleW, sampleH).data;
 
-        const themeStats = new Array(WF_THEMES.length).fill(0).map(() => ({ rSum: 0, gSum: 0, bSum: 0, count: 0, weight: 0 }));
-
-        for (let i = 0; i < px.length; i += 16) {
-            const r = px[i], g = px[i + 1], b = px[i + 2];
-
-            const luma = 0.299 * r + 0.587 * g + 0.114 * b;
-            if (luma < 100) continue;
-
-            let bestThemeIdx = 0;
-            let bestDist = Infinity;
-
-            for (let t = 0; t < WF_THEMES.length; t++) {
-                const theme = WF_THEMES[t];
-                const dist = Math.abs(r - theme.r) + Math.abs(g - theme.g) + Math.abs(b - theme.b);
-                if (dist < bestDist) {
-                    bestDist = dist;
-                    bestThemeIdx = t;
-                }
-            }
-
-            const w = 1 / Math.pow(bestDist + 1, 4);
-            themeStats[bestThemeIdx].weight += w;
-            themeStats[bestThemeIdx].rSum += r;
-            themeStats[bestThemeIdx].gSum += g;
-            themeStats[bestThemeIdx].bSum += b;
-            themeStats[bestThemeIdx].count += 1;
-        }
-
-        let maxWeight = -1;
-        let bestThemeIdx = 0;
-        for (let t = 0; t < WF_THEMES.length; t++) {
-            if (themeStats[t].weight > maxWeight) {
-                maxWeight = themeStats[t].weight;
-                bestThemeIdx = t;
-            }
-        }
-
-        const bestTheme = WF_THEMES[bestThemeIdx];
-        const bestStats = themeStats[bestThemeIdx];
-
-        const actualR = bestStats.count > 0 ? Math.round(bestStats.rSum / bestStats.count) : bestTheme.r;
-        const actualG = bestStats.count > 0 ? Math.round(bestStats.gSum / bestStats.count) : bestTheme.g;
-        const actualB = bestStats.count > 0 ? Math.round(bestStats.bSum / bestStats.count) : bestTheme.b;
+        const voto = eligeTema(px, WF_THEMES_VOTABLES);
 
         // the guard goes before the log, or it announced themes it then dropped
-        if (maxWeight < 0.001) {
+        if (!voto) {
             const estable = globalThis.state?.lastStableTheme;
-            console.log(`[VisionService] Sin tema fiable (peso ${maxWeight.toFixed(4)}) — se mantiene ${estable ? estable.name : "ninguno"}`);
+            console.log(`[VisionService] Sin tema fiable — se mantiene ${estable ? estable.name : "ninguno"}`);
             return estable || null;
         }
 
-        console.log(`[VisionService] Theme detected: ${bestTheme.name} (weight: ${maxWeight.toFixed(4)}, catalog: rgb(${bestTheme.r},${bestTheme.g},${bestTheme.b}), actual: rgb(${actualR},${actualG},${actualB}))`);
+        const estable = globalThis.state?.lastStableTheme;
+        if (estable && estable.name !== voto.tema.name) {
+            this._temaRacha = this._temaRacha?.name === voto.tema.name
+                ? { name: voto.tema.name, n: this._temaRacha.n + 1 }
+                : { name: voto.tema.name, n: 1 };
+            if (this._temaRacha.n < FRAMES_PARA_CAMBIAR_TEMA) {
+                console.log(`[VisionService] ${voto.tema.name} (${voto.afinidad.toFixed(3)}) ${this._temaRacha.n}/${FRAMES_PARA_CAMBIAR_TEMA} — se mantiene ${estable.name}`);
+                return estable;
+            }
+        } else {
+            this._temaRacha = null;
+        }
 
-        const result = {
-            name: bestTheme.name,
-            r: bestTheme.r,
-            g: bestTheme.g,
-            b: bestTheme.b,
-            actualR,
-            actualG,
-            actualB,
-        };
+        const { tema, actualR, actualG, actualB, afinidad } = voto;
+        console.log(`[VisionService] Theme detected: ${tema.name} (afinidad: ${afinidad.toFixed(3)}, catalog: rgb(${tema.r},${tema.g},${tema.b}), actual: rgb(${actualR},${actualG},${actualB}))`);
+
+        const result = { name: tema.name, r: tema.r, g: tema.g, b: tema.b, actualR, actualG, actualB };
 
         if (globalThis.state) {
             globalThis.state.lastStableTheme = result;
@@ -528,6 +508,7 @@ export const VisionService = {
         const txTolSq = 66 * 66;
         const cw = cvs.width, ch = cvs.height;
         const bandY0 = Math.floor(ch * 0.45); // bottom strip (~second name line)
+        const bgLum = bgR * 0.299 + bgG * 0.587 + bgB * 0.114;
 
         let txR, txG, txB;
         if (nameColorHint) {
@@ -551,30 +532,42 @@ export const VisionService = {
             }
         } else {
             COLOR_HIST.fill(0);
-            let txKey = -1, txCount = -1, bandTotal = 0, candidates = 0;
+            let bandTotal = 0, candidates = 0;
             for (let y = bandY0; y < ch; y++) {
                 for (let x = 0; x < cw; x++) {
                     bandTotal++;
                     const i = (y * cw + x) * 4;
                     const dr = px[i] - bgR, dg = px[i + 1] - bgG, db = px[i + 2] - bgB;
                     if (dr * dr + dg * dg + db * db <= bgTolSq) continue; // background
+                    // same brightness bar as the ink below: a color the binarization drops cannot be the text
+                    if (px[i] * 0.299 + px[i + 1] * 0.587 + px[i + 2] * 0.114 < bgLum + 12) continue;
                     candidates++;
-                    const key = QKEY(px[i], px[i + 1], px[i + 2]);
-                    const c = ++COLOR_HIST[key];
-                    if (c > txCount) { txCount = c; txKey = key; }
+                    COLOR_HIST[QKEY(px[i], px[i + 1], px[i + 2])]++;
                 }
             }
             // no ink in the bottom strip (empty cell): all white
-            if (txKey < 0 || candidates < bandTotal * 0.01) {
+            if (!candidates || candidates < bandTotal * 0.01) {
                 for (let i = 0; i < px.length; i += 4) px[i] = px[i + 1] = px[i + 2] = 255;
                 ctx.putImageData(imgData, 0, 0);
                 return cvs;
             }
-            [txR, txG, txB] = snapToThemeTextColor(...UNQ(txKey));
+            const bins = [];
+            for (let key = 0; key < COLOR_HIST.length; key++) {
+                if (COLOR_HIST[key]) bins.push({ col: UNQ(key), count: COLOR_HIST[key] });
+            }
+            // not the mode: on a rescaled frame the stroke is mostly antialias. rampCoreColor returns its core
+            // (utils/vision/name_color.js)
+            const core = rampCoreColor(bins, [bgR, bgG, bgB]);
+            if (!core) {
+                for (let i = 0; i < px.length; i += 4) px[i] = px[i + 1] = px[i + 2] = 255;
+                ctx.putImageData(imgData, 0, 0);
+                return cvs;
+            }
+            // snap to the exact theme name color (NAME_TEXT_COLORS) when close
+            [txR, txG, txB] = snapToThemeTextColor(...core);
         }
 
         // ink = close to the text color, far from the background and bright enough over it
-        const bgLum = bgR * 0.299 + bgG * 0.587 + bgB * 0.114;
         for (let i = 0; i < px.length; i += 4) {
             const drBg = px[i] - bgR, dgBg = px[i + 1] - bgG, dbBg = px[i + 2] - bgB;
             if (drBg * drBg + dgBg * dgBg + dbBg * dbBg <= bgTolSq) {
@@ -771,9 +764,11 @@ export const VisionService = {
     prepareRelicSelectionCanvas(video, scale) {
         const width = video.videoWidth;
         const height = video.videoHeight;
-        const rsCropX = Math.floor(width * 0.5);
+        // starts where the grid ends (RELIC_GRID_CROP x 0.03 + w 0.57): at 0.5 the last grid column entered
+        // and tracking picked that relic
+        const rsCropX = Math.floor(width * 0.60);
         const rsCropY = Math.floor(height * 0.2);
-        const rsCropW = Math.floor(width * 0.5);
+        const rsCropW = width - rsCropX;
         const rsCropH = Math.floor(height * 0.25);
 
         const cvs = this._relicSelectionCvs;
@@ -783,6 +778,15 @@ export const VisionService = {
         ctx.filter = "grayscale(100%) brightness(1.2) contrast(300%)";
         ctx.drawImage(video, rsCropX, rsCropY, rsCropW, rsCropH, 0, 0, cvs.width, cvs.height);
         return cvs;
+    },
+
+    /**
+     * Releases the reward canvases: 0x0 frees the backing store (~4 MB at 1440p).
+     */
+    releaseRewardCanvases() {
+        for (const cvs of [this._rewardCvs, this._rewardNamesCvs]) {
+            if (cvs) { cvs.width = 0; cvs.height = 0; }
+        }
     },
 
     prepareRewardCanvas(snapshot, card, scale) {
@@ -822,12 +826,6 @@ export const VisionService = {
 
     // filter ladder for the adaptive retry: LOW_LIGHT brightens dark photos, HIGH_GLARE lowers contrast
     // when glare burns the text
-    REWARD_OCR_PRESETS: {
-        STANDARD: "grayscale(100%) contrast(400%) brightness(1.3)",
-        LOW_LIGHT: "grayscale(100%) contrast(320%) brightness(1.9)",
-        HIGH_GLARE: "grayscale(100%) contrast(260%) brightness(0.85)",
-    },
-
     prepareRewardOCRCanvas(video, width, height, scale, preset = "STANDARD", cropRect = null) {
         // cropRect from detectRewardBand: a webcam on an external monitor does not fill the frame; without
         // it, the fixed %
@@ -845,9 +843,8 @@ export const VisionService = {
         cvs.height = targetH;
         const ctx = cvs.getContext("2d", { willReadFrequently: true });
 
-        ctx.filter = this.REWARD_OCR_PRESETS[preset] || this.REWARD_OCR_PRESETS.STANDARD;
         ctx.drawImage(video, rCropXBase + marginX, rCropY, cropW, rCropH, 0, 0, targetW, targetH);
-        ctx.filter = "none";
+        maxChannelPreset(ctx, targetW, targetH, preset, WF_THEMES);
         return cvs;
     },
 
@@ -930,6 +927,17 @@ export const VisionService = {
         let density = buildMask(Hd !== null);
         if (Hd !== null && density > 0.22) density = buildMask(false); // the hue picked tint or art: redo neutral
         if (density > 0.10) density = buildMask(false, 0.85, 0.28);    // loose neutral caught tinted background: strict
+        // if not even the strict mask isolates letters the pass only adds garbage words: null skips it.
+        // Density does not tell text apart, so the mask most like text wins (ink_runs.js).
+        const tramosPorTinta = (d) => inkRunRatio(d, targetW, targetH);
+        const escalera = px.slice();
+        img.data.set(orig);
+        const tintaTema = themeTextMask(img, WF_THEMES);
+        if (tramosPorTinta(escalera) >= tramosPorTinta(px)) {
+            img.data.set(escalera);
+        } else {
+            density = tintaTema / totalPx;
+        }
         if (density > 0.10) return null;
         ctx.putImageData(img, 0, 0);
         return cvs;
@@ -1242,7 +1250,8 @@ export const VisionService = {
         if (hasMods) return "INVENTORY_MODS";
         if (hasInv) return "INVENTORY";
         if (/RELI|ELIC|REFI|NEME/.test(text)) return "RELICS";
-        if (/REWA|WARD|ARDS|FISSU|FISSI|FISR|F5UR|FSUR|FI55|F1SS|FISS|FISU|VOID|V0ID|V01D/.test(text)) return "REWARD";
+        // only REWARDS: VOID and FISSURE also show on the star chart fissure list
+        if (/REWA|WARD|ARDS/.test(text)) return "REWARD";
         return "UNKNOWN";
     },
 
@@ -1356,7 +1365,9 @@ export const VisionService = {
      * Quantity badge from the top-left of an inventory cell, by theme color clustering.
      */
     extractBadgeByColor(snapshot, cell, cellW, cellH, theme) {
-        const safeW = Math.min(cellW, Math.round(cellW * 0.68));
+        // badge search window: 0.50 fits three digits and _badgeToQty drops values >= 1000. A wider one let
+        // a big white helmet take the K-means ink group.
+        const safeW = Math.min(cellW, Math.round(cellW * 0.50));
         // start higher so the top of 6, 7 and 5 is not clipped; relative to cellH
         const padTop = Math.max(6, Math.round(cellH * 0.04));
         const startY = Math.max(0, cell.sy - padTop);
@@ -1386,45 +1397,44 @@ export const VisionService = {
         const visited = new Uint8Array(safeW * safeH);
         const components = [];
 
-        const scanW = safeW;
-        const scanH = safeH;
+        // a stack, not a queue with shift(): only the pixel set matters, not the order
+        if (!this._pilaBadge || this._pilaBadge.length < safeW * safeH) {
+            this._pilaBadge = new Int32Array(safeW * safeH);
+        }
+        const pila = this._pilaBadge;
 
-        for (let y = 0; y < scanH; y++) {
-            for (let x = 0; x < scanW; x++) {
+        for (let y = 0; y < safeH; y++) {
+            for (let x = 0; x < safeW; x++) {
                 const idx = y * safeW + x;
                 if (px[idx * 4] === 0 && !visited[idx]) {
                     const compPixels = [];
-                    const queue = [idx];
+                    let sp = 0;
+                    pila[sp++] = idx;
                     visited[idx] = 1;
                     let minX = x, maxX = x, minY = y, maxY = y;
 
-                    while (queue.length > 0) {
-                        const current = queue.shift();
+                    while (sp > 0) {
+                        const current = pila[--sp];
                         compPixels.push(current);
                         const cx = current % safeW;
-                        const cy = Math.floor(current / safeW);
+                        const cy = (current - cx) / safeW;
 
                         if (cx < minX) minX = cx;
                         if (cx > maxX) maxX = cx;
                         if (cy < minY) minY = cy;
                         if (cy > maxY) maxY = cy;
 
-                        const neighbors = [];
-                        for (let dy = -1; dy <= 1; dy++) {
-                            for (let dx = -1; dx <= 1; dx++) {
-                                if (dx === 0 && dy === 0) continue;
-                                const nx = cx + dx;
-                                const ny = cy + dy;
-                                if (nx >= 0 && nx < safeW && ny >= 0 && ny < safeH) {
-                                    neighbors.push(ny * safeW + nx);
+                        const x0 = cx > 0 ? cx - 1 : 0;
+                        const x1 = cx < safeW - 1 ? cx + 1 : safeW - 1;
+                        const y0 = cy > 0 ? cy - 1 : 0;
+                        const y1 = cy < safeH - 1 ? cy + 1 : safeH - 1;
+                        for (let ny = y0; ny <= y1; ny++) {
+                            for (let nx = x0; nx <= x1; nx++) {
+                                const n = ny * safeW + nx;
+                                if (n !== current && px[n * 4] === 0 && !visited[n]) {
+                                    visited[n] = 1;
+                                    pila[sp++] = n;
                                 }
-                            }
-                        }
-
-                        for (const n of neighbors) {
-                            if (px[n * 4] === 0 && !visited[n]) {
-                                visited[n] = 1;
-                                queue.push(n);
                             }
                         }
                     }
@@ -1462,99 +1472,20 @@ export const VisionService = {
             }
         }
 
-        let maxAvgLuma = 0;
-        for (const comp of components) {
-            if (comp.erased) continue;
-            let sum = 0;
-            for (const idx of comp.pixels) sum += srcLuma[idx];
-            comp.avgLuma = sum / comp.pixels.length;
-            if (comp.avgLuma > maxAvgLuma) maxAvgLuma = comp.avgLuma;
-        }
-        if (maxAvgLuma > 0) {
-            for (const comp of components) {
-                if (comp.erased) continue;
-                if (comp.avgLuma < maxAvgLuma * 0.5) {
-                    for (const pixelIdx of comp.pixels) {
-                        px[pixelIdx * 4] = 255;
-                        px[pixelIdx * 4 + 1] = 255;
-                        px[pixelIdx * 4 + 2] = 255;
-                    }
-                    comp.erased = true;
-                    comp.hardErased = true;
-                }
-            }
-        }
-
-        const isDigitShaped = (c) => {
-            const ar = c.width / c.height;
-            return ar >= 0.12 && ar <= 0.92 && c.height >= safeH * 0.20 && c.height <= safeH * 0.80;
-        };
-        for (const comp of components) {
-            if (comp.erased) continue;
-            if (!isDigitShaped(comp)) {
-                for (const pixelIdx of comp.pixels) {
-                    px[pixelIdx * 4] = 255;
-                    px[pixelIdx * 4 + 1] = 255;
-                    px[pixelIdx * 4 + 2] = 255;
-                }
-                comp.erased = true;
-            }
-        }
-
-        const aliveComps = components.filter((c) => !c.erased);
-        const topAnchor = aliveComps.reduce((best, c) => (!best || c.minY < best.minY ? c : best), null);
-        if (topAnchor) {
-            const anchorCy = (topAnchor.minY + topAnchor.maxY) / 2;
-            for (const comp of aliveComps) {
-                const cy = (comp.minY + comp.maxY) / 2;
-                if (Math.abs(cy - anchorCy) <= 0.6 * Math.max(comp.height, topAnchor.height)) continue;
-                for (const pixelIdx of comp.pixels) {
-                    px[pixelIdx * 4] = 255;
-                    px[pixelIdx * 4 + 1] = 255;
-                    px[pixelIdx * 4 + 2] = 255;
-                }
-                comp.erased = true;
-                comp.hardErased = true;
-            }
-        }
-
-        const hasHigherDigit = components.some(c => !c.erased && c.minY <= safeH * 0.55);
-        if (hasHigherDigit) {
-            for (const comp of components) {
-                if (comp.erased) continue;
-                if (comp.minY > safeH * 0.55) {
-                    for (const pixelIdx of comp.pixels) {
-                        px[pixelIdx * 4] = 255;
-                        px[pixelIdx * 4 + 1] = 255;
-                        px[pixelIdx * 4 + 2] = 255;
-                    }
-                    comp.erased = true;
-                    comp.hardErased = true;
-                }
-            }
-        }
-
-        for (const i of offBandComponentIndices(components)) {
+        // which components are the number: anchored on the checkmark (utils/vision/badge_anchor.js)
+        const elegidos = new Set(digitosPorAncla(components, safeW, safeH));
+        for (let i = 0; i < components.length; i++) {
+            if (elegidos.has(i)) continue;
             const comp = components[i];
+            if (comp.erased) continue;
             for (const pixelIdx of comp.pixels) {
                 px[pixelIdx * 4] = 255;
                 px[pixelIdx * 4 + 1] = 255;
                 px[pixelIdx * 4 + 2] = 255;
             }
             comp.erased = true;
-            comp.hardErased = true;
         }
 
-        if (!components.some(c => !c.erased)) {
-            for (const comp of components) {
-                if (comp.width > lineMinW && comp.height <= lineMaxH) continue;
-                if (comp.hardErased) continue;
-                comp.erased = false;
-                for (const pixelIdx of comp.pixels) {
-                    px[pixelIdx * 4] = 0; px[pixelIdx * 4 + 1] = 0; px[pixelIdx * 4 + 2] = 0;
-                }
-            }
-        }
         tCtx.putImageData(imgData, 0, 0);
 
         let digitMinX = safeW, digitMaxX = 0, digitMinY = safeH, digitMaxY = 0;
@@ -1572,6 +1503,7 @@ export const VisionService = {
             return null;
         }
 
+        // absolute margin on purpose: segmentDigits recomputes each box, so it only changes the debug crop
         const padX = 8;
         const padY = 6;
         const cropStartX = Math.max(0, digitMinX - padX);

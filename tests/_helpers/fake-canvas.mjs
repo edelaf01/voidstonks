@@ -2,6 +2,22 @@
 // vision.service.js creates its canvases ON IMPORT, so installFakeDocument() must run before the dynamic import
 // `drawImage` interpolates (bilinear) when scaling with `imageSmoothingEnabled`, like the browser: several tests measure what scaling breaks
 
+/** "#0a0e16" / "#abc" / "rgb(1,2,3)" -> [r, g, b, a]; unknown goes to opaque black */
+function parseColor(css) {
+  const s = String(css || "").trim();
+  const rgb = /^rgba?\(([^)]+)\)$/i.exec(s);
+  if (rgb) {
+    const n = rgb[1].split(",").map((v) => Number.parseFloat(v));
+    return [n[0] | 0, n[1] | 0, n[2] | 0, n.length > 3 ? Math.round(n[3] * 255) : 255];
+  }
+  const hex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(s);
+  if (hex) {
+    const h = hex[1].length === 3 ? [...hex[1]].map((c) => c + c).join("") : hex[1];
+    return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16), 255];
+  }
+  return [0, 0, 0, 255];
+}
+
 function crearImageData(width, height, data) {
   return { width, height, data: data || new Uint8ClampedArray(width * height * 4) };
 }
@@ -154,15 +170,30 @@ function crearContexto(canvas) {
       }
     },
 
+    // `fillRect` does paint: the gap background of a crop montage (utils/vision/ocr_montage.js) is checked by pixel
+    fillRect(x, y, w, h) {
+      const [r, g, b, a] = parseColor(this.fillStyle);
+      const x0 = Math.max(0, Math.round(x)), y0 = Math.max(0, Math.round(y));
+      const x1 = Math.min(canvas.width, Math.round(x + w)), y1 = Math.min(canvas.height, Math.round(y + h));
+      for (let py = y0; py < y1; py++) {
+        for (let px = x0; px < x1; px++) {
+          const i = (py * canvas.width + px) * 4;
+          canvas._data[i] = r; canvas._data[i + 1] = g; canvas._data[i + 2] = b; canvas._data[i + 3] = a;
+        }
+      }
+    },
+
     // the vision code calls them by habit; nothing checked depends on them
     clearRect() {},
-    fillRect() {},
     strokeRect() {},
     fillText() {},
     strokeText() {},
     beginPath() {}, closePath() {}, moveTo() {}, lineTo() {}, stroke() {}, fill() {},
     // the animated background (canvas.js) uses `arc`, and whether it gets there depends on Math.random()
     arc() {}, arcTo() {}, ellipse() {}, rect() {}, quadraticCurveTo() {}, bezierCurveTo() {},
+    // the animated background tints each stroke with a gradient; without this canvas.test.mjs fails once a particle moves
+    createLinearGradient: () => ({ addColorStop() {} }),
+    createRadialGradient: () => ({ addColorStop() {} }),
     save() {}, restore() {}, translate() {}, scale() {}, rotate() {}, setTransform() {},
     measureText: (t) => ({ width: String(t).length * 6 }),
   };

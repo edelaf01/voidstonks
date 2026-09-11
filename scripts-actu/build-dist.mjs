@@ -5,6 +5,10 @@ import { transform } from "esbuild";
 const SRC = "deploy";
 const OUT = "dist";
 
+/**
+ * files NOT copied to dist/ to prevent publishing internal documentation or configs
+ * `deploy/` is both source and served folder, and `wrangler pages deploy` does not respect `.assetsignore`
+ */
 const NO_PUBLICAR = (ruta) => {
     const nombre = ruta.split("/").pop();
     return nombre.endsWith(".md")

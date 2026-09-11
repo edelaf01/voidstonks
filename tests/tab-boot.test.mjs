@@ -23,6 +23,8 @@ function cuerpo(src, firma) {
 
 test("montar una pestaña es una función aparte, no un bloque dentro de switchTab", () => {
     const init = cuerpo(ui, "function initTabContent(mode)");
+    // tabs that mount content: leaving a new one only in switchTab mounts it on entry but not when data
+    // arrives
     for (const [modo, llamada] of [
         ["riven", "initRivenMarketIndex"],
         ["relic", "renderFarmRoutes"],
@@ -31,6 +33,10 @@ test("montar una pestaña es una función aparte, no un bloque dentro de switchT
         ["ducat", "renderDucanatorTab"],
         ["orders", "initOrdersTab"],
         ["bounties", "renderFarmsTab"],
+        // inventory: does not depend on network, but updateUILabels() renders it on module load before
+        // loadAppState(); without mounting it here, the first view showed "No relics saved yet" despite a full
+        // inventory until switching tabs and back
+        ["inventory", "renderInventory"],
     ]) {
         assert.ok(init.includes(`"${modo}"`), `initTabContent no cubre ${modo}`);
         assert.ok(init.includes(llamada), `${modo} debería montar con ${llamada}`);

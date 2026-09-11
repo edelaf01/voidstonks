@@ -41,6 +41,50 @@ const QKEY = (r, g, b) => ((r >> 3) << 10) | ((g >> 3) << 5) | (b >> 3);
 const UNQ = (k) => [((k >> 10) & 31) << 3, ((k >> 5) & 31) << 3, (k & 31) << 3];
 
 /**
+ * Color to binarize a band's text with, from its ink histogram ([{ col, count }]) and the background color.
+ *
+ * Antialiasing blends the glyph LINEARLY with what is behind, so a stroke's pixels fall on the
+ * background→core segment: same DIRECTION from the background, different length. When the stream rescales
+ * the frame the stroke becomes mostly blend, and then:
+ *  - the MODE is no longer the text: its mass spreads along the ramp while the flat card gray stays in one
+ *    tone. Grouping by direction fixes it.
+ *  - the extreme is not right either: binarizing by the real core leaves most of the ramp out. It takes the
+ *    tone farthest from the background whose tolerance BALL still covers half the ramp, at native
+ *    resolution the core.
+ */
+export function rampCoreColor(bins, bg) {
+    if (!bins?.length) return null;
+    // cos ≥ 0.985 ≈ 10° aperture: fits the 5 bit quantization drift without merging two different ramps
+    const COS_MIN = 0.985;
+    const groups = [];
+    for (const { col, count } of bins) {
+        const v = [col[0] - bg[0], col[1] - bg[1], col[2] - bg[2]];
+        const m = Math.hypot(v[0], v[1], v[2]);
+        if (!m) continue;
+        const u = [v[0] / m, v[1] / m, v[2] / m];
+        let g = groups.find(G => G.u[0] * u[0] + G.u[1] * u[1] + G.u[2] * u[2] >= COS_MIN);
+        if (!g) { g = { u, pixels: 0, members: [] }; groups.push(g); }
+        g.pixels += count;
+        g.members.push({ col, count, m });
+    }
+    if (!groups.length) return null;
+    let best = groups[0];
+    for (const g of groups) if (g.pixels > best.pixels) best = g;
+
+    let pick = null, pickM = -1, wide = null, wideMass = -1;
+    for (const c of best.members) {
+        let mass = 0;
+        for (const o of best.members) {
+            const dr = o.col[0] - c.col[0], dg = o.col[1] - c.col[1], db = o.col[2] - c.col[2];
+            if (dr * dr + dg * dg + db * db < TX_TOL_SQ) mass += o.count;
+        }
+        if (mass > wideMass) { wideMass = mass; wide = c.col; }
+        if (mass >= best.pixels * 0.5 && c.m > pickM) { pickM = c.m; pick = c.col; }
+    }
+    return pick || wide;
+}
+
+/**
  * Ink color histogram of ONE cell's name band: the colors cropThemeBinarized could isolate there, with their
  * pixel count. It MEASURES, rankPageNameColors decides with the other cells. Same filters as the
  * binarization: a color it would drop cannot be the name color.

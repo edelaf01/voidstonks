@@ -968,3 +968,13 @@
     font-weight: 400;
     color: #8b8397;
 }
+
+/* "prices are indicative" notice, in the empty space under the buttons */
+#mode-riven .riven-disclaimer {
+    margin: 16px 0 0;
+    font-size: 0.62rem;
+    line-height: 1.55;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+}

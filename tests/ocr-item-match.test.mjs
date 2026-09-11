@@ -185,7 +185,11 @@ test("ocr.service: lecturas degradadas recuperables matchean por similitud gené
     { ocr: "AKJAGARS PRIME ARREL", expected: "Akjagara Prime Barrel" },
     { ocr: "AKJAGARA PRIME LINK", expected: "Akjagara Prime Link" },
     { ocr: "AKJAGARA FRIME RECEIVER", expected: "Akjagara Prime Receiver" },
-    { ocr: "AKBOLTO BLUEPRINT", expected: "Akbolto Prime Blueprint" },
+    // without "PRIME" it no longer matches: "Akbolto Blueprint" is a real part, and accepting it as the prime
+    // logged something that never dropped; in an automatic add a false positive is worse, and multi-frame
+    // consensus recovers the good read
+    { ocr: "AKBOLTO BLUEPRINT", expected: undefined },
+    { ocr: "AKBOLTO PRIME BLUEPRINT", expected: "Akbolto Prime Blueprint" },
   ];
 
   for (const { ocr, expected } of liveScanTests) {
@@ -275,3 +279,12 @@ test("ocr.service: un glifo espurio dentro del código no tumba el match", () =>
   OCRService._relicIndexCache = null;
 });
 
+
+test("una tilde del OCR no tira el match", () => {
+  // PaddleOCR has accents in its dictionary and sometimes places them ("KESTREL PRÍME BLUEPRINT"); the
+  // matcher splits words on [^A-Za-z0-9], so "PRÍME" became "PR" + "ME" and the part was lost
+  assert.equal(OCRService.getValidItemMatch("BALLISTICA PRÍME RECEIVER")?.originalName,
+    "Ballistica Prime Receiver");
+  assert.equal(OCRService.getValidItemMatch("VOLT PRÍME SYSTEMS BLUEPRÍNT")?.originalName,
+    OCRService.getValidItemMatch("VOLT PRIME SYSTEMS BLUEPRINT")?.originalName);
+});

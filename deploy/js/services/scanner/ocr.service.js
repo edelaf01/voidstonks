@@ -1,11 +1,17 @@
 import { state } from "../../state.js";
 import { OCRRepository } from "../../repositories/ocr.repository.js";
-import { recoverClippedToken } from "../../utils/vision/clipped_token.js";
 import { readBadgeDigits } from "../../utils/vision/badge_digit_ocr.js";
+import { splitFusedWord, catalogVocab } from "../../utils/vision/word_split.js";
+import { radioDeDedup, pasoEntreTarjetas, zonasDeRotulo } from "../../utils/vision/reward_cards.js";
+import { recuperaComponente, recuperaPorSufijo } from "../../utils/inventory/component_recover.js";
+import { normalizeOCRWords, tokensSinInformacion, tieneEvidenciaPropia, confirmaPrime } from "../../utils/inventory/ocr_words.js";
+
+const sinAcentos = (texto) => texto.normalize("NFD").replaceAll(/[\u0300-\u036f]/g, "");
 
 export const OCRService = {
     cachedDbItems: [],
     knownParts: new Set(),
+    tokensGenericos: new Set(),
     dynamicRegex: null,
 
     initMatcherData() {
@@ -31,6 +37,7 @@ export const OCRService = {
         });
 
         this.knownParts = tempParts;
+        this.tokensGenericos = tokensSinInformacion(this.cachedDbItems);
     },
 
     editDistance(s1, s2) {
@@ -109,6 +116,8 @@ export const OCRService = {
     },
 
     parseRelicSelection(ocrText) {
+        // without the panel label the matcher finds a relic in any garbage
+        if (!/R[E3][L1I][I1L]C|REWARD|RECOMPENS/i.test(ocrText)) return null;
         const canonical = this.getRelicMatch(ocrText);
         return canonical ? canonical.toUpperCase().replace(/\s+RELIC$/, "") : null;
     },
@@ -154,7 +163,7 @@ export const OCRService = {
         if (!combinedText || !state.allRelicNames?.length) return null;
         const rawWords = Array.isArray(combinedText) ? combinedText : combinedText.split(/\s+/);
         const words = rawWords
-            .map(w => (w || "").toString().toUpperCase()
+            .map(w => sinAcentos((w || "").toString()).toUpperCase()
                 .replaceAll(/[|!¡\][]/g, "I")   // thin i/I/1 read as a bar
                 .replaceAll(/\?/g, "7")
                 .replaceAll(/[^A-Z0-9]/g, ""))
@@ -259,53 +268,7 @@ export const OCRService = {
     },
 
     _normalizeOCRWords(ocrData) {
-        const metaTokens = ["OWNED", "CRAFTED", "FORJA", "PROPIO", "PRDPIO", "0WNED", "OWN", "OWED"];
-        const validWords = [];
-        const knownTokens = Array.from(this.knownParts);
-
-        ocrData.words.forEach(w => {
-            let text = w.text.toUpperCase().replaceAll(/[^A-Z0-9]/g, "");
-            if (text.length < 1) return;
-
-            if (metaTokens.includes(text) || /^\d+$/.test(text)) {
-                validWords.push({
-                    text: text,
-                    x: (w.bbox.x0 + w.bbox.x1) / 2,
-                    y: (w.bbox.y0 + w.bbox.y1) / 2,
-                    raw: w.text
-                });
-                return;
-            }
-
-            // OCR confusion aware similarity (similarityOCR), like getValidItemMatch; the BEST token wins, not the
-            // first that passes
-            let matchedToken = knownTokens.includes(text) ? text : null;
-            if (!matchedToken) {
-                // high threshold: a misread game token differs by look-alike glyphs ("FRO5T", "CAL1BAN"), a foreign
-                // background word ("POST", "FRONT") does not, and at 0.72 "POST" became "FROST"
-                const minScore = 0.85;
-                let best = null, bestScore = 0;
-                for (const token of knownTokens) {
-                    const s = this.similarityOCR(text, token);
-                    if (s > bestScore) { bestScore = s; best = token; }
-                }
-                matchedToken = bestScore >= minScore ? best : null;
-                if (!matchedToken) {
-                    matchedToken = recoverClippedToken(
-                        text, knownTokens, (a, b) => this.similarityOCR(a, b));
-                }
-            }
-
-            if (matchedToken) {
-                validWords.push({
-                    text: matchedToken,
-                    x: (w.bbox.x0 + w.bbox.x1) / 2,
-                    y: (w.bbox.y0 + w.bbox.y1) / 2,
-                    raw: w.text
-                });
-            }
-        });
-        return validWords;
+        return normalizeOCRWords(ocrData, this);
     },
     parseRewards(ocrData) {
         if (!ocrData?.words) return [];
@@ -319,6 +282,10 @@ export const OCRService = {
         const MARGIN_LEFT = isStrip ? (imgW * 0.3) : (imgW * 0.05);
         // 0.26 for long one-line names ("Gunsen Prime Blueprint")
         const MARGIN_RIGHT = isStrip ? imgW : (imgW * 0.26);
+
+        // raw words with their x: normalizeOCRWords already drops a mangled component ("noatoptics")
+        const crudas = (ocrData.words || []).filter(w => w?.bbox)
+            .map(w => ({ text: w.text, x: (w.bbox.x0 + w.bbox.x1) / 2 }));
 
         const allFirstTokens = new Set(this.cachedDbItems.map(item => item.searchWords[0]));
         const globalAnchors = validWords.filter(w => allFirstTokens.has(w.text)).sort((a, b) => a.x - b.x);
@@ -336,10 +303,18 @@ export const OCRService = {
                 // A word left of the anchor on its own line belongs to the neighbor, never to this name:
                 // excluded by Y.
                 const sameLineTol = imgW * 0.008;
+                const fx = anchor.x / imgW;
+                const suya = ocrData.columnas?.find((c) => fx >= c.x0 && fx <= c.x1);
                 const localWords = validWords.filter(w =>
                     w.x >= (anchor.x - MARGIN_LEFT) && w.x <= maxRightX &&
                     (isStrip || !(w.x < anchor.x && Math.abs(w.y - anchor.y) < sameLineTol))
                 );
+                // only for the component rescue: limiting the whole match to the column dropped multi-line labels
+                const dentroDeSuya = (w) => suya
+                    ? (w.x / imgW >= suya.x0 && w.x / imgW <= suya.x1)
+                    : (w.x >= anchor.x - MARGIN_LEFT && w.x <= maxRightX);
+                const enColumna = suya ? localWords.filter(dentroDeSuya) : localWords;
+                const crudasColumna = crudas.filter(dentroDeSuya);
                 const metadata = this.extractInventoryMetadata(localWords);
 
                 const localSoupText = localWords.map(w => w.text).join(" ");
@@ -350,7 +325,10 @@ export const OCRService = {
                 const minWords = searchTokens.length === 1 ? 1 : (isStrip ? 1 : 2);
                 const minRatio = isStrip ? 0.55 : 0.65;
 
-                if (ratio > minRatio && this._countValidTokens(searchTokens, localWords) >= minWords) {
+                if (ratio > minRatio && this._countValidTokens(searchTokens, localWords) >= minWords
+                    && tieneEvidenciaPropia(searchTokens, localWords, this.tokensGenericos)) {
+                    // X center of the name, per token the closest occurrence to the anchor: generic tokens (PRIME,
+                    // BLUEPRINT) show in both columns
                     const matchedWords = searchTokens
                         .map(tok => localWords
                             .filter(w => w.text === tok)
@@ -361,7 +339,9 @@ export const OCRService = {
                         : anchor.x;
 
                     itemMatches.push({
-                        name: dbItem.originalName,
+                        name: recuperaComponente(dbItem.originalName,
+                            [...enColumna.map((w) => w.text), ...crudasColumna.map((w) => w.text)],
+                            (n) => n in (state.itemsDatabase || {}), (a, b) => this.similarityOCR(a, b)),
                         ratio: ratio,
                         tokens: searchTokens.length,
                         x: avgX,
@@ -372,7 +352,23 @@ export const OCRService = {
                 }
             }
         }
-        return this._consolidateMatches(itemMatches, imgW);
+        // A card with text but no anchor: the label tail ("PRIME BLUEPRINT") narrows the catalog.
+        const pasoCol = ocrData.columnas?.length
+            ? [...ocrData.columnas].map((c) => (c.x1 - c.x0) * imgW).sort((a, b) => a - b)[ocrData.columnas.length >> 1]
+            : pasoEntreTarjetas(itemMatches, imgW);
+        for (const z of zonasDeRotulo(ocrData.columnas, validWords, imgW, pasoCol)) {
+            if (itemMatches.some((m) => m.x >= z.x0 && m.x <= z.x1)) continue;
+            // raw words: normalizeOCRWords drops the misread first word, the one that tells the item apart
+            const dentro = crudas.filter((w) => w.x >= z.x0 && w.x <= z.x1);
+            if (!dentro.length) continue;
+            const nombre = recuperaPorSufijo(dentro.map((w) => w.text), Object.keys(state.itemsDatabase || {}),
+                (a, b) => this.similarityOCR(a, b));
+            if (nombre) {
+                itemMatches.push({ name: nombre, ratio: 0.7, tokens: 3, owned: 0, crafted: false, ownedRead: false,
+                    x: dentro.reduce((a, w) => a + w.x, 0) / dentro.length });
+            }
+        }
+        return this._consolidateMatches(itemMatches, imgW, ocrData.columnas);
     },
 
     // localWords: full column window, scores the name tokens. penaltyWords: only words next to the
@@ -419,12 +415,13 @@ export const OCRService = {
         return count;
     },
 
-    _consolidateMatches(itemMatches, imgW) {
+    _consolidateMatches(itemMatches, imgW, columnas) {
         // ratio desc, then more tokens
         itemMatches.sort((a, b) => b.ratio - a.ratio || (b.tokens || 0) - (a.tokens || 0));
+        const radio = radioDeDedup(itemMatches, imgW, columnas);
         const finalItems = [];
         for (const match of itemMatches) {
-            if (!finalItems.some(f => Math.abs(match.x - f.x) < imgW * 0.1)) {
+            if (!finalItems.some(f => Math.abs(match.x - f.x) < radio)) {
                 finalItems.push(match);
             }
         }
@@ -521,7 +518,11 @@ export const OCRService = {
 
         // split OCR words on separators: Tesseract glues "CARRIER.PRIME"
         const rawWords = Array.isArray(combinedText) ? combinedText : combinedText.split(/\s+/);
-        const textWords = rawWords.flatMap(w => w.split(/[^A-Za-z0-9]+/).filter(Boolean));
+        // uppercase here: the color path returns mixed case
+        const crudas = rawWords.flatMap(w => sinAcentos(w).split(/[^A-Za-z0-9]+/).filter(Boolean)).map(w => w.toUpperCase());
+        this._vocabCache ||= catalogVocab(this.cachedDbItems);
+        const textWords = crudas.flatMap((w) => (w.length >= 9 && !this._vocabCache.has(w)
+            && splitFusedWord(w, this._vocabCache)) || [w]);
 
         if (textWords.length === 0) return null;
 
@@ -545,6 +546,7 @@ export const OCRService = {
         // Components match by OCR-aware similarity with a lower bar: short known words, checked by the
         // rest of the name.
         const COMP_THR = 0.6;
+        const PRIME_THR = 0.6, esPrime = (n) => /\bPRIME\b/i.test(n);
 
         const attemptItemMatch = (startIndex, item, lookAheadLimit, ocrWords) => {
             const matchedIndices = [startIndex];
@@ -578,6 +580,13 @@ export const OCRService = {
                 }
                 if (!found && !isOptionalWord(targetComp, item.searchWords[j - 1])) return null;
             }
+            // The game draws "Ash Prime Systems Blueprint" and the DB stores "Ash Prime Systems": the extra
+            // BLUEPRINT counts as covered, or it ties with "Ash Prime Blueprint".
+            const siguiente = ocrWords[currentPos + 1]?.replaceAll(/[^A-Z]/g, "");
+            if (siguiente && isOptionalWord("BLUEPRINT", item.searchWords.at(-1))
+                && this.similarityOCR(siguiente, "BLUEPRINT") >= COMP_THR) {
+                matchedIndices.push(currentPos + 1);
+            }
             return matchedIndices;
         };
 
@@ -602,6 +611,8 @@ export const OCRService = {
                 if (isMatch) {
                     const matched = attemptItemMatch(i + matchedIndexOffset, item, 4, textWords);
                     if (!matched) continue;
+                    // without this, the optional PRIME matched every normal part to its prime
+                    if (esPrime(item.originalName) && !confirmaPrime(textWords, this, PRIME_THR)) continue;
                     // same number of matched words: the best first word similarity wins ("BOLTOR" over "AKBOLTO")
                     const ocrFirst = (matchedIndexOffset
                         ? textWords[i] + textWords[i + 1]

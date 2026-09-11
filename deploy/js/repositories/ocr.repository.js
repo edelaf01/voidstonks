@@ -1,6 +1,8 @@
 /**
  * Tesseract.js worker pool and raw recognition.
  */
+const TESSERACT_VERSION = "7.0.0";
+
 export const OCRRepository = {
     DEFAULT_PSM: "6",
 
@@ -40,16 +42,22 @@ export const OCRRepository = {
 
                 const LOCAL_LANG = { langPath: "js/", gzip: false };
 
+                //retrieve local tesseract.js worker and core from local path, instead of CDN
+                const BASE = `js/tesseract/${TESSERACT_VERSION}`;
+                const RUTAS = { workerPath: `${BASE}/worker.min.js`, corePath: `${BASE}/` };
+
                 const createStandardWorker = async () => {
-                    const w = await tess.createWorker("eng", 1, LOCAL_LANG);
+                    const w = await tess.createWorker("eng", 1, { ...LOCAL_LANG, ...RUTAS });
                     await w.setParameters({
-                        tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789:()+- '/%,.",
+                        //possible chars non riven
+                        tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789, ",
                         tessedit_pageseg_mode: this.DEFAULT_PSM,
                         user_defined_dictionary_priority: "1",
                     });
                     return w;
                 };
 
+                console.log(`[OCR Repo] Tesseract ${TESSERACT_VERSION}, worker y core servidos en local.`);
                 this._createStandardWorker = createStandardWorker;
                 this.workers = [await createStandardWorker()];
 
@@ -65,19 +73,32 @@ export const OCRRepository = {
         return Promise.race([this.initPromise, timeoutPromise]);
     },
 
-    async ensureSecondWorker() {
-        if (this.workers[1]) return;
+    MAX_WORKERS: 4,
+
+    /**
+     * spawns workers up to `n`, requested right before dispatching a grid
+     */
+    async ensureWorkers(n = 2) {
         if (!this._createStandardWorker) return;
-        if (!this._w2Promise) {
-            this._w2Promise = this._createStandardWorker()
-                .then(w => { this.workers[1] = w; })
-                .catch(e => {
-                    console.warn("[OCR Repo] Second worker failed to init:", e);
-                    this.workers[1] = null;
+        const nucleos = globalThis.navigator?.hardwareConcurrency || 4;
+        const tope = Math.max(1, Math.min(this.MAX_WORKERS, nucleos - 1));
+        const objetivo = Math.min(n, tope);
+        const pendientes = [];
+        for (let i = this.workers.length; i < objetivo; i++) pendientes.push(i);
+        for (const i of pendientes) {
+            this._workerPromises ||= [];
+            this._workerPromises[i] ||= this._createStandardWorker()
+                .then((w) => { this.workers[i] = w; })
+                .catch((e) => {
+                    console.warn(`[OCR Repo] worker ${i} no arrancó:`, e);
+                    this.workers[i] = null;
                 });
         }
-        await this._w2Promise;
+        await Promise.all(pendientes.map((i) => this._workerPromises[i]));
+        this.workers = this.workers.filter(Boolean);
     },
+
+    async ensureSecondWorker() { return this.ensureWorkers(2); },
 
     terminateAll() {
         this.workers.forEach(w => {
@@ -87,7 +108,7 @@ export const OCRRepository = {
         });
         this.workers = [];
         this.initPromise = null;
-        this._w2Promise = null;
+        this._workerPromises = null;
     },
 
     /**

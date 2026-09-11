@@ -78,13 +78,18 @@ function wrapName(words, maxLineW) {
   return lines;
 }
 
+/**
+ * items: pool names placed left to right, or an already degraded token array instead of the clean name
+ * opts.rand: PRNG; opts.narrow: forces 2-3 line wraps; opts.badges: per column, null | {owned:N} | {crafted:true}
+ * returns { words, imageW } ready for parseRewards
+ */
 export function makeRewardFrame(items, { rand = Math.random, narrow = false, badges = null } = {}) {
   const k = items.length;
   const words = [];
   items.forEach((name, i) => {
     const cx = CENTER_X + (i - (k - 1) / 2) * PITCH;
     const maxW = narrow && rand() < 0.7 ? 180 : 260;
-    const lines = wrapName(name.split(" "), maxW);
+    const lines = wrapName(Array.isArray(name) ? name : name.split(" "), maxW);
     const y0 = NAMES_Y - ((lines.length - 1) * LINE_H) / 2;
     lines.forEach((line, li) => {
       const totalW = line.reduce((s, w) => s + w.length * CHAR_W, 0) + (line.length - 1) * WORD_GAP;

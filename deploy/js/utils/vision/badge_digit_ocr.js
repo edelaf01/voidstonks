@@ -104,7 +104,25 @@ export function segmentDigits(canvasLike) {
     });
 }
 
-const MIN_IOU = 0.6;
+// minimum IoU against the best template to accept a component as a digit. The ✓ scores ~0.48-0.49
+// against "9". The glyph shrinks with the stream resolution and so does its IoU (~0.59 at 720p), 0.55 is
+// where it stops gaining. Bilinear normalization and multiscale templates were worse: do not retry
+const MIN_IOU = 0.55;
+
+/**
+ * Between the TWO closest digits, decides looking only where their templates DIFFER: pixels both share say
+ * nothing, those only one has say everything (5/6, 3/8).
+ */
+function decidePorDiferencia(bmp, a, b) {
+    const ta = DIGIT_TEMPLATES[a], tb = DIGIT_TEMPLATES[b];
+    let soloA = 0, soloB = 0, nA = 0, nB = 0;
+    for (let i = 0; i < ta.length; i++) {
+        if (ta[i] && !tb[i]) { nA++; soloA += bmp[i]; }
+        else if (tb[i] && !ta[i]) { nB++; soloB += bmp[i]; }
+    }
+    if (!nA || !nB) return a;
+    return (soloA / nA) >= (soloB / nB) ? a : b;
+}
 
 /**
  * Reads the digit string of a badge by template matching. Components that look like NO digit (✓, foundry
@@ -114,13 +132,16 @@ const MIN_IOU = 0.6;
 export function readBadgeDigits(canvasLike) {
     const digits = [];
     for (const comp of segmentDigits(canvasLike)) {
-        let best = "", bestScore = -1;
+        let best = "", bestScore = -1, second = "", secondScore = -1;
         for (const [digit, tmpl] of Object.entries(DIGIT_TEMPLATES)) {
             const score = iou(comp.bmp, tmpl);
-            if (score > bestScore) { bestScore = score; best = digit; }
+            if (score > bestScore) {
+                second = best; secondScore = bestScore;
+                bestScore = score; best = digit;
+            } else if (score > secondScore) { secondScore = score; second = digit; }
         }
         if (bestScore < MIN_IOU) continue; // not a digit: checkmark/foundry/art
-        digits.push({ d: best, minX: comp.minX, maxX: comp.maxX });
+        digits.push({ d: second ? decidePorDiferencia(comp.bmp, best, second) : best, minX: comp.minX, maxX: comp.maxX });
     }
     if (!digits.length) return "";
     // the badge is the LEFT cluster of digits. The wide crop also takes blueprint background strokes that match
