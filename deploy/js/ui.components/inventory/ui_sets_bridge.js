@@ -97,10 +97,20 @@ function chipHtml(r, t) {
         chip.appendChild(img);
     }
 
+    // Nombre arriba y datos abajo, en una columna propia: con todo en una fila el chip crecía
+    // según lo largo que fuera el nombre y la tira quedaba con piezas de anchos distintos.
+    const body = document.createElement("div");
+    body.className = "sets-bridge-body";
+    chip.appendChild(body);
+
     const name = document.createElement("span");
     name.className = "sets-bridge-name";
     name.textContent = r.setName;
-    chip.appendChild(name);
+    body.appendChild(name);
+
+    const meta = document.createElement("span");
+    meta.className = "sets-bridge-meta";
+    body.appendChild(meta);
 
     const left = document.createElement("span");
     left.className = "sets-bridge-left";
@@ -110,15 +120,29 @@ function chipHtml(r, t) {
         ? t.oneLeft
         : t.someLeft.replace("{n}", String(r.missingCount)).replace("{total}", String(r.totalParts));
     if (r.missingCount === 1) left.classList.add("is-close");
-    chip.appendChild(left);
+    meta.appendChild(left);
+
+    // Cuántos sets cierra de golpe. Sin esto, "te falta 1" con +245 al lado no cuadra: la pieza
+    // falta seis veces porque de las demás tienes repuestos, y el platino es el de los seis sets.
+    if (r.setsUnlocked > 1) {
+        const mult = document.createElement("span");
+        mult.className = "sets-bridge-mult";
+        mult.textContent = t.multTag.replace("{n}", String(r.setsUnlocked));
+        mult.title = t.multTitle.replace("{n}", String(r.setsUnlocked));
+        meta.appendChild(mult);
+    }
 
     // Solo si se pudo valorar: un "+0" por falta de precio en caché se leería como "no vale nada".
     if (r.gain > 0) {
         const gain = document.createElement("span");
         gain.className = "sets-bridge-gain";
         gain.textContent = t.gainTag.replace("{n}", String(r.gain));
+        // El icono en vez de la "p": es el mismo de toda la app y no depende del idioma.
+        // Clase propia además de la global: el tamaño se ajusta aquí sin redefinir
+        // .plat-icon-inline, que vive en styles.css (tests/architecture: choque de clases).
+        gain.appendChild(document.createElement("span")).className = "plat-icon-inline sets-bridge-plat";
         gain.title = t.gainTitle;
-        chip.appendChild(gain);
+        meta.appendChild(gain);
     }
     return chip;
 }

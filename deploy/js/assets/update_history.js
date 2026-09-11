@@ -7,18 +7,52 @@ export const UPDATE_HISTORY_DATA = {
   es: `
 <nav class="update-index" aria-label="Versiones">
   <span class="update-index-label">Versiones</span>
-  <a href="#v280" class="update-index-link is-current">v2.8</a>
+  <a href="#v290" class="update-index-link is-current">v2.9</a>
+  <a href="#v280" class="update-index-link">v2.8</a>
   <a href="#v272" class="update-index-link">v2.7.2</a>
   <a href="#v271" class="update-index-link">v2.7.1</a>
   <a href="#v27" class="update-index-link">v2.7</a>
   <a href="#v2661" class="update-index-link">v2.6.6.1</a>
   <a href="#v266" class="update-index-link">v2.6.6</a>
   <a href="#v265" class="update-index-link">v2.6.5</a>
-  <a href="#v264" class="update-index-link">v2.6.4</a>
 </nav>
-<div class="update-block" id="v280">
+<div class="update-block" id="v290">
   <div class="update-header">
-    <span class="update-version">v2.8 (Actual)</span>
+    <span class="update-version">v2.9 (Actual)</span>
+    <span class="update-date">2026-09-09</span>
+  </div>
+
+  <h4 class="update-section">Nuevo motor de lectura</h4>
+  <p class="update-lead">
+    El escáner ya puede leer con una red neuronal en vez del motor de toda la vida. Se nota
+    sobre todo en recompensas, que van con reloj y no dan segunda oportunidad: antes se le
+    colaba alguna lectura, con esta casi nunca. Pesa 6,4 MB y se baja una vez; si prefieres
+    no bajarla, el clásico sigue ahí y sigue funcionando sin conexión.
+  </p>
+  <ul class="update-list">
+    <li>Se elige desde el propio escáner, y mientras se descarga sigue leyendo con el
+    clásico: no te quedas sin nada a medio camino.</li>
+    <li>Los dígitos sueltos del inventario (un 4, un 8, un 9) costaban más de la cuenta.</li>
+    <li>En fin de misión, los nombres de tres líneas ya no pierden la primera al pintarse
+    sobre el arte del ítem.</li>
+    <li>Reliquias: reconoce mejor los temas de fondo claro.</li>
+  </ul>
+
+  <h4 class="update-section">Tutorial</h4>
+  <p class="update-lead">
+    La primera vez que el escáner entra en cada pantalla suelta un aviso de una línea con
+    lo justo para manejarte. Y si quieres verlo todo del tirón, ahí está el botón «?» del
+    panel.
+  </p>
+
+  <h4 class="update-section">Arreglos</h4>
+  <ul class="update-list">
+    <li>Recompensas: reelegir ya no deja la pieza descartada colgada en el inventario.</li>
+  </ul>
+</div>
+<div class="update-block old" id="v280">
+  <div class="update-header">
+    <span class="update-version">v2.8</span>
     <span class="update-date">2026-08-19</span>
   </div>
 
@@ -432,8 +466,7 @@ export const UPDATE_HISTORY_DATA = {
 
   <p class="update-foot">
     <em>El escaneo es experimental y habrá casos en los que el reconocimiento de letras falle.
-    Si os pasa, avisadme por <strong>w/Parcialsobriedad</strong> en los foros de Warframe con
-    la captura que dio error (modo debug) y lo tengo en cuenta para los ajustes. Gracias por
+    Si os pasa, la captura que dio error (modo debug) es lo que permite ajustarlo. Gracias por
     usar la app. ¡Disfrutad de <strong>Shadowgrafter</strong>!</em>
   </p>
 </div>
@@ -451,18 +484,53 @@ export const UPDATE_HISTORY_DATA = {
   en: `
 <nav class="update-index" aria-label="Versions">
   <span class="update-index-label">Versions</span>
-  <a href="#v280" class="update-index-link is-current">v2.8</a>
+  <a href="#v290" class="update-index-link is-current">v2.9</a>
+  <a href="#v280" class="update-index-link">v2.8</a>
   <a href="#v272" class="update-index-link">v2.7.2</a>
   <a href="#v271" class="update-index-link">v2.7.1</a>
   <a href="#v27" class="update-index-link">v2.7</a>
   <a href="#v2661" class="update-index-link">v2.6.6.1</a>
   <a href="#v266" class="update-index-link">v2.6.6</a>
   <a href="#v265" class="update-index-link">v2.6.5</a>
-  <a href="#v264" class="update-index-link">v2.6.4</a>
 </nav>
-<div class="update-block" id="v280">
+<div class="update-block" id="v290">
   <div class="update-header">
-    <span class="update-version">v2.8 (Current)</span>
+    <span class="update-version">v2.9 (Current)</span>
+    <span class="update-date">2026-09-09</span>
+  </div>
+
+  <h4 class="update-section">New reading engine</h4>
+  <p class="update-lead">
+    The scanner can now read with a neural net instead of the old engine. It matters most
+    on the reward screen: it's timed, no do-overs, and a name would occasionally slip
+    through misread there. Not with this one. It's a 6.4 MB download, just once. Skip it
+    and the classic engine's still there, working offline like always.
+  </p>
+  <ul class="update-list">
+    <li>Pick it right from the scanner. While it's downloading, the classic engine keeps
+    reading, so you're never left without one.</li>
+    <li>Lone digits in the inventory (a 4, an 8, a 9) used to trip it up more than they
+    should.</li>
+    <li>End-of-mission names that run three lines over the item art no longer lose that
+    first line.</li>
+    <li>Relics: better at picking out bright-background themes.</li>
+  </ul>
+
+  <h4 class="update-section">Tutorial</h4>
+  <p class="update-lead">
+    The first time the scanner hits a screen, it drops a one-line hint with just enough to
+    get by. Want the whole picture? There's a "?" button on the panel for the guided tour.
+  </p>
+
+  <h4 class="update-section">Fixes</h4>
+  <ul class="update-list">
+    <li>Rewards: reselecting doesn't leave your old pick stranded in the inventory
+    anymore.</li>
+  </ul>
+</div>
+<div class="update-block old" id="v280">
+  <div class="update-header">
+    <span class="update-version">v2.8</span>
     <span class="update-date">2026-08-19</span>
   </div>
 
@@ -880,8 +948,7 @@ export const UPDATE_HISTORY_DATA = {
 
   <p class="update-foot">
     <em>Scanning is experimental and there will be cases where character recognition gets it
-    wrong. If it happens, let me know at <strong>w/Parcialsobriedad</strong> on the Warframe
-    forums with the screenshot that failed (debug mode) and I'll take it into account. Thanks
+    wrong. If it happens, the screenshot that failed (debug mode) is what makes it fixable. Thanks
     for using the app. Enjoy <strong>Shadowgrafter</strong>!</em>
   </p>
 </div>

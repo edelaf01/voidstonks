@@ -1,0 +1,64 @@
+{
+  "_README": "Qué PONE de verdad en cada captura, contado A MANO mirando la imagen. Es la vara con la que se mide el escáner en scripts-actu/banco/marcador.mjs y en los tests de lectura. Las capturas viven fuera del repo (~5 MB cada una).",
+  "inventario": {
+    "_dir": "~/Imágenes/Capturas de pantalla/inventario",
+    "arreglar_malcount.png": {
+      "badges": [27, 27, 27, 26, 22, 20, 20, 19, 17, 16, 16, 16, 16, 15, 14, 14, 13, 13],
+      "nombres": [
+        "Boltor Prime Receiver", "Khora Prime Chassis Blueprint", "Rhino Prime Blueprint",
+        "Nyx Prime Chassis Blueprint", "Revenant Prime Neuroptics Blueprint", "Mag Prime Systems Blueprint",
+        "Octavia Prime Chassis Blueprint", "Dakra Prime Blueprint", "Wukong Prime Systems Blueprint",
+        "Boar Prime Receiver", "Gara Prime Systems Blueprint", "Harrow Prime Blueprint",
+        "Khora Prime Systems Blueprint", "Fang Prime Blueprint", "Gara Prime Neuroptics Blueprint",
+        "Lex Prime Receiver", "Boar Prime Barrel", "Khora Prime Neuroptics Blueprint"
+      ]
+    },
+    "baruuk.png": {
+      "_dir": "~/Imágenes/Capturas de pantalla/nofunciona/implementar",
+      "nombres": [
+        "Baruuk Prime Chassis Blueprint", "Baruuk Prime Neuroptics Blueprint",
+        "Baruuk Prime Systems Blueprint", "Baruuk Prime Blueprint",
+        "Baza Prime Receiver", "Baza Prime Blueprint",
+        "Bo Prime Handle", "Bo Prime Ornament", "Bo Prime Blueprint",
+        "Boar Prime Barrel", "Boar Prime Receiver", "Boar Prime Stock",
+        "Boar Prime Blueprint", "Boltor Prime Barrel", "Boltor Prime Receiver",
+        "Boltor Prime Stock", "Boltor Prime Blueprint", "Braton Prime Barrel"
+      ]
+    }
+  },
+  "reliquias": {
+    "_dir": "~/Imágenes/Capturas de pantalla/nofunciona/implementar/reliccount",
+    "_rejilla": {
+      "_nota": "Las cuatro son la MISMA pantalla con temas distintos: 19 reliquias con contador.",
+      "capturas": ["1.png", "3.png", "4.png", "6-ojo otro tema.png"],
+      "cuentas": {
+        "Meso C6": 108, "Meso I1": 108, "Meso T1": 108, "Meso P5": 106, "Meso K4": 104,
+        "Meso K3": 103, "Meso B9": 102, "Meso A3": 100, "Meso M4": 97, "Meso N17": 93,
+        "Meso A7": 87, "Meso N10": 85, "Meso X1": 81, "Meso P10": 76, "Meso V13": 75,
+        "Meso E6": 74, "Meso W3": 71, "Meso G4": 70, "Meso G8": 70
+      }
+    },
+    "_seguida": {
+      "_nota": "El panel '<Tier> <Código> Relic - Possible Rewards'.",
+      "1.png": "MESO M4", "2.png": "MESO M4", "3.png": "MESO B9",
+      "4.png": "MESO G4", "5.png": "MESO P8", "6-ojo otro tema.png": "MESO M4",
+      "lastmission-rojo.png": null, "lastmissionstalker.png": null,
+      "lastmissionvitruvian.png": null, "missioncompleteredred.png": null
+    }
+  },
+  "recompensas": {
+    "_dir": "~/Imágenes/Capturas de pantalla/nofunciona/implementar",
+    "temas/fisura-red.png": { "total": 3 },
+    "temas/caliban.png": { "total": 4 },
+    "temas/nofuncanuevo.png": { "total": 4 },
+    "temas/nofuncarecompensa.png": { "total": 4 },
+    "temas/siguesinarreglar.png": { "total": 4 },
+    "temas/siguesinfunciona.png": { "total": 4 },
+    "temas/styanaxnodetecta.png": { "total": 4 },
+    "mal.png": {
+      "total": 4,
+      "esperados": ["Nidus Prime Blueprint", "Chroma Prime Neuroptics Blueprint",
+        "Trumna Prime Blueprint", "Burston Prime Stock"]
+    }
+  }
+}

@@ -157,7 +157,7 @@ antes de invertir en lo siguiente.
 ## Pendiente
 
 - **Fase 3 — login nativo.** El puente que describe
-  `../deploy/js/utils/native_bridge.contract.md`: el login contra warframe.market irá
+  `../NATIVE_BRIDGE.md`: el login contra warframe.market irá
   directo desde el proceso Rust (sin CORS ni HttpOnly, como un script), de modo que la
   contraseña del usuario **nunca pase por el worker**. El front ya está preparado
   (`../deploy/js/utils/platform.js` detecta `globalThis.__vsNative`).

@@ -123,11 +123,46 @@ export function segmentDigits(canvasLike) {
     });
 }
 
-// Umbral mínimo de IoU contra la mejor plantilla para aceptar un componente como
-// dígito. Medido sobre capturas reales: el checkmark ✓ (círculo con check, junto al
-// dígito) puntúa ~0.48-0.49 contra "9", el icono de fundición y el arte también bajo;
-// los dígitos REALES puntúan ≥0.77. 0.6 cae en ese hueco con margen a ambos lados.
-const MIN_IOU = 0.6;
+// Umbral mínimo de IoU contra la mejor plantilla para aceptar un componente como dígito.
+// El checkmark ✓ (círculo con check, junto al dígito) puntúa ~0.48-0.49 contra "9", y el icono
+// de fundición y el arte también bajo.
+//
+// Estaba en 0.6, calibrado con glifos de ~21px: a esa resolución los dígitos reales puntúan
+// ≥0.77 y 0.6 caía en mitad del hueco. Pero el glifo encoge con la resolución del stream y su
+// IoU con él —a 720p el mismo dígito mide ~10px y puntúa 0.59-0.60—, así que el listón se comía
+// dígitos BIEN reconocidos: medido celda a celda, "2" acertado a 0.60, 0.59 y 0.59, rechazados
+// los tres. Barrido end-to-end sobre 96 badges en seis resoluciones (2531x1412 a 960x540):
+// 0.60 -> 80, 0.58 -> 83, 0.55 -> 86, 0.52 -> 86. Se queda en 0.55, que es donde deja de ganar.
+//
+// El coste está medido y es solo a 960x540, donde el glifo baja a ~7px y el checkmark empieza a
+// pasar como "9" ("96" por un 6). De 1600x900 para arriba no aparece ni una lectura errónea.
+// Normalizar el glifo con interpolación bilineal en vez de por vecino (86 -> 76) y añadir
+// plantillas degradadas a varias escalas (86 -> 80) se midieron y empeoran: no reintentar.
+const MIN_IOU = 0.55;
+
+/**
+ * Entre los DOS dígitos más parecidos, decide mirando solo donde sus plantillas DIFIEREN.
+ *
+ * El IoU reparte el voto entre todos los píxeles, y dos dígitos que comparten el 80% de su
+ * forma (5 y 6, 3 y 8) se deciden por el ruido del contorno: medido, un "5" real puntuaba
+ * 6@0.716 contra 5@0.713 —tres milésimas— y un "6" real, 5@0.760 contra 6@0.695. Los píxeles
+ * que las dos plantillas comparten no aportan NADA a esa decisión; los que solo tiene una, todo.
+ *
+ * No lleva umbral: medido sobre 122 dígitos de seis resoluciones más una captura de otro tema,
+ * el resultado es idéntico aplicándolo siempre (121/122) que solo ante empates de menos de 0,03,
+ * porque fuera de los empates coincide con el IoU. Es general, no un caso especial para el 5 y
+ * el 6: para cualquier par se mira su propia zona de diferencia.
+ */
+function decidePorDiferencia(bmp, a, b) {
+    const ta = DIGIT_TEMPLATES[a], tb = DIGIT_TEMPLATES[b];
+    let soloA = 0, soloB = 0, nA = 0, nB = 0;
+    for (let i = 0; i < ta.length; i++) {
+        if (ta[i] && !tb[i]) { nA++; soloA += bmp[i]; }
+        else if (tb[i] && !ta[i]) { nB++; soloB += bmp[i]; }
+    }
+    if (!nA || !nB) return a;
+    return (soloA / nA) >= (soloB / nB) ? a : b;
+}
 
 /**
  * Lee la cadena de dígitos de un badge por template-matching. Los componentes que no
@@ -140,13 +175,16 @@ export function readBadgeDigits(canvasLike) {
     // 1) Acepta como dígito los componentes con IoU suficiente, guardando su X.
     const digits = [];
     for (const comp of segmentDigits(canvasLike)) {
-        let best = "", bestScore = -1;
+        let best = "", bestScore = -1, second = "", secondScore = -1;
         for (const [digit, tmpl] of Object.entries(DIGIT_TEMPLATES)) {
             const score = iou(comp.bmp, tmpl);
-            if (score > bestScore) { bestScore = score; best = digit; }
+            if (score > bestScore) {
+                second = best; secondScore = bestScore;
+                bestScore = score; best = digit;
+            } else if (score > secondScore) { secondScore = score; second = digit; }
         }
         if (bestScore < MIN_IOU) continue; // no es un dígito: checkmark/fundición/arte
-        digits.push({ d: best, minX: comp.minX, maxX: comp.maxX });
+        digits.push({ d: second ? decidePorDiferencia(comp.bmp, best, second) : best, minX: comp.minX, maxX: comp.maxX });
     }
     if (!digits.length) return "";
     // 2) El badge es el RACIMO IZQUIERDO de dígitos (pegado al checkmark). Con el crop

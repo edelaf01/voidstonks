@@ -134,3 +134,27 @@ export function makeRewardFrame(opts = {}) {
 
     return { data, width, height };
 }
+
+/**
+ * El mismo frame pero con el juego ocupando solo una fracción del encuadre, que es el caso
+ * para el que existe la detección de banda: una cámara apuntando a un MONITOR EXTERNO deja
+ * bisel, pared y techo alrededor. Importa porque toda la geometría de recompensas se mide en
+ * fracciones del recorte, y el recorte sale a todo el ancho del frame: con el juego a la
+ * mitad, el paso entre tarjetas se parte por dos.
+ *
+ * @param {number} [opts.ocupacion=1] fracción del encuadre que ocupa la pantalla del juego.
+ */
+export function makeRewardFrameEnEncuadre({ width = 2560, height = 1440, ocupacion = 1, ...opts } = {}) {
+    if (ocupacion >= 1) return makeRewardFrame({ width, height, ...opts });
+    const gw = Math.round(width * ocupacion), gh = Math.round(height * ocupacion);
+    const juego = makeRewardFrame({ width: gw, height: gh, ...opts });
+    const data = new Uint8ClampedArray(width * height * 4);
+    for (let i = 0; i < data.length; i += 4) {
+        data[i] = 30; data[i + 1] = 28; data[i + 2] = 27; data[i + 3] = 255;
+    }
+    const ox = (width - gw) >> 1, oy = (height - gh) >> 1;
+    for (let y = 0; y < gh; y++) {
+        data.set(juego.data.subarray(y * gw * 4, (y + 1) * gw * 4), ((y + oy) * width + ox) * 4);
+    }
+    return { data, width, height };
+}

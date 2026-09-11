@@ -16,14 +16,30 @@ const REF_KEY = { radiant: "rad", flawless: "flawless", exceptional: "exceptiona
 
 const plat = (n) => `${Math.round(n)}<span class="plat-icon-inline"></span>`;
 
+/**
+ * Dos jugadores con la MISMA reliquia y el mismo refinamiento son una fila con ×2, no dos filas
+ * repetidas: la tabla de drops que enseñan debajo es idéntica.
+ */
+function agrupaRelics(relics) {
+    const grupos = new Map();
+    for (const r of relics || []) {
+        const clave = `${r?.name}|${r?.refinement || "intact"}`;
+        const previo = grupos.get(clave);
+        if (previo) previo.copias += 1;
+        else grupos.set(clave, { ...r, copias: 1 });
+    }
+    return [...grupos.values()];
+}
+
 function relicRow(relic, t) {
     // Una reliquia que no está en la base de datos no pasa por squadRunOutlook, así que
     // llega sin normalizar: sin este respaldo el chip salía vacío.
     const key = REF_KEY[relic.refinement] || "intact";
     const ref = t.refs?.[key] || key;
     const title = relic.assumedRefinement ? ` title="${escapeHTML(t.scannerHUD.squadAssumed)}"` : "";
+    const copias = relic.copias > 1 ? `<span class="squad-relic-x">×${relic.copias}</span>` : "";
     return `<div class="squad-relic">
-      <span class="squad-relic-name">${escapeHTML(relic.name)}</span>
+      <span class="squad-relic-name">${escapeHTML(relic.name)}</span>${copias}
       <span class="squad-relic-ref is-${escapeHTML(relic.refinement || "intact")}"${title}>${escapeHTML(ref)}${relic.assumedRefinement ? "?" : ""}</span>
       <span class="squad-relic-ev" title="${escapeHTML(t.scannerHUD.squadRelicEV)}">${relic.ev > 0 ? plat(relic.ev) : "—"}</span>
     </div>`;
@@ -74,7 +90,7 @@ export function renderSquadRun(run = state.squadRun) {
         ? `<span class="squad-ev" title="${escapeHTML(sh.squadRunEV)}">~${plat(run.runEV)}</span>`
         : ""}
       </div>
-      <div class="squad-relics">${run.relics.map((r) => relicRow(r, t)).join("")}</div>
+      <div class="squad-relics">${agrupaRelics(run.relics).map((r) => relicRow(r, t)).join("")}</div>
       ${run.drops?.length
         ? `<div class="squad-drops-label">${escapeHTML(sh.squadDrops)}</div>
            <div class="squad-drops">${run.drops.map((d) => dropRow(d, t)).join("")}</div>`

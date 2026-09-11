@@ -1,27 +1,18 @@
-/**
- * Cuándo se da por buena una lectura de MISSION COMPLETE y se escribe en el inventario.
- *
- * La pantalla dura ~15 s y el escáner la ve muchas veces, así que sin memoria una misma
- * recompensa entraría una vez por frame. Y como el alta es automática, una lectura de un
- * frame malo no puede escribir: se exige verla DOS veces seguidas idéntica.
- *
- * Puro: entra el estado y sale el estado siguiente, para poder probarlo sin navegador.
- */
+import {
+    nextConsensus,
+    INITIAL_CONSENSUS,
+} from "./reward_consensus.js";
 
-/** Lecturas idénticas seguidas que hacen falta para escribir en el inventario. */
+/** Lecturas idénticas seguidas de referencia. */
 export const CONSENSUS_FRAMES = 2;
 
 export const INITIAL_LEDGER = Object.freeze({
-    pending: null,
-    pendingCount: 0,
+    consensus: INITIAL_CONSENSUS,
     committed: null,
 });
 
 /**
  * Firma de una lectura: nombres y cantidades, en orden.
- *
- * Ordenada a propósito: el orden en que salgan las celdas no debe cambiar la firma, o dos
- * lecturas iguales no se reconocerían entre sí y el consenso no llegaría nunca.
  */
 export function readingSignature(items) {
     if (!items || items.length === 0) return "0";
@@ -32,29 +23,59 @@ export function readingSignature(items) {
 }
 
 /**
- * @param prev    estado anterior: { pending, pendingCount, committed }
+ * Avanza el estado del ledger acumulando consenso por ítem.
+ *
+ * @param prev    estado anterior: { consensus, committed }
  * @param items   piezas leídas en ESTE frame ([{name, qty}])
- * @returns {{ledger: object, commit: Array|null}}  `commit` trae las piezas a dar de alta,
- *          o null si aún no toca (poco consenso, o esta pantalla ya se escribió).
+ * @returns {{ledger: object, commit: Array|null}}
  */
 export function nextLedger(prev, items) {
     const s = { ...INITIAL_LEDGER, ...prev };
-    const sig = readingSignature(items);
+    const prevConsensus = s.consensus || INITIAL_CONSENSUS;
 
-    // Sin piezas no hay nada que confirmar, pero tampoco se borra lo ya escrito: el usuario
-    // puede pasar el ratón por encima y tapar la única pieza durante un par de frames.
-    if (sig === "0") return { ledger: { ...s, pending: null, pendingCount: 0 }, commit: null };
+    // Una pantalla ya escrita no se vuelve a escribir aunque el consenso la haya olvidado: si
+    // entre medias hay bastantes frames sin lectura (el ratón tapando el panel), la puntuación
+    // decae hasta que se poda, y al reaparecer la MISMA recompensa entraba dos veces.
+    if (s.committed && readingSignature(items) === s.committed) return { ledger: s, commit: null };
 
-    // Esta misma pantalla ya se dio de alta. Volver a verla no suma: es el caso de todos los
-    // frames que quedan hasta que el usuario pulse continuar.
-    if (sig === s.committed) return { ledger: s, commit: null };
+    const { state: nextConsState, confirmed } = nextConsensus(prevConsensus, items);
 
-    const pendingCount = s.pending === sig ? s.pendingCount + 1 : 1;
-    if (pendingCount >= CONSENSUS_FRAMES) {
-        return {
-            ledger: { pending: null, pendingCount: 0, committed: sig },
-            commit: items,
-        };
+    const hasNewCommit = confirmed.length > 0;
+    const commit = hasNewCommit ? confirmed : null;
+
+    let committed = s.committed;
+    let nextItems = nextConsState.items;
+
+    if (hasNewCommit) {
+        committed = readingSignature(items);
+
+        // Al confirmar una pantalla nueva, se descartan del consenso los confirmados
+        // de pantallas anteriores que ya no están presentes en este frame.
+        const currentItemNames = new Set((items || []).map((it) => it?.name).filter(Boolean));
+        const pruned = {};
+        for (const [name, entry] of Object.entries(nextItems)) {
+            if (entry.confirmed && !currentItemNames.has(name)) {
+                continue;
+            }
+            pruned[name] = entry;
+        }
+        nextItems = pruned;
+    } else {
+        let pruned = null;
+        for (const [name, entry] of Object.entries(nextItems)) {
+            if (entry.score < 0.05) {
+                if (!pruned) pruned = { ...nextItems };
+                delete pruned[name];
+            }
+        }
+        if (pruned) nextItems = pruned;
     }
-    return { ledger: { ...s, pending: sig, pendingCount }, commit: null };
+
+    return {
+        ledger: {
+            consensus: { items: nextItems },
+            committed,
+        },
+        commit,
+    };
 }

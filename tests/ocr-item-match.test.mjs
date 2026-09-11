@@ -204,7 +204,13 @@ test("ocr.service: lecturas degradadas recuperables matchean por similitud gené
     { ocr: "AKJAGARS PRIME ARREL", expected: "Akjagara Prime Barrel" },
     { ocr: "AKJAGARA PRIME LINK", expected: "Akjagara Prime Link" },
     { ocr: "AKJAGARA FRIME RECEIVER", expected: "Akjagara Prime Receiver" },
-    { ocr: "AKBOLTO BLUEPRINT", expected: "Akbolto Prime Blueprint" },
+    // Sin "PRIME" ya NO casa: "Akbolto Blueprint" es una pieza que existe de verdad en el
+    // juego, y aceptarla como la prime apuntaba en el inventario algo que no cayó. Se pierde
+    // recuperar un rótulo al que el OCR se comió "PRIME" entero; a cambio no se inventan
+    // piezas. En un alta automática el falso positivo es peor, y el consenso multi-frame
+    // recupera la lectura buena en otro frame.
+    { ocr: "AKBOLTO BLUEPRINT", expected: undefined },
+    { ocr: "AKBOLTO PRIME BLUEPRINT", expected: "Akbolto Prime Blueprint" },
   ];
 
   for (const { ocr, expected } of liveScanTests) {
@@ -303,3 +309,13 @@ test("ocr.service: un glifo espurio dentro del código no tumba el match", () =>
   OCRService._relicIndexCache = null;
 });
 
+
+test("una tilde del OCR no tira el match", () => {
+  // PaddleOCR tiene tildes en su diccionario y las coloca de vez en cuando: medido, un rótulo
+  // de fin de misión salía "KESTREL PRÍME BLUEPRINT". El matcher parte las palabras por
+  // [^A-Za-z0-9], así que "PRÍME" se convertía en "PR" + "ME" y la pieza se perdía entera.
+  assert.equal(OCRService.getValidItemMatch("BALLISTICA PRÍME RECEIVER")?.originalName,
+    "Ballistica Prime Receiver");
+  assert.equal(OCRService.getValidItemMatch("VOLT PRÍME SYSTEMS BLUEPRÍNT")?.originalName,
+    OCRService.getValidItemMatch("VOLT PRIME SYSTEMS BLUEPRINT")?.originalName);
+});

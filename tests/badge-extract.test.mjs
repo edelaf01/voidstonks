@@ -1,11 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
-import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { decodePng, encodePng } from "./_helpers/png.mjs";
+import { decodePng } from "./_helpers/png.mjs";
 import { installFakeDocument } from "./_helpers/fake-canvas.mjs";
 
 // ===========================================================================
@@ -24,20 +22,16 @@ import { installFakeDocument } from "./_helpers/fake-canvas.mjs";
 // vertical se aleja del centro del superviviente más brillante (checkmark o
 // dígito) más de 0.5*min(alturas) es arte y se borra (hardErased).
 //
-// Las etapas de PÍXELES (qué componentes sobreviven, geometría del crop final)
-// se verifican SIEMPRE. El OCR con el binario `tesseract` del sistema (con el
-// mismo eng.traineddata fast y PSM 7 que el worker de badges) se salta si no
-// está instalado. Ojo: el tesseract CLI a veces lee el checkmark como "4"
-// (p.ej. "411" para 11) donde tesseract.js en vivo no lo hace, así que el OCR
-// se comprueba con endsWith, no con igualdad.
+// Se verifican las etapas de PÍXELES (qué componentes sobreviven, geometría del
+// crop final) y la lectura con el lector de PRODUCCIÓN (readBadgeDigits).
 // ===========================================================================
 
 installFakeDocument(); // antes del import dinámico: vision.service.js crea canvases al cargar
 const { VisionService } = await import("../deploy/js/services/scanner/vision.service.js");
+const { readBadgeDigits } = await import("../deploy/js/utils/vision/badge_digit_ocr.js");
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE = path.join(__dirname, "_fixtures", "inventory_ballistica_banshee_2531x1412.png");
-const TESSDATA = path.join(__dirname, "..", "deploy", "js");
 
 // Auto-grid detectada en esta captura: zona (87,281), celda 277x296, phase dy=-44.
 const GRID = { gx: 87, gy: 281, cellW: 277, cellH: 296, dy: -44 };
@@ -47,13 +41,17 @@ const GRID = { gx: 87, gy: 281, cellW: 277, cellH: 296, dy: -44 };
 const THEME = { name: "Default", r: 227, g: 128, b: 20, actualR: 246, actualG: 129, actualB: 3 };
 
 // safeW/safeH que usa extractBadgeByColor con esta celda: 97 x 86
+// cropW/cropH bajaron (de 56-69 x ~42 a 29-56 x 33-40) al pasar la selección de componentes a
+// anclarse en el checkmark: el recorte que se devuelve es ahora SOLO el número, sin el checkmark
+// delante. Es el cambio que llevó los badges de 86/96 a 94/96 sobre seis resoluciones
+// (ver utils/vision/badge_anchor.js y tests/scanner-reescalado.test.mjs).
 const CELLS = [
-  { name: "r2c1 Ballistica Prime BP", r: 2, c: 1, qty: "3", cropW: 57 },
-  { name: "r2c5 Banshee Prime BP", r: 2, c: 5, qty: "9", cropW: 56 },
-  { name: "r0c2 Astilla Prime BP", r: 0, c: 2, qty: "3", cropW: 57 },
-  { name: "r1c2 Atlas Prime BP", r: 1, c: 2, qty: "11", cropW: 69 },
-  { name: "r2c2 Banshee Prime Chassis", r: 2, c: 2, qty: "3", cropW: 56 },
-  { name: "r2c4 Banshee Prime Systems", r: 2, c: 4, qty: "2", cropW: 56 },
+  { name: "r2c1 Ballistica Prime BP", r: 2, c: 1, qty: "3", cropW: 56, cropH: 40 },
+  { name: "r2c5 Banshee Prime BP", r: 2, c: 5, qty: "9", cropW: 30, cropH: 34 },
+  { name: "r0c2 Astilla Prime BP", r: 0, c: 2, qty: "3", cropW: 30, cropH: 33 },
+  { name: "r1c2 Atlas Prime BP", r: 1, c: 2, qty: "11", cropW: 41, cropH: 33 },
+  { name: "r2c2 Banshee Prime Chassis", r: 2, c: 2, qty: "3", cropW: 29, cropH: 33 },
+  { name: "r2c4 Banshee Prime Systems", r: 2, c: 4, qty: "2", cropW: 30, cropH: 33 },
 ];
 
 const snapshot = decodePng(fs.readFileSync(FIXTURE));
@@ -66,20 +64,6 @@ function extract(snap, r, c) {
   return VisionService.extractBadgeByColor(snap, cellAt(r, c), GRID.cellW, GRID.cellH, THEME);
 }
 
-const hasTesseract = spawnSync("tesseract", ["--version"], { stdio: "ignore" }).status === 0;
-
-function ocrBadge(badgeCvs) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "badge-ocr-"));
-  const file = path.join(dir, "badge.png");
-  fs.writeFileSync(file, encodePng({ width: badgeCvs.width, height: badgeCvs.height, data: badgeCvs.data }));
-  const res = spawnSync("tesseract", [
-    file, "-", "--tessdata-dir", TESSDATA, "--psm", "7",
-    "-c", "tessedit_char_whitelist= 0123456789",
-  ], { encoding: "utf8" });
-  fs.rmSync(dir, { recursive: true, force: true });
-  return (res.stdout || "").replaceAll(/\s/g, "");
-}
-
 // ===========================================================================
 // Etapas de píxeles: geometría del crop final por celda
 // ===========================================================================
@@ -88,10 +72,9 @@ for (const cell of CELLS) {
   test(`extractBadgeByColor píxeles: ${cell.name} (qty real ${cell.qty})`, () => {
     const badge = extract(snapshot, cell.r, cell.c);
     assert.ok(badge, "debe devolver un canvas de badge");
-    // Banda del badge: el crop empieza arriba (checkmark, y≈15) y mide ~42px de alto
-    assert.ok(Math.abs(badge.cropH - 42) <= 3, `cropH ${badge.cropH} debería ser ~42 (banda del badge)`);
-    // Ancho: checkmark + dígitos, SIN arte del ítem. Pre-fix Banshee BP daba 97 (todo el
-    // ancho del crop, arte incluido) — la cota <70 es la regresión de BUG 2.
+    assert.ok(Math.abs(badge.cropH - cell.cropH) <= 3, `cropH ${badge.cropH} debería ser ~${cell.cropH}`);
+    // Ancho: SOLO los dígitos, sin arte del ítem. Pre-fix Banshee BP daba 97 (todo el ancho
+    // del crop, arte incluido) — la cota <70 es la regresión de BUG 2.
     assert.ok(Math.abs(badge.cropW - cell.cropW) <= 3, `cropW ${badge.cropW} debería ser ~${cell.cropW}`);
     assert.ok(badge.cropW < 70, `cropW ${badge.cropW} no debe alcanzar el arte del ítem (pre-fix: 97)`);
   });
@@ -119,15 +102,19 @@ test("extractBadgeByColor: línea de arte alargada junto al 3 de Ballistica no e
 });
 
 // ===========================================================================
-// OCR real (se salta sin binario tesseract): mismas 6 celdas
+// Lectura real de las mismas 6 celdas.
+//
+// Con el LECTOR DE PRODUCCIÓN (readBadgeDigits, template-matching), no con el binario
+// `tesseract`: los badges dejaron de pasar por Tesseract cuando se midió que fallaba en
+// dígitos aislados (30/35 frente a 33/35). Comprobarlos con el CLI medía una ruta que la
+// app ya no ejecuta —y con el recorte anclado, que va tan ceñido al número, el CLI devuelve
+// cadena vacía en varias mientras el matcher las acierta todas—.
 // ===========================================================================
 
 for (const cell of CELLS) {
-  test(`extractBadgeByColor OCR: ${cell.name} -> ${cell.qty}`, { skip: !hasTesseract && "tesseract no instalado" }, () => {
+  test(`badge leído: ${cell.name} -> ${cell.qty}`, () => {
     const badge = extract(snapshot, cell.r, cell.c);
     assert.ok(badge, "debe devolver un canvas de badge");
-    const digits = ocrBadge(badge);
-    // endsWith: el CLI a veces antepone un "4" fantasma por el checkmark (tesseract.js no)
-    assert.ok(digits.endsWith(cell.qty), `OCR '${digits}' debería terminar en '${cell.qty}'`);
+    assert.equal(readBadgeDigits(badge), cell.qty);
   });
 }
