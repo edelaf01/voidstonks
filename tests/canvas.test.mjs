@@ -5,8 +5,9 @@ import { installFakeDocument, FakeCanvas } from "./_helpers/fake-canvas.mjs";
 const doc = installFakeDocument();
 
 let frames = 0;
+let maxFrames = 3;
 globalThis.requestAnimationFrame = (fn) => {
-  if (++frames > 3) return 0;
+  if (++frames > maxFrames) return 0;
   fn(performance.now());
   return frames;
 };
@@ -58,4 +59,34 @@ test("un canvas sin tamaño no rompe el arranque", () => {
   try {
     assert.doesNotThrow(() => initCanvas());
   } finally { doc._registrar("void-traces-canvas", null); }
+});
+
+test("el color del tema se resuelve una vez por tema, no una por frame", async () => {
+  let consultas = 0;
+  const gcs = globalThis.getComputedStyle;
+  globalThis.getComputedStyle = () => ({
+    getPropertyValue: () => { consultas++; return tema; },
+  });
+  try {
+    maxFrames = 0;
+    await new Promise((r) => globalThis.setTimeout(r, 200));
+
+    await conCanvas(async () => {
+      maxFrames = 12;
+      consultas = 0;
+      doc.body.className = "theme-relic";
+      initCanvas();
+      await new Promise((r) => globalThis.setTimeout(r, 250));
+      assert.ok(frames >= 2, "hacen falta varios frames para que la caché signifique algo");
+      assert.equal(consultas, 1, "el color no puede resolverse en cada frame");
+
+      doc.body.className = "theme-riven";
+      await new Promise((r) => globalThis.setTimeout(r, 250));
+      assert.equal(consultas, 2, "al cambiar de tema se resuelve otra vez, y solo una");
+    });
+  } finally {
+    globalThis.getComputedStyle = gcs;
+    doc.body.className = "";
+    maxFrames = 3;
+  }
 });

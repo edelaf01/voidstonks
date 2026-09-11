@@ -5,7 +5,8 @@ import { fileURLToPath } from "node:url";
 export const JS_ROOT = fileURLToPath(new URL("../../deploy/js", import.meta.url));
 export const TESTS_ROOT = fileURLToPath(new URL("..", import.meta.url));
 
-const VENDORED = new Set(["tesseract.min.js", "tesseract-core.wasm.js"]);
+const VENDORED = new Set(["tesseract.min.js"]);
+const VENDORED_DIRS = ["tesseract"];
 
 function walk(dir, keep) {
   const out = [];
@@ -23,7 +24,9 @@ function walk(dir, keep) {
 const toPosix = (p) => p.split(sep).join("/");
 
 export function modules() {
-  return walk(JS_ROOT, (p) => p.endsWith(".js") && !VENDORED.has(p.slice(p.lastIndexOf(sep) + 1)))
+  const esVendor = (p) => VENDORED.has(p.slice(p.lastIndexOf(sep) + 1))
+    || VENDORED_DIRS.some((d) => p.includes(`${sep}${d}${sep}`));
+  return walk(JS_ROOT, (p) => p.endsWith(".js") && !esVendor(p))
     .map((abs) => {
       const src = readFileSync(abs, "utf8");
       const lines = src.split("\n").length - (src.endsWith("\n") ? 1 : 0);

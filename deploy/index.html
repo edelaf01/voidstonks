@@ -13,7 +13,6 @@
     content="Herramienta avanzada para Warframe. Consulta precios de Rivens, optimiza tus Reliquias y trackea tu progreso de Sets Prime. Maximiza tu Platino con datos de mercado en tiempo real." />
   <meta name="keywords"
     content="Warframe, Market, Riven Prices, Relic Tool, Void, Farm, Optimizer, Platinum, Trading, VoidStonks" />
-  <meta name="author" content="Parcialsobriedad" />
   <meta name="robots" content="index, follow" />
 
   <link rel="canonical" href="https://voidstonks.com/" />
@@ -159,6 +158,10 @@
       <div class="hud-header-right">
         <span id="hud-context-badge" class="hud-context-badge">IDLE</span>
 
+        <button type="button" id="btn-scanner-tutorial" class="hud-icon-btn"
+          onclick="globalThis.reiniciaTutorialEscaner()" title="Tutorial del escáner">
+          ?
+        </button>
         <button type="button" id="btn-debug-toggle" class="hud-icon-btn" onclick="globalThis.toggleScannerDebug()"
           title="Enseña la imagen que está leyendo el OCR">
           DIAG
@@ -178,7 +181,7 @@
 
       <div id="squad-run-panel" class="squad-panel" style="display: none"></div>
 
-      <div class="hud-actions">
+      <div class="hud-actions" id="hud-actions">
         <button type="button" id="btn-manual-scan" class="hud-btn primary" onclick="globalThis.manualPrecisionScan()">
           ⌖ SCAN PAGE
         </button>
@@ -200,12 +203,7 @@
         </button>
       </div>
 
-      <div class="hud-subactions">
-
-        <button type="button" id="btn-open-grid-editor" class="hud-btn-sm cyan" onclick="globalThis.openGridEditor()"
-          title="Ajusta a mano la posición de cada celda arrastrándola">
-          ✎ EDITAR CELDAS
-        </button>
+      <div class="hud-subactions" id="hud-subactions">
 
         <button type="button" id="btn-reset-grid" class="hud-btn-sm amber" onclick="globalThis.resetGrid()"
           title="Descarta la rejilla detectada; se vuelve a detectar en el próximo escaneo">
@@ -214,13 +212,6 @@
 
       </div>
 
-      <div id="btn-close-grid-editor" class="hud-edit-bar">
-        <span id="edit-mode-title" class="hud-edit-title">CELL EDITOR ACTIVE</span>
-        <span id="edit-mode-guide" class="hud-edit-guide">Click a cell to select · Drag or ↑↓←→ to nudge</span>
-        <button type="button" id="btn-edit-done" class="hud-edit-done" onclick="globalThis.closeGridEditor()">
-          ✓ DONE
-        </button>
-      </div>
 
       <div id="live-debug-snapshot" class="hud-debug" style="display: none">
         <div class="hud-debug-head">
@@ -514,9 +505,7 @@
                 </svg>
               </button>
             </div>
-            <div id="scan-history-dropdown-list" class="scan-history-list">
-              <div class="scan-history-empty">No hay detecciones recientes disponibles.</div>
-            </div>
+            <div id="scan-history-dropdown-list" class="scan-history-list"></div>
           </div>
         </div>
 
@@ -545,6 +534,17 @@
               Está en BETA: puede fallar o leer mal.
             </p>
           </div>
+          <div class="ocr-engine">
+            <span id="lbl-ocr-engine" class="ocr-engine-title">MOTOR DE LECTURA</span>
+            <div class="ocr-engine-opts" role="group" aria-labelledby="lbl-ocr-engine">
+              <button type="button" id="btn-engine-classic" class="ocr-engine-btn" data-active="0"
+                onclick="globalThis.setOcrEngine('tesseract')">CLÁSICO</button>
+              <button type="button" id="btn-engine-neural" class="ocr-engine-btn" data-active="1"
+                onclick="globalThis.setOcrEngine('paddle')">PRECISO</button>
+            </div>
+            <p id="lbl-ocr-engine-hint" class="ocr-engine-hint"></p>
+          </div>
+
           <button id="btn-accept-scan" class="action-btn confirm full-width">
             ENTENDIDO, EMPEZAR
           </button>
@@ -866,6 +866,12 @@
                   TASAR RIVEN
                 </button>
               </div>
+
+              <p id="riven-disclaimer" class="riven-disclaimer">
+                Los precios de riven son orientativos: un mismo riven puede costar cualquier cosa.
+                Tómalos como referencia del volumen real de venta, con datos de Digital Extremes
+                y de warframe.market.
+              </p>
 
               <div id="meta-stats-container" class="recommended-god-roll-card" style="display:none;"></div>
 
@@ -1417,10 +1423,6 @@
     </div>
 
     <div class="footer-row" style="margin-top: 10px; font-size: 0.9em">
-      <span id="txt-contact-label">¿Tienes ideas para mejorar la app?</span>
-      <a href="https://forums.warframe.com/profile/4069424-parcialsobriedad/" target="_blank" rel="noopener noreferrer"
-        class="contact-link" id="txt-contact-link">w/Parcialsobriedad</a>
-      <span class="footer-separator">|</span>
       <button id="btn-footer-updates" class="footer-link-btn" onclick="globalThis.openUpdateHistory()">
         Novedades
       </button>
@@ -1665,7 +1667,6 @@
   </div>
 
   <script src="js/scanner/live_calibration.js"></script>
-  <script src="js/scanner/live_grid_editor.js"></script>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 

@@ -19,7 +19,7 @@ function resolveWorkerUrl() {
 }
 
 export const WORKER_URL = resolveWorkerUrl();
-export const APP_VERSION = "2.8";
+export const APP_VERSION = "2.9";
 export { TEXTS } from "./assets/texts.js";
 export { UPDATE_HISTORY_DATA } from "./assets/update_history.js";
 export const TIER_URLS = {

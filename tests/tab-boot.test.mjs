@@ -23,6 +23,7 @@ test("montar una pestaña es una función aparte, no un bloque dentro de switchT
         ["ducat", "renderDucanatorTab"],
         ["orders", "initOrdersTab"],
         ["bounties", "renderFarmsTab"],
+        ["inventory", "renderInventory"],
     ]) {
         assert.ok(init.includes(`"${modo}"`), `initTabContent no cubre ${modo}`);
         assert.ok(init.includes(llamada), `${modo} debería montar con ${llamada}`);
