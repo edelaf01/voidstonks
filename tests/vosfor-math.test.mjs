@@ -11,6 +11,8 @@ import {
   formatProbPct,
   targetSimProbabilities,
   calculateR5Realism,
+  copiesForMaxRank,
+  maxRankOf,
 } from "../deploy/js/utils/vosfor_math.js";
 
 const casi = (a, b, tol = 1e-9) => assert.ok(Math.abs(a - b) < tol, `${a} != ${b}`);
@@ -147,7 +149,49 @@ test("las tiradas salen de dividir el Vosfor entre el coste, y cada pack son 3",
 test("una rareza sin arcanos en el pack sale a cero, no a NaN", () => {
   const sinLegendarios = { ...pack, items: ["rare1", "unc1"] };
   const r = calculateR5Realism(1000, sinLegendarios, data);
-  assert.deepEqual(r.results.LEGENDARY, { expected: "0.0", probPct: "0.0", probRaw: 0, itemCount: 0 });
+  assert.deepEqual(r.results.LEGENDARY, { expected: "0.0", probPct: "0.0", probRaw: 0, itemCount: 0, copies: 0, ranks: [] });
+});
+
+// --- rango máximo por arcano ---------------------------------------------------------------
+
+test("las copias del rango máximo son triangulares: 21 para R5, 10 para R3, 21 si no consta", () => {
+  assert.equal(copiesForMaxRank({ maxRank: 5 }), 21);
+  assert.equal(copiesForMaxRank({ maxRank: 3 }), 10);
+  assert.equal(copiesForMaxRank({}), 21);
+  assert.equal(copiesForMaxRank(null), 21);
+  // El catálogo no tiene rangos fuera de [1, 5]; un dato raro no puede pedir 0 ni 36 copias.
+  assert.equal(maxRankOf({ maxRank: 9 }), 5);
+  assert.equal(maxRankOf({ maxRank: 0 }), 1);
+});
+
+// Cetus, Fortuna y Necralisk mezclan en la misma rareza arcanos de 21 copias con
+// Exodia/Virtuos/Pax/Residual, que se rankean con 10. El 21 estaba fijo y la tarjeta simulaba
+// el doble de copias para esos: avisaba "inviable" con un rango máximo que sí se alcanzaba.
+test("una rareza con arcanos de 10 y de 21 copias da una probabilidad por rango", () => {
+  const mixto = {
+    ...pack,
+    items: ["rare1", "rare3"],
+  };
+  const datos = { arcanes: { rare1: { rarity: "RARE", maxRank: 5 }, rare3: { rarity: "RARE", maxRank: 3 } } };
+  const r = calculateR5Realism(200 * 100, mixto, datos); // 300 tiradas, 0,15 / 2 por arcano
+
+  assert.deepEqual(r.results.RARE.ranks.map((k) => [k.maxRank, k.copies, k.itemCount]), [[5, 21, 1], [3, 10, 1]]);
+  const [r5, r3] = r.results.RARE.ranks;
+  assert.ok(r3.probRaw > r5.probRaw, `10 copias (${r3.probPct}) tiene que ser más fácil que 21 (${r5.probPct})`);
+  assert.equal(r3.probRaw, binomialGe(300, 10, 0.075));
+  assert.equal(r5.probRaw, binomialGe(300, 21, 0.075));
+  // Lo que decide el aviso de "inviable" es el rango más alto presente.
+  assert.equal(r.results.RARE.probRaw, r5.probRaw);
+  assert.equal(r.results.RARE.copies, 21);
+});
+
+test("con pocas tiradas, el R3 de 10 copias sale viable donde el R5 fijo lo daba por perdido", () => {
+  const soloR3 = { ...pack, items: ["pax"] };
+  const datos = { arcanes: { pax: { rarity: "RARE", maxRank: 3 } } };
+  const r = calculateR5Realism(200 * 40, soloR3, datos); // 120 tiradas a 0,15: 18 copias esperadas
+  assert.ok(r.results.RARE.probRaw > 0.95, `10 copias con 18 esperadas: ${r.results.RARE.probPct}`);
+  assert.ok(binomialGe(120, 21, 0.15) < 0.3, "con 21 fijas habría salido inviable");
+  assert.equal(r.results.RARE.copies, 10);
 });
 
 test("las copias esperadas reparten la probabilidad de la rareza entre sus arcanos", () => {

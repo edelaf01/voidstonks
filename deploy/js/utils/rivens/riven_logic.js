@@ -1,5 +1,6 @@
 import { RIVEN_BASE_STATS, WEAPON_TYPE_IDX, RIVEN_WEIGHTS, resolveBaseStatKey } from "../../config.js";
 import { state } from "../../state.js";
+import { statUnit } from "./riven_stat_display.js";
 
 /**
  * Calculate the grade for a single Riven stat.
@@ -58,9 +59,8 @@ export function calculateRivenGrade(weaponData, statName, statValue, isNeg, buff
   const sign = theoreticalVal < 0 ? -1 : 1;
   const minDisplay = (minMag * sign).toFixed(1);
   const maxDisplay = (maxMag * sign).toFixed(1);
-  const rangeStr = (Number.parseFloat(minDisplay) > Number.parseFloat(maxDisplay))
-    ? `${maxDisplay} a ${minDisplay}%`
-    : `${minDisplay} a ${maxDisplay}%`;
+  const [lo, hi] = Number.parseFloat(minDisplay) > Number.parseFloat(maxDisplay) ? [maxDisplay, minDisplay] : [minDisplay, maxDisplay];
+  const rangeStr = `${lo} a ${hi}${statUnit(statName)}`;
 
   return {
     grade,

@@ -5,6 +5,7 @@ import { getSlug } from "../../utils/slugs.utils.js";
 import { getItemIcon } from "../../utils/ui_utils.js";
 import { getPriceValue, MEMORY_CACHE } from "../../services/market/prices.service.js";
 import { exposeGlobals } from "../../utils/global_registry.js";
+import { ducatsBeatSale } from "../../utils/inventory/reward_value.js";
 
 /**
  * Ducanator: la pestaña que ordena las piezas prime por ducados frente a su precio en platino.
@@ -49,8 +50,6 @@ export function renderDucanatorView(list, opts = {}) {
   const ownedOnly = opts.ownedOnly !== false; // default: only what you own
   const sortCol = opts.sortCol || "ratio"; // name | plat | ducats | ratio
   const sortDir = opts.sortDir || -1; // -1 desc (most profitable first), 1 asc
-  // Prices at/below this many plat are "safe to fund" (won't waste a sale).
-  const KEEP_PLAT_THRESHOLD = Number.isFinite(opts.threshold) ? opts.threshold : 15;
   // Called again once missing prices arrive, to re-rank with real data.
   const rerender = opts.rerender || null;
 
@@ -89,7 +88,7 @@ export function renderDucanatorView(list, opts = {}) {
 
   rows.forEach((r) => {
     const platReady = r.plat !== null;
-    const shouldFund = !platReady || r.plat <= KEEP_PLAT_THRESHOLD;
+    const shouldFund = !platReady || ducatsBeatSale(r.ducats, r.plat);
     // Sin precio todavía la fila se coloca en "cambiar por ducados", que es donde acabará la
     // mayoría, pero NO suma al total: en el primer pintado no se sabe aún nada y el número
     // dorado salía con el inventario entero dentro, para desinflarse al llegar los precios.
@@ -237,7 +236,6 @@ export function renderDucanatorTab() {
     ownedOnly: document.getElementById("ducat-owned-only")?.checked !== false,
     sortCol: ducatSortCol,
     sortDir: ducatSortDir,
-    threshold: Number.parseInt(document.getElementById("ducat-threshold")?.value ?? "15", 10),
     rerender: () => {
       if (state.activeTab !== "ducat") return;
       renderDucanatorTab();
@@ -246,19 +244,11 @@ export function renderDucanatorTab() {
   renderDucanatorView(list, opts);
 }
 
-export function updateDucatThreshold(val) {
-  const out = document.getElementById("ducat-threshold-val");
-  if (out) out.innerHTML = `${val}<span class="plat-icon-inline"></span>`;
-  renderDucanatorTab();
-}
-
-
-// Los cinco los invoca index.html con onclick inline; se publican desde aquí, que es donde
+// Los cuatro los invoca index.html con onclick inline; se publican desde aquí, que es donde
 // viven ahora, en vez de desde ui_inventory.js.
 exposeGlobals({
     renderDucanatorTab,
     setDucatSort,
-    updateDucatThreshold,
     toggleDucatOwned,
     clearDucatSearch,
 }, "ui.components/inventory/ui_ducanator.js");

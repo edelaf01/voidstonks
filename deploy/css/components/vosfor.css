@@ -141,12 +141,19 @@
    (p. ej. #vosfor-sell-widget), que si no dibujarían una caja dentro de otra. */
 .vos-tool-body .vosfor-calc-widget,
 .vos-tool-body .vosfor-target-widget,
+.vos-tool-body .vosfor-pix-widget,
 .vos-tool-body .vosfor-ranking-section {
     margin: 0 !important;
     border: none !important;
     border-radius: 0 !important;
     background: transparent !important;
     box-shadow: none !important;
+}
+
+/* El padding lo trae cada widget (los demás lo llevan en su propia clase); sin él el
+   contenido de The Hex quedaba pegado al borde de la cabecera. */
+.vosfor-pix-widget {
+    padding: 16px;
 }
 
 /* --- Image & Thumbnail Styles --- */

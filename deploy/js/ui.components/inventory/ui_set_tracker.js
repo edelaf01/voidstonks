@@ -33,7 +33,8 @@ const SIM_TEXTS = {
     squad1: "1 jugador",
     allParts: "Todas las Piezas (Set)",
     runsEstTitle: "Runs promedio estimados para conseguir 1 copia de esta pieza",
-    setComplete: "Set Completo",
+    ownedFormat: "Ya la tienes ×{n}",
+    ownedTitle: "Esta pieza ya está en tu inventario; la estimación de abajo es para conseguir otra copia.",
     runsFormat: "~{n} runs",
     partDone: "Listo",
     partRunsTitle: "Promedio estimado: ~{runs} runs para 1 copia",
@@ -59,7 +60,8 @@ const SIM_TEXTS = {
     squad1: "1 player",
     allParts: "All Parts (Whole Set)",
     runsEstTitle: "Estimated average runs to get 1 copy of this part",
-    setComplete: "Set Complete",
+    ownedFormat: "You have it ×{n}",
+    ownedTitle: "This part is already in your inventory; the estimate below is for one more copy.",
     runsFormat: "~{n} runs",
     partDone: "Done",
     partRunsTitle: "Estimated average: ~{runs} runs for 1 copy",
@@ -149,6 +151,19 @@ export function calculateSetStats(refinement, squadSize, targetPart) {
   };
 }
 
+// La rama "Set Completo" de antes solo entraba sin pieza que seguir (avgRuns nunca mira el
+// inventario), así que un set que ya tenías enseñaba "1 SET COMPLETO" junto a "~2.9 runs".
+// Con la pieza en el inventario se dice eso; las runs siguen en la tarjeta, para otra copia.
+function runsBadgeHtml(stats, st, relicImgHtml) {
+  const part = state.selectedTrackerPart;
+  const owned = state.primeInventory?.[part] || 0;
+  if (part && owned >= (getRequiredCount(state.currentActiveSet, part) || 1)) {
+    return `<div class="tracker-runs-summary-badge" style="background:rgba(66,245,108,0.15); border-color:rgba(66,245,108,0.5); color:#81c784;" title="${escapeHTML(st.ownedTitle)}">${escapeHTML(st.ownedFormat.replace("{n}", owned))}</div>`;
+  }
+  if (!(stats.avgRuns > 0)) return "";
+  return `<div class="tracker-runs-summary-badge" title="${escapeHTML(st.runsEstTitle)}">${relicImgHtml} ${escapeHTML(st.runsFormat.replace("{n}", stats.avgRuns.toFixed(1)))}</div>`;
+}
+
 export function calculateSetTotalExpectedRuns(refinement, squadSize, targetPart = "all") {
   return calculateSetStats(refinement, squadSize, targetPart).avgRuns;
 }
@@ -171,9 +186,7 @@ function updateTrackerSim(refinement, squadSize, targetPart) {
   // tamaño se funden en una mancha.
   const relicImgHtml = `<img src="assets/remolino.webp" style="width:18px; height:18px; object-fit:contain; vertical-align:middle; margin-right:3px;">`;
 
-    summaryWrapper.innerHTML = stats.avgRuns > 0
-      ? `<div class="tracker-runs-summary-badge" title="${st.runsEstTitle}">${relicImgHtml} ${st.runsFormat.replace("{n}", stats.avgRuns.toFixed(1))}</div>`
-      : `<div class="tracker-runs-summary-badge" style="background:rgba(66,245,108,0.15); border-color:rgba(66,245,108,0.5); color:#81c784;">${st.setComplete}</div>`;
+    summaryWrapper.innerHTML = runsBadgeHtml(stats, st, relicImgHtml);
 
     const targetLabel = getPartShortName(state.selectedTrackerPart, state.currentActiveSet);
 
@@ -189,11 +202,7 @@ function updateTrackerSim(refinement, squadSize, targetPart) {
              ${st.rangeText.replace("{bestRuns}", stats.bestRuns).replace("{avgRuns}", stats.avgRuns.toFixed(1)).replace("{worstRuns}", stats.worstRuns)}
            </div>
          </div>`
-      : `<div class="tracker-explanation-card" style="border-color:rgba(66,245,108,0.3);">
-           <div class="tracker-explanation-text" style="color:#81c784;">
-             ${st.setComplete} (${escapeHTML(targetLabel)})
-           </div>
-         </div>`;
+      : "";
 
     document.querySelectorAll(".tracker-item").forEach((row) => {
       const pName = row.dataset.partName;
@@ -311,9 +320,7 @@ export function renderSetTracker() {
   // tamaño se funden en una mancha.
   const relicImgHtml = `<img src="assets/remolino.webp" style="width:18px; height:18px; object-fit:contain; vertical-align:middle; margin-right:3px;">`;
 
-  const runsBadgeHtml = stats.avgRuns > 0
-    ? `<div class="tracker-runs-summary-badge" title="${st.runsEstTitle}">${relicImgHtml} ${st.runsFormat.replace("{n}", stats.avgRuns.toFixed(1))}</div>`
-    : `<div class="tracker-runs-summary-badge" style="background:rgba(66,245,108,0.15); border-color:rgba(66,245,108,0.5); color:#81c784;">${st.setComplete}</div>`;
+  const runsBadge = runsBadgeHtml(stats, st, relicImgHtml);
 
   const partOptionsHtml = state.activeSetParts.map((pName) => {
     const pLabel = pName === state.currentActiveSet
@@ -337,11 +344,7 @@ export function renderSetTracker() {
            ${st.rangeText.replace("{bestRuns}", stats.bestRuns).replace("{avgRuns}", stats.avgRuns.toFixed(1)).replace("{worstRuns}", stats.worstRuns)}
          </div>
        </div>`
-    : `<div class="tracker-explanation-card" style="border-color:rgba(66,245,108,0.3);">
-         <div class="tracker-explanation-text" style="color:#81c784;">
-           ${st.setComplete} (${escapeHTML(targetLabel)})
-         </div>
-       </div>`;
+    : "";
 
   title.innerHTML = `
     <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; line-height:1; width:100%; flex-wrap:wrap;">
@@ -375,7 +378,7 @@ export function renderSetTracker() {
           <option value="1" ${state.trackerSquadSize === 1 ? 'selected' : ''}>${st.squad1}</option>
         </select>
 
-        <span id="tracker-runs-summary-wrapper">${runsBadgeHtml}</span>
+        <span id="tracker-runs-summary-wrapper">${runsBadge}</span>
       </div>
     </div>
     <div id="tracker-explanation-wrapper">${explanationHtml}</div>
