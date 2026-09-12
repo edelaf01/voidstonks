@@ -266,11 +266,10 @@
   background: rgba(10, 15, 20, 0.98);
   backdrop-filter: blur(25px);
   border: 1px solid rgba(255, 255, 255, 0.2);
-  padding: 15px;
-  padding-top: 75px;
+  padding: 12px 14px 14px;
   border-radius: 14px;
   width: 200px;
-  height: 265px;
+  min-height: 265px;
   display: flex;
   flex-direction: column;
   pointer-events: auto;
@@ -390,6 +389,9 @@
 }
 
 .best-badge.value {
+  font-size: 0.74rem;
+  padding: 4px 12px;
+  border-radius: 999px;
   background: #00ff78;
   color: #000;
   box-shadow: 0 0 14px rgba(0, 255, 120, 0.55);
@@ -403,51 +405,55 @@
 }
 
 .best-badge {
-  font-size: 0.7rem;
-  font-weight: 900;
-  padding: 3px 6px;
-  border-radius: 4px;
+  font-size: 0.6rem;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 1px solid transparent;
   text-transform: uppercase;
-  letter-spacing: 1px;
+  letter-spacing: 0.6px;
+  white-space: nowrap;
 }
 
 .best-badge.pl {
-  background: var(--wf-gold-text);
-  color: #000;
-  box-shadow: 0 0 10px rgba(212, 175, 55, 0.4);
+  color: var(--wf-gold-text);
+  background: rgba(212, 175, 55, 0.12);
+  border-color: rgba(212, 175, 55, 0.45);
 }
 
 .best-badge.duc {
-  background: #00e5ff;
-  color: #000;
-  box-shadow: 0 0 15px rgba(0, 229, 255, 0.5);
+  color: #00e5ff;
+  background: rgba(0, 229, 255, 0.1);
+  border-color: rgba(0, 229, 255, 0.4);
 }
 
 .best-badge.set-finisher {
-  background: #a29bfe;
   color: #000;
-  box-shadow: 0 0 10px rgba(162, 155, 254, 0.4);
+  background: #a29bfe;
+  border-color: #a29bfe;
 }
 
 .best-badge.set-finisher.near {
-  background: none;
   color: #a29bfe;
-  border: 1px solid rgba(162, 155, 254, 0.5);
-  box-shadow: none;
+  background: rgba(162, 155, 254, 0.1);
+  border-color: rgba(162, 155, 254, 0.45);
 }
 
 .modal-badge-labels {
-  position: absolute;
-  top: 12px;
-  left: 50%;
-  transform: translateX(-50%);
   display: flex;
   flex-direction: column;
   gap: 5px;
   align-items: center;
   width: 100%;
+  min-height: 54px;
   pointer-events: none;
-  z-index: 100;
+}
+
+.modal-badge-why {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px;
 }
 
 .badge-add-inventory-hint {
