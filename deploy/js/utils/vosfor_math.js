@@ -56,9 +56,29 @@ export function targetSimProbabilities(packsNeeded, rollProb, sameRarityCount, c
     };
 }
 
+/** Rango máximo de un arcano acotado a [1, 5]; 5 si el catálogo no lo dice. */
+export function maxRankOf(meta) {
+    return Math.max(1, Math.min(meta?.maxRank ?? 5, 5));
+}
+
 /**
- * Qué esperar de gastar `vosforAmount` en un pack: copias medias y probabilidad de llegar a
- * rango 5 (21 copias) por cada rareza.
+ * Copias necesarias para el rango máximo de un arcano (números triangulares):
+ * fusionLimit 5 -> 21 copias, fusionLimit 3 -> 10 copias.
+ */
+export function copiesForMaxRank(meta) {
+    const mr = maxRankOf(meta);
+    return ((mr + 1) * (mr + 2)) / 2;
+}
+
+/**
+ * Qué esperar de gastar `vosforAmount` en un pack: copias medias por rareza y probabilidad de
+ * llegar al rango máximo.
+ *
+ * Por rango dentro de cada rareza, no una sola cifra: Cetus, Fortuna y Necralisk mezclan en
+ * la misma rareza arcanos de 21 copias con Exodia/Virtuos/Pax/Residual, que se rankean con
+ * 10. Con el 21 fijo la tarjeta simulaba el doble de copias y avisaba "R5 inviable" para
+ * arcanos cuyo rango máximo sí era alcanzable. Los campos `probPct`/`probRaw`/`copies` de la
+ * rareza son los del rango más alto presente, que es el que decide el aviso de "inviable".
  *
  * Por debajo de 200 devuelve null: es el coste de un pack, así que no hay ni una tirada que
  * simular y enseñar ceros haría creer que el cálculo dice algo.
@@ -75,20 +95,34 @@ export function calculateR5Realism(vosforAmount, pack, data) {
     for (const rarity of ["LEGENDARY", "RARE", "UNCOMMON", "COMMON"]) {
         const sameRarityItems = pack.items.filter((s) => data.arcanes[s]?.rarity === rarity);
         if (sameRarityItems.length === 0) {
-            results[rarity] = { expected: "0.0", probPct: "0.0", probRaw: 0, itemCount: 0 };
+            results[rarity] = { expected: "0.0", probPct: "0.0", probRaw: 0, itemCount: 0, copies: 0, ranks: [] };
             continue;
         }
 
         const count = sameRarityItems.length;
         const rarityRollProb = (rollsMap[rarity] !== undefined && rollsMap[rarity] !== null) ? rollsMap[rarity] : 0.05;
         const singleProb = rarityRollProb / count;
-        const probR5 = binomialGe(totalRolls, 21, singleProb);
+
+        const itemsByRank = new Map();
+        for (const slug of sameRarityItems) {
+            const mr = maxRankOf(data.arcanes[slug]);
+            itemsByRank.set(mr, (itemsByRank.get(mr) || 0) + 1);
+        }
+        const ranks = [...itemsByRank]
+            .sort((a, b) => b[0] - a[0])
+            .map(([maxRank, itemCount]) => {
+                const copies = copiesForMaxRank({ maxRank });
+                const prob = binomialGe(totalRolls, copies, singleProb);
+                return { maxRank, copies, itemCount, probPct: formatProbPct(prob), probRaw: prob };
+            });
 
         results[rarity] = {
             expected: (totalRolls * singleProb).toFixed(1),
-            probPct: formatProbPct(probR5),
-            probRaw: probR5,
+            probPct: ranks[0].probPct,
+            probRaw: ranks[0].probRaw,
+            copies: ranks[0].copies,
             itemCount: count,
+            ranks,
         };
     }
 

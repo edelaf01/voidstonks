@@ -272,11 +272,12 @@
   background: rgba(10, 15, 20, 0.98);
   backdrop-filter: blur(25px);
   border: 1px solid rgba(255, 255, 255, 0.2);
-  padding: 15px;
-  padding-top: 75px;
+  padding: 12px 14px 14px;
   border-radius: 14px;
   width: 200px;
-  height: 265px;
+  /* Mínimo y no fijo: las etiquetas van en flujo y la tarjeta crece con ellas. Con alto
+     fijo y las etiquetas en absoluto, cuatro apiladas tapaban el nombre. */
+  min-height: 265px;
   display: flex;
   flex-direction: column;
   pointer-events: auto;
@@ -399,7 +400,13 @@
 /* El ganador de verdad: el único que compara las tres escalas (venta suelta, prima del set y
    ducados) en platino. Va el primero de la columna y más alto que los otros tres a propósito;
    los demás quedan como explicación de por qué. */
+/* El ganador de verdad va solo, como píldora, y los tres "por qué" (cierra set, más plat, más
+   ducados) como chips de una fila debajo. Antes los cuatro eran pastillas macizas apiladas y
+   se anulaban entre sí. */
 .best-badge.value {
+  font-size: 0.74rem;
+  padding: 4px 12px;
+  border-radius: 999px;
   background: #00ff78;
   color: #000;
   box-shadow: 0 0 14px rgba(0, 255, 120, 0.55);
@@ -415,56 +422,61 @@
 }
 
 .best-badge {
-  font-size: 0.7rem;
-  font-weight: 900;
-  padding: 3px 6px;
-  border-radius: 4px;
+  font-size: 0.6rem;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 1px solid transparent;
   text-transform: uppercase;
-  letter-spacing: 1px;
+  letter-spacing: 0.6px;
+  white-space: nowrap;
 }
 
 .best-badge.pl {
-  background: var(--wf-gold-text);
-  color: #000;
-  box-shadow: 0 0 10px rgba(212, 175, 55, 0.4);
+  color: var(--wf-gold-text);
+  background: rgba(212, 175, 55, 0.12);
+  border-color: rgba(212, 175, 55, 0.45);
 }
 
 .best-badge.duc {
-  background: #00e5ff;
-  color: #000;
-  box-shadow: 0 0 15px rgba(0, 229, 255, 0.5);
+  color: #00e5ff;
+  background: rgba(0, 229, 255, 0.1);
+  border-color: rgba(0, 229, 255, 0.4);
 }
 
 /* La recompensa que te CIERRA un set. La clase existía desde que se diseñó el overlay PiP pero
    nunca se llegó a poner en ninguna tarjeta; el modal la usa desde que se calcula de verdad
    (utils/inventory/reward_set_pick.js). */
 .best-badge.set-finisher {
-  background: #a29bfe;
   color: #000;
-  box-shadow: 0 0 10px rgba(162, 155, 254, 0.4);
+  background: #a29bfe;
+  border-color: #a29bfe;
 }
 
-/* "Te acerca" pero no cierra: mismo color, apagado. Compite en la misma columna que "más
-   platino" y "mejor ducados", y a igual intensidad las tres se anulan entre sí. */
+/* "Te acerca" pero no cierra: mismo color, apagado. */
 .best-badge.set-finisher.near {
-  background: none;
   color: #a29bfe;
-  border: 1px solid rgba(162, 155, 254, 0.5);
-  box-shadow: none;
+  background: rgba(162, 155, 254, 0.1);
+  border-color: rgba(162, 155, 254, 0.45);
 }
 
+/* En flujo, con un mínimo reservado para que las tarjetas sin etiqueta alineen el nombre con
+   las que sí la llevan. */
 .modal-badge-labels {
-  position: absolute;
-  top: 12px;
-  left: 50%;
-  transform: translateX(-50%);
   display: flex;
   flex-direction: column;
   gap: 5px;
   align-items: center;
   width: 100%;
+  min-height: 54px;
   pointer-events: none;
-  z-index: 100;
+}
+
+.modal-badge-why {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px;
 }
 
 .badge-add-inventory-hint {
