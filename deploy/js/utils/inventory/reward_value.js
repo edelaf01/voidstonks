@@ -14,6 +14,10 @@ export function saleValue(price) {
   return p * ((p - SALE_FLOOR_PLAT) / (SALE_FULL_PLAT - SALE_FLOOR_PLAT));
 }
 
+export function ducatsBeatSale(ducats, price) {
+  return (Number(ducats) || 0) / DUCATS_PER_PLAT > saleValue(price);
+}
+
 export function rewardValue(item, deps = {}) {
   const { getPrice = () => 0, getRequiredCount = () => 1, setsDatabase = {} } = deps;
   const qty = Math.max(1, Number(item?.qty) || 1);
