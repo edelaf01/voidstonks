@@ -116,12 +116,17 @@
 /* !important and [style] beat the inline border/shadow some widgets carry */
 .vos-tool-body .vosfor-calc-widget,
 .vos-tool-body .vosfor-target-widget,
+.vos-tool-body .vosfor-pix-widget,
 .vos-tool-body .vosfor-ranking-section {
     margin: 0 !important;
     border: none !important;
     border-radius: 0 !important;
     background: transparent !important;
     box-shadow: none !important;
+}
+
+.vosfor-pix-widget {
+    padding: 16px;
 }
 
 .vosfor-arc-img {

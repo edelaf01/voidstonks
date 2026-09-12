@@ -33,6 +33,15 @@ export function targetSimProbabilities(packsNeeded, rollProb, sameRarityCount, c
     };
 }
 
+export function maxRankOf(meta) {
+    return Math.max(1, Math.min(meta?.maxRank ?? 5, 5));
+}
+
+export function copiesForMaxRank(meta) {
+    const mr = maxRankOf(meta);
+    return ((mr + 1) * (mr + 2)) / 2;
+}
+
 export function calculateR5Realism(vosforAmount, pack, data) {
     if (!vosforAmount || vosforAmount < 200 || !pack || !data) return null;
     const pulls = Math.floor(vosforAmount / (pack.cost?.vosfor || 200));
@@ -44,20 +53,34 @@ export function calculateR5Realism(vosforAmount, pack, data) {
     for (const rarity of ["LEGENDARY", "RARE", "UNCOMMON", "COMMON"]) {
         const sameRarityItems = pack.items.filter((s) => data.arcanes[s]?.rarity === rarity);
         if (sameRarityItems.length === 0) {
-            results[rarity] = { expected: "0.0", probPct: "0.0", probRaw: 0, itemCount: 0 };
+            results[rarity] = { expected: "0.0", probPct: "0.0", probRaw: 0, itemCount: 0, copies: 0, ranks: [] };
             continue;
         }
 
         const count = sameRarityItems.length;
         const rarityRollProb = (rollsMap[rarity] !== undefined && rollsMap[rarity] !== null) ? rollsMap[rarity] : 0.05;
         const singleProb = rarityRollProb / count;
-        const probR5 = binomialGe(totalRolls, 21, singleProb);
+
+        const itemsByRank = new Map();
+        for (const slug of sameRarityItems) {
+            const mr = maxRankOf(data.arcanes[slug]);
+            itemsByRank.set(mr, (itemsByRank.get(mr) || 0) + 1);
+        }
+        const ranks = [...itemsByRank]
+            .sort((a, b) => b[0] - a[0])
+            .map(([maxRank, itemCount]) => {
+                const copies = copiesForMaxRank({ maxRank });
+                const prob = binomialGe(totalRolls, copies, singleProb);
+                return { maxRank, copies, itemCount, probPct: formatProbPct(prob), probRaw: prob };
+            });
 
         results[rarity] = {
             expected: (totalRolls * singleProb).toFixed(1),
-            probPct: formatProbPct(probR5),
-            probRaw: probR5,
+            probPct: ranks[0].probPct,
+            probRaw: ranks[0].probRaw,
+            copies: ranks[0].copies,
             itemCount: count,
+            ranks,
         };
     }
 

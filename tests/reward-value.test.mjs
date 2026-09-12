@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  saleValue, rewardValue, pickBestReward, rankRewards, DUCATS_PER_PLAT,
+  saleValue, rewardValue, pickBestReward, rankRewards, DUCATS_PER_PLAT, ducatsBeatSale,
 } from "../deploy/js/utils/inventory/reward_value.js";
 
 const SETS = {
@@ -130,4 +130,18 @@ test("rankRewards devuelve la lista entera ordenada, no solo la mejor", () => {
   ], deps({}));
   assert.deepEqual(orden.map((r) => r.name),
     ["Yareli Prime Blueprint", "Strun Prime Receiver", "Forma Blueprint"]);
+});
+
+test("fundir gana a vender solo cuando los ducados en platino superan la venta realizable", () => {
+  assert.equal(ducatsBeatSale(45, 12), false, "4,5p de ducados contra 12p de venta");
+  assert.equal(ducatsBeatSale(100, 9), true, "10p de ducados contra 9p de venta");
+  assert.equal(ducatsBeatSale(15, 2), true);
+  assert.equal(ducatsBeatSale(0, 2), false);
+});
+
+test("la regla del Ducanator es la misma que la ruta 'ducats' de rewardValue", () => {
+  for (const [ducats, price] of [[45, 12], [100, 9], [15, 2], [65, 5], [25, 8]]) {
+    const v = rewardValue({ name: "Strun Prime Receiver", price, ducats }, deps({}));
+    assert.equal(ducatsBeatSale(ducats, price), v.route === "ducats", `${ducats} ducados a ${price}p`);
+  }
 });
