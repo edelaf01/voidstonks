@@ -7,7 +7,7 @@ export const UPDATE_HISTORY_DATA = {
   es: `
 <nav class="update-index" aria-label="Versiones">
   <span class="update-index-label">Versiones</span>
-  <a href="#v290" class="update-index-link is-current">v2.9</a>
+  <a href="#v300" class="update-index-link is-current">v3.0</a>
   <a href="#v280" class="update-index-link">v2.8</a>
   <a href="#v272" class="update-index-link">v2.7.2</a>
   <a href="#v271" class="update-index-link">v2.7.1</a>
@@ -16,38 +16,59 @@ export const UPDATE_HISTORY_DATA = {
   <a href="#v266" class="update-index-link">v2.6.6</a>
   <a href="#v265" class="update-index-link">v2.6.5</a>
 </nav>
-<div class="update-block" id="v290">
+<div class="update-block" id="v300">
   <div class="update-header">
-    <span class="update-version">v2.9 (Actual)</span>
-    <span class="update-date">2026-09-09</span>
+    <span class="update-version">v3.0 (Actual)</span>
+    <span class="update-date">2026-09-12</span>
   </div>
 
   <h4 class="update-section">Nuevo motor de lectura</h4>
   <p class="update-lead">
-    El escáner ya puede leer con una red neuronal en vez del motor de toda la vida. Se nota
-    sobre todo en recompensas, que van con reloj y no dan segunda oportunidad: antes se le
-    colaba alguna lectura, con esta casi nunca. Pesa 6,4 MB y se baja una vez; si prefieres
-    no bajarla, el clásico sigue ahí y sigue funcionando sin conexión.
+    El escáner puede leer con una red neuronal. Acierta más en recompensas, donde no hay
+    segunda oportunidad. Se descarga una vez (6,4 MB); el motor clásico sigue ahí y funciona
+    sin conexión.
   </p>
   <ul class="update-list">
-    <li>Se elige desde el propio escáner, y mientras se descarga sigue leyendo con el
-    clásico: no te quedas sin nada a medio camino.</li>
-    <li>Los dígitos sueltos del inventario (un 4, un 8, un 9) costaban más de la cuenta.</li>
-    <li>En fin de misión, los nombres de tres líneas ya no pierden la primera al pintarse
-    sobre el arte del ítem.</li>
-    <li>Reliquias: reconoce mejor los temas de fondo claro.</li>
+    <li>Se elige desde el escáner. Mientras se descarga, sigue leyendo el clásico.</li>
+    <li>Arreglado error en el inventario que hacía que fallaran los dígitos sueltos (4, 8, 9).</li>
+    <li>Arreglado error en fin de misión que hacía que los nombres de tres líneas perdieran
+    la primera.</li>
+    <li>Reliquias: lee mejor los temas de fondo claro.</li>
   </ul>
 
   <h4 class="update-section">Tutorial</h4>
   <p class="update-lead">
-    La primera vez que el escáner entra en cada pantalla suelta un aviso de una línea con
-    lo justo para manejarte. Y si quieres verlo todo del tirón, ahí está el botón «?» del
-    panel.
+    La primera vez que el escáner entra en cada pantalla muestra un aviso de una línea. El
+    botón «?» del panel tiene la guía completa.
   </p>
+
+  <h4 class="update-section">Vosfor</h4>
+  <ul class="update-list">
+    <li>«Mejor Disolver» ordena por lo que pierdes al disolver, no por el Vosfor que da cada
+    arcano.</li>
+    <li>La lista muestra el precio a rango máximo de cada arcano.</li>
+    <li>Pestaña nueva: qué arcanos salen más baratos de comprar para sacar Vosfor.</li>
+    <li>Arreglado error en «¿Vender o disolver?» que hacía que diera un veredicto distinto
+    al de la lista.</li>
+    <li>Arreglado error en la Calculadora que hacía que pidiera 21 copias a los arcanos que
+    se completan con 10.</li>
+  </ul>
 
   <h4 class="update-section">Arreglos</h4>
   <ul class="update-list">
-    <li>Recompensas: reelegir ya no deja la pieza descartada colgada en el inventario.</li>
+    <li>Arreglado error en recompensas que hacía que reelegir dejara la pieza descartada en
+    el inventario.</li>
+    <li>Arreglado error en las tarjetas de recompensa que hacía que las etiquetas taparan el
+    nombre de la pieza.</li>
+    <li>Arreglado error en recompensas que hacía que «más ducados» señalara a la pieza más
+    cara.</li>
+    <li>Arreglado error en Ducados que hacía que fundir o vender siguiera una regla distinta
+    a la de recompensas.</li>
+    <li>Arreglado error en el seguimiento de set que hacía que mostrara las runs de una pieza
+    que ya tienes.</li>
+    <li>Arreglado error en la tasación de rivens que hacía que atravesar, duración de combo y
+    combo inicial llevaran «%».</li>
+    <li>El «techo» del índice de rivens pasa a llamarse múltiplo.</li>
   </ul>
 </div>
 <div class="update-block old" id="v280">
@@ -484,7 +505,7 @@ export const UPDATE_HISTORY_DATA = {
   en: `
 <nav class="update-index" aria-label="Versions">
   <span class="update-index-label">Versions</span>
-  <a href="#v290" class="update-index-link is-current">v2.9</a>
+  <a href="#v300" class="update-index-link is-current">v3.0</a>
   <a href="#v280" class="update-index-link">v2.8</a>
   <a href="#v272" class="update-index-link">v2.7.2</a>
   <a href="#v271" class="update-index-link">v2.7.1</a>
@@ -493,39 +514,55 @@ export const UPDATE_HISTORY_DATA = {
   <a href="#v266" class="update-index-link">v2.6.6</a>
   <a href="#v265" class="update-index-link">v2.6.5</a>
 </nav>
-<div class="update-block" id="v290">
+<div class="update-block" id="v300">
   <div class="update-header">
-    <span class="update-version">v2.9 (Current)</span>
-    <span class="update-date">2026-09-09</span>
+    <span class="update-version">v3.0 (Current)</span>
+    <span class="update-date">2026-09-12</span>
   </div>
 
   <h4 class="update-section">New reading engine</h4>
   <p class="update-lead">
-    The scanner can now read with a neural net instead of the old engine. It matters most
-    on the reward screen: it's timed, no do-overs, and a name would occasionally slip
-    through misread there. Not with this one. It's a 6.4 MB download, just once. Skip it
-    and the classic engine's still there, working offline like always.
+    The scanner can now read with a neural net. It gets more right on the reward screen,
+    where there are no do-overs. One 6.4 MB download; the classic engine stays and works
+    offline.
   </p>
   <ul class="update-list">
-    <li>Pick it right from the scanner. While it's downloading, the classic engine keeps
-    reading, so you're never left without one.</li>
-    <li>Lone digits in the inventory (a 4, an 8, a 9) used to trip it up more than they
-    should.</li>
-    <li>End-of-mission names that run three lines over the item art no longer lose that
+    <li>Pick it from the scanner. While it downloads, the classic engine keeps reading.</li>
+    <li>Fixed a bug in the inventory that made lone digits (4, 8, 9) misread.</li>
+    <li>Fixed a bug on the end-of-mission screen that made three-line names lose their
     first line.</li>
-    <li>Relics: better at picking out bright-background themes.</li>
+    <li>Relics: reads bright-background themes better.</li>
   </ul>
 
   <h4 class="update-section">Tutorial</h4>
   <p class="update-lead">
-    The first time the scanner hits a screen, it drops a one-line hint with just enough to
-    get by. Want the whole picture? There's a "?" button on the panel for the guided tour.
+    The first time the scanner hits a screen it shows a one-line hint. The "?" button on the
+    panel has the full guide.
   </p>
+
+  <h4 class="update-section">Vosfor</h4>
+  <ul class="update-list">
+    <li>"Best to Dissolve" sorts by what you lose when dissolving, not by how much Vosfor
+    each arcane gives.</li>
+    <li>The list shows each arcane's max rank price.</li>
+    <li>New tab: which arcanes are cheapest to buy for Vosfor.</li>
+    <li>Fixed a bug in "Sell or dissolve?" that made it give a different verdict than the
+    list.</li>
+    <li>Fixed a bug in the Calculator that made it require 21 copies from arcanes that max
+    out at 10.</li>
+  </ul>
 
   <h4 class="update-section">Fixes</h4>
   <ul class="update-list">
-    <li>Rewards: reselecting doesn't leave your old pick stranded in the inventory
-    anymore.</li>
+    <li>Fixed a bug in rewards that made reselecting leave the old pick in the inventory.</li>
+    <li>Fixed a bug in the reward cards that made the tags cover the part name.</li>
+    <li>Fixed a bug in rewards that made "most ducats" point at the priciest part.</li>
+    <li>Fixed a bug in Ducats that made trade-or-sell follow a different rule than
+    rewards.</li>
+    <li>Fixed a bug in the set tracker that made it show runs for a part you already own.</li>
+    <li>Fixed a bug in the riven appraisal that made punch through, combo duration and
+    initial combo show a "%".</li>
+    <li>The riven index "ceiling" is now called a multiple.</li>
   </ul>
 </div>
 <div class="update-block old" id="v280">

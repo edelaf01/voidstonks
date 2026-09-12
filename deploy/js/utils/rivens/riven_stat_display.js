@@ -62,3 +62,13 @@ export function getLocalizedStatName(nameEn) {
 // La regla vive en config.js (canBeNegative), junto al resto del conocimiento de stats; aquí
 // solo se adapta a la interfaz `.test(nombre)` que ya usan las listas de recomendaciones.
 export const CANT_BE_NEGATIVE = { test: (s) => !canBeNegative(s) };
+
+// Unidad de un stat de riven. No todos son porcentaje: atravesar va en metros, duración de
+// combo en segundos y combo inicial (y su alias "Channeling Damage") es un valor plano.
+export function statUnit(statName) {
+  const norm = String(statName || "").trim().toLowerCase();
+  if (norm === "punch through") return "m";
+  if (norm === "combo duration") return "s";
+  if (norm === "initial combo" || norm === "channeling damage") return "";
+  return "%";
+}

@@ -3224,14 +3224,14 @@ export function updateIndexTranslations() {
   // y la lista otra. Los nombres dicen QUÉ ordenan, no de qué tabla salen:
   //   "Mediana del Juego" -> nadie sabe qué juego ni qué mediana; es el precio al que se VENDE.
   //   "Precio Premium"    -> sonaba a calidad y son precios PEDIDOS, ~13× por encima de la venta.
-  //   "Potencial Real/Web"-> un "potencial" sin unidad; son TECHOS, y se alinean con la ficha del arma.
+  //   "Potencial Real/Web"-> sin unidad; y "Techo" tampoco vale: es un MÚLTIPLO (x2.1), no un platino tope.
   //   "Arbitraje"         -> término de bolsa; es la diferencia entre lo que piden y lo que se paga.
   const SORT_LABELS = {
     "popularity": [isEs ? "Más intercambiadas" : "Most traded", "sort-pop", "custom-pop"],
     "price-official": [isEs ? "Precio de venta real" : "Real sale price", "sort-official", "custom-official"],
     "price-wfm": [isEs ? "Lo que piden en WFM" : "Asking price on WFM", "sort-wfm", "custom-wfm"],
-    "potential-real": [isEs ? "Techo real (se paga)" : "Real ceiling (paid)", "sort-potential-real", "custom-potential-real"],
-    "potential-web": [isEs ? "Techo pedido (WFM)" : "Asking ceiling (WFM)", "sort-potential-web", "custom-potential-web"],
+    "potential-real": [isEs ? "Múltiplo real (se paga)" : "Real multiple (paid)", "sort-potential-real", "custom-potential-real"],
+    "potential-web": [isEs ? "Múltiplo pedido (WFM)" : "Asking multiple (WFM)", "sort-potential-web", "custom-potential-web"],
     "arbitrage": [isEs ? "Diferencia pedido vs real" : "Asking vs real gap", "sort-arbitrage", "custom-arbitrage"],
     "kuva": [isEs ? "Rentabilidad al rolar" : "Payoff for rolling", "sort-kuva", "custom-kuva"],
   };
@@ -3828,7 +3828,7 @@ export function renderRivenIndexList(items, countHtml = "") {
         realBadgeStyle = "color: #00e5ff; background: rgba(0, 229, 255, 0.08); border: 1px solid rgba(0, 229, 255, 0.2);";
       }
 
-      const realLabel = isEs ? "TECHO REAL" : "REAL CEILING";
+      const realLabel = isEs ? "MÚLTIPLO REAL" : "REAL MULTIPLE";
       const realTooltip = isEs
         ? "Cuántas veces su precio de entrada puede llegar a valer este riven si sale un buen roll, contando solo VENTAS REALES de Digital Extremes. x2 es poco margen; a partir de x4 el arma premia mucho rolarla."
         : "How many times its entry price this riven could reach with a good roll, counting only REAL Digital Extremes sales. x2 is little headroom; from x4 up, rolling this weapon pays off a lot.";
@@ -3846,10 +3846,10 @@ export function renderRivenIndexList(items, countHtml = "") {
         webBadgeStyle = "color: #00e5ff; background: rgba(0, 229, 255, 0.08); border: 1px solid rgba(0, 229, 255, 0.2);";
       }
 
-      const webLabel = isEs ? "TECHO PEDIDO" : "ASKING CEILING";
+      const webLabel = isEs ? "MÚLTIPLO PEDIDO" : "ASKING MULTIPLE";
       const webTooltip = isEs
-        ? "El mismo múltiplo pero calculado con los precios que PIDEN en Warframe.Market. Sale bastante más alto que el techo real porque nadie paga los precios de escaparate: sirve para ver hasta dónde aspira la gente, no para fijar el tuyo."
-        : "The same multiple but computed from Warframe.Market ASKING prices. It comes out well above the real ceiling because nobody pays shop-window prices: use it to see what people aim for, not to set yours.";
+        ? "El mismo múltiplo pero calculado con los precios que PIDEN en Warframe.Market. Sale bastante más alto que el múltiplo real porque nadie paga los precios de escaparate: sirve para ver hasta dónde aspira la gente, no para fijar el tuyo."
+        : "The same multiple but computed from Warframe.Market ASKING prices. It comes out well above the real multiple because nobody pays shop-window prices: use it to see what people aim for, not to set yours.";
       const webBadgeHtml = `<span class="index-price-diff" style="${webBadgeStyle}; cursor: help;" data-tooltip="${webTooltip}">${webLabel}: x${webMult} <span class="info-icon" style="font-size: 0.65rem; margin-left: 2px;">ℹ</span></span>`;
 
       potentialHtml = `<span class="potential-badges-row" style="display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; vertical-align: middle;">${realBadgeHtml}${webBadgeHtml}</span>`;

@@ -1175,8 +1175,8 @@
                 <option id="opt-sort-pop" value="popularity" selected>Más intercambiadas</option>
                 <option id="opt-sort-official" value="price-official">Precio de venta real</option>
                 <option id="opt-sort-wfm" value="price-wfm">Lo que piden en WFM</option>
-                <option id="opt-sort-potential-real" value="potential-real">Techo real (se paga)</option>
-                <option id="opt-sort-potential-web" value="potential-web">Techo pedido (WFM)</option>
+                <option id="opt-sort-potential-real" value="potential-real">Múltiplo real (se paga)</option>
+                <option id="opt-sort-potential-web" value="potential-web">Múltiplo pedido (WFM)</option>
                 <option id="opt-sort-arbitrage" value="arbitrage">Diferencia pedido vs real</option>
                 <option id="opt-sort-kuva" value="kuva">Rentabilidad al rolar</option>
               </select>
@@ -1203,10 +1203,10 @@
                     id="opt-custom-wfm">Lo que piden en WFM</div>
                   <div class="dropdown-item" data-value="potential-real"
                     style="padding: 10px 12px; cursor: pointer; transition: all 0.2s; border-bottom: 1px solid #222;"
-                    id="opt-custom-potential-real">Techo real (se paga)</div>
+                    id="opt-custom-potential-real">Múltiplo real (se paga)</div>
                   <div class="dropdown-item" data-value="potential-web"
                     style="padding: 10px 12px; cursor: pointer; transition: all 0.2s; border-bottom: 1px solid #222;"
-                    id="opt-custom-potential-web">Techo pedido (WFM)</div>
+                    id="opt-custom-potential-web">Múltiplo pedido (WFM)</div>
                   <div class="dropdown-item" data-value="arbitrage"
                     style="padding: 10px 12px; cursor: pointer; transition: all 0.2s; border-bottom: 1px solid #222;"
                     id="opt-custom-arbitrage">Diferencia pedido vs real</div>
@@ -1401,10 +1401,7 @@
             </button>
 
             <div class="ducat-threshold-wrap">
-              <label id="ducat-threshold-label" for="ducat-threshold"></label>
-              <input type="range" id="ducat-threshold" min="0" max="50" value="15" step="1"
-                oninput="globalThis.updateDucatThreshold(this.value)" />
-              <span id="ducat-threshold-val" class="ducat-threshold-val">15<span class="plat-icon-inline"></span></span>
+              <span id="ducat-rule-label"></span>
             </div>
           </div>
           <p id="ducat-desc" class="ducat-desc"></p>
