@@ -4,7 +4,7 @@ import { escapeHTML } from "./ui_components.js";
 import { exposeGlobals } from "../utils/global_registry.js";
 import { JADE_SHADOWS_IMG } from "../assets/jade_custom_img.js";
 import { initJadeCosmicEasterEgg } from "./ui_vosfor_jade.js";
-import { calculateR5Realism, targetSimProbabilities } from "../utils/vosfor_math.js";
+import { calculateR5Realism, targetSimProbabilities, copiesForMaxRank } from "../utils/vosfor_math.js";
 import {
     loadVosforData,
     requestPackStats,
@@ -14,6 +14,9 @@ import {
     bestPackRate,
     bestBalancedPackRate,
     arcaneVerdict,
+    sellSimVerdict,
+    dissolveEdge,
+    vosforPerPlat,
     liquidityIndex,
     othersPack,
     calculateVosforInvestment,
@@ -100,7 +103,7 @@ let showGuide = false;
 /**
  * Folded tools; only the sell simulator starts open, the usual entry point.
  */
-const TOOL_KEYS = ["sell", "calc", "target", "ranking"];
+const TOOL_KEYS = ["sell", "calc", "target", "ranking", "pix"];
 let openTools = new Set(["sell"]);
 
 try {
@@ -108,7 +111,7 @@ try {
     if (Array.isArray(saved)) openTools = new Set(saved.filter((k) => TOOL_KEYS.includes(k)));
 } catch { /* corrupt preference: use the default */ }
 
-let activeRankTab = "packs";
+let activeRankTab = "packs"; // "packs" | "sell" | "dissolve" | "buy" | "liq"
 let activeRankSubToggle = "r0"; // "r0" | "rmax"
 let rankLimit = 5; // 5 | 10 | 20 | 9999
 
@@ -387,33 +390,6 @@ function liqBadge(slug) {
     return `<span title="${escapeHTML(tipParts.join(" · "))}" style="cursor:help;font-size:0.72rem;font-weight:600;border:1px solid;border-radius:4px;padding:1px 5px;${styles[liq.level]}">${escapeHTML(labels[liq.level] || "")} · ${liq.volume}/d${demandDot}</span>`;
 }
 
-function verdictBadge(v) {
-    const t = vosT();
-    if (v.verdict === "loading" || v.verdict === "pending") {
-        return `<span style="font-size:0.72rem;color:#888;">…</span>`;
-    }
-    const map = {
-        sell: { txt: t.verdictSell || "VENDER", css: "verdict-sell" },
-        dissolve: { txt: t.verdictDissolve || "DISOLVER", css: "verdict-dissolve" },
-        even: { txt: t.verdictEven || "PAREJO", css: "verdict-even" },
-    };
-    const m = map[v.verdict] || map.even;
-    return `<span class="verdict-tag ${m.css}">${escapeHTML(m.txt)}</span>`;
-}
-
-function verdictR5Badge(vR5) {
-    const t = vosT();
-    if (vR5 === "loading" || vR5 === "pending") return `<span style="font-size:0.72rem;color:#888;">…</span>`;
-    const map = {
-        sell_r5: { txt: t.verdictSellR5 || "VENDER R5", css: "verdict-sell" },
-        sell_r0: { txt: t.verdictSellR0 || "VENDER R0", css: "verdict-sell" },
-        dissolve: { txt: t.verdictDissolve || "DISOLVER 21", css: "verdict-dissolve" },
-        even: { txt: t.verdictEven || "PAREJO", css: "verdict-even" },
-    };
-    const m = map[vR5] || map.even;
-    return `<span class="verdict-tag ${m.css}">${escapeHTML(m.txt)}</span>`;
-}
-
 function fmtRate(rate) {
     return rate >= 0.1 ? rate.toFixed(2) : rate.toFixed(3);
 }
@@ -439,7 +415,8 @@ function getDissolveTip(v, t, meta) {
 
 
 
-function rankingLeaderboardCard(bestRate) {
+// `spend`: output of bestBalancedPackRate, the pack where the Vosfor would be spent
+function rankingLeaderboardCard(spend) {
     const t = vosT();
     if (!vosData) return "";
 
@@ -457,7 +434,8 @@ function rankingLeaderboardCard(bestRate) {
       <div class="vosfor-ranking-nav">
         ${tabBtn("packs", t.rankTabPacks || "Colecciones de Loid")}
         ${tabBtn("sell", state.currentLang === "es" ? "Venta en Platino" : "Platinum Sales")}
-        ${tabBtn("dissolve", t.rankTabDissolve || "Rinden al Disolver")}
+        ${tabBtn("dissolve", t.rankTabDissolve || "Mejor Disolver")}
+        ${tabBtn("buy", t.rankTabBuy || "Comprar para Vosfor")}
         ${tabBtn("liq", t.rankTabLiq || "Los Más Vendidos")}
       </div>`;
 
@@ -518,19 +496,26 @@ function rankingLeaderboardCard(bestRate) {
     } else {
         const es = state.currentLang === "es";
 
+        const dissolveRate = spend?.balancedRate || 0;
+
         const loadedArcanes = Object.keys(vosData.arcanes)
             .filter((slug) => ARC_STATS.has(slug))
             .map((slug) => {
                 const meta = vosData.arcanes[slug];
                 const st = ARC_STATS.get(slug);
-                const v = arcaneVerdict(slug, vosData.arcanes, bestRate);
+                const v = arcaneVerdict(slug, vosData.arcanes, spend);
                 const liq = liquidityIndex(slug);
-                return { slug, meta, st, v, liq, vosfor: meta.vosfor || 0 };
+                const de = dissolveEdge(meta, st, dissolveRate);
+                const vpp = vosforPerPlat(meta, st);
+                return { slug, meta, st, v, liq, de, vpp, vosfor: meta.vosfor || 0 };
             })
             .filter((item) => {
                 if (activeRankTab === "sell") {
                     return activeRankSubToggle === "rmax" ? item.v.sellR5 > 0 : item.v.sell > 0;
                 }
+                // no `de`: the arcane does not dissolve (vosfor 0) or has no pack rate yet
+                if (activeRankTab === "dissolve") return !!item.de;
+                if (activeRankTab === "buy") return !!item.vpp;
                 return true;
             });
 
@@ -541,83 +526,114 @@ function rankingLeaderboardCard(bestRate) {
 
         rowsHtml = "";
 
-        for (const rarity of rarities) {
-            const filteredByRarity = loadedArcanes.filter(item => item.meta.rarity === rarity);
-            if (filteredByRarity.length === 0) continue;
+        // dissolve and buy go in ONE list: their metrics are per copy and per platinum, so rarities compare
+        const groups = (activeRankTab === "dissolve" || activeRankTab === "buy")
+            ? [{ items: loadedArcanes, header: "" }]
+            : rarities.map((rarity) => ({
+                items: loadedArcanes.filter((item) => item.meta.rarity === rarity),
+                header: `
+              <div class="vosfor-rarity-header" style="color:${rarityColors[rarity]}; border-bottom:1px solid ${rarityColors[rarity]}40; padding-bottom:4px; margin-top:12px; margin-bottom:8px; font-weight:bold; font-size:0.9rem; text-transform:uppercase; letter-spacing:1px; text-shadow: 0 1px 2px rgba(0,0,0,0.8);">
+                ${es ? rarityNamesEs[rarity] : rarityNamesEn[rarity]}
+              </div>
+            `,
+            }));
 
-            filteredByRarity.sort((a, b) => {
+        // Infinity (no market at any rank) is the best candidate, but Infinity - Infinity is NaN: compare by a
+        // finite key
+        const edgeKey = (x) => (Number.isFinite(x.de?.edge) ? x.de.edge : Number.MAX_SAFE_INTEGER);
+
+        for (const group of groups) {
+            const sorted = [...group.items];
+            if (sorted.length === 0) continue;
+
+            sorted.sort((a, b) => {
                 if (activeRankTab === "sell") {
                     if (activeRankSubToggle === "rmax") return b.v.sellR5 - a.v.sellR5;
                     return b.v.sell - a.v.sell;
                 }
-                if (activeRankTab === "dissolve") return b.vosfor - a.vosfor;
+                if (activeRankTab === "dissolve") {
+                    return (edgeKey(b) - edgeKey(a)) || (b.de.dissolveValue - a.de.dissolveValue);
+                }
+                if (activeRankTab === "buy") {
+                    return (b.vpp.ratio - a.vpp.ratio) || (b.vpp.sellers - a.vpp.sellers);
+                }
                 if (activeRankTab === "liq") return b.liq.volume - a.liq.volume;
                 return 0;
             });
 
-            const limitedList = filteredByRarity.slice(0, rankLimit);
+            const limitedList = sorted.slice(0, rankLimit);
             if (limitedList.length === 0) continue;
 
-            const catName = es ? rarityNamesEs[rarity] : rarityNamesEn[rarity];
-            const catColor = rarityColors[rarity];
+            rowsHtml += group.header;
 
-            rowsHtml += `
-              <div class="vosfor-rarity-header" style="color:${catColor}; border-bottom:1px solid ${catColor}40; padding-bottom:4px; margin-top:12px; margin-bottom:8px; font-weight:bold; font-size:0.9rem; text-transform:uppercase; letter-spacing:1px; text-shadow: 0 1px 2px rgba(0,0,0,0.8);">
-                ${catName}
-              </div>
-            `;
-
-            rowsHtml += limitedList.map(({ slug, meta, st, v, liq, vosfor }, idx) => {
+            rowsHtml += limitedList.map(({ slug, meta, st, v, liq, de, vpp, vosfor }, idx) => {
                 let subText = "";
                 let mainVal = "";
                 let mainValStyle = "";
                 let extraNameHtml = "";
 
                 if (activeRankTab === "sell") {
+                    // the big number is the realizable price (it sorts); the ask goes next to it when they differ
+                    const askNote = (ask, realizable) => (ask > 0 && ask !== realizable
+                        ? (es ? ` · pedido ${ask}${PLAT}` : ` · asking ${ask}${PLAT}`)
+                        : "");
+                    const realLbl = "realizable";
                     if (activeRankSubToggle === "rmax") {
                         const maxR = v.maxRank;
                         const copiesMax = v.copiesMax;
                         const bonusText = v.r5RankBonus > 0
                             ? (es ? ` (+${v.r5RankBonus}% en R${maxR})` : ` (+${v.r5RankBonus}% at R${maxR})`)
                             : (v.r5RankBonus < 0 ? (es ? ` (${v.r5RankBonus}% en R${maxR})` : ` (${v.r5RankBonus}% at R${maxR})`) : "");
-                        subText = es
+                        subText = (es
                             ? `Copia suelta R0: ${v.sell}${PLAT} · ${copiesMax} copias R0: ${v.sell21R0}${PLAT}${bonusText}`
-                            : `Single copy R0: ${v.sell}${PLAT} · ${copiesMax} copies R0: ${v.sell21R0}${PLAT}${bonusText}`;
-                        mainVal = `${v.sellR5}${PLAT} <span style="font-size:0.72rem;color:#aaa;">(R${maxR})</span>`;
+                            : `Single copy R0: ${v.sell}${PLAT} · ${copiesMax} copies R0: ${v.sell21R0}${PLAT}${bonusText}`)
+                            + askNote(st.pem, v.sellR5);
+                        mainVal = `${v.sellR5}${PLAT} <span style="font-size:0.72rem;color:#aaa;">(R${maxR} · ${realLbl})</span>`;
                     } else {
                         const maxR = v.maxRank;
                         const bonusText = v.r5RankBonus > 0
                             ? (es ? ` (Rinde más en R${maxR}: +${v.r5RankBonus}%)` : ` (Better at R${maxR}: +${v.r5RankBonus}%)`)
                             : (v.r5RankBonus < 0 ? (es ? ` (Cuidado: pierdes ${Math.abs(v.r5RankBonus)}% al subir a R${maxR})` : ` (Warning: lose ${Math.abs(v.r5RankBonus)}% when upgrading to R${maxR})`) : "");
-                        subText = es
-                            ? `Volumen: ${v.volume || v.st?.pe_vol || 0} ventas/día${bonusText}`
-                            : `Volume: ${v.volume || v.st?.pe_vol || 0} sales/day${bonusText}`;
-                        mainVal = `${v.sell}${PLAT} <span style="font-size:0.72rem;color:#aaa;">(R0)</span>`;
+                        // liq.volume: arcaneVerdict returns no volume field
+                        subText = (es
+                            ? `Volumen: ${liq.volume} ventas/día${bonusText}`
+                            : `Volume: ${liq.volume} sales/day${bonusText}`)
+                            + askNote(st.pe, v.sell);
+                        mainVal = `${v.sell}${PLAT} <span style="font-size:0.72rem;color:#aaa;">(R0 · ${realLbl})</span>`;
                     }
                 } else if (activeRankTab === "dissolve") {
-                    const maxRank = Math.min(meta.maxRank ?? 5, 5);
-                    const copiesMax = v.copiesMax || (((maxRank + 1) * (maxRank + 2)) / 2);
-                    const price = st?.pe || 0;
+                    const copiesMax = de.copiesMax;
+                    const r0Txt = st.pe > 0
+                        ? `R0 ${st.pe}${PLAT}`
+                        : escapeHTML(t.noMarket || "sin mercado");
+                    // R{max} at raw market price on purpose: it is what buying it fused costs and what WFM shows. The
+                    // liquidity discount only goes into the multiple
+                    const rmaxTxt = st.pem > 0 && st.rm > 0 ? ` · R${st.rm} ${st.pem}${PLAT}` : "";
+                    const batchEq = (de.dissolveValue * copiesMax).toFixed(1);
+                    subText = `${r0Txt}${rmaxTxt} · ${liq.volume}/${es ? "día" : "day"}`
+                        + ` · ${copiesMax}x = ${vosfor * copiesMax}${vosforIcon(12)} ≈ ${batchEq}${PLAT}`;
 
-                    const priceTxt = st
-                        ? (price > 0
-                            ? `R0: ${price}${PLAT}`
-                            : escapeHTML(t.noMarket || "sin mercado"))
-                        : "…";
-                    const liqTxt = st
-                        ? `${liq.volume}/${es ? "día" : "day"}`
-                        : "…";
-                    const equivTxt = v.dissolvePlat !== null && v.dissolvePlat !== undefined
-                        ? ` · ≈ ${v.dissolvePlat.toFixed(1)}${PLAT}`
-                        : "";
-                    subText = `${priceTxt} · ${es ? "liquidez" : "liquidity"}: ${liqTxt} · R${maxRank} max (${copiesMax}x = ${vosfor * copiesMax}${vosforIcon(12)})${equivTxt}`;
-
-                    const liqWarn = st && liq.level === "low" || (st && liq.level === "none")
+                    extraNameHtml = (liq.level === "low" || liq.level === "none")
                         ? ` <span style="font-size:0.62rem;color:#ff8866;border:1px solid rgba(255,136,102,0.35);border-radius:3px;padding:0 4px;">${es ? "POCA LIQUIDEZ" : "LOW LIQUIDITY"}</span>`
                         : "";
 
-                    extraNameHtml = liqWarn;
-                    mainVal = `${vosfor}${vosforIcon()}`;
+                    mainVal = Number.isFinite(de.edge)
+                        ? `${de.edge.toFixed(1)}x <span style="font-size:0.72rem;font-weight:normal;color:#aaa;">${es ? "vs. venderla" : "vs. selling"}</span>`
+                        : `<span style="font-size:0.82rem;">${es ? "nada que perder" : "nothing to lose"}</span>`;
+                    mainValStyle = "color:#c59afc;";
+                } else if (activeRankTab === "buy") {
+                    const sellersTxt = es
+                        ? `${vpp.sellers} ${vpp.sellers === 1 ? "vendedor" : "vendedores"}`
+                        : `${vpp.sellers} ${vpp.sellers === 1 ? "seller" : "sellers"}`;
+                    subText = `R0 ${vpp.buyPrice}${PLAT} · ${sellersTxt} · ${liq.volume}/${es ? "día" : "day"}`
+                        + ` · 200${vosforIcon(12)} ≈ ${Math.round(vpp.platPerPack)}${PLAT}`;
+
+                    // with one or two sellers the ratio is real but cannot be repeated
+                    extraNameHtml = vpp.sellers <= 2
+                        ? ` <span style="font-size:0.62rem;color:#ff8866;border:1px solid rgba(255,136,102,0.35);border-radius:3px;padding:0 4px;">${es ? "POCA OFERTA" : "LOW SUPPLY"}</span>`
+                        : "";
+
+                    mainVal = `${vpp.ratio.toFixed(1)}${vosforIcon()}<span style="font-size:0.72rem;font-weight:normal;color:#aaa;">/${PLAT}</span>`;
                     mainValStyle = "color:#c59afc;";
                 } else if (activeRankTab === "liq") {
                     const rankSplit = liq.maxRank > 0
@@ -660,12 +676,17 @@ function rankingLeaderboardCard(bestRate) {
     </div>`;
 }
 
-function getTradeFrictionNote(pulls, t) {
+function getTradeFrictionNote(pulls, pack, t) {
     const totalItems = pulls * 3;
-    const r5Trades = Math.max(1, Math.round(totalItems / 21));
+    // average copies for the pack's max rank: in Cetus more than half rank with 10, not 21
+    const metas = (pack?.items || []).map((s) => vosData?.arcanes?.[s]).filter(Boolean);
+    const copiesAvg = metas.length
+        ? metas.reduce((sum, m) => sum + copiesForMaxRank(m), 0) / metas.length
+        : 21;
+    const r5Trades = Math.max(1, Math.round(totalItems / copiesAvg));
     const template = t.tradeFrictionNote || (state.currentLang === "es"
-        ? "{items} arcanos sueltos consumen {trades} trades diarios si vendes en R0 (ó ~{r5Trades} trade consolidando en R5)."
-        : "{items} loose arcanes require {trades} daily trades if sold at R0 (or ~{r5Trades} trade if consolidated to R5).");
+        ? "{items} arcanos sueltos consumen {trades} trades diarios si vendes en R0 (ó ~{r5Trades} trade consolidando a rango máximo)."
+        : "{items} loose arcanes require {trades} daily trades if sold at R0 (or ~{r5Trades} trade if consolidated to max rank).");
     return template
         .replace("{items}", totalItems)
         .replace("{trades}", totalItems)
@@ -678,31 +699,34 @@ function renderR5RealismHtml(pack, userVosfor, t) {
     if (!realism) return "";
 
     const pulls = realism.pulls;
-    const noteText = (t.r5RealismNote || "Copias esperadas y probabilidad de completar un R5 con tus {vosfor} Vosfor ({pulls} tiradas):")
+    const noteText = (t.r5RealismNote || "Copias esperadas y probabilidad de completar el rango máximo con tus {vosfor} Vosfor ({pulls} tiradas):")
         .replace("{vosfor}", userVosfor.toLocaleString())
         .replace("{pulls}", pulls.toLocaleString());
 
     const isLegendaryUnlikely = realism.results.LEGENDARY && realism.results.LEGENDARY.itemCount > 0 ? realism.results.LEGENDARY.probRaw < 0.1 : false;
     const rName = (r) => (t.rarities || {})[r] || r;
-    const r5ProbText = t.r5ProbLabel || "Prob. R5";
+    const probText = t.r5ProbLabel || "Prob.";
     const copyText = t.targetSimCopies || "copias";
 
+    // one line per rank: in Cetus/Fortuna/Necralisk the same rarity mixes 21 and 10 copy arcanes
     const renderCell = (rarity, color, bg, border) => {
         const res = realism.results[rarity];
         if (!res || res.itemCount === 0) {
             return "";
         }
+        const rankLines = res.ranks.map((rk) => `
+          <span style="color:${rk.probRaw > 0.5 ? "#42f56c" : "#ff8888"}; font-weight:700;">${escapeHTML(probText)} R${rk.maxRank} · ${rk.copies} ${escapeHTML(copyText)}: ${rk.probPct}%</span>`).join("<br/>");
         return `
         <div style="background:${bg};border:1px solid ${border};border-radius:4px;padding:6px;color:${color};">
           <b>${escapeHTML(rName(rarity))}:</b> ~${res.expected} ${escapeHTML(copyText)}<br/>
-          <span style="color:${res.probRaw > 0.5 ? "#42f56c" : "#ff8888"}; font-weight:700;">${escapeHTML(r5ProbText)}: ${res.probPct}%</span>
+          ${rankLines}
         </div>`;
     };
 
     return `
     <details style="background:rgba(0,0,0,0.4);border:1px solid rgba(255,215,110,0.3);border-radius:6px;padding:8px 12px;margin-top:10px;">
       <summary style="font-weight:700;color:#ffd76e;font-size:0.82rem;cursor:pointer;list-style-position:inside;">
-        ${escapeHTML(t.r5RealismTitle || "Realismo de Rango 5 (21 Copias)")}
+        ${escapeHTML(t.r5RealismTitle || "Realismo de rango máximo")}
         ${isLegendaryUnlikely ? `<span style="font-size:0.68rem;color:#ff8888;font-weight:600;margin-left:6px;">${state.currentLang === "es" ? "(R5 legendario inviable con tu Vosfor)" : "(legendary R5 not feasible with your Vosfor)"}</span>` : ""}
       </summary>
       <div style="font-size:0.76rem;color:#ccc;margin:8px 0;">
@@ -774,7 +798,7 @@ function patchCalcCard(box, kind, entry, t) {
     } else {
         set("subA", `${pulls} ${t.pullsUnit || "tiradas"} (${pulls * 3} ${t.arcanes || "arcanos"}) · ${entry.ev.avgVolume}/d ${salesUnit()}`);
     }
-    set("trade", getTradeFrictionNote(pulls, t));
+    set("trade", getTradeFrictionNote(pulls, entry.pack, t));
 }
 
 function updateCalculatorWidgetDOM() {
@@ -814,7 +838,11 @@ function updateCalculatorWidgetDOM() {
         if (isCustom) {
             html = calcCardHtml("custom", calc.customPack, t);
         } else if (hasAuto) {
-            html = (calc.bestEvPack ? calcCardHtml("ev", calc.bestEvPack, t) : "")
+            const dualHint = calc.bestEvPack && calc.bestLiquidPack
+                ? `<div style="font-size:0.78rem;color:#999;margin-bottom:6px;">${escapeHTML(t.calcDualHint || "")}</div>`
+                : "";
+            html = dualHint
+                + (calc.bestEvPack ? calcCardHtml("ev", calc.bestEvPack, t) : "")
                 + (calc.bestLiquidPack ? calcCardHtml("liq", calc.bestLiquidPack, t) : "");
         } else {
             html = `<div style="font-size:0.84rem;color:#888;padding:8px 0;">${escapeHTML(t.summaryLoading || "Cargando precios para simular…")}</div>`;
@@ -1161,19 +1189,21 @@ function targetArcaneSimulatorCard() {
     </div>`;
 }
 
+// where the Vosfor would go when dissolving: "auto" = best collection, or a given one. Liquidity
+// adjusted rate (balancedRate), as in the rest of the tab
 function sellRateInfo() {
     if (!vosData) return null;
     if (sellRatePackId !== "auto") {
         const pack = vosData.packs.find((p) => p.id === sellRatePackId);
         if (pack) {
             const ev = computePackEV(pack, vosData.arcanes);
-            if (ev.ready && ev.platPerVosfor > 0) {
-                return { rate: ev.platPerVosfor, pack, custom: true };
+            if (ev.ready && ev.balancedRate > 0) {
+                return { rate: ev.balancedRate, pack, custom: true };
             }
         }
     }
-    const best = bestPackRate(vosData);
-    return best ? { rate: best.rate, pack: best.pack, custom: false } : null;
+    const best = bestBalancedPackRate(vosData);
+    return best ? { rate: best.balancedRate, pack: best.pack, custom: false } : null;
 }
 
 function sellSimMath() {
@@ -1181,38 +1211,20 @@ function sellSimMath() {
     const meta = vosData.arcanes[sellArcSlug];
     if (!meta) return null;
     const st = ARC_STATS.get(sellArcSlug);
-    const v = arcaneVerdict(sellArcSlug, vosData.arcanes, bestPackRate(vosData));
-
-    const maxRank = v.maxRank ?? Math.min(meta.maxRank ?? 5, 5);
-    const copiesMax = v.copiesMax || 21;
     const isMax = sellRank === "max";
-    const copiesPerUnit = isMax ? copiesMax : 1;
-
-    const unitPrice = st ? (isMax ? (st.pem || 0) : (st.pe || 0)) : null;
-    const totalPlat = unitPrice !== null ? sellQty * unitPrice : null;
-    const totalVosfor = sellQty * copiesPerUnit * (meta.vosfor || 0);
-
+    const maxRank = Math.min(meta.maxRank ?? 5, 5);
     const bestRate = sellRateInfo();
-    const vosforPlatEquiv = bestRate ? totalVosfor * bestRate.rate : null;
-    const sellPlPerVosfor = totalPlat !== null && totalVosfor > 0 ? totalPlat / totalVosfor : null;
 
-    let verdict = "pending";
-    if (totalPlat !== null && vosforPlatEquiv !== null) {
-        if (totalPlat <= 0) verdict = "dissolve";
-        else if (totalPlat > vosforPlatEquiv * 1.15) verdict = "sell";
-        else if (totalPlat < vosforPlatEquiv * 0.85) verdict = "dissolve";
-        else verdict = "even";
-    }
+    // the raw ask shows as unit price, the number WFM and the "Live" button show; the verdict uses the
+    // realizable one
+    const unitPrice = st ? (isMax ? (st.pem || 0) : (st.pe || 0)) : null;
+    const sim = sellSimVerdict(meta, st, { isMax, qty: sellQty, liqRate: bestRate?.rate || 0 });
 
     const liq = liquidityIndex(sellArcSlug);
     const bestBuy = st ? (isMax ? (st.bbm || 0) : (st.bb || 0)) : 0;
     const volume = st ? (isMax ? Math.round(st.vm || 0) : Math.round(st.v || 0)) : 0;
 
-    return {
-        meta, st, maxRank, copiesMax, isMax, copiesPerUnit,
-        unitPrice, totalPlat, totalVosfor, vosforPlatEquiv, sellPlPerVosfor,
-        bestRate, verdict, liq, bestBuy, volume,
-    };
+    return { meta, st, maxRank, isMax, unitPrice, bestRate, sim, liq, bestBuy, volume };
 }
 
 // same as the investment calculator: the skeleton only rebuilds when arcane, rank or state change
@@ -1240,7 +1252,7 @@ function updateSellSimDOM() {
 
     const es = state.currentLang === "es";
     const signature = m && m.st
-        ? [sellArcSlug, sellRank, sellRatePackId, m.verdict, m.bestRate ? fmtRate(m.bestRate.rate) : "-", m.unitPrice > 0 ? 1 : 0, state.currentLang].join("|")
+        ? [sellArcSlug, sellRank, sellRatePackId, m.sim.verdict, m.bestRate ? fmtRate(m.bestRate.rate) : "-", m.unitPrice > 0 ? 1 : 0, state.currentLang].join("|")
         : m ? "loading" : "empty";
 
     if (signature !== lastSellSignature || !box.firstElementChild) {
@@ -1261,16 +1273,20 @@ function updateSellSimDOM() {
         const ratePackName = m.bestRate ? packName(m.bestRate.pack) : "";
         const rateNote = m.bestRate
             ? (m.bestRate.custom
-                ? (es ? `gastándolo en ${ratePackName} (${fmtRate(m.bestRate.rate)} pl/vosfor)` : `spending it on ${ratePackName} (${fmtRate(m.bestRate.rate)} pl/vosfor)`)
-                : (es ? `a la tasa del mejor pack, ${ratePackName} (${fmtRate(m.bestRate.rate)} pl/vosfor)` : `at the best pack rate, ${ratePackName} (${fmtRate(m.bestRate.rate)} pl/vosfor)`))
+                ? (es ? `gastándolo en ${ratePackName}` : `spending it on ${ratePackName}`)
+                : (es ? `gastándolo en el mejor pack, ${ratePackName}` : `spending it on the best pack, ${ratePackName}`))
             : (es ? "esperando precios de packs…" : "waiting for pack prices…");
 
+        // the two per Vosfor numbers are what the verdict compares; the percentage derives from them so it holds
+        // if CERTAINTY changes
         let metricLine = "";
-        if (m.sellPlPerVosfor !== null && m.bestRate) {
-            const packRef = m.bestRate.custom ? ratePackName : (es ? "el mejor pack de Loid" : "the best Loid pack");
+        if (m.bestRate && m.sim.totalVosfor > 0 && m.sim.dissolveValue !== null) {
+            const sellPerVosfor = m.sim.sellValue / m.sim.totalVosfor;
+            const dissolvePerVosfor = m.sim.dissolveValue / m.sim.totalVosfor;
+            const discountPct = Math.round((1 - dissolvePerVosfor / m.bestRate.rate) * 100);
             const cmp = es
-                ? `Vendiendo obtienes <b>${m.sellPlPerVosfor.toFixed(3)} pl por Vosfor</b> sacrificado; ${packRef} rinde ${fmtRate(m.bestRate.rate)} pl/vosfor.`
-                : `Selling nets <b>${m.sellPlPerVosfor.toFixed(3)} pl per Vosfor</b> sacrificed; ${packRef} yields ${fmtRate(m.bestRate.rate)} pl/vosfor.`;
+                ? `Vendiendo sacas <b>${sellPerVosfor.toFixed(3)} pl por Vosfor</b> sacrificado; disolviendo, <b>${dissolvePerVosfor.toFixed(3)} pl por Vosfor</b> (tasa de ${escapeHTML(ratePackName)} ajustada por liquidez, un ${discountPct}% menos por ser una apuesta).`
+                : `Selling nets <b>${sellPerVosfor.toFixed(3)} pl per Vosfor</b> sacrificed; dissolving, <b>${dissolvePerVosfor.toFixed(3)} pl per Vosfor</b> (${escapeHTML(ratePackName)} rate adjusted for liquidity, ${discountPct}% off for being a gamble).`;
             metricLine = `<div style="font-size:0.76rem;color:#aaa;margin-top:6px;line-height:1.4;">${cmp}</div>`;
         }
 
@@ -1280,7 +1296,7 @@ function updateSellSimDOM() {
             even: { txt: t.verdictEven || "PAREJO", css: "verdict-even" },
             pending: { txt: "…", css: "verdict-even" },
         };
-        const vd = verdictMap[m.verdict] || verdictMap.pending;
+        const vd = verdictMap[m.sim.verdict] || verdictMap.pending;
 
         box.innerHTML = `
           <div class="vosfor-stat-cards">
@@ -1294,16 +1310,17 @@ function updateSellSimDOM() {
               <div class="vosfor-stat-card-val">${m.unitPrice > 0 ? `<span data-f="unit"></span>${PLAT}` : noMarket}</div>
             </div>
             <div class="vosfor-stat-card">
-              <div class="vosfor-stat-card-label">${escapeHTML(t.sellSimTotalSale || "Venta total")} (<span data-f="qty"></span>)</div>
+              <div class="vosfor-stat-card-label">${escapeHTML(t.sellSimTotalSale || "Venta realizable")} (<span data-f="qty"></span>)</div>
               <div class="vosfor-stat-card-val" style="color:#42f56c;">${m.unitPrice > 0 ? `<span data-f="sale"></span>${PLAT}` : noMarket}</div>
+              <div data-f="realnote" style="font-size:0.66rem;color:#888;"></div>
             </div>
             <div class="vosfor-stat-card">
               <div class="vosfor-stat-card-label">${escapeHTML(t.sellSimTotalVosfor || "Vosfor al disolver")}</div>
               <div class="vosfor-stat-card-val" style="color:#c59afc;"><span data-f="tvos"></span>${vosforIcon()}</div>
             </div>
             <div class="vosfor-stat-card">
-              <div class="vosfor-stat-card-label">${escapeHTML(t.sellSimVosforEquiv || "Ese Vosfor equivale a")}</div>
-              <div class="vosfor-stat-card-val" style="color:#7ecbff;"><span data-f="equiv"></span>${m.vosforPlatEquiv !== null ? PLAT : ""}</div>
+              <div class="vosfor-stat-card-label">${escapeHTML(t.sellSimVosforEquiv || "Disolver rinde (ajustado)")}</div>
+              <div class="vosfor-stat-card-val" style="color:#7ecbff;"><span data-f="equiv"></span>${m.sim.dissolveValue !== null ? PLAT : ""}</div>
             </div>
           </div>
           <div style="display:flex;align-items:center;gap:10px;margin-top:8px;flex-wrap:wrap;">
@@ -1313,7 +1330,7 @@ function updateSellSimDOM() {
           ${metricLine}
           <div style="font-size:0.74rem;color:#888;margin-top:6px;"><span data-f="liq"></span>${PLAT}</div>
           <div id="live-price-status" style="font-size:0.75rem;margin-top:6px;display:none;padding:4px 8px;border-radius:4px;"></div>
-          <div style="font-size:0.72rem;color:#777;margin-top:4px;">${es ? `1 unidad R${m.maxRank} = ${m.copiesMax} copias (${m.meta.vosfor} Vosfor cada una al disolver).` : `1 unit at R${m.maxRank} = ${m.copiesMax} copies (${m.meta.vosfor} Vosfor each when dissolved).`}</div>`;
+          <div style="font-size:0.72rem;color:#777;margin-top:4px;">${es ? `1 unidad R${m.maxRank} = ${m.sim.copiesMax} copias (${m.meta.vosfor} Vosfor cada una al disolver).` : `1 unit at R${m.maxRank} = ${m.sim.copiesMax} copies (${m.meta.vosfor} Vosfor each when dissolved).`}</div>`;
     }
 
     if (!m || !m.st) return;
@@ -1325,9 +1342,12 @@ function updateSellSimDOM() {
     const rankLbl = m.isMax ? `R${m.maxRank}` : "R0";
     set("unit", m.unitPrice);
     set("qty", `x${sellQty}`);
-    set("sale", Math.round(m.totalPlat || 0));
-    set("tvos", m.totalVosfor.toLocaleString());
-    set("equiv", m.vosforPlatEquiv !== null ? m.vosforPlatEquiv.toFixed(1) : "…");
+    set("sale", Math.round(m.sim.sellValue));
+    set("realnote", m.sim.unitRealizable < m.unitPrice
+        ? (es ? `ask ${m.unitPrice} × ${sellQty}, descontado por liquidez` : `ask ${m.unitPrice} × ${sellQty}, discounted for liquidity`)
+        : "");
+    set("tvos", m.sim.totalVosfor.toLocaleString());
+    set("equiv", m.sim.dissolveValue !== null ? m.sim.dissolveValue.toFixed(1) : "…");
     set("liq", es
         ? `Liquidez ${rankLbl}: ${m.volume} ventas/día · mejor compra activa: ${m.bestBuy}`
         : `${rankLbl} liquidity: ${m.volume} sales/day · best active buy: ${m.bestBuy}`);
@@ -1530,13 +1550,13 @@ function bestActionBadge(v, meta) {
     return `<span class="verdict-tag ${m.css}" data-tooltip="${escapeHTML(tip)}" style="cursor:help;">${escapeHTML(m.txt)}</span>${warn}`;
 }
 
-function arcaneRow(slug, bestRate, parentPack) {
+function arcaneRow(slug, spend, parentPack) {
     const t = vosT();
     const es = state.currentLang === "es";
     const meta = vosData.arcanes[slug];
     if (!meta) return "";
     const st = ARC_STATS.get(slug);
-    const v = arcaneVerdict(slug, vosData.arcanes, bestRate);
+    const v = arcaneVerdict(slug, vosData.arcanes, spend);
 
     let priceCell = `<span style="color:#777;">…</span>`;
     if (st) {
@@ -1572,7 +1592,7 @@ function arcaneRow(slug, bestRate, parentPack) {
     </div>`;
 }
 
-function searchResultsCard(bestRate) {
+function searchResultsCard(spend) {
     const t = vosT();
     if (!searchQuery.trim() || !vosData || !vosData.arcanes) return "";
 
@@ -1594,7 +1614,7 @@ function searchResultsCard(bestRate) {
         </div>`;
     }
 
-    const rows = matchingSlugs.map((slug) => arcaneRow(slug, bestRate)).join("");
+    const rows = matchingSlugs.map((slug) => arcaneRow(slug, spend)).join("");
 
     return `
     <div class="vosfor-ranking-section" style="margin-top:10px;border-color:rgba(126,203,255,0.45);background:linear-gradient(135deg, rgba(20,30,50,0.9) 0%, rgba(12,18,30,0.95) 100%);">
@@ -1634,7 +1654,7 @@ function packHighlights(pack, bestRate) {
 }
 
 
-function renderOthersGrouped(pack, bestRate) {
+function renderOthersGrouped(pack, spend) {
     const items = sortedPackItems(pack);
     const groups = {};
 
@@ -1651,7 +1671,7 @@ function renderOthersGrouped(pack, bestRate) {
     for (const [key, g] of Object.entries(groups)) {
         if (!g.slugs.length) continue;
         const synName = state.currentLang === "es" ? g.info.es : g.info.en;
-        const rows = g.slugs.map((s) => arcaneRow(s, bestRate, pack)).join("");
+        const rows = g.slugs.map((s) => arcaneRow(s, spend, pack)).join("");
         const isJadeGroup = g.info.wikiIcon && g.info.wikiIcon.includes("JadeShadows");
         const extraClass = isJadeGroup ? "jade-easter-egg-header" : "";
         const easterEggHtml = isJadeGroup
@@ -1743,10 +1763,10 @@ function packCard(pack, bestRate, bestBalancedRate) {
               <div style="margin-top:8px;">
                 ${sortBar}
                 ${header}
-                ${renderOthersGrouped(pack, bestRate)}
+                ${renderOthersGrouped(pack, bestBalancedRate)}
               </div>`;
         } else {
-            const rows = itemsMatching.map((s) => arcaneRow(s, bestRate, pack)).join("");
+            const rows = itemsMatching.map((s) => arcaneRow(s, bestBalancedRate, pack)).join("");
             body = `
               <div style="margin-top:8px;">
                 ${packHighlights(pack, bestRate)}
@@ -1903,10 +1923,11 @@ function pixCard(bestBalancedRate) {
             : (es ? "Gastar los pix en vosfor rinde más plat que comprar estos arcanos para revender." : "Spending pix on vosfor yields more plat than buying these arcanes to resell."))
         : (es ? "Cargando precios en vivo de The Hex…" : "Loading The Hex live prices…");
 
+    // ONE root element: .vos-tool-body folds with grid-template-rows:0fr, which only collapses the first grid
+    // row
     return `
-      <div class="vosfor-card" style="border:1px solid rgba(155,89,182,0.35);border-radius:8px;padding:12px;background:rgba(155,89,182,0.06);">
-        <b style="font-size:0.92rem;">${escapeHTML(es ? "The Hex · Mejor plat por pix" : "The Hex · Best plat per pix")}</b>
-        <div style="font-size:0.72rem;color:#bbb;margin:4px 0 6px;">${escapeHTML(es ? "En qué gastar los pix: cada arcano cuesta 5 pix a R0; 200 vosfor cuestan 6 pix. Precio de venta realizable (no el listing a pelo)." : "What to spend pix on: each arcane costs 5 pix at R0; 200 vosfor cost 6 pix. Realizable sale price (not the raw listing).")}</div>
+      <div class="vosfor-pix-widget">
+        <div style="font-size:0.72rem;color:#bbb;margin-bottom:6px;">${escapeHTML(es ? "Cada arcano cuesta 5 pix a R0; 200 vosfor cuestan 6 pix. Precio de venta realizable (no el listing a pelo)." : "Each arcane costs 5 pix at R0; 200 vosfor cost 6 pix. Realizable sale price (not the raw listing).")}</div>
         ${rows}
         ${vosforRow}
         <div style="font-size:0.74rem;color:#cbb3e0;margin-top:8px;">${escapeHTML(verdict)}</div>
@@ -1952,11 +1973,12 @@ export async function renderVosforTab() {
           ${toolSection("target", vosforIcon(20), t.toolTargetTitle || "Arcano objetivo",
     t.toolTargetSub || "", targetArcaneSimulatorCard())}
           ${toolSection("ranking", "🏆", t.toolRankingTitle || "Ranking",
-    t.toolRankingSub || "", rankingLeaderboardCard(bestRate))}
+    t.toolRankingSub || "", rankingLeaderboardCard(bestBalancedRate))}
+          ${toolSection("pix", "🪙", t.toolPixTitle || "The Hex",
+    t.toolPixSub || "", pixCard(bestBalancedRate))}
         </div>
-        ${pixCard(bestBalancedRate)}
         ${searchAndControlsBar()}
-        ${searchResultsCard(bestRate)}
+        ${searchResultsCard(bestBalancedRate)}
         <div class="vosfor-explain-text">${escapeHTML(t.explain || "")}</div>
         <div style="display:flex;flex-direction:column;gap:10px;">
           ${packsSorted.map((p) => packCard(p, bestRate, bestBalancedRate)).join("")}

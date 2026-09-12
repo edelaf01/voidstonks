@@ -217,13 +217,10 @@ export const ScannerModal = {
         }
 
         const maxPl = Math.max(...items.map((i) => i.price || 0));
-        const potentialMap = items.map(item => ({
-            ...item,
-            potential: Math.max(item.ducats || 0, (item.price || 0) * 10)
-        }));
-        const maxPotential = Math.max(...potentialMap.map(i => i.potential));
+        // ducats alone, not max(ducats, plat × 10): no part tops 100 ducats
+        const maxDucats = Math.max(...items.map((i) => i.ducats || 0));
 
-        let positionedItems = potentialMap.map(item => {
+        let positionedItems = items.map(item => {
             const referenceW = width * scale;
             const isClumped = !item.xPos || Math.abs(item.xPos - (referenceW / 2)) < 5;
             let rawPct = (typeof item.xPos === 'number' && referenceW > 0 && !isClumped)
@@ -300,7 +297,7 @@ export const ScannerModal = {
         const fragment = document.createDocumentFragment();
         positionedItems.forEach((item) => {
             const isBestPl = item.price === maxPl && item.price > 0;
-            const isBestEff = item.potential === maxPotential && item.potential > 0;
+            const isBestEff = item.ducats === maxDucats && item.ducats > 0;
 
             this.createBadge(item, fragment, isBestPl, isBestEff, badgeScale,
                 bestSet && bestSet.name === item.name ? bestSet : null,
@@ -349,18 +346,23 @@ export const ScannerModal = {
             ? (t.lblSeenTitle || "")
             : (sinLectura ? (t.lblUnreadTitle || "") : (t.lblSeenTitle || ""));
 
+        const why = [];
+        if (bestSet) {
+            why.push(`<span class="best-badge set-finisher${bestSet.left === 0 ? "" : " near"}" data-tooltip="${escapeHTML(
+                (bestSet.left === 0
+                    ? (t.tagBestSetTitleDone || "")
+                    : (t.tagBestSetTitle || "").replace("{left}", String(bestSet.left)))
+                    .replace("{set}", bestSet.set))}">${
+                escapeHTML(bestSet.left === 0 ? (t.tagBestSet || "") : (t.tagBestSetNear || ""))}</span>`);
+        }
+        if (isBestPl) why.push(`<span class="best-badge pl">${escapeHTML(t.tagBestPl)}</span>`);
+        if (isBestEff) why.push(`<span class="best-badge duc">${escapeHTML(t.tagBestDuc)}</span>`);
+
         badge.innerHTML = `
         <div class="modal-badge-link">
             <div class="modal-badge-labels">
                 ${best ? this.valueTagHtml(best, t) : ""}
-                ${bestSet ? `<div class="best-badge set-finisher${bestSet.left === 0 ? "" : " near"}" data-tooltip="${escapeHTML(
-        (bestSet.left === 0
-            ? (t.tagBestSetTitleDone || "")
-            : (t.tagBestSetTitle || "").replace("{left}", String(bestSet.left)))
-            .replace("{set}", bestSet.set))}">${
-        escapeHTML(bestSet.left === 0 ? (t.tagBestSet || "") : (t.tagBestSetNear || ""))}</div>` : ""}
-                ${isBestPl ? `<div class="best-badge pl">${t.tagBestPl}</div>` : ""}
-                ${isBestEff ? `<div class="best-badge duc">${t.tagBestDuc}</div>` : ""}
+                ${why.length ? `<div class="modal-badge-why">${why.join("")}</div>` : ""}
             </div>
             <div class="modal-badge-content-wrapper">
                 <div class="metadata-row">

@@ -128,12 +128,18 @@
 /* the frame comes from .vos-tool; !important and [style] beat the inline border/shadow some widgets carry (e.g. #vosfor-sell-widget) */
 .vos-tool-body .vosfor-calc-widget,
 .vos-tool-body .vosfor-target-widget,
+.vos-tool-body .vosfor-pix-widget,
 .vos-tool-body .vosfor-ranking-section {
     margin: 0 !important;
     border: none !important;
     border-radius: 0 !important;
     background: transparent !important;
     box-shadow: none !important;
+}
+
+/* the other widgets get their padding from their own class */
+.vosfor-pix-widget {
+    padding: 16px;
 }
 
 /* images and thumbnails */

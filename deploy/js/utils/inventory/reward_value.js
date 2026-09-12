@@ -29,6 +29,14 @@ export function saleValue(price) {
 }
 
 /**
+ * Melting into ducats beats selling loose. Same comparison as rewardValue without the set premium; the
+ * Ducanator uses it too.
+ */
+export function ducatsBeatSale(ducats, price) {
+  return (Number(ducats) || 0) / DUCATS_PER_PLAT > saleValue(price);
+}
+
+/**
  * Platinum value of ONE reward, with the breakdown.
  *
  * @param item  { name, price, ducats, qty }

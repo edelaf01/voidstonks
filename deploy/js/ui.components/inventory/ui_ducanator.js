@@ -5,6 +5,7 @@ import { getSlug } from "../../utils/slugs.utils.js";
 import { getItemIcon } from "../../utils/ui_utils.js";
 import { getPriceValue, MEMORY_CACHE } from "../../services/market/prices.service.js";
 import { exposeGlobals } from "../../utils/global_registry.js";
+import { ducatsBeatSale } from "../../utils/inventory/reward_value.js";
 
 /**
  * Ducanator tab: prime parts ranked by ducats against their platinum price. Own state (sort, owned
@@ -42,7 +43,6 @@ export function renderDucanatorView(list, opts = {}) {
   const ownedOnly = opts.ownedOnly !== false;
   const sortCol = opts.sortCol || "ratio"; // name | plat | ducats | ratio
   const sortDir = opts.sortDir || -1; // -1 desc, 1 asc
-  const KEEP_PLAT_THRESHOLD = Number.isFinite(opts.threshold) ? opts.threshold : 15;
   // called again once missing prices arrive, to re-rank
   const rerender = opts.rerender || null;
 
@@ -80,7 +80,7 @@ export function renderDucanatorView(list, opts = {}) {
 
   rows.forEach((r) => {
     const platReady = r.plat !== null;
-    const shouldFund = !platReady || r.plat <= KEEP_PLAT_THRESHOLD;
+    const shouldFund = !platReady || ducatsBeatSale(r.ducats, r.plat);
     // unpriced rows go to "trade for ducats", where most end up, but do not add to the total until priced
     if (platReady) {
       if (shouldFund) {
@@ -219,7 +219,6 @@ export function renderDucanatorTab() {
     ownedOnly: document.getElementById("ducat-owned-only")?.checked !== false,
     sortCol: ducatSortCol,
     sortDir: ducatSortDir,
-    threshold: Number.parseInt(document.getElementById("ducat-threshold")?.value ?? "15", 10),
     rerender: () => {
       if (state.activeTab !== "ducat") return;
       renderDucanatorTab();
@@ -228,17 +227,9 @@ export function renderDucanatorTab() {
   renderDucanatorView(list, opts);
 }
 
-export function updateDucatThreshold(val) {
-  const out = document.getElementById("ducat-threshold-val");
-  if (out) out.innerHTML = `${val}<span class="plat-icon-inline"></span>`;
-  renderDucanatorTab();
-}
-
-
 exposeGlobals({
     renderDucanatorTab,
     setDucatSort,
-    updateDucatThreshold,
     toggleDucatOwned,
     clearDucatSearch,
 }, "ui.components/inventory/ui_ducanator.js");
