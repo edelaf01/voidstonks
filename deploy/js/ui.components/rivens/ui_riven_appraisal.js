@@ -10,6 +10,7 @@ import {
   STAT_TIER_TOP,
   STAT_TIER_MID,
 } from "../../utils/rivens/riven_logic.js";
+import { statUnit } from "../../utils/rivens/riven_stat_display.js";
 import { getMetaStats } from "../../services/rivens/riven_market.service.js?v=1.9";
 import { computeDesirabilityMultiplier } from "../../services/rivens/riven_appraisal.service.js";
 
@@ -144,11 +145,12 @@ export function buildStatsTable(stats, weaponData, buffCount, hasNeg, isEs) {
     else if (["B+", "B"].includes(res.grade)) color = "grade-b";
     else if (["C+", "C"].includes(res.grade)) color = "grade-c";
     const isNegStat = stat.value < 0;
+    const unit = statUnit(internalName || stat.name);
     const row = document.createElement("div");
     row.className = `st-row${isNegStat ? " neg" : ""}`;
     row.innerHTML = `
       <span class="st-name" title="${escapeHTML(stat.name)}">${escapeHTML(stat.name)}</span>
-      <span class="st-val">${isNegStat ? "−" : "+"}${Math.abs(stat.value)}%</span>
+      <span class="st-val">${isNegStat ? "−" : "+"}${Math.abs(stat.value)}${unit}</span>
       <span class="st-ideal">${escapeHTML(String(res.range))}</span>
       <span class="st-grade ${color}">${escapeHTML(String(res.grade))}</span>`;
     table.appendChild(row);

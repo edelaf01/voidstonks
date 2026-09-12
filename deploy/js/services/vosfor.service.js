@@ -1,6 +1,7 @@
 import { dbHelper } from "../repositories/storage.repository.js";
 import { getArcaneBatch } from "../repositories/api.repository.js";
 import { state } from "../state.js";
+import { copiesForMaxRank } from "../utils/vosfor_math.js";
 
 // Calculadora de Vosfor: datos estáticos (colecciones de Loid + valores de disolución)
 // y carga perezosa de precios/liquidez de arcanos contra el worker (type=arcane_batch).
@@ -388,25 +389,120 @@ export function bestBalancedPackRate(data) {
     return best;
 }
 
+// Disolver va a packs ALEATORIOS, así que su EV nominal no vale lo mismo que el platino
+// seguro en mano. Vive aquí y no dentro de una función porque el veredicto por arcano y el
+// ranking de "mejor para disolver" tienen que descontar igual, o se contradicen.
+const CERTAINTY = 0.75;
+
+// Dos salidas a menos de este margen son "parejo". Compartido por el mismo motivo que
+// CERTAINTY: el simulador usaba ±15% y el badge por fila 8%, y con el mismo arcano uno decía
+// VENDER y el otro PAREJO.
+const EVEN_BAND = 0.08;
+
+const round1 = (x) => Math.round(x * 10) / 10;
+
 /**
- * Copias necesarias para el rango máximo de un arcano (números triangulares):
- * fusionLimit 5 -> 21 copias, fusionLimit 3 -> 10 copias.
+ * Veredicto del simulador "¿Vender o disolver?": `qty` unidades a R0 o a rango máximo.
+ *
+ * Misma base que `arcaneVerdict`: precio realizable (no el ask), tasa ajustada por liquidez
+ * y descuento de apuesta. El simulador calculaba lo suyo con el ask crudo y la tasa sin
+ * ajustar, y con un arcano de ask alto y 0 ventas decía VENDER mientras el badge de esa
+ * misma fila decía DISOLVER.
+ *
+ * @returns null sin meta o sin stats; `verdict: "pending"` hasta que haya tasa de pack.
  */
-export function copiesForMaxRank(meta) {
-    const mr = Math.max(1, Math.min(meta?.maxRank ?? 5, 5));
-    return ((mr + 1) * (mr + 2)) / 2;
+export function sellSimVerdict(meta, st, { isMax, qty, liqRate }) {
+    if (!meta || !st) return null;
+    const copiesMax = copiesForMaxRank(meta);
+    const copiesPerUnit = isMax ? copiesMax : 1;
+    const unitRealizable = isMax ? realizableMax(st) : realizableR0(st);
+    const sellValue = qty * unitRealizable;
+    const totalVosfor = qty * copiesPerUnit * (meta.vosfor || 0);
+    const dissolveValue = liqRate > 0 ? totalVosfor * liqRate * CERTAINTY : null;
+
+    let verdict = "pending";
+    if (dissolveValue !== null) {
+        const top = Math.max(sellValue, dissolveValue);
+        if (sellValue <= 0) verdict = "dissolve";
+        else if (Math.abs(sellValue - dissolveValue) <= top * EVEN_BAND) verdict = "even";
+        else verdict = sellValue > dissolveValue ? "sell" : "dissolve";
+    }
+    return { copiesMax, copiesPerUnit, unitRealizable, sellValue, totalVosfor, dissolveValue, verdict };
+}
+
+/**
+ * Cuánto mejor sale disolver una copia que quedársela, como múltiplo.
+ *
+ * El ranking de disolver ordenaba por el vosfor que rinde el arcano, y ese número es casi
+ * constante por rareza (61 de los 103 raros dan 24): ordenaba por una constante, dejaba el
+ * orden dentro del grupo a merced del empate y no miraba ni el precio ni las ventas. Lo que
+ * decide si disolver es buena idea no es lo que te dan, es lo que DEJAS de ganar.
+ *
+ * Por copia, no por lote, para que un común y un legendario sean comparables. Quedársela vale
+ * lo mejor de venderla suelta a R0 o su parte de un R{max} fusionado (`copiesMax` copias = 1
+ * R{max}), y las dos cifras ya vienen ponderadas por liquidez, que es lo que hunde a un arcano
+ * sin ventas.
+ *
+ * @returns null si no hay nada que ordenar (sin stats, sin tasa de pack, o vosfor 0), y
+ *          `edge: Infinity` cuando no hay mercado a ningún rango: no hay nada que perder.
+ */
+export function dissolveEdge(meta, st, liqRate) {
+    if (!meta || !st || !(liqRate > 0)) return null;
+    const dissolveValue = (meta.vosfor || 0) * liqRate * CERTAINTY;
+    if (!(dissolveValue > 0)) return null;
+
+    const copiesMax = copiesForMaxRank(meta);
+    const keepValue = Math.max(realizableR0(st), realizableMax(st) / copiesMax);
+
+    return {
+        copiesMax,
+        keepValue,
+        dissolveValue,
+        edge: keepValue > 0 ? dissolveValue / keepValue : Infinity,
+    };
+}
+
+/**
+ * Cuánto Vosfor sacas por cada platino si COMPRAS el arcano para disolverlo.
+ *
+ * Es la operación inversa a la de arriba: aquí tienes platino y quieres Vosfor, así que lo
+ * que manda es lo barato que sale comprar la copia, no lo que valdría venderla. Por eso se
+ * usa el ask crudo (`pe`, la mediana de las 5 ventas más baratas) y NO el precio realizable:
+ * al comprar pagas lo que piden, el descuento por liquidez no te lo hace nadie.
+ *
+ * `sellers` va en el resultado porque la ratio sola engaña: un arcano a 2p con un único
+ * vendedor no es una fuente de Vosfor, es una compra y se acabó.
+ *
+ * @returns null si no hay ask, o si el arcano no da Vosfor al disolverse.
+ */
+export function vosforPerPlat(meta, st) {
+    const ask = st?.pe || 0;
+    const vosfor = meta?.vosfor || 0;
+    if (!(ask > 0) || !(vosfor > 0)) return null;
+    return {
+        ratio: vosfor / ask,
+        buyPrice: ask,
+        sellers: st.s || 0,
+        // Lo que te costaría en platino juntar los 200 Vosfor de un pack de Loid.
+        platPerPack: (200 / vosfor) * ask,
+    };
 }
 
 /**
  * Veredicto completo para R0 (1 copia) y rango máximo (21 o 10 copias según fusionLimit):
  * Compara vender R0 vs Disolver R0, y Vender Rmax vs Vender N R0s vs Disolver N copias.
+ *
+ * `spend` es la salida de bestBalancedPackRate: el pack en el que se gastaría el Vosfor de
+ * verdad. Antes llegaba el ganador por tasa cruda y se descontaba con SU balancedRate, que
+ * no es la mejor ajustada cuando el pack más rentable en crudo no es el más líquido; el
+ * ranking de "Mejor Disolver" ya usaba la buena y el badge por fila no.
  */
-export function arcaneVerdict(slug, arcanes, bestRate) {
+export function arcaneVerdict(slug, arcanes, spend) {
     const meta = arcanes[slug];
     const st = ARC_STATS.get(slug);
-    if (!meta || !st) return { verdict: "loading", verdictR5: "loading" };
+    if (!meta || !st) return {};
 
-    const rate = bestRate ? bestRate.rate : 0;
+    const rate = spend ? spend.rate : 0;
     const copiesMax = copiesForMaxRank(meta);
 
     // R0 Math (1 copia). Precio REALIZABLE, no el listing: un arcano con mercado muerto no
@@ -414,36 +510,15 @@ export function arcaneVerdict(slug, arcanes, bestRate) {
     const sellR0 = realizableR0(st);
     const dissolvePlatR0 = meta.vosfor * rate;
 
-    let verdictR0 = "pending";
-    if (bestRate) {
-        if (sellR0 <= 0) verdictR0 = "dissolve";
-        else if (sellR0 > dissolvePlatR0 * 1.15) verdictR0 = "sell";
-        else if (sellR0 < dissolvePlatR0 * 0.85) verdictR0 = "dissolve";
-        else verdictR0 = "even";
-    }
-
     // Rango máximo (copiesMax copias: 21 si fusionLimit 5, 10 si fusionLimit 3). Realizable.
     const sellR5 = realizableMax(st);
     const sell21R0 = sellR0 * copiesMax;
     const dissolvePlat21 = (meta.vosfor * copiesMax) * rate;
 
-    let verdictR5 = "pending";
-    let bestOptionR5Val = Math.max(sellR5, sell21R0, dissolvePlat21);
-
-    if (bestRate) {
-        if (sellR5 <= 0 && sell21R0 <= 0) verdictR5 = "dissolve";
-        else if (bestOptionR5Val === sellR5 && sellR5 > dissolvePlat21 * 1.1) verdictR5 = "sell_r5";
-        else if (bestOptionR5Val === sell21R0 && sell21R0 > dissolvePlat21 * 1.1) verdictR5 = "sell_r0";
-        else if (dissolvePlat21 > Math.max(sellR5, sell21R0) * 1.05) verdictR5 = "dissolve";
-        else verdictR5 = "even";
-    }
-
     // Porcentaje de ganancia por subir a rango máximo frente a vender las copias R0
     const r5RankBonus = sell21R0 > 0 && sellR5 > sell21R0
         ? Math.round(((sellR5 - sell21R0) / sell21R0) * 100)
         : 0;
-
-    const sellPerCopyMax = copiesMax > 0 ? sellR5 / copiesMax : 0;
 
     // ── VEREDICTO por CONJUNTO de `copiesMax` copias (foco en R5/R3, no en spamear R0) ──
     // Motivo: vender N copias R0 sueltas son N trades tediosos por poco cada uno; fusionar a
@@ -452,9 +527,8 @@ export function arcaneVerdict(slug, arcanes, bestRate) {
     //   - fricción por trade (EFFORT_PL): penaliza vender muchas copias sueltas,
     //   - tasa ajustada por liquidez (no la cruda): el pack no siempre revende todo,
     //   - descuento de certeza (CERTAINTY): una apuesta vale menos que el mismo plat seguro.
-    const CERTAINTY = 0.75;   // disolver→packs vale ~75% de su EV nominal (varianza + fricción de reventa)
     const EFFORT_PL = 2;      // coste de fricción en pl por cada trade de venta
-    const liqRate = bestRate?.ev?.balancedRate ?? rate;   // tasa liquidez-ajustada del mejor pack
+    const liqRate = spend?.balancedRate ?? rate;
 
     // No puedes colocar 21 copias R0 de un común de mercado muerto: el mercado se satura y el
     // precio se hunde. Limita las copias R0 REALMENTE vendibles por la liquidez (ventas/día):
@@ -473,38 +547,37 @@ export function arcaneVerdict(slug, arcanes, bestRate) {
 
     let bestAction = "pending";
     let gambleWarning = false;
-    if (bestRate) {
+    if (spend) {
         if (bestGuaranteed <= 0 && netDissolve <= 0) {
             bestAction = "dissolve";
         } else {
             const opts = [["sell_max", netSellMax], ["sell_r0", netSellR0], ["dissolve", netDissolve]];
             opts.sort((a, b) => b[1] - a[1]);
             const [topKey, topVal] = opts[0];
-            bestAction = Math.abs(topVal - opts[1][1]) <= topVal * 0.08 ? "even" : topKey;
+            bestAction = Math.abs(topVal - opts[1][1]) <= topVal * EVEN_BAND ? "even" : topKey;
             // Aviso: disolver "gana" en EV pero sacrificas un valor garantizado notable.
             if (bestAction === "dissolve" && bestGuaranteed >= 20) gambleWarning = true;
         }
     }
 
+    // Los platinos van redondeados: el realizable es ask x factor de liquidez y el tooltip
+    // enseñaba "0.6000000000000001 pl".
     return {
         gambleWarning,
-        guaranteedBest: Math.round(Math.max(0, bestGuaranteed) * 10) / 10,
-        netDissolveAdj: Math.round(netDissolve * 10) / 10,
-        verdict: verdictR0,
-        verdictR5: verdictR5,
+        guaranteedBest: round1(Math.max(0, bestGuaranteed)),
+        netDissolveAdj: round1(netDissolve),
         bestAction,
-        sellPerCopyMax: Math.round(sellPerCopyMax * 10) / 10,
-        sell: sellR0,
-        sellR5: sellR5,
-        sell21R0: sell21R0,
-        dissolvePlat: dissolvePlatR0,
-        dissolvePlat21: dissolvePlat21,
+        sell: round1(sellR0),
+        sellR5: round1(sellR5),
+        sell21R0: round1(sell21R0),
+        dissolvePlat: round1(dissolvePlatR0),
+        dissolvePlat21: round1(dissolvePlat21),
         r5RankBonus: r5RankBonus,
         copiesMax,
         maxRank: Math.min(meta.maxRank ?? 5, 5),
         hasR5Market: st.pem > 0 && (st.rm || 0) > 0,
-        bestPackEs: bestRate?.pack?.es || "",
-        bestPackEn: bestRate?.pack?.en || "",
+        bestPackEs: spend?.pack?.es || "",
+        bestPackEn: spend?.pack?.en || "",
     };
 }
 

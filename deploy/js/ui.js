@@ -281,7 +281,7 @@ function updateDucatFilterLabels(t) {
   // decirlo, el rótulo prometía un complemento que la vista no puede dar.
   const ownedChip = document.getElementById("ducat-owned-chip");
   if (ownedChip && d.ownedOnlyTitle) ownedChip.dataset.tooltip = d.ownedOnlyTitle;
-  setText("ducat-threshold-label", d.threshold);
+  setText("ducat-rule-label", d.rule);
 }
 
 function updateStaticTexts(t) {

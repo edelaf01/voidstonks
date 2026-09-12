@@ -44,6 +44,16 @@ export function saleValue(price) {
 }
 
 /**
+ * Fundirla en ducados gana a venderla suelta. Es la misma comparación que hace rewardValue
+ * sin la prima del set, y la usa también el Ducanator: antes decidía por un umbral de platino
+ * (todo lo de ≤15p a Baro) y una pieza de 12p con 45 ducados salía "fundir" aquí y "vender"
+ * en la pantalla de recompensas.
+ */
+export function ducatsBeatSale(ducats, price) {
+  return (Number(ducats) || 0) / DUCATS_PER_PLAT > saleValue(price);
+}
+
+/**
  * Valor en platino de UNA recompensa, con el desglose de por qué.
  *
  * @param item  { name, price, ducats, qty }
