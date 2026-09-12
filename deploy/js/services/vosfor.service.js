@@ -1,6 +1,7 @@
 import { dbHelper } from "../repositories/storage.repository.js";
 import { getArcaneBatch } from "../repositories/api.repository.js";
 import { state } from "../state.js";
+import { copiesForMaxRank } from "../utils/vosfor_math.js";
 
 // Vosfor calculator: static data (Loid collections, dissolve values) and lazy arcane
 // price and liquidity loading from the worker (type=arcane_batch). Chunks are always the
@@ -345,60 +346,101 @@ export function bestBalancedPackRate(data) {
     return best;
 }
 
+// Dissolving goes into random packs, so its EV is worth less than sure platinum.
+// Shared so the per-arcane verdict and the dissolve ranking discount the same.
+const CERTAINTY = 0.75;
+
+// Two outcomes within this margin are "even".
+const EVEN_BAND = 0.08;
+
+const round1 = (x) => Math.round(x * 10) / 10;
+
 /**
- * Copies needed for an arcane's max rank (triangular numbers): fusionLimit 5 -> 21 copies, fusionLimit 3 -> 10
- * copies.
+ * "Sell or dissolve?" simulator verdict for `qty` units at R0 or max rank, on the same
+ * basis as arcaneVerdict.
  */
-export function copiesForMaxRank(meta) {
-    const mr = Math.max(1, Math.min(meta?.maxRank ?? 5, 5));
-    return ((mr + 1) * (mr + 2)) / 2;
+export function sellSimVerdict(meta, st, { isMax, qty, liqRate }) {
+    if (!meta || !st) return null;
+    const copiesMax = copiesForMaxRank(meta);
+    const copiesPerUnit = isMax ? copiesMax : 1;
+    const unitRealizable = isMax ? realizableMax(st) : realizableR0(st);
+    const sellValue = qty * unitRealizable;
+    const totalVosfor = qty * copiesPerUnit * (meta.vosfor || 0);
+    const dissolveValue = liqRate > 0 ? totalVosfor * liqRate * CERTAINTY : null;
+
+    let verdict = "pending";
+    if (dissolveValue !== null) {
+        const top = Math.max(sellValue, dissolveValue);
+        if (sellValue <= 0) verdict = "dissolve";
+        else if (Math.abs(sellValue - dissolveValue) <= top * EVEN_BAND) verdict = "even";
+        else verdict = sellValue > dissolveValue ? "sell" : "dissolve";
+    }
+    return { copiesMax, copiesPerUnit, unitRealizable, sellValue, totalVosfor, dissolveValue, verdict };
 }
 
-export function arcaneVerdict(slug, arcanes, bestRate) {
+/**
+ * How much better dissolving one copy is than keeping it, as a multiple. Keeping is worth
+ * the best of selling it at R0 or its share of a fused max rank, both liquidity weighted.
+ */
+export function dissolveEdge(meta, st, liqRate) {
+    if (!meta || !st || !(liqRate > 0)) return null;
+    const dissolveValue = (meta.vosfor || 0) * liqRate * CERTAINTY;
+    if (!(dissolveValue > 0)) return null;
+
+    const copiesMax = copiesForMaxRank(meta);
+    const keepValue = Math.max(realizableR0(st), realizableMax(st) / copiesMax);
+
+    return {
+        copiesMax,
+        keepValue,
+        dissolveValue,
+        edge: keepValue > 0 ? dissolveValue / keepValue : Infinity,
+    };
+}
+
+/**
+ * Vosfor per platinum when you buy the arcane to dissolve it. Uses the raw ask: buying
+ * pays what sellers ask.
+ */
+export function vosforPerPlat(meta, st) {
+    const ask = st?.pe || 0;
+    const vosfor = meta?.vosfor || 0;
+    if (!(ask > 0) || !(vosfor > 0)) return null;
+    return {
+        ratio: vosfor / ask,
+        buyPrice: ask,
+        sellers: st.s || 0,
+        platPerPack: (200 / vosfor) * ask,
+    };
+}
+
+/**
+ * Full verdict for R0 (1 copy) and max rank (21 or 10 copies by fusionLimit).
+ * `spend` is the bestBalancedPackRate output.
+ */
+export function arcaneVerdict(slug, arcanes, spend) {
     const meta = arcanes[slug];
     const st = ARC_STATS.get(slug);
-    if (!meta || !st) return { verdict: "loading", verdictR5: "loading" };
+    if (!meta || !st) return {};
 
-    const rate = bestRate ? bestRate.rate : 0;
+    const rate = spend ? spend.rate : 0;
     const copiesMax = copiesForMaxRank(meta);
 
     const sellR0 = realizableR0(st);
     const dissolvePlatR0 = meta.vosfor * rate;
 
-    let verdictR0 = "pending";
-    if (bestRate) {
-        if (sellR0 <= 0) verdictR0 = "dissolve";
-        else if (sellR0 > dissolvePlatR0 * 1.15) verdictR0 = "sell";
-        else if (sellR0 < dissolvePlatR0 * 0.85) verdictR0 = "dissolve";
-        else verdictR0 = "even";
-    }
-
     const sellR5 = realizableMax(st);
     const sell21R0 = sellR0 * copiesMax;
     const dissolvePlat21 = (meta.vosfor * copiesMax) * rate;
-
-    let verdictR5 = "pending";
-    let bestOptionR5Val = Math.max(sellR5, sell21R0, dissolvePlat21);
-
-    if (bestRate) {
-        if (sellR5 <= 0 && sell21R0 <= 0) verdictR5 = "dissolve";
-        else if (bestOptionR5Val === sellR5 && sellR5 > dissolvePlat21 * 1.1) verdictR5 = "sell_r5";
-        else if (bestOptionR5Val === sell21R0 && sell21R0 > dissolvePlat21 * 1.1) verdictR5 = "sell_r0";
-        else if (dissolvePlat21 > Math.max(sellR5, sell21R0) * 1.05) verdictR5 = "dissolve";
-        else verdictR5 = "even";
-    }
 
     const r5RankBonus = sell21R0 > 0 && sellR5 > sell21R0
         ? Math.round(((sellR5 - sell21R0) / sell21R0) * 100)
         : 0;
 
-    const sellPerCopyMax = copiesMax > 0 ? sellR5 / copiesMax : 0;
-
     // Verdict per lot of `copiesMax` copies: net value of each outcome, with friction per
     // trade, liquidity adjusted rate and the CERTAINTY discount for dissolving.
-    const CERTAINTY = 0.75;
     const EFFORT_PL = 2;      // friction per sell trade, in plat
-    const liqRate = bestRate?.ev?.balancedRate ?? rate;
+    const liqRate = spend?.balancedRate ?? rate;
 
     // R0 copies you can actually sell are capped by liquidity; the rest only counts as dissolve.
     const volDay = (st.v || 0) + (st.vm || 0);
@@ -413,37 +455,34 @@ export function arcaneVerdict(slug, arcanes, bestRate) {
 
     let bestAction = "pending";
     let gambleWarning = false;
-    if (bestRate) {
+    if (spend) {
         if (bestGuaranteed <= 0 && netDissolve <= 0) {
             bestAction = "dissolve";
         } else {
             const opts = [["sell_max", netSellMax], ["sell_r0", netSellR0], ["dissolve", netDissolve]];
             opts.sort((a, b) => b[1] - a[1]);
             const [topKey, topVal] = opts[0];
-            bestAction = Math.abs(topVal - opts[1][1]) <= topVal * 0.08 ? "even" : topKey;
+            bestAction = Math.abs(topVal - opts[1][1]) <= topVal * EVEN_BAND ? "even" : topKey;
             if (bestAction === "dissolve" && bestGuaranteed >= 20) gambleWarning = true;
         }
     }
 
     return {
         gambleWarning,
-        guaranteedBest: Math.round(Math.max(0, bestGuaranteed) * 10) / 10,
-        netDissolveAdj: Math.round(netDissolve * 10) / 10,
-        verdict: verdictR0,
-        verdictR5: verdictR5,
+        guaranteedBest: round1(Math.max(0, bestGuaranteed)),
+        netDissolveAdj: round1(netDissolve),
         bestAction,
-        sellPerCopyMax: Math.round(sellPerCopyMax * 10) / 10,
-        sell: sellR0,
-        sellR5: sellR5,
-        sell21R0: sell21R0,
-        dissolvePlat: dissolvePlatR0,
-        dissolvePlat21: dissolvePlat21,
+        sell: round1(sellR0),
+        sellR5: round1(sellR5),
+        sell21R0: round1(sell21R0),
+        dissolvePlat: round1(dissolvePlatR0),
+        dissolvePlat21: round1(dissolvePlat21),
         r5RankBonus: r5RankBonus,
         copiesMax,
         maxRank: Math.min(meta.maxRank ?? 5, 5),
         hasR5Market: st.pem > 0 && (st.rm || 0) > 0,
-        bestPackEs: bestRate?.pack?.es || "",
-        bestPackEn: bestRate?.pack?.en || "",
+        bestPackEs: spend?.pack?.es || "",
+        bestPackEn: spend?.pack?.en || "",
     };
 }
 

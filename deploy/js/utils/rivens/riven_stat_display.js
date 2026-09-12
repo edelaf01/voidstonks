@@ -57,3 +57,12 @@ export function getLocalizedStatName(nameEn) {
 // stats that only roll positive (elements, Punch Through) never go in a negatives list; the rule lives in
 // config.js (canBeNegative)
 export const CANT_BE_NEGATIVE = { test: (s) => !canBeNegative(s) };
+
+// not every stat is a percentage: punch through in meters, combo duration in seconds, initial combo flat
+export function statUnit(statName) {
+  const norm = String(statName || "").trim().toLowerCase();
+  if (norm === "punch through") return "m";
+  if (norm === "combo duration") return "s";
+  if (norm === "initial combo" || norm === "channeling damage") return "";
+  return "%";
+}
