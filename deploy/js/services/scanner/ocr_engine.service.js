@@ -11,6 +11,7 @@ export function motorDecidido() { return guardado() !== null; }
 
 export function motorElegido() { return guardado() === MOTOR_PRECISO ? MOTOR_PRECISO : MOTOR_CLASICO; }
 
+// warm-up starts here, not on the first reward frame, which would be lost waiting for the model
 export function aplicaMotor(motor) {
     const elegido = motor === MOTOR_PRECISO ? MOTOR_PRECISO : MOTOR_CLASICO;
     activo = elegido;

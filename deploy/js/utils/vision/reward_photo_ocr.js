@@ -1,3 +1,5 @@
+import { rawWords as palabrasCrudas } from "./ocr_words.js";
+
 const MAX_SIDE = 1800;
 
 const SCOUT_SIDE = 1500;
@@ -230,7 +232,7 @@ export async function scanRewardPhoto(source, deps, onProgress, opts = {}) {
             const cvs = drawTo(source, sx, sy, sw, sh, tw, th, p, opencvEngine);
             const worker = ocrRepository.workers[i % ocrRepository.workers.length] || ocrRepository.workers[0];
             const { data } = await ocrRepository.recognize(worker, cvs, {}, { blocks: true });
-            const rawWords = data.words || [];
+            const rawWords = palabrasCrudas(data);
             return {
                 pass: p.name,
                 width: cvs.width,

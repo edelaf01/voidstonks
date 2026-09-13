@@ -140,6 +140,11 @@ export function stopLiveSession() {
     liveStream.getTracks().forEach((track) => track.stop());
     liveStream = null;
   }
+  const v = document.getElementById("live-video");
+  if (v) {
+    v.pause();
+    v.srcObject = null;
+  }
   ScannerService.stop();
   const toggleBtn = document.getElementById("scanner-toggle");
   if (toggleBtn) {
@@ -171,6 +176,7 @@ RelicScreenService.onApplied = (changed) => {
 globalThis.showTrackConfirm = (relicName) => {
   const t = TEXTS[state.currentLang].scanner;
   showToast(`${t.relicDetected}: ${relicName}`, {
+    duration: 20000,
     action: {
       text: t.track,
       callback: () => {

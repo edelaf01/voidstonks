@@ -1,3 +1,14 @@
+// extracts word boxes across tesseract.js versions where v6 nests words under blocks
+export function rawWords(data) {
+    if (Array.isArray(data?.words)) return data.words;
+    const out = [];
+    const desde = (lines) => (lines || []).forEach((l) => (l.words || []).forEach((w) => out.push(w)));
+    desde(data?.lines);
+    if (!out.length) (data?.paragraphs || []).forEach((p) => desde(p.lines));
+    if (!out.length) (data?.blocks || []).forEach((b) => (b.paragraphs || []).forEach((p) => desde(p.lines)));
+    return out;
+}
+
 export function collectWords(data) {
     const out = [];
     const push = (ws) => (ws || []).forEach((w) => {

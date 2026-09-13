@@ -1,5 +1,5 @@
 // splits fused OCR words using catalog vocabulary and dynamic programming
-export function splitFusedWord(token, vocab, { minLargo = 3 } = {}) {
+export function splitFusedWord(token, vocab, { minLargo = 3, pareceConocida = null } = {}) {
     const n = token.length;
     // existing words are left alone so prefix mode does not split "PRIMED" into "PRIME"
     if (!n || vocab.has(token)) return null;
@@ -18,7 +18,13 @@ export function splitFusedWord(token, vocab, { minLargo = 3 } = {}) {
     if (!mejor[n] || mejor[n].palabras < 2) {
         fin = -1;
         for (let i = n - 1; i >= Math.max(4, minLargo); i--) if (mejor[i]) { fin = i; break; }
-        if (fin < 0 || mejor[fin].palabras < 1) return null;
+        if (fin < 0 || mejor[fin].palabras < 1) {
+            if (pareceConocida?.(token)) return null;
+            for (let i = minLargo; i <= n - 4; i++) {
+                if (vocab.has(token.slice(i))) return [token.slice(0, i), token.slice(i)];
+            }
+            return null;
+        }
         resto = token.slice(fin);
     }
     const salida = [];
@@ -29,6 +35,11 @@ export function splitFusedWord(token, vocab, { minLargo = 3 } = {}) {
 
 export function catalogVocab(items) {
     return new Set(items.flatMap((i) => i.originalName.toUpperCase().split(/\s+/)));
+}
+
+export function pareceDelVocab(vocab, similitud, umbral = 0.85) {
+    const palabras = [...vocab].filter((v) => v.length >= 4);
+    return (token) => palabras.some((v) => Math.abs(v.length - token.length) <= 2 && similitud(token, v) >= umbral);
 }
 
 function reparte(w, trozos, largo) {
@@ -57,14 +68,14 @@ function cortaPorCaja(texto, vocab) {
     return trozos;
 }
 
-export function splitFusedWords(words, vocab, { minLargo = 9 } = {}) {
+export function splitFusedWords(words, vocab, { minLargo = 9, pareceConocida = null } = {}) {
     const porCaja = words.flatMap((w) => {
         const trozos = cortaPorCaja(w.text, vocab);
         return trozos ? reparte(w, trozos, w.text.length) : [w];
     });
     return porCaja.flatMap((w) => {
         const t = w.text.toUpperCase().replaceAll(/[^A-Z0-9]/g, "");
-        const trozos = t.length >= minLargo && !vocab.has(t) && splitFusedWord(t, vocab);
+        const trozos = t.length >= minLargo && !vocab.has(t) && splitFusedWord(t, vocab, { pareceConocida });
         return trozos ? reparte(w, trozos, t.length) : [w];
     });
 }

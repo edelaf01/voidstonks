@@ -17,6 +17,11 @@ describe("palabras pegadas por el OCR", () => {
         assert.equal(splitFusedWord("", VOCAB), null);
     });
 
+    test("si la mal leída va delante, el sufijo del catálogo la separa igual", () => {
+        assert.deepEqual(splitFusedWord("PFIMECHASSIS", new Set([...VOCAB, "CHASSIS"])), ["PFIME", "CHASSIS"]);
+        assert.equal(splitFusedWord("XXQZSTOCKZZZ", VOCAB), null);
+    });
+
     test("sin un prefijo del catálogo de al menos 4 letras no se parte", () => {
         assert.equal(splitFusedWord("XXQZSTOCKZZZ", VOCAB), null);
     });

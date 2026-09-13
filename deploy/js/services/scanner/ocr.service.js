@@ -1,11 +1,13 @@
 import { state } from "../../state.js";
 import { OCRRepository } from "../../repositories/ocr.repository.js";
 import { readBadgeDigits } from "../../utils/vision/badge_digit_ocr.js";
-import { splitFusedWord, catalogVocab } from "../../utils/vision/word_split.js";
+import { splitFusedWord, catalogVocab, pareceDelVocab } from "../../utils/vision/word_split.js";
+import { rawWords } from "../../utils/vision/ocr_words.js";
 import { radioDeDedup, pasoEntreTarjetas, zonasDeRotulo } from "../../utils/vision/reward_cards.js";
 import { recuperaComponente, recuperaPorSufijo } from "../../utils/inventory/component_recover.js";
 import { normalizeOCRWords, tokensSinInformacion, tieneEvidenciaPropia, confirmaPrime } from "../../utils/inventory/ocr_words.js";
 
+// the catalog is ASCII but PaddleOCR adds accents ("PRÍME")
 const sinAcentos = (texto) => texto.normalize("NFD").replaceAll(/[\u0300-\u036f]/g, "");
 
 export const OCRService = {
@@ -38,6 +40,7 @@ export const OCRService = {
 
         this.knownParts = tempParts;
         this.tokensGenericos = tokensSinInformacion(this.cachedDbItems);
+        this._vocabCache = null; this._pareceConocida = null;
     },
 
     editDistance(s1, s2) {
@@ -406,9 +409,8 @@ export const OCRService = {
     },
 
     async extractCellText(worker, textCanvas) {
-        const { data: { words } } = await OCRRepository.recognize(worker, textCanvas);
-        if (!words || words.length < 1) return null;
-        return words.map((w) => w.text.toUpperCase());
+        const words = rawWords((await OCRRepository.recognize(worker, textCanvas, {}, { text: true, blocks: true })).data);
+        return words.length ? words.map((w) => w.text.toUpperCase()) : null;
     },
 
     _repairBadgeWords(words) {
@@ -458,8 +460,9 @@ export const OCRService = {
         const rawWords = Array.isArray(combinedText) ? combinedText : combinedText.split(/\s+/);
         const crudas = rawWords.flatMap(w => sinAcentos(w).split(/[^A-Za-z0-9]+/).filter(Boolean)).map(w => w.toUpperCase());
         this._vocabCache ||= catalogVocab(this.cachedDbItems);
-        const textWords = crudas.flatMap((w) => (w.length >= 9 && !this._vocabCache.has(w)
-            && splitFusedWord(w, this._vocabCache)) || [w]);
+        this._pareceConocida ||= pareceDelVocab(this._vocabCache, (a, b) => this.similarityOCR(a, b));
+        const textWords = crudas.flatMap((w) => (w.length >= 8 && !this._vocabCache.has(w)
+            && splitFusedWord(w, this._vocabCache, { pareceConocida: this._pareceConocida })) || [w]);
 
         if (textWords.length === 0) return null;
 
@@ -473,6 +476,7 @@ export const OCRService = {
             const cleanOCR = ocrStr.toUpperCase().replaceAll(/[^A-Z0-9]/g, "");
             const cleanDB = dbFirstWord.toUpperCase().replaceAll(/[^A-Z0-9]/g, "");
             if (cleanOCR === cleanDB) return true;
+            if (this.knownParts.has(cleanOCR)) return false;
             if (cleanOCR.length < 3 || cleanDB.length < 3) return cleanOCR === cleanDB;
             const thr = cleanDB.length <= 4 ? 0.72 : 0.62;
             return this.similarityOCR(cleanOCR, cleanDB) >= thr;
