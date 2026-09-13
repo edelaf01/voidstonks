@@ -16,7 +16,7 @@ import { ScannerHUD } from "../../ui.components/ui_scanner_hud.js";
 import { ScannerModal } from "../../ui.components/ui_scanner_modal.js";
 import { initializeOCRDatabase } from "../../repositories/api.repository.js";
 import { escapeHTML } from "../../utils/escape_html.js";
-import { electPageNameColor, cellNameMask, hasInk, readCellWithOwnColor } from "./name_color.service.js";
+import { electPageNameColor, cellNameMask, hasInk, readCellWithOwnColor, readCellCuttingArt } from "./name_color.service.js";
 import { createCellOverlay } from "../../utils/vision/scan_overlay.js";
 import { revisaRejillaCacheada } from "../../utils/vision/grid_cache.js";
 import { detectRewardCells } from "../../utils/vision/mission_complete_grid.js";
@@ -28,6 +28,8 @@ import { cronometro } from "../../utils/perf.js";
 
 import { rivenFingerprint } from "../../utils/rivens/riven_naming.js";
 import { labelFullyRead } from "../../utils/vision/name_lines.js";
+import { hudBottom } from "../../utils/vision/hud_cover.js";
+import { isGarbledCellText } from "../../utils/vision/cell_text_guard.js";
 import { collectWords } from "../../utils/vision/ocr_words.js";
 import { hasComponentSiblings } from "../../utils/inventory/component_siblings.js";
 import { olvidaColorTexto } from "../../utils/vision/reward_preprocess.js";
@@ -101,12 +103,8 @@ export const ScannerService = {
         await OCRRepository.warmUp();
         OpenCVRepository.waitReady().catch(() => { });
         OCRService.initMatcherData();
-        // El 2º worker Tesseract NO se precalienta aquí: es una instancia WASM completa
-        // (~40-60MB) y arrancar el escáner no implica que vaya a hacer falta — sólo lo usan
-        // las pantallas de recompensas, el grid de inventario y el reroll de 2 cartas.
-        // Cada uno de esos puntos llama a ensureSecondWorker() justo antes de necesitarlo y
-        // cae a workers[0] si aún no está listo, así que crearlo aquí sólo adelantaba RAM
-        // que en una sesión de sólo-rivens no se llega a usar nunca.
+        // El pool no se precalienta aquí: cada worker es una instancia WASM (~40-60 MB) que una
+        // sesión de solo rivens no usa nunca. Se crea al entrar en INVENTORY (routeFrameAction).
         this.loop();
     },
 
@@ -253,6 +251,8 @@ export const ScannerService = {
         // El color del texto solo puede cambiar con la pantalla: se recalcula al cambiar de
         // contexto, no en cada frame.
         if (this.ctxLatch.latched !== this.latchedContext) olvidaColorTexto();
+        // Fin de misión atrás: la siguiente puede repetir pieza y tiene que volver a contar.
+        if (this.latchedContext === "MISSION_COMPLETE" && this.ctxLatch.latched !== "MISSION_COMPLETE") this.mcLedger = INITIAL_LEDGER;
         this.latchedContext = this.ctxLatch.latched;
         // El frame congelado son ~15 MB a 1440p: fuera de recompensas se suelta.
         if (this.latchedContext !== "REWARD") {
@@ -297,7 +297,10 @@ export const ScannerService = {
                 // y son ~1 MB más.
                 const m = Math.round((calib.cellH || 0) * 0.25);
                 const y = Math.max(0, zone.y - m);
-                zone = { ...zone, y, h: Math.min(dims.height - y, zone.h + m + (zone.y - y)) };
+                // Borde del HUD (coords del recorte), medido en el margen sin cards sobre la 1ª fila: ver hud_cover.js.
+                const ctx = snapshot.getContext("2d", { willReadFrequently: true });
+                const hud = zone.y > y ? hudBottom(ctx.getImageData(zone.x, y, zone.w, zone.y - y)) : null;
+                zone = { ...zone, y, h: Math.min(dims.height - y, zone.h + m + (zone.y - y)), hud };
             }
             this._frameZoneCache = { key, zone };
         }
@@ -385,8 +388,10 @@ export const ScannerService = {
             }
 
             this.currentRate = 300; // Check faster (every 300ms) for extremely responsive scroll detection!
+            // El pool se crea mientras el usuario aún hace scroll: al repartir la 1ª página se esperaba con ella ya quieta.
+            if (motorActivo() !== MOTOR_PRECISO || !PaddleRepository.listo()) OCRRepository.ensureWorkers(OCRRepository.MAX_WORKERS).catch(() => {});
 
-            const sampleCvs = document.createElement("canvas");
+            const sampleCvs = this._sampleCvs ||= document.createElement("canvas");
             sampleCvs.width = 48; sampleCvs.height = 27;
             const sCtx = sampleCvs.getContext("2d", { willReadFrequently: true });
             sCtx.drawImage(video, 0, Math.floor(video.videoHeight * 0.25), video.videoWidth, Math.floor(video.videoHeight * 0.5), 0, 0, 48, 27);
@@ -1137,7 +1142,7 @@ export const ScannerService = {
      *   2. contigüidad — un hueco en medio del panel es algo tapándolo (ver hasGap)
      *   3. catálogo real de reliquias + isPrime — "Ayatan Amber Star" casa consigo mismo y
      *      se queda fuera; lo que no sale de una reliquia no existe para el matcher
-     *   4. consenso — dos lecturas idénticas, y la firma impide repetir el alta por frame
+     *   4. consenso — dos lecturas idénticas, y el libro de la pantalla impide repetir el alta
      */
     async processMissionComplete(video, dims) {
         const { width, height } = dims;
@@ -1158,10 +1163,9 @@ export const ScannerService = {
             console.log(`[MC] Sin rejilla: ${trace.fail}`);
             return;
         }
-        console.log(`[MC] ${trace.cells} casillas · ${trace.cols}×${trace.rows} · paso ${trace.pitch}${grid.occluded ? " · TAPADA" : ""}`);
+        console.log(`[MC] ${trace.cells} casillas · ${trace.cols}×${trace.rows} · paso ${trace.pitch}${grid.occluded ? " · TAPADA" : ""}${grid.cut ? " · DESPLAZADA" : ""}`);
 
-        // El tooltip de "N OWNED" tapa hasta dos casillas y leer así perdería en silencio la
-        // pieza de debajo. Se espera: desaparece solo en cuanto el ratón se mueve.
+        // El tooltip de "N OWNED" tapa hasta dos casillas: se espera a que el ratón se mueva.
         if (grid.occluded) return;
 
         const worker = OCRRepository.workers[0];
@@ -1173,6 +1177,7 @@ export const ScannerService = {
         // Tesseract pierde la primera entera —medido, "Yareli Prime / Neuroptics / Blueprint"
         // se leía "CE NEUROPTICS BLUEPRINT"— y sin el nombre no hay match posible.
         const rotulos = await leeRotulosMissionComplete(frame, grid.cells.filter((c) => c.named));
+        console.log(`[MC] sin rótulo (mods): ${grid.cells.filter((c) => !c.named).map((c) => `r${c.row}c${c.col}`).join(" ") || "ninguna"}`);
 
         const items = [];
         for (const cell of grid.cells) {
@@ -1187,11 +1192,13 @@ export const ScannerService = {
             }
             // Celda a celda y no de una pasada al panel entero: así las palabras de una
             // recompensa no pueden mezclarse con las de la vecina y fabricar un nombre que
-            // no está en pantalla.
-            // Reliquia primero: su nombre no casa contra el catálogo de piezas (rejilla igual).
+            // no está en pantalla. Reliquia primero: su nombre no casa contra el catálogo de
+            // piezas. Y lo leído se registra siempre: sin el texto no hay forma de saber por
+            // qué una reliquia no entró.
             const relic = OCRService.getRelicMatch(raw);
+            const match = relic ? null : OCRService.getValidItemMatch(raw);
+            console.log(`[MC] r${cell.row}c${cell.col} ${preciso ? "preciso" : "clásico"}: "${raw.replaceAll(/\s+/g, " ").trim()}" → ${relic ? `${relic} ×${cell.qty} (reliquia)` : match?.isPrime ? `${match.originalName} ×${cell.qty}` : "sin match"}`);
             if (relic) { items.push({ name: relic, qty: cell.qty, cell, reliquia: true }); continue; }
-            const match = OCRService.getValidItemMatch(raw);
             if (!match?.isPrime) continue;
             // Un plano de warframe con hermanos de componente ("Xaku Prime Blueprint" frente a
             // "Xaku Prime Neuroptics") puede ser el rótulo de al lado al que se le ha perdido la
@@ -1209,7 +1216,6 @@ export const ScannerService = {
                 }
             }
             items.push({ name: match.originalName, qty: cell.qty, cell });
-            console.log(`[MC] r${cell.row}c${cell.col}: ${match.originalName} ×${cell.qty}`);
         }
 
         const { ledger, commit } = nextLedger(this.mcLedger, items);
@@ -1488,7 +1494,6 @@ export const ScannerService = {
             dCtx.setLineDash([]); // Reset line dash
 
             const agInfo = `AG ${calibData.auto ? "auto" : "manual"} ${autoGrid.rows}r×${autoGrid.cols}c cell ${cellW}×${cellH} zone ${gridZone.x},${gridZone.y} dy ${autoGrid.phaseShift || 0}${calibData.traceSummary?.halfPitchFixed ? " HPfix" : ""}`;
-
             // 4. Extract active non-empty cells
             // El reset del log va ANTES de este loop: reseteándolo después (como antes) se
             // perdían las entradas "SKIPPED (empty)" que este loop ya había registrado.
@@ -1497,26 +1502,27 @@ export const ScannerService = {
             this.lastRawOcrLog.push(`[AUTO-GRID] ${agInfo} · rowBands ${JSON.stringify(calibData.traceSummary?.rowBands || [])} · chain ${JSON.stringify(calibData.traceSummary?.chain || null)}`);
             // Contadores del escaneo para el summary/aviso del debug: en teoría cada página
             // debe rendir rows×cols celdas; si fallan matches o faltan celdas, se marca.
-            const scanStats = { cells: cellRects.length, matched: 0, relics: 0, empty: 0, unmatched: 0, none: 0, ownColor: 0 };
-            // Recorte de la banda de NOMBRE. Debe cubrir nombres de 1, 2 Y 3
-            // líneas (los warframes largos como "Atlas Prime / Neuroptics /
-            // Blueprint" ocupan 3 líneas). Un recorte estrecho abajo (0.76–0.97)
-            // clipaba la 1ª línea de los de 3 → se perdía el nombre del frame y
-            // quedaba "Neuroptics Blueprint" (ambiguo → UNMATCHED). Ampliamos a
-            // 0.56–0.98: el arte que entre por arriba lo rechaza el aislado por
-            // COLOR DE TEXTO (no dependemos de evitar el arte con la geometría).
+            // Al final de la lista la 1ª fila queda bajo la cabecera: se ve el nombre pero no el badge
+            // (leía basura, "Trumna BDG 86"). A media fila pasa lo contrario: badges arriba y nombres
+            // cortados abajo. Se salta la fila 0 solo si NINGUNA celda tiene badge y, además, o el HUD
+            // medido para la sesión la tapa o la fila 1 sí tiene badges (en esa página se leen).
+            const hud = this._frameZoneCache?.zone?.hud ?? -1;
+            const badges = async (r) => { let n = 0; for (const c of cellRects) if (c.r === r && /\d/.test((await leeCantidadBadge(snapshot, c, cellW, cellH, theme)).raw || "")) n++; return n; };
+            const filaTapada = cellRects.some((c) => c.r === 1) && (await badges(0)) === 0
+                && (cellRects[0].sy + cellH * 0.04 < hud || (await badges(1)) >= 3);
+            const activeCells = cellRects.filter((cell) => !(filaTapada && cell.r === 0)).map(cell => ({ cell }));
+            if (filaTapada) this.lastRawOcrLog.push(`[r0] SKIPPED (sin badges bajo el HUD, ${cellRects.length - activeCells.length} celdas)`);
+            const scanStats = { cells: activeCells.length, matched: 0, relics: 0, empty: 0, unmatched: 0, none: 0, ownColor: 0 };
+            // Banda de NOMBRE: cubre 1, 2 y 3 líneas. Un recorte estrecho (0.76–0.97) clipaba la 1ª
+            // línea de los de 3 y quedaba "Neuroptics Blueprint" (ambiguo). El arte que entre por
+            // arriba lo rechaza el aislado por COLOR DE TEXTO, no la geometría.
             const textSrcY = Math.round(cellH * 0.50);
             const textSrcH = Math.round(cellH * 0.48);
 
-            // Las celdas ya NO se recortan aquí. Antes esta pasada binarizaba las 18 y se
-            // quedaba con los canvas hasta el OCR: son ~1,4 MB cada uno (3x sobre la banda)
-            // y el navegador libera los backing store de canvas mucho más despacio que el
-            // heap normal, así que página tras página el escáner se iba a cientos de MB.
-            // Ahora recorta el worker, justo antes de leer, y el canvas se recicla (ring en
-            // vision.service) en cuanto pasa a la siguiente celda. De paso se ahorra la
-            // pasada duplicada: antes se binarizaba una vez para ver si estaba vacía y otra
-            // para el OCR.
-            const activeCells = cellRects.map(cell => ({ cell }));
+            // Las celdas ya NO se recortan aquí: binarizar las 18 y guardar los canvas hasta el OCR
+            // (~1,4 MB cada uno a 3x) se iba a cientos de MB página tras página, porque el navegador
+            // libera los backing store de canvas muy despacio. Recorta el worker justo antes de
+            // leer y el canvas se recicla (ring en vision.service).
 
             // Solo workers de nombres: las CANTIDADES van por template-matching de dígitos
             // (utils/badge_digit_ocr.js), así que los 2 workers de badges se eliminaron.
@@ -1534,6 +1540,7 @@ export const ScannerService = {
             // cambia a mitad de escaneo, así que reelegirlo por página solo añade
             // ocasiones de elegirlo distinto.
             if (!this._nameColorCache || this._nameColorCache.key !== calibKey) {
+                await new Promise((r) => setTimeout(r, 0)); // la rejilla y el voto de color son los dos bloques largos de la 1ª página: que no vayan en la misma tarea
                 // La lectura manda sobre el color del auto-grid: ese sale de contar píxeles.
                 const color = await electPageNameColor(workers[0], snapshot, activeCells, cellW, textSrcY, textSrcH, theme)
                     || calibData?.nameColor;
@@ -1645,18 +1652,15 @@ export const ScannerService = {
                         continue;
                     }
 
-                    // itemText/relicText = la lectura que REALMENTE produjo el match. El overlay
-                    // de debug pintaba siempre combinedText (1ª pasada), así que cuando el match
-                    // salía del fallback la etiqueta mostraba un texto que no casaba con el
-                    // nombre de debajo — justo el caso que hay que poder leer en una captura.
-                    let relicText = combinedText;
-                    let itemText = combinedText;
+                    // itemText/relicText = la lectura que REALMENTE produjo el match: el overlay de
+                    // debug pintaba siempre la 1ª pasada y con el match del fallback no casaba con la card.
+                    let relicText = combinedText, itemText = combinedText;
                     const readable = !this._isGarbledCellText(combinedText);
                     let relicMatch = readable ? OCRService.getRelicMatch(combinedText) : null;
                     let bestItem = (readable && !relicMatch) ? OCRService.getValidItemMatch(combinedText) : null;
                     let fallbackText = null;
 
-                    // Fallback: si no hay match en la banda normal (76%-97%), probamos ventana más amplia (73%-99%)
+                    // Sin match en la banda normal se prueba la ventana 73%-99%.
                     if (!bestItem && !relicMatch) {
                         const fallbackY = Math.floor(cellH * 0.73);
                         const fallbackH = Math.floor(cellH * 0.26);
@@ -1664,9 +1668,7 @@ export const ScannerService = {
                         fallbackText = await OCRService.extractCellText(worker, fullCellCvs);
                         if (fallbackText && fallbackText.length) {
                             logStr = `[r${cell.r}c${cell.c}] OCR (fallback): ${fallbackText.join(" ")}`;
-                            // La ventana del fallback mide su propio color de texto sobre una
-                            // franja distinta, así que puede binarizar el arte en vez del nombre:
-                            // mismo filtro de ilegible que en la pasada normal.
+                            // Esta ventana mide su color sobre otra franja y puede binarizar el arte: mismo filtro de ilegible.
                             if (this._isGarbledCellText(fallbackText)) fallbackText = null;
                         }
                         if (fallbackText && fallbackText.length) {
@@ -1680,8 +1682,7 @@ export const ScannerService = {
                         }
                     }
 
-                    // Antes de rendirse, la celda se relee con SU color: el de la página lo
-                    // vota el conjunto y puede no aislar el nombre en una card concreta.
+                    // Con SU color antes de rendirse: el de la página lo vota el conjunto y puede no aislar esta card.
                     if (!bestItem && !relicMatch && pageNameColor && !ownColorUsed) {
                         const ownText = await readCellWithOwnColor(worker, snapshot, cell, cellW, textSrcY, textSrcH, theme);
                         if (ownText?.length && !this._isGarbledCellText(ownText)) {
@@ -1697,6 +1698,12 @@ export const ScannerService = {
                                 logStr = `[r${cell.r}c${cell.c}] OCR (color propio): ${ownText.join(" ")}`;
                             }
                         }
+                    }
+
+                    // Tres líneas con el arte encima del mismo color: se relee cortando por arriba.
+                    if (!bestItem && !relicMatch) {
+                        const r = await readCellCuttingArt(worker, snapshot, cell, cellW, textSrcY, textSrcH, theme, pageNameColor, (ws) => !this._isGarbledCellText(ws));
+                        if (r) { relicMatch = r.relicMatch; bestItem = r.bestItem; if (relicMatch) relicText = r.words; else itemText = r.words; logStr = `[r${cell.r}c${cell.c}] OCR (sin arte, corte ${r.corte}): ${r.words.join(" ")}`; }
                     }
 
                     // Fallback con PaddleOCR (opt-in: globalThis.OCR_PADDLE_FALLBACK)
@@ -1896,14 +1903,7 @@ export const ScannerService = {
     // palabras y una reliquia 3, así que 9 tokens es basura. Vistos en vivo: "HEJO . YE : L 5, -
     // AL 5 ER . OT NE WL" se apuntó como "Neo W1", y "OO BN TO TI A I - -AF A IP FR LE BOO SE PE
     // EARN" como "Forma Blueprint". Se marca ilegible y el frame siguiente lo reintenta.
-    _isGarbledCellText(words) {
-        if (!words || !words.length) return false;
-        const tokens = words.join(" ").toUpperCase().split(/[^A-Z0-9]+/).filter(Boolean);
-        if (tokens.length > 8) return true;
-        // Fragmentos de UN glifo: un nombre real trae como mucho uno (un código partido
-        // por el OCR, "AL" + "4"). Dos o más es ruido.
-        return tokens.filter(t => t.length === 1).length >= 2;
-    },
+    _isGarbledCellText(words) { return isGarbledCellText(words); },
 
     _isRivenCellText(words) {
         if (!words || !words.length) return false;

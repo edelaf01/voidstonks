@@ -39,6 +39,10 @@ export function createFrameQueue({ max = 3, process }) {
         try {
             while (queue.length) {
                 const job = queue.shift();
+                // Un tick antes de leer: `process` arranca en la MISMA tarea que la captura, y
+                // la detección de rejilla + el color de página encadenados bloqueaban 385 ms
+                // seguidos. Con el tick, el navegador pinta entre la foto y la lectura.
+                await new Promise((r) => setTimeout(r, 0));
                 try {
                     await process(job);
                 } catch (e) {

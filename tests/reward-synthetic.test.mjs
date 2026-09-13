@@ -133,16 +133,20 @@ describe("pantalla de recompensas sintética", () => {
         assert.match(trace.fail, /3 ✓/);
     });
 
-    test("el panel scrolleado se marca como tapado: arriba falta una fila que no se ve", () => {
+    test("el panel scrolleado se lee igual: se marca como desplazado, no como tapado", () => {
         // La primera fila de ✓ cae siempre en el mismo sitio; verla más abajo significa que el
-        // panel está desplazado y hay recompensas cortadas por arriba. Leer así perdería piezas.
+        // panel está desplazado y hay recompensas por encima. Antes eso lo dejaba sin leer, y
+        // con más de cuatro filas (Plague Star) las de abajo no entraban nunca; lo que evita
+        // repetir al subir y bajar es el libro de altas de la pantalla, no dejar de leer.
         const entero = detectRewardCells(pantallaRecompensas({ tema: TEMAS.rojo, ruido: 0.5 }).img, { trace: {} });
         assert.equal(entero.occluded, false);
+        assert.equal(entero.cut, false);
         const trace = {};
         const movido = detectRewardCells(
             pantallaRecompensas({ tema: TEMAS.rojo, ruido: 0.5, desplazaY: 0.06 }).img, { trace });
         assert.equal(movido.cells.length, 4);
-        assert.equal(movido.occluded, true);
+        assert.equal(movido.occluded, false);
+        assert.equal(movido.cut, true);
         assert.equal(trace.cut, true);
     });
 

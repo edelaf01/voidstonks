@@ -108,6 +108,42 @@ test("detectRewardCells avisa cuando algo tapa el panel", () => {
   assert.equal(res.occluded, true);
 });
 
+test("un panel desplazado se lee: la fila que asoma por abajo sin rótulo visible se descarta", () => {
+  // Plague Star llena más de cuatro filas y el panel se desplaza. Antes se trataba como
+  // "tapado" y no se leía nada. Con el panel bajado 100 px: la fila 0 pierde su ✓ (fuera de
+  // vista), las filas 1-3 están enteras y la fila 4 asoma el ✓ con el rótulo bajo el borde,
+  // donde está la barra STATS / REPEAT MISSION del mismo color.
+  const desplazado = makeMissionCompleteFrame({
+    width: 2559, height: 1439, gridX: 1222, gridY: 350 - 100, pitch: 240,
+    cells: [[1, 0], [1, 1], [1, 2], [1, 3], [1, 4],
+            [2, 0], [2, 1], [2, 2], [2, 3], [2, 4],
+            [3, 0], [3, 1], [3, 2], [3, 3], [3, 4],
+            [4, 0], [4, 1]],
+  });
+  const trace = {};
+  const res = detectRewardCells(desplazado, { trace });
+  assert.ok(res, JSON.stringify(trace));
+  assert.equal(res.cut, true);
+  assert.equal(res.occluded, false, "desplazado no es tapado");
+  assert.equal(res.cells.length, 15, "las tres filas enteras; la que asoma por abajo, no");
+  assert.deepEqual([...new Set(res.cells.map((c) => c.row))], [0, 1, 2]);
+
+  // Desplazado pero con solo tres filas de ✓ a la vista: ninguna asoma, se leen las tres.
+  const tresFilas = makeMissionCompleteFrame({
+    width: 2559, height: 1439, gridX: 1222, gridY: 350 - 100, pitch: 240,
+    cells: [[1, 0], [1, 1], [1, 2], [2, 0], [2, 1], [2, 2], [3, 0], [3, 1]],
+  });
+  const parcial = detectRewardCells(tresFilas, {});
+  assert.equal(parcial.cut, true);
+  assert.equal(parcial.cells.length, 8);
+
+  // Sin desplazar, un panel de cuatro filas se lee entero.
+  const entero = frame1440({ cells: [[0, 0], [1, 0], [2, 0], [3, 0], [0, 1], [1, 1], [2, 1], [3, 1]] });
+  const lleno = detectRewardCells(entero, {});
+  assert.equal(lleno.cut, false);
+  assert.equal(lleno.cells.length, 8);
+});
+
 test("detectRewardCells funciona con cualquier tema y resolución", () => {
   for (const height of [1439, 1080, 900, 720]) {
     const k = height / 1439;
