@@ -15,6 +15,7 @@ import { toggleInventoryPanel, renderInventory } from "../ui.components/inventor
 import { showToast } from "../ui.components/ui_components.js";
 import { TEXTS } from "../config.js";
 import { themeTextMask } from "../utils/vision/theme_mask.js";
+import { rawWords } from "../utils/vision/ocr_words.js";
 
 /** Textos del escáner en el idioma activo. Se lee en cada uso: el idioma cambia en caliente. */
 const st = () => TEXTS[state.currentLang]?.scanner || {};
@@ -171,16 +172,16 @@ async function processImageSource(source) {
     const repo = globalThis._OCRRepository;
     if (repo?.workers?.length > 0) {
       console.log("[SCANNER] Usando worker pre-calentado");
-      const result = await repo.recognize(repo.workers[0], processingCanvas);
+      const result = await repo.recognize(repo.workers[0], processingCanvas, {}, { text: true, blocks: true });
       ocrData = result.data;
     } else {
       console.log("[SCANNER] Usando Tesseract.recognize en frío");
-      const result = await globalThis.Tesseract.recognize(processingCanvas, "eng");
+      const result = await globalThis.Tesseract.recognize(processingCanvas, "eng", {}, { text: true, blocks: true });
       ocrData = result.data;
     }
 
     const text = ocrData.text || "";
-    const words = ocrData.words || [];
+    const words = rawWords(ocrData);
 
     console.log("[SCANNER] Texto crudo OCR:", text.replaceAll(/\n+/g, " ").trim());
     console.log(`[SCANNER] Palabras detectadas: ${words.length}`);
@@ -327,8 +328,11 @@ let inventoryStream = null;
 let inventoryInterval = null;
 let sessionRelics = new Set();
 let isInventoryScanning = false;
+let video = null;
 
 export async function startInventoryScrollScan() {
+  if (isInventoryScanning) return;
+  isInventoryScanning = true;
   try {
     showToast(st().toastEngineInit);
 
@@ -359,7 +363,7 @@ export async function startInventoryScrollScan() {
     });
 
     const videoTrack = inventoryStream.getVideoTracks()[0];
-    const video = document.createElement("video");
+    video = document.createElement("video");
     video.srcObject = inventoryStream;
     video.play();
 
@@ -386,6 +390,11 @@ export async function startInventoryScrollScan() {
       finishInventoryScan();
     };
   } catch (err) {
+    isInventoryScanning = false;
+    if (ocrWorker) {
+      await ocrWorker.terminate();
+      ocrWorker = null;
+    }
     console.error("Error al iniciar:", err);
     showToast((st().toastError || "Error: {msg}").replace("{msg}", err.message));
   }
@@ -474,6 +483,11 @@ export async function finishInventoryScan() {
   isInventoryScanning = false;
   if (inventoryStream) {
     inventoryStream.getTracks().forEach((t) => t.stop());
+    inventoryStream = null;
+  }
+  if (video) {
+    video.srcObject = null;
+    video = null;
   }
 
   if (ocrWorker) {

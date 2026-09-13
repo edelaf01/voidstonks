@@ -9,7 +9,7 @@
  * conocidas o no existe. Se prefiere la de MENOS palabras, que evita trocear un nombre largo
  * en fragmentos cortos que casualmente estén en el vocabulario.
  */
-export function splitFusedWord(token, vocab, { minLargo = 3 } = {}) {
+export function splitFusedWord(token, vocab, { minLargo = 3, pareceConocida = null } = {}) {
     const n = token.length;
     // Una palabra que ya existe no se toca: si no, el modo prefijo partiría "PRIMED" en "PRIME".
     if (!n || vocab.has(token)) return null;
@@ -33,7 +33,21 @@ export function splitFusedWord(token, vocab, { minLargo = 3 } = {}) {
         // Un prefijo de 3 letras es una razón demasiado floja para partir; con 4 ya hay
         // palabra reconocible detrás de la decisión.
         for (let i = n - 1; i >= Math.max(4, minLargo); i--) if (mejor[i]) { fin = i; break; }
-        if (fin < 0 || mejor[fin].palabras < 1) return null;
+        if (fin < 0 || mejor[fin].palabras < 1) {
+            // Espejo del prefijo: la mal leída va DELANTE. "PFIMECHASSIS" (R por F, pegado a
+            // CHASSIS) no tenía prefijo del catálogo y se quedaba entero, y "CHASSIS" contra
+            // ese token no llega al umbral: Atlas Prime Chassis Blueprint salía sin match con
+            // 17 de 18 celdas bien. El sufijo más largo del catálogo se separa y el resto viaja
+            // aparte, que es donde confirmaPrime sí sabe leer "PFIME".
+            // Pero una palabra SOLA mal leída también puede acabar en nombre del catálogo:
+            // "SAR0FANG" termina en FANG y entraba como Fang Prime. Si el token entero ya se
+            // parece a una palabra conocida, es esa.
+            if (pareceConocida?.(token)) return null;
+            for (let i = minLargo; i <= n - 4; i++) {
+                if (vocab.has(token.slice(i))) return [token.slice(0, i), token.slice(i)];
+            }
+            return null;
+        }
         // El RESTO viaja como token aparte en vez de tirarse. Una de las dos palabras pegadas
         // puede venir mal leída y entonces no está en el vocabulario: "PRIMEBIUEPRINT" (l -> i)
         // solo casaba "PRIME", que no llega a la mitad del token, y se perdían las DOS —con
@@ -51,6 +65,17 @@ export function splitFusedWord(token, vocab, { minLargo = 3 } = {}) {
 /** Vocabulario del catálogo: todas las palabras de todos los nombres, en mayúsculas. */
 export function catalogVocab(items) {
     return new Set(items.flatMap((i) => i.originalName.toUpperCase().split(/\s+/)));
+}
+
+/**
+ * Predicado "este token es una palabra del catálogo mal leída": alguna se le parece al menos
+ * `umbral` con la similitud consciente de confusiones OCR. 0,85 deja pasar una letra cambiada
+ * de silueta parecida ("SAR0FANG" 0,95) y no dos palabras pegadas ("PFIMECHASSIS" contra
+ * CHASSIS no llega).
+ */
+export function pareceDelVocab(vocab, similitud, umbral = 0.85) {
+    const palabras = [...vocab].filter((v) => v.length >= 4);
+    return (token) => palabras.some((v) => Math.abs(v.length - token.length) <= 2 && similitud(token, v) >= umbral);
 }
 
 /** Reparte la caja de una palabra entre sus trozos, a prorrata de las letras. */
@@ -98,14 +123,14 @@ function cortaPorCaja(texto, vocab) {
  * Parte las palabras pegadas de una lista de palabras del OCR, repartiendo la caja a
  * prorrata de las letras — que es lo que necesita el agrupado por columnas de parseRewards.
  */
-export function splitFusedWords(words, vocab, { minLargo = 9 } = {}) {
+export function splitFusedWords(words, vocab, { minLargo = 9, pareceConocida = null } = {}) {
     const porCaja = words.flatMap((w) => {
         const trozos = cortaPorCaja(w.text, vocab);
         return trozos ? reparte(w, trozos, w.text.length) : [w];
     });
     return porCaja.flatMap((w) => {
         const t = w.text.toUpperCase().replaceAll(/[^A-Z0-9]/g, "");
-        const trozos = t.length >= minLargo && !vocab.has(t) && splitFusedWord(t, vocab);
+        const trozos = t.length >= minLargo && !vocab.has(t) && splitFusedWord(t, vocab, { pareceConocida });
         return trozos ? reparte(w, trozos, t.length) : [w];
     });
 }

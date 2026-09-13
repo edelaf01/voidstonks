@@ -244,7 +244,7 @@ export function toggleScannerHud() {
 }
 
 /**
- * Pinta la descarga del modelo preciso: la pregunta si no se ha contestado, y si ya se contestó,
+ * Pinta la elección de motor: la pregunta si no se ha contestado, y si ya se contestó,
  * qué quedó elegido y qué implica.
  *
  * El aviso de "preparando" no es decorativo: el motor preciso tarda en bajar su modelo y hasta

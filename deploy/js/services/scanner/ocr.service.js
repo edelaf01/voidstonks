@@ -1,14 +1,14 @@
 import { state } from "../../state.js";
 import { OCRRepository } from "../../repositories/ocr.repository.js";
 import { readBadgeDigits } from "../../utils/vision/badge_digit_ocr.js";
-import { splitFusedWord, catalogVocab } from "../../utils/vision/word_split.js";
+import { splitFusedWord, catalogVocab, pareceDelVocab } from "../../utils/vision/word_split.js";
+import { rawWords } from "../../utils/vision/ocr_words.js";
 import { radioDeDedup, pasoEntreTarjetas, zonasDeRotulo } from "../../utils/vision/reward_cards.js";
 import { recuperaComponente, recuperaPorSufijo } from "../../utils/inventory/component_recover.js";
 import { normalizeOCRWords, tokensSinInformacion, tieneEvidenciaPropia, confirmaPrime } from "../../utils/inventory/ocr_words.js";
 
-// El catálogo es ASCII pero PaddleOCR lleva tildes en su diccionario y las cuela: medido, un
-// rótulo salía "KESTREL PRÍME BLUEPRINT" y se perdía entero, porque las palabras se parten por
-// [^A-Za-z0-9] y "PRÍME" quedaba en "PR" + "ME".
+// El catálogo es ASCII pero PaddleOCR cuela tildes: "KESTREL PRÍME BLUEPRINT" se perdía entero
+// porque las palabras se parten por [^A-Za-z0-9] y "PRÍME" quedaba en "PR" + "ME".
 const sinAcentos = (texto) => texto.normalize("NFD").replaceAll(/[\u0300-\u036f]/g, "");
 
 export const OCRService = {
@@ -41,6 +41,7 @@ export const OCRService = {
 
         this.knownParts = tempParts;
         this.tokensGenericos = tokensSinInformacion(this.cachedDbItems);
+        this._vocabCache = null; this._pareceConocida = null; // derivados del catálogo: se rehacen con él
     },
 
     editDistance(s1, s2) {
@@ -70,10 +71,9 @@ export const OCRService = {
         return (longer.length - this.editDistance(longer, shorter)) / longer.length;
     },
 
-    // Grupos de caracteres que el OCR confunde entre sí (misma silueta en la fuente).
-    // Genérico: en vez de listas de alias por arma, la sustitución ENTRE miembros del
-    // mismo grupo cuesta poco en similarityOCR, así "ACCELLRA"≈"ACCELTRA", "FRIME"≈"PRIME",
-    // "RECELVER"≈"RECEIVER", etc. se resuelven solos, sin hardcodear cada caso.
+    // Grupos de caracteres que el OCR confunde entre sí (misma silueta en la fuente). Sustituir
+    // ENTRE miembros del mismo grupo cuesta poco en similarityOCR, así "ACCELLRA"≈"ACCELTRA",
+    // "FRIME"≈"PRIME" o "RECELVER"≈"RECEIVER" se resuelven solos, sin alias por arma.
     _ocrConfMap: (() => {
         // NO existe grupo "O6". Se probó (para rescatar "Axi C6" leído "AXI CO") y produce
         // FALSOS POSITIVOS: visto en vivo, "Axi S9" salió como "AXI SO" y con "O6" activo
@@ -590,9 +590,8 @@ export const OCRService = {
     },
 
     async extractCellText(worker, textCanvas) {
-        const { data: { words } } = await OCRRepository.recognize(worker, textCanvas);
-        if (!words || words.length < 1) return null;
-        return words.map((w) => w.text.toUpperCase());
+        const words = rawWords((await OCRRepository.recognize(worker, textCanvas, {}, { text: true, blocks: true })).data);
+        return words.length ? words.map((w) => w.text.toUpperCase()) : null;
     },
 
     // Repara errores típicos letra→dígito de la fuente del badge y devuelve las palabras
@@ -656,8 +655,9 @@ export const OCRService = {
         // A mayúsculas aquí: abajo se limpia con /[^A-Z]/ y el camino a color da el texto en mixto.
         const crudas = rawWords.flatMap(w => sinAcentos(w).split(/[^A-Za-z0-9]+/).filter(Boolean)).map(w => w.toUpperCase());
         this._vocabCache ||= catalogVocab(this.cachedDbItems);
-        const textWords = crudas.flatMap((w) => (w.length >= 9 && !this._vocabCache.has(w)
-            && splitFusedWord(w, this._vocabCache)) || [w]);
+        this._pareceConocida ||= pareceDelVocab(this._vocabCache, (a, b) => this.similarityOCR(a, b));
+        const textWords = crudas.flatMap((w) => (w.length >= 8 && !this._vocabCache.has(w)
+            && splitFusedWord(w, this._vocabCache, { pareceConocida: this._pareceConocida })) || [w]);
 
         if (textWords.length === 0) return null;
 
@@ -671,19 +671,20 @@ export const OCRService = {
             const cleanOCR = ocrStr.toUpperCase().replaceAll(/[^A-Z0-9]/g, "");
             const cleanDB = dbFirstWord.toUpperCase().replaceAll(/[^A-Z0-9]/g, "");
             if (cleanOCR === cleanDB) return true;
+            // Una palabra del catálogo leída bien no es otra por parecido: "CHASSIS"≈"QUASSUS" metía un chasis con el warframe ilegible como plano de Quassus.
+            if (this.knownParts.has(cleanOCR)) return false;
             if (cleanOCR.length < 3 || cleanDB.length < 3) return cleanOCR === cleanDB;
-            // GENÉRICO: umbral por similitud CONSCIENTE DE CONFUSIONES OCR — sin listas de
-            // alias por arma. Los errores típicos (letra por otra de silueta parecida) casi
-            // no penalizan, así que el match correcto gana por similitud. Las lecturas SALVAJES
-            // (basura irreconocible) quedan por debajo del umbral → las rescata PaddleOCR.
+            // GENÉRICO: umbral por similitud CONSCIENTE DE CONFUSIONES OCR, sin alias por arma:
+            // las confusiones de glifo casi no penalizan y el match correcto gana por similitud;
+            // las lecturas salvajes quedan por debajo del umbral y las rescata PaddleOCR.
             const thr = cleanDB.length <= 4 ? 0.72 : 0.62;
             return this.similarityOCR(cleanOCR, cleanDB) >= thr;
         };
 
-        // Listón para un match sin ningún componente que lo respalde (ítems de una palabra
-        // como los requiem, o con el resto opcional como "Forma Blueprint"): ahí la primera
-        // palabra es toda la prueba. Con 0.85 pasan confusiones de glifo ("F0RMA"=0.92,
-        // "JAHV"=0.90) pero no una letra que falte o sobre (0.80 y 0.75).
+        // Listón para un match sin ningún componente que lo respalde (ítems de una palabra como
+        // los requiem, o con el resto opcional como "Forma Blueprint"): la primera palabra es toda
+        // la prueba. Con 0.85 pasan confusiones de glifo ("F0RMA"=0.92, "JAHV"=0.90) pero no una
+        // letra que falte o sobre (0.80 y 0.75).
         const UNCORROBORATED_THR = 0.85;
 
         // Los COMPONENTES (Barrel/Receiver/Blueprint/Link/...) se casan por similitud

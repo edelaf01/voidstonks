@@ -22,6 +22,15 @@ describe("palabras pegadas por el OCR", () => {
         assert.equal(splitFusedWord("", VOCAB), null);
     });
 
+    test("si la mal leída va delante, el sufijo del catálogo la separa igual", () => {
+        // "PFIMECHASSIS": PRIME con la R por F, pegado a CHASSIS. Sin prefijo del catálogo no se
+        // partía y CHASSIS contra el token entero no llega al umbral: Atlas Prime Chassis
+        // Blueprint salía sin match en una captura con las otras 17 celdas bien.
+        assert.deepEqual(splitFusedWord("PFIMECHASSIS", new Set([...VOCAB, "CHASSIS"])), ["PFIME", "CHASSIS"]);
+        // El sufijo también necesita 4 letras: "ZZZ" no es razón para partir.
+        assert.equal(splitFusedWord("XXQZSTOCKZZZ", VOCAB), null);
+    });
+
     test("sin un prefijo del catálogo de al menos 4 letras no se parte", () => {
         // El resto viaja, pero la decisión de partir sigue necesitando una palabra reconocible
         // delante: partir por tres letras sueltas es inventarse una estructura que no está.

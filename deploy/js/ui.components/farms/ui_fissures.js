@@ -494,6 +494,7 @@ function buildFissurePanelShell(missionDiv) {
 
   if (!globalThis._fissureCountdownInterval) {
     globalThis._fissureCountdownInterval = setInterval(() => {
+      if (!document.getElementById("best-missions-container")?.classList.contains("open")) return;
       let expiredFound = false;
       const syncedNow = Date.now() - (globalThis._serverTimeOffset || 0);
       document.querySelectorAll(".m-eta[data-expiry]").forEach((el) => {
@@ -510,10 +511,7 @@ function buildFissurePanelShell(missionDiv) {
           const row = el.closest(".mission-item");
           if (row) setTimeout(() => row.style.display = "none", 1000);
         } else {
-          const totalSecs = Math.floor(diffMs / 1000);
-          const hrs = Math.floor(totalSecs / 3600);
-          const mins = Math.floor((totalSecs % 3600) / 60);
-          const secs = totalSecs % 60;
+          const totalSecs = Math.floor(diffMs / 1000), hrs = Math.floor(totalSecs / 3600), mins = Math.floor((totalSecs % 3600) / 60), secs = totalSecs % 60;
 
           // Bajo 5 min ya no da tiempo a entrar con margen: se resalta para poder
           // descartarla de un vistazo sin leer el número.

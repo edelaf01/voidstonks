@@ -66,7 +66,10 @@ export function showToast(message, options = {}) {
   if (!container) return;
 
   const {
-    duration = 60000,
+    // 6 s y no 60: con un minuto, cada aviso del escáner se sumaba al anterior y la esquina
+    // se llenaba de mensajes viejos. Lo que tiene que durar (alarmas, confirmar seguimiento)
+    // lo pide explícitamente.
+    duration = 6000,
     tag = null,
     onClose = null,
     type = "info",

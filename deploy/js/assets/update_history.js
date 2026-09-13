@@ -25,11 +25,11 @@ export const UPDATE_HISTORY_DATA = {
   <h4 class="update-section">Nuevo motor de lectura</h4>
   <p class="update-lead">
     El escáner puede leer con una red neuronal. Acierta más en recompensas, donde no hay
-    segunda oportunidad. Se descarga una vez (6,4 MB); el motor clásico sigue ahí y funciona
-    sin conexión.
+    segunda oportunidad. El motor clásico sigue ahí; el preciso tarda unos segundos en
+    cargar la primera vez.
   </p>
   <ul class="update-list">
-    <li>Se elige desde el escáner. Mientras se descarga, sigue leyendo el clásico.</li>
+    <li>Se elige desde el escáner. Mientras carga, sigue leyendo el clásico.</li>
     <li>Arreglado error en el inventario que hacía que fallaran los dígitos sueltos (4, 8, 9).</li>
     <li>Arreglado error en fin de misión que hacía que los nombres de tres líneas perdieran
     la primera.</li>
@@ -69,6 +69,14 @@ export const UPDATE_HISTORY_DATA = {
     <li>Arreglado error en la tasación de rivens que hacía que atravesar, duración de combo y
     combo inicial llevaran «%».</li>
     <li>El «techo» del índice de rivens pasa a llamarse múltiplo.</li>
+    <li>Arreglado error en el escáner que hacía que el motor clásico no leyera ninguna
+    celda del inventario.</li>
+    <li>Arreglado error en el escáner que hacía que la página se congelara mientras leía
+    una rejilla.</li>
+    <li>Arreglado error que hacía que los avisos de abajo tardaran un minuto en
+    desaparecer.</li>
+    <li>Arreglado error en el inventario que hacía que un nombre con «Prime» mal leído y
+    pegado a la pieza no casara.</li>
   </ul>
 </div>
 <div class="update-block old" id="v280">
@@ -523,11 +531,11 @@ export const UPDATE_HISTORY_DATA = {
   <h4 class="update-section">New reading engine</h4>
   <p class="update-lead">
     The scanner can now read with a neural net. It gets more right on the reward screen,
-    where there are no do-overs. One 6.4 MB download; the classic engine stays and works
-    offline.
+    where there are no do-overs. The classic engine stays; the precise one takes a few
+    seconds to load the first time.
   </p>
   <ul class="update-list">
-    <li>Pick it from the scanner. While it downloads, the classic engine keeps reading.</li>
+    <li>Pick it from the scanner. While it loads, the classic engine keeps reading.</li>
     <li>Fixed a bug in the inventory that made lone digits (4, 8, 9) misread.</li>
     <li>Fixed a bug on the end-of-mission screen that made three-line names lose their
     first line.</li>
@@ -563,6 +571,12 @@ export const UPDATE_HISTORY_DATA = {
     <li>Fixed a bug in the riven appraisal that made punch through, combo duration and
     initial combo show a "%".</li>
     <li>The riven index "ceiling" is now called a multiple.</li>
+    <li>Fixed a bug in the scanner that made the classic engine read no inventory cell at
+    all.</li>
+    <li>Fixed a bug in the scanner that made the page freeze while reading a grid.</li>
+    <li>Fixed a bug that made the toasts at the bottom take a minute to go away.</li>
+    <li>Fixed a bug in the inventory that made a name with a misread "Prime" glued to the
+    part fail to match.</li>
   </ul>
 </div>
 <div class="update-block old" id="v280">

@@ -153,7 +153,9 @@ export const VisionService = {
                 cv.findContours(morph, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
 
                 for (let i = 0; i < contours.size(); i++) {
-                    let r = cv.boundingRect(contours.get(i));
+                    const cnt = contours.get(i);
+                    const r = cv.boundingRect(cnt);
+                    cnt.delete();
                     if (r.width > canvas.width * 0.3 && r.height > 15 && r.height < 150) {
                         rects.push({ x: r.x, y: r.y, width: r.width, height: r.height });
                     }

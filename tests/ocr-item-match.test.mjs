@@ -319,3 +319,12 @@ test("una tilde del OCR no tira el match", () => {
   assert.equal(OCRService.getValidItemMatch("VOLT PRÍME SYSTEMS BLUEPRÍNT")?.originalName,
     OCRService.getValidItemMatch("VOLT PRIME SYSTEMS BLUEPRINT")?.originalName);
 });
+
+// Captura real del inventario (motor clásico): "ATLAS PFIMECHASSIS BLUEPRINT". PRIME mal leído
+// Y pegado a CHASSIS a la vez; cada cosa por separado ya casaba, las dos juntas no.
+test("PRIME mal leído y pegado al componente sigue casando", () => {
+  state.itemsDatabase["Atlas Prime Chassis Blueprint"] = [{ ducats: 15 }];
+  OCRService.cachedDbItems = [];
+  OCRService.initMatcherData();
+  assert.equal(OCRService.getValidItemMatch("ATLAS PFIMECHASSIS BLUEPRINT")?.originalName, "Atlas Prime Chassis Blueprint");
+});
