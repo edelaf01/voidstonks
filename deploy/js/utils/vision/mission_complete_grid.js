@@ -411,10 +411,24 @@ function gruposSemejantes(comps, height) {
  * indistinguishable from a full panel.
  */
 const PRIMERA_FILA_FRAC = 0.243;
+/** Rows that fit in the panel: with more rewards (Plague Star, several contracts) it scrolls. */
+const FILAS_VISIBLES = 4;
 
 function filaCortadaArriba(cells, pitch, height) {
     const yPrimera = Math.min(...cells.map((c) => c.y));
     return yPrimera > height * PRIMERA_FILA_FRAC + pitch * 0.25;
+}
+
+/**
+ * With the panel scrolled and the top row out of view, a fourth ✓ row can only be the one peeking at the
+ * bottom: under it sits the "STATS / REPEAT MISSION" bar in the same color, which would read as a name.
+ * That row goes.
+ */
+function sinFilaQueAsoma(cells) {
+    const filas = [...new Set(cells.map((c) => c.row))];
+    if (filas.length < FILAS_VISIBLES) return cells;
+    const ultima = Math.max(...filas);
+    return cells.filter((c) => c.row !== ultima);
 }
 
 /** The lattice a group of candidate ✓ explains; null when it explains none. */
@@ -471,12 +485,15 @@ function _conGrupo(img, accent, zone, checks, trace, S, dist) {
     trace.pitch = pitch;
     trace.cells = unique.length;
 
+    // a scrolled panel covers nothing: the whole visible rows are read, and the ledger keeps them from being
+    // logged twice when scrolling back up
     const cortada = filaCortadaArriba(unique, pitch, height);
-    const occluded = hasGap(unique, sortedCols.length) || cortada;
+    const legibles = cortada ? sinFilaQueAsoma(unique) : unique;
+    const occluded = hasGap(legibles, sortedCols.length);
     trace.occluded = occluded;
     trace.cut = cortada;
 
-    return { zone, pitch, cells: unique, occluded, accent, dist };
+    return { zone, pitch, cells: legibles, occluded, cut: cortada, accent, dist };
 }
 
 function nearestIndex(sorted, value) {

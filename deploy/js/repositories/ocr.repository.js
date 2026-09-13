@@ -73,7 +73,10 @@ export const OCRRepository = {
         return Promise.race([this.initPromise, timeoutPromise]);
     },
 
-    MAX_WORKERS: 4,
+    /**
+     * pool cap: each worker is a WASM instance with its own copy of traineddata, scanner is already the most RAM-heavy part
+     */
+    MAX_WORKERS: 2,
 
     /**
      * spawns workers up to `n`, requested right before dispatching a grid

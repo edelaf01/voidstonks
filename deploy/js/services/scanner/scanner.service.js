@@ -16,7 +16,7 @@ import { ScannerHUD } from "../../ui.components/ui_scanner_hud.js";
 import { ScannerModal } from "../../ui.components/ui_scanner_modal.js";
 import { initializeOCRDatabase } from "../../repositories/api.repository.js";
 import { escapeHTML } from "../../utils/escape_html.js";
-import { electPageNameColor, cellNameMask, hasInk, readCellWithOwnColor } from "./name_color.service.js";
+import { electPageNameColor, cellNameMask, hasInk, readCellWithOwnColor, readCellCuttingArt } from "./name_color.service.js";
 import { createCellOverlay } from "../../utils/vision/scan_overlay.js";
 import { revisaRejillaCacheada } from "../../utils/vision/grid_cache.js";
 import { detectRewardCells } from "../../utils/vision/mission_complete_grid.js";
@@ -28,6 +28,8 @@ import { cronometro } from "../../utils/perf.js";
 
 import { rivenFingerprint } from "../../utils/rivens/riven_naming.js";
 import { labelFullyRead } from "../../utils/vision/name_lines.js";
+import { hudBottom } from "../../utils/vision/hud_cover.js";
+import { isGarbledCellText } from "../../utils/vision/cell_text_guard.js";
 import { collectWords } from "../../utils/vision/ocr_words.js";
 import { hasComponentSiblings } from "../../utils/inventory/component_siblings.js";
 import { olvidaColorTexto } from "../../utils/vision/reward_preprocess.js";
@@ -101,6 +103,8 @@ export const ScannerService = {
         await OCRRepository.warmUp();
         OpenCVRepository.waitReady().catch(() => { });
         OCRService.initMatcherData();
+        // the pool is not warmed here: each worker is a WASM instance a rivens-only session never uses.
+        // It is created on entering INVENTORY (routeFrameAction).
         this.loop();
     },
 
@@ -220,6 +224,8 @@ export const ScannerService = {
         this.ctxLatch = nextLatchedContext(this.ctxLatch, routedContext);
         // the text color only changes with the screen: recomputed on context change
         if (this.ctxLatch.latched !== this.latchedContext) olvidaColorTexto();
+        // mission end left: the next one may repeat a part and must count again
+        if (this.latchedContext === "MISSION_COMPLETE" && this.ctxLatch.latched !== "MISSION_COMPLETE") this.mcLedger = INITIAL_LEDGER;
         this.latchedContext = this.ctxLatch.latched;
         // the frozen frame (~15 MB at 1440p) is released outside rewards
         if (this.latchedContext !== "REWARD") {
@@ -249,7 +255,9 @@ export const ScannerService = {
             if (zone) {
                 const m = Math.round((calib.cellH || 0) * 0.25);
                 const y = Math.max(0, zone.y - m);
-                zone = { ...zone, y, h: Math.min(dims.height - y, zone.h + m + (zone.y - y)) };
+                const ctx = snapshot.getContext("2d", { willReadFrequently: true });
+                const hud = zone.y > y ? hudBottom(ctx.getImageData(zone.x, y, zone.w, zone.y - y)) : null;
+                zone = { ...zone, y, h: Math.min(dims.height - y, zone.h + m + (zone.y - y)), hud };
             }
             this._frameZoneCache = { key, zone };
         }
@@ -328,8 +336,10 @@ export const ScannerService = {
             }
 
             this.currentRate = 300;
+            // the pool is created while the user still scrolls
+            if (motorActivo() !== MOTOR_PRECISO || !PaddleRepository.listo()) OCRRepository.ensureWorkers(OCRRepository.MAX_WORKERS).catch(() => {});
 
-            const sampleCvs = document.createElement("canvas");
+            const sampleCvs = this._sampleCvs ||= document.createElement("canvas");
             sampleCvs.width = 48; sampleCvs.height = 27;
             const sCtx = sampleCvs.getContext("2d", { willReadFrequently: true });
             sCtx.drawImage(video, 0, Math.floor(video.videoHeight * 0.25), video.videoWidth, Math.floor(video.videoHeight * 0.5), 0, 0, 48, 27);
@@ -920,6 +930,13 @@ export const ScannerService = {
     _mcCellCvs: null,
     _mcStableHash: null,
 
+    /**
+     * Reads the mission end screen and adds the prime parts on it. Four cheap gates before writing:
+     * 1. ✓ grid: no grid means another screen or one still opening
+     * 2. contiguity: a gap in the panel is something covering it (hasGap)
+     * 3. real relic catalog + isPrime: what does not drop from a relic does not exist for the matcher
+     * 4. consensus: two equal reads, and the screen ledger blocks a repeated addition
+     */
     async processMissionComplete(video, dims) {
         const { width, height } = dims;
         const frame = this._mcFrameCvs = freezeFrame(video, width, height, this._mcFrameCvs);
@@ -937,8 +954,9 @@ export const ScannerService = {
             console.log(`[MC] Sin rejilla: ${trace.fail}`);
             return;
         }
-        console.log(`[MC] ${trace.cells} casillas · ${trace.cols}×${trace.rows} · paso ${trace.pitch}${grid.occluded ? " · TAPADA" : ""}`);
+        console.log(`[MC] ${trace.cells} casillas · ${trace.cols}×${trace.rows} · paso ${trace.pitch}${grid.occluded ? " · TAPADA" : ""}${grid.cut ? " · DESPLAZADA" : ""}`);
 
+        // the "N OWNED" tooltip covers up to two cells: wait for the mouse to move
         if (grid.occluded) return;
 
         const worker = OCRRepository.workers[0];
@@ -948,6 +966,7 @@ export const ScannerService = {
         // with the precise engine every label comes from one pass: Tesseract loses the first line of a
         // label drawn over the art
         const rotulos = await leeRotulosMissionComplete(frame, grid.cells.filter((c) => c.named));
+        console.log(`[MC] sin rótulo (mods): ${grid.cells.filter((c) => !c.named).map((c) => `r${c.row}c${c.col}`).join(" ") || "ninguna"}`);
 
         const items = [];
         for (const cell of grid.cells) {
@@ -960,8 +979,9 @@ export const ScannerService = {
                 raw = (data.text || "").toUpperCase();
             }
             const relic = OCRService.getRelicMatch(raw);
+            const match = relic ? null : OCRService.getValidItemMatch(raw);
+            console.log(`[MC] r${cell.row}c${cell.col} ${preciso ? "preciso" : "clásico"}: "${raw.replaceAll(/\s+/g, " ").trim()}" → ${relic ? `${relic} ×${cell.qty} (reliquia)` : match?.isPrime ? `${match.originalName} ×${cell.qty}` : "sin match"}`);
             if (relic) { items.push({ name: relic, qty: cell.qty, cell, reliquia: true }); continue; }
-            const match = OCRService.getValidItemMatch(raw);
             if (!match?.isPrime) continue;
             if (!preciso && hasComponentSiblings(OCRService.cachedDbItems, match.originalName)) {
                 const { completo, cobertura } = labelFullyRead(this._mcCellCvs, collectWords(data));
@@ -971,7 +991,6 @@ export const ScannerService = {
                 }
             }
             items.push({ name: match.originalName, qty: cell.qty, cell });
-            console.log(`[MC] r${cell.row}c${cell.col}: ${match.originalName} ×${cell.qty}`);
         }
 
         const { ledger, commit } = nextLedger(this.mcLedger, items);
@@ -1194,14 +1213,18 @@ export const ScannerService = {
             dCtx.setLineDash([]);
 
             const agInfo = `AG ${calibData.auto ? "auto" : "manual"} ${autoGrid.rows}r×${autoGrid.cols}c cell ${cellW}×${cellH} zone ${gridZone.x},${gridZone.y} dy ${autoGrid.phaseShift || 0}${calibData.traceSummary?.halfPitchFixed ? " HPfix" : ""}`;
-
             this.lastRawOcrLog = [];
             this.lastRawOcrLog.push(`[AUTO-GRID] ${agInfo} · rowBands ${JSON.stringify(calibData.traceSummary?.rowBands || [])} · chain ${JSON.stringify(calibData.traceSummary?.chain || null)}`);
-            const scanStats = { cells: cellRects.length, matched: 0, relics: 0, empty: 0, unmatched: 0, none: 0, ownColor: 0 };
+            const hud = this._frameZoneCache?.zone?.hud ?? -1;
+            const badges = async (r) => { let n = 0; for (const c of cellRects) if (c.r === r && /\d/.test((await leeCantidadBadge(snapshot, c, cellW, cellH, theme)).raw || "")) n++; return n; };
+            const filaTapada = cellRects.some((c) => c.r === 1) && (await badges(0)) === 0
+                && (cellRects[0].sy + cellH * 0.04 < hud || (await badges(1)) >= 3);
+            const activeCells = cellRects.filter((cell) => !(filaTapada && cell.r === 0)).map(cell => ({ cell }));
+            if (filaTapada) this.lastRawOcrLog.push(`[r0] SKIPPED (sin badges bajo el HUD, ${cellRects.length - activeCells.length} celdas)`);
+            const scanStats = { cells: activeCells.length, matched: 0, relics: 0, empty: 0, unmatched: 0, none: 0, ownColor: 0 };
+            // name band covers 1, 2 and 3 lines; art from above is dropped by the text color isolation
             const textSrcY = Math.round(cellH * 0.50);
             const textSrcH = Math.round(cellH * 0.48);
-
-            const activeCells = cellRects.map(cell => ({ cell }));
 
             console.log(`[INV] Preparadas ${activeCells.length} celdas activas; arrancando worker OCR...`);
             if (motorActivo() !== MOTOR_PRECISO || !PaddleRepository.listo()) await OCRRepository.ensureWorkers(activeCells.length);
@@ -1209,6 +1232,7 @@ export const ScannerService = {
             console.log(`[INV] Workers OCR listos: ${workers.length}`);
 
             if (!this._nameColorCache || this._nameColorCache.key !== calibKey) {
+                await new Promise((r) => setTimeout(r, 0));
                 // the read wins over the auto-grid color, which comes from counting pixels
                 const color = await electPageNameColor(workers[0], snapshot, activeCells, cellW, textSrcY, textSrcH, theme)
                     || calibData?.nameColor;
@@ -1304,13 +1328,14 @@ export const ScannerService = {
                         continue;
                     }
 
-                    let relicText = combinedText;
-                    let itemText = combinedText;
+                    // the text that actually produced the match, for the debug overlay
+                    let relicText = combinedText, itemText = combinedText;
                     const readable = !this._isGarbledCellText(combinedText);
                     let relicMatch = readable ? OCRService.getRelicMatch(combinedText) : null;
                     let bestItem = (readable && !relicMatch) ? OCRService.getValidItemMatch(combinedText) : null;
                     let fallbackText = null;
 
+                    // no match in the normal band: try the 73%-99% window
                     if (!bestItem && !relicMatch) {
                         const fallbackY = Math.floor(cellH * 0.73);
                         const fallbackH = Math.floor(cellH * 0.26);
@@ -1318,6 +1343,7 @@ export const ScannerService = {
                         fallbackText = await OCRService.extractCellText(worker, fullCellCvs);
                         if (fallbackText && fallbackText.length) {
                             logStr = `[r${cell.r}c${cell.c}] OCR (fallback): ${fallbackText.join(" ")}`;
+                            // this window measures its color on another strip and can binarize the art
                             if (this._isGarbledCellText(fallbackText)) fallbackText = null;
                         }
                         if (fallbackText && fallbackText.length) {
@@ -1331,6 +1357,7 @@ export const ScannerService = {
                         }
                     }
 
+                    // its own color before giving up: the page color may not isolate this card
                     if (!bestItem && !relicMatch && pageNameColor && !ownColorUsed) {
                         const ownText = await readCellWithOwnColor(worker, snapshot, cell, cellW, textSrcY, textSrcH, theme);
                         if (ownText?.length && !this._isGarbledCellText(ownText)) {
@@ -1346,6 +1373,12 @@ export const ScannerService = {
                                 logStr = `[r${cell.r}c${cell.c}] OCR (color propio): ${ownText.join(" ")}`;
                             }
                         }
+                    }
+
+                    // three lines with art of the same color above: reread cutting from the top
+                    if (!bestItem && !relicMatch) {
+                        const r = await readCellCuttingArt(worker, snapshot, cell, cellW, textSrcY, textSrcH, theme, pageNameColor, (ws) => !this._isGarbledCellText(ws));
+                        if (r) { relicMatch = r.relicMatch; bestItem = r.bestItem; if (relicMatch) relicText = r.words; else itemText = r.words; logStr = `[r${cell.r}c${cell.c}] OCR (sin arte, corte ${r.corte}): ${r.words.join(" ")}`; }
                     }
 
                     // PaddleOCR fallback (opt-in: globalThis.OCR_PADDLE_FALLBACK)
@@ -1509,12 +1542,7 @@ export const ScannerService = {
         }
     },
 
-    _isGarbledCellText(words) {
-        if (!words || !words.length) return false;
-        const tokens = words.join(" ").toUpperCase().split(/[^A-Z0-9]+/).filter(Boolean);
-        if (tokens.length > 8) return true;
-        return tokens.filter(t => t.length === 1).length >= 2;
-    },
+    _isGarbledCellText(words) { return isGarbledCellText(words); },
 
     _isRivenCellText(words) {
         if (!words || !words.length) return false;

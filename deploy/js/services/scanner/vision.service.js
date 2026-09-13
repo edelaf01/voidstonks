@@ -3,6 +3,7 @@ import { detectInventoryGrid } from "../../utils/vision/grid_detect.js";
 import { maxChannelInvert } from "../../utils/vision/channel_max.js";
 import { digitosPorAncla } from "../../utils/vision/badge_anchor.js";
 import { accentMask } from "../../utils/vision/mission_complete_grid.js";
+import { labelTop } from "../../utils/vision/label_band.js";
 import { NAME_TEXT_COLORS, snapToThemeTextColor, rampCoreColor, bandInkHistogram, rankPageNameColors } from "../../utils/vision/name_color.js";
 import { themeTextMask } from "../../utils/vision/theme_mask.js";
 import { inkRunRatio } from "../../utils/vision/ink_runs.js";
@@ -36,6 +37,9 @@ export async function applyBestCameraConstraints(stream) {
 
 
 import { eligeTema } from "../../utils/vision/theme_vote.js";
+
+// name band upscale: 2x loses low contrast themes, 3x costs 20 % more per cell for the same reads
+const CELL_UPSCALE = 2.5;
 
 const FRAMES_PARA_CAMBIAR_TEMA = 3;
 import { WF_THEMES, WF_THEMES_VOTABLES } from "../../utils/vision/wf_themes.js";
@@ -194,6 +198,8 @@ export const VisionService = {
         const fCtx = frame.getContext("2d", { willReadFrequently: true });
         const cellImg = fCtx.getImageData(cell.x, cell.y, cell.w, cell.h);
         const { mask } = accentMask(cellImg, accent, { x: 0, y: 0, w: cell.w, h: cell.h });
+        // only the label: on gold themes the icon art passes the mask (utils/vision/label_band.js)
+        mask.fill(0, 0, labelTop(mask, cell.w, cell.h) * cell.w);
 
         if (!this._mcMaskCvs) this._mcMaskCvs = document.createElement("canvas");
         const small = this._mcMaskCvs;
@@ -480,7 +486,7 @@ export const VisionService = {
     },
 
     cropThemeBinarized(sourceCvs, sx, sy, sw, sh, theme, nameColorHint, scale) {
-        const S = scale || 3;
+        const S = scale || CELL_UPSCALE;
         const cvs = this._ringCanvas(sw * S, sh * S);
         const ctx = cvs.getContext("2d", { willReadFrequently: true });
         ctx.imageSmoothingEnabled = true;
@@ -688,8 +694,9 @@ export const VisionService = {
         return rankPageNameColors(histograms, max);
     },
 
+    // crops like cropThemeBinarized, so colors are measured on the pixels that get binarized
     _nameBandImageData(sourceCvs, sx, sy, sw, sh) {
-        const S = 3;
+        const S = CELL_UPSCALE;
         const cvs = this._ringCanvas(sw * S, sh * S);
         const ctx = cvs.getContext("2d", { willReadFrequently: true });
         ctx.imageSmoothingEnabled = true;

@@ -31,6 +31,9 @@ export function createFrameQueue({ max = 3, process }) {
         try {
             while (queue.length) {
                 const job = queue.shift();
+                // one tick before reading: `process` starts in the SAME task as the capture, and grid detection plus page
+                // color blocked in a row. With the tick the browser paints between shot and read
+                await new Promise((r) => setTimeout(r, 0));
                 try {
                     await process(job);
                 } catch (e) {

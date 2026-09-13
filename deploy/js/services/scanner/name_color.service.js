@@ -75,3 +75,24 @@ export function readCellWithOwnColor(worker, snapshot, cell, cellW, textSrcY, te
     return OCRService.extractCellText(worker, VisionService.cropThemeBinarized(
         snapshot, cell.sx, cell.sy + textSrcY, cellW, textSrcH, theme, null));
 }
+
+/**
+ * Rereads a cell blanking the art above the name: with three-line names the art enters the band
+ * and on light themes has the text color. The name is anchored at the bottom, so blanking from
+ * the top never removes a whole line. `legible` is the scanner's unreadable-read filter.
+ * @returns {{ relicMatch, bestItem, words, corte }}
+ */
+export async function readCellCuttingArt(worker, snapshot, cell, cellW, textSrcY, textSrcH, theme, pageColor, legible) {
+    for (const corte of [0.15, 0.25, 0.35]) {
+        const cvs = VisionService.cropThemeBinarized(snapshot, cell.sx, cell.sy + textSrcY, cellW, textSrcH, theme, pageColor);
+        const ctx = cvs.getContext("2d");
+        ctx.fillStyle = "#fff";
+        ctx.fillRect(0, 0, cvs.width, Math.round(cvs.height * corte));
+        const words = await OCRService.extractCellText(worker, cvs);
+        if (!words?.length || !legible(words)) continue;
+        const relicMatch = OCRService.getRelicMatch(words);
+        const bestItem = relicMatch ? null : OCRService.getValidItemMatch(words);
+        if (relicMatch || bestItem) return { relicMatch, bestItem, words, corte };
+    }
+    return null;
+}
