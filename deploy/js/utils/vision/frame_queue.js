@@ -17,6 +17,8 @@ export function createFrameQueue({ max = 3, process }) {
         try {
             while (queue.length) {
                 const job = queue.shift();
+                // one tick before reading so the browser paints between shot and read
+                await new Promise((r) => setTimeout(r, 0));
                 try {
                     await process(job);
                 } catch (e) {

@@ -37,8 +37,8 @@ test("dos llamadas seguidas no duplican el pool", async () => {
 
 test("llamadas simultáneas comparten la misma creación", async () => {
   await Promise.all([OCRRepository.ensureWorkers(4), OCRRepository.ensureWorkers(4)]);
-  assert.equal(OCRRepository.workers.length, 4);
-  assert.equal(creados, 3);
+  assert.equal(OCRRepository.workers.length, OCRRepository.MAX_WORKERS);
+  assert.equal(creados, OCRRepository.MAX_WORKERS - 1);
 });
 
 test("un worker que no arranca no deja un hueco en el pool", async () => {
@@ -47,8 +47,12 @@ test("un worker que no arranca no deja un hueco en el pool", async () => {
     if (creados === 2) throw new Error("sin memoria");
     return { id: `w${creados}` };
   };
-  await OCRRepository.ensureWorkers(4);
-  assert.ok(OCRRepository.workers.every(Boolean), "quedó un hueco en el pool");
+  OCRRepository.MAX_WORKERS = 4;
+  try {
+    await OCRRepository.ensureWorkers(4);
+    assert.ok(OCRRepository.workers.every(Boolean), "quedó un hueco en el pool");
+    assert.equal(OCRRepository.workers.length, 3);
+  } finally { OCRRepository.MAX_WORKERS = 2; }
 });
 
 test("ensureSecondWorker sigue pidiendo exactamente dos", async () => {
