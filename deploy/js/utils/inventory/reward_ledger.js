@@ -6,21 +6,15 @@ import {
 /** Lecturas idénticas seguidas de referencia. */
 export const CONSENSUS_FRAMES = 2;
 
+/**
+ * `committed` son los nombres ya dados de alta EN ESTA PANTALLA. Lo reinicia quien la abandona
+ * (el escáner, al soltar el contexto MISSION_COMPLETE): dentro de la misma pantalla nada se
+ * apunta dos veces; en la misión siguiente, la misma pieza vuelve a contar.
+ */
 export const INITIAL_LEDGER = Object.freeze({
     consensus: INITIAL_CONSENSUS,
     committed: null,
 });
-
-/**
- * Firma de una lectura: nombres y cantidades, en orden.
- */
-export function readingSignature(items) {
-    if (!items || items.length === 0) return "0";
-    return items
-        .map((i) => `${i.name}x${i.qty || 1}`)
-        .sort()
-        .join("|");
-}
 
 /**
  * Avanza el estado del ledger acumulando consenso por ítem.
@@ -32,49 +26,34 @@ export function readingSignature(items) {
 export function nextLedger(prev, items) {
     const s = { ...INITIAL_LEDGER, ...prev };
     const prevConsensus = s.consensus || INITIAL_CONSENSUS;
+    const committed = s.committed || {};
 
-    // Una pantalla ya escrita no se vuelve a escribir aunque el consenso la haya olvidado: si
-    // entre medias hay bastantes frames sin lectura (el ratón tapando el panel), la puntuación
-    // decae hasta que se poda, y al reaparecer la MISMA recompensa entraba dos veces.
-    if (s.committed && readingSignature(items) === s.committed) return { ledger: s, commit: null };
+    // Lo ya apuntado no vuelve al consenso. Con más de cuatro filas (Plague Star, varios
+    // contratos seguidos) el panel se desplaza y las casillas salen y vuelven a entrar: verlas
+    // otra vez no es recibirlas otra vez. Antes bastaba con que el ratón tapara el panel unos
+    // frames para que la MISMA recompensa entrara dos veces.
+    const nuevos = (items || []).filter((i) => i?.name && !committed[i.name]);
+    const { state: nextConsState, confirmed } = nextConsensus(prevConsensus, nuevos);
+    const commit = confirmed.length > 0 ? confirmed : null;
 
-    const { state: nextConsState, confirmed } = nextConsensus(prevConsensus, items);
+    let nextCommitted = s.committed;
+    if (commit) {
+        nextCommitted = { ...committed };
+        for (const c of confirmed) nextCommitted[c.name] = true;
+    }
 
-    const hasNewCommit = confirmed.length > 0;
-    const commit = hasNewCommit ? confirmed : null;
-
-    let committed = s.committed;
-    let nextItems = nextConsState.items;
-
-    if (hasNewCommit) {
-        committed = readingSignature(items);
-
-        // Al confirmar una pantalla nueva, se descartan del consenso los confirmados
-        // de pantallas anteriores que ya no están presentes en este frame.
-        const currentItemNames = new Set((items || []).map((it) => it?.name).filter(Boolean));
-        const pruned = {};
-        for (const [name, entry] of Object.entries(nextItems)) {
-            if (entry.confirmed && !currentItemNames.has(name)) {
-                continue;
-            }
-            pruned[name] = entry;
-        }
-        nextItems = pruned;
-    } else {
-        let pruned = null;
-        for (const [name, entry] of Object.entries(nextItems)) {
-            if (entry.score < 0.05) {
-                if (!pruned) pruned = { ...nextItems };
-                delete pruned[name];
-            }
-        }
-        if (pruned) nextItems = pruned;
+    // Un confirmado ya vive en `committed`; un candidato que dejó de verse se olvida cuando su
+    // puntuación se apaga, para que una lectura suelta no acumule para siempre.
+    const nextItems = {};
+    for (const [name, entry] of Object.entries(nextConsState.items)) {
+        if (entry.confirmed || entry.score < 0.05) continue;
+        nextItems[name] = entry;
     }
 
     return {
         ledger: {
             consensus: { items: nextItems },
-            committed,
+            committed: nextCommitted,
         },
         commit,
     };

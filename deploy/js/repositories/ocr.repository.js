@@ -113,11 +113,14 @@ export const OCRRepository = {
     // grid de inventario). Idempotente; memoiza la promesa para no crear dos en carrera.
     /**
      * Tope del pool. Cada worker es una instancia WASM con su copia del traineddata, y el escáner
-     * ya es lo que más RAM consume de la app, así que no se escala sin límite. Cuatro es lo que
-     * hubo históricamente y lo que aguantaba; por debajo manda el número de núcleos, porque más
-     * workers que hilos no reparten nada y sí ocupan memoria.
+     * ya es lo que más RAM consume de la app, así que no se escala sin límite.
+     *
+     * Dos y no cuatro: medido sobre una página de 18 celdas (Chromium, 8 núcleos), la fase de
+     * celdas tarda 914 ms con 4 workers, 1003 con 2 y 1275 con 1. El ritmo lo marca el hilo
+     * principal (recorte, binarizado, badges), no el OCR: el tercero y el cuarto ganan un 10 %
+     * a cambio de dos instancias WASM más compitiendo con el juego por la CPU.
      */
-    MAX_WORKERS: 4,
+    MAX_WORKERS: 2,
 
     /**
      * Crea workers hasta tener `n`. Se piden justo antes de repartir una rejilla: con dos, las 18

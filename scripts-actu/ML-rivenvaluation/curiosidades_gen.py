@@ -290,7 +290,17 @@ def _fusiona_historial(nuevos, ruta, dias_historial, tope):
     # Descendente por fecha (el front pinta el primero como "lo más reciente"); el orden por
     # fuerza de señal que trae el generador se conserva dentro de cada día porque sort es estable.
     salida.sort(key=lambda e: e.get("fecha") or "", reverse=True)
-    return salida[:tope]
+    # Un arma, una tarjeta: el mismo desplome vuelve a salir al día siguiente con otro tipo
+    # (desplome_ask el 12, especulacion el 13) y el carrusel contaba dos veces lo mismo. Ya
+    # está en orden por fecha, así que sobrevive la lectura más reciente.
+    vistas, unicos = set(), []
+    for e in salida:
+        arma = str(e.get("arma") or "").lower()
+        if arma in vistas:
+            continue
+        vistas.add(arma)
+        unicos.append(e)
+    return unicos[:tope]
 
 
 if __name__ == "__main__":

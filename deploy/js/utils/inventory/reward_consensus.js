@@ -71,6 +71,7 @@ export function nextConsensus(prev, items, options = {}) {
             qtyVotes: { ...(entry.qtyVotes || {}) },
             qty: entry.qty ?? 1,
             confirmed: Boolean(entry.confirmed),
+            ...(entry.reliquia ? { reliquia: true } : {}),
         };
     }
 
@@ -93,6 +94,9 @@ export function nextConsensus(prev, items, options = {}) {
             };
             nextItems[name] = entry;
         }
+        // La marca viaja con la entrada: el alta la necesita para sumar en el inventario de
+        // reliquias y no en el de piezas. Se perdía aquí y "Lith K2" entraba como pieza prime.
+        if (item.reliquia) entry.reliquia = true;
 
         entry.score += weight;
         entry.qtyVotes[qty] = (entry.qtyVotes[qty] || 0) + 1;
@@ -105,6 +109,7 @@ export function nextConsensus(prev, items, options = {}) {
             confirmed.push({
                 name,
                 qty: entry.qty,
+                ...(entry.reliquia ? { reliquia: true } : {}),
             });
         }
     }

@@ -77,6 +77,20 @@ export const UPDATE_HISTORY_DATA = {
     desaparecer.</li>
     <li>Arreglado error en el inventario que hacía que un nombre con «Prime» mal leído y
     pegado a la pieza no casara.</li>
+    <li>Arreglado error en el inventario que hacía que al llegar al final de la lista se
+    leyera la fila tapada por la cabecera.</li>
+    <li>Arreglado error en el inventario que hacía que un nombre de tres líneas perdiera la
+    primera cuando el arte se colaba en el recorte.</li>
+    <li>Arreglado error en el inventario que hacía que las reliquias con refinamiento se
+    marcaran como ilegibles.</li>
+    <li>Arreglado error en fin de misión que hacía que las reliquias recibidas entraran como
+    piezas y no sumaran en el inventario de reliquias.</li>
+    <li>Fin de misión: con más de cuatro filas de recompensas (Plague Star, varios contratos)
+    también se leen las de abajo al desplazar el panel.</li>
+    <li>Arreglado error en fin de misión que hacía que en los temas dorados el dibujo del
+    icono tapara el nombre y la pieza no se leyera.</li>
+    <li>El escáner usa dos lectores en vez de cuatro: misma velocidad, la mitad de memoria y
+    menos carga para el juego.</li>
   </ul>
 </div>
 <div class="update-block old" id="v280">
@@ -577,6 +591,19 @@ export const UPDATE_HISTORY_DATA = {
     <li>Fixed a bug that made the toasts at the bottom take a minute to go away.</li>
     <li>Fixed a bug in the inventory that made a name with a misread "Prime" glued to the
     part fail to match.</li>
+    <li>Fixed a bug in the inventory that made the row hidden under the header get read at
+    the end of the list.</li>
+    <li>Fixed a bug in the inventory that made a three-line name lose its first line when
+    the art crept into the crop.</li>
+    <li>Fixed a bug in the inventory that made refined relics get flagged as unreadable.</li>
+    <li>Fixed a bug on the end-of-mission screen that made received relics go in as parts
+    instead of adding to the relic inventory.</li>
+    <li>End of mission: with more than four rows of rewards (Plague Star, several bounties)
+    the lower rows are read too when you scroll the panel.</li>
+    <li>Fixed a bug on the end-of-mission screen that made the icon art cover the name on
+    gold themes, so the part went unread.</li>
+    <li>The scanner uses two readers instead of four: same speed, half the memory and less
+    load on the game.</li>
   </ul>
 </div>
 <div class="update-block old" id="v280">

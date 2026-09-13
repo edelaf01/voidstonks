@@ -3,6 +3,7 @@ import { detectInventoryGrid } from "../../utils/vision/grid_detect.js";
 import { maxChannelInvert } from "../../utils/vision/channel_max.js";
 import { digitosPorAncla } from "../../utils/vision/badge_anchor.js";
 import { accentMask } from "../../utils/vision/mission_complete_grid.js";
+import { labelTop } from "../../utils/vision/label_band.js";
 import { NAME_TEXT_COLORS, snapToThemeTextColor, rampCoreColor, bandInkHistogram, rankPageNameColors } from "../../utils/vision/name_color.js";
 import { themeTextMask } from "../../utils/vision/theme_mask.js";
 import { inkRunRatio } from "../../utils/vision/ink_runs.js";
@@ -45,6 +46,12 @@ export async function applyBestCameraConstraints(stream) {
 
 
 import { eligeTema } from "../../utils/vision/theme_vote.js";
+
+// Ampliación de la banda de nombre antes del OCR. A 2x se pierden lecturas en temas de bajo
+// contraste (Akjagara Barrel en el tema rojo; baruuk 17/18 en el banco). A 3x el texto sale a
+// 60 px y Tesseract tarda un 20 % más por celda para leer lo mismo: sobre 39 capturas (660
+// celdas) a 2,5x casan las mismas y las 19 lecturas que cambian salen más limpias.
+const CELL_UPSCALE = 2.5;
 
 // Frames seguidos que necesita un tema nuevo para relevar al vigente (~3 s al ritmo del escáner).
 const FRAMES_PARA_CAMBIAR_TEMA = 3;
@@ -236,6 +243,9 @@ export const VisionService = {
         const fCtx = frame.getContext("2d", { willReadFrequently: true });
         const cellImg = fCtx.getImageData(cell.x, cell.y, cell.w, cell.h);
         const { mask } = accentMask(cellImg, accent, { x: 0, y: 0, w: cell.w, h: cell.h });
+        // Solo el rótulo: en los temas dorados el arte del icono pasa la máscara y tapaba el
+        // nombre (ver utils/vision/label_band.js). El badge de arriba tampoco hace falta aquí.
+        mask.fill(0, 0, labelTop(mask, cell.w, cell.h) * cell.w);
 
         if (!this._mcMaskCvs) this._mcMaskCvs = document.createElement("canvas");
         const small = this._mcMaskCvs;
@@ -571,11 +581,7 @@ export const VisionService = {
     },
 
     cropThemeBinarized(sourceCvs, sx, sy, sw, sh, theme, nameColorHint, scale) {
-        // 3x: validado — a 2x se pierden lecturas en temas de bajo contraste (p.ej.
-        // Akjagara Barrel en el tema rojo). El coste (~38ms/celda) se amortigua
-        // cediendo el hilo a la UI entre celdas en el bucle del scanner, no bajando
-        // la resolución del OCR. `scale` permite ajustarlo por caller si hace falta.
-        const S = scale || 3;
+        const S = scale || CELL_UPSCALE;
         const cvs = this._ringCanvas(sw * S, sh * S);
         const ctx = cvs.getContext("2d", { willReadFrequently: true });
         ctx.imageSmoothingEnabled = true;
@@ -830,10 +836,10 @@ export const VisionService = {
         return rankPageNameColors(histograms, max);
     },
 
-    // Recorta igual que cropThemeBinarized (mismo 3x y mismo suavizado) para que los
+    // Recorta igual que cropThemeBinarized (misma escala y mismo suavizado) para que los
     // colores se midan sobre los MISMOS píxeles que luego se van a binarizar.
     _nameBandImageData(sourceCvs, sx, sy, sw, sh) {
-        const S = 3;
+        const S = CELL_UPSCALE;
         const cvs = this._ringCanvas(sw * S, sh * S);
         const ctx = cvs.getContext("2d", { willReadFrequently: true });
         ctx.imageSmoothingEnabled = true;
