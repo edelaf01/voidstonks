@@ -9,20 +9,18 @@ import { PaddleRepository } from "../../repositories/paddle.repository.js";
  *   primer segundo. A cambio necesita binarizar y prueba hasta seis combinaciones de recorte y
  *   umbral por pantalla. Medido sobre 7 capturas × 5 resoluciones: 133 de 135 con 1 falso.
  * - PRECISO (PaddleOCR). Una red que localiza el texto ella misma: una sola pasada, sobre el
- *   recorte a color y sin binarizar. Medido igual: 135 de 135 con 0 falsos. A cambio baja 4,8 MB
- *   de modelo la primera vez y necesita conexión ESA vez.
+ *   recorte a color y sin binarizar. Medido igual: 135 de 135 con 0 falsos. A cambio carga 6,4 MB
+ *   de modelo la primera vez (van con la app, en deploy/assets/ocr).
  *
- * NO hay defecto: hasta que el usuario contesta se lee con el CLÁSICO y no se descarga nada. El
- * preciso era el defecto y la descarga arrancaba en `startLiveSession()`, o sea antes de que el
- * HUD fuera visible: el botón de "no descargar" no podía evitarla la primera vez, que es la única
- * que importa. Por eso la elección se plantea como lo que el usuario sí sabe responder —si quiere
- * bajar el modelo— y no como qué motor prefiere.
+ * NO hay defecto: hasta que el usuario contesta se lee con el CLÁSICO y no se carga el modelo. El
+ * preciso era el defecto y la carga arrancaba en `startLiveSession()`, o sea antes de que el HUD
+ * fuera visible: el botón de "no" no podía evitarla la primera vez, que es la única que importa.
  *
  * Lo que se gana contestando que sí, medido sobre las 7 capturas reales de la pantalla de
  * recompensas (26 recompensas): el clásico lee 9 y el preciso 26, y en tres de las siete el
  * clásico no lee NADA. Ese es el caso con reloj: el jugador tiene 15 segundos para elegir.
  *
- * Contestado que sí, la descarga no deja al escáner sin leer: `leeRecompensas` sigue con el
+ * Contestado que sí, la carga no deja al escáner sin leer: `leeRecompensas` sigue con el
  * clásico mientras el modelo no esté listo, y si falla se queda ahí para siempre.
  */
 const CLAVE = "vs_ocr_engine";
@@ -37,20 +35,20 @@ export const MOTOR_PRECISO = "paddle";
 const guardado = () => { try { return localStorage.getItem(CLAVE); } catch { return null; } };
 
 /**
- * ¿Ha contestado el usuario si quiere la descarga? Mientras no conteste NO se baja nada: la
- * pregunta salía en el HUD cuando el modelo ya estaba cayendo, así que decir que no no servía
+ * ¿Ha contestado el usuario qué motor quiere? Mientras no conteste NO se carga el modelo: la
+ * pregunta salía en el HUD cuando el modelo ya estaba cargando, así que decir que no no servía
  * de nada la primera vez.
  */
 export function motorDecidido() { return guardado() !== null; }
 
-/** Sin respuesta, el clásico: es el que no descarga nada. */
+/** Sin respuesta, el clásico: es el que arranca al instante. */
 export function motorElegido() { return guardado() === MOTOR_PRECISO ? MOTOR_PRECISO : MOTOR_CLASICO; }
 
 /**
  * Fija el motor y lo deja listo. Devuelve el que quedó activo.
  *
  * El precalentado se lanza AQUÍ y no en el primer frame: si el modelo se pidiera al detectar la
- * pantalla de recompensas, ese frame se perdería esperando la descarga. Y no se espera a que
+ * pantalla de recompensas, ese frame se perdería esperando la carga. Y no se espera a que
  * termine — hasta que esté, `leeRecompensas` sigue con el clásico.
  */
 export function aplicaMotor(motor) {

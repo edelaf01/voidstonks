@@ -1518,12 +1518,11 @@ export const ScannerService = {
             // para el OCR.
             const activeCells = cellRects.map(cell => ({ cell }));
 
-            // Solo se crea el 2º worker estándar (nombres): las CANTIDADES ya no usan Tesseract
-            // sino template-matching de dígitos (utils/badge_digit_ocr.js), así que los 2 workers
-            // de badges se eliminaron — 2 instancias WASM menos de RAM.
-            // Trazas de PROGRESO del tramo mudo: entre updateScrollStatus("scanning") y el
-            // "done" final no se emitía nada, así que un cuelgue aquí (worker que no arranca,
-            // celda que no resuelve) dejaba el HUD en "scanning" sin ninguna pista de dónde.
+            // Solo workers de nombres: las CANTIDADES van por template-matching de dígitos
+            // (utils/badge_digit_ocr.js), así que los 2 workers de badges se eliminaron.
+            // Trazas de PROGRESO del tramo mudo: entre updateScrollStatus("scanning") y el "done"
+            // no se emitía nada y un cuelgue (worker que no arranca, celda que no resuelve) dejaba
+            // el HUD en "scanning" sin pista de dónde.
             console.log(`[INV] Preparadas ${activeCells.length} celdas activas; arrancando worker OCR...`);
             // Tesseract lee esta página si está elegido, o si el preciso aún no ha cargado.
             if (motorActivo() !== MOTOR_PRECISO || !PaddleRepository.listo()) await OCRRepository.ensureWorkers(activeCells.length);
@@ -1580,6 +1579,7 @@ export const ScannerService = {
                 while (cellIndex < activeCells.length) {
                     const task = activeCells[cellIndex++];
                     if (!task) break;
+                    await new Promise((r) => setTimeout(r, 0)); // cede el hilo: la máscara de cada celda es síncrona (~70 ms) y encadenadas congelaban la página
 
                     console.log(`[INV] celda ${cellIndex}/${activeCells.length} (r${task.cell.r}c${task.cell.c})...`);
 

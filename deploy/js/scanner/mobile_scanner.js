@@ -396,18 +396,17 @@ export class MobileScanner {
         if (videoAspect > screenAspect) { scale = vRect.height / vh; offsetX = (vh * videoAspect * scale - vRect.width) / 2; }
         else { scale = vRect.width / vw; offsetY = (vw / videoAspect * scale - vRect.height) / 2; }
 
-        const cX = Math.max(0, Math.floor(((gRect.left - vRect.left) + offsetX) / scale));
-        const cY = Math.max(0, Math.floor(((gRect.top - vRect.top) + offsetY) / scale));
-        const cW = Math.min(vw - cX, Math.floor(gRect.width / scale));
-        const cH = Math.min(vh - cY, Math.floor(gRect.height / scale));
+        const cX = Math.max(0, Math.floor(((gRect.left - vRect.left) + offsetX) / scale)), cY = Math.max(0, Math.floor(((gRect.top - vRect.top) + offsetY) / scale));
+        const cW = Math.min(vw - cX, Math.floor(gRect.width / scale)), cH = Math.min(vh - cY, Math.floor(gRect.height / scale));
 
         // Escala a una anchura objetivo (~1100px) para que el texto quede a tamaño legible para
         // el OCR sea cual sea el tamaño de la guía -> no hay que "encajar" los nombres justos.
         const canvasScale = Math.max(0.3, Math.min(2.2, 1100 / cW));
-        const cvs = document.createElement("canvas");
-        cvs.width = Math.floor(cW * canvasScale); cvs.height = Math.floor(cH * canvasScale);
-        if (cvs.width <= 0 || cvs.height <= 0) { this.discoveryTimer = setTimeout(tick, 250); return; }
-        cvs.getContext("2d").drawImage(video, cX, cY, cW, cH, 0, 0, cvs.width, cvs.height);
+        const tw = Math.floor(cW * canvasScale), th = Math.floor(cH * canvasScale);
+        if (tw <= 0 || th <= 0) { this.discoveryTimer = setTimeout(tick, 250); return; }
+        const cvs = this._discoveryCvs ||= document.createElement("canvas");
+        if (cvs.width !== tw) cvs.width = tw; if (cvs.height !== th) cvs.height = th;
+        cvs.getContext("2d").drawImage(video, cX, cY, cW, cH, 0, 0, tw, th);
 
         const s = state.visionSettings || {};
 

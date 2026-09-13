@@ -98,7 +98,7 @@ export async function startLiveSession() {
   if (isStartingSession || liveStream?.active) return;
   isStartingSession = true;
 
-  // El motor elegido en una sesión anterior, y su descarga lanzada YA: si el modelo se pidiera
+  // El motor elegido en una sesión anterior, y su carga lanzada YA: si el modelo se pidiera
   // al detectar la primera pantalla de recompensas, ese frame se perdería esperándolo.
   restauraMotor();
   renderOcrEngine();
@@ -171,6 +171,11 @@ export function stopLiveSession() {
     liveStream.getTracks().forEach((track) => track.stop());
     liveStream = null;
   }
+  const v = document.getElementById("live-video");
+  if (v) {
+    v.pause();
+    v.srcObject = null;
+  }
   ScannerService.stop();
   const toggleBtn = document.getElementById("scanner-toggle");
   if (toggleBtn) {
@@ -212,6 +217,7 @@ RelicScreenService.onApplied = (changed) => {
 globalThis.showTrackConfirm = (relicName) => {
   const t = TEXTS[state.currentLang].scanner;
   showToast(`${t.relicDetected}: ${relicName}`, {
+    duration: 20000,
     action: {
       text: t.track,
       callback: () => {

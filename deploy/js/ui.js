@@ -144,6 +144,7 @@ export function initTabRouting() {
 }
 
 export function switchTab(mode) {
+  if (state.activeTab === "riven" && mode !== "riven") stopRivenShowcase();
   state.activeTab = mode;
   saveAppState();
   if (!navegandoPorHistorial) writeTabHash(mode);

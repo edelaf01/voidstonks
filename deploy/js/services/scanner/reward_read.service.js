@@ -11,6 +11,7 @@ import { OCRService } from "./ocr.service.js";
 import { OCRRepository } from "../../repositories/ocr.repository.js";
 import { PaddleRepository } from "../../repositories/paddle.repository.js";
 import { columnasEnRecorte } from "../../utils/vision/reward_cards.js";
+import { rawWords } from "../../utils/vision/ocr_words.js";
 import { montaTiras, repartePorTramos } from "../../utils/vision/ocr_montage.js";
 import { motorActivo, MOTOR_PRECISO } from "./ocr_engine.service.js";
 
@@ -144,7 +145,7 @@ export async function leeRecompensas(frame, width, height, scale, preset, cropRe
     const namesRaw = namesRes.data?.text || "";
     console.log(`[REWARD] OCR raw (color/nombres): "${namesRaw.replaceAll(/\n+/g, " ").trim().slice(0, 120)}"`);
 
-    const mergedWords = [...(namesRes.data?.words || []), ...(data.words || [])];
+    const mergedWords = [...rawWords(namesRes.data), ...rawWords(data)];
     const cols = columnasEnRecorte(columnas, width, cropRect);
     const foundItems = OCRService.parseRewards({ words: mergedWords, imageW: ocrCanvas.width, columnas: cols });
     console.log(`[REWARD] Items found: ${foundItems.length}`, foundItems.map(i => i.name));

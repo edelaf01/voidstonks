@@ -5,6 +5,24 @@
  * en `output`: a veces `words` está en la raíz y a veces cuelga de blocks→paragraphs→lines.
  * Quien lea posiciones tiene que cubrir las cuatro formas o se queda sin nada en silencio.
  */
+/**
+ * Las palabras TAL CUAL las da Tesseract ({ text, bbox, confidence }), vengan como vengan.
+ *
+ * A partir de tesseract.js 6, `data.words` no existe: hay que pedir `blocks: true` y bajar por
+ * blocks→paragraphs→lines. Leer `data.words` a pelo devolvía undefined en silencio y con el
+ * motor clásico TODAS las celdas del inventario salían NONE (medido en Chromium con la
+ * captura de `arreglar_malcount`, 0/18 con una máscara perfecta).
+ */
+export function rawWords(data) {
+    if (Array.isArray(data?.words)) return data.words;
+    const out = [];
+    const desde = (lines) => (lines || []).forEach((l) => (l.words || []).forEach((w) => out.push(w)));
+    desde(data?.lines);
+    if (!out.length) (data?.paragraphs || []).forEach((p) => desde(p.lines));
+    if (!out.length) (data?.blocks || []).forEach((b) => (b.paragraphs || []).forEach((p) => desde(p.lines)));
+    return out;
+}
+
 export function collectWords(data) {
     const out = [];
     const push = (ws) => (ws || []).forEach((w) => {

@@ -349,7 +349,9 @@ export class OpenCVEngine {
             cv.findContours(morph, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
 
             for (let i = 0; i < contours.size(); i++) {
-                let r = cv.boundingRect(contours.get(i));
+                const cnt = contours.get(i);
+                const r = cv.boundingRect(cnt);
+                cnt.delete();
                 if (r.width > canvas.width * 0.3 && r.height > 15 && r.height < 150) {
                     rects.push(r);
                 }
@@ -395,7 +397,9 @@ export class OpenCVEngine {
         const scale = src.cols / 640;
 
         for (let i = 0; i < contours.size(); ++i) {
-            let rect = cv.boundingRect(contours.get(i));
+            const cnt = contours.get(i);
+            const rect = cv.boundingRect(cnt);
+            cnt.delete();
             if (rect.width > 30 && rect.height > 40) {
                 finalROIs.push({
                     x: Math.floor(rect.x * scale),

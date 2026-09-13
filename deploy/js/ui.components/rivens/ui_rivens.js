@@ -3493,14 +3493,11 @@ export function filterRivenIndex(resetPagination = true) {
   const rawData = state.rivenIndexData || {};
   const data = {};
   if (state.allRivenNames && state.allRivenNames.length > 0) {
+    const porMinusculas = new Map(Object.keys(rawData).map(k => [k.toLowerCase(), k]));
     state.allRivenNames.forEach(wName => {
-      const matchKey = Object.keys(rawData).find(k => k.toLowerCase() === wName.toLowerCase());
+      const matchKey = porMinusculas.get(wName.toLowerCase());
       data[wName] = matchKey ? rawData[matchKey] : {
-        official_median: 0,
-        popularity_pct: 0,
-        wfm_market_sample: 0,
-        wfm_avg_price: 0,
-        wfm_avg: 0
+        official_median: 0, popularity_pct: 0, wfm_market_sample: 0, wfm_avg_price: 0, wfm_avg: 0
       };
     });
   } else {
@@ -3655,6 +3652,7 @@ export function renderRivenIndexList(items, countHtml = "") {
 
   const isEs = state.currentLang === "es";
   const siblingsMap = getNakedToSiblingsMap(); // O(1) cached outside loop!
+  const activeSelectedInputName = document.getElementById("rivenWeaponInput")?.value || "";
 
   const renderedItems = items.slice(0, indexRenderLimit);
 
@@ -3666,7 +3664,6 @@ export function renderRivenIndexList(items, countHtml = "") {
     const siblings = siblingsMap[currentNaked] || [name];
 
     // Determine if this family currently has a selected variant in the search input
-    const activeSelectedInputName = document.getElementById("rivenWeaponInput")?.value || "";
     const isCurrentFamilySelected = siblings.some(sib => sib.toUpperCase() === activeSelectedInputName.toUpperCase());
     const activeRenderingName = isCurrentFamilySelected ? activeSelectedInputName : name;
 
