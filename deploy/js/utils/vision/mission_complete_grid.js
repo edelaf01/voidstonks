@@ -321,10 +321,19 @@ function gruposSemejantes(comps, height) {
 }
 
 const PRIMERA_FILA_FRAC = 0.243;
+const FILAS_VISIBLES = 4;
 
 function filaCortadaArriba(cells, pitch, height) {
     const yPrimera = Math.min(...cells.map((c) => c.y));
     return yPrimera > height * PRIMERA_FILA_FRAC + pitch * 0.25;
+}
+
+// fourth row on scrolled panel is dropped because the stats bar underneath reads as a name
+function sinFilaQueAsoma(cells) {
+    const filas = [...new Set(cells.map((c) => c.row))];
+    if (filas.length < FILAS_VISIBLES) return cells;
+    const ultima = Math.max(...filas);
+    return cells.filter((c) => c.row !== ultima);
 }
 
 function _conGrupo(img, accent, zone, checks, trace, S, dist) {
@@ -370,11 +379,12 @@ function _conGrupo(img, accent, zone, checks, trace, S, dist) {
     trace.cells = unique.length;
 
     const cortada = filaCortadaArriba(unique, pitch, height);
-    const occluded = hasGap(unique, sortedCols.length) || cortada;
+    const legibles = cortada ? sinFilaQueAsoma(unique) : unique;
+    const occluded = hasGap(legibles, sortedCols.length);
     trace.occluded = occluded;
     trace.cut = cortada;
 
-    return { zone, pitch, cells: unique, occluded, accent, dist };
+    return { zone, pitch, cells: legibles, occluded, cut: cortada, accent, dist };
 }
 
 function nearestIndex(sorted, value) {
