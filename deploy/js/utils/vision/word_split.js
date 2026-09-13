@@ -6,7 +6,7 @@
  * Dynamic programming over the token positions: a partition into known words exists or not. The one with
  * FEWEST words wins, so a long name is not chopped into short fragments that happen to be in the vocabulary.
  */
-export function splitFusedWord(token, vocab, { minLargo = 3 } = {}) {
+export function splitFusedWord(token, vocab, { minLargo = 3, pareceConocida = null } = {}) {
     const n = token.length;
     // an existing word is left alone, otherwise prefix mode would split "PRIMED" into "PRIME"
     if (!n || vocab.has(token)) return null;
@@ -28,7 +28,16 @@ export function splitFusedWord(token, vocab, { minLargo = 3 } = {}) {
         fin = -1;
         // a 3 letter prefix is too weak a reason to split
         for (let i = n - 1; i >= Math.max(4, minLargo); i--) if (mejor[i]) { fin = i; break; }
-        if (fin < 0 || mejor[fin].palabras < 1) return null;
+        if (fin < 0 || mejor[fin].palabras < 1) {
+            // mirror of the prefix: the misread word goes FIRST ("PFIMECHASSIS"). The longest catalog suffix is split
+            // and the rest travels apart, where confirmaPrime can read "PFIME". But a SINGLE misread word can also end in
+            // a catalog name ("SAR0FANG" ends in FANG): if the whole token already looks like a known word, it is that one
+            if (pareceConocida?.(token)) return null;
+            for (let i = minLargo; i <= n - 4; i++) {
+                if (vocab.has(token.slice(i))) return [token.slice(0, i), token.slice(i)];
+            }
+            return null;
+        }
         // the REST travels as its own token instead of being dropped: one of the glued words can be misread and
         // missing from the vocabulary ("PRIMEBIUEPRINT"), and the normalization knows glyph confusions. Art garbage
         // ("TTMD") just does not resolve against the catalog
@@ -43,6 +52,15 @@ export function splitFusedWord(token, vocab, { minLargo = 3 } = {}) {
 /** Catalog vocabulary: every word of every name, uppercase. */
 export function catalogVocab(items) {
     return new Set(items.flatMap((i) => i.originalName.toUpperCase().split(/\s+/)));
+}
+
+/**
+ * Predicate "this token is a misread catalog word": some word matches it at least `umbral` with the OCR
+ * confusion aware similarity. 0.85 lets one similar letter through ("SAR0FANG") but not two glued words.
+ */
+export function pareceDelVocab(vocab, similitud, umbral = 0.85) {
+    const palabras = [...vocab].filter((v) => v.length >= 4);
+    return (token) => palabras.some((v) => Math.abs(v.length - token.length) <= 2 && similitud(token, v) >= umbral);
 }
 
 /** Splits a word box among its pieces, prorated by letters. */
@@ -84,14 +102,14 @@ function cortaPorCaja(texto, vocab) {
  * Splits the glued words of an OCR word list, prorating the box by letters, as parseRewards' column grouping
  * needs.
  */
-export function splitFusedWords(words, vocab, { minLargo = 9 } = {}) {
+export function splitFusedWords(words, vocab, { minLargo = 9, pareceConocida = null } = {}) {
     const porCaja = words.flatMap((w) => {
         const trozos = cortaPorCaja(w.text, vocab);
         return trozos ? reparte(w, trozos, w.text.length) : [w];
     });
     return porCaja.flatMap((w) => {
         const t = w.text.toUpperCase().replaceAll(/[^A-Z0-9]/g, "");
-        const trozos = t.length >= minLargo && !vocab.has(t) && splitFusedWord(t, vocab);
+        const trozos = t.length >= minLargo && !vocab.has(t) && splitFusedWord(t, vocab, { pareceConocida });
         return trozos ? reparte(w, trozos, t.length) : [w];
     });
 }

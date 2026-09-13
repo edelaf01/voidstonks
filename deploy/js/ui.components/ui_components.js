@@ -51,7 +51,8 @@ export function showToast(message, options = {}) {
   if (!container) return;
 
   const {
-    duration = 60000,
+    // 6 s, not 60: scanner notices piled up in the corner. Whatever must stay asks for it
+    duration = 6000,
     tag = null,
     onClose = null,
     type = "info",

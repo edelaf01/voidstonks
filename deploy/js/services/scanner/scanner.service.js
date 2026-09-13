@@ -1246,6 +1246,7 @@ export const ScannerService = {
                 while (cellIndex < activeCells.length) {
                     const task = activeCells[cellIndex++];
                     if (!task) break;
+                    await new Promise((r) => setTimeout(r, 0));
 
                     console.log(`[INV] celda ${cellIndex}/${activeCells.length} (r${task.cell.r}c${task.cell.c})...`);
 

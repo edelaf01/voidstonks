@@ -12,7 +12,7 @@ export function normalizeOCRWords(ocrData, ctx) {
 
     // "BOLTORPRIMESTOCK": the anchoring below needs the exact first word
     ctx._vocabCache ||= catalogVocab(ctx.cachedDbItems);
-    const palabras = splitFusedWords(ocrData.words, ctx._vocabCache);
+    const palabras = splitFusedWords(ocrData.words, ctx._vocabCache, { pareceConocida: ctx._pareceConocida });
 
     palabras.forEach(w => {
         let text = w.text.toUpperCase().replaceAll(/[^A-Z0-9]/g, "");

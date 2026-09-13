@@ -22,6 +22,15 @@ describe("palabras pegadas por el OCR", () => {
         assert.equal(splitFusedWord("", VOCAB), null);
     });
 
+    test("si la mal leída va delante, el sufijo del catálogo la separa igual", () => {
+        // "PFIMECHASSIS": PRIME with R read as F, fused to CHASSIS; without a catalog prefix it did not split and
+        // CHASSIS against the whole token falls below threshold: Atlas Prime Chassis Blueprint went unmatched on a
+        // capture with 17 good cells
+        assert.deepEqual(splitFusedWord("PFIMECHASSIS", new Set([...VOCAB, "CHASSIS"])), ["PFIME", "CHASSIS"]);
+        // suffix also requires 4 letters: "ZZZ" is no reason to split
+        assert.equal(splitFusedWord("XXQZSTOCKZZZ", VOCAB), null);
+    });
+
     test("sin un prefijo del catálogo de al menos 4 letras no se parte", () => {
         // the remainder is preserved, but splitting still requires a recognizable prefix: splitting on three stray
         // letters invents structure that is not there

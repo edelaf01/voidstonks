@@ -1,5 +1,12 @@
 import { PaddleRepository } from "../../repositories/paddle.repository.js";
 
+/**
+ * Which OCR engine the scanner uses, kept across reloads.
+ * Classic (Tesseract) ships with the app and works offline, but needs binarizing and several crop
+ * and threshold tries. Precise (PaddleOCR) reads the color crop in one pass and loads a 6.4 MB
+ * model the first time. Until the user answers, the classic engine reads and the model is not
+ * loaded; while it loads, `leeRecompensas` stays on the classic engine.
+ */
 const CLAVE = "vs_ocr_engine";
 let activo = null;
 export const MOTOR_CLASICO = "tesseract";
@@ -11,6 +18,10 @@ export function motorDecidido() { return guardado() !== null; }
 
 export function motorElegido() { return guardado() === MOTOR_PRECISO ? MOTOR_PRECISO : MOTOR_CLASICO; }
 
+/**
+ * Sets the engine and returns the active one. The warm-up starts here, not on the first reward
+ * frame, which would be lost waiting for the model.
+ */
 export function aplicaMotor(motor) {
     const elegido = motor === MOTOR_PRECISO ? MOTOR_PRECISO : MOTOR_CLASICO;
     activo = elegido;

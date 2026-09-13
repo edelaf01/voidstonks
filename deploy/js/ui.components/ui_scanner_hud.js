@@ -214,6 +214,10 @@ export function toggleScannerHud() {
     }
 }
 
+/**
+ * Paints the engine choice: the question until answered, then what was picked. The "preparing" notice
+ * matters: the precise engine downloads its model and reads use the classic one until then.
+ */
 export function renderOcrEngine() {
     const sh = TEXTS[state.currentLang].scannerHUD;
     const { decidido, elegido, listo } = estadoMotor();
