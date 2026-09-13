@@ -45,7 +45,7 @@ export function showToast(message, options = {}) {
   if (!container) return;
 
   const {
-    duration = 60000,
+    duration = 6000,
     tag = null,
     onClose = null,
     type = "info",

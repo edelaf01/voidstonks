@@ -8,7 +8,7 @@ export function normalizeOCRWords(ocrData, ctx) {
     const knownTokens = Array.from(ctx.knownParts);
 
     ctx._vocabCache ||= catalogVocab(ctx.cachedDbItems);
-    const palabras = splitFusedWords(ocrData.words, ctx._vocabCache);
+    const palabras = splitFusedWords(ocrData.words, ctx._vocabCache, { pareceConocida: ctx._pareceConocida });
 
     palabras.forEach(w => {
         let text = w.text.toUpperCase().replaceAll(/[^A-Z0-9]/g, "");
