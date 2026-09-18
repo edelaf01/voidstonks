@@ -46,3 +46,22 @@ test("DEBUG_LOGS es false por defecto (no dejar logs en despliegue)", async () =
   const { DEBUG_LOGS } = await import("../deploy/js/utils/debug_log.js?case=const");
   assert.equal(DEBUG_LOGS, false, "DEBUG_LOGS debe estar en false para no filtrar logs a producción");
 });
+
+// Los interruptores de código no pueden llegar a producción: aunque se despliegue con uno en
+// true, fuera de localhost los logs siguen silenciados. Se simula un host de producción y se
+// comprueba que solo el flag de localStorage enciende.
+test("en un host que no es local, sin flag de localStorage, se silencia aunque haya interruptores", async () => {
+  const orig = { log: console.log, error: console.error };
+  const spyLog = () => {}, spyErr = () => {};
+  console.log = spyLog; console.error = spyErr;
+  globalThis.localStorage = { getItem: () => null };
+  globalThis.location = { hostname: "voidstonks.com" };
+
+  await import("../deploy/js/utils/debug_log.js?case=prod");
+  const patched = { log: console.log, error: console.error };
+  Object.assign(console, orig);
+  delete globalThis.localStorage; delete globalThis.location;
+
+  assert.notEqual(patched.log, spyLog, "en producción console.log queda a noop");
+  assert.equal(patched.error, spyErr);
+});

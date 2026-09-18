@@ -33,6 +33,13 @@ export function createFrameQueue({ max = 3, process }) {
         return cvs;
     };
 
+    let pendingRelease = false;
+    const freePool = () => {
+        for (const cvs of pool) { cvs.width = 0; cvs.height = 0; }
+        pool.length = 0;
+        pendingRelease = false;
+    };
+
     const drain = async () => {
         if (busy) return;
         busy = true;
@@ -54,6 +61,7 @@ export function createFrameQueue({ max = 3, process }) {
             }
         } finally {
             busy = false;
+            if (pendingRelease) freePool();
         }
     };
 
@@ -82,6 +90,17 @@ export function createFrameQueue({ max = 3, process }) {
                 const job = queue.pop();
                 if (pool.length < max) pool.push(job.cvs);
             }
+        },
+
+        /**
+         * Suelta la memoria del pool (canvas a 0×0) sin tirar lo pendiente: una foto encolada
+         * es una página válida aunque el jugador ya haya salido del inventario, así que se
+         * lee y se suelta después. Un canvas de página son ~8 MB a 1440p y el pool guarda
+         * hasta tres; fuera del inventario o con el escáner parado no hay razón para retenerlos.
+         */
+        release() {
+            if (busy || queue.length) { pendingRelease = true; return; }
+            freePool();
         },
     };
 }

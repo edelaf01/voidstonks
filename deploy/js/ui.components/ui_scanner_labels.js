@@ -24,6 +24,7 @@ export function updateScannerLabels(t) {
     setText("btn-recalibrate", sh.btnRecalibrate);
     setText("lbl-ocr-debug", sh.lblDebugSnapshot);
     setText("btn-copy-debug-log", sh.btnCopyLog);
+    // El de grabar y el del ZIP los pinta live_scanner.js: llevan estado (grabando, cuántas).
     setText("lbl-detected-items", sh.lblDetected);
     setText("lbl-scan-empty-state", sh.lblEmpty);
     // lbl-ocr-engine lo pinta renderOcrEngine: alterna entre título y pregunta.

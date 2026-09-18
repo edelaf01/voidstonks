@@ -119,3 +119,10 @@ test("entre 5 y 6 decide por donde las plantillas difieren, no por el IoU global
     assert.equal(readBadgeDigits(cvs), d, `la plantilla de ${d} debe leerse como ${d}`);
   }
 });
+
+test("badgePlausible: una a tres cifras y nada más", async () => {
+  const { badgePlausible } = await import("../deploy/js/utils/vision/badge_digit_ocr.js");
+  for (const ok of ["2", "27", "127", " 48 "]) assert.equal(badgePlausible(ok), true, ok);
+  // "85603" sale de la barra de iconos del HUD; "" y "Ø" son lecturas vacías.
+  for (const mal of ["85603", "1234", "", null, "Ø", "2 7", "a7"]) assert.equal(badgePlausible(mal), false, String(mal));
+});

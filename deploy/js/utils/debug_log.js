@@ -5,8 +5,8 @@
  * en toda la app (los ~136 logs de scanner, visión, etc.). `console.error` SIEMPRE
  * se conserva — los errores reales deben verse.
  *
- * Para depurar en LOCAL, o bien pon `DEBUG_LOGS = true` aquí (recuerda volver a
- * false antes de desplegar), o SIN tocar código ejecuta en la consola del navegador:
+ * Para depurar en LOCAL, o bien pon `DEBUG_LOGS = true` aquí (solo tiene efecto en
+ * localhost: en producción se ignora), o SIN tocar código ejecuta en la consola del navegador:
  *     localStorage.setItem("vs_debug_logs", "1")   // y recarga
  *     localStorage.removeItem("vs_debug_logs")     // para volver a silenciar
  *
@@ -23,9 +23,13 @@ export const DEBUG_LOGS = false;
 const FORCE_LOGS_WHILE_DEBUGGING = false;
 
 const stored = typeof localStorage !== "undefined" ? localStorage.getItem("vs_debug_logs") : null;
-const enabled = DEBUG_LOGS
-    || stored === "1"
-    || (FORCE_LOGS_WHILE_DEBUGGING && stored !== "0");
+// Los interruptores de CÓDIGO solo valen en local: aunque se despliegue con uno en true, en
+// voidstonks.com los logs siguen silenciados. En producción solo enciende el flag de
+// localStorage, que es de cada navegador y no se despliega.
+const hostname = globalThis.location?.hostname ?? "";
+const esLocal = hostname === "" || hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]";
+const enabled = stored === "1"
+    || (esLocal && (DEBUG_LOGS || (FORCE_LOGS_WHILE_DEBUGGING && stored !== "0")));
 
 if (!enabled && typeof console !== "undefined") {
     const noop = () => {};

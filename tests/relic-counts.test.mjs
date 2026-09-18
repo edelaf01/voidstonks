@@ -105,3 +105,9 @@ test("relicKey iguala las dos formas y nada más", () => {
   assert.notEqual(relicKey("Lith K5"), relicKey("Lith K6"));
   assert.equal(relicKey(null), "");
 });
+
+test("mergeRelicCounts: una reliquia vista sin cantidad (null) conserva la que había, o entra con 1", () => {
+  // El badge no se leyó en toda la sesión: sobrescribir con 1 borraba 28 copias reales.
+  const out = mergeRelicCounts([{ name: "Neo G4", count: 28 }], new Map([["Neo G4", null], ["Neo G6", null]]));
+  assert.deepEqual(out, [{ name: "Neo G4", count: 28 }, { name: "Neo G6", count: 1 }]);
+});

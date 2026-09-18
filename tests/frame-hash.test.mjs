@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { installFakeDocument, FakeCanvas } from "./_helpers/fake-canvas.mjs";
 
 installFakeDocument();
-const { videoRegionHash, smallCanvasHash, compareHashes } =
+const { videoRegionHash, smallCanvasHash, compareHashes, canvasRegionHash, fraccionCambiada } =
     await import("../deploy/js/utils/vision/frame_hash.js");
 
 /** Canvas plano de un gris dado, que es lo que hashean estas funciones. */
@@ -72,6 +72,23 @@ test("videoRegionHash recorta la región relativa que se le pide", () => {
     assert.equal(compareHashes(izq, der), false);
 });
 
+test("canvasRegionHash hashea el rectángulo en píxeles que se le pide", () => {
+    const v = new FakeCanvas();
+    v.width = 64; v.height = 36;
+    for (let y = 0; y < 36; y++) {
+        for (let x = 0; x < 64; x++) {
+            const i = (y * 64 + x) * 4;
+            const val = y < 18 ? 20 : 220;
+            v._data[i] = v._data[i + 1] = v._data[i + 2] = val;
+            v._data[i + 3] = 255;
+        }
+    }
+    const arriba = canvasRegionHash(v, { x: 0, y: 0, w: 64, h: 18 });
+    const abajo = canvasRegionHash(v, { x: 0, y: 18, w: 64, h: 18 });
+    assert.equal(arriba, canvasRegionHash(v, { x: 0, y: 0, w: 64, h: 18 }));
+    assert.equal(compareHashes(arriba, abajo, 8), false);
+});
+
 // --- Comparación de hashes de frame ---------------------------------------------------------
 
 // El hash decide si la página ha cambiado (hay que reescanear) o no. Demasiado sensible =
@@ -92,4 +109,20 @@ test("sin hash, o con hashes de distinto tamaño, no se afirma que sean iguales"
   assert.equal(compareHashes(null, "abcd"), false);
   assert.equal(compareHashes("abcd", null), false);
   assert.equal(compareHashes("abcd", "abcdef"), false);
+});
+
+// El disparador del auto-scan: la suma de brillo no distingue una página de reliquias de otra
+// (mismas cards, otro texto), y contar muestras cambiadas sí.
+test("fraccionCambiada: solo cuenta las muestras que se mueven de verdad", () => {
+  const a = new Uint8Array(1000).fill(100);
+  assert.equal(fraccionCambiada(a, a), 0);
+
+  const ruido = Uint8Array.from(a, (v, i) => v + (i % 3 === 0 ? 20 : 0));
+  assert.equal(fraccionCambiada(a, ruido), 0, "20 de luma es ruido de vídeo, no cambio");
+
+  const texto = Uint8Array.from(a, (v, i) => (i < 30 ? 230 : v));
+  assert.equal(fraccionCambiada(a, texto), 0.03, "una franja de texto sí cuenta");
+
+  assert.equal(fraccionCambiada(a, null), 1, "sin referencia, se asume cambiada");
+  assert.equal(fraccionCambiada(a, new Uint8Array(10)), 1, "otra longitud, otra región");
 });

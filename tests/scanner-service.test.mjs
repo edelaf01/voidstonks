@@ -53,16 +53,26 @@ test("con empate gana la cantidad mayor", () => {
   assert.equal(destino.get("X"), 31);
 });
 
-// Una lectura sin ningún dígito no es un voto: es el OCR devolviendo basura. Pero mientras no
-// haya ningún voto válido se enseña igual, que es mejor que dejar la celda vacía.
-test("una lectura sin dígitos no vota, pero se enseña si no hay nada mejor", () => {
+// Una lectura sin ningún dígito no es un voto: es el OCR devolviendo basura. Y sin votos la
+// cantidad queda DESCONOCIDA (null): antes se apuntaba un 1 "mejor que nada" y al guardar
+// pisaba el número real (18 reliquias con el badge sin leer pasaron de 28 copias a 1).
+test("una lectura sin dígitos no vota y sin votos la cantidad es desconocida, nunca 1", () => {
   const votos = new Map(), destino = new Map();
   S.recordQtyVote("X", { qty: 1, raw: "" }, votos, destino);
-  assert.equal(destino.get("X"), 1, "sin votos válidos se usa la lectura actual");
+  assert.equal(destino.get("X"), null, "sin votos válidos no se inventa un 1");
+  assert.ok(destino.has("X"), "pero la pieza queda vista");
 
   S.recordQtyVote("X", { qty: 7, raw: "7" }, votos, destino);
   S.recordQtyVote("X", { qty: 99, raw: "" }, votos, destino);
   assert.equal(destino.get("X"), 7, "el voto válido manda sobre la lectura sin dígitos");
+});
+
+// Bajo la barra de iconos del HUD el template-matching devuelve ristras como "85603": el parseo
+// las convierte en qty 1 y, como "tienen un dígito", votaban ese 1.
+test("una ristra implausible (más de tres cifras) no vota", () => {
+  const votos = new Map(), destino = new Map();
+  S.recordQtyVote("Neo W2", { qty: 1, raw: "85603" }, votos, destino);
+  assert.equal(destino.get("Neo W2"), null);
 });
 
 test("cada ítem lleva su propia votación", () => {
@@ -204,6 +214,16 @@ test("con el panel cerrado tampoco se repintan las miniaturas", () => {
     "reconstruir las 10 <img> es justo lo que costaba la RAM");
 });
 
+// Sobre el fuente: llegar aquí pide el stack de OCR entero. Si la invalidación no incluye la ZONA,
+// el recorte descuadrado sigue en pie y cada página vuelve torcida: el bucle de páginas ilegibles.
+test("una página que no casa nada invalida también la zona de recorte", () => {
+  const i = SRC.indexOf("revision.reDetectar");
+  assert.notEqual(i, -1, "falta la revisión de la rejilla cacheada");
+  const bloque = SRC.slice(i, i + 600);
+  assert.match(bloque, /this\._frameZoneCache = null/, "sin esto se vuelve a detectar dentro del mismo recorte malo");
+  assert.match(bloque, /this\._autoCalibCache = null/);
+});
+
 // El log son cadenas y lo necesita el botón "COPY LOG": ese sí se guarda siempre, o depurar
 // un escaneo obligaría a reproducirlo con el panel ya abierto.
 test("el log del escaneo se sigue guardando aunque el panel esté cerrado", () => {
@@ -211,4 +231,135 @@ test("el log del escaneo se sigue guardando aunque el panel esté cerrado", () =
   const bloque = SRC.slice(i, i + 400);
   assert.match(bloque, /log:\s*\[\.\.\.this\.lastRawOcrLog\]/);
   assert.ok(!/log:\s*debugVisible/.test(bloque), "el log no puede depender del panel");
+});
+
+// --- Recorte de la página que se encola ------------------------------------------------------
+
+// La zona se calcula una vez por resolución y el scroll es libre: con menos de una celda de
+// margen, el recorte de la página siguiente empieza a media fila y esa fila se pierde entera.
+test("el recorte de página deja una celda entera de margen sobre la primera fila", async () => {
+  const { makeInventoryFrame } = await import("./_helpers/inventory-frame.mjs");
+  const { FakeCanvas } = await import("./_helpers/fake-canvas.mjs");
+  const { VisionService } = await import("../deploy/js/services/scanner/vision.service.js");
+
+  const W = 2560, H = 1440;
+  // gridY muy por debajo de una celda: una página ya scrolleada, que es donde el margen corto fallaba.
+  const frame = makeInventoryFrame({
+    width: W, height: H, gridX: 92, gridY: 500, cellW: 277, cellH: 296, cols: 6, rows: 3, badges: true,
+  });
+  const snapshot = new FakeCanvas(W, H);
+  snapshot.getContext("2d").drawImage(frame, 0, 0);
+  const calib = VisionService.detectGridAutoCalib(snapshot, W, H);
+  assert.ok(calib, "el fixture debe dar rejilla: sin ella no se prueba nada");
+
+  let recorte = null;
+  S._frameZoneCache = null;
+  S._invQueue = { isFull: false, enqueue: (src, sx, sy, sw, sh) => { recorte = { sx, sy, sw, sh }; return true; } };
+  assert.equal(S.enqueueInventoryPage(snapshot, { width: W, height: H, scale: 1 }), true);
+  S._invQueue = null;
+
+  assert.ok(
+    recorte.sy <= calib.gridZone.y - calib.cellH,
+    `el recorte empieza en ${recorte.sy}, a menos de una celda (${calib.cellH}) de la primera fila (${calib.gridZone.y})`,
+  );
+  // Por abajo llega al borde del frame: al final de la lista la última fila baja una celda.
+  assert.equal(recorte.sy + recorte.sh, H);
+  assert.equal(recorte.sx, calib.gridZone.x);
+  assert.equal(recorte.sw, calib.gridZone.w);
+});
+
+// El auto-scan se disparaba con la pantalla quieta porque vigilaba media pantalla: ahí están el
+// panel de venta, el contador de platino y el fondo animado, que cambian solos. Y no se disparaba
+// en RELIQUIAS, donde las cards son iguales y solo cambia el texto.
+test("el auto-scan mira solo la zona de recorte, y ahí le basta con que cambie el texto", async () => {
+  const { FakeCanvas } = await import("./_helpers/fake-canvas.mjs");
+  const W = 800, H = 600;
+  const zona = { x: 0, y: 0, w: 400, h: H };
+
+  // "arte" idéntico en toda la zona; el texto es una franja que cambia de sitio; fuera de la zona,
+  // un panel que cambia solo (como el de venta).
+  const frame = ({ texto = 40, fuera = 0 } = {}) => {
+    const data = new Uint8ClampedArray(W * H * 4);
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        const i = (y * W + x) * 4;
+        let v = x < zona.w ? (y % 37) * 6 : fuera;
+        if (x < zona.w && y >= 200 && y < 240 && x >= texto && x < texto + 160) v = 230;
+        data[i] = data[i + 1] = data[i + 2] = v;
+        data[i + 3] = 255;
+      }
+    }
+    return { videoWidth: W, videoHeight: H, width: W, height: H, data };
+  };
+  const muestraDe = (f) => {
+    const ctx = new FakeCanvas(48, 108).getContext("2d");
+    ctx.drawImage(f, zona.x, zona.y, zona.w, zona.h, 0, 0, 48, 108);
+    const px = ctx.getImageData(0, 0, 48, 108).data;
+    const m = new Uint8Array(48 * 108);
+    for (let i = 0; i < m.length; i++) m[i] = px[i * 4] * 0.299 + px[i * 4 + 1] * 0.587 + px[i * 4 + 2] * 0.114;
+    return m;
+  };
+
+  const dims = { width: W, height: H, scale: 1 };
+  const base = frame();
+  const corre = async (f) => {
+    globalThis.state = { ...globalThis.state, autoScanEnabled: true, scannerModsMode: false };
+    S._frameZoneCache = { key: `${W}x${H}`, zone: zona };
+    S._sampleRect = null;
+    S.lastRowLums = null;
+    S.sawScrollSinceScan = false;
+    S.autoScrollStableTimer = null;
+    await S.routeFrameAction("INVENTORY", base, dims);   // primer frame: solo referencia
+    S.autoScrollMuestra = muestraDe(base);               // esta página ya está escaneada
+    await S.routeFrameAction("INVENTORY", f, dims);
+    const t = S.autoScrollStableTimer;
+    S.autoScrollStableTimer = null;
+    clearTimeout(t);
+    return { programado: t !== null, movimiento: S.sawScrollSinceScan };
+  };
+
+  const fuera = await corre(frame({ fuera: 255 }));
+  assert.equal(fuera.movimiento, false, "un cambio fuera del recorte no es movimiento de la página");
+  assert.equal(fuera.programado, false, "y tampoco programa un escaneo nuevo");
+
+  const reliquias = await corre(frame({ texto: 220 }));
+  assert.equal(reliquias.programado, true, "cambiar solo el texto dentro de la zona SÍ es otra página");
+});
+// --- Qué rejilla se acepta antes de leer la página --------------------------------------------
+//
+// Esta decisión (detectada en este frame / heredada de la anterior / guardada a mano) no la
+// tocaba ningún test, y ahí se coló un fallo que dejó el escáner sin leer NADA en vivo mientras
+// los 1600 tests seguían en verde: el filtro de fase se aplicaba también a la rejilla recién
+// detectada, cuyas bandas no son las mismas cuando la ancla el color.
+test("la rejilla detectada en este frame no la tumba el filtro de fase", async () => {
+  const { VisionService } = await import("../deploy/js/services/scanner/vision.service.js");
+  const detect = VisionService.detectGridAutoCalib, build = VisionService.buildAutoGrid;
+  const rejilla = { gridZone: { x: 0, y: 236, w: 1662, h: 888 }, cellW: 277, cellH: 296, cols: 6, rows: 3, auto: true };
+  VisionService.detectGridAutoCalib = () => rejilla;
+  VisionService.buildAutoGrid = () => ({ cellRects: [], cellW: 277, cellH: 296, cols: 6, rows: 3 }); // corta justo después del filtro
+  VisionService.ultimasBandas = [{ y0: 900, y1: 950, mass: 900 }]; // no casan con la rejilla
+
+  S._autoCalibCache = null;
+  S.detectionLocked = false;
+  await S.processInventoryGrid({ width: 1662, height: 1440, getContext: () => null }, 1662, 1440, 1);
+
+  VisionService.detectGridAutoCalib = detect;
+  VisionService.buildAutoGrid = build;
+  assert.notEqual(S._autoCalibCache, null, "no debe saltarse la página: la rejilla es de este frame");
+});
+
+test("la rejilla heredada que no cae sobre los nombres sí se descarta", async () => {
+  const { VisionService } = await import("../deploy/js/services/scanner/vision.service.js");
+  const detect = VisionService.detectGridAutoCalib;
+  VisionService.detectGridAutoCalib = () => null; // sin señal en este frame
+  VisionService.ultimasBandas = [{ y0: 460, y1: 508, mass: 9000 }, { y0: 756, y1: 804, mass: 9000 }];
+
+  S._autoCalibCache = { key: "1662x1440", calib: { gridZone: { x: 0, y: 700, w: 1662, h: 888 }, cellW: 277, cellH: 296, cols: 6, rows: 3 } };
+  S._frameZoneCache = { key: "1662x1440", zone: { x: 0, y: 0, w: 1662, h: 1440 } };
+  S.detectionLocked = false;
+  await S.processInventoryGrid({ width: 1662, height: 1440, getContext: () => null }, 1662, 1440, 1);
+
+  VisionService.detectGridAutoCalib = detect;
+  assert.equal(S._autoCalibCache, null, "la rejilla de otra página no vale para esta");
+  assert.equal(S._frameZoneCache, null, "y el recorte que la produjo tampoco");
 });
