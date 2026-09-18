@@ -127,3 +127,7 @@ export function readBadgeDigits(canvasLike) {
     }
     return out;
 }
+
+export function badgePlausible(raw) {
+    return /^\d{1,3}$/.test((raw || "").trim());
+}

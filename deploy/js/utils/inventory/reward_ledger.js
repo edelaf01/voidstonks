@@ -10,55 +10,32 @@ export const INITIAL_LEDGER = Object.freeze({
     committed: null,
 });
 
-export function readingSignature(items) {
-    if (!items || items.length === 0) return "0";
-    return items
-        .map((i) => `${i.name}x${i.qty || 1}`)
-        .sort()
-        .join("|");
-}
-
 export function nextLedger(prev, items) {
     const s = { ...INITIAL_LEDGER, ...prev };
     const prevConsensus = s.consensus || INITIAL_CONSENSUS;
+    const committed = s.committed || {};
 
-    if (s.committed && readingSignature(items) === s.committed) return { ledger: s, commit: null };
+    // already committed items do not return to consensus: scrolling brings cells back in view
+    const nuevos = (items || []).filter((i) => i?.name && !committed[i.name]);
+    const { state: nextConsState, confirmed } = nextConsensus(prevConsensus, nuevos);
+    const commit = confirmed.length > 0 ? confirmed : null;
 
-    const { state: nextConsState, confirmed } = nextConsensus(prevConsensus, items);
+    let nextCommitted = s.committed;
+    if (commit) {
+        nextCommitted = { ...committed };
+        for (const c of confirmed) nextCommitted[c.name] = true;
+    }
 
-    const hasNewCommit = confirmed.length > 0;
-    const commit = hasNewCommit ? confirmed : null;
-
-    let committed = s.committed;
-    let nextItems = nextConsState.items;
-
-    if (hasNewCommit) {
-        committed = readingSignature(items);
-
-        const currentItemNames = new Set((items || []).map((it) => it?.name).filter(Boolean));
-        const pruned = {};
-        for (const [name, entry] of Object.entries(nextItems)) {
-            if (entry.confirmed && !currentItemNames.has(name)) {
-                continue;
-            }
-            pruned[name] = entry;
-        }
-        nextItems = pruned;
-    } else {
-        let pruned = null;
-        for (const [name, entry] of Object.entries(nextItems)) {
-            if (entry.score < 0.05) {
-                if (!pruned) pruned = { ...nextItems };
-                delete pruned[name];
-            }
-        }
-        if (pruned) nextItems = pruned;
+    const nextItems = {};
+    for (const [name, entry] of Object.entries(nextConsState.items)) {
+        if (entry.confirmed || entry.score < 0.05) continue;
+        nextItems[name] = entry;
     }
 
     return {
         ledger: {
             consensus: { items: nextItems },
-            committed,
+            committed: nextCommitted,
         },
         commit,
     };

@@ -470,6 +470,37 @@ test("detectInventoryGrid REGRESIÓN: misma UI pequeña con nombres al 60% (vall
   assert.ok(Math.abs(res.cellW - SMALL.cellW) <= SMALL.cellW * 0.03);
 });
 
+function recorta({ data, width }, x, y, w, h) {
+  const out = new Uint8ClampedArray(w * h * 4);
+  for (let r = 0; r < h; r++) {
+    const src = ((y + r) * width + x) * 4;
+    out.set(data.subarray(src, src + w * 4), r * w * 4);
+  }
+  return { data: out, width: w, height: h };
+}
+
+test("detectInventoryGrid REGRESIÓN: el recorte de página que empieza a media fila mantiene la fase", () => {
+  const frame = makeSmallScaleFrame();
+  const completo = detectInventoryGrid(frame);
+  const cropY = SMALL.gridY + Math.round(SMALL.cellH * 0.75);
+  const cropH = SMALL.gridY + 3 * SMALL.cellH + Math.round(SMALL.cellH * 0.70) - cropY - 20;
+  const trace = {};
+  const res = detectInventoryGrid(
+    recorta(frame, SMALL.gridX, cropY, SMALL.cols * SMALL.cellW, cropH),
+    { trace },
+  );
+  assert.ok(res, `no debería fallar; trace.fail = ${trace.fail}`);
+  assert.equal(res.cols, SMALL.cols, `cols esperado ${SMALL.cols}, obtenido ${res.cols}`);
+  assert.ok(
+    Math.abs(res.cellH - completo.cellH) <= completo.cellH * 0.03,
+    `cellH ${res.cellH} fuera de tolerancia (el frame completo da ${completo.cellH})`,
+  );
+  const esperada = ((completo.gridZone.y - cropY) % res.cellH + res.cellH) % res.cellH;
+  const obtenida = (res.gridZone.y % res.cellH + res.cellH) % res.cellH;
+  const desfase = Math.min(Math.abs(obtenida - esperada), res.cellH - Math.abs(obtenida - esperada));
+  assert.ok(desfase <= 8, `la rejilla queda ${desfase}px fuera de fase (y=${res.gridZone.y}, cellH=${res.cellH})`);
+});
+
 const BADGY = { width: 2403, height: 1218, gridX: 5, gridY: 270, cellW: 265, cellH: 295, cols: 6 };
 
 function makeBadgeHeavyFrame() {
@@ -740,3 +771,39 @@ for (const gridY of [-60, -120, -200]) {
     }
   });
 }
+
+test("detectInventoryGrid: al final de la lista, una última fila a medias no recorta columnas reales", () => {
+  const truth = { gridX: 66, gridY: 132, cellW: 277, cellH: 296, cols: 6 };
+  const filled = [...Array.from({ length: 18 }, (_, i) => i), 18, 19, 20];
+  const img = makeInventoryFrame({ width: 2542, height: 1387, ...truth, rows: 4, filled });
+  const trace = {};
+  const res = detectInventoryGrid(img, { trace });
+  assert.ok(res, `sin detección; traza: ${JSON.stringify(trace)}`);
+  assert.equal(res.cols, 6, `cols ${res.cols}: ${JSON.stringify(trace.occCols)} ${JSON.stringify(trace.trimmedCols)}`);
+});
+
+test("detectInventoryGrid: captura real del final de la lista de reliquias (si está)", async () => {
+  const fs = await import("node:fs");
+  const ruta = `${process.env.HOME}/Imágenes/Capturas de pantalla/probar/Captura de pantalla_20260913_221944.png`;
+  if (!fs.existsSync(ruta)) return;
+  const { decodePng } = await import("./_helpers/png.mjs");
+  const trace = {};
+  const res = detectInventoryGrid(decodePng(fs.readFileSync(ruta)), { trace });
+  assert.ok(res);
+  assert.equal(res.cols, 6, JSON.stringify(trace.trimmedCols));
+  assert.equal(res.rows, 4);
+});
+
+test("detectInventoryGrid REGRESIÓN: dos filas limpias salteadas no dan el paso doble", () => {
+  const cellW = 277, cellH = 296, cols = 6, rows = 4;
+  const img = makeInventoryFrame({
+    width: cols * cellW, height: rows * cellH - 60, gridX: 0, gridY: 20,
+    cellW, cellH, cols, rows, badges: true,
+    nameWidthFrac: (r) => (r % 2 === 0 ? 0.6 : 1),
+  });
+  const trace = {};
+  const res = detectInventoryGrid(img, { trace });
+  assert.ok(res, `no debería fallar; trace.fail = ${trace.fail}`);
+  assert.ok(Math.abs(res.cellH - cellH) <= cellH * 0.05,
+    `cellH ${res.cellH} debería rondar ${cellH}, no el doble (cadena: ${JSON.stringify(trace.chain)})`);
+});

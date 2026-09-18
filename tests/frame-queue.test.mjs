@@ -11,12 +11,15 @@ function source(w, h, v) {
 }
 
 const defer = () => new Promise(r => setTimeout(r, 0));
+async function settle(q) {
+    do { await defer(); } while (q.isBusy || q.size);
+}
 
 test("frame queue: procesa en orden de llegada", async () => {
     const seen = [];
     const q = createFrameQueue({ max: 3, process: async (job) => { seen.push(job.meta); } });
     for (const n of [1, 2, 3]) q.enqueue(source(4, 4, n), 0, 0, 4, 4, n);
-    await defer();
+    await settle(q);
     assert.deepEqual(seen, [1, 2, 3]);
 });
 
@@ -32,7 +35,7 @@ test("frame queue: llena rechaza en vez de descartar lo viejo", async () => {
     assert.equal(q.enqueue(source(4, 4, 4), 0, 0, 4, 4, "d"), false, "la 4ª debe rechazarse");
 
     release();
-    await defer();
+    await settle(q);
     assert.deepEqual(seen, ["a", "b", "c"]);
 });
 
@@ -41,7 +44,7 @@ test("frame queue: reutiliza los canvas en vez de crear uno por foto", async () 
     const q = createFrameQueue({ max: 2, process: async (job) => { used.add(job.cvs); } });
     for (let i = 0; i < 6; i++) {
         q.enqueue(source(4, 4, i + 1), 0, 0, 4, 4, i);
-        await defer();
+        await settle(q);
     }
     assert.equal(used.size, 1, `6 fotos secuenciales deberían reusar 1 canvas, usaron ${used.size}`);
 });
@@ -57,7 +60,7 @@ test("frame queue: un frame que revienta no para la cola", async () => {
     });
     q.enqueue(source(4, 4, 1), 0, 0, 4, 4, "malo");
     q.enqueue(source(4, 4, 2), 0, 0, 4, 4, "bueno");
-    await defer();
+    await settle(q);
     assert.deepEqual(seen, ["bueno"]);
 });
 
@@ -72,7 +75,7 @@ test("frame queue: el recorte que llega al consumidor es la región pedida", asy
     let got = null;
     const q = createFrameQueue({ max: 1, process: async (job) => { got = job.cvs; } });
     q.enqueue(src, 4, 4, 4, 4);
-    await defer();
+    await settle(q);
     assert.equal(got.width, 4);
     assert.equal(got.height, 4);
     const px = got.getContext("2d").getImageData(0, 0, 4, 4).data;
@@ -91,4 +94,25 @@ test("frame queue: clear devuelve lo pendiente sin procesarlo", async () => {
     release();
     await defer();
     assert.deepEqual(seen, ["en-curso"]);
+});
+
+test("frame queue: release suelta el pool, pero lo pendiente se lee antes", async () => {
+    let release;
+    const gate = new Promise(r => { release = r; });
+    const seen = [];
+    const q = createFrameQueue({ max: 2, process: async (job) => { await gate; seen.push([job.meta, job.cvs.width]); } });
+    q.enqueue(source(4, 4, 1), 0, 0, 4, 4, "a");
+    q.enqueue(source(4, 4, 2), 0, 0, 4, 4, "b");
+    q.release();
+    release();
+    await settle(q);
+    assert.deepEqual(seen, [["a", 4], ["b", 4]]);
+    const used = new Set();
+    const q2 = createFrameQueue({ max: 2, process: async (job) => { used.add(job.cvs); } });
+    q2.enqueue(source(4, 4, 1), 0, 0, 4, 4, 1);
+    await settle(q2);
+    q2.release();
+    q2.enqueue(source(4, 4, 2), 0, 0, 4, 4, 2);
+    await settle(q2);
+    assert.equal(used.size, 2, "tras release no se reutiliza el canvas soltado");
 });
