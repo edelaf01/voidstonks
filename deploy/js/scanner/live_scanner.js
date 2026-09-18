@@ -16,6 +16,9 @@ import { mergeRelicCounts } from "../utils/inventory/relic_counts.js";
 import { sumaReliquias, restaReliquia } from "../utils/inventory/relic_votes.js";
 import { RelicScreenService } from "../services/scanner/relic_screen.service.js";
 import { exposeGlobals } from "../utils/global_registry.js";
+import { DebugRecorder } from "../services/scanner/debug_recorder.service.js";
+import { motorElegido } from "../services/scanner/ocr_engine.service.js";
+import { APP_VERSION } from "../config.js";
 
 const HOWTO_KEY = "vs_live_howto_seen";
 
@@ -36,6 +39,39 @@ globalThis.toggleScannerDebug = () => {
 
   showToast(DEBUG_MODE ? "Debug mode ON" : "Debug mode OFF");
 };
+
+const sh = () => TEXTS[state.currentLang]?.scannerHUD || {};
+
+function pintaGrabadora() {
+  const rec = document.getElementById("btn-debug-record");
+  if (rec) { rec.textContent = DebugRecorder.enabled ? sh().btnRecordOn : sh().btnRecord; rec.classList.toggle("is-recording", DebugRecorder.enabled); }
+  const exp = document.getElementById("btn-debug-export");
+  const cuenta = DebugRecorder.size + (DebugRecorder.size ? ` · ${Math.round(DebugRecorder.mb)} MB` : "");
+  if (exp) exp.textContent = (sh().btnExport || "ZIP ({n})").replace("{n}", cuenta);
+}
+
+function toggleDebugRecorder() {
+  DebugRecorder.enabled = !DebugRecorder.enabled;
+  DebugRecorder.onChange = pintaGrabadora;
+  if (DebugRecorder.enabled) {
+    const v = document.getElementById("live-video");
+    DebugRecorder.sesion = { version: APP_VERSION, motor: motorElegido(), frame: v?.videoWidth ? `${v.videoWidth}x${v.videoHeight}` : null, workers: OCRRepository.MAX_WORKERS, navegador: navigator.userAgent };
+  }
+  pintaGrabadora();
+  showToast(DebugRecorder.enabled ? sh().toastRecordOn : sh().toastRecordOff);
+}
+
+async function exportDebugRecorder() {
+  if (!DebugRecorder.size) { showToast(sh().toastRecordEmpty); return; }
+  const zip = await DebugRecorder.export();
+  const url = URL.createObjectURL(new Blob([zip], { type: "application/zip" }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `voidstonks-debug-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-")}.zip`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+  showToast((sh().toastRecordExported || "{n}").replace("{n}", DebugRecorder.size));
+}
 
 globalThis.copyScannerDebugLog = async () => {
   try {
@@ -262,12 +298,13 @@ function commitMissionCompleteRewards(items, gastada = null) {
   toast.appendChild(undo);
 }
 
-exposeGlobals({ commitMissionCompleteRewards }, "scanner/live_scanner.js");
+exposeGlobals({ commitMissionCompleteRewards, toggleDebugRecorder, exportDebugRecorder }, "scanner/live_scanner.js");
 
 globalThis.saveLiveInventory = () => {
   const sh = TEXTS[state.currentLang].scannerHUD;
   for (const [name, count] of ScannerService.sessionInventory) {
-    state.primeInventory[name] = count;
+    if (count !== null) state.primeInventory[name] = count;
+    else state.primeInventory[name] ??= 1;
   }
   ScannerService.sessionInventory.clear();
 

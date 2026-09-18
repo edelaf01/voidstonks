@@ -35,6 +35,7 @@ export function makeInventoryFrame(opts) {
     seed = 1,
     bgColor = null,
     textColor = [240, 235, 220],
+    nameWidthFrac = 0.6,
     clampBgDark = bgColor === null,
     art = null,
   } = opts;
@@ -85,7 +86,7 @@ export function makeInventoryFrame(opts) {
       if (!filledSet.has(idx)) continue;
       const cellX = gridX + c * cellW;
       const cellY = gridY + r * cellH;
-      const w = Math.round(cellW * 0.6);
+      const w = Math.round(cellW * (typeof nameWidthFrac === "function" ? nameWidthFrac(r) : nameWidthFrac));
       const x0 = Math.round(cellX + (cellW - w) / 2);
       const lh = Math.round(cellH * 0.12);
 

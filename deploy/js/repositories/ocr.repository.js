@@ -66,7 +66,7 @@ export const OCRRepository = {
         return Promise.race([this.initPromise, timeoutPromise]);
     },
 
-    MAX_WORKERS: 4,
+    MAX_WORKERS: 2,
 
     async ensureWorkers(n = 2) {
         if (!this._createStandardWorker) return;

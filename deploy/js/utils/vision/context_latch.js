@@ -61,3 +61,7 @@ export function intervaloCabecera(estable = 0) {
     const rachas = Math.min(Math.max(estable, 0), TOPE_HEADER_ESTABLE);
     return Math.min(rachas * INTERVALO_ESTABLE_MS, INTERVALO_MAXIMO_MS);
 }
+
+export function caducidadCabecera(contexto) {
+  return contexto === "MISSION_COMPLETE" ? 10000 : 2500;
+}

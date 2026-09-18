@@ -209,7 +209,14 @@ def _fusiona_historial(nuevos, ruta, dias_historial, tope):
     archivo.sort(key=_nota, reverse=True)
     salida = frescos + archivo[:ARCHIVO_MAX]
     salida.sort(key=lambda e: e.get("fecha") or "", reverse=True)
-    return salida[:tope]
+    vistas, unicos = set(), []
+    for e in salida:
+        arma = str(e.get("arma") or "").lower()
+        if arma in vistas:
+            continue
+        vistas.add(arma)
+        unicos.append(e)
+    return unicos[:tope]
 
 
 if __name__ == "__main__":

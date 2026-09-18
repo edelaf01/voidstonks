@@ -171,7 +171,7 @@ export const ScannerHUD = {
 
         const fila = (name, qty, clase, corto) => `<div class="hud-item ${clase}" title="${escapeHTML(name)}">
             <span class="hud-item-name">${escapeHTML(corto)}</span>
-            <span class="hud-item-qty">×${escapeHTML(String(qty))}</span>
+            <span class="hud-item-qty">×${escapeHTML(qty === null ? "?" : String(qty))}</span>
           </div>`;
         const orden = (mapa) => [...mapa.entries()].sort((a, b) => a[0].localeCompare(b[0]));
         const seccion = (titulo, entradas, clase, acorta = (n) => n) => entradas.length
