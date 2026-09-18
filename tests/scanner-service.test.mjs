@@ -40,14 +40,26 @@ test("con empate gana la cantidad mayor", () => {
   assert.equal(destino.get("X"), 31);
 });
 
-test("una lectura sin dígitos no vota, pero se enseña si no hay nada mejor", () => {
+// a read with no digits is not a vote, it is OCR returning garbage; with no votes quantity stays UNKNOWN
+// (null): recording a 1 as fallback overwrote the real count on save (18 relics with unread badges dropped
+// from 28 copies to 1)
+test("una lectura sin dígitos no vota y sin votos la cantidad es desconocida, nunca 1", () => {
   const votos = new Map(), destino = new Map();
   S.recordQtyVote("X", { qty: 1, raw: "" }, votos, destino);
-  assert.equal(destino.get("X"), 1, "sin votos válidos se usa la lectura actual");
+  assert.equal(destino.get("X"), null, "sin votos válidos no se inventa un 1");
+  assert.ok(destino.has("X"), "pero la pieza queda vista");
 
   S.recordQtyVote("X", { qty: 7, raw: "7" }, votos, destino);
   S.recordQtyVote("X", { qty: 99, raw: "" }, votos, destino);
   assert.equal(destino.get("X"), 7, "el voto válido manda sobre la lectura sin dígitos");
+});
+
+// under the HUD icon bar template-matching returns strings like "85603": parsing turned them into qty 1
+// and, having a digit, they cast a vote for that 1
+test("una ristra implausible (más de tres cifras) no vota", () => {
+  const votos = new Map(), destino = new Map();
+  S.recordQtyVote("Neo W2", { qty: 1, raw: "85603" }, votos, destino);
+  assert.equal(destino.get("Neo W2"), null);
 });
 
 test("cada ítem lleva su propia votación", () => {
@@ -178,6 +190,16 @@ test("con el panel cerrado tampoco se repintan las miniaturas", () => {
     "reconstruir las 10 <img> es justo lo que costaba la RAM");
 });
 
+// tested on source because reaching this needs the full OCR stack: if invalidation excludes the ZONE, the
+// misaligned crop persists and every page returns skewed in an unreadable loop
+test("una página que no casa nada invalida también la zona de recorte", () => {
+  const i = SRC.indexOf("revision.reDetectar");
+  assert.notEqual(i, -1, "falta la revisión de la rejilla cacheada");
+  const bloque = SRC.slice(i, i + 600);
+  assert.match(bloque, /this\._frameZoneCache = null/, "sin esto se vuelve a detectar dentro del mismo recorte malo");
+  assert.match(bloque, /this\._autoCalibCache = null/);
+});
+
 // log entries are strings needed by "COPY LOG": always saved, otherwise debugging a scan would require
 // reproducing it with the panel open
 test("el log del escaneo se sigue guardando aunque el panel esté cerrado", () => {
@@ -185,4 +207,127 @@ test("el log del escaneo se sigue guardando aunque el panel esté cerrado", () =
   const bloque = SRC.slice(i, i + 400);
   assert.match(bloque, /log:\s*\[\.\.\.this\.lastRawOcrLog\]/);
   assert.ok(!/log:\s*debugVisible/.test(bloque), "el log no puede depender del panel");
+});
+
+test("el recorte de página deja una celda entera de margen sobre la primera fila", async () => {
+  const { makeInventoryFrame } = await import("./_helpers/inventory-frame.mjs");
+  const { FakeCanvas } = await import("./_helpers/fake-canvas.mjs");
+  const { VisionService } = await import("../deploy/js/services/scanner/vision.service.js");
+
+  const W = 2560, H = 1440;
+  const frame = makeInventoryFrame({
+    width: W, height: H, gridX: 92, gridY: 500, cellW: 277, cellH: 296, cols: 6, rows: 3, badges: true,
+  });
+  const snapshot = new FakeCanvas(W, H);
+  snapshot.getContext("2d").drawImage(frame, 0, 0);
+  const calib = VisionService.detectGridAutoCalib(snapshot, W, H);
+  assert.ok(calib, "el fixture debe dar rejilla: sin ella no se prueba nada");
+
+  let recorte = null;
+  S._frameZoneCache = null;
+  S._invQueue = { isFull: false, enqueue: (src, sx, sy, sw, sh) => { recorte = { sx, sy, sw, sh }; return true; } };
+  assert.equal(S.enqueueInventoryPage(snapshot, { width: W, height: H, scale: 1 }), true);
+  S._invQueue = null;
+
+  assert.ok(
+    recorte.sy <= calib.gridZone.y - calib.cellH,
+    `el recorte empieza en ${recorte.sy}, a menos de una celda (${calib.cellH}) de la primera fila (${calib.gridZone.y})`,
+  );
+  assert.equal(recorte.sy + recorte.sh, H);
+  assert.equal(recorte.sx, calib.gridZone.x);
+  assert.equal(recorte.sw, calib.gridZone.w);
+});
+
+// auto-scan triggered on still screens because it watched half the screen, where the sell panel, plat
+// counter and animated background change on their own; it failed on RELICS, where cards look identical and
+// only text changes
+test("el auto-scan mira solo la zona de recorte, y ahí le basta con que cambie el texto", async () => {
+  const { FakeCanvas } = await import("./_helpers/fake-canvas.mjs");
+  const W = 800, H = 600;
+  const zona = { x: 0, y: 0, w: 400, h: H };
+
+  // identical "art" across the zone; text is a band shifting position; outside the zone, an independently
+  // changing panel (like the sell panel)
+  const frame = ({ texto = 40, fuera = 0 } = {}) => {
+    const data = new Uint8ClampedArray(W * H * 4);
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        const i = (y * W + x) * 4;
+        let v = x < zona.w ? (y % 37) * 6 : fuera;
+        if (x < zona.w && y >= 200 && y < 240 && x >= texto && x < texto + 160) v = 230;
+        data[i] = data[i + 1] = data[i + 2] = v;
+        data[i + 3] = 255;
+      }
+    }
+    return { videoWidth: W, videoHeight: H, width: W, height: H, data };
+  };
+  const muestraDe = (f) => {
+    const ctx = new FakeCanvas(48, 108).getContext("2d");
+    ctx.drawImage(f, zona.x, zona.y, zona.w, zona.h, 0, 0, 48, 108);
+    const px = ctx.getImageData(0, 0, 48, 108).data;
+    const m = new Uint8Array(48 * 108);
+    for (let i = 0; i < m.length; i++) m[i] = px[i * 4] * 0.299 + px[i * 4 + 1] * 0.587 + px[i * 4 + 2] * 0.114;
+    return m;
+  };
+
+  const dims = { width: W, height: H, scale: 1 };
+  const base = frame();
+  const corre = async (f) => {
+    globalThis.state = { ...globalThis.state, autoScanEnabled: true, scannerModsMode: false };
+    S._frameZoneCache = { key: `${W}x${H}`, zone: zona };
+    S._sampleRect = null;
+    S.lastRowLums = null;
+    S.sawScrollSinceScan = false;
+    S.autoScrollStableTimer = null;
+    await S.routeFrameAction("INVENTORY", base, dims);   // first frame: reference only
+    S.autoScrollMuestra = muestraDe(base);               // this page has already been scanned
+    await S.routeFrameAction("INVENTORY", f, dims);
+    const t = S.autoScrollStableTimer;
+    S.autoScrollStableTimer = null;
+    clearTimeout(t);
+    return { programado: t !== null, movimiento: S.sawScrollSinceScan };
+  };
+
+  const fuera = await corre(frame({ fuera: 255 }));
+  assert.equal(fuera.movimiento, false, "un cambio fuera del recorte no es movimiento de la página");
+  assert.equal(fuera.programado, false, "y tampoco programa un escaneo nuevo");
+
+  const reliquias = await corre(frame({ texto: 220 }));
+  assert.equal(reliquias.programado, true, "cambiar solo el texto dentro de la zona SÍ es otra página");
+});
+// which grid is accepted before reading the page: this decision (detected in this frame / inherited from
+// previous / manual) had no tests, slipping a bug that left the scanner reading NOTHING live while 1600
+// tests stayed green: the phase filter was applied to newly detected grids, whose bands differ when
+// anchored by colour
+test("la rejilla detectada en este frame no la tumba el filtro de fase", async () => {
+  const { VisionService } = await import("../deploy/js/services/scanner/vision.service.js");
+  const detect = VisionService.detectGridAutoCalib, build = VisionService.buildAutoGrid;
+  const rejilla = { gridZone: { x: 0, y: 236, w: 1662, h: 888 }, cellW: 277, cellH: 296, cols: 6, rows: 3, auto: true };
+  VisionService.detectGridAutoCalib = () => rejilla;
+  VisionService.buildAutoGrid = () => ({ cellRects: [], cellW: 277, cellH: 296, cols: 6, rows: 3 }); // cuts off right after the filter
+  VisionService.ultimasBandas = [{ y0: 900, y1: 950, mass: 900 }]; // do not match the grid
+
+  S._autoCalibCache = null;
+  S.detectionLocked = false;
+  await S.processInventoryGrid({ width: 1662, height: 1440, getContext: () => null }, 1662, 1440, 1);
+
+  VisionService.detectGridAutoCalib = detect;
+  VisionService.buildAutoGrid = build;
+  assert.notEqual(S._autoCalibCache, null, "no debe saltarse la página: la rejilla es de este frame");
+});
+
+test("la rejilla heredada que no cae sobre los nombres sí se descarta", async () => {
+  const { VisionService } = await import("../deploy/js/services/scanner/vision.service.js");
+  const detect = VisionService.detectGridAutoCalib;
+  VisionService.detectGridAutoCalib = () => null; // no signal in this frame
+  VisionService.ultimasBandas = [{ y0: 460, y1: 508, mass: 9000 }, { y0: 756, y1: 804, mass: 9000 }];
+
+  S._autoCalibCache = { key: "1662x1440", calib: { gridZone: { x: 0, y: 700, w: 1662, h: 888 }, cellW: 277, cellH: 296, cols: 6, rows: 3 } };
+  S._frameZoneCache = { key: "1662x1440", zone: { x: 0, y: 0, w: 1662, h: 1440 } };
+  S.detectionLocked = false;
+  await S.processInventoryGrid({ width: 1662, height: 1440, getContext: () => null }, 1662, 1440, 1);
+
+  VisionService.detectGridAutoCalib = detect;
+  assert.equal(S._autoCalibCache, null, "la rejilla de otra página no vale para esta");
+  assert.equal(S._frameZoneCache, null, "y el recorte que la produjo tampoco");
 });

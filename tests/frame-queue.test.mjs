@@ -98,3 +98,24 @@ test("frame queue: clear devuelve lo pendiente sin procesarlo", async () => {
     await defer();
     assert.deepEqual(seen, ["en-curso"]);
 });
+
+test("frame queue: release suelta el pool, pero lo pendiente se lee antes", async () => {
+    let release;
+    const gate = new Promise(r => { release = r; });
+    const seen = [];
+    const q = createFrameQueue({ max: 2, process: async (job) => { await gate; seen.push([job.meta, job.cvs.width]); } });
+    q.enqueue(source(4, 4, 1), 0, 0, 4, 4, "a");
+    q.enqueue(source(4, 4, 2), 0, 0, 4, 4, "b");
+    q.release();
+    release();
+    await settle(q);
+    assert.deepEqual(seen, [["a", 4], ["b", 4]]);
+    const used = new Set();
+    const q2 = createFrameQueue({ max: 2, process: async (job) => { used.add(job.cvs); } });
+    q2.enqueue(source(4, 4, 1), 0, 0, 4, 4, 1);
+    await settle(q2);
+    q2.release();
+    q2.enqueue(source(4, 4, 2), 0, 0, 4, 4, 2);
+    await settle(q2);
+    assert.equal(used.size, 2, "tras release no se reutiliza el canvas soltado");
+});

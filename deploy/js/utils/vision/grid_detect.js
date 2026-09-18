@@ -11,6 +11,8 @@
  * both light on dark and dark on light.
  */
 
+import { filasConNombre } from "./grid_alignment.js";
+
 /** Perceptual luma (0..255), base of the edge signal. */
 export const luma = (r, g, b) => 0.299 * r + 0.587 * g + 0.114 * b;
 
@@ -412,21 +414,31 @@ function detectInventoryGridCore(img, opts = {}) {
         return null;
     }
 
+    // text blocks per band; a real name band has ≥1 "name sized" block. Wide 2 line names can MERGE neighbour
+    // cells into one block, so the width filter only drops edge to edge lines
     const narrowEnough = bl => (bl.x1 - bl.x0) < width * 0.9;
     const bandBlocks = bands.map(b => ({ band: b, blocks: blocksInBand(img, b.y0, b.y1, o).filter(narrowEnough) }))
         .filter(bb => bb.blocks.length >= 1);
 
+    // DISCARDED bands that can still be a real row: at the end of the list the last row sits next to
+    // "TOTAL"/"SELL ITEMS" and the merge gap (from the band height) joins the names and the panel into ONE edge
+    // to edge block. They are split again with a small gap.
+    // They do NOT join the chain WHILE there are clean bands; with none left (art merges the name in EVERY row,
+    // the normal case in a page CROP) these count, and there is no HUD either.
     const rescuedBands = [];
     for (const b of bands) {
-        if (bandBlocks.some(bb => bb.band === b) || b.y1 < height * 0.2) continue;
-        const tight = { ...o, blockGap: Math.max(6, Math.round((b.y1 - b.y0 + 1) * 0.12)) };
-        const retry = blocksInBand(img, b.y0, b.y1, tight).filter(narrowEnough);
-        if (retry.length >= 3) rescuedBands.push({ band: b, blocks: retry });
+        if (bandBlocks.some(bb => bb.band === b)) continue;
+        const retry = blocksInBand(img, b.y0, b.y1, { ...o, blockGap: Math.max(6, Math.round((b.y1 - b.y0 + 1) * 0.12)) });
+        const estrechos = retry.filter(narrowEnough);
+        // edge to edge even with the small gap is still a row: two merged names
+        if (estrechos.length >= 3) rescuedBands.push({ band: b, blocks: estrechos });
+        else if (retry.some(bl => bl.x1 - bl.x0 >= width * 0.6)) rescuedBands.push({ band: b, blocks: retry });
     }
     trace.rescuedBands = rescuedBands.map(bb => bb.band.y0);
     trace.bandBlocks = bandBlocks.map(bb => ({ y0: bb.band.y0, blocks: bb.blocks.length }));
 
-    if (bandBlocks.length < 2) bandBlocks.push(...rescuedBands);
+    // with two clean ones SKIPPED the chain came out at double step; the HUD title is not a row
+    if (bandBlocks.filter(bb => bb.band.y1 >= height * 0.2).length < o.rows) bandBlocks.push(...rescuedBands);
     if (bandBlocks.length < 2) {
         trace.fail = `bandas con bloques válidos insuficientes (${bandBlocks.length} < 2) — ¿bloques de borde a borde (>90% del frame) o ruido?`;
         return null;
@@ -698,15 +710,20 @@ function detectInventoryGridCore(img, opts = {}) {
                 cs = -1;
             }
         }
+        // if the run is still wider than a plausible grid, weak columns are trimmed from the ENDS: the side panel
+        // shows in a single row, real columns in (almost) all. The inside is not touched, and with no dominant
+        // strong block nothing is trimmed. "Strong" = three rows in four, not ALL: the last row of the list is
+        // half full
         const maxOcc = Math.max(...occ);
         if (maxOcc >= 3) {
+            const strongOcc = Math.ceil(maxOcc * 0.75);
             let strongFirst = -1, strongLast = -1;
             for (let k = bs; k < bs + bl; k++) {
-                if (occ[k] >= maxOcc) { if (strongFirst < 0) strongFirst = k; strongLast = k; }
+                if (occ[k] >= strongOcc) { if (strongFirst < 0) strongFirst = k; strongLast = k; }
             }
             if (strongFirst >= 0) {
                 let strongCount = 0;
-                for (let k = strongFirst; k <= strongLast; k++) if (occ[k] >= maxOcc) strongCount++;
+                for (let k = strongFirst; k <= strongLast; k++) if (occ[k] >= strongOcc) strongCount++;
                 const span = strongLast - strongFirst + 1;
                 if (strongCount === span && span >= o.minCols) {
                     bs = strongFirst;
@@ -732,7 +749,9 @@ function detectInventoryGridCore(img, opts = {}) {
         ? Math.round(firstBand.y1 - cellH * o.nameBaselineOffset)
         : Math.round(usedTops[0] - cellH * o.nameBandOffset);
 
-    let rows = rowBands.length;
+    // plus the ones peeking at the bottom with few items (see filasConNombre)
+    let rows = filasConNombre(findBands(prof, height, { ...o, bandMassFloor: 0 }),
+        { gridX, gridY, cellW, cellH, cols, rows: rowBands.length, height, bloques: b => blocksInBand(img, b.y0, b.y1, o) });
 
     let gridYTop = gridY;
     if (cellH > 0) {

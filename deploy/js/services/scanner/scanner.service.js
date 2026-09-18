@@ -1,9 +1,10 @@
 import { VisionService } from "./vision.service.js";
 import { freezeFrame, releaseFrame } from "../../utils/vision/frame_freeze.js";
-import { nextLatchedContext, INITIAL_LATCH, enrutaGraciaRiven, toleranciaCabecera, intervaloCabecera } from "../../utils/vision/context_latch.js";
+import { nextLatchedContext, INITIAL_LATCH, enrutaGraciaRiven, toleranciaCabecera, intervaloCabecera, caducidadCabecera } from "../../utils/vision/context_latch.js";
 import { isImplausibleFallbackGrid } from "../../utils/vision/plausibility.js";
+import { filasEnFase } from "../../utils/vision/grid_alignment.js";
 import { localizaBandaRecompensas, candidatosDeRecorte, recorteDelRotulo } from "../../utils/vision/reward_band.js";
-import { leeRecompensas, leeRotulosMissionComplete } from "./reward_read.service.js";
+import { leeRecompensas, leeRotulosMissionComplete, leeCasillaMissionComplete } from "./reward_read.service.js";
 import { leeCantidadBadge, relojBadges } from "./badge_read.service.js";
 import { motorActivo, MOTOR_PRECISO } from "./ocr_engine.service.js";
 import { OCRService } from "./ocr.service.js?v=264";
@@ -22,17 +23,18 @@ import { revisaRejillaCacheada } from "../../utils/vision/grid_cache.js";
 import { detectRewardCells } from "../../utils/vision/mission_complete_grid.js";
 import { nextLedger, INITIAL_LEDGER } from "../../utils/inventory/reward_ledger.js";
 import { createFrameQueue } from "../../utils/vision/frame_queue.js";
-import { videoRegionHash, smallCanvasHash, compareHashes } from "../../utils/vision/frame_hash.js";
+import { videoRegionHash, smallCanvasHash, canvasRegionHash, compareHashes, fraccionCambiada } from "../../utils/vision/frame_hash.js";
+import { createReadCache } from "../../utils/vision/read_cache.js";
+import { DebugRecorder } from "./debug_recorder.service.js";
 import { ESTADO_INICIAL as ESTADO_SIN_RESULTADO, saltaPorSinResultado, siguienteEstadoSinResultado } from "../../utils/vision/no_result_skip.js";
 import { cronometro } from "../../utils/perf.js";
 
 import { rivenFingerprint } from "../../utils/rivens/riven_naming.js";
-import { labelFullyRead } from "../../utils/vision/name_lines.js";
 import { hudBottom } from "../../utils/vision/hud_cover.js";
+import { badgePlausible } from "../../utils/vision/badge_digit_ocr.js";
 import { isGarbledCellText } from "../../utils/vision/cell_text_guard.js";
-import { collectWords } from "../../utils/vision/ocr_words.js";
-import { hasComponentSiblings } from "../../utils/inventory/component_siblings.js";
 import { olvidaColorTexto } from "../../utils/vision/reward_preprocess.js";
+const cedeHilo = () => new Promise((r) => setTimeout(r, 0));
 
 export const ScannerService = {
     isScanning: false,
@@ -47,6 +49,7 @@ export const ScannerService = {
     _nameColorCache: null, // { key: "WxH", color }
     _frameZoneCache: null, // { key: "WxH", zone } in frame coordinates, to crop on enqueue
     _invQueue: null,       // pages waiting for OCR (utils/frame_queue.js)
+    _sampleRect: null,     // video region watched by auto-scan ("x,y,w,h"); a change drops the samples
     detectionLocked: false,
     scanCounter: 0,
     inventoryHasScanned: false,
@@ -113,6 +116,17 @@ export const ScannerService = {
         if (this.scanInterval) clearTimeout(this.scanInterval);
         this.scanInterval = null;
         OCRRepository.terminateAll();
+        this._invQueue?.clear();
+        this.releaseFrames();
+    },
+
+    /** Releases the held frames (page pool, inventory snapshot, mission end frame). */
+    releaseFrames() {
+        this._invQueue?.release();
+        this._invSnapshot = releaseFrame(this._invSnapshot);
+        this._mcFrameCvs = releaseFrame(this._mcFrameCvs);
+        this._mcCellCvs = releaseFrame(this._mcCellCvs);
+        this._mcGrid = null;
     },
 
     async loop() {
@@ -152,7 +166,7 @@ export const ScannerService = {
         if (!worker1) return;
 
         const headerHash = smallCanvasHash(virtualCanvas);
-        const headerCacheFresh = this.lastHeaderOcrTime && (Date.now() - this.lastHeaderOcrTime < 2500);
+        const headerCacheFresh = this.lastHeaderOcrTime && (Date.now() - this.lastHeaderOcrTime < caducidadCabecera(this.latchedContext));
         const tolHeader = toleranciaCabecera(this._headerEstable);
         const enPausa = Date.now() - (this.lastHeaderOcrTime || 0) < intervaloCabecera(this._headerEstable);
         let headerText;
@@ -225,7 +239,9 @@ export const ScannerService = {
         // the text color only changes with the screen: recomputed on context change
         if (this.ctxLatch.latched !== this.latchedContext) olvidaColorTexto();
         // mission end left: the next one may repeat a part and must count again
-        if (this.latchedContext === "MISSION_COMPLETE" && this.ctxLatch.latched !== "MISSION_COMPLETE") this.mcLedger = INITIAL_LEDGER;
+        if (this.latchedContext === "MISSION_COMPLETE" && this.ctxLatch.latched !== "MISSION_COMPLETE") { this.mcLedger = INITIAL_LEDGER; this._mcCache.clear(); }
+        // frames only serve their screen: released on context change
+        if (this.ctxLatch.latched !== this.latchedContext) this.releaseFrames();
         this.latchedContext = this.ctxLatch.latched;
         // the frozen frame (~15 MB at 1440p) is released outside rewards
         if (this.latchedContext !== "REWARD") {
@@ -234,6 +250,7 @@ export const ScannerService = {
             VisionService.releaseRewardCanvases?.();
         }
         console.log(`[SCAN] Context Raw: ${rawContext} | Latched: ${this.latchedContext} | Header: "${headerText.trim().slice(0, 60)}"`);
+        if (this.latchedContext !== this._ctxGrabado) { this._ctxGrabado = this.latchedContext; DebugRecorder.record({ kind: "cabecera", image: virtualCanvas, meta: { resumen: `${rawContext} → ${this.latchedContext}`, texto: headerText.trim() } }); }
         await this.routeFrameAction(this.latchedContext, video, dims);
         reloj.fin(this.latchedContext);
 
@@ -253,11 +270,14 @@ export const ScannerService = {
             const calib = VisionService.detectGridAutoCalib(snapshot, dims.width, dims.height);
             let zone = calib?.gridZone || null;
             if (zone) {
-                const m = Math.round((calib.cellH || 0) * 0.25);
-                const y = Math.max(0, zone.y - m);
+                const cellH = Math.round(calib.cellH || 0);
+                const y = Math.max(0, zone.y - cellH);
+                // the HUD is measured in the quarter cell above the row: higher up, the cut row name alternates like
+                // the icons
+                const hudY = Math.max(y, zone.y - Math.round(cellH * 0.25));
                 const ctx = snapshot.getContext("2d", { willReadFrequently: true });
-                const hud = zone.y > y ? hudBottom(ctx.getImageData(zone.x, y, zone.w, zone.y - y)) : null;
-                zone = { ...zone, y, h: Math.min(dims.height - y, zone.h + m + (zone.y - y)), hud };
+                const borde = zone.y > hudY ? hudBottom(ctx.getImageData(zone.x, hudY, zone.w, zone.y - hudY)) : null;
+                zone = { ...zone, y, h: dims.height - y, hud: borde == null ? null : borde + (hudY - y) };
             }
             this._frameZoneCache = { key, zone };
         }
@@ -282,13 +302,13 @@ export const ScannerService = {
         let votes = votesMap.get(itemName);
         if (!votes) { votes = new Map(); votesMap.set(itemName, votes); }
 
-        const readOk = /\d/.test(qtyResult.raw || "");
-        if (readOk) {
+        if (badgePlausible(qtyResult.raw)) {
             votes.set(qtyResult.qty, (votes.get(qtyResult.qty) || 0) + 1);
         }
 
-        const consensus = this.modeQty(votes);
-        targetMap.set(itemName, consensus !== null ? consensus : qtyResult.qty);
+        // consensus qty = most voted. With no valid vote it stays unknown (null): a failed read is a 1 and
+        // overwrote the real count on save.
+        targetMap.set(itemName, this.modeQty(votes));
     },
 
     // Most voted qty (ties: the larger). null without votes.
@@ -302,9 +322,8 @@ export const ScannerService = {
         return bestQty;
     },
 
-    autoScrollHash: null,
+    autoScrollMuestra: null,
     autoScrollStableTimer: null,
-    lastFrameHash: null,
     scrollDirectionAccumulator: 0,
     lastRowLums: null,
     // movement seen since the last scan: forces a rescan once still, since the page hash collides
@@ -325,8 +344,7 @@ export const ScannerService = {
         if (contextType === "INVENTORY") {
             if (!globalThis.state.autoScanEnabled) {
                 this.currentRate = 3000;
-                this.autoScrollHash = null;
-                this.lastFrameHash = null;
+                this.autoScrollMuestra = null;
                 this.sawScrollSinceScan = false;
                 if (this.autoScrollStableTimer) {
                     clearTimeout(this.autoScrollStableTimer);
@@ -339,40 +357,43 @@ export const ScannerService = {
             // the pool is created while the user still scrolls
             if (motorActivo() !== MOTOR_PRECISO || !PaddleRepository.listo()) OCRRepository.ensureWorkers(OCRRepository.MAX_WORKERS).catch(() => {});
 
+            // 108 sample rows, not 27: the tail of the game's smooth scroll moves a few px per frame
+            const FILAS = 108;
             const sampleCvs = this._sampleCvs ||= document.createElement("canvas");
-            sampleCvs.width = 48; sampleCvs.height = 27;
+            sampleCvs.width = 48; sampleCvs.height = FILAS;
             const sCtx = sampleCvs.getContext("2d", { willReadFrequently: true });
-            sCtx.drawImage(video, 0, Math.floor(video.videoHeight * 0.25), video.videoWidth, Math.floor(video.videoHeight * 0.5), 0, 0, 48, 27);
-            const currentHash = VisionService.getFrameHash(sCtx, 48, 27);
-
-            if (this.lastFrameHash === null || this.lastFrameHash === undefined) {
-                this.lastFrameHash = currentHash;
-                return;
-            }
+            const zona = this._frameZoneCache?.key === `${dims.width}x${dims.height}` && this._frameZoneCache.zone;
+            const r = zona || { x: 0, y: Math.floor(dims.height * 0.25), w: dims.width, h: Math.floor(dims.height * 0.5) };
+            const rectKey = `${r.x},${r.y},${r.w},${r.h}`;
+            // a new region: old samples do not compare (phantom scroll)
+            if (this._sampleRect !== rectKey) { this._sampleRect = rectKey; this.lastRowLums = null; this.autoScrollMuestra = null; }
+            sCtx.drawImage(video, r.x, r.y, r.w, r.h, 0, 0, 48, FILAS);
 
             const rowLums = [];
-            const imgData = sCtx.getImageData(0, 0, 48, 27);
-            const px = imgData.data;
-            for (let r = 0; r < 27; r++) {
+            const px = sCtx.getImageData(0, 0, 48, FILAS).data;
+            const muestra = new Uint8Array(48 * FILAS);
+            for (let r = 0; r < FILAS; r++) {
                 let sum = 0;
                 const rowStart = r * 48 * 4;
                 for (let c = 0; c < 48; c++) {
                     const idx = rowStart + c * 4;
-                    sum += px[idx] * 0.299 + px[idx+1] * 0.587 + px[idx+2] * 0.114;
+                    muestra[r * 48 + c] = px[idx] * 0.299 + px[idx+1] * 0.587 + px[idx+2] * 0.114;
+                    sum += muestra[r * 48 + c];
                 }
                 rowLums.push(sum / 48);
             }
+            if (!this.lastRowLums) { this.lastRowLums = rowLums; return; }
 
             let bestDy = 0;
             let mseZero = 0;
             let minError = Infinity;
             if (this.lastRowLums) {
-                for (let dy = -6; dy <= 6; dy++) {
+                for (let dy = -24; dy <= 24; dy++) {
                     let errorSum = 0;
                     let count = 0;
-                    for (let r = 0; r < 27; r++) {
+                    for (let r = 0; r < FILAS; r++) {
                         const prevR = r + dy;
-                        if (prevR >= 0 && prevR < 27) {
+                        if (prevR >= 0 && prevR < FILAS) {
                             const diff = rowLums[r] - this.lastRowLums[prevR];
                             errorSum += diff * diff;
                             count++;
@@ -402,14 +423,15 @@ export const ScannerService = {
             }
 
             // still: rescan after a scroll or a page hash change
-            const hasPageChanged = !this.autoScrollHash || this.sawScrollSinceScan || Math.abs(currentHash - this.autoScrollHash) >= 120;
-            const isFirstScan = !this.autoScrollHash;
+            const hasPageChanged = !this.autoScrollMuestra || this.sawScrollSinceScan
+                || fraccionCambiada(muestra, this.autoScrollMuestra) >= 0.01;
+            const isFirstScan = !this.autoScrollMuestra;
 
             if (hasPageChanged && !this.autoScrollStableTimer && this._canCapturePage) {
                 if (!isFirstScan && this.scrollDirectionAccumulator <= -3) {
                     this.scrollDirectionAccumulator = 0;
                     this.sawScrollSinceScan = false;
-                    this.autoScrollHash = currentHash;
+                    this.autoScrollMuestra = muestra;
                     ScannerHUD.updateScrollStatus("done", this.sessionInventory.size + this.sessionRelics.size);
                     return;
                 }
@@ -435,7 +457,7 @@ export const ScannerService = {
                     snapshot.getContext("2d", { willReadFrequently: true }).drawImage(v, 0, 0);
 
                     // queue full: the hash is not marked, so the page is retried instead of lost
-                    if (this.enqueueInventoryPage(snapshot, dims)) this.autoScrollHash = currentHash;
+                    if (this.enqueueInventoryPage(snapshot, dims)) this.autoScrollMuestra = muestra;
                     this.autoScrollStableTimer = null;
 
                 }, 800);
@@ -576,7 +598,11 @@ export const ScannerService = {
             return lines.map(L => L.ws.sort((a, b) => a.bbox.x0 - b.bbox.x0).map(w => w.text).join(" ")).join("\n");
         };
 
+        // threshold for gaps between EDGES, not centers: two side by side cards leave ~4-6% of the crop width and
+        // line continuations of one card ~1%. A bad split is rescued by the full text in processRivenCard
         const gapThresh = Math.max(canvasWidth * 0.03, 40);
+        // by gap between EDGES (next x0 minus the max x1), not centers: the wrapped text of ONE card hugs the right
+        // edge of the block but its centers fall far, and by centers it made ghost anchors that split a card in two
         const clusterByX = (ws) => {
             const items = ws.slice().sort((a, b) => a.bbox.x0 - b.bbox.x0);
             const groups = [[]];
@@ -929,6 +955,9 @@ export const ScannerService = {
     _mcFrameCvs: null,
     _mcCellCvs: null,
     _mcStableHash: null,
+    // grid and per-cell reads, valid while their crop does not change (utils/vision/read_cache.js)
+    _mcGrid: null,
+    _mcCache: createReadCache(),
 
     /**
      * Reads the mission end screen and adds the prime parts on it. Four cheap gates before writing:
@@ -947,51 +976,44 @@ export const ScannerService = {
             return;
         }
 
-        const fCtx = frame.getContext("2d", { willReadFrequently: true });
-        const trace = {};
-        const grid = detectRewardCells(fCtx.getImageData(0, 0, width, height), { trace });
-        if (!grid) {
-            console.log(`[MC] Sin rejilla: ${trace.fail}`);
-            return;
+        // the grid holds while the frame is the same: detecting it reads the whole frame
+        if (!this._mcGrid || !compareHashes(hash, this._mcGrid.hash, 6)) {
+            const trace = {};
+            const grid = detectRewardCells(frame.getContext("2d", { willReadFrequently: true }).getImageData(0, 0, width, height), { trace });
+            this._mcGrid = { hash, grid };
+            if (!grid) { console.log(`[MC] Sin rejilla: ${trace.fail}`); return; }
+            console.log(`[MC] ${trace.cells} casillas · ${trace.cols}×${trace.rows} · paso ${trace.pitch}${grid.occluded ? " · TAPADA" : ""}${grid.cut ? " · DESPLAZADA" : ""}`);
+            console.log(`[MC] sin rótulo (mods): ${grid.cells.filter((c) => !c.named).map((c) => `r${c.row}c${c.col}`).join(" ") || "ninguna"}`);
         }
-        console.log(`[MC] ${trace.cells} casillas · ${trace.cols}×${trace.rows} · paso ${trace.pitch}${grid.occluded ? " · TAPADA" : ""}${grid.cut ? " · DESPLAZADA" : ""}`);
-
+        const { grid } = this._mcGrid;
         // the "N OWNED" tooltip covers up to two cells: wait for the mouse to move
-        if (grid.occluded) return;
+        if (!grid || grid.occluded) return;
 
         const worker = OCRRepository.workers[0];
         if (!worker) return;
 
         if (!this._mcCellCvs) this._mcCellCvs = document.createElement("canvas");
-        // with the precise engine every label comes from one pass: Tesseract loses the first line of a
-        // label drawn over the art
-        const rotulos = await leeRotulosMissionComplete(frame, grid.cells.filter((c) => c.named));
-        console.log(`[MC] sin rótulo (mods): ${grid.cells.filter((c) => !c.named).map((c) => `r${c.row}c${c.col}`).join(" ") || "ninguna"}`);
-
+        // only labeled cells (the rest are mods) not read yet: the confirming pass comes from the cache
+        const pendientes = [];
         const items = [];
         for (const cell of grid.cells) {
             if (!cell.named) continue;
-            const preciso = rotulos?.get(`r${cell.row}c${cell.col}`);
-            let data = null, raw = preciso || "";
-            if (!preciso) {
-                VisionService.prepareMissionCompleteCellCanvas(frame, cell, grid.accent, this._mcCellCvs);
-                ({ data } = await OCRRepository.recognize(worker, this._mcCellCvs, {}, { text: true, blocks: true }));
-                raw = (data.text || "").toUpperCase();
-            }
-            const relic = OCRService.getRelicMatch(raw);
-            const match = relic ? null : OCRService.getValidItemMatch(raw);
-            console.log(`[MC] r${cell.row}c${cell.col} ${preciso ? "preciso" : "clásico"}: "${raw.replaceAll(/\s+/g, " ").trim()}" → ${relic ? `${relic} ×${cell.qty} (reliquia)` : match?.isPrime ? `${match.originalName} ×${cell.qty}` : "sin match"}`);
-            if (relic) { items.push({ name: relic, qty: cell.qty, cell, reliquia: true }); continue; }
-            if (!match?.isPrime) continue;
-            if (!preciso && hasComponentSiblings(OCRService.cachedDbItems, match.originalName)) {
-                const { completo, cobertura } = labelFullyRead(this._mcCellCvs, collectWords(data));
-                if (!completo) {
-                    console.log(`[MC] r${cell.row}c${cell.col}: descarto "${match.originalName}" — lo leído explica el ${Math.round(cobertura * 100)}% de la tinta del rótulo`);
-                    continue;
-                }
-            }
-            items.push({ name: match.originalName, qty: cell.qty, cell });
+            const clave = `r${cell.row}c${cell.col}`, sello = canvasRegionHash(frame, cell);
+            const previa = this._mcCache.get(clave, sello);
+            if (previa) { if (previa.name) items.push({ name: previa.name, qty: cell.qty, cell, reliquia: previa.reliquia }); continue; }
+            pendientes.push({ cell, clave, sello });
         }
+        // with the precise engine every label comes from one pass: Tesseract loses the first line of a
+        // label drawn over the art
+        const rotulos = pendientes.length ? await leeRotulosMissionComplete(frame, pendientes.map((p) => p.cell)) : null;
+        const lecturas = [];
+        for (const { cell, clave, sello } of pendientes) {
+            const lectura = await leeCasillaMissionComplete(worker, frame, cell, grid.accent, this._mcCellCvs, rotulos?.get(clave));
+            this._mcCache.set(clave, sello, lectura);
+            lecturas.push({ celda: clave, x: cell.x, y: cell.y, w: cell.w, h: cell.h, qty: cell.qty, ...lectura });
+            if (lectura.name) items.push({ name: lectura.name, qty: cell.qty, cell, reliquia: lectura.reliquia });
+        }
+        if (pendientes.length) DebugRecorder.record({ kind: "fin-mision", image: frame, meta: { resumen: `${lecturas.length} casillas leídas · ${items.length} con nombre`, rejilla: { casillas: grid.cells.length, paso: grid.pitch, accent: grid.accent, cut: grid.cut, sinRotulo: grid.cells.filter((c) => !c.named).map((c) => `r${c.row}c${c.col}`) }, lecturas } });
 
         const { ledger, commit } = nextLedger(this.mcLedger, items);
         this.mcLedger = ledger;
@@ -1031,6 +1053,7 @@ export const ScannerService = {
             if (result.foundItems.length >= cand.minimo) break;
         }
 
+        // only crops are exhausted; exposure presets are for camera photos and change nothing on capture
         if (!result?.foundItems.length) for (const cand of candidatos) {
             const r = await leeRecompensas(frame, width, height, scale, "STANDARD", cand.cropRect, cand.columnas, "clasico");
             if (!result || r.foundItems.length > result.foundItems.length) { result = r; usado = { ...cand, preset: "STANDARD" }; }
@@ -1040,6 +1063,7 @@ export const ScannerService = {
             console.log(`[REWARD] Leído con recorte "${usado.nombre}" y preset ${usado.preset}`);
         }
         const { rawOcr, namesRaw, foundItems, ocrCanvas, namesCanvas } = result;
+        DebugRecorder.record({ kind: "recompensas", image: frame, overlay: ocrCanvas, meta: { resumen: `${foundItems.length} ítems`, recorte: usado, rawOcr, namesRaw, items: foundItems.map((i) => ({ name: i.name, owned: i.owned, crafted: i.crafted })) } });
 
         // caches the hash when this frame brought no reward, so the skip above works on a still screen
         this.lastRewardNoResult = siguienteEstadoSinResultado(foundItems.length > 0, bandHash, Date.now());
@@ -1107,14 +1131,13 @@ export const ScannerService = {
 
         try {
             const calibKey = `${width}x${height}`;
-            let calibData = null;
-            if (this._autoCalibCache?.key === calibKey) {
+            let calibData = VisionService.detectGridAutoCalib(snapshot, width, height);
+            const reciennacida = !!calibData; // detected in this frame, not inherited
+            if (calibData) {
+                this._autoCalibCache = { key: calibKey, calib: calibData };
+            } else if (this._autoCalibCache?.key === calibKey) {
                 calibData = this._autoCalibCache.calib;
-            } else {
-                calibData = VisionService.detectGridAutoCalib(snapshot, width, height);
-                if (calibData) {
-                    this._autoCalibCache = { key: calibKey, calib: calibData };
-                }
+                console.log("[INV] Auto-grid sin señal en esta página — uso la rejilla de la anterior.");
             }
 
             if (!calibData) {
@@ -1129,26 +1152,11 @@ export const ScannerService = {
                 }
             }
 
-            if (!calibData?.gridZone) {
-                if (/KUBROW|KUBR|CHESA|HURAS|SAHASA|RAKSA|SUNIKA|HELMINTH|KAVAT/i.test(this.lastHeaderText || "")) {
-                    console.log("[INV] Omitiendo modal de calibración porque la pantalla es de kubrow.");
-                    this.detectionLocked = false;
-                    return;
-                }
-                if (globalThis.LiveCalibration && !globalThis.LiveCalibration.hasCalibration()) {
-                    console.log("[INV] Sin auto-grid ni calibración. Abriendo calibración manual...");
-                    const calibCvs = document.createElement("canvas");
-                    calibCvs.width = width;
-                    calibCvs.height = height;
-                    const calibCtx = calibCvs.getContext("2d", { willReadFrequently: true });
-                    calibCtx.drawImage(snapshot, 0, 0);
-                    await globalThis.LiveCalibration.runCalibrationFlow(
-                        calibCtx.getImageData(0, 0, width, height)
-                    );
-                    this.detectionLocked = false;
-                    return;
-                }
-                console.warn("[INV] No grid zone calibration available.");
+            // only the inherited grid is checked: this frame's corroborates itself
+            const rejilla = calibData?.gridZone && { gridY: calibData.gridY ?? calibData.gridZone.y, cellH: calibData.cellH, rows: calibData.rows };
+            if (!rejilla || (!reciennacida && !filasEnFase(VisionService.ultimasBandas, rejilla))) {
+                console.warn(`[INV] Página saltada: ${rejilla ? "la rejilla no cae sobre los nombres" : "sin rejilla"} — se re-detecta.`);
+                this._autoCalibCache = this._frameZoneCache = null;
                 this.detectionLocked = false;
                 return;
             }
@@ -1172,7 +1180,7 @@ export const ScannerService = {
             }
             console.log(`[INV] Theme detected: ${theme.name} (r:${theme.r} g:${theme.g} b:${theme.b})`);
 
-            reloj.fase("rejilla+tema");
+            await cedeHilo(); reloj.fase("rejilla+tema"); // grid detection and theme vote in separate tasks
             const autoGrid = VisionService.buildAutoGrid(snapshot, gridZone, theme, calibData);
             if (!autoGrid || autoGrid.cellRects.length === 0) {
                 console.warn("[INV] Auto-grid detection failed — inventory may not be visible or zone needs recalibration.");
@@ -1215,10 +1223,20 @@ export const ScannerService = {
             const agInfo = `AG ${calibData.auto ? "auto" : "manual"} ${autoGrid.rows}r×${autoGrid.cols}c cell ${cellW}×${cellH} zone ${gridZone.x},${gridZone.y} dy ${autoGrid.phaseShift || 0}${calibData.traceSummary?.halfPitchFixed ? " HPfix" : ""}`;
             this.lastRawOcrLog = [];
             this.lastRawOcrLog.push(`[AUTO-GRID] ${agInfo} · rowBands ${JSON.stringify(calibData.traceSummary?.rowBands || [])} · chain ${JSON.stringify(calibData.traceSummary?.chain || null)}`);
+            // at the end of the list row 0 sits under the header, name visible but no badge. Skipped only if no
+            // cell has a badge and the session HUD covers it or row 1 has badges.
             const hud = this._frameZoneCache?.zone?.hud ?? -1;
-            const badges = async (r) => { let n = 0; for (const c of cellRects) if (c.r === r && /\d/.test((await leeCantidadBadge(snapshot, c, cellW, cellH, theme)).raw || "")) n++; return n; };
+            // each badge is read once per page, and only plausible ones (1-3 digits) count
+            const badgesPagina = new Map();
+            const badgeDe = (c, k = `r${c.r}c${c.c}`) =>
+                badgesPagina.get(k) || badgesPagina.set(k, leeCantidadBadge(snapshot, c, cellW, cellH, theme)).get(k);
+            const badges = async (r) => {
+                let n = 0;
+                for (const c of cellRects.filter((x) => x.r === r)) { await cedeHilo(); if (badgePlausible((await badgeDe(c)).raw)) n++; }
+                return n;
+            };
             const filaTapada = cellRects.some((c) => c.r === 1) && (await badges(0)) === 0
-                && (cellRects[0].sy + cellH * 0.04 < hud || (await badges(1)) >= 3);
+                && (cellRects[0].sy + cellH * 0.04 < hud || (await badges(1)) >= Math.ceil(autoGrid.cols / 2));
             const activeCells = cellRects.filter((cell) => !(filaTapada && cell.r === 0)).map(cell => ({ cell }));
             if (filaTapada) this.lastRawOcrLog.push(`[r0] SKIPPED (sin badges bajo el HUD, ${cellRects.length - activeCells.length} celdas)`);
             const scanStats = { cells: activeCells.length, matched: 0, relics: 0, empty: 0, unmatched: 0, none: 0, ownColor: 0 };
@@ -1232,7 +1250,7 @@ export const ScannerService = {
             console.log(`[INV] Workers OCR listos: ${workers.length}`);
 
             if (!this._nameColorCache || this._nameColorCache.key !== calibKey) {
-                await new Promise((r) => setTimeout(r, 0));
+                await cedeHilo(); // the grid and color vote are the two long blocks of the 1st page
                 // the read wins over the auto-grid color, which comes from counting pixels
                 const color = await electPageNameColor(workers[0], snapshot, activeCells, cellW, textSrcY, textSrcH, theme)
                     || calibData?.nameColor;
@@ -1261,6 +1279,7 @@ export const ScannerService = {
             if (motorActivo() === MOTOR_PRECISO) {
                 const tiras = activeCells.map(({ cell }) =>
                     ({ clave: clave(cell), sx: cell.sx, sy: cell.sy + bandaY, sw: cellW, sh: bandaH }));
+                await cedeHilo(); // the montage of the 18 strips is drawn at once
                 lotePreciso = await PaddleRepository.recognizeStripWords(snapshot, tiras)
                     .catch((e) => { console.warn("[Paddle] lote falló, voy celda a celda:", e); return null; });
             }
@@ -1270,7 +1289,7 @@ export const ScannerService = {
                 while (cellIndex < activeCells.length) {
                     const task = activeCells[cellIndex++];
                     if (!task) break;
-                    await new Promise((r) => setTimeout(r, 0));
+                    await cedeHilo(); // each cell mask is synchronous (~70 ms) and chained they froze the page
 
                     console.log(`[INV] celda ${cellIndex}/${activeCells.length} (r${task.cell.r}c${task.cell.c})...`);
 
@@ -1401,7 +1420,7 @@ export const ScannerService = {
 
 
                     if (bestItem) {
-                        const qtyResult = await leeCantidadBadge(snapshot, cell, cellW, cellH, theme);
+                        const qtyResult = await badgeDe(cell);
 
                         logStr += ` || BDG: ${qtyResult.raw}`;
                         // not recorded yet: a prime part only counts if the page is not a relic page (see after Promise.all)
@@ -1409,7 +1428,7 @@ export const ScannerService = {
                     } else if (relicMatch) {
                         scanStats.relics++;
                         // same read as prime items, voting into the relic maps
-                        const qtyResult = await leeCantidadBadge(snapshot, cell, cellW, cellH, theme);
+                        const qtyResult = await badgeDe(cell);
 
                         const relicSrc = relicText === combinedText ? "1st-pass" : "fallback";
                         logStr += ` || RELIC (${relicSrc}): ${relicMatch} || BDG: ${qtyResult.raw}`;
@@ -1420,7 +1439,7 @@ export const ScannerService = {
                         // cyan accent tells a relic from a prime part at a glance
                         drawResolvedCell({
                             cell, name: relicMatch, qtyResult, text: relicText, accent: "#00e5ff",
-                            qty: this.sessionRelics.get(relicMatch) ?? qtyResult.qty,
+                            qty: this.sessionRelics.get(relicMatch) ?? "?",
                         });
                     } else {
                         // second riven guard: only the full cell OCR (fallbackText) may show "RIVEN"
@@ -1481,7 +1500,7 @@ export const ScannerService = {
                         accent: "#00ff78",
                         name: pending.bestItem.originalName.replace(/Prime/gi, "").trim(),
                         // consensus qty, not this frame's
-                        qty: this.sessionInventory.get(pending.bestItem.originalName) ?? pending.qtyResult.qty,
+                        qty: this.sessionInventory.get(pending.bestItem.originalName) ?? "?",
                     });
                 }
 
@@ -1497,6 +1516,7 @@ export const ScannerService = {
                     + (scanStats.ownColor ? ` · own-color ${scanStats.ownColor}` : "")
                     + (autoGrid.phaseShift ? ` · dy ${autoGrid.phaseShift > 0 ? "+" : ""}${autoGrid.phaseShift}px` : "");
                 this.lastRawOcrLog.push(`[SUMMARY] ${summary}`);
+                DebugRecorder.record({ kind: "inventario", image: snapshot, overlay: debugCanvas, log: this.lastRawOcrLog, meta: { resumen: summary, rejilla: { rows: autoGrid.rows, cols: autoGrid.cols, cellW, cellH, zone: gridZone, dy: autoGrid.phaseShift || 0, auto: !!calibData.auto }, tema: theme?.name ?? theme ?? null, colorNombre: pageNameColor, hud, filaTapada, celdas: cellRects.map((c) => ({ r: c.r, c: c.c, sx: c.sx, sy: c.sy })) } });
 
                 // the page color is cached for the session: if half the page rebinarized with its own color, it is
                 // dropped and the next page picks again
@@ -1508,10 +1528,12 @@ export const ScannerService = {
                 const aciertos = scanStats.matched + scanStats.relics;
                 const revision = revisaRejillaCacheada(aciertos, activeCells.length, this._gridReintentado);
                 this._gridReintentado = revision.yaReintentado;
-                if (this._autoCalibCache && revision.reDetectar) {
-                    console.warn(`[INV] Solo ${aciertos}/${activeCells.length} celdas casaron con lo cacheado — invalidando auto-grid, color de nombre y tema.`);
+                if (revision.reDetectar) {
+                    console.warn(`[INV] Solo ${aciertos}/${activeCells.length} celdas casaron — invalidando auto-grid, zona de recorte, color de nombre y tema.`);
                     this._autoCalibCache = null;
                     this._nameColorCache = null;
+                    // the zone too: re-detecting inside a bad crop repeats the failure
+                    this._frameZoneCache = null;
                     // the theme too: it feeds every color mask
                     this._temaCache = null;
                 }

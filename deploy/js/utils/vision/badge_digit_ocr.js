@@ -160,3 +160,11 @@ export function readBadgeDigits(canvasLike) {
     }
     return out;
 }
+
+/**
+ * Is it a real badge quantity? One to three digits: the game shows no more than 999 and matching the HUD
+ * icon bar gives strings like "85603".
+ */
+export function badgePlausible(raw) {
+    return /^\d{1,3}$/.test((raw || "").trim());
+}
