@@ -25,12 +25,22 @@ export function createFrameQueue({ max = 3, process }) {
         return cvs;
     };
 
+    let pendingRelease = false;
+    const freePool = () => {
+        for (const cvs of pool) { cvs.width = 0; cvs.height = 0; }
+        pool.length = 0;
+        pendingRelease = false;
+    };
+
     const drain = async () => {
         if (busy) return;
         busy = true;
         try {
             while (queue.length) {
                 const job = queue.shift();
+                // one tick before reading: `process` starts in the SAME task as the capture, and grid detection plus page
+                // color blocked in a row. With the tick the browser paints between shot and read
+                await new Promise((r) => setTimeout(r, 0));
                 try {
                     await process(job);
                 } catch (e) {
@@ -42,6 +52,7 @@ export function createFrameQueue({ max = 3, process }) {
             }
         } finally {
             busy = false;
+            if (pendingRelease) freePool();
         }
     };
 
@@ -70,6 +81,16 @@ export function createFrameQueue({ max = 3, process }) {
                 const job = queue.pop();
                 if (pool.length < max) pool.push(job.cvs);
             }
+        },
+
+        /**
+         * Frees the pool memory (canvases to 0×0) without dropping what is pending: a queued shot is a valid page
+         * even if the player already left the inventory, so it is read and freed afterwards. Out of the inventory or
+         * with the scanner stopped there is no reason to hold them.
+         */
+        release() {
+            if (busy || queue.length) { pendingRelease = true; return; }
+            freePool();
         },
     };
 }

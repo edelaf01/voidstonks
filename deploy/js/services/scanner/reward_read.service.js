@@ -11,6 +11,9 @@ import { columnasEnRecorte } from "../../utils/vision/reward_cards.js";
 import { rawWords } from "../../utils/vision/ocr_words.js";
 import { montaTiras, repartePorTramos } from "../../utils/vision/ocr_montage.js";
 import { motorActivo, MOTOR_PRECISO } from "./ocr_engine.service.js";
+import { labelFullyRead } from "../../utils/vision/name_lines.js";
+import { collectWords } from "../../utils/vision/ocr_words.js";
+import { hasComponentSiblings } from "../../utils/inventory/component_siblings.js";
 
 async function conPaddle(frame, width, height, scale, cropRect, columnas) {
     const colorCvs = VisionService.prepareRewardOCRCanvas(frame, width, height, scale, "COLOR", cropRect);
@@ -47,6 +50,37 @@ export async function leeRotulosMissionComplete(frame, celdas) {
         console.warn("[MC] motor preciso falló, sigo con el clásico:", e);
         return null;
     }
+}
+
+/**
+ * What one end-of-mission card holds: relic, prime part or nothing. Cell by cell, so neighbor
+ * words cannot make up a name. Relic first: its name does not match the parts catalog.
+ * @returns {{ name: string|null, reliquia: boolean, raw: string, motor: string }}
+ */
+export async function leeCasillaMissionComplete(worker, frame, cell, accent, cellCvs, preciso) {
+    let data = null, raw = preciso || "";
+    if (!preciso) {
+        VisionService.prepareMissionCompleteCellCanvas(frame, cell, accent, cellCvs);
+        ({ data } = await OCRRepository.recognize(worker, cellCvs, {}, { text: true, blocks: true }));
+        raw = (data.text || "").toUpperCase();
+    }
+    raw = raw.replaceAll(/\s+/g, " ").trim();
+    const motor = preciso ? "preciso" : "clásico";
+    const relic = OCRService.getRelicMatch(raw);
+    const match = relic ? null : OCRService.getValidItemMatch(raw);
+    console.log(`[MC] r${cell.row}c${cell.col} ${motor}: "${raw}" → ${relic ? `${relic} ×${cell.qty} (reliquia)` : match?.isPrime ? `${match.originalName} ×${cell.qty}` : "sin match"}`);
+    if (relic) return { name: relic, reliquia: true, raw, motor };
+    if (!match?.isPrime) return { name: null, reliquia: false, raw, motor };
+    // a blueprint with component siblings can be the neighbor label missing its middle line: the read
+    // must explain the ink width of each line. Tesseract only, it is the one that drops lines.
+    if (!preciso && hasComponentSiblings(OCRService.cachedDbItems, match.originalName)) {
+        const { completo, cobertura } = labelFullyRead(cellCvs, collectWords(data));
+        if (!completo) {
+            console.log(`[MC] r${cell.row}c${cell.col}: descarto "${match.originalName}" — lo leído explica el ${Math.round(cobertura * 100)}% de la tinta del rótulo`);
+            return { name: null, reliquia: false, raw, motor };
+        }
+    }
+    return { name: match.originalName, reliquia: false, raw, motor };
 }
 
 // Returns { rawOcr, namesRaw, foundItems, ocrCanvas, namesCanvas }. `frame` is the frozen canvas

@@ -15,6 +15,7 @@ export function updateScannerLabels(t) {
     setText("btn-recalibrate", sh.btnRecalibrate);
     setText("lbl-ocr-debug", sh.lblDebugSnapshot);
     setText("btn-copy-debug-log", sh.btnCopyLog);
+    // the record and ZIP buttons are painted by live_scanner.js: they carry state
     setText("lbl-detected-items", sh.lblDetected);
     setText("lbl-scan-empty-state", sh.lblEmpty);
     // lbl-ocr-engine is painted by renderOcrEngine

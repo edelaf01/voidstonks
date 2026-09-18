@@ -195,11 +195,12 @@ function bandaSintetica({ puente }) {
     return { data, width: W, height: H, LETRAS_X, LINEAS };
 }
 
+/** is there ink in the rectangle (band coordinates; the crop is enlarged)? */
 function hayTinta(mask, x0, x1, y0, y1) {
-    const S = 3;
+    const S = mask.width / 277;
     const d = mask.getContext("2d").getImageData(0, 0, mask.width, mask.height).data;
-    for (let y = y0 * S; y <= y1 * S; y++) {
-        for (let x = x0 * S; x <= x1 * S; x++) {
+    for (let y = Math.ceil(y0 * S); y <= Math.floor(y1 * S); y++) {
+        for (let x = Math.ceil(x0 * S); x <= Math.floor(x1 * S); x++) {
             if (d[(y * mask.width + x) * 4] === 0) return true;
         }
     }

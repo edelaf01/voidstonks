@@ -61,6 +61,7 @@ export function nextConsensus(prev, items, options = {}) {
             qtyVotes: { ...(entry.qtyVotes || {}) },
             qty: entry.qty ?? 1,
             confirmed: Boolean(entry.confirmed),
+            ...(entry.reliquia ? { reliquia: true } : {}),
         };
     }
 
@@ -83,6 +84,8 @@ export function nextConsensus(prev, items, options = {}) {
             };
             nextItems[name] = entry;
         }
+        // the relic flag travels with the entry: the commit adds it to the relic inventory, not the parts one
+        if (item.reliquia) entry.reliquia = true;
 
         entry.score += weight;
         entry.qtyVotes[qty] = (entry.qtyVotes[qty] || 0) + 1;
@@ -95,6 +98,7 @@ export function nextConsensus(prev, items, options = {}) {
             confirmed.push({
                 name,
                 qty: entry.qty,
+                ...(entry.reliquia ? { reliquia: true } : {}),
             });
         }
     }

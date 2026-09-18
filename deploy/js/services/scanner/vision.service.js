@@ -3,6 +3,7 @@ import { detectInventoryGrid } from "../../utils/vision/grid_detect.js";
 import { maxChannelInvert } from "../../utils/vision/channel_max.js";
 import { digitosPorAncla } from "../../utils/vision/badge_anchor.js";
 import { accentMask } from "../../utils/vision/mission_complete_grid.js";
+import { labelTop } from "../../utils/vision/label_band.js";
 import { NAME_TEXT_COLORS, snapToThemeTextColor, rampCoreColor, bandInkHistogram, rankPageNameColors } from "../../utils/vision/name_color.js";
 import { themeTextMask } from "../../utils/vision/theme_mask.js";
 import { inkRunRatio } from "../../utils/vision/ink_runs.js";
@@ -37,6 +38,9 @@ export async function applyBestCameraConstraints(stream) {
 
 import { eligeTema } from "../../utils/vision/theme_vote.js";
 
+// name band upscale: 2x loses low contrast themes, 3x costs 20 % more per cell for the same reads
+const CELL_UPSCALE = 2.5;
+
 const FRAMES_PARA_CAMBIAR_TEMA = 3;
 import { WF_THEMES, WF_THEMES_VOTABLES } from "../../utils/vision/wf_themes.js";
 export { WF_THEMES };
@@ -70,16 +74,6 @@ export const VisionService = {
     _rewardCvs: document.createElement("canvas"),
     _rewardNamesCvs: document.createElement("canvas"),
     _rivenCvs: document.createElement("canvas"),
-    getFrameHash(ctx, w, h) {
-        const data = ctx.getImageData(0, 0, w, h).data;
-        let hash = 0;
-        const step = Math.floor(data.length / 64) || 4;
-        for (let i = 0; i < data.length; i += step) {
-            hash += data[i];
-        }
-        return hash;
-    },
-
     detectCheckmark(snapshot, x, y, w, h) {
         const cvs = this._sharedCvs;
         cvs.width = w;
@@ -194,6 +188,8 @@ export const VisionService = {
         const fCtx = frame.getContext("2d", { willReadFrequently: true });
         const cellImg = fCtx.getImageData(cell.x, cell.y, cell.w, cell.h);
         const { mask } = accentMask(cellImg, accent, { x: 0, y: 0, w: cell.w, h: cell.h });
+        // only the label: on gold themes the icon art passes the mask (utils/vision/label_band.js)
+        mask.fill(0, 0, labelTop(mask, cell.w, cell.h) * cell.w);
 
         if (!this._mcMaskCvs) this._mcMaskCvs = document.createElement("canvas");
         const small = this._mcMaskCvs;
@@ -480,7 +476,7 @@ export const VisionService = {
     },
 
     cropThemeBinarized(sourceCvs, sx, sy, sw, sh, theme, nameColorHint, scale) {
-        const S = scale || 3;
+        const S = scale || CELL_UPSCALE;
         const cvs = this._ringCanvas(sw * S, sh * S);
         const ctx = cvs.getContext("2d", { willReadFrequently: true });
         ctx.imageSmoothingEnabled = true;
@@ -688,8 +684,9 @@ export const VisionService = {
         return rankPageNameColors(histograms, max);
     },
 
+    // crops like cropThemeBinarized, so colors are measured on the pixels that get binarized
     _nameBandImageData(sourceCvs, sx, sy, sw, sh) {
-        const S = 3;
+        const S = CELL_UPSCALE;
         const cvs = this._ringCanvas(sw * S, sh * S);
         const ctx = cvs.getContext("2d", { willReadFrequently: true });
         ctx.imageSmoothingEnabled = true;
@@ -724,26 +721,25 @@ export const VisionService = {
     applyClusteringThreshold(ctx, w, h, theme) {
         const imgData = ctx.getImageData(0, 0, w, h);
         const px = imgData.data;
-        const samples = [];
-        for (let i = 0; i < px.length; i += 8) {
-            samples.push([px[i], px[i + 1], px[i + 2]]);
-        }
-        let c1 = [0, 0, 0], c2 = theme ? [theme.actualR || theme.r, theme.actualG || theme.g, theme.actualB || theme.b] : [255, 255, 255], minL = 255, maxL = 0;
-        for (const s of samples) {
-            let l = 0.299 * s[0] + 0.587 * s[1] + 0.114 * s[2];
-            if (l < minL) { minL = l; c1 = [...s]; }
-            if (!theme && l > maxL) { maxL = l; c2 = [...s]; }
+        const PASO = 8; // one sample every two pixels
+        const c1 = [0, 0, 0], c2 = theme ? [theme.actualR || theme.r, theme.actualG || theme.g, theme.actualB || theme.b] : [255, 255, 255];
+        let minL = 255, maxL = 0;
+        for (let i = 0; i < px.length; i += PASO) {
+            const l = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
+            if (l < minL) { minL = l; c1[0] = px[i]; c1[1] = px[i + 1]; c1[2] = px[i + 2]; }
+            if (!theme && l > maxL) { maxL = l; c2[0] = px[i]; c2[1] = px[i + 1]; c2[2] = px[i + 2]; }
         }
         for (let iter = 0; iter < 4; iter++) {
-            let s1 = [0, 0, 0], s2 = [0, 0, 0], n1 = 0, n2 = 0;
-            for (const s of samples) {
-                let d1 = Math.abs(s[0] - c1[0]) + Math.abs(s[1] - c1[1]) + Math.abs(s[2] - c1[2]);
-                let d2 = Math.abs(s[0] - c2[0]) + Math.abs(s[1] - c2[1]) + Math.abs(s[2] - c2[2]);
-                if (d1 < d2) { s1[0] += s[0]; s1[1] += s[1]; s1[2] += s[2]; n1++; }
-                else { s2[0] += s[0]; s2[1] += s[1]; s2[2] += s[2]; n2++; }
+            let s1r = 0, s1g = 0, s1b = 0, s2r = 0, s2g = 0, s2b = 0, n1 = 0, n2 = 0;
+            for (let i = 0; i < px.length; i += PASO) {
+                const r = px[i], g = px[i + 1], b = px[i + 2];
+                const d1 = Math.abs(r - c1[0]) + Math.abs(g - c1[1]) + Math.abs(b - c1[2]);
+                const d2 = Math.abs(r - c2[0]) + Math.abs(g - c2[1]) + Math.abs(b - c2[2]);
+                if (d1 < d2) { s1r += r; s1g += g; s1b += b; n1++; }
+                else { s2r += r; s2g += g; s2b += b; n2++; }
             }
-            if (n1 > 0) { c1[0] = s1[0] / n1; c1[1] = s1[1] / n1; c1[2] = s1[2] / n1; }
-            if (n2 > 0) { c2[0] = s2[0] / n2; c2[1] = s2[1] / n2; c2[2] = s2[2] / n2; }
+            if (n1 > 0) { c1[0] = s1r / n1; c1[1] = s1g / n1; c1[2] = s1b / n1; }
+            if (n2 > 0) { c2[0] = s2r / n2; c2[1] = s2g / n2; c2[2] = s2b / n2; }
         }
         let l1 = 0.299 * c1[0] + 0.587 * c1[1] + 0.114 * c1[2], l2 = 0.299 * c2[0] + 0.587 * c2[1] + 0.114 * c2[2];
         let textC = l2 > l1 ? c2 : c1, bgC = l2 > l1 ? c1 : c2;
@@ -1270,6 +1266,9 @@ export const VisionService = {
             const img = ctx.getImageData(0, 0, width, height);
             const trace = {};
             const calib = detectInventoryGrid(img, { trace });
+            // to check the phase before reading (grid_alignment.js), also with no grid, when another page's is
+            // inherited
+            this.ultimasBandas = trace.bands || null;
             if (calib) {
                 console.log(`[VisionService] Auto-grid SIN calibración: ${calib.rows}r × ${calib.cols}c cellW=${calib.cellW} cellH=${calib.cellH} conf=${calib.confidence.toFixed(2)}`, calib.gridZone);
                 // trace on success too: a plausible but misanchored geometry only shows in the bands
@@ -1377,8 +1376,9 @@ export const VisionService = {
 
         // reused canvas: this runs per cell
         const tempCvs = this._tempBadgeCvs;
-        tempCvs.width = safeW;
-        tempCvs.height = safeH;
+        // setting width/height reallocates the buffer even with the same value
+        if (tempCvs.width !== safeW) tempCvs.width = safeW;
+        if (tempCvs.height !== safeH) tempCvs.height = safeH;
         const tCtx = tempCvs.getContext("2d", { willReadFrequently: true });
         tCtx.drawImage(snapshot, cell.sx, startY, safeW, safeH, 0, 0, safeW, safeH);
 

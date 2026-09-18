@@ -21,6 +21,7 @@ export function setPixel(data, width, height, x, y, r, g, b) {
 }
 
 /**
+ * generates a synthetic inventory frame
  * @param {object} opts
  * @param {number} opts.width
  * @param {number} opts.height
@@ -31,13 +32,14 @@ export function setPixel(data, width, height, x, y, r, g, b) {
  * @param {number} opts.cols
  * @param {number} [opts.rows=3]
  * @param {number[]|"all"} [opts.filled="all"]
- * @param {number[]} [opts.twoLineNames=[]
+ * @param {number[]} [opts.twoLineNames=[]]
  * @param {boolean} [opts.badges=false]
  * @param {number} [opts.noise=0]
  * @param {boolean} [opts.bgGradient=false]
  * @param {number} [opts.seed=1]
  * @param {[number,number,number]} [opts.bgColor]
- * @param {[number,number,number]} [opts.textColor=[240,235,220]
+ * @param {number|function} [opts.nameWidthFrac=0.6]
+ * @param {[number,number,number]} [opts.textColor=[240,235,220]]
  * @param {boolean} [opts.clampBgDark=true]
  * @param {[number,number,number]} [opts.art]
  */
@@ -59,6 +61,7 @@ export function makeInventoryFrame(opts) {
     seed = 1,
     bgColor = null,
     textColor = [240, 235, 220],
+    nameWidthFrac = 0.6,
     clampBgDark = bgColor === null,
     art = null,
   } = opts;
@@ -111,7 +114,7 @@ export function makeInventoryFrame(opts) {
       if (!filledSet.has(idx)) continue;
       const cellX = gridX + c * cellW;
       const cellY = gridY + r * cellH;
-      const w = Math.round(cellW * 0.6);
+      const w = Math.round(cellW * (typeof nameWidthFrac === "function" ? nameWidthFrac(r) : nameWidthFrac));
       const x0 = Math.round(cellX + (cellW - w) / 2);
       const lh = Math.round(cellH * 0.12);
 

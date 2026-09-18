@@ -718,6 +718,18 @@
     border-color: rgba(0, 229, 255, 0.6);
 }
 
+.hud-debug-actions {
+    display: flex;
+    gap: 4px;
+}
+
+/* recording: red so it is not left on by accident (each page is ~2 MB) */
+.hud-debug-copy.is-recording {
+    color: #ff5252;
+    border-color: rgba(255, 82, 82, 0.7);
+    background: rgba(255, 82, 82, 0.12);
+}
+
 .hud-debug-img {
     display: none;
     width: 100%;

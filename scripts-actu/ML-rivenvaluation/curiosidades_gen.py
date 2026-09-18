@@ -231,7 +231,16 @@ def _fusiona_historial(nuevos, ruta, dias_historial, tope):
     salida = frescos + archivo[:ARCHIVO_MAX]
     # descending by date for the frontend; stable sort preserves signal-strength ordering within each day
     salida.sort(key=lambda e: e.get("fecha") or "", reverse=True)
-    return salida[:tope]
+    # one card per weapon: sorted by date so only the most recent reading survives when a move triggers
+    # multiple types
+    vistas, unicos = set(), []
+    for e in salida:
+        arma = str(e.get("arma") or "").lower()
+        if arma in vistas:
+            continue
+        vistas.add(arma)
+        unicos.append(e)
+    return unicos[:tope]
 
 
 if __name__ == "__main__":
