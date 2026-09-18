@@ -36,12 +36,28 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: '20'
+          node-version: '22'
+
+      # El paso de wrangler falla sin decir por qué cuando faltan los secretos ("npx failed with
+      # exit code 1"): se comprueba antes, con un mensaje que se lea en la anotación del run.
+      - name: Comprobar secretos de Cloudflare
+        env:
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+        run: |
+          faltan=""
+          [ -z "$CF_API_TOKEN" ] && faltan="$faltan CF_API_TOKEN"
+          [ -z "$CF_ACCOUNT_ID" ] && faltan="$faltan CF_ACCOUNT_ID"
+          if [ -n "$faltan" ]; then
+            echo "::error::Faltan los secretos:$faltan. Se crean en Settings > Secrets and variables > Actions (token con permiso 'Cloudflare Pages: Edit' y el Account ID del panel de Cloudflare)."
+            exit 1
+          fi
+          echo "Secretos presentes."
 
       # Minifica el JS a dist/ (deploy/ conserva los comentarios). Ver scripts-actu/build-dist.mjs.
       - name: Build minified dist
@@ -54,6 +70,9 @@ jobs:
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
           accountId: ${{ secrets.CF_ACCOUNT_ID }}
-          # Publica la copia minificada, no el fuente.
+          # Publica la copia minificada, no el fuente. El proyecto de Pages se llama
+          # warframe-tool (dominios warframe-tool.pages.dev y voidstonks.com): con
+          # --project-name=voidstonks wrangler no lo encontraba y salía con exit 1 en todos los
+          # runs desde agosto, sin que la anotación dijera por qué.
           workingDirectory: 'dist'
-          command: pages deploy . --project-name=voidstonks
+          command: pages deploy . --project-name=warframe-tool

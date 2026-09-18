@@ -1,6 +1,6 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { nextLatchedContext, INITIAL_LATCH, enrutaGraciaRiven, toleranciaCabecera, TOL_HEADER_BASE, intervaloCabecera } from "../deploy/js/utils/vision/context_latch.js";
+import { nextLatchedContext, INITIAL_LATCH, enrutaGraciaRiven, toleranciaCabecera, TOL_HEADER_BASE, intervaloCabecera, caducidadCabecera } from "../deploy/js/utils/vision/context_latch.js";
 
 function correr(secuencia, inicial = INITIAL_LATCH) {
   let s = inicial;
@@ -125,5 +125,16 @@ describe("cada cuánto se relee la cabecera", () => {
   test("una racha ausente o negativa no espacía nada", () => {
     assert.equal(intervaloCabecera(), 0);
     assert.equal(intervaloCabecera(-3), 0);
+  });
+});
+
+describe("cuánto vale la cabecera sin releerla", () => {
+  test("en fin de misión dura mucho más: la pantalla no se mueve y no hay transición sutil", () => {
+    assert.ok(caducidadCabecera("MISSION_COMPLETE") >= 8000);
+  });
+
+  test("en el resto sigue siendo el reloj quien detecta INVENTORY -> INVENTORY_MODS", () => {
+    assert.equal(caducidadCabecera("INVENTORY"), 2500);
+    assert.equal(caducidadCabecera("UNKNOWN"), 2500);
   });
 });

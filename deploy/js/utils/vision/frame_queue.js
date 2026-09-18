@@ -11,6 +11,13 @@ export function createFrameQueue({ max = 3, process }) {
         return cvs;
     };
 
+    let pendingRelease = false;
+    const freePool = () => {
+        for (const cvs of pool) { cvs.width = 0; cvs.height = 0; }
+        pool.length = 0;
+        pendingRelease = false;
+    };
+
     const drain = async () => {
         if (busy) return;
         busy = true;
@@ -29,6 +36,7 @@ export function createFrameQueue({ max = 3, process }) {
             }
         } finally {
             busy = false;
+            if (pendingRelease) freePool();
         }
     };
 
@@ -52,6 +60,11 @@ export function createFrameQueue({ max = 3, process }) {
                 const job = queue.pop();
                 if (pool.length < max) pool.push(job.cvs);
             }
+        },
+
+        release() {
+            if (busy || queue.length) { pendingRelease = true; return; }
+            freePool();
         },
     };
 }
