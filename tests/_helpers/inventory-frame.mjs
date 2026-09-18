@@ -42,6 +42,8 @@ export function setPixel(data, width, height, x, y, r, g, b) {
  * @param {number} [opts.seed=1] semilla del PRNG de ruido
  * @param {[number,number,number]} [opts.bgColor] color base del fondo (por defecto oscuro [30,25,35]);
  *        úsalo p.ej. con un tema de fondo CLARO (magenta) para probar la invariancia al tema.
+ * @param {number|function} [opts.nameWidthFrac=0.6] ancho del nombre en fracción de celda; con una
+ *        función (fila)=>frac se hacen filas anchas que se funden de borde a borde
  * @param {[number,number,number]} [opts.textColor=[240,235,220]] color del texto de los nombres
  *        (blanco/crema por defecto; p.ej. teal oscuro del tema "Tenno" para probar texto oscuro-sobre-claro).
  * @param {boolean} [opts.clampBgDark=true] recorta el fondo a <120 de brillo (solo tiene sentido con el fondo oscuro por defecto).
@@ -68,6 +70,7 @@ export function makeInventoryFrame(opts) {
     seed = 1,
     bgColor = null,
     textColor = [240, 235, 220],
+    nameWidthFrac = 0.6,
     clampBgDark = bgColor === null,
     art = null,
   } = opts;
@@ -121,7 +124,7 @@ export function makeInventoryFrame(opts) {
       if (!filledSet.has(idx)) continue;
       const cellX = gridX + c * cellW;
       const cellY = gridY + r * cellH;
-      const w = Math.round(cellW * 0.6);
+      const w = Math.round(cellW * (typeof nameWidthFrac === "function" ? nameWidthFrac(r) : nameWidthFrac));
       const x0 = Math.round(cellX + (cellW - w) / 2);
       const lh = Math.round(cellH * 0.12);
 

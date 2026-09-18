@@ -130,3 +130,16 @@ export function intervaloCabecera(estable = 0) {
     const rachas = Math.min(Math.max(estable, 0), TOPE_HEADER_ESTABLE);
     return Math.min(rachas * INTERVALO_ESTABLE_MS, INTERVALO_MAXIMO_MS);
 }
+
+/**
+ * Cuánto vale el texto de cabecera sin releerlo, aunque el hash se mueva.
+ *
+ * 2,5 s en general: INVENTORY e INVENTORY_MODS solo se distinguen por una palabra del rótulo
+ * ("SELL"/"MODS"), que en un hash de 16×9 no mueve nada, así que ahí es el reloj quien detecta
+ * el cambio. En fin de misión no hay transición sutil —de ahí se sale al orbitador o a la
+ * misión, y eso el hash lo ve— y la pantalla se queda quieta hasta que el jugador pulsa: releer
+ * las tres pasadas de cabecera cada frame era el mayor coste fijo de esa pantalla.
+ */
+export function caducidadCabecera(contexto) {
+  return contexto === "MISSION_COMPLETE" ? 10000 : 2500;
+}

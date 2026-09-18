@@ -167,3 +167,38 @@ describe("cascada por coste", () => {
     assert.equal(red, 0);
   });
 });
+
+const { leeCasillaMissionComplete } = await import("../deploy/js/services/scanner/reward_read.service.js");
+const { VisionService } = await import("../deploy/js/services/scanner/vision.service.js");
+
+describe("una casilla de fin de misión", () => {
+  const st = state;
+  const celda = { row: 0, col: 2, x: 0, y: 0, w: 240, h: 240, qty: 1 };
+  const cvs = { width: 480, height: 480, getContext: () => ({ getImageData: () => ({ data: new Uint8ClampedArray(4), width: 1, height: 1 }) }) };
+  st.allRelicNames = ["Lith K12", "Lith K2"];
+
+  test("con texto del motor preciso no se toca Tesseract y una reliquia sale marcada", async () => {
+    let tesseract = 0;
+    OCRRepository.recognize = async () => { tesseract++; return { data: { text: "", blocks: [] } }; };
+    const r = await leeCasillaMissionComplete({}, {}, celda, [200, 170, 90], cvs, "LITH K12 RELIC");
+    assert.deepEqual(r, { name: "Lith K12", reliquia: true, raw: "LITH K12 RELIC", motor: "preciso" });
+    assert.equal(tesseract, 0);
+  });
+
+  test("sin texto preciso lee con el clásico sobre la máscara de la casilla", async () => {
+    let preparada = 0;
+    const origPrep = VisionService.prepareMissionCompleteCellCanvas;
+    VisionService.prepareMissionCompleteCellCanvas = () => { preparada++; return cvs; };
+    OCRRepository.recognize = async () => ({ data: { text: "Braton Prime\nStock", blocks: [] } });
+    try {
+      const r = await leeCasillaMissionComplete({}, {}, celda, [200, 170, 90], cvs, undefined);
+      assert.deepEqual(r, { name: "Braton Prime Stock", reliquia: false, raw: "BRATON PRIME STOCK", motor: "clásico" });
+      assert.equal(preparada, 1);
+    } finally { VisionService.prepareMissionCompleteCellCanvas = origPrep; }
+  });
+
+  test("un recurso (Credits, Endo) no es nada: name null, y se guarda igual", async () => {
+    const r = await leeCasillaMissionComplete({}, {}, celda, [200, 170, 90], cvs, "CREDITS");
+    assert.deepEqual(r, { name: null, reliquia: false, raw: "CREDITS", motor: "preciso" });
+  });
+});

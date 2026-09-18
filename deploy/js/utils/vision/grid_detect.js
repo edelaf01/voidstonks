@@ -17,16 +17,16 @@
  * (gridZone + cellW/cellH/cols/rows), así buildAutoGrid y detectRowPhase
  * (ajuste fino de fase vertical) siguen funcionando sin cambios.
  *
- * SEÑAL: densidad de BORDES por |Δluma| entre muestras vecinas, NO un umbral
- * absoluto de brillo. Un umbral absoluto (p.ej. "canal máx > 185 = texto")
- * asume fondo oscuro; con los temas de fondo claros de Warframe (magenta,
- * cian…) el fondo entero supera el umbral y el texto deja de producir
- * transiciones → la detección colapsa y cae a la calibración manual. |Δluma|
- * es invariante al color/brillo del fondo Y al color del texto: un trazo de
- * letra crea un borde tanto si es claro-sobre-oscuro como oscuro-sobre-claro
- * (blanco, dorado, o incluso el teal oscuro del tema "Tenno" sobre magenta).
- * El fondo plano y los reflejos sólidos del arte casi no tienen bordes.
+ * SEÑAL: densidad de BORDES por |Δluma| entre muestras vecinas, NO un umbral absoluto de brillo.
+ * Un umbral absoluto (p.ej. "canal máx > 185 = texto") asume fondo oscuro; con los temas de fondo
+ * claros de Warframe (magenta, cian…) el fondo entero supera el umbral y el texto deja de producir
+ * transiciones → la detección colapsa y cae a la calibración manual. |Δluma| es invariante al
+ * color/brillo del fondo Y al color del texto: un trazo de letra crea un borde tanto si es
+ * claro-sobre-oscuro como oscuro-sobre-claro (blanco, dorado, o incluso el teal oscuro del tema
+ * "Tenno" sobre magenta). El fondo plano y los reflejos sólidos del arte casi no tienen bordes.
  */
+
+import { filasConNombre } from "./grid_alignment.js";
 
 /** Luma perceptual (0..255). Base de la señal de bordes, independiente del tema. */
 export const luma = (r, g, b) => 0.299 * r + 0.587 * g + 0.114 * b;
@@ -61,16 +61,14 @@ const DEFAULTS = {
     edgeDelta: 26,       // |Δluma| entre muestras vecinas para contar un borde de trazo (independiente del tema)
     edgeSmooth: 0,       // radio del box filter anti-ruido; 0 = sin suavizar (los bordes de trazo ya son robustos). Subir solo con ruido de captura extremo
     // --- Señal de COLOR DE NOMBRE (fallback cuando la de bordes colapsa) ---
-    // Con fondo CLARO texturizado (nebulosa/estrellas) el ruido mete bordes por
-    // todas partes y la señal |Δluma| se satura (todo el frame supera edgeDelta →
-    // una sola banda gigante → sin cadena). Y con arte metálico muy contrastado la
-    // fase puede engancharse al arte (más bordes que el texto). La señal de color
-    // resuelve ambos: los NOMBRES se renderizan en UN color consistente (el del
-    // tema); contamos píxeles cercanos a ESE color. El arte metálico es de OTRO
-    // color (no puntúa) y los brillos del fondo texturizado son dispersos (no
-    // forman banda). Se prueba como fallback y se elige el color cuya cadena de
-    // filas tenga las BANDAS MÁS FINAS (el nombre es una franja fina; el arte, un
-    // bloque alto), de modo que el anclaje caiga en el nombre y no en el arte.
+    // Con fondo CLARO texturizado (nebulosa/estrellas) el ruido mete bordes por todas partes y la
+    // señal |Δluma| se satura (todo el frame supera edgeDelta → una sola banda gigante → sin cadena).
+    // Y con arte metálico muy contrastado la fase puede engancharse al arte (más bordes que el texto).
+    // La señal de color resuelve ambos: los NOMBRES se renderizan en UN color consistente (el del
+    // tema); contamos píxeles cercanos a ESE color. El arte metálico es de OTRO color (no puntúa) y
+    // los brillos del fondo texturizado son dispersos (no forman banda). Se prueba como fallback y se
+    // elige el color cuya cadena de filas tenga las BANDAS MÁS FINAS (el nombre es una franja fina; el
+    // arte, un bloque alto), de modo que el anclaje caiga en el nombre y no en el arte.
     bgDistSq: 70 * 70,     // dist² mínima al color de fondo para considerar un píxel "tinta" (candidato a color de nombre)
     mergeColSq: 45 * 45,   // funde colores candidatos más cercanos que esto (antialias/compresión del mismo color)
     nameTolSq: 80 * 80,    // dist² para marcar un píxel como del color de nombre (excluye el arte metálico, a >110)
@@ -474,11 +472,10 @@ function detectInventoryGridCore(img, opts = {}) {
         return null;
     }
 
-    // Bloques de texto por banda; una banda de nombres real tiene ≥1 bloque
-    // "tamaño nombre" (ni una línea de HUD a todo lo ancho, ni un punto suelto)
-    // Nombres anchos y a 2 líneas pueden FUSIONAR celdas vecinas en un solo
-    // bloque (el hueco entre celdas es menor que el alto de banda): el filtro
-    // de ancho debe tolerarlo — solo descarta líneas de borde a borde.
+    // Bloques de texto por banda; una banda de nombres real tiene ≥1 bloque "tamaño nombre"
+    // (ni una línea de HUD a todo lo ancho, ni un punto suelto). Nombres anchos y a 2 líneas
+    // pueden FUSIONAR celdas vecinas en un solo bloque (el hueco entre celdas es menor que el
+    // alto de banda): el filtro de ancho debe tolerarlo — solo descarta líneas de borde a borde.
     const narrowEnough = bl => (bl.x1 - bl.x0) < width * 0.9;
     const bandBlocks = bands.map(b => ({ band: b, blocks: blocksInBand(img, b.y0, b.y1, o).filter(narrowEnough) }))
         .filter(bb => bb.blocks.length >= 1);
@@ -491,19 +488,22 @@ function detectInventoryGridCore(img, opts = {}) {
     // las celdas del panel.
     // NO entran en la cadena MIENTRAS haya bandas limpias: el pitch y el anclaje se calculan
     // solo con esas (meterlas movía el ancla y hacía perder una fila en otras capturas). Si no
-    // queda ninguna —el arte funde el nombre en TODAS las filas y todas salen de borde a borde,
-    // visto en INVENTORY/SELL a 1662x1036— valen estas, que piden tres bloques estrechos.
+    // queda ninguna —el arte funde el nombre en TODAS las filas, que es lo normal en el RECORTE de
+    // una página— valen estas. Ahí tampoco hay HUD, así que no se filtra la franja de arriba.
     const rescuedBands = [];
     for (const b of bands) {
-        if (bandBlocks.some(bb => bb.band === b) || b.y1 < height * 0.2) continue;
-        const tight = { ...o, blockGap: Math.max(6, Math.round((b.y1 - b.y0 + 1) * 0.12)) };
-        const retry = blocksInBand(img, b.y0, b.y1, tight).filter(narrowEnough);
-        if (retry.length >= 3) rescuedBands.push({ band: b, blocks: retry });
+        if (bandBlocks.some(bb => bb.band === b)) continue;
+        const retry = blocksInBand(img, b.y0, b.y1, { ...o, blockGap: Math.max(6, Math.round((b.y1 - b.y0 + 1) * 0.12)) });
+        const estrechos = retry.filter(narrowEnough);
+        // De borde a borde aun con el hueco pequeño sigue siendo una fila: dos nombres fundidos.
+        if (estrechos.length >= 3) rescuedBands.push({ band: b, blocks: estrechos });
+        else if (retry.some(bl => bl.x1 - bl.x0 >= width * 0.6)) rescuedBands.push({ band: b, blocks: retry });
     }
     trace.rescuedBands = rescuedBands.map(bb => bb.band.y0);
     trace.bandBlocks = bandBlocks.map(bb => ({ y0: bb.band.y0, blocks: bb.blocks.length }));
 
-    if (bandBlocks.length < 2) bandBlocks.push(...rescuedBands);
+    // Con dos limpias SALTEADAS la cadena salía con el paso doble; el título del HUD no cuenta como fila.
+    if (bandBlocks.filter(bb => bb.band.y1 >= height * 0.2).length < o.rows) bandBlocks.push(...rescuedBands);
     if (bandBlocks.length < 2) {
         trace.fail = `bandas con bloques válidos insuficientes (${bandBlocks.length} < 2) — ¿bloques de borde a borde (>90% del frame) o ruido?`;
         return null;
@@ -844,27 +844,25 @@ function detectInventoryGridCore(img, opts = {}) {
                 cs = -1;
             }
         }
-        // Si la racha sigue siendo mayor que un grid plausible, se recortan por los
-        // EXTREMOS las columnas flojas (ocupación muy por debajo del máximo): el
-        // panel lateral pegado al grid aparece en una fila suelta, mientras que las
-        // columnas reales del grid aparecen en (casi) todas. El interior nunca se
-        // toca: ahí los huecos son legítimos.
-        // Solo se recorta cuando la racha excede lo que el ancho ocupado por columnas
-        // FUERTES (presentes en todas las filas) justifica: si hay 6 columnas al
-        // máximo y la racha mide 8, las 2 flojas de los extremos son el panel lateral.
-        // Si el grid está a medio llenar (varias columnas flojas repartidas), no hay
-        // bloque fuerte dominante y no se toca nada.
+        // Si la racha sigue siendo mayor que un grid plausible, se recortan por los EXTREMOS
+        // las columnas flojas: el panel lateral pegado al grid aparece en una fila suelta,
+        // las columnas reales en (casi) todas. El interior no se toca (huecos legítimos), y
+        // si no hay bloque fuerte dominante (grid a medio llenar) no se recorta nada.
+        // "Fuerte" = en tres de cada cuatro filas, no en TODAS: al final de la lista la
+        // última fila va a medias (3 de 6 celdas) y exigir el máximo dejaba el grid en 3
+        // columnas sin leer las otras tres. Con tres filas es el mismo listón de antes.
         const maxOcc = Math.max(...occ);
         if (maxOcc >= 3) {
+            const strongOcc = Math.ceil(maxOcc * 0.75);
             let strongFirst = -1, strongLast = -1;
             for (let k = bs; k < bs + bl; k++) {
-                if (occ[k] >= maxOcc) { if (strongFirst < 0) strongFirst = k; strongLast = k; }
+                if (occ[k] >= strongOcc) { if (strongFirst < 0) strongFirst = k; strongLast = k; }
             }
             // El bloque fuerte debe ser CONTIGUO y cubrir casi toda su extensión para
             // considerarlo "el grid" (evita recortar por un pico aislado).
             if (strongFirst >= 0) {
                 let strongCount = 0;
-                for (let k = strongFirst; k <= strongLast; k++) if (occ[k] >= maxOcc) strongCount++;
+                for (let k = strongFirst; k <= strongLast; k++) if (occ[k] >= strongOcc) strongCount++;
                 const span = strongLast - strongFirst + 1;
                 if (strongCount === span && span >= o.minCols) {
                     bs = strongFirst;
@@ -898,9 +896,9 @@ function detectInventoryGridCore(img, opts = {}) {
         ? Math.round(firstBand.y1 - cellH * o.nameBaselineOffset)
         : Math.round(usedTops[0] - cellH * o.nameBandOffset);
 
-    // Una banda por fila real detectada (puede haber una 4ª fila asomando);
-    // las celdas que caigan fuera del frame las filtra _applyRowPhase después.
-    let rows = rowBands.length;
+    // Más las que asomen por abajo con pocos ítems (ver filasConNombre): sin ellas no se leía el final.
+    let rows = filasConNombre(findBands(prof, height, { ...o, bandMassFloor: 0 }),
+        { gridX, gridY, cellW, cellH, cols, rows: rowBands.length, height, bloques: b => blocksInBand(img, b.y0, b.y1, o) });
 
     // Fila cortada por ARRIBA (scroll clampado): su top real es NEGATIVO. Recortar la
     // zona a y=0 sin más desplazaría la FASE y todas las filas de abajo quedarían

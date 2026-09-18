@@ -613,6 +613,53 @@ test("detectInventoryGrid REGRESIÓN: misma UI pequeña con nombres al 60% (vall
 });
 
 // ===========================================================================
+// REGRESIÓN (sesión real, 7 lecturas seguidas con 18/18 celdas ilegibles): lo que
+// llega al detector no es el frame de pantalla, sino el RECORTE de la página que
+// hace enqueueInventoryPage. Ese recorte empieza a media fila, así que la primera
+// banda de nombres cae en el 20% superior — la franja que en un frame completo es
+// HUD. El rescate de bandas la descartaba por posición, la cadena se quedaba en dos
+// filas y la rejilla acababa anclada ~0,25 celda por encima de las cards.
+// Se recorta la misma UI del bloque anterior, que es la que fusiona los seis
+// nombres en un bloque de borde a borde y obliga a pasar por el rescate.
+// ===========================================================================
+
+function recorta({ data, width }, x, y, w, h) {
+  const out = new Uint8ClampedArray(w * h * 4);
+  for (let r = 0; r < h; r++) {
+    const src = ((y + r) * width + x) * 4;
+    out.set(data.subarray(src, src + w * 4), r * w * 4);
+  }
+  return { data: out, width: w, height: h };
+}
+
+test("detectInventoryGrid REGRESIÓN: el recorte de página que empieza a media fila mantiene la fase", () => {
+  const frame = makeSmallScaleFrame();
+  const completo = detectInventoryGrid(frame);
+  const cropY = SMALL.gridY + Math.round(SMALL.cellH * 0.75);
+  // El recorte llega hasta el borde inferior de la pantalla, que corta los nombres de la
+  // 4ª fila: quedan tres bandas y una de ellas es la que cae en la franja de arriba.
+  const cropH = SMALL.gridY + 3 * SMALL.cellH + Math.round(SMALL.cellH * 0.70) - cropY - 20;
+  const trace = {};
+  const res = detectInventoryGrid(
+    recorta(frame, SMALL.gridX, cropY, SMALL.cols * SMALL.cellW, cropH),
+    { trace },
+  );
+  assert.ok(res, `no debería fallar; trace.fail = ${trace.fail}`);
+  assert.equal(res.cols, SMALL.cols, `cols esperado ${SMALL.cols}, obtenido ${res.cols}`);
+  assert.ok(
+    Math.abs(res.cellH - completo.cellH) <= completo.cellH * 0.03,
+    `cellH ${res.cellH} fuera de tolerancia (el frame completo da ${completo.cellH})`,
+  );
+  // Las cards son las mismas, así que la rejilla del recorte tiene que caer en la MISMA
+  // retícula que la del frame completo, a un múltiplo de celda. Fuera de fase, el recorte
+  // de nombre de cada celda coge arte y la página entera sale ilegible.
+  const esperada = ((completo.gridZone.y - cropY) % res.cellH + res.cellH) % res.cellH;
+  const obtenida = (res.gridZone.y % res.cellH + res.cellH) % res.cellH;
+  const desfase = Math.min(Math.abs(obtenida - esperada), res.cellH - Math.abs(obtenida - esperada));
+  assert.ok(desfase <= 8, `la rejilla queda ${desfase}px fuera de fase (y=${res.gridZone.y}, cellH=${res.cellH})`);
+});
+
+// ===========================================================================
 // REGRESIÓN (bug de producción, 3ª captura real): el detector se anclaba a los
 // BADGES de cantidad en vez de a los nombres. Con badges grandes y sólidos
 // (70x40) las bandas de badges superan el filtro de masa y forman una cadena
@@ -970,3 +1017,50 @@ for (const gridY of [-60, -120, -200]) {
     }
   });
 }
+
+// ===========================================================================
+// FINAL DE LA LISTA: cuatro filas y la última a medias (3 de 6 celdas). Las columnas
+// "fuertes" eran las presentes en TODAS las filas, así que las tres de la derecha (en 3 de
+// 4) se recortaban como si fueran el panel lateral y esa página se leía a 3 columnas.
+// Visto en vivo en la pestaña de reliquias (Neo Z10/Z11/Z2 sin leer).
+// ===========================================================================
+test("detectInventoryGrid: al final de la lista, una última fila a medias no recorta columnas reales", () => {
+  const truth = { gridX: 66, gridY: 132, cellW: 277, cellH: 296, cols: 6 };
+  // 4 filas: las tres primeras llenas y la cuarta con solo 3 celdas.
+  const filled = [...Array.from({ length: 18 }, (_, i) => i), 18, 19, 20];
+  const img = makeInventoryFrame({ width: 2542, height: 1387, ...truth, rows: 4, filled });
+  const trace = {};
+  const res = detectInventoryGrid(img, { trace });
+  assert.ok(res, `sin detección; traza: ${JSON.stringify(trace)}`);
+  assert.equal(res.cols, 6, `cols ${res.cols}: ${JSON.stringify(trace.occCols)} ${JSON.stringify(trace.trimmedCols)}`);
+});
+
+test("detectInventoryGrid: captura real del final de la lista de reliquias (si está)", async () => {
+  const fs = await import("node:fs");
+  const ruta = `${process.env.HOME}/Imágenes/Capturas de pantalla/probar/Captura de pantalla_20260913_221944.png`;
+  if (!fs.existsSync(ruta)) return;
+  const { decodePng } = await import("./_helpers/png.mjs");
+  const trace = {};
+  const res = detectInventoryGrid(decodePng(fs.readFileSync(ruta)), { trace });
+  assert.ok(res);
+  assert.equal(res.cols, 6, JSON.stringify(trace.trimmedCols));
+  assert.equal(res.rows, 4);
+});
+
+// REGRESIÓN (sesión en vivo, 24 celdas sin leer y 8 s por página): en el recorte las filas con el
+// nombre ancho se funden de borde a borde y solo entran por el rescate. Si la cadena se monta solo
+// con las limpias y estas quedan SALTEADAS, el paso sale doble (592 en vez de 296) y la rejilla
+// ancla media celda arriba.
+test("detectInventoryGrid REGRESIÓN: dos filas limpias salteadas no dan el paso doble", () => {
+  const cellW = 277, cellH = 296, cols = 6, rows = 4;
+  const img = makeInventoryFrame({
+    width: cols * cellW, height: rows * cellH - 60, gridX: 0, gridY: 20,
+    cellW, cellH, cols, rows, badges: true,
+    nameWidthFrac: (r) => (r % 2 === 0 ? 0.6 : 1),
+  });
+  const trace = {};
+  const res = detectInventoryGrid(img, { trace });
+  assert.ok(res, `no debería fallar; trace.fail = ${trace.fail}`);
+  assert.ok(Math.abs(res.cellH - cellH) <= cellH * 0.05,
+    `cellH ${res.cellH} debería rondar ${cellH}, no el doble (cadena: ${JSON.stringify(trace.chain)})`);
+});

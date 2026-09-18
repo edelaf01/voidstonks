@@ -49,11 +49,31 @@ export function videoRegionHash(video, crop) {
     return hashFromTiny(ctx);
 }
 
+/** Hash de un rectángulo en píxeles de un canvas (una casilla de fin de misión). */
+export function canvasRegionHash(canvas, rect) {
+    const ctx = tinyCtx();
+    ctx.drawImage(canvas, rect.x, rect.y, rect.w, rect.h, 0, 0, 16, 9);
+    return hashFromTiny(ctx);
+}
+
 /** Hash de un canvas ya preparado (p. ej. la franja del header). */
 export function smallCanvasHash(canvas) {
     const ctx = tinyCtx();
     ctx.drawImage(canvas, 0, 0, canvas.width, canvas.height, 0, 0, 16, 9);
     return hashFromTiny(ctx);
+}
+
+/**
+ * Fracción de muestras que cambian más de `umbral` entre dos lecturas de la MISMA región.
+ *
+ * Sumar el brillo no distingue una página de reliquias de otra (mismas cards, otro texto). Medido:
+ * misma página 0,0%, reliquias 2,8%, página distinta ≥13% — de ahí el corte del 1% del escáner.
+ */
+export function fraccionCambiada(a, b, umbral = 24) {
+    if (!a || !b || a.length !== b.length) return 1;
+    let n = 0;
+    for (let i = 0; i < a.length; i++) if (Math.abs(a[i] - b[i]) > umbral) n++;
+    return n / a.length;
 }
 
 /**

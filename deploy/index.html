@@ -347,10 +347,20 @@
       <div id="live-debug-snapshot" class="hud-debug" style="display: none">
         <div class="hud-debug-head">
           <span id="lbl-ocr-debug" class="hud-debug-label">Lo que lee el OCR</span>
-          <button type="button" id="btn-copy-debug-log" class="hud-debug-copy"
-            onclick="globalThis.copyScannerDebugLog()">
-            COPY LOG
-          </button>
+          <span class="hud-debug-actions">
+            <button type="button" id="btn-debug-record" class="hud-debug-copy"
+              onclick="globalThis.toggleDebugRecorder()" title="Guarda cada imagen que lee el escáner con su resultado">
+              GRABAR
+            </button>
+            <button type="button" id="btn-debug-export" class="hud-debug-copy"
+              onclick="globalThis.exportDebugRecorder()" title="Descarga un ZIP con las imágenes grabadas y sus lecturas">
+              ZIP (0)
+            </button>
+            <button type="button" id="btn-copy-debug-log" class="hud-debug-copy"
+              onclick="globalThis.copyScannerDebugLog()">
+              COPY LOG
+            </button>
+          </span>
         </div>
         <img id="live-debug-snapshot-img" class="hud-debug-img" src="" alt="" />
         <div id="live-debug-summary" class="hud-debug-summary"></div>
