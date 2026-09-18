@@ -38,8 +38,9 @@ export function mergeRelicCounts(inventory, scanned) {
     for (const [name, raw] of pairs) {
         const key = relicKey(name);
         if (!key) continue;
-        const count = Math.max(0, Math.round(Number(raw) || 0));
         const prev = index.get(key);
+        if (raw === null) { if (!prev) { const entry = { name: String(name).trim(), count: 1 }; out.push(entry); index.set(key, entry); } continue; }
+        const count = Math.max(0, Math.round(Number(raw) || 0));
         if (prev) prev.count = count;
         else if (count > 0) {
             const entry = { name: String(name).trim(), count };

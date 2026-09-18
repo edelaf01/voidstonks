@@ -1,5 +1,7 @@
 // inventory grid autodetection from item name text bands without manual calibration
 
+import { filasConNombre } from "./grid_alignment.js";
+
 export const luma = (r, g, b) => 0.299 * r + 0.587 * g + 0.114 * b;
 
 export function smoothedLumaRow(data, off, width, radius) {
@@ -349,15 +351,16 @@ function detectInventoryGridCore(img, opts = {}) {
 
     const rescuedBands = [];
     for (const b of bands) {
-        if (bandBlocks.some(bb => bb.band === b) || b.y1 < height * 0.2) continue;
-        const tight = { ...o, blockGap: Math.max(6, Math.round((b.y1 - b.y0 + 1) * 0.12)) };
-        const retry = blocksInBand(img, b.y0, b.y1, tight).filter(narrowEnough);
-        if (retry.length >= 3) rescuedBands.push({ band: b, blocks: retry });
+        if (bandBlocks.some(bb => bb.band === b)) continue;
+        const retry = blocksInBand(img, b.y0, b.y1, { ...o, blockGap: Math.max(6, Math.round((b.y1 - b.y0 + 1) * 0.12)) });
+        const estrechos = retry.filter(narrowEnough);
+        if (estrechos.length >= 3) rescuedBands.push({ band: b, blocks: estrechos });
+        else if (retry.some(bl => bl.x1 - bl.x0 >= width * 0.6)) rescuedBands.push({ band: b, blocks: retry });
     }
     trace.rescuedBands = rescuedBands.map(bb => bb.band.y0);
     trace.bandBlocks = bandBlocks.map(bb => ({ y0: bb.band.y0, blocks: bb.blocks.length }));
 
-    if (bandBlocks.length < 2) bandBlocks.push(...rescuedBands);
+    if (bandBlocks.filter(bb => bb.band.y1 >= height * 0.2).length < o.rows) bandBlocks.push(...rescuedBands);
     if (bandBlocks.length < 2) {
         trace.fail = `bandas con bloques válidos insuficientes (${bandBlocks.length} < 2) — ¿bloques de borde a borde (>90% del frame) o ruido?`;
         return null;
@@ -599,13 +602,14 @@ function detectInventoryGridCore(img, opts = {}) {
         }
         const maxOcc = Math.max(...occ);
         if (maxOcc >= 3) {
+            const strongOcc = Math.ceil(maxOcc * 0.75);
             let strongFirst = -1, strongLast = -1;
             for (let k = bs; k < bs + bl; k++) {
-                if (occ[k] >= maxOcc) { if (strongFirst < 0) strongFirst = k; strongLast = k; }
+                if (occ[k] >= strongOcc) { if (strongFirst < 0) strongFirst = k; strongLast = k; }
             }
             if (strongFirst >= 0) {
                 let strongCount = 0;
-                for (let k = strongFirst; k <= strongLast; k++) if (occ[k] >= maxOcc) strongCount++;
+                for (let k = strongFirst; k <= strongLast; k++) if (occ[k] >= strongOcc) strongCount++;
                 const span = strongLast - strongFirst + 1;
                 if (strongCount === span && span >= o.minCols) {
                     bs = strongFirst;
@@ -630,7 +634,8 @@ function detectInventoryGridCore(img, opts = {}) {
         ? Math.round(firstBand.y1 - cellH * o.nameBaselineOffset)
         : Math.round(usedTops[0] - cellH * o.nameBandOffset);
 
-    let rows = rowBands.length;
+    let rows = filasConNombre(findBands(prof, height, { ...o, bandMassFloor: 0 }),
+        { gridX, gridY, cellW, cellH, cols, rows: rowBands.length, height, bloques: b => blocksInBand(img, b.y0, b.y1, o) });
 
     let gridYTop = gridY;
     if (cellH > 0) {
