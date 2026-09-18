@@ -1,18 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { nextLedger, readingSignature, INITIAL_LEDGER, CONSENSUS_FRAMES } from "../deploy/js/utils/inventory/reward_ledger.js";
+import { nextLedger, INITIAL_LEDGER, CONSENSUS_FRAMES } from "../deploy/js/utils/inventory/reward_ledger.js";
 
 const pieza = (name, qty = 1) => ({ name, qty });
-
-test("la firma no depende del orden de las celdas", () => {
-  const a = [pieza("Revenant Prime Neuroptics Blueprint"), pieza("Lex Prime Barrel")];
-  assert.equal(readingSignature(a), readingSignature([...a].reverse()));
-});
-
-test("la firma sí depende de la cantidad", () => {
-  assert.notEqual(readingSignature([pieza("Lex Prime Barrel", 1)]),
-                  readingSignature([pieza("Lex Prime Barrel", 2)]));
-});
 
 test("una sola lectura no escribe", () => {
   const { ledger, commit } = nextLedger(INITIAL_LEDGER, [pieza("Lex Prime Barrel")]);
@@ -67,21 +57,38 @@ test("una misión nueva con otras piezas sí escribe otra vez", () => {
   assert.deepEqual(commit, segunda);
 });
 
-test("dos misiones con la MISMA pieza vuelven a escribir si hubo otra pantalla entre medias", () => {
+test("desplazar el panel y volver a subir no repite el alta; lo nuevo sí entra", () => {
+  // Plague Star llena más de cuatro filas: la fila de arriba sale de la vista al bajar y
+  // vuelve al subir. Ninguna de las dos veces es recibirla otra vez.
+  const arriba = [pieza("Lex Prime Barrel"), { name: "Lith K2", qty: 1, reliquia: true }];
+  const abajo = [{ name: "Lith K2", qty: 1, reliquia: true }, pieza("Paris Prime String")];
+  let l = INITIAL_LEDGER;
+  const altas = [];
+  for (const items of [arriba, arriba, abajo, abajo, arriba, arriba, abajo, abajo]) {
+    const r = nextLedger(l, items);
+    l = r.ledger;
+    if (r.commit) altas.push(r.commit.map((c) => c.name));
+  }
+  assert.deepEqual(altas, [["Lex Prime Barrel", "Lith K2"], ["Paris Prime String"]]);
+});
+
+test("en la misión siguiente la misma pieza vuelve a contar: el libro empieza de cero", () => {
+  // El escáner reinicia el libro al soltar el contexto MISSION_COMPLETE; dentro de la misma
+  // pantalla, ver la pieza otra vez (tras el ratón, tras desplazar) nunca la repite.
   const misma = [pieza("Lex Prime Barrel")];
   let l = INITIAL_LEDGER;
   for (let i = 0; i < CONSENSUS_FRAMES; i++) l = nextLedger(l, misma).ledger;
-
-  // Entre partida y partida el escáner ve otras pantallas; aquí llega otra lectura distinta.
   for (let i = 0; i < CONSENSUS_FRAMES; i++) l = nextLedger(l, [pieza("Paris Prime String")]).ledger;
+  for (let i = 0; i < CONSENSUS_FRAMES; i++) assert.equal(nextLedger(l, misma).commit, null);
 
   let commit = null;
+  l = INITIAL_LEDGER;
   for (let i = 0; i < CONSENSUS_FRAMES; i++) {
     const r = nextLedger(l, misma);
     l = r.ledger;
     commit = commit || r.commit;
   }
-  assert.deepEqual(commit, misma, "la misma pieza en otra misión no es un duplicado");
+  assert.deepEqual(commit, misma);
 });
 
 test("bueno, ruido, bueno: la pieza acaba dándose de alta", () => {
@@ -169,4 +176,18 @@ test("múltiples ítems en la misma pantalla se dan de alta independientemente s
         assert.deepEqual(altas, [["Lex Prime Barrel"]]);
     });
 
+});
+
+test("una reliquia llega al alta marcada como reliquia, no como pieza", () => {
+  // Visto en vivo (Plague Star): "Lith K2" leída en MISSION COMPLETE salía confirmada sin la
+  // marca, el alta la trataba como pieza prime y el inventario de reliquias no se movía.
+  const items = [{ name: "Lith K2", qty: 2, reliquia: true }, pieza("Paris Prime Grip")];
+  const r1 = nextLedger(INITIAL_LEDGER, items);
+  const r2 = nextLedger(r1.ledger, items);
+  assert.deepEqual(r2.commit, [{ name: "Lith K2", qty: 2, reliquia: true }, pieza("Paris Prime Grip")]);
+  // Y sobrevive al frame en que la reliquia no se lee (la marca vive en la entrada, no en la lectura).
+  const r3 = nextLedger(INITIAL_LEDGER, items);
+  const r4 = nextLedger(r3.ledger, [pieza("Paris Prime Grip")]);
+  const r5 = nextLedger(r4.ledger, items);
+  assert.deepEqual(r5.commit.find((c) => c.name === "Lith K2"), { name: "Lith K2", qty: 2, reliquia: true });
 });

@@ -98,3 +98,31 @@ export function readCellWithOwnColor(worker, snapshot, cell, cellW, textSrcY, te
     return OCRService.extractCellText(worker, VisionService.cropThemeBinarized(
         snapshot, cell.sx, cell.sy + textSrcY, cellW, textSrcH, theme, null));
 }
+
+/**
+ * Relee una celda quitando el arte que asoma por ENCIMA del nombre.
+ *
+ * Con nombres de tres líneas el arte entra en la banda, y en los temas claros tiene el mismo
+ * color que el texto: Tesseract se come la primera línea ("V LV WER ARIN NEUROPTICS
+ * BLUEPRINT" por Nezha Prime Neuroptics Blueprint, visto en tres escaneos seguidos). El
+ * nombre va anclado abajo, así que blanquear franjas por arriba nunca quita una línea entera.
+ * Se recorta de nuevo en cada intento: los canvas salen de un anillo compartido y a estas
+ * alturas el de la pasada normal puede ser ya de otra celda.
+ *
+ * @param legible  (words) => bool, el filtro de lectura ilegible del escáner
+ * @returns {{ relicMatch, bestItem, words, corte }} o null si ningún corte da un nombre
+ */
+export async function readCellCuttingArt(worker, snapshot, cell, cellW, textSrcY, textSrcH, theme, pageColor, legible) {
+    for (const corte of [0.15, 0.25, 0.35]) {
+        const cvs = VisionService.cropThemeBinarized(snapshot, cell.sx, cell.sy + textSrcY, cellW, textSrcH, theme, pageColor);
+        const ctx = cvs.getContext("2d");
+        ctx.fillStyle = "#fff";
+        ctx.fillRect(0, 0, cvs.width, Math.round(cvs.height * corte));
+        const words = await OCRService.extractCellText(worker, cvs);
+        if (!words?.length || !legible(words)) continue;
+        const relicMatch = OCRService.getRelicMatch(words);
+        const bestItem = relicMatch ? null : OCRService.getValidItemMatch(words);
+        if (relicMatch || bestItem) return { relicMatch, bestItem, words, corte };
+    }
+    return null;
+}

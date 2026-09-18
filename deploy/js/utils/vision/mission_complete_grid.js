@@ -488,10 +488,24 @@ function gruposSemejantes(comps, height) {
  * y por geometría es indistinguible de un panel entero.
  */
 const PRIMERA_FILA_FRAC = 0.243;
+/** Filas que caben en el panel: con más recompensas (Plague Star, varios contratos) se desplaza. */
+const FILAS_VISIBLES = 4;
 
 function filaCortadaArriba(cells, pitch, height) {
     const yPrimera = Math.min(...cells.map((c) => c.y));
     return yPrimera > height * PRIMERA_FILA_FRAC + pitch * 0.25;
+}
+
+/**
+ * Con el panel desplazado y la fila de arriba fuera de vista, una cuarta fila de ✓ solo puede
+ * ser la que asoma por abajo: su rótulo queda bajo el borde y lo que hay ahí es la barra
+ * "STATS / REPEAT MISSION", del mismo color, que se leería como nombre. Fuera esa fila.
+ */
+function sinFilaQueAsoma(cells) {
+    const filas = [...new Set(cells.map((c) => c.row))];
+    if (filas.length < FILAS_VISIBLES) return cells;
+    const ultima = Math.max(...filas);
+    return cells.filter((c) => c.row !== ultima);
 }
 
 /** La retícula que explican un grupo de ✓ candidatos; null si no explican ninguna. */
@@ -551,12 +565,15 @@ function _conGrupo(img, accent, zone, checks, trace, S, dist) {
     trace.pitch = pitch;
     trace.cells = unique.length;
 
+    // Un panel desplazado no tapa nada: se leen las filas enteras que se ven, y el libro de
+    // altas se encarga de que al volver a subir no se apunten dos veces.
     const cortada = filaCortadaArriba(unique, pitch, height);
-    const occluded = hasGap(unique, sortedCols.length) || cortada;
+    const legibles = cortada ? sinFilaQueAsoma(unique) : unique;
+    const occluded = hasGap(legibles, sortedCols.length);
     trace.occluded = occluded;
     trace.cut = cortada;
 
-    return { zone, pitch, cells: unique, occluded, accent, dist };
+    return { zone, pitch, cells: legibles, occluded, cut: cortada, accent, dist };
 }
 
 function nearestIndex(sorted, value) {

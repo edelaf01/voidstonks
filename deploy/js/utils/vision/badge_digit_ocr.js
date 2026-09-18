@@ -212,3 +212,12 @@ export function readBadgeDigits(canvasLike) {
     }
     return out;
 }
+
+/**
+ * ¿Es una cantidad de badge de verdad? Una a tres cifras: el juego no enseña más de 999 y el
+ * template-matching sobre la barra de iconos del HUD devuelve ristras como "85603", que con
+ * "tiene un dígito" pasaban por lectura buena (votaban un 1 y el final de lista no se detectaba).
+ */
+export function badgePlausible(raw) {
+    return /^\d{1,3}$/.test((raw || "").trim());
+}

@@ -1,8 +1,8 @@
 // El pool de workers de Tesseract.
 //
-// Con dos workers, las 18 celdas de una página de inventario se leen de nueve en nueve y se NOTA
-// que van una a una. El pool crece bajo demanda, pero con tope: cada worker es una instancia WASM
-// con su copia del traineddata y el escáner ya es lo que más RAM consume de la app.
+// El pool crece bajo demanda, pero con tope: cada worker es una instancia WASM con su copia del
+// traineddata y el escáner ya es lo que más RAM consume de la app. El tope es dos: medido, el
+// tercero y el cuarto solo aceleran una página un 10 % (el ritmo lo pone el hilo principal).
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 
@@ -45,8 +45,8 @@ test("llamadas simultáneas comparten la misma creación", async () => {
   // Sin compartir la promesa, dos rutas del escáner pidiendo a la vez arrancaban el doble de
   // instancias WASM y la memoria se disparaba.
   await Promise.all([OCRRepository.ensureWorkers(4), OCRRepository.ensureWorkers(4)]);
-  assert.equal(OCRRepository.workers.length, 4);
-  assert.equal(creados, 3);
+  assert.equal(OCRRepository.workers.length, OCRRepository.MAX_WORKERS);
+  assert.equal(creados, OCRRepository.MAX_WORKERS - 1);
 });
 
 test("un worker que no arranca no deja un hueco en el pool", async () => {
@@ -57,8 +57,12 @@ test("un worker que no arranca no deja un hueco en el pool", async () => {
     if (creados === 2) throw new Error("sin memoria");
     return { id: `w${creados}` };
   };
-  await OCRRepository.ensureWorkers(4);
-  assert.ok(OCRRepository.workers.every(Boolean), "quedó un hueco en el pool");
+  OCRRepository.MAX_WORKERS = 4;
+  try {
+    await OCRRepository.ensureWorkers(4);
+    assert.ok(OCRRepository.workers.every(Boolean), "quedó un hueco en el pool");
+    assert.equal(OCRRepository.workers.length, 3);
+  } finally { OCRRepository.MAX_WORKERS = 2; }
 });
 
 test("ensureSecondWorker sigue pidiendo exactamente dos", async () => {
