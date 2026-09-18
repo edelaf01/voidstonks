@@ -14,6 +14,9 @@ import { columnasEnRecorte } from "../../utils/vision/reward_cards.js";
 import { rawWords } from "../../utils/vision/ocr_words.js";
 import { montaTiras, repartePorTramos } from "../../utils/vision/ocr_montage.js";
 import { motorActivo, MOTOR_PRECISO } from "./ocr_engine.service.js";
+import { labelFullyRead } from "../../utils/vision/name_lines.js";
+import { collectWords } from "../../utils/vision/ocr_words.js";
+import { hasComponentSiblings } from "../../utils/inventory/component_siblings.js";
 
 /**
  * Lectura con PaddleOCR, que el usuario elige en el HUD del escáner (ocr_engine.service.js).
@@ -70,6 +73,50 @@ export async function leeRotulosMissionComplete(frame, celdas) {
         console.warn("[MC] motor preciso falló, sigo con el clásico:", e);
         return null;
     }
+}
+
+/**
+ * Qué hay en UNA casilla de fin de misión: reliquia, pieza prime o nada.
+ *
+ * Celda a celda y no de una pasada al panel entero: así las palabras de una recompensa no
+ * pueden mezclarse con las de la vecina y fabricar un nombre que no está en pantalla. Reliquia
+ * primero: su nombre no casa contra el catálogo de piezas. Y lo leído se registra siempre: sin
+ * el texto no hay forma de saber por qué una reliquia no entró.
+ *
+ * @param preciso texto del motor preciso para esta casilla, si lo hubo; si no, se lee con el
+ *        clásico sobre `cellCvs`.
+ * @returns {{ name: string|null, reliquia: boolean, raw: string, motor: string }} `raw` y `motor`
+ *          van al paquete de depuración: sin el texto no se sabe por qué algo no entró.
+ */
+export async function leeCasillaMissionComplete(worker, frame, cell, accent, cellCvs, preciso) {
+    let data = null, raw = preciso || "";
+    if (!preciso) {
+        VisionService.prepareMissionCompleteCellCanvas(frame, cell, accent, cellCvs);
+        ({ data } = await OCRRepository.recognize(worker, cellCvs, {}, { text: true, blocks: true }));
+        raw = (data.text || "").toUpperCase();
+    }
+    raw = raw.replaceAll(/\s+/g, " ").trim();
+    const motor = preciso ? "preciso" : "clásico";
+    const relic = OCRService.getRelicMatch(raw);
+    const match = relic ? null : OCRService.getValidItemMatch(raw);
+    console.log(`[MC] r${cell.row}c${cell.col} ${motor}: "${raw}" → ${relic ? `${relic} ×${cell.qty} (reliquia)` : match?.isPrime ? `${match.originalName} ×${cell.qty}` : "sin match"}`);
+    if (relic) return { name: relic, reliquia: true, raw, motor };
+    if (!match?.isPrime) return { name: null, reliquia: false, raw, motor };
+    // Un plano de warframe con hermanos de componente ("Xaku Prime Blueprint" frente a "Xaku
+    // Prime Neuroptics") puede ser el rótulo de al lado al que se le ha perdido la línea del
+    // medio: son piezas distintas y por texto no hay forma de separarlas. La tinta sí lo dice,
+    // así que se exige que lo leído explique el ancho de cada línea. Solo se paga en esos
+    // nombres —168 del catálogo—. La guardia existe porque Tesseract se deja líneas del rótulo;
+    // con el motor preciso no aplica, y aplicarla ahí hacía parpadear la lectura ("descarto X —
+    // lo leído explica el 0% de la tinta") y retrasaba el apunte.
+    if (!preciso && hasComponentSiblings(OCRService.cachedDbItems, match.originalName)) {
+        const { completo, cobertura } = labelFullyRead(cellCvs, collectWords(data));
+        if (!completo) {
+            console.log(`[MC] r${cell.row}c${cell.col}: descarto "${match.originalName}" — lo leído explica el ${Math.round(cobertura * 100)}% de la tinta del rótulo`);
+            return { name: null, reliquia: false, raw, motor };
+        }
+    }
+    return { name: match.originalName, reliquia: false, raw, motor };
 }
 
 // Devuelve { rawOcr, namesRaw, foundItems, ocrCanvas, namesCanvas }.

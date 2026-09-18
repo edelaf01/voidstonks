@@ -77,6 +77,31 @@ export const UPDATE_HISTORY_DATA = {
     desaparecer.</li>
     <li>Arreglado error en el inventario que hacía que un nombre con «Prime» mal leído y
     pegado a la pieza no casara.</li>
+    <li>Arreglado error en el inventario que hacía que al llegar al final de la lista se
+    leyera la fila tapada por la cabecera.</li>
+    <li>Arreglado error en el inventario que hacía que un nombre de tres líneas perdiera la
+    primera cuando el arte se colaba en el recorte.</li>
+    <li>Arreglado error en el inventario que hacía que las reliquias con refinamiento se
+    marcaran como ilegibles.</li>
+    <li>Arreglado error en fin de misión que hacía que las reliquias recibidas entraran como
+    piezas y no sumaran en el inventario de reliquias.</li>
+    <li>Fin de misión: con más de cuatro filas de recompensas (Plague Star, varios contratos)
+    también se leen las de abajo al desplazar el panel.</li>
+    <li>Arreglado error en fin de misión que hacía que en los temas dorados el dibujo del
+    icono tapara el nombre y la pieza no se leyera.</li>
+    <li>Fin de misión: cada casilla se lee una vez y la confirmación es inmediata; antes se
+    releía la pantalla entera en cada vuelta.</li>
+    <li>Arreglado error en el inventario que hacía que una pieza o reliquia con la cantidad
+    sin leer se guardara con 1 copia y pisara las que tenías.</li>
+    <li>Arreglado error al final de la lista que hacía que la fila tapada por la cabecera se
+    leyera con cantidades falsas y que se perdieran las tres columnas de la derecha.</li>
+    <li>Arreglado error en el inventario que hacía que la rejilla se quedara anclada donde paró
+    la primera página: tras hacer scroll las cantidades caían fuera de su casilla y salían
+    vacías. Ahora se ajusta en cada página y se espera a que el scroll pare del todo.</li>
+    <li>Panel DIAG: botón «Grabar» que guarda cada imagen que lee el escáner con su resultado,
+    y «ZIP» para descargarlas y mandarlas cuando algo se lee mal.</li>
+    <li>El escáner usa dos lectores en vez de cuatro: misma velocidad, la mitad de memoria y
+    menos carga para el juego.</li>
   </ul>
 </div>
 <div class="update-block old" id="v280">
@@ -577,6 +602,30 @@ export const UPDATE_HISTORY_DATA = {
     <li>Fixed a bug that made the toasts at the bottom take a minute to go away.</li>
     <li>Fixed a bug in the inventory that made a name with a misread "Prime" glued to the
     part fail to match.</li>
+    <li>Fixed a bug in the inventory that made the row hidden under the header get read at
+    the end of the list.</li>
+    <li>Fixed a bug in the inventory that made a three-line name lose its first line when
+    the art crept into the crop.</li>
+    <li>Fixed a bug in the inventory that made refined relics get flagged as unreadable.</li>
+    <li>Fixed a bug on the end-of-mission screen that made received relics go in as parts
+    instead of adding to the relic inventory.</li>
+    <li>End of mission: with more than four rows of rewards (Plague Star, several bounties)
+    the lower rows are read too when you scroll the panel.</li>
+    <li>Fixed a bug on the end-of-mission screen that made the icon art cover the name on
+    gold themes, so the part went unread.</li>
+    <li>End of mission: each cell is read once and confirmed right away; the whole screen
+    used to be re-read on every pass.</li>
+    <li>Fixed a bug in the inventory that made a part or relic with an unread count get
+    saved as 1 copy, overwriting the ones you had.</li>
+    <li>Fixed a bug at the end of the list that made the row hidden under the header get
+    read with bogus counts and dropped the three right-hand columns.</li>
+    <li>Fixed a bug in the inventory that kept the grid anchored where the first page
+    stopped: after scrolling, the counts fell outside their cell and came out empty. It now
+    re-aligns on every page and waits for the scroll to fully stop.</li>
+    <li>DIAG panel: a "Record" button that saves every image the scanner reads along with
+    its result, and "ZIP" to download them and send them over when something reads wrong.</li>
+    <li>The scanner uses two readers instead of four: same speed, half the memory and less
+    load on the game.</li>
   </ul>
 </div>
 <div class="update-block old" id="v280">
