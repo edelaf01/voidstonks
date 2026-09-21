@@ -637,15 +637,16 @@ function detectInventoryGridCore(img, opts = {}) {
     let rows = filasConNombre(findBands(prof, height, { ...o, bandMassFloor: 0 }),
         { gridX, gridY, cellW, cellH, cols, rows: rowBands.length, height, bloques: b => blocksInBand(img, b.y0, b.y1, o) });
 
+    const suelo = -cellH * 0.15;
     let gridYTop = gridY;
     if (cellH > 0) {
-        while (gridYTop < 0) gridYTop += cellH;
+        while (gridYTop < suelo) gridYTop += cellH;
     } else {
         gridYTop = Math.max(0, gridYTop);
     }
 
     if (cellH > 0) {
-        const dropped = Math.ceil(Math.max(0, -gridY) / cellH);
+        const dropped = Math.ceil(Math.max(0, suelo - gridY) / cellH);
         rows = Math.max(rows - dropped, Math.min(rowBands.length, o.rows));
     }
     if (rows < 1) {

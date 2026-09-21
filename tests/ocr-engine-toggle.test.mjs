@@ -15,7 +15,7 @@ const M = await import("../deploy/js/services/scanner/ocr_engine.service.js");
 let calentadas = 0;
 PaddleRepository.warmUp = () => { calentadas++; return Promise.resolve({}); };
 
-beforeEach(() => { almacen.clear(); calentadas = 0; PaddleRepository._service = null; M.aplicaMotor(M.MOTOR_CLASICO); almacen.clear(); });
+beforeEach(() => { almacen.clear(); calentadas = 0; PaddleRepository._service = null; PaddleRepository.ultimoFallo = null; M.aplicaMotor(M.MOTOR_CLASICO); almacen.clear(); });
 
 describe("elección de motor", () => {
   test("sin contestar no se descarga nada y se lee con el clásico", () => {
@@ -85,5 +85,23 @@ describe("lo que ve el usuario mientras carga", () => {
   test("el clásico está listo siempre: va dentro de la app", () => {
     M.aplicaMotor(M.MOTOR_CLASICO);
     assert.deepEqual(M.estadoMotor(), { decidido: true, elegido: M.MOTOR_CLASICO, listo: true });
+  });
+});
+
+describe("quién lee la rejilla", () => {
+  test("con el preciso cargando o listo, la rejilla no es del clásico", () => {
+    M.aplicaMotor(M.MOTOR_PRECISO);
+    assert.equal(M.rejillaConClasico(), false, "cargando");
+    PaddleRepository._service = {};
+    assert.equal(M.rejillaConClasico(), false, "listo");
+  });
+
+  test("con el preciso caído, o con el clásico elegido, lee Tesseract", () => {
+    M.aplicaMotor(M.MOTOR_PRECISO);
+    PaddleRepository.ultimoFallo = new Error("CDN");
+    assert.equal(M.rejillaConClasico(), true);
+    PaddleRepository.ultimoFallo = null;
+    M.aplicaMotor(M.MOTOR_CLASICO);
+    assert.equal(M.rejillaConClasico(), true);
   });
 });

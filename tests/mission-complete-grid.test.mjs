@@ -246,3 +246,12 @@ for (const [file, esperado] of CELDAS) {
     assert.deepEqual(leido, esperado);
   });
 }
+
+// resources are dropped without ocr: parts are ×1-×3, while resources are tens or thousands
+test("esRecursoPorBadge: 10 o más es recurso; ×1-×3, vacío o ilegible se leen", async () => {
+  const { esRecursoPorBadge, cantidadDeBadge } = await import("../deploy/js/utils/vision/mission_complete_grid.js");
+  for (const b of ["10", "45", "662", "8126"]) assert.equal(esRecursoPorBadge(b), true, b);
+  for (const b of ["", "1", "2", "3", "9", "x", undefined]) assert.equal(esRecursoPorBadge(b), false, String(b));
+  assert.equal(cantidadDeBadge("8126"), 1, "una cantidad imposible cuenta 1, no infla el inventario");
+  assert.equal(cantidadDeBadge("3"), 3);
+});

@@ -6,6 +6,23 @@ export function closenessWeight(setMissing) {
   return 1 / (quedan * quedan);
 }
 
+export function expectedPlatPerCrack(missing, getPrice, squadSize = 4) {
+  const n = Math.max(1, squadSize);
+  const piezas = missing
+    .map((m) => ({ precio: getPrice(m.part) || 0, single: m.single ?? 1 - Math.pow(1 - m.chance, 1 / n) }))
+    .filter((x) => x.precio > 0)
+    .sort((a, b) => b.precio - a.precio);
+  if (piezas.length === 0) return null;
+  let esperado = 0, acumulada = 0, pAnterior = 0;
+  for (const { precio, single } of piezas) {
+    acumulada += single;
+    const pAlMenos = 1 - Math.pow(Math.max(0, 1 - acumulada), n);
+    esperado += precio * (pAlMenos - pAnterior);
+    pAnterior = pAlMenos;
+  }
+  return Math.round(esperado * 10) / 10;
+}
+
 // worldstate calls Axi "Vanguard"
 export function tierOfRelic(relicName) {
   const tier = String(relicName || "").trim().split(/\s+/)[0] || "";
@@ -42,11 +59,7 @@ export function rankRelicPicks(deps, limit = 8) {
     const suyas = porEra.get(tier) || [];
     const fisura = bestFissure(suyas);
 
-    let valor = null;
-    if (getPrice) {
-      const precios = v.missing.map((m) => getPrice(m.part) || 0).filter((n) => n > 0);
-      if (precios.length > 0) valor = Math.round(precios.reduce((a, b) => a + b, 0) / precios.length);
-    }
+    const valor = getPrice ? expectedPlatPerCrack(v.missing, getPrice, squadSize) : null;
 
     const cierran = v.missing.filter((m) => m.setMissing === 1);
     const setsCerrados = [...new Set(cierran.map((m) => m.set))];
@@ -64,7 +77,7 @@ export function rankRelicPicks(deps, limit = 8) {
       tier,
       owned,
       useful: v.missing.length,
-      odds: v.odds,
+      odds: Number.isFinite(v.runs) ? 1 / v.runs : 0,
       runs: v.runs,
       sets: [...new Set(v.missing.map((m) => m.set))],
       parts: v.missing.map((m) => ({
