@@ -8,17 +8,21 @@ import {
     SQUAD_STRIP_CROP, PAUSE_MENU_CROP, isPauseScreen, parseSquadRelics,
 } from "../../utils/vision/squad_panel.js";
 import { smallCanvasHash, compareHashes } from "../../utils/vision/frame_hash.js";
+import { hayPistaMenuPausa } from "../../utils/vision/pause_menu_hint.js";
 import { collectWords } from "../../utils/vision/ocr_words.js";
 import { VisionService } from "./vision.service.js";
 import { OCRService } from "./ocr.service.js";
 
 export const SquadService = {
     PROBE_INTERVAL_MS: 1500,
+    PROBE_SIN_PISTA_MS: 10000,
     PRICE_TIMEOUT_MS: 2500,
 
     onUpdate: null,
     onDebugFrame: null,
     lastProbeTime: 0,
+    lastProbeOcrTime: 0,
+    _pistaPrevia: null,
     lastStripHash: null,
     lastVerdict: false,
 
@@ -29,6 +33,14 @@ export const SquadService = {
 
         const worker = OCRRepository.workers[0];
         if (!worker) return false;
+
+        const pista = hayPistaMenuPausa(video);
+        if (pista.ok !== this._pistaPrevia) {
+            this._pistaPrevia = pista.ok;
+            console.log(`[SQUAD] pista de menú de pausa: ${pista.ok ? "sí" : "no"} (bandas=${pista.bandas} alturas=[${pista.alturas}] pasos=[${pista.pasos}] umbral=${pista.umbral})`);
+        }
+        if (!pista.ok && now - this.lastProbeOcrTime < this.PROBE_SIN_PISTA_MS) return (this.lastVerdict = false);
+        this.lastProbeOcrTime = now;
 
         const menuCvs = VisionService.prepareCropForOCR(video, PAUSE_MENU_CROP, 0.5, "pauseMenu");
         const { data: menuData } = await OCRRepository.recognize(worker, menuCvs, {}, { text: true });

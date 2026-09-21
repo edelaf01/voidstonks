@@ -24,6 +24,8 @@ export function aplicaMotor(motor) {
 
 export function motorActivo() { return activo || motorElegido(); }
 
+export function rejillaConClasico() { return motorActivo() !== MOTOR_PRECISO || !!PaddleRepository.ultimoFallo; }
+
 export function restauraMotor() {
     if (!motorDecidido()) return (activo = MOTOR_CLASICO);
     return aplicaMotor(motorElegido());
