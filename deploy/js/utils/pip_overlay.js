@@ -198,7 +198,7 @@ function getLang() {
 
 function makeBadgeEl(doc, item) {
     const { name, price, ducats, owned, appOwned, isBestPl, isBestEff, isCompletingSet, isSelected,
-        isBestValue, gainPl } = item;
+        isBestValue, gainPl, setPrice } = item;
     const lang = getLang();
     const t = lang === "en"
         ? { add: "CLICK TO ADD", inv: "OWNED", owned: "SEEN" }
@@ -217,7 +217,7 @@ function makeBadgeEl(doc, item) {
     }
     if (isBestPl) tags.push(`<span class="pip-tag pl">BEST PLAT</span>`);
     if (isBestEff && !isForma) tags.push(`<span class="pip-tag duc">BEST DUC</span>`);
-    if (isCompletingSet) tags.push(`<span class="pip-tag set">COMPLETES SET</span>`);
+    if (isCompletingSet) tags.push(`<span class="pip-tag set">COMPLETES SET${setPrice > 0 ? ` · ${setPrice}p` : ""}</span>`);
 
     const ducatHtml = ducats > 0
         ? `<div class="pip-ducats"><img src="assets/Ducats.webp"> ${ducats}</div>`

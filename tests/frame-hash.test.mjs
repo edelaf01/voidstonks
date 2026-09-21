@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { installFakeDocument, FakeCanvas } from "./_helpers/fake-canvas.mjs";
 
 installFakeDocument();
-const { videoRegionHash, smallCanvasHash, compareHashes, canvasRegionHash, fraccionCambiada } =
+const { videoRegionHash, smallCanvasHash, compareHashes, canvasRegionHash, fraccionCambiada, miniaturaLuma, regionLuma } =
     await import("../deploy/js/utils/vision/frame_hash.js");
 
 /** Canvas plano de un gris dado, que es lo que hashean estas funciones. */
@@ -125,4 +125,42 @@ test("fraccionCambiada: solo cuenta las muestras que se mueven de verdad", () =>
 
   assert.equal(fraccionCambiada(a, null), 1, "sin referencia, se asume cambiada");
   assert.equal(fraccionCambiada(a, new Uint8Array(10)), 1, "otra longitud, otra región");
+});
+
+test("miniaturaLuma reduce el vídeo entero al tamaño pedido y da la luma por píxel", () => {
+    const v = new FakeCanvas();
+    v.width = 64; v.height = 36;
+    for (let y = 0; y < 36; y++) {
+        for (let x = 0; x < 64; x++) {
+            const i = (y * 64 + x) * 4;
+            v._data[i] = v._data[i + 1] = v._data[i + 2] = x < 32 ? 20 : 220;
+            v._data[i + 3] = 255;
+        }
+    }
+    v.videoWidth = 64; v.videoHeight = 36;
+    const { cvs, luma } = miniaturaLuma(v, 16, 9);
+    assert.equal(cvs.width, 16); assert.equal(cvs.height, 9);
+    assert.equal(luma.length, 16 * 9);
+    assert.equal(luma[0], 20, "mitad izquierda oscura");
+    assert.equal(luma[15], 220, "mitad derecha clara");
+    assert.equal(miniaturaLuma(v, 16, 9).cvs, cvs, "el canvas se reutiliza");
+});
+
+test("regionLuma recorta la región pedida del origen y la muestrea al tamaño pedido", () => {
+    const v = new FakeCanvas();
+    v.width = 64; v.height = 36;
+    for (let y = 0; y < 36; y++) {
+        for (let x = 0; x < 64; x++) {
+            const i = (y * 64 + x) * 4;
+            v._data[i] = x < 32 ? 20 : 200; v._data[i + 1] = x < 32 ? 20 : 200; v._data[i + 2] = x < 32 ? 20 : 200;
+            v._data[i + 3] = 255;
+        }
+    }
+    const derecha = regionLuma(v, { x: 0.5, y: 0, w: 0.5, h: 1, cols: 8, filas: 4 });
+    assert.equal(derecha.length, 32);
+    assert.ok(derecha.every((l) => l >= 195), "solo la mitad clara");
+    const izquierda = regionLuma(v, { x: 0, y: 0, w: 0.5, h: 1, cols: 8, filas: 4 });
+    assert.ok(izquierda.every((l) => l <= 25));
+    v._data.fill(0); for (let i = 0; i < v._data.length; i += 4) { v._data[i] = 255; v._data[i + 3] = 255; }
+    assert.equal(regionLuma(v, { x: 0, y: 0, w: 1, h: 1, cols: 2, filas: 2 })[0], 76, "luma 0.299/0.587/0.114");
 });

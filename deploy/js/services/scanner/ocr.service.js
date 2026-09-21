@@ -202,14 +202,14 @@ export const OCRService = {
             .map(w => sinAcentos((w || "").toString()).toUpperCase()
                 .replaceAll(/[|!¡\][]/g, "I")   // barra vertical: i/I/1 finos leídos como signo
                 .replaceAll(/\?/g, "7")          // el 7 con remate curvo sale como "?"
-                .replaceAll(/[^A-Z0-9]/g, ""))
+                .replaceAll(/[^A-Z0-9]/g, "").replace(/^([A-Z]\d{1,2})(RELIC|RELIQUIA)S?$/, "$1")) // Paddle pega el sufijo: "A14RELIC"
             .filter(w => w.length > 0 && !this.RELIC_NOISE_TOKENS.has(w));
         const index = this._relicIndex();
         // ¿La celda dice literalmente "RELIC"/"RELIQUIA"? Entonces ES una reliquia y el
         // único problema es leer el código; la basura de una celda ilegible ("…OT NE WL")
         // no trae esa palabra. Sirve para relajar la guardia de tier flojo de abajo sin
         // reabrirla a la basura, que es lo que esa guardia protege.
-        const saysRelic = rawWords.some(w => /^(RELIC|RELIQUIA)S?$/.test(
+        const saysRelic = rawWords.some(w => /(RELIC|RELIQUIA)S?$/.test(
             (w || "").toString().toUpperCase().replaceAll(/[^A-Z]/g, "")));
 
         for (let i = 0; i < words.length; i++) {

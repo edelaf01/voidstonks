@@ -557,7 +557,8 @@ function _conGrupo(img, accent, zone, checks, trace, S, dist) {
     // MISMO color de tema que ya se tienen a mano, y así el consumidor no vuelve a tocarlos.
     for (const cell of unique) {
         cell.named = classifyRewardCell(img, accent, cell, dist).kind === "NAMED";
-        cell.qty = cell.named ? readRewardQty(img, accent, cell, dist) : 1;
+        cell.badge = cell.named ? readRewardBadge(img, accent, cell, dist) : "";
+        cell.qty = cantidadDeBadge(cell.badge);
     }
 
     trace.cols = sortedCols.length;
@@ -685,6 +686,20 @@ export function readRewardBadge(img, accent, cell, dist) {
  * inflar el inventario.
  */
 export function readRewardQty(img, accent, cell, dist) {
-    const n = Number.parseInt(readRewardBadge(img, accent, cell, dist), 10);
+    return cantidadDeBadge(readRewardBadge(img, accent, cell, dist));
+}
+
+export function cantidadDeBadge(badge) {
+    const n = Number.parseInt(badge, 10);
     return Number.isFinite(n) && n >= 2 && n <= 20 ? n : 1;
+}
+
+/**
+ * Recursos (créditos, endo, oxium, rubedo…) llegan por decenas o miles; reliquias y piezas prime,
+ * ×1-×3. Con un badge de 10 o más no hay nada que leer: ni montaje ni Tesseract, y no puede colar
+ * un falso match. Un badge ilegible ("") no descarta: ante la duda se lee.
+ */
+export function esRecursoPorBadge(badge) {
+    const n = Number.parseInt(badge, 10);
+    return Number.isFinite(n) && n >= 10;
 }

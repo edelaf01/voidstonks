@@ -8,6 +8,7 @@ import {
     SQUAD_STRIP_CROP, PAUSE_MENU_CROP, isPauseScreen, parseSquadRelics,
 } from "../../utils/vision/squad_panel.js";
 import { smallCanvasHash, compareHashes } from "../../utils/vision/frame_hash.js";
+import { hayPistaMenuPausa } from "../../utils/vision/pause_menu_hint.js";
 import { collectWords } from "../../utils/vision/ocr_words.js";
 import { VisionService } from "./vision.service.js";
 import { OCRService } from "./ocr.service.js";
@@ -26,6 +27,9 @@ export const SquadService = {
     // Ritmo del sondeo. El OCR del menú es barato (recorte pequeño y letra enorme) pero se
     // paga en TODOS los frames sin contexto, que es la mayor parte del tiempo de juego.
     PROBE_INTERVAL_MS: 1500,
+    // Sin pista de menú el OCR sigue corriendo, pero a este ritmo: acota la ceguera ante un tema o
+    // formato que no esté en el corpus sin pagar el OCR en cada sondeo.
+    PROBE_SIN_PISTA_MS: 10000,
     PRICE_TIMEOUT_MS: 2500,
 
     onUpdate: null,
@@ -33,6 +37,8 @@ export const SquadService = {
     // esto no había forma de distinguir "no detecta la pausa" de "detecta y no lee nada".
     onDebugFrame: null,
     lastProbeTime: 0,
+    lastProbeOcrTime: 0,
+    _pistaPrevia: null,
     lastStripHash: null,
     // El veredicto se cachea junto con el ritmo: devolver false mientras se espera al
     // siguiente sondeo dejaba pasar la pantalla de pausa al pipeline normal, y con el
@@ -52,6 +58,16 @@ export const SquadService = {
 
         const worker = OCRRepository.workers[0];
         if (!worker) return false;
+
+        // Test de PÍXEL antes del OCR: 9 filas de menú a paso constante (utils/vision/pause_menu_hint.js).
+        // El OCR sigue mandando; la pista solo decide si merece la pena pagarlo.
+        const pista = hayPistaMenuPausa(video);
+        if (pista.ok !== this._pistaPrevia) {
+            this._pistaPrevia = pista.ok;
+            console.log(`[SQUAD] pista de menú de pausa: ${pista.ok ? "sí" : "no"} (bandas=${pista.bandas} alturas=[${pista.alturas}] pasos=[${pista.pasos}] umbral=${pista.umbral})`);
+        }
+        if (!pista.ok && now - this.lastProbeOcrTime < this.PROBE_SIN_PISTA_MS) return (this.lastVerdict = false);
+        this.lastProbeOcrTime = now;
 
         const menuCvs = VisionService.prepareCropForOCR(video, PAUSE_MENU_CROP, 0.5, "pauseMenu");
         const { data: menuData } = await OCRRepository.recognize(worker, menuCvs, {}, { text: true });

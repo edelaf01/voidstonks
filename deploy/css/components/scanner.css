@@ -752,6 +752,22 @@
 }
 
 /* Grabando: rojo, para que no se quede activo sin querer (cada página son ~2 MB). */
+#scanner-mode-toggle-container .scanner-rec-btn {
+    background: none;
+    border: none;
+    color: #888;
+    font-size: 0.65em;
+    font-weight: 800;
+    padding: 5px 15px;
+    border-radius: 18px;
+    cursor: pointer;
+    letter-spacing: 1px;
+}
+
+#scanner-mode-toggle-container .scanner-rec-btn.is-recording {
+    color: #ff5a5a;
+}
+
 .hud-debug-copy.is-recording {
     color: #ff5252;
     border-color: rgba(255, 82, 82, 0.7);
@@ -815,6 +831,33 @@
     color: #2a3a50;
     border-top: 1px solid rgba(0, 229, 255, 0.06);
 }
+
+/* ── Kiosko de ducados: lo que hay a la venta en el panel derecho ── */
+#kiosk-sale-panel {
+    margin: 0 10px 8px;
+    padding: 8px 9px;
+    border: 1px solid rgba(221, 170, 56, 0.35);
+    border-radius: 6px;
+    background: rgba(221, 170, 56, 0.06);
+}
+
+#kiosk-sale-panel .kiosk-title {
+    font-size: 0.72em;
+    font-weight: 800;
+    letter-spacing: 1px;
+    color: #ddaa38;
+    margin-bottom: 6px;
+}
+
+#kiosk-sale-panel .kiosk-line {
+    display: flex;
+    gap: 6px;
+    padding: 2px 4px;
+    font-size: 0.76em;
+}
+
+#kiosk-sale-panel .kiosk-name { flex: 1; }
+#kiosk-sale-panel .kiosk-ducats { color: #ddaa38; font-weight: 700; }
 
 /* ── Panel "RUN ACTUAL": reliquias del squad leídas de la pantalla de pausa ──
    Todo cuelga de #squad-run-panel: los nombres genéricos (.squad-title, .squad-tag)

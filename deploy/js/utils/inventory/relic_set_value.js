@@ -81,7 +81,7 @@ export function relicSetValue(drops, deps) {
     pNothing *= (1 - squad);
     const st = statsOfSet(set);
     missing.push({
-      part: drop.name, set, chance: squad,
+      part: drop.name, set, chance: squad, single,
       setMissing: st.missing || 1, setTotal: st.total, setStarted: st.started,
     });
   }

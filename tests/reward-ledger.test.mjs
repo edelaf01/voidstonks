@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { nextLedger, INITIAL_LEDGER, CONSENSUS_FRAMES } from "../deploy/js/utils/inventory/reward_ledger.js";
+import { nextLedger, INITIAL_LEDGER, CONSENSUS_FRAMES, esPantallaRecordada, recuerdaPantalla, memoriaPantalla, MEMORIA_PANTALLA_MS } from "../deploy/js/utils/inventory/reward_ledger.js";
 
 const pieza = (name, qty = 1) => ({ name, qty });
 
@@ -190,4 +190,48 @@ test("una reliquia llega al alta marcada como reliquia, no como pieza", () => {
   const r4 = nextLedger(r3.ledger, [pieza("Paris Prime Grip")]);
   const r5 = nextLedger(r4.ledger, items);
   assert.deepEqual(r5.commit.find((c) => c.name === "Lith K2"), { name: "Lith K2", qty: 2, reliquia: true });
+});
+
+// Al perder el contexto (tooltip, pausa, recarga) el ledger se reiniciaba y la MISMA pantalla
+// de fin de misión volvía a sumar: visto en vivo con las piezas duplicadas en el inventario.
+test("la última pantalla dada de alta se recuerda y no vuelve a sumar", () => {
+  const items = [pieza("Orthos Prime Blueprint"), pieza("Burston Prime Receiver"), pieza("Caliban Prime Chassis Blueprint")];
+  let l = INITIAL_LEDGER, commit = null;
+  for (let i = 0; i < CONSENSUS_FRAMES; i++) ({ ledger: l, commit } = nextLedger(l, items));
+  assert.equal(commit.length, 3);
+  const memoria = recuerdaPantalla(items, l, 1000);
+
+  // Contexto perdido: ledger nuevo, pero la pantalla es la misma.
+  assert.equal(esPantallaRecordada(items, memoria, 2000), true);
+  let l2 = { ...INITIAL_LEDGER, committed: memoria.committed }, commits = 0;
+  for (let i = 0; i < 6; i++) { const r = nextLedger(l2, items); l2 = r.ledger; if (r.commit) commits++; }
+  assert.equal(commits, 0);
+
+  // Le falta UNA casilla por leer: sigue siendo la misma pantalla.
+  assert.equal(esPantallaRecordada(items.slice(0, 2), memoria, 2000), true);
+  // Le faltan dos, o el orden es otro, o ha pasado más de una hora: misión nueva.
+  assert.equal(esPantallaRecordada(items.slice(0, 1), memoria, 2000), false);
+  assert.equal(esPantallaRecordada([items[1], items[0], items[2]], memoria, 2000), false);
+  assert.equal(esPantallaRecordada(items, memoria, 1000 + MEMORIA_PANTALLA_MS), false);
+  // Otra misión con la misma pieza y una nueva: cuenta.
+  assert.equal(esPantallaRecordada([items[0], pieza("Lex Prime Barrel")], memoria, 2000), false);
+  assert.equal(esPantallaRecordada([], memoria, 2000), false);
+  assert.equal(esPantallaRecordada(items, null, 2000), false);
+  // La cantidad forma parte de la huella: ×2 de una pieza no es la misma pantalla.
+  assert.equal(esPantallaRecordada([pieza("Orthos Prime Blueprint", 2), items[1], items[2]], memoria, 2000), false);
+});
+
+test("la memoria persiste en el almacén y sobrevive a que falle", () => {
+  const almacen = new Map();
+  const storage = () => ({ getItem: (k) => almacen.get(k) ?? null, setItem: (k, v) => almacen.set(k, v) });
+  const m = memoriaPantalla(storage, "clave");
+  assert.equal(m.lee(), null);
+  m.guarda({ huella: ["a×1"], committed: { a: true }, t: 5 });
+  assert.deepEqual(JSON.parse(almacen.get("clave")), { huella: ["a×1"], committed: { a: true }, t: 5 });
+  assert.deepEqual(memoriaPantalla(storage, "clave").lee(), { huella: ["a×1"], committed: { a: true }, t: 5 }, "otra sesión la recupera");
+
+  const roto = memoriaPantalla(() => { throw new Error("privado"); }, "clave");
+  assert.equal(roto.lee(), null);
+  roto.guarda({ huella: ["b×1"], committed: {}, t: 1 });
+  assert.deepEqual(roto.lee().huella, ["b×1"], "sin almacén se queda en la sesión");
 });

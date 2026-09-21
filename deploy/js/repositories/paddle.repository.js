@@ -1,70 +1,52 @@
 /**
- * Repositorio de OCR con PaddleOCR (PP-OCRv5) vía onnxruntime-web — ALTERNATIVA
- * a Tesseract, en PARALELO. Lee el recorte de nombre a COLOR directamente (sin
- * binarizar): maneja cualquier tema/contraste por sí mismo, así que evita toda la
- * binarización por color de tema y la mayoría de los alias del matcher.
+ * Repositorio de OCR con PaddleOCR (PP-OCRv5) vía onnxruntime-web: ALTERNATIVA a Tesseract, en
+ * PARALELO. Lee el recorte de nombre a COLOR directamente (sin binarizar): maneja cualquier
+ * tema/contraste por sí mismo, así que evita toda la binarización por color de tema y la
+ * mayoría de los alias del matcher.
  *
  * Lo elige el usuario en el HUD del escáner; la preferencia la lleva
  * services/scanner/ocr_engine.service.js (por defecto, el clásico).
- * Carga la librería `ppu-paddle-ocr/web` por import dinámico desde un CDN ESM con la versión
- * FIJADA (configurable con globalThis.PADDLE_CDN); los modelos los servimos nosotros desde
- * deploy/assets/ocr/ y se cachean en el primer uso.
  *
- * NOTA: WebGPU acelera mucho; con WASM va más lento (aceptable en escaneo puntual).
- * onnxruntime-web con hilos/WebGPU puede requerir aislamiento de origen (COOP/COEP)
- * — la librería incluye `coi-serviceworker.js` para ello si hiciera falta.
+ * La inferencia corre en paddle.worker.js: onnxruntime-web bloquea el hilo desde el que se le
+ * llama (200-600 ms por montaje) y en la página era la congelación del HUD en modo auto. Si el
+ * worker no arranca, la librería se carga en el hilo principal como antes. En ambos casos se
+ * importa `ppu-paddle-ocr/web` desde un CDN ESM con la versión FIJADA (configurable con
+ * globalThis.PADDLE_CDN); los modelos los servimos nosotros desde deploy/assets/ocr/.
  */
 import { montaTiras, repartePorTramos } from "../utils/vision/ocr_montage.js";
+import { PaddleWorkerClient } from "./paddle_worker_client.js";
+import { rutasAbsolutas, eligeModelo, puedeUsarWorker } from "../utils/vision/paddle_rpc.js";
+
+const CDN = "https://esm.sh/ppu-paddle-ocr@6.4.3/web";
+const MODELO_LOCAL = {
+    detection: "assets/ocr/PP-OCRv6_tiny_det.ort",
+    recognition: "assets/ocr/PP-OCRv6_tiny_rec.ort",
+    charactersDictionary: "assets/ocr/ppocrv6_tiny_dict.txt",
+};
+const OPCIONES = { recognition: { strategy: "per-box" } };
+export const RUTA_WORKER_PADDLE = "./paddle.worker.js?v=1.0";
+const MAX_ARRANQUES_WORKER = 2;
 
 export const PaddleRepository = {
     _service: null,
     _initPromise: null,
 
-    /**
-     * ¿Está el motor cargado YA? Distinto de `warmUp()`, que lo carga: quien lee frames en vivo
-     * no puede esperar a que bajen 4,8 MB de modelo, así que pregunta y sigue con el otro motor
-     * si aún no está.
-     */
     listo() { return !!this._service; },
 
     /** Última carga fallida, para que la UI pueda decirlo en vez de quedarse en "preparando". */
     ultimoFallo: null,
 
+    _arranquesWorker: 0,
+    _modo: null,
+    modo() { return this._service ? this._modo : null; },
+
     /** Carga la librería y arranca el servicio (una vez, o de nuevo si la anterior falló). */
     warmUp() {
         if (this._initPromise) return this._initPromise;
         this._initPromise = (async () => {
-            // Versión FIJA, no @latest: el paquete es de un tercero y una publicación suya
-            // rompería la app en caliente, sin tocar nosotros nada.
-            const cdn = globalThis.PADDLE_CDN || "https://esm.sh/ppu-paddle-ocr@6.4.3/web";
-            const mod = await import(/* @vite-ignore */ cdn);
-            const { PaddleOcrService } = mod;
-            // V6 TINY: 4,8 MB de descarga y ~630 ms por imagen, frente a los 12 MB y ~1,5 s
-            // del PP-OCRv5 EN mobile con la misma precisión (ver MAINTENANCE_REWARD_PHOTO_OCR).
-            // Servidos por nosotros: por defecto la librería los baja de HuggingFace en cada
-            // navegador nuevo, así que el escáner dependía de que ese host estuviera arriba.
-            const local = {
-                detection: "assets/ocr/PP-OCRv6_tiny_det.ort",
-                recognition: "assets/ocr/PP-OCRv6_tiny_rec.ort",
-                charactersDictionary: "assets/ocr/ppocrv6_tiny_dict.txt",
-            };
-            // PADDLE_MODEL sigue admitiendo el NOMBRE de un modelo de la librería (que se baja
-            // de su host) para poder comparar motores sin tocar código; lo que cambia es que el
-            // de por defecto ya es el nuestro.
-            const pedido = globalThis.PADDLE_MODEL;
-            const model = (typeof pedido === "string" ? mod[pedido] : pedido) || local;
-            // strategy "per-box": una inferencia de reconocimiento por caja detectada, en vez de
-            // agrupar por línea. Medido sobre las 18 celdas del inventario en cuatro
-            // resoluciones (nativa, 1080p, 720p, 540p): per-line 228/199/200/163 ms, per-box
-            // 199/166/173/164, cross-line 215/215/191/181 — y las tres leen 18/18 salvo
-            // cross-line, que se deja una a 540p.
-            this._service = new PaddleOcrService({ model, recognition: { strategy: "per-box" } });
-            await this._service.initialize();
-            // `crossOriginIsolated` decide si onnxruntime-web puede usar WASM con HILOS. Sin
-            // aislamiento de origen se queda en uno solo, y ahí está la diferencia entre el
-            // ~1 s que tarda este mismo montaje fuera del navegador y los 5,6 s medidos dentro.
-            // Se registra porque no hay otra forma de saber cuál de los dos casos es.
-            console.log(`[Paddle] listo (V6 TINY) · aislamiento de origen: ${globalThis.crossOriginIsolated === true}`);
+            const cdn = globalThis.PADDLE_CDN || CDN;
+            const pedido = globalThis.PADDLE_MODEL ?? null;
+            this._service = (await this._arrancaWorker(cdn, pedido)) || (await this._cargaEnHilo(cdn, pedido));
             this.ultimoFallo = null;
             return this._service;
         })();
@@ -78,6 +60,59 @@ export const PaddleRepository = {
             console.error("[Paddle] no se pudo cargar el motor preciso; se lee con el clásico:", e);
         });
         return this._initPromise;
+    },
+
+    async _arrancaWorker(cdn, pedido) {
+        if (!puedeUsarWorker(globalThis) || this._arranquesWorker >= MAX_ARRANQUES_WORKER) return null;
+        this._arranquesWorker++;
+        const cliente = new PaddleWorkerClient({
+            crearWorker: () => new Worker(new URL(RUTA_WORKER_PADDLE, import.meta.url), { type: "module" }),
+            aBitmap: (fuente) => createImageBitmap(fuente),
+            onMuerte: (e) => this._workerMurio(cliente, e),
+        });
+        try {
+            const base = globalThis.document?.baseURI || globalThis.location?.href;
+            const info = await cliente.init({ cdn, pedido, local: rutasAbsolutas(MODELO_LOCAL, base), opciones: OPCIONES });
+            this._modo = "worker";
+            // Sin aislamiento de origen onnxruntime-web se queda en un hilo WASM; se registra
+            // porque no hay otra forma de saber cuál de los dos casos es.
+            console.log(`[Paddle] listo (V6 TINY, worker) · proveedores: ${info.proveedores.join(",")} · aislamiento de origen: ${info.aislado}`);
+            return cliente;
+        } catch (e) {
+            cliente.terminate();
+            // error y no warn: debug_log.js silencia el resto en producción, y es la única pista de por qué el escaneo congela.
+            console.error("[Paddle] el worker no arrancó; el motor preciso se carga en el hilo principal:", e);
+            return null;
+        }
+    },
+
+    async _cargaEnHilo(cdn, pedido) {
+        const mod = await import(/* @vite-ignore */ cdn);
+        const servicio = new mod.PaddleOcrService({ model: eligeModelo(mod, pedido, MODELO_LOCAL), ...OPCIONES });
+        await servicio.initialize();
+        this._modo = "hilo";
+        console.log(`[Paddle] listo (V6 TINY, hilo) · aislamiento de origen: ${globalThis.crossOriginIsolated === true}`);
+        return servicio;
+    },
+
+    /**
+     * Suelta el motor al cerrar el escáner: el worker (onnxruntime + modelos, ~200 MB) se quedaba
+     * entre sesiones. La siguiente lo recarga; librería y modelos ya están en la caché del
+     * navegador. El servicio en hilo principal no se puede liberar: se deja.
+     */
+    apaga() {
+        if (!this._service || this._service.terminate) {
+            this._service?.terminate();
+            this._service = null; this._initPromise = null; this._modo = null;
+        }
+        this._arranquesWorker = 0;
+    },
+
+    _workerMurio(cliente, e) {
+        if (this._service !== cliente) return; // ya sustituido, o murió en el init (lo gestiona _arrancaWorker)
+        this._service = null; this._initPromise = null; this.ultimoFallo = e; // rejillaConClasico() da true en el hueco
+        console.error("[Paddle] el worker murió; se rearranca:", e);
+        this.warmUp().catch(() => {});
     },
 
     /**
@@ -107,6 +142,7 @@ export const PaddleRepository = {
     async recognizeStripWords(fuente, tiras, opciones = {}) {
         const svc = await this.warmUp();
         const salida = new Map();
+        this._lote = new Map();
         for (const { canvas, tramos } of montaTiras(fuente, tiras, opciones)) {
             const res = await svc.recognize(canvas);
             const lineas = (res?.lines || []).flat().filter((l) => l?.box && l?.text);
@@ -114,9 +150,26 @@ export const PaddleRepository = {
                 const palabras = suyas.map((l) => l.text).join(" ")
                     .replace(/[^A-Za-z0-9]+/g, " ").trim().split(/\s+/).filter(Boolean);
                 salida.set(clave, palabras.length ? palabras.map((w) => w.toUpperCase()) : null);
+                this._lote.set(clave, { lineas: suyas, canvas });
             }
         }
         return salida;
+    },
+
+    /** Palabras con caja (reparto por caracteres, como recognizeWordsWithBoxes) de la última tira leída con esa clave. */
+    palabrasDelLote(clave) {
+        return this._lote?.get(clave) ? this._palabrasConCaja(this._lote.get(clave).lineas) : [];
+    },
+
+    /** Recorte RGBA del montaje (a color, misma geometría que las cajas) para una caja de esa tira. */
+    recorteDelLote(clave) {
+        const canvas = this._lote?.get(clave)?.canvas;
+        return ({ x0, y0, x1, y1 }) => {
+            if (!canvas) return null;
+            const pad = 3, sx = Math.max(0, Math.floor(x0) - pad), sy = Math.max(0, Math.floor(y0) - pad);
+            const sw = Math.min(canvas.width - sx, Math.ceil(x1 - x0) + pad * 2), sh = Math.min(canvas.height - sy, Math.ceil(y1 - y0) + pad * 2);
+            return sw > 2 && sh > 2 ? canvas.getContext("2d", { willReadFrequently: true }).getImageData(sx, sy, sw, sh) : null;
+        };
     },
 
     /** Líneas crudas con su caja, para quien reparte por posición (montajes). */
@@ -138,7 +191,10 @@ export const PaddleRepository = {
     async recognizeWordsWithBoxes(canvas) {
         const svc = await this.warmUp();
         const res = await svc.recognize(canvas);
-        const lines = (res?.lines || []).flat().filter((l) => l?.box && l?.text);
+        return this._palabrasConCaja((res?.lines || []).flat().filter((l) => l?.box && l?.text));
+    },
+
+    _palabrasConCaja(lines) {
         const words = [];
         for (const line of lines) {
             // Paddle a veces pega dos palabras ("YareliPrime"), pero separarlas por el cambio de

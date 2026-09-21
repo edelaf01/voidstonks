@@ -27,9 +27,11 @@ export const ScannerHUD = {
 
         // The VOIDSCANNER inventory HUD is only for item scanning. The mod/riven context
         // (INVENTORY_MODS) uses the separate riven appraisal HUD, so keep this one hidden there.
-        if (contextType === "INVENTORY") {
+        // El kiosko de ducados es el inventario con el panel de venta al lado: mismo HUD, otra etiqueta.
+        if (contextType === "INVENTORY" || contextType === "DUCAT_KIOSK") {
             if (hud) hud.style.display = "block";
-            this.setUIBadge(badge, sh.statusInventory, "#f1c40f", "rgba(241,196,15,0.4)", "rgba(241,196,15,0.1)");
+            const etiqueta = contextType === "DUCAT_KIOSK" ? sh.statusKiosk : sh.statusInventory;
+            this.setUIBadge(badge, etiqueta, "#f1c40f", "rgba(241,196,15,0.4)", "rgba(241,196,15,0.1)");
             const msgEl = document.getElementById("live-inv-msg");
             if (msgEl) msgEl.innerText = sh.statusIdle;
         } else if (state.squadRun) {
@@ -51,6 +53,37 @@ export const ScannerHUD = {
         }
     },
 
+    /** Piezas apiladas a la venta en el kiosko; con la lista vacía el bloque se esconde. */
+    updateKioskSale(items) {
+        const panel = document.getElementById("kiosk-sale-panel");
+        if (!panel) return;
+        const clave = JSON.stringify(items) + state.currentLang;
+        if (clave === this._ultimaVenta) return;
+        this._ultimaVenta = clave;
+        panel.replaceChildren();
+        panel.style.display = items.length ? "" : "none";
+        if (!items.length) return;
+        const titulo = document.createElement("div");
+        titulo.className = "kiosk-title";
+        titulo.textContent = TEXTS[state.currentLang].scannerHUD.kioskForSale;
+        panel.appendChild(titulo);
+        for (const { name, qty, ducats } of items) {
+            const linea = document.createElement("div");
+            linea.className = "kiosk-line";
+            const nombre = document.createElement("span");
+            nombre.className = "kiosk-name";
+            nombre.textContent = `${qty}× ${name}`;
+            linea.appendChild(nombre);
+            if (ducats != null) {
+                const d = document.createElement("span");
+                d.className = "kiosk-ducats";
+                d.textContent = String(ducats);
+                linea.appendChild(d);
+            }
+            panel.appendChild(linea);
+        }
+    },
+
     /** Contexto y nº de detectados actuales, que es lo que decide qué bloques del HUD sobran. */
     _ultimoTipo: "UNKNOWN",
     _detectados: 0,
@@ -61,13 +94,16 @@ export const ScannerHUD = {
      * mirando el run de la escuadra. Se ocultan salvo que sirvan de algo.
      */
     _muestraBloques() {
+        if (this._ultimoTipo !== "DUCAT_KIOSK") this.updateKioskSale([]);
         const inventario = this._ultimoTipo === "INVENTORY";
+        // El kiosko va en pasivo: sin escanear ni guardar a mano, pero con la lista a la vista.
+        const kiosco = this._ultimoTipo === "DUCAT_KIOSK";
         for (const id of ["hud-actions", "hud-subactions"]) {
             const bloque = document.getElementById(id);
             if (bloque) bloque.style.display = inventario ? "" : "none";
         }
         // La lista sí se queda si YA hay algo detectado: esconderla perdería lo escaneado de vista.
-        const conLista = inventario || this._detectados > 0;
+        const conLista = inventario || kiosco || this._detectados > 0;
         for (const id of ["lbl-detected-items", "live-inventory-items-list"]) {
             const bloque = document.getElementById(id);
             if (bloque) bloque.style.display = conLista ? "" : "none";

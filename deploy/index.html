@@ -254,6 +254,9 @@
               transition: all 0.2s;
               letter-spacing: 1px;
             ">RIVENS</button>
+        <!-- La grabadora solo arranca sola al depurar (vs_debug_logs); este botón la enciende a mano y
+             está visible en todas las pantallas (el DIAG del HUD se esconde fuera del inventario). -->
+        <button type="button" id="btn-rec-drawer" class="scanner-rec-btn" onclick="globalThis.toggleDebugRecorder()">GRABAR</button>
       </div>
       <video id="live-video" autoplay muted playsinline></video>
       <canvas id="live-canvas" class="hidden"></canvas>
@@ -306,6 +309,10 @@
       <!-- Reliquias del squad del run en curso. Vacío y oculto hasta que el escáner lea
            una pantalla de pausa; lo rellena ui.components/ui_squad_run.js. -->
       <div id="squad-run-panel" class="squad-panel" style="display: none"></div>
+
+      <!-- Kiosko de ducados: las piezas apiladas a la venta en el panel derecho del juego.
+           Lo rellena ScannerHUD.updateKioskSale(); vacío y oculto fuera del kiosko. -->
+      <div id="kiosk-sale-panel" style="display: none"></div>
 
       <div class="hud-actions" id="hud-actions">
         <button type="button" id="btn-manual-scan" class="hud-btn primary" onclick="globalThis.manualPrecisionScan()">

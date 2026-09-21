@@ -900,26 +900,26 @@ function detectInventoryGridCore(img, opts = {}) {
     let rows = filasConNombre(findBands(prof, height, { ...o, bandMassFloor: 0 }),
         { gridX, gridY, cellW, cellH, cols, rows: rowBands.length, height, bloques: b => blocksInBand(img, b.y0, b.y1, o) });
 
-    // Fila cortada por ARRIBA (scroll clampado): su top real es NEGATIVO. Recortar la
-    // zona a y=0 sin más desplazaría la FASE y todas las filas de abajo quedarían
-    // descuadradas (el bug que se está arreglando). La rejilla debe seguir cayendo en la
-    // retícula real, así que se avanza un cellH entero —perdiendo esa fila, que de todos
-    // modos entra recortada— en vez de mover el origen a un punto fuera de fase.
+    // Fila cortada por ARRIBA (scroll clampado): su top real es NEGATIVO. Recortar la zona a y=0
+    // movería la FASE de todas las filas, así que se avanza un cellH entero y esa fila se pierde.
+    // La card empieza ~0,1·cellH por debajo del top de celda: si solo falta ese margen, se queda
+    // (el recorte de página arranca bajo la cabecera y a la primera fila le come justo eso).
+    const suelo = -cellH * 0.15;
     let gridYTop = gridY;
     if (cellH > 0) {
-        while (gridYTop < 0) gridYTop += cellH;
+        while (gridYTop < suelo) gridYTop += cellH;
     } else {
         gridYTop = Math.max(0, gridYTop);
     }
 
-    // Solo se descuentan las filas que el avance de fase dejó FUERA del frame por arriba;
+    // Solo se descuentan las filas que el avance de fase dejó fuera por arriba o bajo la cabecera;
     // el resto se conserva. Nunca se inventan filas a partir del alto disponible: hacerlo
     // añadía una fila fantasma en scrolls normales (celdas vacías que el OCR recorre en
     // cada página). Y nunca se devuelven menos de las reales por una fila cortada, porque
     // ese rows se queda CACHEADO (la caché va por tamaño de frame, no por scroll) y el
     // resto de la sesión escanearía una fila de menos en todas las páginas.
     if (cellH > 0) {
-        const dropped = Math.ceil(Math.max(0, -gridY) / cellH);
+        const dropped = Math.ceil(Math.max(0, suelo - gridY) / cellH);
         rows = Math.max(rows - dropped, Math.min(rowBands.length, o.rows));
     }
     if (rows < 1) {

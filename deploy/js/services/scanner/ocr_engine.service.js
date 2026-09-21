@@ -66,6 +66,13 @@ export function aplicaMotor(motor) {
 export function motorActivo() { return activo || motorElegido(); }
 
 /**
+ * ¿Va a leer Tesseract la rejilla del inventario? Con el clásico elegido, o con el preciso CAÍDO.
+ * Mientras el preciso CARGA no: la página lo espera (recognizeStripWords hace warmUp), así que el
+ * 2º worker que se creaba en ese hueco (una instancia WASM más, toda la sesión) no leía nunca.
+ */
+export function rejillaConClasico() { return motorActivo() !== MOTOR_PRECISO || !!PaddleRepository.ultimoFallo; }
+
+/**
  * Aplica la preferencia guardada. Se llama al arrancar el escáner.
  *
  * Sin respuesta no llama a aplicaMotor: escribiría la clave y daría la pregunta por contestada.

@@ -58,3 +58,55 @@ export function nextLedger(prev, items) {
         commit,
     };
 }
+
+/** Cuánto se recuerda la última pantalla dada de alta. Una misión de fisura no baja de eso. */
+export const MEMORIA_PANTALLA_MS = 60 * 60 * 1000;
+
+/** Los rótulos en orden de casilla: es lo que identifica la pantalla. */
+export function huellaPantalla(items) {
+    return (items || []).filter((i) => i?.name).map((i) => `${i.name}×${Math.max(1, i.qty || 1)}`);
+}
+
+/**
+ * Si la pantalla que se ve es la ÚLTIMA que ya se dio de alta. Al perder el contexto (tooltip,
+ * pausa, recarga de la página) el ledger se reiniciaba y la misma pantalla volvía a sumar. Se
+ * admite que a la lectura actual le falte UNA casilla (el OCR no siempre lee todas), pero no
+ * menos: una misión nueva con una sola pieza coincidente tiene que contar.
+ * Es la misma huella si otra misión da las mismas piezas en el mismo orden dentro de la hora:
+ * caso asumido, mucho más raro que el parpadeo de contexto.
+ */
+export function esPantallaRecordada(items, memoria, ahora = Date.now()) {
+    if (!memoria?.huella?.length || !(ahora - (memoria.t || 0) < MEMORIA_PANTALLA_MS)) return false;
+    const actual = huellaPantalla(items);
+    if (actual.length === 0 || actual.length < memoria.huella.length - 1) return false;
+    let j = 0;
+    for (const h of actual) {
+        while (j < memoria.huella.length && memoria.huella[j] !== h) j++;
+        if (j >= memoria.huella.length) return false;
+        j++;
+    }
+    return true;
+}
+
+/** Lo que se guarda tras un alta: la huella de la pantalla y lo que ya se apuntó de ella. */
+export function recuerdaPantalla(items, ledger, ahora = Date.now()) {
+    return { huella: huellaPantalla(items), committed: { ...(ledger?.committed || {}) }, t: ahora };
+}
+
+/**
+ * Dónde vive esa memoria entre recargas. `storage` es una función para que en Node no exista
+ * `localStorage` al importar; si falla (modo privado) se queda en la sesión.
+ */
+export function memoriaPantalla(storage, clave) {
+    let cache;
+    return {
+        lee() {
+            if (cache === undefined) { try { cache = JSON.parse(storage().getItem(clave) || "null"); } catch { cache = null; } }
+            return cache;
+        },
+        guarda(valor) {
+            cache = valor;
+            try { storage().setItem(clave, JSON.stringify(valor)); } catch { /* sin persistencia: vale para esta sesión */ }
+        },
+    };
+}

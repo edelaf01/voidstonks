@@ -487,6 +487,7 @@ function triggerSideEffects(t) {
       const sh = t.scannerHUD;
       let type = "IDLE";
       if (context === sh.statusInventory) type = "INVENTORY";
+      else if (context === sh.statusKiosk) type = "DUCAT_KIOSK";
       else if (context === sh.statusRelics) type = "RELICS";
       else if (context === sh.statusReward) type = "REWARD";
       else if (context === "MODS") type = "INVENTORY_MODS";

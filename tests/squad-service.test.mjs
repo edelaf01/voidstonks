@@ -25,14 +25,27 @@ const RELIC_WORDS = ["Neo", "N12", "Relic", "(Radiant)"].map((text, i) => ({
   text, bbox: { x0: 100 + i * 70, x1: 100 + i * 70 + 52, y0: 200, y1: 225 },
 }));
 
-function fakeVideo(tint = 40) {
-  const cvs = new FakeCanvas(320, 180);
+// El sondeo ya no paga el OCR sin una pista de píxel: el frame falso lleva pintadas las 9 filas
+// del menú de pausa (columna oscura con 9 barras a paso constante) para que el OCR llegue a correr.
+function fakeVideo(tint = 40, { menu = true } = {}) {
+  const W = 320, H = 180;
+  const cvs = new FakeCanvas(W, H);
   for (let i = 0; i < cvs.data.length; i += 4) {
     cvs.data[i] = tint; cvs.data[i + 1] = tint; cvs.data[i + 2] = tint; cvs.data[i + 3] = 255;
   }
-  cvs.videoWidth = 320;
-  cvs.videoHeight = 180;
+  if (menu) pintaMenuPausa(cvs, W, H);
+  cvs.videoWidth = W;
+  cvs.videoHeight = H;
   return cvs;
+}
+function pintaMenuPausa(cvs, W, H) {
+  const pinta = (x0, x1, y0, y1, rgb) => {
+    for (let y = Math.floor(y0); y < Math.floor(y1); y++) for (let x = Math.floor(x0); x < Math.floor(x1); x++) {
+      const i = (y * W + x) * 4; cvs.data[i] = rgb[0]; cvs.data[i + 1] = rgb[1]; cvs.data[i + 2] = rgb[2];
+    }
+  };
+  pinta(0.10 * W, 0.45 * W, 0.25 * H, 0.85 * H, [10, 10, 10]);
+  for (let k = 0; k < 9; k++) pinta(0.13 * W, 0.30 * W, (0.31 + k * 0.0546) * H, (0.31 + k * 0.0546 + 0.03) * H, [255, 120, 0]);
 }
 
 let calls;
@@ -62,6 +75,8 @@ beforeEach(() => {
   state.squadRun = null;
 
   SquadService.lastProbeTime = 0;
+  SquadService.lastProbeOcrTime = 0;
+  SquadService._pistaPrevia = null;
   SquadService.lastStripHash = null;
   SquadService.lastVerdict = false;
   SquadService.onUpdate = null;
@@ -135,6 +150,34 @@ describe("sondeo", () => {
     scriptOCR(MENU_OK, [{ text: "Volt", bbox: { x0: 10, x1: 60, y0: 20, y1: 45 } }]);
     assert.equal(await SquadService.probe(fakeVideo()), true);
     assert.equal(state.squadRun, null);
+  });
+
+  test("un frame sin la columna del menú se descarta sin gastar OCR", async () => {
+    scriptOCR(MENU_OK);
+    SquadService.lastProbeOcrTime = Date.now();
+    assert.equal(await SquadService.probe(fakeVideo(40, { menu: false })), false);
+    assert.deepEqual(calls, []);
+  });
+
+  test("sin pista, el OCR de rescate corre como mucho cada 10 s", async () => {
+    scriptOCR(MENU_NO);
+    assert.equal(await SquadService.probe(fakeVideo(40, { menu: false })), false);
+    assert.deepEqual(calls, ["menu"], "la primera vez se paga por si el corpus no cubre este tema");
+    SquadService.lastProbeTime = 0;
+    await SquadService.probe(fakeVideo(40, { menu: false }));
+    assert.deepEqual(calls, ["menu"], "dentro de los 10 s, nada");
+    SquadService.lastProbeTime = 0;
+    SquadService.lastProbeOcrTime = Date.now() - 10001;
+    await SquadService.probe(fakeVideo(40, { menu: false }));
+    assert.deepEqual(calls, ["menu", "menu"]);
+  });
+
+  test("tras reanudar, el veredicto cacheado cae en el siguiente sondeo", async () => {
+    scriptOCR(MENU_OK);
+    assert.equal(await SquadService.probe(fakeVideo()), true);
+    SquadService.lastProbeTime = 0;
+    SquadService.lastProbeOcrTime = Date.now();
+    assert.equal(await SquadService.probe(fakeVideo(40, { menu: false })), false);
   });
 
   test("sin workers de OCR no revienta", async () => {

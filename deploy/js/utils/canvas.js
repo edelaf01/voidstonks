@@ -330,10 +330,10 @@ export function initCanvas() {
   }
 
   function initSystem() {
-    // Acotado a 1,5: el backing store crece con el CUADRADO del dpr, así que en un 4K a dpr 2
-    // son ~15 M de píxeles que hay que limpiar y repintar enteros cada frame. Para unas líneas
-    // de 2px translúcidas de fondo, la diferencia entre 1,5 y 2 no se ve; la factura de GPU sí.
-    const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+    // A MEDIA resolución: el backing store crece con el cuadrado de la escala y se limpia y
+    // repinta entero cada frame. Son líneas translúcidas de fondo, escaladas por CSS no se nota;
+    // a 1440p pasa de 14 MB a 3,5 MB por búfer y cuatro veces menos relleno de GPU mientras se juega.
+    const dpr = Math.min(window.devicePixelRatio || 1, 1.5) * 0.5;
     width = window.innerWidth;
     height = window.innerHeight;
     canvas.width = width * dpr;

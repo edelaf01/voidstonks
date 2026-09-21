@@ -63,6 +63,38 @@ export function smallCanvasHash(canvas) {
     return hashFromTiny(ctx);
 }
 
+let miniCvs = null;
+let regionCvs = null;
+
+function lumaDe(ctx, w, h) {
+    const px = ctx.getImageData(0, 0, w, h).data;
+    const luma = new Uint8Array(w * h);
+    for (let i = 0; i < luma.length; i++) luma[i] = px[i * 4] * 0.299 + px[i * 4 + 1] * 0.587 + px[i * 4 + 2] * 0.114;
+    return luma;
+}
+
+/** Miniatura `w`×`h` del vídeo entero y su luma por píxel, para comparar con `fraccionCambiada`. El canvas se reutiliza. */
+export function miniaturaLuma(video, w, h) {
+    if (!miniCvs) miniCvs = document.createElement("canvas");
+    if (miniCvs.width !== w || miniCvs.height !== h) { miniCvs.width = w; miniCvs.height = h; }
+    const ctx = miniCvs.getContext("2d", { willReadFrequently: true });
+    ctx.drawImage(video, 0, 0, video.videoWidth, video.videoHeight, 0, 0, w, h);
+    return { cvs: miniCvs, luma: lumaDe(ctx, w, h) };
+}
+
+/**
+ * Luma de una REGIÓN de `source` (fracciones de su tamaño) muestreada a `rect.cols`×`rect.filas`.
+ * Canvas propio: el de la miniatura lo usa la grabadora cada frame con otro tamaño.
+ */
+export function regionLuma(source, rect) {
+    const W = source.videoWidth || source.width, H = source.videoHeight || source.height;
+    if (!regionCvs) regionCvs = document.createElement("canvas");
+    if (regionCvs.width !== rect.cols || regionCvs.height !== rect.filas) { regionCvs.width = rect.cols; regionCvs.height = rect.filas; }
+    const ctx = regionCvs.getContext("2d", { willReadFrequently: true });
+    ctx.drawImage(source, Math.floor(W * rect.x), Math.floor(H * rect.y), Math.floor(W * rect.w), Math.floor(H * rect.h), 0, 0, rect.cols, rect.filas);
+    return lumaDe(ctx, rect.cols, rect.filas);
+}
+
 /**
  * Fracción de muestras que cambian más de `umbral` entre dos lecturas de la MISMA región.
  *

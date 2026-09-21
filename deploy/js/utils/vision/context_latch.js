@@ -1,3 +1,4 @@
+import { fraccionCambiada } from "./frame_hash.js";
 /**
  * Qué contexto de pantalla se da por bueno, a partir del que dice el OCR de cabecera.
  *
@@ -91,28 +92,26 @@ export function enrutaGraciaRiven(raw, graciaActiva, tipoGracia) {
   return { contexto: raw, cancelar: false };
 }
 
-/** Corte por hash de la cabecera, y cuánto lo multiplica una racha de contexto estable. */
-export const TOL_HEADER_BASE = 6;
 const TOPE_HEADER_ESTABLE = 3;
 
 /**
- * Cuánto puede moverse el recorte de cabecera antes de volver a pasarle el OCR.
- *
- * Arranca ESTRICTO (con 18 el salto gameplay->recompensas quedaba por debajo del corte y se
- * reutilizaba texto viejo) y se afloja mientras el contexto no cambie. Medido en el navegador:
- * sobre una pantalla quieta el hash se mueve igual —el recorte es píxel crudo del stream y el
- * ruido de vídeo basta— así que se re-OCReaba en CADA frame, 206-287 ms de los ~300 del tick.
- *
- * Aflojar aquí no puede dejar ciego al escáner más de lo que ya permite su TTL, que fuerza la
- * relectura pase lo que pase; y en cuanto el contexto cambia, se vuelve al corte estricto.
+ * Franja del rótulo dentro del recorte de cabecera (864×129 a 1440p), en fracciones. Empieza en
+ * 0.21 para dejar fuera el avatar y el "+", el glifo que baila ("CB INVENTORYSELL" / "BI
+ * INVENTORYSELL"), y llega al borde porque "VOID FISSURE/REWARDS" acaba en 0.97.
  */
-export function toleranciaCabecera(estable = 0) {
-    return TOL_HEADER_BASE * (1 + Math.min(Math.max(estable, 0), TOPE_HEADER_ESTABLE));
-}
+export const FRANJA_TITULO = Object.freeze({ x: 0.21, y: 0.30, w: 0.79, h: 0.42, cols: 64, filas: 8 });
+/**
+ * Medido sobre 14 cabeceras del corpus: misma pantalla 0 % de muestras cambiadas, inventario de
+ * otra sesión 7 %, INVENTORY -> INVENTORY/MODS 14-19 %, -> REWARD 23-27 %. El hash de 16×9 de
+ * antes daba 19-25 de distancia para SELL -> MODS, por debajo de su tolerancia (24): no lo veía.
+ */
+export const FRACCION_TITULO = 0.04;
+export function tituloHaCambiado(ahora, base) { return fraccionCambiada(ahora, base) >= FRACCION_TITULO; }
 
 /** Cada cuánto se puede repetir el OCR de cabecera, en ms, según la racha de contexto estable. */
 const INTERVALO_ESTABLE_MS = 300;
 const INTERVALO_MAXIMO_MS = 1200;
+export const INTERVALO_FIN_MISION_MS = 3000;
 
 /**
  * Cada cuánto puede repetirse el OCR de cabecera.
@@ -126,20 +125,18 @@ const INTERVALO_MAXIMO_MS = 1200;
  * por segundo, y la pantalla de recompensas dura unos 15 s: sigue habiendo de sobra para
  * engancharla. Con el contexto recién cambiado no se limita nada, que es cuando importa.
  */
-export function intervaloCabecera(estable = 0) {
+export function intervaloCabecera(estable = 0, latched = "UNKNOWN") {
+    // Fin de misión: la pantalla dura lo que tarde el jugador en leerla, el ledger no necesita la
+    // cabecera y la escena animada tras el título movía la franja y forzaba una lectura de ~200 ms
+    // cada segundo. Salir se detecta igual, solo que hasta 3 s más tarde, y ahí no hay nada urgente.
+    if (latched === "MISSION_COMPLETE" && estable >= TOPE_HEADER_ESTABLE) return INTERVALO_FIN_MISION_MS;
     const rachas = Math.min(Math.max(estable, 0), TOPE_HEADER_ESTABLE);
     return Math.min(rachas * INTERVALO_ESTABLE_MS, INTERVALO_MAXIMO_MS);
 }
 
 /**
- * Cuánto vale el texto de cabecera sin releerlo, aunque el hash se mueva.
- *
- * 2,5 s en general: INVENTORY e INVENTORY_MODS solo se distinguen por una palabra del rótulo
- * ("SELL"/"MODS"), que en un hash de 16×9 no mueve nada, así que ahí es el reloj quien detecta
- * el cambio. En fin de misión no hay transición sutil —de ahí se sale al orbitador o a la
- * misión, y eso el hash lo ve— y la pantalla se queda quieta hasta que el jugador pulsa: releer
- * las tres pasadas de cabecera cada frame era el mayor coste fijo de esa pantalla.
+ * Cuánto vale el texto de cabecera sin releerlo aunque la franja del rótulo no se mueva. Antes
+ * eran 2,5 s porque el reloj era lo único que detectaba SELL -> MODS; ahora lo ve la franja y el
+ * tope solo acota una colisión.
  */
-export function caducidadCabecera(contexto) {
-  return contexto === "MISSION_COMPLETE" ? 10000 : 2500;
-}
+export const CADUCIDAD_CABECERA_MS = 10000;
