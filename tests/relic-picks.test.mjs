@@ -5,7 +5,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { rankRelicPicks, tierOfRelic } from "../deploy/js/utils/inventory/relic_picks.js";
+import { expectedPlatPerCrack, rankRelicPicks, tierOfRelic } from "../deploy/js/utils/inventory/relic_picks.js";
 
 const RAD = { rare: 0.1, uncommon: 0.4, common: 0.5 };
 const SETS = {
@@ -111,11 +111,17 @@ test("los sets no se repiten aunque la reliquia dé dos piezas del mismo", () =>
   assert.equal(r[0].parts.length, 3);
 });
 
-test("las copias desempatan por probabilidad real", () => {
+// 61 copies pushed cumulative odds to "100%" for a 10% rare: what decides the next run is the odds of THAT
+// crack
+test("la probabilidad es por apertura y no crece con las copias", () => {
   const una = rankRelicPicks({ ...base(), relicCounts: { "Meso UNA": 1 } })[0];
   const doce = rankRelicPicks({ ...base(), relicCounts: { "Meso UNA": 12 } })[0];
-  assert.ok(doce.odds > una.odds, `12 copias deben dar más odds: ${doce.odds} vs ${una.odds}`);
+  // 25.33% radiant common: 0.5/3 per roll, 4 squad rolls
+  assert.equal(Math.round(una.odds * 1000), Math.round((1 - (1 - 0.5 / 3) ** 4) * 1000));
+  assert.equal(doce.odds, una.odds);
   assert.equal(una.runs, doce.runs, "las runs son por apertura, no cambian con el stock");
+  const solo = rankRelicPicks({ ...base(), squadSize: 1, relicCounts: { "Meso UNA": 61 } })[0];
+  assert.equal(Math.round(solo.odds * 1000), 167, "en solitario, la del roll");
 });
 
 // "by relic" only answered what to open, lacking where to go and estimated time
@@ -133,13 +139,31 @@ test("sin fisura de su era no se inventa un plan", () => {
   assert.equal(r.minutes, null, "sin misión no hay minutos que estimar");
 });
 
-test("el valor es la MEDIA de lo que te falta, no la suma", () => {
+// value was an unweighted average of missing part prices (a 35p rare at 10% showed as "~35p"): now it is
+// expected platinum per crack
+test("el valor es el platino esperado por apertura, ponderado por probabilidad", () => {
   const precios = { "Gara Prime Blueprint": 30, "Gara Prime Neuroptics": 60, "Gara Prime Chassis": 90 };
-  const r = rankRelicPicks({
-    ...base({}, [fisura("Lith")]), relicCounts: { "Lith TRIPLE": 1 },
-    getPrice: (n) => precios[n] || 0,
+  const getPrice = (n) => precios[n] || 0;
+  // solo: each common drops at 1/6 -> (30 + 60 + 90) / 6
+  const solo = rankRelicPicks({
+    ...base({}, [fisura("Lith")]), squadSize: 1, relicCounts: { "Lith TRIPLE": 1 }, getPrice,
   })[0];
-  assert.equal(r.value, 60);
+  assert.equal(solo.value, 30);
+  // in a squad of 4 you keep the best of 4: expectation of the maximum, not sum of chances
+  const squad = rankRelicPicks({
+    ...base({}, [fisura("Lith")]), relicCounts: { "Lith TRIPLE": 1 }, getPrice,
+  })[0];
+  const pAl = (k) => 1 - (1 - k / 6) ** 4;
+  const esperado = 90 * pAl(1) + 60 * (pAl(2) - pAl(1)) + 30 * (pAl(3) - pAl(2));
+  assert.equal(squad.value, Math.round(esperado * 10) / 10);
+  assert.ok(squad.value < 90, `nunca promete más que la pieza más cara: ${squad.value}`);
+});
+
+test("expectedPlatPerCrack ignora piezas sin precio y devuelve null si no hay ninguna", () => {
+  assert.equal(expectedPlatPerCrack([{ part: "x", single: 0.1, chance: 0.1 }], () => 0, 1), null);
+  assert.equal(expectedPlatPerCrack([
+    { part: "cara", single: 0.1, chance: 0.1 }, { part: "sin precio", single: 0.5, chance: 0.5 },
+  ], (n) => (n === "cara" ? 35 : 0), 1), 3.5);
 });
 
 test("sin precios la pick sale sin valorar, no a cero", () => {

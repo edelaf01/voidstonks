@@ -159,6 +159,13 @@ test("ocr.service: getRelicMatch acepta confusiones OCR de forma (NEC≈NEO, C�
   assert.equal(OCRService.getRelicMatch(["NEX", "G1"]), null);
 });
 
+// paddle returns one box per line, sometimes without the space before the suffix: 1 of 101 bench relics
+// read "NEO A14RELIC" and the code, with the suffix glued, measured 8 and did not fit
+test("ocr.service: getRelicMatch separa el sufijo pegado al código (A14RELIC)", () => {
+  assert.equal(OCRService.getRelicMatch(["AXI", "A14RELIC"]), "Axi A14");
+  assert.equal(OCRService.getRelicMatch(["NEO", "N2RELIQUIA"]), "Neo N2");
+});
+
 test("ocr.service: getRelicMatch tolera el tier TRUNCADO por prefijo único (AX -> AXI)", () => {
   // the thin "I" of "AXI" gets lost against the relic art: "AX A10 RELIC"
   assert.equal(OCRService.getRelicMatch(["AX", "A2", "RELIC"]), "Axi A2");

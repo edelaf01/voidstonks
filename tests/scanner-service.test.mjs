@@ -209,7 +209,10 @@ test("el log del escaneo se sigue guardando aunque el panel esté cerrado", () =
   assert.ok(!/log:\s*debugVisible/.test(bloque), "el log no puede depender del panel");
 });
 
-test("el recorte de página deja una celda entera de margen sobre la primera fila", async () => {
+// page crop starts right below the game header, not where row 1 was when caching the zone: scroll is free
+// and a fixed margin below that row started the next page mid-row; starting HIGHER (one cell) captured the
+// header, reading icons on a half-hidden row as badges ("86")
+test("el recorte de página arranca bajo la cabecera y llega al borde inferior", async () => {
   const { makeInventoryFrame } = await import("./_helpers/inventory-frame.mjs");
   const { FakeCanvas } = await import("./_helpers/fake-canvas.mjs");
   const { VisionService } = await import("../deploy/js/services/scanner/vision.service.js");
@@ -229,15 +232,11 @@ test("el recorte de página deja una celda entera de margen sobre la primera fil
   assert.equal(S.enqueueInventoryPage(snapshot, { width: W, height: H, scale: 1 }), true);
   S._invQueue = null;
 
-  assert.ok(
-    recorte.sy <= calib.gridZone.y - calib.cellH,
-    `el recorte empieza en ${recorte.sy}, a menos de una celda (${calib.cellH}) de la primera fila (${calib.gridZone.y})`,
-  );
+  assert.equal(recorte.sy, Math.floor(H * 0.17), "la cabecera acaba a 0,17 del alto");
   assert.equal(recorte.sy + recorte.sh, H);
   assert.equal(recorte.sx, calib.gridZone.x);
   assert.equal(recorte.sw, calib.gridZone.w);
 });
-
 // auto-scan triggered on still screens because it watched half the screen, where the sell panel, plat
 // counter and animated background change on their own; it failed on RELICS, where cards look identical and
 // only text changes
@@ -330,4 +329,645 @@ test("la rejilla heredada que no cae sobre los nombres sí se descarta", async (
   VisionService.detectGridAutoCalib = detect;
   assert.equal(S._autoCalibCache, null, "la rejilla de otra página no vale para esta");
   assert.equal(S._frameZoneCache, null, "y el recorte que la produjo tampoco");
+});
+
+// the ducat kiosk is passive: the grid captures automatically even with auto-scan disabled; the first
+// version took the branch but the capture timer rechecked the toggle, leaving the HUD stuck on "waiting to
+// stabilize" forever
+test("en el kiosko se captura la página con el auto-scan apagado", async () => {
+  const W = 640, H = 360;
+  const frame = (v) => {
+    const data = new Uint8ClampedArray(W * H * 4);
+    for (let i = 0; i < data.length; i += 4) { data[i] = data[i + 1] = data[i + 2] = (i / 4 / W | 0) % 29 * 8 + v; data[i + 3] = 255; }
+    return { videoWidth: W, videoHeight: H, width: W, height: H, data };
+  };
+  const video = frame(0);
+  globalThis.document._registrar("live-video", video);
+  globalThis.state = { ...globalThis.state, autoScanEnabled: false, scannerModsMode: false };
+  let capturas = 0;
+  S._invQueue = { isFull: false, enqueue: () => { capturas++; return true; } };
+  S._frameZoneCache = { key: `${W}x${H}`, zone: { x: 0, y: 0, w: W, h: H } };
+  S._sampleRect = null; S.lastRowLums = null; S.autoScrollMuestra = null; S.sawScrollSinceScan = false;
+  S.autoScrollStableTimer = null; S.detectionLocked = false; S.isScanning = true;
+  S.lastHeaderText = "CB INVENTORY/DUCAT KIOSK";
+
+  const dims = { width: W, height: H, scale: 1 };
+  await S.routeFrameAction("INVENTORY", video, dims);   // reference
+  await S.routeFrameAction("INVENTORY", video, dims);   // still and unscanned: schedules capture
+  assert.notEqual(S.autoScrollStableTimer, null, "la captura debe quedar programada");
+  await new Promise((r) => setTimeout(r, 900));
+  S._invQueue = null;
+  assert.equal(capturas, 1, "y ejecutarse aunque el auto-scan esté apagado");
+
+  // outside the kiosk with auto-scan off, nothing is scheduled
+  S.lastHeaderText = "CB INVENTORY/SELL";
+  S.autoScrollMuestra = null;
+  await S.routeFrameAction("INVENTORY", video, dims);
+  assert.equal(S.autoScrollStableTimer, null);
+});
+
+// in-game the header never provides context, chaining two rescue passes (theme and centered title): 3
+// useless OCR passes per frame; they are now throttled to every 3 s
+test("sin contexto, las pasadas de rescate de cabecera se gastan como mucho cada 3 s", async () => {
+  const { OCRRepository } = await import("../deploy/js/repositories/ocr.repository.js");
+  const { SquadService } = await import("../deploy/js/services/scanner/squad.service.js");
+  const { FakeCanvas } = await import("./_helpers/fake-canvas.mjs");
+  const W = 640, H = 360;
+  const frame = (v) => {
+    const data = new Uint8ClampedArray(W * H * 4);
+    for (let i = 0; i < data.length; i += 4) { data[i] = (i / 4 % W * 3 + v) % 256; data[i + 1] = 40; data[i + 2] = 60; data[i + 3] = 255; }
+    return { videoWidth: W, videoHeight: H, width: W, height: H, data };
+  };
+  let lecturas = 0;
+  const workers = OCRRepository.workers, probe = SquadService.probe;
+  OCRRepository.workers = [{ recognize: async () => { lecturas++; return { data: { text: "" } }; } }];
+  SquadService.probe = async () => false;
+  globalThis.state = { ...globalThis.state, autoScanEnabled: false, scannerModsMode: false };
+  Object.assign(S, { isScanning: true, detectionLocked: false, lastHeaderText: null, lastHeaderOcrTime: 0, _ultimoRescate: 0, latchedContext: "UNKNOWN" });
+  const lienzo = new FakeCanvas(16, 9);
+
+  await S.processFrame(frame(0), lienzo);
+  const primera = lecturas;
+  assert.ok(primera >= 2, `la primera lectura sin contexto gasta los rescates (${primera})`);
+
+  lecturas = 0; S.lastHeaderOcrTime = 0; // cache expires: header is reread
+  await S.processFrame(frame(50), lienzo);
+  assert.equal(lecturas, 1, "hasta que pasen 3 s solo se lee la cabecera una vez");
+
+  lecturas = 0; S.lastHeaderOcrTime = 0; S._ultimoRescate = Date.now() - 3001;
+  await S.processFrame(frame(100), lienzo);
+  assert.equal(lecturas, primera, "pasados 3 s vuelven los rescates");
+
+  OCRRepository.workers = workers; SquadService.probe = probe; S.isScanning = false;
+});
+
+test("con una página en OCR el bucle sigue mirando el inventario, pero no otras pantallas", async () => {
+  const { OCRRepository } = await import("../deploy/js/repositories/ocr.repository.js");
+  const { FakeCanvas } = await import("./_helpers/fake-canvas.mjs");
+  const W = 640, H = 360;
+  const video = { videoWidth: W, videoHeight: H, width: W, height: H, data: new Uint8ClampedArray(W * H * 4).fill(255) };
+  const lienzo = new FakeCanvas(16, 9);
+  const zona = { x: 0, y: 60, w: W, h: H - 60 };
+  const workers = OCRRepository.workers, ruta = S.routeFrameAction;
+  let cabecera = "", rutas = 0;
+  OCRRepository.workers = [{ recognize: async () => ({ data: { text: cabecera } }) }];
+  S.routeFrameAction = async () => { rutas++; };
+
+  const llega = async ({ latched, header, locked = true, zone = zona }) => {
+    cabecera = header; rutas = 0;
+    Object.assign(S, {
+      isScanning: true, detectionLocked: locked, latchedContext: latched, lastRivenContextTime: 0,
+      lastHeaderText: null, lastHeaderOcrTime: 0, _ultimoRescate: Date.now(),
+      ctxLatch: { latched, unknownCount: 0, pending: null, pendingCount: 0 },
+      _frameZoneCache: { key: `${W}x${H}`, zone },
+    });
+    await S.processFrame(video, lienzo);
+    return rutas === 1;
+  };
+
+  assert.equal(await llega({ latched: "REWARD", header: "VOID FISSURE/REWARDS", locked: false }), true, "control: sin candado el frame se enruta");
+  assert.equal(await llega({ latched: "INVENTORY", header: "INVENTORY/SELL" }), true, "inventario con zona: manda la cola, no el candado");
+  assert.equal(await llega({ latched: "INVENTORY", header: "INVENTORY/SELL", zone: null }), false, "inventario sin zona: se lee en directo y el candado corta");
+  assert.equal(await llega({ latched: "REWARD", header: "VOID FISSURE/REWARDS" }), false, "recompensas: el candado corta");
+  assert.equal(await llega({ latched: "INVENTORY_MODS", header: "INVENTORY/MODS" }), false, "rivens: el candado corta");
+
+  OCRRepository.workers = workers; S.routeFrameAction = ruta;
+  Object.assign(S, { isScanning: false, detectionLocked: false, latchedContext: "UNKNOWN", _frameZoneCache: null });
+});
+
+// what the lock still blocks INSIDE the loop now that processFrame does not: the kiosk and relic grid
+// change worker 0 psm (inherited by an in-flight cell), and HUD "done" would overwrite "scanning" for the
+// page being read
+test("con una página en OCR: ni kiosko, ni 'done' en el HUD, ni rejilla de reliquias", async () => {
+  const { DucatKioskService } = await import("../deploy/js/services/scanner/ducat_kiosk.service.js");
+  const { RelicScreenService } = await import("../deploy/js/services/scanner/relic_screen.service.js");
+  const { SquadService } = await import("../deploy/js/services/scanner/squad.service.js");
+  const { ScannerHUD } = await import("../deploy/js/ui.components/ui_scanner_hud.js");
+  const { FakeCanvas } = await import("./_helpers/fake-canvas.mjs");
+  const W = 640, H = 360;
+  const data = new Uint8ClampedArray(W * H * 4);
+  for (let i = 0; i < data.length; i += 4) { data[i] = data[i + 1] = data[i + 2] = (i / 4 / W | 0) % 29 * 8; data[i + 3] = 255; }
+  const video = { videoWidth: W, videoHeight: H, width: W, height: H, data };
+  const dims = { width: W, height: H, scale: 1 };
+  const orig = { kiosko: DucatKioskService.process, reliquias: RelicScreenService.process, probe: SquadService.probe, hud: ScannerHUD.updateScrollStatus };
+  const n = { kiosko: 0, reliquias: 0, estados: [] };
+  DucatKioskService.process = async () => { n.kiosko++; };
+  RelicScreenService.process = async () => { n.reliquias++; };
+  SquadService.probe = async () => false;
+  ScannerHUD.updateScrollStatus = (estado) => { n.estados.push(estado); };
+  globalThis.state = { ...globalThis.state, autoScanEnabled: true, scannerModsMode: false };
+
+  const inventario = async (locked) => {
+    n.kiosko = 0; n.estados = [];
+    Object.assign(S, {
+      detectionLocked: locked, lastHeaderText: "CB INVENTORY/DUCAT KIOSK", _invQueue: { isFull: false },
+      _frameZoneCache: { key: `${W}x${H}`, zone: { x: 0, y: 0, w: W, h: H } }, _sampleRect: null, lastRowLums: null, autoScrollStableTimer: null,
+    });
+    await S.routeFrameAction("INVENTORY", video, dims); // reference (sets region and clears samples)
+    // the same sample the loop will take: the page counts as already seen
+    const sCtx = new FakeCanvas(48, 108).getContext("2d");
+    sCtx.drawImage(video, 0, 0, W, H, 0, 0, 48, 108);
+    const px = sCtx.getImageData(0, 0, 48, 108).data;
+    const vista = new Uint8Array(48 * 108);
+    for (let i = 0; i < vista.length; i++) vista[i] = px[i * 4] * 0.299 + px[i * 4 + 1] * 0.587 + px[i * 4 + 2] * 0.114;
+    Object.assign(S, { autoScrollMuestra: vista, sawScrollSinceScan: false });
+    await S.routeFrameAction("INVENTORY", video, dims); // still and already seen
+    await S.routeFrameAction("INVENTORY", video, dims);
+    return { kiosko: n.kiosko, dones: n.estados.filter((e) => e === "done").length, scanning: n.estados.filter((e) => e === "scanning").length };
+  };
+  assert.deepEqual(await inventario(false), { kiosko: 3, dones: 2, scanning: 0 }, "control: sin candado se lee el kiosko y el HUD vuelve a 'done'");
+  assert.deepEqual(await inventario(true), { kiosko: 0, dones: 0, scanning: 2 }, "con candado: ni kiosko ni 'done'; el HUD dice que escanea");
+
+  S.detectionLocked = false;
+  await S.routeFrameAction("RELICS", video, dims);
+  S.detectionLocked = true;
+  await S.routeFrameAction("RELICS", video, dims);
+  assert.equal(n.reliquias, 1, "reliquias solo se lee sin candado");
+
+  Object.assign(DucatKioskService, { process: orig.kiosko });
+  Object.assign(RelicScreenService, { process: orig.reliquias });
+  Object.assign(SquadService, { probe: orig.probe });
+  Object.assign(ScannerHUD, { updateScrollStatus: orig.hud });
+  Object.assign(S, { detectionLocked: false, _invQueue: null, _frameZoneCache: null, autoScrollMuestra: null, sawScrollSinceScan: false, scrollDirectionAccumulator: 0 });
+});
+
+// name colour and Tesseract pool in precise mode: picking name colour costs up to 6 Tesseract reads, and
+// with Paddle batching only fallbacks use it (measured 6 cells in 30 pages): it is chosen when first
+// requested
+// the Tesseract pool is not created while Paddle is LOADING: the page waits for it rather than reading
+// with classic
+async function escaneaPagina({ motor, lote = {}, paddleListo = true }) {
+  const { VisionService } = await import("../deploy/js/services/scanner/vision.service.js");
+  const { OCRRepository } = await import("../deploy/js/repositories/ocr.repository.js");
+  const { PaddleRepository } = await import("../deploy/js/repositories/paddle.repository.js");
+  const { ScannerHUD } = await import("../deploy/js/ui.components/ui_scanner_hud.js");
+  const M = await import("../deploy/js/services/scanner/ocr_engine.service.js");
+  const { state } = await import("../deploy/js/state.js");
+  const { FakeCanvas } = await import("./_helpers/fake-canvas.mjs");
+
+  const orig = {
+    detect: VisionService.detectGridAutoCalib, build: VisionService.buildAutoGrid, cands: VisionService.pageNameColorCandidates,
+    workers: OCRRepository.workers, ensure: OCRRepository.ensureWorkers,
+    warm: PaddleRepository.warmUp, service: PaddleRepository._service, fallo: PaddleRepository.ultimoFallo, lote: PaddleRepository.recognizeStripWords,
+    scroll: ScannerHUD.updateScrollStatus, items: ScannerHUD.updateDetectedItems, open: ScannerHUD.isDebugOpen,
+    relics: state.allRelicNames,
+  };
+  const W = 600, H = 400;
+  const cellW = 277, cellH = 296;
+  VisionService.detectGridAutoCalib = () => ({ gridZone: { x: 0, y: 0, w: W, h: H }, cellW, cellH, cols: 2, rows: 1, auto: true });
+  VisionService.buildAutoGrid = () => ({ cellRects: [{ r: 0, c: 0, sx: 0, sy: 0 }, { r: 0, c: 1, sx: cellW, sy: 0 }], cellW, cellH, cols: 2, rows: 1 });
+  VisionService.pageNameColorCandidates = () => [[255, 255, 255]];
+  state.allRelicNames = ["Lith C1", "Meso K3"];
+  const worker = { llamadas: 0, recognize: async () => { worker.llamadas++; return { data: { words: [
+    { text: "LITH", bbox: { x0: 0, x1: 30, y0: 0, y1: 20 }, confidence: 90 }, { text: "C1", bbox: { x0: 34, x1: 50, y0: 0, y1: 20 }, confidence: 90 }] } }; } };
+  const pedidos = [];
+  OCRRepository.workers = [worker];
+  OCRRepository.ensureWorkers = async (n) => { pedidos.push(n); };
+  PaddleRepository.warmUp = async () => ({});
+  PaddleRepository._service = paddleListo ? {} : null;
+  PaddleRepository.ultimoFallo = null;
+  let lecturasAlLote = null;
+  PaddleRepository.recognizeStripWords = async () => { lecturasAlLote = worker.llamadas; return new Map(Object.entries(lote)); };
+  ScannerHUD.updateScrollStatus = () => {}; ScannerHUD.updateDetectedItems = () => {}; ScannerHUD.isDebugOpen = () => false;
+  M.aplicaMotor(motor);
+  Object.assign(S, { _temaCache: { key: `${W}x${H}`, theme: { name: "Default", r: 227, g: 128, b: 20, actualR: 227, actualG: 128, actualB: 20 } },
+    _nameColorCache: null, _gridReintentado: true, _autoCalibCache: null, detectionLocked: false, lastHeaderText: "INVENTORY/SELL" });
+  try {
+    const snapshot = new FakeCanvas(W, H);
+    await S.processInventoryGrid(snapshot, W, H, 1);
+    return { lecturas: worker.llamadas, lecturasAlLote, pedidos, color: S._nameColorCache?.color ?? null, log: [...S.lastRawOcrLog] };
+  } finally {
+    Object.assign(VisionService, { detectGridAutoCalib: orig.detect, buildAutoGrid: orig.build, pageNameColorCandidates: orig.cands });
+    Object.assign(OCRRepository, { workers: orig.workers, ensureWorkers: orig.ensure });
+    Object.assign(PaddleRepository, { warmUp: orig.warm, _service: orig.service, ultimoFallo: orig.fallo, recognizeStripWords: orig.lote });
+    Object.assign(ScannerHUD, { updateScrollStatus: orig.scroll, updateDetectedItems: orig.items, isDebugOpen: orig.open });
+    state.allRelicNames = orig.relics;
+    M.aplicaMotor(M.MOTOR_CLASICO);
+    S.detectionLocked = false;
+  }
+}
+
+test("con el lote del preciso leyendo todas las celdas no se gasta Tesseract en elegir el color", async () => {
+  const M = await import("../deploy/js/services/scanner/ocr_engine.service.js");
+  const r = await escaneaPagina({ motor: M.MOTOR_PRECISO, lote: { r0c0: ["LITH", "C1"], r0c1: ["MESO", "K3"] } });
+  assert.equal(r.lecturas, 0, "ninguna lectura de Tesseract");
+  assert.equal(r.color, null);
+  assert.ok(!r.log.some((l) => l.startsWith("[NAME-COLOR]")), "sin color no hay línea [NAME-COLOR]");
+});
+
+test("el primer respaldo elige el color, y nunca antes del lote", async () => {
+  const M = await import("../deploy/js/services/scanner/ocr_engine.service.js");
+  const r = await escaneaPagina({ motor: M.MOTOR_PRECISO, lote: { r0c0: ["LITH", "C1"], r0c1: ["ZZZZ", "QQQQ"] } });
+  assert.equal(r.lecturasAlLote, 0, "el lote sale antes de gastar Tesseract");
+  assert.deepEqual(r.color, [255, 255, 255]);
+  assert.ok(r.log.includes("[NAME-COLOR] rgb(255,255,255)"));
+});
+
+test("con el clásico el color se elige antes de la primera celda: la máscara lo necesita", async () => {
+  const M = await import("../deploy/js/services/scanner/ocr_engine.service.js");
+  const r = await escaneaPagina({ motor: M.MOTOR_CLASICO });
+  const color = r.log.findIndex((l) => l === "[NAME-COLOR] rgb(255,255,255)");
+  const celda = r.log.findIndex((l) => /^\[r0c\d\]/.test(l));
+  assert.ok(color >= 0, "se eligió");
+  assert.ok(celda < 0 || color < celda, "antes de cualquier celda");
+});
+
+test("la página que espera al preciso no crea el pool de Tesseract; con el clásico sí", async () => {
+  const M = await import("../deploy/js/services/scanner/ocr_engine.service.js");
+  const esperando = await escaneaPagina({ motor: M.MOTOR_PRECISO, paddleListo: false, lote: { r0c0: ["LITH", "C1"], r0c1: ["MESO", "K3"] } });
+  assert.deepEqual(esperando.pedidos, []);
+  const clasico = await escaneaPagina({ motor: M.MOTOR_CLASICO });
+  assert.deepEqual(clasico.pedidos, [2]);
+});
+
+test("en modo preciso el pool de Tesseract solo se crea si el preciso está caído", async () => {
+  const { OCRRepository } = await import("../deploy/js/repositories/ocr.repository.js");
+  const { PaddleRepository } = await import("../deploy/js/repositories/paddle.repository.js");
+  const { DucatKioskService } = await import("../deploy/js/services/scanner/ducat_kiosk.service.js");
+  const M = await import("../deploy/js/services/scanner/ocr_engine.service.js");
+  const W = 640, H = 360;
+  const data = new Uint8ClampedArray(W * H * 4).fill(40);
+  const video = { videoWidth: W, videoHeight: H, width: W, height: H, data };
+  const orig = { ensure: OCRRepository.ensureWorkers, service: PaddleRepository._service, fallo: PaddleRepository.ultimoFallo, kiosko: DucatKioskService.process, warm: PaddleRepository.warmUp };
+  const pedidos = [];
+  OCRRepository.ensureWorkers = async (n) => { pedidos.push(n); };
+  PaddleRepository.warmUp = async () => ({}); // picking precise downloads it: no network here
+  DucatKioskService.process = async () => {};
+  globalThis.state = { ...globalThis.state, autoScanEnabled: true, scannerModsMode: false };
+  Object.assign(S, { lastHeaderText: "INVENTORY/SELL", _frameZoneCache: null, lastRowLums: null, autoScrollMuestra: null, detectionLocked: false, autoScrollStableTimer: null });
+  const dims = { width: W, height: H, scale: 1 };
+  try {
+    M.aplicaMotor(M.MOTOR_PRECISO);
+    PaddleRepository._service = null; PaddleRepository.ultimoFallo = null;
+    await S.routeFrameAction("INVENTORY", video, dims);
+    assert.deepEqual(pedidos, [], "cargando: la página va a esperarlo");
+    PaddleRepository._service = {};
+    await S.routeFrameAction("INVENTORY", video, dims);
+    assert.deepEqual(pedidos, [], "listo");
+    PaddleRepository.ultimoFallo = new Error("CDN");
+    await S.routeFrameAction("INVENTORY", video, dims);
+    assert.deepEqual(pedidos, [2], "caído: lee Tesseract");
+    M.aplicaMotor(M.MOTOR_CLASICO); PaddleRepository.ultimoFallo = null;
+    await S.routeFrameAction("INVENTORY", video, dims);
+    assert.deepEqual(pedidos, [2, 2]);
+  } finally {
+    if (S.autoScrollStableTimer) { clearTimeout(S.autoScrollStableTimer); S.autoScrollStableTimer = null; }
+    Object.assign(OCRRepository, { ensureWorkers: orig.ensure });
+    Object.assign(PaddleRepository, { _service: orig.service, ultimoFallo: orig.fallo, warmUp: orig.warm });
+    DucatKioskService.process = orig.kiosko;
+    M.aplicaMotor(M.MOTOR_CLASICO);
+  }
+});
+
+// the title strip decides when the header is reread: the previous 16x9 hash missed "INVENTORY/SELL" ->
+// "INVENTORY/MODS" and the 2.5 s timer was the only thing detecting it, running an OCR every 2.5 s on a
+// still screen; now the title strip is compared and the header cache lasts 10 s
+async function cabeceraConRotulo({ invertido = false, filaCambiada = false } = {}) {
+  const W = 640, H = 360;
+  const data = new Uint8ClampedArray(W * H * 4);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const i = (y * W + x) * 4;
+    let v = 30;
+    // title strip: video x 60-288, y 13-31 (0.21-1.0 x 0.30-0.72 of header crop)
+    if (x >= 60 && x < 288 && y >= 13 && y < 31) v = ((x >> 3) & 1) ^ (invertido ? 1 : 0) ? 220 : 30;
+    // a row of cells just below: inside the header crop, outside the strip
+    if (filaCambiada && y >= 35 && y < 43) v = 200;
+    data[i] = data[i + 1] = data[i + 2] = v; data[i + 3] = 255;
+  }
+  return { videoWidth: W, videoHeight: H, width: W, height: H, data };
+}
+
+async function lecturasDeCabecera({ haceMs, frame2 }) {
+  const { OCRRepository } = await import("../deploy/js/repositories/ocr.repository.js");
+  const { VisionService } = await import("../deploy/js/services/scanner/vision.service.js");
+  const { regionLuma } = await import("../deploy/js/utils/vision/frame_hash.js");
+  const { FRANJA_TITULO } = await import("../deploy/js/utils/vision/context_latch.js");
+  const { FakeCanvas } = await import("./_helpers/fake-canvas.mjs");
+  let lecturas = 0;
+  const orig = { workers: OCRRepository.workers, ruta: S.routeFrameAction };
+  OCRRepository.workers = [{ recognize: async () => { lecturas++; return { data: { text: "INVENTORY/SELL" } }; } }];
+  S.routeFrameAction = async () => {};
+  const lienzo = new FakeCanvas(16, 9);
+  VisionService.prepareVirtualCanvas(await cabeceraConRotulo(), lienzo);
+  Object.assign(S, { isScanning: true, detectionLocked: false, lastHeaderText: "INVENTORY/SELL", lastHeaderOcrTime: Date.now() - haceMs,
+    lastHeaderHash: regionLuma(lienzo, FRANJA_TITULO), _headerEstable: 0, _headerCtxPrevio: "INVENTORY", latchedContext: "INVENTORY" });
+  try {
+    await S.processFrame(frame2, lienzo);
+    return lecturas;
+  } finally {
+    OCRRepository.workers = orig.workers; S.routeFrameAction = orig.ruta; S.isScanning = false;
+  }
+}
+
+test("con el rótulo quieto la cabecera vale 10 s aunque el resto del recorte cambie", async () => {
+  const lecturas = await lecturasDeCabecera({ haceMs: 5000, frame2: await cabeceraConRotulo({ filaCambiada: true }) });
+  assert.equal(lecturas, 0);
+});
+
+test("si cambia el rótulo se relee aunque no hayan pasado 2,5 s", async () => {
+  const lecturas = await lecturasDeCabecera({ haceMs: 1500, frame2: await cabeceraConRotulo({ invertido: true }) });
+  assert.equal(lecturas, 1);
+});
+
+// seen live (ZIP 2026-09-20-11-10): moving to a new page left the HUD stuck on "waiting for stabilization"
+// without reading; direction estimation (bestDy, +/-24 rows over periodic grid) mistook upward scroll for
+// DOWNWARD, and the "ignore upward" rule marked the page as seen without scanning it
+test("una página nueva se escanea aunque el scroll parezca hacia arriba, y el HUD no se queda en 'estabilizando'", async () => {
+  const { DucatKioskService } = await import("../deploy/js/services/scanner/ducat_kiosk.service.js");
+  const { ScannerHUD } = await import("../deploy/js/ui.components/ui_scanner_hud.js");
+  const W = 640, H = 360;
+  const frame = (fase) => {
+    const data = new Uint8ClampedArray(W * H * 4);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const i = (y * W + x) * 4; const v = ((y + fase) % 40) < 8 ? 200 : 30; data[i] = data[i + 1] = data[i + 2] = v; data[i + 3] = 255; }
+    return { videoWidth: W, videoHeight: H, width: W, height: H, data };
+  };
+  const estados = [];
+  const orig = { hud: ScannerHUD.updateScrollStatus, kiosko: DucatKioskService.process };
+  ScannerHUD.updateScrollStatus = (e) => estados.push(e);
+  DucatKioskService.process = async () => {};
+  globalThis.state = { ...globalThis.state, autoScanEnabled: true, scannerModsMode: false };
+  let capturas = 0;
+  S._invQueue = { isFull: false, enqueue: () => { capturas++; return true; } };
+  S._frameZoneCache = { key: `${W}x${H}`, zone: { x: 0, y: 0, w: W, h: H } };
+  Object.assign(S, { _sampleRect: null, lastRowLums: null, autoScrollMuestra: null, sawScrollSinceScan: false, autoScrollStableTimer: null, detectionLocked: true, isScanning: true, lastHeaderText: "INVENTORY/SELL" });
+  const dims = { width: W, height: H, scale: 1 };
+  try {
+    globalThis.document._registrar("live-video", frame(20));
+    await S.routeFrameAction("INVENTORY", frame(0), dims);   // reference
+    await S.routeFrameAction("INVENTORY", frame(0), dims);   // still: 1st page
+    await new Promise((r) => setTimeout(r, 900));
+    assert.equal(capturas, 1);
+    // 20 px shift: in the 108-row sample the periodic pattern aliases to negative dy
+    await S.routeFrameAction("INVENTORY", frame(20), dims);
+    await S.routeFrameAction("INVENTORY", frame(20), dims);
+    await new Promise((r) => setTimeout(r, 900));
+    assert.equal(capturas, 2, "la página nueva se captura");
+    await S.routeFrameAction("INVENTORY", frame(20), dims);
+    assert.equal(estados.at(-1), "scanning", "con una página en OCR y esta encolada, el HUD dice que escanea");
+  } finally {
+    if (S.autoScrollStableTimer) { clearTimeout(S.autoScrollStableTimer); S.autoScrollStableTimer = null; }
+    S._invQueue = null; S.detectionLocked = false; S.isScanning = false;
+    ScannerHUD.updateScrollStatus = orig.hud; DucatKioskService.process = orig.kiosko;
+  }
+});
+
+// seen live (captures from 20-09): "MISSION COMPLETE" is only read by the 3rd pass (centered title); with
+// the 3 s limit and 10 s cache, mission end arriving with a freshly spent rescue lingered in UNKNOWN for
+// up to 10 s: still screen = rescue immediately
+test("con la pantalla parada y sin contexto, los rescates de cabecera no esperan a los 3 s", async () => {
+  const { OCRRepository } = await import("../deploy/js/repositories/ocr.repository.js");
+  const { SquadService } = await import("../deploy/js/services/scanner/squad.service.js");
+  const { FakeCanvas } = await import("./_helpers/fake-canvas.mjs");
+  const W = 640, H = 360;
+  const data = new Uint8ClampedArray(W * H * 4);
+  for (let i = 0; i < data.length; i += 4) { data[i] = (i / 4 % W * 3) % 256; data[i + 1] = 40; data[i + 2] = 60; data[i + 3] = 255; }
+  const quieta = { videoWidth: W, videoHeight: H, width: W, height: H, data };
+  let lecturas = 0;
+  const orig = { workers: OCRRepository.workers, probe: SquadService.probe };
+  OCRRepository.workers = [{ recognize: async () => { lecturas++; return { data: { text: "" } }; } }];
+  SquadService.probe = async () => false;
+  globalThis.state = { ...globalThis.state, autoScanEnabled: false, scannerModsMode: false };
+  Object.assign(S, { isScanning: true, detectionLocked: false, lastHeaderText: null, lastHeaderOcrTime: 0, _ultimoRescate: Date.now(), latchedContext: "UNKNOWN", _franjaTickAnterior: null });
+  const lienzo = new FakeCanvas(16, 9);
+  try {
+    await S.processFrame(quieta, lienzo);        // first tick: strip not yet known to be still
+    lecturas = 0; S.lastHeaderOcrTime = 0; S._ultimoRescate = Date.now();
+    await S.processFrame(quieta, lienzo);        // same frame: still
+    assert.ok(lecturas >= 2, `con la pantalla parada se rescata aunque el último rescate fuera hace 0 s (${lecturas})`);
+  } finally { OCRRepository.workers = orig.workers; SquadService.probe = orig.probe; S.isScanning = false; }
+});
+
+test("un UNKNOWN cacheado caduca a los 3 s, no a los 10", async () => {
+  const lecturas = await (async () => {
+    const { OCRRepository } = await import("../deploy/js/repositories/ocr.repository.js");
+    const { VisionService } = await import("../deploy/js/services/scanner/vision.service.js");
+    const { regionLuma } = await import("../deploy/js/utils/vision/frame_hash.js");
+    const { FRANJA_TITULO } = await import("../deploy/js/utils/vision/context_latch.js");
+    const { FakeCanvas } = await import("./_helpers/fake-canvas.mjs");
+    let n = 0;
+    const orig = { workers: OCRRepository.workers, ruta: S.routeFrameAction };
+    OCRRepository.workers = [{ recognize: async () => { n++; return { data: { text: "" } }; } }];
+    S.routeFrameAction = async () => {};
+    const lienzo = new FakeCanvas(16, 9);
+    const frame = await cabeceraConRotulo();
+    VisionService.prepareVirtualCanvas(frame, lienzo);
+    Object.assign(S, { isScanning: true, detectionLocked: false, lastHeaderText: "", lastHeaderOcrTime: Date.now() - 5000,
+      lastHeaderHash: regionLuma(lienzo, FRANJA_TITULO), _headerEstable: 0, _headerCtxPrevio: "UNKNOWN", latchedContext: "UNKNOWN", _ultimoRescate: Date.now() });
+    try { await S.processFrame(frame, lienzo); return n; } finally { OCRRepository.workers = orig.workers; S.routeFrameAction = orig.ruta; S.isScanning = false; }
+  })();
+  assert.ok(lecturas >= 1, "a los 5 s sin contexto se relee");
+});
+
+// mission complete with 3D scene moving behind (animated enemies, camera): the full frame hash never
+// settled as still and rewards never read; only the right-hand panel needs to be still
+test("el fin de misión se lee aunque el fondo se mueva: solo cuenta el panel de recompensas", async () => {
+  const { OCRRepository } = await import("../deploy/js/repositories/ocr.repository.js");
+  const W = 640, H = 360;
+  const frame = (semilla) => {
+    const data = new Uint8ClampedArray(W * H * 4);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const i = (y * W + x) * 4;
+      // left: changing scene; right (panel): static
+      const v = x < W * 0.45 ? ((x * 3 + y * 5 + semilla * 37) % 251) : ((x + y) % 40 < 20 ? 220 : 30);
+      data[i] = data[i + 1] = data[i + 2] = v; data[i + 3] = 255;
+    }
+    return { videoWidth: W, videoHeight: H, width: W, height: H, data };
+  };
+  const orig = { workers: OCRRepository.workers };
+  OCRRepository.workers = [{ recognize: async () => ({ data: { text: "" } }) }];
+  // the real detector needs a real screen: checking that it is reached suffices here
+  const dims = { width: W, height: H, scale: 1 };
+  Object.assign(S, { _mcStableHash: null, _mcGrid: null, _mcFrameCvs: null });
+  try {
+    // the real detector needs a real screen: verifying it is reached suffices (trace "[MC]")
+    const logs = [];
+    const log = console.log; console.log = (...a) => { logs.push(a.join(" ")); };
+    try {
+      await S.processMissionComplete(frame(1), dims);
+      await S.processMissionComplete(frame(2), dims);
+      await S.processMissionComplete(frame(3), dims);
+    } finally { console.log = log; }
+    assert.ok(logs.some((l) => l.startsWith("[MC]")), `con el panel quieto se pasa a detectar la rejilla (logs: ${logs.length})`);
+  } finally { OCRRepository.workers = orig.workers; }
+});
+
+// seen live: transitioning from rewards to MISSION COMPLETE while the header timer prevented rereading
+// left cached text saying "VOID FISSURE/REWARDS": mission complete was read as a reward strip, opening the
+// pick modal
+test("la cabecera cacheada se marca como no vigente cuando el rótulo cambió y el reloj no deja releer", async () => {
+  const { OCRRepository } = await import("../deploy/js/repositories/ocr.repository.js");
+  const { VisionService } = await import("../deploy/js/services/scanner/vision.service.js");
+  const { regionLuma } = await import("../deploy/js/utils/vision/frame_hash.js");
+  const { FRANJA_TITULO } = await import("../deploy/js/utils/vision/context_latch.js");
+  const { FakeCanvas } = await import("./_helpers/fake-canvas.mjs");
+  const orig = { workers: OCRRepository.workers, ruta: S.routeFrameAction };
+  OCRRepository.workers = [{ recognize: async () => ({ data: { text: "VOID FISSURE/REWARDS" } }) }];
+  S.routeFrameAction = async () => {};
+  const lienzo = new FakeCanvas(16, 9);
+  VisionService.prepareVirtualCanvas(await cabeceraConRotulo(), lienzo);
+  try {
+    // freshly read (100 ms ago, stable streak => 1.2 s interval) and the title has already changed
+    Object.assign(S, { isScanning: true, detectionLocked: false, lastHeaderText: "VOID FISSURE/REWARDS", lastHeaderOcrTime: Date.now() - 100,
+      lastHeaderHash: regionLuma(lienzo, FRANJA_TITULO), _headerEstable: 3, _headerCtxPrevio: "REWARD", latchedContext: "REWARD" });
+    await S.processFrame(await cabeceraConRotulo({ invertido: true }), lienzo);
+    assert.equal(S._cabeceraVigente, false, "el texto es de la pantalla anterior");
+    // same title as read: valid even without rereading
+    await S.processFrame(await cabeceraConRotulo(), lienzo);
+    assert.equal(S._cabeceraVigente, true);
+  } finally { OCRRepository.workers = orig.workers; S.routeFrameAction = orig.ruta; S.isScanning = false; }
+});
+
+// mission complete: resource cells (badge >= 10) are skipped by both Paddle and Tesseract
+test("en fin de misión las casillas de recursos se descartan sin OCR", async () => {
+  const { OCRRepository } = await import("../deploy/js/repositories/ocr.repository.js");
+  const { PaddleRepository } = await import("../deploy/js/repositories/paddle.repository.js");
+  const W = 640, H = 360;
+  const data = new Uint8ClampedArray(W * H * 4);
+  for (let i = 0; i < data.length; i += 4) { data[i] = data[i + 1] = data[i + 2] = 40; data[i + 3] = 255; }
+  const frame = { videoWidth: W, videoHeight: H, width: W, height: H, data };
+  const leidas = [];
+  const orig = { workers: OCRRepository.workers, listo: PaddleRepository.listo };
+  OCRRepository.workers = [{ recognize: async (cvs) => { leidas.push(cvs); return { data: { text: "", blocks: [] } }; } }];
+  PaddleRepository.listo = () => false; // no batching: every cell read goes through Tesseract
+  const celda = (row, col, badge) => ({ x: 300 + col * 60, y: 60 + row * 60, w: 50, h: 50, row, col, named: true, badge, qty: 1 });
+  const grid = { cells: [celda(0, 0, "8126"), celda(0, 1, ""), celda(0, 2, "2"), celda(0, 3, "45"), { ...celda(0, 4, ""), named: false }], accent: [190, 169, 102], pitch: 60, occluded: false, cut: false };
+  Object.assign(S, { _mcStableHash: null, _mcGrid: null, _mcFrameCvs: null, mcLedger: S.mcLedger });
+  S._mcCache.clear();
+  try {
+    await S.processMissionComplete(frame, { width: W, height: H, scale: 1 }); // establishes stability
+    S._mcGrid = { hash: S._mcStableHash, grid };
+    await S.processMissionComplete(frame, { width: W, height: H, scale: 1 });
+    assert.equal(leidas.length, 2, "solo la casilla sin badge y la ×2; créditos, endo y el mod, fuera");
+  } finally { OCRRepository.workers = orig.workers; PaddleRepository.listo = orig.listo; S._mcGrid = null; S._mcStableHash = null; }
+});
+
+// "I have to wait at mission complete": chain was 3 s tick (auto-scan off) -> header cached by timer ->
+// second 3 s tick to confirm latch -> 800 ms x 2 on-screen; three cuts: a new still screen reads
+// immediately, latch confirmation runs at 300 ms, and in UNKNOWN ticks run at 1 s ignoring auto-scan
+test("una pantalla nueva parada se lee aunque el reloj de la cabecera aún no haya vencido", async () => {
+  const { OCRRepository } = await import("../deploy/js/repositories/ocr.repository.js");
+  const { VisionService } = await import("../deploy/js/services/scanner/vision.service.js");
+  const { regionLuma } = await import("../deploy/js/utils/vision/frame_hash.js");
+  const { FRANJA_TITULO } = await import("../deploy/js/utils/vision/context_latch.js");
+  const { FakeCanvas } = await import("./_helpers/fake-canvas.mjs");
+  let lecturas = 0;
+  const orig = { workers: OCRRepository.workers, ruta: S.routeFrameAction };
+  OCRRepository.workers = [{ recognize: async () => { lecturas++; return { data: { text: "INVENTORY/SELL" } }; } }];
+  S.routeFrameAction = async () => {};
+  const lienzo = new FakeCanvas(16, 9);
+  VisionService.prepareVirtualCanvas(await cabeceraConRotulo(), lienzo);
+  const nueva = await cabeceraConRotulo({ invertido: true });
+  try {
+    Object.assign(S, { isScanning: true, detectionLocked: false, lastHeaderText: "INVENTORY/SELL", lastHeaderOcrTime: Date.now() - 100,
+      lastHeaderHash: regionLuma(lienzo, FRANJA_TITULO), _headerEstable: 3, _headerCtxPrevio: "INVENTORY", latchedContext: "INVENTORY", _franjaTickAnterior: null });
+    await S.processFrame(nueva, lienzo); // first tick on new screen: not yet known to be still
+    assert.equal(lecturas, 0, "en movimiento manda el reloj");
+    await S.processFrame(nueva, lienzo); // same title two ticks in a row: still and different -> reads
+    assert.equal(lecturas, 1);
+  } finally { OCRRepository.workers = orig.workers; S.routeFrameAction = orig.ruta; S.isScanning = false; }
+});
+
+test("en UNKNOWN el tick es de 1 s con el auto-scan apagado, y con un cambio de contexto pendiente baja a 300 ms", async () => {
+  const { SquadService } = await import("../deploy/js/services/scanner/squad.service.js");
+  const { OCRRepository } = await import("../deploy/js/repositories/ocr.repository.js");
+  const { INITIAL_LATCH } = await import("../deploy/js/utils/vision/context_latch.js");
+  const { FakeCanvas } = await import("./_helpers/fake-canvas.mjs");
+  const orig = { probe: SquadService.probe, workers: OCRRepository.workers };
+  SquadService.probe = async () => false;
+  globalThis.state = { ...globalThis.state, autoScanEnabled: false, scannerModsMode: false };
+  const W = 640, H = 360, data = new Uint8ClampedArray(W * H * 4).fill(40);
+  const video = { videoWidth: W, videoHeight: H, width: W, height: H, data };
+  try {
+    await S.routeFrameAction("UNKNOWN", video, { width: W, height: H, scale: 1 });
+    assert.equal(S.currentRate, 1000);
+    OCRRepository.workers = [{ recognize: async () => ({ data: { text: "MISSION COMPLETE" } }) }];
+    const ruta = S.routeFrameAction;
+    S.routeFrameAction = async () => { S.currentRate = 1000; };
+    Object.assign(S, { isScanning: true, detectionLocked: false, lastHeaderText: null, lastHeaderOcrTime: 0, latchedContext: "REWARD", ctxLatch: { ...INITIAL_LATCH, latched: "REWARD" } });
+    try {
+      await S.processFrame(video, new FakeCanvas(16, 9));
+      assert.equal(S.ctxLatch.pending, "MISSION_COMPLETE");
+      assert.equal(S.currentRate, 300);
+    } finally { S.routeFrameAction = ruta; }
+  } finally { SquadService.probe = orig.probe; OCRRepository.workers = orig.workers; S.isScanning = false; }
+});
+
+// real log (21-09): on MISSION COMPLETE the left crop read "BB MIS", the centered-title rescue was
+// throttled (<3 s), and the animated scene prevented strip stillness: two UNKNOWNs dropped the latch, the
+// ledger reset, and "Sevagoth Prime Blueprint" read five times without ever registering
+test("en fin de misión, la basura del recorte izquierdo va directa al título centrado", async () => {
+  const { OCRRepository } = await import("../deploy/js/repositories/ocr.repository.js");
+  const { SquadService } = await import("../deploy/js/services/scanner/squad.service.js");
+  const { FakeCanvas } = await import("./_helpers/fake-canvas.mjs");
+  const W = 640, H = 360;
+  const frame = (v) => {
+    const data = new Uint8ClampedArray(W * H * 4);
+    for (let i = 0; i < data.length; i += 4) { data[i] = (i / 4 % W * 3 + v) % 256; data[i + 1] = 40; data[i + 2] = 60; data[i + 3] = 255; }
+    return { videoWidth: W, videoHeight: H, width: W, height: H, data };
+  };
+  const textos = [];
+  const orig = { workers: OCRRepository.workers, probe: SquadService.probe, mc: S.processMissionComplete };
+  // 1st pass garbage; centered pass (the last requested) reads the title
+  OCRRepository.workers = [{ recognize: async () => { textos.push(1); return { data: { text: textos.length % 2 === 0 ? "MISSION COMPLETE" : "BB MIS" } }; } }];
+  SquadService.probe = async () => false;
+  S.processMissionComplete = async () => {};
+  globalThis.state = { ...globalThis.state, autoScanEnabled: false, scannerModsMode: false };
+  Object.assign(S, { isScanning: true, detectionLocked: false, lastHeaderText: "MISSION COMPLETE", lastHeaderOcrTime: 0, _ultimoRescate: Date.now(), latchedContext: "MISSION_COMPLETE", _franjaTickAnterior: null });
+  S.ctxLatch = { latched: "MISSION_COMPLETE", candidate: null, count: 0 };
+  S.mcLedger = { consensus: { items: { "Sevagoth Prime Blueprint": { score: 1, confirmed: false } } }, committed: null };
+  const lienzo = new FakeCanvas(16, 9);
+  try {
+    await S.processFrame(frame(0), lienzo);
+    assert.equal(textos.length, 2, "basura + título centrado, sin la pasada de tema y sin esperar 3 s");
+    assert.equal(S.latchedContext, "MISSION_COMPLETE");
+    assert.equal(S.mcLedger.consensus.items["Sevagoth Prime Blueprint"].score, 1, "el consenso en curso sigue vivo");
+  } finally { Object.assign(OCRRepository, { workers: orig.workers }); SquadService.probe = orig.probe; S.processMissionComplete = orig.mc; S.isScanning = false; }
+});
+
+// mission complete does not change until user input: once read and confirmed, it sleeps, running neither
+// hashing nor OCR until another mission complete unless the panel actually changes (scrolled)
+test("fin de misión leído entero se duerme hasta otro fin de misión", async () => {
+  const { OCRRepository } = await import("../deploy/js/repositories/ocr.repository.js");
+  const { PaddleRepository } = await import("../deploy/js/repositories/paddle.repository.js");
+  const W = 640, H = 360;
+  const cuadro = (v) => {
+    const data = new Uint8ClampedArray(W * H * 4);
+    for (let i = 0; i < data.length; i += 4) { data[i] = data[i + 1] = data[i + 2] = v; data[i + 3] = 255; }
+    return { videoWidth: W, videoHeight: H, width: W, height: H, data };
+  };
+  let ocr = 0;
+  const { state } = await import("../deploy/js/state.js");
+  const orig = { workers: OCRRepository.workers, listo: PaddleRepository.listo, commit: globalThis.commitMissionCompleteRewards, relics: state.allRelicNames };
+  // one relic: matches against state.allRelicNames, controlled here (parts catalog is not loaded)
+  state.allRelicNames = ["Lith C1"];
+  OCRRepository.workers = [{ recognize: async () => { ocr++; return { data: { text: "LITH C1 RELIC", blocks: [] } }; } }];
+  PaddleRepository.listo = () => false;
+  const commits = [];
+  globalThis.commitMissionCompleteRewards = (items) => commits.push(items.map((i) => i.name));
+  const grid = { cells: [{ x: 300, y: 60, w: 50, h: 50, row: 0, col: 0, named: true, badge: "", qty: 1 }], accent: [190, 169, 102], pitch: 60, occluded: false, cut: false };
+  Object.assign(S, { _mcStableHash: null, _mcGrid: null, _mcFrameCvs: null, _mcDormido: null, mcLedger: { consensus: { items: {} }, committed: null }, latchedContext: "MISSION_COMPLETE" });
+  S._mcCache.clear();
+  const dims = { width: W, height: H, scale: 1 };
+  try {
+    await S.processMissionComplete(cuadro(40), dims);          // establishes stability
+    S._mcGrid = { hash: S._mcStableHash, grid };
+    await S.processMissionComplete(cuadro(40), dims);          // reads (OCR) -> consensus 1
+    await S.processMissionComplete(cuadro(40), dims);          // all cached -> consensus 2, commit and sleep
+    assert.equal(ocr, 1);
+    assert.deepEqual(commits, [["Lith C1"]]);
+    assert.ok(S._mcDormido, "leída entera: dormida");
+
+    // sleeping: background scene drift behind the panel (minor change) does not wake or cost anything
+    const antes = S._mcCache.size;
+    S._mcCache.clear();
+    await S.processMissionComplete(cuadro(44), dims);
+    assert.equal(ocr, 1, "sin OCR");
+    assert.equal(S._mcCache.size, 0, "ni sellos: no se llega a las casillas");
+    assert.ok(antes >= 1);
+
+    // a large panel change (scrolling) does wake it
+    await S.processMissionComplete(cuadro(200), dims);
+    assert.equal(S._mcDormido, null);
+
+  } finally { OCRRepository.workers = orig.workers; PaddleRepository.listo = orig.listo; globalThis.commitMissionCompleteRewards = orig.commit; state.allRelicNames = orig.relics; S._mcGrid = null; S._mcStableHash = null; S._mcDormido = null; S._mcCache.clear(); }
 });

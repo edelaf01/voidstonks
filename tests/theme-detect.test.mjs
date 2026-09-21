@@ -38,7 +38,7 @@ const detecta = (snap) => VisionService.detectThemeFromSnapshot(snap, ZONA.x, ZO
 
 // the detector intentionally carries state across frames: each test resets to clean state
 beforeEach(() => {
-    VisionService._temaRacha = null;
+    VisionService._temaVotos = [];
     globalThis.state = globalThis.state || {};
     globalThis.state.lastStableTheme = null;
 });
@@ -81,6 +81,20 @@ test("un frame casi negro no inventa tema", () => {
         negro.data[i] = v; negro.data[i + 1] = v; negro.data[i + 2] = v; negro.data[i + 3] = 255;
     }
     assert.equal(VisionService.detectThemeFromSnapshot(negro, 0, 0, 400, 400), null);
+});
+
+// seen live: "MISSION COMPLETE" title is darker gold than remembered Vitruvian; binarizing by distance to
+// that memory left crops blank and mission end undetected, so without reliable votes the centered title
+// uses raw crops
+test("sin voto fiable se devuelve el tema recordado, salvo que se pida sin recuerdo", () => {
+    const negro = { width: 400, height: 400, data: new Uint8ClampedArray(400 * 400 * 4) };
+    for (let i = 0; i < negro.data.length; i += 4) { const v = (i / 4) % 7; negro.data[i] = v; negro.data[i + 1] = v; negro.data[i + 2] = v; negro.data[i + 3] = 255; }
+    const recordado = { name: "Vitruvian", r: 245, g: 227, b: 173, actualR: 226, actualG: 211, actualB: 163 };
+    globalThis.state.lastStableTheme = recordado;
+    try {
+        assert.equal(VisionService.detectThemeFromSnapshot(negro, 0, 0, 400, 400), recordado);
+        assert.equal(VisionService.detectThemeFromSnapshot(negro, 0, 0, 400, 400, { sinRecuerdo: true }), null);
+    } finally { globalThis.state.lastStableTheme = null; }
 });
 
 // eligeTema: the voting itself without a canvas
@@ -200,9 +214,47 @@ test("un frame flojo no cambia el tema de la sesión", () => {
     const pom = WF_THEMES_VOTABLES.find((t) => t.name === "Pom 2");
     const verde = repinta(SNAP, [pom.r, pom.g, pom.b]);
     assert.equal(detecta(naranja)?.name, "Default", "el primer tema fiable se fija sin esperar");
+    // two frames of another theme are not enough: three of the last five are required
     assert.equal(detecta(verde)?.name, "Default");
     assert.equal(detecta(verde)?.name, "Default");
-    assert.equal(detecta(verde)?.name, "Pom 2", "tres seguidos sí relevan");
+    assert.equal(detecta(verde)?.name, "Pom 2", "tres sí relevan");
     // an isolated frame of the previous theme does not revert it
     assert.equal(detecta(naranja)?.name, "Pom 2");
+});
+
+// header crop votes differently per screen: requiring three consecutive frames meant an isolated
+// third-theme vote reset the streak and locked in the wrong theme all session
+test("un voto intercalado por otro tema no reinicia la cuenta: valen 3 de los últimos 5", () => {
+    const naranja = repinta(SNAP, [246, 129, 3]);
+    const pom = WF_THEMES_VOTABLES.find((t) => t.name === "Pom 2");
+    const verde = repinta(SNAP, [pom.r, pom.g, pom.b]);
+    assert.equal(detecta(naranja)?.name, "Default");
+    assert.equal(detecta(verde)?.name, "Default");
+    assert.equal(detecta(naranja)?.name, "Default", "voto por el vigente, intercalado");
+    assert.equal(detecta(verde)?.name, "Default");
+    assert.equal(detecta(verde)?.name, "Pom 2", "3 de los últimos 5 aunque no seguidos");
+});
+
+// log case: Stalker falsely locked on a red screen and Vitruvian at 0.979 waiting for three consecutive
+// frames that never came; pure decision logic with synthetic votes
+test("decideTema: un voto inequívoco (≥ 0,9) releva sin esperar; uno normal necesita 3 de 5", async () => {
+    const { decideTema } = await import("../deploy/js/utils/vision/theme_vote.js");
+    const stalker = { name: "Stalker" };
+    const voto = (name, afinidad) => ({ tema: { name }, afinidad });
+    assert.equal(decideTema(stalker, voto("Vitruvian", 0.979), []).releva, true);
+    assert.equal(decideTema(null, voto("Vitruvian", 0.6), []).releva, true, "sin tema vigente, el primero fiable se fija");
+    assert.equal(decideTema(stalker, voto("Stalker", 0.6), ["Lotus"]).releva, true, "votar por el vigente lo mantiene");
+    // log sequence with regular votes: Lotus, Vitruvian, Vitruvian, Lotus, Vitruvian -> switches on the 3rd
+    // Vitruvian
+    let votos = [];
+    const paso = (name, af = 0.8) => { const d = decideTema(stalker, voto(name, af), votos); votos = d.votos; return d.releva; };
+    assert.equal(paso("Lotus"), false);
+    assert.equal(paso("Vitruvian"), false);
+    assert.equal(paso("Vitruvian"), false);
+    assert.equal(paso("Lotus"), false, "un voto por un tercer tema no reinicia la cuenta");
+    assert.equal(paso("Vitruvian"), true, "3 de los últimos 5");
+    // window size is 5: three votes spread too far apart do not count
+    votos = ["Vitruvian", "Lotus", "Lotus", "Lotus", "Lotus"];
+    assert.equal(decideTema(stalker, voto("Vitruvian", 0.8), votos).releva, false);
+    assert.equal(decideTema(stalker, voto("Vitruvian", 0.8), votos).n, 1, "el primero ya salió de la ventana");
 });

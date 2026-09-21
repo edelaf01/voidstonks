@@ -5,7 +5,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  saleValue, rewardValue, pickBestReward, rankRewards, DUCATS_PER_PLAT, ducatsBeatSale,
+  saleValue, rewardValue, pickBestReward, rankRewards, DUCATS_PER_PLAT, ducatsBeatSale, mejoresPorMoneda,
 } from "../deploy/js/utils/inventory/reward_value.js";
 
 const SETS = {
@@ -68,7 +68,8 @@ test("cerrar un set cuyas piezas no se venden sueltas vale el set entero", () =>
 });
 
 test("una pieza que ya tienes no cobra prima de set: solo vale venderla o fundirla", () => {
-  const prices = { "Yareli Prime Set": 200, "Yareli Prime Blueprint": 3 };
+  // complete prices on purpose: so a 0 premium comes from owning the part, not missing data
+  const prices = { "Yareli Prime Set": 200, "Yareli Prime Blueprint": 3, "Yareli Prime Neuroptics": 20, "Yareli Prime Chassis": 20, "Yareli Prime Systems": 20 };
   const inv = Object.fromEntries(SETS["Yareli Prime"].map((p) => [p, 1]));
   const v = rewardValue({ name: "Yareli Prime Blueprint", price: 3, ducats: 45 }, deps(inv, prices));
   assert.equal(v.setGain, 0);
@@ -79,7 +80,7 @@ test("una pieza que ya tienes no cobra prima de set: solo vale venderla o fundir
 // without this, "nears set" would equal "completes set": the full premium only applies when the part is
 // the last one missing
 test("acercar a un set vale menos que cerrarlo", () => {
-  const prices = { "Yareli Prime Set": 200, "Yareli Prime Neuroptics": 20 };
+  const prices = { "Yareli Prime Set": 200, "Yareli Prime Blueprint": 3, "Yareli Prime Neuroptics": 20, "Yareli Prime Chassis": 20, "Yareli Prime Systems": 20 };
   const cierra = Object.fromEntries(SETS["Yareli Prime"].slice(1).map((p) => [p, 1]));
   const lejos = { "Yareli Prime Neuroptics": 1 };
   const vCierra = rewardValue({ name: "Yareli Prime Blueprint", price: 3 }, deps(cierra, prices));
@@ -89,15 +90,19 @@ test("acercar a un set vale menos que cerrarlo", () => {
   assert.ok(vLejos.setGain < vCierra.setGain / 4);
 });
 
-test("una pieza sin precio no infla la prima del set", () => {
+// prices arrive in batches and valuation renders with whatever is there; without this guard, a part whose
+// price has not arrived counts as 0 and the whole set looks like profit, crowning the card for missing
+// data; estimating missing parts with the average of known ones made the SAME screen say "you gain 8", "9"
+// or "11" depending on which prices arrived before the deadline: without the complete set, there is no
+// premium
+test("sin el precio del set y de TODAS sus piezas no se cobra prima", () => {
   const inv = { "Yareli Prime Neuroptics": 1, "Yareli Prime Chassis": 1, "Yareli Prime Systems": 1 };
-  const sinNada = rewardValue({ name: "Yareli Prime Blueprint", price: 3 },
-    deps(inv, { "Yareli Prime Set": 200 }));
-  assert.equal(sinNada.premium, 0, "sin ningún precio de pieza no se cobra prima");
-
-  const conUna = rewardValue({ name: "Yareli Prime Blueprint", price: 3 },
-    deps(inv, { "Yareli Prime Set": 200, "Yareli Prime Neuroptics": 30 }));
-  assert.ok(conUna.premium > 0 && conUna.premium < 200 - 3 * 30);
+  const pieza = { name: "Yareli Prime Blueprint", price: 3 };
+  assert.equal(rewardValue(pieza, deps(inv, { "Yareli Prime Set": 200 })).premium, 0, "sin piezas");
+  assert.equal(rewardValue(pieza, deps(inv, { "Yareli Prime Set": 200, "Yareli Prime Neuroptics": 30 })).premium, 0, "con una sola pieza");
+  const todas = { "Yareli Prime Neuroptics": 30, "Yareli Prime Chassis": 30, "Yareli Prime Systems": 30, "Yareli Prime Blueprint": 10 };
+  assert.equal(rewardValue(pieza, deps(inv, todas)).premium, 0, "sin el precio del set");
+  assert.equal(rewardValue(pieza, deps(inv, { ...todas, "Yareli Prime Set": 200 })).premium, 200 - 3 * 30 - 10, "completo: set menos piezas sueltas");
 });
 
 test("Forma y compañía valen 0 y no coronan a nadie", () => {
@@ -161,4 +166,30 @@ test("la regla del Ducanator es la misma que la ruta 'ducats' de rewardValue", (
     const v = rewardValue({ name: "Strun Prime Receiver", price, ducats }, deps({}));
     assert.equal(ducatsBeatSale(ducats, price), v.route === "ducats", `${ducats} ducados a ${price}p`);
   }
+});
+
+// real capture: Burston Prime Receiver (4p, 15d) and Orthos Prime Blueprint (4p, 45d) both showed "MÁS
+// PLATINO", deciding nothing
+test("a igual platino desempatan los ducados, y al revés", () => {
+  const items = [
+    { name: "Burston Prime Receiver", price: 4, ducats: 15 },
+    { name: "Orthos Prime Blueprint", price: 4, ducats: 45 },
+    { name: "Caliban Prime Chassis Blueprint", price: 2, ducats: 15 },
+  ];
+  const m = mejoresPorMoneda(items);
+  assert.deepEqual([...m.plat], ["Orthos Prime Blueprint"]);
+  assert.deepEqual([...m.ducats], ["Orthos Prime Blueprint"]);
+
+  const empateDucados = mejoresPorMoneda([
+    { name: "A", price: 9, ducats: 45 }, { name: "B", price: 3, ducats: 45 },
+  ]);
+  assert.deepEqual([...empateDucados.ducats], ["A"], "a 45 ducados iguales gana la que además vale más");
+  assert.deepEqual([...empateDucados.plat], ["A"]);
+
+  // identical parts (the same twice in the strip) do tie completely
+  const iguales = mejoresPorMoneda([{ name: "A", price: 4, ducats: 15 }, { name: "A", price: 4, ducats: 15 }]);
+  assert.deepEqual([...iguales.plat], ["A"]);
+  // without a price there is no platinum winner, and without ducats, none for ducats
+  assert.equal(mejoresPorMoneda([{ name: "Forma Blueprint", price: 0, ducats: 0 }]).plat.size, 0);
+  assert.equal(mejoresPorMoneda([]).ducats.size, 0);
 });

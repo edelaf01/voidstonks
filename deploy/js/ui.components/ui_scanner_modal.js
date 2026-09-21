@@ -1,6 +1,6 @@
 import { state, saveAppState } from "../state.js";
 import { pickBestForSets } from "../utils/inventory/reward_set_pick.js";
-import { pickBestReward } from "../utils/inventory/reward_value.js";
+import { mejoresPorMoneda, pickBestReward } from "../utils/inventory/reward_value.js";
 import { getSetName, getRequiredCount } from "../utils/ui_utils.js";
 import { TEXTS } from "../config.js";
 import { getPriceValue } from "../services/market/prices.service.js";
@@ -89,19 +89,28 @@ export const ScannerModal = {
             }
         }
 
-        this.setPrices = await this.fetchSetPrices(itemsWithDetails);
+        // prices that miss the deadline paint when they arrive, if this modal is still the same
+        this.setPrices = await this.fetchSetPrices(itemsWithDetails, 1500, () => {
+            if (this.currentResults === itemsWithDetails && !modal.classList.contains("hidden")) this.pintaValoracion(itemsWithDetails, imgEl, width, height, scale);
+        });
+        this.pintaValoracion(itemsWithDetails, imgEl, width, height, scale);
+
+        this.handleAutoActions(itemsWithDetails);
+    },
+
+    pintaValoracion(itemsWithDetails, imgEl, width, height, scale) {
         // puts all four rewards in the same unit, platinum you end up with, so they compare
         this.bestValue = pickBestReward(itemsWithDetails, this.valuationDeps());
-
         this.renderBadges(itemsWithDetails, imgEl, width, height, scale);
 
+        const cierra = pickBestForSets(itemsWithDetails, { setsDatabase: state.setsDatabase, primeInventory: state.primeInventory, getSetName, getRequiredCount });
         renderItemsInPiP(itemsWithDetails.map((item) => ({
             ...item,
             isBestValue: this.bestValue?.name === item.name,
             gainPl: this.bestValue?.name === item.name ? this.bestValue.value.plat : 0,
+            isCompletingSet: !!cierra && cierra.name === item.name && cierra.left === 0,
+            setPrice: cierra && cierra.name === item.name ? Math.round(this.setPrices?.get(`${cierra.set} Set`) || 0) : 0,
         })));
-
-        this.handleAutoActions(itemsWithDetails);
     },
 
     handleAutoActions(items) {
@@ -178,7 +187,12 @@ export const ScannerModal = {
         };
     },
 
-    async fetchSetPrices(items, timeoutMs = 1500) {
+    /**
+     * Set price of each reward and of all its parts: the set premium is the set minus its parts. Capped
+     * wait because the game screen lasts ~15 s; what misses it is worth 0. `alCompletar` runs once, with
+     * the full map, only if the deadline passed first.
+     */
+    async fetchSetPrices(items, timeoutMs = 1500, alCompletar = null) {
         const names = new Set();
         for (const item of items) {
             const setName = getSetName(item.name);
@@ -191,10 +205,10 @@ export const ScannerModal = {
             try { prices.set(name, (await getPriceValue(name, getSlug(name))) || 0); }
             catch (e) { console.warn("[ScannerModal] sin precio para", name, e); }
         });
-        await Promise.race([
-            Promise.all(lookups),
-            new Promise((resolve) => setTimeout(resolve, timeoutMs)),
-        ]);
+        let completo = false;
+        const todas = Promise.all(lookups).then(() => { completo = true; });
+        await Promise.race([todas, new Promise((resolve) => setTimeout(resolve, timeoutMs))]);
+        if (!completo && alCompletar) todas.then(() => alCompletar(prices));
         return prices;
     },
 
@@ -216,9 +230,8 @@ export const ScannerModal = {
             wrapper.style.height = `${Math.floor(visualH)}px`;
         }
 
-        const maxPl = Math.max(...items.map((i) => i.price || 0));
         // ducats alone, not max(ducats, plat × 10): no part tops 100 ducats
-        const maxDucats = Math.max(...items.map((i) => i.ducats || 0));
+        const mejores = mejoresPorMoneda(items);
 
         let positionedItems = items.map(item => {
             const referenceW = width * scale;
@@ -296,8 +309,8 @@ export const ScannerModal = {
 
         const fragment = document.createDocumentFragment();
         positionedItems.forEach((item) => {
-            const isBestPl = item.price === maxPl && item.price > 0;
-            const isBestEff = item.ducats === maxDucats && item.ducats > 0;
+            const isBestPl = mejores.plat.has(item.name);
+            const isBestEff = mejores.ducats.has(item.name);
 
             this.createBadge(item, fragment, isBestPl, isBestEff, badgeScale,
                 bestSet && bestSet.name === item.name ? bestSet : null,
@@ -348,12 +361,13 @@ export const ScannerModal = {
 
         const why = [];
         if (bestSet) {
+            const setPrice = bestSet.left === 0 ? Math.round(this.setPrices?.get(`${bestSet.set} Set`) || 0) : 0;
             why.push(`<span class="best-badge set-finisher${bestSet.left === 0 ? "" : " near"}" data-tooltip="${escapeHTML(
                 (bestSet.left === 0
                     ? (t.tagBestSetTitleDone || "")
                     : (t.tagBestSetTitle || "").replace("{left}", String(bestSet.left)))
                     .replace("{set}", bestSet.set))}">${
-                escapeHTML(bestSet.left === 0 ? (t.tagBestSet || "") : (t.tagBestSetNear || ""))}</span>`);
+                escapeHTML(bestSet.left === 0 ? (t.tagBestSet || "") : (t.tagBestSetNear || ""))}${setPrice > 0 ? ` · ${setPrice}p` : ""}</span>`);
         }
         if (isBestPl) why.push(`<span class="best-badge pl">${escapeHTML(t.tagBestPl)}</span>`);
         if (isBestEff) why.push(`<span class="best-badge duc">${escapeHTML(t.tagBestDuc)}</span>`);

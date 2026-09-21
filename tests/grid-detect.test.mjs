@@ -944,3 +944,15 @@ test("detectInventoryGrid REGRESIÓN: dos filas limpias salteadas no dan el paso
   assert.ok(Math.abs(res.cellH - cellH) <= cellH * 0.05,
     `cellH ${res.cellH} debería rondar ${cellH}, no el doble (cadena: ${JSON.stringify(trace.chain)})`);
 });
+
+// the page crop starts under the header and only eats the margin above the first card (~0.1·cellH): that
+// row is read whole, a really cut one is not
+test("detectInventoryGrid: a la 1ª fila le falta solo el margen sobre la card y se queda", () => {
+  const truth = { gridX: 400, cellW: 250, cellH: 290, cols: 6 };
+  const poco = detectInventoryGrid(makeInventoryFrame({ width: 1920, height: 1080, ...truth, gridY: -30, rows: 4 }));
+  assert.ok(poco);
+  assert.ok(poco.gridZone.y < 0 && poco.gridZone.y >= -truth.cellH * 0.15, `debería quedarse en ~-30, no ${poco.gridZone.y}`);
+  const mucho = detectInventoryGrid(makeInventoryFrame({ width: 1920, height: 1080, ...truth, gridY: -100, rows: 4 }));
+  assert.ok(mucho);
+  assert.ok(mucho.gridZone.y > 100, `con 100 px fuera la fila se pierde y la rejilla empieza en la siguiente: ${mucho.gridZone.y}`);
+});

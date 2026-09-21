@@ -753,15 +753,22 @@ function detectInventoryGridCore(img, opts = {}) {
     let rows = filasConNombre(findBands(prof, height, { ...o, bandMassFloor: 0 }),
         { gridX, gridY, cellW, cellH, cols, rows: rowBands.length, height, bloques: b => blocksInBand(img, b.y0, b.y1, o) });
 
+    // row cut at the TOP (scroll clamped): its real top is NEGATIVE. Clipping the zone to y=0 would move the
+    // phase of every row, so a whole cellH is skipped and that row is lost. The card starts ~0.1·cellH below
+    // the cell top: if only that margin is missing, it stays
+    const suelo = -cellH * 0.15;
     let gridYTop = gridY;
     if (cellH > 0) {
-        while (gridYTop < 0) gridYTop += cellH;
+        while (gridYTop < suelo) gridYTop += cellH;
     } else {
         gridYTop = Math.max(0, gridYTop);
     }
 
+    // only the rows the phase shift left out above or under the header are taken off. Rows are never invented
+    // from the available height (a ghost row on normal scrolls), and never fewer than the real ones are
+    // returned for a cut row: rows is CACHED by frame size, not by scroll
     if (cellH > 0) {
-        const dropped = Math.ceil(Math.max(0, -gridY) / cellH);
+        const dropped = Math.ceil(Math.max(0, suelo - gridY) / cellH);
         rows = Math.max(rows - dropped, Math.min(rowBands.length, o.rows));
     }
     if (rows < 1) {

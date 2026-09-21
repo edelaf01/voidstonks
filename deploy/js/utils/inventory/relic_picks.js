@@ -20,6 +20,27 @@ export function closenessWeight(setMissing) {
   return 1 / (quedan * quedan);
 }
 
+/**
+ * Expected platinum from ONE crack: in a squad `squadSize` relics open and you keep the best reward, so
+ * it is the expected max, not the sum of chance × price. `null` when no missing part has a price.
+ */
+export function expectedPlatPerCrack(missing, getPrice, squadSize = 4) {
+  const n = Math.max(1, squadSize);
+  const piezas = missing
+    .map((m) => ({ precio: getPrice(m.part) || 0, single: m.single ?? 1 - Math.pow(1 - m.chance, 1 / n) }))
+    .filter((x) => x.precio > 0)
+    .sort((a, b) => b.precio - a.precio);
+  if (piezas.length === 0) return null;
+  let esperado = 0, acumulada = 0, pAnterior = 0;
+  for (const { precio, single } of piezas) {
+    acumulada += single;
+    const pAlMenos = 1 - Math.pow(Math.max(0, 1 - acumulada), n);
+    esperado += precio * (pAlMenos - pAnterior);
+    pAnterior = pAlMenos;
+  }
+  return Math.round(esperado * 10) / 10;
+}
+
 /** The era is the first word of the name ("Lith G1"). "Vanguard" is what the worldstate calls Axi. */
 export function tierOfRelic(relicName) {
   const tier = String(relicName || "").trim().split(/\s+/)[0] || "";
@@ -71,11 +92,7 @@ export function rankRelicPicks(deps, limit = 8) {
     // the concrete fissure, picked by speed and time left
     const fisura = bestFissure(suyas);
 
-    let valor = null;
-    if (getPrice) {
-      const precios = v.missing.map((m) => getPrice(m.part) || 0).filter((n) => n > 0);
-      if (precios.length > 0) valor = Math.round(precios.reduce((a, b) => a + b, 0) / precios.length);
-    }
+    const valor = getPrice ? expectedPlatPerCrack(v.missing, getPrice, squadSize) : null;
 
     // the ones that CLOSE a set in one crack, and how likely
     const cierran = v.missing.filter((m) => m.setMissing === 1);
@@ -97,7 +114,8 @@ export function rankRelicPicks(deps, limit = 8) {
       owned,
       // DIFFERENT rewards you need
       useful: v.missing.length,
-      odds: v.odds,
+      // per CRACK, not spending every copy
+      odds: Number.isFinite(v.runs) ? 1 / v.runs : 0,
       runs: v.runs,
       // sets it feeds, no repeats: one relic can give two parts of the same set
       sets: [...new Set(v.missing.map((m) => m.set))],

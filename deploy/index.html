@@ -139,6 +139,9 @@
               transition: all 0.2s;
               letter-spacing: 1px;
             ">RIVENS</button>
+        <!-- the recorder only starts by itself when debugging (vs_debug_logs);
+             this button turns it on by hand from any screen -->
+        <button type="button" id="btn-rec-drawer" class="scanner-rec-btn" onclick="globalThis.toggleDebugRecorder()">GRABAR</button>
       </div>
       <video id="live-video" autoplay muted playsinline></video>
       <canvas id="live-canvas" class="hidden"></canvas>
@@ -187,6 +190,8 @@
       <!-- squad relics for the current run, hidden until the scanner reads a pause screen
            (ui.components/ui_squad_run.js) -->
       <div id="squad-run-panel" class="squad-panel" style="display: none"></div>
+
+      <div id="kiosk-sale-panel" style="display: none"></div>
 
       <div class="hud-actions" id="hud-actions">
         <button type="button" id="btn-manual-scan" class="hud-btn primary" onclick="globalThis.manualPrecisionScan()">

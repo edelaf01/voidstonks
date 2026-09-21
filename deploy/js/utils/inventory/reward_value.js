@@ -56,14 +56,16 @@ export function rewardValue(item, deps = {}) {
 
   const help = setHelpOf(item?.name, deps);
   const parts = help ? (setsDatabase[help.set] || []) : [];
-  const known = parts.map((p) => Number(getPrice(p)) || 0).filter((n) => n > 0);
-  const avg = known.length ? known.reduce((a, b) => a + b, 0) / known.length : 0;
+  // a price that has not arrived is 0, and a 0 part inflates the premium: without the full set (set and
+  // every part priced) there is no premium
+  const completo = help && parts.length > 0 && Number(getPrice(`${help.set} Set`)) > 0
+    && parts.every((p) => Number(getPrice(p)) > 0);
 
   let premium = 0;
   let setGain = 0;
-  if (help && known.length > 0) {
+  if (completo) {
     const partsApart = parts.reduce(
-      (s, p) => s + saleValue(Number(getPrice(p)) || avg) * (getRequiredCount(help.set, p) || 1), 0);
+      (s, p) => s + saleValue(Number(getPrice(p))) * (getRequiredCount(help.set, p) || 1), 0);
     // the premium is never negative: you can always sell the parts apart
     premium = Math.max(0, saleValue(getPrice(`${help.set} Set`)) - partsApart);
     // `left` counts what is missing AFTER taking it, closenessWeight what is missing BEFORE: hence the +1
@@ -113,4 +115,18 @@ export function pickBestReward(items, deps) {
     clear: best.value.plat >= second * CLEAR_WIN_RATIO
       && best.value.plat - second >= CLEAR_WIN_PLAT,
   };
+}
+
+/**
+ * Who has "most platinum" and "most ducats". Ducats break platinum ties and the other way round.
+ */
+export function mejoresPorMoneda(items) {
+  const gana = (a, b) => {
+    const v = (i) => [Number(i?.[a]) || 0, Number(i?.[b]) || 0];
+    const mejor = (x, y) => (y[0] > x[0] || (y[0] === x[0] && y[1] > x[1])) ? y : x;
+    const tope = (items || []).map(v).reduce((m, x) => (m ? mejor(m, x) : x), null);
+    if (!tope || tope[0] <= 0) return new Set();
+    return new Set((items || []).filter((i) => v(i)[0] === tope[0] && v(i)[1] === tope[1]).map((i) => i.name));
+  };
+  return { plat: gana("price", "ducats"), ducats: gana("ducats", "price") };
 }
