@@ -316,6 +316,7 @@ export class MobileScanner {
     this.releaseWakeLock();
     if (this.discoveryTimer) clearTimeout(this.discoveryTimer);
     OCRRepository.terminateAll();
+    PaddleRepository.apaga();
     globalThis.mobileScanner = null;
     globalThis.currentScanner = null;
   }

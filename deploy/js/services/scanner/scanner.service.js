@@ -1,18 +1,19 @@
 import { VisionService } from "./vision.service.js";
 import { freezeFrame, releaseFrame } from "../../utils/vision/frame_freeze.js";
-import { nextLatchedContext, INITIAL_LATCH, enrutaGraciaRiven, toleranciaCabecera, intervaloCabecera, caducidadCabecera } from "../../utils/vision/context_latch.js";
+import { nextLatchedContext, INITIAL_LATCH, enrutaGraciaRiven, intervaloCabecera, INTERVALO_FIN_MISION_MS, CADUCIDAD_CABECERA_MS, FRANJA_TITULO_VIDEO, tituloHaCambiado } from "../../utils/vision/context_latch.js";
+import { sensorDelEscaner, CADA_MS } from "../../utils/vision/wake_sensor.js";
 import { isImplausibleFallbackGrid } from "../../utils/vision/plausibility.js";
+import { corrige56 } from "../../utils/vision/relic_digit_56.js";
 import { filasEnFase } from "../../utils/vision/grid_alignment.js";
 import { localizaBandaRecompensas, candidatosDeRecorte, recorteDelRotulo } from "../../utils/vision/reward_band.js";
 import { leeRecompensas, leeRotulosMissionComplete, leeCasillaMissionComplete } from "./reward_read.service.js";
 import { leeCantidadBadge, relojBadges } from "./badge_read.service.js";
-import { motorActivo, MOTOR_PRECISO } from "./ocr_engine.service.js";
+import { motorActivo, MOTOR_PRECISO, rejillaConClasico } from "./ocr_engine.service.js";
 import { OCRService } from "./ocr.service.js?v=264";
 import { SquadService } from "./squad.service.js";
 import { RelicScreenService } from "./relic_screen.service.js";
 import { OCRRepository } from "../../repositories/ocr.repository.js";
 import { PaddleRepository } from "../../repositories/paddle.repository.js";
-import { OpenCVRepository } from "../../repositories/opencv.repository.js";
 import { ScannerHUD } from "../../ui.components/ui_scanner_hud.js";
 import { ScannerModal } from "../../ui.components/ui_scanner_modal.js";
 import { initializeOCRDatabase } from "../../repositories/api.repository.js";
@@ -20,12 +21,15 @@ import { escapeHTML } from "../../utils/escape_html.js";
 import { electPageNameColor, cellNameMask, hasInk, readCellWithOwnColor, readCellCuttingArt } from "./name_color.service.js";
 import { createCellOverlay } from "../../utils/vision/scan_overlay.js";
 import { revisaRejillaCacheada } from "../../utils/vision/grid_cache.js";
-import { detectRewardCells } from "../../utils/vision/mission_complete_grid.js";
-import { nextLedger, INITIAL_LEDGER } from "../../utils/inventory/reward_ledger.js";
+import { detectRewardCells, esRecursoPorBadge } from "../../utils/vision/mission_complete_grid.js";
+import { INITIAL_LEDGER, nextLedger, esPantallaRecordada, recuerdaPantalla, memoriaPantalla } from "../../utils/inventory/reward_ledger.js";
+const memoriaMC = memoriaPantalla(() => localStorage, "vs_mc_ultima_pantalla");
+const DESPIERTA_MC = 24;
 import { createFrameQueue } from "../../utils/vision/frame_queue.js";
-import { videoRegionHash, smallCanvasHash, canvasRegionHash, compareHashes, fraccionCambiada } from "../../utils/vision/frame_hash.js";
+import { videoRegionHash, canvasRegionHash, compareHashes, fraccionCambiada, regionLuma } from "../../utils/vision/frame_hash.js";
 import { createReadCache } from "../../utils/vision/read_cache.js";
 import { DebugRecorder } from "./debug_recorder.service.js";
+import { DucatKioskService } from "./ducat_kiosk.service.js";
 import { ESTADO_INICIAL as ESTADO_SIN_RESULTADO, saltaPorSinResultado, siguienteEstadoSinResultado } from "../../utils/vision/no_result_skip.js";
 import { cronometro } from "../../utils/perf.js";
 
@@ -34,7 +38,8 @@ import { hudBottom } from "../../utils/vision/hud_cover.js";
 import { badgePlausible } from "../../utils/vision/badge_digit_ocr.js";
 import { isGarbledCellText } from "../../utils/vision/cell_text_guard.js";
 import { olvidaColorTexto } from "../../utils/vision/reward_preprocess.js";
-const cedeHilo = () => new Promise((r) => setTimeout(r, 0));
+import { cedeHilo } from "../../utils/yield.js";
+const RESCATE_CABECERA_MS = 3000;
 
 export const ScannerService = {
     isScanning: false,
@@ -50,6 +55,7 @@ export const ScannerService = {
     _frameZoneCache: null,
     _invQueue: null,
     _sampleRect: null,
+    onPaginaKiosco: null,
     detectionLocked: false,
     scanCounter: 0,
     inventoryHasScanned: false,
@@ -104,7 +110,6 @@ export const ScannerService = {
         import("../rivens/rivens.service.js").then(m => m.fetchRivenWeapons()).catch(err => console.warn("Error fetching Riven weapons:", err));
 
         await OCRRepository.warmUp();
-        OpenCVRepository.waitReady().catch(() => { });
         OCRService.initMatcherData();
         this.loop();
     },
@@ -113,7 +118,9 @@ export const ScannerService = {
         this.isScanning = false;
         if (this.scanInterval) clearTimeout(this.scanInterval);
         this.scanInterval = null;
+        this._sensor?.para();
         OCRRepository.terminateAll();
+        PaddleRepository.apaga();
         this._invQueue?.clear();
         this.releaseFrames();
     },
@@ -127,14 +134,11 @@ export const ScannerService = {
     },
 
     async loop() {
+        this._sensor?.para();
+        this._cartaVigilada = null;
         if (!this.isScanning) return;
-
         const video = document.getElementById("live-video");
-        if (!video || video.paused || video.ended) {
-            this.scanInterval = setTimeout(() => this.loop(), 1000);
-            return;
-        }
-
+        if (!video || video.paused || video.ended) { this.scanInterval = setTimeout(() => this.loop(), 1000); return; }
         try {
             await this.processFrame(video, this.virtualCanvas);
         } catch (e) {
@@ -142,6 +146,7 @@ export const ScannerService = {
         } finally {
             if (this.isScanning) {
                 this.scanInterval = setTimeout(() => this.loop(), this.currentRate);
+                if (this.latchedContext !== "UNKNOWN" && this.currentRate > 2 * CADA_MS) (this._sensor ||= sensorDelEscaner(this, video)).arma();
             }
         }
     },
@@ -151,30 +156,43 @@ export const ScannerService = {
     lastRivenContextTime: 0,
 
     async processFrame(video, virtualCanvas) {
-        if (this.detectionLocked) return;
+        if (this.detectionLocked && !(this.latchedContext === "INVENTORY" && this._frameZoneCache?.zone)) return;
         if (!this.isScanning) return;
         this.scanCounter++;
         const reloj = cronometro("frame", 120);
 
-        const dims = VisionService.prepareVirtualCanvas(video, virtualCanvas);
-
+        const dims = { width: video.videoWidth, height: video.videoHeight, scale: 1080 / video.videoHeight };
         const worker1 = OCRRepository.workers[0];
         if (!worker1) return;
 
-        const headerHash = smallCanvasHash(virtualCanvas);
-        const headerCacheFresh = this.lastHeaderOcrTime && (Date.now() - this.lastHeaderOcrTime < caducidadCabecera(this.latchedContext));
-        const tolHeader = toleranciaCabecera(this._headerEstable);
-        const enPausa = Date.now() - (this.lastHeaderOcrTime || 0) < intervaloCabecera(this._headerEstable);
-        let headerText;
-        if (this.lastHeaderText !== null && headerCacheFresh
-            && (enPausa || compareHashes(headerHash, this.lastHeaderHash, tolHeader))) {
+        const headerHash = regionLuma(video, FRANJA_TITULO_VIDEO);
+        const caducidad = this.latchedContext === "UNKNOWN" ? RESCATE_CABECERA_MS : CADUCIDAD_CABECERA_MS;
+        const headerCacheFresh = this.lastHeaderOcrTime && (Date.now() - this.lastHeaderOcrTime < caducidad);
+        const franjaQuieta = !!this._franjaTickAnterior && !tituloHaCambiado(headerHash, this._franjaTickAnterior);
+        this._franjaTickAnterior = headerHash;
+        const intervalo = intervaloCabecera(this._headerEstable, this.latchedContext);
+        const enPausa = Date.now() - (this.lastHeaderOcrTime || 0) < intervalo;
+        let headerText, pasadas = 0;
+        const cambiado = tituloHaCambiado(headerHash, this.lastHeaderHash);
+        const pantallaNueva = franjaQuieta && cambiado && intervalo < INTERVALO_FIN_MISION_MS;
+        this._cabeceraVigente = !(enPausa && cambiado);
+        if (this.lastHeaderText !== null && headerCacheFresh && !pantallaNueva && (enPausa || !cambiado)) {
             headerText = this.lastHeaderText;
         } else {
+            this._cabeceraVigente = true;
+            VisionService.prepareVirtualCanvas(video, virtualCanvas);
             const headerTheme = VisionService.finalizeVirtualCanvas(virtualCanvas);
             const { data: headerData } = await OCRRepository.recognize(worker1, virtualCanvas, {}, { text: true });
             headerText = headerData.text || "";
+            pasadas = 1;
 
-            if (headerTheme && VisionService.determineContext(headerText) === "UNKNOWN") {
+            const sinContexto = () => VisionService.determineContext(headerText) === "UNKNOWN";
+            const enFinDeMision = this.latchedContext === "MISSION_COMPLETE";
+            const rescate = sinContexto() && (franjaQuieta || enFinDeMision || Date.now() - (this._ultimoRescate || 0) >= RESCATE_CABECERA_MS);
+            if (rescate) this._ultimoRescate = Date.now();
+
+            if (rescate && headerTheme && !enFinDeMision) {
+                pasadas++;
                 if (!this._altHeaderCvs) this._altHeaderCvs = document.createElement("canvas");
                 VisionService.prepareVirtualCanvas(video, this._altHeaderCvs);
                 const altCtx = this._altHeaderCvs.getContext("2d", { willReadFrequently: true });
@@ -187,11 +205,12 @@ export const ScannerService = {
                 }
             }
 
-            if (VisionService.determineContext(headerText) === "UNKNOWN") {
+            if (rescate && sinContexto()) {
+                pasadas++;
                 if (!this._centerHeaderCvs) this._centerHeaderCvs = document.createElement("canvas");
                 VisionService.prepareCenterHeaderCanvas(video, this._centerHeaderCvs);
                 const cCtx = this._centerHeaderCvs.getContext("2d", { willReadFrequently: true });
-                const cTheme = VisionService.detectThemeFromSnapshot(this._centerHeaderCvs, 0, 0, this._centerHeaderCvs.width, this._centerHeaderCvs.height);
+                const cTheme = VisionService.detectThemeFromSnapshot(this._centerHeaderCvs, 0, 0, this._centerHeaderCvs.width, this._centerHeaderCvs.height, { sinRecuerdo: true });
                 VisionService.applyThemeDistanceThreshold(cCtx, this._centerHeaderCvs.width, this._centerHeaderCvs.height, cTheme);
                 const { data: cData } = await OCRRepository.recognize(worker1, this._centerHeaderCvs, {}, { text: true });
                 const cText = cData.text || "";
@@ -212,12 +231,9 @@ export const ScannerService = {
         const now = Date.now();
 
         const textUpper = headerText.toUpperCase();
-        const containsAnchor = textUpper.includes("MODS") || textUpper.includes("MODIFICADORES") ||
-                               textUpper.includes("CYCLE") || textUpper.includes("CICLO") || textUpper.includes("CICLAR") ||
-                               textUpper.includes("KUVA") || textUpper.includes("KUYVA") ||
-                               textUpper.includes("ATRIBUTOS") || textUpper.includes("ELEGIR") || textUpper.includes("CONFIRMAR") ||
-                               textUpper.includes("AGRIETADO");
-        
+        const containsAnchor = ["MODS", "MODIFICADORES", "CYCLE", "CICLO", "CICLAR", "KUVA", "KUYVA",
+            "ATRIBUTOS", "ELEGIR", "CONFIRMAR", "AGRIETADO"].some((a) => textUpper.includes(a));
+
         if (rawContext === "INVENTORY_MODS" || rawContext === "ITEM_DETAILS" || containsAnchor) {
             this.lastRivenContextTime = now;
             this.lastRivenContextType = rawContext === "ITEM_DETAILS" ? "ITEM_DETAILS" : "INVENTORY_MODS";
@@ -230,7 +246,7 @@ export const ScannerService = {
 
         this.ctxLatch = nextLatchedContext(this.ctxLatch, routedContext);
         if (this.ctxLatch.latched !== this.latchedContext) olvidaColorTexto();
-        if (this.latchedContext === "MISSION_COMPLETE" && this.ctxLatch.latched !== "MISSION_COMPLETE") { this.mcLedger = INITIAL_LEDGER; this._mcCache.clear(); }
+        if (this.latchedContext === "MISSION_COMPLETE" && this.ctxLatch.latched !== "MISSION_COMPLETE") { this.mcLedger = INITIAL_LEDGER; this._mcCache.clear(); this._mcDormido = null; }
         if (this.ctxLatch.latched !== this.latchedContext) this.releaseFrames();
         this.latchedContext = this.ctxLatch.latched;
         if (this.latchedContext !== "REWARD") {
@@ -240,7 +256,10 @@ export const ScannerService = {
         }
         console.log(`[SCAN] Context Raw: ${rawContext} | Latched: ${this.latchedContext} | Header: "${headerText.trim().slice(0, 60)}"`);
         if (this.latchedContext !== this._ctxGrabado) { this._ctxGrabado = this.latchedContext; DebugRecorder.record({ kind: "cabecera", image: virtualCanvas, meta: { resumen: `${rawContext} → ${this.latchedContext}`, texto: headerText.trim() } }); }
+        DebugRecorder.miniatura(video, { contexto: rawContext, fijado: this.latchedContext, cabecera: headerText.trim().slice(0, 80), pasadas });
+        DebugRecorder.rendimientoTick({ contexto: this.latchedContext, enOCR: this.detectionLocked, cola: this._invQueue?.size ?? 0 });
         await this.routeFrameAction(this.latchedContext, video, dims);
+        if (this.ctxLatch.pending) this.currentRate = Math.min(this.currentRate, 300);
         reloj.fin(this.latchedContext);
 
         ScannerHUD.updateFrameCounter(this.scanCounter);
@@ -255,7 +274,7 @@ export const ScannerService = {
             let zone = calib?.gridZone || null;
             if (zone) {
                 const cellH = Math.round(calib.cellH || 0);
-                const y = Math.max(0, zone.y - cellH);
+                const y = Math.floor(dims.height * 0.17);
                 const hudY = Math.max(y, zone.y - Math.round(cellH * 0.25));
                 const ctx = snapshot.getContext("2d", { willReadFrequently: true });
                 const borde = zone.y > hudY ? hudBottom(ctx.getImageData(zone.x, hudY, zone.w, zone.y - hudY)) : null;
@@ -302,7 +321,6 @@ export const ScannerService = {
 
     autoScrollMuestra: null,
     autoScrollStableTimer: null,
-    scrollDirectionAccumulator: 0,
     lastRowLums: null,
     sawScrollSinceScan: false,
     debugHistory: [],
@@ -311,12 +329,13 @@ export const ScannerService = {
         const contextType = (globalThis.state.scannerModsMode && rawContextType === "INVENTORY")
             ? "INVENTORY_MODS"
             : rawContextType;
-        ScannerHUD.updateContext(contextType);
+        ScannerHUD.updateContext(contextType === "INVENTORY" && DucatKioskService.esKiosco(this.lastHeaderText) ? "DUCAT_KIOSK" : contextType);
 
         if ((contextType === "UNKNOWN" || contextType === "RELICS") && await SquadService.probe(video)) return;
 
         if (contextType === "INVENTORY") {
-            if (!globalThis.state.autoScanEnabled) {
+            if (!this.detectionLocked) await DucatKioskService.process(video, this.lastHeaderText);
+            if (!globalThis.state.autoScanEnabled && !DucatKioskService.esKiosco(this.lastHeaderText)) {
                 this.currentRate = 3000;
                 this.autoScrollMuestra = null;
                 this.sawScrollSinceScan = false;
@@ -328,7 +347,7 @@ export const ScannerService = {
             }
 
             this.currentRate = 300;
-            if (motorActivo() !== MOTOR_PRECISO || !PaddleRepository.listo()) OCRRepository.ensureWorkers(OCRRepository.MAX_WORKERS).catch(() => {});
+            if (rejillaConClasico()) OCRRepository.ensureWorkers(OCRRepository.MAX_WORKERS).catch(() => {});
 
             // 108 sample rows, not 27: the tail of the game's smooth scroll moves a few px per frame
             const FILAS = 108;
@@ -384,7 +403,6 @@ export const ScannerService = {
             const isScrolling = (bestDy !== 0 && minError < mseZero - 5) || mseZero > 80;
 
             if (isScrolling) {
-                this.scrollDirectionAccumulator += bestDy;
                 this.sawScrollSinceScan = true;
                 if (this.autoScrollStableTimer) {
                     clearTimeout(this.autoScrollStableTimer);
@@ -396,29 +414,21 @@ export const ScannerService = {
 
             const hasPageChanged = !this.autoScrollMuestra || this.sawScrollSinceScan
                 || fraccionCambiada(muestra, this.autoScrollMuestra) >= 0.01;
-            const isFirstScan = !this.autoScrollMuestra;
 
+            // the grid is periodic and a fast scroll down aliases to a negative dy
             if (hasPageChanged && !this.autoScrollStableTimer && this._canCapturePage) {
-                if (!isFirstScan && this.scrollDirectionAccumulator <= -3) {
-                    this.scrollDirectionAccumulator = 0;
-                    this.sawScrollSinceScan = false;
-                    this.autoScrollMuestra = muestra;
-                    ScannerHUD.updateScrollStatus("done", this.sessionInventory.size + this.sessionRelics.size);
-                    return;
-                }
-
                 ScannerHUD.updateScrollStatus("detected");
 
                 this.autoScrollStableTimer = setTimeout(async () => {
-                    this.scrollDirectionAccumulator = 0;
                     this.sawScrollSinceScan = false;
-                    if (!globalThis.state.autoScanEnabled || !this._canCapturePage) {
+                    if ((!globalThis.state.autoScanEnabled && !DucatKioskService.esKiosco(this.lastHeaderText)) || !this._canCapturePage) {
                         this.autoScrollStableTimer = null;
                         return;
                     }
 
                     const v = document.getElementById("live-video");
-                    if (!v?.videoWidth || !v.videoHeight) return;
+                    if (!v?.videoWidth || !v.videoHeight) { this.autoScrollStableTimer = null; return; }
+                    // reused canvas: one per scan (14 MB at 1440p) piled up faster than GC
                     if (!this._invSnapshot) this._invSnapshot = document.createElement("canvas");
                     const snapshot = this._invSnapshot;
                     if (snapshot.width !== v.videoWidth || snapshot.height !== v.videoHeight) {
@@ -431,8 +441,8 @@ export const ScannerService = {
 
                 }, 800);
             } else if (!this.autoScrollStableTimer) {
-                this.scrollDirectionAccumulator = 0;
-                ScannerHUD.updateScrollStatus("done", this.sessionInventory.size + this.sessionRelics.size);
+                if (this.detectionLocked) ScannerHUD.updateScrollStatus("scanning");
+                else ScannerHUD.updateScrollStatus("done", this.sessionInventory.size + this.sessionRelics.size);
             }
 
         } else if (contextType === "INVENTORY_MODS" || contextType === "ITEM_DETAILS") {
@@ -441,12 +451,13 @@ export const ScannerService = {
             await this.processRivenCard(video, dims, contextType);
         } else if (contextType === "RELICS") {
             if (globalThis.RivenScannerHUD) globalThis.RivenScannerHUD.dismiss();
+            if (this.detectionLocked) return;
             this.currentRate = 600;
             await RelicScreenService.process(video, dims);
         } else if (contextType === "MISSION_COMPLETE") {
             if (globalThis.RivenScannerHUD) globalThis.RivenScannerHUD.dismiss();
             if (globalThis.state?.squadRun) SquadService.clear();
-            this.currentRate = 800;
+            this.currentRate = 400;
             await this.processMissionComplete(video, dims);
         } else if (contextType === "REWARD") {
             if (globalThis.RivenScannerHUD) globalThis.RivenScannerHUD.dismiss();
@@ -461,7 +472,7 @@ export const ScannerService = {
                 return;
             }
             if (globalThis.RivenScannerHUD) globalThis.RivenScannerHUD.dismiss();
-            this.currentRate = globalThis.state.autoScanEnabled ? 1000 : 3000;
+            this.currentRate = 1000;
         }
     },
 
@@ -608,6 +619,7 @@ export const ScannerService = {
             this.lastRivenContextTime = Date.now();
             this.lastRivenContextType = contextType === "ITEM_DETAILS" ? "ITEM_DETAILS" : "INVENTORY_MODS";
             this.currentRate = this.RIVEN_RATE_IDLE;
+            this._cartaVigilada = cardCrop;
             return;
         }
 
@@ -709,6 +721,7 @@ export const ScannerService = {
         const shownWeapons = [...new Set(shownCards.map(p => p.weaponName).filter(Boolean))].sort().join("|");
         let weaponChanged = newWeapons !== "" && newWeapons !== shownWeapons;
 
+        // matcher anti-flip: a riven like "Croniignido" alternates between "Gotva Prime" and "Ignis"
         let weaponSwitchPending = false;
         if (weaponChanged && shownCards.length) {
             if (this.weaponSwitchCandidate === newWeapons) {
@@ -879,7 +892,11 @@ export const ScannerService = {
         const { width, height } = dims;
         const frame = this._mcFrameCvs = freezeFrame(video, width, height, this._mcFrameCvs);
 
-        const hash = smallCanvasHash(frame);
+        const hash = canvasRegionHash(frame, { x: Math.floor(width * 0.45), y: Math.floor(height * 0.18), w: Math.floor(width * 0.53), h: Math.floor(height * 0.74) });
+        if (this._mcDormido) {
+            if (compareHashes(hash, this._mcDormido, DESPIERTA_MC)) return;
+            console.log("[MC] el panel cambió de verdad: se relee"); this._mcDormido = null;
+        }
         if (!compareHashes(hash, this._mcStableHash, 6)) {
             this._mcStableHash = hash;
             return;
@@ -891,7 +908,7 @@ export const ScannerService = {
             this._mcGrid = { hash, grid };
             if (!grid) { console.log(`[MC] Sin rejilla: ${trace.fail}`); return; }
             console.log(`[MC] ${trace.cells} casillas · ${trace.cols}×${trace.rows} · paso ${trace.pitch}${grid.occluded ? " · TAPADA" : ""}${grid.cut ? " · DESPLAZADA" : ""}`);
-            console.log(`[MC] sin rótulo (mods): ${grid.cells.filter((c) => !c.named).map((c) => `r${c.row}c${c.col}`).join(" ") || "ninguna"}`);
+            console.log(`[MC] sin rótulo (mods): ${grid.cells.filter((c) => !c.named).map((c) => `r${c.row}c${c.col}`).join(" ") || "ninguna"} · recursos por cantidad: ${grid.cells.filter((c) => esRecursoPorBadge(c.badge)).map((c) => `r${c.row}c${c.col}(${c.badge})`).join(" ") || "ninguno"}`);
         }
         const { grid } = this._mcGrid;
         // the "N OWNED" tooltip covers up to two cells: wait for the mouse to move
@@ -904,7 +921,7 @@ export const ScannerService = {
         const pendientes = [];
         const items = [];
         for (const cell of grid.cells) {
-            if (!cell.named) continue;
+            if (!cell.named || esRecursoPorBadge(cell.badge)) continue;
             const clave = `r${cell.row}c${cell.col}`, sello = canvasRegionHash(frame, cell);
             const previa = this._mcCache.get(clave, sello);
             if (previa) { if (previa.name) items.push({ name: previa.name, qty: cell.qty, cell, reliquia: previa.reliquia }); continue; }
@@ -920,8 +937,11 @@ export const ScannerService = {
         }
         if (pendientes.length) DebugRecorder.record({ kind: "fin-mision", image: frame, meta: { resumen: `${lecturas.length} casillas leídas · ${items.length} con nombre`, rejilla: { casillas: grid.cells.length, paso: grid.pitch, accent: grid.accent, cut: grid.cut, sinRotulo: grid.cells.filter((c) => !c.named).map((c) => `r${c.row}c${c.col}`) }, lecturas } });
 
+        if (!this.mcLedger.committed && esPantallaRecordada(items, memoriaMC.lee())) this.mcLedger = { ...this.mcLedger, committed: memoriaMC.lee().committed };
         const { ledger, commit } = nextLedger(this.mcLedger, items);
         this.mcLedger = ledger;
+        if (!pendientes.length) { this._mcDormido = hash; console.log("[MC] pantalla leída; en espera de otro fin de misión"); }
+        if (commit?.length) memoriaMC.guarda(recuerdaPantalla(items, ledger));
         const gastada = RelicScreenService.tomaReliquiaElegida();
         if ((commit?.length || gastada) && typeof globalThis.commitMissionCompleteRewards === "function") {
             globalThis.commitMissionCompleteRewards(commit || [], gastada);
@@ -1001,6 +1021,10 @@ export const ScannerService = {
             addRewardDebugLog("CTX", `Skipped: end-of-mission screen detected ("${badToken}")`, "warn");
             return;
         }
+        if (foundItems.length > 0 && this._cabeceraVigente === false) {
+            console.log("[REWARD] Espera: el rótulo cambió y la cabecera aún no se ha releído");
+            return;
+        }
 
         if (foundItems.length > 0 && !this.detectionLocked) {
             foundItems.forEach(item => {
@@ -1065,6 +1089,12 @@ export const ScannerService = {
             console.log(`[INV] Theme detected: ${theme.name} (r:${theme.r} g:${theme.g} b:${theme.b})`);
 
             await cedeHilo(); reloj.fase("rejilla+tema");
+            const ancla = VisionService.anclaPorChecks(snapshot, gridZone, { ...calibData, heredada: !reciennacida });
+            const dx = ancla ? ancla.gridX - (calibData.gridX ?? gridZone.x) : 0, dy = ancla ? ancla.gridY - (calibData.gridY ?? gridZone.y) : 0;
+            if (ancla && (Math.abs(dx) > calibData.cellW * 0.04 || Math.abs(dy) > calibData.cellH * 0.04)) {
+                console.log(`[INV] fase por ✓ (${ancla.n} marcas): dx ${Math.round(dx)} dy ${Math.round(dy)}`);
+                calibData = { ...calibData, gridX: ancla.gridX, gridY: ancla.gridY };
+            }
             const autoGrid = VisionService.buildAutoGrid(snapshot, gridZone, theme, calibData);
             if (!autoGrid || autoGrid.cellRects.length === 0) {
                 console.warn("[INV] Auto-grid detection failed — inventory may not be visible or zone needs recalibration.");
@@ -1125,25 +1155,12 @@ export const ScannerService = {
             const textSrcH = Math.round(cellH * 0.48);
 
             console.log(`[INV] Preparadas ${activeCells.length} celdas activas; arrancando worker OCR...`);
-            if (motorActivo() !== MOTOR_PRECISO || !PaddleRepository.listo()) await OCRRepository.ensureWorkers(activeCells.length);
+            if (rejillaConClasico()) await OCRRepository.ensureWorkers(activeCells.length);
             const workers = OCRRepository.workers.filter(Boolean);
             console.log(`[INV] Workers OCR listos: ${workers.length}`);
 
-            if (!this._nameColorCache || this._nameColorCache.key !== calibKey) {
-                await cedeHilo();
-                const color = await electPageNameColor(workers[0], snapshot, activeCells, cellW, textSrcY, textSrcH, theme)
-                    || calibData?.nameColor;
-                if (color) this._nameColorCache = { key: calibKey, color };
-            }
-            const pageNameColor = this._nameColorCache?.color || null;
-            this.lastRawOcrLog.push(`[NAME-COLOR] ${pageNameColor ? `rgb(${pageNameColor.join(",")})` : "ninguno — cada celda mide el suyo"}`);
-
-            const hdr = `${agInfo} · name ${pageNameColor ? `rgb(${pageNameColor.join(",")})` : "por celda"}`;
-            dCtx.fillStyle = "rgba(0,0,0,0.72)";
-            dCtx.fillRect(0, 0, dCtx.measureText(hdr).width + 160, 20);
-            dCtx.fillStyle = pageNameColor ? `rgb(${pageNameColor.join(",")})` : "#ff5252";
-            dCtx.font = "bold 13px monospace";
-            dCtx.fillText(hdr, 6, 14);
+            let pageNameColor = this._nameColorCache?.key === calibKey ? this._nameColorCache.color : null;
+            if (pageNameColor) this.lastRawOcrLog.push(`[NAME-COLOR] rgb(${pageNameColor.join(",")})`);
 
             const pendingItems = [];
 
@@ -1160,6 +1177,23 @@ export const ScannerService = {
                 lotePreciso = await PaddleRepository.recognizeStripWords(snapshot, tiras)
                     .catch((e) => { console.warn("[Paddle] lote falló, voy celda a celda:", e); return null; });
             }
+
+            let eleccion = pageNameColor && Promise.resolve();
+            const colorDeNombre = () => eleccion ||= (async () => {
+                await cedeHilo();
+                pageNameColor = await electPageNameColor(workers[0], snapshot, activeCells, cellW, textSrcY, textSrcH, theme)
+                    || calibData?.nameColor || null;
+                if (pageNameColor) this._nameColorCache = { key: calibKey, color: pageNameColor };
+                this.lastRawOcrLog.push(`[NAME-COLOR] ${pageNameColor ? `rgb(${pageNameColor.join(",")})` : "ninguno — cada celda mide el suyo"}`);
+            })();
+            if (!lotePreciso) await colorDeNombre();
+
+            const hdr = `${agInfo} · name ${pageNameColor ? `rgb(${pageNameColor.join(",")})` : "por celda"}`;
+            dCtx.fillStyle = "rgba(0,0,0,0.72)";
+            dCtx.fillRect(0, 0, dCtx.measureText(hdr).width + 160, 20);
+            dCtx.fillStyle = pageNameColor ? `rgb(${pageNameColor.join(",")})` : "#ff5252";
+            dCtx.font = "bold 13px monospace";
+            dCtx.fillText(hdr, 6, 14);
 
             let cellIndex = 0;
             const runWorker = async (worker) => {
@@ -1225,10 +1259,15 @@ export const ScannerService = {
                     let relicText = combinedText, itemText = combinedText;
                     const readable = !this._isGarbledCellText(combinedText);
                     let relicMatch = readable ? OCRService.getRelicMatch(combinedText) : null;
+                    if (relicMatch && textoDelLote) {
+                        const r = corrige56(relicMatch, PaddleRepository.palabrasDelLote(clave(cell)), PaddleRepository.recorteDelLote(clave(cell)), (n) => !!globalThis.state?.allRelicNames?.includes(n));
+                        if (r.cambiado) { logStr += ` || 5/6 por glifo: ${r.nombre}`; relicMatch = r.nombre; }
+                    }
                     let bestItem = (readable && !relicMatch) ? OCRService.getValidItemMatch(combinedText) : null;
                     let fallbackText = null;
 
                     if (!bestItem && !relicMatch) {
+                        await colorDeNombre();
                         const fallbackY = Math.floor(cellH * 0.73);
                         const fallbackH = Math.floor(cellH * 0.26);
                         const fullCellCvs = VisionService.cropThemeBinarized(snapshot, cell.sx, cell.sy + fallbackY, cellW, fallbackH, theme, pageNameColor);
@@ -1366,6 +1405,7 @@ export const ScannerService = {
 
                 ScannerHUD.updateScrollStatus("done", this.sessionInventory.size + this.sessionRelics.size);
                 ScannerHUD.updateDetectedItems(this.sessionInventory, this.sessionRelics);
+                if (DucatKioskService.esKiosco(this.lastHeaderText)) this.onPaginaKiosco?.();
 
                 const expected = autoGrid.rows * autoGrid.cols;
                 const fails = scanStats.unmatched + scanStats.none;

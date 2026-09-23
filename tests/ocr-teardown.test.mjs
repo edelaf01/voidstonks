@@ -142,6 +142,16 @@ test("ScannerService.start no precalienta el 2º worker", () => {
   );
 });
 
+test("ScannerService.start no carga OpenCV", () => {
+  const src = readFileSync(
+    new URL("../deploy/js/services/scanner/scanner.service.js", import.meta.url),
+    "utf8",
+  );
+  const start = methodBody(src, /^\s*async start\(/);
+  assert.ok(start, "no se localizó el cuerpo de start()");
+  assert.doesNotMatch(stripComments(start), /OpenCV/);
+});
+
 test("MobileScanner.close libera los workers OCR", () => {
   const src = readFileSync(
     new URL("../deploy/js/scanner/mobile_scanner.js", import.meta.url),
