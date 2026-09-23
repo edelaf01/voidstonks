@@ -48,7 +48,7 @@ function normalizeRivenWeaponType(item) {
 }
 
 export async function fetchRivenWeapons() {
-    const CACHE_KEY = "voidstonkscache_weapons_v10";
+    const CACHE_KEY = "voidstonkscache_weapons_v11";
     const ONE_DAY = 24 * 60 * 60 * 1000;
     try {
         const cached = await dbHelper.get(CACHE_KEY);

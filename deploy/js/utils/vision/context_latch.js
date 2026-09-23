@@ -68,6 +68,16 @@ const TOPE_HEADER_ESTABLE = 3;
  * avatar and the animated glyph, and reaches the edge because "VOID FISSURE/REWARDS" ends at 0.97.
  */
 export const FRANJA_TITULO = Object.freeze({ x: 0.21, y: 0.30, w: 0.79, h: 0.42, cols: 64, filas: 8 });
+/** Header crop in frame fractions (drawn by VisionService.prepareVirtualCanvas). */
+export const RECORTE_CABECERA = Object.freeze({ w: 0.45, h: 0.12 });
+/**
+ * The strip in FRAME fractions, to sample it without drawing the header, which only the OCR needs. Base and
+ * sample always come from here: the same image differs up to 13 % between both methods.
+ */
+export const FRANJA_TITULO_VIDEO = Object.freeze({
+    x: RECORTE_CABECERA.w * FRANJA_TITULO.x, y: RECORTE_CABECERA.h * FRANJA_TITULO.y,
+    w: RECORTE_CABECERA.w * FRANJA_TITULO.w, h: RECORTE_CABECERA.h * FRANJA_TITULO.h, cols: 64, filas: 8,
+});
 /**
  * Fraction of changed strip samples that means another title: the same screen changes 0 %, the closest
  * real change (another session's inventory) 7 %.

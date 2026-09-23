@@ -1,6 +1,7 @@
 import { VisionService } from "./vision.service.js";
 import { freezeFrame, releaseFrame } from "../../utils/vision/frame_freeze.js";
-import { nextLatchedContext, INITIAL_LATCH, enrutaGraciaRiven, intervaloCabecera, INTERVALO_FIN_MISION_MS, CADUCIDAD_CABECERA_MS, FRANJA_TITULO, tituloHaCambiado } from "../../utils/vision/context_latch.js";
+import { nextLatchedContext, INITIAL_LATCH, enrutaGraciaRiven, intervaloCabecera, INTERVALO_FIN_MISION_MS, CADUCIDAD_CABECERA_MS, FRANJA_TITULO_VIDEO, tituloHaCambiado } from "../../utils/vision/context_latch.js";
+import { sensorDelEscaner, CADA_MS } from "../../utils/vision/wake_sensor.js";
 import { isImplausibleFallbackGrid } from "../../utils/vision/plausibility.js";
 import { corrige56 } from "../../utils/vision/relic_digit_56.js";
 import { filasEnFase } from "../../utils/vision/grid_alignment.js";
@@ -13,7 +14,6 @@ import { SquadService } from "./squad.service.js";
 import { RelicScreenService } from "./relic_screen.service.js";
 import { OCRRepository } from "../../repositories/ocr.repository.js";
 import { PaddleRepository } from "../../repositories/paddle.repository.js";
-import { OpenCVRepository } from "../../repositories/opencv.repository.js";
 import { ScannerHUD } from "../../ui.components/ui_scanner_hud.js";
 import { ScannerModal } from "../../ui.components/ui_scanner_modal.js";
 import { initializeOCRDatabase } from "../../repositories/api.repository.js";
@@ -111,7 +111,6 @@ export const ScannerService = {
         import("../rivens/rivens.service.js").then(m => m.fetchRivenWeapons()).catch(err => console.warn("Error fetching Riven weapons:", err));
 
         await OCRRepository.warmUp();
-        OpenCVRepository.waitReady().catch(() => { });
         OCRService.initMatcherData();
         // the pool is not warmed here: each worker is a WASM instance a rivens-only session never uses.
         // It is created on entering INVENTORY (routeFrameAction).
@@ -122,6 +121,7 @@ export const ScannerService = {
         this.isScanning = false;
         if (this.scanInterval) clearTimeout(this.scanInterval);
         this.scanInterval = null;
+        this._sensor?.para();
         OCRRepository.terminateAll();
         PaddleRepository.apaga();
         this._invQueue?.clear();
@@ -138,14 +138,11 @@ export const ScannerService = {
     },
 
     async loop() {
+        this._sensor?.para();
+        this._cartaVigilada = null;
         if (!this.isScanning) return;
-
         const video = document.getElementById("live-video");
-        if (!video || video.paused || video.ended) {
-            this.scanInterval = setTimeout(() => this.loop(), 1000);
-            return;
-        }
-
+        if (!video || video.paused || video.ended) { this.scanInterval = setTimeout(() => this.loop(), 1000); return; }
         try {
             await this.processFrame(video, this.virtualCanvas);
         } catch (e) {
@@ -153,6 +150,7 @@ export const ScannerService = {
         } finally {
             if (this.isScanning) {
                 this.scanInterval = setTimeout(() => this.loop(), this.currentRate);
+                if (this.latchedContext !== "UNKNOWN" && this.currentRate > 2 * CADA_MS) (this._sensor ||= sensorDelEscaner(this, video)).arma();
             }
         }
     },
@@ -169,14 +167,13 @@ export const ScannerService = {
         this.scanCounter++;
         const reloj = cronometro("frame", 120);
 
-        const dims = VisionService.prepareVirtualCanvas(video, virtualCanvas);
-
+        const dims = { width: video.videoWidth, height: video.videoHeight, scale: 1080 / video.videoHeight };
         const worker1 = OCRRepository.workers[0];
         if (!worker1) return;
 
         // title strip, not the whole header (the 16x9 hash missed SELL -> MODS). Baseline = last OCR'd
         // frame, or a slow fade would never fire.
-        const headerHash = regionLuma(virtualCanvas, FRANJA_TITULO);
+        const headerHash = regionLuma(video, FRANJA_TITULO_VIDEO);
         // a cached UNKNOWN is worth less: it can be a mission end denied its rescue
         const caducidad = this.latchedContext === "UNKNOWN" ? RESCATE_CABECERA_MS : CADUCIDAD_CABECERA_MS;
         const headerCacheFresh = this.lastHeaderOcrTime && (Date.now() - this.lastHeaderOcrTime < caducidad);
@@ -198,6 +195,7 @@ export const ScannerService = {
             headerText = this.lastHeaderText;
         } else {
             this._cabeceraVigente = true;
+            VisionService.prepareVirtualCanvas(video, virtualCanvas);
             const headerTheme = VisionService.finalizeVirtualCanvas(virtualCanvas);
             const { data: headerData } = await OCRRepository.recognize(worker1, virtualCanvas, {}, { text: true });
             headerText = headerData.text || "";
@@ -703,6 +701,7 @@ export const ScannerService = {
             this.lastRivenContextTime = Date.now();
             this.lastRivenContextType = contextType === "ITEM_DETAILS" ? "ITEM_DETAILS" : "INVENTORY_MODS";
             this.currentRate = this.RIVEN_RATE_IDLE;
+            this._cartaVigilada = cardCrop;
             return;
         }
 
