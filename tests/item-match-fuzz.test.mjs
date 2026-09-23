@@ -82,19 +82,24 @@ describe("matcher de piezas: qué pasa cuando el OCR lee mal", () => {
     const CON_BP = ["Neuroptics", "Systems", "Chassis", "Harness", "Wings", "Carapace", "Cerebrum"];
     const enPantalla = (k) => (CON_BP.some((c) => k.endsWith(` ${c}`)) ? `${k} Blueprint` : k);
 
-    test("cuántos nombres se convierten en otro ítem si se pierde una línea", () => {
+    test("si se pierde una línea, solo se cruza con el ítem que dice literalmente lo leído", () => {
+        const enMayus = new Set(NOMBRES.map((n) => n.toUpperCase()));
         let multilinea = 0, cruces = 0;
+        const evitables = [];
         for (const k of NOMBRES) {
             const palabras = enPantalla(k).toUpperCase().split(" ");
             if (palabras.length < 4) continue;
             multilinea++;
-            const leido = leer([...palabras.slice(0, 2), palabras.at(-1)].join(" "));
-            if (leido && leido !== k) cruces++;
+            const corto = [...palabras.slice(0, 2), palabras.at(-1)].join(" ");
+            const leido = leer(corto);
+            if (!leido || leido === k) continue;
+            cruces++;
+            if (!enMayus.has(corto) || leido.toUpperCase() !== corto) evitables.push(`${corto} -> ${leido} (era ${k})`);
         }
-        // Documenta la magnitud del agujero: hoy son 168 de 224. Si un cambio lo empeora,
-        // este número sube y el test lo dice; cuando se arregle, baja y hay que actualizarlo.
+        // Contar los cruces en absoluto fallaba con cada warframe prime nuevo: sus tres piezas
+        // con Blueprint (168 -> 171 con Citrine Prime) sin que el matcher cambiara.
         assert.ok(multilinea > 200, `esperaba 200+ nombres multilínea, hay ${multilinea}`);
-        assert.ok(cruces <= 168, `los cruces por línea perdida han EMPEORADO: ${cruces} (antes 168)`);
+        assert.deepEqual(evitables.slice(0, 5), [], `${evitables.length} cruces evitables de ${cruces} por línea perdida`);
     });
 
     test("leer el rótulo completo de pantalla sí da la pieza correcta", () => {

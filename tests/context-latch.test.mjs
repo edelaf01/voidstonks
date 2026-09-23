@@ -7,7 +7,7 @@
 
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { nextLatchedContext, INITIAL_LATCH, enrutaGraciaRiven, toleranciaCabecera, TOL_HEADER_BASE, intervaloCabecera, caducidadCabecera } from "../deploy/js/utils/vision/context_latch.js";
+import { nextLatchedContext, INITIAL_LATCH, enrutaGraciaRiven, intervaloCabecera, INTERVALO_FIN_MISION_MS, CADUCIDAD_CABECERA_MS, FRACCION_TITULO, tituloHaCambiado } from "../deploy/js/utils/vision/context_latch.js";
 
 /** Pasa una secuencia de contextos crudos y devuelve el enganchado tras cada uno. */
 function correr(secuencia, inicial = INITIAL_LATCH) {
@@ -110,28 +110,6 @@ describe("gracia de rivens", () => {
   });
 });
 
-describe("tolerancia del corte de cabecera", () => {
-  test("arranca estricta", () => {
-    // Con el corte flojo desde el principio, el salto gameplay->recompensas queda por debajo y
-    // el escáner reutiliza el texto viejo: se pierde la pantalla de elegir recompensa.
-    assert.equal(toleranciaCabecera(0), TOL_HEADER_BASE);
-  });
-
-  test("se afloja mientras el contexto no cambie", () => {
-    assert.ok(toleranciaCabecera(1) > toleranciaCabecera(0));
-    assert.ok(toleranciaCabecera(3) > toleranciaCabecera(1));
-  });
-
-  test("tiene tope: una racha larga no la deja crecer sin fin", () => {
-    assert.equal(toleranciaCabecera(50), toleranciaCabecera(3));
-  });
-
-  test("una racha negativa o ausente no rompe el corte", () => {
-    assert.equal(toleranciaCabecera(), TOL_HEADER_BASE);
-    assert.equal(toleranciaCabecera(-5), TOL_HEADER_BASE);
-  });
-});
-
 describe("cada cuánto se relee la cabecera", () => {
   test("con el contexto recién cambiado no se limita nada", () => {
     // Es justo cuando importa: el salto a la pantalla de recompensas no puede esperar.
@@ -154,14 +132,39 @@ describe("cada cuánto se relee la cabecera", () => {
 });
 
 describe("cuánto vale la cabecera sin releerla", () => {
-  test("en fin de misión dura mucho más: la pantalla no se mueve y no hay transición sutil", () => {
-    // Con frames de 3 s y una caducidad de 2,5 s se releían las tres pasadas en cada vuelta.
-    assert.ok(caducidadCabecera("MISSION_COMPLETE") >= 8000);
+  test("mucho: SELL -> MODS ya lo ve la franja del rótulo, el reloj solo acota una colisión", () => {
+    // Con 2,5 s se pagaba un OCR de cabecera cada 2,5 s con la pantalla quieta en el inventario.
+    assert.ok(CADUCIDAD_CABECERA_MS >= 10000);
   });
+});
 
-  test("en el resto sigue siendo el reloj quien detecta INVENTORY -> INVENTORY_MODS", () => {
-    // "SELL"/"MODS" no mueve un hash de 16×9: sin la caducidad corta, el cambio no se vería.
-    assert.equal(caducidadCabecera("INVENTORY"), 2500);
-    assert.equal(caducidadCabecera("UNKNOWN"), 2500);
+// La franja del rótulo a 64×8: misma pantalla 0 % de muestras cambiadas, SELL -> MODS 14-19 %.
+describe("franja del título", () => {
+  const franja = (cambiadas, delta = 100) => {
+    const base = new Uint8Array(512).fill(60);
+    const ahora = new Uint8Array(base);
+    for (let i = 0; i < cambiadas; i++) ahora[i] = 60 + delta;
+    return [ahora, base];
+  };
+  test("igual no ha cambiado; el 4 % de muestras sí", () => {
+    assert.equal(tituloHaCambiado(...franja(0)), false);
+    assert.equal(tituloHaCambiado(...franja(19)), false, "3,7 %");
+    assert.equal(tituloHaCambiado(...franja(21)), true, "4,1 %");
+    assert.equal(FRACCION_TITULO, 0.04);
   });
+  test("el ruido de vídeo (poca diferencia en todas) no cuenta", () => {
+    assert.equal(tituloHaCambiado(...franja(512, 20)), false);
+  });
+  test("sin base se relee", () => {
+    assert.equal(tituloHaCambiado(new Uint8Array(512), null), true);
+  });
+});
+
+// "Se queda escaneando contextos como si fuera bobo en mission complete": la escena animada
+// tras el título movía la franja y se pagaban ~200 ms de cabecera cada segundo en una pantalla
+// que no cambia hasta que el jugador pulsa.
+test("en fin de misión, con el contexto asentado, la cabecera se relee cada 3 s", () => {
+  assert.equal(intervaloCabecera(3, "MISSION_COMPLETE"), INTERVALO_FIN_MISION_MS);
+  assert.equal(intervaloCabecera(1, "MISSION_COMPLETE"), intervaloCabecera(1), "recién entrado, el ritmo normal: aún hay que confirmar");
+  assert.equal(intervaloCabecera(3, "REWARD"), intervaloCabecera(3), "las recompensas duran 15 s: ahí no se relaja");
 });

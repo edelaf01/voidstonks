@@ -31,6 +31,29 @@ export function closenessWeight(setMissing) {
   return 1 / (quedan * quedan);
 }
 
+/**
+ * Platino que se espera de UNA apertura: en escuadra se abren `squadSize` reliquias y te quedas
+ * con la mejor recompensa, así que es la esperanza del máximo, no la suma de chance × precio
+ * (que con 4 abriendo pasaba de 1 y prometía más que la pieza más cara).
+ * `null` si ninguna pieza que falte tiene precio.
+ */
+export function expectedPlatPerCrack(missing, getPrice, squadSize = 4) {
+  const n = Math.max(1, squadSize);
+  const piezas = missing
+    .map((m) => ({ precio: getPrice(m.part) || 0, single: m.single ?? 1 - Math.pow(1 - m.chance, 1 / n) }))
+    .filter((x) => x.precio > 0)
+    .sort((a, b) => b.precio - a.precio);
+  if (piezas.length === 0) return null;
+  let esperado = 0, acumulada = 0, pAnterior = 0;
+  for (const { precio, single } of piezas) {
+    acumulada += single;
+    const pAlMenos = 1 - Math.pow(Math.max(0, 1 - acumulada), n);
+    esperado += precio * (pAlMenos - pAnterior);
+    pAnterior = pAlMenos;
+  }
+  return Math.round(esperado * 10) / 10;
+}
+
 /** La era va en la primera palabra del nombre ("Lith G1"). "Vanguard" es como el worldstate llama a Axi. */
 export function tierOfRelic(relicName) {
   const tier = String(relicName || "").trim().split(/\s+/)[0] || "";
@@ -87,13 +110,7 @@ export function rankRelicPicks(deps, limit = 8) {
     // no dice a dónde ir, que es la mitad del plan que sí da la vista por set.
     const fisura = bestFissure(suyas);
 
-    // Lo que te llevas si sale algo útil: el valor MEDIO de las piezas que te faltan, no la
-    // suma — de una apertura sale UNA recompensa, y sumarlas prometería cuatro.
-    let valor = null;
-    if (getPrice) {
-      const precios = v.missing.map((m) => getPrice(m.part) || 0).filter((n) => n > 0);
-      if (precios.length > 0) valor = Math.round(precios.reduce((a, b) => a + b, 0) / precios.length);
-    }
+    const valor = getPrice ? expectedPlatPerCrack(v.missing, getPrice, squadSize) : null;
 
     // Las que CIERRAN un set con una sola apertura, y con qué probabilidad. Es el dato que
     // decide el clic cuando tienes la pantalla de selección delante, y estaba solo en el
@@ -121,7 +138,9 @@ export function rankRelicPicks(deps, limit = 8) {
       // Recompensas DISTINTAS que te sirven. Es el número que pediste: con varias, casi
       // cualquier resultado de la apertura te vale.
       useful: v.missing.length,
-      odds: v.odds,
+      // Por APERTURA, no gastando todas las copias: con 61 Lith N12 la acumulada daba "100 %"
+      // para una rara al 10 %, y eso no es lo que decide qué reliquia meter en la siguiente run.
+      odds: Number.isFinite(v.runs) ? 1 / v.runs : 0,
       runs: v.runs,
       // Los sets a los que aporta, sin repetir: una reliquia puede dar dos piezas del mismo.
       sets: [...new Set(v.missing.map((m) => m.set))],

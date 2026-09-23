@@ -164,6 +164,13 @@ test("ocr.service: getRelicMatch acepta confusiones OCR de forma (NEC≈NEO, C�
   assert.equal(OCRService.getRelicMatch(["NEX", "G1"]), null);
 });
 
+// Paddle devuelve una caja por línea y a veces sin el espacio antes del sufijo: 1 de 101
+// reliquias del banco salía "NEO A14RELIC" y el código, con el sufijo pegado, medía 8 y no cabía.
+test("ocr.service: getRelicMatch separa el sufijo pegado al código (A14RELIC)", () => {
+  assert.equal(OCRService.getRelicMatch(["AXI", "A14RELIC"]), "Axi A14");
+  assert.equal(OCRService.getRelicMatch(["NEO", "N2RELIQUIA"]), "Neo N2");
+});
+
 test("ocr.service: getRelicMatch tolera el tier TRUNCADO por prefijo único (AX -> AXI)", () => {
   // La "I" fina de "AXI" se pierde con el arte de reliquia detrás: "AX A10 RELIC".
   assert.equal(OCRService.getRelicMatch(["AX", "A2", "RELIC"]), "Axi A2");

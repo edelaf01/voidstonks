@@ -185,3 +185,155 @@ test("se puede pedir otro modelo por nombre, y uno inexistente cae al nuestro", 
     P._initPromise = null;
   }
 });
+
+// --- Worker ---------------------------------------------------------------------------------
+//
+// La inferencia va en paddle.worker.js; en la página solo queda el cliente. Sin las APIs del
+// navegador (Node) todo lo de arriba sigue por el hilo, así que aquí se instalan de mentira.
+import { existsSync } from "node:fs";
+import { crearWorkerFalso, libreriaFalsa } from "./_helpers/fake-paddle-worker.mjs";
+const { RUTA_WORKER_PADDLE } = await import("../deploy/js/repositories/paddle.repository.js");
+
+function conWorker({ muereAlArrancar = false, recognize } = {}) {
+  reiniciaPaddle();
+  P._arranquesWorker = 0; P._modo = null; P.ultimoFallo = null;
+  const { mod, inits } = libreriaFalsa({ recognize });
+  const urls = [];
+  const { WorkerFalso, creados } = crearWorkerFalso({ importar: async (u) => { urls.push(u); return mod; }, muereAlArrancar });
+  globalThis.Worker = WorkerFalso;
+  globalThis.OffscreenCanvas = class {};
+  globalThis.createImageBitmap = async () => ({ width: 8, height: 4 }); // sin funciones: por el canal viaja clonado
+  globalThis.document = { baseURI: "https://voidstonks.com/scanner.html" };
+  const ruido = { log: console.log, error: console.error };
+  const errores = [];
+  console.log = () => {}; console.error = (...a) => errores.push(a.map(String).join(" "));
+  return {
+    inits, urls, creados, errores,
+    restaura() {
+      console.log = ruido.log; console.error = ruido.error;
+      for (const c of creados) c.terminate();
+      delete globalThis.Worker; delete globalThis.OffscreenCanvas; delete globalThis.createImageBitmap; delete globalThis.document; delete globalThis.PADDLE_WORKER;
+      reiniciaPaddle(); P._arranquesWorker = 0; P._modo = null;
+    },
+  };
+}
+
+test("con Worker disponible el motor arranca en el worker y la página no importa la librería", async () => {
+  const h = conWorker();
+  try {
+    await P.warmUp();
+    assert.equal(P.modo(), "worker");
+    assert.deepEqual(h.urls, [MODULO_FALSO], "el CDN configurado viaja al worker");
+    assert.equal(globalThis.__paddleInits, 0, "la página no cargó la librería");
+    assert.equal(h.creados.length, 1);
+    assert.match(h.creados[0].url, /\/deploy\/js\/repositories\/paddle\.worker\.js\?v=/);
+    assert.deepEqual(h.creados[0].opts, { type: "module" });
+    assert.equal(h.inits[0].model.detection, "https://voidstonks.com/assets/ocr/PP-OCRv6_tiny_det.ort", "rutas absolutas desde la página");
+    assert.equal(P.ultimoFallo, null);
+  } finally { h.restaura(); }
+});
+
+test("si el worker no arranca cae al hilo principal y lo dice por console.error", async () => {
+  const h = conWorker({ muereAlArrancar: true });
+  try {
+    await P.warmUp();
+    assert.equal(P.modo(), "hilo");
+    assert.equal(globalThis.__paddleInits, 1);
+    assert.equal(P.ultimoFallo, null);
+    assert.ok(h.errores.some((e) => /no arrancó/.test(e)), h.errores.join("\n"));
+  } finally { h.restaura(); }
+});
+
+test("si el worker muere a mitad, la lectura en vuelo falla y el motor vuelve solo", async () => {
+  const h = conWorker({ recognize: () => new Promise(() => {}) }); // nunca contesta: simula el cuelgue
+  try {
+    await P.warmUp();
+    const primero = h.creados[0];
+    const lectura = P.recognizeWords({ canvas: true });
+    await new Promise((r) => setTimeout(r, 0));
+    primero.onerror({ message: "boom" });
+    await assert.rejects(lectura, /boom/);
+    assert.match(String(P.ultimoFallo?.message), /boom/, "en el hueco rejillaConClasico() da true");
+    await P.warmUp();
+    assert.equal(P.modo(), "worker");
+    assert.equal(P._arranquesWorker, 2);
+    assert.equal(P.ultimoFallo, null);
+  } finally { h.restaura(); }
+});
+
+test("tras dos muertes se queda en el hilo principal", async () => {
+  const h = conWorker();
+  try {
+    await P.warmUp();
+    h.creados[0].onerror({ message: "1" });
+    await new Promise((r) => setTimeout(r, 0));
+    await P.warmUp();
+    h.creados[1].onerror({ message: "2" });
+    await new Promise((r) => setTimeout(r, 0));
+    await P.warmUp();
+    assert.equal(P.modo(), "hilo");
+    assert.equal(h.creados.length, 2);
+  } finally { h.restaura(); }
+});
+
+test("PADDLE_WORKER=false fuerza el hilo aunque haya Worker", async () => {
+  const h = conWorker();
+  try {
+    globalThis.PADDLE_WORKER = false;
+    await P.warmUp();
+    assert.equal(P.modo(), "hilo");
+    assert.equal(h.creados.length, 0);
+  } finally { h.restaura(); }
+});
+
+test("el fichero del worker existe donde apunta el repositorio", () => {
+  // import-graph no mira `new URL(...)`: esto es lo único que avisa de un renombrado.
+  const ruta = new URL(RUTA_WORKER_PADDLE.split("?")[0], new URL("../deploy/js/repositories/paddle.repository.js", import.meta.url));
+  assert.equal(existsSync(ruta), true, String(ruta));
+});
+
+// Al cerrar el escáner el worker (onnxruntime + modelos, ~200 MB) se quedaba entre sesiones.
+test("apaga() termina el worker y deja el motor listo para recargarse", async () => {
+  const h = conWorker();
+  try {
+    await P.warmUp();
+    assert.equal(P.modo(), "worker");
+    P.apaga();
+    assert.equal(h.creados[0].terminado, true);
+    assert.equal(P.listo(), false);
+    assert.equal(P._initPromise, null);
+    await P.warmUp();
+    assert.equal(P.modo(), "worker", "la siguiente sesión lo vuelve a arrancar");
+    assert.equal(h.creados.length, 2);
+  } finally { h.restaura(); }
+});
+
+test("apaga() no toca el servicio en hilo principal: no se puede liberar", async () => {
+  reiniciaPaddle();
+  const ruido = console.log; console.log = () => {};
+  try { await P.warmUp(); } finally { console.log = ruido; }
+  assert.equal(P.modo(), "hilo");
+  P.apaga();
+  assert.equal(P.listo(), true);
+});
+
+// Para el 5/6 del código de una reliquia hace falta DÓNDE está la palabra: el lote guarda, por
+// tira, sus líneas con caja y el montaje a color donde caen.
+test("el lote guarda por tira las palabras con caja y un recorte del montaje", async () => {
+  const { FakeCanvas, installFakeDocument } = await import("./_helpers/fake-canvas.mjs");
+  const habiaDocument = globalThis.document;
+  installFakeDocument(); // montaTiras crea el canvas del montaje con document.createElement
+  const frame = new FakeCanvas(600, 400);
+  P._service = { recognize: async (canvas) => ({ lines: [[{ text: "Lith A5", box: { x: 10, y: 4, width: 120, height: 30 }, confidence: 0.9 }], [{ text: "Relic", box: { x: 10, y: 60, width: 80, height: 30 }, confidence: 0.9 }]] }) };
+  P._initPromise = Promise.resolve(P._service);
+  const salida = await P.recognizeStripWords(frame, [{ clave: "r0c0", sx: 0, sy: 0, sw: 277, sh: 140 }]);
+  assert.deepEqual(salida.get("r0c0"), ["LITH", "A5", "RELIC"]);
+  const palabras = P.palabrasDelLote("r0c0");
+  assert.deepEqual(palabras.map((w) => w.text), ["Lith", "A5", "Relic"]);
+  assert.deepEqual(palabras[1].bbox, { x0: 70, x1: 130, y0: 4, y1: 34 }, "la caja del código, repartida por caracteres dentro de su línea");
+  const recorte = P.recorteDelLote("r0c0")(palabras[1].bbox);
+  assert.equal(recorte.width, 60 + 6); assert.equal(recorte.height, 30 + 6);
+  assert.equal(P.palabrasDelLote("r9c9").length, 0);
+  assert.equal(P.recorteDelLote("r9c9")({ x0: 0, y0: 0, x1: 10, y1: 10 }), null);
+  if (habiaDocument === undefined) delete globalThis.document; else globalThis.document = habiaDocument;
+});

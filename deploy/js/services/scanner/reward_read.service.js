@@ -62,7 +62,9 @@ export async function leeRotulosMissionComplete(frame, celdas) {
     }));
     try {
         const salida = new Map();
-        for (const { canvas, tramos } of montaTiras(frame, tiras, { hueco: 10 })) {
+        // A 2x y no al 1,5x por defecto: el rótulo va sobre el arte y a 1,5x el stream en vivo dio
+        // "PRIME IMB" por "Limbo Prime" (el matcher no llega); a 2x sale "LIMBOPRIME". Son 15 tiras.
+        for (const { canvas, tramos } of montaTiras(frame, tiras, { hueco: 10, escala: 2 })) {
             const res = await PaddleRepository.recognizeLines(canvas);
             for (const [clave, suyas] of repartePorTramos(res, tramos)) {
                 salida.set(clave, suyas.map((l) => l.text).join(" ").toUpperCase());

@@ -171,6 +171,23 @@ describe("cascada por coste", () => {
 const { leeCasillaMissionComplete } = await import("../deploy/js/services/scanner/reward_read.service.js");
 const { VisionService } = await import("../deploy/js/services/scanner/vision.service.js");
 
+// Visto en vivo: a 1,5x el stream dio "PRIME IMB BLUEPRINT" por "Limbo Prime Blueprint" (rótulo
+// sobre el arte) y el matcher no llega; a 2x el mismo montaje lee "LIMBOPRIME".
+test("los rótulos de fin de misión se montan a 2x", async () => {
+  const { leeRotulosMissionComplete } = await import("../deploy/js/services/scanner/reward_read.service.js");
+  const { FakeCanvas } = await import("./_helpers/fake-canvas.mjs");
+  const frame = new FakeCanvas(600, 400);
+  const origListo = PaddleRepository.listo, origLines = PaddleRepository.recognizeLines;
+  let montaje = null;
+  PaddleRepository.listo = () => true;
+  PaddleRepository.recognizeLines = async (canvas) => { montaje = canvas; return []; };
+  try {
+    await leeRotulosMissionComplete(frame, [{ row: 0, col: 0, x: 0, y: 0, w: 240, h: 240 }]);
+    assert.equal(montaje.width, 480, "ancho de la tira a 2x");
+    assert.equal(montaje.height, Math.round(240 * 0.45) * 2);
+  } finally { PaddleRepository.listo = origListo; PaddleRepository.recognizeLines = origLines; }
+});
+
 describe("una casilla de fin de misión", () => {
   const st = state;
   const celda = { row: 0, col: 2, x: 0, y: 0, w: 240, h: 240, qty: 1 };

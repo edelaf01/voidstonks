@@ -61,6 +61,9 @@ export class FakeCanvas {
 
   toDataURL() { return "data:image/png;base64,"; }
 
+  // Sin codificador: el "fichero" son los píxeles crudos, que basta para contar bytes y rutas.
+  toBlob(cb, tipo = "image/png") { cb(new Blob([this._data], { type: tipo })); }
+
   /** Color de un píxel, para comprobar resultados. */
   px(x, y) {
     const i = (y * this._w + x) * 4;
@@ -202,6 +205,7 @@ function crearContexto(canvas) {
     // comprueba depende de ellas.
     clearRect() {},
     strokeRect() {},
+    setLineDash() {}, getLineDash: () => [],
     fillText() {},
     strokeText() {},
     beginPath() {}, closePath() {}, moveTo() {}, lineTo() {}, stroke() {}, fill() {},

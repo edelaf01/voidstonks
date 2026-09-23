@@ -60,12 +60,10 @@ function normalizeRivenWeaponType(item) {
  * Loads weapon database, updates state.weaponMap and state.allRivenNames.
  */
 export async function fetchRivenWeapons() {
-    // v10 (jul 2026): dedup por slug de las claves de metastats ("Ax 52" duplicaba a "Ax-52",
-    // ídem EFV-5/EFV-8/Riot-848/Dark Split-Sword). Bumpear la versión invalida la caché de
-    // IndexedDB de todos los clientes para que reconstruyan weaponMap desde el
-    // cleaned_weapons.json nuevo en la siguiente carga (sin esperar el TTL de 24h).
-    // Súbela cada vez que cambien los datos de armas.
-    const CACHE_KEY = "voidstonkscache_weapons_v10";
+    // Bumpear la versión invalida la caché de IndexedDB de todos los clientes para que
+    // reconstruyan weaponMap desde el cleaned_weapons.json nuevo en la siguiente carga (sin
+    // esperar el TTL de 24h). La sube scripts-actu/actualizar_contenido.py al cambiar las armas.
+    const CACHE_KEY = "voidstonkscache_weapons_v11";
     const ONE_DAY = 24 * 60 * 60 * 1000;
     try {
         const cached = await dbHelper.get(CACHE_KEY);
@@ -170,9 +168,8 @@ export async function fetchRivenWeapons() {
 }
 
 async function fetchWeaponCombatStats() {
-    // v10 (ago 2026): la v9 se generó con la regla vieja "proyectil ⇒ CO multiplicativo" y
-    // con melee siempre multiplicativo; sin bump, esos coScaling erróneos vivirían en la caché
-    // del cliente hasta una semana. Súbela cuando salga un arma nueva o cambie la forma de statsDB.
+    // Sin bump, lo cacheado vive en el cliente hasta una semana. Súbela si cambia la forma de
+    // statsDB; por armas nuevas la sube scripts-actu/actualizar_contenido.py cuando llegan a WFCD master.
     const CACHE_KEY = "voidstonkscache_combat_stats_v10";
     const ONE_WEEK = 7 * 24 * 60 * 60 * 1000;
     try {

@@ -5,6 +5,7 @@ import { RELIC_GRID_CROP, parseRelicGrid } from "../../utils/vision/relic_grid.j
 import { voteReadings, applyRelicCounts } from "../../utils/inventory/relic_votes.js";
 import { smallCanvasHash, compareHashes } from "../../utils/vision/frame_hash.js";
 import { collectWords } from "../../utils/vision/ocr_words.js";
+import { corrige56 } from "../../utils/vision/relic_digit_56.js";
 import { VisionService } from "./vision.service.js";
 import { OCRService } from "./ocr.service.js";
 import { motorActivo, MOTOR_PRECISO } from "./ocr_engine.service.js";
@@ -42,23 +43,32 @@ export const RelicScreenService = {
     votes: new Map(),
     applied: new Map(),
 
+    _leyendoRejilla: null,
+
     async process(video, dims) {
-        await this.trackSelected(video, dims);
-        await this.readGrid(video);
+        const cambio = await this.trackSelected(video, dims);
+        // La rejilla (dos pasadas de Tesseract, 2,5-3,5 s) NO bloquea el bucle: elegir una
+        // reliquia y luego otra tardaba en verse lo que durase la lectura. Va detrás, una en
+        // vuelo como mucho, y el tick en que cambia la selección se salta: solo se movió el marco.
+        if (cambio || this._leyendoRejilla) return;
+        this._leyendoRejilla = this.readGrid(video)
+            .catch((e) => console.warn("[RELICS] lectura de rejilla:", e))
+            .finally(() => { this._leyendoRejilla = null; });
     },
 
     /**
      * La reliquia que el jugador tiene puesta, para el aviso de seguimiento. Es lo que
      * hacía ScannerService.processRelicSelection; vive aquí porque es la misma pantalla.
      */
+    /** @returns true si la reliquia elegida acaba de cambiar */
     async trackSelected(video, dims) {
         const worker = OCRRepository.workers[0];
-        if (!worker) return;
+        if (!worker) return false;
         const canvas = VisionService.prepareRelicSelectionCanvas(video, dims.scale);
         // Esta pasada corría en CADA frame sin corte ninguno, y es un Tesseract entero: en la
         // pantalla de reliquias era el grueso del gasto, releyendo el mismo rótulo para siempre.
         const hash = smallCanvasHash(canvas);
-        if (this.lastSelHash && compareHashes(hash, this.lastSelHash, TOLERANCIA_BASE)) return;
+        if (this.lastSelHash && compareHashes(hash, this.lastSelHash, TOLERANCIA_BASE)) return false;
         this.lastSelHash = hash;
         const { data } = await OCRRepository.recognize(worker, canvas, {}, { text: true });
 
@@ -69,7 +79,9 @@ export const RelicScreenService = {
         if (relicMatch && relicMatch !== this.lastTrackedRelic) {
             this.lastTrackedRelic = relicMatch;
             if (globalThis.showTrackConfirm) globalThis.showTrackConfirm(relicMatch, data.text);
+            return true;
         }
+        return false;
     },
 
     /**
@@ -110,8 +122,23 @@ export const RelicScreenService = {
         // pantalla: con ella se vio que los nombres se leen casi todos (18 de 19) y lo que falta
         // son los contadores. Sin ella solo se sabe cuántas salieron.
         const traza = {};
-        const read = parseRelicGrid(await this.leePalabras(worker, video, cvs),
-            { matchRelic: (w) => OCRService.getRelicMatch(w), trace: traza });
+        const palabras = await this.leePalabras(worker, video, cvs);
+        // 5/6 en el código: el texto no lo delata (las dos reliquias existen); el glifo sí, sobre
+        // el recorte a COLOR con la misma geometría que las cajas (utils/vision/relic_digit_56.js).
+        let color = null;
+        const recorta = ({ x0, y0, x1, y1 }) => {
+            color ??= VisionService.prepareCropColorForOCR(video, RELIC_GRID_CROP, 1.25, "relicGridColor");
+            const pad = 3, sx = Math.max(0, Math.floor(x0) - pad), sy = Math.max(0, Math.floor(y0) - pad);
+            const sw = Math.min(color.width - sx, Math.ceil(x1 - x0) + pad * 2), sh = Math.min(color.height - sy, Math.ceil(y1 - y0) + pad * 2);
+            return sw > 2 && sh > 2 ? color.getContext("2d", { willReadFrequently: true }).getImageData(sx, sy, sw, sh) : null;
+        };
+        const existe = (n) => (state.allRelicNames || []).includes(n);
+        const matchRelic = (w) => {
+            const r = corrige56(OCRService.getRelicMatch(w), w, recorta, existe);
+            if (r.cambiado) console.log(`[RELICS] 5/6 por glifo: ${r.nombre} (margen ${r.margen.toFixed(2)})`);
+            return r.nombre;
+        };
+        const read = parseRelicGrid(palabras, { matchRelic, trace: traza });
         console.log(`[RELICS] ${read.length} de ${traza.nombres} nombres · contadores ${traza.contadoresConCasilla}/${traza.candidatosContador}`,
             traza.perdidas);
         // Antes de votar: `voteReadings` escribe en `applied` y ya no se sabría qué era nuevo.

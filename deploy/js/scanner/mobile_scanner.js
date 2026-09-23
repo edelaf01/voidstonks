@@ -364,6 +364,7 @@ export class MobileScanner {
     // sólo paraba la cámara: al cerrar el escáner en móvil la RAM se quedaba retenida
     // hasta recargar la página. El siguiente escaneo los recrea con warmUp().
     OCRRepository.terminateAll();
+    PaddleRepository.apaga();
     globalThis.mobileScanner = null;
     globalThis.currentScanner = null;
   }

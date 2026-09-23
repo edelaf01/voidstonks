@@ -238,3 +238,17 @@ test("el snapshot compartido se queda en KV", () => {
     assert.match(body, /PriceSnapshot\.read\(env\)/);
     assert.ok(!body.includes("EdgeCache"), "el documento global no puede depender de un solo colo");
 });
+
+// Visto en vivo: "Vender ~96" por una reliquia que intacta se vende a 20. `/top` de warframe.market
+// no da las más baratas para reliquias y mezcla refinamientos; se piden todas y se filtran intactas.
+test("una reliquia se valora por sus ventas INTACTAS más baratas, no por /top ni por las radiantes", { skip: !PriceSnapshot && "sin worker-code.js" }, () => {
+    const orden = (platinum, subtype, type = "sell", status = "ingame") => ({ platinum, subtype, type, user: { status } });
+    const todas = { data: [
+        orden(30, "radiant"), orden(55, "intact"), orden(8, "intact"), orden(9, "intact"), orden(10, "intact"), orden(10, "intact"), orden(72, "intact"),
+        orden(4, "intact", "buy"), orden(2, "intact", "sell", "offline"),
+    ] };
+    assert.equal(PriceSnapshot.priceIntactRelic(todas), 10, "mediana de las 5 intactas online más baratas: 8,9,10,10,55");
+    assert.equal(PriceSnapshot.priceIntactRelic({ data: [orden(30, "radiant")] }), 0, "solo radiantes: sin precio intacta");
+    assert.equal(PriceSnapshot.esReliquia("axi_v8_relic"), true);
+    assert.equal(PriceSnapshot.esReliquia("limbo_prime_blueprint"), false);
+});

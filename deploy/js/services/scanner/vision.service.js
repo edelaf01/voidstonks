@@ -8,6 +8,7 @@ import { NAME_TEXT_COLORS, snapToThemeTextColor, rampCoreColor, bandInkHistogram
 import { themeTextMask } from "../../utils/vision/theme_mask.js";
 import { inkRunRatio } from "../../utils/vision/ink_runs.js";
 import { maxChannelPreset } from "../../utils/vision/reward_preprocess.js";
+import { RECORTE_CABECERA } from "../../utils/vision/context_latch.js";
 // La tabla y el snap viven en utils/, pero varios módulos y tests los importan
 // históricamente desde aquí.
 export { NAME_TEXT_COLORS, snapToThemeTextColor };
@@ -45,7 +46,7 @@ export async function applyBestCameraConstraints(stream) {
 
 
 
-import { eligeTema } from "../../utils/vision/theme_vote.js";
+import { eligeTema, decideTema } from "../../utils/vision/theme_vote.js";
 
 // Ampliación de la banda de nombre antes del OCR. A 2x se pierden lecturas en temas de bajo
 // contraste (Akjagara Barrel en el tema rojo; baruuk 17/18 en el banco). A 3x el texto sale a
@@ -53,9 +54,8 @@ import { eligeTema } from "../../utils/vision/theme_vote.js";
 // celdas) a 2,5x casan las mismas y las 19 lecturas que cambian salen más limpias.
 const CELL_UPSCALE = 2.5;
 
-// Frames seguidos que necesita un tema nuevo para relevar al vigente (~3 s al ritmo del escáner).
-const FRAMES_PARA_CAMBIAR_TEMA = 3;
 import { WF_THEMES, WF_THEMES_VOTABLES } from "../../utils/vision/wf_themes.js";
+import { buscaChecks, faseDesdeChecks, ventanasDeFilas } from "../../utils/vision/check_anchor.js";
 export { WF_THEMES };
 
 
@@ -88,10 +88,13 @@ export const VisionService = {
     _sharedCvs: document.createElement("canvas"),
     _themeCvs: document.createElement("canvas"),
     // { name, n }: frames seguidos que lleva ganando un tema distinto al vigente.
-    _temaRacha: null,
+    _temaVotos: [],
     _tempBadgeCvs: document.createElement("canvas"),
     _badgeCvs: document.createElement("canvas"),
     _relicSelectionCvs: document.createElement("canvas"),
+    _kioskPanelCvs: document.createElement("canvas"),
+    _dialogCvs: document.createElement("canvas"),
+    _currencyCvs: document.createElement("canvas"),
     _rewardCvs: document.createElement("canvas"),
     _rewardNamesCvs: document.createElement("canvas"),
     _rivenCvs: document.createElement("canvas"),
@@ -170,9 +173,6 @@ export const VisionService = {
             return rects.sort((a, b) => a.y - b.y);
         }) || [];
     },
-    /**
-     * Prepares a virtual canvas for OCR from a video frame.
-     */
     prepareVirtualCanvas(video, canvas) {
         const width = video.videoWidth;
         const height = video.videoHeight;
@@ -182,11 +182,13 @@ export const VisionService = {
         // (e.g. "VOID FISSURE/REWARDS", "INVENTORY", "RELIC REFINEMENT") is always located.
         // This completely avoids the middle/right background graphic and sparks from skewing
         // the K-means clustering threshold, ensuring 100% stable context detection.
-        const hCropW = Math.floor(width * 0.45);
-        const hCropH = Math.floor(height * 0.12);
+        const hCropW = Math.floor(width * RECORTE_CABECERA.w);
+        const hCropH = Math.floor(height * RECORTE_CABECERA.h);
 
-        canvas.width = Math.floor(hCropW * scale);
-        canvas.height = Math.floor(hCropH * scale);
+        // Asignar width/height realoca el backing store aunque el valor no cambie, y esto corre en cada tick.
+        const w = Math.floor(hCropW * scale), h = Math.floor(hCropH * scale);
+        if (canvas.width !== w) canvas.width = w;
+        if (canvas.height !== h) canvas.height = h;
 
         const ctx = canvas.getContext("2d", { willReadFrequently: true });
         ctx.drawImage(video, 0, 0, hCropW, hCropH, 0, 0, canvas.width, canvas.height);
@@ -357,7 +359,7 @@ export const VisionService = {
      * text pixels (distance ~0) vastly outweigh a large background of slightly
      * mismatched color (e.g. red lighting), preventing false "Stalker" detection.
      */
-    detectThemeFromSnapshot(snapshot, sampleX, sampleY, sampleW, sampleH) {
+    detectThemeFromSnapshot(snapshot, sampleX, sampleY, sampleW, sampleH, { sinRecuerdo = false } = {}) {
         const cvs = this._themeCvs;
         cvs.width = sampleW; cvs.height = sampleH;
         const ctx = cvs.getContext("2d", { willReadFrequently: true });
@@ -369,7 +371,10 @@ export const VisionService = {
 
         // El guard va ANTES del log: al revés anunciaba temas que descartaba acto seguido.
         if (!voto) {
-            const estable = globalThis.state?.lastStableTheme;
+            // `sinRecuerdo`: el título centrado de FIN DE MISIÓN no es del color del tema de la sesión
+            // (oro más oscuro que el Vitruvian recordado), y binarizarlo por distancia a ese recuerdo
+            // dejaba el recorte en blanco: nunca se leía. Sin tema se lee el recorte tal cual.
+            const estable = sinRecuerdo ? null : globalThis.state?.lastStableTheme;
             console.log(`[VisionService] Sin tema fiable — se mantiene ${estable ? estable.name : "ninguno"}`);
             return estable || null;
         }
@@ -379,17 +384,13 @@ export const VisionService = {
         // frame flojo bastaba para cambiarlo y el escáner alternaba: medido en vivo, una sesión
         // de tema Vitruvian (afinidad 0,887) saltaba a Grineer (0,517) y volvía, y con el tema
         // equivocado todas las máscaras por color de después leen mal.
+        // El porqué de la ventana y del voto inequívoco, en decideTema (utils/vision/theme_vote.js).
         const estable = globalThis.state?.lastStableTheme;
-        if (estable && estable.name !== voto.tema.name) {
-            this._temaRacha = this._temaRacha?.name === voto.tema.name
-                ? { name: voto.tema.name, n: this._temaRacha.n + 1 }
-                : { name: voto.tema.name, n: 1 };
-            if (this._temaRacha.n < FRAMES_PARA_CAMBIAR_TEMA) {
-                console.log(`[VisionService] ${voto.tema.name} (${voto.afinidad.toFixed(3)}) ${this._temaRacha.n}/${FRAMES_PARA_CAMBIAR_TEMA} — se mantiene ${estable.name}`);
-                return estable;
-            }
-        } else {
-            this._temaRacha = null;
+        const decision = decideTema(estable, voto, this._temaVotos);
+        this._temaVotos = decision.votos;
+        if (!decision.releva) {
+            console.log(`[VisionService] ${voto.tema.name} (${voto.afinidad.toFixed(3)}) ${decision.n}/3 de los últimos 5 — se mantiene ${estable.name}`);
+            return estable;
         }
 
         const { tema, actualR, actualG, actualB, afinidad } = voto;
@@ -922,6 +923,36 @@ export const VisionService = {
         const ctx = cvs.getContext("2d", { willReadFrequently: true });
         ctx.filter = "grayscale(100%) brightness(1.2) contrast(300%)";
         ctx.drawImage(video, rsCropX, rsCropY, rsCropW, rsCropH, 0, 0, cvs.width, cvs.height);
+        return cvs;
+    },
+
+    /**
+     * Panel de venta del kiosko de ducados (derecha de INVENTORY/DUCAT KIOSK): las líneas
+     * "N X pieza   ducados". Se corta antes de TOTAL, que iría de línea.
+     */
+    prepareKioskPanelCanvas(video) {
+        const W = video.videoWidth, H = video.videoHeight;
+        return this._recorteGris(video, this._kioskPanelCvs, Math.floor(W * 0.70), Math.floor(H * 0.19), Math.floor(W * 0.26), Math.floor(H * 0.59));
+    },
+
+    /** La barra de créditos/platino/ducados de arriba a la derecha, a 2x: el texto es pequeño. */
+    prepareCurrencyBarCanvas(video) {
+        const W = video.videoWidth, H = video.videoHeight;
+        return this._recorteGris(video, this._currencyCvs, Math.floor(W * 0.76), Math.floor(H * 0.03), Math.floor(W * 0.21), Math.floor(H * 0.045), 2);
+    },
+
+    /** La línea del diálogo de confirmación, centrada: "Are you sure you want to sell N Items for M?". */
+    prepareCenterDialogCanvas(video) {
+        const W = video.videoWidth, H = video.videoHeight;
+        return this._recorteGris(video, this._dialogCvs, Math.floor(W * 0.33), Math.floor(H * 0.42), Math.floor(W * 0.34), Math.floor(H * 0.08));
+    },
+
+    _recorteGris(video, cvs, sx, sy, sw, sh, escala = 1) {
+        if (cvs.width !== sw * escala) cvs.width = sw * escala;
+        if (cvs.height !== sh * escala) cvs.height = sh * escala;
+        const ctx = cvs.getContext("2d", { willReadFrequently: true });
+        ctx.filter = "grayscale(100%) brightness(1.2) contrast(300%)";
+        ctx.drawImage(video, sx, sy, sw, sh, 0, 0, cvs.width, cvs.height);
         return cvs;
     },
 
@@ -1528,6 +1559,29 @@ export const VisionService = {
      * Uses luminance-based bright-pixel mask since inventory item names are white/cream,
      * NOT the theme secondary color (which is only used in the relic reward screen).
      */
+    /**
+     * Fase de la rejilla por las marcas ✓ (utils/vision/check_anchor.js). Devuelve gridX/gridY
+     * corregidos, elegidos en la familia de la fase más cercana a lo que dio el detector (la
+     * primera fila puede empezar por encima de la zona), o null sin marcas suficientes.
+     */
+    anclaPorChecks(snapshot, gridZone, calibData) {
+        const { cellW, cellH } = calibData || {};
+        if (!cellW || !cellH || !gridZone?.w || !gridZone?.h) return null;
+        const ctx = snapshot.getContext?.("2d", { willReadFrequently: true });
+        if (!ctx) return null;
+        // Con rejilla de este frame se buscan solo las franjas de sus filas; heredada, la zona entera.
+        const ventanasY = calibData.heredada ? null : ventanasDeFilas(calibData, gridZone.y);
+        const picos = buscaChecks(ctx.getImageData(gridZone.x, gridZone.y, gridZone.w, gridZone.h), cellH, { ventanasY });
+        const fase = faseDesdeChecks(picos, { cellW, cellH });
+        if (!fase) return null;
+        const cerca = (v, ref, paso) => v + Math.round((ref - v) / paso) * paso;
+        return {
+            gridX: cerca(gridZone.x + fase.gridX, calibData.gridX ?? gridZone.x, cellW),
+            gridY: cerca(gridZone.y + fase.gridY, calibData.gridY ?? gridZone.y, cellH),
+            n: fase.n, marcas: picos.length,
+        };
+    },
+
      buildAutoGrid(snapshot, gridZone, theme, calibData) {
         // If the user has manually edited the grid (or we have saved grid dimensions), respect it!
         if (calibData && calibData.cellW && calibData.cols && calibData.rows) {
@@ -1622,7 +1676,9 @@ export const VisionService = {
         if (dy === 0) return grid;
         console.log(`[buildAutoGrid] Row phase shift: ${dy}px (scroll clampado, p.ej. final de lista) — realineando filas.`);
         for (const cell of grid.cellRects) { cell.sy += dy; cell.cy += dy; }
-        grid.cellRects = grid.cellRects.filter(c => c.sy >= 0 && c.sy + grid.cellH <= snapshot.height);
+        // El top de celda incluye el margen sobre la card (~0,1·cellH): una fila a la que el recorte
+        // solo le come ese margen se lee entera. Los recortes por celda ya recortan a 0.
+        grid.cellRects = grid.cellRects.filter(c => c.sy >= -grid.cellH * 0.15 && c.sy + grid.cellH <= snapshot.height);
         return grid;
     },
 

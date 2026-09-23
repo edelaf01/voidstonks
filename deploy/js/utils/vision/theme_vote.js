@@ -135,3 +135,22 @@ export function eligeTema(px, temas) {
         afinidad: media,
     };
 }
+
+/**
+ * Si el voto de este frame releva al tema vigente. Con 3 de los últimos 5 votos fiables (no
+ * seguidos: el recorte de cabecera vota distinto en cada pantalla y una racha estricta no
+ * llegaba nunca), o de golpe con un voto inequívoco. Visto en vivo: Stalker mal fijado en una
+ * pantalla roja y Vitruvian a 0,979 esperando tres seguidos que no llegaban.
+ *
+ * @param votos nombres de los últimos votos fiables (ventana), sin este
+ * @returns {{ releva: boolean, votos: string[], n: number }} `votos` es la ventana ya actualizada
+ */
+export function decideTema(estable, voto, votos = [], { ventana = 5, necesarios = 3, inequivoca = 0.9 } = {}) {
+    const nombre = voto.tema.name;
+    const ventanaNueva = [...votos.slice(-(ventana - 1)), nombre];
+    // Un voto por el vigente cuenta en la ventana (es lo que un tema nuevo tiene que superar).
+    if (estable?.name === nombre) return { releva: true, votos: ventanaNueva, n: necesarios };
+    if (!estable || voto.afinidad >= inequivoca) return { releva: true, votos: [], n: necesarios };
+    const n = ventanaNueva.filter((t) => t === nombre).length;
+    return n >= necesarios ? { releva: true, votos: [], n } : { releva: false, votos: ventanaNueva, n };
+}

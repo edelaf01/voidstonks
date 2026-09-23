@@ -1,5 +1,7 @@
+import { DEBUG_ACTIVO } from "../utils/debug_log.js";
 import { state, saveAppState } from "../state.js";
 import { applyRewardCommit, undoRewardCommit, pickManualReward } from "../utils/inventory/reward_commit.js";
+import { esPantallaRecordada, huellaPantalla, memoriaPantalla } from "../utils/inventory/reward_ledger.js";
 import { showToast } from "../ui.components/ui_components.js";
 import { TEXTS } from "../config.js";
 import { warmupPrices } from "../services/inventory/inventory.service.js";
@@ -15,6 +17,8 @@ import { WF_THEMES_VOTABLES } from "../utils/vision/wf_themes.js";
 import { mergeRelicCounts } from "../utils/inventory/relic_counts.js";
 import { sumaReliquias, restaReliquia } from "../utils/inventory/relic_votes.js";
 import { RelicScreenService } from "../services/scanner/relic_screen.service.js";
+import { DucatKioskService } from "../services/scanner/ducat_kiosk.service.js";
+import { applyDucatSale, vuelcaSesion } from "../utils/inventory/ducat_kiosk.js";
 import { exposeGlobals } from "../utils/global_registry.js";
 import { DebugRecorder } from "../services/scanner/debug_recorder.service.js";
 import { motorElegido } from "../services/scanner/ocr_engine.service.js";
@@ -55,10 +59,12 @@ const sh = () => TEXTS[state.currentLang]?.scannerHUD || {};
 
 /** Pinta el estado de los botones de la grabadora: grabando o no, y cuántas lecturas hay. */
 function pintaGrabadora() {
-  const rec = document.getElementById("btn-debug-record");
-  if (rec) { rec.textContent = DebugRecorder.enabled ? sh().btnRecordOn : sh().btnRecord; rec.classList.toggle("is-recording", DebugRecorder.enabled); }
+  for (const id of ["btn-debug-record", "btn-rec-drawer"]) {
+    const rec = document.getElementById(id);
+    if (rec) { rec.textContent = DebugRecorder.enabled ? sh().btnRecordOn : sh().btnRecord; rec.classList.toggle("is-recording", DebugRecorder.enabled); }
+  }
   const exp = document.getElementById("btn-debug-export");
-  const cuenta = DebugRecorder.size + (DebugRecorder.size ? ` · ${Math.round(DebugRecorder.mb)} MB` : "");
+  const cuenta = DebugRecorder.size + (DebugRecorder.size ? ` · ${Math.round(DebugRecorder.mb)} MB${DebugRecorder.llena ? " · " + sh().recFull : ""}` : "");
   if (exp) exp.textContent = (sh().btnExport || "ZIP ({n})").replace("{n}", cuenta);
 }
 
@@ -67,14 +73,20 @@ function pintaGrabadora() {
  * Es la forma de reproducir fuera del navegador una lectura que falló: el pantallazo del overlay no
  * trae el frame real ni lo que leyó cada celda.
  */
-function toggleDebugRecorder() {
-  DebugRecorder.enabled = !DebugRecorder.enabled;
+// Se enciende sola al empezar a capturar: graba todas las pantallas de la sesión salvo que se
+// apague a mano, sin tener que llegar al botón en el momento justo.
+function enciendeGrabadora(on) {
+  DebugRecorder.enabled = on;
   DebugRecorder.onChange = pintaGrabadora;
-  if (DebugRecorder.enabled) {
+  if (on) {
     const v = document.getElementById("live-video");
-    DebugRecorder.sesion = { version: APP_VERSION, motor: motorElegido(), frame: v?.videoWidth ? `${v.videoWidth}x${v.videoHeight}` : null, workers: OCRRepository.MAX_WORKERS, navegador: navigator.userAgent };
+    DebugRecorder.sesion = { version: APP_VERSION, motor: motorElegido(), frame: v?.videoWidth ? `${v.videoWidth}x${v.videoHeight}` : null, get workers() { return OCRRepository.workers.length; }, navegador: navigator.userAgent }; // workers se lee al exportar, no la constante
   }
   pintaGrabadora();
+}
+
+function toggleDebugRecorder() {
+  enciendeGrabadora(!DebugRecorder.enabled);
   showToast(DebugRecorder.enabled ? sh().toastRecordOn : sh().toastRecordOff);
 }
 
@@ -155,8 +167,12 @@ export async function startLiveSession() {
   }
 
   try {
+    // A 1080p y no a la resolución nativa: cada frame de 1440p son 15 MB y el navegador mantiene
+    // un pool de ellos; todo lo de después (foto, cola, PNG del ZIP, OCR) escala igual. Para
+    // comparar con la nativa: localStorage.setItem("vs_capture_native", "1") y recargar.
+    const nativa = (() => { try { return localStorage.getItem("vs_capture_native") === "1"; } catch { return false; } })();
     liveStream = await navigator.mediaDevices.getDisplayMedia({
-      video: { cursor: "never", displaySurface: "window", frameRate: { ideal: 10, max: 15 } },
+      video: { cursor: "never", displaySurface: "window", frameRate: { ideal: 10, max: 15 }, ...(nativa ? {} : { height: { ideal: 1080 } }) },
       audio: false,
     });
 
@@ -181,6 +197,10 @@ export async function startLiveSession() {
     }
 
     RelicScreenService.reset();
+    DucatKioskService.reset();
+    // Sola solo al depurar (vs_debug_logs): en producción escribiría GB en el disco de cada
+    // usuario y muestrearía sin que nadie lo pida. El botón DIAG la enciende a mano igual.
+    enciendeGrabadora(DEBUG_ACTIVO);
     // Los apuntes de "ya la conté a mano" son de la partida anterior: si esa sesión acabó sin
     // pasar por el resumen (misión abortada, escáner cerrado, auto-añadir apagado) se quedan
     // vivos y se tragan la primera recompensa buena de esta.
@@ -254,6 +274,36 @@ RelicScreenService.onApplied = (changed) => {
   saveAppState();
 };
 
+// Kiosko de ducados: modo pasivo. Cada página leída se vuelca al inventario sin pasar por Guardar;
+// la sesión no se vacía, para que el consenso de cantidades siga acumulando entre relecturas.
+ScannerService.onPaginaKiosco = () => {
+  state.primeInventory = vuelcaSesion(state.primeInventory, ScannerService.sessionInventory);
+  saveAppState();
+  if (globalThis.renderPrimeInventory) globalThis.renderPrimeInventory();
+};
+
+// Venta confirmada en el kiosko de ducados: se resta del inventario y se suelta la lectura de
+// sesión de esas piezas, para que un guardado posterior no reponga lo vendido; el escaneo
+// pasivo del grid las vuelve a leer con la cantidad nueva.
+DucatKioskService.onPanel = (items) => ScannerHUD.updateKioskSale(items);
+
+DucatKioskService.onSale = (venta) => {
+  const t = TEXTS[state.currentLang].scanner;
+  const { inventario, restadas, ausentes } = applyDucatSale(state.primeInventory, venta);
+  state.primeInventory = inventario;
+  for (const { name } of venta) {
+    ScannerService.sessionInventory.delete(name);
+    ScannerService.qtyVotes.delete(name);
+  }
+  saveAppState();
+  if (globalThis.renderPrimeInventory) globalThis.renderPrimeInventory();
+  ScannerHUD.updateDetectedItems(ScannerService.sessionInventory, ScannerService.sessionRelics);
+  ScannerHUD.updateKioskSale([]);
+  const lista = restadas.map((r) => `${r.qty}× ${r.name}`).join(", ") || "—";
+  const faltan = ausentes.length ? (t.ducatSoldMissing || "").replace("{missing}", ausentes.join(", ")) : "";
+  showToast((t.ducatSold || "Sold: {items}").replace("{items}", lista) + faltan, { duration: 8000 });
+};
+
 /**
  * UI Hook called by ScannerService when a relic is detected.
  */
@@ -304,6 +354,9 @@ globalThis.syncRewardFromGame = (itemName, owned) => {
  * marca el final de la partida.
  */
 const pendingManualAdds = [];
+// La misma pantalla vuelve a abrir el modal (parpadeo de contexto, recarga) con la elección en
+// blanco: sin recordarla, elegir otra vez sumaba otra copia.
+const ultimaEleccion = memoriaPantalla(() => localStorage, "vs_reward_ultima_eleccion");
 
 globalThis.selectRewardToInventory = (itemName) => {
   const modal = globalThis.ScannerModal;
@@ -313,12 +366,15 @@ globalThis.selectRewardToInventory = (itemName) => {
   // elección; no suma otra. Antes las dos entraban en el inventario y en pendingManualAdds, y
   // como el alta de fin de misión solo descuenta una copia, la pieza descartada se quedaba
   // dentro para siempre: la última vista ganaba y la anterior no había forma de verla.
+  const recordada = modal?.selectedItem == null && esPantallaRecordada(modal?.currentResults, ultimaEleccion.lee())
+    ? ultimaEleccion.lee().item : null;
   const { inventario, pendientes, cambio } = pickManualReward(
-    state.primeInventory, pendingManualAdds, modal?.selectedItem, itemName, !willSyncInClose);
+    state.primeInventory, pendingManualAdds, modal?.selectedItem ?? recordada, itemName, !willSyncInClose);
   if (!cambio) return;
   state.primeInventory = inventario;
   pendingManualAdds.length = 0;
   pendingManualAdds.push(...pendientes);
+  if (modal?.currentResults?.length) ultimaEleccion.guarda({ huella: huellaPantalla(modal.currentResults), item: itemName, t: Date.now() });
 
   if (modal) modal.selectedItem = itemName;
   globalThis.selectedScanItem = itemName;
@@ -348,6 +404,8 @@ function commitMissionCompleteRewards(items, gastada = null) {
   // La lista de pendientes SOLO sirve para no contar dos veces con el alta automática. Si
   // está apagada hay que vaciarla igual: si no, se arrastra a la misión siguiente y allí
   // descuenta una pieza que sí tocaba sumar.
+  // La elección recordada era de ESTA misión: la siguiente puede repetir pantalla y tiene que sumar.
+  ultimaEleccion.guarda(null);
   if (!state.autoAddMissionRewards) { pendingManualAdds.length = 0; return; }
   const reliquias = (items || []).filter((i) => i.reliquia);
   const piezas = (items || []).filter((i) => !i.reliquia);
@@ -396,11 +454,7 @@ exposeGlobals({ commitMissionCompleteRewards, toggleDebugRecorder, exportDebugRe
  */
 globalThis.saveLiveInventory = () => {
   const sh = TEXTS[state.currentLang].scannerHUD;
-  for (const [name, count] of ScannerService.sessionInventory) {
-    // null = vista pero sin badge legible: no se pisa el número que había; si no estaba, 1.
-    if (count !== null) state.primeInventory[name] = count;
-    else state.primeInventory[name] ??= 1;
-  }
+  state.primeInventory = vuelcaSesion(state.primeInventory, ScannerService.sessionInventory);
   ScannerService.sessionInventory.clear();
 
   // Reliquias detectadas en el mismo grid (fallback de OCRService.getRelicMatch): se persisten
