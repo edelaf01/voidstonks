@@ -52,6 +52,11 @@ export function enrutaGraciaRiven(raw, graciaActiva, tipoGracia) {
 const TOPE_HEADER_ESTABLE = 3;
 
 export const FRANJA_TITULO = Object.freeze({ x: 0.21, y: 0.30, w: 0.79, h: 0.42, cols: 64, filas: 8 });
+export const RECORTE_CABECERA = Object.freeze({ w: 0.45, h: 0.12 });
+export const FRANJA_TITULO_VIDEO = Object.freeze({
+    x: RECORTE_CABECERA.w * FRANJA_TITULO.x, y: RECORTE_CABECERA.h * FRANJA_TITULO.y,
+    w: RECORTE_CABECERA.w * FRANJA_TITULO.w, h: RECORTE_CABECERA.h * FRANJA_TITULO.h, cols: 64, filas: 8,
+});
 export const FRACCION_TITULO = 0.04;
 export function tituloHaCambiado(ahora, base) { return fraccionCambiada(ahora, base) >= FRACCION_TITULO; }
 

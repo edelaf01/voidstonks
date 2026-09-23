@@ -8,6 +8,7 @@ import { NAME_TEXT_COLORS, snapToThemeTextColor, rampCoreColor, bandInkHistogram
 import { themeTextMask } from "../../utils/vision/theme_mask.js";
 import { inkRunRatio } from "../../utils/vision/ink_runs.js";
 import { maxChannelPreset } from "../../utils/vision/reward_preprocess.js";
+import { RECORTE_CABECERA } from "../../utils/vision/context_latch.js";
 export { NAME_TEXT_COLORS, snapToThemeTextColor };
 
 export async function applyBestCameraConstraints(stream) {
@@ -140,8 +141,8 @@ export const VisionService = {
         const height = video.videoHeight;
         const scale = 1080 / height;
 
-        const hCropW = Math.floor(width * 0.45);
-        const hCropH = Math.floor(height * 0.12);
+        const hCropW = Math.floor(width * RECORTE_CABECERA.w);
+        const hCropH = Math.floor(height * RECORTE_CABECERA.h);
 
         const w = Math.floor(hCropW * scale), h = Math.floor(hCropH * scale);
         if (canvas.width !== w) canvas.width = w;
