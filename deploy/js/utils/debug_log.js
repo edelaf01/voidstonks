@@ -25,6 +25,8 @@ const hostname = globalThis.location?.hostname ?? "";
 const esLocal = hostname === "" || hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]";
 const enabled = stored === "1"
     || (esLocal && (DEBUG_LOGS || (FORCE_LOGS_WHILE_DEBUGGING && stored !== "0")));
+/** The same switch for the rest of the debugging tools (the scanner recorder): off in production. */
+export const DEBUG_ACTIVO = enabled;
 
 if (!enabled && typeof console !== "undefined") {
     const noop = () => {};

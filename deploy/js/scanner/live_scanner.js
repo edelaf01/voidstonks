@@ -1,5 +1,7 @@
+import { DEBUG_ACTIVO } from "../utils/debug_log.js";
 import { state, saveAppState } from "../state.js";
 import { applyRewardCommit, undoRewardCommit, pickManualReward } from "../utils/inventory/reward_commit.js";
+import { esPantallaRecordada, huellaPantalla, memoriaPantalla } from "../utils/inventory/reward_ledger.js";
 import { showToast } from "../ui.components/ui_components.js";
 import { TEXTS } from "../config.js";
 import { warmupPrices } from "../services/inventory/inventory.service.js";
@@ -15,6 +17,8 @@ import { WF_THEMES_VOTABLES } from "../utils/vision/wf_themes.js";
 import { mergeRelicCounts } from "../utils/inventory/relic_counts.js";
 import { sumaReliquias, restaReliquia } from "../utils/inventory/relic_votes.js";
 import { RelicScreenService } from "../services/scanner/relic_screen.service.js";
+import { DucatKioskService } from "../services/scanner/ducat_kiosk.service.js";
+import { applyDucatSale, vuelcaSesion } from "../utils/inventory/ducat_kiosk.js";
 import { exposeGlobals } from "../utils/global_registry.js";
 import { DebugRecorder } from "../services/scanner/debug_recorder.service.js";
 import { motorElegido } from "../services/scanner/ocr_engine.service.js";
@@ -45,24 +49,30 @@ globalThis.toggleScannerDebug = () => {
 const sh = () => TEXTS[state.currentLang]?.scannerHUD || {};
 
 function pintaGrabadora() {
-  const rec = document.getElementById("btn-debug-record");
-  if (rec) { rec.textContent = DebugRecorder.enabled ? sh().btnRecordOn : sh().btnRecord; rec.classList.toggle("is-recording", DebugRecorder.enabled); }
+  for (const id of ["btn-debug-record", "btn-rec-drawer"]) {
+    const rec = document.getElementById(id);
+    if (rec) { rec.textContent = DebugRecorder.enabled ? sh().btnRecordOn : sh().btnRecord; rec.classList.toggle("is-recording", DebugRecorder.enabled); }
+  }
   const exp = document.getElementById("btn-debug-export");
-  const cuenta = DebugRecorder.size + (DebugRecorder.size ? ` · ${Math.round(DebugRecorder.mb)} MB` : "");
+  const cuenta = DebugRecorder.size + (DebugRecorder.size ? ` · ${Math.round(DebugRecorder.mb)} MB${DebugRecorder.llena ? " · " + sh().recFull : ""}` : "");
   if (exp) exp.textContent = (sh().btnExport || "ZIP ({n})").replace("{n}", cuenta);
 }
 
 /**
  * records each scanner frame alongside its result (services/scanner/debug_recorder.service.js)
  */
-function toggleDebugRecorder() {
-  DebugRecorder.enabled = !DebugRecorder.enabled;
+function enciendeGrabadora(on) {
+  DebugRecorder.enabled = on;
   DebugRecorder.onChange = pintaGrabadora;
-  if (DebugRecorder.enabled) {
+  if (on) {
     const v = document.getElementById("live-video");
-    DebugRecorder.sesion = { version: APP_VERSION, motor: motorElegido(), frame: v?.videoWidth ? `${v.videoWidth}x${v.videoHeight}` : null, workers: OCRRepository.MAX_WORKERS, navegador: navigator.userAgent };
+    DebugRecorder.sesion = { version: APP_VERSION, motor: motorElegido(), frame: v?.videoWidth ? `${v.videoWidth}x${v.videoHeight}` : null, get workers() { return OCRRepository.workers.length; }, navegador: navigator.userAgent }; // getter: read at export time, not when recording starts
   }
   pintaGrabadora();
+}
+
+function toggleDebugRecorder() {
+  enciendeGrabadora(!DebugRecorder.enabled);
   showToast(DebugRecorder.enabled ? sh().toastRecordOn : sh().toastRecordOff);
 }
 
@@ -132,8 +142,9 @@ export async function startLiveSession() {
   }
 
   try {
+    const nativa = (() => { try { return localStorage.getItem("vs_capture_native") === "1"; } catch { return false; } })();
     liveStream = await navigator.mediaDevices.getDisplayMedia({
-      video: { cursor: "never", displaySurface: "window", frameRate: { ideal: 10, max: 15 } },
+      video: { cursor: "never", displaySurface: "window", frameRate: { ideal: 10, max: 15 }, ...(nativa ? {} : { height: { ideal: 1080 } }) },
       audio: false,
     });
 
@@ -157,6 +168,8 @@ export async function startLiveSession() {
     }
 
     RelicScreenService.reset();
+    DucatKioskService.reset();
+    enciendeGrabadora(DEBUG_ACTIVO);
     pendingManualAdds.length = 0;
     await ScannerService.start();
     showToast(t.toastActive);
@@ -215,6 +228,31 @@ RelicScreenService.onApplied = (changed) => {
   saveAppState();
 };
 
+ScannerService.onPaginaKiosco = () => {
+  state.primeInventory = vuelcaSesion(state.primeInventory, ScannerService.sessionInventory);
+  saveAppState();
+  if (globalThis.renderPrimeInventory) globalThis.renderPrimeInventory();
+};
+
+DucatKioskService.onPanel = (items) => ScannerHUD.updateKioskSale(items);
+
+DucatKioskService.onSale = (venta) => {
+  const t = TEXTS[state.currentLang].scanner;
+  const { inventario, restadas, ausentes } = applyDucatSale(state.primeInventory, venta);
+  state.primeInventory = inventario;
+  for (const { name } of venta) {
+    ScannerService.sessionInventory.delete(name);
+    ScannerService.qtyVotes.delete(name);
+  }
+  saveAppState();
+  if (globalThis.renderPrimeInventory) globalThis.renderPrimeInventory();
+  ScannerHUD.updateDetectedItems(ScannerService.sessionInventory, ScannerService.sessionRelics);
+  ScannerHUD.updateKioskSale([]);
+  const lista = restadas.map((r) => `${r.qty}× ${r.name}`).join(", ") || "—";
+  const faltan = ausentes.length ? (t.ducatSoldMissing || "").replace("{missing}", ausentes.join(", ")) : "";
+  showToast((t.ducatSold || "Sold: {items}").replace("{items}", lista) + faltan, { duration: 8000 });
+};
+
 /** Called by ScannerService when a relic is detected. */
 globalThis.showTrackConfirm = (relicName) => {
   const t = TEXTS[state.currentLang].scanner;
@@ -251,17 +289,21 @@ globalThis.syncRewardFromGame = (itemName, owned) => {
  * items added manually from the relic selection screen, pending confirmation on mission complete
  */
 const pendingManualAdds = [];
+const ultimaEleccion = memoriaPantalla(() => localStorage, "vs_reward_ultima_eleccion");
 
 globalThis.selectRewardToInventory = (itemName) => {
   const modal = globalThis.ScannerModal;
   const willSyncInClose = state.autoSyncRewards && modal && modal.currentResults && !modal.isHistoric;
 
+  const recordada = modal?.selectedItem == null && esPantallaRecordada(modal?.currentResults, ultimaEleccion.lee())
+    ? ultimaEleccion.lee().item : null;
   const { inventario, pendientes, cambio } = pickManualReward(
-    state.primeInventory, pendingManualAdds, modal?.selectedItem, itemName, !willSyncInClose);
+    state.primeInventory, pendingManualAdds, modal?.selectedItem ?? recordada, itemName, !willSyncInClose);
   if (!cambio) return;
   state.primeInventory = inventario;
   pendingManualAdds.length = 0;
   pendingManualAdds.push(...pendientes);
+  if (modal?.currentResults?.length) ultimaEleccion.guarda({ huella: huellaPantalla(modal.currentResults), item: itemName, t: Date.now() });
 
   if (modal) modal.selectedItem = itemName;
   globalThis.selectedScanItem = itemName;
@@ -282,6 +324,7 @@ globalThis.selectRewardToInventory = (itemName) => {
  * updates rewards read in mission complete context
  */
 function commitMissionCompleteRewards(items, gastada = null) {
+  ultimaEleccion.guarda(null);
   if (!state.autoAddMissionRewards) { pendingManualAdds.length = 0; return; }
   const reliquias = (items || []).filter((i) => i.reliquia);
   const piezas = (items || []).filter((i) => !i.reliquia);
@@ -322,10 +365,7 @@ exposeGlobals({ commitMissionCompleteRewards, toggleDebugRecorder, exportDebugRe
 
 globalThis.saveLiveInventory = () => {
   const sh = TEXTS[state.currentLang].scannerHUD;
-  for (const [name, count] of ScannerService.sessionInventory) {
-    if (count !== null) state.primeInventory[name] = count;
-    else state.primeInventory[name] ??= 1;
-  }
+  state.primeInventory = vuelcaSesion(state.primeInventory, ScannerService.sessionInventory);
   ScannerService.sessionInventory.clear();
 
   state.inventory = mergeRelicCounts(state.inventory, ScannerService.sessionRelics);

@@ -195,3 +195,13 @@ test("con la ventana cerrada se deja de pintar", async () => {
     assert.doesNotThrow(() => PiP.clearPiPBadges());
   });
 });
+
+// the close-set label says what the whole set sells for: that is what decides the click
+test("la tarjeta que cierra un set enseña el precio del set", async () => {
+  await conPip((doc) => {
+    PiP.renderItemsInPiP([item({ isCompletingSet: true, setPrice: 120 })]);
+    assert.ok(html1(doc).includes("COMPLETES SET · 120p"), html1(doc).slice(0, 300));
+    PiP.renderItemsInPiP([item({ isCompletingSet: true, setPrice: 0 })]);
+    assert.ok(html1(doc).includes("COMPLETES SET<"), "sin precio conocido, sin número");
+  });
+});

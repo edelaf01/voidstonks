@@ -140,6 +140,31 @@ describe("coste", () => {
     assert.equal(pasadas, 1);
   });
 
+  // switching relic selection took 2.5-3.5 s because the loop waited for grid OCR
+  // grid reading now runs in background, and selection change ticks do not restart it
+  test("la lectura de la rejilla no bloquea el bucle y no se solapa consigo misma", async () => {
+    let lecturas = 0, suelta;
+    const real = RelicScreenService.readGrid, realTrack = RelicScreenService.trackSelected;
+    RelicScreenService._leyendoRejilla = null;
+    RelicScreenService.readGrid = () => new Promise((r) => { lecturas++; suelta = r; });
+    RelicScreenService.trackSelected = async () => false;
+    try {
+      const t0 = Date.now();
+      await RelicScreenService.process(video(40), { scale: 1 });
+      assert.ok(Date.now() - t0 < 50, "process vuelve sin esperar a la rejilla");
+      await RelicScreenService.process(video(40), { scale: 1 });
+      assert.equal(lecturas, 1, "con una en vuelo no se lanza otra");
+      suelta(); await new Promise((r) => setTimeout(r, 0));
+      await RelicScreenService.process(video(40), { scale: 1 });
+      assert.equal(lecturas, 2, "al terminar, la siguiente sí");
+      // selection changed: this tick does not read the grid
+      suelta(); await new Promise((r) => setTimeout(r, 0));
+      RelicScreenService.trackSelected = async () => true;
+      await RelicScreenService.process(video(40), { scale: 1 });
+      assert.equal(lecturas, 2);
+    } finally { RelicScreenService.readGrid = real; RelicScreenService.trackSelected = realTrack; RelicScreenService._leyendoRejilla = null; }
+  });
+
   test("sin workers no revienta", async () => {
     scriptOCR(pantalla([["Meso C6", 108]]));
     OCRRepository.workers = [];

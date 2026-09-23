@@ -35,6 +35,12 @@ export function aplicaMotor(motor) {
 export function motorActivo() { return activo || motorElegido(); }
 
 /**
+ * Whether Tesseract reads the inventory grid: classic chosen, or precise failed. Not while precise
+ * loads: the page waits for it.
+ */
+export function rejillaConClasico() { return motorActivo() !== MOTOR_PRECISO || !!PaddleRepository.ultimoFallo; }
+
+/**
  * Applies the saved choice at scanner start. Without an answer it skips aplicaMotor, which would
  * mark the question as answered.
  */

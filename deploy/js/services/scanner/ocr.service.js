@@ -170,11 +170,11 @@ export const OCRService = {
             .map(w => sinAcentos((w || "").toString()).toUpperCase()
                 .replaceAll(/[|!¡\][]/g, "I")   // thin i/I/1 read as a bar
                 .replaceAll(/\?/g, "7")
-                .replaceAll(/[^A-Z0-9]/g, ""))
+                .replaceAll(/[^A-Z0-9]/g, "").replace(/^([A-Z]\d{1,2})(RELIC|RELIQUIA)S?$/, "$1")) // Paddle glues the suffix: "A14RELIC"
             .filter(w => w.length > 0 && !this.RELIC_NOISE_TOKENS.has(w));
         const index = this._relicIndex();
         // the cell literally says RELIC: only the code is in doubt, so the weak tier guard can relax
-        const saysRelic = rawWords.some(w => /^(RELIC|RELIQUIA)S?$/.test(
+        const saysRelic = rawWords.some(w => /(RELIC|RELIQUIA)S?$/.test(
             (w || "").toString().toUpperCase().replaceAll(/[^A-Z]/g, "")));
 
         for (let i = 0; i < words.length; i++) {

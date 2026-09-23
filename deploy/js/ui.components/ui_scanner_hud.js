@@ -19,9 +19,12 @@ export const ScannerHUD = {
         this._muestraBloques();
         avisaContexto(state.squadRun && contextType !== "INVENTORY" ? "SQUAD" : contextType);
 
-        if (contextType === "INVENTORY") {
+        // items only: the mod/riven context has its own appraisal HUD. The ducat kiosk is the inventory with the
+        // sale panel: same HUD, another label
+        if (contextType === "INVENTORY" || contextType === "DUCAT_KIOSK") {
             if (hud) hud.style.display = "block";
-            this.setUIBadge(badge, sh.statusInventory, "#f1c40f", "rgba(241,196,15,0.4)", "rgba(241,196,15,0.1)");
+            const etiqueta = contextType === "DUCAT_KIOSK" ? sh.statusKiosk : sh.statusInventory;
+            this.setUIBadge(badge, etiqueta, "#f1c40f", "rgba(241,196,15,0.4)", "rgba(241,196,15,0.1)");
             const msgEl = document.getElementById("live-inv-msg");
             if (msgEl) msgEl.innerText = sh.statusIdle;
         } else if (state.squadRun) {
@@ -41,17 +44,50 @@ export const ScannerHUD = {
         }
     },
 
+    updateKioskSale(items) {
+        const panel = document.getElementById("kiosk-sale-panel");
+        if (!panel) return;
+        const clave = JSON.stringify(items) + state.currentLang;
+        if (clave === this._ultimaVenta) return;
+        this._ultimaVenta = clave;
+        panel.replaceChildren();
+        panel.style.display = items.length ? "" : "none";
+        if (!items.length) return;
+        const titulo = document.createElement("div");
+        titulo.className = "kiosk-title";
+        titulo.textContent = TEXTS[state.currentLang].scannerHUD.kioskForSale;
+        panel.appendChild(titulo);
+        for (const { name, qty, ducats } of items) {
+            const linea = document.createElement("div");
+            linea.className = "kiosk-line";
+            const nombre = document.createElement("span");
+            nombre.className = "kiosk-name";
+            nombre.textContent = `${qty}× ${name}`;
+            linea.appendChild(nombre);
+            if (ducats != null) {
+                const d = document.createElement("span");
+                d.className = "kiosk-ducats";
+                d.textContent = String(ducats);
+                linea.appendChild(d);
+            }
+            panel.appendChild(linea);
+        }
+    },
+
     _ultimoTipo: "UNKNOWN",
     _detectados: 0,
 
     _muestraBloques() {
+        if (this._ultimoTipo !== "DUCAT_KIOSK") this.updateKioskSale([]);
         const inventario = this._ultimoTipo === "INVENTORY";
+        // the kiosk is passive: no manual scan or save, but the list stays visible
+        const kiosco = this._ultimoTipo === "DUCAT_KIOSK";
         for (const id of ["hud-actions", "hud-subactions"]) {
             const bloque = document.getElementById(id);
             if (bloque) bloque.style.display = inventario ? "" : "none";
         }
         // the list stays when something is already detected
-        const conLista = inventario || this._detectados > 0;
+        const conLista = inventario || kiosco || this._detectados > 0;
         for (const id of ["lbl-detected-items", "live-inventory-items-list"]) {
             const bloque = document.getElementById(id);
             if (bloque) bloque.style.display = conLista ? "" : "none";

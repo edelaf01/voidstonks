@@ -50,6 +50,9 @@ export class FakeCanvas {
 
   toDataURL() { return "data:image/png;base64,"; }
 
+  // no encoder: the "file" is the raw pixels, enough to count bytes and paths
+  toBlob(cb, tipo = "image/png") { cb(new Blob([this._data], { type: tipo })); }
+
   /** pixel color, to check results */
   px(x, y) {
     const i = (y * this._w + x) * 4;
@@ -186,6 +189,7 @@ function crearContexto(canvas) {
     // the vision code calls them by habit; nothing checked depends on them
     clearRect() {},
     strokeRect() {},
+    setLineDash() {}, getLineDash: () => [],
     fillText() {},
     strokeText() {},
     beginPath() {}, closePath() {}, moveTo() {}, lineTo() {}, stroke() {}, fill() {},

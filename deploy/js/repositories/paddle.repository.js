@@ -1,4 +1,25 @@
+/**
+ * paddleocr (pp-ocrv5) via onnxruntime-web as a parallel alternative to tesseract: reads color
+ * name crops directly without theme binarization
+ *
+ * inference runs in paddle.worker.js to avoid blocking the ui (200-600 ms per montage),
+ * falling back to main thread if the worker fails to spawn; loads pinned ppu-paddle-ocr/web
+ * (configurable via globalThis.PADDLE_CDN) with models in deploy/assets/ocr/
+ */
+//TODO lookup cdn dependency consider hosting it or hash checking
 import { montaTiras, repartePorTramos } from "../utils/vision/ocr_montage.js";
+import { PaddleWorkerClient } from "./paddle_worker_client.js";
+import { rutasAbsolutas, eligeModelo, puedeUsarWorker } from "../utils/vision/paddle_rpc.js";
+
+const CDN = "https://esm.sh/ppu-paddle-ocr@6.4.3/web";
+const MODELO_LOCAL = {
+    detection: "assets/ocr/PP-OCRv6_tiny_det.ort",
+    recognition: "assets/ocr/PP-OCRv6_tiny_rec.ort",
+    charactersDictionary: "assets/ocr/ppocrv6_tiny_dict.txt",
+};
+const OPCIONES = { recognition: { strategy: "per-box" } };
+export const RUTA_WORKER_PADDLE = "./paddle.worker.js?v=1.0";
+const MAX_ARRANQUES_WORKER = 2;
 
 export const PaddleRepository = {
     _service: null,
@@ -8,22 +29,16 @@ export const PaddleRepository = {
 
     ultimoFallo: null,
 
+    _arranquesWorker: 0,
+    _modo: null,
+    modo() { return this._service ? this._modo : null; },
+
     warmUp() {
         if (this._initPromise) return this._initPromise;
         this._initPromise = (async () => {
-            const cdn = globalThis.PADDLE_CDN || "https://esm.sh/ppu-paddle-ocr@6.4.3/web";
-            const mod = await import(/* @vite-ignore */ cdn);
-            const { PaddleOcrService } = mod;
-            const local = {
-                detection: "assets/ocr/PP-OCRv6_tiny_det.ort",
-                recognition: "assets/ocr/PP-OCRv6_tiny_rec.ort",
-                charactersDictionary: "assets/ocr/ppocrv6_tiny_dict.txt",
-            };
-            const pedido = globalThis.PADDLE_MODEL;
-            const model = (typeof pedido === "string" ? mod[pedido] : pedido) || local;
-            this._service = new PaddleOcrService({ model, recognition: { strategy: "per-box" } });
-            await this._service.initialize();
-            console.log(`[Paddle] listo (V6 TINY) · aislamiento de origen: ${globalThis.crossOriginIsolated === true}`);
+            const cdn = globalThis.PADDLE_CDN || CDN;
+            const pedido = globalThis.PADDLE_MODEL ?? null;
+            this._service = (await this._arrancaWorker(cdn, pedido)) || (await this._cargaEnHilo(cdn, pedido));
             this.ultimoFallo = null;
             return this._service;
         })();
@@ -33,6 +48,54 @@ export const PaddleRepository = {
             console.error("[Paddle] no se pudo cargar el motor preciso; se lee con el clásico:", e);
         });
         return this._initPromise;
+    },
+
+    async _arrancaWorker(cdn, pedido) {
+        if (!puedeUsarWorker(globalThis) || this._arranquesWorker >= MAX_ARRANQUES_WORKER) return null;
+        this._arranquesWorker++;
+        const cliente = new PaddleWorkerClient({
+            crearWorker: () => new Worker(new URL(RUTA_WORKER_PADDLE, import.meta.url), { type: "module" }),
+            aBitmap: (fuente) => createImageBitmap(fuente),
+            onMuerte: (e) => this._workerMurio(cliente, e),
+        });
+        try {
+            const base = globalThis.document?.baseURI || globalThis.location?.href;
+            const info = await cliente.init({ cdn, pedido, local: rutasAbsolutas(MODELO_LOCAL, base), opciones: OPCIONES });
+            this._modo = "worker";
+            console.log(`[Paddle] listo (V6 TINY, worker) · proveedores: ${info.proveedores.join(",")} · aislamiento de origen: ${info.aislado}`);
+            return cliente;
+        } catch (e) {
+            cliente.terminate();
+            console.error("[Paddle] el worker no arrancó; el motor preciso se carga en el hilo principal:", e);
+            return null;
+        }
+    },
+
+    async _cargaEnHilo(cdn, pedido) {
+        const mod = await import(/* @vite-ignore */ cdn);
+        const servicio = new mod.PaddleOcrService({ model: eligeModelo(mod, pedido, MODELO_LOCAL), ...OPCIONES });
+        await servicio.initialize();
+        this._modo = "hilo";
+        console.log(`[Paddle] listo (V6 TINY, hilo) · aislamiento de origen: ${globalThis.crossOriginIsolated === true}`);
+        return servicio;
+    },
+
+    /**
+     * Frees the worker engine when the scanner closes. The main-thread fallback cannot be freed.
+     */
+    apaga() {
+        if (!this._service || this._service.terminate) {
+            this._service?.terminate();
+            this._service = null; this._initPromise = null; this._modo = null;
+        }
+        this._arranquesWorker = 0;
+    },
+
+    _workerMurio(cliente, e) {
+        if (this._service !== cliente) return;
+        this._service = null; this._initPromise = null; this.ultimoFallo = e;
+        console.error("[Paddle] el worker murió; se rearranca:", e);
+        this.warmUp().catch(() => {});
     },
 
     /**
@@ -55,6 +118,7 @@ export const PaddleRepository = {
     async recognizeStripWords(fuente, tiras, opciones = {}) {
         const svc = await this.warmUp();
         const salida = new Map();
+        this._lote = new Map();
         for (const { canvas, tramos } of montaTiras(fuente, tiras, opciones)) {
             const res = await svc.recognize(canvas);
             const lineas = (res?.lines || []).flat().filter((l) => l?.box && l?.text);
@@ -62,9 +126,26 @@ export const PaddleRepository = {
                 const palabras = suyas.map((l) => l.text).join(" ")
                     .replace(/[^A-Za-z0-9]+/g, " ").trim().split(/\s+/).filter(Boolean);
                 salida.set(clave, palabras.length ? palabras.map((w) => w.toUpperCase()) : null);
+                this._lote.set(clave, { lineas: suyas, canvas });
             }
         }
         return salida;
+    },
+
+    /** Palabras con caja  de la última tira leída con esa clave. */
+    palabrasDelLote(clave) {
+        return this._lote?.get(clave) ? this._palabrasConCaja(this._lote.get(clave).lineas) : [];
+    },
+
+    /** rgba crop of the montage (in color, matching box geometry) for a box in that strip */
+    recorteDelLote(clave) {
+        const canvas = this._lote?.get(clave)?.canvas;
+        return ({ x0, y0, x1, y1 }) => {
+            if (!canvas) return null;
+            const pad = 3, sx = Math.max(0, Math.floor(x0) - pad), sy = Math.max(0, Math.floor(y0) - pad);
+            const sw = Math.min(canvas.width - sx, Math.ceil(x1 - x0) + pad * 2), sh = Math.min(canvas.height - sy, Math.ceil(y1 - y0) + pad * 2);
+            return sw > 2 && sh > 2 ? canvas.getContext("2d", { willReadFrequently: true }).getImageData(sx, sy, sw, sh) : null;
+        };
     },
 
     async recognizeLines(canvas) {
@@ -80,7 +161,10 @@ export const PaddleRepository = {
     async recognizeWordsWithBoxes(canvas) {
         const svc = await this.warmUp();
         const res = await svc.recognize(canvas);
-        const lines = (res?.lines || []).flat().filter((l) => l?.box && l?.text);
+        return this._palabrasConCaja((res?.lines || []).flat().filter((l) => l?.box && l?.text));
+    },
+
+    _palabrasConCaja(lines) {
         const words = [];
         for (const line of lines) {
             const tokens = String(line.text).split(/\s+/).filter(Boolean);

@@ -102,3 +102,21 @@ export function eligeTema(px, temas) {
         afinidad: media,
     };
 }
+
+/**
+ * Whether this frame's vote replaces the current theme: 3 of the last 5 reliable votes (not consecutive: the
+ * header crop votes differently on each screen and a strict streak never came), or at once with an
+ * unequivocal vote.
+ *
+ * @param votos names of the last reliable votes (window), without this one
+ * @returns {{ releva: boolean, votos: string[], n: number }} `votos` is the updated window
+ */
+export function decideTema(estable, voto, votos = [], { ventana = 5, necesarios = 3, inequivoca = 0.9 } = {}) {
+    const nombre = voto.tema.name;
+    const ventanaNueva = [...votos.slice(-(ventana - 1)), nombre];
+    // a vote for the current one counts in the window (it is what a new theme has to beat)
+    if (estable?.name === nombre) return { releva: true, votos: ventanaNueva, n: necesarios };
+    if (!estable || voto.afinidad >= inequivoca) return { releva: true, votos: [], n: necesarios };
+    const n = ventanaNueva.filter((t) => t === nombre).length;
+    return n >= necesarios ? { releva: true, votos: [], n } : { releva: false, votos: ventanaNueva, n };
+}

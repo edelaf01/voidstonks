@@ -206,7 +206,7 @@
    }
   ],
   "localImage": "weapons/corvas_prime.webp",
-  "omegaAttenuation": 0.95
+  "omegaAttenuation": 1
  },
  {
   "name": "Cyngas",
@@ -2145,6 +2145,53 @@
   "omegaAttenuation": 1.05
  },
  {
+  "name": "Corufell Prime",
+  "type": "Melee",
+  "category": "Melee",
+  "isPrime": true,
+  "vaulted": false,
+  "masteryReq": 16,
+  "components": [
+   {
+    "name": "Blueprint",
+    "itemCount": 1,
+    "drops": [],
+    "ducats": 15,
+    "localImage": "weapons/blueprint.webp"
+   },
+   {
+    "name": "Handle",
+    "itemCount": 1,
+    "drops": [],
+    "ducats": 45,
+    "localImage": "weapons/handle.webp"
+   },
+   {
+    "name": "Orokin Cell",
+    "itemCount": 15,
+    "drops": [],
+    "ducats": 0,
+    "localImage": "weapons/orokin_cell.webp"
+   },
+   {
+    "name": "Receiver",
+    "itemCount": 1,
+    "drops": [],
+    "ducats": 100,
+    "localImage": "weapons/receiver.webp"
+   },
+   {
+    "name": "Stock",
+    "itemCount": 1,
+    "drops": [],
+    "ducats": 15,
+    "localImage": "weapons/stock.webp"
+   }
+  ],
+  "localImage": "weapons/corufell_prime.webp",
+  "omegaAttenuation": 0.5
+ },
+ {
   "name": "Cronus",
   "type": "Melee",
   "category": "Melee",
@@ -3347,7 +3394,7 @@
    }
   ],
   "localImage": "weapons/dual_zoren_prime.webp",
-  "omegaAttenuation": 0.9
+  "omegaAttenuation": 0.95
  },
  {
   "name": "Edun",
@@ -4401,7 +4448,7 @@
    }
   ],
   "localImage": "weapons/galariak_prime.webp",
-  "omegaAttenuation": 0.8
+  "omegaAttenuation": 0.9
  },
  {
   "name": "Galatine",
@@ -4864,7 +4911,7 @@
    }
   ],
   "localImage": "weapons/gram_prime.webp",
-  "omegaAttenuation": 0.75
+  "omegaAttenuation": 0.8
  },
  {
   "name": "Guandao",
@@ -6122,7 +6169,7 @@
    }
   ],
   "localImage": "weapons/kestrel_prime.webp",
-  "omegaAttenuation": 0.75
+  "omegaAttenuation": 0.85
  },
  {
   "name": "Kogake",
@@ -6691,7 +6738,7 @@
    }
   ],
   "localImage": "weapons/kuva_ghoulsaw.webp",
-  "omegaAttenuation": 0.7
+  "omegaAttenuation": 0.8
  },
  {
   "name": "Kuva Shildeg",
@@ -6710,7 +6757,7 @@
    }
   ],
   "localImage": "weapons/kuva_shildeg.webp",
-  "omegaAttenuation": 0.8
+  "omegaAttenuation": 0.85
  },
  {
   "name": "Kwath",
@@ -8634,7 +8681,7 @@
    }
   ],
   "localImage": "weapons/plague_keewar.webp",
-  "omegaAttenuation": 0.85
+  "omegaAttenuation": 0.9
  },
  {
   "name": "Plague Kripath",
@@ -9036,7 +9083,7 @@
   "type": "Melee",
   "category": "Melee",
   "isPrime": true,
-  "vaulted": false,
+  "vaulted": true,
   "masteryReq": 13,
   "components": [
    {
@@ -9060,6 +9107,7 @@
      "Meso G8",
      "Meso L4",
      "Neo A15",
+     "Neo V12",
      "Neo X1"
     ],
     "ducats": 45,
@@ -9630,7 +9678,7 @@
    }
   ],
   "localImage": "weapons/sarofang_prime.webp",
-  "omegaAttenuation": 0.65
+  "omegaAttenuation": 0.75
  },
  {
   "name": "Sarpa",
@@ -10511,7 +10559,7 @@
    }
   ],
   "localImage": "weapons/spinnerex.webp",
-  "omegaAttenuation": 0.75
+  "omegaAttenuation": 0.85
  },
  {
   "name": "Stropha",
@@ -10750,7 +10798,7 @@
    }
   ],
   "localImage": "weapons/tak__lug.webp",
-  "omegaAttenuation": 0.95
+  "omegaAttenuation": 1.05
  },
  {
   "name": "Tatsu",
@@ -11108,7 +11156,7 @@
    }
   ],
   "localImage": "weapons/thalys.webp",
-  "omegaAttenuation": 0.6
+  "omegaAttenuation": 0.65
  },
  {
   "name": "Tipedo",
@@ -11296,7 +11344,7 @@
    }
   ],
   "localImage": "weapons/tonkkatt.webp",
-  "omegaAttenuation": 0.85
+  "omegaAttenuation": 0.95
  },
  {
   "name": "Twin Basolk",
@@ -11787,7 +11835,7 @@
    }
   ],
   "localImage": "weapons/venato_prime.webp",
-  "omegaAttenuation": 0.6
+  "omegaAttenuation": 0.65
  },
  {
   "name": "Venka",
@@ -12558,7 +12606,7 @@
    }
   ],
   "localImage": "weapons/alternox.webp",
-  "omegaAttenuation": 1.15
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Alternox Prime",
@@ -12619,7 +12667,7 @@
    }
   ],
   "localImage": "weapons/alternox_prime.webp",
-  "omegaAttenuation": 0.8
+  "omegaAttenuation": 0.95
  },
  {
   "name": "Ambassador",
@@ -14441,7 +14489,7 @@
   "masteryReq": 17,
   "components": [],
   "localImage": "weapons/coda_bubonico.webp",
-  "omegaAttenuation": 0.55
+  "omegaAttenuation": 0.6
  },
  {
   "name": "Coda Hema",
@@ -14452,7 +14500,7 @@
   "masteryReq": 17,
   "components": [],
   "localImage": "weapons/coda_hema.webp",
-  "omegaAttenuation": 0.95
+  "omegaAttenuation": 1
  },
  {
   "name": "Coda Sporothrix",
@@ -14764,7 +14812,7 @@
    }
   ],
   "localImage": "weapons/daikyu_prime.webp",
-  "omegaAttenuation": 0.9
+  "omegaAttenuation": 1
  },
  {
   "name": "Dera",
@@ -15036,7 +15084,7 @@
    }
   ],
   "localImage": "weapons/enkaus.webp",
-  "omegaAttenuation": 0.7
+  "omegaAttenuation": 0.8
  },
  {
   "name": "Evensong",
@@ -15658,7 +15706,7 @@
   "masteryReq": 8,
   "components": [],
   "localImage": "weapons/haalvu.webp",
-  "omegaAttenuation": 0.5
+  "omegaAttenuation": 0.6
  },
  {
   "name": "Harpak",
@@ -16234,7 +16282,7 @@
    }
   ],
   "localImage": "weapons/kuva_bramma.webp",
-  "omegaAttenuation": 0.65
+  "omegaAttenuation": 0.7
  },
  {
   "name": "Kuva Chakkhurr",
@@ -17000,6 +17048,53 @@
   "omegaAttenuation": 0.65
  },
  {
+  "name": "Nunchasa",
+  "type": "Bow",
+  "category": "Primary",
+  "isPrime": false,
+  "vaulted": null,
+  "masteryReq": 14,
+  "components": [
+   {
+    "name": "Blueprint",
+    "itemCount": 1,
+    "drops": [],
+    "ducats": 0,
+    "localImage": "weapons/blueprint.webp"
+   },
+   {
+    "name": "Grip",
+    "itemCount": 1,
+    "drops": [],
+    "ducats": 0,
+    "localImage": "weapons/grip.webp"
+   },
+   {
+    "name": "Lower Limb",
+    "itemCount": 1,
+    "drops": [],
+    "ducats": 0,
+    "localImage": "weapons/lower_limb.webp"
+   },
+   {
+    "name": "String",
+    "itemCount": 1,
+    "drops": [],
+    "ducats": 0,
+    "localImage": "weapons/string.webp"
+   },
+   {
+    "name": "Upper Limb",
+    "itemCount": 1,
+    "drops": [],
+    "ducats": 0,
+    "localImage": "weapons/upper_limb.webp"
+   }
+  ],
+  "localImage": "weapons/nunchasa.webp",
+  "omegaAttenuation": 0.5
+ },
+ {
   "name": "Ogris",
   "type": "Launcher",
   "category": "Primary",
@@ -17362,6 +17457,7 @@
      "Neo N22",
      "Neo S19",
      "Neo V11",
+     "Neo V12",
      "Neo Z1"
     ],
     "ducats": 15,
@@ -17692,7 +17788,7 @@
    }
   ],
   "localImage": "weapons/perigale_prime.webp",
-  "omegaAttenuation": 0.65
+  "omegaAttenuation": 0.8
  },
  {
   "name": "Phage",
@@ -18052,7 +18148,7 @@
    }
   ],
   "localImage": "weapons/purgator_1.webp",
-  "omegaAttenuation": 1.15
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Quanta",
@@ -19052,6 +19148,53 @@
   "omegaAttenuation": 1.25
  },
  {
+  "name": "Steflos Prime",
+  "type": "Shotgun",
+  "category": "Primary",
+  "isPrime": true,
+  "vaulted": false,
+  "masteryReq": 15,
+  "components": [
+   {
+    "name": "Barrel",
+    "itemCount": 1,
+    "drops": [],
+    "ducats": 100,
+    "localImage": "weapons/barrel.webp"
+   },
+   {
+    "name": "Blueprint",
+    "itemCount": 1,
+    "drops": [],
+    "ducats": 45,
+    "localImage": "weapons/blueprint.webp"
+   },
+   {
+    "name": "Orokin Cell",
+    "itemCount": 10,
+    "drops": [],
+    "ducats": 0,
+    "localImage": "weapons/orokin_cell.webp"
+   },
+   {
+    "name": "Receiver",
+    "itemCount": 1,
+    "drops": [],
+    "ducats": 15,
+    "localImage": "weapons/receiver.webp"
+   },
+   {
+    "name": "Stock",
+    "itemCount": 1,
+    "drops": [],
+    "ducats": 45,
+    "localImage": "weapons/stock.webp"
+   }
+  ],
+  "localImage": "weapons/steflos_prime.webp",
+  "omegaAttenuation": 0.5
+ },
+ {
   "name": "Stradavar",
   "type": "Rifle",
   "category": "Primary",
@@ -19572,7 +19715,7 @@
    }
   ],
   "localImage": "weapons/tenet_arca_plasmor.webp",
-  "omegaAttenuation": 0.55
+  "omegaAttenuation": 0.6
  },
  {
   "name": "Tenet Envoy",
@@ -19667,7 +19810,7 @@
    }
   ],
   "localImage": "weapons/tenet_quanta.webp",
-  "omegaAttenuation": 0.75
+  "omegaAttenuation": 0.85
  },
  {
   "name": "Tenet Tetra",
@@ -19902,7 +20045,7 @@
    }
   ],
   "localImage": "weapons/thornbak.webp",
-  "omegaAttenuation": 1.15
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Tiberon",
@@ -20292,7 +20435,7 @@
   "type": "Rifle",
   "category": "Primary",
   "isPrime": true,
-  "vaulted": false,
+  "vaulted": true,
   "masteryReq": 15,
   "components": [
    {
@@ -20424,7 +20567,7 @@
    }
   ],
   "localImage": "weapons/vadarya_prime.webp",
-  "omegaAttenuation": 0.75
+  "omegaAttenuation": 0.8
  },
  {
   "name": "Vaykor Hek",
@@ -21438,6 +21581,7 @@
      "Neo P6",
      "Neo T2",
      "Neo V11",
+     "Neo V12",
      "Neo W2"
     ],
     "ducats": 15,
@@ -22388,7 +22532,47 @@
    }
   ],
   "localImage": "weapons/aksomati_prime.webp",
-  "omegaAttenuation": 1.05
+  "omegaAttenuation": 1.1
+ },
+ {
+  "name": "Aksondol",
+  "type": "Pistol",
+  "category": "Secondary",
+  "isPrime": false,
+  "vaulted": null,
+  "masteryReq": 14,
+  "components": [
+   {
+    "name": "Barrel",
+    "itemCount": 2,
+    "drops": [],
+    "ducats": 0,
+    "localImage": "weapons/barrel.webp"
+   },
+   {
+    "name": "Blueprint",
+    "itemCount": 1,
+    "drops": [],
+    "ducats": 0,
+    "localImage": "weapons/blueprint.webp"
+   },
+   {
+    "name": "Link",
+    "itemCount": 1,
+    "drops": [],
+    "ducats": 0,
+    "localImage": "weapons/link.webp"
+   },
+   {
+    "name": "Receiver",
+    "itemCount": 2,
+    "drops": [],
+    "ducats": 0,
+    "localImage": "weapons/receiver.webp"
+   }
+  ],
+  "localImage": "weapons/aksondol.webp",
+  "omegaAttenuation": 0.5
  },
  {
   "name": "Akstiletto",
@@ -23515,7 +23699,7 @@
   "masteryReq": 17,
   "components": [],
   "localImage": "weapons/coda_catabolyst.webp",
-  "omegaAttenuation": 0.65
+  "omegaAttenuation": 0.7
  },
  {
   "name": "Coda Pox",
@@ -23526,7 +23710,7 @@
   "masteryReq": 17,
   "components": [],
   "localImage": "weapons/coda_pox.webp",
-  "omegaAttenuation": 1
+  "omegaAttenuation": 1.05
  },
  {
   "name": "Coda Tysis",
@@ -24479,7 +24663,7 @@
    }
   ],
   "localImage": "weapons/hystrix_prime.webp",
-  "omegaAttenuation": 1
+  "omegaAttenuation": 1.05
  },
  {
   "name": "Knell",
@@ -25595,7 +25779,7 @@
    }
   ],
   "localImage": "weapons/onos.webp",
-  "omegaAttenuation": 0.8
+  "omegaAttenuation": 0.85
  },
  {
   "name": "Pandero",
@@ -26079,7 +26263,7 @@
    }
   ],
   "localImage": "weapons/sagek_prime.webp",
-  "omegaAttenuation": 0.8
+  "omegaAttenuation": 0.9
  },
  {
   "name": "Sancti Castanas",
@@ -26130,7 +26314,7 @@
    }
   ],
   "localImage": "weapons/scyotid.webp",
-  "omegaAttenuation": 0.7
+  "omegaAttenuation": 0.75
  },
  {
   "name": "Secura Dual Cestra",
@@ -27653,7 +27837,7 @@
    }
   ],
   "localImage": "weapons/zylok_prime.webp",
-  "omegaAttenuation": 0.9
+  "omegaAttenuation": 0.95
  },
  {
   "name": "Zymos",
@@ -28173,28 +28357,36 @@
    {
     "name": "Barrel",
     "itemCount": 1,
-    "drops": [],
+    "drops": [
+     "Neo C8"
+    ],
     "ducats": 45,
     "localImage": null
    },
    {
     "name": "Blade",
     "itemCount": 1,
-    "drops": [],
+    "drops": [
+     "Meso A12"
+    ],
     "ducats": 100,
     "localImage": null
    },
    {
     "name": "Blueprint",
     "itemCount": 1,
-    "drops": [],
+    "drops": [
+     "Axi A22"
+    ],
     "ducats": 100,
     "localImage": null
    },
    {
     "name": "Handle",
     "itemCount": 1,
-    "drops": [],
+    "drops": [
+     "Lith Q3"
+    ],
     "ducats": 15,
     "localImage": null
    },
@@ -28207,7 +28399,7 @@
    }
   ],
   "localImage": null,
-  "omegaAttenuation": 0.5
+  "omegaAttenuation": 0.65
  },
  {
   "name": "Athodai Prime",
@@ -28220,14 +28412,18 @@
    {
     "name": "Barrel",
     "itemCount": 1,
-    "drops": [],
+    "drops": [
+     "Neo A16"
+    ],
     "ducats": 100,
     "localImage": null
    },
    {
     "name": "Blueprint",
     "itemCount": 1,
-    "drops": [],
+    "drops": [
+     "Meso L5"
+    ],
     "ducats": 15,
     "localImage": null
    },
@@ -28241,13 +28437,15 @@
    {
     "name": "Receiver",
     "itemCount": 1,
-    "drops": [],
+    "drops": [
+     "Axi P10"
+    ],
     "ducats": 45,
     "localImage": null
    }
   ],
   "localImage": null,
-  "omegaAttenuation": 0.5
+  "omegaAttenuation": 0.65
  },
  {
   "name": "Pride",
@@ -28287,7 +28485,7 @@
    }
   ],
   "localImage": null,
-  "omegaAttenuation": 0.5
+  "omegaAttenuation": 0.7
  },
  {
   "name": "War Prime",
@@ -28298,7 +28496,7 @@
   "masteryReq": 15,
   "components": [],
   "localImage": null,
-  "omegaAttenuation": 0.5
+  "omegaAttenuation": 0.65
  },
  {
   "name": "Wrath",
@@ -28338,6 +28536,6 @@
    }
   ],
   "localImage": null,
-  "omegaAttenuation": 0.5
+  "omegaAttenuation": 0.7
  }
 ]
