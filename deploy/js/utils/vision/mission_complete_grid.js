@@ -370,7 +370,8 @@ function _conGrupo(img, accent, zone, checks, trace, S, dist) {
 
     for (const cell of unique) {
         cell.named = classifyRewardCell(img, accent, cell, dist).kind === "NAMED";
-        cell.qty = cell.named ? readRewardQty(img, accent, cell, dist) : 1;
+        cell.badge = cell.named ? readRewardBadge(img, accent, cell, dist) : "";
+        cell.qty = cantidadDeBadge(cell.badge);
     }
 
     trace.cols = sortedCols.length;
@@ -437,6 +438,15 @@ export function readRewardBadge(img, accent, cell, dist) {
 }
 
 export function readRewardQty(img, accent, cell, dist) {
-    const n = Number.parseInt(readRewardBadge(img, accent, cell, dist), 10);
+    return cantidadDeBadge(readRewardBadge(img, accent, cell, dist));
+}
+
+export function cantidadDeBadge(badge) {
+    const n = Number.parseInt(badge, 10);
     return Number.isFinite(n) && n >= 2 && n <= 20 ? n : 1;
+}
+
+export function esRecursoPorBadge(badge) {
+    const n = Number.parseInt(badge, 10);
+    return Number.isFinite(n) && n >= 10;
 }

@@ -67,3 +67,12 @@ export function eligeTema(px, temas) {
         afinidad: media,
     };
 }
+
+export function decideTema(estable, voto, votos = [], { ventana = 5, necesarios = 3, inequivoca = 0.9 } = {}) {
+    const nombre = voto.tema.name;
+    const ventanaNueva = [...votos.slice(-(ventana - 1)), nombre];
+    if (estable?.name === nombre) return { releva: true, votos: ventanaNueva, n: necesarios };
+    if (!estable || voto.afinidad >= inequivoca) return { releva: true, votos: [], n: necesarios };
+    const n = ventanaNueva.filter((t) => t === nombre).length;
+    return n >= necesarios ? { releva: true, votos: [], n } : { releva: false, votos: ventanaNueva, n };
+}

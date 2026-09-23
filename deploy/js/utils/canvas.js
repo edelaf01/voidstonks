@@ -311,7 +311,7 @@ export function initCanvas() {
   }
 
   function initSystem() {
-    const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+    const dpr = Math.min(window.devicePixelRatio || 1, 1.5) * 0.5;
     width = window.innerWidth;
     height = window.innerHeight;
     canvas.width = width * dpr;

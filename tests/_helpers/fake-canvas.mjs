@@ -44,6 +44,8 @@ export class FakeCanvas {
 
   toDataURL() { return "data:image/png;base64,"; }
 
+  toBlob(cb, tipo = "image/png") { cb(new Blob([this._data], { type: tipo })); }
+
   px(x, y) {
     const i = (y * this._w + x) * 4;
     return [this._data[i], this._data[i + 1], this._data[i + 2], this._data[i + 3]];
@@ -173,6 +175,7 @@ function crearContexto(canvas) {
 
     clearRect() {},
     strokeRect() {},
+    setLineDash() {}, getLineDash: () => [],
     fillText() {},
     strokeText() {},
     beginPath() {}, closePath() {}, moveTo() {}, lineTo() {}, stroke() {}, fill() {},

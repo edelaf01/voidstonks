@@ -8,6 +8,7 @@ import { NAME_TEXT_COLORS, snapToThemeTextColor, rampCoreColor, bandInkHistogram
 import { themeTextMask } from "../../utils/vision/theme_mask.js";
 import { inkRunRatio } from "../../utils/vision/ink_runs.js";
 import { maxChannelPreset } from "../../utils/vision/reward_preprocess.js";
+import { RECORTE_CABECERA } from "../../utils/vision/context_latch.js";
 export { NAME_TEXT_COLORS, snapToThemeTextColor };
 
 export async function applyBestCameraConstraints(stream) {
@@ -32,13 +33,13 @@ export async function applyBestCameraConstraints(stream) {
 
 
 
-import { eligeTema } from "../../utils/vision/theme_vote.js";
+import { eligeTema, decideTema } from "../../utils/vision/theme_vote.js";
 
 // name upscale: 2x loses low contrast themes, 3x costs 20 % more per cell for the same reads
 const CELL_UPSCALE = 2.5;
 
-const FRAMES_PARA_CAMBIAR_TEMA = 3;
 import { WF_THEMES, WF_THEMES_VOTABLES } from "../../utils/vision/wf_themes.js";
+import { buscaChecks, faseDesdeChecks, ventanasDeFilas } from "../../utils/vision/check_anchor.js";
 export { WF_THEMES };
 
 
@@ -59,10 +60,13 @@ const scratchStack = (n) => {
 export const VisionService = {
     _sharedCvs: document.createElement("canvas"),
     _themeCvs: document.createElement("canvas"),
-    _temaRacha: null,
+    _temaVotos: [],
     _tempBadgeCvs: document.createElement("canvas"),
     _badgeCvs: document.createElement("canvas"),
     _relicSelectionCvs: document.createElement("canvas"),
+    _kioskPanelCvs: document.createElement("canvas"),
+    _dialogCvs: document.createElement("canvas"),
+    _currencyCvs: document.createElement("canvas"),
     _rewardCvs: document.createElement("canvas"),
     _rewardNamesCvs: document.createElement("canvas"),
     _rivenCvs: document.createElement("canvas"),
@@ -137,11 +141,12 @@ export const VisionService = {
         const height = video.videoHeight;
         const scale = 1080 / height;
 
-        const hCropW = Math.floor(width * 0.45);
-        const hCropH = Math.floor(height * 0.12);
+        const hCropW = Math.floor(width * RECORTE_CABECERA.w);
+        const hCropH = Math.floor(height * RECORTE_CABECERA.h);
 
-        canvas.width = Math.floor(hCropW * scale);
-        canvas.height = Math.floor(hCropH * scale);
+        const w = Math.floor(hCropW * scale), h = Math.floor(hCropH * scale);
+        if (canvas.width !== w) canvas.width = w;
+        if (canvas.height !== h) canvas.height = h;
 
         const ctx = canvas.getContext("2d", { willReadFrequently: true });
         ctx.drawImage(video, 0, 0, hCropW, hCropH, 0, 0, canvas.width, canvas.height);
@@ -255,7 +260,7 @@ export const VisionService = {
         ctx.putImageData(imgData, 0, 0);
     },
 
-    detectThemeFromSnapshot(snapshot, sampleX, sampleY, sampleW, sampleH) {
+    detectThemeFromSnapshot(snapshot, sampleX, sampleY, sampleW, sampleH, { sinRecuerdo = false } = {}) {
         const cvs = this._themeCvs;
         cvs.width = sampleW; cvs.height = sampleH;
         const ctx = cvs.getContext("2d", { willReadFrequently: true });
@@ -266,22 +271,17 @@ export const VisionService = {
         const voto = eligeTema(px, WF_THEMES_VOTABLES);
 
         if (!voto) {
-            const estable = globalThis.state?.lastStableTheme;
+            const estable = sinRecuerdo ? null : globalThis.state?.lastStableTheme;
             console.log(`[VisionService] Sin tema fiable — se mantiene ${estable ? estable.name : "ninguno"}`);
             return estable || null;
         }
 
         const estable = globalThis.state?.lastStableTheme;
-        if (estable && estable.name !== voto.tema.name) {
-            this._temaRacha = this._temaRacha?.name === voto.tema.name
-                ? { name: voto.tema.name, n: this._temaRacha.n + 1 }
-                : { name: voto.tema.name, n: 1 };
-            if (this._temaRacha.n < FRAMES_PARA_CAMBIAR_TEMA) {
-                console.log(`[VisionService] ${voto.tema.name} (${voto.afinidad.toFixed(3)}) ${this._temaRacha.n}/${FRAMES_PARA_CAMBIAR_TEMA} — se mantiene ${estable.name}`);
-                return estable;
-            }
-        } else {
-            this._temaRacha = null;
+        const decision = decideTema(estable, voto, this._temaVotos);
+        this._temaVotos = decision.votos;
+        if (!decision.releva) {
+            console.log(`[VisionService] ${voto.tema.name} (${voto.afinidad.toFixed(3)}) ${decision.n}/3 de los últimos 5 — se mantiene ${estable.name}`);
+            return estable;
         }
 
         const { tema, actualR, actualG, actualB, afinidad } = voto;
@@ -691,6 +691,30 @@ export const VisionService = {
         const ctx = cvs.getContext("2d", { willReadFrequently: true });
         ctx.filter = "grayscale(100%) brightness(1.2) contrast(300%)";
         ctx.drawImage(video, rsCropX, rsCropY, rsCropW, rsCropH, 0, 0, cvs.width, cvs.height);
+        return cvs;
+    },
+
+    prepareKioskPanelCanvas(video) {
+        const W = video.videoWidth, H = video.videoHeight;
+        return this._recorteGris(video, this._kioskPanelCvs, Math.floor(W * 0.70), Math.floor(H * 0.19), Math.floor(W * 0.26), Math.floor(H * 0.59));
+    },
+
+    prepareCurrencyBarCanvas(video) {
+        const W = video.videoWidth, H = video.videoHeight;
+        return this._recorteGris(video, this._currencyCvs, Math.floor(W * 0.76), Math.floor(H * 0.03), Math.floor(W * 0.21), Math.floor(H * 0.045), 2);
+    },
+
+    prepareCenterDialogCanvas(video) {
+        const W = video.videoWidth, H = video.videoHeight;
+        return this._recorteGris(video, this._dialogCvs, Math.floor(W * 0.33), Math.floor(H * 0.42), Math.floor(W * 0.34), Math.floor(H * 0.08));
+    },
+
+    _recorteGris(video, cvs, sx, sy, sw, sh, escala = 1) {
+        if (cvs.width !== sw * escala) cvs.width = sw * escala;
+        if (cvs.height !== sh * escala) cvs.height = sh * escala;
+        const ctx = cvs.getContext("2d", { willReadFrequently: true });
+        ctx.filter = "grayscale(100%) brightness(1.2) contrast(300%)";
+        ctx.drawImage(video, sx, sy, sw, sh, 0, 0, cvs.width, cvs.height);
         return cvs;
     },
 
@@ -1140,6 +1164,23 @@ export const VisionService = {
         }
     },
 
+    anclaPorChecks(snapshot, gridZone, calibData) {
+        const { cellW, cellH } = calibData || {};
+        if (!cellW || !cellH || !gridZone?.w || !gridZone?.h) return null;
+        const ctx = snapshot.getContext?.("2d", { willReadFrequently: true });
+        if (!ctx) return null;
+        const ventanasY = calibData.heredada ? null : ventanasDeFilas(calibData, gridZone.y);
+        const picos = buscaChecks(ctx.getImageData(gridZone.x, gridZone.y, gridZone.w, gridZone.h), cellH, { ventanasY });
+        const fase = faseDesdeChecks(picos, { cellW, cellH });
+        if (!fase) return null;
+        const cerca = (v, ref, paso) => v + Math.round((ref - v) / paso) * paso;
+        return {
+            gridX: cerca(gridZone.x + fase.gridX, calibData.gridX ?? gridZone.x, cellW),
+            gridY: cerca(gridZone.y + fase.gridY, calibData.gridY ?? gridZone.y, cellH),
+            n: fase.n, marcas: picos.length,
+        };
+    },
+
      buildAutoGrid(snapshot, gridZone, theme, calibData) {
         if (calibData && calibData.cellW && calibData.cols && calibData.rows) {
             const cols = calibData.cols;
@@ -1204,7 +1245,7 @@ export const VisionService = {
         if (dy === 0) return grid;
         console.log(`[buildAutoGrid] Row phase shift: ${dy}px (scroll clampado, p.ej. final de lista) — realineando filas.`);
         for (const cell of grid.cellRects) { cell.sy += dy; cell.cy += dy; }
-        grid.cellRects = grid.cellRects.filter(c => c.sy >= 0 && c.sy + grid.cellH <= snapshot.height);
+        grid.cellRects = grid.cellRects.filter(c => c.sy >= -grid.cellH * 0.15 && c.sy + grid.cellH <= snapshot.height);
         return grid;
     },
 

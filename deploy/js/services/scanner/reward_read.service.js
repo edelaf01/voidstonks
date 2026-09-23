@@ -29,7 +29,8 @@ export async function leeRotulosMissionComplete(frame, celdas) {
     }));
     try {
         const salida = new Map();
-        for (const { canvas, tramos } of montaTiras(frame, tiras, { hueco: 10 })) {
+        // 2x, not 1.5x: over the art, 1.5x read "PRIME IMB" for "Limbo Prime"
+        for (const { canvas, tramos } of montaTiras(frame, tiras, { hueco: 10, escala: 2 })) {
             const res = await PaddleRepository.recognizeLines(canvas);
             for (const [clave, suyas] of repartePorTramos(res, tramos)) {
                 salida.set(clave, suyas.map((l) => l.text).join(" ").toUpperCase());

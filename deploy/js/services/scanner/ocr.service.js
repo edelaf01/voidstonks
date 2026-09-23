@@ -153,10 +153,10 @@ export const OCRService = {
             .map(w => sinAcentos((w || "").toString()).toUpperCase()
                 .replaceAll(/[|!¡\][]/g, "I")
                 .replaceAll(/\?/g, "7")
-                .replaceAll(/[^A-Z0-9]/g, ""))
+                .replaceAll(/[^A-Z0-9]/g, "").replace(/^([A-Z]\d{1,2})(RELIC|RELIQUIA)S?$/, "$1"))
             .filter(w => w.length > 0 && !this.RELIC_NOISE_TOKENS.has(w));
         const index = this._relicIndex();
-        const saysRelic = rawWords.some(w => /^(RELIC|RELIQUIA)S?$/.test(
+        const saysRelic = rawWords.some(w => /(RELIC|RELIQUIA)S?$/.test(
             (w || "").toString().toUpperCase().replaceAll(/[^A-Z]/g, "")));
 
         for (let i = 0; i < words.length; i++) {

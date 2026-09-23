@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { installFakeDocument } from "./_helpers/fake-canvas.mjs";
+import { installFakeDocument, FakeCanvas, canvasLiso } from "./_helpers/fake-canvas.mjs";
 
 installFakeDocument();
 const { VisionService } = await import("../deploy/js/services/scanner/vision.service.js");
@@ -36,3 +36,24 @@ for (const texto of ["iS VOID FISSURES", "3 VOID FISSURES", "VOID FISSURES"]) {
     assert.equal(VisionService.determineContext(texto.toUpperCase()), "UNKNOWN");
   });
 }
+
+const video = (w, h, rgb) => Object.assign(canvasLiso(w, h, rgb), { videoWidth: w, videoHeight: h });
+
+test("el recorte de cabecera conserva su backing store si la resolución no cambia", () => {
+  const cvs = new FakeCanvas(10, 10);
+  VisionService.prepareVirtualCanvas(video(1920, 1080, [255, 255, 255]), cvs);
+  assert.deepEqual([cvs.width, cvs.height], [864, 129]);
+  const buffer = cvs.data;
+  VisionService.prepareVirtualCanvas(video(1920, 1080, [0, 0, 0]), cvs);
+  assert.equal(cvs.data, buffer, "misma resolución: se reasignó width/height");
+  assert.deepEqual(cvs.px(863, 128), [0, 0, 0, 255], "el drawImage sigue cubriendo el lienzo entero");
+});
+
+test("el recorte de cabecera se redimensiona al cambiar la resolución del vídeo", () => {
+  const cvs = new FakeCanvas(10, 10);
+  VisionService.prepareVirtualCanvas(video(1920, 1080, [255, 255, 255]), cvs);
+  const buffer = cvs.data;
+  VisionService.prepareVirtualCanvas(video(2560, 1080, [255, 255, 255]), cvs);
+  assert.deepEqual([cvs.width, cvs.height], [1152, 129]);
+  assert.notEqual(cvs.data, buffer);
+});
