@@ -100,6 +100,17 @@ const TOPE_HEADER_ESTABLE = 3;
  * INVENTORYSELL"), y llega al borde porque "VOID FISSURE/REWARDS" acaba en 0.97.
  */
 export const FRANJA_TITULO = Object.freeze({ x: 0.21, y: 0.30, w: 0.79, h: 0.42, cols: 64, filas: 8 });
+/** Recorte de cabecera en fracciones del frame (lo dibuja VisionService.prepareVirtualCanvas). */
+export const RECORTE_CABECERA = Object.freeze({ w: 0.45, h: 0.12 });
+/**
+ * La franja en fracciones del FRAME, para muestrearla sin dibujar la cabecera, que solo hace falta
+ * para el OCR. Corpus (45 capturas): decide igual que sobre el recorte en 989 de 990 pares, pero la
+ * misma imagen difiere hasta un 13 % entre los dos métodos: base y muestra salen siempre de aquí.
+ */
+export const FRANJA_TITULO_VIDEO = Object.freeze({
+    x: RECORTE_CABECERA.w * FRANJA_TITULO.x, y: RECORTE_CABECERA.h * FRANJA_TITULO.y,
+    w: RECORTE_CABECERA.w * FRANJA_TITULO.w, h: RECORTE_CABECERA.h * FRANJA_TITULO.h, cols: 64, filas: 8,
+});
 /**
  * Medido sobre 14 cabeceras del corpus: misma pantalla 0 % de muestras cambiadas, inventario de
  * otra sesión 7 %, INVENTORY -> INVENTORY/MODS 14-19 %, -> REWARD 23-27 %. El hash de 16×9 de

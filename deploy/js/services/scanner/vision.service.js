@@ -8,6 +8,7 @@ import { NAME_TEXT_COLORS, snapToThemeTextColor, rampCoreColor, bandInkHistogram
 import { themeTextMask } from "../../utils/vision/theme_mask.js";
 import { inkRunRatio } from "../../utils/vision/ink_runs.js";
 import { maxChannelPreset } from "../../utils/vision/reward_preprocess.js";
+import { RECORTE_CABECERA } from "../../utils/vision/context_latch.js";
 // La tabla y el snap viven en utils/, pero varios módulos y tests los importan
 // históricamente desde aquí.
 export { NAME_TEXT_COLORS, snapToThemeTextColor };
@@ -181,8 +182,8 @@ export const VisionService = {
         // (e.g. "VOID FISSURE/REWARDS", "INVENTORY", "RELIC REFINEMENT") is always located.
         // This completely avoids the middle/right background graphic and sparks from skewing
         // the K-means clustering threshold, ensuring 100% stable context detection.
-        const hCropW = Math.floor(width * 0.45);
-        const hCropH = Math.floor(height * 0.12);
+        const hCropW = Math.floor(width * RECORTE_CABECERA.w);
+        const hCropH = Math.floor(height * RECORTE_CABECERA.h);
 
         // Asignar width/height realoca el backing store aunque el valor no cambie, y esto corre en cada tick.
         const w = Math.floor(hCropW * scale), h = Math.floor(hCropH * scale);

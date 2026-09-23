@@ -1,6 +1,7 @@
 import { VisionService } from "./vision.service.js";
 import { freezeFrame, releaseFrame } from "../../utils/vision/frame_freeze.js";
-import { nextLatchedContext, INITIAL_LATCH, enrutaGraciaRiven, intervaloCabecera, INTERVALO_FIN_MISION_MS, CADUCIDAD_CABECERA_MS, FRANJA_TITULO, tituloHaCambiado } from "../../utils/vision/context_latch.js";
+import { nextLatchedContext, INITIAL_LATCH, enrutaGraciaRiven, intervaloCabecera, INTERVALO_FIN_MISION_MS, CADUCIDAD_CABECERA_MS, FRANJA_TITULO_VIDEO, tituloHaCambiado } from "../../utils/vision/context_latch.js";
+import { sensorDelEscaner, CADA_MS } from "../../utils/vision/wake_sensor.js";
 import { isImplausibleFallbackGrid } from "../../utils/vision/plausibility.js";
 import { corrige56 } from "../../utils/vision/relic_digit_56.js";
 import { filasEnFase } from "../../utils/vision/grid_alignment.js";
@@ -13,7 +14,6 @@ import { SquadService } from "./squad.service.js";
 import { RelicScreenService } from "./relic_screen.service.js";
 import { OCRRepository } from "../../repositories/ocr.repository.js";
 import { PaddleRepository } from "../../repositories/paddle.repository.js";
-import { OpenCVRepository } from "../../repositories/opencv.repository.js";
 import { ScannerHUD } from "../../ui.components/ui_scanner_hud.js";
 import { ScannerModal } from "../../ui.components/ui_scanner_modal.js";
 import { initializeOCRDatabase } from "../../repositories/api.repository.js";
@@ -112,7 +112,6 @@ export const ScannerService = {
         import("../rivens/rivens.service.js").then(m => m.fetchRivenWeapons()).catch(err => console.warn("Error fetching Riven weapons:", err));
 
         await OCRRepository.warmUp();
-        OpenCVRepository.waitReady().catch(() => { });
         OCRService.initMatcherData();
         // El pool no se precalienta aquí: cada worker es una instancia WASM (~40-60 MB) que una
         // sesión de solo rivens no usa nunca. Se crea al entrar en INVENTORY (routeFrameAction).
@@ -123,6 +122,7 @@ export const ScannerService = {
         this.isScanning = false;
         if (this.scanInterval) clearTimeout(this.scanInterval);
         this.scanInterval = null;
+        this._sensor?.para();
         OCRRepository.terminateAll();
         PaddleRepository.apaga();
         // Parado no hay quien lea lo pendiente (los workers ya no están): se descarta.
@@ -140,14 +140,11 @@ export const ScannerService = {
     },
 
     async loop() {
+        this._sensor?.para();
+        this._cartaVigilada = null;
         if (!this.isScanning) return;
-
         const video = document.getElementById("live-video");
-        if (!video || video.paused || video.ended) {
-            this.scanInterval = setTimeout(() => this.loop(), 1000);
-            return;
-        }
-
+        if (!video || video.paused || video.ended) { this.scanInterval = setTimeout(() => this.loop(), 1000); return; }
         try {
             await this.processFrame(video, this.virtualCanvas);
         } catch (e) {
@@ -155,6 +152,8 @@ export const ScannerService = {
         } finally {
             if (this.isScanning) {
                 this.scanInterval = setTimeout(() => this.loop(), this.currentRate);
+                // En UNKNOWN no: jugando, la franja se para y arranca a cada rato y cada despertar sería un OCR de cabecera más.
+                if (this.latchedContext !== "UNKNOWN" && this.currentRate > 2 * CADA_MS) (this._sensor ||= sensorDelEscaner(this, video)).arma();
             }
         }
     },
@@ -175,13 +174,12 @@ export const ScannerService = {
         // no interesan. Lo que hay que ver es el frame CARO y en qué fase se fue.
         const reloj = cronometro("frame", 120);
 
-        const dims = VisionService.prepareVirtualCanvas(video, virtualCanvas);
-
+        const dims = { width: video.videoWidth, height: video.videoHeight, scale: 1080 / video.videoHeight };
         const worker1 = OCRRepository.workers[0];
         if (!worker1) return;
 
         // Franja del rótulo, no la cabecera entera (el hash 16×9 no veía SELL -> MODS). Baseline = último frame OCREADO, o un fade gradual no dispararía nunca.
-        const headerHash = regionLuma(virtualCanvas, FRANJA_TITULO);
+        const headerHash = regionLuma(video, FRANJA_TITULO_VIDEO);
         // Un UNKNOWN cacheado vale menos: puede ser un fin de misión al que se le negó el rescate.
         const caducidad = this.latchedContext === "UNKNOWN" ? RESCATE_CABECERA_MS : CADUCIDAD_CABECERA_MS;
         const headerCacheFresh = this.lastHeaderOcrTime && (Date.now() - this.lastHeaderOcrTime < caducidad);
@@ -203,7 +201,8 @@ export const ScannerService = {
             headerText = this.lastHeaderText;
         } else {
             this._cabeceraVigente = true;
-            // Solo cuando el header cambió: detección de tema + umbralizado (finalize) y OCR.
+            // Solo cuando el header cambió: dibujo, detección de tema + umbralizado (finalize) y OCR.
+            VisionService.prepareVirtualCanvas(video, virtualCanvas);
             const headerTheme = VisionService.finalizeVirtualCanvas(virtualCanvas);
             const { data: headerData } = await OCRRepository.recognize(worker1, virtualCanvas, {}, { text: true });
             headerText = headerData.text || "";
@@ -790,6 +789,7 @@ export const ScannerService = {
             this.lastRivenContextTime = Date.now();
             this.lastRivenContextType = contextType === "ITEM_DETAILS" ? "ITEM_DETAILS" : "INVENTORY_MODS";
             this.currentRate = this.RIVEN_RATE_IDLE;
+            this._cartaVigilada = cardCrop;
             return;
         }
 

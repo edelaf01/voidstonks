@@ -78,7 +78,7 @@ test("el corpus no se queda sin etiquetar en silencio", () => {
 // 16×9 daba por "la misma pantalla" (distancia 19-25, tolerancia 24). Sin Tesseract: solo píxeles.
 {
   const { regionLuma, smallCanvasHash, compareHashes } = await import("../deploy/js/utils/vision/frame_hash.js");
-  const { FRANJA_TITULO, tituloHaCambiado } = await import("../deploy/js/utils/vision/context_latch.js");
+  const { FRANJA_TITULO_VIDEO, tituloHaCambiado } = await import("../deploy/js/utils/vision/context_latch.js");
   // Una captura cada vez y sin guardarla: decodificada son ~15 MB.
   const cabecera = (rel) => {
     let img = decodePng(fs.readFileSync(path.join(DIR, rel)));
@@ -88,7 +88,7 @@ test("el corpus no se queda sin etiquetar en silencio", () => {
     img = null;
     const cvs = new FakeCanvas(10, 10);
     VisionService.prepareVirtualCanvas(video, cvs);
-    return { franja: regionLuma(cvs, FRANJA_TITULO), hash: smallCanvasHash(cvs) };
+    return { franja: regionLuma(video, FRANJA_TITULO_VIDEO), hash: smallCanvasHash(cvs) };
   };
   const MODS = process.env.CORPUS_MODS_PNG || "/home/ppsoy/Imágenes/Capturas de pantalla/nofunciona/riven2.png";
   const faltaMods = !(fs.existsSync(path.join(DIR, "anky ros.png")) && fs.existsSync(MODS)) && "sin anky ros.png o riven2.png";
@@ -101,7 +101,7 @@ test("el corpus no se queda sin etiquetar en silencio", () => {
     img = null;
     const cvs = new FakeCanvas(10, 10);
     VisionService.prepareVirtualCanvas(video, cvs);
-    const b = { franja: regionLuma(cvs, FRANJA_TITULO), hash: smallCanvasHash(cvs) };
+    const b = { franja: regionLuma(video, FRANJA_TITULO_VIDEO), hash: smallCanvasHash(cvs) };
     assert.equal(tituloHaCambiado(b.franja, a.franja), true);
     assert.equal(compareHashes(a.hash, b.hash, 24), true, "el hash viejo las daba por la misma pantalla");
   });

@@ -171,6 +171,19 @@ test("ScannerService.start no precalienta el 2º worker", () => {
   );
 });
 
+// OpenCV (~9 MB de script más su heap WASM) solo lo usa el escáner del móvil; el de escritorio
+// lo descargaba y compilaba en cada sesión sin llamarlo nunca. Se lee el fuente porque start()
+// arrastra red (lista de primes, armas) e IndexedDB, que no hay en node.
+test("ScannerService.start no carga OpenCV", () => {
+  const src = readFileSync(
+    new URL("../deploy/js/services/scanner/scanner.service.js", import.meta.url),
+    "utf8",
+  );
+  const start = methodBody(src, /^\s*async start\(/);
+  assert.ok(start, "no se localizó el cuerpo de start()");
+  assert.doesNotMatch(stripComments(start), /OpenCV/);
+});
+
 // close() en móvil sólo paraba la cámara y dejaba los heaps WASM vivos hasta recargar.
 test("MobileScanner.close libera los workers OCR", () => {
   const src = readFileSync(

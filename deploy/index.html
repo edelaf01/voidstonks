@@ -95,8 +95,8 @@
   <link rel="stylesheet" href="css/components/ui-kit.css?v=1.0" />
   <link rel="icon" type="image/png" href="https://wiki.warframe.com/images/VoidTraces.png" />
 
-  <!-- OpenCV y Tesseract se cargan BAJO DEMANDA al abrir el escáner
-       (OpenCVRepository.waitReady / OCRRepository.warmUp): ahorra ~150MB de RAM
+  <!-- Tesseract se carga BAJO DEMANDA al abrir el escáner (OCRRepository.warmUp), y OpenCV
+       solo en el escáner del móvil (OpenCVRepository.waitReady): ahorra ~150MB de RAM
        y varios MB de descarga a quien solo consulta precios. -->
 </head>
 

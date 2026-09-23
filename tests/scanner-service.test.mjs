@@ -674,18 +674,17 @@ async function cabeceraConRotulo({ invertido = false, filaCambiada = false } = {
 
 async function lecturasDeCabecera({ haceMs, frame2 }) {
   const { OCRRepository } = await import("../deploy/js/repositories/ocr.repository.js");
-  const { VisionService } = await import("../deploy/js/services/scanner/vision.service.js");
   const { regionLuma } = await import("../deploy/js/utils/vision/frame_hash.js");
-  const { FRANJA_TITULO } = await import("../deploy/js/utils/vision/context_latch.js");
+  const { FRANJA_TITULO_VIDEO } = await import("../deploy/js/utils/vision/context_latch.js");
   const { FakeCanvas } = await import("./_helpers/fake-canvas.mjs");
   let lecturas = 0;
   const orig = { workers: OCRRepository.workers, ruta: S.routeFrameAction };
   OCRRepository.workers = [{ recognize: async () => { lecturas++; return { data: { text: "INVENTORY/SELL" } }; } }];
   S.routeFrameAction = async () => {};
   const lienzo = new FakeCanvas(16, 9);
-  VisionService.prepareVirtualCanvas(await cabeceraConRotulo(), lienzo);
+  const base = await cabeceraConRotulo();
   Object.assign(S, { isScanning: true, detectionLocked: false, lastHeaderText: "INVENTORY/SELL", lastHeaderOcrTime: Date.now() - haceMs,
-    lastHeaderHash: regionLuma(lienzo, FRANJA_TITULO), _headerEstable: 0, _headerCtxPrevio: "INVENTORY", latchedContext: "INVENTORY" });
+    lastHeaderHash: regionLuma(base, FRANJA_TITULO_VIDEO), _headerEstable: 0, _headerCtxPrevio: "INVENTORY", latchedContext: "INVENTORY" });
   try {
     await S.processFrame(frame2, lienzo);
     return lecturas;
@@ -776,19 +775,17 @@ test("con la pantalla parada y sin contexto, los rescates de cabecera no esperan
 test("un UNKNOWN cacheado caduca a los 3 s, no a los 10", async () => {
   const lecturas = await (async () => {
     const { OCRRepository } = await import("../deploy/js/repositories/ocr.repository.js");
-    const { VisionService } = await import("../deploy/js/services/scanner/vision.service.js");
     const { regionLuma } = await import("../deploy/js/utils/vision/frame_hash.js");
-    const { FRANJA_TITULO } = await import("../deploy/js/utils/vision/context_latch.js");
+    const { FRANJA_TITULO_VIDEO } = await import("../deploy/js/utils/vision/context_latch.js");
     const { FakeCanvas } = await import("./_helpers/fake-canvas.mjs");
     let n = 0;
     const orig = { workers: OCRRepository.workers, ruta: S.routeFrameAction };
     OCRRepository.workers = [{ recognize: async () => { n++; return { data: { text: "" } }; } }];
     S.routeFrameAction = async () => {};
     const lienzo = new FakeCanvas(16, 9);
-    const frame = await cabeceraConRotulo();
-    VisionService.prepareVirtualCanvas(frame, lienzo);
+    const frame = await cabeceraConRotulo(), base = frame;
     Object.assign(S, { isScanning: true, detectionLocked: false, lastHeaderText: "", lastHeaderOcrTime: Date.now() - 5000,
-      lastHeaderHash: regionLuma(lienzo, FRANJA_TITULO), _headerEstable: 0, _headerCtxPrevio: "UNKNOWN", latchedContext: "UNKNOWN", _ultimoRescate: Date.now() });
+      lastHeaderHash: regionLuma(base, FRANJA_TITULO_VIDEO), _headerEstable: 0, _headerCtxPrevio: "UNKNOWN", latchedContext: "UNKNOWN", _ultimoRescate: Date.now() });
     try { await S.processFrame(frame, lienzo); return n; } finally { OCRRepository.workers = orig.workers; S.routeFrameAction = orig.ruta; S.isScanning = false; }
   })();
   assert.ok(lecturas >= 1, "a los 5 s sin contexto se relee");
@@ -833,19 +830,18 @@ test("el fin de misión se lee aunque el fondo se mueva: solo cuenta el panel de
 // de fin de misión se leyó como banda de recompensas y abrió el modal de elegir.
 test("la cabecera cacheada se marca como no vigente cuando el rótulo cambió y el reloj no deja releer", async () => {
   const { OCRRepository } = await import("../deploy/js/repositories/ocr.repository.js");
-  const { VisionService } = await import("../deploy/js/services/scanner/vision.service.js");
   const { regionLuma } = await import("../deploy/js/utils/vision/frame_hash.js");
-  const { FRANJA_TITULO } = await import("../deploy/js/utils/vision/context_latch.js");
+  const { FRANJA_TITULO_VIDEO } = await import("../deploy/js/utils/vision/context_latch.js");
   const { FakeCanvas } = await import("./_helpers/fake-canvas.mjs");
   const orig = { workers: OCRRepository.workers, ruta: S.routeFrameAction };
   OCRRepository.workers = [{ recognize: async () => ({ data: { text: "VOID FISSURE/REWARDS" } }) }];
   S.routeFrameAction = async () => {};
   const lienzo = new FakeCanvas(16, 9);
-  VisionService.prepareVirtualCanvas(await cabeceraConRotulo(), lienzo);
+  const base = await cabeceraConRotulo();
   try {
     // Recién leída (hace 100 ms, racha estable => intervalo 1,2 s) y el rótulo ya es otro.
     Object.assign(S, { isScanning: true, detectionLocked: false, lastHeaderText: "VOID FISSURE/REWARDS", lastHeaderOcrTime: Date.now() - 100,
-      lastHeaderHash: regionLuma(lienzo, FRANJA_TITULO), _headerEstable: 3, _headerCtxPrevio: "REWARD", latchedContext: "REWARD" });
+      lastHeaderHash: regionLuma(base, FRANJA_TITULO_VIDEO), _headerEstable: 3, _headerCtxPrevio: "REWARD", latchedContext: "REWARD" });
     await S.processFrame(await cabeceraConRotulo({ invertido: true }), lienzo);
     assert.equal(S._cabeceraVigente, false, "el texto es de la pantalla anterior");
     // Mismo rótulo que el leído: vigente aunque no se relea.
@@ -884,20 +880,19 @@ test("en fin de misión las casillas de recursos se descartan sin OCR", async ()
 // UNKNOWN el tick es de 1 s sin mirar el auto-scan.
 test("una pantalla nueva parada se lee aunque el reloj de la cabecera aún no haya vencido", async () => {
   const { OCRRepository } = await import("../deploy/js/repositories/ocr.repository.js");
-  const { VisionService } = await import("../deploy/js/services/scanner/vision.service.js");
   const { regionLuma } = await import("../deploy/js/utils/vision/frame_hash.js");
-  const { FRANJA_TITULO } = await import("../deploy/js/utils/vision/context_latch.js");
+  const { FRANJA_TITULO_VIDEO } = await import("../deploy/js/utils/vision/context_latch.js");
   const { FakeCanvas } = await import("./_helpers/fake-canvas.mjs");
   let lecturas = 0;
   const orig = { workers: OCRRepository.workers, ruta: S.routeFrameAction };
   OCRRepository.workers = [{ recognize: async () => { lecturas++; return { data: { text: "INVENTORY/SELL" } }; } }];
   S.routeFrameAction = async () => {};
   const lienzo = new FakeCanvas(16, 9);
-  VisionService.prepareVirtualCanvas(await cabeceraConRotulo(), lienzo);
+  const base = await cabeceraConRotulo();
   const nueva = await cabeceraConRotulo({ invertido: true });
   try {
     Object.assign(S, { isScanning: true, detectionLocked: false, lastHeaderText: "INVENTORY/SELL", lastHeaderOcrTime: Date.now() - 100,
-      lastHeaderHash: regionLuma(lienzo, FRANJA_TITULO), _headerEstable: 3, _headerCtxPrevio: "INVENTORY", latchedContext: "INVENTORY", _franjaTickAnterior: null });
+      lastHeaderHash: regionLuma(base, FRANJA_TITULO_VIDEO), _headerEstable: 3, _headerCtxPrevio: "INVENTORY", latchedContext: "INVENTORY", _franjaTickAnterior: null });
     await S.processFrame(nueva, lienzo); // primer tick con la pantalla nueva: aún no se sabe parada
     assert.equal(lecturas, 0, "en movimiento manda el reloj");
     await S.processFrame(nueva, lienzo); // mismo rótulo dos ticks seguidos: parada y distinta → se lee
@@ -1011,4 +1006,91 @@ test("fin de misión leído entero se duerme hasta otro fin de misión", async (
     assert.equal(S._mcDormido, null);
 
   } finally { OCRRepository.workers = orig.workers; PaddleRepository.listo = orig.listo; globalThis.commitMissionCompleteRewards = orig.commit; state.allRelicNames = orig.relics; S._mcGrid = null; S._mcStableHash = null; S._mcDormido = null; S._mcCache.clear(); }
+});
+
+// --- Sensor entre ticks ------------------------------------------------------------------------
+//
+// "Quiero responsividad, sin escanear cada frame": con el auto-scan apagado el tick del inventario
+// es de 3 s, y cambiar de pestaña tardaba eso en verse. El sensor se arma en los menús con tick
+// largo; en UNKNOWN no, porque jugando la franja se para y arranca a cada rato y cada despertar
+// sería un OCR de cabecera más.
+test("el sensor se arma en los menús con tick largo, y nunca en UNKNOWN ni con tick corto", async () => {
+  const W = 640, H = 360;
+  globalThis.document._registrar("live-video", { videoWidth: W, videoHeight: H, width: W, height: H, data: new Uint8ClampedArray(W * H * 4), paused: false, ended: false });
+  const orig = { proc: S.processFrame, sensor: S._sensor };
+  S._sensor = null;
+  try {
+    for (const [ctx, rate, armado] of [["INVENTORY", 3000, true], ["INVENTORY_MODS", 1000, true], ["UNKNOWN", 1000, false], ["REWARD", 400, false]]) {
+      S.processFrame = async () => { S.latchedContext = ctx; S.currentRate = rate; };
+      S.isScanning = true;
+      await S.loop();
+      assert.equal(!!S._sensor?.armado, armado, `${ctx} con tick de ${rate} ms`);
+      clearTimeout(S.scanInterval); S._sensor?.para();
+    }
+  } finally {
+    S.processFrame = orig.proc; S.isScanning = false; clearTimeout(S.scanInterval); S._sensor?.para(); S._sensor = orig.sensor;
+  }
+});
+
+// El tick despertado tiene que LEER: el reloj de la cabecera acaba de leer (hace 100 ms) y solo una
+// franja vista quieta lo salta. Sin pasarle la muestra previa del sensor, el primer tick no sabía
+// que el rótulo estaba parado y esperaba a otro (ver "una pantalla nueva parada se lee...").
+test("despertado por el sensor, el rótulo nuevo se lee en ese mismo tick", async () => {
+  const { OCRRepository } = await import("../deploy/js/repositories/ocr.repository.js");
+  const { regionLuma } = await import("../deploy/js/utils/vision/frame_hash.js");
+  const { FRANJA_TITULO_VIDEO, INITIAL_LATCH } = await import("../deploy/js/utils/vision/context_latch.js");
+  const { sensorDelEscaner } = await import("../deploy/js/utils/vision/wake_sensor.js");
+  const { FakeCanvas } = await import("./_helpers/fake-canvas.mjs");
+  let lecturas = 0, vuelta = null;
+  const orig = { workers: OCRRepository.workers, ruta: S.routeFrameAction, loop: S.loop, cvs: S.virtualCanvas, sensor: S._sensor };
+  OCRRepository.workers = [{ recognize: async () => { lecturas++; return { data: { text: "INVENTORY/MODS" } }; } }];
+  S.routeFrameAction = async () => { S.currentRate = 3000; };
+  S.loop = function () { vuelta = orig.loop.call(this); return vuelta; };
+  const video = globalThis.document._registrar("live-video", { ...(await cabeceraConRotulo()), paused: false, ended: false });
+  const reloj = { fn: null, setInterval(fn) { this.fn = fn; return 1; }, clearInterval() { this.fn = null; } };
+  Object.assign(S, { isScanning: true, detectionLocked: false, virtualCanvas: new FakeCanvas(16, 9), _sensor: null,
+    lastHeaderText: "INVENTORY/SELL", lastHeaderOcrTime: Date.now() - 100, lastHeaderHash: regionLuma(video, FRANJA_TITULO_VIDEO),
+    _headerEstable: 3, _headerCtxPrevio: "INVENTORY", latchedContext: "INVENTORY", ctxLatch: { ...INITIAL_LATCH, latched: "INVENTORY" }, _franjaTickAnterior: null });
+  try {
+    sensorDelEscaner(S, video, { reloj }).arma();
+    video.data = (await cabeceraConRotulo({ invertido: true })).data;
+    reloj.fn(); reloj.fn();
+    assert.ok(vuelta, "el sensor despertó al bucle");
+    await vuelta;
+    assert.equal(lecturas, 1);
+    assert.equal(S.ctxLatch.pending, "INVENTORY_MODS", "y el cambio de pestaña ya está en camino");
+  } finally {
+    Object.assign(OCRRepository, { workers: orig.workers });
+    Object.assign(S, { routeFrameAction: orig.ruta, loop: orig.loop, virtualCanvas: orig.cvs, isScanning: false });
+    clearTimeout(S.scanInterval); S._sensor?.para(); S._sensor = orig.sensor;
+  }
+});
+
+// El recorte de cabecera (864×129, lienzo en CPU) se dibujaba en cada tick solo para sacar de él
+// la franja del rótulo; ahora la franja sale del vídeo y el recorte solo se dibuja para el OCR.
+test("un tick con la cabecera en caché no dibuja el recorte de cabecera; uno que la lee, sí", async () => {
+  const { VisionService } = await import("../deploy/js/services/scanner/vision.service.js");
+  const prep = VisionService.prepareVirtualCanvas;
+  let dibujos = 0;
+  VisionService.prepareVirtualCanvas = function (...a) { dibujos++; return prep.apply(this, a); };
+  try {
+    assert.equal(await lecturasDeCabecera({ haceMs: 5000, frame2: await cabeceraConRotulo({ filaCambiada: true }) }), 0);
+    assert.equal(dibujos, 0);
+    assert.equal(await lecturasDeCabecera({ haceMs: 1500, frame2: await cabeceraConRotulo({ invertido: true }) }), 1);
+    assert.equal(dibujos, 1);
+  } finally { VisionService.prepareVirtualCanvas = prep; }
+});
+
+test("con una carta de riven ya leída y quieta, el tick deja su región vigilada para el sensor", async () => {
+  const { VisionService } = await import("../deploy/js/services/scanner/vision.service.js");
+  const { videoRegionHash } = await import("../deploy/js/utils/vision/frame_hash.js");
+  const W = 640, H = 360, data = new Uint8ClampedArray(W * H * 4).fill(90);
+  const video = { videoWidth: W, videoHeight: H, width: W, height: H, data };
+  const orig = { l: S.lastParsedL, h: S.lastHashL };
+  try {
+    Object.assign(S, { lastParsedL: riven(), lastHashL: videoRegionHash(video, VisionService.RIVEN_CARD_CROP), _cartaVigilada: null });
+    await S.processRivenCard(video, { width: W, height: H, scale: 3 }, "INVENTORY_MODS");
+    assert.equal(S._cartaVigilada, VisionService.RIVEN_CARD_CROP);
+    assert.equal(S.currentRate, S.RIVEN_RATE_IDLE);
+  } finally { Object.assign(S, { lastParsedL: orig.l, lastHashL: orig.h, _cartaVigilada: null }); }
 });
