@@ -6,6 +6,7 @@ import { getItemIcon } from "../../utils/ui_utils.js";
 import { getPriceValue, MEMORY_CACHE } from "../../services/market/prices.service.js";
 import { exposeGlobals } from "../../utils/global_registry.js";
 import { ducatsBeatSale } from "../../utils/inventory/reward_value.js";
+import { ducadosDePieza } from "../../utils/inventory/catalog_parts.js";
 
 /**
  * Ducanator tab: prime parts ranked by ducats against their platinum price. Own state (sort, owned
@@ -13,8 +14,7 @@ import { ducatsBeatSale } from "../../utils/inventory/reward_value.js";
  */
 
 export function getPartDucats(partName) {
-  const info = state.itemsDatabase?.[partName];
-  return info && info[0]?.ducats ? info[0].ducats : 0;
+  return ducadosDePieza(partName);
 }
 
 // ducats per platinum. No plat (unknown or zero) but ducats -> Infinity (best); no ducats -> 0

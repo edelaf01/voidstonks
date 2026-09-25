@@ -21,6 +21,7 @@ const {
   filterSetRecommendations,
   getSetRecsPrefs,
   saveSetRecsPrefs,
+  syncBestForRefinement,
   erasOf,
 } = await import("../deploy/js/services/inventory/set_recommendations.service.js");
 
@@ -228,6 +229,20 @@ test("las preferencias válidas se guardan y se releen", () => {
   saveSetRecsPrefs({ maxMissing: 2, buyOnly: true, query: "saryn", minPerHour: 100, minGain: 50, sortBy: "gain", era: "Neo", bestFor: "intact" });
   assert.deepEqual(getSetRecsPrefs(),
     { maxMissing: 2, buyOnly: true, query: "saryn", minPerHour: 100, minGain: 50, sortBy: "gain", era: "Neo", bestFor: "intact" });
+});
+
+// threshold stored as NaN (empty input parses to NaN) filtered against NaN, where all comparisons are
+// false: the list emptied with no visible filter active; panel refinement selectors were removed: the
+// filter follows the Relic tab
+test("'solo las que rinden mejor' sigue al refinamiento que se cambia fuera del panel", () => {
+  saveSetRecsPrefs({ ...getSetRecsPrefs(), bestFor: "radiant", era: "Neo" });
+  syncBestForRefinement("intact");
+  assert.equal(getSetRecsPrefs().bestFor, "intact");
+  assert.equal(getSetRecsPrefs().era, "Neo", "el resto de filtros no se toca");
+
+  saveSetRecsPrefs({ ...getSetRecsPrefs(), bestFor: "" });
+  syncBestForRefinement("flawless");
+  assert.equal(getSetRecsPrefs().bestFor, "", "con la casilla quitada no se enciende sola");
 });
 
 test("umbrales inválidos se sanean a 0 y un orden desconocido cae al de serie", () => {

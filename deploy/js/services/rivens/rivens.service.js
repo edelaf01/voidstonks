@@ -48,6 +48,8 @@ function normalizeRivenWeaponType(item) {
 }
 
 export async function fetchRivenWeapons() {
+    // Bump to invalidate every client's IndexedDB cache; scripts/actualizar_contenido.py bumps
+    // it when weapons change.
     const CACHE_KEY = "voidstonkscache_weapons_v11";
     const ONE_DAY = 24 * 60 * 60 * 1000;
     try {
@@ -144,7 +146,8 @@ export async function fetchRivenWeapons() {
 }
 
 async function fetchWeaponCombatStats() {
-    const CACHE_KEY = "voidstonkscache_combat_stats_v10";
+    // Bump when the statsDB shape changes; scripts/actualizar_contenido.py bumps it for new weapons.
+    const CACHE_KEY = "voidstonkscache_combat_stats_v11";
     const ONE_WEEK = 7 * 24 * 60 * 60 * 1000;
     try {
         const cached = await dbHelper.get(CACHE_KEY);

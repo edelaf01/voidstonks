@@ -29,6 +29,15 @@ export function chatLink(name) {
   return COMPONENTES.has(ultima) ? `[${base}]` : `[${base}] Blueprint`;
 }
 
+/**
+ * Squad slot of the recruiting message. In game chat "3/4" is how many you already are, not how many are
+ * missing: the app counter asks for the missing ones, so "1 missing" is "3/4".
+ */
+export function squadTag(faltan) {
+  const n = Math.max(1, Math.min(3, Math.round(Number(faltan)) || 1));
+  return `${4 - n}/4`;
+}
+
 /** One auto-copy line: the link plus the price, when known. */
 export function chatLine(name, platinum = 0) {
   const link = chatLink(name);

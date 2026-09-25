@@ -1,4 +1,5 @@
 import { state } from "../../state.js";
+import { ducadosDePieza } from "./catalog_parts.js";
 
 export const DROP_RATES_BY_RARITY = {
     rare: { intact: 0.02, exceptional: 0.04, flawless: 0.06, radiant: 0.10 },
@@ -10,10 +11,6 @@ export const DROP_RATES_BY_RARITY = {
 export const REFINEMENT_KEYS = {
     Intact: "intact", Exceptional: "exceptional", Flawless: "flawless", Rad: "radiant",
 };
-
-export const REFINEMENT_LABELS = Object.fromEntries(
-    Object.entries(REFINEMENT_KEYS).map(([label, key]) => [key, label]),
-);
 
 /** Player refinement and squad, normalized for the rates. */
 export function getPlayerOdds() {
@@ -100,7 +97,7 @@ export function getPartRarity(partName) {
         if (maxChance > 0) return "rare";
     }
 
-    const dVal = state.itemsDatabase[partName] ? state.itemsDatabase[partName][0]?.ducats : 0;
+    const dVal = ducadosDePieza(partName);
     if (dVal === 15) return "common";
     if (dVal === 45) return "uncommon";
     if (dVal === 100) return "rare";

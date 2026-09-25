@@ -27,7 +27,7 @@ const memoriaMC = memoriaPantalla(() => localStorage, "vs_mc_ultima_pantalla");
 // wakes the sleeping read: a row scroll moves the whole panel, the scene behind it far less
 const DESPIERTA_MC = 24;
 import { createFrameQueue } from "../../utils/vision/frame_queue.js";
-import { videoRegionHash, canvasRegionHash, compareHashes, fraccionCambiada, regionLuma } from "../../utils/vision/frame_hash.js";
+import { videoRegionHash, canvasRegionHash, compareHashes, fraccionCambiada, regionLuma, firmaTexto, mismoTexto } from "../../utils/vision/frame_hash.js";
 import { createReadCache } from "../../utils/vision/read_cache.js";
 import { DebugRecorder } from "./debug_recorder.service.js";
 import { DucatKioskService } from "./ducat_kiosk.service.js";
@@ -48,6 +48,7 @@ export const ScannerService = {
     currentRate: 1200,
     RIVEN_RATE_ACTIVE: 400, // no result shown yet, or the hash changed
     RIVEN_RATE_IDLE: 1000, // result shown and the screen is still
+    RIVEN_RATE_CONFIRM: 150, // a read waiting for confirmation: the second one goes now
     sessionInventory: new Map(),
     sessionRelics: new Map(), // relicName -> consensus qty (relic fallback on the inventory grid)
     _autoCalibCache: null, // { key: "WxH", calib }: detecting costs a full frame
@@ -694,10 +695,10 @@ export const ScannerService = {
 
         // hash over the fixed video region, before preparing the canvases: tight crops jitter on a still
         // screen
-        const hash = videoRegionHash(video, cardCrop);
+        const hash = firmaTexto(video, cardCrop);
 
         // already parsed and unchanged: skip OCR and relax the poll
-        if ((this.lastParsedL || this.lastParsedR) && compareHashes(hash, this.lastHashL)) {
+        if ((this.lastParsedL || this.lastParsedR) && mismoTexto(hash, this.lastHashL)) {
             this.lastRivenContextTime = Date.now();
             this.lastRivenContextType = contextType === "ITEM_DETAILS" ? "ITEM_DETAILS" : "INVENTORY_MODS";
             this.currentRate = this.RIVEN_RATE_IDLE;
@@ -706,7 +707,7 @@ export const ScannerService = {
         }
 
         // skip a region that recently OCR'd to no valid parse (no_result_skip.js)
-        if (saltaPorSinResultado(hash, this.lastNoResult, Date.now(), 3000)) return;
+        if (saltaPorSinResultado(hash, this.lastNoResult, Date.now(), 3000, mismoTexto)) return;
 
         // the reroll screen shows one centered card or two side by side; one canvas per card
         const canvases = VisionService.prepareRivenCardCanvases(video, scale, cardCrop);
@@ -723,7 +724,7 @@ export const ScannerService = {
         if (canvases.length > 1) await OCRRepository.ensureSecondWorker().catch(() => {});
         const pool = OCRRepository.workers.filter(Boolean);
         const reads = await Promise.all(canvases.map((c, i) =>
-            OCRRepository.recognize(pool[i % pool.length] || pool[0], c, {}, { blocks: true })));
+            OCRRepository.recognizeWithChars(pool[i % pool.length] || pool[0], c, OCRRepository.RIVEN_CHARS, { blocks: true })));
         // side by side, the OCR reads both cards in one pass: words are split by X, dropping art garbage
         // by confidence
         const entries = [];
@@ -838,9 +839,12 @@ export const ScannerService = {
         // 2->1 hysteresis: with 2 cards shown, fewer in one frame may be a partial read. Several reads in
         // a row (or a weapon change) before dropping the card that no longer arrives.
         let dropExtra = false;
+        // a screen other than the one that confirmed both cards = one was picked after cycling: two reads
+        // are enough
+        const trasElegir = valids.length < shownCount && !!this.lastTwoCardHash && !mismoTexto(hash, this.lastTwoCardHash);
         if (valids.length < shownCount) {
             this.oneCardStreak++;
-            const DOWNGRADE_STREAK = 4;
+            const DOWNGRADE_STREAK = trasElegir ? 2 : 4;
             if (this.oneCardStreak >= DOWNGRADE_STREAK || weaponChanged) {
                 dropExtra = true;
                 this.oneCardStreak = 0;
@@ -876,6 +880,7 @@ export const ScannerService = {
         if ((this.lastParsedL || this.lastParsedR) && !hasConsensus && !revealsMore && !weaponChanged && !anyUpgrade) {
             console.log(`[RIVEN OCR] Consensus: ${matchCount}/3 — waiting for confirmation`);
             if (globalThis._scannerDebug) this._renderRivenDebug(entries, false);
+            this.currentRate = this.RIVEN_RATE_CONFIRM;
             return;
         }
 
@@ -884,17 +889,21 @@ export const ScannerService = {
 
         if (globalThis._scannerDebug) this._renderRivenDebug(entries, changed);
 
-        if (!weaponSwitchPending) {
+        // caches the hash even when unchanged, so the skip relaxes the rate. Not with a weapon change or a
+        // 2->1 drop pending: the new still screen would be skipped and never confirmed.
+        if (!weaponSwitchPending && !(trasElegir && !dropExtra)) {
             this.lastHashL = hash;
             this.lastHashR = null;
-        }
+            this.lastTwoCardHash = finalL && finalR ? hash : null;
+        } else this.currentRate = this.RIVEN_RATE_CONFIRM;
 
         if (!changed) return;
 
         this.lastParsedL = finalL;
         this.lastParsedR = finalR;
 
-        let screenshotDataURL = null;
+        // color crop of the cards; the HUD encodes the PNG when it opens
+        let captura = null;
         try {
             const C = cardCrop;
             const colorCvs = document.createElement("canvas");
@@ -905,22 +914,15 @@ export const ScannerService = {
             colorCvs.width = cropW;
             colorCvs.height = cropH;
             colorCvs.getContext("2d").drawImage(video, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
-            screenshotDataURL = colorCvs.toDataURL("image/png");
+            captura = colorCvs;
         } catch (e) {
             console.warn("Screenshot capture failed:", e);
         }
 
         // only notifies the UI with something to show: (null, null) crashed _renderSingle
         if (globalThis.showRivenAppraisal && (this.lastParsedL || this.lastParsedR)) {
-            globalThis.showRivenAppraisal(this.lastParsedL, this.lastParsedR, screenshotDataURL);
+            globalThis.showRivenAppraisal(this.lastParsedL, this.lastParsedR, captura);
         }
-    },
-
-    _sameCombinedHash(a, b) {
-        if (!a || !b) return false;
-        const pa = a.split("|"), pb = b.split("|");
-        if (pa.length !== pb.length) return false;
-        return pa.every((h, i) => compareHashes(h, pb[i]));
     },
 
     /**

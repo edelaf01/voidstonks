@@ -269,6 +269,8 @@ export function selectRelicFromInv(name) {
   // close, not `toggleInventoryPanel(false)`, which toggles: these relic chips also show in the routes
   // panel with the inventory closed
   document.getElementById("inventory-container")?.classList.remove("open");
+  // the routes sit below the breakdown: from there the content ends out of view
+  input?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   manualRelicUpdate();
   trackBestSetForRelic(name);
 }

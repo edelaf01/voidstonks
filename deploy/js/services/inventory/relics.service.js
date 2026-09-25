@@ -7,6 +7,7 @@ import {
     rarityFromChance,
     relicOpenEV,
 } from "../../utils/inventory/relic_drop_odds.utils.js";
+import { piezasSinReliquias } from "../../utils/inventory/catalog_parts.js";
 
 
 /** @param {Array} itemsArray */
@@ -154,6 +155,10 @@ function processRelicDatabase(rawData, activeDropsSet) {
         else if (r.tier === "Requiem" || dropsInGame) state.relicStatusDB[tierName] = "active";
         else state.relicStatusDB[tierName] = "vaulted";
     });
+
+    // new primes are in the catalog before they are in the drop tables
+    const catalogo = [...(state.primeManifest || []), ...(state.primeWeaponsManifest || [])];
+    for (const nombre of piezasSinReliquias(catalogo, Object.keys(state.itemsDatabase))) state.itemsDatabase[nombre] = [];
 
     state.allRelicNames.sort((a, b) => a.localeCompare(b));
 

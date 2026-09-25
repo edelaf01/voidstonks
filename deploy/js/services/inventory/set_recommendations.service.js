@@ -42,6 +42,14 @@ export function getSetRecsPrefs() {
     }
 }
 
+/**
+ * Follows the Relic tab refinement, so the panel filters and computes with the same one.
+ */
+export function syncBestForRefinement(refinement) {
+    const prefs = getSetRecsPrefs();
+    if (prefs.bestFor && prefs.bestFor !== refinement) saveSetRecsPrefs({ ...prefs, bestFor: refinement });
+}
+
 export function saveSetRecsPrefs(prefs) {
     try {
         localStorage.setItem(RECS_PREFS_KEY, JSON.stringify(prefs));
