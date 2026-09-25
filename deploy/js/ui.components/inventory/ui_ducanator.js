@@ -6,10 +6,10 @@ import { getItemIcon } from "../../utils/ui_utils.js";
 import { getPriceValue, MEMORY_CACHE } from "../../services/market/prices.service.js";
 import { exposeGlobals } from "../../utils/global_registry.js";
 import { ducatsBeatSale } from "../../utils/inventory/reward_value.js";
+import { ducadosDePieza } from "../../utils/inventory/catalog_parts.js";
 
 export function getPartDucats(partName) {
-  const info = state.itemsDatabase?.[partName];
-  return info && info[0]?.ducats ? info[0].ducats : 0;
+  return ducadosDePieza(partName);
 }
 
 export function ducatRatio(ducats, plat) {

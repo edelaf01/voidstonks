@@ -304,8 +304,9 @@ function buildFissurePanelShell(missionDiv) {
   }
 
   missionDiv.innerHTML = `
-      <div id="mission-toggle-btn" class="mission-toggle-btn">
+      <div id="mission-toggle-btn" class="mission-toggle-btn" role="button" title="${t.lblFissures || "Fisuras Activas"}" aria-label="${t.lblFissures || "Fisuras Activas"}">
          <img id="img-fissure-toggle" src="assets/fissureicon.webp" class="toggle-img" alt="${t.lblFissures || "Fisuras Activas"}">
+         <span id="fissure-toggle-label" class="toggle-label">${t.lblFissuresShort || "Fisuras"}</span>
       </div>
 
       <div class="panel-main-header" id="fissure-panel-header" style="cursor:pointer;">

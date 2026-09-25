@@ -222,8 +222,6 @@ export function renderPrimeInventory() {
   const panel = document.getElementById("inventory-sidebar");
   if (panel && !panel.classList.contains("open")) return;
 
-  renderFarmRoutes().catch((e) => console.warn("[INVENTORY] Error renderizando rutas:", e));
-
   const searchInput = (document.getElementById("prime-inv-search")?.value || "").toLowerCase();
   const sortMode = document.getElementById("prime-inv-sort")?.value || "alpha";
 

@@ -39,6 +39,11 @@ export function getSetRecsPrefs() {
     }
 }
 
+export function syncBestForRefinement(refinement) {
+    const prefs = getSetRecsPrefs();
+    if (prefs.bestFor && prefs.bestFor !== refinement) saveSetRecsPrefs({ ...prefs, bestFor: refinement });
+}
+
 export function saveSetRecsPrefs(prefs) {
     try {
         localStorage.setItem(RECS_PREFS_KEY, JSON.stringify(prefs));
