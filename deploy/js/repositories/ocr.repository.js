@@ -1,6 +1,13 @@
 // tesseract.js worker pool and raw recognition
 const TESSERACT_VERSION = "7.0.0";
 
+// a 0 px canvas makes Tesseract throw inside the worker, outside our catch
+function imagenVacia(image) {
+    if (!image || !(image.width === 0 || image.height === 0)) return false;
+    console.warn("[OCR Repo] recorte de 0 px, no se lee:", new Error().stack?.split("\n").slice(2, 5).join(" | "));
+    return true;
+}
+
 export const OCRRepository = {
     DEFAULT_PSM: "6",
     DEFAULT_CHARS: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789, ",
@@ -105,7 +112,7 @@ export const OCRRepository = {
 
     // relic grid needs both: psm 6 catches names and psm 11 catches loose counters
     async recognizeWithPSM(worker, image, psm, output = undefined) {
-        if (!worker) return { data: { text: "", confidence: 0 } };
+        if (!worker || imagenVacia(image)) return { data: { text: "", confidence: 0 } };
         try {
             await worker.setParameters({ tessedit_pageseg_mode: String(psm) });
             return await worker.recognize(image, {}, output);
@@ -119,7 +126,7 @@ export const OCRRepository = {
     },
 
     async recognizeWithChars(worker, image, chars, output = undefined) {
-        if (!worker) return { data: { text: "", confidence: 0 } };
+        if (!worker || imagenVacia(image)) return { data: { text: "", confidence: 0 } };
         try {
             await worker.setParameters({ tessedit_char_whitelist: chars });
             return await worker.recognize(image, {}, output);
@@ -133,7 +140,7 @@ export const OCRRepository = {
     },
 
     async recognize(worker, image, options = {}, output = undefined) {
-        if (!worker) return { data: { text: "", confidence: 0 } };
+        if (!worker || imagenVacia(image)) return { data: { text: "", confidence: 0 } };
         try {
             return await worker.recognize(image, options, output);
         } catch (e) {
