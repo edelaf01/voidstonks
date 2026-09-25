@@ -12,7 +12,7 @@ on:
   # JSON se actualizaba en el repo pero la web seguía sirviendo el anterior hasta el siguiente push
   # humano. workflow_run se lanza al terminar el otro workflow, sin necesitar un PAT.
   workflow_run:
-    workflows: ["Curiosidades de mercado (diario)", "Reentrenar Riven ML (banda cuantiles)"]
+    workflows: ["Curiosidades de mercado (diario)", "Reentrenar Riven ML (banda cuantiles)", "Contenido del juego (diario)"]
     types: [completed]
 
 # Evita que dos pushes seguidos lancen deploys en paralelo (y cancela el anterior).

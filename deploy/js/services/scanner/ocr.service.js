@@ -34,7 +34,7 @@ export const OCRService = {
                 searchWords: words,
                 firstWord: words[0],
                 isPrime: upperName.includes("PRIME"),
-                ducats: state.itemsDatabase[itemName][0]?.ducats || 0
+                ducats: state.itemsDatabase[itemName][0]?.ducats || state.ducatsDatabase?.[itemName]?.ducats || 0
             });
         });
 
