@@ -203,3 +203,10 @@ test("la vista por reliquia tiene sus propios filtros", () => {
     assert.doesNotMatch(picksSrc, /getSetRecsPrefs/);
     assert.doesNotMatch(picksSrc, /localStorage/, "las prefs van por el service, no en el componente");
 });
+
+test("el panel deja elegir jugadores y refinamiento, y escribe el mismo estado que la pestaña", () => {
+    assertBilingual(["squadLabel", "squadSolo", "squadHelp", "refLabel", "refHelp"]);
+    assert.match(src, /data-fr-squad[\s\S]*globalThis\.setSquadSize\?\.\(b\.dataset\.frSquad\)/);
+    assert.match(src, /data-fr-ref[\s\S]*globalThis\.setRefinement\?\.\(b\.dataset\.frRef\)/);
+    assert.match(src, /\+ juegoHtml\(t\)/, "en las dos vistas, no solo en la de sets");
+});

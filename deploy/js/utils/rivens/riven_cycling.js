@@ -20,12 +20,6 @@ export function kuvaEsperada(p, ciclosHechos, bloqueado = false) {
     return Math.round(total + sigue * costeCiclo(n, bloqueado) / p);
 }
 
-export function ciclosPara(p, prob = 0.9) {
-    if (!(p > 0)) return Infinity;
-    if (p >= 1) return 1;
-    return Math.ceil(Math.log(1 - prob) / Math.log(1 - p));
-}
-
 export function tipoDeArma(tipo) {
     return WEAPON_TYPE_IDX[tipo] ?? 0;
 }

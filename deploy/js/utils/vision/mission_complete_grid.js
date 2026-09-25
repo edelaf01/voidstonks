@@ -9,7 +9,9 @@ const CHECK_FILL_MIN = 0.28;
 const CHECK_FILL_MAX = 0.52;
 const GRUPOS_MAX = 4;
 
-const ZONE = { x0: 0.42, y0: 0.12 };
+const ZONE = { x0: 0.42, y0: 0.22, y1: 0.9 };
+
+const PASO_ALTO = 240 / 1439;
 
 const ACCENT_DIST = [0.36];
 
@@ -271,7 +273,7 @@ function _conTolerancia(img, accent, dist, trace) {
     trace.dist = dist;
 
     const zx = Math.floor(width * ZONE.x0), zy = Math.floor(height * ZONE.y0);
-    const zone = { x: zx, y: zy, w: width - zx, h: height - zy };
+    const zone = { x: zx, y: zy, w: width - zx, h: Math.floor(height * ZONE.y1) - zy };
 
     const comps = connectedComponents(accentMask(img, accent, zone, dist));
 
@@ -286,6 +288,9 @@ function _conTolerancia(img, accent, dist, trace) {
         const parcial = {};
         const res = _conGrupo(img, accent, zone, porForma, parcial, height * CHECK_SIDE_FRAC, dist);
         if (res) { Object.assign(trace, parcial); return res; }
+    } else if (porForma.length >= 2) {
+        const pocas = _pocasRecompensas(img, accent, zone, porForma, dist, trace);
+        if (pocas) return pocas;
     }
 
     let mejor = null;
@@ -297,6 +302,30 @@ function _conTolerancia(img, accent, dist, trace) {
     if (!mejor) { trace.fail ||= `solo ${porForma.length} ✓ (<4)`; return null; }
     Object.assign(trace, mejor.parcial);
     return mejor.res;
+}
+
+function _pocasRecompensas(img, accent, zone, checks, dist, trace) {
+    const paso = img.height * PASO_ALTO, S = img.height * CHECK_SIDE_FRAC, sep = S * 0.5;
+    const fila = lanes(checks.map((c) => c.y), sep).reduce((a, b) => (!a || b.members > a.members ? b : a), null);
+    if (!fila || fila.members < 2) return null;
+    const enFila = checks.filter((c) => Math.abs(c.y - fila.pos) <= sep).sort((a, b) => a.x - b.x);
+    const pasos = enFila.map((c) => (c.x - enFila[0].x) / paso);
+    if (pasos.some((k) => Math.abs(k - Math.round(k)) > 0.1)) return null;
+    const inset = Math.round(S * 0.4);
+    const porColumna = new Map();
+    enFila.forEach((c, i) => porColumna.set(Math.round(pasos[i]), {
+        x: zone.x + c.x - inset, y: zone.y + c.y - inset, w: Math.round(paso), h: Math.round(paso),
+        col: Math.round(pasos[i]), row: 0,
+    }));
+    const cells = [...porColumna.values()];
+    for (const cell of cells) {
+        cell.named = classifyRewardCell(img, accent, cell, dist).kind === "NAMED";
+        cell.badge = cell.named ? readRewardBadge(img, accent, cell, dist) : "";
+        cell.qty = cantidadDeBadge(cell.badge);
+    }
+    if (!cells.some((c) => c.named)) return null;
+    Object.assign(trace, { candidates: checks.length, cols: cells.length, rows: 1, pitch: Math.round(paso), cells: cells.length, occluded: false, cut: false });
+    return { zone, pitch: Math.round(paso), cells, occluded: false, cut: false, accent, dist };
 }
 
 function gruposSemejantes(comps, height) {
