@@ -50,7 +50,7 @@ Object.assign(rawState, {
   // `state.settings?.showEmptyPrime` eran siempre undefined: una opción que no existía.
   settings: { showEmptyPrime: false },
   // Cuántos jugadores te FALTAN para la escuadra. Solo alimenta el mensaje de reclutamiento
-  // ("H [Lith D1] Rad 1/4"), que es para lo que se puso el contador.
+  // ("H [Lith D1] Rad 3/4" si falta 1), que es para lo que se puso el contador.
   playerCount: 1,
   // Con cuántos abres las reliquias. Es lo que decide las probabilidades: en escuadra de 4 se
   // abren 4 y te quedas con la mejor recompensa, así que una rara radiante pasa de 10% a ~34%.

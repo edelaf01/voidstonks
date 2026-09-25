@@ -126,3 +126,35 @@ export function compareHashes(hash1, hash2, tolerance = 18) {
     }
     return diff / (hash1.length / 2) < tolerance;
 }
+
+// Medido sobre capturas de la pantalla de ciclar a 1440p: desplazar 1 px o reescalar el stream
+// cambia el 0,0 % de las muestras; otras tres líneas de stats, el 1,9 %; otra tirada o quitar la
+// carta lateral, el 10-11 %.
+const FIRMA_COLS = 96, FIRMA_FILAS = 36, FIRMA_UMBRAL = 16, FIRMA_CORTE = 0.005;
+let firmaCvs = null;
+
+/**
+ * Huella de una zona con TEXTO (las cartas de riven). El hash de 16×9 no lo ve: cambiar los stats
+ * de una carta movía su media 2,3 y quitar la carta lateral 3,9, frente a una tolerancia de 18, así
+ * que una tirada nueva solo se leía si además se movía el cristal del fondo.
+ * Suavizado ALTO a propósito: el bajo muestrea en vez de promediar y un desplazamiento de 1 px ya
+ * cambiaba el 8,7 % de las muestras.
+ */
+export function firmaTexto(source, crop) {
+    if (!firmaCvs) {
+        firmaCvs = document.createElement("canvas");
+        firmaCvs.width = FIRMA_COLS;
+        firmaCvs.height = FIRMA_FILAS;
+    }
+    const ctx = firmaCvs.getContext("2d", { willReadFrequently: true });
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    const W = source.videoWidth || source.width, H = source.videoHeight || source.height;
+    ctx.drawImage(source, Math.floor(W * crop.x), Math.floor(H * crop.y), Math.floor(W * crop.w), Math.floor(H * crop.h),
+        0, 0, FIRMA_COLS, FIRMA_FILAS);
+    return lumaDe(ctx, FIRMA_COLS, FIRMA_FILAS);
+}
+
+export function mismoTexto(a, b) {
+    return fraccionCambiada(a, b, FIRMA_UMBRAL) < FIRMA_CORTE;
+}

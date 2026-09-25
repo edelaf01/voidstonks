@@ -16,8 +16,8 @@ import { compareHashes } from "./frame_hash.js";
 export const ESTADO_INICIAL = Object.freeze({ hash: null, time: 0 });
 
 /** ¿Toca saltarse el OCR? El hash de este frame coincide con el de un intento sin resultado reciente. */
-export function saltaPorSinResultado(hash, estado, ahora, caducidadMs) {
-  return compareHashes(hash, estado?.hash) && (ahora - (estado?.time || 0) < caducidadMs);
+export function saltaPorSinResultado(hash, estado, ahora, caducidadMs, iguales = compareHashes) {
+  return iguales(hash, estado?.hash) && (ahora - (estado?.time || 0) < caducidadMs);
 }
 
 /** Próximo estado tras un intento: guarda el hash si NO hubo resultado, lo limpia si SÍ lo hubo. */

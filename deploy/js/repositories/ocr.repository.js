@@ -10,6 +10,13 @@ const TESSERACT_VERSION = "7.0.0";
 export const OCRRepository = {
     // Bloque uniforme de texto. Lo comparte todo el escáner salvo recognizeWithPSM.
     DEFAULT_PSM: "6",
+    // Solo lo que aparece en los rótulos: letras, dígitos y la coma de los millares ("7,661"). El
+    // espacio NO es un carácter a reconocer sino el separador del que vive todo el parseo — medido,
+    // sin él Tesseract pega las palabras ("Steel Fccence" -> "SteelFccence").
+    DEFAULT_CHARS: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789, ",
+    // Las cartas de riven necesitan signo, punto decimal y "%": con la lista de los rótulos salía
+    // "187,6 Critical Chance" y el parser, que se ancla en el "%", no encontraba ningún stat.
+    RIVEN_CHARS: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789:()+- '/%,.",
 
     workers: [],
     initPromise: null,
@@ -76,11 +83,7 @@ export const OCRRepository = {
                 const createStandardWorker = async () => {
                     const w = await tess.createWorker("eng", 1, { ...LOCAL_LANG, ...RUTAS });
                     await w.setParameters({
-                        // Solo lo que aparece en los rótulos: letras, dígitos y la coma de los
-                        // millares ("7,661"). El espacio NO es un carácter a reconocer sino el
-                        // separador del que vive todo el parseo — medido, sin él Tesseract pega
-                        // las palabras ("Steel Fccence" -> "SteelFccence").
-                        tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789, ",
+                        tessedit_char_whitelist: this.DEFAULT_CHARS,
                         tessedit_pageseg_mode: this.DEFAULT_PSM,
                         user_defined_dictionary_priority: "1",
                     });
@@ -189,6 +192,21 @@ export const OCRRepository = {
         } finally {
             await worker.setParameters({ tessedit_pageseg_mode: this.DEFAULT_PSM })
                 .catch((e) => console.error("[OCR Repo] no se pudo restaurar el psm:", e));
+        }
+    },
+
+    /** Reconoce con OTRA lista de caracteres y deja el worker como estaba, igual que recognizeWithPSM. */
+    async recognizeWithChars(worker, image, chars, output = undefined) {
+        if (!worker) return { data: { text: "", confidence: 0 } };
+        try {
+            await worker.setParameters({ tessedit_char_whitelist: chars });
+            return await worker.recognize(image, {}, output);
+        } catch (e) {
+            console.error("[OCR Repo] Recognize chars Err:", e);
+            return { data: { text: "", confidence: 0 } };
+        } finally {
+            await worker.setParameters({ tessedit_char_whitelist: this.DEFAULT_CHARS })
+                .catch((e) => console.error("[OCR Repo] no se pudo restaurar la lista de caracteres:", e));
         }
     },
 

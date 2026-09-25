@@ -28,7 +28,7 @@ const memoriaMC = memoriaPantalla(() => localStorage, "vs_mc_ultima_pantalla");
 // ~800); la escena tras el panel translúcido se queda muy por debajo.
 const DESPIERTA_MC = 24;
 import { createFrameQueue } from "../../utils/vision/frame_queue.js";
-import { videoRegionHash, canvasRegionHash, compareHashes, fraccionCambiada, regionLuma } from "../../utils/vision/frame_hash.js";
+import { videoRegionHash, canvasRegionHash, compareHashes, fraccionCambiada, regionLuma, firmaTexto, mismoTexto } from "../../utils/vision/frame_hash.js";
 import { createReadCache } from "../../utils/vision/read_cache.js";
 import { DebugRecorder } from "./debug_recorder.service.js";
 import { DucatKioskService } from "./ducat_kiosk.service.js";
@@ -49,6 +49,7 @@ export const ScannerService = {
     currentRate: 1200,
     RIVEN_RATE_ACTIVE: 400, // sin resultado mostrado aún, o el hash cambió: escanea rápido
     RIVEN_RATE_IDLE: 1000, // ya hay resultado y la pantalla está estática (hash-skip disparando): relaja el poll
+    RIVEN_RATE_CONFIRM: 150, // lectura pendiente de confirmar (consenso, cambio de arma, de 2 a 1 cartas): la segunda va ya
     sessionInventory: new Map(),
     sessionRelics: new Map(), // relicName -> qty de consenso (fallback de reliquias en el grid de inventario)
     _autoCalibCache: null, // rejilla autodetectada cacheada { key: "WxH", calib } — detectar cuesta un frame completo
@@ -780,12 +781,12 @@ export const ScannerService = {
         // tight-crops jitteraba con la pantalla quieta (el ancho del recorte baila 749–1538px) y el
         // skip nunca enganchaba. Con el rect fijo, un frame estático coincide y ni siquiera pagamos
         // el coste de prepareRivenCardCanvases.
-        const hash = videoRegionHash(video, cardCrop);
+        const hash = firmaTexto(video, cardCrop);
 
         // Skip OCR if we already have a result and the region hasn't changed. Pantalla estática ya
         // parseada -> relaja el rate de poll (menos CPU); en cuanto el hash cambie, el siguiente
         // frame ya vuelve a RIVEN_RATE_ACTIVE (fijado por defecto en routeFrameAction) para reaccionar rápido.
-        if ((this.lastParsedL || this.lastParsedR) && compareHashes(hash, this.lastHashL)) {
+        if ((this.lastParsedL || this.lastParsedR) && mismoTexto(hash, this.lastHashL)) {
             this.lastRivenContextTime = Date.now();
             this.lastRivenContextType = contextType === "ITEM_DETAILS" ? "ITEM_DETAILS" : "INVENTORY_MODS";
             this.currentRate = this.RIVEN_RATE_IDLE;
@@ -795,7 +796,7 @@ export const ScannerService = {
 
         // Skip si esta región YA OCReó a "sin parse válido" hace poco (ver no_result_skip.js):
         // sin esto, bajar el poll a 400ms convertía una pantalla estática sin parse en OCR constante.
-        if (saltaPorSinResultado(hash, this.lastNoResult, Date.now(), 3000)) return;
+        if (saltaPorSinResultado(hash, this.lastNoResult, Date.now(), 3000, mismoTexto)) return;
 
         // The reroll screen shows ONE centered card or TWO side-by-side (old vs new roll).
         // prepareRivenCardCanvases auto-detects and returns one tightly-cropped canvas per card.
@@ -817,7 +818,7 @@ export const ScannerService = {
         if (canvases.length > 1) await OCRRepository.ensureSecondWorker().catch(() => {});
         const pool = OCRRepository.workers.filter(Boolean);
         const reads = await Promise.all(canvases.map((c, i) =>
-            OCRRepository.recognize(pool[i % pool.length] || pool[0], c, {}, { blocks: true })));
+            OCRRepository.recognizeWithChars(pool[i % pool.length] || pool[0], c, OCRRepository.RIVEN_CHARS, { blocks: true })));
         // El layout side-by-side hace que el OCR lea AMBAS cartas en una sola pasada (el arte de fondo
         // funde el recorte de imagen). Separamos por posición X de las palabras —filtrando el garbage
         // del arte por confianza— en vez de fiarnos del recorte. Así C1/C2 salen limpios y sin mezclar.
@@ -964,9 +965,12 @@ export const ScannerService = {
         // ya no se leyó en este frame. dropExtra solo afecta a la carta que YA NO llega en este
         // frame; si sigue llegando (aunque sea con menos stats) se gestiona vía merge más abajo.
         let dropExtra = false;
+        // Pantalla distinta de la que confirmó las dos cartas = se eligió una tras ciclar y basta con
+        // leerlo dos veces. En la MISMA pantalla, menos cartas suele ser una lectura parcial.
+        const trasElegir = valids.length < shownCount && !!this.lastTwoCardHash && !mismoTexto(hash, this.lastTwoCardHash);
         if (valids.length < shownCount) {
             this.oneCardStreak++;
-            const DOWNGRADE_STREAK = 4;
+            const DOWNGRADE_STREAK = trasElegir ? 2 : 4;
             if (this.oneCardStreak >= DOWNGRADE_STREAK || weaponChanged) {
                 dropExtra = true;
                 this.oneCardStreak = 0;
@@ -1008,6 +1012,7 @@ export const ScannerService = {
         if ((this.lastParsedL || this.lastParsedR) && !hasConsensus && !revealsMore && !weaponChanged && !anyUpgrade) {
             console.log(`[RIVEN OCR] Consensus: ${matchCount}/3 — waiting for confirmation`);
             if (globalThis._scannerDebug) this._renderRivenDebug(entries, false);
+            this.currentRate = this.RIVEN_RATE_CONFIRM;
             return;
         }
 
@@ -1021,18 +1026,20 @@ export const ScannerService = {
         // rate se relaje en pantalla estática ya resuelta. EXCEPTO si hay un cambio de arma pendiente
         // de confirmar: con el hash de región fija, cachearlo aquí haría que el frame siguiente de la
         // pantalla NUEVA (estática) se saltara por hash y el cambio real nunca llegara a streak 2.
-        if (!weaponSwitchPending) {
+        // Lo mismo con una bajada de 2 a 1 carta sin decidir: cacheada, la carta vieja se quedaba puesta.
+        if (!weaponSwitchPending && !(trasElegir && !dropExtra)) {
             this.lastHashL = hash;
             this.lastHashR = null;
-        }
+            this.lastTwoCardHash = finalL && finalR ? hash : null;
+        } else this.currentRate = this.RIVEN_RATE_CONFIRM;
 
         if (!changed) return;
 
         this.lastParsedL = finalL;
         this.lastParsedR = finalR;
 
-        // Capture a clean color crop of the whole card region as a downloadable screenshot
-        let screenshotDataURL = null;
+        // Recorte en color de las cartas. El PNG lo codifica el HUD al abrirlo: aquí eran ~35 ms por lectura.
+        let captura = null;
         try {
             const C = cardCrop;
             const colorCvs = document.createElement("canvas");
@@ -1043,7 +1050,7 @@ export const ScannerService = {
             colorCvs.width = cropW;
             colorCvs.height = cropH;
             colorCvs.getContext("2d").drawImage(video, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
-            screenshotDataURL = colorCvs.toDataURL("image/png");
+            captura = colorCvs;
         } catch (e) {
             console.warn("Screenshot capture failed:", e);
         }
@@ -1054,16 +1061,8 @@ export const ScannerService = {
         // abortando el render y dejando la vista anterior a medias. Sin lectura válida es
         // mejor conservar lo ya mostrado y esperar al frame siguiente.
         if (globalThis.showRivenAppraisal && (this.lastParsedL || this.lastParsedR)) {
-            globalThis.showRivenAppraisal(this.lastParsedL, this.lastParsedR, screenshotDataURL);
+            globalThis.showRivenAppraisal(this.lastParsedL, this.lastParsedR, captura);
         }
-    },
-
-    // Compares two "hashA|hashB" combined canvas hashes segment-by-segment.
-    _sameCombinedHash(a, b) {
-        if (!a || !b) return false;
-        const pa = a.split("|"), pb = b.split("|");
-        if (pa.length !== pb.length) return false;
-        return pa.every((h, i) => compareHashes(h, pb[i]));
     },
 
     /**

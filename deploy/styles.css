@@ -524,6 +524,24 @@ body {
   transition: all 0.3s ease;
 }
 
+/* Los dos botones laterales eran solo una imagen redonda, casi iguales entre sí: sin rótulo no
+   se sabía cuál abre el inventario y cuál las fisuras. */
+.toggle-label {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-top: 2px;
+  font-size: 0.6rem;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: #cfd8e3;
+  text-shadow: 0 0 4px #000, 0 0 2px #000;
+  pointer-events: none;
+}
+
 .toggle-img {
   width: 4.5rem;
   height: 4.5rem;
@@ -2172,6 +2190,24 @@ body.theme-bounties {
   align-items: center;
   justify-content: center;
   transition: color 0.2s;
+}
+
+/* El de "Faltan" en el pie (header.css #footer-relic): en móvil, más estrecho para que quepa en
+   la misma fila que el botón de copiar. */
+#footer-relic .counter-inline {
+  gap: 12px;
+}
+
+@media (max-width: 768px) {
+  #footer-relic .counter-inline {
+    gap: 2px;
+    height: 38px;
+    padding: 2px;
+  }
+
+  #footer-relic .c-btn {
+    width: 30px;
+  }
 }
 
 .c-btn:hover {
@@ -8503,7 +8539,7 @@ body[data-lang="en"] .header-guide-cta .lang-en {
      Ahí competía por el alto; aquí no, pero no estorba y evita sorpresas si vuelve a anidarse
      en un contenedor flex. */
   flex-shrink: 0;
-  margin-bottom: 18px;
+  margin: 18px 0;
 }
 
 /* El techo está en el CUERPO y no en el contenedor: así la cabecera —que dice qué es esto y
@@ -8512,8 +8548,7 @@ body[data-lang="en"] .header-guide-cta .lang-en {
    El panel vivía en el lateral de 80vh y este techo eran 34vh medidos contra él, con las 8
    rutas apretadas en 340px: se veían dos y media. Ahora vive en la pestaña Reliquia, donde
    scrollea .content-area, así que el límite ya no es repartir un cajón — es dejar alcanzable
-   lo que va debajo (#relic-contents con el desglose de la reliquia que elijas). De ahí 52vh:
-   entran ~6 rutas de un vistazo y el contenido sigue a un scroll corto. */
+   el mensaje del pie. De ahí 52vh: entran ~6 rutas de un vistazo y el pie sigue a un scroll corto. */
 .farm-routes .fr-body {
   max-height: min(52vh, 620px);
   overflow-y: auto;
@@ -8523,19 +8558,6 @@ body[data-lang="en"] .header-guide-cta .lang-en {
 
 .farm-routes.collapsed .fr-body {
   display: none;
-}
-
-/* La instancia del lateral comparte columna con el listado de piezas y solo tiene 350px de
-   ancho, así que su techo es el de siempre: con 52vh ahí el listado volvía a quedarse en su
-   min-height de 120px, que es justo por lo que este panel se mudó. */
-.farm-routes[data-fr-host="inventory"] .fr-body {
-  max-height: min(34vh, 340px);
-}
-
-/* En la pestaña Set las rutas van ANTES de los resultados de búsqueda, así que su techo es más
-   bajo que en Reliquia: ahí son la pantalla de entrada, aquí un acompañante de lo que buscas. */
-.farm-routes[data-fr-host="set"] .fr-body {
-  max-height: min(32vh, 380px);
 }
 
 /* Cabecera pulsable: pliega el panel entero. Es un <button> por lo táctil (utils/tap.js),
@@ -8650,7 +8672,7 @@ body[data-lang="en"] .header-guide-cta .lang-en {
    se cortaba, y en móvil no hay hover que enseñe el tooltip. `min-width: 0` evita que el ancho
    intrínseco del input (que en Firefox es generoso) empuje al selector fuera de la fila. */
 .farm-routes .fr-num {
-  flex: 0 1 9ch;
+  flex: 0 1 11ch;
   min-width: 0;
   padding: 6px 4px;
   font-size: 0.92em;
@@ -8669,13 +8691,6 @@ body[data-lang="en"] .header-guide-cta .lang-en {
   .farm-routes .fr-num {
     flex: 1 1 calc(50% - 6px);
   }
-}
-
-/* La fila de simulación no filtra: cambia con qué se calculan las runs. Se separa con una línea
-   para que no se lea como dos filtros más. */
-.farm-routes .fr-sim-row {
-  padding-top: 6px;
-  border-top: 1px dashed rgba(255, 255, 255, 0.07);
 }
 
 .farm-routes .fr-waiting {

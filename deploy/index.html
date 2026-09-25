@@ -481,6 +481,7 @@
       title="Mi inventario de reliquias" aria-label="Mi inventario de reliquias"
       onclick="toggleInventoryPanel()">
       <img id="img-inv-toggle" src="assets/inv.relic.webp" class="toggle-img" alt="Inventario" />
+      <span id="inv-toggle-label" class="toggle-label">Inventario</span>
     </button>
 
     <div class="inv-view-selector" style="display: flex; gap: 5px; padding: 10px 10px 0; background: #111">
@@ -565,12 +566,6 @@
 
     <div id="prime-inv-controls" class="inventory-controls"
       style="padding: 10px; display: none; flex-direction: column; gap: 8px">
-      <!-- Segunda instancia de "Rutas aconsejadas". La otra vive en la pestaña Reliquia, que es
-           donde tiene sitio (ancho de la card, 52vh) y donde pulsar una reliquia despliega su
-           contenido sin moverte. Esta es la de aquí al lado mientras repasas tus piezas.
-           Ninguna de las dos lleva `id`: ver renderFarmRoutes(). -->
-      <div class="farm-routes" data-fr-host="inventory" style="display:none;"></div>
-
       <input type="text" id="prime-inv-search" class="wf-input" autocomplete="off" placeholder="Buscar Set o Parte..."
         oninput="globalThis.handlePrimeInvSearch()" style="padding: 8px; font-size: 0.9em" />
 
@@ -609,6 +604,7 @@
             .classList.toggle('open')
         ">
       <img id="img-fissure-toggle" src="assets/fissureicon.webp" class="toggle-img" alt="Fissures" />
+      <span id="fissure-toggle-label" class="toggle-label">Fisuras</span>
     </button>
     <div class="panel-main-header" id="fissure-panel-header">
       <svg class="gauss-icon" id="gauss-runner" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -853,13 +849,6 @@
             <div id="relicDropdown" class="dropdown-list hidden"></div>
           </div>
         </div>
-        <!-- Qué reliquia abrir y por qué. Va ANTES de los controles y del contenido porque es
-             la pregunta que se hace uno al entrar: #relic-contents está oculto hasta que eliges
-             una, así que sin esto la pantalla de arranque de la pestaña era un input vacío.
-             Pulsar una reliquia de una ruta rellena el buscador de arriba y despliega su
-             contenido aquí abajo, en la misma pantalla. -->
-        <div class="farm-routes" data-fr-host="relic" style="display:none;"></div>
-
         <div id="relic-controls-wrapper" style="
               margin-top: 20px;
               padding-top: 15px;
@@ -886,7 +875,7 @@
                  en la tercera fila de un panel plegable dejaba a quien abre solo mirando el número
                  de una escuadra de cuatro. Va junto a "Refinamiento" porque son la misma pregunta
                  —"con qué juego"— y el rótulo de arriba ya dice de qué escuadra habla. -->
-            <div style="flex: 1; margin-right: 10px">
+            <div style="flex: 1">
               <label id="lbl-squad">Escuadra</label>
               <select id="squadSize" class="wf-input" onchange="globalThis.setSquadSize(this.value)">
                 <option value="4">4 jugadores</option>
@@ -894,22 +883,6 @@
                 <option value="2">2 jugadores</option>
                 <option value="1">Solo</option>
               </select>
-            </div>
-            <div>
-              <label id="lbl-missing">Faltan (mensaje)</label>
-              <div class="counter-inline" style="
-                    width: 100%;
-                    display: flex;
-                    justify-content: center;
-                    gap: 20px;
-                    padding: 10px;
-                    margin: 0;
-                    box-sizing: border-box;
-                  ">
-                <button class="c-btn" onclick="changeCount(-1)">-</button>
-                <span class="c-val" id="countDisplay">1</span>
-                <button class="c-btn" onclick="changeCount(1)">+</button>
-              </div>
             </div>
           </div>
         </div>
@@ -942,6 +915,11 @@
             <div id="tracker-list"></div>
           </div>
         </div>
+        <!-- Qué reliquia abrir y por qué, y el único sitio donde se monta: antes había copia en
+             Set y en el panel de inventario. Va DESPUÉS de #relic-contents, que está oculto hasta
+             elegir una: al entrar las rutas quedan bajo los controles, y al pulsar una reliquia
+             su desglose sale bajo el buscador en vez de 52vh más abajo. -->
+        <div class="farm-routes" data-fr-host="relic" style="display:none;"></div>
       </div>
       <div id="mode-set" class="hidden">
         <div class="form-group">
@@ -955,11 +933,6 @@
           <input class="wf-input orokin-input" type="text" id="setItemInput" placeholder="Ej: Xaku, Wisp..."
             oninput="handleSetTyping()" autocomplete="off" />
         </div>
-        <!-- Tercer anfitrión de "Rutas aconsejadas" (los otros dos: pestaña Reliquia y panel
-             lateral de piezas Prime). El mismo módulo en los tres sitios donde se decide qué
-             farmear; ninguno lleva `id` porque son instancias — ver renderFarmRoutes(). -->
-        <div class="farm-routes" data-fr-host="set" style="display:none;"></div>
-
         <div id="setResults"></div>
       </div>
 
@@ -1074,9 +1047,7 @@
                             style="width: 10px; height: 10px; object-fit: contain;"></span>
                         <span style="white-space: nowrap; display: inline-flex; align-items: center; gap: 2px;"><span
                             id="riven-web-orders-label">Orders</span>: <span id="riven-web-orders"
-                            style="color: #00e5ff; font-weight: bold;">...</span><img
-                            src="assets/relic_contents/platinum.webp"
-                            style="width: 10px; height: 10px; object-fit: contain;"></span>
+                            style="color: #00e5ff; font-weight: bold;">...</span></span>
                       </div>
                     </div>
                   </div>
@@ -1087,7 +1058,7 @@
 
               <div style="display: flex; gap: 12px; margin-top: 20px">
                 <button class="premium-riven-btn btn-price" id="btn-riven-search" onclick="openRivenMarket()">
-                  BUSCAR PRECIO
+                  VER EN WFM ↗
                 </button>
 
                 <button class="premium-riven-btn btn-grade" id="btn-riven-grade" onclick="openGradingModal()">
@@ -1189,11 +1160,11 @@
             <div style="display: flex; align-items: center; gap: 8px;">
               <!-- Hidden native select for 100% logic compatibility -->
               <select id="indexSortSelect" style="display: none;">
-                <option id="opt-sort-pop" value="popularity" selected>Más intercambiadas</option>
+                <option id="opt-sort-pop" value="popularity" selected>Popularidad</option>
                 <option id="opt-sort-official" value="price-official">Precio de venta real</option>
                 <option id="opt-sort-wfm" value="price-wfm">Lo que piden en WFM</option>
-                <option id="opt-sort-potential-real" value="potential-real">Múltiplo real (se paga)</option>
-                <option id="opt-sort-potential-web" value="potential-web">Múltiplo pedido (WFM)</option>
+                <option id="opt-sort-potential-real" value="potential-real">Potencial real</option>
+                <option id="opt-sort-potential-web" value="potential-web">Potencial en WFM</option>
                 <option id="opt-sort-arbitrage" value="arbitrage">Diferencia pedido vs real</option>
                 <option id="opt-sort-kuva" value="kuva">Rentabilidad al rolar</option>
               </select>
@@ -1202,7 +1173,7 @@
               <div class="custom-select-container" style="position: relative; max-width: 240px; width: 190px;">
                 <div id="indexSortTrigger" class="wf-input riven-input"
                   style="padding: 10px 30px 10px 12px; font-weight: bold; background: rgba(0, 0, 0, 0.25); border: 1px solid rgba(162, 53, 226, 0.3); color: #fff; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: space-between; position: relative; user-select: none; transition: all 0.2s ease;">
-                  <span id="indexSortTriggerText">Más intercambiadas</span>
+                  <span id="indexSortTriggerText">Popularidad</span>
                   <span id="indexSortTriggerArrow"
                     style="font-size: 0.6rem; color: var(--wf-blue); pointer-events: none; transition: transform 0.2s ease; position: absolute; right: 12px; top: 50%; transform: translateY(-50%);">▼</span>
                 </div>
@@ -1211,7 +1182,7 @@
                   style="position: absolute; top: 100%; left: 0; right: 0; background: #111; border: 1px solid rgba(162, 53, 226, 0.5) !important; border-radius: 0 0 6px 6px; overflow-y: auto; max-height: 250px; overscroll-behavior: contain; z-index: var(--z-dropdown); box-shadow: 0 8px 24px rgba(0,0,0,0.6);">
                   <div class="dropdown-item active-sort-item" data-value="popularity"
                     style="padding: 10px 12px; cursor: pointer; transition: all 0.2s; border-bottom: 1px solid #222;"
-                    id="opt-custom-pop">Más intercambiadas</div>
+                    id="opt-custom-pop">Popularidad</div>
                   <div class="dropdown-item" data-value="price-official"
                     style="padding: 10px 12px; cursor: pointer; transition: all 0.2s; border-bottom: 1px solid #222;"
                     id="opt-custom-official">Precio de venta real</div>
@@ -1220,10 +1191,10 @@
                     id="opt-custom-wfm">Lo que piden en WFM</div>
                   <div class="dropdown-item" data-value="potential-real"
                     style="padding: 10px 12px; cursor: pointer; transition: all 0.2s; border-bottom: 1px solid #222;"
-                    id="opt-custom-potential-real">Múltiplo real (se paga)</div>
+                    id="opt-custom-potential-real">Potencial real</div>
                   <div class="dropdown-item" data-value="potential-web"
                     style="padding: 10px 12px; cursor: pointer; transition: all 0.2s; border-bottom: 1px solid #222;"
-                    id="opt-custom-potential-web">Múltiplo pedido (WFM)</div>
+                    id="opt-custom-potential-web">Potencial en WFM</div>
                   <div class="dropdown-item" data-value="arbitrage"
                     style="padding: 10px 12px; cursor: pointer; transition: all 0.2s; border-bottom: 1px solid #222;"
                     id="opt-custom-arbitrage">Diferencia pedido vs real</div>
@@ -1433,9 +1404,21 @@
 
     <div id="footer-relic" class="footer-output">
       <div id="finalMessage" class="message-display">...</div>
-      <button id="btn-copy" class="copy-btn" onclick="copyText()">
-        Copiar Mensaje
-      </button>
+      <div class="footer-actions">
+        <!-- Solo cambia el mensaje, así que va a su lado y no con Refinamiento/Escuadra, que
+             mueven toda la pestaña. En LFG lo oculta switchTab: allí manda su propio contador. -->
+        <div id="relic-missing" class="footer-missing">
+          <label id="lbl-missing">Faltan</label>
+          <div class="counter-inline">
+            <button class="c-btn" onclick="changeCount(-1)">-</button>
+            <span class="c-val" id="countDisplay">1</span>
+            <button class="c-btn" onclick="changeCount(1)">+</button>
+          </div>
+        </div>
+        <button id="btn-copy" class="copy-btn" onclick="copyText()">
+          Copiar Mensaje
+        </button>
+      </div>
     </div>
   </div>
 

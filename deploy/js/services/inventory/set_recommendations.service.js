@@ -50,6 +50,15 @@ export function getSetRecsPrefs() {
     }
 }
 
+/**
+ * "Solo las que rinden mejor con ESTE refinamiento" sigue al de la pestaña Reliquia: si cambia
+ * y el filtro se queda con el viejo, el panel filtra por uno y calcula con otro.
+ */
+export function syncBestForRefinement(refinement) {
+    const prefs = getSetRecsPrefs();
+    if (prefs.bestFor && prefs.bestFor !== refinement) saveSetRecsPrefs({ ...prefs, bestFor: refinement });
+}
+
 export function saveSetRecsPrefs(prefs) {
     try {
         localStorage.setItem(RECS_PREFS_KEY, JSON.stringify(prefs));

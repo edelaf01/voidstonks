@@ -7,6 +7,7 @@ import {
     rarityFromChance,
     relicOpenEV,
 } from "../../utils/inventory/relic_drop_odds.utils.js";
+import { piezasSinReliquias } from "../../utils/inventory/catalog_parts.js";
 
 
 /**
@@ -157,6 +158,11 @@ function processRelicDatabase(rawData, activeDropsSet) {
         else if (r.tier === "Requiem" || dropsInGame) state.relicStatusDB[tierName] = "active";
         else state.relicStatusDB[tierName] = "vaulted";
     });
+
+    // Un prime recién salido no está en ninguna reliquia hasta que se publican las tablas de drops,
+    // y sin esto no existía para el escáner ni para los sets. El catálogo lo trae desde el primer día.
+    const catalogo = [...(state.primeManifest || []), ...(state.primeWeaponsManifest || [])];
+    for (const nombre of piezasSinReliquias(catalogo, Object.keys(state.itemsDatabase))) state.itemsDatabase[nombre] = [];
 
     state.allRelicNames.sort((a, b) => a.localeCompare(b));
 

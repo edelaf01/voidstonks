@@ -1006,3 +1006,111 @@
     text-transform: uppercase;
     letter-spacing: 0.4px;
 }
+
+/* Bloque "Ciclar" (ui_riven_cycling.js): en el HUD del escáner y al final de la guía del arma. */
+.riven-ciclo {
+    margin: 8px 0 4px;
+    padding: 6px 8px;
+    border: 1px solid rgba(155, 89, 182, 0.35);
+    border-radius: 6px;
+    background: rgba(155, 89, 182, 0.06);
+    font-size: 0.75em;
+    color: var(--riven-text-main);
+}
+
+.riven-ciclo.ficha {
+    margin-top: 12px;
+    font-size: 12px;
+}
+
+.riven-ciclo-titulo,
+.riven-ciclo-sub {
+    font-size: 0.85em;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    color: #b39aff;
+    margin-bottom: 4px;
+    cursor: help;
+}
+
+.riven-ciclo-sub {
+    color: var(--riven-text-dim);
+    margin: 6px 0 2px;
+}
+
+.riven-ciclo-fila {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 1px 0;
+    color: var(--riven-text-dim);
+}
+
+.riven-ciclo-fila strong {
+    color: var(--riven-text-main);
+    white-space: nowrap;
+}
+
+.riven-ciclo-fila.mejor strong,
+.riven-ciclo-tabla td.mejor {
+    color: #00ff78;
+}
+
+.riven-ciclo-veredicto {
+    margin-top: 4px;
+    color: #ffb300;
+    font-weight: 700;
+}
+
+.riven-ciclo-veredicto.ok {
+    color: #00ff78;
+}
+
+.riven-ciclo-tabla {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 4px;
+    text-align: center;
+}
+
+.riven-ciclo-tabla th,
+.riven-ciclo-tabla td {
+    padding: 3px 4px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    font-weight: 600;
+}
+
+.riven-ciclo-tabla thead th {
+    font-size: 0.85em;
+    color: var(--riven-text-dim);
+    border-top: 0;
+}
+
+.riven-ciclo-tabla tbody th {
+    text-align: left;
+    color: var(--riven-text-dim);
+    white-space: nowrap;
+}
+
+.riven-ciclo-tabla small {
+    font-size: 1em;
+    color: var(--riven-text-dim);
+    font-weight: 400;
+}
+
+.riven-ciclo-tabla td.mejor small {
+    color: inherit;
+}
+
+.riven-ciclo-receta {
+    color: var(--riven-text-dim);
+    padding: 1px 0;
+}
+
+.riven-ciclo-receta.destacada {
+    color: var(--riven-text-main);
+}
+
+.riven-ciclo-receta strong {
+    color: #b39aff;
+}

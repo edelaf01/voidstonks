@@ -251,16 +251,6 @@ export function renderPrimeInventory() {
   const panel = document.getElementById("inventory-sidebar");
   if (panel && !panel.classList.contains("open")) return;
 
-  // La instancia de las rutas que vive en este panel. renderFarmRoutes() repinta las dos, así
-  // que llamarlo desde aquí también refresca la de la pestaña Reliquia — que es lo que se
-  // quiere: las dos miran el mismo inventario.
-  //
-  // Import directo y no globalThis: este import es además lo que CARGA el módulo. Al quitarlo
-  // se quedó sin importar por nadie, exposeGlobals no llegó a correr y todas las llamadas
-  // —que van con `?.()`— se saltaron sin un solo error. El panel desapareció de las dos
-  // pestañas y la consola no dijo nada.
-  renderFarmRoutes().catch((e) => console.warn("[INVENTORY] Error renderizando rutas:", e));
-
   const searchInput = (document.getElementById("prime-inv-search")?.value || "").toLowerCase();
   const sortMode = document.getElementById("prime-inv-sort")?.value || "alpha";
 

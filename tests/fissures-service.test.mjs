@@ -227,7 +227,7 @@ test("un fallo del worker deja lo último bueno en pantalla, no una lista vacía
   });
 });
 
-// El panel de rutas se pinta en tres sitios a la vez y cada instancia pedía sus fisuras. Con
+// El panel de rutas llegó a pintarse en tres sitios a la vez y cada instancia pedía sus fisuras. Con
 // el worker frío, la que se comía el timeout pintaba "esperando fisura" sobre eras que la de
 // al lado enseñaba abiertas — y el usuario lo veía como que el panel se rompía solo.
 test("varias peticiones a la vez comparten una sola llamada al worker", async () => {

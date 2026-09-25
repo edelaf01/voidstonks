@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import { installFakeDocument, FakeCanvas } from "./_helpers/fake-canvas.mjs";
 
 installFakeDocument();
-const { videoRegionHash, smallCanvasHash, compareHashes, canvasRegionHash, fraccionCambiada, miniaturaLuma, regionLuma } =
-    await import("../deploy/js/utils/vision/frame_hash.js");
+const { videoRegionHash, smallCanvasHash, compareHashes, canvasRegionHash, fraccionCambiada, miniaturaLuma, regionLuma,
+    firmaTexto, mismoTexto } = await import("../deploy/js/utils/vision/frame_hash.js");
 
 /** Canvas plano de un gris dado, que es lo que hashean estas funciones. */
 function flat(w, h, v) {
@@ -163,4 +163,30 @@ test("regionLuma recorta la región pedida del origen y la muestrea al tamaño p
     assert.ok(izquierda.every((l) => l <= 25));
     v._data.fill(0); for (let i = 0; i < v._data.length; i += 4) { v._data[i] = 255; v._data[i + 3] = 255; }
     assert.equal(regionLuma(v, { x: 0, y: 0, w: 1, h: 1, cols: 2, filas: 2 })[0], 76, "luma 0.299/0.587/0.114");
+});
+
+// La carta de riven: fondo oscuro y "líneas de texto" claras. Cambiar una línea es cambiar un stat.
+function carta({ linea = 30, ruido = 0 } = {}) {
+    const W = 640, H = 360, data = new Uint8ClampedArray(W * H * 4);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+        const i = (y * W + x) * 4;
+        const texto = y >= 260 && y < 266 && x >= 250 && x < 250 + linea * 4;
+        data[i] = data[i + 1] = data[i + 2] = (texto ? 210 : 25) + ruido;
+        data[i + 3] = 255;
+    }
+    return { videoWidth: W, videoHeight: H, width: W, height: H, data };
+}
+const ZONA = { x: 0.13, y: 0.5, w: 0.74, h: 0.4 };
+
+test("firma de texto: otro stat en la carta es otra pantalla, aunque el hash de 16x9 no lo vea", () => {
+    const a = carta(), b = carta({ linea: 60 });
+    assert.equal(compareHashes(videoRegionHash(a, ZONA), videoRegionHash(b, ZONA)), true,
+        "el hash grueso da por igual la carta con otro texto: era lo que dejaba sin leer las tiradas nuevas");
+    assert.equal(mismoTexto(firmaTexto(a, ZONA), firmaTexto(b, ZONA)), false);
+});
+
+test("firma de texto: la misma carta con algo de ruido del vídeo sigue siendo la misma", () => {
+    assert.equal(mismoTexto(firmaTexto(carta(), ZONA), firmaTexto(carta({ ruido: 6 }), ZONA)), true);
+    assert.equal(firmaTexto(carta(), ZONA).length, 96 * 36);
+    assert.equal(mismoTexto(firmaTexto(carta(), ZONA), null), false, "sin firma previa no hay nada que saltarse");
 });

@@ -485,6 +485,7 @@ export const TEXTS = {
     squads: { 1: "Solo", 2: "2 jugadores", 3: "3 jugadores", 4: "4 jugadores" },
     lblRecommended: "Fisuras Recomendadas:",
     lblFissures: "Fisuras Activas",
+    lblFissuresShort: "Fisuras",
     lblInventory: "Inventario",
     menuRelic: "Reliquia",
     menuOrders: "Órdenes",
@@ -681,8 +682,8 @@ export const TEXTS = {
     lblRef: "Refinamiento",
     // "Faltan" a secas, pegado a "Refinamiento", se leía como un parámetro del cálculo. No lo
     // es: solo rellena el mensaje de reclutamiento. Quien decide los números es "Escuadra".
-    lblMiss: "Faltan (mensaje)",
-    lblMissHelp: "Cuántos jugadores te faltan para la escuadra. Solo se usa para el mensaje de reclutamiento que se copia abajo; no toca la rentabilidad ni las runs — de eso se encarga «Escuadra».",
+    lblMiss: "Faltan",
+    lblMissHelp: "Cuántos jugadores te faltan para la escuadra. Solo cambia el mensaje de reclutamiento que tienes al lado; no toca la rentabilidad ni las runs — de eso se encarga «Escuadra».",
     btnCopy: "Copiar Mensaje",
     btnPrice: "💲 Precio",
     msgCopied: "¡COPIADO!",
@@ -728,7 +729,7 @@ export const TEXTS = {
     aboutLink: "Sobre nosotros",
     contactPageLink: "Contacto",
     termsLink: "Términos",
-    rivenSearch: " BUSCAR PRECIO",
+    rivenSearch: "VER EN WFM ↗",
     // "GRADE RIVEN" / "RIVEN GRADER" se quedaban en inglés siempre, y "grade" no dice lo
     // que hace: en el resto de la app esto es el tasador.
     rivenGradeBtn: "TASAR RIVEN",
@@ -1063,7 +1064,7 @@ export const TEXTS = {
       targetSimExplanation: "Para conseguir <b>{qty}x {arcane}</b> ({rarity}) en {pack}, necesitas en promedio <b>{packs} packs</b> ({pulls} tiradas).",
       targetSimCopiesR0: "1 Copia (Rango 0)",
       targetSimCopiesR5: "21 Copias (Rango 5 Máximo)",
-      dataNote: "Precios: warframe.market (promedio equilibrado con historial de 48h). Packs: exportación oficial del juego. Actualizado:"
+      dataNote: "Precios: warframe.market (promedio equilibrado con historial de 48h). Contenido de los packs, de la exportación oficial del juego, a fecha de:"
     }
   },
   en: {
@@ -1417,6 +1418,7 @@ export const TEXTS = {
     squads: { 1: "Solo", 2: "2 players", 3: "3 players", 4: "4 players" },
     lblRecommended: "Recommended Fissures:",
     lblFissures: "Active Fissures",
+    lblFissuresShort: "Fissures",
     lblInventory: "Inventory",
     menuRelic: "Relic",
     menuOrders: "Orders",
@@ -1595,8 +1597,8 @@ export const TEXTS = {
     lblItem: "Search Item (e.g. Xaku)",
     phItem: "e.g. Xaku, Protea...",
     lblRef: "Refinement",
-    lblMiss: "Need (message)",
-    lblMissHelp: "How many players you still need for the squad. It only fills the recruiting message copied below; it does not touch profitability or runs — that is what “Squad” does.",
+    lblMiss: "Need",
+    lblMissHelp: "How many players you still need for the squad. It only changes the recruiting message next to it; it does not touch profitability or runs — that is what “Squad” does.",
     btnCopy: "Copy Message",
     btnPrice: "💲 Price",
     msgCopied: "COPIED!",
@@ -1643,7 +1645,7 @@ export const TEXTS = {
     aboutLink: "About",
     contactPageLink: "Contact",
     termsLink: "Terms",
-    rivenSearch: " CHECK PRICE",
+    rivenSearch: "VIEW ON WFM ↗",
     rivenGradeBtn: "APPRAISE RIVEN",
     rivenGradeTitle: "RIVEN APPRAISER",
     rivenDisclaimer: "Riven prices are a reference, not a quote: the same riven can go for anything. Take them as a read on real trading volume, from DE data and warframe.market listings.",
@@ -2064,7 +2066,7 @@ export const TEXTS = {
       targetSimExplanation: "To obtain <b>{qty}x {arcane}</b> ({rarity}) in {pack}, you need on average <b>{packs} packs</b> ({pulls} pulls).",
       targetSimCopiesR0: "1 Copy (Rank 0)",
       targetSimCopiesR5: "21 Copies (Max Rank R5)",
-      dataNote: "Prices: warframe.market (lowest-sale average balanced with 48h history). Pack data: official game export. Updated:"
+      dataNote: "Prices: warframe.market (lowest-sale average balanced with 48h history). Pack contents from the official game export, as of:"
     },
     rivenHud: {
       compareTitle: "ROLL COMPARISON",

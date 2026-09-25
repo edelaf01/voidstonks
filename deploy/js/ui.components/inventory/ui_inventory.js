@@ -284,6 +284,8 @@ export function selectRelicFromInv(name) {
   // abierto → cerraba), pero estas mismas chapas de reliquia salen en "Rutas aconsejadas" con
   // el panel cerrado, y ahí el clic lo abría encima del contenido.
   document.getElementById("inventory-container")?.classList.remove("open");
+  // Las rutas van debajo del desglose: pulsando una desde ahí, el contenido sale fuera de vista.
+  input?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   manualRelicUpdate();
   trackBestSetForRelic(name);
 }

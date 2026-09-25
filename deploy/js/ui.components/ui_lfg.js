@@ -3,6 +3,7 @@ import { TEXTS } from "../config.js";
 import { showToast, escapeHTML } from "./ui_components.js";
 import { ClipboardService } from "../services/clipboard.service.js";
 import { exposeGlobals } from "../utils/global_registry.js";
+import { squadTag } from "../utils/chat_link.js";
 
 let lfgRafId = null;
 
@@ -236,8 +237,7 @@ export function generateLFGMessage() {
 
     if (extra) msg += ` ${extra}`;
 
-    const count = state?.lfgCount ? state.lfgCount : 1;
-    msg += ` ${count}/4`;
+    msg += ` ${squadTag(state?.lfgCount)}`;
 
     const box = document.getElementById("finalMessage");
     if (box && box.innerText !== msg) {

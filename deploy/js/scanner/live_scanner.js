@@ -261,9 +261,9 @@ export function stopLiveSession() {
 /**
  * UI Hook called by ScannerService when Riven card(s) are parsed.
  */
-globalThis.showRivenAppraisal = async (parsedL, parsedR, screenshotDataURL) => {
+globalThis.showRivenAppraisal = async (parsedL, parsedR, captura) => {
   const { RivenScannerHUD } = await import("../ui.components/rivens/ui_riven_scanner_hud.js");
-  RivenScannerHUD.show(parsedL, parsedR, screenshotDataURL);
+  RivenScannerHUD.show(parsedL, parsedR, captura);
 };
 
 // Las cantidades de la pantalla VOID RELICS/REFINEMENT se escriben en el inventario solas,

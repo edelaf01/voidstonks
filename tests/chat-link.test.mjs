@@ -6,7 +6,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { chatLink, chatLine } from "../deploy/js/utils/chat_link.js";
+import { chatLink, chatLine, squadTag } from "../deploy/js/utils/chat_link.js";
 
 test("las piezas de componente pierden el «Blueprint» entero", () => {
   // "Zephyr Prime Systems Blueprint" es el nombre de la tabla de drop; lo que enlaza el juego
@@ -43,4 +43,18 @@ test("la línea lleva el precio solo cuando se sabe", () => {
   assert.equal(chatLine("Hydroid Prime Blueprint", 20), "[Hydroid Prime] Blueprint 20 :platinum:");
   // Sin precio cargado se pega el link a secas en vez de un "0 :platinum:" que no es cierto.
   assert.equal(chatLine("Bronco Prime Barrel", 0), "[Bronco Prime Barrel]");
+});
+
+// El contador es de los que FALTAN y el mensaje decía ese mismo número: "faltan 1" salía "1/4", que en
+// el chat se lee "estoy solo, faltan 3", y "faltan 4" se convertía en "3/4".
+test("el hueco de escuadra dice cuántos sois, no cuántos faltan", () => {
+  assert.equal(squadTag(1), "3/4");
+  assert.equal(squadTag(2), "2/4");
+  assert.equal(squadTag(3), "1/4");
+});
+
+test("fuera de rango o sin valor se queda en un hueco válido", () => {
+  assert.equal(squadTag(4), "1/4", "no pueden faltar 4: tú ya estás");
+  assert.equal(squadTag(0), "3/4");
+  assert.equal(squadTag(undefined), "3/4");
 });

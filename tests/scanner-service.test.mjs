@@ -1017,18 +1017,22 @@ test("fin de misión leído entero se duerme hasta otro fin de misión", async (
 test("el sensor se arma en los menús con tick largo, y nunca en UNKNOWN ni con tick corto", async () => {
   const W = 640, H = 360;
   globalThis.document._registrar("live-video", { videoWidth: W, videoHeight: H, width: W, height: H, data: new Uint8ClampedArray(W * H * 4), paused: false, ended: false });
-  const orig = { proc: S.processFrame, sensor: S._sensor };
+  const orig = { proc: S.processFrame, sensor: S._sensor, si: globalThis.setInterval, ci: globalThis.clearInterval };
+  const vivos = new Set();
+  globalThis.setInterval = () => { const id = Symbol("sensor"); vivos.add(id); return id; };
+  globalThis.clearInterval = (id) => { vivos.delete(id); };
   S._sensor = null;
   try {
     for (const [ctx, rate, armado] of [["INVENTORY", 3000, true], ["INVENTORY_MODS", 1000, true], ["UNKNOWN", 1000, false], ["REWARD", 400, false]]) {
       S.processFrame = async () => { S.latchedContext = ctx; S.currentRate = rate; };
       S.isScanning = true;
       await S.loop();
-      assert.equal(!!S._sensor?.armado, armado, `${ctx} con tick de ${rate} ms`);
+      assert.equal(vivos.size > 0, armado, `${ctx} con tick de ${rate} ms`);
       clearTimeout(S.scanInterval); S._sensor?.para();
     }
   } finally {
     S.processFrame = orig.proc; S.isScanning = false; clearTimeout(S.scanInterval); S._sensor?.para(); S._sensor = orig.sensor;
+    Object.assign(globalThis, { setInterval: orig.si, clearInterval: orig.ci });
   }
 });
 
@@ -1083,14 +1087,152 @@ test("un tick con la cabecera en caché no dibuja el recorte de cabecera; uno qu
 
 test("con una carta de riven ya leída y quieta, el tick deja su región vigilada para el sensor", async () => {
   const { VisionService } = await import("../deploy/js/services/scanner/vision.service.js");
-  const { videoRegionHash } = await import("../deploy/js/utils/vision/frame_hash.js");
+  const { firmaTexto } = await import("../deploy/js/utils/vision/frame_hash.js");
   const W = 640, H = 360, data = new Uint8ClampedArray(W * H * 4).fill(90);
   const video = { videoWidth: W, videoHeight: H, width: W, height: H, data };
   const orig = { l: S.lastParsedL, h: S.lastHashL };
   try {
-    Object.assign(S, { lastParsedL: riven(), lastHashL: videoRegionHash(video, VisionService.RIVEN_CARD_CROP), _cartaVigilada: null });
+    Object.assign(S, { lastParsedL: riven(), lastHashL: firmaTexto(video, VisionService.RIVEN_CARD_CROP), _cartaVigilada: null });
     await S.processRivenCard(video, { width: W, height: H, scale: 3 }, "INVENTORY_MODS");
     assert.equal(S._cartaVigilada, VisionService.RIVEN_CARD_CROP);
     assert.equal(S.currentRate, S.RIVEN_RATE_IDLE);
   } finally { Object.assign(S, { lastParsedL: orig.l, lastHashL: orig.h, _cartaVigilada: null }); }
+});
+
+// Tras la Update 44 el desplegable de rivens no se abría: la carta se leía con la lista blanca de
+// los rótulos (sin "+", "%" ni "."), así que el parser no encontraba ningún stat.
+test("una carta de riven se lee con la lista de caracteres de rivens y abre el desplegable", async () => {
+  const { OCRRepository } = await import("../deploy/js/repositories/ocr.repository.js");
+  const { ESTADO_INICIAL } = await import("../deploy/js/utils/vision/no_result_skip.js");
+  const { state } = await import("../deploy/js/state.js");
+  const W = 640, H = 360, data = new Uint8ClampedArray(W * H * 4).fill(20);
+  const video = { videoWidth: W, videoHeight: H, width: W, height: H, data };
+  const orig = { leer: OCRRepository.recognizeWithChars, workers: OCRRepository.workers, show: globalThis.showRivenAppraisal,
+    S: { lastParsedL: S.lastParsedL, lastParsedR: S.lastParsedR, lastHashL: S.lastHashL, lastNoResult: S.lastNoResult, rivenConsensusBuffer: S.rivenConsensusBuffer },
+    names: state.allRivenNames, map: state.weaponMap };
+  let lista = null, mostrado = null;
+  OCRRepository.workers = [{}];
+  OCRRepository.recognizeWithChars = async (_w, _img, chars) => {
+    lista = chars;
+    return { data: { text: "Dread Acricron\n+187.6% Critical Chance\n+150.9% Critical Damage\nMR 10" } };
+  };
+  globalThis.showRivenAppraisal = (l) => { mostrado = l; };
+  Object.assign(state, { allRivenNames: ["Dread"], weaponMap: { Dread: { d: 1.25, t: "Bow" } } });
+  Object.assign(S, { lastParsedL: null, lastParsedR: null, lastHashL: null, lastNoResult: ESTADO_INICIAL, rivenConsensusBuffer: [] });
+  try {
+    await S.processRivenCard(video, { width: W, height: H, scale: 3 }, "INVENTORY_MODS");
+    assert.equal(lista, OCRRepository.RIVEN_CHARS);
+    assert.equal(mostrado?.weaponName, "Dread");
+    assert.deepEqual(mostrado.stats.map((s) => s.value), [187.6, 150.9]);
+  } finally {
+    Object.assign(OCRRepository, { recognizeWithChars: orig.leer, workers: orig.workers });
+    globalThis.showRivenAppraisal = orig.show;
+    Object.assign(S, orig.S);
+    Object.assign(state, { allRivenNames: orig.names, weaponMap: orig.map });
+  }
+});
+
+// --- Responsividad en la pantalla de ciclar -------------------------------------------------------
+// Pantalla de mentira: cada carta es un rectángulo claro y el OCR devuelve el texto que se le pase.
+function pantallaCiclo(xs, { linea = false } = {}) {
+  const W = 640, H = 360, data = new Uint8ClampedArray(W * H * 4).fill(20);
+  const pinta = (x0, x1, y0, y1) => {
+    for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) { const i = (y * W + x) * 4; data[i] = data[i + 1] = data[i + 2] = 190; }
+  };
+  for (const x0 of xs) pinta(x0, x0 + 90, 200, 300);
+  if (linea) pinta(330, 450, 305, 311);
+  return { videoWidth: W, videoHeight: H, width: W, height: H, data };
+}
+const CARTA_A = "Dread Acricron\n+187.6% Critical Chance\n+150.9% Critical Damage\nMR 10";
+const CARTA_B = "Dread Satiacri\n+139.2% Multishot\n+185.0% Critical Damage\n-37.3% Zoom\nMR 10";
+const CARTA_C = "Dread Satiterra\n+111.4% Multishot\n+74.6% Fire Rate\nMR 10";
+
+async function enPantallaDeCiclo(fn) {
+  const { OCRRepository } = await import("../deploy/js/repositories/ocr.repository.js");
+  const { VisionService } = await import("../deploy/js/services/scanner/vision.service.js");
+  const { ESTADO_INICIAL } = await import("../deploy/js/utils/vision/no_result_skip.js");
+  const { state } = await import("../deploy/js/state.js");
+  const campos = ["lastParsedL", "lastParsedR", "lastHashL", "lastNoResult", "rivenConsensusBuffer", "oneCardStreak",
+    "newCardStreak", "weaponSwitchCandidate", "weaponSwitchStreak", "lastTwoCardHash", "currentRate"];
+  const orig = { S: Object.fromEntries(campos.map((k) => [k, S[k]])), leer: OCRRepository.recognizeWithChars,
+    workers: OCRRepository.workers, segundo: OCRRepository.ensureSecondWorker, prep: VisionService.prepareRivenCardCanvases,
+    show: globalThis.showRivenAppraisal, names: state.allRivenNames, map: state.weaponMap };
+  const vistos = [], lecturas = { n: 0 };
+  let textos = [];
+  OCRRepository.workers = [{}];
+  OCRRepository.ensureSecondWorker = async () => {};
+  OCRRepository.recognizeWithChars = async (_w, img) => { lecturas.n++; return { data: { text: img.texto } }; };
+  VisionService.prepareRivenCardCanvases = () => textos.map((texto) => ({ width: 400, height: 300, texto }));
+  globalThis.showRivenAppraisal = (l, r) => vistos.push([l?.stats.map((s) => s.name).join("+") ?? null, r ? r.stats.map((s) => s.name).join("+") : null]);
+  Object.assign(state, { allRivenNames: ["Dread"], weaponMap: { Dread: { d: 1.25, t: "Bow" } } });
+  Object.assign(S, { lastParsedL: null, lastParsedR: null, lastHashL: null, lastNoResult: ESTADO_INICIAL, rivenConsensusBuffer: [],
+    oneCardStreak: 0, newCardStreak: 0, weaponSwitchCandidate: null, weaponSwitchStreak: 0, lastTwoCardHash: null });
+  const lee = async (video, ...t) => {
+    textos = t;
+    S.currentRate = S.RIVEN_RATE_ACTIVE;
+    await S.processRivenCard(video, { width: 640, height: 360, scale: 3 }, "INVENTORY_MODS");
+  };
+  try {
+    await fn({ lee, vistos, lecturas });
+  } finally {
+    Object.assign(S, orig.S);
+    Object.assign(OCRRepository, { recognizeWithChars: orig.leer, workers: orig.workers, ensureSecondWorker: orig.segundo });
+    VisionService.prepareRivenCardCanvases = orig.prep;
+    globalThis.showRivenAppraisal = orig.show;
+    Object.assign(state, { allRivenNames: orig.names, weaponMap: orig.map });
+  }
+}
+
+// Con el hash de 16x9 cambiar el texto de una carta no contaba como cambio: si el cristal del fondo
+// no se movía, la tirada nueva no se leía nunca (medido en capturas reales de la pantalla de ciclar).
+test("una línea de texto distinta en la carta se relee; la misma pantalla no", async () => {
+  await enPantallaDeCiclo(async ({ lee, lecturas }) => {
+    await lee(pantallaCiclo([300]), CARTA_A);
+    const n = lecturas.n;
+    await lee(pantallaCiclo([300]), CARTA_A);
+    assert.equal(lecturas.n, n, "pantalla quieta ya leída: sin OCR");
+    await lee(pantallaCiclo([300], { linea: true }), CARTA_C);
+    assert.equal(lecturas.n, n + 1);
+  });
+});
+
+test("una tirada nueva pendiente de confirmar se relee enseguida, no al ritmo normal", async () => {
+  await enPantallaDeCiclo(async ({ lee, vistos }) => {
+    await lee(pantallaCiclo([300]), CARTA_A);
+    await lee(pantallaCiclo([250]), CARTA_C);
+    assert.deepEqual(vistos.at(-1), ["Crit Chance+Crit Damage", null], "una lectura sola no cambia lo mostrado");
+    assert.equal(S.currentRate, S.RIVEN_RATE_CONFIRM);
+    await lee(pantallaCiclo([250]), CARTA_C);
+    assert.deepEqual(vistos.at(-1), ["Multishot+Fire Rate / Attack Speed", null]);
+  });
+});
+
+test("al elegir una carta tras ciclar, la otra se quita a la segunda lectura", async () => {
+  await enPantallaDeCiclo(async ({ lee, vistos }) => {
+    const dos = pantallaCiclo([150, 400]), una = pantallaCiclo([150]);
+    await lee(dos, CARTA_A, CARTA_B);
+    assert.deepEqual(vistos.at(-1), ["Crit Chance+Crit Damage", "Multishot+Crit Damage+Zoom"]);
+    await lee(una, CARTA_A);
+    assert.ok(S.lastParsedR, "con una sola lectura todavía no");
+    assert.equal(S.currentRate, S.RIVEN_RATE_CONFIRM);
+    await lee(una, CARTA_A);
+    assert.equal(S.lastParsedR, null);
+    assert.deepEqual(vistos.at(-1), ["Crit Chance+Crit Damage", null]);
+  });
+});
+
+// Si la carta elegida se lee MEJOR que antes (aquí recupera el negativo), esa lectura se muestra al
+// momento; pero la bajada a una carta sigue a medias y guardar ya la huella dejaba la otra puesta.
+test("al elegir la carta que se había leído a medias, se mejora y la otra se quita igual", async () => {
+  await enPantallaDeCiclo(async ({ lee, vistos }) => {
+    // Sin stats en común con CARTA_A: la identidad laxa tolera uno distinto y las confundiría.
+    const entera = "Dread Satiterra\n+139.2% Multishot\n+93.3% Fire Rate\n-37.3% Zoom\nMR 10";
+    const sinNegativo = "Dread Satiterra\n+139.2% Multishot\n+93.3% Fire Rate\nMR 10";
+    await lee(pantallaCiclo([150, 400]), CARTA_A, sinNegativo);
+    const una = pantallaCiclo([400]);
+    await lee(una, entera);
+    assert.deepEqual(vistos.at(-1), ["Crit Chance+Crit Damage", "Multishot+Fire Rate / Attack Speed+Zoom"]);
+    await lee(una, entera);
+    assert.deepEqual(vistos.at(-1), [null, "Multishot+Fire Rate / Attack Speed+Zoom"]);
+  });
 });
