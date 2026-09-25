@@ -13,6 +13,17 @@ import { metaConPesosDeFamilia } from "./riven_weights.service.js";
 
 // Riven roll appraisal: what it is worth and what it compares against. Returns data, never HTML.
 
+/**
+ * Wanted (best) and mid stats of the weapon, by the appraisal criteria: family ML weights
+ * or, without them, the global prior.
+ */
+export function statsBuscadosDelArma(meta, weaponName) {
+  const grado = gradeWeaponStats(metaConPesosDeFamilia(meta || {}, weaponName || meta?.name),
+    state.rivenStatBaseline?.stat_weights ?? state.rivenStatPrior ?? null);
+  if (grado && grado.best.length) return { best: grado.best, mid: grado.mid };
+  return { best: meta?.pos || [], mid: meta?.midPos || [] };
+}
+
 export function computeDesirabilityMultiplier(stats, meta, weaponData) {
   const wType = (weaponData?.t || "").toLowerCase();
   const isMelee = wType === "melee" || wType === "zaw" || wType === "glaive";

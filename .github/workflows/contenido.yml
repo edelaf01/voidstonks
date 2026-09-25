@@ -1,0 +1,57 @@
+name: Contenido del juego (diario)
+
+# Añade lo que traiga una update de Warframe (armas, warframes, iconos, arcanos de Vosfor, reliquias
+# de cada pieza) desde WFCD master y sube las versiones de caché de la app. Cada 6 h porque WFCD
+# recoge una update en ~1 día: así llega a la web en horas y no al día siguiente. Sin cambios, no hay commit.
+on:
+  schedule:
+    - cron: '15 */6 * * *'
+  workflow_dispatch: {}
+
+concurrency:
+  group: contenido
+  cancel-in-progress: false
+
+jobs:
+  contenido:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Dependencias
+        run: pip install pillow
+
+      - name: Sincronizar con WFCD
+        run: python scripts/actualizar_contenido.py
+
+      # Solo los tests que leen estos datos: un catálogo roto no puede llegar a la web.
+      - name: Tests de los datos
+        run: >-
+          node --test tests/catalog-parts.test.mjs tests/item-match-fuzz.test.mjs tests/rivens-service.test.mjs
+          tests/component-siblings.test.mjs tests/riven-co-scaling.test.mjs tests/relics-service.test.mjs
+
+      - name: Commit si hay contenido nuevo
+        run: |
+          git config user.email "actions@github.com"
+          git config user.name "Contenido Bot"
+          git add deploy/assets/json deploy/assets/relic_contents deploy/js/services/rivens/rivens.service.js scripts/contenido_pendiente.json
+          if git diff --staged --quiet; then
+            echo "WFCD no trae nada nuevo."
+            exit 0
+          fi
+          git commit -m "🤖 Contenido del juego $(date -u +%F)"
+          git pull --rebase --autostash origin "${GITHUB_REF_NAME}" || true
+          git push

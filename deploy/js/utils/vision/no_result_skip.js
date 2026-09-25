@@ -14,8 +14,8 @@ import { compareHashes } from "./frame_hash.js";
 export const ESTADO_INICIAL = Object.freeze({ hash: null, time: 0 });
 
 /** Should the OCR be skipped? This frame's hash matches a recent attempt with no result. */
-export function saltaPorSinResultado(hash, estado, ahora, caducidadMs) {
-  return compareHashes(hash, estado?.hash) && (ahora - (estado?.time || 0) < caducidadMs);
+export function saltaPorSinResultado(hash, estado, ahora, caducidadMs, iguales = compareHashes) {
+  return iguales(hash, estado?.hash) && (ahora - (estado?.time || 0) < caducidadMs);
 }
 
 /** Next state after an attempt: stores the hash when there was NO result, clears it when there was. */

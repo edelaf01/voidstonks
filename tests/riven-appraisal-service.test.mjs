@@ -10,7 +10,7 @@ globalThis.localStorage = { getItem: () => null, setItem() {}, removeItem() {} }
 globalThis.fetch = async () => ({ ok: false, status: 404, json: async () => ({}) });
 
 const { state } = await import("../deploy/js/state.js");
-const { computeDesirabilityMultiplier, appraiseParsedRiven } =
+const { computeDesirabilityMultiplier, appraiseParsedRiven, statsBuscadosDelArma } =
   await import("../deploy/js/services/rivens/riven_appraisal.service.js");
 
 // without ML weights or prior: exercises universal lists, the last resort when the ML bundle fails to load
@@ -127,4 +127,16 @@ test("las negativas llegan con el valor en positivo y la bandera aparte", () => 
   ], META);
   assert.equal(r.itemAttributes[0].isPositive, false);
   assert.ok(r.itemAttributes[0].value > 0, "el valor absoluto, no el signo");
+});
+
+// scanner cycling advice uses these desired stats: if it relied on bare meta.pos, which arrives empty for
+// most weapons, the scanner would almost never suggest anything
+test("los stats buscados salen de los pesos del arma y, sin ellos, de meta.pos", () => {
+  const conPesos = { name: "Braton", pos: [], midPos: [],
+    dynamic_weights: { "Critical Damage": 0.9, "Multishot": 0.8, "Toxin Damage": 0.5, "Zoom": 0.1 } };
+  assert.deepEqual(statsBuscadosDelArma(conPesos, "Braton"),
+    { best: ["Critical Damage", "Multishot"], mid: ["Toxin Damage"] });
+  assert.deepEqual(statsBuscadosDelArma({ name: "Braton", pos: ["Zoom"], midPos: ["Recoil"] }, "Braton"),
+    { best: ["Zoom"], mid: ["Recoil"] });
+  assert.deepEqual(statsBuscadosDelArma(null, "Braton"), { best: [], mid: [] });
 });

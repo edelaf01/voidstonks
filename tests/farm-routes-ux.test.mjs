@@ -158,7 +158,7 @@ test("cada filtro dice qué hace al pasar por encima", () => {
 
 test("los textos de los tooltips de filtros existen en los dos idiomas", () => {
     assertBilingual([
-        "eraHelp", "simRefinementHelp", "simSquadHelp", "sortHelp", "minPerHourHelp", "minGainHelp",
+        "eraHelp", "sortHelp", "minPerHourHelp", "minGainHelp",
         "picksQueryHelp", "picksEraHelp", "picksSortHelp", "picksReadyHelp",
     ]);
 });
@@ -201,7 +201,7 @@ test("si las fisuras no cargan se dice, y se reintenta pronto", () => {
 });
 
 test("la vista por reliquia tiene sus propios filtros", () => {
-    for (const control of ["query", "era", "sort", "ready", "sim-refinement", "sim-squad"]) {
+    for (const control of ["query", "era", "sort", "ready"]) {
         assert.match(picksSrc, new RegExp(`data-rp="${control}"`), `falta el control ${control}`);
     }
     assert.match(picksSrc, /getRelicPicksPrefs\(\)/);

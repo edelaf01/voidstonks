@@ -114,3 +114,31 @@ export function compareHashes(hash1, hash2, tolerance = 18) {
     }
     return diff / (hash1.length / 2) < tolerance;
 }
+
+// on the cycling screen a 1 px shift or a stream rescale changes ~0 % of the samples, other stats ~2 %,
+// another roll ~10 %
+const FIRMA_COLS = 96, FIRMA_FILAS = 36, FIRMA_UMBRAL = 16, FIRMA_CORTE = 0.005;
+let firmaCvs = null;
+
+/**
+ * Fingerprint of a zone with TEXT (riven cards), which the 16×9 hash misses: new stats barely move its mean.
+ * HIGH smoothing on purpose: a low one samples instead of averaging and a 1 px shift already changes it.
+ */
+export function firmaTexto(source, crop) {
+    if (!firmaCvs) {
+        firmaCvs = document.createElement("canvas");
+        firmaCvs.width = FIRMA_COLS;
+        firmaCvs.height = FIRMA_FILAS;
+    }
+    const ctx = firmaCvs.getContext("2d", { willReadFrequently: true });
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    const W = source.videoWidth || source.width, H = source.videoHeight || source.height;
+    ctx.drawImage(source, Math.floor(W * crop.x), Math.floor(H * crop.y), Math.floor(W * crop.w), Math.floor(H * crop.h),
+        0, 0, FIRMA_COLS, FIRMA_FILAS);
+    return lumaDe(ctx, FIRMA_COLS, FIRMA_FILAS);
+}
+
+export function mismoTexto(a, b) {
+    return fraccionCambiada(a, b, FIRMA_UMBRAL) < FIRMA_CORTE;
+}

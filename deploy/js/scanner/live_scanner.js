@@ -217,9 +217,9 @@ export function stopLiveSession() {
 }
 
 /** Called by ScannerService when riven cards are parsed. */
-globalThis.showRivenAppraisal = async (parsedL, parsedR, screenshotDataURL) => {
+globalThis.showRivenAppraisal = async (parsedL, parsedR, captura) => {
   const { RivenScannerHUD } = await import("../ui.components/rivens/ui_riven_scanner_hud.js");
-  RivenScannerHUD.show(parsedL, parsedR, screenshotDataURL);
+  RivenScannerHUD.show(parsedL, parsedR, captura);
 };
 
 RelicScreenService.onApplied = (changed) => {
