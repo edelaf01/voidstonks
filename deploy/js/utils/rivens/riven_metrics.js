@@ -1,8 +1,6 @@
 /**
- * Cuánto varía el precio de las ventas reales de un arma: desviación / mediana. El oráculo lo publica
- * como volatility_index = 10 × esa razón (casa en las 608 armas con datos), y la app lo pintaba dos
- * veces con umbrales distintos: "Volatilidad" sobre 0-1 salía ALTA en 588 de 619 armas y "Riesgo"
- * decía ESTABLE en la misma carta.
+ * Desviación / mediana de las ventas reales (el oráculo lo publica ×10 como volatility_index). Se
+ * pintaba con dos escalas: "Volatilidad" salía ALTA en 588 de 619 armas y "Riesgo", ESTABLE.
  * @returns {"baja"|"media"|"alta"|null} null = sin ventas con las que medirlo, nunca "estable"
  */
 export function nivelVolatilidad(meta) {

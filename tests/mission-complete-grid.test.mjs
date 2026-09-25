@@ -87,13 +87,33 @@ test("detectRewardCells acota la rejilla de un frame sintético", () => {
 });
 
 test("detectRewardCells descarta los ✓ que no caen en la retícula", () => {
-  // La lupa de SEARCH y un trazo de IMPORTANCE: mismo color y tamaño, fuera de la rejilla.
+  // La lupa de SEARCH y un trazo de IMPORTANCE (la barra, que ya queda fuera de la zona) y un
+  // anillo suelto dentro del panel, entre filas y columnas.
   const trace = {};
-  const res = detectRewardCells(frame1440({ phantoms: [[2390, 301], [1724, 306]] }), { trace });
+  const res = detectRewardCells(frame1440({ phantoms: [[2390, 301], [1724, 306], [2300, 480]] }), { trace });
   assert.ok(res);
-  assert.ok(trace.candidates >= 15, `candidatos=${trace.candidates}`);
+  assert.equal(trace.candidates, 14, "la barra IMPORTANCE/SEARCH no llega ni a candidata");
   assert.equal(res.cells.length, 13, "los fantasmas no deben contar como casillas");
   assert.equal(trace.cols, 5);
+});
+
+// Fin de Sanctuary Onslaught ("ZONE N REACHED") y misiones cortas: 2-3 recompensas. Con menos de
+// 4 ✓ no había retícula y la pantalla no se leía nunca.
+test("con 2-3 recompensas en una fila y con rótulo, se leen", () => {
+  const trace = {};
+  const res = detectRewardCells(frame1440({ cells: [[0, 0], [0, 1]], labels: [[0, 0], [0, 1]] }), { trace });
+  assert.ok(res, JSON.stringify(trace));
+  assert.deepEqual(res.cells.map((c) => c.col), [0, 1]);
+  assert.equal(trace.rows, 1);
+  assert.equal(res.pitch, 240);
+  const conHueco = detectRewardCells(frame1440({ cells: [[0, 0], [0, 2]], labels: [[0, 0], [0, 2]] }));
+  assert.deepEqual(conHueco.cells.map((c) => c.col), [0, 2]);
+});
+
+test("con pocos ✓ no se inventan casillas: sin rótulo, o a medio paso", () => {
+  assert.equal(detectRewardCells(frame1440({ cells: [[0, 0], [0, 1]] })), null, "sin rótulo");
+  const aMedioPaso = frame1440({ cells: [[0, 0]], labels: [[0, 0]], phantoms: [[1222 + 120 + 12, 362]] });
+  assert.equal(detectRewardCells(aMedioPaso), null);
 });
 
 test("detectRewardCells avisa cuando algo tapa el panel", () => {
@@ -173,6 +193,8 @@ const CAPTURAS = [
   ["missioncomplete.png", { cells: 13, cols: 5, rows: 3, pitch: 240, occluded: false }],
   // Con el tooltip de NEURODES tapando dos casillas de la última fila.
   ["missioncomplete2.png", { cells: 13, cols: 5, rows: 3, pitch: 240, occluded: true }],
+  // Fin de Sanctuary Onslaught: Credits y una Lith V11 [Radiant], con los botones del tema debajo.
+  ["zone-reached-onslaught.png", { cells: 2, cols: 2, rows: 1, pitch: 234, occluded: false }],
 ];
 const DIR = `${process.env.HOME}/Imágenes/Capturas de pantalla/nofunciona/implementar`;
 

@@ -22,18 +22,10 @@ export function kuvaEsperada(p, ciclosHechos, bloqueado = false) {
     return Math.round(total + sigue * costeCiclo(n, bloqueado) / p);
 }
 
-/** Ciclos para tener un `prob` de haber acertado alguna vez. */
-export function ciclosPara(p, prob = 0.9) {
-    if (!(p > 0)) return Infinity;
-    if (p >= 1) return 1;
-    return Math.ceil(Math.log(1 - prob) / Math.log(1 - p));
-}
-
 export function tipoDeArma(tipo) {
     return WEAPON_TYPE_IDX[tipo] ?? 0;
 }
 
-/** Los stats que puede sacar un riven de ese tipo de arma: los que tienen valor base en él. */
 export function poolDeStats(typeIdx) {
     return Object.keys(RIVEN_BASE_STATS).filter((k) => RIVEN_BASE_STATS[k][typeIdx]);
 }
@@ -51,7 +43,6 @@ const ALIAS = {
 };
 const CLAVES = Object.fromEntries(Object.keys(RIVEN_BASE_STATS).map((k) => [k.toLowerCase(), k]));
 
-/** Nombre del stat tal como lo trae cualquier fuente → clave de RIVEN_BASE_STATS, o null. */
 export function claveStat(nombre, typeIdx) {
     const l = String(nombre || "").trim().toLowerCase().replace(/\s+/g, " ");
     if (["fire rate / attack speed", "fire rate", "attack speed"].includes(l)) {
@@ -77,12 +68,10 @@ function* combinaciones(lista, n, desde = 0, elegidos = []) {
 const CONFIGS = [[2, false], [2, true], [3, false], [3, true]];
 
 /**
- * Probabilidad de que UN ciclo deje al menos `k` de `buscados` entre los positivos y, si sale
- * negativo, que sea de `negOk`. Positivos al azar sin repetir del pool; el negativo, de lo que
- * queda y pueda salir en negativo. Se recorren todas las combinaciones: son ~2.300 como mucho.
- *
- * @param bloqueado { stat, negativo } | null. Con bloqueo el número de positivos y de negativos no
- *   cambia (`config`), y el stat bloqueado se queda con su valor.
+ * Probabilidad de que un ciclo deje al menos `k` de `buscados` en positivo y, si sale negativo, uno
+ * de `negOk`. Positivos al azar sin repetir; el negativo, de lo que queda y pueda salir en negativo.
+ * Se recorren todas las combinaciones (~2.300 como mucho).
+ * @param bloqueado { stat, negativo } | null: con bloqueo el número de stats no cambia (`config`).
  */
 export function probPorCiclo({ pool, buscados, k, negOk, typeIdx, config = null, bloqueado = null }) {
     const busc = new Set(buscados), ok = new Set(negOk);
@@ -110,10 +99,8 @@ export function probPorCiclo({ pool, buscados, k, negOk, typeIdx, config = null,
 }
 
 /**
- * Qué bloquear antes de ciclar un riven concreto, o si es mejor no bloquear nada.
- *
- * @param stats [{ name, isPositive, calidad? }] — `calidad` desempata entre dos positivos buscados:
- *   el bloqueado conserva su valor, así que conviene el que mejor rodó.
+ * @param stats [{ name, isPositive, calidad? }]: `calidad` desempata entre dos positivos buscados,
+ *   porque el bloqueado conserva su valor.
  * @returns null si algún stat no se reconoce o la carta no tiene 2-3 positivos y 0-1 negativo.
  */
 export function consejoDeCiclo({ stats, typeIdx, buscados, negOk, k = 2, ciclosHechos = 0 }) {
@@ -185,7 +172,6 @@ export const RECETAS_COMBINAR = [
     ["todas", "Damage to Infested", "Damage to Grineer", ["Daño a Scaldra", "Damage to Scaldra"]],
 ].map(([ambito, a, b, resultado]) => ({ ambito, a, b, resultado }));
 
-/** Recetas que puede usar ese tipo de arma: su ámbito y los dos stats dentro de su pool. */
 export function recetasDelTipo(typeIdx) {
     const pool = poolDeStats(typeIdx);
     const ambito = typeIdx === 3 ? "melee" : "fuego";
@@ -193,7 +179,6 @@ export function recetasDelTipo(typeIdx) {
         && pool.includes(r.a) && pool.includes(r.b));
 }
 
-/** Recetas cuyos dos stats lleva ya este riven, en positivo o en negativo. */
 export function combinacionesDe(stats, typeIdx) {
     const claves = new Set((stats || []).map((s) => claveStat(s.name, typeIdx)));
     return recetasDelTipo(typeIdx).filter((r) => claves.has(r.a) && claves.has(r.b));

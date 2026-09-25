@@ -524,8 +524,6 @@ body {
   transition: all 0.3s ease;
 }
 
-/* Los dos botones laterales eran solo una imagen redonda, casi iguales entre sí: sin rótulo no
-   se sabía cuál abre el inventario y cuál las fisuras. */
 .toggle-label {
   position: absolute;
   top: 100%;
@@ -8994,7 +8992,23 @@ body[data-lang="en"] .header-guide-cta .lang-en {
   padding: 0 10px 8px;
 }
 
-.farm-routes .fr-view-btn {
+.farm-routes .fr-juego {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.farm-routes .fr-juego span {
+  min-width: 7em;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #8b95a3;
+}
+
+.farm-routes .fr-view-btn,
+.farm-routes .fr-juego-btn {
   flex: 1 1 auto;
   padding: 5px 8px;
   font: inherit;
@@ -9009,7 +9023,8 @@ body[data-lang="en"] .header-guide-cta .lang-en {
   box-shadow: none;
 }
 
-.farm-routes .fr-view-btn.active {
+.farm-routes .fr-view-btn.active,
+.farm-routes .fr-juego-btn.active {
   color: #0d0f13;
   background: var(--wf-gold-text);
   border-color: var(--wf-gold-text);

@@ -190,3 +190,11 @@ test("firma de texto: la misma carta con algo de ruido del vídeo sigue siendo l
     assert.equal(firmaTexto(carta(), ZONA).length, 96 * 36);
     assert.equal(mismoTexto(firmaTexto(carta(), ZONA), null), false, "sin firma previa no hay nada que saltarse");
 });
+
+test("firma de texto por zonas: una huella por carta, y otro número de cartas es otra pantalla", () => {
+    const zonaA = { x: 0.3, y: 0.6, w: 0.2, h: 0.2 }, zonaB = { x: 0.6, y: 0.6, w: 0.2, h: 0.2 };
+    const dos = firmaTexto(carta(), [zonaA, zonaB]);
+    assert.equal(dos.length, 2 * 96 * 36);
+    assert.deepEqual([...dos.subarray(0, 96 * 36)], [...firmaTexto(carta(), zonaA)]);
+    assert.equal(mismoTexto(dos, firmaTexto(carta(), [zonaA])), false);
+});

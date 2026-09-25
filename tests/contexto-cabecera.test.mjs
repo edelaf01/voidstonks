@@ -32,6 +32,8 @@ const casos = [
   ["RE/REWARDS", "REWARD"],
   ["LE/ REWARDS", "REWARD"],
   ["NE/REWARDS :", "REWARD"],
+  // Fin de Sanctuary Onslaught: título centrado de una captura del usuario (zona 3).
+  ["ZONE 3 REACHED", "MISSION_COMPLETE"],
 ];
 
 for (const [texto, esperado] of casos) {

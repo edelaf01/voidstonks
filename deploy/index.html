@@ -915,10 +915,8 @@
             <div id="tracker-list"></div>
           </div>
         </div>
-        <!-- Qué reliquia abrir y por qué, y el único sitio donde se monta: antes había copia en
-             Set y en el panel de inventario. Va DESPUÉS de #relic-contents, que está oculto hasta
-             elegir una: al entrar las rutas quedan bajo los controles, y al pulsar una reliquia
-             su desglose sale bajo el buscador en vez de 52vh más abajo. -->
+        <!-- Único sitio de las rutas. Va tras #relic-contents para que, al elegir una reliquia, su
+             desglose salga bajo el buscador y no 52vh más abajo. -->
         <div class="farm-routes" data-fr-host="relic" style="display:none;"></div>
       </div>
       <div id="mode-set" class="hidden">
@@ -1121,6 +1119,8 @@
               </h4>
               <div id="riven-variants-carousel" class="variants-carousel-scroll"></div>
             </div>
+
+            <div id="riven-ciclo-container"></div>
 
             <!-- Movimientos recientes de ESTA arma: debajo de la gráfica y de las variantes, en la
                  columna derecha. Solo aparece si curiosidades.json trae alguno para ella. -->
@@ -1405,8 +1405,7 @@
     <div id="footer-relic" class="footer-output">
       <div id="finalMessage" class="message-display">...</div>
       <div class="footer-actions">
-        <!-- Solo cambia el mensaje, así que va a su lado y no con Refinamiento/Escuadra, que
-             mueven toda la pestaña. En LFG lo oculta switchTab: allí manda su propio contador. -->
+        <!-- Solo afecta al mensaje; en LFG lo oculta switchTab (allí hay otro contador). -->
         <div id="relic-missing" class="footer-missing">
           <label id="lbl-missing">Faltan</label>
           <div class="counter-inline">

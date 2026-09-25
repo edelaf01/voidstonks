@@ -75,7 +75,7 @@ export const RelicScreenService = {
         const relicMatch = OCRService.parseRelicSelection(data.text);
         // Se apunta SIEMPRE que se lea, no solo cuando cambia: repetir la misma reliquia dos
         // runs seguidos también la gasta las dos veces.
-        if (relicMatch) this.reliquiaElegida = relicMatch;
+        if (relicMatch) { this.reliquiaElegida = relicMatch; this.huboRecompensaPrime = false; }
         if (relicMatch && relicMatch !== this.lastTrackedRelic) {
             this.lastTrackedRelic = relicMatch;
             if (globalThis.showTrackConfirm) globalThis.showTrackConfirm(relicMatch, data.text);
@@ -85,13 +85,20 @@ export const RelicScreenService = {
     },
 
     /**
-     * La reliquia que el jugador se llevó, para descontarla al acabar la misión. Se devuelve y
-     * se olvida: el descuento tiene que ocurrir UNA vez, y fin de misión se relee muchos frames.
+     * Se descuenta solo si la misión dio recompensas prime: mirar las reliquias y jugar luego una
+     * misión normal la gastaba. Se devuelve y se olvida: fin de misión se relee muchos frames.
+     * @param piezasPrime el fin de misión trae alguna (la otra prueba es marcaRecompensaPrime)
      */
     reliquiaElegida: null,
-    tomaReliquiaElegida() {
+    huboRecompensaPrime: false,
+    marcaRecompensaPrime() {
+        this.huboRecompensaPrime = true;
+    },
+    tomaReliquiaElegida(piezasPrime = false) {
+        if (!this.huboRecompensaPrime && !piezasPrime) return null;
         const elegida = this.reliquiaElegida;
         this.reliquiaElegida = null;
+        this.huboRecompensaPrime = false;
         return elegida;
     },
 
@@ -194,6 +201,7 @@ export const RelicScreenService = {
         this.lastSelHash = null;
         this.lastTrackedRelic = "";
         this.reliquiaElegida = null;
+        this.huboRecompensaPrime = false;
     },
 };
 

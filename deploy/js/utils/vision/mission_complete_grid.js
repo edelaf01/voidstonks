@@ -44,7 +44,14 @@ const GRUPOS_MAX = 4;   // grupos de ✓ que se prueban antes de rendirse
  * arriba. Acotar antes de buscar quita de un plumazo los candidatos del panel izquierdo,
  * del título y de la barra IMPORTANCE/SEARCH.
  */
-const ZONE = { x0: 0.42, y0: 0.12 };
+// y0 medido en 5 capturas: la lupa y las pestañas de esa barra caen en 0,189-0,212 del alto y la
+// primera fila de ✓ en 0,232-0,251. Con 0,12 entraban, y sin muchos ✓ que los superen (fin de
+// Sanctuary Onslaught, con 2) decidían la retícula. y1: el panel acaba hacia 0,90 y debajo van los
+// botones STATS / REPEAT MISSION / EXIT, que en Onslaught son del color del tema.
+const ZONE = { x0: 0.42, y0: 0.22, y1: 0.9 };
+
+// Paso de las casillas respecto al alto: 240 px a 1439 (MISSION COMPLETE) y 238 a 1404 (ZONE REACHED).
+const PASO_ALTO = 240 / 1439;
 
 /**
  * Distancia en cromaticidad al color del tema para dar un píxel por "texto". Es una lista
@@ -416,7 +423,7 @@ function _conTolerancia(img, accent, dist, trace) {
 
     // 1) ZONA: el panel de recompensas, acotado por la geometría fija de la pantalla.
     const zx = Math.floor(width * ZONE.x0), zy = Math.floor(height * ZONE.y0);
-    const zone = { x: zx, y: zy, w: width - zx, h: height - zy };
+    const zone = { x: zx, y: zy, w: width - zx, h: Math.floor(height * ZONE.y1) - zy };
 
     // 2) Los ✓ dentro de esa zona. No se describen con umbrales —tamaño, relleno, cuadratura
     //    cambian con la resolución y el JPEG se los come: en una captura recomprimida el mismo
@@ -438,6 +445,10 @@ function _conTolerancia(img, accent, dist, trace) {
         const parcial = {};
         const res = _conGrupo(img, accent, zone, porForma, parcial, height * CHECK_SIDE_FRAC, dist);
         if (res) { Object.assign(trace, parcial); return res; }
+    } else if (porForma.length >= 2) {
+        // Antes que la agrupación: con tan pocos ✓ esa agrupación arma retículas con letras.
+        const pocas = _pocasRecompensas(img, accent, zone, porForma, dist, trace);
+        if (pocas) return pocas;
     }
 
     let mejor = null;
@@ -449,6 +460,35 @@ function _conTolerancia(img, accent, dist, trace) {
     if (!mejor) { trace.fail ||= `solo ${porForma.length} ✓ (<4)`; return null; }
     Object.assign(trace, mejor.parcial);
     return mejor.res;
+}
+
+/**
+ * Pantallas con 2-3 recompensas (fin de Sanctuary Onslaught, misiones cortas): no hay retícula que
+ * estimar, pero sí una prueba difícil de fabricar por casualidad: los ✓ en la MISMA fila, a un
+ * número entero de pasos, y al menos una casilla con rótulo.
+ */
+function _pocasRecompensas(img, accent, zone, checks, dist, trace) {
+    const paso = img.height * PASO_ALTO, S = img.height * CHECK_SIDE_FRAC, sep = S * 0.5;
+    const fila = lanes(checks.map((c) => c.y), sep).reduce((a, b) => (!a || b.members > a.members ? b : a), null);
+    if (!fila || fila.members < 2) return null;
+    const enFila = checks.filter((c) => Math.abs(c.y - fila.pos) <= sep).sort((a, b) => a.x - b.x);
+    const pasos = enFila.map((c) => (c.x - enFila[0].x) / paso);
+    if (pasos.some((k) => Math.abs(k - Math.round(k)) > 0.1)) return null;
+    const inset = Math.round(S * 0.4);
+    const porColumna = new Map();
+    enFila.forEach((c, i) => porColumna.set(Math.round(pasos[i]), {
+        x: zone.x + c.x - inset, y: zone.y + c.y - inset, w: Math.round(paso), h: Math.round(paso),
+        col: Math.round(pasos[i]), row: 0,
+    }));
+    const cells = [...porColumna.values()];
+    for (const cell of cells) {
+        cell.named = classifyRewardCell(img, accent, cell, dist).kind === "NAMED";
+        cell.badge = cell.named ? readRewardBadge(img, accent, cell, dist) : "";
+        cell.qty = cantidadDeBadge(cell.badge);
+    }
+    if (!cells.some((c) => c.named)) return null;
+    Object.assign(trace, { candidates: checks.length, cols: cells.length, rows: 1, pitch: Math.round(paso), cells: cells.length, occluded: false, cut: false });
+    return { zone, pitch: Math.round(paso), cells, occluded: false, cut: false, accent, dist };
 }
 
 /**

@@ -269,3 +269,45 @@ describe("coste por frame", () => {
   });
 
 });
+
+// Mirar las reliquias y jugar luego una misión normal gastaba la reliquia elegida: el descuento
+// necesita que la misión diera recompensas prime.
+describe("reliquia gastada al acabar la misión", () => {
+    beforeEach(() => RelicScreenService.reset());
+
+    test("sin recompensas prime no se gasta, y se guarda hasta la fisura", () => {
+        RelicScreenService.reliquiaElegida = "Axi A5";
+        assert.equal(RelicScreenService.tomaReliquiaElegida(false), null);
+        assert.equal(RelicScreenService.tomaReliquiaElegida(true), "Axi A5", "fin de misión con piezas prime");
+        assert.equal(RelicScreenService.tomaReliquiaElegida(true), null, "se descuenta una sola vez");
+    });
+
+    test("la pantalla de elegir recompensa también prueba que se abrió", () => {
+        RelicScreenService.reliquiaElegida = "Lith C1";
+        RelicScreenService.marcaRecompensaPrime();
+        assert.equal(RelicScreenService.tomaReliquiaElegida(false), "Lith C1");
+        assert.equal(RelicScreenService.huboRecompensaPrime, false);
+    });
+
+    test("elegir otra reliquia olvida la recompensa de antes", async () => {
+        const { VisionService } = await import("../deploy/js/services/scanner/vision.service.js");
+        const { OCRService } = await import("../deploy/js/services/scanner/ocr.service.js");
+        const orig = { prep: VisionService.prepareRelicSelectionCanvas, parse: OCRService.parseRelicSelection,
+            workers: OCRRepository.workers, recognize: OCRRepository.recognize };
+        VisionService.prepareRelicSelectionCanvas = () => new FakeCanvas(64, 16);
+        OCRService.parseRelicSelection = () => "Neo N9";
+        OCRRepository.workers = [{}];
+        OCRRepository.recognize = async () => ({ data: { text: "NEO N9 RELIC" } });
+        try {
+            RelicScreenService.marcaRecompensaPrime();
+            await RelicScreenService.trackSelected({}, { scale: 1 });
+            assert.equal(RelicScreenService.reliquiaElegida, "Neo N9");
+            assert.equal(RelicScreenService.tomaReliquiaElegida(false), null,
+                "la recompensa era de otra misión: la de ahora aún no ha dado nada");
+        } finally {
+            Object.assign(VisionService, { prepareRelicSelectionCanvas: orig.prep });
+            OCRService.parseRelicSelection = orig.parse;
+            Object.assign(OCRRepository, { workers: orig.workers, recognize: orig.recognize });
+        }
+    });
+});

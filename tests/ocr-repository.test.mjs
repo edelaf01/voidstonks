@@ -28,6 +28,19 @@ test("una carta se lee con la lista de rivens y el worker vuelve a la de los ró
   assert.deepEqual(w.log, [["lista", OCRRepository.RIVEN_CHARS], ["lee"], ["lista", OCRRepository.DEFAULT_CHARS]]);
 });
 
+// Un recorte de 0 px hacía fallar a Tesseract dentro del worker ("File could not be read! Code=0"),
+// como promesa sin capturar que ningún catch nuestro veía.
+test("un recorte de 0 px no llega a Tesseract", async () => {
+  const w = workerFalso();
+  for (const vacio of [{ width: 0, height: 40 }, { width: 120, height: 0 }]) {
+    assert.equal((await OCRRepository.recognize(w, vacio)).data.text, "");
+    assert.equal((await OCRRepository.recognizeWithChars(w, vacio, OCRRepository.RIVEN_CHARS)).data.text, "");
+    assert.equal((await OCRRepository.recognizeWithPSM(w, vacio, 6)).data.text, "");
+  }
+  assert.deepEqual(w.log, [], "ni se llama al worker ni se tocan sus parámetros");
+  assert.equal((await OCRRepository.recognize(w, { width: 10, height: 10 })).data.text, "ok");
+});
+
 // Si se quedara con la de rivens, los rótulos del inventario volverían a leer "CARRIER.PRIME".
 test("si la lectura falla, la lista de los rótulos se restaura igual", async () => {
   const w = workerFalso({ falla: true });
