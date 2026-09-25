@@ -23,6 +23,7 @@ const casos = [
   ["RE/REWARDS", "REWARD"],
   ["LE/ REWARDS", "REWARD"],
   ["NE/REWARDS :", "REWARD"],
+  ["ZONE 3 REACHED", "MISSION_COMPLETE"],
 ];
 
 for (const [texto, esperado] of casos) {

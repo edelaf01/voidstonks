@@ -65,7 +65,6 @@ export const ScannerService = {
     lastStableHash: null,
     virtualCanvas: null,
     lastHashL: null,
-    lastHashR: null,
     lastNoResult: ESTADO_SIN_RESULTADO,
     lastRewardNoResult: ESTADO_SIN_RESULTADO,
     lastHeaderHash: null,
@@ -74,7 +73,6 @@ export const ScannerService = {
     lastRivenContextType: null,
     lastTwoCardHash: null,
     oneCardStreak: 0,
-    newCardStreak: 0,
     weaponSwitchCandidate: null,
     weaponSwitchStreak: 0,
     rivenConsensusBuffer: [],
@@ -86,7 +84,7 @@ export const ScannerService = {
         this.ctxLatch = INITIAL_LATCH;
         this.detectionLocked = false;
         this.lastHashL = null;
-        this.lastHashR = null;
+        this._zonasCartas = null;
         this.lastNoResult = ESTADO_SIN_RESULTADO;
         this.lastRewardNoResult = ESTADO_SIN_RESULTADO;
         this.lastHeaderHash = null;
@@ -95,7 +93,6 @@ export const ScannerService = {
         this.lastRivenContextType = null;
         this.lastTwoCardHash = null;
         this.oneCardStreak = 0;
-        this.newCardStreak = 0;
         this.weaponSwitchCandidate = null;
         this.weaponSwitchStreak = 0;
         this.rivenConsensusBuffer = [];
@@ -139,7 +136,7 @@ export const ScannerService = {
         this._cartaVigilada = null;
         if (!this.isScanning) return;
         const video = document.getElementById("live-video");
-        if (!video || video.paused || video.ended) { this.scanInterval = setTimeout(() => this.loop(), 1000); return; }
+        if (!video || video.paused || video.ended || !video.videoWidth || !video.videoHeight) { this.scanInterval = setTimeout(() => this.loop(), 1000); return; }
         try {
             await this.processFrame(video, this.virtualCanvas);
         } catch (e) {
@@ -498,12 +495,10 @@ export const ScannerService = {
         if (!a || !b) return false;
         if (a.weaponName !== b.weaponName) return false;
         if (a.rolls !== null && b.rolls !== null && a.rolls !== b.rolls) return false;
-        const namesA = new Set(a.stats.map(s => s.name));
-        const namesB = new Set(b.stats.map(s => s.name));
-        let overlap = 0;
-        for (const n of namesA) if (namesB.has(n)) overlap++;
-        const minLen = Math.min(namesA.size, namesB.size);
-        return overlap >= Math.max(1, minLen - 1);
+        const igual = (x, y) => x.name === y.name
+            && Math.abs(Math.abs(x.value) - Math.abs(y.value)) <= Math.max(0.6, 0.01 * Math.abs(x.value));
+        const overlap = a.stats.filter((x) => b.stats.some((y) => igual(x, y))).length;
+        return overlap >= Math.max(1, Math.min(a.stats.length, b.stats.length) - 1);
     },
 
     _isBetterOrEqualRead(newRiven, oldRiven) {
@@ -614,13 +609,14 @@ export const ScannerService = {
 
         const cardCrop = contextType === "ITEM_DETAILS" ? VisionService.RIVEN_ITEM_DETAILS_CROP : VisionService.RIVEN_CARD_CROP;
 
-        const hash = firmaTexto(video, cardCrop);
+        const zonas = this._zonasCartas?.length ? this._zonasCartas : [cardCrop];
+        const hash = firmaTexto(video, zonas);
 
         if ((this.lastParsedL || this.lastParsedR) && mismoTexto(hash, this.lastHashL)) {
             this.lastRivenContextTime = Date.now();
             this.lastRivenContextType = contextType === "ITEM_DETAILS" ? "ITEM_DETAILS" : "INVENTORY_MODS";
             this.currentRate = this.RIVEN_RATE_IDLE;
-            this._cartaVigilada = cardCrop;
+            this._cartaVigilada = zonas;
             return;
         }
 
@@ -687,9 +683,8 @@ export const ScannerService = {
 
         const currentFP = valids.map(e => rivenFingerprint(e.parsed)).join("||") || "none";
         this.rivenConsensusBuffer.push(currentFP);
-        if (this.rivenConsensusBuffer.length > 3) this.rivenConsensusBuffer.shift();
-        const matchCount = this.rivenConsensusBuffer.filter(fp => fp === currentFP).length;
-        const hasConsensus = matchCount >= 2;
+        if (this.rivenConsensusBuffer.length > 2) this.rivenConsensusBuffer.shift();
+        const hasConsensus = this.rivenConsensusBuffer.length === 2 && this.rivenConsensusBuffer[0] === currentFP;
 
         let rawL = valids[0]?.parsed || null;
         let rawR = valids[1]?.parsed || null;
@@ -700,22 +695,6 @@ export const ScannerService = {
             const matchesL = this._isSameRivenIdentity(rawL, this.lastParsedL);
             const matchesR = this._isSameRivenIdentity(rawL, this.lastParsedR);
             if (matchesR && !matchesL) { rawR = rawL; rawL = null; }
-        }
-
-        let revealsMore = valids.length > shownCount;
-
-        if (revealsMore && shownCount >= 1) {
-            const otherShown = shownCards[0];
-            const newCard = [rawL, rawR].find(p => p && !shownCards.some(s => this._isSameRivenIdentity(p, s)));
-            const sameWeaponAsShown = !newCard || newCard.weaponName === otherShown.weaponName;
-            if (!sameWeaponAsShown) {
-                this.newCardStreak = (this.newCardStreak || 0) + 1;
-                if (this.newCardStreak < 2) revealsMore = false;
-            } else {
-                this.newCardStreak = 0;
-            }
-        } else {
-            this.newCardStreak = 0;
         }
 
         const newWeapons = [...new Set(valids.map(e => e.parsed.weaponName).filter(Boolean))].sort().join("|");
@@ -769,11 +748,8 @@ export const ScannerService = {
             if (!rawR) finalR = null;
         }
 
-        const anyUpgrade = (finalL && finalL !== this.lastParsedL && this._isSameRivenIdentity(finalL, this.lastParsedL)) ||
-                            (finalR && finalR !== this.lastParsedR && this._isSameRivenIdentity(finalR, this.lastParsedR));
-
-        if ((this.lastParsedL || this.lastParsedR) && !hasConsensus && !revealsMore && !weaponChanged && !anyUpgrade) {
-            console.log(`[RIVEN OCR] Consensus: ${matchCount}/3 — waiting for confirmation`);
+        if (!hasConsensus) {
+            console.log("[RIVEN OCR] esperando a que la siguiente lectura confirme esta");
             if (globalThis._scannerDebug) this._renderRivenDebug(entries, false);
             this.currentRate = this.RIVEN_RATE_CONFIRM;
             return;
@@ -784,9 +760,9 @@ export const ScannerService = {
         if (globalThis._scannerDebug) this._renderRivenDebug(entries, changed);
 
         if (!weaponSwitchPending && !(trasElegir && !dropExtra)) {
-            this.lastHashL = hash;
-            this.lastHashR = null;
-            this.lastTwoCardHash = finalL && finalR ? hash : null;
+            this._zonasCartas = canvases.map((c) => c.zonaVideo).filter(Boolean);
+            this.lastHashL = firmaTexto(video, this._zonasCartas.length ? this._zonasCartas : [cardCrop]);
+            this.lastTwoCardHash = finalL && finalR ? this.lastHashL : null;
         } else this.currentRate = this.RIVEN_RATE_CONFIRM;
 
         if (!changed) return;
@@ -939,7 +915,7 @@ export const ScannerService = {
         this.mcLedger = ledger;
         if (!pendientes.length) { this._mcDormido = hash; console.log("[MC] pantalla leída; en espera de otro fin de misión"); }
         if (commit?.length) memoriaMC.guarda(recuerdaPantalla(items, ledger));
-        const gastada = RelicScreenService.tomaReliquiaElegida();
+        const gastada = RelicScreenService.tomaReliquiaElegida((commit || []).some((i) => !i.reliquia));
         if ((commit?.length || gastada) && typeof globalThis.commitMissionCompleteRewards === "function") {
             globalThis.commitMissionCompleteRewards(commit || [], gastada);
         }
@@ -981,6 +957,7 @@ export const ScannerService = {
         DebugRecorder.record({ kind: "recompensas", image: frame, overlay: ocrCanvas, meta: { resumen: `${foundItems.length} ítems`, recorte: usado, rawOcr, namesRaw, items: foundItems.map((i) => ({ name: i.name, owned: i.owned, crafted: i.crafted })) } });
 
         this.lastRewardNoResult = siguienteEstadoSinResultado(foundItems.length > 0, bandHash, Date.now());
+        if (foundItems.length) RelicScreenService.marcaRecompensaPrime();
 
         const dbgPanel = document.getElementById("live-debug-snapshot");
         if (dbgPanel?.style.display === "block" && ocrCanvas) {

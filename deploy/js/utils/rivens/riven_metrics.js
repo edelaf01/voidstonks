@@ -1,3 +1,4 @@
+// computes volatility level from deviation over median of real sales
 export function nivelVolatilidad(meta) {
     const cv = meta?.volatility_index > 0 ? meta.volatility_index / 10
         : meta?.official_median > 0 && meta?.official_stddev > 0 ? meta.official_stddev / meta.official_median
