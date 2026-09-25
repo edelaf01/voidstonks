@@ -56,7 +56,7 @@ export const RelicScreenService = {
         const { data } = await OCRRepository.recognize(worker, canvas, {}, { text: true });
 
         const relicMatch = OCRService.parseRelicSelection(data.text);
-        if (relicMatch) this.reliquiaElegida = relicMatch;
+        if (relicMatch) { this.reliquiaElegida = relicMatch; this.huboRecompensaPrime = false; }
         if (relicMatch && relicMatch !== this.lastTrackedRelic) {
             this.lastTrackedRelic = relicMatch;
             if (globalThis.showTrackConfirm) globalThis.showTrackConfirm(relicMatch, data.text);
@@ -66,9 +66,15 @@ export const RelicScreenService = {
     },
 
     reliquiaElegida: null,
-    tomaReliquiaElegida() {
+    huboRecompensaPrime: false,
+    marcaRecompensaPrime() {
+        this.huboRecompensaPrime = true;
+    },
+    tomaReliquiaElegida(piezasPrime = false) {
+        if (!this.huboRecompensaPrime && !piezasPrime) return null;
         const elegida = this.reliquiaElegida;
         this.reliquiaElegida = null;
+        this.huboRecompensaPrime = false;
         return elegida;
     },
 
@@ -148,6 +154,7 @@ export const RelicScreenService = {
         this.lastSelHash = null;
         this.lastTrackedRelic = "";
         this.reliquiaElegida = null;
+        this.huboRecompensaPrime = false;
     },
 };
 

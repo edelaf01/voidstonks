@@ -3,6 +3,13 @@
  */
 const TESSERACT_VERSION = "7.0.0";
 
+// a 0 px canvas makes Tesseract throw inside the worker, outside our catch
+function imagenVacia(image) {
+    if (!image || !(image.width === 0 || image.height === 0)) return false;
+    console.warn("[OCR Repo] recorte de 0 px, no se lee:", new Error().stack?.split("\n").slice(2, 5).join(" | "));
+    return true;
+}
+
 export const OCRRepository = {
     DEFAULT_PSM: "6",
     //possible chars non riven
@@ -122,7 +129,7 @@ export const OCRRepository = {
      * psm 6 catches names but misses loose counters, while psm 11 does the reverse
      */
     async recognizeWithPSM(worker, image, psm, output = undefined) {
-        if (!worker) return { data: { text: "", confidence: 0 } };
+        if (!worker || imagenVacia(image)) return { data: { text: "", confidence: 0 } };
         try {
             await worker.setParameters({ tessedit_pageseg_mode: String(psm) });
             return await worker.recognize(image, {}, output);
@@ -136,7 +143,7 @@ export const OCRRepository = {
     },
 
     async recognizeWithChars(worker, image, chars, output = undefined) {
-        if (!worker) return { data: { text: "", confidence: 0 } };
+        if (!worker || imagenVacia(image)) return { data: { text: "", confidence: 0 } };
         try {
             await worker.setParameters({ tessedit_char_whitelist: chars });
             return await worker.recognize(image, {}, output);
@@ -150,7 +157,7 @@ export const OCRRepository = {
     },
 
     async recognize(worker, image, options = {}, output = undefined) {
-        if (!worker) return { data: { text: "", confidence: 0 } };
+        if (!worker || imagenVacia(image)) return { data: { text: "", confidence: 0 } };
         try {
             // `output` (e.g. { blocks: true }) requests word/line boxes from Tesseract to split side-by-side cards by X position when rolling rivens
             return await worker.recognize(image, options, output);

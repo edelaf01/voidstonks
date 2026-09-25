@@ -1232,6 +1232,8 @@ export const VisionService = {
             oc.width = bw;
             oc.height = bh;
             oc.getContext("2d").putImageData(ctx.getImageData(bx0, by0, bw, bh), 0, 0);
+            const f = scale * S;
+            oc.zonaVideo = { x: (cropX + bx0 / f) / width, y: (cropY + by0 / f) / height, w: bw / f / width, h: bh / f / height };
             out.push(oc);
         }
 
@@ -1277,6 +1279,8 @@ export const VisionService = {
 
         // first: its crop is the centered title and shares no words with the rest
         if (/M[I1L]SS?[I1L]ON\s*C[O0Q]MP|MIS[I1L][OÓ]N\s*C[O0Q]MPLET/.test(text)) return "MISSION_COMPLETE";
+        // Sanctuary Onslaught end: the same reward screen with another title
+        if (/Z[O0]NE\s*\S{1,3}\s*REACH/.test(text)) return "MISSION_COMPLETE";
 
         if (/DETAIL|DETALL/.test(text)) return "ITEM_DETAILS"; // "Item Details" popup (linked riven, centered)
         if (hasMods) return "INVENTORY_MODS";
