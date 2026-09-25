@@ -93,6 +93,12 @@ const FIRMA_COLS = 96, FIRMA_FILAS = 36, FIRMA_UMBRAL = 16, FIRMA_CORTE = 0.005;
 let firmaCvs = null;
 
 export function firmaTexto(source, crop) {
+    if (Array.isArray(crop)) {
+        const partes = crop.map((c) => firmaTexto(source, c));
+        const todo = new Uint8Array(partes.reduce((n, p) => n + p.length, 0));
+        partes.reduce((o, p) => { todo.set(p, o); return o + p.length; }, 0);
+        return todo;
+    }
     if (!firmaCvs) {
         firmaCvs = document.createElement("canvas");
         firmaCvs.width = FIRMA_COLS;

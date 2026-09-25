@@ -26,7 +26,9 @@ export function renderMetaStats(weaponName, weaponType, targetId = "meta-stats-c
   if (!container) return;
 
   const metaRaw = getMetaStats(weaponName, weaponType);
+  const cicloFuera = targetId === "meta-stats-container" ? document.getElementById("riven-ciclo-container") : null;
   if (!metaRaw) {
+    if (cicloFuera) cicloFuera.innerHTML = "";
     container.style.display = "none";
     return;
   }
@@ -180,6 +182,9 @@ export function renderMetaStats(weaponName, weaponType, targetId = "meta-stats-c
   let extraHtml = "";
   const hasOfficial = (meta.official_median !== undefined && meta.official_median !== null && meta.official_median > 0) ||
     (meta.official_avg_price !== undefined && meta.official_avg_price !== null && meta.official_avg_price > 0);
+
+  const cicloHtml = tablaCicloHtml({ tipo: weaponType || meta.t, buscados: (meta.pos || []).filter(allow), negOk: harmlessAll, isEs });
+  if (cicloFuera) cicloFuera.innerHTML = cicloHtml;
 
   const wfmAvgVal = meta.wfm_avg_price || meta.wfm_avg || 0;
   if (hasOfficial || wfmAvgVal || meta.popularity_pct) {
@@ -338,7 +343,7 @@ export function renderMetaStats(weaponName, weaponType, targetId = "meta-stats-c
           
           ${extraHtml}
           ${tierEstimatesHtml}
-          ${tablaCicloHtml({ tipo: weaponType || meta.t, buscados: (meta.pos || []).filter(allow), negOk: harmlessAll, isEs })}
+          ${cicloFuera ? "" : cicloHtml}
       </div>
     `;
   }

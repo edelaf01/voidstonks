@@ -1093,6 +1093,8 @@ export const VisionService = {
             oc.width = bw;
             oc.height = bh;
             oc.getContext("2d").putImageData(ctx.getImageData(bx0, by0, bw, bh), 0, 0);
+            const f = scale * S;
+            oc.zonaVideo = { x: (cropX + bx0 / f) / width, y: (cropY + by0 / f) / height, w: bw / f / width, h: bh / f / height };
             out.push(oc);
         }
 
@@ -1130,6 +1132,7 @@ export const VisionService = {
             /\/\s*[MNHW][O0DQC][DO0B][S5$]/.test(text);
 
         if (/M[I1L]SS?[I1L]ON\s*C[O0Q]MP|MIS[I1L][OÓ]N\s*C[O0Q]MPLET/.test(text)) return "MISSION_COMPLETE";
+        if (/Z[O0]NE\s*\S{1,3}\s*REACH/.test(text)) return "MISSION_COMPLETE";
 
         if (/DETAIL|DETALL/.test(text)) return "ITEM_DETAILS";
         if (hasMods) return "INVENTORY_MODS";
