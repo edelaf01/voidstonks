@@ -6,7 +6,7 @@ import { renderRelicPicks } from "./ui_relic_picks.js";
 import { refinementValue } from "../../utils/inventory/refinement_value.js";
 import { getRequiredCount, getSetName } from "../../utils/ui_utils.js";
 import {
-    calculatePartExpectedRuns, getPlayerOdds, runsForDrop, REFINEMENT_LABELS,
+    calculatePartExpectedRuns, getPlayerOdds, runsForDrop,
 } from "../../utils/inventory/relic_drop_odds.utils.js";
 import { getRelicCounts } from "../../utils/inventory/relic_counts.js";
 import { getSlug } from "../../utils/slugs.utils.js";
@@ -14,7 +14,7 @@ import { getPartShortName } from "../inventory/ui_set_tracker.js";
 import { fetchAllFissures, fissuresUnavailable } from "../../services/farms/fissures.service.js";
 import { getFarmRoutesPrefs, saveFarmRoutesPrefs } from "../../services/inventory/farm_routes.service.js";
 import {
-    attachSetPrices, filterSetRecommendations, getSetRecsPrefs, saveSetRecsPrefs, RELIC_ERAS,
+    attachSetPrices, filterSetRecommendations, getSetRecsPrefs, saveSetRecsPrefs, syncBestForRefinement, RELIC_ERAS,
 } from "../../services/inventory/set_recommendations.service.js";
 import { TEXTS, DROP_CHANCES } from "../../config.js";
 import { escapeHTML } from "../ui_components.js";
@@ -275,18 +275,10 @@ function optionsHtml(pares, actual) {
 }
 
 /**
- * Dos bloques con papeles distintos, y por eso van separados en la UI:
- *
- *  - SIMULACIÓN (refinamiento y escuadra): no esconden nada, cambian los números. Escriben en
- *    `state`, que es de donde los lee el resto de la app — así "con qué juego" es un dato
- *    único y no una copia por panel que puede discrepar de la de al lado.
- *  - FILTROS (búsqueda, piezas restantes, umbrales de platino, comprar) y ORDEN: esos sí
- *    deciden qué se ve y en qué posición, y viven en las prefs del panel.
+ * Refinamiento y escuadra no están aquí: son los de la pestaña Reliquia, justo encima del panel.
+ * Tuvo su propia copia mientras el panel se montaba también en Set y en el inventario.
  */
-function filtersHtml(prefs, t, ft, odds) {
-    const refs = [["radiant", t.refRadiant], ["flawless", t.refFlawless],
-        ["exceptional", t.refExceptional], ["intact", t.refIntact]];
-    const squads = [[4, t.squad4], [3, t.squad3], [2, t.squad2], [1, t.squad1]];
+function filtersHtml(prefs, t, ft) {
     const sorts = [["near", t.sortNear], ["perHour", t.sortPerHour], ["gain", t.sortGain]];
     // "" = cualquiera. Contesta "tengo Lith de sobra, ¿qué avanzo con ellas?".
     const eras = [["", t.anyEra], ...RELIC_ERAS.map((e) => [e, e])];
@@ -305,21 +297,10 @@ function filtersHtml(prefs, t, ft, odds) {
         <select data-fr="filter-missing" class="alarm-select"
                 aria-label="${escapeHTML(ft.maxMissing || "Máx. piezas restantes")}"
                 data-tooltip="${escapeHTML(ft.maxMissingHelp || "")}">
-          <option value="0" ${prefs.maxMissing === 0 ? "selected" : ""}>${escapeHTML(ft.anyMissing || "Cualquiera")}</option>
-          <option value="1" ${prefs.maxMissing === 1 ? "selected" : ""}>1</option>
-          <option value="2" ${prefs.maxMissing === 2 ? "selected" : ""}>&le; 2</option>
-          <option value="3" ${prefs.maxMissing === 3 ? "selected" : ""}>&le; 3</option>
-        </select>
-      </div>
-
-      <div class="set-rec-filter-row fr-sim-row">
-        <select data-fr="sim-refinement" class="alarm-select" aria-label="${escapeHTML(t.simRefinement)}"
-                data-tooltip="${escapeHTML(t.simRefinementHelp)}">
-          ${optionsHtml(refs.map(([k, v]) => [k, `${t.simRefinement}: ${v}`]), odds.refinement)}
-        </select>
-        <select data-fr="sim-squad" class="alarm-select" aria-label="${escapeHTML(t.simSquad)}"
-                data-tooltip="${escapeHTML(t.simSquadHelp)}">
-          ${optionsHtml(squads.map(([k, v]) => [k, `${t.simSquad}: ${v}`]), odds.squadSize)}
+          <option value="0" ${prefs.maxMissing === 0 ? "selected" : ""}>${escapeHTML(`${ft.maxMissing}: ${ft.anyMissing}`)}</option>
+          <option value="1" ${prefs.maxMissing === 1 ? "selected" : ""}>${escapeHTML(ft.maxMissing)}: 1</option>
+          <option value="2" ${prefs.maxMissing === 2 ? "selected" : ""}>${escapeHTML(ft.maxMissing)}: &le; 2</option>
+          <option value="3" ${prefs.maxMissing === 3 ? "selected" : ""}>${escapeHTML(ft.maxMissing)}: &le; 3</option>
         </select>
       </div>
 
@@ -435,17 +416,10 @@ async function applyFiltersAndRender(raiz, t) {
 }
 
 /**
- * Pinta el panel en TODOS sus anfitriones.
- *
- * Hay dos: la pestaña Reliquia y el panel lateral del inventario Prime. Por eso ni el bloque ni
- * sus controles llevan `id` — dos copias del mismo id es HTML inválido, y getElementById
- * devuelve siempre el primero, así que los filtros del lateral habrían acabado moviendo la
- * lista de la otra pestaña sin que nada lo dijera. Cada instancia se busca lo suyo dentro de su
- * propia raíz con `[data-fr="…"]`.
- *
- * Los filtros SÍ se comparten: viven en las prefs, no en el DOM. Es deliberado — son "qué estoy
- * buscando", no una propiedad del sitio donde miras, y tenerlos separados obligaría a repetir el
- * mismo ajuste en dos paneles que enseñan lo mismo.
+ * Pinta el panel en todos sus anfitriones. Hoy solo hay uno, en la pestaña Reliquia; llegó a
+ * haber tres (también Set y el lateral del inventario), y por eso ni el bloque ni sus controles
+ * llevan `id`: cada instancia busca lo suyo dentro de su raíz con `[data-fr="…"]`. Los filtros
+ * viven en las prefs, no en el DOM.
  */
 export async function renderFarmRoutes() {
     const anfitriones = [...document.querySelectorAll(".farm-routes")];
@@ -481,6 +455,7 @@ async function renderRoutesInto(raiz) {
 
     const relicCounts = getRelicCounts();
     const { refinement, squadSize } = getPlayerOdds();
+    syncBestForRefinement(refinement);
     _allRoutes = buildFarmRoutes({
         setsDatabase: state.setsDatabase,
         primeInventory: state.primeInventory,
@@ -556,7 +531,7 @@ async function renderRoutesInto(raiz) {
         + `<p class="fr-sub">${escapeHTML(esPicks ? t.picksSubtitle : t.subtitle)}</p>`
         + (sinFisuras ? `<p class="fr-nofis">${escapeHTML(t.fissuresDown)}</p>` : "")
         + (esPicks ? "" : guideHtml(prefs, t))
-        + (esPicks ? "" : filtersHtml(getSetRecsPrefs(), t, ft, getPlayerOdds()))
+        + (esPicks ? "" : filtersHtml(getSetRecsPrefs(), t, ft))
         + `<div data-fr="cards"></div>`
         + `</div>`;
 
@@ -567,8 +542,7 @@ async function renderRoutesInto(raiz) {
     startRoutesRefresh();
 
     if (esPicks) {
-        renderRelicPicks(container, _allPicks, t,
-            () => renderFarmRoutes().catch((e) => console.warn("[rutas] simulación:", e)));
+        renderRelicPicks(container, _allPicks, t);
         return;
     }
     await applyFiltersAndRender(container, t);
@@ -605,14 +579,12 @@ function bindPanelListeners(raiz, t) {
     const sort = raiz.querySelector('[data-fr="sort"]');
     const minPh = raiz.querySelector('[data-fr="min-perhour"]');
     const minGain = raiz.querySelector('[data-fr="min-gain"]');
-    const simRef = raiz.querySelector('[data-fr="sim-refinement"]');
-    const simSquad = raiz.querySelector('[data-fr="sim-squad"]');
 
     const numero = (el) => Math.max(0, Number.parseInt(el?.value, 10) || 0);
     const guardar = () => saveSetRecsPrefs({
         maxMissing: Number.parseInt(missing?.value, 10) || 0,
         era: era?.value || "",
-        bestFor: bestFor?.checked ? (simRef?.value || "") : "",
+        bestFor: bestFor?.checked ? getPlayerOdds().refinement : "",
         buyOnly: !!buy?.checked,
         query: query?.value || "",
         sortBy: sort?.value || "near",
@@ -642,23 +614,6 @@ function bindPanelListeners(raiz, t) {
     minGain?.addEventListener("change", aplicar);
     era?.addEventListener("change", reconstruir);
     sort?.addEventListener("change", reconstruir);
-
-    // Simulación: escribe en el estado global —es "con qué juego", no una preferencia de este
-    // panel— y reconstruye, porque las runs y los minutos de cada ruta se calculan al montarla.
-    simRef?.addEventListener("change", () => {
-        // Con la casilla puesta, el filtro es "las mejores con ESTE refinamiento": si el
-        // refinamiento cambia y bestFor se queda con el viejo, el panel filtra por uno y
-        // calcula con otro.
-        if (bestFor?.checked) saveSetRecsPrefs({ ...getSetRecsPrefs(), bestFor: simRef.value });
-        // setRefinement guarda, sincroniza el <select> de la pestaña Reliquia y repinta
-        // TODO lo que calcula con estas tasas —este panel incluido—, así que aquí ya no hace
-        // falta un renderFarmRoutes propio. Va por globalThis: ui_relics.js lo publica y el
-        // import directo cerraría un ciclo.
-        globalThis.setRefinement?.(REFINEMENT_LABELS[simRef.value] || "Rad");
-    });
-    simSquad?.addEventListener("change", () => {
-        globalThis.setSquadSize?.(simSquad.value);
-    });
 
     // La búsqueda NO. Cada pasada persiste las prefs (escritura síncrona, bloquea el hilo) y
     // reconstruye el innerHTML de las ocho tarjetas enteras; a una por pulsación, escribir

@@ -17,6 +17,17 @@ import { metaConPesosDeFamilia } from "./riven_weights.service.js";
 // services/ — un salto de capa que además era frágil: al partir ui_rivens.js el nombre dejó de
 // estar entre sus exports y la llamada se habría quedado en `undefined` sin que nada avisara.
 
+/**
+ * Stats buscados (best) y medios (mid) del arma con el criterio con el que se tasa: pesos del ML de
+ * la familia o, sin ellos, el prior global. meta.pos a secas viene vacío en ~9 de cada 10 armas.
+ */
+export function statsBuscadosDelArma(meta, weaponName) {
+  const grado = gradeWeaponStats(metaConPesosDeFamilia(meta || {}, weaponName || meta?.name),
+    state.rivenStatBaseline?.stat_weights ?? state.rivenStatPrior ?? null);
+  if (grado && grado.best.length) return { best: grado.best, mid: grado.mid };
+  return { best: meta?.pos || [], mid: meta?.midPos || [] };
+}
+
 export function computeDesirabilityMultiplier(stats, meta, weaponData) {
   const wType = (weaponData?.t || "").toLowerCase();
   const isMelee = wType === "melee" || wType === "zaw" || wType === "glaive";

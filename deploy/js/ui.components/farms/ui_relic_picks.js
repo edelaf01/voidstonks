@@ -1,6 +1,5 @@
 import { filterRelicPicks } from "../../utils/inventory/relic_picks.js";
 import { getPartShortName } from "../inventory/ui_set_tracker.js";
-import { REFINEMENT_LABELS, getPlayerOdds } from "../../utils/inventory/relic_drop_odds.utils.js";
 import { getRelicPicksPrefs, saveRelicPicksPrefs } from "../../services/inventory/farm_routes.service.js";
 import { escapeHTML } from "../ui_components.js";
 
@@ -19,10 +18,7 @@ function optionsHtml(pairs, selected) {
     ).join("");
 }
 
-function filtersHtml(prefs, t, odds) {
-    const refs = [["radiant", t.refRadiant], ["flawless", t.refFlawless],
-        ["exceptional", t.refExceptional], ["intact", t.refIntact]];
-    const squads = [[4, t.squad4], [3, t.squad3], [2, t.squad2], [1, t.squad1]];
+function filtersHtml(prefs, t) {
     const sorts = [["best", t.picksSortBest], ["useful", t.picksSortUseful], ["odds", t.picksSortOdds],
         ["value", t.picksSortValue], ["minutes", t.picksSortMinutes]];
 
@@ -40,17 +36,6 @@ function filtersHtml(prefs, t, odds) {
         <select data-rp="sort" class="alarm-select" aria-label="${escapeHTML(t.sortBy)}"
                 data-tooltip="${escapeHTML(t.picksSortHelp)}">
           ${optionsHtml(sorts, prefs.sortBy)}
-        </select>
-      </div>
-
-      <div class="set-rec-filter-row fr-sim-row">
-        <select data-rp="sim-refinement" class="alarm-select" aria-label="${escapeHTML(t.simRefinement)}"
-                data-tooltip="${escapeHTML(t.simRefinementHelp)}">
-          ${optionsHtml(refs.map(([k, v]) => [k, `${t.simRefinement}: ${v}`]), odds.refinement)}
-        </select>
-        <select data-rp="sim-squad" class="alarm-select" aria-label="${escapeHTML(t.simSquad)}"
-                data-tooltip="${escapeHTML(t.simSquadHelp)}">
-          ${optionsHtml(squads.map(([k, v]) => [k, `${t.simSquad}: ${v}`]), odds.squadSize)}
         </select>
       </div>
 
@@ -160,14 +145,10 @@ function pintarLista(raiz, todas, t) {
         + `<br><span class="fr-dim">${escapeHTML(String(pista || "").replace("{n}", String(n)))}</span></div>`;
 }
 
-/**
- * @param onRebuild  se llama cuando cambia refinamiento o escuadra: las probabilidades y los
- *        minutos se calculan al montar cada pick, así que no basta con repintar.
- */
-export function renderRelicPicks(raiz, todas, t, onRebuild) {
+export function renderRelicPicks(raiz, todas, t) {
     const cuerpo = raiz.querySelector('[data-fr="cards"]');
     if (!cuerpo) return;
-    cuerpo.innerHTML = filtersHtml(getRelicPicksPrefs(), t, getPlayerOdds())
+    cuerpo.innerHTML = filtersHtml(getRelicPicksPrefs(), t)
         + `<div data-rp="cards"></div>`;
     pintarLista(cuerpo, todas, t);
 
@@ -175,8 +156,6 @@ export function renderRelicPicks(raiz, todas, t, onRebuild) {
     const era = cuerpo.querySelector('[data-rp="era"]');
     const sort = cuerpo.querySelector('[data-rp="sort"]');
     const ready = cuerpo.querySelector('[data-rp="ready"]');
-    const simRef = cuerpo.querySelector('[data-rp="sim-refinement"]');
-    const simSquad = cuerpo.querySelector('[data-rp="sim-squad"]');
 
     const aplicar = () => {
         saveRelicPicksPrefs({
@@ -198,18 +177,5 @@ export function renderRelicPicks(raiz, todas, t, onRebuild) {
     query?.addEventListener("input", () => {
         clearTimeout(debounce);
         debounce = setTimeout(aplicar, 120);
-    });
-
-    // Mismo simulador que en "Rutas aconsejadas": escribe el refinamiento/escuadra GLOBALES,
-    // así que pasa por los setters que además sincronizan el <select> de la pestaña Reliquia y
-    // repintan los chips del inventario y el seguidor de sets. Va por globalThis (lo publica
-    // ui_relics.js): el import directo cerraría un ciclo.
-    simRef?.addEventListener("change", () => {
-        globalThis.setRefinement?.(REFINEMENT_LABELS[simRef.value] || "Rad");
-        onRebuild?.();
-    });
-    simSquad?.addEventListener("change", () => {
-        globalThis.setSquadSize?.(simSquad.value);
-        onRebuild?.();
     });
 }

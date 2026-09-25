@@ -22,13 +22,25 @@ export const RIVEN_TOOLTIPS = {
     es: "Media de lo que los vendedores PIDEN en Warframe.Market. No es lo que se paga: los precios pedidos están un orden de magnitud por encima de las ventas reales que publica Digital Extremes. Úsalo para ver la competencia, nunca para fijar tu precio.",
     en: "Average of what sellers ASK on Warframe.Market. It is not what gets paid: asking prices run an order of magnitude above the real sales Digital Extremes publishes. Use it to size up the competition, never to set your price."
   },
-  potential: {
-    es: "Cuánto margen de revalorización tiene este riven: cruza el hueco con los precios pedidos, el premium por ciclar y el techo de godroll del arma.",
-    en: "How much revaluation headroom this riven has: combines the gap to asking prices, the reroll premium and the weapon godroll ceiling."
+  potentialReal: {
+    es: "Puntuación para comparar armas, no un precio: 1 = rolarla no gana nada. Sube con lo que se paga de más por un riven ya ciclado, con lo que varían las ventas, con el techo pagado por un godroll y con la popularidad. Solo usa ventas reales de Digital Extremes.",
+    en: "A score to compare weapons, not a price: 1 = rolling gains nothing. It rises with the extra paid for a rolled riven, how much sales vary, the top price paid for a godroll and popularity. Uses real Digital Extremes sales only."
+  },
+  potentialWeb: {
+    es: "La misma puntuación con lo que PIDEN en Warframe.Market: parte de cuántas veces el precio sin ciclar piden de media y pesa más cuantas más ofertas y popularidad tenga. Sale muy por encima de la real porque nadie paga el escaparate: dice hasta dónde aspira la gente, no lo que vas a cobrar.",
+    en: "The same score from what sellers ASK on Warframe.Market: it starts from how many times the unrolled price they ask on average and weighs more with more listings and popularity. It runs far above the real one because nobody pays shop-window prices: it shows what people aim for, not what you will get."
   },
   potentialNA: {
     es: "No se puede calcular el potencial: Digital Extremes no publica ventas de esta variante, así que no hay precio base con el que comparar.",
     en: "Potential cannot be calculated: Digital Extremes publishes no sales for this variant, so there is no base price to compare against."
+  },
+  liquidity: {
+    es: "De 0 a 100: lo rápido que se encuentra comprador para esta arma. Por debajo de 30 tendrás que bajar el precio o esperar semanas; por encima de 70 se coloca en días.",
+    en: "From 0 to 100: how quickly a buyer turns up for this weapon. Below 30 you will have to cut the price or wait weeks; above 70 it moves in days."
+  },
+  reroll: {
+    es: "Cuánto más se paga por un riven ya ciclado que por uno recién sacado. Si es alto, merece la pena rolar antes de vender; si es bajo, véndelo tal cual.",
+    en: "How much more a rolled riven fetches versus a fresh one. If it is high, rolling before selling pays off; if it is low, sell it as is."
   },
   variation: {
     es: "Cuánto ha subido o bajado el precio oficial en los últimos 7 días.",
@@ -39,4 +51,19 @@ export const RIVEN_TOOLTIPS = {
 export function getRivenTooltip(key, isEs) {
   const t = RIVEN_TOOLTIPS[key];
   return t ? (isEs ? t.es : t.en) : "";
+}
+
+// Cada métrica se llamaba distinto en el índice y en la ficha (Liquidez / Rapidez de venta,
+// Reroll / Extra por ciclar, Volatilidad / Estabilidad para la misma medida).
+const RIVEN_METRIC_NAMES = {
+  trend: ["Popularidad", "Popularity"],
+  liquidity: ["Rapidez de venta", "Sale speed"],
+  reroll: ["Extra por ciclar", "Reroll markup"],
+  risk: ["Riesgo", "Risk"],
+  potentialReal: ["Potencial real", "Real potential"],
+  potentialWeb: ["Potencial en WFM", "WFM potential"],
+};
+
+export function getRivenMetricName(key, isEs) {
+  return RIVEN_METRIC_NAMES[key]?.[isEs ? 0 : 1] ?? "";
 }

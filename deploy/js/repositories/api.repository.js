@@ -75,26 +75,43 @@ async function fetchLive(query, { timeout = 10000 } = {}) {
     return fetchWithTimeout(`${WORKER_URL}?${query}`, { cache: "no-store", timeout });
 }
 
+// Versión de las tablas de drops de WFCD, de donde salen relics/missions/bounties_opt: 94 bytes con
+// max-age=300. Sin ella, la copia de IndexedDB (48 h) y la del navegador escondían las reliquias
+// nuevas de una update hasta dos días.
+const DROPS_INFO_URL = "https://raw.githubusercontent.com/WFCD/warframe-drop-data/gh-pages/data/info.json";
+
+async function dropsVersion() {
+    try {
+        const res = await fetchWithTimeout(DROPS_INFO_URL, { timeout: 4000 });
+        const info = res.ok ? await res.json() : null;
+        return info?.hash ? String(info.hash) : null;
+    } catch {
+        return null;
+    }
+}
+
 /**
  * Loads raw relic/mission/bounty data from IDB cache or worker.
  * @param {string} cacheKey
- * @param {number} cacheTtl
+ * @param {number} cacheTtl solo manda si no se pudo leer la versión de las tablas
  * @returns {Promise<object>}
  */
 export async function loadRelicsData(cacheKey, cacheTtl) {
-    try {
-        const cachedRecord = await dbHelper.get(cacheKey);
-        if (cachedRecord && Date.now() - cachedRecord.timestamp < cacheTtl) {
-            return cachedRecord.data;
-        }
-    } catch (e) {
-        console.warn("Cache local ignorada:", e);
+    const [version, cachedRecord] = await Promise.all([
+        dropsVersion(),
+        Promise.resolve().then(() => dbHelper.get(cacheKey)).catch((e) => { console.warn("Cache local ignorada:", e); return null; }),
+    ]);
+    if (cachedRecord && (version ? cachedRecord.version === version : Date.now() - cachedRecord.timestamp < cacheTtl)) {
+        return cachedRecord.data;
     }
 
+    // La versión estrena clave en la caché del navegador y en la del worker: con la URL de siempre,
+    // cualquiera de las dos seguía sirviendo las tablas viejas.
+    const v = version ? `&v=${version}` : "";
     const [relicsRes, missionsRes, bountiesRes] = await Promise.all([
-        fetchWithTimeout(`${WORKER_URL}?type=relics_opt`),
-        fetchWithTimeout(`${WORKER_URL}?type=missions_opt`),
-        fetchWithTimeout(`${WORKER_URL}?type=bounties_opt`),
+        fetchWithTimeout(`${WORKER_URL}?type=relics_opt${v}`),
+        fetchWithTimeout(`${WORKER_URL}?type=missions_opt${v}`),
+        fetchWithTimeout(`${WORKER_URL}?type=bounties_opt${v}`),
     ]);
 
     if (!relicsRes.ok || !missionsRes.ok || !bountiesRes.ok) {
@@ -116,7 +133,7 @@ export async function loadRelicsData(cacheKey, cacheTtl) {
         deimosRewards: bData.deimos || [],
     };
 
-    await dbHelper.set(cacheKey, { timestamp: Date.now(), data: rawData });
+    await dbHelper.set(cacheKey, { timestamp: Date.now(), version, data: rawData });
     return rawData;
 }
 
@@ -142,6 +159,7 @@ export async function fetchPrimeManifest() {
         if (resWeapons && resWeapons.ok) {
             const weaponsData = await resWeapons.json();
             const primeWeapons = weaponsData.filter(item => item.isPrime);
+            state.primeWeaponsManifest = primeWeapons;
             console.log("Prime Weapons Loaded for Ducats:", primeWeapons.length, "items");
             updateDucatsDB(primeWeapons);
         }

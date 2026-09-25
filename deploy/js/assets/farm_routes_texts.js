@@ -8,7 +8,7 @@
 export const FARM_ROUTES_TEXTS = {
     es: {
         title: "Rutas aconsejadas",
-        subtitle: "Tus sets Prime a medias, con la reliquia concreta que abrir y en qué fisura. Primero lo que puedes farmear ahora mismo.",
+        subtitle: "Cada set Prime con la reliquia concreta que abrir y en qué fisura. Primero lo que puedes farmear ahora mismo; los que no has empezado, al final.",
         fissuresDown: "No se han podido cargar las fisuras. Por eso nada sale como «puedes ahora»: no es que no haya, es que no se sabe. Se reintenta solo en unos segundos.",
         empty: "Nada a medias: no tienes piezas sueltas de ningún set sin cerrar.",
         emptyHint: "Aparecerán aquí en cuanto tengas alguna pieza suelta de un set sin terminar.",
@@ -46,18 +46,10 @@ export const FARM_ROUTES_TEXTS = {
         sortNote: "El orden es ese: arriba lo que se puede farmear ya; entre eso, al que menos piezas le faltan; y solo a igualdad, lo que más paga por hora. Aquí salen todos los sets, así que los que no has empezado caen al fondo solos.",
         // Nombrar el filtro concreto que vacía la lista. El aviso genérico ni siquiera
         // mencionaba "solo donde sale a cuenta comprar", que es el que más esconde.
-        // Controles de simulación, no filtros: no esconden rutas, cambian los números. Viven
-        // aquí porque son lo que hace que "~5 runs · 22 min" signifique algo — antes salían del
-        // contador "Faltan" de la pestaña Reliquia, que es otra cosa.
         eraHelp: "Deja solo rutas que puedas avanzar con una reliquia de esa era, y además hace que la reliquia que se te recomienda sea de ella. Una misma pieza cae de varias eras, así que sin esto se te seguía enseñando la de otra.",
-        simRefinementHelp: "No filtra nada: recalcula las runs y los minutos como si abrieras con ese refinamiento. Refinar sube la tasa de raras y poco comunes pero BAJA la de comunes, así que cambiarlo puede reordenar la lista entera.",
-        simSquadHelp: "Con cuánta gente abres. Cuatro jugadores ven cuatro recompensas y eligen una, así que la misma reliquia pide bastantes menos runs en escuadra que en solitario.",
         sortHelp: "Cambia qué manda dentro de lo que ya se puede farmear ahora, que va arriba siempre. Se aplica sobre TODAS las rutas, no sobre las que ves.",
         minPerHourHelp: "Esconde rutas que rindan menos de ese platino por hora. En blanco, no filtra.",
         minGainHelp: "Esconde rutas que den menos de ese platino al cerrar el set. En blanco, no filtra.",
-        simRefinement: "Refinamiento",
-        simSquad: "Escuadra",
-        squad1: "Solo", squad2: "2 jugadores", squad3: "3 jugadores", squad4: "4 jugadores",
         refRadiant: "Radiante", refFlawless: "Fabulosa", refExceptional: "Excepcional", refIntact: "Intacta",
         // Segunda vista del panel: la inversa. "Set → qué reliquia" vs "reliquia → qué me da".
         viewRoutes: "Por set",
@@ -115,7 +107,7 @@ export const FARM_ROUTES_TEXTS = {
         anyEra: "Cualquier era",
         emptyByEra: "Ninguna ruta se avanza con reliquias {era}.",
         emptyByEraHint: "Vuelve el filtro de era a «Cualquier era» para verlas.",
-        // Cortos a propósito: el input mide 8ch (styles.css .farm-routes .fr-num) y con
+        // Cortos a propósito: el input mide 11ch (styles.css .farm-routes .fr-num) y con
         // "p/h mínimo" / "Ganancia mínima" el placeholder salía cortado a la mitad; en
         // móvil, sin hover que enseñe el tooltip, las dos cajas quedaban sin explicar.
         minPerHour: "p/h mín",
@@ -138,7 +130,7 @@ export const FARM_ROUTES_TEXTS = {
     },
     en: {
         title: "Suggested routes",
-        subtitle: "Your half-finished Prime sets, with the exact relic to crack and which fissure to run. What you can farm right now comes first.",
+        subtitle: "Every Prime set with the exact relic to crack and which fissure to run. What you can farm right now comes first; sets you have not started go last.",
         fissuresDown: "Could not load the fissures. That is why nothing shows as \u201ccrack it now\u201d: not that there are none, we just do not know. It retries by itself in a few seconds.",
         empty: "Nothing in progress: no spare parts toward an unfinished set.",
         emptyHint: "They show up here as soon as you own a spare part of an unfinished set.",
@@ -169,14 +161,9 @@ export const FARM_ROUTES_TEXTS = {
         readMins: "Farming left: estimated runs \u00d7 how long each mission takes. Runs come from the relic drop rate with YOUR refinement and YOUR squad (change them in the relics panel); durations are typical observed values, not from any API.",
         sortNote: "That is the order: what you can farm now goes on top; within that, whatever needs the fewest parts; and only on a tie, whatever pays best per hour. Every set shows up here, so the ones you have not started sink to the bottom on their own.",
         eraHelp: "Keeps only routes you can advance with a relic of that era, and makes the recommended relic be one of them. The same part drops from several eras, so without this you were still shown a relic from another one.",
-        simRefinementHelp: "Filters nothing: it recomputes the runs and minutes as if you cracked at that refinement. Refining raises rare and uncommon rates but LOWERS common ones, so changing it can reorder the whole list.",
-        simSquadHelp: "How many people you crack with. Four players see four rewards and pick one, so the same relic needs far fewer runs in a squad than solo.",
         sortHelp: "Changes what wins within what you can already farm now, which always goes on top. It applies to ALL routes, not just the ones on screen.",
         minPerHourHelp: "Hides routes paying less than that platinum per hour. Blank means no filter.",
         minGainHelp: "Hides routes giving less than that platinum on closing the set. Blank means no filter.",
-        simRefinement: "Refinement",
-        simSquad: "Squad",
-        squad1: "Solo", squad2: "2 players", squad3: "3 players", squad4: "4 players",
         refRadiant: "Radiant", refFlawless: "Flawless", refExceptional: "Exceptional", refIntact: "Intact",
         viewRoutes: "By set",
         viewRelics: "By relic",

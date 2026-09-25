@@ -62,7 +62,7 @@ function normalizeRivenWeaponType(item) {
 export async function fetchRivenWeapons() {
     // Bumpear la versión invalida la caché de IndexedDB de todos los clientes para que
     // reconstruyan weaponMap desde el cleaned_weapons.json nuevo en la siguiente carga (sin
-    // esperar el TTL de 24h). La sube scripts-actu/actualizar_contenido.py al cambiar las armas.
+    // esperar el TTL de 24h). La sube scripts/actualizar_contenido.py al cambiar las armas.
     const CACHE_KEY = "voidstonkscache_weapons_v11";
     const ONE_DAY = 24 * 60 * 60 * 1000;
     try {
@@ -169,8 +169,8 @@ export async function fetchRivenWeapons() {
 
 async function fetchWeaponCombatStats() {
     // Sin bump, lo cacheado vive en el cliente hasta una semana. Súbela si cambia la forma de
-    // statsDB; por armas nuevas la sube scripts-actu/actualizar_contenido.py cuando llegan a WFCD master.
-    const CACHE_KEY = "voidstonkscache_combat_stats_v10";
+    // statsDB; por armas nuevas la sube scripts/actualizar_contenido.py cuando llegan a WFCD master.
+    const CACHE_KEY = "voidstonkscache_combat_stats_v11";
     const ONE_WEEK = 7 * 24 * 60 * 60 * 1000;
     try {
         const cached = await dbHelper.get(CACHE_KEY);

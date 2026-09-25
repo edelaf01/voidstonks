@@ -15,7 +15,7 @@ globalThis.localStorage = { getItem: () => null, setItem() {}, removeItem() {} }
 globalThis.fetch = async () => ({ ok: false, status: 404, json: async () => ({}) });
 
 const { state } = await import("../deploy/js/state.js");
-const { computeDesirabilityMultiplier, appraiseParsedRiven } =
+const { computeDesirabilityMultiplier, appraiseParsedRiven, statsBuscadosDelArma } =
   await import("../deploy/js/services/rivens/riven_appraisal.service.js");
 
 // Sin pesos del ML ni prior: se ejercitan las listas universales, que son el último recurso y el
@@ -137,4 +137,16 @@ test("las negativas llegan con el valor en positivo y la bandera aparte", () => 
   ], META);
   assert.equal(r.itemAttributes[0].isPositive, false);
   assert.ok(r.itemAttributes[0].value > 0, "el valor absoluto, no el signo");
+});
+
+// El consejo de ciclado del escáner parte de estos buscados: si salieran de meta.pos a secas, que
+// llega vacío en la mayoría de armas, el escáner no aconsejaría nada casi nunca.
+test("los stats buscados salen de los pesos del arma y, sin ellos, de meta.pos", () => {
+  const conPesos = { name: "Braton", pos: [], midPos: [],
+    dynamic_weights: { "Critical Damage": 0.9, "Multishot": 0.8, "Toxin Damage": 0.5, "Zoom": 0.1 } };
+  assert.deepEqual(statsBuscadosDelArma(conPesos, "Braton"),
+    { best: ["Critical Damage", "Multishot"], mid: ["Toxin Damage"] });
+  assert.deepEqual(statsBuscadosDelArma({ name: "Braton", pos: ["Zoom"], midPos: ["Recoil"] }, "Braton"),
+    { best: ["Zoom"], mid: ["Recoil"] });
+  assert.deepEqual(statsBuscadosDelArma(null, "Braton"), { best: [], mid: [] });
 });

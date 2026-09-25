@@ -224,6 +224,38 @@
     z-index: var(--z-footer);
 }
 
+#footer-relic .footer-actions {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px 16px;
+}
+
+#footer-relic .footer-missing {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+#footer-relic .footer-missing label {
+    margin: 0;
+}
+
+/* En móvil el pie es una barra fija (styles.css) y el FAB de la cámara se sube a 220px para
+   librarla: con el contador y el botón en dos filas, la barra crece ~50px y se le mete debajo. */
+@media (max-width: 768px) {
+    #footer-relic .footer-actions {
+        gap: 8px 10px;
+    }
+
+    #footer-relic .copy-btn {
+        padding: 10px 12px;
+        font-size: 0.95em;
+        letter-spacing: 0.5px;
+    }
+}
+
 .message-display {
     font-size: 1.5em;
     color: var(--wf-blue);

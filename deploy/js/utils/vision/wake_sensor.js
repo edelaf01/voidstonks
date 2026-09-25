@@ -3,7 +3,7 @@
  * menús el tick duerme hasta 3 s y cambiar de pestaña tardaba eso en verse; cada muestra es una
  * miniatura del vídeo, no un OCR.
  */
-import { regionLuma, videoRegionHash, compareHashes } from "./frame_hash.js";
+import { regionLuma, firmaTexto, mismoTexto } from "./frame_hash.js";
 import { FRANJA_TITULO_VIDEO, tituloHaCambiado } from "./context_latch.js";
 
 export const CADA_MS = 250;
@@ -45,7 +45,7 @@ export function creaSensor(vigias, despierta, { cadaMs = CADA_MS, reloj = global
             });
         }, cadaMs);
     };
-    return { arma, para, get armado() { return timer !== null; } };
+    return { arma, para };
 }
 
 /**
@@ -56,7 +56,7 @@ export function creaSensor(vigias, despierta, { cadaMs = CADA_MS, reloj = global
 export function sensorDelEscaner(escaner, video, opciones) {
     return creaSensor([
         { muestra: () => regionLuma(video, FRANJA_TITULO_VIDEO), base: () => escaner.lastHeaderHash, cambia: tituloHaCambiado },
-        { muestra: () => (escaner._cartaVigilada ? videoRegionHash(video, escaner._cartaVigilada) : null), base: () => escaner.lastHashL, cambia: (a, b) => !compareHashes(a, b) },
+        { muestra: () => (escaner._cartaVigilada ? firmaTexto(video, escaner._cartaVigilada) : null), base: () => escaner.lastHashL, cambia: (a, b) => !mismoTexto(a, b) },
     ], ([franja]) => {
         clearTimeout(escaner.scanInterval);
         if (franja) escaner._franjaTickAnterior = franja;

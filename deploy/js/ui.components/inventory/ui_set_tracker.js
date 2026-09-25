@@ -6,6 +6,7 @@ import { escapeHTML } from "../../utils/escape_html.js";
 import { showToast, qtyToast } from "../ui_components.js";
 import { getSlug } from "../../utils/slugs.utils.js";
 import { addToQueue } from "../../services/market/prices.service.js";
+import { ducadosDePieza } from "../../utils/inventory/catalog_parts.js";
 import {
   getItemIcon,
   getSetName,
@@ -38,8 +39,8 @@ const SIM_TEXTS = {
     runsFormat: "~{n} runs",
     partDone: "Listo",
     partRunsTitle: "Promedio estimado: ~{runs} runs para 1 copia",
-    descText: "De media obtienes <strong>{targetName}</strong> en <strong>~{avgRuns} runs</strong> jugando con <strong>{players} jugador(es)</strong> usando reliquia <strong>{refName}</strong>.",
-    rangeText: "Caso Mejor: <strong>{bestRuns} run(s)</strong> | Promedio: <strong>~{avgRuns} runs</strong> | Caso Peor (95% suerte): <strong>~{worstRuns} runs</strong>.",
+    descText: "De media obtienes <strong>{targetName}</strong> en <strong>~{avgRuns} runs</strong> en escuadra de <strong>{players}</strong> con reliquia <strong>{refName}</strong>.",
+    rangeText: "El 95 % de las veces te basta con <strong>{worstRuns} runs</strong> o menos.",
     setsBadgeOne: "set completo",
     setsBadgeMany: "sets completos",
     setPriceTitle: "Precio del set entero en warframe.market",
@@ -65,8 +66,8 @@ const SIM_TEXTS = {
     runsFormat: "~{n} runs",
     partDone: "Done",
     partRunsTitle: "Estimated average: ~{runs} runs for 1 copy",
-    descText: "On average you obtain <strong>{targetName}</strong> in <strong>~{avgRuns} runs</strong> playing with <strong>{players} player(s)</strong> using <strong>{refName}</strong> relics.",
-    rangeText: "Best Case: <strong>{bestRuns} run(s)</strong> | Average: <strong>~{avgRuns} runs</strong> | Worst Case (95% luck): <strong>~{worstRuns} runs</strong>.",
+    descText: "On average you get <strong>{targetName}</strong> in <strong>~{avgRuns} runs</strong> in a squad of <strong>{players}</strong> with <strong>{refName}</strong> relics.",
+    rangeText: "95% of the time <strong>{worstRuns} runs</strong> or fewer are enough.",
     setsBadgeOne: "full set",
     setsBadgeMany: "full sets",
     setPriceTitle: "Price of the whole set on warframe.market",
@@ -130,7 +131,7 @@ export function calculateSetStats(refinement, squadSize, targetPart) {
     : (state.selectedTrackerPart || (state.activeSetParts && state.activeSetParts[0]));
 
   if (!pName) {
-    return { avgRuns: 0, bestRuns: 0, worstRuns: 0 };
+    return { avgRuns: 0, worstRuns: 0 };
   }
 
   const rarity = getPartRarity(pName);
@@ -138,17 +139,13 @@ export function calculateSetStats(refinement, squadSize, targetPart) {
   const pSquad = 1 - Math.pow(1 - pSingle, squadSize);
 
   if (pSquad <= 0) {
-    return { avgRuns: 0, bestRuns: 0, worstRuns: 0 };
+    return { avgRuns: 0, worstRuns: 0 };
   }
 
   const avgRuns = 1 / pSquad;
   const worstRuns = Math.ceil(Math.log(0.05) / Math.log(1 - pSquad));
 
-  return {
-    avgRuns,
-    bestRuns: 1,
-    worstRuns,
-  };
+  return { avgRuns, worstRuns };
 }
 
 // La rama "Set Completo" de antes solo entraba sin pieza que seguir (avgRuns nunca mira el
@@ -199,7 +196,7 @@ function updateTrackerSim(refinement, squadSize, targetPart) {
              ${st.descText.replace("{targetName}", escapeHTML(targetLabel)).replace("{avgRuns}", stats.avgRuns.toFixed(1)).replace("{players}", state.trackerSquadSize).replace("{refName}", refNameStr)}
            </div>
            <div class="tracker-range-text">
-             ${st.rangeText.replace("{bestRuns}", stats.bestRuns).replace("{avgRuns}", stats.avgRuns.toFixed(1)).replace("{worstRuns}", stats.worstRuns)}
+             ${st.rangeText.replace("{worstRuns}", stats.worstRuns)}
            </div>
          </div>`
       : "";
@@ -341,7 +338,7 @@ export function renderSetTracker() {
            ${st.descText.replace("{targetName}", escapeHTML(targetLabel)).replace("{avgRuns}", stats.avgRuns.toFixed(1)).replace("{players}", state.trackerSquadSize).replace("{refName}", refNameStr)}
          </div>
          <div class="tracker-range-text">
-           ${st.rangeText.replace("{bestRuns}", stats.bestRuns).replace("{avgRuns}", stats.avgRuns.toFixed(1)).replace("{worstRuns}", stats.worstRuns)}
+           ${st.rangeText.replace("{worstRuns}", stats.worstRuns)}
          </div>
        </div>`
     : "";
@@ -493,7 +490,7 @@ export function renderSetTracker() {
     dotsDiv.innerHTML = generateDotsHtml(ownedCount, requiredCount);
 
     const ducatsSpan = document.createElement("span");
-    const dVal = state.itemsDatabase[partName] ? state.itemsDatabase[partName][0].ducats : 0;
+    const dVal = ducadosDePieza(partName);
 
     if (dVal > 0) {
       ducatsSpan.style.color = "var(--wf-gold-text)";

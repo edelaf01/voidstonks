@@ -20,6 +20,7 @@ import { updateRecommendedMissions } from "../farms/ui_fissures.js?v=1.1";
 import { trackBestSetForRelic, renderSetTracker } from "./ui_set_tracker.js";
 import { exposeGlobals } from "../../utils/global_registry.js";
 import { isTouchPointer } from "../../utils/tap.js";
+import { squadTag } from "../../utils/chat_link.js";
 
 let debounceTimer;
 
@@ -504,7 +505,7 @@ export function generateMessage() {
       ? `[${rName} Relic]`
       : `[Reliquia ${rName}]`
     : `[${t.defaultRelic}]`;
-  const msg = `H ${link} ${refText} ${state.playerCount === 4 ? "3/4" : state.playerCount + "/4"}`;
+  const msg = `H ${link} ${refText} ${squadTag(state.playerCount)}`;
   const box = document.getElementById("finalMessage");
   if (box) {
     box.innerText = msg;
@@ -603,8 +604,7 @@ export function setSquadSize(size) {
  * sin nada que se lo dijera. `lblProfitSolo`/`lblProfitSquad` llevaban escritas en los dos
  * idiomas sin que las invocara nadie.
  *
- * Sincroniza además el <select>, que hay dos —este y el de los filtros de "Rutas aconsejadas"—
- * escribiendo sobre el mismo estado: sin esto uno se quedaba enseñando el valor viejo.
+ * Sincroniza además el <select> con el estado, que también llega de lo guardado (state.js).
  */
 export function updateProfitLabel() {
   const t = TEXTS[state.currentLang];
@@ -639,7 +639,7 @@ exposeGlobals({
   setRefinement,
   setSquadSize,
   changeCount: (n) => {
-    state.playerCount = Math.max(1, Math.min(4, state.playerCount + n));
+    state.playerCount = Math.max(1, Math.min(3, state.playerCount + n));
     document.getElementById("countDisplay").innerText = state.playerCount;
     generateMessage();
   },

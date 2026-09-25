@@ -24,6 +24,7 @@ const {
   filterSetRecommendations,
   getSetRecsPrefs,
   saveSetRecsPrefs,
+  syncBestForRefinement,
   erasOf,
 } = await import("../deploy/js/services/inventory/set_recommendations.service.js");
 
@@ -238,6 +239,18 @@ test("las preferencias válidas se guardan y se releen", () => {
 
 // Un umbral guardado como NaN (el input vacío devuelve NaN al parsear) filtraba con NaN, y toda
 // comparación contra NaN es false: la lista salía vacía sin que ningún filtro pareciera puesto.
+// Los selectores de refinamiento del panel se fueron: el filtro sigue al de la pestaña Reliquia.
+test("'solo las que rinden mejor' sigue al refinamiento que se cambia fuera del panel", () => {
+  saveSetRecsPrefs({ ...getSetRecsPrefs(), bestFor: "radiant", era: "Neo" });
+  syncBestForRefinement("intact");
+  assert.equal(getSetRecsPrefs().bestFor, "intact");
+  assert.equal(getSetRecsPrefs().era, "Neo", "el resto de filtros no se toca");
+
+  saveSetRecsPrefs({ ...getSetRecsPrefs(), bestFor: "" });
+  syncBestForRefinement("flawless");
+  assert.equal(getSetRecsPrefs().bestFor, "", "con la casilla quitada no se enciende sola");
+});
+
 test("umbrales inválidos se sanean a 0 y un orden desconocido cae al de serie", () => {
   almacen.set("vs_farm_routes_filters_v2", JSON.stringify(
     { minPerHour: null, minGain: -20, sortBy: "loQueSea", era: "Vanguard" }));

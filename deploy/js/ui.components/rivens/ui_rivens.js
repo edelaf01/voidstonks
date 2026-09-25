@@ -10,7 +10,7 @@ import {
 } from "./ui_riven_curiosidades.js";
 import { damageMeta } from "../../utils/damage_types.js";
 import { RIVEN_STATS, TEXTS, WORKER_URL } from "../../config.js";
-import { getRivenTooltip } from "../../utils/rivens/riven_tooltips.js";
+import { getRivenTooltip, getRivenMetricName } from "../../utils/rivens/riven_tooltips.js";
 import { renderMetaStats, refreshCurrentRivenMetaStats } from "./ui_riven_meta_stats.js";
 import {
   buildAppraisalWarningsHtml,
@@ -47,6 +47,7 @@ import {
 import { escapeHTML, showToast } from "../ui_components.js";
 import { onTap } from "../../utils/tap.js";
 import { normalizeStatName, generateRivenName } from "../../utils/rivens/riven_naming.js";
+import { nivelVolatilidad, etiquetaVolatilidad, textoExtraPorCiclar } from "../../utils/rivens/riven_metrics.js";
 import {
   metaConPesosDeFamilia,
   pesosFinosDeArma,
@@ -2033,7 +2034,7 @@ export function selectRivenWeapon(name) {
     }
     const dispoEl = document.getElementById("riven-dispo-display");
     if (dispoEl)
-      dispoEl.innerHTML = `Riven disposition: <b style="color:var(--wf-gold-text)">${weaponData.d.toFixed(2)}</b>`;
+      dispoEl.innerHTML = `${state.currentLang === "es" ? "Disposición de riven" : "Riven disposition"}: <b style="color:var(--wf-gold-text)">${weaponData.d.toFixed(2)}</b>`;
     renderMetaStats(name, weaponData.t);
   }
   fetchRivenAverage(name);
@@ -3189,20 +3190,20 @@ export function updateSortHelpTooltip() {
       en: "Sorts by what sellers ASK on Warframe.Market. Careful: asking is not getting, asks run far above real sales."
     },
     "potential-real": {
-      es: "Cuánto puede multiplicar su precio un buen roll, contando solo ventas reales. Alto = el arma premia rolarla.",
-      en: "How much a good roll can multiply the price, counting real sales only. High = this weapon rewards rolling."
+      es: "Armas en las que un buen roll se paga, contando solo ventas reales. Es una puntuación: 1 = rolarla no gana nada.",
+      en: "Weapons where a good roll pays off, counting real sales only. It is a score: 1 = rolling gains nothing."
     },
     "potential-web": {
-      es: "El mismo múltiplo pero con los precios pedidos. Sale más alto porque nadie paga el escaparate: úsalo para ver hasta dónde aspira la gente.",
-      en: "The same multiple but from asking prices. It runs higher because nobody pays shop-window prices: use it to see what people aim for."
+      es: "La misma puntuación pero con los precios pedidos. Sale más alto porque nadie paga el escaparate: úsalo para ver hasta dónde aspira la gente.",
+      en: "The same score but from asking prices. It runs higher because nobody pays shop-window prices: use it to see what people aim for."
     },
     arbitrage: {
       es: "El hueco entre lo que se pide y lo que se paga. Un hueco enorme suele significar armas sobrevaloradas, no chollos.",
       en: "The gap between what is asked and what is paid. A huge gap usually means overpriced weapons, not bargains."
     },
     kuva: {
-      es: "Dónde compensa gastar kuva: armas con demanda real Y margen de subida al salir un buen roll. Si una de las dos falla, no baja aunque el multiplicador sea alto.",
-      en: "Where spending kuva pays off: weapons with real demand AND room to climb when a good roll lands. If either is missing, it will not rank high however big the multiplier."
+      es: "Dónde compensa gastar kuva: armas con demanda real Y margen de subida al salir un buen roll. Si una de las dos falla, no sube aunque el potencial sea alto.",
+      en: "Where spending kuva pays off: weapons with real demand AND room to climb when a good roll lands. If either is missing, it will not rank high however high its potential."
     }
   };
 
@@ -3224,14 +3225,14 @@ export function updateIndexTranslations() {
   // y la lista otra. Los nombres dicen QUÉ ordenan, no de qué tabla salen:
   //   "Mediana del Juego" -> nadie sabe qué juego ni qué mediana; es el precio al que se VENDE.
   //   "Precio Premium"    -> sonaba a calidad y son precios PEDIDOS, ~13× por encima de la venta.
-  //   "Potencial Real/Web"-> sin unidad; y "Techo" tampoco vale: es un MÚLTIPLO (x2.1), no un platino tope.
+  //   "Múltiplo real/pedido" -> no es un múltiplo de ningún precio, es una puntuación (mínimo 1).
   //   "Arbitraje"         -> término de bolsa; es la diferencia entre lo que piden y lo que se paga.
   const SORT_LABELS = {
-    "popularity": [isEs ? "Más intercambiadas" : "Most traded", "sort-pop", "custom-pop"],
+    "popularity": [getRivenMetricName("trend", isEs), "sort-pop", "custom-pop"],
     "price-official": [isEs ? "Precio de venta real" : "Real sale price", "sort-official", "custom-official"],
     "price-wfm": [isEs ? "Lo que piden en WFM" : "Asking price on WFM", "sort-wfm", "custom-wfm"],
-    "potential-real": [isEs ? "Múltiplo real (se paga)" : "Real multiple (paid)", "sort-potential-real", "custom-potential-real"],
-    "potential-web": [isEs ? "Múltiplo pedido (WFM)" : "Asking multiple (WFM)", "sort-potential-web", "custom-potential-web"],
+    "potential-real": [getRivenMetricName("potentialReal", isEs), "sort-potential-real", "custom-potential-real"],
+    "potential-web": [getRivenMetricName("potentialWeb", isEs), "sort-potential-web", "custom-potential-web"],
     "arbitrage": [isEs ? "Diferencia pedido vs real" : "Asking vs real gap", "sort-arbitrage", "custom-arbitrage"],
     "kuva": [isEs ? "Rentabilidad al rolar" : "Payoff for rolling", "sort-kuva", "custom-kuva"],
   };
@@ -3760,7 +3761,7 @@ export function renderRivenIndexList(items, countHtml = "") {
         resolvedPop = baseMeta.popularity_pct || baseMeta.liquidity_score;
       }
     }
-    const popVal = (resolvedPop !== undefined && resolvedPop !== null && resolvedPop > 0) ? `${Math.round(resolvedPop)}/100` : "0/100";
+    const popVal = resolvedPop != null ? `${Math.round(resolvedPop)}/100` : (isEs ? "sin datos" : "no data");
 
     const wfmAvgVal = val.wfm_avg_price || val.wfm_avg || 0;
     const hasWfm = wfmAvgVal > 0;
@@ -3825,11 +3826,7 @@ export function renderRivenIndexList(items, countHtml = "") {
         realBadgeStyle = "color: #00e5ff; background: rgba(0, 229, 255, 0.08); border: 1px solid rgba(0, 229, 255, 0.2);";
       }
 
-      const realLabel = isEs ? "MÚLTIPLO REAL" : "REAL MULTIPLE";
-      const realTooltip = isEs
-        ? "Cuántas veces su precio de entrada puede llegar a valer este riven si sale un buen roll, contando solo VENTAS REALES de Digital Extremes. x2 es poco margen; a partir de x4 el arma premia mucho rolarla."
-        : "How many times its entry price this riven could reach with a good roll, counting only REAL Digital Extremes sales. x2 is little headroom; from x4 up, rolling this weapon pays off a lot.";
-      const realBadgeHtml = `<span class="index-price-diff" style="${realBadgeStyle}; cursor: help;" data-tooltip="${realTooltip}">${realLabel}: x${realMult} <span class="info-icon" style="font-size: 0.65rem; margin-left: 2px;">ℹ</span></span>`;
+      const realBadgeHtml = `<span class="index-price-diff" style="${realBadgeStyle}; cursor: help;" data-tooltip="${getRivenTooltip("potentialReal", isEs)}">${getRivenMetricName("potentialReal", isEs)}: ${realMult} <span class="info-icon" style="font-size: 0.65rem; margin-left: 2px;">ℹ</span></span>`;
 
       // 2. Web Potential (WFM)
       const webMultVal = calculateWebPotential(val);
@@ -3843,69 +3840,26 @@ export function renderRivenIndexList(items, countHtml = "") {
         webBadgeStyle = "color: #00e5ff; background: rgba(0, 229, 255, 0.08); border: 1px solid rgba(0, 229, 255, 0.2);";
       }
 
-      const webLabel = isEs ? "MÚLTIPLO PEDIDO" : "ASKING MULTIPLE";
-      const webTooltip = isEs
-        ? "El mismo múltiplo pero calculado con los precios que PIDEN en Warframe.Market. Sale bastante más alto que el múltiplo real porque nadie paga los precios de escaparate: sirve para ver hasta dónde aspira la gente, no para fijar el tuyo."
-        : "The same multiple but computed from Warframe.Market ASKING prices. It comes out well above the real multiple because nobody pays shop-window prices: use it to see what people aim for, not to set yours.";
-      const webBadgeHtml = `<span class="index-price-diff" style="${webBadgeStyle}; cursor: help;" data-tooltip="${webTooltip}">${webLabel}: x${webMult} <span class="info-icon" style="font-size: 0.65rem; margin-left: 2px;">ℹ</span></span>`;
+      const webBadgeHtml = `<span class="index-price-diff" style="${webBadgeStyle}; cursor: help;" data-tooltip="${getRivenTooltip("potentialWeb", isEs)}">${getRivenMetricName("potentialWeb", isEs)}: ${webMult} <span class="info-icon" style="font-size: 0.65rem; margin-left: 2px;">ℹ</span></span>`;
 
       potentialHtml = `<span class="potential-badges-row" style="display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; vertical-align: middle;">${realBadgeHtml}${webBadgeHtml}</span>`;
     } else {
-      const label = isEs ? "POTENCIAL" : "POTENTIAL";
-      const potentialTooltip = isEs
-        ? "No se puede calcular el potencial porque no hay datos de precio base para esta variante."
-        : "Cannot calculate potential because there are no base pricing statistics for this variant.";
-      potentialHtml = `<span class="index-price-diff" style="color: #a0a0a5; background: rgba(160, 160, 165, 0.04); border: 1px solid rgba(160, 160, 165, 0.15); cursor: help;" data-tooltip="${potentialTooltip}">${label}: N/A <span class="info-icon" style="font-size: 0.65rem; margin-left: 2px;">ℹ</span></span>`;
+      potentialHtml = `<span class="index-price-diff" style="color: #a0a0a5; background: rgba(160, 160, 165, 0.04); border: 1px solid rgba(160, 160, 165, 0.15); cursor: help;" data-tooltip="${getRivenTooltip("potentialNA", isEs)}">${isEs ? "Potencial" : "Potential"}: N/A <span class="info-icon" style="font-size: 0.65rem; margin-left: 2px;">ℹ</span></span>`;
     }
 
     let volatilityHtml = "";
     const stddevVal = (val.de_unrolled && val.de_unrolled.stddev !== undefined) ? val.de_unrolled.stddev : (val.official_stddev || 0);
-    const hasVolatility = stddevVal > 0 || unrolledMedian > 0;
-    if (hasVolatility) {
-      const ratio = unrolledMedian > 0 ? stddevVal / unrolledMedian : 0;
-      let riskLabel = "";
-      let riskColor = "";
-      let glowColor = "";
-      let riskTooltip = "";
-
-      if (!stddevVal) {
-        riskLabel = isEs ? "ESTABLE" : "STABLE";
-        riskColor = "#00ff78";
-        glowColor = "rgba(0, 255, 120, 0.2)";
-        riskTooltip = isEs
-          ? "El precio de este Riven es predecible y seguro. Casi todo el mundo lo compra y vende por la misma cantidad de platino."
-          : "The price of this Riven is predictable and safe. Almost everyone buys and sells it for the same amount of platinum.";
-      } else if (ratio < 0.5) {
-        riskLabel = isEs ? "ESTABLE" : "STABLE";
-        riskColor = "#00ff78";
-        glowColor = "rgba(0, 255, 120, 0.2)";
-        riskTooltip = isEs
-          ? "El precio de este Riven es predecible y seguro. Casi todo el mundo lo compra y vende por la misma cantidad de platino."
-          : "The price of this Riven is predictable and safe. Almost everyone buys and sells it for the same amount of platinum.";
-      } else if (ratio <= 1.2) {
-        riskLabel = isEs ? "MODERADO" : "MODERATE";
-        riskColor = "#ffb300";
-        glowColor = "rgba(255, 179, 0, 0.2)";
-        riskTooltip = isEs
-          ? "El precio fluctúa bastante. Dependiendo de las estadísticas o del comprador, puedes ganar o perder mucho margen de platino."
-          : "The price fluctuates quite a bit. Depending on the stats or the buyer, you can gain or lose a lot of platinum margin.";
-      } else {
-        riskLabel = isEs ? "EXTREMO" : "EXTREME";
-        riskColor = "#ff4444";
-        glowColor = "rgba(255, 68, 68, 0.2)";
-        riskTooltip = isEs
-          ? "No hay un precio fijo. Algunos jugadores pagan auténticas fortunas por él, mientras que otros lo malvenden. Entra bajo tu propio riesgo."
-          : "There is no fixed price. Some players pay absolute fortunes for it, while others quick-sell it. Enter at your own risk.";
-      }
-
+    const nivelVol = nivelVolatilidad(val);
+    const etiquetaVol = etiquetaVolatilidad(nivelVol, isEs);
+    if (stddevVal > 0 || unrolledMedian > 0) {
       volatilityHtml = `
-        <span class="index-card-price-span" data-tooltip="${riskTooltip}" style="cursor: help;">
-          <span class="price-label-small">${isEs ? "RIESGO:" : "RISK:"}</span>
-          <span class="price-value-small" style="color: ${riskColor}; font-weight: bold; text-shadow: 0 0 5px ${glowColor}; display: inline-flex; align-items: center; gap: 2px;">
-            ${riskLabel} 
-            <span style="font-size:0.65rem; opacity:0.8; font-weight:normal; display: inline-flex; align-items: center;">
+        <span class="index-card-price-span" data-tooltip="${etiquetaVol.tooltip}" style="cursor: help;">
+          <span class="price-label-small">${getRivenMetricName("risk", isEs)}:</span>
+          <span class="price-value-small" style="color: ${etiquetaVol.color}; font-weight: bold; text-shadow: 0 0 5px ${etiquetaVol.color}33; display: inline-flex; align-items: center; gap: 2px;">
+            ${etiquetaVol.riesgo}
+            ${nivelVol ? `<span style="font-size:0.65rem; opacity:0.8; font-weight:normal; display: inline-flex; align-items: center;">
               (σ:${Math.round(stddevVal)}<img src="assets/relic_contents/platinum.webp" style="width:10px; height:10px; object-fit:contain; vertical-align:middle; margin-left:1px;">)
-            </span> 
+            </span>` : ""}
             <span class="info-icon" style="font-size: 0.65rem; margin-left: 2px;">ℹ</span>
           </span>
         </span>
@@ -4183,17 +4137,11 @@ export function renderRivenIndexList(items, countHtml = "") {
           <div class="index-card-info-area">
             <div class="index-card-top-line">
               <span class="index-card-weapon-name">${escapeHTML(name)}</span>
-              ${popVal ? `<span class="index-badge-popularity" data-tooltip="${getRivenTooltip("trend", isEs)}" style="cursor: help;">${isEs ? "Popularidad" : "Popularity"}: ${popVal} <span class="info-icon" style="font-size: 0.65rem; margin-left: 2px;">ℹ</span></span>` : ""}
+              ${popVal ? `<span class="index-badge-popularity" data-tooltip="${getRivenTooltip("trend", isEs)}" style="cursor: help;">${getRivenMetricName("trend", isEs)}: ${popVal} <span class="info-icon" style="font-size: 0.65rem; margin-left: 2px;">ℹ</span></span>` : ""}
               ${trendHtml}
               ${potentialHtml}
-              <span class="index-price-diff" style="color: #00e5ff; background: rgba(0, 229, 255, 0.08); border: 1px solid rgba(0, 229, 255, 0.2); cursor: help;" data-tooltip="${isEs ? 'Liquidez (0-100): rapidez para comprar/vender. Mayor = más fácil encontrar comprador.' : 'Liquidity (0-100): how fast it buys/sells. Higher = easier to find a buyer.'}">${isEs ? 'Liquidez' : 'Liquidity'}: ${val.liquidity_score ?? 0}/100</span>
-              ${(() => {
-                const v = (typeof val.volatility_index === 'number' ? val.volatility_index : 0);
-                const w = v < 0.3 ? (isEs ? 'BAJA' : 'LOW') : v < 0.7 ? (isEs ? 'MEDIA' : 'MED') : (isEs ? 'ALTA' : 'HIGH');
-                const c = v < 0.3 ? '#00ff78' : v < 0.7 ? '#eab308' : '#ff4444';
-                return `<span class="index-price-diff" style="color: ${c}; background: ${c}14; border: 1px solid ${c}33; cursor: help;" data-tooltip="${isEs ? 'Volatilidad: cuánto fluctúa el precio. ALTA = sube y baja con fuerza (más riesgo).' : 'Volatility: how much the price swings. HIGH = big spikes/drops (more risk).'}">${isEs ? 'Volatilidad' : 'Volatility'}: ${w}</span>`;
-              })()}
-              <span class="index-price-diff" style="color: #a855f7; background: rgba(168, 85, 247, 0.08); border: 1px solid rgba(168, 85, 247, 0.2); cursor: help;" data-tooltip="${isEs ? 'Premium de reroll: cuánto sube el valor en rivens con muchos rerolls.' : 'Reroll premium: how much value high-reroll rivens gain.'}">${isEs ? 'Reroll' : 'Reroll'}: +${Math.round((typeof val.rerolled_premium_ratio === 'number' ? val.rerolled_premium_ratio : 0) * 100)}%</span>
+              <span class="index-price-diff" style="color: #00e5ff; background: rgba(0, 229, 255, 0.08); border: 1px solid rgba(0, 229, 255, 0.2); cursor: help;" data-tooltip="${getRivenTooltip("liquidity", isEs)}">${getRivenMetricName("liquidity", isEs)}: ${val.liquidity_score != null ? `${val.liquidity_score}/100` : (isEs ? "sin datos" : "no data")}</span>
+              <span class="index-price-diff" style="color: #a855f7; background: rgba(168, 85, 247, 0.08); border: 1px solid rgba(168, 85, 247, 0.2); cursor: help;" data-tooltip="${getRivenTooltip("reroll", isEs)}">${getRivenMetricName("reroll", isEs)}: ${textoExtraPorCiclar(val.rerolled_premium_ratio, isEs)}</span>
             </div>
             
             <div class="index-card-price-groups" style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 6px; padding-top: 6px; border-top: 1px dashed rgba(255,255,255,0.06); width: 100%;">

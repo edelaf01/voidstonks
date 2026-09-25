@@ -137,6 +137,52 @@ test("las tres piezas del catálogo se piden a la vez, no en cadena", async () =
   responder = async () => ({ ok: true, status: 200, json: async () => ({}) });
 });
 
+// Visto con la Update 44: las tablas de drops ya traían las reliquias nuevas, el worker también, y
+// la app seguía sin ellas porque su copia de IndexedDB duraba 48 h y la del navegador otro día más.
+// La versión de las tablas (info.json de WFCD) decide cuándo vale la copia, no su edad.
+async function conCopia(copia, info) {
+  const { dbHelper } = await import("../deploy/js/repositories/storage.repository.js");
+  const orig = { get: dbHelper.get, set: dbHelper.set };
+  const guardado = [];
+  dbHelper.get = async () => copia;
+  dbHelper.set = async (_k, v) => { guardado.push(v); };
+  responder = async (url) => (url.includes("info.json")
+    ? (info ? { ok: true, status: 200, json: async () => info } : Promise.reject(new Error("sin red")))
+    : { ok: true, status: 200, json: async () => ({ relics: [{ tier: "Axi", relicName: "C12" }] }) });
+  reset();
+  try {
+    const datos = await api.loadRelicsData("clave_version", 48 * 3600 * 1000);
+    return { datos, guardado, alWorker: llamadas.filter((l) => !l.url.includes("info.json")).map((l) => l.url) };
+  } finally {
+    Object.assign(dbHelper, orig);
+    responder = async () => ({ ok: true, status: 200, json: async () => ({}) });
+  }
+}
+
+test("con las tablas de drops sin cambios, la copia vale aunque tenga días", async () => {
+  const copia = { timestamp: Date.now() - 5 * 24 * 3600 * 1000, version: "abc", data: { relics: ["vieja"] } };
+  const { datos, alWorker } = await conCopia(copia, { hash: "abc" });
+  assert.deepEqual(datos.relics, ["vieja"]);
+  assert.deepEqual(alWorker, [], "ni una petición al worker");
+});
+
+test("si cambian las tablas, se piden con la versión en la URL y se guarda la versión nueva", async () => {
+  const copia = { timestamp: Date.now() - 60 * 1000, version: "abc", data: { relics: ["vieja"] } };
+  const { datos, guardado, alWorker } = await conCopia(copia, { hash: "def" });
+  assert.equal(datos.relics[0].relicName, "C12");
+  assert.equal(alWorker.length, 3);
+  for (const url of alWorker) assert.match(url, /&v=def$/);
+  assert.equal(guardado[0].version, "def");
+});
+
+test("sin poder leer la versión, manda la caducidad de 48 h de siempre", async () => {
+  const fresca = await conCopia({ timestamp: Date.now() - 3600 * 1000, version: "abc", data: { relics: ["vieja"] } }, null);
+  assert.deepEqual(fresca.datos.relics, ["vieja"]);
+  const caducada = await conCopia({ timestamp: Date.now() - 49 * 3600 * 1000, version: "abc", data: { relics: ["vieja"] } }, null);
+  assert.equal(caducada.alWorker.length, 3);
+  for (const url of caducada.alWorker) assert.doesNotMatch(url, /&v=/, "sin versión la URL es la de siempre");
+});
+
 test("el resultado rellena las claves que falten en vez de dejarlas sin definir", async () => {
   reset();
   responder = async () => ({ ok: true, status: 200, json: async () => ({}) });

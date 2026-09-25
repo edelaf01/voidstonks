@@ -1,9 +1,11 @@
 import { state } from "../../state.js";
 import { TEXTS } from "../../config.js";
 import { escapeHTML } from "../../utils/escape_html.js";
-import { getRivenTooltip } from "../../utils/rivens/riven_tooltips.js";
+import { getRivenTooltip, getRivenMetricName } from "../../utils/rivens/riven_tooltips.js";
 import { getLocalizedStatName, CANT_BE_NEGATIVE } from "../../utils/rivens/riven_stat_display.js";
 import { extractFamilyName } from "../../utils/rivens/riven_family.js";
+import { nivelVolatilidad, etiquetaVolatilidad, textoExtraPorCiclar } from "../../utils/rivens/riven_metrics.js";
+import { tablaCicloHtml } from "./ui_riven_cycling.js";
 import {
   calculateHybridTiers,
   gradeWeaponStats,
@@ -287,9 +289,7 @@ export function renderMetaStats(weaponName, weaponType, targetId = "meta-stats-c
 
     const officialPrice = hasOfficial ? `${basePrice}p` : "N/A";
     const wfmPrice = wfmAvgVal ? `${wfmAvgVal}p` : "N/A";
-    const pop = (meta.popularity_pct !== undefined && meta.popularity_pct !== null)
-      ? `${Math.round(meta.popularity_pct)}/100`
-      : "0/100";
+    const pop = meta.popularity_pct != null ? `${Math.round(meta.popularity_pct)}/100` : (isEs ? "sin datos" : "no data");
     // "trades" era falso: wfm_market_sample cuenta OFERTAS activas muestreadas en WFM, no ventas
     // cerradas. Las ventas reales solo las publica DE (de_unrolled / de_rerolled).
     const sample = meta.wfm_market_sample
@@ -297,29 +297,8 @@ export function renderMetaStats(weaponName, weaponType, targetId = "meta-stats-c
       : "N/A";
 
     const stddevVal = meta.official_stddev || 0;
-    let riskLabel = "", riskColor = "", riskTooltip = "";
-    if (hasOfficial) {
-      const ratio = basePrice > 0 ? stddevVal / basePrice : 0;
-      if (!stddevVal || ratio < 0.5) {
-        riskLabel = isEs ? "ESTABLE" : "STABLE";
-        riskColor = "#00ff78";
-        riskTooltip = isEs
-          ? "El precio de este Riven es predecible y seguro. Casi todo el mundo lo compra y vende por la misma cantidad de platino."
-          : "The price of this Riven is predictable and safe. Almost everyone buys and sells it for the same amount of platinum.";
-      } else if (ratio <= 1.2) {
-        riskLabel = isEs ? "MODERADO" : "MODERATE";
-        riskColor = "#ffb300";
-        riskTooltip = isEs
-          ? "El precio fluctúa bastante. Dependiendo de las estadísticas o del comprador, puedes ganar o perder mucho margen de platino."
-          : "The price fluctuates quite a bit. Depending on the stats or the buyer, you can gain or lose a lot of platinum margin.";
-      } else {
-        riskLabel = isEs ? "EXTREMO" : "EXTREME";
-        riskColor = "#ff4444";
-        riskTooltip = isEs
-          ? "No hay un precio fijo. Algunos jugadores pagan auténticas fortunas por él, mientras que otros lo malvenden. Entra bajo tu propio riesgo."
-          : "There is no fixed price. Some players pay absolute fortunes for it, while others quick-sell it. Enter at your own risk.";
-      }
-    }
+    const nivelVol = nivelVolatilidad(meta);
+    const etiquetaVol = etiquetaVolatilidad(nivelVol, isEs);
 
     const trendTooltip = getRivenTooltip("trend", isEs);
 
@@ -335,22 +314,7 @@ export function renderMetaStats(weaponName, weaponType, targetId = "meta-stats-c
     const webMaxVal = meta.web_max !== undefined ? meta.web_max : 0;
     const rangeText = (webMinVal > 0 || webMaxVal > 0) ? `${webMinVal}–${webMaxVal}p` : "";
 
-    // Word-rate the raw decimals so the numbers read at a glance.
-    const volNum = (typeof meta.volatility_index === "number" ? meta.volatility_index : 0);
-    const volWord = volNum < 0.3 ? (isEs ? "BAJA" : "LOW") : volNum < 0.7 ? (isEs ? "MEDIA" : "MEDIUM") : (isEs ? "ALTA" : "HIGH");
-    const volColor = volNum < 0.3 ? "#00ff78" : volNum < 0.7 ? "#eab308" : "#ff4444";
-    const liqVal = meta.liquidity_score ?? 0;
-    const rerollPct = Math.round((typeof meta.rerolled_premium_ratio === "number" ? meta.rerolled_premium_ratio : 0) * 100);
-
-    const liqTooltip = isEs
-      ? "De 0 a 100: lo rápido que se encuentra comprador para esta arma. Por debajo de 30 tendrás que bajar el precio o esperar semanas; por encima de 70 se coloca en días."
-      : "From 0 to 100: how quickly a buyer turns up for this weapon. Below 30 you will have to cut the price or wait weeks; above 70 it moves in days.";
-    const volTooltip = isEs
-      ? "Cuánto baila el precio de un día para otro. ALTA significa que dos vendedores piden cifras muy distintas por rivens parecidos: hay margen para negociar, pero también para equivocarse."
-      : "How much the price swings from day to day. HIGH means two sellers ask very different amounts for similar rivens: room to haggle, but also room to get it wrong.";
-    const rerollTooltip = isEs
-      ? "Cuánto más se paga por un riven ya ciclado que por uno recién sacado. Si es alto, merece la pena rolar antes de vender; si es bajo, véndelo tal cual."
-      : "How much more a rolled riven fetches versus a fresh one. If it is high, rolling before selling pays off; if it is low, sell it as is.";
+    const liqVal = meta.liquidity_score != null ? `${meta.liquidity_score}/100` : (isEs ? "sin datos" : "no data");
 
     const plat = `<img src="assets/relic_contents/platinum.webp" style="width:11px;height:11px;object-fit:contain;vertical-align:-1px;">`;
     const info = `<span class="info-icon" style="font-size:0.6rem;opacity:0.7;">ℹ</span>`;
@@ -380,15 +344,14 @@ export function renderMetaStats(weaponName, weaponType, targetId = "meta-stats-c
       row(isEs ? "Venta real · sin ciclar" : "Real sale · unrolled", officialPrice, baseTooltip, "real") +
       row(isEs ? "Piden en WFM" : "Asking on WFM", `${wfmPrice}${sample !== "N/A" ? ` · ${sample}` : ""}`, premiumTooltip, "ask") +
       (rangeText ? row(isEs ? "Rango de lo que piden" : "Asking range", rangeText, premiumTooltip, "ask") : "") +
-      (riskLabel ? row(isEs ? "Estabilidad" : "Stability", `<span style="color:${riskColor}">${riskLabel}</span> <span style="color:#666;font-weight:400;">σ${stddevVal}p</span>`, riskTooltip) : "");
+      (hasOfficial ? row(getRivenMetricName("risk", isEs), `<span style="color:${etiquetaVol.color}">${etiquetaVol.riesgo}</span>${nivelVol ? ` <span style="color:#666;font-weight:400;">σ${stddevVal}p</span>` : ""}`, etiquetaVol.tooltip) : "");
 
     const demandRows =
-      row(isEs ? "Volumen de intercambio" : "Trade volume", pop, trendTooltip) +
-      row(isEs ? "Rapidez de venta" : "Sale speed", `${liqVal}/100`, liqTooltip);
+      row(getRivenMetricName("trend", isEs), pop, trendTooltip) +
+      row(getRivenMetricName("liquidity", isEs), liqVal, getRivenTooltip("liquidity", isEs));
 
     const rerollRows =
-      row(isEs ? "Extra por ciclar" : "Reroll markup", `+${rerollPct}%`, rerollTooltip) +
-      row(isEs ? "Volatilidad" : "Volatility", `<span style="color:${volColor}">${volWord}</span>`, volTooltip);
+      row(getRivenMetricName("reroll", isEs), textoExtraPorCiclar(meta.rerolled_premium_ratio, isEs), getRivenTooltip("reroll", isEs));
 
     extraHtml = `
       <div style="margin-top:8px; padding-top:8px; border-top:1px dashed rgba(255,255,255,0.1); font-size:12.5px; line-height:1.5;">
@@ -486,6 +449,7 @@ export function renderMetaStats(weaponName, weaponType, targetId = "meta-stats-c
           
           ${extraHtml}
           ${tierEstimatesHtml}
+          ${tablaCicloHtml({ tipo: weaponType || meta.t, buscados: (meta.pos || []).filter(allow), negOk: harmlessAll, isEs })}
       </div>
     `;
   }

@@ -32,6 +32,15 @@ export function chatLink(name) {
   return COMPONENTES.has(ultima) ? `[${base}]` : `[${base}] Blueprint`;
 }
 
+/**
+ * Hueco de escuadra del mensaje de reclutamiento. En el chat del juego "3/4" es cuántos ya sois, no
+ * cuántos faltan: el contador de la app pide los que faltan, así que "faltan 1" es "3/4".
+ */
+export function squadTag(faltan) {
+  const n = Math.max(1, Math.min(3, Math.round(Number(faltan)) || 1));
+  return `${4 - n}/4`;
+}
+
 /** Una línea de auto-copy: el link más el precio, si se sabe. */
 export function chatLine(name, platinum = 0) {
   const link = chatLink(name);

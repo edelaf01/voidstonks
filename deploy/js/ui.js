@@ -95,9 +95,6 @@ function initTabContent(mode) {
     if (typeof globalThis.searchSet === "function") {
       globalThis.searchSet();
     }
-    // Tercera instancia de las rutas. renderFarmRoutes() pinta todas, así que basta con
-    // llamarlo al entrar: la de esta pestaña se monta con las otras dos.
-    renderFarmRoutes().catch((e) => console.warn("[rutas] al abrir Set:", e));
   } else if (mode === "vosfor") {
     initVosforTab().catch(console.error);
   } else if (mode === "ducat") {
@@ -178,6 +175,7 @@ export function switchTab(mode) {
   const msgText = document.getElementById("finalMessage");
 
   if (footer) {
+    document.getElementById("relic-missing")?.classList.toggle("hidden", mode !== "relic");
     if (mode === "lfg") {
       footer.style.display = "block";
       footer.style.borderTopColor = "#42f56c";
@@ -405,6 +403,8 @@ function updateInputsAndContent(t) {
 
   const imgFissure = document.getElementById("img-fissure-toggle");
   if (imgFissure) imgFissure.alt = t.lblFissures;
+  setText("inv-toggle-label", t.lblInventory);
+  setText("fissure-toggle-label", t.lblFissuresShort);
 }
 
 function updateSelectDropdowns(t) {

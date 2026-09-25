@@ -11,7 +11,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { RIVEN_TOOLTIPS } from "../deploy/js/utils/rivens/riven_tooltips.js";
+import { RIVEN_TOOLTIPS, getRivenMetricName } from "../deploy/js/utils/rivens/riven_tooltips.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -65,4 +65,15 @@ test("las etiquetas de las métricas de precio distinguen venta real de precio p
     "la fila de wfm_avg debe decir que es lo que PIDEN, no un precio de mercado");
   assert.ok(!/\$\{meta\.wfm_market_sample\} trades/.test(SRC),
     "wfm_market_sample son ofertas activas, no trades cerrados");
+});
+
+test("cada métrica tiene un solo nombre por idioma, y el suyo tiene explicación", () => {
+  assert.equal(getRivenMetricName("liquidity", true), "Rapidez de venta");
+  assert.equal(getRivenMetricName("liquidity", false), "Sale speed");
+  assert.equal(getRivenMetricName("reroll", true), "Extra por ciclar");
+  assert.equal(getRivenMetricName("potentialWeb", true), "Potencial en WFM");
+  assert.equal(getRivenMetricName("nope", true), "");
+  for (const clave of ["trend", "liquidity", "reroll", "potentialReal", "potentialWeb"]) {
+    assert.ok(RIVEN_TOOLTIPS[clave], `la métrica ${clave} tiene nombre pero no tooltip`);
+  }
 });

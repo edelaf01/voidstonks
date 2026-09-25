@@ -34,3 +34,11 @@ test("hubo resultado: el estado se limpia y deja de saltar", () => {
   assert.equal(saltaPorSinResultado("aa", conResultado, 1600, 3000), false);
   assert.notDeepEqual(sinResultado, ESTADO_INICIAL);
 });
+
+// Las cartas de riven se comparan con su firma de texto (un array), no con el hash hex de 16x9.
+test("el salto acepta el comparador de quien guarda la huella", () => {
+  const iguales = (a, b) => a?.id === b?.id;
+  assert.equal(saltaPorSinResultado({ id: 1 }, { hash: { id: 1 }, time: 1000 }, 2000, 3000, iguales), true);
+  assert.equal(saltaPorSinResultado({ id: 2 }, { hash: { id: 1 }, time: 1000 }, 2000, 3000, iguales), false);
+  assert.equal(saltaPorSinResultado({ id: 1 }, { hash: { id: 1 }, time: 1000 }, 5000, 3000, iguales), false, "caducado");
+});
