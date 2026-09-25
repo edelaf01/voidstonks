@@ -66,7 +66,6 @@ export const ScannerService = {
     lastStableHash: null,
     virtualCanvas: null,
     lastHashL: null,
-    lastHashR: null,
     lastNoResult: ESTADO_SIN_RESULTADO, // last riven card hash with no valid parse (utils/vision/no_result_skip.js)
     lastRewardNoResult: ESTADO_SIN_RESULTADO, // same for the reward band
     lastHeaderHash: null, // title strip luma at the last real OCR (fixed baseline, so drift adds up)
@@ -75,7 +74,6 @@ export const ScannerService = {
     lastRivenContextType: null, // "INVENTORY_MODS" | "ITEM_DETAILS" of the last riven hit: the grace period reroutes to the same one
     lastTwoCardHash: null, // card hash when 2 rivens were last confirmed (2->1 hysteresis)
     oneCardStreak: 0, // reads with fewer than 2 cards after a real hash change (2->1 hysteresis)
-    newCardStreak: 0,
     weaponSwitchCandidate: null, // weapon set pending confirmation as a riven switch
     weaponSwitchStreak: 0, // reads with that same new set (matcher anti-flip)
     rivenConsensusBuffer: [],
@@ -87,7 +85,7 @@ export const ScannerService = {
         this.ctxLatch = INITIAL_LATCH;
         this.detectionLocked = false;
         this.lastHashL = null;
-        this.lastHashR = null;
+        this._zonasCartas = null;
         this.lastNoResult = ESTADO_SIN_RESULTADO;
         this.lastRewardNoResult = ESTADO_SIN_RESULTADO;
         this.lastHeaderHash = null;
@@ -96,7 +94,6 @@ export const ScannerService = {
         this.lastRivenContextType = null;
         this.lastTwoCardHash = null;
         this.oneCardStreak = 0;
-        this.newCardStreak = 0;
         this.weaponSwitchCandidate = null;
         this.weaponSwitchStreak = 0;
         this.rivenConsensusBuffer = [];
@@ -143,7 +140,8 @@ export const ScannerService = {
         this._cartaVigilada = null;
         if (!this.isScanning) return;
         const video = document.getElementById("live-video");
-        if (!video || video.paused || video.ended) { this.scanInterval = setTimeout(() => this.loop(), 1000); return; }
+        // 0x0 video (resized window, loading) made 0 px crops
+        if (!video || video.paused || video.ended || !video.videoWidth || !video.videoHeight) { this.scanInterval = setTimeout(() => this.loop(), 1000); return; }
         try {
             await this.processFrame(video, this.virtualCanvas);
         } catch (e) {
@@ -559,12 +557,12 @@ export const ScannerService = {
         if (a.weaponName !== b.weaponName) return false;
         // rolls only count when both reads have them: the MR line is often lost
         if (a.rolls !== null && b.rolls !== null && a.rolls !== b.rolls) return false;
-        const namesA = new Set(a.stats.map(s => s.name));
-        const namesB = new Set(b.stats.map(s => s.name));
-        let overlap = 0;
-        for (const n of namesA) if (namesB.has(n)) overlap++;
-        const minLen = Math.min(namesA.size, namesB.size);
-        return overlap >= Math.max(1, minLen - 1);
+        // weapon and rolls are not enough: on the reroll screen the new card shares both with the old one.
+        // One differing stat is tolerated (lost curse) and values are compared: a lock (U44) shares a stat.
+        const igual = (x, y) => x.name === y.name
+            && Math.abs(Math.abs(x.value) - Math.abs(y.value)) <= Math.max(0.6, 0.01 * Math.abs(x.value));
+        const overlap = a.stats.filter((x) => b.stats.some((y) => igual(x, y))).length;
+        return overlap >= Math.max(1, Math.min(a.stats.length, b.stats.length) - 1);
     },
 
     /**
@@ -695,14 +693,15 @@ export const ScannerService = {
 
         // hash over the fixed video region, before preparing the canvases: tight crops jitter on a still
         // screen
-        const hash = firmaTexto(video, cardCrop);
+        const zonas = this._zonasCartas?.length ? this._zonasCartas : [cardCrop];
+        const hash = firmaTexto(video, zonas);
 
         // already parsed and unchanged: skip OCR and relax the poll
         if ((this.lastParsedL || this.lastParsedR) && mismoTexto(hash, this.lastHashL)) {
             this.lastRivenContextTime = Date.now();
             this.lastRivenContextType = contextType === "ITEM_DETAILS" ? "ITEM_DETAILS" : "INVENTORY_MODS";
             this.currentRate = this.RIVEN_RATE_IDLE;
-            this._cartaVigilada = cardCrop;
+            this._cartaVigilada = zonas;
             return;
         }
 
@@ -778,11 +777,11 @@ export const ScannerService = {
         }
         this.lastNoResult = siguienteEstadoSinResultado(valids.length > 0, hash, Date.now());
 
+        // the view only changes when two reads in a row agree: an A, B, A, B OCR made the card flicker
         const currentFP = valids.map(e => rivenFingerprint(e.parsed)).join("||") || "none";
         this.rivenConsensusBuffer.push(currentFP);
-        if (this.rivenConsensusBuffer.length > 3) this.rivenConsensusBuffer.shift();
-        const matchCount = this.rivenConsensusBuffer.filter(fp => fp === currentFP).length;
-        const hasConsensus = matchCount >= 2;
+        if (this.rivenConsensusBuffer.length > 2) this.rivenConsensusBuffer.shift();
+        const hasConsensus = this.rivenConsensusBuffer.length === 2 && this.rivenConsensusBuffer[0] === currentFP;
 
         let rawL = valids[0]?.parsed || null;
         let rawR = valids[1]?.parsed || null;
@@ -797,22 +796,8 @@ export const ScannerService = {
             if (matchesR && !matchesL) { rawR = rawL; rawL = null; }
         }
 
-        let revealsMore = valids.length > shownCount;
-
-        if (revealsMore && shownCount >= 1) {
-            const otherShown = shownCards[0];
-            const newCard = [rawL, rawR].find(p => p && !shownCards.some(s => this._isSameRivenIdentity(p, s)));
-            const sameWeaponAsShown = !newCard || newCard.weaponName === otherShown.weaponName;
-            if (!sameWeaponAsShown) {
-                this.newCardStreak = (this.newCardStreak || 0) + 1;
-                if (this.newCardStreak < 2) revealsMore = false;
-            } else {
-                this.newCardStreak = 0;
-            }
-        } else {
-            this.newCardStreak = 0;
-        }
-
+        // a weapon change drops the extra card without the 2->1 hysteresis. Unique weapons, not the list:
+        // "Karak|Karak" vs a partial "Karak" is no change.
         const newWeapons = [...new Set(valids.map(e => e.parsed.weaponName).filter(Boolean))].sort().join("|");
         const shownWeapons = [...new Set(shownCards.map(p => p.weaponName).filter(Boolean))].sort().join("|");
         let weaponChanged = newWeapons !== "" && newWeapons !== shownWeapons;
@@ -874,11 +859,8 @@ export const ScannerService = {
             if (!rawR) finalR = null;
         }
 
-        const anyUpgrade = (finalL && finalL !== this.lastParsedL && this._isSameRivenIdentity(finalL, this.lastParsedL)) ||
-                            (finalR && finalR !== this.lastParsedR && this._isSameRivenIdentity(finalR, this.lastParsedR));
-
-        if ((this.lastParsedL || this.lastParsedR) && !hasConsensus && !revealsMore && !weaponChanged && !anyUpgrade) {
-            console.log(`[RIVEN OCR] Consensus: ${matchCount}/3 — waiting for confirmation`);
+        if (!hasConsensus) {
+            console.log("[RIVEN OCR] esperando a que la siguiente lectura confirme esta");
             if (globalThis._scannerDebug) this._renderRivenDebug(entries, false);
             this.currentRate = this.RIVEN_RATE_CONFIRM;
             return;
@@ -892,9 +874,10 @@ export const ScannerService = {
         // caches the hash even when unchanged, so the skip relaxes the rate. Not with a weapon change or a
         // 2->1 drop pending: the new still screen would be skipped and never confirmed.
         if (!weaponSwitchPending && !(trasElegir && !dropExtra)) {
-            this.lastHashL = hash;
-            this.lastHashR = null;
-            this.lastTwoCardHash = finalL && finalR ? hash : null;
+            // only the cards: the glass and particles behind them never stop
+            this._zonasCartas = canvases.map((c) => c.zonaVideo).filter(Boolean);
+            this.lastHashL = firmaTexto(video, this._zonasCartas.length ? this._zonasCartas : [cardCrop]);
+            this.lastTwoCardHash = finalL && finalR ? this.lastHashL : null;
         } else this.currentRate = this.RIVEN_RATE_CONFIRM;
 
         if (!changed) return;
@@ -1075,7 +1058,7 @@ export const ScannerService = {
         // second pass with nothing to read = the consensus has its two reads: sleep
         if (!pendientes.length) { this._mcDormido = hash; console.log("[MC] pantalla leída; en espera de otro fin de misión"); }
         if (commit?.length) memoriaMC.guarda(recuerdaPantalla(items, ledger));
-        const gastada = RelicScreenService.tomaReliquiaElegida();
+        const gastada = RelicScreenService.tomaReliquiaElegida((commit || []).some((i) => !i.reliquia));
         if ((commit?.length || gastada) && typeof globalThis.commitMissionCompleteRewards === "function") {
             globalThis.commitMissionCompleteRewards(commit || [], gastada);
         }
@@ -1126,6 +1109,7 @@ export const ScannerService = {
 
         // caches the hash when this frame brought no reward, so the skip above works on a still screen
         this.lastRewardNoResult = siguienteEstadoSinResultado(foundItems.length > 0, bandHash, Date.now());
+        if (foundItems.length) RelicScreenService.marcaRecompensaPrime();
 
         // the debug snapshot is drawn here: services/ do not touch the DOM, and it shows the winning canvas
         const dbgPanel = document.getElementById("live-debug-snapshot");

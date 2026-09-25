@@ -21,12 +21,6 @@ export function kuvaEsperada(p, ciclosHechos, bloqueado = false) {
     return Math.round(total + sigue * costeCiclo(n, bloqueado) / p);
 }
 
-export function ciclosPara(p, prob = 0.9) {
-    if (!(p > 0)) return Infinity;
-    if (p >= 1) return 1;
-    return Math.ceil(Math.log(1 - prob) / Math.log(1 - p));
-}
-
 export function tipoDeArma(tipo) {
     return WEAPON_TYPE_IDX[tipo] ?? 0;
 }
@@ -72,6 +66,10 @@ function* combinaciones(lista, n, desde = 0, elegidos = []) {
 // unlocked: 2 or 3 positives, with or without negative, 25% each
 const CONFIGS = [[2, false], [2, true], [3, false], [3, true]];
 
+/**
+ * Chance that one cycle leaves at least `k` of `buscados` as positives and, if a negative rolls, one
+ * of `negOk`. Walks every combination.
+ */
 export function probPorCiclo({ pool, buscados, k, negOk, typeIdx, config = null, bloqueado = null }) {
     const busc = new Set(buscados), ok = new Set(negOk);
     if (bloqueado?.negativo && !config?.neg) return 0;
@@ -97,6 +95,11 @@ export function probPorCiclo({ pool, buscados, k, negOk, typeIdx, config = null,
     return total / configs.length;
 }
 
+/**
+ * @param stats [{ name, isPositive, calidad? }]: `calidad` breaks the tie between two wanted positives,
+ *   since the locked one keeps its value.
+ * @returns null when a stat is not recognised or the card does not have 2-3 positives and 0-1 negative.
+ */
 export function consejoDeCiclo({ stats, typeIdx, buscados, negOk, k = 2, ciclosHechos = 0 }) {
     const pool = poolDeStats(typeIdx);
     const leidos = (stats || []).map((s) => ({ ...s, clave: claveStat(s.name, typeIdx) }));

@@ -1,4 +1,7 @@
-/** @returns {"baja"|"media"|"alta"|null} */
+/**
+ * Deviation / median of real sales (the oracle publishes it ×10 as volatility_index).
+ * @returns {"baja"|"media"|"alta"|null}
+ */
 export function nivelVolatilidad(meta) {
     const cv = meta?.volatility_index > 0 ? meta.volatility_index / 10
         : meta?.official_median > 0 && meta?.official_stddev > 0 ? meta.official_stddev / meta.official_median

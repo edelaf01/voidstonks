@@ -28,6 +28,8 @@ const casos = [
   ["RE/REWARDS", "REWARD"],
   ["LE/ REWARDS", "REWARD"],
   ["NE/REWARDS :", "REWARD"],
+  // end of Sanctuary Onslaught: centered title from a user capture (zone 3)
+  ["ZONE 3 REACHED", "MISSION_COMPLETE"],
 ];
 
 for (const [texto, esperado] of casos) {

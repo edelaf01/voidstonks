@@ -6,7 +6,7 @@ import { renderRelicPicks } from "./ui_relic_picks.js";
 import { refinementValue } from "../../utils/inventory/refinement_value.js";
 import { getRequiredCount, getSetName } from "../../utils/ui_utils.js";
 import {
-    calculatePartExpectedRuns, getPlayerOdds, runsForDrop,
+    calculatePartExpectedRuns, getPlayerOdds, runsForDrop, REFINEMENT_KEYS,
 } from "../../utils/inventory/relic_drop_odds.utils.js";
 import { getRelicCounts } from "../../utils/inventory/relic_counts.js";
 import { getSlug } from "../../utils/slugs.utils.js";
@@ -207,6 +207,19 @@ function viewSwitchHtml(view, t) {
     const btn = (id, etiqueta) => `<button type="button" class="fr-view-btn${view === id ? " active" : ""}"`
         + ` data-fr-view="${id}" aria-pressed="${view === id}">${escapeHTML(etiqueta)}</button>`;
     return `<div class="fr-views" role="group">${btn("routes", t.viewRoutes)}${btn("picks", t.viewRelics)}</div>`;
+}
+
+/** Same state as the tab selectors, so the panel shows what it computes with. */
+function juegoHtml(t) {
+    const { refinement, squadSize } = getPlayerOdds();
+    const boton = (attr, valor, texto, activo) => `<button type="button" class="fr-juego-btn${activo ? " active" : ""}"`
+        + ` ${attr}="${valor}" aria-pressed="${activo}">${escapeHTML(texto)}</button>`;
+    const grupo = (etiqueta, ayuda, botones) => `<div class="fr-juego" role="group" aria-label="${escapeHTML(etiqueta)}"`
+        + ` data-tooltip="${escapeHTML(ayuda)}"><span>${escapeHTML(etiqueta)}</span>${botones.join("")}</div>`;
+    return grupo(t.squadLabel, t.squadHelp,
+        [1, 2, 3, 4].map((n) => boton("data-fr-squad", n, n === 1 ? t.squadSolo : String(n), n === squadSize)))
+        + grupo(t.refLabel, t.refHelp,
+            Object.entries(REFINEMENT_KEYS).map(([etiqueta, clave]) => boton("data-fr-ref", etiqueta, REF_LABEL(t, clave), clave === refinement)));
 }
 
 function headHtml(count, t) {
@@ -460,6 +473,7 @@ async function renderRoutesInto(raiz) {
     container.innerHTML = headHtml(esPicks ? _allPicks.length : _allRoutes.length, t)
         + viewSwitchHtml(prefs.view, t)
         + `<div class="fr-body" data-fr="body">`
+        + juegoHtml(t)
         + `<p class="fr-sub">${escapeHTML(esPicks ? t.picksSubtitle : t.subtitle)}</p>`
         + (sinFisuras ? `<p class="fr-nofis">${escapeHTML(t.fissuresDown)}</p>` : "")
         + (esPicks ? "" : guideHtml(prefs, t))
@@ -493,6 +507,10 @@ function bindPanelListeners(raiz, t) {
             renderFarmRoutes().catch((err) => console.warn("[rutas] vista:", err));
         });
     });
+
+    // through globalThis: importing ui_relics.js would close a cycle
+    raiz.querySelectorAll("[data-fr-squad]").forEach((b) => b.addEventListener("click", () => globalThis.setSquadSize?.(b.dataset.frSquad)));
+    raiz.querySelectorAll("[data-fr-ref]").forEach((b) => b.addEventListener("click", () => globalThis.setRefinement?.(b.dataset.frRef)));
 
     raiz.querySelector('[data-fr="toggle"]')?.addEventListener("click", () => {
         const collapsed = container.classList.toggle("collapsed");

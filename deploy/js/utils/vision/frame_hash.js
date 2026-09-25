@@ -125,6 +125,13 @@ let firmaCvs = null;
  * HIGH smoothing on purpose: a low one samples instead of averaging and a 1 px shift already changes it.
  */
 export function firmaTexto(source, crop) {
+    // one fingerprint per card, concatenated: with another card count the lengths do not match
+    if (Array.isArray(crop)) {
+        const partes = crop.map((c) => firmaTexto(source, c));
+        const todo = new Uint8Array(partes.reduce((n, p) => n + p.length, 0));
+        partes.reduce((o, p) => { todo.set(p, o); return o + p.length; }, 0);
+        return todo;
+    }
     if (!firmaCvs) {
         firmaCvs = document.createElement("canvas");
         firmaCvs.width = FIRMA_COLS;

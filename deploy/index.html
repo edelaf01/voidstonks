@@ -759,6 +759,8 @@
             <div id="tracker-list"></div>
           </div>
         </div>
+        <!-- the only place for the routes; after #relic-contents
+             so a chosen relic's breakdown shows under the search box -->
         <div class="farm-routes" data-fr-host="relic" style="display:none;"></div>
       </div>
       <div id="mode-set" class="hidden">
@@ -952,6 +954,8 @@
               </h4>
               <div id="riven-variants-carousel" class="variants-carousel-scroll"></div>
             </div>
+
+            <div id="riven-ciclo-container"></div>
 
             <!-- recent moves for THIS weapon, under the chart and variants;
                  only shown when curiosidades.json has some for it -->
@@ -1234,6 +1238,7 @@
     <div id="footer-relic" class="footer-output">
       <div id="finalMessage" class="message-display">...</div>
       <div class="footer-actions">
+        <!-- only affects the message; in LFG switchTab hides it (there is another counter there) -->
         <div id="relic-missing" class="footer-missing">
           <label id="lbl-missing">Faltan</label>
           <div class="counter-inline">
