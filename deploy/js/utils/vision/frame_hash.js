@@ -141,6 +141,13 @@ let firmaCvs = null;
  * cambiaba el 8,7 % de las muestras.
  */
 export function firmaTexto(source, crop) {
+    // Una huella por carta, concatenadas: con otro número de cartas las longitudes no casan.
+    if (Array.isArray(crop)) {
+        const partes = crop.map((c) => firmaTexto(source, c));
+        const todo = new Uint8Array(partes.reduce((n, p) => n + p.length, 0));
+        partes.reduce((o, p) => { todo.set(p, o); return o + p.length; }, 0);
+        return todo;
+    }
     if (!firmaCvs) {
         firmaCvs = document.createElement("canvas");
         firmaCvs.width = FIRMA_COLS;

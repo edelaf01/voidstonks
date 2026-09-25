@@ -7,6 +7,14 @@
  */
 const TESSERACT_VERSION = "7.0.0";
 
+// Tesseract pasa el canvas a PNG para leerlo: con 0 px el navegador da null y revienta dentro del
+// worker ("File could not be read! Code=0") como promesa sin capturar, fuera de nuestro catch.
+function imagenVacia(image) {
+    if (!image || !(image.width === 0 || image.height === 0)) return false;
+    console.warn("[OCR Repo] recorte de 0 px, no se lee:", new Error().stack?.split("\n").slice(2, 5).join(" | "));
+    return true;
+}
+
 export const OCRRepository = {
     // Bloque uniforme de texto. Lo comparte todo el escáner salvo recognizeWithPSM.
     DEFAULT_PSM: "6",
@@ -182,7 +190,7 @@ export const OCRRepository = {
      * detección de contexto y el escáner de rivens leen peor sin que nada lo delate.
      */
     async recognizeWithPSM(worker, image, psm, output = undefined) {
-        if (!worker) return { data: { text: "", confidence: 0 } };
+        if (!worker || imagenVacia(image)) return { data: { text: "", confidence: 0 } };
         try {
             await worker.setParameters({ tessedit_pageseg_mode: String(psm) });
             return await worker.recognize(image, {}, output);
@@ -197,7 +205,7 @@ export const OCRRepository = {
 
     /** Reconoce con OTRA lista de caracteres y deja el worker como estaba, igual que recognizeWithPSM. */
     async recognizeWithChars(worker, image, chars, output = undefined) {
-        if (!worker) return { data: { text: "", confidence: 0 } };
+        if (!worker || imagenVacia(image)) return { data: { text: "", confidence: 0 } };
         try {
             await worker.setParameters({ tessedit_char_whitelist: chars });
             return await worker.recognize(image, {}, output);
@@ -211,7 +219,7 @@ export const OCRRepository = {
     },
 
     async recognize(worker, image, options = {}, output = undefined) {
-        if (!worker) return { data: { text: "", confidence: 0 } };
+        if (!worker || imagenVacia(image)) return { data: { text: "", confidence: 0 } };
         try {
             // `output` (p.ej. { blocks: true }) pide a Tesseract las cajas por palabra/línea,
             // necesarias para separar dos cartas side-by-side por posición X.

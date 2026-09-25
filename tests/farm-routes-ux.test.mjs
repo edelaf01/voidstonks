@@ -263,3 +263,12 @@ test("la vista por reliquia tiene sus propios filtros", () => {
     assert.doesNotMatch(picksSrc, /getSetRecsPrefs/);
     assert.doesNotMatch(picksSrc, /localStorage/, "las prefs van por el service, no en el componente");
 });
+
+// Al quitar los selectores repetidos el panel se quedó sin decir con cuánta gente ni con qué
+// refinamiento calcula las runs: solo estaban en la pestaña, fuera del panel.
+test("el panel deja elegir jugadores y refinamiento, y escribe el mismo estado que la pestaña", () => {
+    assertBilingual(["squadLabel", "squadSolo", "squadHelp", "refLabel", "refHelp"]);
+    assert.match(src, /data-fr-squad[\s\S]*globalThis\.setSquadSize\?\.\(b\.dataset\.frSquad\)/);
+    assert.match(src, /data-fr-ref[\s\S]*globalThis\.setRefinement\?\.\(b\.dataset\.frRef\)/);
+    assert.match(src, /\+ juegoHtml\(t\)/, "en las dos vistas, no solo en la de sets");
+});

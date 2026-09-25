@@ -1454,6 +1454,8 @@ export const VisionService = {
             oc.width = bw;
             oc.height = bh;
             oc.getContext("2d").putImageData(ctx.getImageData(bx0, by0, bw, bh), 0, 0);
+            const f = scale * S;
+            oc.zonaVideo = { x: (cropX + bx0 / f) / width, y: (cropY + by0 / f) / height, w: bw / f / width, h: bh / f / height };
             out.push(oc);
         }
 
@@ -1504,6 +1506,8 @@ export const VisionService = {
         // Va ANTES que el resto porque su recorte es otro (el título centrado) y no comparte
         // vocabulario con ninguna: si llega aquí "MISSION COMPLETE", no puede ser otra cosa.
         if (/M[I1L]SS?[I1L]ON\s*C[O0Q]MP|MIS[I1L][OÓ]N\s*C[O0Q]MPLET/.test(text)) return "MISSION_COMPLETE";
+        // Fin de partida de Sanctuary Onslaught: la misma pantalla de recompensas con otro título.
+        if (/Z[O0]NE\s*\S{1,3}\s*REACH/.test(text)) return "MISSION_COMPLETE";
 
         if (/DETAIL|DETALL/.test(text)) return "ITEM_DETAILS"; // popup "Item Details" (riven linkeado, centrado)
         if (hasMods) return "INVENTORY_MODS";

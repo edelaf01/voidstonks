@@ -144,7 +144,6 @@ export const RivenScannerHUD = {
             globalThis.ScannerService.lastParsedL = null;
             globalThis.ScannerService.lastParsedR = null;
             globalThis.ScannerService.lastHashL = null;
-            globalThis.ScannerService.lastHashR = null;
         }
     },
 

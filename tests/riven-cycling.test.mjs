@@ -9,10 +9,10 @@ import assert from "node:assert/strict";
 globalThis.localStorage = { getItem: () => null, setItem() {}, removeItem() {} };
 
 const {
-    costeCiclo, kuvaEsperada, ciclosPara, poolDeStats, claveStat, probPorCiclo, consejoDeCiclo,
+    costeCiclo, kuvaEsperada, poolDeStats, claveStat, probPorCiclo, consejoDeCiclo,
     recetasDelTipo, combinacionesDe,
 } = await import("../deploy/js/utils/rivens/riven_cycling.js");
-const { consejoCicloHtml, tablaCicloHtml, textoKuva, textoProb } =
+const { consejoCicloHtml, tablaCicloHtml, textoKuva, textoCiclos } =
     await import("../deploy/js/ui.components/rivens/ui_riven_cycling.js");
 
 const cerca = (a, b, msg) => assert.ok(Math.abs(a - b) < 1e-6, `${msg}: ${a} != ${b}`);
@@ -35,13 +35,6 @@ test("la kuva esperada suma cada ciclo por la probabilidad de llegar a pagarlo",
     // 900 + 500 + 300 + 175 + 106,25 + 62,5 + 36,72 + 21,48 + 12,30 + 0,00195·3500/0,5
     assert.equal(kuvaEsperada(0.5, 0), 2128);
     assert.equal(kuvaEsperada(0, 9), Infinity);
-});
-
-test("ciclos para tener un 90 % de haber acertado", () => {
-    assert.equal(ciclosPara(0.5), 4);
-    assert.equal(ciclosPara(0.1, 0.5), 7);
-    assert.equal(ciclosPara(1), 1);
-    assert.equal(ciclosPara(0), Infinity);
 });
 
 test("el pool sale de los stats con valor base en ese tipo de arma", () => {
@@ -147,26 +140,27 @@ test("un riven puede combinar dos de sus stats, sean positivos o negativos", () 
     assert.ok(r.every((x) => x.resultado[1] === "Weak Point Critical Chance"));
 });
 
-test("los textos de kuva y probabilidad", () => {
+test("los textos de kuva y de ciclos de media", () => {
     assert.equal(textoKuva(143431, true), "~143k");
     assert.equal(textoKuva(7000, false), "~7,000");
     assert.equal(textoKuva(7000, true), "~7.000", "en español también con punto de miles");
     assert.equal(textoKuva(Infinity, true), "imposible");
-    assert.equal(textoProb(P_SIN_RIFLE, true), "1 de cada 41");
-    assert.equal(textoProb(0, false), "never");
+    assert.equal(textoCiclos(P_SIN_RIFLE, true), "~41 ciclos");
+    assert.equal(textoCiclos(1, true), "~1 ciclo");
+    assert.equal(textoCiclos(0, false), "never happens");
 });
 
 test("el bloque del escáner recomienda qué bloquear y cuánto se ahorra", () => {
     const html = consejoCicloHtml({ ...RIFLE, rolls: 9, tipo: "Rifle", isEs: true,
         stats: [pos("Crit Damage"), pos("Zoom"), pos("Punch Through")] });
-    assert.match(html, /Sin bloquear <small>\(3\.500\/ciclo\)<\/small><\/span>\s*<strong>1 de cada 41/);
-    assert.match(html, /Bloqueando \+Daño Crítico <small>\(7\.000\/ciclo\)<\/small><\/span>\s*<strong>1 de cada 4 /);
+    assert.match(html, /Sin bloquear <small>\(3\.500\/ciclo\)<\/small><\/span>\s*<strong>~41 ciclos/);
+    assert.match(html, /Bloqueando \+Daño Crítico <small>\(7\.000\/ciclo\)<\/small><\/span>\s*<strong>~4 ciclos /);
     assert.match(html, /Bloquea \+Daño Crítico: ahorras ~115k kuva/);
 
     const ya = consejoCicloHtml({ ...RIFLE, rolls: 9, tipo: "Rifle", isEs: false,
         stats: [pos("Crit Chance"), pos("Multishot"), neg("Zoom")] });
     assert.match(ya, /already meets the goal/);
-    assert.match(ya, /SPLICE STATS · PROVISIONAL/);
+    assert.match(ya, /SPLICE STATS \(NOT OUT YET\)/);
     assert.match(ya, /Weak Point Critical Chance/);
 
     assert.equal(consejoCicloHtml({ ...RIFLE, tipo: "Rifle", isEs: true, stats: [pos("Algo raro"), pos("Zoom")] }), "");
@@ -185,12 +179,12 @@ test("sin el número de ciclos se supone un riven ya ciclado, y el aviso lo dice
     assert.match(html, /supuestos: no se leyó el número/);
 });
 
-test("la calculadora de la ficha da una fila por configuración del riven", () => {
+test("la calculadora de la ficha dice qué hacer con cada tipo de riven", () => {
     const html = tablaCicloHtml({ tipo: "Rifle", buscados: RIFLE.buscados, negOk: RIFLE.negOk, isEs: true });
-    assert.match(html, /Sin bloquear<\/span><strong>1 de cada 41/);
-    assert.match(html, /<th>3 positivos<\/th><td class="mejor">1 de cada 4</);
-    assert.match(html, /<th>2 positivos<\/th><td[^>]*>[^<]*<br><small>[^<]*<\/small><\/td><td>—<\/td>/,
-        "sin negativo no hay negativo que bloquear");
+    assert.match(html, /Sin bloquear nada tardas ~41 ciclos \(~143k kuva\)/);
+    assert.match(html, /<tr class="mejor"><th>3 positivos<\/th><td>Bloquea un stat bueno: ~4 ciclos \(~28k kuva\)/);
+    // 2+1: el otro positivo tiene que ser bueno Y el negativo inofensivo; bloqueando no compensa.
+    assert.match(html, /<tr class=""><th>2 positivos y 1 negativo<\/th><td>No bloquees: ~41 ciclos/);
     assert.match(html, /Daño a punto débil/);
     assert.equal(tablaCicloHtml({ tipo: "Melee", buscados: ["Multishot"], negOk: [], isEs: true }), "");
 });

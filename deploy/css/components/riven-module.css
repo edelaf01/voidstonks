@@ -1007,7 +1007,6 @@
     letter-spacing: 0.4px;
 }
 
-/* Bloque "Ciclar" (ui_riven_cycling.js): en el HUD del escáner y al final de la guía del arma. */
 .riven-ciclo {
     margin: 8px 0 4px;
     padding: 6px 8px;
@@ -1052,7 +1051,7 @@
 }
 
 .riven-ciclo-fila.mejor strong,
-.riven-ciclo-tabla td.mejor {
+.riven-ciclo-tabla tr.mejor td {
     color: #00ff78;
 }
 
@@ -1086,20 +1085,20 @@
     border-top: 0;
 }
 
+.riven-ciclo-tabla td {
+    text-align: left;
+}
+
 .riven-ciclo-tabla tbody th {
     text-align: left;
     color: var(--riven-text-dim);
     white-space: nowrap;
 }
 
-.riven-ciclo-tabla small {
-    font-size: 1em;
+.riven-ciclo-intro {
     color: var(--riven-text-dim);
-    font-weight: 400;
-}
-
-.riven-ciclo-tabla td.mejor small {
-    color: inherit;
+    margin: 2px 0 4px;
+    line-height: 1.35;
 }
 
 .riven-ciclo-receta {

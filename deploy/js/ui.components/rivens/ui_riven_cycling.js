@@ -30,9 +30,11 @@ export function textoKuva(kuva, isEs) {
     return kuva >= 10000 ? `~${Math.round(kuva / 1000)}k` : `~${Math.round(kuva).toLocaleString(isEs ? "es-ES" : "en-US", { useGrouping: "always" })}`;
 }
 
-export function textoProb(p, isEs) {
-    if (!(p > 0)) return tx(isEs, "nunca", "never");
-    return tx(isEs, `1 de cada ${Math.max(1, Math.round(1 / p))}`, `1 in ${Math.max(1, Math.round(1 / p))}`);
+/** "~19 ciclos" y no "1 de cada 19": trae la cuenta hecha. */
+export function textoCiclos(p, isEs) {
+    if (!(p > 0)) return tx(isEs, "nunca sale", "never happens");
+    const n = Math.max(1, Math.round(1 / p));
+    return tx(isEs, `~${n} ${n === 1 ? "ciclo" : "ciclos"}`, `~${n} ${n === 1 ? "cycle" : "cycles"}`);
 }
 
 function textoObjetivo(obj, typeIdx, isEs) {
@@ -42,7 +44,7 @@ function textoObjetivo(obj, typeIdx, isEs) {
         `Goal: ${obj.k} of ${lista(obj.buscados, typeIdx, isEs)} as positives and, if a negative rolls, one of ${neg}.`);
 }
 
-function combinarHtml(recetas, typeIdx, isEs, destacar = () => false) {
+function combinarHtml(recetas, typeIdx, isEs, intro, destacar = () => false) {
     if (!recetas.length) return "";
     const filas = [...recetas].sort((a, b) => destacar(b) - destacar(a)).map((r) => `
         <div class="riven-ciclo-receta${destacar(r) ? " destacada" : ""}">
@@ -54,16 +56,12 @@ function combinarHtml(recetas, typeIdx, isEs, destacar = () => false) {
         "Arrives with Glacial Defiance. Recipes from player guides, not from DE: they may change. Fuses two stats into a new one that stays locked.");
     return `
       <div class="riven-ciclo-combinar">
-        <div class="riven-ciclo-sub" data-tooltip="${escapeHTML(aviso)}">${tx(isEs, "COMBINAR STATS · PROVISIONAL", "SPLICE STATS · PROVISIONAL")} ℹ</div>
+        <div class="riven-ciclo-sub" data-tooltip="${escapeHTML(aviso)}">${tx(isEs, "COMBINAR STATS (AÚN NO HA SALIDO)", "SPLICE STATS (NOT OUT YET)")} ℹ</div>
+        <div class="riven-ciclo-intro">${escapeHTML(intro)}</div>
         ${filas}
       </div>`;
 }
 
-/**
- * Bloque del HUD del escáner para la pantalla de ciclar: qué bloquear y cuánta kuva cuesta de media
- * llegar al objetivo con y sin bloqueo.
- * @param stats [{ name, isPositive, calidad? }] con la calidad de la tirada (0-100) si se conoce.
- */
 export function consejoCicloHtml({ stats, rolls, tipo, buscados, negOk, isEs, rotulo = "" }) {
     const typeIdx = tipoDeArma(tipo);
     const ciclosHechos = Number.isFinite(rolls) ? rolls : CICLOS_SI_NO_SE_SABE;
@@ -82,7 +80,7 @@ export function consejoCicloHtml({ stats, rolls, tipo, buscados, negOk, isEs, ro
     } else {
         const fila = (etiqueta, o, mejor, bloqueado) => `<div class="riven-ciclo-fila${mejor ? " mejor" : ""}">
             <span>${etiqueta} <small>(${costeCiclo(ciclosHechos, bloqueado).toLocaleString(isEs ? "es-ES" : "en-US", { useGrouping: "always" })}/${tx(isEs, "ciclo", "cycle")})</small></span>
-            <strong>${textoProb(o.p, isEs)} · ${textoKuva(o.kuva, isEs)} kuva</strong></div>`;
+            <strong>${textoCiclos(o.p, isEs)} · ${textoKuva(o.kuva, isEs)} kuva</strong></div>`;
         const b = c.bloqueo;
         const nombreBloqueo = b ? `${b.negativo ? "-" : "+"}${nombreStat(b.stat, typeIdx, isEs)}` : "";
         const veredicto = !b
@@ -93,30 +91,28 @@ export function consejoCicloHtml({ stats, rolls, tipo, buscados, negOk, isEs, ro
                     `Lock ${nombreBloqueo}: saves ${textoKuva(c.sinBloqueo.kuva - b.kuva, isEs)} kuva on average.`)
                 : tx(isEs, "No compensa bloquear: el doble de kuva por ciclo no se recupera.",
                     "Locking does not pay off: double kuva per cycle is not made back.");
-        cuerpo = fila(tx(isEs, "Sin bloquear", "No lock"), c.sinBloqueo, !c.conviene, false)
+        cuerpo = `<div class="riven-ciclo-intro">${tx(isEs, "Hasta sacar un buen riven, de media:", "To get a good riven, on average:")}</div>`
+            + fila(tx(isEs, "Sin bloquear", "No lock"), c.sinBloqueo, !c.conviene, false)
             + (b ? fila(tx(isEs, `Bloqueando ${escapeHTML(nombreBloqueo)}`, `Locking ${escapeHTML(nombreBloqueo)}`), b, c.conviene, true) : "")
             + `<div class="riven-ciclo-veredicto${c.conviene ? " ok" : ""}">${escapeHTML(veredicto)}</div>`;
     }
 
     return `
       <div class="riven-ciclo">
-        <div class="riven-ciclo-titulo" data-tooltip="${escapeHTML(tipObjetivo)}">${tx(isEs, "CICLAR", "CYCLING")}${rotulo ? ` · ${escapeHTML(rotulo)}` : ""} ℹ</div>
+        <div class="riven-ciclo-titulo" data-tooltip="${escapeHTML(tipObjetivo)}">${tx(isEs, "¿BLOQUEAR UN STAT?", "LOCK A STAT?")}${rotulo ? ` · ${escapeHTML(rotulo)}` : ""} ℹ</div>
         ${cuerpo}
-        ${combinarHtml(combinacionesDe(stats, typeIdx), typeIdx, isEs)}
+        ${combinarHtml(combinacionesDe(stats, typeIdx), typeIdx, isEs,
+        tx(isEs, "Cuando salga, este riven podrá fundir:", "Once it is out, this riven could fuse:"))}
       </div>`;
 }
 
 const FILAS_CONFIG = [
     [{ pos: 2, neg: false }, ["2 positivos", "2 positives"]],
-    [{ pos: 2, neg: true }, ["2 + negativo", "2 + negative"]],
+    [{ pos: 2, neg: true }, ["2 positivos y 1 negativo", "2 positives + 1 negative"]],
     [{ pos: 3, neg: false }, ["3 positivos", "3 positives"]],
-    [{ pos: 3, neg: true }, ["3 + negativo", "3 + negative"]],
+    [{ pos: 3, neg: true }, ["3 positivos y 1 negativo", "3 positives + 1 negative"]],
 ];
 
-/**
- * Calculadora de la ficha del arma: sin un riven concreto, lo que cuesta llegar al objetivo según
- * cuántos stats tenga el tuyo, sin bloquear o bloqueando un stat buscado o el negativo.
- */
 export function tablaCicloHtml({ tipo, buscados, negOk, isEs }) {
     const typeIdx = tipoDeArma(tipo);
     const pool = poolDeStats(typeIdx);
@@ -128,24 +124,25 @@ export function tablaCicloHtml({ tipo, buscados, negOk, isEs }) {
     const base = { pool, buscados: busc, negOk: ok, k, typeIdx };
     const ciclos = CICLOS_SI_NO_SE_SABE;
 
-    const pSin = probPorCiclo(base);
-    const kuvaSin = kuvaEsperada(pSin, ciclos);
-    const celda = (p, bloqueado) => {
-        const kuva = kuvaEsperada(p, ciclos, bloqueado);
-        return { p, kuva, html: `${textoProb(p, isEs)}<br><small>${textoKuva(kuva, isEs)} kuva</small>` };
-    };
+    const opcion = (que, p, bloqueado) => ({ que, p, kuva: kuvaEsperada(p, ciclos, bloqueado) });
+    const sin = opcion(["No bloquees", "Don't lock"], probPorCiclo(base), false);
+    const cuanto = (o) => `${textoCiclos(o.p, isEs)} (${textoKuva(o.kuva, isEs)} kuva)`;
+    // Una recomendación por fila (lo más barato, o no bloquear), no una tabla de opciones a comparar.
     const filas = FILAS_CONFIG.map(([config, nombre]) => {
-        const buscado = celda(probPorCiclo({ ...base, config, bloqueado: { stat: busc[0], negativo: false } }), true);
-        const negativo = config.neg && ok.length
-            ? celda(probPorCiclo({ ...base, config, bloqueado: { stat: ok[0], negativo: true } }), true)
-            : null;
-        const td = (o) => (o ? `<td class="${o.kuva < kuvaSin ? "mejor" : ""}">${o.html}</td>` : "<td>—</td>");
-        return `<tr><th>${nombre[isEs ? 0 : 1]}</th>${td(buscado)}${td(negativo)}</tr>`;
+        const opciones = [opcion(["Bloquea un stat bueno", "Lock a good stat"],
+            probPorCiclo({ ...base, config, bloqueado: { stat: busc[0], negativo: false } }), true)];
+        if (config.neg && ok.length) {
+            opciones.push(opcion(["Bloquea el negativo", "Lock the negative"],
+                probPorCiclo({ ...base, config, bloqueado: { stat: ok[0], negativo: true } }), true));
+        }
+        const mejor = opciones.reduce((a, b) => (b.kuva < a.kuva ? b : a));
+        const o = mejor.kuva < sin.kuva ? mejor : sin;
+        return `<tr class="${o === sin ? "" : "mejor"}"><th>${nombre[isEs ? 0 : 1]}</th><td>${o.que[isEs ? 0 : 1]}: ${cuanto(o)}</td></tr>`;
     }).join("");
 
     const tip = `${textoObjetivo({ buscados: busc, negOk: ok, k }, typeIdx, isEs)} ${tx(isEs,
-        "Con el ciclo a 3.500 kuva, que es lo que cuesta a partir del décimo; bloqueando, 7.000. En verde, lo que sale más barato que ciclar sin bloquear. El stat bloqueado conserva su valor.",
-        "With cycles at 3,500 kuva, their price from the tenth on; with a lock, 7,000. In green, whatever comes out cheaper than cycling without a lock. The locked stat keeps its value.")}`;
+        "Bloquear supone que tu riven ya tiene un stat bueno (o un negativo inofensivo). Con un stat bloqueado cada ciclo cuesta el doble (7.000 en vez de 3.500), pero ese stat se queda y hacen falta menos ciclos.",
+        "Locking assumes your riven already has a good stat (or a harmless negative). With a stat locked each cycle costs double (7,000 instead of 3,500), but that stat stays so fewer cycles are needed.")}`;
     const buscanSplice = (r) => busc.includes(r.a) && busc.includes(r.b);
     // Un buscado con otro buscado, o con un negativo inofensivo que puede acompañarlo en la carta.
     const utiles = new Set([...busc, ...ok]);
@@ -154,12 +151,15 @@ export function tablaCicloHtml({ tipo, buscados, negOk, isEs }) {
 
     return `
       <div class="riven-ciclo ficha">
-        <div class="riven-ciclo-titulo" data-tooltip="${escapeHTML(tip)}">${tx(isEs, "¿BLOQUEAR UN STAT AL CICLAR?", "LOCK A STAT WHEN CYCLING?")} ℹ</div>
-        <div class="riven-ciclo-fila"><span>${tx(isEs, "Sin bloquear", "No lock")}</span><strong>${textoProb(pSin, isEs)} · ${textoKuva(kuvaSin, isEs)} kuva</strong></div>
+        <div class="riven-ciclo-titulo" data-tooltip="${escapeHTML(tip)}">${tx(isEs, "¿BLOQUEO UN STAT AL CICLAR?", "SHOULD I LOCK A STAT?")} ℹ</div>
+        <div class="riven-ciclo-intro">${tx(isEs,
+            `Sin bloquear nada tardas ${cuanto(sin)} en sacar un buen riven.`,
+            `Without locking, a good riven takes ${cuanto(sin)}.`)}</div>
         <table class="riven-ciclo-tabla">
-          <thead><tr><th>${tx(isEs, "Tu riven", "Your riven")}</th><th>${tx(isEs, "Bloqueando uno buscado", "Locking a wanted one")}</th><th>${tx(isEs, "Bloqueando el negativo", "Locking the negative")}</th></tr></thead>
+          <thead><tr><th>${tx(isEs, "Si tu riven tiene", "If your riven has")}</th><th>${tx(isEs, "Haz esto", "Do this")}</th></tr></thead>
           <tbody>${filas}</tbody>
         </table>
-        ${combinarHtml(recetas, typeIdx, isEs, buscanSplice)}
+        ${combinarHtml(recetas, typeIdx, isEs,
+        tx(isEs, "Cuando salga, con esta arma podrás fundir:", "Once it is out, on this weapon you could fuse:"), buscanSplice)}
       </div>`;
 }
