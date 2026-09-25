@@ -11,6 +11,13 @@ import {
 import { getMetaStats } from "./riven_market.service.js?v=1.9";
 import { metaConPesosDeFamilia } from "./riven_weights.service.js";
 
+export function statsBuscadosDelArma(meta, weaponName) {
+  const grado = gradeWeaponStats(metaConPesosDeFamilia(meta || {}, weaponName || meta?.name),
+    state.rivenStatBaseline?.stat_weights ?? state.rivenStatPrior ?? null);
+  if (grado && grado.best.length) return { best: grado.best, mid: grado.mid };
+  return { best: meta?.pos || [], mid: meta?.midPos || [] };
+}
+
 export function computeDesirabilityMultiplier(stats, meta, weaponData) {
   const wType = (weaponData?.t || "").toLowerCase();
   const isMelee = wType === "melee" || wType === "zaw" || wType === "glaive";

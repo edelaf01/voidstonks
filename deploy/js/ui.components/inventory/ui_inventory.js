@@ -256,6 +256,7 @@ export function selectRelicFromInv(name) {
   globalThis.switchTab("relic");
   // close directly, not toggle: relic chips also show in routes panel with inventory closed
   document.getElementById("inventory-container")?.classList.remove("open");
+  input?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   manualRelicUpdate();
   trackBestSetForRelic(name);
 }

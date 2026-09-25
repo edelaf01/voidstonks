@@ -4,7 +4,7 @@ import { installFakeDocument } from "./_helpers/fake-canvas.mjs";
 
 installFakeDocument();
 const { pantallaNuevaParada, creaSensor, sensorDelEscaner, CADA_MS } = await import("../deploy/js/utils/vision/wake_sensor.js");
-const { regionLuma, videoRegionHash } = await import("../deploy/js/utils/vision/frame_hash.js");
+const { regionLuma, firmaTexto } = await import("../deploy/js/utils/vision/frame_hash.js");
 const { FRANJA_TITULO_VIDEO } = await import("../deploy/js/utils/vision/context_latch.js");
 
 const distinto = (a, b) => a !== b;
@@ -42,7 +42,6 @@ test("despierta en la segunda muestra de la pantalla nueva, con la previa, y dej
   assert.equal(despertares.length, 0, "la primera muestra no sabe si la pantalla está quieta");
   reloj.tick();
   assert.deepEqual(despertares, [[5]]);
-  assert.equal(s.armado, false);
   assert.equal(reloj.fn, null);
 });
 
@@ -53,7 +52,7 @@ test("mientras la pantalla se mueve no despierta", () => {
   s.arma();
   for (let i = 0; i < 8; i++) reloj.tick();
   assert.equal(despertares, 0);
-  assert.equal(s.armado, true);
+  assert.notEqual(reloj.fn, null);
 });
 
 test("no despierta dos veces por la misma pantalla mientras la base no cambie", () => {
@@ -87,7 +86,7 @@ test("parar el sensor corta el muestreo y rearmarlo empieza sin muestra previa",
   const s = creaSensor([{ muestra: () => 5, base: () => 0, cambia: distinto }], () => despertares++, { reloj });
   s.arma(); reloj.tick();
   s.para();
-  assert.equal(s.armado, false);
+  assert.equal(reloj.fn, null);
   s.arma(); reloj.tick();
   assert.equal(despertares, 0, "la muestra de antes de parar no cuenta como previa");
   reloj.tick();
@@ -137,7 +136,7 @@ test("con una carta de riven vigilada, ciclarla despierta al escáner aunque el 
   assert.equal(esc.vueltas, 0, "sin carta vigilada la región de la carta no cuenta");
 
   video.data = frame().data;
-  Object.assign(esc, { _cartaVigilada: CARTA, lastHashL: videoRegionHash(video, CARTA) });
+  Object.assign(esc, { _cartaVigilada: CARTA, lastHashL: firmaTexto(video, CARTA) });
   sensorDelEscaner(esc, video, { reloj }).arma();
   video.data = frame({ carta: 200 }).data;
   reloj.tick(); reloj.tick();

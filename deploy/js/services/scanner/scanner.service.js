@@ -26,7 +26,7 @@ import { INITIAL_LEDGER, nextLedger, esPantallaRecordada, recuerdaPantalla, memo
 const memoriaMC = memoriaPantalla(() => localStorage, "vs_mc_ultima_pantalla");
 const DESPIERTA_MC = 24;
 import { createFrameQueue } from "../../utils/vision/frame_queue.js";
-import { videoRegionHash, canvasRegionHash, compareHashes, fraccionCambiada, regionLuma } from "../../utils/vision/frame_hash.js";
+import { videoRegionHash, canvasRegionHash, compareHashes, fraccionCambiada, regionLuma, firmaTexto, mismoTexto } from "../../utils/vision/frame_hash.js";
 import { createReadCache } from "../../utils/vision/read_cache.js";
 import { DebugRecorder } from "./debug_recorder.service.js";
 import { DucatKioskService } from "./ducat_kiosk.service.js";
@@ -47,6 +47,7 @@ export const ScannerService = {
     currentRate: 1200,
     RIVEN_RATE_ACTIVE: 400,
     RIVEN_RATE_IDLE: 1000,
+    RIVEN_RATE_CONFIRM: 150,
     sessionInventory: new Map(),
     sessionRelics: new Map(),
     _autoCalibCache: null,
@@ -613,9 +614,9 @@ export const ScannerService = {
 
         const cardCrop = contextType === "ITEM_DETAILS" ? VisionService.RIVEN_ITEM_DETAILS_CROP : VisionService.RIVEN_CARD_CROP;
 
-        const hash = videoRegionHash(video, cardCrop);
+        const hash = firmaTexto(video, cardCrop);
 
-        if ((this.lastParsedL || this.lastParsedR) && compareHashes(hash, this.lastHashL)) {
+        if ((this.lastParsedL || this.lastParsedR) && mismoTexto(hash, this.lastHashL)) {
             this.lastRivenContextTime = Date.now();
             this.lastRivenContextType = contextType === "ITEM_DETAILS" ? "ITEM_DETAILS" : "INVENTORY_MODS";
             this.currentRate = this.RIVEN_RATE_IDLE;
@@ -623,7 +624,7 @@ export const ScannerService = {
             return;
         }
 
-        if (saltaPorSinResultado(hash, this.lastNoResult, Date.now(), 3000)) return;
+        if (saltaPorSinResultado(hash, this.lastNoResult, Date.now(), 3000, mismoTexto)) return;
 
         const canvases = VisionService.prepareRivenCardCanvases(video, scale, cardCrop);
 
@@ -637,7 +638,7 @@ export const ScannerService = {
         if (canvases.length > 1) await OCRRepository.ensureSecondWorker().catch(() => {});
         const pool = OCRRepository.workers.filter(Boolean);
         const reads = await Promise.all(canvases.map((c, i) =>
-            OCRRepository.recognize(pool[i % pool.length] || pool[0], c, {}, { blocks: true })));
+            OCRRepository.recognizeWithChars(pool[i % pool.length] || pool[0], c, OCRRepository.RIVEN_CHARS, { blocks: true })));
         const entries = [];
         reads.forEach((res, ci) => {
             const cardTexts = this._wordsToCards(res.data, canvases[ci].width) || [res.data.text || ""];
@@ -740,9 +741,10 @@ export const ScannerService = {
         }
 
         let dropExtra = false;
+        const trasElegir = valids.length < shownCount && !!this.lastTwoCardHash && !mismoTexto(hash, this.lastTwoCardHash);
         if (valids.length < shownCount) {
             this.oneCardStreak++;
-            const DOWNGRADE_STREAK = 4;
+            const DOWNGRADE_STREAK = trasElegir ? 2 : 4;
             if (this.oneCardStreak >= DOWNGRADE_STREAK || weaponChanged) {
                 dropExtra = true;
                 this.oneCardStreak = 0;
@@ -773,6 +775,7 @@ export const ScannerService = {
         if ((this.lastParsedL || this.lastParsedR) && !hasConsensus && !revealsMore && !weaponChanged && !anyUpgrade) {
             console.log(`[RIVEN OCR] Consensus: ${matchCount}/3 — waiting for confirmation`);
             if (globalThis._scannerDebug) this._renderRivenDebug(entries, false);
+            this.currentRate = this.RIVEN_RATE_CONFIRM;
             return;
         }
 
@@ -780,17 +783,18 @@ export const ScannerService = {
 
         if (globalThis._scannerDebug) this._renderRivenDebug(entries, changed);
 
-        if (!weaponSwitchPending) {
+        if (!weaponSwitchPending && !(trasElegir && !dropExtra)) {
             this.lastHashL = hash;
             this.lastHashR = null;
-        }
+            this.lastTwoCardHash = finalL && finalR ? hash : null;
+        } else this.currentRate = this.RIVEN_RATE_CONFIRM;
 
         if (!changed) return;
 
         this.lastParsedL = finalL;
         this.lastParsedR = finalR;
 
-        let screenshotDataURL = null;
+        let captura = null;
         try {
             const C = cardCrop;
             const colorCvs = document.createElement("canvas");
@@ -801,21 +805,14 @@ export const ScannerService = {
             colorCvs.width = cropW;
             colorCvs.height = cropH;
             colorCvs.getContext("2d").drawImage(video, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
-            screenshotDataURL = colorCvs.toDataURL("image/png");
+            captura = colorCvs;
         } catch (e) {
             console.warn("Screenshot capture failed:", e);
         }
 
         if (globalThis.showRivenAppraisal && (this.lastParsedL || this.lastParsedR)) {
-            globalThis.showRivenAppraisal(this.lastParsedL, this.lastParsedR, screenshotDataURL);
+            globalThis.showRivenAppraisal(this.lastParsedL, this.lastParsedR, captura);
         }
-    },
-
-    _sameCombinedHash(a, b) {
-        if (!a || !b) return false;
-        const pa = a.split("|"), pb = b.split("|");
-        if (pa.length !== pb.length) return false;
-        return pa.every((h, i) => compareHashes(h, pb[i]));
     },
 
     _logRivenRead(side, rawText, parsed, canvas) {

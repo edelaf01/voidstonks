@@ -4,8 +4,8 @@ import { compareHashes } from "./frame_hash.js";
 
 export const ESTADO_INICIAL = Object.freeze({ hash: null, time: 0 });
 
-export function saltaPorSinResultado(hash, estado, ahora, caducidadMs) {
-  return compareHashes(hash, estado?.hash) && (ahora - (estado?.time || 0) < caducidadMs);
+export function saltaPorSinResultado(hash, estado, ahora, caducidadMs, iguales = compareHashes) {
+  return iguales(hash, estado?.hash) && (ahora - (estado?.time || 0) < caducidadMs);
 }
 
 export function siguienteEstadoSinResultado(hayResultado, hash, ahora) {

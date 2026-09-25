@@ -1,8 +1,6 @@
 
 deploy/bakkk.js
-deploy/robots.txt
-deploy/sitemap.xml
-robots.txt
+/robots.txt
 /INVENTARIO
 .stylelintrc.json
 deploy/.wrangler/cache/wrangler-account.json
@@ -13,18 +11,14 @@ worker-code.js
 /antiguo
 deploy/assets/json/metastats.json.bak
 .cursorrules
-.gitignore
 .agents/
 .agents/
 .agents/
 skills-lock.json
-specs.md
 .claude/settings.local.json
-agents.md
 .vscode/settings.json
 /.claude
 /deploy/js/tests
-deploy/js/utils/RIVEN_VALUATION.md
 deploy/temp_inspect.html
 # scripts-actu ignorado SALVO lo que necesita el workflow retrain-ml.yml en CI
 # (regla /dir a secas impediría re-incluir hijos; por eso /dir/* + negaciones)
@@ -47,14 +41,29 @@ tests/_debug_user*.png
 deploy/rootCA.crt
 /.codebase-memory
 deploy/rootCA.pem
-.gitignore
 certs/dev-key.pem
 certs/dev.pem
 # El package.json de la raíz se versiona junto con tests/: sin él no viajan `npm test`,
 # `npm run lint` ni `npm run baseline:arquitectura`, y las reglas se quedan sin forma de
 # ejecutarse en otra máquina. (El de desktop/ siempre estuvo dentro: lo necesita el build de Tauri.)
-deploy/MAINTENANCE_VOSFOR.md
-deploy/MAINTENANCE_VOSFOR.md
 dist/
 node_modules/
 wf-parser.js
+
+# Documentación y notas: ni la app, ni los tests ni los workflows leen ningún .md (los que citan
+# los tests son comentarios; appraisal_results.md y model_comparison.md los genera el código).
+*.md
+!README.md
+
+# Lo reescribe tests/appraisal-comparison.test.mjs en cada `npm test`.
+tests/appraisal_results.json
+
+# Sueltos de la raíz que no usa nadie: la app y los tests leen deploy/js/eng.traineddata, y el
+# parser de EE.log de la app vive en deploy/js.
+/eng.traineddata
+/ee-log-*.js
+/data/
+/informes5/
+/extension.crx
+# Claves privadas.
+*.pem

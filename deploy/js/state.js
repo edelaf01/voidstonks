@@ -35,6 +35,7 @@ Object.assign(rawState, {
   currentLang: "en",
   activeTab: "relic",
   settings: { showEmptyPrime: false },
+  // players still missing from the squad, only for the recruit message
   playerCount: 1,
   squadSize: 4,
   lfgCount: 1,
