@@ -1,6 +1,9 @@
 import { state } from "../../state.js";
 import { TEXTS } from "../../config.js";
 import { escapeHTML } from "../ui_components.js";
+import { consejoCicloHtml, NEG_INOFENSIVOS } from "./ui_riven_cycling.js";
+import { claveStat, tipoDeArma } from "../../utils/rivens/riven_cycling.js";
+import { statsBuscadosDelArma } from "../../services/rivens/riven_appraisal.service.js";
 
 const AVISO_BANDA = {
     trash: {
@@ -17,7 +20,7 @@ export const RivenScannerHUD = {
     container: null,
     lastL: null,
     lastR: null,
-    lastCaptureDataURL: null,
+    lastCapture: null,
 
     init() {
         if (this.container) return;
@@ -115,7 +118,7 @@ export const RivenScannerHUD = {
         }
         this.lastL = null;
         this.lastR = null;
-        this.lastCaptureDataURL = null;
+        this.lastCapture = null;
         if (globalThis.ScannerService) {
             globalThis.ScannerService.detectionLocked = false;
             globalThis.ScannerService.lastParsedL = null;
@@ -125,11 +128,11 @@ export const RivenScannerHUD = {
         }
     },
 
-    async show(parsedL, parsedR, screenshotDataURL) {
+    async show(parsedL, parsedR, captura) {
         this.init();
         this.lastL = parsedL;
         this.lastR = parsedR;
-        this.lastCaptureDataURL = screenshotDataURL;
+        this.lastCapture = captura;
 
         this._ensureHistory((parsedL || parsedR)?.weaponName);
 
@@ -174,14 +177,16 @@ export const RivenScannerHUD = {
         if (!this.container) return;
         const cap = this.container.querySelector(".hud-capture");
         if (cap) {
+            const img = cap.querySelector("img");
+            if (img && !img.getAttribute("src") && this.lastCapture) img.src = this.lastCapture.toDataURL("image/png");
             cap.style.display = cap.style.display === "none" ? "block" : "none";
         }
     },
 
     downloadCapture() {
-        if (!this.lastCaptureDataURL) return;
+        if (!this.lastCapture) return;
         const a = document.createElement("a");
-        a.href = this.lastCaptureDataURL;
+        a.href = this.lastCapture.toDataURL("image/png");
         a.download = `riven_capture_${Date.now()}.png`;
         a.click();
     },
@@ -189,7 +194,11 @@ export const RivenScannerHUD = {
     _statDesirability(meta, name, isPositive) {
         if (!meta) return null;
         const nl = (name || "").toLowerCase();
+        const typeIdx = tipoDeArma(meta.t);
+        const clave = claveStat(name, typeIdx);
         const match = (m) => {
+            // scanner reads "Crit Chance" and the meta says "Critical Chance"
+            if (clave) return claveStat(m, typeIdx) === clave;
             const ml = (m || "").toLowerCase();
             if (ml === "damage") return nl === "damage" || nl.includes("base damage") || nl.includes("melee damage");
             return nl.includes(ml) || ml.includes(nl);
@@ -198,7 +207,7 @@ export const RivenScannerHUD = {
             const brick = (Array.isArray(meta.pos) && meta.pos.some(match)) || (Array.isArray(meta.midPos) && meta.midPos.some(match));
             if (brick) return { label: "BRICK", color: "#ff4d4d" };
             const harmless = (Array.isArray(meta.neg) && meta.neg.some(match))
-                || ["zoom", "recoil", "ammo maximum", "status duration", "magazine capacity", "finisher", "impact", "puncture"].some(t => nl.includes(t));
+                || NEG_INOFENSIVOS.some(t => nl.includes(t.toLowerCase()));
             if (harmless) return { label: "NEG OK", color: "#00d18f" };
             return { label: "NEG", color: "#ff8c00" };
         }
@@ -216,6 +225,21 @@ export const RivenScannerHUD = {
         if (w >= 0.40) return { label: "GOOD", color: "#00e5ff" };
         if (w >= 0.15) return { label: "MID", color: "#a879ec" };
         return { label: "WEAK", color: "#ff6b6b" };
+    },
+
+    _cicloHtml(riven, meta, calculateRivenGrade, isEs, rotulo = "") {
+        if (!meta || !riven?.stats?.length) return "";
+        const tipo = meta.t || state.weaponMap?.[riven.weaponName]?.t;
+        const typeIdx = tipoDeArma(tipo);
+        const { best, mid } = statsBuscadosDelArma(meta, riven.weaponName);
+        const queridos = new Set([...best, ...mid, ...(meta.pos || []), ...(meta.midPos || [])].map(s => claveStat(s, typeIdx)));
+        const negOk = [...(meta.neg || []), ...NEG_INOFENSIVOS].filter(s => !queridos.has(claveStat(s, typeIdx)));
+        const posCount = riven.stats.filter(x => x.isPositive).length;
+        const hasNeg = riven.stats.some(x => !x.isPositive);
+        const stats = riven.stats.map(s => ({
+            ...s, calidad: calculateRivenGrade(meta, s.name, s.value, !s.isPositive, posCount, hasNeg)?.pct,
+        }));
+        return consejoCicloHtml({ stats, rolls: riven.rolls, tipo, buscados: best, negOk, isEs, rotulo });
     },
 
     async _renderSingle(riven) {
@@ -359,12 +383,12 @@ export const RivenScannerHUD = {
             </button>
         `;
 
-        const capBtnHtml = this.lastCaptureDataURL
+        const capBtnHtml = this.lastCapture
             ? `<button class="hud-cap-btn" title="${t.captured}" onclick="globalThis.RivenScannerHUD.toggleCapture()">IMG</button>`
             : "";
-        const cropImgHtml = this.lastCaptureDataURL ? `
+        const cropImgHtml = this.lastCapture ? `
             <div class="hud-capture" style="display: none; position: relative; margin-bottom: 10px; border-radius: 6px; overflow: hidden; border: 1px solid rgba(255, 255, 255, 0.08); box-shadow: inset 0 0 20px rgba(0,0,0,0.8);">
-                <img src="${this.lastCaptureDataURL}" style="width: 100%; display: block; filter: contrast(1.15) brightness(1.05);" />
+                <img alt="" style="width: 100%; display: block; filter: contrast(1.15) brightness(1.05);" />
                 <div style="position: absolute; top: 8px; left: 8px; background: rgba(0,0,0,0.7); color: #fff; padding: 2px 6px; font-size: 0.65em; border-radius: 3px; border: 1px solid rgba(255,255,255,0.15); font-family: monospace; letter-spacing: 0.5px;">${t.captured}</div>
             </div>
         ` : "";
@@ -394,6 +418,8 @@ export const RivenScannerHUD = {
                     </div>
 
                     ${metricsHtml}
+
+                    ${this._cicloHtml(riven, meta, calculateRivenGrade, isEs)}
 
                     <div class="riven-hud-actions" style="display: flex; flex-direction: column;">
                         ${actionBtnHtml}
@@ -465,12 +491,12 @@ export const RivenScannerHUD = {
             </button>
         `;
 
-        const capBtnHtml = this.lastCaptureDataURL
+        const capBtnHtml = this.lastCapture
             ? `<button class="hud-cap-btn" title="${t.sideCurrent} / ${t.sideNew}" onclick="globalThis.RivenScannerHUD.toggleCapture()">IMG</button>`
             : "";
-        const cropImgHtml = this.lastCaptureDataURL ? `
+        const cropImgHtml = this.lastCapture ? `
             <div class="hud-capture" style="display: none; position: relative; margin-bottom: 10px; border-radius: 6px; overflow: hidden; border: 1px solid rgba(0, 229, 255, 0.08); box-shadow: inset 0 0 20px rgba(0,0,0,0.8);">
-                <img src="${this.lastCaptureDataURL}" style="width: 100%; display: block; filter: contrast(1.15) brightness(1.05);" />
+                <img alt="" style="width: 100%; display: block; filter: contrast(1.15) brightness(1.05);" />
                 <div style="position: absolute; top: 8px; left: 8px; background: rgba(0,0,0,0.75); color: #fff; padding: 2px 6px; font-size: 0.65em; border-radius: 3px; border: 1px solid rgba(255,255,255,0.15); font-family: monospace; letter-spacing: 0.5px;">${t.sideCurrent}</div>
                 <div style="position: absolute; top: 8px; right: 8px; background: rgba(0, 229, 255, 0.85); color: #000; padding: 2px 6px; font-size: 0.65em; border-radius: 3px; font-weight: bold; font-family: monospace; letter-spacing: 0.5px;">${t.sideNew}</div>
             </div>
@@ -515,6 +541,8 @@ export const RivenScannerHUD = {
                             <div class="col-stats">${formatRollStats(rollB)}</div>
                         </div>
                     </div>
+
+                    ${this._cicloHtml(winIdx === 1 ? rollB : rollA, meta, calculateRivenGrade, isEs, winIdx === 1 ? t.new : t.current)}
 
                     <div class="riven-hud-actions" style="display: flex; gap: 8px;">
                         ${actionBtnHtml}

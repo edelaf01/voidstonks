@@ -128,7 +128,7 @@ export async function fetchRivenWeapons() {
 }
 
 async function fetchWeaponCombatStats() {
-    const CACHE_KEY = "voidstonkscache_combat_stats_v10";
+    const CACHE_KEY = "voidstonkscache_combat_stats_v11";
     const ONE_WEEK = 7 * 24 * 60 * 60 * 1000;
     try {
         const cached = await dbHelper.get(CACHE_KEY);

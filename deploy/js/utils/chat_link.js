@@ -14,6 +14,12 @@ export function chatLink(name) {
   return COMPONENTES.has(ultima) ? `[${base}]` : `[${base}] Blueprint`;
 }
 
+// in-game chat "3/4" is how many you already are, not how many are missing
+export function squadTag(faltan) {
+  const n = Math.max(1, Math.min(3, Math.round(Number(faltan)) || 1));
+  return `${4 - n}/4`;
+}
+
 export function chatLine(name, platinum = 0) {
   const link = chatLink(name);
   return platinum > 0 ? `${link} ${platinum} :platinum:` : link;

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { chatLink, chatLine } from "../deploy/js/utils/chat_link.js";
+import { chatLink, chatLine, squadTag } from "../deploy/js/utils/chat_link.js";
 
 test("las piezas de componente pierden el «Blueprint» entero", () => {
   assert.equal(chatLink("Zephyr Prime Systems Blueprint"), "[Zephyr Prime Systems]");
@@ -31,4 +31,16 @@ test("la línea lleva el precio solo cuando se sabe", () => {
   assert.equal(chatLine("Zephyr Prime Systems Blueprint", 35), "[Zephyr Prime Systems] 35 :platinum:");
   assert.equal(chatLine("Hydroid Prime Blueprint", 20), "[Hydroid Prime] Blueprint 20 :platinum:");
   assert.equal(chatLine("Bronco Prime Barrel", 0), "[Bronco Prime Barrel]");
+});
+
+test("el hueco de escuadra dice cuántos sois, no cuántos faltan", () => {
+  assert.equal(squadTag(1), "3/4");
+  assert.equal(squadTag(2), "2/4");
+  assert.equal(squadTag(3), "1/4");
+});
+
+test("fuera de rango o sin valor se queda en un hueco válido", () => {
+  assert.equal(squadTag(4), "1/4", "no pueden faltar 4: tú ya estás");
+  assert.equal(squadTag(0), "3/4");
+  assert.equal(squadTag(undefined), "3/4");
 });

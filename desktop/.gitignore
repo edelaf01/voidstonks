@@ -1,0 +1,10 @@
+# Artefactos de compilación de Rust/Tauri: se regeneran, no se versionan.
+src-tauri/target/
+src-tauri/gen/
+
+# Dependencias de npm del proyecto desktop.
+node_modules/
+
+# El lock de Cargo sí se versiona en apps (fija versiones exactas); descoméntalo si
+# prefieres no incluirlo:
+# src-tauri/Cargo.lock
