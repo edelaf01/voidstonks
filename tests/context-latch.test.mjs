@@ -26,9 +26,18 @@ test("el candidato se reinicia si entra otro contexto por medio", () => {
   assert.deepEqual(correr(["REWARD", "INVENTORY_MODS", "REWARD"], s), ["RELICS", "RELICS", "RELICS"]);
 });
 
-test("una racha de UNKNOWN también corta al candidato a medias", () => {
-  const s = { latched: "RELICS", unknownCount: 0, pending: null, pendingCount: 0 };
-  assert.deepEqual(correr(["REWARD", "UNKNOWN", "REWARD"], s), ["RELICS", "RELICS", "RELICS"]);
+test("una lectura ilegible no borra al candidato", () => {
+  const s = { latched: "REWARD", unknownCount: 0, pending: null, pendingCount: 0 };
+  assert.deepEqual(correr(["RELICS", "UNKNOWN", "RELICS"], s), ["REWARD", "REWARD", "RELICS"]);
+  const alterna = Array.from({ length: 12 }, (_, i) => (i % 2 ? "UNKNOWN" : "RELICS"));
+  assert.ok(correr(alterna, s).includes("RELICS"));
+});
+
+test("si la racha de ilegibles suelta el contexto, el candidato se olvida", () => {
+  let s = { latched: "RELICS", unknownCount: 0, pending: null, pendingCount: 0 };
+  for (const raw of ["REWARD", "UNKNOWN", "UNKNOWN", "UNKNOWN"]) s = nextLatchedContext(s, raw);
+  assert.equal(s.latched, "UNKNOWN");
+  assert.equal(s.pending, null);
 });
 
 test("hacen falta 3 UNKNOWN seguidos para soltar el contexto", () => {

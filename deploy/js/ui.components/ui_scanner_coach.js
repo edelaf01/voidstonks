@@ -11,20 +11,12 @@ import { PASOS_TOUR, siguientePaso, tocaAvisar, marcaVisto, olvidaVistos } from 
  */
 
 let paso = -1;
-let bloqueoPrevio = null;
-
 const textos = () => (TEXTS[state.currentLang] || TEXTS.en).scannerCoach || {};
 
+// own switch, not `detectionLocked`: restoring that one on close left the scanner stopped if the
+// rewards modal closed meanwhile
 function pausaEscaner(pausar) {
-    const svc = globalThis.ScannerService;
-    if (!svc) return;
-    if (pausar) {
-        bloqueoPrevio = svc.detectionLocked;
-        svc.detectionLocked = true;
-    } else {
-        svc.detectionLocked = bloqueoPrevio === true;
-        bloqueoPrevio = null;
-    }
+    if (globalThis.ScannerService) globalThis.ScannerService.pausado = pausar;
 }
 
 function overlay() {

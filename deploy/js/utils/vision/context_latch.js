@@ -1,4 +1,14 @@
 import { fraccionCambiada } from "./frame_hash.js";
+/**
+ * Which screen context is taken as good, from what the header OCR says. The header OCR reads garbage now and
+ * then even without a screen change, and trusting every frame made the scanner jump between contexts.
+ *
+ * Confirming the current context is free, CHANGING it takes 2 agreeing frames with no other context in
+ * between, and releasing to UNKNOWN takes 3 in a row: in a real transition the header goes unreadable
+ * before settling.
+ *
+ * Pure: state in, next state out.
+ */
 
 export const SWITCH_FRAMES = 2;
 export const RELEASE_FRAMES = 3;
@@ -20,11 +30,14 @@ export function nextLatchedContext(prev, raw) {
 
   if (raw === "UNKNOWN") {
     const unknownCount = s.unknownCount + 1;
+    const suelta = unknownCount >= RELEASE_FRAMES;
     return {
-      latched: unknownCount >= RELEASE_FRAMES ? "UNKNOWN" : s.latched,
+      latched: suelta ? "UNKNOWN" : s.latched,
       unknownCount,
-      pending: null,
-      pendingCount: 0,
+      // unreadable is not disagreement: clearing the candidate left a header readable every other frame (endless
+      // fissure SELECT RELIC) stuck on the previous screen
+      pending: suelta ? null : s.pending,
+      pendingCount: suelta ? 0 : s.pendingCount,
     };
   }
 

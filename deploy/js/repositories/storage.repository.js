@@ -116,7 +116,7 @@ async function loadPriceSnapshot() {
         const cached = await dbHelper.get(SNAPSHOT_KEY);
         if (cached && Date.now() - cached.time < SNAPSHOT_TTL) {
             applySnapshot(cached.p);
-            return;
+            return cached.p;
         }
     } catch (e) {
         console.warn("Snapshot local ignorado:", e);
@@ -129,6 +129,7 @@ async function loadPriceSnapshot() {
         if (!doc?.p || !Object.keys(doc.p).length) return;
         applySnapshot(doc.p);
         await dbHelper.set(SNAPSHOT_KEY, { time: Date.now(), p: doc.p });
+        return doc.p;
     } catch (e) {
         console.warn("Snapshot de precios no disponible:", e);
     }
@@ -281,4 +282,14 @@ export function oneTimeNoticeSeen(key) {
 
 export function markOneTimeNoticeSeen(key) {
     try { localStorage.setItem(key, "1"); } catch {}
+}
+
+const CLAVE_HISTORIAL_SETS = "vs_set_trend";
+
+export function leeHistorialSets() {
+    try { return JSON.parse(localStorage.getItem(CLAVE_HISTORIAL_SETS)); } catch { return null; }
+}
+
+export function guardaHistorialSets(historial) {
+    try { localStorage.setItem(CLAVE_HISTORIAL_SETS, JSON.stringify(historial)); } catch {}
 }
