@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { nextLedger, INITIAL_LEDGER, CONSENSUS_FRAMES, esPantallaRecordada, recuerdaPantalla, memoriaPantalla, MEMORIA_PANTALLA_MS } from "../deploy/js/utils/inventory/reward_ledger.js";
+import { nextLedger, INITIAL_LEDGER, CONSENSUS_FRAMES, esPantallaRecordada, recuerdaPantalla, memoriaPantalla, MEMORIA_PANTALLA_MS, sigueALaVista } from "../deploy/js/utils/inventory/reward_ledger.js";
 
 const pieza = (name, qty = 1) => ({ name, qty });
 
@@ -200,6 +200,18 @@ test("la última pantalla dada de alta se recuerda y no vuelve a sumar", () => {
   assert.equal(esPantallaRecordada([], memoria, 2000), false);
   assert.equal(esPantallaRecordada(items, null, 2000), false);
   assert.equal(esPantallaRecordada([pieza("Orthos Prime Blueprint", 2), items[1], items[2]], memoria, 2000), false);
+});
+
+test("la ventana cuenta desde la última vez que se vio la pantalla, no desde el alta", () => {
+  const memoria = recuerdaPantalla([pieza("Lith C1 Relic")], { committed: { "Lith C1 Relic": 1 } }, 0);
+  assert.equal(sigueALaVista(memoria, 1000), null, "recién escrita: no hace falta reescribir");
+  const vista = sigueALaVista(memoria, 60_000);
+  assert.equal(vista.t, 60_000);
+  assert.deepEqual(vista.huella, memoria.huella);
+  assert.equal(esPantallaRecordada([pieza("Lith C1 Relic")], vista, 60_000 + MEMORIA_PANTALLA_MS - 1), true, "tooltip o recarga");
+  assert.equal(esPantallaRecordada([pieza("Lith C1 Relic")], vista, 60_000 + MEMORIA_PANTALLA_MS), false, "misión siguiente");
+  assert.ok(MEMORIA_PANTALLA_MS <= 2 * 60_000, "una misión no dura menos que la ventana");
+  assert.equal(sigueALaVista(null, 60_000), null);
 });
 
 test("la memoria persiste en el almacén y sobrevive a que falle", () => {

@@ -15,11 +15,12 @@ export function nextLatchedContext(prev, raw) {
 
   if (raw === "UNKNOWN") {
     const unknownCount = s.unknownCount + 1;
+    const suelta = unknownCount >= RELEASE_FRAMES;
     return {
-      latched: unknownCount >= RELEASE_FRAMES ? "UNKNOWN" : s.latched,
+      latched: suelta ? "UNKNOWN" : s.latched,
       unknownCount,
-      pending: null,
-      pendingCount: 0,
+      pending: suelta ? null : s.pending,
+      pendingCount: suelta ? 0 : s.pendingCount,
     };
   }
 

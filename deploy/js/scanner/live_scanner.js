@@ -15,7 +15,7 @@ import { oneTimeNoticeSeen, markOneTimeNoticeSeen } from "../repositories/storag
 import { OCRRepository } from "../repositories/ocr.repository.js";
 import { WF_THEMES_VOTABLES } from "../utils/vision/wf_themes.js";
 import { mergeRelicCounts } from "../utils/inventory/relic_counts.js";
-import { sumaReliquias, restaReliquia } from "../utils/inventory/relic_votes.js";
+import { sumaReliquias, restaReliquia, applyRelicCounts } from "../utils/inventory/relic_votes.js";
 import { RelicScreenService } from "../services/scanner/relic_screen.service.js";
 import { DucatKioskService } from "../services/scanner/ducat_kiosk.service.js";
 import { applyDucatSale, vuelcaSesion } from "../utils/inventory/ducat_kiosk.js";
@@ -325,23 +325,42 @@ function commitMissionCompleteRewards(items, gastada = null) {
 
   saveAppState();
   if (globalThis.renderPrimeInventory) globalThis.renderPrimeInventory();
+  avisaConDeshacer(`${t.mcAdded}: ${movidas.join(", ")}`, "mc-rewards", () => {
+    state.primeInventory = undoRewardCommit(state.primeInventory, previo);
+    state.inventory = relicPrevio;
+  });
+}
 
-  const toast = showToast(`${t.mcAdded}: ${movidas.join(", ")}`, { type: "success", tag: "mc-rewards" });
+const unidades = (inventario) => applyRelicCounts(inventario, []).reduce((n, i) => n + Number(i.count), 0);
+
+function gastaReliquiaAbierta(nombre) {
+  if (!state.autoAddMissionRewards) return;
+  const previo = (state.inventory || []).map((i) => (typeof i === "string" ? i : { ...i }));
+  const nuevo = restaReliquia(state.inventory, nombre);
+  if (unidades(nuevo) === unidades(previo)) return;
+  state.inventory = nuevo;
+  saveAppState();
+  const t = TEXTS[state.currentLang].scanner;
+  avisaConDeshacer(`${t.relicSpent}: ${nombre}`, "reliquia-gastada", () => { state.inventory = previo; });
+}
+
+function avisaConDeshacer(texto, tag, deshacer) {
+  const t = TEXTS[state.currentLang].scanner;
+  const toast = showToast(texto, { type: "success", tag });
   if (!toast) return;
   const undo = document.createElement("button");
   undo.className = "toast-action";
   undo.textContent = t.mcUndo;
   undo.onclick = () => {
-    state.primeInventory = undoRewardCommit(state.primeInventory, previo);
-    state.inventory = relicPrevio;
+    deshacer();
     saveAppState();
     if (globalThis.renderPrimeInventory) globalThis.renderPrimeInventory();
-    showToast(t.mcUndone, { tag: "mc-rewards" });
+    showToast(t.mcUndone, { tag });
   };
   toast.appendChild(undo);
 }
 
-exposeGlobals({ commitMissionCompleteRewards, toggleDebugRecorder, exportDebugRecorder }, "scanner/live_scanner.js");
+exposeGlobals({ commitMissionCompleteRewards, gastaReliquiaAbierta, toggleDebugRecorder, exportDebugRecorder }, "scanner/live_scanner.js");
 
 globalThis.saveLiveInventory = () => {
   const sh = TEXTS[state.currentLang].scannerHUD;

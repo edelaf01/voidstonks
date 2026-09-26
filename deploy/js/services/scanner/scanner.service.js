@@ -22,7 +22,7 @@ import { electPageNameColor, cellNameMask, hasInk, readCellWithOwnColor, readCel
 import { createCellOverlay } from "../../utils/vision/scan_overlay.js";
 import { revisaRejillaCacheada } from "../../utils/vision/grid_cache.js";
 import { detectRewardCells, esRecursoPorBadge } from "../../utils/vision/mission_complete_grid.js";
-import { INITIAL_LEDGER, nextLedger, esPantallaRecordada, recuerdaPantalla, memoriaPantalla } from "../../utils/inventory/reward_ledger.js";
+import { INITIAL_LEDGER, nextLedger, esPantallaRecordada, recuerdaPantalla, memoriaPantalla, sigueALaVista } from "../../utils/inventory/reward_ledger.js";
 const memoriaMC = memoriaPantalla(() => localStorage, "vs_mc_ultima_pantalla");
 const DESPIERTA_MC = 24;
 import { createFrameQueue } from "../../utils/vision/frame_queue.js";
@@ -58,6 +58,9 @@ export const ScannerService = {
     _sampleRect: null,
     onPaginaKiosco: null,
     detectionLocked: false,
+    pausado: false,
+    _recompensaLeida: false,
+    _recompensasEnMision: false,
     scanCounter: 0,
     inventoryHasScanned: false,
     qtyVotes: new Map(),
@@ -83,6 +86,11 @@ export const ScannerService = {
         this.latchedContext = "UNKNOWN";
         this.ctxLatch = INITIAL_LATCH;
         this.detectionLocked = false;
+        this._recompensaLeida = false;
+        this._recompensasEnMision = false;
+        this.mcLedger = INITIAL_LEDGER;
+        this._mcCache.clear();
+        this._mcDormido = null;
         this.lastHashL = null;
         this._zonasCartas = null;
         this.lastNoResult = ESTADO_SIN_RESULTADO;
@@ -154,7 +162,8 @@ export const ScannerService = {
     lastRivenContextTime: 0,
 
     async processFrame(video, virtualCanvas) {
-        if (this.detectionLocked && !(this.latchedContext === "INVENTORY" && this._frameZoneCache?.zone)) return;
+        if (this.pausado) return;
+        if (this.detectionLocked && !this._recompensaLeida && !this._invQueue?.isBusy) return;
         if (!this.isScanning) return;
         this.scanCounter++;
         const reloj = cronometro("frame", 120);
@@ -244,7 +253,7 @@ export const ScannerService = {
 
         this.ctxLatch = nextLatchedContext(this.ctxLatch, routedContext);
         if (this.ctxLatch.latched !== this.latchedContext) olvidaColorTexto();
-        if (this.latchedContext === "MISSION_COMPLETE" && this.ctxLatch.latched !== "MISSION_COMPLETE") { this.mcLedger = INITIAL_LEDGER; this._mcCache.clear(); this._mcDormido = null; }
+        if (this.latchedContext === "MISSION_COMPLETE" && this.ctxLatch.latched !== "MISSION_COMPLETE") { this.mcLedger = INITIAL_LEDGER; this._mcCache.clear(); this._mcDormido = null; this._recompensasEnMision = false; }
         if (this.ctxLatch.latched !== this.latchedContext) this.releaseFrames();
         this.latchedContext = this.ctxLatch.latched;
         if (this.latchedContext !== "REWARD") {
@@ -256,6 +265,11 @@ export const ScannerService = {
         if (this.latchedContext !== this._ctxGrabado) { this._ctxGrabado = this.latchedContext; DebugRecorder.record({ kind: "cabecera", image: virtualCanvas, meta: { resumen: `${rawContext} → ${this.latchedContext}`, texto: headerText.trim() } }); }
         DebugRecorder.miniatura(video, { contexto: rawContext, fijado: this.latchedContext, cabecera: headerText.trim().slice(0, 80), pasadas });
         DebugRecorder.rendimientoTick({ contexto: this.latchedContext, enOCR: this.detectionLocked, cola: this._invQueue?.size ?? 0 });
+        if (this._recompensaLeida) {
+            if (this.latchedContext === "REWARD") return;
+            this._recompensaLeida = false;
+            this.detectionLocked = false;
+        }
         await this.routeFrameAction(this.latchedContext, video, dims);
         if (this.ctxLatch.pending) this.currentRate = Math.min(this.currentRate, 300);
         reloj.fin(this.latchedContext);
@@ -863,6 +877,8 @@ export const ScannerService = {
 
     async processMissionComplete(video, dims) {
         const { width, height } = dims;
+        const vista = this.mcLedger.committed && sigueALaVista(memoriaMC.lee());
+        if (vista) memoriaMC.guarda(vista);
         const frame = this._mcFrameCvs = freezeFrame(video, width, height, this._mcFrameCvs);
 
         const hash = canvasRegionHash(frame, { x: Math.floor(width * 0.45), y: Math.floor(height * 0.18), w: Math.floor(width * 0.53), h: Math.floor(height * 0.74) });
@@ -915,7 +931,7 @@ export const ScannerService = {
         this.mcLedger = ledger;
         if (!pendientes.length) { this._mcDormido = hash; console.log("[MC] pantalla leída; en espera de otro fin de misión"); }
         if (commit?.length) memoriaMC.guarda(recuerdaPantalla(items, ledger));
-        const gastada = RelicScreenService.tomaReliquiaElegida((commit || []).some((i) => !i.reliquia));
+        const gastada = RelicScreenService.tomaReliquiaElegida(!this._recompensasEnMision && (commit || []).some((i) => !i.reliquia));
         if ((commit?.length || gastada) && typeof globalThis.commitMissionCompleteRewards === "function") {
             globalThis.commitMissionCompleteRewards(commit || [], gastada);
         }
@@ -926,6 +942,8 @@ export const ScannerService = {
 
         const bandHash = videoRegionHash(video, { x: 0, y: 0.185, w: 1, h: 0.255 });
         if (saltaPorSinResultado(bandHash, this.lastRewardNoResult, Date.now(), 3000)) return;
+        if (VisionService.determineContext(this.lastHeaderText || "") !== "REWARD") return;
+        if (this._cabeceraVigente === false) return;
 
         const frame = this._rewardFrameCvs = freezeFrame(video, width, height, this._rewardFrameCvs);
 
@@ -987,19 +1005,12 @@ export const ScannerService = {
             "MISSION COMPLETE", "MISION COMPLETADA", "MISIÓN COMPLETADA",
             "IMPORTANCE", "IMPORTANCIA", "SEARCH", "BUSCAR",
         ];
-        const ctxCabecera = VisionService.determineContext((this.lastHeaderText || "").toUpperCase());
-        const badToken = NON_REWARD_TOKENS.find(t => contextText.includes(t))
-            || (ctxCabecera === "RELICS" || ctxCabecera === "MISSION_COMPLETE" ? `cabecera ${ctxCabecera}` : null);
+        const badToken = NON_REWARD_TOKENS.find(t => contextText.includes(t));
         if (badToken && foundItems.length > 0) {
             console.log(`[REWARD] Ignorado: pantalla fuera de contexto (token "${badToken}")`);
             addRewardDebugLog("CTX", `Skipped: end-of-mission screen detected ("${badToken}")`, "warn");
             return;
         }
-        if (foundItems.length > 0 && this._cabeceraVigente === false) {
-            console.log("[REWARD] Espera: el rótulo cambió y la cabecera aún no se ha releído");
-            return;
-        }
-
         if (foundItems.length > 0 && !this.detectionLocked) {
             foundItems.forEach(item => {
                 const status = item.crafted ? "CRAFTED" : `${item.owned} OWNED`;
@@ -1007,6 +1018,10 @@ export const ScannerService = {
             });
 
             this.detectionLocked = true;
+            this._recompensaLeida = true;
+            this._recompensasEnMision = true;
+            const gastada = RelicScreenService.tomaReliquiaElegida(true);
+            if (gastada) globalThis.gastaReliquiaAbierta?.(gastada);
             ScannerModal.open(frame.toDataURL("image/jpeg", 0.85), foundItems, width, height, scale, rawOcr);
         }
     },
