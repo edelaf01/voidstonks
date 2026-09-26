@@ -237,10 +237,7 @@ describe("coste por frame", () => {
   test("el rótulo de la reliquia seguida no se re-OCRea en una pantalla quieta", async () => {
     scriptOCR(pantalla([["Meso C6", 3]]));
     let pasadas = 0;
-    OCRRepository.recognize = async (_w, _c, _o, output) => {
-      if (!output?.blocks) { pasadas++; return { data: { text: "" } }; }
-      return { data: { words: frames[0].nameWords } };
-    };
+    OCRRepository.recognize = async () => { pasadas++; return { data: { text: "" } }; };
     const v = video(40);
     await RelicScreenService.trackSelected(v, { scale: 1 });
     await RelicScreenService.trackSelected(v, { scale: 1 });
@@ -272,6 +269,8 @@ describe("coste por frame", () => {
 
 // Mirar las reliquias y jugar luego una misión normal gastaba la reliquia elegida: el descuento
 // necesita que la misión diera recompensas prime.
+const ESCUADRA = [{ text: "Squad", bbox: { x0: 260, y0: 45, x1: 300, y1: 61 } }];
+
 describe("reliquia gastada al acabar la misión", () => {
     beforeEach(() => RelicScreenService.reset());
 
@@ -289,6 +288,60 @@ describe("reliquia gastada al acabar la misión", () => {
         assert.equal(RelicScreenService.huboRecompensaPrime, false);
     });
 
+    async function conPanel(lee, fn) {
+        const { VisionService } = await import("../deploy/js/services/scanner/vision.service.js");
+        const { OCRService } = await import("../deploy/js/services/scanner/ocr.service.js");
+        const orig = { prep: VisionService.prepareRelicSelectionCanvas, parse: OCRService.parseRelicSelection,
+            workers: OCRRepository.workers, recognize: OCRRepository.recognize };
+        const lienzo = new FakeCanvas(64, 16);
+        const cuenta = { lecturas: 0 };
+        VisionService.prepareRelicSelectionCanvas = () => lienzo;
+        OCRService.parseRelicSelection = () => lee();
+        OCRRepository.workers = [{}];
+        OCRRepository.recognize = async () => { cuenta.lecturas++; return { data: { text: "", words: cuenta.panel ?? ESCUADRA } }; };
+        try { await fn(cuenta); } finally {
+            VisionService.prepareRelicSelectionCanvas = orig.prep;
+            OCRService.parseRelicSelection = orig.parse;
+            Object.assign(OCRRepository, { workers: orig.workers, recognize: orig.recognize });
+        }
+    }
+
+    // En una fisura sin fin la SELECT RELIC de la ronda siguiente suele ser idéntica: no se releía.
+    test("tras gastarla, la misma reliquia en la ronda siguiente se relee y se gasta otra vez", async () => {
+        await conPanel(() => "AXI A6", async (cuenta) => {
+            await RelicScreenService.trackSelected({}, { scale: 1 });
+            assert.equal(RelicScreenService.tomaReliquiaElegida(true), "AXI A6", "ronda 1");
+            await RelicScreenService.trackSelected({}, { scale: 1 });
+            assert.equal(cuenta.lecturas, 2, "la pantalla idéntica de la ronda 2 no se releyó");
+            assert.equal(RelicScreenService.tomaReliquiaElegida(true), "AXI A6", "ronda 2");
+        });
+    });
+
+    test("en el menú de refinamiento se ofrece trackear, pero no cuenta como elegida", async () => {
+        const avisos = [];
+        const aviso = globalThis.showTrackConfirm;
+        globalThis.showTrackConfirm = (r) => avisos.push(r);
+        try {
+            await conPanel(() => "MESO M4", async (cuenta) => {
+                cuenta.panel = [];
+                await RelicScreenService.trackSelected({}, { scale: 1 });
+            });
+            assert.deepEqual(avisos, ["MESO M4"]);
+            assert.equal(RelicScreenService.reliquiaElegida, null);
+        } finally { globalThis.showTrackConfirm = aviso; }
+    });
+
+    test("pasar a No Relic olvida la reliquia elegida antes", async () => {
+        let dice = "AXI A6";
+        await conPanel(() => dice, async () => {
+            await RelicScreenService.trackSelected({}, { scale: 1 });
+            dice = "";
+            RelicScreenService.lastSelHash = null; // el panel cambió
+            await RelicScreenService.trackSelected({}, { scale: 1 });
+            assert.equal(RelicScreenService.tomaReliquiaElegida(true), null);
+        });
+    });
+
     test("elegir otra reliquia olvida la recompensa de antes", async () => {
         const { VisionService } = await import("../deploy/js/services/scanner/vision.service.js");
         const { OCRService } = await import("../deploy/js/services/scanner/ocr.service.js");
@@ -297,7 +350,7 @@ describe("reliquia gastada al acabar la misión", () => {
         VisionService.prepareRelicSelectionCanvas = () => new FakeCanvas(64, 16);
         OCRService.parseRelicSelection = () => "Neo N9";
         OCRRepository.workers = [{}];
-        OCRRepository.recognize = async () => ({ data: { text: "NEO N9 RELIC" } });
+        OCRRepository.recognize = async () => ({ data: { text: "NEO N9 RELIC", words: ESCUADRA } });
         try {
             RelicScreenService.marcaRecompensaPrime();
             await RelicScreenService.trackSelected({}, { scale: 1 });

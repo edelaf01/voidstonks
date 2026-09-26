@@ -59,8 +59,9 @@ export function nextLedger(prev, items) {
     };
 }
 
-/** Cuánto se recuerda la última pantalla dada de alta. Una misión de fisura no baja de eso. */
-export const MEMORIA_PANTALLA_MS = 60 * 60 * 1000;
+// Desde la última vez que se vio: más que un tooltip o una recarga, menos que una misión. Con una
+// hora desde el alta, la misma reliquia en dos misiones seguidas no sumaba la segunda vez.
+export const MEMORIA_PANTALLA_MS = 90 * 1000;
 
 /** Los rótulos en orden de casilla: es lo que identifica la pantalla. */
 export function huellaPantalla(items) {
@@ -72,8 +73,6 @@ export function huellaPantalla(items) {
  * pausa, recarga de la página) el ledger se reiniciaba y la misma pantalla volvía a sumar. Se
  * admite que a la lectura actual le falte UNA casilla (el OCR no siempre lee todas), pero no
  * menos: una misión nueva con una sola pieza coincidente tiene que contar.
- * Es la misma huella si otra misión da las mismas piezas en el mismo orden dentro de la hora:
- * caso asumido, mucho más raro que el parpadeo de contexto.
  */
 export function esPantallaRecordada(items, memoria, ahora = Date.now()) {
     if (!memoria?.huella?.length || !(ahora - (memoria.t || 0) < MEMORIA_PANTALLA_MS)) return false;
@@ -88,9 +87,14 @@ export function esPantallaRecordada(items, memoria, ahora = Date.now()) {
     return true;
 }
 
-/** Lo que se guarda tras un alta: la huella de la pantalla y lo que ya se apuntó de ella. */
+/** Lo que se guarda tras un alta: la huella de la pantalla, lo que ya se apuntó de ella y cuándo se vio. */
 export function recuerdaPantalla(items, ledger, ahora = Date.now()) {
     return { huella: huellaPantalla(items), committed: { ...(ledger?.committed || {}) }, t: ahora };
+}
+
+/** La memoria con la hora al día mientras la pantalla sigue a la vista, o null si no hace falta escribir. */
+export function sigueALaVista(memoria, ahora = Date.now()) {
+    return memoria?.huella?.length && ahora - (memoria.t || 0) >= 5000 ? { ...memoria, t: ahora } : null;
 }
 
 /**

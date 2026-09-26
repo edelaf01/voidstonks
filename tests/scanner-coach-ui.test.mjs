@@ -1,12 +1,8 @@
 import { test, describe, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 
-// ===========================================================================
-// El tour guiado PARA el escáner mientras está abierto, y eso es lo que hay que proteger:
-// se apoya en `detectionLocked`, el mismo interruptor que usa el modal de recompensas, así que
-// al cerrar no puede ponerlo en false a ciegas — si el modal lo tenía puesto, lo reactivaría a
-// media lectura y la recompensa se re-escanearía encima.
-// ===========================================================================
+// El tour PARA el escáner mientras está abierto, con su propio interruptor: cuando restauraba el
+// `detectionLocked` del modal, si el modal se cerraba con el tour abierto el escáner quedaba parado.
 
 const almacen = new Map();
 globalThis.localStorage = {
@@ -38,27 +34,30 @@ const C = await import("../deploy/js/ui.components/ui_scanner_coach.js");
 
 beforeEach(() => {
   almacen.clear();
-  globalThis.ScannerService = { detectionLocked: false };
+  globalThis.ScannerService = { detectionLocked: false, pausado: false };
 });
 
-describe("el tour para el escáner y lo deja como estaba", () => {
-  test("abrirlo bloquea la detección", () => {
+describe("el tour para el escáner sin tocar el candado del modal", () => {
+  test("abrirlo lo pausa y cerrarlo lo reanuda", () => {
     C.abreTourEscaner();
-    assert.equal(globalThis.ScannerService.detectionLocked, true);
+    assert.equal(globalThis.ScannerService.pausado, true);
+    C.cierraTourEscaner();
+    assert.equal(globalThis.ScannerService.pausado, false);
   });
 
-  test("cerrarlo la reanuda si estaba corriendo", () => {
+  test("el modal que se cierra con el tour abierto no deja el escáner bloqueado", () => {
+    globalThis.ScannerService.detectionLocked = true;
     C.abreTourEscaner();
+    globalThis.ScannerService.detectionLocked = false;
     C.cierraTourEscaner();
     assert.equal(globalThis.ScannerService.detectionLocked, false);
   });
 
-  test("si YA estaba bloqueado (modal de recompensa abierto), cerrar NO lo desbloquea", () => {
+  test("con el modal abierto, cerrar el tour no lo desbloquea", () => {
     globalThis.ScannerService.detectionLocked = true;
     C.abreTourEscaner();
     C.cierraTourEscaner();
-    assert.equal(globalThis.ScannerService.detectionLocked, true,
-      "el tour ha reactivado el escáner con el modal abierto");
+    assert.equal(globalThis.ScannerService.detectionLocked, true);
   });
 
   test("sin escáner arrancado no revienta", () => {

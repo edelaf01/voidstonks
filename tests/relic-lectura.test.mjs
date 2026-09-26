@@ -150,6 +150,54 @@ function textoDelPanel(archivo) {
   return (r.stdout || "").trim();
 }
 
+function palabrasDelPanel(archivo) {
+  const img = decodePng(fs.readFileSync(path.join(DIR, archivo)));
+  const v = new FakeCanvas(img.width, img.height);
+  v.getContext("2d").drawImage(img, 0, 0);
+  v.videoWidth = img.width; v.videoHeight = img.height;
+  const cvs = VisionService.prepareRelicSelectionCanvas(v, 1080 / img.height);
+  const d = cvs.getContext("2d").getImageData(0, 0, cvs.width, cvs.height);
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sel-"));
+  const f = path.join(dir, "a.png");
+  fs.writeFileSync(f, encodePng({ width: cvs.width, height: cvs.height, data: d.data }));
+  const opts = ["--tessdata-dir", TESS, "--psm", "6"];
+  const texto = (spawnSync("tesseract", [f, "-", ...opts], { encoding: "utf8" }).stdout || "").trim();
+  const tsv = spawnSync("tesseract", [f, "-", ...opts, "-c", "tessedit_create_tsv=1"], { encoding: "utf8" }).stdout || "";
+  fs.rmSync(dir, { recursive: true, force: true });
+  const palabras = tsv.split("\n").map((l) => l.split("\t")).filter((c) => c[0] === "5" && c[11]?.trim())
+    .map((c) => ({ text: c[11], x0: +c[6], y0: +c[7], x1: +c[6] + +c[8], y1: +c[7] + +c[9] }));
+  return { texto, palabras };
+}
+
+// Leyendo el recorte entero se seguía la reliquia del compañero: "AXI D6" con No Relic y "AXI A21"
+// con la A6 elegida. En la captura reescalada tu fila sale "Axi AG Ril": mejor nada que la de otro.
+const FISURA = { "fisura-sin-fin-no-relic.png": "", "fisura-sin-fin-a6-reescalada.png": null };
+const ESCUADRA = ["Axi A6", "Axi A21", "Axi D6"];
+
+// Leída a mano. La A6 pone "Last Equipped" donde iba el "x2": no debe salir cantidad para ella.
+const REJILLA_FISURA = {
+  "Axi A9": 7, "Axi A10": 13, "Axi A11": 12, "Axi A12": 18, "Axi A13": 18, "Axi A14": 7, "Axi A16": 11,
+  "Axi A17": 34, "Axi A18": 25, "Axi A19": 7, "Axi A20": 4, "Axi A21": 18, "Axi A22": 11, "Axi B3": 17,
+};
+
+test("rejilla en fisura sin fin: \"Last Equipped\" no se lee como contador", { skip: salta || (!fs.existsSync(path.join(DIR, "fisura-sin-fin-no-relic.png")) && "sin la captura") }, async () => {
+  catalogoDeReliquias();
+  for (const n of ["Axi A21", "Axi A22"]) if (!state.allRelicNames.includes(n)) state.allRelicNames.push(n);
+  const leido = await leeCaptura("fisura-sin-fin-no-relic.png");
+  assert.ok(!leido.some((r) => r.name === "Axi A6"), "la A6 no tiene contador en pantalla");
+  for (const { name, count } of leido) assert.equal(count, REJILLA_FISURA[name], name);
+  assert.ok(leido.length >= 13, `leyó ${leido.length}, hoy lee 13`);
+});
+
+for (const [archivo, esperada] of Object.entries(FISURA)) {
+  test(`reliquia seguida en fisura sin fin: ${archivo} -> ${esperada === "" ? "No Relic" : esperada}`, { skip: salta || (!fs.existsSync(path.join(DIR, archivo)) && "sin la captura") }, () => {
+    catalogoDeReliquias();
+    for (const n of ESCUADRA) if (!state.allRelicNames.includes(n)) state.allRelicNames.push(n);
+    const { texto, palabras } = palabrasDelPanel(archivo);
+    assert.equal(OCRService.parseRelicSelection(texto, palabras), esperada);
+  });
+}
+
 for (const [archivo, esperada] of Object.entries(SEGUIDA)) {
   test(`reliquia seguida: ${archivo} -> ${esperada}`, { skip: salta }, () => {
     catalogoDeReliquias();

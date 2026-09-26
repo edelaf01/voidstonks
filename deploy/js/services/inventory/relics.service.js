@@ -7,7 +7,7 @@ import {
     rarityFromChance,
     relicOpenEV,
 } from "../../utils/inventory/relic_drop_odds.utils.js";
-import { piezasSinReliquias } from "../../utils/inventory/catalog_parts.js";
+import { piezasSinReliquias, TIPOS_DE_PIEZA } from "../../utils/inventory/catalog_parts.js";
 
 
 /**
@@ -16,20 +16,12 @@ import { piezasSinReliquias } from "../../utils/inventory/catalog_parts.js";
  */
 export function updateDucatsDB(itemsArray) {
     if (!state.ducatsDatabase) state.ducatsDatabase = {};
-    const COMPONENT_NAMES = new Set([
-        "Blueprint", "Barrel", "Receiver", "Stock", "Blade", "Hilt",
-        "Chassis", "Neuroptics", "Systems", "Carapace", "Cerebrum",
-        "Harness", "Wings", "Link", "Pouch", "Stars", "Head", "Motor",
-        "Grip", "String", "Limb", "Upper Limb", "Lower Limb", "Guard",
-        "Disc", "Boot", "Gauntlet", "Chain", "Handle", "Ornament",
-        "Buckle", "Band",
-    ]);
     const BP_NAMES = new Set(["Chassis", "Neuroptics", "Systems", "Harness", "Wings"]);
 
     itemsArray.forEach((item) => {
         item.components?.forEach((comp) => {
             if (comp.ducats <= 0) return;
-            const fullName = COMPONENT_NAMES.has(comp.name)
+            const fullName = TIPOS_DE_PIEZA.has(comp.name)
                 ? `${item.name} ${comp.name}`
                 : comp.name;
             state.ducatsDatabase[fullName] = { name: fullName, ducats: comp.ducats };

@@ -191,42 +191,78 @@ export const OCRRepository = {
      */
     async recognizeWithPSM(worker, image, psm, output = undefined) {
         if (!worker || imagenVacia(image)) return { data: { text: "", confidence: 0 } };
-        try {
-            await worker.setParameters({ tessedit_pageseg_mode: String(psm) });
-            return await worker.recognize(image, {}, output);
-        } catch (e) {
-            console.error("[OCR Repo] Recognize PSM Err:", e);
-            return { data: { text: "", confidence: 0 } };
-        } finally {
-            await worker.setParameters({ tessedit_pageseg_mode: this.DEFAULT_PSM })
-                .catch((e) => console.error("[OCR Repo] no se pudo restaurar el psm:", e));
-        }
+        return this.conLimite(worker, async () => {
+            try {
+                await worker.setParameters({ tessedit_pageseg_mode: String(psm) });
+                return await worker.recognize(image, {}, output);
+            } catch (e) {
+                console.error("[OCR Repo] Recognize PSM Err:", e);
+                return { data: { text: "", confidence: 0 } };
+            } finally {
+                await worker.setParameters({ tessedit_pageseg_mode: this.DEFAULT_PSM })
+                    .catch((e) => console.error("[OCR Repo] no se pudo restaurar el psm:", e));
+            }
+        });
     },
 
     /** Reconoce con OTRA lista de caracteres y deja el worker como estaba, igual que recognizeWithPSM. */
     async recognizeWithChars(worker, image, chars, output = undefined) {
         if (!worker || imagenVacia(image)) return { data: { text: "", confidence: 0 } };
-        try {
-            await worker.setParameters({ tessedit_char_whitelist: chars });
-            return await worker.recognize(image, {}, output);
-        } catch (e) {
-            console.error("[OCR Repo] Recognize chars Err:", e);
-            return { data: { text: "", confidence: 0 } };
-        } finally {
-            await worker.setParameters({ tessedit_char_whitelist: this.DEFAULT_CHARS })
-                .catch((e) => console.error("[OCR Repo] no se pudo restaurar la lista de caracteres:", e));
-        }
+        return this.conLimite(worker, async () => {
+            try {
+                await worker.setParameters({ tessedit_char_whitelist: chars });
+                return await worker.recognize(image, {}, output);
+            } catch (e) {
+                console.error("[OCR Repo] Recognize chars Err:", e);
+                return { data: { text: "", confidence: 0 } };
+            } finally {
+                await worker.setParameters({ tessedit_char_whitelist: this.DEFAULT_CHARS })
+                    .catch((e) => console.error("[OCR Repo] no se pudo restaurar la lista de caracteres:", e));
+            }
+        });
     },
 
     async recognize(worker, image, options = {}, output = undefined) {
         if (!worker || imagenVacia(image)) return { data: { text: "", confidence: 0 } };
+        return this.conLimite(worker, async () => {
+            try {
+                // `output` (p.ej. { blocks: true }) pide a Tesseract las cajas por palabra/línea,
+                // necesarias para separar dos cartas side-by-side por posición X.
+                return await worker.recognize(image, options, output);
+            } catch (e) {
+                console.error("[OCR Repo] Recognize Err:", e);
+                return { data: { text: "", confidence: 0 } };
+            }
+        });
+    },
+
+    // Tesseract no tiene tiempo máximo: un worker muerto dejaba el bucle esperando para siempre, sin
+    // ningún error. Holgado: una pasada normal tarda 1-3 s con el juego abierto.
+    LIMITE_OCR_MS: 15000,
+
+    async conLimite(worker, trabajo) {
+        let reloj;
+        const limite = new Promise((resolve) => { reloj = setTimeout(() => resolve(null), this.LIMITE_OCR_MS); });
+        const r = await Promise.race([trabajo(), limite]);
+        clearTimeout(reloj);
+        if (r) return r;
+        console.error(`[OCR Repo] el worker no respondió en ${this.LIMITE_OCR_MS} ms: se sustituye`);
+        this.sustituye(worker);
+        return { data: { text: "", confidence: 0 } };
+    },
+
+    async sustituye(worker) {
+        const i = this.workers.indexOf(worker);
+        if (i < 0 || !this._createStandardWorker) return;
+        this.workers.splice(i, 1);
+        Promise.resolve().then(() => worker.terminate()).catch(() => { });
         try {
-            // `output` (p.ej. { blocks: true }) pide a Tesseract las cajas por palabra/línea,
-            // necesarias para separar dos cartas side-by-side por posición X.
-            return await worker.recognize(image, options, output);
+            const nuevo = await this._createStandardWorker();
+            // Parado mientras se creaba: terminateAll ya vació el pool.
+            if (!this.initPromise) { nuevo.terminate(); return; }
+            this.workers.splice(Math.min(i, this.workers.length), 0, nuevo);
         } catch (e) {
-            console.error("[OCR Repo] Recognize Err:", e);
-            return { data: { text: "", confidence: 0 } };
+            console.error("[OCR Repo] no se pudo recrear el worker:", e);
         }
-    }
+    },
 };

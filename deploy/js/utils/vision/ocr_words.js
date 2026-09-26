@@ -36,3 +36,18 @@ export function collectWords(data) {
         .forEach((p) => (p.lines || []).forEach((l) => push(l.words))));
     return out;
 }
+
+/**
+ * Tu fila de "Squad Relics": "" si dice "No Relic", null sin rótulo. El recorte entero daba la
+ * reliquia del compañero. A 1440p tu fila cae a ~2,5 alturas del rótulo y tu nombre a ~4,3.
+ */
+export function filaPropiaDelEscuadron(palabras) {
+    const rotulo = palabras.find((w) => /^SQUAD$/i.test(w.text));
+    if (!rotulo) return null;
+    const h = rotulo.y1 - rotulo.y0;
+    const fila = palabras.filter((w) => {
+        const yc = (w.y0 + w.y1) / 2;
+        return w.x0 >= rotulo.x0 - h && yc > rotulo.y1 && yc < rotulo.y1 + 3.5 * h;
+    }).map((w) => w.text);
+    return /N[O0]\s*R[E3][L1I][I1L]C/i.test(fila.join(" ")) ? "" : fila;
+}

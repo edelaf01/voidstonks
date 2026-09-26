@@ -34,9 +34,20 @@ test("el candidato se reinicia si entra otro contexto por medio", () => {
   assert.deepEqual(correr(["REWARD", "INVENTORY_MODS", "REWARD"], s), ["RELICS", "RELICS", "RELICS"]);
 });
 
-test("una racha de UNKNOWN también corta al candidato a medias", () => {
-  const s = { latched: "RELICS", unknownCount: 0, pending: null, pendingCount: 0 };
-  assert.deepEqual(correr(["REWARD", "UNKNOWN", "REWARD"], s), ["RELICS", "RELICS", "RELICS"]);
+// Borrar al candidato con cada lectura ilegible dejaba la pantalla anterior enganchada para siempre
+// si la nueva se leía una vez sí y otra no: la SELECT RELIC de una fisura sin fin se quedaba en REWARD.
+test("una lectura ilegible no borra al candidato", () => {
+  const s = { latched: "REWARD", unknownCount: 0, pending: null, pendingCount: 0 };
+  assert.deepEqual(correr(["RELICS", "UNKNOWN", "RELICS"], s), ["REWARD", "REWARD", "RELICS"]);
+  const alterna = Array.from({ length: 12 }, (_, i) => (i % 2 ? "UNKNOWN" : "RELICS"));
+  assert.ok(correr(alterna, s).includes("RELICS"));
+});
+
+test("si la racha de ilegibles suelta el contexto, el candidato se olvida", () => {
+  let s = { latched: "RELICS", unknownCount: 0, pending: null, pendingCount: 0 };
+  for (const raw of ["REWARD", "UNKNOWN", "UNKNOWN", "UNKNOWN"]) s = nextLatchedContext(s, raw);
+  assert.equal(s.latched, "UNKNOWN");
+  assert.equal(s.pending, null);
 });
 
 // Soltar es más caro que confirmar: en una transición real la cabecera pasa por ilegible antes

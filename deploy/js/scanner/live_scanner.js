@@ -15,7 +15,7 @@ import { oneTimeNoticeSeen, markOneTimeNoticeSeen } from "../repositories/storag
 import { OCRRepository } from "../repositories/ocr.repository.js";
 import { WF_THEMES_VOTABLES } from "../utils/vision/wf_themes.js";
 import { mergeRelicCounts } from "../utils/inventory/relic_counts.js";
-import { sumaReliquias, restaReliquia } from "../utils/inventory/relic_votes.js";
+import { sumaReliquias, restaReliquia, applyRelicCounts } from "../utils/inventory/relic_votes.js";
 import { RelicScreenService } from "../services/scanner/relic_screen.service.js";
 import { DucatKioskService } from "../services/scanner/ducat_kiosk.service.js";
 import { applyDucatSale, vuelcaSesion } from "../utils/inventory/ducat_kiosk.js";
@@ -421,7 +421,6 @@ function commitMissionCompleteRewards(items, gastada = null) {
   // la referencia no serviría para deshacer.
   const relicPrevio = (state.inventory || []).map((i) => (typeof i === "string" ? i : { ...i }));
   if (reliquias.length) state.inventory = sumaReliquias(state.inventory, reliquias);
-  // La reliquia que llevaste se consume al TERMINAR la fisura, que es justo esta pantalla.
   if (gastada) state.inventory = restaReliquia(state.inventory, gastada);
   const movidas = [...añadidas, ...reliquias.map((r) => (r.qty > 1 ? `${r.name} ×${r.qty}` : r.name))];
   if (gastada) movidas.push(`−1 ${gastada}`);
@@ -429,25 +428,45 @@ function commitMissionCompleteRewards(items, gastada = null) {
 
   saveAppState();
   if (globalThis.renderPrimeInventory) globalThis.renderPrimeInventory();
+  avisaConDeshacer(`${t.mcAdded}: ${movidas.join(", ")}`, "mc-rewards", () => {
+    state.primeInventory = undoRewardCommit(state.primeInventory, previo);
+    state.inventory = relicPrevio;
+  });
+}
 
-  const toast = showToast(`${t.mcAdded}: ${movidas.join(", ")}`, { type: "success", tag: "mc-rewards" });
+const unidades = (inventario) => applyRelicCounts(inventario, []).reduce((n, i) => n + Number(i.count), 0);
+
+function gastaReliquiaAbierta(nombre) {
+  if (!state.autoAddMissionRewards) return;
+  const previo = (state.inventory || []).map((i) => (typeof i === "string" ? i : { ...i }));
+  const nuevo = restaReliquia(state.inventory, nombre);
+  if (unidades(nuevo) === unidades(previo)) return; // no la tenías apuntada
+  state.inventory = nuevo;
+  saveAppState();
+  const t = TEXTS[state.currentLang].scanner;
+  // Tag propio: el aviso de fin de misión llega segundos después y pisaría este DESHACER.
+  avisaConDeshacer(`${t.relicSpent}: ${nombre}`, "reliquia-gastada", () => { state.inventory = previo; });
+}
+
+function avisaConDeshacer(texto, tag, deshacer) {
+  const t = TEXTS[state.currentLang].scanner;
+  const toast = showToast(texto, { type: "success", tag });
   if (!toast) return;
   const undo = document.createElement("button");
   undo.className = "toast-action";
   undo.textContent = t.mcUndo;
   undo.onclick = () => {
-    state.primeInventory = undoRewardCommit(state.primeInventory, previo);
-    state.inventory = relicPrevio;
+    deshacer();
     saveAppState();
     if (globalThis.renderPrimeInventory) globalThis.renderPrimeInventory();
-    showToast(t.mcUndone, { tag: "mc-rewards" });
+    showToast(t.mcUndone, { tag });
   };
   toast.appendChild(undo);
 }
 
 // Lo llama scanner.service.js por globalThis: un service no puede importar de scanner/
 // (capa superior), así que el global es el único camino — pero pasa por el registro.
-exposeGlobals({ commitMissionCompleteRewards, toggleDebugRecorder, exportDebugRecorder }, "scanner/live_scanner.js");
+exposeGlobals({ commitMissionCompleteRewards, gastaReliquiaAbierta, toggleDebugRecorder, exportDebugRecorder }, "scanner/live_scanner.js");
 
 /**
  * Saves detected inventory items from the current session to the app state.

@@ -150,6 +150,7 @@ export const TEXTS = {
       track: "TRACKEAR",
       trackingToast: "Trackeando {relic}",
       mcAdded: "Añadido al inventario",
+      relicSpent: "Reliquia gastada",
       mcUndo: "DESHACER",
       mcUndone: "Alta deshecha",
       // Avisos del escáner. Estaban escritos a pelo dentro de scanner/*.js, la mitad en inglés
@@ -1185,6 +1186,7 @@ export const TEXTS = {
       track: "TRACK",
       trackingToast: "Tracking {relic}",
       mcAdded: "Added to inventory",
+      relicSpent: "Relic used",
       mcUndo: "UNDO",
       mcUndone: "Entry undone",
       toastStartFirst: "Start the live scanner before this.",
