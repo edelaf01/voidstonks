@@ -1,7 +1,8 @@
 import { state } from "../../state.js";
-import { dbHelper, MEMORY_CACHE, ensurePriceSnapshot } from "../../repositories/storage.repository.js";
+import { dbHelper, MEMORY_CACHE, ensurePriceSnapshot, leeHistorialSets, guardaHistorialSets } from "../../repositories/storage.repository.js";
 import { getSlug } from "../../utils/slugs.utils.js";
 import { getPricesBatch } from "../../repositories/api.repository.js";
+import { apuntaPrecios, diaDe, tendencias } from "../../utils/inventory/set_trend.js";
 
 function collectInventorySlugs() {
     const itemsToCheck = new Set();
@@ -38,7 +39,7 @@ function collectInventorySlugs() {
 export async function warmupPrices() {
     if (!state.primeInventory && state.inventory.length === 0) return;
 
-    await ensurePriceSnapshot();
+    apuntaPreciosDeSets(await ensurePriceSnapshot());
 
     const slugsToFetch = Array.from(collectInventorySlugs()).filter((s) => !MEMORY_CACHE.has(s));
     if (slugsToFetch.length === 0) return;
@@ -58,4 +59,17 @@ export async function warmupPrices() {
             console.warn("Prefetch error", e);
         }
     }
+}
+
+export function apuntaPreciosDeSets(snapshot, ahora = Date.now()) {
+    if (!snapshot || !state.setsDatabase) return;
+    const precios = {};
+    for (const [setName, parts] of Object.entries(state.setsDatabase)) {
+        if (parts.some((p) => (state.primeInventory?.[p] || 0) > 0)) precios[setName] = snapshot[getSlug(`${setName} Set`)] || 0;
+    }
+    if (Object.keys(precios).length) guardaHistorialSets(apuntaPrecios(leeHistorialSets(), precios, diaDe(ahora)));
+}
+
+export function tendenciaDeSets(dias, ahora = Date.now()) {
+    return tendencias(leeHistorialSets(), diaDe(ahora), dias);
 }

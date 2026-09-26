@@ -4,7 +4,7 @@ import { PaddleRepository } from "../../repositories/paddle.repository.js";
 import { RELIC_GRID_CROP, parseRelicGrid } from "../../utils/vision/relic_grid.js";
 import { voteReadings, applyRelicCounts } from "../../utils/inventory/relic_votes.js";
 import { smallCanvasHash, compareHashes } from "../../utils/vision/frame_hash.js";
-import { collectWords } from "../../utils/vision/ocr_words.js";
+import { collectWords, filaPropiaDelEscuadron } from "../../utils/vision/ocr_words.js";
 import { corrige56 } from "../../utils/vision/relic_digit_56.js";
 import { VisionService } from "./vision.service.js";
 import { OCRService } from "./ocr.service.js";
@@ -39,10 +39,12 @@ export const RelicScreenService = {
         const hash = smallCanvasHash(canvas);
         if (this.lastSelHash && compareHashes(hash, this.lastSelHash, TOLERANCIA_BASE)) return false;
         this.lastSelHash = hash;
-        const { data } = await OCRRepository.recognize(worker, canvas, {}, { text: true });
+        const { data } = await OCRRepository.recognize(worker, canvas, {}, { text: true, blocks: true });
 
-        const relicMatch = OCRService.parseRelicSelection(data.text);
-        if (relicMatch) { this.reliquiaElegida = relicMatch; this.huboRecompensaPrime = false; }
+        const palabras = collectWords(data);
+        const relicMatch = OCRService.parseRelicSelection(data.text, palabras);
+        if (relicMatch && filaPropiaDelEscuadron(palabras) !== null) { this.reliquiaElegida = relicMatch; this.huboRecompensaPrime = false; }
+        else if (relicMatch === "") this.reliquiaElegida = null;
         if (relicMatch && relicMatch !== this.lastTrackedRelic) {
             this.lastTrackedRelic = relicMatch;
             if (globalThis.showTrackConfirm) globalThis.showTrackConfirm(relicMatch, data.text);
@@ -61,6 +63,7 @@ export const RelicScreenService = {
         const elegida = this.reliquiaElegida;
         this.reliquiaElegida = null;
         this.huboRecompensaPrime = false;
+        if (elegida) this.lastSelHash = null;
         return elegida;
     },
 

@@ -41,7 +41,7 @@ export function nextLedger(prev, items) {
     };
 }
 
-export const MEMORIA_PANTALLA_MS = 60 * 60 * 1000;
+export const MEMORIA_PANTALLA_MS = 90 * 1000;
 
 export function huellaPantalla(items) {
     return (items || []).filter((i) => i?.name).map((i) => `${i.name}×${Math.max(1, i.qty || 1)}`);
@@ -62,6 +62,10 @@ export function esPantallaRecordada(items, memoria, ahora = Date.now()) {
 
 export function recuerdaPantalla(items, ledger, ahora = Date.now()) {
     return { huella: huellaPantalla(items), committed: { ...(ledger?.committed || {}) }, t: ahora };
+}
+
+export function sigueALaVista(memoria, ahora = Date.now()) {
+    return memoria?.huella?.length && ahora - (memoria.t || 0) >= 5000 ? { ...memoria, t: ahora } : null;
 }
 
 export function memoriaPantalla(storage, clave) {
