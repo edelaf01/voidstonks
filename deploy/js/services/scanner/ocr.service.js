@@ -2,7 +2,7 @@ import { state } from "../../state.js";
 import { OCRRepository } from "../../repositories/ocr.repository.js";
 import { readBadgeDigits } from "../../utils/vision/badge_digit_ocr.js";
 import { splitFusedWord, catalogVocab, pareceDelVocab } from "../../utils/vision/word_split.js";
-import { rawWords } from "../../utils/vision/ocr_words.js";
+import { rawWords, filaPropiaDelEscuadron } from "../../utils/vision/ocr_words.js";
 import { radioDeDedup, pasoEntreTarjetas, zonasDeRotulo } from "../../utils/vision/reward_cards.js";
 import { recuperaComponente, recuperaPorSufijo } from "../../utils/inventory/component_recover.js";
 import { normalizeOCRWords, tokensSinInformacion, tieneEvidenciaPropia, confirmaPrime } from "../../utils/inventory/ocr_words.js";
@@ -133,14 +133,14 @@ export const OCRService = {
             .replaceAll("3", "III").replaceAll("4", "IV");
     },
 
-    // Pantalla de selección/refinamiento: mismo matcher genérico que el inventario,
-    // devolviendo "TIER CODIGO" en mayúsculas (formato histórico del flujo de track).
-    parseRelicSelection(ocrText) {
+    // Selección de reliquia: "TIER CODIGO" en mayúsculas, "" si llevas "No Relic" y null si no se sabe.
+    parseRelicSelection(ocrText, palabras = []) {
         // Sin exigir el rótulo del panel, el matcher saca una reliquia de CUALQUIER basura:
         // medido, el "IMPORTANCE __¥__SEARCH a." de fin de misión devolvía "NEO S2".
         if (!/R[E3][L1I][I1L]C|REWARD|RECOMPENS/i.test(ocrText)) return null;
-        const canonical = this.getRelicMatch(ocrText);
-        return canonical ? canonical.toUpperCase().replace(/\s+RELIC$/, "") : null;
+        const propia = filaPropiaDelEscuadron(palabras);
+        const canonical = propia === "" ? "" : this.getRelicMatch(propia || ocrText);
+        return canonical ? canonical.toUpperCase().replace(/\s+RELIC$/, "") : canonical;
     },
 
     // ---- Matching GENÉRICO de reliquias (mismo diseño que getValidItemMatch) ----

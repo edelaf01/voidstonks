@@ -22,7 +22,7 @@ import { electPageNameColor, cellNameMask, hasInk, readCellWithOwnColor, readCel
 import { createCellOverlay } from "../../utils/vision/scan_overlay.js";
 import { revisaRejillaCacheada } from "../../utils/vision/grid_cache.js";
 import { detectRewardCells, esRecursoPorBadge } from "../../utils/vision/mission_complete_grid.js";
-import { INITIAL_LEDGER, nextLedger, esPantallaRecordada, recuerdaPantalla, memoriaPantalla } from "../../utils/inventory/reward_ledger.js";
+import { INITIAL_LEDGER, nextLedger, esPantallaRecordada, recuerdaPantalla, memoriaPantalla, sigueALaVista } from "../../utils/inventory/reward_ledger.js";
 const memoriaMC = memoriaPantalla(() => localStorage, "vs_mc_ultima_pantalla");
 // Despierta la lectura dormida: un desplazamiento de fila mueve todo el panel (paso 180 px de
 // ~800); la escena tras el panel translúcido se queda muy por debajo.
@@ -60,6 +60,9 @@ export const ScannerService = {
     _sampleRect: null,     // región del vídeo que vigila el auto-scan ("x,y,w,h"); al cambiar se tiran las muestras
     onPaginaKiosco: null,  // kiosko de ducados: cada página leída se vuelca al inventario sin pasar por Guardar
     detectionLocked: false,
+    pausado: false,
+    _recompensaLeida: false,
+    _recompensasEnMision: false,
     scanCounter: 0,
     inventoryHasScanned: false,
     qtyVotes: new Map(), // itemName -> Map<qty, count> (consenso de cantidad entre frames)
@@ -85,6 +88,11 @@ export const ScannerService = {
         this.latchedContext = "UNKNOWN";
         this.ctxLatch = INITIAL_LATCH;
         this.detectionLocked = false;
+        this._recompensaLeida = false;
+        this._recompensasEnMision = false;
+        this.mcLedger = INITIAL_LEDGER;
+        this._mcCache.clear();
+        this._mcDormido = null;
         this.lastHashL = null;
         this._zonasCartas = null;
         this.lastNoResult = ESTADO_SIN_RESULTADO;
@@ -163,9 +171,11 @@ export const ScannerService = {
     lastRivenContextTime: 0,
 
     async processFrame(video, virtualCanvas) {
-        // En inventario manda la cola: con el candado cortando aquí el bucle no miraba la pantalla
-        // durante el OCR y la cola nunca pasaba de una página. Sin zona no hay cola y sigue mandando.
-        if (this.detectionLocked && !(this.latchedContext === "INVENTORY" && this._frameZoneCache?.zone)) return;
+        // Con la cola leyendo manda la cola: con el candado cortando aquí el bucle no miraba la pantalla
+        // durante el OCR y la cola nunca pasaba de una página. Y al salir del inventario con páginas
+        // pendientes no se leía ni la cabecera hasta vaciarla. Sin cola (sin zona) manda el candado.
+        if (this.pausado) return;
+        if (this.detectionLocked && !this._recompensaLeida && !this._invQueue?.isBusy) return;
         // Tras stop() los workers están muertos: recognize revienta con "reading 'postMessage'".
         if (!this.isScanning) return;
         this.scanCounter++;
@@ -289,7 +299,7 @@ export const ScannerService = {
         // contexto, no en cada frame.
         if (this.ctxLatch.latched !== this.latchedContext) olvidaColorTexto();
         // Fin de misión atrás: la siguiente puede repetir pieza y tiene que volver a contar.
-        if (this.latchedContext === "MISSION_COMPLETE" && this.ctxLatch.latched !== "MISSION_COMPLETE") { this.mcLedger = INITIAL_LEDGER; this._mcCache.clear(); this._mcDormido = null; }
+        if (this.latchedContext === "MISSION_COMPLETE" && this.ctxLatch.latched !== "MISSION_COMPLETE") { this.mcLedger = INITIAL_LEDGER; this._mcCache.clear(); this._mcDormido = null; this._recompensasEnMision = false; }
         // Las fotos solo sirven en su pantalla: al cambiar de contexto se sueltan (~40 MB a 1440p).
         if (this.ctxLatch.latched !== this.latchedContext) this.releaseFrames();
         this.latchedContext = this.ctxLatch.latched;
@@ -305,6 +315,12 @@ export const ScannerService = {
         if (this.latchedContext !== this._ctxGrabado) { this._ctxGrabado = this.latchedContext; DebugRecorder.record({ kind: "cabecera", image: virtualCanvas, meta: { resumen: `${rawContext} → ${this.latchedContext}`, texto: headerText.trim() } }); }
         DebugRecorder.miniatura(video, { contexto: rawContext, fijado: this.latchedContext, cabecera: headerText.trim().slice(0, 80), pasadas });
         DebugRecorder.rendimientoTick({ contexto: this.latchedContext, enOCR: this.detectionLocked, cola: this._invQueue?.size ?? 0 });
+        // El modal tapaba 20 s el escáner entero, y con él la SELECT RELIC de la ronda siguiente.
+        if (this._recompensaLeida) {
+            if (this.latchedContext === "REWARD") return;
+            this._recompensaLeida = false;
+            this.detectionLocked = false;
+        }
         await this.routeFrameAction(this.latchedContext, video, dims);
         if (this.ctxLatch.pending) this.currentRate = Math.min(this.currentRate, 300); // confirmar va de caché: rápido
         reloj.fin(this.latchedContext);
@@ -1130,6 +1146,8 @@ export const ScannerService = {
      */
     async processMissionComplete(video, dims) {
         const { width, height } = dims;
+        const vista = this.mcLedger.committed && sigueALaVista(memoriaMC.lee());
+        if (vista) memoriaMC.guarda(vista);
         const frame = this._mcFrameCvs = freezeFrame(video, width, height, this._mcFrameCvs);
 
         // La pantalla entra con una animación de barrido. Leer a media animación cuesta un
@@ -1197,7 +1215,9 @@ export const ScannerService = {
         // Segunda pasada sin nada que leer = el consenso ya tiene sus dos lecturas: a dormir.
         if (!pendientes.length) { this._mcDormido = hash; console.log("[MC] pantalla leída; en espera de otro fin de misión"); }
         if (commit?.length) memoriaMC.guarda(recuerdaPantalla(items, ledger));
-        const gastada = RelicScreenService.tomaReliquiaElegida((commit || []).some((i) => !i.reliquia));
+        // Con alguna pantalla de recompensas vista, la reliquia elegida ahora es la de una ronda que no
+        // se abrió: en una fisura sin fin, elegir la siguiente y extraer antes la descontaba.
+        const gastada = RelicScreenService.tomaReliquiaElegida(!this._recompensasEnMision && (commit || []).some((i) => !i.reliquia));
         if ((commit?.length || gastada) && typeof globalThis.commitMissionCompleteRewards === "function") {
             globalThis.commitMissionCompleteRewards(commit || [], gastada);
         }
@@ -1210,6 +1230,13 @@ export const ScannerService = {
         // para que una pantalla quieta sin recompensas no pague ni el freeze ni la OCR de abajo.
         const bandHash = videoRegionHash(video, { x: 0, y: 0.185, w: 1, h: 0.255 });
         if (saltaPorSinResultado(bandHash, this.lastRewardNoResult, Date.now(), 3000)) return;
+        // El latch sigue en REWARD con cabeceras ilegibles: al pasar a SELECT RELIC en una fisura sin
+        // fin, el panel "Possible Rewards" abrió el modal con su Chroma Prime Blueprint.
+        if (VisionService.determineContext(this.lastHeaderText || "") !== "REWARD") return;
+        // Visto en vivo: al pasar de recompensas a FIN DE MISIÓN, la cabecera cacheada aún decía
+        // "VOID FISSURE/REWARDS" y el panel de fin de misión (Akbolto Prime Receiver) abrió el modal
+        // de elegir recompensa. Si el rótulo cambió y no se ha releído, se espera al siguiente tick.
+        if (this._cabeceraVigente === false) return;
 
         // UN frame para todo el flujo: banda, presets de OCR y foto del modal (ver freezeFrame).
         const frame = this._rewardFrameCvs = freezeFrame(video, width, height, this._rewardFrameCvs);
@@ -1304,25 +1331,12 @@ export const ScannerService = {
             "MISSION COMPLETE", "MISION COMPLETADA", "MISIÓN COMPLETADA",
             "IMPORTANCE", "IMPORTANCIA", "SEARCH", "BUSCAR",
         ];
-        // La cabecera descarta también: el panel "<Reliquia> - Possible Rewards" tiene la misma
-        // forma que una banda, ningún token de arriba cae en su recorte y el latch tarda frames
-        // en soltar REWARD, así que se ofrecían las recompensas POSIBLES de una reliquia.
-        const ctxCabecera = VisionService.determineContext((this.lastHeaderText || "").toUpperCase());
-        const badToken = NON_REWARD_TOKENS.find(t => contextText.includes(t))
-            || (ctxCabecera === "RELICS" || ctxCabecera === "MISSION_COMPLETE" ? `cabecera ${ctxCabecera}` : null);
+        const badToken = NON_REWARD_TOKENS.find(t => contextText.includes(t));
         if (badToken && foundItems.length > 0) {
             console.log(`[REWARD] Ignorado: pantalla fuera de contexto (token "${badToken}")`);
             addRewardDebugLog("CTX", `Skipped: end-of-mission screen detected ("${badToken}")`, "warn");
             return;
         }
-        // Visto en vivo: al pasar de recompensas a FIN DE MISIÓN, la cabecera cacheada aún decía
-        // "VOID FISSURE/REWARDS" y el panel de fin de misión (Akbolto Prime Receiver) abrió el modal
-        // de elegir recompensa. Si el rótulo cambió y no se ha releído, se espera al siguiente tick.
-        if (foundItems.length > 0 && this._cabeceraVigente === false) {
-            console.log("[REWARD] Espera: el rótulo cambió y la cabecera aún no se ha releído");
-            return;
-        }
-
         if (foundItems.length > 0 && !this.detectionLocked) {
             foundItems.forEach(item => {
                 const status = item.crafted ? "CRAFTED" : `${item.owned} OWNED`;
@@ -1330,6 +1344,11 @@ export const ScannerService = {
             });
 
             this.detectionLocked = true;
+            this._recompensaLeida = true;
+            this._recompensasEnMision = true;
+            // Aquí y no en fin de misión: una fisura sin fin tiene una pantalla de estas por ronda.
+            const gastada = RelicScreenService.tomaReliquiaElegida(true);
+            if (gastada) globalThis.gastaReliquiaAbierta?.(gastada);
             // El MISMO frame que se leyó: así la foto y los badges se corresponden.
             ScannerModal.open(frame.toDataURL("image/jpeg", 0.85), foundItems, width, height, scale, rawOcr);
         }

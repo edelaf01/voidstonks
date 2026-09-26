@@ -10,7 +10,7 @@ import assert from "node:assert/strict";
 
 globalThis.document ??= { createElement: () => ({ getContext: () => null }) };
 
-const { rawWords } = await import("../deploy/js/utils/vision/ocr_words.js");
+const { rawWords, filaPropiaDelEscuadron } = await import("../deploy/js/utils/vision/ocr_words.js");
 const { OCRService } = await import("../deploy/js/services/scanner/ocr.service.js");
 
 const palabra = (text, x0) => ({ text, confidence: 90, bbox: { x0, y0: 0, x1: x0 + 40, y1: 20 } });
@@ -48,4 +48,14 @@ test("extractCellText pide los bloques y lee la celda con la forma de la versió
 test("una celda sin texto sigue siendo null", async () => {
   const worker = { recognize: async () => ({ data: { text: "", blocks: [] } }) };
   assert.equal(await OCRService.extractCellText(worker, {}), null);
+});
+
+test("filaPropiaDelEscuadron se queda con la fila bajo Squad Relics y nada más", () => {
+  const w = (text, x0, y0) => ({ text, x0, y0, x1: x0 + 30, y1: y0 + 14 });
+  const rotulo = [{ text: "Squad", x0: 260, y0: 45, x1: 300, y1: 61 }, w("Relics", 306, 44)];
+  const companero = [w("Axi", 333, 170), w("D6", 358, 170)];
+  const tooltipIzquierda = [w("AXI", 10, 87), w("A21", 40, 87)];
+  assert.deepEqual(filaPropiaDelEscuadron([...rotulo, w("Axi", 334, 87), w("A6", 356, 87), ...companero, ...tooltipIzquierda]), ["Axi", "A6"]);
+  assert.equal(filaPropiaDelEscuadron([...rotulo, w("No", 334, 87), w("Relic", 356, 86), ...companero]), "");
+  assert.equal(filaPropiaDelEscuadron(companero), null, "sin rótulo no hay escuadra: pantalla de refinamiento");
 });

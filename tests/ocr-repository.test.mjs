@@ -70,3 +70,40 @@ test("la carta de la pantalla nueva da sus stats con la lista de rivens y ningun
     assert.equal(riven.stats[0].value, 187.6);
     assert.equal(RivenOCRService.parseRivenCard(lee(OCRRepository.DEFAULT_CHARS))?.stats?.length ?? 0, 0);
   });
+
+// Un worker muerto dejaba el bucle del escáner esperando para siempre, sin ningún error.
+test("una lectura sin respuesta vuelve vacía y el worker se sustituye por uno nuevo", async () => {
+  const colgado = { recognize: () => new Promise(() => {}), setParameters: () => new Promise(() => {}), terminado: false, terminate() { this.terminado = true; } };
+  const nuevo = { recognize: async () => ({ data: { text: "ok" } }) };
+  const orig = { workers: OCRRepository.workers, crear: OCRRepository._createStandardWorker, init: OCRRepository.initPromise, limite: OCRRepository.LIMITE_OCR_MS };
+  Object.assign(OCRRepository, { workers: [colgado], _createStandardWorker: async () => nuevo, initPromise: Promise.resolve(true), LIMITE_OCR_MS: 20 });
+  const img = { width: 10, height: 10 };
+  const error = console.error;
+  console.error = () => {};
+  try {
+    assert.equal((await OCRRepository.recognize(colgado, img)).data.text, "");
+    assert.equal((await OCRRepository.recognizeWithPSM(colgado, img, 11)).data.text, "", "también si se cuelga al cambiar el psm");
+    await new Promise((r) => setTimeout(r, 0));
+    assert.deepEqual(OCRRepository.workers, [nuevo], "se sustituye una sola vez");
+    assert.equal(colgado.terminado, true);
+    assert.equal((await OCRRepository.recognize(OCRRepository.workers[0], img)).data.text, "ok");
+  } finally {
+    console.error = error;
+    Object.assign(OCRRepository, { workers: orig.workers, _createStandardWorker: orig.crear, initPromise: orig.init, LIMITE_OCR_MS: orig.limite });
+  }
+});
+
+test("si el escáner se paró mientras se creaba el sustituto, no vuelve al pool", async () => {
+  const colgado = { recognize: () => new Promise(() => {}), terminate() {} };
+  let terminado = false;
+  const nuevo = { terminate() { terminado = true; } };
+  const orig = { workers: OCRRepository.workers, crear: OCRRepository._createStandardWorker, init: OCRRepository.initPromise };
+  Object.assign(OCRRepository, { workers: [colgado], _createStandardWorker: async () => { OCRRepository.initPromise = null; return nuevo; }, initPromise: Promise.resolve(true) });
+  try {
+    await OCRRepository.sustituye(colgado);
+    assert.deepEqual(OCRRepository.workers, []);
+    assert.equal(terminado, true);
+  } finally {
+    Object.assign(OCRRepository, { workers: orig.workers, _createStandardWorker: orig.crear, initPromise: orig.init });
+  }
+});

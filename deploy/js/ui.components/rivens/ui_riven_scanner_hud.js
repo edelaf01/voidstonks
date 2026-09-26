@@ -140,7 +140,6 @@ export const RivenScannerHUD = {
         this.lastR = null;
         this.lastCapture = null;
         if (globalThis.ScannerService) {
-            globalThis.ScannerService.detectionLocked = false;
             globalThis.ScannerService.lastParsedL = null;
             globalThis.ScannerService.lastParsedR = null;
             globalThis.ScannerService.lastHashL = null;

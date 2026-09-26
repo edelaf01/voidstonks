@@ -2,6 +2,7 @@ import { state, saveAppState } from "../../state.js";
 import { TEXTS } from "../../config.js";
 import { addToQueue, getPriceValue } from "../../services/market/prices.service.js";
 import { warmupPrices } from "../../services/inventory/inventory.service.js";
+import { setTrendHtml, wireSetTrend } from "./ui_set_trend.js";
 import { getSlug } from "../../utils/slugs.utils.js";
 import { escapeHTML } from "../../utils/escape_html.js";
 import { emptyStateHtml } from "../ui_components.js";
@@ -392,7 +393,7 @@ export function renderPrimeInventory() {
       <div class="inventory-total-header">
          <div class="total-label">${TEXTS[state.currentLang].inventory.lblTotalValue || "ESTIMATED TOTAL VALUE"}</div>
          <div class="total-value"><span id="total-prime-value">...</span> <span class="plat-icon-inline"></span></div>
-      </div>`;
+      </div>${setTrendHtml()}`;
 
     if (list.querySelector(".inventory-total-header")) {
       const oldTotal = document.getElementById("total-prime-value")?.textContent;
@@ -401,6 +402,7 @@ export function renderPrimeInventory() {
     } else {
       list.innerHTML = headerHtml;
     }
+    wireSetTrend(list);
 
     let currentIndex = 0;
     const renderChunk = () => {

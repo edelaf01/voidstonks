@@ -12,8 +12,8 @@ import { fraccionCambiada } from "./frame_hash.js";
  * cambiaba el pipeline entero.
  *
  * Aquí es simétrica: confirmar el contexto que ya está no cuesta nada, CAMBIARLO pide 2 frames
- * seguidos de acuerdo, y soltarlo a UNKNOWN pide 3 — soltar es más caro que confirmar porque en
- * una transición real la cabecera pasa por ilegible antes de estabilizarse.
+ * de acuerdo sin otro contexto en medio, y soltarlo a UNKNOWN pide 3 seguidos — soltar es más caro
+ * que confirmar porque en una transición real la cabecera pasa por ilegible antes de estabilizarse.
  *
  * Puro: entra el estado y sale el estado siguiente, para poder probarlo sin navegador.
  */
@@ -40,13 +40,14 @@ export function nextLatchedContext(prev, raw) {
 
   if (raw === "UNKNOWN") {
     const unknownCount = s.unknownCount + 1;
+    const suelta = unknownCount >= RELEASE_FRAMES;
     return {
-      latched: unknownCount >= RELEASE_FRAMES ? "UNKNOWN" : s.latched,
+      latched: suelta ? "UNKNOWN" : s.latched,
       unknownCount,
-      // Una racha de UNKNOWN corta cualquier candidato a medias: dos frames de REWARD
-      // separados por basura no son dos frames seguidos de acuerdo.
-      pending: null,
-      pendingCount: 0,
+      // Ilegible no es desacuerdo: si borrara al candidato, una cabecera legible una vez sí y otra no
+      // (la SELECT RELIC de una fisura sin fin) dejaba enganchada la pantalla anterior para siempre.
+      pending: suelta ? null : s.pending,
+      pendingCount: suelta ? 0 : s.pendingCount,
     };
   }
 

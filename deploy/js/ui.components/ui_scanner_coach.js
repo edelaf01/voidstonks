@@ -12,26 +12,12 @@ import { PASOS_TOUR, siguientePaso, tocaAvisar, marcaVisto, olvidaVistos } from 
  */
 
 let paso = -1;
-let bloqueoPrevio = null;
-
 const textos = () => (TEXTS[state.currentLang] || TEXTS.en).scannerCoach || {};
 
-/**
- * El escáner se para mientras el tour está abierto: `detectionLocked` es el mismo interruptor
- * que usa el modal de recompensas, así que no hace falta inventar otro. Se guarda el valor
- * previo en vez de poner false al cerrar: si el modal lo tenía puesto, quitarlo lo reactivaría
- * a media lectura.
- */
+// Con su propio interruptor y no con `detectionLocked`: restaurar el valor de ese al cerrar dejaba
+// el escáner parado para siempre si el modal de recompensas se había cerrado mientras tanto.
 function pausaEscaner(pausar) {
-    const svc = globalThis.ScannerService;
-    if (!svc) return;
-    if (pausar) {
-        bloqueoPrevio = svc.detectionLocked;
-        svc.detectionLocked = true;
-    } else {
-        svc.detectionLocked = bloqueoPrevio === true;
-        bloqueoPrevio = null;
-    }
+    if (globalThis.ScannerService) globalThis.ScannerService.pausado = pausar;
 }
 
 function overlay() {

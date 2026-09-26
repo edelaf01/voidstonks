@@ -1,4 +1,5 @@
 import { WORKER_URL } from "../config.js";
+import { esPrime } from "../utils/inventory/catalog_parts.js";
 import { state } from "../state.js";
 import { dbHelper } from "./storage.repository.js";
 
@@ -158,7 +159,7 @@ export async function fetchPrimeManifest() {
 
         if (resWeapons && resWeapons.ok) {
             const weaponsData = await resWeapons.json();
-            const primeWeapons = weaponsData.filter(item => item.isPrime);
+            const primeWeapons = weaponsData.filter(esPrime);
             state.primeWeaponsManifest = primeWeapons;
             console.log("Prime Weapons Loaded for Ducats:", primeWeapons.length, "items");
             updateDucatsDB(primeWeapons);

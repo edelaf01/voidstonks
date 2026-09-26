@@ -1,7 +1,8 @@
 import { state } from "../../state.js";
-import { dbHelper, MEMORY_CACHE, ensurePriceSnapshot } from "../../repositories/storage.repository.js";
+import { dbHelper, MEMORY_CACHE, ensurePriceSnapshot, leeHistorialSets, guardaHistorialSets } from "../../repositories/storage.repository.js";
 import { getSlug } from "../../utils/slugs.utils.js";
 import { getPricesBatch } from "../../repositories/api.repository.js";
+import { apuntaPrecios, diaDe, tendencias } from "../../utils/inventory/set_trend.js";
 
 /**
  * Pre-fetches prices for all items currently in the player's inventory.
@@ -48,7 +49,7 @@ export async function warmupPrices() {
 
     // El snapshot cubre el catálogo prime entero de una vez; el bucle de abajo solo se
     // ocupa de lo que quede fuera.
-    await ensurePriceSnapshot();
+    apuntaPreciosDeSets(await ensurePriceSnapshot());
 
     const slugsToFetch = Array.from(collectInventorySlugs()).filter((s) => !MEMORY_CACHE.has(s));
     if (slugsToFetch.length === 0) return;
@@ -70,4 +71,19 @@ export async function warmupPrices() {
             console.warn("Prefetch error", e);
         }
     }
+}
+
+export function apuntaPreciosDeSets(snapshot, ahora = Date.now()) {
+    if (!snapshot || !state.setsDatabase) return;
+    const precios = {};
+    for (const [setName, parts] of Object.entries(state.setsDatabase)) {
+        // Del snapshot y no de MEMORY_CACHE: ahí se mezclan precios en vivo y cambiar de fuente parecería una subida.
+        if (parts.some((p) => (state.primeInventory?.[p] || 0) > 0)) precios[setName] = snapshot[getSlug(`${setName} Set`)] || 0;
+    }
+    // Con el inventario aún sin cargar, guardar vacío borraría el histórico.
+    if (Object.keys(precios).length) guardaHistorialSets(apuntaPrecios(leeHistorialSets(), precios, diaDe(ahora)));
+}
+
+export function tendenciaDeSets(dias, ahora = Date.now()) {
+    return tendencias(leeHistorialSets(), diaDe(ahora), dias);
 }

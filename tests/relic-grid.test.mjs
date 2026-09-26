@@ -101,6 +101,27 @@ describe("emparejado", () => {
     return { nameWords: names, countWords: counts };
   };
 
+  // "Axi A6 Relic [Radiant]" junto a "x2 Axi A6 Relic": antes se escribía una y luego la otra.
+  const conRefinada = (falta = null) => {
+    const names = [], counts = [];
+    const cel = [["Meso C6", 0, 0], ["Meso C6", 324, 0], ["Meso K4", 0, 1], ["Meso K3", 324, 1]];
+    [3, 2, 104, 103].forEach((n, i) => {
+      const [nombre, x, r] = cel[i];
+      names.push(...celda(nombre.split(" ").concat("Relic"), 100 + x, 239 + r * 304));
+      if (i === 0) names.push(...celda(["[Radiant]"], 170 + x, 269 + r * 304));
+      if (falta !== i) counts.push(...celda([`x${n}`], 22 + x, 39 + r * 304));
+    });
+    return { nameWords: names, countWords: counts };
+  };
+
+  test("las casillas de una misma reliquia con distinto refinamiento se suman", () => {
+    assert.deepEqual(parseRelicGrid(conRefinada(), { matchRelic }), [{ name: "Meso C6", count: 5 }, { name: "Meso K4", count: 104 }, { name: "Meso K3", count: 103 }]);
+  });
+
+  test("si a una de ellas le falta el contador, esa reliquia no se escribe", () => {
+    assert.deepEqual(parseRelicGrid(conRefinada(0), { matchRelic }), [{ name: "Meso K4", count: 104 }, { name: "Meso K3", count: 103 }]);
+  });
+
   test("cada nombre se queda con el contador de SU casilla", () => {
     const out = parseRelicGrid(rejilla(), { matchRelic });
     assert.deepEqual(out, [

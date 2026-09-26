@@ -10,7 +10,7 @@ globalThis.localStorage = { getItem: () => null, setItem() {}, removeItem() {} }
 globalThis.document ??= { getElementById: () => null, createElement: () => ({ getContext: () => null }) };
 
 const { state } = await import("../deploy/js/state.js");
-const { piezasSinReliquias, ducadosDePieza } = await import("../deploy/js/utils/inventory/catalog_parts.js");
+const { piezasSinReliquias, ducadosDePieza, esPrime } = await import("../deploy/js/utils/inventory/catalog_parts.js");
 
 const CITRINE = { name: "Citrine Prime", category: "Warframes", isPrime: true, components: [
   { name: "Blueprint", ducats: 45 }, { name: "Chassis", ducats: 15 }, { name: "Neuroptics", ducats: 100 },
@@ -89,5 +89,35 @@ test("con las reliquias sin publicar, el escáner reconoce la pieza nueva y el s
   } finally {
     Object.assign(dbHelper, { get: orig.get, set: orig.set });
     globalThis.fetch = orig.fetch;
+  }
+});
+
+// Galariak y Sagek Prime salen en fin de misión (The Perita Rebellion) pero no se intercambian:
+// WFCD los trae con isPrime false y sin ducados, y el lector tomaba "Galariak Prime Blade
+// Blueprint" por Galatine Prime.
+const GALARIAK = { name: "Galariak Prime", category: "Melee", isPrime: false, components: [
+  { name: "Blade", ducats: 0 }, { name: "Blueprint", ducats: 0 }, { name: "Handle", ducats: 0 }, { name: "Orokin Cell", ducats: 0 },
+] };
+
+test("los primes no intercambiables entran por su nombre y con sus piezas, sin los recursos", () => {
+  assert.equal(esPrime(GALARIAK), true);
+  assert.equal(esPrime({ name: "Galatine", isPrime: false }), false);
+  assert.deepEqual(piezasSinReliquias([GALARIAK], []).sort(),
+    ["Galariak Prime Blade Blueprint", "Galariak Prime Blueprint", "Galariak Prime Handle Blueprint"],
+    "con el nombre que enseña el fin de misión");
+});
+
+test("con Galariak en el catálogo, su pieza de fin de misión ya no se lee como Galatine", async () => {
+  const { OCRService } = await import("../deploy/js/services/scanner/ocr.service.js");
+  const orig = { db: state.itemsDatabase, cache: OCRService.cachedDbItems };
+  state.itemsDatabase = Object.fromEntries(["Galatine Prime Blade", "Galatine Prime Handle", "Galatine Prime Blueprint",
+    ...piezasSinReliquias([GALARIAK], [])].map((n) => [n, []]));
+  OCRService.cachedDbItems = [];
+  try {
+    const m = OCRService.getValidItemMatch("GALARIAK PRIME BLADE BLUEPRINT");
+    assert.equal(m?.originalName, "Galariak Prime Blade Blueprint");
+  } finally {
+    state.itemsDatabase = orig.db;
+    OCRService.cachedDbItems = [];
   }
 });

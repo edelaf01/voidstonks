@@ -432,40 +432,81 @@ test("sin contexto, las pasadas de rescate de cabecera se gastan como mucho cada
 
 // El candado de processInventoryGrid cortaba processFrame entero durante los ~2 s de OCR de una
 // página: el bucle no veía el scroll, no capturaba, y la cola de 3 páginas nunca pasaba de una.
-// En el inventario con zona (= con cola) el bucle sigue; sin zona la página se lee en directo
-// sobre _invSnapshot y el candado sigue mandando, igual que fuera del inventario.
-test("con una página en OCR el bucle sigue mirando el inventario, pero no otras pantallas", async () => {
+// Con la cola leyendo el bucle sigue; sin cola la página se lee en directo sobre _invSnapshot y
+// el candado sigue mandando.
+test("con la cola de inventario leyendo el bucle sigue mirando la pantalla; sin cola, manda el candado", async () => {
   const { OCRRepository } = await import("../deploy/js/repositories/ocr.repository.js");
   const { FakeCanvas } = await import("./_helpers/fake-canvas.mjs");
   const W = 640, H = 360;
   const video = { videoWidth: W, videoHeight: H, width: W, height: H, data: new Uint8ClampedArray(W * H * 4).fill(255) };
   const lienzo = new FakeCanvas(16, 9);
-  const zona = { x: 0, y: 60, w: W, h: H - 60 };
   const workers = OCRRepository.workers, ruta = S.routeFrameAction;
   let cabecera = "", rutas = 0;
   OCRRepository.workers = [{ recognize: async () => ({ data: { text: cabecera } }) }];
   S.routeFrameAction = async () => { rutas++; };
 
-  const llega = async ({ latched, header, locked = true, zone = zona }) => {
+  const llega = async ({ latched, header, locked = true, cola = false }) => {
     cabecera = header; rutas = 0;
     Object.assign(S, {
       isScanning: true, detectionLocked: locked, latchedContext: latched, lastRivenContextTime: 0,
       lastHeaderText: null, lastHeaderOcrTime: 0, _ultimoRescate: Date.now(),
       ctxLatch: { latched, unknownCount: 0, pending: null, pendingCount: 0 },
-      _frameZoneCache: { key: `${W}x${H}`, zone },
+      _invQueue: cola ? { isBusy: true, size: 1, release() {} } : null,
     });
     await S.processFrame(video, lienzo);
     return rutas === 1;
   };
 
   assert.equal(await llega({ latched: "REWARD", header: "VOID FISSURE/REWARDS", locked: false }), true, "control: sin candado el frame se enruta");
-  assert.equal(await llega({ latched: "INVENTORY", header: "INVENTORY/SELL" }), true, "inventario con zona: manda la cola, no el candado");
-  assert.equal(await llega({ latched: "INVENTORY", header: "INVENTORY/SELL", zone: null }), false, "inventario sin zona: se lee en directo y el candado corta");
+  assert.equal(await llega({ latched: "INVENTORY", header: "INVENTORY/SELL", cola: true }), true, "inventario con la cola leyendo: manda la cola, no el candado");
+  assert.equal(await llega({ latched: "INVENTORY", header: "INVENTORY/SELL" }), false, "inventario sin cola: se lee en directo y el candado corta");
+  // Al salir del inventario con páginas pendientes no se leía ni la cabecera hasta vaciar la cola.
+  assert.equal(await llega({ latched: "REWARD", header: "VOID FISSURE/REWARDS", cola: true }), true, "fuera del inventario, con la cola vaciándose, se sigue mirando la pantalla");
   assert.equal(await llega({ latched: "REWARD", header: "VOID FISSURE/REWARDS" }), false, "recompensas: el candado corta");
   assert.equal(await llega({ latched: "INVENTORY_MODS", header: "INVENTORY/MODS" }), false, "rivens: el candado corta");
 
   OCRRepository.workers = workers; S.routeFrameAction = ruta;
-  Object.assign(S, { isScanning: false, detectionLocked: false, latchedContext: "UNKNOWN", _frameZoneCache: null });
+  Object.assign(S, { isScanning: false, detectionLocked: false, latchedContext: "UNKNOWN", _frameZoneCache: null, _invQueue: null });
+});
+
+test("con el tour abierto (pausado) no se enruta nada", async () => {
+  const { OCRRepository } = await import("../deploy/js/repositories/ocr.repository.js");
+  const { FakeCanvas } = await import("./_helpers/fake-canvas.mjs");
+  const W = 64, H = 36;
+  const video = { videoWidth: W, videoHeight: H, width: W, height: H, data: new Uint8ClampedArray(W * H * 4).fill(40) };
+  const orig = { workers: OCRRepository.workers, ruta: S.routeFrameAction };
+  let rutas = 0, lecturas = 0;
+  OCRRepository.workers = [{ recognize: async () => { lecturas++; return { data: { text: "VOID FISSURE/REWARDS" } }; } }];
+  S.routeFrameAction = async () => { rutas++; };
+  try {
+    Object.assign(S, { isScanning: true, pausado: true, detectionLocked: false, lastHeaderText: null, lastHeaderOcrTime: 0 });
+    await S.processFrame(video, new FakeCanvas(16, 9));
+    assert.equal(rutas + lecturas, 0);
+  } finally {
+    OCRRepository.workers = orig.workers; S.routeFrameAction = orig.ruta;
+    Object.assign(S, { isScanning: false, pausado: false });
+  }
+});
+
+// Salir del inventario con una página aún en OCR: dismiss() del HUD de rivens soltaba el candado justo
+// antes de mirarlo, y la rejilla de reliquias ponía psm 11 al worker con las celdas en vuelo.
+test("con una página de inventario en OCR, pasar a reliquias no arranca la rejilla ni suelta el candado", async () => {
+  const { RivenScannerHUD } = await import("../deploy/js/ui.components/rivens/ui_riven_scanner_hud.js");
+  const { RelicScreenService } = await import("../deploy/js/services/scanner/relic_screen.service.js");
+  const orig = { hud: globalThis.RivenScannerHUD, process: RelicScreenService.process };
+  let lecturas = 0;
+  globalThis.RivenScannerHUD = RivenScannerHUD;
+  RelicScreenService.process = async () => { lecturas++; };
+  try {
+    S.detectionLocked = true;
+    await S.routeFrameAction("RELICS", {}, { width: 64, height: 36, scale: 1 });
+    assert.equal(lecturas, 0);
+    assert.equal(S.detectionLocked, true);
+  } finally {
+    globalThis.RivenScannerHUD = orig.hud;
+    RelicScreenService.process = orig.process;
+    S.detectionLocked = false;
+  }
 });
 
 // Lo que el candado sigue cortando DENTRO del bucle ahora que processFrame no lo hace: el kiosko
@@ -823,6 +864,23 @@ test("el fin de misión se lee aunque el fondo se mueva: solo cuenta el panel de
     } finally { console.log = log; }
     assert.ok(logs.some((l) => l.startsWith("[MC]")), `con el panel quieto se pasa a detectar la rejilla (logs: ${logs.length})`);
   } finally { OCRRepository.workers = orig.workers; }
+});
+
+// Visto en vivo (fisura sin fin): al pasar de REWARDS a SELECT RELIC el latch seguía en REWARD y el
+// panel "Axi A6 Relic [Radiant] - Possible Rewards" abrió el modal con un Chroma Prime Blueprint.
+test("las recompensas solo se leen con la cabecera diciendo REWARDS", async () => {
+  const W = 64, H = 36;
+  const video = { videoWidth: W, videoHeight: H, width: W, height: H, data: new Uint8ClampedArray(W * H * 4).fill(40) };
+  const congela = { width: W, height: H, getContext: () => ({ drawImage() { throw new Error("congelado"); } }) };
+  const orig = { cvs: S._rewardFrameCvs, cab: S.lastHeaderText, sin: S.lastRewardNoResult };
+  try {
+    for (const cabecera of ["VOID FISSURE/SELECT RELIC", "C8 ~ VOID FISS", null]) {
+      Object.assign(S, { _rewardFrameCvs: congela, lastHeaderText: cabecera, lastRewardNoResult: { hash: null, time: 0 } });
+      await S.processRewards(video, { width: W, height: H, scale: 1 });
+    }
+    Object.assign(S, { lastHeaderText: "VOID FISSURE/REWARDS" });
+    await assert.rejects(S.processRewards(video, { width: W, height: H, scale: 1 }), /congelado/);
+  } finally { Object.assign(S, { _rewardFrameCvs: orig.cvs, lastHeaderText: orig.cab, lastRewardNoResult: orig.sin }); }
 });
 
 // Visto en vivo: de la pantalla de recompensas se pasa a FIN DE MISIÓN y, mientras el reloj de

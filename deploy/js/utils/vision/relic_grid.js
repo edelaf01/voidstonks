@@ -157,17 +157,20 @@ export function parseRelicGrid({ nameWords, countWords } = {}, { matchRelic, tra
     byCell.set(key, c.n);
   }
 
-  const out = [];
+  // "Axi A6 Relic [Radiant]" y "x2 Axi A6 Relic" son casillas distintas de la misma entrada del
+  // inventario: se suman (antes quedaba la última escrita), y si una no se leyó, ninguna.
+  const porNombre = new Map();
+  const incompletas = new Set();
   const perdidas = { sinCasilla: 0, descartada: 0, dudosa: 0, sinContador: 0 };
   for (const n of names) {
     const key = celdaDe(n);
-    if (!key) { perdidas.sinCasilla++; continue; }
-    if (descartadas.has(key)) { perdidas.descartada++; continue; }
-    if (nombreDudoso.has(key)) { perdidas.dudosa++; continue; }
-    const count = byCell.get(key);
-    if (count === undefined) { perdidas.sinContador++; continue; }
-    out.push({ name: n.name, count });
+    const falta = !key ? "sinCasilla" : descartadas.has(key) ? "descartada"
+      : nombreDudoso.has(key) ? "dudosa" : byCell.has(key) ? null : "sinContador";
+    if (falta) { perdidas[falta]++; incompletas.add(n.name); continue; }
+    porNombre.set(n.name, (porNombre.get(n.name) || new Map()).set(key, byCell.get(key)));
   }
+  const out = [...porNombre].filter(([name]) => !incompletas.has(name))
+    .map(([name, casillas]) => ({ name, count: [...casillas.values()].reduce((a, b) => a + b, 0) }));
   if (trace) {
     Object.assign(trace, {
       nombres: names.length, candidatosContador: candidatos.length,
