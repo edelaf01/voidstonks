@@ -181,6 +181,41 @@ test("ocr.service: parseRelicSelection conserva la letra inicial del código (Ne
   assert.equal(OCRService.parseRelicSelection("MESO T2 RELIC"), "MESO T2");
 });
 
+const w = (text, x0, y0, x1, y1) => ({ text, x0, y0, x1, y1 });
+const ESCUADRA_SIN_RELIQUIA = [
+  w("Location:", 0, 0, 60, 14), w("Void", 64, 0, 90, 14), w("Squad", 260, 45, 300, 61), w("Relics", 306, 44, 350, 61),
+  w("<", 248, 64, 256, 76), w("No", 334, 87, 352, 99), w("Relic", 356, 86, 390, 99), w("y", 478, 63, 484, 70),
+  w("Axi", 333, 170, 355, 184), w("D6", 358, 170, 376, 184), w("Relic", 381, 169, 412, 184), w("[Radiant]", 417, 168, 480, 184),
+];
+const TEXTO_SIN_RELIQUIA = "Location: Void Fissure Missions\nSquad Relics\n< No Relic y\nd Axi D6 Relic [Radiant]";
+
+const ESCUADRA_CON_LA_MIA = [
+  ...ESCUADRA_SIN_RELIQUIA.filter((p) => p.y0 < 80 || p.y0 > 100),
+  w("Axi", 334, 87, 352, 99), w("A6", 356, 87, 374, 99), w("Relic", 378, 86, 410, 99),
+];
+
+function conCatalogo(nombres, fn) {
+  const antes = state.allRelicNames;
+  state.allRelicNames = nombres;
+  OCRService._relicIndexCache = null;
+  try { fn(); } finally { state.allRelicNames = antes; OCRService._relicIndexCache = null; }
+}
+
+test("ocr.service: en la fisura se sigue la primera fila de Squad Relics, no la del compañero", () => {
+  conCatalogo(["Axi A6", "Axi D6", "Meso M4"], () => {
+    assert.equal(OCRService.parseRelicSelection(TEXTO_SIN_RELIQUIA), "AXI D6", "sin cajas: el comportamiento de antes");
+    assert.equal(OCRService.parseRelicSelection(TEXTO_SIN_RELIQUIA, ESCUADRA_SIN_RELIQUIA), "", "No Relic: ninguna, no \"no se sabe\"");
+    assert.equal(OCRService.parseRelicSelection(TEXTO_SIN_RELIQUIA, ESCUADRA_SIN_RELIQUIA.filter((p) => p.y0 < 80 || p.y0 > 100)), null, "fila sin leer: no se sabe");
+    assert.equal(OCRService.parseRelicSelection(TEXTO_SIN_RELIQUIA, ESCUADRA_CON_LA_MIA), "AXI A6");
+  });
+});
+
+test("ocr.service: sin el rótulo Squad (refinamiento) se lee el recorte entero", () => {
+  conCatalogo(["Axi A6", "Axi D6", "Meso M4"], () => {
+    assert.equal(OCRService.parseRelicSelection("MESO M4 RELIC - Possible Rewards", [w("MESO", 0, 0, 40, 14), w("M4", 44, 0, 60, 14)]), "MESO M4");
+  });
+});
+
 test("ocr.service: getRelicMatch tolera dígito cuya normalización no da la letra del tier (AX0 -> AXI)", () => {
   assert.equal(OCRService.getRelicMatch(["CG", "AX0", "G6", "RELIC"]), "Axi G6");
 });
