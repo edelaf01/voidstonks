@@ -53,13 +53,19 @@ export function nextLedger(prev, items) {
     };
 }
 
-export const MEMORIA_PANTALLA_MS = 60 * 60 * 1000;
+// since last seen: longer than a tooltip or a reload, shorter than a mission
+export const MEMORIA_PANTALLA_MS = 90 * 1000;
 
 /** Labels in cell order: what identifies the screen. */
 export function huellaPantalla(items) {
     return (items || []).filter((i) => i?.name).map((i) => `${i.name}×${Math.max(1, i.qty || 1)}`);
 }
 
+/**
+ * Whether the screen on view is the LAST one already added. Losing the context (tooltip, pause, page
+ * reload) reset the ledger and the same screen added again. The current reading may miss ONE cell, not
+ * more: a new mission with a single matching part must count.
+ */
 export function esPantallaRecordada(items, memoria, ahora = Date.now()) {
     if (!memoria?.huella?.length || !(ahora - (memoria.t || 0) < MEMORIA_PANTALLA_MS)) return false;
     const actual = huellaPantalla(items);
@@ -73,8 +79,14 @@ export function esPantallaRecordada(items, memoria, ahora = Date.now()) {
     return true;
 }
 
+/** What is stored after an add: the screen fingerprint, what was logged from it and when it was seen. */
 export function recuerdaPantalla(items, ledger, ahora = Date.now()) {
     return { huella: huellaPantalla(items), committed: { ...(ledger?.committed || {}) }, t: ahora };
+}
+
+/** The memory with a fresh time while the screen stays on view, or null when no write is needed. */
+export function sigueALaVista(memoria, ahora = Date.now()) {
+    return memoria?.huella?.length && ahora - (memoria.t || 0) >= 5000 ? { ...memoria, t: ahora } : null;
 }
 
 /**
