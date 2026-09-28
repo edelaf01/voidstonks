@@ -1,3 +1,6 @@
+// architecture rule detectors, kept in _helpers/ (node --test does not run it) because three consumers share them:
+// architecture.test.mjs, architecture-rules.test.mjs and the command that regenerates the baseline
+
 import { readdirSync, lstatSync, readFileSync } from "node:fs";
 import { join, resolve, relative, dirname, sep } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -113,6 +116,7 @@ const codeOnly = (src) => strip(src, { strings: false });
 
 // layers
 
+// the layer contract as data: `allow` is the full whitelist of layers each one may import
 const LAYERS = {
   // `assets` are data modules (base64 images, tables): no dependencies, anyone imports them like a .json
   assets: { allow: [] },

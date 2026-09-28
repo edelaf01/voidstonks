@@ -1,3 +1,8 @@
+/*
+ * shared primitives for ui_loader.js and ui_hints.js
+ * vs- prefix because these are the only rules not scoped by a tab, generic names would clash
+ */
+
 /* loading */
 
 .vs-spinner {
@@ -323,6 +328,7 @@
 }
 
 /* empty states with a usage tip */
+/* rem, not em: this hangs from a container that already shrinks the font, another 0.x em drops it below readable */
 .lfg-empty {
     display: flex;
     flex-direction: column;

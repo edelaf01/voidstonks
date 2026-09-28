@@ -1,5 +1,7 @@
 import { WORKER_URL } from "../../config.js";
 
+
+
 const TOKEN_KEY = "wfm_jwt";
 const NAME_KEY = "wfm_name";
 const SLUG_KEY = "wfm_slug";
@@ -49,7 +51,6 @@ export function getToken() {
         return null;
     }
     if (!stored) return null;
-
     const until = parseInt(sessionStorage.getItem(EXPIRY_KEY) || "0", 10);
     if (!until || Date.now() > until) {
         clearToken();
@@ -73,7 +74,7 @@ export function getToken() {
 export async function login(email, password, platform = "pc") {
     if (!email || !password) return { ok: false, error: "missing_fields" };
 
-    let payload = { email, password, platform };
+     let payload = { email, password, platform };
     try {
         const { sealCredentials } = await import("../../utils/wfm_crypto.js");
         const sealed = await sealCredentials({ email, password });
@@ -106,7 +107,7 @@ export async function login(email, password, platform = "pc") {
     const token = normalizeToken(body.token);
     if (!isTokenValid(token)) return { ok: false, error: "server" };
 
-    const slug = (body.userSlug || body.ingameName || "").toLowerCase();
+   const slug = (body.userSlug || body.ingameName || "").toLowerCase();
     if (!body.authorized && !slug) {
         return { ok: false, error: "token_rejected", diag: body.diag };
     }
@@ -117,7 +118,7 @@ export async function login(email, password, platform = "pc") {
         if (body.ingameName) sessionStorage.setItem(NAME_KEY, body.ingameName);
         if (slug) sessionStorage.setItem(SLUG_KEY, slug);
         sessionStorage.setItem(SCOPE_KEY, body.authorized ? "full" : "public");
-        sessionStorage.setItem(PLATFORM_KEY, platform);
+       sessionStorage.setItem(PLATFORM_KEY, platform);
     } catch {
         return { ok: false, error: "storage" };
     }
@@ -218,6 +219,10 @@ export async function logout() {
  * without a token).
  * @returns {boolean}
  */
+export function wfmPrivado() {
+    return /^(localhost|127\.0\.0\.1|\[::1\])$/.test(globalThis.location?.hostname || "");
+}
+
 export function isLoggedIn() {
     return getToken() !== null || getUserSlug() !== null;
 }

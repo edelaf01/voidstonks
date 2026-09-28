@@ -1,3 +1,8 @@
+// Server clock: every countdown (fissures, farms, Arbitration) measures against the same
+// reference. The system clock can run minutes ahead and show live missions as expired.
+// The offset lives in globalThis: fissures.service.js writes it too, and importing each
+// other would make a cycle.
+
 import { getServerTime } from "../repositories/api.repository.js";
 
 globalThis._serverTimeOffset = globalThis._serverTimeOffset || 0;

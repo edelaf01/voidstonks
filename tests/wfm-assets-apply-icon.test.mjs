@@ -1,7 +1,13 @@
+// applyIcon execution behavior (utils/wfm_assets.js)
+// checks image URLs, timing and probe counts during runtime
+// bad paths like "Cannot GET ... hunter_munitions.webp" happened because getItemIcon ALWAYS returns a path
+// regardless of whether the file exists, flickering broken icons
+
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-globalThis.localStorage = { getItem: () => null, setItem() {}, removeItem() {} };
+const guardado = {};
+globalThis.localStorage = { getItem: (k) => guardado[k] ?? null, setItem: (k, v) => { guardado[k] = v; }, removeItem() {} };
 globalThis.fetch = async () => ({ ok: false, status: 404, json: async () => ({}) });
 
 /** probes created by checkLocal, resolved manually */
@@ -16,41 +22,29 @@ globalThis.Image = class {
 
 const { applyIcon } = await import("../deploy/js/utils/wfm_assets.js");
 
-const WFM = "https://warframe.market/static/assets/";
+const GENERICO = "assets/mod.svg";
 const img = () => ({ src: "" });
 const ultimaSonda = () => sondas.at(-1);
 
-test("sin asset local que probar, el icono de WFM se pinta ya", () => {
-  const el = img();
-  const antes = sondas.length;
-
-  applyIcon(el, "", "icons/mod.png");
-
-  assert.equal(el.src, WFM + "icons/mod.png");
-  assert.equal(sondas.length, antes, "no debe comprobar nada");
-});
-
-test("sin nombre y sin thumb no se toca el src", () => {
+test("sin nombre no se toca el src", () => {
   const el = img();
   // empty or "undefined" src is not inert: browsers resolve it against current page and download the whole
   // HTML document as an image
-  applyIcon(el, "", null);
+  applyIcon(el, "");
   assert.equal(el.src, "");
 });
 
-test("sin respaldo remoto el asset local se pinta sin comprobarlo", () => {
+test("una reliquia lleva el icono de reliquia sin sondear nada", () => {
   const el = img();
   const antes = sondas.length;
-
-  applyIcon(el, "Vigilante Armaments");
-
-  assert.equal(el.src, "assets/relic_contents/vigilante_armaments.webp");
-  assert.equal(sondas.length, antes, "sin alternativa, comprobar solo retrasa el pintado");
+  applyIcon(el, "Lith A8 Relic");
+  assert.equal(el.src, "assets/relic.webp");
+  assert.equal(sondas.length, antes);
 });
 
-test("el asset propio gana al CDN de warframe.market, pero solo tras comprobarlo", async () => {
+test("el asset propio se pinta, pero solo tras comprobarlo", async () => {
   const el = img();
-  applyIcon(el, "Ash Prime Set", "icons/ash_prime_set.png");
+  applyIcon(el, "Ash Prime Set");
 
   // asynchronous decision: on return from applyIcon src remains empty; a subsequent if (!img.src) once
   // slipped into ui_orders.js, ALWAYS forcing the CDN over local assets
@@ -62,14 +56,14 @@ test("el asset propio gana al CDN de warframe.market, pero solo tras comprobarlo
   assert.equal(el.src, "assets/relic_contents/ash_prime.webp");
 });
 
-test("si el asset propio no existe, se cae al icono de warframe.market", async () => {
+test("si el asset propio no existe, el icono genérico y no el CDN de warframe.market", async () => {
   const el = img();
-  applyIcon(el, "Hunter Munitions", "icons/hunter_munitions.png");
+  applyIcon(el, "Hunter Munitions");
 
   ultimaSonda().onerror();
   await Promise.resolve();
 
-  assert.equal(el.src, WFM + "icons/hunter_munitions.png");
+  assert.equal(el.src, GENERICO);
 });
 
 test("una ruta ya comprobada no se vuelve a sondear, la pidan las tarjetas que la pidan", async () => {
@@ -79,8 +73,8 @@ test("una ruta ya comprobada no se vuelve a sondear, la pidan las tarjetas que l
 
   // Ash and Volt share prime_neuroptics.webp: cached by PATH rather than name, sharing one check across
   // dozens of order cards
-  applyIcon(a, "Ash Prime Neuroptics Blueprint", "icons/ash.png");
-  applyIcon(b, "Volt Prime Neuroptics Blueprint", "icons/volt.png");
+  applyIcon(a, "Ash Prime Neuroptics Blueprint");
+  applyIcon(b, "Volt Prime Neuroptics Blueprint");
 
   // both arrive before the first resolves: caches the in-flight promise so concurrent checks deduplicate
   assert.equal(sondas.length, antes + 1, "una sonda por ruta, no por tarjeta");
@@ -91,23 +85,24 @@ test("una ruta ya comprobada no se vuelve a sondear, la pidan las tarjetas que l
   assert.equal(b.src, "assets/relic_contents/prime_neuroptics.webp");
 
   const c = img();
-  applyIcon(c, "Nova Prime Neuroptics Blueprint", "icons/nova.png");
+  applyIcon(c, "Nova Prime Neuroptics Blueprint");
   assert.equal(sondas.length, antes + 1, "ya resuelta: tampoco se repite después");
   await Promise.resolve();
   assert.equal(c.src, "assets/relic_contents/prime_neuroptics.webp");
 });
 
-test("un 404 recordado tampoco se reintenta: la tarjeta va directa al CDN", async () => {
+test("un 404 se recuerda entre sesiones: cada sonda fallida es un error en la consola", async () => {
   const a = img();
-  applyIcon(a, "Vigilante Vigor", "icons/vv.png");
-  const antes = sondas.length;
+  applyIcon(a, "Vigilante Vigor");
   ultimaSonda().onerror();
   await Promise.resolve();
-  assert.equal(a.src, WFM + "icons/vv.png");
+  assert.equal(a.src, GENERICO);
+  assert.ok(JSON.parse(guardado.vs_iconos_sin_asset).includes("assets/relic_contents/vigilante_vigor.webp"));
 
   const b = img();
-  applyIcon(b, "Vigilante Vigor", "icons/vv2.png");
-  assert.equal(sondas.length, antes, "el resultado negativo también se cachea");
+  const antes = sondas.length;
+  applyIcon(b, "Vigilante Vigor");
+  assert.equal(sondas.length, antes);
   await Promise.resolve();
-  assert.equal(b.src, WFM + "icons/vv2.png");
+  assert.equal(b.src, GENERICO);
 });

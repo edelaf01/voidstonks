@@ -1,6 +1,9 @@
 import { state } from "../../state.js";
 import { ORDERS_TEXTS as T } from "../../assets/orders_texts.js";
 import { renderOrdersUnderConstruction } from "./ui_orders_wip.js";
+import { botonRevisarPrecios } from "./ui_reprice.js";
+import { mercadoAlVerse } from "./ui_mercado_visible.js";
+import { precioSugerido } from "../../utils/market/precio_reciente.js";
 import { applyIcon } from "../../utils/wfm_assets.js";
 import { exposeGlobals } from "../../utils/global_registry.js";
 import {
@@ -9,14 +12,14 @@ import {
     isLoggedIn,
     getIngameName,
     getScope,
-    getPlatform,
+    getPlatform, wfmPrivado,
     logout as logoutSession
 } from "../../services/market/wfm_auth.service.js";
 import {
     fetchMyOrders,
     editOrder,
     fetchItemMarket,
-    fetchMarketBatch, getOrdersFilterType, saveOrdersFilterType
+    fetchMarketBatch, mercadoDeTodos, getOrdersFilterType, saveOrdersFilterType
 } from "../../services/market/wfm_orders.service.js";
 
 /**
@@ -226,26 +229,43 @@ function renderOrders(root, orders) {
         root.appendChild(note);
     }
 
+    const main = el("div", "orders-main");
+    const layout = el("div", "orders-layout");
+    const panes = el("div", "orders-chips orders-panes");
+    layout.dataset.pane = orders.length ? paneActual : "inv";
+    for (const [pane, label] of [["orders", `${t.paneOrders} (${orders.length})`], ["inv", t.paneInv]]) {
+        const b = el("button", `orders-chip${pane === layout.dataset.pane ? " active" : ""}`, label);
+        b.type = "button";
+        b.dataset.pane = pane;
+        b.addEventListener("click", () => {
+            layout.dataset.pane = paneActual = pane;
+            for (const o of panes.children) o.classList.toggle("active", o === b);
+        });
+        panes.appendChild(b);
+    }
+    layout.append(panes, main, inventorySection(orders));
+    root.appendChild(layout);
+
     if (!orders.length) {
         const hint = getScope() === "full" ? t.noOrdersHintFull : t.noOrdersHint;
-        root.appendChild(stateBlock("○", `${t.noOrders} ${hint}`));
-        root.appendChild(inventorySection(orders));
+        main.appendChild(stateBlock("○", `${t.noOrders} ${hint}`));
         return;
     }
 
     let summary = summaryBar(orders);
-    root.appendChild(summary);
+    main.appendChild(summary);
 
     const head = el("div", "orders-section-head");
     const count = el("span", "orders-count");
-    head.append(el("span", "orders-section-title", t.sectionOrders), count);
-    root.appendChild(head);
+    head.append(el("span", "orders-section-title", t.sectionOrders), count, botonRevisarPrecios(orders, loadOrders));
+    main.appendChild(head);
 
     let bar = filterBar(orders, () => paint());
-    root.appendChild(bar);
+    main.appendChild(bar);
 
     const list = el("div", "orders-list");
-    root.appendChild(list);
+    main.appendChild(list);
+    const vigia = mercadoAlVerse((slugs) => loadMarketForList(slugs, list, orders));
 
     function paint() {
         const shown = applyFilters(orders);
@@ -266,6 +286,7 @@ function renderOrders(root, orders) {
         const frag = document.createDocumentFragment();
         for (const o of shown) frag.appendChild(orderCard(o));
         list.replaceChildren(frag);
+        vigia.observa(list.children);
     }
     paint();
 
@@ -285,10 +306,6 @@ function renderOrders(root, orders) {
             bar = nextBar;
         }
     };
-
-    loadMarketForList(orders, list);
-
-    root.appendChild(inventorySection(orders));
 }
 
 function inventorySection(orders) {
@@ -305,10 +322,16 @@ function inventorySection(orders) {
     head.append(el("span", "orders-section-title", t.sectionInv));
     box.appendChild(head);
     box.appendChild(el("p", "orders-inv-hint", t.invHint));
+    const buscar = Object.assign(el("input", "orders-input orders-search"), { type: "search", placeholder: t.searchPh });
+    box.appendChild(buscar);
 
     const body = el("div", "orders-inv-body");
     body.appendChild(el("p", "orders-state-text", t.invLoading));
     box.appendChild(body);
+    buscar.addEventListener("input", () => {
+        const q = buscar.value.trim().toLowerCase();
+        for (const r of body.querySelectorAll(".inv-row")) r.style.display = r.querySelector(".inv-name")?.textContent.toLowerCase().includes(q) ? "" : "none";
+    });
 
     fillInventorySection(body, orders);
     return box;
@@ -334,15 +357,24 @@ async function fillInventorySection(body, orders) {
     }
 
     const frag = document.createDocumentFragment();
+    const registra = (slug, n) => [`${t.invRegister} ×${n}`, "ok", () => link.registraSets(slug, n)];
 
     if (res.stale?.length) {
         frag.appendChild(el("p", "orders-inv-stale-head", t.invStale));
         frag.appendChild(el("p", "orders-inv-hint", t.invStaleHint));
-        for (const s of res.stale) frag.appendChild(staleRow(s));
+        for (const s of res.stale) frag.appendChild(syncRow(s.name || s.slug, null, [registra(s.slug, s.order.quantity || 1),
+            [t.remove, "danger", () => (confirm(t.confirmDelete) ? editOrder(s.order.id, "delete") : null)]]));
     }
-
+    if (res.mismatched?.length) frag.appendChild(el("p", "orders-inv-stale-head", t.invQtyOff));
+    for (const m of res.mismatched || []) frag.appendChild(syncRow(m.name, `${t.invOwned} ×${m.qty} · ${t.invListed} ×${m.order.quantity}`, [
+        ...(m.order.quantity > m.qty ? [registra(m.slug, m.order.quantity)] : []),
+        [`${t.invFixQty} ×${m.qty}`, "ok", () => editOrder(m.order.id, "update", { quantity: m.qty })]]));
+    if (res.sinRegistrar) globalThis.showToast?.(`${t.invUnregistered}: ${res.sinRegistrar}`);
+    const avisos = (res.stale?.length || 0) + (res.mismatched?.length || 0);
+    const pestana = body.closest(".orders-layout")?.querySelector('[data-pane="inv"]');
+    if (avisos && pestana) pestana.appendChild(el("span", "orders-pane-alert", String(avisos)));
     if (!res.unlisted?.length) {
-        if (!res.stale?.length) frag.appendChild(el("p", "orders-state-text", t.invEmpty));
+        if (!res.stale?.length && !res.mismatched?.length) frag.appendChild(el("p", "orders-state-text", t.invEmpty));
         body.replaceChildren(frag);
         return;
     }
@@ -366,7 +398,7 @@ function sellableRow(item, meta, market) {
     const img = el("img", "inv-thumb");
     img.alt = "";
     img.loading = "lazy";
-    applyIcon(img, item.name, meta?.thumb);
+    applyIcon(img, item.name);
     row.appendChild(img);
 
     const info = el("div", "inv-info");
@@ -374,7 +406,7 @@ function sellableRow(item, meta, market) {
     info.appendChild(el("span", "inv-meta", `${t.invOwned} ×${item.qty}`));
     row.appendChild(info);
 
-    const suggested = market?.median != null ? Math.round(market.median) : null;
+    const suggested = precioSugerido(market)?.precio ?? item.referencia ?? null;
 
     const price = el("input", "inv-price");
     price.type = "number";
@@ -385,7 +417,7 @@ function sellableRow(item, meta, market) {
 
     const hint = el("span", "inv-suggested");
     if (suggested) hint.append(el("span", "inv-suggested-label", t.invSuggested), plat(suggested));
-    else hint.textContent = t.invNoPrice;
+    else Object.assign(hint, { textContent: "—", title: t.invNoPrice });
     row.appendChild(hint);
 
     const btn = el("button", "order-act ok", t.invSell);
@@ -427,28 +459,30 @@ function sellableRow(item, meta, market) {
     return row;
 }
 
-function staleRow(entry) {
-    const t = txt();
+/** Each action is [text, class, fix]; fix returns null when cancelled. */
+function syncRow(name, detail, acciones) {
     const row = el("div", "inv-row is-stale");
 
     const info = el("div", "inv-info");
-    info.appendChild(el("span", "inv-name", entry.name || entry.slug));
+    info.appendChild(el("span", "inv-name", name));
+    if (detail) info.appendChild(el("span", "inv-meta", detail));
     row.appendChild(info);
 
-    const btn = el("button", "order-act danger", t.remove);
-    btn.type = "button";
-    btn.addEventListener("click", async () => {
-        if (!confirm(t.confirmDelete)) return;
-        btn.disabled = true;
-        const res = await editOrder(entry.order.id, "delete");
-        if (!res.ok) {
-            btn.disabled = false;
-            globalThis.showToast?.(t.errEdit);
-            return;
-        }
-        row.remove();
-    });
-    row.appendChild(btn);
+    for (const [label, kind, fix] of acciones) {
+        const btn = el("button", `order-act ${kind}`, label);
+        btn.type = "button";
+        btn.addEventListener("click", async () => {
+            btn.disabled = true;
+            const res = await fix();
+            if (!res?.ok) {
+                btn.disabled = false;
+                if (res) globalThis.showToast?.(txt().errEdit);
+                return;
+            }
+            row.remove();
+        });
+        row.appendChild(btn);
+    }
 
     return row;
 }
@@ -460,18 +494,14 @@ let linkApi = null;
 
 const marketCache = new Map();
 
-async function loadMarketForList(orders, listEl) {
-    const slugs = [...new Set(
-        orders.map(o => o.itemSlug || o.item?.slug).filter(s => s && !marketCache.has(s))
-    )];
-
-    if (slugs.length) {
-        const data = await fetchMarketBatch(slugs);
+async function loadMarketForList(slugs, listEl, orders) {
+    const faltan = slugs.filter((s) => !marketCache.has(s));
+    const vuelca = (data) => {
         for (const [slug, info] of Object.entries(data)) marketCache.set(slug, info);
-    }
+        if (listEl.isConnected) for (const card of listEl.querySelectorAll(".order-card")) applyMarketToCard(card);
+    };
+    if (faltan.length) await mercadoDeTodos(faltan, { onProgreso: ({ mercados }) => vuelca(mercados) });
     if (!listEl.isConnected) return; // the view changed while loading
-
-    for (const card of listEl.querySelectorAll(".order-card")) applyMarketToCard(card);
 
     startLiveWatch(orders);
 }
@@ -577,7 +607,7 @@ function marketSummary(info, type, myPlat, ranked = false) {
         box.appendChild(m);
     }
     if (info.volume != null) {
-        const v = el("span", "om-stat");
+        const v = el("span", "om-stat om-vol");
         v.title = t.volumeTitle;
         v.append(el("span", "om-label", t.volume), el("span", "om-val", String(info.volume)));
         box.appendChild(v);
@@ -777,7 +807,7 @@ function orderCard(order) {
         const img = el("img", "order-thumb");
         img.alt = "";
         img.loading = "lazy";
-        applyIcon(img, name, order.itemThumbPath);
+        applyIcon(img, name);
         card.appendChild(img);
     }
 
@@ -810,7 +840,8 @@ function orderCard(order) {
     if (order.visible === false) meta.appendChild(el("span", "order-hidden-tag", t.hidden));
     body.appendChild(meta);
 
-    body.appendChild(el("div", "order-market om-loading"));
+    const mkt = slug && marketCache.get(slug);
+    body.appendChild(mkt ? marketSummary(mkt, type, card.dataset.plat, maxRank > 0) : el("div", "order-market om-loading"));
 
     card.append(body, plat(order.platinum ?? "?", "order-price"));
 
@@ -1071,9 +1102,7 @@ function patchOrder(card, orderId, patch) {
         const next = { ...listCtx.orders[i], ...patch };
         listCtx.orders[i] = next;
 
-        const fresh = orderCard(next);
-        card.replaceWith(fresh);
-        applyMarketToCard(fresh);
+        card.replaceWith(orderCard(next));
 
         if (!FILTER_TESTS[filters.type]?.(next)) listCtx.repaint();
     }
@@ -1164,10 +1193,12 @@ async function loadOrders() {
     setView(VIEW.ORDERS, res.orders);
 }
 
+let paneActual = "orders";
+
 export function initOrdersTab() {
     const root = document.getElementById("orders-content");
     if (!root) return;
-    renderOrdersUnderConstruction(root);
+    if (wfmPrivado()) loadOrders(); else renderOrdersUnderConstruction(root);
 }
 
 export function isSetListed(slug) {

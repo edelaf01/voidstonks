@@ -27,6 +27,9 @@ export const ScannerHUD = {
             this.setUIBadge(badge, etiqueta, "#f1c40f", "rgba(241,196,15,0.4)", "rgba(241,196,15,0.1)");
             const msgEl = document.getElementById("live-inv-msg");
             if (msgEl) msgEl.innerText = sh.statusIdle;
+        } else if (contextType === "TRADE") {
+            if (hud) hud.style.display = "block";
+            this.setUIBadge(badge, sh.statusTrade, "#00e5ff", "rgba(0,229,255,0.4)", "rgba(0,229,255,0.1)");
         } else if (state.squadRun) {
             // the run panel lives inside this HUD and this runs every frame: in a mission the context is UNKNOWN, so
             // without this branch the HUD hid again
@@ -74,11 +77,41 @@ export const ScannerHUD = {
         }
     },
 
+    /** What is on the Trading Post table ({ doy, recibo }); no table hides the block. */
+    updateTrade(mesa) {
+        const panel = document.getElementById("trade-panel");
+        if (!panel) return;
+        const clave = JSON.stringify(mesa) + state.currentLang;
+        if (clave === this._ultimoTradeo) return;
+        this._ultimoTradeo = clave;
+        panel.replaceChildren();
+        panel.style.display = mesa ? "" : "none";
+        if (!mesa) return;
+        const sh = TEXTS[state.currentLang].scannerHUD;
+        const nodo = (tag, clase, texto = "") => Object.assign(document.createElement(tag), { className: clase, textContent: texto });
+        if (mesa.confirmada) panel.appendChild(nodo("div", "trade-confirmada", sh.tradeConfirmed));
+        for (const [lado, titulo] of [["doy", sh.tradeGive], ["recibo", sh.tradeReceive]]) {
+            panel.appendChild(nodo("div", "trade-title", titulo));
+            if (!mesa[lado].length) panel.appendChild(nodo("div", "trade-empty", "—"));
+            for (const { tipo, name, qty, plat } of mesa[lado]) {
+                const linea = nodo("div", "trade-line");
+                linea.appendChild(nodo("span", "trade-name", tipo === "platino" ? `${name} ${qty}` : `${qty > 1 ? `${qty}× ` : ""}${name}`));
+                if (plat) {
+                    const precio = nodo("span", "trade-plat", String(plat * qty));
+                    precio.appendChild(nodo("span", "plat-icon-inline"));
+                    linea.appendChild(precio);
+                }
+                panel.appendChild(linea);
+            }
+        }
+    },
+
     _ultimoTipo: "UNKNOWN",
     _detectados: 0,
 
     _muestraBloques() {
         if (this._ultimoTipo !== "DUCAT_KIOSK") this.updateKioskSale([]);
+        if (this._ultimoTipo !== "TRADE") this.updateTrade(null);
         const inventario = this._ultimoTipo === "INVENTORY";
         // the kiosk is passive: no manual scan or save, but the list stays visible
         const kiosco = this._ultimoTipo === "DUCAT_KIOSK";

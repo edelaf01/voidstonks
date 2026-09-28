@@ -27,9 +27,14 @@ export function isPauseScreen(menuText) {
 
 const clean = (w) => String(w?.text ?? w ?? "").toUpperCase().replaceAll(/[^A-ZÁÉÍÓÚ]/g, "");
 
+const PREFIJOS = { IN: "intact", EX: "exceptional", FL: "flawless", IM: "flawless", RA: "radiant" };
+
 /** The refinement a word names ("(Radiant)"), or null. */
 export function refinementOf(word) {
-  return REFINEMENTS[clean(word)] || null;
+  const c = clean(word);
+  // the OCR eats letters ("(Ratiant"): with the parenthesis in front, the first two are enough
+  const conParentesis = String(word?.text ?? word ?? "").trimStart().startsWith("(") && c.length >= 4;
+  return REFINEMENTS[c] || (conParentesis && PREFIJOS[c.slice(0, 2)]) || null;
 }
 
 const median = (xs) => {
@@ -86,17 +91,30 @@ export function groupWordCells(words, { gapFactor = 2 } = {}) {
   }));
 }
 
+/**
+ * The relics the squad carries, left to right.
+ *
+ * @param words     OCR word boxes of the strip: { text, x0, x1, y0, y1 }
+ * @param matchRelic (words) => canonical name or null. Injected because it lives in services/
+ *                  (OCRService.getRelicMatch) and cannot be imported here.
+ * @returns [{ name, refinement, x0, propia }], `refinement` is null when the parenthesis was not read.
+ */
 export function parseSquadRelics(words, { matchRelic } = {}) {
   if (typeof matchRelic !== "function") return [];
   const out = [];
-  for (const cell of groupWordCells(words)) {
+  const cells = groupWordCells(words);
+  for (const cell of cells) {
     const name = matchRelic(cell.words);
     if (!name) continue;
     // the word "Relic"/"Reliquia" is required: the panel also lists weapons and warframes, and a bare name can
     // look like a relic code. No hurry to rescue doubtful reads, the screen stays open and the next frame retries
     if (!cell.words.some((w) => /^(RELIC|RELIQUIA)S?$/.test(clean(w)))) continue;
-    const refinement = cell.words.map(refinementOf).find(Boolean) || null;
-    out.push({ name, refinement, x0: cell.x0 });
+    // a "(Ratiant" merged with the line below fell into the cell underneath
+    const pegada = (w) => w.x0 >= cell.x1 - 2 && w.x0 - cell.x1 < 2 * (cell.y1 - cell.y0) && w.y0 < cell.y1 && w.y1 > cell.y0;
+    const refinement = cell.words.map(refinementOf).find(Boolean) || refinementOf(words.find((w) => pegada(w) && refinementOf(w))) || null;
+    // your column is the first: your relic opens its line
+    const propia = !cells.some((o) => o !== cell && o.x1 <= cell.x0 && o.y0 < cell.y1 && o.y1 > cell.y0);
+    out.push({ name, refinement, x0: cell.x0, propia });
   }
   return out.sort((a, b) => a.x0 - b.x0);
 }

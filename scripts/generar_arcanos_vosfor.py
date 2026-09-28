@@ -136,12 +136,19 @@ def main():
             others.append(m["slug"])
     others.sort()
 
+    # all tradables whether dissolvable or not (Arcane Velocity gives no Vosfor): [EN name, ES name, max rank]
+    tradables = {slugify(dict_en.get(a["name"], a["name"])): [dict_en.get(a["name"], a["name"]), dict_es.get(a["name"], a["name"]), a.get("fusionLimit", 5)]
+                 for a in arcanes_export.values() if dict_en.get(a["name"], a["name"]) in tradable_names}
+    for m in MANUAL_EXTRAS:
+        tradables.setdefault(m["slug"], [m["en"], m["es"], m["maxRank"]])
+
     out = {
         "updated": date.today().isoformat(),
         "source": "warframe-public-export-plus (browse.wf)",
         "packs": packs,
         "others": others,
         "arcanes": arcanes,
+        "tradables": dict(sorted(tradables.items())),
     }
     OUT.write_text(json.dumps(out, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     print(f"OK -> {OUT}")

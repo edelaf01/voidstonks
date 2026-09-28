@@ -12,6 +12,7 @@
  */
 
 import { filasConNombre } from "./grid_alignment.js";
+import { buscaChecks, ventanasDeFilas, faseDesdeChecks, CHECK_OFFSET } from "./check_anchor.js";
 
 /** Perceptual luma (0..255), base of the edge signal. */
 export const luma = (r, g, b) => 0.299 * r + 0.587 * g + 0.114 * b;
@@ -40,9 +41,13 @@ export function smoothedLumaRow(data, off, width, radius) {
     return out;
 }
 
+const ASPECTO_CELDA = 1.069;
+
 const DEFAULTS = {
     edgeDelta: 26,       // |Δluma| between neighbour samples that counts as a stroke edge
     edgeSmooth: 0,       // anti-noise box filter radius; 0 = no smoothing
+    // name color signal: fallback when a light textured background floods the edges or metallic art takes the
+    // phase. Names use one color; the one giving the thinnest bands wins
     bgDistSq: 70 * 70,     // min dist² to the background color for an "ink" pixel
     mergeColSq: 45 * 45,   // merges candidate colors closer than this (antialias/compression)
     nameTolSq: 80 * 80,    // dist² to the name color (metallic art sits beyond 110)
@@ -55,6 +60,7 @@ const DEFAULTS = {
     nameBandOffset: 0.75, // cell top ≈ name band top − 0.75·cellH
     nameBaselineOffset: 0.92, // cell top ≈ name BASELINE (y1) − 0.92·cellH
     rows: 3,             // Warframe's inventory always shows 3 rows
+    dosFilas: false,     // last resort for a search with 1-2 result rows (see detectInventoryGrid)
     minCols: 3,
     maxCols: 12,
 };
@@ -395,6 +401,11 @@ export function detectInventoryGrid(img, opts = {}) {
         delete best._nameColor;
         return best;
     }
+    // a search leaves one or two result rows: two are only accepted when everything else fails
+    if (!o.dosFilas) {
+        const dos = detectInventoryGrid(img, { ...opts, dosFilas: true, trace: {} });
+        if (dos) return { ...dos, dosFilas: true };
+    }
     outerTrace.fail = outerTrace.fail || "sin señal de bordes ni de color de nombre";
     return null;
 }
@@ -444,7 +455,9 @@ function detectInventoryGridCore(img, opts = {}) {
         return null;
     }
 
+    // vertical pitch (cellH): only real rows form an evenly spaced progression. The top ~20% is HUD
     const hudLimit = height * 0.2;
+    // anchored and filtered by the band BASE (y1): a 2 line name grows upward and its top jumps
     const toItem = bb => ({
         pos: bb.band.y1,
         mass: bb.blocks.reduce((s, bl) => s + bl.mass, 0),
@@ -453,6 +466,9 @@ function detectInventoryGridCore(img, opts = {}) {
     const chainItems = bandBlocks.filter(bb => bb.band.y1 >= hudLimit).map(toItem);
     const chain = bestArithmeticChain(chainItems, height * 0.12, height * 0.5);
 
+    // row CUT at the top (scroll clamped to half a row): its name falls in the HUD strip and without it the whole
+    // grid moves down a cell. Readmitted only one pitch above the first member AND lined up in columns with it,
+    // which the title and search box are not
     if (chain && chain.members.length >= 2) {
         const pitch = chain.pitch;
         const first = chain.members[0];
@@ -478,7 +494,8 @@ function detectInventoryGridCore(img, opts = {}) {
 
     trace.chain = chain ? { pitch: Math.round(chain.pitch), members: chain.members } : null;
     // the 3 inventory rows are required: any pair of bands makes a "chain"
-    if (!chain || chain.members.length < o.rows) {
+    const minFilas = o.dosFilas ? 2 : o.rows;
+    if (!chain || chain.members.length < minFilas) {
         trace.fail = chain
             ? `cadena de solo ${chain.members.length} filas (<${o.rows}) — pitch sin corroborar`
             : "sin cadena de filas equiespaciadas (¿solo HUD/paneles, sin grid visible?)";
@@ -563,7 +580,7 @@ function detectInventoryGridCore(img, opts = {}) {
     }
 
     trace.rowBands = usedTops;
-    if (rowBands.length < o.rows) {
+    if (rowBands.length < minFilas) {
         trace.fail = `solo ${rowBands.length} filas de nombres tras re-anclar (<${o.rows})`;
         return null;
     }
@@ -604,6 +621,13 @@ function detectInventoryGridCore(img, opts = {}) {
         return null;
     }
     const cellW = bestQ;
+    // with two rows letter tails ("Blueprint" vs "Relic") move the step 5%: the width rules, as it comes from
+    // every column
+    const esperado = cellW * ASPECTO_CELDA;
+    if (chain.members.length < 3) {
+        if (Math.abs(chain.pitch - esperado) > esperado * 0.1) { trace.fail = "dos filas con un paso que no casa con el ancho"; return null; }
+        cellH = Math.round(esperado);
+    }
 
     // horizontal phase: cell BORDERS are valleys without text. Looks for the offset b minimizing the profile at
     // x = b + k·cellW within the text range
@@ -662,6 +686,8 @@ function detectInventoryGridCore(img, opts = {}) {
     // xMin/xMax. Real columns have names in (almost) every row: keep the longest contiguous run of occupied
     // cells
     if (cols >= 2) {
+        // occupancy = in how many rows the column has text (>12% of THAT row's max); with summed mass the side
+        // panel with text in one row scored like a grid column
         const perRow = rowBands.map((bb) => {
             const prof = new Float32Array(width);
             for (let y = bb.band.y0; y <= bb.band.y1; y++) {
@@ -744,10 +770,21 @@ function detectInventoryGridCore(img, opts = {}) {
     }
     const gridX = Math.max(0, Math.round(gridXf));
 
+    // vertical phase from the first row BASELINE (y1): flashy art merges with the name from above and anchoring
+    // on y0 left the cell ~0.6·cellH high
     const firstBand = rowBands[0].band;
     const gridY = firstBand.y1
         ? Math.round(firstBand.y1 - cellH * o.nameBaselineOffset)
         : Math.round(usedTops[0] - cellH * o.nameBandOffset);
+    // and with two rows, ✓ marks on both: any pair of text bands matches some step
+    if (chain.members.length < 3) {
+        const picos = buscaChecks(img, cellH, { ventanasY: ventanasDeFilas({ gridY, cellH, rows: 2 }) });
+        const filasConCheck = new Set(picos.map((p) => Math.round((p.y - CHECK_OFFSET.y * cellH - gridY) / cellH)));
+        if (!faseDesdeChecks(picos, { cellW, cellH }) || filasConCheck.size < 2) {
+            trace.fail = "dos filas sin marcas ✓ en las dos";
+            return null;
+        }
+    }
 
     // plus the ones peeking at the bottom with few items (see filasConNombre)
     let rows = filasConNombre(findBands(prof, height, { ...o, bandMassFloor: 0 }),

@@ -14,6 +14,15 @@ import { groupWordCells } from "./squad_panel.js";
 // the crop leaves out the scroll bar (~0.60 of the width), the right rewards panel and the OWNED/SEARCH row
 // on top
 export const RELIC_GRID_CROP = Object.freeze({ x: 0.03, y: 0.17, w: 0.57, h: 0.76 });
+// "Lith S19 Relic - Possible Rewards", over the rewards panel of the fissure selection
+export const RELIC_TITLE_CROP = Object.freeze({ x: 0.46, y: 0.225, w: 0.31, h: 0.055 });
+
+export function reliquiaDelTitulo(texto, matchRelic) {
+  const t = String(texto || "");
+  const fin = t.search(/POSS?IBLE|REWARDS|RECOMPENSAS|POSIBLES/i);
+  if (fin < 0 || typeof matchRelic !== "function") return null;
+  return matchRelic(t.slice(0, fin).split(/\s+/).filter(Boolean)) || null;
+}
 
 // the count is drawn "x108": the OCR may split the x from the number or confuse the glyph, but the x must
 // be there. Bare digits on screen are art, not counts

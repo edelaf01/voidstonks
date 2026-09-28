@@ -821,6 +821,7 @@
 }
 
 /* "you have these halfway" strip (ui_sets_bridge.js) */
+/* scoped to #setResults: the strip sometimes lives inside the relic side panel, and an unscoped generic name already ate rows of another tab (.inv-row in orders.css) */
 #setResults .sets-bridge {
     margin: 0 0 16px;
     padding: 10px 12px;
@@ -996,6 +997,7 @@
     min-width: 0;
 }
 
+/* rem, not em: the chip is already at 0.78rem */
 #setResults .sets-bridge-left {
     font-size: 0.68rem;
     color: #8b95a3;

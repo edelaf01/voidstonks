@@ -1,3 +1,6 @@
+// kubrow pattern and colour translation from EE.log
+// the table changes when DE adds colours; what is pinned are two design choices that would break silently
+
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {

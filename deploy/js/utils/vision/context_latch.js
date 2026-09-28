@@ -13,6 +13,14 @@ import { fraccionCambiada } from "./frame_hash.js";
 export const SWITCH_FRAMES = 2;
 export const RELEASE_FRAMES = 3;
 
+// transitions the game always makes switch on one read. RELICS → REWARD is not here: on relic selection
+// OCR garbage reads as REWARD
+export const TRANSICIONES_ESPERADAS = Object.freeze({
+  REWARD: ["RELICS", "MISSION_COMPLETE"],
+  TRADE: ["INVENTORY"],
+  INVENTORY: ["TRADE"],
+});
+
 export const INITIAL_LATCH = Object.freeze({
   latched: "UNKNOWN",
   unknownCount: 0,
@@ -47,7 +55,7 @@ export function nextLatchedContext(prev, raw) {
 
   // leaving UNKNOWN latches AT ONCE: that is acquiring, not changing its mind, and waiting only delays the
   // first read of the rewards screen
-  if (s.latched === "UNKNOWN") {
+  if (s.latched === "UNKNOWN" || TRANSICIONES_ESPERADAS[s.latched]?.includes(raw)) {
     return { latched: raw, unknownCount: 0, pending: null, pendingCount: 0 };
   }
 

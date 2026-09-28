@@ -38,6 +38,9 @@ const CAPTURAS = {
   "temas/siguesinarreglar.png": { total: 4, tesseract: 0 },
   "temas/siguesinfunciona.png": { total: 4, tesseract: 4 },
   "temas/styanaxnodetecta.png": { total: 4, tesseract: 3 },
+  // ivara Prime Blueprint "Crafted", with bright warframe art over the name: cropped by the user (no
+  // header), the band fails and falls back to the fixed crop
+  "temas/ivara-crafted-no-lee.png": { total: 4, tesseract: 4 },
   // reported live: scanner returned "Nidus Prime Neuroptics Blueprint", merging "Nidus Prime" from the first
   // card with "Neuroptics Blueprint" from the second
   // that name EXISTS in the catalog, so the matcher accepts it and counting alone cannot catch it: KNOWN

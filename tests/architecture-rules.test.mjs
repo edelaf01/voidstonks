@@ -1,3 +1,6 @@
+// the detectors in _helpers/architecture-rules.mjs checked against synthetic fixtures
+// loosening a regex there would turn every layer debt green and no other test would notice
+
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {

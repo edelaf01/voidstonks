@@ -26,10 +26,15 @@ import { INITIAL_LEDGER, nextLedger, esPantallaRecordada, recuerdaPantalla, memo
 const memoriaMC = memoriaPantalla(() => localStorage, "vs_mc_ultima_pantalla");
 // wakes the sleeping read: a row scroll moves the whole panel, the scene behind it far less
 const DESPIERTA_MC = 24;
+const ESPERA_TARJETAS_MS = 1500;
 import { createFrameQueue } from "../../utils/vision/frame_queue.js";
 import { videoRegionHash, canvasRegionHash, compareHashes, fraccionCambiada, regionLuma, firmaTexto, mismoTexto } from "../../utils/vision/frame_hash.js";
 import { createReadCache } from "../../utils/vision/read_cache.js";
 import { DebugRecorder } from "./debug_recorder.service.js";
+import { FirmasTitulo } from "./title_signatures.service.js";
+import { leeCabeceraOCR, RESCATE_CABECERA_MS } from "./header_read.service.js";
+import { TradeService } from "./trade.service.js";
+import { ANCHO_REJILLA_TRADEO } from "../../utils/vision/trade_post.js";
 import { DucatKioskService } from "./ducat_kiosk.service.js";
 import { ESTADO_INICIAL as ESTADO_SIN_RESULTADO, saltaPorSinResultado, siguienteEstadoSinResultado } from "../../utils/vision/no_result_skip.js";
 import { cronometro } from "../../utils/perf.js";
@@ -40,7 +45,6 @@ import { badgePlausible } from "../../utils/vision/badge_digit_ocr.js";
 import { isGarbledCellText } from "../../utils/vision/cell_text_guard.js";
 import { olvidaColorTexto } from "../../utils/vision/reward_preprocess.js";
 import { cedeHilo } from "../../utils/yield.js";
-const RESCATE_CABECERA_MS = 3000;
 
 export const ScannerService = {
     isScanning: false,
@@ -141,6 +145,8 @@ export const ScannerService = {
         this._mcFrameCvs = releaseFrame(this._mcFrameCvs);
         this._mcCellCvs = releaseFrame(this._mcCellCvs);
         this._mcGrid = null;
+        this._recompensaParcial = null;
+        TradeService.reset();
     },
 
     async loop() {
@@ -157,7 +163,8 @@ export const ScannerService = {
         } finally {
             if (this.isScanning) {
                 this.scanInterval = setTimeout(() => this.loop(), this.currentRate);
-                if (this.latchedContext !== "UNKNOWN" && this.currentRate > 2 * CADA_MS) (this._sensor ||= sensorDelEscaner(this, video)).arma();
+                // in UNKNOWN only for a known title: while playing the strip stops and starts all the time
+                if (this.currentRate > 2 * CADA_MS) (this._sensor ||= sensorDelEscaner(this, video, { acepta: () => this.latchedContext !== "UNKNOWN" || !!FirmasTitulo.reconoce(video) })).arma();
             }
         }
     },
@@ -192,7 +199,7 @@ export const ScannerService = {
         // with a still context the clock rules too: on rewards the squad icons move inside the strip
         const intervalo = intervaloCabecera(this._headerEstable, this.latchedContext);
         const enPausa = Date.now() - (this.lastHeaderOcrTime || 0) < intervalo;
-        let headerText, pasadas = 0;
+        let headerText, pasadas = 0, firma = null;
         const cambiado = tituloHaCambiado(headerHash, this.lastHeaderHash);
         // a still strip that differs from the last read = new screen: read without waiting. Not on mission
         // end, where the scene behind the title stops now and then.
@@ -200,49 +207,16 @@ export const ScannerService = {
         // the cached text describes this frame unless the title changed and the clock does not allow a
         // reread yet
         this._cabeceraVigente = !(enPausa && cambiado);
-        if (this.lastHeaderText !== null && headerCacheFresh && !pantallaNueva && (enPausa || !cambiado)) {
+        if (this.latchedContext === "TRADE" && TradeService.conDialogo(video)) {
+            headerText = this.lastHeaderText || "TRADING POST";
+        } else if (this.lastHeaderText !== null && headerCacheFresh && !pantallaNueva && (enPausa || !cambiado)) {
             headerText = this.lastHeaderText;
+        } else if ((firma = FirmasTitulo.reconoce(video))) {
+            headerText = firma.texto;
+            Object.assign(this, { _cabeceraVigente: true, lastHeaderText: headerText, lastHeaderHash: headerHash, lastHeaderOcrTime: Date.now() });
         } else {
             this._cabeceraVigente = true;
-            VisionService.prepareVirtualCanvas(video, virtualCanvas);
-            const headerTheme = VisionService.finalizeVirtualCanvas(virtualCanvas);
-            const { data: headerData } = await OCRRepository.recognize(worker1, virtualCanvas, {}, { text: true });
-            headerText = headerData.text || "";
-            pasadas = 1;
-
-            const sinContexto = () => VisionService.determineContext(headerText) === "UNKNOWN";
-            const enFinDeMision = this.latchedContext === "MISSION_COMPLETE";
-            const rescate = sinContexto() && (franjaQuieta || enFinDeMision || Date.now() - (this._ultimoRescate || 0) >= RESCATE_CABECERA_MS);
-            if (rescate) this._ultimoRescate = Date.now();
-
-            if (rescate && headerTheme && !enFinDeMision) {
-                pasadas++;
-                if (!this._altHeaderCvs) this._altHeaderCvs = document.createElement("canvas");
-                VisionService.prepareVirtualCanvas(video, this._altHeaderCvs);
-                const altCtx = this._altHeaderCvs.getContext("2d", { willReadFrequently: true });
-                VisionService.applyThemeDistanceThreshold(altCtx, this._altHeaderCvs.width, this._altHeaderCvs.height, headerTheme);
-                const { data: altData } = await OCRRepository.recognize(worker1, this._altHeaderCvs, {}, { text: true });
-                const altText = altData.text || "";
-                if (VisionService.determineContext(altText) !== "UNKNOWN") {
-                    console.log(`[SCAN] Header rescatado por binarización de tema: "${altText.trim().slice(0, 60)}"`);
-                    headerText = altText;
-                }
-            }
-
-            if (rescate && sinContexto()) {
-                pasadas++;
-                if (!this._centerHeaderCvs) this._centerHeaderCvs = document.createElement("canvas");
-                VisionService.prepareCenterHeaderCanvas(video, this._centerHeaderCvs);
-                const cCtx = this._centerHeaderCvs.getContext("2d", { willReadFrequently: true });
-                const cTheme = VisionService.detectThemeFromSnapshot(this._centerHeaderCvs, 0, 0, this._centerHeaderCvs.width, this._centerHeaderCvs.height, { sinRecuerdo: true });
-                VisionService.applyThemeDistanceThreshold(cCtx, this._centerHeaderCvs.width, this._centerHeaderCvs.height, cTheme);
-                const { data: cData } = await OCRRepository.recognize(worker1, this._centerHeaderCvs, {}, { text: true });
-                const cText = cData.text || "";
-                if (VisionService.determineContext(cText) !== "UNKNOWN") {
-                    console.log(`[SCAN] Contexto por título centrado: "${cText.trim().slice(0, 60)}"`);
-                    headerText = cText;
-                }
-            }
+            ({ headerText, pasadas } = await leeCabeceraOCR(this, video, virtualCanvas, worker1, franjaQuieta));
             this.lastHeaderText = headerText;
             this.lastHeaderHash = headerHash;
             this.lastHeaderOcrTime = Date.now();
@@ -272,11 +246,14 @@ export const ScannerService = {
             rawContext, gracia, this.lastRivenContextType);
         if (cancelar) this.lastRivenContextTime = 0;
 
-        this.ctxLatch = nextLatchedContext(this.ctxLatch, routedContext);
+        // hysteresis in utils/vision/context_latch.js. A title known by its signature switches this frame.
+        this.ctxLatch = firma ? { ...INITIAL_LATCH, latched: routedContext } : nextLatchedContext(this.ctxLatch, routedContext);
         // the text color only changes with the screen: recomputed on context change
         if (this.ctxLatch.latched !== this.latchedContext) olvidaColorTexto();
         // mission end left: the next one may repeat a part and must count again
         if (this.latchedContext === "MISSION_COMPLETE" && this.ctxLatch.latched !== "MISSION_COMPLETE") { this.mcLedger = INITIAL_LEDGER; this._mcCache.clear(); this._mcDormido = null; this._recompensasEnMision = false; }
+        // leaving mid card wait dropped the read: opened now, before releaseFrames clears it
+        if (this.latchedContext === "REWARD" && this.ctxLatch.latched !== "REWARD") this.rescataRecompensaParcial();
         // frames only serve their screen: released on context change
         if (this.ctxLatch.latched !== this.latchedContext) this.releaseFrames();
         this.latchedContext = this.ctxLatch.latched;
@@ -290,6 +267,7 @@ export const ScannerService = {
         if (this.latchedContext !== this._ctxGrabado) { this._ctxGrabado = this.latchedContext; DebugRecorder.record({ kind: "cabecera", image: virtualCanvas, meta: { resumen: `${rawContext} → ${this.latchedContext}`, texto: headerText.trim() } }); }
         DebugRecorder.miniatura(video, { contexto: rawContext, fijado: this.latchedContext, cabecera: headerText.trim().slice(0, 80), pasadas });
         DebugRecorder.rendimientoTick({ contexto: this.latchedContext, enOCR: this.detectionLocked, cola: this._invQueue?.size ?? 0 });
+        DebugRecorder.latenciaContexto({ fijado: this.latchedContext, cambiado, pendiente: !!this.ctxLatch.pending, via: firma ? "firma" : "ocr" });
         // the modal covered the scanner for 20 s, and with it the next round's SELECT RELIC
         if (this._recompensaLeida) {
             if (this.latchedContext === "REWARD") return;
@@ -297,6 +275,7 @@ export const ScannerService = {
             this.detectionLocked = false;
         }
         await this.routeFrameAction(this.latchedContext, video, dims);
+        if (pasadas && franjaQuieta && rawContext === this.latchedContext && !SquadService.lastVerdict) FirmasTitulo.aprende(video, headerText, rawContext);
         if (this.ctxLatch.pending) this.currentRate = Math.min(this.currentRate, 300);
         reloj.fin(this.latchedContext);
 
@@ -314,7 +293,7 @@ export const ScannerService = {
     enqueueInventoryPage(snapshot, dims) {
         const key = `${dims.width}x${dims.height}`;
         if (this._frameZoneCache?.key !== key) {
-            const calib = VisionService.detectGridAutoCalib(snapshot, dims.width, dims.height);
+            const calib = VisionService.detectGridAutoCalib(snapshot, dims.width, dims.height, this.anchoRejilla(dims.width));
             let zone = calib?.gridZone || null;
             if (zone) {
                 // the crop starts where the header ends: above it there is only HUD and a half hidden row
@@ -333,7 +312,7 @@ export const ScannerService = {
         const zone = this._frameZoneCache.zone;
         if (!zone) {
             if (this.detectionLocked) return false;
-            this.processInventoryGrid(snapshot, dims.width, dims.height, dims.scale)
+            this.processInventoryGrid(snapshot, dims.width, dims.height, dims.scale, this.anchoRejilla(dims.width))
                 .catch(e => console.error("[INV] fallo procesando la página en directo:", e));
             return true;
         }
@@ -386,7 +365,12 @@ export const ScannerService = {
             : rawContextType;
         ScannerHUD.updateContext(contextType === "INVENTORY" && DucatKioskService.esKiosco(this.lastHeaderText) ? "DUCAT_KIOSK" : contextType);
 
-        if ((contextType === "UNKNOWN" || contextType === "RELICS") && await SquadService.probe(video)) return;
+        // the pause has no header of its own: by squad names it reads as any context ("AstralModulation" -> MODS)
+        if (await SquadService.probe(video, { aCiegas: contextType === "UNKNOWN" || contextType === "RELICS" })) {
+            // read as MODS it opened the riven grace: 8 s reading cards back in game
+            this.lastRivenContextTime = 0;
+            return;
+        }
 
         if (contextType === "INVENTORY") {
             // no kiosk read with a page in OCR: it changes the psm of worker 0
@@ -521,7 +505,7 @@ export const ScannerService = {
             // would inherit it
             if (this.detectionLocked) return;
             this.currentRate = 600;
-            await RelicScreenService.process(video, dims);
+            await RelicScreenService.process(video, dims, { menu: /REFI|NEME/.test((this.lastHeaderText || "").toUpperCase()) });
         } else if (contextType === "MISSION_COMPLETE") {
             if (globalThis.RivenScannerHUD) globalThis.RivenScannerHUD.dismiss();
             // the run is over
@@ -529,6 +513,9 @@ export const ScannerService = {
             // two still frames and two equal reads before recording: ~1.5 s at 400 ms
             this.currentRate = 400;
             await this.processMissionComplete(video, dims);
+        } else if (contextType === "TRADE") {
+            this.currentRate = 600;
+            await TradeService.process(video);
         } else if (contextType === "REWARD") {
             if (globalThis.RivenScannerHUD) globalThis.RivenScannerHUD.dismiss();
             if (this.detectionLocked) return;
@@ -1125,14 +1112,31 @@ export const ScannerService = {
             if (!result || r.foundItems.length > result.foundItems.length) { result = r; usado = { ...cand, preset: "STANDARD" }; }
             if (result.foundItems.length >= cand.minimo) break;
         }
-        if (usado && (usado.preset !== "STANDARD" || usado.nombre !== candidatos[0].nombre)) {
+        // mid entry animation the last card is not readable yet: fewer rewards than cards rereads on the
+        // next ticks, then opens with the best
+        const parcial = this._recompensaParcial;
+        if (parcial && parcial.result.foundItems.length > result.foundItems.length) ({ result, usado } = parcial);
+        const desde = parcial?.desde ?? Date.now();
+        if (result.foundItems.length && result.foundItems.length < (cardCount || 0) && Date.now() - desde < ESPERA_TARJETAS_MS) {
+            console.log(`[REWARD] ${result.foundItems.length} de ${cardCount} tarjetas: se relee`);
+            this._recompensaParcial = { result, usado, desde, dims, bandHash, primerRecorte: candidatos[0].nombre, cabecera: this.lastHeaderText };
+            return;
+        }
+        this._recompensaParcial = null;
+        this.abreRecompensas(frame, dims, { result, usado, bandHash, primerRecorte: candidatos[0].nombre, cabecera: this.lastHeaderText });
+    },
+
+    abreRecompensas(frame, dims, lectura) {
+        const { width, height, scale } = dims;
+        const { result, usado } = lectura;
+        if (usado && (usado.preset !== "STANDARD" || usado.nombre !== lectura.primerRecorte)) {
             console.log(`[REWARD] Leído con recorte "${usado.nombre}" y preset ${usado.preset}`);
         }
         const { rawOcr, namesRaw, foundItems, ocrCanvas, namesCanvas } = result;
         DebugRecorder.record({ kind: "recompensas", image: frame, overlay: ocrCanvas, meta: { resumen: `${foundItems.length} ítems`, recorte: usado, rawOcr, namesRaw, items: foundItems.map((i) => ({ name: i.name, owned: i.owned, crafted: i.crafted })) } });
 
         // caches the hash when this frame brought no reward, so the skip above works on a still screen
-        this.lastRewardNoResult = siguienteEstadoSinResultado(foundItems.length > 0, bandHash, Date.now());
+        this.lastRewardNoResult = siguienteEstadoSinResultado(foundItems.length > 0, lectura.bandHash, Date.now());
         if (foundItems.length) RelicScreenService.marcaRecompensaPrime();
 
         // the debug snapshot is drawn here: services/ do not touch the DOM, and it shows the winning canvas
@@ -1164,7 +1168,7 @@ export const ScannerService = {
 
         // context guard: other screens show prime parts shaped like a reward band. Checks the crop and the
         // header, since the centered title never falls inside the band.
-        const contextText = `${rawOcr} ${namesRaw} ${this.lastHeaderText || ""}`.toUpperCase();
+        const contextText = `${rawOcr} ${namesRaw} ${lectura.cabecera || ""}`.toUpperCase();
         const NON_REWARD_TOKENS = [
             "MISSION COMPLETE", "MISION COMPLETADA", "MISIÓN COMPLETADA",
             "IMPORTANCE", "IMPORTANCIA", "SEARCH", "BUSCAR",
@@ -1192,7 +1196,18 @@ export const ScannerService = {
         }
     },
 
-    async processInventoryGrid(snapshot, width, height, scale) {
+    rescataRecompensaParcial() {
+        if (!this._recompensaParcial || !this._rewardFrameCvs) return;
+        const p = this._recompensaParcial;
+        this._recompensaParcial = null;
+        this.abreRecompensas(this._rewardFrameCvs, p.dims, p);
+    },
+
+    anchoRejilla(width) {
+        return /TRADE/.test(this.lastHeaderText || "") ? Math.round(width * ANCHO_REJILLA_TRADEO) : width;
+    },
+
+    async processInventoryGrid(snapshot, width, height, scale, anchoMax = width) {
         const reloj = cronometro("inventario");
         relojBadges.ms = 0; relojBadges.n = 0;
         if (this.detectionLocked) return;
@@ -1203,7 +1218,7 @@ export const ScannerService = {
             // grid per page (~60 ms): cached per resolution it stuck where the first page stopped, and scrolls
             // do not stop on cell multiples. The cache backs a page with no signal.
             const calibKey = `${width}x${height}`;
-            let calibData = VisionService.detectGridAutoCalib(snapshot, width, height);
+            let calibData = VisionService.detectGridAutoCalib(snapshot, width, height, anchoMax);
             const reciennacida = !!calibData; // detected in this frame, not inherited
             if (calibData) {
                 this._autoCalibCache = { key: calibKey, calib: calibData };

@@ -8,6 +8,7 @@
     flex-direction: column;
     gap: 16px;
     width: 100%;
+    container-type: inline-size;
     color: #e0e0e0;
     font-size: 0.92rem;
 }
@@ -412,13 +413,6 @@
 /* hidden: stripes and a desaturated thumb rather than dimming the card; price and market still matter for relisting */
 .order-card.is-hidden {
     border-left-style: dashed;
-    background: repeating-linear-gradient(
-        135deg,
-        transparent,
-        transparent 7px,
-        rgba(255, 255, 255, 0.022) 7px,
-        rgba(255, 255, 255, 0.022) 14px
-    ), var(--wf-card);
 }
 
 .order-card.is-hidden .order-thumb {
@@ -1016,6 +1010,154 @@ a.order-name:hover {
     }
 }
 
+/* orders | inventory */
+.orders-layout {
+    display: grid;
+    gap: 16px;
+}
+
+.orders-main {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    min-width: 0;
+}
+
+.orders-layout[data-pane="orders"] > .orders-inv,
+.orders-layout[data-pane="inv"] > .orders-main {
+    display: none;
+}
+
+.orders-layout > .orders-inv {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: 0;
+}
+
+.orders-inv > .orders-search {
+    margin-bottom: 10px;
+}
+
+.orders-pane-alert {
+    margin-left: 6px;
+    padding: 0 6px;
+    font-size: 0.7rem;
+    color: #1a1406;
+    background: var(--wf-gold-text);
+    border-radius: 9px;
+}
+
+/* wide enough: each order on one row, columns from the list (subgrid) so price and buttons line up */
+@container (min-width: 600px) {
+    .orders-list { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; }
+    .orders-list > * { grid-column: 1 / -1; }
+    .order-card { grid-template-columns: subgrid; }
+    .order-price { justify-self: end; }
+    .order-actions .order-act.danger { margin-left: auto; }
+    .order-thumb, .order-body, .order-actions, .order-price { grid-row: 1; }
+    /*
+     * same three lines on every row: name, the in/out of price tags, and median with best price
+     * depth and volume live in the editor
+     */
+    .order-body { grid-column: 2; flex-flow: row wrap; align-items: center; column-gap: 8px; }
+    .order-body::after { content: ""; flex-basis: 100%; order: 4; }
+    .order-name { flex-basis: 100%; }
+    .order-market { display: contents; }
+    .order-market .om-tag, .order-market .om-delta { order: 2; }
+    .order-market .om-stat, .order-market .om-sample { order: 5; }
+    .order-card .om-depth, .order-card .om-vol { display: none; }
+
+    /* unlisted rows share columns so price, reference and "Sell" do not move with the text */
+    .orders-inv-body { display: grid; grid-template-columns: 34px minmax(0, 1fr) 74px max-content auto; column-gap: 10px; }
+    .orders-inv-body > * { grid-column: 1 / -1; }
+    #orders-content .orders-inv-body > .inv-row:not(.is-stale):not(.is-done) { grid-template-columns: subgrid; }
+    .inv-suggested { justify-content: flex-end; }
+    .order-card { column-gap: 8px; }
+    .order-actions .order-act { padding: 4px 8px; }
+
+    .order-actions {
+        grid-column: auto;
+        flex-wrap: nowrap;
+        padding-top: 0;
+        margin-top: 0;
+        border-top: 0;
+    }
+}
+
+/* review prices */
+.orders-section-head .orders-reprice {
+    margin-left: auto;
+    align-self: center;
+    padding: 5px 11px;
+    font-size: 0.74rem;
+}
+
+.reprice-modal {
+    max-width: 680px;
+}
+
+.reprice-resumen {
+    margin: 0;
+    font-size: 0.85rem;
+    color: #c6c6c6;
+}
+
+/* subgrid: current price, arrow and suggested line up whatever the name length */
+.reprice-list {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto auto 76px;
+    gap: 6px 10px;
+    max-height: 55vh;
+    overflow-y: auto;
+}
+
+.reprice-row {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
+    align-items: center;
+    padding: 7px 9px;
+    background: var(--wf-card);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 7px;
+}
+
+.reprice-row.is-done { opacity: 0.45; }
+.reprice-row.is-failed { border-color: rgba(255, 68, 68, 0.55); }
+
+.reprice-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.reprice-name {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 600;
+}
+
+.reprice-why {
+    font-size: 0.72rem;
+    color: #9a9a9a;
+}
+
+.reprice-now {
+    font-family: monospace;
+    white-space: nowrap;
+}
+
+.reprice-now.caro { color: var(--wf-error); }
+.reprice-now.barato { color: var(--wf-gold-text); }
+.reprice-arrow { opacity: 0.5; }
+
+.reprice-price {
+    padding: 6px 8px;
+    font-size: 0.9rem;
+}
+
 /* list from inventory */
 .orders-inv {
     margin-top: 26px;
@@ -1054,13 +1196,17 @@ a.order-name:hover {
 }
 
 #orders-content .inv-row.is-stale {
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr);
+    grid-auto-flow: column;
     border-color: rgba(197, 168, 86, 0.3);
     background: rgba(197, 168, 86, 0.06);
 }
 
 #orders-content .inv-name {
     font-size: 0.85rem;
+    font-weight: 600;
+    text-transform: none;
+    letter-spacing: normal;
     color: #e6e6e6;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1106,8 +1252,7 @@ a.order-name:hover {
 }
 
 .inv-suggested-label {
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
+    opacity: 0.75;
 }
 
 /* a listed row stays as a receipt instead of disappearing */

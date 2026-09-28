@@ -1,7 +1,7 @@
 import { state } from "../../state.js";
 import { OCRRepository } from "../../repositories/ocr.repository.js";
 import { PaddleRepository } from "../../repositories/paddle.repository.js";
-import { RELIC_GRID_CROP, parseRelicGrid } from "../../utils/vision/relic_grid.js";
+import { RELIC_GRID_CROP, RELIC_TITLE_CROP, parseRelicGrid, reliquiaDelTitulo } from "../../utils/vision/relic_grid.js";
 import { voteReadings, applyRelicCounts } from "../../utils/inventory/relic_votes.js";
 import { smallCanvasHash, compareHashes } from "../../utils/vision/frame_hash.js";
 import { collectWords, filaPropiaDelEscuadron } from "../../utils/vision/ocr_words.js";
@@ -36,8 +36,8 @@ export const RelicScreenService = {
 
     _leyendoRejilla: null,
 
-    async process(video, dims) {
-        const cambio = await this.trackSelected(video, dims);
+    async process(video, dims, opciones = {}) {
+        const cambio = await this.trackSelected(video, dims, opciones);
         // the grid read runs behind, at most one in flight, so it does not block the loop
         if (cambio || this._leyendoRejilla) return;
         this._leyendoRejilla = this.readGrid(video)
@@ -46,9 +46,16 @@ export const RelicScreenService = {
     },
 
     /** The relic the player has selected. Returns true when it just changed. */
-    async trackSelected(video, dims) {
+    async trackSelected(video, dims, { menu = false } = {}) {
         const worker = OCRRepository.workers[0];
         if (!worker) return false;
+        // by time, not hash: changing one text line barely moves the image
+        if (!menu && video?.videoWidth && Date.now() - this._tituloT >= 1500) {
+            this._tituloT = Date.now();
+            const { data } = await OCRRepository.recognize(worker, VisionService.prepareCropForOCR(video, RELIC_TITLE_CROP, 1, "relicTitle"), {}, { text: true });
+            const titulo = reliquiaDelTitulo(data.text, (w) => OCRService.getRelicMatch(w));
+            if (titulo) return this._apunta(titulo.toUpperCase().replace(/\s+RELIC$/, ""), true, data.text);
+        }
         const canvas = VisionService.prepareRelicSelectionCanvas(video, dims.scale);
         const hash = smallCanvasHash(canvas);
         if (this.lastSelHash && compareHashes(hash, this.lastSelHash, TOLERANCIA_BASE)) return false;
@@ -56,16 +63,23 @@ export const RelicScreenService = {
         const { data } = await OCRRepository.recognize(worker, canvas, {}, { text: true, blocks: true });
 
         const palabras = collectWords(data);
+        const escuadra = filaPropiaDelEscuadron(palabras);
+        // without the panel the full text gave a teammate's relic: retry
+        if (!menu && escuadra === null) { this.lastSelHash = null; return false; }
         const relicMatch = OCRService.parseRelicSelection(data.text, palabras);
         // recorded on every read: the same relic two runs in a row is spent twice. Only in the fissure.
-        if (relicMatch && filaPropiaDelEscuadron(palabras) !== null) { this.reliquiaElegida = relicMatch; this.huboRecompensaPrime = false; }
-        else if (relicMatch === "") this.reliquiaElegida = null;
-        if (relicMatch && relicMatch !== this.lastTrackedRelic) {
-            this.lastTrackedRelic = relicMatch;
-            if (globalThis.showTrackConfirm) globalThis.showTrackConfirm(relicMatch, data.text);
-            return true;
-        }
-        return false;
+        if (relicMatch === "") this.reliquiaElegida = null;
+        return relicMatch ? this._apunta(relicMatch, escuadra !== null, data.text) : false;
+    },
+
+    _tituloT: 0,
+
+    _apunta(relic, elegida, texto) {
+        if (elegida) { this.reliquiaElegida = relic; this.huboRecompensaPrime = false; }
+        if (relic === this.lastTrackedRelic) return false;
+        this.lastTrackedRelic = relic;
+        if (globalThis.showTrackConfirm) globalThis.showTrackConfirm(relic, texto);
+        return true;
     },
 
     /**
@@ -82,19 +96,20 @@ export const RelicScreenService = {
         const elegida = this.reliquiaElegida;
         this.reliquiaElegida = null;
         this.huboRecompensaPrime = false;
-        if (elegida) this.lastSelHash = null;
+        // an endless fissure often repeats the relic next round: the hash would skip it
+        if (elegida) { this.lastSelHash = null; this.lastTrackedRelic = ""; }
         return elegida;
     },
 
     async readGrid(video) {
-        const worker = OCRRepository.workers[0];
+        const worker = await OCRRepository.workerDeFondo();
         if (!worker) return;
 
         // 1.25: more blurs the stroke, less invents counts (scripts-actu/banco)
         const cvs = VisionService.prepareCropForOCR(video, RELIC_GRID_CROP, 1.25, "relicGrid");
         const hash = smallCanvasHash(cvs);
         const tolerancia = TOLERANCIA_BASE * (1 + this.lecturasSinNovedad);
-        if (this.lastGridHash && compareHashes(hash, this.lastGridHash, tolerancia)) return;
+        if (this.lastGridHash && compareHashes(hash, this.lastGridHash, tolerancia) && !this._porConfirmar) return;
         this.lastGridHash = hash;
 
         const traza = {};
@@ -119,9 +134,10 @@ export const RelicScreenService = {
         // before voting: voteReadings writes into `applied`
         const novedad = read.some(({ name, count }) => this.applied.get(name) !== count);
         this.lecturasSinNovedad = novedad ? 0 : Math.min(this.lecturasSinNovedad + 1, TOPE_SIN_NOVEDAD);
-        if (!read.length) return;
 
         const changed = voteReadings(this, read);
+        // with a still screen the second vote never came: one more read, only one
+        this._porConfirmar = novedad && !changed.length && !this._porConfirmar;
         if (!changed.length) return;
 
         state.inventory = applyRelicCounts(state.inventory, changed);
@@ -158,8 +174,10 @@ export const RelicScreenService = {
         this.votes.clear();
         this.applied.clear();
         this.lastGridHash = null;
+        this._porConfirmar = false;
         this.lecturasSinNovedad = 0;
         this.lastSelHash = null;
+        this._tituloT = 0;
         this.lastTrackedRelic = "";
         this.reliquiaElegida = null;
         this.huboRecompensaPrime = false;

@@ -101,14 +101,17 @@ async function savePriceToCache(slug, price) {
 
 // --- Snapshot de precios prime -------------------------------------------------
 const SNAPSHOT_KEY = "prices_snapshot_doc";
-const SNAPSHOT_TTL = 6 * 60 * 60 * 1000;
+const SNAPSHOT_TTL = 60 * 60 * 1000;
 let snapshotPromise = null;
+let snapshotHasta = 0;
+let snapshotAnterior = {};
 
 function applySnapshot(prices) {
     if (!prices) return;
     for (const slug in prices) {
-        if (!MEMORY_CACHE.has(slug)) MEMORY_CACHE.set(slug, prices[slug]);
+        if (!MEMORY_CACHE.has(slug) || MEMORY_CACHE.get(slug) === snapshotAnterior[slug]) MEMORY_CACHE.set(slug, prices[slug]);
     }
+    snapshotAnterior = prices;
 }
 
 async function loadPriceSnapshot() {
@@ -135,8 +138,11 @@ async function loadPriceSnapshot() {
     }
 }
 
-export function ensurePriceSnapshot() {
-    if (!snapshotPromise) snapshotPromise = loadPriceSnapshot();
+export function ensurePriceSnapshot(ahora = Date.now()) {
+    if (!snapshotPromise || ahora >= snapshotHasta) {
+        snapshotHasta = ahora + SNAPSHOT_TTL;
+        snapshotPromise = loadPriceSnapshot();
+    }
     return snapshotPromise;
 }
 
@@ -276,6 +282,10 @@ export async function preloadPricesToMemory() {
     await dbHelper.preloadPrices();
 }
 
+/**
+ * one-time notices remembered by key, kept here because ui.components/ does not touch localStorage.
+ * in private mode access throws and returns false, so the notice is shown again.
+ */
 export function oneTimeNoticeSeen(key) {
     try { return localStorage.getItem(key) === "1"; } catch { return false; }
 }

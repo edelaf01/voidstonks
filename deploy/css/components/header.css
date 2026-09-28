@@ -545,6 +545,10 @@
     white-space: nowrap;
 }
 
+/*
+ * the description wraps to two lines at most, an ellipsis would explain nothing
+ * rem, not em: the item is already at 0.84em
+ */
 .tab-fan-desc {
     font-size: 0.72rem;
     font-weight: 500;

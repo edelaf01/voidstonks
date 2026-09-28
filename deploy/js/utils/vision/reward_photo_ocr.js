@@ -1,3 +1,8 @@
+/**
+ * Reads the VOID FISSURE/REWARDS screen from a camera photo or a direct capture. Phases: SCOUT (finds the
+ * name row by the "PRIME" anchor) → ROI → UNION (complementary preprocessings) → COLUMNS (evenly spaced grid
+ * filter).
+ */
 import { rawWords as palabrasCrudas } from "./ocr_words.js";
 
 // longest side the image is normalized to before OCR

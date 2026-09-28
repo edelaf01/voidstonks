@@ -1,3 +1,8 @@
+/**
+ * View prefs of the advised routes panel. The panel repaints every 150 s, so they live
+ * in localStorage.
+ */
+
 const KEY = "vs_farm_routes_view_v1";
 
 // view: "routes" (set -> relic) | "picks" (relic -> rewards)
@@ -55,6 +60,9 @@ export function saveRelicPicksPrefs(prefs) {
     }
 }
 
+/**
+ * Prefs of the half-done sets strip in the Set tab (ui_sets_bridge.js).
+ */
 const BRIDGE_KEY = "vs_sets_bridge_v1";
 const BRIDGE_DEFAULTS = { sort: "near", expanded: false, query: "", maxMissing: 0, era: "" };
 // "" = any; Requiem relics also complete parts (Kuva/Tenet)
