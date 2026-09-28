@@ -797,6 +797,7 @@
     border-radius: 4px;
 }
 
+/* scoped to #setResults because an unscoped generic name ate rows of another tab */
 #setResults .sets-bridge {
     margin: 0 0 16px;
     padding: 10px 12px;

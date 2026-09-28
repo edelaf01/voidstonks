@@ -24,7 +24,7 @@ export function collectWords(data) {
 }
 
 export function filaPropiaDelEscuadron(palabras) {
-    const rotulo = palabras.find((w) => /^SQUAD$/i.test(w.text));
+    const rotulo = palabras.find((w) => /^[S5$][QG0O]U[A4]D$/i.test(w.text));
     if (!rotulo) return null;
     const h = rotulo.y1 - rotulo.y0;
     const fila = palabras.filter((w) => {

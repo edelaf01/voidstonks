@@ -34,7 +34,7 @@ deploy/temp_inspect.html
 # histórico; el workflow retrain-ml.yml lo commitea.
 !/scripts-actu/ML-rivenvaluation/metrics_history.json
 scripts-actu/img/
-# tests/ SÍ se versiona: las reglas de ARCHITECTURE.md solo sirven si el test que las
+# tests/ SÍ se versiona: las reglas de arquitectura solo sirven si el test que las
 # comprueba viaja con el repo. Fuera quedan los volcados de depuración sueltos, que no los
 # usa ningún test (1,7 MB). El fixture de _fixtures/ sí entra: lo necesitan 3 tests de OCR.
 tests/_debug_user*.png
@@ -67,3 +67,5 @@ tests/appraisal_results.json
 /extension.crx
 # Claves privadas.
 *.pem
+__pycache__/
+*.pyc

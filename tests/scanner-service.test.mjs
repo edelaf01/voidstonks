@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { installFakeDocument } from "./_helpers/fake-canvas.mjs";
@@ -9,6 +9,10 @@ globalThis.addEventListener = () => {};
 globalThis.localStorage = { getItem: () => null, setItem() {}, removeItem() {} };
 
 const { ScannerService: S } = await import("../deploy/js/services/scanner/scanner.service.js");
+const { FirmasTitulo } = await import("../deploy/js/services/scanner/title_signatures.service.js");
+
+// the title catalog learns from tests: without clearing it, later tests skip the OCR being measured
+beforeEach(() => { FirmasTitulo._clave = null; FirmasTitulo._catalogo = null; });
 
 const riven = (o = {}) => ({
   weaponName: "Braton", rolls: 3,
@@ -176,6 +180,16 @@ test("el log del escaneo se sigue guardando aunque el panel esté cerrado", () =
   const bloque = SRC.slice(i, i + 400);
   assert.match(bloque, /log:\s*\[\.\.\.this\.lastRawOcrLog\]/);
   assert.ok(!/log:\s*debugVisible/.test(bloque), "el log no puede depender del panel");
+});
+
+test("processFrame llama a rescataRecompensaParcial antes de releaseFrames", () => {
+  const iRescata = SRC.indexOf("this.rescataRecompensaParcial()");
+  const iRelease = SRC.indexOf("this.releaseFrames()", iRescata > 0 ? iRescata - 200 : 0);
+  assert.notEqual(iRescata, -1, "falta la llamada a rescataRecompensaParcial");
+  assert.notEqual(iRelease, -1, "falta releaseFrames");
+  assert.ok(iRescata < iRelease, "rescataRecompensaParcial debe ir antes de releaseFrames");
+  const bloque = SRC.slice(iRescata - 100, iRelease + 100);
+  assert.match(bloque, /if\s*\(this\.latchedContext === "REWARD" && this\.ctxLatch\.latched !== "REWARD"\)\s*this\.rescataRecompensaParcial\(\);/);
 });
 
 test("el recorte de página arranca bajo la cabecera y llega al borde inferior", async () => {
@@ -386,6 +400,55 @@ test("con la cola de inventario leyendo el bucle sigue mirando la pantalla; sin 
   Object.assign(S, { isScanning: false, detectionLocked: false, latchedContext: "UNKNOWN", _frameZoneCache: null, _invQueue: null });
 });
 
+test("la pantalla de reliquias sabe si es el menú de refinamiento o la de la fisura", async () => {
+  const { RelicScreenService } = await import("../deploy/js/services/scanner/relic_screen.service.js");
+  const { SquadService } = await import("../deploy/js/services/scanner/squad.service.js");
+  const orig = { process: RelicScreenService.process, probe: SquadService.probe, cabecera: S.lastHeaderText };
+  const menus = [];
+  RelicScreenService.process = async (_v, _d, opts) => { menus.push(opts.menu); };
+  SquadService.probe = async () => false;
+  try {
+    for (const cabecera of ["VOID RELICS/REFINEMENT", "VOID FISSURE/SELECT RELIC"]) {
+      S.lastHeaderText = cabecera;
+      await S.routeFrameAction("RELICS", {}, { width: 64, height: 36, scale: 1 });
+    }
+    assert.deepEqual(menus, [true, false]);
+  } finally { RelicScreenService.process = orig.process; SquadService.probe = orig.probe; S.lastHeaderText = orig.cabecera; }
+});
+
+test("la pausa se sondea en cualquier contexto, y a ciegas solo en UNKNOWN y RELICS", async () => {
+  const { SquadService } = await import("../deploy/js/services/scanner/squad.service.js");
+  const orig = { probe: SquadService.probe, riven: S.processRivenCard };
+  const sondeos = [];
+  let rivens = 0;
+  SquadService.probe = async (_v, opts) => { sondeos.push(opts.aCiegas); return true; };
+  S.processRivenCard = async () => { rivens++; };
+  try {
+    S.lastRivenContextTime = Date.now();
+    for (const ctx of ["INVENTORY_MODS", "UNKNOWN", "RELICS", "REWARD"]) await S.routeFrameAction(ctx, {}, { width: 64, height: 36, scale: 1 });
+    assert.deepEqual(sondeos, [false, true, true, false]);
+    assert.equal(rivens, 0, "con la pausa detectada no se leen cartas de riven");
+    assert.equal(S.lastRivenContextTime, 0, "la pausa leída como MODS no deja abierta la gracia de rivens");
+  } finally { SquadService.probe = orig.probe; S.processRivenCard = orig.riven; }
+});
+
+test("en el Trading Post se lee la mesa, y al salir se vacía el panel", async () => {
+  const { TradeService } = await import("../deploy/js/services/scanner/trade.service.js");
+  const { SquadService } = await import("../deploy/js/services/scanner/squad.service.js");
+  const orig = { process: TradeService.process, onUpdate: TradeService.onUpdate, probe: SquadService.probe };
+  const lecturas = [], avisos = [];
+  TradeService.process = async (v) => { lecturas.push(v); };
+  TradeService.onUpdate = (m) => avisos.push(m);
+  SquadService.probe = async () => false;
+  try {
+    const video = { videoWidth: 64 };
+    await S.routeFrameAction("TRADE", video, { width: 64, height: 36, scale: 1 });
+    assert.deepEqual(lecturas, [video]);
+    S.releaseFrames();
+    assert.deepEqual(avisos, [null], "cambiar de pantalla vacía el panel del tradeo");
+  } finally { Object.assign(TradeService, { process: orig.process, onUpdate: orig.onUpdate }); SquadService.probe = orig.probe; }
+});
+
 test("con el tour abierto (pausado) no se enruta nada", async () => {
   const { OCRRepository } = await import("../deploy/js/repositories/ocr.repository.js");
   const { FakeCanvas } = await import("./_helpers/fake-canvas.mjs");
@@ -476,7 +539,7 @@ test("con una página en OCR: ni kiosko, ni 'done' en el HUD, ni rejilla de reli
   Object.assign(S, { detectionLocked: false, _invQueue: null, _frameZoneCache: null, autoScrollMuestra: null, sawScrollSinceScan: false, scrollDirectionAccumulator: 0 });
 });
 
-async function escaneaPagina({ motor, lote = {}, paddleListo = true }) {
+async function escaneaPagina({ motor, lote = {}, paddleListo = true, cambiaTrasLaPrimera = false }) {
   const { VisionService } = await import("../deploy/js/services/scanner/vision.service.js");
   const { OCRRepository } = await import("../deploy/js/repositories/ocr.repository.js");
   const { PaddleRepository } = await import("../deploy/js/repositories/paddle.repository.js");
@@ -511,7 +574,9 @@ async function escaneaPagina({ motor, lote = {}, paddleListo = true }) {
   ScannerHUD.updateScrollStatus = () => {}; ScannerHUD.updateDetectedItems = () => {}; ScannerHUD.isDebugOpen = () => false;
   M.aplicaMotor(motor);
   Object.assign(S, { _temaCache: { key: `${W}x${H}`, theme: { name: "Default", r: 227, g: 128, b: 20, actualR: 227, actualG: 128, actualB: 20 } },
-    _nameColorCache: null, _gridReintentado: true, _autoCalibCache: null, detectionLocked: false, lastHeaderText: "INVENTORY/SELL" });
+    _nameColorCache: null, _gridReintentado: true, _autoCalibCache: null, detectionLocked: false, lastHeaderText: "INVENTORY/SELL", latchedContext: "INVENTORY" });
+  const log = console.log;
+  if (cambiaTrasLaPrimera) console.log = (m, ...r) => { if (String(m).startsWith("[INV] celda 1/")) S.latchedContext = "REWARD"; log(m, ...r); };
   try {
     const snapshot = new FakeCanvas(W, H);
     await S.processInventoryGrid(snapshot, W, H, 1);
@@ -524,8 +589,17 @@ async function escaneaPagina({ motor, lote = {}, paddleListo = true }) {
     state.allRelicNames = orig.relics;
     M.aplicaMotor(M.MOTOR_CLASICO);
     S.detectionLocked = false;
+    console.log = log;
   }
 }
+
+test("si cambia la pantalla a mitad de página, la página que se está leyendo se termina entera", async () => {
+  const M = await import("../deploy/js/services/scanner/ocr_engine.service.js");
+  const celdas = (r) => r.log.filter((l) => /^\[r0c\d\]/.test(l)).length;
+  const lote = { r0c0: ["LITH", "C1"], r0c1: ["MESO", "K3"] };
+  assert.equal(celdas(await escaneaPagina({ motor: M.MOTOR_PRECISO, lote })), 2, "control: la página entera");
+  assert.equal(celdas(await escaneaPagina({ motor: M.MOTOR_PRECISO, lote, cambiaTrasLaPrimera: true })), 2);
+});
 
 test("con el lote del preciso leyendo todas las celdas no se gasta Tesseract en elegir el color", async () => {
   const M = await import("../deploy/js/services/scanner/ocr_engine.service.js");
@@ -848,7 +922,7 @@ test("en UNKNOWN el tick es de 1 s con el auto-scan apagado, y con un cambio de 
     OCRRepository.workers = [{ recognize: async () => ({ data: { text: "MISSION COMPLETE" } }) }];
     const ruta = S.routeFrameAction;
     S.routeFrameAction = async () => { S.currentRate = 1000; };
-    Object.assign(S, { isScanning: true, detectionLocked: false, lastHeaderText: null, lastHeaderOcrTime: 0, latchedContext: "REWARD", ctxLatch: { ...INITIAL_LATCH, latched: "REWARD" } });
+    Object.assign(S, { isScanning: true, detectionLocked: false, lastHeaderText: null, lastHeaderOcrTime: 0, latchedContext: "RELICS", ctxLatch: { ...INITIAL_LATCH, latched: "RELICS" } });
     try {
       await S.processFrame(video, new FakeCanvas(16, 9));
       assert.equal(S.ctxLatch.pending, "MISSION_COMPLETE");
@@ -933,7 +1007,75 @@ test("fin de misión leído entero se duerme hasta otro fin de misión", async (
   } finally { OCRRepository.workers = orig.workers; PaddleRepository.listo = orig.listo; globalThis.commitMissionCompleteRewards = orig.commit; state.allRelicNames = orig.relics; S._mcGrid = null; S._mcStableHash = null; S._mcDormido = null; S._mcCache.clear(); RelicScreenService.reset(); }
 });
 
-test("el sensor se arma en los menús con tick largo, y nunca en UNKNOWN ni con tick corto", async () => {
+test("con un diálogo sobre el Trading Post se sigue en TRADE sin OCR de cabecera, pero no para siempre", async () => {
+  const { OCRRepository } = await import("../deploy/js/repositories/ocr.repository.js");
+  const { TradeService } = await import("../deploy/js/services/scanner/trade.service.js");
+  const { INITIAL_LATCH } = await import("../deploy/js/utils/vision/context_latch.js");
+  const { FakeCanvas } = await import("./_helpers/fake-canvas.mjs");
+  const orig = { workers: OCRRepository.workers, ruta: S.routeFrameAction };
+  let lecturas = 0;
+  const rutas = [];
+  OCRRepository.workers = [{ recognize: async () => { lecturas++; return { data: { text: "" } }; } }];
+  S.routeFrameAction = async (ctx) => { rutas.push(ctx); };
+  const oscuro = { videoWidth: 640, videoHeight: 360, width: 640, height: 360, data: new Uint8ClampedArray(640 * 360 * 4).fill(30) };
+  try {
+    TradeService._mesaT = Date.now();
+    Object.assign(S, { isScanning: true, detectionLocked: false, lastHeaderText: "TRADING POST", lastHeaderOcrTime: 0, _ultimoRescate: Date.now(),
+      latchedContext: "TRADE", ctxLatch: { ...INITIAL_LATCH, latched: "TRADE" } });
+    for (let i = 0; i < 5; i++) await S.processFrame(oscuro, new FakeCanvas(16, 9));
+    assert.equal(lecturas, 0, "sin OCR de cabecera");
+    assert.deepEqual(rutas, Array(5).fill("TRADE"));
+    TradeService._mesaT = Date.now() - 121000;
+    await S.processFrame(oscuro, new FakeCanvas(16, 9));
+    assert.ok(lecturas > 0, "pasado el plazo vuelve a leer la cabecera");
+  } finally { OCRRepository.workers = orig.workers; S.routeFrameAction = orig.ruta; S.isScanning = false; TradeService._mesaT = 0; }
+});
+
+test("un rótulo ya aprendido se reconoce sin OCR y cambia de contexto en ese mismo tick", async () => {
+  const { OCRRepository } = await import("../deploy/js/repositories/ocr.repository.js");
+  const { INITIAL_LATCH } = await import("../deploy/js/utils/vision/context_latch.js");
+  const { FakeCanvas } = await import("./_helpers/fake-canvas.mjs");
+  const { conRotulo } = await import("./_helpers/rotulo.mjs");
+  const orig = { workers: OCRRepository.workers, ruta: S.routeFrameAction };
+  let lecturas = 0;
+  const rutas = [];
+  OCRRepository.workers = [{ recognize: async () => { lecturas++; return { data: { text: "" } }; } }];
+  S.routeFrameAction = async (ctx) => { rutas.push(ctx); };
+  try {
+    FirmasTitulo.aprende(conRotulo(3), "VOID FISSURE/REWARDS", "REWARD");
+    Object.assign(S, { isScanning: true, detectionLocked: false, lastHeaderText: null, lastHeaderOcrTime: 0, _ultimoRescate: Date.now(),
+      latchedContext: "RELICS", ctxLatch: { ...INITIAL_LATCH, latched: "RELICS" } });
+    await S.processFrame(conRotulo(3), new FakeCanvas(16, 9));
+    assert.equal(lecturas, 0, "sin OCR de cabecera");
+    assert.deepEqual(rutas, ["REWARD"], "de RELICS a REWARD en un solo tick");
+  } finally { OCRRepository.workers = orig.workers; S.routeFrameAction = orig.ruta; S.isScanning = false; }
+});
+
+test("se aprende de una lectura OCR confirmada con la franja quieta, y no en la pausa", async () => {
+  const { OCRRepository } = await import("../deploy/js/repositories/ocr.repository.js");
+  const { SquadService } = await import("../deploy/js/services/scanner/squad.service.js");
+  const { INITIAL_LATCH, FRANJA_TITULO_VIDEO } = await import("../deploy/js/utils/vision/context_latch.js");
+  const { regionLuma } = await import("../deploy/js/utils/vision/frame_hash.js");
+  const { FakeCanvas } = await import("./_helpers/fake-canvas.mjs");
+  const { conRotulo } = await import("./_helpers/rotulo.mjs");
+  const orig = { workers: OCRRepository.workers, ruta: S.routeFrameAction, pausa: SquadService.lastVerdict };
+  OCRRepository.workers = [{ recognize: async () => ({ data: { text: "VOID FISSURE/REWARDS" } }) }];
+  S.routeFrameAction = async () => {};
+  const tick = async (video, { pausa = false } = {}) => {
+    SquadService.lastVerdict = pausa;
+    Object.assign(S, { isScanning: true, detectionLocked: false, lastHeaderText: null, lastHeaderOcrTime: 0, _ultimoRescate: Date.now(),
+      latchedContext: "REWARD", ctxLatch: { ...INITIAL_LATCH, latched: "REWARD" }, _franjaTickAnterior: regionLuma(video, FRANJA_TITULO_VIDEO) });
+    await S.processFrame(video, new FakeCanvas(16, 9));
+  };
+  try {
+    await tick(conRotulo(5), { pausa: true });
+    assert.equal(FirmasTitulo.reconoce(conRotulo(5)), null, "en la pausa no se aprende");
+    await tick(conRotulo(3));
+    assert.equal(FirmasTitulo.reconoce(conRotulo(3))?.contexto, "REWARD");
+  } finally { OCRRepository.workers = orig.workers; S.routeFrameAction = orig.ruta; SquadService.lastVerdict = orig.pausa; S.isScanning = false; }
+});
+
+test("el sensor se arma con tick largo en cualquier contexto, y nunca con tick corto", async () => {
   const W = 640, H = 360;
   globalThis.document._registrar("live-video", { videoWidth: W, videoHeight: H, width: W, height: H, data: new Uint8ClampedArray(W * H * 4), paused: false, ended: false });
   const orig = { proc: S.processFrame, sensor: S._sensor, si: globalThis.setInterval, ci: globalThis.clearInterval };
@@ -942,7 +1084,7 @@ test("el sensor se arma en los menús con tick largo, y nunca en UNKNOWN ni con 
   globalThis.clearInterval = (id) => { vivos.delete(id); };
   S._sensor = null;
   try {
-    for (const [ctx, rate, armado] of [["INVENTORY", 3000, true], ["INVENTORY_MODS", 1000, true], ["UNKNOWN", 1000, false], ["REWARD", 400, false]]) {
+    for (const [ctx, rate, armado] of [["INVENTORY", 3000, true], ["INVENTORY_MODS", 1000, true], ["UNKNOWN", 1000, true], ["REWARD", 400, false]]) {
       S.processFrame = async () => { S.latchedContext = ctx; S.currentRate = rate; };
       S.isScanning = true;
       await S.loop();

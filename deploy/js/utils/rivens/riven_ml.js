@@ -55,6 +55,7 @@ export async function loadRivenML() {
     }
     if (statWeights && typeof statWeights === "object" && !state.rivenStatWeights) {
       state.rivenStatWeights = statWeights;
+      // through globalThis to avoid the ui_rivens -> riven_ml -> ui_rivens cycle
       if (typeof globalThis.refreshCurrentRivenMetaStats === "function") {
         try { globalThis.refreshCurrentRivenMetaStats(); } catch {}
       }

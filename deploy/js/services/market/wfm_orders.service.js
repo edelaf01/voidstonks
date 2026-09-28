@@ -78,16 +78,77 @@ export async function fetchItemMarket(slug, rank = null) {
     }
 }
 
-export async function fetchMarketBatch(slugs) {
+const CLAVE_MERCADO = "vs_mercado_v1";
+const MERCADO_TTL_MS = 60 * 60 * 1000;
+
+function mercadoLocal() {
+    try { return JSON.parse(localStorage.getItem(CLAVE_MERCADO)) || {}; } catch { return {}; }
+}
+
+function guardaMercado(data, ahora) {
+    try {
+        const local = mercadoLocal();
+        for (const s in local) if (ahora - local[s].t >= MERCADO_TTL_MS) delete local[s];
+        for (const [s, d] of Object.entries(data)) local[s] = { t: ahora, d };
+        localStorage.setItem(CLAVE_MERCADO, JSON.stringify(local));
+    } catch {}
+}
+
+export async function fetchMarketBatch(slugs, { fresco = false } = {}) {
     const list = [...new Set(slugs.filter(Boolean))].slice(0, 30);
     if (!list.length) return {};
+    const ahora = Date.now(), local = fresco ? {} : mercadoLocal();
+    const out = {};
+    for (const s of list) if (local[s] && ahora - local[s].t < MERCADO_TTL_MS) out[s] = local[s].d;
+    const faltan = list.filter((s) => !out[s]);
+    if (!faltan.length) return out;
+    const url = `${WORKER_URL}?type=wfm_market_batch&slugs=${faltan.join(",")}${fresco ? `&_cb=${ahora}` : ""}`;
     try {
-        const res = await fetch(`${WORKER_URL}?type=wfm_market_batch&slugs=${list.join(",")}`);
-        if (!res.ok) return {};
-        return (await res.json()) || {};
+        const res = await fetch(url, fresco ? { cache: "no-cache" } : undefined);
+        if (!res.ok) return out;
+        const data = (await res.json()) || {};
+        guardaMercado(data, ahora);
+        return { ...out, ...data };
     } catch {
-        return {};
+        return out;
     }
+}
+
+export async function mercadoDeTodos(slugs, { fresco = false, onProgreso = null, rondas = 5, esperaMs = 1200 } = {}) {
+    const todos = [...new Set(slugs.filter(Boolean))];
+    const out = {};
+    let faltan = todos;
+    for (let r = 0; r < rondas && faltan.length; r++) {
+        if (r) await new Promise((ok) => setTimeout(ok, esperaMs));
+        for (let i = 0; i < faltan.length; i += 30) {
+            Object.assign(out, await fetchMarketBatch(faltan.slice(i, i + 30), { fresco }));
+            onProgreso?.({ mercados: out, hechos: Object.keys(out).length, total: todos.length });
+        }
+        faltan = faltan.filter((s) => !out[s]);
+    }
+    return out;
+}
+
+const CLAVE_CATALOGO = "vs_catalogo_wfm_v1";
+const CATALOGO_TTL_MS = 7 * 86400000;
+
+export async function conCatalogoLocal(tipo, claves, pide, ahora = Date.now()) {
+    let local = {};
+    try { local = JSON.parse(localStorage.getItem(CLAVE_CATALOGO)) || {}; } catch {}
+    const out = {};
+    for (const k of claves) {
+        const e = local[`${tipo}:${k}`];
+        if (e && ahora - e.t < CATALOGO_TTL_MS) out[k] = e.d;
+    }
+    const faltan = claves.filter((k) => !out[k]);
+    if (!faltan.length) return out;
+    const nuevos = (await pide(faltan)) || {};
+    try {
+        for (const c in local) if (ahora - local[c].t >= CATALOGO_TTL_MS) delete local[c];
+        for (const [k, d] of Object.entries(nuevos)) local[`${tipo}:${k}`] = { t: ahora, d };
+        localStorage.setItem(CLAVE_CATALOGO, JSON.stringify(local));
+    } catch {}
+    return { ...out, ...nuevos };
 }
 
 // TODO urgent: load the thumbnails and bundle them myself
@@ -100,19 +161,19 @@ async function attachItemInfo(orders) {
     const ids = [...new Set(orders.map(o => o.itemId).filter(Boolean))];
     if (!ids.length) return;
 
-    const chunks = [];
-    for (let i = 0; i < ids.length; i += RESOLVE_CHUNK) {
-        chunks.push(ids.slice(i, i + RESOLVE_CHUNK));
-    }
-
-    const info = {};
-    await Promise.all(chunks.map(async (chunk) => {
-        try {
-            const res = await fetch(`${WORKER_URL}?type=wfm_resolve&ids=${chunk.join(",")}`);
-            if (!res.ok) return;
-            Object.assign(info, (await res.json()) || {});
-        } catch {}
-    }));
+    const info = await conCatalogoLocal("id", ids, async (faltan) => {
+        const chunks = [];
+        for (let i = 0; i < faltan.length; i += RESOLVE_CHUNK) chunks.push(faltan.slice(i, i + RESOLVE_CHUNK));
+        const nuevos = {};
+        await Promise.all(chunks.map(async (chunk) => {
+            try {
+                const res = await fetch(`${WORKER_URL}?type=wfm_resolve&ids=${chunk.join(",")}`);
+                if (!res.ok) return;
+                Object.assign(nuevos, (await res.json()) || {});
+            } catch {}
+        }));
+        return nuevos;
+    });
 
     for (const o of orders) {
         const meta = info[o.itemId];

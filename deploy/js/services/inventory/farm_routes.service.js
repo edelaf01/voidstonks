@@ -1,3 +1,5 @@
+// view prefs of the advised routes panel kept in localStorage across 150 s repaints
+
 const KEY = "vs_farm_routes_view_v1";
 
 const DEFAULTS = { collapsed: false, guideOpen: false, view: "routes" };
