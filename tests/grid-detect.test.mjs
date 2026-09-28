@@ -9,6 +9,7 @@ import {
   detectInventoryGrid,
 } from "../deploy/js/utils/vision/grid_detect.js";
 import { makeInventoryFrame, setPixel } from "./_helpers/inventory-frame.mjs";
+import { PLANTILLA_CHECK, CHECK_OFFSET, CHECK_CELDA_REF, CHECK_ESCALA_REF } from "../deploy/js/utils/vision/check_anchor.js";
 
 // ===========================================================================
 // Fixture generator: pinta un frame ImageData-like ({ data, width, height })
@@ -238,6 +239,34 @@ function assertDetected(res, { gridX, gridY, cellW, cellH, cols }, { wTol = 0.10
     `gridZone.y ${res.gridZone.y} fuera de tolerancia (esperado ~${gridY})`,
   );
 }
+
+// Una búsqueda deja una o dos filas de resultados. Dos solo valen si su paso casa con el ancho de celda × 1,069
+// (medido en 40 capturas) y hay marcas ✓ en las dos filas: cualquier par de bandas de texto forma "cadena".
+function conChecks(img, { gridX, gridY, cellW, cellH, cols, celdas }) {
+  const f = Math.round(CHECK_ESCALA_REF * cellH / CHECK_CELDA_REF);
+  for (const k of celdas) {
+    const cx = gridX + (k % cols) * cellW + CHECK_OFFSET.x * cellW, cy = gridY + Math.floor(k / cols) * cellH + CHECK_OFFSET.y * cellH;
+    for (let j = 0; j < 16; j++) for (let i = 0; i < 16; i++) {
+      const v = parseInt(PLANTILLA_CHECK[j * 16 + i], 16) * 16;
+      for (let dy = 0; dy < f; dy++) for (let dx = 0; dx < f; dx++) {
+        const p = ((Math.round(cy) + (j - 8) * f + dy) * img.width + Math.round(cx) + (i - 8) * f + dx) * 4;
+        img.data[p] = img.data[p + 1] = img.data[p + 2] = v;
+      }
+    }
+  }
+  return img;
+}
+
+test("detectInventoryGrid: dos filas de una búsqueda, solo con el paso del ancho de celda y marcas ✓ en las dos", () => {
+  const geo = { gridX: 81, gridY: 252, cellW: 277, cols: 6 };
+  const dos = (cellH, celdas = [0, 1, 2, 6, 7]) => detectInventoryGrid(conChecks(
+    makeInventoryFrame({ width: 2560, height: 1440, ...geo, cellH, rows: 2, filled: [0, 1, 2, 3, 4, 5, 6, 7, 8] }), { ...geo, cellH, celdas }));
+  const r = dos(296);
+  assert.deepEqual({ rows: r.rows, cols: r.cols, cellW: r.cellW, cellH: r.cellH }, { rows: 2, cols: 6, cellW: 277, cellH: 296 });
+  assert.ok(Math.abs(r.gridX - 81) <= 3 && Math.abs(r.gridY - 252) <= 3);
+  assert.equal(dos(330), null, "el paso no casa con el ancho");
+  assert.equal(dos(296, [0, 1, 2, 3]), null, "marcas solo en la primera fila");
+});
 
 test("detectInventoryGrid: 1920x1080, 6 columnas, todas llenas", () => {
   const truth = { gridX: 400, gridY: 140, cellW: 250, cellH: 290, cols: 6 };

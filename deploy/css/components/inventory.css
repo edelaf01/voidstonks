@@ -433,14 +433,35 @@
 }
 
 .set-trend-pct {
-    min-width: 44px;
+    min-width: 52px;
+    padding-bottom: 2px;
     text-align: right;
     font-weight: 800;
     font-family: monospace;
+    background: linear-gradient(currentColor, currentColor) right bottom / var(--barra, 0) 2px no-repeat;
 }
 
 .set-trend-row.sube .set-trend-pct { color: var(--wf-green); }
 .set-trend-row.baja .set-trend-pct { color: var(--wf-error); }
+.set-trend-row.igual { opacity: 0.5; }
+.set-trend-row.igual .set-trend-pct { color: #888; }
+
+.set-trend-list {
+    max-height: 216px;
+    overflow-y: auto;
+    padding-right: 4px;
+    scrollbar-width: thin;
+}
+
+.set-trend-sum {
+    display: flex;
+    gap: 6px;
+    font-size: 0.7rem;
+    font-family: monospace;
+}
+
+.set-trend-sum .sube { color: var(--wf-green); }
+.set-trend-sum .baja { color: var(--wf-error); }
 
 .set-trend-empty {
     color: #888;

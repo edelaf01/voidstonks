@@ -10,7 +10,7 @@
 // que farms y cualquier contador nuevo lo compartan en vez de reimplementarlo.
 //
 // El offset vive en globalThis a propósito: fissures.service.js lo escribe y lo lee, y
-// hacer que ambos módulos se importen entre sí crearía un ciclo (ver CLAUDE.md).
+// hacer que ambos módulos se importen entre sí crearía un ciclo.
 
 import { getServerTime } from "../repositories/api.repository.js";
 

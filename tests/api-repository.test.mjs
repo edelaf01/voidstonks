@@ -31,7 +31,8 @@ const reset = () => { llamadas.length = 0; };
 // arriba ya caducó, así que la del navegador está igual de vieja y no puede responder.
 test("los datos que rotan se piden con no-cache", async () => {
   reset();
-  for (const pedir of [api.getActiveBounties, api.getActiveFissures, api.getArbitration, api.getLichWeapons]) {
+  // El snapshot de precios también: el cron los rota cada ~1,5 h y la app ya guarda su copia una hora.
+  for (const pedir of [api.getActiveBounties, api.getActiveFissures, api.getArbitration, api.getLichWeapons, api.getPricesSnapshot]) {
     await pedir();
     assert.equal(ultima().init.cache, "no-cache", ultima().url);
   }
@@ -69,9 +70,6 @@ test("lo que solo vale ahora se pide con no-store", async () => {
 test("el catálogo NO desactiva la caché del navegador", async () => {
   reset();
   responder = async () => ({ ok: true, status: 200, json: async () => ({ p: {} }) });
-
-  await api.getPricesSnapshot();
-  assert.equal(ultima().init.cache, undefined, "el snapshot de precios se cachea");
 
   await api.getPricesBatch(["ash_prime_set"]);
   assert.equal(ultima().init.cache, undefined, "los lotes de precios también");

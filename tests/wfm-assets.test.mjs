@@ -33,7 +33,7 @@ test("el caso que reportó el fallo sigue sin tener asset local", () => {
         "no hay assets de mods: por eso hace falta comprobar antes de pintar");
 });
 
-test("los arcanos sí tienen asset local y deben preferirse al CDN", () => {
+test("los arcanos sí tienen asset local y deben preferirse al genérico", () => {
     // Contraejemplo importante: tienen rango como los mods, así que 'maxRank' no vale
     // como señal para decidir el origen del icono. Solo sirve mirar si el archivo está.
     assert.ok(existsSync(ASSETS + guessedAsset("Arcane Aegis")),
@@ -55,8 +55,7 @@ test("la tarjeta no pisa la decisión de applyIcon con el thumb de WFM", () => {
         "no debe decidir mirando img.src justo después de applyIcon");
 });
 
-test("no se concatena dos veces la base de warframe.market", () => {
-    // itemThumb ya viene absoluta desde el servicio; applyIcon espera la relativa.
-    assert.match(ordersSrc, /applyIcon\(img, name, order\.itemThumbPath\)/,
-        "debe pasar la ruta relativa, no la ya prefijada");
+test("el respaldo es el icono genérico: el CDN de warframe.market bloquea otros orígenes", () => {
+    assert.ok(existsSync(fileURLToPath(new URL("../deploy/assets/mod.svg", import.meta.url))));
+    assert.ok(!/warframe\.market\/static/.test(src), "sus thumbs dan ERR_BLOCKED_BY_RESPONSE.NotSameOrigin");
 });

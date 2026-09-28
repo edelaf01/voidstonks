@@ -2,8 +2,8 @@
  * Preferencias de vista del panel "Rutas aconsejadas": si está plegado y si la guía está
  * abierta.
  *
- * Vive aquí y no en el componente por dos motivos: un `ui.component` no toca localStorage
- * (ARCHITECTURE.md §A), y el panel se repinta entero cada 150 s al rotar las fisuras — sin un
+ * Vive aquí y no en el componente por dos motivos: un `ui.component` no toca localStorage,
+ * y el panel se repinta entero cada 150 s al rotar las fisuras — sin un
  * sitio donde persistirlo, el usuario que plegaba el panel o abría la guía se los encontraba
  * abiertos otra vez al siguiente refresco.
  */
@@ -81,7 +81,7 @@ export function saveRelicPicksPrefs(prefs) {
  *
  * Viven en este módulo y no en uno propio porque son las dos hermanas de arriba: ambas vistas
  * salen de `buildFarmRoutes` y ambas son ajustes de presentación que un `ui.component` no puede
- * guardar por su cuenta (ARCHITECTURE.md §A). Clave aparte para que plegar una no toque a la otra.
+ * guardar por su cuenta. Clave aparte para que plegar una no toque a la otra.
  */
 const BRIDGE_KEY = "vs_sets_bridge_v1";
 // Plegada de serie: es un puente, no la lista principal. Y por cercanía, que es lo que la hace

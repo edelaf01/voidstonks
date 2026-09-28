@@ -1,4 +1,4 @@
-// Detectores de las reglas de ARCHITECTURE.md.
+// Detectores de las reglas de arquitectura.
 //
 // Vive en _helpers/ (no lo ejecuta `node --test`) porque lo usan tres consumidores:
 // architecture.test.mjs, que compara contra tests/_baseline/architecture-debt.json;
@@ -135,7 +135,7 @@ const codeOnly = (src) => strip(src, { strings: false });
 // Capas
 // ---------------------------------------------------------------------------
 
-// El contrato de ARCHITECTURE.md §A, en datos. `allow` es la lista blanca completa de capas
+// El contrato de capas, en datos. `allow` es la lista blanca completa de capas
 // que cada una puede importar; todo lo que no esté es violación.
 const LAYERS = {
   // `assets` son módulos de datos (imágenes en base64, tablas): sin dependencias, los importa

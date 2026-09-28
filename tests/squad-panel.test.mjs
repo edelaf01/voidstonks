@@ -74,6 +74,17 @@ describe("refinamiento", () => {
     assert.equal(refinementOf("(Impecable)"), "flawless");
   });
 
+  // Visto en vivo: "Lith G14 Relic (Ratiant" salía sin refinamiento.
+  test("con el paréntesis delante, una lectura con letras perdidas se reconoce", () => {
+    assert.equal(refinementOf("(Ratiant"), "radiant");
+    assert.equal(refinementOf("(Intac"), "intact");
+    assert.equal(refinementOf("(Exceptinal)"), "exceptional");
+    assert.equal(refinementOf("(Flawles"), "flawless");
+    assert.equal(refinementOf("(Impecble)"), "flawless");
+    assert.equal(refinementOf("Ratiant"), null, "sin paréntesis no hay contexto que lo respalde");
+    assert.equal(refinementOf("(Ra"), null, "dos letras sueltas no bastan");
+  });
+
   test("lo que no es un refinamiento devuelve null", () => {
     assert.equal(refinementOf("Relic"), null);
     assert.equal(refinementOf("[30]"), null);
@@ -114,6 +125,10 @@ describe("parseSquadRelics sobre la captura real", () => {
     // Warframes, auras, armas y la fila de nombres ilegible comparten la franja.
     assert.equal(relics.length, 4);
   });
+
+  test("la tuya es la de la primera columna", () => {
+    assert.deepEqual(relics.map((r) => r.propia), [true, false, false, false]);
+  });
 });
 
 describe("parseSquadRelics: casos que no están en la captura", () => {
@@ -127,6 +142,17 @@ describe("parseSquadRelics: casos que no están en la captura", () => {
     assert.deepEqual(parseSquadRelics(words, { matchRelic }).map((r) => r.name), ["Neo N12"]);
   });
 
+  test("un refinamiento fundido con la línea de abajo sigue siendo de su reliquia", () => {
+    const words = [...cell(["Neo", "N12", "Relic"], 100), { text: "(Ratiant", x0: 302, x1: 400, y0: 195, y1: 276 },
+      ...["Burston", "Prime", "[30]"].map((text, i) => ({ text, x0: 100 + i * 70, x1: 152 + i * 70, y0: 250, y1: 275 }))];
+    assert.deepEqual(parseSquadRelics(words, { matchRelic }).map((r) => r.refinement), ["radiant"]);
+  });
+
+  test("si tu columna no lleva reliquia, ninguna es la tuya", () => {
+    const words = [...cell(["Okina", "Prime", "[30]"], 100), ...cell(["Neo", "N12", "Relic"], 400)];
+    assert.deepEqual(parseSquadRelics(words, { matchRelic }).map((r) => r.propia), [false]);
+  });
+
   test("sin la palabra Relic no se acepta: el panel también lista armas", () => {
     const words = cell(["Neo", "N12", "[30]"], 100);
     assert.deepEqual(parseSquadRelics(words, { matchRelic }), []);
@@ -134,7 +160,7 @@ describe("parseSquadRelics: casos que no están en la captura", () => {
 
   test("sin paréntesis legible el refinamiento queda en null, no inventado", () => {
     const words = cell(["Neo", "N12", "Relic"], 100);
-    assert.deepEqual(parseSquadRelics(words, { matchRelic }), [{ name: "Neo N12", refinement: null, x0: 100 }]);
+    assert.deepEqual(parseSquadRelics(words, { matchRelic }), [{ name: "Neo N12", refinement: null, x0: 100, propia: true }]);
   });
 
   test("sin palabras, sin matcher o con basura no revienta", () => {

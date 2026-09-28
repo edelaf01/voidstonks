@@ -4,8 +4,8 @@
  *
  * Vivía en utils/ por accidente histórico y de util no tiene nada: monta un <canvas>, pinta
  * toasts, refresca el panel de inventario y guarda estado. Es un orquestador, hermano de
- * live_scanner.js y mobile_scanner.js, y por eso está en scanner/ — la capa que ARCHITECTURE.md
- * define como la que compone todas las demás a propósito.
+ * live_scanner.js y mobile_scanner.js, y por eso está en scanner/: la capa que compone todas
+ * las demás a propósito.
  *
  * No se movió para esquivar el contrato de capas: mover aquí algo que SÍ fuera un util sería
  * justo eso, y por eso la exención es de esta carpeta y no de un fichero suelto.

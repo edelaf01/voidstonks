@@ -1,9 +1,10 @@
 import { WORKER_URL } from "../../config.js";
-import { state } from "../../state.js";
+import { state, saveAppState } from "../../state.js";
 import { getSlug } from "../../utils/slugs.utils.js";
-import { calculateTotalFullSets } from "../../utils/ui_utils.js";
+import { calculateTotalFullSets, getRequiredCount } from "../../utils/ui_utils.js";
 import { getToken, getPlatform } from "./wfm_auth.service.js";
-import { fetchMyOrders } from "./wfm_orders.service.js";
+import { fetchMyOrders, conCatalogoLocal } from "./wfm_orders.service.js";
+import { MEMORY_CACHE } from "../../repositories/storage.repository.js";
 
 /**
  * Puente entre el inventario local y warframe.market.
@@ -24,17 +25,13 @@ import { fetchMyOrders } from "./wfm_orders.service.js";
 const SOURCES = {
     primeSets: {
         label: { es: "Sets prime", en: "Prime sets" },
-        // Distingue "ya no lo tienes" de "esto no lo sigo". Sin esto, una orden de un
-        // tipo aún no soportado (un mod hoy) saldría como obsoleta y el usuario acabaría
-        // retirando órdenes buenas. Cada fuente declara qué reconoce como suyo.
-        owns: (slug) => slug.endsWith("_set"),
+             owns: (slug) => slug.endsWith("_set"),
         enumerate() {
             const out = [];
-            // Los sets no están en primeInventory como tal: se derivan de las piezas.
-            // calculateTotalFullSets ya cuenta piezas sueltas Y sets guardados enteros.
-            for (const setName of knownSetNames()) {
+             for (const setName of knownSetNames()) {
                 const qty = calculateTotalFullSets(setName);
-                if (qty > 0) out.push({ name: `${setName} Set`, slug: getSlug(`${setName} Set`), qty });
+                const slug = getSlug(`${setName} Set`);
+                if (qty > 0) out.push({ name: `${setName} Set`, slug, qty, referencia: Number(MEMORY_CACHE.get(slug)) || null });
             }
             return out;
         }
@@ -107,20 +104,22 @@ export async function resolveIds(slugs) {
     const list = [...new Set(slugs.filter(Boolean))].slice(0, 100);
     if (!list.length) return {};
 
-    // En tandas por el mismo motivo que attachItemInfo: cada ítem sin cachear cuesta
-    // una escritura en el worker, y de golpe pasan del tope de subrequests (500).
-    const chunks = [];
-    for (let i = 0; i < list.length; i += 25) chunks.push(list.slice(i, i + 25));
+    return conCatalogoLocal("slug", list, async (faltan) => {
+        // En tandas por el mismo motivo que attachItemInfo: cada ítem sin cachear cuesta
+        // una escritura en el worker, y de golpe pasan del tope de subrequests (500).
+        const chunks = [];
+        for (let i = 0; i < faltan.length; i += 25) chunks.push(faltan.slice(i, i + 25));
 
-    const out = {};
-    await Promise.all(chunks.map(async (chunk) => {
-        try {
-            const res = await fetch(`${WORKER_URL}?type=wfm_ids&slugs=${chunk.join(",")}`);
-            if (!res.ok) return;
-            Object.assign(out, (await res.json()) || {});
-        } catch { /* esos slugs se quedan sin id: su botón sale deshabilitado */ }
-    }));
-    return out;
+        const out = {};
+        await Promise.all(chunks.map(async (chunk) => {
+            try {
+                const res = await fetch(`${WORKER_URL}?type=wfm_ids&slugs=${chunk.join(",")}`);
+                if (!res.ok) return;
+                Object.assign(out, (await res.json()) || {});
+            } catch { /* esos slugs se quedan sin id: su botón sale deshabilitado */ }
+        }));
+        return out;
+    });
 }
 
 /**
@@ -133,6 +132,8 @@ export async function resolveIds(slugs) {
  *   unlisted: lo tienes y no está en venta
  *   listed:   lo tienes y ya está en venta (con la orden asociada)
  *   stale:    está en venta pero ya no lo tienes -> candidato a retirar
+ *   mismatched: en venta con otra cantidad de la que tienes -> candidato a ajustar
+ *   sinRegistrar: órdenes con más sets de los que tiene el inventario
  */
 export async function syncInventory(orders = null) {
     let list = orders;
@@ -144,8 +145,6 @@ export async function syncInventory(orders = null) {
 
     const sellable = collectSellable();
 
-    // Solo las órdenes de venta compiten con el inventario: una orden de compra no
-    // significa que tengas el ítem.
     const sellOrders = list.filter(
         o => (o.type || "").toLowerCase() === "sell"
     );
@@ -169,9 +168,6 @@ export async function syncInventory(orders = null) {
         }
     }
 
-    // Lo publicado queda accesible para quien pinte inventario o sets: así el badge
-    // "ya en venta" no cuesta ninguna petición y no obliga a esos módulos a saber de
-    // sesiones ni de la API.
     listedSlugs = new Set(listed.map(i => i.slug));
 
     // Publicado pero ya no en el inventario: se vendió fuera de la app, o se usó.
@@ -179,15 +175,31 @@ export async function syncInventory(orders = null) {
     const stale = sellOrders
         .filter(o => {
             const slug = o.itemSlug || o.item?.slug;
-            // Solo se juzga lo que alguna fuente reconoce como suyo: un mod publicado no
-            // es "obsoleto" solo porque el inventario todavía no siga mods.
-            return slug && !owned.has(slug) && isTracked(slug);
+               return slug && !owned.has(slug) && isTracked(slug);
         })
         .map(o => ({ slug: o.itemSlug || o.item?.slug, name: o.itemName, order: o }));
 
-    return { ok: true, unlisted, listed, stale, seen: [...seen] };
+    const mismatched = listed.filter(i => i.order.quantity != null && Number(i.order.quantity) !== i.qty);
+
+    const sinRegistrar = stale.length + mismatched.filter(i => Number(i.order.quantity) > i.qty).length;
+
+    return { ok: true, unlisted, listed, stale, mismatched, sinRegistrar, seen: [...seen] };
 }
 
+/**
+ * Apunta en el inventario los sets de una orden: cada pieza sube hasta cubrir `n` sets, sin sumar a
+ * las que ya había.
+ * @returns {{ok: boolean}}
+ */
+export function registraSets(slug, n) {
+    const set = knownSetNames().find(s => getSlug(`${s} Set`) === slug);
+    const partes = set ? state.setsDatabase?.[set] || Object.keys(state.itemsDatabase || {}).filter(p => (p === set || p.startsWith(`${set} `)) && !p.endsWith(" Set")) : [];
+    if (!partes.length || !(n > 0)) return { ok: false };
+    for (const p of partes) state.primeInventory[p] = Math.max(state.primeInventory[p] || 0, n * getRequiredCount(set, p));
+    saveAppState();
+    listedSlugs.add(slug);
+    return { ok: true };
+}
 
 /**
  * Publica una orden de venta.
@@ -229,8 +241,6 @@ export async function createSellOrder(spec) {
     if (res.status === 401 || res.status === 403) return { ok: false, error: "unauthorized" };
     if (!res.ok) return { ok: false, error: "server" };
 
-    // Se refleja al momento: sin esto el badge del inventario seguiría diciendo "sin
-    // publicar" hasta el siguiente cruce completo.
     if (spec.slug) listedSlugs.add(spec.slug);
     return { ok: true };
 }

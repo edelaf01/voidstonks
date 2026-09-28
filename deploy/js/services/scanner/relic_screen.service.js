@@ -1,7 +1,7 @@
 import { state } from "../../state.js";
 import { OCRRepository } from "../../repositories/ocr.repository.js";
 import { PaddleRepository } from "../../repositories/paddle.repository.js";
-import { RELIC_GRID_CROP, parseRelicGrid } from "../../utils/vision/relic_grid.js";
+import { RELIC_GRID_CROP, RELIC_TITLE_CROP, parseRelicGrid, reliquiaDelTitulo } from "../../utils/vision/relic_grid.js";
 import { voteReadings, applyRelicCounts } from "../../utils/inventory/relic_votes.js";
 import { smallCanvasHash, compareHashes } from "../../utils/vision/frame_hash.js";
 import { collectWords, filaPropiaDelEscuadron } from "../../utils/vision/ocr_words.js";
@@ -45,8 +45,8 @@ export const RelicScreenService = {
 
     _leyendoRejilla: null,
 
-    async process(video, dims) {
-        const cambio = await this.trackSelected(video, dims);
+    async process(video, dims, opciones = {}) {
+        const cambio = await this.trackSelected(video, dims, opciones);
         // La rejilla (dos pasadas de Tesseract, 2,5-3,5 s) NO bloquea el bucle: elegir una
         // reliquia y luego otra tardaba en verse lo que durase la lectura. Va detrás, una en
         // vuelo como mucho, y el tick en que cambia la selección se salta: solo se movió el marco.
@@ -61,9 +61,17 @@ export const RelicScreenService = {
      * hacía ScannerService.processRelicSelection; vive aquí porque es la misma pantalla.
      */
     /** @returns true si la reliquia elegida acaba de cambiar */
-    async trackSelected(video, dims) {
+    async trackSelected(video, dims, { menu = false } = {}) {
         const worker = OCRRepository.workers[0];
         if (!worker) return false;
+        // El título del panel nombra la reliquia marcada aunque tu fila siga en "Selection Pending...".
+        // Por tiempo y no por hash: cambiar una línea de texto apenas mueve la imagen.
+        if (!menu && video?.videoWidth && Date.now() - this._tituloT >= 1500) {
+            this._tituloT = Date.now();
+            const { data } = await OCRRepository.recognize(worker, VisionService.prepareCropForOCR(video, RELIC_TITLE_CROP, 1, "relicTitle"), {}, { text: true });
+            const titulo = reliquiaDelTitulo(data.text, (w) => OCRService.getRelicMatch(w));
+            if (titulo) return this._apunta(titulo.toUpperCase().replace(/\s+RELIC$/, ""), true, data.text);
+        }
         const canvas = VisionService.prepareRelicSelectionCanvas(video, dims.scale);
         // Esta pasada corría en CADA frame sin corte ninguno, y es un Tesseract entero: en la
         // pantalla de reliquias era el grueso del gasto, releyendo el mismo rótulo para siempre.
@@ -73,18 +81,25 @@ export const RelicScreenService = {
         const { data } = await OCRRepository.recognize(worker, canvas, {}, { text: true, blocks: true });
 
         const palabras = collectWords(data);
+        const escuadra = filaPropiaDelEscuadron(palabras);
+        // Sin el panel leído, el texto entero daba la reliquia de un compañero: se reintenta.
+        if (!menu && escuadra === null) { this.lastSelHash = null; return false; }
         const relicMatch = OCRService.parseRelicSelection(data.text, palabras);
         // Se apunta SIEMPRE que se lea, no solo cuando cambia: repetir la misma reliquia dos
         // runs seguidos también la gasta las dos veces. Solo en la fisura: en el menú de
         // refinamiento se mira, no se elige.
-        if (relicMatch && filaPropiaDelEscuadron(palabras) !== null) { this.reliquiaElegida = relicMatch; this.huboRecompensaPrime = false; }
-        else if (relicMatch === "") this.reliquiaElegida = null;
-        if (relicMatch && relicMatch !== this.lastTrackedRelic) {
-            this.lastTrackedRelic = relicMatch;
-            if (globalThis.showTrackConfirm) globalThis.showTrackConfirm(relicMatch, data.text);
-            return true;
-        }
-        return false;
+        if (relicMatch === "") this.reliquiaElegida = null;
+        return relicMatch ? this._apunta(relicMatch, escuadra !== null, data.text) : false;
+    },
+
+    _tituloT: 0,
+
+    _apunta(relic, elegida, texto) {
+        if (elegida) { this.reliquiaElegida = relic; this.huboRecompensaPrime = false; }
+        if (relic === this.lastTrackedRelic) return false;
+        this.lastTrackedRelic = relic;
+        if (globalThis.showTrackConfirm) globalThis.showTrackConfirm(relic, texto);
+        return true;
     },
 
     /**
@@ -102,14 +117,14 @@ export const RelicScreenService = {
         const elegida = this.reliquiaElegida;
         this.reliquiaElegida = null;
         this.huboRecompensaPrime = false;
-        // En una fisura sin fin la ronda siguiente suele repetir reliquia: con este hash no se releería.
-        if (elegida) this.lastSelHash = null;
+        // En una fisura sin fin la ronda siguiente suele repetir reliquia: con este hash no se releería ni se avisaría.
+        if (elegida) { this.lastSelHash = null; this.lastTrackedRelic = ""; }
         return elegida;
     },
 
     /** Lee la rejilla y aplica al inventario lo que ya tenga consenso. */
     async readGrid(video) {
-        const worker = OCRRepository.workers[0];
+        const worker = await OCRRepository.workerDeFondo();
         if (!worker) return;
 
         // 1.25 y no 1.5: agrandar de más emborrona el trazo y Tesseract se atraganta con una
@@ -127,7 +142,7 @@ export const RelicScreenService = {
         // un cambio mayor para volver a leer. Un scroll —que es cuando hay reliquias nuevas—
         // mueve todo el texto y lo supera de sobra, y al traer novedad reinicia la exigencia.
         const tolerancia = TOLERANCIA_BASE * (1 + this.lecturasSinNovedad);
-        if (this.lastGridHash && compareHashes(hash, this.lastGridHash, tolerancia)) return;
+        if (this.lastGridHash && compareHashes(hash, this.lastGridHash, tolerancia) && !this._porConfirmar) return;
         this.lastGridHash = hash;
 
         // La traza dice POR QUÉ se cae una casilla, que es lo único que permite diagnosticar esta
@@ -156,9 +171,10 @@ export const RelicScreenService = {
         // Antes de votar: `voteReadings` escribe en `applied` y ya no se sabría qué era nuevo.
         const novedad = read.some(({ name, count }) => this.applied.get(name) !== count);
         this.lecturasSinNovedad = novedad ? 0 : Math.min(this.lecturasSinNovedad + 1, TOPE_SIN_NOVEDAD);
-        if (!read.length) return;
 
         const changed = voteReadings(this, read);
+        // Con la pantalla quieta el hash no cambia y el segundo voto no llegaba: una lectura más, y solo una.
+        this._porConfirmar = novedad && !changed.length && !this._porConfirmar;
         if (!changed.length) return;
 
         state.inventory = applyRelicCounts(state.inventory, changed);
@@ -202,8 +218,10 @@ export const RelicScreenService = {
         this.votes.clear();
         this.applied.clear();
         this.lastGridHash = null;
+        this._porConfirmar = false;
         this.lecturasSinNovedad = 0;
         this.lastSelHash = null;
+        this._tituloT = 0;
         this.lastTrackedRelic = "";
         this.reliquiaElegida = null;
         this.huboRecompensaPrime = false;

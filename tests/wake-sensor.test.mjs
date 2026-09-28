@@ -153,3 +153,20 @@ test("con una carta de riven vigilada, ciclarla despierta al escáner aunque el 
   reloj.tick(); reloj.tick();
   assert.equal(esc.vueltas, 1);
 });
+
+// Jugando (UNKNOWN) la franja se para y arranca a cada rato: solo despierta si es un rótulo conocido,
+// y una pantalla rechazada no se vuelve a evaluar mientras siga igual.
+test("una vigía con filtro solo despierta si lo acepta, y no reevalúa la misma pantalla", () => {
+  const reloj = relojFalso();
+  let evaluaciones = 0, despertares = 0, acepta = false;
+  const s = creaSensor([{ muestra: () => 5, base: () => 0, cambia: distinto, acepta: () => { evaluaciones++; return acepta; } }], () => despertares++, { reloj });
+  s.arma();
+  for (let i = 0; i < 5; i++) reloj.tick();
+  assert.equal(despertares, 0);
+  assert.equal(evaluaciones, 1, "la misma pantalla quieta se evalúa una vez");
+  acepta = true;
+  const t = creaSensor([{ muestra: () => 5, base: () => 0, cambia: distinto, acepta: () => acepta }], () => despertares++, { reloj });
+  t.arma();
+  reloj.tick(); reloj.tick();
+  assert.equal(despertares, 1);
+});

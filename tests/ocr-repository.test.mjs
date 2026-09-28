@@ -107,3 +107,103 @@ test("si el escáner se paró mientras se creaba el sustituto, no vuelve al pool
     Object.assign(OCRRepository, { workers: orig.workers, _createStandardWorker: orig.crear, initPromise: orig.init });
   }
 });
+
+test("el trabajo de fondo va al segundo worker, y con uno solo al único", async () => {
+  const antes = { workers: OCRRepository.workers, crea: OCRRepository._createStandardWorker };
+  try {
+    OCRRepository._createStandardWorker = null;
+    OCRRepository.workers = [{ id: 0 }, { id: 1 }];
+    assert.equal((await OCRRepository.workerDeFondo()).id, 1);
+    OCRRepository.workers = [{ id: 0 }];
+    assert.equal((await OCRRepository.workerDeFondo()).id, 0);
+  } finally { Object.assign(OCRRepository, { workers: antes.workers, _createStandardWorker: antes.crea }); }
+});
+
+test("trabajos sobre el mismo worker se encolan para no mezclar parámetros", async () => {
+  const log = [];
+  const delay = (ms) => new Promise(r => setTimeout(r, ms));
+  const w = {
+    setParameters: async (p) => { await delay(5); log.push(["param", p]); },
+    recognize: async (img, opts) => { await delay(5); log.push(["lee", opts]); return { data: { text: "ok" } }; },
+  };
+
+  const p1 = OCRRepository.recognizeWithChars(w, { width: 10, height: 10 }, "ABC");
+  const p2 = OCRRepository.recognize(w, { width: 10, height: 10 }, { oem: 1 });
+  const p3 = OCRRepository.recognizeWithPSM(w, { width: 10, height: 10 }, "7");
+  await Promise.all([p1, p2, p3]);
+
+  assert.deepEqual(log, [
+    ["param", { tessedit_char_whitelist: "ABC" }],
+    ["lee", {}],
+    ["param", { tessedit_char_whitelist: OCRRepository.DEFAULT_CHARS }],
+    ["lee", { oem: 1 }],
+    ["param", { tessedit_pageseg_mode: "7" }],
+    ["lee", {}],
+    ["param", { tessedit_pageseg_mode: OCRRepository.DEFAULT_PSM }],
+  ]);
+});
+
+test("trabajos sobre workers distintos no se esperan entre sí", async () => {
+  const log = [];
+  let suelta;
+  const w1 = { recognize: async () => { log.push("w1_start"); await new Promise(r => suelta = r); log.push("w1_end"); return { data: { text: "w1" } }; } };
+  const w2 = { recognize: async () => { log.push("w2"); return { data: { text: "w2" } }; } };
+
+  const p1 = OCRRepository.recognize(w1, { width: 10, height: 10 });
+  const p2 = OCRRepository.recognize(w2, { width: 10, height: 10 });
+
+  await p2;
+  assert.deepEqual(log, ["w1_start", "w2"], "w2 termina mientras w1 sigue esperando");
+  suelta();
+  await p1;
+});
+
+test("el tiempo de espera en cola no cuenta para el límite de tiempo; si se cuelga, caduca y suelta la cola", async () => {
+  const orig = OCRRepository.LIMITE_OCR_MS;
+  OCRRepository.LIMITE_OCR_MS = 200;
+
+  const log = [];
+  const err = console.error;
+  console.error = () => {};
+
+  const origSustituye = OCRRepository.sustituye;
+  OCRRepository.sustituye = () => {};
+
+  try {
+    const w = {
+      recognize: async (img) => {
+        if (img.largo) { await new Promise(r => setTimeout(r, 150)); log.push("largo"); }
+        else if (img.cuelga) { log.push("cuelga"); await new Promise(() => {}); }
+        else { await new Promise(r => setTimeout(r, 100)); log.push("normal"); }
+        return { data: { text: "ok" } };
+      },
+      terminate: () => {}
+    };
+
+    const p1 = OCRRepository.recognize(w, { width: 10, height: 10, largo: true });
+    const p2 = OCRRepository.recognize(w, { width: 10, height: 10 });
+
+    const r1 = await p1;
+    const r2 = await p2;
+
+    assert.equal(r1.data.text, "ok");
+    assert.equal(r2.data.text, "ok");
+    assert.deepEqual(log, ["largo", "normal"]);
+
+    log.length = 0;
+    const p3 = OCRRepository.recognize(w, { width: 10, height: 10, cuelga: true });
+    const p4 = OCRRepository.recognize(w, { width: 10, height: 10 });
+
+    const r3 = await p3;
+    const r4 = await p4;
+
+    assert.equal(r3.data.text, "");
+    assert.equal(r4.data.text, "ok");
+    assert.deepEqual(log, ["cuelga", "normal"]);
+
+  } finally {
+    OCRRepository.LIMITE_OCR_MS = orig;
+    OCRRepository.sustituye = origSustituye;
+    console.error = err;
+  }
+});

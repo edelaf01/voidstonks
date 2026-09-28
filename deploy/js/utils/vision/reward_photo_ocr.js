@@ -3,8 +3,6 @@
  *
  * Fases: SCOUT (localiza la fila de nombres por el ancla "PRIME") → ROI (recorta esa banda)
  * → UNIÓN (preprocesados complementarios) → COLUMNAS (filtro por rejilla equiespaciada).
- *
- * Diseño, mediciones y callejones sin salida: MAINTENANCE_REWARD_PHOTO_OCR.md
  */
 import { rawWords as palabrasCrudas } from "./ocr_words.js";
 

@@ -25,7 +25,7 @@ import { hasComponentSiblings } from "../../utils/inventory/component_siblings.j
  * de umbrales— porque la red detecta el texto por su cuenta sobre el recorte a COLOR. Es el
  * mismo motor que ya usa la vía de foto, donde está medido sobre estas capturas: 20/20 con 0
  * falsos en ~0,65 s por imagen, frente a 2,5-3,7 s del pipeline de Tesseract, y con un modelo
- * más ligero (4,8 MB contra los 7,5 de wasm + 4 de idioma). Ver MAINTENANCE_REWARD_PHOTO_OCR.md.
+ * más ligero (4,8 MB contra los 7,5 de wasm + 4 de idioma).
  */
 async function conPaddle(frame, width, height, scale, cropRect, columnas) {
     const colorCvs = VisionService.prepareRewardOCRCanvas(frame, width, height, scale, "COLOR", cropRect);

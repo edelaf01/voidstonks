@@ -1,7 +1,7 @@
 /**
  * Rótulos del escáner: HUD, aviso de permisos y modal de calibración.
  *
- * Vivía dentro de ui.js, que ya roza el techo de 800 líneas de ARCHITECTURE.md §B. No recibe
+ * Vivía dentro de ui.js, que ya roza el techo de 800 líneas. No recibe
  * nada del resto de la app —se le pasa el diccionario del idioma activo y solo escribe en el
  * DOM—, así que no cierra ningún ciclo de imports.
  */

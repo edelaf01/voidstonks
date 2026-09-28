@@ -78,7 +78,7 @@ export async function loadRivenML() {
       state.rivenStatWeights = statWeights;
       // Repinta la guía: si el panel ya se dibujó sin estos pesos, sus marcas TOP están vacías y no
       // hay otro evento que las traiga. Vía globalThis y no por import para no crear el ciclo
-      // ui_rivens -> riven_ml -> ui_rivens (ui.js ejecuta al importarse; ver CLAUDE.md).
+      // ui_rivens -> riven_ml -> ui_rivens (ui.js ejecuta al importarse).
       if (typeof globalThis.refreshCurrentRivenMetaStats === "function") {
         try { globalThis.refreshCurrentRivenMetaStats(); } catch { /* panel no montado aún */ }
       }

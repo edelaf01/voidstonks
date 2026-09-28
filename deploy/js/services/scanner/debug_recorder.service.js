@@ -46,6 +46,9 @@ export const DebugRecorder = {
     miniaturas: [],
     /** Una muestra cada 10 s de heap, retraso del bucle y tareas largas (utils/perf_sampler.js). */
     rendimiento: [],
+    latencias: [],
+    _cambioDesde: 0,
+    _fijado: undefined,
     _muestreador: null,
     _seq: 0,
     _bytes: 0,
@@ -145,7 +148,18 @@ export const DebugRecorder = {
         if (m) this.rendimiento.push(m);
     },
 
+    latenciaContexto({ fijado, cambiado, pendiente, via }, ahora = Date.now()) {
+        if (!this.enabled) return;
+        if (cambiado && !this._cambioDesde) this._cambioDesde = ahora;
+        if (this._fijado !== undefined && fijado !== this._fijado) {
+            this.latencias.push({ time: new Date(ahora).toISOString(), de: this._fijado, a: fijado, ms: this._cambioDesde ? ahora - this._cambioDesde : null, via });
+            this._cambioDesde = 0;
+        } else if (!cambiado && !pendiente) this._cambioDesde = 0;
+        this._fijado = fijado;
+    },
+
     clear() {
+        this.latencias = []; this._cambioDesde = 0; this._fijado = undefined;
         this.entradas = []; this.miniaturas = []; this.rendimiento = []; this._bytes = 0; this._seq = 0; this._miniT = 0; this._miniLuma = null;
         this.onChange?.();
         // Encadenado en _discoP para que la siguiente escritura espere al vaciado y no se la lleve.
@@ -183,6 +197,7 @@ export const DebugRecorder = {
         }
         if (etiquetas.length) files.push({ name: "miniaturas.jsonl", data: enc.encode(etiquetas.join("\n") + "\n") });
         if (this.rendimiento.length) files.push({ name: "rendimiento.jsonl", data: enc.encode(this.rendimiento.map((m) => JSON.stringify(m)).join("\n") + "\n") });
+        if (this.latencias.length) files.push({ name: "latencias.jsonl", data: enc.encode(this.latencias.map((m) => JSON.stringify(m)).join("\n") + "\n") });
         files.unshift({ name: "sesion.json", data: enc.encode(JSON.stringify({ ...this.sesion, exportado: new Date().toISOString(), lecturas: indice, miniaturas: etiquetas.length }, null, 2)) });
         files.unshift({ name: "README.txt", data: enc.encode(README) });
         return buildZip(files);
@@ -201,6 +216,8 @@ miniaturas/    una miniatura del frame por segundo (si cambió), con su etiqueta
                contexto que dio la cabecera, contexto fijado, texto leído y cuántas pasadas costó
 rendimiento.jsonl  cada 10 s: heap JS (MB), retraso máximo del bucle de eventos (ms de hilo ocupado)
                y tareas largas del intervalo; la memoria de los workers y la GPU no se ven desde JS
+latencias.jsonl  cada cambio de contexto: de, a, ms desde el primer tick que vio cambiar el rótulo
+               (null si cambió sin verse) y si lo decidió la firma del rótulo o el OCR
 `;
 
 function desdeDataURL(url) {

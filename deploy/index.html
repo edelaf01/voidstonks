@@ -79,18 +79,18 @@
   }
   </script>
 
-  <link rel="stylesheet" href="css/components/inventory.css?v=1.5" />
+  <link rel="stylesheet" href="css/components/inventory.css?v=1.6" />
   <link rel="stylesheet" href="css/components/sets.css?v=1.0" />
   <link rel="stylesheet" href="css/components/relics.css?v=1.2" />
-  <link rel="stylesheet" href="css/components/scanner.css?v=1.1" />
+  <link rel="stylesheet" href="css/components/scanner.css?v=1.2" />
   <link rel="stylesheet" href="css/components/riven-scanner.css?v=1.0" />
   <link rel="stylesheet" href="css/components/modals.css?v=1.0" />
   <link rel="stylesheet" href="css/components/header.css?v=1.2" />
-  <link rel="stylesheet" href="styles.css?v=3.8" />
+  <link rel="stylesheet" href="styles.css?v=3.9" />
   <link rel="stylesheet" href="css/components/riven-grader.css?v=1.3" />
   <link rel="stylesheet" href="css/components/riven-module.css?v=1.0" />
   <link rel="stylesheet" href="css/components/vosfor.css?v=1.4" />
-  <link rel="stylesheet" href="css/components/orders.css?v=1.1" />
+  <link rel="stylesheet" href="css/components/orders.css?v=1.6" />
   <link rel="stylesheet" href="css/components/lich-weapons.css?v=1.0" />
   <link rel="stylesheet" href="css/components/ui-kit.css?v=1.0" />
   <link rel="icon" type="image/png" href="https://wiki.warframe.com/images/VoidTraces.png" />
@@ -313,6 +313,9 @@
       <!-- Kiosko de ducados: las piezas apiladas a la venta en el panel derecho del juego.
            Lo rellena ScannerHUD.updateKioskSale(); vacío y oculto fuera del kiosko. -->
       <div id="kiosk-sale-panel" style="display: none"></div>
+
+      <!-- Trading Post: lo que das y lo que recibes. Lo rellena ScannerHUD.updateTrade(). -->
+      <div id="trade-panel" style="display: none"></div>
 
       <div class="hud-actions" id="hud-actions">
         <button type="button" id="btn-manual-scan" class="hud-btn primary" onclick="globalThis.manualPrecisionScan()">
@@ -892,11 +895,11 @@
             <div class="profit-label" id="lbl-profit">
               Rentabilidad (Media)
             </div>
+            <div id="relic-verdict" class="relic-verdict hidden"></div>
             <div class="price-badge big loading" id="relic-profit-display">
               ...
             </div>
           </div>
-          <div id="relic-verdict" class="relic-verdict hidden"></div>
           <div class="analysis-info">
             <span id="lbl-content">Contenido:</span>
             <!-- El panel de inventario manda aquí ("añádela con el contador"): sin esto, la

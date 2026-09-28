@@ -21,13 +21,19 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { modules } from "./_helpers/architecture-rules.mjs";
 
-/** Nombres que un módulo exporta. `reexporta` marca los `export * from`, que no se resuelven. */
-function exportsDe(ruta) {
-  const src = readFileSync(ruta, "utf8");
+function nombresExportados(src) {
   const nombres = new Set();
-
   for (const m of src.matchAll(/^export\s+(?:async\s+)?(?:function|class|const|let|var)\s+(\w+)/gm)) {
     nombres.add(m[1]);
+  }
+  // export const a = 1, b = 2; (sin lo que va entre paréntesis y llaves, las comas separan declaraciones)
+  for (const m of src.matchAll(/^export\s+(?:const|let|var)\s+([^;\n]+)/gm)) {
+    let decl = m[1];
+    while (/[([{][^()[\]{}]*[)\]}]/.test(decl)) decl = decl.replace(/[([{][^()[\]{}]*[)\]}]/g, "");
+    for (const d of decl.split(",")) {
+      const n = /^\s*(\w+)\s*=/.exec(d)?.[1];
+      if (n) nombres.add(n);
+    }
   }
   // export { a, b as c } [from "..."]
   for (const m of src.matchAll(/^export\s*\{([^}]*)\}/gm)) {
@@ -37,8 +43,13 @@ function exportsDe(ruta) {
     }
   }
   if (/^export\s+default/m.test(src)) nombres.add("default");
+  return nombres;
+}
 
-  return { nombres, reexporta: /^export\s*\*/m.test(src) };
+/** Nombres que un módulo exporta. `reexporta` marca los `export * from`, que no se resuelven. */
+function exportsDe(ruta) {
+  const src = readFileSync(ruta, "utf8");
+  return { nombres: nombresExportados(src), reexporta: /^export\s*\*/m.test(src) };
 }
 
 const cache = new Map();
@@ -126,20 +137,14 @@ test("el detector reconoce las formas de exportar que usa el repo", () => {
     ["export { f as g };", "g"],
     ['export { h } from "./x.js";', "h"],
     ["export let i = 1;", "i"],
+    // title_catalog.js: se daba FILAS por no exportada y el import es válido.
+    ["export const COLS = 160, FILAS = 10;", "FILAS"],
+    ["export const L = Object.freeze({ x: 1, y: 2 }), M = [1, 2];", "M"],
   ];
   for (const [src, esperado] of casos) {
-    const { nombres } = { nombres: new Set() };
-    // Se reusa la misma lógica que arriba escribiendo a un temporal sería más caro que
-    // repetirla; en su lugar se comprueba con las mismas regex.
-    for (const m of src.matchAll(/^export\s+(?:async\s+)?(?:function|class|const|let|var)\s+(\w+)/gm)) nombres.add(m[1]);
-    for (const m of src.matchAll(/^export\s*\{([^}]*)\}/gm)) {
-      for (const parte of m[1].split(",")) {
-        const n = parte.trim();
-        if (n) nombres.add(n.includes(" as ") ? n.split(" as ").pop().trim() : n);
-      }
-    }
-    assert.ok(nombres.has(esperado), `no detectó '${esperado}' en: ${src}`);
+    assert.ok(nombresExportados(src).has(esperado), `no detectó '${esperado}' en: ${src}`);
   }
+  assert.ok(!nombresExportados("export const L = Object.freeze({ x: 1, y: 2 });").has("y"), "lo de dentro de las llaves no es una declaración");
 });
 
 test("el detector encuentra los imports estáticos y los dinámicos", () => {

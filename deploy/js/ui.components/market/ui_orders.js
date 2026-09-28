@@ -1,6 +1,9 @@
 import { state } from "../../state.js";
 import { ORDERS_TEXTS as T } from "../../assets/orders_texts.js";
 import { renderOrdersUnderConstruction } from "./ui_orders_wip.js";
+import { botonRevisarPrecios } from "./ui_reprice.js";
+import { mercadoAlVerse } from "./ui_mercado_visible.js";
+import { precioSugerido } from "../../utils/market/precio_reciente.js";
 import { applyIcon } from "../../utils/wfm_assets.js";
 import { exposeGlobals } from "../../utils/global_registry.js";
 import {
@@ -9,14 +12,14 @@ import {
     isLoggedIn,
     getIngameName,
     getScope,
-    getPlatform,
+    getPlatform, wfmPrivado,
     logout as logoutSession
 } from "../../services/market/wfm_auth.service.js";
 import {
     fetchMyOrders,
     editOrder,
     fetchItemMarket,
-    fetchMarketBatch, getOrdersFilterType, saveOrdersFilterType
+    fetchMarketBatch, mercadoDeTodos, getOrdersFilterType, saveOrdersFilterType
 } from "../../services/market/wfm_orders.service.js";
 
 /**
@@ -260,29 +263,46 @@ function renderOrders(root, orders) {
         root.appendChild(note);
     }
 
+    // Órdenes e inventario en pestañas: una debajo de otra era todo scroll.
+    const main = el("div", "orders-main");
+    const layout = el("div", "orders-layout");
+    const panes = el("div", "orders-chips orders-panes");
+    layout.dataset.pane = orders.length ? paneActual : "inv";
+    for (const [pane, label] of [["orders", `${t.paneOrders} (${orders.length})`], ["inv", t.paneInv]]) {
+        const b = el("button", `orders-chip${pane === layout.dataset.pane ? " active" : ""}`, label);
+        b.type = "button";
+        b.dataset.pane = pane;
+        b.addEventListener("click", () => {
+            layout.dataset.pane = paneActual = pane;
+            for (const o of panes.children) o.classList.toggle("active", o === b);
+        });
+        panes.appendChild(b);
+    }
+    layout.append(panes, main, inventorySection(orders));
+    root.appendChild(layout);
+
     if (!orders.length) {
         // El estado vacío enseña el siguiente paso en vez de constatar la ausencia:
         // sin órdenes, lo útil es saber que se pueden publicar desde el inventario.
         const hint = getScope() === "full" ? t.noOrdersHintFull : t.noOrdersHint;
-        root.appendChild(stateBlock("○", `${t.noOrders} ${hint}`));
-        // Sin órdenes es justo cuando más útil es publicar: la sección se monta igual.
-        root.appendChild(inventorySection(orders));
+        main.appendChild(stateBlock("○", `${t.noOrders} ${hint}`));
         return;
     }
 
     let summary = summaryBar(orders);
-    root.appendChild(summary);
+    main.appendChild(summary);
 
     const head = el("div", "orders-section-head");
     const count = el("span", "orders-count");
-    head.append(el("span", "orders-section-title", t.sectionOrders), count);
-    root.appendChild(head);
+    head.append(el("span", "orders-section-title", t.sectionOrders), count, botonRevisarPrecios(orders, loadOrders));
+    main.appendChild(head);
 
     let bar = filterBar(orders, () => paint());
-    root.appendChild(bar);
+    main.appendChild(bar);
 
     const list = el("div", "orders-list");
-    root.appendChild(list);
+    main.appendChild(list);
+    const vigia = mercadoAlVerse((slugs) => loadMarketForList(slugs, list, orders));
 
     function paint() {
         const shown = applyFilters(orders);
@@ -306,6 +326,7 @@ function renderOrders(root, orders) {
         const frag = document.createDocumentFragment();
         for (const o of shown) frag.appendChild(orderCard(o));
         list.replaceChildren(frag);
+        vigia.observa(list.children);
     }
     paint();
 
@@ -328,20 +349,11 @@ function renderOrders(root, orders) {
             bar = nextBar;
         }
     };
-
-    // El mercado llega después: la lista se ve al instante y los precios de
-    // referencia se rellenan cuando responden (una sola petición por lote).
-    loadMarketForList(orders, list);
-
-    root.appendChild(inventorySection(orders));
 }
 
 /**
- * Sección "Publicar desde tu inventario": lo que tienes y no está en venta.
- *
- * Se monta vacía y se rellena en asíncrono. El cruce necesita releer las órdenes y
- * resolver ids contra el catálogo, y bloquear la lista de órdenes por eso sería
- * absurdo: lo importante ya está pintado.
+ * Pestaña de inventario: avisos del cruce con WFM y lo que tienes sin publicar. Se rellena en
+ * asíncrono para no bloquear la lista de órdenes.
  */
 function inventorySection(orders) {
     const t = txt();
@@ -359,10 +371,16 @@ function inventorySection(orders) {
     head.append(el("span", "orders-section-title", t.sectionInv));
     box.appendChild(head);
     box.appendChild(el("p", "orders-inv-hint", t.invHint));
+    const buscar = Object.assign(el("input", "orders-input orders-search"), { type: "search", placeholder: t.searchPh });
+    box.appendChild(buscar);
 
     const body = el("div", "orders-inv-body");
     body.appendChild(el("p", "orders-state-text", t.invLoading));
     box.appendChild(body);
+    buscar.addEventListener("input", () => {
+        const q = buscar.value.trim().toLowerCase();
+        for (const r of body.querySelectorAll(".inv-row")) r.style.display = r.querySelector(".inv-name")?.textContent.toLowerCase().includes(q) ? "" : "none";
+    });
 
     fillInventorySection(body, orders);
     return box;
@@ -391,22 +409,30 @@ async function fillInventorySection(body, orders) {
     }
 
     const frag = document.createDocumentFragment();
+    const registra = (slug, n) => [`${t.invRegister} ×${n}`, "ok", () => link.registraSets(slug, n)];
 
-    // "Publicado pero ya no lo tienes" va primero: es lo accionable de verdad, porque
+    // "Publicado pero no está en tu inventario" va primero: es lo accionable de verdad, porque
     // una orden fantasma hace que te escriban por algo que no puedes vender.
     if (res.stale?.length) {
         frag.appendChild(el("p", "orders-inv-stale-head", t.invStale));
         frag.appendChild(el("p", "orders-inv-hint", t.invStaleHint));
-        for (const s of res.stale) frag.appendChild(staleRow(s));
+        for (const s of res.stale) frag.appendChild(syncRow(s.name || s.slug, null, [registra(s.slug, s.order.quantity || 1),
+            [t.remove, "danger", () => (confirm(t.confirmDelete) ? editOrder(s.order.id, "delete") : null)]]));
     }
-
+    if (res.mismatched?.length) frag.appendChild(el("p", "orders-inv-stale-head", t.invQtyOff));
+    for (const m of res.mismatched || []) frag.appendChild(syncRow(m.name, `${t.invOwned} ×${m.qty} · ${t.invListed} ×${m.order.quantity}`, [
+        ...(m.order.quantity > m.qty ? [registra(m.slug, m.order.quantity)] : []),
+        [`${t.invFixQty} ×${m.qty}`, "ok", () => editOrder(m.order.id, "update", { quantity: m.qty })]]));
+    if (res.sinRegistrar) globalThis.showToast?.(`${t.invUnregistered}: ${res.sinRegistrar}`);
+    const avisos = (res.stale?.length || 0) + (res.mismatched?.length || 0);
+    const pestana = body.closest(".orders-layout")?.querySelector('[data-pane="inv"]');
+    if (avisos && pestana) pestana.appendChild(el("span", "orders-pane-alert", String(avisos)));
     if (!res.unlisted?.length) {
-        if (!res.stale?.length) frag.appendChild(el("p", "orders-state-text", t.invEmpty));
+        if (!res.stale?.length && !res.mismatched?.length) frag.appendChild(el("p", "orders-state-text", t.invEmpty));
         body.replaceChildren(frag);
         return;
     }
 
-    // Los precios y los ids se piden una sola vez para toda la sección.
     const slugs = res.unlisted.map(i => i.slug);
     const [ids, market] = await Promise.all([
         link.resolveIds(slugs),
@@ -427,7 +453,7 @@ function sellableRow(item, meta, market) {
     const img = el("img", "inv-thumb");
     img.alt = "";
     img.loading = "lazy";
-    applyIcon(img, item.name, meta?.thumb);
+    applyIcon(img, item.name);
     row.appendChild(img);
 
     const info = el("div", "inv-info");
@@ -435,9 +461,8 @@ function sellableRow(item, meta, market) {
     info.appendChild(el("span", "inv-meta", `${t.invOwned} ×${item.qty}`));
     row.appendChild(info);
 
-    // Precio sugerido: la mediana del día. Es la referencia menos discutible que hay,
-    // y el usuario puede cambiarla antes de publicar.
-    const suggested = market?.median != null ? Math.round(market.median) : null;
+    // El de "Revisar precios" (ventas de 48 h); sin mercado todavía, el del snapshot, que cubre todos los sets.
+    const suggested = precioSugerido(market)?.precio ?? item.referencia ?? null;
 
     const price = el("input", "inv-price");
     price.type = "number";
@@ -448,7 +473,7 @@ function sellableRow(item, meta, market) {
 
     const hint = el("span", "inv-suggested");
     if (suggested) hint.append(el("span", "inv-suggested-label", t.invSuggested), plat(suggested));
-    else hint.textContent = t.invNoPrice;
+    else Object.assign(hint, { textContent: "—", title: t.invNoPrice });
     row.appendChild(hint);
 
     const btn = el("button", "order-act ok", t.invSell);
@@ -494,29 +519,30 @@ function sellableRow(item, meta, market) {
     return row;
 }
 
-/** Fila de una orden publicada cuyo ítem ya no está en el inventario. */
-function staleRow(entry) {
-    const t = txt();
+/** Fila de una orden que no cuadra con el inventario; cada acción [texto, clase, fix] la corrige, o devuelve null si se cancela. */
+function syncRow(name, detail, acciones) {
     const row = el("div", "inv-row is-stale");
 
     const info = el("div", "inv-info");
-    info.appendChild(el("span", "inv-name", entry.name || entry.slug));
+    info.appendChild(el("span", "inv-name", name));
+    if (detail) info.appendChild(el("span", "inv-meta", detail));
     row.appendChild(info);
 
-    const btn = el("button", "order-act danger", t.remove);
-    btn.type = "button";
-    btn.addEventListener("click", async () => {
-        if (!confirm(t.confirmDelete)) return;
-        btn.disabled = true;
-        const res = await editOrder(entry.order.id, "delete");
-        if (!res.ok) {
-            btn.disabled = false;
-            globalThis.showToast?.(t.errEdit);
-            return;
-        }
-        row.remove();
-    });
-    row.appendChild(btn);
+    for (const [label, kind, fix] of acciones) {
+        const btn = el("button", `order-act ${kind}`, label);
+        btn.type = "button";
+        btn.addEventListener("click", async () => {
+            btn.disabled = true;
+            const res = await fix();
+            if (!res?.ok) {
+                btn.disabled = false;
+                if (res) globalThis.showToast?.(txt().errEdit);
+                return;
+            }
+            row.remove();
+        });
+        row.appendChild(btn);
+    }
 
     return row;
 }
@@ -530,19 +556,16 @@ let linkApi = null;
 /** Caché en memoria del mercado, para no repedir al filtrar o repintar. */
 const marketCache = new Map();
 
-/** Pide el mercado de los ítems visibles y lo inyecta en sus tarjetas. */
-async function loadMarketForList(orders, listEl) {
-    const slugs = [...new Set(
-        orders.map(o => o.itemSlug || o.item?.slug).filter(s => s && !marketCache.has(s))
-    )];
-
-    if (slugs.length) {
-        const data = await fetchMarketBatch(slugs);
+/** Pide el mercado de los ítems que se ven y lo inyecta en sus tarjetas. */
+async function loadMarketForList(slugs, listEl, orders) {
+    const faltan = slugs.filter((s) => !marketCache.has(s));
+    // Se vuelca según llega: con muchas órdenes el mercado viene en varias tandas.
+    const vuelca = (data) => {
         for (const [slug, info] of Object.entries(data)) marketCache.set(slug, info);
-    }
+        if (listEl.isConnected) for (const card of listEl.querySelectorAll(".order-card")) applyMarketToCard(card);
+    };
+    if (faltan.length) await mercadoDeTodos(faltan, { onProgreso: ({ mercados }) => vuelca(mercados) });
     if (!listEl.isConnected) return; // la vista cambió mientras cargaba
-
-    for (const card of listEl.querySelectorAll(".order-card")) applyMarketToCard(card);
 
     startLiveWatch(orders);
 }
@@ -668,7 +691,7 @@ function marketSummary(info, type, myPlat, ranked = false) {
         box.appendChild(m);
     }
     if (info.volume != null) {
-        const v = el("span", "om-stat");
+        const v = el("span", "om-stat om-vol");
         v.title = t.volumeTitle;
         v.append(el("span", "om-label", t.volume), el("span", "om-val", String(info.volume)));
         box.appendChild(v);
@@ -889,11 +912,8 @@ function orderCard(order) {
         const img = el("img", "order-thumb");
         img.alt = "";
         img.loading = "lazy";
-        // Prioriza el asset local (mismo dominio, sin cargar el CDN de WFM) y cae al de
-        // WFM si no existe —los mods no tienen asset propio—. Resuelve en asíncrono, así
-        // que no se puede comprobar img.src aquí: todavía estaría vacío.
-        // itemThumbPath es la ruta relativa; itemThumb ya viene absoluta y no sirve aquí.
-        applyIcon(img, name, order.itemThumbPath);
+        // Resuelve en asíncrono: no se puede comprobar img.src aquí, todavía estaría vacío.
+        applyIcon(img, name);
         card.appendChild(img);
     }
 
@@ -930,7 +950,8 @@ function orderCard(order) {
     body.appendChild(meta);
 
     // Hueco que rellena loadMarketForList cuando llegan los precios.
-    body.appendChild(el("div", "order-market om-loading"));
+    const mkt = slug && marketCache.get(slug);
+    body.appendChild(mkt ? marketSummary(mkt, type, card.dataset.plat, maxRank > 0) : el("div", "order-market om-loading"));
 
     card.append(body, plat(order.platinum ?? "?", "order-price"));
 
@@ -1217,11 +1238,7 @@ function patchOrder(card, orderId, patch) {
         const next = { ...listCtx.orders[i], ...patch };
         listCtx.orders[i] = next;
 
-        const fresh = orderCard(next);
-        card.replaceWith(fresh);
-        // La tarjeta nueva nace sin el resumen de mercado; se reinyecta desde la caché
-        // en memoria para no volver a pedirlo por un cambio de precio o visibilidad.
-        applyMarketToCard(fresh);
+        card.replaceWith(orderCard(next));
 
         // Si deja de encajar en el filtro activo (ocultar con "Visibles" puesto),
         // el repintado la retira; sin esto se quedaría contradiciendo al filtro.
@@ -1327,55 +1344,28 @@ async function loadOrders() {
     setView(VIEW.ORDERS, res.orders);
 }
 
-/** Punto de entrada de la pestaña; lo llama switchTab(). */
-/**
- * Aviso "en construcción" — es la ÚNICA vista de la pestaña en la web.
- *
- * «Mis órdenes» necesita autenticarse con warframe.market, y su único login para apps
- * externas (v1 por contraseña) no es una base sólida: la propia WFM lo marca como apaño
- * hasta que su OAuth esté listo, y con él algunas cuentas ni siquiera pueden escribir.
- * Hasta que WFM termine OAuth, la versión web no puede ofrecer esto de forma seria, así
- * que se muestra el aviso y punto. Nada de acceso oculto: no serviría de nada mientras
- * el login siga en el aire.
- *
- * El código completo (login, órdenes, publicar, precios en vivo) sigue en este módulo,
- * listo para reactivarse el día que OAuth llegue: solo habrá que llamar a loadOrders()
- * en vez de a esto.
- */
+/** Pestaña de "Mis órdenes" que se ve: sobrevive a "Actualizar". */
+let paneActual = "orders";
+
+/** Punto de entrada de la pestaña; lo llama switchTab(). En la web, solo el aviso hasta que WFM abra OAuth. */
 export function initOrdersTab() {
     const root = document.getElementById("orders-content");
     if (!root) return;
-    renderOrdersUnderConstruction(root);
+    if (wfmPrivado()) loadOrders(); else renderOrdersUnderConstruction(root);
 }
 
-/**
- * ¿Está ese set ya publicado en warframe.market?
- *
- * Lo consulta el tracker de sets. Responde desde el último cruce que hizo esta pestaña,
- * sin pedir nada: el inventario es una vista de datos locales y no debe depender de la
- * red para pintarse. Si nunca se abrió "Mis órdenes", devuelve false y no se pinta nada,
- * que es preferible a afirmar "sin publicar" sin saberlo.
- */
+/** ¿Está ese set ya publicado? Desde el último cruce de esta pestaña, sin pedir nada a la red. */
 export function isSetListed(slug) {
     return linkApi?.isListed(slug) ?? false;
 }
 
-/**
- * ¿Puede la sesión actual publicar órdenes en warframe.market?
- *
- * Lo consultan inventario y tracker de sets para no pintar un botón que solo llevaría
- * a un aviso. Es síncrono a propósito: lo llaman durante el render.
- */
+/** ¿Puede la sesión publicar? Síncrono: lo llaman inventario y tracker de sets durante el render. */
 export function canPublishToWfm() {
     return isLoggedIn() && getScope() === "full";
 }
 
 /**
- * Publica un set en warframe.market desde el inventario, sin cambiar de pestaña.
- *
- * Abre un modal con el precio de mercado ya puesto: publicar a ciegas es la forma más
- * fácil de regalar un set o de dejarlo muerto en la lista. El usuario confirma o ajusta.
- *
+ * Publica un set desde el inventario, con el precio de mercado ya puesto para confirmar o ajustar.
  * @param {string} setName nombre del set ("Ash Prime")
  */
 export async function sellSetFromInventory(setName) {

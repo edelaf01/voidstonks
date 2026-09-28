@@ -1,6 +1,6 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { applyRewardCommit, undoRewardCommit, pickManualReward } from "../deploy/js/utils/inventory/reward_commit.js";
+import { applyRewardCommit, undoRewardCommit, pickManualReward, aplicaTradeo } from "../deploy/js/utils/inventory/reward_commit.js";
 
 // ===========================================================================
 // Alta automática de recompensas en el inventario de piezas Prime.
@@ -188,4 +188,29 @@ describe("cambiar de idea en la pantalla de recompensas", () => {
     assert.equal(r.inventario["Ash Prime Chassis Blueprint"], 1);
     assert.deepEqual(r.anadidas, []);
   });
+});
+
+describe("trade cerrado", () => {
+    const mesa = {
+        doy: [{ tipo: "prime", name: "Khora Prime Chassis Blueprint", qty: 1 }, { tipo: "arcano", name: "Arcane Velocity", qty: 1 }],
+        recibo: [{ tipo: "prime", name: "Braton Prime Barrel", qty: 2 }, { tipo: "platino", name: "Platinum", qty: 80 }],
+    };
+
+    test("lo que das se resta, lo que recibes se suma, y arcanos y platino no tocan el inventario de piezas", () => {
+        const { inventario, movidas } = aplicaTradeo({ "Khora Prime Chassis Blueprint": 2, "Braton Prime Barrel": 1 }, mesa);
+        assert.deepEqual(inventario, { "Khora Prime Chassis Blueprint": 1, "Braton Prime Barrel": 3 });
+        assert.deepEqual(movidas, ["−Khora Prime Chassis Blueprint", "+Braton Prime Barrel ×2"]);
+    });
+
+    test("dar una pieza que no tenías apuntada no deja negativos ni la inventa", () => {
+        const { inventario, movidas } = aplicaTradeo({}, { doy: mesa.doy });
+        assert.deepEqual(inventario, {});
+        assert.deepEqual(movidas, []);
+    });
+
+    test("deshacer deja el inventario como estaba, también las claves que no existían", () => {
+        const antes = { "Khora Prime Chassis Blueprint": 1 };
+        const { inventario, previo } = aplicaTradeo(antes, mesa);
+        assert.deepEqual(undoRewardCommit(inventario, previo), antes);
+    });
 });

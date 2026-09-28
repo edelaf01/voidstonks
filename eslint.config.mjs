@@ -64,14 +64,14 @@ export default [
         },
     },
 
-    // El contrato de capas de ARCHITECTURE.md, también en el editor: tests/architecture.test.mjs
+    // El contrato de capas de arquitectura, también en el editor: tests/architecture.test.mjs
     // lo comprueba en `npm test`, pero un subrayado rojo al escribir el import ahorra el viaje.
     {
         files: ["deploy/js/utils/**/*.js"],
         rules: {
             "no-restricted-imports": ["error", { patterns: [
                 { group: ["**/ui.components/*", "**/services/*", "**/repositories/*", "**/api.js", "**/ui.js"],
-                  message: "utils/ solo importa de config.js, state.js y otros utils/. Ver ARCHITECTURE.md §A." },
+                  message: "utils/ solo importa de config.js, state.js y otros utils/." },
             ] }],
         },
     },
@@ -80,7 +80,7 @@ export default [
         rules: {
             "no-restricted-imports": ["error", { patterns: [
                 { group: ["**/ui.components/*", "**/services/*", "**/ui.js"],
-                  message: "repositories/ hace I/O crudo: no conoce services/ ni la UI. Ver ARCHITECTURE.md §A." },
+                  message: "repositories/ hace I/O crudo: no conoce services/ ni la UI." },
             ] }],
         },
     },
@@ -89,7 +89,7 @@ export default [
         rules: {
             "no-restricted-imports": ["error", { patterns: [
                 { group: ["**/ui.components/*", "**/ui.js"],
-                  message: "Un service devuelve datos; el DOM y los toasts los pone el componente. Ver ARCHITECTURE.md §A." },
+                  message: "Un service devuelve datos; el DOM y los toasts los pone el componente." },
             ] }],
         },
     },
@@ -98,7 +98,7 @@ export default [
         rules: {
             "no-restricted-imports": ["error", { patterns: [
                 { group: ["**/repositories/*"],
-                  message: "El componente habla con un service, no con el repositorio. Ver ARCHITECTURE.md §A." },
+                  message: "El componente habla con un service, no con el repositorio." },
                 // ui.js ejecuta código al importarse: el import inverso deja el módulo a medio
                 // evaluar y sus `let` explotan con "Cannot access 'X' before initialization".
                 { group: ["**/ui.js"],
@@ -107,7 +107,7 @@ export default [
         },
     },
 
-    // Deuda congelada: los tres ficheros que siguen cruzando capas (DEUDA.md §2 y
+    // Deuda congelada: los tres ficheros que siguen cruzando capas (ver
     // tests/_baseline/architecture-debt.json, que impide que la lista crezca). Se apaga aquí
     // para mantener el lint en 0 errores; al arreglar uno, se quita de las dos listas.
     {

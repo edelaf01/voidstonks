@@ -83,7 +83,7 @@ test("el umbral se adapta al fondo", () => {
 
 // --- Capturas reales (fuera del repo; sin la carpeta se salta) ---------------------------------
 const DIR = process.env.CORPUS_PANTALLAS_DIR || "/home/ppsoy/Imágenes/Capturas de pantalla/nofunciona/implementar";
-const PAUSAS = ["temas/pausa-oscuro.png", "temas/pausa-red.png", "squadfunctionality.png", "nofunca.png"];
+const PAUSAS = ["temas/pausa-oscuro.png", "temas/pausa-red.png", "squadfunctionality.png", "nofunca.png", "pausa-cascade-mods.png"];
 const NO_PAUSAS = ["anky ros.png", "reliccount/1.png", "reliccount/relicscreenredred.png", "temas/reliquias.png",
   "reliccount/lastmission-rojo.png", "temas/caliban.png", "temas/nofuncarecompensa.png", "missioncomplete2.png"];
 

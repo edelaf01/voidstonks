@@ -46,6 +46,9 @@ const CAPTURAS = {
   "temas/siguesinarreglar.png": { total: 4, tesseract: 0 },
   "temas/siguesinfunciona.png": { total: 4, tesseract: 4 },
   "temas/styanaxnodetecta.png": { total: 4, tesseract: 3 },
+  // Ivara Prime Blueprint "Crafted", con el arte claro de la figura sobre el nombre. Recortada por el usuario
+  // (sin cabecera): la banda falla y lee el recorte fijo.
+  "temas/ivara-crafted-no-lee.png": { total: 4, tesseract: 4 },
   // Reportada en vivo: el escáner devolvía "Nidus Prime Neuroptics Blueprint", juntando el
   // "Nidus Prime" de la primera tarjeta con el "Neuroptics Blueprint" de la segunda. Ese nombre
   // EXISTE en el catálogo, así que el matcher lo acepta y no hay forma de notarlo contando.

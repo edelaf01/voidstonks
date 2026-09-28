@@ -58,4 +58,6 @@ test("filaPropiaDelEscuadron se queda con la fila bajo Squad Relics y nada más"
   assert.deepEqual(filaPropiaDelEscuadron([...rotulo, w("Axi", 334, 87), w("A6", 356, 87), ...companero, ...tooltipIzquierda]), ["Axi", "A6"]);
   assert.equal(filaPropiaDelEscuadron([...rotulo, w("No", 334, 87), w("Relic", 356, 86), ...companero]), "");
   assert.equal(filaPropiaDelEscuadron(companero), null, "sin rótulo no hay escuadra: pantalla de refinamiento");
+  const malLeido = [{ ...rotulo[0], text: "5quad" }, rotulo[1], w("Axi", 334, 87), w("A6", 356, 87)];
+  assert.deepEqual(filaPropiaDelEscuadron(malLeido), ["Axi", "A6"], "el rótulo mal leído (5quad, Sguad) sigue valiendo");
 });

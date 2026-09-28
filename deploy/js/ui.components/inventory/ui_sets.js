@@ -559,5 +559,3 @@ setTimeout(() => {
     });
   }
 }, 500);
-
-// Ver MAINTENANCE_FISSURE_SET_RECS.md

@@ -280,6 +280,11 @@ export const VisionService = {
      */
     _cropCvs: {},
 
+    /** Un lienzo reutilizado por clave, para los services que no pueden crear DOM. */
+    lienzo(clave) {
+        return (this._cropCvs[clave] ||= document.createElement("canvas"));
+    },
+
     prepareCropForOCR(video, crop, zoom, cacheKey) {
         const canvas = this._cropCvs[cacheKey] ||= document.createElement("canvas");
         const width = video.videoWidth;
@@ -1506,6 +1511,7 @@ export const VisionService = {
         // Va ANTES que el resto porque su recorte es otro (el título centrado) y no comparte
         // vocabulario con ninguna: si llega aquí "MISSION COMPLETE", no puede ser otra cosa.
         if (/M[I1L]SS?[I1L]ON\s*C[O0Q]MP|MIS[I1L][OÓ]N\s*C[O0Q]MPLET/.test(text)) return "MISSION_COMPLETE";
+        if (/TRAD[I1L]NG/.test(text)) return "TRADE";
         // Fin de partida de Sanctuary Onslaught: la misma pantalla de recompensas con otro título.
         if (/Z[O0]NE\s*\S{1,3}\s*REACH/.test(text)) return "MISSION_COMPLETE";
 
@@ -1527,13 +1533,13 @@ export const VisionService = {
      * pura de grid_detect.js (testeable offline) y devuelve calibData en el
      * mismo formato que la calibración guardada, o null si no hay confianza.
      */
-    detectGridAutoCalib(snapshot, width, height) {
+    detectGridAutoCalib(snapshot, width, height, anchoMax = width) {
         try {
             const cvs = this._themeCvs;
-            cvs.width = width; cvs.height = height;
+            cvs.width = anchoMax; cvs.height = height;
             const ctx = cvs.getContext("2d", { willReadFrequently: true });
             ctx.drawImage(snapshot, 0, 0, width, height);
-            const img = ctx.getImageData(0, 0, width, height);
+            const img = ctx.getImageData(0, 0, anchoMax, height);
             const trace = {};
             const calib = detectInventoryGrid(img, { trace });
             // Para comprobar la fase antes de leer (grid_alignment.js). También sin rejilla: es

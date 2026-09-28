@@ -23,6 +23,7 @@ const { cellNameMask, electPageNameColor } = await import("../deploy/js/services
 const { OCRRepository } = await import("../deploy/js/repositories/ocr.repository.js");
 const { comoItemsDatabase } = await import("./_helpers/prime-catalog.mjs");
 const { state } = await import("../deploy/js/state.js");
+const { ANCHO_REJILLA_TRADEO } = await import("../deploy/js/utils/vision/trade_post.js");
 
 state.itemsDatabase = comoItemsDatabase();
 
@@ -167,3 +168,33 @@ for (const [archivo, verdad] of Object.entries(CAPTURAS)) {
         "si estrechar dejara de perder nombres, revisa esta decisión con la medida en la mano");
     });
 }
+
+// Búsqueda "hydr" en INVENTORY/TRADE: dos filas (la segunda a medias), piezas y reliquias mezcladas y el panel
+// OFFERED a la derecha. Antes no salía rejilla ("cadena de solo 2 filas") y con el panel dentro salían 8 columnas.
+const TRADEO = { archivo: "inventory-trade-hydroid.png", dir: "/home/ppsoy/Imágenes/Capturas de pantalla/nofunciona/implementar" };
+const faltaTradeo = !fs.existsSync(path.join(TRADEO.dir, TRADEO.archivo)) && "sin la captura";
+
+test("búsqueda de dos filas en el inventario de trade: rejilla, cantidades, piezas y reliquias", { skip: faltaTradeo || (!hayTesseract && "tesseract no instalado") }, async () => {
+  const img = decodePng(fs.readFileSync(path.join(TRADEO.dir, TRADEO.archivo)));
+  const calib = VisionService.detectGridAutoCalib(img, img.width, img.height, Math.round(img.width * ANCHO_REJILLA_TRADEO));
+  assert.deepEqual({ rows: calib.rows, cols: calib.cols, cellW: calib.cellW, cellH: calib.cellH }, { rows: 2, cols: 6, cellW: 277, cellH: 296 });
+  const z = calib.gridZone;
+  const tema = VisionService.detectThemeFromSnapshot(img, z.x, z.y, z.w, z.h);
+  const auto = VisionService.buildAutoGrid(img, z, tema, calib);
+  state.allRelicNames = ["Axi M3", "Lith R1", "Meso Z2", "Neo H3", "Neo N8"];
+  OCRRepository.recognize = async (_w, cvs) => ({ data: { words: ocrCLI(cvs).map((text) => ({ text })) } });
+  const banda = [Math.round(auto.cellH * 0.50), Math.round(auto.cellH * 0.48)];
+  const color = await electPageNameColor({}, img, auto.cellRects.map((cell) => ({ cell })), auto.cellW, ...banda, tema);
+  const leidas = [];
+  for (const cell of auto.cellRects) {
+    const palabras = ocrCLI(cellNameMask(img, cell, auto.cellW, ...banda, tema, color).cvs);
+    const nombre = OCRService.getRelicMatch(palabras) || OCRService.getValidItemMatch(palabras)?.originalName || null;
+    leidas.push([nombre, (await leeCantidadBadge(img, cell, auto.cellW, auto.cellH, tema)).qty]);
+  }
+  // La Neuroptics lleva un casco blanco que tapa el nombre: Tesseract no la saca (en vivo la lee Paddle).
+  assert.deepEqual(leidas.map(([, q]) => q).slice(0, 9), [6, 5, 5, 2, 10, 12, 13, 39, 33]);
+  assert.deepEqual(leidas.map(([n]) => n), [
+    "Hydroid Prime Chassis Blueprint", null, "Hydroid Prime Systems Blueprint", "Hydroid Prime Blueprint", "Axi M3", "Lith R1",
+    "Meso Z2", "Neo H3", "Neo N8", null, null, null,
+  ]);
+});

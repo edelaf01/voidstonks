@@ -72,7 +72,7 @@ const FILTERS_KEY = "vs_riven_index_filters_v1";
 
 /**
  * Filtros del índice, saneados. Aquí y no en el componente porque un ui.component no toca
- * localStorage (ARCHITECTURE.md §A); los predicados viven aparte, en utils/rivens.
+ * localStorage; los predicados viven aparte, en utils/rivens.
  * @param {string[]} validTypes tipos presentes hoy: uno guardado que ya no exista cae a "".
  */
 export function getIndexFilterPrefs(validTypes = []) {

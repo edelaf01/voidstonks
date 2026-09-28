@@ -10,7 +10,6 @@
  * 2. Para añadir nuevos arcanos sueltos (eventos / fuera de Loid):
  *    - El generador los mete en `arcanes_vosfor.json` -> `others`.
  *    - Añádelos a `CATHEDRALE_ARCANES` o `JADE_CONSTELLATIONS_ARCANES` si aplican.
- * 3. Ver documentación completa en `MAINTENANCE_VOSFOR.md`.
  */
 
 import { state } from "../state.js";

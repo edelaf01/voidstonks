@@ -35,6 +35,25 @@ export function applyRewardCommit(primeInventory, items, pendingManualAdds = [])
     return { inventario, previo, anadidas, pendientes };
 }
 
+/** Un trade cerrado: las piezas prime que das se restan y las que recibes se suman. `previo` sirve a undoRewardCommit. */
+export function aplicaTradeo(primeInventory, { doy = [], recibo = [] } = {}) {
+    const inventario = { ...primeInventory };
+    const previo = new Map();
+    const movidas = [];
+    for (const [lista, signo] of [[doy, -1], [recibo, 1]]) {
+        for (const { tipo, name, qty = 1 } of lista) {
+            if (tipo !== "prime" || !name) continue;
+            const antes = contadorDe(inventario[name]);
+            const despues = Math.max(0, antes + signo * qty);
+            if (despues === antes) continue;
+            if (!previo.has(name)) previo.set(name, Object.hasOwn(inventario, name) ? inventario[name] : undefined);
+            inventario[name] = despues;
+            movidas.push(`${signo > 0 ? "+" : "−"}${name}${qty > 1 ? ` ×${qty}` : ""}`);
+        }
+    }
+    return { inventario, previo, movidas };
+}
+
 /** Devuelve el inventario al estado que tenía antes del alta (el botón "deshacer"). */
 export function undoRewardCommit(primeInventory, previo) {
     const inventario = { ...primeInventory };
