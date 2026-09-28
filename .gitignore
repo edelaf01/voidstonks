@@ -69,3 +69,4 @@ tests/appraisal_results.json
 *.pem
 __pycache__/
 *.pyc
+.github/readme/originales/
