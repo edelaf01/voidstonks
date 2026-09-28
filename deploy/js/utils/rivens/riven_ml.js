@@ -57,6 +57,8 @@ export async function loadRivenML() {
     // not a copy
     if (statWeights && typeof statWeights === "object" && !state.rivenStatWeights) {
       state.rivenStatWeights = statWeights;
+      // repaint the guide: a panel drawn without these weights has empty TOP marks. Through globalThis to
+      // avoid the ui_rivens -> riven_ml -> ui_rivens cycle
       if (typeof globalThis.refreshCurrentRivenMetaStats === "function") {
         try { globalThis.refreshCurrentRivenMetaStats(); } catch { /* panel not mounted yet */ }
       }

@@ -1,6 +1,11 @@
 import { state } from "../../state.js";
 import { ORDERS_TEXTS as T } from "../../assets/orders_texts.js";
 
+/**
+ * Orders screen while warframe.market has no public OAuth. Lives apart from ui_orders.js, which is over
+ * the 800 line cap.
+ */
+
 const el = (tag, className, text) => {
     const node = document.createElement(tag);
     if (className) node.className = className;

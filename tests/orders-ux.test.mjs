@@ -88,15 +88,15 @@ test("el detalle sigue diciendo lo esencial", () => {
     }
 });
 
-test("la pestaña es solo el aviso 'en construcción', sin acceso", () => {
+test("en la web la pestaña es solo el aviso 'en construcción'; la real, solo en local", () => {
     // until warframe.market enables OAuth the web version cannot offer this, so the tab offers no way in
     assert.match(wip, /export function renderOrdersUnderConstruction/, "falta el aviso de construcción");
 
     const init = src.slice(src.indexOf("export function initOrdersTab"),
                            src.indexOf("export function initOrdersTab") + 260);
-    assert.match(init, /renderOrdersUnderConstruction\(root\)/, "initOrdersTab debe pintar el aviso");
-    assert.ok(!/loadOrders\(\)|setView\(/.test(init),
-        "initOrdersTab no debe abrir la funcionalidad real");
+    assert.match(init, /if \(wfmPrivado\(\)\) loadOrders\(\); else renderOrdersUnderConstruction\(root\)/,
+        "fuera de localhost, initOrdersTab debe pintar el aviso");
+    assert.ok(!/setView\(/.test(init), "initOrdersTab no debe abrir una vista por su cuenta");
 
     assertBilingual(["wipTitle", "wipText", "wipTooltip"]);
 });

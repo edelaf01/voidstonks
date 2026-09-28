@@ -4,8 +4,7 @@
 // más — es deliberado, para validar que la app carga y el scanner funciona en el WebView
 // antes de invertir en lo siguiente.
 //
-// FASE 3 (pendiente): aquí vivirá el "puente nativo" que describe
-// deploy/js/utils/native_bridge.contract.md. Los comandos #[tauri::command] harán el
+// FASE 3 (pendiente): aquí vivirá el puente nativo. Los comandos #[tauri::command] harán el
 // login contra warframe.market DIRECTO desde este proceso Rust —sin CORS ni HttpOnly,
 // como un script—, de modo que la contraseña del usuario nunca pase por el worker. El
 // front lo detectará vía globalThis.__vsNative (ver deploy/js/utils/platform.js).

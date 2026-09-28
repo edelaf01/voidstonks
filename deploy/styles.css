@@ -2194,8 +2194,10 @@ body.theme-bounties {
   border-radius: 6px;
   border: 1px solid #333;
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
+  gap: 10px 12px;
   margin-bottom: 15px;
 }
 
@@ -2207,15 +2209,12 @@ body.theme-bounties {
 }
 
 .relic-verdict {
+  flex: 1;
+  min-width: 0;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 10px 14px;
-  margin-bottom: 15px;
-  border-radius: 6px;
-  border: 1px solid #333;
-  background: #15171b;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .relic-verdict.hidden {
@@ -2244,10 +2243,6 @@ body.theme-bounties {
 }
 
 /* OPEN -> reuse the cyan "active" palette */
-.relic-verdict.open {
-  border-color: rgba(0, 229, 255, 0.3);
-  background: rgba(0, 229, 255, 0.06);
-}
 .relic-verdict.open .verdict-tag {
   background: rgba(0, 229, 255, 0.12);
   color: #00e5ff;
@@ -2255,10 +2250,6 @@ body.theme-bounties {
 }
 
 /* SELL -> reuse the gold ducat palette */
-.relic-verdict.sell {
-  border-color: rgba(255, 183, 77, 0.3);
-  background: rgba(255, 183, 77, 0.06);
-}
 .relic-verdict.sell .verdict-tag {
   background: rgba(255, 183, 77, 0.12);
   color: var(--wf-gold-text);
@@ -2270,6 +2261,18 @@ body.theme-bounties {
   background: rgba(255, 255, 255, 0.06);
   color: #bbb;
   border: 1px solid #444;
+}
+
+@media (max-width: 600px) {
+  .relic-verdict {
+    order: 3;
+    flex-basis: 100%;
+    justify-content: flex-start;
+  }
+
+  .relic-verdict .verdict-detail {
+    text-align: left;
+  }
 }
 
 
@@ -7098,6 +7101,7 @@ body[data-lang="en"] .header-guide-cta .lang-en {
   gap: 6px;
 }
 
+/* rem, not em: .duc-empty is already at 0.9em */
 .duc-empty-hint {
   font-size: 0.78rem;
   line-height: 1.45;

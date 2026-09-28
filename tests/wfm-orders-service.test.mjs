@@ -274,3 +274,71 @@ test("el lote de mercado deduplica, acota a 30 y degrada a vacío si falla", asy
   rutas.set("wfm_market_batch", () => respuesta(500));
   assert.deepEqual(await orders.fetchMarketBatch(["a"]), {});
 });
+
+// reviewing prices needs real market data: Cloudflare serves cached data with 5 h max-age
+test("el mercado de todos se repite con lo que el worker dejó pendiente, y el fresco se salta las cachés", async () => {
+  reset();
+  const servidos = new Set();
+  rutas.set("wfm_market_batch", (u) => {
+    // worker resolves 9 uncached per request; here, 2
+    const pedidos = new URL(u, "https://x").searchParams.get("slugs").split(",");
+    const nuevos = pedidos.filter((s) => !servidos.has(s)).slice(0, 2);
+    nuevos.forEach((s) => servidos.add(s));
+    return respuesta(200, Object.fromEntries(pedidos.filter((s) => servidos.has(s)).map((s) => [s, { median: 1 }])));
+  });
+  const progreso = [];
+  const r = await orders.mercadoDeTodos(["a", "b", "c", "d", "e"], { fresco: true, esperaMs: 0, onProgreso: ({ hechos, total }) => progreso.push(`${hechos}/${total}`) });
+  assert.deepEqual(Object.keys(r).sort(), ["a", "b", "c", "d", "e"]);
+  assert.deepEqual(progreso, ["2/5", "4/5", "5/5"]);
+  const ultima = peticiones.at(-1);
+  assert.match(ultima.url, /&_cb=\d+/);
+  assert.equal(ultima.init?.cache, "no-cache");
+  assert.deepEqual(new URL(ultima.url, "https://x").searchParams.get("slugs").split(","), ["e"], "solo lo que faltaba");
+
+  reset();
+  rutas.set("wfm_market_batch", () => respuesta(200, {}));
+  assert.deepEqual(await orders.mercadoDeTodos(["a"], { rondas: 3, esperaMs: 0 }), {});
+  assert.equal(peticiones.filter((p) => p.url.includes("wfm_market_batch")).length, 3, "no se queda en bucle");
+  assert.ok(!peticiones.at(-1).url.includes("_cb") && !peticiones.at(-1).init?.cache, "la lista sí aprovecha las cachés");
+});
+
+test("lo visto en la última hora no se vuelve a pedir a warframe.market; revisar precios sí va a la red", async () => {
+  reset();
+  const local = new Map();
+  const orig = globalThis.localStorage;
+  globalThis.localStorage = { getItem: (k) => local.get(k) ?? null, setItem: (k, v) => local.set(k, String(v)), removeItem: (k) => local.delete(k) };
+  rutas.set("wfm_market_batch", (u) => {
+    const slugs = new URL(u, "https://x").searchParams.get("slugs").split(",");
+    return respuesta(200, Object.fromEntries(slugs.map((s) => [s, { median: 7 }])));
+  });
+  try {
+    await orders.fetchMarketBatch(["a", "b"]);
+    assert.deepEqual(await orders.fetchMarketBatch(["a", "b"]), { a: { median: 7 }, b: { median: 7 } });
+    assert.equal(peticiones.length, 1, "recargar la pestaña no pide nada");
+    await orders.fetchMarketBatch(["a", "c"]);
+    assert.deepEqual(new URL(peticiones.at(-1).url, "https://x").searchParams.get("slugs").split(","), ["c"], "solo lo que falta");
+    await orders.fetchMarketBatch(["a"], { fresco: true });
+    assert.equal(peticiones.length, 3);
+  } finally { globalThis.localStorage = orig; }
+});
+
+// each order load resolved all ids again, and a cache miss in the worker downloads the 1.4 MB catalog
+test("id, slug y nombre se guardan una semana y al worker solo va lo que falta", async () => {
+  const local = new Map();
+  const orig = globalThis.localStorage;
+  globalThis.localStorage = { getItem: (k) => local.get(k) ?? null, setItem: (k, v) => local.set(k, String(v)), removeItem: (k) => local.delete(k) };
+  const pedidos = [];
+  const pide = async (claves) => { pedidos.push(claves); return Object.fromEntries(claves.filter((c) => c !== "raro").map((c) => [c, { slug: c }])); };
+  try {
+    const t0 = Date.parse("2026-09-27T10:00:00Z");
+    assert.deepEqual(await orders.conCatalogoLocal("id", ["a", "b", "raro"], pide, t0), { a: { slug: "a" }, b: { slug: "b" } });
+    assert.deepEqual(await orders.conCatalogoLocal("id", ["a", "c"], pide, t0 + 3600000), { a: { slug: "a" }, c: { slug: "c" } });
+    assert.deepEqual(pedidos, [["a", "b", "raro"], ["c"]], "lo que el catálogo no conoce se vuelve a preguntar; lo conocido no");
+    await orders.conCatalogoLocal("slug", ["a"], pide, t0 + 3600000);
+    assert.deepEqual(pedidos.at(-1), ["a"], "ids y slugs no se mezclan");
+    await orders.conCatalogoLocal("id", ["b"], pide, t0 + 8 * 86400000);
+    assert.deepEqual(pedidos.at(-1), ["b"], "pasada una semana se refresca");
+    globalThis.localStorage = { getItem() { throw new Error("bloqueado"); }, setItem() { throw new Error("bloqueado"); } };
+    assert.deepEqual(await orders.conCatalogoLocal("id", ["a"], pide, t0), { a: { slug: "a" } }, "sin almacenamiento se pide a la red");
+  } finally { globalThis.localStorage = orig; }
+});

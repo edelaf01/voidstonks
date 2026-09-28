@@ -62,6 +62,8 @@ export function renderInvGoalChips() {
     if (chk) chk.checked = !!state.invOnlyActive;
 }
 
+// renderInventory lives in ui_inventory.js, which imports this module: through globalThis to avoid a
+// load cycle
 export function filterInvGoal(goal) {
     state.invGoal = goal;
     saveAppState();

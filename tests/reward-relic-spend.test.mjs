@@ -1,5 +1,5 @@
 // deducting relics at mission complete: an endless fissure of 4 rounds only subtracted 1 relic
-import { test } from "node:test";
+import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { installFakeDocument } from "./_helpers/fake-canvas.mjs";
 import { makeRewardFrameEnEncuadre } from "./_helpers/reward-frame.mjs";
@@ -11,6 +11,9 @@ globalThis.addEventListener = () => {};
 globalThis.localStorage = { getItem: () => null, setItem() {}, removeItem() {} };
 
 const { ScannerService: S } = await import("../deploy/js/services/scanner/scanner.service.js");
+const { FirmasTitulo } = await import("../deploy/js/services/scanner/title_signatures.service.js");
+
+beforeEach(() => { FirmasTitulo._clave = null; FirmasTitulo._catalogo = null; });
 const { RelicScreenService } = await import("../deploy/js/services/scanner/relic_screen.service.js");
 const { ScannerModal } = await import("../deploy/js/ui.components/ui_scanner_modal.js");
 const { OCRService } = await import("../deploy/js/services/scanner/ocr.service.js");
@@ -41,9 +44,14 @@ test("cada pantalla de recompensas gasta la reliquia de su ronda, y una sola vez
   aplicaMotor(MOTOR_PRECISO);
   PaddleRepository._service = {};
   // modal releases lock on close; released manually between screens here
-  const pantalla = () => {
+  const pantalla = async () => {
     Object.assign(S, { detectionLocked: false, lastHeaderText: "VOID FISSURE/REWARDS", _cabeceraVigente: true, lastRewardNoResult: { hash: null, time: 0 } });
-    return S.processRewards(video, { width: W, height: H, scale: 1.5 });
+    await S.processRewards(video, { width: W, height: H, scale: 1.5 });
+    // 1 read reward out of 4 cards waits for the rest: screen is still there after timeout
+    if (S._recompensaParcial) {
+      S._recompensaParcial.desde -= 2000;
+      await S.processRewards(video, { width: W, height: H, scale: 1.5 });
+    }
   };
   try {
     RelicScreenService.reset();
@@ -67,6 +75,70 @@ test("cada pantalla de recompensas gasta la reliquia de su ronda, y una sola vez
   }
 });
 
+// live bug: read mid-entrance animation, 4th card (Ivara) was missing and modal opened with three
+test("con menos recompensas que tarjetas se relee, y pasado el plazo se abre con la mejor lectura", async () => {
+  const abiertos = [];
+  const orig = { open: ScannerModal.open, paddle: PaddleRepository.recognizeWordsWithBoxes };
+  ScannerModal.open = (_img, items) => { abiertos.push(items.map((i) => i.name)); };
+  PaddleRepository.recognizeWordsWithBoxes = async (cvs) => rotulo(cvs, ["Braton", "Prime", "Barrel"]);
+  aplicaMotor(MOTOR_PRECISO);
+  PaddleRepository._service = {};
+  const lee = (v) => {
+    Object.assign(S, { detectionLocked: false, lastHeaderText: "VOID FISSURE/REWARDS", _cabeceraVigente: true, lastRewardNoResult: { hash: null, time: 0 } });
+    return S.processRewards(v, { width: W, height: H, scale: 1.5 });
+  };
+  try {
+    S._recompensaParcial = null;
+    await lee(video);
+    await lee(video);
+    assert.deepEqual(abiertos, [], "una de cuatro tarjetas: se espera a las demás");
+    S._recompensaParcial.desde -= 2000;
+    await lee(video);
+    assert.deepEqual(abiertos, [["Braton Prime Barrel"]], "pasado el plazo, con la mejor lectura");
+    await lee({ ...makeRewardFrameEnEncuadre({ width: W, height: H, cards: 1 }), videoWidth: W, videoHeight: H });
+    assert.equal(abiertos.length, 2, "con todas las tarjetas leídas se abre al momento");
+  } finally {
+    ScannerModal.open = orig.open;
+    PaddleRepository.recognizeWordsWithBoxes = orig.paddle;
+    aplicaMotor(MOTOR_CLASICO);
+    PaddleRepository._service = null;
+    S.detectionLocked = false;
+    S._recompensaParcial = null;
+  }
+});
+
+test("al salir de la pantalla de recompensas se rescata la lectura parcial pendiente", async () => {
+  const abiertos = [];
+  const orig = { open: ScannerModal.open, paddle: PaddleRepository.recognizeWordsWithBoxes, cabecera: S.lastHeaderText };
+  ScannerModal.open = (_img, items) => { abiertos.push(items.map((i) => i.name)); };
+  PaddleRepository.recognizeWordsWithBoxes = async (cvs) => rotulo(cvs, ["Braton", "Prime", "Barrel"]);
+  aplicaMotor(MOTOR_PRECISO);
+  PaddleRepository._service = {};
+  try {
+    S._recompensaParcial = null;
+    Object.assign(S, { detectionLocked: false, lastHeaderText: "VOID FISSURE/REWARDS", _cabeceraVigente: true, lastRewardNoResult: { hash: null, time: 0 } });
+    await S.processRewards(video, { width: W, height: H, scale: 1.5 });
+    assert.deepEqual(abiertos, [], "una de cuatro tarjetas: se espera a las demás");
+    assert.ok(S._recompensaParcial, "parcial guardado");
+
+    S.lastHeaderText = "MISSION COMPLETE";
+    S.rescataRecompensaParcial();
+    assert.deepEqual(abiertos, [["Braton Prime Barrel"]], "el modal se abre una vez con la lectura rescatada");
+    assert.equal(S._recompensaParcial, null, "S._recompensaParcial queda en null");
+
+    S.rescataRecompensaParcial();
+    assert.equal(abiertos.length, 1, "llamarlo otra vez no abre nada");
+  } finally {
+    ScannerModal.open = orig.open;
+    PaddleRepository.recognizeWordsWithBoxes = orig.paddle;
+    aplicaMotor(MOTOR_CLASICO);
+    PaddleRepository._service = null;
+    S.detectionLocked = false;
+    S._recompensaParcial = null;
+    S.lastHeaderText = orig.cabecera;
+  }
+});
+
 // modal paused scanner for 20 s: round 2 SELECT RELIC mid-mission went unread
 test("con el modal abierto, la SELECT RELIC de la ronda siguiente se lee sin esperar a que se cierre", async () => {
   const { OCRRepository } = await import("../deploy/js/repositories/ocr.repository.js");
@@ -87,8 +159,7 @@ test("con el modal abierto, la SELECT RELIC de la ronda siguiente se lee sin esp
     assert.deepEqual(rutas, [], "la misma pantalla de recompensas no se relee");
     cabecera = "VOID FISSURE/SELECT RELIC";
     await tick();
-    await tick();
-    assert.deepEqual(rutas, ["RELICS"]);
+    assert.deepEqual(rutas, ["RELICS"], "recompensas → selección de la ronda siguiente, con una lectura");
     assert.equal(S.detectionLocked, false);
   } finally {
     OCRRepository.workers = orig.workers;

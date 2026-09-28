@@ -15,6 +15,9 @@ import { labelFullyRead } from "../../utils/vision/name_lines.js";
 import { collectWords } from "../../utils/vision/ocr_words.js";
 import { hasComponentSiblings } from "../../utils/inventory/component_siblings.js";
 
+/**
+ * PaddleOCR read on the color crop, skipping all the binarization.
+ */
 async function conPaddle(frame, width, height, scale, cropRect, columnas) {
     const colorCvs = VisionService.prepareRewardOCRCanvas(frame, width, height, scale, "COLOR", cropRect);
     const words = await PaddleRepository.recognizeWordsWithBoxes(colorCvs);

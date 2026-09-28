@@ -111,6 +111,11 @@ export const OCRRepository = {
         this.workers = this.workers.filter(Boolean);
     },
 
+    async workerDeFondo() {
+        await this.ensureWorkers(2);
+        return this.workers[1] || this.workers[0];
+    },
+
     async ensureSecondWorker() { return this.ensureWorkers(2); },
 
     terminateAll() {
@@ -176,11 +181,23 @@ export const OCRRepository = {
     // Timeoutfor a worker to respond to a recognition request. If the worker does not respond within this time, it will be replaced with a new one.
     LIMITE_OCR_MS: 15000,
 
+    _colas: new WeakMap(),
+
+    // one job at a time per worker
     async conLimite(worker, trabajo) {
-        let reloj;
+        const previo = this._colas.get(worker) || Promise.resolve();
+        let suelta;
+        this._colas.set(worker, new Promise((r) => { suelta = r; }));
+        await previo;
+
+        let reloj, r;
         const limite = new Promise((resolve) => { reloj = setTimeout(() => resolve(null), this.LIMITE_OCR_MS); });
-        const r = await Promise.race([trabajo(), limite]);
-        clearTimeout(reloj);
+        try {
+            r = await Promise.race([trabajo(), limite]);
+        } finally {
+            clearTimeout(reloj);
+            suelta();
+        }
         if (r) return r;
         console.error(`[OCR Repo] el worker no respondió en ${this.LIMITE_OCR_MS} ms: se sustituye`);
         this.sustituye(worker);

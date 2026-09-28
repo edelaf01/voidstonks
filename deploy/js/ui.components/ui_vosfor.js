@@ -1,3 +1,11 @@
+/**
+ * Vosfor tab and Loid pack simulator.
+ *
+ * New Loid collections: rerun scripts-actu/generar_arcanos_vosfor.py (regenerates
+ * deploy/assets/json/arcanes_vosfor.json) and register the syndicate in PACK_SYNDICATES. Loose arcanes
+ * land in `others`; add them to CATHEDRALE_ARCANES or JADE_CONSTELLATIONS_ARCANES when they apply.
+ */
+
 import { state } from "../state.js";
 import { TEXTS } from "../config.js";
 import { escapeHTML } from "./ui_components.js";

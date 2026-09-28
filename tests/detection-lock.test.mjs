@@ -2,6 +2,9 @@ import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
+// reads the SOURCE instead of running the service: running this path needs a <video>, getDisplayMedia, OCR workers and a real inventory
+// `processFrame()` returns on its first line while `detectionLocked` is set, so a `return` that leaves the lock on kills the whole scanner
+
 const FUENTE = readFileSync(new URL("../deploy/js/services/scanner/scanner.service.js", import.meta.url), "utf8");
 const LINEAS = FUENTE.split("\n");
 
@@ -30,7 +33,7 @@ describe("cerrojo del escáner", () => {
     });
 
     test("el camino que abre el modal sí se queda el cerrojo, y lo suelta el modal", () => {
-        assert.match(FUENTE, /this\.detectionLocked = true;[\s\S]{0,400}ScannerModal\.open\(/);
+        assert.match(FUENTE, /this\.detectionLocked = true;[\s\S]{0,700}ScannerModal\.open\(/);
         const modal = readFileSync(new URL("../deploy/js/ui.components/ui_scanner_modal.js", import.meta.url), "utf8");
         assert.equal(/ScannerService\.detectionLocked = false/.test(modal), true);
     });

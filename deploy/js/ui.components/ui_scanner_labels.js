@@ -1,3 +1,8 @@
+/**
+ * Scanner labels: HUD, permission notice and calibration modal. Takes the active language dictionary
+ * and only writes to the DOM, so it closes no import cycle.
+ */
+
 const setText = (id, text) => {
   const el = document.getElementById(id);
   if (el && text) el.innerText = text;
