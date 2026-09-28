@@ -2,49 +2,53 @@
 
 # VoidStonks
 
-**A Warframe companion for trading and farming. It reads your screen, so it works where
-overlays can't: Linux, console and phone.**
+**A Warframe companion for trading and farming that reads your game screen, so it also works
+on Linux, on console and on your phone.**
 
 [voidstonks.com](https://voidstonks.com)
 
 </div>
 
+It started as a recruitment message generator and grew into everything you'd want open while
+you play: what your stuff is worth, which relic to crack next, whether that riven is any good.
+It never touches the game. It only looks at the screen you share with it.
+
 ## Scanner
 
-Share your Warframe window and the app reads what's on screen by itself: your inventory page
-by page, the relic you equip, the reward screen, the end-of-mission summary and the riven
-reroll. There's nothing to calibrate.
+Share your Warframe window once and let it be. It works out which screen you're on and reads
+it, no setup needed.
+
+Open your inventory and it goes through it page by page, counts included.
 
 ![The scanner reading the prime parts inventory](.github/readme/scanner-inventory.jpg)
 
-It notices the relic you equip and takes it off your inventory once the rewards show up.
+When you pick a relic it remembers which one, and takes it off your inventory once the rewards
+come up.
 
 ![Equipping an Axi A6 relic and the app detecting it](.github/readme/relicrun.webp)
 
-On the reward screen it tells you which pick is worth the most in platinum and in ducats, and
+On the reward screen it shows you which part is worth the most, in platinum and in ducats, and
 how many of each you already have.
 
 ![The rewards detected, with the best pick highlighted](.github/readme/liverelicrewards.jpg)
 
-Playing on console? Open the site on your phone, point the camera at the reward screen and take
-the shot.
+On console you can do the same with your phone: open the site, point the camera at the TV and
+take the picture.
 
 ![Scanning the reward screen with a phone](.github/readme/mobile.webp)
 
-When the mission ends, it reads the summary screen and adds what you got to your inventory, so
-you don't have to scan it again.
-
-On the reroll screen it prices each riven as it appears and compares the new roll with the
-old one.
+After the mission it reads the summary and adds your loot to the inventory, so there's nothing
+to scan again. And when you're rolling a riven, it prices every new roll as it shows up and
+puts it next to the one you have.
 
 ![A riven detected and priced during a reroll](.github/readme/rivengrader1.jpg)
 ![The new roll compared with the current one](.github/readme/rivengrader2.jpg)
 
 ## Inventory
 
-Everything you own, priced. Prime parts show what your whole inventory is worth and which of
-your sets are going up or down. Relics show how many runs each one takes to finish a set and
-what it makes per run, in platinum and in ducats.
+Your prime parts and relics, with a price next to everything. You can see what the whole lot
+is worth, which of your sets are climbing or dropping, and for each relic how many runs it
+takes to finish a set and what it earns you per run.
 
 <table>
   <tr>
@@ -55,17 +59,17 @@ what it makes per run, in platinum and in ducats.
 
 ## Relics and sets
 
-Look up a relic and pick its refinement and squad size: you see what's inside, what each part
-sells for and its ducats, and whether opening it pays more than selling it intact. Drag a part
-onto the set tracker and it tells you how many runs it takes on average.
+Look up a relic, choose the refinement and how many of you are going, and you'll see what's
+inside, what each part goes for and whether you're better off opening it or selling it intact.
+Drop a part on the set tracker and it tells you how many runs it usually takes to get it.
 
 ![Relic lookup and set progress](.github/readme/setsrelics.gif)
 
 ## Rivens
 
-Pick a weapon to see what its rivens sell for (unrolled, rerolled and listed on
-warframe.market) and which stats it wants. Enter a riven, or let the scanner read it, and you
-get a price range and a grade for each stat. It also tells you when locking a stat is worth
+Pick a weapon to see what its rivens go for (unrolled, rolled and listed on warframe.market)
+and which stats people want on it. Type in your riven, or let the scanner read it, and you get
+a price range and a grade for each stat. It'll even tell you whether locking a stat is worth
 the kuva.
 
 <table>
@@ -75,58 +79,75 @@ the kuva.
   </tr>
 </table>
 
+### How the price is worked out
+
+A stat isn't good in general, it's good on a given weapon. So the first thing it looks at is
+what people actually pay for each stat on that weapon, and if the weapon barely sells, it leans
+on what those stats are worth across all weapons. Then it checks how close each roll came to
+its maximum, and whether the negative hurts something that weapon needs or something it
+couldn't care less about. All of that gives the riven a score.
+
+That score is placed among the rivens for that weapon that really sold, somewhere between the
+cheap ones and the best ones, and that's your price range. None of this needs machine
+learning. The model is a second opinion on top: it was trained on real auctions and runs in
+your browser (it downloads the first time you appraise a riven).
+
+Don't read the number too literally. Two almost identical rivens can sell for very different
+prices, so the range is what matters, and the typical miss is around half the price. The whole
+method, with the numbers behind it, is on the site:
+[How a Riven is appraised](https://voidstonks.com/riven-appraisal.html).
+
 ## Farms
 
-The bounties worth running right now, the Coda and Tenet weapon rotation, the open fissures
-and the arbitration schedule. Set alarms for the rewards, fissures and arbitrations you want
-and it lets you know when they're up.
+The fissures open right now, the bounties worth doing, the arbitration schedule and the Coda
+and Tenet weapon rotation. Set an alarm for whatever you're chasing and it'll let you know when
+it's up.
 
 ![Weapon rotation, alarms and bounties](.github/readme/farmstab-alarms.webp)
 
 ## Vosfor
 
-Sell an arcane or dissolve it into Vosfor? It ranks the Loid packs by platinum per Vosfor and
-by how fast they sell, and works out how many packs you need for the arcane you're after.
+Sitting on arcanes you don't use? It tells you whether to sell them or dissolve them, which Loid
+pack gets you the most platinum for your Vosfor, and how many packs you'd have to open for the
+arcane you want.
 
 ![Loid packs and target arcane odds](.github/readme/vosfor.webp)
 
 ## Ducats
 
-Your prime parts by what they're worth in ducats against platinum: what to hand to Baro Ki'Teer
-and what to sell instead. Parts you no longer own can be hidden.
+Your prime parts sorted by how many ducats they give against what they'd sell for, so you know
+what to bring to Baro and what to put on the market.
 
 ![Ducats against platinum for your prime parts](.github/readme/ducats.gif)
 
 ## LFG
 
-Ready-made recruitment messages that you can write on your phone and pick up on your PC with
-a four-digit code.
+Recruitment messages for the runs that need them. Write one on your phone and pick it up on
+your PC with a four-digit code.
 
-## Your data stays with you
+## Your data
 
-- No Warframe login, no game files, nothing injected into the game.
-- Your inventory and settings live in your browser. There's no account and no telemetry.
-- Prices come from warframe.market through a cached, rate-limited server, so the app doesn't
-  flood their API.
+There's no Warframe login, no game files and nothing hooked into the game. Your inventory and
+settings stay in your browser, there's no account and nothing is tracked. Prices come from
+warframe.market through a cached server, so the app doesn't hammer their API.
 
 ## Where it runs
 
-- **Web:** [voidstonks.com](https://voidstonks.com), on desktop and phone browsers.
-- **Desktop:** the same app in its own window, for Linux and Windows. See
-  [desktop/](desktop/README.md).
-- **Browser extension (optional):** lets the scanner copy results to the clipboard while the
-  game has focus. See [extension/](extension/README.md).
+On the web at [voidstonks.com](https://voidstonks.com), on desktop or phone. There's also a
+desktop version for Linux and Windows ([desktop/](desktop/README.md)), and an optional browser
+extension that lets the scanner copy results to your clipboard while the game has focus
+([extension/](extension/README.md)).
 
 ## What's in this repository
 
-| Folder | What it is |
+| Folder | |
 |---|---|
-| `deploy/` | The app. There's no build step: CI only minifies it before publishing. |
+| `deploy/` | The app itself. There's no build step, CI only minifies it before publishing. |
 | `desktop/` | The desktop build. |
 | `extension/` | The clipboard extension. |
-| `tests/` | The tests, run on every push. |
-| `scripts/`, `scripts-actu/` | The jobs that keep game data, market stats and the riven model up to date. |
-| `.github/` | The workflows (publishing, tests and those jobs) and the images in this README. |
+| `tests/` | Tests, run on every push. |
+| `scripts/`, `scripts-actu/` | The jobs that keep game data, market stats and the riven model fresh. |
+| `.github/` | Workflows and the pictures in this README. |
 
 To run it locally:
 
@@ -136,10 +157,33 @@ npm run dev:site    # serves deploy/ at http://127.0.0.1:8080
 npm test
 ```
 
+## Training the riven model
+
+The model retrains itself every Monday with a GitHub Action
+([retrain-ml.yml](.github/workflows/retrain-ml.yml)). A separate job, in a private repo,
+collects riven auctions from warframe.market every day. On Monday the Action grabs each
+weapon's price history, trains the model on those auctions (XGBoost, one model per price
+percentile, calibrated per weapon) and commits the result to `deploy/assets/ml/`, where the
+site picks it up along with the stat weights.
+
+If you have the auctions CSV you can run it yourself:
+
+```bash
+cd scripts-actu/ML-rivenvaluation
+pip install xgboost pandas numpy scikit-learn requests
+export VOIDSTONKS_CSV=/path/to/dataset_raw_ml.csv
+python history_fetch.py
+DEPLOY_ML_DIR=../../deploy/assets/ml PRUEBAS=0 python ML_local.py
+```
+
+`PRUEBAS=0` skips the slow comparison runs, and without `DEPLOY_ML_DIR` the output goes to
+`generado/` instead of the app.
+
 ## Feedback
 
-Bug reports are welcome in the issues. If the scanner misread something, record it
-(DIAG → RECORD, then ZIP) and attach the file: it has the frame and what the scanner saw.
+If something breaks, open an issue. If the scanner read something wrong, record it
+(DIAG → RECORD, then ZIP) and attach the file: it has the frame and what the scanner saw, which
+is what makes it fixable.
 
 <div align="center">
   <i>Fan-made tool, not affiliated with Digital Extremes.</i>
