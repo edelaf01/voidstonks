@@ -579,7 +579,7 @@
 /* La frase SI se parte en varias lineas: recortarla con ellipsis la dejaria en "Compara el
    valor en ducados y en pla...", que no explica nada. Dos lineas como maximo — es un menu,
    no la guia. `rem` y no `em` porque el item ya reduce a 0.84em y encadenar bajaba de lo
-   legible (mismo tropiezo que documenta CLAUDE.md con .ratio-unit a 5,7px). */
+   legible (mismo tropiezo que con .ratio-unit a 5,7px). */
 .tab-fan-desc {
     font-size: 0.72rem;
     font-weight: 500;

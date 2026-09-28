@@ -462,17 +462,11 @@ export function updateRelicVerdict(relicName, openEV) {
     if (state.selectedRelic !== relicName) return;
     box.classList.remove("hidden", "open", "sell", "neutral");
 
-    const ref = document.getElementById("refinement");
-    const refText = ref?.options[ref.selectedIndex]?.text || "";
-    // squadSize, no playerCount: el veredicto calcula con los que ABREN la reliquia, y aquí
-    // se enseñaba el contador "Faltan" — que es cuántos te faltan para la escuadra.
-    const ctx = `${refText} · ${getPlayerOdds().squadSize}/4`;
-
     if (!sellPrice || sellPrice <= 0) {
       box.classList.add("neutral");
       box.innerHTML = `
         <span class="verdict-tag">${es ? "ABRIR" : "OPEN"}</span>
-        <span class="verdict-detail">${es ? "Sin precio de venta en el mercado" : "No market sell price"}<br>${ctx}</span>`;
+        <span class="verdict-detail">${es ? "Sin precio de venta en el mercado" : "No market sell price"}</span>`;
       return;
     }
 
@@ -489,8 +483,8 @@ export function updateRelicVerdict(relicName, openEV) {
     box.innerHTML = `
       <span class="verdict-tag">${tag}</span>
       <span class="verdict-detail">
-        ${reason} <b>(+${diff.toFixed(1)}<img src="assets/relic_contents/platinum.webp" class="plat-icon">)</b><br>
-        ${es ? "Abrir" : "Open"} ~<b>${openEV.toFixed(1)}</b> · ${es ? "Vender" : "Sell"} ~<b>${sellPrice}</b> · ${ctx}
+        ${reason} <b>(+${diff.toFixed(1)}<img src="assets/relic_contents/platinum.webp" class="plat-icon">)</b>
+        · ${es ? "Vender" : "Sell"} ~<b>${sellPrice}</b>
       </span>`;
   });
 }

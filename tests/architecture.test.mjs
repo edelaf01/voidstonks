@@ -1,4 +1,4 @@
-// Las reglas de ARCHITECTURE.md, comprobadas. Una regla que solo está escrita se erosiona:
+// Las reglas de arquitectura, comprobadas. Una regla que solo está escrita se erosiona:
 // nadie relee un .md antes de añadir un import.
 //
 // Cómo funciona: cada regla se mide sobre deploy/js y se compara contra
@@ -98,7 +98,7 @@ test("arquitectura: los imports respetan el contrato de capas", () => {
     "utils/ y repositories/ no importan de ui.components/ ni de services/; services/ no\n" +
       "importa de ui.components/; ui.components/ no importa de repositories/ (pasa por un\n" +
       "service). Si necesitas algo de una capa superior, súbelo de sitio o pásalo por\n" +
-      "parámetro. Ver ARCHITECTURE.md §A.",
+      "parámetro.",
   );
 });
 
@@ -110,8 +110,7 @@ test("arquitectura: el import() dinámico tampoco salta de capa", () => {
     "dynamicLayerCrossings",
     dynamicLayerCrossings(MODS),
     "Un import() sirve para romper un ciclo, no para saltarse la tabla de capas: si el\n" +
-      "destino está prohibido en estático, también lo está en dinámico.\n" +
-      "Ver ARCHITECTURE.md §A.",
+      "destino está prohibido en estático, también lo está en dinámico.",
   );
 });
 
@@ -122,7 +121,7 @@ test("arquitectura: api.js no amplía lo que reexporta de repositories/", () => 
     "barrelRepositoryReexports",
     barrelRepositoryReexports(MODS),
     "api.js es una fachada heredada, no un atajo para que un componente llegue al\n" +
-      "repositorio. Lo que necesite la UI se expone desde un service. Ver DEUDA.md §8.",
+      "repositorio. Lo que necesite la UI se expone desde un service.",
   );
 });
 
@@ -135,7 +134,7 @@ test("arquitectura: ningún nombre exportado se define en dos módulos", () => {
     duplicateExports(MODS),
     "Un nombre exportado = un módulo. Si dos sitios necesitan lo mismo, uno importa del\n" +
       "otro. Busca antes de escribir: search_graph(query=\"...\") del MCP, o\n" +
-      "grep -rn \"export function nombre\" deploy/js. Ver ARCHITECTURE.md §C.",
+      "grep -rn \"export function nombre\" deploy/js.",
   );
 });
 
@@ -146,7 +145,7 @@ test("arquitectura: services/ no toca el DOM", () => {
     "servicesTouchingDOM",
     servicesTouchingDOM(MODS),
     "Un service devuelve datos; decidir qué se enseña es del componente. Nada de\n" +
-      "document.*, innerHTML ni showToast() en deploy/js/services/. Ver ARCHITECTURE.md §A.",
+      "document.*, innerHTML ni showToast() en deploy/js/services/.",
   );
 });
 
@@ -156,8 +155,7 @@ test("arquitectura: ui.components/ no hace I/O directo", () => {
   assertRatchet(
     "componentsDoingIO",
     componentsDoingIO(MODS),
-    "fetch() y localStorage viven en repositories/ y los orquesta un service.\n" +
-      "Ver ARCHITECTURE.md §A.",
+    "fetch() y localStorage viven en repositories/ y los orquesta un service.",
   );
 });
 
@@ -169,8 +167,7 @@ test(`arquitectura: ningún módulo nuevo pasa de ${MAX_MODULE_LINES} líneas`, 
     oversizeModules(MODS),
     `Un fichero = un componente o un área. Al pasar de ${MAX_MODULE_LINES} líneas se parte\n` +
       "por secciones (ui_rivens_index.js, ui_rivens_grader.js…) y queda un módulo delgado\n" +
-      "que compone. Los que ya estaban por encima pueden encoger, no crecer.\n" +
-      "Ver ARCHITECTURE.md §B.",
+      "que compone. Los que ya estaban por encima pueden encoger, no crecer.",
   );
 });
 
@@ -186,7 +183,7 @@ test("arquitectura: lo nuevo se publica con exposeGlobals, no con globalThis.X =
       "Si lo que añades es ESTADO compartido (por convención, con guion bajo delante:\n" +
       "_serverTimeOffset, _kubrowHelperCvs), el registro no es su sitio —es para funciones—,\n" +
       "pero tampoco se añade a la ligera: cada uno es un acoplamiento invisible entre módulos.\n" +
-      "El contador vigila los dos casos. Ver ARCHITECTURE.md §D.",
+      "El contador vigila los dos casos.",
   );
 });
 
@@ -197,7 +194,7 @@ test("arquitectura: todo módulo nuevo de lógica entra con su test", () => {
     untestedModules(MODS),
     "Un módulo nuevo en services/, utils/ o repositories/ necesita un tests/<nombre>.test.mjs\n" +
       "que lo importe (node:test + node:assert/strict, sin dependencias). ui.components/ está\n" +
-      "exento: lo que se le extraiga, no. Ver ARCHITECTURE.md §E.",
+      "exento: lo que se le extraiga, no.",
   );
 });
 
@@ -211,7 +208,7 @@ test("arquitectura: ningún componente CSS nuevo se carga antes de styles.css", 
     cssComponentsBeforeBase(),
     "Un componente que carga ANTES de styles.css pierde a igualdad de especificidad, o sea\n" +
       "que sus reglas dependen de que nadie repita el selector en la hoja grande. Pon el\n" +
-      "<link> nuevo DESPUÉS de styles.css. Ver DEUDA.md §8.",
+      "<link> nuevo DESPUÉS de styles.css.",
   );
 });
 
@@ -224,7 +221,6 @@ test("arquitectura: una clase nueva no se define a la vez en un componente y en 
     cssClassClashes(),
     "Antes de crear una clase, grep del nombre: si ya existe en styles.css, o la reutilizas\n" +
       "de verdad o eliges otro nombre. Y ancla la regla al contenedor de su pestaña\n" +
-      "(#orders-content .inv-row) salvo que el nombre sea claramente exclusivo.\n" +
-      "Ver ARCHITECTURE.md §F y DEUDA.md §8.",
+      "(#orders-content .inv-row) salvo que el nombre sea claramente exclusivo.",
   );
 });

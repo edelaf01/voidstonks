@@ -114,21 +114,85 @@ export async function fetchItemMarket(slug, rank = null) {
     }
 }
 
+const CLAVE_MERCADO = "vs_mercado_v1";
+const MERCADO_TTL_MS = 60 * 60 * 1000;
+
+function mercadoLocal() {
+    try { return JSON.parse(localStorage.getItem(CLAVE_MERCADO)) || {}; } catch { return {}; }
+}
+
+function guardaMercado(data, ahora) {
+    try {
+        const local = mercadoLocal();
+        for (const s in local) if (ahora - local[s].t >= MERCADO_TTL_MS) delete local[s];
+        for (const [s, d] of Object.entries(data)) local[s] = { t: ahora, d };
+        localStorage.setItem(CLAVE_MERCADO, JSON.stringify(local));
+    } catch { /* sin almacenamiento, se pide a la red */ }
+}
+
 /**
  * Contexto de mercado de varios ítems a la vez, para la lista de órdenes.
  * @param {string[]} slugs
  * @returns {Promise<Record<string, object>>} vacío si falla (la lista sigue siendo útil)
  */
-export async function fetchMarketBatch(slugs) {
+export async function fetchMarketBatch(slugs, { fresco = false } = {}) {
     const list = [...new Set(slugs.filter(Boolean))].slice(0, 30);
     if (!list.length) return {};
+    const ahora = Date.now(), local = fresco ? {} : mercadoLocal();
+    const out = {};
+    for (const s of list) if (local[s] && ahora - local[s].t < MERCADO_TTL_MS) out[s] = local[s].d;
+    const faltan = list.filter((s) => !out[s]);
+    if (!faltan.length) return out;
+    // La zona de Cloudflare sirve lo cacheado con max-age de 5 h: para revisar precios se salta.
+    const url = `${WORKER_URL}?type=wfm_market_batch&slugs=${faltan.join(",")}${fresco ? `&_cb=${ahora}` : ""}`;
     try {
-        const res = await fetch(`${WORKER_URL}?type=wfm_market_batch&slugs=${list.join(",")}`);
-        if (!res.ok) return {};
-        return (await res.json()) || {};
+        const res = await fetch(url, fresco ? { cache: "no-cache" } : undefined);
+        if (!res.ok) return out;
+        const data = (await res.json()) || {};
+        guardaMercado(data, ahora);
+        return { ...out, ...data };
     } catch {
-        return {};
+        return out;
     }
+}
+
+// En una petición caben 30 ítems y el worker resuelve 9 sin caché: se repite con lo que falte.
+export async function mercadoDeTodos(slugs, { fresco = false, onProgreso = null, rondas = 5, esperaMs = 1200 } = {}) {
+    const todos = [...new Set(slugs.filter(Boolean))];
+    const out = {};
+    let faltan = todos;
+    for (let r = 0; r < rondas && faltan.length; r++) {
+        if (r) await new Promise((ok) => setTimeout(ok, esperaMs));
+        for (let i = 0; i < faltan.length; i += 30) {
+            Object.assign(out, await fetchMarketBatch(faltan.slice(i, i + 30), { fresco }));
+            onProgreso?.({ mercados: out, hechos: Object.keys(out).length, total: todos.length });
+        }
+        faltan = faltan.filter((s) => !out[s]);
+    }
+    return out;
+}
+
+const CLAVE_CATALOGO = "vs_catalogo_wfm_v1";
+const CATALOGO_TTL_MS = 7 * 86400000;
+
+/** id, slug, nombre y rango máximo de un ítem no cambian: se guardan una semana y al worker solo va lo que falte. */
+export async function conCatalogoLocal(tipo, claves, pide, ahora = Date.now()) {
+    let local = {};
+    try { local = JSON.parse(localStorage.getItem(CLAVE_CATALOGO)) || {}; } catch { /* sin almacenamiento */ }
+    const out = {};
+    for (const k of claves) {
+        const e = local[`${tipo}:${k}`];
+        if (e && ahora - e.t < CATALOGO_TTL_MS) out[k] = e.d;
+    }
+    const faltan = claves.filter((k) => !out[k]);
+    if (!faltan.length) return out;
+    const nuevos = (await pide(faltan)) || {};
+    try {
+        for (const c in local) if (ahora - local[c].t >= CATALOGO_TTL_MS) delete local[c];
+        for (const [k, d] of Object.entries(nuevos)) local[`${tipo}:${k}`] = { t: ahora, d };
+        localStorage.setItem(CLAVE_CATALOGO, JSON.stringify(local));
+    } catch { /* sin almacenamiento, se vuelve a pedir */ }
+    return { ...out, ...nuevos };
 }
 
 /** Base de las miniaturas de warframe.market. */
@@ -154,21 +218,21 @@ async function attachItemInfo(orders) {
     const ids = [...new Set(orders.map(o => o.itemId).filter(Boolean))];
     if (!ids.length) return;
 
-    const chunks = [];
-    for (let i = 0; i < ids.length; i += RESOLVE_CHUNK) {
-        chunks.push(ids.slice(i, i + RESOLVE_CHUNK));
-    }
-
-    const info = {};
-    // En paralelo: son pocas tandas y el worker las sirve de caché casi siempre.
-    // Una tanda que falle solo deja sin nombre a sus ítems, no a toda la lista.
-    await Promise.all(chunks.map(async (chunk) => {
-        try {
-            const res = await fetch(`${WORKER_URL}?type=wfm_resolve&ids=${chunk.join(",")}`);
-            if (!res.ok) return;
-            Object.assign(info, (await res.json()) || {});
-        } catch { /* esos ítems se quedan sin nombre */ }
-    }));
+    const info = await conCatalogoLocal("id", ids, async (faltan) => {
+        const chunks = [];
+        for (let i = 0; i < faltan.length; i += RESOLVE_CHUNK) chunks.push(faltan.slice(i, i + RESOLVE_CHUNK));
+        const nuevos = {};
+        // En paralelo: son pocas tandas y el worker las sirve de caché casi siempre.
+        // Una tanda que falle solo deja sin nombre a sus ítems, no a toda la lista.
+        await Promise.all(chunks.map(async (chunk) => {
+            try {
+                const res = await fetch(`${WORKER_URL}?type=wfm_resolve&ids=${chunk.join(",")}`);
+                if (!res.ok) return;
+                Object.assign(nuevos, (await res.json()) || {});
+            } catch { /* esos ítems se quedan sin nombre */ }
+        }));
+        return nuevos;
+    });
 
     for (const o of orders) {
         const meta = info[o.itemId];
@@ -191,7 +255,7 @@ const FILTERS_KEY = "vs_orders_filters_v1";
  * chips del inventario; la BÚSQUEDA no se guarda, que recuperar un texto a medias deja la
  * lista casi vacía sin que se vea el motivo.
  *
- * Aquí y no en el componente: un ui.component no toca localStorage (ARCHITECTURE.md §A).
+ * Aquí y no en el componente: un ui.component no toca localStorage.
  * @param {string[]} valid claves de filtro que existen hoy; cualquier otra cae a "all".
  */
 export function getOrdersFilterType(valid) {

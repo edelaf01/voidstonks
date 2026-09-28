@@ -32,9 +32,14 @@ export function isPauseScreen(menuText) {
 
 const clean = (w) => String(w?.text ?? w ?? "").toUpperCase().replaceAll(/[^A-ZÁÉÍÓÚ]/g, "");
 
+const PREFIJOS = { IN: "intact", EX: "exceptional", FL: "flawless", IM: "flawless", RA: "radiant" };
+
 /** El refinamiento que nombra una palabra ("(Radiant)"), o null. */
 export function refinementOf(word) {
-  return REFINEMENTS[clean(word)] || null;
+  const c = clean(word);
+  // El OCR se come letras ("(Ratiant"): con el paréntesis delante, las dos primeras ya lo distinguen.
+  const conParentesis = String(word?.text ?? word ?? "").trimStart().startsWith("(") && c.length >= 4;
+  return REFINEMENTS[c] || (conParentesis && PREFIJOS[c.slice(0, 2)]) || null;
 }
 
 const median = (xs) => {
@@ -103,12 +108,13 @@ export function groupWordCells(words, { gapFactor = 2 } = {}) {
  * @param words     cajas de palabra del OCR de la franja: { text, x0, x1, y0, y1 }
  * @param matchRelic (palabras) => nombre canónico o null. Se inyecta porque vive en
  *                  services/ (OCRService.getRelicMatch) y aquí no se puede importar.
- * @returns [{ name, refinement, x0 }] — `refinement` es null si no se leyó el paréntesis.
+ * @returns [{ name, refinement, x0, propia }] — `refinement` es null si no se leyó el paréntesis.
  */
 export function parseSquadRelics(words, { matchRelic } = {}) {
   if (typeof matchRelic !== "function") return [];
   const out = [];
-  for (const cell of groupWordCells(words)) {
+  const cells = groupWordCells(words);
+  for (const cell of cells) {
     const name = matchRelic(cell.words);
     if (!name) continue;
     // Sin la palabra "Relic"/"Reliquia" no se acepta: el panel también lista armas y
@@ -116,8 +122,12 @@ export function parseSquadRelics(words, { matchRelic } = {}) {
     // similitud. Aquí no hay prisa por rescatar lecturas dudosas — la pantalla se
     // queda abierta y el siguiente frame vuelve a intentarlo.
     if (!cell.words.some((w) => /^(RELIC|RELIQUIA)S?$/.test(clean(w)))) continue;
-    const refinement = cell.words.map(refinementOf).find(Boolean) || null;
-    out.push({ name, refinement, x0: cell.x0 });
+    // Un "(Ratiant" fundido con la línea de abajo (caja de 81 px) caía en la celda de debajo.
+    const pegada = (w) => w.x0 >= cell.x1 - 2 && w.x0 - cell.x1 < 2 * (cell.y1 - cell.y0) && w.y0 < cell.y1 && w.y1 > cell.y0;
+    const refinement = cell.words.map(refinementOf).find(Boolean) || refinementOf(words.find((w) => pegada(w) && refinementOf(w))) || null;
+    // Tu columna es la primera: tu reliquia abre su línea.
+    const propia = !cells.some((o) => o !== cell && o.x1 <= cell.x0 && o.y0 < cell.y1 && o.y1 > cell.y0);
+    out.push({ name, refinement, x0: cell.x0, propia });
   }
   return out.sort((a, b) => a.x0 - b.x0);
 }

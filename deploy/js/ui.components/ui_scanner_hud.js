@@ -34,6 +34,9 @@ export const ScannerHUD = {
             this.setUIBadge(badge, etiqueta, "#f1c40f", "rgba(241,196,15,0.4)", "rgba(241,196,15,0.1)");
             const msgEl = document.getElementById("live-inv-msg");
             if (msgEl) msgEl.innerText = sh.statusIdle;
+        } else if (contextType === "TRADE") {
+            if (hud) hud.style.display = "block";
+            this.setUIBadge(badge, sh.statusTrade, "#00e5ff", "rgba(0,229,255,0.4)", "rgba(0,229,255,0.1)");
         } else if (state.squadRun) {
             // El panel del run vive DENTRO de este HUD, y esta función corre en cada frame:
             // durante una misión el contexto es UNKNOWN, así que sin esta rama el HUD se
@@ -84,6 +87,35 @@ export const ScannerHUD = {
         }
     },
 
+    /** Lo que hay en la mesa del Trading Post ({ doy, recibo }); sin mesa, el bloque se esconde. */
+    updateTrade(mesa) {
+        const panel = document.getElementById("trade-panel");
+        if (!panel) return;
+        const clave = JSON.stringify(mesa) + state.currentLang;
+        if (clave === this._ultimoTradeo) return;
+        this._ultimoTradeo = clave;
+        panel.replaceChildren();
+        panel.style.display = mesa ? "" : "none";
+        if (!mesa) return;
+        const sh = TEXTS[state.currentLang].scannerHUD;
+        const nodo = (tag, clase, texto = "") => Object.assign(document.createElement(tag), { className: clase, textContent: texto });
+        if (mesa.confirmada) panel.appendChild(nodo("div", "trade-confirmada", sh.tradeConfirmed));
+        for (const [lado, titulo] of [["doy", sh.tradeGive], ["recibo", sh.tradeReceive]]) {
+            panel.appendChild(nodo("div", "trade-title", titulo));
+            if (!mesa[lado].length) panel.appendChild(nodo("div", "trade-empty", "—"));
+            for (const { tipo, name, qty, plat } of mesa[lado]) {
+                const linea = nodo("div", "trade-line");
+                linea.appendChild(nodo("span", "trade-name", tipo === "platino" ? `${name} ${qty}` : `${qty > 1 ? `${qty}× ` : ""}${name}`));
+                if (plat) {
+                    const precio = nodo("span", "trade-plat", String(plat * qty));
+                    precio.appendChild(nodo("span", "plat-icon-inline"));
+                    linea.appendChild(precio);
+                }
+                panel.appendChild(linea);
+            }
+        }
+    },
+
     /** Contexto y nº de detectados actuales, que es lo que decide qué bloques del HUD sobran. */
     _ultimoTipo: "UNKNOWN",
     _detectados: 0,
@@ -95,6 +127,7 @@ export const ScannerHUD = {
      */
     _muestraBloques() {
         if (this._ultimoTipo !== "DUCAT_KIOSK") this.updateKioskSale([]);
+        if (this._ultimoTipo !== "TRADE") this.updateTrade(null);
         const inventario = this._ultimoTipo === "INVENTORY";
         // El kiosko va en pasivo: sin escanear ni guardar a mano, pero con la lista a la vista.
         const kiosco = this._ultimoTipo === "DUCAT_KIOSK";

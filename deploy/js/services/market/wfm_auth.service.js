@@ -1,32 +1,11 @@
 import { WORKER_URL } from "../../config.js";
 
-/**
- * Sesión de Warframe Market: login, logout y estado del token. Nada más.
- *
- * Las órdenes y los precios viven en wfm_orders.service.js, que solo le pide el
- * token: así este módulo puede reescribirse entero el día que WFM abra OAuth sin
- * arrastrar consigo la lógica del mercado.
- *
- * Login por email+contraseña contra la API v1 a través del worker (api.warframe.market
- * no envía cabeceras CORS, así que el navegador no puede llamarla directamente).
- * Se usa v1 porque el signin v2 exige App Check y está reservado al cliente oficial,
- * y porque OAuth sigue cerrado a terceros.
- *
- * La contraseña se usa UNA vez para obtener el JWT y no se guarda jamás: solo se
- * persiste el token. Va en sessionStorage a propósito (muere al cerrar la pestaña),
- * lo que reduce la ventana de exposición ante un XSS.
- *
- * Si algún día WFM abre el registro de clientes OAuth, basta con reescribir este
- * módulo: el resto de la app no conoce estos detalles.
- */
+
 
 const TOKEN_KEY = "wfm_jwt";
 const NAME_KEY = "wfm_name";
 const SLUG_KEY = "wfm_slug";
 const SCOPE_KEY = "wfm_scope";
-// Sesiones anteriores guardaban aquí el estado del mercado (ingame/online/invisible).
-// Ya no se escribe —el cambio de estado se retiró—, pero el logout lo sigue limpiando
-// para no dejar el rastro en navegadores que lo tengan de antes.
 const STATUS_KEY = "wfm_status";
 const EXPIRY_KEY = "wfm_exp";
 const PLATFORM_KEY = "wfm_platform";
@@ -79,9 +58,6 @@ export function getToken() {
         return null;
     }
     if (!stored) return null;
-
-    // Nuestra caducidad manda sobre la del JWT: aunque WFM lo acepte 60 días,
-    // la sesión local expira antes y obliga a volver a conectarse.
     const until = parseInt(sessionStorage.getItem(EXPIRY_KEY) || "0", 10);
     if (!until || Date.now() > until) {
         clearToken();
@@ -108,10 +84,7 @@ export function getToken() {
 export async function login(email, password, platform = "pc") {
     if (!email || !password) return { ok: false, error: "missing_fields" };
 
-    // Email y contraseña se cifran aquí: al worker solo llega un sobre que su clave
-    // privada puede abrir. Si el cifrado no está disponible se envía en claro, que es
-    // lo que hacía antes; el worker lo rechaza si ya tiene clave configurada.
-    let payload = { email, password, platform };
+     let payload = { email, password, platform };
     try {
         const { sealCredentials } = await import("../../utils/wfm_crypto.js");
         const sealed = await sealCredentials({ email, password });
@@ -144,10 +117,7 @@ export async function login(email, password, platform = "pc") {
     const token = normalizeToken(body.token);
     if (!isTokenValid(token)) return { ok: false, error: "server" };
 
-    // El signin v1 no siempre devuelve una sesión que la API v2 acepte. Cuando pasa,
-    // seguimos adelante con el slug del perfil: las órdenes públicas se leen sin token.
-    // Solo es un fallo irrecuperable si además no sabemos el slug.
-    const slug = (body.userSlug || body.ingameName || "").toLowerCase();
+   const slug = (body.userSlug || body.ingameName || "").toLowerCase();
     if (!body.authorized && !slug) {
         return { ok: false, error: "token_rejected", diag: body.diag };
     }
@@ -158,9 +128,7 @@ export async function login(email, password, platform = "pc") {
         if (body.ingameName) sessionStorage.setItem(NAME_KEY, body.ingameName);
         if (slug) sessionStorage.setItem(SLUG_KEY, slug);
         sessionStorage.setItem(SCOPE_KEY, body.authorized ? "full" : "public");
-        // La vigilancia del mercado necesita saber en qué plataforma juegas: escuchar
-        // el flujo de PC a un jugador de consola daría alertas de órdenes ajenas.
-        sessionStorage.setItem(PLATFORM_KEY, platform);
+       sessionStorage.setItem(PLATFORM_KEY, platform);
     } catch {
         return { ok: false, error: "storage" };
     }
@@ -265,6 +233,10 @@ export async function logout() {
  * (modo público: se pueden leer las órdenes visibles sin token).
  * @returns {boolean}
  */
+export function wfmPrivado() {
+    return /^(localhost|127\.0\.0\.1|\[::1\])$/.test(globalThis.location?.hostname || "");
+}
+
 export function isLoggedIn() {
     return getToken() !== null || getUserSlug() !== null;
 }

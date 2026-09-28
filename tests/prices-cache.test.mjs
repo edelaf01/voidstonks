@@ -146,3 +146,24 @@ test("un precio recibido queda cacheado en memoria para la siguiente vez", async
   assert.equal(await getPriceValue("Saryn Prime Set", "saryn_prime_set"), 42);
   assert.equal(lotesPedidos().length, antes, "la segunda vez sale de memoria");
 });
+
+// Antes se pedía una vez por sesión y con 6 h de copia local: una tarde de juego veía los precios de la mañana.
+test("el snapshot se renueva pasada una hora y solo pisa lo que puso el anterior", async () => {
+  const peticionesSnapshot = () => peticiones.filter((u) => u.includes("type=prices_snapshot")).length;
+  const ahora = Date.now() + 10 * 3600000;
+  MEMORY_CACHE.set("de_otra_fuente", 99);
+  respuestaSnapshot = { p: { de_otra_fuente: 50, del_snapshot: 10 } };
+  await ensurePriceSnapshot(ahora);
+  const antes = peticionesSnapshot();
+  await ensurePriceSnapshot(ahora + 30 * 60000);
+  assert.equal(peticionesSnapshot(), antes, "dentro de la hora no se vuelve a pedir");
+  assert.equal(MEMORY_CACHE.get("de_otra_fuente"), 99, "el IDB del usuario o el precio en vivo mandan");
+  assert.equal(MEMORY_CACHE.get("del_snapshot"), 10);
+
+  respuestaSnapshot = { p: { de_otra_fuente: 55, del_snapshot: 12 } };
+  await ensurePriceSnapshot(ahora + 2 * 3600000);
+  assert.equal(peticionesSnapshot(), antes + 1);
+  assert.equal(MEMORY_CACHE.get("del_snapshot"), 12, "lo que puso el snapshot anterior se actualiza");
+  assert.equal(MEMORY_CACHE.get("de_otra_fuente"), 99);
+  assert.ok(peticiones.filter((u) => u.includes("type=prices_snapshot")).length >= 1);
+});

@@ -109,6 +109,53 @@ test("solo se marca obsoleto lo que alguna fuente reconoce como suyo", async () 
     `marcó de más: ${r.stale.map((s) => s.slug).join()}`);
 });
 
+test("un set publicado con otra cantidad de la que tienes se ofrece ajustar, en los dos sentidos", async () => {
+  conSesion();
+  inventario({
+    "Mag Prime": { lista: ["Mag Prime Blueprint"], cantidad: 3 },
+    "Ash Prime": { lista: ["Ash Prime Blueprint"], cantidad: 1 },
+    "Nova Prime": { lista: ["Nova Prime Blueprint"], cantidad: 2 },
+  });
+
+  const r = await link.syncInventory([
+    orden("mag_prime_set", { quantity: 1 }),
+    orden("ash_prime_set", { quantity: 4 }),
+    orden("nova_prime_set", { quantity: 2 }),
+  ]);
+  assert.deepEqual(r.mismatched.map((i) => [i.slug, i.qty, i.order.quantity]), [["mag_prime_set", 3, 1], ["ash_prime_set", 1, 4]]);
+  assert.deepEqual(r.stale, [], "tenerlo con otra cantidad no es obsoleto");
+});
+
+test("lo publicado que el inventario no cubre se cuenta para avisar", async () => {
+  conSesion();
+  inventario({
+    "Mag Prime": { lista: ["Mag Prime Blueprint"], cantidad: 1 },
+    "Nova Prime": { lista: ["Nova Prime Blueprint"], cantidad: 3 },
+  });
+
+  const r = await link.syncInventory([
+    orden("mag_prime_set", { quantity: 2 }),
+    orden("nova_prime_set", { quantity: 1 }),
+    orden("ash_prime_set", { quantity: 1 }),
+    orden("serration", { quantity: 1 }),
+  ]);
+  assert.equal(r.sinRegistrar, 2, "Mag (2 publicados, 1 tuyo) y Ash (no lo tienes); Nova sobra y un mod no se juzga");
+});
+
+test("registrar una orden sube cada pieza hasta cubrir sus sets, sin sumar a lo que ya había", async () => {
+  conSesion();
+  inventario({ "Mag Prime": { lista: ["Mag Prime Blueprint", "Mag Prime Chassis"], cantidad: 0 } });
+  state.primeInventory["Mag Prime Blueprint"] = 2;
+
+  assert.deepEqual(link.registraSets("mag_prime_set", 2), { ok: true });
+  assert.deepEqual(state.primeInventory, { "Mag Prime Blueprint": 2, "Mag Prime Chassis": 2 });
+  assert.equal(link.isListed("mag_prime_set"), true);
+
+  const r = await link.syncInventory([orden("mag_prime_set", { quantity: 2 })]);
+  assert.equal(r.sinRegistrar, 0);
+  assert.deepEqual(link.registraSets("forma_set", 1), { ok: false }, "un set que no está en el catálogo no se inventa");
+});
+
 test("sin sesión ni órdenes pasadas, el cruce falla en vez de decir que no tienes nada", async () => {
   sesion.clear();
   inventario({ "Mag Prime": { lista: ["Mag Prime Blueprint"], cantidad: 1 } });

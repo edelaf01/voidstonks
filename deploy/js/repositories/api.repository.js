@@ -281,7 +281,7 @@ export async function getPricesBatch(chunk) {
  * @returns {Promise<Response>}
  */
 export async function getPricesSnapshot() {
-    return fetchWithTimeout(`${WORKER_URL}?type=prices_snapshot`, { timeout: 15000 });
+    return fetchWithTimeout(`${WORKER_URL}?type=prices_snapshot`, { timeout: 15000, cache: "no-cache" });
 }
 
 /**

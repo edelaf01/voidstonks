@@ -23,6 +23,14 @@ export const SWITCH_FRAMES = 2;
 // Frames seguidos de UNKNOWN que hacen falta para soltar el contexto enganchado.
 export const RELEASE_FRAMES = 3;
 
+// Transiciones que el juego hace siempre: cambian con una lectura. RELICS → REWARD no está: en la selección de
+// reliquias la basura del OCR sale como REWARD.
+export const TRANSICIONES_ESPERADAS = Object.freeze({
+  REWARD: ["RELICS", "MISSION_COMPLETE"],
+  TRADE: ["INVENTORY"],
+  INVENTORY: ["TRADE"],
+});
+
 export const INITIAL_LATCH = Object.freeze({
   latched: "UNKNOWN",
   unknownCount: 0,
@@ -58,7 +66,7 @@ export function nextLatchedContext(prev, raw) {
   // Salir de UNKNOWN engancha YA. Los dos frames existen para que un frame de basura no le
   // robe el contexto a otro ya confirmado; venir de "no sé qué miro" no es cambiar de opinión,
   // es adquirir, y ahí esperar solo retrasa la primera lectura de la pantalla de recompensas.
-  if (s.latched === "UNKNOWN") {
+  if (s.latched === "UNKNOWN" || TRANSICIONES_ESPERADAS[s.latched]?.includes(raw)) {
     return { latched: raw, unknownCount: 0, pending: null, pendingCount: 0 };
   }
 

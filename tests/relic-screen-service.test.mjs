@@ -132,15 +132,38 @@ describe("escritura en el inventario", () => {
 });
 
 describe("coste", () => {
-  test("una pantalla quieta no repite las dos pasadas de OCR", async () => {
+  // Con la búsqueda de la pantalla la rejilla queda casi vacía y quieta: el hash no cambiaba, no
+  // llegaba el segundo voto y las cantidades no se actualizaban nunca.
+  test("una pantalla quieta se relee una vez para confirmar, y ya no más", async () => {
     scriptOCR(pantalla([["Meso C6", 108]]));
     let pasadas = 0;
     const real = OCRRepository.recognizeWithPSM;
     OCRRepository.recognizeWithPSM = async (...a) => { pasadas++; return real(...a); };
     const v = video(40);
-    await RelicScreenService.readGrid(v);
-    await RelicScreenService.readGrid(v);
-    assert.equal(pasadas, 1);
+    for (let i = 0; i < 4; i++) await RelicScreenService.readGrid(v);
+    assert.equal(pasadas, 2);
+    assert.deepEqual(state.inventory, [{ name: "Meso C6", count: 108 }]);
+  });
+
+  test("si la lectura de confirmación sale vacía, tampoco insiste", async () => {
+    scriptOCR(pantalla([["Meso C6", 108]]), { nameWords: [], countWords: [] });
+    let pasadas = 0;
+    const real = OCRRepository.recognizeWithPSM;
+    OCRRepository.recognizeWithPSM = async (...a) => { pasadas++; return real(...a); };
+    const v = video(40);
+    for (let i = 0; i < 4; i++) await RelicScreenService.readGrid(v);
+    assert.equal(pasadas, 2);
+  });
+
+  test("si la lectura de confirmación no coincide, no insiste sobre la misma pantalla", async () => {
+    scriptOCR(pantalla([["Meso C6", 108]]), pantalla([["Meso C6", 103]]));
+    let pasadas = 0;
+    const real = OCRRepository.recognizeWithPSM;
+    OCRRepository.recognizeWithPSM = async (...a) => { pasadas++; return real(...a); };
+    const v = video(40);
+    for (let i = 0; i < 4; i++) await RelicScreenService.readGrid(v);
+    assert.equal(pasadas, 2);
+    assert.deepEqual(state.inventory, []);
   });
 
   // Visto en vivo: elegir una reliquia y luego otra tardaba en verse lo que durase la lectura de
@@ -239,10 +262,48 @@ describe("coste por frame", () => {
     let pasadas = 0;
     OCRRepository.recognize = async () => { pasadas++; return { data: { text: "" } }; };
     const v = video(40);
-    await RelicScreenService.trackSelected(v, { scale: 1 });
-    await RelicScreenService.trackSelected(v, { scale: 1 });
-    await RelicScreenService.trackSelected(v, { scale: 1 });
+    for (let i = 0; i < 3; i++) await RelicScreenService.trackSelected(v, { scale: 1 }, { menu: true });
     assert.equal(pasadas, 1, "corría un Tesseract entero en cada frame");
+  });
+
+  // Con la reliquia marcada pero sin equipar, tu fila de "Squad Relics" dice "Selection Pending..." y
+  // la reliquia solo aparece en el título del panel: se seguía otra.
+  test("en la fisura manda el título del panel de recompensas", async () => {
+    const avisos = [];
+    const aviso = globalThis.showTrackConfirm;
+    globalThis.showTrackConfirm = (r) => avisos.push(r);
+    const lecturas = [];
+    OCRRepository.workers = [{}];
+    OCRRepository.recognize = async () => { lecturas.push(1); return { data: { text: "Meso C6 Relic - Possible Rewards" } }; };
+    try {
+      await RelicScreenService.trackSelected(video(40), { scale: 1 });
+      assert.equal(RelicScreenService.reliquiaElegida, "MESO C6");
+      assert.deepEqual(avisos, ["MESO C6"]);
+      assert.equal(lecturas.length, 1, "con el título leído no hace falta la fila de la escuadra");
+    } finally { globalThis.showTrackConfirm = aviso; }
+  });
+
+  // Con "Squad" mal leído se caía al texto entero y salía la reliquia de un compañero ("Reliquia
+  // detectada: …"), y la pantalla quedaba dada por leída.
+  test("en la fisura, sin el panel de la escuadra leído no se ofrece nada y se reintenta", async () => {
+    const { OCRService } = await import("../deploy/js/services/scanner/ocr.service.js");
+    const avisos = [];
+    const aviso = globalThis.showTrackConfirm;
+    globalThis.showTrackConfirm = (r) => avisos.push(r);
+    const parse = OCRService.parseRelicSelection;
+    OCRService.parseRelicSelection = () => "AXI D6";
+    let pasadas = 0;
+    OCRRepository.workers = [{}];
+    OCRRepository.recognize = async () => { pasadas++; return { data: { text: "AXI D6 RELIC" } }; };
+    try {
+      const v = video(40);
+      RelicScreenService._tituloT = Date.now(); // el título se lee aparte y por tiempo
+      await RelicScreenService.trackSelected(v, { scale: 1 });
+      await RelicScreenService.trackSelected(v, { scale: 1 });
+      assert.deepEqual(avisos, []);
+      assert.equal(RelicScreenService.reliquiaElegida, null);
+      assert.equal(pasadas, 2, "la lectura fallida no puede dar la pantalla por leída");
+    } finally { globalThis.showTrackConfirm = aviso; OCRService.parseRelicSelection = parse; }
   });
 
   test("tras varias lecturas sin novedad hace falta un cambio mayor para releer", async () => {
@@ -324,7 +385,7 @@ describe("reliquia gastada al acabar la misión", () => {
         try {
             await conPanel(() => "MESO M4", async (cuenta) => {
                 cuenta.panel = [];
-                await RelicScreenService.trackSelected({}, { scale: 1 });
+                await RelicScreenService.trackSelected({}, { scale: 1 }, { menu: true });
             });
             assert.deepEqual(avisos, ["MESO M4"]);
             assert.equal(RelicScreenService.reliquiaElegida, null);
@@ -363,4 +424,35 @@ describe("reliquia gastada al acabar la misión", () => {
             Object.assign(OCRRepository, { workers: orig.workers, recognize: orig.recognize });
         }
     });
+});
+
+// Las dos pasadas de la rejilla (2,5-3,5 s) iban en el worker de la cabecera y de la selección: lo nuevo esperaba detrás.
+test("la rejilla se lee en el segundo worker y deja el primero para lo que se ve", async () => {
+  scriptOCR(pantalla([["Meso C6", 3]]));
+  const usados = [];
+  const [delante, fondo] = [{ id: "delante" }, { id: "fondo" }];
+  OCRRepository.workers = [delante, fondo];
+  const psm = OCRRepository.recognizeWithPSM, rec = OCRRepository.recognize;
+  OCRRepository.recognizeWithPSM = async (w, ...r) => { usados.push(w.id); return psm(w, ...r); };
+  OCRRepository.recognize = async (w, ...r) => { usados.push(w.id); return rec(w, ...r); };
+  await RelicScreenService.readGrid(video(40));
+  assert.ok(usados.length > 0);
+  assert.deepEqual([...new Set(usados)], ["fondo"]);
+});
+
+// En vivo, Void Cascade: la ronda siguiente repetía Lith C15 ("Last Equipped") y no salía el aviso; parecía no leída.
+test("en una fisura sin fin, repetir la reliquia de la ronda anterior vuelve a avisar", async () => {
+  const avisos = [];
+  const aviso = globalThis.showTrackConfirm;
+  globalThis.showTrackConfirm = (r) => avisos.push(r);
+  OCRRepository.workers = [{}];
+  OCRRepository.recognize = async () => ({ data: { text: "Meso C6 Relic - Possible Rewards" } });
+  try {
+    await RelicScreenService.trackSelected(video(40), { scale: 1 });
+    assert.equal(RelicScreenService.tomaReliquiaElegida(true), "MESO C6");
+    RelicScreenService._tituloT = 0;
+    await RelicScreenService.trackSelected(video(40), { scale: 1 });
+    assert.deepEqual(avisos, ["MESO C6", "MESO C6"]);
+    assert.equal(RelicScreenService.reliquiaElegida, "MESO C6");
+  } finally { globalThis.showTrackConfirm = aviso; }
 });

@@ -70,7 +70,7 @@ export function renderInvGoalChips() {
 }
 
 // renderInventory vive en ui_inventory.js, que ya importa este módulo: llamarlo por
-// import cerraría el ciclo que rompe la carga (ver CLAUDE.md). Va por globalThis.
+// import cerraría el ciclo que rompe la carga. Va por globalThis.
 export function filterInvGoal(goal) {
     state.invGoal = goal;
     saveAppState();

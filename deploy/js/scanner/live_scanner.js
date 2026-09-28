@@ -1,6 +1,6 @@
 import { DEBUG_ACTIVO } from "../utils/debug_log.js";
 import { state, saveAppState } from "../state.js";
-import { applyRewardCommit, undoRewardCommit, pickManualReward } from "../utils/inventory/reward_commit.js";
+import { applyRewardCommit, undoRewardCommit, pickManualReward, aplicaTradeo } from "../utils/inventory/reward_commit.js";
 import { esPantallaRecordada, huellaPantalla, memoriaPantalla } from "../utils/inventory/reward_ledger.js";
 import { showToast } from "../ui.components/ui_components.js";
 import { TEXTS } from "../config.js";
@@ -18,6 +18,7 @@ import { mergeRelicCounts } from "../utils/inventory/relic_counts.js";
 import { sumaReliquias, restaReliquia, applyRelicCounts } from "../utils/inventory/relic_votes.js";
 import { RelicScreenService } from "../services/scanner/relic_screen.service.js";
 import { DucatKioskService } from "../services/scanner/ducat_kiosk.service.js";
+import { TradeService } from "../services/scanner/trade.service.js";
 import { applyDucatSale, vuelcaSesion } from "../utils/inventory/ducat_kiosk.js";
 import { exposeGlobals } from "../utils/global_registry.js";
 import { DebugRecorder } from "../services/scanner/debug_recorder.service.js";
@@ -266,25 +267,30 @@ globalThis.showRivenAppraisal = async (parsedL, parsedR, captura) => {
   RivenScannerHUD.show(parsedL, parsedR, captura);
 };
 
-// Las cantidades de la pantalla VOID RELICS/REFINEMENT se escriben en el inventario solas,
-// así que el aviso no es decorativo: es la única señal de que algo cambió sin pedirlo.
 RelicScreenService.onApplied = (changed) => {
   const t = TEXTS[state.currentLang].scanner;
   showToast((t.relicCountsApplied || "{n} relic counts updated").replace("{n}", String(changed.length)));
   saveAppState();
 };
 
-// Kiosko de ducados: modo pasivo. Cada página leída se vuelca al inventario sin pasar por Guardar;
-// la sesión no se vacía, para que el consenso de cantidades siga acumulando entre relecturas.
+TradeService.onUpdate = (mesa) => ScannerHUD.updateTrade(mesa);
+TradeService.onTrade = (mesa) => {
+  if (!state.autoAddMissionRewards) return;
+  const { inventario, previo, movidas } = aplicaTradeo(state.primeInventory, mesa);
+  if (!movidas.length) return;
+  state.primeInventory = inventario;
+  saveAppState();
+  if (globalThis.renderPrimeInventory) globalThis.renderPrimeInventory();
+  avisaConDeshacer(`${TEXTS[state.currentLang].scanner.tradeDone}: ${movidas.join(", ")}`, "tradeo", () => {
+    state.primeInventory = undoRewardCommit(state.primeInventory, previo);
+  });
+};
+
 ScannerService.onPaginaKiosco = () => {
   state.primeInventory = vuelcaSesion(state.primeInventory, ScannerService.sessionInventory);
   saveAppState();
   if (globalThis.renderPrimeInventory) globalThis.renderPrimeInventory();
 };
-
-// Venta confirmada en el kiosko de ducados: se resta del inventario y se suelta la lectura de
-// sesión de esas piezas, para que un guardado posterior no reponga lo vendido; el escaneo
-// pasivo del grid las vuelve a leer con la cantidad nueva.
 DucatKioskService.onPanel = (items) => ScannerHUD.updateKioskSale(items);
 
 DucatKioskService.onSale = (venta) => {
@@ -362,10 +368,6 @@ globalThis.selectRewardToInventory = (itemName) => {
   const modal = globalThis.ScannerModal;
   const willSyncInClose = state.autoSyncRewards && modal && modal.currentResults && !modal.isHistoric;
 
-  // De una pantalla de recompensas se recibe UNA pieza, así que volver a elegir CAMBIA la
-  // elección; no suma otra. Antes las dos entraban en el inventario y en pendingManualAdds, y
-  // como el alta de fin de misión solo descuenta una copia, la pieza descartada se quedaba
-  // dentro para siempre: la última vista ganaba y la anterior no había forma de verla.
   const recordada = modal?.selectedItem == null && esPantallaRecordada(modal?.currentResults, ultimaEleccion.lee())
     ? ultimaEleccion.lee().item : null;
   const { inventario, pendientes, cambio } = pickManualReward(
@@ -401,10 +403,6 @@ globalThis.selectRewardToInventory = (itemName) => {
  * equivoca en un nombre, tiene que poder devolverlo sin ir a buscarlo al inventario.
  */
 function commitMissionCompleteRewards(items, gastada = null) {
-  // La lista de pendientes SOLO sirve para no contar dos veces con el alta automática. Si
-  // está apagada hay que vaciarla igual: si no, se arrastra a la misión siguiente y allí
-  // descuenta una pieza que sí tocaba sumar.
-  // La elección recordada era de ESTA misión: la siguiente puede repetir pantalla y tiene que sumar.
   ultimaEleccion.guarda(null);
   if (!state.autoAddMissionRewards) { pendingManualAdds.length = 0; return; }
   const reliquias = (items || []).filter((i) => i.reliquia);
@@ -417,9 +415,7 @@ function commitMissionCompleteRewards(items, gastada = null) {
   state.primeInventory = inventario;
   pendingManualAdds.length = 0;
 
-  // Copia entrada a entrada: applyRelicCounts actualiza los objetos EN SITIO, así que guardar
-  // la referencia no serviría para deshacer.
-  const relicPrevio = (state.inventory || []).map((i) => (typeof i === "string" ? i : { ...i }));
+ const relicPrevio = (state.inventory || []).map((i) => (typeof i === "string" ? i : { ...i }));
   if (reliquias.length) state.inventory = sumaReliquias(state.inventory, reliquias);
   if (gastada) state.inventory = restaReliquia(state.inventory, gastada);
   const movidas = [...añadidas, ...reliquias.map((r) => (r.qty > 1 ? `${r.name} ×${r.qty}` : r.name))];
@@ -464,8 +460,6 @@ function avisaConDeshacer(texto, tag, deshacer) {
   toast.appendChild(undo);
 }
 
-// Lo llama scanner.service.js por globalThis: un service no puede importar de scanner/
-// (capa superior), así que el global es el único camino — pero pasa por el registro.
 exposeGlobals({ commitMissionCompleteRewards, gastaReliquiaAbierta, toggleDebugRecorder, exportDebugRecorder }, "scanner/live_scanner.js");
 
 /**
@@ -571,9 +565,6 @@ globalThis.manualPrecisionScan = async () => {
  */
 globalThis.toggleAutoScrollScan = () => {
   state.autoScanEnabled = !state.autoScanEnabled;
-  // Solo el dataset: el color lo pinta .hud-btn.toggle[data-active="1"] en scanner.css.
-  // Poniéndolo inline aquí, el estilo ganaba al :hover y el botón se quedaba con el
-  // color de encendido pegado al pasar el ratón por encima.
   const btn = document.getElementById("btn-auto-scan");
   if (btn) {
     btn.dataset.active = state.autoScanEnabled ? "1" : "0";

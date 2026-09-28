@@ -120,6 +120,30 @@ describe("parseRewards: frames sintéticos multilínea", () => {
     ]);
   });
 
+  // En vivo: con "Systems" ilegible, el "Neuroptics" de Sevagoth (2ª línea, a la izquierda de su ancla) hacía
+  // "Khora Prime Neuroptics Blueprint". Con las columnas de las tarjetas, esa palabra es de la de al lado.
+  test("una parte del nombre que solo está en la tarjeta de al lado no se le cuenta", () => {
+    const db = ["Khora Prime Systems Blueprint", "Khora Prime Neuroptics Blueprint", "Khora Prime Blueprint",
+      "Sevagoth Prime Neuroptics Blueprint", "Sevagoth Prime Blueprint", "Fang Prime Blade", "Redeemer Prime Blade"];
+    const columnas = [440, 683, 925, 1167].map((c) => ({ x0: (c - 121) / IMG_W, x1: (c + 121) / IMG_W }));
+    const palabras = (sistemas) => [
+      w("Fang", 380, 248), w("Prime", 440, 248), w("Blade", 500, 248),
+      w("Khora", 615, 224), w("Prime", 683, 224), ...(sistemas ? [w(sistemas, 750, 224)] : []), w("Blueprint", 683, 248),
+      w("Sevagoth", 890, 224), w("Prime", 965, 224), w("Neuroptics", 870, 248), w("Blueprint", 980, 248),
+      w("Redeemer", 1100, 248), w("Prime", 1170, 248), w("Blade", 1230, 248),
+    ];
+    const khora = (sistemas) => {
+      state.itemsDatabase = Object.fromEntries(db.map((n) => [n, [{ ducats: 15 }]]));
+      OCRService.cachedDbItems = [];
+      OCRService.knownParts = new Set();
+      OCRService.initMatcherData();
+      return names(OCRService.parseRewards({ words: palabras(sistemas), imageW: IMG_W, columnas }))[1];
+    };
+    assert.equal(khora("Svstemns"), "Khora Prime Systems Blueprint", "el rescate de componente mira su propia columna");
+    assert.equal(khora(null), "Khora Prime Blueprint", "sin rastro de Systems, mejor el plano que la pieza de otra tarjeta");
+    assert.equal(khora("Systems"), "Khora Prime Systems Blueprint");
+  });
+
   test("la penalización main-BP SIGUE activa con la parte del propio nombre", () => {
     // "Volt Prime Systems / Blueprint": el candidato "Volt Prime Blueprint" ve SYSTEMS
     // pegado a su ancla (<=0.13W) y debe morir; gana el item completo con Systems.

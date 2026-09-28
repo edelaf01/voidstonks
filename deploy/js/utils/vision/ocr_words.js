@@ -42,7 +42,7 @@ export function collectWords(data) {
  * reliquia del compañero. A 1440p tu fila cae a ~2,5 alturas del rótulo y tu nombre a ~4,3.
  */
 export function filaPropiaDelEscuadron(palabras) {
-    const rotulo = palabras.find((w) => /^SQUAD$/i.test(w.text));
+    const rotulo = palabras.find((w) => /^[S5$][QG0O]U[A4]D$/i.test(w.text));
     if (!rotulo) return null;
     const h = rotulo.y1 - rotulo.y0;
     const fila = palabras.filter((w) => {

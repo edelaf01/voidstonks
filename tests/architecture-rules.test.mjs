@@ -1,7 +1,7 @@
 // Los detectores de tests/_helpers/architecture-rules.mjs, comprobados contra fixtures
 // sintéticos.
 //
-// Sin esto, la forma más barata de saltarse ARCHITECTURE.md no es escribir código malo: es
+// Sin esto, la forma más barata de saltarse las reglas de arquitectura no es escribir código malo: es
 // relajar una regex o añadir "repositories" a LAYERS.ui.allow. Un diff de una línea en un
 // fichero de _helpers/ pondría verdes las tres deudas de capa de golpe y ningún test se
 // enteraría, porque architecture.test.mjs solo compara el resultado del detector consigo mismo.

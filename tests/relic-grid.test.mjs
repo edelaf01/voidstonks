@@ -2,7 +2,7 @@ import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-import { parseRelicGrid, RELIC_GRID_CROP } from "../deploy/js/utils/vision/relic_grid.js";
+import { parseRelicGrid, RELIC_GRID_CROP, reliquiaDelTitulo } from "../deploy/js/utils/vision/relic_grid.js";
 
 globalThis.document ??= { createElement: () => ({ getContext: () => null }) };
 const { OCRService } = await import("../deploy/js/services/scanner/ocr.service.js");
@@ -83,6 +83,20 @@ for (const [tema, datos] of [["tema por defecto", DEFECTO], ["tema claro", CLARO
     });
   });
 }
+
+describe("título del panel de recompensas", () => {
+  test("da la reliquia que nombra, con lo que el OCR le pegue alrededor", () => {
+    assert.equal(reliquiaDelTitulo("Meso C6 Relic - Possible Rewards", matchRelic), "Meso C6");
+    assert.equal(reliquiaDelTitulo("| Meso K4 Reli¢ [Radiant] - Possible Rewards,", matchRelic), "Meso K4");
+  });
+
+  test("sin título o sin reliquia en él, null", () => {
+    assert.equal(reliquiaDelTitulo("| evvetv", matchRelic), null);
+    assert.equal(reliquiaDelTitulo("Select a Relic to view its rewards.", matchRelic), null);
+    assert.equal(reliquiaDelTitulo("", matchRelic), null);
+    assert.equal(reliquiaDelTitulo("Meso C6 Relic - Possible Rewards", undefined), null);
+  });
+});
 
 describe("emparejado", () => {
   const celda = (words, x, y) => words.map((text, i) => ({

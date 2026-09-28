@@ -1,8 +1,8 @@
 // Traducción de patrones y colores de kubrow que salen del EE.log.
 //
 // El módulo vivía en ui.components/ y lo importaba un service, cruzando la capa. Al bajarlo a
-// utils/ (no toca el DOM: es tabla de datos + funciones puras) entró bajo la regla de
-// ARCHITECTURE.md §E, y este es su test.
+// utils/ (no toca el DOM: es tabla de datos + funciones puras) pasó a necesitar su propio test,
+// y es este.
 //
 // Lo que se fija aquí no es la tabla —esa cambia cuando DE saca colores— sino las dos
 // decisiones de diseño que se romperían sin que nadie lo notase.

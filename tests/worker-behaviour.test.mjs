@@ -45,11 +45,25 @@ test("ningún handler autenticado guarda el token ni lo registra", () => {
     }
 });
 
-test("el login solo acepta orígenes propios y no cachea", () => {
+test("el login solo acepta la app en local y no cachea", () => {
     const body = handlerBody("wfm_login");
-    assert.ok(body.includes("isTrustedOrigin"), "debe validar el origen");
+    assert.ok(body.includes("esOrigenLocal"), "debe validar el origen");
     assert.ok(body.includes("secureHeaders"), "debe responder con cabeceras seguras");
     assert.ok(body.includes("sha256Hex"), "el email del rate-limit va hasheado");
+});
+
+// La web publicada no puede tener login: el worker es el mismo para la app en local y para voidstonks.com.
+test("las rutas de cuenta de WFM rechazan la web publicada, y también a quien llama sin Origin", () => {
+    const head = src.slice(0, src.search(/^export default\b/m));
+    const { Utils } = new Function(`${head}\nreturn { Utils };`)();
+    const pide = (origin) => Utils.esOrigenLocal(new Request("https://api.voidstonks.com/", origin ? { headers: { Origin: origin } } : {}));
+    for (const o of ["http://localhost:5500", "http://localhost", "http://127.0.0.1:8080"]) assert.ok(pide(o), o);
+    for (const o of ["https://voidstonks.com", "https://www.voidstonks.com", "https://abc.voidstonks.pages.dev", "http://localhost.evil.com", "http://192.168.1.20:5500", null]) {
+        assert.ok(!pide(o), String(o));
+    }
+    for (const name of ["wfm_login", "wfm_logout", "wfm_my_orders", "wfm_order_create", "wfm_order_edit"]) {
+        assert.match(handlerBody(name), /if \(!Utils\.esOrigenLocal\(request\)\) return/, name);
+    }
 });
 
 test("los ids de orden se validan antes de ir a la URL", () => {
@@ -168,6 +182,85 @@ const TOP_BY_RANK = {
     }
 };
 
+// warframe.market pide no pasar de 3 peticiones por segundo: el lote de mercado lanzaba 6 a la vez (ráfagas de ~11 rps).
+test("las llamadas a warframe.market salen espaciadas aunque lleguen a la vez, y las demás no esperan", async () => {
+    const head = src.slice(0, src.search(/^export default\b/m));
+    const { fetchWFM, Fetcher, WFM_HUECO_MS } = new Function(`${head}\nreturn { fetchWFM, Fetcher, WFM_HUECO_MS };`)();
+    const momentos = [];
+    const orig = globalThis.fetch;
+    globalThis.fetch = async (url) => { momentos.push([String(url), Date.now()]); return { ok: true, json: async () => ({}) }; };
+    try {
+        await Promise.all([1, 2, 3, 4].map((i) => fetchWFM(`https://api.warframe.market/v2/x${i}`)));
+        const wfm = momentos.map(([, t]) => t);
+        const huecos = wfm.slice(1).map((t, i) => t - wfm[i]);
+        assert.ok(huecos.every((h) => h >= WFM_HUECO_MS - 20), `huecos: ${huecos}`);
+        momentos.length = 0;
+        const t0 = Date.now();
+        await Promise.all([Fetcher.json("https://raw.githubusercontent.com/a"), Fetcher.json("https://raw.githubusercontent.com/b")]);
+        assert.ok(Date.now() - t0 < WFM_HUECO_MS, "lo que no es warframe.market no entra en la cola");
+    } finally { globalThis.fetch = orig; }
+});
+
+function cacheDeColo() {
+    const guardado = new Map();
+    return {
+        guardado,
+        default: {
+            async match(req) { const t = guardado.get(req.url); return t === undefined ? undefined : new Response(t); },
+            async put(req, res) { guardado.set(req.url, await res.text()); },
+        },
+    };
+}
+
+// Un fallo de caché en wfm_resolve o wfm_ids volvía a bajar el catálogo entero (1,4 MB) de warframe.market.
+test("el catálogo de WFM se baja una vez por colo y lo comparten todas las rutas que lo leen", async () => {
+    assert.ok(!src.includes("Fetcher.json(BASE_URLS.WF_MARKET_ITEMS)"), "ninguna ruta debe bajarlo por su cuenta");
+    for (const name of ["wfm_items", "wfm_resolve", "wfm_ids", "prime_items_list"]) assert.match(handlerBody(name), /catalogoWFM\(ctx\)/, name);
+    const head = src.slice(0, src.search(/^export default\b/m));
+    const { catalogoWFM } = new Function(`${head}\nreturn { catalogoWFM };`)();
+    const origCaches = globalThis.caches, origFetch = globalThis.fetch;
+    const colo = cacheDeColo();
+    globalThis.caches = colo;
+    let descargas = 0;
+    globalThis.fetch = async () => { descargas++; return new Response(JSON.stringify({ data: [{ id: "1", slug: "ash_prime_set" }] })); };
+    const pendientes = [];
+    const ctx = { waitUntil: (p) => pendientes.push(p) };
+    try {
+        assert.deepEqual(await catalogoWFM(ctx), [{ id: "1", slug: "ash_prime_set" }]);
+        await Promise.all(pendientes);
+        assert.deepEqual(await catalogoWFM(ctx), [{ id: "1", slug: "ash_prime_set" }]);
+        assert.equal(descargas, 1);
+        colo.guardado.clear();
+        globalThis.fetch = async () => new Response("", { status: 503 });
+        assert.equal(await catalogoWFM(ctx), null, "sin catálogo decide el handler");
+    } finally { globalThis.caches = origCaches; globalThis.fetch = origFetch; }
+});
+
+test("el mercado sin rango comparte la entrada del lote de la lista; con rango va aparte", async () => {
+    const head = src.slice(0, src.search(/^export default\b/m));
+    const { Handlers } = new Function(`${head}\nreturn { Handlers };`)();
+    const origCaches = globalThis.caches, origFetch = globalThis.fetch;
+    globalThis.caches = cacheDeColo();
+    const pedidas = [];
+    globalThis.fetch = async (url) => {
+        pedidas.push(String(url));
+        return new Response(JSON.stringify(String(url).includes("/statistics") ? STATS_BY_RANK : TOP_BY_RANK));
+    };
+    const pendientes = [];
+    const ctx = { waitUntil: (p) => pendientes.push(p) };
+    const pide = (q) => Handlers.wfm_item_market(new URL(`https://api.voidstonks.com/?type=wfm_item_market&slug=primed_flow${q}`), {}, ctx);
+    try {
+        const primera = await pide("");
+        await Promise.all(pendientes);
+        const segunda = await pide("");
+        assert.equal(pedidas.length, 2, "statistics + top una sola vez");
+        assert.deepEqual(segunda.data, primera.data);
+        assert.equal(segunda.ttl, 3600);
+        assert.equal((await pide("&rank=10")).data.median, 90);
+        assert.equal(pedidas.length, 4, "un rango concreto no sale del resumen mezclado");
+    } finally { globalThis.caches = origCaches; globalThis.fetch = origFetch; }
+});
+
 test("el resumen de mercado separa los rangos de mods y arcanos", () => {
     const summarize = loadSummarizeMarket();
 
@@ -193,6 +286,22 @@ test("un rango sin histórico propio cae al dato global en vez de quedarse vací
     // referencia de precio, que es peor que una referencia aproximada.
     const r5 = summarize(STATS_BY_RANK, TOP_BY_RANK, 5);
     assert.notEqual(r5.median, null, "debe dar alguna mediana");
+});
+
+// La mediana del día cerrado llega a tener dos días; para ajustar precios hace falta lo vendido en las últimas horas.
+test("el resumen trae la última venta y la mediana de 48 h ponderada por volumen, por rango", () => {
+    const summarize = loadSummarizeMarket();
+    const hora = (h, mod_rank, median, closed_price, volume) => ({ datetime: `2026-09-27T${h}:00:00.000+00:00`, mod_rank, median, closed_price, volume });
+    const stats = { payload: { statistics_closed: { "90days": [], "48hours": [
+        hora("12", 0, 20, 21, 1), hora("14", 0, 30, 29, 9), hora("13", 0, 26, 25, 3),
+        hora("13", 10, 80, 80, 4), hora("15", 10, 90, 90, 3), hora("16", 10, 99, 99, 0),
+    ] } } };
+    const r = summarize(stats, null, null).reciente;
+    assert.deepEqual(r[0], { ultima: 29, hora: "2026-09-27T14:00:00.000+00:00", mediana: 30, volumen: 13 });
+    assert.deepEqual(r[10], { ultima: 90, hora: "2026-09-27T15:00:00.000+00:00", mediana: 80, volumen: 7 }, "una hora sin ventas no es la última venta");
+    const sinRango = summarize({ payload: { statistics_closed: { "48hours": [hora("10", undefined, 65, 63, 2)] } } }, null, null);
+    assert.deepEqual(Object.keys(sinRango.reciente), [""]);
+    assert.deepEqual(summarize({}, { data: {} }, null).reciente, {});
 });
 
 test("el mercado por rango no comparte entrada de caché con el ítem sin acotar", () => {

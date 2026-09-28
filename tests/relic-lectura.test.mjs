@@ -81,7 +81,7 @@ function catalogoDeReliquias() {
   }
 }
 
-function leeCaptura(archivo) {
+function leeCaptura(archivo, { quieta = false } = {}) {
   OCRRepository.workers = [{ id: "cli" }];
   OCRRepository.recognize = async (_w, c, _o, out) => (out?.blocks ? palabras(c, 6) : { data: { text: "" } });
   OCRRepository.recognizeWithPSM = async (_w, c, psm) => palabras(c, psm);
@@ -96,7 +96,7 @@ function leeCaptura(archivo) {
 
   return (async () => {
     await RelicScreenService.readGrid(v);
-    RelicScreenService.lastGridHash = null; // el mismo frame otra vez: el consenso pide 2 lecturas
+    if (!quieta) RelicScreenService.lastGridHash = null; // el mismo frame otra vez: el consenso pide 2 lecturas
     await RelicScreenService.readGrid(v);
     return state.inventory.map((i) => ({ name: i.name, count: i.count }));
   })();
@@ -174,6 +174,14 @@ function palabrasDelPanel(archivo) {
 const FISURA = { "fisura-sin-fin-no-relic.png": "", "fisura-sin-fin-a6-reescalada.png": null };
 const ESCUADRA = ["Axi A6", "Axi A21", "Axi D6"];
 
+// Con la búsqueda la rejilla queda casi vacía y quieta: sin la lectura de confirmación no se aplicaba nada.
+// La Axi C12 no lleva contador (una copia) y no se escribe.
+test("rejilla filtrada por la búsqueda, con la pantalla quieta", { skip: salta || (!fs.existsSync(path.join(DIR, "busqueda-citrine-quieta.png")) && "sin la captura") }, async () => {
+  catalogoDeReliquias();
+  const leido = await leeCaptura("busqueda-citrine-quieta.png", { quieta: true });
+  assert.deepEqual(Object.fromEntries(leido.map((r) => [r.name, r.count])), { "Lith S19": 8, "Meso C11": 5, "Neo C11": 4 });
+});
+
 // Leída a mano. La A6 pone "Last Equipped" donde iba el "x2": no debe salir cantidad para ella.
 const REJILLA_FISURA = {
   "Axi A9": 7, "Axi A10": 13, "Axi A11": 12, "Axi A12": 18, "Axi A13": 18, "Axi A14": 7, "Axi A16": 11,
@@ -188,6 +196,28 @@ test("rejilla en fisura sin fin: \"Last Equipped\" no se lee como contador", { s
   for (const { name, count } of leido) assert.equal(count, REJILLA_FISURA[name], name);
   assert.ok(leido.length >= 13, `leyó ${leido.length}, hoy lee 13`);
 });
+
+// El título del panel nombra la reliquia marcada aunque tu fila diga "Selection Pending...".
+const TITULO = { "fisura-pendiente-lith-s19.png": "Lith S19", "fisura-sin-fin-a6-reescalada.png": "Axi A6", "fisura-sin-fin-no-relic.png": null, "fisura-lith-c15-escuadra.png": "Lith C15" };
+
+for (const [archivo, esperada] of Object.entries(TITULO)) {
+  test(`título del panel en la fisura: ${archivo} -> ${esperada}`, { skip: salta || (!fs.existsSync(path.join(DIR, archivo)) && "sin la captura") }, async () => {
+    const { RELIC_TITLE_CROP, reliquiaDelTitulo } = await import("../deploy/js/utils/vision/relic_grid.js");
+    catalogoDeReliquias();
+    const img = decodePng(fs.readFileSync(path.join(DIR, archivo)));
+    const v = new FakeCanvas(img.width, img.height);
+    v.getContext("2d").drawImage(img, 0, 0);
+    v.videoWidth = img.width; v.videoHeight = img.height;
+    const cvs = VisionService.prepareCropForOCR(v, RELIC_TITLE_CROP, 1, "relicTitle");
+    const d = cvs.getContext("2d").getImageData(0, 0, cvs.width, cvs.height);
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "tit-"));
+    const f = path.join(dir, "a.png");
+    fs.writeFileSync(f, encodePng({ width: cvs.width, height: cvs.height, data: d.data }));
+    const texto = spawnSync("tesseract", [f, "-", "--tessdata-dir", TESS, "--psm", "6"], { encoding: "utf8" }).stdout || "";
+    fs.rmSync(dir, { recursive: true, force: true });
+    assert.equal(reliquiaDelTitulo(texto, (w) => OCRService.getRelicMatch(w)), esperada);
+  });
+}
 
 for (const [archivo, esperada] of Object.entries(FISURA)) {
   test(`reliquia seguida en fisura sin fin: ${archivo} -> ${esperada === "" ? "No Relic" : esperada}`, { skip: salta || (!fs.existsSync(path.join(DIR, archivo)) && "sin la captura") }, () => {

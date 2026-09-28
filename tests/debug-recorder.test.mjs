@@ -182,6 +182,26 @@ test("las muestras de rendimiento van al paquete como rendimiento.jsonl", async 
 
 // Se lee el fuente porque live_scanner.js no tiene arnés (DOM, stream, workers) y esto es una
 // guarda de producción: encendida sola escribiría GB en el disco de cada usuario.
+// La métrica que compara antes y después del catálogo de rótulos: desde el primer tick que vio cambiar
+// el rótulo hasta que cambió el contexto, sin reiniciarse mientras el latch espera su segunda lectura.
+test("la latencia de cada cambio de contexto va al paquete como latencias.jsonl", async () => {
+  DebugRecorder.clear();
+  DebugRecorder.enabled = true;
+  DebugRecorder.latenciaContexto({ fijado: "UNKNOWN", cambiado: false, pendiente: false, via: "ocr" }, 1000);
+  DebugRecorder.latenciaContexto({ fijado: "UNKNOWN", cambiado: true, pendiente: false, via: "ocr" }, 2000);
+  DebugRecorder.latenciaContexto({ fijado: "UNKNOWN", cambiado: false, pendiente: true, via: "ocr" }, 2400);
+  DebugRecorder.latenciaContexto({ fijado: "REWARD", cambiado: false, pendiente: false, via: "ocr" }, 2700);
+  DebugRecorder.latenciaContexto({ fijado: "RELICS", cambiado: true, pendiente: false, via: "firma" }, 3000);
+  assert.deepEqual(DebugRecorder.latencias.map(({ de, a, ms, via }) => ({ de, a, ms, via })), [
+    { de: "UNKNOWN", a: "REWARD", ms: 700, via: "ocr" },
+    { de: "REWARD", a: "RELICS", ms: 0, via: "firma" },
+  ]);
+  const zip = await DebugRecorder.export();
+  assert.ok(nombres(zip).includes("latencias.jsonl"));
+  DebugRecorder.enabled = false;
+  DebugRecorder.clear();
+});
+
 test("la grabadora solo arranca sola al depurar (vs_debug_logs), nunca en producción", async () => {
   const { readFileSync } = await import("node:fs");
   const src = readFileSync(new URL("../deploy/js/scanner/live_scanner.js", import.meta.url), "utf8");

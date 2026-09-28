@@ -12,6 +12,7 @@ import { hayPistaMenuPausa } from "../../utils/vision/pause_menu_hint.js";
 import { collectWords } from "../../utils/vision/ocr_words.js";
 import { VisionService } from "./vision.service.js";
 import { OCRService } from "./ocr.service.js";
+import { RelicScreenService } from "./relic_screen.service.js";
 
 /**
  * Qué lleva la escuadra en el run que está en curso, leído de la pantalla de PAUSA.
@@ -51,7 +52,7 @@ export const SquadService = {
      * @returns true si la pantalla es de pausa (aunque no hubiera reliquias que leer:
      *          el frame ya está identificado y no hay que seguir probando otras cosas).
      */
-    async probe(video) {
+    async probe(video, { aCiegas = true } = {}) {
         const now = Date.now();
         if (now - this.lastProbeTime < this.PROBE_INTERVAL_MS) return this.lastVerdict;
         this.lastProbeTime = now;
@@ -66,13 +67,16 @@ export const SquadService = {
             this._pistaPrevia = pista.ok;
             console.log(`[SQUAD] pista de menú de pausa: ${pista.ok ? "sí" : "no"} (bandas=${pista.bandas} alturas=[${pista.alturas}] pasos=[${pista.pasos}] umbral=${pista.umbral})`);
         }
-        if (!pista.ok && now - this.lastProbeOcrTime < this.PROBE_SIN_PISTA_MS) return (this.lastVerdict = false);
+        if (!pista.ok && (!aCiegas || now - this.lastProbeOcrTime < this.PROBE_SIN_PISTA_MS)) return (this.lastVerdict = false);
         this.lastProbeOcrTime = now;
 
         const menuCvs = VisionService.prepareCropForOCR(video, PAUSE_MENU_CROP, 0.5, "pauseMenu");
         const { data: menuData } = await OCRRepository.recognize(worker, menuCvs, {}, { text: true });
+        const yaEnPausa = this.lastVerdict;
         this.lastVerdict = isPauseScreen(menuData.text);
         if (!this.lastVerdict) return false;
+        // Entre una pausa y otra puede cambiar una sola reliquia, y el hash de la franja no lo nota.
+        if (!yaEnPausa) this.lastStripHash = null;
 
         const stripCvs = VisionService.prepareCropForOCR(video, SQUAD_STRIP_CROP, 1.5, "squadStrip");
         this.onDebugFrame?.(stripCvs);
@@ -86,6 +90,9 @@ export const SquadService = {
         const relics = parseSquadRelics(collectWords(data), { matchRelic: (w) => OCRService.getRelicMatch(w) });
         console.log(`[SQUAD] ${relics.length} reliquias en el run:`, relics.map((r) => `${r.name} (${r.refinement || "?"})`).join(", "));
         if (!relics.length) return true;
+        // La pausa enseña tu reliquia tal cual la llevas: corrige una SELECT RELIC mal leída o perdida.
+        const propia = relics.find((r) => r.propia);
+        if (propia) RelicScreenService.reliquiaElegida = propia.name.toUpperCase().replace(/\s+RELIC$/, "");
 
         this.publish(relics, squadRunOutlook(relics, this.deps()));
         // Los precios llegan de IndexedDB/red y el panel no puede esperarlos: se publica

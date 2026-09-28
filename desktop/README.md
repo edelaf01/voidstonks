@@ -115,8 +115,8 @@ con ninguna de las dos; el workflow las exporta igual para cuando jubilen ese ru
 Con la CSP puesta la app **se pinta entera pero no responde a ninguna pulsación**, y no da
 ningún error visible. La causa: Tauri inyecta un `nonce` en `script-src` para sus propios
 scripts de arranque, y la spec de CSP manda **ignorar `'unsafe-inline'` en cuanto hay un
-nonce**. Como `index.html` resuelve ~118 handlers con `onclick="foo()"` inline (ver
-`CLAUDE.md`), se quedan todos muertos de golpe. En la web no ocurre porque ahí no hay CSP.
+nonce**. Como `index.html` resuelve ~118 handlers con `onclick="foo()"` inline,
+se quedan todos muertos de golpe. En la web no ocurre porque ahí no hay CSP.
 
 Poner `'unsafe-inline'` en la CSP no lo arregla: ya estaba puesto, y es precisamente lo que
 el nonce anula. El arreglo de verdad sería migrar esos handlers a `addEventListener`, que es
@@ -156,8 +156,7 @@ antes de invertir en lo siguiente.
 
 ## Pendiente
 
-- **Fase 3 — login nativo.** El puente que describe
-  `../NATIVE_BRIDGE.md`: el login contra warframe.market irá
+- **Fase 3 — login nativo.** El login contra warframe.market irá
   directo desde el proceso Rust (sin CORS ni HttpOnly, como un script), de modo que la
   contraseña del usuario **nunca pase por el worker**. El front ya está preparado
   (`../deploy/js/utils/platform.js` detecta `globalThis.__vsNative`).

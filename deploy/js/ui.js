@@ -314,7 +314,7 @@ function updateStaticTexts(t) {
   initSetSearchHelp();
   setText("lbl-riven-weapon", t.lblRivenW);
   // El botón de dirección del índice de rivens. Vive aquí y no en ui_rivens.js porque ese
-  // fichero son 4.332 líneas congeladas como deuda (ARCHITECTURE.md §B: pueden encoger, no
+  // fichero son 4.332 líneas congeladas como deuda (pueden encoger, no
   // crecer), y esto es una etiqueta, que es justo de lo que se ocupa este módulo.
   //
   // El título decía "Cambiar dirección" en español fijo: anuncia que hay un toggle pero no en

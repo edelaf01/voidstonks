@@ -19,6 +19,15 @@ import { groupWordCells } from "./squad_panel.js";
 // la derecha. Por arriba empieza pasada la fila de OWNED/SEARCH, cuyo texto no aporta y sí
 // mete tokens que el matcher tiene que descartar.
 export const RELIC_GRID_CROP = Object.freeze({ x: 0.03, y: 0.17, w: 0.57, h: 0.76 });
+// "Lith S19 Relic - Possible Rewards", sobre el panel de recompensas de la selección de la fisura.
+export const RELIC_TITLE_CROP = Object.freeze({ x: 0.46, y: 0.225, w: 0.31, h: 0.055 });
+
+export function reliquiaDelTitulo(texto, matchRelic) {
+  const t = String(texto || "");
+  const fin = t.search(/POSS?IBLE|REWARDS|RECOMPENSAS|POSIBLES/i);
+  if (fin < 0 || typeof matchRelic !== "function") return null;
+  return matchRelic(t.slice(0, fin).split(/\s+/).filter(Boolean)) || null;
+}
 
 // El contador se dibuja "x108". Se tolera que el OCR parta la x del número y las confusiones
 // del glifo, pero la x tiene que estar. MEDIDO al intentar quitarla —admitiendo la cifra sola en

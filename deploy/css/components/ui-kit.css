@@ -1,6 +1,6 @@
 /* UI-KIT — primitivas reutilizables para ui_loader.js y ui_hints.js.
    Prefijo vs- porque son las únicas reglas de la app sin pestaña que las acote:
-   con un nombre genérico chocarían con cualquier componente (ver CLAUDE.md). */
+   con un nombre genérico chocarían con cualquier componente. */
 
 /* ---------- Carga ---------- */
 
@@ -335,8 +335,7 @@
  * explicarla — y el único que se ve sin tener que buscar ayuda.
  *
  * `rem` y no `em`: este bloque cuelga de un contenedor que ya reduce el tamaño, y encadenar
- * otro 0.x deja la pista por debajo de lo legible (el tropiezo de .ratio-unit a 5,7px que
- * documenta CLAUDE.md).
+ * otro 0.x deja la pista por debajo de lo legible (el tropiezo de .ratio-unit a 5,7px).
  *
  * .duc-empty NO está aquí: ya vivía en styles.css y se amplió allí, que es la regla del repo
  * para lo que ya existe en la hoja monolítica.

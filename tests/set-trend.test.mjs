@@ -107,18 +107,22 @@ test("tendenciaDeSets lee lo apuntado en días distintos", () => {
   assert.deepEqual(tendenciaDeSets(2, HOY * DIA_MS), [{ clave: "Saryn Prime", actual: 75, antes: 60, cambio: 15, pct: 25 }]);
 });
 
-test("el bloque enseña primero las subidas y después las bajadas más fuertes", () => {
+test("el bloque enseña todos los sets: subidas, bajadas de mayor a menor y los estables al final", () => {
   state.currentLang = "es";
   const html = setTrendHtml([
     { clave: "A", actual: 110, antes: 100, cambio: 10, pct: 10 },
+    { clave: "D", actual: 50, antes: 50, cambio: 0, pct: 0 },
     { clave: "B", actual: 95, antes: 100, cambio: -5, pct: -5 },
     { clave: "C", actual: 80, antes: 100, cambio: -20, pct: -20 },
   ]);
   const nombres = [...html.matchAll(/set-trend-name">([^<]+)</g)].map((m) => m[1]);
-  assert.deepEqual(nombres, ["A", "C", "B"]);
+  assert.deepEqual(nombres, ["A", "C", "B", "D"]);
   assert.match(html, /100 → 110/);
   assert.match(html, /\+10%/);
-  assert.match(html, /-20%/);
+  assert.match(html, /▲1<\/b><b class="baja">▼2/);
+  assert.match(html, /set-trend-row igual">\s*<span class="set-trend-name">D<\/span>\s*<span class="set-trend-price">50 /, "sin cambio, sin flecha");
+  assert.match(html, /--barra:100%">-20%/, "la barra se mide contra el mayor movimiento");
+  assert.match(html, /--barra:50%">\+10%/);
 });
 
 test("el nombre del set va escapado", () => {
@@ -127,10 +131,9 @@ test("el nombre del set va escapado", () => {
   assert.match(html, /&lt;b&gt;X&lt;\/b&gt;/);
 });
 
-test("sin datos explica cuándo aparecerá y sin cambios lo dice", () => {
+test("sin datos explica cuándo aparecerá", () => {
   state.currentLang = "es";
   assert.match(setTrendHtml([]), /Vuelve dentro de 2 días/);
-  assert.match(setTrendHtml([{ clave: "A", actual: 1, antes: 1, cambio: 0, pct: 0 }]), /Ningún set tuyo ha cambiado/);
   state.currentLang = "en";
   assert.match(setTrendHtml([]), /Come back in 2 days/);
 });

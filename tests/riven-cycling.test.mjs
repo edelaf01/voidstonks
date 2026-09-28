@@ -86,7 +86,6 @@ const RIFLE = {
 };
 const pos = (name, calidad) => ({ name, isPositive: true, calidad });
 const neg = (name) => ({ name, isPositive: false });
-// Sin bloqueo, en rifle: (6/276 + 6/276·3/17 + 124/2024 + 21,794/2024) / 4
 const P_SIN_RIFLE = 0.0244020;
 
 test("un buscado solo en un 3+0: bloquearlo cuesta el doble pero sale muy a cuenta", () => {

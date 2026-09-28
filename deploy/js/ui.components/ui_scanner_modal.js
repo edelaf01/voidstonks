@@ -254,8 +254,8 @@ export const ScannerModal = {
 
         let positionedItems = items.map(item => {
             const referenceW = width * scale;
-            const isClumped = !item.xPos || Math.abs(item.xPos - (referenceW / 2)) < 5;
-            let rawPct = (typeof item.xPos === 'number' && referenceW > 0 && !isClumped)
+            // Sin posición llega a 0. La del centro es real: con tres recompensas la del medio está ahí.
+            let rawPct = (typeof item.xPos === 'number' && referenceW > 0 && item.xPos > 0)
                 ? (item.xPos / referenceW) * 100
                 : -1;
             return { ...item, leftPct: rawPct };

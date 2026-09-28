@@ -110,16 +110,18 @@ async function savePriceToCache(slug, price) {
  * viva para lo que el snapshot no cubre: mods, arcanos, ítems fuera del catálogo.
  */
 const SNAPSHOT_KEY = "prices_snapshot_doc";
-const SNAPSHOT_TTL = 6 * 60 * 60 * 1000;
+const SNAPSHOT_TTL = 60 * 60 * 1000;
 let snapshotPromise = null;
+let snapshotHasta = 0;
+let snapshotAnterior = {};
 
 function applySnapshot(prices) {
     if (!prices) return;
     for (const slug in prices) {
-        // Sin pisar lo que ya hay: una entrada en memoria viene del IDB del usuario o de
-        // wfm_live_prices, y ambas son más específicas que la mediana del snapshot.
-        if (!MEMORY_CACHE.has(slug)) MEMORY_CACHE.set(slug, prices[slug]);
+        // Lo del IDB del usuario o de wfm_live_prices es más específico que el snapshot: solo se pisa lo que puso él.
+        if (!MEMORY_CACHE.has(slug) || MEMORY_CACHE.get(slug) === snapshotAnterior[slug]) MEMORY_CACHE.set(slug, prices[slug]);
     }
+    snapshotAnterior = prices;
 }
 
 async function loadPriceSnapshot() {
@@ -146,9 +148,11 @@ async function loadPriceSnapshot() {
     }
 }
 
-/** Baja (una sola vez por sesión) el snapshot de precios prime a MEMORY_CACHE y lo devuelve. */
-export function ensurePriceSnapshot() {
-    if (!snapshotPromise) snapshotPromise = loadPriceSnapshot();
+export function ensurePriceSnapshot(ahora = Date.now()) {
+    if (!snapshotPromise || ahora >= snapshotHasta) {
+        snapshotHasta = ahora + SNAPSHOT_TTL;
+        snapshotPromise = loadPriceSnapshot();
+    }
     return snapshotPromise;
 }
 
@@ -299,8 +303,8 @@ export async function preloadPricesToMemory() {
 /**
  * Avisos de una sola vez ("cómo escanear"), recordados por clave.
  *
- * Viven aquí y no en el componente que los pinta porque ui.components/ no toca localStorage
- * (ARCHITECTURE.md §A). En modo privado el acceso lanza: se devuelve false, o sea que el aviso
+ * Viven aquí y no en el componente que los pinta porque ui.components/ no toca localStorage.
+ * En modo privado el acceso lanza: se devuelve false, o sea que el aviso
  * se vuelve a enseñar — es la equivocación barata de las dos.
  */
 export function oneTimeNoticeSeen(key) {

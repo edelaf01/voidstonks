@@ -835,7 +835,7 @@
 /* ---- Puente "los tienes a medias" (ui_sets_bridge.js) ---- */
 /*
  * Va anclado a #setResults y no suelto: `.sets-bridge-*` son nombres nuevos, pero la tira vive
- * dentro del panel lateral de reliquias en algunas resoluciones y CLAUDE.md documenta ya un caso
+ * dentro del panel lateral de reliquias en algunas resoluciones y ya hubo un caso
  * (.inv-row de orders.css) donde un nombre genérico sin anclar se comió filas de otra pestaña.
  */
 #setResults .sets-bridge {
@@ -1029,7 +1029,7 @@
 }
 
 /* `rem` y no `em`: el chip ya está a 0.78rem y encadenar otro 0.x lo dejaba por debajo de lo
-   legible (el tropiezo de .ratio-unit a 5,7px que documenta CLAUDE.md). */
+   legible (el tropiezo de .ratio-unit a 5,7px). */
 #setResults .sets-bridge-left {
     font-size: 0.68rem;
     color: #8b95a3;

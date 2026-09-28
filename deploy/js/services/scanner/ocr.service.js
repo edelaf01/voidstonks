@@ -169,24 +169,13 @@ export const OCRService = {
         return idx;
     },
 
-    // Similitud de un candidato de TIER: similarityOCR más dos variantes de dominio
-    // (con pequeña penalización para que el match limpio siempre gane):
-    //  (a) los tiers no llevan dígitos -> una cola de dígitos en el candidato es
-    //      ruido/código pegado y se puede descartar;
-    //  (b) glifo fino perdido al final ("AX" por AXI) -> comparar contra el prefijo
-    //      del tier de la misma longitud.
-    _relicTierScore(word, tier) {
+  _relicTierScore(word, tier) {
         let s = this.similarityOCR(word, tier);
         const stripped = word.replace(/[0-9]+$/, "");
         if (stripped !== word && stripped.length >= 2) {
             s = Math.max(s, this.similarityOCR(stripped, tier.slice(0, Math.max(stripped.length, 2))) - 0.08);
         }
-        // El prefijo solo rescata UN glifo fino perdido al final ("AX" por AXI, "NE" por
-        // NEO). Sin ese límite, un fragmento de 2 letras valía como tier entero: "RE"
-        // puntuaba 0.92 contra REQUIEM (5 glifos ausentes) y cualquier celda con basura
-        // que contuviera "RE" —"...FO RE SM..."— se anotaba como Requiem I. Un falso
-        // positivo es peor que un fallo: mete una reliquia inexistente en el inventario.
-        if (word.length >= 2 && word.length < tier.length && tier.length - word.length <= 1) {
+            if (word.length >= 2 && word.length < tier.length && tier.length - word.length <= 1) {
             s = Math.max(s, this.similarityOCR(word, tier.slice(0, word.length)) - 0.08);
         }
         return s;
@@ -201,7 +190,7 @@ export const OCRService = {
         const words = rawWords
             .map(w => sinAcentos((w || "").toString()).toUpperCase()
                 .replaceAll(/[|!¡\][]/g, "I")   // barra vertical: i/I/1 finos leídos como signo
-                .replaceAll(/\?/g, "7")          // el 7 con remate curvo sale como "?"
+                .replaceAll(/\?/g, "7").replaceAll("$", "S") // "?" es un 7 con remate curvo; "$", una S ("Lith $19")
                 .replaceAll(/[^A-Z0-9]/g, "").replace(/^([A-Z]\d{1,2})(RELIC|RELIQUIA)S?$/, "$1")) // Paddle pega el sufijo: "A14RELIC"
             .filter(w => w.length > 0 && !this.RELIC_NOISE_TOKENS.has(w));
         const index = this._relicIndex();
@@ -396,8 +385,6 @@ export const OCRService = {
                 // la 1ª palabra de la línea 1): es la cola del vecino ("...Chassis | Khora...")
                 // y roba el match o dispara la penalización de partes. Se excluye por Y.
                 const sameLineTol = imgW * 0.008;
-                // El rótulo es un bloque dentro de SU tarjeta: el "Neuroptics" del vecino se
-                // pegaba a este ancla.
                 const fx = anchor.x / imgW;
                 const suya = ocrData.columnas?.find((c) => fx >= c.x0 && fx <= c.x1);
                 const localWords = validWords.filter(w =>
@@ -421,7 +408,9 @@ export const OCRService = {
                 // Neuroptics Blueprint") queda a la izquierda del ancla vecina (el clamp no la corta,
                 // ~0.17W) y colaba un wfPart en la sopa -> "Gunsen Prime Blueprint" moría con -0.6.
                 const penaltyWords = isStrip ? localWords : localWords.filter(w => Math.abs(w.x - anchor.x) <= imgW * 0.13);
-                const ratio = this._calculateMatchRatio(dbItem, localSoupText, localWords, penaltyWords);
+                // Palabra del nombre solo en OTRA tarjeta: el "Neuroptics" vecino hacía "Khora Prime Neuroptics" sin "Systems".
+                const ajenas = suya ? searchTokens.filter((tok) => localWords.some((w) => w.text === tok) && !enColumna.some((w) => w.text === tok)).length : 0;
+                const ratio = this._calculateMatchRatio(dbItem, localSoupText, localWords, penaltyWords) - 0.15 * ajenas;
 
                 const minWords = searchTokens.length === 1 ? 1 : (isStrip ? 1 : 2);
                 const minRatio = isStrip ? 0.55 : 0.65;

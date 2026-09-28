@@ -236,6 +236,13 @@ test("ocr.service: en la fisura se sigue la primera fila de Squad Relics, no la 
   });
 });
 
+// Visto en vivo en la franja de la escuadra: "Lith $19 Relic" salía como Lith I9.
+test("ocr.service: un $ en el código de reliquia es una S", () => {
+  conCatalogo(["Lith S19", "Lith I9"], () => {
+    assert.equal(OCRService.getRelicMatch(["Lith", "$19", "Relic"]), "Lith S19");
+  });
+});
+
 test("ocr.service: sin el rótulo Squad (refinamiento) se lee el recorte entero", () => {
   conCatalogo(["Axi A6", "Axi D6", "Meso M4"], () => {
     assert.equal(OCRService.parseRelicSelection("MESO M4 RELIC - Possible Rewards", [w("MESO", 0, 0, 40, 14), w("M4", 44, 0, 60, 14)]), "MESO M4");

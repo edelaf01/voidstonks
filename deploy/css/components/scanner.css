@@ -859,6 +859,34 @@
 #kiosk-sale-panel .kiosk-name { flex: 1; }
 #kiosk-sale-panel .kiosk-ducats { color: #ddaa38; font-weight: 700; }
 
+#trade-panel {
+    margin: 0 10px 8px;
+    padding: 8px 9px;
+    border: 1px solid rgba(0, 229, 255, 0.25);
+    border-radius: 6px;
+    background: rgba(0, 229, 255, 0.05);
+}
+
+#trade-panel .trade-title {
+    font-size: 0.72em;
+    font-weight: 800;
+    letter-spacing: 1px;
+    color: #00e5ff;
+    margin: 4px 0;
+}
+
+#trade-panel .trade-line {
+    display: flex;
+    gap: 6px;
+    padding: 2px 4px;
+    font-size: 0.76em;
+}
+
+#trade-panel .trade-name { flex: 1; }
+#trade-panel .trade-plat { color: #ddd; font-weight: 700; white-space: nowrap; }
+#trade-panel .trade-empty { font-size: 0.72em; color: #888; padding: 2px 4px; }
+#trade-panel .trade-confirmada { font-size: 0.7em; font-weight: 800; color: #a0ff80; margin-bottom: 2px; }
+
 /* ── Panel "RUN ACTUAL": reliquias del squad leídas de la pantalla de pausa ──
    Todo cuelga de #squad-run-panel: los nombres genéricos (.squad-title, .squad-tag)
    se aplicarían a media app si se dejaran sueltos, y esta hoja se carga después de
@@ -1032,7 +1060,7 @@
 }
 
 /* Selector de motor de lectura. Anclado a #scanner-section: los selectores desnudos de este
-   fichero se aplican a toda la app y van DESPUÉS de styles.css (ver CLAUDE.md). */
+   fichero se aplican a toda la app y van DESPUÉS de styles.css. */
 #scanner-section .ocr-engine {
     margin: 12px 0;
     padding-top: 10px;
@@ -1081,7 +1109,7 @@
 
 /* El porqué de cada opción, que es lo que convierte dos botones en una elección informada.
    El tamaño va en px y no en em: el bloque padre ya reduce, y encadenar otro 0.x em deja el
-   texto por debajo de lo legible (ver CLAUDE.md). */
+   texto por debajo de lo legible. */
 #scanner-section .ocr-engine-hint {
     margin: 6px 0 0;
     color: #6b7a8f;

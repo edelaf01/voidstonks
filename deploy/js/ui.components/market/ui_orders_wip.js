@@ -5,7 +5,7 @@ import { ORDERS_TEXTS as T } from "../../assets/orders_texts.js";
  * Pantalla de "Mis órdenes" mientras warframe.market no publique su OAuth.
  *
  * Vive fuera de ui_orders.js porque ese fichero ya está por encima del techo de 800 líneas
- * (ARCHITECTURE.md §B: puede encoger, no crecer). Es además lo único que hoy se ve de la
+ * (puede encoger, no crecer). Es además lo único que hoy se ve de la
  * pestaña, así que tenerlo suelto ayuda a encontrarlo el día que haya que borrarlo.
  */
 

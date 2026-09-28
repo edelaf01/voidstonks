@@ -113,6 +113,42 @@ test("el cursor rota y no reempieza por el mismo slug", async () => {
     assert.equal(Object.keys(doc.p).length, 8, "el tick nuevo conserva lo del anterior");
 });
 
+// El cron es casi todo el tráfico de la app contra warframe.market: lo barato no cambia ninguna decisión si se mueve 1p.
+test("lo que vale ≥20p se pide cada vuelta, lo de 10-19p cada 2 y lo de menos cada 4", async () => {
+    const precios = { a: 30, b: 25, c: 15, d: 12, e: 5, f: 4, g: 3, h: 0 };
+    const universe = Object.keys(precios);
+    const env = fakeEnv({
+        [PriceSnapshot.UNIVERSE_KEY]: JSON.stringify(universe),
+        [PriceSnapshot.KEY]: JSON.stringify({ v: 1, t: 1, cursor: 0, p: precios }),
+    });
+    const veces = Object.fromEntries(universe.map((s) => [s, 0]));
+    const snapshot = Object.create(PriceSnapshot);
+    snapshot.MAX_PER_TICK = 3;
+    snapshot.PACE_MS = 0;
+    snapshot.fetchPrice = async (slug) => { veces[slug]++; return { price: precios[slug] }; };
+
+    for (let tick = 0; tick < 40; tick++) await snapshot.refresh(env, ctx);
+    const vueltas = JSON.parse(await env.VOID_KV.get(PriceSnapshot.KEY)).vuelta;
+    assert.ok(vueltas >= 12, `${vueltas} vueltas`);
+    for (const s of ["a", "b"]) assert.ok(Math.abs(veces[s] - vueltas) <= 1, `${s}: ${veces[s]} de ${vueltas}`);
+    for (const s of ["c", "d"]) assert.ok(Math.abs(veces[s] - vueltas / 2) <= 1, `${s}: ${veces[s]} de ${vueltas}`);
+    for (const s of ["e", "f", "g", "h"]) assert.ok(Math.abs(veces[s] - vueltas / 4) <= 1, `${s}: ${veces[s]} de ${vueltas}`);
+    assert.ok(veces.e + veces.f + veces.g + veces.h > 0);
+});
+
+test("un slug nuevo, sin precio todavía, entra en la primera vuelta", async () => {
+    const env = fakeEnv({
+        [PriceSnapshot.UNIVERSE_KEY]: JSON.stringify(["nuevo", "viejo"]),
+        [PriceSnapshot.KEY]: JSON.stringify({ v: 1, t: 1, cursor: 0, vuelta: 1, p: { viejo: 2 } }),
+    });
+    const pedidos = [];
+    const snapshot = Object.create(PriceSnapshot);
+    snapshot.PACE_MS = 0;
+    snapshot.fetchPrice = async (slug) => { pedidos.push(slug); return { price: 9 }; };
+    await snapshot.refresh(env, ctx);
+    assert.ok(pedidos.includes("nuevo"));
+});
+
 test("un 429 corta el tick sin perder lo ya refrescado", async () => {
     const env = fakeEnv({ [PriceSnapshot.UNIVERSE_KEY]: JSON.stringify(["a", "b", "c", "d"]) });
 
@@ -134,17 +170,6 @@ test("el precio es la mediana de las 5 ventas online más baratas", () => {
     // Sin el offline: 10,11,12,13,14 -> 12. Un listing troll a 1p no arrastra el precio.
     assert.equal(PriceSnapshot.priceFromTop(top), 12);
     assert.equal(PriceSnapshot.priceFromTop({ data: { sell: [] } }), 0);
-});
-
-test("el snapshot no pisa los precios que ya hay en memoria", () => {
-    // MEMORY_CACHE puede traer el precio del IDB del usuario o de wfm_live_prices, y
-    // ambos son más específicos que la mediana del snapshot.
-    const fn = storageSrc.match(/function applySnapshot[\s\S]*?\n}/)[0];
-    assert.match(fn, /if \(!MEMORY_CACHE\.has\(slug\)\)/);
-});
-
-test("el snapshot se pide una sola vez por sesión", () => {
-    assert.match(storageSrc, /if \(!snapshotPromise\) snapshotPromise = loadPriceSnapshot\(\)/);
 });
 
 test("la cola de lotes solo ve lo que el snapshot no cubre", () => {
@@ -208,8 +233,8 @@ test("un tick que solo poda slugs retirados SÍ escribe", () => {
     // El otro lado de la moneda: si el universo encogió hay cambio real que persistir, aunque
     // no se haya refrescado ni un precio.
     const body = workerSrc.slice(workerSrc.indexOf("async refresh(env, ctx)"));
-    assert.match(body.slice(0, 2500), /if \(!refreshed && !podados\)/,
-        "la guarda tiene que mirar también lo podado");
+    assert.match(body.slice(0, 3000), /if \(!refreshed && !podados && !i\)/,
+        "la guarda tiene que mirar también lo podado y lo saltado");
 });
 
 test("los precios por slug van a la caché del edge, no a KV", () => {

@@ -64,7 +64,7 @@ if ("serviceWorker" in navigator) {
   });
 }
 import { initVosforTab } from "./ui.components/ui_vosfor.js?v=2.9";
-import "./ui.components/market/ui_orders.js?v=1.0";
+import "./ui.components/market/ui_orders.js?v=1.5";
 import "./ui.components/ui_squad_run.js?v=1.0";
 import { initTabFan } from "./ui.components/ui_tab_fan.js?v=1.1";
 import { initMobileFooter } from "./ui.components/ui_mobile_footer.js?v=1.0";

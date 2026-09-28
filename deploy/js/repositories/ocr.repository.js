@@ -160,6 +160,11 @@ export const OCRRepository = {
         this.workers = this.workers.filter(Boolean);
     },
 
+    async workerDeFondo() {
+        await this.ensureWorkers(2);
+        return this.workers[1] || this.workers[0];
+    },
+
     /** Compatibilidad: el escáner de rivens solo necesita un segundo worker. */
     async ensureSecondWorker() { return this.ensureWorkers(2); },
 
@@ -240,11 +245,24 @@ export const OCRRepository = {
     // ningún error. Holgado: una pasada normal tarda 1-3 s con el juego abierto.
     LIMITE_OCR_MS: 15000,
 
+    _colas: new WeakMap(),
+
+    // Un trabajo cada vez por worker: psm y lista de caracteres son del worker, y otro trabajo metido
+    // entre medias los heredaba. El límite cuenta desde que el trabajo empieza, no desde que espera.
     async conLimite(worker, trabajo) {
-        let reloj;
+        const previo = this._colas.get(worker) || Promise.resolve();
+        let suelta;
+        this._colas.set(worker, new Promise((r) => { suelta = r; }));
+        await previo;
+
+        let reloj, r;
         const limite = new Promise((resolve) => { reloj = setTimeout(() => resolve(null), this.LIMITE_OCR_MS); });
-        const r = await Promise.race([trabajo(), limite]);
-        clearTimeout(reloj);
+        try {
+            r = await Promise.race([trabajo(), limite]);
+        } finally {
+            clearTimeout(reloj);
+            suelta();
+        }
         if (r) return r;
         console.error(`[OCR Repo] el worker no respondió en ${this.LIMITE_OCR_MS} ms: se sustituye`);
         this.sustituye(worker);

@@ -27,6 +27,7 @@
  */
 
 import { filasConNombre } from "./grid_alignment.js";
+import { buscaChecks, ventanasDeFilas, faseDesdeChecks, CHECK_OFFSET } from "./check_anchor.js";
 
 /** Luma perceptual (0..255). Base de la señal de bordes, independiente del tema. */
 export const luma = (r, g, b) => 0.299 * r + 0.587 * g + 0.114 * b;
@@ -57,18 +58,13 @@ export function smoothedLumaRow(data, off, width, radius) {
     return out;
 }
 
+const ASPECTO_CELDA = 1.069;
+
 const DEFAULTS = {
     edgeDelta: 26,       // |Δluma| entre muestras vecinas para contar un borde de trazo (independiente del tema)
     edgeSmooth: 0,       // radio del box filter anti-ruido; 0 = sin suavizar (los bordes de trazo ya son robustos). Subir solo con ruido de captura extremo
-    // --- Señal de COLOR DE NOMBRE (fallback cuando la de bordes colapsa) ---
-    // Con fondo CLARO texturizado (nebulosa/estrellas) el ruido mete bordes por todas partes y la
-    // señal |Δluma| se satura (todo el frame supera edgeDelta → una sola banda gigante → sin cadena).
-    // Y con arte metálico muy contrastado la fase puede engancharse al arte (más bordes que el texto).
-    // La señal de color resuelve ambos: los NOMBRES se renderizan en UN color consistente (el del
-    // tema); contamos píxeles cercanos a ESE color. El arte metálico es de OTRO color (no puntúa) y
-    // los brillos del fondo texturizado son dispersos (no forman banda). Se prueba como fallback y se
-    // elige el color cuya cadena de filas tenga las BANDAS MÁS FINAS (el nombre es una franja fina; el
-    // arte, un bloque alto), de modo que el anclaje caiga en el nombre y no en el arte.
+    // --- Señal de COLOR DE NOMBRE: respaldo cuando un fondo claro texturizado satura los bordes o el
+    // arte metálico se lleva la fase. Los nombres van en un solo color; gana el que da las bandas más finas.
     bgDistSq: 70 * 70,     // dist² mínima al color de fondo para considerar un píxel "tinta" (candidato a color de nombre)
     mergeColSq: 45 * 45,   // funde colores candidatos más cercanos que esto (antialias/compresión del mismo color)
     nameTolSq: 80 * 80,    // dist² para marcar un píxel como del color de nombre (excluye el arte metálico, a >110)
@@ -81,6 +77,7 @@ const DEFAULTS = {
     nameBandOffset: 0.75, // top de celda ≈ top de banda de nombre − 0.75·cellH (el nombre empieza al ~75% de la celda)
     nameBaselineOffset: 0.92, // top de celda ≈ BASELINE de nombre (y1) − 0.92·cellH (la baseline de texto está al ~92% del alto de celda, permitiendo que el crop de badge al top 0% atrape el icono x1/x2 perfecto y la zona de nombre 22% no interfiera)
     rows: 3,             // el inventario de Warframe siempre muestra 3 filas
+    dosFilas: false,     // último recurso para una búsqueda con 1-2 filas de resultados (ver detectInventoryGrid)
     minCols: 3,
     maxCols: 12,
 };
@@ -453,6 +450,11 @@ export function detectInventoryGrid(img, opts = {}) {
         delete best._nameColor;
         return best;
     }
+    // Una búsqueda deja una o dos filas de resultados: solo cuando lo demás falla se aceptan dos.
+    if (!o.dosFilas) {
+        const dos = detectInventoryGrid(img, { ...opts, dosFilas: true, trace: {} });
+        if (dos) return { ...dos, dosFilas: true };
+    }
     outerTrace.fail = outerTrace.fail || "sin señal de bordes ni de color de nombre";
     return null;
 }
@@ -509,24 +511,11 @@ function detectInventoryGridCore(img, opts = {}) {
         return null;
     }
 
-    // --- Pitch vertical (cellH): cadena aritmética de bandas ---
-    // El HUD (título INVENTORY/SELL, buscador…) y los paneles laterales (SELL
-    // ITEMS, TOTAL…) crean bandas a alturas arbitrarias: solo las filas reales
-    // forman una progresión equiespaciada. Nos quedamos con esa cadena.
-    // Las bandas del ~20% superior son SIEMPRE HUD (título, pestañas, buscador:
-    // ≤17% en todas las capturas reales; el grid nunca empieza antes del 23%)
-    // y pueden engancharse a la cadena con paso casualmente consistente.
+    // --- Pitch vertical (cellH): solo las filas reales forman una progresión equiespaciada ---
+    // El ~20% superior es HUD (≤17% en todas las capturas; el grid nunca empieza antes del 23%).
     const hudLimit = height * 0.2;
-    // Ancla de fila = BASE de la banda (y1), no el top (y0). Los nombres de los
-    // ítems están anclados ABAJO en la card: un nombre a 2 líneas crece hacia
-    // ARRIBA, así que su top (y0) salta ~una altura de línea entre filas de 1 y 2
-    // líneas (±15% del pitch a 1440p) y rompe la cadena aritmética; su base (y1)
-    // se mantiene en la misma baseline y las filas quedan equidistantes. El top real
-    // del nombre lo re-deriva el fold de abajo.
-    // El filtro de HUD es por BASELINE (y1), no por top (y0): al FINAL de la lista la
-    // 1ª fila se scrollea hacia arriba y su top y0 cae dentro de la franja HUD (<0.2·h)
-    // aunque su baseline y1 esté bien abajo (fila real); filtrar por y0 la descartaba
-    // ("solo 2 filas"). El HUD real (título/pestañas/buscador) tiene y1 ≤ ~0.16·h.
+    // Ancla y filtro por la BASE de la banda (y1): un nombre a 2 líneas crece hacia arriba y su top salta
+    // ±15% del pitch; y al final de la lista el top de la 1ª fila cae en la franja del HUD.
     const toItem = bb => ({
         pos: bb.band.y1,
         mass: bb.blocks.reduce((s, bl) => s + bl.mass, 0),
@@ -535,16 +524,9 @@ function detectInventoryGridCore(img, opts = {}) {
     const chainItems = bandBlocks.filter(bb => bb.band.y1 >= hudLimit).map(toItem);
     const chain = bestArithmeticChain(chainItems, height * 0.12, height * 0.5);
 
-    // --- Fila CORTADA por arriba: readmisión de una banda filtrada como HUD ---
-    // Al bajar y volver a subir, el juego clampa el scroll a media fila: la 1ª fila
-    // entra recortada y su nombre queda ENTERO dentro de la franja HUD (y1 < 0.2·h),
-    // así que el filtro de arriba la tira junto al título/buscador. Sin ella la cadena
-    // ancla en la 2ª fila y TODA la rejilla baja una celda: las filas de abajo se ven
-    // completas y la primera queda cortada — justo el síntoma reportado.
-    // Readmitir por posición sola reabriría la puerta al HUD (que este filtro existe
-    // para rechazar), así que se exigen las DOS señales que solo cumple una fila real:
-    // caer a exactamente un `pitch` por encima del primer miembro, y ALINEAR en columnas
-    // con él (los nombres comparten las x de las celdas; el título/buscador, no).
+    // --- Fila CORTADA por arriba (scroll clampado a media fila): su nombre cae entero en la franja del HUD
+    // y sin ella toda la rejilla baja una celda. Se readmite solo si está a un pitch del primer miembro Y
+    // alinea en columnas con él, que es lo que el título y el buscador no cumplen.
     if (chain && chain.members.length >= 2) {
         const pitch = chain.pitch;
         const first = chain.members[0];
@@ -572,7 +554,8 @@ function detectInventoryGridCore(img, opts = {}) {
     trace.chain = chain ? { pitch: Math.round(chain.pitch), members: chain.members } : null;
     // Se exigen las 3 filas del inventario: con 2 bandas cualquier par forma
     // "cadena" y el pitch no está corroborado (2 pasos consistentes sí lo están).
-    if (!chain || chain.members.length < o.rows) {
+    const minFilas = o.dosFilas ? 2 : o.rows;
+    if (!chain || chain.members.length < minFilas) {
         trace.fail = chain
             ? `cadena de solo ${chain.members.length} filas (<${o.rows}) — pitch sin corroborar`
             : "sin cadena de filas equiespaciadas (¿solo HUD/paneles, sin grid visible?)";
@@ -674,7 +657,7 @@ function detectInventoryGridCore(img, opts = {}) {
     }
 
     trace.rowBands = usedTops;
-    if (rowBands.length < o.rows) {
+    if (rowBands.length < minFilas) {
         trace.fail = `solo ${rowBands.length} filas de nombres tras re-anclar (<${o.rows})`;
         return null;
     }
@@ -719,6 +702,13 @@ function detectInventoryGridCore(img, opts = {}) {
         return null;
     }
     const cellW = bestQ;
+    // Con dos filas los rabos de letra ("Blueprint" frente a "Relic") mueven el paso un 5%: manda el ancho, que sale
+    // de todas las columnas. En 40 capturas el alto es 1,054-1,083 veces el ancho.
+    const esperado = cellW * ASPECTO_CELDA;
+    if (chain.members.length < 3) {
+        if (Math.abs(chain.pitch - esperado) > esperado * 0.1) { trace.fail = "dos filas con un paso que no casa con el ancho"; return null; }
+        cellH = Math.round(esperado);
+    }
 
     // --- Fase horizontal: las FRONTERAS entre celdas son valles sin texto ---
     // Busca el desfase b que minimiza el perfil en x = b + k·cellW dentro del
@@ -783,15 +773,8 @@ function detectInventoryGridCore(img, opts = {}) {
     // tienen nombres en (casi) todas las filas: nos quedamos con la racha
     // contigua de celdas más larga con ocupación significativa.
     if (cols >= 2) {
-        // Ocupación de cada columna = en CUÁNTAS FILAS tiene texto significativo.
-        // maxRow[ri] normaliza por fila (el arte de una fila no infla otras). Una
-        // columna cuenta como "ocupada en la fila ri" si su masa en esa fila supera
-        // el 12% del máximo de la fila. Así el panel de venta / starfield (texto en
-        // pocas filas) no sostiene columnas fantasma frente al grid (texto en todas).
-        // Perfil de columna POR FILA (no la suma global): así se puede exigir
-        // presencia en VARIAS filas. Sumando la masa total, una columna con mucho
-        // texto en UNA sola fila (panel lateral "SELECT ITEMS…") puntúa igual que
-        // una del grid con nombres en las tres, y las columnas fantasma sobrevivían.
+        // Ocupación = en cuántas filas tiene la columna texto (>12% del máximo de ESA fila). Con la masa
+        // sumada, el panel lateral con texto en una sola fila puntuaba como una columna del grid.
         const perRow = rowBands.map((bb) => {
             const prof = new Float32Array(width);
             for (let y = bb.band.y0; y <= bb.band.y1; y++) {
@@ -883,18 +866,21 @@ function detectInventoryGridCore(img, opts = {}) {
     }
     const gridX = Math.max(0, Math.round(gridXf));
 
-    // --- Fase vertical: top de celda desde la BASELINE (y1) de la primera fila ---
-    // Se ancla por la BASE del nombre (y1), NO por el top (y0): cuando el arte
-    // metálico del ítem tiene mucho borde (temas vistosos) se FUSIONA con el nombre
-    // en una sola banda alta cuyo y0 es el top del ARTE (no del nombre) → anclar por
-    // y0 dejaba la celda ~0.6·cellH demasiado arriba y el recorte de nombre caía
-    // sobre el arte. El y1 (baseline del texto) es inmune a esa fusión (el arte funde
-    // por arriba). Fallback a y0 si por algún motivo no hay y1. (detectRowPhase afina
-    // el resto, pero ahora parte de un anclaje correcto.)
+    // --- Fase vertical desde la BASELINE (y1) de la primera fila: el arte vistoso se funde con el nombre
+    // por arriba y anclar por y0 dejaba la celda ~0,6·cellH alta, con el recorte del nombre sobre el arte.
     const firstBand = rowBands[0].band;
     const gridY = firstBand.y1
         ? Math.round(firstBand.y1 - cellH * o.nameBaselineOffset)
         : Math.round(usedTops[0] - cellH * o.nameBandOffset);
+    // Y con dos filas, marcas ✓ en las dos: el ancho solo no basta, cualquier par de bandas de texto casa con algún paso.
+    if (chain.members.length < 3) {
+        const picos = buscaChecks(img, cellH, { ventanasY: ventanasDeFilas({ gridY, cellH, rows: 2 }) });
+        const filasConCheck = new Set(picos.map((p) => Math.round((p.y - CHECK_OFFSET.y * cellH - gridY) / cellH)));
+        if (!faseDesdeChecks(picos, { cellW, cellH }) || filasConCheck.size < 2) {
+            trace.fail = "dos filas sin marcas ✓ en las dos";
+            return null;
+        }
+    }
 
     // Más las que asomen por abajo con pocos ítems (ver filasConNombre): sin ellas no se leía el final.
     let rows = filasConNombre(findBands(prof, height, { ...o, bandMassFloor: 0 }),

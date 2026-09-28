@@ -172,6 +172,40 @@ describe("sondeo", () => {
     assert.deepEqual(calls, ["menu", "menu"]);
   });
 
+  // Fuera de UNKNOWN/RELICS (la cabecera de la pausa puede dar cualquier contexto) el sondeo es
+  // solo por píxel: el OCR a ciegas cada 10 s se pagaría en todas las demás pantallas.
+  test("sin OCR a ciegas, sin pista no se lee nada; con pista, sí", async () => {
+    scriptOCR(MENU_OK);
+    SquadService.lastProbeOcrTime = 0;
+    assert.equal(await SquadService.probe(fakeVideo(40, { menu: false }), { aCiegas: false }), false);
+    assert.deepEqual(calls, []);
+    SquadService.lastProbeTime = 0;
+    assert.equal(await SquadService.probe(fakeVideo(40), { aCiegas: false }), true);
+    assert.equal(calls[0], "menu");
+  });
+
+  test("tu reliquia de la pausa pasa a ser la elegida", async () => {
+    const { RelicScreenService } = await import("../deploy/js/services/scanner/relic_screen.service.js");
+    RelicScreenService.reset();
+    RelicScreenService.reliquiaElegida = "AXI A21";
+    scriptOCR(MENU_OK);
+    await SquadService.probe(fakeVideo());
+    assert.equal(RelicScreenService.reliquiaElegida, "NEO N12");
+    RelicScreenService.reset();
+  });
+
+  test("cada pausa nueva relee la franja aunque se parezca a la anterior", async () => {
+    scriptOCR(MENU_OK);
+    await SquadService.probe(fakeVideo(40));
+    scriptOCR(MENU_NO);
+    SquadService.lastProbeTime = 0;
+    await SquadService.probe(fakeVideo(40));
+    scriptOCR(MENU_OK);
+    SquadService.lastProbeTime = 0;
+    await SquadService.probe(fakeVideo(40));
+    assert.deepEqual(calls, ["menu", "strip"]);
+  });
+
   test("tras reanudar, el veredicto cacheado cae en el siguiente sondeo", async () => {
     scriptOCR(MENU_OK);
     assert.equal(await SquadService.probe(fakeVideo()), true);

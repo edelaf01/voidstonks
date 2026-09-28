@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 // ===========================================================================
-// Se lee el FUENTE en vez de ejecutar el servicio. Justificación (CLAUDE.md permite esto
+// Se lee el FUENTE en vez de ejecutar el servicio. Justificación (permitido
 // cuando montar el entorno cuesta más que lo que protege): disparar este camino de verdad
 // pide un <video>, getDisplayMedia, workers de OCR y una pantalla de inventario real.
 //
@@ -42,7 +42,7 @@ describe("cerrojo del escáner", () => {
     });
 
     test("el camino que abre el modal sí se queda el cerrojo, y lo suelta el modal", () => {
-        assert.match(FUENTE, /this\.detectionLocked = true;[\s\S]{0,400}ScannerModal\.open\(/);
+        assert.match(FUENTE, /this\.detectionLocked = true;[\s\S]{0,700}ScannerModal\.open\(/);
         const modal = readFileSync(new URL("../deploy/js/ui.components/ui_scanner_modal.js", import.meta.url), "utf8");
         assert.equal(/ScannerService\.detectionLocked = false/.test(modal), true);
     });
