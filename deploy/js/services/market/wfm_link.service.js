@@ -1,19 +1,21 @@
 import { WORKER_URL } from "../../config.js";
-import { state } from "../../state.js";
+import { state, saveAppState } from "../../state.js";
 import { getSlug } from "../../utils/slugs.utils.js";
-import { calculateTotalFullSets } from "../../utils/ui_utils.js";
+import { calculateTotalFullSets, getRequiredCount } from "../../utils/ui_utils.js";
 import { getToken, getPlatform } from "./wfm_auth.service.js";
-import { fetchMyOrders } from "./wfm_orders.service.js";
+import { fetchMyOrders, conCatalogoLocal } from "./wfm_orders.service.js";
+import { MEMORY_CACHE } from "../../repositories/storage.repository.js";
 
 const SOURCES = {
     primeSets: {
         label: { es: "Sets prime", en: "Prime sets" },
-        owns: (slug) => slug.endsWith("_set"),
+             owns: (slug) => slug.endsWith("_set"),
         enumerate() {
             const out = [];
-            for (const setName of knownSetNames()) {
+             for (const setName of knownSetNames()) {
                 const qty = calculateTotalFullSets(setName);
-                if (qty > 0) out.push({ name: `${setName} Set`, slug: getSlug(`${setName} Set`), qty });
+                const slug = getSlug(`${setName} Set`);
+                if (qty > 0) out.push({ name: `${setName} Set`, slug, qty, referencia: Number(MEMORY_CACHE.get(slug)) || null });
             }
             return out;
         }
@@ -70,18 +72,20 @@ export async function resolveIds(slugs) {
     const list = [...new Set(slugs.filter(Boolean))].slice(0, 100);
     if (!list.length) return {};
 
-    const chunks = [];
-    for (let i = 0; i < list.length; i += 25) chunks.push(list.slice(i, i + 25));
+    return conCatalogoLocal("slug", list, async (faltan) => {
+        const chunks = [];
+        for (let i = 0; i < faltan.length; i += 25) chunks.push(faltan.slice(i, i + 25));
 
-    const out = {};
-    await Promise.all(chunks.map(async (chunk) => {
-        try {
-            const res = await fetch(`${WORKER_URL}?type=wfm_ids&slugs=${chunk.join(",")}`);
-            if (!res.ok) return;
-            Object.assign(out, (await res.json()) || {});
-        } catch {}
-    }));
-    return out;
+        const out = {};
+        await Promise.all(chunks.map(async (chunk) => {
+            try {
+                const res = await fetch(`${WORKER_URL}?type=wfm_ids&slugs=${chunk.join(",")}`);
+                if (!res.ok) return;
+                Object.assign(out, (await res.json()) || {});
+            } catch {}
+        }));
+        return out;
+    });
 }
 
 export async function syncInventory(orders = null) {
@@ -123,13 +127,26 @@ export async function syncInventory(orders = null) {
     const stale = sellOrders
         .filter(o => {
             const slug = o.itemSlug || o.item?.slug;
-            return slug && !owned.has(slug) && isTracked(slug);
+               return slug && !owned.has(slug) && isTracked(slug);
         })
         .map(o => ({ slug: o.itemSlug || o.item?.slug, name: o.itemName, order: o }));
 
-    return { ok: true, unlisted, listed, stale, seen: [...seen] };
+    const mismatched = listed.filter(i => i.order.quantity != null && Number(i.order.quantity) !== i.qty);
+
+    const sinRegistrar = stale.length + mismatched.filter(i => Number(i.order.quantity) > i.qty).length;
+
+    return { ok: true, unlisted, listed, stale, mismatched, sinRegistrar, seen: [...seen] };
 }
 
+export function registraSets(slug, n) {
+    const set = knownSetNames().find(s => getSlug(`${s} Set`) === slug);
+    const partes = set ? state.setsDatabase?.[set] || Object.keys(state.itemsDatabase || {}).filter(p => (p === set || p.startsWith(`${set} `)) && !p.endsWith(" Set")) : [];
+    if (!partes.length || !(n > 0)) return { ok: false };
+    for (const p of partes) state.primeInventory[p] = Math.max(state.primeInventory[p] || 0, n * getRequiredCount(set, p));
+    saveAppState();
+    listedSlugs.add(slug);
+    return { ok: true };
+}
 
 export async function createSellOrder(spec) {
     const token = getToken();

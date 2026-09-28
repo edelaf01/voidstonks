@@ -1,3 +1,5 @@
+// vosfor tab and Loid pack simulator
+
 import { state } from "../state.js";
 import { TEXTS } from "../config.js";
 import { escapeHTML } from "./ui_components.js";

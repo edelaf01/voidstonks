@@ -1,3 +1,4 @@
+// reads fissure rewards from photos using scout anchor, ROI crop, union and column filters
 import { rawWords as palabrasCrudas } from "./ocr_words.js";
 
 const MAX_SIDE = 1800;

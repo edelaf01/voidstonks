@@ -135,13 +135,13 @@ export const OCRService = {
         return idx;
     },
 
-    _relicTierScore(word, tier) {
+  _relicTierScore(word, tier) {
         let s = this.similarityOCR(word, tier);
         const stripped = word.replace(/[0-9]+$/, "");
         if (stripped !== word && stripped.length >= 2) {
             s = Math.max(s, this.similarityOCR(stripped, tier.slice(0, Math.max(stripped.length, 2))) - 0.08);
         }
-        if (word.length >= 2 && word.length < tier.length && tier.length - word.length <= 1) {
+            if (word.length >= 2 && word.length < tier.length && tier.length - word.length <= 1) {
             s = Math.max(s, this.similarityOCR(word, tier.slice(0, word.length)) - 0.08);
         }
         return s;
@@ -153,7 +153,7 @@ export const OCRService = {
         const words = rawWords
             .map(w => sinAcentos((w || "").toString()).toUpperCase()
                 .replaceAll(/[|!¡\][]/g, "I")
-                .replaceAll(/\?/g, "7")
+                .replaceAll(/\?/g, "7").replaceAll("$", "S")
                 .replaceAll(/[^A-Z0-9]/g, "").replace(/^([A-Z]\d{1,2})(RELIC|RELIQUIA)S?$/, "$1"))
             .filter(w => w.length > 0 && !this.RELIC_NOISE_TOKENS.has(w));
         const index = this._relicIndex();
@@ -279,7 +279,8 @@ export const OCRService = {
 
                 const localSoupText = localWords.map(w => w.text).join(" ");
                 const penaltyWords = isStrip ? localWords : localWords.filter(w => Math.abs(w.x - anchor.x) <= imgW * 0.13);
-                const ratio = this._calculateMatchRatio(dbItem, localSoupText, localWords, penaltyWords);
+                const ajenas = suya ? searchTokens.filter((tok) => localWords.some((w) => w.text === tok) && !enColumna.some((w) => w.text === tok)).length : 0;
+                const ratio = this._calculateMatchRatio(dbItem, localSoupText, localWords, penaltyWords) - 0.15 * ajenas;
 
                 const minWords = searchTokens.length === 1 ? 1 : (isStrip ? 1 : 2);
                 const minRatio = isStrip ? 0.55 : 0.65;

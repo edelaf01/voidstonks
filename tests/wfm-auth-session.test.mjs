@@ -192,3 +192,19 @@ test("login sin credenciales no sale a la red", async () => {
   assert.deepEqual(await auth.login("a@b.c", ""), { ok: false, error: "missing_fields" });
   assert.equal(peticiones.length, antes);
 });
+
+test("Mis órdenes solo en local; en la web pública, nunca", () => {
+  const original = globalThis.location;
+  try {
+    for (const hostname of ["localhost", "127.0.0.1", "[::1]"]) {
+      globalThis.location = { hostname, search: "" };
+      assert.equal(auth.wfmPrivado(), true, hostname);
+    }
+    for (const hostname of ["voidstonks.com", "www.voidstonks.com", "abc.voidstonks.pages.dev", "localhost.evil.com"]) {
+      globalThis.location = { hostname, search: "?wfm=1" };
+      assert.equal(auth.wfmPrivado(), false, hostname);
+    }
+    globalThis.location = undefined;
+    assert.equal(auth.wfmPrivado(), false);
+  } finally { globalThis.location = original; }
+});

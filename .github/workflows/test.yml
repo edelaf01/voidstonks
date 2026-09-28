@@ -1,7 +1,7 @@
 name: Tests
 
 # Corre la suite y el lint en cada push y cada PR. Hasta ahora los tests solo existían en
-# local, así que un cambio que rompiera una regla de ARCHITECTURE.md llegaba a producción
+# local, así que un cambio que rompiera una regla de arquitectura llegaba a producción
 # igual (deploy/ se publica tal cual, sin build).
 #
 # En CI faltan dos ficheros que están en .gitignore a propósito: worker-code.js y el cache

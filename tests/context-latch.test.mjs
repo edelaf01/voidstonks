@@ -17,14 +17,23 @@ test("dos frames seguidos del mismo contexto sí lo cambian", () => {
   assert.deepEqual(correr(["REWARD", "REWARD"], s), ["RELICS", "REWARD"]);
 });
 
+test("las transiciones que el juego hace siempre cambian con una lectura; las demás siguen pidiendo dos", () => {
+  const en = (latched) => ({ latched, unknownCount: 0, pending: null, pendingCount: 0 });
+  assert.deepEqual(correr(["RELICS"], en("REWARD")), ["RELICS"], "ronda siguiente de una fisura sin fin");
+  assert.deepEqual(correr(["MISSION_COMPLETE"], en("REWARD")), ["MISSION_COMPLETE"]);
+  assert.deepEqual(correr(["INVENTORY", "TRADE"], en("TRADE")), ["INVENTORY", "TRADE"], "añadir ítems en el Trading Post y volver");
+  assert.deepEqual(correr(["REWARD"], en("RELICS")), ["RELICS"], "la basura de la selección de reliquias sale como REWARD");
+  assert.deepEqual(correr(["INVENTORY_MODS"], en("INVENTORY")), ["INVENTORY"]);
+});
+
 test("el candidato se reinicia si entra otro contexto por medio", () => {
   const s = { latched: "RELICS", unknownCount: 0, pending: null, pendingCount: 0 };
   assert.deepEqual(correr(["REWARD", "INVENTORY_MODS", "REWARD"], s), ["RELICS", "RELICS", "RELICS"]);
 });
 
 test("una lectura ilegible no borra al candidato", () => {
-  const s = { latched: "REWARD", unknownCount: 0, pending: null, pendingCount: 0 };
-  assert.deepEqual(correr(["RELICS", "UNKNOWN", "RELICS"], s), ["REWARD", "REWARD", "RELICS"]);
+  const s = { latched: "INVENTORY", unknownCount: 0, pending: null, pendingCount: 0 };
+  assert.deepEqual(correr(["RELICS", "UNKNOWN", "RELICS"], s), ["INVENTORY", "INVENTORY", "RELICS"]);
   const alterna = Array.from({ length: 12 }, (_, i) => (i % 2 ? "UNKNOWN" : "RELICS"));
   assert.ok(correr(alterna, s).includes("RELICS"));
 });

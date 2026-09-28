@@ -202,6 +202,10 @@ export const VisionService = {
 
     _cropCvs: {},
 
+    lienzo(clave) {
+        return (this._cropCvs[clave] ||= document.createElement("canvas"));
+    },
+
     prepareCropForOCR(video, crop, zoom, cacheKey) {
         const canvas = this._cropCvs[cacheKey] ||= document.createElement("canvas");
         const width = video.videoWidth;
@@ -1132,6 +1136,7 @@ export const VisionService = {
             /\/\s*[MNHW][O0DQC][DO0B][S5$]/.test(text);
 
         if (/M[I1L]SS?[I1L]ON\s*C[O0Q]MP|MIS[I1L][OÓ]N\s*C[O0Q]MPLET/.test(text)) return "MISSION_COMPLETE";
+        if (/TRAD[I1L]NG/.test(text)) return "TRADE";
         if (/Z[O0]NE\s*\S{1,3}\s*REACH/.test(text)) return "MISSION_COMPLETE";
 
         if (/DETAIL|DETALL/.test(text)) return "ITEM_DETAILS";
@@ -1143,13 +1148,13 @@ export const VisionService = {
         return "UNKNOWN";
     },
 
-    detectGridAutoCalib(snapshot, width, height) {
+    detectGridAutoCalib(snapshot, width, height, anchoMax = width) {
         try {
             const cvs = this._themeCvs;
-            cvs.width = width; cvs.height = height;
+            cvs.width = anchoMax; cvs.height = height;
             const ctx = cvs.getContext("2d", { willReadFrequently: true });
             ctx.drawImage(snapshot, 0, 0, width, height);
-            const img = ctx.getImageData(0, 0, width, height);
+            const img = ctx.getImageData(0, 0, anchoMax, height);
             const trace = {};
             const calib = detectInventoryGrid(img, { trace });
             this.ultimasBandas = trace.bands || null;
