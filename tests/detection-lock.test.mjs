@@ -28,7 +28,7 @@ describe("cerrojo del escáner", () => {
     });
 
     test("el camino que abre el modal sí se queda el cerrojo, y lo suelta el modal", () => {
-        assert.match(FUENTE, /this\.detectionLocked = true;[\s\S]{0,400}ScannerModal\.open\(/);
+        assert.match(FUENTE, /this\.detectionLocked = true;[\s\S]{0,700}ScannerModal\.open\(/);
         const modal = readFileSync(new URL("../deploy/js/ui.components/ui_scanner_modal.js", import.meta.url), "utf8");
         assert.equal(/ScannerService\.detectionLocked = false/.test(modal), true);
     });

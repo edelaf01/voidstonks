@@ -1,6 +1,6 @@
 import { DEBUG_ACTIVO } from "../utils/debug_log.js";
 import { state, saveAppState } from "../state.js";
-import { applyRewardCommit, undoRewardCommit, pickManualReward } from "../utils/inventory/reward_commit.js";
+import { applyRewardCommit, undoRewardCommit, pickManualReward, aplicaTradeo } from "../utils/inventory/reward_commit.js";
 import { esPantallaRecordada, huellaPantalla, memoriaPantalla } from "../utils/inventory/reward_ledger.js";
 import { showToast } from "../ui.components/ui_components.js";
 import { TEXTS } from "../config.js";
@@ -18,6 +18,7 @@ import { mergeRelicCounts } from "../utils/inventory/relic_counts.js";
 import { sumaReliquias, restaReliquia, applyRelicCounts } from "../utils/inventory/relic_votes.js";
 import { RelicScreenService } from "../services/scanner/relic_screen.service.js";
 import { DucatKioskService } from "../services/scanner/ducat_kiosk.service.js";
+import { TradeService } from "../services/scanner/trade.service.js";
 import { applyDucatSale, vuelcaSesion } from "../utils/inventory/ducat_kiosk.js";
 import { exposeGlobals } from "../utils/global_registry.js";
 import { DebugRecorder } from "../services/scanner/debug_recorder.service.js";
@@ -222,12 +223,24 @@ RelicScreenService.onApplied = (changed) => {
   saveAppState();
 };
 
+TradeService.onUpdate = (mesa) => ScannerHUD.updateTrade(mesa);
+TradeService.onTrade = (mesa) => {
+  if (!state.autoAddMissionRewards) return;
+  const { inventario, previo, movidas } = aplicaTradeo(state.primeInventory, mesa);
+  if (!movidas.length) return;
+  state.primeInventory = inventario;
+  saveAppState();
+  if (globalThis.renderPrimeInventory) globalThis.renderPrimeInventory();
+  avisaConDeshacer(`${TEXTS[state.currentLang].scanner.tradeDone}: ${movidas.join(", ")}`, "tradeo", () => {
+    state.primeInventory = undoRewardCommit(state.primeInventory, previo);
+  });
+};
+
 ScannerService.onPaginaKiosco = () => {
   state.primeInventory = vuelcaSesion(state.primeInventory, ScannerService.sessionInventory);
   saveAppState();
   if (globalThis.renderPrimeInventory) globalThis.renderPrimeInventory();
 };
-
 DucatKioskService.onPanel = (items) => ScannerHUD.updateKioskSale(items);
 
 DucatKioskService.onSale = (venta) => {
@@ -316,7 +329,7 @@ function commitMissionCompleteRewards(items, gastada = null) {
   state.primeInventory = inventario;
   pendingManualAdds.length = 0;
 
-  const relicPrevio = (state.inventory || []).map((i) => (typeof i === "string" ? i : { ...i }));
+ const relicPrevio = (state.inventory || []).map((i) => (typeof i === "string" ? i : { ...i }));
   if (reliquias.length) state.inventory = sumaReliquias(state.inventory, reliquias);
   if (gastada) state.inventory = restaReliquia(state.inventory, gastada);
   const movidas = [...añadidas, ...reliquias.map((r) => (r.qty > 1 ? `${r.name} ×${r.qty}` : r.name))];

@@ -1,6 +1,7 @@
 // inventory grid autodetection from item name text bands without manual calibration
 
 import { filasConNombre } from "./grid_alignment.js";
+import { buscaChecks, ventanasDeFilas, faseDesdeChecks, CHECK_OFFSET } from "./check_anchor.js";
 
 export const luma = (r, g, b) => 0.299 * r + 0.587 * g + 0.114 * b;
 
@@ -24,6 +25,8 @@ export function smoothedLumaRow(data, off, width, radius) {
     return out;
 }
 
+const ASPECTO_CELDA = 1.069;
+
 const DEFAULTS = {
     edgeDelta: 26,
     edgeSmooth: 0,
@@ -39,6 +42,7 @@ const DEFAULTS = {
     nameBandOffset: 0.75,
     nameBaselineOffset: 0.92,
     rows: 3,
+    dosFilas: false,
     minCols: 3,
     maxCols: 12,
 };
@@ -327,6 +331,10 @@ export function detectInventoryGrid(img, opts = {}) {
         delete best._nameColor;
         return best;
     }
+    if (!o.dosFilas) {
+        const dos = detectInventoryGrid(img, { ...opts, dosFilas: true, trace: {} });
+        if (dos) return { ...dos, dosFilas: true };
+    }
     outerTrace.fail = outerTrace.fail || "sin señal de bordes ni de color de nombre";
     return null;
 }
@@ -367,6 +375,7 @@ function detectInventoryGridCore(img, opts = {}) {
     }
 
     const hudLimit = height * 0.2;
+    // anchored by band BASE (y1): a 2 line name grows upward and its top jumps
     const toItem = bb => ({
         pos: bb.band.y1,
         mass: bb.blocks.reduce((s, bl) => s + bl.mass, 0),
@@ -398,7 +407,8 @@ function detectInventoryGridCore(img, opts = {}) {
     }
 
     trace.chain = chain ? { pitch: Math.round(chain.pitch), members: chain.members } : null;
-    if (!chain || chain.members.length < o.rows) {
+    const minFilas = o.dosFilas ? 2 : o.rows;
+    if (!chain || chain.members.length < minFilas) {
         trace.fail = chain
             ? `cadena de solo ${chain.members.length} filas (<${o.rows}) — pitch sin corroborar`
             : "sin cadena de filas equiespaciadas (¿solo HUD/paneles, sin grid visible?)";
@@ -468,7 +478,7 @@ function detectInventoryGridCore(img, opts = {}) {
     }
 
     trace.rowBands = usedTops;
-    if (rowBands.length < o.rows) {
+    if (rowBands.length < minFilas) {
         trace.fail = `solo ${rowBands.length} filas de nombres tras re-anclar (<${o.rows})`;
         return null;
     }
@@ -508,6 +518,11 @@ function detectInventoryGridCore(img, opts = {}) {
         return null;
     }
     const cellW = bestQ;
+    const esperado = cellW * ASPECTO_CELDA;
+    if (chain.members.length < 3) {
+        if (Math.abs(chain.pitch - esperado) > esperado * 0.1) { trace.fail = "dos filas con un paso que no casa con el ancho"; return null; }
+        cellH = Math.round(esperado);
+    }
 
     let xMin = -1, xMax = -1;
     let maxP = 0;
@@ -633,6 +648,14 @@ function detectInventoryGridCore(img, opts = {}) {
     const gridY = firstBand.y1
         ? Math.round(firstBand.y1 - cellH * o.nameBaselineOffset)
         : Math.round(usedTops[0] - cellH * o.nameBandOffset);
+    if (chain.members.length < 3) {
+        const picos = buscaChecks(img, cellH, { ventanasY: ventanasDeFilas({ gridY, cellH, rows: 2 }) });
+        const filasConCheck = new Set(picos.map((p) => Math.round((p.y - CHECK_OFFSET.y * cellH - gridY) / cellH)));
+        if (!faseDesdeChecks(picos, { cellW, cellH }) || filasConCheck.size < 2) {
+            trace.fail = "dos filas sin marcas ✓ en las dos";
+            return null;
+        }
+    }
 
     let rows = filasConNombre(findBands(prof, height, { ...o, bandMassFloor: 0 }),
         { gridX, gridY, cellW, cellH, cols, rows: rowBands.length, height, bloques: b => blocksInBand(img, b.y0, b.y1, o) });

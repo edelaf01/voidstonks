@@ -1,3 +1,5 @@
+// server clock reference for countdowns, offset kept in globalThis to avoid an import cycle
+
 import { getServerTime } from "../repositories/api.repository.js";
 
 globalThis._serverTimeOffset = globalThis._serverTimeOffset || 0;
