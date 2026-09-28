@@ -46,7 +46,7 @@ test("publicar una orden valida el itemId antes de llegar a WFM", () => {
     assert.match(body, /\[a-f0-9\]\{24\}/, "el itemId debe validarse como ObjectId");
     assert.match(body, /Invalid type/, "el tipo debe restringirse a sell/buy");
     assert.match(body, /Number\.isInteger\(platinum\)/, "el precio debe ser entero");
-    assert.match(body, /isTrustedOrigin/, "crear órdenes es sensible: guard de origen");
+    assert.match(body, /esOrigenLocal/, "crear órdenes es sensible: solo la app en local");
 });
 
 test("la ruta de creación nunca se cachea", () => {
@@ -90,6 +90,7 @@ test("el botón del inventario publica de verdad, no solo redirige", () => {
 });
 
 test("el puente al mercado no importa ui.js", () => {
+    // ui.js runs updateUILabels() at module level: reverse import breaks loading with TDZ
     assert.ok(!/from "\.\.\/ui\.js"/.test(ordersSrc),
         "ui_orders.js no debe importar ui.js");
     assert.match(ordersSrc, /globalThis\.switchTab/,

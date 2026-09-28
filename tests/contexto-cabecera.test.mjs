@@ -24,6 +24,8 @@ const casos = [
   ["LE/ REWARDS", "REWARD"],
   ["NE/REWARDS :", "REWARD"],
   ["ZONE 3 REACHED", "MISSION_COMPLETE"],
+  ["TRADING POST", "TRADE"],
+  ["| + TRADING POST 0 :", "TRADE"],
 ];
 
 for (const [texto, esperado] of casos) {

@@ -69,6 +69,26 @@ export function regionLuma(source, rect) {
     return lumaDe(ctx, rect.cols, rect.filas);
 }
 
+let maxCanalCvs = null;
+
+export function muestraMaxCanal(source, rect, cols, filas, sub = 4) {
+    const W = source.videoWidth || source.width, H = source.videoHeight || source.height;
+    if (!W || !H) return null;
+    const cw = cols * sub, ch = filas * sub;
+    if (!maxCanalCvs) maxCanalCvs = document.createElement("canvas");
+    if (maxCanalCvs.width !== cw || maxCanalCvs.height !== ch) { maxCanalCvs.width = cw; maxCanalCvs.height = ch; }
+    const ctx = maxCanalCvs.getContext("2d", { willReadFrequently: true });
+    ctx.drawImage(source, Math.floor(W * rect.x), Math.floor(H * rect.y), Math.floor(W * rect.w), Math.floor(H * rect.h), 0, 0, cw, ch);
+    const px = ctx.getImageData(0, 0, cw, ch).data;
+    const out = new Float32Array(cols * filas);
+    for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) {
+        const i = (y * cw + x) * 4;
+        out[Math.floor(y / sub) * cols + Math.floor(x / sub)] += Math.max(px[i], px[i + 1], px[i + 2]);
+    }
+    for (let k = 0; k < out.length; k++) out[k] /= sub * sub;
+    return out;
+}
+
 export function fraccionCambiada(a, b, umbral = 24) {
     if (!a || !b || a.length !== b.length) return 1;
     let n = 0;

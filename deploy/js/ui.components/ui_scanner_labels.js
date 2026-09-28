@@ -1,3 +1,5 @@
+// populates scanner HUD, permission and calibration labels from the active language
+
 const setText = (id, text) => {
   const el = document.getElementById(id);
   if (el && text) el.innerText = text;

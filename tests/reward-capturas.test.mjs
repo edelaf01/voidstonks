@@ -32,6 +32,7 @@ const CAPTURAS = {
   "temas/siguesinarreglar.png": { total: 4, tesseract: 0 },
   "temas/siguesinfunciona.png": { total: 4, tesseract: 4 },
   "temas/styanaxnodetecta.png": { total: 4, tesseract: 3 },
+  "temas/ivara-crafted-no-lee.png": { total: 4, tesseract: 4 },
   "mal.png": {
     total: 4, tesseract: 3,
     todo: "junta 'Nidus Prime' con el 'Neuroptics Blueprint' de la tarjeta de al lado",

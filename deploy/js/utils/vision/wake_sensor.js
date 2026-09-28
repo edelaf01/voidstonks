@@ -26,6 +26,7 @@ export function creaSensor(vigias, despierta, { cadaMs = CADA_MS, reloj = global
                 const repetida = aviso && aviso.base === base && !v.cambia(actual, aviso.muestra);
                 if (pantallaNuevaParada(previas[i], actual, base, v.cambia) && !repetida) {
                     avisadas[i] = { base, muestra: actual };
+                    if (v.acepta && !v.acepta()) { previas[i] = actual; return; }
                     para();
                     despierta([...previas]);
                 }
@@ -36,9 +37,9 @@ export function creaSensor(vigias, despierta, { cadaMs = CADA_MS, reloj = global
     return { arma, para };
 }
 
-export function sensorDelEscaner(escaner, video, opciones) {
+export function sensorDelEscaner(escaner, video, opciones = {}) {
     return creaSensor([
-        { muestra: () => regionLuma(video, FRANJA_TITULO_VIDEO), base: () => escaner.lastHeaderHash, cambia: tituloHaCambiado },
+        { muestra: () => regionLuma(video, FRANJA_TITULO_VIDEO), base: () => escaner.lastHeaderHash, cambia: tituloHaCambiado, acepta: opciones.acepta },
         { muestra: () => (escaner._cartaVigilada ? firmaTexto(video, escaner._cartaVigilada) : null), base: () => escaner.lastHashL, cambia: (a, b) => !mismoTexto(a, b) },
     ], ([franja]) => {
         clearTimeout(escaner.scanInterval);

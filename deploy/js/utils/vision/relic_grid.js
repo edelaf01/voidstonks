@@ -1,6 +1,14 @@
 import { groupWordCells } from "./squad_panel.js";
 
 export const RELIC_GRID_CROP = Object.freeze({ x: 0.03, y: 0.17, w: 0.57, h: 0.76 });
+export const RELIC_TITLE_CROP = Object.freeze({ x: 0.46, y: 0.225, w: 0.31, h: 0.055 });
+
+export function reliquiaDelTitulo(texto, matchRelic) {
+  const t = String(texto || "");
+  const fin = t.search(/POSS?IBLE|REWARDS|RECOMPENSAS|POSIBLES/i);
+  if (fin < 0 || typeof matchRelic !== "function") return null;
+  return matchRelic(t.slice(0, fin).split(/\s+/).filter(Boolean)) || null;
+}
 
 const COUNT = /^[xX×*]\s*(\d{1,3})$/;
 
