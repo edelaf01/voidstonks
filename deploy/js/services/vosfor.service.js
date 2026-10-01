@@ -1,6 +1,5 @@
 import { dbHelper } from "../repositories/storage.repository.js";
 import { getArcaneBatch } from "../repositories/api.repository.js";
-import { state } from "../state.js";
 import { copiesForMaxRank } from "../utils/vosfor_math.js";
 
 // Vosfor calculator: static data (Loid collections, dissolve values) and lazy arcane
@@ -162,80 +161,6 @@ async function pump() {
         }
     }
     pumping = false;
-}
-
-let lastLiveFetchGlobal = 0;
-const LIVE_GLOBAL_COOLDOWN_MS = 60 * 1000;
-const LIVE_ARCANE_COOLDOWN_MS = 60 * 60 * 1000;
-
-export async function fetchLiveArcanePrice(slug) {
-    const now = Date.now();
-    const es = state.currentLang === "es";
-    if (now - lastLiveFetchGlobal < LIVE_GLOBAL_COOLDOWN_MS) {
-        const remaining = Math.ceil((LIVE_GLOBAL_COOLDOWN_MS - (now - lastLiveFetchGlobal)) / 1000);
-        const msg = es
-            ? `Para no saturar WFM, espera ${remaining}s antes de actualizar otro arcano.`
-            : `To avoid spamming WFM, please wait ${remaining}s before updating another arcane.`;
-        return { ok: false, error: "global_cooldown", message: msg };
-    }
-
-    const cached = await idbGetSafe(`arcstat_${slug}`);
-    if (cached?.time && now - cached.time < LIVE_ARCANE_COOLDOWN_MS) {
-        const remaining = Math.ceil((LIVE_ARCANE_COOLDOWN_MS - (now - cached.time)) / 60000);
-        const msg = es
-            ? `Actualizado recientemente. Podrás forzar otra comprobación en ${remaining} min.`
-            : `Recently updated. You can force another check in ${remaining} min.`;
-        return { ok: false, error: "arcane_cooldown", message: msg };
-    }
-
-    try {
-        const res = await fetch(`https://api.warframe.market/v1/items/${slug}/orders`);
-        if (!res.ok) throw new Error(`WFM API returned ${res.status}`);
-        const data = await res.json();
-        
-        const activeOrders = data.payload.orders.filter((o) => 
-            o.order_type === "sell" && (o.user.status === "ingame" || o.user.status === "online")
-        );
-        
-        const r0Orders = activeOrders.filter((o) => o.mod_rank === 0).sort((a,b) => a.platinum - b.platinum);
-        const maxRankOrders = activeOrders.filter((o) => o.mod_rank > 0).sort((a,b) => a.platinum - b.platinum);
-        const buys = data.payload.orders.filter((o) =>
-            o.order_type === "buy" && (o.user.status === "ingame" || o.user.status === "online"));
-        const buysR0 = buys.filter((o) => o.mod_rank === 0).sort((a, b) => b.platinum - a.platinum);
-
-        const med5 = (orders) => {
-            const c = orders.slice(0, Math.min(5, orders.length)).map((o) => o.platinum);
-            if (!c.length) return 0;
-            const mid = Math.floor(c.length / 2);
-            return c.length % 2 ? c[mid] : Math.round((c[mid - 1] + c[mid]) / 2);
-        };
-
-        const existing = ARC_STATS.get(slug) || {};
-        const stats = {
-            ...existing,
-            p: med5(r0Orders) || existing.p || 0,
-            pe: med5(r0Orders) || existing.pe || 0,
-            s: r0Orders.length || existing.s || 0,
-            d: buysR0.length || existing.d || 0,
-            bb: buysR0[0]?.platinum ?? existing.bb ?? 0,
-            pem: med5(maxRankOrders) || existing.pem || 0,
-            rm: maxRankOrders[0]?.mod_rank || existing.rm || 0,
-        };
-
-        ARC_STATS.set(slug, stats);
-        dbHelper.set(`arcstat_${slug}`, { val: stats, time: now });
-        lastLiveFetchGlobal = now;
-        
-        notify();
-        return { ok: true, stats };
-    } catch (err) {
-        console.error("fetchLiveArcanePrice error:", err);
-        const es = state?.currentLang === "es";
-        const msg = es
-            ? "Fallo al conectar con Warframe Market (posible bloqueo CORS/Red)."
-            : "Failed to connect to Warframe Market (possible CORS/Network block).";
-        return { ok: false, error: "network_error", message: msg };
-    }
 }
 
 const RARITIES = ["COMMON", "UNCOMMON", "RARE", "LEGENDARY"];
