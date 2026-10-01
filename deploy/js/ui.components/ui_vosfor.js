@@ -35,7 +35,6 @@ import {
     othersPack,
     calculateVosforInvestment,
     ARC_STATS,
-    fetchLiveArcanePrice,
     pixRank,
     HEX_ARCANES
 } from "../services/vosfor.service.js?v=2.7";
@@ -1353,12 +1352,7 @@ function updateSellSimDOM() {
         box.innerHTML = `
           <div class="vosfor-stat-cards">
             <div class="vosfor-stat-card">
-              <div class="vosfor-stat-card-label" style="display:flex;justify-content:space-between;align-items:center;">
-                <span>${escapeHTML(t.sellSimUnitPrice || "Precio unidad")} (${rankLbl})</span>
-                <button id="live-price-btn" class="vosfor-preset-btn" style="padding:2px 6px;font-size:0.65rem;border-color:rgba(126,203,255,0.4);color:#7ecbff;background:rgba(126,203,255,0.1);" onclick="globalThis.onLivePriceCheck('${sellArcSlug}')" title="${es ? "Consultar precio en vivo (Warframe Market)" : "Check live price (Warframe Market)"}">
-                  ${es ? "En vivo" : "Live"}
-                </button>
-              </div>
+              <div class="vosfor-stat-card-label">${escapeHTML(t.sellSimUnitPrice || "Precio unidad")} (${rankLbl})</div>
               <div class="vosfor-stat-card-val">${m.unitPrice > 0 ? `<span data-f="unit"></span>${PLAT}` : noMarket}</div>
             </div>
             <div class="vosfor-stat-card">
@@ -1381,7 +1375,6 @@ function updateSellSimDOM() {
           </div>
           ${metricLine}
           <div style="font-size:0.74rem;color:#888;margin-top:6px;"><span data-f="liq"></span>${PLAT}</div>
-          <div id="live-price-status" style="font-size:0.75rem;margin-top:6px;display:none;padding:4px 8px;border-radius:4px;"></div>
           <div style="font-size:0.72rem;color:#777;margin-top:4px;">${es ? `1 unidad R${m.maxRank} = ${m.sim.copiesMax} copias (${m.meta.vosfor} Vosfor cada una al disolver).` : `1 unit at R${m.maxRank} = ${m.sim.copiesMax} copies (${m.meta.vosfor} Vosfor each when dissolved).`}</div>`;
     }
 
@@ -1533,46 +1526,6 @@ export function onSellQtyChange(val) {
         sellQty = Math.min(num, 999);
         updateSellSimDOM();
     }
-}
-
-export async function onLivePriceCheck(slug) {
-    const btn = document.getElementById("live-price-btn");
-    const statusBox = document.getElementById("live-price-status");
-    if (!btn || !statusBox || !slug) return;
-
-    const es = state.currentLang === "es";
-    btn.disabled = true;
-    btn.innerHTML = es ? "Cargando…" : "Loading…";
-    btn.style.opacity = "0.6";
-
-    statusBox.style.display = "block";
-    statusBox.style.background = "rgba(224,176,64,0.1)";
-    statusBox.style.color = "#e8c88a";
-    statusBox.style.border = "1px solid rgba(224,176,64,0.3)";
-    statusBox.innerHTML = es ? "Consultando Warframe Market..." : "Fetching from Warframe Market...";
-
-    const res = await fetchLiveArcanePrice(slug);
-
-    if (res.ok) {
-        statusBox.style.background = "rgba(66,245,108,0.1)";
-        statusBox.style.color = "#42f56c";
-        statusBox.style.border = "1px solid rgba(66,245,108,0.3)";
-        statusBox.innerHTML = es ? "¡Precio actualizado!" : "Price updated!";
-        setTimeout(() => {
-            if (document.getElementById("live-price-status")) {
-                document.getElementById("live-price-status").style.display = "none";
-            }
-        }, 3000);
-    } else {
-        statusBox.style.background = "rgba(255,100,100,0.1)";
-        statusBox.style.color = "#ff8888";
-        statusBox.style.border = "1px solid rgba(255,100,100,0.3)";
-        statusBox.innerHTML = res.message;
-    }
-
-    btn.disabled = false;
-    btn.innerHTML = es ? "En vivo" : "Live";
-    btn.style.opacity = "1";
 }
 
 // Veredicto único por copia: la única decisión que importa (vender en R0, subir a Rmax
@@ -2264,6 +2217,5 @@ exposeGlobals({
     setSellRank,
     onSellQtyChange,
     onSellRatePackChange,
-    onLivePriceCheck,
     handleArcaneTyping: onVosforSearchInput,
 }, "ui.components/ui_vosfor.js");
