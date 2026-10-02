@@ -7,6 +7,8 @@ import { getPriceValue, MEMORY_CACHE } from "../../services/market/prices.servic
 import { exposeGlobals } from "../../utils/global_registry.js";
 import { ducatsBeatSale } from "../../utils/inventory/reward_value.js";
 import { ducadosDePieza } from "../../utils/inventory/catalog_parts.js";
+import { copiasQueSobran } from "../../utils/inventory/baro_picks.js";
+import { getSetName, getRequiredCount } from "../../utils/ui_utils.js";
 
 /**
  * Ducanator: la pestaña que ordena las piezas prime por ducados frente a su precio en platino.
@@ -48,6 +50,8 @@ export function renderDucanatorView(list, opts = {}) {
 
   const searchInput = (opts.search || "").toLowerCase();
   const ownedOnly = opts.ownedOnly !== false; // default: only what you own
+  const keepSets = opts.keepSets !== false;
+  const setDeps = { primeInventory: state.primeInventory, setsDatabase: state.setsDatabase, getSetName, getRequiredCount };
   const sortCol = opts.sortCol || "ratio"; // name | plat | ducats | ratio
   const sortDir = opts.sortDir || -1; // -1 desc (most profitable first), 1 asc
   // Called again once missing prices arrive, to re-rank with real data.
@@ -62,7 +66,8 @@ export function renderDucanatorView(list, opts = {}) {
       const plat = cachedRaw !== undefined ? (Number.parseInt(cachedRaw, 10) || 0) : null;
       // Efficiency = ducats per plat sacrificed. Unknown/zero plat -> best score.
       const eff = ducatRatio(ducats, plat === null ? 0 : plat);
-      return { name, qty, ducats, plat, eff };
+      const { sobran, guardas } = keepSets ? copiasQueSobran(name, setDeps) : { sobran: qty, guardas: 0 };
+      return { name, qty, ducats, plat, eff, sobran, guardas };
     })
     .filter((r) => r.ducats > 0);
 
@@ -81,6 +86,7 @@ export function renderDucanatorView(list, opts = {}) {
   let keepPlat = 0;
   const fundRows = [];
   const keepRows = [];
+  const setRows = [];
 
   // Infinity (plat desconocido) queda fuera del máximo a propósito: si entrara, una
   // sola pieza sin precio dejaría las barras del resto en casi nada.
@@ -92,10 +98,12 @@ export function renderDucanatorView(list, opts = {}) {
     // Sin precio todavía la fila se coloca en "cambiar por ducados", que es donde acabará la
     // mayoría, pero NO suma al total: en el primer pintado no se sabe aún nada y el número
     // dorado salía con el inventario entero dentro, para desinflarse al llegar los precios.
+    // Rentaría fundirla, pero todas sus copias son de un set.
+    const paraSet = shouldFund && r.qty > 0 && r.sobran === 0;
     if (platReady) {
       if (shouldFund) {
-        fundableDucats += r.ducats * r.qty;
-        fundableParts += r.qty;
+        fundableDucats += r.ducats * r.sobran;
+        fundableParts += r.sobran;
       } else {
         keepPlat += r.plat * r.qty;
       }
@@ -110,7 +118,11 @@ export function renderDucanatorView(list, opts = {}) {
     const iconHtml = icon
       ? `<img src="${icon}" class="duc-img item-icon-small" loading="lazy" onerror="this.style.visibility='hidden'">`
       : `<span class="duc-img duc-img-empty"></span>`;
-    const qtyHtml = r.qty > 1 ? `<span class="duc-qty">×${r.qty}</span>` : "";
+    const visibles = shouldFund && !paraSet ? r.sobran : r.qty;
+    const qtyHtml = visibles > 1 ? `<span class="duc-qty">×${visibles}</span>` : "";
+    const guardaHtml = r.guardas > 0 && shouldFund
+      ? `<span class="duc-keep-note">${escapeHTML((dt.keepsForSet || "keeps {n} for the set").replace("{n}", r.guardas))}</span>`
+      : "";
 
     const html = `
       <div class="duc-row${shouldFund ? " is-fund" : ""}">
@@ -118,6 +130,7 @@ export function renderDucanatorView(list, opts = {}) {
           <span class="duc-img-wrap">${iconHtml}${qtyHtml}</span>
           <div class="duc-name-text">
             <a href="https://warframe.market/items/${getSlug(r.name)}" target="_blank" class="part-name duc-link">${escapeHTML(r.name)}</a>
+            ${guardaHtml}
           </div>
         </div>
         <div class="duc-plat${platReady ? "" : " is-pending"}">${platTxt}<span class="plat-icon-inline"></span></div>
@@ -127,7 +140,7 @@ export function renderDucanatorView(list, opts = {}) {
           <span class="duc-eff-num">${effTxt}</span>
         </div>
       </div>`;
-    (shouldFund ? fundRows : keepRows).push(html);
+    (paraSet ? setRows : shouldFund ? fundRows : keepRows).push(html);
   });
 
   // Clickable column headers: click sorts by that column, click again flips direction.
@@ -174,7 +187,8 @@ export function renderDucanatorView(list, opts = {}) {
           + `</div>`
         : headerRow
           + section(dt.fundSection || "Trade for ducats", fundRows, "fund")
-          + section(dt.keepSection || "Better to sell", keepRows, "keep")}
+          + section(dt.keepSection || "Better to sell", keepRows, "keep")
+          + section(dt.setSection || "Kept for your sets", setRows, "set")}
     </div>`;
 
   // Fetch missing plat prices, then re-rank once they land.
@@ -205,16 +219,24 @@ export function setDucatSort(col) {
 
 // El checkbox sigue en el DOM (oculto) porque es donde renderDucanatorTab lee el estado;
 // el chip solo es su cara visible.
-export function toggleDucatOwned() {
-  const cb = document.getElementById("ducat-owned-only");
+function alternaChip(cbId, chipId) {
+  const cb = document.getElementById(cbId);
   if (!cb) return;
   cb.checked = !cb.checked;
-  const chip = document.getElementById("ducat-owned-chip");
+  const chip = document.getElementById(chipId);
   if (chip) {
     chip.classList.toggle("active", cb.checked);
     chip.setAttribute("aria-pressed", String(cb.checked));
   }
   renderDucanatorTab();
+}
+
+export function toggleDucatOwned() {
+  alternaChip("ducat-owned-only", "ducat-owned-chip");
+}
+
+export function toggleDucatSets() {
+  alternaChip("ducat-keep-sets", "ducat-sets-chip");
 }
 
 export function clearDucatSearch() {
@@ -234,6 +256,7 @@ export function renderDucanatorTab() {
   const opts = {
     search,
     ownedOnly: document.getElementById("ducat-owned-only")?.checked !== false,
+    keepSets: document.getElementById("ducat-keep-sets")?.checked !== false,
     sortCol: ducatSortCol,
     sortDir: ducatSortDir,
     rerender: () => {
@@ -244,11 +267,12 @@ export function renderDucanatorTab() {
   renderDucanatorView(list, opts);
 }
 
-// Los cuatro los invoca index.html con onclick inline; se publican desde aquí, que es donde
+// Los invoca index.html con onclick inline; se publican desde aquí, que es donde
 // viven ahora, en vez de desde ui_inventory.js.
 exposeGlobals({
     renderDucanatorTab,
     setDucatSort,
     toggleDucatOwned,
+    toggleDucatSets,
     clearDucatSearch,
 }, "ui.components/inventory/ui_ducanator.js");

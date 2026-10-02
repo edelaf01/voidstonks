@@ -60,6 +60,25 @@ export function tierOfRelic(relicName) {
   return tier === "Vanguard" ? "Axi" : tier;
 }
 
+export function eraDominante(nombres, { minimo = 3, cuota = 0.6 } = {}) {
+  const cuenta = new Map();
+  for (const n of nombres || []) {
+    const era = tierOfRelic(n);
+    if (era) cuenta.set(era, (cuenta.get(era) || 0) + 1);
+  }
+  const total = [...cuenta.values()].reduce((a, b) => a + b, 0);
+  const [era, veces] = [...cuenta].sort((a, b) => b[1] - a[1])[0] || [];
+  return total >= minimo && veces / total >= cuota ? era : null;
+}
+
+export const REFINOS_POR_COSTE = ["Intact", "Exceptional", "Flawless", "Rad"];
+
+export function mejorRefinamiento(oddsPor, margen = 0.02) {
+  const max = Math.max(0, ...REFINOS_POR_COSTE.map((r) => oddsPor?.[r] || 0));
+  if (!(max > 0)) return null;
+  return REFINOS_POR_COSTE.find((r) => (oddsPor[r] || 0) >= max - margen);
+}
+
 /**
  * @param deps.relicCounts    { [reliquia sin " Relic"]: copias }
  * @param deps.relicsDatabase { [reliquia]: [{ name, chance }] }

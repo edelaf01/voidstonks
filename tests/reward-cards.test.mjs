@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { detectCardRow } from "../deploy/js/utils/vision/reward_cards.js";
+import { detectCardRow, filaCentrada } from "../deploy/js/utils/vision/reward_cards.js";
 
 function makeImage(w, h, fillLuma = 20) {
   const data = new Uint8ClampedArray(w * h * 4);
@@ -119,4 +119,27 @@ test("la banda respeta el limite inferior del frame si colaRotulo sobrepasa H", 
   assert.deepEqual({ x: res.x, w: res.w, y: res.y, h: res.h, cardCount: res.cardCount }, {
     x: 0, w: 1000, y: 480, h: 20, cardCount: 3,
   });
+});
+
+// Captura real (Hildryn, 1920x1080): solo el arte de Bronco y el de Hildryn pasan el corte de
+// brillo; el mango de Dual Zoren y la pala de Paris son oscuros. Salían 2 columnas del doble de ancho.
+test("la fila centrada recupera las tarjetas de arte oscuro", () => {
+  const fila = filaCentrada([0.437 * 1920, 0.690 * 1920], 1920);
+  assert.equal(fila.n, 4);
+  assert.deepEqual(fila.centros.map((c) => +(c / 1920).toFixed(3)), [0.31, 0.437, 0.563, 0.69]);
+});
+
+test("con tres tarjetas la del centro marca la fila impar", () => {
+  const fila = filaCentrada([960, 960 + 242], 1920);
+  assert.equal(fila.n, 3);
+  assert.equal(Math.round(fila.centros[0]), 960 - 242);
+});
+
+test("si el juego no está centrado no se inventa fila", () => {
+  assert.equal(filaCentrada([200, 300], 1920), null);
+  assert.equal(filaCentrada([], 1920), null);
+});
+
+test("dos manchas de la misma tarjeta no cuentan como dos", () => {
+  assert.equal(filaCentrada([600, 615], 1920), null);
 });

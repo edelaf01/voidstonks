@@ -68,6 +68,8 @@ import "./ui.components/market/ui_orders.js?v=1.5";
 import "./ui.components/ui_squad_run.js?v=1.0";
 import { initTabFan } from "./ui.components/ui_tab_fan.js?v=1.1";
 import { initMobileFooter } from "./ui.components/ui_mobile_footer.js?v=1.0";
+import { initDesktopShell } from "./ui.components/ui_desktop_shell.js";
+import { esEscritorio } from "./utils/shell.js";
 
 document.addEventListener("DOMContentLoaded", async () => {
   const urlParams = new URLSearchParams(globalThis.location.search);
@@ -82,7 +84,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   // defecto y el rótulo se quedaba diciendo "4 Jugadores" a quien juega solo.
   updateProfitLabel();
   checkUpdates();
-  initCanvas();
+  if (!esEscritorio()) initCanvas();
   initDisclaimerSystem();
   setupGlobalClickListeners();
   initGlobalTooltipSystem();
@@ -106,6 +108,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   // el save dice otra cosa. Va después de switchTab porque el botón que lo abre depende de
   // la pestaña activa.
   if (state.currentInvView === "parts") globalThis.switchInvView?.("parts");
+  initDesktopShell();
   initTabFan();
   initMobileFooter();
 

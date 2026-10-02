@@ -1,6 +1,6 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { normalizeOCRWords, confirmaPrime } from "../deploy/js/utils/inventory/ocr_words.js";
+import { normalizeOCRWords, confirmaPrime, palabrasDeSuTarjeta } from "../deploy/js/utils/inventory/ocr_words.js";
 import { OCRService } from "../deploy/js/services/scanner/ocr.service.js";
 
 // Etapa que prepara las palabras del OCR para parseRewards. Salió de ocr.service.js, que estaba
@@ -72,5 +72,20 @@ describe("confirmar que el rótulo dice PRIME", () => {
 
     test("sin tokens no confirma nada", () => {
         assert.equal(confirmaPrime([], OCRService, UMBRAL), false);
+    });
+});
+
+describe("etiquetas de la tarjeta", () => {
+    test("la cifra pegada a la etiqueta se separa, también con la O leída como cero", () => {
+        const palabras = normalizeOCRWords({ words: [caja("5Owned", 0), caja("40wned", 300), caja("120WNED", 600)], imageW: 900 }, ctx);
+        assert.deepEqual(palabras.map((w) => w.text), ["5", "OWNED", "4", "0WNED", "12", "0WNED"]);
+    });
+
+    test("cada etiqueta va a la tarjeta cuyo nombre tiene más cerca", () => {
+        // Caliban real: el CRAFTED de la Forma caía en la ventana de Zephyr y la marcaba como forjada.
+        const zephyr = { text: "ZEPHYR", x: 360 }, forma = { text: "FORMA", x: 647 };
+        const ventana = [{ text: "4", x: 361 }, { text: "OWNED", x: 424 }, { text: "4", x: 578 }, { text: "CRAFTED", x: 646 }];
+        assert.deepEqual(palabrasDeSuTarjeta(ventana, zephyr, [zephyr, forma]).map((w) => w.text), ["4", "OWNED"]);
+        assert.deepEqual(palabrasDeSuTarjeta(ventana, zephyr, []).length, 4);
     });
 });

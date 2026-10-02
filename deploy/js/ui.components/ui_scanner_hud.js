@@ -4,6 +4,8 @@ import { escapeHTML } from "../utils/escape_html.js";
 import { exposeGlobals } from "../utils/global_registry.js";
 import { aplicaMotor, estadoMotor, MOTOR_PRECISO } from "../services/scanner/ocr_engine.service.js";
 import { avisaContexto } from "./ui_scanner_coach.js";
+import { mostrarPaneles, quitarPaneles } from "../services/desktop.service.js";
+import { panelKiosko } from "../utils/overlay_paneles.js";
 
 /**
  * Component for the Scanner HUD (status badges, counters, scroll guides).
@@ -52,37 +54,38 @@ export const ScannerHUD = {
                 this.setUIBadge(badge, sh.statusRelics, "#00e5ff", "rgba(0,229,255,0.3)", "rgba(0,229,255,0.1)");
             } else if (contextType === "REWARD") {
                 this.setUIBadge(badge, sh.statusReward, "#a0ff80", "rgba(160,255,128,0.3)", "rgba(160,255,128,0.08)");
+            } else if (contextType === "LOG_WAIT") {
+                this.setUIBadge(badge, sh.statusLogWait, "#8a93a0", "rgba(138,147,160,0.3)", "rgba(138,147,160,0.08)");
             }
         }
     },
 
-    /** Piezas apiladas a la venta en el kiosko; con la lista vacía el bloque se esconde. */
-    updateKioskSale(items) {
+    /** Lista de piezas del kiosko (las que conviene echar); con la lista vacía el bloque se esconde. */
+    updateKioskSale(items, rotulo = TEXTS[state.currentLang].scannerHUD.kioskForSale) {
         const panel = document.getElementById("kiosk-sale-panel");
         if (!panel) return;
-        const clave = JSON.stringify(items) + state.currentLang;
+        const clave = JSON.stringify(items) + rotulo;
         if (clave === this._ultimaVenta) return;
         this._ultimaVenta = clave;
+        const encima = panelKiosko(items, rotulo);
+        if (encima) mostrarPaneles("kiosko", [encima]);
+        else quitarPaneles("kiosko");
         panel.replaceChildren();
         panel.style.display = items.length ? "" : "none";
         if (!items.length) return;
         const titulo = document.createElement("div");
         titulo.className = "kiosk-title";
-        titulo.textContent = TEXTS[state.currentLang].scannerHUD.kioskForSale;
+        titulo.textContent = rotulo;
         panel.appendChild(titulo);
-        for (const { name, qty, ducats } of items) {
+        const span = (clase, texto) => Object.assign(document.createElement("span"), { className: clase, textContent: texto });
+        for (const { name, qty, ducats, plat, ratio } of items) {
             const linea = document.createElement("div");
             linea.className = "kiosk-line";
-            const nombre = document.createElement("span");
-            nombre.className = "kiosk-name";
-            nombre.textContent = `${qty}× ${name}`;
-            linea.appendChild(nombre);
-            if (ducats != null) {
-                const d = document.createElement("span");
-                d.className = "kiosk-ducats";
-                d.textContent = String(ducats);
-                linea.appendChild(d);
-            }
+            linea.appendChild(span("kiosk-name", `${qty}× ${name}`));
+            // Platino de UNA pieza y ducados por platino: lo que se deja de ganar por echarla.
+            if (plat != null) linea.appendChild(span("kiosk-plat", `${plat}p`));
+            if (ratio != null) linea.appendChild(span("kiosk-ratio", `${ratio === Infinity ? "∞" : ratio.toFixed(1)} d/pl`));
+            if (ducats != null) linea.appendChild(span("kiosk-ducats", String(ducats)));
             panel.appendChild(linea);
         }
     },

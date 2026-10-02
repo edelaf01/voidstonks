@@ -7304,6 +7304,14 @@ body[data-lang="en"] .header-guide-cta .lang-en {
   background: #00e5ff;
   box-shadow: 0 0 6px rgba(0, 229, 255, 0.6);
 }
+.duc-section-set .duc-section-dot {
+  background: #8a93a0;
+}
+.duc-keep-note {
+  display: block;
+  font-size: 0.72em;
+  color: #8a93a0;
+}
 .duc-section-count {
   padding: 1px 6px;
   border-radius: 999px;

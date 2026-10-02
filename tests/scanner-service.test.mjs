@@ -1438,6 +1438,19 @@ test("al elegir una carta tras ciclar, la otra se quita a la segunda lectura", a
   });
 });
 
+test("con los efectos del riven moviendo la carta, leer una sola no quita la otra hasta la cuarta vez", async () => {
+  await enPantallaDeCiclo(async ({ lee, muestra }) => {
+    await muestra(pantallaCiclo([150, 400]), CARTA_A, CARTA_B);
+    const variantes = [pantallaCiclo([150]), pantallaCiclo([150], { linea: true })];
+    for (let i = 0; i < 3; i++) {
+      await lee(variantes[i % 2], CARTA_A);
+      assert.ok(S.lastParsedR, `lectura ${i + 1}`);
+    }
+    await lee(variantes[1], CARTA_A);
+    assert.equal(S.lastParsedR, null);
+  });
+});
+
 // Si la carta elegida se lee MEJOR que antes (aquí recupera el negativo), esa lectura se muestra al
 // momento; pero la bajada a una carta sigue a medias y guardar ya la huella dejaba la otra puesta.
 test("al elegir la carta que se había leído a medias, se queda la lectura completa y la otra se quita", async () => {

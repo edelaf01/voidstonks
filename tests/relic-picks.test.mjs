@@ -9,7 +9,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { expectedPlatPerCrack, rankRelicPicks, tierOfRelic } from "../deploy/js/utils/inventory/relic_picks.js";
+import { expectedPlatPerCrack, rankRelicPicks, tierOfRelic, eraDominante, mejorRefinamiento } from "../deploy/js/utils/inventory/relic_picks.js";
 
 const RAD = { rare: 0.1, uncommon: 0.4, common: 0.5 };
 const SETS = {
@@ -210,4 +210,19 @@ test("los filtros de la vista por reliquia", async () => {
     const sinDatos = filterRelicPicks(
         [{ ...picks[2], ready: true }, picks[1]], { sortBy: "value" });
     assert.deepEqual(sinDatos.map((p) => p.relic), ["Meso B9", "Neo V10"]);
+});
+
+test("eraDominante: la era de la pestaña sale de la mayoría de reliquias leídas en la rejilla", () => {
+  assert.equal(eraDominante(["Lith A3", "Lith A4", "Lith A6", "Lith A7"]), "Lith");
+  assert.equal(eraDominante(["Axi A1", "Vanguard B2", "Axi C3", "Lith A1"]), "Axi", "una mal leída no la tumba");
+  assert.equal(eraDominante(["Lith A3", "Meso B1"]), null, "con dos no se decide");
+  assert.equal(eraDominante(["Lith A3", "Meso B1", "Neo C1", "Axi D1"]), null);
+  assert.equal(eraDominante([]), null);
+});
+
+test("mejorRefinamiento: el más barato que rinde casi lo mismo que el mejor", () => {
+  assert.equal(mejorRefinamiento({ Intact: 0.2, Exceptional: 0.25, Flawless: 0.3, Rad: 0.45 }), "Rad");
+  assert.equal(mejorRefinamiento({ Intact: 0.62, Exceptional: 0.6, Flawless: 0.57, Rad: 0.52 }), "Intact", "si solo te faltan comunes, refinar empeora");
+  assert.equal(mejorRefinamiento({ Intact: 0.40, Exceptional: 0.41, Flawless: 0.405, Rad: 0.415 }), "Intact", "ganar un punto no vale 100 vestigios");
+  assert.equal(mejorRefinamiento({}), null);
 });

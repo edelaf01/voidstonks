@@ -1,0 +1,617 @@
+/* Carcasa de escritorio (voidstonks.localhost o ?shell=desktop). Por debajo de 900 px manda la maqueta web. */
+html[data-shell="desktop"] {
+  --ds-bar: 48px;
+  --ds-side: 196px;
+  --ds-status: 26px;
+  --ds-inv: 0px;
+  --ds-fis: 0px;
+  --ds-line: #23262d;
+  --ds-chrome: #0e1014;
+  --ds-panel: #13161b;
+  --ds-ancho: 1200px;
+}
+
+html[data-shell="desktop"] body {
+  background: var(--ds-chrome);
+  background-image: none;
+}
+
+html[data-shell="desktop"] #void-traces-canvas,
+#ds-status,
+#ds-eelog,
+.ds-tools {
+  display: none;
+}
+
+/* Fuera del @media: los permisos se piden también con la ventana estrecha. */
+html[data-shell="desktop"] #ds-permisos {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.65);
+  z-index: 10000;
+}
+
+#ds-permisos .ds-permisos-caja {
+  width: min(520px, 100%);
+  max-height: 100%;
+  overflow-y: auto;
+  padding: 22px 24px;
+  background: #13161b;
+  border: 1px solid #23262d;
+  border-radius: 10px;
+  color: #c9d1d9;
+}
+
+#ds-permisos h2 {
+  margin: 0 0 6px;
+  font-size: 1.1rem;
+  color: #fff;
+}
+
+#ds-permisos .ds-permisos-intro {
+  margin: 0 0 16px;
+  font-size: 0.85rem;
+  color: #8a93a0;
+}
+
+#ds-permisos .ds-permiso {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 10px 0;
+  border-top: 1px solid #23262d;
+  cursor: pointer;
+}
+
+#ds-permisos .ds-permiso input {
+  margin-top: 3px;
+  accent-color: var(--wf-blue);
+}
+
+#ds-permisos .ds-permiso strong {
+  display: block;
+  color: #fff;
+  font-size: 0.92rem;
+}
+
+#ds-permisos .ds-permiso small {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.8rem;
+  color: #8a93a0;
+}
+
+#ds-permisos .ds-permisos-botones {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+#ds-permisos button {
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: 1px solid #23262d;
+  background: none;
+  color: #c9d1d9;
+  font: inherit;
+  cursor: pointer;
+}
+
+#ds-permisos .ds-permisos-guardar {
+  border-color: var(--wf-blue);
+  background: var(--wf-blue);
+  color: #000;
+  font-weight: 700;
+}
+
+#ds-permisos .ds-permisos-error {
+  margin: 10px 0 0;
+  color: var(--wf-error);
+  font-size: 0.85rem;
+}
+
+@media (min-width: 900px) {
+  html[data-shell="desktop"]:has(body:is(.theme-relic, .theme-set, .theme-bounties) #inventory-container.open) {
+    --ds-inv: 400px;
+  }
+
+  html[data-shell="desktop"]:has(#best-missions-container.open),
+  html[data-shell="desktop"]:has(#ds-eelog.open) {
+    --ds-fis: 300px;
+  }
+
+  html[data-shell="desktop"] body {
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  html[data-shell="desktop"] :is(.site-content, .site-footer, #mobile-scan-btn, #tab-fan, #tab-fan-overlay, .tab-more-btn) {
+    display: none !important;
+  }
+
+  html[data-shell="desktop"] .site-header {
+    position: fixed;
+    inset: 0 0 auto 0;
+    height: var(--ds-bar) !important;
+    padding: 0 14px !important;
+    background: var(--ds-chrome);
+    backdrop-filter: none;
+    border-bottom: 1px solid var(--ds-line) !important;
+  }
+
+  html[data-shell="desktop"] .header-title {
+    font-size: 1.15rem;
+  }
+
+  html[data-shell="desktop"] #main-card {
+    position: fixed !important;
+    top: var(--ds-bar) !important;
+    bottom: var(--ds-status) !important;
+    left: 0 !important;
+    right: var(--ds-fis) !important;
+    width: auto !important;
+    max-width: none;
+    /* El align-self: center de .card también alinea cajas fixed: sin esto mide lo que su contenido. */
+    align-self: stretch !important;
+    display: grid !important;
+    grid-template-columns: var(--ds-side) var(--ds-inv) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+    border: none;
+  }
+
+  html[data-shell="desktop"] #main-card > .card-top-bar {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    flex-direction: column;
+    background: var(--ds-chrome);
+    border-bottom: none;
+    border-right: 1px solid var(--ds-line);
+    overflow-y: auto;
+  }
+
+  html[data-shell="desktop"] .card-top-bar .tabs {
+    flex-direction: column;
+    flex-grow: 0;
+    padding: 8px 0;
+  }
+
+  html[data-shell="desktop"] .card-top-bar .tab-btn {
+    flex: none;
+    justify-content: flex-start;
+    gap: 10px;
+    padding: 9px 14px;
+    margin: 0;
+    font-size: 0.9em;
+    border-bottom: none;
+    border-left: 3px solid transparent;
+  }
+
+  html[data-shell="desktop"] .card-top-bar .tab-btn.active {
+    border-left-color: var(--active-theme-color);
+  }
+
+  html[data-shell="desktop"] .ds-tools {
+    display: flex;
+    flex-direction: column;
+    margin-top: auto;
+    padding: 8px 0;
+    border-top: 1px solid var(--ds-line);
+  }
+
+  html[data-shell="desktop"] .ds-svg {
+    padding: 3px;
+    color: var(--wf-blue);
+  }
+
+  html[data-shell="desktop"]:has(#inventory-container.open) #ds-btn-inv,
+  html[data-shell="desktop"]:has(#best-missions-container.open) #ds-btn-fissures,
+  html[data-shell="desktop"]:has(#ds-eelog.open) #ds-btn-eelog {
+    color: #fff;
+    background: var(--ds-panel);
+    border-left-color: var(--wf-blue);
+  }
+
+  html[data-shell="desktop"] body:not(:is(.theme-relic, .theme-set, .theme-bounties)) #ds-btn-inv {
+    display: none;
+  }
+
+  html[data-shell="desktop"] #main-card > .content-area {
+    grid-column: 3;
+    grid-row: 1;
+    padding: 20px 28px;
+  }
+
+  html[data-shell="desktop"] #main-card > #footer-relic {
+    grid-column: 3;
+    grid-row: 2;
+  }
+
+  html[data-shell="desktop"] #main-card > .content-area > * {
+    max-width: var(--ds-ancho);
+    margin-inline: auto;
+  }
+
+  html[data-shell="desktop"] #main-card > .content-area > [id^="mode-"] {
+    width: 100%;
+  }
+
+  html[data-shell="desktop"] #main-card > #footer-relic {
+    padding: 12px 28px;
+    border-top-width: 2px;
+  }
+
+  html[data-shell="desktop"] #footer-relic .message-display {
+    display: inline-block;
+    vertical-align: middle;
+    margin: 4px 28px 4px 0;
+    font-size: 1.2em;
+  }
+
+  html[data-shell="desktop"] #footer-relic .footer-actions {
+    display: inline-flex;
+    vertical-align: middle;
+  }
+
+  html[data-shell="desktop"] #footer-relic .copy-btn {
+    padding: 10px 26px;
+    font-size: 1em;
+  }
+
+  html[data-shell="desktop"] #mode-relic {
+    display: grid;
+    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+    column-gap: 16px;
+    align-items: end;
+  }
+
+  html[data-shell="desktop"] #mode-relic > * {
+    grid-column: 1 / -1;
+  }
+
+  html[data-shell="desktop"] #mode-relic > .form-group:first-child {
+    grid-column: 1;
+    margin-bottom: 0;
+  }
+
+  html[data-shell="desktop"] #mode-relic > #relic-controls-wrapper {
+    grid-column: 2;
+    margin-top: 0 !important;
+    padding-top: 0 !important;
+    border-top: none !important;
+  }
+
+  html[data-shell="desktop"] #mode-relic .farm-routes .fr-body {
+    max-height: max(320px, calc(100vh - 360px));
+  }
+
+  html[data-shell="desktop"] #main-card > .content-area > #mode-lfg {
+    max-width: 960px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    column-gap: 16px;
+    align-items: start;
+  }
+
+  html[data-shell="desktop"] #mode-lfg > * {
+    grid-column: 1 / -1;
+  }
+
+  html[data-shell="desktop"] #mode-lfg > #lfg-presets-area {
+    grid-column: 1;
+  }
+
+  html[data-shell="desktop"] #mode-lfg > #trade-presets-area {
+    grid-column: 2;
+  }
+
+  html[data-shell="desktop"] #mode-lfg > :is(#lfg-presets-area, #trade-presets-area) {
+    align-self: stretch;
+  }
+
+  html[data-shell="desktop"] #mode-lfg .lfg-grid {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  }
+
+  html[data-shell="desktop"] #mode-riven .index-controls {
+    flex-wrap: nowrap !important;
+  }
+
+  html[data-shell="desktop"] #indexSearchInput {
+    flex: 0 1 220px;
+    min-width: 140px;
+  }
+
+  html[data-shell="desktop"] #mode-riven .index-controls > div {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  html[data-shell="desktop"] #index-filters-bar {
+    flex: 1 1 auto;
+    flex-wrap: nowrap;
+    min-width: 0;
+  }
+
+  html[data-shell="desktop"] #index-filters-bar .riven-index-filter {
+    width: auto;
+    flex: 1 1 0;
+    min-width: 110px;
+  }
+
+  html[data-shell="desktop"] #index-filters-bar .riven-index-price {
+    flex: 0 0 96px;
+  }
+
+  html[data-shell="desktop"] #index-filters-bar .riven-index-check {
+    white-space: nowrap;
+  }
+
+  html[data-shell="desktop"] #riven-preview-panel .empty-showcase-container {
+    padding: 0 !important;
+  }
+
+  html[data-shell="desktop"] #riven-preview-panel .empty-showcase-container > div:has(> .showcase-card) {
+    flex-wrap: nowrap !important;
+    gap: 10px !important;
+  }
+
+  html[data-shell="desktop"] .site-header .header-controls,
+  html[data-shell="desktop"] .site-header .scanner-wrapper {
+    gap: 8px;
+  }
+
+  html[data-shell="desktop"] .site-header :is(.header-guide-cta, .scan-history-btn, .scanner-toggle-btn, .lang-trigger) {
+    height: 32px;
+    box-sizing: border-box;
+    min-width: 0;
+    padding: 0 12px;
+    border-radius: 6px;
+    font: 700 0.74rem "Segoe UI", system-ui, sans-serif;
+    letter-spacing: 0.05em;
+    box-shadow: none;
+    transform: none;
+  }
+
+  html[data-shell="desktop"] .site-header .scanner-toggle-btn .toggle-content {
+    font: inherit;
+    gap: 8px;
+  }
+
+  html[data-shell="desktop"] .site-header .scanner-toggle-btn:not(.active) {
+    background: rgba(255, 255, 255, 0.03);
+    border-color: rgba(255, 255, 255, 0.14);
+  }
+
+  html[data-shell="desktop"] .site-header .scanner-info-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    background: rgba(0, 229, 255, 0.06);
+    border-color: rgba(0, 229, 255, 0.35);
+  }
+
+  html[data-shell="desktop"] #mode-set .ticker-grid-expanded {
+    max-width: 900px;
+    margin-inline: auto;
+  }
+
+  html[data-shell="desktop"] #inventory-container .panel-main-header-refined {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 10px;
+    padding: 10px 12px;
+  }
+
+  html[data-shell="desktop"] #inventory-container .panel-main-header-refined .header-center {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    justify-self: stretch;
+    justify-content: space-between;
+  }
+
+  html[data-shell="desktop"] #inventory-container .panel-main-header-refined .inv-action-btn {
+    justify-self: stretch;
+  }
+
+  html[data-shell="desktop"] :is(#inventory-container, #best-missions-container) {
+    position: fixed !important;
+    top: var(--ds-bar) !important;
+    bottom: var(--ds-status) !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    max-width: none !important;
+    transform: none !important;
+    transition: none !important;
+    animation: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    background: var(--ds-panel) !important;
+    overflow: hidden !important;
+  }
+
+  html[data-shell="desktop"] #inventory-container {
+    left: var(--ds-side) !important;
+    width: 400px !important;
+    border-right: 1px solid var(--ds-line) !important;
+  }
+
+  html[data-shell="desktop"] #best-missions-container {
+    right: 0 !important;
+    width: 300px !important;
+    border-left: 1px solid var(--ds-line) !important;
+  }
+
+  html[data-shell="desktop"] #inventory-container #inv-toggle-btn,
+  html[data-shell="desktop"] #best-missions-container #mission-toggle-btn {
+    display: none !important;
+  }
+
+  html[data-shell="desktop"] :is(#inventory-container, #best-missions-container):not(.open),
+  html[data-shell="desktop"] body:not(:is(.theme-relic, .theme-set, .theme-bounties)) #inventory-container {
+    display: none !important;
+  }
+
+  html[data-shell="desktop"] #ds-eelog.open {
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    top: var(--ds-bar);
+    bottom: var(--ds-status);
+    right: 0;
+    width: 300px;
+    background: var(--ds-panel);
+    border-left: 1px solid var(--ds-line);
+    font-size: 0.8rem;
+    color: #c9d1d9;
+    z-index: 20;
+  }
+
+  #ds-eelog .ds-eelog-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--ds-line);
+    color: var(--wf-blue);
+  }
+
+  #ds-eelog .ds-eelog-estado {
+    font-size: 0.75rem;
+    color: #8a93a0;
+  }
+
+  #ds-eelog .ds-eelog-estado[data-estado="leyendo"] {
+    color: var(--wf-green);
+  }
+
+  #ds-eelog .ds-eelog-cerrar {
+    margin-left: auto;
+    background: none;
+    border: none;
+    color: #8a93a0;
+    font-size: 1.2rem;
+    cursor: pointer;
+  }
+
+  #ds-eelog .ds-eelog-ruta {
+    padding: 6px 14px;
+    font-size: 0.7rem;
+    color: #6b7380;
+    overflow-wrap: anywhere;
+  }
+
+  #ds-eelog .ds-eelog-ahora {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 6px 12px;
+    margin: 0;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--ds-line);
+  }
+
+  #ds-eelog .ds-eelog-ahora dt {
+    color: #8a93a0;
+  }
+
+  #ds-eelog .ds-eelog-ahora dd {
+    margin: 0;
+    color: #fff;
+  }
+
+  #ds-eelog .ds-eelog-ctx {
+    margin-left: 6px;
+    padding: 0 5px;
+    font-size: 0.65rem;
+    color: #000;
+    background: var(--wf-blue);
+    border-radius: 3px;
+  }
+
+  #ds-eelog .ds-eelog-eventos {
+    flex: 1;
+    overflow-y: auto;
+    margin: 0;
+    padding: 6px 0;
+    list-style: none;
+  }
+
+  #ds-eelog .ds-eelog-eventos li {
+    display: flex;
+    gap: 10px;
+    padding: 4px 14px;
+  }
+
+  #ds-eelog .ds-eelog-eventos time {
+    flex-shrink: 0;
+    width: 3.2em;
+    color: #6b7380;
+    font-variant-numeric: tabular-nums;
+  }
+
+  #ds-eelog .ds-eelog-eventos li[data-tipo="reliquia"] span {
+    color: var(--wf-orokin);
+  }
+
+  html[data-shell="desktop"] #ds-status {
+    display: flex;
+    position: fixed;
+    inset: auto 0 0 0;
+    height: var(--ds-status);
+    align-items: center;
+    gap: 16px;
+    padding: 0 12px;
+    font-size: 0.75rem;
+    color: #8a93a0;
+    background: var(--ds-chrome);
+    border-top: 1px solid var(--ds-line);
+    z-index: var(--z-footer);
+  }
+
+  #ds-status .ds-net {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  #ds-status .ds-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--wf-green);
+  }
+
+  #ds-status.is-offline .ds-dot {
+    background: var(--wf-error);
+  }
+
+  #ds-status .ds-link {
+    color: inherit;
+    background: none;
+    border: none;
+    padding: 0;
+    font: inherit;
+    text-decoration: none;
+    cursor: pointer;
+  }
+
+  #ds-status .ds-link:hover {
+    color: #fff;
+  }
+
+  #ds-status .ds-credit {
+    margin-left: auto;
+    opacity: 0.7;
+  }
+}
+
+@media (min-width: 2200px) {
+  html[data-shell="desktop"] {
+    --ds-ancho: 1440px;
+  }
+}

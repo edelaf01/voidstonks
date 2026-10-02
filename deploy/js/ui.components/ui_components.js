@@ -7,6 +7,7 @@ import {
 import { state } from "../state.js";
 import { exposeGlobals } from "../utils/global_registry.js";
 import { isTouchPointer } from "../utils/tap.js";
+import { posicionFuera, DEBAJO_PRIMERO, AL_LADO_PRIMERO } from "../utils/tooltip_position.js";
 import { getRelicDropTooltip } from "./ui_tooltips.js";
 
 export function preloadCriticalAssets() {
@@ -244,20 +245,9 @@ export function initGlobalTooltipSystem() {
     tooltipEl.style.top = `${top}px`;
   };
 
-  const positionMegaTooltip = (target) => {
-    const rect = target.getBoundingClientRect();
-    const tWidth = tooltipEl.offsetWidth;
-    const tHeight = tooltipEl.offsetHeight;
-    const gap = 5;
-
-    let left = rect.right + gap;
-    let top = rect.top;
-
-    if (left + tWidth > globalThis.innerWidth) left = rect.left - tWidth - gap;
-    if (top + tHeight > globalThis.innerHeight) top = rect.bottom - tHeight;
-    if (top < 10) top = 10;
-    if (left < 10) left = 10;
-
+  const colocaFueraDe = (target, orden) => {
+    const vista = { ancho: globalThis.innerWidth, alto: globalThis.innerHeight };
+    const { left, top } = posicionFuera(target.getBoundingClientRect(), tooltipEl.offsetWidth, tooltipEl.offsetHeight, vista, orden);
     tooltipEl.style.left = `${left}px`;
     tooltipEl.style.top = `${top}px`;
   };
@@ -290,9 +280,12 @@ export function initGlobalTooltipSystem() {
     tooltipEl.classList.remove("hidden");
 
     if (currentMode === "mega") {
-      positionMegaTooltip(target);
-    } else {
+      colocaFueraDe(target, AL_LADO_PRIMERO);
+    } else if (isTouchPointer() && e.detail !== 0) {
       moveSimpleTooltip(e);
+    } else {
+      const enBarraLateral = document.documentElement?.dataset.shell === "desktop" && target.closest(".card-top-bar");
+      colocaFueraDe(target, enBarraLateral ? AL_LADO_PRIMERO : DEBAJO_PRIMERO);
     }
   };
 
@@ -329,7 +322,7 @@ export function initGlobalTooltipSystem() {
   });
 
   document.addEventListener("mousemove", (e) => {
-    if (currentMode === "simple" && !tooltipEl.classList.contains("hidden")) {
+    if (currentMode === "simple" && isTouchPointer() && !tooltipEl.classList.contains("hidden")) {
       moveSimpleTooltip(e);
     }
   });

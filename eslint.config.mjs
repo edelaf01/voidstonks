@@ -16,6 +16,8 @@ export default [
             "dist/**",
             "node_modules/**",
             "antiguo/**",
+            "desktop/electron/node_modules/**",
+            "desktop/electron/out/**",
         ],
     },
     {
@@ -131,6 +133,35 @@ export default [
             "no-undef": "error",
             "no-unused-vars": ["warn", { args: "none", ignoreRestSiblings: true }],
             "no-var": "error",
+        },
+    },
+    {
+        files: ["desktop/electron/src/**/*.{js,cjs}"],
+        languageOptions: {
+            ecmaVersion: "latest",
+            sourceType: "module",
+            globals: { ...globals.node },
+        },
+        rules: {
+            "no-undef": "error",
+            "no-unused-vars": ["warn", { args: "none", ignoreRestSiblings: true }],
+            "no-var": "error",
+        },
+    },
+    {
+        files: ["desktop/electron/src/**/*.cjs"],
+        languageOptions: { sourceType: "commonjs" },
+    },
+    {
+        files: ["desktop/electron/overlay/**/*.js"],
+        languageOptions: {
+            ecmaVersion: "latest",
+            sourceType: "module",
+            globals: { ...globals.browser },
+        },
+        rules: {
+            "no-undef": "error",
+            "no-unused-vars": ["warn", { args: "none", ignoreRestSiblings: true }],
         },
     },
 ];

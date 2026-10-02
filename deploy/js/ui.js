@@ -278,8 +278,9 @@ function updateDucatFilterLabels(t) {
   setText("ducat-owned-label", d.ownedOnly);
   // El chip solo mira TU inventario: apagarlo añade las piezas a 0, nunca el catálogo. Sin
   // decirlo, el rótulo prometía un complemento que la vista no puede dar.
-  const ownedChip = document.getElementById("ducat-owned-chip");
-  if (ownedChip && d.ownedOnlyTitle) ownedChip.dataset.tooltip = d.ownedOnlyTitle;
+  setTooltip("ducat-owned-chip", d.ownedOnlyTitle);
+  setText("ducat-sets-label", d.keepSets);
+  setTooltip("ducat-sets-chip", d.keepSetsTitle);
   setText("ducat-rule-label", d.rule);
 }
 

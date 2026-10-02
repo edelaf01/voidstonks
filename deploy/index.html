@@ -5,6 +5,10 @@
   <meta charset="UTF-8" />
   <title>VoidStonks - Warframe Market Tool & Farm Optimizer</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script>
+    if (location.hostname === "voidstonks.localhost" || new URLSearchParams(location.search).get("shell") === "desktop")
+      document.documentElement.dataset.shell = "desktop";
+  </script>
 
   <!-- Google AdSense -->
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4559331797280612"
@@ -93,6 +97,7 @@
   <link rel="stylesheet" href="css/components/orders.css?v=1.6" />
   <link rel="stylesheet" href="css/components/lich-weapons.css?v=1.0" />
   <link rel="stylesheet" href="css/components/ui-kit.css?v=1.0" />
+  <link rel="stylesheet" href="css/desktop.css?v=1.0" />
   <link rel="icon" type="image/png" href="https://wiki.warframe.com/images/VoidTraces.png" />
 
   <!-- Tesseract se carga BAJO DEMANDA al abrir el escáner (OCRRepository.warmUp), y OpenCV
@@ -310,8 +315,8 @@
            una pantalla de pausa; lo rellena ui.components/ui_squad_run.js. -->
       <div id="squad-run-panel" class="squad-panel" style="display: none"></div>
 
-      <!-- Kiosko de ducados: las piezas apiladas a la venta en el panel derecho del juego.
-           Lo rellena ScannerHUD.updateKioskSale(); vacío y oculto fuera del kiosko. -->
+      <!-- Kiosko de ducados: las piezas que conviene echar. Lo rellena ScannerHUD.updateKioskSale();
+           vacío y oculto fuera del kiosko. -->
       <div id="kiosk-sale-panel" style="display: none"></div>
 
       <!-- Trading Post: lo que das y lo que recibes. Lo rellena ScannerHUD.updateTrade(). -->
@@ -789,7 +794,11 @@
         </button>
         <button id="btn-orders" class="tab-btn orders is-wip" onclick="switchTab('orders')"
           data-tooltip="Esperando a que warframe.market habilite un inicio de sesión seguro (OAuth) para apps externas.">
-          <span class="tab-icon-img" aria-hidden="true">📋</span>
+          <svg class="tab-icon-img tab-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="5" y="4" width="14" height="17" rx="2" />
+            <path d="M9 4V3h6v1M9 10h6M9 14h6M9 18h3" />
+          </svg>
           <span id="tab-orders-text">Mis órdenes</span>
           <span class="tab-wip-badge" aria-hidden="true">WIP</span>
         </button>
@@ -1389,6 +1398,12 @@
               onclick="globalThis.toggleDucatOwned()" aria-pressed="true">
               <input type="checkbox" id="ducat-owned-only" checked hidden />
               <span id="ducat-owned-label"></span>
+            </button>
+
+            <button type="button" id="ducat-sets-chip" class="ducat-chip active"
+              onclick="globalThis.toggleDucatSets()" aria-pressed="true">
+              <input type="checkbox" id="ducat-keep-sets" checked hidden />
+              <span id="ducat-sets-label"></span>
             </button>
 
             <div class="ducat-threshold-wrap">

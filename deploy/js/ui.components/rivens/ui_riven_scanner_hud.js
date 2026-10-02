@@ -4,6 +4,8 @@ import { escapeHTML } from "../ui_components.js";
 import { consejoCicloHtml, NEG_INOFENSIVOS } from "./ui_riven_cycling.js";
 import { claveStat, tipoDeArma } from "../../utils/rivens/riven_cycling.js";
 import { statsBuscadosDelArma } from "../../services/rivens/riven_appraisal.service.js";
+import { mostrarPaneles, quitarPaneles } from "../../services/desktop.service.js";
+import { panelRiven, panelRivenComparacion } from "../../utils/overlay_paneles.js";
 
 const AVISO_BANDA = {
     trash: {
@@ -136,6 +138,7 @@ export const RivenScannerHUD = {
         if (this.container) {
             this.container.style.display = "none";
         }
+        quitarPaneles("riven");
         this.lastL = null;
         this.lastR = null;
         this.lastCapture = null;
@@ -308,10 +311,12 @@ export const RivenScannerHUD = {
         let heroHtml = "";
         let metricsHtml = "";
         let gradeStats = null;  // grade por stat (popularidad data-driven por arma)
+        const espejo = { arma: riven.weaponName };
 
         if (appraisal) {
             const tiers = appraisal.tiers;
             const prediction = appraisal.prediction;
+            Object.assign(espejo, { valor: prediction.estimatedValue, min: prediction.suggestedMin, max: prediction.suggestedMax });
 
             const platIcon = '<img src="assets/relic_contents/platinum.webp" style="width: 14px; vertical-align: middle; margin-bottom: 2px;">';
             let mlChip = "";
@@ -341,6 +346,7 @@ export const RivenScannerHUD = {
                 // en ESTA arma, cada negativa por su daño. Grado S/A/B/C/F data-driven.
                 const _g = await ML.gradeRiven(riven.weaponName, riven.stats);
                 gradeStats = _g.stats;
+                Object.assign(espejo, { grado: _g.grade, score: _g.score });
                 const _gc = _g.grade === "S" ? "#ffd700" : _g.grade === "A" ? "#ff8c00" : _g.grade === "B" ? "#00e5ff" : _g.grade === "C" ? "#a879ec" : "#ff4d4d";
                 gradeHero = `
                     <div class="hud-hero-grade" style="--gc:${_gc};" title="${isEs ? "Grado (arma)" : "Grade (weapon)"}">
@@ -497,6 +503,21 @@ export const RivenScannerHUD = {
                 </div>
             </div>
         `;
+        mostrarPaneles("riven", [panelRiven({
+            ...espejo, stats: this._statsOverlay(riven, meta, calculateRivenGrade),
+            rotulos: { valor: isEs ? "VALOR" : "VALUE", grado: isEs ? "GRADO" : "GRADE" },
+        })]);
+    },
+
+    // Los stats como los pinta el HUD (signo de la carta y grado del roll), para el overlay del juego.
+    _statsOverlay(roll, meta, calculateRivenGrade) {
+        const posCount = roll.stats.filter((x) => x.isPositive).length;
+        const hasNeg = roll.stats.some((x) => !x.isPositive);
+        return roll.stats.map((s) => {
+            const prefijo = (s.isPositive !== /^recoil$/i.test(s.name)) ? "+" : "-";
+            const g = meta ? calculateRivenGrade(meta, s.name, s.value, !s.isPositive, posCount, hasNeg) : null;
+            return { texto: `${prefijo}${s.value}% ${s.name}`, positivo: s.isPositive, grado: g?.grade || null };
+        });
     },
 
     /**
@@ -627,6 +648,14 @@ export const RivenScannerHUD = {
                 </div>
             </div>
         `;
+        mostrarPaneles("riven", [panelRivenComparacion({
+            arma: rollA.weaponName, ganador: winIdx,
+            tiradas: [
+                { rotulo: t.current, precio: comparison.priceA, score: comparison.scoreA, stats: this._statsOverlay(rollA, meta, calculateRivenGrade) },
+                { rotulo: t.new, precio: comparison.priceB, score: comparison.scoreB, stats: this._statsOverlay(rollB, meta, calculateRivenGrade) },
+            ],
+            rotulos: { mejor: t.verdictBetter },
+        })]);
     },
 
     /**
