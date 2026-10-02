@@ -1,45 +1,44 @@
 # VoidStonks Desktop
 
-The same app as the website, in its own window, built with Tauri. It loads `../deploy` as it
-is, so the app itself has no separate build. For now the Rust side only opens the window.
+The same app as the website in its own window, built with Electron. It adds what a browser
+tab can't do: copying to the clipboard while the game has focus, following the game's
+`EE.log`, and panels drawn over the Warframe window.
 
-It comes as an AppImage, `.deb` or `.rpm` on Linux, and as an `.exe` or `.msi` installer on
-Windows.
+## How it works
 
-## Getting the installers
+- The main process serves the app at `http://voidstonks.localhost:47823` (the next free port up
+  to 47830). Same origin as before, so the WFM account features stay off, as on any other
+  non-local origin.
+- Native features go through `src/preload.cjs` (`window.voidstonksNativo`). The web app talks to
+  it from `deploy/js/repositories/launcher.repository.js`. Each feature needs the user's
+  permission, stored in `permisos.json` in the app's data folder.
+- The overlay is one transparent, click-through window over the game. It draws the panels the
+  app sends with HTML and CSS (`overlay/`). On Windows it stays on top with the game in
+  borderless mode. On Linux the app runs on XWayland and the window bypasses the window
+  manager, so it also shows over a fullscreen game.
+- `koffi` finds the game window: `user32` on Windows, `libX11` on Linux.
 
-The easy way is GitHub Actions. Push a tag like `desktop-v2.7.0`, or run **Build Desktop** by
-hand from the Actions tab, and the installers for Linux and Windows show up as artifacts of
-that run.
-
-## Building it yourself
-
-Tauri only builds for the system you're on, so Linux gives you the Linux packages and Windows
-the Windows ones.
+## Running it
 
 ```bash
-cd desktop
-./check-requirements.sh   # tells you what's missing and how to install it
+cd desktop/electron
 npm install
-npm run tauri dev         # opens the app so you can try it
-npm run tauri build       # installers end up in src-tauri/target/release/bundle/
+npm start                 # serves ../../deploy as it is
 ```
 
-On Fedora 44 or newer, export `APPIMAGE_EXTRACT_AND_RUN=1 NO_STRIP=1` before `tauri build`,
-or the AppImage step fails with `failed to run linuxdeploy`. On an atomic Fedora (Bazzite,
-Silverblue, Kinoite) build inside a distrobox with the packages `check-requirements.sh` asks
-for plus `xdg-utils`, and pass `--bundles appimage`.
+`VOIDSTONKS_DIR` serves another folder and `VOIDSTONKS_EELOG` forces the log path. F12 opens
+the developer tools. If `npm start` prints a Node.js error about `electron` exports, unset
+`ELECTRON_RUN_AS_NODE` (some editors set it in their terminals).
 
-A failed build deletes the previous AppImage, so copy the one you want to keep out of
-`target/` first.
+## Building
 
-## Known issues
+GitHub Actions builds both installers on every push to `main` that touches the app (workflow
+**Build Desktop**): an NSIS `.exe` for Windows and an `AppImage` for Linux, as artifacts of the
+run. To build locally:
 
-- On Wayland, screen sharing for the scanner needs `xdg-desktop-portal` and your desktop's
-  backend (`-gnome`, `-kde`…). On X11 it usually just works.
-- The content security policy is off (`csp: null`). With it on, Tauri's nonce disables the
-  inline `onclick` handlers in `index.html` and nothing responds to clicks. It can come back
-  once those handlers move to `addEventListener`.
-- The AppImage prints `GStreamer element appsink not found` when it starts. If the scanner
-  preview fails, install `gstreamer1-plugins-base` and `gstreamer1-plugins-good` where you
-  build and rebuild.
+```bash
+node scripts-actu/build-dist.mjs          # from the repo root: minified app in dist/
+cd desktop/electron && npx electron-builder --linux   # or --win, on Windows
+```
+
+Tests for the main process modules live in `tests/electron-escritorio.test.mjs`.

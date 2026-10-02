@@ -1,0 +1,220 @@
+:root {
+  --fondo: rgba(10, 15, 20, 0.96);
+  --borde: rgba(255, 255, 255, 0.2);
+  --oro: #c5a856;
+  --cian: #00e5ff;
+  --verde: #00ff78;
+  --morado: #a29bfe;
+  color-scheme: dark;
+}
+
+html,
+body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: transparent;
+  font-family: "Segoe UI", system-ui, "Noto Sans", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  pointer-events: none;
+}
+
+#capa,
+section {
+  position: absolute;
+  inset: 0;
+}
+
+.panel {
+  position: absolute;
+  left: 0;
+  top: 0;
+  box-sizing: border-box;
+  width: max-content;
+  max-width: 34vw;
+  display: flex;
+  flex-direction: column;
+  gap: 0.44rem;
+  padding: 0.81rem 0.88rem 0.88rem;
+  background: var(--fondo);
+  border: 1px solid var(--borde);
+  border-radius: 0.88rem;
+  box-shadow: 0 0.6rem 2.2rem rgba(0, 0, 0, 0.85);
+  color: #fff;
+  visibility: hidden;
+}
+
+.panel.listo {
+  visibility: visible;
+}
+
+.panel.borde-valor {
+  border: 2px solid var(--verde);
+  box-shadow: 0 0 1.4rem rgba(0, 255, 120, 0.35), 0 0.6rem 2.2rem rgba(0, 0, 0, 0.85);
+}
+
+.panel.borde-pl {
+  border: 2px solid var(--oro);
+  box-shadow: 0 0 1.25rem rgba(212, 175, 55, 0.3), 0 0.6rem 2.2rem rgba(0, 0, 0, 0.85);
+}
+
+.panel.borde-duc {
+  border: 2px solid var(--cian);
+  box-shadow: 0 0 1.25rem rgba(0, 229, 255, 0.3), 0 0.6rem 2.2rem rgba(0, 0, 0, 0.85);
+}
+
+.panel.borde-set {
+  border: 2px solid var(--morado);
+  box-shadow: 0 0 1.25rem rgba(162, 155, 254, 0.3), 0 0.6rem 2.2rem rgba(0, 0, 0, 0.85);
+}
+
+.titulo {
+  font-size: 0.875rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.3rem;
+}
+
+.chip {
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  padding: 0.14rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+}
+
+.chip-valor {
+  font-size: 0.95rem;
+  padding: 0.25rem 0.8rem;
+  background: var(--verde);
+  color: #000;
+  box-shadow: 0 0 0.9rem rgba(0, 255, 120, 0.55);
+}
+
+.chip-valor-justo {
+  font-size: 0.95rem;
+  padding: 0.25rem 0.8rem;
+  color: var(--verde);
+  border-color: rgba(0, 255, 120, 0.5);
+}
+
+.chip-set {
+  background: var(--morado);
+  border-color: var(--morado);
+  color: #000;
+}
+
+.chip-set-cerca {
+  color: var(--morado);
+  background: rgba(162, 155, 254, 0.1);
+  border-color: rgba(162, 155, 254, 0.45);
+}
+
+.chip-pl {
+  color: var(--oro);
+  background: rgba(212, 175, 55, 0.12);
+  border-color: rgba(212, 175, 55, 0.45);
+}
+
+.chip-duc {
+  color: var(--cian);
+  background: rgba(0, 229, 255, 0.1);
+  border-color: rgba(0, 229, 255, 0.4);
+}
+
+.estado-fila {
+  display: flex;
+  justify-content: center;
+}
+
+.estado {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  padding: 0.14rem 0.44rem;
+  border: 1px solid currentColor;
+  border-radius: 0.25rem;
+}
+
+.separador {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.precio {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  font-size: 1.44rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.precio span {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.precio img {
+  width: 1.1em;
+  height: 1.1em;
+  object-fit: contain;
+}
+
+.precio .plat { color: var(--oro); }
+.precio .duc { color: var(--cian); }
+
+.lista {
+  display: grid;
+  column-gap: 0.69rem;
+  row-gap: 0.2rem;
+  font-size: 0.94rem;
+  line-height: 1.25;
+}
+
+.lista .nombre {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.lista .dato {
+  text-align: right;
+  white-space: nowrap;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.tono-blanco { color: #fff; }
+.tono-gris { color: #8a93a0; }
+.tono-cian { color: var(--cian); }
+.tono-oro { color: var(--oro); }
+.tono-ducado { color: #ddaa38; }
+.tono-verde { color: var(--verde); }
+.tono-morado { color: var(--morado); }
+.tono-naranja { color: #e0932f; }
+.tono-apagado { color: #888; }
+.tono-rojo { color: #ff6b6b; }
+.tono-gradoS { color: #ffd700; }
+.tono-gradoA { color: #ff8c00; }
+.tono-gradoB { color: var(--cian); }
+.tono-gradoC { color: #a879ec; }
+.tono-gradoF { color: #ff4d4d; }

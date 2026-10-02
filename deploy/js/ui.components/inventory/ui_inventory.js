@@ -9,6 +9,7 @@ import { ducatRatio, formatDucatRatio } from "./ui_ducanator.js";
 import { inventorySignature } from "../../utils/inventory/inventory_signature.js";
 import { goalMetaHtml, renderInvGoalChips, relicRuns, compareByGoalSets } from "./ui_inventory_goals.js";
 import { calculateRelicValue } from "../../services/inventory/relics.service.js";
+import { carcasaActiva } from "../../utils/shell.js";
 import {
   renderPrimeInventory,
   modifyPrimePart,
@@ -254,8 +255,7 @@ export function selectRelicFromInv(name) {
   if (input) input.value = name;
 
   globalThis.switchTab("relic");
-  // close directly, not toggle: relic chips also show in routes panel with inventory closed
-  document.getElementById("inventory-container")?.classList.remove("open");
+  if (!carcasaActiva()) document.getElementById("inventory-container")?.classList.remove("open");
   input?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   manualRelicUpdate();
   trackBestSetForRelic(name);

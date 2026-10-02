@@ -9,13 +9,16 @@ import { corrige56 } from "../../utils/vision/relic_digit_56.js";
 import { VisionService } from "./vision.service.js";
 import { OCRService } from "./ocr.service.js";
 import { motorActivo, MOTOR_PRECISO } from "./ocr_engine.service.js";
+import { tierOfRelic, eraDominante } from "../../utils/inventory/relic_picks.js";
 
 const TOLERANCIA_BASE = 6;
 const TOPE_SIN_NOVEDAD = 3;
 
 export const RelicScreenService = {
     onApplied: null,
+    onEra: null,
     lastTrackedRelic: "",
+    eraRejilla: null,
     lastGridHash: null,
     lecturasSinNovedad: 0,
     lastSelHash: null,
@@ -61,6 +64,8 @@ export const RelicScreenService = {
         if (elegida) { this.reliquiaElegida = relic; this.huboRecompensaPrime = false; }
         if (relic === this.lastTrackedRelic) return false;
         this.lastTrackedRelic = relic;
+        const era = tierOfRelic(relic);
+        if (era) this.onEra?.(era.charAt(0).toUpperCase() + era.slice(1).toLowerCase());
         if (globalThis.showTrackConfirm) globalThis.showTrackConfirm(relic, texto);
         return true;
     },
@@ -106,6 +111,11 @@ export const RelicScreenService = {
             return r.nombre;
         };
         const read = parseRelicGrid(palabras, { matchRelic, trace: traza });
+        const era = eraDominante(read.map((r) => r.name));
+        if (era && era !== this.eraRejilla) {
+            this.eraRejilla = era;
+            this.onEra?.(era);
+        }
         console.log(`[RELICS] ${read.length} de ${traza.nombres} nombres · contadores ${traza.contadoresConCasilla}/${traza.candidatosContador}`,
             traza.perdidas);
         const novedad = read.some(({ name, count }) => this.applied.get(name) !== count);
@@ -148,6 +158,7 @@ export const RelicScreenService = {
         this.lastSelHash = null;
         this._tituloT = 0;
         this.lastTrackedRelic = "";
+        this.eraRejilla = null;
         this.reliquiaElegida = null;
         this.huboRecompensaPrime = false;
     },
