@@ -1,0 +1,65 @@
+{
+  "name": "voidstonks-desktop",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --publish never"
+  },
+  "dependencies": {
+    "koffi": "^3.3.2"
+  },
+  "devDependencies": {
+    "electron": "^44.5.1",
+    "electron-builder": "^26.15.3"
+  },
+  "description": "VoidStonks de escritorio: la app con su propio Chromium, overlay encima del juego y acceso al EE.log.",
+  "author": "VoidStonks",
+  "build": {
+    "appId": "com.voidstonks.app",
+    "productName": "VoidStonks",
+    "directories": {
+      "output": "out",
+      "buildResources": "build"
+    },
+    "files": [
+      "src/**",
+      "overlay/**",
+      "build/icon.png",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../../dist",
+        "to": "app"
+      }
+    ],
+    "asarUnpack": [
+      "node_modules/koffi/**",
+      "node_modules/@koromix/**"
+    ],
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "category": "Game",
+      "icon": "build/icon.png",
+      "artifactName": "VoidStonks-${version}-linux-${arch}.${ext}",
+      "executableName": "voidstonks"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "build/icon.ico",
+      "artifactName": "VoidStonks-${version}-windows-${arch}.${ext}"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "shortcutName": "VoidStonks"
+    }
+  }
+}

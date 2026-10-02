@@ -7,6 +7,8 @@ import { getPriceValue, MEMORY_CACHE } from "../../services/market/prices.servic
 import { exposeGlobals } from "../../utils/global_registry.js";
 import { ducatsBeatSale } from "../../utils/inventory/reward_value.js";
 import { ducadosDePieza } from "../../utils/inventory/catalog_parts.js";
+import { copiasQueSobran } from "../../utils/inventory/baro_picks.js";
+import { getSetName, getRequiredCount } from "../../utils/ui_utils.js";
 
 /**
  * Ducanator tab: prime parts ranked by ducats against their platinum price. Own state (sort, owned
@@ -41,6 +43,8 @@ export function renderDucanatorView(list, opts = {}) {
 
   const searchInput = (opts.search || "").toLowerCase();
   const ownedOnly = opts.ownedOnly !== false;
+  const keepSets = opts.keepSets !== false;
+  const setDeps = { primeInventory: state.primeInventory, setsDatabase: state.setsDatabase, getSetName, getRequiredCount };
   const sortCol = opts.sortCol || "ratio"; // name | plat | ducats | ratio
   const sortDir = opts.sortDir || -1; // -1 desc, 1 asc
   // called again once missing prices arrive, to re-rank
@@ -54,7 +58,8 @@ export function renderDucanatorView(list, opts = {}) {
       const cachedRaw = MEMORY_CACHE.get(getSlug(name));
       const plat = cachedRaw !== undefined ? (Number.parseInt(cachedRaw, 10) || 0) : null;
       const eff = ducatRatio(ducats, plat === null ? 0 : plat);
-      return { name, qty, ducats, plat, eff };
+      const { sobran, guardas } = keepSets ? copiasQueSobran(name, setDeps) : { sobran: qty, guardas: 0 };
+      return { name, qty, ducats, plat, eff, sobran, guardas };
     })
     .filter((r) => r.ducats > 0);
 
@@ -73,6 +78,7 @@ export function renderDucanatorView(list, opts = {}) {
   let keepPlat = 0;
   const fundRows = [];
   const keepRows = [];
+  const setRows = [];
 
   // Infinity (unknown plat) stays out of the max on purpose: one unpriced part would shrink every other
   // bar
@@ -81,11 +87,11 @@ export function renderDucanatorView(list, opts = {}) {
   rows.forEach((r) => {
     const platReady = r.plat !== null;
     const shouldFund = !platReady || ducatsBeatSale(r.ducats, r.plat);
-    // unpriced rows go to "trade for ducats", where most end up, but do not add to the total until priced
+    const paraSet = shouldFund && r.qty > 0 && r.sobran === 0;
     if (platReady) {
       if (shouldFund) {
-        fundableDucats += r.ducats * r.qty;
-        fundableParts += r.qty;
+        fundableDucats += r.ducats * r.sobran;
+        fundableParts += r.sobran;
       } else {
         keepPlat += r.plat * r.qty;
       }
@@ -100,7 +106,11 @@ export function renderDucanatorView(list, opts = {}) {
     const iconHtml = icon
       ? `<img src="${icon}" class="duc-img item-icon-small" loading="lazy" onerror="this.style.visibility='hidden'">`
       : `<span class="duc-img duc-img-empty"></span>`;
-    const qtyHtml = r.qty > 1 ? `<span class="duc-qty">×${r.qty}</span>` : "";
+    const visibles = shouldFund && !paraSet ? r.sobran : r.qty;
+    const qtyHtml = visibles > 1 ? `<span class="duc-qty">×${visibles}</span>` : "";
+    const guardaHtml = r.guardas > 0 && shouldFund
+      ? `<span class="duc-keep-note">${escapeHTML((dt.keepsForSet || "keeps {n} for the set").replace("{n}", r.guardas))}</span>`
+      : "";
 
     const html = `
       <div class="duc-row${shouldFund ? " is-fund" : ""}">
@@ -108,6 +118,7 @@ export function renderDucanatorView(list, opts = {}) {
           <span class="duc-img-wrap">${iconHtml}${qtyHtml}</span>
           <div class="duc-name-text">
             <a href="https://warframe.market/items/${getSlug(r.name)}" target="_blank" class="part-name duc-link">${escapeHTML(r.name)}</a>
+            ${guardaHtml}
           </div>
         </div>
         <div class="duc-plat${platReady ? "" : " is-pending"}">${platTxt}<span class="plat-icon-inline"></span></div>
@@ -117,7 +128,7 @@ export function renderDucanatorView(list, opts = {}) {
           <span class="duc-eff-num">${effTxt}</span>
         </div>
       </div>`;
-    (shouldFund ? fundRows : keepRows).push(html);
+    (paraSet ? setRows : shouldFund ? fundRows : keepRows).push(html);
   });
 
   const arrowFor = (c) => (c === sortCol ? (sortDir === -1 ? " ▼" : " ▲") : "");
@@ -161,7 +172,8 @@ export function renderDucanatorView(list, opts = {}) {
           + `</div>`
         : headerRow
           + section(dt.fundSection || "Trade for ducats", fundRows, "fund")
-          + section(dt.keepSection || "Better to sell", keepRows, "keep")}
+          + section(dt.keepSection || "Better to sell", keepRows, "keep")
+          + section(dt.setSection || "Kept for your sets", setRows, "set")}
     </div>`;
 
   const pending = rows.filter((r) => r.plat === null);
@@ -189,16 +201,24 @@ export function setDucatSort(col) {
 }
 
 // the checkbox stays in the DOM, hidden: renderDucanatorTab reads the state there
-export function toggleDucatOwned() {
-  const cb = document.getElementById("ducat-owned-only");
+function alternaChip(cbId, chipId) {
+  const cb = document.getElementById(cbId);
   if (!cb) return;
   cb.checked = !cb.checked;
-  const chip = document.getElementById("ducat-owned-chip");
+  const chip = document.getElementById(chipId);
   if (chip) {
     chip.classList.toggle("active", cb.checked);
     chip.setAttribute("aria-pressed", String(cb.checked));
   }
   renderDucanatorTab();
+}
+
+export function toggleDucatOwned() {
+  alternaChip("ducat-owned-only", "ducat-owned-chip");
+}
+
+export function toggleDucatSets() {
+  alternaChip("ducat-keep-sets", "ducat-sets-chip");
 }
 
 export function clearDucatSearch() {
@@ -217,6 +237,7 @@ export function renderDucanatorTab() {
   const opts = {
     search,
     ownedOnly: document.getElementById("ducat-owned-only")?.checked !== false,
+    keepSets: document.getElementById("ducat-keep-sets")?.checked !== false,
     sortCol: ducatSortCol,
     sortDir: ducatSortDir,
     rerender: () => {
@@ -231,5 +252,6 @@ exposeGlobals({
     renderDucanatorTab,
     setDucatSort,
     toggleDucatOwned,
+    toggleDucatSets,
     clearDucatSearch,
 }, "ui.components/inventory/ui_ducanator.js");

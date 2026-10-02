@@ -6,6 +6,8 @@
  * <button class="tab-btn"> in the HTML just fits in.
  */
 
+import { carcasaActiva } from "../utils/shell.js";
+
 // minimum usable desktop tab width: below it the icon and the label overlap
 const MIN_TAB_PX = 104;
 
@@ -66,7 +68,9 @@ function applyReflow(all) {
   if (barWidth === 0) return; // bar without layout yet (hidden tab): retried when shown
 
   let visibleCount;
-  if (isMobile) {
+  if (carcasaActiva()) {
+    visibleCount = all.length;
+  } else if (isMobile) {
     visibleCount = MOBILE_MAX_TABS;
   } else {
     // reserve the "More" slot only when something overflows
@@ -134,8 +138,13 @@ function buildFanItems() {
       item.appendChild(img);
     } else {
       // no <img>: the icon can be an emoji inside <span class="tab-icon-img">
-      const emoji = document.querySelector(`#btn-${mode} .tab-icon-img`)?.textContent?.trim();
-      if (emoji) {
+      const icono = document.querySelector(`#btn-${mode} .tab-icon-img`);
+      const emoji = icono?.textContent?.trim();
+      if (icono?.tagName?.toLowerCase() === "svg") {
+        const copia = icono.cloneNode(true);
+        copia.setAttribute("class", "tab-fan-icon tab-icon-svg");
+        item.appendChild(copia);
+      } else if (emoji) {
         const glyph = document.createElement("span");
         glyph.className = "tab-fan-icon";
         glyph.setAttribute("aria-hidden", "true");

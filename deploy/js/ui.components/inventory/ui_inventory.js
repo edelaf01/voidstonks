@@ -9,6 +9,7 @@ import { ducatRatio, formatDucatRatio } from "./ui_ducanator.js";
 import { inventorySignature } from "../../utils/inventory/inventory_signature.js";
 import { goalMetaHtml, renderInvGoalChips, relicRuns, compareByGoalSets } from "./ui_inventory_goals.js";
 import { calculateRelicValue } from "../../services/inventory/relics.service.js";
+import { carcasaActiva } from "../../utils/shell.js";
 import {
   renderPrimeInventory,
   modifyPrimePart,
@@ -266,9 +267,7 @@ export function selectRelicFromInv(name) {
 
   // through globalThis (published by main.js): importing it would close a load cycle (tests/import-graph)
   globalThis.switchTab("relic");
-  // close, not `toggleInventoryPanel(false)`, which toggles: these relic chips also show in the routes
-  // panel with the inventory closed
-  document.getElementById("inventory-container")?.classList.remove("open");
+  if (!carcasaActiva()) document.getElementById("inventory-container")?.classList.remove("open");
   // the routes sit below the breakdown: from there the content ends out of view
   input?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   manualRelicUpdate();
