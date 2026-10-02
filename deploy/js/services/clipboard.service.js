@@ -1,6 +1,7 @@
 // clipboard copy for scanner results without focus via extension, writeText or on focus return
 export const ClipboardService = {
     extensionReady: false,
+    nativo: null,
     _pending: null,
     _seq: 0,
 
@@ -18,6 +19,7 @@ export const ClipboardService = {
     },
 
     async copy(text) {
+        if (this.nativo && await this.nativo(text)) return "launcher";
         if (this.extensionReady) {
             const ok = await this._copyViaExtension(text);
             if (ok) return "extension";

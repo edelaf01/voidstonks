@@ -233,8 +233,9 @@ function updateDucatFilterLabels(t) {
   setText("ducat-desc", d.desc);
   setPlaceholder("ducat-search", d.searchPlaceholder);
   setText("ducat-owned-label", d.ownedOnly);
-  const ownedChip = document.getElementById("ducat-owned-chip");
-  if (ownedChip && d.ownedOnlyTitle) ownedChip.dataset.tooltip = d.ownedOnlyTitle;
+  setTooltip("ducat-owned-chip", d.ownedOnlyTitle);
+  setText("ducat-sets-label", d.keepSets);
+  setTooltip("ducat-sets-chip", d.keepSetsTitle);
   setText("ducat-rule-label", d.rule);
 }
 
