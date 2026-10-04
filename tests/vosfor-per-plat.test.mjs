@@ -47,3 +47,8 @@ test("usa el ask crudo, no el precio realizable: comprando no hay descuento por 
   assert.equal(muerto.buyPrice, 10);
   assert.equal(muerto.ratio, 2.4);
 });
+
+test("si los precios no traen nº de vendedores (estadísticas diarias), no se inventa", () => {
+  const r = vosforPerPlat({ vosfor: 100 }, { pe: 8, h: 8, v: 194.5 });
+  assert.equal(r.sellers, null);
+});

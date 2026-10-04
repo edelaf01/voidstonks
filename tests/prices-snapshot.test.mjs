@@ -18,11 +18,11 @@ const invSrc = read("../deploy/js/services/inventory/inventory.service.js");
 /** Igual que en lich-weapons.test.mjs: el fuente hasta `export default` no tiene efectos. */
 function workerInternals() {
     const head = workerSrc.slice(0, workerSrc.search(/^export default\b/m));
-    return new Function(`${head}\nreturn { PriceSnapshot, Utils, EdgeCache };`)();
+    return new Function(`${head}\nreturn { PriceSnapshot, Utils, EdgeCache, Handlers, PreciosSubidos };`)();
 }
 
 // Sin worker-code.js no hay nada que evaluar; los tests de este fichero ya salen en skip.
-const { PriceSnapshot } = workerSrc ? workerInternals() : {};
+const { PriceSnapshot, Handlers, PreciosSubidos } = workerSrc ? workerInternals() : {};
 
 function handlerBody(name) {
     const start = workerSrc.indexOf(`async '${name}'`);
@@ -81,9 +81,55 @@ test("prices_batch resuelve los prime desde el snapshot", async () => {
     assert.ok(snapshotAt < perItemAt, "el snapshot se consulta antes que la caché por slug");
 });
 
-test("el cron refresca el snapshot", () => {
+test("el worker ya no pide precios a WFM por su cuenta: los sube el job del cron", () => {
     const scheduled = workerSrc.slice(workerSrc.search(/^export default\b/m));
-    assert.match(scheduled, /PriceSnapshot\.refresh\(env, ctx\)/);
+    assert.doesNotMatch(scheduled, /PriceSnapshot\.refresh\(/);
+    assert.doesNotMatch(handlerBody("prices_snapshot"), /refreshIfIdle/);
+});
+
+function subida(tipo, cuerpo, clave = "s3creto") {
+    const url = new URL(`https://x/?type=precios_subir&tipo=${tipo}`);
+    const request = new Request(url, { method: "POST", headers: { "X-Precios-Secret": clave }, body: JSON.stringify(cuerpo) });
+    return [url, request];
+}
+
+test("subir precios exige la clave y solo acepta POST", async () => {
+    const env = { ...fakeEnv(), PRECIOS_SECRET: "s3creto" };
+    const [url, req] = subida("prime", { p: { a_prime_set: 10 } }, "otra");
+    assert.equal((await Handlers.precios_subir(url, env, ctx, req)).status, 401);
+    assert.equal((await Handlers.precios_subir(url, env, ctx, new Request(url))).status, 405);
+    const sinClave = { ...fakeEnv() };
+    const [url2, req2] = subida("prime", { p: { a_prime_set: 10 } });
+    assert.equal((await Handlers.precios_subir(url2, sinClave, ctx, req2)).status, 401, "sin PRECIOS_SECRET configurado no entra nadie");
+});
+
+test("los precios prime subidos quedan como el snapshot que lee la app", async () => {
+    const env = { ...fakeEnv(), PRECIOS_SECRET: "s3creto" };
+    const [url, req] = subida("prime", { t: 1791100000000, p: { aksomati_prime_barrel: 10.4, "../malo": 3, raro: "x" } });
+    const r = await Handlers.precios_subir(url, env, ctx, req);
+    assert.deepEqual(r.data, { ok: true, precios: 1 });
+    const servido = await Handlers.prices_snapshot(new URL("https://x/?type=prices_snapshot"), env, ctx);
+    assert.deepEqual(servido.data, { t: 1791100000000, p: { aksomati_prime_barrel: 10 } });
+});
+
+test("los arcanos subidos se sirven por arcane_batch sin preguntar a WFM", async () => {
+    const env = { ...fakeEnv(), PRECIOS_SECRET: "s3creto" };
+    const energize = { p: 7, h: 8, v: 194.5, pe: 8, rm: 5, pm: 110, hm: 130, vm: 123.5, pem: 130, d: 16, bb: 6, basura: "x" };
+    const [url, req] = subida("arcanos", { updated: "2026-10-04T03:40:00Z", arcanos: { arcane_energize: energize } });
+    assert.deepEqual((await Handlers.precios_subir(url, env, ctx, req)).data, { ok: true, arcanos: 1 });
+    const original = globalThis.fetch;
+    globalThis.fetch = async () => { throw new Error("no debería salir a WFM"); };
+    const cache = globalThis.caches;
+    globalThis.caches = { default: { match: async () => undefined, put: async () => {} } };
+    try {
+        const r = await Handlers.arcane_batch(new URL("https://x/?type=arcane_batch&q=arcane_energize"), env, ctx);
+        const { basura, ...esperado } = energize;
+        assert.equal(basura, "x");
+        assert.deepEqual(r.data.arcane_energize, esperado);
+    } finally {
+        globalThis.fetch = original;
+        globalThis.caches = cache;
+    }
 });
 
 test("un documento corrupto no tumba la respuesta", async () => {
@@ -279,7 +325,7 @@ test("los precios por slug van a la caché del edge, no a KV", () => {
 test("los arcanos también salen de KV", () => {
     const body = handlerBody("arcane_batch");
     assert.ok(!/KVHelper\.(get|put)\([^)]*arc_/.test(body), "arc_ sigue en KV");
-    assert.match(body, /EdgeCache\.getMany\(slugs, s => `arc_\$\{s\}`, 10\)/,
+    assert.match(body, /EdgeCache\.getMany\(slugs\.filter\(\(s\) => !results\[s\]\), s => `arc_\$\{s\}`, 10\)/,
         "con presupuesto: cada arcano no cacheado cuesta además 2 fetches a WFM");
 });
 
