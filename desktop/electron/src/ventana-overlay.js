@@ -1,6 +1,6 @@
 import { BrowserWindow, ipcMain, screen } from "electron";
 import { firmaDe, rectEnDip } from "./paneles.js";
-import { ventanaDelJuego, sinGestor } from "./juego.js";
+import { ventanaDelJuego, sinGestor, zonasDeEntrada } from "./juego.js";
 
 const mismoRect = (a, b) => a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;
 
@@ -9,10 +9,30 @@ function aDip(rect) {
   return rectEnDip(rect, screen.getPrimaryDisplay().scaleFactor);
 }
 
-export function creaOverlay({ url, preload }) {
+const RE_GRUPO = /^[a-z]{1,16}$/;
+const RE_ACCION = /^[a-z]{1,16}:[A-Za-z0-9]{1,16}$/;
+const EN_WINDOWS = process.platform === "win32";
+
+function rectsValidos(rects) {
+  if (!Array.isArray(rects) || rects.length > 16) return [];
+  return rects.filter((r) => [r?.x, r?.y, r?.width, r?.height].every(Number.isFinite));
+}
+
+export function creaOverlay({ url, preload, alAccion = () => {} }) {
   let ventana = null;
   let lista = null;
   const grupos = new Map();
+  const deLaVentana = (e) => !!ventana && e.sender === ventana.webContents;
+
+  ipcMain.on("overlay:accion", (e, grupo, accion) => {
+    if (deLaVentana(e) && RE_GRUPO.test(grupo) && RE_ACCION.test(accion)) alAccion(grupo, accion);
+  });
+  ipcMain.on("overlay:raton", (e, dentro) => {
+    if (EN_WINDOWS && deLaVentana(e)) ventana.setIgnoreMouseEvents(!dentro, { forward: true });
+  });
+  ipcMain.on("overlay:zonas", (e, rects) => {
+    if (!EN_WINDOWS && deLaVentana(e)) zonasDeEntrada(ventana.getNativeWindowHandle(), rectsValidos(rects));
+  });
 
   function crea(bounds) {
     const v = new BrowserWindow({
@@ -33,8 +53,8 @@ export function creaOverlay({ url, preload }) {
       title: "VoidStonks overlay",
       webPreferences: { preload, sandbox: true, contextIsolation: true, backgroundThrottling: false, spellcheck: false },
     });
-    v.setIgnoreMouseEvents(true);
-    if (process.platform === "win32") v.setAlwaysOnTop(true, "screen-saver");
+    v.setIgnoreMouseEvents(true, EN_WINDOWS ? { forward: true } : undefined);
+    if (EN_WINDOWS) v.setAlwaysOnTop(true, "screen-saver");
     else sinGestor(v.getNativeWindowHandle());
     lista = new Promise((resolve) => {
       const alListo = (e) => {

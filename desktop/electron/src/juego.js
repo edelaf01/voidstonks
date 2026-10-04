@@ -29,12 +29,16 @@ function cargaWindows() {
       return width > 0 && height > 0 ? { x: p.x, y: p.y, width, height } : null;
     },
     sinGestor() {},
+    zonasDeEntrada() {},
   };
 }
+
+const ventanaDeAsa = (asa) => (asa.length >= 8 ? Number(asa.readBigUInt64LE(0)) : asa.readUInt32LE(0));
 
 function cargaX11() {
   const koffi = require("koffi");
   const x = koffi.load("libX11.so.6");
+  const xext = koffi.load("libXext.so.6");
   koffi.opaque("Display");
   const XErrorHandler = koffi.proto("int XErrorHandler(Display *dpy, void *ev)");
   koffi.struct("XClassHint", { res_name: "void *", res_class: "void *" });
@@ -63,6 +67,7 @@ function cargaX11() {
     XSetErrorHandler: x.func("void *XSetErrorHandler(void *handler)"),
     XSync: x.func("int XSync(Display *dpy, int discard)"),
     XFree: x.func("int XFree(void *p)"),
+    XShapeCombineRectangles: xext.func("void XShapeCombineRectangles(Display *dpy, unsigned long w, int kind, int x, int y, void *rects, int n, int op, int ordering)"),
   };
   const ignora = koffi.register(() => 0, koffi.pointer(XErrorHandler));
   let dpy = null;
@@ -114,8 +119,23 @@ function cargaX11() {
         return null;
       });
     },
+    zonasDeEntrada(asa, rects) {
+      const w = ventanaDeAsa(asa);
+      const buf = Buffer.alloc(Math.max(8, rects.length * 8));
+      rects.forEach((r, i) => {
+        buf.writeInt16LE(Math.max(-32768, Math.min(32767, r.x)), i * 8);
+        buf.writeInt16LE(Math.max(-32768, Math.min(32767, r.y)), i * 8 + 2);
+        buf.writeUInt16LE(Math.max(0, Math.min(65535, r.width)), i * 8 + 4);
+        buf.writeUInt16LE(Math.max(0, Math.min(65535, r.height)), i * 8 + 6);
+      });
+      return conDisplay((d) => {
+        const SHAPE_INPUT = 2, SHAPE_SET = 0, UNSORTED = 0;
+        f.XShapeCombineRectangles(d, w, SHAPE_INPUT, 0, 0, rects.length ? buf : null, rects.length, SHAPE_SET, UNSORTED);
+        return true;
+      });
+    },
     sinGestor(asa) {
-      const w = asa.length >= 8 ? Number(asa.readBigUInt64LE(0)) : asa.readUInt32LE(0);
+      const w = ventanaDeAsa(asa);
       return conDisplay((d) => {
         const CW_OVERRIDE_REDIRECT = 1 << 9;
         f.XChangeWindowAttributes(d, w, CW_OVERRIDE_REDIRECT, { override_redirect: 1 });
@@ -131,7 +151,7 @@ function carga() {
     nativo = process.platform === "win32" ? cargaWindows() : cargaX11();
   } catch (e) {
     console.error("[juego] sin acceso nativo a las ventanas:", e);
-    nativo = { ventanaDelJuego: () => null, sinGestor: () => false };
+    nativo = { ventanaDelJuego: () => null, sinGestor: () => false, zonasDeEntrada: () => false };
   }
   return nativo;
 }
@@ -146,6 +166,15 @@ export function ventanaDelJuego() {
   } catch (e) {
     console.error("[juego] no se pudo buscar la ventana de Warframe:", e);
     return null;
+  }
+}
+
+export function zonasDeEntrada(asa, rects) {
+  try {
+    return carga().zonasDeEntrada(asa, rects);
+  } catch (e) {
+    console.error("[juego] no se pudo poner la zona clicable del overlay:", e);
+    return false;
   }
 }
 

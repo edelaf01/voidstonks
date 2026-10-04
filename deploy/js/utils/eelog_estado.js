@@ -31,7 +31,7 @@ export function siguienteEstado(estado, ev, ahora = Date.now()) {
     case "pantalla":
       if (ev.swf === "Hub" || ev.swf === "ThemedMainMenu") return { ...ESTADO_JUEGO_INICIAL };
       if (ev.swf === "ProjectionRewardChoice") {
-        return { ...estado, eligiendoReliquia: false, recompensas: { fase: "abiertas", tarjetas: 0, propia: null } };
+        return { ...estado, eligiendoReliquia: false, recompensas: { fase: "abiertas", tarjetas: 0, propia: null, desde: ahora } };
       }
       if (ev.swf === "ThemedProjectionManager") return { ...estado, eligiendoReliquia: true };
       if (ev.swf === "OmegaRerollSelection") return { ...estado, riven: { arma: null } };
@@ -64,6 +64,6 @@ export function modoEscaner(estado, ahora = Date.now()) {
     return { modo: "forzado", contexto: "REWARD", tarjetas: estado.recompensas.tarjetas || null };
   }
   if (!estado.enMision) return { modo: "normal" };
-  if (estado.menus.length || estado.eligiendoReliquia || ahora < estado.despiertoHasta) return { modo: "normal" };
+  if (estado.menus.length || estado.eligiendoReliquia || estado.recompensas || ahora < estado.despiertoHasta) return { modo: "normal" };
   return { modo: "dormido" };
 }

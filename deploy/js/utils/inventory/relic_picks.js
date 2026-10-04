@@ -60,10 +60,14 @@ export function eraDominante(nombres, { minimo = 3, cuota = 0.6 } = {}) {
 
 export const REFINOS_POR_COSTE = ["Intact", "Exceptional", "Flawless", "Rad"];
 
-export function mejorRefinamiento(oddsPor, margen = 0.02) {
+export function mejorRefinamiento(oddsPor, margen = 0.05) {
   const max = Math.max(0, ...REFINOS_POR_COSTE.map((r) => oddsPor?.[r] || 0));
   if (!(max > 0)) return null;
-  return REFINOS_POR_COSTE.find((r) => (oddsPor[r] || 0) >= max - margen);
+  return REFINOS_POR_COSTE.find((r) => (oddsPor[r] || 0) >= max * (1 - margen));
+}
+
+export function progresoDe(missing, peso = () => 1) {
+  return (missing || []).reduce((s, m) => s + m.chance * closenessWeight(m.setMissing) * peso(m), 0);
 }
 
 /**
@@ -125,7 +129,7 @@ export function rankRelicPicks(deps, limit = 8) {
       closes: setsCerrados,
       // chance of closing ANY of them in one crack, not the sum
       closeOdds: 1 - cierran.reduce((p, m) => p * (1 - m.chance), 1),
-      progress: v.missing.reduce((s, m) => s + m.chance * closenessWeight(m.setMissing), 0),
+      progress: progresoDe(v.missing),
       fissure: fisura,
       value: valor,
       relic,
@@ -139,7 +143,7 @@ export function rankRelicPicks(deps, limit = 8) {
       // sets it feeds, no repeats: one relic can give two parts of the same set
       sets: [...new Set(v.missing.map((m) => m.set))],
       parts: v.missing.map((m) => ({
-        name: m.part, set: m.set, missing: m.setMissing, total: m.setTotal,
+        name: m.part, set: m.set, missing: m.setMissing, total: m.setTotal, chance: m.chance, price: getPrice?.(m.part) || 0,
       })),
       ready: suyas.length > 0,
     });

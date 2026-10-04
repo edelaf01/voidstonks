@@ -87,6 +87,7 @@ export function renderDucanatorView(list, opts = {}) {
   rows.forEach((r) => {
     const platReady = r.plat !== null;
     const shouldFund = !platReady || ducatsBeatSale(r.ducats, r.plat);
+    // unpriced rows go to "trade for ducats", where most end up, but do not add to the total until priced
     const paraSet = shouldFund && r.qty > 0 && r.sobran === 0;
     if (platReady) {
       if (shouldFund) {

@@ -60,6 +60,10 @@ export async function panelesEnJuego(datos, { keepalive = false } = {}) {
   }
 }
 
+export function escucharAccionesDelOverlay(fn) {
+  return puente()?.alAccion?.(fn) || (() => {});
+}
+
 export function seguirEELogDelLanzador({ cola = 0, alLeer, alEstado }) {
   if (puente()) {
     return puente().seguirEELog(cola, (nombre, datos) => (nombre === "lineas" ? alLeer(datos.split("\n")) : alEstado?.(nombre, datos)));
