@@ -27,17 +27,15 @@ import { APP_VERSION } from "../config.js";
 import { piezasParaBaro, copiasQueSobran } from "../utils/inventory/baro_picks.js";
 import { ducadosDePieza } from "../utils/inventory/catalog_parts.js";
 import { ducatsBeatSale } from "../utils/inventory/reward_value.js";
-import { getSetName, getRequiredCount, getItemIcon } from "../utils/ui_utils.js";
+import { getSetName, getRequiredCount } from "../utils/ui_utils.js";
 import { getPriceValue, MEMORY_CACHE } from "../services/market/prices.service.js";
 import { getSlug } from "../utils/slugs.utils.js";
 import { eligeReliquias, OBJETIVOS } from "../utils/inventory/relic_objetivos.js";
 import { getRelicCounts } from "../utils/inventory/relic_counts.js";
 import { getPlayerOdds } from "../utils/inventory/relic_drop_odds.utils.js";
 import { fetchAllFissures } from "../services/farms/fissures.service.js";
-import { EELogLive } from "../services/scanner/eelog_live.service.js";
 import { eraDeLaMision } from "../utils/inventory/relic_route.js";
-import { mostrarPaneles, quitarTodosLosPaneles, alPulsarEnOverlay } from "../services/desktop.service.js";
-import { panelReliquias } from "../utils/overlay_paneles.js";
+import { avisa, escucha, pistasDelLog } from "../utils/ganchos.js";
 
 // Clave propia y no la del escáner de móvil: son dos flujos distintos, y haber visto uno no
 // explica el otro.
@@ -245,7 +243,7 @@ export async function startLiveSession() {
  * Stops the live scanning session and cleans up resources.
  */
 export function stopLiveSession() {
-  quitarTodosLosPaneles();
+  avisa("escaner-parado");
   if (liveStream) {
     liveStream.getTracks().forEach((track) => track.stop());
     liveStream = null;
@@ -282,7 +280,6 @@ globalThis.showRivenAppraisal = async (parsedL, parsedR, captura) => {
   RivenScannerHUD.show(parsedL, parsedR, captura);
 };
 
-const RELIQUIAS_DURACION_MS = 120_000;
 let eraElegida = null;
 let cualquierRefino = false;
 let objetivoElegido = "sets";
@@ -300,16 +297,14 @@ async function pintaReliquias(era = eraElegida) {
     getPrice: (n) => Number.parseInt(MEMORY_CACHE.get(getSlug(n)) || 0, 10) || 0,
     getDucats: ducadosDePieza,
   }, { objetivo: objetivoElegido, refino, era });
-  const panel = panelReliquias(picks, era, TEXTS[state.currentLang].scannerHUD, {
-    reliquiasEnApp: Object.keys(relicCounts).length, refino, escuadra: squadSize, objetivo: objetivoElegido, iconoDe: getItemIcon,
+  avisa("reliquias", {
+    picks, era, opciones: { reliquiasEnApp: Object.keys(relicCounts).length, refino, escuadra: squadSize, objetivo: objetivoElegido },
   });
-  mostrarPaneles("reliquias", [panel], { duracionMs: RELIQUIAS_DURACION_MS });
 }
 
 RelicScreenService.onEra = (era) => pintaReliquias(era);
-EELogLive.onReliquiaAbierta = (nombre) => gastaReliquiaAbierta(nombre, true);
 
-alPulsarEnOverlay("reliquias", (accion) => {
+function alAccionReliquias(accion) {
   const [clave, valor] = accion.split(":");
   if (clave === "refino" && (valor === "Any" || DROP_CHANCES[valor])) {
     cualquierRefino = valor === "Any";
@@ -319,17 +314,19 @@ alPulsarEnOverlay("reliquias", (accion) => {
   else if (clave === "era") eraElegida = valor === "ALL" ? null : valor;
   else return;
   pintaReliquias();
-});
+}
 
-EELogLive.escuchar(async (live) => {
-  if (live.estado !== "leyendo") return;
-  const ahora = !!live.juego.eligiendoReliquia;
+async function alElegirReliquia(ahora, mision) {
   if (ahora && !eligiendoReliquia) {
-    eraElegida = eraDeLaMision(live.juego.mision, await fetchAllFissures().catch(() => []));
+    eraElegida = eraDeLaMision(mision, await fetchAllFissures().catch(() => []));
     pintaReliquias();
   }
   eligiendoReliquia = ahora;
-});
+}
+
+escucha("overlay-reliquias", alAccionReliquias);
+escucha("reliquia-abierta", (nombre) => gastaReliquiaAbierta(nombre, true));
+escucha("eligiendo-reliquia", ({ ahora, mision }) => alElegirReliquia(ahora, mision));
 
 RelicScreenService.onApplied = (changed) => {
   const t = TEXTS[state.currentLang].scanner;
@@ -532,7 +529,7 @@ function commitMissionCompleteRewards(items, gastada = null) {
 const unidades = (inventario) => applyRelicCounts(inventario, []).reduce((n, i) => n + Number(i.count), 0);
 
 function gastaReliquiaAbierta(nombre, delLog = false) {
-  if (!state.autoAddMissionRewards || (!delLog && EELogLive.reliquiaPorGastar())) return;
+  if (!state.autoAddMissionRewards || (!delLog && pistasDelLog.reliquiaPorGastar())) return;
   const previo = (state.inventory || []).map((i) => (typeof i === "string" ? i : { ...i }));
   const nuevo = restaReliquia(state.inventory, nombre);
   if (unidades(nuevo) === unidades(previo)) return; // no la tenías apuntada

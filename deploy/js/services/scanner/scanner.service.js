@@ -46,8 +46,7 @@ import { badgePlausible } from "../../utils/vision/badge_digit_ocr.js";
 import { isGarbledCellText } from "../../utils/vision/cell_text_guard.js";
 import { olvidaColorTexto } from "../../utils/vision/reward_preprocess.js";
 import { cedeHilo } from "../../utils/yield.js";
-import { duermePorLog, firmaPorLog, tarjetasPorLog, armaRivenPorLog } from "./log_gate.service.js";
-import { ajustaPanelesAlContexto } from "../desktop.service.js";
+import { avisa, pistasDelLog } from "../../utils/ganchos.js";
 
 export const ScannerService = {
     isScanning: false,
@@ -157,7 +156,7 @@ export const ScannerService = {
         this._sensor?.para();
         this._cartaVigilada = null;
         if (!this.isScanning) return;
-        if (duermePorLog(this)) return ScannerHUD.updateContext("LOG_WAIT");
+        if (pistasDelLog.duerme(this)) return ScannerHUD.updateContext("LOG_WAIT");
         const video = document.getElementById("live-video");
         // Vídeo a 0×0 (ventana redimensionada, carga): los recortes salían de 0 px y Tesseract fallaba.
         if (!video || video.paused || video.ended || !video.videoWidth || !video.videoHeight) { this.scanInterval = setTimeout(() => this.loop(), 1000); return; }
@@ -215,7 +214,7 @@ export const ScannerService = {
         // El texto cacheado describe ESTE frame salvo cuando el rótulo cambió y el reloj aún no
         // deja releer: ahí es de la pantalla anterior, y quien decida por la cabecera debe esperar.
         this._cabeceraVigente = !(enPausa && cambiado);
-        if ((firma = firmaPorLog())) {
+        if ((firma = pistasDelLog.firma())) {
             headerText = firma.texto;
             Object.assign(this, { _cabeceraVigente: true, lastHeaderText: headerText, lastHeaderHash: headerHash, lastHeaderOcrTime: Date.now() });
         } else if (this.latchedContext === "TRADE" && TradeService.conDialogo(video)) {
@@ -271,7 +270,7 @@ export const ScannerService = {
         // Salir a media espera de tarjetas tiraba lo leído: se abre ya, antes de que releaseFrames lo borre.
         if (this.latchedContext === "REWARD" && this.ctxLatch.latched !== "REWARD") this.rescataRecompensaParcial();
         // Las fotos solo sirven en su pantalla: al cambiar de contexto se sueltan (~40 MB a 1440p).
-        if (this.ctxLatch.latched !== this.latchedContext) { this.releaseFrames(); ajustaPanelesAlContexto(this.ctxLatch.latched); }
+        if (this.ctxLatch.latched !== this.latchedContext) { this.releaseFrames(); avisa("contexto", this.ctxLatch.latched); }
         this.latchedContext = this.ctxLatch.latched;
         // El frame congelado son ~15 MB a 1440p: fuera de recompensas se suelta.
         if (this.latchedContext !== "REWARD") {
@@ -847,7 +846,7 @@ export const ScannerService = {
                 entries.push(e);
             });
         });
-        const armaLog = armaRivenPorLog();
+        const armaLog = pistasDelLog.armaRiven();
         if (armaLog) for (const e of entries) if (e.parsed && e.parsed.weaponName !== armaLog) Object.assign(e.parsed, { weaponName: armaLog, validation: RivenOCRService.validateRiven({ ...e.parsed, weaponName: armaLog }) });
 
         // Extend grace period while the screen still looks riven-related
@@ -1228,7 +1227,7 @@ export const ScannerService = {
         // rompe con una webcam apuntando a un monitor externo, donde el juego solo llena una
         // fracción del frame y el % fijo cae sobre la pared (ver utils/vision/reward_band.js).
         const { cropRect, columnas, cardCount: enImagen, bandSource, cvs } = localizaBandaRecompensas(frame, width, height, this._rewardDetectCvs);
-        const cardCount = tarjetasPorLog() || enImagen;
+        const cardCount = pistasDelLog.tarjetas() || enImagen;
         this._rewardDetectCvs = cvs;
         console.log(cropRect
             ? `[REWARD] Banda detectada (${bandSource}): ${cardCount} cards en x=${Math.round(cropRect.x)} y=${Math.round(cropRect.y)} ${Math.round(cropRect.w)}x${Math.round(cropRect.h)}`

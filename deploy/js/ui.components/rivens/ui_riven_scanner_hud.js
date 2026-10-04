@@ -4,8 +4,7 @@ import { escapeHTML } from "../ui_components.js";
 import { consejoCicloHtml, NEG_INOFENSIVOS } from "./ui_riven_cycling.js";
 import { claveStat, tipoDeArma } from "../../utils/rivens/riven_cycling.js";
 import { statsBuscadosDelArma } from "../../services/rivens/riven_appraisal.service.js";
-import { mostrarPaneles, quitarPaneles } from "../../services/desktop.service.js";
-import { panelRiven, panelRivenComparacion } from "../../utils/overlay_paneles.js";
+import { avisa } from "../../utils/ganchos.js";
 
 const CALIDAD_POSITIVO = { S: ["TOP", "TOP", "oro"], A: ["BUENO", "GOOD", "naranja"], B: ["MEDIO", "MID", "cian"] };
 
@@ -147,7 +146,7 @@ export const RivenScannerHUD = {
         if (this.container) {
             this.container.style.display = "none";
         }
-        quitarPaneles("riven");
+        avisa("riven", null);
         this.lastL = null;
         this.lastR = null;
         this.lastCapture = null;
@@ -512,10 +511,10 @@ export const RivenScannerHUD = {
                 </div>
             </div>
         `;
-        mostrarPaneles("riven", [panelRiven({
+        avisa("riven", { tipo: "tirada", datos: {
             ...espejo, stats: this._statsOverlay(riven, meta, calculateRivenGrade, gradeStats),
             rotulos: { valor: isEs ? "VALOR" : "VALUE", grado: isEs ? "GRADO" : "GRADE", atributo: isEs ? "ATRIBUTO" : "ATTRIBUTE", tirada: isEs ? "TIRADA" : "ROLL" },
-        })]);
+        } });
     },
 
     _statsOverlay(roll, meta, calculateRivenGrade, gradeStats = null) {
@@ -660,14 +659,14 @@ export const RivenScannerHUD = {
                 </div>
             </div>
         `;
-        mostrarPaneles("riven", [panelRivenComparacion({
+        avisa("riven", { tipo: "comparacion", datos: {
             arma: rollA.weaponName, ganador: winIdx,
             tiradas: [
                 { rotulo: t.current, precio: comparison.priceA, score: comparison.scoreA, stats: this._statsOverlay(rollA, meta, calculateRivenGrade) },
                 { rotulo: t.new, precio: comparison.priceB, score: comparison.scoreB, stats: this._statsOverlay(rollB, meta, calculateRivenGrade) },
             ],
             rotulos: { mejor: t.verdictBetter, atributo: state.currentLang === "es" ? "ATRIBUTO" : "ATTRIBUTE", tirada: state.currentLang === "es" ? "TIRADA" : "ROLL" },
-        })]);
+        } });
     },
 
     /**

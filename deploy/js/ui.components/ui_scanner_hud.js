@@ -4,8 +4,7 @@ import { escapeHTML } from "../utils/escape_html.js";
 import { exposeGlobals } from "../utils/global_registry.js";
 import { aplicaMotor, estadoMotor, MOTOR_PRECISO } from "../services/scanner/ocr_engine.service.js";
 import { avisaContexto } from "./ui_scanner_coach.js";
-import { mostrarPaneles, quitarPaneles } from "../services/desktop.service.js";
-import { panelKiosko } from "../utils/overlay_paneles.js";
+import { avisa } from "../utils/ganchos.js";
 
 /**
  * Component for the Scanner HUD (status badges, counters, scroll guides).
@@ -66,9 +65,7 @@ export const ScannerHUD = {
         const clave = JSON.stringify(items) + rotulo;
         if (clave === this._ultimaVenta) return;
         this._ultimaVenta = clave;
-        const encima = panelKiosko(items, rotulo);
-        if (encima) mostrarPaneles("kiosko", [encima]);
-        else quitarPaneles("kiosko");
+        avisa("kiosko", { items, rotulo });
         panel.replaceChildren();
         panel.style.display = items.length ? "" : "none";
         if (!items.length) return;
