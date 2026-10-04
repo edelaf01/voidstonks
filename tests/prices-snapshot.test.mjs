@@ -112,6 +112,19 @@ test("los precios prime subidos quedan como el snapshot que lee la app", async (
     assert.deepEqual(servido.data, { t: 1791100000000, p: { aksomati_prime_barrel: 10 } });
 });
 
+test("subir primes no borra las reliquias ni al revés", async () => {
+    const env = { ...fakeEnv(), PRECIOS_SECRET: "s3creto" };
+    const [url0, req0] = subida("reliquias", { p: { meso_n10_relic: 7 } });
+    await Handlers.precios_subir(url0, env, ctx, req0);
+    const [url, req] = subida("prime", { t: 1791100000000, p: { aksomati_prime_barrel: 10 } });
+    await Handlers.precios_subir(url, env, ctx, req);
+    const [url2, req2] = subida("reliquias", { p: { lith_a1_relic: 9 } });
+    await Handlers.precios_subir(url2, env, ctx, req2);
+    const doc = JSON.parse(await env.VOID_KV.get(PriceSnapshot.KEY));
+    assert.deepEqual(doc.p, { meso_n10_relic: 7, aksomati_prime_barrel: 10, lith_a1_relic: 9 });
+    assert.equal(doc.t, 1791100000000, "la fecha es la de los primes, que se suben más a menudo");
+});
+
 test("los arcanos subidos se sirven por arcane_batch sin preguntar a WFM", async () => {
     const env = { ...fakeEnv(), PRECIOS_SECRET: "s3creto" };
     const energize = { p: 7, h: 8, v: 194.5, pe: 8, rm: 5, pm: 110, hm: 130, vm: 123.5, pem: 130, d: 16, bb: 6, basura: "x" };

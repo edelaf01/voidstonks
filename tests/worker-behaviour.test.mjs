@@ -132,12 +132,13 @@ test("el guard de origen acepta los despliegues propios y rechaza suplantaciones
 test("no hay secretos incrustados en el código", () => {
     const withoutComments = src.replace(/\/\/.*$/gm, "");
     assert.ok(!/(password|secret|api_?key)\s*[:=]\s*["'][^"']{8,}/i.test(withoutComments));
-    assert.ok(src.includes("env.ADMIN_SECRET"), "el secreto admin viene del entorno");
+    assert.ok(src.includes("env.PRECIOS_SECRET"), "la clave de subida de precios viene del entorno");
 });
 
-test("el worker sigue exponiendo fetch y scheduled", () => {
+test("el worker expone fetch y ya no tiene cron: precios y rivens llegan desde GitHub Actions", () => {
     assert.match(src, /async fetch\(request, env, ctx\)/);
-    assert.match(src, /async scheduled\(event, env, ctx\)/);
+    assert.doesNotMatch(src, /async scheduled\(/);
+    assert.doesNotMatch(src, /processNextBatch/);
 });
 
 /**
