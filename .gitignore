@@ -45,7 +45,7 @@ certs/dev-key.pem
 certs/dev.pem
 # El package.json de la raíz se versiona junto con tests/: sin él no viajan `npm test`,
 # `npm run lint` ni `npm run baseline:arquitectura`, y las reglas se quedan sin forma de
-# ejecutarse en otra máquina. (El de desktop/ siempre estuvo dentro: lo necesita el build de Tauri.)
+# ejecutarse en otra máquina.
 dist/
 node_modules/
 wf-parser.js

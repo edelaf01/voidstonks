@@ -84,13 +84,14 @@ function partLineHtml(m, t) {
     } else if (key === "wait") {
         // the reason only repeats per line when some other part can be done; otherwise the header says it
         action = relicPickerHtml(best.relic, best.relic, st.cls)
-            + `<span class="fr-dim">×${best.owned}${m.someReady ? ` · ${t.noFissure}` : ""}</span>${runs}`;
+            + `<span class="fr-dim">×${best.owned}</span>${runs}`
+            + (m.someReady ? `<span class="fr-where fr-dim">${t.noFissure}</span>` : "");
     } else {
         const src = best.sources[0];
         action = relicPickerHtml(best.relic, best.relic, st.cls) + runs
             + (src
                 ? `<span class="fr-where">${t.farmIn} ${escapeHTML(src.location)}${src.rotation ? ` · ${t.rot} ${escapeHTML(src.rotation)}` : ""}</span>`
-                : `<span class="fr-dim">${t.need}</span>`);
+                : `<span class="fr-where fr-dim">${t.need}</span>`);
     }
 
     // "better to buy": the part costs <= 15% of the whole set. Next to the farm plan, since the decision
@@ -123,8 +124,9 @@ function partLineHtml(m, t) {
           + `${escapeHTML((t.needQty || "×{n}").replace("{n}", m.needed))}</span>`
         : "";
 
+    const avisos = compra || refinar ? `<span class="fr-tags">${compra}${refinar}</span>` : "";
     return `<li class="fr-part ${st.cls}">${dot}`
-        + `<span class="fr-name">${escapeHTML(getPartShortName(m.part, m.setName))}</span>${cantidad}${action}${compra}${refinar}</li>`;
+        + `<span class="fr-name">${escapeHTML(getPartShortName(m.part, m.setName))}</span>${cantidad}${action}${avisos}</li>`;
 }
 
 

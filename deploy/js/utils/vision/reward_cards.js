@@ -34,12 +34,41 @@ export function detectCardRow(img, { percentil = 0.97, minLado = 0.03, colaRotul
   // the band starts WHERE THE ART ENDS: the label is below. colaRotulo 1.4 because the label can take TWO
   // lines and its height does not scale with the art
   const alto = y1 - y0;
+  const centros = g.map((c) => c.x + c.w / 2);
+  const fila = filaCentrada(centros, W);
+  if (fila) {
+    const columnas = fila.centros.map((cx) => ({ x0: (cx - fila.paso / 2) / W, x1: (cx + fila.paso / 2) / W }));
+    return { x: 0, w: W, y: y1, h: Math.round(Math.min(H - y1, alto * colaRotulo)), cardCount: fila.n, columnas };
+  }
   // `columnas` as a width fraction: a word outside a card cannot be a reward name, and that is all that tells
   // "LOVOS"->LAVOS (good) from "FRONT"->FROST (HUD garbage). The column is the CARD, not the art blob: its width
   // comes from the STEP between blobs
-  const columnas = columnasDesdeCentros(g.map((c) => c.x + c.w / 2), W,
-    Math.max(...g.map((c) => c.w)) * 2);
+  const columnas = columnasDesdeCentros(centros, W, Math.max(...g.map((c) => c.w)) * 2);
   return { x: 0, w: W, y: y1, h: Math.round(Math.min(H - y1, alto * colaRotulo)), cardCount: g.length, columnas };
+}
+
+const PASO_CARTA_MAX = 0.18;
+
+export function filaCentrada(centros, W, { maxCartas = 4, tol = 0.2 } = {}) {
+  if (!W || !centros?.length) return null;
+  const medio = W / 2;
+  const lejano = centros.reduce((a, c) => (Math.abs(c - medio) > Math.abs(a - medio) ? c : a));
+  for (let n = centros.length; n <= maxCartas; n++) {
+    for (let i = 0; i < n; i++) {
+      const k = i - (n - 1) / 2;
+      const paso = k ? (lejano - medio) / k : 0;
+      if (paso < W * 0.05 || paso > W * PASO_CARTA_MAX) continue;
+      const usadas = new Set();
+      const encaja = centros.every((c) => {
+        const j = Math.round((c - medio) / paso + (n - 1) / 2);
+        if (j < 0 || j >= n || usadas.has(j)) return false;
+        usadas.add(j);
+        return Math.abs(medio + (j - (n - 1) / 2) * paso - c) <= paso * tol;
+      });
+      if (encaja) return { n, paso, centros: Array.from({ length: n }, (_, j) => medio + (j - (n - 1) / 2) * paso) };
+    }
+  }
+  return null;
 }
 
 /**

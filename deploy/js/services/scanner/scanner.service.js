@@ -45,6 +45,7 @@ import { badgePlausible } from "../../utils/vision/badge_digit_ocr.js";
 import { isGarbledCellText } from "../../utils/vision/cell_text_guard.js";
 import { olvidaColorTexto } from "../../utils/vision/reward_preprocess.js";
 import { cedeHilo } from "../../utils/yield.js";
+import { avisa, pistasDelLog } from "../../utils/ganchos.js";
 
 export const ScannerService = {
     isScanning: false,
@@ -153,6 +154,7 @@ export const ScannerService = {
         this._sensor?.para();
         this._cartaVigilada = null;
         if (!this.isScanning) return;
+        if (pistasDelLog.duerme(this)) return ScannerHUD.updateContext("LOG_WAIT");
         const video = document.getElementById("live-video");
         // 0x0 video (resized window, loading) made 0 px crops
         if (!video || video.paused || video.ended || !video.videoWidth || !video.videoHeight) { this.scanInterval = setTimeout(() => this.loop(), 1000); return; }
@@ -207,7 +209,10 @@ export const ScannerService = {
         // the cached text describes this frame unless the title changed and the clock does not allow a
         // reread yet
         this._cabeceraVigente = !(enPausa && cambiado);
-        if (this.latchedContext === "TRADE" && TradeService.conDialogo(video)) {
+        if ((firma = pistasDelLog.firma())) {
+            headerText = firma.texto;
+            Object.assign(this, { _cabeceraVigente: true, lastHeaderText: headerText, lastHeaderHash: headerHash, lastHeaderOcrTime: Date.now() });
+        } else if (this.latchedContext === "TRADE" && TradeService.conDialogo(video)) {
             headerText = this.lastHeaderText || "TRADING POST";
         } else if (this.lastHeaderText !== null && headerCacheFresh && !pantallaNueva && (enPausa || !cambiado)) {
             headerText = this.lastHeaderText;
@@ -255,7 +260,7 @@ export const ScannerService = {
         // leaving mid card wait dropped the read: opened now, before releaseFrames clears it
         if (this.latchedContext === "REWARD" && this.ctxLatch.latched !== "REWARD") this.rescataRecompensaParcial();
         // frames only serve their screen: released on context change
-        if (this.ctxLatch.latched !== this.latchedContext) this.releaseFrames();
+        if (this.ctxLatch.latched !== this.latchedContext) { this.releaseFrames(); avisa("contexto", this.ctxLatch.latched); }
         this.latchedContext = this.ctxLatch.latched;
         // the frozen frame (~15 MB at 1440p) is released outside rewards
         if (this.latchedContext !== "REWARD") {
@@ -761,6 +766,8 @@ export const ScannerService = {
                 entries.push(e);
             });
         });
+        const armaLog = pistasDelLog.armaRiven();
+        if (armaLog) for (const e of entries) if (e.parsed && e.parsed.weaponName !== armaLog) Object.assign(e.parsed, { weaponName: armaLog, validation: RivenOCRService.validateRiven({ ...e.parsed, weaponName: armaLog }) });
 
         const anyText = entries.map(e => e.text.toUpperCase()).join(" ");
         const hasCardAnchor = /CYCLE|KUVA|KUYVA|CONFIRM|\bMR\s*\d/.test(anyText);
@@ -829,7 +836,9 @@ export const ScannerService = {
         let dropExtra = false;
         // a screen other than the one that confirmed both cards = one was picked after cycling: two reads
         // are enough
-        const trasElegir = valids.length < shownCount && !!this.lastTwoCardHash && !mismoTexto(hash, this.lastTwoCardHash);
+        const distinta = valids.length < shownCount && !!this.lastTwoCardHash && !mismoTexto(hash, this.lastTwoCardHash);
+        const trasElegir = distinta && !!this._hashUnaCarta && mismoTexto(hash, this._hashUnaCarta);
+        this._hashUnaCarta = distinta ? hash : null;
         if (valids.length < shownCount) {
             this.oneCardStreak++;
             const DOWNGRADE_STREAK = trasElegir ? 2 : 4;
@@ -1087,7 +1096,8 @@ export const ScannerService = {
 
         // where the cards are, instead of assuming 18.5-44 % of the frame: a webcam on an external monitor
         // breaks that (utils/vision/reward_band.js)
-        const { cropRect, columnas, cardCount, bandSource, cvs } = localizaBandaRecompensas(frame, width, height, this._rewardDetectCvs);
+        const { cropRect, columnas, cardCount: enImagen, bandSource, cvs } = localizaBandaRecompensas(frame, width, height, this._rewardDetectCvs);
+        const cardCount = pistasDelLog.tarjetas() || enImagen;
         this._rewardDetectCvs = cvs;
         console.log(cropRect
             ? `[REWARD] Banda detectada (${bandSource}): ${cardCount} cards en x=${Math.round(cropRect.x)} y=${Math.round(cropRect.y)} ${Math.round(cropRect.w)}x${Math.round(cropRect.h)}`
