@@ -232,7 +232,7 @@ function makeBadgeEl(doc, item) {
       ${t.inv}: <strong style="color:#00e5ff">${appOwned || 0}</strong>
     </div>
     <div class="pip-badge-prices">
-      <div class="pip-price"><img src="assets/relic_contents/platinum.webp"> ${price > 0 ? price : "—"}</div>
+      <div class="pip-price"><img src="assets/relic_contents/platinum.webp"> ${price > 0 ? price : "-"}</div>
       ${ducatHtml}
     </div>
     ${isForma ? "" : `<div class="pip-badge-add">${t.add}</div>`}

@@ -180,7 +180,7 @@ function guideHtml(prefs, t) {
     const legend = ["ready", "wait", "need"].map((key) => {
         const st = STATES[key];
         return `<li><span class="fr-state ${st.cls}" aria-hidden="true"></span>`
-            + `<b>${escapeHTML(st.label(t))}</b> — ${escapeHTML(st.help(t))}</li>`;
+            + `<b>${escapeHTML(st.label(t))}</b>: ${escapeHTML(st.help(t))}</li>`;
     }).join("");
 
     const numbers = [
@@ -190,7 +190,7 @@ function guideHtml(prefs, t) {
         [`120 ${t.perHour}`, t.readPerHour],
         [`${t.approx}22 ${t.mins}`, t.readMins],
     ].map(([ejemplo, desc]) =>
-        `<li><b>${escapeHTML(ejemplo)}</b> — ${escapeHTML(desc)}</li>`).join("");
+        `<li><b>${escapeHTML(ejemplo)}</b>: ${escapeHTML(desc)}</li>`).join("");
 
     return `<details class="fr-guide" data-fr="guide"${prefs.guideOpen ? " open" : ""}>
       <summary>${escapeHTML(t.guide)}</summary>
