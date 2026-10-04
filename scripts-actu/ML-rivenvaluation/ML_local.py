@@ -1569,3 +1569,91 @@ print(f"\nTasacion Torid (Status Duration / Melee Dmg / CC / -Mag, 430 rolls): {
 
 analizar_oportunidades_mercado("Torid", "Status Duration", "Base Damage / Melee Damage",
                                "Critical Chance", "Magazine Capacity", 430, precio_vendedor=1500)
+
+
+# compares appraisal against live auctions using subastas_vivas.csv without extra API calls
+# (COMPARAR_LISTINGS=1)
+if os.environ.get("COMPARAR_LISTINGS") == "1":
+    print("\n" + "=" * 72)
+    print("FASE 7: COMPARATIVA TASACION vs LISTINGS VIVOS (datos del oráculo)")
+    print("=" * 72)
+    _cols_vivos = ["weapon", "stat_pos1", "stat_pos2", "stat_pos3", "stat_neg", "price",
+                   "mag_pos1", "mag_pos2", "mag_pos3", "mag_neg", "auction_id", "tiradas"]
+    try:
+        _ids_vivos = set(pd.read_csv(os.path.join(os.path.dirname(LOCAL_CSV), "subastas_vivas.csv"),
+                                     usecols=["auction_id"])["auction_id"].astype(str))
+        _cab = pd.read_csv(LOCAL_CSV, nrows=0).columns
+        _vivos = pd.read_csv(LOCAL_CSV, usecols=[c for c in _cols_vivos if c in _cab], low_memory=False)
+    except Exception as e:
+        print(f"  [WARN] no se pudieron leer los datos del oráculo: {e}")
+        _ids_vivos, _vivos = set(), pd.DataFrame(columns=_cols_vivos)
+    if "tiradas" not in _vivos.columns:
+        _vivos = _vivos.iloc[0:0].assign(tiradas=pd.Series(dtype=float))
+    _vivos = _vivos[_vivos["auction_id"].astype(str).isin(_ids_vivos) & _vivos["tiradas"].notna()
+                    & (_vivos["price"] > 0) & (_vivos["price"] <= 25000)]
+    _vivos = _vivos.drop_duplicates("auction_id", keep="last")
+
+    _n_weap = int(os.environ.get("COMPARAR_N_WEAPONS", "20"))
+    _per_weap = int(os.environ.get("COMPARAR_PER_WEAPON", "6"))
+    _sample_weapons = df_micro_clean["weapon"].value_counts().head(60).index.tolist()
+    import random as _rnd; _rnd.seed(7); _rnd.shuffle(_sample_weapons)
+    _sample_weapons = _sample_weapons[:_n_weap]
+
+    filas, n_fetch = [], 0
+    for _w in _sample_weapons:
+        aucs = _vivos[_vivos["weapon"] == _w].sort_values("price")
+        if aucs.empty:
+            continue
+        n_fetch += 1
+        idxs = sorted(set(int(i) for i in np.linspace(0, len(aucs) - 1, min(_per_weap, len(aucs)))))
+        for _, a in aucs.iloc[idxs].iterrows():
+            pos = [str(a[c]) if pd.notna(a[c]) else "None" for c in ("stat_pos1", "stat_pos2", "stat_pos3")]
+            neg = str(a["stat_neg"]) if pd.notna(a["stat_neg"]) else "None"
+            mraw = {pos[0]: a["mag_pos1"], pos[1]: a["mag_pos2"], pos[2]: a["mag_pos3"], neg: a["mag_neg"]}
+            rerolls = int(a["tiradas"])
+            def _mn(st):
+                if st == "None":
+                    return 1.0
+                v = _mag_norm(_w, st, mraw.get(st))
+                return 0.6 if (v is None or (isinstance(v, float) and np.isnan(v))) else v
+            dg = tasar_riven_individual(_w, pos[0], pos[1], pos[2], neg, rerolls,
+                                        _mn(pos[0]), _mn(pos[1]), _mn(pos[2]), desglose=True)
+            real = float(a["price"])
+            filas.append({"weapon": _w, "pos": pos, "neg": neg, "rr": rerolls, "real": real,
+                          "p25": dg["p25"], "p50": dg["p50"], "p80": dg["p80"], "p95": dg["p95"],
+                          "conf": dg["confianza"], "regla": dg["regla"],
+                          "ape": abs(dg["p50"] - real) / max(real, 5.0),
+                          "in_band": 1 if (dg["p25"] <= real <= dg["p95"]) else 0})
+
+    if not filas:
+        print("  [WARN] sin listings vivos con tiradas en los datos del oráculo (las guarda desde 2026-10-04).")
+    else:
+        dfc = pd.DataFrame(filas)
+        print(f"\n  Armas con listings: {n_fetch}/{len(_sample_weapons)}  |  listings comparados: {len(dfc)}")
+        print(f"  {'arma':15s} {'roll (-neg, rr)':30s} {'real':>7s} {'p25':>6s} {'p50':>6s} {'p80':>6s} {'p95':>6s} ?")
+        print("  " + "-" * 96)
+        for _, r in dfc.sort_values(["weapon", "real"]).iterrows():
+            posdesc = "/".join(p.split()[0][:5] for p in r["pos"] if p != "None")
+            roll = f"{posdesc} -{r['neg'].split()[0][:4] if r['neg']!='None' else '—'} rr{r['rr']}"
+            mark = "✓" if r["in_band"] else ("↑" if r["real"] > r["p95"] else "↓")
+            conf = "!" if r["conf"] == "baja" else " "
+            print(f"  {r['weapon'][:15]:15s} {roll[:30]:30s} {int(r['real']):7d} {int(r['p25']):6d} "
+                  f"{int(r['p50']):6d} {int(r['p80']):6d} {int(r['p95']):6d} {mark}{conf}")
+        print("  " + "-" * 96)
+        print(f"  (! = baja confianza: {(dfc.conf=='baja').mean()*100:.0f}% de los listings)")
+        print(f"\n  BANDA vs listings reales:")
+        print(f"    reales dentro de [p25,p95]: {dfc.in_band.mean()*100:.0f}%")
+        print(f"    MAPE de p50 vs ask individual: global={dfc.ape.mean()*100:.0f}%  "
+              f">=200pl={dfc[dfc.real>=200].ape.mean()*100:.0f}%")
+        dfc["ask_p30"] = dfc.groupby("weapon").real.transform(lambda s: s.quantile(0.30))
+        dfc["ask_med"] = dfc.groupby("weapon").real.transform("median")
+        print(f"    ratio p50/ask_mediano={(dfc.p50/dfc.ask_med).median():.2f}  "
+              f"p80/ask_mediano={(dfc.p80/dfc.ask_med).median():.2f}  "
+              f"p95/ask_mediano={(dfc.p95/dfc.ask_med).median():.2f}")
+        # real GODROLL: checks whether the [p80, p95] band covers top listings (>= weapon p80 ask)
+        _gmask = dfc.real >= dfc.groupby("weapon").real.transform(lambda s: s.quantile(0.80))
+        if _gmask.sum() > 3:
+            _g = dfc[_gmask]
+            print(f"    GODROLLS (top asks, n={int(_gmask.sum())}): real dentro de [p80,p95]="
+                  f"{((_g.real>=_g.p80)&(_g.real<=_g.p95)).mean()*100:.0f}%  p95/real={(_g.p95/_g.real).median():.2f}")
+        print("=" * 72)
