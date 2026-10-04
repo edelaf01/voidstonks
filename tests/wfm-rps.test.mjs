@@ -80,6 +80,26 @@ test("WFM_PAUSA corta todo sin salir a la red y WFM_RPS se queda por debajo de 3
   assert.equal(WFM.huecoMs, 500);
 });
 
+test("las búsquedas de subastas van espaciadas aparte (WFM las limita a 10-20 por minuto) y no frenan lo demás", async () => {
+  const { WFM, fetchWFM } = internos();
+  WFM.configura({ WFM_RPS: "10" });
+  WFM.huecoSubastasMs = 300;
+  const salidas = [];
+  await conFetch(async (url) => { salidas.push([String(url).includes("/auctions/") ? "subasta" : "top", Date.now()]); return new Response("{}"); }, async () => {
+    const t0 = Date.now();
+    await Promise.all([
+      fetchWFM("https://api.warframe.market/v1/auctions/search?type=riven&weapon_url_name=torid"),
+      fetchWFM("https://api.warframe.market/v1/auctions/search?type=riven&weapon_url_name=kunai"),
+      fetchWFM("https://api.warframe.market/v2/orders/item/paris_prime_string/top"),
+    ]);
+    const subastas = salidas.filter(([k]) => k === "subasta").map(([, t]) => t - t0);
+    const top = salidas.find(([k]) => k === "top")[1] - t0;
+    assert.ok(subastas[1] - subastas[0] >= 290, `subastas separadas ${subastas[1] - subastas[0]} ms`);
+    assert.ok(top < subastas[1], "una orden normal no espera a la siguiente subasta");
+  });
+  assert.equal(internos().WFM.huecoSubastasMs, 6000, "en producción, una cada 6 s");
+});
+
 test("tras un 429 la instancia deja de llamar a WFM durante el Retry-After", async () => {
   const { WFM, fetchWFM } = internos();
   WFM.configura({ WFM_RPS: "50" });
