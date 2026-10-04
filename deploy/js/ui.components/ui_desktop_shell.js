@@ -12,6 +12,7 @@ import { state, saveAppState } from "../state.js";
 import { TEXTS } from "../config.js";
 import { alternarInspectorEELog } from "./ui_eelog_inspector.js";
 import { abrirPermisos } from "./ui_desktop_permisos.js";
+import { conectaEscaner } from "./ui_desktop_escaner.js";
 
 const bilingue = (es, en) => `<span class="lang-es">${es}</span><span class="lang-en">${en}</span>`;
 
@@ -117,6 +118,7 @@ const conPermiso = (id, accion) => () => (caps?.permisos?.[id] ? accion() : perm
 async function montarNativas(grupo) {
   if (!(await refrescaCapacidades())) return;
   ScannerModal.onPaneles = ensenaRecompensas;
+  conectaEscaner();
   EELogLive.escuchar(quitaLoQueCerroElJuego);
   globalThis.addEventListener("pagehide", quitarTodosAlSalir);
   if (caps.overlay) {
