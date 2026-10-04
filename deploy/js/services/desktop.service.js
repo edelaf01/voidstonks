@@ -1,5 +1,4 @@
 import {
-  latirAlLanzador,
   capacidadesDelLanzador,
   guardarPermisosEnLanzador,
   copiarConLanzador,
@@ -10,7 +9,6 @@ import { oneTimeNoticeSeen, markOneTimeNoticeSeen, leePanelesOcultos, guardaPane
 
 export { leePanelesOcultos, guardaPanelesOcultos };
 
-export const LATIDO_MS = 30_000;
 export const RECOMPENSAS_DURACION_MS = 20_000;
 export const PANTALLA_RECOMPENSAS_MS = 15_500;
 
@@ -20,11 +18,6 @@ export function duracionRecompensas(desde, ahora = Date.now()) {
 
 export function enLanzador(hostname = globalThis.location?.hostname) {
   return hostname === "voidstonks.localhost";
-}
-
-export function mantenerLanzador({ intervalo = LATIDO_MS, late = latirAlLanzador } = {}) {
-  late();
-  return setInterval(late, intervalo);
 }
 
 let capacidades = null;
@@ -118,6 +111,6 @@ export function quitarTodosAlSalir({ manda = panelesEnJuego } = {}) {
   if (!overlayActivo) return;
   for (const { resuelve } of cola.values()) resuelve(false);
   cola.clear();
-  for (const grupo of visibles) manda({ grupo, paneles: [] }, { keepalive: true });
+  for (const grupo of visibles) manda({ grupo, paneles: [] });
   visibles.clear();
 }
