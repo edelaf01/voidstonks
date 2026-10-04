@@ -1,6 +1,6 @@
 import { esEscritorio, carcasaActiva } from "../utils/shell.js";
 import {
-  enLanzador, mantenerLanzador, capacidadesNativas, copiarNativo, activaOverlay, mostrarPaneles, quitarPaneles,
+  enLanzador, capacidadesNativas, copiarNativo, activaOverlay, mostrarPaneles, quitarPaneles,
   quitarTodosAlSalir, estrenaAutoCopia, duracionRecompensas, leePanelesOcultos, guardaPanelesOcultos,
 } from "../services/desktop.service.js";
 import { ClipboardService } from "../services/clipboard.service.js";
@@ -167,7 +167,6 @@ export function initDesktopShell() {
   const grupo = barra ? montarHerramientas(barra) : null;
   fijaPaneles();
   montarEstado();
-  if (!enLanzador()) return;
-  mantenerLanzador();
-  if (grupo) montarNativas(grupo).catch(console.warn);
+  if (!enLanzador() || !grupo) return;
+  montarNativas(grupo).catch(console.warn);
 }
