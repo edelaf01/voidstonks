@@ -18,6 +18,8 @@ const MAX_CHUNK_RETRIES = 3;
 
 let vosforData = null;
 let vosforDataPromise = null;
+let preciosDiariosPromise = null;
+const PRECIOS_DIARIOS_MAX_MS = 3 * 24 * 60 * 60 * 1000;
 
 export const ARC_STATS = new Map();
 
@@ -42,6 +44,22 @@ export async function loadVosforData() {
             });
     }
     return vosforDataPromise;
+}
+
+export function cargaPreciosDiarios({ lee = () => fetch("assets/json/precios_arcanos.json"), ahora = Date.now() } = {}) {
+    if (!preciosDiariosPromise) {
+        preciosDiariosPromise = Promise.resolve()
+            .then(lee)
+            .then((r) => (r?.ok ? r.json() : null))
+            .then((d) => {
+                if (!d?.arcanos || !(ahora - Date.parse(d.updated) < PRECIOS_DIARIOS_MAX_MS)) return null;
+                for (const [slug, stats] of Object.entries(d.arcanos)) ARC_STATS.set(slug, stats);
+                notify();
+                return d;
+            })
+            .catch(() => null);
+    }
+    return preciosDiariosPromise;
 }
 
 /** Se llama cada vez que llegan stats nuevas (para re-render progresivo). */
@@ -99,6 +117,7 @@ function packChunks(pack) {
  * la pone al principio de la cola. Devuelve tras hidratar la caché local.
  */
 export async function requestPackStats(pack, priority = false, force = false) {
+    await cargaPreciosDiarios();
     if (!force) await hydrateFromIDB(pack.items);
     for (const chunk of packChunks(pack)) {
         if (!force && chunk.every((s) => ARC_STATS.has(s))) continue;
@@ -394,7 +413,7 @@ export function vosforPerPlat(meta, st) {
     return {
         ratio: vosfor / ask,
         buyPrice: ask,
-        sellers: st.s || 0,
+        sellers: st.s ?? null,
         // Lo que te costaría en platino juntar los 200 Vosfor de un pack de Loid.
         platPerPack: (200 / vosfor) * ask,
     };

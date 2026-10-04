@@ -591,7 +591,7 @@ function rankingLeaderboardCard(spend) {
                 }
                 if (activeRankTab === "buy") {
                     // A igual ratio, el que tenga más vendedores: es el que puedes repetir.
-                    return (b.vpp.ratio - a.vpp.ratio) || (b.vpp.sellers - a.vpp.sellers);
+                    return (b.vpp.ratio - a.vpp.ratio) || ((b.vpp.sellers ?? 0) - (a.vpp.sellers ?? 0)) || (b.liq.volume - a.liq.volume);
                 }
                 if (activeRankTab === "liq") return b.liq.volume - a.liq.volume;
                 return 0;
@@ -662,15 +662,15 @@ function rankingLeaderboardCard(spend) {
                         : `<span style="font-size:0.82rem;">${es ? "nada que perder" : "nothing to lose"}</span>`;
                     mainValStyle = "color:#c59afc;";
                 } else if (activeRankTab === "buy") {
-                    const sellersTxt = es
-                        ? `${vpp.sellers} ${vpp.sellers === 1 ? "vendedor" : "vendedores"}`
-                        : `${vpp.sellers} ${vpp.sellers === 1 ? "seller" : "sellers"}`;
-                    subText = `R0 ${vpp.buyPrice}${PLAT} · ${sellersTxt} · ${liq.volume}/${es ? "día" : "day"}`
+                    const sellersTxt = vpp.sellers == null ? "" : es
+                        ? ` · ${vpp.sellers} ${vpp.sellers === 1 ? "vendedor" : "vendedores"}`
+                        : ` · ${vpp.sellers} ${vpp.sellers === 1 ? "seller" : "sellers"}`;
+                    subText = `R0 ${vpp.buyPrice}${PLAT}${sellersTxt} · ${liq.volume}/${es ? "día" : "day"}`
                         + ` · 200${vosforIcon(12)} ≈ ${Math.round(vpp.platPerPack)}${PLAT}`;
 
                     // Con uno o dos vendedores la ratio es real pero irrepetible: compras esa
                     // copia y se acabó la fuente.
-                    extraNameHtml = vpp.sellers <= 2
+                    extraNameHtml = (vpp.sellers == null ? liq.volume < 1 : vpp.sellers <= 2)
                         ? ` <span style="font-size:0.62rem;color:#ff8866;border:1px solid rgba(255,136,102,0.35);border-radius:3px;padding:0 4px;">${es ? "POCA OFERTA" : "LOW SUPPLY"}</span>`
                         : "";
 

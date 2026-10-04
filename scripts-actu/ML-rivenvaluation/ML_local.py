@@ -1918,34 +1918,31 @@ analizar_oportunidades_mercado("Torid", "Status Duration", "Base Damage / Melee 
 
 
 # ====================================================================
-# FASE 7: COMPARATIVA TASACION vs LISTINGS REALES (WFM en vivo)
-# Mide el tasador contra el mercado vivo: para cada subasta real toma sus stats, MAGNITUDES y
-# rerolls reales, tasa, y compara contra el buyout del vendedor. Activar con COMPARAR_LISTINGS=1.
+# FASE 7: COMPARATIVA TASACION vs LISTINGS VIVOS
+# Mide el tasador contra el mercado vivo con los datos que ya guarda el oráculo (Voidstonks-cron):
+# subastas_vivas.csv dice qué sigue publicado y el dataset trae sus stats, magnitudes, tiradas y
+# buyout. Sin peticiones a WFM. Activar con COMPARAR_LISTINGS=1.
 # ====================================================================
 if os.environ.get("COMPARAR_LISTINGS") == "1":
     print("\n" + "=" * 72)
-    print("FASE 7: COMPARATIVA TASACION vs LISTINGS REALES (WFM en vivo)")
+    print("FASE 7: COMPARATIVA TASACION vs LISTINGS VIVOS (datos del oráculo)")
     print("=" * 72)
-    WFM_SEARCH = "https://api.warframe.market/v1/auctions/search?type=riven&weapon_url_name="
-    _LEGACY = {"Channeling Damage": "Initial Combo", "Channeling Efficiency": "Heavy Attack Efficiency",
-               "Charge Damage": "Heavy Attack Damage"}
-    def _wfm_stat(url_name):
-        s = " ".join([w.capitalize() for w in str(url_name).split("_")])
-        return _LEGACY.get(s, s)
-    def _wfm_slug(name):
-        s = str(name).lower().strip().replace("&", "and").replace(" ", "_")
-        return re.sub(r"[^a-z0-9_]", "", s)
-    def _fetch_auctions(weapon):
-        try:
-            r = requests.get(WFM_SEARCH + _wfm_slug(weapon),
-                             headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json"}, timeout=20)
-            pl = r.json().get("payload", {}).get("auctions", [])
-        except Exception:
-            return []
-        return [a for a in pl if a.get("visible") and (a.get("owner") or {}).get("status") != "offline"
-                and a.get("buyout_price") and 0 < a["buyout_price"] <= 25000]
+    _cols_vivos = ["weapon", "stat_pos1", "stat_pos2", "stat_pos3", "stat_neg", "price",
+                   "mag_pos1", "mag_pos2", "mag_pos3", "mag_neg", "auction_id", "tiradas"]
+    try:
+        _ids_vivos = set(pd.read_csv(os.path.join(os.path.dirname(LOCAL_CSV), "subastas_vivas.csv"),
+                                     usecols=["auction_id"])["auction_id"].astype(str))
+        _cab = pd.read_csv(LOCAL_CSV, nrows=0).columns
+        _vivos = pd.read_csv(LOCAL_CSV, usecols=[c for c in _cols_vivos if c in _cab], low_memory=False)
+    except Exception as e:
+        print(f"  [WARN] no se pudieron leer los datos del oráculo: {e}")
+        _ids_vivos, _vivos = set(), pd.DataFrame(columns=_cols_vivos)
+    if "tiradas" not in _vivos.columns:
+        _vivos = _vivos.iloc[0:0].assign(tiradas=pd.Series(dtype=float))
+    _vivos = _vivos[_vivos["auction_id"].astype(str).isin(_ids_vivos) & _vivos["tiradas"].notna()
+                    & (_vivos["price"] > 0) & (_vivos["price"] <= 25000)]
+    _vivos = _vivos.drop_duplicates("auction_id", keep="last")
 
-    # Muestra: armas con más datos (señal fiable), repartidas; configurable por env.
     _n_weap = int(os.environ.get("COMPARAR_N_WEAPONS", "20"))
     _per_weap = int(os.environ.get("COMPARAR_PER_WEAPON", "6"))
     _sample_weapons = df_micro_clean["weapon"].value_counts().head(60).index.tolist()
@@ -1954,25 +1951,16 @@ if os.environ.get("COMPARAR_LISTINGS") == "1":
 
     filas, n_fetch = [], 0
     for _w in _sample_weapons:
-        aucs = _fetch_auctions(_w)
-        if not aucs:
+        aucs = _vivos[_vivos["weapon"] == _w].sort_values("price")
+        if aucs.empty:
             continue
         n_fetch += 1
-        aucs.sort(key=lambda a: a["buyout_price"])
-        # repartir la muestra a lo largo del rango de precios (trash..godroll)
         idxs = sorted(set(int(i) for i in np.linspace(0, len(aucs) - 1, min(_per_weap, len(aucs)))))
-        for a in [aucs[i] for i in idxs]:
-            it = a["item"]; pos, neg = [], "None"
-            mraw = {}
-            for at in it.get("attributes", []):
-                st = _wfm_stat(at["url_name"]); val = at.get("value")
-                if at.get("positive"):
-                    pos.append(st); mraw[st] = val
-                else:
-                    neg = st; mraw[st] = val
-            while len(pos) < 3:
-                pos.append("None")
-            rerolls = int(it.get("re_rolls") or 0)
+        for _, a in aucs.iloc[idxs].iterrows():
+            pos = [str(a[c]) if pd.notna(a[c]) else "None" for c in ("stat_pos1", "stat_pos2", "stat_pos3")]
+            neg = str(a["stat_neg"]) if pd.notna(a["stat_neg"]) else "None"
+            mraw = {pos[0]: a["mag_pos1"], pos[1]: a["mag_pos2"], pos[2]: a["mag_pos3"], neg: a["mag_neg"]}
+            rerolls = int(a["tiradas"])
             def _mn(st):
                 if st == "None":
                     return 1.0
@@ -1980,16 +1968,15 @@ if os.environ.get("COMPARAR_LISTINGS") == "1":
                 return 0.6 if (v is None or (isinstance(v, float) and np.isnan(v))) else v
             dg = tasar_riven_individual(_w, pos[0], pos[1], pos[2], neg, rerolls,
                                         _mn(pos[0]), _mn(pos[1]), _mn(pos[2]), desglose=True)
-            real = float(a["buyout_price"])
+            real = float(a["price"])
             filas.append({"weapon": _w, "pos": pos, "neg": neg, "rr": rerolls, "real": real,
                           "p25": dg["p25"], "p50": dg["p50"], "p80": dg["p80"], "p95": dg["p95"],
                           "conf": dg["confianza"], "regla": dg["regla"],
                           "ape": abs(dg["p50"] - real) / max(real, 5.0),
                           "in_band": 1 if (dg["p25"] <= real <= dg["p95"]) else 0})
-        time.sleep(0.15)
 
     if not filas:
-        print("  [WARN] no se pudieron traer listings (rate-limit/slug). Reintenta más tarde.")
+        print("  [WARN] sin listings vivos con tiradas en los datos del oráculo (las guarda desde 2026-10-04).")
     else:
         dfc = pd.DataFrame(filas)
         print(f"\n  Armas con listings: {n_fetch}/{len(_sample_weapons)}  |  listings comparados: {len(dfc)}")
