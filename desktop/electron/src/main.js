@@ -1,4 +1,4 @@
-import { app, BrowserWindow, clipboard, desktopCapturer, dialog, ipcMain, Menu, session, shell } from "electron";
+import { app, BrowserWindow, clipboard, desktopCapturer, dialog, ipcMain, Menu, screen, session, shell } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { arrancaServidor, PREFIJO_OVERLAY } from "./servidor.js";
@@ -7,9 +7,13 @@ import { creaLectorEELog, rutaEELog } from "./eelog.js";
 import { peticionValida } from "./paneles.js";
 import { puedePintar } from "./juego.js";
 import { creaOverlay } from "./ventana-overlay.js";
+import { creaRegistroConsola } from "./consola.js";
+import { creaZoom, zoomPorDefecto } from "./zoom.js";
+import { HOSTS_PROPIOS, conCorsDeLaApp, conOrigenLocalParaWfm } from "./cors.js";
 
 const AQUI = path.dirname(fileURLToPath(import.meta.url));
 const RAIZ_PAQUETE = path.resolve(AQUI, "..");
+const WFM_LOCAL = !app.isPackaged;
 const PERMITIDOS = new Set(["clipboard-sanitized-write", "clipboard-read", "notifications", "media", "display-capture", "fullscreen"]);
 
 app.setName("VoidStonks");
@@ -54,8 +58,20 @@ app.whenReady().then(async () => {
   const overlay = creaOverlay({
     url: `${origen}${PREFIJO_OVERLAY}index.html`,
     preload: path.join(AQUI, "overlay-preload.cjs"),
+    alAccion: (grupo, accion) => {
+      if (principal && !principal.isDestroyed()) principal.webContents.send("vs:accion", grupo, accion);
+    },
   });
   const esDeLaApp = (e) => !!principal && e.sender === principal.webContents && origenDe(e.senderFrame?.url) === origen;
+
+  session.defaultSession.webRequest.onHeadersReceived({ urls: HOSTS_PROPIOS }, (detalles, responde) => {
+    responde({ responseHeaders: conCorsDeLaApp(detalles.responseHeaders, origen) });
+  });
+  if (WFM_LOCAL) {
+    session.defaultSession.webRequest.onBeforeSendHeaders({ urls: HOSTS_PROPIOS }, (detalles, responde) => {
+      responde({ requestHeaders: conOrigenLocalParaWfm(detalles.url, detalles.requestHeaders, origen) });
+    });
+  }
 
   session.defaultSession.setPermissionRequestHandler((_wc, permiso, cb, detalles) => {
     cb(PERMITIDOS.has(permiso) && origenDe(detalles.requestingUrl) === origen);
@@ -142,9 +158,14 @@ app.whenReady().then(async () => {
       contextIsolation: true,
       backgroundThrottling: false,
       spellcheck: false,
+      additionalArguments: WFM_LOCAL ? ["--vs-wfm-local"] : [],
     },
   });
   const wc = principal.webContents;
+  const anota = creaRegistroConsola(path.join(app.getPath("userData"), "consola.log"));
+  wc.on("console-message", (e, nivel, mensaje) => anota(e.level ?? nivel, e.message ?? mensaje));
+  const zoom = creaZoom(path.join(app.getPath("userData"), "zoom.json"), { porDefecto: zoomPorDefecto(screen.getPrimaryDisplay().size.width) });
+  wc.on("did-finish-load", () => wc.setZoomFactor(zoom.get()));
   principal.once("ready-to-show", () => principal.show());
   principal.on("closed", () => {
     overlay.cierra();
@@ -152,12 +173,17 @@ app.whenReady().then(async () => {
   });
   wc.on("did-navigate", () => {
     paraSeguidor(wc.id);
-    overlay.quitaTodos();
+    overlay.cierra();
   });
   wc.on("before-input-event", (_e, input) => {
     if (input.type !== "keyDown") return;
     if (input.key === "F12") wc.toggleDevTools();
     if (input.key === "F5") wc.reloadIgnoringCache();
+    if (input.control || input.meta) {
+      if (input.key === "+" || input.key === "=") wc.setZoomFactor(zoom.sube());
+      else if (input.key === "-") wc.setZoomFactor(zoom.baja());
+      else if (input.key === "0") wc.setZoomFactor(zoom.reinicia());
+    }
   });
   wc.setWindowOpenHandler(({ url }) => {
     if (origenDe(url) === origen) return { action: "allow", overrideBrowserWindowOptions: { autoHideMenuBar: true, backgroundColor: "#0e1014" } };

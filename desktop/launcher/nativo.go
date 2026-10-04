@@ -7,8 +7,6 @@ import (
 	"runtime"
 )
 
-// Una web cualquiera puede apuntar a voidstonks.localhost (el Host pasa), pero no puede falsear
-// Sec-Fetch-Site ni mandar una cabecera propia sin un preflight que aquí nunca se contesta.
 func soloLaApp(r *http.Request) bool {
 	if r.Header.Get("Sec-Fetch-Site") != "same-origin" {
 		return false
@@ -22,7 +20,6 @@ var permisoDeRuta = map[string]string{
 	"/__voidstonks/paneles": "overlay",
 }
 
-// Devuelve false si la ruta no es nativa y la debe servir el resto del handler.
 func nativo(w http.ResponseWriter, r *http.Request) bool {
 	var h func(http.ResponseWriter, *http.Request)
 	switch r.URL.Path {

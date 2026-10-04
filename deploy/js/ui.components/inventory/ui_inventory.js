@@ -18,8 +18,6 @@ import {
   toggleInvSet,
 } from "./ui_prime_inventory.js";
 
-
-
 export function toggleInventoryPanel(forceOpen = false) {
   const panel = document.getElementById("inventory-container");
   if (forceOpen) panel.classList.add("open");
@@ -255,6 +253,7 @@ export function selectRelicFromInv(name) {
   if (input) input.value = name;
 
   globalThis.switchTab("relic");
+  // close directly, not toggle: relic chips also show in routes panel with inventory closed
   if (!carcasaActiva()) document.getElementById("inventory-container")?.classList.remove("open");
   input?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   manualRelicUpdate();
@@ -367,8 +366,6 @@ export function switchInvView(view) {
     renderPrimeInventory();
   }
 }
-
-
 
 export function exportInventory() {
   const t = TEXTS[state.currentLang]?.inventory || {};

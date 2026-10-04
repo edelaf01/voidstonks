@@ -38,10 +38,13 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      - uses: pnpm/action-setup@v4
+
       - name: Setup Node
         uses: actions/setup-node@v5
         with:
           node-version: '22'
+          cache: pnpm
 
       # El paso de wrangler falla sin decir por qué cuando faltan los secretos ("npx failed with
       # exit code 1"): se comprueba antes, con un mensaje que se lea en la anotación del run.
@@ -62,7 +65,7 @@ jobs:
       # Minifica el JS a dist/ (deploy/ conserva los comentarios). Ver scripts-actu/build-dist.mjs.
       - name: Build minified dist
         run: |
-          npm install --no-save esbuild@0.24.0
+          pnpm install --frozen-lockfile
           node scripts-actu/build-dist.mjs
 
       - name: Deploy to Cloudflare Pages

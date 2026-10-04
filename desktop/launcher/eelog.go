@@ -20,7 +20,6 @@ const (
 	maxPorTick    = 1 << 20
 )
 
-// VOIDSTONKS_EELOG fuerza la ruta. Devuelve "" si no hay ninguno.
 func rutaEELog() string {
 	if p := os.Getenv("VOIDSTONKS_EELOG"); p != "" {
 		return p
@@ -35,7 +34,6 @@ func rutaEELog() string {
 			cands = append(cands, filepath.Join(lib, dentro))
 		}
 	}
-	// Con varios prefijos de Proton manda el que el juego tocó por última vez.
 	mejor, cuando := "", time.Time{}
 	for _, c := range cands {
 		if info, err := os.Stat(c); err == nil && info.ModTime().After(cuando) {
@@ -47,7 +45,6 @@ func rutaEELog() string {
 
 var rePathVDF = regexp.MustCompile(`"path"\s+"([^"]+)"`)
 
-// El prefijo de Proton vive en la biblioteca donde está instalado el juego, no siempre en la principal.
 func bibliotecasSteam() []string {
 	home, _ := os.UserHomeDir()
 	raices := []string{
@@ -77,12 +74,11 @@ func bibliotecasSteam() []string {
 }
 
 type seguidor struct {
-	pos   int64 // -1: aún sin leer; si el fichero ya existe se empieza por la cola
+	pos   int64
 	resto []byte
-	tirar bool // la primera línea tras saltar a la cola llega cortada
+	tirar bool
 }
 
-// Server-Sent Events con las líneas nuevas del EE.log. ?cola=N manda antes los últimos N bytes.
 func servirEELog(w http.ResponseWriter, r *http.Request) {
 	fl, ok := w.(http.Flusher)
 	if !ok {
@@ -123,13 +119,11 @@ func servirEELog(w http.ResponseWriter, r *http.Request) {
 				evento(w, "falta", ruta)
 				falta, escrito = true, true
 			}
-			// Cuando aparezca será una sesión nueva del juego: se lee entera.
 			s = seguidor{}
 		case s.pos < 0:
 			s.pos = max(info.Size()-cola, 0)
 			s.tirar = s.pos > 0
 		case info.Size() < s.pos:
-			// El juego reescribe el EE.log en cada arranque.
 			evento(w, "reinicio", ruta)
 			escrito = true
 			s = seguidor{}
@@ -152,7 +146,6 @@ func servirEELog(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// Abre y cierra en cada lectura: un handle abierto podría estorbar al juego al reescribir el fichero.
 func (s *seguidor) leer(ruta string, hasta int64) []string {
 	if hasta <= s.pos {
 		return nil

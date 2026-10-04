@@ -222,7 +222,6 @@
 
       </div>
 
-
       <div id="live-debug-snapshot" class="hud-debug" style="display: none">
         <div class="hud-debug-head">
           <span id="lbl-ocr-debug" class="hud-debug-label">Lo que lee el OCR</span>
@@ -344,7 +343,6 @@
       </div>
     </div>
   </div>
-
 
   <div id="inventory-container">
     <button type="button" id="inv-toggle-btn" class="mission-toggle-btn vs-plain"
@@ -496,7 +494,7 @@
       </a>
       <div id="scanner-section" class="scanner-wrapper">
         <div class="scanner-info-icon" id="scanner-info-icon">
-          ℹ️
+          ℹ
         </div>
 
         <div class="scan-history-dropdown-wrapper">
@@ -529,7 +527,6 @@
           </div>
         </div>
 
-
         <div id="scanner-toggle" class="scanner-toggle-btn">
           <div class="toggle-content">
             <span class="icon-pulse">◉</span>
@@ -539,7 +536,7 @@
         </div>
 
         <div id="scanner-privacy-notice" class="scanner-notice hidden">
-          <div class="notice-header" id="lbl-notice-title">⚠️ AVISO: FUNCIÓN EN BETA</div>
+          <div class="notice-header" id="lbl-notice-title">AVISO: FUNCIÓN EN BETA</div>
           <div class="notice-body">
             <p id="lbl-notice-perm">
               Para leer la pantalla del juego, el navegador te pedirá permiso para GRABAR tu pantalla.
@@ -662,7 +659,7 @@
         <div class="form-group">
           <label>
             <span id="lbl-relic-name">Nombre de Reliquia</span>
-            <span id="relic-guide-icon" class="info-icon" style="cursor: help; margin-left: 5px">ℹ️</span>
+            <span id="relic-guide-icon" class="info-icon" style="cursor: help; margin-left: 5px">ℹ</span>
           </label>
 
           <div class="relic-input-wrapper">
@@ -686,7 +683,7 @@
               <label id="lbl-refinement">Refinamiento</label>
               <select id="refinement" class="wf-input" onchange="globalThis.setRefinement(this.value)">
                 <option value="Rad" data-key="rad">Radiante</option>
-                <option value="Flawless" data-key="flawless">Perfecta</option>
+                <option value="Flawless" data-key="flawless">Impecable</option>
                 <option value="Exceptional" data-key="exceptional">
                   Excepcional
                 </option>
@@ -858,8 +855,6 @@
                 </div>
               </div>
 
-
-
               <div style="display: flex; gap: 12px; margin-top: 20px">
                 <button class="premium-riven-btn btn-price" id="btn-riven-search" onclick="openRivenMarket()">
                   VER EN WFM ↗
@@ -878,7 +873,6 @@
 
               <div id="meta-stats-container" class="recommended-god-roll-card" style="display:none;"></div>
 
-
             </div>
           </div>
 
@@ -890,7 +884,7 @@
               style="margin-top: 15px; display: none; position: relative; height: auto; background: rgba(0,0,0,0.25); border: 1px solid rgba(155, 89, 182, 0.15); border-radius: 8px; padding: 8px; box-sizing: border-box; width: 100%;">
               <div id="chart-hint-note"
                 style="font-size: 0.6rem; color: #888; text-align: center; margin-bottom: 4px; text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px;">
-                💡 Haz clic en la leyenda 'WFM' para ocultarlo y auto-escalar a Precios Reales
+                Pulsa 'WFM' en la leyenda para ocultarlo y ajustar la escala a los precios reales de DE
               </div>
               <div class="history-range-selector" style="display: flex; justify-content: center; gap: 6px; margin: 6px 0 10px 0;">
                 <button class="history-range-btn active" data-days="7" onclick="globalThis.changeHistoryRange(7)" style="background: rgba(162, 53, 226, 0.25); border: 1px solid rgba(162, 53, 226, 0.6); color: #fff; font-size: 0.65rem; font-weight: bold; padding: 3px 10px; border-radius: 4px; cursor: pointer; transition: all 0.2s;">7D</button>
@@ -1080,10 +1074,7 @@
                 onclick="selectLfgOption('kuva', 'Kuva (Survival/Flood/Siphon)')">Kuva (Survival/Flood/Siphon)</button>
               <button type="button" role="menuitem"
                 class="dropdown-item vs-plain vs-plain-block" data-lfg="sirius"
-                onclick="selectLfgOption('sirius', 'Sirius (Jade)')">Sirius (Jade)</button>
-              <button type="button" role="menuitem"
-                class="dropdown-item vs-plain vs-plain-block" data-lfg="orion"
-                onclick="selectLfgOption('orion', 'Orion (Jade)')">Orion (Jade)</button>
+                onclick="selectLfgOption('sirius', 'Sirius & Orion farm')">Sirius &amp; Orion farm</button>
               <button type="button" role="menuitem"
                 class="dropdown-item vs-plain vs-plain-block" data-lfg="follie"
                 onclick="selectLfgOption('follie', 'Follie Hunt (Vesper)')">Follie Hunt (Vesper)</button>
