@@ -12,7 +12,6 @@
  */
 export const ClipboardService = {
     extensionReady: false,
-    // En la app de escritorio la carcasa pone aquí la copia del lanzador, que no necesita foco.
     nativo: null,
     _pending: null,
     _seq: 0,
@@ -33,7 +32,6 @@ export const ClipboardService = {
         window.addEventListener("focus", () => this._flushPending());
     },
 
-    // Devuelve por qué vía se copió: "launcher" | "extension" | "clipboard" | "queued"
     async copy(text) {
         if (this.nativo && await this.nativo(text)) return "launcher";
         if (this.extensionReady) {

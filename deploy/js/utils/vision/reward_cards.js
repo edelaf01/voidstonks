@@ -59,11 +59,8 @@ export function detectCardRow(img, { percentil = 0.97, minLado = 0.03, colaRotul
   return { x: 0, w: W, y: y1, h: Math.round(Math.min(H - y1, alto * colaRotulo)), cardCount: g.length, columnas };
 }
 
-// A escala de interfaz 100 % una tarjeta mide el 12,6 % del ancho en 16:9 y el 16,8 % en 4:3.
 const PASO_CARTA_MAX = 0.18;
 
-// La fila va centrada en pantalla: con eso, las manchas que pasan el corte de brillo bastan para
-// deducirla entera, también las tarjetas de arte oscuro. null si el juego no está centrado.
 export function filaCentrada(centros, W, { maxCartas = 4, tol = 0.2 } = {}) {
   if (!W || !centros?.length) return null;
   const medio = W / 2;

@@ -60,7 +60,6 @@ export const ScannerHUD = {
         }
     },
 
-    /** Lista de piezas del kiosko (las que conviene echar); con la lista vacía el bloque se esconde. */
     updateKioskSale(items, rotulo = TEXTS[state.currentLang].scannerHUD.kioskForSale) {
         const panel = document.getElementById("kiosk-sale-panel");
         if (!panel) return;
@@ -82,7 +81,6 @@ export const ScannerHUD = {
             const linea = document.createElement("div");
             linea.className = "kiosk-line";
             linea.appendChild(span("kiosk-name", `${qty}× ${name}`));
-            // Platino de UNA pieza y ducados por platino: lo que se deja de ganar por echarla.
             if (plat != null) linea.appendChild(span("kiosk-plat", `${plat}p`));
             if (ratio != null) linea.appendChild(span("kiosk-ratio", `${ratio === Infinity ? "∞" : ratio.toFixed(1)} d/pl`));
             if (ducats != null) linea.appendChild(span("kiosk-ducats", String(ducats)));

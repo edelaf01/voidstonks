@@ -1,23 +1,16 @@
-// Eventos útiles del EE.log de Warframe. El juego registra cada pantalla al crearla
-// ("Created /Lotus/Interface/X.swf") pero no al cerrarla.
-
 const RE_TIEMPO = /^(\d+\.\d+) /;
-// Solo pantallas de primer nivel: las subcarpetas son retículas, HUDs y fondos.
 const RE_PANTALLA = /Created \/Lotus\/Interface\/(\w+)\.swf/;
 const RE_DIALOGO = /Dialog::Create\w*\(description=(.*?), title=/;
 const RE_RELIQUIA = /equip (\w+ \w+) Relic(?: \[(\w+)\])? for this mission/;
 const RE_REFINA = /^Refine (\w+ \w+) Relic to (\w+)\?/;
 const RE_CICLO_RIVEN = /^Are you sure you want to cycle (.+) for ([\d,]+)\?/;
-// Refinada al equiparla: el diálogo no lleva corchetes y el refinamiento sale del coste.
 const RE_RELIQUIA_REFINA = /refine and equip (\w+ \w+) Relic\? It will cost (\d+) Void Traces/;
 const POR_COSTE = { 25: "EXCEPTIONAL", 50: "FLAWLESS", 100: "RADIANT" };
 const RE_MISION = /MissionIntro\.lua: MissionName: (.+)$/;
-const RE_FIN_MISION = /EndOfMatch\.lua: Skip ReturnedToShip|GameRulesImpl - changing state from \w+ to SS_ENDED/;
+const RE_FIN_MISION = /EndOfMatch\.lua: Skip ReturnedToShip|GameRulesImpl - changing state from \w+ to SS_ENDED|Subscribing for \/Lotus\/Interface\/EndOfMatch\.swf/;
 const RE_RECOMPENSAS = /ProjectionRewardChoice\.lua: (Got rewards|Relic reward screen shut down|Missing icon data!)/;
-// Solo sale la recompensa propia: las de la escuadra no se registran.
 const RE_PROPIA = /VoidProjections: \w+ gets reward (\/Lotus\/\S+)/;
 const RE_MENU = /(\w+)\.lua: DBG: HudVis ([01])\s*$/;
-// "Selling Prime Parts" es el kiosko de ducados de Baro; "Inventory", el inventario normal.
 const RE_MODO_INVENTARIO = /InventoryTest - CurrMode: (.+?)\s*$/;
 
 export const PANTALLAS = {
@@ -72,7 +65,6 @@ export function parseLinea(linea) {
   }
   const refinada = RE_RELIQUIA_REFINA.exec(dialogo[1]);
   if (refinada) return { tipo: "reliquia", nombre: refinada[1], refinamiento: POR_COSTE[refinada[2]] || "?", t };
-  // Las claves /Lotus/Language/... son avisos internos (reconectando, creando sesión).
   if (dialogo[1].startsWith("/Lotus/")) return null;
   return { tipo: "dialogo", texto: dialogo[1], t };
 }
@@ -81,8 +73,6 @@ export function nombrePantalla(swf, lang) {
   return PANTALLAS[swf]?.[lang === "en" ? "en" : "es"] || swf;
 }
 
-// "/Lotus/StoreItems/Types/Recipes/Weapons/WeaponParts/VentoPrimeHandle" -> "Vento Prime Handle".
-// Es el nombre interno: alguno no coincide con el visible (Vento es el Venato Prime).
 export function nombreInterno(ruta) {
   return (ruta?.split("/").pop() || "").replace(/([a-z])([A-Z])/g, "$1 $2");
 }

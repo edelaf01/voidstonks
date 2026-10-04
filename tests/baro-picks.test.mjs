@@ -1,5 +1,3 @@
-// Qué piezas llevar a Baro sin romper sets.
-
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { copiasQueSobran } from "../deploy/js/utils/inventory/baro_picks.js";
@@ -8,7 +6,6 @@ const setsDatabase = {
   "Akarius Prime": ["Akarius Prime Blueprint", "Akarius Prime Barrel", "Akarius Prime Receiver"],
   "Venato Prime": ["Venato Prime Blueprint", "Venato Prime Blade", "Venato Prime Handle"],
 };
-// Venato pide dos hojas.
 const getRequiredCount = (set, p) => (p === "Venato Prime Blade" ? 2 : 1);
 const getSetName = (p) => /(.*? Prime)/.exec(p)?.[1];
 const deps = (primeInventory) => ({ primeInventory, setsDatabase, getSetName, getRequiredCount });
@@ -46,7 +43,6 @@ test("recomienda las copias sobrantes que rentan en ducados, de mejor a peor rat
     precioDe: (n) => (n in precios ? precios[n] : null),
     rentaFundir: (d, p) => d / 10 > p,
   });
-  // El plano de Akarius vale más vendido; el de Venato no tiene precio todavía.
   assert.deepEqual(lista.map((i) => [i.name, i.qty]), [["Akarius Prime Barrel", 3], ["Venato Prime Handle", 1]]);
 });
 

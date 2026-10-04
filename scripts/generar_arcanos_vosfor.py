@@ -70,6 +70,7 @@ def main():
     arcanes_export = fetch("ExportArcanes.json")
     dict_en = fetch("dict.en.json")
     dict_es = fetch("dict.es.json")
+    syndicates = fetch("ExportSyndicates.json")
 
     # Coste de los packs segun el manifiesto de la tienda de Loid
     costs = {}
@@ -155,6 +156,26 @@ def main():
     for m in MANUAL_EXTRAS:
         tradables.setdefault(m["slug"], [m["en"], m["es"], m["maxRank"]])
 
+    slug_manual = {m["en"]: m["slug"] for m in MANUAL_EXTRAS}
+    sindicatos = []
+    for key, syn in sorted(syndicates.items()):
+        ofertas = []
+        for fav in syn.get("favours", []):
+            a = arcanes_export.get(fav.get("storeItem", "").replace("/StoreItems", ""))
+            if not a or not fav.get("standingCost"):
+                continue
+            name_en = dict_en.get(a["name"], a["name"])
+            slug = slug_manual.get(name_en, slugify(name_en))
+            if slug in tradables:
+                ofertas.append({"slug": slug, "standing": fav["standingCost"], "rango": fav.get("requiredLevel", 0)})
+        if ofertas:
+            sindicatos.append({
+                "id": key.rsplit("/", 1)[-1],
+                "en": dict_en.get(syn.get("name", ""), key),
+                "es": dict_es.get(syn.get("name", ""), dict_en.get(syn.get("name", ""), key)),
+                "ofertas": sorted(ofertas, key=lambda o: o["slug"]),
+            })
+
     out = {
         "updated": date.today().isoformat(),
         "source": "warframe-public-export-plus (browse.wf)",
@@ -162,12 +183,15 @@ def main():
         "others": others,
         "arcanes": arcanes,
         "tradables": dict(sorted(tradables.items())),
+        "sindicatos": sindicatos,
     }
     OUT.write_text(json.dumps(out, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     print(f"OK -> {OUT}")
     print(f"    {len(packs)} colecciones, {len(arcanes)} arcanos ({len(others)} fuera de packs)")
     for pk in packs:
         print(f"    - {pk['id']}: {len(pk['items'])} arcanos, {pk['cost']['vosfor']} vosfor")
+    for sy in sindicatos:
+        print(f"    - {sy['en']}: {len(sy['ofertas'])} arcanos por reputación")
 
 
 if __name__ == "__main__":

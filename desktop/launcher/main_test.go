@@ -88,7 +88,6 @@ func TestSeguidorEELog(t *testing.T) {
 	tam := func() int64 { i, _ := os.Stat(ruta); return i.Size() }
 
 	escribe("vieja 1\nvieja 2\nvieja 3\n", false)
-	// Saltar a la cola en mitad de una línea: esa primera llega cortada y se tira.
 	s := seguidor{pos: tam() - 10, tirar: true}
 	if got := s.leer(ruta, tam()); !reflect.DeepEqual(got, []string{"vieja 3"}) {
 		t.Fatalf("cola: %q", got)
@@ -145,7 +144,6 @@ func TestPermisosSeGuardanYSoloSePreguntaLoNuevo(t *testing.T) {
 	if !concedidos["eelog"] || concedidos["clip"] || !reflect.DeepEqual(pend, []string{"overlay"}) {
 		t.Fatalf("concedidos %v, pendientes %v", concedidos, pend)
 	}
-	// Lo guardado sobrevive a reiniciar el lanzador.
 	cargados = nil
 	if !concedido("eelog") || concedido("clip") || concedido("inventado") {
 		t.Fatal("no se releyó bien del disco")

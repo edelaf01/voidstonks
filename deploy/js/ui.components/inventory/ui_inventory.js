@@ -18,8 +18,6 @@ import {
   toggleInvSet,
 } from "./ui_prime_inventory.js";
 
-
-
 export function toggleInventoryPanel(forceOpen = false) {
   const panel = document.getElementById("inventory-container");
   if (forceOpen) panel.classList.add("open");
@@ -284,7 +282,6 @@ export function selectRelicFromInv(name) {
   // Cerrar, no `toggleInventoryPanel(false)`: esa alterna. Desde el panel daba igual (estaba
   // abierto → cerraba), pero estas mismas chapas de reliquia salen en "Rutas aconsejadas" con
   // el panel cerrado, y ahí el clic lo abría encima del contenido.
-  // En escritorio el panel va acoplado y no tapa nada.
   if (!carcasaActiva()) document.getElementById("inventory-container")?.classList.remove("open");
   // Las rutas van debajo del desglose: pulsando una desde ahí, el contenido sale fuera de vista.
   input?.scrollIntoView({ block: "nearest", behavior: "smooth" });
@@ -418,8 +415,6 @@ export function switchInvView(view) {
     renderPrimeInventory();
   }
 }
-
-
 
 export function exportInventory() {
   const t = TEXTS[state.currentLang]?.inventory || {};

@@ -2,7 +2,7 @@ import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-import { parseRelicGrid, RELIC_GRID_CROP, reliquiaDelTitulo } from "../deploy/js/utils/vision/relic_grid.js";
+import { parseRelicGrid, RELIC_GRID_CROP, reliquiaDelTitulo, eraDelRotulo } from "../deploy/js/utils/vision/relic_grid.js";
 
 globalThis.document ??= { createElement: () => ({ getContext: () => null }) };
 const { OCRService } = await import("../deploy/js/services/scanner/ocr.service.js");
@@ -169,4 +169,16 @@ describe("emparejado", () => {
     assert.deepEqual(parseRelicGrid(rejilla(), {}), []);
     assert.deepEqual(parseRelicGrid(undefined, { matchRelic }), []);
   });
+});
+
+test("eraDelRotulo: la pestaña de era se lee del rótulo bajo el título, aunque el OCR pegue las palabras", () => {
+  assert.equal(eraDelRotulo("LITH ERA"), "Lith");
+  assert.equal(eraDelRotulo("MESOERA"), "Meso");
+  assert.equal(eraDelRotulo("IMESOERA. ="), "Meso");
+  assert.equal(eraDelRotulo("NE0 ERA"), "Neo");
+  assert.equal(eraDelRotulo("REQUIEM ERA"), "Requiem");
+  assert.equal(eraDelRotulo("ALL"), "ALL");
+  assert.equal(eraDelRotulo(" All\n"), "ALL");
+  assert.equal(eraDelRotulo("ESGERA 8"), null, "ilegible: que decida la rejilla");
+  assert.equal(eraDelRotulo(""), null);
 });

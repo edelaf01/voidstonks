@@ -162,7 +162,7 @@ export const RivenOCRService = {
         const sub = sortedNames.find(n => {
             const nl = n.toLowerCase();
             if (nl.length < 4 || clean.length < 4) return false;
-            return clean.includes(nl) || nl.includes(clean);
+            return clean.includes(nl) || (nl.includes(clean) && clean.length >= nl.length * 0.6);
         });
         if (sub) return { name: sub, tier: 2, dist: 0 };
 
@@ -456,13 +456,11 @@ export const RivenOCRService = {
                 if (lineTxt.length <= 2 || STAT_ANCHOR.test(norm)) continue;
 
                 const words = lineTxt.split(" ");
+                const opciones = words.length >= 2 ? [words.slice(0, -1).join(" "), words[0], lineTxt] : [lineTxt];
                 let cand = null;
-                if (words.length >= 2) {
-                    const firstWord = words[0];
-                    const restWords = words.slice(0, words.length - 1).join(" ");
-                    cand = this._matchWeaponScored(restWords) || this._matchWeaponScored(firstWord) || this._matchWeaponScored(lineTxt);
-                } else {
-                    cand = this._matchWeaponScored(lineTxt);
+                for (const opcion of opciones) {
+                    const m = this._matchWeaponScored(opcion);
+                    if (m && (!cand || m.tier > cand.tier || (m.tier === cand.tier && m.dist < cand.dist))) cand = m;
                 }
 
                 if (cand && (!bestW || cand.tier > bestW.tier || (cand.tier === bestW.tier && cand.dist < bestW.dist))) {

@@ -9,7 +9,8 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { expectedPlatPerCrack, rankRelicPicks, tierOfRelic, eraDominante, mejorRefinamiento } from "../deploy/js/utils/inventory/relic_picks.js";
+import { expectedPlatPerCrack, rankRelicPicks, tierOfRelic, eraDominante, mejorRefinamiento, progresoDe } from "../deploy/js/utils/inventory/relic_picks.js";
+import { relicSetValue } from "../deploy/js/utils/inventory/relic_set_value.js";
 
 const RAD = { rare: 0.1, uncommon: 0.4, common: 0.5 };
 const SETS = {
@@ -225,4 +226,36 @@ test("mejorRefinamiento: el más barato que rinde casi lo mismo que el mejor", (
   assert.equal(mejorRefinamiento({ Intact: 0.62, Exceptional: 0.6, Flawless: 0.57, Rad: 0.52 }), "Intact", "si solo te faltan comunes, refinar empeora");
   assert.equal(mejorRefinamiento({ Intact: 0.40, Exceptional: 0.41, Flawless: 0.405, Rad: 0.415 }), "Intact", "ganar un punto no vale 100 vestigios");
   assert.equal(mejorRefinamiento({}), null);
+});
+
+test("Lith A8 con Akarius a falta del receptor: radiante aunque traiga comunes de sets sin empezar", () => {
+  const sets = {
+    "Akarius Prime": ["Akarius Prime Blueprint", "Akarius Prime Barrel", "Akarius Prime Receiver"],
+    "Akbronco Prime": ["Akbronco Prime Blueprint", "Akbronco Prime Link"],
+    "Bronco Prime": ["Bronco Prime Blueprint", "Bronco Prime Barrel", "Bronco Prime Receiver"],
+    "Braton Prime": ["Braton Prime Blueprint", "Braton Prime Barrel", "Braton Prime Receiver", "Braton Prime Stock"],
+    "Daikyu Prime": ["Daikyu Prime Blueprint", "Daikyu Prime Grip", "Daikyu Prime Lower Limb", "Daikyu Prime String", "Daikyu Prime Upper Limb"],
+    "Masseter Prime": ["Masseter Prime Blueprint", "Masseter Prime Blade", "Masseter Prime Handle"],
+  };
+  const drops = [
+    { name: "Akarius Prime Receiver", chance: 2 },
+    { name: "Daikyu Prime Lower Limb", chance: 11 },
+    { name: "Masseter Prime Blueprint", chance: 11 },
+    { name: "Bronco Prime Receiver", chance: 25.33 },
+    { name: "Braton Prime Barrel", chance: 25.33 },
+    { name: "Akbronco Prime Blueprint", chance: 25.33 },
+  ];
+  const tablas = {
+    Intact: { rare: 0.02, uncommon: 0.22, common: 0.76 },
+    Exceptional: { rare: 0.04, uncommon: 0.26, common: 0.7 },
+    Flawless: { rare: 0.06, uncommon: 0.34, common: 0.6 },
+    Rad: { rare: 0.1, uncommon: 0.4, common: 0.5 },
+  };
+  const deps = {
+    setsDatabase: sets, getSetName, getRequiredCount: () => 1, squadSize: 4,
+    primeInventory: { "Akarius Prime Blueprint": 1, "Akarius Prime Barrel": 1 },
+  };
+  const por = (medida) => Object.fromEntries(Object.entries(tablas).map(([r, dropChances]) => [r, medida(relicSetValue(drops, { ...deps, dropChances }))]));
+  assert.equal(mejorRefinamiento(por((v) => 1 / v.runs)), "Intact", "cualquier pieza que falte: mandan las comunes");
+  assert.equal(mejorRefinamiento(por((v) => progresoDe(v.missing))), "Rad");
 });

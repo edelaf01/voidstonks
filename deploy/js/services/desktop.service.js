@@ -4,18 +4,24 @@ import {
   guardarPermisosEnLanzador,
   copiarConLanzador,
   panelesEnJuego,
+  escucharAccionesDelOverlay,
 } from "../repositories/launcher.repository.js";
-import { oneTimeNoticeSeen, markOneTimeNoticeSeen } from "../repositories/storage.repository.js";
+import { oneTimeNoticeSeen, markOneTimeNoticeSeen, leePanelesOcultos, guardaPanelesOcultos } from "../repositories/storage.repository.js";
+
+export { leePanelesOcultos, guardaPanelesOcultos };
 
 export const LATIDO_MS = 30_000;
-// Si nadie avisa del cierre (sin EE.log) el lanzador quita las recompensas solo; la pantalla dura 15 s.
 export const RECOMPENSAS_DURACION_MS = 20_000;
+export const PANTALLA_RECOMPENSAS_MS = 15_500;
+
+export function duracionRecompensas(desde, ahora = Date.now()) {
+  return desde ? Math.max(3000, PANTALLA_RECOMPENSAS_MS - (ahora - desde)) : RECOMPENSAS_DURACION_MS;
+}
 
 export function enLanzador(hostname = globalThis.location?.hostname) {
   return hostname === "voidstonks.localhost";
 }
 
-// El lanzador sigue sirviendo mientras alguna ventana dé señales.
 export function mantenerLanzador({ intervalo = LATIDO_MS, late = latirAlLanzador } = {}) {
   late();
   return setInterval(late, intervalo);
@@ -23,7 +29,6 @@ export function mantenerLanzador({ intervalo = LATIDO_MS, late = latirAlLanzador
 
 let capacidades = null;
 
-// { so, clip, eelog: ruta|"", overlay, permisos: {id: bool}, pendientes: [id] }, o null fuera del lanzador.
 export function capacidadesNativas({ pide = capacidadesDelLanzador } = {}) {
   if (!enLanzador()) return Promise.resolve(null);
   capacidades ??= pide();
@@ -48,13 +53,11 @@ export function estrenaAutoCopia(permisos, { visto = oneTimeNoticeSeen, marca = 
   return true;
 }
 
-// Lo activa la carcasa con el permiso del overlay; en la web nunca.
 let overlayActivo = false;
 export function activaOverlay(si) {
   overlayActivo = !!si && enLanzador();
 }
 
-// Cada pantalla es un grupo (recompensas, kiosko, riven, inventario) que el lanzador sustituye entero.
 const visibles = new Set();
 const CONTEXTOS_DE_GRUPO = {
   recompensas: ["REWARD"], kiosko: ["INVENTORY"], riven: ["INVENTORY_MODS", "ITEM_DETAILS"], reliquias: ["RELICS"],
@@ -99,6 +102,16 @@ export function ajustaPanelesAlContexto(contexto, deps) {
 
 export function quitarTodosLosPaneles(deps) {
   return Promise.all([...visibles].map((g) => quitarPaneles(g, deps)));
+}
+
+const alPulsar = new Map();
+let escuchandoOverlay = false;
+
+export function alPulsarEnOverlay(grupo, fn, { escucha = escucharAccionesDelOverlay } = {}) {
+  alPulsar.set(grupo, fn);
+  if (escuchandoOverlay) return;
+  escuchandoOverlay = true;
+  escucha((g, accion) => alPulsar.get(g)?.(accion));
 }
 
 export function quitarTodosAlSalir({ manda = panelesEnJuego } = {}) {

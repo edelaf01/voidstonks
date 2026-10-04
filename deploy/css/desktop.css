@@ -1,10 +1,11 @@
-/* Carcasa de escritorio (voidstonks.localhost o ?shell=desktop). Por debajo de 900 px manda la maqueta web. */
 html[data-shell="desktop"] {
   --ds-bar: 48px;
   --ds-side: 196px;
   --ds-status: 26px;
   --ds-inv: 0px;
   --ds-fis: 0px;
+  --ds-inv-ancho: clamp(280px, 22vw, 440px);
+  --ds-fis-ancho: clamp(240px, 17vw, 360px);
   --ds-line: #23262d;
   --ds-chrome: #0e1014;
   --ds-panel: #13161b;
@@ -23,7 +24,6 @@ html[data-shell="desktop"] #void-traces-canvas,
   display: none;
 }
 
-/* Fuera del @media: los permisos se piden también con la ventana estrecha. */
 html[data-shell="desktop"] #ds-permisos {
   position: fixed;
   inset: 0;
@@ -116,12 +116,12 @@ html[data-shell="desktop"] #ds-permisos {
 
 @media (min-width: 900px) {
   html[data-shell="desktop"]:has(body:is(.theme-relic, .theme-set, .theme-bounties) #inventory-container.open) {
-    --ds-inv: 400px;
+    --ds-inv: var(--ds-inv-ancho);
   }
 
-  html[data-shell="desktop"]:has(#best-missions-container.open),
+  html[data-shell="desktop"]:has(body:is(.theme-relic, .theme-set, .theme-bounties) #best-missions-container.open),
   html[data-shell="desktop"]:has(#ds-eelog.open) {
-    --ds-fis: 300px;
+    --ds-fis: var(--ds-fis-ancho);
   }
 
   html[data-shell="desktop"] body {
@@ -155,7 +155,6 @@ html[data-shell="desktop"] #ds-permisos {
     right: var(--ds-fis) !important;
     width: auto !important;
     max-width: none;
-    /* El align-self: center de .card también alinea cajas fixed: sin esto mide lo que su contenido. */
     align-self: stretch !important;
     display: grid !important;
     grid-template-columns: var(--ds-side) var(--ds-inv) minmax(0, 1fr);
@@ -202,21 +201,19 @@ html[data-shell="desktop"] #ds-permisos {
     border-top: 1px solid var(--ds-line);
   }
 
+  html[data-shell="desktop"] .ds-tools:empty {
+    display: none;
+  }
+
   html[data-shell="desktop"] .ds-svg {
     padding: 3px;
     color: var(--wf-blue);
   }
 
-  html[data-shell="desktop"]:has(#inventory-container.open) #ds-btn-inv,
-  html[data-shell="desktop"]:has(#best-missions-container.open) #ds-btn-fissures,
   html[data-shell="desktop"]:has(#ds-eelog.open) #ds-btn-eelog {
     color: #fff;
     background: var(--ds-panel);
     border-left-color: var(--wf-blue);
-  }
-
-  html[data-shell="desktop"] body:not(:is(.theme-relic, .theme-set, .theme-bounties)) #ds-btn-inv {
-    display: none;
   }
 
   html[data-shell="desktop"] #main-card > .content-area {
@@ -437,23 +434,55 @@ html[data-shell="desktop"] #ds-permisos {
 
   html[data-shell="desktop"] #inventory-container {
     left: var(--ds-side) !important;
-    width: 400px !important;
+    width: var(--ds-inv-ancho) !important;
     border-right: 1px solid var(--ds-line) !important;
   }
 
   html[data-shell="desktop"] #best-missions-container {
     right: 0 !important;
-    width: 300px !important;
+    width: var(--ds-fis-ancho) !important;
     border-left: 1px solid var(--ds-line) !important;
   }
 
   html[data-shell="desktop"] #inventory-container #inv-toggle-btn,
   html[data-shell="desktop"] #best-missions-container #mission-toggle-btn {
+    position: fixed !important;
+    top: calc(var(--ds-bar) + 10px) !important;
+    width: 72px !important;
+    height: 72px !important;
+    padding: 4px !important;
+    z-index: 40 !important;
+    display: flex !important;
+  }
+
+  html[data-shell="desktop"] #inventory-container #inv-toggle-btn {
+    left: calc(var(--ds-side) + var(--ds-inv) + 6px) !important;
+    right: auto !important;
+  }
+
+  html[data-shell="desktop"] #best-missions-container #mission-toggle-btn {
+    right: calc(var(--ds-fis) + 6px) !important;
+    left: auto !important;
+  }
+
+  html[data-shell="desktop"] :is(#inv-toggle-btn, #mission-toggle-btn) .toggle-img {
+    width: 64px !important;
+    height: 64px !important;
+  }
+
+  html[data-shell="desktop"] :is(#inventory-container, #best-missions-container):not(.open) {
+    width: 0 !important;
+    border: none !important;
+    background: transparent !important;
+    overflow: visible !important;
+  }
+
+  html[data-shell="desktop"] :is(#inventory-container, #best-missions-container):not(.open) > :not([id$="toggle-btn"]) {
     display: none !important;
   }
 
-  html[data-shell="desktop"] :is(#inventory-container, #best-missions-container):not(.open),
-  html[data-shell="desktop"] body:not(:is(.theme-relic, .theme-set, .theme-bounties)) #inventory-container {
+  html[data-shell="desktop"] body:not(:is(.theme-relic, .theme-set, .theme-bounties)) :is(#inventory-container, #best-missions-container),
+  html[data-shell="desktop"]:has(#ds-eelog.open) #best-missions-container #mission-toggle-btn {
     display: none !important;
   }
 
@@ -464,7 +493,7 @@ html[data-shell="desktop"] #ds-permisos {
     top: var(--ds-bar);
     bottom: var(--ds-status);
     right: 0;
-    width: 300px;
+    width: var(--ds-fis-ancho);
     background: var(--ds-panel);
     border-left: 1px solid var(--ds-line);
     font-size: 0.8rem;
@@ -613,5 +642,70 @@ html[data-shell="desktop"] #ds-permisos {
 @media (min-width: 2200px) {
   html[data-shell="desktop"] {
     --ds-ancho: 1440px;
+  }
+}
+
+@media (min-width: 900px) {
+  html[data-shell="desktop"] #inventory-container .inv-set-header {
+    display: grid !important;
+    grid-template-columns: auto auto auto auto 1fr auto !important;
+    grid-template-areas:
+      "title title title title title title"
+      "controls icon tracker market . info" !important;
+    align-items: center;
+    gap: 6px 10px !important;
+    padding: 10px 12px !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  html[data-shell="desktop"] #inventory-container .inv-set-header .header-main {
+    display: contents !important;
+  }
+
+  html[data-shell="desktop"] #inventory-container .inv-set-header .set-title {
+    grid-area: title;
+    width: 100% !important;
+    max-width: none !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    white-space: normal !important;
+    text-align: left !important;
+    font-size: 1rem !important;
+  }
+
+  html[data-shell="desktop"] #inventory-container .inv-set-header .header-controls { grid-area: controls; }
+  html[data-shell="desktop"] #inventory-container .inv-set-header .item-icon-small { grid-area: icon; margin: 0 !important; }
+  html[data-shell="desktop"] #inventory-container .inv-set-header .tracker-link-icon { grid-area: tracker; }
+  html[data-shell="desktop"] #inventory-container .inv-set-header .market-link-icon { grid-area: market; }
+  html[data-shell="desktop"] #inventory-container .inv-set-header .header-info { grid-area: info; align-items: flex-end; }
+
+  html[data-shell="desktop"] #inventory-container .inv-row-mini {
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    gap: 6px 8px !important;
+    padding: 8px 12px !important;
+  }
+
+  html[data-shell="desktop"] #inventory-container .inv-row-mini .row-main {
+    grid-column: 1 / -1;
+    min-width: 0 !important;
+  }
+
+  html[data-shell="desktop"] #inventory-container .inv-row-mini .row-info {
+    justify-content: flex-start;
+    gap: 10px;
+  }
+
+  html[data-shell="desktop"] #inventory-container .inv-row-mini .item-icon-mini {
+    width: 32px !important;
+    height: 32px !important;
+    margin: 0 4px 0 0 !important;
+  }
+
+  html[data-shell="desktop"] #inventory-container .inv-row-mini .part-name {
+    min-width: 0 !important;
+    font-size: 0.9rem !important;
   }
 }

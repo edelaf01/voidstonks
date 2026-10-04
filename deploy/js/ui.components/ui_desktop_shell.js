@@ -1,8 +1,7 @@
-// Carcasa de escritorio: solo añade lo que el HTML de la web no tiene.
-import { esEscritorio } from "../utils/shell.js";
+import { esEscritorio, carcasaActiva } from "../utils/shell.js";
 import {
   enLanzador, mantenerLanzador, capacidadesNativas, copiarNativo, activaOverlay, mostrarPaneles, quitarPaneles,
-  quitarTodosAlSalir, estrenaAutoCopia, RECOMPENSAS_DURACION_MS,
+  quitarTodosAlSalir, estrenaAutoCopia, duracionRecompensas, leePanelesOcultos, guardaPanelesOcultos,
 } from "../services/desktop.service.js";
 import { ClipboardService } from "../services/clipboard.service.js";
 import { EELogLive } from "../services/scanner/eelog_live.service.js";
@@ -11,7 +10,7 @@ import { panelesDeRecompensas } from "../utils/inventory/reward_labels.js";
 import { showToast } from "./ui_components.js";
 import { state, saveAppState } from "../state.js";
 import { TEXTS } from "../config.js";
-import { alternarInspectorEELog, cerrarInspectorEELog } from "./ui_eelog_inspector.js";
+import { alternarInspectorEELog } from "./ui_eelog_inspector.js";
 import { abrirPermisos } from "./ui_desktop_permisos.js";
 
 const bilingue = (es, en) => `<span class="lang-es">${es}</span><span class="lang-en">${en}</span>`;
@@ -30,23 +29,41 @@ function botonLateral(id, icono, es, en, alPulsar) {
   return btn;
 }
 
+const PANELES_FIJOS = [["inventory-container", "inv-toggle-btn"], ["best-missions-container", "mission-toggle-btn"]];
+
+function fijaPaneles() {
+  const cerrados = new Set(leePanelesOcultos());
+  const apunta = (panel) => {
+    if (!carcasaActiva()) return;
+    if (panel.classList.contains("open")) cerrados.delete(panel.id);
+    else cerrados.add(panel.id);
+    guardaPanelesOcultos([...cerrados]);
+  };
+  const vigia = new MutationObserver((cambios) => cambios.forEach((c) => apunta(c.target)));
+  const prepara = () => {
+    for (const [id, boton] of PANELES_FIJOS) {
+      const panel = document.getElementById(id);
+      if (!panel || panel.dataset.dsFijo) continue;
+      panel.dataset.dsFijo = "1";
+      setTimeout(() => {
+        if (carcasaActiva() && !cerrados.has(id) && !panel.classList.contains("open")) document.getElementById(boton)?.click();
+        vigia.observe(panel, { attributes: true, attributeFilter: ["class"] });
+      }, 0);
+    }
+  };
+  prepara();
+  new MutationObserver(prepara).observe(document.body, { childList: true });
+}
+
 function montarHerramientas(barra) {
   const grupo = document.createElement("div");
   grupo.className = "ds-tools";
-  grupo.append(
-    botonLateral("ds-btn-inv", "assets/inv.relic.webp", "Inventario", "Inventory",
-      () => document.getElementById("inv-toggle-btn")?.click()),
-    botonLateral("ds-btn-fissures", "assets/fissureicon.webp", "Fisuras", "Fissures", () => {
-      cerrarInspectorEELog();
-      document.getElementById("mission-toggle-btn")?.click();
-    }),
-  );
   barra.appendChild(grupo);
   return grupo;
 }
 
 function ensenaRecompensas(paneles) {
-  if (paneles.length) mostrarPaneles("recompensas", paneles, { mismoAncho: true, duracionMs: RECOMPENSAS_DURACION_MS });
+  if (paneles.length) mostrarPaneles("recompensas", paneles, { mismoAncho: true, duracionMs: duracionRecompensas(EELogLive.juego.recompensas?.desde) });
 }
 
 let enCicloRiven = false;
@@ -95,7 +112,6 @@ async function refrescaCapacidades() {
 
 const permisos = () => abrirPermisos(caps, { alGuardar: refrescaCapacidades });
 
-// Sin el permiso, el botón lleva a la ventana de permisos en vez de fallar en silencio.
 const conPermiso = (id, accion) => () => (caps?.permisos?.[id] ? accion() : permisos());
 
 async function montarNativas(grupo) {
@@ -108,10 +124,7 @@ async function montarNativas(grupo) {
     btn.dataset.tooltip = "Prueba: paneles de ejemplo encima del juego / Test: sample panels over the game";
     grupo.prepend(btn);
   }
-  const log = botonLateral("ds-btn-eelog", ICONO_LOG, "Registro", "Game log", conPermiso("eelog", () => {
-    document.getElementById("best-missions-container")?.classList.remove("open");
-    alternarInspectorEELog();
-  }));
+  const log = botonLateral("ds-btn-eelog", ICONO_LOG, "Registro", "Game log", conPermiso("eelog", alternarInspectorEELog));
   log.dataset.tooltip = "EE.log";
   grupo.prepend(log);
 
@@ -152,6 +165,7 @@ export function initDesktopShell() {
   if (!esEscritorio()) return;
   const barra = document.querySelector("#main-card .card-top-bar");
   const grupo = barra ? montarHerramientas(barra) : null;
+  fijaPaneles();
   montarEstado();
   if (!enLanzador()) return;
   mantenerLanzador();

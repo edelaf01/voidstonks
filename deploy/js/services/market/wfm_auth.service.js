@@ -234,7 +234,7 @@ export async function logout() {
  * @returns {boolean}
  */
 export function wfmPrivado() {
-    return /^(localhost|127\.0\.0\.1|\[::1\])$/.test(globalThis.location?.hostname || "");
+    return /^(localhost|127\.0\.0\.1|\[::1\])$/.test(globalThis.location?.hostname || "") || globalThis.voidstonksNativo?.wfmLocal === true;
 }
 
 export function isLoggedIn() {

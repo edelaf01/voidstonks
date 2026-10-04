@@ -229,5 +229,9 @@ test("Mis órdenes solo en local; en la web pública, nunca", () => {
     }
     globalThis.location = undefined;
     assert.equal(auth.wfmPrivado(), false);
-  } finally { globalThis.location = original; }
+    globalThis.location = { hostname: "voidstonks.localhost", search: "" };
+    assert.equal(auth.wfmPrivado(), false, "la app de escritorio empaquetada no lo tiene");
+    globalThis.voidstonksNativo = { wfmLocal: true };
+    assert.equal(auth.wfmPrivado(), true, "la de escritorio arrancada desde el código fuente, sí");
+  } finally { globalThis.location = original; delete globalThis.voidstonksNativo; }
 });

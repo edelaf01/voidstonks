@@ -1,5 +1,3 @@
-// Carcasa de escritorio y puente con el lanzador (desktop/launcher).
-
 import { test, mock } from "node:test";
 import assert from "node:assert/strict";
 
@@ -219,6 +217,18 @@ test("con el permiso de portapapeles la copia automática se enciende una sola v
   assert.equal(svc.estrenaAutoCopia(null, deps), false);
 });
 
+test("cada grupo del overlay recibe solo los clics de sus paneles", () => {
+  let reparte = null;
+  const escucha = (fn) => { reparte = fn; };
+  const recibidas = [];
+  svc.alPulsarEnOverlay("reliquias", (a) => recibidas.push(["reliquias", a]), { escucha });
+  svc.alPulsarEnOverlay("kiosko", (a) => recibidas.push(["kiosko", a]), { escucha });
+  reparte?.("reliquias", "refino:Rad");
+  reparte?.("riven", "nada:1");
+  reparte?.("kiosko", "vendido:1");
+  assert.deepEqual(recibidas, [["reliquias", "refino:Rad"], ["kiosko", "vendido:1"]]);
+});
+
 test("la carcasa cede a la maqueta web por debajo del ancho mínimo", () => {
   const dataset = {};
   globalThis.document = { documentElement: { dataset } };
@@ -259,4 +269,27 @@ test("guardar permisos los manda al lanzador y obliga a volver a pedir las capac
     assert.equal(await svc.guardarPermisos({ clip: true }, { guarda: async () => true }), true);
     assert.deepEqual(await svc.capacidadesNativas({ pide }), { permisos: { clip: true } });
   });
+});
+
+test("las tarjetas de recompensas duran lo que le queda a la pantalla del juego (15 s desde que se abre)", () => {
+  assert.equal(svc.duracionRecompensas(10_000, 12_000), 13_500, "pintadas 2 s después de abrirse");
+  assert.equal(svc.duracionRecompensas(10_000, 30_000), 3000, "aunque llegue tarde, se ve un momento");
+  assert.equal(svc.duracionRecompensas(undefined, 12_000), svc.RECOMPENSAS_DURACION_MS, "sin log, el tope de siempre");
+});
+
+test("los paneles ocultos del escritorio se recuerdan y un valor roto no rompe nada", () => {
+  const antes = globalThis.localStorage;
+  const datos = new Map();
+  globalThis.localStorage = { getItem: (k) => datos.get(k) ?? null, setItem: (k, v) => datos.set(k, String(v)), removeItem: (k) => datos.delete(k) };
+  try {
+    assert.deepEqual(svc.leePanelesOcultos(), []);
+    svc.guardaPanelesOcultos(["inv", "fis"]);
+    assert.deepEqual(svc.leePanelesOcultos(), ["inv", "fis"]);
+    datos.set("vs_ds_ocultos", "{roto");
+    assert.deepEqual(svc.leePanelesOcultos(), []);
+    datos.set("vs_ds_ocultos", '"inv"');
+    assert.deepEqual(svc.leePanelesOcultos(), []);
+  } finally {
+    globalThis.localStorage = antes;
+  }
 });

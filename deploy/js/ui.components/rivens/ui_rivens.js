@@ -581,8 +581,8 @@ export function renderHistoryWithRange() {
   const hintEl = document.getElementById("chart-hint-note");
   if (hintEl) {
     hintEl.innerText = isEs
-      ? "💡 Haz clic en la leyenda 'WFM' para ocultarlo y auto-escalar a Precios Reales"
-      : "💡 Click 'WFM' in the legend to hide it and auto-scale to DE Real Prices";
+      ? "Pulsa 'WFM' en la leyenda para ocultarlo y ajustar la escala a los precios reales de DE"
+      : "Click 'WFM' in the legend to hide it and fit the scale to DE's real prices";
   }
 
   container.style.display = "block";

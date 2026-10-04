@@ -1,7 +1,7 @@
 import { state } from "../../state.js";
 import { OCRRepository } from "../../repositories/ocr.repository.js";
 import { PaddleRepository } from "../../repositories/paddle.repository.js";
-import { RELIC_GRID_CROP, RELIC_TITLE_CROP, parseRelicGrid, reliquiaDelTitulo } from "../../utils/vision/relic_grid.js";
+import { RELIC_GRID_CROP, RELIC_TITLE_CROP, RELIC_ERA_CROP, parseRelicGrid, reliquiaDelTitulo, eraDelRotulo } from "../../utils/vision/relic_grid.js";
 import { voteReadings, applyRelicCounts } from "../../utils/inventory/relic_votes.js";
 import { smallCanvasHash, compareHashes } from "../../utils/vision/frame_hash.js";
 import { collectWords, filaPropiaDelEscuadron } from "../../utils/vision/ocr_words.js";
@@ -102,7 +102,7 @@ export const RelicScreenService = {
         if (relic === this.lastTrackedRelic) return false;
         this.lastTrackedRelic = relic;
         const era = tierOfRelic(relic);
-        if (era) this.onEra?.(era.charAt(0).toUpperCase() + era.slice(1).toLowerCase());
+        if (era && this.eraRejilla !== "ALL") this.onEra?.(era.charAt(0).toUpperCase() + era.slice(1).toLowerCase());
         if (globalThis.showTrackConfirm) globalThis.showTrackConfirm(relic, texto);
         return true;
     },
@@ -171,10 +171,11 @@ export const RelicScreenService = {
             return r.nombre;
         };
         const read = parseRelicGrid(palabras, { matchRelic, trace: traza });
-        const era = eraDominante(read.map((r) => r.name));
+        const rotulo = await this.leeRotuloEra(worker, video).catch(() => null);
+        const era = rotulo || eraDominante(read.map((r) => r.name));
         if (era && era !== this.eraRejilla) {
             this.eraRejilla = era;
-            this.onEra?.(era);
+            this.onEra?.(era === "ALL" ? null : era);
         }
         console.log(`[RELICS] ${read.length} de ${traza.nombres} nombres · contadores ${traza.contadoresConCasilla}/${traza.candidatosContador}`,
             traza.perdidas);
@@ -190,6 +191,12 @@ export const RelicScreenService = {
         state.inventory = applyRelicCounts(state.inventory, changed);
         console.log("[RELICS] inventario actualizado:", changed.map((c) => `${c.name}=${c.count}`).join(", "));
         this.onApplied?.(changed);
+    },
+
+    async leeRotuloEra(worker, video) {
+        const cvs = VisionService.prepareCropForOCR(video, RELIC_ERA_CROP, 1, "relicEra");
+        const { data } = await OCRRepository.recognize(worker, cvs, {}, { text: true });
+        return eraDelRotulo(data?.text);
     },
 
     /**

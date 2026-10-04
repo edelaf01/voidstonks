@@ -35,7 +35,6 @@ var (
 	deleteDC                  = gdi32.NewProc("DeleteDC")
 )
 
-// Un solo callback para todo el proceso: Windows limita cuántos se pueden crear.
 var (
 	muBusca      sync.Mutex
 	buscaTitulo  string
@@ -78,7 +77,6 @@ func ventanaDelJuego() (rectJuego, error) {
 	return rectJuego{int(r.izq), int(r.arr), int(r.der - r.izq), int(r.aba - r.arr)}, nil
 }
 
-// Las ventanas viven en un hilo propio que despacha sus mensajes: sin eso Windows las da por colgadas.
 var (
 	arrancaGUI sync.Once
 	guiLista   = make(chan struct{})
@@ -107,7 +105,6 @@ type msgW struct {
 
 func hiloGUI() {
 	runtime.LockOSThread()
-	// Coordenadas en píxeles reales aunque Windows escale la interfaz.
 	setProcessDPIAware.Call()
 	inst, _, _ := getModuleHandleW.Call(0)
 	nombre, _ := syscall.UTF16PtrFromString("VoidStonksPanel")
@@ -201,7 +198,6 @@ func pintaVentana(hwnd uintptr, e panelPintado) error {
 		biXPelsPerMeter, biYPelsPerMeter int32
 		biClrUsed, biClrImportant        uint32
 	}
-	// Alto negativo: filas de arriba abajo, igual que la imagen.
 	bi := bitmapInfoHeader{biWidth: int32(w), biHeight: -int32(h), biPlanes: 1, biBitCount: 32}
 	bi.biSize = uint32(unsafe.Sizeof(bi))
 	var bits unsafe.Pointer

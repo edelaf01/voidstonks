@@ -9,11 +9,11 @@
     "dist": "electron-builder --publish never"
   },
   "dependencies": {
-    "koffi": "^3.3.2"
+    "koffi": "3.3.2"
   },
   "devDependencies": {
-    "electron": "^44.5.1",
-    "electron-builder": "^26.15.3"
+    "electron": "44.5.1",
+    "electron-builder": "26.15.3"
   },
   "description": "VoidStonks de escritorio: la app con su propio Chromium, overlay encima del juego y acceso al EE.log.",
   "author": "VoidStonks",
@@ -61,5 +61,6 @@
       "perMachine": false,
       "shortcutName": "VoidStonks"
     }
-  }
+  },
+  "packageManager": "pnpm@11.3.0"
 }

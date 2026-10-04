@@ -18,6 +18,8 @@ import { escapeHTML } from "./ui_components.js";
 import { exposeGlobals } from "../utils/global_registry.js";
 import { JADE_SHADOWS_IMG } from "../assets/jade_custom_img.js";
 import { initJadeCosmicEasterEgg } from "./ui_vosfor_jade.js";
+import { sindicatosCard } from "./ui_vosfor_sindicatos.js";
+import { rentaSindicatos, slugsDeSindicatos } from "../utils/vosfor_sindicatos.js";
 import { calculateR5Realism, targetSimProbabilities, copiesForMaxRank } from "../utils/vosfor_math.js";
 import {
     loadVosforData,
@@ -36,7 +38,9 @@ import {
     calculateVosforInvestment,
     ARC_STATS,
     pixRank,
-    HEX_ARCANES
+    HEX_ARCANES,
+    realizableR0,
+    realizableMax
 } from "../services/vosfor.service.js?v=2.7";
 
 const PLAT = `<img src="assets/relic_contents/platinum.webp" style="width:13px;height:13px;vertical-align:middle;margin-left:2px;">`;
@@ -430,8 +434,8 @@ function getDissolveTip(v, t, meta) {
     if (!v || v.dissolvePlat === undefined || v.dissolvePlat === null) return "";
     const packName = state.currentLang === "es" ? v.bestPackEs : v.bestPackEn;
     const template = t.dissolveSpentTip || (state.currentLang === "es"
-        ? "Disolver destruye el arcano y te da {vosfor} Vosfor. Gastado en packs de {pack} rinde de media ~{plat} pl, pero es una apuesta."
-        : "Dissolving destroys the arcane and gives you {vosfor} Vosfor. Spent on {pack} packs it averages ~{plat} pl, but it's a gamble.");
+        ? "Disolver destruye el arcano y te da {vosfor} Vosfor. Gastado en packs de {pack} sale de media por ~{plat} pl, pero los arcanos del pack son al azar."
+        : "Dissolving destroys the arcane and gives you {vosfor} Vosfor. Spent on {pack} packs that's worth ~{plat} pl on average, but pack arcanes are random.");
     return template
         .replace("{vosfor}", meta?.vosfor ?? "")
         .replace("{plat}", v.dissolvePlat.toFixed(1))
@@ -723,8 +727,8 @@ function getTradeFrictionNote(pulls, pack, t) {
         : 21;
     const r5Trades = Math.max(1, Math.round(totalItems / copiesAvg));
     const template = t.tradeFrictionNote || (state.currentLang === "es"
-        ? "{items} arcanos sueltos consumen {trades} trades diarios si vendes en R0 (ó ~{r5Trades} trade consolidando a rango máximo)."
-        : "{items} loose arcanes require {trades} daily trades if sold at R0 (or ~{r5Trades} trade if consolidated to max rank).");
+        ? "Vender {items} arcanos sueltos en R0 gasta {trades} intercambios diarios. Subiéndolos al rango máximo, unos {r5Trades}."
+        : "Selling {items} loose arcanes at R0 uses {trades} daily trades. Maxing them first, about {r5Trades}.");
     return template
         .replace("{items}", totalItems)
         .replace("{trades}", totalItems)
@@ -779,7 +783,7 @@ function renderR5RealismHtml(pack, userVosfor, t) {
         ${renderCell("UNCOMMON", "#dcdcdc", "rgba(220,220,220,0.08)", "rgba(220,220,220,0.25)")}
         ${renderCell("COMMON", "#b8946c", "rgba(184,148,108,0.08)", "rgba(184,148,108,0.25)")}
       </div>
-      ${isLegendaryUnlikely ? `<div style="font-size:0.74rem;color:#ff8888;margin-top:6px;line-height:1.3;">${escapeHTML(t.r5PracticalAdvice || "Consejo Práctico: Con tu Vosfor actual es matemáticamente casi imposible completar un R5 de alta rareza. Te conviene vender o disolver las copias R0 sueltas.")}</div>` : ""}
+      ${isLegendaryUnlikely ? `<div style="font-size:0.74rem;color:#ff8888;margin-top:6px;line-height:1.3;">${escapeHTML(t.r5PracticalAdvice || "Consejo: con tu Vosfor actual es muy poco probable reunir las copias de un arcano raro para el R5. Mejor vende o disuelve las copias R0 sueltas.")}</div>` : ""}
     </details>`;
 }
 
@@ -792,8 +796,8 @@ function calcCardHtml(kind, entry, t) {
     const syn = PACK_SYNDICATES[entry.pack.id] || PACK_SYNDICATES.others;
     const tags = {
         custom: { css: "highlight", color: "#7ecbff", label: state.currentLang === "es" ? "SIMULACIÓN DE COLECCIÓN SELECCIONADA" : "SELECTED COLLECTION SIMULATION" },
-        ev: { css: "highlight", color: "#42f56c", label: t.maxPlatTitle || "MÁXIMO PLAT (EV)" },
-        liq: { css: "highlight-liquid", color: "#7ecbff", label: t.maxLiquidTitle || "VENTA RÁPIDA (LIQUIDEZ)" },
+        ev: { css: "highlight", color: "#42f56c", label: t.maxPlatTitle || "MÁS PLATINO" },
+        liq: { css: "highlight-liquid", color: "#7ecbff", label: t.maxLiquidTitle || "VENTA RÁPIDA" },
     };
     const cfg = tags[kind];
     // Los iconos van FUERA de los spans de texto para que el patch (textContent) no los toque
@@ -811,10 +815,10 @@ function calcCardHtml(kind, entry, t) {
             <div class="vosfor-calc-card-name">${escapeHTML(packName(entry.pack))}</div>
           </div>
         </div>
-        <div class="vosfor-calc-card-stat"><span class="vosfor-calc-card-stat-label">${escapeHTML(t.projectedPlat || "Platino Proyectado")}:</span><span data-f="est"></span>${PLAT}</div>
+        <div class="vosfor-calc-card-stat"><span class="vosfor-calc-card-stat-label">${escapeHTML(t.projectedPlat || "Platino esperado")}:</span><span data-f="est"></span>${PLAT}</div>
         <div class="vosfor-calc-card-sub">${kind === "liq" ? `<span data-f="subA"></span>` : subIcon}</div>
         <div class="vosfor-calc-card-trade">
-          <b>${escapeHTML(t.tradeFrictionLabel || "Fricción de Intercambios")}:</b> <span data-f="trade"></span>
+          <b>${escapeHTML(t.tradeFrictionLabel || "Intercambios diarios necesarios")}:</b> <span data-f="trade"></span>
         </div>
       </div>`;
 }
@@ -1356,7 +1360,7 @@ function updateSellSimDOM() {
               <div class="vosfor-stat-card-val">${m.unitPrice > 0 ? `<span data-f="unit"></span>${PLAT}` : noMarket}</div>
             </div>
             <div class="vosfor-stat-card">
-              <div class="vosfor-stat-card-label">${escapeHTML(t.sellSimTotalSale || "Venta realizable")} (<span data-f="qty"></span>)</div>
+              <div class="vosfor-stat-card-label">${escapeHTML(t.sellSimTotalSale || "Lo que sacas vendiendo")} (<span data-f="qty"></span>)</div>
               <div class="vosfor-stat-card-val" style="color:#42f56c;">${m.unitPrice > 0 ? `<span data-f="sale"></span>${PLAT}` : noMarket}</div>
               <div data-f="realnote" style="font-size:0.66rem;color:#888;"></div>
             </div>
@@ -1390,7 +1394,7 @@ function updateSellSimDOM() {
     set("qty", `x${sellQty}`);
     set("sale", Math.round(m.sim.sellValue));
     set("realnote", m.sim.unitRealizable < m.unitPrice
-        ? (es ? `ask ${m.unitPrice} × ${sellQty}, descontado por liquidez` : `ask ${m.unitPrice} × ${sellQty}, discounted for liquidity`)
+        ? (es ? `anunciado a ${m.unitPrice} × ${sellQty}; vender tantos obliga a bajar el precio` : `listed at ${m.unitPrice} × ${sellQty}; selling that many means lowering the price`)
         : "");
     set("tvos", m.sim.totalVosfor.toLocaleString());
     set("equiv", m.sim.dissolveValue !== null ? m.sim.dissolveValue.toFixed(1) : "…");
@@ -1987,6 +1991,11 @@ export async function renderVosforTab() {
     t.toolRankingSub || "", rankingLeaderboardCard(bestBalancedRate))}
           ${toolSection("pix", "🪙", t.toolPixTitle || "The Hex",
     t.toolPixSub || "", pixCard(bestBalancedRate))}
+          ${toolSection("sindicatos", vosforIcon(20), t.toolSyndTitle || "Sindicatos", t.toolSyndSub || "",
+    sindicatosCard(rentaSindicatos(vosData, { stats: ARC_STATS, precioSuelto: realizableR0, precioMax: realizableMax }), {
+        es: state.currentLang === "es", plat: PLAT,
+        nombreDe: (slug) => { const m = vosData.tradables?.[slug]; return m ? (state.currentLang === "es" ? m[1] : m[0]) : slug; },
+    }))}
         </div>
         ${searchAndControlsBar()}
         ${searchResultsCard(bestBalancedRate)}
@@ -2022,6 +2031,7 @@ export async function initVosforTab() {
     requestAllPacks().catch(console.error);
     // The Hex (arcanos por pix): no están en ningún pack -> pide sus precios aparte, con prioridad.
     requestPackStats({ id: "hex", items: HEX_ARCANES }, true).catch(console.error);
+    requestPackStats({ id: "sindicatos", items: slugsDeSindicatos(vosData) }).catch(console.error);
 
     // Background polling every 1 hour
     if (!globalRefreshTimer) {

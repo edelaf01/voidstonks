@@ -1,7 +1,3 @@
-// Qué tiene el juego en pantalla según el EE.log, para que el escáner de escritorio duerma durante la
-// misión y solo despierte con las pantallas que lee. Fuera de la misión el log no conoce todas las
-// pantallas (rivens, trade, Baro), así que ahí el escáner va como siempre.
-
 export const ESTADO_JUEGO_INICIAL = Object.freeze({
   enMision: false,
   mision: null,
@@ -12,10 +8,8 @@ export const ESTADO_JUEGO_INICIAL = Object.freeze({
   despiertoHasta: 0,
 });
 
-// Módulos que siempre dicen HudVis 1 o que son el propio HUD: no son un menú abierto.
 const NO_SON_MENU = new Set(["HudRedux", "OverlayBackground", "ThemedProjectionManager"]);
 
-// Pantallas que se crean jugando la misión y no se escanean.
 const DE_LA_MISION = new Set([
   "SurvivalReward", "FocusGainMessage", "ProjectionsCountdown", "Transmission", "Dialog", "Notifications",
   "ChallengePopUp", "EndOfMatch", "PortTimerStatus", "UICommonResources", "ToolTip", "ThemedSquadOverlay",
@@ -26,7 +20,6 @@ const DE_LA_MISION = new Set([
 
 const EN_EL_CICLO = new Set(["DioramaViewer", "Dialog", "ToolTip", "Notifications", "Transmission", "ChallengePopUp"]);
 
-// Una pantalla desconocida en plena misión (la pausa, por ejemplo) no avisa al cerrarse.
 export const VENTANA_DESCONOCIDA_MS = 20_000;
 
 export function siguienteEstado(estado, ev, ahora = Date.now()) {
@@ -38,7 +31,7 @@ export function siguienteEstado(estado, ev, ahora = Date.now()) {
     case "pantalla":
       if (ev.swf === "Hub" || ev.swf === "ThemedMainMenu") return { ...ESTADO_JUEGO_INICIAL };
       if (ev.swf === "ProjectionRewardChoice") {
-        return { ...estado, eligiendoReliquia: false, recompensas: { fase: "abiertas", tarjetas: 0, propia: null } };
+        return { ...estado, eligiendoReliquia: false, recompensas: { fase: "abiertas", tarjetas: 0, propia: null, desde: ahora } };
       }
       if (ev.swf === "ThemedProjectionManager") return { ...estado, eligiendoReliquia: true };
       if (ev.swf === "OmegaRerollSelection") return { ...estado, riven: { arma: null } };
@@ -52,7 +45,6 @@ export function siguienteEstado(estado, ev, ahora = Date.now()) {
       if (!estado.recompensas) return estado;
       return { ...estado, recompensas: { ...estado.recompensas, tarjetas: estado.recompensas.tarjetas + 1 } };
     case "propia":
-      // Llega justo antes de "Got rewards", con la pantalla ya creada.
       if (!estado.recompensas) return estado;
       return { ...estado, recompensas: { ...estado.recompensas, propia: ev.ruta } };
     case "rivenCiclo":
@@ -67,12 +59,11 @@ export function siguienteEstado(estado, ev, ahora = Date.now()) {
   }
 }
 
-// { modo: "normal" } escanea como siempre; "dormido" no procesa frames; "forzado" fija el contexto.
 export function modoEscaner(estado, ahora = Date.now()) {
   if (estado.recompensas?.fase === "llenas") {
     return { modo: "forzado", contexto: "REWARD", tarjetas: estado.recompensas.tarjetas || null };
   }
   if (!estado.enMision) return { modo: "normal" };
-  if (estado.menus.length || estado.eligiendoReliquia || ahora < estado.despiertoHasta) return { modo: "normal" };
+  if (estado.menus.length || estado.eligiendoReliquia || estado.recompensas || ahora < estado.despiertoHasta) return { modo: "normal" };
   return { modo: "dormido" };
 }

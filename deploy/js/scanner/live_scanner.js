@@ -27,18 +27,17 @@ import { APP_VERSION } from "../config.js";
 import { piezasParaBaro, copiasQueSobran } from "../utils/inventory/baro_picks.js";
 import { ducadosDePieza } from "../utils/inventory/catalog_parts.js";
 import { ducatsBeatSale } from "../utils/inventory/reward_value.js";
-import { getSetName, getRequiredCount } from "../utils/ui_utils.js";
+import { getSetName, getRequiredCount, getItemIcon } from "../utils/ui_utils.js";
 import { getPriceValue, MEMORY_CACHE } from "../services/market/prices.service.js";
 import { getSlug } from "../utils/slugs.utils.js";
-import { rankRelicPicks, mejorRefinamiento, REFINOS_POR_COSTE } from "../utils/inventory/relic_picks.js";
-import { relicSetValue } from "../utils/inventory/relic_set_value.js";
+import { eligeReliquias, OBJETIVOS } from "../utils/inventory/relic_objetivos.js";
 import { getRelicCounts } from "../utils/inventory/relic_counts.js";
 import { getPlayerOdds } from "../utils/inventory/relic_drop_odds.utils.js";
 import { fetchAllFissures } from "../services/farms/fissures.service.js";
 import { EELogLive } from "../services/scanner/eelog_live.service.js";
 import { eraDeLaMision } from "../utils/inventory/relic_route.js";
-import { mostrarPaneles, quitarTodosLosPaneles } from "../services/desktop.service.js";
-import { panelReliquias, MAX_RELIQUIAS, POR_ERA, ORDEN_ERAS } from "../utils/overlay_paneles.js";
+import { mostrarPaneles, quitarTodosLosPaneles, alPulsarEnOverlay } from "../services/desktop.service.js";
+import { panelReliquias } from "../utils/overlay_paneles.js";
 
 // Clave propia y no la del escáner de móvil: son dos flujos distintos, y haber visto uno no
 // explica el otro.
@@ -285,37 +284,42 @@ globalThis.showRivenAppraisal = async (parsedL, parsedR, captura) => {
 
 const RELIQUIAS_DURACION_MS = 120_000;
 let eraElegida = null;
+let cualquierRefino = false;
+let objetivoElegido = "sets";
 let eligiendoReliquia = false;
-
-function oddsPorRefino(p, deps) {
-  const drops = state.relicsDatabase?.[p.relic] || state.relicsDatabase?.[`${p.relic} Relic`];
-  return Object.fromEntries(REFINOS_POR_COSTE.map((ref) => {
-    const v = relicSetValue(drops, { ...deps, dropChances: DROP_CHANCES[ref], stock: p.owned });
-    return [ref, Number.isFinite(v.runs) && v.runs > 0 ? 1 / v.runs : 0];
-  }));
-}
 
 async function pintaReliquias(era = eraElegida) {
   eraElegida = era;
   const fissures = await fetchAllFissures().catch(() => []);
   const relicCounts = getRelicCounts();
   const { squadSize } = getPlayerOdds();
-  const refino = DROP_CHANCES[state.refinement] ? state.refinement : "Rad";
-  const deps = { setsDatabase: state.setsDatabase, primeInventory: state.primeInventory, getSetName, getRequiredCount, squadSize };
-  const picks = rankRelicPicks({
-    ...deps, relicCounts, relicsDatabase: state.relicsDatabase, fissures,
+  const refino = cualquierRefino ? null : DROP_CHANCES[state.refinement] ? state.refinement : "Rad";
+  const picks = eligeReliquias({
+    setsDatabase: state.setsDatabase, primeInventory: state.primeInventory, getSetName, getRequiredCount, squadSize,
+    relicCounts, relicsDatabase: state.relicsDatabase, fissures, tablas: DROP_CHANCES,
     getPrice: (n) => Number.parseInt(MEMORY_CACHE.get(getSlug(n)) || 0, 10) || 0,
-    dropChances: DROP_CHANCES[refino],
-  }, Number.MAX_SAFE_INTEGER).filter((p) => !era || p.tier === era);
-  const visibles = era ? picks.slice(0, MAX_RELIQUIAS) : ORDEN_ERAS.flatMap((e) => picks.filter((p) => p.tier === e).slice(0, POR_ERA));
-  for (const p of visibles) p.refino = mejorRefinamiento(oddsPorRefino(p, deps));
+    getDucats: ducadosDePieza,
+  }, { objetivo: objetivoElegido, refino, era });
   const panel = panelReliquias(picks, era, TEXTS[state.currentLang].scannerHUD, {
-    reliquiasEnApp: Object.keys(relicCounts).length, refino, escuadra: squadSize,
+    reliquiasEnApp: Object.keys(relicCounts).length, refino, escuadra: squadSize, objetivo: objetivoElegido, iconoDe: getItemIcon,
   });
   mostrarPaneles("reliquias", [panel], { duracionMs: RELIQUIAS_DURACION_MS });
 }
 
 RelicScreenService.onEra = (era) => pintaReliquias(era);
+EELogLive.onReliquiaAbierta = (nombre) => gastaReliquiaAbierta(nombre, true);
+
+alPulsarEnOverlay("reliquias", (accion) => {
+  const [clave, valor] = accion.split(":");
+  if (clave === "refino" && (valor === "Any" || DROP_CHANCES[valor])) {
+    cualquierRefino = valor === "Any";
+    if (!cualquierRefino) globalThis.setRefinement?.(valor);
+  } else if (clave === "objetivo" && OBJETIVOS.includes(valor)) objetivoElegido = valor;
+  else if (clave === "escuadra") globalThis.setSquadSize?.(valor);
+  else if (clave === "era") eraElegida = valor === "ALL" ? null : valor;
+  else return;
+  pintaReliquias();
+});
 
 EELogLive.escuchar(async (live) => {
   if (live.estado !== "leyendo") return;
@@ -353,7 +357,6 @@ ScannerService.onPaginaKiosco = () => {
   if (globalThis.renderPrimeInventory) globalThis.renderPrimeInventory();
   recomiendaParaBaro().catch(console.warn);
 };
-// En el kiosko el HUD enseña qué piezas echar: las copias que sobran sin romper sets y que rentan más en ducados.
 const TOPE_PARA_BARO = 8;
 let pidiendoPrecios = false;
 async function recomiendaParaBaro() {
@@ -399,6 +402,16 @@ DucatKioskService.onSale = (venta) => {
 /**
  * UI Hook called by ScannerService when a relic is detected.
  */
+function trackRelic(relicName) {
+  const input = document.getElementById("relicInput");
+  if (!input) return;
+  globalThis.switchTab?.("relic");
+  input.value = relicName;
+  globalThis.manualRelicUpdate?.();
+}
+
+exposeGlobals({ trackRelic }, "scanner/live_scanner.js");
+
 globalThis.showTrackConfirm = (relicName) => {
   const t = TEXTS[state.currentLang].scanner;
   showToast(`${t.relicDetected}: ${relicName}`, {
@@ -518,13 +531,14 @@ function commitMissionCompleteRewards(items, gastada = null) {
 
 const unidades = (inventario) => applyRelicCounts(inventario, []).reduce((n, i) => n + Number(i.count), 0);
 
-function gastaReliquiaAbierta(nombre) {
-  if (!state.autoAddMissionRewards) return;
+function gastaReliquiaAbierta(nombre, delLog = false) {
+  if (!state.autoAddMissionRewards || (!delLog && EELogLive.reliquiaPorGastar())) return;
   const previo = (state.inventory || []).map((i) => (typeof i === "string" ? i : { ...i }));
   const nuevo = restaReliquia(state.inventory, nombre);
   if (unidades(nuevo) === unidades(previo)) return; // no la tenías apuntada
   state.inventory = nuevo;
   saveAppState();
+  if (eligiendoReliquia) pintaReliquias();
   const t = TEXTS[state.currentLang].scanner;
   // Tag propio: el aviso de fin de misión llega segundos después y pisaría este DESHACER.
   avisaConDeshacer(`${t.relicSpent}: ${nombre}`, "reliquia-gastada", () => { state.inventory = previo; });

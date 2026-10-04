@@ -98,7 +98,6 @@ export function renderDucanatorView(list, opts = {}) {
     // Sin precio todavía la fila se coloca en "cambiar por ducados", que es donde acabará la
     // mayoría, pero NO suma al total: en el primer pintado no se sabe aún nada y el número
     // dorado salía con el inventario entero dentro, para desinflarse al llegar los precios.
-    // Rentaría fundirla, pero todas sus copias son de un set.
     const paraSet = shouldFund && r.qty > 0 && r.sobran === 0;
     if (platReady) {
       if (shouldFund) {
@@ -267,7 +266,6 @@ export function renderDucanatorTab() {
   renderDucanatorView(list, opts);
 }
 
-// Los invoca index.html con onclick inline; se publican desde aquí, que es donde
 // viven ahora, en vez de desde ui_inventory.js.
 exposeGlobals({
     renderDucanatorTab,

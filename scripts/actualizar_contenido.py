@@ -244,7 +244,7 @@ def sincroniza_arcanos():
     nuevo["arcanes"] = {k: {**v, **{c: x for c, x in viejos.get(k, {}).items() if c not in v}} for k, v in nuevo["arcanes"].items()}
     if set(nuevo["others"]) == set(actual.get("others", [])):
         nuevo["others"] = actual["others"]
-    claves = ["packs", "others", "arcanes", "tradables"]
+    claves = ["packs", "others", "arcanes", "tradables", "sindicatos"]
     if all(actual.get(k) == nuevo.get(k) for k in claves):
         log("  arcanos: sin cambios")
         return

@@ -121,8 +121,6 @@ test("la banda respeta el limite inferior del frame si colaRotulo sobrepasa H", 
   });
 });
 
-// Captura real (Hildryn, 1920x1080): solo el arte de Bronco y el de Hildryn pasan el corte de
-// brillo; el mango de Dual Zoren y la pala de Paris son oscuros. Salían 2 columnas del doble de ancho.
 test("la fila centrada recupera las tarjetas de arte oscuro", () => {
   const fila = filaCentrada([0.437 * 1920, 0.690 * 1920], 1920);
   assert.equal(fila.n, 4);

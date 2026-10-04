@@ -73,10 +73,14 @@ export function eraDominante(nombres, { minimo = 3, cuota = 0.6 } = {}) {
 
 export const REFINOS_POR_COSTE = ["Intact", "Exceptional", "Flawless", "Rad"];
 
-export function mejorRefinamiento(oddsPor, margen = 0.02) {
+export function mejorRefinamiento(oddsPor, margen = 0.05) {
   const max = Math.max(0, ...REFINOS_POR_COSTE.map((r) => oddsPor?.[r] || 0));
   if (!(max > 0)) return null;
-  return REFINOS_POR_COSTE.find((r) => (oddsPor[r] || 0) >= max - margen);
+  return REFINOS_POR_COSTE.find((r) => (oddsPor[r] || 0) >= max * (1 - margen));
+}
+
+export function progresoDe(missing, peso = () => 1) {
+  return (missing || []).reduce((s, m) => s + m.chance * closenessWeight(m.setMissing) * peso(m), 0);
 }
 
 /**
@@ -148,7 +152,7 @@ export function rankRelicPicks(deps, limit = 8) {
       // Probabilidad de cerrar ALGUNO de ellos en una apertura, no la suma de las sueltas.
       closeOdds: 1 - cierran.reduce((p, m) => p * (1 - m.chance), 1),
       // Lo que ordena la lista: probabilidad por lo cerca que deja al set (closenessWeight).
-      progress: v.missing.reduce((s, m) => s + m.chance * closenessWeight(m.setMissing), 0),
+      progress: progresoDe(v.missing),
       fissure: fisura,
       value: valor,
       relic,
@@ -166,7 +170,7 @@ export function rankRelicPicks(deps, limit = 8) {
       // Con el nombre solo, "3 te sirven" no distinguía tres piezas de tres sets sin empezar
       // de tres que dejan uno a punto: lo que falta de cada set se calcula arriba y se tiraba.
       parts: v.missing.map((m) => ({
-        name: m.part, set: m.set, missing: m.setMissing, total: m.setTotal,
+        name: m.part, set: m.set, missing: m.setMissing, total: m.setTotal, chance: m.chance, price: getPrice?.(m.part) || 0,
       })),
       ready: suyas.length > 0,
     });

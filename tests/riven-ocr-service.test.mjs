@@ -241,6 +241,19 @@ test("un match exacto del arma gana a uno difuso más cercano a los stats", () =
   assert.equal(r.weaponName, "Gotva Prime");
 });
 
+test("nombre del riven partido en dos líneas: la primera es solo el arma y no se recorta", () => {
+  const antes = state.allRivenNames;
+  state.allRivenNames = [...antes, "Kuva Bramma", "Kuva Twin Stubbas", "Kuva Kohm"];
+  try {
+    const r = S.parseRivenCard(["Kuva Bramma", "Gelican", "+80.9% Multishot", "+83% Cold", "-19.5% Zoom"].join("\n"));
+    assert.equal(r.weaponName, "Kuva Bramma", "con 'Kuva' a secas casaba la Kuva más larga: Twin Stubbas");
+    assert.equal(S._matchWeaponScored("Kuva"), null, "un trozo corto no es el nombre de un arma");
+    assert.equal(S._matchWeaponScored("Kuva Bramm")?.name, "Kuva Bramma", "un nombre cortado por el OCR sigue casando");
+  } finally {
+    state.allRivenNames = antes;
+  }
+});
+
 // El arte pega tokens espurios a la línea del nombre y las guardas antiguas (^\d, includes("%"))
 // descartaban la línea entera, perdiendo el arma.
 test("basura pegada al nombre del arma no hace perder el arma", () => {

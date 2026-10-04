@@ -7,6 +7,15 @@ import { statsBuscadosDelArma } from "../../services/rivens/riven_appraisal.serv
 import { mostrarPaneles, quitarPaneles } from "../../services/desktop.service.js";
 import { panelRiven, panelRivenComparacion } from "../../utils/overlay_paneles.js";
 
+const CALIDAD_POSITIVO = { S: ["TOP", "TOP", "oro"], A: ["BUENO", "GOOD", "naranja"], B: ["MEDIO", "MID", "cian"] };
+
+function calidadDelStat(ge, isEs) {
+    if (!ge) return null;
+    if (!ge.isPositive) return { texto: ge.label, tono: ge.badness < 0.4 ? "verde" : ge.badness < 0.7 ? "naranja" : "rojo" };
+    const [es, en, tono] = CALIDAD_POSITIVO[ge.tier] || ["FLOJO", "WEAK", "gris"];
+    return { texto: isEs ? es : en, tono };
+}
+
 const AVISO_BANDA = {
     trash: {
         es: "Roll de gama baja: precio orientativo (usa la banda, no el valor único).",
@@ -429,7 +438,7 @@ export const RivenScannerHUD = {
                     else if (gradeData.grade.startsWith("B")) color = "#00e5ff";
                     else if (gradeData.grade.startsWith("C")) color = "#a879ec";
                     else if (gradeData.grade.startsWith("F")) color = "#ff4d4d";
-                    gradeBadge = `<span style="font-weight:900; font-size:0.8em; padding:1px 7px; border-radius:999px; background:rgba(0,0,0,0.45); color:${color}; border:1px solid ${color}55;">${gradeData.grade}</span>`;
+                    gradeBadge = `<span style="font-weight:900; font-size:0.8em; padding:1px 7px; border-radius:999px; background:rgba(0,0,0,0.45); color:${color}; border:1px solid ${color}55;">${gradeData.grade}${Number.isFinite(gradeData.pct) ? ` · p${Math.round(gradeData.pct)}` : ""}</span>`;
                 }
             }
 
@@ -504,19 +513,22 @@ export const RivenScannerHUD = {
             </div>
         `;
         mostrarPaneles("riven", [panelRiven({
-            ...espejo, stats: this._statsOverlay(riven, meta, calculateRivenGrade),
-            rotulos: { valor: isEs ? "VALOR" : "VALUE", grado: isEs ? "GRADO" : "GRADE" },
+            ...espejo, stats: this._statsOverlay(riven, meta, calculateRivenGrade, gradeStats),
+            rotulos: { valor: isEs ? "VALOR" : "VALUE", grado: isEs ? "GRADO" : "GRADE", atributo: isEs ? "ATRIBUTO" : "ATTRIBUTE", tirada: isEs ? "TIRADA" : "ROLL" },
         })]);
     },
 
-    // Los stats como los pinta el HUD (signo de la carta y grado del roll), para el overlay del juego.
-    _statsOverlay(roll, meta, calculateRivenGrade) {
+    _statsOverlay(roll, meta, calculateRivenGrade, gradeStats = null) {
         const posCount = roll.stats.filter((x) => x.isPositive).length;
         const hasNeg = roll.stats.some((x) => !x.isPositive);
-        return roll.stats.map((s) => {
+        const isEs = state.currentLang === "es";
+        return roll.stats.map((s, i) => {
             const prefijo = (s.isPositive !== /^recoil$/i.test(s.name)) ? "+" : "-";
             const g = meta ? calculateRivenGrade(meta, s.name, s.value, !s.isPositive, posCount, hasNeg) : null;
-            return { texto: `${prefijo}${s.value}% ${s.name}`, positivo: s.isPositive, grado: g?.grade || null };
+            return {
+                texto: `${prefijo}${s.value}% ${s.name}`, positivo: s.isPositive, grado: g?.grade || null, pct: g?.pct,
+                calidad: calidadDelStat(gradeStats?.[i], isEs),
+            };
         });
     },
 
@@ -654,7 +666,7 @@ export const RivenScannerHUD = {
                 { rotulo: t.current, precio: comparison.priceA, score: comparison.scoreA, stats: this._statsOverlay(rollA, meta, calculateRivenGrade) },
                 { rotulo: t.new, precio: comparison.priceB, score: comparison.scoreB, stats: this._statsOverlay(rollB, meta, calculateRivenGrade) },
             ],
-            rotulos: { mejor: t.verdictBetter },
+            rotulos: { mejor: t.verdictBetter, atributo: state.currentLang === "es" ? "ATRIBUTO" : "ATTRIBUTE", tirada: state.currentLang === "es" ? "TIRADA" : "ROLL" },
         })]);
     },
 

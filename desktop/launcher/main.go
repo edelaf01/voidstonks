@@ -1,5 +1,3 @@
-// VoidStonks de escritorio: sirve la app embebida en http://voidstonks.localhost:PUERTO y la
-// abre en el Chromium instalado en modo app, con un perfil propio.
 package main
 
 import (
@@ -20,16 +18,13 @@ import (
 	"time"
 )
 
-//go:embed app.zip
 var appZip []byte
 
 const (
-	host = "voidstonks.localhost"
-	// Puerto fijo: localStorage va por origen, y con otro puerto el inventario saldría vacío.
-	firstPort = 47823
-	lastPort  = 47830
-	marca     = "voidstonks-launcher"
-	// Una ventana minimizada solo dispara temporizadores una vez por minuto.
+	host             = "voidstonks.localhost"
+	firstPort        = 47823
+	lastPort         = 47830
+	marca            = "voidstonks-launcher"
 	sinLatido        = 90 * time.Second
 	sinLatidoPaneles = 75 * time.Second
 )
@@ -54,7 +49,6 @@ func main() {
 		".json": "application/json", ".wasm": "application/wasm", ".svg": "image/svg+xml",
 		".webp": "image/webp", ".png": "image/png", ".ico": "image/x-icon",
 	} {
-		// En Windows el registro puede decir text/plain para .js y los módulos no cargarían.
 		mime.AddExtensionType(ext, tipo)
 	}
 
@@ -77,8 +71,6 @@ func main() {
 	if listeners == nil {
 		return
 	}
-	// El proceso del navegador puede acabar sin cerrar la ventana (se la pasa a otra instancia
-	// con el mismo perfil): se sigue sirviendo mientras la página dé señales de vida.
 	for time.Since(time.Unix(0, ultimoLatido.Load())) < sinLatido {
 		time.Sleep(5 * time.Second)
 		if time.Since(time.Unix(0, ultimoLatido.Load())) > sinLatidoPaneles {
@@ -88,7 +80,6 @@ func main() {
 	quitaTodos()
 }
 
-// Devuelve el puerto y sus listeners, o listeners nil si ya sirve otra instancia del lanzador.
 func escuchar() (int, []net.Listener) {
 	for p := firstPort; p <= lastPort; p++ {
 		l4, err := net.Listen("tcp4", "127.0.0.1:"+strconv.Itoa(p))
@@ -99,7 +90,6 @@ func escuchar() (int, []net.Listener) {
 			continue
 		}
 		ls := []net.Listener{l4}
-		// voidstonks.localhost puede resolver primero a ::1.
 		if l6, err := net.Listen("tcp6", "[::1]:"+strconv.Itoa(p)); err == nil {
 			ls = append(ls, l6)
 		}
@@ -124,14 +114,11 @@ func esNuestro(p int) bool {
 
 func handler(files map[string]*zip.File, port int) http.Handler {
 	hostValido := fmt.Sprintf("%s:%d", host, port)
-	// Para desarrollar: VOIDSTONKS_DIR=deploy sirve esa carpeta en vez de la app embebida y basta con recargar.
 	var desdeCarpeta http.Handler
 	if dir := os.Getenv("VOIDSTONKS_DIR"); dir != "" {
 		desdeCarpeta = http.FileServer(http.Dir(dir))
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Solo por voidstonks.localhost: desde 127.0.0.1 la app se tomaría por el entorno de
-		// desarrollo y enseñaría el login de WFM. De paso corta el DNS rebinding.
 		if r.Host != hostValido {
 			http.Error(w, "host no permitido", http.StatusMisdirectedRequest)
 			return
@@ -195,7 +182,6 @@ func buscar(files map[string]*zip.File, ruta string) *zip.File {
 
 var archivosApp map[string]*zip.File
 
-// Un fichero de la app (los iconos del overlay): de la carpeta en modo desarrollo, si no del zip embebido.
 func leeRecurso(ruta string) ([]byte, error) {
 	if dir := os.Getenv("VOIDSTONKS_DIR"); dir != "" {
 		return os.ReadFile(filepath.Join(dir, filepath.FromSlash(ruta)))

@@ -1,5 +1,3 @@
-// Paneles del overlay del kiosko de Baro.
-
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { panelKiosko, MAX_FILAS_KIOSKO } from "../deploy/js/utils/overlay_paneles.js";
@@ -39,8 +37,21 @@ test("una carta de riven: valor, grado del arma y stats con su nota", () => {
     [{ texto: "VALOR", tono: "gris" }, { texto: "~120p", tono: "oro" }, { texto: "80–160p", tono: "gris" }],
     [{ texto: "GRADO", tono: "gris" }, { texto: "A", tono: "gradoA" }, { texto: "74/100", tono: "gris" }],
   ]);
-  assert.deepEqual(p.bloques.at(-1).filas[2], [{ texto: "-30% Zoom", tono: "rojo" }]);
+  assert.deepEqual(p.bloques.at(-1).filas[2], [{ texto: "-30% Zoom", tono: "rojo" }, { texto: "", tono: "gris" }, { texto: "", tono: "blanco" }]);
   assert.equal(panelRiven({ arma: "X", stats: [], rotulos: {} }).bloques.length, 2, "sin tasación solo arma y stats");
+});
+
+test("cada stat del riven en dos campos con rótulo: lo bueno que es el atributo y la tirada con su percentil", () => {
+  const conCampos = [
+    { texto: "+80.9% Multishot", positivo: true, grado: "A+", pct: 84.6, calidad: { texto: "TOP", tono: "oro" } },
+    { texto: "-19.5% Zoom", positivo: false, grado: "SSS", pct: 99, calidad: { texto: "INOFENSIVA", tono: "verde" } },
+  ];
+  const p = panelRiven({ arma: "Kuva Bramma", stats: conCampos, rotulos: { atributo: "ATRIBUTO", tirada: "TIRADA" } });
+  assert.deepEqual(p.bloques.at(-1).filas, [
+    [{ texto: "", tono: "gris" }, { texto: "ATRIBUTO", tono: "gris" }, { texto: "TIRADA", tono: "gris" }],
+    [{ texto: "+80.9% Multishot", tono: "verde" }, { texto: "TOP", tono: "oro" }, { texto: "A+ · p85", tono: "gradoA" }],
+    [{ texto: "-19.5% Zoom", tono: "rojo" }, { texto: "INOFENSIVA", tono: "verde" }, { texto: "SSS · p99", tono: "gradoS" }],
+  ]);
 });
 
 test("el ciclo marca la tirada que gana y enseña las dos", () => {
@@ -62,27 +73,38 @@ const T_RELIQUIAS = {
   relicsTitle: "TUS RELIQUIAS", relicsUseful: "{n} te sirven", relicsCloses: "cierra {set}", relicsMissing: "{set}: faltan {m}/{t}",
   relicsNone: "Ninguna te acerca a un set", relicsEmpty: "La app aún no tiene tus reliquias", relicsSetup: "{ref} · {n} jugadores",
   relicsRefNames: { Intact: "Intacta", Rad: "Radiante" }, relicsRefShort: { Intact: "Int", Rad: "Rad" },
+  relicsRefLabel: "Refino", relicsSquadLabel: "Jugad.", relicsEraLabel: "Era", relicsAllEras: "Todas",
+  relicsAnyRef: "Cualquiera", relicsGoalLabel: "Objetivo", relicsGoals: { sets: "Sets", plat: "Platino", ducados: "Ducados" },
+  relicsNoValue: "Aún no hay precios para estas reliquias", relicsAtRef: "en {ref}:", relicsBestRef: "mejor en {ref}", relicsPerTrace: "{n}{u}/vestigio",
 };
 
 const pick = (relic, tier, extra = {}) => ({ relic, tier, owned: 3, odds: 0.5, value: 10, parts: [], ...extra });
 
-test("en la selección de reliquias cada fila dice copias, probabilidad, la pieza que importa y el refinamiento", () => {
+test("en la selección de reliquias cada fila dice copias, el set, la pieza con SU probabilidad y su precio", () => {
   const picks = [
-    pick("Neo Y2", "Neo", { odds: 0.34, value: 12.4, refino: "Rad", parts: [
-      { name: "Braton Prime Stock", set: "Braton Prime", missing: 2, total: 4 },
-      { name: "Akarius Prime Receiver", set: "Akarius Prime", missing: 1, total: 4 },
+    pick("Neo Y2", "Neo", { refino: "Rad", mejorRefino: "Rad", parts: [
+      { name: "Braton Prime Stock", set: "Braton Prime", missing: 2, total: 4, chance: 0.5, price: 3 },
+      { name: "Akarius Prime Receiver", set: "Akarius Prime", missing: 1, total: 4, chance: 0.344, price: 30 },
     ] }),
-    pick("Neo V9", "Neo", { owned: 1, odds: 0, value: 0, refino: "Intact", parts: [{ name: "Lex Prime Blueprint", set: "Lex Prime", missing: 2, total: 3 }] }),
+    pick("Neo V9", "Neo", { owned: 1, refino: "Rad", mejorRefino: "Intact", parts: [{ name: "Lex Prime Blueprint", set: "Lex Prime", missing: 2, total: 3, chance: 0.004, price: 0 }] }),
   ];
   const p = panelReliquias(picks, "Neo", T_RELIQUIAS, { refino: "Rad", escuadra: 4 });
   assert.equal(p.anclaje, "derecha");
+  assert.equal(p.anchoMin, 0.2);
   assert.deepEqual(p.bloques[0], { tipo: "titulo", texto: "TUS RELIQUIAS · Neo · 2 te sirven", tono: "cian" });
-  assert.deepEqual(p.bloques[1], { tipo: "estado", texto: "Radiante · 4 jugadores", tono: "cian" });
-  const lista = p.bloques.find((b) => b.tipo === "lista");
-  assert.deepEqual(lista.filas, [
-    [{ texto: "Neo Y2 ×3", tono: "blanco" }, { texto: "34% · ~12p", tono: "oro" }, { texto: "cierra Akarius", tono: "verde" }, { texto: "Rad", tono: "cian" }],
-    [{ texto: "Neo V9 ×1", tono: "blanco" }, { texto: "", tono: "oro" }, { texto: "Lex: faltan 2/3", tono: "apagado" }, { texto: "Int", tono: "naranja" }],
-  ]);
+  const botones = p.bloques.filter((b) => b.tipo === "botones");
+  assert.deepEqual(botones.map((b) => b.botones.find((x) => x.activo)?.accion), ["objetivo:sets", "refino:Rad", "escuadra:4", "era:Neo"]);
+  assert.deepEqual(botones[1].botones.map((x) => x.accion), ["refino:Any", "refino:Intact", "refino:Exceptional", "refino:Flawless", "refino:Rad"]);
+  assert.equal(panelReliquias(picks, null, T_RELIQUIAS, { refino: "Rad", escuadra: 1 }).bloques.filter((b) => b.tipo === "botones")[3].botones[0].activo, true, "sin era, Todas");
+  assert.deepEqual(p.bloques.find((b) => b.tipo === "lista").filas, [
+    [{ texto: "Neo Y2 ×3", tono: "blanco" }, { texto: "cierra Akarius", tono: "verde" }, { texto: "Receiver 34%", tono: "gris" }, { texto: "30", tono: "oro", icono: "plat" }, { texto: "mejor en Radiante", tono: "verde" }],
+    [{ texto: "Neo V9 ×1", tono: "blanco" }, { texto: "Lex: faltan 2/3", tono: "apagado" }, { texto: "Blueprint <1%", tono: "gris" }, { texto: "", tono: "oro" }, { texto: "mejor en Intacta", tono: "naranja" }],
+  ], "con un refino elegido cada fila dice si ese es su mejor refino o cuál lo es");
+  const cualquiera = panelReliquias(picks, "Neo", T_RELIQUIAS, { refino: null, escuadra: 4 });
+  assert.equal(cualquiera.bloques.filter((b) => b.tipo === "botones")[1].botones.find((x) => x.activo).accion, "refino:Any");
+  assert.deepEqual(cualquiera.bloques.find((b) => b.tipo === "lista").filas.map((f) => f[4]), [{ texto: "mejor en Radiante", tono: "cian" }, { texto: "mejor en Radiante", tono: "cian" }]);
+  const clave = { name: "Akbronco Prime Blueprint", set: "Akbronco Prime", missing: 1, total: 2, chance: 0.25, price: 2 };
+  assert.equal(panelReliquias([{ ...picks[0], clave }], "Neo", T_RELIQUIAS, { refino: "Rad", escuadra: 4 }).bloques.at(-1).filas[0][1].texto, "cierra Akbronco", "manda la pieza clave que elige el cálculo");
   const muchas = panelReliquias(Array.from({ length: 12 }, (_, i) => pick(`Neo A${i}`, "Neo")), "Neo", T_RELIQUIAS);
   assert.equal(muchas.bloques.find((b) => b.tipo === "lista").filas.length, MAX_RELIQUIAS);
 });
@@ -93,6 +115,54 @@ test("sin saber la era las agrupa por era, unas pocas de cada una", () => {
   assert.deepEqual(filas.map((f) => f[0].texto), ["LITH", "Lith B1 ×3", "MESO", "Meso C1 ×3", "AXI", "Axi A1 ×3", "Axi A2 ×3"]);
   assert.ok(filas.filter((f) => f.length > 1).length <= MAX_RELIQUIAS);
   assert.equal(filas.filter((f) => f[0].texto.startsWith("Axi")).length, POR_ERA);
+});
+
+test("varias reliquias para el mismo set salen en una fila con cuántas más lo hacen", () => {
+  const akbronco = [{ name: "Akbronco Prime Blueprint", set: "Akbronco Prime", missing: 1, total: 2 }];
+  const picks = [
+    pick("Lith A12", "Lith", { parts: akbronco }), pick("Lith B11", "Lith", { parts: akbronco }),
+    pick("Lith L8", "Lith", { parts: [{ name: "Lavos Prime Systems Blueprint", set: "Lavos Prime", missing: 1, total: 4 }] }),
+    pick("Lith K9", "Lith", { parts: akbronco }),
+  ];
+  const p = panelReliquias(picks, "Lith", T_RELIQUIAS, { refino: "Intact", escuadra: 4 });
+  assert.equal(p.bloques[0].texto, "TUS RELIQUIAS · Lith · 4 te sirven");
+  assert.deepEqual(p.bloques.find((b) => b.tipo === "lista").filas.map((f) => `${f[0].texto} ${f[1].texto}`), ["Lith A12 ×3 cierra Akbronco +2", "Lith L8 ×3 cierra Lavos"]);
+});
+
+test("con objetivo platino o ducados cada fila da lo mejor que suelta, lo que vale y su probabilidad", () => {
+  const picks = [{ relic: "Lith A8", tier: "Lith", owned: 5, ev: 12.4, refino: "Rad", mejor: { name: "Akarius Prime Receiver", valor: 30, chance: 0.344 } }];
+  const plat = panelReliquias(picks, "Lith", T_RELIQUIAS, { refino: null, escuadra: 4, objetivo: "plat" });
+  assert.equal(plat.bloques[0].texto, "TUS RELIQUIAS · Lith");
+  assert.deepEqual(plat.bloques.find((b) => b.tipo === "lista").filas[0], [
+    { texto: "Lith A8 ×5", tono: "blanco" }, { texto: "Akarius Receiver", tono: "gris" }, { texto: "30", tono: "oro", icono: "plat" }, { texto: "34%", tono: "gris" }, { texto: "mejor en Radiante", tono: "cian" },
+  ]);
+  const duc = panelReliquias(picks, "Lith", T_RELIQUIAS, { refino: "Rad", escuadra: 4, objetivo: "ducados" });
+  assert.deepEqual(duc.bloques.find((b) => b.tipo === "lista").filas[0][2], { texto: "30", tono: "ducado", icono: "ducado" });
+  assert.equal(panelReliquias([], "Lith", T_RELIQUIAS, { objetivo: "plat" }).bloques.at(-1).filas[0][0].texto, "Aún no hay precios para estas reliquias");
+});
+
+test("con un refino elegido, lo que ganarías refinando se dice con su probabilidad, y cada pieza lleva su imagen", () => {
+  const clave = { name: "Cobra & Crane Prime Blade", set: "Cobra & Crane Prime", missing: 1, total: 3, chance: 0.11, price: 5 };
+  const otra = { name: "Akarius Prime Receiver", set: "Akarius Prime", missing: 1, total: 3, chance: 0.02, price: 27 };
+  const picks = [
+    pick("Neo G7", "Neo", { clave, refino: "Intact", mejorRefino: "Rad", ganancia: { refino: "Rad", pieza: clave.name, set: clave.set, chance: 0.2 } }),
+    pick("Lith A8", "Neo", { clave: otra, refino: "Intact", mejorRefino: "Rad", ganancia: { refino: "Rad", pieza: "Bronco Prime Receiver", set: "Bronco Prime", chance: 0.167 } }),
+  ];
+  const iconoDe = (n) => `assets/relic_contents/${n.toLowerCase().replaceAll(" ", "_")}.webp`;
+  const filas = panelReliquias(picks, "Neo", T_RELIQUIAS, { refino: "Intact", escuadra: 1, iconoDe }).bloques.at(-1).filas;
+  assert.deepEqual(filas[0][4], { texto: "en Rad: 20%", tono: "naranja" });
+  assert.deepEqual(filas[1][4], { texto: "en Rad: Receiver 17%", tono: "naranja" }, "si lo que gana es otra pieza, se nombra");
+  assert.equal(filas[0][2].imagen, "assets/relic_contents/cobra_&_crane_prime_blade.webp");
+});
+
+test("en platino se ve cuánto rinde cada vestigio al refinar", () => {
+  const base = { relic: "Lith A8", tier: "Lith", owned: 5, ev: 4, mejor: { name: "Akarius Prime Receiver", valor: 30, chance: 0.08 }, porVestigio: 0.123 };
+  const cualquiera = panelReliquias([{ ...base, refino: "Rad", mejorRefino: "Rad" }], "Lith", T_RELIQUIAS, { refino: null, escuadra: 4, objetivo: "plat" });
+  assert.deepEqual(cualquiera.bloques.at(-1).filas[0][4], { texto: "mejor en Radiante · 0.12p/vestigio", tono: "cian" });
+  const intacta = panelReliquias([{ ...base, refino: "Intact", mejorRefino: "Rad", ganancia: { refino: "Rad", pieza: "Akarius Prime Receiver", chance: 0.34 } }], "Lith", T_RELIQUIAS, { refino: "Intact", escuadra: 4, objetivo: "plat" });
+  assert.deepEqual(intacta.bloques.at(-1).filas[0][4], { texto: "en Rad: 34% · 0.12p/vestigio", tono: "naranja" });
+  const paraRuns = panelReliquias([{ ...base, refino: "Intact", mejorRefino: "Intact", porVestigio: 0.01 }], "Lith", T_RELIQUIAS, { refino: "Intact", escuadra: 4, objetivo: "plat" });
+  assert.deepEqual(paraRuns.bloques.at(-1).filas[0][4], { texto: "mejor en Intacta", tono: "verde" });
 });
 
 test("sin reliquias en la app el panel lo dice en vez de no salir", () => {

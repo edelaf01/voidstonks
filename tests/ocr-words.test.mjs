@@ -82,7 +82,6 @@ describe("etiquetas de la tarjeta", () => {
     });
 
     test("cada etiqueta va a la tarjeta cuyo nombre tiene más cerca", () => {
-        // Caliban real: el CRAFTED de la Forma caía en la ventana de Zephyr y la marcaba como forjada.
         const zephyr = { text: "ZEPHYR", x: 360 }, forma = { text: "FORMA", x: 647 };
         const ventana = [{ text: "4", x: 361 }, { text: "OWNED", x: 424 }, { text: "4", x: 578 }, { text: "CRAFTED", x: 646 }];
         assert.deepEqual(palabrasDeSuTarjeta(ventana, zephyr, [zephyr, forma]).map((w) => w.text), ["4", "OWNED"]);

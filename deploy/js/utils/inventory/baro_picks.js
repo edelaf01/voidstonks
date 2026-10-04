@@ -1,5 +1,3 @@
-// Cuántas copias de una pieza puedes llevar a Baro sin romper un set: se guardan las de los sets que
-// ya puedes montar y, si no hay ninguno completo, las que pide el set que estás juntando.
 export function copiasQueSobran(pieza, deps) {
   const { primeInventory = {}, setsDatabase = {}, getSetName, getRequiredCount = () => 1 } = deps;
   const tengo = primeInventory[pieza] || 0;
@@ -12,8 +10,6 @@ export function copiasQueSobran(pieza, deps) {
   return { sobran: tengo - guardas, guardas, completos };
 }
 
-// Las copias que sobran y rentan más en ducados que vendidas, de mejor a peor ducados por platino.
-// `precioDe` devuelve null si el precio aún no se conoce: esas piezas se quedan fuera hasta tenerlo.
 export function piezasParaBaro(deps) {
   const { primeInventory = {}, ducadosDe, precioDe, rentaFundir, respetaSets = true } = deps;
   const lista = [];

@@ -1,5 +1,3 @@
-// La puerta del escáner de escritorio: el EE.log decide si un tick se procesa.
-
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { installFakeDocument } from "./_helpers/fake-canvas.mjs";
@@ -49,7 +47,6 @@ test("al dormirse cierra lo que quedaba de recompensas para leer la ronda siguie
     assert.equal(s.latchedContext, "UNKNOWN");
     assert.equal(s._recompensaLeida, false);
     assert.equal(s.detectionLocked, false);
-    // Seguir dormido no repite el cierre.
     assert.equal(duermePorLog(s), true);
     clearTimeout(s.scanInterval);
     assert.equal(s.rescates, 1);
@@ -72,7 +69,6 @@ test("un escáner dormido despierta en cuanto el log cambia de modo", () => {
     EELogLive.leer([LLENAS]);
     assert.equal(s.vueltas, 1);
     assert.equal(s._dormidoPorLog, false);
-    // Despierto, otro aviso no lanza un segundo bucle.
     EELogLive.leer([TARJETA]);
     assert.equal(s.vueltas, 1);
     EELogLive.leer([CERRADAS]);

@@ -8,8 +8,6 @@
 import { recoverClippedToken } from "../vision/clipped_token.js";
 import { splitFusedWords, catalogVocab } from "../vision/word_split.js";
 
-// La etiqueta ("4 Owned", "Crafted") es de la tarjeta cuyo nombre tiene más cerca: la ventana de
-// un ancla llega hasta el ancla siguiente y se quedaba con la etiqueta del vecino.
 export function palabrasDeSuTarjeta(palabras, ancla, anclas) {
     const masCerca = (x) => anclas.reduce((a, b) => (Math.abs(b.x - x) < Math.abs(a.x - x) ? b : a), ancla);
     return palabras.filter((w) => masCerca(w.x) === ancla);
@@ -38,8 +36,6 @@ export function normalizeOCRWords(ocrData, ctx) {
             return;
         }
 
-        // Paddle pega la cifra a la etiqueta ("5Owned") y entera no casa con nada. Corte más corto
-        // primero porque la O también sale como cero: "40WNED" es 4 y "0WNED", no 40.
         const cifras = /^\d+/.exec(text)?.[0].length || 0;
         const k = cifras && text.length > cifras
             ? [...Array(cifras).keys()].map((i) => i + 1).find((i) => metaTokens.includes(text.slice(i)))

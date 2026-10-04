@@ -102,13 +102,14 @@ function partLineHtml(m, t) {
         // otra pieza que SÍ se puede hacer; si no se puede ninguna, lo dice la cabecera y aquí
         // sobra — eran cuatro líneas seguidas diciendo lo mismo.
         action = relicPickerHtml(best.relic, best.relic, st.cls)
-            + `<span class="fr-dim">×${best.owned}${m.someReady ? ` · ${t.noFissure}` : ""}</span>${runs}`;
+            + `<span class="fr-dim">×${best.owned}</span>${runs}`
+            + (m.someReady ? `<span class="fr-where fr-dim">${t.noFissure}</span>` : "");
     } else {
         const src = best.sources[0];
         action = relicPickerHtml(best.relic, best.relic, st.cls) + runs
             + (src
                 ? `<span class="fr-where">${t.farmIn} ${escapeHTML(src.location)}${src.rotation ? ` · ${t.rot} ${escapeHTML(src.rotation)}` : ""}</span>`
-                : `<span class="fr-dim">${t.need}</span>`);
+                : `<span class="fr-where fr-dim">${t.need}</span>`);
     }
 
     // "Mejor comprarla": la pieza cuesta <=15% del set entero. Va JUNTO al plan de farmeo y no
@@ -148,8 +149,9 @@ function partLineHtml(m, t) {
           + `${escapeHTML((t.needQty || "×{n}").replace("{n}", m.needed))}</span>`
         : "";
 
+    const avisos = compra || refinar ? `<span class="fr-tags">${compra}${refinar}</span>` : "";
     return `<li class="fr-part ${st.cls}">${dot}`
-        + `<span class="fr-name">${escapeHTML(getPartShortName(m.part, m.setName))}</span>${cantidad}${action}${compra}${refinar}</li>`;
+        + `<span class="fr-name">${escapeHTML(getPartShortName(m.part, m.setName))}</span>${cantidad}${action}${avisos}</li>`;
 }
 
 

@@ -1,5 +1,3 @@
-// Eventos del EE.log (líneas reales del juego bajo Proton) y estado en vivo vía el lanzador.
-
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
@@ -91,7 +89,6 @@ test("el estado sigue la pantalla actual, la reliquia y el reinicio del juego", 
 const { ESTADO_JUEGO_INICIAL, siguienteEstado, modoEscaner, VENTANA_DESCONOCIDA_MS } = await import("../deploy/js/utils/eelog_estado.js");
 const { nombreInterno } = await import("../deploy/js/utils/eelog_events.js");
 
-// Una ronda de fisura tal cual la escribe el juego (sesión del 2026-10-01).
 const RONDA = [
   "64.824 Script [Info]: MissionIntro.lua: MissionName: TUVUL COMMONS",
   "300.797 Sys [Info]: Created /Lotus/Interface/ProjectionRewardChoice.swf",
@@ -120,11 +117,14 @@ function recorre(lineas, ahora = 0) {
   return { e, modos };
 }
 
-test("en una ronda el escáner duerme, lee las recompensas con sus tarjetas y despierta para elegir reliquia", () => {
+test("en una ronda el escáner duerme, despierta en cuanto se crea la pantalla de recompensas y despierta para elegir reliquia", () => {
   const { e, modos } = recorre(RONDA);
-  assert.deepEqual(modos, ["dormido", "dormido", "dormido", "forzado:null", "forzado:1", "forzado:2", "forzado:3",
-    "dormido", "normal", "normal", "dormido", "dormido"]);
+  assert.deepEqual(modos, ["dormido", "normal", "normal", "forzado:null", "forzado:1", "forzado:2", "forzado:3",
+    "dormido", "normal", "normal", "normal", "dormido"], "Got rewards llega a ráfagas (medido: 14,8 s tarde), así que no se espera a esa línea para despertar");
   assert.equal(e.mision, "TUVUL COMMONS");
+  const abierta = siguienteEstado({ ...ESTADO_JUEGO_INICIAL, enMision: true }, parseLinea(RONDA[1]), 1234);
+  assert.equal(abierta.recompensas.desde, 1234, "se apunta cuándo se abrió la pantalla para saber cuánto le queda");
+  assert.equal(siguienteEstado(abierta, parseLinea(RONDA[3]), 9999).recompensas.desde, 1234);
 });
 
 test("la recompensa propia y la reliquia refinada al equiparla salen del log", () => {
@@ -132,6 +132,16 @@ test("la recompensa propia y la reliquia refinada al equiparla salen del log", (
   for (const l of RONDA.slice(0, 4)) e = siguienteEstado(e, parseLinea(l));
   assert.equal(nombreInterno(e.recompensas.propia), "Vento Prime Handle");
   assert.deepEqual(parseLinea(RONDA[9]), { tipo: "reliquia", nombre: "Neo Y2", refinamiento: "EXCEPTIONAL", t: 331.306 });
+});
+
+test("la pantalla de fin de misión despierta al escáner aunque aún no hayas vuelto a la nave", () => {
+  const fin = [
+    RONDA[0],
+    "15443.569 Sys [Info]: Created /Lotus/Interface/EndOfMatch.swf",
+    "15508.224 Sys [Info]: Created /Lotus/Interface/EndOfMatch.swf",
+    "15511.241 Input [Info]: Subscribing for /Lotus/Interface/EndOfMatch.swf with input filter /Lotus/Interface/EndOfMatchInputFilter",
+  ];
+  assert.deepEqual(recorre(fin).modos, ["dormido", "dormido", "dormido", "normal"], "en las infinitas EndOfMatch se crea en cada rotación: solo cuenta cuando toma el control");
 });
 
 test("fuera de la misión el escáner va como siempre", () => {
@@ -194,4 +204,32 @@ test("el arma del ciclo vale mientras sigue abierto y se olvida al salir", () =>
   e = siguienteEstado(e, parseLinea("5000.0 Sys [Info]: Created /Lotus/Interface/InventoryTest.swf"));
   assert.equal(e.riven, null);
   assert.equal(siguienteEstado(ESTADO_JUEGO_INICIAL, parseLinea(pasos[1])).riven, null, "sin el ciclo abierto no se apunta");
+});
+
+test("en una fisura sin fin cada ronda gasta la reliquia equipada, una vez y solo con lo que llega en vivo", () => {
+  const equipa = (t, texto) => `${t} Script [Info]: Dialog.lua: Dialog::CreateOkCancel(description=Are you sure you want to ${texto} if you seal the Void Fissure and extract., title= leftItem=x)`;
+  const llenas = (t) => `${t} Script [Info]: ProjectionRewardChoice.lua: Got rewards`;
+  const gastadas = [];
+  EELogLive.onReliquiaAbierta = (nombre) => gastadas.push(nombre);
+  EELogLive.cambiaEstado("ruta", "/x/EE.log");
+  EELogLive.leer([equipa(2190.751, "equip Lith A8 Relic [FLAWLESS] for this mission? It will be consumed"), llenas(2447.259)]);
+  assert.deepEqual(gastadas, [], "lo que ya estaba en el log al arrancar no se descuenta otra vez");
+  assert.equal(EELogLive.reliquiaPorGastar(), null);
+
+  EELogLive.leer([equipa(3426.103, "equip Meso K9 Relic [EXCEPTIONAL] for this mission? It will be consumed")]);
+  assert.equal(EELogLive.reliquiaPorGastar(), "Meso K9");
+  EELogLive.leer([llenas(3655.734)]);
+  EELogLive.leer([llenas(3790.0)]);
+  EELogLive.leer([
+    equipa(3052.708, "refine and equip Lith A8 Relic? It will cost 50 Void Traces and the relic will be consumed"),
+    equipa(3055.844, "refine and equip Lith L8 Relic? It will cost 100 Void Traces and the relic will be consumed"),
+    llenas(3170.411),
+  ]);
+  assert.deepEqual(gastadas, ["Meso K9", "Lith L8"], "una por ronda y la última que confirmaste");
+
+  EELogLive.leer([equipa(3688.723, "equip Lith L8 Relic for this mission? It will be consumed")]);
+  EELogLive.cambiaEstado("reinicio", "/x/EE.log");
+  assert.equal(EELogLive.reliquiaPorGastar(), null, "un juego nuevo no hereda la reliquia pendiente");
+  EELogLive.parar();
+  EELogLive.onReliquiaAbierta = null;
 });

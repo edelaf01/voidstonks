@@ -1,4 +1,3 @@
-// Permisos de la app de escritorio: se preguntan la primera vez y cuando una versión trae uno nuevo.
 import { guardarPermisos } from "../services/desktop.service.js";
 
 const bilingue = (es, en) => `<span class="lang-es">${es}</span><span class="lang-en">${en}</span>`;
@@ -65,7 +64,6 @@ export function abrirPermisos(caps, { alGuardar } = {}) {
     modal = null;
   });
   modal.querySelector(".ds-permisos-guardar").addEventListener("click", async () => {
-    // Los que no se enseñan (el sistema no los permite) también se dan por preguntados.
     const elegidos = Object.fromEntries(PERMISOS.map((p) => [p.id, false]));
     for (const caja of modal.querySelectorAll("[data-permiso]")) elegidos[caja.dataset.permiso] = caja.checked;
     if (!(await guardarPermisos(elegidos))) {

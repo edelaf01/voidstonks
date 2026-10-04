@@ -14,7 +14,6 @@ type navegador struct {
 	perfil  string
 }
 
-// VOIDSTONKS_BROWSER permite forzar un ejecutable concreto.
 func buscarNavegador() (*navegador, error) {
 	if exe := os.Getenv("VOIDSTONKS_BROWSER"); exe != "" {
 		return &navegador{exe: exe, perfil: perfilPropio()}, nil
@@ -56,7 +55,6 @@ func buscarLinux() (*navegador, error) {
 		for _, id := range []string{"com.google.Chrome", "org.chromium.Chromium", "com.brave.Browser",
 			"com.microsoft.Edge", "io.github.ungoogled_software.ungoogled_chromium"} {
 			if exec.Command(flatpak, "info", id).Run() == nil {
-				// El sandbox siempre puede escribir en su ~/.var/app/<id>.
 				home, _ := os.UserHomeDir()
 				perfil := filepath.Join(home, ".var", "app", id, "data", "voidstonks-browser")
 				return &navegador{exe: flatpak, prefijo: []string{"run", id}, perfil: perfil}, nil
@@ -66,7 +64,6 @@ func buscarLinux() (*navegador, error) {
 	return nil, errors.New("No se encontró Chrome, Chromium, Brave ni Edge. Instala uno de ellos y vuelve a abrir VoidStonks.")
 }
 
-// Fuera de la caché: ahí vive el perfil del navegador, con el localStorage, es decir, el inventario.
 func dirDatos() string {
 	if runtime.GOOS == "windows" {
 		return filepath.Join(os.Getenv("LocalAppData"), "VoidStonks")
@@ -86,7 +83,6 @@ func perfilPropio() string {
 	return filepath.Join(dirDatos(), "browser")
 }
 
-// Bloquea hasta que el navegador termina.
 func (n *navegador) abrir(url string) error {
 	_, err := os.Stat(n.perfil)
 	primeraVez := os.IsNotExist(err)
@@ -99,7 +95,6 @@ func (n *navegador) abrir(url string) error {
 	if runtime.GOOS == "linux" {
 		args = append(args, "--class=VoidStonks")
 	}
-	// Solo la primera vez: después Chrome recuerda el tamaño que dejó el usuario.
 	if primeraVez {
 		args = append(args, "--window-size=1440,900")
 	}

@@ -3,18 +3,18 @@ import { parseLinea } from "../../utils/eelog_events.js";
 import { ESTADO_JUEGO_INICIAL, siguienteEstado, modoEscaner } from "../../utils/eelog_estado.js";
 
 const MAX_EVENTOS = 200;
-// Al conectar con el juego ya abierto, lo último que pasó: pantalla actual, reliquia equipada y si hay
-// misión en curso. Es el máximo que acepta el lanzador.
 const COLA_INICIAL = 1024 * 1024;
 
-// EE.log en directo vía el lanzador de escritorio (en la web no hay acceso al fichero).
 export const EELogLive = {
   ruta: "",
-  estado: "parado", // parado | leyendo | falta | error
+  estado: "parado",
   eventos: [],
   juego: ESTADO_JUEGO_INICIAL,
   pantalla: null,
   reliquia: null,
+  onReliquiaAbierta: null,
+  _porGastar: null,
+  _atrasado: false,
   _oyentes: new Set(),
   _cortar: null,
 
@@ -41,6 +41,8 @@ export const EELogLive = {
 
   leer(lineas) {
     let hay = this.estado !== "leyendo";
+    const enVivo = !this._atrasado;
+    this._atrasado = false;
     this.estado = "leyendo";
     for (const linea of lineas) {
       const ev = parseLinea(linea);
@@ -49,22 +51,26 @@ export const EELogLive = {
       this.eventos.push(ev);
       this.juego = siguienteEstado(this.juego, ev);
       if (ev.tipo === "pantalla") this.pantalla = ev;
-      if (ev.tipo === "reliquia") this.reliquia = ev;
+      if (ev.tipo === "reliquia") this.reliquia = this._porGastar = ev;
+      if (ev.tipo === "recompensas" && ev.fase === "llenas" && this._porGastar) {
+        if (enVivo) this.onReliquiaAbierta?.(this._porGastar.nombre);
+        this._porGastar = null;
+      }
     }
     if (this.eventos.length > MAX_EVENTOS) this.eventos.splice(0, this.eventos.length - MAX_EVENTOS);
     if (hay) this._avisa();
   },
 
   cambiaEstado(nombre, datos) {
-    // "ruta" abre cada conexión, también al reconectar, y detrás vuelve a llegar la cola: se empieza
-    // de cero. "reinicio" es una sesión nueva del juego.
     if (nombre === "ruta" || nombre === "reinicio" || nombre === "error") {
       this.eventos = [];
       this.pantalla = null;
       this.reliquia = null;
+      this._porGastar = null;
       this.juego = ESTADO_JUEGO_INICIAL;
     }
     if (nombre === "ruta") {
+      this._atrasado = true;
       this.ruta = datos;
       this.estado = datos ? "leyendo" : "falta";
     } else if (nombre === "falta" || nombre === "error") {
@@ -75,7 +81,10 @@ export const EELogLive = {
     this._avisa();
   },
 
-  // null si no hay log: sin él el escáner va como siempre, y nunca se queda dormido por un log caído.
+  reliquiaPorGastar() {
+    return this.estado === "leyendo" ? this._porGastar?.nombre || null : null;
+  },
+
   modoEscaner(ahora = Date.now()) {
     return this.estado === "leyendo" ? modoEscaner(this.juego, ahora) : null;
   },

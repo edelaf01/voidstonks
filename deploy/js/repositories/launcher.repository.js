@@ -1,5 +1,3 @@
-// El lanzador de escritorio (desktop/launcher) sirve la app en el mismo origen y hace de puente nativo.
-// La cabecera propia es la que el lanzador exige para las rutas que escriben.
 const NATIVO = { "X-VoidStonks": "1" };
 const puente = () => globalThis.voidstonksNativo;
 
@@ -62,7 +60,10 @@ export async function panelesEnJuego(datos, { keepalive = false } = {}) {
   }
 }
 
-// Devuelve la función que corta el seguimiento.
+export function escucharAccionesDelOverlay(fn) {
+  return puente()?.alAccion?.(fn) || (() => {});
+}
+
 export function seguirEELogDelLanzador({ cola = 0, alLeer, alEstado }) {
   if (puente()) {
     return puente().seguirEELog(cola, (nombre, datos) => (nombre === "lineas" ? alLeer(datos.split("\n")) : alEstado?.(nombre, datos)));
@@ -72,7 +73,6 @@ export function seguirEELogDelLanzador({ cola = 0, alLeer, alEstado }) {
   for (const nombre of ["ruta", "falta", "reinicio"]) {
     fuente.addEventListener(nombre, (e) => alEstado?.(nombre, e.data));
   }
-  // EventSource reconecta solo; mientras tanto el log no describe nada.
   fuente.addEventListener("error", () => alEstado?.("error", ""));
   return () => fuente.close();
 }
