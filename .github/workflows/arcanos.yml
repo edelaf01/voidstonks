@@ -3,6 +3,10 @@ name: Precios de arcanos (diario)
 on:
   schedule:
     - cron: '30 3 * * *'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/arcanos.yml'
   workflow_dispatch: {}
 
 concurrency:
