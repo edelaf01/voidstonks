@@ -114,6 +114,17 @@ export function tiersOpenedBy(fissure) {
   return tier === "Omnia" ? [...CLASSIC_TIERS] : [tier];
 }
 
+const nodoBase = (texto) => String(texto || "").split("(")[0].trim().toLowerCase();
+
+export function eraDeLaMision(mision, fissures = []) {
+  const nodo = nodoBase(mision);
+  if (!nodo) return null;
+  const eras = new Set(fissures.filter((f) => nodoBase(f?.node) === nodo).map((f) => normalizeTier(f.tier)));
+  if (eras.size !== 1) return null;
+  const [era] = eras;
+  return era === "Omnia" ? null : era;
+}
+
 /**
  * @param setName          set a cerrar
  * @param deps.setsDatabase        { [set]: [piezas] }

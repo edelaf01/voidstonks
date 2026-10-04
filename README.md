@@ -157,28 +157,6 @@ npm run dev:site    # serves deploy/ at http://127.0.0.1:8080
 npm test
 ```
 
-## Training the riven model
-
-The model retrains itself every Monday with a GitHub Action
-([retrain-ml.yml](.github/workflows/retrain-ml.yml)). A separate job, in a private repo,
-collects riven auctions from warframe.market every day. On Monday the Action grabs each
-weapon's price history, trains the model on those auctions (XGBoost, one model per price
-percentile, calibrated per weapon) and commits the result to `deploy/assets/ml/`, where the
-site picks it up along with the stat weights.
-
-If you have the auctions CSV you can run it yourself:
-
-```bash
-cd scripts-actu/ML-rivenvaluation
-pip install xgboost pandas numpy scikit-learn requests
-export VOIDSTONKS_CSV=/path/to/dataset_raw_ml.csv
-python history_fetch.py
-DEPLOY_ML_DIR=../../deploy/assets/ml PRUEBAS=0 python ML_local.py
-```
-
-`PRUEBAS=0` skips the slow comparison runs, and without `DEPLOY_ML_DIR` the output goes to
-`generado/` instead of the app.
-
 ## Feedback
 
 If something breaks, open an issue. If the scanner read something wrong, record it

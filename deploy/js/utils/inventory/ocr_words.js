@@ -8,6 +8,11 @@
 import { recoverClippedToken } from "../vision/clipped_token.js";
 import { splitFusedWords, catalogVocab } from "../vision/word_split.js";
 
+export function palabrasDeSuTarjeta(palabras, ancla, anclas) {
+    const masCerca = (x) => anclas.reduce((a, b) => (Math.abs(b.x - x) < Math.abs(a.x - x) ? b : a), ancla);
+    return palabras.filter((w) => masCerca(w.x) === ancla);
+}
+
 export function normalizeOCRWords(ocrData, ctx) {
     const metaTokens = ["OWNED", "CRAFTED", "FORJA", "PROPIO", "PRDPIO", "0WNED", "OWN", "OWED"];
     const validWords = [];
@@ -28,6 +33,18 @@ export function normalizeOCRWords(ocrData, ctx) {
                 y: (w.bbox.y0 + w.bbox.y1) / 2,
                 raw: w.text
             });
+            return;
+        }
+
+        const cifras = /^\d+/.exec(text)?.[0].length || 0;
+        const k = cifras && text.length > cifras
+            ? [...Array(cifras).keys()].map((i) => i + 1).find((i) => metaTokens.includes(text.slice(i)))
+            : 0;
+        if (k) {
+            const corte = w.bbox.x0 + (w.bbox.x1 - w.bbox.x0) * k / text.length;
+            const y = (w.bbox.y0 + w.bbox.y1) / 2;
+            validWords.push({ text: text.slice(0, k), x: (w.bbox.x0 + corte) / 2, y, raw: w.text },
+                { text: text.slice(k), x: (corte + w.bbox.x1) / 2, y, raw: w.text });
             return;
         }
 

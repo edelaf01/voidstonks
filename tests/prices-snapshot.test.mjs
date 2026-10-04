@@ -54,7 +54,8 @@ test("la url del snapshot no depende del cliente", () => {
     // Es toda la optimización: una sola entrada en el edge para todos los usuarios. Un
     // `q=` con los slugs del inventario devolvería la fragmentación de prices_batch.
     const call = apiSrc.match(/type=prices_snapshot[^`]*/)[0];
-    assert.ok(!call.includes("${"), `la url lleva algo variable: ${call}`);
+    assert.equal(call.replace("&b=${Math.floor(ahora / 300000)}", "").includes("${"), false, `la url lleva algo del cliente: ${call}`);
+    assert.match(call, /&b=\$\{Math\.floor\(ahora \/ 300000\)\}/, "tramo de 5 min: el edge de la zona guarda 5 h y sin él el snapshot llegaba con horas");
     assert.ok(!/[?&]q=/.test(call), "no debe enumerar slugs");
 });
 
@@ -113,8 +114,8 @@ test("el cursor rota y no reempieza por el mismo slug", async () => {
     assert.equal(Object.keys(doc.p).length, 8, "el tick nuevo conserva lo del anterior");
 });
 
-// El cron es casi todo el tráfico de la app contra warframe.market: lo barato no cambia ninguna decisión si se mueve 1p.
-test("lo que vale ≥20p se pide cada vuelta, lo de 10-19p cada 2 y lo de menos cada 4", async () => {
+test("cada precio se pide unas 3 veces al día, caro o barato", async () => {
+    assert.ok(Math.abs(PriceSnapshot.MAX_PER_TICK * 288 / 821 - 3) < 0.25, "con ~821 primes y un tick cada 5 min");
     const precios = { a: 30, b: 25, c: 15, d: 12, e: 5, f: 4, g: 3, h: 0 };
     const universe = Object.keys(precios);
     const env = fakeEnv({
@@ -126,14 +127,8 @@ test("lo que vale ≥20p se pide cada vuelta, lo de 10-19p cada 2 y lo de menos 
     snapshot.MAX_PER_TICK = 3;
     snapshot.PACE_MS = 0;
     snapshot.fetchPrice = async (slug) => { veces[slug]++; return { price: precios[slug] }; };
-
-    for (let tick = 0; tick < 40; tick++) await snapshot.refresh(env, ctx);
-    const vueltas = JSON.parse(await env.VOID_KV.get(PriceSnapshot.KEY)).vuelta;
-    assert.ok(vueltas >= 12, `${vueltas} vueltas`);
-    for (const s of ["a", "b"]) assert.ok(Math.abs(veces[s] - vueltas) <= 1, `${s}: ${veces[s]} de ${vueltas}`);
-    for (const s of ["c", "d"]) assert.ok(Math.abs(veces[s] - vueltas / 2) <= 1, `${s}: ${veces[s]} de ${vueltas}`);
-    for (const s of ["e", "f", "g", "h"]) assert.ok(Math.abs(veces[s] - vueltas / 4) <= 1, `${s}: ${veces[s]} de ${vueltas}`);
-    assert.ok(veces.e + veces.f + veces.g + veces.h > 0);
+    for (let tick = 0; tick < 8; tick++) await snapshot.refresh(env, ctx);
+    assert.deepEqual(Object.values(veces), [3, 3, 3, 3, 3, 3, 3, 3]);
 });
 
 test("un slug nuevo, sin precio todavía, entra en la primera vuelta", async () => {
@@ -149,6 +144,24 @@ test("un slug nuevo, sin precio todavía, entra en la primera vuelta", async () 
     assert.ok(pedidos.includes("nuevo"));
 });
 
+test("con menos de 3 vendedores conectados no se pisa el precio que ya había", async () => {
+    const snapshot = Object.create(PriceSnapshot);
+    const env = {}, ctx = { waitUntil() {} };
+    const doc = { v: 1, t: 0, p: { paris_prime_string: 3, nuevo_slug: undefined }, cursor: 0 };
+    delete doc.p.nuevo_slug;
+    snapshot.universe = async () => ["paris_prime_string", "nuevo_slug"];
+    snapshot.read = async () => doc;
+    snapshot.PACE_MS = 0;
+    snapshot.fetchPrice = async () => ({ price: 20, vendedores: 1 });
+    await snapshot.refresh(env, ctx);
+    assert.equal(doc.p.paris_prime_string, 3, "una orden cara a deshoras no fija el precio");
+    assert.equal(doc.p.nuevo_slug, 20, "sin precio previo, algo es mejor que nada");
+    snapshot.fetchPrice = async () => ({ price: 4, vendedores: 5 });
+    doc.cursor = 0;
+    await snapshot.refresh(env, ctx);
+    assert.equal(doc.p.paris_prime_string, 4);
+});
+
 test("un 429 corta el tick sin perder lo ya refrescado", async () => {
     const env = fakeEnv({ [PriceSnapshot.UNIVERSE_KEY]: JSON.stringify(["a", "b", "c", "d"]) });
 
@@ -162,6 +175,21 @@ test("un 429 corta el tick sin perder lo ya refrescado", async () => {
     assert.deepEqual(doc.p, { a: 5, b: 5 });
     // El cursor se queda donde cortó: el siguiente tick sigue por "c" en vez de repetir.
     assert.equal(doc.cursor, 2);
+});
+
+test("al primer 403 de WFM el tick deja de pedir y no escribe", async () => {
+    const env = fakeEnv({ [PriceSnapshot.UNIVERSE_KEY]: JSON.stringify(["a", "b", "c"]) });
+    let escrituras = 0;
+    const put = env.VOID_KV.put.bind(env.VOID_KV);
+    env.VOID_KV.put = async (k, v) => { escrituras++; return put(k, v); };
+    const snapshot = Object.create(PriceSnapshot);
+    snapshot.PACE_MS = 0;
+    let pedidas = 0;
+    snapshot.fetchPrice = async () => { pedidas++; return { bloqueado: true }; };
+    const r = await snapshot.refresh(env, ctx);
+    assert.equal(pedidas, 1);
+    assert.equal(escrituras, 0);
+    assert.equal(r.skipped, true);
 });
 
 test("el precio es la mediana de las 5 ventas online más baratas", () => {

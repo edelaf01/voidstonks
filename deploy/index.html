@@ -5,6 +5,10 @@
   <meta charset="UTF-8" />
   <title>VoidStonks - Warframe Market Tool & Farm Optimizer</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script>
+    if (location.hostname === "voidstonks.localhost" || new URLSearchParams(location.search).get("shell") === "desktop")
+      document.documentElement.dataset.shell = "desktop";
+  </script>
 
   <!-- Google AdSense -->
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4559331797280612"
@@ -93,6 +97,7 @@
   <link rel="stylesheet" href="css/components/orders.css?v=1.6" />
   <link rel="stylesheet" href="css/components/lich-weapons.css?v=1.0" />
   <link rel="stylesheet" href="css/components/ui-kit.css?v=1.0" />
+  <link rel="stylesheet" href="css/desktop.css?v=1.0" />
   <link rel="icon" type="image/png" href="https://wiki.warframe.com/images/VoidTraces.png" />
 
   <!-- Tesseract se carga BAJO DEMANDA al abrir el escáner (OCRRepository.warmUp), y OpenCV
@@ -310,8 +315,6 @@
            una pantalla de pausa; lo rellena ui.components/ui_squad_run.js. -->
       <div id="squad-run-panel" class="squad-panel" style="display: none"></div>
 
-      <!-- Kiosko de ducados: las piezas apiladas a la venta en el panel derecho del juego.
-           Lo rellena ScannerHUD.updateKioskSale(); vacío y oculto fuera del kiosko. -->
       <div id="kiosk-sale-panel" style="display: none"></div>
 
       <!-- Trading Post: lo que das y lo que recibes. Lo rellena ScannerHUD.updateTrade(). -->
@@ -350,7 +353,6 @@
 
         <!-- Reset de offsets deshabilitado junto con la recalibración manual. -->
       </div>
-
 
       <!-- display inline: scanner.service.js decide si volcar la imagen de debug
            leyendo dbgPanel.style.display === "block". -->
@@ -475,7 +477,6 @@
       </div>
     </div>
   </div>
-
 
   <div id="inventory-container">
     <!-- Los rótulos los pone updateInventoryPanelLabels(), que además los cambia según la
@@ -639,7 +640,7 @@
              estaba a pelo, en inglés y con la frase cortada a la mitad ("...in your inventory.
              the prime section, you will get a voidscanner..."). -->
         <div class="scanner-info-icon" id="scanner-info-icon">
-          ℹ️
+          ℹ
         </div>
 
         <!-- History Dropdown Wrapper -->
@@ -673,7 +674,6 @@
           </div>
         </div>
 
-
         <div id="scanner-toggle" class="scanner-toggle-btn">
           <div class="toggle-content">
             <span class="icon-pulse">◉</span>
@@ -699,7 +699,7 @@
              Sin <span>/<strong>: los rótulos se escriben con setText (innerText) y cualquier
              hijo se perdería en el primer cambio de idioma. -->
         <div id="scanner-privacy-notice" class="scanner-notice hidden">
-          <div class="notice-header" id="lbl-notice-title">⚠️ AVISO: FUNCIÓN EN BETA</div>
+          <div class="notice-header" id="lbl-notice-title">AVISO: FUNCIÓN EN BETA</div>
           <div class="notice-body">
             <p id="lbl-notice-perm">
               Para leer la pantalla del juego, el navegador te pedirá permiso para GRABAR tu pantalla.
@@ -789,7 +789,11 @@
         </button>
         <button id="btn-orders" class="tab-btn orders is-wip" onclick="switchTab('orders')"
           data-tooltip="Esperando a que warframe.market habilite un inicio de sesión seguro (OAuth) para apps externas.">
-          <span class="tab-icon-img" aria-hidden="true">📋</span>
+          <svg class="tab-icon-img tab-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="5" y="4" width="14" height="17" rx="2" />
+            <path d="M9 4V3h6v1M9 10h6M9 14h6M9 18h3" />
+          </svg>
           <span id="tab-orders-text">Mis órdenes</span>
           <span class="tab-wip-badge" aria-hidden="true">WIP</span>
         </button>
@@ -832,7 +836,7 @@
         <div class="form-group">
           <label>
             <span id="lbl-relic-name">Nombre de Reliquia</span>
-            <span id="relic-guide-icon" class="info-icon" style="cursor: help; margin-left: 5px">ℹ️</span>
+            <span id="relic-guide-icon" class="info-icon" style="cursor: help; margin-left: 5px">ℹ</span>
           </label>
 
           <div class="relic-input-wrapper">
@@ -847,7 +851,6 @@
               📷 Relic photo scan <span style="font-size:0.7em; font-weight:700; color:#ffb74d; border:1px solid #ffb74d; border-radius:4px; padding:0 4px; margin-left:4px;">🚧 WIP</span>
             </button>
             -->
-
 
             <div id="relicDropdown" class="dropdown-list hidden"></div>
           </div>
@@ -866,7 +869,7 @@
               <label id="lbl-refinement">Refinamiento</label>
               <select id="refinement" class="wf-input" onchange="globalThis.setRefinement(this.value)">
                 <option value="Rad" data-key="rad">Radiante</option>
-                <option value="Flawless" data-key="flawless">Perfecta</option>
+                <option value="Flawless" data-key="flawless">Impecable</option>
                 <option value="Exceptional" data-key="exceptional">
                   Excepcional
                 </option>
@@ -1055,8 +1058,6 @@
                 </div>
               </div>
 
-
-
               <div style="display: flex; gap: 12px; margin-top: 20px">
                 <button class="premium-riven-btn btn-price" id="btn-riven-search" onclick="openRivenMarket()">
                   VER EN WFM ↗
@@ -1080,7 +1081,6 @@
               <!-- GOD ROLL STATS: populated dynamically by renderMetaStats() -->
               <div id="meta-stats-container" class="recommended-god-roll-card" style="display:none;"></div>
 
-
             </div>
           </div>
 
@@ -1094,7 +1094,7 @@
               style="margin-top: 15px; display: none; position: relative; height: auto; background: rgba(0,0,0,0.25); border: 1px solid rgba(155, 89, 182, 0.15); border-radius: 8px; padding: 8px; box-sizing: border-box; width: 100%;">
               <div id="chart-hint-note"
                 style="font-size: 0.6rem; color: #888; text-align: center; margin-bottom: 4px; text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px;">
-                💡 Haz clic en la leyenda 'WFM' para ocultarlo y auto-escalar a Precios Reales
+                Pulsa 'WFM' en la leyenda para ocultarlo y ajustar la escala a los precios reales de DE
               </div>
               <div class="history-range-selector" style="display: flex; justify-content: center; gap: 6px; margin: 6px 0 10px 0;">
                 <button class="history-range-btn active" data-days="7" onclick="globalThis.changeHistoryRange(7)" style="background: rgba(162, 53, 226, 0.25); border: 1px solid rgba(162, 53, 226, 0.6); color: #fff; font-size: 0.65rem; font-weight: bold; padding: 3px 10px; border-radius: 4px; cursor: pointer; transition: all 0.2s;">7D</button>
@@ -1313,10 +1313,7 @@
                 onclick="selectLfgOption('kuva', 'Kuva (Survival/Flood/Siphon)')">Kuva (Survival/Flood/Siphon)</button>
               <button type="button" role="menuitem"
                 class="dropdown-item vs-plain vs-plain-block" data-lfg="sirius"
-                onclick="selectLfgOption('sirius', 'Sirius (Jade)')">Sirius (Jade)</button>
-              <button type="button" role="menuitem"
-                class="dropdown-item vs-plain vs-plain-block" data-lfg="orion"
-                onclick="selectLfgOption('orion', 'Orion (Jade)')">Orion (Jade)</button>
+                onclick="selectLfgOption('sirius', 'Sirius & Orion farm')">Sirius &amp; Orion farm</button>
               <button type="button" role="menuitem"
                 class="dropdown-item vs-plain vs-plain-block" data-lfg="follie"
                 onclick="selectLfgOption('follie', 'Follie Hunt (Vesper)')">Follie Hunt (Vesper)</button>
@@ -1389,6 +1386,12 @@
               onclick="globalThis.toggleDucatOwned()" aria-pressed="true">
               <input type="checkbox" id="ducat-owned-only" checked hidden />
               <span id="ducat-owned-label"></span>
+            </button>
+
+            <button type="button" id="ducat-sets-chip" class="ducat-chip active"
+              onclick="globalThis.toggleDucatSets()" aria-pressed="true">
+              <input type="checkbox" id="ducat-keep-sets" checked hidden />
+              <span id="ducat-sets-label"></span>
             </button>
 
             <div class="ducat-threshold-wrap">

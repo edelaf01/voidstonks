@@ -1,12 +1,13 @@
 import { state, saveAppState } from "../state.js";
 import { pickBestForSets } from "../utils/inventory/reward_set_pick.js";
-import { mejoresPorMoneda, pickBestReward } from "../utils/inventory/reward_value.js";
+import { mejoresPorMoneda, pickBestReward, rankRewards } from "../utils/inventory/reward_value.js";
 import { getSetName, getRequiredCount } from "../utils/ui_utils.js";
 import { TEXTS } from "../config.js";
 import { getPriceValue } from "../services/market/prices.service.js";
 import { getSlug } from "../utils/slugs.utils.js";
 import { showToast, escapeHTML } from "./ui_components.js";
 import { renderItemsInPiP } from "../utils/pip_overlay.js";
+import { panelesDeRecompensas } from "../utils/inventory/reward_labels.js";
 import { ClipboardService } from "../services/clipboard.service.js";
 import { SquadService } from "../services/scanner/squad.service.js";
 import { getItemIcon } from "../utils/ui_utils.js";
@@ -95,15 +96,14 @@ export const ScannerModal = {
             }
         }
 
+        this.handleAutoActions(itemsWithDetails);
+
         // Los precios que no lleguen en el plazo se pintan cuando lleguen, si el modal sigue
         // siendo este: sin eso "ganas 8" era el valor sin prima y el 11 el de la vez siguiente.
         this.setPrices = await this.fetchSetPrices(itemsWithDetails, 1500, () => {
             if (this.currentResults === itemsWithDetails && !modal.classList.contains("hidden")) this.pintaValoracion(itemsWithDetails, imgEl, width, height, scale);
         });
         this.pintaValoracion(itemsWithDetails, imgEl, width, height, scale);
-
-        // Restore Auto-Actions
-        this.handleAutoActions(itemsWithDetails);
     },
 
     pintaValoracion(itemsWithDetails, imgEl, width, height, scale) {
@@ -115,6 +115,13 @@ export const ScannerModal = {
 
         // `isCompletingSet` no lo ponía nadie: la etiqueta del PiP no salía nunca. Misma decisión que el modal.
         const cierra = pickBestForSets(itemsWithDetails, { setsDatabase: state.setsDatabase, primeInventory: state.primeInventory, getSetName, getRequiredCount });
+        const valores = new Map(rankRewards(itemsWithDetails, this.valuationDeps()).map((r) => [r.name, r.value]));
+        this.onPaneles?.(panelesDeRecompensas(itemsWithDetails, {
+            anchoReferencia: width * scale, mejor: this.bestValue, mejores: mejoresPorMoneda(itemsWithDetails), cerca: cierra,
+            precioSet: cierra ? Math.round(this.setPrices?.get(`${cierra.set} Set`) || 0) : 0,
+            valores, inventario: state.primeInventory, t: TEXTS[state.currentLang].rewardScanner, iconoDe: getItemIcon,
+            sets: { setsDatabase: state.setsDatabase, getSetName, getRequiredCount, precioSetDe: (set) => this.setPrices?.get(`${set} Set`) || 0 },
+        }));
         renderItemsInPiP(itemsWithDetails.map((item) => ({
             ...item,
             isBestValue: this.bestValue?.name === item.name,

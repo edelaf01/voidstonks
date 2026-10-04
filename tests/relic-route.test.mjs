@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   buildSetRoute, buildFarmRoutes, normalizeTier, bestFissure, missionMinutes, tiersOpenedBy,
-  bestRefinementFor,
+  bestRefinementFor, eraDeLaMision,
 } from "../deploy/js/utils/inventory/relic_route.js";
 
 const setsDatabase = {
@@ -717,4 +717,21 @@ test("el veredicto de refinamiento se inyecta, no se calcula dentro", () => {
     });
     assert.deepEqual(visto, ["Meso E3"], "se pregunta por la reliquia que se recomienda, no por todas");
     assert.equal(conVeredicto.missing[0].refValue.worth, true);
+});
+
+test("eraDeLaMision: la era de la fisura en la que estás sale de cruzar el nodo con las activas", () => {
+  const fisuras = [
+    { node: "Coba (Earth)", tier: "Meso", type: "Defense" },
+    { node: "Gulliver (Phobos)", tier: "Vanguard", type: "Defense" },
+    { node: "Hydron (Sedna)", tier: "Omnia", type: "Defense" },
+    { node: "Ukko (Void)", tier: "Neo", type: "Capture" },
+    { node: "Ukko (Void)", tier: "Axi", type: "Capture", isSP: true },
+  ];
+  assert.equal(eraDeLaMision("Coba (Earth)", fisuras), "Meso");
+  assert.equal(eraDeLaMision("COBA (Tierra)", fisuras), "Meso");
+  assert.equal(eraDeLaMision("Gulliver", fisuras), "Axi");
+  assert.equal(eraDeLaMision("Hydron (Sedna)", fisuras), null, "Omnia abre todas");
+  assert.equal(eraDeLaMision("Ukko (Void)", fisuras), null, "dos eras en el mismo nodo: no se adivina");
+  assert.equal(eraDeLaMision("Hepit (Void)", fisuras), null);
+  assert.equal(eraDeLaMision(null, fisuras), null);
 });

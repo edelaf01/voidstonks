@@ -13,6 +13,8 @@
  * Ahora añadir un <button class="tab-btn"> al HTML basta: se acomoda solo.
  */
 
+import { carcasaActiva } from "../utils/shell.js";
+
 // Ancho minimo utilizable de una pestaña en escritorio. Por debajo de esto el
 // icono y la etiqueta se pisan, asi que es el punto donde conviene mandarla al
 // abanico en vez de seguir encogiendo.
@@ -85,7 +87,9 @@ function applyReflow(all) {
   if (barWidth === 0) return; // barra aun sin layout (pestaña oculta): se reintenta al mostrarla
 
   let visibleCount;
-  if (isMobile) {
+  if (carcasaActiva()) {
+    visibleCount = all.length;
+  } else if (isMobile) {
     visibleCount = MOBILE_MAX_TABS;
   } else {
     // Se reserva el hueco del boton "Más" solo si de verdad va a sobrar alguna:
@@ -163,8 +167,13 @@ function buildFanItems() {
       // Sin <img>: el icono puede ser un emoji dentro del <span class="tab-icon-img">
       // (Mis ordenes). Sin esta rama esa entrada salia sin icono, descuadrada
       // respecto a las demas del menu.
-      const emoji = document.querySelector(`#btn-${mode} .tab-icon-img`)?.textContent?.trim();
-      if (emoji) {
+      const icono = document.querySelector(`#btn-${mode} .tab-icon-img`);
+      const emoji = icono?.textContent?.trim();
+      if (icono?.tagName?.toLowerCase() === "svg") {
+        const copia = icono.cloneNode(true);
+        copia.setAttribute("class", "tab-fan-icon tab-icon-svg");
+        item.appendChild(copia);
+      } else if (emoji) {
         const glyph = document.createElement("span");
         glyph.className = "tab-fan-icon";
         glyph.setAttribute("aria-hidden", "true");

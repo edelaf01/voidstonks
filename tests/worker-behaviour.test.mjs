@@ -185,7 +185,8 @@ const TOP_BY_RANK = {
 // warframe.market pide no pasar de 3 peticiones por segundo: el lote de mercado lanzaba 6 a la vez (ráfagas de ~11 rps).
 test("las llamadas a warframe.market salen espaciadas aunque lleguen a la vez, y las demás no esperan", async () => {
     const head = src.slice(0, src.search(/^export default\b/m));
-    const { fetchWFM, Fetcher, WFM_HUECO_MS } = new Function(`${head}\nreturn { fetchWFM, Fetcher, WFM_HUECO_MS };`)();
+    const { fetchWFM, Fetcher, WFM } = new Function(`${head}\nreturn { fetchWFM, Fetcher, WFM };`)();
+    const WFM_HUECO_MS = WFM.huecoMs;
     const momentos = [];
     const orig = globalThis.fetch;
     globalThis.fetch = async (url) => { momentos.push([String(url), Date.now()]); return { ok: true, json: async () => ({}) }; };

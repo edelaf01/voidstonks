@@ -1,7 +1,7 @@
 import { state } from "../../state.js";
 import { OCRRepository } from "../../repositories/ocr.repository.js";
 import { PaddleRepository } from "../../repositories/paddle.repository.js";
-import { RELIC_GRID_CROP, RELIC_TITLE_CROP, parseRelicGrid, reliquiaDelTitulo } from "../../utils/vision/relic_grid.js";
+import { RELIC_GRID_CROP, RELIC_TITLE_CROP, RELIC_ERA_CROP, parseRelicGrid, reliquiaDelTitulo, eraDelRotulo } from "../../utils/vision/relic_grid.js";
 import { voteReadings, applyRelicCounts } from "../../utils/inventory/relic_votes.js";
 import { smallCanvasHash, compareHashes } from "../../utils/vision/frame_hash.js";
 import { collectWords, filaPropiaDelEscuadron } from "../../utils/vision/ocr_words.js";
@@ -9,6 +9,7 @@ import { corrige56 } from "../../utils/vision/relic_digit_56.js";
 import { VisionService } from "./vision.service.js";
 import { OCRService } from "./ocr.service.js";
 import { motorActivo, MOTOR_PRECISO } from "./ocr_engine.service.js";
+import { tierOfRelic, eraDominante } from "../../utils/inventory/relic_picks.js";
 
 /**
  * La pantalla VOID RELICS/REFINEMENT: qué reliquia se lleva a la misión y cuántas tienes
@@ -35,7 +36,9 @@ const TOPE_SIN_NOVEDAD = 3;
 
 export const RelicScreenService = {
     onApplied: null,
+    onEra: null,
     lastTrackedRelic: "",
+    eraRejilla: null,
     lastGridHash: null,
     lecturasSinNovedad: 0,
     lastSelHash: null,
@@ -98,6 +101,8 @@ export const RelicScreenService = {
         if (elegida) { this.reliquiaElegida = relic; this.huboRecompensaPrime = false; }
         if (relic === this.lastTrackedRelic) return false;
         this.lastTrackedRelic = relic;
+        const era = tierOfRelic(relic);
+        if (era && this.eraRejilla !== "ALL") this.onEra?.(era.charAt(0).toUpperCase() + era.slice(1).toLowerCase());
         if (globalThis.showTrackConfirm) globalThis.showTrackConfirm(relic, texto);
         return true;
     },
@@ -166,6 +171,12 @@ export const RelicScreenService = {
             return r.nombre;
         };
         const read = parseRelicGrid(palabras, { matchRelic, trace: traza });
+        const rotulo = await this.leeRotuloEra(worker, video).catch(() => null);
+        const era = rotulo || eraDominante(read.map((r) => r.name));
+        if (era && era !== this.eraRejilla) {
+            this.eraRejilla = era;
+            this.onEra?.(era === "ALL" ? null : era);
+        }
         console.log(`[RELICS] ${read.length} de ${traza.nombres} nombres · contadores ${traza.contadoresConCasilla}/${traza.candidatosContador}`,
             traza.perdidas);
         // Antes de votar: `voteReadings` escribe en `applied` y ya no se sabría qué era nuevo.
@@ -180,6 +191,12 @@ export const RelicScreenService = {
         state.inventory = applyRelicCounts(state.inventory, changed);
         console.log("[RELICS] inventario actualizado:", changed.map((c) => `${c.name}=${c.count}`).join(", "));
         this.onApplied?.(changed);
+    },
+
+    async leeRotuloEra(worker, video) {
+        const cvs = VisionService.prepareCropForOCR(video, RELIC_ERA_CROP, 1, "relicEra");
+        const { data } = await OCRRepository.recognize(worker, cvs, {}, { text: true });
+        return eraDelRotulo(data?.text);
     },
 
     /**
@@ -223,6 +240,7 @@ export const RelicScreenService = {
         this.lastSelHash = null;
         this._tituloT = 0;
         this.lastTrackedRelic = "";
+        this.eraRejilla = null;
         this.reliquiaElegida = null;
         this.huboRecompensaPrime = false;
     },

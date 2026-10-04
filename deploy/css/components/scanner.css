@@ -858,6 +858,8 @@
 
 #kiosk-sale-panel .kiosk-name { flex: 1; }
 #kiosk-sale-panel .kiosk-ducats { color: #ddaa38; font-weight: 700; }
+#kiosk-sale-panel .kiosk-plat { color: #00e5ff; }
+#kiosk-sale-panel .kiosk-ratio { color: #8a93a0; }
 
 #trade-panel {
     margin: 0 10px 8px;

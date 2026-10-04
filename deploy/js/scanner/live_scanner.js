@@ -3,7 +3,7 @@ import { state, saveAppState } from "../state.js";
 import { applyRewardCommit, undoRewardCommit, pickManualReward, aplicaTradeo } from "../utils/inventory/reward_commit.js";
 import { esPantallaRecordada, huellaPantalla, memoriaPantalla } from "../utils/inventory/reward_ledger.js";
 import { showToast } from "../ui.components/ui_components.js";
-import { TEXTS } from "../config.js";
+import { TEXTS, DROP_CHANCES } from "../config.js";
 import { warmupPrices } from "../services/inventory/inventory.service.js";
 import { ScannerService } from "../services/scanner/scanner.service.js";
 import { OCRService } from "../services/scanner/ocr.service.js?v=264";
@@ -24,6 +24,18 @@ import { exposeGlobals } from "../utils/global_registry.js";
 import { DebugRecorder } from "../services/scanner/debug_recorder.service.js";
 import { motorElegido } from "../services/scanner/ocr_engine.service.js";
 import { APP_VERSION } from "../config.js";
+import { piezasParaBaro, copiasQueSobran } from "../utils/inventory/baro_picks.js";
+import { ducadosDePieza } from "../utils/inventory/catalog_parts.js";
+import { ducatsBeatSale } from "../utils/inventory/reward_value.js";
+import { getSetName, getRequiredCount } from "../utils/ui_utils.js";
+import { getPriceValue, MEMORY_CACHE } from "../services/market/prices.service.js";
+import { getSlug } from "../utils/slugs.utils.js";
+import { eligeReliquias, OBJETIVOS } from "../utils/inventory/relic_objetivos.js";
+import { getRelicCounts } from "../utils/inventory/relic_counts.js";
+import { getPlayerOdds } from "../utils/inventory/relic_drop_odds.utils.js";
+import { fetchAllFissures } from "../services/farms/fissures.service.js";
+import { eraDeLaMision } from "../utils/inventory/relic_route.js";
+import { avisa, escucha, pistasDelLog } from "../utils/ganchos.js";
 
 // Clave propia y no la del escáner de móvil: son dos flujos distintos, y haber visto uno no
 // explica el otro.
@@ -231,6 +243,7 @@ export async function startLiveSession() {
  * Stops the live scanning session and cleans up resources.
  */
 export function stopLiveSession() {
+  avisa("escaner-parado");
   if (liveStream) {
     liveStream.getTracks().forEach((track) => track.stop());
     liveStream = null;
@@ -267,10 +280,59 @@ globalThis.showRivenAppraisal = async (parsedL, parsedR, captura) => {
   RivenScannerHUD.show(parsedL, parsedR, captura);
 };
 
+let eraElegida = null;
+let cualquierRefino = false;
+let objetivoElegido = "sets";
+let eligiendoReliquia = false;
+
+async function pintaReliquias(era = eraElegida) {
+  eraElegida = era;
+  const fissures = await fetchAllFissures().catch(() => []);
+  const relicCounts = getRelicCounts();
+  const { squadSize } = getPlayerOdds();
+  const refino = cualquierRefino ? null : DROP_CHANCES[state.refinement] ? state.refinement : "Rad";
+  const picks = eligeReliquias({
+    setsDatabase: state.setsDatabase, primeInventory: state.primeInventory, getSetName, getRequiredCount, squadSize,
+    relicCounts, relicsDatabase: state.relicsDatabase, fissures, tablas: DROP_CHANCES,
+    getPrice: (n) => Number.parseInt(MEMORY_CACHE.get(getSlug(n)) || 0, 10) || 0,
+    getDucats: ducadosDePieza,
+  }, { objetivo: objetivoElegido, refino, era });
+  avisa("reliquias", {
+    picks, era, opciones: { reliquiasEnApp: Object.keys(relicCounts).length, refino, escuadra: squadSize, objetivo: objetivoElegido },
+  });
+}
+
+RelicScreenService.onEra = (era) => pintaReliquias(era);
+
+function alAccionReliquias(accion) {
+  const [clave, valor] = accion.split(":");
+  if (clave === "refino" && (valor === "Any" || DROP_CHANCES[valor])) {
+    cualquierRefino = valor === "Any";
+    if (!cualquierRefino) globalThis.setRefinement?.(valor);
+  } else if (clave === "objetivo" && OBJETIVOS.includes(valor)) objetivoElegido = valor;
+  else if (clave === "escuadra") globalThis.setSquadSize?.(valor);
+  else if (clave === "era") eraElegida = valor === "ALL" ? null : valor;
+  else return;
+  pintaReliquias();
+}
+
+async function alElegirReliquia(ahora, mision) {
+  if (ahora && !eligiendoReliquia) {
+    eraElegida = eraDeLaMision(mision, await fetchAllFissures().catch(() => []));
+    pintaReliquias();
+  }
+  eligiendoReliquia = ahora;
+}
+
+escucha("overlay-reliquias", alAccionReliquias);
+escucha("reliquia-abierta", (nombre) => gastaReliquiaAbierta(nombre, true));
+escucha("eligiendo-reliquia", ({ ahora, mision }) => alElegirReliquia(ahora, mision));
+
 RelicScreenService.onApplied = (changed) => {
   const t = TEXTS[state.currentLang].scanner;
   showToast((t.relicCountsApplied || "{n} relic counts updated").replace("{n}", String(changed.length)));
   saveAppState();
+  if (eligiendoReliquia) pintaReliquias();
 };
 
 TradeService.onUpdate = (mesa) => ScannerHUD.updateTrade(mesa);
@@ -290,8 +352,32 @@ ScannerService.onPaginaKiosco = () => {
   state.primeInventory = vuelcaSesion(state.primeInventory, ScannerService.sessionInventory);
   saveAppState();
   if (globalThis.renderPrimeInventory) globalThis.renderPrimeInventory();
+  recomiendaParaBaro().catch(console.warn);
 };
-DucatKioskService.onPanel = (items) => ScannerHUD.updateKioskSale(items);
+const TOPE_PARA_BARO = 8;
+let pidiendoPrecios = false;
+async function recomiendaParaBaro() {
+  const deps = {
+    primeInventory: state.primeInventory, setsDatabase: state.setsDatabase, getSetName, getRequiredCount,
+    ducadosDe: ducadosDePieza, rentaFundir: ducatsBeatSale,
+    precioDe: (n) => { const r = MEMORY_CACHE.get(getSlug(n)); return r === undefined ? null : (Number.parseInt(r, 10) || 0); },
+  };
+  const pinta = () => ScannerHUD.updateKioskSale(piezasParaBaro(deps).slice(0, TOPE_PARA_BARO)
+    .map((p) => ({ name: p.name, qty: p.qty, ducats: p.ducats * p.qty, plat: p.plat, ratio: p.ratio })),
+  TEXTS[state.currentLang].scannerHUD.kioskSuggest);
+  pinta();
+  const sinPrecio = Object.keys(state.primeInventory).filter((n) => ducadosDePieza(n) && deps.precioDe(n) === null
+    && copiasQueSobran(n, deps).sobran > 0);
+  if (!sinPrecio.length || pidiendoPrecios) return;
+  pidiendoPrecios = true;
+  try {
+    await Promise.all(sinPrecio.map((n) => getPriceValue(n, getSlug(n)).catch(() => null)));
+  } finally {
+    pidiendoPrecios = false;
+  }
+  pinta();
+}
+DucatKioskService.onPanel = () => recomiendaParaBaro().catch(console.warn);
 
 DucatKioskService.onSale = (venta) => {
   const t = TEXTS[state.currentLang].scanner;
@@ -304,7 +390,7 @@ DucatKioskService.onSale = (venta) => {
   saveAppState();
   if (globalThis.renderPrimeInventory) globalThis.renderPrimeInventory();
   ScannerHUD.updateDetectedItems(ScannerService.sessionInventory, ScannerService.sessionRelics);
-  ScannerHUD.updateKioskSale([]);
+  recomiendaParaBaro().catch(console.warn);
   const lista = restadas.map((r) => `${r.qty}× ${r.name}`).join(", ") || "—";
   const faltan = ausentes.length ? (t.ducatSoldMissing || "").replace("{missing}", ausentes.join(", ")) : "";
   showToast((t.ducatSold || "Sold: {items}").replace("{items}", lista) + faltan, { duration: 8000 });
@@ -313,6 +399,16 @@ DucatKioskService.onSale = (venta) => {
 /**
  * UI Hook called by ScannerService when a relic is detected.
  */
+function trackRelic(relicName) {
+  const input = document.getElementById("relicInput");
+  if (!input) return;
+  globalThis.switchTab?.("relic");
+  input.value = relicName;
+  globalThis.manualRelicUpdate?.();
+}
+
+exposeGlobals({ trackRelic }, "scanner/live_scanner.js");
+
 globalThis.showTrackConfirm = (relicName) => {
   const t = TEXTS[state.currentLang].scanner;
   showToast(`${t.relicDetected}: ${relicName}`, {
@@ -432,13 +528,14 @@ function commitMissionCompleteRewards(items, gastada = null) {
 
 const unidades = (inventario) => applyRelicCounts(inventario, []).reduce((n, i) => n + Number(i.count), 0);
 
-function gastaReliquiaAbierta(nombre) {
-  if (!state.autoAddMissionRewards) return;
+function gastaReliquiaAbierta(nombre, delLog = false) {
+  if (!state.autoAddMissionRewards || (!delLog && pistasDelLog.reliquiaPorGastar())) return;
   const previo = (state.inventory || []).map((i) => (typeof i === "string" ? i : { ...i }));
   const nuevo = restaReliquia(state.inventory, nombre);
   if (unidades(nuevo) === unidades(previo)) return; // no la tenías apuntada
   state.inventory = nuevo;
   saveAppState();
+  if (eligiendoReliquia) pintaReliquias();
   const t = TEXTS[state.currentLang].scanner;
   // Tag propio: el aviso de fin de misión llega segundos después y pisaría este DESHACER.
   avisaConDeshacer(`${t.relicSpent}: ${nombre}`, "reliquia-gastada", () => { state.inventory = previo; });

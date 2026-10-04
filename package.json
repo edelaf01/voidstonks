@@ -7,11 +7,13 @@
     "dev:worker": "wrangler dev worker-code.js --port 8787 --ip 127.0.0.1 --compatibility-date 2024-11-01",
     "dev:site": "node scripts/serve-deploy.mjs",
     "build": "node scripts-actu/build-dist.mjs",
-    "lint": "eslint --no-error-on-unmatched-pattern deploy/js extension worker-code.js tests",
+    "lint": "eslint --no-error-on-unmatched-pattern deploy/js extension worker-code.js tests desktop/electron/src desktop/electron/overlay",
     "baseline:arquitectura": "node -e \"import('./tests/_helpers/architecture-rules.mjs').then(m=>console.log(JSON.stringify(m.snapshot(),null,2)))\" > tests/_baseline/architecture-debt.json"
   },
   "devDependencies": {
-    "eslint": "^9.39.5",
-    "globals": "^17.8.0"
-  }
+    "esbuild": "0.24.0",
+    "eslint": "9.39.5",
+    "globals": "17.8.0"
+  },
+  "packageManager": "pnpm@11.3.0"
 }

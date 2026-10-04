@@ -5,7 +5,7 @@ import { splitFusedWord, catalogVocab, pareceDelVocab } from "../../utils/vision
 import { rawWords, filaPropiaDelEscuadron } from "../../utils/vision/ocr_words.js";
 import { radioDeDedup, pasoEntreTarjetas, zonasDeRotulo } from "../../utils/vision/reward_cards.js";
 import { recuperaComponente, recuperaPorSufijo } from "../../utils/inventory/component_recover.js";
-import { normalizeOCRWords, tokensSinInformacion, tieneEvidenciaPropia, confirmaPrime } from "../../utils/inventory/ocr_words.js";
+import { normalizeOCRWords, tokensSinInformacion, tieneEvidenciaPropia, confirmaPrime, palabrasDeSuTarjeta } from "../../utils/inventory/ocr_words.js";
 
 // El catálogo es ASCII pero PaddleOCR cuela tildes: "KESTREL PRÍME BLUEPRINT" se perdía entero
 // porque las palabras se parten por [^A-Za-z0-9] y "PRÍME" quedaba en "PR" + "ME".
@@ -399,7 +399,7 @@ export const OCRService = {
                     : (w.x >= anchor.x - MARGIN_LEFT && w.x <= maxRightX);
                 const enColumna = suya ? localWords.filter(dentroDeSuya) : localWords;
                 const crudasColumna = crudas.filter(dentroDeSuya);
-                const metadata = this.extractInventoryMetadata(localWords);
+                const metadata = this.extractInventoryMetadata(palabrasDeSuTarjeta(localWords, anchor, globalAnchors));
 
                 const localSoupText = localWords.map(w => w.text).join(" ");
                 // La PENALIZACIÓN por partes (main-blueprint vs "X Prime <Parte>") solo debe ver

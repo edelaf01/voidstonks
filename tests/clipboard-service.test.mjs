@@ -48,6 +48,21 @@ test("sin extensión ni foco perdido, copia por el portapapeles nativo", async (
   assert.equal(escritos.at(-1), "hola");
 });
 
+test("en la app de escritorio copia el lanzador, y si falla sigue la cascada", async () => {
+  escrituraFalla = true;
+  const pedidos = [];
+  ClipboardService.nativo = async (t) => { pedidos.push(t); return true; };
+  try {
+    assert.equal(await ClipboardService.copy("sin foco"), "launcher");
+    ClipboardService.nativo = async () => false;
+    assert.equal(await ClipboardService.copy("otra"), "queued");
+    assert.deepEqual(pedidos, ["sin foco"]);
+  } finally {
+    ClipboardService.nativo = null;
+    ClipboardService._pending = null;
+  }
+});
+
 // Este es el caso que motivó todo: jugando, la pestaña no tiene foco y writeText lanza.
 test("si el portapapeles rechaza por falta de foco, el texto se encola", async () => {
   escrituraFalla = true;

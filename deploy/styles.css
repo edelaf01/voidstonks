@@ -7304,6 +7304,14 @@ body[data-lang="en"] .header-guide-cta .lang-en {
   background: #00e5ff;
   box-shadow: 0 0 6px rgba(0, 229, 255, 0.6);
 }
+.duc-section-set .duc-section-dot {
+  background: #8a93a0;
+}
+.duc-keep-note {
+  display: block;
+  font-size: 0.72em;
+  color: #8a93a0;
+}
 .duc-section-count {
   padding: 1px 6px;
   border-radius: 999px;
@@ -8709,6 +8717,7 @@ body[data-lang="en"] .header-guide-cta .lang-en {
   color: var(--wf-green, #42f56c);
   white-space: nowrap;
   cursor: help;
+  margin-left: auto;
 }
 
 .farm-routes .fr-title {
@@ -8866,6 +8875,38 @@ body[data-lang="en"] .header-guide-cta .lang-en {
   list-style: none;
   margin: 6px 0 0;
   padding: 0;
+  container-type: inline-size;
+}
+
+.farm-routes .fr-tags {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px 6px;
+}
+
+.farm-routes .fr-tags .fr-buy,
+.farm-routes .fr-tags .fr-refine {
+  margin-left: 0;
+}
+
+@container (min-width: 620px) {
+  .farm-routes .fr-part {
+    display: grid;
+    grid-template-columns: 8px minmax(10ch, 1fr) 3.5ch 10ch 5ch 9ch minmax(16ch, 1.6fr) 19ch;
+    grid-auto-flow: row dense;
+    column-gap: 10px;
+    align-items: baseline;
+  }
+
+  .farm-routes .fr-part > .fr-state { grid-column: 1; align-self: center; }
+  .farm-routes .fr-part > .fr-name { grid-column: 2; min-width: 0; }
+  .farm-routes .fr-part > .fr-need { grid-column: 3; }
+  .farm-routes .fr-part > .fr-go { grid-column: 4; justify-self: start; }
+  .farm-routes .fr-part > .fr-dim { grid-column: 5; }
+  .farm-routes .fr-part > .fr-runs { grid-column: 6; }
+  .farm-routes .fr-part > .fr-where { grid-column: 7; min-width: 0; }
+  .farm-routes .fr-part > .fr-tags { grid-column: 8; justify-self: end; }
 }
 
 /* Cada pieza en su renglón, con la acción a la derecha. En rem porque el bloque cuelga de

@@ -9,6 +9,7 @@ import { ducatRatio, formatDucatRatio } from "./ui_ducanator.js";
 import { inventorySignature } from "../../utils/inventory/inventory_signature.js";
 import { goalMetaHtml, renderInvGoalChips, relicRuns, compareByGoalSets } from "./ui_inventory_goals.js";
 import { calculateRelicValue } from "../../services/inventory/relics.service.js";
+import { carcasaActiva } from "../../utils/shell.js";
 import {
   renderPrimeInventory,
   modifyPrimePart,
@@ -16,8 +17,6 @@ import {
   decrementPrimeSet,
   toggleInvSet,
 } from "./ui_prime_inventory.js";
-
-
 
 export function toggleInventoryPanel(forceOpen = false) {
   const panel = document.getElementById("inventory-container");
@@ -283,7 +282,7 @@ export function selectRelicFromInv(name) {
   // Cerrar, no `toggleInventoryPanel(false)`: esa alterna. Desde el panel daba igual (estaba
   // abierto → cerraba), pero estas mismas chapas de reliquia salen en "Rutas aconsejadas" con
   // el panel cerrado, y ahí el clic lo abría encima del contenido.
-  document.getElementById("inventory-container")?.classList.remove("open");
+  if (!carcasaActiva()) document.getElementById("inventory-container")?.classList.remove("open");
   // Las rutas van debajo del desglose: pulsando una desde ahí, el contenido sale fuera de vista.
   input?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   manualRelicUpdate();
@@ -416,8 +415,6 @@ export function switchInvView(view) {
     renderPrimeInventory();
   }
 }
-
-
 
 export function exportInventory() {
   const t = TEXTS[state.currentLang]?.inventory || {};

@@ -433,6 +433,12 @@
     transition: transform 0.2s ease;
 }
 
+.tab-icon-svg {
+    box-sizing: border-box;
+    padding: 4px;
+    color: var(--wf-blue);
+}
+
 .tab-btn:hover .tab-icon-img {
     transform: scale(1.2);
     filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.6));

@@ -311,6 +311,17 @@ export function oneTimeNoticeSeen(key) {
     try { return localStorage.getItem(key) === "1"; } catch { return false; }
 }
 
+export function leePanelesOcultos() {
+    try {
+        const lista = JSON.parse(localStorage.getItem("vs_ds_ocultos") || "[]");
+        return Array.isArray(lista) ? lista : [];
+    } catch { return []; }
+}
+
+export function guardaPanelesOcultos(lista) {
+    try { localStorage.setItem("vs_ds_ocultos", JSON.stringify(lista)); } catch { }
+}
+
 export function markOneTimeNoticeSeen(key) {
     try { localStorage.setItem(key, "1"); } catch { /* modo privado */ }
 }

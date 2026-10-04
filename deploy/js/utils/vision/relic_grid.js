@@ -21,6 +21,16 @@ import { groupWordCells } from "./squad_panel.js";
 export const RELIC_GRID_CROP = Object.freeze({ x: 0.03, y: 0.17, w: 0.57, h: 0.76 });
 // "Lith S19 Relic - Possible Rewards", sobre el panel de recompensas de la selección de la fisura.
 export const RELIC_TITLE_CROP = Object.freeze({ x: 0.46, y: 0.225, w: 0.31, h: 0.055 });
+export const RELIC_ERA_CROP = Object.freeze({ x: 0.045, y: 0.095, w: 0.13, h: 0.035 });
+
+const ERAS_DEL_ROTULO = [["REQUIEM", "Requiem"], ["LITH", "Lith"], ["MESO", "Meso"], ["NEO", "Neo"], ["AXI", "Axi"]];
+
+export function eraDelRotulo(texto) {
+  const letras = String(texto || "").toUpperCase().replace(/0/g, "O").replace(/[^A-Z]/g, "");
+  const era = ERAS_DEL_ROTULO.find(([clave]) => letras.includes(clave));
+  if (era) return era[1];
+  return /^(ALL|TODAS?|TODOS?)$/.test(letras) ? "ALL" : null;
+}
 
 export function reliquiaDelTitulo(texto, matchRelic) {
   const t = String(texto || "");

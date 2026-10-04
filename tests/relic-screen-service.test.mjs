@@ -211,7 +211,7 @@ describe("motor de OCR seleccionado", () => {
     PaddleRepository.listo = () => true;
     PaddleRepository.recognizeWordsWithBoxes = async () => { paddleLlamado++; return celda(["Meso", "C6", "Relic"], 100, 239); };
     const recognizeOriginal = OCRRepository.recognize;
-    OCRRepository.recognize = async (...a) => { tesseractNombres++; return recognizeOriginal(...a); };
+    OCRRepository.recognize = async (...a) => { if (a[3]?.blocks) tesseractNombres++; return recognizeOriginal(...a); };
     aplicaMotor(MOTOR_PRECISO);
     try {
       await RelicScreenService.readGrid(video(40));
