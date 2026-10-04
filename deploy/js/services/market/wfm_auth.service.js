@@ -182,7 +182,7 @@ export async function logout() {
 }
 
 export function wfmPrivado() {
-    return /^(localhost|127\.0\.0\.1|\[::1\])$/.test(globalThis.location?.hostname || "") || globalThis.voidstonksNativo?.wfmLocal === true;
+    return /^(localhost|127\.0\.0\.1|\[::1\])$/.test(globalThis.location?.hostname || "") || globalThis.voidstonksNativo?.desarrollo === true;
 }
 
 export function isLoggedIn() {

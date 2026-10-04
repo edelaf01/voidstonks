@@ -9,10 +9,12 @@ on:
       - 'desktop/electron/**'
       - 'scripts-actu/build-dist.mjs'
       - '.github/workflows/desktop-build.yml'
+  release:
+    types: [published]
   workflow_dispatch: {}
 
 concurrency:
-  group: desktop-build
+  group: desktop-build-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -57,12 +59,33 @@ jobs:
         working-directory: desktop/electron
         run: pnpm install --frozen-lockfile
 
+      - name: Versión de la release
+        if: github.event_name == 'release'
+        run: echo "VERSION_RELEASE=--config.extraMetadata.version=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+
       - name: Empaquetar
         working-directory: desktop/electron
-        run: pnpm exec electron-builder ${{ matrix.destino }} --publish never
+        run: pnpm exec electron-builder ${{ matrix.destino }} --publish never $VERSION_RELEASE
 
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.nombre }}
           path: ${{ matrix.fichero }}
           retention-days: 30
+
+  publicar:
+    if: github.event_name == 'release'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: instalables
+          merge-multiple: true
+
+      - name: Subir los instalables a la release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$GITHUB_REF_NAME" instalables/* --clobber --repo "$GITHUB_REPOSITORY"

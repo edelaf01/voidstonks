@@ -21,9 +21,9 @@ function montar() {
     </header>
     <div class="ds-eelog-ruta"></div>
     <dl class="ds-eelog-ahora">
-      <dt>${bilingue("Pantalla", "Screen")}</dt><dd class="ds-eelog-pantalla">—</dd>
-      <dt>${bilingue("Reliquia", "Relic")}</dt><dd class="ds-eelog-reliquia">—</dd>
-      <dt>${bilingue("Escáner", "Scanner")}</dt><dd class="ds-eelog-modo">—</dd>
+      <dt>${bilingue("Pantalla", "Screen")}</dt><dd class="ds-eelog-pantalla">-</dd>
+      <dt>${bilingue("Reliquia", "Relic")}</dt><dd class="ds-eelog-reliquia">-</dd>
+      <dt>${bilingue("Escáner", "Scanner")}</dt><dd class="ds-eelog-modo">-</dd>
     </dl>
     <ol class="ds-eelog-eventos"></ol>`;
   el.querySelector(".ds-eelog-cerrar").addEventListener("click", () => el.classList.remove("open"));
@@ -59,7 +59,7 @@ function textoEvento(ev) {
 }
 
 function textoModo(m) {
-  if (!m) return "—";
+  if (!m) return "-";
   if (m.modo === "dormido") return en() ? "On hold during the mission" : "En espera durante la misión";
   if (m.modo === "forzado") {
     const n = m.tarjetas ? ` · ${m.tarjetas} ${en() ? "cards" : "tarjetas"}` : "";
@@ -81,10 +81,10 @@ function pintar(live) {
   estado.dataset.estado = live.estado;
   panel.querySelector(".ds-eelog-ruta").textContent = live.ruta
     || (en() ? "EE.log not found: is Warframe installed?" : "No se encuentra el EE.log: ¿está instalado Warframe?");
-  panel.querySelector(".ds-eelog-pantalla").innerHTML = live.pantalla ? textoEvento(live.pantalla) : "—";
+  panel.querySelector(".ds-eelog-pantalla").innerHTML = live.pantalla ? textoEvento(live.pantalla) : "-";
   panel.querySelector(".ds-eelog-reliquia").textContent = live.reliquia
     ? `${live.reliquia.nombre} [${live.reliquia.refinamiento}]`
-    : "—";
+    : "-";
   panel.querySelector(".ds-eelog-modo").textContent = textoModo(live.modoEscaner());
   panel.querySelector(".ds-eelog-eventos").innerHTML = live.eventos.filter((ev) => ev.tipo !== "tarjeta").slice(-MAX_FILAS).reverse()
     .map((ev) => `<li data-tipo="${ev.tipo}"><time>${hora(ev.t)}</time><span>${textoEvento(ev)}</span></li>`)

@@ -221,3 +221,17 @@ test("los paneles ocultos del escritorio se recuerdan y un valor roto no rompe n
     globalThis.localStorage = antes;
   }
 });
+
+test("las opciones de depuración solo salen en desarrollo o con el modo debug encendido", () => {
+  assert.equal(svc.conDepuracion({ debug: false, desarrollo: false }), false, "la versión descargable");
+  assert.equal(svc.conDepuracion({ debug: false, desarrollo: true }), true, "arrancada desde el código");
+  assert.equal(svc.conDepuracion({ debug: true, desarrollo: false }), true, "con vs_debug_logs para diagnosticar");
+  assert.equal(repo.modoDesarrollo(), false);
+  globalThis.voidstonksNativo = { desarrollo: true };
+  try {
+    assert.equal(repo.modoDesarrollo(), true);
+    assert.equal(svc.conDepuracion({ debug: false }), true);
+  } finally {
+    delete globalThis.voidstonksNativo;
+  }
+});
