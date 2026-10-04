@@ -1,7 +1,7 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("voidstonksNativo", {
-  wfmLocal: process.argv.includes("--vs-wfm-local"),
+  desarrollo: process.argv.includes("--vs-desarrollo"),
   capacidades: () => ipcRenderer.invoke("vs:caps"),
   guardarPermisos: (permisos) => ipcRenderer.invoke("vs:permisos", permisos),
   copiar: (texto) => ipcRenderer.invoke("vs:copiar", String(texto)),

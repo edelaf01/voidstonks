@@ -13,7 +13,7 @@ import { HOSTS_PROPIOS, conCorsDeLaApp, conOrigenLocalParaWfm } from "./cors.js"
 
 const AQUI = path.dirname(fileURLToPath(import.meta.url));
 const RAIZ_PAQUETE = path.resolve(AQUI, "..");
-const WFM_LOCAL = !app.isPackaged;
+const DESARROLLO = !app.isPackaged;
 const PERMITIDOS = new Set(["clipboard-sanitized-write", "clipboard-read", "notifications", "media", "display-capture", "fullscreen"]);
 
 app.setName("VoidStonks");
@@ -67,7 +67,7 @@ app.whenReady().then(async () => {
   session.defaultSession.webRequest.onHeadersReceived({ urls: HOSTS_PROPIOS }, (detalles, responde) => {
     responde({ responseHeaders: conCorsDeLaApp(detalles.responseHeaders, origen) });
   });
-  if (WFM_LOCAL) {
+  if (DESARROLLO) {
     session.defaultSession.webRequest.onBeforeSendHeaders({ urls: HOSTS_PROPIOS }, (detalles, responde) => {
       responde({ requestHeaders: conOrigenLocalParaWfm(detalles.url, detalles.requestHeaders, origen) });
     });
@@ -158,7 +158,7 @@ app.whenReady().then(async () => {
       contextIsolation: true,
       backgroundThrottling: false,
       spellcheck: false,
-      additionalArguments: WFM_LOCAL ? ["--vs-wfm-local"] : [],
+      additionalArguments: DESARROLLO ? ["--vs-desarrollo"] : [],
     },
   });
   const wc = principal.webContents;
