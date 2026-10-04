@@ -4,6 +4,11 @@ on:
   schedule:
     - cron: '30 3 * * *'
     - cron: '0 4,16 * * *'
+    - cron: '0 5 * * *'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/precios.yml'
   workflow_dispatch: {}
 
 concurrency:
@@ -71,3 +76,32 @@ jobs:
           curl -fsS -X POST "$API/?type=precios_subir&tipo=prime" \
             -H "X-Precios-Secret: $PRECIOS_SECRET" -H "Content-Type: application/json" \
             --data-binary @precios_prime.json
+
+  reliquias:
+    if: github.event_name != 'schedule' || github.event.schedule == '0 5 * * *'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Script del repo del cron
+        uses: actions/checkout@v5
+        with:
+          repository: edelaf01/Voidstonks-cron
+          token: ${{ secrets.DATASET_READ_PAT || secrets.CRON_DATASET_PAT }}
+          sparse-checkout: precios_prime.py
+          sparse-checkout-cone-mode: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Reliquias intactas desde /top de warframe.market
+        run: python precios_prime.py --reliquias --previos "$API/?type=prices_snapshot" --salida precios_reliquias.json
+
+      - name: Subir al worker
+        env:
+          PRECIOS_SECRET: ${{ secrets.PRECIOS_SECRET }}
+        run: |
+          curl -fsS -X POST "$API/?type=precios_subir&tipo=reliquias" \
+            -H "X-Precios-Secret: $PRECIOS_SECRET" -H "Content-Type: application/json" \
+            --data-binary @precios_reliquias.json
