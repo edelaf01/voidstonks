@@ -11,7 +11,9 @@
     "baseline:arquitectura": "node -e \"import('./tests/_helpers/architecture-rules.mjs').then(m=>console.log(JSON.stringify(m.snapshot(),null,2)))\" > tests/_baseline/architecture-debt.json"
   },
   "devDependencies": {
-    "eslint": "^9.39.5",
-    "globals": "^17.8.0"
-  }
+    "esbuild": "0.24.0",
+    "eslint": "9.39.5",
+    "globals": "17.8.0"
+  },
+  "packageManager": "pnpm@11.3.0"
 }

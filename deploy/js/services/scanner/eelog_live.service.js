@@ -12,6 +12,9 @@ export const EELogLive = {
   juego: ESTADO_JUEGO_INICIAL,
   pantalla: null,
   reliquia: null,
+  onReliquiaAbierta: null,
+  _porGastar: null,
+  _atrasado: false,
   _oyentes: new Set(),
   _cortar: null,
 
@@ -38,6 +41,8 @@ export const EELogLive = {
 
   leer(lineas) {
     let hay = this.estado !== "leyendo";
+    const enVivo = !this._atrasado;
+    this._atrasado = false;
     this.estado = "leyendo";
     for (const linea of lineas) {
       const ev = parseLinea(linea);
@@ -46,7 +51,11 @@ export const EELogLive = {
       this.eventos.push(ev);
       this.juego = siguienteEstado(this.juego, ev);
       if (ev.tipo === "pantalla") this.pantalla = ev;
-      if (ev.tipo === "reliquia") this.reliquia = ev;
+      if (ev.tipo === "reliquia") this.reliquia = this._porGastar = ev;
+      if (ev.tipo === "recompensas" && ev.fase === "llenas" && this._porGastar) {
+        if (enVivo) this.onReliquiaAbierta?.(this._porGastar.nombre);
+        this._porGastar = null;
+      }
     }
     if (this.eventos.length > MAX_EVENTOS) this.eventos.splice(0, this.eventos.length - MAX_EVENTOS);
     if (hay) this._avisa();
@@ -57,9 +66,11 @@ export const EELogLive = {
       this.eventos = [];
       this.pantalla = null;
       this.reliquia = null;
+      this._porGastar = null;
       this.juego = ESTADO_JUEGO_INICIAL;
     }
     if (nombre === "ruta") {
+      this._atrasado = true;
       this.ruta = datos;
       this.estado = datos ? "leyendo" : "falta";
     } else if (nombre === "falta" || nombre === "error") {
@@ -68,6 +79,10 @@ export const EELogLive = {
       this.estado = "leyendo";
     }
     this._avisa();
+  },
+
+  reliquiaPorGastar() {
+    return this.estado === "leyendo" ? this._porGastar?.nombre || null : null;
   },
 
   modoEscaner(ahora = Date.now()) {

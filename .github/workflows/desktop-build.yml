@@ -38,24 +38,28 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      - uses: pnpm/action-setup@v4
+
       - uses: actions/setup-node@v5
         with:
           node-version: '22'
-          cache: npm
-          cache-dependency-path: desktop/electron/package-lock.json
+          cache: pnpm
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            desktop/electron/pnpm-lock.yaml
 
       - name: Minificar la app
         run: |
-          npm install --no-save esbuild@0.24.0
+          pnpm install --frozen-lockfile
           node scripts-actu/build-dist.mjs
 
       - name: Dependencias de escritorio
         working-directory: desktop/electron
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Empaquetar
         working-directory: desktop/electron
-        run: npx electron-builder ${{ matrix.destino }} --publish never
+        run: pnpm exec electron-builder ${{ matrix.destino }} --publish never
 
       - uses: actions/upload-artifact@v4
         with:

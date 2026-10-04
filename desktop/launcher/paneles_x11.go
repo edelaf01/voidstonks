@@ -13,8 +13,6 @@ import (
 	"github.com/jezek/xgb/xproto"
 )
 
-// Ventanas override-redirect de XWayland: KWin no las gestiona y las pinta por encima de todo, también
-// del juego a pantalla completa. Warframe bajo Proton es un cliente X11, así que comparten coordenadas.
 var (
 	xc      *xgb.Conn
 	xVisual xproto.Visualid
@@ -127,7 +125,6 @@ func creaVentanaX(c *xgb.Conn, root xproto.Window, e panelPintado) (xproto.Windo
 	if err != nil {
 		return 0, err
 	}
-	// Región de entrada vacía: el ratón pasa al juego.
 	shape.Rectangles(c, shape.SoSet, shape.SkInput, xproto.ClipOrderingUnsorted, win, 0, 0, nil)
 	xproto.MapWindow(c, win)
 	return win, nil
@@ -141,7 +138,6 @@ func pintaVentanaX(c *xgb.Conn, win xproto.Window, img *image.RGBA) {
 		xproto.CreateGC(c, xGC, xproto.Drawable(win), 0, nil)
 	}
 	datos := bgraPremultiplicado(img)
-	// Sin BIG-REQUESTS una petición no pasa de 256 KB: la imagen va por franjas.
 	filas := max(1, 60000/(w*4))
 	for y0 := 0; y0 < h; y0 += filas {
 		y1 := min(h, y0+filas)

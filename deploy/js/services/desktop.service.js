@@ -4,11 +4,19 @@ import {
   guardarPermisosEnLanzador,
   copiarConLanzador,
   panelesEnJuego,
+  escucharAccionesDelOverlay,
 } from "../repositories/launcher.repository.js";
-import { oneTimeNoticeSeen, markOneTimeNoticeSeen } from "../repositories/storage.repository.js";
+import { oneTimeNoticeSeen, markOneTimeNoticeSeen, leePanelesOcultos, guardaPanelesOcultos } from "../repositories/storage.repository.js";
+
+export { leePanelesOcultos, guardaPanelesOcultos };
 
 export const LATIDO_MS = 30_000;
 export const RECOMPENSAS_DURACION_MS = 20_000;
+export const PANTALLA_RECOMPENSAS_MS = 15_500;
+
+export function duracionRecompensas(desde, ahora = Date.now()) {
+  return desde ? Math.max(3000, PANTALLA_RECOMPENSAS_MS - (ahora - desde)) : RECOMPENSAS_DURACION_MS;
+}
 
 export function enLanzador(hostname = globalThis.location?.hostname) {
   return hostname === "voidstonks.localhost";
@@ -94,6 +102,16 @@ export function ajustaPanelesAlContexto(contexto, deps) {
 
 export function quitarTodosLosPaneles(deps) {
   return Promise.all([...visibles].map((g) => quitarPaneles(g, deps)));
+}
+
+const alPulsar = new Map();
+let escuchandoOverlay = false;
+
+export function alPulsarEnOverlay(grupo, fn, { escucha = escucharAccionesDelOverlay } = {}) {
+  alPulsar.set(grupo, fn);
+  if (escuchandoOverlay) return;
+  escuchandoOverlay = true;
+  escucha((g, accion) => alPulsar.get(g)?.(accion));
 }
 
 export function quitarTodosAlSalir({ manda = panelesEnJuego } = {}) {

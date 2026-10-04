@@ -8,8 +8,6 @@ import (
 	"sync"
 )
 
-// Lo concedido vive en el lanzador y no en la página: los endpoints lo comprueban, así que ni un
-// fallo de la web puede saltárselo.
 var permisosConocidos = []string{"eelog", "clip", "overlay"}
 
 type permisos struct {
@@ -43,8 +41,6 @@ func concedido(id string) bool {
 	return actuales().Concedidos[id]
 }
 
-// Los que esta versión conoce y el usuario aún no ha visto: una actualización que añade uno
-// pregunta solo por ese.
 func estadoPermisos() (map[string]bool, []string) {
 	muPermisos.Lock()
 	defer muPermisos.Unlock()

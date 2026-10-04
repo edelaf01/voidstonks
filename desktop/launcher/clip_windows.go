@@ -29,10 +29,8 @@ func copiar(texto string) error {
 	if err != nil {
 		return err
 	}
-	// El portapapeles es por hilo: abrir, escribir y cerrar en el mismo.
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
-	// Falla si otro programa lo tiene abierto en ese instante.
 	abierto := false
 	for i := 0; i < 10 && !abierto; i++ {
 		r, _, _ := openClipboard.Call(0)

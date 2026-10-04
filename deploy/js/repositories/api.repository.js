@@ -175,8 +175,8 @@ export async function getPricesBatch(chunk) {
     return fetchWithTimeout(`${WORKER_URL}?type=prices_batch&q=${chunk.join(",")}`);
 }
 
-export async function getPricesSnapshot() {
-    return fetchWithTimeout(`${WORKER_URL}?type=prices_snapshot`, { timeout: 15000, cache: "no-cache" });
+export async function getPricesSnapshot(ahora = Date.now()) {
+    return fetchWithTimeout(`${WORKER_URL}?type=prices_snapshot&b=${Math.floor(ahora / 300000)}`, { timeout: 15000, cache: "no-cache" });
 }
 
 export async function getArcaneBatch(chunk) {

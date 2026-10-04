@@ -123,7 +123,7 @@ export default [
 
     // Los tests son Node, no navegador: sin esto `no-undef` marcaría process/Buffer/__dirname.
     {
-        files: ["tests/**/*.mjs", "scripts/**/*.mjs"],
+        files: ["tests/**/*.mjs", "scripts/**/*.mjs", "scripts-actu/**/*.mjs"],
         languageOptions: {
             ecmaVersion: "latest",
             sourceType: "module",

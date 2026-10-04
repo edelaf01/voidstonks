@@ -24,11 +24,9 @@ import (
 	"golang.org/x/image/webp"
 )
 
-// Paneles del overlay: la app manda bloques (título, píldoras, precio, lista…) y el lanzador los dibuja con
-// los colores de la app encima del juego. Cada pantalla es un grupo que se sustituye entero.
 type chip struct {
 	Texto string `json:"texto"`
-	Tipo  string `json:"tipo"` // valor | valor-justo | set | set-cerca | pl | duc
+	Tipo  string `json:"tipo"`
 }
 
 type parte struct {
@@ -37,7 +35,7 @@ type parte struct {
 }
 
 type bloque struct {
-	Tipo    string    `json:"tipo"` // titulo | chips | estado | separador | precio | lista
+	Tipo    string    `json:"tipo"`
 	Texto   string    `json:"texto"`
 	Tono    string    `json:"tono"`
 	Chips   []chip    `json:"chips"`
@@ -48,9 +46,9 @@ type bloque struct {
 
 type panel struct {
 	X       float64  `json:"x"`
-	Y       float64  `json:"y"`       // borde de arriba, en fracción del alto del juego
-	Anclaje string   `json:"anclaje"` // qué borde cae en X: centro (por defecto), izquierda, derecha
-	Borde   string   `json:"borde"`   // valor | pl | duc | set
+	Y       float64  `json:"y"`
+	Anclaje string   `json:"anclaje"`
+	Borde   string   `json:"borde"`
 	Bloques []bloque `json:"bloques"`
 }
 
@@ -58,14 +56,14 @@ type peticionPaneles struct {
 	Grupo      string  `json:"grupo"`
 	Paneles    []panel `json:"paneles"`
 	MismoAncho bool    `json:"mismoAncho"`
-	DuracionMs int     `json:"duracionMs"` // <= 0: hasta que la app lo quite
+	DuracionMs int     `json:"duracionMs"`
 }
 
 type rectJuego struct{ x, y, w, h int }
 
 type panelPintado struct {
 	img  *image.RGBA
-	x, y int // esquina en coordenadas de pantalla
+	x, y int
 }
 
 var (
@@ -177,7 +175,6 @@ func colocaPaneles(p peticionPaneles, juego rectJuego) []panelPintado {
 	return out
 }
 
-// Los colores de la app (css/components/modals.css y scanner.css).
 var (
 	fondoPanel = color.NRGBA{10, 15, 20, 245}
 	bordeSuave = color.NRGBA{255, 255, 255, 51}
@@ -200,7 +197,6 @@ func tono(nombre, defecto string) color.NRGBA {
 
 func conAlfa(c color.NRGBA, a uint8) color.NRGBA { c.A = a; return c }
 
-// Medidas para un juego de `alto` píxeles: todo escala desde 1440p.
 type estilo struct {
 	s                                     float64
 	titulo, chip, precio, lista, listaNeg font.Face
@@ -245,7 +241,6 @@ func alto(f font.Face) int { m := f.Metrics(); return (m.Ascent + m.Descent).Cei
 
 func anchoTexto(f font.Face, s string) int { return font.MeasureString(f, s).Ceil() }
 
-// Las mayúsculas pequeñas de la app van con algo de espacio entre letras.
 func (e *estilo) anchoEspaciado(f font.Face, s string) int {
 	return anchoTexto(f, s) + max(0, len([]rune(s))-1)*e.px(0.8)
 }
@@ -261,8 +256,6 @@ func (e *estilo) escribeEspaciado(img *image.RGBA, f font.Face, c color.Color, x
 		x = escribe(img, f, c, x, base, string(r)) + e.px(0.8)
 	}
 }
-
-// --- Medidas de cada bloque ---
 
 func (e *estilo) anchoChip(c chip) int { return e.anchoEspaciado(e.chip, c.Texto) + 2*e.px(8) }
 func (e *estilo) altoChip() int        { return alto(e.chip) + 2*e.px(3) }
@@ -318,7 +311,6 @@ func (e *estilo) anchoBloque(b bloque) int {
 	return 0
 }
 
-// Filas de píldoras que caben en `w`.
 func (e *estilo) filasChips(b bloque, w int) [][]chip {
 	var filas [][]chip
 	usado := 0
@@ -361,8 +353,6 @@ func (e *estilo) anchoPanel(p panel) int {
 	return w + 2*e.pad
 }
 
-// --- Dibujo ---
-
 func (e *estilo) dibujaPanel(p panel, w int) *image.RGBA {
 	interior := w - 2*e.pad
 	h := 2 * e.pad
@@ -376,7 +366,6 @@ func (e *estilo) dibujaPanel(p panel, w int) *image.RGBA {
 	img := image.NewRGBA(image.Rect(0, 0, w+2*m, h+2*m))
 	caja := image.Rect(m, m, m+w, m+h)
 
-	// Sombra oscura o, si el panel destaca, resplandor de su color, como el box-shadow de la app.
 	sombra := color.NRGBA{}
 	if t, ok := tonoDeBorde[p.Borde]; ok {
 		sombra = tonos[t]
@@ -502,8 +491,6 @@ func recorta(f font.Face, s string, w int) string {
 	return string(r) + "…"
 }
 
-// --- Iconos de la app ---
-
 var (
 	muIconos = sync.Mutex{}
 	iconos   = map[string]image.Image{}
@@ -535,7 +522,6 @@ func (e *estilo) dibujaIcono(img *image.RGBA, nombre string, x, y, lado int) {
 	}
 }
 
-// Rectángulo con esquinas redondeadas y suavizadas, como máscara.
 func redondeado(w, h int, r float32) *image.Alpha {
 	m := image.NewAlpha(image.Rect(0, 0, max(w, 0), max(h, 0)))
 	if w <= 0 || h <= 0 {
@@ -543,7 +529,7 @@ func redondeado(w, h int, r float32) *image.Alpha {
 	}
 	fw, fh := float32(w), float32(h)
 	r = max(0, min(r, fw/2, fh/2))
-	k := r * 0.4477 // control de la Bézier cúbica que aproxima un cuarto de círculo
+	k := r * 0.4477
 	z := vector.NewRasterizer(w, h)
 	z.MoveTo(r, 0)
 	z.LineTo(fw-r, 0)
@@ -559,8 +545,6 @@ func redondeado(w, h int, r float32) *image.Alpha {
 	return m
 }
 
-// BGRA premultiplicado, lo que esperan X11 (32 bits) y UpdateLayeredWindow. image.RGBA ya está
-// premultiplicado: solo cambia el orden.
 func bgraPremultiplicado(img *image.RGBA) []byte {
 	out := make([]byte, len(img.Pix))
 	for i := 0; i < len(out); i += 4 {

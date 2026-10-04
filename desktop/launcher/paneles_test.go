@@ -13,7 +13,6 @@ import (
 	"testing"
 )
 
-// Recompensas como las pinta la app: insignia con su valor, el porqué y el precio.
 var recompensas = []panel{
 	{X: 0.31, Y: 0.44, Bloques: []bloque{
 		{Tipo: "estado", Texto: "5 en juego", Tono: "verde"},
@@ -120,7 +119,6 @@ func TestBGRAEsElMismoColorPremultiplicado(t *testing.T) {
 	}
 }
 
-// VS_PNG=dir guarda los paneles de ejemplo sobre un fondo de juego para revisarlos a ojo.
 func TestPanelesDeMuestraEnPNG(t *testing.T) {
 	dir := os.Getenv("VS_PNG")
 	if dir == "" {

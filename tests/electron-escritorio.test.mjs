@@ -7,7 +7,10 @@ import { creaManejador, resuelveFichero, tipoDe, PREFIJO_OVERLAY } from "../desk
 import { creaPermisos, PERMISOS_CONOCIDOS } from "../desktop/electron/src/permisos.js";
 import { Seguidor, creaLectorEELog, bibliotecasSteam, rutaEELog } from "../desktop/electron/src/eelog.js";
 import { peticionValida, firmaDe, rectEnDip } from "../desktop/electron/src/paneles.js";
-import { htmlPanel, htmlBloque, coloca } from "../desktop/electron/overlay/paneles.js";
+import { creaRegistroConsola } from "../desktop/electron/src/consola.js";
+import { creaZoom, zoomPorDefecto } from "../desktop/electron/src/zoom.js";
+import { HOSTS_PROPIOS, conCorsDeLaApp, conOrigenLocalParaWfm } from "../desktop/electron/src/cors.js";
+import { htmlPanel, htmlBloque, coloca, zonasEnPixeles } from "../desktop/electron/overlay/paneles.js";
 
 const temporal = () => fs.mkdtempSync(path.join(os.tmpdir(), "vs-electron-"));
 
@@ -170,5 +173,100 @@ test("los paneles se anclan, no se salen del juego y con mismoAncho miden igual"
   assert.equal(borde.left + borde.width, 2000);
   const iguales = coloca([{ x: 0.3, y: 0 }, { x: 0.6, y: 0 }], [150, 180], vista, true);
   assert.deepEqual(iguales.map((p) => p.width), [200, 200], "nunca por debajo del 10% del ancho");
+  const juntas = coloca([{ x: 0.4, y: 0 }, { x: 0.52, y: 0 }], [400, 300], vista, true);
+  assert.deepEqual(juntas.map((p) => p.width), [232, 232], "las tarjetas iguales no se pisan: como mucho el hueco entre ellas");
   assert.equal(coloca([{ x: 0.5, y: 0 }], [5000], vista)[0].width, 680, "como mucho un 34%");
+  assert.deepEqual(coloca([{ x: 1, y: 0, anclaje: "derecha", anchoMin: 0.2 }], [300], vista)[0], { left: 1600, top: 0, width: 400 }, "con anchoMin no cambia de ancho según el contenido");
+});
+
+test("los paneles con botones se marcan como interactivos y sus botones llevan la acción", () => {
+  const html = htmlPanel({ bloques: [
+    { tipo: "botones", rotulo: "Refino", botones: [{ texto: "Rad", accion: "refino:Rad", activo: true }, { texto: "x", accion: "mal accion" }] },
+  ] });
+  assert.match(html, /^<div class="panel interactivo">/);
+  assert.match(html, /<button type="button" class="boton activo" data-accion="refino:Rad">Rad<\/button>/);
+  assert.equal((html.match(/<button/g) || []).length, 1, "una acción con formato raro no se pinta");
+  assert.doesNotMatch(htmlPanel({ bloques: [{ tipo: "titulo", texto: "x" }] }), /interactivo/);
+});
+
+test("las zonas clicables pasan a píxeles reales y se descartan las vacías", () => {
+  assert.deepEqual(zonasEnPixeles([{ left: 10.4, top: 20.6, width: 100.2, height: 50 }, { left: 0, top: 0, width: 0, height: 10 }], 1.5),
+    [{ x: 15, y: 30, width: 151, height: 75 }]);
+});
+
+test("con Warframe solo se lee: ni entrada, ni procesos, y lo nativo que escribe va a la ventana propia", () => {
+  const carpeta = new URL("../desktop/electron/src/", import.meta.url);
+  const fuentes = fs.readdirSync(carpeta).filter((f) => /\.(c?js)$/.test(f)).map((f) => [f, fs.readFileSync(new URL(f, carpeta), "utf8")]);
+  const prohibido = /SendInput|PostMessage|SendMessage|keybd_event|mouse_event|SetForegroundWindow|SetWindowPos|ShowWindow|SetWindowLong|XSendEvent|XTest|XWarpPointer|XSetInputFocus|XRaiseWindow|XGrab|OpenProcess|ReadProcessMemory|WriteProcessMemory|CreateRemoteThread|child_process|robotjs|nut-js/;
+  for (const [f, src] of fuentes) assert.doesNotMatch(src, prohibido, f);
+
+  const juego = fuentes.find(([f]) => f === "juego.js")[1];
+  const nativas = [...juego.matchAll(/func\("[^"(]*?\*?(\w+)\(/g)].map((m) => m[1]).sort();
+  assert.deepEqual(nativas, [
+    "ClientToScreen", "FindWindowW", "GetClientRect", "IsIconic", "IsWindowVisible",
+    "XChangeWindowAttributes", "XDefaultRootWindow", "XFetchName", "XFree", "XGetClassHint", "XGetWindowAttributes",
+    "XOpenDisplay", "XQueryTree", "XSetErrorHandler", "XShapeCombineRectangles", "XSync", "XTranslateCoordinates",
+  ]);
+  for (const llamada of juego.matchAll(/f\.(XChangeWindowAttributes|XShapeCombineRectangles)\(d, (\w+)/g)) assert.equal(llamada[2], "w");
+  assert.equal(juego.match(/const w = ventanaDeAsa\(asa\);/g)?.length, 2);
+
+  const overlay = fuentes.find(([f]) => f === "ventana-overlay.js")[1];
+  const asas = [...overlay.matchAll(/(?:sinGestor|zonasDeEntrada)\(([\w.]+(?:\(\))?)/g)].map((m) => m[1]);
+  assert.deepEqual(asas, ["ventana.getNativeWindowHandle()", "v.getNativeWindowHandle()"]);
+
+  const eelog = fuentes.find(([f]) => f === "eelog.js")[1];
+  assert.deepEqual([...eelog.matchAll(/abrir\(ruta, "(\w+)"\)/g)].map((m) => m[1]), ["r"]);
+});
+
+test("la consola de la app se guarda con su hora y no crece sin límite", async () => {
+  const ruta = path.join(temporal(), "consola.log");
+  const anota = creaRegistroConsola(ruta, { ahora: () => new Date("2026-10-03T09:46:09.123Z"), max: 120 });
+  anota("info", "[MC] 18 casillas\nsegunda línea");
+  await new Promise((r) => setTimeout(r, 50));
+  assert.equal(fs.readFileSync(ruta, "utf8"), "2026-10-03T09:46:09.123Z info [MC] 18 casillas | segunda línea\n");
+  for (let i = 0; i < 4; i++) anota("warning", "x".repeat(40));
+  await new Promise((r) => setTimeout(r, 50));
+  assert.ok(fs.existsSync(`${ruta}.1`), "pasado el tope se rota a .1");
+  assert.ok(fs.statSync(ruta).size <= 120);
+});
+
+test("el overlay solo carga imágenes de assets/ de la propia app", () => {
+  assert.equal(htmlBloque({ tipo: "titulo", texto: "Steflos Barrel", imagen: "assets/relic_contents/prime_barrel.webp" }),
+    '<div class="titulo tono-ducado"><img class="img" src="/assets/relic_contents/prime_barrel.webp" alt="">Steflos Barrel</div>');
+  for (const mala of ["../secreto.webp", "assets/../x.webp", "https://evil.example/x.png", "javascript:alert(1)", "assets/x.webp\" onerror=\"x", "/etc/passwd"]) {
+    assert.ok(!htmlBloque({ tipo: "titulo", texto: "x", imagen: mala }).includes("<img"), mala);
+  }
+  assert.match(htmlBloque({ tipo: "lista", filas: [[{ texto: "Blade 11%", imagen: "assets/relic_contents/blade.webp" }]] }), /<img class="img" src="\/assets\/relic_contents\/blade.webp" alt="">Blade 11%/);
+});
+
+test("el zoom de la app arranca según la pantalla, se ajusta con límites y se recuerda", () => {
+  assert.deepEqual([zoomPorDefecto(1920), zoomPorDefecto(2560), zoomPorDefecto(1366)], [1.1, 1.2, 1]);
+  const ruta = path.join(temporal(), "zoom.json");
+  const z = creaZoom(ruta, { porDefecto: 1.2 });
+  assert.equal(z.get(), 1.2);
+  assert.equal(z.sube(), 1.3);
+  for (let i = 0; i < 20; i++) z.sube();
+  assert.equal(z.get(), 2, "como mucho el doble");
+  assert.equal(creaZoom(ruta, { porDefecto: 1 }).get(), 2, "se recuerda entre arranques");
+  assert.equal(z.reinicia(), 1.2);
+  fs.writeFileSync(ruta, "{basura");
+  assert.equal(creaZoom(ruta, { porDefecto: 1.1 }).get(), 1.1);
+});
+
+test("las respuestas de los workers propios llevan el origen de la app de escritorio, y solo esas", () => {
+  assert.deepEqual(HOSTS_PROPIOS, ["https://api.voidstonks.com/*", "https://*.edelamf0.workers.dev/*"]);
+  const origen = "http://voidstonks.localhost:47823";
+  const fuera = conCorsDeLaApp({ "access-control-allow-origin": ["https://voidstonks.com"], "Access-Control-Allow-Credentials": ["true"], "content-type": ["application/json"], vary: ["Origin"] }, origen);
+  assert.deepEqual(fuera, { "content-type": ["application/json"], vary: ["Origin"], "Access-Control-Allow-Origin": [origen] });
+  assert.deepEqual(conCorsDeLaApp(undefined, origen), { "Access-Control-Allow-Origin": [origen] });
+});
+
+test("solo las rutas de cuenta de WFM pedidas por la app salen con origen localhost", () => {
+  const app = "http://voidstonks.localhost:47823";
+  const cab = { Origin: app, "X-WFM-Token": "t" };
+  assert.deepEqual(conOrigenLocalParaWfm("https://api.voidstonks.com/?type=wfm_login", cab, app), { "X-WFM-Token": "t", Origin: "http://localhost:47823" });
+  assert.equal(conOrigenLocalParaWfm("https://api.voidstonks.com/?type=prices_snapshot", cab, app), cab, "lo demás no se toca");
+  const ajeno = { origin: "https://evil.example" };
+  assert.equal(conOrigenLocalParaWfm("https://api.voidstonks.com/?type=wfm_login", ajeno, app), ajeno, "otro origen no se disfraza");
+  assert.equal(conOrigenLocalParaWfm("no es url", cab, app), cab);
 });
