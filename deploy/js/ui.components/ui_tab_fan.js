@@ -1,5 +1,7 @@
 // moves tabs that do not fit in the bar into a fan menu over a veil
 
+import { carcasaActiva } from "../utils/shell.js";
+
 const MIN_TAB_PX = 104;
 
 const MOBILE_MAX_TABS = 4;
@@ -53,7 +55,9 @@ function applyReflow(all) {
   if (barWidth === 0) return;
 
   let visibleCount;
-  if (isMobile) {
+  if (carcasaActiva()) {
+    visibleCount = all.length;
+  } else if (isMobile) {
     visibleCount = MOBILE_MAX_TABS;
   } else {
     const fitsAll = Math.floor(barWidth / MIN_TAB_PX) >= all.length;
@@ -113,8 +117,13 @@ function buildFanItems() {
       img.className = "tab-fan-icon";
       item.appendChild(img);
     } else {
-      const emoji = document.querySelector(`#btn-${mode} .tab-icon-img`)?.textContent?.trim();
-      if (emoji) {
+      const icono = document.querySelector(`#btn-${mode} .tab-icon-img`);
+      const emoji = icono?.textContent?.trim();
+      if (icono?.tagName?.toLowerCase() === "svg") {
+        const copia = icono.cloneNode(true);
+        copia.setAttribute("class", "tab-fan-icon tab-icon-svg");
+        item.appendChild(copia);
+      } else if (emoji) {
         const glyph = document.createElement("span");
         glyph.className = "tab-fan-icon";
         glyph.setAttribute("aria-hidden", "true");

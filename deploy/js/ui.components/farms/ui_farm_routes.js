@@ -66,13 +66,14 @@ function partLineHtml(m, t) {
             + `<span class="fr-where">${escapeHTML(f.type)} · ${escapeHTML(f.node)}${f.eta ? ` · ${escapeHTML(f.eta)}` : ""}</span>`;
     } else if (key === "wait") {
         action = relicPickerHtml(best.relic, best.relic, st.cls)
-            + `<span class="fr-dim">×${best.owned}${m.someReady ? ` · ${t.noFissure}` : ""}</span>${runs}`;
+            + `<span class="fr-dim">×${best.owned}</span>${runs}`
+            + (m.someReady ? `<span class="fr-where fr-dim">${t.noFissure}</span>` : "");
     } else {
         const src = best.sources[0];
         action = relicPickerHtml(best.relic, best.relic, st.cls) + runs
             + (src
                 ? `<span class="fr-where">${t.farmIn} ${escapeHTML(src.location)}${src.rotation ? ` · ${t.rot} ${escapeHTML(src.rotation)}` : ""}</span>`
-                : `<span class="fr-dim">${t.need}</span>`);
+                : `<span class="fr-where fr-dim">${t.need}</span>`);
     }
 
     const compra = m.betterToBuy
@@ -99,8 +100,9 @@ function partLineHtml(m, t) {
           + `${escapeHTML((t.needQty || "×{n}").replace("{n}", m.needed))}</span>`
         : "";
 
+    const avisos = compra || refinar ? `<span class="fr-tags">${compra}${refinar}</span>` : "";
     return `<li class="fr-part ${st.cls}">${dot}`
-        + `<span class="fr-name">${escapeHTML(getPartShortName(m.part, m.setName))}</span>${cantidad}${action}${compra}${refinar}</li>`;
+        + `<span class="fr-name">${escapeHTML(getPartShortName(m.part, m.setName))}</span>${cantidad}${action}${avisos}</li>`;
 }
 
 
