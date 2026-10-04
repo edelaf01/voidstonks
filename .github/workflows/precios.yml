@@ -1,0 +1,73 @@
+name: Precios WFM
+
+on:
+  schedule:
+    - cron: '30 3 * * *'
+    - cron: '0 4,16 * * *'
+  workflow_dispatch: {}
+
+concurrency:
+  group: precios-wfm-${{ github.event.schedule || 'manual' }}
+  cancel-in-progress: false
+
+env:
+  API: https://shrill-brook-d8aa.edelamf0.workers.dev
+
+jobs:
+  arcanos:
+    if: github.event_name != 'schedule' || github.event.schedule == '30 3 * * *'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Script del repo del cron
+        uses: actions/checkout@v5
+        with:
+          repository: edelaf01/Voidstonks-cron
+          token: ${{ secrets.DATASET_READ_PAT || secrets.CRON_DATASET_PAT }}
+          sparse-checkout: precios_arcanos.py
+          sparse-checkout-cone-mode: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Precios desde las estadísticas de warframe.market
+        run: python precios_arcanos.py --arcanos https://raw.githubusercontent.com/edelaf01/voidstonks/main/deploy/assets/json/arcanes_vosfor.json --salida precios_arcanos.json
+
+      - name: Subir al worker
+        env:
+          PRECIOS_SECRET: ${{ secrets.PRECIOS_SECRET }}
+        run: |
+          curl -fsS -X POST "$API/?type=precios_subir&tipo=arcanos" \
+            -H "X-Precios-Secret: $PRECIOS_SECRET" -H "Content-Type: application/json" \
+            --data-binary @precios_arcanos.json
+
+  prime:
+    if: github.event_name != 'schedule' || github.event.schedule == '0 4,16 * * *'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Script del repo del cron
+        uses: actions/checkout@v5
+        with:
+          repository: edelaf01/Voidstonks-cron
+          token: ${{ secrets.DATASET_READ_PAT || secrets.CRON_DATASET_PAT }}
+          sparse-checkout: precios_prime.py
+          sparse-checkout-cone-mode: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Precios desde /top de warframe.market
+        run: python precios_prime.py --previos "$API/?type=prices_snapshot" --salida precios_prime.json
+
+      - name: Subir al worker
+        env:
+          PRECIOS_SECRET: ${{ secrets.PRECIOS_SECRET }}
+        run: |
+          curl -fsS -X POST "$API/?type=precios_subir&tipo=prime" \
+            -H "X-Precios-Secret: $PRECIOS_SECRET" -H "Content-Type: application/json" \
+            --data-binary @precios_prime.json
