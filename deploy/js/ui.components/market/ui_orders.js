@@ -473,7 +473,7 @@ function sellableRow(item, meta, market) {
 
     const hint = el("span", "inv-suggested");
     if (suggested) hint.append(el("span", "inv-suggested-label", t.invSuggested), plat(suggested));
-    else Object.assign(hint, { textContent: "—", title: t.invNoPrice });
+    else Object.assign(hint, { textContent: "-", title: t.invNoPrice });
     row.appendChild(hint);
 
     const btn = el("button", "order-act ok", t.invSell);
@@ -596,12 +596,12 @@ async function startLiveWatch(orders) {
         const t = txt();
 
         onUndercut(({ name, theirs, mine, user }) => {
-            globalThis.showToast?.(`${t.undercutAlert}: ${name} — ${theirs}p (${t.yours} ${mine}p) · ${user}`);
+            globalThis.showToast?.(`${t.undercutAlert}: ${name}, ${theirs}p (${t.yours} ${mine}p) · ${user}`);
             markCardStale(name);
         });
 
         onDeal(({ name, platinum, discount, user }) => {
-            globalThis.showToast?.(`${t.dealAlert}: ${name} — ${platinum}p (-${discount}%) · ${user}`);
+            globalThis.showToast?.(`${t.dealAlert}: ${name}, ${platinum}p (-${discount}%) · ${user}`);
         });
 
         onPrice(({ itemId, sell }) => {
@@ -848,7 +848,7 @@ function filterBar(orders, onChange) {
 /** Cabecera con la identidad y las acciones de sesión. */
 function sessionBar() {
     const t = txt();
-    const name = getIngameName() || "—";
+    const name = getIngameName() || "-";
 
     const bar = el("div", "orders-bar");
     bar.appendChild(el("div", "orders-avatar", name.charAt(0).toUpperCase()));
@@ -906,7 +906,7 @@ function orderCard(order) {
         || order.item?.i18n?.en?.name
         || order.itemSlug
         || order.item?.slug
-        || "—";
+        || "-";
 
     if (order.itemThumb || slug) {
         const img = el("img", "order-thumb");
@@ -1029,7 +1029,7 @@ function openEditor(card, order) {
 
     // --- Cabecera ---
     const head = el("div", "orders-modal-head");
-    head.appendChild(el("h3", "orders-modal-title", order.itemName || order.itemSlug || "—"));
+    head.appendChild(el("h3", "orders-modal-title", order.itemName || order.itemSlug || "-"));
     const closeBtn = el("button", "orders-modal-x", "×");
     closeBtn.type = "button";
     closeBtn.setAttribute("aria-label", t.close);

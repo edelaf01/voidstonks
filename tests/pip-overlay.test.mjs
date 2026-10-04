@@ -191,7 +191,8 @@ test("los textos de la tarjeta siguen el idioma de la app", async () => {
 test("un precio sin datos se enseña como raya, no como cero", async () => {
   await conPip((doc) => {
     PiP.renderItemsInPiP([item({ price: 0 })]);
-    assert.match(html1(doc), /—/);
+    assert.match(html1(doc), />\s*-\s*<\/div>/);
+    assert.doesNotMatch(html1(doc), />\s*0\s*<\/div>/);
   });
 });
 

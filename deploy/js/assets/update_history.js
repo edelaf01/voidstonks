@@ -992,7 +992,7 @@ export const UPDATE_HISTORY_DATA = {
 
   <p class="update-foot">
     <em>The price is an estimate: you may sell for more or for less depending on supply and
-    demand. This isn't abandoned, by the way — I work on it every other day when I can. I've
+    demand. This isn't abandoned, by the way: I work on it every other day when I can. I've
     had some real-life scares with family health on top of a full-time job. Next I want to
     prioritise mobile, so you console tenno get a reliable overlay on your phone while you
     play.</em>

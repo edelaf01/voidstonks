@@ -391,7 +391,7 @@ DucatKioskService.onSale = (venta) => {
   if (globalThis.renderPrimeInventory) globalThis.renderPrimeInventory();
   ScannerHUD.updateDetectedItems(ScannerService.sessionInventory, ScannerService.sessionRelics);
   recomiendaParaBaro().catch(console.warn);
-  const lista = restadas.map((r) => `${r.qty}× ${r.name}`).join(", ") || "—";
+  const lista = restadas.map((r) => `${r.qty}× ${r.name}`).join(", ") || "-";
   const faltan = ausentes.length ? (t.ducatSoldMissing || "").replace("{missing}", ausentes.join(", ")) : "";
   showToast((t.ducatSold || "Sold: {items}").replace("{items}", lista) + faltan, { duration: 8000 });
 };

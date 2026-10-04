@@ -1,7 +1,7 @@
 import { esEscritorio, carcasaActiva } from "../utils/shell.js";
 import {
   enLanzador, capacidadesNativas, copiarNativo, activaOverlay, mostrarPaneles, quitarPaneles,
-  quitarTodosAlSalir, estrenaAutoCopia, duracionRecompensas, leePanelesOcultos, guardaPanelesOcultos,
+  quitarTodosAlSalir, estrenaAutoCopia, duracionRecompensas, leePanelesOcultos, guardaPanelesOcultos, conDepuracion,
 } from "../services/desktop.service.js";
 import { ClipboardService } from "../services/clipboard.service.js";
 import { EELogLive } from "../services/scanner/eelog_live.service.js";
@@ -121,14 +121,16 @@ async function montarNativas(grupo) {
   conectaEscaner();
   EELogLive.escuchar(quitaLoQueCerroElJuego);
   globalThis.addEventListener("pagehide", quitarTodosAlSalir);
-  if (caps.overlay) {
-    const btn = botonLateral("ds-btn-overlay", ICONO_OVERLAY, "Overlay", "Overlay", conPermiso("overlay", pruebaOverlay));
-    btn.dataset.tooltip = "Prueba: paneles de ejemplo encima del juego / Test: sample panels over the game";
-    grupo.prepend(btn);
+  if (conDepuracion()) {
+    if (caps.overlay) {
+      const btn = botonLateral("ds-btn-overlay", ICONO_OVERLAY, "Overlay", "Overlay", conPermiso("overlay", pruebaOverlay));
+      btn.dataset.tooltip = "Prueba: paneles de ejemplo encima del juego / Test: sample panels over the game";
+      grupo.prepend(btn);
+    }
+    const log = botonLateral("ds-btn-eelog", ICONO_LOG, "Registro", "Game log", conPermiso("eelog", alternarInspectorEELog));
+    log.dataset.tooltip = "EE.log";
+    grupo.prepend(log);
   }
-  const log = botonLateral("ds-btn-eelog", ICONO_LOG, "Registro", "Game log", conPermiso("eelog", alternarInspectorEELog));
-  log.dataset.tooltip = "EE.log";
-  grupo.prepend(log);
 
   const enlace = document.createElement("button");
   enlace.type = "button";

@@ -432,7 +432,7 @@ export const ScannerModal = {
                 </div>
                 <div class="modal-badge-name">${escapeHTML(item.name.toUpperCase())}</div>
                 <div class="modal-badge-row">
-                    <div class="modal-badge-price"><img src="assets/relic_contents/platinum.webp" class="currency-icon">${item.price || "—"}</div>
+                    <div class="modal-badge-price"><img src="assets/relic_contents/platinum.webp" class="currency-icon">${item.price || "-"}</div>
                     <div class="modal-badge-ducats"><img src="assets/Ducats.webp" class="currency-icon">${item.ducats || 0}</div>
                 </div>
             </div>

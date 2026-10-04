@@ -19,7 +19,7 @@ export function handleFissureAlarmHits(hits) {
   if (!hits || hits.length === 0) return;
   const lines = hits.slice(0, 4).map(({ item }) => {
     const typeTxt = t.modes[(item.type || "").toLowerCase()] || item.type;
-    return `${item.tier} · ${typeTxt} — ${item.node}${item.isStorm ? " (RJ)" : ""}${item.isSP ? " [SP]" : ""}`;
+    return `${item.tier} · ${typeTxt} · ${item.node}${item.isStorm ? " (RJ)" : ""}${item.isSP ? " [SP]" : ""}`;
   });
   const more = hits.length > 4 ? ` +${hits.length - 4}` : "";
   sendBrowserNotification(t.fissureAlarms.firedTitle, lines.join("\n") + more);
@@ -41,7 +41,7 @@ export function handleArbitrationAlarmHits(hits) {
   if (!hits || hits.length === 0) return;
   const lines = hits.map(({ item }) => {
     const typeTxt = t.modes[(item.type || "").toLowerCase()] || item.type;
-    return `${item.tier ? `[${item.tier}] ` : ""}${typeTxt} — ${item.node}`;
+    return `${item.tier ? `[${item.tier}] ` : ""}${typeTxt} · ${item.node}`;
   });
   sendBrowserNotification(t.arbyAlarms.firedTitle, lines.join("\n"));
   showToast(`<b>${escapeHTML(t.arbyAlarms.firedTitle)}</b><br>${lines.map(escapeHTML).join("<br>")}`, {

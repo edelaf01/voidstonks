@@ -1661,7 +1661,7 @@ function packHighlights(pack, bestRate) {
 
     return `
     <div class="vosfor-highlights">
-      <div><span style="color:#42f56c;font-weight:bold;">${escapeHTML(t.bestToSell || "Más plat por venta:")}</span> ${sellList || "—"}</div>
+      <div><span style="color:#42f56c;font-weight:bold;">${escapeHTML(t.bestToSell || "Más plat por venta:")}</span> ${sellList || "-"}</div>
       <div><span style="color:#c59afc;font-weight:bold;">${escapeHTML(t.bestToDissolve || "Más Vosfor al disolver:")}</span> ${byVosforValue}</div>
     </div>`;
 }

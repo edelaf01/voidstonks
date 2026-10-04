@@ -634,7 +634,7 @@ async function renderArbitrationBar() {
     } else {
       const nextS = upcoming.find((m) => (m.tier || "").toUpperCase() === "S" && new Date(m.activation) > syncedNow);
       nextSLine = nextS
-        ? `<div class="arby-next-s">⭐ ${escapeHTML(t.arbitration.nextS)}: ${escapeHTML(typeOf(nextS))} — ${escapeHTML(nextS.node)} · <span class="arby-next-time" data-starts="${nextS.activation}">${escapeHTML(t.arbitration.startsIn)} ${relTo(nextS.activation)}</span></div>`
+        ? `<div class="arby-next-s">⭐ ${escapeHTML(t.arbitration.nextS)}: ${escapeHTML(typeOf(nextS))} · ${escapeHTML(nextS.node)} · <span class="arby-next-time" data-starts="${nextS.activation}">${escapeHTML(t.arbitration.startsIn)} ${relTo(nextS.activation)}</span></div>`
         : `<div class="arby-next-s arby-next-s-none">${escapeHTML(t.arbitration.noNextS)}</div>`;
     }
 
@@ -646,7 +646,7 @@ async function renderArbitrationBar() {
       return `
           <div class="arby-next-row">
               <span class="arby-next-time" data-starts="${m.activation}">${escapeHTML(t.arbitration.startsIn)} ${rel}</span>
-              <span class="arby-next-info">${escapeHTML(typeOf(m))} — ${escapeHTML(m.node)}</span>
+              <span class="arby-next-info">${escapeHTML(typeOf(m))} · ${escapeHTML(m.node)}</span>
               ${tier}
           </div>`;
     }).join("");

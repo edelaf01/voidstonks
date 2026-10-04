@@ -1,5 +1,9 @@
 const puente = () => globalThis.voidstonksNativo;
 
+export function modoDesarrollo() {
+  return puente()?.desarrollo === true;
+}
+
 export async function capacidadesDelLanzador() {
   return puente()?.capacidades().catch(() => null) ?? null;
 }

@@ -153,7 +153,7 @@ function renderArbList() {
   const t = arbT();
   const ops = filteredOps();
   if (meta && lastSnapshot) {
-    const when = lastSnapshot.generated ? new Date(lastSnapshot.generated).toLocaleTimeString() : "—";
+    const when = lastSnapshot.generated ? new Date(lastSnapshot.generated).toLocaleTimeString() : "-";
     const total = lastSnapshot.total || 0;
     const inv = lastSnapshot.scanned || 0;
     meta.textContent = `${t.updated || "Actualizado"}: ${when} · ${t.inventory || "inventario"}: ${inv}/${total} · ${ops.length} ${t.shown || "mostrados"}`;

@@ -1141,8 +1141,8 @@ function buildStatsHtml(weaponName) {
       : rType.includes("pistol") ? "Galvanized Shot"
       : "Galvanized Aptitude";
     const tip = state.currentLang === "es"
-      ? `Con ${coMod} (y sus variantes), el daño por estado ${isMult ? "se MULTIPLICA con el daño base — escala mucho mejor" : "se SUMA de forma plana — escala peor"}.`
-      : `With ${coMod} (and its variants), status damage ${isMult ? "stacks MULTIPLICATIVELY with base damage — scales much better" : "adds up FLATLY — scales worse"}.`;
+      ? `Con ${coMod} (y sus variantes), el daño por estado ${isMult ? "se MULTIPLICA con el daño base y escala mucho mejor" : "se SUMA de forma plana y escala peor"}.`
+      : `With ${coMod} (and its variants), status damage ${isMult ? "stacks MULTIPLICATIVELY with base damage and scales much better" : "adds up FLATLY and scales worse"}.`;
 
     coBadgeHtml = `
       <div title="${tip}" style="display:flex; justify-content:space-between; align-items:center; margin:4px 0 2px; padding:4px 6px; background:${isMult ? "rgba(0,255,120,0.06)" : "rgba(241,196,15,0.06)"}; border:1px solid ${isMult ? "rgba(0,255,120,0.2)" : "rgba(241,196,15,0.2)"}; border-radius:4px; cursor:help;">

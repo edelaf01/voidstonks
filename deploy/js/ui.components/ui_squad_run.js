@@ -41,7 +41,7 @@ function relicRow(relic, t) {
     return `<div class="squad-relic">
       <span class="squad-relic-name">${escapeHTML(relic.name)}</span>${copias}
       <span class="squad-relic-ref is-${escapeHTML(relic.refinement || "intact")}"${title}>${escapeHTML(ref)}${relic.assumedRefinement ? "?" : ""}</span>
-      <span class="squad-relic-ev" title="${escapeHTML(t.scannerHUD.squadRelicEV)}">${relic.ev > 0 ? plat(relic.ev) : "—"}</span>
+      <span class="squad-relic-ev" title="${escapeHTML(t.scannerHUD.squadRelicEV)}">${relic.ev > 0 ? plat(relic.ev) : "-"}</span>
     </div>`;
 }
 
@@ -57,7 +57,7 @@ function dropRow(drop, t) {
       <span class="squad-drop-name">${escapeHTML(drop.name)}</span>
       ${tag}
       <span class="squad-drop-chance">${(drop.chance * 100).toFixed(0)}%</span>
-      <span class="squad-drop-plat">${drop.plat > 0 ? plat(drop.plat) : "—"}</span>
+      <span class="squad-drop-plat">${drop.plat > 0 ? plat(drop.plat) : "-"}</span>
     </div>`;
 }
 

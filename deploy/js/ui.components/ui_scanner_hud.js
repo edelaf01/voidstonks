@@ -100,7 +100,7 @@ export const ScannerHUD = {
         if (mesa.confirmada) panel.appendChild(nodo("div", "trade-confirmada", sh.tradeConfirmed));
         for (const [lado, titulo] of [["doy", sh.tradeGive], ["recibo", sh.tradeReceive]]) {
             panel.appendChild(nodo("div", "trade-title", titulo));
-            if (!mesa[lado].length) panel.appendChild(nodo("div", "trade-empty", "—"));
+            if (!mesa[lado].length) panel.appendChild(nodo("div", "trade-empty", "-"));
             for (const { tipo, name, qty, plat } of mesa[lado]) {
                 const linea = nodo("div", "trade-line");
                 linea.appendChild(nodo("span", "trade-name", tipo === "platino" ? `${name} ${qty}` : `${qty > 1 ? `${qty}× ` : ""}${name}`));

@@ -1,4 +1,5 @@
 import {
+  modoDesarrollo,
   capacidadesDelLanzador,
   guardarPermisosEnLanzador,
   copiarConLanzador,
@@ -6,6 +7,7 @@ import {
   escucharAccionesDelOverlay,
 } from "../repositories/launcher.repository.js";
 import { oneTimeNoticeSeen, markOneTimeNoticeSeen, leePanelesOcultos, guardaPanelesOcultos } from "../repositories/storage.repository.js";
+import { DEBUG_ACTIVO } from "../utils/debug_log.js";
 
 export { leePanelesOcultos, guardaPanelesOcultos };
 
@@ -14,6 +16,10 @@ export const PANTALLA_RECOMPENSAS_MS = 15_500;
 
 export function duracionRecompensas(desde, ahora = Date.now()) {
   return desde ? Math.max(3000, PANTALLA_RECOMPENSAS_MS - (ahora - desde)) : RECOMPENSAS_DURACION_MS;
+}
+
+export function conDepuracion({ debug = DEBUG_ACTIVO, desarrollo = modoDesarrollo() } = {}) {
+  return debug || desarrollo;
 }
 
 export function enLanzador(hostname = globalThis.location?.hostname) {

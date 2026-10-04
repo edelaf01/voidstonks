@@ -423,7 +423,7 @@ export class MobileScanner {
         // 2) REFLEJO DE PANTALLA (glare): avisamos para que cambien el ángulo.
         const glare = OpenCVEngine.isReady ? OpenCVEngine.glareLevel(cvs) : 0;
         const glareHigh = glare > (s.glareMax ?? 0.12);
-        this.setVisionStatus(glareHigh ? "⚠️ REFLEJO — CAMBIA EL ÁNGULO" : `● BUSCANDO (foco ${Math.round(sharp)})`, glareHigh ? "#e67e22" : "#00e5ff");
+        this.setVisionStatus(glareHigh ? "⚠️ REFLEJO: CAMBIA EL ÁNGULO" : `● BUSCANDO (foco ${Math.round(sharp)})`, glareHigh ? "#e67e22" : "#00e5ff");
 
         // Binariza por color: usa el calibrado si existe; si no, detecta el color al vuelo.
         const liveColor = this.visionCalib?.color || OpenCVEngine.detectAccentColor(cvs);
@@ -498,7 +498,7 @@ export class MobileScanner {
         label.className = "premium-mobile-badge";
         const price = getPriceValue(nameU, getSlug(nameU));
         const owned = (state.primeInventory && state.primeInventory[nameU]) || 0;
-        const priceText = typeof price === "number" ? price : "—";
+        const priceText = typeof price === "number" ? price : "-";
         label.innerHTML = `
           <div class="pmb-name">${escapeHTML(nameU)}</div>
           <div class="pmb-data">
@@ -922,7 +922,7 @@ export class MobileScanner {
             <div class="mobile-card-header">${escapeHTML(it.name)}</div>
           </div>
           <div class="mobile-currency-row">
-            <div class="mobile-price">${typeof price === 'number' ? price : "—"}<img src="assets/relic_contents/platinum.webp" alt="PL" title="Platinum" style="width:14px; height:14px; vertical-align:-2px; margin-left:3px;"></div>
+            <div class="mobile-price">${typeof price === 'number' ? price : "-"}<img src="assets/relic_contents/platinum.webp" alt="PL" title="Platinum" style="width:14px; height:14px; vertical-align:-2px; margin-left:3px;"></div>
             ${it.ducats ? `<div class="mobile-ducats">${it.ducats} D</div>` : ""}
           </div>
           <div style="display:flex; justify-content:space-between; align-items:center;">

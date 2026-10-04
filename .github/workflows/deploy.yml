@@ -68,14 +68,13 @@ jobs:
           pnpm install --frozen-lockfile
           node scripts-actu/build-dist.mjs
 
+      # Publica la copia minificada, no el fuente. El proyecto de Pages se llama
+      # warframe-tool (dominios warframe-tool.pages.dev y voidstonks.com): con
+      # --project-name=voidstonks wrangler no lo encontraba y salía con exit 1 en todos los
+      # runs desde agosto, sin que la anotación dijera por qué.
       - name: Deploy to Cloudflare Pages
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CF_API_TOKEN }}
-          accountId: ${{ secrets.CF_ACCOUNT_ID }}
-          # Publica la copia minificada, no el fuente. El proyecto de Pages se llama
-          # warframe-tool (dominios warframe-tool.pages.dev y voidstonks.com): con
-          # --project-name=voidstonks wrangler no lo encontraba y salía con exit 1 en todos los
-          # runs desde agosto, sin que la anotación dijera por qué.
-          workingDirectory: 'dist'
-          command: pages deploy . --project-name=warframe-tool
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+        working-directory: ${{ runner.temp }}
+        run: npx --yes wrangler@4.94.0 pages deploy "$GITHUB_WORKSPACE/dist" --project-name=warframe-tool --branch=main --commit-hash="$GITHUB_SHA"
