@@ -25,18 +25,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: pnpm/action-setup@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: npm
+          cache: pnpm
 
-      # `npm test` es node --test pelado y no necesita dependencias, pero el lint sí
-      # (eslint + globals), y ci las instala desde el lock sin tocar package.json.
-      - run: npm ci
+      # `pnpm test` es node --test pelado y no necesita dependencias, pero el lint sí
+      # (eslint + globals), y --frozen-lockfile las instala del lock sin tocar package.json.
+      - run: pnpm install --frozen-lockfile
 
       - name: Tests
-        run: npm test
+        run: pnpm test
 
       # El objetivo es 0 errores; los warnings heredados (no-unused-vars) no rompen el build.
       - name: Lint
-        run: npm run lint
+        run: pnpm run lint

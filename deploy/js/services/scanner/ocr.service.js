@@ -5,7 +5,7 @@ import { splitFusedWord, catalogVocab, pareceDelVocab } from "../../utils/vision
 import { rawWords, filaPropiaDelEscuadron } from "../../utils/vision/ocr_words.js";
 import { radioDeDedup, pasoEntreTarjetas, zonasDeRotulo } from "../../utils/vision/reward_cards.js";
 import { recuperaComponente, recuperaPorSufijo } from "../../utils/inventory/component_recover.js";
-import { normalizeOCRWords, tokensSinInformacion, tieneEvidenciaPropia, confirmaPrime } from "../../utils/inventory/ocr_words.js";
+import { normalizeOCRWords, tokensSinInformacion, tieneEvidenciaPropia, confirmaPrime, palabrasDeSuTarjeta } from "../../utils/inventory/ocr_words.js";
 
 // the catalog is ASCII but PaddleOCR adds accents ("PRÍME")
 const sinAcentos = (texto) => texto.normalize("NFD").replaceAll(/[\u0300-\u036f]/g, "");
@@ -275,7 +275,7 @@ export const OCRService = {
                     : (w.x >= anchor.x - MARGIN_LEFT && w.x <= maxRightX);
                 const enColumna = suya ? localWords.filter(dentroDeSuya) : localWords;
                 const crudasColumna = crudas.filter(dentroDeSuya);
-                const metadata = this.extractInventoryMetadata(localWords);
+                const metadata = this.extractInventoryMetadata(palabrasDeSuTarjeta(localWords, anchor, globalAnchors));
 
                 const localSoupText = localWords.map(w => w.text).join(" ");
                 const penaltyWords = isStrip ? localWords : localWords.filter(w => Math.abs(w.x - anchor.x) <= imgW * 0.13);

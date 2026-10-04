@@ -16,6 +16,8 @@ export default [
             "dist/**",
             "node_modules/**",
             "antiguo/**",
+            "desktop/electron/node_modules/**",
+            "desktop/electron/out/**",
         ],
     },
     {
@@ -121,7 +123,7 @@ export default [
 
     // Los tests son Node, no navegador: sin esto `no-undef` marcaría process/Buffer/__dirname.
     {
-        files: ["tests/**/*.mjs", "scripts/**/*.mjs"],
+        files: ["tests/**/*.mjs", "scripts/**/*.mjs", "scripts-actu/**/*.mjs"],
         languageOptions: {
             ecmaVersion: "latest",
             sourceType: "module",
@@ -131,6 +133,35 @@ export default [
             "no-undef": "error",
             "no-unused-vars": ["warn", { args: "none", ignoreRestSiblings: true }],
             "no-var": "error",
+        },
+    },
+    {
+        files: ["desktop/electron/src/**/*.{js,cjs}"],
+        languageOptions: {
+            ecmaVersion: "latest",
+            sourceType: "module",
+            globals: { ...globals.node },
+        },
+        rules: {
+            "no-undef": "error",
+            "no-unused-vars": ["warn", { args: "none", ignoreRestSiblings: true }],
+            "no-var": "error",
+        },
+    },
+    {
+        files: ["desktop/electron/src/**/*.cjs"],
+        languageOptions: { sourceType: "commonjs" },
+    },
+    {
+        files: ["desktop/electron/overlay/**/*.js"],
+        languageOptions: {
+            ecmaVersion: "latest",
+            sourceType: "module",
+            globals: { ...globals.browser },
+        },
+        rules: {
+            "no-undef": "error",
+            "no-unused-vars": ["warn", { args: "none", ignoreRestSiblings: true }],
         },
     },
 ];
