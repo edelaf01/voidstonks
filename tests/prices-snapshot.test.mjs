@@ -127,7 +127,7 @@ test("subir primes no borra las reliquias ni al revés", async () => {
 
 test("los arcanos subidos se sirven por arcane_batch sin preguntar a WFM", async () => {
     const env = { ...fakeEnv(), PRECIOS_SECRET: "s3creto" };
-    const energize = { p: 7, h: 8, v: 194.5, pe: 8, rm: 5, pm: 110, hm: 130, vm: 123.5, pem: 130, d: 16, bb: 6, basura: "x" };
+    const energize = { p: 7, h: 8, v: 194.5, pe: 8, rm: 5, pm: 110, hm: 130, vm: 123.5, pem: 130, d: 16, bb: 6, basura: "x", s: 651, sm: 187 };
     const [url, req] = subida("arcanos", { updated: "2026-10-04T03:40:00Z", arcanos: { arcane_energize: energize } });
     assert.deepEqual((await Handlers.precios_subir(url, env, ctx, req)).data, { ok: true, arcanos: 1 });
     const original = globalThis.fetch;
@@ -136,8 +136,8 @@ test("los arcanos subidos se sirven por arcane_batch sin preguntar a WFM", async
     globalThis.caches = { default: { match: async () => undefined, put: async () => {} } };
     try {
         const r = await Handlers.arcane_batch(new URL("https://x/?type=arcane_batch&q=arcane_energize"), env, ctx);
-        const { basura, ...esperado } = energize;
-        assert.equal(basura, "x");
+        const { basura, s, sm, ...esperado } = energize;
+        assert.deepEqual([basura, s, sm], ["x", 651, 187], "lo que no es un campo del arcano, o no significa lo mismo (vendedores), no se sirve");
         assert.deepEqual(r.data.arcane_energize, esperado);
     } finally {
         globalThis.fetch = original;
