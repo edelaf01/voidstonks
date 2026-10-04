@@ -1,4 +1,4 @@
-import { test, mock } from "node:test";
+import { test } from "node:test";
 import assert from "node:assert/strict";
 
 const repo = await import("../deploy/js/repositories/launcher.repository.js");
@@ -24,78 +24,18 @@ test("solo el host del lanzador cuenta como lanzador", () => {
   assert.equal(svc.enLanzador(), false);
 });
 
-test("el latido avisa al momento y luego cada intervalo", () => {
-  mock.timers.enable({ apis: ["setInterval"] });
-  try {
-    let latidos = 0;
-    const id = svc.mantenerLanzador({ late: () => latidos++ });
-    assert.equal(latidos, 1);
-    mock.timers.tick(svc.LATIDO_MS * 2);
-    assert.equal(latidos, 3);
-    clearInterval(id);
-  } finally {
-    mock.timers.reset();
-  }
-});
-
-test("latirAlLanzador hace POST y no lanza si no hay lanzador", async () => {
-  let pedido;
-  await conFetch(async (url, init) => { pedido = { url, init }; return { ok: true }; }, async () => {
-    assert.equal(await repo.latirAlLanzador(), true);
-  });
-  assert.deepEqual(pedido, { url: "/__voidstonks/alive", init: { method: "POST" } });
-  await conFetch(async () => { throw new TypeError("Failed to fetch"); }, async () => {
-    assert.equal(await repo.latirAlLanzador(), false);
-  });
-});
-
-test("las rutas que escriben llevan la cabecera que exige el lanzador", async () => {
-  const pedidos = [];
-  await conFetch(async (url, init) => { pedidos.push({ url, init }); return { ok: true }; }, async () => {
-    assert.equal(await repo.copiarConLanzador("WTB Akarius Prime"), true);
-    assert.equal(await repo.panelesEnJuego({ grupo: "kiosko", paneles: [] }), true);
-  });
-  assert.equal(pedidos[0].url, "/__voidstonks/clip");
-  assert.equal(pedidos[0].init.headers["X-VoidStonks"], "1");
-  assert.equal(pedidos[0].init.body, "WTB Akarius Prime");
-  assert.equal(pedidos[1].init.headers["X-VoidStonks"], "1");
-  assert.equal(pedidos[1].url, "/__voidstonks/paneles");
-  assert.deepEqual(JSON.parse(pedidos[1].init.body), { grupo: "kiosko", paneles: [] });
-
-  await conFetch(async () => { throw new TypeError("Failed to fetch"); }, async () => {
+test("sin el puente nativo no hace nada ni sale a la red", async () => {
+  await conFetch(async () => { throw new Error("no debería pedir nada por HTTP"); }, async () => {
+    assert.equal(await repo.capacidadesDelLanzador(), null);
+    assert.equal(await repo.guardarPermisosEnLanzador({ clip: true }), false);
     assert.equal(await repo.copiarConLanzador("x"), false);
-    assert.equal(await repo.panelesEnJuego({}), false);
-    assert.equal(await repo.capacidadesDelLanzador(), null);
+    assert.equal(await repo.panelesEnJuego({ grupo: "kiosko", paneles: [] }), false);
   });
-  await conFetch(async () => ({ ok: false }), async () => {
-    assert.equal(await repo.capacidadesDelLanzador(), null);
-  });
-});
-
-test("seguirEELogDelLanzador reparte líneas y estados, y se puede cortar", () => {
-  const fuentes = [];
-  globalThis.EventSource = class {
-    constructor(url) { this.url = url; this.oyentes = {}; fuentes.push(this); }
-    addEventListener(n, fn) { this.oyentes[n] = fn; }
-    close() { this.cerrada = true; }
-  };
-  try {
-    const lineas = [], estados = [];
-    const corta = repo.seguirEELogDelLanzador({
-      cola: 1024, alLeer: (l) => lineas.push(...l), alEstado: (n, d) => estados.push([n, d]),
-    });
-    const f = fuentes[0];
-    assert.equal(f.url, "/__voidstonks/eelog?cola=1024");
-    f.oyentes.lineas({ data: "uno\ndos" });
-    f.oyentes.ruta({ data: "/x/EE.log" });
-    f.oyentes.reinicio({ data: "/x/EE.log" });
-    assert.deepEqual(lineas, ["uno", "dos"]);
-    assert.deepEqual(estados, [["ruta", "/x/EE.log"], ["reinicio", "/x/EE.log"]]);
-    corta();
-    assert.equal(f.cerrada, true);
-  } finally {
-    delete globalThis.EventSource;
-  }
+  const corta = repo.seguirEELogDelLanzador({ alLeer: () => assert.fail("sin puente no hay líneas") });
+  assert.equal(typeof corta, "function");
+  corta();
+  const suelta = repo.escucharAccionesDelOverlay(() => {});
+  assert.equal(typeof suelta, "function");
 });
 
 test("fuera del lanzador no se piden permisos nativos", async () => {
@@ -187,7 +127,6 @@ test("en la app de Electron todo va por el puente nativo y nada por fetch", asyn
   };
   try {
     await conFetch(async () => { throw new Error("no debería pedir nada por HTTP"); }, async () => {
-      assert.equal(await repo.latirAlLanzador(), true);
       assert.deepEqual(await repo.capacidadesDelLanzador(), { overlay: true });
       assert.equal(await repo.guardarPermisosEnLanzador({ clip: true }), true);
       assert.equal(await repo.copiarConLanzador("hola"), true);
@@ -248,18 +187,7 @@ test("la carcasa cede a la maqueta web por debajo del ancho mínimo", () => {
   }
 });
 
-test("guardar permisos los manda al lanzador y obliga a volver a pedir las capacidades", async () => {
-  let enviado;
-  await conFetch(async (url, init) => { enviado = { url, init }; return { ok: true }; }, async () => {
-    assert.equal(await repo.guardarPermisosEnLanzador({ eelog: true, clip: false }), true);
-  });
-  assert.equal(enviado.url, "/__voidstonks/permisos");
-  assert.equal(enviado.init.headers["X-VoidStonks"], "1");
-  assert.deepEqual(JSON.parse(enviado.init.body), { eelog: true, clip: false });
-  await conFetch(async () => { throw new TypeError("Failed to fetch"); }, async () => {
-    assert.equal(await repo.guardarPermisosEnLanzador({}), false);
-  });
-
+test("guardar permisos obliga a volver a pedir las capacidades", async () => {
   await enHost("voidstonks.localhost", async () => {
     let version = 0;
     const pide = async () => ({ permisos: { clip: version > 0 } });
