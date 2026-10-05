@@ -6,6 +6,8 @@ export const ESTADO_JUEGO_INICIAL = Object.freeze({
   riven: null,
   menus: Object.freeze([]),
   despiertoHasta: 0,
+  inventario: null,
+  inventarioCambios: 0,
 });
 
 const NO_SON_MENU = new Set(["HudRedux", "OverlayBackground", "ThemedProjectionManager"]);
@@ -26,10 +28,10 @@ export function siguienteEstado(estado, ev, ahora = Date.now()) {
   switch (ev?.tipo) {
     case "mision":
       return ev.fase === "empieza"
-        ? { ...ESTADO_JUEGO_INICIAL, enMision: true, mision: ev.nombre }
-        : { ...ESTADO_JUEGO_INICIAL };
+        ? { ...ESTADO_JUEGO_INICIAL, enMision: true, mision: ev.nombre, inventarioCambios: estado.inventarioCambios + (estado.inventario ? 1 : 0) }
+        : { ...ESTADO_JUEGO_INICIAL, inventarioCambios: estado.inventarioCambios + (estado.inventario ? 1 : 0) };
     case "pantalla":
-      if (ev.swf === "Hub" || ev.swf === "ThemedMainMenu") return { ...ESTADO_JUEGO_INICIAL };
+      if (ev.swf === "Hub" || ev.swf === "ThemedMainMenu") return { ...ESTADO_JUEGO_INICIAL, inventarioCambios: estado.inventarioCambios + (estado.inventario ? 1 : 0) };
       if (ev.swf === "ProjectionRewardChoice") {
         return { ...estado, eligiendoReliquia: false, recompensas: { fase: "abiertas", tarjetas: 0, propia: null, desde: ahora } };
       }
@@ -49,10 +51,21 @@ export function siguienteEstado(estado, ev, ahora = Date.now()) {
       return { ...estado, recompensas: { ...estado.recompensas, propia: ev.ruta } };
     case "rivenCiclo":
       return estado.riven ? { ...estado, riven: { arma: ev.arma, nombre: ev.riven } } : estado;
+    case "inventario":
+      return { ...estado, inventario: { kiosco: ev.kiosco, lista: false, desde: ahora }, inventarioCambios: estado.inventarioCambios + 1 };
+    case "rejilla": {
+      let inventarioCambios = estado.inventarioCambios;
+      if (!estado.inventario) inventarioCambios++;
+      return { ...estado, inventario: { kiosco: estado.inventario?.kiosco ?? false, lista: ev.lista, desde: ahora }, inventarioCambios };
+    }
     case "menu": {
-      if (NO_SON_MENU.has(ev.modulo)) return estado;
-      const sin = estado.menus.filter((m) => m !== ev.modulo);
-      return { ...estado, menus: ev.visible ? [...sin, ev.modulo] : sin };
+      let st = estado;
+      if (ev.modulo === "InventoryTest" && !ev.visible) {
+        st = { ...st, inventario: null, inventarioCambios: st.inventarioCambios + 1 };
+      }
+      if (NO_SON_MENU.has(ev.modulo)) return st;
+      const sin = st.menus.filter((m) => m !== ev.modulo);
+      return { ...st, menus: ev.visible ? [...sin, ev.modulo] : sin };
     }
     default:
       return estado;

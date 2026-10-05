@@ -45,8 +45,10 @@ import { isGarbledCellText } from "../../utils/vision/cell_text_guard.js";
 import { olvidaColorTexto } from "../../utils/vision/reward_preprocess.js";
 import { cedeHilo } from "../../utils/yield.js";
 import { avisa, pistasDelLog } from "../../utils/ganchos.js";
+import { emparejaArcano } from "../../utils/inventory/arcanos_disolucion.js";
 
 export const ScannerService = {
+    ESPERA_FOTO_MS: 350,
     isScanning: false,
     scanInterval: null,
     currentRate: 1200,
@@ -190,23 +192,32 @@ export const ScannerService = {
         let headerText, pasadas = 0, firma = null;
         const cambiado = tituloHaCambiado(headerHash, this.lastHeaderHash);
         const pantallaNueva = franjaQuieta && cambiado && intervalo < INTERVALO_FIN_MISION_MS;
+        const cambioLog = pistasDelLog.cambioPantalla();
+        const releePorLog = cambioLog !== this._cambioLogVisto;
+        if (releePorLog && this.latchedContext === "INVENTORY") {
+            if (this.autoScrollStableTimer) {
+                clearTimeout(this.autoScrollStableTimer);
+                this.autoScrollStableTimer = null;
+            }
+        }
         this._cabeceraVigente = !(enPausa && cambiado);
         if ((firma = pistasDelLog.firma())) {
             headerText = firma.texto;
-            Object.assign(this, { _cabeceraVigente: true, lastHeaderText: headerText, lastHeaderHash: headerHash, lastHeaderOcrTime: Date.now() });
+            Object.assign(this, { _cabeceraVigente: true, lastHeaderText: headerText, lastHeaderHash: headerHash, lastHeaderOcrTime: Date.now(), _cambioLogVisto: cambioLog });
         } else if (this.latchedContext === "TRADE" && TradeService.conDialogo(video)) {
             headerText = this.lastHeaderText || "TRADING POST";
-        } else if (this.lastHeaderText !== null && headerCacheFresh && !pantallaNueva && (enPausa || !cambiado)) {
+        } else if (this.lastHeaderText !== null && headerCacheFresh && !pantallaNueva && !releePorLog && (enPausa || !cambiado)) {
             headerText = this.lastHeaderText;
         } else if ((firma = FirmasTitulo.reconoce(video))) {
             headerText = firma.texto;
-            Object.assign(this, { _cabeceraVigente: true, lastHeaderText: headerText, lastHeaderHash: headerHash, lastHeaderOcrTime: Date.now() });
+            Object.assign(this, { _cabeceraVigente: true, lastHeaderText: headerText, lastHeaderHash: headerHash, lastHeaderOcrTime: Date.now(), _cambioLogVisto: cambioLog });
         } else {
             this._cabeceraVigente = true;
             ({ headerText, pasadas } = await leeCabeceraOCR(this, video, virtualCanvas, worker1, franjaQuieta));
             this.lastHeaderText = headerText;
             this.lastHeaderHash = headerHash;
             this.lastHeaderOcrTime = Date.now();
+            this._cambioLogVisto = cambioLog;
         }
 
         reloj.fase("cabecera");
@@ -219,9 +230,9 @@ export const ScannerService = {
         const containsAnchor = ["MODS", "MODIFICADORES", "CYCLE", "CICLO", "CICLAR", "KUVA", "KUYVA",
             "ATRIBUTOS", "ELEGIR", "CONFIRMAR", "AGRIETADO"].some((a) => textUpper.includes(a));
 
-        if (rawContext === "INVENTORY_MODS" || rawContext === "ITEM_DETAILS" || containsAnchor) {
+        if (rawContext === "INVENTORY_MODS" || rawContext === "ITEM_DETAILS" || rawContext === "RIVEN_DETAILS" || containsAnchor) {
             this.lastRivenContextTime = now;
-            this.lastRivenContextType = rawContext === "ITEM_DETAILS" ? "ITEM_DETAILS" : "INVENTORY_MODS";
+            this.lastRivenContextType = rawContext === "ITEM_DETAILS" || rawContext === "RIVEN_DETAILS" ? rawContext : "INVENTORY_MODS";
         }
 
         const gracia = this.lastRivenContextTime && (now - this.lastRivenContextTime < 8000);
@@ -285,10 +296,10 @@ export const ScannerService = {
         if (!this._invQueue) {
             this._invQueue = createFrameQueue({
                 max: 3,
-                process: (job) => this.processInventoryGrid(job.cvs, job.cvs.width, job.cvs.height, job.meta),
+                process: (job) => this.processInventoryGrid(job.cvs, job.cvs.width, job.cvs.height, job.meta.escala, job.cvs.width, job.meta.contexto),
             });
         }
-        return this._invQueue.enqueue(snapshot, zone.x, zone.y, zone.w, zone.h, dims.scale);
+        return this._invQueue.enqueue(snapshot, zone.x, zone.y, zone.w, zone.h, { escala: dims.scale, contexto: this.latchedContext });
     },
 
     recordQtyVote(itemName, qtyResult, votesMap = this.qtyVotes, targetMap = this.sessionInventory) {
@@ -329,9 +340,9 @@ export const ScannerService = {
             return;
         }
 
-        if (contextType === "INVENTORY") {
-            if (!this.detectionLocked) await DucatKioskService.process(video, this.lastHeaderText);
-            if (!globalThis.state.autoScanEnabled && !DucatKioskService.esKiosco(this.lastHeaderText)) {
+        if (contextType === "INVENTORY" || contextType === "ARCANE_DISSOLUTION") {
+            if (!this.detectionLocked && contextType === "INVENTORY") await DucatKioskService.process(video, this.lastHeaderText);
+            if (!globalThis.state.autoScanEnabled && contextType !== "ARCANE_DISSOLUTION" && !DucatKioskService.esKiosco(this.lastHeaderText)) {
                 this.currentRate = 3000;
                 this.autoScrollMuestra = null;
                 this.sawScrollSinceScan = false;
@@ -412,12 +423,16 @@ export const ScannerService = {
                 || fraccionCambiada(muestra, this.autoScrollMuestra) >= 0.01;
 
             // the grid is periodic and a fast scroll down aliases to a negative dy
-            if (hasPageChanged && !this.autoScrollStableTimer && this._canCapturePage) {
+            if (hasPageChanged && !this.autoScrollStableTimer && this._canCapturePage && pistasDelLog.rejillaLista() !== false) {
                 ScannerHUD.updateScrollStatus("detected");
 
                 this.autoScrollStableTimer = setTimeout(async () => {
                     this.sawScrollSinceScan = false;
                     if ((!globalThis.state.autoScanEnabled && !DucatKioskService.esKiosco(this.lastHeaderText)) || !this._canCapturePage) {
+                        this.autoScrollStableTimer = null;
+                        return;
+                    }
+                    if (pistasDelLog.rejillaLista() === false) {
                         this.autoScrollStableTimer = null;
                         return;
                     }
@@ -432,16 +447,19 @@ export const ScannerService = {
                     }
                     snapshot.getContext("2d", { willReadFrequently: true }).drawImage(v, 0, 0);
 
-                    if (this.enqueueInventoryPage(snapshot, dims)) this.autoScrollMuestra = muestra;
+                    if (this.enqueueInventoryPage(snapshot, dims)) {
+                        this.autoScrollMuestra = muestra;
+                        ScannerHUD.updateScrollStatus("captured");
+                    }
                     this.autoScrollStableTimer = null;
 
-                }, 800);
+                }, this.ESPERA_FOTO_MS);
             } else if (!this.autoScrollStableTimer) {
-                if (this.detectionLocked) ScannerHUD.updateScrollStatus("scanning");
+                if (this.detectionLocked) ScannerHUD.updateScrollStatus(!hasPageChanged ? "captured" : "scanning");
                 else ScannerHUD.updateScrollStatus("done", this.sessionInventory.size + this.sessionRelics.size);
             }
 
-        } else if (contextType === "INVENTORY_MODS" || contextType === "ITEM_DETAILS") {
+        } else if (contextType === "INVENTORY_MODS" || contextType === "ITEM_DETAILS" || contextType === "RIVEN_DETAILS") {
             this.currentRate = this.RIVEN_RATE_ACTIVE;
             if (this.detectionLocked) return;
             await this.processRivenCard(video, dims, contextType);
@@ -608,14 +626,14 @@ export const ScannerService = {
     async processRivenCard(video, dims, contextType = null) {
         const { scale } = dims;
 
-        const cardCrop = contextType === "ITEM_DETAILS" ? VisionService.RIVEN_ITEM_DETAILS_CROP : VisionService.RIVEN_CARD_CROP;
+        const cardCrop = (contextType === "ITEM_DETAILS" || contextType === "RIVEN_DETAILS") ? VisionService.RIVEN_ITEM_DETAILS_CROP : VisionService.RIVEN_CARD_CROP;
 
         const zonas = this._zonasCartas?.length ? this._zonasCartas : [cardCrop];
         const hash = firmaTexto(video, zonas);
 
         if ((this.lastParsedL || this.lastParsedR) && mismoTexto(hash, this.lastHashL)) {
             this.lastRivenContextTime = Date.now();
-            this.lastRivenContextType = contextType === "ITEM_DETAILS" ? "ITEM_DETAILS" : "INVENTORY_MODS";
+            this.lastRivenContextType = (contextType === "ITEM_DETAILS" || contextType === "RIVEN_DETAILS") ? contextType : "INVENTORY_MODS";
             this.currentRate = this.RIVEN_RATE_IDLE;
             this._cartaVigilada = zonas;
             return;
@@ -676,7 +694,7 @@ export const ScannerService = {
 
         if (valids.length || hasCardAnchor) {
             this.lastRivenContextTime = Date.now();
-            this.lastRivenContextType = contextType === "ITEM_DETAILS" ? "ITEM_DETAILS" : "INVENTORY_MODS";
+            this.lastRivenContextType = (contextType === "ITEM_DETAILS" || contextType === "RIVEN_DETAILS") ? contextType : "INVENTORY_MODS";
         }
 
         if (!valids.length) {
@@ -1044,7 +1062,7 @@ export const ScannerService = {
         return /TRADE/.test(this.lastHeaderText || "") ? Math.round(width * ANCHO_REJILLA_TRADEO) : width;
     },
 
-    async processInventoryGrid(snapshot, width, height, scale, anchoMax = width) {
+    async processInventoryGrid(snapshot, width, height, scale, anchoMax = width, contexto = this.latchedContext) {
         const reloj = cronometro("inventario");
         relojBadges.ms = 0; relojBadges.n = 0;
         if (this.detectionLocked) return;
@@ -1170,6 +1188,7 @@ export const ScannerService = {
             if (pageNameColor) this.lastRawOcrLog.push(`[NAME-COLOR] rgb(${pageNameColor.join(",")})`);
 
             const pendingItems = [];
+            const pendingArcanes = [];
 
             const { drawResolved: drawResolvedCell, drawFailed: drawFailedCell } =
                 createCellOverlay(dCtx, gridZone, cellW, cellH);
@@ -1265,15 +1284,18 @@ export const ScannerService = {
 
                     let relicText = combinedText, itemText = combinedText;
                     const readable = !this._isGarbledCellText(combinedText);
-                    let relicMatch = readable ? OCRService.getRelicMatch(combinedText) : null;
+                    const modoArcanos = contexto === "ARCANE_DISSOLUTION";
+
+                    let arcaneMatch = (readable && modoArcanos) ? emparejaArcano(combinedText.join(" "), this.tablaArcanos, (a, b) => OCRService.similarityOCR(a, b)) : null;
+                    let relicMatch = (readable && !modoArcanos) ? OCRService.getRelicMatch(combinedText) : null;
                     if (relicMatch && textoDelLote) {
                         const r = corrige56(relicMatch, PaddleRepository.palabrasDelLote(clave(cell)), PaddleRepository.recorteDelLote(clave(cell)), (n) => !!globalThis.state?.allRelicNames?.includes(n));
                         if (r.cambiado) { logStr += ` || 5/6 por glifo: ${r.nombre}`; relicMatch = r.nombre; }
                     }
-                    let bestItem = (readable && !relicMatch) ? OCRService.getValidItemMatch(combinedText) : null;
+                    let bestItem = (readable && !relicMatch && !modoArcanos) ? OCRService.getValidItemMatch(combinedText) : null;
                     let fallbackText = null;
 
-                    if (!bestItem && !relicMatch) {
+                    if (!bestItem && !relicMatch && !arcaneMatch) {
                         await colorDeNombre();
                         const fallbackY = Math.floor(cellH * 0.73);
                         const fallbackH = Math.floor(cellH * 0.26);
@@ -1284,57 +1306,83 @@ export const ScannerService = {
                             if (this._isGarbledCellText(fallbackText)) fallbackText = null;
                         }
                         if (fallbackText && fallbackText.length) {
-                            relicMatch = OCRService.getRelicMatch(fallbackText);
-                            if (relicMatch) {
-                                relicText = fallbackText;
+                            if (modoArcanos) {
+                                arcaneMatch = emparejaArcano(fallbackText.join(" "), this.tablaArcanos, (a, b) => OCRService.similarityOCR(a, b));
+                                if (arcaneMatch) itemText = fallbackText;
                             } else {
-                                bestItem = OCRService.getValidItemMatch(fallbackText);
-                                if (bestItem) itemText = fallbackText;
+                                relicMatch = OCRService.getRelicMatch(fallbackText);
+                                if (relicMatch) {
+                                    relicText = fallbackText;
+                                } else {
+                                    bestItem = OCRService.getValidItemMatch(fallbackText);
+                                    if (bestItem) itemText = fallbackText;
+                                }
                             }
                         }
                     }
 
-                    if (!bestItem && !relicMatch && pageNameColor && !ownColorUsed) {
+                    if (!bestItem && !relicMatch && !arcaneMatch && pageNameColor && !ownColorUsed) {
                         const ownText = await readCellWithOwnColor(worker, snapshot, cell, cellW, textSrcY, textSrcH, theme);
                         if (ownText?.length && !this._isGarbledCellText(ownText)) {
-                            relicMatch = OCRService.getRelicMatch(ownText);
-                            if (relicMatch) {
-                                relicText = ownText;
+                            if (modoArcanos) {
+                                arcaneMatch = emparejaArcano(ownText.join(" "), this.tablaArcanos, (a, b) => OCRService.similarityOCR(a, b));
+                                if (arcaneMatch) itemText = ownText;
                             } else {
-                                bestItem = OCRService.getValidItemMatch(ownText);
-                                if (bestItem) itemText = ownText;
+                                relicMatch = OCRService.getRelicMatch(ownText);
+                                if (relicMatch) {
+                                    relicText = ownText;
+                                } else {
+                                    bestItem = OCRService.getValidItemMatch(ownText);
+                                    if (bestItem) itemText = ownText;
+                                }
                             }
-                            if (relicMatch || bestItem) {
+                            if (relicMatch || bestItem || arcaneMatch) {
                                 scanStats.ownColor++;
                                 logStr = `[r${cell.r}c${cell.c}] OCR (color propio): ${ownText.join(" ")}`;
                             }
                         }
                     }
 
-                    if (!bestItem && !relicMatch) {
+                    if (!bestItem && !relicMatch && !arcaneMatch) {
                         const r = await readCellCuttingArt(worker, snapshot, cell, cellW, textSrcY, textSrcH, theme, pageNameColor, (ws) => !this._isGarbledCellText(ws));
-                        if (r) { relicMatch = r.relicMatch; bestItem = r.bestItem; if (relicMatch) relicText = r.words; else itemText = r.words; logStr = `[r${cell.r}c${cell.c}] OCR (sin arte, corte ${r.corte}): ${r.words.join(" ")}`; }
+                        if (r) {
+                            if (modoArcanos) {
+                                arcaneMatch = emparejaArcano(r.words.join(" "), this.tablaArcanos, (a, b) => OCRService.similarityOCR(a, b));
+                                if (arcaneMatch) itemText = r.words;
+                            } else {
+                                relicMatch = r.relicMatch; bestItem = r.bestItem; if (relicMatch) relicText = r.words; else itemText = r.words;
+                            }
+                            logStr = `[r${cell.r}c${cell.c}] OCR (sin arte, corte ${r.corte}): ${r.words.join(" ")}`;
+                        }
                     }
 
-                    if (!bestItem && !relicMatch && motorActivo() !== MOTOR_PRECISO && globalThis.OCR_PADDLE_FALLBACK) {
+                    if (!bestItem && !relicMatch && !arcaneMatch && motorActivo() !== MOTOR_PRECISO && globalThis.OCR_PADDLE_FALLBACK) {
                         const ty = Math.round(cellH * 0.50), th = Math.round(cellH * 0.48);
                         const colorCvs = VisionService.cropColor(snapshot, cell.sx, cell.sy + ty, cellW, th, 2);
                         try {
                             const pWords = await PaddleRepository.recognizeWords(colorCvs);
                             if (pWords) {
-                                relicMatch = OCRService.getRelicMatch(pWords);
-                                if (relicMatch) {
-                                    relicText = pWords;
+                                if (modoArcanos) {
+                                    arcaneMatch = emparejaArcano(pWords.join(" "), this.tablaArcanos, (a, b) => OCRService.similarityOCR(a, b));
+                                    if (arcaneMatch) { combinedText = pWords; itemText = pWords; logStr += " [paddle]"; }
                                 } else {
-                                    const pMatch = OCRService.getValidItemMatch(pWords);
-                                    if (pMatch) { bestItem = pMatch; combinedText = pWords; itemText = pWords; logStr += " [paddle]"; }
+                                    relicMatch = OCRService.getRelicMatch(pWords);
+                                    if (relicMatch) {
+                                        relicText = pWords;
+                                    } else {
+                                        const pMatch = OCRService.getValidItemMatch(pWords);
+                                        if (pMatch) { bestItem = pMatch; combinedText = pWords; itemText = pWords; logStr += " [paddle]"; }
+                                    }
                                 }
                             }
                         } catch (e) { console.warn("[Paddle fallback] error:", e); }
                     }
 
-
-                    if (bestItem) {
+                    if (arcaneMatch) {
+                        const qtyResult = await badgeDe(cell);
+                        logStr += ` || ARCANE: ${arcaneMatch.name} || BDG: ${qtyResult.raw}`;
+                        pendingArcanes.push({ cell, arcaneMatch, qtyResult, itemText, logStr });
+                    } else if (bestItem) {
                         const qtyResult = await badgeDe(cell);
 
                         logStr += ` || BDG: ${qtyResult.raw}`;
@@ -1388,32 +1436,51 @@ export const ScannerService = {
                 const motorReal = lotePreciso ? "paddle" : `tesseract x${workers.length}`;
                 reloj.fin(`${motorReal} · ${relojBadges.n} badges ${relojBadges.ms.toFixed(0)} ms`);
 
-                const relicPage = scanStats.relics >= 3 && scanStats.relics >= 2 * pendingItems.length;
-                for (const pending of pendingItems) {
-                    if (relicPage) {
-                        scanStats.unmatched++;
-                        this.lastRawOcrLog.push(`${pending.logStr} || DESCARTADO (página de reliquias): ${pending.bestItem.originalName}`);
-                        drawFailedCell({
-                            cell: pending.cell, text: pending.itemText.join(" "),
-                            line2: `≠ ${pending.bestItem.originalName}`, status: "DISCARDED (RELIC PAGE)",
+                if (contexto === "ARCANE_DISSOLUTION") {
+                    const arcanosList = [];
+                    for (const pending of pendingArcanes) {
+                        scanStats.matched++;
+                        this.lastRawOcrLog.push(pending.logStr);
+                        arcanosList.push({
+                            slug: pending.arcaneMatch.slug,
+                            name: pending.arcaneMatch.name,
+                            qty: pending.qtyResult.qty
                         });
-                        continue;
+                        drawResolvedCell({
+                            cell: pending.cell, qtyResult: pending.qtyResult, text: pending.itemText,
+                            accent: "#ff00ff", name: pending.arcaneMatch.name, qty: pending.qtyResult.qty
+                        });
                     }
-                    scanStats.matched++;
-                    this.lastRawOcrLog.push(pending.logStr);
-                    this.recordQtyVote(pending.bestItem.originalName, pending.qtyResult);
-                    drawResolvedCell({
-                        cell: pending.cell, qtyResult: pending.qtyResult, text: pending.itemText,
-                        accent: "#00ff78",
-                        name: pending.bestItem.originalName.replace(/Prime/gi, "").trim(),
-                        qty: this.sessionInventory.get(pending.bestItem.originalName) ?? "?",
-                    });
+                    this.onPaginaArcanos?.(arcanosList);
+                } else {
+                    const relicPage = scanStats.relics >= 3 && scanStats.relics >= 2 * pendingItems.length;
+                    for (const pending of pendingItems) {
+                        if (relicPage) {
+                            scanStats.unmatched++;
+                            this.lastRawOcrLog.push(`${pending.logStr} || DESCARTADO (página de reliquias): ${pending.bestItem.originalName}`);
+                            drawFailedCell({
+                                cell: pending.cell, text: pending.itemText.join(" "),
+                                line2: `≠ ${pending.bestItem.originalName}`, status: "DISCARDED (RELIC PAGE)",
+                            });
+                            continue;
+                        }
+                        scanStats.matched++;
+                        this.lastRawOcrLog.push(pending.logStr);
+                        this.recordQtyVote(pending.bestItem.originalName, pending.qtyResult);
+                        drawResolvedCell({
+                            cell: pending.cell, qtyResult: pending.qtyResult, text: pending.itemText,
+                            accent: "#00ff78",
+                            name: pending.bestItem.originalName.replace(/Prime/gi, "").trim(),
+                            qty: this.sessionInventory.get(pending.bestItem.originalName) ?? "?",
+                        });
+                    }
+
+                    ScannerHUD.updateScrollStatus("done", this.sessionInventory.size + this.sessionRelics.size);
+                    ScannerHUD.updateDetectedItems(this.sessionInventory, this.sessionRelics);
+                    if (DucatKioskService.esKiosco(this.lastHeaderText)) {
+                        this.onPaginaKiosco?.();
+                    }
                 }
-
-                ScannerHUD.updateScrollStatus("done", this.sessionInventory.size + this.sessionRelics.size);
-                ScannerHUD.updateDetectedItems(this.sessionInventory, this.sessionRelics);
-                if (DucatKioskService.esKiosco(this.lastHeaderText)) this.onPaginaKiosco?.();
-
                 const expected = autoGrid.rows * autoGrid.cols;
                 const fails = scanStats.unmatched + scanStats.none;
                 const hasWarning = fails > 0 || scanStats.cells < expected;

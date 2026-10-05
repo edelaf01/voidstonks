@@ -2,8 +2,8 @@ import { avisa, escucha, pistasDelLog } from "../utils/ganchos.js";
 import {
   mostrarPaneles, quitarPaneles, quitarTodosLosPaneles, alPulsarEnOverlay, ajustaPanelesAlContexto,
 } from "../services/desktop.service.js";
-import { panelKiosko, panelReliquias, panelRiven, panelRivenComparacion } from "../utils/overlay_paneles.js";
-import { duermePorLog, firmaPorLog, tarjetasPorLog, armaRivenPorLog } from "../services/scanner/log_gate.service.js";
+import { panelKiosko, panelReliquias, panelRiven, panelRivenComparacion, panelInventario, panelArcanos } from "../utils/overlay_paneles.js";
+import { duermePorLog, firmaPorLog, tarjetasPorLog, armaRivenPorLog, rejillaListaPorLog, cambioPantallaPorLog } from "../services/scanner/log_gate.service.js";
 import { EELogLive } from "../services/scanner/eelog_live.service.js";
 import { getItemIcon } from "../utils/ui_utils.js";
 import { state } from "../state.js";
@@ -21,6 +21,8 @@ export function conectaEscaner() {
     tarjetas: tarjetasPorLog,
     armaRiven: armaRivenPorLog,
     reliquiaPorGastar: () => EELogLive.reliquiaPorGastar(),
+    rejillaLista: rejillaListaPorLog,
+    cambioPantalla: cambioPantallaPorLog,
   });
   escucha("contexto", (contexto) => ajustaPanelesAlContexto(contexto));
   escucha("escaner-parado", () => quitarTodosLosPaneles());
@@ -38,7 +40,21 @@ export function conectaEscaner() {
     mostrarPaneles("reliquias", [panel], { duracionMs: RELIQUIAS_DURACION_MS });
   });
   alPulsarEnOverlay("reliquias", (accion) => avisa("overlay-reliquias", accion));
+
+  escucha("inventario", (datos) => {
+    if (!datos) return quitarPaneles("inventario");
+    mostrarPaneles("inventario", [panelInventario(datos, TEXTS[state.currentLang].scannerHUD)]);
+  });
+  alPulsarEnOverlay("inventario", (accion) => avisa("overlay-inventario", accion));
+
+  escucha("arcanos", (datos) => {
+    const panel = datos && panelArcanos(datos.filas, TEXTS[state.currentLang]);
+    if (!panel) return quitarPaneles("arcanos");
+    mostrarPaneles("arcanos", [panel]);
+  });
+
   EELogLive.onReliquiaAbierta = (nombre) => avisa("reliquia-abierta", nombre);
+  EELogLive.onConstruido = (nombre) => avisa("construido", nombre);
   EELogLive.escuchar((live) => {
     if (live.estado === "leyendo") avisa("eligiendo-reliquia", { ahora: !!live.juego.eligiendoReliquia, mision: live.juego.mision });
   });

@@ -279,7 +279,7 @@ export const RivenOCRService = {
                 const sign = (m[1] && /[\-–—]/.test(m[1])) ? "-" : "+";
                 let value = parseFloat(m[2].replace(/[,\s]+/g, "."));
                 if (value > 450 && value < 9999) value = parseFloat((value / 10).toFixed(1));
-                if (value < 8) continue;
+                if (value < 4) continue;
                 const name = m[3]
                     .replace(/\([^)]*\)/g, " ")
                     .replace(/x\s*\d+\s+for\s+\w+/ig, " ")
