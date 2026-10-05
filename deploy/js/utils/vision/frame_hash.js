@@ -4,6 +4,8 @@
  * frames of a still screen are never bit identical.
  */
 
+import { sharedFrame } from "./frame_freeze.js";
+
 // 16x9 canvas shared by every hash, to avoid GC churn
 let tinyCvs = null;
 
@@ -32,7 +34,7 @@ function hashFromTiny(ctx) {
  */
 export function videoRegionHash(video, crop) {
     const ctx = tinyCtx();
-    ctx.drawImage(video,
+    ctx.drawImage(sharedFrame(video),
         Math.floor(video.videoWidth * crop.x), Math.floor(video.videoHeight * crop.y),
         Math.floor(video.videoWidth * crop.w), Math.floor(video.videoHeight * crop.h),
         0, 0, 16, 9);
@@ -71,7 +73,7 @@ export function miniaturaLuma(video, w, h) {
     if (!miniCvs) miniCvs = document.createElement("canvas");
     if (miniCvs.width !== w || miniCvs.height !== h) { miniCvs.width = w; miniCvs.height = h; }
     const ctx = miniCvs.getContext("2d", { willReadFrequently: true });
-    ctx.drawImage(video, 0, 0, video.videoWidth, video.videoHeight, 0, 0, w, h);
+    ctx.drawImage(sharedFrame(video), 0, 0, video.videoWidth, video.videoHeight, 0, 0, w, h);
     return { cvs: miniCvs, luma: lumaDe(ctx, w, h) };
 }
 
@@ -84,7 +86,7 @@ export function regionLuma(source, rect) {
     if (!regionCvs) regionCvs = document.createElement("canvas");
     if (regionCvs.width !== rect.cols || regionCvs.height !== rect.filas) { regionCvs.width = rect.cols; regionCvs.height = rect.filas; }
     const ctx = regionCvs.getContext("2d", { willReadFrequently: true });
-    ctx.drawImage(source, Math.floor(W * rect.x), Math.floor(H * rect.y), Math.floor(W * rect.w), Math.floor(H * rect.h), 0, 0, rect.cols, rect.filas);
+    ctx.drawImage(sharedFrame(source), Math.floor(W * rect.x), Math.floor(H * rect.y), Math.floor(W * rect.w), Math.floor(H * rect.h), 0, 0, rect.cols, rect.filas);
     return lumaDe(ctx, rect.cols, rect.filas);
 }
 
@@ -101,7 +103,7 @@ export function muestraMaxCanal(source, rect, cols, filas, sub = 4) {
     if (!maxCanalCvs) maxCanalCvs = document.createElement("canvas");
     if (maxCanalCvs.width !== cw || maxCanalCvs.height !== ch) { maxCanalCvs.width = cw; maxCanalCvs.height = ch; }
     const ctx = maxCanalCvs.getContext("2d", { willReadFrequently: true });
-    ctx.drawImage(source, Math.floor(W * rect.x), Math.floor(H * rect.y), Math.floor(W * rect.w), Math.floor(H * rect.h), 0, 0, cw, ch);
+    ctx.drawImage(sharedFrame(source), Math.floor(W * rect.x), Math.floor(H * rect.y), Math.floor(W * rect.w), Math.floor(H * rect.h), 0, 0, cw, ch);
     const px = ctx.getImageData(0, 0, cw, ch).data;
     const out = new Float32Array(cols * filas);
     for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) {
@@ -165,7 +167,7 @@ export function firmaTexto(source, crop) {
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
     const W = source.videoWidth || source.width, H = source.videoHeight || source.height;
-    ctx.drawImage(source, Math.floor(W * crop.x), Math.floor(H * crop.y), Math.floor(W * crop.w), Math.floor(H * crop.h),
+    ctx.drawImage(sharedFrame(source), Math.floor(W * crop.x), Math.floor(H * crop.y), Math.floor(W * crop.w), Math.floor(H * crop.h),
         0, 0, FIRMA_COLS, FIRMA_FILAS);
     return lumaDe(ctx, FIRMA_COLS, FIRMA_FILAS);
 }

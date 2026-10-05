@@ -1,5 +1,5 @@
 import { VisionService } from "./vision.service.js";
-import { freezeFrame, releaseFrame } from "../../utils/vision/frame_freeze.js";
+import { freezeFrame, releaseFrame, shareFrame, stopSharingFrame, sharedFrame } from "../../utils/vision/frame_freeze.js";
 import { nextLatchedContext, INITIAL_LATCH, enrutaGraciaRiven, intervaloCabecera, INTERVALO_FIN_MISION_MS, CADUCIDAD_CABECERA_MS, FRANJA_TITULO_VIDEO, tituloHaCambiado } from "../../utils/vision/context_latch.js";
 import { sensorDelEscaner, CADA_MS } from "../../utils/vision/wake_sensor.js";
 import { isImplausibleFallbackGrid } from "../../utils/vision/plausibility.js";
@@ -140,6 +140,7 @@ export const ScannerService = {
         PaddleRepository.apaga();
         this._invQueue?.clear();
         this.releaseFrames();
+        stopSharingFrame({ release: true });
     },
 
     /** Releases the held frames (page pool, inventory snapshot, mission end frame). */
@@ -162,10 +163,12 @@ export const ScannerService = {
         // 0x0 video (resized window, loading) made 0 px crops
         if (!video || video.paused || video.ended || !video.videoWidth || !video.videoHeight) { this.scanInterval = setTimeout(() => this.loop(), 1000); return; }
         try {
+            shareFrame(video);
             await this.processFrame(video, this.virtualCanvas);
         } catch (e) {
             console.warn("Scanner loop error:", e);
         } finally {
+            stopSharingFrame();
             if (this.isScanning) {
                 this.scanInterval = setTimeout(() => this.loop(), this.currentRate);
                 // in UNKNOWN only for a known title: while playing the strip stops and starts all the time
@@ -420,7 +423,7 @@ export const ScannerService = {
             const rectKey = `${r.x},${r.y},${r.w},${r.h}`;
             // a new region: old samples do not compare (phantom scroll)
             if (this._sampleRect !== rectKey) { this._sampleRect = rectKey; this.lastRowLums = null; this.autoScrollMuestra = null; }
-            sCtx.drawImage(video, r.x, r.y, r.w, r.h, 0, 0, 48, FILAS);
+            sCtx.drawImage(sharedFrame(video), r.x, r.y, r.w, r.h, 0, 0, 48, FILAS);
 
             const rowLums = [];
             const px = sCtx.getImageData(0, 0, 48, FILAS).data;
