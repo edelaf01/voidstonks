@@ -41,7 +41,9 @@ test("al terminar la descarga se vuelve a montar la pestaña activa", () => {
 
     const carga = cuerpo(main, "async function loadAsyncData()");
     assert.match(carga, /refreshActiveTab\(\)/, "sin esto la pestaña se queda con las bases vacías");
-    assert.ok(carga.indexOf("await downloadRelics()") < carga.indexOf("refreshActiveTab()"),
+    assert.ok(carga.includes("await downloadRelics(") && carga.indexOf("await downloadRelics(") < carga.indexOf("refreshActiveTab()"),
         "refreshActiveTab tiene que ir DESPUÉS de downloadRelics");
+    assert.ok(carga.includes("await armasDeRiven") && carga.indexOf("await armasDeRiven") < carga.indexOf("refreshActiveTab()"),
+        "la pestaña de Riven necesita las armas antes de montarse");
     assert.match(carga, /renderFarmRoutes\(\)/);
 });
