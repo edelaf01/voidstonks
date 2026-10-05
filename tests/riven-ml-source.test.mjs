@@ -87,3 +87,22 @@ test("sin cal.venta en el bundle no se usa el modelo (compat con el bundle viejo
     ml.venta = original;
   }
 });
+
+test("la tabla de nivel escala la banda del modelo", async () => {
+  const ml = await ML.loadRivenML();
+  const original = ml.nivel;
+  const w = { name: "Torid", official_median: 357, wfm_avg: 7966,
+    de_rerolled: { median: 450, pop: 12, stddev: 300, max_price: 3000 },
+    de_unrolled: { median: 357, pop: 8 } };
+  try {
+    ml.nivel = {};
+    const base = await ML.predictRivenMLBand(w, STATS, w, null, 75);
+    ml.nivel = { torid: 1.5 };
+    const corregida = await ML.predictRivenMLBand(w, STATS, w, null, 75);
+    assert.equal(corregida.fuente, "ml");
+    assert.ok(base.p50 > base.floor, `p50 en el suelo, el test no prueba nada: ${base.p50}`);
+    assert.ok(Math.abs(corregida.p50 - base.p50 * 1.5) <= 1, `p50 ${base.p50} -> ${corregida.p50}, se esperaba ×1.5`);
+  } finally {
+    ml.nivel = original;
+  }
+});
