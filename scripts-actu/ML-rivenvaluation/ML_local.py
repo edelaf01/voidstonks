@@ -567,6 +567,8 @@ _gp90 = df_ml.groupby("weapon")["price"].transform(lambda s: s.quantile(0.90))
 _godroll_mask = df_ml["price"] >= _gp90
 # Weight factor = 1 + log1p(price - p90) (scaled)
 df_ml.loc[_godroll_mask, "sample_w"] *= (1 + np.log1p(df_ml.loc[_godroll_mask, "price"] - _gp90[_godroll_mask]))
+# recency weighting disabled by default (RECENCIA=1): daily history features already capture market drift,
+# so decaying older listings discards sample size without improving metrics
 _RECENCIA_ON = os.environ.get("RECENCIA", "0") != "0"
 _VIDA_MEDIA_DIAS = float(os.environ.get("RECENCIA_HALFLIFE", "30"))
 # kept in its OWN column instead of multiplying sample_w: price-derived weights distort quantile
@@ -696,6 +698,76 @@ _ALPHA_TRAIN = {0.25: 0.25, 0.50: 0.50, 0.80: 0.845, 0.90: 0.935, 0.95: 0.975}
 # tree budget per quantile: median requires ~10x more trees than p95 to resolve subtle differences across
 # average rolls without blowing up bundle size
 _N_POR_CUANTIL = {0.25: 1300, 0.50: 2600, 0.80: 1000, 0.90: 500, 0.95: 400}
+_SLIM_N = _env_num("SLIM_N", 400)
+_SLIM_DEPTH = _env_num("SLIM_DEPTH", 5)
+# slim model scales trees proportionally across SLIM_N because Cloudflare Pages caps the bundle at 25 MB
+_SLIM_MULT = {0.25: 1.6, 0.50: 3.0, 0.80: 1.2, 0.90: 0.7, 0.95: 0.5}
+_NIVEL_K = _env_num("NIVEL_K", 20, float)
+_NIVEL_DIAS = _env_num("NIVEL_DIAS", 7)
+
+def entrena_slim(X, y, pesos=None, cuantiles=QUANTILES):
+    params = dict(learning_rate=0.05, max_depth=_SLIM_DEPTH, subsample=0.85, colsample_bytree=0.6,
+                  min_child_weight=4, reg_lambda=2.5, reg_alpha=0.1, tree_method="hist", n_jobs=-1,
+                  device=os.environ.get("XGB_DEVICE", "cpu"))
+    modelos = {}
+    for a in cuantiles:
+        m = xgb.XGBRegressor(objective="reg:quantileerror", quantile_alpha=_ALPHA_TRAIN.get(a, a), random_state=42,
+                             n_estimators=max(120, int(_SLIM_N * _SLIM_MULT.get(a, 1.0))), **params)
+        m.fit(X, y, sample_weight=pesos)
+        modelos[a] = m
+    return modelos
+
+def como_navegador(X):
+    X = X.copy()
+    for c in ("hist_day_drift", "hist_day_offdrift", "hist_day_rerprem"):
+        if c in X.columns:
+            X[c] = 1.0
+    for c in ("hist_day_liq", "hist_day_sample", "hist_momentum"):
+        if c in X.columns:
+            X[c] = float(pd.to_numeric(df_ml[c], errors="coerce").median())
+    return X
+
+def tercio_liquidez(armas, conteos):
+    c = pd.Series(armas).map(conteos).fillna(0).values
+    t1, t2 = np.percentile(conteos.values, [33.33, 66.67])
+    return np.where(c <= t1, "baja", np.where(c <= t2, "media", "alta"))
+
+def tabla_nivel(armas, tercios, real, pred, k=_NIVEL_K, tope=2.0):
+    r = np.log(np.clip(real, 1, None)) - np.log(np.clip(pred, 1, None))
+    d = pd.DataFrame({"arma": armas, "tercio": tercios, "r": r})
+    lim = np.log(tope)
+    por_tercio = {t: float(np.clip(v, -lim, lim)) for t, v in d.groupby("tercio")["r"].median().items()}
+    g = d.groupby("arma").agg(n=("r", "size"), med=("r", "median"), tercio=("tercio", "first"))
+    base = g["tercio"].map(por_tercio).fillna(0.0)
+    por_arma = ((g["n"] * g["med"] + k * base) / (g["n"] + k)).clip(-lim, lim).to_dict()
+    return por_arma, por_tercio
+
+def factores_nivel(armas, tercios, por_arma, por_tercio, lam=1.0):
+    s = np.array([por_arma.get(a, por_tercio.get(t, 0.0)) for a, t in zip(armas, tercios)])
+    return np.exp(lam * s)
+
+def corrige_q(qlog, f):
+    return {a: np.log1p(np.expm1(v) * f) for a, v in qlog.items()}
+
+def metricas_banda(real, qlog, tercios):
+    y = np.log1p(real)
+    p50 = np.expm1(qlog[0.5])
+    trade = real >= 200
+    ape = np.abs(p50 - real) / np.clip(real, 5, None)
+    out = {"cobertura": {f"p{int(a*100)}": round(float((y <= qlog[a]).mean() * 100), 1) for a in qlog},
+           "mdape_trade": round(float(np.median(ape[trade]) * 100), 1) if trade.any() else None,
+           "sesgo_trade": round(float(np.median(p50[trade] / real[trade])), 3) if trade.any() else None,
+           "sesgo_todos": round(float(np.median(p50 / np.clip(real, 1, None))), 3),
+           "por_liquidez": {}}
+    for t in ("baja", "media", "alta"):
+        m = tercios == t
+        mt = m & trade
+        out["por_liquidez"][t] = {
+            "n": int(m.sum()),
+            "cob_p50": round(float((y[m] <= qlog[0.5][m]).mean() * 100), 1) if m.any() else None,
+            "sesgo_trade": round(float(np.median(p50[mt] / real[mt])), 3) if mt.any() else None}
+    return out
+
 qmodels = {}
 for a in QUANTILES:
     a_tr = _ALPHA_TRAIN.get(a, a)
@@ -1006,6 +1078,47 @@ if os.environ.get("ADELANTE", "1") != "0":
                         "sesgo_trade": round(l_sesgo, 3)
                     }
                     print(f"    {liq_name:<6}: n={liq_mask.sum():<4} | cov p25={cov25:4.1f}% p50={cov50:4.1f}% p80={cov80:4.1f}% | mdape={l_mdape:4.1f}% | sesgo={l_sesgo:.2f}")
+
+            if os.environ.get("NIVEL_PRUEBA", "1") != "0":
+                try:
+                    print("\n  NIVEL DEL MODELO SLIM (el del navegador, con el día neutro):")
+                    _slim2 = entrena_slim(fw_X_tr, fw_y_tr, _w_fw)
+                    _armas_te = df_fw_prueba["weapon"].values
+                    _ter_te = tercio_liquidez(_armas_te, w_counts)
+                    _X_te_nav = como_navegador(fw_X_te)
+                    _q_te = {a: m.predict(_X_te_nav) for a, m in _slim2.items()}
+                    _T1 = _T - pd.Timedelta(days=_adelante_dias)
+                    _m_cal = (_primera_f >= _T1) & (_primera_f < _T)
+                    _df_cal = df_ml[_m_cal]
+                    _df_m1 = df_ml[_primera_f < _T1]
+                    if len(_df_cal) < 500 or len(_df_m1) < 5000:
+                        print(f"  [WARN] nivel saltado: calibración={len(_df_cal)}, entreno T1={len(_df_m1)}")
+                    else:
+                        print(f"  Calibración: {_T1.date().isoformat()} -> {_T.date().isoformat()} ({len(_df_cal)} filas) | entreno T1: {len(_df_m1)}")
+                        _w_m1 = pesos_recencia(_df_m1, _T1).values if _RECENCIA_ON else None
+                        _slim1 = entrena_slim(_df_m1[columnas_micro], np.log1p(_df_m1["price"]), _w_m1, cuantiles=[0.5])
+                        _armas_cal = _df_cal["weapon"].values
+                        _ter_cal = tercio_liquidez(_armas_cal, w_counts)
+                        _real_cal = _df_cal["price"].values
+                        _X_cal_nav = como_navegador(_df_cal[columnas_micro])
+                        _tab_fuera = tabla_nivel(_armas_cal, _ter_cal, _real_cal, np.expm1(_slim1[0.5].predict(_X_cal_nav)))
+                        _tab_dentro = tabla_nivel(_armas_cal, _ter_cal, _real_cal, np.expm1(_slim2[0.5].predict(_X_cal_nav)))
+                        _variantes = {
+                            "base": np.ones(len(_armas_te)),
+                            "dentro": factores_nivel(_armas_te, _ter_te, *_tab_dentro),
+                            "fuera_0.5": factores_nivel(_armas_te, _ter_te, *_tab_fuera, lam=0.5),
+                            "fuera_1": factores_nivel(_armas_te, _ter_te, *_tab_fuera, lam=1.0),
+                        }
+                        res_adelante["slim"] = {}
+                        for _nom, _f in _variantes.items():
+                            _mt = metricas_banda(fw_real_te, corrige_q(_q_te, _f), _ter_te)
+                            res_adelante["slim"][_nom] = _mt
+                            _c, _pl = _mt["cobertura"], _mt["por_liquidez"]
+                            print(f"    {_nom:<10} cob p25={_c['p25']} p50={_c['p50']} p80={_c['p80']} p90={_c['p90']} p95={_c['p95']}"
+                                  f" | mdape={_mt['mdape_trade']} | sesgo={_mt['sesgo_trade']}"
+                                  f" | baja={_pl['baja']['sesgo_trade']} media={_pl['media']['sesgo_trade']} alta={_pl['alta']['sesgo_trade']}")
+                except Exception as e:
+                    print(f"\n  [ERROR] prueba de nivel falló: {e}")
 
             try:
                 _METRICS_LOG_temp = "metrics_history.json"
@@ -1614,20 +1727,20 @@ if os.environ.get("SLIM_EXPORT", "1") == "1":
     import gzip as _gz
     _OUT = os.environ.get("DEPLOY_ML_DIR", "generado")
     os.makedirs(_OUT, exist_ok=True)
-    _SN = _env_num("SLIM_N", 400); _SD = _env_num("SLIM_DEPTH", 5)
-    _sp = dict(n_estimators=_SN, learning_rate=0.05, max_depth=_SD, subsample=0.85,
-               colsample_bytree=0.6, min_child_weight=4, reg_lambda=2.5, reg_alpha=0.1,
-               tree_method="hist", n_jobs=-1, device=os.environ.get("XGB_DEVICE", "cpu"))
-    # slim model scales trees proportionally across SLIM_N because Cloudflare Pages caps the bundle at 25 MB
-    _SLIM_MULT = {0.25: 1.6, 0.50: 3.0, 0.80: 1.2, 0.90: 0.7, 0.95: 0.5}
     _bundle = {"quantiles": QUANTILES, "alpha_train": _ALPHA_TRAIN, "models": {}}
+    _slim = entrena_slim(X_train, y_train, w_recencia if _RECENCIA_ON else None)
+    _pf = pd.to_datetime(df_ml["primera_fecha"], errors="coerce")
+    _ult = df_ml[_pf >= _pf.max() - pd.Timedelta(days=_NIVEL_DIAS)]
+    _conteos = df_ml["weapon"].value_counts()
+    _por_arma, _por_tercio = tabla_nivel(_ult["weapon"].values, tercio_liquidez(_ult["weapon"].values, _conteos),
+                                         _ult["price"].values, np.expm1(_slim[0.5].predict(como_navegador(_ult[columnas_micro]))))
+    _armas = df_ml["weapon"].unique()
+    _f_nivel = factores_nivel(_armas, tercio_liquidez(_armas, _conteos), _por_arma, _por_tercio)
+    CAL_NIVEL = {str(a): round(float(f), 3) for a, f in zip(_armas, _f_nivel)}
+    print(f"  nivel: {len(CAL_NIVEL)} armas con {len(_ult)} anuncios de {_NIVEL_DIAS} días | mediana ×{np.median(_f_nivel):.2f} | "
+          + " ".join(f"{t} ×{np.exp(_por_tercio.get(t, 0.0)):.2f}" for t in ("baja", "media", "alta")))
     for a in QUANTILES:
-        _spa = dict(_sp)
-        _spa["n_estimators"] = max(120, int(_SN * _SLIM_MULT.get(a, 1.0)))
-        _sm = xgb.XGBRegressor(objective="reg:quantileerror", quantile_alpha=_ALPHA_TRAIN.get(a, a),
-                               random_state=42, **_spa)
-        _sm.fit(X_train, y_train)
-        _tmp = os.path.join(_OUT, f"_q{int(a*100)}.json"); _sm.get_booster().save_model(_tmp)
+        _tmp = os.path.join(_OUT, f"_q{int(a*100)}.json"); _slim[a].get_booster().save_model(_tmp)
         _bundle["models"][str(a)] = json.load(open(_tmp)); os.remove(_tmp)
     json.dump(_bundle, open(os.path.join(_OUT, "model_quantiles_slim.json"), "w"))
     json.dump(list(columnas_micro), open(os.path.join(_OUT, "feature_order_slim.json"), "w"))
@@ -1662,7 +1775,7 @@ if os.environ.get("SLIM_EXPORT", "1") == "1":
     except Exception as _e:
         print(f"[WARN] no se pudo medir el reparto del score, se deja 0.25: {_e}")
 
-    json.dump({"drift": CAL_DRIFT, "synlo": CAL_SYNLO, "nsamp": CAL_NSAMP,
+    json.dump({"drift": CAL_DRIFT, "nivel": CAL_NIVEL, "synlo": CAL_SYNLO, "nsamp": CAL_NSAMP,
                "precision": (PRECISION_ARMA if "PRECISION_ARMA" in dir() else {}),
                "quantiles": QUANTILES, "venta": VENTA_INFO,
                "venta_min_pop": _CAL_MIN_POP, "peso_magnitud": _peso_mag},
@@ -1680,7 +1793,7 @@ if os.environ.get("SLIM_EXPORT", "1") == "1":
     json.dump(_pb, open(os.path.join(_OUT, "price_bands.json"), "w"))
     json.dump(export_maestro_real, open(os.path.join(_OUT, "stat_weights.json"), "w"), ensure_ascii=False)
     _raw = json.dumps(_bundle).encode()
-    print(f"  {_OUT}/ -> model_quantiles_slim.json ({len(QUANTILES)} cuantiles, depth{_SD} n{_SN}) "
+    print(f"  {_OUT}/ -> model_quantiles_slim.json ({len(QUANTILES)} cuantiles, depth{_SLIM_DEPTH} n{_SLIM_N}) "
           f"RAW={len(_raw)/1e6:.1f}MB GZIP={len(_gz.compress(_raw))/1e6:.2f}MB | feats={len(columnas_micro)}")
     print(f"  + feature_order_slim.json, feature_defaults_slim.json, calibracion_por_arma.json, "
           f"price_bands.json, stat_weights.json")
