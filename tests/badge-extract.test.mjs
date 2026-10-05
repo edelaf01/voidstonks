@@ -18,7 +18,7 @@ const GRID = { gx: 87, gy: 281, cellW: 277, cellH: 296, dy: -44 };
 const THEME = { name: "Default", r: 227, g: 128, b: 20, actualR: 246, actualG: 129, actualB: 3 };
 
 const CELLS = [
-  { name: "r2c1 Ballistica Prime BP", r: 2, c: 1, qty: "3", cropW: 56, cropH: 40 },
+  { name: "r2c1 Ballistica Prime BP", r: 2, c: 1, qty: "3", cropW: 30, cropH: 34 },
   { name: "r2c5 Banshee Prime BP", r: 2, c: 5, qty: "9", cropW: 30, cropH: 34 },
   { name: "r0c2 Astilla Prime BP", r: 0, c: 2, qty: "3", cropW: 30, cropH: 33 },
   { name: "r1c2 Atlas Prime BP", r: 1, c: 2, qty: "11", cropW: 41, cropH: 33 },

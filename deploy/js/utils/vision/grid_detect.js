@@ -39,6 +39,7 @@ const DEFAULTS = {
     maxBandHFrac: 0.25,
     mergeGapYFrac: 0.0085,
     bandMassFloor: 0.22,
+    bandMassFloorRetry: 0.15,
     nameBandOffset: 0.75,
     nameBaselineOffset: 0.92,
     rows: 3,
@@ -308,6 +309,16 @@ export function detectInventoryGrid(img, opts = {}) {
 
     const edgeRes = detectInventoryGridCore(img, opts);
     if (edgeRes) return edgeRes;
+
+    const retryTrace = {};
+    const retryRes = detectInventoryGridCore(img, { ...opts, bandMassFloor: o.bandMassFloorRetry, trace: retryTrace });
+    if (retryRes) {
+        if (opts.trace) {
+            delete opts.trace.fail;
+            Object.assign(opts.trace, retryTrace, { bandMassFloor: o.bandMassFloorRetry });
+        }
+        return retryRes;
+    }
 
     const outerTrace = opts.trace || {};
     const { bg, cands } = colorInkCandidates(img, o);

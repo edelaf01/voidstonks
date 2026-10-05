@@ -200,25 +200,28 @@ test("panelInventario: botones y autoScanScanning", () => {
 
 
 import { panelArcanos } from "../deploy/js/utils/overlay_paneles.js";
-test("panelArcanos da los tonos de veredicto correctos o null si no hay filas", () => {
+test("panelArcanos coloca cada arcano en su celda de la página, con precios y veredicto", () => {
   const t = { scannerHUD: { statusArcanes: "ARCANES" }, vosfor: { verdictSell: "SELL", verdictSellR0: "SELL R0", verdictDissolve: "DISSOLVE", verdictEven: "EVEN" } };
   assert.equal(panelArcanos([], t), null);
 
   const filas = [
-    { name: "Arcane Nullifier", qty: 21, maxRank: 5, rangosMax: 1, accion: "sell_max" },
-    { name: "Arcane Grace", qty: 2, maxRank: 5, rangosMax: 0, accion: "sell_r0" },
-    { name: "Arcane Ice", qty: 45, maxRank: 5, rangosMax: 2, accion: "dissolve" },
-    { name: "Arcane Strike", qty: 3, maxRank: 5, rangosMax: 0, accion: "even" },
-    { name: "Pending Arcane", qty: 1, maxRank: 5, rangosMax: 0, accion: "pending" }
+    { name: "Arcane Nullifier", qty: 21, maxRank: 5, rangosMax: 1, accion: "sell_max", r: 0, c: 0, precioR0: 4.5, precioMax: 120 },
+    { name: "Arcane Ice", qty: 45, maxRank: 5, rangosMax: 2, accion: "dissolve", r: 0, c: 2, precioR0: 1, precioMax: 0 },
+    { name: "Arcane Strike", qty: 3, maxRank: 3, rangosMax: 0, accion: "even", r: 1, c: 1, precioR0: null, precioMax: 15.4 },
   ];
 
   const p = panelArcanos(filas, t);
   assert.equal(p.bloques[0].texto, "ARCANES");
-  
-  const lineas = p.bloques[1].filas;
-  assert.deepEqual(lineas[0], [{ texto: "Arcane Nullifier" }, { texto: "21" }, { texto: "1×R5" }, { texto: "SELL R5", tono: "verde" }]);
-  assert.deepEqual(lineas[1], [{ texto: "Arcane Grace" }, { texto: "2" }, { texto: "" }, { texto: "SELL R0", tono: "verde" }]);
-  assert.deepEqual(lineas[2], [{ texto: "Arcane Ice" }, { texto: "45" }, { texto: "2×R5" }, { texto: "DISSOLVE", tono: "cian" }]);
-  assert.deepEqual(lineas[3], [{ texto: "Arcane Strike" }, { texto: "3" }, { texto: "" }, { texto: "EVEN", tono: "gris" }]);
-  assert.deepEqual(lineas[4], [{ texto: "Pending Arcane" }, { texto: "1" }, { texto: "" }, { texto: "…", tono: "gris" }]);
+  const { tipo, cols, celdas } = p.bloques[1];
+  assert.equal(tipo, "rejilla");
+  assert.equal(cols, 3);
+  assert.equal(celdas.length, 6);
+  assert.deepEqual(celdas.map((c) => c?.lineas[0].texto ?? null), ["Arcane Nullifier", null, "Arcane Ice", null, "Arcane Strike", null]);
+  assert.deepEqual(celdas[0].lineas, [
+    { texto: "Arcane Nullifier" }, { texto: "21 · 1×R5" },
+    { texto: "R0 4.5 pl", tono: "oro" }, { texto: "R5 120 pl", tono: "oro" },
+    { texto: "SELL R5", tono: "verde" },
+  ]);
+  assert.deepEqual(celdas[2].lineas.slice(2), [{ texto: "R0 1 pl", tono: "oro" }, { texto: "R5 —", tono: "oro" }, { texto: "DISSOLVE", tono: "cian" }]);
+  assert.deepEqual(celdas[4].lineas.slice(1), [{ texto: "3" }, { texto: "R0 —", tono: "oro" }, { texto: "R3 15 pl", tono: "oro" }, { texto: "EVEN", tono: "gris" }]);
 });
