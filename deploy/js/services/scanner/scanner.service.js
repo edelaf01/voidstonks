@@ -1,5 +1,5 @@
 import { VisionService } from "./vision.service.js";
-import { freezeFrame, releaseFrame } from "../../utils/vision/frame_freeze.js";
+import { freezeFrame, releaseFrame, shareFrame, stopSharingFrame, sharedFrame } from "../../utils/vision/frame_freeze.js";
 import { nextLatchedContext, INITIAL_LATCH, enrutaGraciaRiven, intervaloCabecera, INTERVALO_FIN_MISION_MS, CADUCIDAD_CABECERA_MS, FRANJA_TITULO_VIDEO, tituloHaCambiado } from "../../utils/vision/context_latch.js";
 import { sensorDelEscaner, CADA_MS } from "../../utils/vision/wake_sensor.js";
 import { isImplausibleFallbackGrid } from "../../utils/vision/plausibility.js";
@@ -137,6 +137,7 @@ export const ScannerService = {
         PaddleRepository.apaga();
         this._invQueue?.clear();
         this.releaseFrames();
+        stopSharingFrame({ release: true });
     },
 
     releaseFrames() {
@@ -157,10 +158,12 @@ export const ScannerService = {
         const video = document.getElementById("live-video");
         if (!video || video.paused || video.ended || !video.videoWidth || !video.videoHeight) { this.scanInterval = setTimeout(() => this.loop(), 1000); return; }
         try {
+            shareFrame(video);
             await this.processFrame(video, this.virtualCanvas);
         } catch (e) {
             console.warn("Scanner loop error:", e);
         } finally {
+            stopSharingFrame();
             if (this.isScanning) {
                 this.scanInterval = setTimeout(() => this.loop(), this.currentRate);
                 if (this.currentRate > 2 * CADA_MS) (this._sensor ||= sensorDelEscaner(this, video, { acepta: () => this.latchedContext !== "UNKNOWN" || !!FirmasTitulo.reconoce(video) })).arma();
@@ -367,7 +370,7 @@ export const ScannerService = {
             const r = zona || { x: 0, y: Math.floor(dims.height * 0.25), w: dims.width, h: Math.floor(dims.height * 0.5) };
             const rectKey = `${r.x},${r.y},${r.w},${r.h}`;
             if (this._sampleRect !== rectKey) { this._sampleRect = rectKey; this.lastRowLums = null; this.autoScrollMuestra = null; }
-            sCtx.drawImage(video, r.x, r.y, r.w, r.h, 0, 0, 48, FILAS);
+            sCtx.drawImage(sharedFrame(video), r.x, r.y, r.w, r.h, 0, 0, 48, FILAS);
 
             const rowLums = [];
             const px = sCtx.getImageData(0, 0, 48, FILAS).data;

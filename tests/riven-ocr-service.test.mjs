@@ -212,6 +212,24 @@ test("nombre del riven partido en dos líneas: la primera es solo el arma y no s
   }
 });
 
+test("una errata que se come justo las letras que permite el umbral sigue casando", () => {
+  const antes = state.allRivenNames;
+  state.allRivenNames = [...antes, "Ignis Wraith"];
+  try {
+    assert.deepEqual(S._matchWeaponScored("igns wrat"), { name: "Ignis Wraith", tier: 1, dist: 3 });
+    assert.equal(S._matchWeaponScored("the yuvan clerisy commissioned these golden statues"), null);
+  } finally {
+    state.allRivenNames = antes;
+  }
+});
+
+test("la distancia de edición cuenta inserciones, borrados y cambios", () => {
+  assert.equal(S._levenshtein("", "abc"), 3);
+  assert.equal(S._levenshtein("abc", ""), 3);
+  assert.equal(S._levenshtein("kitten", "sitting"), 3);
+  assert.equal(S._levenshtein("braton", "braton"), 0);
+});
+
 test("basura pegada al nombre del arma no hace perder el arma", () => {
   const conDigito = S.parseRivenCard([
     "4 Scourge Cronidex", "+120.5% Critical Damage", "+88.2% Multishot",
