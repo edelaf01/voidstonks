@@ -33,7 +33,8 @@ import { videoRegionHash, canvasRegionHash, compareHashes, fraccionCambiada, reg
 import { createReadCache } from "../../utils/vision/read_cache.js";
 import { DebugRecorder } from "./debug_recorder.service.js";
 import { FirmasTitulo } from "./title_signatures.service.js";
-import { leeCabeceraOCR, RESCATE_CABECERA_MS } from "./header_read.service.js";
+import { leeCabeceraOCR, RESCATE_CABECERA_MS, leeCategoriaInventario } from "./header_read.service.js";
+import { esContextoArcanos, BANDA_NOMBRE_ARCANO, tirasDeNombreArcano } from "../../utils/inventory/arcanos_disolucion.js";
 import { TradeService } from "./trade.service.js";
 import { ANCHO_REJILLA_TRADEO } from "../../utils/vision/trade_post.js";
 import { DucatKioskService } from "./ducat_kiosk.service.js";
@@ -244,7 +245,8 @@ export const ScannerService = {
         }
 
         reloj.fase("cabecera");
-        const rawContext = VisionService.determineContext(headerText);
+        let rawContext = VisionService.determineContext(headerText);
+        if (rawContext === "INVENTORY" && /ARCAN/.test(await leeCategoriaInventario(this, video, worker1))) rawContext = "INVENTORY_ARCANES";
         // La racha va sobre el CONTEXTO y no sobre el texto: la cabecera devuelve basura algo
         // distinta cada vez ("BI INVENTORYSELL", "B1 INVENTORY/SELL") sin moverse la pantalla.
         this._headerEstable = rawContext === this._headerCtxPrevio ? (this._headerEstable || 0) + 1 : 0;
@@ -415,10 +417,10 @@ export const ScannerService = {
             return;
         }
 
-        if (contextType === "INVENTORY" || contextType === "ARCANE_DISSOLUTION") {
+        if (contextType === "INVENTORY" || esContextoArcanos(contextType)) {
             // Con una página en OCR no se lee el kiosko: cambia el psm del worker 0 y las celdas en vuelo saldrían con psm 7.
             if (!this.detectionLocked && contextType === "INVENTORY") await DucatKioskService.process(video, this.lastHeaderText);
-            if (!globalThis.state.autoScanEnabled && contextType !== "ARCANE_DISSOLUTION" && !DucatKioskService.esKiosco(this.lastHeaderText)) {
+            if (!globalThis.state.autoScanEnabled && !esContextoArcanos(contextType) && !DucatKioskService.esKiosco(this.lastHeaderText)) {
                 this.currentRate = 3000; // 3 seconds idle check when autoScan is disabled
                 this.autoScrollMuestra = null;
                 this.sawScrollSinceScan = false;
@@ -503,8 +505,11 @@ export const ScannerService = {
 
             // Screen is stable (still). Rescan si hubo scroll desde el último escaneo O si el
             // hash de página cambió (el hash solo ya no basta: colisiona entre páginas parecidas).
+            const rejillaArcanos = esContextoArcanos(contextType) && zona && this._autoCalibCache?.calib;
+            const tirasArcanos = rejillaArcanos ? tirasDeNombreArcano(rejillaArcanos, zona, dims.width, dims.height) : [];
+            const muestraPagina = tirasArcanos.length ? firmaTexto(video, tirasArcanos) : muestra;
             const hasPageChanged = !this.autoScrollMuestra || this.sawScrollSinceScan
-                || fraccionCambiada(muestra, this.autoScrollMuestra) >= 0.01;
+                || (tirasArcanos.length ? !mismoTexto(muestraPagina, this.autoScrollMuestra) : fraccionCambiada(muestra, this.autoScrollMuestra) >= 0.01);
 
             // Una página quieta que cambió se escanea venga de donde venga. Antes se saltaba el
             // "scroll hacia arriba" (acumulador de bestDy <= -3), pero la rejilla es periódica y
@@ -518,7 +523,7 @@ export const ScannerService = {
                     // Se limpia AQUÍ (no tras el OCR): si el usuario vuelve a hacer scroll
                     // durante el escaneo, el flag se re-activa y la página nueva se escanea.
                     this.sawScrollSinceScan = false;
-                    if ((!globalThis.state.autoScanEnabled && !DucatKioskService.esKiosco(this.lastHeaderText)) || !this._canCapturePage) {
+                    if ((!globalThis.state.autoScanEnabled && !esContextoArcanos(contextType) && !DucatKioskService.esKiosco(this.lastHeaderText)) || !this._canCapturePage) {
                         this.autoScrollStableTimer = null;
                         return;
                     }
@@ -544,7 +549,7 @@ export const ScannerService = {
                     // La foto se ENCOLA y el OCR va por detrás. Cola llena ⇒ no se marca el
                     // hash: la página sigue como no vista y se reintenta, en vez de perderse.
                     if (this.enqueueInventoryPage(snapshot, dims)) {
-                        this.autoScrollMuestra = muestra;
+                        this.autoScrollMuestra = muestraPagina;
                         ScannerHUD.updateScrollStatus("captured");
                     }
                     this.autoScrollStableTimer = null;
@@ -1549,6 +1554,7 @@ export const ScannerService = {
             // (así entraron "Jahu" y "Forma Blueprint" desde celdas de reliquia).
             const pendingItems = [];
             const pendingArcanes = [];
+            const arcanosSinLeer = [];
 
             const { drawResolved: drawResolvedCell, drawFailed: drawFailedCell } =
                 createCellOverlay(dCtx, gridZone, cellW, cellH);
@@ -1556,7 +1562,8 @@ export const ScannerService = {
             // MOTOR PRECISO: las bandas de nombre de TODA la página se leen de una sola pasada
             // (ver PaddleRepository.recognizeStripWords). Antes iba celda a celda y cada llamada
             // pagaba entera la red de detección: 889 ms frente a 209. Si falla, se va celda a celda.
-            const bandaY = Math.round(cellH * 0.50), bandaH = Math.round(cellH * 0.48);
+            const modoArcanos = esContextoArcanos(contexto);
+            const [bandaY, bandaH] = (modoArcanos ? [BANDA_NOMBRE_ARCANO.y, BANDA_NOMBRE_ARCANO.h] : [0.50, 0.48]).map((f) => Math.round(cellH * f));
             const clave = (cell) => `r${cell.r}c${cell.c}`;
             let lotePreciso = null;
             if (motorActivo() === MOTOR_PRECISO) {
@@ -1567,6 +1574,8 @@ export const ScannerService = {
                     .catch((e) => { console.warn("[Paddle] lote falló, voy celda a celda:", e); return null; });
             }
 
+            const reconoceArcano = (ws) => emparejaArcano(ws.join(" "), this.tablaArcanos, (a, b) => OCRService.similarityOCR(a, b));
+
             // Elegirlo cuesta hasta 6 lecturas de Tesseract (~1-2 s en la 1ª página, la que el usuario
             // espera). Con el lote del preciso solo lo usan los respaldos (6 celdas en 30 páginas,
             // medido), así que se elige en el primero que lo pida; sin lote lo necesita la máscara de
@@ -1575,7 +1584,7 @@ export const ScannerService = {
             const colorDeNombre = () => eleccion ||= (async () => {
                 await cedeHilo(); // la rejilla y el voto de color son los dos bloques largos de la 1ª página
                 // La lectura manda sobre el color del auto-grid: ese sale de contar píxeles.
-                pageNameColor = await electPageNameColor(workers[0], snapshot, activeCells, cellW, textSrcY, textSrcH, theme)
+                pageNameColor = await electPageNameColor(workers[0], snapshot, activeCells, cellW, textSrcY, textSrcH, theme, modoArcanos ? reconoceArcano : undefined)
                     || calibData?.nameColor || null;
                 if (pageNameColor) this._nameColorCache = { key: calibKey, color: pageNameColor };
                 this.lastRawOcrLog.push(`[NAME-COLOR] ${pageNameColor ? `rgb(${pageNameColor.join(",")})` : "ninguno — cada celda mide el suyo"}`);
@@ -1664,9 +1673,7 @@ export const ScannerService = {
                     // debug pintaba siempre la 1ª pasada y con el match del fallback no casaba con la card.
                     let relicText = combinedText, itemText = combinedText;
                     const readable = !this._isGarbledCellText(combinedText);
-                    const modoArcanos = contexto === "ARCANE_DISSOLUTION";
-
-                    let arcaneMatch = (readable && modoArcanos) ? emparejaArcano(combinedText.join(" "), this.tablaArcanos, (a, b) => OCRService.similarityOCR(a, b)) : null;
+                    let arcaneMatch = (readable && modoArcanos) ? reconoceArcano(combinedText) : null;
                     let relicMatch = (readable && !modoArcanos) ? OCRService.getRelicMatch(combinedText) : null;
                     if (relicMatch && textoDelLote) { // 5/6 del código por el glifo (utils/vision/relic_digit_56.js)
                         const r = corrige56(relicMatch, PaddleRepository.palabrasDelLote(clave(cell)), PaddleRepository.recorteDelLote(clave(cell)), (n) => !!globalThis.state?.allRelicNames?.includes(n));
@@ -1689,7 +1696,7 @@ export const ScannerService = {
                         }
                         if (fallbackText && fallbackText.length) {
                             if (modoArcanos) {
-                                arcaneMatch = emparejaArcano(fallbackText.join(" "), this.tablaArcanos, (a, b) => OCRService.similarityOCR(a, b));
+                                arcaneMatch = reconoceArcano(fallbackText);
                                 if (arcaneMatch) itemText = fallbackText;
                             } else {
                                 relicMatch = OCRService.getRelicMatch(fallbackText);
@@ -1708,7 +1715,7 @@ export const ScannerService = {
                         const ownText = await readCellWithOwnColor(worker, snapshot, cell, cellW, textSrcY, textSrcH, theme);
                         if (ownText?.length && !this._isGarbledCellText(ownText)) {
                             if (modoArcanos) {
-                                arcaneMatch = emparejaArcano(ownText.join(" "), this.tablaArcanos, (a, b) => OCRService.similarityOCR(a, b));
+                                arcaneMatch = reconoceArcano(ownText);
                                 if (arcaneMatch) itemText = ownText;
                             } else {
                                 relicMatch = OCRService.getRelicMatch(ownText);
@@ -1728,10 +1735,10 @@ export const ScannerService = {
 
                     // Tres líneas con el arte encima del mismo color: se relee cortando por arriba.
                     if (!bestItem && !relicMatch && !arcaneMatch) {
-                        const r = await readCellCuttingArt(worker, snapshot, cell, cellW, textSrcY, textSrcH, theme, pageNameColor, (ws) => !this._isGarbledCellText(ws));
+                        const r = await readCellCuttingArt(worker, snapshot, cell, cellW, textSrcY, textSrcH, theme, pageNameColor, (ws) => !this._isGarbledCellText(ws), modoArcanos ? reconoceArcano : undefined);
                         if (r) {
                             if (modoArcanos) {
-                                arcaneMatch = emparejaArcano(r.words.join(" "), this.tablaArcanos, (a, b) => OCRService.similarityOCR(a, b));
+                                arcaneMatch = reconoceArcano(r.words);
                                 if (arcaneMatch) itemText = r.words;
                             } else {
                                 relicMatch = r.relicMatch; bestItem = r.bestItem; if (relicMatch) relicText = r.words; else itemText = r.words;
@@ -1748,7 +1755,7 @@ export const ScannerService = {
                             const pWords = await PaddleRepository.recognizeWords(colorCvs);
                             if (pWords) {
                                 if (modoArcanos) {
-                                    arcaneMatch = emparejaArcano(pWords.join(" "), this.tablaArcanos, (a, b) => OCRService.similarityOCR(a, b));
+                                    arcaneMatch = reconoceArcano(pWords);
                                     if (arcaneMatch) { combinedText = pWords; itemText = pWords; logStr += " [paddle]"; }
                                 } else {
                                     relicMatch = OCRService.getRelicMatch(pWords);
@@ -1799,6 +1806,7 @@ export const ScannerService = {
                             // Riven detectado: solo loguear, no registrar como UNMATCHED ni agregarlo al inventario
                             this.lastRawOcrLog.push(logStr + " || RIVEN (ignored in inventory grid)");
                         } else {
+                            if (modoArcanos) arcanosSinLeer.push(`r${cell.r}c${cell.c} "${combinedText ? combinedText.join(" ") : ""}"`);
                             scanStats.unmatched++;
                             this.lastRawOcrLog.push(logStr);
                             const relX = cell.sx - gridZone.x;
@@ -1839,7 +1847,7 @@ export const ScannerService = {
                 const motorReal = lotePreciso ? "paddle" : `tesseract x${workers.length}`;
                 reloj.fin(`${motorReal} · ${relojBadges.n} badges ${relojBadges.ms.toFixed(0)} ms`);
 
-                if (contexto === "ARCANE_DISSOLUTION") {
+                if (esContextoArcanos(contexto)) {
                     const arcanosList = [];
                     for (const pending of pendingArcanes) {
                         scanStats.matched++;
@@ -1847,13 +1855,16 @@ export const ScannerService = {
                         arcanosList.push({
                             slug: pending.arcaneMatch.slug,
                             name: pending.arcaneMatch.name,
-                            qty: pending.qtyResult.qty
+                            qty: pending.qtyResult.qty,
+                            r: pending.cell.r,
+                            c: pending.cell.c
                         });
                         drawResolvedCell({
                             cell: pending.cell, qtyResult: pending.qtyResult, text: pending.itemText,
                             accent: "#ff00ff", name: pending.arcaneMatch.name, qty: pending.qtyResult.qty
                         });
                     }
+                    console.log(`[ARC] ${arcanosList.length}/${activeCells.length} arcanos${arcanosSinLeer.length ? ` | sin leer: ${arcanosSinLeer.join(" · ")}` : ""}`);
                     this.onPaginaArcanos?.(arcanosList);
                 } else {
                     // Commit de las partes prime pendientes, ya con la página entera vista.

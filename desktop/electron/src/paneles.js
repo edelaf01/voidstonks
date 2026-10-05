@@ -8,7 +8,7 @@ export function peticionValida(p) {
   for (const panel of p.paneles) {
     if (!panel || typeof panel !== "object") return false;
     const bloques = Array.isArray(panel.bloques) ? panel.bloques : [];
-    const filas = bloques.reduce((n, b) => n + (Array.isArray(b?.filas) ? b.filas.length : 0), 0);
+    const filas = bloques.reduce((n, b) => n + (Array.isArray(b?.filas) ? b.filas.length : 0) + (Array.isArray(b?.celdas) ? b.celdas.length : 0), 0);
     if (bloques.length > MAX_BLOQUES || filas > MAX_FILAS) return false;
   }
   return true;

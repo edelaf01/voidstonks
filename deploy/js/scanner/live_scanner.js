@@ -1,5 +1,5 @@
 import { loadVosforData, requestAllPacks, requestPackStats, bestBalancedPackRate, arcaneVerdict, onArcaneStats } from "../services/vosfor.service.js";
-import { filaArcano } from "../utils/inventory/arcanos_disolucion.js";
+import { filaArcano, esContextoArcanos } from "../utils/inventory/arcanos_disolucion.js";
 import { DEBUG_ACTIVO } from "../utils/debug_log.js";
 import { state, saveAppState } from "../state.js";
 import { applyRewardCommit, undoRewardCommit, pickManualReward, aplicaTradeo } from "../utils/inventory/reward_commit.js";
@@ -335,7 +335,7 @@ let promesaPacksPuesta = false;
 
 escucha("contexto", async (ctx) => {
   if (ctx === "RELICS") pintaReliquias(eraElegida);
-  if (ctx === "ARCANE_DISSOLUTION") {
+  if (esContextoArcanos(ctx)) {
     const data = await loadVosforData();
     ScannerService.tablaArcanos = data.tradables;
     if (!promesaPacksPuesta) {
@@ -350,11 +350,11 @@ escucha("contexto", async (ctx) => {
 
 async function procesaPaginaArcanos(lista) {
   paginaArcanosActiva = lista;
-  if (ScannerService.latchedContext !== "ARCANE_DISSOLUTION") return;
+  if (!esContextoArcanos(ScannerService.latchedContext)) return;
   const slugs = lista.map((i) => i.slug);
   await requestPackStats({ id: "disolucion", items: slugs }, true).catch(console.warn);
   const data = await loadVosforData();
-  if (paginaArcanosActiva !== lista || ScannerService.latchedContext !== "ARCANE_DISSOLUTION") return;
+  if (paginaArcanosActiva !== lista || !esContextoArcanos(ScannerService.latchedContext)) return;
   const spend = bestBalancedPackRate(data);
   const filas = lista.map((item) => {
     const meta = data.arcanes[item.slug];
@@ -366,7 +366,7 @@ async function procesaPaginaArcanos(lista) {
 
 ScannerService.onPaginaArcanos = (lista) => { procesaPaginaArcanos(lista).catch(console.warn); };
 onArcaneStats(() => {
-  if (paginaArcanosActiva && ScannerService.latchedContext === "ARCANE_DISSOLUTION") {
+  if (paginaArcanosActiva && esContextoArcanos(ScannerService.latchedContext)) {
     procesaPaginaArcanos(paginaArcanosActiva).catch(console.warn);
   }
 });

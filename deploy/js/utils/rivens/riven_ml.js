@@ -55,7 +55,7 @@ export async function loadRivenML() {
     _ml = {
       quantiles, qmodels, order, defaults, idx,
       bands: bands || {}, statWeights: statWeights || {},
-      cal: cal || {}, drift: (cal && cal.drift) || {}, synlo: (cal && cal.synlo) || {}, nsamp: (cal && cal.nsamp) || {},
+      cal: cal || {}, drift: (cal && cal.drift) || {}, nivel: (cal && cal.nivel) || {}, synlo: (cal && cal.synlo) || {}, nsamp: (cal && cal.nsamp) || {},
       // venta: calibrado ask->venta por arma que exporta ML_local.py. Solo las armas con
       // `fiable: true` tienen el modelo entrenado en escala de precio de VENTA.
       venta: (cal && cal.venta) || {},
@@ -666,10 +666,11 @@ export async function predictRivenMLBand(weapon, itemAttributes, weaponData = nu
   if (usaModelo) {
     // El modelo predice en espacio log1p (y_all = log1p(price) en el entrenamiento) -> expm1.
     // Cada cuantil tiene su propio modelo, así que la banda sale directa del modelo, sin OFF.
+    const nivel = _byWeapon(ml.nivel, wname) || 1.0;
     for (const a of qs) {
       const m = qmods[a] || qmods[0.5];
       if (!m) continue;
-      out[a] = Math.max(floor, Math.round(Math.expm1(rawPredictModel(m, vec))));
+      out[a] = Math.max(floor, Math.round(Math.expm1(rawPredictModel(m, vec)) * nivel));
     }
   } else {
     for (const a of qs) {

@@ -6,7 +6,12 @@
 // imágenes, que viven fuera del repo.
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { installFakeDocument, FakeCanvas, canvasLiso } from "./_helpers/fake-canvas.mjs";
+import { decodePng } from "./_helpers/png.mjs";
+import { FRANJA_CATEGORIA_VIDEO } from "../deploy/js/utils/vision/context_latch.js";
 
 installFakeDocument();
 const { VisionService } = await import("../deploy/js/services/scanner/vision.service.js");
@@ -82,4 +87,51 @@ test("el recorte de cabecera se redimensiona al cambiar la resolución del víde
   VisionService.prepareVirtualCanvas(video(2560, 1080, [255, 255, 255]), cvs);
   assert.deepEqual([cvs.width, cvs.height], [1152, 129]);
   assert.notEqual(cvs.data, buffer);
+});
+
+const { leeCategoriaInventario } = await import("../deploy/js/services/scanner/header_read.service.js");
+const { OCRRepository } = await import("../deploy/js/repositories/ocr.repository.js");
+
+test("leeCategoriaInventario lee y memoiza con la misma franja", async () => {
+  const v = video(1920, 1080, [100, 100, 100]);
+  const escaner = {};
+
+  let ocrLlamadas = 0;
+  const originalRecognize = OCRRepository.recognize;
+  OCRRepository.recognize = async () => {
+    ocrLlamadas++;
+    return { data: { text: "arcanes" } };
+  };
+
+  try {
+    const r1 = await leeCategoriaInventario(escaner, v, null);
+    assert.equal(r1, "ARCANES");
+    assert.equal(ocrLlamadas, 1);
+    assert.ok(escaner._categoriaHash);
+
+    const r2 = await leeCategoriaInventario(escaner, v, null);
+    assert.equal(r2, "ARCANES");
+    assert.equal(ocrLlamadas, 1, "No debería volver a hacer OCR si el hash no cambia");
+  } finally {
+    OCRRepository.recognize = originalRecognize;
+  }
+});
+
+test("la franja de categoría cubre el rótulo ARCANES entero", () => {
+  const img = decodePng(fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), "_fixtures/inventory_arcanes_1920x1080.png")));
+  const { x, y, w, h } = FRANJA_CATEGORIA_VIDEO;
+  const [x0, x1] = [Math.round(x * img.width), Math.round((x + w) * img.width)];
+  const [y0, y1] = [Math.round(y * img.height), Math.round((y + h) * img.height)];
+  const tinta = [];
+  for (let yy = y0; yy < y1; yy++) {
+    let n = 0;
+    for (let xx = x0; xx < x1; xx++) {
+      const i = (yy * img.width + xx) * 4;
+      if (0.299 * img.data[i] + 0.587 * img.data[i + 1] + 0.114 * img.data[i + 2] > 140) n++;
+    }
+    tinta.push(n);
+  }
+  assert.ok(tinta.filter((n) => n > 0).length >= 12, `filas con texto: ${tinta.join(",")}`);
+  assert.equal(tinta[0], 0);
+  assert.equal(tinta.at(-1), 0);
 });

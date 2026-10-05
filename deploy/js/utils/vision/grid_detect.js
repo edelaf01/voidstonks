@@ -74,6 +74,7 @@ const DEFAULTS = {
     maxBandHFrac: 0.25,  // banda más alta que 25% de la imagen = fondo/arte, no texto
     mergeGapYFrac: 0.0085, // del alto: une las 2 líneas de un nombre (12px medidos a 1440p). En px fijos el umbral se afloja al reescalar y cuela una 4ª fila
     bandMassFloor: 0.22, // masa mínima relativa a la banda más fuerte (filtra badges/HUD)
+    bandMassFloorRetry: 0.15,
     nameBandOffset: 0.75, // top de celda ≈ top de banda de nombre − 0.75·cellH (el nombre empieza al ~75% de la celda)
     nameBaselineOffset: 0.92, // top de celda ≈ BASELINE de nombre (y1) − 0.92·cellH (la baseline de texto está al ~92% del alto de celda, permitiendo que el crop de badge al top 0% atrape el icono x1/x2 perfecto y la zona de nombre 22% no interfiera)
     rows: 3,             // el inventario de Warframe siempre muestra 3 filas
@@ -421,6 +422,16 @@ export function detectInventoryGrid(img, opts = {}) {
     // (1) Señal de bordes (primaria).
     const edgeRes = detectInventoryGridCore(img, opts);
     if (edgeRes) return edgeRes;
+
+    const retryTrace = {};
+    const retryRes = detectInventoryGridCore(img, { ...opts, bandMassFloor: o.bandMassFloorRetry, trace: retryTrace });
+    if (retryRes) {
+        if (opts.trace) {
+            delete opts.trace.fail;
+            Object.assign(opts.trace, retryTrace, { bandMassFloor: o.bandMassFloorRetry });
+        }
+        return retryRes;
+    }
 
     // (2) Fallback por color de nombre. Prueba cada color candidato; se queda con
     // el grid válido cuya banda de fila sea la más fina (texto, no arte metálico).

@@ -802,7 +802,8 @@ async function lecturasDeCabecera({ haceMs, frame2 }) {
   const { FakeCanvas } = await import("./_helpers/fake-canvas.mjs");
   let lecturas = 0;
   const orig = { workers: OCRRepository.workers, ruta: S.routeFrameAction };
-  OCRRepository.workers = [{ recognize: async () => { lecturas++; return { data: { text: "INVENTORY/SELL" } }; } }];
+  const { VisionService } = await import("../deploy/js/services/scanner/vision.service.js");
+  OCRRepository.workers = [{ recognize: async (img) => { if (img !== VisionService.lienzo("categoria")) lecturas++; return { data: { text: "INVENTORY/SELL" } }; } }];
   S.routeFrameAction = async () => {};
   const lienzo = new FakeCanvas(16, 9);
   const base = await cabeceraConRotulo();
@@ -1025,7 +1026,8 @@ test("una pantalla nueva parada se lee aunque el reloj de la cabecera aún no ha
   const { FakeCanvas } = await import("./_helpers/fake-canvas.mjs");
   let lecturas = 0;
   const orig = { workers: OCRRepository.workers, ruta: S.routeFrameAction };
-  OCRRepository.workers = [{ recognize: async () => { lecturas++; return { data: { text: "INVENTORY/SELL" } }; } }];
+  const { VisionService } = await import("../deploy/js/services/scanner/vision.service.js");
+  OCRRepository.workers = [{ recognize: async (img) => { if (img !== VisionService.lienzo("categoria")) lecturas++; return { data: { text: "INVENTORY/SELL" } }; } }];
   S.routeFrameAction = async () => {};
   const lienzo = new FakeCanvas(16, 9);
   const base = await cabeceraConRotulo();

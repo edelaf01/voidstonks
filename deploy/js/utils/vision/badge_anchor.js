@@ -19,7 +19,7 @@ const ANCLA = { xMax: 0.35, altoMin: 0.25, altoMax: 0.50, arMin: 0.80, arMax: 1.
 // Un dígito comparte centro vertical con el checkmark y mide entre el 40% y el 125% de su alto.
 // La banda de 0,45 no es cosmética: a 0,55 se cuela un bloque de arte del plano y "5" se lee
 // "58" a 1920x1080 y a 1280x720.
-const DIGITO = { banda: 0.45, altoMin: 0.40, altoMax: 1.25, hueco: 0.60 };
+const DIGITO = { banda: 0.45, altoMin: 0.40, altoMax: 1.25, hueco: 0.60, desfase: 0.25 };
 
 /**
  * @param comps [{ minX, maxX, minY, maxY, width, height, area }] del recorte binarizado.
@@ -53,9 +53,11 @@ export function digitosPorAncla(comps, ventanaW, ventanaH) {
     // El número es el racimo CONTIGUO desde el primero: el arte que quede en la banda va
     // separado, y así no hace falta saber de cuántas cifras es el número.
     const salida = [candidatos[0].i];
-    let ultimo = candidatos[0].c;
+    const primero = candidatos[0].c;
+    let ultimo = primero;
     for (let k = 1; k < candidatos.length; k++) {
         if (candidatos[k].c.minX - ultimo.maxX > ancla.height * DIGITO.hueco) break;
+        if (Math.abs(centroY(candidatos[k].c) - centroY(primero)) > primero.height * DIGITO.desfase) break;
         salida.push(candidatos[k].i);
         ultimo = candidatos[k].c;
     }

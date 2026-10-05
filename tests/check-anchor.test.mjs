@@ -4,6 +4,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { decodePng } from "./_helpers/png.mjs";
 import { PLANTILLA_CHECK, CHECK_OFFSET, buscaChecks, faseDesdeChecks, picosCheck, reduceMax, ventanasDeFilas } from "../deploy/js/utils/vision/check_anchor.js";
 
 /** Zona sintética: fondo oscuro con ruido suave y ✓ (la plantilla ampliada ×2) en las celdas pedidas. */
@@ -54,6 +56,25 @@ test("reduceMax reduce por bloques con el canal máximo", () => {
   assert.deepEqual([r.w, r.h], [2, 1]);
   assert.deepEqual(Array.from(r.data), [20, 60]);
   assert.equal(picosCheck(r).length, 0);
+});
+
+test("reduceMax con un factor no entero reparte bloques de 1 y 2 sin salirse de la fila", () => {
+  const fila = [10, 20, 30, 40, 50, 60];
+  const img = { width: 6, height: 3, data: new Uint8ClampedArray([0, 1, 2].flatMap(() => fila.flatMap((v) => [v, 0, 0, 255]))) };
+  const r = reduceMax(img, 1.5);
+  assert.deepEqual([r.w, r.h], [4, 2]);
+  assert.deepEqual(Array.from(r.data), [10, 25, 40, 55, 10, 25, 40, 55]);
+});
+
+test("a 1080p (celda de 222) encuentra las 24 marcas de la pestaña de arcanos y su fase", () => {
+  const img = decodePng(fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), "_fixtures/inventory_arcanes_1920x1080.png")));
+  const z = { x: 68, y: 177, w: 1242, h: 888 };
+  const recorte = { width: z.w, height: z.h, data: new Uint8ClampedArray(z.w * z.h * 4) };
+  for (let y = 0; y < z.h; y++) recorte.data.set(img.data.subarray(((z.y + y) * img.width + z.x) * 4, ((z.y + y) * img.width + z.x + z.w) * 4), y * z.w * 4);
+  const picos = buscaChecks(recorte, 222);
+  assert.equal(picos.length, 24);
+  const f = faseDesdeChecks(picos, { cellW: 207, cellH: 222 });
+  assert.ok(Math.abs(z.x + f.gridX - 70) <= 3 && Math.abs(z.y + f.gridY - 182) <= 3, JSON.stringify(f));
 });
 
 // --- Páginas reales (fuera del repo; sin ellas se salta) ---------------------------------------

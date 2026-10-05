@@ -5,6 +5,7 @@ import { exposeGlobals } from "../utils/global_registry.js";
 import { aplicaMotor, estadoMotor, MOTOR_PRECISO } from "../services/scanner/ocr_engine.service.js";
 import { avisaContexto } from "./ui_scanner_coach.js";
 import { avisa, escucha } from "../utils/ganchos.js";
+import { esContextoArcanos, rejillaArcanos, lineasArcano } from "../utils/inventory/arcanos_disolucion.js";
 
 /**
  * Component for the Scanner HUD (status badges, counters, scroll guides).
@@ -51,7 +52,7 @@ export const ScannerHUD = {
                 this.setUIBadge(badge, "MODS", "#d060ff", "rgba(208,96,255,0.4)", "rgba(208,96,255,0.1)");
             } else if (contextType === "RELICS") {
                 this.setUIBadge(badge, sh.statusRelics, "#00e5ff", "rgba(0,229,255,0.3)", "rgba(0,229,255,0.1)");
-            } else if (contextType === "ARCANE_DISSOLUTION") {
+            } else if (esContextoArcanos(contextType)) {
                 this.setUIBadge(badge, sh.statusArcanes, "#00e5ff", "rgba(0,229,255,0.3)", "rgba(0,229,255,0.1)");
             } else if (contextType === "REWARD") {
                 this.setUIBadge(badge, sh.statusReward, "#a0ff80", "rgba(160,255,128,0.3)", "rgba(160,255,128,0.08)");
@@ -85,6 +86,35 @@ export const ScannerHUD = {
             if (ducats != null) linea.appendChild(span("kiosk-ducats", String(ducats)));
             panel.appendChild(linea);
         }
+    },
+
+    updateArcanos(filas) {
+        const panel = document.getElementById("arcane-panel");
+        if (!panel) return;
+        const clave = JSON.stringify(filas);
+        if (clave === this._ultimosArcanos) return;
+        this._ultimosArcanos = clave;
+        panel.replaceChildren();
+        panel.style.display = filas.length ? "" : "none";
+        if (!filas.length) return;
+        const t = TEXTS[state.currentLang];
+        const titulo = document.createElement("div");
+        titulo.className = "kiosk-title";
+        titulo.textContent = t.scannerHUD.statusArcanes;
+        panel.appendChild(titulo);
+        const span = (clase, texto) => Object.assign(document.createElement("span"), { className: clase, textContent: texto });
+        const rejilla = document.createElement("div");
+        rejilla.className = "arcane-grid";
+        for (const f of rejillaArcanos(filas).celdas) {
+            const celda = document.createElement("div");
+            celda.className = f ? "arcane-cell" : "arcane-cell arcane-empty";
+            if (f) {
+                lineasArcano(f, t).forEach(({ texto, tono }, i) =>
+                    celda.appendChild(span(i ? `arcane-line arcane-${tono || "gris"}` : "arcane-name", texto)));
+            }
+            rejilla.appendChild(celda);
+        }
+        panel.appendChild(rejilla);
     },
 
     /** Lo que hay en la mesa del Trading Post ({ doy, recibo }); sin mesa, el bloque se esconde. */
@@ -383,3 +413,4 @@ function setOcrEngine(motor) {
 exposeGlobals({ toggleScannerHud, setOcrEngine }, "ui.components/ui_scanner_hud.js");
 
 escucha("escaner-parado", () => { ScannerHUD._ultimoInventario = null; });
+escucha("arcanos", (datos) => ScannerHUD.updateArcanos(datos?.filas || []));
