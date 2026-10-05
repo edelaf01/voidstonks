@@ -28,7 +28,6 @@ import {
   renderLFGPresets,
   renderTradePresets,
 } from "./ui.components/ui_lfg.js";
-import { populateRivenSelects, initRivenMarketIndex, updateIndexTranslations, filterRivenIndex, stopRivenShowcase } from "./ui.components/rivens/ui_rivens.js?v=1.11";
 import { applyArbTexts } from "./ui.components/rivens/ui_arbitrage.js";
 import { initVosforTab, renderVosforTab } from "./ui.components/ui_vosfor.js?v=2.9";
 import { initSyncPanel } from "./ui.components/market/ui_sync.js";
@@ -43,7 +42,6 @@ import { renderInventory, updateInventoryPanelLabels } from "./ui.components/inv
 import { renderPrimeInventory } from "./ui.components/inventory/ui_prime_inventory.js";
 import { ScannerHUD, renderOcrEngine } from "./ui.components/ui_scanner_hud.js";
 import { updateScannerLabels } from "./ui.components/ui_scanner_labels.js";
-import { ScannerModal } from "./ui.components/ui_scanner_modal.js";
 globalThis.TEXTS = TEXTS;
 
 const iconPathCache = new Map();
@@ -61,11 +59,20 @@ export function finishLoading() {
   if (state.selectedRelic) manualRelicUpdate();
 }
 
+let rivensUI = null;
+
+export function cargaRivens() {
+  rivensUI ||= import("./ui.components/rivens/ui_rivens.js").then((m) => {
+    m.populateRivenSelects();
+    updateRivenSelects(TEXTS[state.currentLang]);
+    return m;
+  });
+  return rivensUI;
+}
+
 function initTabContent(mode) {
   if (mode === "riven") {
-    if (typeof initRivenMarketIndex === "function") {
-      initRivenMarketIndex().catch(console.error);
-    }
+    cargaRivens().then((m) => m.initRivenMarketIndex()).catch(console.error);
     applyArbTexts();
   } else if (mode === "relic") {
     renderFarmRoutes().catch((e) => console.warn("[rutas] al abrir Reliquia:", e));
@@ -110,7 +117,7 @@ export function initTabRouting() {
 }
 
 export function switchTab(mode) {
-  if (state.activeTab === "riven" && mode !== "riven") stopRivenShowcase();
+  if (state.activeTab === "riven" && mode !== "riven") rivensUI?.then((m) => m.stopRivenShowcase());
   state.activeTab = mode;
   saveAppState();
   if (!navegandoPorHistorial) writeTabHash(mode);
@@ -394,7 +401,6 @@ function updateRivenSelects(t) {
 
 
 function triggerSideEffects(t) {
-  populateRivenSelects();
 
   const modeLfg = document.getElementById("mode-lfg");
   if (modeLfg && !modeLfg.classList.contains("hidden")) updateLFGUI();
@@ -428,8 +434,8 @@ function triggerSideEffects(t) {
   }
 
   const modal = document.getElementById("scan-success-modal");
-  if (modal && !modal.classList.contains("hidden") && typeof ScannerModal !== "undefined") {
-    ScannerModal.localizeLabels(modal);
+  if (modal && !modal.classList.contains("hidden")) {
+    import("./ui.components/ui_scanner_modal.js").then(({ ScannerModal }) => ScannerModal.localizeLabels(modal)).catch(console.error);
   }
 
   if (typeof initFissurePanel === "function") initFissurePanel().catch(console.error);
@@ -450,12 +456,12 @@ export function updateUILabels() {
   updateRivenSelects(t);
   updateScannerLabels(t);
   renderOcrEngine();
-  if (typeof updateIndexTranslations === "function") {
-    updateIndexTranslations();
-    if (state.rivenIndexData) {
-      filterRivenIndex();
-    }
-  }
+  rivensUI?.then((m) => {
+    m.populateRivenSelects();
+    updateRivenSelects(t);
+    m.updateIndexTranslations();
+    if (state.rivenIndexData) m.filterRivenIndex();
+  }).catch(console.error);
   applyArbTexts();
   renderLFGPresets();
   renderTradePresets();
