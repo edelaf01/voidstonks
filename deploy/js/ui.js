@@ -28,7 +28,6 @@ import {
   renderLFGPresets,
   renderTradePresets,
 } from "./ui.components/ui_lfg.js";
-import { populateRivenSelects, initRivenMarketIndex, updateIndexTranslations, filterRivenIndex, stopRivenShowcase } from "./ui.components/rivens/ui_rivens.js?v=1.11";
 import { applyArbTexts } from "./ui.components/rivens/ui_arbitrage.js";
 import { initVosforTab, renderVosforTab } from "./ui.components/ui_vosfor.js?v=2.9";
 import { initSyncPanel } from "./ui.components/market/ui_sync.js";
@@ -43,7 +42,6 @@ import { renderInventory, updateInventoryPanelLabels } from "./ui.components/inv
 import { renderPrimeInventory } from "./ui.components/inventory/ui_prime_inventory.js";
 import { ScannerHUD, renderOcrEngine } from "./ui.components/ui_scanner_hud.js";
 import { updateScannerLabels } from "./ui.components/ui_scanner_labels.js";
-import { ScannerModal } from "./ui.components/ui_scanner_modal.js";
 // Traductor de Kubrows (EE.log) DESACTIVADO: su pestaña está oculta en index.html porque la
 // lectura del log no da el resultado esperado. El import se deja comentado para que sus
 // ~96 KB (parser + traducciones + paleta de colores) no viajen en cada visita; al
@@ -81,11 +79,20 @@ export function finishLoading() {
  * recargar dentro de Set, Ducados o Riven aparecía media pestaña hasta que cambiabas a otra
  * y volvías —que es exactamente cuando esto se ejecutaba otra vez—.
  */
+let rivensUI = null;
+
+export function cargaRivens() {
+  rivensUI ||= import("./ui.components/rivens/ui_rivens.js").then((m) => {
+    m.populateRivenSelects();
+    updateRivenSelects(TEXTS[state.currentLang]);
+    return m;
+  });
+  return rivensUI;
+}
+
 function initTabContent(mode) {
   if (mode === "riven") {
-    if (typeof initRivenMarketIndex === "function") {
-      initRivenMarketIndex().catch(console.error);
-    }
+    cargaRivens().then((m) => m.initRivenMarketIndex()).catch(console.error);
     applyArbTexts();
   } else if (mode === "relic") {
     // Las rutas son la pantalla de arranque de esta pestaña: #relic-contents está oculto
@@ -141,7 +148,7 @@ export function initTabRouting() {
 }
 
 export function switchTab(mode) {
-  if (state.activeTab === "riven" && mode !== "riven") stopRivenShowcase();
+  if (state.activeTab === "riven" && mode !== "riven") rivensUI?.then((m) => m.stopRivenShowcase());
   state.activeTab = mode;
   saveAppState();
   if (!navegandoPorHistorial) writeTabHash(mode);
@@ -459,7 +466,6 @@ function updateRivenSelects(t) {
 
 
 function triggerSideEffects(t) {
-  populateRivenSelects();
 
   const modeLfg = document.getElementById("mode-lfg");
   if (modeLfg && !modeLfg.classList.contains("hidden")) updateLFGUI();
@@ -497,8 +503,8 @@ function triggerSideEffects(t) {
   }
 
   const modal = document.getElementById("scan-success-modal");
-  if (modal && !modal.classList.contains("hidden") && typeof ScannerModal !== "undefined") {
-    ScannerModal.localizeLabels(modal);
+  if (modal && !modal.classList.contains("hidden")) {
+    import("./ui.components/ui_scanner_modal.js").then(({ ScannerModal }) => ScannerModal.localizeLabels(modal)).catch(console.error);
   }
 
   // if (typeof initSyncPanel === "function") initSyncPanel();  // Interfaz de nube (sync) desactivada de momento
@@ -524,12 +530,12 @@ export function updateUILabels() {
   // El selector de motor: rótulos y cuál está activo. Va aquí y no en updateScannerLabels
   // porque ese módulo solo escribe texto y esto además lee la preferencia guardada.
   renderOcrEngine();
-  if (typeof updateIndexTranslations === "function") {
-    updateIndexTranslations();
-    if (state.rivenIndexData) {
-      filterRivenIndex();
-    }
-  }
+  rivensUI?.then((m) => {
+    m.populateRivenSelects();
+    updateRivenSelects(t);
+    m.updateIndexTranslations();
+    if (state.rivenIndexData) m.filterRivenIndex();
+  }).catch(console.error);
   applyArbTexts();
   // initLFGPresets() solo construye el panel la primera vez, así que sin esto los presets se
   // quedan en el idioma de arranque.

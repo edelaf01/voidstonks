@@ -10,6 +10,7 @@ import { warmupPrices } from "../services/inventory/inventory.service.js";
 import { ScannerService } from "../services/scanner/scanner.service.js";
 import { OCRService } from "../services/scanner/ocr.service.js?v=264";
 import { ScannerModal } from "../ui.components/ui_scanner_modal.js";
+import "../ui.components/ui_squad_run.js";
 import { ScannerHUD, renderOcrEngine } from "../ui.components/ui_scanner_hud.js";
 import { restauraMotor } from "../services/scanner/ocr_engine.service.js";
 import { showHowToPanel } from "../ui.components/ui_howto_panel.js";
