@@ -32,7 +32,8 @@ import { videoRegionHash, canvasRegionHash, compareHashes, fraccionCambiada, reg
 import { createReadCache } from "../../utils/vision/read_cache.js";
 import { DebugRecorder } from "./debug_recorder.service.js";
 import { FirmasTitulo } from "./title_signatures.service.js";
-import { leeCabeceraOCR, RESCATE_CABECERA_MS } from "./header_read.service.js";
+import { leeCabeceraOCR, RESCATE_CABECERA_MS, leeCategoriaInventario } from "./header_read.service.js";
+import { esContextoArcanos, BANDA_NOMBRE_ARCANO, tirasDeNombreArcano } from "../../utils/inventory/arcanos_disolucion.js";
 import { TradeService } from "./trade.service.js";
 import { ANCHO_REJILLA_TRADEO } from "../../utils/vision/trade_post.js";
 import { DucatKioskService } from "./ducat_kiosk.service.js";
@@ -239,7 +240,8 @@ export const ScannerService = {
         }
 
         reloj.fase("cabecera");
-        const rawContext = VisionService.determineContext(headerText);
+        let rawContext = VisionService.determineContext(headerText);
+        if (rawContext === "INVENTORY" && /ARCAN/.test(await leeCategoriaInventario(this, video, worker1))) rawContext = "INVENTORY_ARCANES";
         // the streak counts the context, not the text: the header returns slightly different garbage each time
         this._headerEstable = rawContext === this._headerCtxPrevio ? (this._headerEstable || 0) + 1 : 0;
         this._headerCtxPrevio = rawContext;
@@ -388,10 +390,10 @@ export const ScannerService = {
             return;
         }
 
-        if (contextType === "INVENTORY" || contextType === "ARCANE_DISSOLUTION") {
+        if (contextType === "INVENTORY" || esContextoArcanos(contextType)) {
             // no kiosk read with a page in OCR: it changes the psm of worker 0
             if (!this.detectionLocked && contextType === "INVENTORY") await DucatKioskService.process(video, this.lastHeaderText);
-            if (!globalThis.state.autoScanEnabled && contextType !== "ARCANE_DISSOLUTION" && !DucatKioskService.esKiosco(this.lastHeaderText)) {
+            if (!globalThis.state.autoScanEnabled && !esContextoArcanos(contextType) && !DucatKioskService.esKiosco(this.lastHeaderText)) {
                 this.currentRate = 3000;
                 this.autoScrollMuestra = null;
                 this.sawScrollSinceScan = false;
@@ -473,8 +475,11 @@ export const ScannerService = {
             }
 
             // still: rescan after a scroll or a page hash change
+            const rejillaArcanos = esContextoArcanos(contextType) && zona && this._autoCalibCache?.calib;
+            const tirasArcanos = rejillaArcanos ? tirasDeNombreArcano(rejillaArcanos, zona, dims.width, dims.height) : [];
+            const muestraPagina = tirasArcanos.length ? firmaTexto(video, tirasArcanos) : muestra;
             const hasPageChanged = !this.autoScrollMuestra || this.sawScrollSinceScan
-                || fraccionCambiada(muestra, this.autoScrollMuestra) >= 0.01;
+                || (tirasArcanos.length ? !mismoTexto(muestraPagina, this.autoScrollMuestra) : fraccionCambiada(muestra, this.autoScrollMuestra) >= 0.01);
 
             // a still page that changed is scanned whatever the scroll direction: the grid is periodic and a
             // fast scroll down aliases to a negative dy
@@ -484,7 +489,7 @@ export const ScannerService = {
                 this.autoScrollStableTimer = setTimeout(async () => {
                     // cleared here, not after the OCR: scrolling during the scan sets it again
                     this.sawScrollSinceScan = false;
-                    if ((!globalThis.state.autoScanEnabled && !DucatKioskService.esKiosco(this.lastHeaderText)) || !this._canCapturePage) {
+                    if ((!globalThis.state.autoScanEnabled && !esContextoArcanos(contextType) && !DucatKioskService.esKiosco(this.lastHeaderText)) || !this._canCapturePage) {
                         this.autoScrollStableTimer = null;
                         return;
                     }
@@ -506,7 +511,7 @@ export const ScannerService = {
 
                     // queue full: the hash is not marked, so the page is retried instead of lost
                     if (this.enqueueInventoryPage(snapshot, dims)) {
-                        this.autoScrollMuestra = muestra;
+                        this.autoScrollMuestra = muestraPagina;
                         ScannerHUD.updateScrollStatus("captured");
                     }
                     this.autoScrollStableTimer = null;
@@ -1383,13 +1388,15 @@ export const ScannerService = {
             // cell filled by the fuzzy matcher
             const pendingItems = [];
             const pendingArcanes = [];
+            const arcanosSinLeer = [];
 
             const { drawResolved: drawResolvedCell, drawFailed: drawFailedCell } =
                 createCellOverlay(dCtx, gridZone, cellW, cellH);
 
             // precise engine: every name band of the page in one pass (PaddleRepository.recognizeStripWords).
             // On failure, cell by cell.
-            const bandaY = Math.round(cellH * 0.50), bandaH = Math.round(cellH * 0.48);
+            const modoArcanos = esContextoArcanos(contexto);
+            const [bandaY, bandaH] = (modoArcanos ? [BANDA_NOMBRE_ARCANO.y, BANDA_NOMBRE_ARCANO.h] : [0.50, 0.48]).map((f) => Math.round(cellH * f));
             const clave = (cell) => `r${cell.r}c${cell.c}`;
             let lotePreciso = null;
             if (motorActivo() === MOTOR_PRECISO) {
@@ -1400,13 +1407,15 @@ export const ScannerService = {
                     .catch((e) => { console.warn("[Paddle] lote falló, voy celda a celda:", e); return null; });
             }
 
+            const reconoceArcano = (ws) => emparejaArcano(ws.join(" "), this.tablaArcanos, (a, b) => OCRService.similarityOCR(a, b));
+
             // picking it costs up to 6 Tesseract reads: with the precise batch only fallbacks use it, so it is
             // picked on first need; without the batch every cell mask needs it
             let eleccion = pageNameColor && Promise.resolve();
             const colorDeNombre = () => eleccion ||= (async () => {
                 await cedeHilo(); // the grid and color vote are the two long blocks of the 1st page
                 // the read wins over the auto-grid color, which comes from counting pixels
-                pageNameColor = await electPageNameColor(workers[0], snapshot, activeCells, cellW, textSrcY, textSrcH, theme)
+                pageNameColor = await electPageNameColor(workers[0], snapshot, activeCells, cellW, textSrcY, textSrcH, theme, modoArcanos ? reconoceArcano : undefined)
                     || calibData?.nameColor || null;
                 if (pageNameColor) this._nameColorCache = { key: calibKey, color: pageNameColor };
                 this.lastRawOcrLog.push(`[NAME-COLOR] ${pageNameColor ? `rgb(${pageNameColor.join(",")})` : "ninguno — cada celda mide el suyo"}`);
@@ -1487,9 +1496,7 @@ export const ScannerService = {
                     // the text that actually produced the match, for the debug overlay
                     let relicText = combinedText, itemText = combinedText;
                     const readable = !this._isGarbledCellText(combinedText);
-                    const modoArcanos = contexto === "ARCANE_DISSOLUTION";
-
-                    let arcaneMatch = (readable && modoArcanos) ? emparejaArcano(combinedText.join(" "), this.tablaArcanos, (a, b) => OCRService.similarityOCR(a, b)) : null;
+                    let arcaneMatch = (readable && modoArcanos) ? reconoceArcano(combinedText) : null;
                     let relicMatch = (readable && !modoArcanos) ? OCRService.getRelicMatch(combinedText) : null;
                     if (relicMatch && textoDelLote) { // 5/6 of the code by the glyph (utils/vision/relic_digit_56.js)
                         const r = corrige56(relicMatch, PaddleRepository.palabrasDelLote(clave(cell)), PaddleRepository.recorteDelLote(clave(cell)), (n) => !!globalThis.state?.allRelicNames?.includes(n));
@@ -1512,7 +1519,7 @@ export const ScannerService = {
                         }
                         if (fallbackText && fallbackText.length) {
                             if (modoArcanos) {
-                                arcaneMatch = emparejaArcano(fallbackText.join(" "), this.tablaArcanos, (a, b) => OCRService.similarityOCR(a, b));
+                                arcaneMatch = reconoceArcano(fallbackText);
                                 if (arcaneMatch) itemText = fallbackText;
                             } else {
                                 relicMatch = OCRService.getRelicMatch(fallbackText);
@@ -1531,7 +1538,7 @@ export const ScannerService = {
                         const ownText = await readCellWithOwnColor(worker, snapshot, cell, cellW, textSrcY, textSrcH, theme);
                         if (ownText?.length && !this._isGarbledCellText(ownText)) {
                             if (modoArcanos) {
-                                arcaneMatch = emparejaArcano(ownText.join(" "), this.tablaArcanos, (a, b) => OCRService.similarityOCR(a, b));
+                                arcaneMatch = reconoceArcano(ownText);
                                 if (arcaneMatch) itemText = ownText;
                             } else {
                                 relicMatch = OCRService.getRelicMatch(ownText);
@@ -1551,10 +1558,10 @@ export const ScannerService = {
 
                     // three lines with art of the same color above: reread cutting from the top
                     if (!bestItem && !relicMatch && !arcaneMatch) {
-                        const r = await readCellCuttingArt(worker, snapshot, cell, cellW, textSrcY, textSrcH, theme, pageNameColor, (ws) => !this._isGarbledCellText(ws));
+                        const r = await readCellCuttingArt(worker, snapshot, cell, cellW, textSrcY, textSrcH, theme, pageNameColor, (ws) => !this._isGarbledCellText(ws), modoArcanos ? reconoceArcano : undefined);
                         if (r) {
                             if (modoArcanos) {
-                                arcaneMatch = emparejaArcano(r.words.join(" "), this.tablaArcanos, (a, b) => OCRService.similarityOCR(a, b));
+                                arcaneMatch = reconoceArcano(r.words);
                                 if (arcaneMatch) itemText = r.words;
                             } else {
                                 relicMatch = r.relicMatch; bestItem = r.bestItem; if (relicMatch) relicText = r.words; else itemText = r.words;
@@ -1571,7 +1578,7 @@ export const ScannerService = {
                             const pWords = await PaddleRepository.recognizeWords(colorCvs);
                             if (pWords) {
                                 if (modoArcanos) {
-                                    arcaneMatch = emparejaArcano(pWords.join(" "), this.tablaArcanos, (a, b) => OCRService.similarityOCR(a, b));
+                                    arcaneMatch = reconoceArcano(pWords);
                                     if (arcaneMatch) { combinedText = pWords; itemText = pWords; logStr += " [paddle]"; }
                                 } else {
                                     relicMatch = OCRService.getRelicMatch(pWords);
@@ -1617,6 +1624,7 @@ export const ScannerService = {
                         if (this._isRivenCellText(fallbackText)) {
                             this.lastRawOcrLog.push(logStr + " || RIVEN (ignored in inventory grid)");
                         } else {
+                            if (modoArcanos) arcanosSinLeer.push(`r${cell.r}c${cell.c} "${combinedText ? combinedText.join(" ") : ""}"`);
                             scanStats.unmatched++;
                             this.lastRawOcrLog.push(logStr);
                             const relX = cell.sx - gridZone.x;
@@ -1652,7 +1660,7 @@ export const ScannerService = {
                 const motorReal = lotePreciso ? "paddle" : `tesseract x${workers.length}`;
                 reloj.fin(`${motorReal} · ${relojBadges.n} badges ${relojBadges.ms.toFixed(0)} ms`);
 
-                if (contexto === "ARCANE_DISSOLUTION") {
+                if (esContextoArcanos(contexto)) {
                     const arcanosList = [];
                     for (const pending of pendingArcanes) {
                         scanStats.matched++;
@@ -1660,13 +1668,16 @@ export const ScannerService = {
                         arcanosList.push({
                             slug: pending.arcaneMatch.slug,
                             name: pending.arcaneMatch.name,
-                            qty: pending.qtyResult.qty
+                            qty: pending.qtyResult.qty,
+                            r: pending.cell.r,
+                            c: pending.cell.c
                         });
                         drawResolvedCell({
                             cell: pending.cell, qtyResult: pending.qtyResult, text: pending.itemText,
                             accent: "#ff00ff", name: pending.arcaneMatch.name, qty: pending.qtyResult.qty
                         });
                     }
+                    console.log(`[ARC] ${arcanosList.length}/${activeCells.length} arcanos${arcanosSinLeer.length ? ` | sin leer: ${arcanosSinLeer.join(" · ")}` : ""}`);
                     this.onPaginaArcanos?.(arcanosList);
                 } else {
                     // commit pending prime parts with the whole page seen: if most cells matched a relic it is the relic

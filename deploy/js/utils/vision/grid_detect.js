@@ -57,6 +57,7 @@ const DEFAULTS = {
     maxBandHFrac: 0.25,  // taller than 25% of the image = background/art, not text
     mergeGapYFrac: 0.0085, // of the height: joins the 2 lines of a name; in fixed px it loosens when rescaling
     bandMassFloor: 0.22, // min mass relative to the strongest band (drops badges/HUD)
+    bandMassFloorRetry: 0.15,
     nameBandOffset: 0.75, // cell top ≈ name band top − 0.75·cellH
     nameBaselineOffset: 0.92, // cell top ≈ name BASELINE (y1) − 0.92·cellH
     rows: 3,             // Warframe's inventory always shows 3 rows
@@ -375,6 +376,16 @@ export function detectInventoryGrid(img, opts = {}) {
 
     const edgeRes = detectInventoryGridCore(img, opts);
     if (edgeRes) return edgeRes;
+
+    const retryTrace = {};
+    const retryRes = detectInventoryGridCore(img, { ...opts, bandMassFloor: o.bandMassFloorRetry, trace: retryTrace });
+    if (retryRes) {
+        if (opts.trace) {
+            delete opts.trace.fail;
+            Object.assign(opts.trace, retryTrace, { bandMassFloor: o.bandMassFloorRetry });
+        }
+        return retryRes;
+    }
 
     // name color fallback: keeps the valid grid whose row band is the thinnest (text, not metallic art)
     const outerTrace = opts.trace || {};

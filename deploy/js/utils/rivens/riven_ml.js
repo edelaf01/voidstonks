@@ -45,7 +45,7 @@ export async function loadRivenML() {
     _ml = {
       quantiles, qmodels, order, defaults, idx,
       bands: bands || {}, statWeights: statWeights || {},
-      cal: cal || {}, drift: (cal && cal.drift) || {}, synlo: (cal && cal.synlo) || {}, nsamp: (cal && cal.nsamp) || {},
+      cal: cal || {}, drift: (cal && cal.drift) || {}, nivel: (cal && cal.nivel) || {}, synlo: (cal && cal.synlo) || {}, nsamp: (cal && cal.nsamp) || {},
       venta: (cal && cal.venta) || {},
     };
     // global stat prior, in state so the appraisal can interpolate stats without weapon data
@@ -532,10 +532,11 @@ export async function predictRivenMLBand(weapon, itemAttributes, weaponData = nu
   const usaModelo = !!(vinfo && vinfo.fiable) && Object.keys(qmods).length > 0;
 
   if (usaModelo) {
+    const nivel = _byWeapon(ml.nivel, wname) || 1.0;
     for (const a of qs) {
       const m = qmods[a] || qmods[0.5];
       if (!m) continue;
-      out[a] = Math.max(floor, Math.round(Math.expm1(rawPredictModel(m, vec))));
+      out[a] = Math.max(floor, Math.round(Math.expm1(rawPredictModel(m, vec)) * nivel));
     }
   } else {
     for (const a of qs) {
