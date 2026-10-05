@@ -61,6 +61,7 @@ const DEFAULT_WEAPON_DATA_URL = "data:image/svg+xml;utf8," + encodeURIComponent(
 globalThis.DEFAULT_WEAPON_DATA_URL = DEFAULT_WEAPON_DATA_URL;
 
 let rivenDebounceTimer;
+let armaElegida = null;
 let gradeDebounceTimer;
 let emptyShowcaseInterval = null;
 let emptyShowcaseTimeouts = [];
@@ -1929,6 +1930,10 @@ export function handleRivenInput() {
   if (input && clearBtn) {
     clearBtn.style.display = input.value.trim() ? "block" : "none";
   }
+  if (armaElegida && input?.value.trim() === armaElegida) {
+    document.getElementById("rivenDropdown")?.classList.add("hidden");
+    return;
+  }
 
   rivenDebounceTimer = setTimeout(() => {
     const dropdown = document.getElementById("rivenDropdown");
@@ -1991,6 +1996,8 @@ export function handleRivenInput() {
 export function selectRivenWeapon(name) {
   const input = document.getElementById("rivenWeaponInput");
   if (!input) return;
+  clearTimeout(rivenDebounceTimer);
+  document.getElementById("rivenDropdown")?.classList.add("hidden");
 
   const oldName = input.value;
   const oldNaked = getNakedName(oldName);
@@ -2005,7 +2012,7 @@ export function selectRivenWeapon(name) {
     }
   }
 
-  if (input.value === name) {
+  if (armaElegida === name && input.value === name) {
     // If the weapon is already selected, still center/cycle it in the variants carousel
     const carousel = document.getElementById("riven-variants-carousel");
     if (carousel) {
@@ -2019,8 +2026,8 @@ export function selectRivenWeapon(name) {
     return;
   }
 
+  armaElegida = name;
   input.value = name;
-  document.getElementById("rivenDropdown")?.classList.add("hidden");
 
   const clearBtn = document.getElementById("btn-clear-riven-search");
   if (clearBtn) clearBtn.style.display = "block";
