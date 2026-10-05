@@ -220,3 +220,23 @@ test("avisa arcanos manda y quita panel, ajustaPaneles quita en INVENTORY", asyn
   envi = enviados.filter((d) => d.grupo === "arcanos").at(-1);
   assert.equal(envi.paneles.length, 0);
 });
+
+test("con la ventana sin foco se pausan las animaciones, y vuelven al recuperarlo", async () => {
+  const { pausaAnimacionesSinFoco } = await import("../deploy/js/ui.components/ui_desktop_shell.js");
+  let foco = false;
+  const clases = new Set();
+  const doc = {
+    hasFocus: () => foco,
+    documentElement: { classList: { toggle: (c, si) => (si ? clases.add(c) : clases.delete(c)) } },
+  };
+  const oyentes = {};
+  const win = { addEventListener: (ev, fn) => { oyentes[ev] = fn; } };
+  pausaAnimacionesSinFoco(doc, win);
+  assert.ok(clases.has("ds-sin-foco"), "arranca detrás del juego");
+  foco = true;
+  oyentes.focus();
+  assert.ok(!clases.has("ds-sin-foco"));
+  foco = false;
+  oyentes.blur();
+  assert.ok(clases.has("ds-sin-foco"));
+});

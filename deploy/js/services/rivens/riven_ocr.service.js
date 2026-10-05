@@ -107,22 +107,22 @@ export const RivenOCRService = {
         }
         const clean = rawName.toLowerCase().replace(/[^a-z0-9 ]/g, "").trim();
         if (clean.length < 3) return null;
+        const { minus, porLargo } = this._nombresDeArmas();
 
-        const exact = state.allRivenNames.find(n => n.toLowerCase() === clean);
-        if (exact) return { name: exact, tier: 3, dist: 0 };
+        const exactIdx = minus.indexOf(clean);
+        if (exactIdx >= 0) return { name: state.allRivenNames[exactIdx], tier: 3, dist: 0 };
 
-        const sortedNames = [...state.allRivenNames].sort((a, b) => b.length - a.length);
-        const sub = sortedNames.find(n => {
-            const nl = n.toLowerCase();
+        const sub = porLargo.find(([, nl]) => {
             if (nl.length < 4 || clean.length < 4) return false;
             return clean.includes(nl) || (nl.includes(clean) && clean.length >= nl.length * 0.6);
         });
-        if (sub) return { name: sub, tier: 2, dist: 0 };
+        if (sub) return { name: sub[0], tier: 2, dist: 0 };
 
         let bestDist = Infinity;
         let bestMatch = null;
-        for (const name of state.allRivenNames) {
-            const d = this._levenshtein(clean, name.toLowerCase());
+        for (const [i, name] of state.allRivenNames.entries()) {
+            if (Math.abs(clean.length - minus[i].length) > 3) continue;
+            const d = this._levenshtein(clean, minus[i]);
             let maxDist = 3;
             if (name.length <= 4) maxDist = 1;
             else if (name.length <= 6) maxDist = 2;
@@ -136,8 +136,9 @@ export const RivenOCRService = {
 
         const words = clean.split(" ").filter(w => w.length >= 3);
         for (const word of words) {
-            for (const name of state.allRivenNames) {
-                const nameLower = name.toLowerCase();
+            for (const [i, name] of state.allRivenNames.entries()) {
+                const nameLower = minus[i];
+                if (Math.abs(word.length - nameLower.length) > 2) continue;
                 const d = this._levenshtein(word, nameLower);
                 let maxDist = 2;
                 if (name.length <= 4) maxDist = 1;
@@ -221,16 +222,27 @@ export const RivenOCRService = {
     },
 
     _levenshtein(a, b) {
-        const m = a.length, n = b.length;
-        const dp = Array.from({ length: m + 1 }, (_, i) => Array.from({ length: n + 1 }, (_, j) => i === 0 ? j : j === 0 ? i : 0));
-        for (let i = 1; i <= m; i++) {
+        const n = b.length;
+        let previa = Array.from({ length: n + 1 }, (_, j) => j);
+        let fila = new Array(n + 1);
+        for (let i = 1; i <= a.length; i++) {
+            fila[0] = i;
             for (let j = 1; j <= n; j++) {
-                dp[i][j] = a[i-1] === b[j-1]
-                    ? dp[i-1][j-1]
-                    : 1 + Math.min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1]);
+                fila[j] = a[i - 1] === b[j - 1] ? previa[j - 1] : 1 + Math.min(previa[j], fila[j - 1], previa[j - 1]);
             }
+            [previa, fila] = [fila, previa];
         }
-        return dp[m][n];
+        return previa[n];
+    },
+
+    _nombresDeArmas() {
+        const lista = state.allRivenNames;
+        if (this._cacheNombres?.lista !== lista) {
+            const minus = lista.map((n) => n.toLowerCase());
+            const porLargo = lista.map((n, i) => [n, minus[i]]).sort((a, b) => b[0].length - a[0].length);
+            this._cacheNombres = { lista, minus, porLargo };
+        }
+        return this._cacheNombres;
     },
 
     parseRivenCard(rawText) {
