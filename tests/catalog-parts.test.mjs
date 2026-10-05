@@ -82,6 +82,27 @@ test("con las reliquias sin publicar, el escáner reconoce la pieza nueva y el s
   }
 });
 
+test("con el catálogo llegando a la vez que las tablas, la pieza nueva entra igual", async () => {
+  const { dbHelper } = await import("../deploy/js/repositories/storage.repository.js");
+  const { updateDucatsDB, downloadRelics } = await import("../deploy/js/services/inventory/relics.service.js");
+  const orig = { get: dbHelper.get, set: dbHelper.set, fetch: globalThis.fetch };
+  dbHelper.get = async () => null;
+  dbHelper.set = async () => {};
+  globalThis.fetch = async (url) => ({ ok: true, status: 200, json: async () => (String(url).includes("relics_opt") ? { relics: [] } : {}) });
+  try {
+    Object.assign(state, { primeManifest: [], primeWeaponsManifest: [], ducatsDatabase: {}, activeResurgenceList: new Set() });
+    const catalogo = new Promise((r) => setTimeout(r, 20)).then(() => {
+      state.primeWeaponsManifest = [STEFLOS];
+      updateDucatsDB([STEFLOS]);
+    });
+    await downloadRelics(catalogo);
+    assert.deepEqual(state.itemsDatabase["Steflos Prime Blueprint"], []);
+  } finally {
+    Object.assign(dbHelper, { get: orig.get, set: orig.set });
+    globalThis.fetch = orig.fetch;
+  }
+});
+
 // Galariak and Sagek Prime drop at mission end but are not tradeable: WFCD has them with isPrime false and no ducats
 const GALARIAK = { name: "Galariak Prime", category: "Melee", isPrime: false, components: [
   { name: "Blade", ducats: 0 }, { name: "Blueprint", ducats: 0 }, { name: "Handle", ducats: 0 }, { name: "Orokin Cell", ducats: 0 },
