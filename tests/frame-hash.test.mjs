@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { installFakeDocument, FakeCanvas } from "./_helpers/fake-canvas.mjs";
 
 installFakeDocument();
+const { shareFrame, stopSharingFrame } = await import("../deploy/js/utils/vision/frame_freeze.js");
 const { videoRegionHash, smallCanvasHash, compareHashes, canvasRegionHash, fraccionCambiada, miniaturaLuma, regionLuma,
     firmaTexto, mismoTexto } = await import("../deploy/js/utils/vision/frame_hash.js");
 
@@ -197,4 +198,22 @@ test("firma de texto por zonas: una huella por carta, y otro número de cartas e
     assert.equal(dos.length, 2 * 96 * 36);
     assert.deepEqual([...dos.subarray(0, 96 * 36)], [...firmaTexto(carta(), zonaA)]);
     assert.equal(mismoTexto(dos, firmaTexto(carta(), [zonaA])), false);
+});
+
+test("leer de la copia compartida da lo mismo que leer del vídeo", () => {
+    const v = new FakeCanvas();
+    v.width = 64; v.height = 36;
+    for (let i = 0; i < v._data.length; i += 4) {
+        const x = (i / 4) % 64, y = Math.floor(i / 4 / 64);
+        v._data[i] = v._data[i + 1] = v._data[i + 2] = (x * 7 + y * 13) % 256;
+        v._data[i + 3] = 255;
+    }
+    v.videoWidth = 64; v.videoHeight = 36;
+    const rect = { x: 0.1, y: 0.2, w: 0.5, h: 0.4, cols: 12, filas: 6 };
+    const crop = { x: 0.05, y: 0.1, w: 0.6, h: 0.5 };
+    const directo = [regionLuma(v, rect), firmaTexto(v, crop), videoRegionHash(v, crop), miniaturaLuma(v, 16, 9).luma];
+    shareFrame(v);
+    const compartido = [regionLuma(v, rect), firmaTexto(v, crop), videoRegionHash(v, crop), miniaturaLuma(v, 16, 9).luma];
+    stopSharingFrame({ release: true });
+    assert.deepEqual(compartido, directo);
 });

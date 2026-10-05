@@ -255,6 +255,26 @@ test("nombre del riven partido en dos líneas: la primera es solo el arma y no s
   }
 });
 
+// Antes de calcular la distancia se descartan los nombres cuya longitud ya la hace imposible:
+// una línea basura de 40 letras se comparaba contra las ~650 armas en cada tick.
+test("una errata que se come justo las letras que permite el umbral sigue casando", () => {
+  const antes = state.allRivenNames;
+  state.allRivenNames = [...antes, "Ignis Wraith"];
+  try {
+    assert.deepEqual(S._matchWeaponScored("igns wrat"), { name: "Ignis Wraith", tier: 1, dist: 3 });
+    assert.equal(S._matchWeaponScored("the yuvan clerisy commissioned these golden statues"), null);
+  } finally {
+    state.allRivenNames = antes;
+  }
+});
+
+test("la distancia de edición cuenta inserciones, borrados y cambios", () => {
+  assert.equal(S._levenshtein("", "abc"), 3);
+  assert.equal(S._levenshtein("abc", ""), 3);
+  assert.equal(S._levenshtein("kitten", "sitting"), 3);
+  assert.equal(S._levenshtein("braton", "braton"), 0);
+});
+
 // El arte pega tokens espurios a la línea del nombre y las guardas antiguas (^\d, includes("%"))
 // descartaban la línea entera, perdiendo el arma.
 test("basura pegada al nombre del arma no hace perder el arma", () => {

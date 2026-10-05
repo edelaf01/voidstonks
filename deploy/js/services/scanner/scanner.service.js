@@ -1,5 +1,5 @@
 import { VisionService } from "./vision.service.js";
-import { freezeFrame, releaseFrame } from "../../utils/vision/frame_freeze.js";
+import { freezeFrame, releaseFrame, shareFrame, stopSharingFrame, sharedFrame } from "../../utils/vision/frame_freeze.js";
 import { nextLatchedContext, INITIAL_LATCH, enrutaGraciaRiven, intervaloCabecera, INTERVALO_FIN_MISION_MS, CADUCIDAD_CABECERA_MS, FRANJA_TITULO_VIDEO, tituloHaCambiado } from "../../utils/vision/context_latch.js";
 import { sensorDelEscaner, CADA_MS } from "../../utils/vision/wake_sensor.js";
 import { isImplausibleFallbackGrid } from "../../utils/vision/plausibility.js";
@@ -142,6 +142,7 @@ export const ScannerService = {
         // Parado no hay quien lea lo pendiente (los workers ya no están): se descarta.
         this._invQueue?.clear();
         this.releaseFrames();
+        stopSharingFrame({ release: true });
     },
 
     /** Suelta las fotos retenidas (pool de páginas, instantánea del inventario, frame de fin de misión). */
@@ -164,10 +165,12 @@ export const ScannerService = {
         // Vídeo a 0×0 (ventana redimensionada, carga): los recortes salían de 0 px y Tesseract fallaba.
         if (!video || video.paused || video.ended || !video.videoWidth || !video.videoHeight) { this.scanInterval = setTimeout(() => this.loop(), 1000); return; }
         try {
+            shareFrame(video);
             await this.processFrame(video, this.virtualCanvas);
         } catch (e) {
             console.warn("Scanner loop error:", e);
         } finally {
+            stopSharingFrame();
             if (this.isScanning) {
                 this.scanInterval = setTimeout(() => this.loop(), this.currentRate);
                 // En UNKNOWN solo por un rótulo conocido: jugando, la franja se para y arranca a cada rato.
@@ -448,7 +451,7 @@ export const ScannerService = {
             const rectKey = `${r.x},${r.y},${r.w},${r.h}`;
             // Al cambiar de región, las muestras anteriores no comparan: verlas juntas es un scroll fantasma.
             if (this._sampleRect !== rectKey) { this._sampleRect = rectKey; this.lastRowLums = null; this.autoScrollMuestra = null; }
-            sCtx.drawImage(video, r.x, r.y, r.w, r.h, 0, 0, 48, FILAS);
+            sCtx.drawImage(sharedFrame(video), r.x, r.y, r.w, r.h, 0, 0, 48, FILAS);
 
             const rowLums = [];
             const px = sCtx.getImageData(0, 0, 48, FILAS).data;

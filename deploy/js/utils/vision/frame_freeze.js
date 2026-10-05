@@ -36,3 +36,24 @@ export function freezeFrame(source, width, height, prev = null) {
   cvs.getContext("2d", { willReadFrequently: true }).drawImage(source, 0, 0, width, height);
   return cvs;
 }
+
+const VIGENCIA_COPIA_MS = 40;
+let compartido = null;
+
+export function shareFrame(video) {
+  compartido = { video, cvs: compartido?.cvs ?? null, tomado: -Infinity };
+}
+
+export function stopSharingFrame({ release = false } = {}) {
+  if (release && compartido?.cvs) releaseFrame(compartido.cvs);
+  compartido = release ? null : compartido && { ...compartido, video: null };
+}
+
+export function sharedFrame(source, ahora = performance.now()) {
+  if (!compartido || source !== compartido.video || !source.videoWidth || !source.videoHeight) return source;
+  if (ahora - compartido.tomado > VIGENCIA_COPIA_MS) {
+    compartido.cvs = freezeFrame(source, source.videoWidth, source.videoHeight, compartido.cvs);
+    compartido.tomado = ahora;
+  }
+  return compartido.cvs;
+}
