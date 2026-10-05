@@ -368,9 +368,9 @@ export const RivenOCRService = {
                 let value = parseFloat(m[2].replace(/[,\s]+/g, "."));
                 // Recover a dropped decimal point (e.g. 1215 → 121.5, 822 → 82.2)
                 if (value > 450 && value < 9999) value = parseFloat((value / 10).toFixed(1));
-                // Ningún stat real de riven baja de ~15% ni con disposición mínima: un valor
-                // diminuto ("+5% Puncture") es ruido del arte que casualmente casó con un nombre.
-                if (value < 8) continue;
+                // Un riven sin rango baja a ~6% ("+6.2% Magazine Capacity"); por debajo de 4 es ruido
+                // del arte que casualmente casó con un nombre.
+                if (value < 4) continue;
                 // Strip wrapped qualifiers like "(x2 for Bows)" / "x2 for Bows" before matching the name
                 const name = m[3]
                     .replace(/\([^)]*\)/g, " ")

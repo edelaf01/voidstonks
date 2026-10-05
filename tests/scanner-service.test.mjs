@@ -613,10 +613,10 @@ test("con una página en OCR: ni kiosko, ni 'done' en el HUD, ni rejilla de reli
     Object.assign(S, { autoScrollMuestra: vista, sawScrollSinceScan: false });
     await S.routeFrameAction("INVENTORY", video, dims); // quieta y ya vista
     await S.routeFrameAction("INVENTORY", video, dims);
-    return { kiosko: n.kiosko, dones: n.estados.filter((e) => e === "done").length, scanning: n.estados.filter((e) => e === "scanning").length };
+    return { kiosko: n.kiosko, dones: n.estados.filter((e) => e === "done").length, scanning: n.estados.filter((e) => e === "scanning").length, captured: n.estados.filter((e) => e === "captured").length };
   };
-  assert.deepEqual(await inventario(false), { kiosko: 3, dones: 2, scanning: 0 }, "control: sin candado se lee el kiosko y el HUD vuelve a 'done'");
-  assert.deepEqual(await inventario(true), { kiosko: 0, dones: 0, scanning: 2 }, "con candado: ni kiosko ni 'done'; el HUD dice que escanea");
+  assert.deepEqual(await inventario(false), { kiosko: 3, dones: 2, scanning: 0, captured: 0 }, "control: sin candado se lee el kiosko y el HUD vuelve a 'done'");
+  assert.deepEqual(await inventario(true), { kiosko: 0, dones: 0, scanning: 0, captured: 2 }, "con candado: ni kiosko ni 'done'; el HUD dice que está capturada");
 
   S.detectionLocked = false;
   await S.routeFrameAction("RELICS", video, dims);
@@ -770,6 +770,11 @@ test("en modo preciso el pool de Tesseract solo se crea si el preciso está caí
   }
 });
 
+test("el timeout de foto usa this.ESPERA_FOTO_MS de 350ms y tiene rama 'captured'", () => {
+  assert.equal(S.ESPERA_FOTO_MS, 350);
+  assert.match(SRC, /ScannerHUD\.updateScrollStatus\(!hasPageChanged \? "captured" : "scanning"\)/);
+});
+
 // --- La franja del rótulo decide cuándo se relee la cabecera ---------------------------------
 //
 // El hash 16×9 de antes no veía "INVENTORY/SELL" -> "INVENTORY/MODS" y el reloj (2,5 s) era lo
@@ -856,7 +861,7 @@ test("una página nueva se escanea aunque el scroll parezca hacia arriba, y el H
     await new Promise((r) => setTimeout(r, 900));
     assert.equal(capturas, 2, "la página nueva se captura");
     await S.routeFrameAction("INVENTORY", frame(20), dims);
-    assert.equal(estados.at(-1), "scanning", "con una página en OCR y esta encolada, el HUD dice que escanea");
+    assert.equal(estados.at(-1), "captured", "con una página en OCR y esta encolada, el HUD dice que está capturada");
   } finally {
     if (S.autoScrollStableTimer) { clearTimeout(S.autoScrollStableTimer); S.autoScrollStableTimer = null; }
     S._invQueue = null; S.detectionLocked = false; S.isScanning = false;
@@ -1537,4 +1542,25 @@ test("sin dimensiones de vídeo el tick no procesa y vuelve a mirar en un segund
   } finally {
     S.processFrame = orig; S.isScanning = false; clearTimeout(S.scanInterval);
   }
+});
+
+test("ARCANE_DISSOLUTION salta DucatKioskService.process y no necesita autoScanEnabled", async () => {
+  const { DucatKioskService } = await import("../deploy/js/services/scanner/ducat_kiosk.service.js");
+  const W = 640, H = 360;
+  const data = new Uint8ClampedArray(W * H * 4).fill(40);
+  const video = { videoWidth: W, videoHeight: H, width: W, height: H, data };
+  const dims = { width: W, height: H, scale: 1 };
+  const orig = { kiosko: DucatKioskService.process };
+  let kioskoCalls = 0;
+  DucatKioskService.process = async () => { kioskoCalls++; };
+  globalThis.state = { ...globalThis.state, autoScanEnabled: false, scannerModsMode: false };
+  S.lastHeaderText = "ARCANE DISSOLUTION";
+  S.detectionLocked = false;
+  
+  await S.routeFrameAction("ARCANE_DISSOLUTION", video, dims);
+  
+  assert.equal(kioskoCalls, 0);
+  assert.equal(S.currentRate, 300, "Si entra en la captura sin autoScanEnabled, el rate es rápido (300) y no 3000");
+
+  DucatKioskService.process = orig.kiosko;
 });

@@ -180,3 +180,64 @@ export function panelReliquias(picks, era, t, { reliquiasEnApp = 1, refino = nul
   bloques.push({ tipo: "separador" }, { tipo: "lista", filas });
   return { ...POS_RELIQUIAS, bloques };
 }
+
+export function panelInventario({ detectados = 0, auto = false, escaneando = false, capturada = false }, t) {
+  return {
+    x: 0.985,
+    y: 0.085,
+    anclaje: "derecha",
+    bloques: [
+      { tipo: "titulo", texto: t.statusInventory, tono: "ducado" },
+      {
+        tipo: "estado",
+        texto: capturada ? t.autoScanCaptured : (escaneando ? t.autoScanScanning : `${t.lblDetected}: ${detectados}`),
+        tono: capturada ? "verde" : (escaneando ? "cian" : "verde")
+      },
+      {
+        tipo: "botones",
+        botones: [
+          { texto: t.ovlScanPage, accion: "inv:escanear" },
+          { texto: t.ovlAuto, accion: "inv:auto", activo: !!auto },
+          { texto: t.ovlSave, accion: "inv:guardar" }
+        ]
+      }
+    ]
+  };
+}
+
+export function panelArcanos(filas, t) {
+  if (!filas?.length) return null;
+  return {
+    x: 0.985, y: 0.085, anclaje: "derecha",
+    bloques: [
+      { tipo: "titulo", texto: t.scannerHUD.statusArcanes, tono: "ducado" },
+      {
+        tipo: "lista",
+        filas: filas.slice(0, 18).map(({ name, qty, maxRank, rangosMax, accion }) => {
+          let textoVeredicto = "…";
+          let tonoVeredicto = "gris";
+          if (accion === "sell_max") {
+            textoVeredicto = `${t.vosfor.verdictSell} R${maxRank}`;
+            tonoVeredicto = "verde";
+          } else if (accion === "sell_r0") {
+            textoVeredicto = t.vosfor.verdictSellR0;
+            tonoVeredicto = "verde";
+          } else if (accion === "dissolve") {
+            textoVeredicto = t.vosfor.verdictDissolve;
+            tonoVeredicto = "cian";
+          } else if (accion === "even") {
+            textoVeredicto = t.vosfor.verdictEven;
+            tonoVeredicto = "gris";
+          }
+
+          return [
+            { texto: name },
+            { texto: String(qty) },
+            { texto: rangosMax > 0 ? `${rangosMax}×R${maxRank}` : "" },
+            { texto: textoVeredicto, tono: tonoVeredicto },
+          ];
+        }),
+      },
+    ],
+  };
+}

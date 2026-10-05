@@ -1,3 +1,5 @@
+import { loadVosforData, requestAllPacks, requestPackStats, bestBalancedPackRate, arcaneVerdict, onArcaneStats } from "../services/vosfor.service.js";
+import { filaArcano } from "../utils/inventory/arcanos_disolucion.js";
 import { DEBUG_ACTIVO } from "../utils/debug_log.js";
 import { state, saveAppState } from "../state.js";
 import { applyRewardCommit, undoRewardCommit, pickManualReward, aplicaTradeo } from "../utils/inventory/reward_commit.js";
@@ -20,6 +22,7 @@ import { RelicScreenService } from "../services/scanner/relic_screen.service.js"
 import { DucatKioskService } from "../services/scanner/ducat_kiosk.service.js";
 import { TradeService } from "../services/scanner/trade.service.js";
 import { applyDucatSale, vuelcaSesion } from "../utils/inventory/ducat_kiosk.js";
+import { piezasDeConstruccion } from "../utils/inventory/fundicion.js";
 import { exposeGlobals } from "../utils/global_registry.js";
 import { DebugRecorder } from "../services/scanner/debug_recorder.service.js";
 import { motorElegido } from "../services/scanner/ocr_engine.service.js";
@@ -327,12 +330,58 @@ async function alElegirReliquia(ahora, mision) {
 escucha("overlay-reliquias", alAccionReliquias);
 escucha("reliquia-abierta", (nombre) => gastaReliquiaAbierta(nombre, true));
 escucha("eligiendo-reliquia", ({ ahora, mision }) => alElegirReliquia(ahora, mision));
+let paginaArcanosActiva = null;
+let promesaPacksPuesta = false;
+
+escucha("contexto", async (ctx) => {
+  if (ctx === "RELICS") pintaReliquias(eraElegida);
+  if (ctx === "ARCANE_DISSOLUTION") {
+    const data = await loadVosforData();
+    ScannerService.tablaArcanos = data.tradables;
+    if (!promesaPacksPuesta) {
+      promesaPacksPuesta = true;
+      requestAllPacks().catch(console.warn);
+    }
+  } else {
+    avisa("arcanos", null);
+    paginaArcanosActiva = null;
+  }
+});
+
+async function procesaPaginaArcanos(lista) {
+  paginaArcanosActiva = lista;
+  if (ScannerService.latchedContext !== "ARCANE_DISSOLUTION") return;
+  const slugs = lista.map((i) => i.slug);
+  await requestPackStats({ id: "disolucion", items: slugs }, true).catch(console.warn);
+  const data = await loadVosforData();
+  if (paginaArcanosActiva !== lista || ScannerService.latchedContext !== "ARCANE_DISSOLUTION") return;
+  const spend = bestBalancedPackRate(data);
+  const filas = lista.map((item) => {
+    const meta = data.arcanes[item.slug];
+    const veredicto = arcaneVerdict(item.slug, data.arcanes, spend);
+    return filaArcano(item, meta, veredicto);
+  });
+  avisa("arcanos", { filas });
+}
+
+ScannerService.onPaginaArcanos = (lista) => { procesaPaginaArcanos(lista).catch(console.warn); };
+onArcaneStats(() => {
+  if (paginaArcanosActiva && ScannerService.latchedContext === "ARCANE_DISSOLUTION") {
+    procesaPaginaArcanos(paginaArcanosActiva).catch(console.warn);
+  }
+});
+
+escucha("overlay-inventario", (accion) => {
+  if (accion === "inv:escanear") globalThis.manualPrecisionScan()?.catch(console.warn);
+  else if (accion === "inv:auto") globalThis.toggleAutoScrollScan();
+  else if (accion === "inv:guardar") globalThis.saveLiveInventory()?.catch(console.warn);
+});
 
 RelicScreenService.onApplied = (changed) => {
   const t = TEXTS[state.currentLang].scanner;
   showToast((t.relicCountsApplied || "{n} relic counts updated").replace("{n}", String(changed.length)));
   saveAppState();
-  if (eligiendoReliquia) pintaReliquias();
+  if (eligiendoReliquia || ScannerService.latchedContext === "RELICS") pintaReliquias(eraElegida);
 };
 
 TradeService.onUpdate = (mesa) => ScannerHUD.updateTrade(mesa);
@@ -354,11 +403,13 @@ ScannerService.onPaginaKiosco = () => {
   if (globalThis.renderPrimeInventory) globalThis.renderPrimeInventory();
   recomiendaParaBaro().catch(console.warn);
 };
+
 const TOPE_PARA_BARO = 8;
 let pidiendoPrecios = false;
 async function recomiendaParaBaro() {
+  const inv = vuelcaSesion(state.primeInventory, ScannerService.sessionInventory);
   const deps = {
-    primeInventory: state.primeInventory, setsDatabase: state.setsDatabase, getSetName, getRequiredCount,
+    primeInventory: inv, setsDatabase: state.setsDatabase, getSetName, getRequiredCount,
     ducadosDe: ducadosDePieza, rentaFundir: ducatsBeatSale,
     precioDe: (n) => { const r = MEMORY_CACHE.get(getSlug(n)); return r === undefined ? null : (Number.parseInt(r, 10) || 0); },
   };
@@ -366,7 +417,7 @@ async function recomiendaParaBaro() {
     .map((p) => ({ name: p.name, qty: p.qty, ducats: p.ducats * p.qty, plat: p.plat, ratio: p.ratio })),
   TEXTS[state.currentLang].scannerHUD.kioskSuggest);
   pinta();
-  const sinPrecio = Object.keys(state.primeInventory).filter((n) => ducadosDePieza(n) && deps.precioDe(n) === null
+  const sinPrecio = Object.keys(inv).filter((n) => ducadosDePieza(n) && deps.precioDe(n) === null
     && copiasQueSobran(n, deps).sobran > 0);
   if (!sinPrecio.length || pidiendoPrecios) return;
   pidiendoPrecios = true;
@@ -395,6 +446,24 @@ DucatKioskService.onSale = (venta) => {
   const faltan = ausentes.length ? (t.ducatSoldMissing || "").replace("{missing}", ausentes.join(", ")) : "";
   showToast((t.ducatSold || "Sold: {items}").replace("{items}", lista) + faltan, { duration: 8000 });
 };
+
+escucha("construido", (nombre) => {
+  const piezas = piezasDeConstruccion(nombre, state.setsDatabase, getRequiredCount);
+  if (!piezas || !piezas.length) return;
+  const t = TEXTS[state.currentLang].scanner;
+  const { inventario, restadas, ausentes } = applyDucatSale(state.primeInventory, piezas);
+  state.primeInventory = inventario;
+  for (const { name } of piezas) {
+    ScannerService.sessionInventory.delete(name);
+    ScannerService.qtyVotes.delete(name);
+  }
+  saveAppState();
+  if (globalThis.renderPrimeInventory) globalThis.renderPrimeInventory();
+  ScannerHUD.updateDetectedItems(ScannerService.sessionInventory, ScannerService.sessionRelics);
+  const lista = restadas.map((r) => `${r.qty}× ${r.name}`).join(", ") || "-";
+  const faltan = ausentes.length ? (t.ducatSoldMissing || "").replace("{missing}", ausentes.join(", ")) : "";
+  showToast((t.foundryBuilt || "Foundry: used {items}").replace("{items}", lista) + faltan, { duration: 8000 });
+});
 
 /**
  * UI Hook called by ScannerService when a relic is detected.
@@ -662,6 +731,7 @@ globalThis.manualPrecisionScan = async () => {
  */
 globalThis.toggleAutoScrollScan = () => {
   state.autoScanEnabled = !state.autoScanEnabled;
+  ScannerHUD._avisaInventario();
   const btn = document.getElementById("btn-auto-scan");
   if (btn) {
     btn.dataset.active = state.autoScanEnabled ? "1" : "0";

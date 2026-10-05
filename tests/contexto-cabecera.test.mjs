@@ -36,6 +36,13 @@ const casos = [
   ["ZONE 3 REACHED", "MISSION_COMPLETE"],
   ["TRADING POST", "TRADE"],
   ["| + TRADING POST 0 :", "TRADE"],
+  ["ITEM DETAILS\nRifle Riven Mod", "RIVEN_DETAILS"],
+  ["+ ITEM DETAILS ©:\nRifle Riven Mod", "RIVEN_DETAILS"],
+  ["ITEM DETAILS\nMod Agrietado de Rifle", "RIVEN_DETAILS"],
+  ["ITEM DETAILS\nRhino Prime", "ITEM_DETAILS"],
+  ["BE ARCANE DISSOLUTION", "ARCANE_DISSOLUTION"],
+  ["BARCANE DISSOLUTION", "ARCANE_DISSOLUTION"],
+  ["ARCANE DISSOLUTION", "ARCANE_DISSOLUTION"],
 ];
 
 for (const [texto, esperado] of casos) {

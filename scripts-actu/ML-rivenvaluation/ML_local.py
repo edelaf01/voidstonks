@@ -61,6 +61,7 @@ print(f"Dataset crudo cargado: {df_micro.shape[0]} filas.")
 clave_dedup = [c for c in ["weapon", "stat_pos1", "stat_pos2", "stat_pos3", "stat_neg", "rerolls", "price"]
                if c in df_micro.columns]
 antes = df_micro.shape[0]
+df_micro["primera_fecha"] = df_micro.groupby(clave_dedup)["fecha"].transform("min")
 df_micro.drop_duplicates(subset=clave_dedup, keep="last", inplace=True)
 print(f"Reposts exactos eliminados: {antes - df_micro.shape[0]} (conservada la varianza de precio).")
 
@@ -112,7 +113,7 @@ print(f"Mapeadas {df_micro['weapon'].nunique()} variantes a {len(representantes_
 # ====================================================================
 print("\nFASE 2: DESCARGA API Y FEATURES")
 
-cols_originales = ["weapon", "fecha", "price", "stat_pos1", "stat_pos2", "stat_pos3", "stat_neg",
+cols_originales = ["weapon", "fecha", "primera_fecha", "price", "stat_pos1", "stat_pos2", "stat_pos3", "stat_neg",
                    "rerolls", "family_rep", "mag_pos1", "mag_pos2", "mag_pos3", "mag_neg"]
 df_micro = df_micro[[c for c in df_micro.columns if c in cols_originales]]
 
@@ -763,35 +764,27 @@ _VIDA_MEDIA_DIAS = float(os.environ.get("RECENCIA_HALFLIFE", "30"))
 # rompen la regresión por cuantiles (ver el comentario del fit). La recencia depende solo de la
 # fecha, así que es el único peso que se puede usar sin sesgar el cuantil estimado.
 df_ml["w_recencia"] = 1.0
-if _RECENCIA_ON and "fecha" in df_ml.columns:
-    _f = pd.to_datetime(df_ml["fecha"], errors="coerce")
-    _edad = (_f.max() - _f).dt.days.fillna(_VIDA_MEDIA_DIAS * 2).clip(lower=0)
-    # Vida media ADAPTATIVA por arma en vez de una fija para todo el catálogo. La idea: lo reciente
-    # manda, pero el pasado REFUERZA donde el precio es estable. Si un arma apenas se mueve, un
-    # listado de hace dos meses sigue diciendo la verdad y descartarlo es tirar muestra; si el precio
-    # baila, lo viejo ya no describe el mercado de hoy.
-    # El decaimiento uniforme (todo a 30d) se probó antes y salió plano —R2intra 0.5630 -> 0.5590—,
-    # precisamente porque penalizaba igual a las armas estables, que son la mayoría.
-    # La volatilidad se mide sobre la MEDIANA DIARIA del arma, no sobre todos sus listados: dentro
-    # de un arma los precios van de 21p (basura) a 9000p (godroll), así que el cv por filas mide la
-    # dispersión de CALIDAD y satura en cualquier arma (medido: cv mediano 4.00, o sea inservible).
-    # Lo que interesa aquí es si el PRECIO TÍPICO se mueve en el tiempo, y eso solo se ve comparando
-    # un día con otro.
-    _dia = pd.to_datetime(df_ml["fecha"], errors="coerce").dt.date
-    _med_dia = df_ml.groupby(["weapon", _dia])["price"].transform("median")
-    _serie_arma = df_ml.assign(_md=_med_dia).drop_duplicates(subset=["weapon", "fecha"])
+def pesos_recencia(df, referencia):
+    _f = pd.to_datetime(df["fecha"], errors="coerce")
+    _edad = (pd.to_datetime(referencia) - _f).dt.days.fillna(_VIDA_MEDIA_DIAS * 2).clip(lower=0)
+    _dia = _f.dt.date
+    _med_dia = df.groupby(["weapon", _dia])["price"].transform("median")
+    _serie_arma = df.assign(_md=_med_dia).drop_duplicates(subset=["weapon", "fecha"])
     _vol = (_serie_arma.groupby("weapon")["_md"].std()
             / _serie_arma.groupby("weapon")["_md"].median().clip(lower=1)).fillna(0.0)
-    _cv = df_ml["weapon"].map(_vol).fillna(float(_vol.median())).clip(0, 2)
+    _cv = df["weapon"].map(_vol).fillna(float(_vol.median())).clip(0, 2)
     _cv_med = float(_cv.median()) or 1.0
     _factor = (_cv_med / _cv.clip(lower=0.05)).clip(1 / 3, 4)
     _hl = (_VIDA_MEDIA_DIAS * _factor).clip(lower=7)
     _w_rec = np.power(0.5, _edad / _hl)
     print(f"  Recencia adaptativa: vida media {_hl.min():.0f}-{_hl.max():.0f}d "
           f"(base {_VIDA_MEDIA_DIAS:.0f}d, cv mediano {_cv_med:.2f})")
-    df_ml["w_recencia"] = _w_rec / _w_rec.mean()
     print(f"  Recencia: vida media {_VIDA_MEDIA_DIAS:.0f}d | peso medio "
           f"{_w_rec.mean():.2f} | filas de >60d: {(_edad > 60).sum()}")
+    return _w_rec / _w_rec.mean()
+
+if _RECENCIA_ON and "fecha" in df_ml.columns:
+    df_ml["w_recencia"] = pesos_recencia(df_ml, pd.to_datetime(df_ml["fecha"], errors="coerce").max())
 
 # Normalize by weapon count and global mean (as before)
 _wcount = df_ml["weapon"].map(df_ml["weapon"].value_counts())
@@ -1028,6 +1021,24 @@ try:
 except Exception as _e:
     mape_piso = float("nan")
     print(f"  [WARN] no se pudo medir el techo irreducible: {_e}")
+
+try:
+    _df_piso = df_ml.assign(
+        _combo=_dcombo,
+        _iso_week=pd.to_datetime(df_ml["fecha"], errors="coerce").dt.strftime("%G-%V")
+    ).dropna(subset=["_iso_week"])
+    _oracle_semana = []
+    for _c, _s in _df_piso.groupby(["_combo", "_iso_week"])["price"]:
+        if len(_s) >= 3:
+            _m = _s.median()
+            if _m > 0:
+                _oracle_semana.append(float(np.mean(np.abs(_s - _m) / np.clip(_s, 5, None)) * 100))
+    mape_piso_semana = float(np.median(_oracle_semana)) if _oracle_semana else float("nan")
+    print(f"  Suelo temporal (MAPE por semana y combo): {mape_piso_semana:.1f} % "
+          f"sobre {len(_oracle_semana)} grupos con >=3 listados.")
+except Exception as _e:
+    mape_piso_semana = float("nan")
+    print(f"  [WARN] no se pudo medir el suelo temporal: {_e}")
 # AUC de detección de godroll (precio real >= p90 del arma en train)
 _gp90_tr = pd.Series(np.expm1(y_train)).groupby(df_ml["weapon"].values[tr2_idx]).quantile(0.90)
 _thr = pd.Series(weapon_test).map(_gp90_tr).fillna(np.quantile(np.expm1(y_train), 0.90)).values
@@ -1109,6 +1120,160 @@ print("  ~39% de spread) y la falta de 'rerolls' en WFM. Las magnitudes (mag_*) 
 print("  en las filas donde existen y crecen según oraculo_riven.py acumula capturas en vivo.")
 print("=" * 64)
 
+res_adelante = None
+if os.environ.get("ADELANTE", "1") != "0":
+    try:
+        _adelante_dias = int(os.environ.get("ADELANTE_DIAS", 7))
+        _primera_f = pd.to_datetime(df_ml["primera_fecha"], errors="coerce")
+        _T = _primera_f.max() - pd.Timedelta(days=_adelante_dias)
+
+        mask_entreno = _primera_f < _T
+        mask_prueba = _primera_f >= _T
+
+        df_fw_entreno = df_ml[mask_entreno].copy()
+        df_fw_prueba = df_ml[mask_prueba].copy()
+
+        if len(df_fw_prueba) < 500 or len(df_fw_entreno) < 5000:
+            print(f"\n[WARN] PRUEBA HACIA DELANTE saltada: entreno={len(df_fw_entreno)}, prueba={len(df_fw_prueba)}")
+        else:
+            print("\n" + "=" * 64)
+            print(f"PRUEBA HACIA DELANTE (últimos {_adelante_dias} días, anuncios nuevos)")
+            print("=" * 64)
+            print(f"  Corte temporal (T): {_T.date().isoformat()} | Entreno: {len(df_fw_entreno)} | Prueba: {len(df_fw_prueba)}")
+
+            from sklearn.model_selection import StratifiedShuffleSplit, train_test_split
+            fw_X_all = df_fw_entreno[columnas_micro]
+            fw_y_all = np.log1p(df_fw_entreno["price"])
+
+            try:
+                sss = StratifiedShuffleSplit(n_splits=1, test_size=0.12, random_state=42)
+                tr_idx_fw, es_idx_fw = next(sss.split(fw_X_all, df_fw_entreno["weapon"]))
+                fw_X_tr, fw_X_es = fw_X_all.iloc[tr_idx_fw], fw_X_all.iloc[es_idx_fw]
+                fw_y_tr, fw_y_es = fw_y_all.iloc[tr_idx_fw], fw_y_all.iloc[es_idx_fw]
+            except ValueError:
+                tr_idx_fw, es_idx_fw = train_test_split(np.arange(len(fw_X_all)), test_size=0.12, random_state=42)
+                fw_X_tr, fw_X_es = fw_X_all.iloc[tr_idx_fw], fw_X_all.iloc[es_idx_fw]
+                fw_y_tr, fw_y_es = fw_y_all.iloc[tr_idx_fw], fw_y_all.iloc[es_idx_fw]
+
+            _w_fw = pesos_recencia(df_fw_entreno.iloc[tr_idx_fw], _T).values if _RECENCIA_ON else None
+            fw_qmodels = {}
+            for a in QUANTILES:
+                a_tr = _ALPHA_TRAIN.get(a, a)
+                _qp = dict(_QPARAMS)
+                if not os.environ.get("XGB_N", "").strip():
+                    _mult = _env_num("XGB_NMULT", 1, float)
+                    _qp["n_estimators"] = int(_N_POR_CUANTIL.get(a, _qp["n_estimators"]) * _mult)
+                m = xgb.XGBRegressor(objective="reg:quantileerror", quantile_alpha=a_tr, random_state=42, **_qp)
+                _fit_kw = {"sample_weight": _w_fw} if _RECENCIA_ON else {}
+                m.fit(fw_X_tr, fw_y_tr, eval_set=[(fw_X_es, fw_y_es)], verbose=False, **_fit_kw)
+                fw_qmodels[a] = m
+
+            fw_opt_xgb = QuantileModel(fw_qmodels, QUANTILES, columnas_micro)
+
+            fw_X_te = df_fw_prueba[columnas_micro]
+            fw_y_te = np.log1p(df_fw_prueba["price"])
+            fw_real_te = df_fw_prueba["price"].values
+
+            fw_qpred = fw_opt_xgb.predict_quantiles(fw_X_te)
+            fw_pred_log = fw_opt_xgb.predict(fw_X_te)
+            fw_pred_expm1 = np.expm1(fw_pred_log)
+
+            res_adelante = {
+                "dias": _adelante_dias,
+                "corte": _T.isoformat(),
+                "n_entreno": len(df_fw_entreno),
+                "n_prueba": len(df_fw_prueba),
+                "recencia": _RECENCIA_ON
+            }
+
+            print("\n  Cobertura por cuantil:")
+            res_adelante["cobertura"] = {}
+            res_adelante["pinball"] = {}
+            for a in QUANTILES:
+                cov = float((fw_y_te <= fw_qpred[a]).mean())
+                pin = float(np.mean(np.maximum(a * (fw_y_te - fw_qpred[a]), (a - 1) * (fw_y_te - fw_qpred[a]))))
+                res_adelante["cobertura"][f"p{int(a*100)}"] = round(cov*100, 1)
+                res_adelante["pinball"][f"p{int(a*100)}"] = round(pin, 4)
+                print(f"    p{int(a*100):>2}: cobertura={cov*100:4.1f}% | pinball={pin:.4f}")
+
+            fw_ape = np.abs(fw_pred_expm1 - fw_real_te) / np.clip(fw_real_te, 5, None)
+            fw_mask_trade = fw_real_te >= 200
+
+            mape_fw_trade = float(fw_ape[fw_mask_trade].mean() * 100) if fw_mask_trade.any() else float("nan")
+            mdape_fw_trade = float(np.median(fw_ape[fw_mask_trade]) * 100) if fw_mask_trade.any() else float("nan")
+            sesgo_trade = float(np.median(fw_pred_expm1[fw_mask_trade] / fw_real_te[fw_mask_trade])) if fw_mask_trade.any() else float("nan")
+            sesgo_todos = float(np.median(fw_pred_expm1 / fw_real_te))
+
+            _sp_vals = []
+            df_fw_te = pd.DataFrame({"weapon": df_fw_prueba["weapon"].values, "y": fw_y_te.values, "pred": fw_pred_log})
+            for _w, _g in df_fw_te.groupby("weapon"):
+                if len(_g) >= 8 and _g["y"].nunique() > 2:
+                    from scipy.stats import spearmanr as _spearmanr
+                    _r = _spearmanr(_g["y"], _g["pred"]).statistic
+                    if np.isfinite(_r):
+                        _sp_vals.append(_r)
+            sp_intra_fw = float(np.median(_sp_vals)) if _sp_vals else float("nan")
+
+            res_adelante.update({
+                "mape_trade": round(mape_fw_trade, 1),
+                "mdape_trade": round(mdape_fw_trade, 1),
+                "sesgo_trade": round(sesgo_trade, 3),
+                "sesgo_todos": round(sesgo_todos, 3),
+                "spearman_intra": round(sp_intra_fw, 3)
+            })
+            print(f"  MAPE medio trade: {mape_fw_trade:.1f}% | mediano trade: {mdape_fw_trade:.1f}%")
+            print(f"  Sesgo (pred/real) trade: {sesgo_trade:.2f} | todos: {sesgo_todos:.2f}")
+            print(f"  Spearman intra-arma: {sp_intra_fw:.3f}")
+
+            print("\n  Por liquidez (tercios en entreno):")
+            w_counts = df_fw_entreno["weapon"].value_counts()
+            t1, t2 = np.percentile(w_counts.values, [33.33, 66.67])
+            res_adelante["por_liquidez"] = {}
+            for liq_name, liq_mask in [
+                ("baja", df_fw_prueba["weapon"].map(w_counts).fillna(0) <= t1),
+                ("media", (df_fw_prueba["weapon"].map(w_counts).fillna(0) > t1) & (df_fw_prueba["weapon"].map(w_counts).fillna(0) <= t2)),
+                ("alta", df_fw_prueba["weapon"].map(w_counts).fillna(0) > t2)
+            ]:
+                if liq_mask.sum() > 0:
+                    l_te_y = fw_y_te[liq_mask]
+                    l_te_real = fw_real_te[liq_mask]
+                    l_te_pred = fw_pred_expm1[liq_mask]
+                    l_qpred = fw_opt_xgb.predict_quantiles(fw_X_te[liq_mask])
+
+                    l_trade = l_te_real >= 200
+                    l_ape = np.abs(l_te_pred - l_te_real) / np.clip(l_te_real, 5, None)
+                    l_mdape = float(np.median(l_ape[l_trade]) * 100) if l_trade.any() else float("nan")
+                    l_sesgo = float(np.median(l_te_pred[l_trade] / l_te_real[l_trade])) if l_trade.any() else float("nan")
+
+                    cov25 = float((l_te_y <= l_qpred[0.25]).mean() * 100)
+                    cov50 = float((l_te_y <= l_qpred[0.50]).mean() * 100)
+                    cov80 = float((l_te_y <= l_qpred[0.80]).mean() * 100)
+
+                    res_adelante["por_liquidez"][liq_name] = {
+                        "n": int(liq_mask.sum()),
+                        "cobertura": {"p25": round(cov25, 1), "p50": round(cov50, 1), "p80": round(cov80, 1)},
+                        "mdape_trade": round(l_mdape, 1),
+                        "sesgo_trade": round(l_sesgo, 3)
+                    }
+                    print(f"    {liq_name:<6}: n={liq_mask.sum():<4} | cov p25={cov25:4.1f}% p50={cov50:4.1f}% p80={cov80:4.1f}% | mdape={l_mdape:4.1f}% | sesgo={l_sesgo:.2f}")
+
+            try:
+                _METRICS_LOG_temp = "metrics_history.json"
+                if os.path.exists(_METRICS_LOG_temp):
+                    with open(_METRICS_LOG_temp, encoding="utf-8") as f:
+                        _h = json.load(f)
+                        if _h and len(_h) > 0 and _h[-1].get("adelante"):
+                            _prev_ad = _h[-1]["adelante"]
+                            print(f"\n  [Comparación vs history run anterior]")
+                            print(f"    MDAPE trade : {_prev_ad['mdape_trade']} -> {mdape_fw_trade:.1f}")
+                            print(f"    Sesgo trade : {_prev_ad['sesgo_trade']} -> {sesgo_trade:.3f}")
+                            for q in ["p25", "p50", "p80"]:
+                                print(f"    Cov {q}     : {_prev_ad['cobertura'].get(q)} -> {res_adelante['cobertura'].get(q):.1f}")
+            except Exception:
+                pass
+    except Exception as e:
+        print(f"\n[ERROR] PRUEBA HACIA DELANTE falló: {e}")
+
 # --- HISTÓRICO DE MÉTRICAS: una entrada por run para ver el PROGRESO según crece el dataset.
 #     (metrics_history.json; comparar r2_intra/mape_trade/coberturas entre fechas.)
 _METRICS_LOG = "metrics_history.json"
@@ -1135,6 +1300,8 @@ _hist_runs.append({
     "venta_calibrada": _n_fiable, "venta_armas": len(VENTA_INFO),
     "cobertura": {f"p{int(a*100)}": round(float((y_test <= _qpred_test[a]).mean()) * 100, 1) for a in QUANTILES},
     "winsor_recortadas": _recortadas,
+    "mape_piso_semana": (round(float(mape_piso_semana), 1) if np.isfinite(mape_piso_semana) else None),
+    "adelante": res_adelante,
 })
 json.dump(_hist_runs, open(_METRICS_LOG, "w", encoding="utf-8"), indent=1, ensure_ascii=False)
 if len(_hist_runs) >= 2:

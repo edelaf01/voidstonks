@@ -170,3 +170,55 @@ test("sin reliquias en la app el panel lo dice en vez de no salir", () => {
   assert.equal(texto(0), "La app aún no tiene tus reliquias");
   assert.equal(texto(40), "Ninguna te acerca a un set");
 });
+
+import { panelInventario } from "../deploy/js/utils/overlay_paneles.js";
+test("panelInventario: botones y autoScanScanning", () => {
+  const t = { statusInventory: "INVENTARIO", autoScanScanning: "ESCANEANDO", autoScanCaptured: "CAPTURADA", lblDetected: "DETECTADOS", ovlScanPage: "ESCANEAR", ovlAuto: "AUTO", ovlSave: "GUARDAR" };
+  const p = panelInventario({ detectados: 3, auto: true, escaneando: true }, t);
+  assert.equal(p.x, 0.985);
+  assert.equal(p.bloques[1].texto, "ESCANEANDO");
+  assert.equal(p.bloques[1].tono, "cian");
+  const botones = p.bloques[2].botones;
+  assert.equal(botones[0].accion, "inv:escanear");
+  assert.equal(botones[1].accion, "inv:auto");
+  assert.equal(botones[1].activo, true);
+  assert.equal(botones[2].accion, "inv:guardar");
+  
+  const p2 = panelInventario({ detectados: 5, auto: false, escaneando: false }, t);
+  assert.equal(p2.bloques[1].texto, "DETECTADOS: 5");
+  assert.equal(p2.bloques[1].tono, "verde");
+  assert.equal(p2.bloques[2].botones[1].activo, false);
+
+  const p3 = panelInventario({ detectados: 5, auto: false, escaneando: false, capturada: true }, t);
+  assert.equal(p3.bloques[1].texto, "CAPTURADA");
+  assert.equal(p3.bloques[1].tono, "verde");
+
+  const p4 = panelInventario({ detectados: 5, auto: false, escaneando: true, capturada: true }, t);
+  assert.equal(p4.bloques[1].texto, "CAPTURADA");
+  assert.equal(p4.bloques[1].tono, "verde");
+});
+
+
+import { panelArcanos } from "../deploy/js/utils/overlay_paneles.js";
+test("panelArcanos da los tonos de veredicto correctos o null si no hay filas", () => {
+  const t = { scannerHUD: { statusArcanes: "ARCANES" }, vosfor: { verdictSell: "SELL", verdictSellR0: "SELL R0", verdictDissolve: "DISSOLVE", verdictEven: "EVEN" } };
+  assert.equal(panelArcanos([], t), null);
+
+  const filas = [
+    { name: "Arcane Nullifier", qty: 21, maxRank: 5, rangosMax: 1, accion: "sell_max" },
+    { name: "Arcane Grace", qty: 2, maxRank: 5, rangosMax: 0, accion: "sell_r0" },
+    { name: "Arcane Ice", qty: 45, maxRank: 5, rangosMax: 2, accion: "dissolve" },
+    { name: "Arcane Strike", qty: 3, maxRank: 5, rangosMax: 0, accion: "even" },
+    { name: "Pending Arcane", qty: 1, maxRank: 5, rangosMax: 0, accion: "pending" }
+  ];
+
+  const p = panelArcanos(filas, t);
+  assert.equal(p.bloques[0].texto, "ARCANES");
+  
+  const lineas = p.bloques[1].filas;
+  assert.deepEqual(lineas[0], [{ texto: "Arcane Nullifier" }, { texto: "21" }, { texto: "1×R5" }, { texto: "SELL R5", tono: "verde" }]);
+  assert.deepEqual(lineas[1], [{ texto: "Arcane Grace" }, { texto: "2" }, { texto: "" }, { texto: "SELL R0", tono: "verde" }]);
+  assert.deepEqual(lineas[2], [{ texto: "Arcane Ice" }, { texto: "45" }, { texto: "2×R5" }, { texto: "DISSOLVE", tono: "cian" }]);
+  assert.deepEqual(lineas[3], [{ texto: "Arcane Strike" }, { texto: "3" }, { texto: "" }, { texto: "EVEN", tono: "gris" }]);
+  assert.deepEqual(lineas[4], [{ texto: "Pending Arcane" }, { texto: "1" }, { texto: "" }, { texto: "…", tono: "gris" }]);
+});

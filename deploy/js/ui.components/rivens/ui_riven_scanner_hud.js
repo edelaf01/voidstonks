@@ -513,7 +513,7 @@ export const RivenScannerHUD = {
         `;
         avisa("riven", { tipo: "tirada", datos: {
             ...espejo, stats: this._statsOverlay(riven, meta, calculateRivenGrade, gradeStats),
-            rotulos: { valor: isEs ? "VALOR" : "VALUE", grado: isEs ? "GRADO" : "GRADE", atributo: isEs ? "ATRIBUTO" : "ATTRIBUTE", tirada: isEs ? "TIRADA" : "ROLL" },
+            rotulos: { valor: isEs ? "VALOR" : "VALUE", grado: isEs ? "GRADO" : "GRADE", atributo: TEXTS[state.currentLang].scannerHUD.rivenColStat, tirada: TEXTS[state.currentLang].scannerHUD.rivenColRoll },
         } });
     },
 
@@ -665,7 +665,7 @@ export const RivenScannerHUD = {
                 { rotulo: t.current, precio: comparison.priceA, score: comparison.scoreA, stats: this._statsOverlay(rollA, meta, calculateRivenGrade) },
                 { rotulo: t.new, precio: comparison.priceB, score: comparison.scoreB, stats: this._statsOverlay(rollB, meta, calculateRivenGrade) },
             ],
-            rotulos: { mejor: t.verdictBetter, atributo: state.currentLang === "es" ? "ATRIBUTO" : "ATTRIBUTE", tirada: state.currentLang === "es" ? "TIRADA" : "ROLL" },
+            rotulos: { mejor: t.verdictBetter, atributo: TEXTS[state.currentLang].scannerHUD.rivenColStat, tirada: TEXTS[state.currentLang].scannerHUD.rivenColRoll },
         } });
     },
 

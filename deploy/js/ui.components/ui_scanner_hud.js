@@ -4,7 +4,7 @@ import { escapeHTML } from "../utils/escape_html.js";
 import { exposeGlobals } from "../utils/global_registry.js";
 import { aplicaMotor, estadoMotor, MOTOR_PRECISO } from "../services/scanner/ocr_engine.service.js";
 import { avisaContexto } from "./ui_scanner_coach.js";
-import { avisa } from "../utils/ganchos.js";
+import { avisa, escucha } from "../utils/ganchos.js";
 
 /**
  * Component for the Scanner HUD (status badges, counters, scroll guides).
@@ -51,6 +51,8 @@ export const ScannerHUD = {
                 this.setUIBadge(badge, "MODS", "#d060ff", "rgba(208,96,255,0.4)", "rgba(208,96,255,0.1)");
             } else if (contextType === "RELICS") {
                 this.setUIBadge(badge, sh.statusRelics, "#00e5ff", "rgba(0,229,255,0.3)", "rgba(0,229,255,0.1)");
+            } else if (contextType === "ARCANE_DISSOLUTION") {
+                this.setUIBadge(badge, sh.statusArcanes, "#00e5ff", "rgba(0,229,255,0.3)", "rgba(0,229,255,0.1)");
             } else if (contextType === "REWARD") {
                 this.setUIBadge(badge, sh.statusReward, "#a0ff80", "rgba(160,255,128,0.3)", "rgba(160,255,128,0.08)");
             } else if (contextType === "LOG_WAIT") {
@@ -139,6 +141,30 @@ export const ScannerHUD = {
             const bloque = document.getElementById(id);
             if (bloque) bloque.style.display = conLista ? "" : "none";
         }
+        this._avisaInventario();
+    },
+
+    _ultimoInventario: null,
+
+    _avisaInventario() {
+        if (this._ultimoTipo !== "INVENTORY") {
+            if (this._ultimoInventario !== null) {
+                avisa("inventario", null);
+                this._ultimoInventario = null;
+            }
+            return;
+        }
+        const datos = {
+            detectados: this._detectados,
+            auto: !!state.autoScanEnabled,
+            escaneando: this._estadoScroll === "scanning",
+            capturada: this._estadoScroll === "captured"
+        };
+        const str = JSON.stringify(datos);
+        if (this._ultimoInventario !== str) {
+            this._ultimoInventario = str;
+            avisa("inventario", datos);
+        }
     },
 
     setUIBadge(badgeElement, text, color, borderColor, background) {
@@ -217,6 +243,8 @@ export const ScannerHUD = {
     },
 
     updateScrollStatus(status, count = 0) {
+        this._estadoScroll = status;
+        this._avisaInventario();
         const scrollGuide = document.getElementById("live-scroll-guide");
         if (!scrollGuide) return;
         // El escáner llama a esto en CADA frame (300 ms en inventario), casi siempre con el mismo
@@ -234,6 +262,8 @@ export const ScannerHUD = {
         } else if (status === "done") {
             const doneDesc = sh.autoScanDoneDesc.replace("{count}", count);
             scrollGuide.innerHTML = `<div style="color:#00ff78;font-weight:800;font-size:1.25em;letter-spacing:0.3px;">${sh.autoScanDone}</div><div style="color:#607590;font-size:0.95em;margin-top:5px;">${doneDesc}</div>`;
+        } else if (status === "captured") {
+            scrollGuide.innerHTML = `<div style="color:#00ff78;font-weight:800;font-size:1.25em;letter-spacing:0.3px;">${sh.autoScanCaptured}</div><div style="color:#607590;font-size:0.95em;margin-top:5px;">${sh.autoScanCapturedDesc}</div>`;
         }
     },
 
@@ -351,3 +381,5 @@ function setOcrEngine(motor) {
 }
 
 exposeGlobals({ toggleScannerHud, setOcrEngine }, "ui.components/ui_scanner_hud.js");
+
+escucha("escaner-parado", () => { ScannerHUD._ultimoInventario = null; });

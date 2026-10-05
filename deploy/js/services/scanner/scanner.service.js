@@ -47,8 +47,10 @@ import { isGarbledCellText } from "../../utils/vision/cell_text_guard.js";
 import { olvidaColorTexto } from "../../utils/vision/reward_preprocess.js";
 import { cedeHilo } from "../../utils/yield.js";
 import { avisa, pistasDelLog } from "../../utils/ganchos.js";
+import { emparejaArcano } from "../../utils/inventory/arcanos_disolucion.js";
 
 export const ScannerService = {
+    ESPERA_FOTO_MS: 350,
     isScanning: false,
     scanInterval: null,
     currentRate: 1200,
@@ -211,25 +213,34 @@ export const ScannerService = {
         // Franja parada y distinta de la última leída = pantalla nueva: se lee sin esperar al reloj.
         // En fin de misión no: la escena tras el título "para" a ratos y disparaba lecturas.
         const pantallaNueva = franjaQuieta && cambiado && intervalo < INTERVALO_FIN_MISION_MS;
+        const cambioLog = pistasDelLog.cambioPantalla();
+        const releePorLog = cambioLog !== this._cambioLogVisto;
+        if (releePorLog && this.latchedContext === "INVENTORY") {
+            if (this.autoScrollStableTimer) {
+                clearTimeout(this.autoScrollStableTimer);
+                this.autoScrollStableTimer = null;
+            }
+        }
         // El texto cacheado describe ESTE frame salvo cuando el rótulo cambió y el reloj aún no
         // deja releer: ahí es de la pantalla anterior, y quien decida por la cabecera debe esperar.
         this._cabeceraVigente = !(enPausa && cambiado);
         if ((firma = pistasDelLog.firma())) {
             headerText = firma.texto;
-            Object.assign(this, { _cabeceraVigente: true, lastHeaderText: headerText, lastHeaderHash: headerHash, lastHeaderOcrTime: Date.now() });
+            Object.assign(this, { _cabeceraVigente: true, lastHeaderText: headerText, lastHeaderHash: headerHash, lastHeaderOcrTime: Date.now(), _cambioLogVisto: cambioLog });
         } else if (this.latchedContext === "TRADE" && TradeService.conDialogo(video)) {
             headerText = this.lastHeaderText || "TRADING POST";
-        } else if (this.lastHeaderText !== null && headerCacheFresh && !pantallaNueva && (enPausa || !cambiado)) {
+        } else if (this.lastHeaderText !== null && headerCacheFresh && !pantallaNueva && !releePorLog && (enPausa || !cambiado)) {
             headerText = this.lastHeaderText;
         } else if ((firma = FirmasTitulo.reconoce(video))) {
             headerText = firma.texto;
-            Object.assign(this, { _cabeceraVigente: true, lastHeaderText: headerText, lastHeaderHash: headerHash, lastHeaderOcrTime: Date.now() });
+            Object.assign(this, { _cabeceraVigente: true, lastHeaderText: headerText, lastHeaderHash: headerHash, lastHeaderOcrTime: Date.now(), _cambioLogVisto: cambioLog });
         } else {
             this._cabeceraVigente = true;
             ({ headerText, pasadas } = await leeCabeceraOCR(this, video, virtualCanvas, worker1, franjaQuieta));
             this.lastHeaderText = headerText;
             this.lastHeaderHash = headerHash; // baseline = frame OCReado (evita drift)
             this.lastHeaderOcrTime = Date.now();
+            this._cambioLogVisto = cambioLog;
         }
 
         reloj.fase("cabecera");
@@ -246,9 +257,9 @@ export const ScannerService = {
         const containsAnchor = ["MODS", "MODIFICADORES", "CYCLE", "CICLO", "CICLAR", "KUVA", "KUYVA",
             "ATRIBUTOS", "ELEGIR", "CONFIRMAR", "AGRIETADO"].some((a) => textUpper.includes(a));
 
-        if (rawContext === "INVENTORY_MODS" || rawContext === "ITEM_DETAILS" || containsAnchor) {
+        if (rawContext === "INVENTORY_MODS" || rawContext === "ITEM_DETAILS" || rawContext === "RIVEN_DETAILS" || containsAnchor) {
             this.lastRivenContextTime = now;
-            this.lastRivenContextType = rawContext === "ITEM_DETAILS" ? "ITEM_DETAILS" : "INVENTORY_MODS";
+            this.lastRivenContextType = rawContext === "ITEM_DETAILS" || rawContext === "RIVEN_DETAILS" ? rawContext : "INVENTORY_MODS";
         }
 
         // Gracia de 8 s para rivens/mods. Re-enruta al MISMO tipo que produjo el último hit: el
@@ -344,10 +355,10 @@ export const ScannerService = {
         if (!this._invQueue) {
             this._invQueue = createFrameQueue({
                 max: 3,
-                process: (job) => this.processInventoryGrid(job.cvs, job.cvs.width, job.cvs.height, job.meta),
+                process: (job) => this.processInventoryGrid(job.cvs, job.cvs.width, job.cvs.height, job.meta.escala, job.cvs.width, job.meta.contexto),
             });
         }
-        return this._invQueue.enqueue(snapshot, zone.x, zone.y, zone.w, zone.h, dims.scale);
+        return this._invQueue.enqueue(snapshot, zone.x, zone.y, zone.w, zone.h, { escala: dims.scale, contexto: this.latchedContext });
     },
 
     recordQtyVote(itemName, qtyResult, votesMap = this.qtyVotes, targetMap = this.sessionInventory) {
@@ -404,10 +415,10 @@ export const ScannerService = {
             return;
         }
 
-        if (contextType === "INVENTORY") {
+        if (contextType === "INVENTORY" || contextType === "ARCANE_DISSOLUTION") {
             // Con una página en OCR no se lee el kiosko: cambia el psm del worker 0 y las celdas en vuelo saldrían con psm 7.
-            if (!this.detectionLocked) await DucatKioskService.process(video, this.lastHeaderText);
-            if (!globalThis.state.autoScanEnabled && !DucatKioskService.esKiosco(this.lastHeaderText)) {
+            if (!this.detectionLocked && contextType === "INVENTORY") await DucatKioskService.process(video, this.lastHeaderText);
+            if (!globalThis.state.autoScanEnabled && contextType !== "ARCANE_DISSOLUTION" && !DucatKioskService.esKiosco(this.lastHeaderText)) {
                 this.currentRate = 3000; // 3 seconds idle check when autoScan is disabled
                 this.autoScrollMuestra = null;
                 this.sawScrollSinceScan = false;
@@ -500,7 +511,7 @@ export const ScannerService = {
             // un scroll rápido hacia ABAJO se alias a dy negativo: la página nueva se daba por
             // vista sin leerla y el HUD se quedaba en "estabilizando". Releer una ya vista solo
             // cuesta un voto más.
-            if (hasPageChanged && !this.autoScrollStableTimer && this._canCapturePage) {
+            if (hasPageChanged && !this.autoScrollStableTimer && this._canCapturePage && pistasDelLog.rejillaLista() !== false) {
                 ScannerHUD.updateScrollStatus("detected"); // Show stabilizing message
 
                 this.autoScrollStableTimer = setTimeout(async () => {
@@ -511,9 +522,13 @@ export const ScannerService = {
                         this.autoScrollStableTimer = null;
                         return;
                     }
+                    if (pistasDelLog.rejillaLista() === false) {
+                        this.autoScrollStableTimer = null;
+                        return;
+                    }
 
                     const v = document.getElementById("live-video");
-                    // El stream puede haberse cerrado durante los 800 ms de espera. Sin esto,
+                    // El stream puede haberse cerrado durante la espera. Sin esto,
                     // videoWidth es 0, el canvas se queda a 0×0 y el getImageData de la
                     // autocalibración revienta con IndexSizeError.
                     if (!v?.videoWidth || !v.videoHeight) { this.autoScrollStableTimer = null; return; }
@@ -528,18 +543,21 @@ export const ScannerService = {
 
                     // La foto se ENCOLA y el OCR va por detrás. Cola llena ⇒ no se marca el
                     // hash: la página sigue como no vista y se reintenta, en vez de perderse.
-                    if (this.enqueueInventoryPage(snapshot, dims)) this.autoScrollMuestra = muestra;
+                    if (this.enqueueInventoryPage(snapshot, dims)) {
+                        this.autoScrollMuestra = muestra;
+                        ScannerHUD.updateScrollStatus("captured");
+                    }
                     this.autoScrollStableTimer = null;
 
-                }, 800);
+                }, this.ESPERA_FOTO_MS);
             } else if (!this.autoScrollStableTimer) {
                 // Con una página en OCR (la de antes o esta, ya encolada) lo que hay es un escaneo en
                 // marcha, no una espera: "done" pisaría el "scanning" y "detected" lo dejaba colgado.
-                if (this.detectionLocked) ScannerHUD.updateScrollStatus("scanning");
+                if (this.detectionLocked) ScannerHUD.updateScrollStatus(!hasPageChanged ? "captured" : "scanning");
                 else ScannerHUD.updateScrollStatus("done", this.sessionInventory.size + this.sessionRelics.size);
             }
 
-        } else if (contextType === "INVENTORY_MODS" || contextType === "ITEM_DETAILS") {
+        } else if (contextType === "INVENTORY_MODS" || contextType === "ITEM_DETAILS" || contextType === "RIVEN_DETAILS") {
             // Poll rápido por defecto para reaccionar casi al instante cuando el usuario reroll-ea o
             // cambia de riven / aún no hay nada mostrado. processRivenCard relaja este rate (ver
             // RIVEN_RATE_IDLE) cuando ya hay un resultado en pantalla y el hash-skip está disparando
@@ -764,7 +782,7 @@ export const ScannerService = {
 
         // El popup "Item Details" (riven linkeado) tiene la carta centrada y más arriba que el reroll,
         // así que usa su propio recorte; el resto usa el de la pantalla de reroll.
-        const cardCrop = contextType === "ITEM_DETAILS" ? VisionService.RIVEN_ITEM_DETAILS_CROP : VisionService.RIVEN_CARD_CROP;
+        const cardCrop = (contextType === "ITEM_DETAILS" || contextType === "RIVEN_DETAILS") ? VisionService.RIVEN_ITEM_DETAILS_CROP : VisionService.RIVEN_CARD_CROP;
 
         // Hash sobre la REGIÓN FIJA del vídeo, ANTES de preparar los canvases: el hash sobre los
         // tight-crops jitteraba con la pantalla quieta (el ancho del recorte baila 749–1538px) y el
@@ -778,7 +796,7 @@ export const ScannerService = {
         // frame ya vuelve a RIVEN_RATE_ACTIVE (fijado por defecto en routeFrameAction) para reaccionar rápido.
         if ((this.lastParsedL || this.lastParsedR) && mismoTexto(hash, this.lastHashL)) {
             this.lastRivenContextTime = Date.now();
-            this.lastRivenContextType = contextType === "ITEM_DETAILS" ? "ITEM_DETAILS" : "INVENTORY_MODS";
+            this.lastRivenContextType = (contextType === "ITEM_DETAILS" || contextType === "RIVEN_DETAILS") ? contextType : "INVENTORY_MODS";
             this.currentRate = this.RIVEN_RATE_IDLE;
             this._cartaVigilada = zonas;
             return;
@@ -861,7 +879,7 @@ export const ScannerService = {
             this.lastRivenContextTime = Date.now();
             // Recuerda QUÉ recorte produjo el hit: el grace period re-enruta a este mismo tipo
             // (el popup Item Details y el reroll usan zonas de pantalla distintas).
-            this.lastRivenContextType = contextType === "ITEM_DETAILS" ? "ITEM_DETAILS" : "INVENTORY_MODS";
+            this.lastRivenContextType = (contextType === "ITEM_DETAILS" || contextType === "RIVEN_DETAILS") ? contextType : "INVENTORY_MODS";
         }
 
         // El log es importante: sin él, un recorte mal calibrado falla UNA vez y el skip de
@@ -1365,7 +1383,7 @@ export const ScannerService = {
         return /TRADE/.test(this.lastHeaderText || "") ? Math.round(width * ANCHO_REJILLA_TRADEO) : width;
     },
 
-    async processInventoryGrid(snapshot, width, height, scale, anchoMax = width) {
+    async processInventoryGrid(snapshot, width, height, scale, anchoMax = width, contexto = this.latchedContext) {
         const reloj = cronometro("inventario");
         relojBadges.ms = 0; relojBadges.n = 0;
         if (this.detectionLocked) return;
@@ -1530,6 +1548,7 @@ export const ScannerService = {
             // reliquias una "parte" suelta es una celda ilegible rellenada por el matcher difuso
             // (así entraron "Jahu" y "Forma Blueprint" desde celdas de reliquia).
             const pendingItems = [];
+            const pendingArcanes = [];
 
             const { drawResolved: drawResolvedCell, drawFailed: drawFailedCell } =
                 createCellOverlay(dCtx, gridZone, cellW, cellH);
@@ -1645,16 +1664,19 @@ export const ScannerService = {
                     // debug pintaba siempre la 1ª pasada y con el match del fallback no casaba con la card.
                     let relicText = combinedText, itemText = combinedText;
                     const readable = !this._isGarbledCellText(combinedText);
-                    let relicMatch = readable ? OCRService.getRelicMatch(combinedText) : null;
+                    const modoArcanos = contexto === "ARCANE_DISSOLUTION";
+
+                    let arcaneMatch = (readable && modoArcanos) ? emparejaArcano(combinedText.join(" "), this.tablaArcanos, (a, b) => OCRService.similarityOCR(a, b)) : null;
+                    let relicMatch = (readable && !modoArcanos) ? OCRService.getRelicMatch(combinedText) : null;
                     if (relicMatch && textoDelLote) { // 5/6 del código por el glifo (utils/vision/relic_digit_56.js)
                         const r = corrige56(relicMatch, PaddleRepository.palabrasDelLote(clave(cell)), PaddleRepository.recorteDelLote(clave(cell)), (n) => !!globalThis.state?.allRelicNames?.includes(n));
                         if (r.cambiado) { logStr += ` || 5/6 por glifo: ${r.nombre}`; relicMatch = r.nombre; }
                     }
-                    let bestItem = (readable && !relicMatch) ? OCRService.getValidItemMatch(combinedText) : null;
+                    let bestItem = (readable && !relicMatch && !modoArcanos) ? OCRService.getValidItemMatch(combinedText) : null;
                     let fallbackText = null;
 
                     // Sin match en la banda normal se prueba la ventana 73%-99%.
-                    if (!bestItem && !relicMatch) {
+                    if (!bestItem && !relicMatch && !arcaneMatch) {
                         await colorDeNombre(); // los tres respaldos de este bloque lo usan
                         const fallbackY = Math.floor(cellH * 0.73);
                         const fallbackH = Math.floor(cellH * 0.26);
@@ -1666,28 +1688,38 @@ export const ScannerService = {
                             if (this._isGarbledCellText(fallbackText)) fallbackText = null;
                         }
                         if (fallbackText && fallbackText.length) {
-                            relicMatch = OCRService.getRelicMatch(fallbackText);
-                            if (relicMatch) {
-                                relicText = fallbackText;
+                            if (modoArcanos) {
+                                arcaneMatch = emparejaArcano(fallbackText.join(" "), this.tablaArcanos, (a, b) => OCRService.similarityOCR(a, b));
+                                if (arcaneMatch) itemText = fallbackText;
                             } else {
-                                bestItem = OCRService.getValidItemMatch(fallbackText);
-                                if (bestItem) itemText = fallbackText;
+                                relicMatch = OCRService.getRelicMatch(fallbackText);
+                                if (relicMatch) {
+                                    relicText = fallbackText;
+                                } else {
+                                    bestItem = OCRService.getValidItemMatch(fallbackText);
+                                    if (bestItem) itemText = fallbackText;
+                                }
                             }
                         }
                     }
 
                     // Con SU color antes de rendirse: el de la página lo vota el conjunto y puede no aislar esta card.
-                    if (!bestItem && !relicMatch && pageNameColor && !ownColorUsed) {
+                    if (!bestItem && !relicMatch && !arcaneMatch && pageNameColor && !ownColorUsed) {
                         const ownText = await readCellWithOwnColor(worker, snapshot, cell, cellW, textSrcY, textSrcH, theme);
                         if (ownText?.length && !this._isGarbledCellText(ownText)) {
-                            relicMatch = OCRService.getRelicMatch(ownText);
-                            if (relicMatch) {
-                                relicText = ownText;
+                            if (modoArcanos) {
+                                arcaneMatch = emparejaArcano(ownText.join(" "), this.tablaArcanos, (a, b) => OCRService.similarityOCR(a, b));
+                                if (arcaneMatch) itemText = ownText;
                             } else {
-                                bestItem = OCRService.getValidItemMatch(ownText);
-                                if (bestItem) itemText = ownText;
+                                relicMatch = OCRService.getRelicMatch(ownText);
+                                if (relicMatch) {
+                                    relicText = ownText;
+                                } else {
+                                    bestItem = OCRService.getValidItemMatch(ownText);
+                                    if (bestItem) itemText = ownText;
+                                }
                             }
-                            if (relicMatch || bestItem) {
+                            if (relicMatch || bestItem || arcaneMatch) {
                                 scanStats.ownColor++;
                                 logStr = `[r${cell.r}c${cell.c}] OCR (color propio): ${ownText.join(" ")}`;
                             }
@@ -1695,31 +1727,47 @@ export const ScannerService = {
                     }
 
                     // Tres líneas con el arte encima del mismo color: se relee cortando por arriba.
-                    if (!bestItem && !relicMatch) {
+                    if (!bestItem && !relicMatch && !arcaneMatch) {
                         const r = await readCellCuttingArt(worker, snapshot, cell, cellW, textSrcY, textSrcH, theme, pageNameColor, (ws) => !this._isGarbledCellText(ws));
-                        if (r) { relicMatch = r.relicMatch; bestItem = r.bestItem; if (relicMatch) relicText = r.words; else itemText = r.words; logStr = `[r${cell.r}c${cell.c}] OCR (sin arte, corte ${r.corte}): ${r.words.join(" ")}`; }
+                        if (r) {
+                            if (modoArcanos) {
+                                arcaneMatch = emparejaArcano(r.words.join(" "), this.tablaArcanos, (a, b) => OCRService.similarityOCR(a, b));
+                                if (arcaneMatch) itemText = r.words;
+                            } else {
+                                relicMatch = r.relicMatch; bestItem = r.bestItem; if (relicMatch) relicText = r.words; else itemText = r.words;
+                            }
+                            logStr = `[r${cell.r}c${cell.c}] OCR (sin arte, corte ${r.corte}): ${r.words.join(" ")}`;
+                        }
                     }
 
                     // Fallback con PaddleOCR (opt-in: globalThis.OCR_PADDLE_FALLBACK)
-                    if (!bestItem && !relicMatch && motorActivo() !== MOTOR_PRECISO && globalThis.OCR_PADDLE_FALLBACK) {
+                    if (!bestItem && !relicMatch && !arcaneMatch && motorActivo() !== MOTOR_PRECISO && globalThis.OCR_PADDLE_FALLBACK) {
                         const ty = Math.round(cellH * 0.50), th = Math.round(cellH * 0.48);
                         const colorCvs = VisionService.cropColor(snapshot, cell.sx, cell.sy + ty, cellW, th, 2);
                         try {
                             const pWords = await PaddleRepository.recognizeWords(colorCvs);
                             if (pWords) {
-                                relicMatch = OCRService.getRelicMatch(pWords);
-                                if (relicMatch) {
-                                    relicText = pWords;
+                                if (modoArcanos) {
+                                    arcaneMatch = emparejaArcano(pWords.join(" "), this.tablaArcanos, (a, b) => OCRService.similarityOCR(a, b));
+                                    if (arcaneMatch) { combinedText = pWords; itemText = pWords; logStr += " [paddle]"; }
                                 } else {
-                                    const pMatch = OCRService.getValidItemMatch(pWords);
-                                    if (pMatch) { bestItem = pMatch; combinedText = pWords; itemText = pWords; logStr += " [paddle]"; }
+                                    relicMatch = OCRService.getRelicMatch(pWords);
+                                    if (relicMatch) {
+                                        relicText = pWords;
+                                    } else {
+                                        const pMatch = OCRService.getValidItemMatch(pWords);
+                                        if (pMatch) { bestItem = pMatch; combinedText = pWords; itemText = pWords; logStr += " [paddle]"; }
+                                    }
                                 }
                             }
                         } catch (e) { console.warn("[Paddle fallback] error:", e); }
                     }
 
-
-                    if (bestItem) {
+                    if (arcaneMatch) {
+                        const qtyResult = await badgeDe(cell);
+                        logStr += ` || ARCANE: ${arcaneMatch.name} || BDG: ${qtyResult.raw}`;
+                        pendingArcanes.push({ cell, arcaneMatch, qtyResult, itemText, logStr });
+                    } else if (bestItem) {
                         const qtyResult = await badgeDe(cell);
 
                         logStr += ` || BDG: ${qtyResult.raw}`;
@@ -1791,42 +1839,61 @@ export const ScannerService = {
                 const motorReal = lotePreciso ? "paddle" : `tesseract x${workers.length}`;
                 reloj.fin(`${motorReal} · ${relojBadges.n} badges ${relojBadges.ms.toFixed(0)} ms`);
 
-                // Commit de las partes prime pendientes, ya con la página entera vista.
-                // Si la mayoría de celdas casaron RELIQUIA, la página es la pestaña de
-                // reliquias y las partes prime sueltas son celdas mal leídas: se descartan
-                // en vez de apuntarse. El mínimo de 3 evita decidir con ruido, y exigir el
-                // DOBLE que ítems deja pasar una página normal de partes prime (0 reliquias).
-                const relicPage = scanStats.relics >= 3 && scanStats.relics >= 2 * pendingItems.length;
-                for (const pending of pendingItems) {
-                    if (relicPage) {
-                        scanStats.unmatched++;
-                        this.lastRawOcrLog.push(`${pending.logStr} || DESCARTADO (página de reliquias): ${pending.bestItem.originalName}`);
-                        drawFailedCell({
-                            cell: pending.cell, text: pending.itemText.join(" "),
-                            line2: `≠ ${pending.bestItem.originalName}`, status: "DISCARDED (RELIC PAGE)",
+                if (contexto === "ARCANE_DISSOLUTION") {
+                    const arcanosList = [];
+                    for (const pending of pendingArcanes) {
+                        scanStats.matched++;
+                        this.lastRawOcrLog.push(pending.logStr);
+                        arcanosList.push({
+                            slug: pending.arcaneMatch.slug,
+                            name: pending.arcaneMatch.name,
+                            qty: pending.qtyResult.qty
                         });
-                        continue;
+                        drawResolvedCell({
+                            cell: pending.cell, qtyResult: pending.qtyResult, text: pending.itemText,
+                            accent: "#ff00ff", name: pending.arcaneMatch.name, qty: pending.qtyResult.qty
+                        });
                     }
-                    scanStats.matched++;
-                    this.lastRawOcrLog.push(pending.logStr);
-                    // Consenso temporal: la lectura de un frame es frágil (dígito ~15px), pero
-                    // el nombre del ítem es fiable. Acumulamos votos de cantidad por ítem a lo
-                    // largo de los frames y guardamos la MODA. Así los errores aleatorios de un
-                    // frame se diluyen y la cantidad final es robusta.
-                    this.recordQtyVote(pending.bestItem.originalName, pending.qtyResult);
-                    drawResolvedCell({
-                        cell: pending.cell, qtyResult: pending.qtyResult, text: pending.itemText,
-                        accent: "#00ff78",
-                        name: pending.bestItem.originalName.replace(/Prime/gi, "").trim(),
-                        // Cantidad de CONSENSO (moda entre frames), no la del frame único.
-                        qty: this.sessionInventory.get(pending.bestItem.originalName) ?? "?",
-                    });
+                    this.onPaginaArcanos?.(arcanosList);
+                } else {
+                    // Commit de las partes prime pendientes, ya con la página entera vista.
+                    // Si la mayoría de celdas casaron RELIQUIA, la página es la pestaña de
+                    // reliquias y las partes prime sueltas son celdas mal leídas: se descartan
+                    // en vez de apuntarse. El mínimo de 3 evita decidir con ruido, y exigir el
+                    // DOBLE que ítems deja pasar una página normal de partes prime (0 reliquias).
+                    const relicPage = scanStats.relics >= 3 && scanStats.relics >= 2 * pendingItems.length;
+                    for (const pending of pendingItems) {
+                        if (relicPage) {
+                            scanStats.unmatched++;
+                            this.lastRawOcrLog.push(`${pending.logStr} || DESCARTADO (página de reliquias): ${pending.bestItem.originalName}`);
+                            drawFailedCell({
+                                cell: pending.cell, text: pending.itemText.join(" "),
+                                line2: `≠ ${pending.bestItem.originalName}`, status: "DISCARDED (RELIC PAGE)",
+                            });
+                            continue;
+                        }
+                        scanStats.matched++;
+                        this.lastRawOcrLog.push(pending.logStr);
+                        // Consenso temporal: la lectura de un frame es frágil (dígito ~15px), pero
+                        // el nombre del ítem es fiable. Acumulamos votos de cantidad por ítem a lo
+                        // largo de los frames y guardamos la MODA. Así los errores aleatorios de un
+                        // frame se diluyen y la cantidad final es robusta.
+                        this.recordQtyVote(pending.bestItem.originalName, pending.qtyResult);
+                        drawResolvedCell({
+                            cell: pending.cell, qtyResult: pending.qtyResult, text: pending.itemText,
+                            accent: "#00ff78",
+                            name: pending.bestItem.originalName.replace(/Prime/gi, "").trim(),
+                            // Cantidad de CONSENSO (moda entre frames), no la del frame único.
+                            qty: this.sessionInventory.get(pending.bestItem.originalName) ?? "?",
+                        });
+                    }
+
+                    ScannerHUD.updateScrollStatus("done", this.sessionInventory.size + this.sessionRelics.size);
+                    ScannerHUD.updateDetectedItems(this.sessionInventory, this.sessionRelics);
+                    if (DucatKioskService.esKiosco(this.lastHeaderText)) {
+                        this.onPaginaKiosco?.();
+                    }
                 }
-
-                ScannerHUD.updateScrollStatus("done", this.sessionInventory.size + this.sessionRelics.size);
-                ScannerHUD.updateDetectedItems(this.sessionInventory, this.sessionRelics);
-                if (DucatKioskService.esKiosco(this.lastHeaderText)) this.onPaginaKiosco?.();
-
                 // Summary del escaneo: en teoría cada página completa rinde rows×cols celdas
                 // (18 en 6×3). Si hay celdas sin match/sin OCR o el realineo de fase descartó
                 // filas parciales, la entrada se marca como WARNING (borde rojo en el historial).
