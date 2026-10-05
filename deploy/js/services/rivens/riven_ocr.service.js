@@ -316,7 +316,8 @@ export const RivenOCRService = {
                 let value = parseFloat(m[2].replace(/[,\s]+/g, "."));
                 // dropped decimal point (1215 -> 121.5)
                 if (value > 450 && value < 9999) value = parseFloat((value / 10).toFixed(1));
-                if (value < 8) continue;
+                // an unranked riven goes down to ~6%; below 4 is art noise
+                if (value < 4) continue;
                 const name = m[3]
                     .replace(/\([^)]*\)/g, " ")
                     .replace(/x\s*\d+\s+for\s+\w+/ig, " ")

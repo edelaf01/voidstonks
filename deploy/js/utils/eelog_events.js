@@ -12,6 +12,9 @@ const RE_RECOMPENSAS = /ProjectionRewardChoice\.lua: (Got rewards|Relic reward s
 const RE_PROPIA = /VoidProjections: \w+ gets reward (\/Lotus\/\S+)/;
 const RE_MENU = /(\w+)\.lua: DBG: HudVis ([01])\s*$/;
 const RE_MODO_INVENTARIO = /InventoryTest - CurrMode: (.+?)\s*$/;
+const RE_REJILLA = /InventoryTest\.lua: PopulateGrid(\(\)| complete)/;
+const RE_RESULTADO = /Dialog::SendResult\((\d+)\)/;
+const RE_CONSTRUIR = /^Are you sure you want to build '(.+)'\?$/;
 
 export const PANTALLAS = {
   ProjectionRewardChoice: { es: "Elegir recompensa de fisura", en: "Fissure reward choice", contexto: "REWARD" },
@@ -39,6 +42,10 @@ export function parseLinea(linea) {
   }
   const modo = RE_MODO_INVENTARIO.exec(linea);
   if (modo) return { tipo: "inventario", modo: modo[1], kiosco: modo[1] === "Selling Prime Parts", t };
+  const rejilla = RE_REJILLA.exec(linea);
+  if (rejilla) return { tipo: "rejilla", lista: rejilla[1] === " complete", t };
+  const resultado = RE_RESULTADO.exec(linea);
+  if (resultado) return { tipo: "resultadoDialogo", ok: resultado[1] === "4", t };
   const menu = RE_MENU.exec(linea);
   if (menu) return { tipo: "menu", modulo: menu[1], visible: menu[2] === "1", t };
   const mision = RE_MISION.exec(linea);
@@ -65,6 +72,8 @@ export function parseLinea(linea) {
   }
   const refinada = RE_RELIQUIA_REFINA.exec(dialogo[1]);
   if (refinada) return { tipo: "reliquia", nombre: refinada[1], refinamiento: POR_COSTE[refinada[2]] || "?", t };
+  const construir = RE_CONSTRUIR.exec(dialogo[1]);
+  if (construir) return { tipo: "construir", nombre: construir[1], t };
   if (dialogo[1].startsWith("/Lotus/")) return null;
   return { tipo: "dialogo", texto: dialogo[1], t };
 }
