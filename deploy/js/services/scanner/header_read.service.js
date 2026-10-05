@@ -1,5 +1,39 @@
 import { VisionService } from "./vision.service.js";
 import { OCRRepository } from "../../repositories/ocr.repository.js";
+import { regionLuma } from "../../utils/vision/frame_hash.js";
+import { tituloHaCambiado, FRANJA_CATEGORIA_VIDEO } from "../../utils/vision/context_latch.js";
+
+export async function leeCategoriaInventario(escaner, video, worker1) {
+    const hash = regionLuma(video, FRANJA_CATEGORIA_VIDEO);
+    if (escaner._categoriaHash && !tituloHaCambiado(hash, escaner._categoriaHash)) {
+        return escaner._categoriaTexto;
+    }
+    const lienzo = VisionService.lienzo("categoria");
+    const factor = 2160 / video.videoHeight;
+    lienzo.width = Math.round(video.videoWidth * FRANJA_CATEGORIA_VIDEO.w * factor);
+    lienzo.height = Math.round(video.videoHeight * FRANJA_CATEGORIA_VIDEO.h * factor);
+    const ctx = lienzo.getContext("2d", { willReadFrequently: true });
+    ctx.drawImage(
+        video,
+        video.videoWidth * FRANJA_CATEGORIA_VIDEO.x,
+        video.videoHeight * FRANJA_CATEGORIA_VIDEO.y,
+        video.videoWidth * FRANJA_CATEGORIA_VIDEO.w,
+        video.videoHeight * FRANJA_CATEGORIA_VIDEO.h,
+        0, 0, lienzo.width, lienzo.height
+    );
+    const imgData = ctx.getImageData(0, 0, lienzo.width, lienzo.height);
+    const pix = imgData.data;
+    for (let i = 0; i < pix.length; i += 4) {
+        const luma = 0.299 * pix[i] + 0.587 * pix[i + 1] + 0.114 * pix[i + 2];
+        const v = luma > 140 ? 0 : 255;
+        pix[i] = pix[i + 1] = pix[i + 2] = v;
+    }
+    ctx.putImageData(imgData, 0, 0);
+    const { data } = await OCRRepository.recognize(worker1, lienzo, {}, { text: true });
+    escaner._categoriaHash = hash;
+    escaner._categoriaTexto = (data.text || "").toUpperCase();
+    return escaner._categoriaTexto;
+}
 
 export const RESCATE_CABECERA_MS = 3000;
 

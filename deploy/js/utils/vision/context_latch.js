@@ -65,6 +65,7 @@ export const FRANJA_TITULO_VIDEO = Object.freeze({
     x: RECORTE_CABECERA.w * FRANJA_TITULO.x, y: RECORTE_CABECERA.h * FRANJA_TITULO.y,
     w: RECORTE_CABECERA.w * FRANJA_TITULO.w, h: RECORTE_CABECERA.h * FRANJA_TITULO.h, cols: 64, filas: 8,
 });
+export const FRANJA_CATEGORIA_VIDEO = Object.freeze({ x: 0.03, y: 0.10, w: 0.10, h: 0.034, cols: 32, filas: 4 });
 export const FRACCION_TITULO = 0.04;
 export function tituloHaCambiado(ahora, base) { return fraccionCambiada(ahora, base) >= FRACCION_TITULO; }
 

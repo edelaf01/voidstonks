@@ -312,6 +312,45 @@ section.igual .precio {
   font-variant-numeric: tabular-nums;
 }
 
+.panel:has(.rejilla) {
+  max-width: 30vw;
+}
+
+.rejilla {
+  display: grid;
+  gap: 0.3rem;
+  font-size: 0.72rem;
+  line-height: 1.2;
+}
+
+.rejilla .celda {
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+  min-width: 0;
+  padding: 0.3rem 0.4rem;
+  border: 1px solid var(--borde);
+  border-radius: 0.4rem;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.rejilla .celda.vacia {
+  visibility: hidden;
+}
+
+.rejilla .nombre {
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.rejilla .dato {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
 .tono-blanco { color: #fff; }
 .tono-gris { color: #8a93a0; }
 .tono-cian { color: var(--cian); }

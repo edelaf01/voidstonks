@@ -102,6 +102,34 @@ test("ScannerHUD en inventario borra el panel de ducados", async () => {
   svc.activaOverlay(false);
 });
 
+test("ScannerHUD actualiza el panel de arcanos", async () => {
+  const panel = globalThis.document.createElement("div");
+  panel.id = "arcane-panel";
+  globalThis.document.body.appendChild(panel);
+  globalThis.document._registrar("arcane-panel", panel);
+
+  ScannerHUD.updateArcanos([]);
+  assert.equal(panel.style.display, "none");
+  assert.equal(panel.children.length, 0);
+
+  const filaMock = { name: "Arcane Nullifier", qty: 21, maxRank: 5, rangosMax: 1, accion: "sell_max", r: 0, c: 1, precioR0: 4, precioMax: 120 };
+  ScannerHUD.updateArcanos([{ ...filaMock, c: 0, name: "Arcane Grace", accion: "dissolve" }, filaMock]);
+
+  assert.equal(panel.style.display, "");
+  assert.equal(panel.children.length, 2);
+  assert.equal(panel.children[0].className, "kiosk-title");
+
+  const rejilla = panel.children[1];
+  assert.equal(rejilla.className, "arcane-grid");
+  assert.equal(rejilla.children.length, 2);
+  const celda = rejilla.children[1];
+  assert.equal(celda.className, "arcane-cell");
+  assert.deepEqual(celda.children.map((n) => n.textContent), ["Arcane Nullifier", "21 · 1×R5", "R0 4 pl", "R5 120 pl", "SELL R5"]);
+  assert.equal(celda.children[0].className, "arcane-name");
+  assert.equal(celda.children[2].className, "arcane-line arcane-oro");
+  assert.equal(celda.children[4].className, "arcane-line arcane-verde");
+});
+
 test("ScannerHUD panel de inventario y acciones", async () => {
   svc.activaOverlay(true);
   conectaEscaner();
