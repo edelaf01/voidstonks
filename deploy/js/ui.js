@@ -69,16 +69,6 @@ export function finishLoading() {
   if (state.selectedRelic) manualRelicUpdate();
 }
 
-/**
- * Lo que cada pestaña tiene que montar al entrar en ella.
- *
- * Aparte de switchTab() porque hay un segundo momento en el que hace falta: al arrancar,
- * switchTab() corre ANTES de que lleguen las bases de datos, así que cada pestaña se monta
- * con `setsDatabase`/`itemsDatabase`/manifiesto vacíos y se queda a medias. Antes solo el
- * panel de rutas se volvía a pintar al terminar la descarga; las demás no, y por eso al
- * recargar dentro de Set, Ducados o Riven aparecía media pestaña hasta que cambiabas a otra
- * y volvías —que es exactamente cuando esto se ejecutaba otra vez—.
- */
 let rivensUI = null;
 
 export function cargaRivens() {
@@ -90,6 +80,16 @@ export function cargaRivens() {
   return rivensUI;
 }
 
+/**
+ * Lo que cada pestaña tiene que montar al entrar en ella.
+ *
+ * Aparte de switchTab() porque hay un segundo momento en el que hace falta: al arrancar,
+ * switchTab() corre ANTES de que lleguen las bases de datos, así que cada pestaña se monta
+ * con `setsDatabase`/`itemsDatabase`/manifiesto vacíos y se queda a medias. Antes solo el
+ * panel de rutas se volvía a pintar al terminar la descarga; las demás no, y por eso al
+ * recargar dentro de Set, Ducados o Riven aparecía media pestaña hasta que cambiabas a otra
+ * y volvías —que es exactamente cuando esto se ejecutaba otra vez—.
+ */
 function initTabContent(mode) {
   if (mode === "riven") {
     cargaRivens().then((m) => m.initRivenMarketIndex()).catch(console.error);
@@ -258,7 +258,6 @@ const setPlaceholder = (id, text) => {
   if (el && text) el.placeholder = text;
 };
 
-
 function updateNavTabs(t) {
   setTab("btn-relic", t.menuRelic || "Reliquia", t.tooltips.tabRelic);
   setTab("btn-set", t.menuSet || "Set", t.tooltips.tabSet);
@@ -358,7 +357,6 @@ function updateStaticTexts(t) {
   setText("txt-weapon-guide", t.lblWeaponGuide);
   setText("txt-variants-header", t.rivenIndex?.variantsLabel || "VARIANTS");
 
-
   // lbl-username y txt-mr-label eran del perfil / calculadora de MR, que ya no tiene marcado
   // (ver la nota en main.js). setText solo hacía dos getElementById en balde en cada cambio
   // de idioma.
@@ -429,7 +427,6 @@ function updateSelectDropdowns(t) {
   updateOptions("squadSize", t.squads);
   updateOptions("prime-inv-sort", t.inventory?.primeSort);
 
-
   // Por data-lfg y no por posición: había una lista de 9 claves aquí que se aplicaba por
   // índice sobre las 17 opciones del HTML. La novena caía sobre "The Circuit", que se
   // repintaba como "Radshare" —se leía una actividad y se seleccionaba otra— y de la décima
@@ -464,9 +461,7 @@ function updateRivenSelects(t) {
   });
 }
 
-
 function triggerSideEffects(t) {
-
   const modeLfg = document.getElementById("mode-lfg");
   if (modeLfg && !modeLfg.classList.contains("hidden")) updateLFGUI();
 
@@ -736,10 +731,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   checkFooterVisibility();
 });
-
-
-
-
 
 export function updatePriceUI(element, price) {
   if (!element) return;

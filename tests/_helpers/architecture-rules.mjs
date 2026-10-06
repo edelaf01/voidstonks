@@ -20,7 +20,7 @@ const VENDORED = new Set(["tesseract.min.js"]);
 // El worker y los cores de Tesseract, que ahora servimos nosotros en vez de traerlos de un CDN.
 // Es una carpeta entera de código de terceros: se excluye por RUTA y no por nombre para no
 // depender de cómo se llamen sus ficheros en la siguiente versión.
-const VENDORED_DIRS = ["tesseract"];
+const VENDORED_DIRS = ["tesseract", "chart"];
 
 function walk(dir, keep) {
   const out = [];

@@ -48,7 +48,7 @@ function publishedNames() {
       for (const k of body.matchAll(/(?:^|,)\s*([A-Za-z_$][\w$]*)\s*(?=[,:}]|$)/g)) names.add(k[1]);
     }
     // Object.assign(window, globalFuncs) — el objeto va en una variable intermedia
-    // (scanner/scanner_controller.js lo hace así), hay que resolverla en el mismo fichero.
+    // hay que resolverla en el mismo fichero.
     for (const m of src.matchAll(/Object\.assign\(\s*(?:globalThis|window)\s*,\s*([A-Za-z_$][\w$]*)\s*\)/g)) {
       const decl = new RegExp(`(?:const|let|var)\\s+${m[1]}\\s*=\\s*\\{`).exec(src);
       if (!decl) continue;

@@ -177,14 +177,12 @@ test("globals: cuenta los alias de la asignación a pelo", () => {
 
 // Varios tests componen la ruta (`new URL("js/utils/x.js", P)` con P = "../deploy/"), así que
 // exigir el prefijo "deploy/" daba por no testeados módulos que sí se importan y ejecutan.
-// Pasó con utils/platform.js, que lleva 8 tests desde antes de que existiera esta regla.
 test("cobertura: cuenta la ruta compuesta, no solo la literal completa", () => {
   const util = mod("utils/x.js", "export const a = 1;\n");
   assert.deepEqual(untestedModules([util]), ["utils/x.js"], "hoy nadie lo importa");
   // El propio fichero de este test menciona deploy/js/utils/tap.js en su import, así que sirve
   // de caso real: tap.js no puede salir como no testeado.
   assert.ok(!untestedModules().includes("utils/tap.js"));
-  assert.ok(!untestedModules().includes("utils/platform.js"));
 });
 
 // El límite de 800 líneas existe porque un módulo de lógica enorme son varias pantallas

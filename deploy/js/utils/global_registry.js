@@ -21,7 +21,7 @@
  *
  * Uso:
  *     import { exposeGlobals } from "./global_registry.js";
- *     exposeGlobals({ closeScanner, captureRelics }, "scanner/scanner_controller.js");
+ *     exposeGlobals({ switchTab, changeLanguage }, "main.js");
  */
 
 const registry = new Map(); // nombre -> módulo que lo publicó

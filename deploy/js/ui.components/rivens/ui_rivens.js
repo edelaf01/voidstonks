@@ -1,4 +1,5 @@
 import { state } from "../../state.js";
+import { cargaScript } from "../../utils/carga_script.js";
 import { renderIndexFilters, indexCountHtml, indexEmptyHtml } from "./ui_riven_index_filters.js";
 import { META_KEYS, EXCLUDED_COMPONENTS, isBaseWeapon, applyIndexFilters } from "../../utils/rivens/riven_index_filter.js";
 import { exposeGlobals } from "../../utils/global_registry.js";
@@ -296,6 +297,17 @@ export async function loadWeaponDetails() {
   }
 }
 
+const CHART_JS = "js/chart/4.5.1/chart.umd.min.js";
+const cargaChart = () => (globalThis.Chart ? Promise.resolve() : cargaScript(CHART_JS));
+
+let historial = null;
+let rangoHistorial = 7;
+
+function ocultaHistorial(container) {
+  container.style.display = "none";
+  historial = null;
+}
+
 let rivenHistoryChartInstance = null;
 
 async function fetchAndRenderHistory(weaponName) {
@@ -304,138 +316,85 @@ async function fetchAndRenderHistory(weaponName) {
   if (!container || !canvas) return;
 
   if (!weaponName) {
-    container.style.display = "none";
-    return;
-  }
-
-  if (typeof globalThis.Chart === "undefined") {
-    setTimeout(() => fetchAndRenderHistory(weaponName), 100);
+    ocultaHistorial(container);
     return;
   }
 
   const slug = weaponName.toLowerCase().trim().replaceAll(" ", "_");
 
-  // El service ya devuelve [] si falla: la tasación tiene respaldo local y no hay nada que avisar.
-  const historyData = await getWeaponHistory(weaponName);
+  const [historyData, hayChart] = await Promise.all([
+    getWeaponHistory(weaponName),
+    cargaChart().then(() => true, () => false),
+  ]);
+  if (!hayChart || historyData.length === 0) {
+    ocultaHistorial(container);
+    return;
+  }
 
   const details = getWeaponDetails(weaponName);
   const basic = state.weaponMap ? state.weaponMap[weaponName] : null;
   const meta = getMetaStats(weaponName, (details && details.t) || (basic && basic.t));
 
-  const baseMedian = (meta && meta.official_median) || 120;
-  const baseWfm = (meta && (meta.wfm_avg_price || meta.wfm_avg)) || 180;
-  const baseRolled = (meta && meta.de_rolled && meta.de_rolled.median) || (baseMedian * 2.2);
-
-  if (!historyData || historyData.length === 0) {
-    historyData = [];
-    const today = new Date();
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(today.getDate() - i);
-      const dateStr = d.toISOString().split("T")[0];
-      const wfmRand = baseWfm * (1 + (Math.sin(i) * 0.1) + (Math.cos(i * 2) * 0.03));
-      const officialRand = baseMedian * (1 + (i < 3 ? -0.04 : 0.04));
-      const rolledRand = baseRolled * (1 + (Math.sin(i * 1.5) * 0.1) + (Math.cos(i) * 0.03));
-      const volumeRand = Math.round(15 + Math.sin(i) * 8 + Math.random() * 12);
-
-      historyData.push({
-        date: dateStr,
-        wfm_avg_price: Math.round(wfmRand),
-        official_median: Math.round(officialRand),
-        rolled_median: Math.round(rolledRand),
-        volume: volumeRand
-      });
-    }
-  }
-
   try {
-    // Ensure historyData is an array before sorting to avoid TypeError
-    if (Array.isArray(historyData)) {
-      const today = new Date();
-      const todayStr = today.toISOString().split("T")[0];
+    const today = new Date();
+    const todayStr = today.toISOString().split("T")[0];
 
-      const wfmPrice = (meta && (meta.wfm_avg_price || meta.wfm_avg)) || null;
-      const officialPrice = (meta && (meta.official_median || (meta.de_unrolled && meta.de_unrolled.median))) || null;
-      const rolledPrice = (meta && ((meta.de_rerolled && meta.de_rerolled.median) || (meta.de_rolled && meta.de_rolled.median))) || null;
-      const volumeVal = (meta && (meta.wfm_market_sample || (meta.de_unrolled && meta.de_unrolled.pop) || 0)) || 0;
+    const wfmPrice = (meta && (meta.wfm_avg_price || meta.wfm_avg)) || null;
+    const officialPrice = (meta && (meta.official_median || (meta.de_unrolled && meta.de_unrolled.median))) || null;
+    const rolledPrice = (meta && ((meta.de_rerolled && meta.de_rerolled.median) || (meta.de_rolled && meta.de_rolled.median))) || null;
+    const volumeVal = (meta && (meta.wfm_market_sample || (meta.de_unrolled && meta.de_unrolled.pop) || 0)) || 0;
 
-      // Clean up historical 0 or missing prices by filling with current values to prevent vertical drops
-      historyData.forEach(d => {
-        if (d.wfm_avg_price === 0 || d.wfm_avg_price === null) d.wfm_avg_price = wfmPrice ? Math.round(wfmPrice) : null;
-        if (d.official_median === 0 || d.official_median === null) d.official_median = officialPrice ? Math.round(officialPrice) : null;
-        if (d.rolled_median === 0 || d.rolled_median === null) d.rolled_median = rolledPrice ? Math.round(rolledPrice) : null;
-      });
+    // Clean up historical 0 or missing prices by filling with current values to prevent vertical drops
+    historyData.forEach(d => {
+      if (d.wfm_avg_price === 0 || d.wfm_avg_price === null) d.wfm_avg_price = wfmPrice ? Math.round(wfmPrice) : null;
+      if (d.official_median === 0 || d.official_median === null) d.official_median = officialPrice ? Math.round(officialPrice) : null;
+      if (d.rolled_median === 0 || d.rolled_median === null) d.rolled_median = rolledPrice ? Math.round(rolledPrice) : null;
+    });
 
-      // Fill in any missing intermediate dates between the last date in history and today
-      if (historyData.length > 0) {
-        historyData.sort((a, b) => a.date.localeCompare(b.date));
-        const lastDateStr = historyData[historyData.length - 1].date;
-        const lastDate = new Date(lastDateStr);
+    // Fill in any missing intermediate dates between the last date in history and today
+    historyData.sort((a, b) => a.date.localeCompare(b.date));
+    const lastDateStr = historyData[historyData.length - 1].date;
+    const lastDate = new Date(lastDateStr);
 
-        let checkDate = new Date(lastDate.getTime() + 24 * 60 * 60 * 1000);
-        // Loop up to today to fill gaps chronologically
-        while (checkDate.toISOString().split("T")[0] <= todayStr) {
-          const checkDateStr = checkDate.toISOString().split("T")[0];
-          let entry = historyData.find(d => d.date && d.date.startsWith(checkDateStr));
-          if (!entry) {
-            entry = {
-              date: checkDateStr,
-              wfm_avg_price: wfmPrice ? Math.round(wfmPrice) : null,
-              official_median: officialPrice ? Math.round(officialPrice) : null,
-              rolled_median: rolledPrice ? Math.round(rolledPrice) : null,
-              volume: Math.round(volumeVal)
-            };
-            historyData.push(entry);
-          }
-          checkDate = new Date(checkDate.getTime() + 24 * 60 * 60 * 1000);
-        }
-      } else {
-        // If history was completely empty but somehow evaluated as an array
-        const todayEntry = {
-          date: todayStr,
+    let checkDate = new Date(lastDate.getTime() + 24 * 60 * 60 * 1000);
+    // Loop up to today to fill gaps chronologically
+    while (checkDate.toISOString().split("T")[0] <= todayStr) {
+      const checkDateStr = checkDate.toISOString().split("T")[0];
+      let entry = historyData.find(d => d.date && d.date.startsWith(checkDateStr));
+      if (!entry) {
+        entry = {
+          date: checkDateStr,
           wfm_avg_price: wfmPrice ? Math.round(wfmPrice) : null,
           official_median: officialPrice ? Math.round(officialPrice) : null,
           rolled_median: rolledPrice ? Math.round(rolledPrice) : null,
           volume: Math.round(volumeVal)
         };
-        historyData.push(todayEntry);
+        historyData.push(entry);
       }
-
-      historyData.sort((a, b) => a.date.localeCompare(b.date));
-    } else {
-      console.warn('Riven history data is not an array, resetting to empty array:', historyData);
-      historyData = [];
+      checkDate = new Date(checkDate.getTime() + 24 * 60 * 60 * 1000);
     }
 
-    // Cache the fully resolved states for local range filtering
-    globalThis._lastFetchedHistoryData = historyData;
-    globalThis._lastFetchedMeta = meta;
-    globalThis._lastFetchedWeaponName = weaponName;
+    historyData.sort((a, b) => a.date.localeCompare(b.date));
 
-    // Default active filter is 7 days as selected in HTML
-    if (globalThis._activeHistoryRange === undefined) {
-      globalThis._activeHistoryRange = 7;
-    }
+    historial = { historyData, meta, weaponName };
 
     // Render with current range filter
     renderHistoryWithRange();
 
   } catch (err) {
     console.error("Error loading Riven history:", err);
-    container.style.display = "none";
+    ocultaHistorial(container);
   }
 }
 
 // Dynamically registers global filter range handler for high-performance instant updates
 function changeHistoryRange(days) {
-  globalThis._activeHistoryRange = days;
+  rangoHistorial = days;
   renderHistoryWithRange();
 };
 
 export function renderHistoryWithRange() {
-  const historyData = globalThis._lastFetchedHistoryData;
-  const meta = globalThis._lastFetchedMeta;
-  const weaponName = globalThis._lastFetchedWeaponName;
+  const { historyData, meta, weaponName } = historial || {};
   const canvas = document.getElementById("rivenHistoryChart");
   const container = document.getElementById("riven-history-chart-container");
 
@@ -444,7 +403,7 @@ export function renderHistoryWithRange() {
   const isEs = state.currentLang === "es";
 
   // Visual selector update for tab buttons
-  const activeRange = globalThis._activeHistoryRange || 7;
+  const activeRange = rangoHistorial;
   document.querySelectorAll(".history-range-btn").forEach(btn => {
     const d = btn.getAttribute("data-days");
     if ((d === "all" && activeRange === "all") || parseInt(d) === activeRange) {
@@ -502,7 +461,7 @@ export function renderHistoryWithRange() {
     return baseRolled;
   });
 
-  const volumes = filteredData.map(d => d.volume || d.wfm_market_sample || Math.round(10 + Math.random() * 20));
+  const volumes = filteredData.map(d => d.volume || d.wfm_market_sample || 0);
 
   // Dynamically build and render the premium price history details table with fully projected values and trend arrows
   const tableContainer = document.getElementById("riven-history-table-container");
