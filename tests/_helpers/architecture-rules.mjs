@@ -12,7 +12,7 @@ export const TESTS_ROOT = fileURLToPath(new URL("..", import.meta.url));
 // an explicit list on purpose, a substring pattern would also exclude a future file like ui_tesseract_panel.js
 const VENDORED = new Set(["tesseract.min.js"]);
 // third-party folders (the Tesseract worker and cores we serve, Chart.js), excluded by path and not by file name
-const VENDORED_DIRS = ["tesseract"];
+const VENDORED_DIRS = ["tesseract", "chart"];
 
 function walk(dir, keep) {
   const out = [];
