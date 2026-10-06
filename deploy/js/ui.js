@@ -221,7 +221,6 @@ const setPlaceholder = (id, text) => {
   if (el && text) el.placeholder = text;
 };
 
-
 function updateNavTabs(t) {
   setTab("btn-relic", t.menuRelic || "Reliquia", t.tooltips.tabRelic);
   setTab("btn-set", t.menuSet || "Set", t.tooltips.tabSet);
@@ -301,7 +300,6 @@ function updateStaticTexts(t) {
   setText("txt-weapon-guide", t.lblWeaponGuide);
   setText("txt-variants-header", t.rivenIndex?.variantsLabel || "VARIANTS");
 
-
   setText("lbl-lfg-activity", t.lblLfgActivity);
   setText("lbl-lfg-players", t.lblLfgPlayers);
   setText("btn-copy", t.btnCopy);
@@ -369,7 +367,6 @@ function updateSelectDropdowns(t) {
   updateOptions("squadSize", t.squads);
   updateOptions("prime-inv-sort", t.inventory?.primeSort);
 
-
   document.querySelectorAll("#lfgDropdown .dropdown-item[data-lfg]").forEach((item) => {
     const label = t.lfgOpts?.[item.dataset.lfg];
     if (label) item.innerText = label;
@@ -399,9 +396,7 @@ function updateRivenSelects(t) {
   });
 }
 
-
 function triggerSideEffects(t) {
-
   const modeLfg = document.getElementById("mode-lfg");
   if (modeLfg && !modeLfg.classList.contains("hidden")) updateLFGUI();
 
@@ -649,10 +644,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   checkFooterVisibility();
 });
-
-
-
-
 
 export function updatePriceUI(element, price) {
   if (!element) return;
