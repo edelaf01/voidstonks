@@ -56,9 +56,6 @@ let escanerVivo = null;
 const cargaEscaner = () => (escanerVivo ||= import("./scanner/live_scanner.js"));
 const startLiveSession = () => cargaEscaner().then((m) => m.startLiveSession());
 const stopLiveSession = () => escanerVivo?.then((m) => m.stopLiveSession());
-const escanerDeFotos = () => import("./scanner/scanner_controller.js");
-const openScanner = () => escanerDeFotos().then((m) => m.openScanner());
-const handleFileUpload = (event) => escanerDeFotos().then((m) => m.handleFileUpload(event));
 const conRivens = (nombre) => (...args) => cargaRivens().then((m) => m[nombre](...args));
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -229,14 +226,6 @@ async function startMobileScanner() {
     }
   }
 
-  if (globalThis.closeScanner) {
-    try {
-      globalThis.closeScanner();
-    } catch (e) {
-      console.warn("Error al cerrar scanner:", e);
-    }
-  }
-
   try {
     const { MobileScanner } = await import("./scanner/mobile_scanner.js");
     const scanner = new MobileScanner();
@@ -341,8 +330,6 @@ exposeGlobals({
   openGradingModal: conRivens("openGradingModal"),
   toggleLangDropdown,
   setLanguageManual,
-  openScanner,
-  handleFileUpload,
   startLiveSession,
   stopLiveSession,
   checkUpdates,
