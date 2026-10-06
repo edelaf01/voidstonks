@@ -161,7 +161,7 @@ export async function startLiveSession() {
   try {
     const nativa = (() => { try { return localStorage.getItem("vs_capture_native") === "1"; } catch { return false; } })();
     liveStream = await navigator.mediaDevices.getDisplayMedia({
-      video: { cursor: "never", displaySurface: "window", frameRate: { ideal: 10, max: 15 }, ...(nativa ? {} : { height: { ideal: 1080 } }) },
+      video: { cursor: "never", displaySurface: "window", frameRate: { ideal: 5, max: 5 }, ...(nativa ? {} : { height: { ideal: 1080 } }) },
       audio: false,
     });
 
