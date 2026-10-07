@@ -74,7 +74,7 @@ const T_RELIQUIAS = {
   relicsNone: "Ninguna te acerca a un set", relicsEmpty: "La app aún no tiene tus reliquias", relicsSetup: "{ref} · {n} jugadores",
   relicsRefNames: { Intact: "Intacta", Rad: "Radiante" }, relicsRefShort: { Intact: "Int", Rad: "Rad" },
   relicsRefLabel: "Refino", relicsSquadLabel: "Jugad.", relicsEraLabel: "Era", relicsAllEras: "Todas",
-  relicsAnyRef: "Cualquiera", relicsGoalLabel: "Objetivo", relicsGoals: { sets: "Sets", plat: "Platino", ducados: "Ducados" },
+  relicsAnyRef: "Cualquiera", relicsGoalLabel: "Objetivo", relicsGoals: { valor: "Valor", sets: "Sets", plat: "Platino", ducados: "Ducados" },
   relicsNoValue: "Aún no hay precios para estas reliquias", relicsAtRef: "en {ref}:", relicsBestRef: "mejor en {ref}", relicsPerTrace: "{n}{u}/vestigio",
 };
 
@@ -139,6 +139,20 @@ test("con objetivo platino o ducados cada fila da lo mejor que suelta, lo que va
   const duc = panelReliquias(picks, "Lith", T_RELIQUIAS, { refino: "Rad", escuadra: 4, objetivo: "ducados" });
   assert.deepEqual(duc.bloques.find((b) => b.tipo === "lista").filas[0][2], { texto: "30", tono: "ducado", icono: "ducado" });
   assert.equal(panelReliquias([], "Lith", T_RELIQUIAS, { objetivo: "plat" }).bloques.at(-1).filas[0][0].texto, "Aún no hay precios para estas reliquias");
+});
+
+test("con objetivo valor la fila dice si la pieza cierra un set y, si va a ducados, cuántos da", () => {
+  const mejor = { name: "Akbronco Prime Blueprint", valor: 29.5, chance: 0.69, ruta: "set", set: "Akbronco Prime", quedan: 0, total: 2, ducados: 15 };
+  const fila = (m) => panelReliquias([{ relic: "Lith K9", tier: "Lith", owned: 23, ev: 9, refino: "Intact", mejorRefino: "Intact", mejor: m }], "Lith", T_RELIQUIAS, { refino: "Intact", escuadra: 4, objetivo: "valor" }).bloques.at(-1).filas[0];
+  assert.deepEqual(fila(mejor).slice(0, 5), [
+    { texto: "Lith K9 ×23", tono: "blanco" }, { texto: "cierra Akbronco", tono: "verde" }, { texto: "Akbronco Blueprint", tono: "gris" }, { texto: "30", tono: "oro", icono: "plat" }, { texto: "69%", tono: "gris" },
+  ]);
+  assert.deepEqual(fila({ ...mejor, quedan: 1 })[1], { texto: "Akbronco: faltan 2/2", tono: "apagado" });
+  const ducados = fila({ name: "Alternox Prime Blueprint", valor: 10, chance: 0.08, ruta: "ducats", set: null, quedan: null, total: 0, ducados: 100 });
+  assert.deepEqual(ducados.slice(1, 4), [{ texto: "", tono: "apagado" }, { texto: "Alternox Blueprint", tono: "gris" }, { texto: "100", tono: "ducado", icono: "ducado" }]);
+  const objetivos = panelReliquias([], "Lith", T_RELIQUIAS, { refino: "Intact", escuadra: 4, objetivo: "valor" }).bloques.filter((b) => b.tipo === "botones")[0].botones;
+  assert.deepEqual(objetivos.map((x) => x.accion), ["objetivo:valor", "objetivo:sets", "objetivo:plat", "objetivo:ducados"]);
+  assert.equal(objetivos.find((x) => x.activo).accion, "objetivo:valor");
 });
 
 test("con un refino elegido, lo que ganarías refinando se dice con su probabilidad, y cada pieza lleva su imagen", () => {
