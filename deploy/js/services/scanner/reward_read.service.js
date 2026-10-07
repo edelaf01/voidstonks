@@ -95,9 +95,9 @@ export async function leeRecompensas(frame, width, height, scale, preset, cropRe
         const red = await conPaddle(frame, width, height, scale, cropRect, columnas)
             .catch((e) => { console.warn("[REWARD] motor preciso falló, sigo con el clásico:", e); return null; });
         if (red?.foundItems.length) return red;
-        // "preciso" is the cheap sweep: the caller tries the next window instead of paying for Tesseract
-        if (motor === "preciso") return { rawOcr: "", namesRaw: "", foundItems: [], ocrCanvas: null, namesCanvas: null };
     }
+    // "preciso" is the cheap sweep: the caller tries the next window instead of paying for Tesseract
+    if (motor === "preciso") return { rawOcr: "", namesRaw: "", foundItems: [], ocrCanvas: null, namesCanvas: null };
 
     const ocrCanvas = VisionService.prepareRewardOCRCanvas(frame, width, height, scale, preset, cropRect);
     console.log(`[REWARD] Canvas: ${ocrCanvas.width}x${ocrCanvas.height} (preset ${preset})`);

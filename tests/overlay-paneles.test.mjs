@@ -74,7 +74,7 @@ const T_RELIQUIAS = {
   relicsNone: "Ninguna te acerca a un set", relicsEmpty: "La app aún no tiene tus reliquias", relicsSetup: "{ref} · {n} jugadores",
   relicsRefNames: { Intact: "Intacta", Rad: "Radiante" }, relicsRefShort: { Intact: "Int", Rad: "Rad" },
   relicsRefLabel: "Refino", relicsSquadLabel: "Jugad.", relicsEraLabel: "Era", relicsAllEras: "Todas",
-  relicsAnyRef: "Cualquiera", relicsGoalLabel: "Objetivo", relicsGoals: { sets: "Sets", plat: "Platino", ducados: "Ducados" },
+  relicsAnyRef: "Cualquiera", relicsGoalLabel: "Objetivo", relicsGoals: { valor: "Valor", sets: "Sets", plat: "Platino", ducados: "Ducados" },
   relicsNoValue: "Aún no hay precios para estas reliquias", relicsAtRef: "en {ref}:", relicsBestRef: "mejor en {ref}", relicsPerTrace: "{n}{u}/vestigio",
 };
 
@@ -141,6 +141,20 @@ test("con objetivo platino o ducados cada fila da lo mejor que suelta, lo que va
   assert.equal(panelReliquias([], "Lith", T_RELIQUIAS, { objetivo: "plat" }).bloques.at(-1).filas[0][0].texto, "Aún no hay precios para estas reliquias");
 });
 
+test("con objetivo valor la fila dice si la pieza cierra un set y, si va a ducados, cuántos da", () => {
+  const mejor = { name: "Akbronco Prime Blueprint", valor: 29.5, chance: 0.69, ruta: "set", set: "Akbronco Prime", quedan: 0, total: 2, ducados: 15 };
+  const fila = (m) => panelReliquias([{ relic: "Lith K9", tier: "Lith", owned: 23, ev: 9, refino: "Intact", mejorRefino: "Intact", mejor: m }], "Lith", T_RELIQUIAS, { refino: "Intact", escuadra: 4, objetivo: "valor" }).bloques.at(-1).filas[0];
+  assert.deepEqual(fila(mejor).slice(0, 5), [
+    { texto: "Lith K9 ×23", tono: "blanco" }, { texto: "cierra Akbronco", tono: "verde" }, { texto: "Akbronco Blueprint", tono: "gris" }, { texto: "30", tono: "oro", icono: "plat" }, { texto: "69%", tono: "gris" },
+  ]);
+  assert.deepEqual(fila({ ...mejor, quedan: 1 })[1], { texto: "Akbronco: faltan 2/2", tono: "apagado" });
+  const ducados = fila({ name: "Alternox Prime Blueprint", valor: 10, chance: 0.08, ruta: "ducats", set: null, quedan: null, total: 0, ducados: 100 });
+  assert.deepEqual(ducados.slice(1, 4), [{ texto: "", tono: "apagado" }, { texto: "Alternox Blueprint", tono: "gris" }, { texto: "100", tono: "ducado", icono: "ducado" }]);
+  const objetivos = panelReliquias([], "Lith", T_RELIQUIAS, { refino: "Intact", escuadra: 4, objetivo: "valor" }).bloques.filter((b) => b.tipo === "botones")[0].botones;
+  assert.deepEqual(objetivos.map((x) => x.accion), ["objetivo:valor", "objetivo:sets", "objetivo:plat", "objetivo:ducados"]);
+  assert.equal(objetivos.find((x) => x.activo).accion, "objetivo:valor");
+});
+
 test("con un refino elegido, lo que ganarías refinando se dice con su probabilidad, y cada pieza lleva su imagen", () => {
   const clave = { name: "Cobra & Crane Prime Blade", set: "Cobra & Crane Prime", missing: 1, total: 3, chance: 0.11, price: 5 };
   const otra = { name: "Akarius Prime Receiver", set: "Akarius Prime", missing: 1, total: 3, chance: 0.02, price: 27 };
@@ -169,4 +183,59 @@ test("sin reliquias en la app el panel lo dice en vez de no salir", () => {
   const texto = (n) => panelReliquias([], "Neo", T_RELIQUIAS, { reliquiasEnApp: n }).bloques.at(-1).filas[0][0].texto;
   assert.equal(texto(0), "La app aún no tiene tus reliquias");
   assert.equal(texto(40), "Ninguna te acerca a un set");
+});
+
+import { panelInventario } from "../deploy/js/utils/overlay_paneles.js";
+test("panelInventario: botones y autoScanScanning", () => {
+  const t = { statusInventory: "INVENTARIO", autoScanScanning: "ESCANEANDO", autoScanCaptured: "CAPTURADA", lblDetected: "DETECTADOS", ovlScanPage: "ESCANEAR", ovlAuto: "AUTO", ovlSave: "GUARDAR" };
+  const p = panelInventario({ detectados: 3, auto: true, escaneando: true }, t);
+  assert.equal(p.x, 0.985);
+  assert.equal(p.bloques[1].texto, "ESCANEANDO");
+  assert.equal(p.bloques[1].tono, "cian");
+  const botones = p.bloques[2].botones;
+  assert.equal(botones[0].accion, "inv:escanear");
+  assert.equal(botones[1].accion, "inv:auto");
+  assert.equal(botones[1].activo, true);
+  assert.equal(botones[2].accion, "inv:guardar");
+  
+  const p2 = panelInventario({ detectados: 5, auto: false, escaneando: false }, t);
+  assert.equal(p2.bloques[1].texto, "DETECTADOS: 5");
+  assert.equal(p2.bloques[1].tono, "verde");
+  assert.equal(p2.bloques[2].botones[1].activo, false);
+
+  const p3 = panelInventario({ detectados: 5, auto: false, escaneando: false, capturada: true }, t);
+  assert.equal(p3.bloques[1].texto, "CAPTURADA");
+  assert.equal(p3.bloques[1].tono, "verde");
+
+  const p4 = panelInventario({ detectados: 5, auto: false, escaneando: true, capturada: true }, t);
+  assert.equal(p4.bloques[1].texto, "CAPTURADA");
+  assert.equal(p4.bloques[1].tono, "verde");
+});
+
+
+import { panelArcanos } from "../deploy/js/utils/overlay_paneles.js";
+test("panelArcanos coloca cada arcano en su celda de la página, con precios y veredicto", () => {
+  const t = { scannerHUD: { statusArcanes: "ARCANES" }, vosfor: { verdictSell: "SELL", verdictSellR0: "SELL R0", verdictDissolve: "DISSOLVE", verdictEven: "EVEN" } };
+  assert.equal(panelArcanos([], t), null);
+
+  const filas = [
+    { name: "Arcane Nullifier", qty: 21, maxRank: 5, rangosMax: 1, accion: "sell_max", r: 0, c: 0, precioR0: 4.5, precioMax: 120 },
+    { name: "Arcane Ice", qty: 45, maxRank: 5, rangosMax: 2, accion: "dissolve", r: 0, c: 2, precioR0: 1, precioMax: 0 },
+    { name: "Arcane Strike", qty: 3, maxRank: 3, rangosMax: 0, accion: "even", r: 1, c: 1, precioR0: null, precioMax: 15.4 },
+  ];
+
+  const p = panelArcanos(filas, t);
+  assert.equal(p.bloques[0].texto, "ARCANES");
+  const { tipo, cols, celdas } = p.bloques[1];
+  assert.equal(tipo, "rejilla");
+  assert.equal(cols, 3);
+  assert.equal(celdas.length, 6);
+  assert.deepEqual(celdas.map((c) => c?.lineas[0].texto ?? null), ["Arcane Nullifier", null, "Arcane Ice", null, "Arcane Strike", null]);
+  assert.deepEqual(celdas[0].lineas, [
+    { texto: "Arcane Nullifier" }, { texto: "21 · 1×R5" },
+    { texto: "R0 4.5 pl", tono: "oro" }, { texto: "R5 120 pl", tono: "oro" },
+    { texto: "SELL R5", tono: "verde" },
+  ]);
+  assert.deepEqual(celdas[2].lineas.slice(2), [{ texto: "R0 1 pl", tono: "oro" }, { texto: "R5 —", tono: "oro" }, { texto: "DISSOLVE", tono: "cian" }]);
+  assert.deepEqual(celdas[4].lineas.slice(1), [{ texto: "3" }, { texto: "R0 —", tono: "oro" }, { texto: "R3 15 pl", tono: "oro" }, { texto: "EVEN", tono: "gris" }]);
 });

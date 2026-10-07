@@ -10,8 +10,7 @@
       document.documentElement.dataset.shell = "desktop";
   </script>
 
-  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4559331797280612"
-    crossorigin="anonymous"></script>
+  <meta name="google-adsense-account" content="ca-pub-4559331797280612" />
 
   <meta name="description"
     content="Herramienta avanzada para Warframe. Consulta precios de Rivens, optimiza tus Reliquias y trackea tu progreso de Sets Prime. Maximiza tu Platino con datos de mercado en tiempo real." />
@@ -105,7 +104,6 @@
 
 <body>
   <canvas id="void-traces-canvas"></canvas>
-
   </div>
 
   <div id="scanner-drawer" class="scanner-drawer closed">
@@ -199,6 +197,7 @@
       <div id="squad-run-panel" class="squad-panel" style="display: none"></div>
 
       <div id="kiosk-sale-panel" style="display: none"></div>
+      <div id="arcane-panel" style="display: none"></div>
 
       <!-- trading post: what you give and what you get, filled by ScannerHUD.updateTrade() -->
       <div id="trade-panel" style="display: none"></div>
@@ -1759,8 +1758,6 @@
 
   <!-- js/tesseract.min.js is injected on demand in OCRRepository.warmUp() -->
   <script src="js/scanner/live_calibration.js"></script>
-
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <!-- tab fan (mobile), outside .card so its overflow:hidden does not clip it -->
   <div id="tab-fan-overlay" class="tab-fan-overlay" hidden></div>

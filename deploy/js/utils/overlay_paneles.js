@@ -1,3 +1,5 @@
+import { rejillaArcanos, lineasArcano } from "./inventory/arcanos_disolucion.js";
+
 export const MAX_FILAS_KIOSKO = 5;
 
 export function panelKiosko(items, titulo) {
@@ -126,14 +128,24 @@ function filaSets(p, t, conRefino, iconoDe) {
   ];
 }
 
-function filaValor(p, t, conRefino, icono, iconoDe) {
+function celdaRuta(m, t) {
+  if (m.ruta !== "set") return { texto: "", tono: "apagado" };
+  return m.quedan === 0
+    ? { texto: plantilla(t.relicsCloses, { set: sinPrime(m.set) }), tono: "verde" }
+    : { texto: plantilla(t.relicsMissing, { set: sinPrime(m.set), m: m.quedan + 1, t: m.total }), tono: "apagado" };
+}
+
+function filaValor(p, t, conRefino, icono, iconoDe, conRuta = false) {
   const m = p.mejor || {};
   const sufijo = p.porVestigio > 0 && p.mejorRefino !== "Intact"
     ? ` · ${plantilla(t.relicsPerTrace, { n: p.porVestigio.toFixed(2), u: icono === "ducado" ? " duc" : "p" })}` : "";
   return [
     { texto: `${p.relic} ×${p.owned}`, tono: "blanco" },
+    ...(conRuta ? [celdaRuta(m, t)] : []),
     conImagen({ texto: corta(m.name), tono: "gris" }, m.name && iconoDe?.(m.name)),
-    { texto: String(Math.round(m.valor || 0)), tono: icono === "ducado" ? "ducado" : "oro", icono },
+    conRuta && m.ruta === "ducats"
+      ? { texto: String(Math.round(m.ducados || 0)), tono: "ducado", icono: "ducado" }
+      : { texto: String(Math.round(m.valor || 0)), tono: icono === "ducado" ? "ducado" : "oro", icono },
     { texto: pct(m.chance), tono: "gris" },
     ...(conRefino ? [celdaRefino(p, t, sufijo)] : celdaGanancia(p, m, t, sufijo)),
   ];
@@ -152,7 +164,7 @@ function filasPorEra(picks, fila) {
   return filas;
 }
 
-export const OBJETIVOS_BOTONES = ["sets", "plat", "ducados"];
+export const OBJETIVOS_BOTONES = ["valor", "sets", "plat", "ducados"];
 export const REFINOS_BOTONES = ["Any", "Intact", "Exceptional", "Flawless", "Rad"];
 
 export function controlesReliquias(t, { refino, escuadra, era, objetivo = "sets" }) {
@@ -175,8 +187,48 @@ export function panelReliquias(picks, era, t, { reliquiasEnApp = 1, refino = nul
     bloques.push({ tipo: "lista", filas: [[{ texto, tono: "gris" }]] });
     return { ...POS_RELIQUIAS, bloques };
   }
-  const fila = sets ? (p) => filaSets(p, t, !refino, iconoDe) : (p) => filaValor(p, t, !refino, objetivo === "ducados" ? "ducado" : "plat", iconoDe);
+  const fila = sets ? (p) => filaSets(p, t, !refino, iconoDe) : (p) => filaValor(p, t, !refino, objetivo === "ducados" ? "ducado" : "plat", iconoDe, objetivo === "valor");
   const filas = era ? lista.slice(0, MAX_RELIQUIAS).map(fila) : filasPorEra(lista, fila);
   bloques.push({ tipo: "separador" }, { tipo: "lista", filas });
   return { ...POS_RELIQUIAS, bloques };
+}
+
+export function panelInventario({ detectados = 0, auto = false, escaneando = false, capturada = false }, t) {
+  return {
+    x: 0.985,
+    y: 0.085,
+    anclaje: "derecha",
+    bloques: [
+      { tipo: "titulo", texto: t.statusInventory, tono: "ducado" },
+      {
+        tipo: "estado",
+        texto: capturada ? t.autoScanCaptured : (escaneando ? t.autoScanScanning : `${t.lblDetected}: ${detectados}`),
+        tono: capturada ? "verde" : (escaneando ? "cian" : "verde")
+      },
+      {
+        tipo: "botones",
+        botones: [
+          { texto: t.ovlScanPage, accion: "inv:escanear" },
+          { texto: t.ovlAuto, accion: "inv:auto", activo: !!auto },
+          { texto: t.ovlSave, accion: "inv:guardar" }
+        ]
+      }
+    ]
+  };
+}
+
+export function panelArcanos(filas, t) {
+  if (!filas?.length) return null;
+  const { cols, celdas } = rejillaArcanos(filas);
+  return {
+    x: 0.985, y: 0.085, anclaje: "derecha",
+    bloques: [
+      { tipo: "titulo", texto: t.scannerHUD.statusArcanes, tono: "ducado" },
+      {
+        tipo: "rejilla",
+        cols,
+        celdas: celdas.map((f) => f && { lineas: lineasArcano(f, t) }),
+      },
+    ],
+  };
 }

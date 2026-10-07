@@ -131,6 +131,7 @@ test("las peticiones de paneles se validan como en el lanzador", () => {
   assert.equal(peticionValida({ grupo: "Riven", paneles: [] }), false);
   assert.equal(peticionValida({ grupo: "x", paneles: Array(9).fill({}) }), false);
   assert.equal(peticionValida({ grupo: "x", paneles: [{ bloques: [{ tipo: "lista", filas: Array(41).fill([]) }] }] }), false);
+  assert.equal(peticionValida({ grupo: "x", paneles: [{ bloques: [{ tipo: "rejilla", cols: 6, celdas: Array(41).fill(null) }] }] }), false);
   assert.equal(peticionValida(null), false);
   assert.notEqual(firmaDe({ paneles: [{ x: 1 }] }), firmaDe({ paneles: [{ x: 1 }], mismoAncho: true }));
   assert.deepEqual(rectEnDip({ x: 300, y: 150, width: 2560, height: 1440 }, 1.5), { x: 200, y: 100, width: 1707, height: 960 });
@@ -151,6 +152,20 @@ test("los paneles se pintan con las clases de la app y escapan el texto", () => 
   assert.match(html, /Ducats\.webp/);
   assert.equal(htmlPanel({ borde: "x\" onload=\"", bloques: [] }), `<div class="panel"></div>`);
   assert.equal(htmlBloque({ tipo: "precio", plat: "?" }).includes("duc"), false);
+});
+
+test("la rejilla pone una tarjeta por celda, respeta los huecos y escapa el texto", () => {
+  const html = htmlBloque({ tipo: "rejilla", cols: 2, celdas: [
+    { lineas: [{ texto: "Arcane <Grace>" }, { texto: "21", tono: "oro" }] },
+    null,
+    { lineas: [{ texto: "Molt Efficiency" }, { texto: "DISSOLVE", tono: "cian" }] },
+  ] });
+  assert.match(html, /grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
+  assert.equal((html.match(/class="celda"/g) || []).length, 2);
+  assert.equal((html.match(/class="celda vacia"/g) || []).length, 1);
+  assert.match(html, /<span class="nombre tono-blanco">Arcane &#60;Grace&#62;<\/span><span class="dato tono-oro">21<\/span>/);
+  assert.match(html, /<span class="dato tono-cian">DISSOLVE<\/span>/);
+  assert.match(htmlBloque({ tipo: "rejilla", cols: "99\" onload=\"", celdas: [] }), /repeat\(1, /);
 });
 
 test("las listas rellenan las filas cortas y la primera columna es la que encoge", () => {

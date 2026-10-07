@@ -1,3 +1,25 @@
+/**
+ * Registry of functions exposed to the global scope.
+ *
+ * `deploy/index.html` has inline handlers (`onclick="foo()"`) the browser resolves against `globalThis`, so
+ * every function called from the HTML has to be published there. The same goes for the scanner scripts
+ * (`live_calibration.js`), loaded as plain <script> and unable to import.
+ *
+ * Over `globalThis.foo = foo` it adds:
+ *  - One point everything published goes through, inspectable at runtime (`globalThis.__vsRegistry.list()`).
+ *  - COLLISION detection: two modules publishing the same name overwrite each other silently and the last
+ *    one to load wins. Here it warns on the console.
+ *  - `tests/global-registry.test.mjs` can cross what the HTML calls with what the JS publishes, and fail when
+ *    a button is left without its function.
+ *
+ * It is NOT a dependency injection container: modules use plain `import`. This is only the bridge to the HTML
+ * and non module scripts.
+ *
+ * Usage:
+ *     import { exposeGlobals } from "./global_registry.js";
+ *     exposeGlobals({ switchTab, changeLanguage }, "main.js");
+ */
+
 const registry = new Map(); // name -> module that published it
 
 /**
