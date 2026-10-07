@@ -45,6 +45,7 @@ function textoEvento(ev) {
   if (ev.tipo === "mision") {
     return escapeHTML(ev.fase === "empieza" ? `${en() ? "Mission" : "Misión"}: ${ev.nombre}` : (en() ? "Back to the ship" : "Vuelta a la nave"));
   }
+  if (ev.tipo === "nivel") return ev.empieza ? (en() ? "Level started" : "Nivel en marcha") : (en() ? "Loading level" : "Cargando nivel");
   if (ev.tipo === "recompensas") {
     return ev.fase === "llenas" ? `${en() ? "Rewards shown" : "Recompensas a la vista"} <b class="ds-eelog-ctx">REWARD</b>`
       : (en() ? "Rewards closed" : "Recompensas cerradas");
