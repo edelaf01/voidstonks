@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import { installFakeDocument, FakeCanvas } from "./_helpers/fake-canvas.mjs";
 
 installFakeDocument();
-const { videoRegionHash, smallCanvasHash, compareHashes, canvasRegionHash, fraccionCambiada, miniaturaLuma, regionLuma,
+const { shareFrame, stopSharingFrame } = await import("../deploy/js/utils/vision/frame_freeze.js");
+const { videoRegionHash, smallCanvasHash, compareHashes, canvasRegionHash, fraccionCambiada, miniaturaLuma, regionLuma, regionLumaRapida,
     firmaTexto, mismoTexto } = await import("../deploy/js/utils/vision/frame_hash.js");
 
 /** Canvas plano de un gris dado, que es lo que hashean estas funciones. */
@@ -165,6 +166,57 @@ test("regionLuma recorta la región pedida del origen y la muestrea al tamaño p
     assert.equal(regionLuma(v, { x: 0, y: 0, w: 1, h: 1, cols: 2, filas: 2 })[0], 76, "luma 0.299/0.587/0.114");
 });
 
+function videoPartido() {
+  const data = new Uint8ClampedArray(64 * 36 * 4);
+  for (let i = 0; i < data.length; i += 4) {
+    const x = (i / 4) % 64;
+    data[i] = data[i + 1] = data[i + 2] = x < 32 ? 20 : 200;
+    data[i + 3] = 255;
+  }
+  return { videoWidth: 64, videoHeight: 36, width: 64, height: 36, data };
+}
+
+test("regionLumaRapida sin createImageBitmap da lo mismo que regionLuma", async () => {
+  const v = videoPartido();
+  const rect = { x: 0.25, y: 0, w: 0.5, h: 1, cols: 8, filas: 4 };
+  assert.deepEqual([...await regionLumaRapida(v, rect)], [...regionLuma(v, rect)]);
+});
+
+test("regionLumaRapida recorta y reduce con createImageBitmap, lee el mapa de bits y lo cierra", async (t) => {
+  let cerrados = 0;
+  const llamadas = [];
+  globalThis.createImageBitmap = async (...args) => { llamadas.push(args); const { resizeWidth: width, resizeHeight: height } = args.at(-1); const data = new Uint8ClampedArray(width * height * 4); for (let i = 0; i < data.length; i += 4) { data[i] = 255; data[i + 3] = 255; } return { width, height, data, close() { cerrados++; } }; };
+  t.after(() => { delete globalThis.createImageBitmap; });
+  const v = videoPartido();
+  const rect = { x: 0.5, y: 0.25, w: 0.5, h: 0.5, cols: 8, filas: 4 };
+  const result = await regionLumaRapida(v, rect);
+  assert.equal(llamadas.length, 1);
+  assert.ok(llamadas[0][0] === v, "recorta del vídeo");
+  assert.deepEqual(llamadas[0].slice(1), [32, 9, 32, 18, { resizeWidth: 8, resizeHeight: 4 }]);
+  assert.equal(result.length, 32);
+  assert.ok(result.every(val => val === 76));
+  assert.equal(cerrados, 1);
+});
+
+test("si createImageBitmap falla, regionLumaRapida cae a regionLuma", async (t) => {
+  globalThis.createImageBitmap = async () => { throw new Error("InvalidStateError"); };
+  t.after(() => { delete globalThis.createImageBitmap; });
+  const v = videoPartido();
+  const rect = { x: 0.25, y: 0, w: 0.5, h: 1, cols: 8, filas: 4 };
+  assert.deepEqual([...await regionLumaRapida(v, rect)], [...regionLuma(v, rect)]);
+});
+
+test("con un origen sin videoWidth (un canvas) no se pide createImageBitmap", async (t) => {
+  let calls = 0;
+  globalThis.createImageBitmap = async () => { calls++; return {}; };
+  t.after(() => { delete globalThis.createImageBitmap; });
+  const v = new FakeCanvas();
+  v.width = 64; v.height = 36;
+  const rect = { x: 0.25, y: 0, w: 0.5, h: 1, cols: 8, filas: 4 };
+  assert.deepEqual([...await regionLumaRapida(v, rect)], [...regionLuma(v, rect)]);
+  assert.equal(calls, 0);
+});
+
 // La carta de riven: fondo oscuro y "líneas de texto" claras. Cambiar una línea es cambiar un stat.
 function carta({ linea = 30, ruido = 0 } = {}) {
     const W = 640, H = 360, data = new Uint8ClampedArray(W * H * 4);
@@ -197,4 +249,22 @@ test("firma de texto por zonas: una huella por carta, y otro número de cartas e
     assert.equal(dos.length, 2 * 96 * 36);
     assert.deepEqual([...dos.subarray(0, 96 * 36)], [...firmaTexto(carta(), zonaA)]);
     assert.equal(mismoTexto(dos, firmaTexto(carta(), [zonaA])), false);
+});
+
+test("leer de la copia compartida da lo mismo que leer del vídeo", () => {
+    const v = new FakeCanvas();
+    v.width = 64; v.height = 36;
+    for (let i = 0; i < v._data.length; i += 4) {
+        const x = (i / 4) % 64, y = Math.floor(i / 4 / 64);
+        v._data[i] = v._data[i + 1] = v._data[i + 2] = (x * 7 + y * 13) % 256;
+        v._data[i + 3] = 255;
+    }
+    v.videoWidth = 64; v.videoHeight = 36;
+    const rect = { x: 0.1, y: 0.2, w: 0.5, h: 0.4, cols: 12, filas: 6 };
+    const crop = { x: 0.05, y: 0.1, w: 0.6, h: 0.5 };
+    const directo = [regionLuma(v, rect), firmaTexto(v, crop), videoRegionHash(v, crop), miniaturaLuma(v, 16, 9).luma];
+    shareFrame(v);
+    const compartido = [regionLuma(v, rect), firmaTexto(v, crop), videoRegionHash(v, crop), miniaturaLuma(v, 16, 9).luma];
+    stopSharingFrame({ release: true });
+    assert.deepEqual(compartido, directo);
 });

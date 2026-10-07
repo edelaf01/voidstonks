@@ -165,8 +165,16 @@ function montarEstado() {
   pinta();
 }
 
+export function pausaAnimacionesSinFoco(doc = document, win = globalThis) {
+  const aplica = () => doc.documentElement.classList.toggle("ds-sin-foco", !doc.hasFocus());
+  win.addEventListener("blur", aplica);
+  win.addEventListener("focus", aplica);
+  aplica();
+}
+
 export function initDesktopShell() {
   if (!esEscritorio()) return;
+  pausaAnimacionesSinFoco();
   const barra = document.querySelector("#main-card .card-top-bar");
   const grupo = barra ? montarHerramientas(barra) : null;
   fijaPaneles();

@@ -41,12 +41,12 @@ const GRID = { gx: 87, gy: 281, cellW: 277, cellH: 296, dy: -44 };
 const THEME = { name: "Default", r: 227, g: 128, b: 20, actualR: 246, actualG: 129, actualB: 3 };
 
 // safeW/safeH que usa extractBadgeByColor con esta celda: 97 x 86
-// cropW/cropH bajaron (de 56-69 x ~42 a 29-56 x 33-40) al pasar la selección de componentes a
+// cropW/cropH bajaron (de 56-69 x ~42 a 29-41 x 33-34) al pasar la selección de componentes a
 // anclarse en el checkmark: el recorte que se devuelve es ahora SOLO el número, sin el checkmark
 // delante. Es el cambio que llevó los badges de 86/96 a 94/96 sobre seis resoluciones
 // (ver utils/vision/badge_anchor.js y tests/scanner-reescalado.test.mjs).
 const CELLS = [
-  { name: "r2c1 Ballistica Prime BP", r: 2, c: 1, qty: "3", cropW: 56, cropH: 40 },
+  { name: "r2c1 Ballistica Prime BP", r: 2, c: 1, qty: "3", cropW: 30, cropH: 34 },
   { name: "r2c5 Banshee Prime BP", r: 2, c: 5, qty: "9", cropW: 30, cropH: 34 },
   { name: "r0c2 Astilla Prime BP", r: 0, c: 2, qty: "3", cropW: 30, cropH: 33 },
   { name: "r1c2 Atlas Prime BP", r: 1, c: 2, qty: "11", cropW: 41, cropH: 33 },

@@ -13,7 +13,9 @@ export const EELogLive = {
   pantalla: null,
   reliquia: null,
   onReliquiaAbierta: null,
+  onConstruido: null,
   _porGastar: null,
+  _porConstruir: null,
   _atrasado: false,
   _oyentes: new Set(),
   _cortar: null,
@@ -52,6 +54,11 @@ export const EELogLive = {
       this.juego = siguienteEstado(this.juego, ev);
       if (ev.tipo === "pantalla") this.pantalla = ev;
       if (ev.tipo === "reliquia") this.reliquia = this._porGastar = ev;
+      if (ev.tipo === "construir") this._porConstruir = ev;
+      if (ev.tipo === "resultadoDialogo") {
+        if (ev.ok && this._porConstruir && enVivo) this.onConstruido?.(this._porConstruir.nombre);
+        this._porConstruir = null;
+      }
       if (ev.tipo === "recompensas" && ev.fase === "llenas" && this._porGastar) {
         if (enVivo) this.onReliquiaAbierta?.(this._porGastar.nombre);
         this._porGastar = null;
@@ -67,6 +74,7 @@ export const EELogLive = {
       this.pantalla = null;
       this.reliquia = null;
       this._porGastar = null;
+      this._porConstruir = null;
       this.juego = ESTADO_JUEGO_INICIAL;
     }
     if (nombre === "ruta") {

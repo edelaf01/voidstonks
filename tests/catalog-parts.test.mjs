@@ -92,6 +92,28 @@ test("con las reliquias sin publicar, el escáner reconoce la pieza nueva y el s
   }
 });
 
+// Las tablas de drops se piden ya al arrancar, en paralelo con el catálogo: solo su procesado lo espera.
+test("con el catálogo llegando a la vez que las tablas, la pieza nueva entra igual", async () => {
+  const { dbHelper } = await import("../deploy/js/repositories/storage.repository.js");
+  const { updateDucatsDB, downloadRelics } = await import("../deploy/js/services/inventory/relics.service.js");
+  const orig = { get: dbHelper.get, set: dbHelper.set, fetch: globalThis.fetch };
+  dbHelper.get = async () => null;
+  dbHelper.set = async () => {};
+  globalThis.fetch = async (url) => ({ ok: true, status: 200, json: async () => (String(url).includes("relics_opt") ? { relics: [] } : {}) });
+  try {
+    Object.assign(state, { primeManifest: [], primeWeaponsManifest: [], ducatsDatabase: {}, activeResurgenceList: new Set() });
+    const catalogo = new Promise((r) => setTimeout(r, 20)).then(() => {
+      state.primeWeaponsManifest = [STEFLOS];
+      updateDucatsDB([STEFLOS]);
+    });
+    await downloadRelics(catalogo);
+    assert.deepEqual(state.itemsDatabase["Steflos Prime Blueprint"], []);
+  } finally {
+    Object.assign(dbHelper, { get: orig.get, set: orig.set });
+    globalThis.fetch = orig.fetch;
+  }
+});
+
 // Galariak y Sagek Prime salen en fin de misión (The Perita Rebellion) pero no se intercambian:
 // WFCD los trae con isPrime false y sin ducados, y el lector tomaba "Galariak Prime Blade
 // Blueprint" por Galatine Prime.

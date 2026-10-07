@@ -139,9 +139,9 @@ test("la pantalla de fin de misión despierta al escáner aunque aún no hayas v
     RONDA[0],
     "15443.569 Sys [Info]: Created /Lotus/Interface/EndOfMatch.swf",
     "15508.224 Sys [Info]: Created /Lotus/Interface/EndOfMatch.swf",
-    "15511.241 Input [Info]: Subscribing for /Lotus/Interface/EndOfMatch.swf with input filter /Lotus/Interface/EndOfMatchInputFilter",
+    "15511.241 Sys [Info]: EOM missionLocationUnlocked=1",
   ];
-  assert.deepEqual(recorre(fin).modos, ["dormido", "dormido", "dormido", "normal"], "en las infinitas EndOfMatch se crea en cada rotación: solo cuenta cuando toma el control");
+  assert.deepEqual(recorre(fin).modos, ["dormido", "dormido", "dormido", "normal"], "EndOfMatch se crea en cada rotación y al mirar el progreso desde el menú: solo cuenta la línea EOM del final de verdad");
 });
 
 test("fuera de la misión el escáner va como siempre", () => {
@@ -153,8 +153,8 @@ test("fuera de la misión el escáner va como siempre", () => {
 
 test("un menú con apertura y cierre en plena misión despierta mientras está abierto", () => {
   const { modos } = recorre([RONDA[0],
-    "1571.772 Script [Info]: EndOfMatch.lua: DBG: HudVis 1",
-    "1573.340 Script [Info]: EndOfMatch.lua: DBG: HudVis 0",
+    "620.277 Script [Info]: MapRedux.lua: DBG: HudVis 1",
+    "622.419 Script [Info]: MapRedux.lua: DBG: HudVis 0",
     "65.524 Script [Info]: HudRedux.lua: DBG: HudVis 1",
     "321.231 Script [Info]: ThemedProjectionManager.lua: DBG: HudVis 2"]);
   assert.deepEqual(modos, ["dormido", "normal", "dormido", "dormido"]);
@@ -232,4 +232,78 @@ test("en una fisura sin fin cada ronda gasta la reliquia equipada, una vez y sol
   assert.equal(EELogLive.reliquiaPorGastar(), null, "un juego nuevo no hereda la reliquia pendiente");
   EELogLive.parar();
   EELogLive.onReliquiaAbierta = null;
+});
+
+const reglas = (t, de, a) => `${t} Net [Info]: GameRulesImpl - changing state from ${de} to ${a}`;
+
+test("el cambio de estado del nivel marca la carga y el arranque; los pasos intermedios no son eventos", () => {
+  assert.deepEqual(parseLinea(reglas(632.372, "SS_INVALID", "SS_STARTED")), { tipo: "nivel", nuevo: true, empieza: true, t: 632.372 });
+  assert.deepEqual(parseLinea(reglas(632.372, "SS_INVALID", "SS_STARTED") + "\r"), { tipo: "nivel", nuevo: true, empieza: true, t: 632.372 });
+  assert.deepEqual(parseLinea(reglas(2342.287, "SS_INVALID", "SS_ARBITRATION_REGISTER")), { tipo: "nivel", nuevo: true, empieza: false, t: 2342.287 });
+  assert.deepEqual(parseLinea(reglas(2345.878, "SS_WAITING_FOR_PLAYERS", "SS_STARTED")), { tipo: "nivel", nuevo: false, empieza: true, t: 2345.878 });
+  assert.equal(parseLinea(reglas(2342.531, "SS_ARBITRATION_REGISTER", "SS_STARTING")), null);
+  assert.equal(parseLinea(reglas(2460.469, "SS_STARTED", "SS_ENDING")), null);
+  assert.deepEqual(parseLinea(reglas(2570.432, "SS_ENDING", "SS_ENDED")), { tipo: "mision", fase: "acaba", t: 2570.432 });
+});
+
+test("una misión en solitario duerme al arrancar el nivel aunque no diga su nombre", () => {
+  const { e, modos } = recorre([reglas(632.372, "SS_INVALID", "SS_STARTED")]);
+  assert.deepEqual(modos, ["dormido"]);
+  assert.equal(e.enMision, true);
+  assert.equal(e.mision, null);
+});
+
+test("en matchmaking el nombre llega antes o después del arranque y se conserva", () => {
+  const caso1 = recorre([reglas(2342.287, "SS_INVALID", "SS_ARBITRATION_REGISTER"), reglas(2342.531, "SS_ARBITRATION_REGISTER", "SS_STARTING"), "2345.847 Script [Info]: MissionIntro.lua: MissionName: CERVANTES", reglas(2345.878, "SS_WAITING_FOR_PLAYERS", "SS_STARTED")]);
+  assert.deepEqual(caso1.modos, ["normal", "dormido", "dormido"]);
+  assert.equal(caso1.e.mision, "CERVANTES");
+
+  const caso2 = recorre([reglas(2496.874, "SS_INVALID", "SS_WAITING_TO_START"), reglas(2499.087, "SS_WAITING_FOR_PLAYERS", "SS_STARTED"), "2499.744 Script [Info]: MissionIntro.lua: MissionName: EVEREST"]);
+  assert.deepEqual(caso2.modos, ["normal", "dormido", "dormido"]);
+  assert.equal(caso2.e.mision, "EVEREST");
+});
+
+test("un relé no es una misión aunque arranque y diga su nombre, y al salir de él sí vuelve a contar", () => {
+  const rele = [reglas(4982.877, "SS_INVALID", "SS_WAITING_TO_START"), "4983.091 Sys [Info]: Created /Lotus/Interface/Hub.swf", reglas(4984.454, "SS_WAITING_FOR_PLAYERS", "SS_STARTED"), "4985.816 Script [Info]: MissionIntro.lua: MissionName: KRONIA RELAY"];
+  const res1 = recorre(rele);
+  assert.deepEqual(res1.modos, ["normal", "normal", "normal", "normal"]);
+  assert.equal(res1.e.enMision, false);
+  assert.equal(res1.e.enHub, true);
+
+  const res2 = recorre([...rele, reglas(5099.575, "SS_INVALID", "SS_STARTED")]);
+  assert.equal(res2.modos.at(-1), "dormido");
+  assert.equal(res2.e.enHub, false);
+});
+
+test("al cargar la misión se olvidan la reliquia que elegías en la nave y los menús que quedaron abiertos", () => {
+  const res1 = recorre([reglas(19500.0, "SS_INVALID", "SS_WAITING_TO_START"), "19510.0 Script [Info]: DiegeticUpgradeCards.lua: DBG: HudVis 1", "19524.146 Sys [Info]: Created /Lotus/Interface/ThemedProjectionManager.swf", reglas(19531.812, "SS_INVALID", "SS_STARTED")]);
+  assert.deepEqual(res1.modos, ["normal", "normal", "normal", "dormido"]);
+  assert.equal(res1.e.eligiendoReliquia, false);
+  assert.deepEqual(res1.e.menus, []);
+
+  const conInventario = siguienteEstado({ ...ESTADO_JUEGO_INICIAL, inventario: { kiosco: false, lista: true, desde: 0 }, inventarioCambios: 3 }, parseLinea(reglas(19531.812, "SS_INVALID", "SS_STARTED")));
+  assert.equal(conInventario.inventario, null);
+  assert.equal(conInventario.inventarioCambios, 4);
+});
+
+test("la recompensa de defensa no deja el escáner despierto", () => {
+  const { modos } = recorre([reglas(1099.575, "SS_INVALID", "SS_STARTED"), "1139.515 Script [Info]: DefenseReward.lua: DBG: HudVis 1", "1139.518 Sys [Info]: Created /Lotus/Interface/DefenseReward.swf", "1142.763 Script [Info]: DefenseReward.lua: DBG: HudVis 1"]);
+  assert.deepEqual(modos, ["dormido", "dormido", "dormido", "dormido"]);
+});
+
+test("mirar el progreso de la misión desde el menú de pausa no la da por acabada", () => {
+  const pausa = [
+    "10257.177 Sys [Info]: Created /Lotus/Interface/TopMenu.swf",
+    "10258.259 Script [Info]: TopMenu.lua: TopMenu: Loading /Lotus/Interface/EndOfMatch.swf",
+    "10258.261 Script [Info]: EndOfMatch.lua: DBG: HudVis 2",
+    "10258.306 Sys [Info]: Created /Lotus/Interface/EndOfMatch.swf",
+    "10258.308 Input [Info]: Subscribing for /Lotus/Interface/EndOfMatch.swf with input filter /Lotus/Interface/EndOfMatchInputFilter",
+    "10259.734 Script [Info]: EndOfMatch.lua: DBG: HudVis 1",
+  ];
+  const { e } = recorre([RONDA[0], ...pausa]);
+  assert.equal(e.enMision, true);
+  assert.equal(e.mision, "TUVUL COMMONS");
+  assert.deepEqual(e.menus, []);
+  assert.equal(modoEscaner(e, VENTANA_DESCONOCIDA_MS).modo, "dormido");
+  assert.deepEqual(parseLinea("10984.544 Sys [Info]: EOM missionLocationUnlocked=1"), { tipo: "mision", fase: "acaba", t: 10984.544 });
 });

@@ -177,7 +177,7 @@ function processRelicDatabase(rawData, activeDropsSet) {
  * Loads raw data, processes relics/missions/bounties, and updates the app state.
  * Shows/hides the loading indicator automatically.
  */
-export async function downloadRelics() {
+export async function downloadRelics(antesDeProcesar) {
     const loadEl = document.getElementById("loading");
     if (loadEl) loadEl.style.display = "flex";
 
@@ -187,6 +187,7 @@ export async function downloadRelics() {
     try {
         const rawData = await loadRelicsData(CACHE_KEY, CACHE_TIME);
         if (!rawData) throw new Error("Failed to load relics data");
+        await antesDeProcesar;
 
         const { fetchActiveResurgence } = await import("../../repositories/api.repository.js");
         fetchActiveResurgence?.().catch(console.warn);

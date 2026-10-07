@@ -11,7 +11,7 @@ import assert from "node:assert/strict";
 import { installFakeDocument, FakeCanvas } from "./_helpers/fake-canvas.mjs";
 
 installFakeDocument();
-const { freezeFrame, releaseFrame } = await import("../deploy/js/utils/vision/frame_freeze.js");
+const { freezeFrame, releaseFrame, shareFrame, stopSharingFrame, sharedFrame } = await import("../deploy/js/utils/vision/frame_freeze.js");
 
 /** Fuente que va cambiando, como el <video>: cada lectura devuelve un "frame" distinto. */
 function fuenteQueCambia() {
@@ -82,4 +82,69 @@ test("un canvas soltado se puede reutilizar", () => {
   const otra = freezeFrame(new FakeCanvas(10, 10), 640, 360, cvs);
   assert.equal(otra.width, 640);
   assert.equal(otra.height, 360);
+});
+
+function videoDe(w, h, v) {
+  const cvs = new FakeCanvas(w, h);
+  cvs._data.fill(v);
+  cvs.videoWidth = w;
+  cvs.videoHeight = h;
+  return cvs;
+}
+
+test("fuera de un tick cada lectura va al vídeo, como siempre", () => {
+  const video = videoDe(8, 4, 50);
+  assert.equal(sharedFrame(video), video);
+});
+
+// Cada recorte del vídeo convertía el fotograma entero (7,3 ms a 1080p) y un tick hace 6-8.
+test("dentro del tick todas las lecturas comparten una copia del fotograma", () => {
+  const video = videoDe(8, 4, 50);
+  shareFrame(video);
+  const copia = sharedFrame(video, 1000);
+  assert.notEqual(copia, video);
+  assert.equal(copia.width, 8);
+  video._data.fill(200);
+  assert.equal(sharedFrame(video, 1030), copia);
+  assert.equal(copia._data[0], 50, "las sondas del mismo tick miran la misma imagen");
+  stopSharingFrame();
+});
+
+// La confirmación de rivens espera 150 ms a propósito para ver un fotograma nuevo.
+test("una lectura que llega tarde dentro del tick vuelve a copiar", () => {
+  const video = videoDe(8, 4, 50);
+  shareFrame(video);
+  const copia = sharedFrame(video, 1000);
+  video._data.fill(200);
+  assert.equal(sharedFrame(video, 1200)._data[0], 200);
+  assert.equal(sharedFrame(video, 1200), copia, "reutiliza el mismo canvas");
+  stopSharingFrame();
+});
+
+test("solo se comparte el vídeo del tick, y al cerrarlo se vuelve a leer directo", () => {
+  const video = videoDe(8, 4, 50);
+  const otro = videoDe(8, 4, 90);
+  shareFrame(video);
+  assert.equal(sharedFrame(otro, 1000), otro);
+  stopSharingFrame();
+  assert.equal(sharedFrame(video, 1000), video);
+});
+
+test("un vídeo sin tamaño todavía no se copia", () => {
+  const video = videoDe(8, 4, 50);
+  video.videoWidth = 0;
+  shareFrame(video);
+  assert.equal(sharedFrame(video, 1000), video);
+  stopSharingFrame();
+});
+
+test("al parar el escáner la copia suelta su memoria", () => {
+  const video = videoDe(8, 4, 50);
+  shareFrame(video);
+  const copia = sharedFrame(video, 1000);
+  stopSharingFrame({ release: true });
+  assert.equal(copia.width, 0);
+  shareFrame(video);
+  assert.equal(sharedFrame(video, 2000).width, 8, "el siguiente tick vuelve a dimensionarla");
+  stopSharingFrame({ release: true });
 });

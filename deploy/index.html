@@ -10,9 +10,7 @@
       document.documentElement.dataset.shell = "desktop";
   </script>
 
-  <!-- Google AdSense -->
-  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4559331797280612"
-    crossorigin="anonymous"></script>
+  <meta name="google-adsense-account" content="ca-pub-4559331797280612" />
 
   <meta name="description"
     content="Herramienta avanzada para Warframe. Consulta precios de Rivens, optimiza tus Reliquias y trackea tu progreso de Sets Prime. Maximiza tu Platino con datos de mercado en tiempo real." />
@@ -107,118 +105,6 @@
 
 <body>
   <canvas id="void-traces-canvas"></canvas>
-  <!-- ESCÁNER DE FOTOS DESACTIVADO. Es la superficie anterior al escáner en vivo: subir una
-       imagen o disparar el obturador, la lista "DETECTED RELICS" y el panel TUNING con los
-       cuatro deslizadores de visión. Llevaba tiempo sin poder abrirse —openScanner() se
-       publicaba en globalThis y NADIE la invocaba—, así que era interfaz muerta que confundía
-       al leer el HTML y al buscar dónde se ajusta el OCR.
-
-       Se comenta en vez de borrarse, como la pestaña Kubrows y los botones PIP/DEBUG: el
-       "subir imagen" sirve para depurar capturas sin tener el juego delante. Para reactivarlo
-       hacen falta tres cosas: descomentar los tres bloques (#ocr-overlay, #ocr-loading y
-       #scanned-results-panel, que solo abre toggleScannedList desde aquí), un punto de entrada
-       que llame a globalThis.openScanner(), y traducir sus rótulos, hoy fijos en inglés contra
-       la regla bilingüe del repo. El código sigue intacto en js/scanner/scanner_controller.js. -->
-  <!--
-  <div id="ocr-overlay" class="fullscreen-scanner hidden">
-    <div class="ocr-system-header">INVENTORY SCANNER</div>
-
-    <video id="ocr-video" autoplay playsinline class="scanner-video"></video>
-    <canvas id="ocr-canvas" class="hidden"></canvas>
-
-    <div class="scanner-ui">
-      <div style="position:absolute; top:15px; left:15px; display:flex; gap:10px;">
-        <button onclick="globalThis.closeScanner()" class="scanner-close-btn" style="position:static;">×</button>
-        <button onclick="document.getElementById('vision-tuning-panel').classList.toggle('hidden')"
-          class="orokin-btn-mini"
-          style="background:rgba(0,229,255,0.1); border:1px solid #00e5ff; color:#00e5ff; padding:5px 10px; border-radius:4px; font-size:10px; font-weight:800;">
-          🛠️ TUNING
-        </button>
-      </div>
-
-      <div class="scanner-guide">
-        <div class="guide-corner tl"></div>
-        <div class="guide-corner tr"></div>
-        <div class="guide-corner bl"></div>
-        <div class="guide-corner br"></div>
-        <div id="ocr-box-guide"></div>
-        <div id="ocr-labels-layer"></div>
-      </div>
-
-      <div id="vision-tuning-panel" class="hidden"
-        style="position:absolute; top:60px; left:15px; background:rgba(0,10,20,0.95); border:1px solid #00e5ff; border-radius:8px; padding:15px; width:220px; z-index:100; box-shadow:0 0 20px rgba(0,229,255,0.3); font-family:sans-serif;">
-        <div
-          style="color:#00e5ff; font-size:11px; font-weight:800; margin-bottom:12px; letter-spacing:1px; border-bottom:1px solid rgba(0,229,255,0.2); padding-bottom:5px;">
-          VISION ENGINE PARAMS</div>
-
-        <div style="margin-bottom:10px;">
-          <label for="threshC-input" style="display:block; color:#888; font-size:9px; margin-bottom:3px;">ADAPTIVE C:
-            <span id="val-threshC" style="color:#fff;">-15</span></label>
-          <input id="threshC-input" type="range" min="-30" max="5" value="-15" step="1"
-            style="width:100%; height:4px; accent-color:#00e5ff;"
-            oninput="document.getElementById('val-threshC').innerText = this.value; globalThis.updateVisionSetting('thresholdC', parseInt(this.value))">
-        </div>
-
-        <div style="margin-bottom:10px;">
-          <label for="clahe-input" style="display:block; color:#888; font-size:9px; margin-bottom:3px;">CLAHE CLIP:
-            <span id="val-clahe" style="color:#fff;">5</span></label>
-          <input id="clahe-input" type="range" min="1" max="10" value="5" step="0.5"
-            style="width:100%; height:4px; accent-color:#00e5ff;"
-            oninput="document.getElementById('val-clahe').innerText = parseFloat(this.value).toFixed(1); globalThis.updateVisionSetting('claheClip', parseFloat(this.value))">
-        </div>
-
-        <div style="margin-bottom:10px;">
-          <label for="hsv-input" style="display:block; color:#888; font-size:9px; margin-bottom:3px;">HSV HUE TOL: <span
-              id="val-hsv" style="color:#fff;">25</span></label>
-          <input id="hsv-input" type="range" min="1" max="50" value="25" step="1"
-            style="width:100%; height:4px; accent-color:#3dff70;"
-            oninput="document.getElementById('val-hsv').innerText = this.value; globalThis.updateVisionSetting('hsvHueTol', parseInt(this.value))">
-        </div>
-
-        <div style="margin-bottom:10px;">
-          <label style="display:block; color:#888; font-size:9px; margin-bottom:3px;">TESSERACT PSM: <span id="val-psm"
-              style="color:#fff;">6</span></label>
-          <select
-            style="width:100%; background:#111; color:#fff; border:1px solid #333; font-size:10px; border-radius:3px; padding:2px;"
-            onchange="document.getElementById('val-psm').innerText = this.value; globalThis.updateVisionSetting('tesseractPSM', parseInt(this.value))">
-            <option value="3">3 (Auto)</option>
-            <option value="6" selected>6 (Uniform Block)</option>
-            <option value="7">7 (Single Line)</option>
-            <option value="11">11 (Sparse Text)</option>
-          </select>
-        </div>
-
-        <button onclick="globalThis.resetVisionSettings()"
-          style="width:100%; margin-top:5px; background:rgba(255,100,100,0.1); border:1px solid #ff6464; color:#ff6464; font-size:9px; padding:4px; border-radius:4px; cursor:pointer;">RESET
-          DEFAULTS</button>
-      </div>
-
-      <div class="scanner-text">AIM TOWARDS YOUR RELIC INVENTORY</div>
-    </div>
-
-    <div class="scanner-actions-bar">
-      <button class="action-btn secondary" onclick="document.getElementById('file-upload').click()">
-        UPLOAD IMAGE
-      </button>
-      <input type="file" id="file-upload" multiple accept="image/*" hidden
-        onchange="globalThis.handleFileUpload(event)" />
-
-      <button onclick="globalThis.captureRelics()" class="shutter-btn"></button>
-
-      <button class="action-btn inventory-badge-btn" onclick="globalThis.toggleScannedList()">
-        DETECTED RELICS<span id="scanned-badge" class="badge-count hidden">0</span>
-      </button>
-    </div>
-  </div>
-  -->
-
-  <!-- Parte del escáner de fotos desactivado (ver la nota de #ocr-overlay). -->
-  <!--
-  <div id="ocr-loading" class="ocr-loading-overlay hidden">
-    <div class="ocr-spinner"></div>
-    <p>Processing image ...</p>
-  </div>
-  -->
   </div>
 
   <div id="scanner-drawer" class="scanner-drawer closed">
@@ -316,6 +202,7 @@
       <div id="squad-run-panel" class="squad-panel" style="display: none"></div>
 
       <div id="kiosk-sale-panel" style="display: none"></div>
+      <div id="arcane-panel" style="display: none"></div>
 
       <!-- Trading Post: lo que das y lo que recibes. Lo rellena ScannerHUD.updateTrade(). -->
       <div id="trade-panel" style="display: none"></div>
@@ -1840,35 +1727,6 @@
       </div>
     </div>
   </div>
-  <!-- Aquí vivían #loadingOverlay, #toast y #menuReliquias ("Scan results" + dos botones
-       permanentemente disabled): marcado de un escáner anterior, sin una sola referencia en
-       todo el repo. El escáner actual pinta en #scanned-results-panel y los avisos van por
-       showToast() / #toast-container. -->
-  <!-- Parte del escáner de fotos desactivado (ver la nota de #ocr-overlay). -->
-  <!--
-  <div id="scanned-results-panel" class="results-drawer hidden">
-    <div class="scan-header" style="
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-        ">
-      <h4 style="margin: 0; color: #fff">
-        DETECTED (<span id="scanned-total-count">0</span>)
-      </h4>
-      <button class="mini-action-btn" onclick="globalThis.clearScannedList()">
-        CLEAR
-      </button>
-    </div>
-
-    <div id="scanned-list" class="scanned-grid-container"></div>
-
-    <div class="scan-footer-actions" style="margin-top: 10px">
-      <button onclick="globalThis.confirmScanResults()" class="action-btn confirm" style="width: 100%">
-        ADD ALL RELICS
-      </button>
-    </div>
-  </div>
-  -->
   <!-- aria-label y title los pone updateScannerLabels(); esto es solo el valor por defecto. -->
   <button id="mobile-scan-btn" class="mobile-scan-fab" onclick="globalThis.startMobileScanner()"
     aria-label="Escanear recompensas con la cámara">
@@ -1967,9 +1825,6 @@
 
   <!-- js/tesseract.min.js se inyecta bajo demanda en OCRRepository.warmUp() -->
   <script src="js/scanner/live_calibration.js"></script>
-
-  <!-- New Vanilla Riven Modules -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <!-- Abanico de pestañas (movil). Fuera de .card para que su overflow:hidden no lo recorte. -->
   <div id="tab-fan-overlay" class="tab-fan-overlay" hidden></div>

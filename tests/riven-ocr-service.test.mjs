@@ -16,10 +16,11 @@ globalThis.localStorage = { getItem: () => null, setItem() {}, removeItem() {} }
 const { state } = await import("../deploy/js/state.js");
 const { RivenOCRService: S } = await import("../deploy/js/services/rivens/riven_ocr.service.js");
 
-state.allRivenNames = ["Braton", "Ignis", "Gotva Prime", "Scourge", "Stug", "Torid"];
+state.allRivenNames = ["Braton", "Ignis", "Gotva Prime", "Scourge", "Stug", "Torid", "Zenith"];
 state.weaponMap = {
   Braton: { t: "Rifle", d: 1.0 },
   "Gotva Prime": { t: "Rifle", d: 1.0 },
+  Zenith: { t: "Rifle", d: 1.0 },
 };
 
 const nombres = (r) => r.stats.map((s) => s.name);
@@ -224,7 +225,7 @@ test("un texto vacío o demasiado corto no parsea nada", () => {
 // Los valores diminutos son ruido del arte que casó por casualidad con un nombre de stat.
 test("un valor imposiblemente bajo se descarta como ruido", () => {
   const r = S.parseRivenCard([
-    "Braton Cronidex", "+120.5% Critical Damage", "+88.2% Multishot", "+5% Puncture Damage",
+    "Braton Cronidex", "+120.5% Critical Damage", "+88.2% Multishot", "+3% Puncture Damage",
   ].join("\n"));
   assert.ok(!nombres(r).includes("Puncture"), nombres(r).join(", "));
 });
@@ -252,6 +253,26 @@ test("nombre del riven partido en dos líneas: la primera es solo el arma y no s
   } finally {
     state.allRivenNames = antes;
   }
+});
+
+// Antes de calcular la distancia se descartan los nombres cuya longitud ya la hace imposible:
+// una línea basura de 40 letras se comparaba contra las ~650 armas en cada tick.
+test("una errata que se come justo las letras que permite el umbral sigue casando", () => {
+  const antes = state.allRivenNames;
+  state.allRivenNames = [...antes, "Ignis Wraith"];
+  try {
+    assert.deepEqual(S._matchWeaponScored("igns wrat"), { name: "Ignis Wraith", tier: 1, dist: 3 });
+    assert.equal(S._matchWeaponScored("the yuvan clerisy commissioned these golden statues"), null);
+  } finally {
+    state.allRivenNames = antes;
+  }
+});
+
+test("la distancia de edición cuenta inserciones, borrados y cambios", () => {
+  assert.equal(S._levenshtein("", "abc"), 3);
+  assert.equal(S._levenshtein("abc", ""), 3);
+  assert.equal(S._levenshtein("kitten", "sitting"), 3);
+  assert.equal(S._levenshtein("braton", "braton"), 0);
 });
 
 // El arte pega tokens espurios a la línea del nombre y las guardas antiguas (^\d, includes("%"))
@@ -326,4 +347,20 @@ test("la distancia de edición es simétrica y cuenta lo que debe", () => {
   assert.equal(S._levenshtein("", "abc"), 3);
   assert.equal(S._levenshtein("abc", ""), 3);
   assert.equal(S._levenshtein("braton", "bratun"), S._levenshtein("bratun", "braton"));
+});
+
+test("el OCR lee una carta de ITEM DETAILS sin rolls (captura real)", () => {
+  const r = S.parseRivenCard([
+    "Zenith Armatio",
+    "+11.2 % Electricity",
+    "+6.2% Magazine Capacity",
+    "MR 16",
+    "10",
+  ].join("\n"));
+
+  assert.ok(r, "debe parsear");
+  assert.equal(r.weaponName, "Zenith");
+  assert.equal(r.mr, 16);
+  assert.equal(r.rolls, null, "no hay rolls en esta pantalla");
+  assert.deepEqual(positivos(r), ["Electric", "Magazine Capacity"]);
 });

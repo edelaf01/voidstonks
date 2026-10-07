@@ -28,7 +28,6 @@ import {
   renderLFGPresets,
   renderTradePresets,
 } from "./ui.components/ui_lfg.js";
-import { populateRivenSelects, initRivenMarketIndex, updateIndexTranslations, filterRivenIndex, stopRivenShowcase } from "./ui.components/rivens/ui_rivens.js?v=1.11";
 import { applyArbTexts } from "./ui.components/rivens/ui_arbitrage.js";
 import { initVosforTab, renderVosforTab } from "./ui.components/ui_vosfor.js?v=2.9";
 import { initSyncPanel } from "./ui.components/market/ui_sync.js";
@@ -43,7 +42,6 @@ import { renderInventory, updateInventoryPanelLabels } from "./ui.components/inv
 import { renderPrimeInventory } from "./ui.components/inventory/ui_prime_inventory.js";
 import { ScannerHUD, renderOcrEngine } from "./ui.components/ui_scanner_hud.js";
 import { updateScannerLabels } from "./ui.components/ui_scanner_labels.js";
-import { ScannerModal } from "./ui.components/ui_scanner_modal.js";
 // Traductor de Kubrows (EE.log) DESACTIVADO: su pestaña está oculta en index.html porque la
 // lectura del log no da el resultado esperado. El import se deja comentado para que sus
 // ~96 KB (parser + traducciones + paleta de colores) no viajen en cada visita; al
@@ -71,6 +69,17 @@ export function finishLoading() {
   if (state.selectedRelic) manualRelicUpdate();
 }
 
+let rivensUI = null;
+
+export function cargaRivens() {
+  rivensUI ||= import("./ui.components/rivens/ui_rivens.js").then((m) => {
+    m.populateRivenSelects();
+    updateRivenSelects(TEXTS[state.currentLang]);
+    return m;
+  });
+  return rivensUI;
+}
+
 /**
  * Lo que cada pestaña tiene que montar al entrar en ella.
  *
@@ -83,9 +92,7 @@ export function finishLoading() {
  */
 function initTabContent(mode) {
   if (mode === "riven") {
-    if (typeof initRivenMarketIndex === "function") {
-      initRivenMarketIndex().catch(console.error);
-    }
+    cargaRivens().then((m) => m.initRivenMarketIndex()).catch(console.error);
     applyArbTexts();
   } else if (mode === "relic") {
     // Las rutas son la pantalla de arranque de esta pestaña: #relic-contents está oculto
@@ -141,7 +148,7 @@ export function initTabRouting() {
 }
 
 export function switchTab(mode) {
-  if (state.activeTab === "riven" && mode !== "riven") stopRivenShowcase();
+  if (state.activeTab === "riven" && mode !== "riven") rivensUI?.then((m) => m.stopRivenShowcase());
   state.activeTab = mode;
   saveAppState();
   if (!navegandoPorHistorial) writeTabHash(mode);
@@ -251,7 +258,6 @@ const setPlaceholder = (id, text) => {
   if (el && text) el.placeholder = text;
 };
 
-
 function updateNavTabs(t) {
   setTab("btn-relic", t.menuRelic || "Reliquia", t.tooltips.tabRelic);
   setTab("btn-set", t.menuSet || "Set", t.tooltips.tabSet);
@@ -351,7 +357,6 @@ function updateStaticTexts(t) {
   setText("txt-weapon-guide", t.lblWeaponGuide);
   setText("txt-variants-header", t.rivenIndex?.variantsLabel || "VARIANTS");
 
-
   // lbl-username y txt-mr-label eran del perfil / calculadora de MR, que ya no tiene marcado
   // (ver la nota en main.js). setText solo hacía dos getElementById en balde en cada cambio
   // de idioma.
@@ -422,7 +427,6 @@ function updateSelectDropdowns(t) {
   updateOptions("squadSize", t.squads);
   updateOptions("prime-inv-sort", t.inventory?.primeSort);
 
-
   // Por data-lfg y no por posición: había una lista de 9 claves aquí que se aplicaba por
   // índice sobre las 17 opciones del HTML. La novena caía sobre "The Circuit", que se
   // repintaba como "Radshare" —se leía una actividad y se seleccionaba otra— y de la décima
@@ -457,10 +461,7 @@ function updateRivenSelects(t) {
   });
 }
 
-
 function triggerSideEffects(t) {
-  populateRivenSelects();
-
   const modeLfg = document.getElementById("mode-lfg");
   if (modeLfg && !modeLfg.classList.contains("hidden")) updateLFGUI();
 
@@ -497,8 +498,8 @@ function triggerSideEffects(t) {
   }
 
   const modal = document.getElementById("scan-success-modal");
-  if (modal && !modal.classList.contains("hidden") && typeof ScannerModal !== "undefined") {
-    ScannerModal.localizeLabels(modal);
+  if (modal && !modal.classList.contains("hidden")) {
+    import("./ui.components/ui_scanner_modal.js").then(({ ScannerModal }) => ScannerModal.localizeLabels(modal)).catch(console.error);
   }
 
   // if (typeof initSyncPanel === "function") initSyncPanel();  // Interfaz de nube (sync) desactivada de momento
@@ -524,12 +525,12 @@ export function updateUILabels() {
   // El selector de motor: rótulos y cuál está activo. Va aquí y no en updateScannerLabels
   // porque ese módulo solo escribe texto y esto además lee la preferencia guardada.
   renderOcrEngine();
-  if (typeof updateIndexTranslations === "function") {
-    updateIndexTranslations();
-    if (state.rivenIndexData) {
-      filterRivenIndex();
-    }
-  }
+  rivensUI?.then((m) => {
+    m.populateRivenSelects();
+    updateRivenSelects(t);
+    m.updateIndexTranslations();
+    if (state.rivenIndexData) m.filterRivenIndex();
+  }).catch(console.error);
   applyArbTexts();
   // initLFGPresets() solo construye el panel la primera vez, así que sin esto los presets se
   // quedan en el idioma de arranque.
@@ -730,10 +731,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   checkFooterVisibility();
 });
-
-
-
-
 
 export function updatePriceUI(element, price) {
   if (!element) return;

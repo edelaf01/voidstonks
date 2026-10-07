@@ -230,6 +230,11 @@ export const RelicScreenService = {
         return { nameWords: collectWords(names.data), countWords: collectWords(counts.data) };
     },
 
+    olvidaEra() {
+        this.eraRejilla = null;
+        this.lastGridHash = null;
+    },
+
     /** Olvida los votos: lo llama el escáner al arrancar una sesión. */
     reset() {
         this.votes.clear();

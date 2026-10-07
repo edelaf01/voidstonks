@@ -57,6 +57,7 @@ beforeEach(() => {
   state.inventory = [];
   RelicScreenService.reset();
   RelicScreenService.onApplied = null;
+  RelicScreenService.onEra = null;
 });
 
 describe("consenso antes de escribir", () => {
@@ -455,4 +456,21 @@ test("en una fisura sin fin, repetir la reliquia de la ronda anterior vuelve a a
     assert.deepEqual(avisos, ["MESO C6", "MESO C6"]);
     assert.equal(RelicScreenService.reliquiaElegida, "MESO C6");
   } finally { globalThis.showTrackConfirm = aviso; }
+});
+
+describe("era del selector", () => {
+  test("al volver a abrir el selector con la misma era, la rejilla la anuncia otra vez", async () => {
+    const eras = [];
+    RelicScreenService.onEra = (e) => eras.push(e);
+    scriptOCR(pantalla([["Meso C6", 108], ["Meso I1", 106], ["Meso K4", 50]]));
+    const v = video(40);
+    await RelicScreenService.readGrid(v);
+    assert.deepEqual(eras, ["Meso"]);
+    await RelicScreenService.readGrid(v);
+    await RelicScreenService.readGrid(v);
+    assert.deepEqual(eras, ["Meso"], "con el selector abierto no se repite");
+    RelicScreenService.olvidaEra();
+    await RelicScreenService.readGrid(v);
+    assert.deepEqual(eras, ["Meso", "Meso"]);
+  });
 });

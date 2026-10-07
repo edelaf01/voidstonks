@@ -22,7 +22,7 @@ const MISSES_ALLOWED = 2;
  * Devuelve [r,g,b], o null si ninguno lee nada reconocible (entonces cada celda mide el
  * suyo, como antes).
  */
-export async function electPageNameColor(worker, snapshot, activeCells, cellW, textSrcY, textSrcH, theme) {
+export async function electPageNameColor(worker, snapshot, activeCells, cellW, textSrcY, textSrcH, theme, reconoce = (words) => OCRService.getRelicMatch(words) || OCRService.getValidItemMatch(words)) {
     if (!worker || !activeCells.length) return null;
 
     const cands = VisionService.pageNameColorCandidates(
@@ -38,7 +38,7 @@ export async function electPageNameColor(worker, snapshot, activeCells, cellW, t
         for (const { cell } of sample) {
             const cvs = VisionService.cropThemeBinarized(snapshot, cell.sx, cell.sy + textSrcY, cellW, textSrcH, theme, col);
             const words = await OCRService.extractCellText(worker, cvs);
-            const read = words?.length && (OCRService.getRelicMatch(words) || OCRService.getValidItemMatch(words));
+            const read = words?.length && reconoce(words);
             if (read) {
                 if (++hits >= HITS_NEEDED) {
                     console.log(`[INV] Color de nombre de la página: rgb(${col.join(",")}) — ${hits} celdas leídas, la última "${words.join(" ")}"`);
@@ -112,7 +112,7 @@ export function readCellWithOwnColor(worker, snapshot, cell, cellW, textSrcY, te
  * @param legible  (words) => bool, el filtro de lectura ilegible del escáner
  * @returns {{ relicMatch, bestItem, words, corte }} o null si ningún corte da un nombre
  */
-export async function readCellCuttingArt(worker, snapshot, cell, cellW, textSrcY, textSrcH, theme, pageColor, legible) {
+export async function readCellCuttingArt(worker, snapshot, cell, cellW, textSrcY, textSrcH, theme, pageColor, legible, reconoce = null) {
     for (const corte of [0.15, 0.25, 0.35]) {
         const cvs = VisionService.cropThemeBinarized(snapshot, cell.sx, cell.sy + textSrcY, cellW, textSrcH, theme, pageColor);
         const ctx = cvs.getContext("2d");
@@ -120,6 +120,10 @@ export async function readCellCuttingArt(worker, snapshot, cell, cellW, textSrcY
         ctx.fillRect(0, 0, cvs.width, Math.round(cvs.height * corte));
         const words = await OCRService.extractCellText(worker, cvs);
         if (!words?.length || !legible(words)) continue;
+        if (reconoce) {
+            if (reconoce(words)) return { relicMatch: null, bestItem: null, words, corte };
+            continue;
+        }
         const relicMatch = OCRService.getRelicMatch(words);
         const bestItem = relicMatch ? null : OCRService.getValidItemMatch(words);
         if (relicMatch || bestItem) return { relicMatch, bestItem, words, corte };

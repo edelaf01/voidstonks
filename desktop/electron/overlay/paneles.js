@@ -28,6 +28,16 @@ function htmlLista(filas) {
   return `<div class="lista" style="grid-template-columns: ${columnas}">${celdas.join("")}</div>`;
 }
 
+function htmlRejilla(b) {
+  const cols = Math.min(12, Math.max(1, Math.round(Number(b.cols) || 1)));
+  const celdas = (Array.isArray(b.celdas) ? b.celdas : []).slice(0, 48).map((c) => {
+    const lineas = Array.isArray(c?.lineas) ? c.lineas : [];
+    if (!lineas.length) return `<div class="celda vacia"></div>`;
+    return `<div class="celda">${lineas.map((l, i) => `<span class="${i ? "dato" : "nombre"} ${tono(l?.tono, i ? "gris" : "blanco")}">${esc(l?.texto)}</span>`).join("")}</div>`;
+  });
+  return `<div class="rejilla" style="grid-template-columns: repeat(${cols}, minmax(0, 1fr))">${celdas.join("")}</div>`;
+}
+
 export function htmlBloque(b) {
   switch (b?.tipo) {
     case "titulo":
@@ -44,6 +54,8 @@ export function htmlBloque(b) {
     }
     case "lista":
       return htmlLista(Array.isArray(b.filas) ? b.filas : []);
+    case "rejilla":
+      return htmlRejilla(b);
     case "botones": {
       const botones = (b.botones || []).filter((x) => RE_ACCION.test(x?.accion || ""));
       const rotulo = b.rotulo ? `<span class="rotulo">${esc(b.rotulo)}</span>` : "";

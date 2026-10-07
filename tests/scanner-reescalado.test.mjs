@@ -201,3 +201,22 @@ test("un dígito bien reconocido no se descarta por medir menos píxeles", async
     }
 });
 
+
+test("pestaña de arcanos a 1080p: los 24 badges, sin el pilar del arte pegado al número", async () => {
+    const img = decodePng(fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), "_fixtures/inventory_arcanes_1920x1080.png")));
+    const calib = VisionService.detectGridAutoCalib(img, img.width, img.height);
+    const snap = new FakeCanvas(img.width, img.height);
+    snap.getContext("2d").putImageData(img, 0, 0);
+    const ancla = VisionService.anclaPorChecks(snap, calib.gridZone, calib);
+    assert.ok(ancla, "sin fase por ✓");
+    const tema = { name: "Grineer", r: 255, g: 224, b: 153, actualR: 178, actualG: 158, actualB: 102 };
+    const auto = VisionService.buildAutoGrid(img, calib.gridZone, tema, { ...calib, gridX: ancla.gridX, gridY: ancla.gridY });
+    const leidos = [];
+    for (const cell of auto.cellRects) leidos.push((await leeCantidadBadge(img, cell, auto.cellW, auto.cellH, tema)).raw);
+    assert.deepEqual(leidos, [
+        "278", "180", "159", "143", "143", "138",
+        "133", "105", "105", "98", "88", "85",
+        "84", "76", "75", "70", "68", "66",
+        "65", "61", "60", "60", "59", "59",
+    ]);
+});

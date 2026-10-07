@@ -6,7 +6,7 @@ installFakeDocument();
 globalThis.localStorage ??= { getItem: () => null, setItem() {}, removeItem() {} };
 
 const { EELogLive } = await import("../deploy/js/services/scanner/eelog_live.service.js");
-const { duermePorLog, firmaPorLog, tarjetasPorLog, CABECERA_RECOMPENSAS } = await import("../deploy/js/services/scanner/log_gate.service.js");
+const { duermePorLog, firmaPorLog, tarjetasPorLog, CABECERA_RECOMPENSAS, enMisionPorLog } = await import("../deploy/js/services/scanner/log_gate.service.js");
 const { VisionService } = await import("../deploy/js/services/scanner/vision.service.js");
 
 const MISION = "64.824 Script [Info]: MissionIntro.lua: MissionName: TUVUL COMMONS";
@@ -73,5 +73,15 @@ test("un escáner dormido despierta en cuanto el log cambia de modo", () => {
     assert.equal(s.vueltas, 1);
     EELogLive.leer([CERRADAS]);
     assert.equal(s.vueltas, 1, "volver a dormir no despierta");
+  });
+});
+
+test("enMisionPorLog devuelve null si no hay log, y el estado de la misión si lo hay", () => {
+  assert.equal(enMisionPorLog(), null);
+  conLog([MISION], () => {
+    EELogLive.juego.enMision = true;
+    assert.equal(enMisionPorLog(), true);
+    EELogLive.juego.enMision = false;
+    assert.equal(enMisionPorLog(), false);
   });
 });

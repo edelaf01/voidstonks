@@ -277,3 +277,37 @@ test("elección de color: una sola lectura buena no basta para quedarse con un c
         OCRService.getRelicMatch = original.relic;
     }
 });
+
+test("elección de color: usa el callback reconoce propio", async () => {
+    const BUENO = [248, 128, 0];
+    const original = {
+        cands: VisionService.pageNameColorCandidates,
+        crop: VisionService.cropThemeBinarized,
+        text: OCRService.extractCellText,
+        item: OCRService.getValidItemMatch,
+        relic: OCRService.getRelicMatch,
+    };
+    try {
+        VisionService.pageNameColorCandidates = () => [BUENO];
+        VisionService.cropThemeBinarized = () => ({});
+        OCRService.extractCellText = async () => ["ARCANO", "LEIDO"];
+        OCRService.getValidItemMatch = () => null;
+        OCRService.getRelicMatch = () => null;
+
+        let customReconoceCallCount = 0;
+        const customReconoce = (words) => {
+            customReconoceCallCount++;
+            return words[0] === "ARCANO" ? { name: "Arcano Leído" } : null;
+        };
+
+        const celdas = [0, 1, 2, 3].map(i => ({ cell: { sx: i * 10, sy: 0 } }));
+        assert.deepEqual(await electPageNameColor({}, null, celdas, 10, 0, 10, THEME, customReconoce), BUENO);
+        assert.equal(customReconoceCallCount, 2);
+    } finally {
+        VisionService.pageNameColorCandidates = original.cands;
+        VisionService.cropThemeBinarized = original.crop;
+        OCRService.extractCellText = original.text;
+        OCRService.getValidItemMatch = original.item;
+        OCRService.getRelicMatch = original.relic;
+    }
+});

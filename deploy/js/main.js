@@ -9,13 +9,7 @@ import { warmupPrices } from "./services/inventory/inventory.service.js";
 import { preloadPricesToMemory, ensurePriceSnapshot } from "./repositories/storage.repository.js";
 import { exposeGlobals } from "./utils/global_registry.js";
 import { state, loadAppState, saveAppState, hydrateDOM } from "./state.js";
-import { startLiveSession, stopLiveSession } from "./scanner/live_scanner.js";
 import { openPiP, initPiP } from "./utils/pip_overlay.js";
-import {
-  openScanner,
-  closeScanner,
-  handleFileUpload,
-} from "./scanner/scanner_controller.js";
 import {
   switchTab,
   tabFromUrl,
@@ -27,6 +21,7 @@ import {
   checkUpdates,
   toggleLangDropdown,
   setLanguageManual,
+  cargaRivens,
 } from "./ui.js?v=2.4";
 import { initFissurePanel } from "./ui.components/farms/ui_fissures.js?v=1.1";
 import { initSyncPanel } from "./ui.components/market/ui_sync.js";
@@ -50,11 +45,6 @@ import { renderPrimeInventory } from "./ui.components/inventory/ui_prime_invento
 import { manualRelicUpdate, updateProfitLabel } from "./ui.components/inventory/ui_relics.js";
 import { renderSetTracker } from "./ui.components/inventory/ui_set_tracker.js";
 import { initLFGPresets } from "./ui.components/ui_lfg.js";
-import {
-  handleRivenInput,
-  openRivenMarket,
-  updateSelectExclusions,
-} from "./ui.components/rivens/ui_rivens.js?v=1.11";
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.getRegistrations().then(function (registrations) {
     for (let registration of registrations) {
@@ -65,11 +55,15 @@ if ("serviceWorker" in navigator) {
 }
 import { initVosforTab } from "./ui.components/ui_vosfor.js?v=2.9";
 import "./ui.components/market/ui_orders.js?v=1.5";
-import "./ui.components/ui_squad_run.js?v=1.0";
 import { initTabFan } from "./ui.components/ui_tab_fan.js?v=1.1";
 import { initMobileFooter } from "./ui.components/ui_mobile_footer.js?v=1.0";
-import { initDesktopShell } from "./ui.components/ui_desktop_shell.js";
 import { esEscritorio } from "./utils/shell.js";
+
+let escanerVivo = null;
+const cargaEscaner = () => (escanerVivo ||= import("./scanner/live_scanner.js"));
+const startLiveSession = () => cargaEscaner().then((m) => m.startLiveSession());
+const stopLiveSession = () => escanerVivo?.then((m) => m.stopLiveSession());
+const conRivens = (nombre) => (...args) => cargaRivens().then((m) => m[nombre](...args));
 
 document.addEventListener("DOMContentLoaded", async () => {
   const urlParams = new URLSearchParams(globalThis.location.search);
@@ -108,7 +102,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   // el save dice otra cosa. Va después de switchTab porque el botón que lo abre depende de
   // la pestaña activa.
   if (state.currentInvView === "parts") globalThis.switchInvView?.("parts");
-  initDesktopShell();
+  if (esEscritorio()) import("./ui.components/ui_desktop_shell.js").then((m) => m.initDesktopShell()).catch(console.error);
   initTabFan();
   initMobileFooter();
 
@@ -184,8 +178,8 @@ async function loadAsyncData() {
     // Se lanza aquí, en paralelo con la descarga de reliquias: cuando la primera reliquia
     // se pinta, sus 6 precios ya están en memoria y no generan ninguna petición.
     ensurePriceSnapshot().catch(console.error);
-    await Promise.all([fetchRivenWeapons(), fetchPrimeManifest()]);
-    await downloadRelics();
+    const armasDeRiven = fetchRivenWeapons();
+    await downloadRelics(fetchPrimeManifest());
     if (state.selectedRelic) {
       const input = document.getElementById("relicInput");
       if (input) input.value = state.selectedRelic;
@@ -198,6 +192,7 @@ async function loadAsyncData() {
     // bases vacías y se quedaba a medias — solo se completaba al cambiar de pestaña y volver,
     // que es cuando se ejecuta otra vez. Le pasaba al panel de rutas y le pasa igual a Set,
     // Ducados, Riven y Farms.
+    await armasDeRiven;
     refreshActiveTab();
     // Y las rutas aparte: viven en tres pestañas Y en el cajón de inventario, que se abre
     // desde cualquiera, así que se pintan esté el usuario donde esté.
@@ -254,14 +249,6 @@ async function startMobileScanner() {
       globalThis.stopLiveSession();
     } catch (e) {
       console.warn("Error al detener live session:", e);
-    }
-  }
-
-  if (globalThis.closeScanner) {
-    try {
-      globalThis.closeScanner();
-    } catch (e) {
-      console.warn("Error al cerrar scanner:", e);
     }
   }
 
@@ -366,16 +353,15 @@ exposeGlobals({
   startMobileScanner,
   switchTab: wrapperSwitchTab,
   changeLanguage,
-  handleRivenInput,
-  openRivenMarket,
+  handleRivenInput: conRivens("handleRivenInput"),
+  openRivenMarket: conRivens("openRivenMarket"),
+  openGradingModal: conRivens("openGradingModal"),
   toggleLangDropdown,
   setLanguageManual,
-  openScanner,
-  handleFileUpload,
   startLiveSession,
   stopLiveSession,
   checkUpdates,
-  updateSelectExclusions,
+  updateSelectExclusions: conRivens("updateSelectExclusions"),
   saveAppState,
   togglePiP: openPiP,
 }, "main.js");

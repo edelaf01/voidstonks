@@ -72,3 +72,8 @@ test("un componente demasiado bajo para ser dígito no entra", () => {
     // Menos del 40% del alto del checkmark: es un punto de arte, no una cifra.
     assert.deepEqual(digitosPorAncla([CHECK, caja(50, 34, 8, 10)], W, H), []);
 });
+
+test("lo que viene pegado pero medio dígito más abajo no es otra cifra", () => {
+    const pilar = caja(86, 40, 12, 26);
+    assert.deepEqual(digitosPorAncla([CHECK, DIGITO, DIGITO2, pilar], W, H), [1, 2]);
+});

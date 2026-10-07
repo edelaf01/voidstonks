@@ -64,6 +64,35 @@ test("si ningún corte da un nombre devuelve null tras los tres intentos", async
   }
 });
 
+test("con reconoce delega el veredicto y salta las primes (éxito)", async () => {
+  const origCrop = VisionService.cropThemeBinarized, origRead = OCRService.extractCellText;
+  try {
+    VisionService.cropThemeBinarized = () => lienzoFalso(400);
+    OCRService.extractCellText = async () => ["ARCANO", "CUALQUIERA"];
+    const r = await readCellCuttingArt({}, {}, {}, 0, 0, 0, null, null, () => true, (ws) => ws[0] === "ARCANO");
+    assert.equal(r.relicMatch, null);
+    assert.equal(r.bestItem, null);
+    assert.equal(r.corte, 0.15);
+    assert.deepEqual(r.words, ["ARCANO", "CUALQUIERA"]);
+  } finally {
+    VisionService.cropThemeBinarized = origCrop; OCRService.extractCellText = origRead;
+  }
+});
+
+test("con reconoce si nunca acepta devuelve null", async () => {
+  const origCrop = VisionService.cropThemeBinarized, origRead = OCRService.extractCellText;
+  let intentos = 0;
+  try {
+    VisionService.cropThemeBinarized = () => lienzoFalso(400);
+    OCRService.extractCellText = async () => { intentos++; return ["BASURA"]; };
+    const r = await readCellCuttingArt({}, {}, {}, 0, 0, 0, null, null, () => true, () => false);
+    assert.equal(r, null);
+    assert.equal(intentos, 3);
+  } finally {
+    VisionService.cropThemeBinarized = origCrop; OCRService.extractCellText = origRead;
+  }
+});
+
 test("una lectura ilegible no se intenta casar", async () => {
   const origCrop = VisionService.cropThemeBinarized, origRead = OCRService.extractCellText, origItem = OCRService.getValidItemMatch;
   let casados = 0;

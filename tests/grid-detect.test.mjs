@@ -1,5 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { decodePng } from "./_helpers/png.mjs";
 import {
   rowProfile,
   findBands,
@@ -1104,4 +1108,15 @@ test("detectInventoryGrid: a la 1ª fila le falta solo el margen sobre la card y
   const mucho = detectInventoryGrid(makeInventoryFrame({ width: 1920, height: 1080, ...truth, gridY: -100, rows: 4 }));
   assert.ok(mucho);
   assert.ok(mucho.gridZone.y > 100, `con 100 px fuera la fila se pierde y la rejilla empieza en la siguiente: ${mucho.gridZone.y}`);
+});
+
+test("detectInventoryGrid: pestaña de arcanos, el arte pesa más que los nombres y no se lleva la rejilla", () => {
+  const img = decodePng(fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), "_fixtures/inventory_arcanes_1920x1080.png")));
+  const trace = {};
+  const res = detectInventoryGrid(img, { trace });
+  assert.ok(res, `trace.fail = ${trace.fail}`);
+  assert.equal(res.cols, 6);
+  assert.ok(!res.colorAnchored, `anclada por color ${res.nameColor}`);
+  assert.ok(Math.abs(res.cellW - 208) <= 3 && Math.abs(res.cellH - 222) <= 3, `celda ${res.cellW}x${res.cellH}`);
+  assert.ok(Math.abs(res.gridZone.x - 67) <= 21 && Math.abs(res.gridZone.y - 182) <= 22, `origen ${res.gridZone.x},${res.gridZone.y}`);
 });

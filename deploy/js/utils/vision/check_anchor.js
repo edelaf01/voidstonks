@@ -33,18 +33,19 @@ const plantilla = (() => {
 /** Canal máximo (el ✓ es del color del tema, no gris) de un ImageData, reducido por `f` (media de bloque). */
 export function reduceMax(imageData, f, { y0 = 0, y1 = imageData.height } = {}) {
     const { width, data } = imageData;
-    const fi = Math.max(1, Math.round(f));
     y0 = Math.max(0, Math.floor(y0)); y1 = Math.min(imageData.height, Math.ceil(y1));
     const w = Math.floor(width / f), h = Math.max(0, Math.floor((y1 - y0) / f));
     const out = new Float32Array(w * h);
     for (let y = 0; y < h; y++) {
+        const ya = y0 + Math.floor(y * f), yb = Math.max(ya + 1, y0 + Math.floor((y + 1) * f));
         for (let x = 0; x < w; x++) {
+            const xa = Math.floor(x * f), xb = Math.max(xa + 1, Math.floor((x + 1) * f));
             let s = 0;
-            for (let dy = 0; dy < fi; dy++) {
-                let i = ((y0 + y * fi + dy) * width + x * fi) * 4;
-                for (let dx = 0; dx < fi; dx++, i += 4) s += Math.max(data[i], data[i + 1], data[i + 2]);
+            for (let yy = ya; yy < yb; yy++) {
+                let i = (yy * width + xa) * 4;
+                for (let xx = xa; xx < xb; xx++, i += 4) s += Math.max(data[i], data[i + 1], data[i + 2]);
             }
-            out[y * w + x] = s / (fi * fi);
+            out[y * w + x] = s / ((yb - ya) * (xb - xa));
         }
     }
     return { data: out, w, h };
@@ -92,17 +93,16 @@ export function picosCheck(reducida, { umbral = CHECK_UMBRAL, separacion = 12, p
 export function buscaChecks(imageData, cellH, { ventanasY = null } = {}) {
     const f = CHECK_ESCALA_REF * cellH / CHECK_CELDA_REF;
     if (!(f >= 1)) return [];
-    const fr = Math.max(1, Math.round(f));
     // Con rejilla propuesta se reduce y correla solo la franja de cada fila (±0,3 celda, más
     // el medio ✓ de margen): las franjas no se solapan, así que ningún pico sale dos veces.
     const franjas = ventanasY
-        ? ventanasY.map(([a, b]) => [a - LADO / 2 * fr, b + LADO / 2 * fr]).filter(([a, b]) => b > 0 && a < imageData.height)
+        ? ventanasY.map(([a, b]) => [a - LADO / 2 * f, b + LADO / 2 * f]).filter(([a, b]) => b > 0 && a < imageData.height)
         : [[0, imageData.height]];
     const picos = [];
     for (const [y0, y1] of franjas) {
         const red = reduceMax(imageData, f, { y0, y1 });
         const desde = Math.max(0, Math.floor(y0));
-        for (const p of picosCheck(red, { separacion: Math.round(LADO * 0.75) })) picos.push({ x: p.x * fr, y: p.y * fr + desde, score: p.score });
+        for (const p of picosCheck(red, { separacion: Math.round(LADO * 0.75) })) picos.push({ x: p.x * f, y: p.y * f + desde, score: p.score });
     }
     return picos.sort((a, b) => b.score - a.score);
 }

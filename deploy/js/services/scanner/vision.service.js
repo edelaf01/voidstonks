@@ -1515,7 +1515,11 @@ export const VisionService = {
         // Fin de partida de Sanctuary Onslaught: la misma pantalla de recompensas con otro título.
         if (/Z[O0]NE\s*\S{1,3}\s*REACH/.test(text)) return "MISSION_COMPLETE";
 
-        if (/DETAIL|DETALL/.test(text)) return "ITEM_DETAILS"; // popup "Item Details" (riven linkeado, centrado)
+        if (/DETAIL|DETALL/.test(text)) {
+            if (/RIVEN|AGRIETADO/.test(text)) return "RIVEN_DETAILS";
+            return "ITEM_DETAILS"; // popup "Item Details" (riven linkeado, centrado)
+        }
+        if (/DISSOL|DISOLU/.test(text)) return "ARCANE_DISSOLUTION";
         if (hasMods) return "INVENTORY_MODS";
         if (hasInv) return "INVENTORY";
         if (/RELI|ELIC|REFI|NEME/.test(text)) return "RELICS";

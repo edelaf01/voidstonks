@@ -613,10 +613,10 @@ test("con una página en OCR: ni kiosko, ni 'done' en el HUD, ni rejilla de reli
     Object.assign(S, { autoScrollMuestra: vista, sawScrollSinceScan: false });
     await S.routeFrameAction("INVENTORY", video, dims); // quieta y ya vista
     await S.routeFrameAction("INVENTORY", video, dims);
-    return { kiosko: n.kiosko, dones: n.estados.filter((e) => e === "done").length, scanning: n.estados.filter((e) => e === "scanning").length };
+    return { kiosko: n.kiosko, dones: n.estados.filter((e) => e === "done").length, scanning: n.estados.filter((e) => e === "scanning").length, captured: n.estados.filter((e) => e === "captured").length };
   };
-  assert.deepEqual(await inventario(false), { kiosko: 3, dones: 2, scanning: 0 }, "control: sin candado se lee el kiosko y el HUD vuelve a 'done'");
-  assert.deepEqual(await inventario(true), { kiosko: 0, dones: 0, scanning: 2 }, "con candado: ni kiosko ni 'done'; el HUD dice que escanea");
+  assert.deepEqual(await inventario(false), { kiosko: 3, dones: 2, scanning: 0, captured: 0 }, "control: sin candado se lee el kiosko y el HUD vuelve a 'done'");
+  assert.deepEqual(await inventario(true), { kiosko: 0, dones: 0, scanning: 0, captured: 2 }, "con candado: ni kiosko ni 'done'; el HUD dice que está capturada");
 
   S.detectionLocked = false;
   await S.routeFrameAction("RELICS", video, dims);
@@ -770,6 +770,11 @@ test("en modo preciso el pool de Tesseract solo se crea si el preciso está caí
   }
 });
 
+test("el timeout de foto usa this.ESPERA_FOTO_MS de 350ms y tiene rama 'captured'", () => {
+  assert.equal(S.ESPERA_FOTO_MS, 350);
+  assert.match(SRC, /ScannerHUD\.updateScrollStatus\(!hasPageChanged \? "captured" : "scanning"\)/);
+});
+
 // --- La franja del rótulo decide cuándo se relee la cabecera ---------------------------------
 //
 // El hash 16×9 de antes no veía "INVENTORY/SELL" -> "INVENTORY/MODS" y el reloj (2,5 s) era lo
@@ -797,7 +802,8 @@ async function lecturasDeCabecera({ haceMs, frame2 }) {
   const { FakeCanvas } = await import("./_helpers/fake-canvas.mjs");
   let lecturas = 0;
   const orig = { workers: OCRRepository.workers, ruta: S.routeFrameAction };
-  OCRRepository.workers = [{ recognize: async () => { lecturas++; return { data: { text: "INVENTORY/SELL" } }; } }];
+  const { VisionService } = await import("../deploy/js/services/scanner/vision.service.js");
+  OCRRepository.workers = [{ recognize: async (img) => { if (img !== VisionService.lienzo("categoria")) lecturas++; return { data: { text: "INVENTORY/SELL" } }; } }];
   S.routeFrameAction = async () => {};
   const lienzo = new FakeCanvas(16, 9);
   const base = await cabeceraConRotulo();
@@ -819,6 +825,23 @@ test("con el rótulo quieto la cabecera vale 10 s aunque el resto del recorte ca
 test("si cambia el rótulo se relee aunque no hayan pasado 2,5 s", async () => {
   const lecturas = await lecturasDeCabecera({ haceMs: 1500, frame2: await cabeceraConRotulo({ invertido: true }) });
   assert.equal(lecturas, 1);
+});
+
+test("la franja del rótulo del tick sale de createImageBitmap, igual que la muestra del sensor", async (t) => {
+  const fuentes = [];
+  globalThis.createImageBitmap = async (fuente, ...resto) => {
+    fuentes.push(fuente);
+    const { resizeWidth: width, resizeHeight: height } = resto.at(-1);
+    const data = new Uint8ClampedArray(width * height * 4).fill(255);
+    return { width, height, data, close() {} };
+  };
+  t.after(() => { delete globalThis.createImageBitmap; });
+  const frame2 = await cabeceraConRotulo({ invertido: true });
+  const lecturas = await lecturasDeCabecera({ haceMs: 1500, frame2 });
+  assert.equal(lecturas, 1);
+  assert.ok(fuentes.includes(frame2));
+  assert.equal(S.lastHeaderHash.length, 64 * 8);
+  assert.ok(S.lastHeaderHash.every((l) => l === 255), "la base guardada es la del mapa de bits");
 });
 
 // Visto en vivo (ZIP 2026-09-20-11-10): al pasar a una página nueva el HUD se quedaba en
@@ -856,7 +879,7 @@ test("una página nueva se escanea aunque el scroll parezca hacia arriba, y el H
     await new Promise((r) => setTimeout(r, 900));
     assert.equal(capturas, 2, "la página nueva se captura");
     await S.routeFrameAction("INVENTORY", frame(20), dims);
-    assert.equal(estados.at(-1), "scanning", "con una página en OCR y esta encolada, el HUD dice que escanea");
+    assert.equal(estados.at(-1), "captured", "con una página en OCR y esta encolada, el HUD dice que está capturada");
   } finally {
     if (S.autoScrollStableTimer) { clearTimeout(S.autoScrollStableTimer); S.autoScrollStableTimer = null; }
     S._invQueue = null; S.detectionLocked = false; S.isScanning = false;
@@ -943,6 +966,37 @@ test("el fin de misión se lee aunque el fondo se mueva: solo cuenta el panel de
   } finally { OCRRepository.workers = orig.workers; }
 });
 
+test("con la pantalla de fin de misión ya leída no se congela el frame entero", async () => {
+  const { canvasRegionHash } = await import("../deploy/js/utils/vision/frame_hash.js");
+  const W = 64, H = 36;
+  const video = { videoWidth: W, videoHeight: H, width: W, height: H, data: new Uint8ClampedArray(W * H * 4).fill(40) };
+  const hash = canvasRegionHash(video, { x: Math.floor(W * 0.45), y: Math.floor(H * 0.18), w: Math.floor(W * 0.53), h: Math.floor(H * 0.74) });
+  const orig = { cvs: S._mcFrameCvs, dor: S._mcDormido, sta: S._mcStableHash, gri: S._mcGrid, led: S.mcLedger };
+  S._mcDormido = hash;
+  S._mcFrameCvs = { width: W, height: H, getContext: () => ({ drawImage() { throw new Error("congelado"); } }) };
+  try {
+    await S.processMissionComplete(video, { width: W, height: H, scale: 1 });
+    assert.equal(S._mcDormido, hash);
+  } finally {
+    S._mcFrameCvs = orig.cvs; S._mcDormido = orig.dor; S._mcStableHash = orig.sta; S._mcGrid = orig.gri; S.mcLedger = orig.led;
+  }
+});
+
+test("mientras el panel de fin de misión se mueve no se congela el frame", async () => {
+  const W = 64, H = 36;
+  const video = { videoWidth: W, videoHeight: H, width: W, height: H, data: new Uint8ClampedArray(W * H * 4).fill(40) };
+  const orig = { cvs: S._mcFrameCvs, dor: S._mcDormido, sta: S._mcStableHash, gri: S._mcGrid, led: S.mcLedger };
+  S._mcDormido = null;
+  S._mcStableHash = null;
+  S._mcFrameCvs = { width: W, height: H, getContext: () => ({ drawImage() { throw new Error("congelado"); } }) };
+  try {
+    await S.processMissionComplete(video, { width: W, height: H, scale: 1 });
+    assert.notEqual(S._mcStableHash, null);
+  } finally {
+    S._mcFrameCvs = orig.cvs; S._mcDormido = orig.dor; S._mcStableHash = orig.sta; S._mcGrid = orig.gri; S.mcLedger = orig.led;
+  }
+});
+
 // Visto en vivo (fisura sin fin): al pasar de REWARDS a SELECT RELIC el latch seguía en REWARD y el
 // panel "Axi A6 Relic [Radiant] - Possible Rewards" abrió el modal con un Chroma Prime Blueprint.
 test("las recompensas solo se leen con la cabecera diciendo REWARDS", async () => {
@@ -1020,7 +1074,8 @@ test("una pantalla nueva parada se lee aunque el reloj de la cabecera aún no ha
   const { FakeCanvas } = await import("./_helpers/fake-canvas.mjs");
   let lecturas = 0;
   const orig = { workers: OCRRepository.workers, ruta: S.routeFrameAction };
-  OCRRepository.workers = [{ recognize: async () => { lecturas++; return { data: { text: "INVENTORY/SELL" } }; } }];
+  const { VisionService } = await import("../deploy/js/services/scanner/vision.service.js");
+  OCRRepository.workers = [{ recognize: async (img) => { if (img !== VisionService.lienzo("categoria")) lecturas++; return { data: { text: "INVENTORY/SELL" } }; } }];
   S.routeFrameAction = async () => {};
   const lienzo = new FakeCanvas(16, 9);
   const base = await cabeceraConRotulo();
@@ -1268,7 +1323,7 @@ test("despertado por el sensor, el rótulo nuevo se lee en ese mismo tick", asyn
   try {
     sensorDelEscaner(S, video, { reloj }).arma();
     video.data = (await cabeceraConRotulo({ invertido: true })).data;
-    reloj.fn(); reloj.fn();
+    await reloj.fn(); await reloj.fn();
     assert.ok(vuelta, "el sensor despertó al bucle");
     await vuelta;
     assert.equal(lecturas, 1);
@@ -1536,5 +1591,56 @@ test("sin dimensiones de vídeo el tick no procesa y vuelve a mirar en un segund
     assert.ok(S.scanInterval, "reintenta");
   } finally {
     S.processFrame = orig; S.isScanning = false; clearTimeout(S.scanInterval);
+  }
+});
+
+test("ARCANE_DISSOLUTION salta DucatKioskService.process y no necesita autoScanEnabled", async () => {
+  const { DucatKioskService } = await import("../deploy/js/services/scanner/ducat_kiosk.service.js");
+  const W = 640, H = 360;
+  const data = new Uint8ClampedArray(W * H * 4).fill(40);
+  const video = { videoWidth: W, videoHeight: H, width: W, height: H, data };
+  const dims = { width: W, height: H, scale: 1 };
+  const orig = { kiosko: DucatKioskService.process };
+  let kioskoCalls = 0;
+  DucatKioskService.process = async () => { kioskoCalls++; };
+  globalThis.state = { ...globalThis.state, autoScanEnabled: false, scannerModsMode: false };
+  S.lastHeaderText = "ARCANE DISSOLUTION";
+  S.detectionLocked = false;
+  
+  await S.routeFrameAction("ARCANE_DISSOLUTION", video, dims);
+  
+  assert.equal(kioskoCalls, 0);
+  assert.equal(S.currentRate, 300, "Si entra en la captura sin autoScanEnabled, el rate es rápido (300) y no 3000");
+
+  DucatKioskService.process = orig.kiosko;
+});
+
+test("la sonda del squad solo corre dentro de misión según el EE.log", async () => {
+  const { pistasDelLog } = await import("../deploy/js/utils/ganchos.js");
+  const { SquadService } = await import("../deploy/js/services/scanner/squad.service.js");
+  const origProbe = SquadService.probe;
+  const origEnMision = pistasDelLog.enMision;
+  let llamadas = 0;
+  SquadService.probe = async () => { llamadas++; return false; };
+  const video = { videoWidth: 64, videoHeight: 36, width: 64, height: 36, data: new Uint8ClampedArray(64 * 36 * 4).fill(40) };
+  const dims = { width: 64, height: 36, scale: 1 };
+  const origState = globalThis.state;
+  globalThis.state = { ...globalThis.state, scannerModsMode: false };
+  try {
+    pistasDelLog.enMision = () => false;
+    await S.routeFrameAction("UNKNOWN", video, dims);
+    assert.equal(llamadas, 0, "fuera de misión no se paga el OCR del menú de pausa");
+
+    pistasDelLog.enMision = () => true;
+    await S.routeFrameAction("UNKNOWN", video, dims);
+    assert.equal(llamadas, 1);
+
+    pistasDelLog.enMision = () => null;
+    await S.routeFrameAction("UNKNOWN", video, dims);
+    assert.equal(llamadas, 2, "sin log se sondea como siempre");
+  } finally {
+    SquadService.probe = origProbe;
+    pistasDelLog.enMision = origEnMision;
+    globalThis.state = origState;
   }
 });

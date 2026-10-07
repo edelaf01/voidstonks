@@ -5,7 +5,8 @@ import { arrancaServidor, PREFIJO_OVERLAY } from "./servidor.js";
 import { creaPermisos } from "./permisos.js";
 import { creaLectorEELog, rutaEELog } from "./eelog.js";
 import { peticionValida } from "./paneles.js";
-import { puedePintar } from "./juego.js";
+import { puedePintar, ventanaDelJuego } from "./juego.js";
+import { creaEligeFuente } from "./captura.js";
 import { creaOverlay } from "./ventana-overlay.js";
 import { creaRegistroConsola } from "./consola.js";
 import { creaZoom, zoomPorDefecto } from "./zoom.js";
@@ -77,10 +78,10 @@ app.whenReady().then(async () => {
     cb(PERMITIDOS.has(permiso) && origenDe(detalles.requestingUrl) === origen);
   });
   session.defaultSession.setPermissionCheckHandler((_wc, permiso, origenPeticion) => PERMITIDOS.has(permiso) && origenPeticion === origen);
+  const eligeFuente = creaEligeFuente({ plataforma: process.platform, env: process.env, juegoEnX11: () => !!ventanaDelJuego(), listaFuentes: () => desktopCapturer.getSources({ types: ["window", "screen"], thumbnailSize: { width: 0, height: 0 } }) });
   session.defaultSession.setDisplayMediaRequestHandler(async (_peticion, responde) => {
     try {
-      const fuentes = await desktopCapturer.getSources({ types: ["window", "screen"], thumbnailSize: { width: 0, height: 0 } });
-      const fuente = fuentes.find((f) => f.name === "Warframe") || fuentes.find((f) => f.id.startsWith("screen:")) || fuentes[0];
+      const fuente = await eligeFuente();
       responde(fuente ? { video: fuente } : {});
     } catch (e) {
       console.error("[captura]", e);

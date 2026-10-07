@@ -29,19 +29,21 @@ export async function loadRivenML() {
   if (_loading) return _loading;
   _loading = (async () => {
     const base = "assets/ml/";
-    const [qbundle, order, defaults, bands, statWeights, cal, single] = await Promise.all([
+    const [qbundle, order, defaults, bands, statWeights, cal] = await Promise.all([
       fetch(base + "model_quantiles_slim.json").then(r => r.json()).catch(() => null), // banda p25..p95
       fetch(base + "feature_order_slim.json").then(r => r.json()),
       fetch(base + "feature_defaults_slim.json").then(r => r.json()),
       fetch(base + "price_bands.json").then(r => r.json()).catch(() => ({})),     // banda histórica por arma
       fetch(base + "stat_weights.json").then(r => r.json()).catch(() => ({})),    // pesos pos/neg por arma
       fetch(base + "calibracion_por_arma.json").then(r => r.json()).catch(() => ({})), // drift/synlo/nsamp
-      fetch(base + "model_trees_slim.json").then(r => r.json()).catch(() => null), // fallback modelo único
     ]);
     const idx = {};
     order.forEach((n, i) => { idx[n] = i; });
 
     let quantiles, qmodels;
+    const single = qbundle && qbundle.models
+      ? null
+      : await fetch(base + "model_trees_slim.json").then(r => r.json()).catch(() => null);
     if (qbundle && qbundle.models) {
       quantiles = qbundle.quantiles || Object.keys(qbundle.models).map(Number).sort((a, b) => a - b);
       qmodels = {};
@@ -55,7 +57,7 @@ export async function loadRivenML() {
     _ml = {
       quantiles, qmodels, order, defaults, idx,
       bands: bands || {}, statWeights: statWeights || {},
-      cal: cal || {}, drift: (cal && cal.drift) || {}, synlo: (cal && cal.synlo) || {}, nsamp: (cal && cal.nsamp) || {},
+      cal: cal || {}, drift: (cal && cal.drift) || {}, nivel: (cal && cal.nivel) || {}, synlo: (cal && cal.synlo) || {}, nsamp: (cal && cal.nsamp) || {},
       // venta: calibrado ask->venta por arma que exporta ML_local.py. Solo las armas con
       // `fiable: true` tienen el modelo entrenado en escala de precio de VENTA.
       venta: (cal && cal.venta) || {},
@@ -666,10 +668,11 @@ export async function predictRivenMLBand(weapon, itemAttributes, weaponData = nu
   if (usaModelo) {
     // El modelo predice en espacio log1p (y_all = log1p(price) en el entrenamiento) -> expm1.
     // Cada cuantil tiene su propio modelo, así que la banda sale directa del modelo, sin OFF.
+    const nivel = _byWeapon(ml.nivel, wname) || 1.0;
     for (const a of qs) {
       const m = qmods[a] || qmods[0.5];
       if (!m) continue;
-      out[a] = Math.max(floor, Math.round(Math.expm1(rawPredictModel(m, vec))));
+      out[a] = Math.max(floor, Math.round(Math.expm1(rawPredictModel(m, vec)) * nivel));
     }
   } else {
     for (const a of qs) {

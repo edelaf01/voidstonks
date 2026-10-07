@@ -17,7 +17,7 @@ import { montaTiras, repartePorTramos } from "../utils/vision/ocr_montage.js";
 import { PaddleWorkerClient } from "./paddle_worker_client.js";
 import { rutasAbsolutas, eligeModelo, puedeUsarWorker } from "../utils/vision/paddle_rpc.js";
 
-const CDN = "https://esm.sh/ppu-paddle-ocr@6.4.3/web";
+const CDN = "https://esm.sh/ppu-paddle-ocr@6.4.3/web?alias=onnxruntime-web:onnxruntime-web/wasm&deps=onnxruntime-web@1.30.0";
 const MODELO_LOCAL = {
     detection: "assets/ocr/PP-OCRv6_tiny_det.ort",
     recognition: "assets/ocr/PP-OCRv6_tiny_rec.ort",
