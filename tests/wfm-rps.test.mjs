@@ -335,3 +335,114 @@ test("el objeto durable cuenta lo que pide y cómo le responde WFM, y no se repr
   await t.arranca();
   assert.equal(programadas, 0, "con la vuelta en marcha no se pisa la alarma");
 });
+
+test("un 403 de desafío de Cloudflare frena media hora y avisa al Durable Object", async () => {
+  const { WFM, fetchWFM, conCliente } = internos();
+  const pedidos = [];
+  const turnos = { idFromName: (n) => n, get: () => ({ fetch: async (url) => { pedidos.push(String(url)); return new Response(null, { status: 204 }); } }) };
+  WFM.configura({ WFM_TURNOS: turnos });
+  let llamadas = 0;
+  await conFetch(async () => { llamadas++; return new Response("", { status: 403, headers: { "cf-mitigated": "challenge" } }); }, async () => {
+    assert.equal((await conCliente("1.2.3.4", () => fetchWFM("https://api.warframe.market/v2/orders/item/a/top"))).status, 403);
+    assert.equal((await conCliente("1.2.3.4", () => fetchWFM("https://api.warframe.market/v2/orders/item/a/top"))).status, 429);
+  });
+  assert.equal(llamadas, 1);
+  assert.ok(pedidos.includes("https://turnos/frena?ms=1800000"));
+  assert.ok(WFM.frenoHasta - Date.now() > 1790000);
+});
+
+test("un 403 sin la marca de desafío no frena", async () => {
+  const { WFM, fetchWFM } = internos();
+  WFM.configura({ WFM_RPS: "50" });
+  let llamadas = 0;
+  await conFetch(async () => { llamadas++; return new Response("", { status: 403 }); }, async () => {
+    assert.equal((await fetchWFM("https://api.warframe.market/v2/orders/item/a/top")).status, 403);
+    assert.equal((await fetchWFM("https://api.warframe.market/v2/orders/item/b/top")).status, 403);
+  });
+  assert.equal(llamadas, 2);
+  assert.equal(WFM.frenoHasta, 0);
+});
+
+test("un error 5xx de WFM frena treinta segundos", async () => {
+  const { WFM, fetchWFM } = internos();
+  WFM.configura({ WFM_RPS: "50" });
+  let llamadas = 0;
+  await conFetch(async () => { llamadas++; return new Response("", { status: 503 }); }, async () => {
+    assert.equal((await fetchWFM("https://api.warframe.market/v2/orders/item/a/top")).status, 503);
+    assert.ok(WFM.frenoHasta - Date.now() > 25000 && WFM.frenoHasta - Date.now() <= 30000);
+    assert.equal((await fetchWFM("https://api.warframe.market/v2/orders/item/b/top")).status, 429);
+  });
+  assert.equal(llamadas, 1);
+});
+
+test("un freno más largo de lo que aguanta un turno suelta la cola y rechaza al momento", async () => {
+  const { ColaTurnos } = internos();
+  const reloj = relojFalso();
+  const cola = new ColaTurnos({ ...reloj, caducaMs: 1000 });
+  const concedidos = apuntaTurnos(cola, reloj, [["A", 1], ["B", 1]]);
+  cola.frena(5000);
+  await reloj.avanza(0);
+  assert.deepEqual(concedidos.map(([c, ok]) => `${c}:${ok}`).sort(), ["A:false", "B:false"]);
+  const tarde = apuntaTurnos(cola, reloj, [["C", 1]]);
+  await reloj.avanza(0);
+  assert.deepEqual(tarde.map(([c, ok, t]) => `${c}:${ok}@${t}`), ["C:false@0"]);
+  await reloj.avanza(4500);
+  const luego = apuntaTurnos(cola, reloj, [["D", 1]]);
+  await reloj.avanza(1000);
+  assert.deepEqual(luego.map(([c, ok, t]) => `${c}:${ok}@${t}`), ["D:true@5000"]);
+});
+
+test("el Durable Object frena a todos con un desafío y no pide nada mientras", async () => {
+  const { TurnosWFM } = conObjetoDurable();
+  const state = { storage: { get: async () => ({}), put: async () => {}, getAlarm: async () => null, setAlarm: async () => {} } };
+  const t = new TurnosWFM(state, { VOID_KV: { get: async () => null } });
+  await conFetch(async () => new Response("", { status: 403, headers: { "cf-mitigated": "challenge" } }), () => t.pidePrecio("a_prime_set"));
+  assert.ok(t.frenoFondoHasta - Date.now() > 1790000);
+  assert.ok(t.cola.libre - Date.now() > 1790000);
+  const r = await t.fetch(new Request("https://turnos/turno?c=x&h=500"));
+  assert.equal(r.status, 429);
+});
+
+test("/frena acepta hasta media hora y para también el refresco de fondo", async () => {
+  const { TurnosWFM } = conObjetoDurable();
+  const state = { storage: { get: async () => ({}), put: async () => {}, getAlarm: async () => null, setAlarm: async () => {} } };
+  const t = new TurnosWFM(state, { VOID_KV: { get: async () => null } });
+  await t.fetch(new Request("https://turnos/frena?ms=99999999"));
+  const resto = t.frenoFondoHasta - Date.now();
+  assert.ok(resto > 1790000 && resto <= 1800000);
+  assert.ok(t.cola.libre - Date.now() > 1790000);
+});
+
+test("con WFM_PAUSA el objeto durable borra su alarma y no pide nada", async () => {
+  const { TurnosWFM } = conObjetoDurable();
+  let alarma = Date.now() + 1000;
+  const state = { storage: { get: async () => ({}), put: async () => {}, getAlarm: async () => alarma, setAlarm: async (x) => { alarma = x; }, deleteAlarm: async () => { alarma = null; } } };
+  let pedidas = 0;
+  await conFetch(async () => { pedidas++; return new Response("{}"); }, () => new TurnosWFM(state, { WFM_TURNOS: {}, WFM_PAUSA: "1", VOID_KV: { get: async () => JSON.stringify(["a_prime_set"]) } }).alarm());
+  assert.equal(pedidas, 0);
+  assert.equal(alarma, null);
+});
+
+test("un freno corto que llega después no acorta uno largo", async () => {
+  const { WFM, fetchWFM } = internos();
+  WFM.configura({ WFM_RPS: "50" });
+  const pendientes = [];
+  await conFetch(() => new Promise((r) => pendientes.push(r)), async () => {
+    const a = fetchWFM("https://api.warframe.market/v2/orders/item/a/top");
+    const b = fetchWFM("https://api.warframe.market/v2/orders/item/b/top");
+    for (let i = 0; pendientes.length < 2 && i < 200; i++) await new Promise((r) => setTimeout(r, 10));
+    pendientes[0](new Response("", { status: 403, headers: { "cf-mitigated": "challenge" } }));
+    await a;
+    pendientes[1](new Response("", { status: 503 }));
+    await b;
+  });
+  assert.ok(WFM.frenoHasta - Date.now() > 1790000, "el 503 acortó el freno del desafío");
+});
+
+test("un fallo de red al pedir un precio frena el refresco de fondo", async () => {
+  const { TurnosWFM } = conObjetoDurable();
+  const state = { storage: { get: async () => ({}), put: async () => {}, getAlarm: async () => null, setAlarm: async () => {} } };
+  const t = new TurnosWFM(state, { VOID_KV: { get: async () => null } });
+  await conFetch(async () => { throw new TypeError("sin red"); }, () => t.pidePrecio("a_prime_set"));
+  assert.ok(t.frenoFondoHasta - Date.now() > 590000, "sin freno, el bucle repite el mismo objeto cada medio segundo");
+});

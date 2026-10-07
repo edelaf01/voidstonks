@@ -2,9 +2,8 @@ name: Precios WFM
 
 on:
   schedule:
-    - cron: '30 3 * * *'
-    - cron: '0 4,16 * * *'
-    - cron: '0 5 * * *'
+    - cron: '0 4 * * *'
+    - cron: '0 16 * * *'
   push:
     branches: [main]
     paths:
@@ -12,35 +11,40 @@ on:
   workflow_dispatch: {}
 
 concurrency:
-  group: precios-wfm-${{ github.event.schedule || 'manual' }}
+  group: precios-wfm
   cancel-in-progress: false
 
 env:
   API: https://shrill-brook-d8aa.edelamf0.workers.dev
 
 jobs:
-  arcanos:
-    if: github.event_name != 'schedule' || github.event.schedule == '30 3 * * *'
+  precios:
     runs-on: ubuntu-latest
+    timeout-minutes: 240
     permissions:
       contents: read
     steps:
-      - name: Script del repo del cron
+      - name: Scripts del repo del cron
         uses: actions/checkout@v5
         with:
           repository: edelaf01/Voidstonks-cron
           token: ${{ secrets.DATASET_READ_PAT || secrets.CRON_DATASET_PAT }}
-          sparse-checkout: precios_arcanos.py
+          sparse-checkout: |
+            precios_arcanos.py
+            precios_prime.py
           sparse-checkout-cone-mode: false
 
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Precios desde las estadísticas de warframe.market
+      - name: Precios de arcanos desde las estadísticas de warframe.market
+        id: arcanos
+        if: github.event.schedule != '0 16 * * *'
         run: python precios_arcanos.py --arcanos https://raw.githubusercontent.com/edelaf01/voidstonks/main/deploy/assets/json/arcanes_vosfor.json --salida precios_arcanos.json
 
-      - name: Subir al worker
+      - name: Subir arcanos al worker
+        if: ${{ !cancelled() && steps.arcanos.outcome == 'success' }}
         env:
           PRECIOS_SECRET: ${{ secrets.PRECIOS_SECRET }}
         run: |
@@ -48,28 +52,13 @@ jobs:
             -H "X-Precios-Secret: $PRECIOS_SECRET" -H "Content-Type: application/json" \
             --data-binary @precios_arcanos.json
 
-  prime:
-    if: github.event_name != 'schedule' || github.event.schedule == '0 4,16 * * *'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - name: Script del repo del cron
-        uses: actions/checkout@v5
-        with:
-          repository: edelaf01/Voidstonks-cron
-          token: ${{ secrets.DATASET_READ_PAT || secrets.CRON_DATASET_PAT }}
-          sparse-checkout: precios_prime.py
-          sparse-checkout-cone-mode: false
+      - name: Precios prime desde /top de warframe.market
+        id: prime
+        if: ${{ !cancelled() && steps.arcanos.outcome != 'failure' }}
+        run: python precios_prime.py --catalogo catalogo_wfm.json --previos "$API/?type=prices_snapshot" --salida precios_prime.json
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Precios desde /top de warframe.market
-        run: python precios_prime.py --previos "$API/?type=prices_snapshot" --salida precios_prime.json
-
-      - name: Subir al worker
+      - name: Subir prime al worker
+        if: ${{ !cancelled() && steps.prime.outcome == 'success' }}
         env:
           PRECIOS_SECRET: ${{ secrets.PRECIOS_SECRET }}
         run: |
@@ -77,28 +66,13 @@ jobs:
             -H "X-Precios-Secret: $PRECIOS_SECRET" -H "Content-Type: application/json" \
             --data-binary @precios_prime.json
 
-  reliquias:
-    if: github.event_name != 'schedule' || github.event.schedule == '0 5 * * *'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - name: Script del repo del cron
-        uses: actions/checkout@v5
-        with:
-          repository: edelaf01/Voidstonks-cron
-          token: ${{ secrets.DATASET_READ_PAT || secrets.CRON_DATASET_PAT }}
-          sparse-checkout: precios_prime.py
-          sparse-checkout-cone-mode: false
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
       - name: Reliquias intactas desde /top de warframe.market
-        run: python precios_prime.py --reliquias --previos "$API/?type=prices_snapshot" --salida precios_reliquias.json
+        id: reliquias
+        if: ${{ !cancelled() && steps.prime.outcome == 'success' && github.event.schedule != '0 16 * * *' }}
+        run: python precios_prime.py --reliquias --catalogo catalogo_wfm.json --previos "$API/?type=prices_snapshot" --salida precios_reliquias.json
 
-      - name: Subir al worker
+      - name: Subir reliquias al worker
+        if: ${{ !cancelled() && steps.reliquias.outcome == 'success' }}
         env:
           PRECIOS_SECRET: ${{ secrets.PRECIOS_SECRET }}
         run: |
