@@ -28,7 +28,7 @@ const memoriaMC = memoriaPantalla(() => localStorage, "vs_mc_ultima_pantalla");
 const DESPIERTA_MC = 24;
 const ESPERA_TARJETAS_MS = 1500;
 import { createFrameQueue } from "../../utils/vision/frame_queue.js";
-import { videoRegionHash, canvasRegionHash, compareHashes, fraccionCambiada, regionLuma, firmaTexto, mismoTexto } from "../../utils/vision/frame_hash.js";
+import { videoRegionHash, canvasRegionHash, compareHashes, fraccionCambiada, regionLumaRapida, firmaTexto, mismoTexto } from "../../utils/vision/frame_hash.js";
 import { createReadCache } from "../../utils/vision/read_cache.js";
 import { DebugRecorder } from "./debug_recorder.service.js";
 import { FirmasTitulo } from "./title_signatures.service.js";
@@ -197,7 +197,7 @@ export const ScannerService = {
 
         // title strip, not the whole header (the 16x9 hash missed SELL -> MODS). Baseline = last OCR'd
         // frame, or a slow fade would never fire.
-        const headerHash = regionLuma(video, FRANJA_TITULO_VIDEO);
+        const headerHash = await regionLumaRapida(video, FRANJA_TITULO_VIDEO);
         // a cached UNKNOWN is worth less: it can be a mission end denied its rescue
         const caducidad = this.latchedContext === "UNKNOWN" ? RESCATE_CABECERA_MS : CADUCIDAD_CABECERA_MS;
         const headerCacheFresh = this.lastHeaderOcrTime && (Date.now() - this.lastHeaderOcrTime < caducidad);
@@ -387,7 +387,7 @@ export const ScannerService = {
         ScannerHUD.updateContext(contextType === "INVENTORY" && DucatKioskService.esKiosco(this.lastHeaderText) ? "DUCAT_KIOSK" : contextType);
 
         // the pause has no header of its own: by squad names it reads as any context ("AstralModulation" -> MODS)
-        if (await SquadService.probe(video, { aCiegas: contextType === "UNKNOWN" || contextType === "RELICS" })) {
+        if (pistasDelLog.enMision() !== false && await SquadService.probe(video, { aCiegas: contextType === "UNKNOWN" || contextType === "RELICS" })) {
             // read as MODS it opened the riven grace: 8 s reading cards back in game
             this.lastRivenContextTime = 0;
             return;
@@ -1039,11 +1039,11 @@ export const ScannerService = {
         const { width, height } = dims;
         const vista = this.mcLedger.committed && sigueALaVista(memoriaMC.lee());
         if (vista) memoriaMC.guarda(vista);
-        const frame = this._mcFrameCvs = freezeFrame(video, width, height, this._mcFrameCvs);
+        const fuente = sharedFrame(video);
 
         // the screen slides in: reading mid-animation wastes an OCR. Only the reward PANEL is checked, the
         // 3D scene behind it never stops.
-        const hash = canvasRegionHash(frame, { x: Math.floor(width * 0.45), y: Math.floor(height * 0.18), w: Math.floor(width * 0.53), h: Math.floor(height * 0.74) });
+        const hash = canvasRegionHash(fuente, { x: Math.floor(width * 0.45), y: Math.floor(height * 0.18), w: Math.floor(width * 0.53), h: Math.floor(height * 0.74) });
         // screen read and confirmed: sleeps until another mission end. Only a big panel change rereads it.
         if (this._mcDormido) {
             if (compareHashes(hash, this._mcDormido, DESPIERTA_MC)) return;
@@ -1053,6 +1053,7 @@ export const ScannerService = {
             this._mcStableHash = hash;
             return;
         }
+        const frame = this._mcFrameCvs = freezeFrame(fuente, width, height, this._mcFrameCvs);
 
         // the grid holds while the frame is the same: detecting it reads the whole frame
         if (!this._mcGrid || !compareHashes(hash, this._mcGrid.hash, 6)) {
@@ -1146,7 +1147,7 @@ export const ScannerService = {
         // only crops are exhausted; exposure presets are for camera photos and change nothing on capture
         if (!result?.foundItems.length) for (const cand of candidatos) {
             const r = await leeRecompensas(frame, width, height, scale, "STANDARD", cand.cropRect, cand.columnas, "clasico");
-            if (!result || r.foundItems.length > result.foundItems.length) { result = r; usado = { ...cand, preset: "STANDARD" }; }
+            if (!result?.ocrCanvas || r.foundItems.length > result.foundItems.length) { result = r; usado = { ...cand, preset: "STANDARD" }; }
             if (result.foundItems.length >= cand.minimo) break;
         }
         // mid entry animation the last card is not readable yet: fewer rewards than cards rereads on the
