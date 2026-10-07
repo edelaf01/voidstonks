@@ -24,4 +24,5 @@ export const pistasDelLog = {
   reliquiaPorGastar: () => null,
   rejillaLista: () => null,
   cambioPantalla: () => 0,
+  enMision: () => null,
 };

@@ -17,7 +17,7 @@ globalThis.localStorage = { getItem: () => null, setItem() {}, removeItem() {} }
 
 const { avisa, escucha, pistasDelLog } = await import("../deploy/js/utils/ganchos.js");
 const svc = await import("../deploy/js/services/desktop.service.js");
-const { duermePorLog, armaRivenPorLog } = await import("../deploy/js/services/scanner/log_gate.service.js");
+const { duermePorLog, armaRivenPorLog, enMisionPorLog } = await import("../deploy/js/services/scanner/log_gate.service.js");
 const { EELogLive } = await import("../deploy/js/services/scanner/eelog_live.service.js");
 const { conectaEscaner } = await import("../deploy/js/ui.components/ui_desktop_escaner.js");
 const { ScannerHUD } = await import("../deploy/js/ui.components/ui_scanner_hud.js");
@@ -30,6 +30,7 @@ test("al conectar el escritorio, las pistas del log salen del EE.log", () => {
   assert.equal(pistasDelLog.duerme, duermePorLog);
   assert.equal(pistasDelLog.armaRiven, armaRivenPorLog);
   assert.equal(pistasDelLog.reliquiaPorGastar(), EELogLive.reliquiaPorGastar());
+  assert.equal(pistasDelLog.enMision, enMisionPorLog);
 });
 
 test("lo que avisa el escáner acaba en el overlay, y se quita cuando toca", async () => {
