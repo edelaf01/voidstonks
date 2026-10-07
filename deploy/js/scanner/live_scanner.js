@@ -286,7 +286,7 @@ globalThis.showRivenAppraisal = async (parsedL, parsedR, captura) => {
 
 let eraElegida = null;
 let cualquierRefino = false;
-let objetivoElegido = "sets";
+let objetivoElegido = "valor";
 let eligiendoReliquia = false;
 
 async function pintaReliquias(era = eraElegida) {
@@ -321,11 +321,14 @@ function alAccionReliquias(accion) {
 }
 
 async function alElegirReliquia(ahora, mision) {
-  if (ahora && !eligiendoReliquia) {
-    eraElegida = eraDeLaMision(mision, await fetchAllFissures().catch(() => []));
-    pintaReliquias();
-  }
+  const abre = ahora && !eligiendoReliquia;
   eligiendoReliquia = ahora;
+  if (!abre) return;
+  eraElegida = null;
+  RelicScreenService.olvidaEra();
+  const era = eraDeLaMision(mision, await fetchAllFissures().catch(() => []));
+  if (era) eraElegida = era;
+  pintaReliquias();
 }
 
 escucha("overlay-reliquias", alAccionReliquias);

@@ -1,8 +1,9 @@
 import { rankRelicPicks, mejorRefinamiento, progresoDe, closenessWeight, tierOfRelic, REFINOS_POR_COSTE } from "./relic_picks.js";
 import { relicSetValue, partDropChance } from "./relic_set_value.js";
 import { relicOpenEV, REFINEMENT_KEYS } from "./relic_drop_odds.utils.js";
+import { rewardValue } from "./reward_value.js";
 
-export const OBJETIVOS = ["sets", "plat", "ducados"];
+export const OBJETIVOS = ["valor", "sets", "plat", "ducados"];
 
 const dropsDe = (db, relic) => db?.[relic] || db?.[`${relic} Relic`] || [];
 
@@ -112,9 +113,22 @@ function paraValor(deps, refino, valorDe) {
   return out.sort((a, b) => (encaja(b) - encaja(a)) || (b.ev - a.ev));
 }
 
+function paraLoQueTeLlevas(deps, refino) {
+  const memo = new Map();
+  const valora = (d) => {
+    if (!memo.has(d.name)) memo.set(d.name, rewardValue({ name: d.name, price: deps.getPrice?.(d.name), ducats: deps.getDucats?.(d.name) }, deps));
+    return memo.get(d.name);
+  };
+  return paraValor(deps, refino, (d) => valora(d).plat).map((p) => {
+    const v = valora(p.mejor);
+    return { ...p, mejor: { ...p.mejor, ruta: v.route, set: v.set, quedan: v.left, total: deps.setsDatabase?.[v.set]?.length || 0, ducados: deps.getDucats?.(p.mejor.name) || 0 } };
+  });
+}
+
 export function eligeReliquias(deps, { objetivo = "sets", refino = null, era = null } = {}) {
-  const lista = objetivo === "plat" ? paraValor(deps, refino, (d) => deps.getPrice?.(d.name) || 0)
-    : objetivo === "ducados" ? paraValor(deps, refino, (d) => deps.getDucats?.(d.name) || 0)
-      : paraSets(deps, refino);
+  const lista = objetivo === "valor" ? paraLoQueTeLlevas(deps, refino)
+    : objetivo === "plat" ? paraValor(deps, refino, (d) => deps.getPrice?.(d.name) || 0)
+      : objetivo === "ducados" ? paraValor(deps, refino, (d) => deps.getDucats?.(d.name) || 0)
+        : paraSets(deps, refino);
   return era ? lista.filter((p) => p.tier === era) : lista;
 }
