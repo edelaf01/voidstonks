@@ -119,3 +119,15 @@ test("con intacta en platino salen primero las que no merece la pena refinar: la
   assert.ok(a8.porVestigio > 0);
   assert.ok(lista.filter((p) => p.mejorRefino === "Intact").every((p) => p.porVestigio <= a8.porVestigio));
 });
+
+test("objetivo valor: lo que te llevas como en la pantalla de recompensas, con la prima del set y los ducados", () => {
+  const conSet = { ...PRECIOS, "Akbronco Prime Set": 30, "Akbronco Prime Blueprint": 2, "Akbronco Prime Link": 3 };
+  const getPrice = (n) => conSet[n] || 0;
+  const k9 = eligeReliquias(deps({ getPrice }), { objetivo: "valor", refino: "Intact" }).find((p) => p.relic === "Lith K9");
+  assert.deepEqual({ ...k9.mejor, valor: +k9.mejor.valor.toFixed(4), chance: undefined }, { name: "Akbronco Prime Blueprint", valor: 29.5, chance: undefined, ruta: "set", set: "Akbronco Prime", quedan: 0, total: 2, ducados: 15 });
+  const sinPiezas = eligeReliquias(deps({ getPrice, primeInventory: {} }), { objetivo: "valor", refino: "Intact" }).find((p) => p.relic === "Lith K9");
+  assert.equal(sinPiezas.mejor.name, "Khora Prime Blueprint", "sin el Link la prima se divide entre 4 y gana vender el plano de Khora");
+  assert.equal(sinPiezas.mejor.ruta, "sell");
+  const a12 = eligeReliquias(deps(), { objetivo: "valor", refino: "Intact" }).find((p) => p.relic === "Lith A12");
+  assert.deepEqual([a12.mejor.name, a12.mejor.ruta, a12.mejor.ducados, a12.mejor.valor], ["Alternox Prime Blueprint", "ducats", 100, 10]);
+});

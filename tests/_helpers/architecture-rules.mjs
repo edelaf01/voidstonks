@@ -6,7 +6,7 @@ export const JS_ROOT = fileURLToPath(new URL("../../deploy/js", import.meta.url)
 export const TESTS_ROOT = fileURLToPath(new URL("..", import.meta.url));
 
 const VENDORED = new Set(["tesseract.min.js"]);
-const VENDORED_DIRS = ["tesseract"];
+const VENDORED_DIRS = ["tesseract", "chart"];
 
 function walk(dir, keep) {
   const out = [];

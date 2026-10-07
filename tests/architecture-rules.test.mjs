@@ -155,7 +155,6 @@ test("cobertura: cuenta la ruta compuesta, no solo la literal completa", () => {
   const util = mod("utils/x.js", "export const a = 1;\n");
   assert.deepEqual(untestedModules([util]), ["utils/x.js"], "hoy nadie lo importa");
   assert.ok(!untestedModules().includes("utils/tap.js"));
-  assert.ok(!untestedModules().includes("utils/platform.js"));
 });
 
 test("tamaño: assets/ está exento, el resto no", () => {

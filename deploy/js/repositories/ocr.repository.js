@@ -76,9 +76,14 @@ export const OCRRepository = {
     },
 
     MAX_WORKERS: 2,
+    SUELTA_SOBRANTES_MS: 10 * 60 * 1000,
+    _usoExtra: 0,
+    _ocupados: 0,
+    _sueltos: new WeakSet(),
 
     async ensureWorkers(n = 2) {
         if (!this._createStandardWorker) return;
+        this._usoExtra = Date.now();
         const nucleos = globalThis.navigator?.hardwareConcurrency || 4;
         const tope = Math.max(1, Math.min(this.MAX_WORKERS, nucleos - 1));
         const objetivo = Math.min(n, tope);
@@ -104,6 +109,19 @@ export const OCRRepository = {
 
     async ensureSecondWorker() { return this.ensureWorkers(2); },
 
+    sueltaSobrantes(ahora = Date.now()) {
+        if (this.workers.length < 2 || this._ocupados > 0 || !this._usoExtra || ahora - this._usoExtra < this.SUELTA_SOBRANTES_MS) return;
+        for (const w of this.workers.splice(1)) {
+            this._sueltos.add(w);
+            w.terminate();
+        }
+        this._workerPromises?.splice(1);
+    },
+
+    _vigente(worker) {
+        return this._sueltos.has(worker) ? this.workers[0] : worker;
+    },
+
     terminateAll() {
         this.workers.forEach(w => {
             if (w) {
@@ -117,6 +135,7 @@ export const OCRRepository = {
 
     // relic grid needs both: psm 6 catches names and psm 11 catches loose counters
     async recognizeWithPSM(worker, image, psm, output = undefined) {
+        worker = this._vigente(worker);
         if (!worker || imagenVacia(image)) return { data: { text: "", confidence: 0 } };
         return this.conLimite(worker, async () => {
             try {
@@ -133,6 +152,7 @@ export const OCRRepository = {
     },
 
     async recognizeWithChars(worker, image, chars, output = undefined) {
+        worker = this._vigente(worker);
         if (!worker || imagenVacia(image)) return { data: { text: "", confidence: 0 } };
         return this.conLimite(worker, async () => {
             try {
@@ -149,6 +169,7 @@ export const OCRRepository = {
     },
 
     async recognize(worker, image, options = {}, output = undefined) {
+        worker = this._vigente(worker);
         if (!worker || imagenVacia(image)) return { data: { text: "", confidence: 0 } };
         return this.conLimite(worker, async () => {
             try {
@@ -165,6 +186,9 @@ export const OCRRepository = {
     _colas: new WeakMap(),
 
     async conLimite(worker, trabajo) {
+        const extra = worker !== this.workers[0];
+        if (extra) this._ocupados++;
+        else this.sueltaSobrantes();
         const previo = this._colas.get(worker) || Promise.resolve();
         let suelta;
         this._colas.set(worker, new Promise((r) => { suelta = r; }));
@@ -177,6 +201,10 @@ export const OCRRepository = {
         } finally {
             clearTimeout(reloj);
             suelta();
+            if (extra) {
+                this._ocupados--;
+                this._usoExtra = Date.now();
+            }
         }
         if (r) return r;
         console.error(`[OCR Repo] el worker no respondió en ${this.LIMITE_OCR_MS} ms: se sustituye`);

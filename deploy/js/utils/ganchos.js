@@ -22,4 +22,7 @@ export const pistasDelLog = {
   tarjetas: () => null,
   armaRiven: () => null,
   reliquiaPorGastar: () => null,
+  rejillaLista: () => null,
+  cambioPantalla: () => 0,
+  enMision: () => null,
 };

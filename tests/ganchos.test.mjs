@@ -38,4 +38,5 @@ test("en la web, sin escritorio, las pistas del log no dicen nada", () => {
   assert.equal(pistasDelLog.tarjetas(), null);
   assert.equal(pistasDelLog.armaRiven(), null);
   assert.equal(pistasDelLog.reliquiaPorGastar(), null);
+  assert.equal(pistasDelLog.enMision(), null);
 });

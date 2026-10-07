@@ -1,5 +1,10 @@
+// copies deploy/ to dist/, minifies with esbuild and stamps urls with content hashes
+
 import { readdir, readFile, writeFile, rm, mkdir, cp, stat } from "node:fs/promises";
-import { join, extname } from "node:path";
+import { realpathSync } from "node:fs";
+import { join, extname, relative, sep, posix } from "node:path";
+import { createHash } from "node:crypto";
+import { pathToFileURL } from "node:url";
 import { transform } from "esbuild";
 
 const SRC = "deploy";
@@ -22,17 +27,140 @@ const SKIP = (name, path) =>
     name.startsWith("tesseract") ||
     path.includes("opencv");
 
-const BUILD_ID = (process.env.GITHUB_SHA || "").slice(0, 8) || `dev${Date.now().toString(36)}`;
+const LITERAL = /(["'])((?:\.{1,2}\/|js\/|css\/)[^"'?\s]+\.(?:js|css))(\?v=[^"']*)?\1/dg;
+const ATTR = /\b(?:src|href)\s*=\s*(["'])([^"']*)\1/dg;
+const ATTR_VALUE = /^([^?#]+\.(?:js|css))(\?v=.*)?$/;
+const EXTERNAL = /^(?:[a-z][a-z\d+.-]*:|\/\/)/i;
 
-function stampVersions(code) {
-    return code
-        .replace(/(["'])([^"']+\.(?:js|css))\?v=[^"']*\1/g, `$1$2?v=${BUILD_ID}$1`)
-        .replace(/(from\s*|import\s*)(["'])(\.{1,2}\/[^"']+\.js)\2/g,
-            `$1$2$3?v=${BUILD_ID}$2`)
-        .replace(/(import\s*\(\s*)(["'])(\.{1,2}\/[^"']+\.js)\2/g,
-            `$1$2$3?v=${BUILD_ID}$2`)
-        .replace(/((?:src|href)=)(["'])((?!https?:|\/\/)[^"']+\.(?:js|css))\2/g,
-            `$1$2$3?v=${BUILD_ID}$2`);
+const shortHash = (data) => createHash("sha256").update(data).digest("hex").slice(0, 10);
+
+function resolveRef(from, base, html) {
+    let path;
+    if (base.startsWith("/")) path = base.slice(1);
+    else if (html || /^\.{1,2}\//.test(base)) path = posix.join(posix.dirname(from), base);
+    else path = base;
+    path = posix.normalize(path);
+    return path === ".." || path.startsWith("../") ? null : path;
+}
+
+function findRefs(from, content) {
+    const html = from.endsWith(".html");
+    const found = [];
+    const add = (start, end, base) =>
+        found.push({ start, end, value: content.slice(start, end), base, target: resolveRef(from, base, html) });
+
+    for (const m of content.matchAll(LITERAL)) {
+        add(m.indices[2][0], (m.indices[3] ?? m.indices[2])[1], m[2]);
+    }
+    if (html) {
+        for (const m of content.matchAll(ATTR)) {
+            const local = !EXTERNAL.test(m[2]) && ATTR_VALUE.exec(m[2]);
+            if (local) add(m.indices[2][0], m.indices[2][1], local[1]);
+        }
+    }
+
+    found.sort((a, b) => a.start - b.start || b.end - a.end);
+    const refs = [];
+    for (const ref of found) {
+        if (refs.length && ref.start < refs[refs.length - 1].end) continue;
+        refs.push(ref);
+    }
+    return refs;
+}
+
+function render(content, refs, valueOf) {
+    let out = "";
+    let at = 0;
+    for (const ref of refs) {
+        out += content.slice(at, ref.start) + valueOf(ref);
+        at = ref.end;
+    }
+    return out + content.slice(at);
+}
+
+function stronglyConnected(nodes, edgesOf) {
+    let counter = 0;
+    const index = new Map();
+    const low = new Map();
+    const stack = [];
+    const onStack = new Set();
+    const components = [];
+
+    const visit = (node) => {
+        index.set(node, counter);
+        low.set(node, counter);
+        counter++;
+        stack.push(node);
+        onStack.add(node);
+        for (const next of edgesOf(node)) {
+            if (!index.has(next)) {
+                visit(next);
+                low.set(node, Math.min(low.get(node), low.get(next)));
+            } else if (onStack.has(next)) {
+                low.set(node, Math.min(low.get(node), index.get(next)));
+            }
+        }
+        if (low.get(node) !== index.get(node)) return;
+        const component = [];
+        let member;
+        do {
+            member = stack.pop();
+            onStack.delete(member);
+            component.push(member);
+        } while (member !== node);
+        components.push(component.sort());
+    };
+
+    for (const node of nodes) if (!index.has(node)) visit(node);
+    return components;
+}
+
+export function stampContentHashes(files, vendored = new Set()) {
+    const refsOf = new Map();
+    const unresolved = [];
+    for (const [path, content] of files) {
+        if (vendored.has(path) || !/\.(?:js|html)$/.test(path)) continue;
+        const refs = [];
+        for (const ref of findRefs(path, content)) {
+            if (ref.target && files.has(ref.target)) refs.push(ref);
+            else unresolved.push({ from: path, ref: ref.value });
+        }
+        refsOf.set(path, refs);
+    }
+
+    const nodes = [...files.keys()].sort();
+    const edgesOf = (path) => [...new Set((refsOf.get(path) ?? []).map((ref) => ref.target))].sort();
+    const hashes = new Map();
+    const output = new Map();
+    let rewritten = 0;
+
+    for (const component of stronglyConnected(nodes, edgesOf)) {
+        if (!refsOf.has(component[0])) {
+            hashes.set(component[0], shortHash(files.get(component[0])));
+            continue;
+        }
+        const members = new Set(component);
+        const draft = component.map((path) => render(files.get(path), refsOf.get(path), (ref) =>
+            members.has(ref.target) ? ref.base : `${ref.base}?v=${hashes.get(ref.target)}`));
+        const cyclic = component.length > 1 || edgesOf(component[0]).includes(component[0]);
+        const hash = cyclic
+            ? shortHash(component.map((path, i) => `${path}\0${draft[i]}\0`).join(""))
+            : shortHash(draft[0]);
+
+        for (const path of component) {
+            hashes.set(path, hash);
+            const refs = refsOf.get(path);
+            output.set(path, render(files.get(path), refs, (ref) =>
+                `${ref.base}?v=${members.has(ref.target) ? hash : hashes.get(ref.target)}`));
+            rewritten += refs.length;
+        }
+    }
+
+    const referenced = new Set([...refsOf.values()].flat().map((ref) => ref.target));
+    const unreferenced = nodes.filter((path) =>
+        /\.(?:js|css)$/.test(path) && !vendored.has(path) && !referenced.has(path));
+
+    return { files: output, hashes, rewritten, unresolved, unreferenced };
 }
 
 async function walk(dir) {
@@ -53,39 +181,52 @@ async function main() {
         filter: (origen) => !NO_PUBLICAR(origen),
     });
 
-    const files = await walk(OUT);
-    let minified = 0, skipped = 0, stamped = 0;
-    for (const f of files) {
-        if (extname(f) !== ".js") continue;
-        const name = f.split("/").pop();
-        if (SKIP(name, f)) { skipped++; continue; }
+    const files = new Map();
+    const vendored = new Set();
+    let minified = 0;
+    for (const f of (await walk(OUT)).sort()) {
+        const rel = relative(OUT, f).split(sep).join("/");
+        const ext = extname(f);
+        if (ext === ".css") files.set(rel, await readFile(f));
+        else if (ext === ".html") files.set(rel, await readFile(f, "utf8"));
+        if (ext !== ".js") continue;
+        if (SKIP(f.split("/").pop(), f)) {
+            vendored.add(rel);
+            files.set(rel, await readFile(f));
+            continue;
+        }
 
-        const code = await readFile(f, "utf8");
-        const res = await transform(code, {
+        const res = await transform(await readFile(f, "utf8"), {
             minify: true,
             format: "esm",
             legalComments: "none",
         });
-        await writeFile(f, stampVersions(res.code), "utf8");
+        files.set(rel, res.code);
         minified++;
-        stamped++;
     }
 
-    for (const f of files) {
-        if (extname(f) !== ".html") continue;
-        await writeFile(f, stampVersions(await readFile(f, "utf8")), "utf8");
-        stamped++;
-    }
+    const { files: stamped, hashes, rewritten, unresolved, unreferenced } = stampContentHashes(files, vendored);
+    for (const [rel, content] of stamped) await writeFile(join(OUT, rel), content, "utf8");
 
-    console.log(`[build-dist] Minificados ${minified} JS, saltados ${skipped} (vendored).`);
-    console.log(`[build-dist] Sello de versión ?v=${BUILD_ID} en ${stamped} archivos. Salida en ${OUT}/`);
+    console.log(`[build-dist] Minificados ${minified} JS, saltados ${vendored.size} (vendored).`);
+    console.log(`[build-dist] ${hashes.size} ficheros con hash, ${rewritten} referencias selladas. Salida en ${OUT}/`);
+    if (unresolved.length) {
+        console.warn(`[build-dist] AVISO: ${unresolved.length} referencias sin fichero en ${OUT}/ (se dejan como están):`);
+        for (const { from, ref } of unresolved) console.warn(`  ${from}: ${ref}`);
+    }
+    if (unreferenced.length) {
+        console.log(`[build-dist] ${unreferenced.length} .js/.css sin ninguna URL sellada que los nombre:`);
+        for (const path of unreferenced) console.log(`  ${path}`);
+    }
 
     await stat(join(OUT, "index.html"));
 
     const html = await readFile(join(OUT, "index.html"), "utf8");
-    if (!html.includes(`?v=${BUILD_ID}`)) {
-        throw new Error("index.html quedó sin sello de versión: revisa stampVersions()");
+    if (!/["'](?:\.\/)?js\/main\.js\?v=[\da-f]{10}["']/.test(html)) {
+        throw new Error("index.html no apunta a js/main.js?v=<hash>: revisa stampContentHashes()");
     }
 }
 
-main().catch((e) => { console.error("[build-dist] FALLO:", e); process.exit(1); });
+if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) {
+    main().catch((e) => { console.error("[build-dist] FALLO:", e); process.exit(1); });
+}

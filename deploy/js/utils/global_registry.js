@@ -1,3 +1,5 @@
+// registers globals for inline HTML handlers and scripts with collision detection
+
 const registry = new Map();
 
 export function exposeGlobals(entries, owner = "desconocido") {
