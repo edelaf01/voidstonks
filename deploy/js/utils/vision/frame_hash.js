@@ -84,17 +84,36 @@ export function miniaturaLuma(video, w, h) {
     return { cvs: miniCvs, luma: lumaDe(ctx, w, h) };
 }
 
+function lienzoRegion(cols, filas) {
+    if (!regionCvs) regionCvs = document.createElement("canvas");
+    if (regionCvs.width !== cols || regionCvs.height !== filas) { regionCvs.width = cols; regionCvs.height = filas; }
+    return regionCvs.getContext("2d", { willReadFrequently: true });
+}
+
 /**
  * Luma de una REGIÓN de `source` (fracciones de su tamaño) muestreada a `rect.cols`×`rect.filas`.
  * Canvas propio: el de la miniatura lo usa la grabadora cada frame con otro tamaño.
  */
 export function regionLuma(source, rect) {
     const W = source.videoWidth || source.width, H = source.videoHeight || source.height;
-    if (!regionCvs) regionCvs = document.createElement("canvas");
-    if (regionCvs.width !== rect.cols || regionCvs.height !== rect.filas) { regionCvs.width = rect.cols; regionCvs.height = rect.filas; }
-    const ctx = regionCvs.getContext("2d", { willReadFrequently: true });
+    const ctx = lienzoRegion(rect.cols, rect.filas);
     ctx.drawImage(sharedFrame(source), Math.floor(W * rect.x), Math.floor(H * rect.y), Math.floor(W * rect.w), Math.floor(H * rect.h), 0, 0, rect.cols, rect.filas);
     return lumaDe(ctx, rect.cols, rect.filas);
+}
+
+export async function regionLumaRapida(source, rect) {
+    const W = source.videoWidth, H = source.videoHeight;
+    if (typeof createImageBitmap !== "function" || !W || !H) return regionLuma(source, rect);
+    const bmp = await createImageBitmap(source, Math.floor(W * rect.x), Math.floor(H * rect.y), Math.floor(W * rect.w), Math.floor(H * rect.h),
+        { resizeWidth: rect.cols, resizeHeight: rect.filas }).catch(() => null);
+    if (!bmp) return regionLuma(source, rect);
+    try {
+        const ctx = lienzoRegion(rect.cols, rect.filas);
+        ctx.drawImage(bmp, 0, 0);
+        return lumaDe(ctx, rect.cols, rect.filas);
+    } finally {
+        bmp.close();
+    }
 }
 
 let maxCanalCvs = null;

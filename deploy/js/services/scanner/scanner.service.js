@@ -29,7 +29,7 @@ const memoriaMC = memoriaPantalla(() => localStorage, "vs_mc_ultima_pantalla");
 const DESPIERTA_MC = 24;
 const ESPERA_TARJETAS_MS = 1500;
 import { createFrameQueue } from "../../utils/vision/frame_queue.js";
-import { videoRegionHash, canvasRegionHash, compareHashes, fraccionCambiada, regionLuma, firmaTexto, mismoTexto } from "../../utils/vision/frame_hash.js";
+import { videoRegionHash, canvasRegionHash, compareHashes, fraccionCambiada, regionLumaRapida, firmaTexto, mismoTexto } from "../../utils/vision/frame_hash.js";
 import { createReadCache } from "../../utils/vision/read_cache.js";
 import { DebugRecorder } from "./debug_recorder.service.js";
 import { FirmasTitulo } from "./title_signatures.service.js";
@@ -202,7 +202,7 @@ export const ScannerService = {
         if (!worker1) return;
 
         // Franja del rótulo, no la cabecera entera (el hash 16×9 no veía SELL -> MODS). Baseline = último frame OCREADO, o un fade gradual no dispararía nunca.
-        const headerHash = regionLuma(video, FRANJA_TITULO_VIDEO);
+        const headerHash = await regionLumaRapida(video, FRANJA_TITULO_VIDEO);
         // Un UNKNOWN cacheado vale menos: puede ser un fin de misión al que se le negó el rescate.
         const caducidad = this.latchedContext === "UNKNOWN" ? RESCATE_CABECERA_MS : CADUCIDAD_CABECERA_MS;
         const headerCacheFresh = this.lastHeaderOcrTime && (Date.now() - this.lastHeaderOcrTime < caducidad);
@@ -414,7 +414,7 @@ export const ScannerService = {
         ScannerHUD.updateContext(contextType === "INVENTORY" && DucatKioskService.esKiosco(this.lastHeaderText) ? "DUCAT_KIOSK" : contextType);
 
         // La pausa no tiene cabecera propia: según los nombres de la escuadra se lee como cualquier contexto ("AstralModulation" → MODS).
-        if (await SquadService.probe(video, { aCiegas: contextType === "UNKNOWN" || contextType === "RELICS" })) {
+        if (pistasDelLog.enMision() !== false && await SquadService.probe(video, { aCiegas: contextType === "UNKNOWN" || contextType === "RELICS" })) {
             // Leída como MODS abría la gracia de rivens: 8 s leyendo cartas al volver al juego.
             this.lastRivenContextTime = 0;
             return;
@@ -1156,13 +1156,13 @@ export const ScannerService = {
         const { width, height } = dims;
         const vista = this.mcLedger.committed && sigueALaVista(memoriaMC.lee());
         if (vista) memoriaMC.guarda(vista);
-        const frame = this._mcFrameCvs = freezeFrame(video, width, height, this._mcFrameCvs);
+        const fuente = sharedFrame(video);
 
         // La pantalla entra con una animación de barrido. Leer a media animación cuesta un
         // OCR entero para tirarlo, así que primero se comprueba que ya está quieta. Se mira solo
         // el PANEL de recompensas: el fondo es la escena 3D (se mueve sola, y en Steel Path hay
         // enemigos animados encima) y con el frame entero no se daba por quieta nunca.
-        const hash = canvasRegionHash(frame, { x: Math.floor(width * 0.45), y: Math.floor(height * 0.18), w: Math.floor(width * 0.53), h: Math.floor(height * 0.74) });
+        const hash = canvasRegionHash(fuente, { x: Math.floor(width * 0.45), y: Math.floor(height * 0.18), w: Math.floor(width * 0.53), h: Math.floor(height * 0.74) });
         // Pantalla ya leída y confirmada: se duerme hasta OTRO fin de misión (la salida de contexto
         // despierta). Solo un cambio grande del panel (desplazamiento con más de 4 filas) la relee.
         if (this._mcDormido) {
@@ -1173,6 +1173,7 @@ export const ScannerService = {
             this._mcStableHash = hash;
             return;
         }
+        const frame = this._mcFrameCvs = freezeFrame(fuente, width, height, this._mcFrameCvs);
 
         // La rejilla vale mientras el frame sea el mismo: detectarla es un getImageData del
         // frame entero más componentes, y la pantalla no se mueve hasta que el jugador pulsa.
@@ -1284,7 +1285,7 @@ export const ScannerService = {
         // Tesseract donde bastan 3, justo cuando nada lee: el "a veces tarda muchísimo".
         if (!result?.foundItems.length) for (const cand of candidatos) {
             const r = await leeRecompensas(frame, width, height, scale, "STANDARD", cand.cropRect, cand.columnas, "clasico");
-            if (!result || r.foundItems.length > result.foundItems.length) { result = r; usado = { ...cand, preset: "STANDARD" }; }
+            if (!result?.ocrCanvas || r.foundItems.length > result.foundItems.length) { result = r; usado = { ...cand, preset: "STANDARD" }; }
             if (result.foundItems.length >= cand.minimo) break;
         }
         // A media animación de entrada la última tarjeta aún no se lee (en vivo: Ivara, 3 de 4). Con menos
@@ -1318,8 +1319,6 @@ export const ScannerService = {
         // La instantánea del panel de depuración se pinta AQUÍ y no en la lectura: services/ no
         // toca el DOM, y además así se ve el lienzo que ganó, no el último que se probó.
         const dbgPanel = document.getElementById("live-debug-snapshot");
-        // Sin lienzo si el barrido barato no binarizó nada: el 1er candidato fija `result`
-        // aunque lea 0 y ningún 0 posterior lo sustituye (la comparación es `>` estricta).
         if (dbgPanel?.style.display === "block" && ocrCanvas) {
             const debugImg = document.getElementById("live-debug-snapshot-img");
             if (debugImg) debugImg.src = ocrCanvas.toDataURL("image/jpeg", 0.85);

@@ -153,6 +153,31 @@ describe("cascada por coste", () => {
     assert.equal(tesseract, 0, "no debe llamarse a Tesseract en el barrido barato");
   });
 
+  test('con motor clásico activo, el barrido barato "preciso" aborta sin tocar Tesseract', async () => {
+    aplicaMotor(MOTOR_CLASICO);
+    let tesseract = 0;
+    OCRRepository.recognize = async () => { tesseract++; return { data: { text: "", words: [] } }; };
+
+    const frame = makeRewardFrameEnEncuadre();
+    const r = await leeRecompensas(frame, frame.width, frame.height, 1, "STANDARD", null, null, "preciso");
+    assert.deepEqual(r.foundItems, []);
+    assert.equal(r.ocrCanvas, null);
+    assert.equal(tesseract, 0);
+  });
+
+  test('con motor preciso activo pero red no lista, el barrido barato "preciso" aborta sin tocar Tesseract', async () => {
+    aplicaMotor(MOTOR_PRECISO);
+    PaddleRepository.listo = () => false;
+    let tesseract = 0;
+    OCRRepository.recognize = async () => { tesseract++; return { data: { text: "", words: [] } }; };
+
+    const frame = makeRewardFrameEnEncuadre();
+    const r = await leeRecompensas(frame, frame.width, frame.height, 1, "STANDARD", null, null, "preciso");
+    assert.deepEqual(r.foundItems, []);
+    assert.equal(r.ocrCanvas, null);
+    assert.equal(tesseract, 0);
+  });
+
   test('con motor "clasico" la red no se toca aunque esté cargada', async () => {
     // La escalera de presets es de Tesseract: la red no binariza, así que repetirla por preset
     // sería gastar tres veces lo mismo.
