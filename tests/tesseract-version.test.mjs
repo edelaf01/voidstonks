@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, existsSync } from "node:fs";
 import { createHash } from "node:crypto";
+import { reglasDeCabeceras, cacheControl } from "./_helpers/pages-headers.mjs";
 
 const repo = readFileSync(new URL("../deploy/js/repositories/ocr.repository.js", import.meta.url), "utf8");
 const bundle = readFileSync(new URL("../deploy/js/tesseract.min.js", import.meta.url), "utf8");
@@ -54,10 +55,8 @@ test("no se cuela una versión suelta escrita a mano", () => {
 });
 
 test("los cores se sirven como inmutables", () => {
-  const headers = readFileSync(new URL("../deploy/_headers", import.meta.url), "utf8");
-  const iTess = headers.indexOf("/js/tesseract/*");
-  const iJs = headers.indexOf("\n/js/*");
-  assert.ok(iTess !== -1, "falta la regla de caché para /js/tesseract/*");
-  assert.ok(iTess < iJs, "la regla tiene que ir ANTES de /js/*: Pages aplica la primera que casa");
-  assert.match(headers.slice(iTess, iJs), /max-age=31536000, immutable/);
+  const reglas = reglasDeCabeceras(readFileSync(new URL("../deploy/_headers", import.meta.url), "utf8"));
+  for (const archivo of Object.keys(HUELLAS)) {
+    assert.equal(cacheControl(reglas, `/js/tesseract/${fijada}/${archivo}`), "public, max-age=31536000, immutable", archivo);
+  }
 });

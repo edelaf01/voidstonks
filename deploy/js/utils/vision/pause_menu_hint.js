@@ -1,4 +1,5 @@
 // detects pause menu structure from menu row spacing to skip OCR while playing
+import { sharedFrame } from "./frame_freeze.js";
 
 export const FRANJA_MENU_PAUSA = Object.freeze({ x: 0.15, y: 0.27, w: 0.06, h: 0.54, cols: 24, filas: 144 });
 
@@ -14,7 +15,7 @@ export function muestreaFranjaMenu(video, franja = FRANJA_MENU_PAUSA) {
     if (franjaCvs.width !== franja.cols || franjaCvs.height !== franja.filas) { franjaCvs.width = franja.cols; franjaCvs.height = franja.filas; }
     const ctx = franjaCvs.getContext("2d", { willReadFrequently: true });
     const W = video.videoWidth, H = video.videoHeight;
-    ctx.drawImage(video, Math.floor(W * franja.x), Math.floor(H * franja.y), Math.floor(W * franja.w), Math.floor(H * franja.h), 0, 0, franja.cols, franja.filas);
+    ctx.drawImage(sharedFrame(video), Math.floor(W * franja.x), Math.floor(H * franja.y), Math.floor(W * franja.w), Math.floor(H * franja.h), 0, 0, franja.cols, franja.filas);
     const px = ctx.getImageData(0, 0, franja.cols, franja.filas).data;
     const out = new Uint8Array(franja.cols * franja.filas);
     for (let i = 0; i < out.length; i++) out[i] = Math.max(px[i * 4], px[i * 4 + 1], px[i * 4 + 2]);

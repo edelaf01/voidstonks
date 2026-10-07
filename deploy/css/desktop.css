@@ -17,6 +17,12 @@ html[data-shell="desktop"] body {
   background-image: none;
 }
 
+html[data-shell="desktop"].ds-sin-foco *,
+html[data-shell="desktop"].ds-sin-foco *::before,
+html[data-shell="desktop"].ds-sin-foco *::after {
+  animation-play-state: paused !important;
+}
+
 html[data-shell="desktop"] #void-traces-canvas,
 #ds-status,
 #ds-eelog,

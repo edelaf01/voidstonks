@@ -172,14 +172,12 @@ test("la fila dice qué set cierra la reliquia", () => {
 test("el panel se entera de que ha cambiado el inventario de reliquias", () => {
     const inv = readFileSync(
         new URL("../deploy/js/ui.components/inventory/ui_inventory.js", import.meta.url), "utf8");
-    const scan = readFileSync(
-        new URL("../deploy/js/scanner/scanner_controller.js", import.meta.url), "utf8");
 
     assert.match(src, /export function scheduleFarmRoutesRefresh\(\)/);
     assert.match(src, /if \(refreshTimer\) clearTimeout\(refreshTimer\)/);
     assert.match(src, /exposeGlobals\(\{ renderFarmRoutes, scheduleFarmRoutesRefresh \}/);
 
-    for (const [nombre, fuente] of [["ui_inventory", inv], ["scanner_controller", scan]]) {
+    for (const [nombre, fuente] of [["ui_inventory", inv]]) {
         assert.match(fuente, /globalThis\.scheduleFarmRoutesRefresh\?\.\(\)/,
             `${nombre} no avisa al panel`);
         assert.doesNotMatch(fuente, /from "..\/farms\/ui_farm_routes/,

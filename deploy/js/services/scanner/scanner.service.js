@@ -1,5 +1,5 @@
 import { VisionService } from "./vision.service.js";
-import { freezeFrame, releaseFrame } from "../../utils/vision/frame_freeze.js";
+import { freezeFrame, releaseFrame, shareFrame, stopSharingFrame, sharedFrame } from "../../utils/vision/frame_freeze.js";
 import { nextLatchedContext, INITIAL_LATCH, enrutaGraciaRiven, intervaloCabecera, INTERVALO_FIN_MISION_MS, CADUCIDAD_CABECERA_MS, FRANJA_TITULO_VIDEO, tituloHaCambiado } from "../../utils/vision/context_latch.js";
 import { sensorDelEscaner, CADA_MS } from "../../utils/vision/wake_sensor.js";
 import { isImplausibleFallbackGrid } from "../../utils/vision/plausibility.js";
@@ -27,11 +27,12 @@ const memoriaMC = memoriaPantalla(() => localStorage, "vs_mc_ultima_pantalla");
 const DESPIERTA_MC = 24;
 const ESPERA_TARJETAS_MS = 1500;
 import { createFrameQueue } from "../../utils/vision/frame_queue.js";
-import { videoRegionHash, canvasRegionHash, compareHashes, fraccionCambiada, regionLuma, firmaTexto, mismoTexto } from "../../utils/vision/frame_hash.js";
+import { videoRegionHash, canvasRegionHash, compareHashes, fraccionCambiada, regionLumaRapida, firmaTexto, mismoTexto } from "../../utils/vision/frame_hash.js";
 import { createReadCache } from "../../utils/vision/read_cache.js";
 import { DebugRecorder } from "./debug_recorder.service.js";
 import { FirmasTitulo } from "./title_signatures.service.js";
-import { leeCabeceraOCR, RESCATE_CABECERA_MS } from "./header_read.service.js";
+import { leeCabeceraOCR, RESCATE_CABECERA_MS, leeCategoriaInventario } from "./header_read.service.js";
+import { esContextoArcanos, BANDA_NOMBRE_ARCANO, tirasDeNombreArcano } from "../../utils/inventory/arcanos_disolucion.js";
 import { TradeService } from "./trade.service.js";
 import { ANCHO_REJILLA_TRADEO } from "../../utils/vision/trade_post.js";
 import { DucatKioskService } from "./ducat_kiosk.service.js";
@@ -45,8 +46,10 @@ import { isGarbledCellText } from "../../utils/vision/cell_text_guard.js";
 import { olvidaColorTexto } from "../../utils/vision/reward_preprocess.js";
 import { cedeHilo } from "../../utils/yield.js";
 import { avisa, pistasDelLog } from "../../utils/ganchos.js";
+import { emparejaArcano } from "../../utils/inventory/arcanos_disolucion.js";
 
 export const ScannerService = {
+    ESPERA_FOTO_MS: 350,
     isScanning: false,
     scanInterval: null,
     currentRate: 1200,
@@ -134,6 +137,7 @@ export const ScannerService = {
         PaddleRepository.apaga();
         this._invQueue?.clear();
         this.releaseFrames();
+        stopSharingFrame({ release: true });
     },
 
     releaseFrames() {
@@ -154,10 +158,12 @@ export const ScannerService = {
         const video = document.getElementById("live-video");
         if (!video || video.paused || video.ended || !video.videoWidth || !video.videoHeight) { this.scanInterval = setTimeout(() => this.loop(), 1000); return; }
         try {
+            shareFrame(video);
             await this.processFrame(video, this.virtualCanvas);
         } catch (e) {
             console.warn("Scanner loop error:", e);
         } finally {
+            stopSharingFrame();
             if (this.isScanning) {
                 this.scanInterval = setTimeout(() => this.loop(), this.currentRate);
                 if (this.currentRate > 2 * CADA_MS) (this._sensor ||= sensorDelEscaner(this, video, { acepta: () => this.latchedContext !== "UNKNOWN" || !!FirmasTitulo.reconoce(video) })).arma();
@@ -180,7 +186,7 @@ export const ScannerService = {
         const worker1 = OCRRepository.workers[0];
         if (!worker1) return;
 
-        const headerHash = regionLuma(video, FRANJA_TITULO_VIDEO);
+        const headerHash = await regionLumaRapida(video, FRANJA_TITULO_VIDEO);
         const caducidad = this.latchedContext === "UNKNOWN" ? RESCATE_CABECERA_MS : CADUCIDAD_CABECERA_MS;
         const headerCacheFresh = this.lastHeaderOcrTime && (Date.now() - this.lastHeaderOcrTime < caducidad);
         const franjaQuieta = !!this._franjaTickAnterior && !tituloHaCambiado(headerHash, this._franjaTickAnterior);
@@ -190,27 +196,37 @@ export const ScannerService = {
         let headerText, pasadas = 0, firma = null;
         const cambiado = tituloHaCambiado(headerHash, this.lastHeaderHash);
         const pantallaNueva = franjaQuieta && cambiado && intervalo < INTERVALO_FIN_MISION_MS;
+        const cambioLog = pistasDelLog.cambioPantalla();
+        const releePorLog = cambioLog !== this._cambioLogVisto;
+        if (releePorLog && this.latchedContext === "INVENTORY") {
+            if (this.autoScrollStableTimer) {
+                clearTimeout(this.autoScrollStableTimer);
+                this.autoScrollStableTimer = null;
+            }
+        }
         this._cabeceraVigente = !(enPausa && cambiado);
         if ((firma = pistasDelLog.firma())) {
             headerText = firma.texto;
-            Object.assign(this, { _cabeceraVigente: true, lastHeaderText: headerText, lastHeaderHash: headerHash, lastHeaderOcrTime: Date.now() });
+            Object.assign(this, { _cabeceraVigente: true, lastHeaderText: headerText, lastHeaderHash: headerHash, lastHeaderOcrTime: Date.now(), _cambioLogVisto: cambioLog });
         } else if (this.latchedContext === "TRADE" && TradeService.conDialogo(video)) {
             headerText = this.lastHeaderText || "TRADING POST";
-        } else if (this.lastHeaderText !== null && headerCacheFresh && !pantallaNueva && (enPausa || !cambiado)) {
+        } else if (this.lastHeaderText !== null && headerCacheFresh && !pantallaNueva && !releePorLog && (enPausa || !cambiado)) {
             headerText = this.lastHeaderText;
         } else if ((firma = FirmasTitulo.reconoce(video))) {
             headerText = firma.texto;
-            Object.assign(this, { _cabeceraVigente: true, lastHeaderText: headerText, lastHeaderHash: headerHash, lastHeaderOcrTime: Date.now() });
+            Object.assign(this, { _cabeceraVigente: true, lastHeaderText: headerText, lastHeaderHash: headerHash, lastHeaderOcrTime: Date.now(), _cambioLogVisto: cambioLog });
         } else {
             this._cabeceraVigente = true;
             ({ headerText, pasadas } = await leeCabeceraOCR(this, video, virtualCanvas, worker1, franjaQuieta));
             this.lastHeaderText = headerText;
             this.lastHeaderHash = headerHash;
             this.lastHeaderOcrTime = Date.now();
+            this._cambioLogVisto = cambioLog;
         }
 
         reloj.fase("cabecera");
-        const rawContext = VisionService.determineContext(headerText);
+        let rawContext = VisionService.determineContext(headerText);
+        if (rawContext === "INVENTORY" && /ARCAN/.test(await leeCategoriaInventario(this, video, worker1))) rawContext = "INVENTORY_ARCANES";
         this._headerEstable = rawContext === this._headerCtxPrevio ? (this._headerEstable || 0) + 1 : 0;
         this._headerCtxPrevio = rawContext;
         const now = Date.now();
@@ -219,9 +235,9 @@ export const ScannerService = {
         const containsAnchor = ["MODS", "MODIFICADORES", "CYCLE", "CICLO", "CICLAR", "KUVA", "KUYVA",
             "ATRIBUTOS", "ELEGIR", "CONFIRMAR", "AGRIETADO"].some((a) => textUpper.includes(a));
 
-        if (rawContext === "INVENTORY_MODS" || rawContext === "ITEM_DETAILS" || containsAnchor) {
+        if (rawContext === "INVENTORY_MODS" || rawContext === "ITEM_DETAILS" || rawContext === "RIVEN_DETAILS" || containsAnchor) {
             this.lastRivenContextTime = now;
-            this.lastRivenContextType = rawContext === "ITEM_DETAILS" ? "ITEM_DETAILS" : "INVENTORY_MODS";
+            this.lastRivenContextType = rawContext === "ITEM_DETAILS" || rawContext === "RIVEN_DETAILS" ? rawContext : "INVENTORY_MODS";
         }
 
         const gracia = this.lastRivenContextTime && (now - this.lastRivenContextTime < 8000);
@@ -285,10 +301,10 @@ export const ScannerService = {
         if (!this._invQueue) {
             this._invQueue = createFrameQueue({
                 max: 3,
-                process: (job) => this.processInventoryGrid(job.cvs, job.cvs.width, job.cvs.height, job.meta),
+                process: (job) => this.processInventoryGrid(job.cvs, job.cvs.width, job.cvs.height, job.meta.escala, job.cvs.width, job.meta.contexto),
             });
         }
-        return this._invQueue.enqueue(snapshot, zone.x, zone.y, zone.w, zone.h, dims.scale);
+        return this._invQueue.enqueue(snapshot, zone.x, zone.y, zone.w, zone.h, { escala: dims.scale, contexto: this.latchedContext });
     },
 
     recordQtyVote(itemName, qtyResult, votesMap = this.qtyVotes, targetMap = this.sessionInventory) {
@@ -324,14 +340,14 @@ export const ScannerService = {
             : rawContextType;
         ScannerHUD.updateContext(contextType === "INVENTORY" && DucatKioskService.esKiosco(this.lastHeaderText) ? "DUCAT_KIOSK" : contextType);
 
-        if (await SquadService.probe(video, { aCiegas: contextType === "UNKNOWN" || contextType === "RELICS" })) {
+        if (pistasDelLog.enMision() !== false && await SquadService.probe(video, { aCiegas: contextType === "UNKNOWN" || contextType === "RELICS" })) {
             this.lastRivenContextTime = 0;
             return;
         }
 
-        if (contextType === "INVENTORY") {
-            if (!this.detectionLocked) await DucatKioskService.process(video, this.lastHeaderText);
-            if (!globalThis.state.autoScanEnabled && !DucatKioskService.esKiosco(this.lastHeaderText)) {
+        if (contextType === "INVENTORY" || esContextoArcanos(contextType)) {
+            if (!this.detectionLocked && contextType === "INVENTORY") await DucatKioskService.process(video, this.lastHeaderText);
+            if (!globalThis.state.autoScanEnabled && !esContextoArcanos(contextType) && !DucatKioskService.esKiosco(this.lastHeaderText)) {
                 this.currentRate = 3000;
                 this.autoScrollMuestra = null;
                 this.sawScrollSinceScan = false;
@@ -354,7 +370,7 @@ export const ScannerService = {
             const r = zona || { x: 0, y: Math.floor(dims.height * 0.25), w: dims.width, h: Math.floor(dims.height * 0.5) };
             const rectKey = `${r.x},${r.y},${r.w},${r.h}`;
             if (this._sampleRect !== rectKey) { this._sampleRect = rectKey; this.lastRowLums = null; this.autoScrollMuestra = null; }
-            sCtx.drawImage(video, r.x, r.y, r.w, r.h, 0, 0, 48, FILAS);
+            sCtx.drawImage(sharedFrame(video), r.x, r.y, r.w, r.h, 0, 0, 48, FILAS);
 
             const rowLums = [];
             const px = sCtx.getImageData(0, 0, 48, FILAS).data;
@@ -408,16 +424,23 @@ export const ScannerService = {
                 return;
             }
 
+            const rejillaArcanos = esContextoArcanos(contextType) && zona && this._autoCalibCache?.calib;
+            const tirasArcanos = rejillaArcanos ? tirasDeNombreArcano(rejillaArcanos, zona, dims.width, dims.height) : [];
+            const muestraPagina = tirasArcanos.length ? firmaTexto(video, tirasArcanos) : muestra;
             const hasPageChanged = !this.autoScrollMuestra || this.sawScrollSinceScan
-                || fraccionCambiada(muestra, this.autoScrollMuestra) >= 0.01;
+                || (tirasArcanos.length ? !mismoTexto(muestraPagina, this.autoScrollMuestra) : fraccionCambiada(muestra, this.autoScrollMuestra) >= 0.01);
 
             // the grid is periodic and a fast scroll down aliases to a negative dy
-            if (hasPageChanged && !this.autoScrollStableTimer && this._canCapturePage) {
+            if (hasPageChanged && !this.autoScrollStableTimer && this._canCapturePage && pistasDelLog.rejillaLista() !== false) {
                 ScannerHUD.updateScrollStatus("detected");
 
                 this.autoScrollStableTimer = setTimeout(async () => {
                     this.sawScrollSinceScan = false;
-                    if ((!globalThis.state.autoScanEnabled && !DucatKioskService.esKiosco(this.lastHeaderText)) || !this._canCapturePage) {
+                    if ((!globalThis.state.autoScanEnabled && !esContextoArcanos(contextType) && !DucatKioskService.esKiosco(this.lastHeaderText)) || !this._canCapturePage) {
+                        this.autoScrollStableTimer = null;
+                        return;
+                    }
+                    if (pistasDelLog.rejillaLista() === false) {
                         this.autoScrollStableTimer = null;
                         return;
                     }
@@ -432,16 +455,19 @@ export const ScannerService = {
                     }
                     snapshot.getContext("2d", { willReadFrequently: true }).drawImage(v, 0, 0);
 
-                    if (this.enqueueInventoryPage(snapshot, dims)) this.autoScrollMuestra = muestra;
+                    if (this.enqueueInventoryPage(snapshot, dims)) {
+                        this.autoScrollMuestra = muestraPagina;
+                        ScannerHUD.updateScrollStatus("captured");
+                    }
                     this.autoScrollStableTimer = null;
 
-                }, 800);
+                }, this.ESPERA_FOTO_MS);
             } else if (!this.autoScrollStableTimer) {
-                if (this.detectionLocked) ScannerHUD.updateScrollStatus("scanning");
+                if (this.detectionLocked) ScannerHUD.updateScrollStatus(!hasPageChanged ? "captured" : "scanning");
                 else ScannerHUD.updateScrollStatus("done", this.sessionInventory.size + this.sessionRelics.size);
             }
 
-        } else if (contextType === "INVENTORY_MODS" || contextType === "ITEM_DETAILS") {
+        } else if (contextType === "INVENTORY_MODS" || contextType === "ITEM_DETAILS" || contextType === "RIVEN_DETAILS") {
             this.currentRate = this.RIVEN_RATE_ACTIVE;
             if (this.detectionLocked) return;
             await this.processRivenCard(video, dims, contextType);
@@ -608,14 +634,14 @@ export const ScannerService = {
     async processRivenCard(video, dims, contextType = null) {
         const { scale } = dims;
 
-        const cardCrop = contextType === "ITEM_DETAILS" ? VisionService.RIVEN_ITEM_DETAILS_CROP : VisionService.RIVEN_CARD_CROP;
+        const cardCrop = (contextType === "ITEM_DETAILS" || contextType === "RIVEN_DETAILS") ? VisionService.RIVEN_ITEM_DETAILS_CROP : VisionService.RIVEN_CARD_CROP;
 
         const zonas = this._zonasCartas?.length ? this._zonasCartas : [cardCrop];
         const hash = firmaTexto(video, zonas);
 
         if ((this.lastParsedL || this.lastParsedR) && mismoTexto(hash, this.lastHashL)) {
             this.lastRivenContextTime = Date.now();
-            this.lastRivenContextType = contextType === "ITEM_DETAILS" ? "ITEM_DETAILS" : "INVENTORY_MODS";
+            this.lastRivenContextType = (contextType === "ITEM_DETAILS" || contextType === "RIVEN_DETAILS") ? contextType : "INVENTORY_MODS";
             this.currentRate = this.RIVEN_RATE_IDLE;
             this._cartaVigilada = zonas;
             return;
@@ -676,7 +702,7 @@ export const ScannerService = {
 
         if (valids.length || hasCardAnchor) {
             this.lastRivenContextTime = Date.now();
-            this.lastRivenContextType = contextType === "ITEM_DETAILS" ? "ITEM_DETAILS" : "INVENTORY_MODS";
+            this.lastRivenContextType = (contextType === "ITEM_DETAILS" || contextType === "RIVEN_DETAILS") ? contextType : "INVENTORY_MODS";
         }
 
         if (!valids.length) {
@@ -870,9 +896,9 @@ export const ScannerService = {
         const { width, height } = dims;
         const vista = this.mcLedger.committed && sigueALaVista(memoriaMC.lee());
         if (vista) memoriaMC.guarda(vista);
-        const frame = this._mcFrameCvs = freezeFrame(video, width, height, this._mcFrameCvs);
+        const fuente = sharedFrame(video);
 
-        const hash = canvasRegionHash(frame, { x: Math.floor(width * 0.45), y: Math.floor(height * 0.18), w: Math.floor(width * 0.53), h: Math.floor(height * 0.74) });
+        const hash = canvasRegionHash(fuente, { x: Math.floor(width * 0.45), y: Math.floor(height * 0.18), w: Math.floor(width * 0.53), h: Math.floor(height * 0.74) });
         if (this._mcDormido) {
             if (compareHashes(hash, this._mcDormido, DESPIERTA_MC)) return;
             console.log("[MC] el panel cambió de verdad: se relee"); this._mcDormido = null;
@@ -881,6 +907,7 @@ export const ScannerService = {
             this._mcStableHash = hash;
             return;
         }
+        const frame = this._mcFrameCvs = freezeFrame(fuente, width, height, this._mcFrameCvs);
 
         if (!this._mcGrid || !compareHashes(hash, this._mcGrid.hash, 6)) {
             const trace = {};
@@ -957,7 +984,7 @@ export const ScannerService = {
 
         if (!result?.foundItems.length) for (const cand of candidatos) {
             const r = await leeRecompensas(frame, width, height, scale, "STANDARD", cand.cropRect, cand.columnas, "clasico");
-            if (!result || r.foundItems.length > result.foundItems.length) { result = r; usado = { ...cand, preset: "STANDARD" }; }
+            if (!result?.ocrCanvas || r.foundItems.length > result.foundItems.length) { result = r; usado = { ...cand, preset: "STANDARD" }; }
             if (result.foundItems.length >= cand.minimo) break;
         }
         const parcial = this._recompensaParcial;
@@ -1044,7 +1071,7 @@ export const ScannerService = {
         return /TRADE/.test(this.lastHeaderText || "") ? Math.round(width * ANCHO_REJILLA_TRADEO) : width;
     },
 
-    async processInventoryGrid(snapshot, width, height, scale, anchoMax = width) {
+    async processInventoryGrid(snapshot, width, height, scale, anchoMax = width, contexto = this.latchedContext) {
         const reloj = cronometro("inventario");
         relojBadges.ms = 0; relojBadges.n = 0;
         if (this.detectionLocked) return;
@@ -1170,11 +1197,14 @@ export const ScannerService = {
             if (pageNameColor) this.lastRawOcrLog.push(`[NAME-COLOR] rgb(${pageNameColor.join(",")})`);
 
             const pendingItems = [];
+            const pendingArcanes = [];
+            const arcanosSinLeer = [];
 
             const { drawResolved: drawResolvedCell, drawFailed: drawFailedCell } =
                 createCellOverlay(dCtx, gridZone, cellW, cellH);
 
-            const bandaY = Math.round(cellH * 0.50), bandaH = Math.round(cellH * 0.48);
+            const modoArcanos = esContextoArcanos(contexto);
+            const [bandaY, bandaH] = (modoArcanos ? [BANDA_NOMBRE_ARCANO.y, BANDA_NOMBRE_ARCANO.h] : [0.50, 0.48]).map((f) => Math.round(cellH * f));
             const clave = (cell) => `r${cell.r}c${cell.c}`;
             let lotePreciso = null;
             if (motorActivo() === MOTOR_PRECISO) {
@@ -1185,10 +1215,12 @@ export const ScannerService = {
                     .catch((e) => { console.warn("[Paddle] lote falló, voy celda a celda:", e); return null; });
             }
 
+            const reconoceArcano = (ws) => emparejaArcano(ws.join(" "), this.tablaArcanos, (a, b) => OCRService.similarityOCR(a, b));
+
             let eleccion = pageNameColor && Promise.resolve();
             const colorDeNombre = () => eleccion ||= (async () => {
                 await cedeHilo();
-                pageNameColor = await electPageNameColor(workers[0], snapshot, activeCells, cellW, textSrcY, textSrcH, theme)
+                pageNameColor = await electPageNameColor(workers[0], snapshot, activeCells, cellW, textSrcY, textSrcH, theme, modoArcanos ? reconoceArcano : undefined)
                     || calibData?.nameColor || null;
                 if (pageNameColor) this._nameColorCache = { key: calibKey, color: pageNameColor };
                 this.lastRawOcrLog.push(`[NAME-COLOR] ${pageNameColor ? `rgb(${pageNameColor.join(",")})` : "ninguno — cada celda mide el suyo"}`);
@@ -1265,15 +1297,16 @@ export const ScannerService = {
 
                     let relicText = combinedText, itemText = combinedText;
                     const readable = !this._isGarbledCellText(combinedText);
-                    let relicMatch = readable ? OCRService.getRelicMatch(combinedText) : null;
+                    let arcaneMatch = (readable && modoArcanos) ? reconoceArcano(combinedText) : null;
+                    let relicMatch = (readable && !modoArcanos) ? OCRService.getRelicMatch(combinedText) : null;
                     if (relicMatch && textoDelLote) {
                         const r = corrige56(relicMatch, PaddleRepository.palabrasDelLote(clave(cell)), PaddleRepository.recorteDelLote(clave(cell)), (n) => !!globalThis.state?.allRelicNames?.includes(n));
                         if (r.cambiado) { logStr += ` || 5/6 por glifo: ${r.nombre}`; relicMatch = r.nombre; }
                     }
-                    let bestItem = (readable && !relicMatch) ? OCRService.getValidItemMatch(combinedText) : null;
+                    let bestItem = (readable && !relicMatch && !modoArcanos) ? OCRService.getValidItemMatch(combinedText) : null;
                     let fallbackText = null;
 
-                    if (!bestItem && !relicMatch) {
+                    if (!bestItem && !relicMatch && !arcaneMatch) {
                         await colorDeNombre();
                         const fallbackY = Math.floor(cellH * 0.73);
                         const fallbackH = Math.floor(cellH * 0.26);
@@ -1284,57 +1317,83 @@ export const ScannerService = {
                             if (this._isGarbledCellText(fallbackText)) fallbackText = null;
                         }
                         if (fallbackText && fallbackText.length) {
-                            relicMatch = OCRService.getRelicMatch(fallbackText);
-                            if (relicMatch) {
-                                relicText = fallbackText;
+                            if (modoArcanos) {
+                                arcaneMatch = reconoceArcano(fallbackText);
+                                if (arcaneMatch) itemText = fallbackText;
                             } else {
-                                bestItem = OCRService.getValidItemMatch(fallbackText);
-                                if (bestItem) itemText = fallbackText;
+                                relicMatch = OCRService.getRelicMatch(fallbackText);
+                                if (relicMatch) {
+                                    relicText = fallbackText;
+                                } else {
+                                    bestItem = OCRService.getValidItemMatch(fallbackText);
+                                    if (bestItem) itemText = fallbackText;
+                                }
                             }
                         }
                     }
 
-                    if (!bestItem && !relicMatch && pageNameColor && !ownColorUsed) {
+                    if (!bestItem && !relicMatch && !arcaneMatch && pageNameColor && !ownColorUsed) {
                         const ownText = await readCellWithOwnColor(worker, snapshot, cell, cellW, textSrcY, textSrcH, theme);
                         if (ownText?.length && !this._isGarbledCellText(ownText)) {
-                            relicMatch = OCRService.getRelicMatch(ownText);
-                            if (relicMatch) {
-                                relicText = ownText;
+                            if (modoArcanos) {
+                                arcaneMatch = reconoceArcano(ownText);
+                                if (arcaneMatch) itemText = ownText;
                             } else {
-                                bestItem = OCRService.getValidItemMatch(ownText);
-                                if (bestItem) itemText = ownText;
+                                relicMatch = OCRService.getRelicMatch(ownText);
+                                if (relicMatch) {
+                                    relicText = ownText;
+                                } else {
+                                    bestItem = OCRService.getValidItemMatch(ownText);
+                                    if (bestItem) itemText = ownText;
+                                }
                             }
-                            if (relicMatch || bestItem) {
+                            if (relicMatch || bestItem || arcaneMatch) {
                                 scanStats.ownColor++;
                                 logStr = `[r${cell.r}c${cell.c}] OCR (color propio): ${ownText.join(" ")}`;
                             }
                         }
                     }
 
-                    if (!bestItem && !relicMatch) {
-                        const r = await readCellCuttingArt(worker, snapshot, cell, cellW, textSrcY, textSrcH, theme, pageNameColor, (ws) => !this._isGarbledCellText(ws));
-                        if (r) { relicMatch = r.relicMatch; bestItem = r.bestItem; if (relicMatch) relicText = r.words; else itemText = r.words; logStr = `[r${cell.r}c${cell.c}] OCR (sin arte, corte ${r.corte}): ${r.words.join(" ")}`; }
+                    if (!bestItem && !relicMatch && !arcaneMatch) {
+                        const r = await readCellCuttingArt(worker, snapshot, cell, cellW, textSrcY, textSrcH, theme, pageNameColor, (ws) => !this._isGarbledCellText(ws), modoArcanos ? reconoceArcano : undefined);
+                        if (r) {
+                            if (modoArcanos) {
+                                arcaneMatch = reconoceArcano(r.words);
+                                if (arcaneMatch) itemText = r.words;
+                            } else {
+                                relicMatch = r.relicMatch; bestItem = r.bestItem; if (relicMatch) relicText = r.words; else itemText = r.words;
+                            }
+                            logStr = `[r${cell.r}c${cell.c}] OCR (sin arte, corte ${r.corte}): ${r.words.join(" ")}`;
+                        }
                     }
 
-                    if (!bestItem && !relicMatch && motorActivo() !== MOTOR_PRECISO && globalThis.OCR_PADDLE_FALLBACK) {
+                    if (!bestItem && !relicMatch && !arcaneMatch && motorActivo() !== MOTOR_PRECISO && globalThis.OCR_PADDLE_FALLBACK) {
                         const ty = Math.round(cellH * 0.50), th = Math.round(cellH * 0.48);
                         const colorCvs = VisionService.cropColor(snapshot, cell.sx, cell.sy + ty, cellW, th, 2);
                         try {
                             const pWords = await PaddleRepository.recognizeWords(colorCvs);
                             if (pWords) {
-                                relicMatch = OCRService.getRelicMatch(pWords);
-                                if (relicMatch) {
-                                    relicText = pWords;
+                                if (modoArcanos) {
+                                    arcaneMatch = reconoceArcano(pWords);
+                                    if (arcaneMatch) { combinedText = pWords; itemText = pWords; logStr += " [paddle]"; }
                                 } else {
-                                    const pMatch = OCRService.getValidItemMatch(pWords);
-                                    if (pMatch) { bestItem = pMatch; combinedText = pWords; itemText = pWords; logStr += " [paddle]"; }
+                                    relicMatch = OCRService.getRelicMatch(pWords);
+                                    if (relicMatch) {
+                                        relicText = pWords;
+                                    } else {
+                                        const pMatch = OCRService.getValidItemMatch(pWords);
+                                        if (pMatch) { bestItem = pMatch; combinedText = pWords; itemText = pWords; logStr += " [paddle]"; }
+                                    }
                                 }
                             }
                         } catch (e) { console.warn("[Paddle fallback] error:", e); }
                     }
 
-
-                    if (bestItem) {
+                    if (arcaneMatch) {
+                        const qtyResult = await badgeDe(cell);
+                        logStr += ` || ARCANE: ${arcaneMatch.name} || BDG: ${qtyResult.raw}`;
+                        pendingArcanes.push({ cell, arcaneMatch, qtyResult, itemText, logStr });
+                    } else if (bestItem) {
                         const qtyResult = await badgeDe(cell);
 
                         logStr += ` || BDG: ${qtyResult.raw}`;
@@ -1357,6 +1416,7 @@ export const ScannerService = {
                         if (this._isRivenCellText(fallbackText)) {
                             this.lastRawOcrLog.push(logStr + " || RIVEN (ignored in inventory grid)");
                         } else {
+                            if (modoArcanos) arcanosSinLeer.push(`r${cell.r}c${cell.c} "${combinedText ? combinedText.join(" ") : ""}"`);
                             scanStats.unmatched++;
                             this.lastRawOcrLog.push(logStr);
                             const relX = cell.sx - gridZone.x;
@@ -1388,32 +1448,54 @@ export const ScannerService = {
                 const motorReal = lotePreciso ? "paddle" : `tesseract x${workers.length}`;
                 reloj.fin(`${motorReal} · ${relojBadges.n} badges ${relojBadges.ms.toFixed(0)} ms`);
 
-                const relicPage = scanStats.relics >= 3 && scanStats.relics >= 2 * pendingItems.length;
-                for (const pending of pendingItems) {
-                    if (relicPage) {
-                        scanStats.unmatched++;
-                        this.lastRawOcrLog.push(`${pending.logStr} || DESCARTADO (página de reliquias): ${pending.bestItem.originalName}`);
-                        drawFailedCell({
-                            cell: pending.cell, text: pending.itemText.join(" "),
-                            line2: `≠ ${pending.bestItem.originalName}`, status: "DISCARDED (RELIC PAGE)",
+                if (esContextoArcanos(contexto)) {
+                    const arcanosList = [];
+                    for (const pending of pendingArcanes) {
+                        scanStats.matched++;
+                        this.lastRawOcrLog.push(pending.logStr);
+                        arcanosList.push({
+                            slug: pending.arcaneMatch.slug,
+                            name: pending.arcaneMatch.name,
+                            qty: pending.qtyResult.qty,
+                            r: pending.cell.r,
+                            c: pending.cell.c
                         });
-                        continue;
+                        drawResolvedCell({
+                            cell: pending.cell, qtyResult: pending.qtyResult, text: pending.itemText,
+                            accent: "#ff00ff", name: pending.arcaneMatch.name, qty: pending.qtyResult.qty
+                        });
                     }
-                    scanStats.matched++;
-                    this.lastRawOcrLog.push(pending.logStr);
-                    this.recordQtyVote(pending.bestItem.originalName, pending.qtyResult);
-                    drawResolvedCell({
-                        cell: pending.cell, qtyResult: pending.qtyResult, text: pending.itemText,
-                        accent: "#00ff78",
-                        name: pending.bestItem.originalName.replace(/Prime/gi, "").trim(),
-                        qty: this.sessionInventory.get(pending.bestItem.originalName) ?? "?",
-                    });
+                    console.log(`[ARC] ${arcanosList.length}/${activeCells.length} arcanos${arcanosSinLeer.length ? ` | sin leer: ${arcanosSinLeer.join(" · ")}` : ""}`);
+                    this.onPaginaArcanos?.(arcanosList);
+                } else {
+                    const relicPage = scanStats.relics >= 3 && scanStats.relics >= 2 * pendingItems.length;
+                    for (const pending of pendingItems) {
+                        if (relicPage) {
+                            scanStats.unmatched++;
+                            this.lastRawOcrLog.push(`${pending.logStr} || DESCARTADO (página de reliquias): ${pending.bestItem.originalName}`);
+                            drawFailedCell({
+                                cell: pending.cell, text: pending.itemText.join(" "),
+                                line2: `≠ ${pending.bestItem.originalName}`, status: "DISCARDED (RELIC PAGE)",
+                            });
+                            continue;
+                        }
+                        scanStats.matched++;
+                        this.lastRawOcrLog.push(pending.logStr);
+                        this.recordQtyVote(pending.bestItem.originalName, pending.qtyResult);
+                        drawResolvedCell({
+                            cell: pending.cell, qtyResult: pending.qtyResult, text: pending.itemText,
+                            accent: "#00ff78",
+                            name: pending.bestItem.originalName.replace(/Prime/gi, "").trim(),
+                            qty: this.sessionInventory.get(pending.bestItem.originalName) ?? "?",
+                        });
+                    }
+
+                    ScannerHUD.updateScrollStatus("done", this.sessionInventory.size + this.sessionRelics.size);
+                    ScannerHUD.updateDetectedItems(this.sessionInventory, this.sessionRelics);
+                    if (DucatKioskService.esKiosco(this.lastHeaderText)) {
+                        this.onPaginaKiosco?.();
+                    }
                 }
-
-                ScannerHUD.updateScrollStatus("done", this.sessionInventory.size + this.sessionRelics.size);
-                ScannerHUD.updateDetectedItems(this.sessionInventory, this.sessionRelics);
-                if (DucatKioskService.esKiosco(this.lastHeaderText)) this.onPaginaKiosco?.();
-
                 const expected = autoGrid.rows * autoGrid.cols;
                 const fails = scanStats.unmatched + scanStats.none;
                 const hasWarning = fails > 0 || scanStats.cells < expected;

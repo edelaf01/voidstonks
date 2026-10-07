@@ -46,3 +46,18 @@ export function tarjetasPorLog() {
   const m = EELogLive.modoEscaner();
   return m?.modo === "forzado" ? m.tarjetas || null : null;
 }
+
+export function rejillaListaPorLog(ahora = Date.now()) {
+  if (EELogLive.estado !== "leyendo" || !EELogLive.juego.inventario) return null;
+  if (EELogLive.juego.inventario.lista) return true;
+  if (ahora - EELogLive.juego.inventario.desde < 3000) return false;
+  return null;
+}
+
+export function cambioPantallaPorLog() {
+  return EELogLive.estado === "leyendo" ? EELogLive.juego.inventarioCambios : 0;
+}
+
+export function enMisionPorLog() {
+  return EELogLive.estado === "leyendo" ? EELogLive.juego.enMision : null;
+}
