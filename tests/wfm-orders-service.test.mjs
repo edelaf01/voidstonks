@@ -302,8 +302,16 @@ test("el mercado de todos se repite con lo que el worker dejó pendiente, y el f
   reset();
   rutas.set("wfm_market_batch", () => respuesta(200, {}));
   assert.deepEqual(await orders.mercadoDeTodos(["a"], { rondas: 3, esperaMs: 0 }), {});
-  assert.equal(peticiones.filter((p) => p.url.includes("wfm_market_batch")).length, 3, "no se queda en bucle");
+  assert.equal(peticiones.filter((p) => p.url.includes("wfm_market_batch")).length, 1, "una ronda sin nada nuevo no se repite");
   assert.ok(!peticiones.at(-1).url.includes("_cb") && !peticiones.at(-1).init?.cache, "la lista sí aprovecha las cachés");
+});
+
+test("sin nada nuevo se pide una vez por tanda de 30 y se para", async () => {
+  reset();
+  rutas.set("wfm_market_batch", () => respuesta(200, {}));
+  const slugs = Array.from({ length: 35 }, (_, i) => `s${i}`);
+  assert.deepEqual(await orders.mercadoDeTodos(slugs, { esperaMs: 0 }), {});
+  assert.equal(peticiones.filter((p) => p.url.includes("wfm_market_batch")).length, 2);
 });
 
 test("lo visto en la última hora no se vuelve a pedir a warframe.market; revisar precios sí va a la red", async () => {

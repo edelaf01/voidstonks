@@ -163,10 +163,12 @@ export async function mercadoDeTodos(slugs, { fresco = false, onProgreso = null,
     let faltan = todos;
     for (let r = 0; r < rondas && faltan.length; r++) {
         if (r) await new Promise((ok) => setTimeout(ok, esperaMs));
+        const antes = Object.keys(out).length;
         for (let i = 0; i < faltan.length; i += 30) {
             Object.assign(out, await fetchMarketBatch(faltan.slice(i, i + 30), { fresco }));
             onProgreso?.({ mercados: out, hechos: Object.keys(out).length, total: todos.length });
         }
+        if (Object.keys(out).length === antes) break;
         faltan = faltan.filter((s) => !out[s]);
     }
     return out;

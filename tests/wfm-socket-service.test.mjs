@@ -64,6 +64,14 @@ function jwtValido() {
 
 const mensajes = (route) => enviados.filter((m) => m.route === route);
 
+const NOOP_STORAGE = globalThis.localStorage;
+const CLAVE_VETO = "vs_wfm_socket_veto";
+function almacenEspia() {
+  const m = new Map();
+  globalThis.localStorage = { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) };
+  return m;
+}
+
 // ESTE es el que impide volver atrás: escuchar el mercado no requiere sesión.
 test("sin token se conecta y se suscribe igual", async () => {
   sesion.clear();
@@ -228,4 +236,132 @@ test("cerrar el socket olvida los suscriptores", async () => {
   abierto.recibir({ route: R.NEW_ORDER, payload: { itemId: "i1" } });
   assert.deepEqual(recibidas, [], "tras cerrar no debe llegar nada");
   off();
+});
+
+test("un socket que nunca llega a abrir no se vuelve a intentar en un día", async () => {
+  sesion.clear();
+  socket.closeSocket();
+  try {
+    abrirSolo = false;
+    enviados.length = 0;
+    const p = socket.subscribeNewOrders(() => {});
+    ultimoSocket.fallar();
+    await p;
+    const fallido = ultimoSocket;
+    const off = await socket.subscribeNewOrders(() => {});
+    assert.ok(ultimoSocket === fallido, "no se abre otro socket");
+    assert.equal(typeof off, "function");
+    assert.equal(mensajes(R.SUB).length, 0);
+  } finally {
+    abrirSolo = true;
+    globalThis.localStorage = NOOP_STORAGE;
+    socket.closeSocket();
+  }
+});
+
+test("si no abre en 8 s se cierra y también veta", async (t) => {
+  sesion.clear();
+  socket.closeSocket();
+  try {
+    t.mock.timers.enable({ apis: ["setTimeout"] });
+    abrirSolo = false;
+    const p = socket.subscribeNewOrders(() => {});
+    const lento = ultimoSocket;
+    t.mock.timers.tick(8000);
+    await p;
+    assert.equal(lento.readyState, FakeWebSocket.CLOSED);
+    await socket.subscribeNewOrders(() => {});
+    assert.ok(ultimoSocket === lento, "no se abre otro socket");
+  } finally {
+    abrirSolo = true;
+    globalThis.localStorage = NOOP_STORAGE;
+    socket.closeSocket();
+  }
+});
+
+test("un veto guardado se respeta", async () => {
+  sesion.clear();
+  socket.closeSocket();
+  try {
+    const m = almacenEspia();
+    m.set(CLAVE_VETO, String(Date.now() + 60_000));
+    const antes = ultimoSocket;
+    enviados.length = 0;
+    const off = await socket.subscribeNewOrders(() => {});
+    assert.ok(ultimoSocket === antes, "no se abre otro socket");
+    assert.equal(mensajes(R.SUB).length, 0);
+    off();
+  } finally {
+    globalThis.localStorage = NOOP_STORAGE;
+    socket.closeSocket();
+  }
+});
+
+test("un veto caducado deja volver a intentarlo", async () => {
+  sesion.clear();
+  socket.closeSocket();
+  try {
+    const m = almacenEspia();
+    m.set(CLAVE_VETO, String(Date.now() - 1));
+    const antes = ultimoSocket;
+    enviados.length = 0;
+    const off = await socket.subscribeNewOrders(() => {});
+    assert.ok(ultimoSocket !== antes, "se abre uno nuevo");
+    assert.equal(mensajes(R.SUB).length, 1);
+    off();
+  } finally {
+    globalThis.localStorage = NOOP_STORAGE;
+    socket.closeSocket();
+  }
+});
+
+test("un socket que abrió y luego se cae no veta", async () => {
+  sesion.clear();
+  socket.closeSocket();
+  try {
+    const m = almacenEspia();
+    const off = await socket.subscribeNewOrders(() => {});
+    ultimoSocket.close();
+    assert.equal(m.has(CLAVE_VETO), false);
+    off();
+  } finally {
+    globalThis.localStorage = NOOP_STORAGE;
+    socket.closeSocket();
+  }
+});
+
+test("descartar un socket a medias no veta", async () => {
+  sesion.clear();
+  socket.closeSocket();
+  try {
+    const m = almacenEspia();
+    enviados.length = 0;
+    const [off1, off2] = await Promise.all([socket.subscribeNewOrders(() => {}), socket.subscribeNewOrders(() => {})]);
+    assert.equal(m.has(CLAVE_VETO), false);
+    assert.equal(mensajes(R.SUB).length, 1);
+    off1(); off2();
+  } finally {
+    globalThis.localStorage = NOOP_STORAGE;
+    socket.closeSocket();
+  }
+});
+
+test("sin almacenamiento el veto vale igual en memoria", async () => {
+  sesion.clear();
+  socket.closeSocket();
+  try {
+    const bloqueado = () => { throw new Error("bloqueado"); };
+    globalThis.localStorage = { getItem: bloqueado, setItem: bloqueado, removeItem: bloqueado };
+    abrirSolo = false;
+    const p = socket.subscribeNewOrders(() => {});
+    ultimoSocket.fallar();
+    await p;
+    const fallido = ultimoSocket;
+    await socket.subscribeNewOrders(() => {});
+    assert.ok(ultimoSocket === fallido, "no se abre otro socket");
+  } finally {
+    abrirSolo = true;
+    globalThis.localStorage = NOOP_STORAGE;
+    socket.closeSocket();
+  }
 });
