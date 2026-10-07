@@ -57,3 +57,7 @@ export function rejillaListaPorLog(ahora = Date.now()) {
 export function cambioPantallaPorLog() {
   return EELogLive.estado === "leyendo" ? EELogLive.juego.inventarioCambios : 0;
 }
+
+export function enMisionPorLog() {
+  return EELogLive.estado === "leyendo" ? EELogLive.juego.enMision : null;
+}
