@@ -7,7 +7,8 @@ const RE_CICLO_RIVEN = /^Are you sure you want to cycle (.+) for ([\d,]+)\?/;
 const RE_RELIQUIA_REFINA = /refine and equip (\w+ \w+) Relic\? It will cost (\d+) Void Traces/;
 const POR_COSTE = { 25: "EXCEPTIONAL", 50: "FLAWLESS", 100: "RADIANT" };
 const RE_MISION = /MissionIntro\.lua: MissionName: (.+)$/;
-const RE_FIN_MISION = /EndOfMatch\.lua: Skip ReturnedToShip|GameRulesImpl - changing state from \w+ to SS_ENDED|Subscribing for \/Lotus\/Interface\/EndOfMatch\.swf/;
+const RE_FIN_MISION = /EndOfMatch\.lua: Skip ReturnedToShip|GameRulesImpl - changing state from \w+ to SS_ENDED|EOM missionLocationUnlocked=/;
+const RE_NIVEL = /GameRulesImpl - changing state from (\w+) to (\w+)/;
 const RE_RECOMPENSAS = /ProjectionRewardChoice\.lua: (Got rewards|Relic reward screen shut down|Missing icon data!)/;
 const RE_PROPIA = /VoidProjections: \w+ gets reward (\/Lotus\/\S+)/;
 const RE_MENU = /(\w+)\.lua: DBG: HudVis ([01])\s*$/;
@@ -51,6 +52,10 @@ export function parseLinea(linea) {
   const mision = RE_MISION.exec(linea);
   if (mision) return { tipo: "mision", fase: "empieza", nombre: mision[1].trim(), t };
   if (RE_FIN_MISION.test(linea)) return { tipo: "mision", fase: "acaba", t };
+  const nivel = RE_NIVEL.exec(linea);
+  if (nivel && (nivel[1] === "SS_INVALID" || nivel[2] === "SS_STARTED")) {
+    return { tipo: "nivel", nuevo: nivel[1] === "SS_INVALID", empieza: nivel[2] === "SS_STARTED", t };
+  }
   const propia = RE_PROPIA.exec(linea);
   if (propia) return { tipo: "propia", ruta: propia[1], t };
   const pantalla = RE_PANTALLA.exec(linea);
