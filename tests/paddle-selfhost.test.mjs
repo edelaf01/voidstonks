@@ -22,6 +22,15 @@ describe("modelos de OCR servidos por nosotros", () => {
         }
     });
 
+    test("onnxruntime va fijado y solo con el backend wasm", () => {
+        const urls = PADDLE.match(/https:\/\/esm\.sh\/[^"'`]+/g) || [];
+        assert.notEqual(urls.length, 0);
+        for (const url of urls) {
+            assert.match(url, /[?&]deps=onnxruntime-web@\d+\.\d+\.\d+(&|$)/, `onnxruntime sin versión fija: ${url}`);
+            assert.match(url, /[?&]alias=onnxruntime-web:onnxruntime-web\/wasm(&|$)/, `onnxruntime con webgpu: ${url}`);
+        }
+    });
+
     test("los modelos apuntan a assets/ locales, no a un host de terceros", () => {
         for (const clave of ["detection", "recognition", "charactersDictionary"]) {
             const m = new RegExp(`${clave}:\\s*"([^"]+)"`).exec(PADDLE);
