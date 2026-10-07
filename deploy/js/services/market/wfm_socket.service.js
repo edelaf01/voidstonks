@@ -6,6 +6,8 @@ import { getToken } from "./wfm_auth.service.js";
 
 const WS_URL = "wss://ws.warframe.market/socket";
 const SUBPROTOCOL = "wfm";
+const CLAVE_VETO = "vs_wfm_socket_veto";
+const VETO_MS = 24 * 60 * 60 * 1000;
 
 const ROUTES = {
     SIGN_IN: "@wfm|cmd/auth/signIn",
@@ -21,6 +23,7 @@ let signedIn = false;
 const orderListeners = new Set();
 let subscribedOrders = false;
 let subPayload = null;
+let vetoHasta = 0;
 
 function handleMessage(raw) {
     let msg;
@@ -87,6 +90,18 @@ export async function subscribeNewOrders(fn, opts = {}) {
     };
 }
 
+function vetado() {
+    if (!vetoHasta) {
+        try { vetoHasta = Number(localStorage.getItem(CLAVE_VETO)) || 0; } catch {}
+    }
+    return Date.now() < vetoHasta;
+}
+
+function veta() {
+    vetoHasta = Date.now() + VETO_MS;
+    try { localStorage.setItem(CLAVE_VETO, String(vetoHasta)); } catch {}
+}
+
 /**
  * Abre la conexión. 
  *
@@ -94,10 +109,13 @@ export async function subscribeNewOrders(fn, opts = {}) {
  */
 async function connect() {
     if (socket?.readyState === WebSocket.OPEN) return true;
+    if (vetado()) return false;
 
     // drop a half open socket before opening another
     if (socket && socket.readyState !== WebSocket.CLOSED) {
-        try { socket.close(); } catch { /* already closed */ }
+        const viejo = socket;
+        socket = null;
+        try { viejo.close(); } catch { /* already closed */ }
     }
 
     return new Promise((resolve) => {
@@ -108,16 +126,27 @@ async function connect() {
             resolve(ok);
         };
 
+        let abierto = false;
+        let ws;
         try {
-            socket = new WebSocket(WS_URL, [SUBPROTOCOL]);
+            ws = new WebSocket(WS_URL, [SUBPROTOCOL]);
         } catch {
+            veta();
             done(false);
             return;
         }
+        socket = ws;
+        const falla = () => {
+            if (!abierto && socket === ws) veta();
+            done(false);
+        };
 
-        const timeout = setTimeout(() => done(false), 8000);
+        const timeout = setTimeout(() => {
+            falla();
+            try { ws.close(); } catch {}
+        }, 8000);
 
-        socket.addEventListener("message", (e) => {
+        ws.addEventListener("message", (e) => {
             const raw = String(e.data);
             handleMessage(raw);
 
@@ -132,13 +161,14 @@ async function connect() {
             else if (route === ROUTES.SIGN_IN_ERR) signedIn = false;
         });
 
-        socket.addEventListener("open", () => {
+        ws.addEventListener("open", () => {
+            abierto = true;
             clearTimeout(timeout);
 
             const token = getToken();
             if (token) {
                 try {
-                    socket.send(JSON.stringify({
+                    ws.send(JSON.stringify({
                         route: ROUTES.SIGN_IN,
                         id: "signin",
                         payload: { token }
@@ -148,15 +178,15 @@ async function connect() {
             done(true);
         });
 
-        socket.addEventListener("close", () => {
+        ws.addEventListener("close", () => {
             signedIn = false;
             clearTimeout(timeout);
-            done(false);
+            falla();
         });
 
-        socket.addEventListener("error", () => {
+        ws.addEventListener("error", () => {
             clearTimeout(timeout);
-            done(false);
+            falla();
         });
     });
 }
@@ -166,8 +196,11 @@ export function closeSocket() {
     signedIn = false;
     subscribedOrders = false;
     orderListeners.clear();
+    vetoHasta = 0;
+    try { localStorage.removeItem(CLAVE_VETO); } catch {}
     if (socket) {
-        try { socket.close(); } catch { /* already closed */ }
+        const s = socket;
         socket = null;
+        try { s.close(); } catch { /* already closed */ }
     }
 }
