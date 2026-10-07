@@ -187,6 +187,11 @@ export const RelicScreenService = {
         return { nameWords: collectWords(names.data), countWords: collectWords(counts.data) };
     },
 
+    olvidaEra() {
+        this.eraRejilla = null;
+        this.lastGridHash = null;
+    },
+
     reset() {
         this.votes.clear();
         this.applied.clear();
