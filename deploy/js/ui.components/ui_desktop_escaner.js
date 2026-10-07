@@ -3,7 +3,7 @@ import {
   mostrarPaneles, quitarPaneles, quitarTodosLosPaneles, alPulsarEnOverlay, ajustaPanelesAlContexto,
 } from "../services/desktop.service.js";
 import { panelKiosko, panelReliquias, panelRiven, panelRivenComparacion, panelInventario, panelArcanos } from "../utils/overlay_paneles.js";
-import { duermePorLog, firmaPorLog, tarjetasPorLog, armaRivenPorLog, rejillaListaPorLog, cambioPantallaPorLog } from "../services/scanner/log_gate.service.js";
+import { duermePorLog, firmaPorLog, tarjetasPorLog, armaRivenPorLog, rejillaListaPorLog, cambioPantallaPorLog, enMisionPorLog } from "../services/scanner/log_gate.service.js";
 import { EELogLive } from "../services/scanner/eelog_live.service.js";
 import { getItemIcon } from "../utils/ui_utils.js";
 import { state } from "../state.js";
@@ -23,6 +23,7 @@ export function conectaEscaner() {
     reliquiaPorGastar: () => EELogLive.reliquiaPorGastar(),
     rejillaLista: rejillaListaPorLog,
     cambioPantalla: cambioPantallaPorLog,
+    enMision: enMisionPorLog,
   });
   escucha("contexto", (contexto) => ajustaPanelesAlContexto(contexto));
   escucha("escaner-parado", () => quitarTodosLosPaneles());

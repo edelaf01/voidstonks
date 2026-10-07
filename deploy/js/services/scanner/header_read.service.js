@@ -2,6 +2,7 @@ import { VisionService } from "./vision.service.js";
 import { OCRRepository } from "../../repositories/ocr.repository.js";
 import { regionLuma } from "../../utils/vision/frame_hash.js";
 import { tituloHaCambiado, FRANJA_CATEGORIA_VIDEO } from "../../utils/vision/context_latch.js";
+import { pistasDelLog } from "../../utils/ganchos.js";
 
 export async function leeCategoriaInventario(escaner, video, worker1) {
     const hash = regionLuma(video, FRANJA_CATEGORIA_VIDEO);
@@ -51,10 +52,11 @@ export async function leeCabeceraOCR(escaner, video, virtualCanvas, worker1, fra
 
     const sinContexto = () => VisionService.determineContext(headerText) === "UNKNOWN";
     const enFinDeMision = escaner.latchedContext === "MISSION_COMPLETE";
+    const enMision = pistasDelLog.enMision();
     const rescate = sinContexto() && (franjaQuieta || enFinDeMision || Date.now() - (escaner._ultimoRescate || 0) >= RESCATE_CABECERA_MS);
     if (rescate) escaner._ultimoRescate = Date.now();
 
-    if (rescate && headerTheme && !enFinDeMision) {
+    if (rescate && headerTheme && !enFinDeMision && enMision === null) {
         pasadas++;
         const alt = VisionService.lienzo("cabeceraTema");
         VisionService.prepareVirtualCanvas(video, alt);
@@ -69,7 +71,7 @@ export async function leeCabeceraOCR(escaner, video, virtualCanvas, worker1, fra
     }
 
     // Tercer intento: el título CENTRADO. MISSION COMPLETE no cae en el recorte izquierdo
-    if (rescate && sinContexto()) {
+    if (rescate && enMision !== true && sinContexto()) {
         pasadas++;
         const centro = VisionService.lienzo("cabeceraCentrada");
         VisionService.prepareCenterHeaderCanvas(video, centro);
