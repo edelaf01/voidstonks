@@ -2060,9 +2060,13 @@ if os.environ.get("SLIM_EXPORT", "1") == "1":
     CAL_NIVEL = {str(a): round(float(f), 3) for a, f in zip(_armas, _f_nivel)}
     print(f"  nivel: {len(CAL_NIVEL)} armas con {len(_ult)} anuncios de {_NIVEL_DIAS} días | mediana ×{np.median(_f_nivel):.2f} | "
           + " ".join(f"{t} ×{np.exp(_por_tercio.get(t, 0.0)):.2f}" for t in ("baja", "media", "alta")))
+    _CLAVES_ARBOL = ("split_indices", "split_conditions", "left_children", "right_children", "default_left")
     for a in QUANTILES:
         _tmp = os.path.join(_OUT, f"_q{int(a*100)}.json"); _slim[a].get_booster().save_model(_tmp)
-        _bundle["models"][str(a)] = json.load(open(_tmp)); os.remove(_tmp)
+        _lrn = json.load(open(_tmp))["learner"]; os.remove(_tmp)
+        _bundle["models"][str(a)] = {"learner": {
+            "learner_model_param": {"base_score": _lrn["learner_model_param"]["base_score"]},
+            "gradient_booster": {"model": {"trees": [{k: t[k] for k in _CLAVES_ARBOL} for t in _lrn["gradient_booster"]["model"]["trees"]]}}}}
     json.dump(_bundle, open(os.path.join(_OUT, "model_quantiles_slim.json"), "w"))
     json.dump(list(columnas_micro), open(os.path.join(_OUT, "feature_order_slim.json"), "w"))
     _def = {}
