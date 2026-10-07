@@ -1,5 +1,6 @@
 export const ESTADO_JUEGO_INICIAL = Object.freeze({
   enMision: false,
+  enHub: false,
   mision: null,
   recompensas: null, // { fase: "abiertas" | "llenas", tarjetas, propia }
   eligiendoReliquia: false,
@@ -10,14 +11,14 @@ export const ESTADO_JUEGO_INICIAL = Object.freeze({
   inventarioCambios: 0,
 });
 
-const NO_SON_MENU = new Set(["HudRedux", "OverlayBackground", "ThemedProjectionManager"]);
+const NO_SON_MENU = new Set(["HudRedux", "OverlayBackground", "ThemedProjectionManager", "DefenseReward", "EndOfMatch"]);
 
 const DE_LA_MISION = new Set([
   "SurvivalReward", "FocusGainMessage", "ProjectionsCountdown", "Transmission", "Dialog", "Notifications",
   "ChallengePopUp", "EndOfMatch", "PortTimerStatus", "UICommonResources", "ToolTip", "ThemedSquadOverlay",
   "ThemedContextMenu", "ThemedButtonBar", "Subtitles", "MissionIntro", "ItemInfoPopup", "GenericNotification",
   "ConsumablesOverlay", "Background", "AcceptInvitePanel", "HudRedux", "ProjectionRewardChoice",
-  "ThemedProjectionManager",
+  "ThemedProjectionManager", "DefenseReward",
 ]);
 
 const EN_EL_CICLO = new Set(["DioramaViewer", "Dialog", "ToolTip", "Notifications", "Transmission", "ChallengePopUp"]);
@@ -28,10 +29,14 @@ export function siguienteEstado(estado, ev, ahora = Date.now()) {
   switch (ev?.tipo) {
     case "mision":
       return ev.fase === "empieza"
-        ? { ...ESTADO_JUEGO_INICIAL, enMision: true, mision: ev.nombre, inventarioCambios: estado.inventarioCambios + (estado.inventario ? 1 : 0) }
+        ? { ...estado, enMision: !estado.enHub, mision: ev.nombre }
         : { ...ESTADO_JUEGO_INICIAL, inventarioCambios: estado.inventarioCambios + (estado.inventario ? 1 : 0) };
+    case "nivel": {
+      const base = ev.nuevo ? { ...ESTADO_JUEGO_INICIAL, inventarioCambios: estado.inventarioCambios + (estado.inventario ? 1 : 0) } : estado;
+      return ev.empieza ? { ...base, enMision: !base.enHub } : base;
+    }
     case "pantalla":
-      if (ev.swf === "Hub" || ev.swf === "ThemedMainMenu") return { ...ESTADO_JUEGO_INICIAL, inventarioCambios: estado.inventarioCambios + (estado.inventario ? 1 : 0) };
+      if (ev.swf === "Hub" || ev.swf === "ThemedMainMenu") return { ...ESTADO_JUEGO_INICIAL, enHub: ev.swf === "Hub", inventarioCambios: estado.inventarioCambios + (estado.inventario ? 1 : 0) };
       if (ev.swf === "ProjectionRewardChoice") {
         return { ...estado, eligiendoReliquia: false, recompensas: { fase: "abiertas", tarjetas: 0, propia: null, desde: ahora } };
       }
