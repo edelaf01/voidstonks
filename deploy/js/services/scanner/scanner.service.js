@@ -27,7 +27,7 @@ const memoriaMC = memoriaPantalla(() => localStorage, "vs_mc_ultima_pantalla");
 const DESPIERTA_MC = 24;
 const ESPERA_TARJETAS_MS = 1500;
 import { createFrameQueue } from "../../utils/vision/frame_queue.js";
-import { videoRegionHash, canvasRegionHash, compareHashes, fraccionCambiada, regionLuma, firmaTexto, mismoTexto } from "../../utils/vision/frame_hash.js";
+import { videoRegionHash, canvasRegionHash, compareHashes, fraccionCambiada, regionLumaRapida, firmaTexto, mismoTexto } from "../../utils/vision/frame_hash.js";
 import { createReadCache } from "../../utils/vision/read_cache.js";
 import { DebugRecorder } from "./debug_recorder.service.js";
 import { FirmasTitulo } from "./title_signatures.service.js";
@@ -186,7 +186,7 @@ export const ScannerService = {
         const worker1 = OCRRepository.workers[0];
         if (!worker1) return;
 
-        const headerHash = regionLuma(video, FRANJA_TITULO_VIDEO);
+        const headerHash = await regionLumaRapida(video, FRANJA_TITULO_VIDEO);
         const caducidad = this.latchedContext === "UNKNOWN" ? RESCATE_CABECERA_MS : CADUCIDAD_CABECERA_MS;
         const headerCacheFresh = this.lastHeaderOcrTime && (Date.now() - this.lastHeaderOcrTime < caducidad);
         const franjaQuieta = !!this._franjaTickAnterior && !tituloHaCambiado(headerHash, this._franjaTickAnterior);
@@ -340,7 +340,7 @@ export const ScannerService = {
             : rawContextType;
         ScannerHUD.updateContext(contextType === "INVENTORY" && DucatKioskService.esKiosco(this.lastHeaderText) ? "DUCAT_KIOSK" : contextType);
 
-        if (await SquadService.probe(video, { aCiegas: contextType === "UNKNOWN" || contextType === "RELICS" })) {
+        if (pistasDelLog.enMision() !== false && await SquadService.probe(video, { aCiegas: contextType === "UNKNOWN" || contextType === "RELICS" })) {
             this.lastRivenContextTime = 0;
             return;
         }
@@ -896,9 +896,9 @@ export const ScannerService = {
         const { width, height } = dims;
         const vista = this.mcLedger.committed && sigueALaVista(memoriaMC.lee());
         if (vista) memoriaMC.guarda(vista);
-        const frame = this._mcFrameCvs = freezeFrame(video, width, height, this._mcFrameCvs);
+        const fuente = sharedFrame(video);
 
-        const hash = canvasRegionHash(frame, { x: Math.floor(width * 0.45), y: Math.floor(height * 0.18), w: Math.floor(width * 0.53), h: Math.floor(height * 0.74) });
+        const hash = canvasRegionHash(fuente, { x: Math.floor(width * 0.45), y: Math.floor(height * 0.18), w: Math.floor(width * 0.53), h: Math.floor(height * 0.74) });
         if (this._mcDormido) {
             if (compareHashes(hash, this._mcDormido, DESPIERTA_MC)) return;
             console.log("[MC] el panel cambió de verdad: se relee"); this._mcDormido = null;
@@ -907,6 +907,7 @@ export const ScannerService = {
             this._mcStableHash = hash;
             return;
         }
+        const frame = this._mcFrameCvs = freezeFrame(fuente, width, height, this._mcFrameCvs);
 
         if (!this._mcGrid || !compareHashes(hash, this._mcGrid.hash, 6)) {
             const trace = {};
@@ -983,7 +984,7 @@ export const ScannerService = {
 
         if (!result?.foundItems.length) for (const cand of candidatos) {
             const r = await leeRecompensas(frame, width, height, scale, "STANDARD", cand.cropRect, cand.columnas, "clasico");
-            if (!result || r.foundItems.length > result.foundItems.length) { result = r; usado = { ...cand, preset: "STANDARD" }; }
+            if (!result?.ocrCanvas || r.foundItems.length > result.foundItems.length) { result = r; usado = { ...cand, preset: "STANDARD" }; }
             if (result.foundItems.length >= cand.minimo) break;
         }
         const parcial = this._recompensaParcial;
