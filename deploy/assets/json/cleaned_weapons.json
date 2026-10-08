@@ -7467,8 +7467,8 @@
      "Axi V7",
      "Lith Z2",
      "Meso C3",
-     "Neo A6",
-     "Neo N25"
+     "Meso E8",
+     "Neo A6"
     ],
     "ducats": 15,
     "localImage": "weapons/blueprint.webp"
@@ -7477,12 +7477,12 @@
     "name": "Handle",
     "itemCount": 2,
     "drops": [
+     "Axi B10",
      "Lith C2",
      "Lith H1",
      "Meso D3",
      "Meso S7",
-     "Neo H3",
-     "Neo H5"
+     "Neo H3"
     ],
     "ducats": 45,
     "localImage": "weapons/handle.webp"
@@ -13928,6 +13928,7 @@
     "itemCount": 1,
     "drops": [
      "Axi A23",
+     "Axi B10",
      "Axi G3",
      "Axi G4",
      "Axi H3",
@@ -13957,7 +13958,6 @@
      "Neo B1",
      "Neo B9",
      "Neo K8",
-     "Neo N25",
      "Neo P5",
      "Neo V5",
      "Neo W2"
@@ -13970,7 +13970,6 @@
     "itemCount": 1,
     "drops": [
      "Axi A22",
-     "Axi B10",
      "Axi B7",
      "Axi B8",
      "Axi C8",
@@ -14009,6 +14008,7 @@
      "Neo K9",
      "Neo L4",
      "Neo N23",
+     "Neo N25",
      "Neo P10",
      "Neo R3",
      "Neo S6",
@@ -14048,7 +14048,6 @@
      "Lith N3",
      "Lith P6",
      "Lith S15",
-     "Lith S20",
      "Lith S5",
      "Lith T9",
      "Lith V10",
@@ -14066,6 +14065,7 @@
      "Neo E3",
      "Neo G3",
      "Neo H1",
+     "Neo H5",
      "Neo I2",
      "Neo K7",
      "Neo M5",
@@ -14082,6 +14082,7 @@
     "itemCount": 1,
     "drops": [
      "Axi A23",
+     "Axi B10",
      "Axi G5",
      "Axi O3",
      "Axi T13",
@@ -14117,7 +14118,6 @@
      "Neo C5",
      "Neo G5",
      "Neo H2",
-     "Neo H5",
      "Neo M2",
      "Neo N16",
      "Neo P5",
@@ -23263,8 +23263,8 @@
      "Axi K5",
      "Axi V6",
      "Lith O1",
+     "Lith S20",
      "Meso A1",
-     "Meso E8",
      "Meso M3",
      "Neo B5",
      "Neo H3"
@@ -23278,10 +23278,10 @@
     "drops": [
      "Lith P2",
      "Lith R1",
-     "Lith S20",
      "Meso P1",
      "Neo H2",
      "Neo L1",
+     "Neo N25",
      "Neo S7"
     ],
     "ducats": 45,
@@ -23295,7 +23295,7 @@
      "Meso G1",
      "Meso R1",
      "Neo A6",
-     "Neo N25"
+     "Neo H5"
     ],
     "ducats": 45,
     "localImage": "weapons/string.webp"
@@ -23305,10 +23305,10 @@
     "itemCount": 1,
     "drops": [
      "Axi M3",
-     "Axi N14",
      "Lith T1",
      "Lith V5",
      "Meso S8",
+     "Neo H5",
      "Neo N10"
     ],
     "ducats": 45,
@@ -23467,12 +23467,12 @@
      "Axi E2",
      "Axi F3",
      "Axi N10",
+     "Axi N14",
      "Axi N3",
      "Axi S10",
      "Axi W2",
      "Axi W3",
      "Lith P9",
-     "Lith S20",
      "Lith T10",
      "Meso A12",
      "Meso D8",
@@ -23564,10 +23564,10 @@
      "Lith P8",
      "Lith Q1",
      "Lith S19",
+     "Lith S20",
      "Meso B4",
      "Meso C8",
      "Meso E3",
-     "Meso E8",
      "Meso F1",
      "Meso G4",
      "Meso P1",
@@ -24254,10 +24254,10 @@
     "name": "Barrel",
     "itemCount": 1,
     "drops": [
-     "Axi B10",
      "Axi P8",
      "Axi Y2",
      "Lith Q2",
+     "Lith S20",
      "Lith W4",
      "Neo P9",
      "Neo V11"
@@ -24277,7 +24277,7 @@
      "Axi Y3",
      "Lith D7",
      "Meso K7",
-     "Neo N25"
+     "Neo H5"
     ],
     "ducats": 15,
     "localImage": "weapons/blueprint.webp"
