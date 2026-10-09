@@ -1,6 +1,7 @@
 import { state } from "../../state.js";
 import { RIVEN_NAMING_DICT } from "../../utils/rivens/riven_naming.js";
 import { RIVEN_STATS, RIVEN_BASE_STATS, WEAPON_TYPE_IDX, RIVEN_WEIGHTS, resolveBaseStatKey, canBeNegative } from "../../config.js";
+import { statUnit } from "../../utils/rivens/riven_stat_display.js";
 
 
 // Formas alternativas que la carta muestra pero el catálogo no recoge en name_en/name_es:
@@ -9,7 +10,9 @@ import { RIVEN_STATS, RIVEN_BASE_STATS, WEAPON_TYPE_IDX, RIVEN_WEIGHTS, resolveB
 // "Weapon Recoil Puncture" (la línea siguiente perdió su valor) cae al match del nombre
 // completo, donde "Puncture" empata a una palabra con "Recoil" y gana por orden de catálogo.
 const STAT_ALIASES = {
-    "weapon_recoil": ["weapon recoil", "retroceso del arma"]
+    "weapon_recoil": ["weapon recoil", "retroceso del arma"],
+    "magazine_reload_when_holstered": ["magazine reloaded/s when holstered", "magazine reloaded s when holstered"],
+    "heavy_attack_damage": ["melee damage on heavy attack"]
 };
 
 /**
@@ -113,8 +116,22 @@ export const RivenOCRService = {
     // con el match más largo cuyas formas cubren esa primera palabra ("Damage to Grineer" sigue
     // ganando a "Damage"). Si ninguno ancla (p.ej. "Weapon Recoil", cuyo name_en es solo
     // "Recoil"), caemos al comportamiento previo con el nombre completo.
+    _statSinPorcentaje(rawName) {
+        const nombre = rawName.replace(/^[ms]\s+/i, "").trim();
+        const nombreStat = this._matchStatAnchored(nombre);
+        if (!nombreStat || statUnit(nombreStat) === "%") return null;
+        const inicio = nombre.split(/\s+/)[0].toLowerCase().slice(0, 4);
+        const def = RIVEN_STATS.find((r) => r.name_en === nombreStat);
+        const formas = [def?.name_en, def?.name_es].filter(Boolean).map((n) => n.toLowerCase());
+        return inicio.length === 4 && formas.some((f) => f.startsWith(inicio)) ? nombreStat : null;
+    },
+
     _matchStatAnchored(rawName) {
-        const words = rawName.split(/\s+/).filter(Boolean);
+        let words = rawName.split(/\s+/).filter(Boolean);
+        const splitIdx = words.findIndex(w => /^\d+$/.test(w));
+        if (splitIdx > 0) {
+            words = words.slice(0, splitIdx);
+        }
         const first = (words[0] || "").toLowerCase().replace(/[^a-z0-9]/g, "");
         let anchored = null;
         if (first.length >= 3) {
@@ -129,7 +146,7 @@ export const RivenOCRService = {
                 }
             }
         }
-        return anchored || this._matchStat(rawName);
+        return anchored || this._matchStat(words.join(" "));
     },
 
     /**
@@ -261,7 +278,11 @@ export const RivenOCRService = {
                 const weight = st.isPositive ? weights.buff : weights.curse;
                 const expected = Math.abs(base * disp * weight * SCALING);
                 if (expected > 0) {
-                    const ratio = Math.abs(st.value) / expected;
+                    let ratio = Math.abs(st.value) / expected;
+                    if (ratio > 2.8 && Number.isInteger(st.value) && ratio / 10 >= 0.35 && ratio / 10 <= 2.8) {
+                        st.value /= 10;
+                        ratio /= 10;
+                    }
                     if (ratio < 0.35 || ratio > 2.8) {
                         issues.push(`stat "${st.name}" ${st.value}% off-range (≈${expected.toFixed(0)} expected)`);
                         st.suspicious = true;
@@ -327,7 +348,8 @@ export const RivenOCRService = {
         let mr = null;
 
         const ROLL_LINE = /(\d+)\s*(?:roll|ciclo|○)/i;
-        const MR_LINE = /\bMR\s*(\d+)/i;
+        const MR_LINE = /MR\s*(\d+)/i;
+        const PIE_LINE = /(?:^|\s)(\d{1,2})\s+0(\d{1,3})(?!\d)/;
         const STAT_ANCHOR = /[+\-–—]?\s*\d{1,4}(?:[.,]\d{1,2})?\s*%/;
 
         // Pass 1a: pull out MR / rolls, keep the rest in order, and find where the stat block starts.
@@ -336,13 +358,22 @@ export const RivenOCRService = {
         for (let i = 0; i < lines.length; i++) {
             const norm = this._normalize(lines[i]);
             const mrMatch = norm.match(MR_LINE);
+            const pie = !mrMatch && firstStatIdx !== -1 ? norm.match(PIE_LINE) : null;
+            if (pie) {
+                const nivel = parseInt(pie[1]);
+                if (nivel >= 8 && nivel <= 16) mr = nivel;
+                if (rolls === null) rolls = parseInt(pie[2]);
+                break;
+            }
             if (mrMatch) {
                 mr = parseInt(mrMatch[1]);
-                // The reroll counter (↻ N) shares the MR line. The ↻ glyph itself often OCRs as a
-                // stray digit (e.g. 0), so take the LAST number on the line — the reroll count is
-                // always rightmost ("MR 14   ↻ 15").
-                const nums = norm.slice(mrMatch.index + mrMatch[0].length).match(/\d{1,3}/g);
-                if (nums && rolls === null) rolls = parseInt(nums[nums.length - 1]);
+                // The reroll counter (↻ N) shares the MR line. The ↻ glyph often OCRs as a 0, alone
+                // ("MR 14 0 15") or glued to the count ("MR 13 015)"), so it is dropped and the first
+                // number left is the count; trailing art noise can also read as digits.
+                const nums = (norm.slice(mrMatch.index + mrMatch[0].length).match(/\d+/g) || [])
+                    .filter((n) => n !== "0").map((n) => n.replace(/^0/, ""));
+                if (nums.length && rolls === null) rolls = parseInt(nums[0]);
+                if (firstStatIdx !== -1) break;
                 continue;
             }
             const rollMatch = norm.match(ROLL_LINE);
@@ -372,14 +403,14 @@ export const RivenOCRService = {
             // The number allows a SPACE decimal ("82 4%" → 82.4, OCR often drops the dot). The name
             // uses ".*?" (not "[^%]") so a stray noise "%" (e.g. "% CONFIRM") can't block the last
             // stat from terminating at end-of-block.
-            const PCT_RE = /([+\-–—])?\s*(\d{1,4}(?:[.,\s]\d{1,2})?)\s*%\s*(.*?)\s*(?=\s*[+\-–—]?\s*\d{1,4}(?:[.,\s]\d{1,2})?\s*%|\s*x\s*[0-9]|$)/gi;
+            const PCT_RE = /([+\-–—])?\s*(\d{1,4}(?:[.,\s]{1,2}\d{1,2})?)\s*%\s*(.*?)\s*(?=\s*[+\-–—]?\s*\d{1,4}(?:[.,\s]{1,2}\d{1,2})?\s*%|\s*x\s*[0-9]|$)/gi;
             let m;
             while ((m = PCT_RE.exec(statBlock)) !== null) {
-                if (!m[2]) continue;
+                if (!m[2] || /^0\d/.test(m[2])) continue;
                 const sign = (m[1] && /[\-–—]/.test(m[1])) ? "-" : "+";
-                let value = parseFloat(m[2].replace(/[,\s]+/g, "."));
+                let value = parseFloat(m[2].replace(/[.,\s]+/g, "."));
                 // Recover a dropped decimal point (e.g. 1215 → 121.5, 822 → 82.2)
-                if (value > 450 && value < 9999) value = parseFloat((value / 10).toFixed(1));
+                if (value > 450 && value < 9999 && !/[.,\s]/.test(m[2])) value = parseFloat((value / 10).toFixed(1));
                 // Un riven sin rango baja a ~6% ("+6.2% Magazine Capacity"); por debajo de 4 es ruido
                 // del arte que casualmente casó con un nombre.
                 if (value < 4) continue;
@@ -410,7 +441,7 @@ export const RivenOCRService = {
                     } else {
                         isPositive = sign === "+";
                     }
-                    stats.push({ name: matchedName, value, isPositive, matched: true });
+                    stats.push({ name: matchedName, value, isPositive, matched: true, pos: m.index });
                 }
             }
 
@@ -435,6 +466,9 @@ export const RivenOCRService = {
                 { re: /GRIN|GRJN|GR1N|GRTN/i, name: "Damage to Grineer" },
                 { re: /CORP|C0RP|CDRP/i, name: "Damage to Corpus" },
                 { re: /INFES|1NFES|NFEST|INFST/i, name: "Damage to Infested" },
+                { re: /OROK|0ROK|OR0K|ROKIN/i, name: "Damage to Orokin" },
+                { re: /TECHR|T3CHR|ECHRO/i, name: "Damage to Techrot" },
+                { re: /[S5]CA[LI1|]D|CA[LI1|]DR/i, name: "Damage to Scaldra" },
             ];
             let mm;
             while ((mm = MULT_RE.exec(statBlock)) !== null) {
@@ -444,9 +478,21 @@ export const RivenOCRService = {
                 const matchedName = FACTION_MULT.find(f => f.re.test(name))?.name || null;
                 if (matchedName && !stats.some(s => s.name === matchedName)) {
                     const value = parseFloat((Math.abs(mult - 1) * 100).toFixed(1));
-                    stats.push({ name: matchedName, value, isPositive: mult > 1, matched: true });
+                    stats.push({ name: matchedName, value, isPositive: mult > 1 || !canBeNegative(matchedName), matched: true, pos: mm.index });
                 }
             }
+
+            const UNIT_RE = /(?<![\d.,])([+\-–—])?\s*(\d{1,3}(?:[.,]{1,2}\d{1,2})?)(?![\d.,]|\s*%)\s*([a-zA-Z][a-zA-Z\s]*?)\s*(?=[+\-–—]?\s*\d|x\s*\d|$|[^a-zA-Z\s])/g;
+            let mu;
+            while ((mu = UNIT_RE.exec(statBlock)) !== null) {
+                const value = parseFloat(mu[2].replace(/[.,]+/g, "."));
+                const matchedName = this._statSinPorcentaje(mu[3]);
+                if (!(value > 0 && value < 100) || !matchedName || stats.some((s) => s.name === matchedName)) continue;
+                const isPositive = !canBeNegative(matchedName) || !/[\-–—]/.test(mu[1] || "");
+                stats.push({ name: matchedName, value, isPositive, matched: true, pos: mu.index });
+            }
+            stats.sort((a, b) => a.pos - b.pos);
+            for (const s of stats) delete s.pos;
 
             // Pass 2: weapon & riven name from the content lines above the stat block.
             // Elige por CALIDAD de match entre TODAS las líneas candidatas, no por cercanía al

@@ -12,7 +12,8 @@ import {
 } from "../../utils/rivens/riven_logic.js";
 import { statUnit } from "../../utils/rivens/riven_stat_display.js";
 import { getMetaStats } from "../../services/rivens/riven_market.service.js?v=1.9";
-import { computeDesirabilityMultiplier } from "../../services/rivens/riven_appraisal.service.js";
+import { computeDesirabilityMultiplier, statsBuscadosDelArma } from "../../services/rivens/riven_appraisal.service.js";
+import { cicloRivenHtml } from "./ui_riven_cycling.js";
 
 const AVISO_BANDA = {
     trash: {
@@ -360,6 +361,7 @@ export function generateRollResultsDOM(roll, weaponData, weaponName, currentRank
     warningHtml, isEs, withSimilarButton: false,
     histLoading: !!(state.currentWeaponHistory?.weaponName === weaponName && state.currentWeaponHistory.loading)
   });
+  estCard.insertAdjacentHTML("beforeend", cicloRivenHtml({ stats, meta, tipo: weaponData?.t || meta?.t, deseados: statsBuscadosDelArma(meta, weaponName), rolls: roll.rolls, isEs }));
 
   const wrapper = document.createElement("div");
   wrapper.style = "display: flex; flex-direction: column; gap: 12px; width: 100%;";

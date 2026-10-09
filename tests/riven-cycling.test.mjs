@@ -10,9 +10,9 @@ globalThis.localStorage = { getItem: () => null, setItem() {}, removeItem() {} }
 
 const {
     costeCiclo, kuvaEsperada, poolDeStats, claveStat, probPorCiclo, consejoDeCiclo,
-    recetasDelTipo, combinacionesDe,
+    recetasDelTipo, combinacionesDe, RECETAS_COMBINAR, planesDeFusion,
 } = await import("../deploy/js/utils/rivens/riven_cycling.js");
-const { consejoCicloHtml, tablaCicloHtml, textoKuva, textoCiclos } =
+const { consejoCicloHtml, cicloRivenHtml, tablaCicloHtml, textoKuva, textoCiclos, combinarOverlay, objetivoFusionHtml, combinarCartaHtml } =
     await import("../deploy/js/ui.components/rivens/ui_riven_cycling.js");
 
 const cerca = (a, b, msg) => assert.ok(Math.abs(a - b) < 1e-6, `${msg}: ${a} != ${b}`);
@@ -44,7 +44,11 @@ test("el pool sale de los stats con valor base en ese tipo de arma", () => {
     const melee = poolDeStats(3);
     assert.ok(melee.includes("Attack Speed") && melee.includes("Range"));
     assert.ok(!melee.includes("Multishot") && !melee.includes("Fire Rate"));
-    assert.ok(!poolDeStats(1).includes("Zoom"), "las escopetas no sacan Zoom");
+    assert.ok(poolDeStats(1).includes("Zoom"), "las escopetas sí sacan Zoom");
+    for (let t = 0; t <= 4; t++) {
+        const pool = poolDeStats(t);
+        assert.ok(!RECETAS_COMBINAR.some((r) => pool.includes(r.resultado)), "un stat fusionado nunca sale al ciclar");
+    }
 });
 
 test("cada fuente llama a los stats a su manera y todas acaban en la misma clave", () => {
@@ -125,18 +129,26 @@ test("sin datos para calcular no se inventa un consejo", () => {
 });
 
 test("las recetas de combinar dependen del tipo de arma", () => {
+    assert.equal(RECETAS_COMBINAR.length, 22);
     assert.equal(recetasDelTipo(0).length, 18);
-    assert.equal(recetasDelTipo(1).length, 16, "sin las dos de Zoom");
+    assert.equal(recetasDelTipo(1).length, 18);
+    assert.equal(recetasDelTipo(2).length, 18);
+    assert.equal(recetasDelTipo(4).length, 16);
     const melee = recetasDelTipo(3);
-    assert.equal(melee.length, 12);
-    assert.ok(melee.some((r) => r.resultado[1] === "Parry Angle"));
+    assert.equal(melee.length, 14);
+    assert.ok(melee.some((r) => r.resultado === "Parry Angle"));
     assert.ok(!melee.some((r) => r.b === "Multishot"));
 });
 
 test("un riven puede combinar dos de sus stats, sean positivos o negativos", () => {
     const r = combinacionesDe([pos("Crit Chance"), pos("Multishot"), neg("Zoom")], 0);
     assert.deepEqual(r.map((x) => `${x.a}+${x.b}`).sort(), ["Critical Chance+Multishot", "Critical Chance+Zoom"]);
-    assert.ok(r.every((x) => x.resultado[1] === "Weak Point Critical Chance"));
+    assert.ok(r.every((x) => x.resultado === "Weak Point Critical Chance"));
+});
+
+test("un riven con un stat fusionado no puede fundir más stats", () => {
+    const r = combinacionesDe([pos("Gas"), pos("Toxin"), pos("Heat")], 0);
+    assert.deepEqual(r, []);
 });
 
 test("los textos de kuva y de ciclos de media", () => {
@@ -159,7 +171,8 @@ test("el bloque del escáner recomienda qué bloquear y cuánto se ahorra", () =
     const ya = consejoCicloHtml({ ...RIFLE, rolls: 9, tipo: "Rifle", isEs: false,
         stats: [pos("Crit Chance"), pos("Multishot"), neg("Zoom")] });
     assert.match(ya, /already meets the goal/);
-    assert.match(ya, /SPLICE STATS \(NOT OUT YET\)/);
+    assert.match(ya, /SPLICE STATS/);
+    assert.doesNotMatch(ya, /NOT OUT YET/);
     assert.match(ya, /Weak Point Critical Chance/);
 
     assert.equal(consejoCicloHtml({ ...RIFLE, tipo: "Rifle", isEs: true, stats: [pos("Algo raro"), pos("Zoom")] }), "");
@@ -184,6 +197,190 @@ test("la calculadora de la ficha dice qué hacer con cada tipo de riven", () => 
     assert.match(html, /<tr class="mejor"><th>3 positivos<\/th><td>Bloquea un stat bueno: ~4 ciclos \(~28k kuva\)/);
     // 2+1: el otro positivo tiene que ser bueno Y el negativo inofensivo; bloqueando no compensa.
     assert.match(html, /<tr class=""><th>2 positivos y 1 negativo<\/th><td>No bloquees: ~41 ciclos/);
-    assert.match(html, /Daño a punto débil/);
+    assert.match(html, /Daño a Punto Débil/);
     assert.equal(tablaCicloHtml({ tipo: "Melee", buscados: ["Multishot"], negOk: [], isEs: true }), "");
+});
+
+test("un stat combinado se queda en todas las cartas del ciclo", () => {
+    const pool = poolDeStats(0);
+    const n = pool.length;
+    assert.equal(probPorCiclo({ pool, buscados: ["Gas"], k: 1, negOk: pool, typeIdx: 0, fusionado: "Gas" }), 1);
+    cerca(probPorCiclo({ pool, buscados: ["Gas", "Critical Chance"], k: 2, negOk: pool, typeIdx: 0, fusionado: "Gas" }),
+        1.5 / n, "falta el otro buscado: 1/n en las de 2 positivos y 2/n en las de 3");
+});
+
+test("el combinado cuenta para el objetivo si vale como un buscado", () => {
+    const pesos = { Toxin: 0.9, Heat: 0.9, "Critical Chance": 0.8, "Critical Damage": 0.8 };
+    const args = { typeIdx: 0, buscados: ["Critical Chance", "Critical Damage"], negOk: ["Zoom"],
+        stats: [pos("Gas"), pos("Crit Chance"), neg("Zoom")] };
+    const c = consejoDeCiclo({ ...args, pesos });
+    assert.equal(c.fusionado, "Gas");
+    assert.equal(c.cumple, true);
+    assert.equal(consejoDeCiclo({ ...args, pesos: null }).cumple, false);
+    assert.equal(consejoDeCiclo({ ...args, pesos, stats: [pos("Gas"), pos("Viral"), pos("Crit Chance")] }), null);
+});
+
+const PESOS_FUSION = { Toxin: 0.7, Heat: 0.7, "Critical Chance": 0.9, "Critical Damage": 0.9, Multishot: 0.6 };
+const OBJ_FUSION = { typeIdx: 0, pesos: PESOS_FUSION, buscados: ["Critical Chance", "Critical Damage", "Multishot"], negOk: ["Zoom"], ciclosHechos: 9 };
+
+test("con las dos fuentes en el riven, combinar ya cumple el objetivo", () => {
+    const planes = planesDeFusion({ ...OBJ_FUSION, stats: [pos("Toxin"), pos("Heat"), pos("Crit Chance")] });
+    assert.equal(planes[0].receta.resultado, "Gas");
+    assert.equal(planes[0].fuentes, null);
+    assert.equal(planes[0].cumple, true);
+    assert.equal(planes[0].total, 0);
+    assert.equal(planes[0].compensa, true);
+});
+
+test("con una fuente se bloquea hasta que salga la otra y luego se cicla con el combinado fijo", () => {
+    const n = poolDeStats(0).length;
+    const planes = planesDeFusion({ ...OBJ_FUSION, stats: [pos("Toxin"), pos("Crit Chance")] });
+    const gas = planes.find((p) => p.receta.resultado === "Gas");
+    assert.equal(gas.fuentes.bloquea, "Toxin");
+    assert.equal(gas.fuentes.negativo, false);
+    assert.equal(gas.fuentes.falta, "Heat");
+    cerca(gas.fuentes.p, 1 / (n - 1), "2 positivos con Toxin fijo: el otro sale de n-1");
+    assert.equal(gas.fuentes.kuva, kuvaEsperada(gas.fuentes.p, 9, true));
+    assert.equal(gas.despues.bloquea, null);
+    assert.equal(gas.total, gas.fuentes.kuva + gas.despues.kuva);
+    assert.equal(gas.cumple, false);
+    assert.deepEqual(planesDeFusion({ ...OBJ_FUSION, stats: [pos("Gas"), pos("Toxin")] }), []);
+});
+
+test("la ficha del riven pinta el consejo y los planes de combinar", () => {
+    const stats = [pos("Toxin"), pos("Crit Chance")];
+    const html = consejoCicloHtml({ ...OBJ_FUSION, rolls: 9, tipo: "Rifle", isEs: true, stats });
+    assert.match(html, /APUNTAR A UN STAT COMBINADO/);
+    assert.match(html, /Bloquea \+Toxina hasta que salga Calor/);
+
+    const deseados = { best: OBJ_FUSION.buscados, mid: [], pesos: PESOS_FUSION };
+    const conValor = [{ name: "Toxin", value: 90 }, { name: "Critical Chance", value: 100 }, { name: "Zoom", value: -30 }];
+    const ficha = cicloRivenHtml({ stats: conValor, meta: {}, tipo: "Rifle", deseados, rolls: 9, isEs: true });
+    assert.match(ficha, /¿BLOQUEAR UN STAT\?/);
+    assert.match(ficha, /APUNTAR A UN STAT COMBINADO/);
+    assert.equal(cicloRivenHtml({ stats: [], meta: {}, tipo: "Rifle", deseados, isEs: true }), "");
+});
+
+test("el overlay avisa cuando los stats actuales se combinan en uno que el arma quiere", () => {
+    const c = combinarOverlay({ ...OBJ_FUSION, rolls: 9, tipo: "Rifle", isEs: true,
+        stats: [pos("Toxin"), pos("Heat"), pos("Crit Chance")] });
+    assert.equal(c.rotulo, "PUEDES COMBINAR");
+    assert.deepEqual(c.listas, [{ indice: 0, texto: "Gas = Toxina + Calor", veredicto: { texto: "cumple la meta", tono: "verde" } }]);
+    assert.equal(c.titulo, null);
+    assert.equal(c.paso, null);
+    assert.equal(c.opciones.find((o) => o.indice === 0).estado, "lista");
+});
+
+test("el aviso también salta si combinar quita un negativo malo, aunque no cumpla la meta", () => {
+    const { listas } = combinarOverlay({ ...OBJ_FUSION, rolls: 9, tipo: "Rifle", isEs: false,
+        stats: [pos("Zoom"), pos("Toxin"), neg("Crit Chance")] });
+    assert.equal(listas.length, 1);
+    assert.match(listas[0].texto, / = Crit Chance \+ Zoom$/);
+    assert.deepEqual(listas[0].veredicto, { texto: "better", tono: "verde" });
+});
+
+test("con una sola fuente el combinado sale a un stat y el recomendado va marcado", () => {
+    const c = combinarOverlay({ ...OBJ_FUSION, rolls: 9, tipo: "Rifle", isEs: false,
+        stats: [pos("Toxin"), pos("Crit Chance")] });
+    assert.equal(c.rotulo, "YOU CAN SPLICE");
+    assert.deepEqual(c.listas, []);
+    const gas = c.opciones.find((o) => o.indice === 0);
+    assert.equal(gas.estado, "falta");
+    assert.equal(gas.falta, "Heat");
+    const recomendadas = c.opciones.filter((o) => o.recomendada);
+    assert.equal(recomendadas.length, 1);
+    assert.equal(recomendadas[0].estado, "falta");
+    assert.equal(c.opciones.find((o) => o.indice === 6).estado, "otra");
+    assert.deepEqual(c.cerca, [{ texto: "★ Gas = Toxin + Heat", tono: "blanco" }, { texto: "needs Heat", tono: "gris" }]);
+});
+
+test("sin nada listo la carta dice lo que tiene a un stat, o que ya lleva un combinado", () => {
+    const cerca = (stats) => combinarOverlay({ ...OBJ_FUSION, rolls: 9, tipo: "Rifle", isEs: true, stats }).cerca;
+    assert.deepEqual(cerca([pos("Crit Damage"), pos("Damage")]), [{ texto: "Nada listo · a un stat: Daño a Punto Débil, Daño de Estado", tono: "gris" }]);
+    assert.deepEqual(cerca([pos("Puncture"), pos("Punch Through")]), [{ texto: "Nada que combinar", tono: "gris" }]);
+    assert.deepEqual(cerca([pos("Gas"), pos("Damage")]), [{ texto: "Ya tiene Gas", tono: "gris" }]);
+});
+
+test("un riven que ya cumple el objetivo avisa de que combinar empeora y no recomienda nada", () => {
+    const c = combinarOverlay({ ...OBJ_FUSION, rolls: 9, tipo: "Rifle", isEs: true,
+        stats: [pos("Crit Chance"), pos("Crit Damage"), neg("Zoom")] });
+    assert.equal(c.listas.length, 1);
+    assert.deepEqual(c.listas[0].veredicto, { texto: "empeora", tono: "naranja" });
+    assert.ok(!c.opciones.some((o) => o.recomendada));
+});
+
+test("con un objetivo elegido cada carta dice qué le falta para llegar", () => {
+    const base = { ...OBJ_FUSION, rolls: 9, tipo: "Rifle", isEs: true, objetivo: 3 };
+    const falta = combinarOverlay({ ...base, stats: [pos("Electric"), pos("Damage"), pos("Multishot")] });
+    assert.equal(falta.titulo, "Buscas: Radiación");
+    assert.equal(falta.objetivo, 3);
+    assert.equal(falta.paso[0].texto, "Bloquea +Electricidad hasta Calor");
+    assert.match(falta.paso[1].texto, /^~\d+ ciclos$/);
+    assert.match(falta.paso[2].texto, / kuva$/);
+
+    const lista = combinarOverlay({ ...base, stats: [pos("Heat"), pos("Electric"), pos("Damage")] });
+    assert.deepEqual(lista.listas.find((l) => l.indice === 3).veredicto, { texto: "tu objetivo", tono: "verde" });
+    assert.equal(lista.paso, null);
+
+    const otra = combinarOverlay({ ...base, stats: [pos("Gas"), pos("Damage")] });
+    assert.deepEqual(otra.paso, [{ texto: "ya tiene Gas", tono: "naranja" }]);
+    const hecha = combinarOverlay({ ...base, objetivo: 0, stats: [pos("Gas"), pos("Damage")] });
+    assert.deepEqual(hecha.paso, [{ texto: "conseguido", tono: "verde" }]);
+
+    const lejos = combinarOverlay({ ...base, objetivo: 6, stats: [pos("Electric"), pos("Damage")] });
+    assert.equal(lejos.paso[0].texto, "Cicla hasta Daño a Corpus + Daño a Grineer");
+});
+
+test("un objetivo de otro tipo de arma se ignora", () => {
+    const c = combinarOverlay({ ...OBJ_FUSION, rolls: 9, tipo: "Rifle", isEs: true, objetivo: 18,
+        stats: [pos("Electric"), pos("Damage")] });
+    assert.equal(c.objetivo, null);
+    assert.equal(c.titulo, null);
+    assert.equal(c.paso, null);
+});
+
+test("el selector agrupa los combinados por lo cerca que están y marca el elegido", () => {
+    const c = combinarOverlay({ ...OBJ_FUSION, rolls: 9, tipo: "Rifle", isEs: true, objetivo: 3,
+        stats: [pos("Toxin"), pos("Electric"), pos("Damage")] });
+    const html = objetivoFusionHtml(c, true);
+    const grupos = [...html.matchAll(/<optgroup label="([^"]+)">/g)].map((m) => m[1]);
+    assert.deepEqual(grupos, ["YA PUEDES COMBINAR", "TE FALTA UN STAT", "RESTO"]);
+    assert.match(html, /<option value="">Ninguno<\/option>/);
+    assert.match(html, /<option class="lista" value="1">✓ Corrosivo = Toxina \+ Electricidad/);
+    assert.match(html, /<option class="falta" value="3" selected>Radiación = Calor \+ Electricidad · falta Calor<\/option>/);
+    assert.equal(objetivoFusionHtml(null, true), "");
+    assert.equal(objetivoFusionHtml([], false), "");
+});
+
+test("con dos cartas el selector toma lo mejor de cada una sin mezclar sus faltas", () => {
+    const base = { ...OBJ_FUSION, rolls: 9, tipo: "Rifle", isEs: true };
+    const a = combinarOverlay({ ...base, stats: [pos("Toxin"), pos("Electric"), pos("Damage")] });
+    const b = combinarOverlay({ ...base, stats: [pos("Heat"), pos("Damage"), pos("Crit Chance")] });
+    const html = objetivoFusionHtml([a, b], true);
+    assert.match(html, /<option class="lista" value="1">✓ Corrosivo/);
+    assert.match(html, /<option class="falta" value="3">Radiación = Calor \+ Electricidad<\/option>/);
+    assert.match(html, /<option class="falta" value="2">Viral = Toxina \+ Frío · falta Frío<\/option>/);
+});
+
+test("cada carta enseña sus combinados listos y su paso hacia el objetivo", () => {
+    const c = combinarOverlay({ ...OBJ_FUSION, rolls: 9, tipo: "Rifle", isEs: true, objetivo: 3,
+        stats: [pos("Toxin"), pos("Electric"), pos("Damage")] });
+    const html = combinarCartaHtml(c);
+    assert.match(html, /<div class="riven-combinar-lista"><span>Corrosivo = Toxina \+ Electricidad<\/span>/);
+    assert.match(html, /<strong class="mal">empeora<\/strong>/);
+    assert.match(html, /<div class="riven-combinar-paso"><span>Bloquea \+Electricidad hasta Calor<\/span><strong>~\d+ ciclos · ~[\d.k]+ kuva<\/strong>/);
+    const hecha = combinarOverlay({ ...OBJ_FUSION, rolls: 9, tipo: "Rifle", isEs: true, objetivo: 0, stats: [pos("Gas"), pos("Damage")] });
+    assert.equal(combinarCartaHtml(hecha), '<div class="riven-combinar-carta"><div class="riven-combinar-paso"><span class="ok">conseguido</span></div></div>');
+    assert.equal(combinarCartaHtml(null), "");
+    assert.equal(combinarCartaHtml(combinarOverlay({ ...OBJ_FUSION, rolls: 9, tipo: "Rifle", isEs: true, stats: [pos("Crit Damage"), pos("Damage")] })),
+        '<div class="riven-combinar-carta"><div class="riven-combinar-paso"><span class="tenue">Nada listo · a un stat: Daño a Punto Débil, Daño de Estado</span></div></div>');
+    assert.doesNotMatch(html, /★/, "con algo listo o un paso no se enseña el más cercano");
+    assert.equal(combinarCartaHtml({ listas: [], paso: null, cerca: null }), "");
+});
+
+test("el HUD del escáner puede pedir el consejo de ciclo sin los bloques de combinar", () => {
+    const stats = [pos("Toxin"), pos("Crit Chance")];
+    const html = consejoCicloHtml({ ...OBJ_FUSION, rolls: 9, tipo: "Rifle", isEs: true, stats, conCombinar: false });
+    assert.match(html, /¿BLOQUEAR UN STAT\?/);
+    assert.doesNotMatch(html, /APUNTAR A UN STAT COMBINADO|COMBINAR STATS/);
 });

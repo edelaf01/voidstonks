@@ -15,11 +15,6 @@ import { getRivenStatRange } from "./riven_logic.js";
  * `combo_count_chance`, que en RIVEN_STATS se llaman `critical_chance_on_slide_attack` y
  * `chance_to_gain_extra_combo_count`. Mismo efecto y mismo arreglo.
  *
- * Siguen sin nombre tres stats que sí existen en RIVEN_STATS: `initial_combo`,
- * `heavy_attack_efficiency` y `finisher_damage`. No se inventan: un fragmento equivocado hace
- * que el escáner "corrija" el OCR hacia un nombre que no existe. Un riven con esos stats se
- * nombra hoy con los demás.
- *
  * Por eso el test comprueba que cada clave de aquí exista en RIVEN_STATS: es lo que habría
  * cazado la deriva.
  */
@@ -45,13 +40,34 @@ export const RIVEN_NAMING_DICT = {
     "projectile_flight_speed": { prefix: "Conci", suffix: "nak" },
     "zoom": { prefix: "Hera", suffix: "lis" },
     "punch_through": { prefix: "Lexi", suffix: "nok" },
-    "range": { prefix: "Locta", suffix: "tox" },
-    "combo_duration": { prefix: "Tempa", suffix: "tis" },
-    "critical_chance_on_slide_attack": { prefix: "Pleci", suffix: "ment" },
-    "chance_to_gain_extra_combo_count": { prefix: "Pram", suffix: "co" },
+    "range": { prefix: "Locti", suffix: "tor" },
+    "combo_duration": { prefix: "Tempi", suffix: "nem" },
+    "critical_chance_on_slide_attack": { prefix: "Pleci", suffix: "nent" },
+    "chance_to_gain_extra_combo_count": { prefix: "Laci", suffix: "nus" },
     "damage_vs_corpus": { prefix: "Manti", suffix: "tron" },
     "damage_vs_grineer": { prefix: "Argi", suffix: "con" },
     "damage_vs_infested": { prefix: "Pura", suffix: "ada" },
+    "heavy_attack_efficiency": { prefix: "Forti", suffix: "us" },
+    "finisher_damage": { prefix: "Exi", suffix: "cta" },
+    "initial_combo": { prefix: "Para", suffix: "um" },
+    "weak_point_damage": { prefix: "Eni", suffix: "vo" },
+    "weak_point_critical_chance": { prefix: "Exiti", suffix: "eus" },
+    "ammo_efficiency": { prefix: "Parci", suffix: "pia" },
+    "magazine_reload_when_holstered": { prefix: "Auxi", suffix: "rro" },
+    "status_damage": { prefix: "Plaga", suffix: "mna" },
+    "gas_damage": { prefix: "Cali", suffix: "fel" },
+    "corrosive_damage": { prefix: "Cori", suffix: "or" },
+    "viral_damage": { prefix: "Cari", suffix: "sco" },
+    "radiation_damage": { prefix: "Radi", suffix: "lo" },
+    "blast_damage": { prefix: "Fraga", suffix: "tus" },
+    "magnetic_damage": { prefix: "Magni", suffix: "bra" },
+    "damage_vs_orokin": { prefix: "Effi", suffix: "tas" },
+    "damage_vs_techrot": { prefix: "Muti", suffix: "gia" },
+    "damage_vs_scaldra": { prefix: "Exsi", suffix: "llo" },
+    "heavy_attack_damage": { prefix: "Robi", suffix: "ndo" },
+    "heavy_attack_wind_up_speed": { prefix: "Veri", suffix: "lus" },
+    "parry_angle": { prefix: "Defi", suffix: "so" },
+    "slam_attack_damage": { prefix: "Proxi", suffix: "lam" },
 };
 
 /**
@@ -134,4 +150,45 @@ export function rivenFingerprint(parsed) {
     if (!parsed) return "null";
     const stats = parsed.stats.map((st) => `${st.isPositive ? "+" : "-"}${st.name}`).sort().join(",");
     return `${parsed.weaponName || "?"}|${stats}`;
+}
+
+// Helper to canonicalize names for matching
+export function getCanonicalStatKey(name) {
+    if (!name) return "";
+    const clean = name.toLowerCase().replaceAll('_', " ").replaceAll('-', " ").trim();
+    const fusionado = RIVEN_STATS.find((s) => s.spliced
+        && (s.name_en.toLowerCase() === clean || s.slug.replaceAll("_", " ") === clean
+            || s.name_en.toLowerCase().replace("weak point", "weakpoint") === clean));
+    if (fusionado) return fusionado.slug;
+    if (clean.includes("critical chance")) return "critical_chance";
+    if (clean.includes("critical damage")) return "critical_damage";
+    if (clean.includes("multishot")) return "multishot";
+    if (clean.includes("melee range") || clean.includes("range")) return "range";
+    if (clean.includes("base damage") || clean.includes("melee damage") || clean === "damage") return "damage";
+    if (clean.includes("fire rate") || clean.includes("attack speed") || clean === "speed") return "speed";
+    if (clean.includes("status chance")) return "status_chance";
+    if (clean.includes("status duration")) return "status_duration";
+    if (clean.includes("toxin")) return "toxin";
+    if (clean.includes("heat")) return "heat";
+    if (clean.includes("electricity") || clean.includes("electric")) return "electricity";
+    if (clean.includes("cold")) return "cold";
+    if (clean.includes("impact")) return "impact";
+    if (clean.includes("puncture")) return "puncture";
+    if (clean.includes("slash")) return "slash";
+    if (clean.includes("recoil")) return "recoil";
+    if (clean.includes("magazine")) return "magazine_capacity";
+    if (clean.includes("reload")) return "reload_speed";
+    if (clean.includes("ammo")) return "ammo_maximum";
+    if (clean.includes("flight") || clean.includes("projectile speed")) return "flight_speed";
+    if (clean.includes("zoom")) return "zoom";
+    if (clean.includes("punch")) return "punch_through";
+    if (clean.includes("combo duration")) return "combo_duration";
+    if (clean.includes("slide crit") || clean.includes("slide attack")) return "slide_crit";
+    if (clean.includes("extra combo count") || clean.includes("combo count chance") || clean.includes("combo_count_chance")) return "combo_count_chance";
+    if (clean.includes("channeling damage") || clean.includes("initial combo")) return "initial_combo";
+    if (clean.includes("channeling efficiency") || clean.includes("heavy attack efficiency") || clean.includes("heavy efficiency")) return "heavy_efficiency";
+    if (clean.includes("corpus")) return "vs_corpus";
+    if (clean.includes("grineer")) return "vs_grineer";
+    if (clean.includes("infested")) return "vs_infested";
+    return clean;
 }

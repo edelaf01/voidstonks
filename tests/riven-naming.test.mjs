@@ -32,12 +32,9 @@ test("cada clave del diccionario es un slug que existe en RIVEN_STATS", () => {
     "estas entradas no las va a encontrar nadie: el stat se cae del nombre sin avisar");
 });
 
-// Al revés no se exige: hay stats que el diccionario todavía no nombra y sus fragmentos no se
-// inventan (un fragmento equivocado hace que el escáner "corrija" hacia un nombre inexistente).
-// Lo que sí se congela es CUÁLES faltan, para que al añadir uno se note.
-test("los stats que aún no tienen nombre son exactamente estos tres", () => {
+test("todos los stats tienen nombre", () => {
   const sinNombre = RIVEN_STATS.filter((s) => !RIVEN_NAMING_DICT[s.slug]).map((s) => s.slug).sort();
-  assert.deepEqual(sinNombre, ["finisher_damage", "heavy_attack_efficiency", "initial_combo"]);
+  assert.deepEqual(sinNombre, []);
 });
 
 test("ningún prefijo ni sufijo queda vacío", () => {
@@ -151,7 +148,7 @@ test("un stat sin entrada en la tabla no rompe el nombre", () => {
 test("Alcance y Velocidad de proyectil sí aportan al nombre", () => {
   const melee = { name: "Nikana", t: "Melee", disposition: 1.0 };
   const conRango = generateRivenName("Nikana", [stat("Range", 100)], melee, 1, false, 8);
-  assert.equal(conRango, "Nikana Loctatox", "Alcance usa el slug `range`");
+  assert.equal(conRango, "Nikana Loctitor", "Alcance usa el slug `range`");
 
   const conVelocidad = generateRivenName(
     "Kuva Bramma", [stat("Projectile Speed", 100)], arma, 1, false, 8);

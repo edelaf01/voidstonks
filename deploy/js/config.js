@@ -151,6 +151,24 @@ export const RIVEN_STATS = [
     name_en: "Damage to Infested",
     name_es: "Daño a Infestados",
   },
+  { slug: "weak_point_damage", name_en: "Weak Point Damage", name_es: "Daño a Punto Débil", spliced: true },
+  { slug: "weak_point_critical_chance", name_en: "Weak Point Critical Chance", name_es: "Prob. Crítica en Punto Débil", spliced: true },
+  { slug: "ammo_efficiency", name_en: "Ammo Efficiency", name_es: "Eficiencia de Munición", spliced: true },
+  { slug: "magazine_reload_when_holstered", name_en: "Magazine Reload when Holstered", name_es: "Recarga al Enfundar", spliced: true },
+  { slug: "status_damage", name_en: "Status Damage", name_es: "Daño de Estado", spliced: true },
+  { slug: "gas_damage", name_en: "Gas", name_es: "Gas", spliced: true },
+  { slug: "corrosive_damage", name_en: "Corrosive", name_es: "Corrosivo", spliced: true },
+  { slug: "viral_damage", name_en: "Viral", name_es: "Viral", spliced: true },
+  { slug: "radiation_damage", name_en: "Radiation", name_es: "Radiación", spliced: true },
+  { slug: "blast_damage", name_en: "Blast", name_es: "Explosión", spliced: true },
+  { slug: "magnetic_damage", name_en: "Magnetic", name_es: "Magnético", spliced: true },
+  { slug: "damage_vs_orokin", name_en: "Damage to Orokin", name_es: "Daño a Orokin", spliced: true },
+  { slug: "damage_vs_techrot", name_en: "Damage to Techrot", name_es: "Daño a Techrot", spliced: true },
+  { slug: "damage_vs_scaldra", name_en: "Damage to Scaldra", name_es: "Daño a Scaldra", spliced: true },
+  { slug: "heavy_attack_damage", name_en: "Heavy Attack Damage", name_es: "Daño de Ataque Pesado", spliced: true },
+  { slug: "heavy_attack_wind_up_speed", name_en: "Heavy Attack Wind Up Speed", name_es: "Vel. Carga Ataque Pesado", spliced: true },
+  { slug: "parry_angle", name_en: "Parry Angle", name_es: "Ángulo de Bloqueo", spliced: true },
+  { slug: "slam_attack_damage", name_en: "Slam Attack Damage", name_es: "Daño de Ataque Terrestre", spliced: true },
 ];
 export const WEAPON_TYPE_IDX = {
   Rifle: 0,
@@ -170,6 +188,27 @@ export const WEAPON_TYPE_IDX = {
   Glaive: 3,
   Archgun: 4,
   "Arch-Gun": 4,
+};
+
+export const RIVEN_SPLICED_BASE_STATS = {
+  "Weak Point Damage": [25, 25, 25, 0, 25],
+  "Weak Point Critical Chance": [27.5, 27.5, 27.5, 0, 27.5],
+  "Ammo Efficiency": [5, 5, 5, 0, 5],
+  "Magazine Reload when Holstered": [10, 10, 10, 0, 0],
+  "Status Damage": [10, 10, 10, 10, 10],
+  "Gas": [10, 10, 10, 10, 10],
+  "Corrosive": [10, 10, 10, 10, 10],
+  "Viral": [10, 10, 10, 10, 10],
+  "Radiation": [10, 10, 10, 10, 10],
+  "Blast": [10, 10, 10, 10, 10],
+  "Magnetic": [10, 10, 10, 10, 10],
+  "Damage to Orokin": [5, 5, 5, 5, 5],
+  "Damage to Techrot": [5, 5, 5, 5, 5],
+  "Damage to Scaldra": [5, 5, 5, 5, 5],
+  "Heavy Attack Damage": [0, 0, 0, 13.3, 0],
+  "Heavy Attack Wind Up Speed": [0, 0, 0, 13.3, 0],
+  "Parry Angle": [0, 0, 0, 0.09, 0],
+  "Slam Attack Damage": [0, 0, 0, 13.3, 0],
 };
 
 export const RIVEN_BASE_STATS = {
@@ -197,7 +236,7 @@ export const RIVEN_BASE_STATS = {
   "Magazine Capacity": [5.5, 5.5, 5.5, 0, 6.7],
   "Reload Speed": [5.5, 5.5, 5.5, 0, 11.1],
   "Projectile Speed": [10, 10, 10, 0, 11.1],
-  Zoom: [6.7, 0, 8.9, 0, 6.7],
+  Zoom: [6.7, 4.67, 8.9, 0, 6.7],
   "Punch Through": [0.3, 0.3, 0.3, 0, 0.3],
   Recoil: [-10, -10, -10, 0, -10],
 
@@ -213,6 +252,7 @@ export const RIVEN_BASE_STATS = {
   "Damage to Grineer": [5, 5, 5, 5, 5],
   "Damage to Corpus": [5, 5, 5, 5, 5],
   "Damage to Infested": [5, 5, 5, 5, 5],
+  ...RIVEN_SPLICED_BASE_STATS,
 };
 
 // Bridges RIVEN_STATS.name_en → RIVEN_BASE_STATS keys where they differ.
@@ -248,6 +288,12 @@ export const IMPOSSIBLE_NEGATIVE_STATS = [
 export function canBeNegative(nameEn, typeIdx = null) {
   const key = resolveBaseStatKey(String(nameEn || "").trim(), typeIdx);
   const nl = key.toLowerCase();
+  const nlNoDamage = nl.replace(/ damage$/, "");
+  const isSpliced = Object.keys(RIVEN_SPLICED_BASE_STATS).some(s => {
+    const sl = s.toLowerCase();
+    return sl === nl || sl === nlNoDamage || sl.replace(/ damage$/, "") === nl;
+  });
+  if (isSpliced) return false;
   return !IMPOSSIBLE_NEGATIVE_STATS.some(s => s.toLowerCase() === nl);
 }
 

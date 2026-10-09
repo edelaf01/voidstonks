@@ -12,7 +12,7 @@ import {
   stopCuriosidades,
 } from "./ui_riven_curiosidades.js";
 import { damageMeta } from "../../utils/damage_types.js";
-import { RIVEN_STATS, TEXTS, WORKER_URL } from "../../config.js";
+import { RIVEN_STATS, TEXTS, WORKER_URL, canBeNegative } from "../../config.js";
 import { getRivenTooltip, getRivenMetricName } from "../../utils/rivens/riven_tooltips.js";
 import { renderMetaStats, refreshCurrentRivenMetaStats } from "./ui_riven_meta_stats.js";
 import {
@@ -24,7 +24,8 @@ import {
   renderMarketChip,
   generateRollResultsDOM,
 } from "./ui_riven_appraisal.js";
-import { computeDesirabilityMultiplier } from "../../services/rivens/riven_appraisal.service.js";
+import { cicloRivenHtml } from "./ui_riven_cycling.js";
+import { computeDesirabilityMultiplier, statsBuscadosDelArma } from "../../services/rivens/riven_appraisal.service.js";
 import { getLocalizedStatName, CANT_BE_NEGATIVE } from "../../utils/rivens/riven_stat_display.js";
 import { extractFamilyName, VARIANT_PREFIXES, VARIANT_SUFFIXES } from "../../utils/rivens/riven_family.js";
 import { getWeaponHistory, getRivenIndex } from "../../services/rivens/riven_index.service.js";
@@ -112,7 +113,11 @@ export function populateRivenSelects(weaponType = "Rifle") {
     "ammo_maximum",
     "reload_speed",
     "projectile_flight_speed",
-    "zoom"
+    "zoom",
+    "weak_point_damage",
+    "weak_point_critical_chance",
+    "ammo_efficiency",
+    "magazine_reload_when_holstered"
   ];
 
   const excludedMeleeSlugs = [
@@ -122,7 +127,11 @@ export function populateRivenSelects(weaponType = "Rifle") {
     "chance_to_gain_extra_combo_count",
     "critical_chance_on_slide_attack",
     "heavy_attack_efficiency",
-    "finisher_damage"
+    "finisher_damage",
+    "heavy_attack_damage",
+    "heavy_attack_wind_up_speed",
+    "parry_angle",
+    "slam_attack_damage"
   ];
 
   const filteredStats = RIVEN_STATS.filter((stat) => {
@@ -145,6 +154,7 @@ export function populateRivenSelects(weaponType = "Rifle") {
     fragment.appendChild(defOpt);
 
     filteredStats.forEach((stat) => {
+      if (sel.classList.contains("negative") && !canBeNegative(stat.name_en)) return;
       const opt = document.createElement("option");
       const statName = isSpan ? stat.name_es : stat.name_en;
       opt.value = stat.name_en;
@@ -2067,10 +2077,9 @@ export function openRivenMarket() {
     const val = document.getElementById(id)?.value;
     if (!val) return null;
     const internalName = normalizeStatName(val);
-    return (
-      RIVEN_STATS.find((s) => normalizeStatName(s.name_en) === internalName)
-        ?.slug || val
-    );
+    const statDef = RIVEN_STATS.find((s) => normalizeStatName(s.name_en) === internalName);
+    if (statDef?.spliced) return null;
+    return statDef?.slug || val;
   };
 
   const positives = ["rivenStat1", "rivenStat2", "rivenStat3"]
@@ -2610,6 +2619,7 @@ export function calculateModalGrade() {
       warningHtml, isEs, withSimilarButton: true,
       histLoading: !!(state.currentWeaponHistory?.weaponName === weaponName && state.currentWeaponHistory.loading)
     });
+    estCard.insertAdjacentHTML("beforeend", cicloRivenHtml({ stats, meta, tipo: weaponData?.t || meta?.t, deseados: statsBuscadosDelArma(meta, weaponName), rolls: Number.parseInt(document.getElementById("g-rolls")?.value, 10), isEs }));
     // Hero primero: la tarjeta de tasación por delante de la columna de stats.
     // La tabla de stats vive junto a la carta (previewBox); aquí solo va la tarjeta de tasación.
     gridContainer.appendChild(estCard);

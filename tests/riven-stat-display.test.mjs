@@ -11,7 +11,7 @@ import assert from "node:assert/strict";
 globalThis.localStorage = { getItem: () => null, setItem() {}, removeItem() {} };
 
 const { state } = await import("../deploy/js/state.js");
-const { getLocalizedStatName, CANT_BE_NEGATIVE } =
+const { getLocalizedStatName, CANT_BE_NEGATIVE, textoDelStat } =
   await import("../deploy/js/utils/rivens/riven_stat_display.js");
 
 const enEspanol = (fn) => {
@@ -89,4 +89,26 @@ test("un valor basura no revienta el filtro", () => {
   for (const s of [null, undefined, "", 0]) {
     assert.doesNotThrow(() => CANT_BE_NEGATIVE.test(s), String(s));
   }
+});
+
+test("la cadencia se llama Fire Rate en armas de fuego y Attack Speed en melee", () => {
+  const stat = { name: "Fire Rate / Attack Speed", value: 80.8, isPositive: false };
+  assert.equal(textoDelStat(stat, 1), "-80.8% Fire Rate");
+  assert.equal(textoDelStat(stat, 3), "-80.8% Attack Speed");
+});
+
+test("los stats sin porcentaje llevan su unidad", () => {
+  assert.equal(textoDelStat({ name: "Punch Through", value: 2.6, isPositive: true }, 1), "+2.6m Punch Through");
+  assert.equal(textoDelStat({ name: "Combo Duration", value: 8.1, isPositive: true }, 3), "+8.1s Combo Duration");
+  assert.equal(textoDelStat({ name: "Initial Combo", value: 12, isPositive: true }, 3), "+12 Initial Combo");
+});
+
+test("el daño a facción se enseña como multiplicador", () => {
+  assert.equal(textoDelStat({ name: "Damage to Infested", value: 59, isPositive: true }, 1), "x1.59 Damage to Infested");
+  assert.equal(textoDelStat({ name: "Damage to Corpus", value: 20, isPositive: false }, 1), "x0.8 Damage to Corpus");
+});
+
+test("el retroceso bueno sale con menos y el malo con más", () => {
+  assert.equal(textoDelStat({ name: "Recoil", value: 90, isPositive: true }, 0), "-90% Recoil");
+  assert.equal(textoDelStat({ name: "Recoil", value: 60, isPositive: false }, 0), "+60% Recoil");
 });
