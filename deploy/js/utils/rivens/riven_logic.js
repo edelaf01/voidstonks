@@ -739,6 +739,7 @@ export function calculateHybridTiers(weapon, weaponHistory = null) {
 }
 
 /**
+ * Classifies the weapon's market, not the roll: demand, speculation and momentum.
  * @param {object} meta
  * @param {object} [band]
  * @returns {{flag:string,label:string,emoji:string,ratio:number,vol:number,trend:number,advice:string}|null}
@@ -754,7 +755,7 @@ export function classifyWeaponMarket(meta, band = null) {
   let typical = refFiable ? _deReMed : (b.typical || meta.official_median || 0);
   const wfm = meta.wfm_avg_price || meta.wfm_avg || 0;
   const vol = b.vol_dia != null ? b.vol_dia : (meta.wfm_market_sample || 0);
-  const trend = b.trend != null ? b.trend : (meta.trend_7d_pct || 0);
+  const trend = meta.trend_7d_pct || 0;
 
   // blends the live weekly history so the flag does not anchor on a stale band
   const hist = (typeof state !== "undefined" && state.currentWeaponHistory
