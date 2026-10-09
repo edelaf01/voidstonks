@@ -17,10 +17,12 @@ globalThis.localStorage = { getItem: () => null, setItem() {}, removeItem() {} }
 
 const { avisa, escucha, pistasDelLog } = await import("../deploy/js/utils/ganchos.js");
 const svc = await import("../deploy/js/services/desktop.service.js");
-const { duermePorLog, armaRivenPorLog, enMisionPorLog } = await import("../deploy/js/services/scanner/log_gate.service.js");
+const { duermePorLog, armaRivenPorLog, enMisionPorLog, paraVigiaDelJuego } = await import("../deploy/js/services/scanner/log_gate.service.js");
 const { EELogLive } = await import("../deploy/js/services/scanner/eelog_live.service.js");
 const { conectaEscaner } = await import("../deploy/js/ui.components/ui_desktop_escaner.js");
 const { ScannerHUD } = await import("../deploy/js/ui.components/ui_scanner_hud.js");
+const { TEXTS } = await import("../deploy/js/config.js");
+const { state } = await import("../deploy/js/state.js");
 
 const esperaCola = () => new Promise((r) => setTimeout(r, 0));
 
@@ -122,13 +124,33 @@ test("ScannerHUD actualiza el panel de arcanos", async () => {
 
   const rejilla = panel.children[1];
   assert.equal(rejilla.className, "arcane-grid");
+  assert.equal(rejilla.style.gridTemplateColumns, "repeat(2, minmax(0, 1fr))");
   assert.equal(rejilla.children.length, 2);
+  assert.equal(rejilla.children[0].className, "arcane-cell arcane-acento-cian");
   const celda = rejilla.children[1];
-  assert.equal(celda.className, "arcane-cell");
-  assert.deepEqual(celda.children.map((n) => n.textContent), ["Arcane Nullifier", "21 · 1×R5", "R0 4 pl", "R5 120 pl", "SELL R5"]);
+  assert.equal(celda.className, "arcane-cell arcane-acento-verde");
+  assert.deepEqual(celda.children.map((n) => n.textContent), ["Nullifier", "SELL R5", "21 · 1×R5", "R0 4 pl", "R5 120 pl"]);
   assert.equal(celda.children[0].className, "arcane-name");
-  assert.equal(celda.children[2].className, "arcane-line arcane-oro");
-  assert.equal(celda.children[4].className, "arcane-line arcane-verde");
+  assert.equal(celda.children[1].className, "arcane-line arcane-verde");
+  assert.equal(celda.children[3].className, "arcane-line arcane-oro");
+});
+
+test("en la pestaña de arcanos el HUD web se enseña con su rótulo, y fuera se esconde", () => {
+  const hud = globalThis.document.createElement("div");
+  hud.style.display = "none";
+  globalThis.document._registrar("inv-hud", hud);
+  const badge = globalThis.document.createElement("div");
+  globalThis.document._registrar("hud-context-badge", badge);
+  try {
+    ScannerHUD.updateContext("INVENTORY_ARCANES");
+    assert.equal(hud.style.display, "block");
+    assert.equal(badge.textContent, TEXTS[state.currentLang].scannerHUD.statusArcanes);
+    ScannerHUD.updateContext("UNKNOWN");
+    assert.equal(hud.style.display, "none");
+  } finally {
+    globalThis.document._registrar("inv-hud", null);
+    globalThis.document._registrar("hud-context-badge", null);
+  }
 });
 
 test("ScannerHUD panel de inventario y acciones", async () => {
@@ -240,4 +262,19 @@ test("con la ventana sin foco se pausan las animaciones, y vuelven al recuperarl
   foco = false;
   oyentes.blur();
   assert.ok(clases.has("ds-sin-foco"));
+});
+
+test("al parar el escáner se deja de vigilar la ventana del juego", () => {
+  conectaEscaner();
+  paraVigiaDelJuego();
+  let cortes = 0;
+  globalThis.voidstonksNativo.seguirJuego = () => () => { cortes++; };
+  try {
+    duermePorLog({ isScanning: true, latchedContext: "UNKNOWN", releaseFrames() {}, rescataRecompensaParcial() {}, loop() {} });
+    avisa("escaner-parado");
+    assert.equal(cortes, 1);
+  } finally {
+    delete globalThis.voidstonksNativo.seguirJuego;
+    paraVigiaDelJuego();
+  }
 });

@@ -36,6 +36,11 @@ export function renderFarmsTab() {
   }
 }
 
+export function stopFarmsTimers() {
+  stopBountyTimers();
+  stopRotationTimers();
+}
+
 export function switchFarmsSubview(view) {
   if (getFarmsSubview() === view) return;
   setFarmsSubview(view);

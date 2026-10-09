@@ -8,6 +8,7 @@ import {
 } from "../repositories/launcher.repository.js";
 import { oneTimeNoticeSeen, markOneTimeNoticeSeen, leePanelesOcultos, guardaPanelesOcultos } from "../repositories/storage.repository.js";
 import { DEBUG_ACTIVO } from "../utils/debug_log.js";
+import { CONTEXTOS_ARCANOS } from "../utils/inventory/arcanos_disolucion.js";
 
 export { leePanelesOcultos, guardaPanelesOcultos };
 
@@ -59,7 +60,7 @@ export function activaOverlay(si) {
 
 const visibles = new Set();
 const CONTEXTOS_DE_GRUPO = {
-  recompensas: ["REWARD"], kiosko: ["INVENTORY"], riven: ["INVENTORY_MODS", "ITEM_DETAILS", "RIVEN_DETAILS"], reliquias: ["RELICS"], inventario: ["INVENTORY"], arcanos: ["ARCANE_DISSOLUTION", "INVENTORY_ARCANES"]
+  recompensas: ["REWARD"], kiosko: ["INVENTORY"], riven: ["INVENTORY_MODS", "ITEM_DETAILS", "RIVEN_DETAILS"], reliquias: ["RELICS"], inventario: ["INVENTORY"], arcanos: CONTEXTOS_ARCANOS
 };
 
 const cola = new Map();
