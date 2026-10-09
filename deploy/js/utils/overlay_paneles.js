@@ -1,4 +1,4 @@
-import { rejillaArcanos, lineasArcano } from "./inventory/arcanos_disolucion.js";
+import { rejillaArcanos, lineasArcano, veredictoArcano } from "./inventory/arcanos_disolucion.js";
 
 export const MAX_FILAS_KIOSKO = 5;
 
@@ -227,7 +227,7 @@ export function panelArcanos(filas, t) {
       {
         tipo: "rejilla",
         cols,
-        celdas: celdas.map((f) => f && { lineas: lineasArcano(f, t) }),
+        celdas: celdas.map((f) => f && { lineas: lineasArcano(f, t), tono: veredictoArcano(f, t).tono }),
       },
     ],
   };

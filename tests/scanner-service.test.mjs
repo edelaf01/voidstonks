@@ -279,6 +279,26 @@ test("el recorte de página arranca bajo la cabecera y llega al borde inferior",
   assert.equal(recorte.sx, calib.gridZone.x);
   assert.equal(recorte.sw, calib.gridZone.w);
 });
+
+test("una rejilla anclada por color recorta su página a todo el ancho y no se queda cacheada", async () => {
+  const { FakeCanvas } = await import("./_helpers/fake-canvas.mjs");
+  const { VisionService } = await import("../deploy/js/services/scanner/vision.service.js");
+  const W = 1920, H = 1080; const snapshot = new FakeCanvas(W, H); const dims = { width: W, height: H, scale: 1 };
+  const base = { gridZone: { x: 600, y: 300, w: 621, h: 666 }, cellW: 207, cellH: 222, cols: 3, rows: 3 };
+  const detectAntes = VisionService.detectGridAutoCalib; const cabeceraAntes = S.lastHeaderText;
+  S.lastHeaderText = "INVENTORY/SELL";
+  const pasa = (calib) => { let llamadas = 0; const recortes = []; VisionService.detectGridAutoCalib = () => { llamadas++; return calib; }; S._frameZoneCache = null; S._invQueue = { isFull: false, enqueue: (src, sx, sy, sw, sh) => { recortes.push({ sx, sw }); return true; } }; S.enqueueInventoryPage(snapshot, dims); S.enqueueInventoryPage(snapshot, dims); return { llamadas, recortes }; };
+  try {
+    const color = pasa({ ...base, colorAnchored: true });
+    assert.equal(color.llamadas, 2, "la zona anclada por color no se cachea: cada página vuelve a detectar");
+    assert.equal(color.recortes[0].sx, 0); assert.equal(color.recortes[0].sw, W);
+    const bordes = pasa({ ...base });
+    assert.equal(bordes.llamadas, 1); assert.equal(bordes.recortes[1].sx, 600); assert.equal(bordes.recortes[1].sw, 621);
+  } finally {
+    VisionService.detectGridAutoCalib = detectAntes; S.lastHeaderText = cabeceraAntes; S._frameZoneCache = null; S._invQueue = null;
+  }
+});
+
 // El auto-scan se disparaba con la pantalla quieta porque vigilaba media pantalla: ahí están el
 // panel de venta, el contador de platino y el fondo animado, que cambian solos. Y no se disparaba
 // en RELIQUIAS, donde las cards son iguales y solo cambia el texto.
@@ -321,7 +341,7 @@ test("el auto-scan mira solo la zona de recorte, y ahí le basta con que cambie 
     S.sawScrollSinceScan = false;
     S.autoScrollStableTimer = null;
     await S.routeFrameAction("INVENTORY", base, dims);   // primer frame: solo referencia
-    S.autoScrollMuestra = muestraDe(base);               // esta página ya está escaneada
+    S.autoScrollMuestra = { rejilla: null, datos: muestraDe(base) }; // esta página ya está escaneada
     await S.routeFrameAction("INVENTORY", f, dims);
     const t = S.autoScrollStableTimer;
     S.autoScrollStableTimer = null;
@@ -406,8 +426,11 @@ test("en el kiosko se captura la página con el auto-scan apagado", async () => 
   // Fuera del kiosko, con el auto-scan apagado, no se programa nada.
   S.lastHeaderText = "CB INVENTORY/SELL";
   S.autoScrollMuestra = null;
+  S.fotosSinScroll = 3;
   await S.routeFrameAction("INVENTORY", video, dims);
   assert.equal(S.autoScrollStableTimer, null);
+  assert.equal(S.fotosSinScroll, 0, "apagar el auto-scan devuelve los intentos");
+  S.fotosSinScroll = 0;
 });
 
 // En el juego la cabecera no da contexto nunca, y cada lectura encadenaba las dos pasadas de
@@ -610,7 +633,7 @@ test("con una página en OCR: ni kiosko, ni 'done' en el HUD, ni rejilla de reli
     const px = sCtx.getImageData(0, 0, 48, 108).data;
     const vista = new Uint8Array(48 * 108);
     for (let i = 0; i < vista.length; i++) vista[i] = px[i * 4] * 0.299 + px[i * 4 + 1] * 0.587 + px[i * 4 + 2] * 0.114;
-    Object.assign(S, { autoScrollMuestra: vista, sawScrollSinceScan: false });
+    Object.assign(S, { autoScrollMuestra: { rejilla: null, datos: vista }, sawScrollSinceScan: false, fotosSinScroll: 0 });
     await S.routeFrameAction("INVENTORY", video, dims); // quieta y ya vista
     await S.routeFrameAction("INVENTORY", video, dims);
     return { kiosko: n.kiosko, dones: n.estados.filter((e) => e === "done").length, scanning: n.estados.filter((e) => e === "scanning").length, captured: n.estados.filter((e) => e === "captured").length };
@@ -628,7 +651,7 @@ test("con una página en OCR: ni kiosko, ni 'done' en el HUD, ni rejilla de reli
   Object.assign(RelicScreenService, { process: orig.reliquias });
   Object.assign(SquadService, { probe: orig.probe });
   Object.assign(ScannerHUD, { updateScrollStatus: orig.hud });
-  Object.assign(S, { detectionLocked: false, _invQueue: null, _frameZoneCache: null, autoScrollMuestra: null, sawScrollSinceScan: false, scrollDirectionAccumulator: 0 });
+  Object.assign(S, { detectionLocked: false, _invQueue: null, _frameZoneCache: null, autoScrollMuestra: null, sawScrollSinceScan: false, fotosSinScroll: 0, scrollDirectionAccumulator: 0 });
 });
 
 // --- Color de nombre y pool de Tesseract en modo preciso ----------------------------------------
@@ -636,7 +659,7 @@ test("con una página en OCR: ni kiosko, ni 'done' en el HUD, ni rejilla de reli
 // Elegir el color del nombre cuesta hasta 6 lecturas de Tesseract, y con el lote de Paddle solo lo
 // usan los respaldos (6 celdas en 30 páginas medidas): se elige cuando el primero lo pide. Y el
 // pool de Tesseract no se crea mientras Paddle CARGA: la página lo espera, no lee con el clásico.
-async function escaneaPagina({ motor, lote = {}, paddleListo = true, cambiaTrasLaPrimera = false }) {
+async function escaneaPagina({ motor, lote = {}, paddleListo = true, cambiaTrasLaPrimera = false, contexto = "INVENTORY", calib = {}, cols = 2, tabla = null, cacheAntes = null, tinta = false, detecta = true }) {
   const { VisionService } = await import("../deploy/js/services/scanner/vision.service.js");
   const { OCRRepository } = await import("../deploy/js/repositories/ocr.repository.js");
   const { PaddleRepository } = await import("../deploy/js/repositories/paddle.repository.js");
@@ -646,16 +669,16 @@ async function escaneaPagina({ motor, lote = {}, paddleListo = true, cambiaTrasL
   const { FakeCanvas } = await import("./_helpers/fake-canvas.mjs");
 
   const orig = {
-    detect: VisionService.detectGridAutoCalib, build: VisionService.buildAutoGrid, cands: VisionService.pageNameColorCandidates,
+    detect: VisionService.detectGridAutoCalib, build: VisionService.buildAutoGrid, cands: VisionService.pageNameColorCandidates, crop: VisionService.cropThemeBinarized,
     workers: OCRRepository.workers, ensure: OCRRepository.ensureWorkers,
     warm: PaddleRepository.warmUp, service: PaddleRepository._service, fallo: PaddleRepository.ultimoFallo, lote: PaddleRepository.recognizeStripWords,
     scroll: ScannerHUD.updateScrollStatus, items: ScannerHUD.updateDetectedItems, open: ScannerHUD.isDebugOpen,
-    relics: state.allRelicNames,
+    relics: state.allRelicNames, tabla: S.tablaArcanos, onPaginaArcanos: S.onPaginaArcanos, recogWords: PaddleRepository.recognizeWords
   };
-  const W = 600, H = 400;
   const cellW = 277, cellH = 296;
-  VisionService.detectGridAutoCalib = () => ({ gridZone: { x: 0, y: 0, w: W, h: H }, cellW, cellH, cols: 2, rows: 1, auto: true });
-  VisionService.buildAutoGrid = () => ({ cellRects: [{ r: 0, c: 0, sx: 0, sy: 0 }, { r: 0, c: 1, sx: cellW, sy: 0 }], cellW, cellH, cols: 2, rows: 1 });
+  const W = Math.max(600, cols * cellW + 46), H = 400;
+  VisionService.detectGridAutoCalib = () => detecta ? ({ gridZone: { x: 0, y: 0, w: W, h: H }, cellW, cellH, cols, rows: 1, auto: true, ...calib }) : null;
+  VisionService.buildAutoGrid = () => ({ cellRects: Array.from({ length: cols }, (_, c) => ({ r: 0, c, sx: c * cellW, sy: 0 })), cellW, cellH, cols, rows: 1 });
   VisionService.pageNameColorCandidates = () => [[255, 255, 255]];
   state.allRelicNames = ["Lith C1", "Meso K3"];
   const worker = { llamadas: 0, recognize: async () => { worker.llamadas++; return { data: { words: [
@@ -668,21 +691,28 @@ async function escaneaPagina({ motor, lote = {}, paddleListo = true, cambiaTrasL
   PaddleRepository.ultimoFallo = null;
   let lecturasAlLote = null;
   PaddleRepository.recognizeStripWords = async () => { lecturasAlLote = worker.llamadas; return new Map(Object.entries(lote)); };
+  let porCelda = 0;
+  PaddleRepository.recognizeWords = async () => { porCelda++; return null; };
+  let mascaras = 0;
+  if (tinta) VisionService.cropThemeBinarized = () => { mascaras++; return new FakeCanvas(40, 10); };
   ScannerHUD.updateScrollStatus = () => {}; ScannerHUD.updateDetectedItems = () => {}; ScannerHUD.isDebugOpen = () => false;
   M.aplicaMotor(motor);
+  let arcanos = null;
   Object.assign(S, { _temaCache: { key: `${W}x${H}`, theme: { name: "Default", r: 227, g: 128, b: 20, actualR: 227, actualG: 128, actualB: 20 } },
-    _nameColorCache: null, _gridReintentado: true, _autoCalibCache: null, detectionLocked: false, lastHeaderText: "INVENTORY/SELL", latchedContext: "INVENTORY" });
+    _nameColorCache: null, _gridReintentado: true, _autoCalibCache: cacheAntes, detectionLocked: false, lastHeaderText: "INVENTORY/SELL", latchedContext: contexto,
+    tablaArcanos: tabla, onPaginaArcanos: (lista) => { arcanos = lista; } });
   const log = console.log;
   if (cambiaTrasLaPrimera) console.log = (m, ...r) => { if (String(m).startsWith("[INV] celda 1/")) S.latchedContext = "REWARD"; log(m, ...r); };
   try {
     const snapshot = new FakeCanvas(W, H);
     await S.processInventoryGrid(snapshot, W, H, 1);
-    return { lecturas: worker.llamadas, lecturasAlLote, pedidos, color: S._nameColorCache?.color ?? null, log: [...S.lastRawOcrLog] };
+    return { lecturas: worker.llamadas, lecturasAlLote, pedidos, color: S._nameColorCache?.color ?? null, log: [...S.lastRawOcrLog], porCelda, arcanos, cacheTras: S._autoCalibCache, mascaras };
   } finally {
-    Object.assign(VisionService, { detectGridAutoCalib: orig.detect, buildAutoGrid: orig.build, pageNameColorCandidates: orig.cands });
+    Object.assign(VisionService, { detectGridAutoCalib: orig.detect, buildAutoGrid: orig.build, pageNameColorCandidates: orig.cands, cropThemeBinarized: orig.crop });
     Object.assign(OCRRepository, { workers: orig.workers, ensureWorkers: orig.ensure });
-    Object.assign(PaddleRepository, { warmUp: orig.warm, _service: orig.service, ultimoFallo: orig.fallo, recognizeStripWords: orig.lote });
+    Object.assign(PaddleRepository, { warmUp: orig.warm, _service: orig.service, ultimoFallo: orig.fallo, recognizeStripWords: orig.lote, recognizeWords: orig.recogWords });
     Object.assign(ScannerHUD, { updateScrollStatus: orig.scroll, updateDetectedItems: orig.items, isDebugOpen: orig.open });
+    Object.assign(S, { tablaArcanos: orig.tabla, onPaginaArcanos: orig.onPaginaArcanos });
     state.allRelicNames = orig.relics;
     M.aplicaMotor(M.MOTOR_CLASICO);
     S.detectionLocked = false;
@@ -705,6 +735,40 @@ test("con el lote del preciso leyendo todas las celdas no se gasta Tesseract en 
   assert.equal(r.color, null);
   assert.ok(!r.log.some((l) => l.startsWith("[NAME-COLOR]")), "sin color no hay línea [NAME-COLOR]");
 });
+test("la fase corregida por las ✓ se queda en la rejilla cacheada, que es la que firma la página", async () => {
+  const M = await import("../deploy/js/services/scanner/ocr_engine.service.js");
+  const { VisionService } = await import("../deploy/js/services/scanner/vision.service.js");
+  const orig = VisionService.anclaPorChecks;
+  VisionService.anclaPorChecks = () => ({ gridX: 0, gridY: 61, n: 6, marcas: 6 });
+  try {
+    const r = await escaneaPagina({ motor: M.MOTOR_PRECISO, lote: { r0c0: ["LITH", "C1"], r0c1: ["MESO", "K3"] } });
+    assert.equal(r.cacheTras.calib.gridY, 61);
+    assert.equal(r.cacheTras.calib.gridX, 0);
+  } finally {
+    VisionService.anclaPorChecks = orig;
+    S._autoCalibCache = null;
+  }
+});
+
+test("la fase de las ✓ sobre una rejilla heredada no se escribe en la rejilla de la página anterior", async () => {
+  const M = await import("../deploy/js/services/scanner/ocr_engine.service.js");
+  const { VisionService } = await import("../deploy/js/services/scanner/vision.service.js");
+  const orig = { ancla: VisionService.anclaPorChecks, bandas: VisionService.ultimasBandas };
+  VisionService.anclaPorChecks = () => ({ gridX: 0, gridY: 61, n: 6, marcas: 6 });
+  VisionService.ultimasBandas = null;
+  const heredada = { gridZone: { x: 0, y: 0, w: 600, h: 400 }, gridX: 0, gridY: 0, cellW: 277, cellH: 296, cols: 2, rows: 1, auto: true };
+  try {
+    const r = await escaneaPagina({ motor: M.MOTOR_PRECISO, lote: { r0c0: ["LITH", "C1"], r0c1: ["MESO", "K3"] }, detecta: false, cacheAntes: { key: "600x400", calib: heredada } });
+    assert.equal(r.cacheTras.calib === heredada, true);
+    assert.equal(heredada.gridY, 0);
+    assert.equal(r.log.filter((l) => /^\[r0c\d\]/.test(l)).length, 2, "la página se lee con la fase corregida");
+  } finally {
+    VisionService.anclaPorChecks = orig.ancla;
+    VisionService.ultimasBandas = orig.bandas;
+    S._autoCalibCache = null;
+  }
+});
+
 
 test("el primer respaldo elige el color, y nunca antes del lote", async () => {
   const M = await import("../deploy/js/services/scanner/ocr_engine.service.js");
@@ -865,7 +929,7 @@ test("una página nueva se escanea aunque el scroll parezca hacia arriba, y el H
   let capturas = 0;
   S._invQueue = { isFull: false, enqueue: () => { capturas++; return true; } };
   S._frameZoneCache = { key: `${W}x${H}`, zone: { x: 0, y: 0, w: W, h: H } };
-  Object.assign(S, { _sampleRect: null, lastRowLums: null, autoScrollMuestra: null, sawScrollSinceScan: false, autoScrollStableTimer: null, detectionLocked: true, isScanning: true, lastHeaderText: "INVENTORY/SELL" });
+  Object.assign(S, { _sampleRect: null, lastRowLums: null, autoScrollMuestra: null, sawScrollSinceScan: false, fotosSinScroll: 0, autoScrollStableTimer: null, detectionLocked: true, isScanning: true, lastHeaderText: "INVENTORY/SELL" });
   const dims = { width: W, height: H, scale: 1 };
   try {
     globalThis.document._registrar("live-video", frame(20));
@@ -884,6 +948,132 @@ test("una página nueva se escanea aunque el scroll parezca hacia arriba, y el H
     if (S.autoScrollStableTimer) { clearTimeout(S.autoScrollStableTimer); S.autoScrollStableTimer = null; }
     S._invQueue = null; S.detectionLocked = false; S.isScanning = false;
     ScannerHUD.updateScrollStatus = orig.hud; DucatKioskService.process = orig.kiosko;
+  }
+});
+
+test("una página quieta cuya firma nunca casa se recaptura como mucho tres veces hasta el siguiente scroll", async () => {
+  const { DucatKioskService } = await import("../deploy/js/services/scanner/ducat_kiosk.service.js");
+  const { ScannerHUD } = await import("../deploy/js/ui.components/ui_scanner_hud.js");
+  const W = 640, H = 360;
+  const frame = (fase, parche) => {
+    const data = new Uint8ClampedArray(W * H * 4);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const i = (y * W + x) * 4; const v = parche && x < 40 && y >= 120 && y < 240 ? 255 : ((y + fase) % 40) < 8 ? 200 : 30; data[i] = data[i + 1] = data[i + 2] = v; data[i + 3] = 255; }
+    return { videoWidth: W, videoHeight: H, width: W, height: H, data };
+  };
+  const orig = { hud: ScannerHUD.updateScrollStatus, kiosko: DucatKioskService.process };
+  ScannerHUD.updateScrollStatus = () => {};
+  DucatKioskService.process = async () => {};
+  globalThis.state = { ...globalThis.state, autoScanEnabled: true, scannerModsMode: false };
+  let capturas = 0;
+  S._invQueue = { isFull: false, enqueue: () => { capturas++; return true; } };
+  S._frameZoneCache = { key: `${W}x${H}`, zone: { x: 0, y: 0, w: W, h: H } };
+  Object.assign(S, { _sampleRect: null, lastRowLums: null, autoScrollMuestra: null, sawScrollSinceScan: false, fotosSinScroll: 0, autoScrollStableTimer: null, detectionLocked: false, isScanning: true, lastHeaderText: "INVENTORY/SELL" });
+  const dims = { width: W, height: H, scale: 1 };
+  try {
+    globalThis.document._registrar("live-video", frame(0, false));
+    await S.routeFrameAction("INVENTORY", frame(0, false), dims);
+    for (let i = 0; i < 6; i++) {
+      await S.routeFrameAction("INVENTORY", frame(0, i % 2 === 0), dims);
+      await new Promise((r) => setTimeout(r, 450));
+    }
+    assert.equal(capturas, 3, "sin scroll, la página quieta deja de recapturarse");
+    globalThis.document._registrar("live-video", frame(20, false));
+    await S.routeFrameAction("INVENTORY", frame(20, false), dims);
+    await S.routeFrameAction("INVENTORY", frame(20, false), dims);
+    await new Promise((r) => setTimeout(r, 450));
+    assert.equal(capturas, 4, "tras un scroll de verdad se vuelve a capturar");
+  } finally {
+    if (S.autoScrollStableTimer) { clearTimeout(S.autoScrollStableTimer); S.autoScrollStableTimer = null; }
+    S._invQueue = null; S.detectionLocked = false; S.isScanning = false;
+    ScannerHUD.updateScrollStatus = orig.hud; DucatKioskService.process = orig.kiosko;
+    S.fotosSinScroll = 0; S.autoScrollMuestra = null; S._frameZoneCache = null;
+  }
+});
+
+test("una foto que no cabe en la cola no gasta ninguno de los tres intentos", async () => {
+  const { DucatKioskService } = await import("../deploy/js/services/scanner/ducat_kiosk.service.js");
+  const { ScannerHUD } = await import("../deploy/js/ui.components/ui_scanner_hud.js");
+  const W = 640, H = 360;
+  const frame = (fase, parche) => {
+    const data = new Uint8ClampedArray(W * H * 4);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const i = (y * W + x) * 4; const v = parche && x < 40 && y >= 120 && y < 240 ? 255 : ((y + fase) % 40) < 8 ? 200 : 30; data[i] = data[i + 1] = data[i + 2] = v; data[i + 3] = 255; }
+    return { videoWidth: W, videoHeight: H, width: W, height: H, data };
+  };
+  const orig = { hud: ScannerHUD.updateScrollStatus, kiosko: DucatKioskService.process };
+  ScannerHUD.updateScrollStatus = () => {};
+  DucatKioskService.process = async () => {};
+  globalThis.state = { ...globalThis.state, autoScanEnabled: true, scannerModsMode: false };
+  let capturas = 0, rechazos = 3;
+  S._invQueue = { isFull: false, enqueue: () => { if (rechazos > 0) { rechazos--; return false; } capturas++; return true; } };
+  S._frameZoneCache = { key: `${W}x${H}`, zone: { x: 0, y: 0, w: W, h: H } };
+  Object.assign(S, { _sampleRect: null, lastRowLums: null, autoScrollMuestra: null, sawScrollSinceScan: false, fotosSinScroll: 0, autoScrollStableTimer: null, detectionLocked: false, isScanning: true, lastHeaderText: "INVENTORY/SELL" });
+  const dims = { width: W, height: H, scale: 1 };
+  try {
+    globalThis.document._registrar("live-video", frame(0, false));
+    await S.routeFrameAction("INVENTORY", frame(0, false), dims);
+    for (let i = 0; i < 7; i++) {
+      await S.routeFrameAction("INVENTORY", frame(0, i % 2 === 0), dims);
+      await new Promise((r) => setTimeout(r, 450));
+    }
+    assert.equal(rechazos, 0);
+    assert.equal(capturas, 3, "los rechazos de la cola no cuentan, y el tope sigue en tres");
+  } finally {
+    if (S.autoScrollStableTimer) { clearTimeout(S.autoScrollStableTimer); S.autoScrollStableTimer = null; }
+    S._invQueue = null; S.detectionLocked = false; S.isScanning = false;
+    ScannerHUD.updateScrollStatus = orig.hud; DucatKioskService.process = orig.kiosko;
+    S.fotosSinScroll = 0; S.autoScrollMuestra = null; S._frameZoneCache = null;
+  }
+});
+
+
+test("en arcanos, la página ya capturada no se vuelve a encolar aunque la foto saliera de un frame aún asentándose", async () => {
+  const { DucatKioskService } = await import("../deploy/js/services/scanner/ducat_kiosk.service.js");
+  const { ScannerHUD } = await import("../deploy/js/ui.components/ui_scanner_hud.js");
+  const { SquadService } = await import("../deploy/js/services/scanner/squad.service.js");
+  const { decodePng } = await import("./_helpers/png.mjs");
+  const img = decodePng(readFileSync(new URL("./_fixtures/inventory_arcanes_1920x1080.png", import.meta.url)));
+  const W = img.width, H = img.height;
+  const lienzo = (cambia) => {
+    const data = new Uint8ClampedArray(img.data);
+    cambia?.(data);
+    return { videoWidth: W, videoHeight: H, width: W, height: H, data };
+  };
+  const quieta = lienzo();
+  const asentando = lienzo((d) => { for (let y = 340; y < 366; y++) for (let x = 300; x < 360; x++) { const i = (y * W + x) * 4; d[i] = d[i + 1] = d[i + 2] = 255; } });
+  const origHUD = ScannerHUD.updateScrollStatus;
+  const origKiosk = DucatKioskService.process;
+  const origProbe = SquadService.probe;
+  ScannerHUD.updateScrollStatus = () => {};
+  DucatKioskService.process = async () => {};
+  SquadService.probe = async () => false;
+  globalThis.state = { ...globalThis.state, autoScanEnabled: true, scannerModsMode: false };
+  let capturas = 0; S._invQueue = { isFull: false, enqueue: () => { capturas++; return true; } };
+  S._frameZoneCache = { key: `${W}x${H}`, zone: { x: 0, y: 0, w: W, h: H } };
+  S._autoCalibCache = { key: "arcanos-test", calib: { gridX: 70, gridY: 182, cellW: 207, cellH: 222, cols: 6, rows: 4 } };
+  Object.assign(S, { _sampleRect: null, lastRowLums: null, autoScrollMuestra: null, sawScrollSinceScan: true, fotosSinScroll: 0, autoScrollStableTimer: null, detectionLocked: true, isScanning: true, lastHeaderText: "INVENTORY/SELL" });
+  const dims = { width: W, height: H, scale: 1 };
+  try {
+    globalThis.document._registrar("live-video", quieta);
+    await S.routeFrameAction("INVENTORY_ARCANES", asentando, dims);
+    await S.routeFrameAction("INVENTORY_ARCANES", asentando, dims);
+    await new Promise((r) => setTimeout(r, 500));
+    assert.equal(capturas, 1);
+    await S.routeFrameAction("INVENTORY_ARCANES", quieta, dims);
+    await S.routeFrameAction("INVENTORY_ARCANES", quieta, dims);
+    await new Promise((r) => setTimeout(r, 500));
+    assert.equal(capturas, 1, "la foto encolada ya es la página quieta: no se relee");
+    const otra = lienzo((d) => d.copyWithin(0, 60 * W * 4));
+    globalThis.document._registrar("live-video", otra);
+    S.sawScrollSinceScan = false;
+    await S.routeFrameAction("INVENTORY_ARCANES", otra, dims);
+    await S.routeFrameAction("INVENTORY_ARCANES", otra, dims);
+    await S.routeFrameAction("INVENTORY_ARCANES", otra, dims);
+    await new Promise((r) => setTimeout(r, 500));
+    assert.equal(capturas, 2, "otra página sí se captura");
+  } finally {
+    if (S.autoScrollStableTimer) { clearTimeout(S.autoScrollStableTimer); S.autoScrollStableTimer = null; }
+    ScannerHUD.updateScrollStatus = origHUD; DucatKioskService.process = origKiosk; SquadService.probe = origProbe;
+    S._invQueue = null; S._autoCalibCache = null; S._frameZoneCache = null; S.autoScrollMuestra = null; S.detectionLocked = false; S.isScanning = false; S.sawScrollSinceScan = false;
   }
 });
 
@@ -1642,5 +1832,113 @@ test("la sonda del squad solo corre dentro de misión según el EE.log", async (
     SquadService.probe = origProbe;
     pistasDelLog.enMision = origEnMision;
     globalThis.state = origState;
+  }
+});
+
+test("con las recompensas abiertas en el log la cabecera de UNKNOWN se relee aunque la caché no haya vencido", async () => {
+  const { OCRRepository } = await import("../deploy/js/repositories/ocr.repository.js");
+  const { regionLuma } = await import("../deploy/js/utils/vision/frame_hash.js");
+  const { FRANJA_TITULO_VIDEO } = await import("../deploy/js/utils/vision/context_latch.js");
+  const { FakeCanvas } = await import("./_helpers/fake-canvas.mjs");
+  const { VisionService } = await import("../deploy/js/services/scanner/vision.service.js");
+  const { pistasDelLog } = await import("../deploy/js/utils/ganchos.js");
+
+  let lecturas = 0;
+  const orig = { workers: OCRRepository.workers, ruta: S.routeFrameAction, abiertas: pistasDelLog.recompensasAbiertas };
+  OCRRepository.workers = [{
+    recognize: async (img) => {
+      if (img !== VisionService.lienzo("categoria")) lecturas++;
+      return { data: { text: "VOID FISSURE/REWARDS" } };
+    }
+  }];
+  S.routeFrameAction = async () => {};
+
+  const lienzo = new FakeCanvas(16, 9);
+  const base = await cabeceraConRotulo();
+  const prepara = (latchedContext) => Object.assign(S, {
+    isScanning: true, detectionLocked: false, lastHeaderText: "CE TOED ARN",
+    lastHeaderOcrTime: Date.now() - 100, lastHeaderHash: regionLuma(base, FRANJA_TITULO_VIDEO),
+    _headerEstable: 3, _headerCtxPrevio: latchedContext, latchedContext,
+    _franjaTickAnterior: regionLuma(base, FRANJA_TITULO_VIDEO)
+  });
+
+  try {
+    prepara("UNKNOWN");
+    await S.processFrame(base, lienzo);
+    assert.equal(lecturas, 0, "sin pista del log manda la caché");
+
+    pistasDelLog.recompensasAbiertas = () => true;
+    prepara("UNKNOWN");
+    await S.processFrame(base, lienzo);
+    assert.equal(lecturas, 1, "con las recompensas abiertas se relee");
+
+    lecturas = 0;
+    prepara("REWARD");
+    await S.processFrame(base, lienzo);
+    assert.equal(lecturas, 0, "ya en REWARD la caché vale");
+  } finally {
+    OCRRepository.workers = orig.workers;
+    S.routeFrameAction = orig.ruta;
+    pistasDelLog.recompensasAbiertas = orig.abiertas;
+    S.isScanning = false;
+  }
+});
+
+test("en arcanos, con el lote del preciso, la celda que no casa no gasta Tesseract ni Paddle celda a celda", async () => {
+  const M = await import("../deploy/js/services/scanner/ocr_engine.service.js");
+  const tabla = { arcane_grace: ["Arcane Grace"], arcane_energize: ["Arcane Energize"] };
+  const r = await escaneaPagina({ motor: M.MOTOR_PRECISO, contexto: "INVENTORY_ARCANES", tabla, lote: { r0c0: ["ARCANE", "GRACE"], r0c1: ["ZZZZ", "QQQQ"] } });
+  assert.equal(r.lecturas, 0);
+  assert.equal(r.porCelda, 0);
+  assert.equal(r.arcanos.length, 1);
+  assert.equal(r.arcanos[0].slug, "arcane_grace");
+});
+
+test("en arcanos, la página de basura con rejilla anclada por color se tira sin apuntarse ni invalidar la rejilla anterior", async () => {
+  S._arcanosDescartada = false;
+  const M = await import("../deploy/js/services/scanner/ocr_engine.service.js");
+  const tabla = { arcane_grace: ["Arcane Grace"], arcane_energize: ["Arcane Energize"] };
+  const cacheAntes = { key: "600x400", calib: { cols: 2 } };
+  const r = await escaneaPagina({ motor: M.MOTOR_PRECISO, contexto: "INVENTORY_ARCANES", tabla, cols: 4, calib: { colorAnchored: true }, cacheAntes, lote: { r0c0: ["ARCANE", "GRACE"], r0c1: ["ZZ"], r0c2: ["QQ"], r0c3: ["XX"] } });
+  assert.equal(r.arcanos, null);
+  assert.ok(r.cacheTras === cacheAntes);
+  assert.equal(r.lecturas, 0);
+});
+
+test("la misma página sin anclar por color sí se apunta", async () => {
+  S._arcanosDescartada = false;
+  const M = await import("../deploy/js/services/scanner/ocr_engine.service.js");
+  const tabla = { arcane_grace: ["Arcane Grace"], arcane_energize: ["Arcane Energize"] };
+  const cacheAntes = { key: "600x400", calib: { cols: 2 } };
+  const r = await escaneaPagina({ motor: M.MOTOR_PRECISO, contexto: "INVENTORY_ARCANES", tabla, cols: 4, calib: {}, cacheAntes, lote: { r0c0: ["ARCANE", "GRACE"], r0c1: ["ZZ"], r0c2: ["QQ"], r0c3: ["XX"] } });
+  assert.ok(Array.isArray(r.arcanos));
+  assert.equal(r.arcanos.length, 1);
+});
+
+test("en arcanos, la celda con tinta que el lote del preciso da por vacía no se enmascara ni se relee celda a celda; fuera de arcanos sí", async () => {
+  const M = await import("../deploy/js/services/scanner/ocr_engine.service.js");
+  const tabla = { arcane_grace: ["Arcane Grace"], arcane_energize: ["Arcane Energize"] };
+  const arc = await escaneaPagina({ motor: M.MOTOR_PRECISO, contexto: "INVENTORY_ARCANES", tabla, tinta: true, lote: { r0c0: ["ARCANE", "GRACE"], r0c1: null } });
+  assert.equal(arc.mascaras, 0);
+  assert.equal(arc.porCelda, 0);
+  assert.equal(arc.arcanos.length, 1);
+  const inv = await escaneaPagina({ motor: M.MOTOR_PRECISO, tinta: true, lote: { r0c0: ["LITH", "C1"], r0c1: null } });
+  assert.ok(inv.mascaras > 0);
+  assert.equal(inv.porCelda, 1);
+});
+
+test("en arcanos, la página de basura solo se tira una vez seguida y queda por releer", async () => {
+  const M = await import("../deploy/js/services/scanner/ocr_engine.service.js");
+  const tabla = { arcane_grace: ["Arcane Grace"], arcane_energize: ["Arcane Energize"] };
+  const args = { motor: M.MOTOR_PRECISO, contexto: "INVENTORY_ARCANES", tabla, cols: 4, calib: { colorAnchored: true }, cacheAntes: { key: "1154x400", calib: { cols: 2 } }, lote: { r0c0: ["ARCANE", "GRACE"], r0c1: ["ZZ"], r0c2: ["QQ"], r0c3: ["XX"] } };
+  Object.assign(S, { _arcanosDescartada: false, autoScrollMuestra: { rejilla: null }, fotosSinScroll: 3 });
+  try {
+    assert.equal((await escaneaPagina(args)).arcanos, null);
+    assert.equal(S.autoScrollMuestra, null);
+    assert.equal(S.fotosSinScroll, 2, "queda un intento para releerla aunque se hubieran gastado los tres");
+    assert.ok(Array.isArray((await escaneaPagina(args)).arcanos));
+    assert.equal((await escaneaPagina(args)).arcanos, null);
+  } finally {
+    Object.assign(S, { _arcanosDescartada: false, autoScrollMuestra: null, _autoCalibCache: null, fotosSinScroll: 0 });
   }
 });

@@ -16,6 +16,7 @@
 import { montaTiras, repartePorTramos } from "../utils/vision/ocr_montage.js";
 import { PaddleWorkerClient } from "./paddle_worker_client.js";
 import { rutasAbsolutas, eligeModelo, puedeUsarWorker } from "../utils/vision/paddle_rpc.js";
+import { pistasDelLog } from "../utils/ganchos.js";
 
 const CDN = "https://esm.sh/ppu-paddle-ocr@6.4.3/web?alias=onnxruntime-web:onnxruntime-web/wasm&deps=onnxruntime-web@1.30.0";
 const MODELO_LOCAL = {
@@ -33,6 +34,17 @@ export const PaddleRepository = {
 
     listo() { return !!this._service; },
 
+    SUELTA_REPOSO_MS: 10 * 60 * 1000,
+    _enUso: 0,
+    _ultimoUso: 0,
+    _relojReposo: null,
+    _enReposo: false,
+
+    disponible() {
+        if (!this._service && this._enReposo && !this._initPromise) this.warmUp().catch(() => {});
+        return this.listo();
+    },
+
     /** Última carga fallida, para que la UI pueda decirlo en vez de quedarse en "preparando". */
     ultimoFallo: null,
 
@@ -48,6 +60,8 @@ export const PaddleRepository = {
             const pedido = globalThis.PADDLE_MODEL ?? null;
             this._service = (await this._arrancaWorker(cdn, pedido)) || (await this._cargaEnHilo(cdn, pedido));
             this.ultimoFallo = null;
+            this._enReposo = false;
+            this._marcaUso();
             return this._service;
         })();
         // Un fallo NO puede quedarse cacheado: la promesa rechazada se devolvía para siempre, así
@@ -57,6 +71,7 @@ export const PaddleRepository = {
         this._initPromise.catch((e) => {
             this.ultimoFallo = e;
             this._initPromise = null;
+            this._enReposo = false;
             console.error("[Paddle] no se pudo cargar el motor preciso; se lee con el clásico:", e);
         });
         return this._initPromise;
@@ -101,6 +116,9 @@ export const PaddleRepository = {
      * navegador. El servicio en hilo principal no se puede liberar: se deja.
      */
     apaga() {
+        clearTimeout(this._relojReposo);
+        this._relojReposo = null;
+        this._enReposo = false;
         if (!this._service || this._service.terminate) {
             this._service?.terminate();
             this._service = null; this._initPromise = null; this._modo = null;
@@ -115,15 +133,49 @@ export const PaddleRepository = {
         this.warmUp().catch(() => {});
     },
 
+    _marcaUso() {
+        this._ultimoUso = Date.now();
+        this._programaReposo(this.SUELTA_REPOSO_MS);
+    },
+
+    _programaReposo(ms) {
+        clearTimeout(this._relojReposo);
+        this._relojReposo = setTimeout(() => this.sueltaEnReposo(), ms);
+        this._relojReposo?.unref?.();
+    },
+
+    sueltaEnReposo(ahora = Date.now()) {
+        if (!this._service?.terminate || this._enUso > 0) return false;
+        const falta = this.SUELTA_REPOSO_MS - (ahora - this._ultimoUso);
+        if (falta > 0) { this._programaReposo(falta); return false; }
+        if (pistasDelLog.enMision() === true) { this._programaReposo(this.SUELTA_REPOSO_MS); return false; }
+        const svc = this._service;
+        this._service = null; this._initPromise = null; this._modo = null; this._lote = null;
+        this._arranquesWorker = 0; this._relojReposo = null; this._enReposo = true;
+        svc.terminate();
+        console.log("[Paddle] liberado tras diez minutos sin leer; se recarga en la próxima lectura");
+        return true;
+    },
+
+    async _lee(canvas) {
+        const svc = await this.warmUp();
+        this._enUso++;
+        try {
+            return await svc.recognize(canvas);
+        } finally {
+            this._enUso--;
+            this._marcaUso();
+        }
+    },
+
     /**
      * Reconoce el texto de un canvas a COLOR (la banda de nombre recortada, sin
      * binarizar) y devuelve las PALABRAS en mayúsculas — mismo formato que
      * OCRService.extractCellText, para alimentar getValidItemMatch sin cambios.
      */
     async recognizeWords(colorCanvas) {
-        const svc = await this.warmUp();
         // ppu-paddle-ocr acepta un canvas directamente (usa getContext/getImageData).
-        const res = await svc.recognize(colorCanvas);
+        const res = await this._lee(colorCanvas);
         const text = (res && res.text) ? res.text : "";
         const words = text.replace(/[^A-Za-z0-9]+/g, " ").trim().split(/\s+/).filter(Boolean);
         return words.length ? words.map((w) => w.toUpperCase()) : null;
@@ -140,11 +192,10 @@ export const PaddleRepository = {
      * @returns Map<clave, palabras en MAYÚSCULAS> — mismo formato que OCRService.extractCellText.
      */
     async recognizeStripWords(fuente, tiras, opciones = {}) {
-        const svc = await this.warmUp();
         const salida = new Map();
         this._lote = new Map();
         for (const { canvas, tramos } of montaTiras(fuente, tiras, opciones)) {
-            const res = await svc.recognize(canvas);
+            const res = await this._lee(canvas);
             const lineas = (res?.lines || []).flat().filter((l) => l?.box && l?.text);
             for (const [clave, suyas] of repartePorTramos(lineas, tramos)) {
                 const palabras = suyas.map((l) => l.text).join(" ")
@@ -174,8 +225,7 @@ export const PaddleRepository = {
 
     /** Líneas crudas con su caja, para quien reparte por posición (montajes). */
     async recognizeLines(canvas) {
-        const svc = await this.warmUp();
-        const res = await svc.recognize(canvas);
+        const res = await this._lee(canvas);
         return (res?.lines || []).flat().filter((l) => l?.box && l?.text);
     },
 
@@ -189,8 +239,7 @@ export const PaddleRepository = {
      * lo que importa es a qué card pertenece cada nombre, no el píxel exacto de cada letra.
      */
     async recognizeWordsWithBoxes(canvas) {
-        const svc = await this.warmUp();
-        const res = await svc.recognize(canvas);
+        const res = await this._lee(canvas);
         return this._palabrasConCaja((res?.lines || []).flat().filter((l) => l?.box && l?.text));
     },
 

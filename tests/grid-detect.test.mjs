@@ -4,6 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { decodePng } from "./_helpers/png.mjs";
+import { rejillaConMemoria, memoriaDeRejilla } from "../deploy/js/utils/vision/grid_memoria.js";
 import {
   rowProfile,
   findBands,
@@ -1119,4 +1120,59 @@ test("detectInventoryGrid: pestaña de arcanos, el arte pesa más que los nombre
   assert.ok(!res.colorAnchored, `anclada por color ${res.nameColor}`);
   assert.ok(Math.abs(res.cellW - 208) <= 3 && Math.abs(res.cellH - 222) <= 3, `celda ${res.cellW}x${res.cellH}`);
   assert.ok(Math.abs(res.gridZone.x - 67) <= 21 && Math.abs(res.gridZone.y - 182) <= 22, `origen ${res.gridZone.x},${res.gridZone.y}`);
+});
+
+test("detectInventoryGrid: en arcanos, la interfaz a la derecha de la rejilla no cuenta como columnas aunque una llegue a fuerte", () => {
+  const img = decodePng(fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), "_fixtures/inventory_arcanes_1920x1080.png")));
+  const data = new Uint8ClampedArray(img.data);
+  for (const y0 of [348, 570]) for (const c of [6, 7, 8]) {
+    for (let y = y0; y < y0 + 22; y++) for (let x = 108 + c * 207; x < Math.min(img.width, 228 + c * 207); x++) {
+      const i = (y * img.width + x) * 4;
+      data[i] = data[i + 1] = data[i + 2] = (x >> 2) & 1 ? 240 : 20;
+    }
+  }
+  const trace = {};
+  const res = detectInventoryGrid({ width: img.width, height: img.height, data }, { trace });
+  assert.ok(res, `trace.fail = ${trace.fail}`);
+  assert.equal(trace.occCols.join(","), "4,4,4,4,4,4,2,3,2");
+  assert.equal(res.cols, 6);
+  assert.ok(Math.abs(res.gridZone.x - 67) <= 21, `origen ${res.gridZone.x}`);
+});
+
+test("detectInventoryGrid: en arcanos, si los bordes fallan, el brillo del arte no ancla la rejilla por color y la memoria la recupera", () => {
+  const img = decodePng(fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), "_fixtures/inventory_arcanes_1920x1080.png")));
+  const data = new Uint8ClampedArray(img.data);
+  for (let x = 0; x < 1300; x++) {
+    for (let y = 336; y < 392; y++) {
+      const i = (y * img.width + x) * 4;
+      data[i] = 8; data[i + 1] = 8; data[i + 2] = 16; data[i + 3] = 255;
+    }
+    for (let y = 990; y < img.height; y++) {
+      const i = (y * img.width + x) * 4;
+      data[i] = 8; data[i + 1] = 8; data[i + 2] = 16; data[i + 3] = 255;
+    }
+  }
+  const frame = { width: img.width, height: img.height, data };
+  const sinFreno = detectInventoryGrid(frame, { colorBandFracMax: 1 });
+  assert.ok(sinFreno?.colorAnchored, "sin el freno el arte ancla la rejilla por color");
+  const trace = {};
+  const res = detectInventoryGrid(frame, { trace });
+  assert.equal(res, null, "sin memoria no hay rejilla: el arte ya no la ancla");
+  assert.ok(trace.colorFallback.tried.some((t) => !t.ok && t.nameBandFrac > 0.33));
+  const limpia = detectInventoryGrid(img);
+  const recuperada = rejillaConMemoria(res, trace, memoriaDeRejilla(limpia), frame);
+  assert.ok(recuperada?.deMemoria, `ajuste ${JSON.stringify(trace.memoria)}`);
+  assert.equal(recuperada.cols, 6);
+  assert.equal(recuperada.gridX, limpia.gridX);
+  assert.equal(recuperada.gridY, limpia.gridY);
+  assert.equal(recuperada.rows, limpia.rows);
+});
+
+test("detectInventoryGrid: una columna interior casi vacía no recorta la rejilla si a su derecha hay una columna llena", () => {
+  const filled = [...Array(24).keys()].filter((i) => ![10, 16, 22].includes(i));
+  const trace = {};
+  const res = detectInventoryGrid(makeInventoryFrame({ width: 1920, height: 1080, gridX: 100, gridY: 150, cellW: 207, cellH: 222, cols: 6, rows: 4, filled }), { trace });
+  assert.ok(res, `trace.fail = ${trace.fail}`);
+  assert.equal(trace.occCols.join(","), "4,4,4,4,1,4");
+  assert.equal(res.cols, 6);
 });

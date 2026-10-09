@@ -210,7 +210,7 @@ export const RelicScreenService = {
      * por línea no basta para el emparejamiento por geometría que exige parseRelicGrid ahí.
      */
     async leePalabras(worker, video, cvs) {
-        if (motorActivo() === MOTOR_PRECISO && PaddleRepository.listo()) {
+        if (motorActivo() === MOTOR_PRECISO && PaddleRepository.disponible()) {
             const colorCvs = VisionService.prepareCropColorForOCR(video, RELIC_GRID_CROP, 1.25, "relicGridColor");
             const [counts, palabras] = await Promise.all([
                 OCRRepository.recognizeWithPSM(worker, cvs, 11, { blocks: true }),

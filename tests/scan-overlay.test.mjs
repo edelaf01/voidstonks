@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createCellOverlay } from "../deploy/js/utils/vision/scan_overlay.js";
+import { createCellOverlay, pintaRejilla } from "../deploy/js/utils/vision/scan_overlay.js";
 
 // ===========================================================================
 // Overlay de debug del escaneo (utils/vision/scan_overlay.js).
@@ -63,4 +63,36 @@ test("overlay: el texto largo se recorta para no salirse de la celda", () => {
     });
     const largos = ctx.ops.filter(o => o.text && o.text.length > Math.floor(CELL_W / 5.5));
     assert.deepEqual(largos, [], "un texto sin recortar se pinta encima de la celda vecina");
+});
+
+test("pintaRejilla: un rectángulo por celda en coordenadas del recorte, una línea por fila y el trazo discontinuo se deshace", () => {
+    const ctx = ctxEspia();
+    ctx.beginPath = () => ctx.ops.push({ type: "beginPath" });
+    ctx.moveTo = (x, y) => ctx.ops.push({ type: "moveTo", x, y });
+    ctx.lineTo = (x, y) => ctx.ops.push({ type: "lineTo", x, y });
+    ctx.stroke = () => ctx.ops.push({ type: "stroke" });
+    ctx.setLineDash = (dash) => ctx.ops.push({ type: "setLineDash", dash });
+
+    const cellRects = [
+        { r: 0, c: 0, sx: ZONE.x, sy: ZONE.y },
+        { r: 0, c: 1, sx: ZONE.x + CELL_W, sy: ZONE.y },
+        { r: 1, c: 0, sx: ZONE.x, sy: ZONE.y + CELL_H }
+    ];
+
+    pintaRejilla(ctx, ZONE, cellRects, CELL_W, CELL_H, 3);
+
+    const rects = ctx.ops.filter(o => o.w !== undefined && o.text === undefined);
+    assert.equal(rects.length, 3);
+    assert.deepEqual(rects[0], { x: 0, y: 0, w: CELL_W, h: CELL_H });
+
+    const strokes = ctx.ops.filter(o => o.type === "stroke");
+    assert.equal(strokes.length, 2);
+
+    const moveTos = ctx.ops.filter(o => o.type === "moveTo");
+    assert.equal(moveTos[0].x, 0);
+    assert.equal(moveTos[0].y, 0);
+    assert.equal(moveTos[1].y, CELL_H);
+
+    const dashes = ctx.ops.filter(o => o.type === "setLineDash");
+    assert.deepEqual(dashes[dashes.length - 1].dash, []);
 });

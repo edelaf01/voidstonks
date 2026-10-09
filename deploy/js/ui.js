@@ -36,7 +36,7 @@ import { exposeGlobals } from "./utils/global_registry.js";
 import { readTabHash, writeTabHash, onTabHashChange } from "./utils/tab_hash.js";
 import { updateGuideLink } from "./ui.components/ui_hints.js";
 import { state, saveAppState, updateInventoryCount, TABS } from "./state.js";
-import { renderFarmsTab } from "./ui.components/farms/ui_farms.js";
+import { renderFarmsTab, stopFarmsTimers } from "./ui.components/farms/ui_farms.js";
 import { renderFarmRoutes } from "./ui.components/farms/ui_farm_routes.js";
 import { renderInventory, updateInventoryPanelLabels } from "./ui.components/inventory/ui_inventory.js";
 import { renderPrimeInventory } from "./ui.components/inventory/ui_prime_inventory.js";
@@ -148,7 +148,8 @@ export function initTabRouting() {
 }
 
 export function switchTab(mode) {
-  if (state.activeTab === "riven" && mode !== "riven") rivensUI?.then((m) => m.stopRivenShowcase());
+  if (state.activeTab === "riven" && mode !== "riven") rivensUI?.then((m) => { m.stopRivenShowcase(); m.stopCuriosidades(); });
+  if (state.activeTab === "bounties" && mode !== "bounties") stopFarmsTimers();
   state.activeTab = mode;
   saveAppState();
   if (!navegandoPorHistorial) writeTabHash(mode);

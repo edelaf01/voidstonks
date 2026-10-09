@@ -54,7 +54,7 @@ async function conPaddle(frame, width, height, scale, cropRect, columnas) {
  * @returns Map<"rFcC", texto en MAYÚSCULAS> o null si el motor no está cargado o falla.
  */
 export async function leeRotulosMissionComplete(frame, celdas) {
-    if (!PaddleRepository.listo() || !celdas.length) return null;
+    if (!(motorActivo() === MOTOR_PRECISO ? PaddleRepository.disponible() : PaddleRepository.listo()) || !celdas.length) return null;
     // Mitad inferior de la casilla: ahí vive el rótulo y se deja fuera el grueso del arte.
     const tiras = celdas.map((c) => ({
         clave: `r${c.row}c${c.col}`,
@@ -128,7 +128,7 @@ export async function leeRecompensas(frame, width, height, scale, preset, cropRe
     // si YA está cargado —quien lee frames en vivo no puede esperar a que bajen 4,8 MB— y si no
     // devuelve nada se sigue con el clásico, que no depende de nada externo. Misma red de
     // seguridad que la vía de foto: un CDN caído no puede dejar el escáner sin leer.
-    if (motor !== "clasico" && motorActivo() === MOTOR_PRECISO && PaddleRepository.listo()) {
+    if (motor !== "clasico" && motorActivo() === MOTOR_PRECISO && PaddleRepository.disponible()) {
         const red = await conPaddle(frame, width, height, scale, cropRect, columnas)
             .catch((e) => { console.warn("[REWARD] motor preciso falló, sigo con el clásico:", e); return null; });
         if (red?.foundItems.length) return red;

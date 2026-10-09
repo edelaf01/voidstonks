@@ -1,5 +1,6 @@
 import { state } from "../../state.js";
 import { cargaScript } from "../../utils/carga_script.js";
+import { seEstaMirando } from "../../utils/shell.js";
 import { renderIndexFilters, indexCountHtml, indexEmptyHtml } from "./ui_riven_index_filters.js";
 import { META_KEYS, EXCLUDED_COMPONENTS, isBaseWeapon, applyIndexFilters } from "../../utils/rivens/riven_index_filter.js";
 import { exposeGlobals } from "../../utils/global_registry.js";
@@ -8,6 +9,7 @@ import {
   _curioEventosDe,
   renderCuriosidades,
   renderCuriosidadesArma,
+  stopCuriosidades,
 } from "./ui_riven_curiosidades.js";
 import { damageMeta } from "../../utils/damage_types.js";
 import { RIVEN_STATS, TEXTS, WORKER_URL } from "../../config.js";
@@ -55,7 +57,7 @@ import {
   statsSinDatoPropio,
   isStatAllowedForWeaponType,
 } from "../../services/rivens/riven_weights.service.js";
-export { normalizeStatName };
+export { normalizeStatName, stopCuriosidades };
 
 globalThis.DEFAULT_WEAPON_SVG = DEFAULT_WEAPON_SVG;
 const DEFAULT_WEAPON_DATA_URL = "data:image/svg+xml;utf8," + encodeURIComponent(DEFAULT_WEAPON_SVG);
@@ -792,6 +794,7 @@ function renderEmptyShowcase(panel) {
   }
 
   emptyShowcaseInterval = setInterval(() => {
+    if (!seEstaMirando()) return;
     const cardIdxToSwap = Math.floor(Math.random() * 3);
     const card = document.getElementById(`showcase-card-${cardIdxToSwap}`);
     if (!card) return;

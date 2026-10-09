@@ -3,7 +3,7 @@ import {
   mostrarPaneles, quitarPaneles, quitarTodosLosPaneles, alPulsarEnOverlay, ajustaPanelesAlContexto,
 } from "../services/desktop.service.js";
 import { panelKiosko, panelReliquias, panelRiven, panelRivenComparacion, panelInventario, panelArcanos } from "../utils/overlay_paneles.js";
-import { duermePorLog, firmaPorLog, tarjetasPorLog, armaRivenPorLog, rejillaListaPorLog, cambioPantallaPorLog, enMisionPorLog } from "../services/scanner/log_gate.service.js";
+import { duermePorLog, firmaPorLog, tarjetasPorLog, armaRivenPorLog, rejillaListaPorLog, cambioPantallaPorLog, recompensasAbiertasPorLog, enMisionPorLog, paraVigiaDelJuego } from "../services/scanner/log_gate.service.js";
 import { EELogLive } from "../services/scanner/eelog_live.service.js";
 import { getItemIcon } from "../utils/ui_utils.js";
 import { state } from "../state.js";
@@ -23,10 +23,14 @@ export function conectaEscaner() {
     reliquiaPorGastar: () => EELogLive.reliquiaPorGastar(),
     rejillaLista: rejillaListaPorLog,
     cambioPantalla: cambioPantallaPorLog,
+    recompensasAbiertas: recompensasAbiertasPorLog,
     enMision: enMisionPorLog,
   });
   escucha("contexto", (contexto) => ajustaPanelesAlContexto(contexto));
-  escucha("escaner-parado", () => quitarTodosLosPaneles());
+  escucha("escaner-parado", () => {
+    quitarTodosLosPaneles();
+    paraVigiaDelJuego();
+  });
   escucha("kiosko", ({ items, rotulo }) => {
     const encima = panelKiosko(items, rotulo);
     if (encima) mostrarPaneles("kiosko", [encima]);
@@ -36,6 +40,7 @@ export function conectaEscaner() {
     if (!aviso) return quitarPaneles("riven");
     mostrarPaneles("riven", [aviso.tipo === "comparacion" ? panelRivenComparacion(aviso.datos) : panelRiven(aviso.datos)]);
   });
+  alPulsarEnOverlay("riven", (accion) => avisa("overlay-riven", accion));
   escucha("reliquias", ({ picks, era, opciones }) => {
     const panel = panelReliquias(picks, era, TEXTS[state.currentLang].scannerHUD, { ...opciones, iconoDe: getItemIcon });
     mostrarPaneles("reliquias", [panel], { duracionMs: RELIQUIAS_DURACION_MS });

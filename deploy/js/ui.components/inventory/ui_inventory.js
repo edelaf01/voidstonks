@@ -28,6 +28,13 @@ export function toggleInventoryPanel(forceOpen = false) {
   }
 }
 
+export function inventarioCambiado() {
+  renderRelicInvCounter();
+  renderInventory();
+  renderPrimeInventory();
+  globalThis.scheduleFarmRoutesRefresh?.();
+}
+
 export function clearInventory() {
   const isParts = state.currentInvView === "parts";
   const t = TEXTS[state.currentLang];
@@ -38,10 +45,10 @@ export function clearInventory() {
   showCustomConfirm(confirmMsg, () => {
     if (isParts) {
       state.primeInventory = {};
-      renderPrimeInventory();
+      inventarioCambiado();
     } else {
       state.inventory = [];
-      renderInventory();
+      inventarioCambiado();
     }
     saveAppState();
     showToast(t.inventory?.toastCleared || "Inventory cleared");
@@ -60,7 +67,7 @@ export async function renderInventory() {
 
   const goal = state.invGoal || "sets";
   const newHash = inventorySignature(state.inventory) + state.invSearchVal + state.invFilterTier
-    + goal + state.invOnlyActive + state.currentLang + JSON.stringify(state.primeInventory).length;
+    + goal + state.invOnlyActive + state.currentLang + JSON.stringify(state.primeInventory);
   if (newHash === lastInventoryHash && list.children.length > 0) {
     return;
   }
@@ -469,15 +476,14 @@ export function importInventory() {
           state.inventory = data.relics;
           state.primeInventory = data.parts;
           saveAppState();
-          renderInventory();
-          renderPrimeInventory();
+          inventarioCambiado();
           showToast(t.toastImportedAll || "Full inventory updated");
         });
       } else if (Array.isArray(data)) {
         showCustomConfirm((t.confirmImportRelics || "").replace("{n}", data.length), () => {
           state.inventory = data;
           saveAppState();
-          renderInventory();
+          inventarioCambiado();
           showToast(t.toastImportedRelics || "Relic inventory updated");
         });
       } else {
@@ -498,6 +504,7 @@ exposeGlobals({
   addCurrentToInv,
   switchInvView,
   renderInventory,
+  inventarioCambiado,
   clearInventory,
   toggleInventoryPanel,
   exportInventory,

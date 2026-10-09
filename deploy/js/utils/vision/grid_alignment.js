@@ -18,6 +18,16 @@ export function filasEnFase(bandas, { gridY, cellH, rows }) {
     return enFase >= Math.ceil(rows / 2);
 }
 
+export function filasPorArriba(bandas, { gridY, cellH, rows }) {
+    let y = gridY, n = rows;
+    const nombreEncima = (b) => b.y1 >= y - cellH * (1 - MIN) && b.y1 <= y + cellH * (MAX - 1) && b.y0 >= y - cellH * 1.15;
+    while (bandas?.length && cellH > 0 && rows > 0 && y - cellH >= -cellH * 0.15 && bandas.some(nombreEncima)) {
+        y -= cellH;
+        n++;
+    }
+    return { gridY: y, rows: n };
+}
+
 /**
  * Filas contando la que asoma al final de la lista con uno o dos ítems: su banda pesa un 4% de la
  * de una fila llena y el filtro de masa del detector la tira. En esa franja caen también el arte,

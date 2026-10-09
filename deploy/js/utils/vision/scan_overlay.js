@@ -75,3 +75,25 @@ export function createCellOverlay(ctx, zone, cellW, cellH) {
 
     return { drawResolved, drawFailed };
 }
+
+export function pintaRejilla(ctx, zone, cellRects, cellW, cellH, rows) {
+    ctx.strokeStyle = "rgba(0,229,255,0.4)";
+    ctx.lineWidth = 1;
+    cellRects.forEach(cell => ctx.strokeRect(cell.sx - zone.x, cell.sy - zone.y, cellW, cellH));
+
+    const gridLeft = Math.min(...cellRects.map(c => c.sx)) - zone.x;
+    const gridRight = Math.max(...cellRects.map(c => c.sx + cellW)) - zone.x;
+    ctx.strokeStyle = "rgba(255, 193, 7, 0.5)"; // elegant amber
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([6, 4]);
+    for (let ri = 0; ri < rows; ri++) {
+        const rowCell = cellRects.find(c => c.r === ri);
+        if (rowCell) {
+            ctx.beginPath();
+            ctx.moveTo(gridLeft, rowCell.sy - zone.y);
+            ctx.lineTo(gridRight, rowCell.sy - zone.y);
+            ctx.stroke();
+        }
+    }
+    ctx.setLineDash([]); // Reset line dash
+}

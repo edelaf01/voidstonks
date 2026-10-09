@@ -230,12 +230,18 @@ test("panelArcanos coloca cada arcano en su celda de la página, con precios y v
   assert.equal(tipo, "rejilla");
   assert.equal(cols, 3);
   assert.equal(celdas.length, 6);
-  assert.deepEqual(celdas.map((c) => c?.lineas[0].texto ?? null), ["Arcane Nullifier", null, "Arcane Ice", null, "Arcane Strike", null]);
+  assert.deepEqual(celdas.map((c) => c?.lineas[0].texto ?? null), ["Nullifier", null, "Ice", null, "Strike", null]);
   assert.deepEqual(celdas[0].lineas, [
-    { texto: "Arcane Nullifier" }, { texto: "21 · 1×R5" },
-    { texto: "R0 4.5 pl", tono: "oro" }, { texto: "R5 120 pl", tono: "oro" },
+    { texto: "Nullifier" },
     { texto: "SELL R5", tono: "verde" },
+    { texto: "21 · 1×R5" },
+    { texto: "R0 4.5 pl", tono: "oro" },
+    { texto: "R5 120 pl", tono: "oro" },
   ]);
-  assert.deepEqual(celdas[2].lineas.slice(2), [{ texto: "R0 1 pl", tono: "oro" }, { texto: "R5 —", tono: "oro" }, { texto: "DISSOLVE", tono: "cian" }]);
-  assert.deepEqual(celdas[4].lineas.slice(1), [{ texto: "3" }, { texto: "R0 —", tono: "oro" }, { texto: "R3 15 pl", tono: "oro" }, { texto: "EVEN", tono: "gris" }]);
+  assert.deepEqual(celdas[2].lineas.slice(1), [{ texto: "DISSOLVE", tono: "cian" }, { texto: "45 · 2×R5" }, { texto: "R0 1 pl", tono: "oro" }, { texto: "R5 —", tono: "oro" }]);
+  assert.deepEqual(celdas[4].lineas.slice(1), [{ texto: "EVEN", tono: "gris" }, { texto: "3" }, { texto: "R0 —", tono: "oro" }, { texto: "R3 15 pl", tono: "oro" }]);
+  assert.deepEqual([celdas[0].tono, celdas[2].tono, celdas[4].tono], ["verde", "cian", "gris"]);
+
+  const filaExtra = { name: "Molt Augmented", qty: 2, maxRank: 5, rangosMax: 0, accion: "even", r: 0, c: 0, precioR0: null, precioMax: null };
+  assert.equal(panelArcanos([filaExtra], t).bloques[1].celdas[0].lineas[0].texto, "Molt Augmented");
 });
