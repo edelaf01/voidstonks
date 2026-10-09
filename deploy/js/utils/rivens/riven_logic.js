@@ -683,7 +683,7 @@ export function classifyWeaponMarket(meta, band = null) {
   let typical = refFiable ? _deReMed : (b.typical || meta.official_median || 0);
   const wfm = meta.wfm_avg_price || meta.wfm_avg || 0;
   const vol = b.vol_dia != null ? b.vol_dia : (meta.wfm_market_sample || 0);
-  const trend = b.trend != null ? b.trend : (meta.trend_7d_pct || 0);
+  const trend = meta.trend_7d_pct || 0;
 
   const hist = (typeof state !== "undefined" && state.currentWeaponHistory
     && sameWeaponName(state.currentWeaponHistory.weaponName, meta.name)
