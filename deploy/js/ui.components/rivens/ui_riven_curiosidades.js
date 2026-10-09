@@ -3,6 +3,7 @@ import { escapeHTML } from "../../utils/escape_html.js";
 import { getWeaponImagePath } from "../../utils/rivens/weapon_image.js";
 import { extractFamilyName } from "../../utils/rivens/riven_family.js";
 import { getCuriosidades } from "../../services/rivens/curiosidades.service.js";
+import { seEstaMirando } from "../../utils/shell.js";
 
 // local copy so the render functions stay synchronous
 let _curioCache = null;   // { globales:[], eventos:[] }
@@ -196,19 +197,25 @@ export async function renderCuriosidades() {
   // starts at the first card (the newest move); later repaints keep the position
   _pintaCurio(cont, lista, _curioIdx);
 
+  const avanza = () => { if (seEstaMirando()) mueve(1); };
   const mueve = (paso) => {
     _curioIdx = (_curioIdx + paso + lista.length) % lista.length;
     _pintaCurio(cont, lista, _curioIdx);
-    if (_curioTimer) { clearInterval(_curioTimer); _curioTimer = setInterval(() => mueve(1), 9000); }
+    if (_curioTimer) { clearInterval(_curioTimer); _curioTimer = setInterval(avanza, 9000); }
   };
   if (!cont.dataset.listo) {
     cont.querySelector("[data-curio-prev]")?.addEventListener("click", () => mueve(-1));
     cont.querySelector("[data-curio-next]")?.addEventListener("click", () => mueve(1));
     cont.addEventListener("mouseenter", () => { clearInterval(_curioTimer); _curioTimer = null; });
-    cont.addEventListener("mouseleave", () => { if (!_curioTimer) _curioTimer = setInterval(() => mueve(1), 9000); });
+    cont.addEventListener("mouseleave", () => { if (!_curioTimer) _curioTimer = setInterval(avanza, 9000); });
     cont.dataset.listo = "1";
   }
-  if (!_curioTimer) _curioTimer = setInterval(() => mueve(1), 9000);
+  if (!_curioTimer) _curioTimer = setInterval(avanza, 9000);
+}
+
+export function stopCuriosidades() {
+  clearInterval(_curioTimer);
+  _curioTimer = null;
 }
 
 export async function renderCuriosidadesArma(weaponName) {

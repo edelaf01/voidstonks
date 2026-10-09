@@ -168,7 +168,7 @@ export const RelicScreenService = {
      * Tesseract, which parseRelicGrid needs for the geometry.
      */
     async leePalabras(worker, video, cvs) {
-        if (motorActivo() === MOTOR_PRECISO && PaddleRepository.listo()) {
+        if (motorActivo() === MOTOR_PRECISO && PaddleRepository.disponible()) {
             const colorCvs = VisionService.prepareCropColorForOCR(video, RELIC_GRID_CROP, 1.25, "relicGridColor");
             const [counts, palabras] = await Promise.all([
                 OCRRepository.recognizeWithPSM(worker, cvs, 11, { blocks: true }),

@@ -436,7 +436,7 @@ globalThis.closeScanModal = () => {
             state.primeInventory[item.name] = item.owned + (isSelected ? 1 : 0);
         });
         saveAppState();
-        if (globalThis.renderPrimeInventory) globalThis.renderPrimeInventory();
+        globalThis.inventarioCambiado?.();
     }
     globalThis.selectedScanItem = null;
     ScannerModal.close();

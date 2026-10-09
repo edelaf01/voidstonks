@@ -6,6 +6,11 @@ export const HOST = "voidstonks.localhost";
 export const PRIMER_PUERTO = 47823;
 export const ULTIMO_PUERTO = 47830;
 export const PREFIJO_OVERLAY = "/__voidstonks/overlay/";
+const AISLAMIENTO = {
+  "Cross-Origin-Opener-Policy": "same-origin",
+  "Cross-Origin-Embedder-Policy": "credentialless",
+  "Cross-Origin-Resource-Policy": "same-origin",
+};
 
 const TIPOS = {
   ".html": "text/html; charset=utf-8",
@@ -70,7 +75,7 @@ export function creaManejador({ raizApp, raizOverlay, puerto }) {
     let info;
     try { info = fs.statSync(fichero); } catch { res.writeHead(404).end(); return; }
     const etag = `"${info.size.toString(16)}-${Math.floor(info.mtimeMs).toString(16)}"`;
-    const cabeceras = { "Content-Type": tipoDe(fichero), "Cache-Control": "no-cache", ETag: etag };
+    const cabeceras = { "Content-Type": tipoDe(fichero), "Cache-Control": "no-cache", ETag: etag, ...AISLAMIENTO };
     if (req.headers["if-none-match"] === etag) {
       res.writeHead(304, cabeceras).end();
       return;

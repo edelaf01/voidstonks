@@ -41,6 +41,11 @@ export function renderFarmsTab() {
   }
 }
 
+export function stopFarmsTimers() {
+  stopBountyTimers();
+  stopRotationTimers();
+}
+
 /**
  * Switches section; the choice is remembered across reloads.
  * @param {"bounties"|"weapons"} view

@@ -34,7 +34,7 @@ async function conPaddle(frame, width, height, scale, cropRect, columnas) {
  * Returns Map<"rFcC", uppercase text>, or null when the engine is not loaded or fails.
  */
 export async function leeRotulosMissionComplete(frame, celdas) {
-    if (!PaddleRepository.listo() || !celdas.length) return null;
+    if (!(motorActivo() === MOTOR_PRECISO ? PaddleRepository.disponible() : PaddleRepository.listo()) || !celdas.length) return null;
     // bottom half of the card: the label without most of the art
     const tiras = celdas.map((c) => ({
         clave: `r${c.row}c${c.col}`,
@@ -91,7 +91,7 @@ export async function leeCasillaMissionComplete(worker, frame, cell, accent, cel
 // from processRewards, not the <video>.
 export async function leeRecompensas(frame, width, height, scale, preset, cropRect, columnas, motor = "ambos") {
     // the network engine needs one attempt and only runs if already loaded; empty falls back to classic
-    if (motor !== "clasico" && motorActivo() === MOTOR_PRECISO && PaddleRepository.listo()) {
+    if (motor !== "clasico" && motorActivo() === MOTOR_PRECISO && PaddleRepository.disponible()) {
         const red = await conPaddle(frame, width, height, scale, cropRect, columnas)
             .catch((e) => { console.warn("[REWARD] motor preciso falló, sigo con el clásico:", e); return null; });
         if (red?.foundItems.length) return red;
