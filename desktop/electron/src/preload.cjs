@@ -20,4 +20,13 @@ contextBridge.exposeInMainWorld("voidstonksNativo", {
       ipcRenderer.send("vs:eelog-parar");
     };
   },
+  seguirJuego(alCambio) {
+    const oyente = (_e, estado) => alCambio(estado);
+    ipcRenderer.on("vs:juego", oyente);
+    ipcRenderer.send("vs:juego-seguir");
+    return () => {
+      ipcRenderer.removeListener("vs:juego", oyente);
+      ipcRenderer.send("vs:juego-parar");
+    };
+  },
 });
