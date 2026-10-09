@@ -12,8 +12,8 @@ import {
   stopCuriosidades,
 } from "./ui_riven_curiosidades.js";
 import { damageMeta } from "../../utils/damage_types.js";
-import { RIVEN_STATS, TEXTS, WORKER_URL, canBeNegative } from "../../config.js";
-import { getRivenTooltip, getRivenMetricName } from "../../utils/rivens/riven_tooltips.js";
+import { RIVEN_STATS, TEXTS, WORKER_URL, WFM_RIVENS_HASTA, canBeNegative } from "../../config.js";
+import { getRivenTooltip, getRivenMetricName, fechaWfmRivens } from "../../utils/rivens/riven_tooltips.js";
 import { renderMetaStats, refreshCurrentRivenMetaStats } from "./ui_riven_meta_stats.js";
 import {
   buildAppraisalWarningsHtml,
@@ -387,6 +387,7 @@ async function fetchAndRenderHistory(weaponName) {
     }
 
     historyData.sort((a, b) => a.date.localeCompare(b.date));
+    if (WFM_RIVENS_HASTA) historyData.forEach(d => { if (d.date > WFM_RIVENS_HASTA) Object.assign(d, { wfm_avg_price: null, wfm_avg: null, wfm_market_sample: 0, volume: null }); });
 
     historial = { historyData, meta, weaponName };
 
@@ -565,7 +566,7 @@ export function renderHistoryWithRange() {
       datasets: [
         {
           type: "line",
-          label: isEs ? "WFM (Precio Base)" : "WFM (Base Price)",
+          label: WFM_RIVENS_HASTA ? `WFM (${isEs ? "hasta el" : "until"} ${fechaWfmRivens(isEs)})` : (isEs ? "WFM (Precio Base)" : "WFM (Base Price)"),
           data: wfmPrices,
           borderColor: "#00e5ff",
           backgroundColor: "rgba(0, 229, 255, 0.08)",
@@ -609,7 +610,7 @@ export function renderHistoryWithRange() {
           yAxisID: "yVolume",
           barPercentage: 0.4
         },
-        _hitosDataset(weaponName, labels, wfmPrices, isEs)
+        _hitosDataset(weaponName, labels, wfmPrices.map((p, i) => p ?? officialMedians[i]), isEs)
       ]
     },
     options: {
@@ -4151,7 +4152,7 @@ export function renderRivenIndexList(items, countHtml = "") {
               <!-- Group 2: WEB DATA (WFM ACTIVE SHOWCASE) -->
               <div class="price-group-section wfm-web">
                 <div style="font-size: 10px; color: var(--wf-blue); font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid rgba(0, 229, 255, 0.15); padding-bottom: 2px; margin-bottom: 2px;">
-                  ${isEs ? "DATOS WEB (WFM)" : "WEB DATA (WFM)"}
+                  ${isEs ? "DATOS WEB (WFM)" : "WEB DATA (WFM)"}${WFM_RIVENS_HASTA ? ` · ${fechaWfmRivens(isEs)}` : ""}
                 </div>
                 <span class="index-card-price-span" data-tooltip="${wfmTooltip}" style="cursor: help; display: inline-flex; align-items: center; gap: 4px; height: 100%;">
                   <span class="price-label-small" style="color: #aaa;">${isEs ? "Media Web:" : "Web Avg:"}</span>

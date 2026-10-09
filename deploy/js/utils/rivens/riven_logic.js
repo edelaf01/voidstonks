@@ -941,9 +941,9 @@ export function calculateHybridTiers(weapon, weaponHistory = null) {
  *   - ratio = asks WFM vivos / precio central robusto (mediana histórica 1 mes, band.typical).
  *     ~1.5–3 = sano; >=8 = listings inflados muy por encima del valor real (burbuja).
  *   - vol_dia = listings/día (liquidez estable, del historial).
- *   - trend = momentum % (últimos 7d vs primeros 7d).
+ *   - trend = cambio % en 7 días de la mediana oficial de DE (trend_7d_pct).
  * @param {object} meta   objeto de arma (/api/rivens): wfm_avg, official_median, band...
- * @param {object} [band] price band servida (typical=hist_med, vol_dia, trend). Si falta, usa meta.band.
+ * @param {object} [band] price band servida (typical=hist_med, vol_dia). Si falta, usa meta.band.
  * @returns {{flag:string,label:string,emoji:string,ratio:number,vol:number,trend:number,advice:string}|null}
  */
 export function classifyWeaponMarket(meta, band = null) {
@@ -965,7 +965,7 @@ export function classifyWeaponMarket(meta, band = null) {
   let typical = refFiable ? _deReMed : (b.typical || meta.official_median || 0);
   const wfm = meta.wfm_avg_price || meta.wfm_avg || 0;
   const vol = b.vol_dia != null ? b.vol_dia : (meta.wfm_market_sample || 0);
-  const trend = b.trend != null ? b.trend : (meta.trend_7d_pct || 0);
+  const trend = meta.trend_7d_pct || 0;
 
   // band.typical viene de la banda servida (snapshot al init); si tenemos el historial semanal
   // en vivo del arma, mezclamos su mediana de trades reales para que la clasificación

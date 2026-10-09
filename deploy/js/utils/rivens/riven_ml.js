@@ -1,66 +1,25 @@
-// EXPERIMENTAL — tasación por el modelo XGBoost destilado (slim) corriendo en el navegador.
-// NO sustituye a calculateAdvancedPredictivePrice (la tasación actual): es una vía paralela
-// para comparar el "pensamiento combinatorio" del modelo contra la heurística JS.
-//
-// El modelo (model_trees_slim.json, ~0.33MB gzip) se carga PEREZOSAMENTE la primera vez que se
-// tasa un riven, así que no afecta al arranque (apto PC y móvil). El predictor recorre los árboles
-// (JS puro, sin WASM) — verificado idéntico a XGBoost (parity max |diff| 4e-6).
-
 import { classifyWeaponMarket } from "./riven_logic.js";
 import { state } from "../../state.js";
+import { tipoDeArma, esFusionado, pesoFusionado } from "./riven_cycling.js";
+import { cargarNivelTirada, atributosAWfm, residuosTirada, precisionNivel, registroSinWfm, nombreArma, indiceDE } from "./riven_nivel.js";
 
 let _ml = null;
 let _loading = null;
-
-// Parsea un modelo XGBoost (formato save_model json) a {baseScore, trees} para recorrer en JS.
-function _parseModel(model) {
-  const lrn = model.learner;
-  let baseScore = lrn.learner_model_param.base_score;
-  baseScore = Array.isArray(baseScore) ? +baseScore[0] : parseFloat(String(baseScore).replace(/[[\]]/g, ""));
-  const trees = lrn.gradient_booster.model.trees.map(t => ({
-    si: t.split_indices, sc: t.split_conditions,
-    L: t.left_children, R: t.right_children, dl: t.default_left,
-  }));
-  return { baseScore, trees };
-}
 
 export async function loadRivenML() {
   if (_ml) return _ml;
   if (_loading) return _loading;
   _loading = (async () => {
     const base = "assets/ml/";
-    const [qbundle, order, defaults, bands, statWeights, cal] = await Promise.all([
-      fetch(base + "model_quantiles_slim.json").then(r => r.json()).catch(() => null), // banda p25..p95
-      fetch(base + "feature_order_slim.json").then(r => r.json()),
-      fetch(base + "feature_defaults_slim.json").then(r => r.json()),
+    const [bands, statWeights, cal] = await Promise.all([
       fetch(base + "price_bands.json").then(r => r.json()).catch(() => ({})),     // banda histórica por arma
       fetch(base + "stat_weights.json").then(r => r.json()).catch(() => ({})),    // pesos pos/neg por arma
       fetch(base + "calibracion_por_arma.json").then(r => r.json()).catch(() => ({})), // drift/synlo/nsamp
     ]);
-    const idx = {};
-    order.forEach((n, i) => { idx[n] = i; });
 
-    let quantiles, qmodels;
-    const single = qbundle && qbundle.models
-      ? null
-      : await fetch(base + "model_trees_slim.json").then(r => r.json()).catch(() => null);
-    if (qbundle && qbundle.models) {
-      quantiles = qbundle.quantiles || Object.keys(qbundle.models).map(Number).sort((a, b) => a - b);
-      qmodels = {};
-      for (const a of quantiles) qmodels[a] = _parseModel(qbundle.models[String(a)]);
-    } else if (single) {
-      // Fallback: modelo de PUNTO antiguo -> se trata como único cuantil p50.
-      quantiles = [0.5]; qmodels = { 0.5: _parseModel(single) };
-    } else {
-      quantiles = []; qmodels = {};
-    }
     _ml = {
-      quantiles, qmodels, order, defaults, idx,
       bands: bands || {}, statWeights: statWeights || {},
-      cal: cal || {}, drift: (cal && cal.drift) || {}, nivel: (cal && cal.nivel) || {}, synlo: (cal && cal.synlo) || {}, nsamp: (cal && cal.nsamp) || {},
-      // venta: calibrado ask->venta por arma que exporta ML_local.py. Solo las armas con
-      // `fiable: true` tienen el modelo entrenado en escala de precio de VENTA.
-      venta: (cal && cal.venta) || {},
+      cal: cal || {}, drift: (cal && cal.drift) || {}, synlo: (cal && cal.synlo) || {}, nsamp: (cal && cal.nsamp) || {},
     };
     // Prior global de stats (31 stats con peso del ML: CD 1.00, Multishot 0.90, CC 0.89, Range 0.89,
     // ... Zoom/Recoil abajo). Se publica en state para que la TASACIÓN pueda interpolar los stats de
@@ -163,12 +122,19 @@ export async function gradeRiven(weaponName, stats) {
     ? (b >= 0.70 ? "RUINOSA" : b >= 0.40 ? "MEDIA" : "INOFENSIVA")
     : (b >= 0.70 ? "RUINOUS" : b >= 0.40 ? "AVERAGE" : "HARMLESS");
 
+  const plano = (t) => t && Object.values(t).some((v) => v && typeof v === "object")
+    ? Object.assign({}, ...Object.values(t).filter((v) => v && typeof v === "object"))
+    : t;
+  const tipo = tipoDeArma(state.weaponMap?.[weaponName]?.t);
+
   const out = [];
   const posW = [];
   let negFactor = 1;
   for (const s of stats) {
     if (s.isPositive) {
-      const w = lookup(W.pos, s.name) ?? lookup(base.pos, s.name) ?? 0.30;
+      const w = (esFusionado(s.name, tipo)
+        ? pesoFusionado(s.name, plano(W.pos), tipo) ?? pesoFusionado(s.name, plano(base.pos), tipo)
+        : lookup(W.pos, s.name) ?? lookup(base.pos, s.name)) ?? 0.30;
       posW.push(w);
       out.push({ name: s.name, isPositive: true, weight: +w.toFixed(2), tier: posTier(w), popular: w >= 0.45 });
     } else {
@@ -198,11 +164,9 @@ export async function gradeRiven(weaponName, stats) {
 // Precisión del modelo POR ARMA (horneada en el entrenamiento: MAPE del p50 en test held-out).
 // Devuelve {mape, grade, n} o null si no hay dato. grade: alta <40% · media 40-80% · baja >80%/sin datos.
 export async function weaponPrecision(weaponName) {
-  const ml = await loadRivenML();
-  const prec = (ml.cal && ml.cal.precision) || {};
-  const rec = _byWeapon(prec, weaponName);
+  const rec = precisionNivel(await cargarNivelTirada(), weaponName);
   if (!rec) return null;
-  const mape = Math.round(rec.mape != null ? rec.mape : rec);
+  const mape = Math.round(rec.mape);
   const grade = mape < 40 ? (state.currentLang === "es" ? "alta" : "high")
     : mape < 80 ? (state.currentLang === "es" ? "media" : "medium")
       : (state.currentLang === "es" ? "baja" : "low");
@@ -338,22 +302,6 @@ export function robustPriceBand(weapon, history) {
   return { floor: Math.round(floor), typical: Math.round(typical), ceiling: Math.round(ceiling) };
 }
 
-// Recorre los árboles de UN modelo (cuantil) y suma las hojas (igual que XGBoost).
-function rawPredictModel(model, x) {
-  let sum = model.baseScore;
-  for (const t of model.trees) {
-    let n = 0;
-    while (t.L[n] !== -1) {
-      const v = x[t.si[n]];
-      n = (v === undefined || Number.isNaN(v))
-        ? (t.dl[n] ? t.L[n] : t.R[n])
-        : (v < t.sc[n] ? t.L[n] : t.R[n]);
-    }
-    sum += t.sc[n]; // valor de hoja
-  }
-  return sum;
-}
-
 const MODEL_STAT_MAP = {
   "Damage": "Base Damage / Melee Damage",
   "Melee Damage": "Base Damage / Melee Damage",
@@ -375,184 +323,34 @@ const MODEL_STAT_MAP = {
   "Slide Crit Chance": "Critical Chance On Slide Attack",
 };
 
-/**
- * Construye el vector de 88 features para un riven y devuelve el precio estimado (pl) por el modelo.
- * Las features que el front no aporta se rellenan con la mediana de entrenamiento (feature_defaults).
- * @param {Object} weapon  objeto del arma (/api/rivens): official_median, wfm_avg, dynamic_weights, ...
- * @param {Array}  itemAttributes  [{name, value, isPositive, minIdeal, maxIdeal}, ...]
- * @param {Object} [weaponData]  datos extra (disposition, type, dynamic_weights)
- * @param {number} [rerolls]
- * @returns {Promise<number>} precio estimado en pl
- */
-// Construye el vector de features + devuelve señales auxiliares (synergy) para la banda/confianza.
-async function buildFeatureVector(weapon, itemAttributes, weaponData = null, rerolls = 0) {
-  const ml = await loadRivenML();
-  // arranca con defaults (medianas) y sobreescribe lo conocido
-  const vec = ml.order.map(n => (typeof ml.defaults[n] === "number" ? ml.defaults[n] : 0));
-  const set = (name, val) => {
-    const i = ml.idx[name];
-    if (i !== undefined && typeof val === "number" && Number.isFinite(val)) vec[i] = val;
-  };
-  const wfm = weapon.wfm_avg ?? weapon.wfm_avg_price;
-  const ofmv = weapon.official_median || 0;
-  const deRe = weapon.de_rerolled || (weaponData && weaponData.de_rerolled) || {};
-
-  set("official_median", weapon.official_median);
-  set("wfm_avg", wfm);
-  set("official_median_missing", weapon.official_median > 0 ? 0 : 1);
-  set("wfm_avg_missing", wfm > 0 ? 0 : 1);
-  set("popularity_pct", weapon.popularity_pct);
-  set("wfm_market_sample", weapon.wfm_market_sample);
-  set("liquidity_score", weapon.liquidity_score);
-  set("rerolled_premium_ratio", weapon.rerolled_premium_ratio);
-  // features nuevas curadas (de de_rerolled + ratios); si el arma no las trae -> quedan en default
-  const reMed = deRe.median || 0, reMax = deRe.max_price || 0;
-  set("re_pop", deRe.pop);
-  set("re_std", deRe.stddev);
-  set("re_med", reMed);
-  set("re_max", reMax);
-  set("wfm_vs_off", (wfm || 0) / (ofmv + 1));
-  set("ceil_mult", reMax / (reMed + 1));
-  // El bloque de de_unrolled (un_std/un_pop/un_min/un_max/re_min) se probó y no aporta: ver el
-  // comentario en ML_local.py. Si vuelve a entrar en el modelo, hay que reflejarlo AQUÍ también o el
-  // navegador enviaría los defaults de entrenamiento, que es peor que no tener la feature.
-  // history del día: en el front (sin fecha) se asume día normal -> drift/ratios neutros = 1
-  set("hist_day_drift", 1.0);
-  set("hist_day_offdrift", 1.0);
-  set("hist_day_rerprem", 1.0);
-  // legacy (se ignoran si no están en feature_order nuevo)
-  set("volatility_index", weapon.volatility_index);
-  set("trend_7d_pct", weapon.trend_7d_pct);
-  set("web_min", weapon.web_min);
-  set("web_max", weapon.web_max);
-
-  // Populate historical data features if state and history data are loaded.
-  // Comparación tolerante (trim + case): el === estricto descartaba el historial en silencio.
-  const _wName = String(weapon.name || weapon.weaponName || "").trim().toLowerCase();
-  const histData = (typeof state !== "undefined" && state.currentWeaponHistory && _wName
-    && String(state.currentWeaponHistory.weaponName || "").trim().toLowerCase() === _wName)
-    ? state.currentWeaponHistory.data : null;
-  if (histData && histData.length > 0) {
-    const getMedian = (arr) => {
-      const sorted = arr.filter(x => typeof x === "number" && !Number.isNaN(x)).sort((a, b) => a - b);
-      return sorted.length ? sorted[Math.floor((sorted.length - 1) / 2)] : null;
-    };
-    const getAvg = (arr) => {
-      const filtered = arr.filter(x => typeof x === "number" && !Number.isNaN(x));
-      return filtered.length ? (filtered.reduce((a, b) => a + b, 0) / filtered.length) : null;
-    };
-    const getMax = (arr) => {
-      const filtered = arr.filter(x => typeof x === "number" && !Number.isNaN(x));
-      return filtered.length ? Math.max(...filtered) : null;
-    };
-
-    const histOfficial = getMedian(histData.map(d => d.official_median));
-    const histWfm = getMedian(histData.map(d => d.wfm_avg ?? d.wfm_avg_price));
-    const histLiq = getAvg(histData.map(d => d.liquidity_score));
-    const histVol = getMax(histData.map(d => d.volatility_index));
-    const histPrem = getMedian(histData.map(d => d.rerolled_premium_ratio));
-    const histTrend = getMedian(histData.map(d => d.trend_7d_pct));
-
-    if (histOfficial !== null) set("hist_current_official", histOfficial);
-    if (histWfm !== null) set("hist_current_wfm", histWfm);
-    if (histLiq !== null) set("hist_liquidity_avg", histLiq);
-    if (histVol !== null) set("hist_volatility_max", histVol);
-    if (histPrem !== null) set("hist_rerolled_premium", histPrem);
-    if (histTrend !== null) set("hist_trend_7d", histTrend);
-  }
-
-  // synergy_score (misma idea que el entrenamiento): suma de pesos meta de los positivos.
+function _synergy(weapon, itemAttributes, weaponData) {
   const dw = weapon.dynamic_weights || (weaponData && weaponData.dynamic_weights) || {};
   const dwKey = (name) => {
     const nl = name.toLowerCase();
     return Object.keys(dw).find(k => k.toLowerCase() === nl);
   };
+  const tipo = tipoDeArma((weaponData && weaponData.t) || weapon.t);
   let synergy = 0;
-  const posMags = [];
-  let hasNegCurse = 0;
-  let negPenalty = 1.0;
-
   for (const a of itemAttributes) {
-    const name = a.name;
-    if (a.isPositive) {
-      const k = dwKey(name);
-      synergy += k ? (parseFloat(dw[k]) || 0.05) : 0.05;
-      
-      let modelName = MODEL_STAT_MAP[name] || name;
-      if (name === "Chance not to gain Combo") {
-        modelName = "Chance To Gain Extra Combo Count";
-      }
-      set("has_pos_stat_" + modelName, 1);
-
-      const maxVal = a.maxIdeal || 1;
-      posMags.push(a.value / maxVal);
+    if (!a.isPositive) continue;
+    if (esFusionado(a.name, tipo)) {
+      synergy += pesoFusionado(a.name, dw, tipo) ?? 0.05;
     } else {
-      hasNegCurse = 1;
-      // Sin lista de "inofensivas": dynamic_weights ya da el peso del stat en ESTA arma (ver el
-      // mismo razonamiento en gradeRiven). El regex forzaba 0.05 incluso donde el stat sí importa.
-      const k = dwKey(name);
-      let b = (k ? (parseFloat(dw[k]) || 0.30) : 0.30);
-      b = Math.max(0.05, Math.min(1.0, b));
-      negPenalty *= (1.0 - 0.6 * b);
-
-      let modelName = MODEL_STAT_MAP[name] || name;
-      if (name === "Chance not to gain Combo") {
-        modelName = "Chance To Gain Combo Count";
-      }
-      set("has_neg_stat_" + modelName, 1);
+      const k = dwKey(a.name);
+      synergy += k ? (parseFloat(dw[k]) || 0.05) : 0.05;
     }
   }
-  const numPos = itemAttributes.filter(a => a.isPositive).length;
-  set("synergy_score", Number(synergy.toFixed(4)));
-  set("has_neg", hasNegCurse);
-  set("num_pos", numPos);
-  set("has_mag", posMags.length > 0 ? 1 : 0);
-  set("neg_penalty_factor", Number(negPenalty.toFixed(4)));  // legacy (ignorado si no está)
-
-  // interacciones (si están en feature_order nuevo)
-  set("popularity_pct_x_synergy", (weapon.popularity_pct || 0) * synergy);
-  set("pop_x_synergy", (weapon.popularity_pct || 0) * synergy);
-  const dispo = (weaponData && weaponData.disposition) || weapon.disposition;
-  if (dispo) { set("disposition", dispo); set("dispo_x_synergy", dispo * synergy); }
-
-  // SEÑAL META (misma fórmula que el entrenamiento): la dispo baja la pone DE a las armas más
-  // usadas; si además la mediana es alta Y estable en el historial, es arma meta asentada y sus
-  // rivens cotizan caro de forma sostenida. meta_signal = (2-dispo) * log1p(mediana) * consistencia.
-  let _cons = null;
-  if (histData && histData.length >= 5) {
-    const _offs = histData.map(d => d.official_median).filter(v => Number.isFinite(v) && v > 0);
-    if (_offs.length >= 5) {
-      const _mu = _offs.reduce((a, b) => a + b, 0) / _offs.length;
-      const _sd = Math.sqrt(_offs.reduce((a, b) => a + (b - _mu) * (b - _mu), 0) / _offs.length);
-      _cons = 1 / (1 + (_mu > 0 ? _sd / _mu : 1));
-    }
-  }
-  if (_cons !== null) set("median_consistency", _cons);
-  if (dispo && _cons !== null && ofmv > 0) set("meta_signal", (2 - dispo) * Math.log1p(ofmv) * _cons);
-
-  // Magnitudes normalizadas del roll
-  set("mag_pos1_norm", posMags[0] !== undefined ? posMags[0] : 0.85);
-  set("mag_pos2_norm", posMags[1] !== undefined ? posMags[1] : 0.85);
-  set("mag_pos3_norm", posMags[2] !== undefined ? posMags[2] : 0.85);
-  if (posMags.length > 0) {
-    const posAvgMag = posMags.reduce((a, b) => a + b, 0) / posMags.length;
-    set("mag_pos_avg", posAvgMag);
-  }
-
-  const ofm = weapon.official_median || 100;
-  set("rerolls", rerolls);
-  set("fatigue_index", rerolls / (ofm + 1));
-
-  return { ml, vec, synergy, numPos, hasNeg: hasNegCurse };
+  return synergy;
 }
 
 // Tasación por BANDA de cuantiles: devuelve {p25,p50,p80,p90,p95} en pl, anclada al mercado de cada
 // arma (drift del history) y con flag de CONFIANZA. El p50 es el "precio justo"; p25 venta rápida;
 // p80/p90/p95 techo godroll (precio REAL de mercado, no asks especulativos).
 export async function predictRivenMLBand(weapon, itemAttributes, weaponData = null, rerolls = 0, scoreOverride = null) {
-  const { ml, vec, synergy } = await buildFeatureVector(weapon, itemAttributes, weaponData, rerolls);
+  const [ml, nt] = await Promise.all([loadRivenML(), cargarNivelTirada()]);
+  const synergy = _synergy(weapon, itemAttributes, weaponData);
   const wname = weapon.name || weapon.weaponName;
-  const qs = ml.quantiles && ml.quantiles.length ? ml.quantiles : [0.25, 0.5, 0.8, 0.9, 0.95];
+  const qs = [0.25, 0.5, 0.8, 0.9, 0.95];
   const drift = _byWeapon(ml.drift, wname) || 1.0;
 
   // CALIDAD del roll 0..1: el score mostrado (adjustedScore, lee magnitud y sabe que CC/CD es top)
@@ -615,10 +413,9 @@ export async function predictRivenMLBand(weapon, itemAttributes, weaponData = nu
     return deMed * Math.pow(skew, Math.pow(fr, 1.5));
   };
 
-  // ajustes multiplicativos. OJO: la negativa mala YA la penaliza el SCORE (un -Multishot en Torid
+  // OJO: la negativa mala YA la penaliza el SCORE (un -Multishot en Torid
   // tira el score a ~9%), así que NO se vuelve a multiplicar por BRICK aquí (era doble castigo y
-  // aplanaba la banda al floor). Solo se marca esBrick para el label. Se mantiene el premio 0-roll.
-  let mult = 1.0;
+  // aplanaba la banda al floor). Solo se marca esBrick para el label.
   const neg = itemAttributes.find(a => !a.isPositive);
   const dw = weapon.dynamic_weights || (weaponData && weaponData.dynamic_weights) || {};
   // BRICK = perder un stat que en ESTA arma es top. La lista fija (CC/CD/BaseDamage/Multishot/
@@ -638,46 +435,28 @@ export async function predictRivenMLBand(weapon, itemAttributes, weaponData = nu
     }
     esBrick = Number.isFinite(wneg) && wneg >= 0.6;
   }
-  // Premio de riven SIN ROLAR (+25%): un buyer paga de más por poder rolar él mismo. Solo aplica
-  // cuando SABEMOS que es un 0-roll (scanner con rolls=0). El tasador manual pasa rerolls=null
-  // (roll concreto, magnitudes conocidas -> NO es un 0-roll): antes forzaba 0 y metía el +25% a
-  // TODO, empujando hasta el p25 por encima del típico ("venta rápida" > mediana, sinsentido).
-  if (rerolls === 0) mult *= 1.25;
 
   // La banda p25..p95 = el score posicionado ± dispersión (rango de precio del propio roll).
   const OFF = { 0.25: -0.12, 0.50: 0.0, 0.80: 0.10, 0.90: 0.15, 0.95: 0.20 };
   const floor = deFloor;
   const out = {};
 
-  // === MODELO vs CURVA ===
-  // Hasta ahora el modelo entrenado no fijaba NINGÚN precio: rawPredictModel no se llamaba y la
-  // banda salía entera de levelMap. Estaba desconectado a propósito porque el entrenamiento iba
-  // sobre ASKS de WFM (inflados hasta 26× la venta real en armas populares) y sobreestimaba.
-  // Desde el calibrado ask->venta por arma de ML_local.py el target YA está en escala de venta
-  // (medido: 1.00× las ventas reales de DE en todos los cuartiles de liquidez), así que el modelo
-  // vuelve a ser la fuente del precio en las armas que tienen ancla fiable.
-  //
-  // Las armas SIN ancla (re_pop < 3, ~58% del catálogo) siguen en escala de ask en el modelo, así
-  // que para esas se mantiene la curva anclada a DE: es peor tener un precio inflado que uno
-  // aproximado. `usaModelo` distingue los dos casos y sale en el retorno para que la UI lo pueda
-  // mostrar (fuente: "ml" / "curva").
-  const vinfo = _byWeapon(ml.venta, wname);
-  const qmods = ml.qmodels || {};
-  const usaModelo = !!(vinfo && vinfo.fiable) && Object.keys(qmods).length > 0;
-
-  if (usaModelo) {
-    // El modelo predice en espacio log1p (y_all = log1p(price) en el entrenamiento) -> expm1.
-    // Cada cuantil tiene su propio modelo, así que la banda sale directa del modelo, sin OFF.
-    const nivel = _byWeapon(ml.nivel, wname) || 1.0;
-    for (const a of qs) {
-      const m = qmods[a] || qmods[0.5];
-      if (!m) continue;
-      out[a] = Math.max(floor, Math.round(Math.expm1(rawPredictModel(m, vec)) * nivel));
-    }
+  const { positivos, negativo } = atributosAWfm(itemAttributes, tipoDeArma((weaponData && weaponData.t) || weapon.t));
+  const dispoArma = Number((weaponData && weaponData.d) || state.weaponMap?.[wname]?.d);
+  const tipoCrudo = state.weaponDetailsDB?.find?.(w => w.name === wname)?.type ?? null;
+  const registro = usaDE ? registroSinWfm(nt, deMed, dispoArma, tipoCrudo, deRe.pop || 0) : null;
+  const residuos = residuosTirada(nt, wname, positivos, negativo, registro);
+  if (residuos) {
+    const conocida = nombreArma(nt, wname);
+    const metas = globalThis.dynamicMetaStats?.data ?? globalThis.dynamicMetaStats;
+    const nivel = conocida ? nt.armas[conocida].nivel + indiceDE(nt, metas) : registro.nivel;
+    const suelo = conocida ? 1 : floor;
+    const cola = conocida ? 1 : registro.cola;
+    qs.forEach((a, i) => { out[a] = Math.max(suelo, Math.round(Math.exp(nivel + (residuos[i] > 0 ? residuos[i] * cola : residuos[i])))); });
   } else {
     for (const a of qs) {
       const f = Math.max(0, Math.min(1, s + (OFF[a] != null ? OFF[a] : 0)));
-      out[a] = Math.max(floor, Math.round(levelMap(f) * mult));
+      out[a] = Math.max(floor, Math.round(levelMap(f)));
     }
   }
   // orden no decreciente por si el redondeo/clamp cruza
@@ -693,7 +472,7 @@ export async function predictRivenMLBand(weapon, itemAttributes, weaponData = nu
   return {
     p25: p(0.25), p50: p(0.5), p80: p(0.8), p90: p(0.9), p95: p(0.95),
     price: p(0.5), floor, drift: +drift.toFixed(3),
-    fuente: usaModelo ? "ml" : "curva",
+    fuente: residuos ? "ml" : "curva",
     confianza: lowConf ? "baja" : "alta",
     aviso: lowConf ? (esTrash ? "trash" : "pocosDatos") : null,
     regla: esBrick ? "BRICK" : (rerolls === 0 ? "0roll" : "q"),

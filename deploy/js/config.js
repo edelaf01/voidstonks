@@ -37,6 +37,7 @@ function resolveWorkerUrl() {
 
 export const WORKER_URL = resolveWorkerUrl();
 export const APP_VERSION = "3.0.0";
+export const WFM_RIVENS_HASTA = "2026-10-08";
 // TEXTS y UPDATE_HISTORY_DATA son tablas de datos, no configuración: viven en assets/ y se
 // reexportan aquí porque medio repo las importa de config.js.
 export { TEXTS } from "./assets/texts.js";
