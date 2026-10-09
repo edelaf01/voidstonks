@@ -1,54 +1,25 @@
 import { classifyWeaponMarket } from "./riven_logic.js";
 import { state } from "../../state.js";
+import { tipoDeArma, esFusionado, pesoFusionado } from "./riven_cycling.js";
+import { cargarNivelTirada, atributosAWfm, residuosTirada, precisionNivel, registroSinWfm, nombreArma, indiceDE } from "./riven_nivel.js";
 
 let _ml = null;
 let _loading = null;
-
-function _parseModel(model) {
-  const lrn = model.learner;
-  let baseScore = lrn.learner_model_param.base_score;
-  baseScore = Array.isArray(baseScore) ? +baseScore[0] : parseFloat(String(baseScore).replace(/[[\]]/g, ""));
-  const trees = lrn.gradient_booster.model.trees.map(t => ({
-    si: t.split_indices, sc: t.split_conditions,
-    L: t.left_children, R: t.right_children, dl: t.default_left,
-  }));
-  return { baseScore, trees };
-}
 
 export async function loadRivenML() {
   if (_ml) return _ml;
   if (_loading) return _loading;
   _loading = (async () => {
     const base = "assets/ml/";
-    const [qbundle, order, defaults, bands, statWeights, cal] = await Promise.all([
-      fetch(base + "model_quantiles_slim.json").then(r => r.json()).catch(() => null),
-      fetch(base + "feature_order_slim.json").then(r => r.json()),
-      fetch(base + "feature_defaults_slim.json").then(r => r.json()),
+    const [bands, statWeights, cal] = await Promise.all([
       fetch(base + "price_bands.json").then(r => r.json()).catch(() => ({})),
       fetch(base + "stat_weights.json").then(r => r.json()).catch(() => ({})),
       fetch(base + "calibracion_por_arma.json").then(r => r.json()).catch(() => ({})),
     ]);
-    const idx = {};
-    order.forEach((n, i) => { idx[n] = i; });
 
-    let quantiles, qmodels;
-    const single = qbundle && qbundle.models
-      ? null
-      : await fetch(base + "model_trees_slim.json").then(r => r.json()).catch(() => null);
-    if (qbundle && qbundle.models) {
-      quantiles = qbundle.quantiles || Object.keys(qbundle.models).map(Number).sort((a, b) => a - b);
-      qmodels = {};
-      for (const a of quantiles) qmodels[a] = _parseModel(qbundle.models[String(a)]);
-    } else if (single) {
-      quantiles = [0.5]; qmodels = { 0.5: _parseModel(single) };
-    } else {
-      quantiles = []; qmodels = {};
-    }
     _ml = {
-      quantiles, qmodels, order, defaults, idx,
       bands: bands || {}, statWeights: statWeights || {},
-      cal: cal || {}, drift: (cal && cal.drift) || {}, nivel: (cal && cal.nivel) || {}, synlo: (cal && cal.synlo) || {}, nsamp: (cal && cal.nsamp) || {},
-      venta: (cal && cal.venta) || {},
+      cal: cal || {}, drift: (cal && cal.drift) || {}, synlo: (cal && cal.synlo) || {}, nsamp: (cal && cal.nsamp) || {},
     };
     // global stat prior, in state so the appraisal can interpolate stats without weapon data
     const _prior = statWeights && statWeights._global && statWeights._global.pos;
@@ -125,12 +96,19 @@ export async function gradeRiven(weaponName, stats) {
     ? (b >= 0.70 ? "RUINOSA" : b >= 0.40 ? "MEDIA" : "INOFENSIVA")
     : (b >= 0.70 ? "RUINOUS" : b >= 0.40 ? "AVERAGE" : "HARMLESS");
 
+  const plano = (t) => t && Object.values(t).some((v) => v && typeof v === "object")
+    ? Object.assign({}, ...Object.values(t).filter((v) => v && typeof v === "object"))
+    : t;
+  const tipo = tipoDeArma(state.weaponMap?.[weaponName]?.t);
+
   const out = [];
   const posW = [];
   let negFactor = 1;
   for (const s of stats) {
     if (s.isPositive) {
-      const w = lookup(W.pos, s.name) ?? lookup(base.pos, s.name) ?? 0.30;
+      const w = (esFusionado(s.name, tipo)
+        ? pesoFusionado(s.name, plano(W.pos), tipo) ?? pesoFusionado(s.name, plano(base.pos), tipo)
+        : lookup(W.pos, s.name) ?? lookup(base.pos, s.name)) ?? 0.30;
       posW.push(w);
       out.push({ name: s.name, isPositive: true, weight: +w.toFixed(2), tier: posTier(w), popular: w >= 0.45 });
     } else {
@@ -148,11 +126,9 @@ export async function gradeRiven(weaponName, stats) {
 }
 
 export async function weaponPrecision(weaponName) {
-  const ml = await loadRivenML();
-  const prec = (ml.cal && ml.cal.precision) || {};
-  const rec = _byWeapon(prec, weaponName);
+  const rec = precisionNivel(await cargarNivelTirada(), weaponName);
   if (!rec) return null;
-  const mape = Math.round(rec.mape != null ? rec.mape : rec);
+  const mape = Math.round(rec.mape);
   const grade = mape < 40 ? (state.currentLang === "es" ? "alta" : "high")
     : mape < 80 ? (state.currentLang === "es" ? "media" : "medium")
       : (state.currentLang === "es" ? "baja" : "low");
@@ -258,21 +234,6 @@ export function robustPriceBand(weapon, history) {
   return { floor: Math.round(floor), typical: Math.round(typical), ceiling: Math.round(ceiling) };
 }
 
-function rawPredictModel(model, x) {
-  let sum = model.baseScore;
-  for (const t of model.trees) {
-    let n = 0;
-    while (t.L[n] !== -1) {
-      const v = x[t.si[n]];
-      n = (v === undefined || Number.isNaN(v))
-        ? (t.dl[n] ? t.L[n] : t.R[n])
-        : (v < t.sc[n] ? t.L[n] : t.R[n]);
-    }
-    sum += t.sc[n];
-  }
-  return sum;
-}
-
 const MODEL_STAT_MAP = {
   "Damage": "Base Damage / Melee Damage",
   "Melee Damage": "Base Damage / Melee Damage",
@@ -294,154 +255,31 @@ const MODEL_STAT_MAP = {
   "Slide Crit Chance": "Critical Chance On Slide Attack",
 };
 
-async function buildFeatureVector(weapon, itemAttributes, weaponData = null, rerolls = 0) {
-  const ml = await loadRivenML();
-  const vec = ml.order.map(n => (typeof ml.defaults[n] === "number" ? ml.defaults[n] : 0));
-  const set = (name, val) => {
-    const i = ml.idx[name];
-    if (i !== undefined && typeof val === "number" && Number.isFinite(val)) vec[i] = val;
-  };
-  const wfm = weapon.wfm_avg ?? weapon.wfm_avg_price;
-  const ofmv = weapon.official_median || 0;
-  const deRe = weapon.de_rerolled || (weaponData && weaponData.de_rerolled) || {};
-
-  set("official_median", weapon.official_median);
-  set("wfm_avg", wfm);
-  set("official_median_missing", weapon.official_median > 0 ? 0 : 1);
-  set("wfm_avg_missing", wfm > 0 ? 0 : 1);
-  set("popularity_pct", weapon.popularity_pct);
-  set("wfm_market_sample", weapon.wfm_market_sample);
-  set("liquidity_score", weapon.liquidity_score);
-  set("rerolled_premium_ratio", weapon.rerolled_premium_ratio);
-  const reMed = deRe.median || 0, reMax = deRe.max_price || 0;
-  set("re_pop", deRe.pop);
-  set("re_std", deRe.stddev);
-  set("re_med", reMed);
-  set("re_max", reMax);
-  set("wfm_vs_off", (wfm || 0) / (ofmv + 1));
-  set("ceil_mult", reMax / (reMed + 1));
-  set("hist_day_drift", 1.0);
-  set("hist_day_offdrift", 1.0);
-  set("hist_day_rerprem", 1.0);
-  set("volatility_index", weapon.volatility_index);
-  set("trend_7d_pct", weapon.trend_7d_pct);
-  set("web_min", weapon.web_min);
-  set("web_max", weapon.web_max);
-
-  const _wName = String(weapon.name || weapon.weaponName || "").trim().toLowerCase();
-  const histData = (typeof state !== "undefined" && state.currentWeaponHistory && _wName
-    && String(state.currentWeaponHistory.weaponName || "").trim().toLowerCase() === _wName)
-    ? state.currentWeaponHistory.data : null;
-  if (histData && histData.length > 0) {
-    const getMedian = (arr) => {
-      const sorted = arr.filter(x => typeof x === "number" && !Number.isNaN(x)).sort((a, b) => a - b);
-      return sorted.length ? sorted[Math.floor((sorted.length - 1) / 2)] : null;
-    };
-    const getAvg = (arr) => {
-      const filtered = arr.filter(x => typeof x === "number" && !Number.isNaN(x));
-      return filtered.length ? (filtered.reduce((a, b) => a + b, 0) / filtered.length) : null;
-    };
-    const getMax = (arr) => {
-      const filtered = arr.filter(x => typeof x === "number" && !Number.isNaN(x));
-      return filtered.length ? Math.max(...filtered) : null;
-    };
-
-    const histOfficial = getMedian(histData.map(d => d.official_median));
-    const histWfm = getMedian(histData.map(d => d.wfm_avg ?? d.wfm_avg_price));
-    const histLiq = getAvg(histData.map(d => d.liquidity_score));
-    const histVol = getMax(histData.map(d => d.volatility_index));
-    const histPrem = getMedian(histData.map(d => d.rerolled_premium_ratio));
-    const histTrend = getMedian(histData.map(d => d.trend_7d_pct));
-
-    if (histOfficial !== null) set("hist_current_official", histOfficial);
-    if (histWfm !== null) set("hist_current_wfm", histWfm);
-    if (histLiq !== null) set("hist_liquidity_avg", histLiq);
-    if (histVol !== null) set("hist_volatility_max", histVol);
-    if (histPrem !== null) set("hist_rerolled_premium", histPrem);
-    if (histTrend !== null) set("hist_trend_7d", histTrend);
-  }
-
+function _synergy(weapon, itemAttributes, weaponData) {
   const dw = weapon.dynamic_weights || (weaponData && weaponData.dynamic_weights) || {};
   const dwKey = (name) => {
     const nl = name.toLowerCase();
     return Object.keys(dw).find(k => k.toLowerCase() === nl);
   };
+  const tipo = tipoDeArma((weaponData && weaponData.t) || weapon.t);
   let synergy = 0;
-  const posMags = [];
-  let hasNegCurse = 0;
-  let negPenalty = 1.0;
-
   for (const a of itemAttributes) {
-    const name = a.name;
-    if (a.isPositive) {
-      const k = dwKey(name);
-      synergy += k ? (parseFloat(dw[k]) || 0.05) : 0.05;
-      
-      let modelName = MODEL_STAT_MAP[name] || name;
-      if (name === "Chance not to gain Combo") {
-        modelName = "Chance To Gain Extra Combo Count";
-      }
-      set("has_pos_stat_" + modelName, 1);
-
-      const maxVal = a.maxIdeal || 1;
-      posMags.push(a.value / maxVal);
+    if (!a.isPositive) continue;
+    if (esFusionado(a.name, tipo)) {
+      synergy += pesoFusionado(a.name, dw, tipo) ?? 0.05;
     } else {
-      hasNegCurse = 1;
-      const k = dwKey(name);
-      let b = (k ? (parseFloat(dw[k]) || 0.30) : 0.30);
-      b = Math.max(0.05, Math.min(1.0, b));
-      negPenalty *= (1.0 - 0.6 * b);
-
-      let modelName = MODEL_STAT_MAP[name] || name;
-      if (name === "Chance not to gain Combo") {
-        modelName = "Chance To Gain Combo Count";
-      }
-      set("has_neg_stat_" + modelName, 1);
+      const k = dwKey(a.name);
+      synergy += k ? (parseFloat(dw[k]) || 0.05) : 0.05;
     }
   }
-  const numPos = itemAttributes.filter(a => a.isPositive).length;
-  set("synergy_score", Number(synergy.toFixed(4)));
-  set("has_neg", hasNegCurse);
-  set("num_pos", numPos);
-  set("has_mag", posMags.length > 0 ? 1 : 0);
-  set("neg_penalty_factor", Number(negPenalty.toFixed(4)));
-
-  set("popularity_pct_x_synergy", (weapon.popularity_pct || 0) * synergy);
-  set("pop_x_synergy", (weapon.popularity_pct || 0) * synergy);
-  const dispo = (weaponData && weaponData.disposition) || weapon.disposition;
-  if (dispo) { set("disposition", dispo); set("dispo_x_synergy", dispo * synergy); }
-
-  let _cons = null;
-  if (histData && histData.length >= 5) {
-    const _offs = histData.map(d => d.official_median).filter(v => Number.isFinite(v) && v > 0);
-    if (_offs.length >= 5) {
-      const _mu = _offs.reduce((a, b) => a + b, 0) / _offs.length;
-      const _sd = Math.sqrt(_offs.reduce((a, b) => a + (b - _mu) * (b - _mu), 0) / _offs.length);
-      _cons = 1 / (1 + (_mu > 0 ? _sd / _mu : 1));
-    }
-  }
-  if (_cons !== null) set("median_consistency", _cons);
-  if (dispo && _cons !== null && ofmv > 0) set("meta_signal", (2 - dispo) * Math.log1p(ofmv) * _cons);
-
-  set("mag_pos1_norm", posMags[0] !== undefined ? posMags[0] : 0.85);
-  set("mag_pos2_norm", posMags[1] !== undefined ? posMags[1] : 0.85);
-  set("mag_pos3_norm", posMags[2] !== undefined ? posMags[2] : 0.85);
-  if (posMags.length > 0) {
-    const posAvgMag = posMags.reduce((a, b) => a + b, 0) / posMags.length;
-    set("mag_pos_avg", posAvgMag);
-  }
-
-  const ofm = weapon.official_median || 100;
-  set("rerolls", rerolls);
-  set("fatigue_index", rerolls / (ofm + 1));
-
-  return { ml, vec, synergy, numPos, hasNeg: hasNegCurse };
+  return synergy;
 }
 
 export async function predictRivenMLBand(weapon, itemAttributes, weaponData = null, rerolls = 0, scoreOverride = null) {
-  const { ml, vec, synergy } = await buildFeatureVector(weapon, itemAttributes, weaponData, rerolls);
+  const [ml, nt] = await Promise.all([loadRivenML(), cargarNivelTirada()]);
+  const synergy = _synergy(weapon, itemAttributes, weaponData);
   const wname = weapon.name || weapon.weaponName;
-  const qs = ml.quantiles && ml.quantiles.length ? ml.quantiles : [0.25, 0.5, 0.8, 0.9, 0.95];
+  const qs = [0.25, 0.5, 0.8, 0.9, 0.95];
   const drift = _byWeapon(ml.drift, wname) || 1.0;
 
   let scoreVal = scoreOverride;
@@ -469,7 +307,6 @@ export async function predictRivenMLBand(weapon, itemAttributes, weaponData = nu
     return deMed * Math.pow(skew, Math.pow(fr, 1.5));
   };
 
-  let mult = 1.0;
   const neg = itemAttributes.find(a => !a.isPositive);
   const dw = weapon.dynamic_weights || (weaponData && weaponData.dynamic_weights) || {};
   let esBrick = false;
@@ -484,27 +321,27 @@ export async function predictRivenMLBand(weapon, itemAttributes, weaponData = nu
     }
     esBrick = Number.isFinite(wneg) && wneg >= 0.6;
   }
-  if (rerolls === 0) mult *= 1.25;
 
   const OFF = { 0.25: -0.12, 0.50: 0.0, 0.80: 0.10, 0.90: 0.15, 0.95: 0.20 };
   const floor = deFloor;
   const out = {};
 
-  const vinfo = _byWeapon(ml.venta, wname);
-  const qmods = ml.qmodels || {};
-  const usaModelo = !!(vinfo && vinfo.fiable) && Object.keys(qmods).length > 0;
-
-  if (usaModelo) {
-    const nivel = _byWeapon(ml.nivel, wname) || 1.0;
-    for (const a of qs) {
-      const m = qmods[a] || qmods[0.5];
-      if (!m) continue;
-      out[a] = Math.max(floor, Math.round(Math.expm1(rawPredictModel(m, vec)) * nivel));
-    }
+  const { positivos, negativo } = atributosAWfm(itemAttributes, tipoDeArma((weaponData && weaponData.t) || weapon.t));
+  const dispoArma = Number((weaponData && weaponData.d) || state.weaponMap?.[wname]?.d);
+  const tipoCrudo = state.weaponDetailsDB?.find?.(w => w.name === wname)?.type ?? null;
+  const registro = usaDE ? registroSinWfm(nt, deMed, dispoArma, tipoCrudo, deRe.pop || 0) : null;
+  const residuos = residuosTirada(nt, wname, positivos, negativo, registro);
+  if (residuos) {
+    const conocida = nombreArma(nt, wname);
+    const metas = globalThis.dynamicMetaStats?.data ?? globalThis.dynamicMetaStats;
+    const nivel = conocida ? nt.armas[conocida].nivel + indiceDE(nt, metas) : registro.nivel;
+    const suelo = conocida ? 1 : floor;
+    const cola = conocida ? 1 : registro.cola;
+    qs.forEach((a, i) => { out[a] = Math.max(suelo, Math.round(Math.exp(nivel + (residuos[i] > 0 ? residuos[i] * cola : residuos[i])))); });
   } else {
     for (const a of qs) {
       const f = Math.max(0, Math.min(1, s + (OFF[a] != null ? OFF[a] : 0)));
-      out[a] = Math.max(floor, Math.round(levelMap(f) * mult));
+      out[a] = Math.max(floor, Math.round(levelMap(f)));
     }
   }
   let prev = 0;
@@ -518,7 +355,7 @@ export async function predictRivenMLBand(weapon, itemAttributes, weaponData = nu
   return {
     p25: p(0.25), p50: p(0.5), p80: p(0.8), p90: p(0.9), p95: p(0.95),
     price: p(0.5), floor, drift: +drift.toFixed(3),
-    fuente: usaModelo ? "ml" : "curva",
+    fuente: residuos ? "ml" : "curva",
     confianza: lowConf ? "baja" : "alta",
     aviso: lowConf ? (esTrash ? "trash" : "pocosDatos") : null,
     regla: esBrick ? "BRICK" : (rerolls === 0 ? "0roll" : "q"),

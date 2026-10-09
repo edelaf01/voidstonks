@@ -20,6 +20,7 @@ function resolveWorkerUrl() {
 
 export const WORKER_URL = resolveWorkerUrl();
 export const APP_VERSION = "3.0.0";
+export const WFM_RIVENS_HASTA = "2026-10-08";
 export { TEXTS } from "./assets/texts.js";
 export { UPDATE_HISTORY_DATA } from "./assets/update_history.js";
 export const TIER_URLS = {
