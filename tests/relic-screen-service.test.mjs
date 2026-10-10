@@ -132,6 +132,56 @@ describe("escritura en el inventario", () => {
   });
 });
 
+describe("casillas sin contador y ceros", () => {
+  const conIcono = (tint) => {
+    const v = video(tint);
+    for (let y = 47; y <= 55; y++) {
+      for (let x = 75; x <= 82; x++) { const i = (y * 320 + x) * 4; v.data[i] = v.data[i + 1] = v.data[i + 2] = 230; }
+    }
+    return v;
+  };
+  const dosLecturas = async (hazVideo = video) => {
+    await RelicScreenService.readGrid(hazVideo(40));
+    RelicScreenService.lastGridHash = null;
+    await RelicScreenService.readGrid(hazVideo(60));
+  };
+
+  test("una casilla sin contador y con el icono encendido es una copia", async () => {
+    const lectura = pantalla([["Meso C6", 108], ["Meso I1", 1]]);
+    lectura.countWords = lectura.countWords.filter((w) => w.text !== "x1");
+    scriptOCR(lectura);
+    await dosLecturas(conIcono);
+    assert.deepEqual(state.inventory, [{ name: "Meso C6", count: 108 }, { name: "Meso I1", count: 1 }]);
+  });
+
+  test("sin contador y con el icono apagado no se escribe nada para esa casilla", async () => {
+    const lectura = pantalla([["Meso C6", 108], ["Meso I1", 1]]);
+    lectura.countWords = lectura.countWords.filter((w) => w.text !== "x1");
+    scriptOCR(lectura);
+    await dosLecturas();
+    assert.deepEqual(state.inventory, [{ name: "Meso C6", count: 108 }]);
+  });
+
+  test("un cero de una reliquia que no tenías no se escribe ni se avisa", async () => {
+    const avisos = [];
+    RelicScreenService.onApplied = (c) => avisos.push(c);
+    scriptOCR(pantalla([["Meso C6", 108], ["Meso I1", 0]]));
+    await dosLecturas();
+    assert.deepEqual(state.inventory, [{ name: "Meso C6", count: 108 }]);
+    assert.deepEqual(avisos, [[{ name: "Meso C6", count: 108 }]]);
+  });
+
+  test("un cero de una reliquia que tenías la quita y avisa", async () => {
+    const avisos = [];
+    RelicScreenService.onApplied = (c) => avisos.push(c);
+    state.inventory = [{ name: "Meso I1 Relic", count: 1 }];
+    scriptOCR(pantalla([["Meso C6", 108], ["Meso I1", 0]]));
+    await dosLecturas();
+    assert.deepEqual(state.inventory, [{ name: "Meso C6", count: 108 }]);
+    assert.deepEqual(avisos, [[{ name: "Meso C6", count: 108 }, { name: "Meso I1", count: 0 }]]);
+  });
+});
+
 describe("coste", () => {
   // Con la búsqueda de la pantalla la rejilla queda casi vacía y quieta: el hash no cambiaba, no
   // llegaba el segundo voto y las cantidades no se actualizaban nunca.

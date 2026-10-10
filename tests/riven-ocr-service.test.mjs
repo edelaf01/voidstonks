@@ -279,6 +279,18 @@ test("nombre del riven partido en dos líneas: la primera es solo el arma y no s
   }
 });
 
+test("el arma no sale del prefijo del nombre del riven aunque el OCR estropee la primera letra", () => {
+  const antes = state.allRivenNames;
+  state.allRivenNames = [...antes, "Haalvu"];
+  try {
+    const r = S.parseRivenCard(["Raalvu Igni-satiata", "+90.8% Damage", "+51.2% Multishot", "+55.4% Heat"].join("\n"));
+    assert.equal(r.weaponName, "Haalvu", "Igni-satiata contiene \"ignis\" pero no es una palabra suelta");
+    assert.equal(S._matchWeaponScored("Ignis Igni-satiata")?.name, "Ignis");
+  } finally {
+    state.allRivenNames = antes;
+  }
+});
+
 // Antes de calcular la distancia se descartan los nombres cuya longitud ya la hace imposible:
 // una línea basura de 40 letras se comparaba contra las ~650 armas en cada tick.
 test("una errata que se come justo las letras que permite el umbral sigue casando", () => {

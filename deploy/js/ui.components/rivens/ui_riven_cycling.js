@@ -3,7 +3,7 @@ import { escapeHTML } from "../../utils/escape_html.js";
 import { opcionesDeCartas } from "../../utils/rivens/riven_objetivo_fusion.js";
 import {
     claveStat, consejoDeCiclo, probPorCiclo, poolDeStats, kuvaEsperada, costeCiclo, tipoDeArma,
-    recetasDelTipo, combinacionesDe, evaluarCombinaciones, planesDeFusion, UMBRAL_COMBINAR,
+    recetasDelTipo, combinacionesDe, evaluarCombinaciones, planesDeFusion,
     RECETAS_COMBINAR, posiblesFusiones, planDeReceta, esFusionado
 } from "../../utils/rivens/riven_cycling.js";
 
@@ -46,12 +46,11 @@ function textoObjetivo(obj, typeIdx, isEs) {
         `Goal: ${obj.k} of ${lista(obj.buscados, typeIdx, isEs)} as positives and, if a negative rolls, one of ${neg}.`);
 }
 
-function envolverCombinar(filas, isEs, intro, extraAviso = "") {
+function envolverCombinar(filas, isEs, intro) {
     if (!filas) return "";
-    let aviso = tx(isEs,
+    const aviso = tx(isEs,
         "Recetas oficiales de DE (Update 44.1). Un Riven Splicer funde dos stats en uno nuevo que se queda al ciclar, y entra otro stat al azar (negativo si alguno de los dos lo era).",
         "Official DE recipes (Update 44.1). A Riven Splicer fuses two stats into a new one that stays when cycling, and another random stat comes in (negative if either source was).");
-    if (extraAviso) aviso += " " + extraAviso;
     return `
       <div class="riven-ciclo-combinar">
         <div class="riven-ciclo-sub" data-tooltip="${escapeHTML(aviso)}">${tx(isEs, "COMBINAR STATS", "SPLICE STATS")} ℹ</div>
@@ -73,10 +72,6 @@ function combinarHtml(recetas, typeIdx, isEs, intro, destacar = () => false) {
 function combinarEvaluadoHtml(evaluaciones, typeIdx, isEs) {
     if (!evaluaciones.length) return "";
     const filas = evaluaciones.map((e) => {
-        let veredicto;
-        if (e.delta >= UMBRAL_COMBINAR) veredicto = tx(isEs, "mejora la tirada", "improves the roll");
-        else if (e.delta <= -UMBRAL_COMBINAR) veredicto = tx(isEs, "empeora la tirada", "worsens the roll");
-        else veredicto = tx(isEs, "la deja parecida", "about the same");
         let riesgo;
         if (e.quitaNegativo) {
             const pct = Math.round(e.probPeor * 100);
@@ -89,11 +84,9 @@ function combinarEvaluadoHtml(evaluaciones, typeIdx, isEs) {
         const a = escapeHTML(nombreStat(e.receta.a, typeIdx, isEs));
         const b = escapeHTML(nombreStat(e.receta.b, typeIdx, isEs));
         const r = escapeHTML(nombreStat(e.receta.resultado, typeIdx, isEs));
-        return `<div class="riven-ciclo-receta${e.delta >= UMBRAL_COMBINAR ? " destacada" : ""}">${a} + ${b} → <strong>${r}</strong> · ${veredicto}<small>${escapeHTML(riesgo)}</small></div>`;
+        return `<div class="riven-ciclo-receta">${a} + ${b} → <strong>${r}</strong><small>${escapeHTML(riesgo)}</small></div>`;
     }).join("");
-    const intro = tx(isEs, "Si combinas, de media:", "If you splice, on average:");
-    const extraAviso = tx(isEs, "Los pesos son los de este arma; el stat fundido vale la media de los dos de origen hasta que haya datos de mercado.", "Weights are this weapon's; the spliced stat is worth the mean of its two sources until there is market data.");
-    return envolverCombinar(filas, isEs, intro, extraAviso);
+    return envolverCombinar(filas, isEs, tx(isEs, "Si combinas:", "If you splice:"));
 }
 
 function planesHtml(planes, typeIdx, isEs) {
@@ -158,17 +151,13 @@ export function combinarOverlay({ stats, rolls, tipo, buscados, negOk, pesos = n
     const delTipo = recetasDelTipo(typeIdx);
     const receta = delTipo.includes(RECETAS_COMBINAR[objetivo]) ? RECETAS_COMBINAR[objetivo] : null;
     const planes = planesDeFusion({ stats, typeIdx, pesos, buscados, negOk, ciclosHechos });
-    const evaluadas = evaluarCombinaciones({ stats, typeIdx, pesos, buscados, negOk });
     const directos = planes.filter((p) => !p.fuentes);
     const texto = (r) => `${n(r.resultado)} = ${n(r.a)} + ${n(r.b)}`;
     const listas = combinacionesDe(stats, typeIdx).map((r) => {
         const plan = directos.find((p) => p.receta === r);
-        const delta = evaluadas.find((e) => e.receta === r)?.delta;
         let veredicto = null;
         if (r === receta) veredicto = { texto: tx(isEs, "tu objetivo", "your goal"), tono: "verde" };
         else if (plan?.cumple) veredicto = { texto: tx(isEs, "cumple la meta", "meets the goal"), tono: "verde" };
-        else if (delta >= UMBRAL_COMBINAR) veredicto = { texto: tx(isEs, "mejora", "better"), tono: "verde" };
-        else if (delta <= -UMBRAL_COMBINAR) veredicto = { texto: tx(isEs, "empeora", "worse"), tono: "naranja" };
         else if (plan?.compensa) veredicto = { texto: tx(isEs, "ahorra kuva", "saves kuva"), tono: "verde" };
         return { indice: RECETAS_COMBINAR.indexOf(r), texto: texto(r), veredicto };
     });

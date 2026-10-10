@@ -1393,7 +1393,9 @@ export const VisionService = {
 
         const plan = [];
         const bclusters = clusterRanges(bruns);
-        if (!bclusters.length) {
+        if (C.unaCarta) {
+            plan.push({ range: [0, targetW - 1], binPx: maskFor([0, targetW - 1]) });
+        } else if (!bclusters.length) {
             // Sin carta brillante: clusters del pase dim (con corte de valle), máximo 2.
             const dcl = [];
             clusterRanges(druns).forEach(rg => dcl.push(...splitWide(rg, druns)));
@@ -1522,6 +1524,7 @@ export const VisionService = {
             return "ITEM_DETAILS"; // popup "Item Details" (riven linkeado, centrado)
         }
         if (/DISSOL|DISOLU/.test(text)) return "ARCANE_DISSOLUTION";
+        if (/SPL[I1L]C/.test(text)) return "RIVEN_SPLICING";
         if (hasMods) return "INVENTORY_MODS";
         if (hasInv) return "INVENTORY";
         if (/RELI|ELIC|REFI|NEME/.test(text)) return "RELICS";

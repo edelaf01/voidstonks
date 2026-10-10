@@ -271,12 +271,12 @@ test("el overlay avisa cuando los stats actuales se combinan en uno que el arma 
     assert.equal(c.opciones.find((o) => o.indice === 0).estado, "lista");
 });
 
-test("el aviso también salta si combinar quita un negativo malo, aunque no cumpla la meta", () => {
+test("sin tasación de los stats combinados el overlay no dice si combinar mejora o empeora", () => {
     const { listas } = combinarOverlay({ ...OBJ_FUSION, rolls: 9, tipo: "Rifle", isEs: false,
         stats: [pos("Zoom"), pos("Toxin"), neg("Crit Chance")] });
     assert.equal(listas.length, 1);
     assert.match(listas[0].texto, / = Crit Chance \+ Zoom$/);
-    assert.deepEqual(listas[0].veredicto, { texto: "better", tono: "verde" });
+    assert.equal(listas[0].veredicto, null);
 });
 
 test("con una sola fuente el combinado sale a un stat y el recomendado va marcado", () => {
@@ -301,11 +301,11 @@ test("sin nada listo la carta dice lo que tiene a un stat, o que ya lleva un com
     assert.deepEqual(cerca([pos("Gas"), pos("Damage")]), [{ texto: "Ya tiene Gas", tono: "gris" }]);
 });
 
-test("un riven que ya cumple el objetivo avisa de que combinar empeora y no recomienda nada", () => {
+test("un riven que ya cumple el objetivo no recomienda combinar", () => {
     const c = combinarOverlay({ ...OBJ_FUSION, rolls: 9, tipo: "Rifle", isEs: true,
         stats: [pos("Crit Chance"), pos("Crit Damage"), neg("Zoom")] });
     assert.equal(c.listas.length, 1);
-    assert.deepEqual(c.listas[0].veredicto, { texto: "empeora", tono: "naranja" });
+    assert.equal(c.listas[0].veredicto, null);
     assert.ok(!c.opciones.some((o) => o.recomendada));
 });
 
@@ -366,8 +366,7 @@ test("cada carta enseña sus combinados listos y su paso hacia el objetivo", () 
     const c = combinarOverlay({ ...OBJ_FUSION, rolls: 9, tipo: "Rifle", isEs: true, objetivo: 3,
         stats: [pos("Toxin"), pos("Electric"), pos("Damage")] });
     const html = combinarCartaHtml(c);
-    assert.match(html, /<div class="riven-combinar-lista"><span>Corrosivo = Toxina \+ Electricidad<\/span>/);
-    assert.match(html, /<strong class="mal">empeora<\/strong>/);
+    assert.match(html, /<div class="riven-combinar-lista"><span>Corrosivo = Toxina \+ Electricidad<\/span><\/div>/);
     assert.match(html, /<div class="riven-combinar-paso"><span>Bloquea \+Electricidad hasta Calor<\/span><strong>~\d+ ciclos · ~[\d.k]+ kuva<\/strong>/);
     const hecha = combinarOverlay({ ...OBJ_FUSION, rolls: 9, tipo: "Rifle", isEs: true, objetivo: 0, stats: [pos("Gas"), pos("Damage")] });
     assert.equal(combinarCartaHtml(hecha), '<div class="riven-combinar-carta"><div class="riven-combinar-paso"><span class="ok">conseguido</span></div></div>');

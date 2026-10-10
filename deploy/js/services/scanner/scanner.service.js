@@ -1,7 +1,8 @@
 import { VisionService } from "./vision.service.js";
 import { freezeFrame, releaseFrame, shareFrame, stopSharingFrame, sharedFrame } from "../../utils/vision/frame_freeze.js";
-import { nextLatchedContext, INITIAL_LATCH, enrutaGraciaRiven, intervaloCabecera, INTERVALO_FIN_MISION_MS, CADUCIDAD_CABECERA_MS, FRANJA_TITULO_VIDEO, tituloHaCambiado } from "../../utils/vision/context_latch.js";
+import { nextLatchedContext, INITIAL_LATCH, enrutaGraciaRiven, CONTEXTOS_RIVEN, tipoRiven, intervaloCabecera, INTERVALO_FIN_MISION_MS, CADUCIDAD_CABECERA_MS, FRANJA_TITULO_VIDEO, tituloHaCambiado } from "../../utils/vision/context_latch.js";
 import { sensorDelEscaner, CADA_MS } from "../../utils/vision/wake_sensor.js";
+import { recorteSplice, zonasDeFirma } from "../../utils/vision/riven_splice.js";
 import { isImplausibleFallbackGrid } from "../../utils/vision/plausibility.js";
 import { corrige56 } from "../../utils/vision/relic_digit_56.js";
 import { filasEnFase, filasPorArriba } from "../../utils/vision/grid_alignment.js";
@@ -265,9 +266,9 @@ export const ScannerService = {
         const containsAnchor = ["MODS", "MODIFICADORES", "CYCLE", "CICLO", "CICLAR", "KUVA", "KUYVA",
             "ATRIBUTOS", "ELEGIR", "CONFIRMAR", "AGRIETADO"].some((a) => textUpper.includes(a));
 
-        if (rawContext === "INVENTORY_MODS" || rawContext === "ITEM_DETAILS" || rawContext === "RIVEN_DETAILS" || containsAnchor) {
+        if (CONTEXTOS_RIVEN.has(rawContext) || containsAnchor) {
             this.lastRivenContextTime = now;
-            this.lastRivenContextType = rawContext === "ITEM_DETAILS" || rawContext === "RIVEN_DETAILS" ? rawContext : "INVENTORY_MODS";
+            this.lastRivenContextType = tipoRiven(rawContext);
         }
 
         // Gracia de 8 s para rivens/mods. Re-enruta al MISMO tipo que produjo el último hit: el
@@ -567,7 +568,7 @@ export const ScannerService = {
                 else ScannerHUD.updateScrollStatus("done", this.sessionInventory.size + this.sessionRelics.size);
             }
 
-        } else if (contextType === "INVENTORY_MODS" || contextType === "ITEM_DETAILS" || contextType === "RIVEN_DETAILS") {
+        } else if (CONTEXTOS_RIVEN.has(contextType)) {
             // Poll rápido por defecto para reaccionar casi al instante cuando el usuario reroll-ea o
             // cambia de riven / aún no hay nada mostrado. processRivenCard relaja este rate (ver
             // RIVEN_RATE_IDLE) cuando ya hay un resultado en pantalla y el hash-skip está disparando
@@ -792,21 +793,20 @@ export const ScannerService = {
 
         // El popup "Item Details" (riven linkeado) tiene la carta centrada y más arriba que el reroll,
         // así que usa su propio recorte; el resto usa el de la pantalla de reroll.
-        const cardCrop = (contextType === "ITEM_DETAILS" || contextType === "RIVEN_DETAILS") ? VisionService.RIVEN_ITEM_DETAILS_CROP : VisionService.RIVEN_CARD_CROP;
+        const cardCrop = contextType === "RIVEN_SPLICING" ? recorteSplice(video) : (contextType === "ITEM_DETAILS" || contextType === "RIVEN_DETAILS") ? VisionService.RIVEN_ITEM_DETAILS_CROP : VisionService.RIVEN_CARD_CROP;
 
         // Hash sobre la REGIÓN FIJA del vídeo, ANTES de preparar los canvases: el hash sobre los
         // tight-crops jitteraba con la pantalla quieta (el ancho del recorte baila 749–1538px) y el
         // skip nunca enganchaba. Con el rect fijo, un frame estático coincide y ni siquiera pagamos
         // el coste de prepareRivenCardCanvases.
-        const zonas = this._zonasCartas?.length ? this._zonasCartas : [cardCrop];
-        const hash = firmaTexto(video, zonas);
+        const zonas = zonasDeFirma(this._zonasCartas, cardCrop, contextType), hash = firmaTexto(video, zonas);
 
         // Skip OCR if we already have a result and the region hasn't changed. Pantalla estática ya
         // parseada -> relaja el rate de poll (menos CPU); en cuanto el hash cambie, el siguiente
         // frame ya vuelve a RIVEN_RATE_ACTIVE (fijado por defecto en routeFrameAction) para reaccionar rápido.
         if ((this.lastParsedL || this.lastParsedR) && mismoTexto(hash, this.lastHashL)) {
             this.lastRivenContextTime = Date.now();
-            this.lastRivenContextType = (contextType === "ITEM_DETAILS" || contextType === "RIVEN_DETAILS") ? contextType : "INVENTORY_MODS";
+            this.lastRivenContextType = tipoRiven(contextType);
             this.currentRate = this.RIVEN_RATE_IDLE;
             this._cartaVigilada = zonas;
             return;
@@ -889,7 +889,7 @@ export const ScannerService = {
             this.lastRivenContextTime = Date.now();
             // Recuerda QUÉ recorte produjo el hit: el grace period re-enruta a este mismo tipo
             // (el popup Item Details y el reroll usan zonas de pantalla distintas).
-            this.lastRivenContextType = (contextType === "ITEM_DETAILS" || contextType === "RIVEN_DETAILS") ? contextType : "INVENTORY_MODS";
+            this.lastRivenContextType = tipoRiven(contextType);
         }
 
         // El log es importante: sin él, un recorte mal calibrado falla UNA vez y el skip de
@@ -1020,7 +1020,7 @@ export const ScannerService = {
         if (!weaponSwitchPending && !(trasElegir && !dropExtra)) {
             // Solo las cartas: el cristal y las partículas del fondo no paran y obligaban a releer sin fin.
             this._zonasCartas = canvases.map((c) => c.zonaVideo).filter(Boolean);
-            this.lastHashL = firmaTexto(video, this._zonasCartas.length ? this._zonasCartas : [cardCrop]);
+            this.lastHashL = firmaTexto(video, zonasDeFirma(this._zonasCartas, cardCrop, contextType));
             this.lastTwoCardHash = finalL && finalR ? this.lastHashL : null;
         } else this.currentRate = this.RIVEN_RATE_CONFIRM;
 

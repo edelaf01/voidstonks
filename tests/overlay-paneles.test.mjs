@@ -22,7 +22,7 @@ test("como mucho las primeras filas, y sin piezas no hay panel", () => {
   assert.deepEqual(panelKiosko([{ name: "Solo", qty: 1 }], "X").bloques[1].filas, [[{ texto: "1× Solo" }]]);
 });
 
-import { panelRiven, panelRivenComparacion, tonoGrado } from "../deploy/js/utils/overlay_paneles.js";
+import { panelRiven, panelRivenComparacion, tonoGrado, enSplice } from "../deploy/js/utils/overlay_paneles.js";
 
 const stats = [
   { texto: "+120.5% Multishot", positivo: true, grado: "A" },
@@ -88,6 +88,13 @@ test("el panel del riven va a la izquierda y no pasa de un cuarto de pantalla", 
   assert.equal(p.anclaje, "izquierda");
   assert.equal(p.anchoMax, 0.25);
   assert.equal(panelRivenComparacion({ arma: "X", ganador: 0, rotulos: { mejor: "" }, tiradas: [{ rotulo: "A", stats }, { rotulo: "B", stats }] }).anchoMax, 0.25);
+});
+
+test("en el splice el panel sube entre la rejilla y la carta de resultado, con el mismo contenido", () => {
+  const p = panelRiven({ arma: "X", stats, rotulos: {} }), q = enSplice(p);
+  assert.deepEqual(q.bloques, p.bloques);
+  assert.equal(q.anclaje, "izquierda");
+  assert.ok(q.x >= 0.445 && q.x + q.anchoMax <= 0.745 && q.y < 0.15, JSON.stringify(q));
 });
 
 test("si los stats de la carta se pueden combinar, va debajo de sus stats, el panel se marca y los combinados son botones", () => {

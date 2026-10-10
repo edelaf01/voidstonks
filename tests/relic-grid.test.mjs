@@ -164,6 +164,29 @@ describe("emparejado", () => {
     assert.equal(parseRelicGrid(g, { matchRelic }).find((r) => r.name === "Meso C6"), undefined);
   });
 
+  test("sin contador leído, la esquina da una copia o ninguna", () => {
+    const de = (visto) => parseRelicGrid(rejilla(1), { matchRelic, esquina: () => visto }).find((r) => r.name === "Meso I1");
+    assert.deepEqual(de("vacia"), { name: "Meso I1", count: 1 });
+    assert.deepEqual(de("ojo"), { name: "Meso I1", count: 0 });
+    assert.equal(de(null), undefined);
+  });
+
+  test("con el contador leído no se mira la esquina", () => {
+    let vistas = 0;
+    parseRelicGrid(rejilla(), { matchRelic, esquina: () => { vistas++; return "vacia"; } });
+    assert.equal(vistas, 0);
+  });
+
+  test("la esquina se mide desde el centro de la columna y la última línea del nombre", () => {
+    const anclas = [];
+    const out = parseRelicGrid(conRefinada(0), { matchRelic, esquina: (a) => { anclas.push(a); return "vacia"; } });
+    assert.deepEqual(anclas, [{ x: 197.5, y: 282.5 }]);
+    assert.equal(out.find((r) => r.name === "Meso C6").count, 3);
+    anclas.length = 0;
+    parseRelicGrid(rejilla(1), { matchRelic, esquina: (a) => { anclas.push(a); return null; } });
+    assert.deepEqual(anclas, [{ x: 521.5, y: 252.5 }]);
+  });
+
   test("entradas vacías o sin matcher no revientan", () => {
     assert.deepEqual(parseRelicGrid({}, { matchRelic }), []);
     assert.deepEqual(parseRelicGrid(rejilla(), {}), []);

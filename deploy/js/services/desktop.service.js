@@ -60,7 +60,7 @@ export function activaOverlay(si) {
 
 const visibles = new Set();
 const CONTEXTOS_DE_GRUPO = {
-  recompensas: ["REWARD"], kiosko: ["INVENTORY"], riven: ["INVENTORY_MODS", "ITEM_DETAILS", "RIVEN_DETAILS"], reliquias: ["RELICS"], inventario: ["INVENTORY"], arcanos: CONTEXTOS_ARCANOS
+  recompensas: ["REWARD"], kiosko: ["INVENTORY"], riven: ["INVENTORY_MODS", "ITEM_DETAILS", "RIVEN_DETAILS", "RIVEN_SPLICING"], reliquias: ["RELICS"], inventario: ["INVENTORY"], arcanos: CONTEXTOS_ARCANOS
 };
 
 const cola = new Map();

@@ -175,11 +175,11 @@ const FISURA = { "fisura-sin-fin-no-relic.png": "", "fisura-sin-fin-a6-reescalad
 const ESCUADRA = ["Axi A6", "Axi A21", "Axi D6"];
 
 // Con la búsqueda la rejilla queda casi vacía y quieta: sin la lectura de confirmación no se aplicaba nada.
-// La Axi C12 no lleva contador (una copia) y no se escribe.
+// La Axi C12 no lleva contador: una copia, que se deduce de la esquina vacía.
 test("rejilla filtrada por la búsqueda, con la pantalla quieta", { skip: salta || (!fs.existsSync(path.join(DIR, "busqueda-citrine-quieta.png")) && "sin la captura") }, async () => {
   catalogoDeReliquias();
   const leido = await leeCaptura("busqueda-citrine-quieta.png", { quieta: true });
-  assert.deepEqual(Object.fromEntries(leido.map((r) => [r.name, r.count])), { "Lith S19": 8, "Meso C11": 5, "Neo C11": 4 });
+  assert.deepEqual(Object.fromEntries(leido.map((r) => [r.name, r.count])), { "Lith S19": 8, "Meso C11": 5, "Neo C11": 4, "Axi C12": 1 });
 });
 
 // Leída a mano. La A6 pone "Last Equipped" donde iba el "x2": no debe salir cantidad para ella.

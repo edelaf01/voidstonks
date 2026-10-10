@@ -41,6 +41,24 @@ test("un recorte de 0 px no llega a Tesseract", async () => {
   assert.equal((await OCRRepository.recognize(w, { width: 10, height: 10 })).data.text, "ok");
 });
 
+test("un canvas llega a Tesseract ya en PNG: su toBlob esperaba 1 s con la ventana tapada por el juego", async () => {
+  const vistas = [];
+  const w = { setParameters: async () => {}, recognize: async (img) => { vistas.push(img); return { data: { text: "ok" } }; } };
+  const lienzo = { tagName: "CANVAS", width: 2, height: 2, toDataURL: () => "data:image/png;base64,iVBORw==", toBlob: () => assert.fail("toBlob") };
+  await OCRRepository.recognize(w, lienzo);
+  await OCRRepository.recognizeWithPSM(w, lienzo, 11);
+  await OCRRepository.recognizeWithChars(w, lienzo, "ABC");
+  assert.equal(vistas.length, 3);
+  for (const img of vistas) {
+    assert.ok(img instanceof Blob);
+    assert.equal(img.type, "image/png");
+    assert.deepEqual([...new Uint8Array(await img.arrayBuffer())], [0x89, 0x50, 0x4e, 0x47]);
+  }
+  const otra = { width: 10, height: 10 };
+  await OCRRepository.recognize(w, otra);
+  assert.equal(vistas.at(-1), otra, "lo que no es un canvas del DOM pasa tal cual");
+});
+
 // Si se quedara con la de rivens, los rótulos del inventario volverían a leer "CARRIER.PRIME".
 test("si la lectura falla, la lista de los rótulos se restaura igual", async () => {
   const w = workerFalso({ falla: true });

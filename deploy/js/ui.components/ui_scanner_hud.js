@@ -52,7 +52,7 @@ export const ScannerHUD = {
             this.setUIBadge(badge, sh.statusSquad, "#00e5ff", "rgba(0,229,255,0.4)", "rgba(0,229,255,0.1)");
         } else {
             if (hud) hud.style.display = "none";
-            if (contextType === "INVENTORY_MODS") {
+            if (contextType === "INVENTORY_MODS" || contextType === "RIVEN_SPLICING") {
                 this.setUIBadge(badge, "MODS", "#d060ff", "rgba(208,96,255,0.4)", "rgba(208,96,255,0.1)");
             } else if (contextType === "RELICS") {
                 this.setUIBadge(badge, sh.statusRelics, "#00e5ff", "rgba(0,229,255,0.3)", "rgba(0,229,255,0.1)");
