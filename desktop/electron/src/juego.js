@@ -28,6 +28,11 @@ function cargaWindows() {
       const width = r.right - r.left, height = r.bottom - r.top;
       return width > 0 && height > 0 ? { x: p.x, y: p.y, width, height } : null;
     },
+    estadoDelJuego() {
+      const hwnd = f.FindWindowW(null, TITULO_WARFRAME);
+      if (!hwnd) return null;
+      return f.IsWindowVisible(hwnd) && !f.IsIconic(hwnd) ? "visible" : "oculto";
+    },
     sinGestor() {},
     zonasDeEntrada() {},
   };
@@ -100,15 +105,20 @@ function cargaX11() {
     return f.XFetchName(d, w, nombre) ? texto(nombre[0]) === TITULO_WARFRAME : false;
   };
 
+  const hijosDeRaiz = (d) => {
+    const r = [0], p = [0], hijos = [null], n = [0];
+    if (!f.XQueryTree(d, f.XDefaultRootWindow(d), r, p, hijos, n) || !hijos[0]) return [];
+    const lista = n[0] ? koffi.decode(hijos[0], "unsigned long", n[0]) : [];
+    f.XFree(hijos[0]);
+    return lista;
+  };
+  let vista = 0;
+
   return {
     ventanaDelJuego() {
       return conDisplay((d) => {
         const root = f.XDefaultRootWindow(d);
-        const r = [0], p = [0], hijos = [null], n = [0];
-        if (!f.XQueryTree(d, root, r, p, hijos, n) || !hijos[0]) return null;
-        const lista = n[0] ? koffi.decode(hijos[0], "unsigned long", n[0]) : [];
-        f.XFree(hijos[0]);
-        for (const w of lista) {
+        for (const w of hijosDeRaiz(d)) {
           if (!esWarframe(d, w)) continue;
           const a = {};
           if (!f.XGetWindowAttributes(d, w, a) || a.map_state !== 2) continue;
@@ -117,6 +127,24 @@ function cargaX11() {
           return { x: dx[0], y: dy[0], width: a.width, height: a.height };
         }
         return null;
+      });
+    },
+    estadoDelJuego() {
+      return conDisplay((d) => {
+        const a = {};
+        if (vista && esWarframe(d, vista) && f.XGetWindowAttributes(d, vista, a) && a.map_state === 2) return "visible";
+        vista = 0;
+        let hay = false;
+        for (const w of hijosDeRaiz(d)) {
+          if (!esWarframe(d, w)) continue;
+          hay = true;
+          const b = {};
+          if (f.XGetWindowAttributes(d, w, b) && b.map_state === 2) {
+            vista = w;
+            return "visible";
+          }
+        }
+        return hay ? "oculto" : null;
       });
     },
     zonasDeEntrada(asa, rects) {
@@ -151,7 +179,7 @@ function carga() {
     nativo = process.platform === "win32" ? cargaWindows() : cargaX11();
   } catch (e) {
     console.error("[juego] sin acceso nativo a las ventanas:", e);
-    nativo = { ventanaDelJuego: () => null, sinGestor: () => false, zonasDeEntrada: () => false };
+    nativo = { ventanaDelJuego: () => null, estadoDelJuego: () => null, sinGestor: () => false, zonasDeEntrada: () => false };
   }
   return nativo;
 }
@@ -165,6 +193,18 @@ export function ventanaDelJuego() {
     return carga().ventanaDelJuego();
   } catch (e) {
     console.error("[juego] no se pudo buscar la ventana de Warframe:", e);
+    return null;
+  }
+}
+
+let falloEstado = false;
+
+export function estadoDelJuego() {
+  try {
+    return carga().estadoDelJuego();
+  } catch (e) {
+    if (!falloEstado) console.error("[juego] no se pudo mirar si Warframe está a la vista:", e);
+    falloEstado = true;
     return null;
   }
 }

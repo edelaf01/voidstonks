@@ -12,6 +12,16 @@ export function filasEnFase(bandas, { gridY, cellH, rows }) {
     return enFase >= Math.ceil(rows / 2);
 }
 
+export function filasPorArriba(bandas, { gridY, cellH, rows }) {
+    let y = gridY, n = rows;
+    const nombreEncima = (b) => b.y1 >= y - cellH * (1 - MIN) && b.y1 <= y + cellH * (MAX - 1) && b.y0 >= y - cellH * 1.15;
+    while (bandas?.length && cellH > 0 && rows > 0 && y - cellH >= -cellH * 0.15 && bandas.some(nombreEncima)) {
+        y -= cellH;
+        n++;
+    }
+    return { gridY: y, rows: n };
+}
+
 export function filasConNombre(bandas, { gridX, gridY, cellW, cellH, cols, rows, height, bloques }) {
     if (!bandas?.length || !cellW || !cellH) return rows;
     const masaMax = Math.max(...bandas.map(b => b.mass || 0));

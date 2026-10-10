@@ -1,5 +1,6 @@
 import { OpenCVRepository } from "../../repositories/opencv.repository.js";
 import { detectInventoryGrid } from "../../utils/vision/grid_detect.js";
+import { rejillaConMemoria, memoriaDeRejilla } from "../../utils/vision/grid_memoria.js";
 import { maxChannelInvert } from "../../utils/vision/channel_max.js";
 import { digitosPorAncla } from "../../utils/vision/badge_anchor.js";
 import { accentMask } from "../../utils/vision/mission_complete_grid.js";
@@ -60,6 +61,7 @@ const scratchStack = (n) => {
 export const VisionService = {
     _sharedCvs: document.createElement("canvas"),
     _themeCvs: document.createElement("canvas"),
+    _memoriasRejilla: new Map(),
     _temaVotos: [],
     _tempBadgeCvs: document.createElement("canvas"),
     _badgeCvs: document.createElement("canvas"),
@@ -1040,7 +1042,9 @@ export const VisionService = {
 
         const plan = [];
         const bclusters = clusterRanges(bruns);
-        if (!bclusters.length) {
+        if (C.unaCarta) {
+            plan.push({ range: [0, targetW - 1], binPx: maskFor([0, targetW - 1]) });
+        } else if (!bclusters.length) {
             const dcl = [];
             clusterRanges(druns).forEach(rg => dcl.push(...splitWide(rg, druns)));
             (dcl.length ? dcl : [[0, targetW - 1]]).slice(0, 2)
@@ -1144,6 +1148,7 @@ export const VisionService = {
             return "ITEM_DETAILS";
         }
         if (/DISSOL|DISOLU/.test(text)) return "ARCANE_DISSOLUTION";
+        if (/SPL[I1L]C/.test(text)) return "RIVEN_SPLICING";
         if (hasMods) return "INVENTORY_MODS";
         if (hasInv) return "INVENTORY";
         if (/RELI|ELIC|REFI|NEME/.test(text)) return "RELICS";
@@ -1152,7 +1157,7 @@ export const VisionService = {
         return "UNKNOWN";
     },
 
-    detectGridAutoCalib(snapshot, width, height, anchoMax = width) {
+    detectGridAutoCalib(snapshot, width, height, anchoMax = width, ambito = "") {
         try {
             const cvs = this._themeCvs;
             cvs.width = anchoMax; cvs.height = height;
@@ -1160,10 +1165,14 @@ export const VisionService = {
             ctx.drawImage(snapshot, 0, 0, width, height);
             const img = ctx.getImageData(0, 0, anchoMax, height);
             const trace = {};
-            const calib = detectInventoryGrid(img, { trace });
+            const clave = `${ambito}|${anchoMax}x${height}`;
+            const calib = rejillaConMemoria(detectInventoryGrid(img, { trace }), trace, this._memoriasRejilla.get(clave), img);
+            const memoria = memoriaDeRejilla(calib);
+            if (memoria) this._memoriasRejilla.delete(clave), this._memoriasRejilla.set(clave, memoria);
+            if (this._memoriasRejilla.size > 8) this._memoriasRejilla.delete(this._memoriasRejilla.keys().next().value);
             this.ultimasBandas = trace.bands || null;
             if (calib) {
-                console.log(`[VisionService] Auto-grid SIN calibración: ${calib.rows}r × ${calib.cols}c cellW=${calib.cellW} cellH=${calib.cellH} conf=${calib.confidence.toFixed(2)}`, calib.gridZone);
+                console.log(`[VisionService] Auto-grid SIN calibración${calib.deMemoria ? " (memoria)" : ""}: ${calib.rows}r × ${calib.cols}c cellW=${calib.cellW} cellH=${calib.cellH} conf=${calib.confidence.toFixed(2)}`, calib.gridZone);
                 console.log("[VisionService] Auto-grid traza:", JSON.stringify(trace));
                 calib.traceSummary = trace;
             } else {
