@@ -33,6 +33,7 @@ deploy/temp_inspect.html
 # Log de progreso del reentreno (una entrada por run): debe persistir en el repo para acumular
 # histórico; el workflow retrain-ml.yml lo commitea.
 !/scripts-actu/ML-rivenvaluation/metrics_history.json
+!/scripts-actu/ML-rivenvaluation/de_semanal.jsonl
 scripts-actu/img/
 # tests/ SÍ se versiona: las reglas de arquitectura solo sirven si el test que las
 # comprueba viaja con el repo. Fuera quedan los volcados de depuración sueltos, que no los
