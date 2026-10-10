@@ -11,7 +11,7 @@ import {
   STAT_TIER_MID,
 } from "../../utils/rivens/riven_logic.js";
 import { statUnit } from "../../utils/rivens/riven_stat_display.js";
-import { fechaWfmRivens } from "../../utils/rivens/riven_tooltips.js";
+import { fechaWfmRivens, rotuloBanda } from "../../utils/rivens/riven_tooltips.js";
 import { getMetaStats } from "../../services/rivens/riven_market.service.js?v=1.9";
 import { computeDesirabilityMultiplier, statsBuscadosDelArma } from "../../services/rivens/riven_appraisal.service.js";
 import { cicloRivenHtml } from "./ui_riven_cycling.js";
@@ -191,13 +191,14 @@ export function renderMlChip(estCard, prec, bandQ, isEs) {
     precTxt = `<span style="opacity:.6;">${bandQ.confianza === "baja" ? (isEs ? "confianza baja" : "low confidence") : (isEs ? "sin historial suficiente" : "not enough history")}</span>`;
   }
   el.style.display = "inline-flex";
+  const rotulo = rotuloBanda(bandQ.fuente, isEs);
   el.title = (isEs
     ? `Cuánto suele desviarse la predicción del precio real en esta arma (medido con ventas que la IA no vio al entrenar). `
-      + `Según la IA: venta rápida ~${bandQ.p25}p · precio justo ~${bandQ.p50}p · buen roll ~${bandQ.p80}p · godroll ~${bandQ.p95}p`
+      + `${rotulo.largo}: venta rápida ~${bandQ.p25}p · precio justo ~${bandQ.p50}p · buen roll ~${bandQ.p80}p · godroll ~${bandQ.p95}p`
     : `How far the prediction typically lands from the real price on this weapon (measured on sales the AI never saw). `
-      + `Per the AI: quick sale ~${bandQ.p25}p · fair price ~${bandQ.p50}p · good roll ~${bandQ.p80}p · godroll ~${bandQ.p95}p`)
+      + `${rotulo.largo}: quick sale ~${bandQ.p25}p · fair price ~${bandQ.p50}p · good roll ~${bandQ.p80}p · godroll ~${bandQ.p95}p`)
     + (bandQ.aviso ? ` · ${AVISO_BANDA[bandQ.aviso][isEs ? "es" : "en"]}` : "");
-  el.innerHTML = `${isEs ? "IA" : "AI"}: ${precTxt}${warn}`;
+  el.innerHTML = `${rotulo.corto}: ${precTxt}${warn}`;
 }
 
 // Chip de mercado en lenguaje llano: "42 anuncios/día" y "piden 3× su valor típico".

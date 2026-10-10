@@ -7,7 +7,6 @@ import numpy as np
 ARMAS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "deploy", "assets", "json", "cleaned_weapons.json")
 DESTINO = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "deploy", "assets", "ml", "nivel_y_tirada.json")
 POP_FIABLE = 3
-COLA_DE = 0.85
 
 def mediana_de(dato):
     re_ = dato.get("de_rerolled") or {}
@@ -45,9 +44,7 @@ def calcular(salida, de, dispo):
         "log_n": log_n,
         "n": len(xs),
         "ref_pos": calcular_ref("ref_pos"),
-        "ref_neg": calcular_ref("ref_neg"),
-        "cola_de": COLA_DE,
-        "de_ref": {w: float((de[w].get("de_rerolled") or {}).get("median") or 0) for w in sorted(de) if ((de[w].get("de_rerolled") or {}).get("pop") or 0) >= POP_FIABLE and ((de[w].get("de_rerolled") or {}).get("median") or 0) > 0}
+        "ref_neg": calcular_ref("ref_neg")
     }
 
 def dispo_por_arma(ruta=ARMAS):

@@ -10,6 +10,7 @@ sys.path.insert(0, AQUI)
 import nivel_y_tirada as nyt
 import armas_sin_wfm
 import anuncios as an
+import escala_de10
 
 CUANTILES_APP = (0.25, 0.5, 0.8, 0.9, 0.95)
 CORTE_PRECISION = nyt.CORTE
@@ -22,15 +23,25 @@ FILAS_COMPROBACION = 300
 TOLERANCIA = 1e-4
 DESTINO = os.path.join(AQUI, "..", "..", "deploy", "assets", "ml", "nivel_y_tirada.json")
 PARIDAD = os.path.join(AQUI, "..", "..", "tests", "fixtures", "nivel_y_tirada_paridad.json")
+DE10 = os.path.join(AQUI, "..", "..", "deploy", "assets", "ml", "de10.json")
+RHO = 0.7
+N_POBLACION = 30
+CUANTILES_POBLACION = np.linspace(0, 1, 21)
+CLASE = {"Sniper": "Rifle", "Bow": "Rifle", "Launcher": "Rifle", "Companion Weapon": "Rifle", "Dual Pistols": "Pistol", "Throwing": "Pistol", "Zaw Component": "Melee"}
+CAMPOS = ["weapon", "stat_pos1", "stat_pos2", "stat_pos3", "stat_neg", "mag_pos1", "mag_pos2", "mag_pos3", "mag_neg"]
 
 def f32(valor):
     return float(str(np.float32(valor)))
 
-def armas_cortadas(tabla):
+def topes_por_slug():
     tope = {}
     for c in an.leer_csv("slugs_consultados.csv"):
         if c["ok"] == "1":
             tope[c["slug"]] = max(tope.get(c["slug"], 0), int(c["subastas"]))
+    return tope
+
+def armas_cortadas(tabla):
+    tope = topes_por_slug()
     arma_de_id = {i: w for i, w in zip(tabla["auction_id"], tabla["weapon"]) if i}
     cortadas = set()
     for nombre in ("subastas_vivas.csv", "subastas_desaparecidas.csv"):
@@ -175,6 +186,66 @@ def filas_paridad(tabla_frescos, contexto, modelo):
         })
     return resultado
 
+def resumen(valores):
+    return [int(len(valores))] + [round(float(v), 3) for v in np.quantile(valores, CUANTILES_POBLACION)]
+
+def mediana_tirada(modelo, columnas, filas):
+    x = pd.DataFrame(np.asarray(filas, dtype=np.float32), columns=columnas)
+    return np.sort(modelo.predict(x).reshape(-1, len(CUANTILES_APP)), axis=1)[:, 1]
+
+def poblaciones(tabla, contexto, modelo, sin):
+    with open(DE10, encoding="utf-8") as f:
+        de10 = json.load(f)["familias"]
+    armas = escala_de10.armas_del_catalogo()
+    slugs = {escala_de10.slug(a) for a in armas}
+    miembros = escala_de10.miembros_por_familia(armas)
+    cortadas = {s for s, n in topes_por_slug().items() if n >= UMBRAL_CORTADAS}
+    tipos = nyt.tipo_por_arma()
+    dispo = armas_sin_wfm.dispo_por_arma()
+    columnas = list(contexto["columnas"])
+    familia = {w: escala_de10.familia(w, slugs) for w in tabla["weapon"].unique()}
+    frescos = tabla[tabla["fresco"]]
+    armas_frescas = frescos["weapon"].values
+    fam = np.array([familia[w] for w in armas_frescas])
+    clase = np.array([CLASE.get(tipos[w], tipos[w]) for w in armas_frescas])
+    cortada = np.isin(fam, sorted(cortadas))
+    registros = frescos[CAMPOS].to_dict("records")
+
+    conocida = np.isin(armas_frescas, sorted(contexto["niveles"]))
+    idx = np.where(conocida)[0]
+    r = mediana_tirada(modelo, columnas, [nyt.fila_caracteristicas(registros[i], contexto["efectos"]["todos"], contexto) for i in idx])
+    pob = {}
+    for f in sorted(set(fam[idx])):
+        valores = r[fam[idx] == f]
+        if len(valores) >= N_POBLACION:
+            pob[f] = resumen(valores)
+    sin_cortar = ~cortada[idx]
+    pool_clase = {c: resumen(r[sin_cortar & (clase[idx] == c)]) for c in sorted(set(clase[idx][sin_cortar]))}
+
+    contexto_sin = dict(contexto)
+    contexto_sin["niveles"] = {}
+    contexto_sin["conteos"] = {w: float(np.expm1(sin["log_n"])) for w in set(armas_frescas)}
+    contexto_sin["ref_pos"] = {(w, s): v * dispo[w] for w in set(armas_frescas) if dispo.get(w, 0) > 0 for s, v in sin["ref_pos"].items()}
+    contexto_sin["ref_neg"] = {(w, s): v * dispo[w] for w in set(armas_frescas) if dispo.get(w, 0) > 0 for s, v in sin["ref_neg"].items()}
+    globales_pos, _, globales_neg, _ = contexto["efectos"]["todos"]
+    base = np.where(~cortada & np.array([dispo.get(w, 0) > 0 for w in armas_frescas]))[0]
+    x_sin = np.asarray([nyt.fila_caracteristicas(registros[i], (globales_pos, {}, globales_neg, {}), contexto_sin) for i in base], dtype=np.float32)
+    i_nivel = columnas.index("nivel")
+    con_anuncios = set(familia.values())
+    pool = {}
+    nivel_pool = {}
+    for f in sorted((cortadas | (set(de10) - con_anuncios)) & set(de10)):
+        tipo = next((tipos[w] for w in miembros.get(f, []) if tipos[w] != "desconocido"), None)
+        if tipo is None:
+            continue
+        l10, _, _, pop10, _ = de10[f]
+        nivel = round(float(l10 if pop10 >= armas_sin_wfm.POP_FIABLE else sin["nivel"][0] * l10 + sin["nivel"][1]), 4)
+        x = x_sin[clase[base] == CLASE.get(tipo, tipo)].copy()
+        x[:, i_nivel] = nivel
+        pool[f] = resumen(mediana_tirada(modelo, columnas, x))
+        nivel_pool[f] = nivel
+    return {"rho": RHO, "pob": pob, "pool": pool, "nivel_pool": nivel_pool, "pool_clase": pool_clase}
+
 def main():
     nyt.CUANTILES = CUANTILES_APP
     cortadas = armas_cortadas(nyt.leer_anuncios())
@@ -218,6 +289,7 @@ def main():
     if len(sys.argv) > 1:
         with open(sys.argv[1], encoding="utf-8") as f:
             salida["sin_wfm"] = armas_sin_wfm.calcular(salida, json.load(f), armas_sin_wfm.dispo_por_arma())
+        salida.update(poblaciones(tabla, contexto, modelo, salida["sin_wfm"]))
     with open(DESTINO, "w", encoding="utf-8") as f:
         json.dump(salida, f, ensure_ascii=False, allow_nan=False, separators=(",", ":"))
     paridad = filas_paridad(tabla[mascara], contexto, modelo)
