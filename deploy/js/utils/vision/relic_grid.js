@@ -37,6 +37,7 @@ export function reliquiaDelTitulo(texto, matchRelic) {
 // the count is drawn "x108": the OCR may split the x from the number or confuse the glyph, but the x must
 // be there. Bare digits on screen are art, not counts
 const COUNT = /^[xX×*]\s*(\d{1,3})$/;
+const VALOR_ESQUINA = Object.freeze({ vacia: 1, ojo: 0 });
 
 const median = (xs) => {
   if (!xs.length) return 0;
@@ -69,7 +70,14 @@ function bandOf(centers, v, tol) {
   return bestD <= tol ? best : -1;
 }
 
-export function parseRelicGrid({ nameWords, countWords } = {}, { matchRelic, trace } = {}) {
+/**
+ * @param passes.nameWords   word boxes of the NAMES pass (psm 6)
+ * @param passes.countWords  word boxes of the COUNTS pass (psm 11)
+ * @param matchRelic         (words) => canonical name or null (OCRService.getRelicMatch)
+ * @param esquina            (anchor) => "vacia" | "ojo" | null, for cells with no count read
+ * @returns [{ name, count }], only cells with name and quantity (read or inferred by `esquina`)
+ */
+export function parseRelicGrid({ nameWords, countWords } = {}, { matchRelic, trace, esquina } = {}) {
   if (typeof matchRelic !== "function") return [];
 
   const nameCells = groupWordCells(nameWords);
@@ -78,7 +86,7 @@ export function parseRelicGrid({ nameWords, countWords } = {}, { matchRelic, tra
   // "No Relic" is the "carry none" cell: the matcher drops it since NO matches no tier. "Relic" cannot be
   // required like in the squad panel, that cell has it too
   const leerNombres = (cells) => cells
-    .map((cell) => ({ name: matchRelic(cell.words), cx: (cell.x0 + cell.x1) / 2, y: cell.y0 }))
+    .map((cell) => ({ name: matchRelic(cell.words), cx: (cell.x0 + cell.x1) / 2, y: cell.y0, cell }))
     .filter((n) => n.name);
 
   const names = leerNombres(nameCells);
@@ -150,22 +158,35 @@ export function parseRelicGrid({ nameWords, countWords } = {}, { matchRelic, tra
 
   // "Axi A6 Relic [Radiant]" and "x2 Axi A6 Relic" are different cells of the same inventory entry: they add
   // up, and if one was not read, none
+  const anclaDe = (n, col) => {
+    const cx = cols.centers[col];
+    const debajo = nameCells.find((c) => c !== n.cell && c.x0 <= cx && c.x1 >= cx
+      && c.y0 >= n.cell.y1 - height * 0.5 && c.y0 <= n.cell.y1 + height && !COUNT.test(c.words.join(" ").trim()));
+    const linea = debajo || n.cell;
+    return { x: cx, y: (linea.y0 + linea.y1) / 2 };
+  };
   const porNombre = new Map();
   const incompletas = new Set();
   const perdidas = { sinCasilla: 0, descartada: 0, dudosa: 0, sinContador: 0 };
+  const esquinas = { vacia: 0, ojo: 0 };
   for (const n of names) {
     const key = celdaDe(n);
-    const falta = !key ? "sinCasilla" : descartadas.has(key) ? "descartada"
+    let falta = !key ? "sinCasilla" : descartadas.has(key) ? "descartada"
       : nombreDudoso.has(key) ? "dudosa" : byCell.has(key) ? null : "sinContador";
+    let count = byCell.get(key);
+    if (falta === "sinContador" && esquina) {
+      const visto = esquina(anclaDe(n, Number(key.split(":")[1])));
+      if (Object.hasOwn(VALOR_ESQUINA, visto)) { count = VALOR_ESQUINA[visto]; esquinas[visto]++; falta = null; }
+    }
     if (falta) { perdidas[falta]++; incompletas.add(n.name); continue; }
-    porNombre.set(n.name, (porNombre.get(n.name) || new Map()).set(key, byCell.get(key)));
+    porNombre.set(n.name, (porNombre.get(n.name) || new Map()).set(key, count));
   }
   const out = [...porNombre].filter(([name]) => !incompletas.has(name))
     .map(([name, casillas]) => ({ name, count: [...casillas.values()].reduce((a, b) => a + b, 0) }));
   if (trace) {
     Object.assign(trace, {
       nombres: names.length, candidatosContador: candidatos.length,
-      contadoresConCasilla: byCell.size, alturaTipica, perdidas,
+      contadoresConCasilla: byCell.size, alturaTipica, perdidas, esquinas,
       cols: cols.centers.length, filas: rows.centers.length,
     });
   }

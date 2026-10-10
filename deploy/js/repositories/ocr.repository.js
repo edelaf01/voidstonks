@@ -10,6 +10,14 @@ function imagenVacia(image) {
     return true;
 }
 
+function comoPng(image) {
+    if (image?.tagName !== "CANVAS") return image;
+    const binario = atob(image.toDataURL("image/png").split(",")[1] || "");
+    const bytes = new Uint8Array(binario.length);
+    for (let i = 0; i < binario.length; i++) bytes[i] = binario.charCodeAt(i);
+    return new Blob([bytes], { type: "image/png" });
+}
+
 export const OCRRepository = {
     DEFAULT_PSM: "6",
     //possible chars non riven
@@ -157,7 +165,7 @@ export const OCRRepository = {
         return this.conLimite(worker, async () => {
             try {
                 await worker.setParameters({ tessedit_pageseg_mode: String(psm) });
-                return await worker.recognize(image, {}, output);
+                return await worker.recognize(comoPng(image), {}, output);
             } catch (e) {
                 console.error("[OCR Repo] Recognize PSM Err:", e);
                 return { data: { text: "", confidence: 0 } };
@@ -174,7 +182,7 @@ export const OCRRepository = {
         return this.conLimite(worker, async () => {
             try {
                 await worker.setParameters({ tessedit_char_whitelist: chars });
-                return await worker.recognize(image, {}, output);
+                return await worker.recognize(comoPng(image), {}, output);
             } catch (e) {
                 console.error("[OCR Repo] Recognize chars Err:", e);
                 return { data: { text: "", confidence: 0 } };
@@ -191,7 +199,7 @@ export const OCRRepository = {
         return this.conLimite(worker, async () => {
             try {
                 // `output` (e.g. { blocks: true }) requests word/line boxes from Tesseract to split side-by-side cards by X position when rolling rivens
-                return await worker.recognize(image, options, output);
+                return await worker.recognize(comoPng(image), options, output);
             } catch (e) {
                 console.error("[OCR Repo] Recognize Err:", e);
                 return { data: { text: "", confidence: 0 } };

@@ -8,6 +8,7 @@ import { showToast } from "../ui.components/ui_components.js";
 import { TEXTS, DROP_CHANCES } from "../config.js";
 import { warmupPrices } from "../services/inventory/inventory.service.js";
 import { ScannerService } from "../services/scanner/scanner.service.js";
+import { VisionService } from "../services/scanner/vision.service.js";
 import { OCRService } from "../services/scanner/ocr.service.js?v=264";
 import { ScannerModal } from "../ui.components/ui_scanner_modal.js";
 import "../ui.components/ui_squad_run.js";
@@ -341,6 +342,7 @@ RelicScreenService.onApplied = (changed) => {
   const t = TEXTS[state.currentLang].scanner;
   showToast((t.relicCountsApplied || "{n} relic counts updated").replace("{n}", String(changed.length)));
   saveAppState();
+  globalThis.inventarioCambiado?.();
   if (eligiendoReliquia || ScannerService.latchedContext === "RELICS") pintaReliquias(eraElegida);
 };
 
@@ -351,7 +353,7 @@ TradeService.onTrade = (mesa) => {
   if (!movidas.length) return;
   state.primeInventory = inventario;
   saveAppState();
-  if (globalThis.renderPrimeInventory) globalThis.renderPrimeInventory();
+  globalThis.inventarioCambiado?.();
   avisaConDeshacer(`${TEXTS[state.currentLang].scanner.tradeDone}: ${movidas.join(", ")}`, "tradeo", () => {
     state.primeInventory = undoRewardCommit(state.primeInventory, previo);
   });
@@ -360,7 +362,7 @@ TradeService.onTrade = (mesa) => {
 ScannerService.onPaginaKiosco = () => {
   state.primeInventory = vuelcaSesion(state.primeInventory, ScannerService.sessionInventory);
   saveAppState();
-  if (globalThis.renderPrimeInventory) globalThis.renderPrimeInventory();
+  globalThis.inventarioCambiado?.();
   recomiendaParaBaro().catch(console.warn);
 };
 
@@ -399,7 +401,7 @@ DucatKioskService.onSale = (venta) => {
     ScannerService.qtyVotes.delete(name);
   }
   saveAppState();
-  if (globalThis.renderPrimeInventory) globalThis.renderPrimeInventory();
+  globalThis.inventarioCambiado?.();
   ScannerHUD.updateDetectedItems(ScannerService.sessionInventory, ScannerService.sessionRelics);
   recomiendaParaBaro().catch(console.warn);
   const lista = restadas.map((r) => `${r.qty}× ${r.name}`).join(", ") || "-";
@@ -418,7 +420,7 @@ escucha("construido", (nombre) => {
     ScannerService.qtyVotes.delete(name);
   }
   saveAppState();
-  if (globalThis.renderPrimeInventory) globalThis.renderPrimeInventory();
+  globalThis.inventarioCambiado?.();
   ScannerHUD.updateDetectedItems(ScannerService.sessionInventory, ScannerService.sessionRelics);
   const lista = restadas.map((r) => `${r.qty}× ${r.name}`).join(", ") || "-";
   const faltan = ausentes.length ? (t.ducatSoldMissing || "").replace("{missing}", ausentes.join(", ")) : "";
@@ -463,7 +465,7 @@ globalThis.syncRewardFromGame = (itemName, owned) => {
     if (state.primeInventory[itemName] === owned) return true;
     state.primeInventory[itemName] = owned;
     saveAppState();
-    if (globalThis.renderPrimeInventory) globalThis.renderPrimeInventory();
+    globalThis.inventarioCambiado?.();
     return true;
 };
 
@@ -498,7 +500,7 @@ globalThis.selectRewardToInventory = (itemName) => {
 
   if (!willSyncInClose) {
     saveAppState();
-    if (globalThis.renderPrimeInventory) globalThis.renderPrimeInventory();
+    globalThis.inventarioCambiado?.();
   }
 };
 
@@ -526,7 +528,7 @@ function commitMissionCompleteRewards(items, gastada = null) {
   if (!movidas.length) return;
 
   saveAppState();
-  if (globalThis.renderPrimeInventory) globalThis.renderPrimeInventory();
+  globalThis.inventarioCambiado?.();
   avisaConDeshacer(`${t.mcAdded}: ${movidas.join(", ")}`, "mc-rewards", () => {
     state.primeInventory = undoRewardCommit(state.primeInventory, previo);
     state.inventory = relicPrevio;
@@ -542,6 +544,7 @@ function gastaReliquiaAbierta(nombre, delLog = false) {
   if (unidades(nuevo) === unidades(previo)) return; // the relic was not in the inventory
   state.inventory = nuevo;
   saveAppState();
+  globalThis.inventarioCambiado?.();
   if (eligiendoReliquia) pintaReliquias();
   const t = TEXTS[state.currentLang].scanner;
   avisaConDeshacer(`${t.relicSpent}: ${nombre}`, "reliquia-gastada", () => { state.inventory = previo; });
@@ -557,7 +560,7 @@ function avisaConDeshacer(texto, tag, deshacer) {
   undo.onclick = () => {
     deshacer();
     saveAppState();
-    if (globalThis.renderPrimeInventory) globalThis.renderPrimeInventory();
+    globalThis.inventarioCambiado?.();
     showToast(t.mcUndone, { tag });
   };
   toast.appendChild(undo);
@@ -581,8 +584,7 @@ globalThis.saveLiveInventory = () => {
     warmupPrices().catch(console.error);
   }
 
-  if (globalThis.renderInventory) globalThis.renderInventory();
-  if (globalThis.renderPrimeInventory) globalThis.renderPrimeInventory();
+  globalThis.inventarioCambiado?.();
 };
 
 /** Clears the scan session without saving (the HUD ✕ button). */
@@ -607,6 +609,8 @@ globalThis.resetGrid = () => {
   ScannerService._autoCalibCache = null;
   ScannerService._nameColorCache = null;
   ScannerService._frameZoneCache = null;
+  VisionService._memoriasRejilla.clear();
+  ScannerService.fotosSinScroll = 0;
   ScannerService._invQueue?.clear();
   ScannerService.detectionLocked = false;
   ScannerService.inventoryHasScanned = false;

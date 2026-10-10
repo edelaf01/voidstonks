@@ -10,6 +10,7 @@ import {
 } from "../../utils/rivens/riven_logic.js";
 import { getMetaStats } from "./riven_market.service.js?v=1.9";
 import { metaConPesosDeFamilia } from "./riven_weights.service.js";
+import { tipoDeArma, esFusionado, pesoFusionado } from "../../utils/rivens/riven_cycling.js";
 
 // Riven roll appraisal: what it is worth and what it compares against. Returns data, never HTML.
 
@@ -20,12 +21,13 @@ import { metaConPesosDeFamilia } from "./riven_weights.service.js";
 export function statsBuscadosDelArma(meta, weaponName) {
   const grado = gradeWeaponStats(metaConPesosDeFamilia(meta || {}, weaponName || meta?.name),
     state.rivenStatBaseline?.stat_weights ?? state.rivenStatPrior ?? null);
-  if (grado && grado.best.length) return { best: grado.best, mid: grado.mid };
-  return { best: meta?.pos || [], mid: meta?.midPos || [] };
+  if (grado && grado.best.length) return { best: grado.best, mid: grado.mid, pesos: grado.pesos };
+  return { best: meta?.pos || [], mid: meta?.midPos || [], pesos: null };
 }
 
 export function computeDesirabilityMultiplier(stats, meta, weaponData) {
   const wType = (weaponData?.t || "").toLowerCase();
+  const tipo = tipoDeArma(weaponData?.t);
   const isMelee = wType === "melee" || wType === "zaw" || wType === "glaive";
 
   const _grado = gradeWeaponStats(metaConPesosDeFamilia(meta || {}, meta?.name || weaponData?.name),
@@ -53,6 +55,14 @@ export function computeDesirabilityMultiplier(stats, meta, weaponData) {
   let hasBrickNegative = false;
 
   stats.forEach(s => {
+    if (esFusionado(s.name, tipo)) {
+      positiveCount++;
+      const pf = pesoFusionado(s.name, _grado && _grado.pesos, tipo);
+      if (pf != null && pf >= STAT_TIER_TOP) metaMatches++;
+      else if (pf != null && pf >= STAT_TIER_MID) metaMatches += 0.8;
+      else trashCount += 0.35;
+      return;
+    }
     const normalized = normalizeStatName(s.name, weaponData?.t);
     const normLower = normalized.toLowerCase();
     const matchMeta = (m) => {

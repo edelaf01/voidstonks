@@ -1,10 +1,11 @@
 import { VisionService } from "./vision.service.js";
 import { freezeFrame, releaseFrame, shareFrame, stopSharingFrame, sharedFrame } from "../../utils/vision/frame_freeze.js";
-import { nextLatchedContext, INITIAL_LATCH, enrutaGraciaRiven, intervaloCabecera, INTERVALO_FIN_MISION_MS, CADUCIDAD_CABECERA_MS, FRANJA_TITULO_VIDEO, tituloHaCambiado } from "../../utils/vision/context_latch.js";
+import { nextLatchedContext, INITIAL_LATCH, enrutaGraciaRiven, CONTEXTOS_RIVEN, tipoRiven, intervaloCabecera, INTERVALO_FIN_MISION_MS, CADUCIDAD_CABECERA_MS, FRANJA_TITULO_VIDEO, tituloHaCambiado } from "../../utils/vision/context_latch.js";
 import { sensorDelEscaner, CADA_MS } from "../../utils/vision/wake_sensor.js";
+import { recorteSplice, zonasDeFirma } from "../../utils/vision/riven_splice.js";
 import { isImplausibleFallbackGrid } from "../../utils/vision/plausibility.js";
 import { corrige56 } from "../../utils/vision/relic_digit_56.js";
-import { filasEnFase } from "../../utils/vision/grid_alignment.js";
+import { filasEnFase, filasPorArriba } from "../../utils/vision/grid_alignment.js";
 import { localizaBandaRecompensas, candidatosDeRecorte, recorteDelRotulo } from "../../utils/vision/reward_band.js";
 import { leeRecompensas, leeRotulosMissionComplete, leeCasillaMissionComplete } from "./reward_read.service.js";
 import { leeCantidadBadge, relojBadges } from "./badge_read.service.js";
@@ -19,7 +20,7 @@ import { ScannerModal } from "../../ui.components/ui_scanner_modal.js";
 import { initializeOCRDatabase } from "../../repositories/api.repository.js";
 import { escapeHTML } from "../../utils/escape_html.js";
 import { electPageNameColor, cellNameMask, hasInk, readCellWithOwnColor, readCellCuttingArt } from "./name_color.service.js";
-import { createCellOverlay } from "../../utils/vision/scan_overlay.js";
+import { createCellOverlay, pintaRejilla } from "../../utils/vision/scan_overlay.js";
 import { revisaRejillaCacheada } from "../../utils/vision/grid_cache.js";
 import { detectRewardCells, esRecursoPorBadge } from "../../utils/vision/mission_complete_grid.js";
 import { INITIAL_LEDGER, nextLedger, esPantallaRecordada, recuerdaPantalla, memoriaPantalla, sigueALaVista } from "../../utils/inventory/reward_ledger.js";
@@ -28,12 +29,13 @@ const memoriaMC = memoriaPantalla(() => localStorage, "vs_mc_ultima_pantalla");
 const DESPIERTA_MC = 24;
 const ESPERA_TARJETAS_MS = 1500;
 import { createFrameQueue } from "../../utils/vision/frame_queue.js";
-import { videoRegionHash, canvasRegionHash, compareHashes, fraccionCambiada, regionLumaRapida, firmaTexto, mismoTexto } from "../../utils/vision/frame_hash.js";
+import { videoRegionHash, canvasRegionHash, compareHashes, regionLumaRapida, firmaTexto, mismoTexto } from "../../utils/vision/frame_hash.js";
 import { createReadCache } from "../../utils/vision/read_cache.js";
 import { DebugRecorder } from "./debug_recorder.service.js";
 import { FirmasTitulo } from "./title_signatures.service.js";
 import { leeCabeceraOCR, RESCATE_CABECERA_MS, leeCategoriaInventario } from "./header_read.service.js";
-import { esContextoArcanos, BANDA_NOMBRE_ARCANO, tirasDeNombreArcano } from "../../utils/inventory/arcanos_disolucion.js";
+import { esContextoArcanos, BANDA_NOMBRE_ARCANO, emparejaArcano, paginaArcanosBasura } from "../../utils/inventory/arcanos_disolucion.js";
+import { firmaDePagina, mismaPagina } from "../../utils/vision/firma_pagina.js";
 import { TradeService } from "./trade.service.js";
 import { ANCHO_REJILLA_TRADEO } from "../../utils/vision/trade_post.js";
 import { DucatKioskService } from "./ducat_kiosk.service.js";
@@ -41,13 +43,13 @@ import { ESTADO_INICIAL as ESTADO_SIN_RESULTADO, saltaPorSinResultado, siguiente
 import { cronometro } from "../../utils/perf.js";
 
 import { rivenFingerprint } from "../../utils/rivens/riven_naming.js";
+import { creaVotoRolls } from "../../utils/rivens/riven_rolls_voto.js";
 import { hudBottom } from "../../utils/vision/hud_cover.js";
 import { badgePlausible } from "../../utils/vision/badge_digit_ocr.js";
 import { isGarbledCellText } from "../../utils/vision/cell_text_guard.js";
 import { olvidaColorTexto } from "../../utils/vision/reward_preprocess.js";
 import { cedeHilo } from "../../utils/yield.js";
 import { avisa, pistasDelLog } from "../../utils/ganchos.js";
-import { emparejaArcano } from "../../utils/inventory/arcanos_disolucion.js";
 
 export const ScannerService = {
     ESPERA_FOTO_MS: 350,
@@ -88,6 +90,7 @@ export const ScannerService = {
     weaponSwitchCandidate: null, // weapon set pending confirmation as a riven switch
     weaponSwitchStreak: 0, // reads with that same new set (matcher anti-flip)
     rivenConsensusBuffer: [],
+    _votoRolls: creaVotoRolls(),
 
     async start() {
         if (this.isScanning) return;
@@ -113,6 +116,7 @@ export const ScannerService = {
         this.weaponSwitchCandidate = null;
         this.weaponSwitchStreak = 0;
         this.rivenConsensusBuffer = [];
+        this._votoRolls = creaVotoRolls();
         this.qtyVotes = new Map();
         this.sessionRelics = new Map();
         this.relicQtyVotes = new Map();
@@ -158,7 +162,7 @@ export const ScannerService = {
         this._sensor?.para();
         this._cartaVigilada = null;
         if (!this.isScanning) return;
-        if (pistasDelLog.duerme(this)) return ScannerHUD.updateContext("LOG_WAIT");
+        const espera = pistasDelLog.duerme(this); if (espera) return ScannerHUD.updateContext(espera);
         const video = document.getElementById("live-video");
         // 0x0 video (resized window, loading) made 0 px crops
         if (!video || video.paused || video.ended || !video.videoWidth || !video.videoHeight) { this.scanInterval = setTimeout(() => this.loop(), 1000); return; }
@@ -200,7 +204,7 @@ export const ScannerService = {
         const headerHash = await regionLumaRapida(video, FRANJA_TITULO_VIDEO);
         // a cached UNKNOWN is worth less: it can be a mission end denied its rescue
         const caducidad = this.latchedContext === "UNKNOWN" ? RESCATE_CABECERA_MS : CADUCIDAD_CABECERA_MS;
-        const headerCacheFresh = this.lastHeaderOcrTime && (Date.now() - this.lastHeaderOcrTime < caducidad);
+        const headerCacheFresh = this.lastHeaderOcrTime && (Date.now() - this.lastHeaderOcrTime < caducidad) && (this.latchedContext === "REWARD" || !pistasDelLog.recompensasAbiertas());
         // still strip between two ticks = stopped screen, where titles live
         const franjaQuieta = !!this._franjaTickAnterior && !tituloHaCambiado(headerHash, this._franjaTickAnterior);
         this._franjaTickAnterior = headerHash;
@@ -255,9 +259,9 @@ export const ScannerService = {
         const containsAnchor = ["MODS", "MODIFICADORES", "CYCLE", "CICLO", "CICLAR", "KUVA", "KUYVA",
             "ATRIBUTOS", "ELEGIR", "CONFIRMAR", "AGRIETADO"].some((a) => textUpper.includes(a));
 
-        if (rawContext === "INVENTORY_MODS" || rawContext === "ITEM_DETAILS" || rawContext === "RIVEN_DETAILS" || containsAnchor) {
+        if (CONTEXTOS_RIVEN.has(rawContext) || containsAnchor) {
             this.lastRivenContextTime = now;
-            this.lastRivenContextType = rawContext === "ITEM_DETAILS" || rawContext === "RIVEN_DETAILS" ? rawContext : "INVENTORY_MODS";
+            this.lastRivenContextType = tipoRiven(rawContext);
         }
 
         // 8 s grace for rivens/mods, rerouted to the type of the last hit: Item Details uses another crop
@@ -314,7 +318,7 @@ export const ScannerService = {
     enqueueInventoryPage(snapshot, dims) {
         const key = `${dims.width}x${dims.height}`;
         if (this._frameZoneCache?.key !== key) {
-            const calib = VisionService.detectGridAutoCalib(snapshot, dims.width, dims.height, this.anchoRejilla(dims.width));
+            const calib = VisionService.detectGridAutoCalib(snapshot, dims.width, dims.height, this.anchoRejilla(dims.width), this.latchedContext);
             let zone = calib?.gridZone || null;
             if (zone) {
                 // the crop starts where the header ends: above it there is only HUD and a half hidden row
@@ -325,9 +329,9 @@ export const ScannerService = {
                 const hudY = Math.max(y, zone.y - Math.round(cellH * 0.25));
                 const ctx = snapshot.getContext("2d", { willReadFrequently: true });
                 const borde = zone.y > hudY ? hudBottom(ctx.getImageData(zone.x, hudY, zone.w, zone.y - hudY)) : null;
-                zone = { ...zone, y, h: dims.height - y, hud: borde == null ? null : borde + (hudY - y) };
+                zone = { ...zone, ...(calib.colorAnchored && { x: 0, w: this.anchoRejilla(dims.width) }), y, h: dims.height - y, hud: borde == null ? null : borde + (hudY - y) };
             }
-            this._frameZoneCache = { key, zone };
+            this._frameZoneCache = { key: calib?.colorAnchored ? null : key, zone };
         }
         // without a zone there is nothing to crop: processed live, which also opens manual calibration
         const zone = this._frameZoneCache.zone;
@@ -370,12 +374,12 @@ export const ScannerService = {
         return bestQty;
     },
 
-    autoScrollMuestra: null,
+    autoScrollMuestra: null, // page signature at the last scan ({ rejilla, datos })
     autoScrollStableTimer: null,
     lastRowLums: null,
     // movement seen since the last scan: forces a rescan once still, since the page hash collides
     // between similar pages
-    sawScrollSinceScan: false,
+    sawScrollSinceScan: false, fotosSinScroll: 0,
     // debug panel history: [{ time, img, log, summary, warning }], newest first, cap 10
     debugHistory: [],
 
@@ -399,7 +403,7 @@ export const ScannerService = {
             if (!globalThis.state.autoScanEnabled && !esContextoArcanos(contextType) && !DucatKioskService.esKiosco(this.lastHeaderText)) {
                 this.currentRate = 3000;
                 this.autoScrollMuestra = null;
-                this.sawScrollSinceScan = false;
+                this.sawScrollSinceScan = false; this.fotosSinScroll = 0;
                 if (this.autoScrollStableTimer) {
                     clearTimeout(this.autoScrollStableTimer);
                     this.autoScrollStableTimer = null;
@@ -468,7 +472,7 @@ export const ScannerService = {
             const isScrolling = (bestDy !== 0 && minError < mseZero - 5) || mseZero > 80;
 
             if (isScrolling) {
-                this.sawScrollSinceScan = true;
+                this.sawScrollSinceScan = true; this.fotosSinScroll = 0;
                 if (this.autoScrollStableTimer) {
                     clearTimeout(this.autoScrollStableTimer);
                     this.autoScrollStableTimer = null;
@@ -478,11 +482,10 @@ export const ScannerService = {
             }
 
             // still: rescan after a scroll or a page hash change
-            const rejillaArcanos = esContextoArcanos(contextType) && zona && this._autoCalibCache?.calib;
-            const tirasArcanos = rejillaArcanos ? tirasDeNombreArcano(rejillaArcanos, zona, dims.width, dims.height) : [];
-            const muestraPagina = tirasArcanos.length ? firmaTexto(video, tirasArcanos) : muestra;
-            const hasPageChanged = !this.autoScrollMuestra || this.sawScrollSinceScan
-                || (tirasArcanos.length ? !mismoTexto(muestraPagina, this.autoScrollMuestra) : fraccionCambiada(muestra, this.autoScrollMuestra) >= 0.01);
+            const muestraPagina = firmaDePagina(video, muestra, esContextoArcanos(contextType) && this._autoCalibCache?.calib, zona, dims.width, dims.height);
+            const vista = mismaPagina(this.autoScrollMuestra, muestraPagina, video, muestra, zona, dims.width, dims.height);
+            if (vista && muestraPagina.rejilla !== this.autoScrollMuestra.rejilla) this.autoScrollMuestra = muestraPagina;
+            const hasPageChanged = this.sawScrollSinceScan || (!vista && this.fotosSinScroll < 3);
 
             // a still page that changed is scanned whatever the scroll direction: the grid is periodic and a
             // fast scroll down aliases to a negative dy
@@ -514,7 +517,7 @@ export const ScannerService = {
 
                     // queue full: the hash is not marked, so the page is retried instead of lost
                     if (this.enqueueInventoryPage(snapshot, dims)) {
-                        this.autoScrollMuestra = muestraPagina;
+                        this.fotosSinScroll++; this.autoScrollMuestra = firmaDePagina(snapshot, muestra, muestraPagina.rejilla, zona, dims.width, dims.height);
                         ScannerHUD.updateScrollStatus("captured");
                     }
                     this.autoScrollStableTimer = null;
@@ -526,7 +529,7 @@ export const ScannerService = {
                 else ScannerHUD.updateScrollStatus("done", this.sessionInventory.size + this.sessionRelics.size);
             }
 
-        } else if (contextType === "INVENTORY_MODS" || contextType === "ITEM_DETAILS" || contextType === "RIVEN_DETAILS") {
+        } else if (CONTEXTOS_RIVEN.has(contextType)) {
             // fast poll by default; processRivenCard relaxes it (RIVEN_RATE_IDLE) on a still parsed screen
             this.currentRate = this.RIVEN_RATE_ACTIVE;
             if (this.detectionLocked) return;
@@ -724,17 +727,16 @@ export const ScannerService = {
         const { scale } = dims;
 
         // the "Item Details" popup has the card centered and higher, so it has its own crop
-        const cardCrop = (contextType === "ITEM_DETAILS" || contextType === "RIVEN_DETAILS") ? VisionService.RIVEN_ITEM_DETAILS_CROP : VisionService.RIVEN_CARD_CROP;
+        const cardCrop = contextType === "RIVEN_SPLICING" ? recorteSplice(video) : (contextType === "ITEM_DETAILS" || contextType === "RIVEN_DETAILS") ? VisionService.RIVEN_ITEM_DETAILS_CROP : VisionService.RIVEN_CARD_CROP;
 
         // hash over the fixed video region, before preparing the canvases: tight crops jitter on a still
         // screen
-        const zonas = this._zonasCartas?.length ? this._zonasCartas : [cardCrop];
-        const hash = firmaTexto(video, zonas);
+        const zonas = zonasDeFirma(this._zonasCartas, cardCrop, contextType), hash = firmaTexto(video, zonas);
 
         // already parsed and unchanged: skip OCR and relax the poll
         if ((this.lastParsedL || this.lastParsedR) && mismoTexto(hash, this.lastHashL)) {
             this.lastRivenContextTime = Date.now();
-            this.lastRivenContextType = (contextType === "ITEM_DETAILS" || contextType === "RIVEN_DETAILS") ? contextType : "INVENTORY_MODS";
+            this.lastRivenContextType = tipoRiven(contextType);
             this.currentRate = this.RIVEN_RATE_IDLE;
             this._cartaVigilada = zonas;
             return;
@@ -805,7 +807,7 @@ export const ScannerService = {
         if (valids.length || hasCardAnchor) {
             this.lastRivenContextTime = Date.now();
             // remembers which crop made the hit: the grace period reroutes to the same type
-            this.lastRivenContextType = (contextType === "ITEM_DETAILS" || contextType === "RIVEN_DETAILS") ? contextType : "INVENTORY_MODS";
+            this.lastRivenContextType = tipoRiven(contextType);
         }
 
         // logged: otherwise a bad crop fails once and the skip above silences every retry
@@ -820,8 +822,7 @@ export const ScannerService = {
         if (this.rivenConsensusBuffer.length > 2) this.rivenConsensusBuffer.shift();
         const hasConsensus = this.rivenConsensusBuffer.length === 2 && this.rivenConsensusBuffer[0] === currentFP;
 
-        let rawL = valids[0]?.parsed || null;
-        let rawR = valids[1]?.parsed || null;
+        let [rawL, rawR] = this._votoRolls([valids[0]?.parsed || null, valids[1]?.parsed || null]);
         const shownCards = [this.lastParsedL, this.lastParsedR].filter(Boolean);
         const shownCount = shownCards.length;
 
@@ -915,7 +916,7 @@ export const ScannerService = {
         if (!weaponSwitchPending && !(trasElegir && !dropExtra)) {
             // only the cards: the glass and particles behind them never stop
             this._zonasCartas = canvases.map((c) => c.zonaVideo).filter(Boolean);
-            this.lastHashL = firmaTexto(video, this._zonasCartas.length ? this._zonasCartas : [cardCrop]);
+            this.lastHashL = firmaTexto(video, zonasDeFirma(this._zonasCartas, cardCrop, contextType));
             this.lastTwoCardHash = finalL && finalR ? this.lastHashL : null;
         } else this.currentRate = this.RIVEN_RATE_CONFIRM;
 
@@ -942,9 +943,7 @@ export const ScannerService = {
         }
 
         // only notifies the UI with something to show: (null, null) crashed _renderSingle
-        if (globalThis.showRivenAppraisal && (this.lastParsedL || this.lastParsedR)) {
-            globalThis.showRivenAppraisal(this.lastParsedL, this.lastParsedR, captura);
-        }
+        if (this.lastParsedL || this.lastParsedR) globalThis.showRivenAppraisal?.(this.lastParsedL, this.lastParsedR, captura);
     },
 
     /**
@@ -1143,6 +1142,8 @@ export const ScannerService = {
             if (!result || r.foundItems.length > result.foundItems.length) { result = r; usado = { ...cand, preset: "STANDARD" }; }
             if (result.foundItems.length >= cand.minimo) break;
         }
+        this._redVacia = !result.foundItems.length && !this._recompensaParcial && !this._redVacia && motorActivo() === MOTOR_PRECISO && PaddleRepository.listo();
+        if (this._redVacia) return;
 
         // only crops are exhausted; exposure presets are for camera photos and change nothing on capture
         if (!result?.foundItems.length) for (const cand of candidatos) {
@@ -1256,8 +1257,8 @@ export const ScannerService = {
             // grid per page (~60 ms): cached per resolution it stuck where the first page stopped, and scrolls
             // do not stop on cell multiples. The cache backs a page with no signal.
             const calibKey = `${width}x${height}`;
-            let calibData = VisionService.detectGridAutoCalib(snapshot, width, height, anchoMax);
-            const reciennacida = !!calibData; // detected in this frame, not inherited
+            let calibData = VisionService.detectGridAutoCalib(snapshot, width, height, anchoMax, contexto);
+            const reciennacida = !!calibData, cachePrevio = this._autoCalibCache; // detected in this frame, not inherited
             if (calibData) {
                 this._autoCalibCache = { key: calibKey, calib: calibData };
             } else if (this._autoCalibCache?.key === calibKey) {
@@ -1312,7 +1313,7 @@ export const ScannerService = {
             const dx = ancla ? ancla.gridX - (calibData.gridX ?? gridZone.x) : 0, dy = ancla ? ancla.gridY - (calibData.gridY ?? gridZone.y) : 0;
             if (ancla && (Math.abs(dx) > calibData.cellW * 0.04 || Math.abs(dy) > calibData.cellH * 0.04)) {
                 console.log(`[INV] fase por ✓ (${ancla.n} marcas): dx ${Math.round(dx)} dy ${Math.round(dy)}`);
-                calibData = { ...calibData, gridX: ancla.gridX, gridY: ancla.gridY };
+                calibData = Object.assign(reciennacida ? calibData : { ...calibData }, { gridX: ancla.gridX }, filasPorArriba(VisionService.ultimasBandas, { gridY: ancla.gridY, cellH: calibData.cellH, rows: calibData.rows }));
             }
             const autoGrid = VisionService.buildAutoGrid(snapshot, gridZone, theme, calibData);
             if (!autoGrid || autoGrid.cellRects.length === 0) {
@@ -1333,25 +1334,7 @@ export const ScannerService = {
             const dCtx = debugCanvas.getContext("2d");
             dCtx.drawImage(snapshot, gridZone.x, gridZone.y, gridZone.w, gridZone.h, 0, 0, gridZone.w, gridZone.h);
 
-            dCtx.strokeStyle = "rgba(0,229,255,0.4)";
-            dCtx.lineWidth = 1;
-            cellRects.forEach(cell => dCtx.strokeRect(cell.sx - gridZone.x, cell.sy - gridZone.y, cellW, cellH));
-
-            const gridLeft = Math.min(...cellRects.map(c => c.sx)) - gridZone.x;
-            const gridRight = Math.max(...cellRects.map(c => c.sx + cellW)) - gridZone.x;
-            dCtx.strokeStyle = "rgba(255, 193, 7, 0.5)";
-            dCtx.lineWidth = 1.5;
-            dCtx.setLineDash([6, 4]);
-            for (let ri = 0; ri < autoGrid.rows; ri++) {
-                const rowCell = cellRects.find(c => c.r === ri);
-                if (rowCell) {
-                    dCtx.beginPath();
-                    dCtx.moveTo(gridLeft, rowCell.sy - gridZone.y);
-                    dCtx.lineTo(gridRight, rowCell.sy - gridZone.y);
-                    dCtx.stroke();
-                }
-            }
-            dCtx.setLineDash([]);
+            pintaRejilla(dCtx, gridZone, cellRects, cellW, cellH, autoGrid.rows);
 
             const agInfo = `AG ${calibData.auto ? "auto" : "manual"} ${autoGrid.rows}r×${autoGrid.cols}c cell ${cellW}×${cellH} zone ${gridZone.x},${gridZone.y} dy ${autoGrid.phaseShift || 0}${calibData.traceSummary?.halfPitchFixed ? " HPfix" : ""}`;
             // the log reset goes before the cell loop, or the "SKIPPED (empty)" lines were lost
@@ -1413,6 +1396,13 @@ export const ScannerService = {
 
             const reconoceArcano = (ws) => emparejaArcano(ws.join(" "), this.tablaArcanos, (a, b) => OCRService.similarityOCR(a, b));
 
+            if (!this._arcanosDescartada && paginaArcanosBasura({ modoArcanos, reciennacida, calib: calibData, lote: lotePreciso, reconoce: reconoceArcano })) {
+                console.warn("[ARC] Página descartada: rejilla anclada por color y casi nada casa con un arcano.");
+                Object.assign(this, { _autoCalibCache: cachePrevio, _arcanosDescartada: true, autoScrollMuestra: null, fotosSinScroll: Math.min(this.fotosSinScroll, 2) });
+                return;
+            }
+            this._arcanosDescartada = false;
+
             // picking it costs up to 6 Tesseract reads: with the precise batch only fallbacks use it, so it is
             // picked on first need; without the batch every cell mask needs it
             let eleccion = pageNameColor && Promise.resolve();
@@ -1454,10 +1444,10 @@ export const ScannerService = {
                         if (ownColorUsed) scanStats.ownColor++;
                         return textCvs;
                     };
-                    const textoDelLote = lotePreciso?.get(clave(cell));
+                    const textoDelLote = lotePreciso?.get(clave(cell)), loteManda = modoArcanos && !!lotePreciso?.has(clave(cell));
                     if (!textoDelLote) {
-                        mascaraNombre();
-                        if (!hasInk(ink)) {
+                        if (!loteManda) mascaraNombre();
+                        if (loteManda || !hasInk(ink)) {
                             scanStats.empty++;
                             this.lastRawOcrLog.push(`[r${cell.r}c${cell.c}] SKIPPED (empty)`);
                             dCtx.strokeStyle = "rgba(255, 255, 255, 0.04)";
@@ -1510,7 +1500,7 @@ export const ScannerService = {
                     let fallbackText = null;
 
                     // no match in the normal band: try the 73%-99% window
-                    if (!bestItem && !relicMatch && !arcaneMatch) {
+                    if (!loteManda && !bestItem && !relicMatch && !arcaneMatch) {
                         await colorDeNombre(); // the three fallbacks below use it
                         const fallbackY = Math.floor(cellH * 0.73);
                         const fallbackH = Math.floor(cellH * 0.26);
@@ -1538,7 +1528,7 @@ export const ScannerService = {
                     }
 
                     // its own color before giving up: the page color may not isolate this card
-                    if (!bestItem && !relicMatch && !arcaneMatch && pageNameColor && !ownColorUsed) {
+                    if (!loteManda && !bestItem && !relicMatch && !arcaneMatch && pageNameColor && !ownColorUsed) {
                         const ownText = await readCellWithOwnColor(worker, snapshot, cell, cellW, textSrcY, textSrcH, theme);
                         if (ownText?.length && !this._isGarbledCellText(ownText)) {
                             if (modoArcanos) {
@@ -1561,7 +1551,7 @@ export const ScannerService = {
                     }
 
                     // three lines with art of the same color above: reread cutting from the top
-                    if (!bestItem && !relicMatch && !arcaneMatch) {
+                    if (!loteManda && !bestItem && !relicMatch && !arcaneMatch) {
                         const r = await readCellCuttingArt(worker, snapshot, cell, cellW, textSrcY, textSrcH, theme, pageNameColor, (ws) => !this._isGarbledCellText(ws), modoArcanos ? reconoceArcano : undefined);
                         if (r) {
                             if (modoArcanos) {

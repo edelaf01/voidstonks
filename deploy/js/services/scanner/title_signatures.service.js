@@ -4,7 +4,7 @@ import { COLS, FILAS, esTitulo, importa, exporta } from "../../utils/vision/titl
 
 // the pause, the riven popup and mission end have no strip title: learning them would store player
 // names
-const CONTEXTOS_CON_ROTULO = new Set(["INVENTORY", "INVENTORY_MODS", "RELICS", "REWARD", "TRADE"]);
+const CONTEXTOS_CON_ROTULO = new Set(["INVENTORY", "INVENTORY_MODS", "RIVEN_SPLICING", "RELICS", "REWARD", "TRADE"]);
 
 /** Title catalog per resolution (utils/vision/title_catalog.js), stored in localStorage. */
 export const FirmasTitulo = {

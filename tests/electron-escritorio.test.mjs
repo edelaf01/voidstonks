@@ -9,6 +9,7 @@ import { Seguidor, creaLectorEELog, bibliotecasSteam, rutaEELog } from "../deskt
 import { peticionValida, firmaDe, rectEnDip } from "../desktop/electron/src/paneles.js";
 import { creaRegistroConsola } from "../desktop/electron/src/consola.js";
 import { creaZoom, zoomPorDefecto } from "../desktop/electron/src/zoom.js";
+import { creaVigiaDelJuego } from "../desktop/electron/src/vigia-juego.js";
 import { HOSTS_PROPIOS, conCorsDeLaApp, conOrigenLocalParaWfm } from "../desktop/electron/src/cors.js";
 import { htmlPanel, htmlBloque, coloca, zonasEnPixeles } from "../desktop/electron/overlay/paneles.js";
 
@@ -65,6 +66,23 @@ test("el overlay se sirve desde su propia carpeta y la caché se valida por ETag
   assert.equal(primera.estado, 200);
   assert.equal(primera.cabeceras["Content-Type"], "text/css; charset=utf-8");
   assert.equal(pide({ "if-none-match": primera.cabeceras.ETag }).estado, 304);
+});
+
+test("todo lo servido va aislado para que Paddle pueda usar varios hilos", () => {
+  const raiz = temporal();
+  fs.writeFileSync(path.join(raiz, "index.html"), "<p>hola</p>");
+  const maneja = creaManejador({ raizApp: raiz, raizOverlay: raiz, puerto: 47823 });
+  const pide = (cabeceras = {}) => {
+    const res = respuesta();
+    maneja({ method: "HEAD", url: "/", headers: { host: "voidstonks.localhost:47823", ...cabeceras } }, res);
+    return res;
+  };
+  const primera = pide();
+  for (const res of [primera, pide({ "if-none-match": primera.cabeceras.ETag })]) {
+    assert.equal(res.cabeceras["Cross-Origin-Opener-Policy"], "same-origin", String(res.estado));
+    assert.equal(res.cabeceras["Cross-Origin-Embedder-Policy"], "credentialless", String(res.estado));
+    assert.equal(res.cabeceras["Cross-Origin-Resource-Policy"], "same-origin", String(res.estado));
+  }
 });
 
 test("los permisos se guardan, preguntan solo por lo nuevo e ignoran lo desconocido", () => {
@@ -166,6 +184,11 @@ test("la rejilla pone una tarjeta por celda, respeta los huecos y escapa el text
   assert.match(html, /<span class="nombre tono-blanco">Arcane &#60;Grace&#62;<\/span><span class="dato tono-oro">21<\/span>/);
   assert.match(html, /<span class="dato tono-cian">DISSOLVE<\/span>/);
   assert.match(htmlBloque({ tipo: "rejilla", cols: "99\" onload=\"", celdas: [] }), /repeat\(1, /);
+  const conTono = htmlBloque({ tipo: "rejilla", cols: 1, celdas: [{ tono: "verde", lineas: [{ texto: "Grace" }] }] });
+  assert.match(conTono, /class="celda acento-verde"/);
+  const tonoRaro = htmlBloque({ tipo: "rejilla", cols: 1, celdas: [{ tono: "x\" onclick=\"", lineas: [{ texto: "Grace" }] }] });
+  assert.match(tonoRaro, /class="celda"/);
+  assert.doesNotMatch(tonoRaro, /onclick/);
 });
 
 test("las listas rellenan las filas cortas y la primera columna es la que encoge", () => {
@@ -192,6 +215,8 @@ test("los paneles se anclan, no se salen del juego y con mismoAncho miden igual"
   assert.deepEqual(juntas.map((p) => p.width), [232, 232], "las tarjetas iguales no se pisan: como mucho el hueco entre ellas");
   assert.equal(coloca([{ x: 0.5, y: 0 }], [5000], vista)[0].width, 680, "como mucho un 34%");
   assert.deepEqual(coloca([{ x: 1, y: 0, anclaje: "derecha", anchoMin: 0.2 }], [300], vista)[0], { left: 1600, top: 0, width: 400 }, "con anchoMin no cambia de ancho según el contenido");
+  assert.equal(coloca([{ x: 0, y: 0, anclaje: "izquierda", anchoMax: 0.25 }], [900], vista)[0].width, 500, "con anchoMax no pasa de ese ancho");
+  assert.equal(coloca([{ x: 0, y: 0, anclaje: "izquierda", anchoMax: 0.25 }], [300], vista)[0].width, 300, "anchoMax no estira un panel corto");
 });
 
 test("los paneles con botones se marcan como interactivos y sus botones llevan la acción", () => {
@@ -202,6 +227,17 @@ test("los paneles con botones se marcan como interactivos y sus botones llevan l
   assert.match(html, /<button type="button" class="boton activo" data-accion="refino:Rad">Rad<\/button>/);
   assert.equal((html.match(/<button/g) || []).length, 1, "una acción con formato raro no se pinta");
   assert.doesNotMatch(htmlPanel({ bloques: [{ tipo: "titulo", texto: "x" }] }), /interactivo/);
+});
+
+test("los botones que envuelven bajan de línea y los combinados listos se marcan", () => {
+  const html = htmlBloque({ tipo: "botones", envolver: true, botones: [
+    { texto: "Gas", accion: "fusion:0", lista: true },
+    { texto: "★ Viral", accion: "fusion:2", activo: true },
+  ] });
+  assert.match(html, /^<div class="botones envolver">/);
+  assert.match(html, /<button type="button" class="boton lista" data-accion="fusion:0">Gas<\/button>/);
+  assert.match(html, /<button type="button" class="boton activo" data-accion="fusion:2">★ Viral<\/button>/);
+  assert.match(htmlBloque({ tipo: "botones", botones: [] }), /^<div class="botones">/);
 });
 
 test("las zonas clicables pasan a píxeles reales y se descartan las vacías", () => {
@@ -284,4 +320,41 @@ test("solo las rutas de cuenta de WFM pedidas por la app salen con origen localh
   const ajeno = { origin: "https://evil.example" };
   assert.equal(conOrigenLocalParaWfm("https://api.voidstonks.com/?type=wfm_login", ajeno, app), ajeno, "otro origen no se disfraza");
   assert.equal(conOrigenLocalParaWfm("no es url", cab, app), cab);
+});
+
+test("la vigía del juego avisa al empezar y solo cuando cambia, y para sola si la ventana muere", (t) => {
+  t.mock.timers.enable({ apis: ["setInterval"] });
+  const estados = ["visible", "visible", "oculto", "oculto", null];
+  let i = 0;
+  const vigia = creaVigiaDelJuego({ estado: () => estados[Math.min(i++, estados.length - 1)] });
+  const enviados = [];
+  const wc = { id: 7, destruida: false, isDestroyed() { return this.destruida; }, send: (canal, estado) => enviados.push([canal, estado]) };
+  vigia.sigue(wc);
+  t.mock.timers.tick(4000);
+  assert.deepEqual(enviados, [["vs:juego", "visible"], ["vs:juego", "oculto"], ["vs:juego", null]]);
+  wc.destruida = true;
+  t.mock.timers.tick(1000);
+  const llamadas = i;
+  t.mock.timers.tick(5000);
+  assert.equal(i, llamadas);
+});
+
+test("seguir otra vez reinicia la vigía del juego y parar la corta", (t) => {
+  t.mock.timers.enable({ apis: ["setInterval"] });
+  let llamadas = 0;
+  const vigia = creaVigiaDelJuego({ estado: () => { llamadas++; return "visible"; } });
+  const enviados = [];
+  const wc = { id: 3, isDestroyed: () => false, send: (...a) => enviados.push(a) };
+  vigia.sigue(wc);
+  vigia.sigue(wc);
+  assert.equal(enviados.length, 2, "una vigía nueva vuelve a mandar el estado");
+  t.mock.timers.tick(1000);
+  assert.equal(llamadas, 3, "solo queda una vigía");
+  vigia.para(3);
+  t.mock.timers.tick(5000);
+  assert.equal(llamadas, 3);
+  vigia.sigue(wc);
+  vigia.paraTodos();
+  t.mock.timers.tick(5000);
+  assert.equal(llamadas, 4);
 });

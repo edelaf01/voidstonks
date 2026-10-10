@@ -1,26 +1,46 @@
 import { EELogLive } from "./eelog_live.service.js";
 import { INITIAL_LATCH } from "../../utils/vision/context_latch.js";
 import { ajustaPanelesAlContexto } from "../desktop.service.js";
+import { seguirJuegoDelLanzador } from "../../repositories/launcher.repository.js";
 
 export const CABECERA_RECOMPENSAS = "VOID FISSURE/REWARDS";
 export const TICK_DORMIDO_MS = 1000;
+const RECOMPENSAS_ABIERTAS_MS = 20_000;
 
 let vigilado = null;
+let juegoOculto = false;
+let cortaJuego = null;
+
+const motivo = () => (juegoOculto ? "GAME_HIDDEN" : EELogLive.modoEscaner()?.modo === "dormido" ? "LOG_WAIT" : null);
+
+function despierta(scanner) {
+  if (!scanner.isScanning || !scanner._dormidoPorLog || motivo()) return;
+  clearTimeout(scanner.scanInterval);
+  scanner._dormidoPorLog = false;
+  scanner.loop();
+}
 
 function vigila(scanner) {
-  if (vigilado === scanner) return;
-  vigilado = scanner;
-  EELogLive.escuchar(() => {
-    if (!scanner.isScanning || !scanner._dormidoPorLog || EELogLive.modoEscaner()?.modo === "dormido") return;
-    clearTimeout(scanner.scanInterval);
-    scanner._dormidoPorLog = false;
-    scanner.loop();
+  if (vigilado !== scanner) {
+    vigilado = scanner;
+    EELogLive.escuchar(() => despierta(scanner));
+  }
+  cortaJuego ??= seguirJuegoDelLanzador((estado) => {
+    juegoOculto = estado === "oculto";
+    despierta(scanner);
   });
+}
+
+export function paraVigiaDelJuego() {
+  cortaJuego?.();
+  cortaJuego = null;
+  juegoOculto = false;
 }
 
 export function duermePorLog(scanner) {
   vigila(scanner);
-  if (EELogLive.modoEscaner()?.modo !== "dormido") return (scanner._dormidoPorLog = false);
+  const espera = motivo();
+  if (!espera) return (scanner._dormidoPorLog = false);
   if (!scanner._dormidoPorLog) {
     if (scanner.latchedContext === "REWARD") scanner.rescataRecompensaParcial();
     scanner.releaseFrames();
@@ -30,7 +50,7 @@ export function duermePorLog(scanner) {
     });
   }
   scanner.scanInterval = setTimeout(() => scanner.loop(), TICK_DORMIDO_MS);
-  return true;
+  return espera;
 }
 
 export function firmaPorLog() {
@@ -56,6 +76,11 @@ export function rejillaListaPorLog(ahora = Date.now()) {
 
 export function cambioPantallaPorLog() {
   return EELogLive.estado === "leyendo" ? EELogLive.juego.inventarioCambios : 0;
+}
+
+export function recompensasAbiertasPorLog(ahora = Date.now()) {
+  const recompensas = EELogLive.estado === "leyendo" && EELogLive.juego.recompensas;
+  return recompensas?.fase === "abiertas" && ahora - recompensas.desde < RECOMPENSAS_ABIERTAS_MS;
 }
 
 export function enMisionPorLog() {

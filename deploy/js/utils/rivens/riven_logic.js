@@ -1,6 +1,7 @@
 import { RIVEN_BASE_STATS, WEAPON_TYPE_IDX, RIVEN_WEIGHTS, resolveBaseStatKey } from "../../config.js";
 import { state } from "../../state.js";
 import { statUnit } from "./riven_stat_display.js";
+import { tipoDeArma, esFusionado, pesoFusionado } from "./riven_cycling.js";
 
 /**
  * @param {Object} weaponData
@@ -189,27 +190,18 @@ export function calculateRivenPotential(val) {
 // per weapon weight blended with the global baseline: low volume weapons lean on the baseline
 function resolveStatWeight(nameLower, weapon, weaponData, statBaseline) {
   const dw = (weapon && weapon.dynamic_weights) || (weaponData && weaponData.dynamic_weights);
-  let ownWeight = null;
-  if (dw && typeof dw === "object") {
-    const key = Object.keys(dw).find(k => {
+  const tipo = tipoDeArma((weaponData && weaponData.t) || (weapon && weapon.t));
+  const pesoDe = (tabla) => {
+    if (esFusionado(nameLower, tipo)) return pesoFusionado(nameLower, tabla, tipo);
+    if (!tabla || typeof tabla !== "object") return null;
+    const key = Object.keys(tabla).find(k => {
       const kl = k.toLowerCase();
       return kl === nameLower || nameLower.includes(kl) || kl.includes(nameLower);
     });
-    if (key !== undefined && dw[key] !== null && dw[key] !== undefined) {
-      ownWeight = parseFloat(dw[key]);
-    }
-  }
-
-  let baseWeight = null;
-  if (statBaseline && typeof statBaseline === "object") {
-    const key = Object.keys(statBaseline).find(k => {
-      const kl = k.toLowerCase();
-      return kl === nameLower || nameLower.includes(kl) || kl.includes(nameLower);
-    });
-    if (key !== undefined && statBaseline[key] !== null && statBaseline[key] !== undefined) {
-      baseWeight = parseFloat(statBaseline[key]);
-    }
-  }
+    return key !== undefined && tabla[key] !== null && tabla[key] !== undefined ? parseFloat(tabla[key]) : null;
+  };
+  const ownWeight = pesoDe(dw);
+  const baseWeight = pesoDe(statBaseline);
 
   const liquidity = (weapon && weapon.liquidity_score) || (weaponData && weaponData.liquidity_score) || 0;
   const alpha = Math.min(1, liquidity / 25);
@@ -747,6 +739,7 @@ export function calculateHybridTiers(weapon, weaponHistory = null) {
 }
 
 /**
+ * Classifies the weapon's market, not the roll: demand, speculation and momentum.
  * @param {object} meta
  * @param {object} [band]
  * @returns {{flag:string,label:string,emoji:string,ratio:number,vol:number,trend:number,advice:string}|null}
@@ -762,7 +755,7 @@ export function classifyWeaponMarket(meta, band = null) {
   let typical = refFiable ? _deReMed : (b.typical || meta.official_median || 0);
   const wfm = meta.wfm_avg_price || meta.wfm_avg || 0;
   const vol = b.vol_dia != null ? b.vol_dia : (meta.wfm_market_sample || 0);
-  const trend = b.trend != null ? b.trend : (meta.trend_7d_pct || 0);
+  const trend = meta.trend_7d_pct || 0;
 
   // blends the live weekly history so the flag does not anchor on a stale band
   const hist = (typeof state !== "undefined" && state.currentWeaponHistory

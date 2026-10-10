@@ -15,10 +15,11 @@ const { FirmasTitulo } = await import("../deploy/js/services/scanner/title_signa
 beforeEach(() => { FirmasTitulo._clave = null; FirmasTitulo._catalogo = null; });
 const { ScannerModal } = await import("../deploy/js/ui.components/ui_scanner_modal.js");
 const { OCRService } = await import("../deploy/js/services/scanner/ocr.service.js");
-const { aplicaMotor, MOTOR_CLASICO } = await import("../deploy/js/services/scanner/ocr_engine.service.js");
+const { aplicaMotor, MOTOR_CLASICO, MOTOR_PRECISO } = await import("../deploy/js/services/scanner/ocr_engine.service.js");
 const { state } = await import("../deploy/js/state.js");
 const { VisionService } = await import("../deploy/js/services/scanner/vision.service.js");
 const { OCRRepository } = await import("../deploy/js/repositories/ocr.repository.js");
+const { PaddleRepository } = await import("../deploy/js/repositories/paddle.repository.js");
 
 state.itemsDatabase = comoItemsDatabase(["Braton Prime Barrel", "Forma Blueprint"]);
 OCRService.cachedDbItems = [];
@@ -48,5 +49,67 @@ test("con el motor clásico cada recorte se pasa por Tesseract una sola vez aunq
     ScannerModal.open = orig.open;
     OCRRepository.recognize = orig.recognize;
     VisionService.prepareRewardOCRCanvas = orig.prepare;
+  }
+});
+
+test("con la red cargada y nada leído, el primer tick no paga Tesseract y el siguiente sí", async () => {
+  const orig = { open: ScannerModal.open, recognize: OCRRepository.recognize, prepare: VisionService.prepareRewardOCRCanvas, recognizeWordsWithBoxes: PaddleRepository.recognizeWordsWithBoxes, warmUp: PaddleRepository.warmUp };
+  PaddleRepository.warmUp = async () => {};
+  ScannerModal.open = () => {};
+  OCRRepository.recognize = async () => ({ data: { text: "", words: [] } });
+  let red = 0, tesseract = 0;
+  PaddleRepository.recognizeWordsWithBoxes = async () => { red++; return []; };
+  VisionService.prepareRewardOCRCanvas = (...args) => { if (args[4] === "STANDARD") tesseract++; return orig.prepare.apply(VisionService, args); };
+  aplicaMotor(MOTOR_PRECISO);
+  PaddleRepository._service = {};
+  const tick = () => { Object.assign(S, { detectionLocked: false, lastHeaderText: "VOID FISSURE/REWARDS", _cabeceraVigente: true, _recompensaParcial: null }); return S.processRewards(video, { width: W, height: H, scale: 1.5 }); };
+  try {
+    Object.assign(S, { lastRewardNoResult: { hash: null, time: 0 }, _redVacia: false });
+    await tick();
+    assert.ok(red > 0);
+    assert.equal(tesseract, 0, "la red no leyó nada y se pagó Tesseract en el mismo tick");
+    assert.equal(S.lastRewardNoResult.hash, null, "no debe dar la pantalla por vacía");
+    await tick();
+    assert.ok(tesseract > 0, "en el segundo tick vacío tiene que entrar Tesseract");
+    assert.notEqual(S.lastRewardNoResult.hash, null);
+  } finally {
+    ScannerModal.open = orig.open;
+    OCRRepository.recognize = orig.recognize;
+    VisionService.prepareRewardOCRCanvas = orig.prepare;
+    PaddleRepository.recognizeWordsWithBoxes = orig.recognizeWordsWithBoxes;
+    PaddleRepository.warmUp = orig.warmUp;
+    aplicaMotor(MOTOR_CLASICO);
+    PaddleRepository._service = null;
+    S._redVacia = false;
+    S.detectionLocked = false;
+  }
+});
+
+test("con la red sin cargar Tesseract entra en el primer tick", async () => {
+  const orig = { open: ScannerModal.open, recognize: OCRRepository.recognize, prepare: VisionService.prepareRewardOCRCanvas, recognizeWordsWithBoxes: PaddleRepository.recognizeWordsWithBoxes, warmUp: PaddleRepository.warmUp };
+  PaddleRepository.warmUp = async () => {};
+  ScannerModal.open = () => {};
+  OCRRepository.recognize = async () => ({ data: { text: "", words: [] } });
+  let red = 0, tesseract = 0;
+  PaddleRepository.recognizeWordsWithBoxes = async () => { red++; return []; };
+  VisionService.prepareRewardOCRCanvas = (...args) => { if (args[4] === "STANDARD") tesseract++; return orig.prepare.apply(VisionService, args); };
+  aplicaMotor(MOTOR_PRECISO);
+  PaddleRepository._service = null;
+  const tick = () => { Object.assign(S, { detectionLocked: false, lastHeaderText: "VOID FISSURE/REWARDS", _cabeceraVigente: true, _recompensaParcial: null }); return S.processRewards(video, { width: W, height: H, scale: 1.5 }); };
+  try {
+    Object.assign(S, { lastRewardNoResult: { hash: null, time: 0 }, _redVacia: false });
+    await tick();
+    assert.ok(tesseract > 0);
+    assert.equal(red, 0);
+  } finally {
+    ScannerModal.open = orig.open;
+    OCRRepository.recognize = orig.recognize;
+    VisionService.prepareRewardOCRCanvas = orig.prepare;
+    PaddleRepository.recognizeWordsWithBoxes = orig.recognizeWordsWithBoxes;
+    PaddleRepository.warmUp = orig.warmUp;
+    aplicaMotor(MOTOR_CLASICO);
+    PaddleRepository._service = null;
+    S._redVacia = false;
+    S.detectionLocked = false;
   }
 });

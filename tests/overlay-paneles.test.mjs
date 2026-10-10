@@ -22,7 +22,7 @@ test("como mucho las primeras filas, y sin piezas no hay panel", () => {
   assert.deepEqual(panelKiosko([{ name: "Solo", qty: 1 }], "X").bloques[1].filas, [[{ texto: "1× Solo" }]]);
 });
 
-import { panelRiven, panelRivenComparacion, tonoGrado } from "../deploy/js/utils/overlay_paneles.js";
+import { panelRiven, panelRivenComparacion, tonoGrado, enSplice } from "../deploy/js/utils/overlay_paneles.js";
 
 const stats = [
   { texto: "+120.5% Multishot", positivo: true, grado: "A" },
@@ -65,6 +65,101 @@ test("el ciclo marca la tirada que gana y enseña las dos", () => {
   assert.deepEqual(listas.map((l) => l.filas[0][0]), [{ texto: "ACTUAL", tono: "gris" }, { texto: "NUEVO", tono: "verde" }]);
   assert.equal(listas[1].filas.length, 3);
   assert.deepEqual(["S+", "B", "F", "", null].map(tonoGrado), ["gradoS", "gradoB", "gradoF", "blanco", "blanco"]);
+});
+
+const opcion = (indice, nombre, estado, extra = {}) => ({ indice, nombre, texto: `${nombre} = A + B`, estado, falta: null, recomendada: false, ...extra });
+const COMBINAR = {
+  rotulo: "PUEDES COMBINAR", rotuloElige: "Toca un combinado para buscarlo", titulo: null, objetivo: null, paso: null,
+  cerca: [{ texto: "★ Corrosivo = Toxina + Electricidad", tono: "blanco" }, { texto: "falta Electricidad", tono: "gris" }],
+  listas: [{ indice: 0, texto: "Gas = Toxina + Calor", veredicto: { texto: "cumple la meta", tono: "verde" } }],
+  opciones: [
+    opcion(0, "Gas", "lista"), opcion(1, "Corrosivo", "falta", { falta: "Electric", recomendada: true }),
+    opcion(6, "Orokin", "otra"), opcion(9, "Daño PD", "falta"), opcion(10, "Daño PD", "falta"),
+  ],
+};
+const META = {
+  ...COMBINAR, listas: [], titulo: "Buscas: Orokin", objetivo: 6,
+  paso: [{ texto: "Cicla hasta Corpus + Grineer", tono: "blanco" }, { texto: "~77 ciclos", tono: "gris" }],
+  opciones: [opcion(0, "Gas", "falta", { falta: "Heat" }), opcion(1, "Corrosivo", "otra"), opcion(6, "Orokin", "otra", { recomendada: true })],
+};
+
+test("el panel del riven va a la izquierda y no pasa de un cuarto de pantalla", () => {
+  const p = panelRiven({ arma: "X", stats, rotulos: {} });
+  assert.equal(p.anclaje, "izquierda");
+  assert.equal(p.anchoMax, 0.25);
+  assert.equal(panelRivenComparacion({ arma: "X", ganador: 0, rotulos: { mejor: "" }, tiradas: [{ rotulo: "A", stats }, { rotulo: "B", stats }] }).anchoMax, 0.25);
+});
+
+test("en el splice el panel sube entre la rejilla y la carta de resultado, con el mismo contenido", () => {
+  const p = panelRiven({ arma: "X", stats, rotulos: {} }), q = enSplice(p);
+  assert.deepEqual(q.bloques, p.bloques);
+  assert.equal(q.anclaje, "izquierda");
+  assert.ok(q.x >= 0.445 && q.x + q.anchoMax <= 0.745 && q.y < 0.15, JSON.stringify(q));
+});
+
+test("si los stats de la carta se pueden combinar, va debajo de sus stats, el panel se marca y los combinados son botones", () => {
+  const p = panelRiven({ arma: "Kuva Bramma", stats, combinar: COMBINAR, rotulos: {} });
+  assert.equal(p.borde, "set");
+  assert.deepEqual(p.bloques[1], { tipo: "chips", chips: [{ texto: "PUEDES COMBINAR", tipo: "set" }] });
+  assert.deepEqual(p.bloques[3], { tipo: "lista", filas: [[{ texto: "Gas = Toxina + Calor", tono: "morado" }, { texto: "cumple la meta", tono: "verde" }]] });
+  assert.deepEqual(p.bloques.slice(-3), [
+    { tipo: "separador" },
+    { tipo: "lista", filas: [[{ texto: "Toca un combinado para buscarlo", tono: "gris" }]] },
+    {
+      tipo: "botones", envolver: true, botones: [
+        { texto: "Gas", accion: "fusion:0", activo: false, lista: true },
+        { texto: "★ Corrosivo", accion: "fusion:1", activo: false, lista: false },
+        { texto: "Daño PD", accion: "fusion:9", activo: false, lista: false },
+      ],
+    },
+  ]);
+});
+
+test("con un objetivo elegido el panel dice qué falta, el botón queda activo aunque esté lejos y no se marca", () => {
+  const p = panelRiven({ arma: "Kuva Bramma", stats, combinar: META, rotulos: {} });
+  assert.equal(p.borde, undefined);
+  assert.equal(p.bloques.some((b) => b.tipo === "chips"), false);
+  assert.deepEqual(p.bloques[2], { tipo: "lista", filas: [META.paso] });
+  assert.deepEqual(p.bloques.at(-2).filas, [[{ texto: "Buscas: Orokin", tono: "morado" }]]);
+  assert.deepEqual(p.bloques.at(-1).botones.map((b) => [b.texto, b.activo]), [["Gas", false], ["★ Orokin", true]]);
+  assert.deepEqual(panelRiven({ arma: "X", stats, combinar: { ...META, opciones: [] }, rotulos: {} }).bloques.slice(2), [{ tipo: "lista", filas: [META.paso] }]);
+});
+
+test("en la comparación cada carta lleva sus combinados y los botones juntan lo mejor de las dos", () => {
+  const p = panelRivenComparacion({
+    arma: "Kuva Bramma", ganador: 0, rotulos: { mejor: "ES MEJOR" },
+    tiradas: [
+      { rotulo: "ACTUAL", precio: 85, score: 63, stats, combinar: { ...META, objetivo: null, titulo: null, paso: null, opciones: [
+        opcion(0, "Gas", "falta", { falta: "Heat" }), opcion(1, "Corrosivo", "otra"), opcion(6, "Orokin", "otra"), opcion(9, "Daño PD", "otra"), opcion(10, "Daño PD", "otra"),
+      ] } },
+      { rotulo: "NUEVO", precio: 80, score: 60, stats, combinar: COMBINAR },
+    ],
+  });
+  assert.equal(p.borde, "set");
+  assert.deepEqual(p.bloques[1], { tipo: "chips", chips: [{ texto: "ACTUAL ES MEJOR", tipo: "valor" }, { texto: "PUEDES COMBINAR", tipo: "set" }] });
+  const cabecera = (rotulo) => p.bloques.findIndex((b) => b.tipo === "lista" && b.filas[0][0].texto === rotulo);
+  assert.deepEqual(p.bloques[cabecera("ACTUAL") + 1].filas, [COMBINAR.cerca], "la carta sin nada listo dice lo más cercano");
+  assert.deepEqual(p.bloques[cabecera("NUEVO") + 1].filas, [[{ texto: "Gas = Toxina + Calor", tono: "morado" }, { texto: "cumple la meta", tono: "verde" }]]);
+  assert.deepEqual(p.bloques.at(-1).botones.map((b) => [b.texto, b.lista]), [["Gas", true], ["★ Corrosivo", false], ["Daño PD", false]]);
+});
+
+test("sin nada listo ni objetivo cada carta enseña lo más cercano, y el paso hacia el objetivo manda sobre eso", () => {
+  const cerca = { ...COMBINAR, listas: [] };
+  const p = panelRiven({ arma: "X", stats, combinar: cerca, rotulos: {} });
+  assert.equal(p.borde, undefined);
+  assert.deepEqual(p.bloques[2], { tipo: "lista", filas: [COMBINAR.cerca] });
+  assert.equal(p.bloques.filter((b) => b.tipo === "lista" && b.filas[0] === COMBINAR.cerca).length, 1);
+  const conPaso = panelRiven({ arma: "X", stats, combinar: { ...cerca, paso: META.paso }, rotulos: {} });
+  assert.deepEqual(conPaso.bloques[2], { tipo: "lista", filas: [META.paso] });
+  assert.equal(conPaso.bloques.some((b) => b.tipo === "lista" && b.filas[0] === COMBINAR.cerca), false);
+  const listo = panelRiven({ arma: "X", stats, combinar: COMBINAR, rotulos: {} });
+  assert.equal(listo.bloques.some((b) => b.tipo === "lista" && b.filas[0] === COMBINAR.cerca), false);
+});
+
+test("sin combinados en ninguna carta el panel no cambia", () => {
+  const sinNada = { ...COMBINAR, listas: [], cerca: null, opciones: [opcion(6, "Orokin", "otra")] };
+  const p = panelRiven({ arma: "X", stats, combinar: sinNada, rotulos: {} });
+  assert.deepEqual(p.bloques.map((b) => b.tipo), ["titulo", "lista"]);
 });
 
 import { panelReliquias, MAX_RELIQUIAS, POR_ERA } from "../deploy/js/utils/overlay_paneles.js";
@@ -230,12 +325,18 @@ test("panelArcanos coloca cada arcano en su celda de la página, con precios y v
   assert.equal(tipo, "rejilla");
   assert.equal(cols, 3);
   assert.equal(celdas.length, 6);
-  assert.deepEqual(celdas.map((c) => c?.lineas[0].texto ?? null), ["Arcane Nullifier", null, "Arcane Ice", null, "Arcane Strike", null]);
+  assert.deepEqual(celdas.map((c) => c?.lineas[0].texto ?? null), ["Nullifier", null, "Ice", null, "Strike", null]);
   assert.deepEqual(celdas[0].lineas, [
-    { texto: "Arcane Nullifier" }, { texto: "21 · 1×R5" },
-    { texto: "R0 4.5 pl", tono: "oro" }, { texto: "R5 120 pl", tono: "oro" },
+    { texto: "Nullifier" },
     { texto: "SELL R5", tono: "verde" },
+    { texto: "21 · 1×R5" },
+    { texto: "R0 4.5 pl", tono: "oro" },
+    { texto: "R5 120 pl", tono: "oro" },
   ]);
-  assert.deepEqual(celdas[2].lineas.slice(2), [{ texto: "R0 1 pl", tono: "oro" }, { texto: "R5 —", tono: "oro" }, { texto: "DISSOLVE", tono: "cian" }]);
-  assert.deepEqual(celdas[4].lineas.slice(1), [{ texto: "3" }, { texto: "R0 —", tono: "oro" }, { texto: "R3 15 pl", tono: "oro" }, { texto: "EVEN", tono: "gris" }]);
+  assert.deepEqual(celdas[2].lineas.slice(1), [{ texto: "DISSOLVE", tono: "cian" }, { texto: "45 · 2×R5" }, { texto: "R0 1 pl", tono: "oro" }, { texto: "R5 —", tono: "oro" }]);
+  assert.deepEqual(celdas[4].lineas.slice(1), [{ texto: "EVEN", tono: "gris" }, { texto: "3" }, { texto: "R0 —", tono: "oro" }, { texto: "R3 15 pl", tono: "oro" }]);
+  assert.deepEqual([celdas[0].tono, celdas[2].tono, celdas[4].tono], ["verde", "cian", "gris"]);
+
+  const filaExtra = { name: "Molt Augmented", qty: 2, maxRank: 5, rangosMax: 0, accion: "even", r: 0, c: 0, precioR0: null, precioMax: null };
+  assert.equal(panelArcanos([filaExtra], t).bloques[1].celdas[0].lineas[0].texto, "Molt Augmented");
 });
