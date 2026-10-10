@@ -278,3 +278,23 @@ test("al parar el escáner se deja de vigilar la ventana del juego", () => {
     paraVigiaDelJuego();
   }
 });
+
+test("en el splice de rivens el panel se aparta de la rejilla y de las cartas", async () => {
+  svc.activaOverlay(true);
+  enviados.length = 0;
+  avisa("contexto", "RIVEN_SPLICING");
+  await esperaCola();
+  avisa("riven", { tipo: "tirada", datos: { arma: "Opticor", stats: [], rotulos: {} } });
+  await esperaCola();
+  avisa("contexto", "UNKNOWN");
+  avisa("riven", { tipo: "tirada", datos: { arma: "Opticor", stats: [], rotulos: {} } });
+  await esperaCola();
+  avisa("contexto", "INVENTORY_MODS");
+  avisa("riven", { tipo: "tirada", datos: { arma: "Opticor", stats: [], rotulos: {} } });
+  await esperaCola();
+  const xs = enviados.filter((d) => d.grupo === "riven" && d.paneles.length).map((d) => d.paneles[0].x);
+  assert.deepEqual(xs, [0.45, 0.45, 0.015]);
+  avisa("escaner-parado");
+  await esperaCola();
+  svc.activaOverlay(false);
+});

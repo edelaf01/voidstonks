@@ -131,7 +131,7 @@ export const RivenOCRService = {
 
         const sub = porLargo.find(([, nl]) => {
             if (nl.length < 4 || clean.length < 4) return false;
-            return clean.includes(nl) || (nl.includes(clean) && clean.length >= nl.length * 0.6);
+            return ` ${clean} `.includes(` ${nl} `) || (nl.includes(clean) && clean.length >= nl.length * 0.6);
         });
         if (sub) return { name: sub[0], tier: 2, dist: 0 };
 

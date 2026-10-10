@@ -2,7 +2,8 @@ import { avisa, escucha, pistasDelLog } from "../utils/ganchos.js";
 import {
   mostrarPaneles, quitarPaneles, quitarTodosLosPaneles, alPulsarEnOverlay, ajustaPanelesAlContexto,
 } from "../services/desktop.service.js";
-import { panelKiosko, panelReliquias, panelRiven, panelRivenComparacion, panelInventario, panelArcanos } from "../utils/overlay_paneles.js";
+import { panelKiosko, panelReliquias, panelRiven, panelRivenComparacion, panelInventario, panelArcanos, enSplice } from "../utils/overlay_paneles.js";
+import { CONTEXTOS_RIVEN } from "../utils/vision/context_latch.js";
 import { duermePorLog, firmaPorLog, tarjetasPorLog, armaRivenPorLog, rejillaListaPorLog, cambioPantallaPorLog, recompensasAbiertasPorLog, enMisionPorLog, paraVigiaDelJuego } from "../services/scanner/log_gate.service.js";
 import { EELogLive } from "../services/scanner/eelog_live.service.js";
 import { getItemIcon } from "../utils/ui_utils.js";
@@ -11,6 +12,7 @@ import { TEXTS } from "../config.js";
 
 const RELIQUIAS_DURACION_MS = 120_000;
 let conectado = false;
+let pantallaRiven = null;
 
 export function conectaEscaner() {
   if (conectado) return;
@@ -26,7 +28,10 @@ export function conectaEscaner() {
     recompensasAbiertas: recompensasAbiertasPorLog,
     enMision: enMisionPorLog,
   });
-  escucha("contexto", (contexto) => ajustaPanelesAlContexto(contexto));
+  escucha("contexto", (contexto) => {
+    if (CONTEXTOS_RIVEN.has(contexto)) pantallaRiven = contexto;
+    ajustaPanelesAlContexto(contexto);
+  });
   escucha("escaner-parado", () => {
     quitarTodosLosPaneles();
     paraVigiaDelJuego();
@@ -38,7 +43,8 @@ export function conectaEscaner() {
   });
   escucha("riven", (aviso) => {
     if (!aviso) return quitarPaneles("riven");
-    mostrarPaneles("riven", [aviso.tipo === "comparacion" ? panelRivenComparacion(aviso.datos) : panelRiven(aviso.datos)]);
+    const panel = aviso.tipo === "comparacion" ? panelRivenComparacion(aviso.datos) : panelRiven(aviso.datos);
+    mostrarPaneles("riven", [pantallaRiven === "RIVEN_SPLICING" ? enSplice(panel) : panel]);
   });
   alPulsarEnOverlay("riven", (accion) => avisa("overlay-riven", accion));
   escucha("reliquias", ({ picks, era, opciones }) => {
