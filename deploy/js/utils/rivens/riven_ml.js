@@ -1,7 +1,7 @@
 import { classifyWeaponMarket } from "./riven_logic.js";
 import { state } from "../../state.js";
 import { tipoDeArma, esFusionado, pesoFusionado } from "./riven_cycling.js";
-import { cargarNivelTirada, atributosAWfm, residuosTirada, precisionNivel, registroSinWfm, nombreArma, indiceDE } from "./riven_nivel.js";
+import { cargarNivelTirada, cargarDe10, atributosAWfm, residuosTirada, precisionNivel, registroSinWfm, nombreArma, filaDe10, nivelSinWfm, poblacionTirada, percentilTirada, preciosDe10 } from "./riven_nivel.js";
 
 let _ml = null;
 let _loading = null;
@@ -347,7 +347,7 @@ function _synergy(weapon, itemAttributes, weaponData) {
 // arma (drift del history) y con flag de CONFIANZA. El p50 es el "precio justo"; p25 venta rápida;
 // p80/p90/p95 techo godroll (precio REAL de mercado, no asks especulativos).
 export async function predictRivenMLBand(weapon, itemAttributes, weaponData = null, rerolls = 0, scoreOverride = null) {
-  const [ml, nt] = await Promise.all([loadRivenML(), cargarNivelTirada()]);
+  const [ml, nt, de10] = await Promise.all([loadRivenML(), cargarNivelTirada(), cargarDe10()]);
   const synergy = _synergy(weapon, itemAttributes, weaponData);
   const wname = weapon.name || weapon.weaponName;
   const qs = [0.25, 0.5, 0.8, 0.9, 0.95];
@@ -444,15 +444,14 @@ export async function predictRivenMLBand(weapon, itemAttributes, weaponData = nu
   const { positivos, negativo } = atributosAWfm(itemAttributes, tipoDeArma((weaponData && weaponData.t) || weapon.t));
   const dispoArma = Number((weaponData && weaponData.d) || state.weaponMap?.[wname]?.d);
   const tipoCrudo = state.weaponDetailsDB?.find?.(w => w.name === wname)?.type ?? null;
-  const registro = usaDE ? registroSinWfm(nt, deMed, dispoArma, tipoCrudo, deRe.pop || 0) : null;
-  const residuos = residuosTirada(nt, wname, positivos, negativo, registro);
+  const conocida = nombreArma(nt, wname);
+  const fila = filaDe10(de10, wname, deRe);
+  const registro = fila && !conocida ? registroSinWfm(nt, nivelSinWfm(nt, wname, fila), dispoArma, tipoCrudo) : null;
+  const residuos = fila ? residuosTirada(nt, wname, positivos, negativo, registro) : null;
   if (residuos) {
-    const conocida = nombreArma(nt, wname);
-    const metas = globalThis.dynamicMetaStats?.data ?? globalThis.dynamicMetaStats;
-    const nivel = conocida ? nt.armas[conocida].nivel + indiceDE(nt, metas) : registro.nivel;
-    const suelo = conocida ? 1 : floor;
-    const cola = conocida ? 1 : registro.cola;
-    qs.forEach((a, i) => { out[a] = Math.max(suelo, Math.round(Math.exp(nivel + (residuos[i] > 0 ? residuos[i] * cola : residuos[i])))); });
+    const poblacion = poblacionTirada(nt, wname, tipoCrudo ?? nt.armas[conocida]?.tipo ?? ((weaponData && weaponData.t) || weapon.t));
+    const suelo = usaDE ? floor : 1;
+    preciosDe10(fila, percentilTirada(poblacion, residuos[1]), qs, nt.rho).forEach((v, i) => { out[qs[i]] = Math.max(suelo, Math.round(v)); });
   } else {
     for (const a of qs) {
       const f = Math.max(0, Math.min(1, s + (OFF[a] != null ? OFF[a] : 0)));
@@ -472,7 +471,7 @@ export async function predictRivenMLBand(weapon, itemAttributes, weaponData = nu
   return {
     p25: p(0.25), p50: p(0.5), p80: p(0.8), p90: p(0.9), p95: p(0.95),
     price: p(0.5), floor, drift: +drift.toFixed(3),
-    fuente: residuos ? "ml" : "curva",
+    fuente: residuos ? "de10" : "curva",
     confianza: lowConf ? "baja" : "alta",
     aviso: lowConf ? (esTrash ? "trash" : "pocosDatos") : null,
     regla: esBrick ? "BRICK" : (rerolls === 0 ? "0roll" : "q"),

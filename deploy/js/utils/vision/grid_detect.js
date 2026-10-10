@@ -573,7 +573,6 @@ function detectInventoryGridCore(img, opts = {}) {
             : "sin cadena de filas equiespaciadas (¿solo HUD/paneles, sin grid visible?)";
         return null;
     }
-    let cellH = Math.round(chain.pitch);
 
     // --- Re-anclaje de filas: ¿la cadena son NOMBRES o BADGES/otros? ---
     // Los badges de cantidad forman una cadena paralela al mismo pitch (una por
@@ -587,6 +586,8 @@ function detectInventoryGridCore(img, opts = {}) {
     const y1ToTop = new Map(bandBlocks.map(bb => [bb.band.y1, bb.band.y0]));
     const base = y1ToTop.get(chain.members[0]) ?? chain.members[0];
     const last = y1ToTop.get(chain.members[chain.members.length - 1]) ?? chain.members[chain.members.length - 1];
+    const pasos = chain.members.slice(1).flatMap((y1, i) => [y1 - chain.members[i], y1ToTop.get(y1) - y1ToTop.get(chain.members[i])]).sort((a, b) => a - b);
+    let cellH = Math.round(chain.members.length > 2 && rescuedBands.some(bb => chain.members.includes(bb.band.y1)) ? pasos[pasos.length >> 1] : chain.pitch);
     // El fold arranca en el top del nombre más alto de la cadena (no en hudLimit): con una
     // fila cortada readmitida, su nombre vive por encima de hudLimit y recortar ahí lo
     // dejaría fuera de la fase.

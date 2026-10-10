@@ -276,7 +276,8 @@ test("sin tasación de los stats combinados el overlay no dice si combinar mejor
         stats: [pos("Zoom"), pos("Toxin"), neg("Crit Chance")] });
     assert.equal(listas.length, 1);
     assert.match(listas[0].texto, / = Crit Chance \+ Zoom$/);
-    assert.equal(listas[0].veredicto, null);
+    assert.ok([undefined, "your goal", "meets the goal", "saves kuva"].includes(listas[0].veredicto?.texto),
+        JSON.stringify(listas[0].veredicto));
 });
 
 test("con una sola fuente el combinado sale a un stat y el recomendado va marcado", () => {

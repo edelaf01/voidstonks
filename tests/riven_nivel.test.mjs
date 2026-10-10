@@ -162,11 +162,19 @@ test("un arma sin datos de WFM sale del modelo con el registro de DE", async () 
   const modelo = await N.cargarNivelTirada();
   const pos = [["Critical Chance", 150], ["Critical Damage", 120]];
   const neg = ["Zoom", 30];
-  assert.equal(N.registroSinWfm(modelo, 0, 1, "Rifle"), null);
+  const regCero = N.registroSinWfm(modelo, 0, 1, "Rifle");
+  assert.ok(regCero !== null);
+  assert.equal(regCero.nivel, 0);
+  assert.equal(regCero.cola, undefined);
+  assert.equal(N.registroSinWfm(modelo, NaN, 1, "Rifle"), null);
+  assert.equal(N.registroSinWfm(modelo, Infinity, 1, "Rifle"), null);
   assert.equal(N.registroSinWfm(modelo, 100, 0, "Rifle"), null);
+  assert.equal(N.registroSinWfm(modelo, 100, -1, "Rifle"), null);
   assert.equal(N.registroSinWfm({ ...modelo, sin_wfm: undefined }, 100, 1, "Rifle"), null);
   const reg = N.registroSinWfm(modelo, 100, 1.2, "Rifle");
   assert.ok(Number.isFinite(reg.nivel));
+  assert.equal(reg.nivel, 100);
+  assert.equal(reg.cola, undefined);
   assert.equal(reg.log_n, modelo.sin_wfm.log_n);
   const stat = Object.keys(modelo.sin_wfm.ref_pos)[0];
   assert.ok(Math.abs(reg.ref_pos[stat] - modelo.sin_wfm.ref_pos[stat] * 1.2) < 1e-9);
@@ -180,45 +188,193 @@ test("un arma sin datos de WFM sale del modelo con el registro de DE", async () 
   assert.ok(flojo[1] < r[1]);
 });
 
-test("con DE fiable el registro toma la mediana de DE como nivel", async () => {
-  const modelo = await N.cargarNivelTirada();
-  assert.ok(Math.abs(N.registroSinWfm(modelo, 100, 1.2, "Rifle", 3).nivel - Math.log(100)) < 1e-12);
-  assert.ok(Math.abs(N.registroSinWfm(modelo, 100, 1.2, "Rifle", 2.9).nivel - (modelo.sin_wfm.nivel[0] * Math.log(100) + modelo.sin_wfm.nivel[1])) < 1e-12);
-  assert.ok(Object.keys(modelo.sin_wfm.de_ref).length >= 20);
-  assert.ok(modelo.sin_wfm.de_ref.Torid > 0);
-  assert.ok(modelo.sin_wfm.cola_de > 0 && modelo.sin_wfm.cola_de <= 1);
-  assert.equal(N.registroSinWfm(modelo, 100, 1.2, "Rifle", 3).cola, modelo.sin_wfm.cola_de);
-  assert.equal(N.registroSinWfm(modelo, 100, 1.2, "Rifle", 2.9).cola, 1);
-  assert.equal(N.registroSinWfm({ ...modelo, sin_wfm: { ...modelo.sin_wfm, cola_de: undefined } }, 100, 1.2, "Rifle", 3).cola, 1);
+test("cargarDe10 maneja fallos de red o datos incompletos y reintenta tras error", async () => {
+  const origFetch = globalThis.fetch;
+  try {
+    globalThis.fetch = async () => ({ ok: false, status: 500 });
+    assert.equal(await N.cargarDe10(), null);
+
+    globalThis.fetch = async () => { throw new Error("red"); };
+    assert.equal(await N.cargarDe10(), null);
+
+    globalThis.fetch = async () => ({ ok: true, json: async () => ({ mu: { l: {}, s: {} } }) });
+    assert.equal(await N.cargarDe10(), null);
+
+    globalThis.fetch = async () => ({ ok: true, json: async () => ({ familias: {}, mu: { s: {} } }) });
+    assert.equal(await N.cargarDe10(), null);
+
+    globalThis.fetch = async () => ({ ok: true, json: async () => ({ familias: {}, mu: { l: {} } }) });
+    assert.equal(await N.cargarDe10(), null);
+
+    globalThis.fetch = async () => ({
+      ok: true,
+      json: async () => ({
+        familias: { torid: [6, 1, 1000, 5, 10] },
+        mu: { l: { "<1.5": 4.5 }, s: { "<1.5": 0.8 } }
+      })
+    });
+    const d = await N.cargarDe10();
+    assert.ok(d !== null);
+    assert.ok(d.familias.torid);
+  } finally {
+    globalThis.fetch = origFetch;
+  }
 });
 
-test("el índice de DE es la mediana del cambio en las armas con DE fiable", () => {
-  const ref = {};
-  for (let i = 0; i <= 21; i++) {
-    ref[`A${i}`] = 100;
-  }
-  const modelo = { sin_wfm: { de_ref: { ...ref, Z: 100 } } };
-  const metas = {};
-  for (let i = 0; i <= 10; i++) {
-    metas[`A${i}`] = { de_rerolled: { median: 100, pop: 5 } };
-  }
-  for (let i = 11; i <= 21; i++) {
-    metas[`A${i}`] = { de_rerolled: { median: 400, pop: 5 } };
-  }
-  metas.Z = { de_rerolled: { median: 100000, pop: 1 } };
-
-  assert.ok(Math.abs(N.indiceDE(modelo, metas) - Math.log(2)) < 1e-12);
-
-  delete metas.A0;
-  assert.ok(Math.abs(N.indiceDE(modelo, metas) - Math.log(4)) < 1e-12);
-
-  delete metas.A1;
-  assert.ok(Math.abs(N.indiceDE(modelo, metas) - Math.log(4)) < 1e-12);
-
-  delete metas.A2;
-  assert.equal(N.indiceDE(modelo, metas), 0);
-
-  assert.equal(N.indiceDE(modelo, null), 0);
-  assert.equal(N.indiceDE({ sin_wfm: {} }, metas), 0);
-  assert.equal(N.indiceDE(null, metas), 0);
+test("claveFamilia resuelve según base, slug y gestiona nulos", () => {
+  assert.equal(N.claveFamilia("Kuva Kohm", { kohm: [1], kuva_kohm: [2] }), "kohm");
+  assert.equal(N.claveFamilia("Kuva Kohm", { kuva_kohm: [2] }), "kuva_kohm");
+  assert.equal(N.claveFamilia("Kuva Kohm", { braton: [1] }), null);
+  assert.equal(N.claveFamilia(null, { kohm: [1] }), null);
+  assert.equal(N.claveFamilia("Kuva Kohm", null), null);
+  assert.equal(N.claveFamilia("Kuva Kohm", {}), null);
 });
+
+test("claseArma mapea tipos a su clase canónica", () => {
+  assert.equal(N.claseArma("Sniper"), "Rifle");
+  assert.equal(N.claseArma("Bow"), "Rifle");
+  assert.equal(N.claseArma("Launcher"), "Rifle");
+  assert.equal(N.claseArma("Companion Weapon"), "Rifle");
+  assert.equal(N.claseArma("Dual Pistols"), "Pistol");
+  assert.equal(N.claseArma("Throwing"), "Pistol");
+  assert.equal(N.claseArma("Zaw Component"), "Melee");
+  assert.equal(N.claseArma("Shotgun"), "Shotgun");
+  assert.equal(N.claseArma("Rifle"), "Rifle");
+  assert.equal(N.claseArma("Pistol"), "Pistol");
+  assert.equal(N.claseArma(null), null);
+  assert.equal(N.claseArma(undefined), null);
+});
+
+test("filaDe10 devuelve la fila de familia, encogida o fallback por defecto", () => {
+  const de10 = {
+    familias: { kohm: [5.1, 0.9, 1000, 4.2, 10] },
+    mu: {
+      l: { "<1.5": 4.0, "1.5-3": 4.5, ">=3": 5.0 },
+      s: { "<1.5": 0.8, "1.5-3": 0.9, ">=3": 1.0 }
+    }
+  };
+  assert.equal(N.filaDe10(null, "Kohm"), null);
+  assert.deepEqual(N.filaDe10(de10, "Kuva Kohm"), [5.1, 0.9, 1000, 4.2, 10]);
+  assert.deepEqual(N.filaDe10(de10, "Desconocida", null), [4.0, 0.8, 0, 0, 0]);
+  assert.deepEqual(N.filaDe10(de10, "Desconocida", { median: 0 }), [4.0, 0.8, 0, 0, 0]);
+  assert.deepEqual(N.filaDe10(de10, "Desconocida", { median: -5 }), [4.0, 0.8, 0, 0, 0]);
+
+  const deVivo = { median: 100, pop: 10, stddev: 50, max_price: 500 };
+  const filaEncogida = N.filaDe10(de10, "Desconocida", deVivo);
+  const w = 10;
+  const sEsperada = Math.sqrt(Math.log((1 + Math.sqrt(1 + 4 * (50 / 100) ** 2)) / 2));
+  const lEsperada = (w * Math.log(100) + 3 * 4.0) / (w + 3);
+  const s10Esperada = (w * sEsperada + 5 * 0.8) / (w + 5);
+  assert.ok(Math.abs(filaEncogida[0] - lEsperada) < 1e-12);
+  assert.ok(Math.abs(filaEncogida[1] - s10Esperada) < 1e-12);
+  assert.equal(filaEncogida[2], 500);
+  assert.equal(filaEncogida[3], 1);
+  assert.equal(filaEncogida[4], 1);
+
+  const deVivoMedia = { median: 100, pop: 20, stddev: 20, max_price: 300 };
+  const filaMedia = N.filaDe10(de10, "Desconocida", deVivoMedia);
+  const wMed = 20;
+  const sMed = Math.sqrt(Math.log((1 + Math.sqrt(1 + 4 * (20 / 100) ** 2)) / 2));
+  assert.ok(Math.abs(filaMedia[0] - ((wMed * Math.log(100) + 3 * 4.5) / (wMed + 3))) < 1e-12);
+  assert.ok(Math.abs(filaMedia[1] - ((wMed * sMed + 5 * 0.9) / (wMed + 5))) < 1e-12);
+
+  const deVivoAlta = { median: 100, pop: 35, stddev: 20, max_price: 300 };
+  const filaAlta = N.filaDe10(de10, "Desconocida", deVivoAlta);
+  const wAlta = 35;
+  const sAlta = Math.sqrt(Math.log((1 + Math.sqrt(1 + 4 * (20 / 100) ** 2)) / 2));
+  assert.ok(Math.abs(filaAlta[0] - ((wAlta * Math.log(100) + 3 * 5.0) / (wAlta + 3))) < 1e-12);
+  assert.ok(Math.abs(filaAlta[1] - ((wAlta * sAlta + 5 * 1.0) / (wAlta + 5))) < 1e-12);
+});
+
+test("nivelSinWfm determina el nivel según nivel_pool, pop fiable o regresión", () => {
+  const modelo = {
+    nivel_pool: { kohm: 5.5 },
+    sin_wfm: { nivel: [0.8, 0.4] }
+  };
+  assert.equal(N.nivelSinWfm(modelo, "Kuva Kohm", [5.0, 1, 0, 5, 10]), 5.5);
+  assert.equal(N.nivelSinWfm(modelo, "Desconocida", [5.2, 1, 0, 3.0, 10]), 5.2);
+  assert.equal(N.nivelSinWfm(modelo, "Desconocida", [5.2, 1, 0, 4.0, 10]), 5.2);
+  assert.ok(Math.abs(N.nivelSinWfm(modelo, "Desconocida", [5.0, 1, 0, 2.5, 10]) - (0.8 * 5.0 + 0.4)) < 1e-12);
+  assert.ok(Number.isNaN(N.nivelSinWfm(modelo, "Desconocida", null)));
+  assert.ok(Number.isNaN(N.nivelSinWfm({}, "Desconocida", [5.0, 1, 0, 1.0, 10])));
+});
+
+test("poblacionTirada sigue el orden de prioridad pob, pool, pool_clase y null", () => {
+  const modelo = {
+    pob: { kohm: [100, 1, 2] },
+    pool: { kohm: [150, 1, 2], braton: [200, 1, 2] },
+    pool_clase: { Rifle: [300, 1, 2] }
+  };
+  assert.deepEqual(N.poblacionTirada(modelo, "Kuva Kohm", "Rifle"), [100, 1, 2]);
+  assert.deepEqual(N.poblacionTirada(modelo, "Braton", "Rifle"), [200, 1, 2]);
+  assert.deepEqual(N.poblacionTirada(modelo, "Desconocida", "Sniper"), [300, 1, 2]);
+  assert.equal(N.poblacionTirada(modelo, "Desconocida", "Shotgun"), null);
+  assert.equal(N.poblacionTirada(null, "Kuva Kohm", "Rifle"), null);
+});
+
+test("percentilTirada calcula el percentil con interpolación, empates y recortes", () => {
+  assert.equal(N.percentilTirada(null, 5), 0.5);
+  assert.equal(N.percentilTirada("no-array", 5), 0.5);
+  assert.equal(N.percentilTirada([], 5), 0.5);
+  assert.equal(N.percentilTirada([10, 1], 5), 0.5);
+  assert.equal(N.percentilTirada([100, 10, 20], NaN), 0.5);
+  assert.equal(N.percentilTirada([100, 10, 20], Infinity), 0.5);
+  assert.equal(N.percentilTirada([100, 10, 20], -Infinity), 0.5);
+
+  const pob = [100, 10, 20, 30];
+  assert.equal(N.percentilTirada(pob, 5), 0.5 / 100);
+  assert.equal(N.percentilTirada(pob, 35), 1 - 0.5 / 100);
+  assert.equal(N.percentilTirada(pob, 15), 0.25);
+  assert.equal(N.percentilTirada(pob, 20), 0.5);
+  assert.equal(N.percentilTirada(pob, 25), 0.75);
+
+  const pobEmpates = [100, 10, 20, 20, 30];
+  assert.equal(N.percentilTirada(pobEmpates, 20), 0.5);
+
+  const pob10 = [10, 10, 20, 30];
+  assert.equal(N.percentilTirada(pob10, 5), 0.05);
+  assert.equal(N.percentilTirada(pob10, 35), 0.95);
+});
+
+test("cuantilNormal aproxima la inversa de la normal con simetría y límites", () => {
+  assert.equal(N.cuantilNormal(0), -Infinity);
+  assert.equal(N.cuantilNormal(-0.5), -Infinity);
+  assert.equal(N.cuantilNormal(1), Infinity);
+  assert.equal(N.cuantilNormal(1.5), Infinity);
+  assert.equal(N.cuantilNormal(0.5), 0);
+  assert.ok(Math.abs(N.cuantilNormal(0.975) - 1.959963986) < 1e-6);
+
+  const centroP = [0.1, 0.2, 0.3, 0.4];
+  for (const p of centroP) {
+    assert.ok(Math.abs(N.cuantilNormal(p) + N.cuantilNormal(1 - p)) < 1e-10);
+  }
+  const colaP = [0.01, 0.001];
+  for (const p of colaP) {
+    assert.ok(Math.abs(N.cuantilNormal(p) + N.cuantilNormal(1 - p)) < 1e-10);
+  }
+});
+
+test("preciosDe10 genera precios monótonos con tope opcional y rho por defecto", () => {
+  const l10 = Math.log(200);
+  const filaSinTecho = [l10, 0.6, 0];
+  const pCentral = N.preciosDe10(filaSinTecho, 0.5, [0.5]);
+  assert.ok(Math.abs(pCentral[0] - 200) < 1e-9);
+
+  const qs = [0.1, 0.25, 0.5, 0.8, 0.95];
+  const precios = N.preciosDe10(filaSinTecho, 0.6, qs);
+  for (let i = 1; i < precios.length; i++) {
+    assert.ok(precios[i] >= precios[i - 1]);
+  }
+
+  const conRhoPorDefecto = N.preciosDe10(filaSinTecho, 0.6, qs);
+  const conRhoExplicito = N.preciosDe10(filaSinTecho, 0.6, qs, 0.7);
+  assert.deepEqual(conRhoPorDefecto, conRhoExplicito);
+
+  const filaConTecho = [l10, 1.2, 300];
+  const preciosTecho = N.preciosDe10(filaConTecho, 0.99, [0.99]);
+  assert.ok(Math.abs(preciosTecho[0] - 300) < 1e-9);
+
+  const preciosCeroTecho = N.preciosDe10(filaSinTecho, 0.99, [0.99]);
+  assert.ok(preciosCeroTecho[0] > 300);
+});
+

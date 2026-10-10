@@ -2,12 +2,19 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { state } from "../deploy/js/state.js";
+import { renderMlChip } from "../deploy/js/ui.components/rivens/ui_riven_appraisal.js";
 
 globalThis.localStorage = { getItem: () => null, setItem: () => {} };
 
+let fallarDe10 = false;
 globalThis.fetch = async (url) => {
   const base = url.split("/").pop().split("?")[0];
-  const buf = fs.readFileSync(new URL(`../deploy/assets/ml/${base}`, import.meta.url));
+  if (base === "de10.json" && fallarDe10) throw new Error("mock de10 falla");
+  const ruta = base === "de10.json"
+    ? new URL("./fixtures/de10_fijo.json", import.meta.url)
+    : new URL(`../deploy/assets/ml/${base}`, import.meta.url);
+  if (!fs.existsSync(ruta)) return { ok: false, status: 404, json: async () => ({}) };
+  const buf = fs.readFileSync(ruta);
   return { ok: true, json: async () => JSON.parse(buf.toString()) };
 };
 
@@ -26,9 +33,20 @@ const LARKSPUR = { name: "Larkspur", official_median: 357, wfm_avg: 7966, de_rer
 const TORID = { name: "Torid", d: 1.3, official_median: 357, wfm_avg: 7966, de_rerolled: { median: 450, pop: 12, stddev: 300, max_price: 3000 }, de_unrolled: { median: 357, pop: 8 } };
 const SIN_NIVEL = { name: "SinNivelTest", official_median: 135, wfm_avg: 307, de_rerolled: { median: 90, pop: 1, stddev: 0, max_price: 90 }, de_unrolled: { median: 135, pop: 1 } };
 
+test("con de10 que falla al cargar la tasación cae a la curva", async () => {
+  fallarDe10 = true;
+  try {
+    const band = await N.predictRivenMLBand(LARKSPUR, STATS, LARKSPUR, null, 75);
+    assert.equal(band.fuente, "curva");
+    assert.ok(band.p25 <= band.p50 && band.p50 <= band.p80 && band.p80 <= band.p90 && band.p90 <= band.p95);
+  } finally {
+    fallarDe10 = false;
+  }
+});
+
 test("un arma con datos de WFM tasa con el modelo de nivel y tirada", async () => {
   const band = await N.predictRivenMLBand(LARKSPUR, STATS, LARKSPUR, null, 75);
-  assert.equal(band.fuente, "ml");
+  assert.equal(band.fuente, "de10");
   assert.ok(Number.isFinite(band.p50));
   assert.ok(band.p50 > 0);
 });
@@ -53,46 +71,39 @@ test("la banda sale ordenada por las dos vías", async () => {
   assert.ok(b2.p90 <= b2.p95);
 });
 
-test("un arma con nivel de WFM tasa sobre su nivel y no sobre DE", async () => {
-  const nt = await NT.cargarNivelTirada();
-  const { positivos, negativo } = NT.atributosAWfm(STATS, 0);
-  const r = NT.residuosTirada(nt, "Larkspur", positivos, negativo);
+test("un arma conocida tasa con su fila de DE de 10 semanas y no con el DE del día", async () => {
   const band = await N.predictRivenMLBand(LARKSPUR, STATS, LARKSPUR, null, 75);
-  assert.equal(band.p50, Math.round(Math.exp(nt.armas.Larkspur.nivel + r[1])));
+  assert.equal(band.p50, 211);
   const otra = await N.predictRivenMLBand({ ...LARKSPUR, de_rerolled: { ...LARKSPUR.de_rerolled, median: 900 } }, STATS, LARKSPUR, null, 75);
   assert.equal(otra.p50, band.p50);
 });
 
-test("el índice de DE mueve el nivel de las armas conocidas", async () => {
-  const nt = await NT.cargarNivelTirada();
-  const { positivos, negativo } = NT.atributosAWfm(STATS, 0);
-  const r = NT.residuosTirada(nt, "Larkspur", positivos, negativo);
-  const metas = {};
-  for (const [arma, ref] of Object.entries(nt.sin_wfm.de_ref)) {
-    metas[arma] = { de_rerolled: { median: ref * 2, pop: 5 } };
-  }
+test("cambiar la fila de de10 de la familia mueve el precio", async () => {
+  const de10 = await NT.cargarDe10();
+  const filaOrig = [...de10.familias.larkspur];
   try {
-    globalThis.dynamicMetaStats = { data: metas };
+    de10.familias.larkspur = [filaOrig[0] + 1, ...filaOrig.slice(1)];
     const band = await N.predictRivenMLBand(LARKSPUR, STATS, LARKSPUR, null, 75);
-    assert.ok(Math.abs(band.p50 - Math.round(Math.exp(nt.armas.Larkspur.nivel + Math.log(2) + r[1]))) <= 1);
-    globalThis.dynamicMetaStats = metas;
-    const plano = await N.predictRivenMLBand(LARKSPUR, STATS, LARKSPUR, null, 75);
-    assert.equal(plano.p50, band.p50);
+    assert.equal(band.p50, 573);
   } finally {
-    delete globalThis.dynamicMetaStats;
+    de10.familias.larkspur = filaOrig;
   }
+  const restaurado = await N.predictRivenMLBand(LARKSPUR, STATS, LARKSPUR, null, 75);
+  assert.equal(restaurado.p50, 211);
 });
 
 test("un arma cortada tasa con el registro de DE y su suelo", async () => {
   const nt = await NT.cargarNivelTirada();
   assert.equal(NT.nombreArma(nt, "Torid"), null);
-  const { positivos, negativo } = NT.atributosAWfm(STATS, 0);
-  const reg = NT.registroSinWfm(nt, 450, 1.3, null, 12);
-  assert.ok(Math.abs(reg.nivel - Math.log(450)) < 1e-12);
-  const r = NT.residuosTirada(nt, "Torid", positivos, negativo, reg);
+  const de10 = await NT.cargarDe10();
+  const fila = NT.filaDe10(de10, "Torid", TORID.de_rerolled);
+  const nivel = NT.nivelSinWfm(nt, "Torid", fila);
+  const reg = NT.registroSinWfm(nt, nivel, 1.3, "Rifle");
+  assert.equal(reg.nivel, nivel);
+
   const band = await N.predictRivenMLBand(TORID, STATS, TORID, null, 75);
-  assert.equal(band.fuente, "ml");
-  assert.equal(band.p50, Math.max(band.floor, Math.round(Math.exp(reg.nivel + (r[1] > 0 ? r[1] * reg.cola : r[1])))));
+  assert.equal(band.fuente, "de10");
+  assert.equal(band.p50, 886);
   assert.ok(band.p25 >= band.floor);
 
   const buena = [
@@ -101,11 +112,21 @@ test("un arma cortada tasa con el registro de DE y su suelo", async () => {
     { name: "Multishot", value: 100, isPositive: true, minIdeal: 50, maxIdeal: 150 },
     { name: "Zoom", value: 40, isPositive: false, minIdeal: 20, maxIdeal: 60 }
   ];
-  const { positivos: pb, negativo: nb } = NT.atributosAWfm(buena, 0);
-  const rb = NT.residuosTirada(nt, "Torid", pb, nb, reg);
   const bandaBuena = await N.predictRivenMLBand(TORID, buena, TORID, null, 90);
-  assert.ok(rb[4] > 0);
-  assert.equal(bandaBuena.p95, Math.max(bandaBuena.floor, Math.round(Math.exp(reg.nivel + rb[4] * reg.cola))));
+  assert.equal(bandaBuena.fuente, "de10");
+  assert.equal(bandaBuena.p95, 4043);
+});
+
+test("para un arma con DE vivo ningún precio baja del suelo floor", async () => {
+  const bandTorid = await N.predictRivenMLBand(TORID, STATS, TORID, null, 75);
+  assert.ok(bandTorid.floor > 0);
+  const preciosTorid = [bandTorid.p25, bandTorid.p50, bandTorid.p80, bandTorid.p90, bandTorid.p95];
+  assert.ok(preciosTorid.every(p => p >= bandTorid.floor));
+
+  const bandLark = await N.predictRivenMLBand(LARKSPUR, STATS, LARKSPUR, null, 75);
+  assert.ok(bandLark.floor > 0);
+  const preciosLark = [bandLark.p25, bandLark.p50, bandLark.p80, bandLark.p90, bandLark.p95];
+  assert.ok(preciosLark.every(p => p >= bandLark.floor));
 });
 
 test("un riven sin rolar ya no lleva prima", async () => {
@@ -140,4 +161,23 @@ test("una tirada alta vale más que una baja en el modelo", async () => {
   const high = await N.predictRivenMLBand(LARKSPUR, statsHigh, LARKSPUR, null, null);
   const low = await N.predictRivenMLBand(LARKSPUR, statsLow, LARKSPUR, null, null);
   assert.ok(high.p50 > low.p50);
+});
+
+test("renderMlChip muestra el rótulo según la fuente y el idioma", () => {
+  const elem = { style: {}, innerHTML: "", title: "" };
+  const estCard = { querySelector: (sel) => sel === "[data-ml-line]" ? elem : null };
+  const bandDe10 = { fuente: "de10", confianza: "alta", p25: 100, p50: 200, p80: 300, p95: 500 };
+  const bandCurva = { fuente: "curva", confianza: "alta", p25: 100, p50: 200, p80: 300, p95: 500 };
+
+  renderMlChip(estCard, null, bandDe10, true);
+  assert.ok(elem.innerHTML.startsWith("DE 10 sem:"));
+
+  renderMlChip(estCard, null, bandDe10, false);
+  assert.ok(elem.innerHTML.startsWith("DE 10 wk:"));
+
+  renderMlChip(estCard, null, bandCurva, true);
+  assert.ok(elem.innerHTML.startsWith("IA:"));
+
+  renderMlChip(estCard, null, bandCurva, false);
+  assert.ok(elem.innerHTML.startsWith("AI:"));
 });

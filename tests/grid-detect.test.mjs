@@ -1176,3 +1176,37 @@ test("detectInventoryGrid: una columna interior casi vacía no recorta la rejill
   assert.equal(trace.occCols.join(","), "4,4,4,4,1,4");
   assert.equal(res.cols, 6);
 });
+
+test("detectInventoryGrid REGRESIÓN: línea de ruido bajo nombres con fila rescatada a 720p mantiene cellH", () => {
+  const cellW = 138, cellH = 148, cols = 6, rows = 3;
+  const width = cols * cellW, height = 720;
+  const gridX = 0, gridY = 119;
+  const img = makeInventoryFrame({
+    width, height, gridX, gridY, cellW, cellH, cols, rows,
+    nameWidthFrac: (r) => (r === 1 ? 1 : 0.6),
+  });
+  const lh = Math.round(cellH * 0.12);
+  const y0 = Math.round(gridY + (rows - 1) * cellH + cellH * 0.80);
+  const noiseY = y0 + lh - 1 + 5;
+  for (let x = 0; x < width; x++) {
+    if (x % 5 < 3) setPixel(img.data, width, height, x, noiseY, 240, 235, 220);
+  }
+  const trace = {};
+  const res = detectInventoryGrid(img, { trace });
+  assert.ok(res, `no debería fallar; trace.fail = ${trace.fail}`);
+  assert.ok(Math.abs(res.cellH - cellH) <= 1, `cellH ${res.cellH} debería rondar ${cellH} (cadena: ${JSON.stringify(trace.chain)})`);
+});
+
+test("detectInventoryGrid control: frame a 720p sin bandas rescatadas ni ruido mantiene cellH", () => {
+  const cellW = 138, cellH = 148, cols = 6, rows = 3;
+  const width = cols * cellW, height = 720;
+  const gridX = 0, gridY = 119;
+  const img = makeInventoryFrame({
+    width, height, gridX, gridY, cellW, cellH, cols, rows,
+    nameWidthFrac: 0.6,
+  });
+  const trace = {};
+  const res = detectInventoryGrid(img, { trace });
+  assert.ok(res, `no debería fallar; trace.fail = ${trace.fail}`);
+  assert.ok(Math.abs(res.cellH - cellH) <= 1, `cellH ${res.cellH} debería rondar ${cellH} (cadena: ${JSON.stringify(trace.chain)})`);
+});

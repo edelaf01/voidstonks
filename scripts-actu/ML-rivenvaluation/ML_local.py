@@ -2031,8 +2031,7 @@ if _curios:
     with open(os.path.join(_dest_cur, "curiosidades.json"), "w", encoding="utf-8") as f:
         json.dump({"generado": str(pd.Timestamp.now("UTC").date()), "eventos": _curios},
                   f, indent=1, ensure_ascii=False)
-    _n_solo = sum(1 for e in _curios if e["solo_ask"])
-    print(f"Curiosidades guardadas: {len(_curios)} eventos ({_n_solo} de solo-ask).")
+    print(f"Curiosidades guardadas: {len(_curios)} eventos.")
 else:
     print("Curiosidades: sin eventos que superen los filtros de ruido.")
 

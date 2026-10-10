@@ -11,7 +11,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { RIVEN_TOOLTIPS, getRivenMetricName } from "../deploy/js/utils/rivens/riven_tooltips.js";
+import { RIVEN_TOOLTIPS, getRivenMetricName, rotuloBanda } from "../deploy/js/utils/rivens/riven_tooltips.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -76,4 +76,31 @@ test("cada métrica tiene un solo nombre por idioma, y el suyo tiene explicació
   for (const clave of ["trend", "liquidity", "reroll", "potentialReal", "potentialWeb"]) {
     assert.ok(RIVEN_TOOLTIPS[clave], `la métrica ${clave} tiene nombre pero no tooltip`);
   }
+});
+
+test("rotuloBanda devuelve los rótulos correctos según fuente e idioma", () => {
+  assert.deepEqual(rotuloBanda("de10", true), {
+    corto: "DE 10 sem",
+    largo: "Lo que se vendió según DE en 10 semanas"
+  });
+  assert.deepEqual(rotuloBanda("de10", false), {
+    corto: "DE 10 wk",
+    largo: "What sold according to DE over 10 weeks"
+  });
+  assert.deepEqual(rotuloBanda("curva", true), {
+    corto: "IA",
+    largo: "Según la IA"
+  });
+  assert.deepEqual(rotuloBanda("curva", false), {
+    corto: "AI",
+    largo: "Per the AI"
+  });
+  assert.deepEqual(rotuloBanda("ml", true), {
+    corto: "IA",
+    largo: "Según la IA"
+  });
+  assert.deepEqual(rotuloBanda(null, false), {
+    corto: "AI",
+    largo: "Per the AI"
+  });
 });

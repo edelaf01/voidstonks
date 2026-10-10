@@ -5,6 +5,7 @@ import { consejoCicloHtml, combinarOverlay, combinarCartaHtml, objetivoDelArma, 
 import { objetivoFusion, fijaObjetivoFusion } from "../../utils/rivens/riven_objetivo_fusion.js";
 import { claveStat, tipoDeArma, esFusionado, pesoFusionado } from "../../utils/rivens/riven_cycling.js";
 import { textoDelStat } from "../../utils/rivens/riven_stat_display.js";
+import { rotuloBanda } from "../../utils/rivens/riven_tooltips.js";
 import { statsBuscadosDelArma } from "../../services/rivens/riven_appraisal.service.js";
 import { avisa, escucha } from "../../utils/ganchos.js";
 
@@ -372,12 +373,12 @@ export const RivenScannerHUD = {
                 prediction.mlBand = _bq;
                 const _warn = _bq.confianza === "baja" ? " !" : "";
                 const _mlTitle = (isEs
-                    ? `Según la IA: venta rápida ~${_bq.p25}p · precio justo ~${_bq.p50}p · godroll ~${_bq.p95}p`
-                    : `Per the AI: quick sale ~${_bq.p25}p · fair price ~${_bq.p50}p · godroll ~${_bq.p95}p`)
+                    ? `${rotuloBanda(_bq.fuente, true).largo}: venta rápida ~${_bq.p25}p · precio justo ~${_bq.p50}p · godroll ~${_bq.p95}p`
+                    : `${rotuloBanda(_bq.fuente, false).largo}: quick sale ~${_bq.p25}p · fair price ~${_bq.p50}p · godroll ~${_bq.p95}p`)
                     + (_bq.aviso ? ` · ${AVISO_BANDA[_bq.aviso][isEs ? "es" : "en"]}` : "");
                 mlChip = `
                     <div class="hud-chip ml" title="${_mlTitle}">
-                        <span>${isEs ? "IA" : "AI"}${_warn}</span>
+                        <span>${rotuloBanda(_bq.fuente, isEs).corto}${_warn}</span>
                         <strong>~${_bq.p50}${platIcon}</strong>
                         <em>(${_bq.p25}–${_bq.p95})</em>
                     </div>
