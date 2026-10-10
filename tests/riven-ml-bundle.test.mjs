@@ -39,7 +39,7 @@ test("el modelo publicado solo lleva lo que lee el navegador", () => {
   const buf = fs.readFileSync(new URL("../deploy/assets/ml/nivel_y_tirada.json", import.meta.url));
   const modelo = JSON.parse(buf.toString());
   const keys = Object.keys(modelo).sort();
-  assert.deepEqual(keys, ["armas","columnas","cuantiles","efectos","fecha_datos","mag_por_defecto","modelo","precision","ref_neg","ref_pos","sin_wfm","stats_neg","stats_pos","tipos"]);
+  assert.deepEqual(keys, ["armas","columnas","cuantiles","efectos","fecha_datos","mag_por_defecto","modelo","nivel_pool","pob","pool","pool_clase","precision","ref_neg","ref_pos","rho","sin_wfm","stats_neg","stats_pos","tipos"]);
   assert.equal(modelo.sin_wfm.nivel.length, 2);
   assert.ok(modelo.sin_wfm.nivel.every(Number.isFinite));
   assert.ok(Number.isFinite(modelo.sin_wfm.log_n));
@@ -58,3 +58,27 @@ test("el modelo publicado solo lleva lo que lee el navegador", () => {
     }
   }
 });
+
+test("de10.json publicado tiene la estructura y rangos esperados", () => {
+  const buf = fs.readFileSync(new URL("../deploy/assets/ml/de10.json", import.meta.url));
+  const de10 = JSON.parse(buf.toString());
+  assert.match(de10.semana, /^\d{4}-\d{2}-\d{2}$/);
+  const tramos = ["<1.5", "1.5-3", ">=3"];
+  for (const t of tramos) {
+    assert.ok(Number.isFinite(de10.mu.l[t]));
+    assert.ok(Number.isFinite(de10.mu.s[t]));
+  }
+  const nombres = Object.keys(de10.familias);
+  assert.ok(nombres.length > 100);
+  for (const f of nombres) {
+    const fila = de10.familias[f];
+    assert.equal(fila.length, 5);
+    assert.ok(fila.every(Number.isFinite));
+    const [, s10, max10, pop10, nsem] = fila;
+    assert.ok(s10 > 0);
+    assert.ok(max10 >= 0);
+    assert.ok(pop10 >= 0);
+    assert.ok(Number.isInteger(nsem) && nsem >= 1 && nsem <= 10);
+  }
+});
+
