@@ -16,18 +16,20 @@ let _curioCache = null;   // { globales:[], eventos:[] }
 let _curioIdx = 0;
 let _curioTimer = null;
 
-// Chip + color por tipo. El color es la señal rápida: verde sube de verdad, rojo cae, ámbar humo.
+// Chip + color por tipo. El color es la señal rápida: verde sube de verdad, rojo cae.
 const CURIO_TIPOS = {
-  especulacion: { es: "Solo humo", en: "Just hype", clase: "curio-t-humo" },
   subida_venta: { es: "Se revaloriza", en: "Gaining value", clase: "curio-t-sube" },
   bajada_venta: { es: "Pierde valor", en: "Losing value", clase: "curio-t-baja" },
-  desplome_ask: { es: "Burbuja pinchada", en: "Bubble popped", clase: "curio-t-pincha" },
-  convergencia: { es: "Se paga más", en: "Paying more", clase: "curio-t-sube" },
-  global_brecha: { es: "Dato del mercado", en: "Market fact", clase: "curio-t-global" },
-  global_tendencia: { es: "Esta semana", en: "This week", clase: "curio-t-global" },
-  global_actividad: { es: "Ahora mismo", en: "Right now", clase: "curio-t-global" },
-  global_saturada: { es: "Más competencia", en: "Most crowded", clase: "curio-t-global" },
+  volatil: { es: "Precios dispersos", en: "Scattered prices", clase: "curio-t-humo" },
+  global_weekly: { es: "Tabla de DE", en: "DE weekly", clase: "curio-t-global" },
+  global_prima: { es: "Dato del mercado", en: "Market fact", clase: "curio-t-global" },
+  global_cara: { es: "La más cara", en: "Top price", clase: "curio-t-global" },
 };
+
+export function _curioVisible(e) {
+  if (!e || !Object.hasOwn(CURIO_TIPOS, e.tipo)) return false;
+  return e.tipo.startsWith("global_") || (e.fuente === "de" && Number.isFinite(e.pct));
+}
 
 // curiosidades.json guarda el arma en minúsculas (viene del CSV); para mostrarla se busca la grafía
 // real del catálogo, que es la que el usuario reconoce ("Riot-848", no "riot-848").
@@ -38,7 +40,7 @@ export function _curioEventosDe(weaponName) {
   const fam = extractFamilyName(String(weaponName || "")).toLowerCase();
   return _curioCache.eventos.filter(e => {
     const a = String(e.arma || "").toLowerCase();
-    return a === nl || a === fam;
+    return (a === nl || a === fam) && _curioVisible(e);
   });
 }
 
@@ -49,50 +51,32 @@ function _curioNombre(bruto) {
   return k || n;
 }
 
-function _curioFrase(e, isEs) {
+export function _curioFrase(e, isEs) {
   const arma = `<span class="curio-arma">${escapeHTML(_curioNombre(e.arma))}</span>`;
   const num = (v) => `${v > 0 ? "+" : ""}${v}%`;
   const pinta = (v) => `<span class="${v > 0 ? "curio-sube" : "curio-baja"}">${num(v)}</span>`;
   switch (e.tipo) {
-    case "global_brecha":
-      // Se dice "rolados" y "estimado" a propósito: la venta de rolados no se observa directamente
-      // (DE solo publica la de sin rolar), se deduce del premium por ciclar. Sin ese matiz la frase
-      // afirmaría un dato medido que no lo es.
+    case "global_weekly":
       return isEs
-        ? `Por un riven ya rolado se PIDEN ${e.ask}p de media y se PAGAN unos ${e.venta}p: <b>${e.valor}× de diferencia</b>. Fíjate en lo que se vende, no en el escaparate.`
-        : `For an already-rolled riven sellers ASK ${e.ask}p on average while buyers PAY around ${e.venta}p: <b>a ${e.valor}× gap</b>. Watch what sells, not the shop window.`;
-    case "global_tendencia":
+        ? `En la última tabla semanal de DE la mediana de venta de rivens sin ciclar subió en <b>${e.suben}</b> armas y bajó en <b>${e.bajan}</b>.`
+        : `In DE's latest weekly data the median sale of uncycled rivens rose for <b>${e.suben}</b> weapons and fell for <b>${e.bajan}</b>.`;
+    case "global_prima":
       return isEs
-        ? `El mercado de rivens se movió ${pinta(e.valor)} esta semana (mediana ${e.de}p → ${e.a}p).`
-        : `The riven market moved ${pinta(e.valor)} this week (median ${e.de}p → ${e.a}p).`;
-    case "global_actividad":
+        ? `Según las ventas de DE, un riven ya ciclado se paga de mediana <b>${e.valor}×</b> lo que uno sin ciclar del mismo arma (${e.armas} armas).`
+        : `In DE's sales data a rolled riven sells for a median <b>${e.valor}×</b> an uncycled one of the same weapon (${e.armas} weapons).`;
+    case "global_cara":
       return isEs
-        ? `Hoy hay <b>${e.valor}</b> de ${e.total} armas con mercado activo. El resto tardarán en venderse.`
-        : `<b>${e.valor}</b> of ${e.total} weapons have an active market today. The rest will be slow to sell.`;
-    case "global_saturada":
-      return isEs
-        ? `${arma} es donde más competencia tienes ahora: <b>${e.valor} ofertas</b> vivas a la vez.`
-        : `${arma} is the most crowded right now: <b>${e.valor} live listings</b> at once.`;
-    case "especulacion":
-      return isEs
-        ? `Los vendedores de ${arma} subieron lo que piden ${pinta(e.ask_pct)} (${e.ask_de}p → ${e.ask_a}p) y las ventas reales no se movieron. <span class="curio-quieto">Piden más, pero nadie paga más.</span>`
-        : `${arma} sellers raised asks ${pinta(e.ask_pct)} (${e.ask_de}p → ${e.ask_a}p) while real sales stood still. <span class="curio-quieto">They ask more, nobody pays more.</span>`;
+        ? `${arma} tiene la mediana de venta sin ciclar más alta de la tabla semanal de DE: <b>${e.valor}p</b>.`
+        : `${arma} has the highest uncycled median sale in DE's weekly data: <b>${e.valor}p</b>.`;
     case "subida_venta":
-      return isEs
-        ? `${arma} se está pagando ${pinta(e.venta_pct)} más que hace una semana (${e.venta_de}p → ${e.venta_a}p en ventas reales).`
-        : `${arma} is selling ${pinta(e.venta_pct)} higher than a week ago (${e.venta_de}p → ${e.venta_a}p in real sales).`;
     case "bajada_venta":
       return isEs
-        ? `${arma} se paga ${pinta(e.venta_pct)} respecto a la semana pasada (${e.venta_de}p → ${e.venta_a}p). Si lo tienes, no esperes.`
-        : `${arma} is selling ${pinta(e.venta_pct)} versus last week (${e.venta_de}p → ${e.venta_a}p). If you hold one, do not wait.`;
-    case "desplome_ask":
+        ? `En la tabla semanal de DE, la mediana de venta de un riven de ${arma} sin ciclar pasó de ${e.de}p a ${e.a}p (${pinta(e.pct)}).`
+        : `In DE's weekly data, the median sale of an uncycled ${arma} riven went from ${e.de}p to ${e.a}p (${pinta(e.pct)}).`;
+    case "volatil":
       return isEs
-        ? `Lo que piden por ${arma} cayó ${pinta(e.ask_pct)} (${e.ask_de}p → ${e.ask_a}p): los precios de escaparate se están ajustando.`
-        : `Asking prices for ${arma} fell ${pinta(e.ask_pct)} (${e.ask_de}p → ${e.ask_a}p): shop-window prices are correcting.`;
-    case "convergencia":
-      return isEs
-        ? `En ${arma} sube lo que se PAGA (${pinta(e.venta_pct)}) sin que suba lo que se pide: la brecha se cierra.`
-        : `On ${arma} what people PAY is rising (${pinta(e.venta_pct)}) while asks hold: the gap is closing.`;
+        ? `En la tabla semanal de DE, las ventas de ${arma} sin ciclar se dispersaron: la desviación subió a <b>${e.a}×</b> la mediana (antes ${e.de}×). Hubo ventas muy lejos del precio habitual.`
+        : `In DE's weekly data, uncycled ${arma} sales spread out: the deviation rose to <b>${e.a}×</b> the median (was ${e.de}×). Some sales landed far from the usual price.`;
     default:
       return arma;
   }
@@ -120,8 +104,8 @@ function _curioTramo(e, isEs) {
 // Global = datos del mercado primero (orientan) y luego los movimientos, intercalados.
 function _curioLista() {
   if (!_curioCache) return [];
-  const g = _curioCache.globales || [];
-  const ev = _curioCache.eventos || [];
+  const g = (_curioCache.globales || []).filter(_curioVisible);
+  const ev = (_curioCache.eventos || []).filter(_curioVisible);
   const out = [];
   for (let i = 0; i < Math.max(g.length, ev.length); i++) {
     if (i < g.length) out.push(g[i]);
@@ -242,13 +226,7 @@ export async function renderCuriosidadesArma(weaponName) {
   cont.classList.add("hidden");
   const d = await _cargaCurios();
   if (!d) return;
-  const nl = String(weaponName || "").toLowerCase();
-  // También por familia: el riven es el mismo para todas las variantes.
-  const fam = extractFamilyName(String(weaponName || "")).toLowerCase();
-  const suyos = (d.eventos || []).filter(e => {
-    const a = String(e.arma || "").toLowerCase();
-    return a === nl || a === fam;
-  });
+  const suyos = _curioEventosDe(weaponName);
   if (!suyos.length) return;
   cont.classList.remove("hidden");
   let i = 0;

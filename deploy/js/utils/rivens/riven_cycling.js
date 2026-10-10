@@ -116,7 +116,7 @@ export function consejoDeCiclo({ stats, typeIdx, buscados, negOk, k = 2, ciclosH
     const fusion = leidos.filter((s) => s.clave in RIVEN_SPLICED_BASE_STATS);
     if (fusion.length > 1 || fusion.some((s) => !s.isPositive)) return null;
     const fusionado = fusion[0]?.clave ?? null;
-    if (leidos.some((s) => s.clave !== fusionado && (!s.clave || !pool.includes(s.clave)))) return null;
+    if (leidos.some((s) => !s.clave || (s.clave !== fusionado && !pool.includes(s.clave)))) return null;
     const positivos = leidos.filter((s) => s.isPositive);
     const negativos = leidos.filter((s) => !s.isPositive);
     if (positivos.length < 2 || positivos.length > 3 || negativos.length > 1) return null;

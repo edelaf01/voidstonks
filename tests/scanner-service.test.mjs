@@ -1942,3 +1942,65 @@ test("en arcanos, la página de basura solo se tira una vez seguida y queda por 
     Object.assign(S, { _arcanosDescartada: false, autoScrollMuestra: null, _autoCalibCache: null, fotosSinScroll: 0 });
   }
 });
+
+test("dos cartas de riven lado a lado en un recorte se separan por palabras y ambas se muestran", async () => {
+  await enPantallaDeCiclo(async ({ muestra, vistos }) => {
+    const { OCRRepository } = await import("../deploy/js/repositories/ocr.repository.js");
+    const palabrasA = [
+      { text: "Dread", confidence: 95, bbox: { x0: 20, y0: 20, x1: 70, y1: 35 } },
+      { text: "Acricron", confidence: 95, bbox: { x0: 75, y0: 20, x1: 140, y1: 35 } },
+      { text: "+187.6%", confidence: 90, bbox: { x0: 20, y0: 50, x1: 70, y1: 65 } },
+      { text: "Critical", confidence: 92, bbox: { x0: 75, y0: 50, x1: 110, y1: 65 } },
+      { text: "Chance", confidence: 92, bbox: { x0: 115, y0: 50, x1: 150, y1: 65 } },
+      { text: "+150.9%", confidence: 90, bbox: { x0: 20, y0: 80, x1: 70, y1: 95 } },
+      { text: "Critical", confidence: 92, bbox: { x0: 75, y0: 80, x1: 110, y1: 95 } },
+      { text: "Damage", confidence: 92, bbox: { x0: 115, y0: 80, x1: 150, y1: 95 } },
+      { text: "MR10", confidence: 85, bbox: { x0: 20, y0: 110, x1: 60, y1: 125 } },
+    ];
+    const palabrasB = [
+      { text: "Dread", confidence: 95, bbox: { x0: 230, y0: 20, x1: 280, y1: 35 } },
+      { text: "Satiacri", confidence: 95, bbox: { x0: 285, y0: 20, x1: 350, y1: 35 } },
+      { text: "+139.2%", confidence: 90, bbox: { x0: 230, y0: 50, x1: 280, y1: 65 } },
+      { text: "Multishot", confidence: 92, bbox: { x0: 285, y0: 50, x1: 345, y1: 65 } },
+      { text: "+185.0%", confidence: 90, bbox: { x0: 230, y0: 80, x1: 280, y1: 95 } },
+      { text: "Critical", confidence: 92, bbox: { x0: 285, y0: 80, x1: 325, y1: 95 } },
+      { text: "Damage", confidence: 92, bbox: { x0: 330, y0: 80, x1: 370, y1: 95 } },
+      { text: "-37.3%", confidence: 90, bbox: { x0: 230, y0: 110, x1: 275, y1: 125 } },
+      { text: "Zoom", confidence: 92, bbox: { x0: 280, y0: 110, x1: 320, y1: 125 } },
+      { text: "MR10", confidence: 85, bbox: { x0: 230, y0: 140, x1: 270, y1: 155 } },
+    ];
+    OCRRepository.recognizeWithChars = async () => ({
+      data: {
+        words: [...palabrasA, ...palabrasB],
+        text: "texto lateral no usado",
+      },
+    });
+    await muestra(pantallaCiclo([300]), "dummy");
+    assert.deepEqual(vistos.at(-1), ["Crit Chance+Crit Damage", "Multishot+Crit Damage+Zoom"]);
+    assert.equal(S.lastParsedL?.weaponName, "Dread");
+    assert.equal(S.lastParsedR?.weaponName, "Dread");
+  });
+});
+
+test("un solo grupo de palabras en el recorte recurre al texto completo como una única carta", async () => {
+  await enPantallaDeCiclo(async ({ muestra, vistos }) => {
+    const { OCRRepository } = await import("../deploy/js/repositories/ocr.repository.js");
+    const palabras = [
+      { text: "Dread", confidence: 95, bbox: { x0: 20, y0: 20, x1: 70, y1: 35 } },
+      { text: "Acricron", confidence: 95, bbox: { x0: 75, y0: 20, x1: 140, y1: 35 } },
+      { text: "+187.6%", confidence: 90, bbox: { x0: 20, y0: 50, x1: 70, y1: 65 } },
+      { text: "Critical", confidence: 92, bbox: { x0: 75, y0: 50, x1: 110, y1: 65 } },
+      { text: "Chance", confidence: 92, bbox: { x0: 115, y0: 50, x1: 150, y1: 65 } },
+    ];
+    OCRRepository.recognizeWithChars = async () => ({
+      data: {
+        words: palabras,
+        text: CARTA_A,
+      },
+    });
+    await muestra(pantallaCiclo([300]), "dummy");
+    assert.deepEqual(vistos.at(-1), ["Crit Chance+Crit Damage", null]);
+    assert.equal(S.lastParsedL?.weaponName, "Dread");
+    assert.equal(S.lastParsedR, null);
+  });
+});
