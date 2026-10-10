@@ -22,7 +22,7 @@ async function conPaddle(frame, width, height, scale, cropRect, columnas) {
 }
 
 export async function leeRotulosMissionComplete(frame, celdas) {
-    if (!PaddleRepository.listo() || !celdas.length) return null;
+    if (!(motorActivo() === MOTOR_PRECISO ? PaddleRepository.disponible() : PaddleRepository.listo()) || !celdas.length) return null;
     const tiras = celdas.map((c) => ({
         clave: `r${c.row}c${c.col}`,
         sx: c.x, sy: c.y + Math.round(c.h * 0.55), sw: c.w, sh: Math.round(c.h * 0.45),
@@ -68,7 +68,7 @@ export async function leeCasillaMissionComplete(worker, frame, cell, accent, cel
 }
 
 export async function leeRecompensas(frame, width, height, scale, preset, cropRect, columnas, motor = "ambos") {
-    if (motor !== "clasico" && motorActivo() === MOTOR_PRECISO && PaddleRepository.listo()) {
+    if (motor !== "clasico" && motorActivo() === MOTOR_PRECISO && PaddleRepository.disponible()) {
         const red = await conPaddle(frame, width, height, scale, cropRect, columnas)
             .catch((e) => { console.warn("[REWARD] motor preciso falló, sigo con el clásico:", e); return null; });
         if (red?.foundItems.length) return red;

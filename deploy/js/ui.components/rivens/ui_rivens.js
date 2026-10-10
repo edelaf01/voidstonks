@@ -1,5 +1,6 @@
 import { state } from "../../state.js";
 import { cargaScript } from "../../utils/carga_script.js";
+import { seEstaMirando } from "../../utils/shell.js";
 import { renderIndexFilters, indexCountHtml, indexEmptyHtml } from "./ui_riven_index_filters.js";
 import { META_KEYS, EXCLUDED_COMPONENTS, isBaseWeapon, applyIndexFilters } from "../../utils/rivens/riven_index_filter.js";
 import { exposeGlobals } from "../../utils/global_registry.js";
@@ -8,10 +9,11 @@ import {
   _curioEventosDe,
   renderCuriosidades,
   renderCuriosidadesArma,
+  stopCuriosidades,
 } from "./ui_riven_curiosidades.js";
 import { damageMeta } from "../../utils/damage_types.js";
-import { RIVEN_STATS, TEXTS, WORKER_URL } from "../../config.js";
-import { getRivenTooltip, getRivenMetricName } from "../../utils/rivens/riven_tooltips.js";
+import { RIVEN_STATS, TEXTS, WORKER_URL, WFM_RIVENS_HASTA, canBeNegative } from "../../config.js";
+import { getRivenTooltip, getRivenMetricName, fechaWfmRivens } from "../../utils/rivens/riven_tooltips.js";
 import { renderMetaStats, refreshCurrentRivenMetaStats } from "./ui_riven_meta_stats.js";
 import {
   buildAppraisalWarningsHtml,
@@ -22,7 +24,8 @@ import {
   renderMarketChip,
   generateRollResultsDOM,
 } from "./ui_riven_appraisal.js";
-import { computeDesirabilityMultiplier } from "../../services/rivens/riven_appraisal.service.js";
+import { cicloRivenHtml } from "./ui_riven_cycling.js";
+import { computeDesirabilityMultiplier, statsBuscadosDelArma } from "../../services/rivens/riven_appraisal.service.js";
 import { getLocalizedStatName, CANT_BE_NEGATIVE } from "../../utils/rivens/riven_stat_display.js";
 import { extractFamilyName, VARIANT_PREFIXES, VARIANT_SUFFIXES } from "../../utils/rivens/riven_family.js";
 import { getWeaponHistory, getRivenIndex } from "../../services/rivens/riven_index.service.js";
@@ -55,7 +58,7 @@ import {
   statsSinDatoPropio,
   isStatAllowedForWeaponType,
 } from "../../services/rivens/riven_weights.service.js";
-export { normalizeStatName };
+export { normalizeStatName, stopCuriosidades };
 
 globalThis.DEFAULT_WEAPON_SVG = DEFAULT_WEAPON_SVG;
 const DEFAULT_WEAPON_DATA_URL = "data:image/svg+xml;utf8," + encodeURIComponent(DEFAULT_WEAPON_SVG);
@@ -94,7 +97,11 @@ export function populateRivenSelects(weaponType = "Rifle") {
     "ammo_maximum",
     "reload_speed",
     "projectile_flight_speed",
-    "zoom"
+    "zoom",
+    "weak_point_damage",
+    "weak_point_critical_chance",
+    "ammo_efficiency",
+    "magazine_reload_when_holstered"
   ];
 
   const excludedMeleeSlugs = [
@@ -104,7 +111,11 @@ export function populateRivenSelects(weaponType = "Rifle") {
     "chance_to_gain_extra_combo_count",
     "critical_chance_on_slide_attack",
     "heavy_attack_efficiency",
-    "finisher_damage"
+    "finisher_damage",
+    "heavy_attack_damage",
+    "heavy_attack_wind_up_speed",
+    "parry_angle",
+    "slam_attack_damage"
   ];
 
   const filteredStats = RIVEN_STATS.filter((stat) => {
@@ -127,6 +138,7 @@ export function populateRivenSelects(weaponType = "Rifle") {
     fragment.appendChild(defOpt);
 
     filteredStats.forEach((stat) => {
+      if (sel.classList.contains("negative") && !canBeNegative(stat.name_en)) return;
       const opt = document.createElement("option");
       const statName = isSpan ? stat.name_es : stat.name_en;
       opt.value = stat.name_en;
@@ -345,6 +357,7 @@ async function fetchAndRenderHistory(weaponName) {
     }
 
     historyData.sort((a, b) => a.date.localeCompare(b.date));
+    if (WFM_RIVENS_HASTA) historyData.forEach(d => { if (d.date > WFM_RIVENS_HASTA) Object.assign(d, { wfm_avg_price: null, wfm_avg: null, wfm_market_sample: 0, volume: null }); });
 
     historial = { historyData, meta, weaponName };
 
@@ -516,7 +529,7 @@ export function renderHistoryWithRange() {
       datasets: [
         {
           type: "line",
-          label: isEs ? "WFM (Precio Base)" : "WFM (Base Price)",
+          label: WFM_RIVENS_HASTA ? `WFM (${isEs ? "hasta el" : "until"} ${fechaWfmRivens(isEs)})` : (isEs ? "WFM (Precio Base)" : "WFM (Base Price)"),
           data: wfmPrices,
           borderColor: "#00e5ff",
           backgroundColor: "rgba(0, 229, 255, 0.08)",
@@ -560,7 +573,7 @@ export function renderHistoryWithRange() {
           yAxisID: "yVolume",
           barPercentage: 0.4
         },
-        _hitosDataset(weaponName, labels, wfmPrices, isEs)
+        _hitosDataset(weaponName, labels, wfmPrices.map((p, i) => p ?? officialMedians[i]), isEs)
       ]
     },
     options: {
@@ -754,6 +767,7 @@ function renderEmptyShowcase(panel) {
   }
 
   emptyShowcaseInterval = setInterval(() => {
+    if (!seEstaMirando()) return;
     const cardIdxToSwap = Math.floor(Math.random() * 3);
     const card = document.getElementById(`showcase-card-${cardIdxToSwap}`);
     if (!card) return;
@@ -1983,10 +1997,9 @@ export function openRivenMarket() {
     const val = document.getElementById(id)?.value;
     if (!val) return null;
     const internalName = normalizeStatName(val);
-    return (
-      RIVEN_STATS.find((s) => normalizeStatName(s.name_en) === internalName)
-        ?.slug || val
-    );
+    const statDef = RIVEN_STATS.find((s) => normalizeStatName(s.name_en) === internalName);
+    if (statDef?.spliced) return null;
+    return statDef?.slug || val;
   };
 
   const positives = ["rivenStat1", "rivenStat2", "rivenStat3"]
@@ -2493,6 +2506,7 @@ export function calculateModalGrade() {
       warningHtml, isEs, withSimilarButton: true,
       histLoading: !!(state.currentWeaponHistory?.weaponName === weaponName && state.currentWeaponHistory.loading)
     });
+    estCard.insertAdjacentHTML("beforeend", cicloRivenHtml({ stats, meta, tipo: weaponData?.t || meta?.t, deseados: statsBuscadosDelArma(meta, weaponName), rolls: Number.parseInt(document.getElementById("g-rolls")?.value, 10), isEs }));
     gridContainer.appendChild(estCard);
     fragment.appendChild(gridContainer);
 
@@ -3947,7 +3961,7 @@ export function renderRivenIndexList(items, countHtml = "") {
               <!-- Group 2: WEB DATA (WFM ACTIVE SHOWCASE) -->
               <div class="price-group-section wfm-web">
                 <div style="font-size: 10px; color: var(--wf-blue); font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid rgba(0, 229, 255, 0.15); padding-bottom: 2px; margin-bottom: 2px;">
-                  ${isEs ? "DATOS WEB (WFM)" : "WEB DATA (WFM)"}
+                  ${isEs ? "DATOS WEB (WFM)" : "WEB DATA (WFM)"}${WFM_RIVENS_HASTA ? ` · ${fechaWfmRivens(isEs)}` : ""}
                 </div>
                 <span class="index-card-price-span" data-tooltip="${wfmTooltip}" style="cursor: help; display: inline-flex; align-items: center; gap: 4px; height: 100%;">
                   <span class="price-label-small" style="color: #aaa;">${isEs ? "Media Web:" : "Web Avg:"}</span>

@@ -48,6 +48,9 @@ export function nextLatchedContext(prev, raw) {
 
 export const CANCELAN_GRACIA = Object.freeze(["RELICS", "REWARD", "MISSION_COMPLETE"]);
 
+export const CONTEXTOS_RIVEN = Object.freeze(new Set(["INVENTORY_MODS", "ITEM_DETAILS", "RIVEN_DETAILS", "RIVEN_SPLICING"]));
+export const tipoRiven = (contexto) => (CONTEXTOS_RIVEN.has(contexto) ? contexto : "INVENTORY_MODS");
+
 export function enrutaGraciaRiven(raw, graciaActiva, tipoGracia) {
   if (!graciaActiva) return { contexto: raw, cancelar: false };
   if (CANCELAN_GRACIA.includes(raw)) return { contexto: raw, cancelar: true };

@@ -82,7 +82,7 @@ section {
 
 .botones .rotulo {
   min-width: 3.2rem;
-  font-size: 0.66rem;
+  font-size: 0.74rem;
   font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -92,7 +92,7 @@ section {
 .boton {
   flex: 1;
   padding: 0.12rem 0.3rem;
-  font: 700 0.7rem "Segoe UI", system-ui, sans-serif;
+  font: 700 0.78rem "Segoe UI", system-ui, sans-serif;
   letter-spacing: 0.04em;
   color: #c9d1db;
   background: rgba(255, 255, 255, 0.04);
@@ -101,9 +101,23 @@ section {
   cursor: pointer;
 }
 
+.botones.envolver {
+  flex-wrap: wrap;
+}
+
+.botones.envolver .boton {
+  flex: 0 1 auto;
+}
+
 .boton:hover {
   border-color: var(--cian);
   color: #fff;
+}
+
+.boton.lista {
+  color: var(--verde);
+  border-color: rgba(0, 255, 120, 0.55);
+  background: rgba(0, 255, 120, 0.08);
 }
 
 .boton.activo {
@@ -150,28 +164,28 @@ section.igual .panel {
 }
 
 section.igual .titulo {
-  font-size: 0.72rem;
+  font-size: 0.82rem;
   letter-spacing: 0.03em;
 }
 
 section.igual .chip {
-  font-size: 0.64rem;
+  font-size: 0.72rem;
   padding: 0.1rem 0.38rem;
 }
 
 section.igual .chip-valor,
 section.igual .chip-valor-justo {
-  font-size: 0.8rem;
+  font-size: 0.9rem;
   padding: 0.16rem 0.55rem;
 }
 
 section.igual .estado {
-  font-size: 0.64rem;
+  font-size: 0.72rem;
 }
 
 section.igual .lista {
   column-gap: 0.4rem;
-  font-size: 0.74rem;
+  font-size: 0.82rem;
 }
 
 section.igual .precio {
@@ -313,13 +327,13 @@ section.igual .precio {
 }
 
 .panel:has(.rejilla) {
-  max-width: 30vw;
+  max-width: 34vw;
 }
 
 .rejilla {
   display: grid;
   gap: 0.3rem;
-  font-size: 0.72rem;
+  font-size: 0.86rem;
   line-height: 1.2;
 }
 
@@ -339,8 +353,24 @@ section.igual .precio {
 }
 
 .rejilla .nombre {
-  font-weight: 500;
-  overflow-wrap: anywhere;
+  font-weight: 600;
+  overflow-wrap: break-word;
+}
+
+.rejilla .nombre + .dato {
+  font-size: 1.08em;
+}
+
+.rejilla .celda.acento-verde {
+  border-left: 0.2rem solid var(--verde);
+}
+
+.rejilla .celda.acento-cian {
+  border-left: 0.2rem solid var(--cian);
+}
+
+.rejilla .celda.acento-gris {
+  border-left: 0.2rem solid #8a93a0;
 }
 
 .rejilla .dato {

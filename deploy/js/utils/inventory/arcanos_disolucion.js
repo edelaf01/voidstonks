@@ -44,6 +44,13 @@ export function emparejaArcano(texto, tradables, similitud) {
   return null;
 }
 
+export function paginaArcanosBasura({ modoArcanos, reciennacida, calib, lote, reconoce }) {
+  if (!modoArcanos || !reciennacida || !calib?.colorAnchored || !lote) return false;
+  let conTexto = 0, casan = 0;
+  for (const ws of lote.values()) if (ws) { conTexto++; if (reconoce(ws)) casan++; }
+  return conTexto >= 3 && casan * 2 < conTexto;
+}
+
 export function filaArcano({ name, qty, r, c }, meta, veredicto) {
   const maxRank = maxRankOf(meta);
   const copiesMax = copiesForMaxRank(meta);
@@ -79,10 +86,10 @@ const pl = (v) => (v > 0 ? `${v >= 10 ? Math.round(v) : Math.round(v * 10) / 10}
 
 export function lineasArcano(f, t) {
   return [
-    { texto: f.name },
+    { texto: String(f.name || "").replace(/^Arcane /, "") },
+    veredictoArcano(f, t),
     { texto: f.rangosMax > 0 ? `${f.qty} · ${f.rangosMax}×R${f.maxRank}` : String(f.qty) },
     { texto: `R0 ${pl(f.precioR0)}`, tono: "oro" },
     { texto: `R${f.maxRank} ${pl(f.precioMax)}`, tono: "oro" },
-    veredictoArcano(f, t),
   ];
 }

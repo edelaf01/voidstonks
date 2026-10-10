@@ -8,7 +8,7 @@ import { decodePng } from "./_helpers/png.mjs";
 
 installFakeDocument();
 const { OCRService } = await import("../deploy/js/services/scanner/ocr.service.js");
-const { emparejaArcano, filaArcano, esContextoArcanos, tirasDeNombreArcano, rejillaArcanos } = await import("../deploy/js/utils/inventory/arcanos_disolucion.js");
+const { emparejaArcano, filaArcano, esContextoArcanos, tirasDeNombreArcano, rejillaArcanos, paginaArcanosBasura } = await import("../deploy/js/utils/inventory/arcanos_disolucion.js");
 const { firmaTexto, mismoTexto } = await import("../deploy/js/utils/vision/frame_hash.js");
 
 test("esContextoArcanos", () => {
@@ -99,4 +99,30 @@ test("filaArcano lleva la posición y los precios de R0 y rango máximo del vere
   const f = filaArcano({ slug: "a", name: "A", qty: 30, r: 2, c: 4 }, meta, { bestAction: "sell_max", sell: 3.5, sellR5: 90 });
   assert.deepEqual([f.r, f.c, f.precioR0, f.precioMax, f.accion], [2, 4, 3.5, 90, "sell_max"]);
   assert.deepEqual([filaArcano({ name: "B", qty: 1 }, meta, null).precioR0, filaArcano({ name: "B", qty: 1 }, meta, null).accion], [null, "pending"]);
+});
+
+test("lineasArcano: nombre sin el prefijo Arcane y el veredicto justo debajo", async () => {
+  const { lineasArcano } = await import("../deploy/js/utils/inventory/arcanos_disolucion.js");
+  const t = { vosfor: { verdictSell: "Vender", verdictSellR0: "Vender R0", verdictDissolve: "Disolver", verdictEven: "Conservar" } };
+  const l = lineasArcano({ name: "Arcane Grace", qty: 21, maxRank: 5, rangosMax: 1, accion: "sell_max", precioR0: 4.5, precioMax: 120 }, t);
+  assert.equal(l[0].texto, "Grace");
+  assert.deepEqual(l[1], { texto: "Vender R5", tono: "verde" });
+  assert.equal(l.length, 5);
+});
+
+test("paginaArcanosBasura: solo con rejilla recién anclada por color, lote, al menos 3 celdas con texto y menos de la mitad casando", () => {
+  const reconoce = (ws) => ws[0] === "ARCANE";
+  const lote = (...filas) => new Map(filas.map((ws, i) => [`r0c${i}`, ws]));
+  const base = { modoArcanos: true, reciennacida: true, calib: { colorAnchored: true }, reconoce };
+  const basura = lote(["ARCANE", "GRACE"], ["ZZ"], ["QQ"], ["XX"]);
+
+  assert.equal(paginaArcanosBasura({ ...base, lote: basura }), true);
+  assert.equal(paginaArcanosBasura({ ...base, modoArcanos: false, lote: basura }), false);
+  assert.equal(paginaArcanosBasura({ ...base, reciennacida: false, lote: basura }), false);
+  assert.equal(paginaArcanosBasura({ ...base, calib: {}, lote: basura }), false);
+  assert.equal(paginaArcanosBasura({ ...base, calib: null, lote: basura }), false);
+  assert.equal(paginaArcanosBasura({ ...base, lote: null }), false);
+  assert.equal(paginaArcanosBasura({ ...base, lote: lote(["ZZ"], ["QQ"]) }), false);
+  assert.equal(paginaArcanosBasura({ ...base, lote: lote(["ARCANE", "A"], ["ARCANE", "B"], ["ZZ"], ["QQ"]) }), false);
+  assert.equal(paginaArcanosBasura({ ...base, lote: lote(["ARCANE", "A"], null, ["ZZ"], null, ["QQ"], null, ["XX"]) }), true);
 });
