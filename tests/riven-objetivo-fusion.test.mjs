@@ -9,16 +9,18 @@ globalThis.localStorage = {
 };
 const CLAVE = "voidstonks_objetivo_fusion";
 const RUTA = "../deploy/js/utils/rivens/riven_objetivo_fusion.js";
-const { objetivoFusion, fijaObjetivoFusion, opcionesDeCartas, botonesDeCartas } = await import(RUTA);
+const ROTOS = ["{no es json", "[3, 4]", "null"];
+const frescos = {};
+for (const q of [...ROTOS, "valido"]) frescos[q] = await import(`${RUTA}?${encodeURIComponent(q)}`);
+const { objetivoFusion, fijaObjetivoFusion, opcionesDeCartas, botonesDeCartas } = await import("../deploy/js/utils/rivens/riven_objetivo_fusion.js");
 
-test("lo guardado roto o que no es un objeto se trata como vacío", async () => {
-    for (const roto of ["{no es json", "[3, 4]", "null"]) {
+test("lo guardado roto o que no es un objeto se trata como vacío", () => {
+    for (const roto of ROTOS) {
         guardado.set(CLAVE, roto);
-        const modulo = await import(`${RUTA}?${encodeURIComponent(roto)}`);
-        assert.equal(modulo.objetivoFusion("Rubico"), null, roto);
+        assert.equal(frescos[roto].objetivoFusion("Rubico"), null, roto);
     }
     guardado.set(CLAVE, JSON.stringify({ Rubico: 3, Soma: 999, Braton: "3" }));
-    const modulo = await import(`${RUTA}?valido`);
+    const modulo = frescos.valido;
     assert.equal(modulo.objetivoFusion("Rubico"), 3);
     assert.equal(modulo.objetivoFusion("Soma"), null, "un índice que no es una receta no vale");
     assert.equal(modulo.objetivoFusion("Braton"), null, "un índice en texto no vale");
