@@ -1,12 +1,21 @@
 import { claveStat } from "./riven_cycling.js";
 
 let _carga = null;
+let _de10 = null;
 
 const PREFIJOS_FAMILIA = ["coda_", "kuva_", "tenet_", "prisma_", "dex_", "carmine_", "telos_", "synoid_", "secura_", "rakta_", "sancti_", "mara_", "vaykor_"];
 const SUFIJOS_FAMILIA = ["_prime", "_vandal", "_wraith", "_coda"];
 const ALIAS_FAMILIA = { dex_furis: "furis", dex_afuris: "afuris", pangolin: "pangolin_sword", pangolin_prime: "pangolin_sword", pangolin_sword: "pangolin_sword", dual_decurions: "dual_decurion", prisma_dual_decurions: "dual_decurion" };
 const POP_FIABLE = 3;
-const MIN_INDICE = 20;
+const K_L = 3;
+const K_S = 5;
+const RHO = 0.7;
+const CLASE = { Sniper: "Rifle", Bow: "Rifle", Launcher: "Rifle", "Companion Weapon": "Rifle", "Dual Pistols": "Pistol", Throwing: "Pistol", "Zaw Component": "Melee" };
+const NORMAL_A = [-3.969683028665376e+01, 2.209460984245205e+02, -2.759285104469687e+02, 1.383577518672690e+02, -3.066479806614716e+01, 2.506628277459239e+00];
+const NORMAL_B = [-5.447609879822406e+01, 1.615858368580409e+02, -1.556989798598866e+02, 6.680131188771972e+01, -1.328068155288572e+01];
+const NORMAL_C = [-7.784894002430293e-03, -3.223964580411365e-01, -2.400758277161838e+00, -2.549732539343734e+00, 4.374664141464968e+00, 2.938163982698783e+00];
+const NORMAL_D = [7.784695709041462e-03, 3.224671290700398e-01, 2.445134137142996e+00, 3.754408661907416e+00];
+const NORMAL_BAJO = 0.02425;
 
 export function slugArma(nombre) {
     return String(nombre ?? "").toLowerCase().trim().replace(/&/g, "and").replace(/[\s-]+/g, "_").replace(/[^a-z0-9_]/g, "").replace(/_+/g, "_");
@@ -48,6 +57,25 @@ export function cargarNivelTirada() {
             });
     }
     return _carga;
+}
+
+export function cargarDe10() {
+    if (_de10 === null) {
+        _de10 = fetch("assets/ml/de10.json")
+            .then(r => {
+                if (!r.ok) throw new Error(String(r.status));
+                return r.json();
+            })
+            .then(d => {
+                if (!d || !d.familias || !d.mu || !d.mu.l || !d.mu.s) throw new Error("de10");
+                return d;
+            })
+            .catch(() => {
+                _de10 = null;
+                return null;
+            });
+    }
+    return _de10;
 }
 
 export function prepararNivelTirada(datos) {
@@ -209,13 +237,12 @@ export function recorrerArboles(base, arboles, x) {
     return suma;
 }
 
-export function registroSinWfm(modelo, deMed, dispo, tipo, pop = 0) {
+export function registroSinWfm(modelo, nivel, dispo, tipo) {
     const sin = modelo?.sin_wfm;
-    if (!sin || !(deMed > 0) || !(dispo > 0)) return null;
+    if (!sin || !Number.isFinite(nivel) || !(dispo > 0)) return null;
     const escalar = (refs) => Object.fromEntries(Object.entries(refs).map(([s, r]) => [s, r * dispo]));
     return {
-        nivel: pop >= POP_FIABLE ? Math.log(deMed) : sin.nivel[0] * Math.log(deMed) + sin.nivel[1],
-        cola: pop >= POP_FIABLE ? (sin.cola_de ?? 1) : 1,
+        nivel,
         log_n: sin.log_n,
         tipo: tipo ?? null,
         ref_pos: escalar(sin.ref_pos),
@@ -223,20 +250,96 @@ export function registroSinWfm(modelo, deMed, dispo, tipo, pop = 0) {
     };
 }
 
-export function indiceDE(modelo, metas) {
-    const ref = modelo?.sin_wfm?.de_ref;
-    if (!ref || !metas) return 0;
-    const ratios = [];
-    for (const [arma, r] of Object.entries(ref)) {
-        const re = metas[arma]?.de_rerolled;
-        if (r > 0 && re && (re.pop || 0) >= POP_FIABLE && re.median > 0) {
-            ratios.push(Math.log(re.median / r));
-        }
+export function claveFamilia(nombre, tabla) {
+    if (!tabla || nombre == null) return null;
+    const s = slugArma(nombre);
+    const b = baseFamilia(s);
+    if (Object.hasOwn(tabla, b)) return b;
+    return Object.hasOwn(tabla, s) ? s : null;
+}
+
+export function claseArma(tipo) {
+    return tipo ? (CLASE[tipo] ?? tipo) : null;
+}
+
+const tramoDe10 = (pop10) => pop10 < 1.5 ? "<1.5" : pop10 < 3 ? "1.5-3" : ">=3";
+
+export function filaDe10(de10, nombre, deVivo = null) {
+    if (!de10) return null;
+    const familia = claveFamilia(nombre, de10.familias);
+    if (familia) return de10.familias[familia];
+    const med = Number(deVivo?.median);
+    if (!(med > 0)) return [de10.mu.l["<1.5"], de10.mu.s["<1.5"], 0, 0, 0];
+    const pop = Number(deVivo.pop) || 0;
+    const t = tramoDe10(pop / 10);
+    const w = Math.max(pop, 0.5);
+    const sd = Number(deVivo.stddev) || 0;
+    const s = Math.sqrt(Math.log((1 + Math.sqrt(1 + 4 * (sd / med) ** 2)) / 2));
+    return [
+        (w * Math.log(med) + K_L * (de10.mu.l[t] ?? de10.mu.l["<1.5"])) / (w + K_L),
+        (w * s + K_S * (de10.mu.s[t] ?? de10.mu.s["<1.5"])) / (w + K_S),
+        Number(deVivo.max_price) || 0,
+        pop / 10,
+        1
+    ];
+}
+
+export function nivelSinWfm(modelo, nombre, fila) {
+    const familia = claveFamilia(nombre, modelo?.nivel_pool);
+    if (familia) return modelo.nivel_pool[familia];
+    const sin = modelo?.sin_wfm;
+    if (!sin || !fila) return NaN;
+    return fila[3] >= POP_FIABLE ? fila[0] : sin.nivel[0] * fila[0] + sin.nivel[1];
+}
+
+export function poblacionTirada(modelo, nombre, tipo) {
+    if (!modelo) return null;
+    for (const tabla of [modelo.pob, modelo.pool]) {
+        const familia = claveFamilia(nombre, tabla);
+        if (familia) return tabla[familia];
     }
-    if (ratios.length < MIN_INDICE) return 0;
-    ratios.sort((a, b) => a - b);
-    const mid = Math.floor(ratios.length / 2);
-    return ratios.length % 2 !== 0 ? ratios[mid] : (ratios[mid - 1] + ratios[mid]) / 2;
+    const clase = claseArma(tipo);
+    return clase && modelo.pool_clase && Object.hasOwn(modelo.pool_clase, clase) ? modelo.pool_clase[clase] : null;
+}
+
+export function percentilTirada(poblacion, r) {
+    if (!Array.isArray(poblacion) || poblacion.length < 3 || !Number.isFinite(r)) return 0.5;
+    const n = Math.max(1, poblacion[0]);
+    const q = poblacion.slice(1);
+    const k = q.length - 1;
+    let izq = 0;
+    while (izq <= k && q[izq] < r) izq++;
+    let der = izq;
+    while (der <= k && q[der] === r) der++;
+    let u;
+    if (der > izq) u = (izq + der - 1) / 2 / k;
+    else if (izq === 0) u = 0;
+    else if (izq > k) u = 1;
+    else u = (izq - 1 + (r - q[izq - 1]) / (q[izq] - q[izq - 1])) / k;
+    return Math.min(1 - 0.5 / n, Math.max(0.5 / n, u));
+}
+
+const polinomio = (coef, x) => coef.reduce((suma, c) => suma * x + c, 0);
+
+export function cuantilNormal(p) {
+    if (!(p > 0)) return -Infinity;
+    if (!(p < 1)) return Infinity;
+    if (p < NORMAL_BAJO || p > 1 - NORMAL_BAJO) {
+        const q = Math.sqrt(-2 * Math.log(Math.min(p, 1 - p)));
+        const x = polinomio(NORMAL_C, q) / (polinomio(NORMAL_D, q) * q + 1);
+        return p < NORMAL_BAJO ? x : -x;
+    }
+    const q = p - 0.5;
+    const r = q * q;
+    return polinomio(NORMAL_A, r) * q / (polinomio(NORMAL_B, r) * r + 1);
+}
+
+export function preciosDe10(fila, u, cuantiles, rho = RHO) {
+    const [l10, s10, max10] = fila;
+    const z = cuantilNormal(u);
+    const resto = Math.sqrt(1 - rho * rho);
+    const techo = max10 > 0 ? Math.log(max10) : Infinity;
+    return cuantiles.map(q => Math.exp(Math.min(l10 + s10 * (rho * z + resto * cuantilNormal(q)), techo)));
 }
 
 export function residuosTirada(modelo, arma, positivos, negativo, registro = null) {

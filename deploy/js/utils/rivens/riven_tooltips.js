@@ -58,6 +58,13 @@ export function fechaWfmRivens(isEs) {
     .toLocaleDateString(isEs ? "es-ES" : "en-US", { day: "numeric", month: "short", timeZone: "UTC" });
 }
 
+export function rotuloBanda(fuente, isEs) {
+  if (fuente !== "de10") return isEs ? { corto: "IA", largo: "Según la IA" } : { corto: "AI", largo: "Per the AI" };
+  return isEs
+    ? { corto: "DE 10 sem", largo: "Lo que se vendió según DE en 10 semanas" }
+    : { corto: "DE 10 wk", largo: "What sold according to DE over 10 weeks" };
+}
+
 export function getRivenTooltip(key, isEs) {
   const t = RIVEN_TOOLTIPS[key];
   if (!t) return "";
