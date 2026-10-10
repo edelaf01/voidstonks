@@ -1037,6 +1037,79 @@
     margin: 6px 0 2px;
 }
 
+.riven-ciclo-select {
+    width: 100%;
+    margin: 2px 0 4px;
+    padding: 3px 6px;
+    font: inherit;
+    color: var(--riven-text-main);
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(155, 89, 182, 0.45);
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.riven-ciclo-select option {
+    color: #e0e0e0;
+    background: #15121c;
+}
+
+.riven-ciclo-select optgroup {
+    color: #b39aff;
+    background: #15121c;
+    font-style: normal;
+}
+
+.riven-ciclo-select option.lista {
+    color: #00ff78;
+}
+
+.riven-ciclo-select option.otra {
+    color: #8a8f98;
+}
+
+.riven-combinar-carta {
+    margin-top: 6px;
+    padding-top: 4px;
+    border-top: 1px dashed rgba(155, 89, 182, 0.35);
+    font-size: 0.75em;
+}
+
+.riven-combinar-lista,
+.riven-combinar-paso {
+    display: flex;
+    justify-content: space-between;
+    gap: 6px;
+    padding: 1px 0;
+}
+
+.riven-combinar-lista span {
+    color: #b39aff;
+    font-weight: 700;
+}
+
+.riven-combinar-paso span {
+    color: var(--riven-text-main);
+}
+
+.riven-combinar-lista strong,
+.riven-combinar-paso strong {
+    color: var(--riven-text-dim);
+    white-space: nowrap;
+}
+
+.riven-combinar-carta .ok {
+    color: #00ff78;
+}
+
+.riven-combinar-carta .mal {
+    color: #ffb300;
+}
+
+.riven-combinar-carta .tenue {
+    color: var(--riven-text-dim);
+}
+
 .riven-ciclo-fila {
     display: flex;
     justify-content: space-between;
@@ -1112,4 +1185,9 @@
 
 .riven-ciclo-receta strong {
     color: #b39aff;
+}
+
+.riven-ciclo-receta small {
+    display: block;
+    opacity: .8;
 }

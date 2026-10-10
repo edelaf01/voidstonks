@@ -7,7 +7,7 @@
 
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { nextLatchedContext, INITIAL_LATCH, enrutaGraciaRiven, intervaloCabecera, INTERVALO_FIN_MISION_MS, CADUCIDAD_CABECERA_MS, FRACCION_TITULO, tituloHaCambiado } from "../deploy/js/utils/vision/context_latch.js";
+import { nextLatchedContext, INITIAL_LATCH, enrutaGraciaRiven, CONTEXTOS_RIVEN, tipoRiven, intervaloCabecera, INTERVALO_FIN_MISION_MS, CADUCIDAD_CABECERA_MS, FRACCION_TITULO, tituloHaCambiado } from "../deploy/js/utils/vision/context_latch.js";
 
 /** Pasa una secuencia de contextos crudos y devuelve el enganchado tras cada uno. */
 function correr(secuencia, inicial = INITIAL_LATCH) {
@@ -187,4 +187,11 @@ test("en fin de misión, con el contexto asentado, la cabecera se relee cada 3 s
   assert.equal(intervaloCabecera(3, "MISSION_COMPLETE"), INTERVALO_FIN_MISION_MS);
   assert.equal(intervaloCabecera(1, "MISSION_COMPLETE"), intervaloCabecera(1), "recién entrado, el ritmo normal: aún hay que confirmar");
   assert.equal(intervaloCabecera(3, "REWARD"), intervaloCabecera(3), "las recompensas duran 15 s: ahí no se relaja");
+});
+
+test("el splice de rivens es una pantalla de riven y conserva su tipo", () => {
+  assert.ok(CONTEXTOS_RIVEN.has("RIVEN_SPLICING"));
+  assert.equal(tipoRiven("RIVEN_SPLICING"), "RIVEN_SPLICING");
+  assert.equal(tipoRiven("RIVEN_DETAILS"), "RIVEN_DETAILS");
+  assert.equal(tipoRiven("UNKNOWN"), "INVENTORY_MODS");
 });

@@ -5,7 +5,8 @@ import { exposeGlobals } from "../utils/global_registry.js";
 import { aplicaMotor, estadoMotor, MOTOR_PRECISO } from "../services/scanner/ocr_engine.service.js";
 import { avisaContexto } from "./ui_scanner_coach.js";
 import { avisa, escucha } from "../utils/ganchos.js";
-import { esContextoArcanos, rejillaArcanos, lineasArcano } from "../utils/inventory/arcanos_disolucion.js";
+import { esContextoArcanos } from "../utils/inventory/arcanos_disolucion.js";
+import { panelArcanos } from "../utils/overlay_paneles.js";
 
 /**
  * Component for the Scanner HUD (status badges, counters, scroll guides).
@@ -39,6 +40,9 @@ export const ScannerHUD = {
         } else if (contextType === "TRADE") {
             if (hud) hud.style.display = "block";
             this.setUIBadge(badge, sh.statusTrade, "#00e5ff", "rgba(0,229,255,0.4)", "rgba(0,229,255,0.1)");
+        } else if (esContextoArcanos(contextType)) {
+            if (hud) hud.style.display = "block";
+            this.setUIBadge(badge, sh.statusArcanes, "#00e5ff", "rgba(0,229,255,0.3)", "rgba(0,229,255,0.1)");
         } else if (state.squadRun) {
             // El panel del run vive DENTRO de este HUD, y esta función corre en cada frame:
             // durante una misión el contexto es UNKNOWN, así que sin esta rama el HUD se
@@ -48,16 +52,14 @@ export const ScannerHUD = {
             this.setUIBadge(badge, sh.statusSquad, "#00e5ff", "rgba(0,229,255,0.4)", "rgba(0,229,255,0.1)");
         } else {
             if (hud) hud.style.display = "none";
-            if (contextType === "INVENTORY_MODS") {
+            if (contextType === "INVENTORY_MODS" || contextType === "RIVEN_SPLICING") {
                 this.setUIBadge(badge, "MODS", "#d060ff", "rgba(208,96,255,0.4)", "rgba(208,96,255,0.1)");
             } else if (contextType === "RELICS") {
                 this.setUIBadge(badge, sh.statusRelics, "#00e5ff", "rgba(0,229,255,0.3)", "rgba(0,229,255,0.1)");
-            } else if (esContextoArcanos(contextType)) {
-                this.setUIBadge(badge, sh.statusArcanes, "#00e5ff", "rgba(0,229,255,0.3)", "rgba(0,229,255,0.1)");
             } else if (contextType === "REWARD") {
                 this.setUIBadge(badge, sh.statusReward, "#a0ff80", "rgba(160,255,128,0.3)", "rgba(160,255,128,0.08)");
-            } else if (contextType === "LOG_WAIT") {
-                this.setUIBadge(badge, sh.statusLogWait, "#8a93a0", "rgba(138,147,160,0.3)", "rgba(138,147,160,0.08)");
+            } else if (contextType === "LOG_WAIT" || contextType === "GAME_HIDDEN") {
+                this.setUIBadge(badge, contextType === "GAME_HIDDEN" ? sh.statusGameHidden : sh.statusLogWait, "#8a93a0", "rgba(138,147,160,0.3)", "rgba(138,147,160,0.08)");
             }
         }
     },
@@ -91,30 +93,29 @@ export const ScannerHUD = {
     updateArcanos(filas) {
         const panel = document.getElementById("arcane-panel");
         if (!panel) return;
-        const clave = JSON.stringify(filas);
+        const clave = JSON.stringify(filas) + state.currentLang;
         if (clave === this._ultimosArcanos) return;
         this._ultimosArcanos = clave;
         panel.replaceChildren();
-        panel.style.display = filas.length ? "" : "none";
-        if (!filas.length) return;
-        const t = TEXTS[state.currentLang];
-        const titulo = document.createElement("div");
-        titulo.className = "kiosk-title";
-        titulo.textContent = t.scannerHUD.statusArcanes;
-        panel.appendChild(titulo);
-        const span = (clase, texto) => Object.assign(document.createElement("span"), { className: clase, textContent: texto });
-        const rejilla = document.createElement("div");
-        rejilla.className = "arcane-grid";
-        for (const f of rejillaArcanos(filas).celdas) {
-            const celda = document.createElement("div");
-            celda.className = f ? "arcane-cell" : "arcane-cell arcane-empty";
-            if (f) {
-                lineasArcano(f, t).forEach(({ texto, tono }, i) =>
-                    celda.appendChild(span(i ? `arcane-line arcane-${tono || "gris"}` : "arcane-name", texto)));
+        const modelo = panelArcanos(filas, TEXTS[state.currentLang]);
+        panel.style.display = modelo ? "" : "none";
+        if (!modelo) return;
+        const nodo = (etiqueta, clase, texto) => Object.assign(document.createElement(etiqueta), { className: clase, textContent: texto ?? "" });
+        for (const b of modelo.bloques) {
+            if (b.tipo === "titulo") {
+                panel.appendChild(nodo("div", "kiosk-title", b.texto));
+                continue;
             }
-            rejilla.appendChild(celda);
+            const rejilla = nodo("div", "arcane-grid");
+            rejilla.style.gridTemplateColumns = `repeat(${b.cols}, minmax(0, 1fr))`;
+            for (const c of b.celdas) {
+                const celda = nodo("div", c ? `arcane-cell arcane-acento-${c.tono}` : "arcane-cell arcane-empty");
+                c?.lineas.forEach(({ texto, tono }, i) =>
+                    celda.appendChild(nodo("span", i ? `arcane-line arcane-${tono || "gris"}` : "arcane-name", texto)));
+                rejilla.appendChild(celda);
+            }
+            panel.appendChild(rejilla);
         }
-        panel.appendChild(rejilla);
     },
 
     /** Lo que hay en la mesa del Trading Post ({ doy, recibo }); sin mesa, el bloque se esconde. */

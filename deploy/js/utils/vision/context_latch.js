@@ -83,6 +83,9 @@ export function nextLatchedContext(prev, raw) {
  */
 export const CANCELAN_GRACIA = Object.freeze(["RELICS", "REWARD", "MISSION_COMPLETE"]);
 
+export const CONTEXTOS_RIVEN = Object.freeze(new Set(["INVENTORY_MODS", "ITEM_DETAILS", "RIVEN_DETAILS", "RIVEN_SPLICING"]));
+export const tipoRiven = (contexto) => (CONTEXTOS_RIVEN.has(contexto) ? contexto : "INVENTORY_MODS");
+
 /**
  * A dónde va el frame teniendo en cuenta la gracia de rivens.
  *

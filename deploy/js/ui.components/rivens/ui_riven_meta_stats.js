@@ -1,7 +1,7 @@
 import { state } from "../../state.js";
 import { TEXTS } from "../../config.js";
 import { escapeHTML } from "../../utils/escape_html.js";
-import { getRivenTooltip, getRivenMetricName } from "../../utils/rivens/riven_tooltips.js";
+import { getRivenTooltip, getRivenMetricName, fechaWfmRivens } from "../../utils/rivens/riven_tooltips.js";
 import { getLocalizedStatName, CANT_BE_NEGATIVE } from "../../utils/rivens/riven_stat_display.js";
 import { extractFamilyName } from "../../utils/rivens/riven_family.js";
 import { nivelVolatilidad, etiquetaVolatilidad, textoExtraPorCiclar } from "../../utils/rivens/riven_metrics.js";
@@ -348,7 +348,7 @@ export function renderMetaStats(weaponName, weaponType, targetId = "meta-stats-c
     // de WFM son precios PEDIDOS, ~13× las ventas reales: si no lo pone, se lee como valor de mercado.
     const priceRows =
       row(isEs ? "Venta real · sin ciclar" : "Real sale · unrolled", officialPrice, baseTooltip, "real") +
-      row(isEs ? "Piden en WFM" : "Asking on WFM", `${wfmPrice}${sample !== "N/A" ? ` · ${sample}` : ""}`, premiumTooltip, "ask") +
+      row(`${isEs ? "Piden en WFM" : "Asking on WFM"}${fechaWfmRivens(isEs) ? ` (${fechaWfmRivens(isEs)})` : ""}`, `${wfmPrice}${sample !== "N/A" ? ` · ${sample}` : ""}`, premiumTooltip, "ask") +
       (rangeText ? row(isEs ? "Rango de lo que piden" : "Asking range", rangeText, premiumTooltip, "ask") : "") +
       (hasOfficial ? row(getRivenMetricName("risk", isEs), `<span style="color:${etiquetaVol.color}">${etiquetaVol.riesgo}</span>${nivelVol ? ` <span style="color:#666;font-weight:400;">σ${stddevVal}p</span>` : ""}`, etiquetaVol.tooltip) : "");
 

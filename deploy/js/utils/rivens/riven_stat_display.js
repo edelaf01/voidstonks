@@ -1,5 +1,5 @@
 import { state } from "../../state.js";
-import { canBeNegative } from "../../config.js";
+import { canBeNegative, resolveBaseStatKey } from "../../config.js";
 
 // Los dos adaptadores que comparten el tasador, el índice y la ficha de meta-stats para
 // enseñar y filtrar stats. El conocimiento de fondo vive en config.js; aquí solo se traduce a
@@ -39,7 +39,24 @@ const LOCALIZED_STAT_NAMES_MAP = {
   "Heavy Attack Efficiency": "Eficiencia de Ataque Pesado",
   "Heavy Attack Damage": "Daño de Ataque Pesado",
   "Channeling Damage": "Combo Inicial",
-  "Channeling Efficiency": "Eficiencia de Ataque Pesado"
+  "Channeling Efficiency": "Eficiencia de Ataque Pesado",
+  "Weak Point Damage": "Daño a Punto Débil",
+  "Weak Point Critical Chance": "Prob. Crítica en Punto Débil",
+  "Ammo Efficiency": "Eficiencia de Munición",
+  "Magazine Reload when Holstered": "Recarga al Enfundar",
+  "Status Damage": "Daño de Estado",
+  "Gas": "Gas",
+  "Corrosive": "Corrosivo",
+  "Viral": "Viral",
+  "Radiation": "Radiación",
+  "Blast": "Explosión",
+  "Magnetic": "Magnético",
+  "Damage to Orokin": "Daño a Orokin",
+  "Damage to Techrot": "Daño a Techrot",
+  "Damage to Scaldra": "Daño a Scaldra",
+  "Heavy Attack Wind Up Speed": "Vel. Carga Ataque Pesado",
+  "Parry Angle": "Ángulo de Bloqueo",
+  "Slam Attack Damage": "Daño de Ataque Terrestre"
 };
 
 export function getLocalizedStatName(nameEn) {
@@ -69,6 +86,16 @@ export function statUnit(statName) {
   const norm = String(statName || "").trim().toLowerCase();
   if (norm === "punch through") return "m";
   if (norm === "combo duration") return "s";
-  if (norm === "initial combo" || norm === "channeling damage") return "";
+  if (norm === "initial combo" || norm === "channeling damage" || norm === "parry angle") return "";
   return "%";
+}
+
+export function textoDelStat(stat, typeIdx) {
+  const nombre = resolveBaseStatKey(stat.name, typeIdx);
+  if (/^Damage to /.test(nombre)) {
+    const mult = 1 + (stat.isPositive ? stat.value : -stat.value) / 100;
+    return `x${Number(mult.toFixed(2))} ${nombre}`;
+  }
+  const signo = stat.isPositive !== /^recoil$/i.test(nombre) ? "+" : "-";
+  return `${signo}${stat.value}${statUnit(nombre)} ${nombre}`;
 }

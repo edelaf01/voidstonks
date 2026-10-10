@@ -885,6 +885,10 @@
 #arcane-panel .arcane-verde { color: #00ff78; font-weight: 700; }
 #arcane-panel .arcane-cian { color: #00e5ff; font-weight: 700; }
 #arcane-panel .arcane-gris { color: #8a93a0; }
+#arcane-panel .arcane-acento-verde { border-left: 2px solid #00ff78; }
+#arcane-panel .arcane-acento-cian { border-left: 2px solid #00e5ff; }
+#arcane-panel .arcane-acento-gris { border-left: 2px solid #8a93a0; }
+#inv-hud:has(#arcane-panel .arcane-grid) { width: min(600px, calc(100vw - 40px)); }
 
 #trade-panel {
     margin: 0 10px 8px;

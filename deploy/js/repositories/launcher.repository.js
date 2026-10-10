@@ -28,3 +28,7 @@ export function seguirEELogDelLanzador({ cola = 0, alLeer, alEstado }) {
   if (!puente()) return () => {};
   return puente().seguirEELog(cola, (nombre, datos) => (nombre === "lineas" ? alLeer(datos.split("\n")) : alEstado?.(nombre, datos)));
 }
+
+export function seguirJuegoDelLanzador(alCambio) {
+  return puente()?.seguirJuego?.(alCambio) || (() => {});
+}

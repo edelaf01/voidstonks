@@ -1,6 +1,7 @@
 import { RIVEN_BASE_STATS, WEAPON_TYPE_IDX, RIVEN_WEIGHTS, resolveBaseStatKey } from "../../config.js";
 import { state } from "../../state.js";
 import { statUnit } from "./riven_stat_display.js";
+import { tipoDeArma, esFusionado, pesoFusionado } from "./riven_cycling.js";
 
 /**
  * Calculate the grade for a single Riven stat.
@@ -197,27 +198,18 @@ export function calculateRivenPotential(val) {
 // Alpha grows with liquidity (full trust at ≥25), so low-volume weapons lean on the baseline.
 function resolveStatWeight(nameLower, weapon, weaponData, statBaseline) {
   const dw = (weapon && weapon.dynamic_weights) || (weaponData && weaponData.dynamic_weights);
-  let ownWeight = null;
-  if (dw && typeof dw === "object") {
-    const key = Object.keys(dw).find(k => {
+  const tipo = tipoDeArma((weaponData && weaponData.t) || (weapon && weapon.t));
+  const pesoDe = (tabla) => {
+    if (esFusionado(nameLower, tipo)) return pesoFusionado(nameLower, tabla, tipo);
+    if (!tabla || typeof tabla !== "object") return null;
+    const key = Object.keys(tabla).find(k => {
       const kl = k.toLowerCase();
       return kl === nameLower || nameLower.includes(kl) || kl.includes(nameLower);
     });
-    if (key !== undefined && dw[key] !== null && dw[key] !== undefined) {
-      ownWeight = parseFloat(dw[key]);
-    }
-  }
-
-  let baseWeight = null;
-  if (statBaseline && typeof statBaseline === "object") {
-    const key = Object.keys(statBaseline).find(k => {
-      const kl = k.toLowerCase();
-      return kl === nameLower || nameLower.includes(kl) || kl.includes(nameLower);
-    });
-    if (key !== undefined && statBaseline[key] !== null && statBaseline[key] !== undefined) {
-      baseWeight = parseFloat(statBaseline[key]);
-    }
-  }
+    return key !== undefined && tabla[key] !== null && tabla[key] !== undefined ? parseFloat(tabla[key]) : null;
+  };
+  const ownWeight = pesoDe(dw);
+  const baseWeight = pesoDe(statBaseline);
 
   const liquidity = (weapon && weapon.liquidity_score) || (weaponData && weaponData.liquidity_score) || 0;
   const alpha = Math.min(1, liquidity / 25);
@@ -949,9 +941,9 @@ export function calculateHybridTiers(weapon, weaponHistory = null) {
  *   - ratio = asks WFM vivos / precio central robusto (mediana histórica 1 mes, band.typical).
  *     ~1.5–3 = sano; >=8 = listings inflados muy por encima del valor real (burbuja).
  *   - vol_dia = listings/día (liquidez estable, del historial).
- *   - trend = momentum % (últimos 7d vs primeros 7d).
+ *   - trend = cambio % en 7 días de la mediana oficial de DE (trend_7d_pct).
  * @param {object} meta   objeto de arma (/api/rivens): wfm_avg, official_median, band...
- * @param {object} [band] price band servida (typical=hist_med, vol_dia, trend). Si falta, usa meta.band.
+ * @param {object} [band] price band servida (typical=hist_med, vol_dia). Si falta, usa meta.band.
  * @returns {{flag:string,label:string,emoji:string,ratio:number,vol:number,trend:number,advice:string}|null}
  */
 export function classifyWeaponMarket(meta, band = null) {
@@ -973,7 +965,7 @@ export function classifyWeaponMarket(meta, band = null) {
   let typical = refFiable ? _deReMed : (b.typical || meta.official_median || 0);
   const wfm = meta.wfm_avg_price || meta.wfm_avg || 0;
   const vol = b.vol_dia != null ? b.vol_dia : (meta.wfm_market_sample || 0);
-  const trend = b.trend != null ? b.trend : (meta.trend_7d_pct || 0);
+  const trend = meta.trend_7d_pct || 0;
 
   // band.typical viene de la banda servida (snapshot al init); si tenemos el historial semanal
   // en vivo del arma, mezclamos su mediana de trades reales para que la clasificación

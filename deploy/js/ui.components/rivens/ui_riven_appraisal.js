@@ -11,8 +11,10 @@ import {
   STAT_TIER_MID,
 } from "../../utils/rivens/riven_logic.js";
 import { statUnit } from "../../utils/rivens/riven_stat_display.js";
+import { fechaWfmRivens } from "../../utils/rivens/riven_tooltips.js";
 import { getMetaStats } from "../../services/rivens/riven_market.service.js?v=1.9";
-import { computeDesirabilityMultiplier } from "../../services/rivens/riven_appraisal.service.js";
+import { computeDesirabilityMultiplier, statsBuscadosDelArma } from "../../services/rivens/riven_appraisal.service.js";
+import { cicloRivenHtml } from "./ui_riven_cycling.js";
 
 const AVISO_BANDA = {
     trash: {
@@ -210,7 +212,7 @@ export function renderMarketChip(estCard, mk, isEs) {
     // El ratio solo se muestra si su denominador son ventas reales de rivens rolados; si no, el
     // número existe pero no significa lo que parece (ver refFiable en classifyWeaponMarket).
     (mk.refFiable && mk.ratio >= 2)
-      ? (isEs ? `piden ${mk.ratio}× lo que se paga` : `asking ${mk.ratio}× what gets paid`) : null,
+      ? (isEs ? `piden ${mk.ratio}× lo que se paga` : `asking ${mk.ratio}× what gets paid`) + (fechaWfmRivens(isEs) ? ` (${fechaWfmRivens(isEs)})` : "") : null,
   ].filter(Boolean).join(" · ");
   el.innerHTML = `<span class="gsc-dot" style="background:${col}; box-shadow:0 0 6px ${col};"></span> <b>${mk.label}</b>${extras ? ` <span style="opacity:.6;">· ${extras}</span>` : ""}`;
 }
@@ -360,6 +362,7 @@ export function generateRollResultsDOM(roll, weaponData, weaponName, currentRank
     warningHtml, isEs, withSimilarButton: false,
     histLoading: !!(state.currentWeaponHistory?.weaponName === weaponName && state.currentWeaponHistory.loading)
   });
+  estCard.insertAdjacentHTML("beforeend", cicloRivenHtml({ stats, meta, tipo: weaponData?.t || meta?.t, deseados: statsBuscadosDelArma(meta, weaponName), rolls: roll.rolls, isEs }));
 
   const wrapper = document.createElement("div");
   wrapper.style = "display: flex; flex-direction: column; gap: 12px; width: 100%;";

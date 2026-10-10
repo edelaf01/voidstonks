@@ -47,6 +47,11 @@ export function renderFarmsTab() {
   }
 }
 
+export function stopFarmsTimers() {
+  stopBountyTimers();
+  stopRotationTimers();
+}
+
 /**
  * Cambia de apartado. La elección se recuerda entre recargas: quien entra a Farms para
  * ver la rotación de armas suele volver a lo mismo.

@@ -16,9 +16,10 @@ globalThis.localStorage = { getItem: () => null, setItem() {}, removeItem() {} }
 const { state } = await import("../deploy/js/state.js");
 const { RivenOCRService: S } = await import("../deploy/js/services/rivens/riven_ocr.service.js");
 
-state.allRivenNames = ["Braton", "Ignis", "Gotva Prime", "Scourge", "Stug", "Torid", "Zenith"];
+state.allRivenNames = ["Braton", "Furis", "Ignis", "Gotva Prime", "Scourge", "Stug", "Torid", "Zenith"];
 state.weaponMap = {
   Braton: { t: "Rifle", d: 1.0 },
+  Furis: { t: "Pistol", d: 1.0 },
   "Gotva Prime": { t: "Rifle", d: 1.0 },
   Zenith: { t: "Rifle", d: 1.0 },
 };
@@ -71,6 +72,13 @@ test("el prefijo anclado más largo gana al más corto", () => {
   assert.equal(S._matchStatAnchored("Damage to Grineer"), "Damage to Grineer");
 });
 
+test("el valor de la línea siguiente corta el nombre", () => {
+  assert.equal(S._matchStatAnchored("Damage 90 1 Status Chance"), "Damage");
+  assert.equal(S._matchStatAnchored("Damage 90 1 Status Duration"), "Damage");
+  assert.equal(S._matchStatAnchored("Weapon Recoil 90 1 Status Chance"), "Recoil");
+  assert.equal(S._matchStatAnchored("Damage to Grineer"), "Damage to Grineer");
+});
+
 // --- Cartas completas -----------------------------------------------------------------------
 
 test("una carta limpia sale con sus stats, su arma y su MR", () => {
@@ -89,9 +97,9 @@ test("una carta limpia sale con sus stats, su arma y su MR", () => {
   assert.deepEqual(negativos(r), ["Zoom"]);
 });
 
-// El contador de ciclos comparte línea con el MR y su glifo ↻ suele salir como un dígito suelto,
-// así que el número bueno es el ÚLTIMO de la línea.
-test("de la línea del MR, los ciclos son el último número", () => {
+// El contador de ciclos comparte línea con el MR y su glifo ↻ suele salir como un 0, suelto o
+// pegado al número, así que se descarta y el número bueno es el primero que queda.
+test("de la línea del MR, los ciclos son el primer número tras quitar el glifo", () => {
   const r = S.parseRivenCard([
     "Braton Cronidex",
     "+120.5% Critical Damage",
@@ -100,6 +108,22 @@ test("de la línea del MR, los ciclos son el último número", () => {
   ].join("\n"));
   assert.equal(r.mr, 14);
   assert.equal(r.rolls, 15);
+});
+
+test("el glifo de ciclos pegado al número o con ruido detrás no cambia la cuenta", () => {
+  const ciclos = (linea) => S.parseRivenCard([
+    "Braton Cronidex",
+    "+120.5% Critical Damage",
+    "+88.2% Multishot",
+    linea,
+  ].join("\n")).rolls;
+  assert.equal(ciclos("MR 13 0 15"), 15);
+  assert.equal(ciclos("MR 13 015)"), 15);
+  assert.equal(ciclos("MR 13 015%"), 15);
+  assert.equal(ciclos("MR 13 O15"), 15);
+  assert.equal(ciclos("MR 13 0 15 5"), 15);
+  assert.equal(ciclos("MR 13 0123"), 123);
+  assert.equal(ciclos("MR 13 OB"), null);
 });
 
 // El OCR pierde el punto decimal a menudo: "+82 2%" y "+822%" son el mismo +82.2 real. Ningún
@@ -255,6 +279,18 @@ test("nombre del riven partido en dos líneas: la primera es solo el arma y no s
   }
 });
 
+test("el arma no sale del prefijo del nombre del riven aunque el OCR estropee la primera letra", () => {
+  const antes = state.allRivenNames;
+  state.allRivenNames = [...antes, "Haalvu"];
+  try {
+    const r = S.parseRivenCard(["Raalvu Igni-satiata", "+90.8% Damage", "+51.2% Multishot", "+55.4% Heat"].join("\n"));
+    assert.equal(r.weaponName, "Haalvu", "Igni-satiata contiene \"ignis\" pero no es una palabra suelta");
+    assert.equal(S._matchWeaponScored("Ignis Igni-satiata")?.name, "Ignis");
+  } finally {
+    state.allRivenNames = antes;
+  }
+});
+
 // Antes de calcular la distancia se descartan los nombres cuya longitud ya la hace imposible:
 // una línea basura de 40 letras se comparaba contra las ~650 armas en cada tick.
 test("una errata que se come justo las letras que permite el umbral sigue casando", () => {
@@ -287,6 +323,103 @@ test("basura pegada al nombre del arma no hace perder el arma", () => {
     "Stug Sati-ignidex a%", "+120.5% Critical Damage", "+88.2% Multishot",
   ].join("\n"));
   assert.equal(conPorcentaje.weaponName, "Stug");
+});
+
+test("un stat sin porcentaje como Atravesar se lee y conserva el orden de la carta", () => {
+  const r = S.parseRivenCard([
+    "Furis Visi-vexinok",
+    "+89.2% Electricity",
+    "+234.4% Damage",
+    ". +2.6 Punch Through",
+    "MR 13 O15",
+  ].join("\n"));
+  assert.equal(r.weaponName, "Furis");
+  assert.equal(r.mr, 13);
+  assert.equal(r.rolls, 15);
+  assert.deepEqual(nombres(r), ["Electric", "Damage", "Punch Through"]);
+  assert.deepEqual(negativos(r), []);
+  assert.equal(r.stats[2].value, 2.6);
+});
+
+test("el multiplicador de facción va en su sitio y un decimal con coma y punto se lee", () => {
+  const r = S.parseRivenCard([
+    "Furis Visi-puratak",
+    "+60.8% Reload Speed",
+    "+293% Damage",
+    "x1.59 Damage to Infested ,",
+    ", -80,.8% Fire Rate P",
+    "MR 13 015)",
+  ].join("\n"));
+  assert.equal(r.weaponName, "Furis");
+  assert.equal(r.rolls, 15);
+  assert.deepEqual(nombres(r), ["Reload Speed", "Damage", "Damage to Infested", "Fire Rate / Attack Speed"]);
+  assert.deepEqual(negativos(r), ["Fire Rate / Attack Speed"]);
+  assert.equal(r.stats.find((s) => s.name === "Damage to Infested").value, 59);
+  assert.equal(r.stats.find((s) => s.name === "Fire Rate / Attack Speed").value, 80.8);
+});
+
+test("un pie con la etiqueta MR rota no inventa un stat con la basura de debajo", () => {
+  const r = S.parseRivenCard([
+    "Furis Visi-vexinok",
+    "+89.2% Electricity",
+    "+234.4% Damage",
+    ". +2.6 Punch Through",
+    "AMR 13 015%",
+    "Been ASh",
+    "(ae",
+  ].join("\n"));
+  assert.deepEqual(nombres(r), ["Electric", "Damage", "Punch Through"]);
+  assert.equal(r.mr, 13);
+  assert.equal(r.rolls, 15);
+});
+
+test("el pie se reconoce sin la palabra MR y corta la lectura ahí", () => {
+  const r = S.parseRivenCard([
+    "Furis Visi-vexinok",
+    "+89.2% Electricity",
+    "+234.4% Damage",
+    "D +2.6 Punch Through",
+    "Aun 13 015% n",
+    "Brae ASh",
+  ].join("\n"));
+  assert.deepEqual(nombres(r), ["Electric", "Damage", "Punch Through"]);
+  assert.equal(r.mr, 13);
+  assert.equal(r.rolls, 15);
+});
+
+test("un MR imposible en el pie se ignora pero los rolls se quedan", () => {
+  const r = S.parseRivenCard([
+    "Furis Visi-puratak",
+    "+60.8% Reload Speed",
+    "+293% Damage",
+    ", -80.8% Fire Rate '",
+    "Aan 3 O15",
+  ].join("\n"));
+  assert.equal(r.mr, null);
+  assert.equal(r.rolls, 15);
+});
+
+test("un valor con cero delante nunca es un stat", () => {
+  const r = S.parseRivenCard([
+    "Furis Visi-vexinok",
+    "+89.2% Electricity",
+    "+234.4% Damage",
+    "015% Slash",
+  ].join("\n"));
+  assert.deepEqual(nombres(r), ["Electric", "Damage"]);
+});
+
+test("un stat sin unidad que perdió el punto decimal se recupera", () => {
+  const r = S.parseRivenCard([
+    "Furis Visi-vexinok",
+    "+89.2% Electricity",
+    "+234.4% Damage",
+    "., +26 Punch Through",
+    "Aun 13 015",
+  ].join("\n"));
+  const atravesar = r.stats.find((s) => s.name === "Punch Through");
+  assert.equal(atravesar.value, 2.6);
+  assert.ok(!atravesar.suspicious);
 });
 
 // --- Validación cruzada contra las tablas del juego -----------------------------------------

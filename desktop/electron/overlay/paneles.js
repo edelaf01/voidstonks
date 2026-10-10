@@ -33,7 +33,8 @@ function htmlRejilla(b) {
   const celdas = (Array.isArray(b.celdas) ? b.celdas : []).slice(0, 48).map((c) => {
     const lineas = Array.isArray(c?.lineas) ? c.lineas : [];
     if (!lineas.length) return `<div class="celda vacia"></div>`;
-    return `<div class="celda">${lineas.map((l, i) => `<span class="${i ? "dato" : "nombre"} ${tono(l?.tono, i ? "gris" : "blanco")}">${esc(l?.texto)}</span>`).join("")}</div>`;
+    const acento = TONOS.has(c?.tono) ? ` acento-${c.tono}` : "";
+    return `<div class="celda${acento}">${lineas.map((l, i) => `<span class="${i ? "dato" : "nombre"} ${tono(l?.tono, i ? "gris" : "blanco")}">${esc(l?.texto)}</span>`).join("")}</div>`;
   });
   return `<div class="rejilla" style="grid-template-columns: repeat(${cols}, minmax(0, 1fr))">${celdas.join("")}</div>`;
 }
@@ -59,7 +60,7 @@ export function htmlBloque(b) {
     case "botones": {
       const botones = (b.botones || []).filter((x) => RE_ACCION.test(x?.accion || ""));
       const rotulo = b.rotulo ? `<span class="rotulo">${esc(b.rotulo)}</span>` : "";
-      return `<div class="botones">${rotulo}${botones.map((x) => `<button type="button" class="boton${x.activo ? " activo" : ""}" data-accion="${esc(x.accion)}">${esc(x.texto)}</button>`).join("")}</div>`;
+      return `<div class="botones${b.envolver ? " envolver" : ""}">${rotulo}${botones.map((x) => `<button type="button" class="boton${x.lista ? " lista" : ""}${x.activo ? " activo" : ""}" data-accion="${esc(x.accion)}">${esc(x.texto)}</button>`).join("")}</div>`;
     }
     default:
       return "";
@@ -88,7 +89,8 @@ export function coloca(paneles, anchos, { ancho, alto }, mismoAncho = false) {
   const xs = paneles.map((p) => (Number(p.x) || 0) * ancho).sort((a, b) => a - b);
   const hueco = Math.min(Infinity, ...xs.slice(1).map((x, i) => x - xs[i] - 8));
   return paneles.map((p, i) => {
-    const w = mismoAncho ? Math.min(maximo, hueco, Math.max(comun, ancho / 10)) : Math.min(maximo, Math.max(ws[i], (Number(p.anchoMin) || 0) * ancho));
+    const tope = Math.min(maximo, (Number(p.anchoMax) || 1) * ancho);
+    const w = mismoAncho ? Math.min(maximo, hueco, Math.max(comun, ancho / 10)) : Math.min(tope, Math.max(ws[i], (Number(p.anchoMin) || 0) * ancho));
     let x = (Number(p.x) || 0) * ancho;
     const anclaje = ANCLAJES.has(p.anclaje) ? p.anclaje : "centro";
     if (anclaje === "derecha") x -= w;

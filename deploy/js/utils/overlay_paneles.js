@@ -1,4 +1,5 @@
-import { rejillaArcanos, lineasArcano } from "./inventory/arcanos_disolucion.js";
+import { rejillaArcanos, lineasArcano, veredictoArcano } from "./inventory/arcanos_disolucion.js";
+import { botonesDeCartas } from "./rivens/riven_objetivo_fusion.js";
 
 export const MAX_FILAS_KIOSKO = 5;
 
@@ -21,7 +22,9 @@ export function panelKiosko(items, titulo) {
   };
 }
 
-const POS_RIVEN = { x: 0.015, y: 0.2, anclaje: "izquierda" };
+const POS_RIVEN = { x: 0.015, y: 0.2, anclaje: "izquierda", anchoMax: 0.25 };
+const POS_SPLICE = { x: 0.45, y: 0.03, anclaje: "izquierda", anchoMax: 0.22 };
+export const enSplice = (panel) => ({ ...panel, ...POS_SPLICE });
 const TONO_GRADO = { S: "gradoS", A: "gradoA", B: "gradoB", C: "gradoC", F: "gradoF" };
 
 export const tonoGrado = (grado) => TONO_GRADO[(grado || "")[0]] || "blanco";
@@ -39,24 +42,59 @@ const filasStats = (stats, rotulos = {}) => {
   ];
 };
 
-export function panelRiven({ arma, valor = null, min = null, max = null, grado = null, score = null, stats = [], rotulos }) {
+const chipCombinar = (combinados) => {
+  const conListas = combinados.find((c) => c?.listas?.length);
+  return conListas ? [{ texto: conListas.rotulo, tipo: "set" }] : [];
+};
+
+const bloquesDeCarta = (combinar) => {
+  const listas = (combinar?.listas || []).map((l) => [{ texto: l.texto, tono: "morado" }, ...(l.veredicto ? [l.veredicto] : [])]);
+  const fila = combinar?.paso || (!listas.length && combinar?.cerca);
+  return [
+    ...(listas.length ? [{ tipo: "lista", filas: listas }] : []),
+    ...(fila ? [{ tipo: "lista", filas: [fila] }] : []),
+  ];
+};
+
+function selectorObjetivo(combinados) {
+  const base = combinados.find((c) => c?.opciones?.length);
+  const botones = botonesDeCartas(combinados);
+  if (!base || !botones.length) return [];
+  return [
+    { tipo: "separador" },
+    { tipo: "lista", filas: [[base.titulo ? { texto: base.titulo, tono: "morado" } : { texto: base.rotuloElige, tono: "gris" }]] },
+    {
+      tipo: "botones", envolver: true,
+      botones: botones.map((o) => ({ texto: `${o.recomendada ? "★ " : ""}${o.nombre}`, accion: `fusion:${o.indice}`, activo: o.activo, lista: o.estado === "lista" })),
+    },
+  ];
+}
+
+export function panelRiven({ arma, valor = null, min = null, max = null, grado = null, score = null, stats = [], combinar = null, rotulos }) {
   const filas = [];
   if (valor != null) filas.push([{ texto: rotulos.valor, tono: "gris" }, { texto: `~${valor}p`, tono: "oro" }, { texto: `${min}–${max}p`, tono: "gris" }]);
   if (grado) filas.push([{ texto: rotulos.grado, tono: "gris" }, { texto: grado, tono: tonoGrado(grado) }, { texto: `${score}/100`, tono: "gris" }]);
+  const chips = chipCombinar([combinar]);
   return {
     ...POS_RIVEN,
+    ...(chips.length ? { borde: "set" } : {}),
     bloques: [
       { tipo: "titulo", texto: arma, tono: "cian" },
+      ...(chips.length ? [{ tipo: "chips", chips }] : []),
       ...(filas.length ? [{ tipo: "lista", filas }, { tipo: "separador" }] : []),
       { tipo: "lista", filas: filasStats(stats, rotulos) },
+      ...bloquesDeCarta(combinar),
+      ...selectorObjetivo([combinar]),
     ],
   };
 }
 
 export function panelRivenComparacion({ arma, ganador, tiradas, rotulos }) {
+  const combinados = tiradas.map((tr) => tr.combinar);
+  const chips = chipCombinar(combinados);
   const bloques = [
     { tipo: "titulo", texto: arma, tono: "cian" },
-    { tipo: "chips", chips: [{ texto: `${tiradas[ganador].rotulo} ${rotulos.mejor}`, tipo: "valor" }] },
+    { tipo: "chips", chips: [{ texto: `${tiradas[ganador].rotulo} ${rotulos.mejor}`, tipo: "valor" }, ...chips] },
   ];
   tiradas.forEach((tr, i) => {
     bloques.push({ tipo: "separador" }, {
@@ -65,9 +103,10 @@ export function panelRivenComparacion({ arma, ganador, tiradas, rotulos }) {
         [{ texto: tr.rotulo, tono: i === ganador ? "verde" : "gris" }, { texto: `~${tr.precio}p`, tono: "oro" }, { texto: `${tr.score}/100`, tono: "gris" }],
         ...filasStats(tr.stats, i === 0 ? rotulos : {}),
       ],
-    });
+    }, ...bloquesDeCarta(tr.combinar));
   });
-  return { ...POS_RIVEN, borde: "valor", bloques };
+  bloques.push(...selectorObjetivo(combinados));
+  return { ...POS_RIVEN, borde: chips.length ? "set" : "valor", bloques };
 }
 
 export const MAX_RELIQUIAS = 6;
@@ -227,7 +266,7 @@ export function panelArcanos(filas, t) {
       {
         tipo: "rejilla",
         cols,
-        celdas: celdas.map((f) => f && { lineas: lineasArcano(f, t) }),
+        celdas: celdas.map((f) => f && { lineas: lineasArcano(f, t), tono: veredictoArcano(f, t).tono }),
       },
     ],
   };

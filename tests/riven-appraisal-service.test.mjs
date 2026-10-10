@@ -145,8 +145,9 @@ test("los stats buscados salen de los pesos del arma y, sin ellos, de meta.pos",
   const conPesos = { name: "Braton", pos: [], midPos: [],
     dynamic_weights: { "Critical Damage": 0.9, "Multishot": 0.8, "Toxin Damage": 0.5, "Zoom": 0.1 } };
   assert.deepEqual(statsBuscadosDelArma(conPesos, "Braton"),
-    { best: ["Critical Damage", "Multishot"], mid: ["Toxin Damage"] });
+    { best: ["Critical Damage", "Multishot"], mid: ["Toxin Damage"],
+      pesos: { "Critical Damage": 0.9, "Multishot": 0.8, "Toxin Damage": 0.5, "Zoom": 0.1 } });
   assert.deepEqual(statsBuscadosDelArma({ name: "Braton", pos: ["Zoom"], midPos: ["Recoil"] }, "Braton"),
-    { best: ["Zoom"], mid: ["Recoil"] });
-  assert.deepEqual(statsBuscadosDelArma(null, "Braton"), { best: [], mid: [] });
+    { best: ["Zoom"], mid: ["Recoil"], pesos: null });
+  assert.deepEqual(statsBuscadosDelArma(null, "Braton"), { best: [], mid: [], pesos: null });
 });

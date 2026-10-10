@@ -2,7 +2,7 @@
 // capturas del corpus con el detector real: la baseline cae en 0,919 del alto de celda (mediana).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { filasEnFase, filasConNombre } from "../deploy/js/utils/vision/grid_alignment.js";
+import { filasEnFase, filasConNombre, filasPorArriba } from "../deploy/js/utils/vision/grid_alignment.js";
 
 const CELL = 296;
 const REJILLA = { gridY: 236, cellH: CELL, rows: 3 };
@@ -88,4 +88,34 @@ test("no se inventan filas por debajo del borde del frame", () => {
 test("sin bandas ni rejilla se devuelven las filas que ya había", () => {
   assert.equal(filasConNombre([], { ...REJILLA4, bloques: unBloque(22, 259) }), 3);
   assert.equal(filasConNombre([LLENAS, NOMBRE_SUELTO], { ...REJILLA4, cellW: 0, bloques: unBloque(22, 259) }), 3);
+});
+
+const ARCANOS_RATON = [
+  { y0: 25, y1: 198, mass: 10652 }, { y0: 247, y1: 361, mass: 8186 },
+  { y0: 469, y1: 583, mass: 8127 }, { y0: 691, y1: 796, mass: 7977 },
+];
+
+test("con el ratón sobre la primera fila de arcanos, tras la fase por ✓ esa fila vuelve a la rejilla", () => {
+  assert.deepEqual(filasPorArriba(ARCANOS_RATON, { gridY: 221, cellH: 218, rows: 3 }), { gridY: 3, rows: 4 });
+});
+
+test("una rejilla que ya empieza arriba no gana filas", () => {
+  const bandas = [
+    { y0: 25, y1: 139, mass: 8197 }, { y0: 160, y1: 198, mass: 2088 }, { y0: 247, y1: 361, mass: 8215 },
+    { y0: 383, y1: 420, mass: 2099 }, { y0: 469, y1: 583, mass: 8255 }, { y0: 605, y1: 642, mass: 2179 },
+  ];
+  assert.deepEqual(filasPorArriba(bandas, { gridY: -6, cellH: 222, rows: 4 }), { gridY: -6, rows: 4 });
+});
+
+test("sin sitio para una fila entera por encima no se añade, aunque haya una banda", () => {
+  assert.deepEqual(filasPorArriba([{ y0: 0, y1: 40, mass: 900 }], { gridY: 50, cellH: 218, rows: 3 }), { gridY: 50, rows: 3 });
+});
+
+test("una banda que viene de más de una celda por encima no es la fila de arriba", () => {
+  assert.deepEqual(filasPorArriba([{ y0: 100, y1: 390, mass: 9000 }], { gridY: 400, cellH: 218, rows: 3 }), { gridY: 400, rows: 3 });
+});
+
+test("sin bandas o sin filas la rejilla se queda como estaba", () => {
+  assert.deepEqual(filasPorArriba(null, { gridY: 221, cellH: 218, rows: 3 }), { gridY: 221, rows: 3 });
+  assert.deepEqual(filasPorArriba(ARCANOS_RATON, { gridY: 221, cellH: 218, rows: 0 }), { gridY: 221, rows: 0 });
 });

@@ -94,6 +94,20 @@ test("cada grupo se quita al salir de su pantalla y todos al parar", async () =>
   });
 });
 
+test("el panel de riven sigue puesto al pasar al splice de rivens", async () => {
+  const enviados = [];
+  const manda = async (d) => { enviados.push(d); return true; };
+  await enHost("voidstonks.localhost", async () => {
+    svc.activaOverlay(true);
+    await svc.mostrarPaneles("riven", [{}], {}, { manda });
+    enviados.length = 0;
+    await svc.ajustaPanelesAlContexto("RIVEN_SPLICING", { manda });
+    assert.equal(enviados.length, 0);
+    await svc.quitarTodosLosPaneles({ manda });
+    svc.activaOverlay(false);
+  });
+});
+
 test("las órdenes van de una en una y de cada grupo solo sale la última", async () => {
   const enviados = [];
   let suelta;

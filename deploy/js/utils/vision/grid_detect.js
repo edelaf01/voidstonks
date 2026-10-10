@@ -69,6 +69,7 @@ const DEFAULTS = {
     mergeColSq: 45 * 45,   // funde colores candidatos más cercanos que esto (antialias/compresión del mismo color)
     nameTolSq: 80 * 80,    // dist² para marcar un píxel como del color de nombre (excluye el arte metálico, a >110)
     maxInkCands: 4,        // nº máximo de colores candidatos a probar como "color de nombre"
+    colorBandFracMax: 0.33,
     strideX: 2,          // muestreo horizontal para el perfil de filas
     minBandH: 6,         // px: banda más baja que esto = ruido
     maxBandHFrac: 0.25,  // banda más alta que 25% de la imagen = fondo/arte, no texto
@@ -444,11 +445,11 @@ export function detectInventoryGrid(img, opts = {}) {
         const subTrace = {};
         const res = detectInventoryGridCore(img, { ...opts, inkMask: mask, trace: subTrace });
         outerTrace.colorFallback.tried.push({
-            col, ok: !!res,
+            col, ok: !!res && res.nameBandFrac <= o.colorBandFracMax,
             nameBandFrac: res ? +res.nameBandFrac.toFixed(3) : null,
             fail: res ? null : subTrace.fail,
         });
-        if (!res) continue;
+        if (!res || res.nameBandFrac > o.colorBandFracMax) continue;
         if (!best || res.nameBandFrac < best.nameBandFrac) { best = res; best._nameColor = col; }
     }
     if (best) {
@@ -852,13 +853,13 @@ function detectInventoryGridCore(img, opts = {}) {
             for (let k = bs; k < bs + bl; k++) {
                 if (occ[k] >= strongOcc) { if (strongFirst < 0) strongFirst = k; strongLast = k; }
             }
-            // El bloque fuerte debe ser CONTIGUO y cubrir casi toda su extensión para
+            // El bloque fuerte debe ser CONTIGUO para
             // considerarlo "el grid" (evita recortar por un pico aislado).
             if (strongFirst >= 0) {
-                let strongCount = 0;
-                for (let k = strongFirst; k <= strongLast; k++) if (occ[k] >= strongOcc) strongCount++;
-                const span = strongLast - strongFirst + 1;
-                if (strongCount === span && span >= o.minCols) {
+                let end = strongFirst;
+                while (end < strongLast && occ[end + 1] >= strongOcc) end++;
+                const span = end - strongFirst + 1;
+                if (span >= o.minCols && Math.max(...occ.slice(end + 1, bs + bl)) < maxOcc) {
                     bs = strongFirst;
                     bl = span;
                 }

@@ -4,7 +4,7 @@ import { COLS, FILAS, esTitulo, importa, exporta } from "../../utils/vision/titl
 
 // La pausa, el popup de riven y el fin de misión no tienen rótulo en la franja: aprender de ellos
 // guardaría nombres de jugadores o escena como si fueran una pantalla.
-const CONTEXTOS_CON_ROTULO = new Set(["INVENTORY", "INVENTORY_MODS", "RELICS", "REWARD", "TRADE"]);
+const CONTEXTOS_CON_ROTULO = new Set(["INVENTORY", "INVENTORY_MODS", "RIVEN_SPLICING", "RELICS", "REWARD", "TRADE"]);
 
 /** Catálogo de rótulos por resolución (utils/vision/title_catalog.js), guardado en localStorage. */
 export const FirmasTitulo = {

@@ -1,6 +1,8 @@
 // Explicaciones de las cifras de la ficha de un arma (tendencia, precio sin ciclar, techo…).
 // Las lee tanto la ficha de meta-stats como el índice.
 
+import { WFM_RIVENS_HASTA } from "../../config.js";
+
 export const RIVEN_TOOLTIPS = {
   trend: {
     es: "Cuánto se mueve esta arma en el mercado, de 0 a 100. Se calcula con el volumen real de intercambios, no con las ofertas publicadas. Alto = hay gente comprando y vendiendo; bajo = arma olvidada, te costará colocarla.",
@@ -48,9 +50,22 @@ export const RIVEN_TOOLTIPS = {
   }
 };
 
+const DATOS_WFM = new Set(["wfm", "potentialWeb"]);
+
+export function fechaWfmRivens(isEs) {
+  if (!WFM_RIVENS_HASTA) return "";
+  return new Date(`${WFM_RIVENS_HASTA}T12:00:00Z`)
+    .toLocaleDateString(isEs ? "es-ES" : "en-US", { day: "numeric", month: "short", timeZone: "UTC" });
+}
+
 export function getRivenTooltip(key, isEs) {
   const t = RIVEN_TOOLTIPS[key];
-  return t ? (isEs ? t.es : t.en) : "";
+  if (!t) return "";
+  const fecha = DATOS_WFM.has(key) ? fechaWfmRivens(isEs) : "";
+  const nota = !fecha ? ""
+    : isEs ? ` Datos del ${fecha}: desde entonces no se consultan las subastas de Warframe.Market.`
+    : ` Data from ${fecha}: Warframe.Market auctions are no longer queried since then.`;
+  return (isEs ? t.es : t.en) + nota;
 }
 
 // Cada métrica se llamaba distinto en el índice y en la ficha (Liquidez / Rapidez de venta,

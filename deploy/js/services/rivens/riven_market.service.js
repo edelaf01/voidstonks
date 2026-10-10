@@ -1,6 +1,7 @@
 import { WORKER_URL } from "../../config.js";
 import { RIVEN_API_BASE } from "../../repositories/riven.repository.js";
 import { getRivenSlug } from "../../utils/slugs.utils.js";
+import { getCanonicalStatKey } from "../../utils/rivens/riven_naming.js";
 import { state } from "../../state.js";
 import { dbHelper } from "../../repositories/storage.repository.js";
 
@@ -933,6 +934,7 @@ export function getMetaStats(weaponName, weaponType) {
     return {
         ...rawMeta,
         name: weaponName,
+        t: rawMeta.t || weaponType || state.weaponMap?.[weaponName]?.t,
         popularity_pct: rawMeta.popularity_pct ?? rawMeta.liquidity_score ?? 0,
         pos,
         neg,
@@ -969,43 +971,6 @@ export async function fetchSimilarRivens(weaponName, positiveStats, negativeStat
             };
             if (ENABLE_DEBUG_LOGS) console.log(`[Network Fetch] Fetched fresh live Riven auctions for ${weaponName} from Worker!`);
         }
-
-        // Helper to canonicalize names for matching
-        const getCanonicalStatKey = (name) => {
-            if (!name) return "";
-            const clean = name.toLowerCase().replaceAll('_', " ").replaceAll('-', " ").trim();
-            if (clean.includes("critical chance")) return "critical_chance";
-            if (clean.includes("critical damage")) return "critical_damage";
-            if (clean.includes("multishot")) return "multishot";
-            if (clean.includes("melee range") || clean.includes("range")) return "range";
-            if (clean.includes("base damage") || clean.includes("melee damage") || clean === "damage") return "damage";
-            if (clean.includes("fire rate") || clean.includes("attack speed") || clean === "speed") return "speed";
-            if (clean.includes("status chance")) return "status_chance";
-            if (clean.includes("status duration")) return "status_duration";
-            if (clean.includes("toxin")) return "toxin";
-            if (clean.includes("heat")) return "heat";
-            if (clean.includes("electricity") || clean.includes("electric")) return "electricity";
-            if (clean.includes("cold")) return "cold";
-            if (clean.includes("impact")) return "impact";
-            if (clean.includes("puncture")) return "puncture";
-            if (clean.includes("slash")) return "slash";
-            if (clean.includes("recoil")) return "recoil";
-            if (clean.includes("magazine")) return "magazine_capacity";
-            if (clean.includes("reload")) return "reload_speed";
-            if (clean.includes("ammo")) return "ammo_maximum";
-            if (clean.includes("flight") || clean.includes("projectile speed")) return "flight_speed";
-            if (clean.includes("zoom")) return "zoom";
-            if (clean.includes("punch")) return "punch_through";
-            if (clean.includes("combo duration")) return "combo_duration";
-            if (clean.includes("slide crit") || clean.includes("slide attack")) return "slide_crit";
-            if (clean.includes("extra combo count") || clean.includes("combo count chance") || clean.includes("combo_count_chance")) return "combo_count_chance";
-            if (clean.includes("channeling damage") || clean.includes("initial combo")) return "initial_combo";
-            if (clean.includes("channeling efficiency") || clean.includes("heavy attack efficiency") || clean.includes("heavy efficiency")) return "heavy_efficiency";
-            if (clean.includes("corpus")) return "vs_corpus";
-            if (clean.includes("grineer")) return "vs_grineer";
-            if (clean.includes("infested")) return "vs_infested";
-            return clean;
-        };
 
         const isBrickNegative = (negUrlName) => {
             const key = getCanonicalStatKey(negUrlName);

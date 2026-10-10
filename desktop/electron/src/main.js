@@ -5,9 +5,10 @@ import { arrancaServidor, PREFIJO_OVERLAY } from "./servidor.js";
 import { creaPermisos } from "./permisos.js";
 import { creaLectorEELog, rutaEELog } from "./eelog.js";
 import { peticionValida } from "./paneles.js";
-import { puedePintar, ventanaDelJuego } from "./juego.js";
+import { estadoDelJuego, puedePintar, ventanaDelJuego } from "./juego.js";
 import { creaEligeFuente } from "./captura.js";
 import { creaOverlay } from "./ventana-overlay.js";
+import { creaVigiaDelJuego } from "./vigia-juego.js";
 import { creaRegistroConsola } from "./consola.js";
 import { creaZoom, zoomPorDefecto } from "./zoom.js";
 import { HOSTS_PROPIOS, conCorsDeLaApp, conOrigenLocalParaWfm } from "./cors.js";
@@ -144,6 +145,12 @@ app.whenReady().then(async () => {
 
   ipcMain.on("vs:eelog-parar", (e) => paraSeguidor(e.sender.id));
 
+  const vigia = creaVigiaDelJuego({ estado: estadoDelJuego });
+  ipcMain.on("vs:juego-seguir", (e) => {
+    if (esDeLaApp(e)) vigia.sigue(e.sender);
+  });
+  ipcMain.on("vs:juego-parar", (e) => vigia.para(e.sender.id));
+
   principal = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -174,6 +181,7 @@ app.whenReady().then(async () => {
   });
   wc.on("did-navigate", () => {
     paraSeguidor(wc.id);
+    vigia.para(wc.id);
     overlay.cierra();
   });
   wc.on("before-input-event", (_e, input) => {
@@ -198,6 +206,7 @@ app.whenReady().then(async () => {
   });
   app.on("before-quit", () => {
     paraTodosLosSeguidores();
+    vigia.paraTodos();
     overlay.cierra();
     servidor.cerrar();
   });
