@@ -165,10 +165,12 @@ function palabrasDelPanel(archivo) {
 const FISURA = { "fisura-sin-fin-no-relic.png": "", "fisura-sin-fin-a6-reescalada.png": null };
 const ESCUADRA = ["Axi A6", "Axi A21", "Axi D6"];
 
+// with search active the grid is nearly empty and still: without a confirmation read nothing applied; Axi
+// C12 has no counter (1 copy inferred from the empty corner)
 test("rejilla filtrada por la búsqueda, con la pantalla quieta", { skip: salta || (!fs.existsSync(path.join(DIR, "busqueda-citrine-quieta.png")) && "sin la captura") }, async () => {
   catalogoDeReliquias();
   const leido = await leeCaptura("busqueda-citrine-quieta.png", { quieta: true });
-  assert.deepEqual(Object.fromEntries(leido.map((r) => [r.name, r.count])), { "Lith S19": 8, "Meso C11": 5, "Neo C11": 4 });
+  assert.deepEqual(Object.fromEntries(leido.map((r) => [r.name, r.count])), { "Lith S19": 8, "Meso C11": 5, "Neo C11": 4, "Axi C12": 1 });
 });
 
 // hand-read: A6 shows "Last Equipped" where "x2" was, so no quantity should be reported for it

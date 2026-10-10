@@ -10,6 +10,8 @@ import { VisionService } from "./vision.service.js";
 import { OCRService } from "./ocr.service.js";
 import { motorActivo, MOTOR_PRECISO } from "./ocr_engine.service.js";
 import { tierOfRelic, eraDominante } from "../../utils/inventory/relic_picks.js";
+import { relicKey } from "../../utils/inventory/relic_counts.js";
+import { esquinaDeCasilla } from "../../utils/vision/relic_corner.js";
 
 /**
  * The VOID RELICS/REFINEMENT screen: which relic goes into the mission and how many of each you
@@ -118,22 +120,25 @@ export const RelicScreenService = {
         this.lastGridHash = hash;
 
         const traza = {};
-        const palabras = await this.leePalabras(worker, video, cvs);
+        const color = VisionService.prepareCropColorForOCR(video, RELIC_GRID_CROP, 1.25, "relicGridColor");
+        const ctxColor = color.getContext("2d", { willReadFrequently: true });
+        const palabras = await this.leePalabras(worker, cvs, color);
         // 5/6 in the code: the glyph tells them apart on the color crop (utils/vision/relic_digit_56.js)
-        let color = null;
         const recorta = ({ x0, y0, x1, y1 }) => {
-            color ??= VisionService.prepareCropColorForOCR(video, RELIC_GRID_CROP, 1.25, "relicGridColor");
             const pad = 3, sx = Math.max(0, Math.floor(x0) - pad), sy = Math.max(0, Math.floor(y0) - pad);
             const sw = Math.min(color.width - sx, Math.ceil(x1 - x0) + pad * 2), sh = Math.min(color.height - sy, Math.ceil(y1 - y0) + pad * 2);
-            return sw > 2 && sh > 2 ? color.getContext("2d", { willReadFrequently: true }).getImageData(sx, sy, sw, sh) : null;
+            return sw > 2 && sh > 2 ? ctxColor.getImageData(sx, sy, sw, sh) : null;
         };
+        const leeZona = (x, y, w, h) => (x >= 0 && y >= 0 && w > 0 && h > 0 && x + w <= color.width && y + h <= color.height
+            ? ctxColor.getImageData(x, y, w, h) : null);
+        const esquina = (ancla) => esquinaDeCasilla(leeZona, ancla);
         const existe = (n) => (state.allRelicNames || []).includes(n);
         const matchRelic = (w) => {
             const r = corrige56(OCRService.getRelicMatch(w), w, recorta, existe);
             if (r.cambiado) console.log(`[RELICS] 5/6 por glifo: ${r.nombre} (margen ${r.margen.toFixed(2)})`);
             return r.nombre;
         };
-        const read = parseRelicGrid(palabras, { matchRelic, trace: traza });
+        const read = parseRelicGrid(palabras, { matchRelic, trace: traza, esquina });
         const rotulo = await this.leeRotuloEra(worker, video).catch(() => null);
         const era = rotulo || eraDominante(read.map((r) => r.name));
         if (era && era !== this.eraRejilla) {
@@ -141,12 +146,13 @@ export const RelicScreenService = {
             this.onEra?.(era === "ALL" ? null : era);
         }
         console.log(`[RELICS] ${read.length} de ${traza.nombres} nombres · contadores ${traza.contadoresConCasilla}/${traza.candidatosContador}`,
-            traza.perdidas);
+            traza.perdidas, traza.esquinas);
         // before voting: voteReadings writes into `applied`
         const novedad = read.some(({ name, count }) => this.applied.get(name) !== count);
         this.lecturasSinNovedad = novedad ? 0 : Math.min(this.lecturasSinNovedad + 1, TOPE_SIN_NOVEDAD);
 
-        const changed = voteReadings(this, read);
+        const enInventario = new Set((state.inventory || []).map((i) => relicKey(typeof i === "string" ? i : i?.name || "")));
+        const changed = voteReadings(this, read).filter((c) => c.count > 0 || enInventario.has(relicKey(c.name)));
         // with a still screen the second vote never came: one more read, only one
         this._porConfirmar = novedad && !changed.length && !this._porConfirmar;
         if (!changed.length) return;
@@ -167,9 +173,8 @@ export const RelicScreenService = {
      * the names. The precise engine reads the names from a separate color crop; counts stay on
      * Tesseract, which parseRelicGrid needs for the geometry.
      */
-    async leePalabras(worker, video, cvs) {
+    async leePalabras(worker, cvs, colorCvs) {
         if (motorActivo() === MOTOR_PRECISO && PaddleRepository.disponible()) {
-            const colorCvs = VisionService.prepareCropColorForOCR(video, RELIC_GRID_CROP, 1.25, "relicGridColor");
             const [counts, palabras] = await Promise.all([
                 OCRRepository.recognizeWithPSM(worker, cvs, 11, { blocks: true }),
                 PaddleRepository.recognizeWordsWithBoxes(colorCvs)

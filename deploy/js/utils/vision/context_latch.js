@@ -69,6 +69,9 @@ export function nextLatchedContext(prev, raw) {
 /** Contexts that CANCEL the riven grace: reaching any of them means you are no longer on a mods screen. */
 export const CANCELAN_GRACIA = Object.freeze(["RELICS", "REWARD", "MISSION_COMPLETE"]);
 
+export const CONTEXTOS_RIVEN = Object.freeze(new Set(["INVENTORY_MODS", "ITEM_DETAILS", "RIVEN_DETAILS", "RIVEN_SPLICING"]));
+export const tipoRiven = (contexto) => (CONTEXTOS_RIVEN.has(contexto) ? contexto : "INVENTORY_MODS");
+
 /**
  * Where the frame goes given the riven grace. The grace covers the gaps where the riven screen header is
  * unreadable so a card is not dropped half read, and only those gaps.

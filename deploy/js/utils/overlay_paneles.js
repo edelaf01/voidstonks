@@ -23,6 +23,8 @@ export function panelKiosko(items, titulo) {
 }
 
 const POS_RIVEN = { x: 0.015, y: 0.2, anclaje: "izquierda", anchoMax: 0.25 };
+const POS_SPLICE = { x: 0.45, y: 0.03, anclaje: "izquierda", anchoMax: 0.22 };
+export const enSplice = (panel) => ({ ...panel, ...POS_SPLICE });
 const TONO_GRADO = { S: "gradoS", A: "gradoA", B: "gradoB", C: "gradoC", F: "gradoF" };
 
 export const tonoGrado = (grado) => TONO_GRADO[(grado || "")[0]] || "blanco";
