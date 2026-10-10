@@ -3,7 +3,7 @@ import { FRANJA_TITULO_VIDEO } from "../../utils/vision/context_latch.js";
 import { COLS, FILAS, esTitulo, importa, exporta } from "../../utils/vision/title_catalog.js";
 
 // pause, riven popup and mission end have no strip title: learning them would store player names
-const CONTEXTOS_CON_ROTULO = new Set(["INVENTORY", "INVENTORY_MODS", "RELICS", "REWARD", "TRADE"]);
+const CONTEXTOS_CON_ROTULO = new Set(["INVENTORY", "INVENTORY_MODS", "RIVEN_SPLICING", "RELICS", "REWARD", "TRADE"]);
 
 export const FirmasTitulo = {
     _clave: null,

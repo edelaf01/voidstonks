@@ -76,7 +76,7 @@ test("un riven que ya tiene un stat fundido no puede combinar", () => {
     assert.deepEqual(res, []);
 });
 
-test("el consejo de ciclo enseña el veredicto si hay pesos y la lista si no", () => {
+test("el consejo de ciclo enseña las probabilidades si hay pesos y la lista si no", () => {
     const stats = [
         { name: "Critical Chance", value: -120, isPositive: false },
         { name: "Multishot", value: 120, isPositive: true },
@@ -86,8 +86,9 @@ test("el consejo de ciclo enseña el veredicto si hay pesos y la lista si no", (
     const pesos = { "Critical Chance": 0.9, "Multishot": 0.8, "Fire Rate": 0.6, "Zoom": 0, "Damage": 0.7 };
     const args = { stats, rolls: 0, tipo: "Rifle", buscados: ["Critical Chance", "Multishot"], negOk: [], isEs: true, pesos };
     const html1 = consejoCicloHtml(args);
-    assert.ok(html1.includes("Si combinas, de media:"));
-    assert.ok(html1.includes("mejora la tirada"));
+    assert.ok(html1.includes("Si combinas:"));
+    assert.match(html1, /\d+% de /);
+    assert.ok(!/mejora la tirada|empeora la tirada/.test(html1));
     
     args.pesos = null;
     const html2 = consejoCicloHtml(args);

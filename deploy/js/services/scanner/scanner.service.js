@@ -1,7 +1,8 @@
 import { VisionService } from "./vision.service.js";
 import { freezeFrame, releaseFrame, shareFrame, stopSharingFrame, sharedFrame } from "../../utils/vision/frame_freeze.js";
-import { nextLatchedContext, INITIAL_LATCH, enrutaGraciaRiven, intervaloCabecera, INTERVALO_FIN_MISION_MS, CADUCIDAD_CABECERA_MS, FRANJA_TITULO_VIDEO, tituloHaCambiado } from "../../utils/vision/context_latch.js";
+import { nextLatchedContext, INITIAL_LATCH, enrutaGraciaRiven, CONTEXTOS_RIVEN, tipoRiven, intervaloCabecera, INTERVALO_FIN_MISION_MS, CADUCIDAD_CABECERA_MS, FRANJA_TITULO_VIDEO, tituloHaCambiado } from "../../utils/vision/context_latch.js";
 import { sensorDelEscaner, CADA_MS } from "../../utils/vision/wake_sensor.js";
+import { recorteSplice, zonasDeFirma } from "../../utils/vision/riven_splice.js";
 import { isImplausibleFallbackGrid } from "../../utils/vision/plausibility.js";
 import { corrige56 } from "../../utils/vision/relic_digit_56.js";
 import { filasEnFase, filasPorArriba } from "../../utils/vision/grid_alignment.js";
@@ -238,9 +239,9 @@ export const ScannerService = {
         const containsAnchor = ["MODS", "MODIFICADORES", "CYCLE", "CICLO", "CICLAR", "KUVA", "KUYVA",
             "ATRIBUTOS", "ELEGIR", "CONFIRMAR", "AGRIETADO"].some((a) => textUpper.includes(a));
 
-        if (rawContext === "INVENTORY_MODS" || rawContext === "ITEM_DETAILS" || rawContext === "RIVEN_DETAILS" || containsAnchor) {
+        if (CONTEXTOS_RIVEN.has(rawContext) || containsAnchor) {
             this.lastRivenContextTime = now;
-            this.lastRivenContextType = rawContext === "ITEM_DETAILS" || rawContext === "RIVEN_DETAILS" ? rawContext : "INVENTORY_MODS";
+            this.lastRivenContextType = tipoRiven(rawContext);
         }
 
         const gracia = this.lastRivenContextTime && (now - this.lastRivenContextTime < 8000);
@@ -469,7 +470,7 @@ export const ScannerService = {
                 else ScannerHUD.updateScrollStatus("done", this.sessionInventory.size + this.sessionRelics.size);
             }
 
-        } else if (contextType === "INVENTORY_MODS" || contextType === "ITEM_DETAILS" || contextType === "RIVEN_DETAILS") {
+        } else if (CONTEXTOS_RIVEN.has(contextType)) {
             this.currentRate = this.RIVEN_RATE_ACTIVE;
             if (this.detectionLocked) return;
             await this.processRivenCard(video, dims, contextType);
@@ -636,14 +637,13 @@ export const ScannerService = {
     async processRivenCard(video, dims, contextType = null) {
         const { scale } = dims;
 
-        const cardCrop = (contextType === "ITEM_DETAILS" || contextType === "RIVEN_DETAILS") ? VisionService.RIVEN_ITEM_DETAILS_CROP : VisionService.RIVEN_CARD_CROP;
+        const cardCrop = contextType === "RIVEN_SPLICING" ? recorteSplice(video) : (contextType === "ITEM_DETAILS" || contextType === "RIVEN_DETAILS") ? VisionService.RIVEN_ITEM_DETAILS_CROP : VisionService.RIVEN_CARD_CROP;
 
-        const zonas = this._zonasCartas?.length ? this._zonasCartas : [cardCrop];
-        const hash = firmaTexto(video, zonas);
+        const zonas = zonasDeFirma(this._zonasCartas, cardCrop, contextType), hash = firmaTexto(video, zonas);
 
         if ((this.lastParsedL || this.lastParsedR) && mismoTexto(hash, this.lastHashL)) {
             this.lastRivenContextTime = Date.now();
-            this.lastRivenContextType = (contextType === "ITEM_DETAILS" || contextType === "RIVEN_DETAILS") ? contextType : "INVENTORY_MODS";
+            this.lastRivenContextType = tipoRiven(contextType);
             this.currentRate = this.RIVEN_RATE_IDLE;
             this._cartaVigilada = zonas;
             return;
@@ -704,7 +704,7 @@ export const ScannerService = {
 
         if (valids.length || hasCardAnchor) {
             this.lastRivenContextTime = Date.now();
-            this.lastRivenContextType = (contextType === "ITEM_DETAILS" || contextType === "RIVEN_DETAILS") ? contextType : "INVENTORY_MODS";
+            this.lastRivenContextType = tipoRiven(contextType);
         }
 
         if (!valids.length) {
@@ -793,7 +793,7 @@ export const ScannerService = {
 
         if (!weaponSwitchPending && !(trasElegir && !dropExtra)) {
             this._zonasCartas = canvases.map((c) => c.zonaVideo).filter(Boolean);
-            this.lastHashL = firmaTexto(video, this._zonasCartas.length ? this._zonasCartas : [cardCrop]);
+            this.lastHashL = firmaTexto(video, zonasDeFirma(this._zonasCartas, cardCrop, contextType));
             this.lastTwoCardHash = finalL && finalR ? this.lastHashL : null;
         } else this.currentRate = this.RIVEN_RATE_CONFIRM;
 
