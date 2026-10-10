@@ -426,11 +426,12 @@ function detectInventoryGridCore(img, opts = {}) {
             : "sin cadena de filas equiespaciadas (¿solo HUD/paneles, sin grid visible?)";
         return null;
     }
-    let cellH = Math.round(chain.pitch);
 
     const y1ToTop = new Map(bandBlocks.map(bb => [bb.band.y1, bb.band.y0]));
     const base = y1ToTop.get(chain.members[0]) ?? chain.members[0];
     const last = y1ToTop.get(chain.members[chain.members.length - 1]) ?? chain.members[chain.members.length - 1];
+    const pasos = chain.members.slice(1).flatMap((y1, i) => [y1 - chain.members[i], y1ToTop.get(y1) - y1ToTop.get(chain.members[i])]).sort((a, b) => a - b);
+    let cellH = Math.round(chain.members.length > 2 && rescuedBands.some(bb => chain.members.includes(bb.band.y1)) ? pasos[pasos.length >> 1] : chain.pitch);
     const foldY0 = Math.max(0, Math.min(Math.ceil(hudLimit), base), base - cellH);
     const foldY1 = Math.min(height - 1, last + cellH);
     const fold = new Float32Array(cellH);
