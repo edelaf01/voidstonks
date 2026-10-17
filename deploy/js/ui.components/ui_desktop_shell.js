@@ -13,6 +13,7 @@ import { TEXTS } from "../config.js";
 import { alternarInspectorEELog } from "./ui_eelog_inspector.js";
 import { abrirPermisos } from "./ui_desktop_permisos.js";
 import { conectaEscaner } from "./ui_desktop_escaner.js";
+import { wfmPrivado } from "../services/market/wfm_auth.service.js";
 
 const bilingue = (es, en) => `<span class="lang-es">${es}</span><span class="lang-en">${en}</span>`;
 
@@ -165,6 +166,14 @@ function montarEstado() {
   pinta();
 }
 
+function pestanaOrdenesSinWip() {
+  const btn = document.getElementById("btn-orders");
+  if (!btn) return;
+  btn.classList.remove("is-wip");
+  btn.removeAttribute("data-tooltip");
+  btn.querySelector(".tab-wip-badge")?.remove();
+}
+
 export function pausaAnimacionesSinFoco(doc = document, win = globalThis) {
   const aplica = () => doc.documentElement.classList.toggle("ds-sin-foco", !doc.hasFocus());
   win.addEventListener("blur", aplica);
@@ -175,6 +184,7 @@ export function pausaAnimacionesSinFoco(doc = document, win = globalThis) {
 export function initDesktopShell() {
   if (!esEscritorio()) return;
   pausaAnimacionesSinFoco();
+  if (wfmPrivado()) pestanaOrdenesSinWip();
   const barra = document.querySelector("#main-card .card-top-bar");
   const grupo = barra ? montarHerramientas(barra) : null;
   fijaPaneles();

@@ -1,15 +1,13 @@
-import { WORKER_URL } from "../../config.js";
+import { pideWfm } from "./wfm_transporte.js";
 import { getToken, getUserSlug, cacheScope } from "./wfm_auth.service.js";
 
 export async function fetchMyOrders(token = getToken()) {
     const slug = getUserSlug();
     if (!token && !slug) return { ok: false, error: "no_token" };
 
-    const url = `${WORKER_URL}?type=wfm_my_orders${slug ? `&user=${encodeURIComponent(slug)}` : ""}`;
-
     let res;
     try {
-        res = await fetch(url, {
+        res = await pideWfm("wfm_my_orders", slug ? `&user=${encodeURIComponent(slug)}` : "", {
             headers: token ? { "X-WFM-Token": token } : {}
         });
     } catch {
@@ -46,8 +44,9 @@ export async function editOrder(orderId, action, payload = {}) {
 
     let res;
     try {
-        res = await fetch(
-            `${WORKER_URL}?type=wfm_order_edit&id=${encodeURIComponent(orderId)}&action=${action}`,
+        res = await pideWfm(
+            "wfm_order_edit",
+            `&id=${encodeURIComponent(orderId)}&action=${action}`,
             {
                 method: "POST",
                 headers: {
@@ -70,7 +69,7 @@ export async function fetchItemMarket(slug, rank = null) {
     if (!slug) return { ok: false, error: "no_slug" };
     const rankQ = Number.isInteger(rank) ? `&rank=${rank}` : "";
     try {
-        const res = await fetch(`${WORKER_URL}?type=wfm_item_market&slug=${encodeURIComponent(slug)}${rankQ}`);
+        const res = await pideWfm("wfm_item_market", `&slug=${encodeURIComponent(slug)}${rankQ}`);
         if (!res.ok) return { ok: false, error: "server" };
         return { ok: true, market: await res.json() };
     } catch {
@@ -102,9 +101,9 @@ export async function fetchMarketBatch(slugs, { fresco = false } = {}) {
     for (const s of list) if (local[s] && ahora - local[s].t < MERCADO_TTL_MS) out[s] = local[s].d;
     const faltan = list.filter((s) => !out[s]);
     if (!faltan.length) return out;
-    const url = `${WORKER_URL}?type=wfm_market_batch&slugs=${faltan.join(",")}${fresco ? `&_cb=${ahora}` : ""}`;
+    const consulta = `&slugs=${faltan.join(",")}${fresco ? `&_cb=${ahora}` : ""}`;
     try {
-        const res = await fetch(url, fresco ? { cache: "no-cache" } : undefined);
+        const res = await pideWfm("wfm_market_batch", consulta, fresco ? { cache: "no-cache" } : undefined);
         if (!res.ok) return out;
         const data = (await res.json()) || {};
         guardaMercado(data, ahora);
@@ -169,7 +168,7 @@ async function attachItemInfo(orders) {
         const nuevos = {};
         await Promise.all(chunks.map(async (chunk) => {
             try {
-                const res = await fetch(`${WORKER_URL}?type=wfm_resolve&ids=${chunk.join(",")}`);
+                const res = await pideWfm("wfm_resolve", `&ids=${chunk.join(",")}`);
                 if (!res.ok) return;
                 Object.assign(nuevos, (await res.json()) || {});
             } catch {}

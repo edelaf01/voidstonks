@@ -207,8 +207,55 @@ test("Mis órdenes solo en local; en la web pública, nunca", () => {
     globalThis.location = undefined;
     assert.equal(auth.wfmPrivado(), false);
     globalThis.location = { hostname: "voidstonks.localhost", search: "" };
-    assert.equal(auth.wfmPrivado(), false, "la app de escritorio empaquetada no lo tiene");
+    assert.equal(auth.wfmPrivado(), false, "la app de escritorio empaquetada sin puente no lo tiene");
+    globalThis.voidstonksNativo = { wfm: async () => ({}) };
+    assert.equal(auth.wfmPrivado(), true, "con el puente de WFM del lanzador, sí");
     globalThis.voidstonksNativo = { desarrollo: true };
     assert.equal(auth.wfmPrivado(), true, "la de escritorio arrancada desde el código fuente, sí");
   } finally { globalThis.location = original; delete globalThis.voidstonksNativo; }
+});
+
+test("un token que el cliente descarta se revoca en WFM y el login devuelve token_rejected", async () => {
+  const respuestasLogout = [
+    () => ({ status: 200, cuerpo: JSON.stringify({ ok: true, revoked: true }) }),
+    () => {
+      throw new Error("sin red");
+    }
+  ];
+  for (const comportamiento of respuestasLogout) {
+    sesion({});
+    const token = jwt({ exp: dentroDe(3600) });
+    const llamadasPuente = [];
+    const antes = peticiones.length;
+    globalThis.voidstonksNativo = {
+      wfm: async (tipo, peticion) => {
+        llamadasPuente.push({ tipo, peticion });
+        if (tipo === "wfm_login") {
+          return {
+            status: 200,
+            cuerpo: JSON.stringify({
+              token,
+              ingameName: null,
+              userSlug: null,
+              authorized: false,
+              diag: { via: "header", v2Status: 401 }
+            })
+          };
+        }
+        return comportamiento();
+      }
+    };
+    try {
+      const res = await auth.login("a@b.c", "p");
+      await new Promise((r) => setImmediate(r));
+      assert.deepEqual(res, { ok: false, error: "token_rejected", diag: { via: "header", v2Status: 401 } });
+      assert.deepEqual(llamadasPuente.map((l) => l.tipo), ["wfm_login", "wfm_logout"]);
+      assert.equal(llamadasPuente[1].peticion.metodo, "POST");
+      assert.equal(llamadasPuente[1].peticion.token, token);
+      assert.equal(almacen.size, 0);
+      assert.equal(peticiones.length, antes);
+    } finally {
+      delete globalThis.voidstonksNativo;
+    }
+  }
 });

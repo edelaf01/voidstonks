@@ -1,4 +1,5 @@
-import { WORKER_URL } from "../../config.js";
+import { wfmEnLanzador } from "../../repositories/launcher.repository.js";
+import { pideWfm } from "./wfm_transporte.js";
 
 
 
@@ -60,15 +61,17 @@ export async function login(email, password, platform = "pc") {
     if (!email || !password) return { ok: false, error: "missing_fields" };
 
      let payload = { email, password, platform };
-    try {
-        const { sealCredentials } = await import("../../utils/wfm_crypto.js");
-        const sealed = await sealCredentials({ email, password });
-        if (sealed) payload = { sealed, platform };
-    } catch {}
+    if (!wfmEnLanzador()) {
+        try {
+            const { sealCredentials } = await import("../../utils/wfm_crypto.js");
+            const sealed = await sealCredentials({ email, password });
+            if (sealed) payload = { sealed, platform };
+        } catch {}
+    }
 
     let res;
     try {
-        res = await fetch(`${WORKER_URL}?type=wfm_login`, {
+        res = await pideWfm("wfm_login", "", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload)
@@ -94,6 +97,7 @@ export async function login(email, password, platform = "pc") {
 
    const slug = (body.userSlug || body.ingameName || "").toLowerCase();
     if (!body.authorized && !slug) {
+        pideWfm("wfm_logout", "", { method: "POST", headers: { "X-WFM-Token": token } }).catch(() => {});
         return { ok: false, error: "token_rejected", diag: body.diag };
     }
 
@@ -169,7 +173,7 @@ export async function logout() {
 
     if (token) {
         try {
-            const res = await fetch(`${WORKER_URL}?type=wfm_logout`, {
+            const res = await pideWfm("wfm_logout", "", {
                 method: "POST",
                 headers: { "X-WFM-Token": token }
             });
@@ -182,7 +186,7 @@ export async function logout() {
 }
 
 export function wfmPrivado() {
-    return /^(localhost|127\.0\.0\.1|\[::1\])$/.test(globalThis.location?.hostname || "") || globalThis.voidstonksNativo?.desarrollo === true;
+    return /^(localhost|127\.0\.0\.1|\[::1\])$/.test(globalThis.location?.hostname || "") || globalThis.voidstonksNativo?.desarrollo === true || wfmEnLanzador();
 }
 
 export function isLoggedIn() {

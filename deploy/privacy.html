@@ -103,11 +103,11 @@
 
     <section data-lang="en">
       <h1>Privacy Policy</h1>
-      <p class="muted">Last updated: August 2026</p>
+      <p class="muted">Last updated: October 2026</p>
 
       <p>
         VoidStonks is an unofficial Warframe tool. This policy explains what data is handled when you
-        use <a href="https://voidstonks.com/">voidstonks.com</a>.
+        use <a href="https://voidstonks.com/">voidstonks.com</a> and the VoidStonks desktop app.
       </p>
 
       <h2>1. Data we collect</h2>
@@ -117,47 +117,33 @@
         <strong>locally in your browser</strong> (localStorage) and are never sent to us.
       </p>
       <p>
-        The only exception is the optional Warframe.market connection described in section 2, which
-        you have to start yourself.
+        The optional Warframe.market connection described in section 2, which you have to start
+        yourself, does not go through us either: the desktop app talks directly to warframe.market and
+        keeps a local copy of its public item catalog on your computer.
       </p>
 
       <h2>2. Connecting your Warframe.market account (optional)</h2>
       <p>
         The "My orders" tab lets you sign in to <a href="https://warframe.market/" target="_blank" rel="noopener">warframe.market</a>
-        to view and manage your own orders. This is <strong>entirely optional</strong>: every other
-        feature works without it.
-      </p>
-      <p>
-        Warframe.market does not yet allow third-party apps to connect without a password (their
-        OAuth is not open to external developers), so <strong>your email and password pass through
-        the VoidStonks server</strong> on their way to warframe.market. Specifically:
+        to view and manage your own orders. It only exists in the VoidStonks desktop app, and it is
+        <strong>entirely optional</strong>: every other feature works without it.
       </p>
       <ul>
         <li>
-          Your credentials are <strong>encrypted in your browser</strong> before being sent, using a
-          key that only our server can undo. They are never readable in transit.
+          Your email and password go <strong>straight from your computer to warframe.market</strong>.
+          They never pass through VoidStonks' servers, and the app does not store or log them.
         </li>
         <li>
-          They are used <strong>once</strong>, to sign in to warframe.market, and are
-          <strong>never stored, logged or written to any database</strong>.
+          Only the resulting session token is kept, stored locally on your computer. It
+          <strong>expires in the app after 3 hours</strong>, and pressing "Sign out" invalidates it on
+          warframe.market. If you don't sign out, warframe.market keeps it valid until it expires on
+          their side.
         </li>
         <li>
-          Only the resulting session token is kept, and only in your browser's memory for the tab
-          (sessionStorage). It <strong>expires after 3 hours</strong> and is invalidated on
-          warframe.market when you sign out.
-        </li>
-        <li>
-          To limit abuse we keep a temporary counter of failed sign-in attempts for 15 minutes. Your
-          email is stored <strong>hashed (SHA-256)</strong> in that counter, never in plain text.
+          The app keeps a copy of warframe.market's public item catalog on your computer so it does not
+          download it more than once a day.
         </li>
       </ul>
-      <p>
-        We want to be straightforward about the limit of this: since the password must reach
-        warframe.market, our server necessarily handles it for an instant. We do not keep it, and the
-        source code is public so this can be verified, but you are placing trust in that. If you
-        prefer not to, simply do not use this feature. If warframe.market opens up OAuth, we will
-        switch to it so that passwords never touch our infrastructure.
-      </p>
 
       <h2>3. Camera &amp; screen capture</h2>
       <p>
@@ -170,8 +156,8 @@
       <p>To function, your browser connects to the following external services:</p>
       <ul>
         <li><a href="https://warframe.market/" target="_blank" rel="noopener">Warframe.market</a>: market price data.</li>
-        <li>VoidStonks' own backend (api.voidstonks.com), which relays public Warframe game data such as relics, missions and fissures, and, only if you use the feature in section 2, forwards your sign-in to warframe.market.</li>
-        <li>Content delivery networks (jsDelivr, unpkg) that serve the vision/OCR libraries used by the scanner.</li>
+        <li>VoidStonks' own backend (api.voidstonks.com), which relays public Warframe game data such as relics, missions and fissures.</li>
+        <li>Content delivery networks: esm.sh, which serves the PaddleOCR text-recognition library used by the scanner, and jsDelivr, which serves public weapon data from the WFCD project.</li>
       </ul>
 
       <h2>5. Advertising &amp; cookies</h2>
@@ -198,7 +184,9 @@
       <h2>6. Your choices</h2>
       <p>
         You can erase all local app data by clearing your browser storage for this site, and you can
-        manage or withdraw your advertising consent at any time via the site's privacy notice.
+        manage or withdraw your advertising consent at any time via the site's privacy notice. In the
+        desktop app, that data lives in the app's data folder (for example ~/.config/VoidStonks on
+        Linux or %APPDATA%\VoidStonks on Windows), and deleting that folder erases it.
       </p>
 
       <h2>7. Contact</h2>
@@ -214,11 +202,12 @@
 
     <section data-lang="es">
       <h1>Política de Privacidad</h1>
-      <p class="muted">Última actualización: agosto de 2026</p>
+      <p class="muted">Última actualización: octubre de 2026</p>
 
       <p>
         VoidStonks es una herramienta no oficial para Warframe. Esta política explica qué datos
-        se manejan cuando usas <a href="https://voidstonks.com/">voidstonks.com</a>.
+        se manejan cuando usas <a href="https://voidstonks.com/">voidstonks.com</a> y la app de
+        escritorio de VoidStonks.
       </p>
 
       <h2>1. Datos que recogemos</h2>
@@ -228,47 +217,33 @@
         <strong>localmente en tu navegador</strong> (localStorage) y nunca se envían a nosotros.
       </p>
       <p>
-        La única excepción es la conexión opcional con Warframe.market que se describe en el
-        apartado 2, y que tienes que iniciar tú.
+        La conexión opcional con Warframe.market que se describe en el apartado 2, y que tienes que
+        iniciar tú, tampoco pasa por nosotros: la app de escritorio habla directamente con
+        warframe.market y guarda en tu ordenador una copia local de su catálogo público de ítems.
       </p>
 
       <h2>2. Conectar tu cuenta de Warframe.market (opcional)</h2>
       <p>
         La pestaña "Mis órdenes" permite iniciar sesión en <a href="https://warframe.market/" target="_blank" rel="noopener">warframe.market</a>
-        para ver y gestionar tus propias órdenes. Es <strong>totalmente opcional</strong>: el resto de
-        funciones anda sin ello.
-      </p>
-      <p>
-        Warframe.market todavía no permite que las apps externas se conecten sin contraseña (su OAuth
-        no está abierto a terceros), así que <strong>tu email y tu contraseña pasan por el servidor de
-        VoidStonks</strong> camino de warframe.market. En concreto:
+        para ver y gestionar tus propias órdenes. Solo existe en la app de escritorio de VoidStonks y es
+        <strong>totalmente opcional</strong>: el resto de funciones anda sin ello.
       </p>
       <ul>
         <li>
-          Tus credenciales se <strong>cifran en tu navegador</strong> antes de enviarse, con una clave
-          que solo nuestro servidor puede deshacer. Nunca son legibles por el camino.
+          Tu email y tu contraseña van <strong>directamente de tu ordenador a warframe.market</strong>.
+          Nunca pasan por los servidores de VoidStonks, y la app no los guarda ni los registra.
         </li>
         <li>
-          Se usan <strong>una sola vez</strong>, para iniciar sesión en warframe.market, y
-          <strong>no se guardan, ni se registran, ni se escriben en ninguna base de datos</strong>.
+          Solo se conserva el token de sesión resultante, guardado localmente en tu ordenador.
+          <strong>Caduca en la app a las 3 horas</strong>, y al pulsar "Salir" se invalida en
+          warframe.market. Si no pulsas "Salir", warframe.market lo mantiene válido hasta que caduque
+          por su lado.
         </li>
         <li>
-          Solo se conserva el token de sesión resultante, y únicamente en la memoria de la pestaña de
-          tu navegador (sessionStorage). <strong>Caduca a las 3 horas</strong> y se invalida en
-          warframe.market al pulsar "Salir".
-        </li>
-        <li>
-          Para limitar abusos guardamos durante 15 minutos un contador temporal de intentos fallidos.
-          Tu email se almacena ahí <strong>hasheado (SHA-256)</strong>, nunca en claro.
+          La app guarda en tu ordenador una copia del catálogo público de ítems de warframe.market para
+          no descargarlo más de una vez al día.
         </li>
       </ul>
-      <p>
-        Queremos ser claros con el límite de todo esto: como la contraseña tiene que llegar a
-        warframe.market, nuestro servidor la maneja por fuerza durante un instante. No la guardamos, y
-        el código es público para poder comprobarlo, pero estás depositando una confianza. Si
-        prefieres no hacerlo, simplemente no uses esta función. Si warframe.market abre OAuth,
-        migraremos para que las contraseñas no toquen nunca nuestra infraestructura.
-      </p>
 
       <h2>3. Cámara y captura de pantalla</h2>
       <p>
@@ -281,8 +256,8 @@
       <p>Para funcionar, tu navegador se conecta a los siguientes servicios externos:</p>
       <ul>
         <li><a href="https://warframe.market/" target="_blank" rel="noopener">Warframe.market</a>: datos de precios de mercado.</li>
-        <li>El propio backend de VoidStonks (api.voidstonks.com), que retransmite datos públicos del juego como reliquias, misiones y fisuras y, solo si usas la función del apartado 2, reenvía tu inicio de sesión a warframe.market.</li>
-        <li>Redes de distribución de contenido (jsDelivr, unpkg) que sirven las librerías de visión/OCR que usa el escáner.</li>
+        <li>El propio backend de VoidStonks (api.voidstonks.com), que retransmite datos públicos del juego como reliquias, misiones y fisuras.</li>
+        <li>Redes de distribución de contenido: esm.sh, que sirve la librería de reconocimiento de texto PaddleOCR que usa el escáner, y jsDelivr, que sirve datos públicos de armas del proyecto WFCD.</li>
       </ul>
 
       <h2>5. Publicidad y cookies</h2>
@@ -311,7 +286,9 @@
       <p>
         Puedes borrar todos los datos locales de la app limpiando el almacenamiento del navegador
         para este sitio, y gestionar o retirar tu consentimiento publicitario en cualquier momento
-        desde el aviso de privacidad del sitio.
+        desde el aviso de privacidad del sitio. En la app de escritorio, esos datos están en su carpeta
+        de datos (por ejemplo, ~/.config/VoidStonks en Linux o %APPDATA%\VoidStonks en Windows) y se
+        borran borrando esa carpeta.
       </p>
 
       <h2>7. Contacto</h2>
