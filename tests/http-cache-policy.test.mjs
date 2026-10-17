@@ -36,7 +36,7 @@ const ROTATING = [
   "getLichWeapons",
 ];
 
-const LIVE = ["getServerTime", "getSyncMessage", "sendSyncMessage"];
+const LIVE = ["getServerTime"];
 
 test("fetchRotating revalida siempre contra el servidor", () => {
   const fn = bodyOf(apiSrc, "async function fetchRotating");
@@ -94,24 +94,6 @@ test("el perfil se revalida: quien lo consulta dos veces espera ver el cambio", 
   );
 });
 
-test("el buzón de sync nunca toca la caché compartida", () => {
-  const line = workerSrc.match(/const skipGlobalCache = \[[^\]]*\]/)?.[0] || "";
-  for (const type of ["sync_get", "sync_set"]) {
-    assert.ok(
-      line.includes(`"${type}"`),
-      `${type}: una entrada compartida devuelve el mensaje viejo que se quiere superar`,
-    );
-  }
-});
-
-test("sync_set escribe de verdad aunque se repita el mismo mensaje", () => {
-  const fn = bodyOf(workerSrc, "async 'sync_set'");
-  assert.ok(
-    /ResponseHelper\.live\(/.test(fn),
-    "la escritura viaja en un GET: si la respuesta se cachea, la segunda vez no se escribe",
-  );
-});
-
 test("las respuestas vivas del worker declaran no-store", () => {
   const fn = bodyOf(workerSrc, "    live(data, status = 200)");
   assert.ok(fn, "falta ResponseHelper.live");
@@ -119,7 +101,7 @@ test("las respuestas vivas del worker declaran no-store", () => {
     /"Cache-Control":\s*"no-store"/.test(fn),
     "json() tiene ttl mínimo 300 y swr 24h por defecto: para estos datos no hay ttl correcto",
   );
-  for (const type of ["time", "sync_get"]) {
+  for (const type of ["time"]) {
     assert.ok(
       /ResponseHelper\.live\(/.test(bodyOf(workerSrc, `async '${type}'`)),
       `${type} debe responder con live()`,

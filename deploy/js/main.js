@@ -23,7 +23,6 @@ import {
   cargaRivens,
 } from "./ui.js?v=2.4";
 import { initFissurePanel } from "./ui.components/farms/ui_fissures.js?v=1.1";
-import { initSyncPanel } from "./ui.components/market/ui_sync.js";
 import {
   initGlobalTooltipSystem,
   keepPanelInertWhileClosed,

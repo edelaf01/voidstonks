@@ -52,7 +52,6 @@
     "ui.components/inventory/ui_inventory.js": 1,
     "ui.components/inventory/ui_prime_inventory.js": 3,
     "ui.components/inventory/ui_sets.js": 2,
-    "ui.components/market/ui_sync.js": 1,
     "ui.components/rivens/ui_arbitrage.js": 1,
     "ui.components/rivens/ui_riven_scanner_hud.js": 2,
     "ui.components/rivens/ui_rivens.js": 4,
