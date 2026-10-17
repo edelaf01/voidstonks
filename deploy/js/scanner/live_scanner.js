@@ -41,6 +41,7 @@ import { getPlayerOdds } from "../utils/inventory/relic_drop_odds.utils.js";
 import { fetchAllFissures } from "../services/farms/fissures.service.js";
 import { eraDeLaMision } from "../utils/inventory/relic_route.js";
 import { avisa, escucha, pistasDelLog } from "../utils/ganchos.js";
+import { esEscritorio } from "../utils/shell.js";
 
 const HOWTO_KEY = "vs_live_howto_seen";
 
@@ -154,7 +155,9 @@ export async function startLiveSession() {
     toggleBtn.querySelector(".label").innerText = t.starting;
   }
 
+  liveStream = null;
   try {
+
     const nativa = (() => { try { return localStorage.getItem("vs_capture_native") === "1"; } catch { return false; } })();
     liveStream = await navigator.mediaDevices.getDisplayMedia({
       video: { cursor: "never", displaySurface: "window", frameRate: { ideal: 5, max: 5 }, ...(nativa ? {} : { height: { ideal: 1080 } }) },
@@ -182,7 +185,9 @@ export async function startLiveSession() {
 
     RelicScreenService.reset();
     DucatKioskService.reset();
+
     enciendeGrabadora(DEBUG_ACTIVO);
+
     pendingManualAdds.length = 0;
     await ScannerService.start();
     showToast(t.toastActive);
@@ -193,9 +198,14 @@ export async function startLiveSession() {
     if (pista) pista.onended = () => stopLiveSession();
   } catch (e) {
     console.error("Scanner startup failed:", e);
-    showToast(e.name === "NotAllowedError"
-      ? (st().toastShareDenied || "No window was shared.")
-      : (st().toastError || "Error: {msg}").replace("{msg}", e.message));
+
+    if (esEscritorio() && !liveStream) {
+      showToast(st().toastNoGameWindow || "Warframe window not found. Open the game and press again.");
+    } else {
+      showToast(e.name === "NotAllowedError"
+        ? (st().toastShareDenied || "No window was shared.")
+        : (st().toastError || "Error: {msg}").replace("{msg}", e.message));
+    }
     stopLiveSession();
   } finally {
     isStartingSession = false;
@@ -218,6 +228,7 @@ export function stopLiveSession() {
   if (toggleBtn) {
     toggleBtn.classList.remove("active");
     const label = toggleBtn.querySelector(".label");
+
     if (label) label.innerText = TEXTS[state.currentLang].scanner.idle;
   }
   const drawer = document.getElementById("scanner-drawer");
@@ -264,6 +275,7 @@ function alAccionReliquias(accion) {
   if (clave === "refino" && (valor === "Any" || DROP_CHANCES[valor])) {
     cualquierRefino = valor === "Any";
     if (!cualquierRefino) globalThis.setRefinement?.(valor);
+    //TODO maybe switch case here
   } else if (clave === "objetivo" && OBJETIVOS.includes(valor)) objetivoElegido = valor;
   else if (clave === "escuadra") globalThis.setSquadSize?.(valor);
   else if (clave === "era") eraElegida = valor === "ALL" ? null : valor;

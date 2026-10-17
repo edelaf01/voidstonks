@@ -15,7 +15,7 @@ function prepara({ plataforma = "linux", env = { DISPLAY: ":0", XDG_SESSION_TYPE
     listaFuentes: async () => {
       vistas.push(env.XDG_SESSION_TYPE);
       if (vistas.length <= falla) throw new Error("sin fuentes");
-      return fuentes;
+      return typeof fuentes === "function" ? fuentes(vistas.length) : fuentes;
     },
   });
   return { elige, env, vistas, pruebas };
@@ -92,12 +92,56 @@ test("si la primera lista falla el entorno vuelve, el error sale y la siguiente 
   assert.deepEqual(log, ["[captura] motor x11"]);
 });
 
-test("sin Warframe elige una pantalla, si no la primera, y sin fuentes null", async (t) => {
+test("sin Warframe devuelve null fuera del portal de Wayland, y sin fuentes null", async (t) => {
   conLog(t);
   const elige = async (fuentes) => prepara({ plataforma: "win32", fuentes }).elige();
   const firefox = { id: "window:7:0", name: "Firefox" };
-  assert.equal(await elige([firefox, PANTALLA]), PANTALLA);
-  assert.equal(await elige([firefox, { id: "window:8:0", name: "Chrome" }]), firefox);
+  assert.equal(await elige([firefox, PANTALLA]), null);
+  assert.equal(await elige([firefox, { id: "window:8:0", name: "Chrome" }]), null);
   assert.equal(await elige([]), null);
   assert.equal(await elige(null), null);
+});
+
+test("Wayland: primera llamada con juego x11, segunda llamada sin Warframe null y env vuelve a wayland", async (t) => {
+  const log = conLog(t);
+  const fuentes = [WARFRAME];
+  const { elige, env, vistas } = prepara({ fuentes });
+  assert.equal(await elige(), WARFRAME);
+  assert.deepEqual(log, ["[captura] motor x11"]);
+  fuentes.length = 0;
+  fuentes.push({ id: "window:7:0", name: "Firefox" });
+  assert.equal(await elige(), null);
+  assert.equal(env.XDG_SESSION_TYPE, "wayland");
+  assert.deepEqual(vistas, ["x11", "wayland"]);
+});
+
+test("plataforma linux, sesión x11, sin Warframe devuelve null", async (t) => {
+  conLog(t);
+  const firefox = { id: "window:7:0", name: "Firefox" };
+  const { elige } = prepara({
+    plataforma: "linux",
+    env: { DISPLAY: ":0", XDG_SESSION_TYPE: "x11" },
+    fuentes: [firefox],
+  });
+  assert.equal(await elige(), null);
+});
+
+test("Wayland sin juego, fuentes [firefox, PANTALLA] devuelve PANTALLA", async (t) => {
+  conLog(t);
+  const firefox = { id: "window:7:0", name: "Firefox" };
+  const { elige } = prepara({
+    juego: () => false,
+    fuentes: [firefox, PANTALLA],
+  });
+  assert.equal(await elige(), PANTALLA);
+});
+
+test("Wayland sin DISPLAY, fuentes [firefox] devuelve firefox", async (t) => {
+  conLog(t);
+  const firefox = { id: "window:7:0", name: "Firefox" };
+  const { elige } = prepara({
+    env: { XDG_SESSION_TYPE: "wayland" },
+    fuentes: [firefox],
+  });
+  assert.equal(await elige(), firefox);
 });

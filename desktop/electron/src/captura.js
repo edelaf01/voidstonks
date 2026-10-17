@@ -1,6 +1,3 @@
-const esWayland = (plataforma, env) =>
-  plataforma === "linux" && !!env.DISPLAY && String(env.XDG_SESSION_TYPE || "").startsWith("wayland");
-
 const hayJuego = (juegoEnX11) => {
   try {
     return !!juegoEnX11();
@@ -10,14 +7,16 @@ const hayJuego = (juegoEnX11) => {
 };
 
 export function creaEligeFuente({ plataforma, env, juegoEnX11, listaFuentes }) {
-  let decidido = false;
+  const sesionWayland = plataforma === "linux" && String(env.XDG_SESSION_TYPE || "").startsWith("wayland");
+  const conXwayland = sesionWayland && !!env.DISPLAY;
+  let motor = null;
 
-  const primeraLista = async () => {
-    if (!esWayland(plataforma, env) || !hayJuego(juegoEnX11)) return { motor: "sistema", fuentes: await listaFuentes() };
+  const pideFuentes = async (m) => {
+    if (m !== "x11") return listaFuentes();
     const sesion = env.XDG_SESSION_TYPE;
     env.XDG_SESSION_TYPE = "x11";
     try {
-      return { motor: "x11", fuentes: await listaFuentes() };
+      return await listaFuentes();
     } finally {
       env.XDG_SESSION_TYPE = sesion;
     }
@@ -25,15 +24,20 @@ export function creaEligeFuente({ plataforma, env, juegoEnX11, listaFuentes }) {
 
   return async function eligeFuente() {
     let fuentes;
-    if (decidido) {
+    if (motor) {
       fuentes = await listaFuentes();
     } else {
-      const primera = await primeraLista();
-      console.log(`[captura] motor ${primera.motor}`);
-      decidido = true;
-      fuentes = primera.fuentes;
+      const m = conXwayland && hayJuego(juegoEnX11) ? "x11" : "sistema";
+      fuentes = await pideFuentes(m);
+      console.log(`[captura] motor ${m}`);
+      motor = m;
     }
     if (!fuentes?.length) return null;
-    return fuentes.find((f) => f.name === "Warframe") || fuentes.find((f) => f.id.startsWith("screen:")) || fuentes[0];
+    const wf = fuentes.find((f) => f.name === "Warframe");
+    if (wf) return wf;
+    if (motor === "sistema" && sesionWayland) {
+      return fuentes.find((f) => f.id.startsWith("screen:")) || fuentes[0];
+    }
+    return null;
   };
 }
