@@ -86,7 +86,7 @@ export class MobileDebugScanner extends MobileScanner {
             box-shadow: -10px 0 30px rgba(0,0,0,0.8); backdrop-filter: blur(20px);
             pointer-events: auto;
         `;
-
+        //TODO considering making a separate html file for this so as to not use .innerHtml 
         dash.innerHTML = `
             <div style="background:linear-gradient(90deg, #00e5ff, #008cff); color:#000; padding:12px; font-weight:900; letter-spacing:1.5px; display:flex; justify-content:space-between; align-items:center;">
                 <span>V CALIBRATION STATION</span>
@@ -259,7 +259,7 @@ export class MobileDebugScanner extends MobileScanner {
     makeGuideInteractive() {
         const guide = this.guide;
         if (!guide) return;
-
+        //TODO styles that should be in CSS, not JS 
         guide.style.cursor = "move";
         guide.style.borderStyle = "solid";
         guide.style.pointerEvents = "auto";
@@ -281,6 +281,7 @@ export class MobileDebugScanner extends MobileScanner {
         `;
         handle.innerText = "⇲";
         guide.appendChild(handle);
+        //TODO styles that should be in CSS, not JS continuation
 
         let activeAction = null;
         let lastX, lastY;
@@ -478,7 +479,7 @@ export class MobileDebugScanner extends MobileScanner {
             showToast(st().toastScreenError);
         }
     }
-
+    //TODO ok why is this not being called? dead code?
     logToDebug() {}
 }
 

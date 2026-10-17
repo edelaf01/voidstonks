@@ -45,6 +45,7 @@ function emitir(listeners, evento) {
     for (const fn of listeners) {
         try {
             fn(evento);
+            //TODO handle the catch
         } catch {}
     }
 }

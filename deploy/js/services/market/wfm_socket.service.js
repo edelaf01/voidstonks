@@ -71,6 +71,7 @@ export async function subscribeNewOrders(fn, opts = {}) {
                     id: "unsuborders",
                     payload: subPayload
                 }));
+                //TODO handle the catch
             } catch {}
             subscribedOrders = false;
             subPayload = null;
