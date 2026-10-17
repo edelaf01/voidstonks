@@ -30,7 +30,6 @@ import {
 } from "./ui.components/ui_lfg.js";
 import { applyArbTexts } from "./ui.components/rivens/ui_arbitrage.js";
 import { initVosforTab, renderVosforTab } from "./ui.components/ui_vosfor.js?v=2.9";
-import { initSyncPanel } from "./ui.components/market/ui_sync.js";
 import { initFissurePanel, updateRecommendedMissions } from "./ui.components/farms/ui_fissures.js?v=1.1";
 import { exposeGlobals } from "./utils/global_registry.js";
 import { readTabHash, writeTabHash, onTabHashChange } from "./utils/tab_hash.js";

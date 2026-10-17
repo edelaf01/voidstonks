@@ -37,12 +37,6 @@ test("lo que solo vale ahora se pide con no-store", async () => {
   reset();
   await api.getServerTime();
   assert.equal(ultima().init.cache, "no-store");
-
-  await api.sendSyncMessage("1234", "hola");
-  assert.equal(ultima().init.cache, "no-store");
-
-  await api.getSyncMessage("1234");
-  assert.equal(ultima().init.cache, "no-store");
 });
 
 test("el catálogo NO desactiva la caché del navegador", async () => {
@@ -159,12 +153,4 @@ test("los slugs se codifican al ir en la querystring", async () => {
   await api.getProfileData("Tenno Con Espacio", "pc");
   assert.ok(!ultima().url.includes("Tenno Con Espacio"), ultima().url);
   assert.match(ultima().url, /Tenno(%20|\+)Con/);
-});
-
-test("el buzón de sync codifica el mensaje: puede llevar corchetes y comas", async () => {
-  reset();
-  await api.sendSyncMessage("1234", "[Lith A1] x3, [Axi Z9] x1");
-  const u = ultima().url;
-  assert.ok(!u.includes("[Lith A1]"), "sin codificar, los corchetes rompen la URL");
-  assert.match(u, /id=1234/);
 });

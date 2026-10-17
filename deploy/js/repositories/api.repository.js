@@ -155,16 +155,9 @@ export async function fetchActiveResurgence() {
     }
 }
 
-export async function sendSyncMessage(code, val) {
-    return fetchLive(`type=sync_set&id=${code}&val=${encodeURIComponent(val)}`, { timeout: 8000 });
-}
-
-export async function getSyncMessage(code) {
-    return fetchLive(`type=sync_get&id=${code}`, { timeout: 8000 });
-}
-
 export async function getProfileData(username, platform) {
-    //TODO disabled at the moment must delete profile stuff
+//TODO disabled at the moment must delete profile stuff
+
     return fetchWithTimeout(
         `${WORKER_URL}?type=profile&platform=${platform}&user=${encodeURIComponent(username)}`,
         { cache: "no-cache" },
