@@ -1,13 +1,9 @@
 name: Curiosidades de mercado (diario)
 
-# Regenera SOLO el carrusel de curiosidades (deploy/assets/ml/curiosidades.json).
-#
-# Va aparte del reentreno a propósito: los asks de WFM se mueven todos los días, así que un carrusel
-# que solo se refresca los lunes cuenta noticias de hace una semana. Esto no toca el modelo —lee
-# history_series.json y hace cuentas— así que tarda segundos en vez de los ~20 min de XGBoost.
+# daily refresh of deploy/assets/ml/curiosidades.json, apart from the weekly retrain
 on:
   schedule:
-    - cron: '30 5 * * *'     # diario 05:30 UTC, después del oráculo (02:00) que llena el CSV
+    - cron: '30 5 * * *'
   workflow_dispatch:
     inputs:
       dias:
@@ -22,22 +18,19 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: '3.11'
 
       - name: Dependencias
-        run: pip install pandas numpy requests
+        run: pip install pandas==3.0.6 numpy==2.4.6 requests==2.34.2
 
       - name: Descargar serie history
         working-directory: scripts-actu/ML-rivenvaluation
         env:
-          # Sin VOIDSTONKS_CSV a propósito: history_fetch.py saca la lista de armas del catálogo de
-          # este repo y el histórico del worker (sin auth). Así este job NO necesita clonar el repo
-          # privado del oráculo ni su PAT, que es lo que fallaba con "Bad credentials".
           VOIDSTONKS_WEAPONS: ${{ github.workspace }}/deploy/assets/json/cleaned_weapons.json
         run: python history_fetch.py
 
@@ -53,13 +46,10 @@ jobs:
           git config user.email "actions@github.com"
           git config user.name "Curiosidades Bot"
           git add deploy/assets/ml/curiosidades.json
-          # Sin cambios = mercado tranquilo ese día; no es un fallo.
           if git diff --staged --quiet; then
             echo "Sin movimientos nuevos; nada que commitear."
             exit 0
           fi
           git commit -m "🤖 Curiosidades de mercado $(date -u +%F)"
-          # El reentreno de los lunes toca los MISMOS ficheros de deploy/assets/ml: si coincide,
-          # se reintegra en vez de fallar el push.
           git pull --rebase --autostash origin "${GITHUB_REF_NAME}" || true
           git push

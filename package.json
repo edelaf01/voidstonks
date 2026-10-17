@@ -13,7 +13,8 @@
   "devDependencies": {
     "esbuild": "0.24.0",
     "eslint": "9.39.5",
-    "globals": "17.8.0"
+    "globals": "17.8.0",
+    "wrangler": "4.94.0"
   },
   "packageManager": "pnpm@11.3.0"
 }
