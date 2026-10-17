@@ -1,7 +1,7 @@
 import { test as testNode } from "node:test";
 import assert from "node:assert/strict";
 import { optionalSource } from "./_helpers/optional-source.mjs";
-import { resumen, filasDeTail, consultaSQL } from "../scripts/wfm-rps.mjs";
+import { resumen, filasDeTail, consultaSQL } from "../scripts/wfm/wfm-rps.mjs";
 
 const { src: workerSrc, test } = optionalSource(new URL("../worker-code.js", import.meta.url));
 
