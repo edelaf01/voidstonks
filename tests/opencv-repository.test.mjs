@@ -7,8 +7,7 @@ let alCargar = "load";
 globalThis.document = {
   head: {
     appendChild: (s) => {
-      const modo = Array.isArray(alCargar) ? (alCargar.shift() ?? "load") : alCargar;
-      setTimeout(() => (modo === "load" ? s.onload() : s.onerror()), 0);
+      setTimeout(() => (alCargar === "load" ? s.onload() : s.onerror()), 0);
     },
   },
   querySelector: (sel) => inyectados.find((u) => sel.includes(u)) ? {} : null,
@@ -43,19 +42,19 @@ test("con OpenCV ya presente no se descarga nada", async () => {
   assert.deepEqual(inyectados, []);
 });
 
-test("si el CDN principal falla se intenta el de respaldo", async () => {
+test("la carga inyecta la copia local de opencv.js", async () => {
   reset();
-  alCargar = ["error", "load"];
   await sinRuido(() => R.waitReady(150));
-  assert.equal(inyectados.length, 2, `se intentaron: ${inyectados.join(", ")}`);
-  assert.notEqual(inyectados[0], inyectados[1], "el respaldo tiene que ser otro host");
+  assert.equal(inyectados.length, 1, `se intentaron: ${inyectados.join(", ")}`);
+  assert.match(inyectados[0], /deploy\/js\/opencv\/4\.5\.4\/opencv\.js$/, "debe cargar la copia local");
 });
 
-test("con los dos CDN caídos devuelve false, no lanza", async () => {
+test("si la carga de OpenCV falla devuelve false, no lanza", async () => {
   reset();
   alCargar = "error";
   const r = await sinRuido(() => R.waitReady(150));
   assert.equal(r, false);
+  assert.equal(inyectados.length, 1);
 });
 
 test("tras un fallo, la siguiente llamada responde en vez de colgarse", async () => {
@@ -77,7 +76,7 @@ test("si OpenCV no llega, se rinde a tiempo devolviendo false", async () => {
 test("varias llamadas a la vez comparten una sola carga", async () => {
   reset();
   await sinRuido(() => Promise.all([R.waitReady(60), R.waitReady(60), R.waitReady(60)]));
-  assert.ok(inyectados.length <= 2, `se inyectaron ${inyectados.length} scripts`);
+  assert.equal(inyectados.length, 1, `se inyectaron ${inyectados.length} scripts`);
 });
 
 test("el interruptor de código corta la carga sin efectos secundarios", async () => {

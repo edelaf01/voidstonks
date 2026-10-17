@@ -24,17 +24,14 @@ export const OpenCVRepository = {
             if (check()) return true;
 
             try {
-                await this.injectScript("https://docs.opencv.org/4.5.4/opencv.js");
+                await this.injectScript(new URL("../opencv/4.5.4/opencv.js", import.meta.url).href);
             } catch (e) {
-                console.warn("[OpenCV] Primary CDN failed, fallback to unpkg...");
-                try {
-                    await this.injectScript("https://unpkg.com/@techstark/opencv-js@4.5.4-beta.3/dist/opencv.js");
-                } catch (e2) {
-                    console.warn("[OpenCV] Fallback CDN failed too; continuing without OpenCV.");
-                    return false;
-                }
+                   
+                console.warn("[OpenCV] Script load failed; continuing without OpenCV.");
+                return false;
             }
 
+           
             return new Promise((resolve) => {
                 const fin = Date.now() + timeout;
                 const interval = setInterval(() => {

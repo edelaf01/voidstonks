@@ -25,7 +25,7 @@ const SKIP = (name, path) =>
     name.endsWith(".min.js") ||
     name.endsWith(".wasm.js") ||
     name.startsWith("tesseract") ||
-    path.includes("opencv");
+    path.split(sep).join("/").includes("js/opencv/");
 
 const LITERAL = /(["'])((?:\.{1,2}\/|js\/|css\/)[^"'?\s]+\.(?:js|css))(\?v=[^"']*)?\1/dg;
 const ATTR = /\b(?:src|href)\s*=\s*(["'])([^"']*)\1/dg;
