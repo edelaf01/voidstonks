@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 const ROOT = fileURLToPath(new URL("../deploy/js", import.meta.url));
 
 const SKIP = (name) =>
-  /^tesseract/.test(name) || /opencv-?js/.test(name) || name.endsWith(".min.js") || name.endsWith(".wasm.js");
+  /^tesseract/.test(name) || /opencv[.-]?js/.test(name) || name.endsWith(".min.js") || name.endsWith(".wasm.js");
 
 function allJs(dir) {
   const out = [];
