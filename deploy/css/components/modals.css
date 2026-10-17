@@ -610,12 +610,6 @@
   border: 1px solid #444;
 }
 
-#grading-modal .content-area {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
 .variants-carousel-container::-webkit-scrollbar {
   height: 6px;
 }

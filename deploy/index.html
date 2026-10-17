@@ -213,12 +213,10 @@
       </div>
 
       <div class="hud-subactions" id="hud-subactions">
-
         <button type="button" id="btn-reset-grid" class="hud-btn-sm amber" onclick="globalThis.resetGrid()"
           title="Descarta la rejilla detectada; se vuelve a detectar en el próximo escaneo">
           ↺ REHACER REJILLA
         </button>
-
       </div>
 
       <div id="live-debug-snapshot" class="hud-debug" style="display: none">
@@ -752,109 +750,55 @@
                   placeholder="Ej: Bramma, Nikana..." oninput="handleRivenInput()" autocomplete="off" />
                 <div id="rivenDropdown" class="custom-dropdown hidden"></div>
 
-                <div id="riven-dispo-display" style="margin-top: 5px; font-size: 0.9em; color: #aaa"></div>
+                <div id="riven-dispo-display"></div>
               </div>
 
-              <div id="riven-avg-box"
-                style="margin-top: 15px; display: none; text-align: center; background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(162, 53, 226, 0.2); border-radius: 8px; padding: 12px 6px;">
+              <div id="riven-avg-box">
                 <span id="riven-avg-value" style="display: none;">...</span>
-                <div
-                  style="display: flex; align-items: stretch; justify-content: space-between; gap: 2px; text-align: center;">
-                  <div
-                    style="flex: 1; padding: 0 2px; display: flex; flex-direction: column; justify-content: space-between; min-height: 105px;">
+                <div class="rv-avg-grid">
+                  <div class="rv-avg-col">
                     <div>
-                      <span id="riven-unrolled-title"
-                        style="font-size: 0.72rem; color: #fff; font-weight: bold; text-transform: uppercase; letter-spacing: 0.2px; display: block; line-height: 1.2;">Base
-                        Real</span>
-                      <span id="riven-unrolled-subtitle"
-                        style="font-size: 0.58rem; color: #888; text-transform: uppercase; font-weight: bold; display: block; margin-top: 1px;">(Sin
-                        Ciclos)</span>
+                      <span id="riven-unrolled-title" class="rv-avg-title">Base Real</span>
+                      <span id="riven-unrolled-subtitle" class="rv-avg-sub">(Sin Ciclos)</span>
                     </div>
-                    <div style="margin-top: 4px;">
-                      <div style="display: inline-flex; align-items: center; gap: 2px;">
-                        <span id="riven-unrolled-median"
-                          style="font-size: 1.3rem; font-weight: 900; color: #fff;">...</span>
-                        <img src="assets/relic_contents/platinum.webp"
-                          style="width: 16px; height: 16px; object-fit: contain;">
-                      </div>
-                      <div
-                        style="font-size: 0.65rem; color: #888; margin-top: 2px; line-height: 1.3; display: flex; flex-direction: column; align-items: center; gap: 2px;">
-                        <span style="white-space: nowrap; display: inline-flex; align-items: center; gap: 2px;">Min:
-                          <span id="riven-unrolled-min" style="color: #44ff88; font-weight: bold;">...</span><img
-                            src="assets/relic_contents/platinum.webp"
-                            style="width: 10px; height: 10px; object-fit: contain;"></span>
-                        <span style="white-space: nowrap; display: inline-flex; align-items: center; gap: 2px;">Max:
-                          <span id="riven-unrolled-max" style="color: #ff6666; font-weight: bold;">...</span><img
-                            src="assets/relic_contents/platinum.webp"
-                            style="width: 10px; height: 10px; object-fit: contain;"></span>
-                      </div>
-                    </div>
-                  </div>
-                  <div style="width: 1px; background: rgba(255, 255, 255, 0.08); align-self: stretch; margin: 0 2px;">
-                  </div>
-                  <div
-                    style="flex: 1; padding: 0 2px; display: flex; flex-direction: column; justify-content: space-between; min-height: 105px;">
                     <div>
-                      <span id="riven-rerolled-title"
-                        style="font-size: 0.72rem; color: #fff; font-weight: bold; text-transform: uppercase; letter-spacing: 0.2px; display: block; line-height: 1.2;">Rerolled
-                        Real</span>
-                      <span id="riven-rerolled-subtitle"
-                        style="font-size: 0.58rem; color: #888; text-transform: uppercase; font-weight: bold; display: block; margin-top: 1px;">(Con
-                        Ciclos)</span>
-                    </div>
-                    <div style="margin-top: 4px;">
-                      <div style="display: inline-flex; align-items: center; gap: 2px;">
-                        <span id="riven-rerolled-median"
-                          style="font-size: 1.3rem; font-weight: 900; color: #fff;">...</span>
-                        <img src="assets/relic_contents/platinum.webp"
-                          style="width: 16px; height: 16px; object-fit: contain;">
-                      </div>
-                      <div
-                        style="font-size: 0.65rem; color: #888; margin-top: 2px; line-height: 1.3; display: flex; flex-direction: column; align-items: center; gap: 2px;">
-                        <span style="white-space: nowrap; display: inline-flex; align-items: center; gap: 2px;">Min:
-                          <span id="riven-rerolled-min" style="color: #44ff88; font-weight: bold;">...</span><img
-                            src="assets/relic_contents/platinum.webp"
-                            style="width: 10px; height: 10px; object-fit: contain;"></span>
-                        <span style="white-space: nowrap; display: inline-flex; align-items: center; gap: 2px;">Max:
-                          <span id="riven-rerolled-max" style="color: #ff6666; font-weight: bold;">...</span><img
-                            src="assets/relic_contents/platinum.webp"
-                            style="width: 10px; height: 10px; object-fit: contain;"></span>
+                      <div class="rv-avg-main"><span id="riven-unrolled-median">...</span><img src="assets/relic_contents/platinum.webp" alt=""></div>
+                      <div class="rv-avg-range">
+                        <span>Min: <span id="riven-unrolled-min" class="rv-min">...</span><img src="assets/relic_contents/platinum.webp" alt=""></span>
+                        <span>Max: <span id="riven-unrolled-max" class="rv-max">...</span><img src="assets/relic_contents/platinum.webp" alt=""></span>
                       </div>
                     </div>
                   </div>
-                  <div style="width: 1px; background: rgba(255, 255, 255, 0.08); align-self: stretch; margin: 0 2px;">
-                  </div>
-                  <div
-                    style="flex: 1; padding: 0 2px; display: flex; flex-direction: column; justify-content: space-between; min-height: 105px;">
+                  <div class="rv-avg-col">
                     <div>
-                      <span id="riven-web-title"
-                        style="font-size: 0.72rem; color: #fff; font-weight: bold; text-transform: uppercase; letter-spacing: 0.2px; display: block; line-height: 1.2;">WFM
-                        Web</span>
-                      <span id="riven-web-subtitle"
-                        style="font-size: 0.58rem; color: #888; text-transform: uppercase; font-weight: bold; display: block; margin-top: 1px;">(Active)</span>
+                      <span id="riven-rerolled-title" class="rv-avg-title">Rerolled Real</span>
+                      <span id="riven-rerolled-subtitle" class="rv-avg-sub">(Con Ciclos)</span>
                     </div>
-                    <div style="margin-top: 4px;">
-                      <div style="display: inline-flex; align-items: center; gap: 2px;">
-                        <span id="riven-web-avg" style="font-size: 1.3rem; font-weight: 900; color: #fff;">...</span>
-                        <img src="assets/relic_contents/platinum.webp"
-                          style="width: 16px; height: 16px; object-fit: contain;">
+                    <div>
+                      <div class="rv-avg-main"><span id="riven-rerolled-median">...</span><img src="assets/relic_contents/platinum.webp" alt=""></div>
+                      <div class="rv-avg-range">
+                        <span>Min: <span id="riven-rerolled-min" class="rv-min">...</span><img src="assets/relic_contents/platinum.webp" alt=""></span>
+                        <span>Max: <span id="riven-rerolled-max" class="rv-max">...</span><img src="assets/relic_contents/platinum.webp" alt=""></span>
                       </div>
-                      <div
-                        style="font-size: 0.65rem; color: #888; margin-top: 2px; line-height: 1.3; display: flex; flex-direction: column; align-items: center; gap: 2px;">
-                        <span style="white-space: nowrap; display: inline-flex; align-items: center; gap: 2px;">Min:
-                          <span id="riven-web-min" style="color: #44ff88; font-weight: bold;">...</span><img
-                            src="assets/relic_contents/platinum.webp"
-                            style="width: 10px; height: 10px; object-fit: contain;"></span>
-                        <span style="white-space: nowrap; display: inline-flex; align-items: center; gap: 2px;"><span
-                            id="riven-web-orders-label">Orders</span>: <span id="riven-web-orders"
-                            style="color: #00e5ff; font-weight: bold;">...</span></span>
+                    </div>
+                  </div>
+                  <div class="rv-avg-col">
+                    <div>
+                      <span id="riven-web-title" class="rv-avg-title">WFM Web</span>
+                      <span id="riven-web-subtitle" class="rv-avg-sub">(Active)</span>
+                    </div>
+                    <div>
+                      <div class="rv-avg-main"><span id="riven-web-avg">...</span><img src="assets/relic_contents/platinum.webp" alt=""></div>
+                      <div class="rv-avg-range">
+                        <span>Min: <span id="riven-web-min" class="rv-min">...</span><img src="assets/relic_contents/platinum.webp" alt=""></span>
+                        <span><span id="riven-web-orders-label">Orders</span>: <span id="riven-web-orders" class="rv-orders">...</span></span>
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
 
-              <div style="display: flex; gap: 12px; margin-top: 20px">
+              <div class="rv-actions">
                 <button class="premium-riven-btn btn-price" id="btn-riven-search" onclick="openRivenMarket()">
                   VER EN WFM ↗
                 </button>
@@ -875,40 +819,29 @@
             </div>
           </div>
 
-          <div class="riven-right-col" style="display: flex; flex-direction: column; gap: 20px;">
-            <div id="riven-preview-panel" style="flex-grow: 1;">
+          <div class="riven-right-col" style="gap: 12px;">
+            <div id="riven-preview-panel">
             </div>
 
-            <div id="riven-history-chart-container"
-              style="margin-top: 15px; display: none; position: relative; height: auto; background: rgba(0,0,0,0.25); border: 1px solid rgba(155, 89, 182, 0.15); border-radius: 8px; padding: 8px; box-sizing: border-box; width: 100%;">
-              <div id="chart-hint-note"
-                style="font-size: 0.6rem; color: #888; text-align: center; margin-bottom: 4px; text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px;">
+            <div id="riven-history-chart-container">
+              <div id="chart-hint-note">
                 Pulsa 'WFM' en la leyenda para ocultarlo y ajustar la escala a los precios reales de DE
               </div>
-              <div class="history-range-selector" style="display: flex; justify-content: center; gap: 6px; margin: 6px 0 10px 0;">
-                <button class="history-range-btn active" data-days="7" onclick="globalThis.changeHistoryRange(7)" style="background: rgba(162, 53, 226, 0.25); border: 1px solid rgba(162, 53, 226, 0.6); color: #fff; font-size: 0.65rem; font-weight: bold; padding: 3px 10px; border-radius: 4px; cursor: pointer; transition: all 0.2s;">7D</button>
-                <button class="history-range-btn" data-days="15" onclick="globalThis.changeHistoryRange(15)" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); color: #aaa; font-size: 0.65rem; font-weight: bold; padding: 3px 10px; border-radius: 4px; cursor: pointer; transition: all 0.2s;">15D</button>
-                <button class="history-range-btn" data-days="30" onclick="globalThis.changeHistoryRange(30)" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); color: #aaa; font-size: 0.65rem; font-weight: bold; padding: 3px 10px; border-radius: 4px; cursor: pointer; transition: all 0.2s;">30D</button>
-                <button class="history-range-btn" data-days="all" onclick="globalThis.changeHistoryRange('all')" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); color: #aaa; font-size: 0.65rem; font-weight: bold; padding: 3px 10px; border-radius: 4px; cursor: pointer; transition: all 0.2s;">Todo</button>
+              <div class="history-range-selector">
+                <button class="history-range-btn active" data-days="7" onclick="globalThis.changeHistoryRange(7)">7D</button>
+                <button class="history-range-btn" data-days="15" onclick="globalThis.changeHistoryRange(15)">15D</button>
+                <button class="history-range-btn" data-days="30" onclick="globalThis.changeHistoryRange(30)">30D</button>
+                <button class="history-range-btn" data-days="all" onclick="globalThis.changeHistoryRange('all')">Todo</button>
               </div>
-              <div style="height: 180px; position: relative; width: 100%;">
-                <canvas id="rivenHistoryChart"
-                  style="width: 100% !important; height: 100% !important; display: block;"></canvas>
+              <div class="rv-chart-box">
+                <canvas id="rivenHistoryChart"></canvas>
               </div>
-              <div id="riven-history-table-container" style="margin-top: 12px; border-top: 1px dashed rgba(155, 89, 182, 0.25); padding-top: 10px; max-height: 125px; overflow-y: auto;">
+              <div id="riven-history-table-container">
               </div>
             </div>
 
-            <div id="riven-variants-carousel-section" style="margin-top: 5px; display: none; width: 100%;">
-              <h4 id="txt-variants-header" style="
-                    margin-bottom: 10px;
-                    font-size: 0.9em;
-                    color: #888;
-                    text-transform: uppercase;
-                    letter-spacing: 1px;
-                  ">
-                VARIANTS
-              </h4>
+            <div id="riven-variants-carousel-section">
+              <h4 id="txt-variants-header">VARIANTS</h4>
               <div id="riven-variants-carousel" class="variants-carousel-scroll"></div>
             </div>
 
@@ -924,11 +857,8 @@
           </div>
         </div>
 
-        <div class="analyzer-bottom-section"
-          style="margin-top: 40px; padding: 25px; background: radial-gradient(circle at top left, rgba(23, 16, 35, 0.95), rgba(12, 8, 18, 0.98)); border: 1px solid rgba(155, 89, 182, 0.2); border-radius: 12px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);">
-          <h2 id="lbl-index-title"
-            style="color: #c59afc; margin-bottom: 20px; font-weight: 800; text-transform: uppercase; letter-spacing: 1.5px; text-shadow: 0 0 10px rgba(155, 89, 182, 0.3);">
-            TENDENCIAS GLOBALES DE RIVEN</h2>
+        <div class="analyzer-bottom-section">
+          <h2 id="lbl-index-title">TENDENCIAS GLOBALES DE RIVEN</h2>
 
           <div id="rivenCuriosidades" class="riven-curiosidades hidden" aria-live="polite">
             <button type="button" data-curio-prev class="curio-nav" aria-label="Anterior">‹</button>
@@ -939,12 +869,10 @@
             <button type="button" data-curio-next class="curio-nav" aria-label="Siguiente">›</button>
           </div>
 
-          <div class="index-controls"
-            style="margin-bottom: 20px; display: flex; gap: 15px; flex-wrap: wrap; align-items: center;">
-            <input type="text" id="indexSearchInput" placeholder="Buscar arma o familia..." class="wf-input riven-input" autocomplete="off"
-              style="max-width: 320px; padding: 10px; border-color: rgba(162, 53, 226, 0.3); background: rgba(0, 0, 0, 0.25);" />
+          <div class="index-controls">
+            <input type="text" id="indexSearchInput" placeholder="Buscar arma o familia..." class="wf-input riven-input" autocomplete="off" />
 
-            <div style="display: flex; align-items: center; gap: 8px;">
+            <div class="rv-index-sort">
               <select id="indexSortSelect" style="display: none;">
                 <option id="opt-sort-pop" value="popularity" selected>Popularidad</option>
                 <option id="opt-sort-official" value="price-official">Precio de venta real</option>
@@ -1006,7 +934,7 @@
             </button>
           </div>
 
-          <div id="index-loading-state" style="text-align: center; padding: 40px; font-weight: bold; color: #c59afc;">
+          <div id="index-loading-state">
             <span id="lbl-index-loading">Cargando tendencias del mercado...</span>
           </div>
 
@@ -1463,10 +1391,9 @@
   </footer>
   <div id="grading-modal" class="hidden">
     <div class="modal-backdrop" onclick="closeGradingModal()"></div>
-    <div class="scan-result-card"
-      style="max-width: 1140px; width: 95%; height: auto; max-height: 90vh; display: flex; flex-direction: column;">
-      <div class="scan-header" style="flex-shrink: 0;">
-        <h3 id="grading-modal-title" style="text-shadow: 0 0 10px rgba(0, 229, 255, 0.4);">TASADOR DE RIVENS</h3>
+    <div class="scan-result-card gr-card">
+      <div class="scan-header">
+        <h3 id="grading-modal-title">TASADOR DE RIVENS</h3>
         <button class="close-modal-btn" onclick="closeGradingModal()">
           ✕
         </button>
@@ -1474,89 +1401,58 @@
 
       <div class="content-area riven-grader-grid">
 
-        <div style="display: flex; flex-direction: column; gap: 16px;">
-          <div id="g-modal-variants-section" style="display: none; border-bottom: 1px dashed rgba(255,255,255,0.1); padding-bottom: 15px;">
-            <label id="lbl-grading-variants" style="font-size: 0.75rem; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; display: block;">
+        <div class="gr-col gr-col-inputs">
+          <div id="g-modal-variants-section" style="display: none;">
+            <label id="lbl-grading-variants" class="gr-label">
               Variantes
             </label>
-            <div id="g-modal-variants-carousel" class="variants-carousel-scroll" style="
-              display: flex;
-              gap: 8px;
-              overflow-x: auto;
-              padding: 8px 4px 12px 4px;
-              scrollbar-width: thin;
-            ">
-            </div>
+            <div id="g-modal-variants-carousel" class="variants-carousel-scroll"></div>
           </div>
 
-          <div class="form-group" style="
-                display: flex;
-                gap: 12px;
-                align-items: center;
-                border-bottom: 1px dashed rgba(255,255,255,0.1);
-                padding-bottom: 15px;
-              ">
-            <div style="flex: 1">
-              <label
-                style="font-size: 0.75rem; color: #888; text-transform: uppercase; letter-spacing: 0.5px;">Arma</label>
-              <div id="g-weapon-name" style="
-                    font-weight: bold;
-                    color: var(--wf-blue);
-                    font-size: 1.15em;
-                    text-shadow: 0 0 8px rgba(0, 229, 255, 0.2);
-                  ">
+          <div class="form-group gr-head">
+            <div class="gr-weapon">
+              <label class="gr-label">Arma</label>
+              <div id="g-weapon-name">
                 ...
               </div>
             </div>
-            <div style="width: 130px">
-              <label style="font-size: 0.75rem; color: #888; text-transform: uppercase; letter-spacing: 0.5px;">Riven
+            <div class="gr-rank">
+              <label class="gr-label">Riven
                 rank</label>
-              <select id="g-rank" class="wf-input" onchange="calculateModalGrade()"
-                style="padding: 6px; font-weight: bold; border-color: rgba(255,255,255,0.15);">
+              <select id="g-rank" class="wf-input" onchange="calculateModalGrade()">
                 <option value="8" selected>Max (8)</option>
                 <option value="0">Min (0)</option>
               </select>
             </div>
           </div>
 
-          <div id="grading-inputs-container" style="display: flex; flex-direction: column; gap: 7px;">
+          <div id="grading-inputs-container">
 
-            <div style="
-                  display: flex;
-                  gap: 10px;
-                  margin-top: 10px;
-                  justify-content: center;
-                ">
-              <button id="btn-add-pos" class="dashed-btn" onclick="showGradingRow('row-stat3')"
-                style="padding: 6px 12px; font-size: 0.8rem; border-style: solid;">
+            <div class="gr-add-btns">
+              <button id="btn-add-pos" class="dashed-btn" onclick="showGradingRow('row-stat3', true)">
                 + Add Positive
               </button>
-              <button id="btn-add-neg" class="dashed-btn red" onclick="showGradingRow('row-statNeg')"
-                style="padding: 6px 12px; font-size: 0.8rem; border-style: solid;">
+              <button id="btn-add-neg" class="dashed-btn red" onclick="showGradingRow('row-statNeg', true)">
                 - Add Negative
               </button>
             </div>
           </div>
         </div>
 
-        <div
-          style="display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding: 15px; background: rgba(255,255,255,0.015); border: 1px solid rgba(255,255,255,0.04); border-radius: 12px; gap: 14px; box-shadow: inset 0 0 20px rgba(0,0,0,0.3);">
-          <div id="txt-mod-preview"
-            style="font-size: 0.75rem; color: #94a3b8; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 6px; width: 100%; text-align: center; text-shadow: 0 0 5px rgba(255,255,255,0.1);">
+        <div class="gr-col gr-col-panel">
+          <div id="txt-mod-preview" class="gr-col-title">
             VISTA PREVIA DEL MOD</div>
 
-          <div id="modal-riven-preview-container" style="perspective: 1000px; padding: 10px 0;"></div>
-
           <div id="grading-modal-results" class="grading-results hidden"></div>
+
+          <div id="modal-riven-preview-container"></div>
         </div>
 
-        <div
-          style="display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding: 15px; background: rgba(255,255,255,0.015); border: 1px solid rgba(255,255,255,0.04); border-radius: 12px; gap: 14px; box-shadow: inset 0 0 20px rgba(0,0,0,0.3); width: 100%;">
-          <div id="txt-weapon-guide"
-            style="font-size: 0.75rem; color: #94a3b8; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 6px; width: 100%; text-align: center; text-shadow: 0 0 5px rgba(255,255,255,0.1);">
+        <div class="gr-col gr-col-panel">
+          <div id="txt-weapon-guide" class="gr-col-title">
             GUÍA DEL ARMA</div>
 
-          <div id="modal-meta-stats-container" style="width: 100%;"></div>
+          <div id="modal-meta-stats-container"></div>
         </div>
       </div>
     </div>

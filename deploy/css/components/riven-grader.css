@@ -517,6 +517,8 @@
 }
 
 #modal-riven-preview-container {
+  perspective: 1000px;
+  padding: 4px 0;
   display: flex;
   flex-wrap: wrap;
   gap: 14px;
@@ -528,4 +530,311 @@
 .stats-table.beside-card {
   flex: 1 1 260px;
   max-width: 380px;
+}
+
+#grading-modal .gr-card {
+  max-width: 1180px;
+  width: 96%;
+  height: auto;
+  max-height: calc(100vh - 32px);
+}
+
+#grading-modal .scan-header {
+  flex-shrink: 0;
+  padding: 10px 20px;
+}
+
+#grading-modal .gr-col {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+#grading-modal .gr-col-panel {
+  align-items: center;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.015);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: 12px;
+  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.3);
+}
+
+#grading-modal .gr-col-title {
+  width: 100%;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #94a3b8;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  text-shadow: 0 0 5px rgba(255, 255, 255, 0.1);
+}
+
+#grading-modal .gr-label {
+  margin-bottom: 2px;
+  font-size: 0.75rem;
+  color: #888;
+  letter-spacing: 0.5px;
+}
+
+#g-modal-variants-section {
+  padding-bottom: 8px;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.1);
+}
+
+#g-modal-variants-carousel {
+  min-height: 0;
+  gap: 8px;
+  padding: 8px 4px;
+}
+
+#grading-modal .gr-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+  padding-bottom: 8px;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.1);
+}
+
+#grading-modal .gr-weapon {
+  flex: 1;
+  min-width: 0;
+}
+
+#grading-modal .gr-rank {
+  width: 130px;
+}
+
+#g-weapon-name {
+  font-weight: bold;
+  font-size: 1.15em;
+  color: var(--wf-blue);
+  text-shadow: 0 0 8px rgba(0, 229, 255, 0.2);
+}
+
+#g-rank {
+  padding: 5px 30px 5px 8px;
+  font-weight: bold;
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+#grading-modal .gsc-chip[data-market-line] {
+  flex-wrap: wrap;
+  white-space: normal;
+  border-radius: 12px;
+}
+
+#modal-meta-stats-container {
+  width: 100%;
+}
+
+#grading-inputs-container {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+#grading-inputs-container .gr-add-btns {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+#grading-inputs-container .gr-add-btns button {
+  padding: 6px 12px;
+  font-size: 0.8rem;
+  border-style: solid;
+}
+
+#grading-inputs-container .gr-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 6px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.15);
+}
+
+#grading-inputs-container .gr-row.gr-neg {
+  border-color: rgba(239, 68, 68, 0.15);
+  background: rgba(239, 68, 68, 0.02);
+}
+
+#grading-inputs-container .custom-select-search-container {
+  position: relative;
+  flex: 1.3 1 0;
+  min-width: 110px;
+}
+
+#grading-inputs-container .riven-stat-search-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  font-size: 0.9rem;
+}
+
+#grading-inputs-container .custom-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 1000;
+  background: #111;
+  border: 1px solid rgba(162, 53, 226, 0.4);
+  border-radius: 0 0 6px 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+}
+
+#grading-inputs-container .dropdown-item {
+  padding: 7px 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.02);
+}
+
+#grading-inputs-container .gr-slider {
+  flex: 2 1 0;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  width: auto;
+  min-width: 0;
+  margin: 0;
+}
+
+#grading-inputs-container .gr-slider input {
+  flex: 1;
+  min-width: 40px;
+}
+
+#grading-inputs-container .gr-edge {
+  min-width: 26px;
+  font-size: 0.75rem;
+  font-weight: bold;
+  color: #64748b;
+}
+
+#grading-inputs-container .gr-edge:last-child {
+  text-align: right;
+}
+
+#grading-inputs-container .gr-val {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex: 0 0 72px;
+  box-sizing: border-box;
+  padding: 2px 6px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.25);
+}
+
+#grading-inputs-container .gr-val input {
+  width: 100%;
+  min-width: 0;
+  padding: 3px 0;
+  border: none;
+  background: transparent;
+  text-align: right;
+  font-weight: bold;
+  color: var(--wf-gold-text);
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+#grading-inputs-container .gr-val input::-webkit-inner-spin-button,
+#grading-inputs-container .gr-val input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+#grading-inputs-container .gr-val span {
+  font-size: 0.8rem;
+  font-weight: bold;
+  color: #64748b;
+}
+
+#grading-inputs-container .gr-neg .gr-edge,
+#grading-inputs-container .gr-neg .gr-val input,
+#grading-inputs-container .gr-neg .gr-val span {
+  color: #ef4444;
+}
+
+#grading-inputs-container .gr-neg .gr-val {
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+#grading-inputs-container .gr-row .gr-del {
+  flex-shrink: 0;
+  padding: 3px 7px;
+  font-size: 0.75rem;
+  border-color: #ef4444;
+  color: #ef4444;
+}
+
+@media (min-width: 993px) {
+  #grading-modal .riven-grader-grid {
+    grid-template-columns: 1.2fr 1.1fr 1fr;
+    grid-template-rows: minmax(0, 1fr);
+    gap: 14px;
+    padding: 14px 16px;
+    overflow: hidden;
+    min-height: 0;
+  }
+
+  #grading-modal .gr-col {
+    min-height: 0;
+    overflow-y: auto;
+    scrollbar-width: thin;
+  }
+
+  #grading-modal .riven-grader-grid.gr-compare {
+    grid-template-columns: minmax(300px, 1fr) 2fr;
+    grid-template-rows: auto 1fr;
+    overflow-y: auto;
+  }
+
+  #grading-modal .gr-compare > .gr-col {
+    min-height: auto;
+    overflow: visible;
+  }
+
+  #grading-modal .gr-compare > .gr-col-panel:nth-child(2) {
+    grid-column: 2;
+    grid-row: 1 / 3;
+  }
+
+  #grading-modal .gr-compare > .gr-col-panel:nth-child(3) {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  #grading-modal .gr-compare .gr-row {
+    flex-wrap: wrap;
+  }
+
+  #grading-modal .gr-compare .gr-slider {
+    order: 1;
+    flex-basis: 100%;
+  }
+}
+
+@media (max-width: 600px) {
+  #grading-inputs-container .gr-row {
+    flex-wrap: wrap;
+  }
+
+  #grading-inputs-container .gr-slider {
+    order: 1;
+    flex-basis: 100%;
+  }
 }
