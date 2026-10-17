@@ -412,7 +412,7 @@ export function renderPrimeInventory() {
               : "";
           })()}
             <span class="set-title">${escapeHTML(setName)}</span>
-            <span class="tracker-link-icon" onclick="event.stopPropagation(); globalThis.openSetDetail('${escapeHTML(setName)}')" title="Set Tracker" style="cursor:pointer; margin-left:8px; display:inline-flex; align-items:center; vertical-align:middle; flex-shrink:0;">
+            <span class="tracker-link-icon" data-action="open-set-detail" data-setname="${escapeHTML(setName)}" title="Set Tracker" style="cursor:pointer; margin-left:8px; display:inline-flex; align-items:center; vertical-align:middle; flex-shrink:0;">
               ${TARGET_SVG_INLINE}
             </span>
             <a href="https://warframe.market/items/${getSlug(setName + " Set")}" target="_blank" class="market-link-icon" onclick="event.stopPropagation()" style="margin-left:6px; flex-shrink:0; font-size:1.1em;">↗</a>
@@ -428,7 +428,7 @@ export function renderPrimeInventory() {
         <div class="inv-set-content">
           ${(setName === "Otros" ? groups[setName].map(p => p.name) : allPossibleParts)
             .map((partName) => {
-              const qty = state.primeInventory[partName] || 0;
+              const qty = Number.parseInt(state.primeInventory[partName], 10) || 0;
               const safeId = partName.replaceAll(/[^a-zA-Z0-9]/g, "");
               const shortName = partName.replace(setName, "").trim() || (TEXTS[state.currentLang].lblBlueprint || "Blueprint");
               const requiredCount = getRequiredCount(setName, partName);
@@ -436,7 +436,7 @@ export function renderPrimeInventory() {
 
               return `
               <div class="inv-row-mini">
-                <div class="row-main" onclick="globalThis.openSetDetail('${escapeHTML(setName)}')" style="cursor:pointer;">
+                <div class="row-main" data-action="open-set-detail" data-setname="${escapeHTML(setName)}" style="cursor:pointer;">
                   ${(() => {
                   const partIcon = getItemIcon(partName);
                   return partIcon
