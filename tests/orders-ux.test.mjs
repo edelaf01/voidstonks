@@ -64,7 +64,7 @@ test("el aviso de privacidad va plegado, no dominando el login", () => {
 
 test("el detalle sigue diciendo lo esencial", () => {
     const es = ORDERS_TEXTS.es.privacy;
-    for (const idea of ["cifran", "no se guardan", "contraseña"]) {
+    for (const idea of ["warframe.market", "No se guardan", "contraseña", "Salir"]) {
         assert.ok(es.includes(idea), `el texto debe mencionar "${idea}"`);
     }
 });

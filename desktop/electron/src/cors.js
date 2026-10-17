@@ -10,14 +10,3 @@ export function conCorsDeLaApp(cabeceras, origen) {
   out["Access-Control-Allow-Origin"] = [origen];
   return out;
 }
-
-export function conOrigenLocalParaWfm(url, cabeceras, origenApp) {
-  let tipo = "";
-  try { tipo = new URL(url).searchParams.get("type") || ""; } catch { return cabeceras; }
-  const actual = Object.entries(cabeceras || {}).find(([clave]) => clave.toLowerCase() === "origin")?.[1];
-  if (!tipo.startsWith("wfm_") || actual !== origenApp) return cabeceras;
-  const out = {};
-  for (const [clave, valor] of Object.entries(cabeceras)) if (clave.toLowerCase() !== "origin") out[clave] = valor;
-  out.Origin = `http://localhost:${new URL(origenApp).port}`;
-  return out;
-}

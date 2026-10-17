@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld("voidstonksNativo", {
   guardarPermisos: (permisos) => ipcRenderer.invoke("vs:permisos", permisos),
   copiar: (texto) => ipcRenderer.invoke("vs:copiar", String(texto)),
   paneles: (datos) => ipcRenderer.invoke("vs:paneles", datos),
+  wfm: (tipo, peticion) => ipcRenderer.invoke("vs:wfm", String(tipo), peticion),
   alAccion(fn) {
     const oyente = (_e, grupo, accion) => fn(grupo, accion);
     ipcRenderer.on("vs:accion", oyente);

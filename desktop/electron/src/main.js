@@ -2,7 +2,7 @@ import { app, BrowserWindow, clipboard, desktopCapturer, dialog, ipcMain, Menu, 
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { arrancaServidor, PREFIJO_OVERLAY } from "./servidor.js";
-import { creaPermisos } from "./permisos.js";
+import { creaPermisos, PERMISOS_CONOCIDOS } from "./permisos.js";
 import { creaLectorEELog, rutaEELog } from "./eelog.js";
 import { peticionValida } from "./paneles.js";
 import { estadoDelJuego, puedePintar, ventanaDelJuego } from "./juego.js";
@@ -11,12 +11,13 @@ import { creaOverlay } from "./ventana-overlay.js";
 import { creaVigiaDelJuego } from "./vigia-juego.js";
 import { creaRegistroConsola } from "./consola.js";
 import { creaZoom, zoomPorDefecto } from "./zoom.js";
-import { HOSTS_PROPIOS, conCorsDeLaApp, conOrigenLocalParaWfm } from "./cors.js";
+import { HOSTS_PROPIOS, conCorsDeLaApp } from "./cors.js";
+import { creaWfm } from "./wfm.js";
 
 const AQUI = path.dirname(fileURLToPath(import.meta.url));
 const RAIZ_PAQUETE = path.resolve(AQUI, "..");
 const DESARROLLO = !app.isPackaged;
-const PERMITIDOS = new Set(["clipboard-sanitized-write", "clipboard-read", "notifications", "media", "display-capture", "fullscreen"]);
+const PERMITIDOS = new Set(["clipboard-sanitized-write", "notifications", "media", "display-capture", "fullscreen"]);
 
 app.setName("VoidStonks");
 app.commandLine.appendSwitch("disable-renderer-backgrounding");
@@ -57,6 +58,7 @@ app.whenReady().then(async () => {
   const servidor = await arrancaServidor({ raizApp: raizApp(), raizOverlay: path.join(RAIZ_PAQUETE, "overlay") });
   const { origen } = servidor;
   const permisos = creaPermisos(path.join(app.getPath("userData"), "permisos.json"));
+  const wfm = creaWfm({ fetch: globalThis.fetch, rutaCatalogo: path.join(app.getPath("userData"), "wfm-catalogo.json") });
   const overlay = creaOverlay({
     url: `${origen}${PREFIJO_OVERLAY}index.html`,
     preload: path.join(AQUI, "overlay-preload.cjs"),
@@ -69,16 +71,13 @@ app.whenReady().then(async () => {
   session.defaultSession.webRequest.onHeadersReceived({ urls: HOSTS_PROPIOS }, (detalles, responde) => {
     responde({ responseHeaders: conCorsDeLaApp(detalles.responseHeaders, origen) });
   });
-  if (DESARROLLO) {
-    session.defaultSession.webRequest.onBeforeSendHeaders({ urls: HOSTS_PROPIOS }, (detalles, responde) => {
-      responde({ requestHeaders: conOrigenLocalParaWfm(detalles.url, detalles.requestHeaders, origen) });
-    });
-  }
 
   session.defaultSession.setPermissionRequestHandler((_wc, permiso, cb, detalles) => {
-    cb(PERMITIDOS.has(permiso) && origenDe(detalles.requestingUrl) === origen);
+    cb(PERMITIDOS.has(permiso) && origenDe(detalles?.requestingUrl) === origen && !(permiso === "media" && detalles?.mediaTypes?.includes("audio")));
   });
-  session.defaultSession.setPermissionCheckHandler((_wc, permiso, origenPeticion) => PERMITIDOS.has(permiso) && origenPeticion === origen);
+  session.defaultSession.setPermissionCheckHandler((_wc, permiso, origenPeticion, detalles) =>
+    PERMITIDOS.has(permiso) && origenPeticion === origen && !(permiso === "media" && detalles?.mediaType === "audio")
+  );
   const eligeFuente = creaEligeFuente({ plataforma: process.platform, env: process.env, juegoEnX11: () => !!ventanaDelJuego(), listaFuentes: () => desktopCapturer.getSources({ types: ["window", "screen"], thumbnailSize: { width: 0, height: 0 } }) });
   session.defaultSession.setDisplayMediaRequestHandler(async (_peticion, responde) => {
     try {
@@ -103,9 +102,32 @@ app.whenReady().then(async () => {
     };
   });
 
-  ipcMain.handle("vs:permisos", (e, nuevos) => {
-    if (!esDeLaApp(e)) return false;
-    const ok = permisos.guardar(nuevos);
+  ipcMain.handle("vs:permisos", async (e, nuevos) => {
+    if (!esDeLaApp(e) || !nuevos || typeof nuevos !== "object") return false;
+    const solicitados = PERMISOS_CONOCIDOS.filter((id) => nuevos[id] === true && !permisos.concedido(id));
+    const aGuardar = { ...nuevos };
+    if (solicitados.length > 0) {
+      const es = String(app.getLocale() || "").startsWith("es");
+      const etiquetas = {
+        eelog: ["Leer el registro del juego (EE.log)", "Read the game log (EE.log)"],
+        clip: ["Copiar con el juego delante", "Copy while the game has focus"],
+        overlay: ["Etiquetas encima del juego", "Labels over the game"],
+      };
+      const lista = solicitados.map((id) => `• ${etiquetas[id]?.[es ? 0 : 1] || id}`).join("\n");
+      const res = await dialog.showMessageBox(principal, {
+        type: "question",
+        buttons: es ? ["Permitir", "Cancelar"] : ["Allow", "Cancel"],
+        defaultId: 1,
+        cancelId: 1,
+        title: "VoidStonks",
+        message: es ? "¿Conceder los siguientes permisos?" : "Grant the following permissions?",
+        detail: lista,
+      });
+      if (res.response !== 0) {
+        for (const id of solicitados) aGuardar[id] = false;
+      }
+    }
+    const ok = permisos.guardar(aGuardar);
     if (!permisos.concedido("overlay")) overlay.quitaTodos();
     if (!permisos.concedido("eelog")) paraTodosLosSeguidores();
     return ok;
@@ -121,6 +143,8 @@ app.whenReady().then(async () => {
     if (!esDeLaApp(e) || !permisos.concedido("overlay") || !peticionValida(datos)) return false;
     return overlay.paneles(datos);
   });
+
+  ipcMain.handle("vs:wfm", (e, tipo, peticion) => esDeLaApp(e) && typeof tipo === "string" && peticion && typeof peticion === "object" ? wfm.ejecuta(tipo, peticion) : null);
 
   const seguidores = new Map();
   const paraSeguidor = (id) => {

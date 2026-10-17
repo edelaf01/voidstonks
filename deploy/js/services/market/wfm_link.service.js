@@ -1,4 +1,4 @@
-import { WORKER_URL } from "../../config.js";
+import { pideWfm } from "./wfm_transporte.js";
 import { state, saveAppState } from "../../state.js";
 import { getSlug } from "../../utils/slugs.utils.js";
 import { calculateTotalFullSets, getRequiredCount } from "../../utils/ui_utils.js";
@@ -79,7 +79,7 @@ export async function resolveIds(slugs) {
         const out = {};
         await Promise.all(chunks.map(async (chunk) => {
             try {
-                const res = await fetch(`${WORKER_URL}?type=wfm_ids&slugs=${chunk.join(",")}`);
+                const res = await pideWfm("wfm_ids", `&slugs=${chunk.join(",")}`);
                 if (!res.ok) return;
                 Object.assign(out, (await res.json()) || {});
             } catch {}
@@ -167,7 +167,7 @@ export async function createSellOrder(spec) {
 
     let res;
     try {
-        res = await fetch(`${WORKER_URL}?type=wfm_order_create`, {
+        res = await pideWfm("wfm_order_create", "", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",

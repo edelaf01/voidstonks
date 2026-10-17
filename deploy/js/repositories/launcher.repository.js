@@ -20,6 +20,14 @@ export async function panelesEnJuego(datos) {
   return puente()?.paneles(datos).catch(() => false) ?? false;
 }
 
+export function wfmEnLanzador() {
+  return typeof puente()?.wfm === "function";
+}
+
+export function pideWfmAlLanzador(tipo, peticion) {
+  return puente().wfm(tipo, peticion);
+}
+
 export function escucharAccionesDelOverlay(fn) {
   return puente()?.alAccion?.(fn) || (() => {});
 }

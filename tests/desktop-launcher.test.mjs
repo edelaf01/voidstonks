@@ -249,3 +249,41 @@ test("las opciones de depuración solo salen en desarrollo o con el modo debug e
     delete globalThis.voidstonksNativo;
   }
 });
+
+test("wfmEnLanzador solo es true con una función wfm en el puente", () => {
+  try {
+    delete globalThis.voidstonksNativo;
+    assert.equal(repo.wfmEnLanzador(), false);
+    globalThis.voidstonksNativo = {};
+    assert.equal(repo.wfmEnLanzador(), false);
+    globalThis.voidstonksNativo = { wfm: "x" };
+    assert.equal(repo.wfmEnLanzador(), false);
+    globalThis.voidstonksNativo = { wfm: async () => ({}) };
+    assert.equal(repo.wfmEnLanzador(), true);
+  } finally {
+    delete globalThis.voidstonksNativo;
+  }
+});
+
+test("pideWfmAlLanzador pasa el tipo y la petición al puente y no se traga el rechazo", async () => {
+  const recibidas = [];
+  globalThis.voidstonksNativo = {
+    wfm: async (tipo, peticion) => {
+      recibidas.push([tipo, peticion]);
+      return { status: 200, cuerpo: "{}" };
+    }
+  };
+  try {
+    const res = await repo.pideWfmAlLanzador("wfm_ids", { params: { slugs: "a" } });
+    assert.deepEqual(res, { status: 200, cuerpo: "{}" });
+    assert.deepEqual(recibidas, [["wfm_ids", { params: { slugs: "a" } }]]);
+    globalThis.voidstonksNativo = {
+      wfm: async () => {
+        throw new Error("ipc caído");
+      }
+    };
+    await assert.rejects(repo.pideWfmAlLanzador("wfm_ids", {}), /ipc caído/);
+  } finally {
+    delete globalThis.voidstonksNativo;
+  }
+});

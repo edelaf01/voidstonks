@@ -10,7 +10,7 @@ import { peticionValida, firmaDe, rectEnDip } from "../desktop/electron/src/pane
 import { creaRegistroConsola } from "../desktop/electron/src/consola.js";
 import { creaZoom, zoomPorDefecto } from "../desktop/electron/src/zoom.js";
 import { creaVigiaDelJuego } from "../desktop/electron/src/vigia-juego.js";
-import { HOSTS_PROPIOS, conCorsDeLaApp, conOrigenLocalParaWfm } from "../desktop/electron/src/cors.js";
+import { HOSTS_PROPIOS, conCorsDeLaApp } from "../desktop/electron/src/cors.js";
 import { htmlPanel, htmlBloque, coloca, zonasEnPixeles } from "../desktop/electron/overlay/paneles.js";
 
 const temporal = () => fs.mkdtempSync(path.join(os.tmpdir(), "vs-electron-"));
@@ -310,16 +310,6 @@ test("las respuestas de los workers propios llevan el origen de la app de escrit
   const fuera = conCorsDeLaApp({ "access-control-allow-origin": ["https://voidstonks.com"], "Access-Control-Allow-Credentials": ["true"], "content-type": ["application/json"], vary: ["Origin"] }, origen);
   assert.deepEqual(fuera, { "content-type": ["application/json"], vary: ["Origin"], "Access-Control-Allow-Origin": [origen] });
   assert.deepEqual(conCorsDeLaApp(undefined, origen), { "Access-Control-Allow-Origin": [origen] });
-});
-
-test("solo las rutas de cuenta de WFM pedidas por la app salen con origen localhost", () => {
-  const app = "http://voidstonks.localhost:47823";
-  const cab = { Origin: app, "X-WFM-Token": "t" };
-  assert.deepEqual(conOrigenLocalParaWfm("https://api.voidstonks.com/?type=wfm_login", cab, app), { "X-WFM-Token": "t", Origin: "http://localhost:47823" });
-  assert.equal(conOrigenLocalParaWfm("https://api.voidstonks.com/?type=prices_snapshot", cab, app), cab, "lo demás no se toca");
-  const ajeno = { origin: "https://evil.example" };
-  assert.equal(conOrigenLocalParaWfm("https://api.voidstonks.com/?type=wfm_login", ajeno, app), ajeno, "otro origen no se disfraza");
-  assert.equal(conOrigenLocalParaWfm("no es url", cab, app), cab);
 });
 
 test("la vigía del juego avisa al empezar y solo cuando cambia, y para sola si la ventana muere", (t) => {
