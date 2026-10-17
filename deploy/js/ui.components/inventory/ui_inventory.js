@@ -16,6 +16,7 @@ import {
   deletePrimeSet,
   decrementPrimeSet,
   toggleInvSet,
+  openSetDetail,
 } from "./ui_prime_inventory.js";
 
 export function toggleInventoryPanel(forceOpen = false) {
@@ -116,7 +117,7 @@ export async function renderInventory() {
       const runs = new Map();
       for (const item of filtered) {
         const name = typeof item === "string" ? item : item.name;
-        runs.set(name, relicRuns(name, typeof item === "string" ? 1 : item.count || 1));
+        runs.set(name, relicRuns(name, Math.max(1, Number.parseInt(item?.count, 10) || 1)));
       }
       filtered.sort((a, b) => compareByGoalSets(
         runs.get(typeof a === "string" ? a : a.name),
@@ -150,8 +151,8 @@ export async function renderInventory() {
     const fragment = document.createDocumentFragment();
 
     filtered.forEach((item) => {
-      const itemName = typeof item === "string" ? item : item.name;
-      const count = item.count || 1;
+      const itemName = typeof item === "string" ? item : (typeof item?.name === "string" ? item.name : "");
+      const count = Math.max(1, Number.parseInt(item?.count, 10) || 1);
       const isVaulted = state.relicStatusDB[itemName] === "vaulted";
       const safeId = itemName.replaceAll(/[^a-zA-Z0-9]/g, "");
 
@@ -244,7 +245,7 @@ export function modifyInv(name, amount) {
     return;
   }
 
-  const newQty = typeof itemMatch === "string" ? 1 : itemMatch.count || itemMatch.qty || 1;
+  const newQty = typeof itemMatch === "string" ? 1 : Math.max(1, Number.parseInt(itemMatch.count ?? itemMatch.qty, 10) || 1);
 
   if (row) {
     const qtySpan = row.querySelector(".qty-label");
@@ -416,24 +417,102 @@ export function importInventory() {
 
     const t = TEXTS[state.currentLang]?.inventory || {};
 
+    if (file.size > 5 * 1024 * 1024) {
+      showToast(
+        state.currentLang === "es"
+          ? "El archivo supera el límite de 5 MB."
+          : "The file exceeds the 5 MB limit.",
+      );
+      return;
+    }
+
     try {
       const text = await file.text();
       const data = JSON.parse(text);
 
-      if (data?.relics !== undefined && data.parts !== undefined) {
+      const VALID_NAME_RE = /^[a-zA-Z0-9 &().-]{1,100}$/;
+      const isValidName = (s) => typeof s === "string" && VALID_NAME_RE.test(s);
+      let discarded = 0;
+
+      const notifyDiscarded = () => {
+        if (discarded > 0) {
+          showToast(
+            state.currentLang === "es"
+              ? `Se descartaron ${discarded} elemento(s) no válidos.`
+              : `${discarded} invalid item(s) were discarded.`,
+          );
+        }
+      };
+
+      if (data && typeof data === "object" && !Array.isArray(data) && data.relics !== undefined && data.parts !== undefined) {
+        const acc = new Map();
+        if (Array.isArray(data.relics)) {
+          for (const item of data.relics) {
+            const name = typeof item === "string" ? item : item?.name;
+            const count = typeof item === "string" ? 1 : item?.count;
+            if (isValidName(name) && Number.isInteger(count) && count >= 1 && count <= 99999) {
+              acc.set(name, (acc.get(name) || 0) + count);
+            } else {
+              discarded++;
+            }
+          }
+        } else {
+          discarded++;
+        }
+        const cleanRelics = Array.from(acc, ([name, count]) => ({ name, count }));
+
+        const cleanParts = {};
+        if (data.parts && typeof data.parts === "object" && !Array.isArray(data.parts)) {
+          for (const [partName, count] of Object.entries(data.parts)) {
+            if (isValidName(partName) && Number.isInteger(count) && count >= 0 && count <= 99999) {
+              cleanParts[partName] = count;
+            } else {
+              discarded++;
+            }
+          }
+        } else {
+          discarded++;
+        }
+
+        if (cleanRelics.length === 0 && Object.keys(cleanParts).length === 0 && discarded > 0) {
+          showToast(t.toastBadFormat || "That file is not in the expected format.");
+          notifyDiscarded();
+          return;
+        }
+
         showCustomConfirm(t.confirmImportAll, () => {
-          state.inventory = data.relics;
-          state.primeInventory = data.parts;
+          state.inventory = cleanRelics;
+          state.primeInventory = cleanParts;
           saveAppState();
           inventarioCambiado();
           showToast(t.toastImportedAll || "Full inventory updated");
+          notifyDiscarded();
         });
       } else if (Array.isArray(data)) {
-        showCustomConfirm((t.confirmImportRelics || "").replace("{n}", data.length), () => {
-          state.inventory = data;
+        const acc = new Map();
+        for (const item of data) {
+          const name = typeof item === "string" ? item : item?.name;
+          const count = typeof item === "string" ? 1 : item?.count;
+          if (isValidName(name) && Number.isInteger(count) && count >= 1 && count <= 99999) {
+            acc.set(name, (acc.get(name) || 0) + count);
+          } else {
+            discarded++;
+          }
+        }
+        const cleanRelics = Array.from(acc, ([name, count]) => ({ name, count }));
+
+        if (cleanRelics.length === 0 && discarded > 0) {
+          showToast(t.toastBadFormat || "That file is not in the expected format.");
+          notifyDiscarded();
+          return;
+        }
+
+        showCustomConfirm((t.confirmImportRelics || "").replace("{n}", cleanRelics.length), () => {
+          state.inventory = cleanRelics;
           saveAppState();
           inventarioCambiado();
           showToast(t.toastImportedRelics || "Relic inventory updated");
+          notifyDiscarded();
         });
       } else {
         showToast(t.toastBadFormat || "That file is not in the expected format.");
@@ -492,6 +571,9 @@ document.addEventListener("click", (e) => {
     case "go-sell-set":
       e.stopPropagation();
       globalThis.sellSetFromInventory?.(data.setname);
+      break;
+    case "open-set-detail":
+      openSetDetail(data.setname);
       break;
   }
 });
