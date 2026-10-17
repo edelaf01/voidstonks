@@ -104,6 +104,7 @@ export class MobileScanner {
         };
         document.addEventListener("visibilitychange", this._onVisibility);
       }
+      //TODO empty try catch, should handle it , is it assuming that the browser will handle it?
     } catch {}
   }
 
@@ -165,7 +166,7 @@ export class MobileScanner {
     if (labelEl) labelEl.innerText = label;
     if (bar) bar.style.width = `${Math.max(5, Math.min(100, pct))}%`;
   }
-
+  //TODO this is unmantainable, html css js should be correctly separated
   createOverlay() {
     const overlay = document.createElement("div"); overlay.id = "mobile-scan-overlay";
     overlay.style.cssText = "position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(8,12,18,0.5); z-index:1000000; overflow:hidden; pointer-events:none;";
@@ -498,7 +499,7 @@ export class MobileScanner {
         const cvs = document.createElement("canvas");
         cvs.width = vw; cvs.height = vh;
         cvs.getContext("2d").drawImage(srcEl, 0, 0, vw, vh);
-        this._lastCaptureCvs = cvs;
+        this._lastCaptureCvs = cvs; 
         return cvs;
       };
 
@@ -611,7 +612,7 @@ export class MobileScanner {
     else this.showNoResultsPanel(this._lastCaptureCvs || grabFrame(), roi, trace, skew);
   }
 
-  //TODO Inner html and css in here not a fan
+//TODO Inner html and css in here not a fan
   showNoResultsPanel(mainCvs, roi, trace, skew) {
     const old = document.getElementById("scanner-no-results-panel");
     if (old) old.remove();
@@ -689,7 +690,7 @@ export class MobileScanner {
     rc = document.createElement("div"); rc.id = "scan-results-sheet"; document.body.appendChild(rc);
 
     const t = TEXTS[state.currentLang].rewardScanner;
-
+//TODO y this css in here
     rc.style.cssText = `
         position:fixed; bottom:0; left:0; right:0; 
         background: linear-gradient(180deg, rgba(8, 12, 18, 0.98) 0%, rgba(10, 16, 26, 1) 100%);
@@ -701,6 +702,7 @@ export class MobileScanner {
         font-family: "Outfit", sans-serif;
         max-height: 85vh; overflow-y: auto;
     `;
+//TODO y this css in here
 
     if (!document.getElementById("mobile-results-anim")) {
       const style = document.createElement("style");
@@ -838,6 +840,7 @@ export class MobileScanner {
         resolved.forEach((p, i) => { prices[i] = p; });
         renderCards(Math.max(...resolved.filter(p => typeof p === "number"), 0));
       })
+      //TODO emopty catch if im not handling it why im catching it maybe put a log here or something
       .catch(() => {});
 
     rc.appendChild(grid);

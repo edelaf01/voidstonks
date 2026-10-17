@@ -30,7 +30,7 @@ function buildPipContent(targetDoc) {
       flex-direction: column;
     }
 
-    /* Header — oculto por defecto, aparece al hover */
+    /* header: hidden by default, shown on hover */
     #pip-header {
       background: rgba(8,10,18,0.88);
       border-bottom: 1px solid rgba(0,229,255,0.18);
@@ -93,7 +93,7 @@ function buildPipContent(targetDoc) {
     }
     @keyframes pulse { 0%,100%{opacity:0.3;} 50%{opacity:1;} }
 
-    /* Badge card — idéntico al modal del scanner */
+    /* badge card: identical to scanner modal */
     .pip-badge {
       background: linear-gradient(135deg, rgba(10,12,26,0.97) 0%, rgba(14,18,36,0.97) 100%);
       border: 1px solid rgba(0,229,255,0.18);

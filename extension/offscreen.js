@@ -1,5 +1,4 @@
-// execCommand("copy") sobre un textarea es la técnica documentada para offscreen docs:
-// navigator.clipboard.writeText exige documento enfocado y aquí no lo hay nunca.
+// clipboard.writeText needs a focused document, which offscreen never has
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg?.type !== "offscreen-copy") return;
   const ta = document.getElementById("clip");

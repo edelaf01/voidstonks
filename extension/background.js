@@ -1,6 +1,4 @@
-// El service worker no tiene DOM ni puede escribir el portapapeles; delega en un
-// documento offscreen (razón CLIPBOARD), que es la vía soportada en MV3 para copiar
-// SIN que la ventana del navegador tenga el foco (el caso real: el juego enfocado).
+// the service worker has no dom, so copying goes through an offscreen document
 async function ensureOffscreen() {
   if (await chrome.offscreen.hasDocument()) return;
   await chrome.offscreen.createDocument({
@@ -21,5 +19,5 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       sendResponse({ ok: false, error: String(e) });
     }
   })();
-  return true; // respuesta asíncrona
+  return true;
 });
