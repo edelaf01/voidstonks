@@ -268,15 +268,15 @@ export function renderMetaStats(weaponName, weaponType, targetId = "meta-stats-c
 
       const tierCard = (label, value, color, bg) =>
         `<div style="background:${bg}; border:1px solid ${color}22; border-radius:4px; padding:6px; text-align:center;">
-           <div style="font-size:9px; color:${color}; text-transform:uppercase; font-weight:bold;">${label}</div>
-           <div style="display:inline-flex; align-items:center; gap:3px; justify-content:center; font-size:15px; color:${color}; font-weight:bold; margin-top:2px;">
+           <div style="font-size:11px; color:${color}; text-transform:uppercase; font-weight:bold;">${label}</div>
+           <div style="display:inline-flex; align-items:center; gap:3px; justify-content:center; font-size:16px; color:${color}; font-weight:bold; margin-top:2px;">
              <span>${value}</span>${plat}
            </div>
          </div>`;
 
       tierEstimatesHtml = `
-        <div style="margin-top:12px; padding-top:10px; border-top:1px dashed rgba(255,255,255,0.15);">
-          <div style="font-size:10px; color:#888; margin-bottom:6px; text-transform:uppercase; font-weight:800; letter-spacing:0.05em; cursor:help;" data-tooltip="${tierTip}">${isEs ? "VALOR ESTIMADO (plat)" : "ESTIMATED VALUE (plat)"} ${info}</div>
+        <div style="margin-bottom:10px; padding-bottom:10px; border-bottom:1px dashed rgba(255,255,255,0.15);">
+          <div style="font-size:11px; color:#888; margin-bottom:6px; text-transform:uppercase; font-weight:800; letter-spacing:0.05em; cursor:help;" data-tooltip="${tierTip}">${isEs ? "VALOR ESTIMADO (plat)" : "ESTIMATED VALUE (plat)"} ${info}</div>
           <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:6px;">
             ${tierCard(isEs ? "BASURA" : "TRASH", tiers.trash, "#f2f2f7", "rgba(255,255,255,0.03)")}
             ${tierCard(isEs ? "BUEN REROLL" : "GOOD REROLL", tiers.goodReroll, "#00e5ff", "rgba(0,229,255,0.03)")}
@@ -288,6 +288,7 @@ export function renderMetaStats(weaponName, weaponType, targetId = "meta-stats-c
 
     container.innerHTML = `
       <div style="background: rgba(255,255,255,0.015); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 12px; box-shadow: inset 0 0 15px rgba(0,0,0,0.2);">
+          ${tierEstimatesHtml}
           <div style="font-size: 10px; color: #94a3b8; margin-bottom: 10px; text-transform: uppercase; font-weight: 800; letter-spacing: 0.05em; border-bottom: 1px dashed rgba(255,255,255,0.08); padding-bottom: 6px;">
             ${isEs ? "Guía de Atributos del Arma" : "Weapon Attributes Guide"}
             ${meta._genericRecs ? `<span style="color:#eab308; font-weight:700; margin-left:6px;" title="${isEs ? "Recomendación genérica por tipo de arma; no hay datos meta específicos para este arma." : "Generic recommendation by weapon type; no curated meta data for this weapon."}">${isEs ? "· estimado" : "· estimated"}</span>` : ""}
@@ -342,7 +343,6 @@ export function renderMetaStats(weaponName, weaponType, targetId = "meta-stats-c
           </div>
           
           ${extraHtml}
-          ${tierEstimatesHtml}
           ${cicloFuera ? "" : cicloHtml}
       </div>
     `;

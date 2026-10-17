@@ -49,7 +49,7 @@ import {
   DEFAULT_WEAPON_SVG,
 } from "../../utils/ui_utils.js";
 import { escapeHTML, showToast } from "../ui_components.js";
-import { onTap } from "../../utils/tap.js";
+import { onTap, isTouchPointer } from "../../utils/tap.js";
 import { normalizeStatName, generateRivenName } from "../../utils/rivens/riven_naming.js";
 import { nivelVolatilidad, etiquetaVolatilidad, textoExtraPorCiclar } from "../../utils/rivens/riven_metrics.js";
 import {
@@ -162,18 +162,15 @@ export function initSearchableSelects() {
 
       container = document.createElement("div");
       container.className = "custom-select-search-container";
-      container.style.cssText = "flex: 1; position: relative;";
 
       const input = document.createElement("input");
       input.type = "text";
       input.className = sel.className.replace("riven-stat-select", "riven-stat-search-input");
       input.placeholder = sel.classList.contains("negative") ? "- NEGATIVA" : "+ STAT";
-      input.style.cssText = "width: 100%; box-sizing: border-box; padding: 6px;";
       input.autocomplete = "off";
 
       const dropdown = document.createElement("div");
       dropdown.className = "custom-dropdown hidden";
-      dropdown.style.cssText = "position: absolute; top: 100%; left: 0; right: 0; max-height: 200px; overflow-y: auto; z-index: 1000; background: #111; border: 1px solid rgba(162, 53, 226, 0.4); border-radius: 0 0 6px 6px; box-shadow: 0 8px 24px rgba(0,0,0,0.6);";
 
       container.appendChild(input);
       container.appendChild(dropdown);
@@ -205,17 +202,22 @@ export function initSearchableSelects() {
         input.select();
       });
 
+      onTap(input, () => {
+        if (!dropdown.classList.contains("hidden")) return;
+        rebuildCustomOptions(sel, dropdown, input);
+        dropdown.classList.remove("hidden");
+      });
+
       input.addEventListener("input", filterOptions);
 
       input.addEventListener("keydown", (e) => {
         if (e.key === "Enter") {
           e.preventDefault();
-          const firstVisible = dropdown.querySelector(".dropdown-item[style*='display: block']");
-          if (firstVisible) {
-            firstVisible.click();
-          } else {
-            const firstAny = dropdown.querySelector(".dropdown-item");
-            if (firstAny) firstAny.click();
+          (dropdown.querySelector(".dropdown-item[style*='display: block']") || dropdown.querySelector(".dropdown-item"))?.click();
+          const val = sel.value && sel.closest(".riven-row-wrapper")?.querySelector(".riven-val-input");
+          if (val) {
+            val.focus();
+            val.select();
           }
         } else if (e.key === "Escape") {
           dropdown.classList.add("hidden");
@@ -246,7 +248,6 @@ function rebuildCustomOptions(sel, dropdown, input) {
     const item = document.createElement("div");
     item.className = "dropdown-item";
     item.textContent = opt.textContent;
-    item.style.cssText = "padding: 8px 12px; cursor: pointer; transition: all 0.2s; border-bottom: 1px solid rgba(255,255,255,0.02);";
 
     if (opt.value === sel.value) {
       item.style.background = "rgba(162, 53, 226, 0.15)";
@@ -386,17 +387,7 @@ export function renderHistoryWithRange() {
   const activeRange = rangoHistorial;
   document.querySelectorAll(".history-range-btn").forEach(btn => {
     const d = btn.getAttribute("data-days");
-    if ((d === "all" && activeRange === "all") || parseInt(d) === activeRange) {
-      btn.classList.add("active");
-      btn.style.background = "rgba(162, 53, 226, 0.25)";
-      btn.style.borderColor = "rgba(162, 53, 226, 0.6)";
-      btn.style.color = "#fff";
-    } else {
-      btn.classList.remove("active");
-      btn.style.background = "rgba(255, 255, 255, 0.03)";
-      btn.style.borderColor = "rgba(255, 255, 255, 0.1)";
-      btn.style.color = "#aaa";
-    }
+    btn.classList.toggle("active", (d === "all" && activeRange === "all") || parseInt(d) === activeRange);
   });
 
   let filteredData = [...historyData];
@@ -586,12 +577,12 @@ export function renderHistoryWithRange() {
           labels: {
             color: "#e2e8f0",
             font: {
-              size: 13,
+              size: 12,
               weight: "bold",
               family: "'Outfit', 'Inter', 'Roboto', sans-serif"
             },
-            boxWidth: 18,
-            padding: 15
+            boxWidth: 12,
+            padding: 8
           }
         },
         tooltip: {
@@ -2104,18 +2095,14 @@ export function syncRivenSliders() {
         sliderMin.innerText = `${scaledMin}%`;
         sliderMax.innerText = `${scaledMax}%`;
 
-        if (!valIn.value || Number.parseFloat(valIn.value) === 0) {
+        if (!valIn.value && document.activeElement !== valIn) {
           valIn.value = Math.abs(scaledMid);
-          slider.value = Math.abs(scaledMid);
-        } else {
-          if (oldMax > oldMin && oldMin > 0) {
-            const newVal = scaledMin + fraction * (scaledMax - scaledMin);
-            valIn.value = Number(newVal.toFixed(1));
-            slider.value = Number(newVal.toFixed(1));
-          } else {
-            slider.value = Math.abs(Number.parseFloat(valIn.value));
-          }
+          valIn.dataset.slider = valIn.value;
+        } else if (valIn.value === valIn.dataset.slider && oldMax > oldMin && oldMin > 0 && (oldMin !== scaledMin || oldMax !== scaledMax)) {
+          valIn.value = Number((scaledMin + fraction * (scaledMax - scaledMin)).toFixed(1));
+          valIn.dataset.slider = valIn.value;
         }
+        if (valIn.value) slider.value = Math.abs(Number.parseFloat(valIn.value));
 
         if (!slider.dataset.bound) {
           slider.dataset.bound = "true";
@@ -2176,7 +2163,7 @@ export function calculateModalGrade() {
       const sel = document.getElementById(selId);
       const valIn = document.getElementById(valId);
       if (valIn?.offsetParent && sel && sel.value && valIn.value) {
-        let val = Number.parseFloat(valIn.value);
+        let val = Math.abs(Number.parseFloat(valIn.value));
         if (isNeg) val = -Math.abs(val);
         stats.push({
           name: sel.value,
@@ -2312,17 +2299,7 @@ export function calculateModalGrade() {
       sideBySideContainer.appendChild(leftWrapper);
       sideBySideContainer.appendChild(rightWrapper);
       resultsDiv.appendChild(sideBySideContainer);
-
-      const grid = document.querySelector(".riven-grader-grid");
-      if (grid) {
-        grid.style.gridTemplateColumns = "1fr 2.6fr 1fr";
-      }
       return;
-    }
-
-    const grid = document.querySelector(".riven-grader-grid");
-    if (grid) {
-      grid.style.gridTemplateColumns = "";
     }
 
     const fragment = document.createDocumentFragment();
@@ -2722,58 +2699,25 @@ export function createGradingRowDOM(id) {
   const num = id.replace("row-stat", "");
   const div = document.createElement("div");
   div.id = id;
-  div.className = "riven-row-wrapper";
-
-  if (isNeg) {
-    div.style.cssText = "border: 1px solid rgba(239,68,68,0.15); background: rgba(239,68,68,0.02); border-radius: 8px; padding: 5px 7px; display: flex; align-items: center; gap: 7px;";
-    div.innerHTML = `
-      <select id="g-statNeg" class="wf-input riven-stat-select negative"
-        style="flex: 1; min-width: 84px; padding: 5px; border-color: rgba(239,68,68,0.3);"
+  div.className = isNeg ? "riven-row-wrapper gr-row gr-neg" : "riven-row-wrapper gr-row";
+  div.innerHTML = `
+      <select id="g-stat${num}" class="wf-input riven-stat-select${isNeg ? " negative" : ""}"
         onchange="updateSelectExclusions(); calculateModalGrade();">
-        <option value="">- Negativa</option>
+        <option value="">${isNeg ? "- Negativa" : `+ STAT ${num}`}</option>
       </select>
-      <div id="g-slider-containerNeg" class="slider-input-container hidden"
-        style="display: flex; flex-direction: row; width: auto; flex: 2.2; min-width: 0; align-items: center; gap: 6px; margin: 0;">
-        <span id="g-slider-minNeg" style="font-size: 0.66rem; color: #ef4444; font-weight: bold; min-width: 22px;">0%</span>
-        <input type="range" id="g-sliderNeg" class="riven-slider" min="-200" max="0" step="0.1" value="0"
-          style="flex: 1; min-width: 40px;" oninput="syncRivenInputs('g-sliderNeg', 'g-valNeg'); calculateModalGrade();" />
-        <span id="g-slider-maxNeg" style="font-size: 0.66rem; color: #ef4444; font-weight: bold; min-width: 22px; text-align: right;">0%</span>
+      <div id="g-slider-container${num}" class="slider-input-container gr-slider hidden">
+        <span id="g-slider-min${num}" class="gr-edge">0%</span>
+        <input type="range" id="g-slider${num}" class="riven-slider" tabindex="-1" min="${isNeg ? -200 : 0}" max="${isNeg ? 0 : 200}" step="0.1" value="0"
+          oninput="syncRivenInputs('g-slider${num}', 'g-val${num}'); calculateModalGrade();" />
+        <span id="g-slider-max${num}" class="gr-edge">${isNeg ? "0%" : "100%"}</span>
       </div>
-      <div style="width: 58px; flex-shrink: 0; display: flex; align-items: center; gap: 4px; background: rgba(0,0,0,0.25); border: 1px solid rgba(239,68,68,0.3); border-radius: 4px; padding: 2px 6px;">
-        <input type="number" id="g-valNeg" class="wf-input riven-val-input" placeholder="0"
-          style="border: none; background: transparent; width: 100%; text-align: right; font-weight: bold; color: #ef4444; padding: 2px 0;"
-          oninput="syncRivenInputs('g-valNeg', 'g-sliderNeg'); calculateModalGrade();" />
-        <span style="color: #ef4444; font-weight: bold; font-size: 0.8rem;">%</span>
-      </div>
-      <button class="mini-action-btn" onclick="removeGradingRow('row-statNeg')"
-        style="border-color: #ef4444; color: #ef4444; padding: 3px 7px; font-size: 0.72rem; flex-shrink: 0;">✕</button>
-    `;
-  } else {
-    const canDelete = num === "3";
-    div.style.cssText = "border: 1px solid rgba(255,255,255,0.06); background: rgba(0,0,0,0.15); border-radius: 8px; padding: 5px 7px; display: flex; align-items: center; gap: 7px;";
-    div.innerHTML = `
-      <select id="g-stat${num}" class="wf-input riven-stat-select" style="flex: 1; min-width: 84px; padding: 5px;"
-        onchange="updateSelectExclusions(); calculateModalGrade();">
-        <option value="">+ STAT ${num}</option>
-      </select>
-      <div id="g-slider-container${num}" class="slider-input-container hidden"
-        style="display: flex; flex-direction: row; width: auto; flex: 2.2; min-width: 0; align-items: center; gap: 6px; margin: 0;">
-        <span id="g-slider-min${num}" style="font-size: 0.66rem; color: #64748b; font-weight: bold; min-width: 22px;">0%</span>
-        <input type="range" id="g-slider${num}" class="riven-slider" min="0" max="200" step="0.1" value="0"
-          style="flex: 1; min-width: 40px;" oninput="syncRivenInputs('g-slider${num}', 'g-val${num}'); calculateModalGrade();" />
-        <span id="g-slider-max${num}" style="font-size: 0.66rem; color: #64748b; font-weight: bold; min-width: 22px; text-align: right;">100%</span>
-      </div>
-      <div style="width: 58px; flex-shrink: 0; display: flex; align-items: center; gap: 4px; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; padding: 2px 6px;">
+      <div class="gr-val">
         <input type="number" id="g-val${num}" class="wf-input riven-val-input" placeholder="0"
-          style="border: none; background: transparent; width: 100%; text-align: right; font-weight: bold; color: var(--wf-gold-text); padding: 2px 0;"
           oninput="syncRivenInputs('g-val${num}', 'g-slider${num}'); calculateModalGrade();" />
-        <span style="color: #64748b; font-weight: bold; font-size: 0.8rem;">%</span>
+        <span>%</span>
       </div>
-      ${canDelete ? `
-      <button class="mini-action-btn" onclick="removeGradingRow('row-stat3')"
-        style="border-color: #ef4444; color: #ef4444; padding: 3px 7px; font-size: 0.72rem; flex-shrink: 0;">✕</button>` : ""}
+      ${isNeg || num === "3" ? `<button class="mini-action-btn gr-del" onclick="removeGradingRow('${id}')">✕</button>` : ""}
     `;
-  }
   return div;
 }
 
@@ -2897,7 +2841,7 @@ export function openGradingModal() {
     const oldTabs = document.getElementById("g-comparison-tabs");
     if (oldTabs) oldTabs.remove();
 
-    const addButtonsDiv = container.querySelector("div[style*='justify-content: center']");
+    const addButtonsDiv = container.querySelector(".gr-add-btns");
     ["row-stat1", "row-stat2"].forEach(id => {
       const rowDiv = createGradingRowDOM(id);
       if (addButtonsDiv) {
@@ -2957,19 +2901,21 @@ export function openGradingModal() {
     loadRollIntoInputs(activeRoll);
   }
 
+  document.querySelector(".riven-grader-grid")?.classList.toggle("gr-compare", !!globalThis.activeGradingRolls);
   calculateModalGrade();
+  if (!isTouchPointer() && !document.getElementById("g-stat1")?.value) document.querySelector("#row-stat1 .riven-stat-search-input")?.focus();
 }
 
 export function closeGradingModal() {
   document.getElementById("grading-modal").classList.add("hidden");
   globalThis.activeGradingRolls = null;
 }
-export function showGradingRow(id) {
+export function showGradingRow(id, focus) {
   let row = document.getElementById(id);
   if (!row) {
     const container = document.getElementById("grading-inputs-container");
     if (container) {
-      const addButtonsDiv = container.querySelector("div[style*='justify-content: center']");
+      const addButtonsDiv = container.querySelector(".gr-add-btns");
       const div = createGradingRowDOM(id);
       if (addButtonsDiv) {
         container.insertBefore(div, addButtonsDiv);
@@ -2991,6 +2937,7 @@ export function showGradingRow(id) {
   document.getElementById(
     id === "row-stat3" ? "btn-add-pos" : "btn-add-neg",
   ).style.display = "none";
+  if (focus && !isTouchPointer()) row?.querySelector(".riven-stat-search-input")?.focus();
 }
 export function removeGradingRow(id) {
   const row = document.getElementById(id);
@@ -4030,6 +3977,8 @@ export function syncRivenInputs(sourceId, targetId) {
   const target = document.getElementById(targetId);
   if (source && target) {
     target.value = source.value;
+    if (source.type === "range") target.dataset.slider = target.value;
+    else delete source.dataset.slider;
   }
 }
 
