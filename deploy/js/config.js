@@ -24,11 +24,11 @@ export const WFM_RIVENS_HASTA = "2026-10-08";
 export { TEXTS } from "./assets/texts.js";
 export { UPDATE_HISTORY_DATA } from "./assets/update_history.js";
 export const TIER_URLS = {
-  Lith: "https://wiki.warframe.com/images/LithRelicIntact.png?ee7d7",
-  Meso: "https://wiki.warframe.com/images/MesoRelicIntact.png?a9b4a",
-  Neo: "https://wiki.warframe.com/images/NeoRelicIntact.png?6dc86",
-  Axi: "https://wiki.warframe.com/images/AxiRelicIntact.png?6cadf",
-  Requiem: "https://wiki.warframe.com/images/RequiemRelicIntact.png?03821",
+  Lith: "assets/relic_tiers/lith.webp",
+  Meso: "assets/relic_tiers/meso.webp",
+  Neo: "assets/relic_tiers/neo.webp",
+  Axi: "assets/relic_tiers/axi.webp",
+  Requiem: "assets/relic_tiers/requiem.webp",
 };
 
 export const DROP_CHANCES = {

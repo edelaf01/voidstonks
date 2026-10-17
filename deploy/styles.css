@@ -5153,23 +5153,23 @@ button[onclick*="importInventory"]:hover {
 }
 
 .relic-era-icon.lith {
-  background-image: url('https://wiki.warframe.com/images/LithRelicIntact.png?ee7d7');
+  background-image: url('assets/relic_tiers/lith.webp');
 }
 
 .relic-era-icon.meso {
-  background-image: url('https://wiki.warframe.com/images/MesoRelicIntact.png?a9b4a');
+  background-image: url('assets/relic_tiers/meso.webp');
 }
 
 .relic-era-icon.neo {
-  background-image: url('https://wiki.warframe.com/images/NeoRelicIntact.png?6dc86');
+  background-image: url('assets/relic_tiers/neo.webp');
 }
 
 .relic-era-icon.axi {
-  background-image: url('https://wiki.warframe.com/images/AxiRelicIntact.png?6cadf');
+  background-image: url('assets/relic_tiers/axi.webp');
 }
 
 .relic-era-icon.requiem {
-  background-image: url('https://wiki.warframe.com/images/RequiemRelicIntact.png?03821');
+  background-image: url('assets/relic_tiers/requiem.webp');
 }
 
 
