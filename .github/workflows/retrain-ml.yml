@@ -1,11 +1,9 @@
 name: Reentrenar Riven ML (banda cuantiles)
 
-# Reentrena el tasador (5 cuantiles p25/p50/p80/p90/p95) con datos frescos y publica el bundle
-# del navegador en deploy/assets/ml. Hands-off: el drift del history reajusta el nivel a diario,
-# así que un reentreno semanal basta. Ejecutable a mano con "Run workflow".
+# weekly retrain of the riven quantile model, publishes the browser bundle to deploy/assets/ml
 on:
   schedule:
-    - cron: '0 4 * * 1'      # lunes 04:00 UTC (tras acumular una semana de listings)
+    - cron: '0 4 * * 1'
   workflow_dispatch:
     inputs:
       xgb_n:
@@ -26,29 +24,26 @@ jobs:
   retrain:
     runs-on: ubuntu-latest
     permissions:
-      contents: write        # para commitear el bundle
+      contents: write
     steps:
       - name: Checkout repo principal (deploy)
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Checkout dataset (repo del oráculo)
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           repository: edelaf01/Voidstonks-cron
           path: _cron
-          # PAT con permiso de LECTURA a Voidstonks-cron (Settings > Secrets > Actions > Repository).
-          # Se prueba primero DATASET_READ_PAT y se cae a CRON_DATASET_PAT: el viejo se conserva, y
-          # así el workflow funciona con cualquiera de los dos sin tocar nada más.
-          # Si el repo fuese público este token no haría falta (el job de curiosidades ya no lo usa).
+          persist-credentials: false
           token: ${{ secrets.DATASET_READ_PAT || secrets.CRON_DATASET_PAT }}
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: '3.11'
 
       - name: Instalar dependencias
-        run: pip install --upgrade pip && pip install xgboost pandas numpy scikit-learn requests
+        run: pip install pip==26.2.1 && pip install xgboost==3.2.0 pandas==3.0.6 numpy==2.4.6 scikit-learn==1.9.1 requests==2.34.2
 
       - name: Descargar serie history (todas las armas)
         working-directory: scripts-actu/ML-rivenvaluation
@@ -62,24 +57,18 @@ jobs:
           VOIDSTONKS_CSV: ${{ github.workspace }}/_cron/historial_precios/dataset_raw_ml.csv
           VOIDSTONKS_WEAPONS: ${{ github.workspace }}/deploy/assets/json/cleaned_weapons.json
           DEPLOY_ML_DIR: ${{ github.workspace }}/deploy/assets/ml
-          # SIN valor por defecto a propósito: si XGB_N llega definido, ML_local salta el presupuesto
-          # POR CUANTIL (1300/2600/1000/500/400) y entrena los cinco con el mismo número, que es la
-          # configuración vieja y peor (MAPEtrade 46.3% frente a 45.8%). Solo se pasa si alguien lo
-          # rellena a mano para un run rápido de diagnóstico.
+          # no default on purpose: any value overrides the per-quantile budget
           XGB_N: ${{ github.event.inputs.xgb_n }}
-          SLIM_N: ${{ github.event.inputs.slim_n || '400' }}   # slim publicado; 400 mantiene el cuantiles < 25MB (límite Pages)
-          SLIM_DEPTH: ${{ github.event.inputs.slim_depth || '5' }} # 5 = seguro; 6 hincha el cuantiles a ~25MB y peta el deploy
+          SLIM_N: ${{ github.event.inputs.slim_n || '400' }}
+          SLIM_DEPTH: ${{ github.event.inputs.slim_depth || '5' }}
           SLIM_EXPORT: '1'
-          PRUEBAS: '0'                                        # sin pruebas/comparativa en CI (rápido)
-          # XGB_DEVICE: 'cpu'  (runners sin GPU; AMD del dev no vale para XGBoost CUDA)
+          PRUEBAS: '0'
         run: python ML_local.py
 
       - name: Commit del bundle actualizado
         run: |
           git config user.email "actions@github.com"
           git config user.name "ML Retrain Bot"
-          # Todo el bundle (incluye model_trees_slim.json, que el navegador usa de fallback y
-          # DEBE ir sincronizado con el feature_order) + el log de métricas.
           git add deploy/assets/ml/ \
                   scripts-actu/ML-rivenvaluation/metrics_history.json
           if git diff --staged --quiet; then

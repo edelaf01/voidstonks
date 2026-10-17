@@ -6,3 +6,5 @@ blockExoticSubdeps: true
 strictDepBuilds: true
 allowBuilds:
   esbuild: true
+  sharp: false
+  workerd: true

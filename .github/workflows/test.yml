@@ -1,14 +1,6 @@
 name: Tests
 
-# Corre la suite y el lint en cada push y cada PR. Hasta ahora los tests solo existían en
-# local, así que un cambio que rompiera una regla de arquitectura llegaba a producción
-# igual (deploy/ se publica tal cual, sin build).
-#
-# En CI faltan dos ficheros que están en .gitignore a propósito: worker-code.js y el cache
-# de la API de ML. Los ~138 tests que dependen de ellos salen en SKIP con el motivo escrito,
-# no en rojo (ver tests/_helpers/optional-source.mjs). Los otros ~504 sí corren, y entre
-# ellos están los de arquitectura, XSS, registro de globals y ciclos de imports, que son los
-# que pillan lo que no se ve al recargar el navegador.
+# tests that need gitignored files like worker-code.js are skipped here
 on:
   push:
     branches: ['**']
@@ -23,22 +15,21 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '22'
           cache: pnpm
 
-      # `pnpm test` es node --test pelado y no necesita dependencias, pero el lint sí
-      # (eslint + globals), y --frozen-lockfile las instala del lock sin tocar package.json.
       - run: pnpm install --frozen-lockfile
 
       - name: Tests
         run: pnpm test
 
-      # El objetivo es 0 errores; los warnings heredados (no-unused-vars) no rompen el build.
       - name: Lint
         run: pnpm run lint
