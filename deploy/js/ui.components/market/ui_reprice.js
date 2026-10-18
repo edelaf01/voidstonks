@@ -1,13 +1,10 @@
 import { state } from "../../state.js";
 import { ORDERS_TEXTS as T } from "../../assets/orders_texts.js";
 import { getScope } from "../../services/market/wfm_auth.service.js";
-import { editOrder, mercadoDeTodos } from "../../services/market/wfm_orders.service.js";
-import { revisaPrecios } from "../../utils/market/precio_reciente.js";
+import { estado, suscribe, enEspera, revisa, aplica, marcaVistas } from "../../services/market/reprice_lento.service.js";
 
 const txt = () => T[state.currentLang === "es" ? "es" : "en"];
 const esVenta = (o) => (o.type || "").toLowerCase() === "sell";
-// warframe.market allows 3 requests per second
-const PAUSA_MS = 350;
 
 function el(tag, className, text) {
     const n = document.createElement(tag);
@@ -16,11 +13,70 @@ function el(tag, className, text) {
     return n;
 }
 
+const datosBoton = new WeakMap();
+let suscrito = false;
+
+function pintaBoton(b) {
+    const t = txt();
+    const est = estado();
+    if (est.fase === "revisando") {
+        b.textContent = t.repriceChecking
+            .replace("{n}", est.hechos)
+            .replace("{total}", est.total);
+        b.disabled = true;
+    } else if (est.fase === "aplicando") {
+        b.textContent = t.repriceApplyingBg
+            .replace("{n}", est.hechos)
+            .replace("{total}", est.total);
+        b.disabled = true;
+    } else {
+        b.disabled = false;
+        if (est.pendientes > 0) {
+            b.textContent = t.repriceBtnPending.replace("{n}", est.pendientes);
+        } else {
+            b.textContent = t.repriceBtn;
+        }
+    }
+}
+
+function aseguraSuscripcion() {
+    if (suscrito) return;
+    suscrito = true;
+    suscribe(() => {
+        for (const b of document.querySelectorAll(".orders-reprice")) {
+            pintaBoton(b);
+        }
+    });
+}
+
 export function botonRevisarPrecios(ordenes, alTerminar) {
-    const b = el("button", "orders-btn-ghost orders-reprice", txt().repriceBtn);
+    aseguraSuscripcion();
+    const b = el("button", "orders-btn-ghost orders-reprice");
     b.type = "button";
     b.hidden = getScope() !== "full" || !ordenes.some(esVenta);
-    b.addEventListener("click", () => abreRevision(ordenes, alTerminar));
+    datosBoton.set(b, { ordenes, alTerminar });
+    pintaBoton(b);
+    b.addEventListener("click", () => {
+        if (estado().fase !== "libre") return;
+        const info = datosBoton.get(b);
+        if (!info) return;
+        const r = enEspera(info.ordenes);
+        if (r.faltan.length === 0 || (estado().pendientes > 0 && r.desfasadas.length > 0)) {
+            abreRevision(info.ordenes, info.alTerminar, r);
+        } else {
+            revisa(info.ordenes).then((res) => {
+                if (!res || res.ocupado) return;
+                const t = txt();
+                const n = res.desfasadas?.length || 0;
+                const partes = [];
+                if (n > 0) partes.push(t.repriceToast.replace("{n}", n));
+                else if (!res.sinRevisar) partes.push(t.repriceAllGood);
+                if (res.frenado) partes.push(t.repriceRate);
+                else if (res.sinRevisar) partes.push(t.repriceUnchecked.replace("{n}", res.sinRevisar));
+                globalThis.showToast?.(partes.join(" "));
+            });
+        }
+    });
     return b;
 }
 
@@ -47,16 +103,15 @@ function fila(d, t) {
     return { nodo, orden: d.orden, marcada: () => marca.checked, precio: () => Math.max(1, Math.round(Number(precio.value) || d.precio)) };
 }
 
-async function abreRevision(ordenes, alTerminar) {
+function abreRevision(ordenes, alTerminar, r) {
     if (document.querySelector(".reprice-modal")) return;
     const t = txt();
     const backdrop = el("div", "orders-modal-backdrop");
     const modal = el("div", "orders-modal reprice-modal");
     modal.setAttribute("role", "dialog");
     modal.setAttribute("aria-modal", "true");
-    let aplicando = false;
+
     const cierra = () => {
-        if (aplicando) return;
         backdrop.remove();
         document.removeEventListener("keydown", tecla);
     };
@@ -70,27 +125,27 @@ async function abreRevision(ordenes, alTerminar) {
     x.setAttribute("aria-label", t.close);
     x.addEventListener("click", cierra);
     head.append(el("h3", "orders-modal-title", t.repriceTitle), x);
+
     const cuerpo = el("div", "reprice-body");
-    const estado = el("p", "orders-state-text", t.repriceLoading);
-    cuerpo.appendChild(estado);
     modal.append(head, cuerpo);
     backdrop.appendChild(modal);
     document.body.appendChild(backdrop);
 
-    const ventas = ordenes.filter(esVenta);
-    const mercados = await mercadoDeTodos(ventas.map((o) => o.itemSlug), {
-        fresco: true,
-        onProgreso: ({ hechos, total }) => { estado.textContent = `${t.repriceLoading} ${hechos}/${total}`; },
-    });
-    if (!backdrop.isConnected) return;
+    marcaVistas();
+    const datosRevision = r || enEspera(ordenes);
+    const { desfasadas, alDia, sinDatos, enEspera: nEspera } = datosRevision;
 
-    const { desfasadas, alDia, sinDatos } = revisaPrecios(ventas, mercados);
-    const resumen = `${desfasadas.length} ${t.repriceOutdated} · ${alDia} ${t.repriceOk}${sinDatos ? ` · ${sinDatos} ${t.repriceNoData}` : ""}`;
+    let resumen = `${desfasadas.length} ${t.repriceOutdated} · ${alDia} ${t.repriceOk}${sinDatos ? ` · ${sinDatos} ${t.repriceNoData}` : ""}`;
+    if (nEspera > 0) {
+        resumen += ` · ${nEspera} ${t.repriceWaiting}`;
+    }
     cuerpo.replaceChildren(el("p", "reprice-resumen", resumen));
+
     if (!desfasadas.length) {
         cuerpo.appendChild(el("p", "orders-state-text", t.repriceAllGood));
         return;
     }
+
     cuerpo.appendChild(el("p", "orders-inv-hint", t.repriceHint));
     const filas = desfasadas.map((d) => fila(d, t));
     const lista = el("div", "reprice-list");
@@ -101,6 +156,7 @@ async function abreRevision(ordenes, alTerminar) {
     const cancelar = el("button", "orders-btn-ghost", t.cancel);
     cancelar.type = "button";
     cancelar.addEventListener("click", cierra);
+
     const aplicar = el("button", "orders-btn");
     aplicar.type = "button";
     const cuenta = () => {
@@ -110,24 +166,23 @@ async function abreRevision(ordenes, alTerminar) {
     };
     lista.addEventListener("change", cuenta);
     cuenta();
-    aplicar.addEventListener("click", async () => {
-        aplicando = true;
-        aplicar.disabled = cancelar.disabled = true;
-        const elegidas = filas.filter((f) => f.marcada());
-        let hechas = 0, fallos = 0;
-        for (const f of elegidas) {
-            aplicar.textContent = `${t.repriceApplying} ${hechas + fallos + 1}/${elegidas.length}`;
-            const res = await editOrder(f.orden.id, "update", { platinum: f.precio() });
-            f.nodo.classList.add(res.ok ? "is-done" : "is-failed");
-            if (res.ok) hechas++;
-            else fallos++;
-            await new Promise((ok) => setTimeout(ok, PAUSA_MS));
-        }
-        aplicando = false;
-        globalThis.showToast?.(`${t.repriceDone}: ${hechas}${fallos ? ` · ${t.repriceFailed}: ${fallos}` : ""}`);
+
+    aplicar.addEventListener("click", () => {
+        const elegidas = filas
+            .filter((f) => f.marcada())
+            .map((f) => ({ orden: f.orden, precio: f.precio() }));
         cierra();
-        if (hechas) alTerminar?.();
+        if (!elegidas.length) return;
+        aplica(elegidas).then(({ hechas, fallos, frenado, ocupado }) => {
+            if (ocupado) return;
+            const tTermina = txt();
+            globalThis.showToast?.(`${tTermina.repriceDone}: ${hechas}${fallos ? ` · ${tTermina.repriceFailed}: ${fallos}` : ""}${frenado ? ` ${tTermina.repriceRate}` : ""}`);
+            if (!frenado && (hechas > 0 || fallos > 0)) {
+                alTerminar?.();
+            }
+        });
     });
+
     pie.append(cancelar, aplicar);
     modal.appendChild(pie);
 }
