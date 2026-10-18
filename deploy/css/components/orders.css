@@ -88,6 +88,36 @@
     gap: 5px;
 }
 
+.orders-remember {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    user-select: none;
+}
+
+.orders-remember[hidden] {
+    display: none;
+}
+
+.orders-remember input {
+    accent-color: var(--active-theme-color, var(--wf-blue));
+    width: 16px;
+    height: 16px;
+    margin: 0;
+}
+
+.orders-saved {
+    display: flex;
+    gap: 8px;
+    align-items: stretch;
+}
+
+.orders-saved .orders-btn {
+    flex: 1;
+}
+
 .orders-label {
     font-size: 0.74rem;
     font-weight: 600;

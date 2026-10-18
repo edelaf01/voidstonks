@@ -57,10 +57,57 @@ export function getToken() {
     return stored;
 }
 
-export async function login(email, password, platform = "pc") {
+async function abreSesion(res, platform) {
+    let body;
+    try {
+        body = await res.json();
+    } catch {
+        return { ok: false, error: "server" };
+    }
+
+    if (!res.ok || !body?.token) {
+        if (res.status === 429) return { ok: false, error: "rate_limited" };
+        return { ok: false, error: body?.error || "invalid_credentials" };
+    }
+
+    const token = normalizeToken(body.token);
+    if (!isTokenValid(token)) return { ok: false, error: "server" };
+
+    const slug = (body.userSlug || body.ingameName || "").toLowerCase();
+    if (!body.authorized && !slug) {
+        pideWfm("wfm_logout", "", { method: "POST", headers: { "X-WFM-Token": token } }).catch(() => {});
+        return { ok: false, error: "token_rejected", diag: body.diag };
+    }
+
+    const plat = ["pc", "ps4", "xbox", "switch", "mobile"].includes(body.platform) ? body.platform : platform;
+
+    try {
+        sessionStorage.setItem(TOKEN_KEY, token);
+        sessionStorage.setItem(EXPIRY_KEY, String(Date.now() + SESSION_TTL_MS));
+        if (body.ingameName) sessionStorage.setItem(NAME_KEY, body.ingameName);
+        if (slug) sessionStorage.setItem(SLUG_KEY, slug);
+        sessionStorage.setItem(SCOPE_KEY, body.authorized ? "full" : "public");
+        sessionStorage.setItem(PLATFORM_KEY, plat);
+    } catch {
+        return { ok: false, error: "storage" };
+    }
+
+    return {
+        ok: true,
+        ingameName: body.ingameName || null,
+        authorized: !!body.authorized
+    };
+}
+
+export async function login(email, password, platform = "pc", recordar) {
     if (!email || !password) return { ok: false, error: "missing_fields" };
 
-     let payload = { email, password, platform };
+    let payload = {
+        email,
+        password,
+        platform,
+        ...(wfmEnLanzador() && typeof recordar === "boolean" ? { recordar } : {})
+    };
     if (!wfmEnLanzador()) {
         try {
             const { sealCredentials } = await import("../../utils/wfm_crypto.js");
@@ -80,43 +127,40 @@ export async function login(email, password, platform = "pc") {
         return { ok: false, error: "network" };
     }
 
-    let body;
+    return abreSesion(res, platform);
+}
+
+export async function credencialesRecordadas() {
+    if (!wfmEnLanzador()) return { disponible: false, guardadas: false, nombre: null };
     try {
-        body = await res.json();
+        const res = await pideWfm("wfm_recordadas");
+        const b = await res.json();
+        return {
+            disponible: !!b.disponible,
+            guardadas: !!b.guardadas,
+            nombre: typeof b.nombre === "string" && b.nombre ? b.nombre : null
+        };
     } catch {
-        return { ok: false, error: "server" };
+        return { disponible: false, guardadas: false, nombre: null };
     }
+}
 
-    if (!res.ok || !body?.token) {
-        if (res.status === 429) return { ok: false, error: "rate_limited" };
-        return { ok: false, error: body?.error || "invalid_credentials" };
-    }
-
-    const token = normalizeToken(body.token);
-    if (!isTokenValid(token)) return { ok: false, error: "server" };
-
-   const slug = (body.userSlug || body.ingameName || "").toLowerCase();
-    if (!body.authorized && !slug) {
-        pideWfm("wfm_logout", "", { method: "POST", headers: { "X-WFM-Token": token } }).catch(() => {});
-        return { ok: false, error: "token_rejected", diag: body.diag };
-    }
-
+export async function loginRecordado() {
+    if (!wfmEnLanzador()) return { ok: false, error: "no_saved" };
+    let res;
     try {
-        sessionStorage.setItem(TOKEN_KEY, token);
-        sessionStorage.setItem(EXPIRY_KEY, String(Date.now() + SESSION_TTL_MS));
-        if (body.ingameName) sessionStorage.setItem(NAME_KEY, body.ingameName);
-        if (slug) sessionStorage.setItem(SLUG_KEY, slug);
-        sessionStorage.setItem(SCOPE_KEY, body.authorized ? "full" : "public");
-       sessionStorage.setItem(PLATFORM_KEY, platform);
+        res = await pideWfm("wfm_login_recordado", "", { method: "POST" });
     } catch {
-        return { ok: false, error: "storage" };
+        return { ok: false, error: "network" };
     }
+    return abreSesion(res, "pc");
+}
 
-    return {
-        ok: true,
-        ingameName: body.ingameName || null,
-        authorized: !!body.authorized
-    };
+export async function olvidarCredenciales() {
+    if (!wfmEnLanzador()) return;
+    try {
+        await pideWfm("wfm_olvidar", "", { method: "POST" });
+    } catch {}
 }
 
 export function getIngameName() {
