@@ -331,3 +331,19 @@ test("id, slug y nombre se guardan una semana y al worker solo va lo que falta",
     assert.deepEqual(await orders.conCatalogoLocal("id", ["a"], pide, t0), { a: { slug: "a" } }, "sin almacenamiento se pide a la red");
   } finally { globalThis.localStorage = orig; }
 });
+
+test("editOrder distingue 429 rate de 500 server y 403 unauthorized", async () => {
+  reset();
+  conSesion();
+
+  rutas.set("wfm_order_edit", () => respuesta(429));
+  assert.deepEqual(await orders.editOrder("o1", "update", { platinum: 10 }), { ok: false, error: "rate" });
+
+  rutas.clear();
+  rutas.set("wfm_order_edit", () => respuesta(500));
+  assert.deepEqual(await orders.editOrder("o1", "update", { platinum: 10 }), { ok: false, error: "server" });
+
+  rutas.clear();
+  rutas.set("wfm_order_edit", () => respuesta(403));
+  assert.deepEqual(await orders.editOrder("o1", "update", { platinum: 10 }), { ok: false, error: "unauthorized" });
+});

@@ -61,6 +61,7 @@ export async function editOrder(orderId, action, payload = {}) {
     }
 
     if (res.status === 401 || res.status === 403) return { ok: false, error: "unauthorized" };
+    if (res.status === 429) return { ok: false, error: "rate" };
     if (!res.ok) return { ok: false, error: "server" };
     return { ok: true };
 }
@@ -128,6 +129,19 @@ export async function mercadoDeTodos(slugs, { fresco = false, onProgreso = null,
         faltan = faltan.filter((s) => !out[s]);
     }
     return out;
+}
+
+export async function estadisticasDe(slug) {
+    if (!slug) return { ok: false, error: "no_slug" };
+    try {
+        const res = await pideWfm("wfm_market_batch", `&slugs=${encodeURIComponent(slug)}&solo=stats&_cb=${Date.now()}`, { cache: "no-cache" });
+        if (res.status === 429) return { ok: false, error: "rate" };
+        if (!res.ok) return { ok: false, error: "server" };
+        const data = (await res.json()) || {};
+        return { ok: true, mercado: data[slug] || null };
+    } catch {
+        return { ok: false, error: "network" };
+    }
 }
 
 const CLAVE_CATALOGO = "vs_catalogo_wfm_v1";
