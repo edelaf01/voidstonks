@@ -3,6 +3,7 @@ import { ORDERS_TEXTS as T } from "../../assets/orders_texts.js";
 import { renderOrdersUnderConstruction } from "./ui_orders_wip.js";
 import { botonRevisarPrecios } from "./ui_reprice.js";
 import { mercadoAlVerse } from "./ui_mercado_visible.js";
+import { montaRecordar } from "./ui_orders_recordar.js";
 import { precioSugerido } from "../../utils/market/precio_reciente.js";
 import { applyIcon } from "../../utils/wfm_assets.js";
 import { exposeGlobals } from "../../utils/global_registry.js";
@@ -42,7 +43,8 @@ const ERROR_KEYS = {
     server: "errServer",
     unauthorized: "errExpired",
     no_token: "errExpired",
-    token_rejected: "errRejected"
+    token_rejected: "errRejected",
+    no_saved: "errNoSaved"
 };
 
 const view = { current: VIEW.LOGIN, data: null };
@@ -101,6 +103,17 @@ function stateBlock(icon, text, actionLabel, onAction) {
     return box;
 }
 
+function trasLogin(res) {
+    if (!res.ok) {
+        const hint = res.diag ? `${res.diag.via} / HTTP ${res.diag.v2Status}` : null;
+        setView(VIEW.LOGIN, { error: res.error, hint });
+        return;
+    }
+    setView(VIEW.LOADING);
+    globalThis.renderPrimeInventory?.();
+    loadOrders();
+}
+
 function renderLogin(root, errorInfo) {
     const t = txt();
     const card = el("form", "orders-login");
@@ -144,6 +157,7 @@ function renderLogin(root, errorInfo) {
     const submit = el("button", "orders-btn", t.login);
     submit.type = "submit";
     card.appendChild(submit);
+    const recordar = montaRecordar(card, submit, trasLogin);
 
     const disclaimer = el("details", "orders-disclaimer");
     const summary = el("summary", "orders-disclaimer-head", t.privacyShort);
@@ -157,17 +171,9 @@ function renderLogin(root, errorInfo) {
         submit.replaceChildren(el("span", "orders-btn-spinner"), el("span", null, t.loggingIn));
         email.disabled = pass.disabled = platform.disabled = true;
 
-        const res = await login(email.value.trim(), pass.value, platform.value);
+        const res = await login(email.value.trim(), pass.value, platform.value, recordar.marcada());
         pass.value = "";
-
-        if (!res.ok) {
-            const hint = res.diag ? `${res.diag.via} / HTTP ${res.diag.v2Status}` : null;
-            setView(VIEW.LOGIN, { error: res.error, hint });
-            return;
-        }
-        setView(VIEW.LOADING);
-        globalThis.renderPrimeInventory?.();
-        loadOrders();
+        trasLogin(res);
     });
 
     root.appendChild(card);
