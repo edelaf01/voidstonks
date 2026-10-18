@@ -91,7 +91,8 @@ export function creaWfm({
   espera = (ms) => new Promise((r) => setTimeout(r, ms)),
   rutaCatalogo,
   leeFichero = (ruta) => readFile(ruta, "utf8"),
-  escribeFichero = (ruta, texto) => writeFile(ruta, texto, "utf8")
+  escribeFichero = (ruta, texto) => writeFile(ruta, texto, "utf8"),
+  credenciales = null
 }) {
   const vigente = (desde, ms) => {
     const d = ahora() - desde;
@@ -141,10 +142,10 @@ export function creaWfm({
     }
   };
 
-  const mercado = async (slug, rank = null) => {
+  const mercado = async (slug, rank = null, soloStats = false) => {
     const [stats, top] = await Promise.all([
       jsonDe(`${V1}/items/${encodeURIComponent(slug)}/statistics`),
-      jsonDe(`${V2}/orders/item/${encodeURIComponent(slug)}/top`)
+      soloStats ? null : jsonDe(`${V2}/orders/item/${encodeURIComponent(slug)}/top`)
     ]);
     return resumeMercado(stats, top, rank);
   };
@@ -185,6 +186,59 @@ export function creaWfm({
   };
   const catalogoWfm = () => (enVuelo ??= cargaCatalogo().finally(() => { enVuelo = null; }));
 
+  const entra = async (email, password, platform) => {
+    const res = await pide(`${V1}/auth/signin`, {
+      metodo: "POST",
+      plataforma: platform,
+      cuerpo: JSON.stringify({ email, password }),
+      cabeceras: { Authorization: "JWT" }
+    });
+    if (!res.ok) {
+      let detail = "invalid_credentials";
+      try {
+        const err = await res.json();
+        if (err?.error?.email) detail = "email_not_found";
+        else if (err?.error?.password) detail = "wrong_password";
+      } catch { }
+      if (res.status === 429) return respuesta(429, { error: "rate_limited" });
+      if (res.status >= 500) return respuesta(estado(res.status), { error: "server" });
+      return respuesta(res.status === 400 ? 401 : estado(res.status), { error: detail });
+    }
+    let token = res.headers.get("authorization");
+    if (!token) {
+      const cookies = typeof res.headers.getSetCookie === "function" ? res.headers.getSetCookie() : [];
+      const texto = cookies.length ? cookies.join("; ") : res.headers.get("set-cookie") || "";
+      const m = texto.match(/JWT=([^;]+)/);
+      if (m) token = m[1];
+    }
+    if (!token) return fallo(502, "No token returned");
+    let ingameName = null;
+    let userSlug = null;
+    try {
+      const payload = await res.json();
+      const user = payload?.payload?.user || {};
+      ingameName = user.ingame_name || null;
+      userSlug = (user.slug || user.ingame_name || "").toLowerCase() || null;
+    } catch { }
+    const limpio = token.replace(/^JWT\s+/i, "");
+    let v2Status = 0;
+    try {
+      const sondeo = await pide(`${V2}/orders/my`, { token: limpio, plataforma: platform });
+      v2Status = sondeo.status;
+      await sondeo.text();
+    } catch { }
+    return respuesta(200, {
+      token: limpio,
+      ingameName,
+      userSlug,
+      authorized: v2Status === 200,
+      diag: {
+        via: res.headers.get("authorization") ? "header" : "cookie",
+        v2Status
+      }
+    });
+  };
+
   const manejadores = {
     wfm_login: async ({ metodo, cuerpo }) => {
       if (metodo !== "POST") return fallo(405, "Method not allowed");
@@ -203,56 +257,41 @@ export function creaWfm({
       ) {
         return fallo(400, "Missing credentials");
       }
-      const res = await pide(`${V1}/auth/signin`, {
-        metodo: "POST",
-        plataforma: platform,
-        cuerpo: JSON.stringify({ email, password }),
-        cabeceras: { Authorization: "JWT" }
-      });
-      if (!res.ok) {
-        let detail = "invalid_credentials";
-        try {
-          const err = await res.json();
-          if (err?.error?.email) detail = "email_not_found";
-          else if (err?.error?.password) detail = "wrong_password";
-        } catch { }
-        if (res.status === 429) return respuesta(429, { error: "rate_limited" });
-        if (res.status >= 500) return respuesta(estado(res.status), { error: "server" });
-        return respuesta(res.status === 400 ? 401 : estado(res.status), { error: detail });
-      }
-      let token = res.headers.get("authorization");
-      if (!token) {
-        const cookies = typeof res.headers.getSetCookie === "function" ? res.headers.getSetCookie() : [];
-        const texto = cookies.length ? cookies.join("; ") : res.headers.get("set-cookie") || "";
-        const m = texto.match(/JWT=([^;]+)/);
-        if (m) token = m[1];
-      }
-      if (!token) return fallo(502, "No token returned");
-      let ingameName = null;
-      let userSlug = null;
-      try {
-        const payload = await res.json();
-        const user = payload?.payload?.user || {};
-        ingameName = user.ingame_name || null;
-        userSlug = (user.slug || user.ingame_name || "").toLowerCase() || null;
-      } catch { }
-      const limpio = token.replace(/^JWT\s+/i, "");
-      let v2Status = 0;
-      try {
-        const sondeo = await pide(`${V2}/orders/my`, { token: limpio, plataforma: platform });
-        v2Status = sondeo.status;
-        await sondeo.text();
-      } catch { }
-      return respuesta(200, {
-        token: limpio,
-        ingameName,
-        userSlug,
-        authorized: v2Status === 200,
-        diag: {
-          via: res.headers.get("authorization") ? "header" : "cookie",
-          v2Status
+      const r = await entra(email, password, platform);
+      if (credenciales && typeof datos.recordar === "boolean") {
+        if (datos.recordar === false) {
+          await credenciales.borra();
+        } else if (r.status === 200) {
+          await credenciales.guarda({ email, password, platform, nombre: JSON.parse(r.cuerpo).ingameName || null }).catch(() => false);
         }
-      });
+      }
+      return r;
+    },
+    wfm_recordadas: async () => {
+      if (!credenciales || !credenciales.disponible()) {
+        return respuesta(200, { disponible: false, guardadas: false, nombre: null });
+      }
+      const c = await credenciales.lee();
+      return respuesta(200, { disponible: true, guardadas: !!c, nombre: c?.nombre || null });
+    },
+    wfm_login_recordado: async ({ metodo }) => {
+      if (metodo !== "POST") return fallo(405, "Method not allowed");
+      const c = credenciales ? await credenciales.lee() : null;
+      if (!c) return respuesta(401, { error: "no_saved" });
+      const r = await entra(c.email, c.password, c.platform);
+      if (r.status === 401) {
+        await credenciales.borra();
+        return r;
+      }
+      if (r.status === 200) {
+        return respuesta(200, { ...JSON.parse(r.cuerpo), platform: c.platform });
+      }
+      return r;
+    },
+    wfm_olvidar: async ({ metodo }) => {
+      if (metodo !== "POST") return fallo(405, "Method not allowed");
+      if (credenciales) await credenciales.borra();
+      return respuesta(200, { ok: true });
     },
     wfm_logout: async ({ token }) => {
       if (!token) return respuesta(200, { ok: true });
@@ -415,10 +454,14 @@ export function creaWfm({
       if (!q) return respuesta(200, {});
       const slugs = lista(q, 30);
       if (!slugs.every(esSlug)) return fallo(400, "Invalid slug");
+      const soloStats = params.solo === "stats";
       const out = {};
       for (const slug of slugs) {
-        const data = await mercado(slug);
+        const data = await mercado(slug, null, soloStats);
         if (data) out[slug] = data;
+      }
+      if (soloStats && !Object.keys(out).length && ahora() < frenoHasta) {
+        return fallo(429, "wfm_frenado");
       }
       return respuesta(200, out);
     }

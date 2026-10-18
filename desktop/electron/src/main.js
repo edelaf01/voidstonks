@@ -1,4 +1,4 @@
-import { app, BrowserWindow, clipboard, desktopCapturer, dialog, ipcMain, Menu, screen, session, shell } from "electron";
+import { app, BrowserWindow, clipboard, desktopCapturer, dialog, ipcMain, Menu, safeStorage, screen, session, shell } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { arrancaServidor, PREFIJO_OVERLAY } from "./servidor.js";
@@ -13,6 +13,7 @@ import { creaRegistroConsola } from "./consola.js";
 import { creaZoom, zoomPorDefecto } from "./zoom.js";
 import { HOSTS_PROPIOS, conCorsDeLaApp } from "./cors.js";
 import { creaWfm } from "./wfm.js";
+import { cifradoDeElectron, creaCredenciales } from "./credenciales.js";
 
 const AQUI = path.dirname(fileURLToPath(import.meta.url));
 const RAIZ_PAQUETE = path.resolve(AQUI, "..");
@@ -58,7 +59,8 @@ app.whenReady().then(async () => {
   const servidor = await arrancaServidor({ raizApp: raizApp(), raizOverlay: path.join(RAIZ_PAQUETE, "overlay") });
   const { origen } = servidor;
   const permisos = creaPermisos(path.join(app.getPath("userData"), "permisos.json"));
-  const wfm = creaWfm({ fetch: globalThis.fetch, rutaCatalogo: path.join(app.getPath("userData"), "wfm-catalogo.json") });
+  const credenciales = creaCredenciales({ ruta: path.join(app.getPath("userData"), "wfm-credenciales.bin"), cifrado: cifradoDeElectron(safeStorage) });
+  const wfm = creaWfm({ fetch: globalThis.fetch, rutaCatalogo: path.join(app.getPath("userData"), "wfm-catalogo.json"), credenciales });
   const overlay = creaOverlay({
     url: `${origen}${PREFIJO_OVERLAY}index.html`,
     preload: path.join(AQUI, "overlay-preload.cjs"),

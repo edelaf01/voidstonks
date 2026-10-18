@@ -131,10 +131,18 @@
       <ul>
         <li>
           Your email and password go <strong>straight from your computer to warframe.market</strong>.
-          They never pass through VoidStonks' servers, and the app does not store or log them.
+          They never pass through VoidStonks' servers, and the app does not store or log them unless
+          you tick "Remember on this computer" (see below).
         </li>
         <li>
-          Only the resulting session token is kept, stored locally on your computer. It
+          If you tick <strong>"Remember on this computer"</strong>, they are saved only on your computer,
+          encrypted with your operating system's keychain (KWallet or GNOME Keyring on Linux, Keychain
+          on macOS, DPAPI on Windows), so the app can sign you in with one click. They are never sent
+          anywhere except to warframe.market when you sign in, and "Forget" deletes them. If your system
+          has no keychain available, the option does not appear.
+        </li>
+        <li>
+          Apart from that, only the resulting session token is kept, stored locally on your computer. It
           <strong>expires in the app after 3 hours</strong>, and pressing "Sign out" invalidates it on
           warframe.market. If you don't sign out, warframe.market keeps it valid until it expires on
           their side.
@@ -231,10 +239,18 @@
       <ul>
         <li>
           Tu email y tu contraseña van <strong>directamente de tu ordenador a warframe.market</strong>.
-          Nunca pasan por los servidores de VoidStonks, y la app no los guarda ni los registra.
+          Nunca pasan por los servidores de VoidStonks, y la app no los guarda ni los registra salvo que
+          marques «Recordar en este equipo» (ver abajo).
         </li>
         <li>
-          Solo se conserva el token de sesión resultante, guardado localmente en tu ordenador.
+          Si marcas <strong>«Recordar en este equipo»</strong>, se guardan solo en tu ordenador, cifrados
+          con el llavero del sistema operativo (KWallet o GNOME Keyring en Linux, Llavero en macOS, DPAPI
+          en Windows), para poder entrar con un clic. Nunca se envían a ningún sitio salvo a
+          warframe.market al iniciar sesión, y «Olvidar» los borra. Si tu sistema no tiene llavero
+          disponible, la opción no aparece.
+        </li>
+        <li>
+          Aparte de eso, solo se conserva el token de sesión resultante, guardado localmente en tu ordenador.
           <strong>Caduca en la app a las 3 horas</strong>, y al pulsar "Salir" se invalida en
           warframe.market. Si no pulsas "Salir", warframe.market lo mantiene válido hasta que caduque
           por su lado.
