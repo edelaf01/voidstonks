@@ -665,5 +665,210 @@
     }
    }
   }
+ },
+ {
+  "ts": "2026-10-19 09:49",
+  "filas": 308117,
+  "armas": 417,
+  "fecha_min": "2026-06-03",
+  "fecha_max": "2026-10-08",
+  "pct_mag": 0.869,
+  "r2_log": 0.7744,
+  "r2_intra": 0.5961,
+  "spearman_intra": 0.714,
+  "auc_godroll": 0.815,
+  "mape_trade": 46.2,
+  "mape_global": 74.9,
+  "mape_mediano_arma": 82.0,
+  "mape_piso": 31.7,
+  "mape_trade_inedito": 50.1,
+  "fuga_combos_pct": 39.1,
+  "venta_calibrada": 0,
+  "venta_armas": 417,
+  "cobertura": {
+   "p25": 27.7,
+   "p50": 50.2,
+   "p80": 82.1,
+   "p90": 91.7,
+   "p95": 96.5
+  },
+  "winsor_recortadas": 6357,
+  "mape_piso_semana": 17.8,
+  "adelante": {
+   "dias": 7,
+   "corte": "2026-10-01T00:00:00",
+   "n_entreno": 140140,
+   "n_prueba": 9437,
+   "recencia": false,
+   "cobertura": {
+    "p25": 38.3,
+    "p50": 59.0,
+    "p80": 81.3,
+    "p90": 91.4,
+    "p95": 96.6
+   },
+   "pinball": {
+    "p25": 0.2408,
+    "p50": 0.3011,
+    "p80": 0.2254,
+    "p90": 0.1482,
+    "p95": 0.0926
+   },
+   "mape_trade": 53.4,
+   "mdape_trade": 40.9,
+   "sesgo_trade": 1.033,
+   "sesgo_todos": 1.158,
+   "spearman_intra": 0.747,
+   "por_liquidez": {
+    "baja": {
+     "n": 1122,
+     "cobertura": {
+      "p25": 40.6,
+      "p50": 58.7,
+      "p80": 77.9
+     },
+     "mdape_trade": 54.5,
+     "sesgo_trade": 0.704
+    },
+    "media": {
+     "n": 2038,
+     "cobertura": {
+      "p25": 38.8,
+      "p50": 58.2,
+      "p80": 81.8
+     },
+     "mdape_trade": 46.5,
+     "sesgo_trade": 0.823
+    },
+    "alta": {
+     "n": 6277,
+     "cobertura": {
+      "p25": 37.7,
+      "p50": 59.3,
+      "p80": 81.7
+     },
+     "mdape_trade": 39.2,
+     "sesgo_trade": 1.081
+    }
+   },
+   "slim": {
+    "base": {
+     "cobertura": {
+      "p25": 38.5,
+      "p50": 63.1,
+      "p80": 89.4,
+      "p90": 95.3,
+      "p95": 97.9
+     },
+     "mdape_trade": 49.3,
+     "sesgo_trade": 1.152,
+     "sesgo_todos": 1.271,
+     "por_liquidez": {
+      "baja": {
+       "n": 1122,
+       "cob_p50": 61.1,
+       "sesgo_trade": 0.744
+      },
+      "media": {
+       "n": 2038,
+       "cob_p50": 58.8,
+       "sesgo_trade": 0.878
+      },
+      "alta": {
+       "n": 6277,
+       "cob_p50": 64.9,
+       "sesgo_trade": 1.215
+      }
+     }
+    },
+    "dentro": {
+     "cobertura": {
+      "p25": 26.9,
+      "p50": 52.3,
+      "p80": 84.2,
+      "p90": 92.7,
+      "p95": 96.5
+     },
+     "mdape_trade": 43.1,
+     "sesgo_trade": 0.932,
+     "sesgo_todos": 1.047,
+     "por_liquidez": {
+      "baja": {
+       "n": 1122,
+       "cob_p50": 55.2,
+       "sesgo_trade": 0.666
+      },
+      "media": {
+       "n": 2038,
+       "cob_p50": 54.0,
+       "sesgo_trade": 0.81
+      },
+      "alta": {
+       "n": 6277,
+       "cob_p50": 51.3,
+       "sesgo_trade": 0.964
+      }
+     }
+    },
+    "fuera_0.5": {
+     "cobertura": {
+      "p25": 32.2,
+      "p50": 57.6,
+      "p80": 87.0,
+      "p90": 94.0,
+      "p95": 97.3
+     },
+     "mdape_trade": 45.0,
+     "sesgo_trade": 1.027,
+     "sesgo_todos": 1.148,
+     "por_liquidez": {
+      "baja": {
+       "n": 1122,
+       "cob_p50": 57.4,
+       "sesgo_trade": 0.694
+      },
+      "media": {
+       "n": 2038,
+       "cob_p50": 56.1,
+       "sesgo_trade": 0.855
+      },
+      "alta": {
+       "n": 6277,
+       "cob_p50": 58.1,
+       "sesgo_trade": 1.077
+      }
+     }
+    },
+    "fuera_1": {
+     "cobertura": {
+      "p25": 26.2,
+      "p50": 51.8,
+      "p80": 83.9,
+      "p90": 92.7,
+      "p95": 96.4
+     },
+     "mdape_trade": 42.9,
+     "sesgo_trade": 0.922,
+     "sesgo_todos": 1.033,
+     "por_liquidez": {
+      "baja": {
+       "n": 1122,
+       "cob_p50": 54.5,
+       "sesgo_trade": 0.655
+      },
+      "media": {
+       "n": 2038,
+       "cob_p50": 53.6,
+       "sesgo_trade": 0.803
+      },
+      "alta": {
+       "n": 6277,
+       "cob_p50": 50.8,
+       "sesgo_trade": 0.949
+      }
+     }
+    }
+   }
+  }
  }
 ]
