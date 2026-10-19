@@ -1,5 +1,24 @@
 {
  "generado": "2026-10-19",
+ "serie_hasta": "2026-10-19",
+ "globales": [
+  {
+   "tipo": "global_weekly",
+   "fecha": "2026-10-19",
+   "suben": 180,
+   "bajan": 189
+  },
+  {
+   "tipo": "global_prima",
+   "valor": 1.8,
+   "armas": 58
+  },
+  {
+   "tipo": "global_cara",
+   "arma": "magistar",
+   "valor": 577
+  }
+ ],
  "eventos": [
   {
    "weekly": "2026-10-19",
@@ -95,7 +114,7 @@
   {
    "weekly": "2026-10-19",
    "dias_tras_weekly": 0,
-   "arma": "kuva sobek",
+   "arma": "sobek",
    "fecha": "2026-10-19",
    "desde": "2026-10-12",
    "tipo": "subida_venta",
@@ -158,19 +177,6 @@
    "fuente": "de"
   },
   {
-   "weekly": "2026-10-13",
-   "dias_tras_weekly": 0,
-   "arma": "hate",
-   "fecha": "2026-10-13",
-   "desde": "2026-10-06",
-   "tipo": "volatil",
-   "pct": 4120,
-   "de": 0.45,
-   "a": 19.0,
-   "pop_de": 7.6,
-   "fuente": "de"
-  },
-  {
    "weekly": "2026-10-19",
    "dias_tras_weekly": 0,
    "arma": "bo",
@@ -194,19 +200,6 @@
    "de": 84,
    "a": 58,
    "pop_de": 3.1,
-   "fuente": "de"
-  },
-  {
-   "weekly": "2026-10-13",
-   "dias_tras_weekly": 0,
-   "arma": "jat kittag",
-   "fecha": "2026-10-13",
-   "desde": "2026-10-06",
-   "tipo": "volatil",
-   "pct": 529,
-   "de": 0.35,
-   "a": 2.2,
-   "pop_de": 4.2,
    "fuente": "de"
   },
   {
@@ -236,19 +229,6 @@
    "fuente": "de"
   },
   {
-   "weekly": "2026-10-13",
-   "dias_tras_weekly": 0,
-   "arma": "falcor",
-   "fecha": "2026-10-13",
-   "desde": "2026-10-06",
-   "tipo": "volatil",
-   "pct": 225,
-   "de": 0.6,
-   "a": 1.9,
-   "pop_de": 5.5,
-   "fuente": "de"
-  },
-  {
    "weekly": "2026-10-19",
    "dias_tras_weekly": 0,
    "arma": "afuris",
@@ -259,32 +239,6 @@
    "de": 62,
    "a": 78,
    "pop_de": 3.2,
-   "fuente": "de"
-  },
-  {
-   "weekly": "2026-10-13",
-   "dias_tras_weekly": 0,
-   "arma": "aksondol",
-   "fecha": "2026-10-13",
-   "desde": "2026-10-06",
-   "tipo": "bajada_venta",
-   "pct": -49,
-   "de": 85,
-   "a": 43,
-   "pop_de": 10.3,
-   "fuente": "de"
-  },
-  {
-   "weekly": "2026-10-06",
-   "dias_tras_weekly": 0,
-   "arma": "praedos",
-   "fecha": "2026-10-06",
-   "desde": "2026-09-29",
-   "tipo": "volatil",
-   "pct": 608,
-   "de": 0.5,
-   "a": 3.5,
-   "pop_de": 3.3,
    "fuente": "de"
   },
   {
@@ -301,6 +255,71 @@
    "fuente": "de"
   },
   {
+   "weekly": "2026-10-19",
+   "dias_tras_weekly": 0,
+   "arma": "kuva sobek",
+   "fecha": "2026-10-19",
+   "desde": "2026-10-12",
+   "tipo": "subida_venta",
+   "pct": 37,
+   "de": 131,
+   "a": 180,
+   "pop_de": 9.4,
+   "fuente": "de"
+  },
+  {
+   "weekly": "2026-10-13",
+   "dias_tras_weekly": 0,
+   "arma": "hate",
+   "fecha": "2026-10-13",
+   "desde": "2026-10-06",
+   "tipo": "volatil",
+   "pct": 4120,
+   "de": 0.45,
+   "a": 19.0,
+   "pop_de": 7.6,
+   "fuente": "de"
+  },
+  {
+   "weekly": "2026-10-13",
+   "dias_tras_weekly": 0,
+   "arma": "jat kittag",
+   "fecha": "2026-10-13",
+   "desde": "2026-10-06",
+   "tipo": "volatil",
+   "pct": 529,
+   "de": 0.35,
+   "a": 2.2,
+   "pop_de": 4.2,
+   "fuente": "de"
+  },
+  {
+   "weekly": "2026-10-13",
+   "dias_tras_weekly": 0,
+   "arma": "falcor",
+   "fecha": "2026-10-13",
+   "desde": "2026-10-06",
+   "tipo": "volatil",
+   "pct": 225,
+   "de": 0.6,
+   "a": 1.9,
+   "pop_de": 5.5,
+   "fuente": "de"
+  },
+  {
+   "weekly": "2026-10-13",
+   "dias_tras_weekly": 0,
+   "arma": "aksondol",
+   "fecha": "2026-10-13",
+   "desde": "2026-10-06",
+   "tipo": "bajada_venta",
+   "pct": -49,
+   "de": 85,
+   "a": 43,
+   "pop_de": 10.3,
+   "fuente": "de"
+  },
+  {
    "weekly": "2026-10-13",
    "dias_tras_weekly": 0,
    "arma": "nunchasa",
@@ -311,19 +330,6 @@
    "de": 98,
    "a": 63,
    "pop_de": 15.2,
-   "fuente": "de"
-  },
-  {
-   "weekly": "2026-10-06",
-   "dias_tras_weekly": 0,
-   "arma": "vesper 77",
-   "fecha": "2026-10-06",
-   "desde": "2026-09-29",
-   "tipo": "volatil",
-   "pct": 387,
-   "de": 0.39,
-   "a": 1.9,
-   "pop_de": 4.3,
    "fuente": "de"
   },
   {
@@ -350,19 +356,6 @@
    "de": 60,
    "a": 40,
    "pop_de": 2.8,
-   "fuente": "de"
-  },
-  {
-   "weekly": "2026-09-29",
-   "dias_tras_weekly": 0,
-   "arma": "dual decurion",
-   "fecha": "2026-09-29",
-   "desde": "2026-09-22",
-   "tipo": "volatil",
-   "pct": 996,
-   "de": 0.24,
-   "a": 2.6,
-   "pop_de": 3.2,
    "fuente": "de"
   },
   {
@@ -405,22 +398,9 @@
    "fuente": "de"
   },
   {
-   "weekly": "2026-10-12",
-   "dias_tras_weekly": 0,
-   "arma": "coda sporothrix",
-   "fecha": "2026-10-12",
-   "desde": "2026-10-05",
-   "tipo": "bajada_venta",
-   "pct": -41,
-   "de": 81,
-   "a": 48,
-   "pop_de": 4.2,
-   "fuente": "de"
-  },
-  {
    "weekly": "2026-10-13",
    "dias_tras_weekly": 0,
-   "arma": "coda pathocyst",
+   "arma": "pathocyst",
    "fecha": "2026-10-13",
    "desde": "2026-10-06",
    "tipo": "subida_venta",
@@ -428,19 +408,6 @@
    "de": 48,
    "a": 73,
    "pop_de": 2.3,
-   "fuente": "de"
-  },
-  {
-   "weekly": "2026-10-06",
-   "dias_tras_weekly": 0,
-   "arma": "kuva ogris",
-   "fecha": "2026-10-06",
-   "desde": "2026-09-29",
-   "tipo": "bajada_venta",
-   "pct": -56,
-   "de": 108,
-   "a": 47,
-   "pop_de": 2.2,
    "fuente": "de"
   },
   {
@@ -457,22 +424,9 @@
    "fuente": "de"
   },
   {
-   "weekly": "2026-10-06",
-   "dias_tras_weekly": 0,
-   "arma": "sun & moon",
-   "fecha": "2026-10-06",
-   "desde": "2026-09-29",
-   "tipo": "bajada_venta",
-   "pct": -53,
-   "de": 86,
-   "a": 40,
-   "pop_de": 2.9,
-   "fuente": "de"
-  },
-  {
    "weekly": "2026-10-13",
    "dias_tras_weekly": 0,
-   "arma": "dex furis",
+   "arma": "furis",
    "fecha": "2026-10-13",
    "desde": "2026-10-06",
    "tipo": "subida_venta",
@@ -480,19 +434,6 @@
    "de": 83,
    "a": 118,
    "pop_de": 4.9,
-   "fuente": "de"
-  },
-  {
-   "weekly": "2026-10-06",
-   "dias_tras_weekly": 0,
-   "arma": "corufell",
-   "fecha": "2026-10-06",
-   "desde": "2026-09-29",
-   "tipo": "bajada_venta",
-   "pct": -33,
-   "de": 70,
-   "a": 47,
-   "pop_de": 9.0,
    "fuente": "de"
   },
   {
@@ -509,6 +450,110 @@
    "fuente": "de"
   },
   {
+   "weekly": "2026-10-13",
+   "dias_tras_weekly": 0,
+   "arma": "coda pathocyst",
+   "fecha": "2026-10-13",
+   "desde": "2026-10-06",
+   "tipo": "subida_venta",
+   "pct": 52,
+   "de": 48,
+   "a": 73,
+   "pop_de": 2.3,
+   "fuente": "de"
+  },
+  {
+   "weekly": "2026-10-13",
+   "dias_tras_weekly": 0,
+   "arma": "dex furis",
+   "fecha": "2026-10-13",
+   "desde": "2026-10-06",
+   "tipo": "subida_venta",
+   "pct": 42,
+   "de": 83,
+   "a": 118,
+   "pop_de": 4.9,
+   "fuente": "de"
+  },
+  {
+   "weekly": "2026-10-12",
+   "dias_tras_weekly": 0,
+   "arma": "sporothrix",
+   "fecha": "2026-10-12",
+   "desde": "2026-10-05",
+   "tipo": "bajada_venta",
+   "pct": -41,
+   "de": 81,
+   "a": 48,
+   "pop_de": 4.2,
+   "fuente": "de"
+  },
+  {
+   "weekly": "2026-10-12",
+   "dias_tras_weekly": 0,
+   "arma": "coda sporothrix",
+   "fecha": "2026-10-12",
+   "desde": "2026-10-05",
+   "tipo": "bajada_venta",
+   "pct": -41,
+   "de": 81,
+   "a": 48,
+   "pop_de": 4.2,
+   "fuente": "de"
+  },
+  {
+   "weekly": "2026-10-06",
+   "dias_tras_weekly": 0,
+   "arma": "vesper 77",
+   "fecha": "2026-10-06",
+   "desde": "2026-09-29",
+   "tipo": "volatil",
+   "pct": 387,
+   "de": 0.39,
+   "a": 1.9,
+   "pop_de": 4.3,
+   "fuente": "de"
+  },
+  {
+   "weekly": "2026-10-06",
+   "dias_tras_weekly": 0,
+   "arma": "praedos",
+   "fecha": "2026-10-06",
+   "desde": "2026-09-29",
+   "tipo": "volatil",
+   "pct": 608,
+   "de": 0.5,
+   "a": 3.5,
+   "pop_de": 3.3,
+   "fuente": "de"
+  },
+  {
+   "weekly": "2026-10-06",
+   "dias_tras_weekly": 0,
+   "arma": "corufell",
+   "fecha": "2026-10-06",
+   "desde": "2026-09-29",
+   "tipo": "bajada_venta",
+   "pct": -33,
+   "de": 70,
+   "a": 47,
+   "pop_de": 9.0,
+   "fuente": "de"
+  },
+  {
+   "weekly": "2026-10-06",
+   "dias_tras_weekly": 0,
+   "arma": "sun & moon",
+   "fecha": "2026-10-06",
+   "desde": "2026-09-29",
+   "tipo": "bajada_venta",
+   "pct": -53,
+   "de": 86,
+   "a": 40,
+   "pop_de": 2.9,
+   "fuente": "de"
+  },
+  {
    "weekly": "2026-10-06",
    "dias_tras_weekly": 0,
    "arma": "acceltra",
@@ -519,6 +564,58 @@
    "de": 57,
    "a": 40,
    "pop_de": 7.9,
+   "fuente": "de"
+  },
+  {
+   "weekly": "2026-10-06",
+   "dias_tras_weekly": 0,
+   "arma": "ogris",
+   "fecha": "2026-10-06",
+   "desde": "2026-09-29",
+   "tipo": "bajada_venta",
+   "pct": -56,
+   "de": 108,
+   "a": 47,
+   "pop_de": 2.2,
+   "fuente": "de"
+  },
+  {
+   "weekly": "2026-10-06",
+   "dias_tras_weekly": 0,
+   "arma": "kuva ogris",
+   "fecha": "2026-10-06",
+   "desde": "2026-09-29",
+   "tipo": "bajada_venta",
+   "pct": -56,
+   "de": 108,
+   "a": 47,
+   "pop_de": 2.2,
+   "fuente": "de"
+  },
+  {
+   "weekly": "2026-09-29",
+   "dias_tras_weekly": 0,
+   "arma": "dual decurion",
+   "fecha": "2026-09-29",
+   "desde": "2026-09-22",
+   "tipo": "volatil",
+   "pct": 996,
+   "de": 0.24,
+   "a": 2.6,
+   "pop_de": 3.2,
+   "fuente": "de"
+  },
+  {
+   "weekly": "2026-09-29",
+   "dias_tras_weekly": 0,
+   "arma": "prisma dual decurions",
+   "fecha": "2026-09-29",
+   "desde": "2026-09-22",
+   "tipo": "volatil",
+   "pct": 996,
+   "de": 0.24,
+   "a": 2.6,
+   "pop_de": 3.2,
    "fuente": "de"
   }
  ]
