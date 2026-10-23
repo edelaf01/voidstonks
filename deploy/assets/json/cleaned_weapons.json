@@ -44,7 +44,7 @@
    }
   ],
   "localImage": "weapons/arbucep.webp",
-  "omegaAttenuation": 0.7
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Cortege",
@@ -84,7 +84,7 @@
    }
   ],
   "localImage": "weapons/cortege.webp",
-  "omegaAttenuation": 1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Corvas",
@@ -206,7 +206,7 @@
    }
   ],
   "localImage": "weapons/corvas_prime.webp",
-  "omegaAttenuation": 1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Cyngas",
@@ -253,7 +253,7 @@
    }
   ],
   "localImage": "weapons/cyngas.webp",
-  "omegaAttenuation": 1.3
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Dual Decurion",
@@ -293,7 +293,7 @@
    }
   ],
   "localImage": "weapons/dual_decurion.webp",
-  "omegaAttenuation": 1.3
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Fluctus",
@@ -340,7 +340,7 @@
    }
   ],
   "localImage": "weapons/fluctus.webp",
-  "omegaAttenuation": 1.1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Grattler",
@@ -387,7 +387,7 @@
    }
   ],
   "localImage": "weapons/grattler.webp",
-  "omegaAttenuation": 1.1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Imperator",
@@ -434,7 +434,7 @@
    }
   ],
   "localImage": "weapons/imperator.webp",
-  "omegaAttenuation": 1.1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Imperator Vandal",
@@ -474,7 +474,7 @@
    }
   ],
   "localImage": "weapons/imperator_vandal.webp",
-  "omegaAttenuation": 0.95
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Kuva Ayanga",
@@ -493,7 +493,7 @@
    }
   ],
   "localImage": "weapons/kuva_ayanga.webp",
-  "omegaAttenuation": 0.95
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Kuva Grattler",
@@ -512,7 +512,7 @@
    }
   ],
   "localImage": "weapons/kuva_grattler.webp",
-  "omegaAttenuation": 0.7
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Larkspur",
@@ -559,7 +559,7 @@
    }
   ],
   "localImage": "weapons/larkspur.webp",
-  "omegaAttenuation": 1.05
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Larkspur Prime",
@@ -637,7 +637,7 @@
    }
   ],
   "localImage": "weapons/larkspur_prime.webp",
-  "omegaAttenuation": 0.8
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Mandonel",
@@ -684,7 +684,7 @@
    }
   ],
   "localImage": "weapons/mandonel.webp",
-  "omegaAttenuation": 1.1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Mausolon",
@@ -695,7 +695,7 @@
   "masteryReq": 14,
   "components": [],
   "localImage": "weapons/mausolon.webp",
-  "omegaAttenuation": 0.5
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Morgha",
@@ -735,7 +735,7 @@
    }
   ],
   "localImage": "weapons/morgha.webp",
-  "omegaAttenuation": 1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Phaedra",
@@ -782,7 +782,7 @@
    }
   ],
   "localImage": "weapons/phaedra.webp",
-  "omegaAttenuation": 1.25
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Prisma Dual Decurions",
@@ -793,7 +793,7 @@
   "masteryReq": 1,
   "components": [],
   "localImage": "weapons/prisma_dual_decurions.webp",
-  "omegaAttenuation": 1.25
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Velocitus",
@@ -840,7 +840,7 @@
    }
   ],
   "localImage": "weapons/velocitus.webp",
-  "omegaAttenuation": 1.1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Ack & Brunt",
@@ -887,7 +887,7 @@
    }
   ],
   "localImage": "weapons/ack__brunt.webp",
-  "omegaAttenuation": 1.35
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Amanata",
@@ -927,7 +927,7 @@
    }
   ],
   "localImage": "weapons/amanata.webp",
-  "omegaAttenuation": 0.85
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Amphis",
@@ -974,7 +974,7 @@
    }
   ],
   "localImage": "weapons/amphis.webp",
-  "omegaAttenuation": 1.5
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Anku",
@@ -1021,7 +1021,7 @@
    }
   ],
   "localImage": "weapons/anku.webp",
-  "omegaAttenuation": 1.46
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Ankyros",
@@ -1068,7 +1068,7 @@
    }
   ],
   "localImage": "weapons/ankyros.webp",
-  "omegaAttenuation": 1.5
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Ankyros Prime",
@@ -1120,7 +1120,7 @@
    }
   ],
   "localImage": "weapons/ankyros_prime.webp",
-  "omegaAttenuation": 1.45
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Arca Titron",
@@ -1167,7 +1167,7 @@
    }
   ],
   "localImage": "weapons/arca_titron.webp",
-  "omegaAttenuation": 1.3
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Argo & Vel",
@@ -1214,7 +1214,7 @@
    }
   ],
   "localImage": "weapons/argo__vel.webp",
-  "omegaAttenuation": 1.15
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Arum Spinosa",
@@ -1261,7 +1261,7 @@
    }
   ],
   "localImage": "weapons/arum_spinosa.webp",
-  "omegaAttenuation": 1.25
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Atterax",
@@ -1308,7 +1308,7 @@
    }
   ],
   "localImage": "weapons/atterax.webp",
-  "omegaAttenuation": 1.15
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Azothane",
@@ -1355,7 +1355,7 @@
    }
   ],
   "localImage": "weapons/azothane.webp",
-  "omegaAttenuation": 1.1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Balla",
@@ -1402,7 +1402,7 @@
    }
   ],
   "localImage": "weapons/balla.webp",
-  "omegaAttenuation": 0.8
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Bo",
@@ -1449,7 +1449,7 @@
    }
   ],
   "localImage": "weapons/bo.webp",
-  "omegaAttenuation": 1.35
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Bo Prime",
@@ -1498,7 +1498,7 @@
    }
   ],
   "localImage": "weapons/bo_prime.webp",
-  "omegaAttenuation": 1.35
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Boltace",
@@ -1538,7 +1538,7 @@
    }
   ],
   "localImage": "weapons/boltace.webp",
-  "omegaAttenuation": 1.25
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Broken Scepter",
@@ -1585,7 +1585,7 @@
    }
   ],
   "localImage": "weapons/broken_scepter.webp",
-  "omegaAttenuation": 1.4
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Broken War",
@@ -1632,7 +1632,7 @@
    }
   ],
   "localImage": "weapons/broken_war.webp",
-  "omegaAttenuation": 1.15
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Cadus",
@@ -1679,7 +1679,7 @@
    }
   ],
   "localImage": "weapons/cadus.webp",
-  "omegaAttenuation": 1.29
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Cassowar",
@@ -1726,7 +1726,7 @@
    }
   ],
   "localImage": "weapons/cassowar.webp",
-  "omegaAttenuation": 1.35
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Caustacyst",
@@ -1773,7 +1773,7 @@
    }
   ],
   "localImage": "weapons/caustacyst.webp",
-  "omegaAttenuation": 1.3
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Ceramic Dagger",
@@ -1820,7 +1820,7 @@
    }
   ],
   "localImage": "weapons/ceramic_dagger.webp",
-  "omegaAttenuation": 1.43
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Cerata",
@@ -1867,7 +1867,7 @@
    }
   ],
   "localImage": "weapons/cerata.webp",
-  "omegaAttenuation": 1.25
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Ceti Lacera",
@@ -1961,7 +1961,7 @@
    }
   ],
   "localImage": "weapons/cobra__crane.webp",
-  "omegaAttenuation": 1.35
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Cobra & Crane Prime",
@@ -2051,7 +2051,7 @@
   "masteryReq": 17,
   "components": [],
   "localImage": "weapons/coda_caustacyst.webp",
-  "omegaAttenuation": 0.85
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Coda Hirudo",
@@ -2062,7 +2062,7 @@
   "masteryReq": 17,
   "components": [],
   "localImage": "weapons/coda_hirudo.webp",
-  "omegaAttenuation": 0.75
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Coda Mire",
@@ -2073,7 +2073,7 @@
   "masteryReq": 17,
   "components": [],
   "localImage": "weapons/coda_mire.webp",
-  "omegaAttenuation": 0.75
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Coda Motovore",
@@ -2084,7 +2084,7 @@
   "masteryReq": 17,
   "components": [],
   "localImage": "weapons/coda_motovore.webp",
-  "omegaAttenuation": 0.8
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Coda Pathocyst",
@@ -2095,7 +2095,7 @@
   "masteryReq": 17,
   "components": [],
   "localImage": "weapons/coda_pathocyst.webp",
-  "omegaAttenuation": 0.65
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Corufell",
@@ -2142,7 +2142,7 @@
    }
   ],
   "localImage": "weapons/corufell.webp",
-  "omegaAttenuation": 1.05
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Corufell Prime",
@@ -2197,7 +2197,7 @@
    }
   ],
   "localImage": "weapons/corufell_prime.webp",
-  "omegaAttenuation": 0.5
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Cronus",
@@ -2237,7 +2237,7 @@
    }
   ],
   "localImage": "weapons/cronus.webp",
-  "omegaAttenuation": 1.48
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Cyath",
@@ -2284,7 +2284,7 @@
    }
   ],
   "localImage": "weapons/cyath.webp",
-  "omegaAttenuation": 1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Dakra Prime",
@@ -2340,7 +2340,7 @@
    }
   ],
   "localImage": "weapons/dakra_prime.webp",
-  "omegaAttenuation": 1.1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Dark Dagger",
@@ -2387,7 +2387,7 @@
    }
   ],
   "localImage": "weapons/dark_dagger.webp",
-  "omegaAttenuation": 1.1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Dark Split-Sword",
@@ -2434,7 +2434,7 @@
    }
   ],
   "localImage": "weapons/dark_split_sword.webp",
-  "omegaAttenuation": 1.3
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Dark Sword",
@@ -2481,7 +2481,7 @@
    }
   ],
   "localImage": "weapons/dark_sword.webp",
-  "omegaAttenuation": 1.48
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Dehtat",
@@ -2528,7 +2528,7 @@
    }
   ],
   "localImage": "weapons/dehtat.webp",
-  "omegaAttenuation": 1.25
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Destreza",
@@ -2575,7 +2575,7 @@
    }
   ],
   "localImage": "weapons/destreza.webp",
-  "omegaAttenuation": 1.25
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Destreza Prime",
@@ -2641,7 +2641,7 @@
    }
   ],
   "localImage": "weapons/destreza_prime.webp",
-  "omegaAttenuation": 1.14
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Dex Dakra",
@@ -2652,7 +2652,7 @@
   "masteryReq": 6,
   "components": [],
   "localImage": "weapons/dex_dakra.webp",
-  "omegaAttenuation": 1.35
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Dex Nikana",
@@ -2663,7 +2663,7 @@
   "masteryReq": 8,
   "components": [],
   "localImage": "weapons/dex_nikana.webp",
-  "omegaAttenuation": 1.1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Dokrahm",
@@ -2710,7 +2710,7 @@
    }
   ],
   "localImage": "weapons/dokrahm.webp",
-  "omegaAttenuation": 0.75
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Dorrclave",
@@ -2757,7 +2757,7 @@
    }
   ],
   "localImage": "weapons/dorrclave.webp",
-  "omegaAttenuation": 1.1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Dragon Nikana",
@@ -2797,7 +2797,7 @@
    }
   ],
   "localImage": "weapons/dragon_nikana.webp",
-  "omegaAttenuation": 1.15
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Dual Cleavers",
@@ -2891,7 +2891,7 @@
    }
   ],
   "localImage": "weapons/dual_ether.webp",
-  "omegaAttenuation": 1.45
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Dual Heat Swords",
@@ -2938,7 +2938,7 @@
    }
   ],
   "localImage": "weapons/dual_heat_swords.webp",
-  "omegaAttenuation": 1.44
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Dual Ichor",
@@ -2985,7 +2985,7 @@
    }
   ],
   "localImage": "weapons/dual_ichor.webp",
-  "omegaAttenuation": 1.25
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Dual Kamas",
@@ -3025,7 +3025,7 @@
    }
   ],
   "localImage": "weapons/dual_kamas.webp",
-  "omegaAttenuation": 1.35
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Dual Kamas Prime",
@@ -3077,7 +3077,7 @@
    }
   ],
   "localImage": "weapons/dual_kamas_prime.webp",
-  "omegaAttenuation": 1.25
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Dual Keres",
@@ -3124,7 +3124,7 @@
    }
   ],
   "localImage": "weapons/dual_keres.webp",
-  "omegaAttenuation": 1.1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Dual Keres Prime",
@@ -3178,7 +3178,7 @@
    }
   ],
   "localImage": "weapons/dual_keres_prime.webp",
-  "omegaAttenuation": 0.8
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Dual Raza",
@@ -3225,7 +3225,7 @@
    }
   ],
   "localImage": "weapons/dual_raza.webp",
-  "omegaAttenuation": 1.4
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Dual Skana",
@@ -3272,7 +3272,7 @@
    }
   ],
   "localImage": "weapons/dual_skana.webp",
-  "omegaAttenuation": 1.48
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Dual Viciss",
@@ -3305,7 +3305,7 @@
    }
   ],
   "localImage": "weapons/dual_viciss.webp",
-  "omegaAttenuation": 0.8
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Dual Zoren",
@@ -3352,7 +3352,7 @@
    }
   ],
   "localImage": "weapons/dual_zoren.webp",
-  "omegaAttenuation": 1.44
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Dual Zoren Prime",
@@ -3405,7 +3405,7 @@
    }
   ],
   "localImage": "weapons/dual_zoren_prime.webp",
-  "omegaAttenuation": 0.95
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Edun",
@@ -3452,7 +3452,7 @@
    }
   ],
   "localImage": "weapons/edun.webp",
-  "omegaAttenuation": 1.15
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Ekhein",
@@ -3828,7 +3828,7 @@
    }
   ],
   "localImage": "weapons/endura.webp",
-  "omegaAttenuation": 1.4
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Ether Daggers",
@@ -3875,7 +3875,7 @@
    }
   ],
   "localImage": "weapons/ether_daggers.webp",
-  "omegaAttenuation": 1.49
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Ether Reaper",
@@ -3922,7 +3922,7 @@
    }
   ],
   "localImage": "weapons/ether_reaper.webp",
-  "omegaAttenuation": 1.45
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Ether Sword",
@@ -3969,7 +3969,7 @@
    }
   ],
   "localImage": "weapons/ether_sword.webp",
-  "omegaAttenuation": 1.44
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Falcor",
@@ -4016,7 +4016,7 @@
    }
   ],
   "localImage": "weapons/falcor.webp",
-  "omegaAttenuation": 1.3
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Fang",
@@ -4063,7 +4063,7 @@
    }
   ],
   "localImage": "weapons/fang.webp",
-  "omegaAttenuation": 1.36
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Fang Prime",
@@ -4232,7 +4232,7 @@
    }
   ],
   "localImage": "weapons/fang_prime.webp",
-  "omegaAttenuation": 1.3
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Fragor",
@@ -4341,7 +4341,7 @@
    }
   ],
   "localImage": "weapons/fragor_prime.webp",
-  "omegaAttenuation": 1.05
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Furax",
@@ -4388,7 +4388,7 @@
    }
   ],
   "localImage": "weapons/furax.webp",
-  "omegaAttenuation": 1.38
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Furax Wraith",
@@ -4421,7 +4421,7 @@
    }
   ],
   "localImage": "weapons/furax_wraith.webp",
-  "omegaAttenuation": 1.15
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Galariak Prime",
@@ -4461,7 +4461,7 @@
    }
   ],
   "localImage": "weapons/galariak_prime.webp",
-  "omegaAttenuation": 0.9
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Galatine",
@@ -4508,7 +4508,7 @@
    }
   ],
   "localImage": "weapons/galatine.webp",
-  "omegaAttenuation": 1.05
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Galatine Prime",
@@ -4575,7 +4575,7 @@
    }
   ],
   "localImage": "weapons/galatine_prime.webp",
-  "omegaAttenuation": 0.9
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Galvacord",
@@ -4622,7 +4622,7 @@
    }
   ],
   "localImage": "weapons/galvacord.webp",
-  "omegaAttenuation": 1.35
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Gazal Machete",
@@ -4669,7 +4669,7 @@
    }
   ],
   "localImage": "weapons/gazal_machete.webp",
-  "omegaAttenuation": 1.4
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Ghoulsaw",
@@ -4716,7 +4716,7 @@
    }
   ],
   "localImage": "weapons/ghoulsaw.webp",
-  "omegaAttenuation": 1.25
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Glaive",
@@ -4763,7 +4763,7 @@
    }
   ],
   "localImage": "weapons/glaive.webp",
-  "omegaAttenuation": 1.3
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Glaive Prime",
@@ -4815,7 +4815,7 @@
    }
   ],
   "localImage": "weapons/glaive_prime.webp",
-  "omegaAttenuation": 0.7
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Gram",
@@ -4862,7 +4862,7 @@
    }
   ],
   "localImage": "weapons/gram.webp",
-  "omegaAttenuation": 1.44
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Gram Prime",
@@ -4924,7 +4924,7 @@
    }
   ],
   "localImage": "weapons/gram_prime.webp",
-  "omegaAttenuation": 0.8
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Guandao",
@@ -4971,7 +4971,7 @@
    }
   ],
   "localImage": "weapons/guandao.webp",
-  "omegaAttenuation": 1.05
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Guandao Prime",
@@ -5034,7 +5034,7 @@
    }
   ],
   "localImage": "weapons/guandao_prime.webp",
-  "omegaAttenuation": 0.7
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Gunsen",
@@ -5081,7 +5081,7 @@
    }
   ],
   "localImage": "weapons/gunsen.webp",
-  "omegaAttenuation": 1.35
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Gunsen Prime",
@@ -5136,7 +5136,7 @@
    }
   ],
   "localImage": "weapons/gunsen_prime.webp",
-  "omegaAttenuation": 1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Halikar",
@@ -5183,7 +5183,7 @@
    }
   ],
   "localImage": "weapons/halikar.webp",
-  "omegaAttenuation": 1.44
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Halikar Wraith",
@@ -5241,7 +5241,7 @@
    }
   ],
   "localImage": "weapons/harmony.webp",
-  "omegaAttenuation": 0.6
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Hate",
@@ -5288,7 +5288,7 @@
    }
   ],
   "localImage": "weapons/hate.webp",
-  "omegaAttenuation": 1.1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Heat Dagger",
@@ -5335,7 +5335,7 @@
    }
   ],
   "localImage": "weapons/heat_dagger.webp",
-  "omegaAttenuation": 1.44
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Heat Sword",
@@ -5382,7 +5382,7 @@
    }
   ],
   "localImage": "weapons/heat_sword.webp",
-  "omegaAttenuation": 1.48
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Heliocor",
@@ -5429,7 +5429,7 @@
    }
   ],
   "localImage": "weapons/heliocor.webp",
-  "omegaAttenuation": 1.35
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Hespar",
@@ -5469,7 +5469,7 @@
    }
   ],
   "localImage": "weapons/hespar.webp",
-  "omegaAttenuation": 1.05
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Hirudo",
@@ -5516,7 +5516,7 @@
    }
   ],
   "localImage": "weapons/hirudo.webp",
-  "omegaAttenuation": 1.15
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Innodem",
@@ -5563,7 +5563,7 @@
    }
   ],
   "localImage": "weapons/innodem.webp",
-  "omegaAttenuation": 0.65
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Jai",
@@ -5704,7 +5704,7 @@
    }
   ],
   "localImage": "weapons/jat_kittag.webp",
-  "omegaAttenuation": 1.35
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Jat Kusar",
@@ -5798,7 +5798,7 @@
    }
   ],
   "localImage": "weapons/jaw_sword.webp",
-  "omegaAttenuation": 1.4
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Jayap",
@@ -5892,7 +5892,7 @@
    }
   ],
   "localImage": "weapons/kama.webp",
-  "omegaAttenuation": 1.47
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Karyst",
@@ -5939,7 +5939,7 @@
    }
   ],
   "localImage": "weapons/karyst.webp",
-  "omegaAttenuation": 1.35
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Karyst Prime",
@@ -6004,7 +6004,7 @@
    }
   ],
   "localImage": "weapons/karyst_prime.webp",
-  "omegaAttenuation": 1.15
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Keratinos",
@@ -6037,7 +6037,7 @@
    }
   ],
   "localImage": "weapons/keratinos.webp",
-  "omegaAttenuation": 1.05
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Kesheg",
@@ -6084,7 +6084,7 @@
    }
   ],
   "localImage": "weapons/kesheg.webp",
-  "omegaAttenuation": 1.35
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Kestrel",
@@ -6131,7 +6131,7 @@
    }
   ],
   "localImage": "weapons/kestrel.webp",
-  "omegaAttenuation": 1.45
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Kestrel Prime",
@@ -6185,7 +6185,7 @@
    }
   ],
   "localImage": "weapons/kestrel_prime.webp",
-  "omegaAttenuation": 0.85
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Kogake",
@@ -6232,7 +6232,7 @@
    }
   ],
   "localImage": "weapons/kogake.webp",
-  "omegaAttenuation": 1.46
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Kogake Prime",
@@ -6293,7 +6293,7 @@
    }
   ],
   "localImage": "weapons/kogake_prime.webp",
-  "omegaAttenuation": 1.4
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Korb",
@@ -6387,7 +6387,7 @@
    }
   ],
   "localImage": "weapons/korrudo.webp",
-  "omegaAttenuation": 1.35
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Korumm",
@@ -6434,7 +6434,7 @@
    }
   ],
   "localImage": "weapons/korumm.webp",
-  "omegaAttenuation": 1.1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Kreska",
@@ -6481,7 +6481,7 @@
    }
   ],
   "localImage": "weapons/kreska.webp",
-  "omegaAttenuation": 1.35
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Krohkur",
@@ -6528,7 +6528,7 @@
    }
   ],
   "localImage": "weapons/krohkur.webp",
-  "omegaAttenuation": 1.35
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Kronen",
@@ -6575,7 +6575,7 @@
    }
   ],
   "localImage": "weapons/kronen.webp",
-  "omegaAttenuation": 1.43
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Kronen Prime",
@@ -6641,7 +6641,7 @@
    }
   ],
   "localImage": "weapons/kronen_prime.webp",
-  "omegaAttenuation": 0.7
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Kronsh",
@@ -6688,7 +6688,7 @@
    }
   ],
   "localImage": "weapons/kronsh.webp",
-  "omegaAttenuation": 1.3
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Kroostra",
@@ -6754,7 +6754,7 @@
    }
   ],
   "localImage": "weapons/kuva_ghoulsaw.webp",
-  "omegaAttenuation": 0.8
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Kuva Shildeg",
@@ -6773,7 +6773,7 @@
    }
   ],
   "localImage": "weapons/kuva_shildeg.webp",
-  "omegaAttenuation": 0.85
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Kwath",
@@ -6867,7 +6867,7 @@
    }
   ],
   "localImage": "weapons/lacera.webp",
-  "omegaAttenuation": 1.31
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Laka",
@@ -6961,7 +6961,7 @@
    }
   ],
   "localImage": "weapons/lecta.webp",
-  "omegaAttenuation": 1.25
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Lesion",
@@ -7008,7 +7008,7 @@
    }
   ],
   "localImage": "weapons/lesion.webp",
-  "omegaAttenuation": 0.85
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Machete",
@@ -7055,7 +7055,7 @@
    }
   ],
   "localImage": "weapons/machete.webp",
-  "omegaAttenuation": 1.45
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Machete Wraith",
@@ -7066,7 +7066,7 @@
   "masteryReq": 11,
   "components": [],
   "localImage": "weapons/machete_wraith.webp",
-  "omegaAttenuation": 1.4
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Magistar",
@@ -7113,7 +7113,7 @@
    }
   ],
   "localImage": "weapons/magistar.webp",
-  "omegaAttenuation": 1.35
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Masseter",
@@ -7160,7 +7160,7 @@
    }
   ],
   "localImage": "weapons/masseter.webp",
-  "omegaAttenuation": 1.25
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Masseter Prime",
@@ -7225,7 +7225,7 @@
    }
   ],
   "localImage": "weapons/masseter_prime.webp",
-  "omegaAttenuation": 1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Mewan",
@@ -7272,7 +7272,7 @@
    }
   ],
   "localImage": "weapons/mewan.webp",
-  "omegaAttenuation": 1.15
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Mios",
@@ -7319,7 +7319,7 @@
    }
   ],
   "localImage": "weapons/mios.webp",
-  "omegaAttenuation": 1.3
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Mire",
@@ -7366,7 +7366,7 @@
    }
   ],
   "localImage": "weapons/mire.webp",
-  "omegaAttenuation": 1.3
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Mk1-Bo",
@@ -7377,7 +7377,7 @@
   "masteryReq": 0,
   "components": [],
   "localImage": "weapons/mk1_bo.webp",
-  "omegaAttenuation": 1.4
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Mk1-Furax",
@@ -7388,7 +7388,7 @@
   "masteryReq": 0,
   "components": [],
   "localImage": "weapons/mk1_furax.webp",
-  "omegaAttenuation": 1.45
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Nami Skyla",
@@ -7435,7 +7435,7 @@
    }
   ],
   "localImage": "weapons/nami_skyla.webp",
-  "omegaAttenuation": 1.3
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Nami Skyla Prime",
@@ -7496,7 +7496,7 @@
    }
   ],
   "localImage": "weapons/nami_skyla_prime.webp",
-  "omegaAttenuation": 1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Nami Solo",
@@ -7543,7 +7543,7 @@
    }
   ],
   "localImage": "weapons/nami_solo.webp",
-  "omegaAttenuation": 1.43
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Nepheri",
@@ -7590,7 +7590,7 @@
    }
   ],
   "localImage": "weapons/nepheri.webp",
-  "omegaAttenuation": 1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Nikana",
@@ -7637,7 +7637,7 @@
    }
   ],
   "localImage": "weapons/nikana.webp",
-  "omegaAttenuation": 0.95
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Nikana Prime",
@@ -7699,7 +7699,7 @@
    }
   ],
   "localImage": "weapons/nikana_prime.webp",
-  "omegaAttenuation": 0.6
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Ninkondi",
@@ -7746,7 +7746,7 @@
    }
   ],
   "localImage": "weapons/ninkondi.webp",
-  "omegaAttenuation": 1.41
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Ninkondi Prime",
@@ -7811,7 +7811,7 @@
    }
   ],
   "localImage": "weapons/ninkondi_prime.webp",
-  "omegaAttenuation": 1.1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Obex",
@@ -7858,7 +7858,7 @@
    }
   ],
   "localImage": "weapons/obex.webp",
-  "omegaAttenuation": 1.3
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Ohma",
@@ -7905,7 +7905,7 @@
    }
   ],
   "localImage": "weapons/ohma.webp",
-  "omegaAttenuation": 1.25
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Okina",
@@ -7952,7 +7952,7 @@
    }
   ],
   "localImage": "weapons/okina.webp",
-  "omegaAttenuation": 1.4
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Okina Prime",
@@ -8016,7 +8016,7 @@
    }
   ],
   "localImage": "weapons/okina_prime.webp",
-  "omegaAttenuation": 0.7
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Ooltha",
@@ -8063,7 +8063,7 @@
    }
   ],
   "localImage": "weapons/ooltha.webp",
-  "omegaAttenuation": 1.3
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Orthos",
@@ -8110,7 +8110,7 @@
    }
   ],
   "localImage": "weapons/orthos.webp",
-  "omegaAttenuation": 1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Orthos Prime",
@@ -8224,7 +8224,7 @@
    }
   ],
   "localImage": "weapons/orthos_prime.webp",
-  "omegaAttenuation": 0.7
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Orvius",
@@ -8271,7 +8271,7 @@
    }
   ],
   "localImage": "weapons/orvius.webp",
-  "omegaAttenuation": 1.35
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Pangolin Prime",
@@ -8336,7 +8336,7 @@
    }
   ],
   "localImage": "weapons/pangolin_prime.webp",
-  "omegaAttenuation": 1.05
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Pangolin Sword",
@@ -8383,7 +8383,7 @@
    }
   ],
   "localImage": "weapons/pangolin_sword.webp",
-  "omegaAttenuation": 1.47
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Paracesis",
@@ -8430,7 +8430,7 @@
    }
   ],
   "localImage": "weapons/paracesis.webp",
-  "omegaAttenuation": 0.65
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Pathocyst",
@@ -8470,7 +8470,7 @@
    }
   ],
   "localImage": "weapons/pathocyst.webp",
-  "omegaAttenuation": 1.35
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Pennant",
@@ -8517,7 +8517,7 @@
    }
   ],
   "localImage": "weapons/pennant.webp",
-  "omegaAttenuation": 0.95
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Peye",
@@ -8705,7 +8705,7 @@
    }
   ],
   "localImage": "weapons/plague_keewar.webp",
-  "omegaAttenuation": 0.9
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Plague Kripath",
@@ -8752,7 +8752,7 @@
    }
   ],
   "localImage": "weapons/plague_kripath.webp",
-  "omegaAttenuation": 0.65
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Plasma Sword",
@@ -8799,7 +8799,7 @@
    }
   ],
   "localImage": "weapons/plasma_sword.webp",
-  "omegaAttenuation": 1.48
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Praedos",
@@ -8846,7 +8846,7 @@
    }
   ],
   "localImage": "weapons/praedos.webp",
-  "omegaAttenuation": 0.6
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Prisma Dual Cleavers",
@@ -8857,7 +8857,7 @@
   "masteryReq": 9,
   "components": [],
   "localImage": "weapons/prisma_dual_cleavers.webp",
-  "omegaAttenuation": 1.1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Prisma Machete",
@@ -8868,7 +8868,7 @@
   "masteryReq": 7,
   "components": [],
   "localImage": "weapons/prisma_machete.webp",
-  "omegaAttenuation": 1.45
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Prisma Obex",
@@ -8879,7 +8879,7 @@
   "masteryReq": 10,
   "components": [],
   "localImage": "weapons/prisma_obex.webp",
-  "omegaAttenuation": 1.25
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Prisma Ohma",
@@ -8890,7 +8890,7 @@
   "masteryReq": 12,
   "components": [],
   "localImage": "weapons/prisma_ohma.webp",
-  "omegaAttenuation": 0.95
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Prisma Skana",
@@ -8948,7 +8948,7 @@
    }
   ],
   "localImage": "weapons/prova.webp",
-  "omegaAttenuation": 1.4
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Prova Vandal",
@@ -8959,7 +8959,7 @@
   "masteryReq": 8,
   "components": [],
   "localImage": "weapons/prova_vandal.webp",
-  "omegaAttenuation": 1.35
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Pulmonars",
@@ -9053,7 +9053,7 @@
    }
   ],
   "localImage": "weapons/pupacyst.webp",
-  "omegaAttenuation": 1.35
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Quassus",
@@ -9100,7 +9100,7 @@
    }
   ],
   "localImage": "weapons/quassus.webp",
-  "omegaAttenuation": 1.15
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Quassus Prime",
@@ -9154,7 +9154,7 @@
    }
   ],
   "localImage": "weapons/quassus_prime.webp",
-  "omegaAttenuation": 0.9
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Rabvee",
@@ -9201,7 +9201,7 @@
    }
   ],
   "localImage": "weapons/rabvee.webp",
-  "omegaAttenuation": 1.3
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Rakta Dark Dagger",
@@ -9212,7 +9212,7 @@
   "masteryReq": 8,
   "components": [],
   "localImage": "weapons/rakta_dark_dagger.webp",
-  "omegaAttenuation": 1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Reaper Prime",
@@ -9264,7 +9264,7 @@
    }
   ],
   "localImage": "weapons/reaper_prime.webp",
-  "omegaAttenuation": 0.8
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Redeemer",
@@ -9304,7 +9304,7 @@
    }
   ],
   "localImage": "weapons/redeemer.webp",
-  "omegaAttenuation": 1.05
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Redeemer Prime",
@@ -9371,7 +9371,7 @@
    }
   ],
   "localImage": "weapons/redeemer_prime.webp",
-  "omegaAttenuation": 0.65
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Ripkas",
@@ -9418,7 +9418,7 @@
    }
   ],
   "localImage": "weapons/ripkas.webp",
-  "omegaAttenuation": 1.3
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Ruhang",
@@ -9556,7 +9556,7 @@
    }
   ],
   "localImage": "weapons/ruvox.webp",
-  "omegaAttenuation": 0.9
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Sampotes",
@@ -9603,7 +9603,7 @@
    }
   ],
   "localImage": "weapons/sampotes.webp",
-  "omegaAttenuation": 1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Sancti Magistar",
@@ -9614,7 +9614,7 @@
   "masteryReq": 8,
   "components": [],
   "localImage": "weapons/sancti_magistar.webp",
-  "omegaAttenuation": 1.25
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Sarofang",
@@ -9654,7 +9654,7 @@
    }
   ],
   "localImage": "weapons/sarofang.webp",
-  "omegaAttenuation": 1.15
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Sarofang Prime",
@@ -9688,6 +9688,7 @@
     "name": "Handle",
     "itemCount": 1,
     "drops": [
+     "Axi C13",
      "Meso A12",
      "Neo S20",
      "Neo V13"
@@ -9704,7 +9705,7 @@
    }
   ],
   "localImage": "weapons/sarofang_prime.webp",
-  "omegaAttenuation": 0.75
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Sarpa",
@@ -9798,7 +9799,7 @@
    }
   ],
   "localImage": "weapons/scindo.webp",
-  "omegaAttenuation": 1.35
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Scindo Prime",
@@ -9850,7 +9851,7 @@
    }
   ],
   "localImage": "weapons/scindo_prime.webp",
-  "omegaAttenuation": 1.3
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Scoliac",
@@ -9897,7 +9898,7 @@
    }
   ],
   "localImage": "weapons/scoliac.webp",
-  "omegaAttenuation": 1.3
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Secura Lecta",
@@ -10002,7 +10003,7 @@
    }
   ],
   "localImage": "weapons/sepfahn.webp",
-  "omegaAttenuation": 0.7
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Serro",
@@ -10049,7 +10050,7 @@
    }
   ],
   "localImage": "weapons/serro.webp",
-  "omegaAttenuation": 1.38
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Shaku",
@@ -10096,7 +10097,7 @@
    }
   ],
   "localImage": "weapons/shaku.webp",
-  "omegaAttenuation": 1.35
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Sheev",
@@ -10136,7 +10137,7 @@
    }
   ],
   "localImage": "weapons/sheev.webp",
-  "omegaAttenuation": 1.35
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Shtung",
@@ -10223,7 +10224,7 @@
    }
   ],
   "localImage": "weapons/sibear.webp",
-  "omegaAttenuation": 1.35
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Sigma & Octantis",
@@ -10270,7 +10271,7 @@
    }
   ],
   "localImage": "weapons/sigma__octantis.webp",
-  "omegaAttenuation": 1.1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Silva & Aegis",
@@ -10317,7 +10318,7 @@
    }
   ],
   "localImage": "weapons/silva__aegis.webp",
-  "omegaAttenuation": 1.15
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Silva & Aegis Prime",
@@ -10393,7 +10394,7 @@
    }
   ],
   "localImage": "weapons/silva__aegis_prime.webp",
-  "omegaAttenuation": 1.05
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Skana",
@@ -10440,7 +10441,7 @@
    }
   ],
   "localImage": "weapons/skana.webp",
-  "omegaAttenuation": 1.3
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Skana Prime",
@@ -10498,7 +10499,7 @@
    }
   ],
   "localImage": "weapons/skiajati.webp",
-  "omegaAttenuation": 0.9
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Slaytra",
@@ -10545,7 +10546,7 @@
    }
   ],
   "localImage": "weapons/slaytra.webp",
-  "omegaAttenuation": 1.05
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Spinnerex",
@@ -10585,7 +10586,7 @@
    }
   ],
   "localImage": "weapons/spinnerex.webp",
-  "omegaAttenuation": 0.85
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Stropha",
@@ -10632,7 +10633,7 @@
    }
   ],
   "localImage": "weapons/stropha.webp",
-  "omegaAttenuation": 0.65
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Sun & Moon",
@@ -10679,7 +10680,7 @@
    }
   ],
   "localImage": "weapons/sun__moon.webp",
-  "omegaAttenuation": 0.8
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Syam",
@@ -10726,7 +10727,7 @@
    }
   ],
   "localImage": "weapons/syam.webp",
-  "omegaAttenuation": 0.75
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Sydon",
@@ -10773,7 +10774,7 @@
    }
   ],
   "localImage": "weapons/sydon.webp",
-  "omegaAttenuation": 1.35
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Synoid Heliocor",
@@ -10784,7 +10785,7 @@
   "masteryReq": 11,
   "components": [],
   "localImage": "weapons/synoid_heliocor.webp",
-  "omegaAttenuation": 1.35
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Tak & Lug",
@@ -10824,7 +10825,7 @@
    }
   ],
   "localImage": "weapons/tak__lug.webp",
-  "omegaAttenuation": 1.05
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Tatsu",
@@ -10871,7 +10872,7 @@
    }
   ],
   "localImage": "weapons/tatsu.webp",
-  "omegaAttenuation": 1.05
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Tatsu Prime",
@@ -10934,7 +10935,7 @@
    }
   ],
   "localImage": "weapons/tatsu_prime.webp",
-  "omegaAttenuation": 0.9
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Tekko",
@@ -10981,7 +10982,7 @@
    }
   ],
   "localImage": "weapons/tekko.webp",
-  "omegaAttenuation": 1.4
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Tekko Prime",
@@ -11041,7 +11042,7 @@
    }
   ],
   "localImage": "weapons/tekko_prime.webp",
-  "omegaAttenuation": 1.3
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Telos Boltace",
@@ -11052,7 +11053,7 @@
   "masteryReq": 11,
   "components": [],
   "localImage": "weapons/telos_boltace.webp",
-  "omegaAttenuation": 1.1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Tenet Agendus",
@@ -11078,7 +11079,7 @@
    }
   ],
   "localImage": "weapons/tenet_agendus.webp",
-  "omegaAttenuation": 0.9
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Tenet Exec",
@@ -11097,7 +11098,7 @@
    }
   ],
   "localImage": "weapons/tenet_exec.webp",
-  "omegaAttenuation": 0.8
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Tenet Grigori",
@@ -11116,7 +11117,7 @@
    }
   ],
   "localImage": "weapons/tenet_grigori.webp",
-  "omegaAttenuation": 0.95
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Tenet Livia",
@@ -11135,7 +11136,7 @@
    }
   ],
   "localImage": "weapons/tenet_livia.webp",
-  "omegaAttenuation": 0.95
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Thalys",
@@ -11182,7 +11183,7 @@
    }
   ],
   "localImage": "weapons/thalys.webp",
-  "omegaAttenuation": 0.65
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Tipedo",
@@ -11229,7 +11230,7 @@
    }
   ],
   "localImage": "weapons/tipedo.webp",
-  "omegaAttenuation": 1.31
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Tipedo Prime",
@@ -11290,7 +11291,7 @@
    }
   ],
   "localImage": "weapons/tipedo_prime.webp",
-  "omegaAttenuation": 1.25
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Tonbo",
@@ -11337,7 +11338,7 @@
    }
   ],
   "localImage": "weapons/tonbo.webp",
-  "omegaAttenuation": 1.38
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Tonkkatt",
@@ -11370,7 +11371,7 @@
    }
   ],
   "localImage": "weapons/tonkkatt.webp",
-  "omegaAttenuation": 0.95
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Twin Basolk",
@@ -11410,7 +11411,7 @@
    }
   ],
   "localImage": "weapons/twin_basolk.webp",
-  "omegaAttenuation": 1.3
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Twin Krohkur",
@@ -11750,7 +11751,7 @@
   "masteryReq": 9,
   "components": [],
   "localImage": "weapons/vastilok.webp",
-  "omegaAttenuation": 0.9
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Vaykor Sydon",
@@ -11761,7 +11762,7 @@
   "masteryReq": 11,
   "components": [],
   "localImage": "weapons/vaykor_sydon.webp",
-  "omegaAttenuation": 1.3
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Venato",
@@ -11808,7 +11809,7 @@
    }
   ],
   "localImage": "weapons/venato.webp",
-  "omegaAttenuation": 1.3
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Venato Prime",
@@ -11863,7 +11864,7 @@
    }
   ],
   "localImage": "weapons/venato_prime.webp",
-  "omegaAttenuation": 0.65
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Venka",
@@ -11910,7 +11911,7 @@
    }
   ],
   "localImage": "weapons/venka.webp",
-  "omegaAttenuation": 1.1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Venka Prime",
@@ -11972,7 +11973,7 @@
    }
   ],
   "localImage": "weapons/venka_prime.webp",
-  "omegaAttenuation": 0.85
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Verdilac",
@@ -12019,7 +12020,7 @@
    }
   ],
   "localImage": "weapons/verdilac.webp",
-  "omegaAttenuation": 1.1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Vericres",
@@ -12030,7 +12031,7 @@
   "masteryReq": 8,
   "components": [],
   "localImage": "weapons/vericres.webp",
-  "omegaAttenuation": 1.15
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Vitrica",
@@ -12077,7 +12078,7 @@
    }
   ],
   "localImage": "weapons/vitrica.webp",
-  "omegaAttenuation": 1.1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Volnus",
@@ -12124,7 +12125,7 @@
    }
   ],
   "localImage": "weapons/volnus.webp",
-  "omegaAttenuation": 1.4
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Volnus Prime",
@@ -12186,7 +12187,7 @@
    }
   ],
   "localImage": "weapons/volnus_prime.webp",
-  "omegaAttenuation": 1.3
+  "omegaAttenuation": 1.2
  },
  {
   "name": "War",
@@ -12233,7 +12234,7 @@
    }
   ],
   "localImage": "weapons/war.webp",
-  "omegaAttenuation": 1.05
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Wolf Sledge",
@@ -12280,7 +12281,7 @@
    }
   ],
   "localImage": "weapons/wolf_sledge.webp",
-  "omegaAttenuation": 1.25
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Xoris",
@@ -12320,7 +12321,7 @@
    }
   ],
   "localImage": "weapons/xoris.webp",
-  "omegaAttenuation": 0.65
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Zenistar",
@@ -12367,7 +12368,7 @@
    }
   ],
   "localImage": "weapons/zenistar.webp",
-  "omegaAttenuation": 1.15
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Acceltra",
@@ -12414,7 +12415,7 @@
    }
   ],
   "localImage": "weapons/acceltra.webp",
-  "omegaAttenuation": 0.65
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Acceltra Prime",
@@ -12493,7 +12494,7 @@
    }
   ],
   "localImage": "weapons/acceltra_prime.webp",
-  "omegaAttenuation": 0.55
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Aeolak",
@@ -12587,7 +12588,7 @@
    }
   ],
   "localImage": "weapons/afentis.webp",
-  "omegaAttenuation": 1.05
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Alternox",
@@ -12698,7 +12699,7 @@
    }
   ],
   "localImage": "weapons/alternox_prime.webp",
-  "omegaAttenuation": 0.95
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Ambassador",
@@ -12738,7 +12739,7 @@
    }
   ],
   "localImage": "weapons/ambassador.webp",
-  "omegaAttenuation": 1.15
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Amprex",
@@ -12785,7 +12786,7 @@
    }
   ],
   "localImage": "weapons/amprex.webp",
-  "omegaAttenuation": 0.85
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Arca Plasmor",
@@ -12832,7 +12833,7 @@
    }
   ],
   "localImage": "weapons/arca_plasmor.webp",
-  "omegaAttenuation": 0.95
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Argonak",
@@ -12879,7 +12880,7 @@
    }
   ],
   "localImage": "weapons/argonak.webp",
-  "omegaAttenuation": 1.25
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Astilla",
@@ -12926,7 +12927,7 @@
    }
   ],
   "localImage": "weapons/astilla.webp",
-  "omegaAttenuation": 1.3
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Astilla Prime",
@@ -13050,7 +13051,7 @@
    }
   ],
   "localImage": "weapons/attica.webp",
-  "omegaAttenuation": 1.42
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Ax-52",
@@ -13097,7 +13098,7 @@
    }
   ],
   "localImage": "weapons/ax_52.webp",
-  "omegaAttenuation": 0.85
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Basmu",
@@ -13191,7 +13192,7 @@
    }
   ],
   "localImage": "weapons/battacor.webp",
-  "omegaAttenuation": 1.1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Baza",
@@ -13238,7 +13239,7 @@
    }
   ],
   "localImage": "weapons/baza.webp",
-  "omegaAttenuation": 1.05
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Baza Prime",
@@ -13318,7 +13319,7 @@
    }
   ],
   "localImage": "weapons/baza_prime.webp",
-  "omegaAttenuation": 1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Boar",
@@ -13365,7 +13366,7 @@
    }
   ],
   "localImage": "weapons/boar.webp",
-  "omegaAttenuation": 1.45
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Boar Prime",
@@ -13432,7 +13433,7 @@
    }
   ],
   "localImage": "weapons/boar_prime.webp",
-  "omegaAttenuation": 1.34
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Boltor",
@@ -13479,7 +13480,7 @@
    }
   ],
   "localImage": "weapons/boltor.webp",
-  "omegaAttenuation": 1.3
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Boltor Prime",
@@ -13561,7 +13562,7 @@
    }
   ],
   "localImage": "weapons/braton.webp",
-  "omegaAttenuation": 1.35
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Braton Prime",
@@ -13685,6 +13686,7 @@
     "name": "Receiver",
     "itemCount": 1,
     "drops": [
+     "Axi C13",
      "Axi C9",
      "Axi H6",
      "Axi H7",
@@ -13779,7 +13781,7 @@
    }
   ],
   "localImage": "weapons/braton_prime.webp",
-  "omegaAttenuation": 1.25
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Braton Vandal",
@@ -13819,7 +13821,7 @@
    }
   ],
   "localImage": "weapons/braton_vandal.webp",
-  "omegaAttenuation": 1.3
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Bubonico",
@@ -13866,7 +13868,7 @@
    }
   ],
   "localImage": "weapons/bubonico.webp",
-  "omegaAttenuation": 0.75
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Burston",
@@ -13913,7 +13915,7 @@
    }
   ],
   "localImage": "weapons/burston.webp",
-  "omegaAttenuation": 1.45
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Burston Prime",
@@ -14133,7 +14135,7 @@
    }
   ],
   "localImage": "weapons/burston_prime.webp",
-  "omegaAttenuation": 1.35
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Buzlok",
@@ -14180,7 +14182,7 @@
    }
   ],
   "localImage": "weapons/buzlok.webp",
-  "omegaAttenuation": 1.45
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Carmine Penta",
@@ -14220,7 +14222,7 @@
    }
   ],
   "localImage": "weapons/carmine_penta.webp",
-  "omegaAttenuation": 1.3
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Cedo",
@@ -14267,7 +14269,7 @@
    }
   ],
   "localImage": "weapons/cedo.webp",
-  "omegaAttenuation": 0.65
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Cedo Prime",
@@ -14339,7 +14341,7 @@
    }
   ],
   "localImage": "weapons/cedo_prime.webp",
-  "omegaAttenuation": 0.55
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Cernos",
@@ -14386,7 +14388,7 @@
    }
   ],
   "localImage": "weapons/cernos.webp",
-  "omegaAttenuation": 1.3
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Cernos Prime",
@@ -14476,7 +14478,7 @@
    }
   ],
   "localImage": "weapons/cernos_prime.webp",
-  "omegaAttenuation": 1.25
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Cinta",
@@ -14523,7 +14525,7 @@
    }
   ],
   "localImage": "weapons/cinta.webp",
-  "omegaAttenuation": 1.25
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Coda Bassocyst",
@@ -14534,7 +14536,7 @@
   "masteryReq": 17,
   "components": [],
   "localImage": "weapons/coda_bassocyst.webp",
-  "omegaAttenuation": 0.6
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Coda Bubonico",
@@ -14545,7 +14547,7 @@
   "masteryReq": 17,
   "components": [],
   "localImage": "weapons/coda_bubonico.webp",
-  "omegaAttenuation": 0.6
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Coda Hema",
@@ -14556,7 +14558,7 @@
   "masteryReq": 17,
   "components": [],
   "localImage": "weapons/coda_hema.webp",
-  "omegaAttenuation": 1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Coda Sporothrix",
@@ -14567,7 +14569,7 @@
   "masteryReq": 17,
   "components": [],
   "localImage": "weapons/coda_sporothrix.webp",
-  "omegaAttenuation": 0.95
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Coda Synapse",
@@ -14578,7 +14580,7 @@
   "masteryReq": 17,
   "components": [],
   "localImage": "weapons/coda_synapse.webp",
-  "omegaAttenuation": 0.9
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Convectrix",
@@ -14625,7 +14627,7 @@
    }
   ],
   "localImage": "weapons/convectrix.webp",
-  "omegaAttenuation": 1.46
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Corinth",
@@ -14672,7 +14674,7 @@
    }
   ],
   "localImage": "weapons/corinth.webp",
-  "omegaAttenuation": 1.15
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Corinth Prime",
@@ -14747,7 +14749,7 @@
    }
   ],
   "localImage": "weapons/corinth_prime.webp",
-  "omegaAttenuation": 1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Daikyu",
@@ -14794,7 +14796,7 @@
    }
   ],
   "localImage": "weapons/daikyu.webp",
-  "omegaAttenuation": 1.3
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Daikyu Prime",
@@ -14873,7 +14875,7 @@
    }
   ],
   "localImage": "weapons/daikyu_prime.webp",
-  "omegaAttenuation": 1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Dera",
@@ -14920,7 +14922,7 @@
    }
   ],
   "localImage": "weapons/dera.webp",
-  "omegaAttenuation": 1.4
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Dera Vandal",
@@ -14960,7 +14962,7 @@
    }
   ],
   "localImage": "weapons/dera_vandal.webp",
-  "omegaAttenuation": 1.35
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Dex Sybaris",
@@ -14971,7 +14973,7 @@
   "masteryReq": 7,
   "components": [],
   "localImage": "weapons/dex_sybaris.webp",
-  "omegaAttenuation": 1.3
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Drakgoon",
@@ -15018,7 +15020,7 @@
    }
   ],
   "localImage": "weapons/drakgoon.webp",
-  "omegaAttenuation": 1.4
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Dread",
@@ -15065,7 +15067,7 @@
    }
   ],
   "localImage": "weapons/dread.webp",
-  "omegaAttenuation": 1.3
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Efv-5 Jupiter",
@@ -15105,7 +15107,7 @@
    }
   ],
   "localImage": "weapons/efv_5_jupiter.webp",
-  "omegaAttenuation": 1.05
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Enkaus",
@@ -15145,7 +15147,7 @@
    }
   ],
   "localImage": "weapons/enkaus.webp",
-  "omegaAttenuation": 0.8
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Evensong",
@@ -15239,7 +15241,7 @@
    }
   ],
   "localImage": "weapons/exergis.webp",
-  "omegaAttenuation": 1.1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Felarx",
@@ -15286,7 +15288,7 @@
    }
   ],
   "localImage": "weapons/felarx.webp",
-  "omegaAttenuation": 0.6
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Ferrox",
@@ -15333,7 +15335,7 @@
    }
   ],
   "localImage": "weapons/ferrox.webp",
-  "omegaAttenuation": 1.25
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Flux Rifle",
@@ -15380,7 +15382,7 @@
    }
   ],
   "localImage": "weapons/flux_rifle.webp",
-  "omegaAttenuation": 1.55
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Fulmin",
@@ -15427,7 +15429,7 @@
    }
   ],
   "localImage": "weapons/fulmin.webp",
-  "omegaAttenuation": 1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Fulmin Prime",
@@ -15506,7 +15508,7 @@
    }
   ],
   "localImage": "weapons/fulmin_prime.webp",
-  "omegaAttenuation": 0.75
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Glaxion",
@@ -15553,7 +15555,7 @@
    }
   ],
   "localImage": "weapons/glaxion.webp",
-  "omegaAttenuation": 1.3
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Glaxion Vandal",
@@ -15564,7 +15566,7 @@
   "masteryReq": 12,
   "components": [],
   "localImage": "weapons/glaxion_vandal.webp",
-  "omegaAttenuation": 1.25
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Gorgon",
@@ -15611,7 +15613,7 @@
    }
   ],
   "localImage": "weapons/gorgon.webp",
-  "omegaAttenuation": 1.4
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Gorgon Wraith",
@@ -15651,7 +15653,7 @@
    }
   ],
   "localImage": "weapons/gorgon_wraith.webp",
-  "omegaAttenuation": 1.35
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Gotva Prime",
@@ -15662,7 +15664,7 @@
   "masteryReq": 14,
   "components": [],
   "localImage": "weapons/gotva_prime.webp",
-  "omegaAttenuation": 0.85
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Grakata",
@@ -15709,7 +15711,7 @@
    }
   ],
   "localImage": "weapons/grakata.webp",
-  "omegaAttenuation": 1.35
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Grinlok",
@@ -15756,7 +15758,7 @@
    }
   ],
   "localImage": "weapons/grinlok.webp",
-  "omegaAttenuation": 1.3
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Haalvu",
@@ -15767,7 +15769,7 @@
   "masteryReq": 8,
   "components": [],
   "localImage": "weapons/haalvu.webp",
-  "omegaAttenuation": 0.6
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Harpak",
@@ -15814,7 +15816,7 @@
    }
   ],
   "localImage": "weapons/harpak.webp",
-  "omegaAttenuation": 1.55
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Hek",
@@ -15908,7 +15910,7 @@
    }
   ],
   "localImage": "weapons/hema.webp",
-  "omegaAttenuation": 1.3
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Higasa",
@@ -15955,7 +15957,7 @@
    }
   ],
   "localImage": "weapons/higasa.webp",
-  "omegaAttenuation": 1.25
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Hind",
@@ -16002,7 +16004,7 @@
    }
   ],
   "localImage": "weapons/hind.webp",
-  "omegaAttenuation": 1.42
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Ignis",
@@ -16049,7 +16051,7 @@
    }
   ],
   "localImage": "weapons/ignis.webp",
-  "omegaAttenuation": 0.7
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Ignis Wraith",
@@ -16096,7 +16098,7 @@
    }
   ],
   "localImage": "weapons/ignis_wraith.webp",
-  "omegaAttenuation": 0.65
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Javlok",
@@ -16143,7 +16145,7 @@
    }
   ],
   "localImage": "weapons/javlok.webp",
-  "omegaAttenuation": 1.3
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Karak",
@@ -16190,7 +16192,7 @@
    }
   ],
   "localImage": "weapons/karak.webp",
-  "omegaAttenuation": 1.35
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Karak Wraith",
@@ -16230,7 +16232,7 @@
    }
   ],
   "localImage": "weapons/karak_wraith.webp",
-  "omegaAttenuation": 1.28
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Kohm",
@@ -16277,7 +16279,7 @@
    }
   ],
   "localImage": "weapons/kohm.webp",
-  "omegaAttenuation": 1.3
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Komorex",
@@ -16324,7 +16326,7 @@
    }
   ],
   "localImage": "weapons/komorex.webp",
-  "omegaAttenuation": 1.15
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Kuva Bramma",
@@ -16343,7 +16345,7 @@
    }
   ],
   "localImage": "weapons/kuva_bramma.webp",
-  "omegaAttenuation": 0.7
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Kuva Chakkhurr",
@@ -16362,7 +16364,7 @@
    }
   ],
   "localImage": "weapons/kuva_chakkhurr.webp",
-  "omegaAttenuation": 0.95
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Kuva Drakgoon",
@@ -16381,7 +16383,7 @@
    }
   ],
   "localImage": "weapons/kuva_drakgoon.webp",
-  "omegaAttenuation": 1.15
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Kuva Hek",
@@ -16400,7 +16402,7 @@
    }
   ],
   "localImage": "weapons/kuva_hek.webp",
-  "omegaAttenuation": 1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Kuva Hind",
@@ -16419,7 +16421,7 @@
    }
   ],
   "localImage": "weapons/kuva_hind.webp",
-  "omegaAttenuation": 1.1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Kuva Karak",
@@ -16438,7 +16440,7 @@
    }
   ],
   "localImage": "weapons/kuva_karak.webp",
-  "omegaAttenuation": 1.05
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Kuva Kohm",
@@ -16457,7 +16459,7 @@
    }
   ],
   "localImage": "weapons/kuva_kohm.webp",
-  "omegaAttenuation": 0.9
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Kuva Ogris",
@@ -16476,7 +16478,7 @@
    }
   ],
   "localImage": "weapons/kuva_ogris.webp",
-  "omegaAttenuation": 0.7
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Kuva Quartakk",
@@ -16495,7 +16497,7 @@
    }
   ],
   "localImage": "weapons/kuva_quartakk.webp",
-  "omegaAttenuation": 1.1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Kuva Sobek",
@@ -16514,7 +16516,7 @@
    }
   ],
   "localImage": "weapons/kuva_sobek.webp",
-  "omegaAttenuation": 0.8
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Kuva Tonkor",
@@ -16533,7 +16535,7 @@
    }
   ],
   "localImage": "weapons/kuva_tonkor.webp",
-  "omegaAttenuation": 0.9
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Kuva Zarr",
@@ -16552,7 +16554,7 @@
    }
   ],
   "localImage": "weapons/kuva_zarr.webp",
-  "omegaAttenuation": 0.7
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Lanka",
@@ -16599,7 +16601,7 @@
    }
   ],
   "localImage": "weapons/lanka.webp",
-  "omegaAttenuation": 1.05
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Latron",
@@ -16646,7 +16648,7 @@
    }
   ],
   "localImage": "weapons/latron.webp",
-  "omegaAttenuation": 1.4
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Latron Prime",
@@ -16709,7 +16711,7 @@
    }
   ],
   "localImage": "weapons/latron_prime.webp",
-  "omegaAttenuation": 1.3
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Latron Wraith",
@@ -16749,7 +16751,7 @@
    }
   ],
   "localImage": "weapons/latron_wraith.webp",
-  "omegaAttenuation": 1.35
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Lenz",
@@ -16796,7 +16798,7 @@
    }
   ],
   "localImage": "weapons/lenz.webp",
-  "omegaAttenuation": 1.05
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Miter",
@@ -16843,7 +16845,7 @@
    }
   ],
   "localImage": "weapons/miter.webp",
-  "omegaAttenuation": 1.5
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Mk1-Braton",
@@ -16854,7 +16856,7 @@
   "masteryReq": 0,
   "components": [],
   "localImage": "weapons/mk1_braton.webp",
-  "omegaAttenuation": 1.35
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Mk1-Paris",
@@ -16865,7 +16867,7 @@
   "masteryReq": 0,
   "components": [],
   "localImage": "weapons/mk1_paris.webp",
-  "omegaAttenuation": 1.45
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Mk1-Strun",
@@ -16876,7 +16878,7 @@
   "masteryReq": 0,
   "components": [],
   "localImage": "weapons/mk1_strun.webp",
-  "omegaAttenuation": 1.45
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Mutalist Cernos",
@@ -16923,7 +16925,7 @@
    }
   ],
   "localImage": "weapons/mutalist_cernos.webp",
-  "omegaAttenuation": 1.35
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Mutalist Quanta",
@@ -16970,7 +16972,7 @@
    }
   ],
   "localImage": "weapons/mutalist_quanta.webp",
-  "omegaAttenuation": 1.5
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Nagantaka",
@@ -17017,7 +17019,7 @@
    }
   ],
   "localImage": "weapons/nagantaka.webp",
-  "omegaAttenuation": 1.3
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Nagantaka Prime",
@@ -17095,7 +17097,7 @@
    }
   ],
   "localImage": "weapons/nagantaka_prime.webp",
-  "omegaAttenuation": 1.15
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Nataruk",
@@ -17106,7 +17108,7 @@
   "masteryReq": 0,
   "components": [],
   "localImage": "weapons/nataruk.webp",
-  "omegaAttenuation": 0.65
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Nunchasa",
@@ -17153,7 +17155,7 @@
    }
   ],
   "localImage": "weapons/nunchasa.webp",
-  "omegaAttenuation": 0.5
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Ogris",
@@ -17200,7 +17202,7 @@
    }
   ],
   "localImage": "weapons/ogris.webp",
-  "omegaAttenuation": 1.3
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Opticor",
@@ -17247,7 +17249,7 @@
    }
   ],
   "localImage": "weapons/opticor.webp",
-  "omegaAttenuation": 1.15
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Opticor Vandal",
@@ -17258,7 +17260,7 @@
   "masteryReq": 14,
   "components": [],
   "localImage": "weapons/opticor_vandal.webp",
-  "omegaAttenuation": 1.1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Panthera",
@@ -17305,7 +17307,7 @@
    }
   ],
   "localImage": "weapons/panthera.webp",
-  "omegaAttenuation": 1.4
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Panthera Prime",
@@ -17379,7 +17381,7 @@
    }
   ],
   "localImage": "weapons/panthera_prime.webp",
-  "omegaAttenuation": 1.25
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Paracyst",
@@ -17426,7 +17428,7 @@
    }
   ],
   "localImage": "weapons/paracyst.webp",
-  "omegaAttenuation": 1.31
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Paris",
@@ -17473,7 +17475,7 @@
    }
   ],
   "localImage": "weapons/paris.webp",
-  "omegaAttenuation": 1.4
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Paris Prime",
@@ -17700,7 +17702,7 @@
    }
   ],
   "localImage": "weapons/paris_prime.webp",
-  "omegaAttenuation": 1.35
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Penta",
@@ -17747,7 +17749,7 @@
    }
   ],
   "localImage": "weapons/penta.webp",
-  "omegaAttenuation": 1.35
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Perigale",
@@ -17794,7 +17796,7 @@
    }
   ],
   "localImage": "weapons/perigale.webp",
-  "omegaAttenuation": 1.15
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Perigale Prime",
@@ -17856,7 +17858,7 @@
    }
   ],
   "localImage": "weapons/perigale_prime.webp",
-  "omegaAttenuation": 0.8
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Phage",
@@ -17903,7 +17905,7 @@
    }
   ],
   "localImage": "weapons/phage.webp",
-  "omegaAttenuation": 1.46
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Phantasma",
@@ -17950,7 +17952,7 @@
    }
   ],
   "localImage": "weapons/phantasma.webp",
-  "omegaAttenuation": 1.1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Phantasma Prime",
@@ -18027,7 +18029,7 @@
    }
   ],
   "localImage": "weapons/phantasma_prime.webp",
-  "omegaAttenuation": 0.8
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Phenmor",
@@ -18074,7 +18076,7 @@
    }
   ],
   "localImage": "weapons/phenmor.webp",
-  "omegaAttenuation": 0.6
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Prisma Gorgon",
@@ -18085,7 +18087,7 @@
   "masteryReq": 11,
   "components": [],
   "localImage": "weapons/prisma_gorgon.webp",
-  "omegaAttenuation": 1.3
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Prisma Grakata",
@@ -18096,7 +18098,7 @@
   "masteryReq": 11,
   "components": [],
   "localImage": "weapons/prisma_grakata.webp",
-  "omegaAttenuation": 1.3
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Prisma Grinlok",
@@ -18107,7 +18109,7 @@
   "masteryReq": 11,
   "components": [],
   "localImage": "weapons/prisma_grinlok.webp",
-  "omegaAttenuation": 1.25
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Prisma Lenz",
@@ -18118,7 +18120,7 @@
   "masteryReq": 12,
   "components": [],
   "localImage": "weapons/prisma_lenz.webp",
-  "omegaAttenuation": 1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Prisma Tetra",
@@ -18129,7 +18131,7 @@
   "masteryReq": 4,
   "components": [],
   "localImage": "weapons/prisma_tetra.webp",
-  "omegaAttenuation": 1.45
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Proboscis Cernos",
@@ -18176,7 +18178,7 @@
    }
   ],
   "localImage": "weapons/proboscis_cernos.webp",
-  "omegaAttenuation": 0.9
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Purgator 1",
@@ -18263,7 +18265,7 @@
    }
   ],
   "localImage": "weapons/quanta.webp",
-  "omegaAttenuation": 1.4
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Quanta Vandal",
@@ -18274,7 +18276,7 @@
   "masteryReq": 10,
   "components": [],
   "localImage": "weapons/quanta_vandal.webp",
-  "omegaAttenuation": 1.4
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Quartakk",
@@ -18321,7 +18323,7 @@
    }
   ],
   "localImage": "weapons/quartakk.webp",
-  "omegaAttenuation": 1.25
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Quellor",
@@ -18368,7 +18370,7 @@
    }
   ],
   "localImage": "weapons/quellor.webp",
-  "omegaAttenuation": 1.15
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Rakta Cernos",
@@ -18379,7 +18381,7 @@
   "masteryReq": 12,
   "components": [],
   "localImage": "weapons/rakta_cernos.webp",
-  "omegaAttenuation": 1.25
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Rauta",
@@ -18426,7 +18428,7 @@
    }
   ],
   "localImage": "weapons/rauta.webp",
-  "omegaAttenuation": 1.1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Reconifex",
@@ -18466,7 +18468,7 @@
    }
   ],
   "localImage": "weapons/reconifex.webp",
-  "omegaAttenuation": 1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Rubico",
@@ -18513,7 +18515,7 @@
    }
   ],
   "localImage": "weapons/rubico.webp",
-  "omegaAttenuation": 0.95
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Rubico Prime",
@@ -18591,7 +18593,7 @@
    }
   ],
   "localImage": "weapons/rubico_prime.webp",
-  "omegaAttenuation": 0.7
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Sancti Tigris",
@@ -18602,7 +18604,7 @@
   "masteryReq": 12,
   "components": [],
   "localImage": "weapons/sancti_tigris.webp",
-  "omegaAttenuation": 1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Scourge",
@@ -18727,7 +18729,7 @@
    }
   ],
   "localImage": "weapons/scourge_prime.webp",
-  "omegaAttenuation": 1.1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Secura Penta",
@@ -18738,7 +18740,7 @@
   "masteryReq": 12,
   "components": [],
   "localImage": "weapons/secura_penta.webp",
-  "omegaAttenuation": 1.3
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Shedu",
@@ -18785,7 +18787,7 @@
    }
   ],
   "localImage": "weapons/shedu.webp",
-  "omegaAttenuation": 0.75
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Simulor",
@@ -18832,7 +18834,7 @@
    }
   ],
   "localImage": "weapons/simulor.webp",
-  "omegaAttenuation": 1.25
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Snipetron",
@@ -18879,7 +18881,7 @@
    }
   ],
   "localImage": "weapons/snipetron.webp",
-  "omegaAttenuation": 1.3
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Snipetron Vandal",
@@ -18919,7 +18921,7 @@
    }
   ],
   "localImage": "weapons/snipetron_vandal.webp",
-  "omegaAttenuation": 1.25
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Sobek",
@@ -18966,7 +18968,7 @@
    }
   ],
   "localImage": "weapons/sobek.webp",
-  "omegaAttenuation": 1.33
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Soma",
@@ -19013,7 +19015,7 @@
    }
   ],
   "localImage": "weapons/soma.webp",
-  "omegaAttenuation": 1.15
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Soma Prime",
@@ -19079,7 +19081,7 @@
    }
   ],
   "localImage": "weapons/soma_prime.webp",
-  "omegaAttenuation": 1.1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Sporothrix",
@@ -19126,7 +19128,7 @@
    }
   ],
   "localImage": "weapons/sporothrix.webp",
-  "omegaAttenuation": 1.3
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Stahlta",
@@ -19166,7 +19168,7 @@
    }
   ],
   "localImage": "weapons/stahlta.webp",
-  "omegaAttenuation": 1.05
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Steflos",
@@ -19213,7 +19215,7 @@
    }
   ],
   "localImage": "weapons/steflos.webp",
-  "omegaAttenuation": 1.25
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Steflos Prime",
@@ -19268,7 +19270,7 @@
    }
   ],
   "localImage": "weapons/steflos_prime.webp",
-  "omegaAttenuation": 0.5
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Stradavar",
@@ -19315,7 +19317,7 @@
    }
   ],
   "localImage": "weapons/stradavar.webp",
-  "omegaAttenuation": 1.1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Stradavar Prime",
@@ -19391,7 +19393,7 @@
    }
   ],
   "localImage": "weapons/stradavar_prime.webp",
-  "omegaAttenuation": 1.1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Strun",
@@ -19402,7 +19404,7 @@
   "masteryReq": 1,
   "components": [],
   "localImage": "weapons/strun.webp",
-  "omegaAttenuation": 1.4
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Strun Prime",
@@ -19523,7 +19525,7 @@
    }
   ],
   "localImage": "weapons/strun_wraith.webp",
-  "omegaAttenuation": 1.35
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Supra",
@@ -19570,7 +19572,7 @@
    }
   ],
   "localImage": "weapons/supra.webp",
-  "omegaAttenuation": 1.1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Supra Vandal",
@@ -19581,7 +19583,7 @@
   "masteryReq": 14,
   "components": [],
   "localImage": "weapons/supra_vandal.webp",
-  "omegaAttenuation": 1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Sybaris",
@@ -19628,7 +19630,7 @@
    }
   ],
   "localImage": "weapons/sybaris.webp",
-  "omegaAttenuation": 1.3
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Sybaris Prime",
@@ -19750,7 +19752,7 @@
    }
   ],
   "localImage": "weapons/synapse.webp",
-  "omegaAttenuation": 1.31
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Synoid Simulor",
@@ -19791,7 +19793,7 @@
    }
   ],
   "localImage": "weapons/tenet_arca_plasmor.webp",
-  "omegaAttenuation": 0.6
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Tenet Envoy",
@@ -19810,7 +19812,7 @@
    }
   ],
   "localImage": "weapons/tenet_envoy.webp",
-  "omegaAttenuation": 0.65
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Tenet Ferrox",
@@ -19829,7 +19831,7 @@
    }
   ],
   "localImage": "weapons/tenet_ferrox.webp",
-  "omegaAttenuation": 1.15
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Tenet Flux Rifle",
@@ -19867,7 +19869,7 @@
    }
   ],
   "localImage": "weapons/tenet_glaxion.webp",
-  "omegaAttenuation": 0.65
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Tenet Quanta",
@@ -19886,7 +19888,7 @@
    }
   ],
   "localImage": "weapons/tenet_quanta.webp",
-  "omegaAttenuation": 0.85
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Tenet Tetra",
@@ -19905,7 +19907,7 @@
    }
   ],
   "localImage": "weapons/tenet_tetra.webp",
-  "omegaAttenuation": 1.25
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Tenora",
@@ -19952,7 +19954,7 @@
    }
   ],
   "localImage": "weapons/tenora.webp",
-  "omegaAttenuation": 1.1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Tenora Prime",
@@ -20027,7 +20029,7 @@
    }
   ],
   "localImage": "weapons/tenora_prime.webp",
-  "omegaAttenuation": 1.05
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Tetra",
@@ -20074,7 +20076,7 @@
    }
   ],
   "localImage": "weapons/tetra.webp",
-  "omegaAttenuation": 1.5
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Thornbak",
@@ -20168,7 +20170,7 @@
    }
   ],
   "localImage": "weapons/tiberon.webp",
-  "omegaAttenuation": 1.1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Tiberon Prime",
@@ -20238,7 +20240,7 @@
    }
   ],
   "localImage": "weapons/tiberon_prime.webp",
-  "omegaAttenuation": 1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Tigris",
@@ -20285,7 +20287,7 @@
    }
   ],
   "localImage": "weapons/tigris.webp",
-  "omegaAttenuation": 1.1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Tigris Prime",
@@ -20363,7 +20365,7 @@
    }
   ],
   "localImage": "weapons/tigris_prime.webp",
-  "omegaAttenuation": 0.95
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Tonkor",
@@ -20410,7 +20412,7 @@
    }
   ],
   "localImage": "weapons/tonkor.webp",
-  "omegaAttenuation": 1.3
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Torid",
@@ -20457,7 +20459,7 @@
    }
   ],
   "localImage": "weapons/torid.webp",
-  "omegaAttenuation": 1.3
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Trumna",
@@ -20504,7 +20506,7 @@
    }
   ],
   "localImage": "weapons/trumna.webp",
-  "omegaAttenuation": 0.85
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Trumna Prime",
@@ -20577,7 +20579,7 @@
    }
   ],
   "localImage": "weapons/trumna_prime.webp",
-  "omegaAttenuation": 0.65
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Vadarya Prime",
@@ -20646,7 +20648,7 @@
    }
   ],
   "localImage": "weapons/vadarya_prime.webp",
-  "omegaAttenuation": 0.8
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Vaykor Hek",
@@ -20657,7 +20659,7 @@
   "masteryReq": 12,
   "components": [],
   "localImage": "weapons/vaykor_hek.webp",
-  "omegaAttenuation": 1.15
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Vectis",
@@ -20704,7 +20706,7 @@
    }
   ],
   "localImage": "weapons/vectis.webp",
-  "omegaAttenuation": 1.15
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Vectis Prime",
@@ -20774,7 +20776,7 @@
    }
   ],
   "localImage": "weapons/vectis_prime.webp",
-  "omegaAttenuation": 1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Veldt",
@@ -20821,7 +20823,7 @@
    }
   ],
   "localImage": "weapons/veldt.webp",
-  "omegaAttenuation": 1.3
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Vinquibus",
@@ -20868,7 +20870,7 @@
    }
   ],
   "localImage": "weapons/vinquibus.webp",
-  "omegaAttenuation": 0.6
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Vulkar",
@@ -20915,7 +20917,7 @@
    }
   ],
   "localImage": "weapons/vulkar.webp",
-  "omegaAttenuation": 1.45
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Vulkar Wraith",
@@ -20926,7 +20928,7 @@
   "masteryReq": 7,
   "components": [],
   "localImage": "weapons/vulkar_wraith.webp",
-  "omegaAttenuation": 1.4
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Zarr",
@@ -20973,7 +20975,7 @@
    }
   ],
   "localImage": "weapons/zarr.webp",
-  "omegaAttenuation": 1.15
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Zenith",
@@ -21020,7 +21022,7 @@
    }
   ],
   "localImage": "weapons/zenith.webp",
-  "omegaAttenuation": 1.1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Zhuge",
@@ -21152,7 +21154,7 @@
    }
   ],
   "localImage": "weapons/zhuge_prime.webp",
-  "omegaAttenuation": 1.15
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Acrid",
@@ -21199,7 +21201,7 @@
    }
   ],
   "localImage": "weapons/acrid.webp",
-  "omegaAttenuation": 1.33
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Aegrit",
@@ -21246,7 +21248,7 @@
    }
   ],
   "localImage": "weapons/aegrit.webp",
-  "omegaAttenuation": 1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Afuris",
@@ -21286,7 +21288,7 @@
    }
   ],
   "localImage": "weapons/afuris.webp",
-  "omegaAttenuation": 1.45
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Afuris Prime",
@@ -21356,7 +21358,7 @@
    }
   ],
   "localImage": "weapons/afuris_prime.webp",
-  "omegaAttenuation": 1.1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Akarius",
@@ -21403,7 +21405,7 @@
    }
   ],
   "localImage": "weapons/akarius.webp",
-  "omegaAttenuation": 1.05
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Akarius Prime",
@@ -21470,7 +21472,7 @@
    }
   ],
   "localImage": "weapons/akarius_prime.webp",
-  "omegaAttenuation": 0.65
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Akbolto",
@@ -21510,7 +21512,7 @@
    }
   ],
   "localImage": "weapons/akbolto.webp",
-  "omegaAttenuation": 1.3
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Akbolto Prime",
@@ -21618,7 +21620,7 @@
    }
   ],
   "localImage": "weapons/akbronco.webp",
-  "omegaAttenuation": 1.35
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Akbronco Prime",
@@ -21905,7 +21907,7 @@
    }
   ],
   "localImage": "weapons/akbronco_prime.webp",
-  "omegaAttenuation": 1.3
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Akjagara",
@@ -21945,7 +21947,7 @@
    }
   ],
   "localImage": "weapons/akjagara.webp",
-  "omegaAttenuation": 1.1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Akjagara Prime",
@@ -22024,7 +22026,7 @@
    }
   ],
   "localImage": "weapons/akjagara_prime.webp",
-  "omegaAttenuation": 1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Aklato",
@@ -22035,7 +22037,7 @@
   "masteryReq": 3,
   "components": [],
   "localImage": "weapons/aklato.webp",
-  "omegaAttenuation": 1.52
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Aklex",
@@ -22075,7 +22077,7 @@
    }
   ],
   "localImage": "weapons/aklex.webp",
-  "omegaAttenuation": 1.05
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Aklex Prime",
@@ -22376,7 +22378,7 @@
    }
   ],
   "localImage": "weapons/aklex_prime.webp",
-  "omegaAttenuation": 0.95
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Akmagnus",
@@ -22416,7 +22418,7 @@
    }
   ],
   "localImage": "weapons/akmagnus.webp",
-  "omegaAttenuation": 1.35
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Akmagnus Prime",
@@ -22502,7 +22504,7 @@
    }
   ],
   "localImage": "weapons/akmagnus_prime.webp",
-  "omegaAttenuation": 1.1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Aksomati",
@@ -22542,7 +22544,7 @@
    }
   ],
   "localImage": "weapons/aksomati.webp",
-  "omegaAttenuation": 1.25
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Aksomati Prime",
@@ -22617,7 +22619,7 @@
    }
   ],
   "localImage": "weapons/aksomati_prime.webp",
-  "omegaAttenuation": 1.1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Aksondol",
@@ -22657,7 +22659,7 @@
    }
   ],
   "localImage": "weapons/aksondol.webp",
-  "omegaAttenuation": 0.5
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Akstiletto",
@@ -22704,7 +22706,7 @@
    }
   ],
   "localImage": "weapons/akstiletto.webp",
-  "omegaAttenuation": 0.95
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Akstiletto Prime",
@@ -22770,7 +22772,7 @@
    }
   ],
   "localImage": "weapons/akstiletto_prime.webp",
-  "omegaAttenuation": 0.85
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Akvasto",
@@ -22810,7 +22812,7 @@
    }
   ],
   "localImage": "weapons/akvasto.webp",
-  "omegaAttenuation": 1.25
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Akvasto Prime",
@@ -22957,7 +22959,7 @@
    }
   ],
   "localImage": "weapons/akzani.webp",
-  "omegaAttenuation": 1.52
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Angstrum",
@@ -23004,7 +23006,7 @@
    }
   ],
   "localImage": "weapons/angstrum.webp",
-  "omegaAttenuation": 1.35
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Arca Scisco",
@@ -23051,7 +23053,7 @@
    }
   ],
   "localImage": "weapons/arca_scisco.webp",
-  "omegaAttenuation": 1.1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Athodai",
@@ -23091,7 +23093,7 @@
    }
   ],
   "localImage": "weapons/athodai.webp",
-  "omegaAttenuation": 1.05
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Atomos",
@@ -23138,7 +23140,7 @@
    }
   ],
   "localImage": "weapons/atomos.webp",
-  "omegaAttenuation": 0.95
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Azima",
@@ -23185,7 +23187,7 @@
    }
   ],
   "localImage": "weapons/azima.webp",
-  "omegaAttenuation": 1.25
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Ballistica",
@@ -23232,7 +23234,7 @@
    }
   ],
   "localImage": "weapons/ballistica.webp",
-  "omegaAttenuation": 1.25
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Ballistica Prime",
@@ -23363,7 +23365,7 @@
    }
   ],
   "localImage": "weapons/bolto.webp",
-  "omegaAttenuation": 1.51
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Brakk",
@@ -23403,7 +23405,7 @@
    }
   ],
   "localImage": "weapons/brakk.webp",
-  "omegaAttenuation": 1.25
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Bronco",
@@ -23450,7 +23452,7 @@
    }
   ],
   "localImage": "weapons/bronco.webp",
-  "omegaAttenuation": 1.45
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Bronco Prime",
@@ -23464,6 +23466,7 @@
     "name": "Barrel",
     "itemCount": 1,
     "drops": [
+     "Axi C13",
      "Axi E2",
      "Axi F3",
      "Axi N10",
@@ -23595,7 +23598,7 @@
    }
   ],
   "localImage": "weapons/bronco_prime.webp",
-  "omegaAttenuation": 1.4
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Cantare",
@@ -23642,7 +23645,7 @@
    }
   ],
   "localImage": "weapons/cantare.webp",
-  "omegaAttenuation": 1.05
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Castanas",
@@ -23689,7 +23692,7 @@
    }
   ],
   "localImage": "weapons/castanas.webp",
-  "omegaAttenuation": 1.4
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Catabolyst",
@@ -23783,7 +23786,7 @@
    }
   ],
   "localImage": "weapons/cestra.webp",
-  "omegaAttenuation": 1.52
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Coda Catabolyst",
@@ -23794,7 +23797,7 @@
   "masteryReq": 17,
   "components": [],
   "localImage": "weapons/coda_catabolyst.webp",
-  "omegaAttenuation": 0.7
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Coda Pox",
@@ -23805,7 +23808,7 @@
   "masteryReq": 17,
   "components": [],
   "localImage": "weapons/coda_pox.webp",
-  "omegaAttenuation": 1.05
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Coda Tysis",
@@ -23816,7 +23819,7 @@
   "masteryReq": 17,
   "components": [],
   "localImage": "weapons/coda_tysis.webp",
-  "omegaAttenuation": 1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Cyanex",
@@ -23863,7 +23866,7 @@
    }
   ],
   "localImage": "weapons/cyanex.webp",
-  "omegaAttenuation": 1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Cycron",
@@ -23957,7 +23960,7 @@
    }
   ],
   "localImage": "weapons/despair.webp",
-  "omegaAttenuation": 1.3
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Detron",
@@ -23997,7 +24000,7 @@
    }
   ],
   "localImage": "weapons/detron.webp",
-  "omegaAttenuation": 1.15
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Dex Furis",
@@ -24008,7 +24011,7 @@
   "masteryReq": 10,
   "components": [],
   "localImage": "weapons/dex_furis.webp",
-  "omegaAttenuation": 1.39
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Dual Cestra",
@@ -24055,7 +24058,7 @@
    }
   ],
   "localImage": "weapons/dual_cestra.webp",
-  "omegaAttenuation": 1.35
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Dual Coda Torxica",
@@ -24066,7 +24069,7 @@
   "masteryReq": 17,
   "components": [],
   "localImage": "weapons/dual_coda_torxica.webp",
-  "omegaAttenuation": 0.55
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Dual Toxocyst",
@@ -24113,7 +24116,7 @@
    }
   ],
   "localImage": "weapons/dual_toxocyst.webp",
-  "omegaAttenuation": 1.35
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Efv-8 Mars",
@@ -24153,7 +24156,7 @@
    }
   ],
   "localImage": "weapons/efv_8_mars.webp",
-  "omegaAttenuation": 1.05
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Embolist",
@@ -24200,7 +24203,7 @@
    }
   ],
   "localImage": "weapons/embolist.webp",
-  "omegaAttenuation": 1.4
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Epitaph",
@@ -24240,7 +24243,7 @@
    }
   ],
   "localImage": "weapons/epitaph.webp",
-  "omegaAttenuation": 0.6
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Epitaph Prime",
@@ -24304,7 +24307,7 @@
    }
   ],
   "localImage": "weapons/epitaph_prime.webp",
-  "omegaAttenuation": 0.55
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Euphona Prime",
@@ -24362,7 +24365,7 @@
    }
   ],
   "localImage": "weapons/euphona_prime.webp",
-  "omegaAttenuation": 0.95
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Furis",
@@ -24409,7 +24412,7 @@
    }
   ],
   "localImage": "weapons/furis.webp",
-  "omegaAttenuation": 1.35
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Fusilai",
@@ -24456,7 +24459,7 @@
    }
   ],
   "localImage": "weapons/fusilai.webp",
-  "omegaAttenuation": 1.35
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Gammacor",
@@ -24503,7 +24506,7 @@
    }
   ],
   "localImage": "weapons/gammacor.webp",
-  "omegaAttenuation": 1.15
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Grimoire",
@@ -24550,7 +24553,7 @@
    }
   ],
   "localImage": "weapons/grimoire.webp",
-  "omegaAttenuation": 0.6
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Hikou",
@@ -24597,7 +24600,7 @@
    }
   ],
   "localImage": "weapons/hikou.webp",
-  "omegaAttenuation": 1.3
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Hikou Prime",
@@ -24652,7 +24655,7 @@
    }
   ],
   "localImage": "weapons/hikou_prime.webp",
-  "omegaAttenuation": 1.25
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Hystrix",
@@ -24761,7 +24764,7 @@
    }
   ],
   "localImage": "weapons/hystrix_prime.webp",
-  "omegaAttenuation": 1.05
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Knell",
@@ -24808,7 +24811,7 @@
    }
   ],
   "localImage": "weapons/knell.webp",
-  "omegaAttenuation": 1.25
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Knell Prime",
@@ -24874,7 +24877,7 @@
    }
   ],
   "localImage": "weapons/knell_prime.webp",
-  "omegaAttenuation": 0.85
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Kohmak",
@@ -24921,7 +24924,7 @@
    }
   ],
   "localImage": "weapons/kohmak.webp",
-  "omegaAttenuation": 1.35
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Kompressa",
@@ -24961,7 +24964,7 @@
    }
   ],
   "localImage": "weapons/kompressa.webp",
-  "omegaAttenuation": 1.15
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Kompressa Prime",
@@ -25017,7 +25020,7 @@
    }
   ],
   "localImage": "weapons/kompressa_prime.webp",
-  "omegaAttenuation": 0.6
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Kraken",
@@ -25064,7 +25067,7 @@
    }
   ],
   "localImage": "weapons/kraken.webp",
-  "omegaAttenuation": 1.53
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Kulstar",
@@ -25111,7 +25114,7 @@
    }
   ],
   "localImage": "weapons/kulstar.webp",
-  "omegaAttenuation": 1.3
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Kunai",
@@ -25158,7 +25161,7 @@
    }
   ],
   "localImage": "weapons/kunai.webp",
-  "omegaAttenuation": 1.51
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Kuva Brakk",
@@ -25177,7 +25180,7 @@
    }
   ],
   "localImage": "weapons/kuva_brakk.webp",
-  "omegaAttenuation": 0.95
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Kuva Kraken",
@@ -25196,7 +25199,7 @@
    }
   ],
   "localImage": "weapons/kuva_kraken.webp",
-  "omegaAttenuation": 1.1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Kuva Nukor",
@@ -25215,7 +25218,7 @@
    }
   ],
   "localImage": "weapons/kuva_nukor.webp",
-  "omegaAttenuation": 0.5
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Kuva Seer",
@@ -25234,7 +25237,7 @@
    }
   ],
   "localImage": "weapons/kuva_seer.webp",
-  "omegaAttenuation": 1.1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Kuva Twin Stubbas",
@@ -25253,7 +25256,7 @@
    }
   ],
   "localImage": "weapons/kuva_twin_stubbas.webp",
-  "omegaAttenuation": 1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Laetum",
@@ -25300,7 +25303,7 @@
    }
   ],
   "localImage": "weapons/laetum.webp",
-  "omegaAttenuation": 0.5
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Lato",
@@ -25319,7 +25322,7 @@
    }
   ],
   "localImage": "weapons/lato.webp",
-  "omegaAttenuation": 1.4
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Lato Prime",
@@ -25330,7 +25333,7 @@
   "masteryReq": 14,
   "components": [],
   "localImage": "weapons/lato_prime.webp",
-  "omegaAttenuation": 1.35
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Lato Vandal",
@@ -25363,7 +25366,7 @@
    }
   ],
   "localImage": "weapons/lato_vandal.webp",
-  "omegaAttenuation": 1.35
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Lex",
@@ -25374,7 +25377,7 @@
   "masteryReq": 3,
   "components": [],
   "localImage": "weapons/lex.webp",
-  "omegaAttenuation": 1.25
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Lex Prime",
@@ -25595,7 +25598,7 @@
    }
   ],
   "localImage": "weapons/magnus.webp",
-  "omegaAttenuation": 1.53
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Magnus Prime",
@@ -25660,7 +25663,7 @@
    }
   ],
   "localImage": "weapons/magnus_prime.webp",
-  "omegaAttenuation": 1.25
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Mara Detron",
@@ -25671,7 +25674,7 @@
   "masteryReq": 9,
   "components": [],
   "localImage": "weapons/mara_detron.webp",
-  "omegaAttenuation": 1.15
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Marelok",
@@ -25729,7 +25732,7 @@
   "masteryReq": 0,
   "components": [],
   "localImage": "weapons/mk1_furis.webp",
-  "omegaAttenuation": 1.4
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Mk1-Kunai",
@@ -25740,7 +25743,7 @@
   "masteryReq": 0,
   "components": [],
   "localImage": "weapons/mk1_kunai.webp",
-  "omegaAttenuation": 1.51
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Nukor",
@@ -25787,7 +25790,7 @@
    }
   ],
   "localImage": "weapons/nukor.webp",
-  "omegaAttenuation": 1.45
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Ocucor",
@@ -25881,7 +25884,7 @@
    }
   ],
   "localImage": "weapons/onos.webp",
-  "omegaAttenuation": 0.85
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Pandero",
@@ -25990,7 +25993,7 @@
    }
   ],
   "localImage": "weapons/pandero_prime.webp",
-  "omegaAttenuation": 1.1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Plinx",
@@ -26095,7 +26098,7 @@
   "masteryReq": 8,
   "components": [],
   "localImage": "weapons/prisma_angstrum.webp",
-  "omegaAttenuation": 1.3
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Prisma Twin Gremlins",
@@ -26106,7 +26109,7 @@
   "masteryReq": 11,
   "components": [],
   "localImage": "weapons/prisma_twin_gremlins.webp",
-  "omegaAttenuation": 1.15
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Pyrana",
@@ -26153,7 +26156,7 @@
    }
   ],
   "localImage": "weapons/pyrana.webp",
-  "omegaAttenuation": 0.95
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Pyrana Prime",
@@ -26220,7 +26223,7 @@
    }
   ],
   "localImage": "weapons/pyrana_prime.webp",
-  "omegaAttenuation": 0.65
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Quatz",
@@ -26325,7 +26328,7 @@
    }
   ],
   "localImage": "weapons/riot_848.webp",
-  "omegaAttenuation": 1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Sagek Prime",
@@ -26365,7 +26368,7 @@
    }
   ],
   "localImage": "weapons/sagek_prime.webp",
-  "omegaAttenuation": 0.9
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Sancti Castanas",
@@ -26376,7 +26379,7 @@
   "masteryReq": 10,
   "components": [],
   "localImage": "weapons/sancti_castanas.webp",
-  "omegaAttenuation": 1.35
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Scyotid",
@@ -26416,7 +26419,7 @@
    }
   ],
   "localImage": "weapons/scyotid.webp",
-  "omegaAttenuation": 0.75
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Secura Dual Cestra",
@@ -26427,7 +26430,7 @@
   "masteryReq": 10,
   "components": [],
   "localImage": "weapons/secura_dual_cestra.webp",
-  "omegaAttenuation": 1.3
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Seer",
@@ -26467,7 +26470,7 @@
    }
   ],
   "localImage": "weapons/seer.webp",
-  "omegaAttenuation": 1.5
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Sepulcrum",
@@ -26507,7 +26510,7 @@
    }
   ],
   "localImage": "weapons/sepulcrum.webp",
-  "omegaAttenuation": 1.1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Sicarus",
@@ -26570,7 +26573,7 @@
    }
   ],
   "localImage": "weapons/sicarus_prime.webp",
-  "omegaAttenuation": 1.15
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Sonicor",
@@ -26617,7 +26620,7 @@
    }
   ],
   "localImage": "weapons/sonicor.webp",
-  "omegaAttenuation": 1.15
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Spectra",
@@ -26664,7 +26667,7 @@
    }
   ],
   "localImage": "weapons/spectra.webp",
-  "omegaAttenuation": 1.49
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Spectra Vandal",
@@ -26704,7 +26707,7 @@
    }
   ],
   "localImage": "weapons/spectra_vandal.webp",
-  "omegaAttenuation": 1.45
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Spira",
@@ -26751,7 +26754,7 @@
    }
   ],
   "localImage": "weapons/spira.webp",
-  "omegaAttenuation": 1.35
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Spira Prime",
@@ -26817,7 +26820,7 @@
    }
   ],
   "localImage": "weapons/spira_prime.webp",
-  "omegaAttenuation": 1.25
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Staticor",
@@ -26864,7 +26867,7 @@
    }
   ],
   "localImage": "weapons/staticor.webp",
-  "omegaAttenuation": 0.9
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Stubba",
@@ -26911,7 +26914,7 @@
    }
   ],
   "localImage": "weapons/stubba.webp",
-  "omegaAttenuation": 1.35
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Stug",
@@ -26958,7 +26961,7 @@
    }
   ],
   "localImage": "weapons/stug.webp",
-  "omegaAttenuation": 1.48
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Synoid Gammacor",
@@ -26969,7 +26972,7 @@
   "masteryReq": 7,
   "components": [],
   "localImage": "weapons/synoid_gammacor.webp",
-  "omegaAttenuation": 1.1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Talons",
@@ -27016,7 +27019,7 @@
    }
   ],
   "localImage": "weapons/talons.webp",
-  "omegaAttenuation": 1.44
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Telos Akbolto",
@@ -27027,7 +27030,7 @@
   "masteryReq": 11,
   "components": [],
   "localImage": "weapons/telos_akbolto.webp",
-  "omegaAttenuation": 1.25
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Tenet Cycron",
@@ -27046,7 +27049,7 @@
    }
   ],
   "localImage": "weapons/tenet_cycron.webp",
-  "omegaAttenuation": 0.7
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Tenet Detron",
@@ -27065,7 +27068,7 @@
    }
   ],
   "localImage": "weapons/tenet_detron.webp",
-  "omegaAttenuation": 1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Tenet Diplos",
@@ -27084,7 +27087,7 @@
    }
   ],
   "localImage": "weapons/tenet_diplos.webp",
-  "omegaAttenuation": 0.8
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Tenet Plinx",
@@ -27103,7 +27106,7 @@
    }
   ],
   "localImage": "weapons/tenet_plinx.webp",
-  "omegaAttenuation": 0.75
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Tenet Spirex",
@@ -27122,7 +27125,7 @@
    }
   ],
   "localImage": "weapons/tenet_spirex.webp",
-  "omegaAttenuation": 1.05
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Twin Grakatas",
@@ -27249,7 +27252,7 @@
    }
   ],
   "localImage": "weapons/twin_kohmak.webp",
-  "omegaAttenuation": 1.25
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Twin Rogga",
@@ -27296,7 +27299,7 @@
    }
   ],
   "localImage": "weapons/twin_rogga.webp",
-  "omegaAttenuation": 1.3
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Twin Vipers",
@@ -27336,7 +27339,7 @@
    }
   ],
   "localImage": "weapons/twin_vipers.webp",
-  "omegaAttenuation": 1.45
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Twin Vipers Wraith",
@@ -27376,7 +27379,7 @@
    }
   ],
   "localImage": "weapons/twin_vipers_wraith.webp",
-  "omegaAttenuation": 1.41
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Tysis",
@@ -27423,7 +27426,7 @@
    }
   ],
   "localImage": "weapons/tysis.webp",
-  "omegaAttenuation": 1.45
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Vasto",
@@ -27470,7 +27473,7 @@
    }
   ],
   "localImage": "weapons/vasto.webp",
-  "omegaAttenuation": 1.4
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Vasto Prime",
@@ -27543,7 +27546,7 @@
    }
   ],
   "localImage": "weapons/vasto_prime.webp",
-  "omegaAttenuation": 1.35
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Vaykor Marelok",
@@ -27554,7 +27557,7 @@
   "masteryReq": 10,
   "components": [],
   "localImage": "weapons/vaykor_marelok.webp",
-  "omegaAttenuation": 1.1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Velox",
@@ -27594,7 +27597,7 @@
    }
   ],
   "localImage": "weapons/velox.webp",
-  "omegaAttenuation": 1.25
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Velox Prime",
@@ -27658,7 +27661,7 @@
    }
   ],
   "localImage": "weapons/velox_prime.webp",
-  "omegaAttenuation": 0.85
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Vesper 77",
@@ -27698,7 +27701,7 @@
    }
   ],
   "localImage": "weapons/vesper_77.webp",
-  "omegaAttenuation": 0.8
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Viper",
@@ -27745,7 +27748,7 @@
    }
   ],
   "localImage": "weapons/viper.webp",
-  "omegaAttenuation": 1.45
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Viper Wraith",
@@ -27756,7 +27759,7 @@
   "masteryReq": 4,
   "components": [],
   "localImage": "weapons/viper_wraith.webp",
-  "omegaAttenuation": 1.4
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Zakti",
@@ -27803,7 +27806,7 @@
    }
   ],
   "localImage": "weapons/zakti.webp",
-  "omegaAttenuation": 1.25
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Zakti Prime",
@@ -27867,7 +27870,7 @@
    }
   ],
   "localImage": "weapons/zakti_prime.webp",
-  "omegaAttenuation": 1.1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Zylok",
@@ -27878,7 +27881,7 @@
   "masteryReq": 6,
   "components": [],
   "localImage": "weapons/zylok.webp",
-  "omegaAttenuation": 1.25
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Zylok Prime",
@@ -27942,7 +27945,7 @@
    }
   ],
   "localImage": "weapons/zylok_prime.webp",
-  "omegaAttenuation": 0.95
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Zymos",
@@ -27986,7 +27989,7 @@
   "masteryReq": 0,
   "components": [],
   "localImage": "weapons/akaten.webp",
-  "omegaAttenuation": 1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Artax",
@@ -27997,7 +28000,7 @@
   "masteryReq": 0,
   "components": [],
   "localImage": "weapons/artax.webp",
-  "omegaAttenuation": 1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Batoten",
@@ -28008,7 +28011,7 @@
   "masteryReq": 0,
   "components": [],
   "localImage": "weapons/batoten.webp",
-  "omegaAttenuation": 1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Burst Laser",
@@ -28019,7 +28022,7 @@
   "masteryReq": 0,
   "components": [],
   "localImage": "weapons/burst_laser.webp",
-  "omegaAttenuation": 1.45
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Burst Laser Prime",
@@ -28030,7 +28033,7 @@
   "masteryReq": 0,
   "components": [],
   "localImage": "weapons/burst_laser_prime.webp",
-  "omegaAttenuation": 1.45
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Cryotra",
@@ -28077,7 +28080,7 @@
    }
   ],
   "localImage": "weapons/cryotra.webp",
-  "omegaAttenuation": 1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Deconstructor",
@@ -28088,7 +28091,7 @@
   "masteryReq": 0,
   "components": [],
   "localImage": "weapons/deconstructor.webp",
-  "omegaAttenuation": 1.25
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Deconstructor Prime",
@@ -28099,7 +28102,7 @@
   "masteryReq": 0,
   "components": [],
   "localImage": "weapons/deconstructor_prime.webp",
-  "omegaAttenuation": 1.25
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Deth Machine Rifle",
@@ -28110,7 +28113,7 @@
   "masteryReq": 0,
   "components": [],
   "localImage": "weapons/deth_machine_rifle.webp",
-  "omegaAttenuation": 1.46
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Deth Machine Rifle Prime",
@@ -28121,7 +28124,7 @@
   "masteryReq": 0,
   "components": [],
   "localImage": "weapons/deth_machine_rifle_prime.webp",
-  "omegaAttenuation": 1.46
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Helstrum",
@@ -28168,7 +28171,7 @@
    }
   ],
   "localImage": "weapons/helstrum.webp",
-  "omegaAttenuation": 1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Lacerten",
@@ -28179,7 +28182,7 @@
   "masteryReq": 0,
   "components": [],
   "localImage": "weapons/lacerten.webp",
-  "omegaAttenuation": 1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Laser Rifle",
@@ -28190,7 +28193,7 @@
   "masteryReq": 0,
   "components": [],
   "localImage": "weapons/laser_rifle.webp",
-  "omegaAttenuation": 1.21
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Multron",
@@ -28201,7 +28204,7 @@
   "masteryReq": 3,
   "components": [],
   "localImage": "weapons/multron.webp",
-  "omegaAttenuation": 1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Prime Laser Rifle",
@@ -28212,7 +28215,7 @@
   "masteryReq": 0,
   "components": [],
   "localImage": "weapons/prime_laser_rifle.webp",
-  "omegaAttenuation": 1.21
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Prisma Burst Laser",
@@ -28223,7 +28226,7 @@
   "masteryReq": 0,
   "components": [],
   "localImage": "weapons/prisma_burst_laser.webp",
-  "omegaAttenuation": 1.45
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Stinger",
@@ -28234,7 +28237,7 @@
   "masteryReq": 0,
   "components": [],
   "localImage": "weapons/stinger.webp",
-  "omegaAttenuation": 1.32
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Sweeper",
@@ -28245,7 +28248,7 @@
   "masteryReq": 0,
   "components": [],
   "localImage": "weapons/sweeper.webp",
-  "omegaAttenuation": 1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Sweeper Prime",
@@ -28256,7 +28259,7 @@
   "masteryReq": 0,
   "components": [],
   "localImage": "weapons/sweeper_prime.webp",
-  "omegaAttenuation": 1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Tazicor",
@@ -28303,7 +28306,7 @@
    }
   ],
   "localImage": "weapons/tazicor.webp",
-  "omegaAttenuation": 1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Verglas",
@@ -28314,7 +28317,7 @@
   "masteryReq": 0,
   "components": [],
   "localImage": "weapons/verglas.webp",
-  "omegaAttenuation": 1.3
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Verglas Prime",
@@ -28325,7 +28328,7 @@
   "masteryReq": 0,
   "components": [],
   "localImage": "weapons/verglas_prime.webp",
-  "omegaAttenuation": 1.3
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Vulcax",
@@ -28372,7 +28375,7 @@
    }
   ],
   "localImage": "weapons/vulcax.webp",
-  "omegaAttenuation": 1
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Vulklok",
@@ -28383,7 +28386,7 @@
   "masteryReq": 0,
   "components": [],
   "localImage": "weapons/vulklok.webp",
-  "omegaAttenuation": 1.25
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Catchmoon",
@@ -28506,7 +28509,7 @@
    }
   ],
   "localImage": null,
-  "omegaAttenuation": 0.65
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Athodai Prime",
@@ -28553,7 +28556,7 @@
    }
   ],
   "localImage": null,
-  "omegaAttenuation": 0.65
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Pride",
@@ -28593,7 +28596,7 @@
    }
   ],
   "localImage": null,
-  "omegaAttenuation": 0.7
+  "omegaAttenuation": 1.2
  },
  {
   "name": "War Prime",
@@ -28604,7 +28607,7 @@
   "masteryReq": 15,
   "components": [],
   "localImage": null,
-  "omegaAttenuation": 0.65
+  "omegaAttenuation": 1.2
  },
  {
   "name": "Wrath",
@@ -28644,6 +28647,6 @@
    }
   ],
   "localImage": null,
-  "omegaAttenuation": 0.7
+  "omegaAttenuation": 1.2
  }
 ]
