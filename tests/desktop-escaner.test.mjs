@@ -21,6 +21,7 @@ const { duermePorLog, armaRivenPorLog, enMisionPorLog, paraVigiaDelJuego } = awa
 const { EELogLive } = await import("../deploy/js/services/scanner/eelog_live.service.js");
 const { conectaEscaner } = await import("../deploy/js/ui.components/ui_desktop_escaner.js");
 const { ScannerHUD } = await import("../deploy/js/ui.components/ui_scanner_hud.js");
+const { ScannerModal } = await import("../deploy/js/ui.components/ui_scanner_modal.js");
 const { TEXTS } = await import("../deploy/js/config.js");
 const { state } = await import("../deploy/js/state.js");
 
@@ -297,4 +298,192 @@ test("en el splice de rivens el panel se aparta de la rejilla y de las cartas", 
   avisa("escaner-parado");
   await esperaCola();
   svc.activaOverlay(false);
+});
+
+async function montarDesktopShell() {
+  const { initDesktopShell } = await import("../deploy/js/ui.components/ui_desktop_shell.js");
+
+  const origCreateElement = globalThis.document.createElement;
+  const origQuerySelector = globalThis.document.querySelector;
+  const origHasFocus = globalThis.document.hasFocus;
+  const origDocumentElement = globalThis.document.documentElement;
+  const origMutationObserver = globalThis.MutationObserver;
+  const prevCapacidades = globalThis.voidstonksNativo.capacidades;
+  const prevOnPaneles = ScannerModal.onPaneles;
+  const bodyLen = globalThis.document.body?.children?.length ?? 0;
+
+  globalThis.MutationObserver = class {
+    observe() {}
+    disconnect() {}
+  };
+  globalThis.document.hasFocus = () => true;
+  globalThis.document.documentElement = { dataset: { shell: "desktop" }, classList: { toggle() {} } };
+
+  const origCreate = origCreateElement.bind(globalThis.document);
+  globalThis.document.createElement = (tag) => {
+    const el = origCreate(tag);
+    el.dataset ??= {};
+    el.style ??= {};
+    el.classList ??= { toggle() {}, contains() { return false; }, add() {}, delete() {} };
+    el.querySelector = () => ({ addEventListener() {}, classList: { toggle() {} } });
+    el.addEventListener ??= () => {};
+    el.prepend ??= () => {};
+    el.remove ??= () => {};
+    return el;
+  };
+  globalThis.document.querySelector = (sel) => {
+    if (sel === "#main-card .card-top-bar") {
+      return globalThis.document.createElement("div");
+    }
+    return { after() {}, addEventListener() {}, classList: { toggle() {} } };
+  };
+  globalThis.voidstonksNativo.capacidades = async () => ({ permisos: { overlay: true } });
+
+  initDesktopShell();
+  await esperaCola();
+
+  return () => {
+    globalThis.document.createElement = origCreateElement;
+    if (origQuerySelector) globalThis.document.querySelector = origQuerySelector;
+    else delete globalThis.document.querySelector;
+    if (origHasFocus) globalThis.document.hasFocus = origHasFocus;
+    else delete globalThis.document.hasFocus;
+    if (origDocumentElement) globalThis.document.documentElement = origDocumentElement;
+    else delete globalThis.document.documentElement;
+    if (origMutationObserver) globalThis.MutationObserver = origMutationObserver;
+    else delete globalThis.MutationObserver;
+    if (prevCapacidades) globalThis.voidstonksNativo.capacidades = prevCapacidades;
+    else delete globalThis.voidstonksNativo.capacidades;
+    ScannerModal.onPaneles = prevOnPaneles;
+    if (globalThis.document.body?.children && globalThis.document.body.children.length > bodyLen) {
+      globalThis.document.body.children.length = bodyLen;
+    }
+    svc.quitarTodosAlSalir();
+    svc.activaOverlay(false);
+    EELogLive._oyentes.clear();
+    EELogLive.cambiaEstado("reinicio");
+    EELogLive.estado = "parado";
+    enviados.length = 0;
+  };
+}
+
+test("en fase abiertas los eventos sueltos no vacian el grupo recompensas", async () => {
+  const desmontar = await montarDesktopShell();
+  try {
+    EELogLive.leer(["10.0 Created /Lotus/Interface/ProjectionRewardChoice.swf"]);
+    ScannerModal.onPaneles([{ id: "test" }]);
+    await esperaCola();
+    assert.ok(enviados.some((d) => d.grupo === "recompensas" && d.paneles.length));
+    enviados.length = 0;
+    EELogLive.leer(["10.1 ProjectionRewardChoice.lua: Missing icon data!"]);
+    await esperaCola();
+    assert.equal(enviados.filter((d) => d.grupo === "recompensas" && d.paneles.length === 0).length, 0);
+
+    EELogLive.leer(["10.2 VoidProjections: Player gets reward /Lotus/StoreItems/Types/Items/MiscItems/PrimePart"]);
+    await esperaCola();
+    assert.equal(enviados.filter((d) => d.grupo === "recompensas" && d.paneles.length === 0).length, 0);
+
+    EELogLive.leer(["10.3 SomeMenu.lua: DBG: HudVis 1"]);
+    await esperaCola();
+    assert.equal(enviados.filter((d) => d.grupo === "recompensas" && d.paneles.length === 0).length, 0);
+  } finally {
+    desmontar();
+  }
+});
+
+test("en fase llenas tras Got rewards los eventos sueltos no vacian el grupo recompensas", async () => {
+  const desmontar = await montarDesktopShell();
+  try {
+    EELogLive.leer(["10.0 Created /Lotus/Interface/ProjectionRewardChoice.swf"]);
+    EELogLive.leer(["11.0 ProjectionRewardChoice.lua: Got rewards"]);
+    ScannerModal.onPaneles([{ id: "test" }]);
+    await esperaCola();
+    assert.ok(enviados.some((d) => d.grupo === "recompensas" && d.paneles.length));
+    enviados.length = 0;
+    EELogLive.leer(["11.1 ProjectionRewardChoice.lua: Missing icon data!"]);
+    await esperaCola();
+    assert.equal(enviados.filter((d) => d.grupo === "recompensas" && d.paneles.length === 0).length, 0);
+
+    EELogLive.leer(["11.2 VoidProjections: Player gets reward /Lotus/StoreItems/Types/Items/MiscItems/PrimePart"]);
+    await esperaCola();
+    assert.equal(enviados.filter((d) => d.grupo === "recompensas" && d.paneles.length === 0).length, 0);
+  } finally {
+    desmontar();
+  }
+});
+
+test("el cierre de pantalla de reliquias vacia el grupo recompensas", async () => {
+  const desmontar = await montarDesktopShell();
+  try {
+    EELogLive.leer(["10.0 Created /Lotus/Interface/ProjectionRewardChoice.swf"]);
+    ScannerModal.onPaneles([{ id: "test" }]);
+    await esperaCola();
+    assert.ok(enviados.some((d) => d.grupo === "recompensas" && d.paneles.length));
+    enviados.length = 0;
+    EELogLive.leer(["12.0 ProjectionRewardChoice.lua: Relic reward screen shut down"]);
+    await esperaCola();
+    assert.equal(enviados.filter((d) => d.grupo === "recompensas" && d.paneles.length === 0).length, 1);
+
+    EELogLive.leer(["10.0 Created /Lotus/Interface/ProjectionRewardChoice.swf"]);
+    EELogLive.leer(["11.0 ProjectionRewardChoice.lua: Got rewards"]);
+    ScannerModal.onPaneles([{ id: "test" }]);
+    await esperaCola();
+    assert.ok(enviados.some((d) => d.grupo === "recompensas" && d.paneles.length));
+    enviados.length = 0;
+    EELogLive.leer(["12.0 ProjectionRewardChoice.lua: Relic reward screen shut down"]);
+    await esperaCola();
+    assert.equal(enviados.filter((d) => d.grupo === "recompensas" && d.paneles.length === 0).length, 1);
+  } finally {
+    desmontar();
+  }
+});
+
+test("desde fase abiertas el fin de mision o la vuelta al hub vacian el grupo recompensas", async () => {
+  const desmontar = await montarDesktopShell();
+  try {
+    EELogLive.leer(["10.0 Created /Lotus/Interface/ProjectionRewardChoice.swf"]);
+    ScannerModal.onPaneles([{ id: "test" }]);
+    await esperaCola();
+    assert.ok(enviados.some((d) => d.grupo === "recompensas" && d.paneles.length));
+    enviados.length = 0;
+    EELogLive.leer(["13.0 EndOfMatch.lua: Skip ReturnedToShip"]);
+    await esperaCola();
+    assert.equal(enviados.filter((d) => d.grupo === "recompensas" && d.paneles.length === 0).length, 1);
+
+    EELogLive.leer(["10.0 Created /Lotus/Interface/ProjectionRewardChoice.swf"]);
+    ScannerModal.onPaneles([{ id: "test" }]);
+    await esperaCola();
+    assert.ok(enviados.some((d) => d.grupo === "recompensas" && d.paneles.length));
+    enviados.length = 0;
+    EELogLive.leer(["13.1 Created /Lotus/Interface/Hub.swf"]);
+    await esperaCola();
+    assert.equal(enviados.filter((d) => d.grupo === "recompensas" && d.paneles.length === 0).length, 1);
+
+    EELogLive.leer(["10.0 Created /Lotus/Interface/ProjectionRewardChoice.swf"]);
+    ScannerModal.onPaneles([{ id: "test" }]);
+    await esperaCola();
+    assert.ok(enviados.some((d) => d.grupo === "recompensas" && d.paneles.length));
+    enviados.length = 0;
+    EELogLive.leer(["13.2 GameRulesImpl - changing state from SS_INVALID to SS_WAITING"]);
+    await esperaCola();
+    assert.equal(enviados.filter((d) => d.grupo === "recompensas" && d.paneles.length === 0).length, 1);
+  } finally {
+    desmontar();
+  }
+});
+
+test("sin recompensas en el estado cualquier evento vacia el grupo recompensas", async () => {
+  const desmontar = await montarDesktopShell();
+  try {
+    EELogLive.cambiaEstado("reinicio");
+    ScannerModal.onPaneles([{ id: "test" }]);
+    await esperaCola();
+    assert.ok(enviados.some((d) => d.grupo === "recompensas" && d.paneles.length));
+    enviados.length = 0;
+    EELogLive.leer(["14.0 SomeMenu.lua: DBG: HudVis 1"]);
+    await esperaCola();
+    assert.equal(enviados.filter((d) => d.grupo === "recompensas" && d.paneles.length === 0).length, 1);
+  } finally {
+    desmontar();
+  }
 });

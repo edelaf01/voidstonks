@@ -27,7 +27,7 @@ const tasar = (weapon, stats) => {
 const S = (n, v, pos = true) => ({ name: n, value: v, isPositive: pos, minIdeal: 50, maxIdeal: 150 });
 
 const SATURADA = {
-  name: "SaturadaTest", type: "Pistol", official_median: 144,
+  name: "SaturadaTest", type: "Pistol", t: "Pistol", official_median: 144,
   de_unrolled: { median: 144, pop: 3, min_price: 20, max_price: 500 },
   de_rerolled: { median: 144, pop: 4, stddev: 60, max_price: 600 },
   wfm_avg: 900, popularity_pct: 20, liquidity_score: 30, wfm_market_sample: 10,

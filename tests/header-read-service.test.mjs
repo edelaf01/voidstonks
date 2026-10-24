@@ -71,3 +71,58 @@ test("sin log siguen las dos pasadas de rescate", async (t) => {
   assert.deepEqual(r, { headerText: "MISSION COMPLETE", pasadas: 3 });
   assert.equal(w.n, 3);
 });
+
+function conRecompensasAbiertas(t, abiertas = true) {
+  conTemaYLog(t, true);
+  const origAbiertas = pistasDelLog.recompensasAbiertas;
+  t.after(() => { pistasDelLog.recompensasAbiertas = origAbiertas; });
+  pistasDelLog.recompensasAbiertas = () => abiertas;
+}
+
+test("con el log abierto y OCR Pi 2 VOID FISSURES R a Up la cabecera pasa a VOID FISSURE/REWARDS", async (t) => {
+  conRecompensasAbiertas(t, true);
+  const w = worker("Pi 2 VOID FISSURES R a Up");
+  const r = await leeCabeceraOCR({ latchedContext: "UNKNOWN", _ultimoRescate: 0 }, video, new FakeCanvas(10, 10), w, true);
+  assert.equal(r.headerText, "VOID FISSURE/REWARDS");
+  assert.equal(r.pasadas, 1);
+  assert.equal(r.forzada, true);
+});
+
+test("con el log abierto y OCR con erratas tipo Fl ssunee la cabecera pasa a VOID FISSURE/REWARDS", async (t) => {
+  conRecompensasAbiertas(t, true);
+  const w = worker("v NI | Big Void Fl ssunee Pues");
+  const r = await leeCabeceraOCR({ latchedContext: "UNKNOWN", _ultimoRescate: 0 }, video, new FakeCanvas(10, 10), w, true);
+  assert.equal(r.headerText, "VOID FISSURE/REWARDS");
+  assert.equal(r.pasadas, 1);
+  assert.equal(r.forzada, true);
+});
+
+test("con el log cerrado no se cambia la cabecera aunque contenga Fissure", async (t) => {
+  conRecompensasAbiertas(t, false);
+  const texto = "X Starting Oxomoco Void Neo Fissure";
+  const w = worker(texto);
+  const r = await leeCabeceraOCR({ latchedContext: "UNKNOWN", _ultimoRescate: 0 }, video, new FakeCanvas(10, 10), w, true);
+  assert.equal(r.headerText, texto);
+  assert.equal(r.pasadas, 1);
+  assert.ok(!r.forzada);
+});
+
+test("con el log abierto pero sin FISS en la cabecera el texto no cambia", async (t) => {
+  conRecompensasAbiertas(t, true);
+  const texto = "863, F";
+  const w = worker(texto);
+  const r = await leeCabeceraOCR({ latchedContext: "UNKNOWN", _ultimoRescate: 0 }, video, new FakeCanvas(10, 10), w, true);
+  assert.equal(r.headerText, texto);
+  assert.equal(r.pasadas, 1);
+  assert.ok(!r.forzada);
+});
+
+test("con el log abierto y cabecera ya en REWARD el texto no cambia", async (t) => {
+  conRecompensasAbiertas(t, true);
+  const texto = "PAAR VOID FISSURE/REWARDS";
+  const w = worker(texto);
+  const r = await leeCabeceraOCR({ latchedContext: "UNKNOWN", _ultimoRescate: 0 }, video, new FakeCanvas(10, 10), w, true);
+  assert.equal(r.headerText, texto);
+  assert.equal(r.pasadas, 1);
+  assert.ok(!r.forzada);
+});

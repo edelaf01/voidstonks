@@ -94,8 +94,8 @@ describe("gracia de rivens", () => {
       { contexto: "MISSION_COMPLETE", cancelar: true });
   });
 
-  test("reliquias y recompensas también la cancelan", () => {
-    for (const ctx of ["RELICS", "REWARD"]) {
+  test("reliquias, recompensas y mejoras también la cancelan", () => {
+    for (const ctx of ["RELICS", "REWARD", "UPGRADES"]) {
       assert.deepEqual(enrutaGraciaRiven(ctx, true, "INVENTORY_MODS"), { contexto: ctx, cancelar: true });
     }
   });

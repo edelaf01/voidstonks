@@ -1,11 +1,10 @@
-import { RIVEN_BASE_STATS, WEAPON_TYPE_IDX, RIVEN_WEIGHTS, resolveBaseStatKey } from "../../config.js";
+import { RIVEN_BASE_STATS, WEAPON_TYPE_IDX, RIVEN_WEIGHTS, RIVEN_DISPOSITION, resolveBaseStatKey } from "../../config.js";
 import { state } from "../../state.js";
 import { statUnit } from "./riven_stat_display.js";
 import { tipoDeArma, esFusionado, pesoFusionado } from "./riven_cycling.js";
 
 export function calculateRivenGrade(weaponData, statName, statValue, isNeg, buffCount, hasNeg) {
   if (!weaponData) return null;
-  const dispo = weaponData.d || 1.0;
   const type = weaponData.t || "Rifle";
 
   const wKey = `${buffCount}-${hasNeg ? 1 : 0}`;
@@ -21,7 +20,7 @@ export function calculateRivenGrade(weaponData, statName, statValue, isNeg, buff
   }
 
   const SCALING_FACTOR = 9;
-  const theoreticalVal = baseCoef * dispo * multiplier * SCALING_FACTOR;
+  const theoreticalVal = baseCoef * RIVEN_DISPOSITION * multiplier * SCALING_FACTOR;
 
   const idealMag = Math.abs(theoreticalVal);
   const minMag = idealMag * 0.9;
@@ -59,7 +58,6 @@ export function calculateRivenGrade(weaponData, statName, statValue, isNeg, buff
 
 export function getRivenStatRange(weaponData, statName, isNeg, buffCount, hasNeg) {
   if (!weaponData) return null;
-  const dispo = weaponData.d || 1.0;
   const type = weaponData.t || "Rifle";
 
   const wKey = `${buffCount}-${hasNeg ? 1 : 0}`;
@@ -74,7 +72,7 @@ export function getRivenStatRange(weaponData, statName, isNeg, buffCount, hasNeg
   }
 
   const SCALING_FACTOR = 9;
-  const theoreticalVal = baseCoef * dispo * multiplier * SCALING_FACTOR;
+  const theoreticalVal = baseCoef * RIVEN_DISPOSITION * multiplier * SCALING_FACTOR;
 
   const idealMag = Math.abs(theoreticalVal);
   const minMag = idealMag * 0.9;
@@ -263,11 +261,6 @@ export function calculateAdvancedPredictivePrice(weapon, itemAttributes, tiers, 
   } else if (hasToxin && hasElectric) {
     elementComboBonus = 0.10;
     comboName = "Corrosive";
-  }
-
-  const dispo = weaponData ? (weaponData.disposition || weaponData.d || 1) : 1;
-  if (dispo < 0.8 && elementComboBonus > 0) {
-    elementComboBonus *= 1.6;
   }
 
   const weaponType = weaponData?.t?.toLowerCase() || "";
