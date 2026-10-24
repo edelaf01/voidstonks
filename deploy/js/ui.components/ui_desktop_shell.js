@@ -73,7 +73,7 @@ let enCicloRiven = false;
 function quitaLoQueCerroElJuego() {
   if (EELogLive.estado !== "leyendo") return;
   const { juego } = EELogLive;
-  if (EELogLive.modoEscaner()?.modo !== "forzado") quitarPaneles("recompensas");
+  if (!juego.recompensas) quitarPaneles("recompensas");
   if (!juego.eligiendoReliquia) quitarPaneles("reliquias");
   if (!juego.menus.includes("InventoryTest")) quitarPaneles("kiosko");
   if (enCicloRiven && !juego.riven) quitarPaneles("riven");
