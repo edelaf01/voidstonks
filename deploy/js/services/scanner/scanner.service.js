@@ -59,6 +59,7 @@ export const ScannerService = {
     RIVEN_RATE_ACTIVE: 400,
     RIVEN_RATE_IDLE: 1000,
     RIVEN_RATE_CONFIRM: 150,
+    RIVEN_SIN_CARTA_MS: 2000,
     sessionInventory: new Map(),
     sessionRelics: new Map(),
     _autoCalibCache: null,
@@ -179,6 +180,7 @@ export const ScannerService = {
     latchedContext: "UNKNOWN",
     ctxLatch: INITIAL_LATCH,
     lastRivenContextTime: 0,
+    _cartaRivenVista: 0,
 
     async processFrame(video, virtualCanvas) {
         if (this.pausado) return;
@@ -508,6 +510,10 @@ export const ScannerService = {
     lastParsedL: null,
     lastParsedR: null,
 
+    _cierraSinCarta() {
+        if ((this.lastParsedL || this.lastParsedR) && Date.now() - this._cartaRivenVista > this.RIVEN_SIN_CARTA_MS && globalThis.RivenScannerHUD) globalThis.RivenScannerHUD.dismiss();
+    },
+
     _isSameRiven(a, b) {
         if (!a && !b) return true;
         if (!a || !b) return false;
@@ -566,13 +572,17 @@ export const ScannerService = {
 
         if ((this.lastParsedL || this.lastParsedR) && mismoTexto(hash, this.lastHashL)) {
             this.lastRivenContextTime = Date.now();
+            this._cartaRivenVista = this.lastRivenContextTime;
             this.lastRivenContextType = tipoRiven(contextType);
             this.currentRate = this.RIVEN_RATE_IDLE;
             this._cartaVigilada = zonas;
             return;
         }
 
-        if (saltaPorSinResultado(hash, this.lastNoResult, Date.now(), 3000, mismoTexto)) return;
+        if (saltaPorSinResultado(hash, this.lastNoResult, Date.now(), 3000, mismoTexto)) {
+            this._cierraSinCarta();
+            return;
+        }
 
         const canvases = VisionService.prepareRivenCardCanvases(video, scale, cardCrop);
 
@@ -628,10 +638,12 @@ export const ScannerService = {
         if (valids.length || hasCardAnchor) {
             this.lastRivenContextTime = Date.now();
             this.lastRivenContextType = tipoRiven(contextType);
+            this._cartaRivenVista = this.lastRivenContextTime;
         }
 
         if (!valids.length) {
             console.log(`[RIVEN OCR] sin parse válido en este frame (${contextType || "reroll"}) — se cachea el hash y no se reintenta hasta que la pantalla cambie`);
+            this._cierraSinCarta();
         }
         this.lastNoResult = siguienteEstadoSinResultado(valids.length > 0, hash, Date.now());
 

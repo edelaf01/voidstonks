@@ -40,6 +40,11 @@ const casos = [
   ["ARCANE DISSOLUTION", "ARCANE_DISSOLUTION"],
   ["BX MODSRIVEN SPLICING", "RIVEN_SPLICING"],
   ["MODS/RIVEN SPL1CING", "RIVEN_SPLICING"],
+  ["UPGRADES", "UPGRADES"],
+  ["UPGRADE", "UPGRADES"],
+  ["MEJORAS", "UPGRADES"],
+  ["UPGRADE MODS", "UPGRADES"],
+  ["INVENTORY/MODS", "INVENTORY_MODS"],
 ];
 
 for (const [texto, esperado] of casos) {
@@ -51,6 +56,12 @@ for (const [texto, esperado] of casos) {
 for (const texto of ["iS VOID FISSURES", "3 VOID FISSURES", "VOID FISSURES"]) {
   test(`la lista de fisuras no se escanea: "${texto}"`, () => {
     assert.equal(VisionService.determineContext(texto.toUpperCase()), "UNKNOWN");
+  });
+}
+
+for (const texto of ["upgrades", "upgrade", "mejoras"]) {
+  test(`determineContext insensible a mayúsculas: "${texto}"`, () => {
+    assert.equal(VisionService.determineContext(texto), "UPGRADES");
   });
 }
 
