@@ -293,9 +293,10 @@ _TYPE2IDX = {"Rifle": 0, "Sniper": 0, "Bow": 0, "Launcher": 0, "Sentinel": 0, "C
              "Melee": 3, "Zaw": 3, "Zaw Component": 3, "Glaive": 3, "Arch-Gun": 4, "Archgun": 4}
 _dispo_map, _arch_map = {}, {}
 try:
+    _dispo_antes = json.load(open("dispo_antes_44_1_3.json", encoding="utf-8"))
     for _w in json.load(open(_CW_FEAT, encoding="utf-8")):
         _cn = re.sub(r"[^a-z0-9]", "", str(_w.get("name", "")).lower())
-        _dispo_map[_cn] = float(_w.get("omegaAttenuation") or 1.0)
+        _dispo_map[_cn] = float(_dispo_antes.get(_w.get("name")) or 1.0)
         _arch_map[_cn] = _TYPE2IDX.get(_w.get("type"), 0)
     print(f"  refuerzo global: disposición+arquetipo para {len(_dispo_map)} armas.")
 except Exception as _e:

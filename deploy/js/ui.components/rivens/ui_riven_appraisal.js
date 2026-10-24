@@ -27,27 +27,16 @@ const AVISO_BANDA = {
     },
 };
 
-export function buildAppraisalWarningsHtml({ appraisal, weaponData, desirabilityMultiplier, stats, priceCalculated, isEs }) {
+export function buildAppraisalWarningsHtml({ appraisal, desirabilityMultiplier, stats, priceCalculated, isEs }) {
   let warningHtml = "";
   if (appraisal.comboName) {
-    const dispo = weaponData ? (weaponData.disposition || weaponData.d || 1) : 1;
-    if (dispo < 0.8) {
-      const title = isEs
-        ? `SINERGIA ELEMENTAL GODROLL (Dispo Baja: ${dispo.toFixed(2)})`
-        : `ELEMENTAL SYNERGY GODROLL (Low Dispo: ${dispo.toFixed(2)})`;
-      const desc = isEs
-        ? `El combo <b>${appraisal.comboName}</b> ahorra valiosos slots de modulación. En armas con disposición reducida, este combo sustituye mods obligatorios y se tasa al nivel de un <b>Godroll</b>.`
-        : `The <b>${appraisal.comboName}</b> combo saves valuable mod slots. For weapons with reduced disposition, this combo replaces mandatory mods and values near a <b>Godroll</b>.`;
-      warningHtml = `<details class="gsc-flag cyan"><summary>${title}</summary><div>${desc}</div></details>`;
-    } else {
-      const title = isEs
-        ? `SINERGIA ELEMENTAL (${appraisal.comboName})`
-        : `ELEMENTAL SYNERGY (${appraisal.comboName})`;
-      const desc = isEs
-        ? `La combinación de elementos aumenta el valor comercial al liberar espacio de modulación.`
-        : `The element combination increases market value by freeing up mod space.`;
-      warningHtml = `<details class="gsc-flag green"><summary>${title}</summary><div>${desc}</div></details>`;
-    }
+    const title = isEs
+      ? `SINERGIA ELEMENTAL (${appraisal.comboName})`
+      : `ELEMENTAL SYNERGY (${appraisal.comboName})`;
+    const desc = isEs
+      ? `La combinación de elementos aumenta el valor comercial al liberar espacio de modulación.`
+      : `The element combination increases market value by freeing up mod space.`;
+    warningHtml = `<details class="gsc-flag green"><summary>${title}</summary><div>${desc}</div></details>`;
   } else if (desirabilityMultiplier < 0.5) {
     const _sinNeg = !stats.some(s => s.value < 0);
     warningHtml = _sinNeg
@@ -318,7 +307,7 @@ export function generateRollResultsDOM(roll, weaponData, weaponName, currentRank
 
   const isEs = state.currentLang === "es";
 
-  const warningHtml = buildAppraisalWarningsHtml({ appraisal, weaponData, desirabilityMultiplier, stats, priceCalculated, isEs });
+  const warningHtml = buildAppraisalWarningsHtml({ appraisal, desirabilityMultiplier, stats, priceCalculated, isEs });
   estCard.innerHTML = buildAppraisalCardHTML({
     tier, tierColor, priceCalculated, minPrice, maxPrice, finalScore, popPct, basePrice,
     warningHtml, isEs, withSimilarButton: false,

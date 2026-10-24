@@ -7,12 +7,10 @@ import {
 
 const T = {
     es: {
-        anyType: "Cualquier arma", anyDispo: "Cualquier disposición",
-        dispoHigh: "Disposición alta (≥1,15)", dispoLow: "Disposición baja (≤0,85)",
+        anyType: "Cualquier arma",
         maxPrice: "Precio máx.", withData: "Solo con mercado", reset: "Quitar filtros",
         showing: "{n} de {total}",
         emptyType: "Ninguna arma de ese tipo pasa el resto de filtros",
-        emptyDispo: "Ninguna con esa disposición pasa el resto de filtros",
         emptyMaxPrice: "Ninguna por debajo de ese precio",
         emptyWithData: "Ninguna de las que quedan tiene mercado observado",
         emptyHint: "Sin ese filtro saldrían {n}.",
@@ -22,12 +20,10 @@ const T = {
         dataHelp: "El índice lista todas las armas para poder buscarlas, y las que aún no tienen mercado salen a cero.",
     },
     en: {
-        anyType: "Any weapon", anyDispo: "Any disposition",
-        dispoHigh: "High disposition (≥1.15)", dispoLow: "Low disposition (≤0.85)",
+        anyType: "Any weapon",
         maxPrice: "Max price", withData: "With market only", reset: "Clear filters",
         showing: "{n} of {total}",
         emptyType: "No weapon of that type passes the other filters",
-        emptyDispo: "None with that disposition passes the other filters",
         emptyMaxPrice: "None below that price",
         emptyWithData: "None of the remaining ones has observed market data",
         emptyHint: "Without that filter there would be {n}.",
@@ -68,9 +64,6 @@ export function renderIndexFilters(host, names, weaponMap, onChange) {
       <select data-rif="type" class="wf-input riven-index-filter" aria-label="${escapeHTML(t.anyType)}">
         ${optionsHtml([["", t.anyType], ...tiposVistos.map((x) => [x, x])], prefs.type)}
       </select>
-      <select data-rif="dispo" class="wf-input riven-index-filter" aria-label="${escapeHTML(t.anyDispo)}">
-        ${optionsHtml([["", t.anyDispo], ["high", t.dispoHigh], ["low", t.dispoLow]], prefs.dispo)}
-      </select>
       <input type="number" data-rif="maxPrice" class="wf-input riven-index-filter riven-index-price"
              min="0" step="10" inputmode="numeric" value="${prefs.maxPrice || ""}"
              placeholder="${escapeHTML(t.maxPrice)}" aria-label="${escapeHTML(t.maxPrice)}"
@@ -85,7 +78,6 @@ export function renderIndexFilters(host, names, weaponMap, onChange) {
         const leer = (sel) => host.querySelector(`[data-rif="${sel}"]`);
         saveIndexFilterPrefs({
             type: leer("type")?.value || "",
-            dispo: leer("dispo")?.value || "",
             maxPrice: Number.parseInt(leer("maxPrice")?.value, 10) || 0,
             withData: !!leer("withData")?.checked,
         });

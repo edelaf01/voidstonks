@@ -1,5 +1,6 @@
 import { classifyWeaponMarket } from "./riven_logic.js";
 import { state } from "../../state.js";
+import { RIVEN_DISPOSITION } from "../../config.js";
 import { tipoDeArma, esFusionado, pesoFusionado } from "./riven_cycling.js";
 import { cargarNivelTirada, cargarDe10, atributosAWfm, residuosTirada, precisionNivel, registroSinWfm, nombreArma, filaDe10, nivelSinWfm, poblacionTirada, percentilTirada, preciosDe10 } from "./riven_nivel.js";
 
@@ -327,11 +328,10 @@ export async function predictRivenMLBand(weapon, itemAttributes, weaponData = nu
   const out = {};
 
   const { positivos, negativo } = atributosAWfm(itemAttributes, tipoDeArma((weaponData && weaponData.t) || weapon.t));
-  const dispoArma = Number((weaponData && weaponData.d) || state.weaponMap?.[wname]?.d);
   const tipoCrudo = state.weaponDetailsDB?.find?.(w => w.name === wname)?.type ?? null;
   const conocida = nombreArma(nt, wname);
   const fila = filaDe10(de10, wname, deRe);
-  const registro = fila && !conocida ? registroSinWfm(nt, nivelSinWfm(nt, wname, fila), dispoArma, tipoCrudo) : null;
+  const registro = fila && !conocida ? registroSinWfm(nt, nivelSinWfm(nt, wname, fila), RIVEN_DISPOSITION, tipoCrudo) : null;
   const residuos = fila ? residuosTirada(nt, wname, positivos, negativo, registro) : null;
   if (residuos) {
     const poblacion = poblacionTirada(nt, wname, tipoCrudo ?? nt.armas[conocida]?.tipo ?? ((weaponData && weaponData.t) || weapon.t));

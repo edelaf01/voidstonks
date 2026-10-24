@@ -665,7 +665,6 @@ export function renderRivenPreview(weaponName) {
     panel.innerHTML = "";
   }
 
-  const dispoData = getDispositionData(details, basic);
   const imgPath = getWeaponImagePath(weaponName, details);
   const tooltipHtml = buildTooltipHtml(weaponName, details);
 
@@ -673,7 +672,7 @@ export function renderRivenPreview(weaponName) {
   const newNaked = getNakedName(weaponName);
   panel.dataset.lastNaked = newNaked;
 
-  updatePreviewDOM(panel, imgPath, dispoData, tooltipHtml, weaponName, details || basic);
+  updatePreviewDOM(panel, imgPath, tooltipHtml);
   renderVariants(weaponName);
 
   if (oldNaked !== newNaked) {
@@ -818,25 +817,6 @@ function getWeaponDetails(weaponName) {
     );
   }
   return details;
-}
-
-function getDispositionData(details, basic) {
-  let dispoValue = 1;
-  if (basic) {
-    dispoValue = basic.d;
-  }
-  let circles = 0;
-  if (dispoValue < 0.7) circles = 1;
-  else if (dispoValue < 0.9) circles = 2;
-  else if (dispoValue <= 1.1) circles = 3;
-  else if (dispoValue <= 1.3) circles = 4;
-  else circles = 5;
-
-  let circlesHtml = "";
-  for (let i = 1; i <= 5; i++) {
-    circlesHtml += `<div class="dispo-circle ${i <= circles ? "filled" : ""}"></div>`;
-  }
-  return { value: dispoValue, circles, circlesHtml };
 }
 
 function _hitosDataset(weaponName, labels, wfmPrices, isEs) {
@@ -1535,7 +1515,7 @@ export function renderRivenCardHTML(container, data) {
   }
 }
 
-function updatePreviewDOM(panel, imgPath, dispoData, tooltipHtml) {
+function updatePreviewDOM(panel, imgPath, tooltipHtml) {
   let wrapper =
     panel.querySelector(".riven-weapon-preview") ||
     document.createElement("div");
@@ -1565,13 +1545,6 @@ function updatePreviewDOM(panel, imgPath, dispoData, tooltipHtml) {
     img.onload = () => img.classList.remove("loading");
     img.src = imgPath;
   }
-
-  let dispoRow =
-    wrapper.querySelector(".riven-disposition-row") ||
-    document.createElement("div");
-  if (!dispoRow.parentElement) wrapper.appendChild(dispoRow);
-  dispoRow.className = `riven-disposition-row dispo-level-${dispoData.circles}`;
-  dispoRow.innerHTML = `${dispoData.circlesHtml}<span class="dispo-text">${dispoData.value.toFixed(2)}</span>`;
 
   wrapper.querySelector(".preview-tooltip")?.remove();
   if (tooltipHtml) {
@@ -1719,8 +1692,6 @@ export function renderVariants(currentWeaponName) {
     .toSorted((a, b) => a.localeCompare(b))
     .forEach((name) => {
       const isSelected = name.toUpperCase() === currentWeaponName.toUpperCase();
-      const weaponData = state.weaponMap[name];
-      const dispo = weaponData ? Number.parseFloat(weaponData.d) : 1;
 
       const card = document.createElement("div");
       card.className = `variant-card ${isSelected ? "active" : ""}`;
@@ -1732,10 +1703,7 @@ export function renderVariants(currentWeaponName) {
 
       card.innerHTML = `
         <img src="${getWeaponImagePath(name, getWeaponDetails(name))}" onerror="this.src=DEFAULT_WEAPON_DATA_URL">
-        <span class="v-name-small">${displayLabel}</span>
-        <div class="v-dispo-row">
-            <span class="v-dispo-val">${dispo.toFixed(2)}</span>
-        </div>`;
+        <span class="v-name-small">${displayLabel}</span>`;
 
       if (isSelected) {
         setTimeout(() => {
@@ -1773,8 +1741,6 @@ export function renderModalVariants(currentWeaponName) {
     .toSorted((a, b) => a.localeCompare(b))
     .forEach((name) => {
       const isSelected = name.toUpperCase() === currentWeaponName.toUpperCase();
-      const weaponData = state.weaponMap[name];
-      const dispo = weaponData ? Number.parseFloat(weaponData.d) : 1;
 
       const card = document.createElement("div");
       card.className = `variant-card ${isSelected ? "active" : ""}`;
@@ -1790,10 +1756,7 @@ export function renderModalVariants(currentWeaponName) {
 
       card.innerHTML = `
         <img src="${getWeaponImagePath(name, getWeaponDetails(name))}" onerror="this.src=DEFAULT_WEAPON_DATA_URL" style="width: 70px; height: 42px; object-fit: contain;">
-        <span class="v-name-small" style="font-size: 0.72rem; margin-top: 4px;">${displayLabel}</span>
-        <div class="v-dispo-row" style="margin-top: 4px;">
-            <span class="v-dispo-val" style="font-size: 0.68rem;">${dispo.toFixed(2)}</span>
-        </div>`;
+        <span class="v-name-small" style="font-size: 0.72rem; margin-top: 4px;">${displayLabel}</span>`;
 
       fragment.appendChild(card);
     });
@@ -1926,9 +1889,6 @@ export function selectRivenWeapon(name) {
     if (!isSameFamily) {
       populateRivenSelects(weaponData.t);
     }
-    const dispoEl = document.getElementById("riven-dispo-display");
-    if (dispoEl)
-      dispoEl.innerHTML = `${state.currentLang === "es" ? "Disposición de riven" : "Riven disposition"}: <b style="color:var(--wf-gold-text)">${weaponData.d.toFixed(2)}</b>`;
     renderMetaStats(name, weaponData.t);
   }
   fetchRivenAverage(name);
@@ -1964,8 +1924,7 @@ export function selectRivenWeapon(name) {
   if (gradingModal && !gradingModal.classList.contains("hidden")) {
     const weaponData = state.weaponMap?.[name];
     if (weaponData) {
-      document.getElementById("g-weapon-name").innerHTML =
-        `${escapeHTML(name)} <small>(Disp: ${weaponData.d.toFixed(2)})</small>`;
+      document.getElementById("g-weapon-name").innerHTML = escapeHTML(name);
       renderMetaStats(name, weaponData.t, "modal-meta-stats-container");
     }
     syncModalVariantCarousel(name);
@@ -2007,7 +1966,6 @@ export function openRivenMarket() {
 export function renderRivenGradingUI(weaponName, statsArray) {
   const weaponData = state.weaponMap[weaponName];
   if (!weaponData) return "";
-  const disposition = weaponData.disposition || 1;
   const weaponType = weaponData.type || "Rifle";
   const buffCount = statsArray.filter((s) => s.value > 0).length;
   const hasCurse = statsArray.some((s) => s.value < 0);
@@ -2477,7 +2435,7 @@ export function calculateModalGrade() {
 
     const isEs = state.currentLang === "es";
 
-    const warningHtml = buildAppraisalWarningsHtml({ appraisal, weaponData, desirabilityMultiplier, stats, priceCalculated, isEs });
+    const warningHtml = buildAppraisalWarningsHtml({ appraisal, desirabilityMultiplier, stats, priceCalculated, isEs });
     estCard.innerHTML = buildAppraisalCardHTML({
       tier, tierColor, priceCalculated, minPrice, maxPrice, finalScore, popPct, basePrice,
       warningHtml, isEs, withSimilarButton: true,
@@ -2857,8 +2815,7 @@ export function openGradingModal() {
   const btnAddNeg = document.getElementById("btn-add-neg");
   if (btnAddNeg) btnAddNeg.style.display = "block";
 
-  document.getElementById("g-weapon-name").innerHTML =
-    `${escapeHTML(name)} <small>(Disp: ${data.d.toFixed(2)})</small>`;
+  document.getElementById("g-weapon-name").innerHTML = escapeHTML(name);
   renderModalVariants(name);
   document.getElementById("grading-modal").classList.remove("hidden");
 

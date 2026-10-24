@@ -34,6 +34,7 @@ deploy/temp_inspect.html
 # histórico; el workflow retrain-ml.yml lo commitea.
 !/scripts-actu/ML-rivenvaluation/metrics_history.json
 !/scripts-actu/ML-rivenvaluation/de_semanal.jsonl
+!/scripts-actu/ML-rivenvaluation/dispo_antes_44_1_3.json
 scripts-actu/img/
 # tests/ SÍ se versiona: las reglas de arquitectura solo sirven si el test que las
 # comprueba viaja con el repo. Fuera quedan los volcados de depuración sueltos, que no los

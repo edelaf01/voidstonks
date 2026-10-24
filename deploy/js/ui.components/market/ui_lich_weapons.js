@@ -59,16 +59,6 @@ function bonusHtml(bonus, t) {
       </div>`;
 }
 
-function dispositionHtml(w, t) {
-  if (!w.disposition) return "";
-  const dots = [1, 2, 3, 4, 5]
-    .map((n) => `<i class="${n <= w.disposition ? "on" : ""}"></i>`)
-    .join("");
-  const exact = w.dispositionValue ? ` (×${(Math.round(w.dispositionValue * 100) / 100).toFixed(2)})` : "";
-  const tip = `${t.lichWeapons.disposition}: ${w.disposition}/5${exact}`;
-  return `<span class="lw-disp" title="${escapeHTML(tip)}" aria-label="${escapeHTML(tip)}">${dots}</span>`;
-}
-
 function damageBreakdownHtml(w) {
   if (!Array.isArray(w.damage) || w.damage.length === 0) return "";
   const rows = [...w.damage]
@@ -126,7 +116,7 @@ function weaponCardHtml(w, t) {
           ${bonusHtml(w.bonus, t)}
           ${damageBreakdownHtml(w)}
           ${statsHtml(w, t)}
-          <div class="lw-card-foot">${mr}${dispositionHtml(w, t)}</div>
+          <div class="lw-card-foot">${mr}</div>
       </article>`;
 }
 

@@ -7,6 +7,8 @@ import numpy as np
 ARMAS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "deploy", "assets", "json", "cleaned_weapons.json")
 DESTINO = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "deploy", "assets", "ml", "nivel_y_tirada.json")
 POP_FIABLE = 3
+DISPO_RIVEN = 1.2
+DISPO_ANTES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "dispo_antes_44_1_3.json")
 
 def mediana_de(dato):
     re_ = dato.get("de_rerolled") or {}
@@ -50,7 +52,11 @@ def calcular(salida, de, dispo):
 def dispo_por_arma(ruta=ARMAS):
     with open(ruta, encoding="utf-8") as f:
         datos = json.load(f)
-    return {d["name"]: float(d["omegaAttenuation"]) for d in datos if d.get("omegaAttenuation")}
+    return {d["name"]: DISPO_RIVEN for d in datos if d.get("omegaAttenuation")}
+
+def dispo_antes():
+    with open(DISPO_ANTES, encoding="utf-8") as f:
+        return json.load(f)
 
 def main():
     ruta_de = sys.argv[1]

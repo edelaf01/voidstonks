@@ -4909,90 +4909,6 @@ button[onclick*="importInventory"]:hover {
   z-index: 100;
 }
 
-.riven-disposition-row {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  margin-top: 8px;
-  background: rgba(0, 0, 0, 0.3);
-  padding: 4px 10px;
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.dispo-circle {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: #333;
-  border: 1px solid #555;
-  transition: all 0.3s ease;
-}
-
-.dispo-circle.filled {
-  background: #bd8aff;
-  border-color: #fff;
-  box-shadow: 0 0 8px var(--wf-purple);
-  transition: all 0.3s ease;
-}
-
-.dispo-circle:not(.filled) {
-  background: #1a1a1a;
-  border-color: #444;
-  box-shadow: inset 0 0 2px #000;
-}
-
-.dispo-level-1 .dispo-circle.filled {
-  background: #ffffff;
-  border-color: #ffffff;
-  box-shadow: 0 0 5px rgba(255, 255, 255, 0.8);
-}
-
-.dispo-level-2 .dispo-circle.filled {
-  background: #e8e1f0;
-  border-color: #e8e1f0;
-  box-shadow: 0 0 6px rgba(232, 225, 240, 0.9);
-}
-
-.dispo-level-3 .dispo-circle.filled {
-  background: #cca9eb;
-  border-color: #cca9eb;
-  box-shadow: 0 0 8px rgba(204, 169, 235, 0.95);
-}
-
-.dispo-level-4 .dispo-circle.filled {
-  background: #ac6be0;
-  border-color: #ac6be0;
-  box-shadow: 0 0 12px rgba(172, 107, 224, 0.9), 0 0 4px #ac6be0;
-}
-
-.dispo-level-5 .dispo-circle.filled {
-  background: #8c14fc;
-  border-color: #bd8aff;
-  box-shadow: 0 0 20px #8c14fc, 0 0 8px #9c27b0;
-  animation: pulseDispoHigh 1.5s infinite alternate;
-}
-
-@keyframes pulseDispoHigh {
-  from {
-    transform: scale(1);
-    box-shadow: 0 0 15px #8c14fc, 0 0 5px #9c27b0;
-  }
-
-  to {
-    transform: scale(1.2);
-    box-shadow: 0 0 25px #8c14fc, 0 0 10px #9c27b0;
-  }
-}
-
-.dispo-text {
-  font-size: 0.85em;
-  color: #ddd;
-  font-weight: bold;
-  margin-left: 6px;
-  text-shadow: 0 0 5px rgba(0, 0, 0, 0.8);
-}
-
 
 .preview-tooltip {
   position: absolute;
@@ -5304,33 +5220,6 @@ button[onclick*="importInventory"]:hover {
   max-width: 100%;
 }
 
-.v-dispo-row {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  margin-top: 6px;
-}
-
-.v-dispo-dots {
-  display: flex;
-  gap: 3px;
-}
-
-.v-dispo-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #333;
-  border: 1px solid #444;
-}
-
-.v-dispo-dot.filled {
-  background: var(--wf-blue);
-  border-color: #00e5ff;
-  box-shadow: 0 0 5px rgba(0, 229, 255, 0.4);
-}
-
 .variant-set-shortcut {
   position: absolute;
   top: 5px;
@@ -5364,13 +5253,6 @@ button[onclick*="importInventory"]:hover {
 .item-interactive:hover {
   color: var(--wf-blue) !important;
   text-decoration: underline;
-}
-
-.v-dispo-val {
-  font-size: 0.85em;
-  color: #fff;
-  font-weight: 900;
-  text-shadow: 0 0 5px rgba(0, 0, 0, 0.8);
 }
 
 @media (max-width: 768px) {

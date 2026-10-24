@@ -21,7 +21,6 @@ export function isBaseWeapon(name) {
 
 export const INDEX_FILTER_DEFAULTS = Object.freeze({
     type: "",
-    dispo: "",
     maxPrice: 0,
     withData: false,
 });
@@ -41,7 +40,6 @@ export function normalizeIndexFilters(raw, validTypes = []) {
     const precio = Number.parseInt(p.maxPrice, 10);
     return {
         type: validTypes.includes(p.type) ? p.type : "",
-        dispo: p.dispo === "high" || p.dispo === "low" ? p.dispo : "",
         maxPrice: Number.isFinite(precio) && precio > 0 ? precio : 0,
         withData: p.withData === true,
     };
@@ -61,16 +59,8 @@ export function hasMarketData(data) {
         || (data.liquidity_score || data.popularity_pct || 0) > 0;
 }
 
-const DISPO_ALTA = 1.15;
-const DISPO_BAJA = 0.85;
-
 export const INDEX_FILTER_TESTS = {
     type: (prefs, weaponMap) => ([name]) => weaponMap?.[name]?.t === prefs.type,
-    dispo: (prefs, weaponMap) => ([name]) => {
-        const d = weaponMap?.[name]?.d;
-        if (!Number.isFinite(d)) return false;
-        return prefs.dispo === "high" ? d >= DISPO_ALTA : d <= DISPO_BAJA;
-    },
     maxPrice: (prefs) => ([, data]) => {
         const p = realPrice(data);
         return p > 0 && p <= prefs.maxPrice;
@@ -79,7 +69,7 @@ export const INDEX_FILTER_TESTS = {
 };
 
 function activeKeys(prefs) {
-    return ["type", "dispo", "maxPrice", "withData"].filter((k) => {
+    return ["type", "maxPrice", "withData"].filter((k) => {
         const v = prefs[k];
         return k === "withData" ? v === true : Boolean(v);
     });

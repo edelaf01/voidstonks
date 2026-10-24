@@ -339,23 +339,6 @@
     color: var(--wf-gold-text);
 }
 
-.lw-disp {
-    display: inline-flex;
-    gap: 3px;
-    cursor: help;
-}
-
-.lw-disp i {
-    width: 6px;
-    height: 6px;
-    background: rgba(255, 255, 255, 0.15);
-    border-radius: 50%;
-}
-
-.lw-disp i.on {
-    background: var(--wf-riven);
-}
-
 .lw-disclaimer {
     padding: 8px 10px;
     font-size: 0.68rem;
