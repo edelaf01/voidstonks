@@ -200,7 +200,7 @@ export const ScannerService = {
         this._franjaTickAnterior = headerHash;
         const intervalo = intervaloCabecera(this._headerEstable, this.latchedContext);
         const enPausa = Date.now() - (this.lastHeaderOcrTime || 0) < intervalo;
-        let headerText, pasadas = 0, firma = null;
+        let headerText, pasadas = 0, forzada = false, firma = null;
         const cambiado = tituloHaCambiado(headerHash, this.lastHeaderHash);
         const pantallaNueva = franjaQuieta && cambiado && intervalo < INTERVALO_FIN_MISION_MS;
         const cambioLog = pistasDelLog.cambioPantalla();
@@ -224,7 +224,7 @@ export const ScannerService = {
             Object.assign(this, { _cabeceraVigente: true, lastHeaderText: headerText, lastHeaderHash: headerHash, lastHeaderOcrTime: Date.now(), _cambioLogVisto: cambioLog });
         } else {
             this._cabeceraVigente = true;
-            ({ headerText, pasadas } = await leeCabeceraOCR(this, video, virtualCanvas, worker1, franjaQuieta));
+            ({ headerText, pasadas, forzada } = await leeCabeceraOCR(this, video, virtualCanvas, worker1, franjaQuieta));
             this.lastHeaderText = headerText;
             this.lastHeaderHash = headerHash;
             this.lastHeaderOcrTime = Date.now();
@@ -274,7 +274,7 @@ export const ScannerService = {
             this.detectionLocked = false;
         }
         await this.routeFrameAction(this.latchedContext, video, dims);
-        if (pasadas && franjaQuieta && rawContext === this.latchedContext && !SquadService.lastVerdict) FirmasTitulo.aprende(video, headerText, rawContext);
+        if (pasadas && !forzada && franjaQuieta && rawContext === this.latchedContext && !SquadService.lastVerdict) FirmasTitulo.aprende(video, headerText, rawContext);
         if (this.ctxLatch.pending) this.currentRate = Math.min(this.currentRate, 300);
         reloj.fin(this.latchedContext);
 
