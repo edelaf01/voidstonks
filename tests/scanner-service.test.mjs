@@ -1830,3 +1830,163 @@ test("un solo grupo de palabras en el recorte recurre al texto completo como una
     assert.equal(S.lastParsedR, null);
   });
 });
+
+test("processFrame con el log abierto y cabecera de fisura fija REWARD y llama a routeFrameAction", async () => {
+  const { OCRRepository } = await import("../deploy/js/repositories/ocr.repository.js");
+  const { INITIAL_LATCH, FRANJA_TITULO_VIDEO } = await import("../deploy/js/utils/vision/context_latch.js");
+  const { regionLuma } = await import("../deploy/js/utils/vision/frame_hash.js");
+  const { FakeCanvas } = await import("./_helpers/fake-canvas.mjs");
+  const { pistasDelLog } = await import("../deploy/js/utils/ganchos.js");
+
+  const orig = {
+    workers: OCRRepository.workers,
+    ruta: S.routeFrameAction,
+    aprende: FirmasTitulo.aprende,
+    abiertas: pistasDelLog.recompensasAbiertas,
+    scanning: S.isScanning,
+    locked: S.detectionLocked,
+    recompensaLeida: S._recompensaLeida,
+    lastHeaderText: S.lastHeaderText,
+    lastHeaderOcrTime: S.lastHeaderOcrTime,
+    lastHeaderHash: S.lastHeaderHash,
+    headerEstable: S._headerEstable,
+    headerCtxPrevio: S._headerCtxPrevio,
+    cabeceraVigente: S._cabeceraVigente,
+    latchedContext: S.latchedContext,
+    ctxLatch: S.ctxLatch,
+    franjaTickAnterior: S._franjaTickAnterior,
+  };
+
+  const rutas = [];
+  const aprendidas = [];
+  FirmasTitulo.aprende = (...args) => { aprendidas.push(args); };
+  OCRRepository.workers = [{
+    recognize: async () => ({ data: { text: "Pi 2 VOID FISSURES R a Up" } })
+  }];
+  S.routeFrameAction = async (ctx) => { rutas.push(ctx); };
+  pistasDelLog.recompensasAbiertas = () => true;
+
+  const lienzo = new FakeCanvas(16, 9);
+  const video = await cabeceraConRotulo();
+
+  Object.assign(S, {
+    isScanning: true,
+    detectionLocked: false,
+    _recompensaLeida: false,
+    lastHeaderText: null,
+    lastHeaderOcrTime: 0,
+    lastHeaderHash: null,
+    _headerEstable: 0,
+    _headerCtxPrevio: null,
+    _cabeceraVigente: false,
+    latchedContext: "UNKNOWN",
+    ctxLatch: { ...INITIAL_LATCH, latched: "UNKNOWN" },
+    _franjaTickAnterior: regionLuma(video, FRANJA_TITULO_VIDEO),
+  });
+
+  try {
+    await S.processFrame(video, lienzo);
+    assert.equal(S.latchedContext, "REWARD");
+    assert.deepEqual(rutas, ["REWARD"]);
+    assert.equal(aprendidas.length, 0);
+  } finally {
+    OCRRepository.workers = orig.workers;
+    S.routeFrameAction = orig.ruta;
+    FirmasTitulo.aprende = orig.aprende;
+    pistasDelLog.recompensasAbiertas = orig.abiertas;
+    Object.assign(S, {
+      isScanning: orig.scanning,
+      detectionLocked: orig.locked,
+      _recompensaLeida: orig.recompensaLeida,
+      lastHeaderText: orig.lastHeaderText,
+      lastHeaderOcrTime: orig.lastHeaderOcrTime,
+      lastHeaderHash: orig.lastHeaderHash,
+      _headerEstable: orig.headerEstable,
+      _headerCtxPrevio: orig.headerCtxPrevio,
+      _cabeceraVigente: orig.cabeceraVigente,
+      latchedContext: orig.latchedContext,
+      ctxLatch: orig.ctxLatch,
+      _franjaTickAnterior: orig.franjaTickAnterior,
+    });
+  }
+});
+
+test("processFrame con cabecera REWARD real y franja quieta sí aprende la firma", async () => {
+  const { OCRRepository } = await import("../deploy/js/repositories/ocr.repository.js");
+  const { INITIAL_LATCH, FRANJA_TITULO_VIDEO } = await import("../deploy/js/utils/vision/context_latch.js");
+  const { regionLuma } = await import("../deploy/js/utils/vision/frame_hash.js");
+  const { FakeCanvas } = await import("./_helpers/fake-canvas.mjs");
+  const { pistasDelLog } = await import("../deploy/js/utils/ganchos.js");
+
+  const orig = {
+    workers: OCRRepository.workers,
+    ruta: S.routeFrameAction,
+    aprende: FirmasTitulo.aprende,
+    abiertas: pistasDelLog.recompensasAbiertas,
+    scanning: S.isScanning,
+    locked: S.detectionLocked,
+    recompensaLeida: S._recompensaLeida,
+    lastHeaderText: S.lastHeaderText,
+    lastHeaderOcrTime: S.lastHeaderOcrTime,
+    lastHeaderHash: S.lastHeaderHash,
+    headerEstable: S._headerEstable,
+    headerCtxPrevio: S._headerCtxPrevio,
+    cabeceraVigente: S._cabeceraVigente,
+    latchedContext: S.latchedContext,
+    ctxLatch: S.ctxLatch,
+    franjaTickAnterior: S._franjaTickAnterior,
+  };
+
+  const aprendidas = [];
+  FirmasTitulo.aprende = (...args) => { aprendidas.push(args); };
+  OCRRepository.workers = [{
+    recognize: async () => ({ data: { text: "VOID FISSURE/REWARDS" } })
+  }];
+  S.routeFrameAction = async () => {};
+  pistasDelLog.recompensasAbiertas = () => true;
+
+  const lienzo = new FakeCanvas(16, 9);
+  const video = await cabeceraConRotulo();
+
+  Object.assign(S, {
+    isScanning: true,
+    detectionLocked: false,
+    _recompensaLeida: false,
+    lastHeaderText: null,
+    lastHeaderOcrTime: 0,
+    lastHeaderHash: null,
+    _headerEstable: 0,
+    _headerCtxPrevio: null,
+    _cabeceraVigente: false,
+    latchedContext: "UNKNOWN",
+    ctxLatch: { ...INITIAL_LATCH, latched: "UNKNOWN" },
+    _franjaTickAnterior: regionLuma(video, FRANJA_TITULO_VIDEO),
+  });
+
+  try {
+    await S.processFrame(video, lienzo);
+    assert.equal(S.latchedContext, "REWARD");
+    assert.equal(aprendidas.length, 1);
+    assert.equal(aprendidas[0][1], "VOID FISSURE/REWARDS");
+    assert.equal(aprendidas[0][2], "REWARD");
+  } finally {
+    OCRRepository.workers = orig.workers;
+    S.routeFrameAction = orig.ruta;
+    FirmasTitulo.aprende = orig.aprende;
+    pistasDelLog.recompensasAbiertas = orig.abiertas;
+    Object.assign(S, {
+      isScanning: orig.scanning,
+      detectionLocked: orig.locked,
+      _recompensaLeida: orig.recompensaLeida,
+      lastHeaderText: orig.lastHeaderText,
+      lastHeaderOcrTime: orig.lastHeaderOcrTime,
+      lastHeaderHash: orig.lastHeaderHash,
+      _headerEstable: orig.headerEstable,
+      _headerCtxPrevio: orig.headerCtxPrevio,
+      _cabeceraVigente: orig.cabeceraVigente,
+      latchedContext: orig.latchedContext,
+      ctxLatch: orig.ctxLatch,
+      _franjaTickAnterior: orig.franjaTickAnterior,
+    });
+  }
+});

@@ -80,5 +80,9 @@ export async function leeCabeceraOCR(escaner, video, virtualCanvas, worker1, fra
             headerText = cText;
         }
     }
+    if (pistasDelLog.recompensasAbiertas() && VisionService.determineContext(headerText) !== "REWARD" && /F[I1L]\s?SS/i.test(headerText)) {
+        console.log(`[SCAN] Recompensas por el log y la cabecera: "${headerText.trim().slice(0, 60)}"`);
+        return { headerText: "VOID FISSURE/REWARDS", pasadas, forzada: true };
+    }
     return { headerText, pasadas };
 }
