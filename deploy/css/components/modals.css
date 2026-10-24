@@ -757,12 +757,6 @@
   color: #fff;
 }
 
-.weapon-disposition {
-  color: #fff;
-  font-weight: bold;
-  font-size: 0.9rem;
-}
-
 .variants-selector {
   margin: 24px 0;
 }
@@ -1202,12 +1196,6 @@
   border-radius: 6px;
   white-space: nowrap;
   letter-spacing: 0.3px;
-}
-
-.ic-dispo-badge {
-  font-size: 0.7rem;
-  color: rgba(255, 255, 255, 0.45);
-  font-weight: 600;
 }
 
 .ic-expand-arrow {

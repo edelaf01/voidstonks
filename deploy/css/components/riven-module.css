@@ -1170,12 +1170,6 @@
     opacity: .8;
 }
 
-#riven-dispo-display {
-  margin-top: 4px;
-  font-size: 0.9em;
-  color: #aaa;
-}
-
 #riven-avg-box {
   display: none;
   margin-top: 10px;
