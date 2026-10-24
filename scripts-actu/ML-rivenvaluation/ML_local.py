@@ -293,15 +293,16 @@ _TYPE2IDX = {"Rifle": 0, "Sniper": 0, "Bow": 0, "Launcher": 0, "Sentinel": 0, "C
              "Melee": 3, "Zaw": 3, "Zaw Component": 3, "Glaive": 3, "Arch-Gun": 4, "Archgun": 4}
 _dispo_map, _arch_map = {}, {}
 try:
+    _dispo_antes = json.load(open("dispo_antes_44_1_3.json", encoding="utf-8"))
     for _w in json.load(open(_CW_FEAT, encoding="utf-8")):
         _cn = re.sub(r"[^a-z0-9]", "", str(_w.get("name", "")).lower())
-        _dispo_map[_cn] = float(_w.get("omegaAttenuation") or 1.0)
+        _dispo_map[_cn] = float(_dispo_antes.get(_w.get("name")) or 1.2)
         _arch_map[_cn] = _TYPE2IDX.get(_w.get("type"), 0)
     print(f"  refuerzo global: disposición+arquetipo para {len(_dispo_map)} armas.")
 except Exception as _e:
     print("  [WARN] sin cleaned_weapons.json para dispo/arquetipo:", _e)
 _clean_w = df_micro_clean["weapon"].map(lambda w: re.sub(r"[^a-z0-9]", "", str(w).lower()))
-df_micro_clean["disposition"] = _clean_w.map(lambda c: _dispo_map.get(c, 1.0))
+df_micro_clean["disposition"] = _clean_w.map(lambda c: _dispo_map.get(c, 1.2))
 df_micro_clean["archetype"] = _clean_w.map(lambda c: _arch_map.get(c, 0))
 
 _wl_col = df_micro_clean["weapon"].map(lambda w: str(w).strip().lower())
@@ -1141,7 +1142,7 @@ def tasar_riven_individual(nombre_riven, pos1, pos2, pos3, neg, rerolls,
     if "popularity_pct_x_synergy" in fila_input:
         fila_input["popularity_pct_x_synergy"] = fila_input.get("popularity_pct", 0) * round(score_input, 4)
     _dispo_inf = float(dt["disposition"]) if (dt is not None and "disposition" in dt) \
-        else _dispo_map.get(limpiar_chars(nombre_riven), 1.0)
+        else _dispo_map.get(limpiar_chars(nombre_riven), 1.2)
     if "disposition" in fila_input:
         fila_input["disposition"] = _dispo_inf
     if "archetype" in fila_input:

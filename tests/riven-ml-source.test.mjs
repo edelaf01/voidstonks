@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { state } from "../deploy/js/state.js";
+import { RIVEN_DISPOSITION } from "../deploy/js/config.js";
 import { renderMlChip } from "../deploy/js/ui.components/rivens/ui_riven_appraisal.js";
 
 globalThis.localStorage = { getItem: () => null, setItem: () => {} };
@@ -30,7 +31,7 @@ const STATS = [
 ];
 
 const LARKSPUR = { name: "Larkspur", official_median: 357, wfm_avg: 7966, de_rerolled: { median: 450, pop: 12, stddev: 300, max_price: 3000 }, de_unrolled: { median: 357, pop: 8 } };
-const TORID = { name: "Torid", d: 1.3, official_median: 357, wfm_avg: 7966, de_rerolled: { median: 450, pop: 12, stddev: 300, max_price: 3000 }, de_unrolled: { median: 357, pop: 8 } };
+const TORID = { name: "Torid", official_median: 357, wfm_avg: 7966, de_rerolled: { median: 450, pop: 12, stddev: 300, max_price: 3000 }, de_unrolled: { median: 357, pop: 8 } };
 const SIN_NIVEL = { name: "SinNivelTest", official_median: 135, wfm_avg: 307, de_rerolled: { median: 90, pop: 1, stddev: 0, max_price: 90 }, de_unrolled: { median: 135, pop: 1 } };
 
 test("con de10 que falla al cargar la tasación cae a la curva", async () => {
@@ -51,9 +52,9 @@ test("un arma con datos de WFM tasa con el modelo de nivel y tirada", async () =
   assert.ok(band.p50 > 0);
 });
 
-test("un arma sin datos de WFM cae a la curva anclada a DE", async () => {
+test("un arma sin datos de WFM tasa con el registro de DE10", async () => {
   const band = await N.predictRivenMLBand(SIN_NIVEL, STATS, SIN_NIVEL, null, 75);
-  assert.equal(band.fuente, "curva");
+  assert.equal(band.fuente, "de10");
   assert.ok(band.p50 > 0);
 });
 
@@ -73,7 +74,7 @@ test("la banda sale ordenada por las dos vías", async () => {
 
 test("un arma conocida tasa con su fila de DE de 10 semanas y no con el DE del día", async () => {
   const band = await N.predictRivenMLBand(LARKSPUR, STATS, LARKSPUR, null, 75);
-  assert.equal(band.p50, 211);
+  assert.equal(band.p50, 206);
   const otra = await N.predictRivenMLBand({ ...LARKSPUR, de_rerolled: { ...LARKSPUR.de_rerolled, median: 900 } }, STATS, LARKSPUR, null, 75);
   assert.equal(otra.p50, band.p50);
 });
@@ -84,12 +85,12 @@ test("cambiar la fila de de10 de la familia mueve el precio", async () => {
   try {
     de10.familias.larkspur = [filaOrig[0] + 1, ...filaOrig.slice(1)];
     const band = await N.predictRivenMLBand(LARKSPUR, STATS, LARKSPUR, null, 75);
-    assert.equal(band.p50, 573);
+    assert.equal(band.p50, 559);
   } finally {
     de10.familias.larkspur = filaOrig;
   }
   const restaurado = await N.predictRivenMLBand(LARKSPUR, STATS, LARKSPUR, null, 75);
-  assert.equal(restaurado.p50, 211);
+  assert.equal(restaurado.p50, 206);
 });
 
 test("un arma cortada tasa con el registro de DE y su suelo", async () => {
@@ -98,12 +99,12 @@ test("un arma cortada tasa con el registro de DE y su suelo", async () => {
   const de10 = await NT.cargarDe10();
   const fila = NT.filaDe10(de10, "Torid", TORID.de_rerolled);
   const nivel = NT.nivelSinWfm(nt, "Torid", fila);
-  const reg = NT.registroSinWfm(nt, nivel, 1.3, "Rifle");
+  const reg = NT.registroSinWfm(nt, nivel, RIVEN_DISPOSITION, "Rifle");
   assert.equal(reg.nivel, nivel);
 
   const band = await N.predictRivenMLBand(TORID, STATS, TORID, null, 75);
   assert.equal(band.fuente, "de10");
-  assert.equal(band.p50, 886);
+  assert.equal(band.p50, 895);
   assert.ok(band.p25 >= band.floor);
 
   const buena = [
@@ -114,7 +115,7 @@ test("un arma cortada tasa con el registro de DE y su suelo", async () => {
   ];
   const bandaBuena = await N.predictRivenMLBand(TORID, buena, TORID, null, 90);
   assert.equal(bandaBuena.fuente, "de10");
-  assert.equal(bandaBuena.p95, 4043);
+  assert.equal(bandaBuena.p95, 4428);
 });
 
 test("para un arma con DE vivo ningún precio baja del suelo floor", async () => {

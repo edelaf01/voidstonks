@@ -46,7 +46,7 @@ export function nextLatchedContext(prev, raw) {
   return { latched: s.latched, unknownCount: 0, pending: raw, pendingCount };
 }
 
-export const CANCELAN_GRACIA = Object.freeze(["RELICS", "REWARD", "MISSION_COMPLETE"]);
+export const CANCELAN_GRACIA = Object.freeze(["RELICS", "REWARD", "MISSION_COMPLETE", "UPGRADES"]);
 
 export const CONTEXTOS_RIVEN = Object.freeze(new Set(["INVENTORY_MODS", "ITEM_DETAILS", "RIVEN_DETAILS", "RIVEN_SPLICING"]));
 export const tipoRiven = (contexto) => (CONTEXTOS_RIVEN.has(contexto) ? contexto : "INVENTORY_MODS");

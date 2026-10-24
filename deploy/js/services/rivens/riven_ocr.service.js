@@ -1,6 +1,6 @@
 import { state } from "../../state.js";
 import { RIVEN_NAMING_DICT } from "../../utils/rivens/riven_naming.js";
-import { RIVEN_STATS, RIVEN_BASE_STATS, WEAPON_TYPE_IDX, RIVEN_WEIGHTS, resolveBaseStatKey, canBeNegative } from "../../config.js";
+import { RIVEN_STATS, RIVEN_BASE_STATS, WEAPON_TYPE_IDX, RIVEN_WEIGHTS, RIVEN_DISPOSITION, resolveBaseStatKey, canBeNegative } from "../../config.js";
 import { statUnit } from "../../utils/rivens/riven_stat_display.js";
 
 
@@ -180,7 +180,6 @@ export const RivenOCRService = {
         const issues = [];
         const wInfo = parsed.weaponName ? state.weaponMap?.[parsed.weaponName] : null;
         const typeIdx = wInfo ? WEAPON_TYPE_IDX[wInfo.t] : undefined;
-        const disp = wInfo?.d || 1;
 
         if (!parsed.weaponName) {
             issues.push("no weapon matched");
@@ -211,7 +210,7 @@ export const RivenOCRService = {
                     continue;
                 }
                 const weight = st.isPositive ? weights.buff : weights.curse;
-                const expected = Math.abs(base * disp * weight * SCALING);
+                const expected = Math.abs(base * RIVEN_DISPOSITION * weight * SCALING);
                 if (expected > 0) {
                     let ratio = Math.abs(st.value) / expected;
                     if (ratio > 2.8 && Number.isInteger(st.value) && ratio / 10 >= 0.35 && ratio / 10 <= 2.8) {

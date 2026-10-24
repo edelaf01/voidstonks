@@ -591,7 +591,6 @@ export const TEXTS = {
       bonusUnknown: "Bonus aún sin reportar",
       bonusSource:
         "El elemento y el porcentaje del bonus son aleatorios en cada rotación y no los publica ninguna API: los reportan los jugadores en la wiki, así que pueden tardar en aparecer al empezar una ventana.",
-      disposition: "Disposición de riven",
       wiki: "Abrir en la wiki",
       alarms: {
         toggle: "Recordatorios",
@@ -1560,7 +1559,6 @@ export const TEXTS = {
       bonusUnknown: "Bonus not reported yet",
       bonusSource:
         "The bonus element and percentage are rolled per rotation and no API publishes them: players report them on the wiki, so they can lag behind at the start of a window.",
-      disposition: "Riven disposition",
       wiki: "Open on the wiki",
       alarms: {
         toggle: "Reminders",

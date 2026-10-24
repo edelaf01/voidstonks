@@ -20,6 +20,7 @@ from anuncios import (
     banda_por_arma,
     banda_publicada,
 )
+from armas_sin_wfm import DISPO_RIVEN, dispo_antes
 
 VIDA_MEDIA = float(os.environ.get("VOIDSTONKS_VIDA_MEDIA", "30"))
 K_SUAVIZADO = 10
@@ -30,6 +31,7 @@ PESO_PRIMERA_VISTA = 0.5
 DIAS_VALIDACION = 14
 ARMAS = os.path.join(AQUI, "..", "..", "deploy", "assets", "json", "cleaned_weapons.json")
 PRINCIPAL = "nivel_y_tirada_sin_tendencia"
+FACCIONES = ["Damage Vs Corpus", "Damage Vs Grineer", "Damage Vs Infested"]
 
 def leer_anuncios():
     tabla = pd.read_csv(os.path.join(SALIDA, "anuncios.csv"), dtype=str, keep_default_na=False)
@@ -37,6 +39,7 @@ def leer_anuncios():
         tabla[columna] = pd.to_numeric(tabla[columna], errors="coerce")
     for columna in ["stat_pos1", "stat_pos2", "stat_pos3", "stat_neg"]:
         tabla[columna] = tabla[columna].replace("None", "")
+    a_dispo_unica(tabla)
     tabla = tabla[tabla["precio_primero"] > 0].copy()
     corte_fecha = pd.to_datetime(CORTE)
     tabla["dia"] = (pd.to_datetime(tabla["primera_fecha"]) - corte_fecha).dt.days
@@ -45,6 +48,12 @@ def leer_anuncios():
     tabla["entreno"] = tabla["primera_fecha"] < CORTE
     tabla["prueba"] = (tabla["inicio"] >= CORTE) & (tabla["primera_fecha"] >= CORTE)
     return tabla
+
+def a_dispo_unica(tabla):
+    antes = dispo_antes()
+    k = tabla["weapon"].map(lambda w: DISPO_RIVEN / antes.get(w, DISPO_RIVEN))
+    for stat, mag in [("stat_pos1", "mag_pos1"), ("stat_pos2", "mag_pos2"), ("stat_pos3", "mag_pos3"), ("stat_neg", "mag_neg")]:
+        tabla[mag] = np.where(tabla[stat].isin(FACCIONES), 1 + (tabla[mag] - 1) * k, tabla[mag] * k)
 
 def tipo_por_arma():
     with open(ARMAS, encoding="utf-8") as archivo:

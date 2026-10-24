@@ -102,7 +102,7 @@ test("ningún stat fusionado puede ser negativo", () => {
 
 test("el rango del Gas sale de su valor base", () => {
   const range = getRivenStatRange({ t: "Rifle", d: 1 }, "Gas", false, 2, true);
-  assert.equal(range.mid, 111.4);
+  assert.equal(range.mid, 133.7);
 });
 
 test("los 18 stats fusionados tienen valor base", () => {

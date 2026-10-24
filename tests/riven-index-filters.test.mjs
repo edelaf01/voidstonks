@@ -54,16 +54,8 @@ test("«solo con datos de mercado» quita las armas rellenas de ceros", () => {
     assert.equal(hasMarketData({ liquidity_score: 5 }), true);
 });
 
-test("disposición alta y baja no se solapan", () => {
-    const alta = applyIndexFilters(ENTRIES, { ...INDEX_FILTER_DEFAULTS, dispo: "high" }, WEAPONS);
-    const baja = applyIndexFilters(ENTRIES, { ...INDEX_FILTER_DEFAULTS, dispo: "low" }, WEAPONS);
-    assert.deepEqual(nombres(alta), ["Torid", "Sydon"]);
-    assert.deepEqual(nombres(baja), ["Bramma"]);
-});
-
 test("un arma sin entrada en weaponMap no se cuela en ningún filtro de arma", () => {
     const entries = [...ENTRIES, ["Desconocida", con(10)]];
-    assert.equal(nombres(applyIndexFilters(entries, { ...INDEX_FILTER_DEFAULTS, dispo: "high" }, WEAPONS)).includes("Desconocida"), false);
     assert.equal(nombres(applyIndexFilters(entries, { ...INDEX_FILTER_DEFAULTS, type: "Melee" }, WEAPONS)).includes("Desconocida"), false);
 });
 
@@ -83,7 +75,7 @@ test("el vacío dice qué filtro lo causó y cuántas hay detrás", () => {
 
 test("si el vacío no lo causa un filtro, no se culpa a ninguno", () => {
     assert.equal(whyIndexEmpty([], INDEX_FILTER_DEFAULTS, WEAPONS), null);
-    const imposible = { ...INDEX_FILTER_DEFAULTS, type: "Bow", dispo: "high" };
+    const imposible = { ...INDEX_FILTER_DEFAULTS, type: "Bow", maxPrice: 50 };
     assert.equal(whyIndexEmpty([], imposible, WEAPONS), null);
 });
 

@@ -1149,6 +1149,7 @@ export const VisionService = {
         }
         if (/DISSOL|DISOLU/.test(text)) return "ARCANE_DISSOLUTION";
         if (/SPL[I1L]C/.test(text)) return "RIVEN_SPLICING";
+        if (/UPGRAD|MEJORAS/.test(text)) return "UPGRADES";
         if (hasMods) return "INVENTORY_MODS";
         if (hasInv) return "INVENTORY";
         if (/RELI|ELIC|REFI|NEME/.test(text)) return "RELICS";
