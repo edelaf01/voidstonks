@@ -734,7 +734,7 @@ let lastCalcSignature = null;
 function calcCardHtml(kind, entry, t) {
     const syn = PACK_SYNDICATES[entry.pack.id] || PACK_SYNDICATES.others;
     const tags = {
-        custom: { css: "highlight", color: "#7ecbff", label: state.currentLang === "es" ? "SIMULACIÓN DE COLECCIÓN SELECCIONADA" : "SELECTED COLLECTION SIMULATION" },
+        custom: { css: "", color: "var(--vosfor-accent-text)", label: state.currentLang === "es" ? "SIMULACIÓN DE COLECCIÓN SELECCIONADA" : "SELECTED COLLECTION SIMULATION" },
         ev: { css: "highlight", color: "#42f56c", label: t.maxPlatTitle || "MÁS PLATINO" },
         liq: { css: "highlight-liquid", color: "#7ecbff", label: t.maxLiquidTitle || "VENTA RÁPIDA" },
     };
@@ -1124,14 +1124,14 @@ function targetArcaneSimulatorCard() {
           <label style="font-size:0.78rem;color:#aaa;display:block;margin-bottom:4px;">${escapeHTML(t.targetSimArcLabel || "Arcano Objetivo:")}</label>
           <div class="custom-dropdown-container" style="position:relative;width:100%;">
             <input type="text" id="targetArcInput" class="wf-input vosfor-search-input" style="padding-right:30px;" placeholder="${escapeHTML(state.currentLang === "es" ? "Buscar arcano..." : "Search arcane...")}" autocomplete="off" value="${escapeHTML(targetArcName)}" onfocus="globalThis.showTargetArcDropdown()" oninput="globalThis.filterTargetArcDropdown(this.value)">
-            <div id="targetArcDropdown" class="custom-dropdown hidden" style="position:absolute;top:100%;left:0;right:0;max-height:260px;overflow-y:auto;background:#111;border:1px solid #7ecbff;z-index:9999;border-radius:0 0 6px 6px;box-shadow:0 6px 20px rgba(0,0,0,0.7);">
+            <div id="targetArcDropdown" class="custom-dropdown hidden" style="position:absolute;top:100%;left:0;right:0;max-height:260px;overflow-y:auto;background:#111;border:1px solid var(--active-theme-color);z-index:9999;border-radius:0 0 6px 6px;box-shadow:0 6px 20px rgba(0,0,0,0.7);">
             </div>
           </div>
         </div>
         <div style="grid-column: span 1;">
           <label style="font-size:0.78rem;color:#aaa;display:block;margin-bottom:2px;text-align:left;">${escapeHTML(t.targetSimQtyLabel || "Copias que te faltan:")}</label>
           <div style="text-align:left;margin-bottom:6px;">
-            <span id="target-qty-badge" style="color:#7ecbff;font-weight:bold;font-size:0.9rem;">${targetCopies} ${escapeHTML(copyUnit)} ${escapeHTML(rankLabel)}</span>
+            <span id="target-qty-badge" style="color:var(--vosfor-accent-text);font-weight:bold;font-size:0.9rem;">${targetCopies} ${escapeHTML(copyUnit)} ${escapeHTML(rankLabel)}</span>
           </div>
           <input id="target-copies-slider" type="range" class="vosfor-slider" min="1" max="${Math.max(copiesMax * 2, targetCopies * 2, 42)}" step="1" value="${targetCopies}" oninput="onTargetCopiesChange(this.value)">
           <div class="vosfor-preset-group" style="margin-top:4px;justify-content:space-between;">
@@ -1147,10 +1147,10 @@ function targetArcaneSimulatorCard() {
         <div class="vosfor-stat-card">
           <div class="vosfor-stat-card-label" style="display:flex;justify-content:space-between;align-items:center;">
             <span>${escapeHTML(t.targetSimPullsNeed || "Tiradas (Packs Loid)")}</span>
-            <span style="font-size:0.65rem;color:#7ecbff;">${state.currentLang === "es" ? "Modificable" : "Editable"}</span>
+            <span style="font-size:0.65rem;color:var(--vosfor-accent-text);">${state.currentLang === "es" ? "Modificable" : "Editable"}</span>
           </div>
           <div style="display:flex;align-items:center;justify-content:center;gap:6px;margin-top:2px;">
-            <input id="target-pulls-input" type="number" class="vosfor-calc-input" style="width:75px;font-size:1.05rem;padding:2px 4px;text-align:center;color:#ffffff;border-color:rgba(126,203,255,0.4);" min="1" max="999999" value="${packsNeeded}" oninput="onTargetPacksChange(this.value)" title="${state.currentLang === "es" ? "Modifica el número de tiradas/packs de Loid (200 Vosfor = 3 arcanos)" : "Modify Loid packs/pulls (200 Vosfor = 3 arcanes)"}">
+            <input id="target-pulls-input" type="number" class="vosfor-calc-input" style="width:75px;font-size:1.05rem;padding:2px 4px;text-align:center;color:#ffffff;border-color:color-mix(in srgb, var(--active-theme-color) 40%, transparent);" min="1" max="999999" value="${packsNeeded}" oninput="onTargetPacksChange(this.value)" title="${state.currentLang === "es" ? "Modifica el número de tiradas/packs de Loid (200 Vosfor = 3 arcanos)" : "Modify Loid packs/pulls (200 Vosfor = 3 arcanes)"}">
             <span style="font-size:0.8rem;color:#aaa;">(<span id="target-val-pulls">${pullsNeeded.toLocaleString()}</span> ${state.currentLang === "es" ? "arcanos" : "arcanes"})</span>
           </div>
         </div>
@@ -1287,7 +1287,7 @@ function updateSellSimDOM() {
             </div>
             <div class="vosfor-stat-card">
               <div class="vosfor-stat-card-label">${escapeHTML(t.sellSimVosforEquiv || "Disolver rinde (ajustado)")}</div>
-              <div class="vosfor-stat-card-val" style="color:#7ecbff;"><span data-f="equiv"></span>${m.sim.dissolveValue !== null ? PLAT : ""}</div>
+              <div class="vosfor-stat-card-val" style="color:var(--vosfor-accent-text);"><span data-f="equiv"></span>${m.sim.dissolveValue !== null ? PLAT : ""}</div>
             </div>
           </div>
           <div style="display:flex;align-items:center;gap:10px;margin-top:8px;flex-wrap:wrap;">
@@ -1538,9 +1538,9 @@ function searchResultsCard(spend) {
     const rows = matchingSlugs.map((slug) => arcaneRow(slug, spend)).join("");
 
     return `
-    <div class="vosfor-ranking-section" style="margin-top:10px;border-color:rgba(126,203,255,0.45);background:linear-gradient(135deg, rgba(20,30,50,0.9) 0%, rgba(12,18,30,0.95) 100%);">
+    <div class="vosfor-ranking-section" style="margin-top:10px;border-color:color-mix(in srgb, var(--active-theme-color) 45%, transparent);background:linear-gradient(135deg, rgba(20,20,28,0.9) 0%, rgba(12,12,18,0.95) 100%);">
       <div class="vosfor-ranking-header">
-        <div class="vosfor-ranking-title" style="color:#7ecbff;">
+        <div class="vosfor-ranking-title" style="color:var(--vosfor-accent-text);">
           ${escapeHTML(state.currentLang === "es" ? "Resultados de Búsqueda" : "Search Results")} (${matchingSlugs.length} ${matchingSlugs.length === 1 ? (t.targetSimCopy || "arcano") : (t.targetSimCopies || "arcanos")})
         </div>
       </div>
@@ -1710,13 +1710,13 @@ function packCard(pack, bestRate, bestBalancedRate) {
             ${bestLiquidTag}
           </div>
           <div class="vosfor-pack-sub" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-            <span style="color:#c59afc;font-weight:600;">${escapeHTML(synName)}</span>
+            <span style="color:var(--vosfor-accent-text);font-weight:600;">${escapeHTML(synName)}</span>
             <span>· ${pack.items.length} ${escapeHTML(t.arcanes || "arcanos")}</span>
             ${isOthers ? "" : `<span>· ${pack.cost.vosfor}${vosforIcon()} + ${(pack.cost.credits / 1000)}k${creditsIcon()}</span>`}
           </div>
         </div>
         <div class="vosfor-pack-ev">${evHtml}</div>
-        <span style="color:#c59afc;font-size:1rem;margin-left:6px;">${isOpen ? "▲" : "▼"}</span>
+        <span style="color:var(--vosfor-accent-text);font-size:1rem;margin-left:6px;">${isOpen ? "▲" : "▼"}</span>
       </div>
       ${body}
     </div>`;
@@ -1730,7 +1730,7 @@ function guideBoxCard() {
     <div class="vosfor-guide-box">
       <div class="vosfor-guide-title" onclick="toggleVosforGuide()" style="cursor:pointer;">
         <span>${escapeHTML(t.guideTitle || "Guía Rápida: ¿Cómo sacarle el máximo partido a tu Vosfor?")}</span>
-        <span style="margin-left:auto;font-size:0.85rem;color:#e0b0ff;font-weight:700;">${showGuide ? "▲" : "▼"} ${escapeHTML(toggleLabel)}</span>
+        <span style="margin-left:auto;font-size:0.85rem;color:var(--vosfor-accent-text);font-weight:700;">${showGuide ? "▲" : "▼"} ${escapeHTML(toggleLabel)}</span>
       </div>
       <div style="${bodyStyle}">
         <div class="vosfor-guide-grid">
@@ -1785,7 +1785,7 @@ function calculatorWidgetCard(data) {
             <button class="vosfor-preset-btn" onclick="addVosforPreset(200)">+200</button>
             <button class="vosfor-preset-btn" onclick="addVosforPreset(600)">+600</button>
             <button class="vosfor-preset-btn" onclick="addVosforPreset(2000)">+2000</button>
-            <button class="vosfor-preset-btn" style="background:rgba(255,100,100,0.15);color:#ff8888;" onclick="resetVosforInput()">Reset</button>
+            <button class="vosfor-preset-btn" style="background:rgba(255,100,100,0.15);color:#ff8888;border-color:rgba(255,100,100,0.3);" onclick="resetVosforInput()">Reset</button>
           </div>
         </div>
       </div>
