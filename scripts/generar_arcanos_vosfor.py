@@ -95,7 +95,7 @@ def main():
         })
 
     wfcd = fetch(WFCD_ARCANES)
-    tradable_names = {a["name"] for a in wfcd if a.get("tradable")}
+    tradable_names = {a["name"] for a in wfcd if a.get("tradable") and a.get("introduced")}
     others = []
     for key, a in arcanes_export.items():
         name_en = dict_en.get(a["name"], a["name"])
