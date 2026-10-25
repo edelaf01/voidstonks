@@ -35,10 +35,25 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Precios de arcanos desde las estadísticas de warframe.market
+      - name: Fecha de hoy
+        id: hoy
+        run: echo "dia=$(date -u +%F)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: relicsrun
+          key: relicsrun-${{ github.run_id }}
+          restore-keys: relicsrun-
+
+      - name: Histórico diario de relics.run
+        continue-on-error: true
+        timeout-minutes: 15
+        run: python scripts/wfm/relicsrun.py --carpeta relicsrun
+
+      - name: Precios de arcanos desde relics.run y las estadísticas de warframe.market
         id: arcanos
         if: github.event.schedule != '0 16 * * *'
-        run: python scripts/wfm/precios_arcanos.py --arcanos deploy/assets/json/arcanes_vosfor.json --salida precios_arcanos.json
+        run: python scripts/wfm/precios_arcanos.py --arcanos deploy/assets/json/arcanes_vosfor.json --salida precios_arcanos.json --catalogo catalogo_wfm.json --relicsrun relicsrun
 
       - name: Subir arcanos al worker
         if: ${{ !cancelled() && steps.arcanos.outcome == 'success' }}
@@ -76,3 +91,33 @@ jobs:
           curl -fsS -X POST "$API/?type=precios_subir&tipo=reliquias" \
             -H "X-Precios-Secret: $PRECIOS_SECRET" -H "Content-Type: application/json" \
             --data-binary @precios_reliquias.json
+
+      - name: Comparar /top con relics.run
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        run: |
+          python scripts/wfm/comparar_top.py --relicsrun relicsrun --catalogo catalogo_wfm.json --prime precios_prime.json --reliquias precios_reliquias.json --salida comparacion.json --resumen comparacion.md
+          cat comparacion.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Tendencias a 7 y 30 días
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        run: python scripts/wfm/tendencias.py --relicsrun relicsrun --catalogo catalogo_wfm.json --arcanos deploy/assets/json/arcanes_vosfor.json --salida tendencias.json
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        with:
+          name: relicsrun-${{ steps.hoy.outputs.dia }}-${{ github.run_attempt }}
+          path: |
+            comparacion.json
+            comparacion.md
+            tendencias.json
+          retention-days: 14
+          if-no-files-found: ignore
+
+      - uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        if: ${{ !cancelled() }}
+        with:
+          path: relicsrun
+          key: relicsrun-${{ github.run_id }}
