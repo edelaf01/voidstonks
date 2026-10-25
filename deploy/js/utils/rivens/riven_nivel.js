@@ -123,14 +123,18 @@ const NOMBRES_WFM = {
     "Damage to Grineer": "Damage Vs Grineer",
     "Damage to Corpus": "Damage Vs Corpus",
     "Damage to Infested": "Damage Vs Infested",
-    "Damage to Orokin": "Damage To Orokin"
+    "Damage to Orokin": "Damage To Orokin",
+    "Damage to Techrot": "Damage To Techrot",
+    "Damage to Scaldra": "Damage To Scaldra"
 };
 
 const MULTIPLICADORES = new Set([
     "Damage Vs Grineer",
     "Damage Vs Corpus",
     "Damage Vs Infested",
-    "Damage To Orokin"
+    "Damage To Orokin",
+    "Damage To Techrot",
+    "Damage To Scaldra"
 ]);
 
 export function atributosAWfm(atributos, tipoIdx) {
