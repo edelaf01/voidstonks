@@ -26,4 +26,5 @@ export const pistasDelLog = {
   cambioPantalla: () => 0,
   recompensasAbiertas: () => false,
   enMision: () => null,
+  logLeyendo: () => false,
 };

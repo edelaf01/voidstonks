@@ -1990,3 +1990,750 @@ test("processFrame con cabecera REWARD real y franja quieta sí aprende la firma
     });
   }
 });
+
+test("con el diálogo de venta encima, el HUD y el kiosko siguen con la última cabecera con contexto", async () => {
+  const { OCRRepository } = await import("../deploy/js/repositories/ocr.repository.js");
+  const { DucatKioskService } = await import("../deploy/js/services/scanner/ducat_kiosk.service.js");
+  const { SquadService } = await import("../deploy/js/services/scanner/squad.service.js");
+  const { ScannerHUD } = await import("../deploy/js/ui.components/ui_scanner_hud.js");
+  const { FakeCanvas } = await import("./_helpers/fake-canvas.mjs");
+
+  const W = 640, H = 360;
+  const video = { videoWidth: W, videoHeight: H, width: W, height: H, data: new Uint8ClampedArray(W * H * 4).fill(255) };
+  const lienzo = new FakeCanvas(16, 9);
+
+  let cabecera = "CB INVENTORY/DUCAT KIOSK";
+  const llamadasKiosko = [];
+  const contextos = [];
+
+  const origWorkers = OCRRepository.workers;
+  const origEnsureWorkers = OCRRepository.ensureWorkers;
+  const origKioskProcess = DucatKioskService.process;
+  const origSquadProbe = SquadService.probe;
+  const origUpdateContext = ScannerHUD.updateContext;
+  const origState = globalThis.state;
+
+  OCRRepository.workers = [{ recognize: async () => ({ data: { text: cabecera } }) }];
+  OCRRepository.ensureWorkers = async () => {};
+  DucatKioskService.process = async (_v, h, k) => { llamadasKiosko.push([h, k]); };
+  SquadService.probe = async () => false;
+  ScannerHUD.updateContext = (c) => { contextos.push(c); };
+
+  globalThis.state = { ...globalThis.state, autoScanEnabled: false, scannerModsMode: false };
+
+  Object.assign(S, {
+    isScanning: true,
+    pausado: false,
+    detectionLocked: false,
+    latchedContext: "UNKNOWN",
+    ctxLatch: { latched: "UNKNOWN", unknownCount: 0, pending: null, pendingCount: 0 },
+    lastRivenContextTime: 0,
+    lastHeaderText: null,
+    lastHeaderOcrTime: 0,
+    _ultimoRescate: Date.now(),
+    _cabeceraConContexto: null,
+    autoScrollStableTimer: null,
+    _invQueue: { isFull: true, isBusy: false, size: 0, release() {}, clear() {} },
+  });
+
+  try {
+    await S.processFrame(video, lienzo);
+    assert.deepEqual(llamadasKiosko[0], ["CB INVENTORY/DUCAT KIOSK", true]);
+
+    cabecera = "";
+    S.lastHeaderOcrTime = 0;
+    FirmasTitulo._clave = null;
+    FirmasTitulo._catalogo = null;
+    await S.processFrame(video, lienzo);
+
+    assert.equal(S.lastHeaderText, "");
+    assert.equal(S.latchedContext, "INVENTORY");
+    assert.equal(contextos.at(-1), "DUCAT_KIOSK");
+    assert.deepEqual(llamadasKiosko.at(-1), ["", true]);
+
+    cabecera = "CB INVENTORY/SELL";
+    S.lastHeaderOcrTime = 0;
+    FirmasTitulo._clave = null;
+    FirmasTitulo._catalogo = null;
+    await S.processFrame(video, lienzo);
+
+    assert.equal(contextos.at(-1), "INVENTORY");
+    assert.deepEqual(llamadasKiosko.at(-1), ["CB INVENTORY/SELL", false]);
+    assert.equal(DucatKioskService.enKiosco, true);
+
+    S.lastHeaderOcrTime = 0;
+    FirmasTitulo._clave = null;
+    FirmasTitulo._catalogo = null;
+    await S.processFrame(video, lienzo);
+
+    assert.equal(contextos.at(-1), "INVENTORY");
+    assert.deepEqual(llamadasKiosko.at(-1), ["CB INVENTORY/SELL", false]);
+    assert.equal(DucatKioskService.enKiosco, false);
+  } finally {
+    OCRRepository.workers = origWorkers;
+    OCRRepository.ensureWorkers = origEnsureWorkers;
+    DucatKioskService.process = origKioskProcess;
+    SquadService.probe = origSquadProbe;
+    ScannerHUD.updateContext = origUpdateContext;
+    globalThis.state = origState;
+    if (S.autoScrollStableTimer) clearTimeout(S.autoScrollStableTimer);
+    DucatKioskService.reset();
+    Object.assign(S, {
+      isScanning: false,
+      detectionLocked: false,
+      latchedContext: "UNKNOWN",
+      ctxLatch: { latched: "UNKNOWN", unknownCount: 0, pending: null, pendingCount: 0 },
+      autoScrollStableTimer: null,
+      _invQueue: null,
+      _frameZoneCache: null,
+      lastHeaderText: null,
+      lastHeaderOcrTime: 0,
+      _cabeceraConContexto: null,
+    });
+  }
+});
+
+test("salir del kiosko por cabeceras vacias suelta a la tercera y olvida la lista", async () => {
+  const { OCRRepository } = await import("../deploy/js/repositories/ocr.repository.js");
+  const { DucatKioskService } = await import("../deploy/js/services/scanner/ducat_kiosk.service.js");
+  const { SquadService } = await import("../deploy/js/services/scanner/squad.service.js");
+  const { ScannerHUD } = await import("../deploy/js/ui.components/ui_scanner_hud.js");
+  const { FakeCanvas } = await import("./_helpers/fake-canvas.mjs");
+
+  const W = 640, H = 360;
+  const video = { videoWidth: W, videoHeight: H, width: W, height: H, data: new Uint8ClampedArray(W * H * 4).fill(255) };
+  const lienzo = new FakeCanvas(16, 9);
+
+  let cabecera = "CB INVENTORY/DUCAT KIOSK";
+  const llamadasKiosko = [];
+
+  const origWorkers = OCRRepository.workers;
+  const origEnsureWorkers = OCRRepository.ensureWorkers;
+  const origKioskProcess = DucatKioskService.process;
+  const origSquadProbe = SquadService.probe;
+  const origUpdateContext = ScannerHUD.updateContext;
+  const origState = globalThis.state;
+
+  OCRRepository.workers = [{ recognize: async () => ({ data: { text: cabecera } }) }];
+  OCRRepository.ensureWorkers = async () => {};
+  DucatKioskService.process = async (_v, h, k) => { llamadasKiosko.push([h, k]); };
+  SquadService.probe = async () => false;
+  ScannerHUD.updateContext = () => {};
+
+  globalThis.state = { ...globalThis.state, autoScanEnabled: false, scannerModsMode: false };
+
+  Object.assign(S, {
+    isScanning: true,
+    pausado: false,
+    detectionLocked: false,
+    latchedContext: "UNKNOWN",
+    ctxLatch: { latched: "UNKNOWN", unknownCount: 0, pending: null, pendingCount: 0 },
+    lastRivenContextTime: 0,
+    lastHeaderText: null,
+    lastHeaderOcrTime: 0,
+    _ultimoRescate: Date.now(),
+    _cabeceraConContexto: null,
+    autoScrollStableTimer: null,
+    _invQueue: { isFull: true, isBusy: false, size: 0, release() {}, clear() {} },
+  });
+
+  const origOnSale = DucatKioskService.onSale;
+  let ventas = 0;
+  DucatKioskService.onSale = () => { ventas++; };
+
+  try {
+    await S.processFrame(video, lienzo);
+
+    DucatKioskService.estado = { ...DucatKioskService.estado, lista: [{ name: "Vadarya Prime Receiver", qty: 2, ducats: 90 }] };
+    cabecera = "";
+
+    S.lastHeaderOcrTime = 0;
+    FirmasTitulo._clave = null;
+    FirmasTitulo._catalogo = null;
+    await S.processFrame(video, lienzo);
+    assert.deepEqual(llamadasKiosko.at(-1), ["", true]);
+    assert.equal(S.latchedContext, "INVENTORY");
+    assert.equal(DucatKioskService.estado.lista.length, 1);
+
+    S.lastHeaderOcrTime = 0;
+    FirmasTitulo._clave = null;
+    FirmasTitulo._catalogo = null;
+    await S.processFrame(video, lienzo);
+    assert.deepEqual(llamadasKiosko.at(-1), ["", true]);
+    assert.equal(S.latchedContext, "INVENTORY");
+    assert.equal(DucatKioskService.estado.lista.length, 1);
+
+    const lenAntes = llamadasKiosko.length;
+    S.lastHeaderOcrTime = 0;
+    FirmasTitulo._clave = null;
+    FirmasTitulo._catalogo = null;
+    await S.processFrame(video, lienzo);
+    assert.equal(S.latchedContext, "UNKNOWN");
+    assert.equal(llamadasKiosko.length, lenAntes);
+    assert.equal(DucatKioskService.enKiosco, false);
+    assert.equal(DucatKioskService.estado.lista.length, 0);
+
+    DucatKioskService.confirmaPorLog({ piezas: 2, ducados: 90 });
+    assert.equal(ventas, 0);
+  } finally {
+    OCRRepository.workers = origWorkers;
+    OCRRepository.ensureWorkers = origEnsureWorkers;
+    DucatKioskService.process = origKioskProcess;
+    SquadService.probe = origSquadProbe;
+    ScannerHUD.updateContext = origUpdateContext;
+    globalThis.state = origState;
+    DucatKioskService.onSale = origOnSale;
+    DucatKioskService.reset();
+    if (S.autoScrollStableTimer) clearTimeout(S.autoScrollStableTimer);
+    Object.assign(S, {
+      isScanning: false,
+      detectionLocked: false,
+      latchedContext: "UNKNOWN",
+      ctxLatch: { latched: "UNKNOWN", unknownCount: 0, pending: null, pendingCount: 0 },
+      autoScrollStableTimer: null,
+      _invQueue: null,
+      _frameZoneCache: null,
+      lastHeaderText: null,
+      lastHeaderOcrTime: 0,
+      _cabeceraConContexto: null,
+    });
+  }
+});
+
+test("mientras se ve el dialogo de venta una cabecera vacia no suelta el inventario", async () => {
+  const { OCRRepository } = await import("../deploy/js/repositories/ocr.repository.js");
+  const { DucatKioskService } = await import("../deploy/js/services/scanner/ducat_kiosk.service.js");
+  const { SquadService } = await import("../deploy/js/services/scanner/squad.service.js");
+  const { ScannerHUD } = await import("../deploy/js/ui.components/ui_scanner_hud.js");
+  const { FakeCanvas } = await import("./_helpers/fake-canvas.mjs");
+
+  const W = 640, H = 360;
+  const video = { videoWidth: W, videoHeight: H, width: W, height: H, data: new Uint8ClampedArray(W * H * 4).fill(255) };
+  const lienzo = new FakeCanvas(16, 9);
+
+  let cabecera = "CB INVENTORY/DUCAT KIOSK";
+  let dialogo = false;
+  const llamadasKiosko = [];
+  const contextos = [];
+
+  const origWorkers = OCRRepository.workers;
+  const origEnsureWorkers = OCRRepository.ensureWorkers;
+  const origKioskProcess = DucatKioskService.process;
+  const origSquadProbe = SquadService.probe;
+  const origUpdateContext = ScannerHUD.updateContext;
+  const origState = globalThis.state;
+
+  OCRRepository.workers = [{ recognize: async () => ({ data: { text: cabecera } }) }];
+  OCRRepository.ensureWorkers = async () => {};
+  DucatKioskService.process = async (_v, h, k) => {
+    llamadasKiosko.push([h, k]);
+    DucatKioskService.conDialogo = dialogo;
+  };
+  SquadService.probe = async () => false;
+  ScannerHUD.updateContext = (c) => { contextos.push(c); };
+
+  globalThis.state = { ...globalThis.state, autoScanEnabled: false, scannerModsMode: false };
+
+  Object.assign(S, {
+    isScanning: true,
+    pausado: false,
+    detectionLocked: false,
+    latchedContext: "UNKNOWN",
+    ctxLatch: { latched: "UNKNOWN", unknownCount: 0, pending: null, pendingCount: 0 },
+    lastRivenContextTime: 0,
+    lastHeaderText: null,
+    lastHeaderOcrTime: 0,
+    _ultimoRescate: Date.now(),
+    _cabeceraConContexto: null,
+    autoScrollStableTimer: null,
+    _invQueue: { isFull: true, isBusy: false, size: 0, release() {}, clear() {} },
+  });
+
+  try {
+    await S.processFrame(video, lienzo);
+
+    dialogo = true;
+    cabecera = "";
+    for (let i = 0; i < 5; i++) {
+      S.lastHeaderOcrTime = 0;
+      FirmasTitulo._clave = null;
+      FirmasTitulo._catalogo = null;
+      await S.processFrame(video, lienzo);
+      assert.equal(S.latchedContext, "INVENTORY");
+      assert.equal(contextos.at(-1), "DUCAT_KIOSK");
+      assert.deepEqual(llamadasKiosko.at(-1), ["", true]);
+    }
+
+    dialogo = false;
+    const traza = [];
+    for (let i = 0; i < 4; i++) {
+      S.lastHeaderOcrTime = 0;
+      FirmasTitulo._clave = null;
+      FirmasTitulo._catalogo = null;
+      await S.processFrame(video, lienzo);
+      traza.push({ latched: S.latchedContext, unknownCount: S.ctxLatch.unknownCount });
+    }
+    assert.deepEqual(traza, [
+      { latched: "INVENTORY", unknownCount: 0 },
+      { latched: "INVENTORY", unknownCount: 1 },
+      { latched: "INVENTORY", unknownCount: 2 },
+      { latched: "UNKNOWN", unknownCount: 3 },
+    ]);
+  } finally {
+    OCRRepository.workers = origWorkers;
+    OCRRepository.ensureWorkers = origEnsureWorkers;
+    DucatKioskService.process = origKioskProcess;
+    SquadService.probe = origSquadProbe;
+    ScannerHUD.updateContext = origUpdateContext;
+    globalThis.state = origState;
+    DucatKioskService.reset();
+    if (S.autoScrollStableTimer) clearTimeout(S.autoScrollStableTimer);
+    Object.assign(S, {
+      isScanning: false,
+      detectionLocked: false,
+      latchedContext: "UNKNOWN",
+      ctxLatch: { latched: "UNKNOWN", unknownCount: 0, pending: null, pendingCount: 0 },
+      autoScrollStableTimer: null,
+      _invQueue: null,
+      _frameZoneCache: null,
+      lastHeaderText: null,
+      lastHeaderOcrTime: 0,
+      _cabeceraConContexto: null,
+    });
+  }
+});
+
+test("releaseFrames olvida el estado del kiosko", async () => {
+  const { DucatKioskService } = await import("../deploy/js/services/scanner/ducat_kiosk.service.js");
+  try {
+    DucatKioskService.enKiosco = true;
+    DucatKioskService.conDialogo = true;
+    DucatKioskService.lastHash = new Uint8Array([1, 2, 3]);
+    DucatKioskService.estado = { ...DucatKioskService.estado, lista: [{ name: "Vadarya Prime Receiver", qty: 2, ducats: 90 }] };
+    S.releaseFrames();
+    assert.equal(DucatKioskService.enKiosco, false);
+    assert.equal(DucatKioskService.conDialogo, false);
+    assert.equal(DucatKioskService.lastHash, null);
+    assert.equal(DucatKioskService.estado.lista.length, 0);
+  } finally {
+    DucatKioskService.reset();
+  }
+});
+
+test("con el escáner parado un frame en vuelo no activa el kiosko", async () => {
+  const { DucatKioskService } = await import("../deploy/js/services/scanner/ducat_kiosk.service.js");
+  const { SquadService } = await import("../deploy/js/services/scanner/squad.service.js");
+  const { ScannerHUD } = await import("../deploy/js/ui.components/ui_scanner_hud.js");
+
+  const W = 640, H = 360;
+  const video = { videoWidth: W, videoHeight: H, width: W, height: H, data: new Uint8ClampedArray(W * H * 4).fill(40) };
+  const dims = { width: W, height: H, scale: 1 };
+  const origKioskProcess = DucatKioskService.process;
+  const origSquadProbe = SquadService.probe;
+  const origUpdateContext = ScannerHUD.updateContext;
+  const origIsScanning = S.isScanning;
+  const origCabecera = S._cabeceraConContexto;
+  const origState = globalThis.state;
+  const contextos = [];
+  let kRecibido = null;
+
+  globalThis.state = { ...globalThis.state, autoScanEnabled: false, scannerModsMode: false };
+  DucatKioskService.process = async (_v, _h, k) => { kRecibido = k; };
+  SquadService.probe = async () => false;
+  ScannerHUD.updateContext = (c) => { contextos.push(c); };
+
+  try {
+    S.isScanning = false;
+    S._cabeceraConContexto = "CB INVENTORY/DUCAT KIOSK";
+    DucatKioskService.reset();
+    await S.routeFrameAction("INVENTORY", video, dims);
+    assert.equal(kRecibido, false);
+    assert.equal(DucatKioskService.enKiosco, false);
+    assert.equal(contextos.at(-1), "INVENTORY");
+  } finally {
+    DucatKioskService.process = origKioskProcess;
+    SquadService.probe = origSquadProbe;
+    ScannerHUD.updateContext = origUpdateContext;
+    S.isScanning = origIsScanning;
+    S._cabeceraConContexto = origCabecera;
+    globalThis.state = origState;
+    DucatKioskService.reset();
+  }
+});
+
+test("con el diálogo abierto y la página en OCR, los frames sin cabecera no sueltan el kiosko ni la lista", async () => {
+  const { OCRRepository } = await import("../deploy/js/repositories/ocr.repository.js");
+  const { DucatKioskService } = await import("../deploy/js/services/scanner/ducat_kiosk.service.js");
+  const { SquadService } = await import("../deploy/js/services/scanner/squad.service.js");
+  const { ScannerHUD } = await import("../deploy/js/ui.components/ui_scanner_hud.js");
+  const { FakeCanvas } = await import("./_helpers/fake-canvas.mjs");
+
+  const W = 640, H = 360;
+  const video = { videoWidth: W, videoHeight: H, width: W, height: H, data: new Uint8ClampedArray(W * H * 4).fill(255) };
+  const lienzo = new FakeCanvas(16, 9);
+
+  let cabecera = "CB INVENTORY/DUCAT KIOSK";
+  const llamadasKiosko = [];
+
+  const origWorkers = OCRRepository.workers;
+  const origEnsureWorkers = OCRRepository.ensureWorkers;
+  const origKioskProcess = DucatKioskService.process;
+  const origSquadProbe = SquadService.probe;
+  const origUpdateContext = ScannerHUD.updateContext;
+  const origState = globalThis.state;
+
+  OCRRepository.workers = [{ recognize: async () => ({ data: { text: cabecera } }) }];
+  OCRRepository.ensureWorkers = async () => {};
+  DucatKioskService.process = async (_v, h, k) => {
+    llamadasKiosko.push([h, k]);
+    DucatKioskService.conDialogo = true;
+  };
+  SquadService.probe = async () => false;
+  ScannerHUD.updateContext = () => {};
+
+  globalThis.state = { ...globalThis.state, autoScanEnabled: false, scannerModsMode: false };
+
+  Object.assign(S, {
+    isScanning: true,
+    pausado: false,
+    detectionLocked: false,
+    latchedContext: "UNKNOWN",
+    ctxLatch: { latched: "UNKNOWN", unknownCount: 0, pending: null, pendingCount: 0 },
+    lastRivenContextTime: 0,
+    lastHeaderText: null,
+    lastHeaderOcrTime: 0,
+    _ultimoRescate: Date.now(),
+    _cabeceraConContexto: null,
+    autoScrollStableTimer: null,
+    _invQueue: { isFull: true, isBusy: false, size: 0, release() {}, clear() {} },
+  });
+
+  try {
+    await S.processFrame(video, lienzo);
+
+    DucatKioskService.estado = { ...DucatKioskService.estado, lista: [{ name: "Vadarya Prime Receiver", qty: 2, ducats: 90 }], enDialogo: true };
+    S.detectionLocked = true;
+    S._invQueue = { isFull: true, isBusy: true, size: 1, release() {}, clear() {} };
+    cabecera = "";
+
+    for (let i = 0; i < 5; i++) {
+      S.lastHeaderOcrTime = 0;
+      FirmasTitulo._clave = null;
+      FirmasTitulo._catalogo = null;
+      await S.processFrame(video, lienzo);
+      assert.equal(S.latchedContext, "INVENTORY");
+    }
+
+    assert.equal(llamadasKiosko.length, 1);
+    assert.equal(DucatKioskService.conDialogo, true);
+    assert.equal(DucatKioskService.enKiosco, true);
+    assert.equal(DucatKioskService.estado.lista.length, 1);
+  } finally {
+    OCRRepository.workers = origWorkers;
+    OCRRepository.ensureWorkers = origEnsureWorkers;
+    DucatKioskService.process = origKioskProcess;
+    SquadService.probe = origSquadProbe;
+    ScannerHUD.updateContext = origUpdateContext;
+    globalThis.state = origState;
+    DucatKioskService.reset();
+    if (S.autoScrollStableTimer) clearTimeout(S.autoScrollStableTimer);
+    Object.assign(S, {
+      isScanning: false,
+      detectionLocked: false,
+      latchedContext: "UNKNOWN",
+      ctxLatch: { latched: "UNKNOWN", unknownCount: 0, pending: null, pendingCount: 0 },
+      autoScrollStableTimer: null,
+      _invQueue: null,
+      _frameZoneCache: null,
+      lastHeaderText: null,
+      lastHeaderOcrTime: 0,
+      _cabeceraConContexto: null,
+    });
+  }
+});
+
+test("con la cabecera ilegible y el kiosko decidido no se pone el ritmo de 3000 y la página se captura", async () => {
+  const { DucatKioskService } = await import("../deploy/js/services/scanner/ducat_kiosk.service.js");
+  const { SquadService } = await import("../deploy/js/services/scanner/squad.service.js");
+
+  const W = 640, H = 360;
+  const frame = (v) => {
+    const data = new Uint8ClampedArray(W * H * 4);
+    for (let i = 0; i < data.length; i += 4) { data[i] = data[i + 1] = data[i + 2] = (i / 4 / W | 0) % 29 * 8 + v; data[i + 3] = 255; }
+    return { videoWidth: W, videoHeight: H, width: W, height: H, data };
+  };
+  const video = frame(0);
+  globalThis.document._registrar("live-video", video);
+  const origState = globalThis.state;
+  globalThis.state = { ...globalThis.state, autoScanEnabled: false, scannerModsMode: false };
+  const origKioskProcess = DucatKioskService.process;
+  const origSquadProbe = SquadService.probe;
+  DucatKioskService.process = async () => {};
+  SquadService.probe = async () => false;
+
+  let capturas = 0;
+  S._invQueue = { isFull: false, enqueue: () => { capturas++; return true; } };
+  S._frameZoneCache = { key: `${W}x${H}`, zone: { x: 0, y: 0, w: W, h: H } };
+  S._sampleRect = null;
+  S.lastRowLums = null;
+  S.autoScrollMuestra = null;
+  S.sawScrollSinceScan = false;
+  S.autoScrollStableTimer = null;
+  S.detectionLocked = false;
+  S.isScanning = true;
+  S._cabeceraConContexto = "CB INVENTORY/DUCAT KIOSK";
+  S.lastHeaderText = "";
+
+  const dims = { width: W, height: H, scale: 1 };
+  try {
+    await S.routeFrameAction("INVENTORY", video, dims);
+    await S.routeFrameAction("INVENTORY", video, dims);
+    assert.equal(S.currentRate, 300);
+    assert.notEqual(S.autoScrollStableTimer, null);
+    await new Promise((r) => setTimeout(r, 900));
+    assert.equal(capturas, 1);
+  } finally {
+    if (S.autoScrollStableTimer) clearTimeout(S.autoScrollStableTimer);
+    S._invQueue = null;
+    S._frameZoneCache = null;
+    S._cabeceraConContexto = null;
+    S.lastHeaderText = null;
+    S.isScanning = false;
+    S.autoScrollStableTimer = null;
+    S.fotosSinScroll = 0;
+    DucatKioskService.process = origKioskProcess;
+    SquadService.probe = origSquadProbe;
+    DucatKioskService.reset();
+    globalThis.state = origState;
+  }
+});
+
+test("si la cabecera se vuelve ilegible antes de la foto del kiosko, la foto se hace igual", async () => {
+  const { DucatKioskService } = await import("../deploy/js/services/scanner/ducat_kiosk.service.js");
+  const { SquadService } = await import("../deploy/js/services/scanner/squad.service.js");
+
+  const W = 640, H = 360;
+  const frame = (v) => {
+    const data = new Uint8ClampedArray(W * H * 4);
+    for (let i = 0; i < data.length; i += 4) { data[i] = data[i + 1] = data[i + 2] = (i / 4 / W | 0) % 29 * 8 + v; data[i + 3] = 255; }
+    return { videoWidth: W, videoHeight: H, width: W, height: H, data };
+  };
+  const video = frame(0);
+  globalThis.document._registrar("live-video", video);
+  const origState = globalThis.state;
+  globalThis.state = { ...globalThis.state, autoScanEnabled: false, scannerModsMode: false };
+  const origKioskProcess = DucatKioskService.process;
+  const origSquadProbe = SquadService.probe;
+  DucatKioskService.process = async () => {};
+  SquadService.probe = async () => false;
+
+  let capturas = 0;
+  S._invQueue = { isFull: false, enqueue: () => { capturas++; return true; } };
+  S._frameZoneCache = { key: `${W}x${H}`, zone: { x: 0, y: 0, w: W, h: H } };
+  S._sampleRect = null;
+  S.lastRowLums = null;
+  S.autoScrollMuestra = null;
+  S.sawScrollSinceScan = false;
+  S.autoScrollStableTimer = null;
+  S.detectionLocked = false;
+  S.isScanning = true;
+  S._cabeceraConContexto = "CB INVENTORY/DUCAT KIOSK";
+  S.lastHeaderText = "CB INVENTORY/DUCAT KIOSK";
+
+  const dims = { width: W, height: H, scale: 1 };
+  try {
+    await S.routeFrameAction("INVENTORY", video, dims);
+    await S.routeFrameAction("INVENTORY", video, dims);
+    assert.notEqual(S.autoScrollStableTimer, null);
+    S.lastHeaderText = "";
+    await new Promise((r) => setTimeout(r, 900));
+    assert.equal(capturas, 1);
+  } finally {
+    if (S.autoScrollStableTimer) clearTimeout(S.autoScrollStableTimer);
+    S._invQueue = null;
+    S._frameZoneCache = null;
+    S._cabeceraConContexto = null;
+    S.lastHeaderText = null;
+    S.isScanning = false;
+    S.autoScrollStableTimer = null;
+    S.fotosSinScroll = 0;
+    DucatKioskService.process = origKioskProcess;
+    SquadService.probe = origSquadProbe;
+    DucatKioskService.reset();
+    globalThis.state = origState;
+  }
+});
+
+test("con el escáner parado, una cabecera de kiosko no evita el ritmo de 3000", async () => {
+  const { DucatKioskService } = await import("../deploy/js/services/scanner/ducat_kiosk.service.js");
+  const { SquadService } = await import("../deploy/js/services/scanner/squad.service.js");
+
+  const W = 640, H = 360;
+  const frame = (v) => {
+    const data = new Uint8ClampedArray(W * H * 4);
+    for (let i = 0; i < data.length; i += 4) { data[i] = data[i + 1] = data[i + 2] = (i / 4 / W | 0) % 29 * 8 + v; data[i + 3] = 255; }
+    return { videoWidth: W, videoHeight: H, width: W, height: H, data };
+  };
+  const video = frame(0);
+  globalThis.document._registrar("live-video", video);
+  const origState = globalThis.state;
+  globalThis.state = { ...globalThis.state, autoScanEnabled: false, scannerModsMode: false };
+  const origKioskProcess = DucatKioskService.process;
+  const origSquadProbe = SquadService.probe;
+  DucatKioskService.process = async () => {};
+  SquadService.probe = async () => false;
+
+  let capturas = 0;
+  S._invQueue = { isFull: false, enqueue: () => { capturas++; return true; } };
+  S._frameZoneCache = { key: `${W}x${H}`, zone: { x: 0, y: 0, w: W, h: H } };
+  S._sampleRect = null;
+  S.lastRowLums = null;
+  S.autoScrollMuestra = null;
+  S.sawScrollSinceScan = false;
+  S.autoScrollStableTimer = null;
+  S.detectionLocked = false;
+  S.isScanning = false;
+  S._cabeceraConContexto = "CB INVENTORY/DUCAT KIOSK";
+  S.lastHeaderText = "CB INVENTORY/DUCAT KIOSK";
+
+  const dims = { width: W, height: H, scale: 1 };
+  try {
+    await S.routeFrameAction("INVENTORY", video, dims);
+    await S.routeFrameAction("INVENTORY", video, dims);
+    assert.equal(S.currentRate, 3000);
+    assert.equal(S.autoScrollStableTimer, null);
+    await new Promise((r) => setTimeout(r, 900));
+    assert.equal(capturas, 0);
+  } finally {
+    if (S.autoScrollStableTimer) clearTimeout(S.autoScrollStableTimer);
+    S._invQueue = null;
+    S._frameZoneCache = null;
+    S._cabeceraConContexto = null;
+    S.lastHeaderText = null;
+    S.isScanning = false;
+    S.autoScrollStableTimer = null;
+    S.fotosSinScroll = 0;
+    DucatKioskService.process = origKioskProcess;
+    SquadService.probe = origSquadProbe;
+    DucatKioskService.reset();
+    globalThis.state = origState;
+  }
+});
+
+async function paginaDelKiosko(lote, qty) {
+  const M = await import("../deploy/js/services/scanner/ocr_engine.service.js");
+  const { OCRService: Ocr } = await import("../deploy/js/services/scanner/ocr.service.js?v=264");
+  const { OCRService: OcrBadge } = await import("../deploy/js/services/scanner/ocr.service.js");
+  const { VisionService } = await import("../deploy/js/services/scanner/vision.service.js");
+  const origRelicMatch = Ocr.getRelicMatch;
+  const origItemMatch = Ocr.getValidItemMatch;
+  const origExtractCellQuantity = OcrBadge.extractCellQuantity;
+  const origExtractBadgeByColor = VisionService.extractBadgeByColor;
+  const origExtractBadgeBright = VisionService.extractBadgeBright;
+  Ocr.getRelicMatch = () => null;
+  Ocr.getValidItemMatch = (ws) => {
+    const t = ws.join(" ");
+    return t.includes("VADARYA") ? { originalName: "Vadarya Prime Receiver" } : t.includes("NIKANA") ? { originalName: "Nikana Prime Blade" } : null;
+  };
+  OcrBadge.extractCellQuantity = async () => ({ qty, raw: String(qty) });
+  VisionService.extractBadgeByColor = () => null;
+  VisionService.extractBadgeBright = () => null;
+  try {
+    return await escaneaPagina({ motor: M.MOTOR_PRECISO, lote, cols: Object.keys(lote).length });
+  } finally {
+    Ocr.getRelicMatch = origRelicMatch;
+    Ocr.getValidItemMatch = origItemMatch;
+    OcrBadge.extractCellQuantity = origExtractCellQuantity;
+    VisionService.extractBadgeByColor = origExtractBadgeByColor;
+    VisionService.extractBadgeBright = origExtractBadgeBright;
+  }
+}
+
+async function enElKiosko(fn) {
+  const { DucatKioskService: K } = await import("../deploy/js/services/scanner/ducat_kiosk.service.js");
+  const { state } = await import("../deploy/js/state.js");
+  await import("../deploy/js/scanner/live_scanner.js");
+  const origPrimeInventory = state.primeInventory;
+  const origSessionInventory = S.sessionInventory;
+  const origQtyVotes = S.qtyVotes;
+  S.sessionInventory = new Map();
+  S.qtyVotes = new Map();
+  K.reset();
+  K.enMesa.clear();
+  K.enContexto(true);
+  try {
+    await fn({ K, state });
+  } finally {
+    state.primeInventory = origPrimeInventory;
+    S.sessionInventory = origSessionInventory;
+    S.qtyVotes = origQtyVotes;
+    K.enMesa.clear();
+    K.reset();
+  }
+}
+
+test("en el kiosko, una página que lee la pieza de la mesa ya bajada no toca el inventario y la venta del log la deja en 3, no en 1", async () => {
+  await enElKiosko(async ({ K, state }) => {
+    state.primeInventory = { "Vadarya Prime Receiver": 5 };
+    K.enMesa.add("Vadarya Prime Receiver");
+    const r = await paginaDelKiosko({ r0c0: ["VADARYA", "PRIME", "RECEIVER"] }, 3);
+    assert.ok(r.log.some((l) => l.startsWith("[r0c0]") && l.includes("BDG: 3")), "la celda se leyó con 3");
+    assert.equal(state.primeInventory["Vadarya Prime Receiver"], 5);
+    assert.ok(!S.sessionInventory.has("Vadarya Prime Receiver"));
+    assert.ok(!S.qtyVotes.has("Vadarya Prime Receiver"));
+    K.onSale([{ name: "Vadarya Prime Receiver", qty: 2, ducats: 90 }]);
+    assert.equal(state.primeInventory["Vadarya Prime Receiver"], 3);
+  });
+});
+
+test("una página vieja que se termina de leer tras la venta del log no deshace el descuento", async () => {
+  await enElKiosko(async ({ K, state }) => {
+    state.primeInventory = { "Vadarya Prime Receiver": 5 };
+    K.enMesa.add("Vadarya Prime Receiver");
+    K.onSale([{ name: "Vadarya Prime Receiver", qty: 2, ducats: 90 }]);
+    assert.equal(state.primeInventory["Vadarya Prime Receiver"], 3);
+    const r = await paginaDelKiosko({ r0c0: ["VADARYA", "PRIME", "RECEIVER"] }, 5);
+    assert.ok(r.log.some((l) => l.startsWith("[r0c0]") && l.includes("BDG: 5")));
+    assert.equal(state.primeInventory["Vadarya Prime Receiver"], 3);
+    assert.ok(!S.sessionInventory.has("Vadarya Prime Receiver"));
+  });
+});
+
+test("una pieza que no está en la mesa sigue votando y se escribe en el inventario", async () => {
+  await enElKiosko(async ({ K, state }) => {
+    state.primeInventory = { "Vadarya Prime Receiver": 5, "Nikana Prime Blade": 1 };
+    K.enMesa.add("Vadarya Prime Receiver");
+    await paginaDelKiosko({ r0c0: ["VADARYA", "PRIME", "RECEIVER"], r0c1: ["NIKANA", "PRIME", "BLADE"] }, 3);
+    assert.equal(S.sessionInventory.get("Nikana Prime Blade"), 3);
+    assert.equal(S.qtyVotes.get("Nikana Prime Blade").get(3), 1);
+    assert.equal(state.primeInventory["Nikana Prime Blade"], 3);
+    assert.equal(state.primeInventory["Vadarya Prime Receiver"], 5);
+    assert.ok(!S.sessionInventory.has("Vadarya Prime Receiver"));
+  });
+});
+
+test("en el kiosko, con la mesa vaciada y una venta vista pendiente del log, la página no vota la pieza y el log la deja en 3, no en 1", async () => {
+  await enElKiosko(async ({ K, state }) => {
+    const origItems = state.itemsDatabase;
+    const origDucats = state.ducatsDatabase;
+    state.itemsDatabase = {};
+    state.ducatsDatabase = {};
+    try {
+      state.primeInventory = { "Vadarya Prime Receiver": 5 };
+      assert.equal(K.enMesa.size, 0);
+      K.vendiendo = { lista: [{ name: "Vadarya Prime Receiver", qty: 2, ducats: 90 }], t: Date.now(), vista: true };
+      const r = await paginaDelKiosko({ r0c0: ["VADARYA", "PRIME", "RECEIVER"] }, 3);
+      assert.ok(r.log.some((l) => l.startsWith("[r0c0]") && l.includes("BDG: 3")));
+      assert.equal(state.primeInventory["Vadarya Prime Receiver"], 5);
+      assert.ok(!S.sessionInventory.has("Vadarya Prime Receiver"));
+      assert.ok(!S.qtyVotes.has("Vadarya Prime Receiver"));
+      K.confirmaPorLog({ piezas: 2, ducados: 90 });
+      assert.equal(state.primeInventory["Vadarya Prime Receiver"], 3);
+      assert.equal(K.vendiendo, null);
+    } finally {
+      state.itemsDatabase = origItems;
+      state.ducatsDatabase = origDucats;
+      K.vendiendo = null;
+    }
+  });
+});

@@ -98,6 +98,7 @@ export const ScannerService = {
         this.isScanning = true;
         this.latchedContext = "UNKNOWN";
         this.ctxLatch = INITIAL_LATCH;
+        this._cabeceraConContexto = null;
         this.detectionLocked = false;
         this._recompensaLeida = false;
         this._recompensasEnMision = false;
@@ -154,6 +155,7 @@ export const ScannerService = {
         this._mcGrid = null;
         this._recompensaParcial = null;
         TradeService.reset();
+        DucatKioskService.reset();
     },
 
     async loop() {
@@ -234,6 +236,7 @@ export const ScannerService = {
         reloj.fase("cabecera");
         let rawContext = VisionService.determineContext(headerText);
         if (rawContext === "INVENTORY" && /ARCAN/.test(await leeCategoriaInventario(this, video, worker1))) rawContext = "INVENTORY_ARCANES";
+        if (rawContext !== "UNKNOWN") this._cabeceraConContexto = headerText;
         this._headerEstable = rawContext === this._headerCtxPrevio ? (this._headerEstable || 0) + 1 : 0;
         this._headerCtxPrevio = rawContext;
         const now = Date.now();
@@ -252,7 +255,7 @@ export const ScannerService = {
             rawContext, gracia, this.lastRivenContextType);
         if (cancelar) this.lastRivenContextTime = 0;
 
-        this.ctxLatch = firma ? { ...INITIAL_LATCH, latched: routedContext } : nextLatchedContext(this.ctxLatch, routedContext);
+        this.ctxLatch = firma ? { ...INITIAL_LATCH, latched: routedContext } : nextLatchedContext(this.ctxLatch, routedContext === "UNKNOWN" && DucatKioskService.conDialogo ? "INVENTORY" : routedContext);
         if (this.ctxLatch.latched !== this.latchedContext) olvidaColorTexto();
         if (this.latchedContext === "MISSION_COMPLETE" && this.ctxLatch.latched !== "MISSION_COMPLETE") { this.mcLedger = INITIAL_LEDGER; this._mcCache.clear(); this._mcDormido = null; this._recompensasEnMision = false; }
         if (this.latchedContext === "REWARD" && this.ctxLatch.latched !== "REWARD") this.rescataRecompensaParcial();
@@ -342,10 +345,9 @@ export const ScannerService = {
     debugHistory: [],
 
     async routeFrameAction(rawContextType, video, dims) {
-        const contextType = (globalThis.state.scannerModsMode && rawContextType === "INVENTORY")
-            ? "INVENTORY_MODS"
-            : rawContextType;
-        ScannerHUD.updateContext(contextType === "INVENTORY" && DucatKioskService.esKiosco(this.lastHeaderText) ? "DUCAT_KIOSK" : contextType);
+        const contextType = globalThis.state.scannerModsMode && rawContextType === "INVENTORY" ? "INVENTORY_MODS" : rawContextType;
+        const kiosco = DucatKioskService.enContexto(this.isScanning && contextType === "INVENTORY" && DucatKioskService.esKiosco(this._cabeceraConContexto ?? this.lastHeaderText));
+        ScannerHUD.updateContext(kiosco ? "DUCAT_KIOSK" : contextType);
 
         if (pistasDelLog.enMision() !== false && await SquadService.probe(video, { aCiegas: contextType === "UNKNOWN" || contextType === "RELICS" })) {
             this.lastRivenContextTime = 0;
@@ -353,8 +355,8 @@ export const ScannerService = {
         }
 
         if (contextType === "INVENTORY" || esContextoArcanos(contextType)) {
-            if (!this.detectionLocked && contextType === "INVENTORY") await DucatKioskService.process(video, this.lastHeaderText);
-            if (!globalThis.state.autoScanEnabled && !esContextoArcanos(contextType) && !DucatKioskService.esKiosco(this.lastHeaderText)) {
+            if (!this.detectionLocked && contextType === "INVENTORY") await DucatKioskService.process(video, this.lastHeaderText, kiosco);
+            if (!globalThis.state.autoScanEnabled && !esContextoArcanos(contextType) && !kiosco) {
                 this.currentRate = 3000;
                 this.autoScrollMuestra = null;
                 this.sawScrollSinceScan = false; this.fotosSinScroll = 0;
@@ -442,7 +444,7 @@ export const ScannerService = {
 
                 this.autoScrollStableTimer = setTimeout(async () => {
                     this.sawScrollSinceScan = false;
-                    if ((!globalThis.state.autoScanEnabled && !esContextoArcanos(contextType) && !DucatKioskService.esKiosco(this.lastHeaderText)) || !this._canCapturePage) {
+                    if ((!globalThis.state.autoScanEnabled && !esContextoArcanos(contextType) && !DucatKioskService.enKiosco) || !this._canCapturePage) {
                         this.autoScrollStableTimer = null;
                         return;
                     }
@@ -1406,7 +1408,7 @@ export const ScannerService = {
                         }
                         scanStats.matched++;
                         this.lastRawOcrLog.push(pending.logStr);
-                        this.recordQtyVote(pending.bestItem.originalName, pending.qtyResult);
+                        if (!DucatKioskService.noVota(pending.bestItem.originalName)) this.recordQtyVote(pending.bestItem.originalName, pending.qtyResult);
                         drawResolvedCell({
                             cell: pending.cell, qtyResult: pending.qtyResult, text: pending.itemText,
                             accent: "#00ff78",
@@ -1417,9 +1419,7 @@ export const ScannerService = {
 
                     ScannerHUD.updateScrollStatus("done", this.sessionInventory.size + this.sessionRelics.size);
                     ScannerHUD.updateDetectedItems(this.sessionInventory, this.sessionRelics);
-                    if (DucatKioskService.esKiosco(this.lastHeaderText)) {
-                        this.onPaginaKiosco?.();
-                    }
+                    if (DucatKioskService.enKiosco) this.onPaginaKiosco?.();
                 }
                 const expected = autoGrid.rows * autoGrid.cols;
                 const fails = scanStats.unmatched + scanStats.none;
