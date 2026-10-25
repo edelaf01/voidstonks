@@ -224,6 +224,8 @@ export function stopLiveSession() {
     v.srcObject = null;
   }
   ScannerService.stop();
+  DucatKioskService.vendiendo = null;
+  DucatKioskService.enMesa.clear();
   const toggleBtn = document.getElementById("scanner-toggle");
   if (toggleBtn) {
     toggleBtn.classList.remove("active");
@@ -415,6 +417,13 @@ DucatKioskService.onSale = (venta) => {
   showToast((t.ducatSold || "Sold: {items}").replace("{items}", lista) + faltan, { duration: 8000 });
 };
 
+DucatKioskService.onSalida = (piezas) => {
+  for (const name of piezas) {
+    ScannerService.sessionInventory.delete(name);
+    ScannerService.qtyVotes.delete(name);
+  }
+};
+
 escucha("construido", (nombre) => {
   const piezas = piezasDeConstruccion(nombre, state.setsDatabase, getRequiredCount);
   if (!piezas || !piezas.length) return;
@@ -432,6 +441,7 @@ escucha("construido", (nombre) => {
   const faltan = ausentes.length ? (t.ducatSoldMissing || "").replace("{missing}", ausentes.join(", ")) : "";
   showToast((t.foundryBuilt || "Foundry: used {items}").replace("{items}", lista) + faltan, { duration: 8000 });
 });
+escucha("vendido", (venta) => DucatKioskService.confirmaPorLog(venta));
 
 function trackRelic(relicName) {
   const input = document.getElementById("relicInput");

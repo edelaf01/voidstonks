@@ -27,6 +27,7 @@ export function conectaEscaner() {
     cambioPantalla: cambioPantallaPorLog,
     recompensasAbiertas: recompensasAbiertasPorLog,
     enMision: enMisionPorLog,
+    logLeyendo: () => EELogLive.estado === "leyendo",
   });
   escucha("contexto", (contexto) => {
     if (CONTEXTOS_RIVEN.has(contexto)) pantallaRiven = contexto;
@@ -67,6 +68,7 @@ export function conectaEscaner() {
 
   EELogLive.onReliquiaAbierta = (nombre) => avisa("reliquia-abierta", nombre);
   EELogLive.onConstruido = (nombre) => avisa("construido", nombre);
+  EELogLive.onVendido = (venta) => avisa("vendido", venta);
   EELogLive.escuchar((live) => {
     if (live.estado === "leyendo") avisa("eligiendo-reliquia", { ahora: !!live.juego.eligiendoReliquia, mision: live.juego.mision });
   });
