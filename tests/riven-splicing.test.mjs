@@ -7,6 +7,7 @@ const { state } = await import("../deploy/js/state.js");
 const { RivenOCRService } = await import("../deploy/js/services/rivens/riven_ocr.service.js");
 const { getRivenStatRange } = await import("../deploy/js/utils/rivens/riven_logic.js");
 const { canBeNegative, RIVEN_SPLICED_BASE_STATS, RIVEN_STATS } = await import("../deploy/js/config.js");
+const { posiblesFusiones, tipoDeArma } = await import("../deploy/js/utils/rivens/riven_cycling.js");
 
 state.allRivenNames = ["Braton", "Skana", "Hek"];
 state.weaponMap = {
@@ -111,4 +112,17 @@ test("los 18 stats fusionados tienen valor base", () => {
   for (const s of spliced) {
     assert.ok(RIVEN_SPLICED_BASE_STATS[s.name_en] !== undefined);
   }
+});
+
+test("una melee con Combo Duration, Heat, Critical Chance y Status Chance negativo queda a un stat de los combinados de melee", () => {
+  const stats = [
+    { name: "Combo Duration", value: 8.7, isPositive: true },
+    { name: "Heat", value: 99.9, isPositive: true },
+    { name: "Crit Chance", value: 197.7, isPositive: true },
+    { name: "Status Chance", value: 73.8, isPositive: false },
+  ];
+  const aUnStat = posiblesFusiones(stats, tipoDeArma("Melee")).filter((x) => x.faltan.length === 1).map((x) => x.receta.resultado);
+  assert.deepEqual(aUnStat, ["Gas", "Radiation", "Blast", "Status Damage", "Heavy Attack Wind Up Speed"]);
+  assert.ok(!aUnStat.includes("Weak Point Critical Chance"));
+  assert.ok(!aUnStat.includes("Slam Attack Damage"));
 });

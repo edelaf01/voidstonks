@@ -1,14 +1,17 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
 
 globalThis.localStorage = { getItem: () => null, setItem() {}, removeItem() {} };
 
 let ARMAS = [];
 let META = {};
+let WFCD = {};
 globalThis.fetch = async (url) => {
   const u = String(url);
   if (u.includes("cleaned_weapons")) return { ok: true, json: async () => ARMAS };
   if (u.includes("metastats")) return { ok: true, json: async () => META };
+  if (u.includes("warframe-items")) return { ok: true, json: async () => WFCD[u.match(/json\/([^/]+)\.json$/)[1]] || [] };
   return { ok: false, status: 404, json: async () => ({}) };
 };
 
@@ -16,6 +19,12 @@ const { state } = await import("../deploy/js/state.js");
 const { fetchRivenWeapons } = await import("../deploy/js/services/rivens/rivens.service.js");
 
 const arma = (name, type = "Rifle", omegaAttenuation = 1.0) => ({ name, type, omegaAttenuation });
+
+const CATALOGO = JSON.parse(fs.readFileSync(new URL("../deploy/assets/json/cleaned_weapons.json", import.meta.url), "utf8"));
+const delCatalogo = (n) => {
+  const w = CATALOGO.find((x) => x.name === n);
+  return { name: w.name, type: w.type, category: w.category, omegaAttenuation: w.omegaAttenuation };
+};
 
 async function construir(armas, meta = {}) {
   ARMAS = armas;
@@ -131,4 +140,37 @@ test("una disposición ausente no deja el arma sin valor", async () => {
   const m = await construir([{ name: "SinDispo", type: "Rifle" }], { SoloMeta: {} });
   assert.equal(m.SinDispo.d, 1);
   assert.equal(m.SoloMeta.d, 1);
+});
+
+test("las melee del catálogo tipadas como Rifle entran como melee", async () => {
+  const m = await construir([delCatalogo("Prova"), delCatalogo("Venato"), { name: "MeleeInventada", type: "Rifle", category: "Melee", omegaAttenuation: 1.0 }, delCatalogo("Braton")]);
+  assert.equal(m.Prova.t, "Melee");
+  assert.equal(m.Venato.t, "Melee");
+  assert.equal(m.MeleeInventada.t, "Melee");
+  assert.equal(m.Braton.t, "Rifle");
+});
+
+test("ninguna arma de categoría Melee queda tipada como arma de fuego en el catálogo", () => {
+  const malas = CATALOGO.filter((w) => w.category === "Melee" && !["Melee", "Zaw Component"].includes(w.type)).map((w) => w.name);
+  assert.deepEqual(malas, []);
+});
+
+test("el panel de combate tipa como melee las melee que WFCD marca como Rifle", async () => {
+  WFCD = {
+    Melee: [
+      { name: "Prova", type: "Rifle", category: "Melee" },
+      { name: "Plague Kripath", type: "Zaw Component", category: "Melee" },
+    ],
+    Primary: [{ name: "Braton", type: "Rifle", category: "Primary" }],
+  };
+  state.combatStatsDB = null;
+  try {
+    await construir([arma("Braton")]);
+    for (let i = 0; i < 50 && !state.combatStatsDB?.Prova; i++) await new Promise((r) => setImmediate(r));
+    assert.equal(state.combatStatsDB.Prova.type, "Melee");
+    assert.equal(state.combatStatsDB["Plague Kripath"].type, "Zaw Component");
+    assert.equal(state.combatStatsDB.Braton.type, "Rifle");
+  } finally {
+    WFCD = {};
+  }
 });
