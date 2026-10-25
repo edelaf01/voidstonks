@@ -133,6 +133,14 @@ test("el adaptador pasa nombres y unidades de la app a WFM", () => {
   comp(r.positivos[0], ["Critical Chance On Slide Attack", 10]);
   r = N.atributosAWfm([{name:"Damage to Orokin",value:20,isPositive:true}], 0);
   comp(r.positivos[0], ["Damage To Orokin", 1.2]);
+  r = N.atributosAWfm([{name:"Damage to Techrot",value:30,isPositive:true}], 0);
+  comp(r.positivos[0], ["Damage To Techrot", 1.3]);
+  r = N.atributosAWfm([{name:"Damage to Scaldra",value:25,isPositive:true}], 3);
+  comp(r.positivos[0], ["Damage To Scaldra", 1.25]);
+  r = N.atributosAWfm([{name:"Critical Chance",value:100,isPositive:true},{name:"Damage to Techrot",value:-27,isPositive:false}], 0);
+  comp(r.negativo, ["Damage To Techrot", 0.73]);
+  r = N.atributosAWfm([{name:"Damage vs Scaldra",value:10,isPositive:true}], 0);
+  comp(r.positivos[0], ["Damage To Scaldra", 1.1]);
   r = N.atributosAWfm([{name:"Radiation",value:50,isPositive:true}], 0);
   comp(r.positivos[0], ["Radiation", 50]);
   r = N.atributosAWfm([{name:"Damage",value:-150,isPositive:true}], 0);
