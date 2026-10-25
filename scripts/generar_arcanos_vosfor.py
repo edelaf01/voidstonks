@@ -95,7 +95,8 @@ def main():
         })
 
     wfcd = fetch(WFCD_ARCANES)
-    tradable_names = {a["name"] for a in wfcd if a.get("tradable") and a.get("introduced")}
+    tradable_names = {a["name"] for a in wfcd if a.get("tradable")}
+    introduced_names = {a["name"] for a in wfcd if a.get("introduced")}
     others = []
     for key, a in arcanes_export.items():
         name_en = dict_en.get(a["name"], a["name"])
@@ -126,7 +127,7 @@ def main():
     others.sort()
 
     tradables = {slugify(dict_en.get(a["name"], a["name"])): [dict_en.get(a["name"], a["name"]), dict_es.get(a["name"], a["name"]), a.get("fusionLimit", 5)]
-                 for a in arcanes_export.values() if dict_en.get(a["name"], a["name"]) in tradable_names}
+                 for a in arcanes_export.values() if dict_en.get(a["name"], a["name"]) in tradable_names and (dict_en.get(a["name"], a["name"]) in introduced_names or a.get("distillPointValue", 0) > 0)}
     for m in MANUAL_EXTRAS:
         tradables.setdefault(m["slug"], [m["en"], m["es"], m["maxRank"]])
 
