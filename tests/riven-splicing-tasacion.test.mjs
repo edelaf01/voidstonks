@@ -175,3 +175,23 @@ test("un arma cuerpo a cuerpo sin tipo en el meta se tasa como cuerpo a cuerpo",
     state.weaponMap = antes.mapa;
   }
 });
+
+test("gradeRiven casa los nombres de la OCR con las claves de los pesos", async () => {
+  const antes = state.weaponMap;
+  try {
+    state.weaponMap = { Prova: { t: "Melee" } };
+    await loadRivenML();
+    const ocr = await gradeRiven("Prova", [{ name: "Heat", isPositive: true }, { name: "Crit Chance", isPositive: true }, { name: "Status Chance", isPositive: false }]);
+    const ml = await gradeRiven("Prova", [{ name: "Heat Damage", isPositive: true }, { name: "Critical Chance", isPositive: true }, { name: "Status Chance", isPositive: false }]);
+    assert.equal(ocr.stats[0].weight, ml.stats[0].weight);
+    assert.equal(ocr.stats[1].weight, ml.stats[1].weight);
+    assert.equal(ocr.score, ml.score);
+    assert.notEqual(ocr.stats[1].weight, 0.3);
+    const g1 = await gradeRiven("ArmaSinPesos", [{ name: "Crit Damage", isPositive: true }]);
+    const g2 = await gradeRiven("ArmaSinPesos", [{ name: "Critical Damage", isPositive: true }]);
+    assert.equal(g1.stats[0].weight, g2.stats[0].weight);
+    assert.notEqual(g1.stats[0].weight, 0.3);
+  } finally {
+    state.weaponMap = antes;
+  }
+});

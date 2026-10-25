@@ -1,7 +1,7 @@
 import { classifyWeaponMarket } from "./riven_logic.js";
 import { state } from "../../state.js";
 import { RIVEN_DISPOSITION } from "../../config.js";
-import { tipoDeArma, esFusionado, pesoFusionado } from "./riven_cycling.js";
+import { tipoDeArma, esFusionado, pesoFusionado, claveStat } from "./riven_cycling.js";
 import { cargarNivelTirada, cargarDe10, atributosAWfm, residuosTirada, precisionNivel, registroSinWfm, nombreArma, filaDe10, nivelSinWfm, poblacionTirada, percentilTirada, preciosDe10 } from "./riven_nivel.js";
 
 let _ml = null;
@@ -78,7 +78,8 @@ export async function gradeRiven(weaponName, stats) {
     const direct = (t) => {
       if (t[name] != null) return t[name];
       const nl = name.toLowerCase();
-      const k = Object.keys(t).find(x => x.toLowerCase() === nl);
+      const clave = claveStat(name, tipo);
+      const k = Object.keys(t).find(x => x.toLowerCase() === nl) ?? (clave && Object.keys(t).find(x => claveStat(x, tipo) === clave));
       return k ? t[k] : undefined;
     };
     const v = direct(table);
