@@ -90,6 +90,11 @@ export const RivenOCRService = {
         return inicio.length === 4 && formas.some((f) => f.startsWith(inicio)) ? nombreStat : null;
     },
 
+    _anclaSinPorcentaje(linea) {
+        const m = linea.match(/[+\-–—]\s*\d{1,3}(?:[.,]{1,2}\d{1,2})?(?![\d.,]|\s*%)\s*([a-zA-Z][a-zA-Z\s]*)/);
+        return !!m && !!this._statSinPorcentaje(m[1].trim());
+    },
+
     _matchStatAnchored(rawName) {
         let words = rawName.split(/\s+/).filter(Boolean);
         const splitIdx = words.findIndex(w => /^\d+$/.test(w));
@@ -303,7 +308,7 @@ export const RivenOCRService = {
             }
             const rollMatch = norm.match(ROLL_LINE);
             if (rollMatch) { rolls = parseInt(rollMatch[1]); continue; }
-            if (firstStatIdx === -1 && STAT_ANCHOR.test(norm)) firstStatIdx = contentLines.length;
+            if (firstStatIdx === -1 && (STAT_ANCHOR.test(norm) || this._anclaSinPorcentaje(norm))) firstStatIdx = contentLines.length;
             contentLines.push(norm);
         }
 
