@@ -307,3 +307,56 @@ test("mirar el progreso de la misión desde el menú de pausa no la da por acaba
   assert.equal(modoEscaner(e, VENTANA_DESCONOCIDA_MS).modo, "dormido");
   assert.deepEqual(parseLinea("10984.544 Sys [Info]: EOM missionLocationUnlocked=1"), { tipo: "mision", fase: "acaba", t: 10984.544 });
 });
+
+const A = "609.680 Script [Info]: Dialog.lua: Dialog::CreateOkCancel(description=Are you sure you want to sell 2 Items for 90?, title= leftItem=/Menu/Confirm_Item_Yes, rightItem=/Menu/Confirm_Item_No)";
+const B = "663.203 Script [Info]: Dialog.lua: Dialog::SendResult(4)";
+const C = "663.574 Script [Info]: InventoryTest.lua: OnSellCompleted(result=true, body={})";
+const D = "686.654 Script [Info]: Dialog.lua: Dialog::CreateOkCancel(description=Are you sure you want to sell 4 Items for 180?, title= leftItem=/Menu/Confirm_Item_Yes, rightItem=/Menu/Confirm_Item_No)";
+const E = "687.285 Script [Info]: Dialog.lua: Dialog::SendResult(4)";
+const F = "687.639 Script [Info]: InventoryTest.lua: OnSellCompleted(result=true, body={})";
+const Cancel = "5354.499 Script [Info]: Dialog.lua: Dialog::SendResult(5)";
+
+test("el diálogo de venta en el kiosko de ducados da las piezas y los ducados", () => {
+  assert.deepEqual(parseLinea(A), { tipo: "ventaKiosco", piezas: 2, ducados: 90, t: 609.68 });
+  const singular = A.replace("2 Items for 90", "1 Item for 45");
+  assert.deepEqual(parseLinea(singular), { tipo: "ventaKiosco", piezas: 1, ducados: 45, t: 609.68 });
+  const miles = A.replace("2 Items for 90", "12 Items for 1,035");
+  assert.deepEqual(parseLinea(miles), { tipo: "ventaKiosco", piezas: 12, ducados: 1035, t: 609.68 });
+});
+
+test("la confirmación de venta del inventario da el resultado de la operación", () => {
+  assert.deepEqual(parseLinea(C), { tipo: "ventaHecha", ok: true, t: 663.574 });
+  assert.deepEqual(parseLinea(C.replace("result=true", "result=false")), { tipo: "ventaHecha", ok: false, t: 663.574 });
+});
+
+test("las ventas del kiosko se notifican en vivo una sola vez y se cancelan al rechazar o reiniciar", () => {
+  const vendidas = [];
+  EELogLive.onVendido = (v) => vendidas.push(v.piezas);
+  try {
+    EELogLive.cambiaEstado("ruta", "/x/EE.log");
+    EELogLive.leer([A, B, C]);
+    assert.deepEqual(vendidas, []);
+
+    EELogLive.leer([D]);
+    EELogLive.leer([E, F]);
+    assert.deepEqual(vendidas, [4]);
+
+    EELogLive.leer([A, Cancel]);
+    EELogLive.leer([C]);
+    assert.deepEqual(vendidas, [4]);
+
+    EELogLive.leer([A, B, C.replace("result=true", "result=false")]);
+    assert.deepEqual(vendidas, [4]);
+
+    EELogLive.leer([D]);
+    EELogLive.cambiaEstado("reinicio", "/x/EE.log");
+    EELogLive.leer([F]);
+    assert.deepEqual(vendidas, [4]);
+
+    EELogLive.leer([C]);
+    assert.deepEqual(vendidas, [4]);
+  } finally {
+    EELogLive.parar();
+    EELogLive.onVendido = null;
+  }
+});

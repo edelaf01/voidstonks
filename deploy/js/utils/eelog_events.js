@@ -16,6 +16,8 @@ const RE_MODO_INVENTARIO = /InventoryTest - CurrMode: (.+?)\s*$/;
 const RE_REJILLA = /InventoryTest\.lua: PopulateGrid(\(\)| complete)/;
 const RE_RESULTADO = /Dialog::SendResult\((\d+)\)/;
 const RE_CONSTRUIR = /^Are you sure you want to build '(.+)'\?$/;
+const RE_VENDER = /^Are you sure you want to sell (\d+) Items? for ([\d,]+)\?/;
+const RE_VENTA_HECHA = /OnSellCompleted\(result=(\w+)/;
 
 export const PANTALLAS = {
   ProjectionRewardChoice: { es: "Elegir recompensa de fisura", en: "Fissure reward choice", contexto: "REWARD" },
@@ -47,6 +49,8 @@ export function parseLinea(linea) {
   if (rejilla) return { tipo: "rejilla", lista: rejilla[1] === " complete", t };
   const resultado = RE_RESULTADO.exec(linea);
   if (resultado) return { tipo: "resultadoDialogo", ok: resultado[1] === "4", t };
+  const vendida = RE_VENTA_HECHA.exec(linea);
+  if (vendida) return { tipo: "ventaHecha", ok: vendida[1] === "true", t };
   const menu = RE_MENU.exec(linea);
   if (menu) return { tipo: "menu", modulo: menu[1], visible: menu[2] === "1", t };
   const mision = RE_MISION.exec(linea);
@@ -79,6 +83,8 @@ export function parseLinea(linea) {
   if (refinada) return { tipo: "reliquia", nombre: refinada[1], refinamiento: POR_COSTE[refinada[2]] || "?", t };
   const construir = RE_CONSTRUIR.exec(dialogo[1]);
   if (construir) return { tipo: "construir", nombre: construir[1], t };
+  const venta = RE_VENDER.exec(dialogo[1]);
+  if (venta) return { tipo: "ventaKiosco", piezas: Number(venta[1]), ducados: Number(venta[2].replace(/,/g, "")), t };
   if (dialogo[1].startsWith("/Lotus/")) return null;
   return { tipo: "dialogo", texto: dialogo[1], t };
 }

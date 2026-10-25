@@ -14,8 +14,10 @@ export const EELogLive = {
   reliquia: null,
   onReliquiaAbierta: null,
   onConstruido: null,
+  onVendido: null,
   _porGastar: null,
   _porConstruir: null,
+  _porVender: null,
   _atrasado: false,
   _oyentes: new Set(),
   _cortar: null,
@@ -55,9 +57,15 @@ export const EELogLive = {
       if (ev.tipo === "pantalla") this.pantalla = ev;
       if (ev.tipo === "reliquia") this.reliquia = this._porGastar = ev;
       if (ev.tipo === "construir") this._porConstruir = ev;
+      if (ev.tipo === "ventaKiosco") this._porVender = ev;
       if (ev.tipo === "resultadoDialogo") {
         if (ev.ok && this._porConstruir && enVivo) this.onConstruido?.(this._porConstruir.nombre);
         this._porConstruir = null;
+        if (!ev.ok) this._porVender = null;
+      }
+      if (ev.tipo === "ventaHecha") {
+        if (ev.ok && this._porVender && enVivo) this.onVendido?.(this._porVender);
+        this._porVender = null;
       }
       if (ev.tipo === "recompensas" && ev.fase === "llenas" && this._porGastar) {
         if (enVivo) this.onReliquiaAbierta?.(this._porGastar.nombre);
@@ -75,6 +83,7 @@ export const EELogLive = {
       this.reliquia = null;
       this._porGastar = null;
       this._porConstruir = null;
+      this._porVender = null;
       this.juego = ESTADO_JUEGO_INICIAL;
     }
     if (nombre === "ruta") {

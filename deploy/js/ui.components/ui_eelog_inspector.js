@@ -56,7 +56,9 @@ function textoEvento(ev) {
     if (ev.kiosco) return `${en() ? "Ducat kiosk" : "Kiosko de ducados"} <b class="ds-eelog-ctx">DUCAT_KIOSK</b>`;
     return escapeHTML(`${en() ? "Inventory" : "Inventario"}: ${ev.modo}`);
   }
-  return escapeHTML(ev.texto.slice(0, 160));
+  if (ev.tipo === "ventaKiosco") return escapeHTML(en() ? `Kiosk sale: ${ev.piezas} items for ${ev.ducados} ducats` : `Venta en el kiosko: ${ev.piezas} piezas por ${ev.ducados} ducados`);
+  if (ev.tipo === "ventaHecha") return ev.ok ? (en() ? "Sale done" : "Venta hecha") : (en() ? "Sale failed" : "Venta fallida");
+  return escapeHTML((ev.texto ?? ev.tipo).slice(0, 160));
 }
 
 function textoModo(m) {
