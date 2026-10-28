@@ -1,6 +1,6 @@
 {
- "generado": "2026-10-27",
- "serie_hasta": "2026-10-27",
+ "generado": "2026-10-28",
+ "serie_hasta": "2026-10-28",
  "globales": [
   {
    "tipo": "global_weekly",
@@ -20,6 +20,19 @@
   }
  ],
  "eventos": [
+  {
+   "weekly": "2026-10-27",
+   "dias_tras_weekly": 0,
+   "arma": "vectis",
+   "fecha": "2026-10-27",
+   "desde": "2026-10-20",
+   "tipo": "volatil",
+   "pct": 3535,
+   "de": 0.54,
+   "a": 19.6,
+   "pop_de": 6.1,
+   "fuente": "de"
+  },
   {
    "weekly": "2026-10-27",
    "dias_tras_weekly": 0,
@@ -44,6 +57,19 @@
    "de": 182,
    "a": 61,
    "pop_de": 3.6,
+   "fuente": "de"
+  },
+  {
+   "weekly": "2026-10-27",
+   "dias_tras_weekly": 0,
+   "arma": "corufell",
+   "fecha": "2026-10-27",
+   "desde": "2026-10-20",
+   "tipo": "volatil",
+   "pct": 262,
+   "de": 0.48,
+   "a": 1.7,
+   "pop_de": 9.4,
    "fuente": "de"
   },
   {
@@ -348,6 +374,32 @@
   {
    "weekly": "2026-10-20",
    "dias_tras_weekly": 0,
+   "arma": "kuva sobek",
+   "fecha": "2026-10-20",
+   "desde": "2026-10-13",
+   "tipo": "subida_venta",
+   "pct": 47,
+   "de": 131,
+   "a": 193,
+   "pop_de": 9.4,
+   "fuente": "de"
+  },
+  {
+   "weekly": "2026-10-20",
+   "dias_tras_weekly": 0,
+   "arma": "dual ichor",
+   "fecha": "2026-10-20",
+   "desde": "2026-10-13",
+   "tipo": "subida_venta",
+   "pct": 46,
+   "de": 67,
+   "a": 98,
+   "pop_de": 5.5,
+   "fuente": "de"
+  },
+  {
+   "weekly": "2026-10-20",
+   "dias_tras_weekly": 0,
    "arma": "latron",
    "fecha": "2026-10-20",
    "desde": "2026-10-13",
@@ -369,32 +421,6 @@
    "de": 68,
    "a": 40,
    "pop_de": 3.9,
-   "fuente": "de"
-  },
-  {
-   "weekly": "2026-10-20",
-   "dias_tras_weekly": 0,
-   "arma": "dual ichor",
-   "fecha": "2026-10-20",
-   "desde": "2026-10-13",
-   "tipo": "subida_venta",
-   "pct": 46,
-   "de": 67,
-   "a": 98,
-   "pop_de": 5.5,
-   "fuente": "de"
-  },
-  {
-   "weekly": "2026-10-20",
-   "dias_tras_weekly": 0,
-   "arma": "kuva sobek",
-   "fecha": "2026-10-20",
-   "desde": "2026-10-13",
-   "tipo": "subida_venta",
-   "pct": 47,
-   "de": 131,
-   "a": 193,
-   "pop_de": 9.4,
    "fuente": "de"
   },
   {
@@ -707,19 +733,6 @@
    "de": 0.5,
    "a": 3.5,
    "pop_de": 3.3,
-   "fuente": "de"
-  },
-  {
-   "weekly": "2026-10-06",
-   "dias_tras_weekly": 0,
-   "arma": "corufell",
-   "fecha": "2026-10-06",
-   "desde": "2026-09-29",
-   "tipo": "bajada_venta",
-   "pct": -33,
-   "de": 70,
-   "a": 47,
-   "pop_de": 9.0,
    "fuente": "de"
   },
   {
