@@ -82,6 +82,14 @@ test("rotuloBanda devuelve los rótulos correctos según fuente e idioma", () =>
     corto: "AI",
     largo: "Per the AI"
   });
+  assert.deepEqual(rotuloBanda("modelo", true), {
+    corto: "IA + DE",
+    largo: "Según la IA, escalada a lo vendido en DE"
+  });
+  assert.deepEqual(rotuloBanda("modelo", false), {
+    corto: "AI + DE",
+    largo: "Per the AI, scaled to DE sales"
+  });
   assert.deepEqual(rotuloBanda("ml", true), {
     corto: "IA",
     largo: "Según la IA"

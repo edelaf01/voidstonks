@@ -58,6 +58,7 @@ export function fechaWfmRivens(isEs) {
 }
 
 export function rotuloBanda(fuente, isEs) {
+  if (fuente === "modelo") return isEs ? { corto: "IA + DE", largo: "Según la IA, escalada a lo vendido en DE" } : { corto: "AI + DE", largo: "Per the AI, scaled to DE sales" };
   if (fuente !== "de10") return isEs ? { corto: "IA", largo: "Según la IA" } : { corto: "AI", largo: "Per the AI" };
   return isEs
     ? { corto: "DE 10 sem", largo: "Lo que se vendió según DE en 10 semanas" }

@@ -6,7 +6,7 @@ let _de10 = null;
 const PREFIJOS_FAMILIA = ["coda_", "kuva_", "tenet_", "prisma_", "dex_", "carmine_", "telos_", "synoid_", "secura_", "rakta_", "sancti_", "mara_", "vaykor_"];
 const SUFIJOS_FAMILIA = ["_prime", "_vandal", "_wraith", "_coda"];
 const ALIAS_FAMILIA = { dex_furis: "furis", dex_afuris: "afuris", pangolin: "pangolin_sword", pangolin_prime: "pangolin_sword", pangolin_sword: "pangolin_sword", dual_decurions: "dual_decurion", prisma_dual_decurions: "dual_decurion" };
-const POP_FIABLE = 3;
+export const POP_FIABLE = 3;
 const K_L = 3;
 const K_S = 5;
 const RHO = 0.7;
@@ -294,6 +294,37 @@ export function nivelSinWfm(modelo, nombre, fila) {
     const sin = modelo?.sin_wfm;
     if (!sin || !fila) return NaN;
     return fila[3] >= POP_FIABLE ? fila[0] : sin.nivel[0] * fila[0] + sin.nivel[1];
+}
+
+const _desfases = new WeakMap();
+
+export function desfaseNivel(modelo, de10) {
+    if (!modelo?.armas || !de10?.familias) return NaN;
+    const previo = _desfases.get(modelo);
+    if (previo && previo.de10 === de10) return previo.valor;
+    const vistas = new Set();
+    const difs = [];
+    for (const [nombre, arma] of Object.entries(modelo.armas)) {
+        const familia = claveFamilia(nombre, de10.familias);
+        if (!familia || vistas.has(familia)) continue;
+        vistas.add(familia);
+        const fila = de10.familias[familia];
+        if (fila[3] >= POP_FIABLE && Number.isFinite(arma.nivel)) difs.push(fila[0] - arma.nivel);
+    }
+    difs.sort((a, b) => a - b);
+    const n = difs.length;
+    const valor = n === 0 ? NaN : n % 2 ? difs[(n - 1) / 2] : (difs[n / 2 - 1] + difs[n / 2]) / 2;
+    _desfases.set(modelo, { de10, valor });
+    return valor;
+}
+
+export function filaConNivelModelo(modelo, de10, nombre, fila) {
+    if (!fila || fila[3] >= POP_FIABLE) return fila;
+    const conocida = nombreArma(modelo, nombre);
+    const nivel = conocida ? modelo.armas[conocida].nivel : NaN;
+    const desfase = desfaseNivel(modelo, de10);
+    if (!Number.isFinite(nivel) || !Number.isFinite(desfase)) return fila;
+    return [nivel + desfase, ...fila.slice(1)];
 }
 
 export function poblacionTirada(modelo, nombre, tipo) {
