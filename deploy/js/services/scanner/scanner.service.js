@@ -643,11 +643,11 @@ export const ScannerService = {
             this._cartaRivenVista = this.lastRivenContextTime;
         }
 
+        this.lastNoResult = siguienteEstadoSinResultado(valids.length > 0, hash, Date.now());
         if (!valids.length) {
             console.log(`[RIVEN OCR] sin parse válido en este frame (${contextType || "reroll"}) — se cachea el hash y no se reintenta hasta que la pantalla cambie`);
-            this._cierraSinCarta();
+            return this._cierraSinCarta();
         }
-        this.lastNoResult = siguienteEstadoSinResultado(valids.length > 0, hash, Date.now());
 
         const currentFP = valids.map(e => rivenFingerprint(e.parsed)).join("||") || "none";
         this.rivenConsensusBuffer.push(currentFP);
