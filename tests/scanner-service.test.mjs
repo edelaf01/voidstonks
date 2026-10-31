@@ -1366,6 +1366,7 @@ test("despertado por el sensor, el rótulo nuevo se lee en ese mismo tick", asyn
     await vuelta;
     assert.equal(lecturas, 1);
     assert.equal(S.ctxLatch.pending, "INVENTORY_MODS", "y el cambio de pestaña ya está en camino");
+    assert.ok(S.scanInterval, "y el bucle despertado se vuelve a armar");
   } finally {
     Object.assign(OCRRepository, { workers: orig.workers });
     Object.assign(S, { routeFrameAction: orig.ruta, loop: orig.loop, virtualCanvas: orig.cvs, isScanning: false });
@@ -1607,6 +1608,118 @@ test("sin dimensiones de vídeo el tick no procesa y vuelve a mirar en un segund
     assert.ok(S.scanInterval, "reintenta");
   } finally {
     S.processFrame = orig; S.isScanning = false; clearTimeout(S.scanInterval);
+  }
+});
+
+function relojFalso() {
+  const timers = new Map(), frames = [];
+  const orig = { setTimeout: globalThis.setTimeout, clearTimeout: globalThis.clearTimeout, processFrame: S.processFrame, currentRate: S.currentRate };
+  let nextId = 1;
+  globalThis.setTimeout = (fn, ms) => {
+    const id = nextId++;
+    timers.set(id, { fn, ms });
+    return id;
+  };
+  globalThis.clearTimeout = (id) => {
+    if (id != null) timers.delete(id);
+  };
+  S.processFrame = () => new Promise((r) => {
+    frames.push(r);
+    S.currentRate = 432;
+  });
+  globalThis.document._registrar("live-video", { videoWidth: 640, videoHeight: 360, paused: false, ended: false });
+  return {
+    timers, frames,
+    bucles: () => [...timers.values()].filter((t) => t.ms === 432).length,
+    restaura() {
+      Object.assign(globalThis, { setTimeout: orig.setTimeout, clearTimeout: orig.clearTimeout });
+      Object.assign(S, { processFrame: orig.processFrame, currentRate: orig.currentRate, isScanning: false });
+      S._sensor?.para();
+    },
+  };
+}
+
+test("un frame colgado que acaba tras stop() y start() no deja un segundo bucle vivo", async () => {
+  const { OCRRepository } = await import("../deploy/js/repositories/ocr.repository.js");
+  const origWorkers = OCRRepository.workers;
+  const reloj = relojFalso();
+  const { timers, frames, bucles } = reloj;
+  try {
+    for (const orden of ["antes", "durante", "después"]) {
+      timers.clear();
+      frames.length = 0;
+      S.isScanning = true;
+      const vieja = S.loop();
+      OCRRepository.workers = [];
+      S.stop();
+      S.isScanning = true;
+      if (orden === "antes") {
+        frames[0]();
+        await vieja;
+        const nueva = S.loop();
+        frames[1]();
+        await nueva;
+      } else if (orden === "durante") {
+        const nueva = S.loop();
+        frames[0]();
+        await vieja;
+        frames[1]();
+        await nueva;
+      } else {
+        const nueva = S.loop();
+        frames[1]();
+        await nueva;
+        frames[0]();
+        await vieja;
+      }
+      assert.equal(bucles(), 1, `${orden}: queda un solo bucle`);
+      const [id, entry] = [...timers.entries()].find(([, t]) => t.ms === 432);
+      timers.delete(id);
+      const n = frames.length;
+      const p = entry.fn();
+      frames[n]();
+      await p;
+      assert.equal(frames.length, n + 1, `${orden}: la vuelta siguiente procesa un solo frame`);
+      assert.equal(bucles(), 1, `${orden}: y se vuelve a armar una sola vez`);
+    }
+  } finally {
+    reloj.restaura();
+    OCRRepository.workers = origWorkers;
+  }
+});
+
+test("despertado por el log tras dormir, el bucle vuelve a armarse una sola vez", async () => {
+  const { EELogLive } = await import("../deploy/js/services/scanner/eelog_live.service.js");
+  const { duermePorLog, paraVigiaDelJuego, TICK_DORMIDO_MS } = await import("../deploy/js/services/scanner/log_gate.service.js");
+  const { pistasDelLog } = await import("../deploy/js/utils/ganchos.js");
+  const origDuerme = pistasDelLog.duerme;
+  pistasDelLog.duerme = duermePorLog;
+  const reloj = relojFalso();
+  const { timers, frames, bucles } = reloj;
+  const MISION = "64.824 Script [Info]: MissionIntro.lua: MissionName: TUVUL COMMONS";
+  const LLENAS = "306.127 Script [Info]: ProjectionRewardChoice.lua: Got rewards";
+  try {
+    EELogLive.cambiaEstado("ruta", "/x/EE.log");
+    EELogLive.leer([MISION]);
+    S.isScanning = true;
+    await S.loop();
+    assert.equal(frames.length, 0);
+    assert.equal(S._dormidoPorLog, true);
+    assert.equal(timers.size, 1);
+    assert.equal([...timers.values()][0].ms, TICK_DORMIDO_MS);
+    EELogLive.leer([LLENAS]);
+    assert.equal(frames.length, 1);
+    frames[0]();
+    await new Promise((r) => setImmediate(r));
+    assert.equal(timers.size, 1);
+    assert.equal(bucles(), 1);
+  } finally {
+    reloj.restaura();
+    EELogLive.parar();
+    paraVigiaDelJuego();
+    pistasDelLog.duerme = origDuerme;
+    S._dormidoPorLog = false;
+    S.latchedContext = "UNKNOWN";
   }
 });
 
