@@ -1633,7 +1633,7 @@ function relojFalso() {
     bucles: () => [...timers.values()].filter((t) => t.ms === 432).length,
     restaura() {
       Object.assign(globalThis, { setTimeout: orig.setTimeout, clearTimeout: orig.clearTimeout });
-      Object.assign(S, { processFrame: orig.processFrame, currentRate: orig.currentRate, isScanning: false });
+      Object.assign(S, { processFrame: orig.processFrame, currentRate: orig.currentRate, isScanning: false, scanInterval: null });
       S._sensor?.para();
     },
   };
@@ -1642,9 +1642,10 @@ function relojFalso() {
 test("un frame colgado que acaba tras stop() y start() no deja un segundo bucle vivo", async () => {
   const { OCRRepository } = await import("../deploy/js/repositories/ocr.repository.js");
   const origWorkers = OCRRepository.workers;
-  const reloj = relojFalso();
-  const { timers, frames, bucles } = reloj;
+  let reloj;
   try {
+    reloj = relojFalso();
+    const { timers, frames, bucles } = reloj;
     for (const orden of ["antes", "durante", "después"]) {
       timers.clear();
       frames.length = 0;
@@ -1656,6 +1657,7 @@ test("un frame colgado que acaba tras stop() y start() no deja un segundo bucle 
       if (orden === "antes") {
         frames[0]();
         await vieja;
+        assert.equal(bucles(), 0, "antes: el frame viejo no rearma durante el warmUp");
         const nueva = S.loop();
         frames[1]();
         await nueva;
@@ -1683,8 +1685,26 @@ test("un frame colgado que acaba tras stop() y start() no deja un segundo bucle 
       assert.equal(bucles(), 1, `${orden}: y se vuelve a armar una sola vez`);
     }
   } finally {
-    reloj.restaura();
+    reloj?.restaura();
     OCRRepository.workers = origWorkers;
+  }
+});
+
+test("un loop() nuevo sin stop() borra el temporizador que dejó armado el anterior", async () => {
+  let reloj;
+  try {
+    reloj = relojFalso();
+    const { frames, bucles } = reloj;
+    S.isScanning = true;
+    const a = S.loop();
+    frames[0]();
+    await a;
+    const b = S.loop();
+    frames[1]();
+    await b;
+    assert.equal(bucles(), 1);
+  } finally {
+    reloj?.restaura();
   }
 });
 
@@ -1693,12 +1713,13 @@ test("despertado por el log tras dormir, el bucle vuelve a armarse una sola vez"
   const { duermePorLog, paraVigiaDelJuego, TICK_DORMIDO_MS } = await import("../deploy/js/services/scanner/log_gate.service.js");
   const { pistasDelLog } = await import("../deploy/js/utils/ganchos.js");
   const origDuerme = pistasDelLog.duerme;
-  pistasDelLog.duerme = duermePorLog;
-  const reloj = relojFalso();
-  const { timers, frames, bucles } = reloj;
   const MISION = "64.824 Script [Info]: MissionIntro.lua: MissionName: TUVUL COMMONS";
   const LLENAS = "306.127 Script [Info]: ProjectionRewardChoice.lua: Got rewards";
+  let reloj;
   try {
+    pistasDelLog.duerme = duermePorLog;
+    reloj = relojFalso();
+    const { timers, frames, bucles } = reloj;
     EELogLive.cambiaEstado("ruta", "/x/EE.log");
     EELogLive.leer([MISION]);
     S.isScanning = true;
@@ -1714,7 +1735,7 @@ test("despertado por el log tras dormir, el bucle vuelve a armarse una sola vez"
     assert.equal(timers.size, 1);
     assert.equal(bucles(), 1);
   } finally {
-    reloj.restaura();
+    reloj?.restaura();
     EELogLive.parar();
     paraVigiaDelJuego();
     pistasDelLog.duerme = origDuerme;
