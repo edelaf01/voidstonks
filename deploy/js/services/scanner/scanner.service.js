@@ -55,6 +55,7 @@ export const ScannerService = {
     ESPERA_FOTO_MS: 350,
     isScanning: false,
     scanInterval: null,
+    _gen: 0,
     currentRate: 1200,
     RIVEN_RATE_ACTIVE: 400,
     RIVEN_RATE_IDLE: 1000,
@@ -137,6 +138,7 @@ export const ScannerService = {
 
     stop() {
         this.isScanning = false;
+        this._gen++;
         if (this.scanInterval) clearTimeout(this.scanInterval);
         this.scanInterval = null;
         this._sensor?.para();
@@ -159,6 +161,8 @@ export const ScannerService = {
     },
 
     async loop() {
+        const gen = ++this._gen;
+        clearTimeout(this.scanInterval);
         this._sensor?.para();
         this._cartaVigilada = null;
         if (!this.isScanning) return;
@@ -172,7 +176,7 @@ export const ScannerService = {
             console.warn("Scanner loop error:", e);
         } finally {
             stopSharingFrame();
-            if (this.isScanning) {
+            if (this.isScanning && gen === this._gen) {
                 this.scanInterval = setTimeout(() => this.loop(), this.currentRate);
                 if (this.currentRate > 2 * CADA_MS) (this._sensor ||= sensorDelEscaner(this, video, { acepta: () => this.latchedContext !== "UNKNOWN" || !!FirmasTitulo.reconoce(video) })).arma();
             }
