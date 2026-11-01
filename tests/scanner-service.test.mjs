@@ -2871,3 +2871,91 @@ test("en el kiosko, con la mesa vaciada y una venta vista pendiente del log, la 
     }
   });
 });
+
+async function capturaConBusqueda(lee, fn) {
+  const { BusquedaInventarioService } = await import("../deploy/js/services/scanner/busqueda_inventario.service.js");
+  const { ScannerHUD } = await import("../deploy/js/ui.components/ui_scanner_hud.js");
+  const { DucatKioskService } = await import("../deploy/js/services/scanner/ducat_kiosk.service.js");
+  const W = 640, H = 360;
+  const data = new Uint8ClampedArray(W * H * 4);
+  for (let i = 0; i < data.length; i += 4) { data[i] = data[i + 1] = data[i + 2] = (i / 4 / W | 0) % 29 * 8; data[i + 3] = 255; }
+  const video = { videoWidth: W, videoHeight: H, width: W, height: H, data };
+  const orig = { lee: BusquedaInventarioService.lee, hud: ScannerHUD.updateScrollStatus, kiosko: DucatKioskService.process, state: globalThis.state };
+  globalThis.document._registrar("live-video", video);
+  BusquedaInventarioService.lee = lee;
+  ScannerHUD.updateScrollStatus = () => {};
+  DucatKioskService.process = async () => {};
+  globalThis.state = { ...globalThis.state, autoScanEnabled: true, scannerModsMode: false };
+  const encoladas = [];
+  S._invQueue = { isFull: false, clear() {}, release() {}, enqueue: (_c, _x, _y, _w, _h, meta) => { encoladas.push(meta); return true; } };
+  S._frameZoneCache = { key: `${W}x${H}`, zone: { x: 0, y: 0, w: W, h: H } };
+  Object.assign(S, { _sampleRect: null, lastRowLums: null, autoScrollMuestra: null, sawScrollSinceScan: false, fotosSinScroll: 0, autoScrollStableTimer: null, detectionLocked: false, isScanning: true, lastHeaderText: "CB INVENTORY/DUCAT KIOSK" });
+  const dims = { width: W, height: H, scale: 1 };
+  try {
+    await S.routeFrameAction("INVENTORY", video, dims);
+    await S.routeFrameAction("INVENTORY", video, dims);
+    await new Promise((r) => setTimeout(r, 900));
+    await fn(encoladas);
+  } finally {
+    if (typeof S.autoScrollStableTimer !== "string") clearTimeout(S.autoScrollStableTimer);
+    Object.assign(S, { autoScrollStableTimer: null, _invQueue: null, _frameZoneCache: null, autoScrollMuestra: null, fotosSinScroll: 0, detectionLocked: false, isScanning: false });
+    BusquedaInventarioService.lee = orig.lee;
+    ScannerHUD.updateScrollStatus = orig.hud;
+    DucatKioskService.process = orig.kiosko;
+    globalThis.state = orig.state;
+  }
+}
+
+const BRONCO = Object.freeze({ tipo: "piezas", texto: "bronco" });
+
+test("la búsqueda leída viaja con la página a la cola", async () => {
+  await capturaConBusqueda(async () => BRONCO, (encoladas) => {
+    assert.equal(encoladas.length, 1);
+    assert.deepEqual(encoladas[0].busqueda, BRONCO);
+  });
+});
+
+test("si el escáner se para mientras se lee la búsqueda no se encola nada y la captura no queda colgada", async () => {
+  const { OCRRepository } = await import("../deploy/js/repositories/ocr.repository.js");
+  const origWorkers = OCRRepository.workers;
+  let suelta;
+  try {
+    await capturaConBusqueda(() => new Promise((r) => { suelta = r; }), async (encoladas) => {
+      assert.ok(suelta, "la búsqueda se está leyendo");
+      assert.equal(encoladas.length, 0);
+      OCRRepository.workers = [];
+      S.stop();
+      suelta(BRONCO);
+      await new Promise((r) => setTimeout(r, 20));
+      assert.equal(encoladas.length, 0);
+      assert.equal(S.autoScrollStableTimer, null);
+    });
+  } finally {
+    OCRRepository.workers = origWorkers;
+  }
+});
+
+test("un tick del bucle mientras se lee la búsqueda no tira la captura", async () => {
+  let suelta;
+  await capturaConBusqueda(() => new Promise((r) => { suelta = r; }), async (encoladas) => {
+    assert.ok(suelta, "la búsqueda se está leyendo");
+    S._gen++;
+    suelta(BRONCO);
+    await new Promise((r) => setTimeout(r, 20));
+    assert.equal(encoladas.length, 1);
+    assert.deepEqual(encoladas[0].busqueda, BRONCO);
+    assert.equal(S.autoScrollStableTimer, null);
+  });
+});
+
+test("si un scroll cambia la captura mientras se lee la búsqueda, se respeta la nueva", async () => {
+  let suelta;
+  await capturaConBusqueda(() => new Promise((r) => { suelta = r; }), async (encoladas) => {
+    assert.ok(suelta, "la búsqueda se está leyendo");
+    S.autoScrollStableTimer = "otra";
+    suelta(BRONCO);
+    await new Promise((r) => setTimeout(r, 20));
+    assert.equal(encoladas.length, 0);
+    assert.equal(S.autoScrollStableTimer, "otra");
+  });
+});

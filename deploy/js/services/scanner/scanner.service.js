@@ -39,6 +39,7 @@ import { firmaDePagina, mismaPagina } from "../../utils/vision/firma_pagina.js";
 import { TradeService } from "./trade.service.js";
 import { ANCHO_REJILLA_TRADEO } from "../../utils/vision/trade_post.js";
 import { DucatKioskService } from "./ducat_kiosk.service.js";
+import { BusquedaInventarioService } from "./busqueda_inventario.service.js";
 import { ESTADO_INICIAL as ESTADO_SIN_RESULTADO, saltaPorSinResultado, siguienteEstadoSinResultado } from "../../utils/vision/no_result_skip.js";
 import { cronometro } from "../../utils/perf.js";
 
@@ -56,6 +57,7 @@ export const ScannerService = {
     isScanning: false,
     scanInterval: null,
     _gen: 0,
+    _sesion: 0,
     currentRate: 1200,
     RIVEN_RATE_ACTIVE: 400,
     RIVEN_RATE_IDLE: 1000,
@@ -97,6 +99,7 @@ export const ScannerService = {
     async start() {
         if (this.isScanning) return;
         this.isScanning = true;
+        this._sesion++;
         this.latchedContext = "UNKNOWN";
         this.ctxLatch = INITIAL_LATCH;
         this._cabeceraConContexto = null;
@@ -139,6 +142,7 @@ export const ScannerService = {
     stop() {
         this.isScanning = false;
         this._gen++;
+        this._sesion++;
         if (this.scanInterval) clearTimeout(this.scanInterval);
         this.scanInterval = null;
         this._sensor?.para();
@@ -158,6 +162,7 @@ export const ScannerService = {
         this._recompensaParcial = null;
         TradeService.reset();
         DucatKioskService.reset();
+        BusquedaInventarioService.reset();
     },
 
     async loop() {
@@ -290,7 +295,7 @@ export const ScannerService = {
 
     get _canCapturePage() { return this._invQueue ? !this._invQueue.isFull : !this.detectionLocked; },
 
-    enqueueInventoryPage(snapshot, dims) {
+    enqueueInventoryPage(snapshot, dims, busqueda = null) {
         const key = `${dims.width}x${dims.height}`;
         if (this._frameZoneCache?.key !== key) {
             const calib = VisionService.detectGridAutoCalib(snapshot, dims.width, dims.height, this.anchoRejilla(dims.width), this.latchedContext);
@@ -308,17 +313,17 @@ export const ScannerService = {
         const zone = this._frameZoneCache.zone;
         if (!zone) {
             if (this.detectionLocked) return false;
-            this.processInventoryGrid(snapshot, dims.width, dims.height, dims.scale, this.anchoRejilla(dims.width))
+            this.processInventoryGrid(snapshot, dims.width, dims.height, dims.scale, this.anchoRejilla(dims.width), this.latchedContext, busqueda)
                 .catch(e => console.error("[INV] fallo procesando la página en directo:", e));
             return true;
         }
         if (!this._invQueue) {
             this._invQueue = createFrameQueue({
                 max: 3,
-                process: (job) => this.processInventoryGrid(job.cvs, job.cvs.width, job.cvs.height, job.meta.escala, job.cvs.width, job.meta.contexto),
+                process: (job) => this.processInventoryGrid(job.cvs, job.cvs.width, job.cvs.height, job.meta.escala, job.cvs.width, job.meta.contexto, job.meta.busqueda),
             });
         }
-        return this._invQueue.enqueue(snapshot, zone.x, zone.y, zone.w, zone.h, { escala: dims.scale, contexto: this.latchedContext });
+        return this._invQueue.enqueue(snapshot, zone.x, zone.y, zone.w, zone.h, { escala: dims.scale, contexto: this.latchedContext, busqueda });
     },
 
     recordQtyVote(itemName, qtyResult, votesMap = this.qtyVotes, targetMap = this.sessionInventory) {
@@ -466,8 +471,12 @@ export const ScannerService = {
                         snapshot.width = v.videoWidth; snapshot.height = v.videoHeight;
                     }
                     snapshot.getContext("2d", { willReadFrequently: true }).drawImage(v, 0, 0);
+                    const sesion = this._sesion, timer = this.autoScrollStableTimer;
+                    const busqueda = await BusquedaInventarioService.lee(this, snapshot);
+                    if (timer !== this.autoScrollStableTimer) return;
+                    if (sesion !== this._sesion) { this.autoScrollStableTimer = null; return; }
 
-                    if (this.enqueueInventoryPage(snapshot, dims)) {
+                    if (this.enqueueInventoryPage(snapshot, dims, busqueda)) {
                         this.fotosSinScroll++; this.autoScrollMuestra = firmaDePagina(snapshot, muestra, muestraPagina.rejilla, zona, dims.width, dims.height);
                         ScannerHUD.updateScrollStatus("captured");
                     }
@@ -1013,7 +1022,7 @@ export const ScannerService = {
         return /TRADE/.test(this.lastHeaderText || "") ? Math.round(width * ANCHO_REJILLA_TRADEO) : width;
     },
 
-    async processInventoryGrid(snapshot, width, height, scale, anchoMax = width, contexto = this.latchedContext) {
+    async processInventoryGrid(snapshot, width, height, scale, anchoMax = width, contexto = this.latchedContext, busqueda = null) {
         const reloj = cronometro("inventario");
         relojBadges.ms = 0; relojBadges.n = 0;
         if (this.detectionLocked) return;
@@ -1041,7 +1050,7 @@ export const ScannerService = {
             }
 
             const rejilla = calibData?.gridZone && { gridY: calibData.gridY ?? calibData.gridZone.y, cellH: calibData.cellH, rows: calibData.rows };
-            if (!rejilla || (!reciennacida && !filasEnFase(VisionService.ultimasBandas, rejilla))) {
+            if (!rejilla || (!reciennacida && !filasEnFase(VisionService.ultimasBandas, busqueda?.texto ? { ...rejilla, rows: 1 } : rejilla))) {
                 console.warn(`[INV] Página saltada: ${rejilla ? "la rejilla no cae sobre los nombres" : "sin rejilla"} — se re-detecta.`);
                 this._autoCalibCache = this._frameZoneCache = null;
                 this.detectionLocked = false;
@@ -1130,6 +1139,7 @@ export const ScannerService = {
             const modoArcanos = esContextoArcanos(contexto);
             const [bandaY, bandaH] = (modoArcanos ? [BANDA_NOMBRE_ARCANO.y, BANDA_NOMBRE_ARCANO.h] : [0.50, 0.48]).map((f) => Math.round(cellH * f));
             const clave = (cell) => `r${cell.r}c${cell.c}`;
+            const vacias = new Set(), reliquiasEn = new Map();
             let lotePreciso = null;
             if (motorActivo() === MOTOR_PRECISO) {
                 const tiras = activeCells.map(({ cell }) =>
@@ -1190,6 +1200,7 @@ export const ScannerService = {
                         if (loteManda || !hasInk(ink)) {
                             scanStats.empty++;
                             this.lastRawOcrLog.push(`[r${cell.r}c${cell.c}] SKIPPED (empty)`);
+                            vacias.add(clave(cell));
                             dCtx.strokeStyle = "rgba(255, 255, 255, 0.04)";
                             dCtx.lineWidth = 1;
                             dCtx.strokeRect(cell.sx - gridZone.x + 2, cell.sy - gridZone.y + 2, cellW - 4, cellH - 4);
@@ -1338,6 +1349,7 @@ export const ScannerService = {
                         this.lastRawOcrLog.push(logStr);
 
                         this.recordQtyVote(relicMatch, qtyResult, this.relicQtyVotes, this.sessionRelics);
+                        reliquiasEn.set(clave(cell), relicMatch);
 
                         drawResolvedCell({
                             cell, name: relicMatch, qtyResult, text: relicText, accent: "#00e5ff",
@@ -1379,6 +1391,7 @@ export const ScannerService = {
                 const motorReal = lotePreciso ? "paddle" : `tesseract x${workers.length}`;
                 reloj.fin(`${motorReal} · ${relojBadges.n} badges ${relojBadges.ms.toFixed(0)} ms`);
 
+                let vaciasEnBusqueda = 0;
                 if (esContextoArcanos(contexto)) {
                     const arcanosList = [];
                     for (const pending of pendingArcanes) {
@@ -1424,6 +1437,11 @@ export const ScannerService = {
                     ScannerHUD.updateScrollStatus("done", this.sessionInventory.size + this.sessionRelics.size);
                     ScannerHUD.updateDetectedItems(this.sessionInventory, this.sessionRelics);
                     if (DucatKioskService.enKiosco) this.onPaginaKiosco?.();
+                    vaciasEnBusqueda = BusquedaInventarioService.revisa(this, {
+                        busqueda, contexto, filaTapada, filas: autoGrid.rows, cols: autoGrid.cols, celdas: cellRects,
+                        items: new Map(relicPage ? [] : pendingItems.map((p) => [clave(p.cell), p.bestItem.originalName])),
+                        reliquias: reliquiasEn, vacias, lienzo: snapshot, cellW, cellH,
+                    });
                 }
                 const expected = autoGrid.rows * autoGrid.cols;
                 const fails = scanStats.unmatched + scanStats.none;
@@ -1440,7 +1458,7 @@ export const ScannerService = {
                     this._nameColorCache = null;
                 }
 
-                const aciertos = scanStats.matched + scanStats.relics;
+                const aciertos = scanStats.matched + scanStats.relics + vaciasEnBusqueda;
                 const revision = revisaRejillaCacheada(aciertos, activeCells.length, this._gridReintentado);
                 this._gridReintentado = revision.yaReintentado;
                 if (revision.reDetectar) {
