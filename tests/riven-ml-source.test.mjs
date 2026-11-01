@@ -73,49 +73,69 @@ test("la banda sale ordenada por las dos vías", async () => {
 });
 
 test("un arma conocida tasa con su fila de DE de 10 semanas y no con el DE del día", async () => {
-  const band = await N.predictRivenMLBand(LARKSPUR, STATS, LARKSPUR, null, 75);
-  assert.equal(band.p50, 206);
-  const otra = await N.predictRivenMLBand({ ...LARKSPUR, de_rerolled: { ...LARKSPUR.de_rerolled, median: 900 } }, STATS, LARKSPUR, null, 75);
-  assert.equal(otra.p50, band.p50);
+  const nt = await NT.cargarNivelTirada();
+  const primaPrevia = nt.prima_de10;
+  try {
+    delete nt.prima_de10;
+    const band = await N.predictRivenMLBand(LARKSPUR, STATS, LARKSPUR, null, 75);
+    assert.equal(band.p50, 206);
+    const otra = await N.predictRivenMLBand({ ...LARKSPUR, de_rerolled: { ...LARKSPUR.de_rerolled, median: 900 } }, STATS, LARKSPUR, null, 75);
+    assert.equal(otra.p50, band.p50);
+  } finally {
+    nt.prima_de10 = primaPrevia;
+  }
 });
 
 test("cambiar la fila de de10 de la familia mueve el precio", async () => {
-  const de10 = await NT.cargarDe10();
-  const filaOrig = [...de10.familias.larkspur];
+  const nt = await NT.cargarNivelTirada();
+  const primaPrevia = nt.prima_de10;
   try {
-    de10.familias.larkspur = [filaOrig[0] + 1, ...filaOrig.slice(1)];
-    const band = await N.predictRivenMLBand(LARKSPUR, STATS, LARKSPUR, null, 75);
-    assert.equal(band.p50, 559);
+    delete nt.prima_de10;
+    const de10 = await NT.cargarDe10();
+    const filaOrig = [...de10.familias.larkspur];
+    try {
+      de10.familias.larkspur = [filaOrig[0] + 1, ...filaOrig.slice(1)];
+      const band = await N.predictRivenMLBand(LARKSPUR, STATS, LARKSPUR, null, 75);
+      assert.equal(band.p50, 559);
+    } finally {
+      de10.familias.larkspur = filaOrig;
+    }
+    const restaurado = await N.predictRivenMLBand(LARKSPUR, STATS, LARKSPUR, null, 75);
+    assert.equal(restaurado.p50, 206);
   } finally {
-    de10.familias.larkspur = filaOrig;
+    nt.prima_de10 = primaPrevia;
   }
-  const restaurado = await N.predictRivenMLBand(LARKSPUR, STATS, LARKSPUR, null, 75);
-  assert.equal(restaurado.p50, 206);
 });
 
 test("un arma cortada tasa con el registro de DE y su suelo", async () => {
   const nt = await NT.cargarNivelTirada();
-  assert.equal(NT.nombreArma(nt, "Torid"), null);
-  const de10 = await NT.cargarDe10();
-  const fila = NT.filaDe10(de10, "Torid", TORID.de_rerolled);
-  const nivel = NT.nivelSinWfm(nt, "Torid", fila);
-  const reg = NT.registroSinWfm(nt, nivel, RIVEN_DISPOSITION, "Rifle");
-  assert.equal(reg.nivel, nivel);
+  const primaPrevia = nt.prima_de10;
+  try {
+    delete nt.prima_de10;
+    assert.equal(NT.nombreArma(nt, "Torid"), null);
+    const de10 = await NT.cargarDe10();
+    const fila = NT.filaDe10(de10, "Torid", TORID.de_rerolled);
+    const nivel = NT.nivelSinWfm(nt, "Torid", fila);
+    const reg = NT.registroSinWfm(nt, nivel, RIVEN_DISPOSITION, "Rifle");
+    assert.equal(reg.nivel, nivel);
 
-  const band = await N.predictRivenMLBand(TORID, STATS, TORID, null, 75);
-  assert.equal(band.fuente, "de10");
-  assert.equal(band.p50, 895);
-  assert.ok(band.p25 >= band.floor);
+    const band = await N.predictRivenMLBand(TORID, STATS, TORID, null, 75);
+    assert.equal(band.fuente, "de10");
+    assert.equal(band.p50, 895);
+    assert.ok(band.p25 >= band.floor);
 
-  const buena = [
-    { name: "Critical Chance", value: 150, isPositive: true, minIdeal: 50, maxIdeal: 150 },
-    { name: "Critical Damage", value: 120, isPositive: true, minIdeal: 50, maxIdeal: 150 },
-    { name: "Multishot", value: 100, isPositive: true, minIdeal: 50, maxIdeal: 150 },
-    { name: "Zoom", value: 40, isPositive: false, minIdeal: 20, maxIdeal: 60 }
-  ];
-  const bandaBuena = await N.predictRivenMLBand(TORID, buena, TORID, null, 90);
-  assert.equal(bandaBuena.fuente, "de10");
-  assert.equal(bandaBuena.p95, 4428);
+    const buena = [
+      { name: "Critical Chance", value: 150, isPositive: true, minIdeal: 50, maxIdeal: 150 },
+      { name: "Critical Damage", value: 120, isPositive: true, minIdeal: 50, maxIdeal: 150 },
+      { name: "Multishot", value: 100, isPositive: true, minIdeal: 50, maxIdeal: 150 },
+      { name: "Zoom", value: 40, isPositive: false, minIdeal: 20, maxIdeal: 60 }
+    ];
+    const bandaBuena = await N.predictRivenMLBand(TORID, buena, TORID, null, 90);
+    assert.equal(bandaBuena.fuente, "de10");
+    assert.equal(bandaBuena.p95, 4428);
+  } finally {
+    nt.prima_de10 = primaPrevia;
+  }
 });
 
 test("para un arma con DE vivo ningún precio baja del suelo floor", async () => {
@@ -185,14 +205,20 @@ test("renderMlChip muestra el rótulo según la fuente y el idioma", () => {
 
 test("sin prima_de10 en el modelo la tasación no cambia", async () => {
   const nt = await NT.cargarNivelTirada();
-  assert.equal(nt.prima_de10, undefined);
-  const band = await N.predictRivenMLBand(LARKSPUR, STATS, LARKSPUR, null, 75);
-  assert.equal(band.p50, 206);
-  assert.equal(band.fuente, "de10");
+  const primaPrevia = nt.prima_de10;
+  try {
+    delete nt.prima_de10;
+    const band = await N.predictRivenMLBand(LARKSPUR, STATS, LARKSPUR, null, 75);
+    assert.equal(band.p50, 206);
+    assert.equal(band.fuente, "de10");
+  } finally {
+    nt.prima_de10 = primaPrevia;
+  }
 });
 
 test("la prima de de10 se suma por tramo de pop10", async () => {
   const nt = await NT.cargarNivelTirada();
+  const primaPrevia = nt.prima_de10;
   const de10 = await NT.cargarDe10();
   const orig = [...de10.familias.larkspur];
   const PRIMA = { cortes: [3, 6, 12], valores: [0, 0.1, 0.2, 0.3] };
@@ -206,13 +232,14 @@ test("la prima de de10 se suma por tramo de pop10", async () => {
       assert.ok(band.p25 <= band.p50 && band.p50 <= band.p80 && band.p80 <= band.p90 && band.p90 <= band.p95);
     }
   } finally {
-    delete nt.prima_de10;
+    nt.prima_de10 = primaPrevia;
     de10.familias.larkspur = orig;
   }
 });
 
 test("el techo ln max10 sigue mandando con prima", async () => {
   const nt = await NT.cargarNivelTirada();
+  const primaPrevia = nt.prima_de10;
   const de10 = await NT.cargarDe10();
   const orig = [...de10.familias.larkspur];
   try {
@@ -223,13 +250,14 @@ test("el techo ln max10 sigue mandando con prima", async () => {
     assert.equal(band.p50, 250);
     assert.equal(band.p95, 250);
   } finally {
-    delete nt.prima_de10;
+    nt.prima_de10 = primaPrevia;
     de10.familias.larkspur = orig;
   }
 });
 
 test("la prima no toca las fuentes modelo ni curva", async () => {
   const nt = await NT.cargarNivelTirada();
+  const primaPrevia = nt.prima_de10;
   const de10 = await NT.cargarDe10();
   const orig = [...de10.familias.larkspur];
   const sinWfm = nt.sin_wfm;
@@ -262,7 +290,7 @@ test("la prima no toca las fuentes modelo ni curva", async () => {
     assert.equal(b1.p90, b0.p90);
     assert.equal(b1.p95, b0.p95);
   } finally {
-    delete nt.prima_de10;
+    nt.prima_de10 = primaPrevia;
     de10.familias.larkspur = orig;
     nt.sin_wfm = sinWfm;
   }
@@ -270,6 +298,7 @@ test("la prima no toca las fuentes modelo ni curva", async () => {
 
 test("un arma sin fila de de10 y pop10 bajo no lleva prima", async () => {
   const nt = await NT.cargarNivelTirada();
+  const primaPrevia = nt.prima_de10;
   try {
     delete nt.prima_de10;
     const sinPrima = await N.predictRivenMLBand(SIN_NIVEL, STATS, SIN_NIVEL, null, 75);
@@ -283,6 +312,6 @@ test("un arma sin fila de de10 y pop10 bajo no lleva prima", async () => {
     assert.equal(conPrima.p90, sinPrima.p90);
     assert.equal(conPrima.p95, sinPrima.p95);
   } finally {
-    delete nt.prima_de10;
+    nt.prima_de10 = primaPrevia;
   }
 });
