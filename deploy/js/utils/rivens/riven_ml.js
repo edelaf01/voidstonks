@@ -2,7 +2,7 @@ import { classifyWeaponMarket } from "./riven_logic.js";
 import { state } from "../../state.js";
 import { RIVEN_DISPOSITION } from "../../config.js";
 import { tipoDeArma, esFusionado, pesoFusionado, claveStat } from "./riven_cycling.js";
-import { cargarNivelTirada, cargarDe10, atributosAWfm, residuosTirada, precisionNivel, registroSinWfm, nombreArma, filaDe10, nivelSinWfm, poblacionTirada, percentilTirada, preciosDe10, filaConNivelModelo, POP_FIABLE } from "./riven_nivel.js";
+import { cargarNivelTirada, cargarDe10, atributosAWfm, residuosTirada, precisionNivel, registroSinWfm, nombreArma, filaDe10, nivelSinWfm, poblacionTirada, percentilTirada, preciosDe10, primaDe10, filaConNivelModelo, POP_FIABLE } from "./riven_nivel.js";
 
 let _ml = null;
 let _loading = null;
@@ -339,7 +339,7 @@ export async function predictRivenMLBand(weapon, itemAttributes, weaponData = nu
   if (residuos) {
     const poblacion = poblacionTirada(nt, wname, tipoCrudo ?? nt.armas[conocida]?.tipo ?? ((weaponData && weaponData.t) || weapon.t));
     const suelo = usaDE && (Number(popSuelo) || 0) >= POP_FIABLE ? floor : 1;
-    preciosDe10(fila, percentilTirada(poblacion, residuos[1]), qs, nt.rho).forEach((v, i) => { out[qs[i]] = Math.max(suelo, Math.round(v)); });
+    preciosDe10(fila, percentilTirada(poblacion, residuos[1]), qs, nt.rho, fila === filaDe ? primaDe10(nt, fila[3]) : 0).forEach((v, i) => { out[qs[i]] = Math.max(suelo, Math.round(v)); });
   } else {
     for (const a of qs) {
       const f = Math.max(0, Math.min(1, s + (OFF[a] != null ? OFF[a] : 0)));

@@ -182,3 +182,107 @@ test("renderMlChip muestra el rótulo según la fuente y el idioma", () => {
   renderMlChip(estCard, null, bandCurva, false);
   assert.ok(elem.innerHTML.startsWith("AI:"));
 });
+
+test("sin prima_de10 en el modelo la tasación no cambia", async () => {
+  const nt = await NT.cargarNivelTirada();
+  assert.equal(nt.prima_de10, undefined);
+  const band = await N.predictRivenMLBand(LARKSPUR, STATS, LARKSPUR, null, 75);
+  assert.equal(band.p50, 206);
+  assert.equal(band.fuente, "de10");
+});
+
+test("la prima de de10 se suma por tramo de pop10", async () => {
+  const nt = await NT.cargarNivelTirada();
+  const de10 = await NT.cargarDe10();
+  const orig = [...de10.familias.larkspur];
+  const PRIMA = { cortes: [3, 6, 12], valores: [0, 0.1, 0.2, 0.3] };
+  try {
+    nt.prima_de10 = PRIMA;
+    for (const [pop10, valor] of [[3.88, 0.1], [8, 0.2], [20, 0.3]]) {
+      de10.familias.larkspur = [orig[0], orig[1], orig[2], pop10, orig[4]];
+      const band = await N.predictRivenMLBand(LARKSPUR, STATS, LARKSPUR, null, 75);
+      assert.equal(band.fuente, "de10");
+      assert.ok(Math.abs(band.p50 - 206 * Math.exp(valor)) <= 1.5);
+      assert.ok(band.p25 <= band.p50 && band.p50 <= band.p80 && band.p80 <= band.p90 && band.p90 <= band.p95);
+    }
+  } finally {
+    delete nt.prima_de10;
+    de10.familias.larkspur = orig;
+  }
+});
+
+test("el techo ln max10 sigue mandando con prima", async () => {
+  const nt = await NT.cargarNivelTirada();
+  const de10 = await NT.cargarDe10();
+  const orig = [...de10.familias.larkspur];
+  try {
+    nt.prima_de10 = { cortes: [3, 6, 12], valores: [0, 0.3, 0.3, 0.3] };
+    de10.familias.larkspur = [orig[0], orig[1], 250, orig[3], orig[4]];
+    const band = await N.predictRivenMLBand(LARKSPUR, STATS, LARKSPUR, null, 75);
+    assert.equal(band.fuente, "de10");
+    assert.equal(band.p50, 250);
+    assert.equal(band.p95, 250);
+  } finally {
+    delete nt.prima_de10;
+    de10.familias.larkspur = orig;
+  }
+});
+
+test("la prima no toca las fuentes modelo ni curva", async () => {
+  const nt = await NT.cargarNivelTirada();
+  const de10 = await NT.cargarDe10();
+  const orig = [...de10.familias.larkspur];
+  const sinWfm = nt.sin_wfm;
+  const prima = { cortes: [0, 3, 6, 12], valores: [0.5, 0.5, 0.5, 0.5, 0.5] };
+  try {
+    delete nt.prima_de10;
+    de10.familias.larkspur = [orig[0], orig[1], orig[2], 2, orig[4]];
+    const a0 = await N.predictRivenMLBand(LARKSPUR, STATS, LARKSPUR, null, 75);
+    assert.equal(a0.fuente, "modelo");
+    nt.prima_de10 = prima;
+    const a1 = await N.predictRivenMLBand(LARKSPUR, STATS, LARKSPUR, null, 75);
+    assert.equal(a1.fuente, "modelo");
+    assert.equal(a1.p25, a0.p25);
+    assert.equal(a1.p50, a0.p50);
+    assert.equal(a1.p80, a0.p80);
+    assert.equal(a1.p90, a0.p90);
+    assert.equal(a1.p95, a0.p95);
+
+    delete nt.prima_de10;
+    de10.familias.larkspur = orig;
+    delete nt.sin_wfm;
+    const b0 = await N.predictRivenMLBand(SIN_NIVEL, STATS, SIN_NIVEL, null, 75);
+    assert.equal(b0.fuente, "curva");
+    nt.prima_de10 = prima;
+    const b1 = await N.predictRivenMLBand(SIN_NIVEL, STATS, SIN_NIVEL, null, 75);
+    assert.equal(b1.fuente, "curva");
+    assert.equal(b1.p25, b0.p25);
+    assert.equal(b1.p50, b0.p50);
+    assert.equal(b1.p80, b0.p80);
+    assert.equal(b1.p90, b0.p90);
+    assert.equal(b1.p95, b0.p95);
+  } finally {
+    delete nt.prima_de10;
+    de10.familias.larkspur = orig;
+    nt.sin_wfm = sinWfm;
+  }
+});
+
+test("un arma sin fila de de10 y pop10 bajo no lleva prima", async () => {
+  const nt = await NT.cargarNivelTirada();
+  try {
+    delete nt.prima_de10;
+    const sinPrima = await N.predictRivenMLBand(SIN_NIVEL, STATS, SIN_NIVEL, null, 75);
+    nt.prima_de10 = { cortes: [3, 6, 12], valores: [0, 0.42, 0.6, 0.79] };
+    const conPrima = await N.predictRivenMLBand(SIN_NIVEL, STATS, SIN_NIVEL, null, 75);
+    assert.equal(sinPrima.fuente, "de10");
+    assert.equal(conPrima.fuente, "de10");
+    assert.equal(conPrima.p25, sinPrima.p25);
+    assert.equal(conPrima.p50, sinPrima.p50);
+    assert.equal(conPrima.p80, sinPrima.p80);
+    assert.equal(conPrima.p90, sinPrima.p90);
+    assert.equal(conPrima.p95, sinPrima.p95);
+  } finally {
+    delete nt.prima_de10;
+  }
+});
