@@ -369,12 +369,19 @@ export function cuantilNormal(p) {
     return polinomio(NORMAL_A, r) * q / (polinomio(NORMAL_B, r) * r + 1);
 }
 
-export function preciosDe10(fila, u, cuantiles, rho = RHO) {
+export function primaDe10(modelo, pop10) {
+    const prima = modelo?.prima_de10;
+    if (!Array.isArray(prima?.cortes) || !Array.isArray(prima?.valores)) return 0;
+    const valor = prima.valores[prima.cortes.filter(c => pop10 >= c).length];
+    return Number.isFinite(valor) ? valor : 0;
+}
+
+export function preciosDe10(fila, u, cuantiles, rho = RHO, prima = 0) {
     const [l10, s10, max10] = fila;
     const z = cuantilNormal(u);
     const resto = Math.sqrt(1 - rho * rho);
     const techo = max10 > 0 ? Math.log(max10) : Infinity;
-    return cuantiles.map(q => Math.exp(Math.min(l10 + s10 * (rho * z + resto * cuantilNormal(q)), techo)));
+    return cuantiles.map(q => Math.exp(Math.min(l10 + prima + s10 * (rho * z + resto * cuantilNormal(q)), techo)));
 }
 
 export function residuosTirada(modelo, arma, positivos, negativo, registro = null) {

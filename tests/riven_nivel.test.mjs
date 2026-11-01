@@ -386,3 +386,45 @@ test("preciosDe10 genera precios monótonos con tope opcional y rho por defecto"
   assert.ok(preciosCeroTecho[0] > 300);
 });
 
+test("primaDe10 vale 0 sin campo o con campo mal formado", () => {
+  assert.equal(N.primaDe10(null, 10), 0);
+  assert.equal(N.primaDe10({}, 10), 0);
+  assert.equal(N.primaDe10({ prima_de10: { cortes: [3, 6, 12] } }, 10), 0);
+  assert.equal(N.primaDe10({ prima_de10: { cortes: "x", valores: [0, 1] } }, 10), 0);
+  assert.equal(N.primaDe10({ prima_de10: { cortes: [3, 6, 12], valores: [0, 0.4] } }, 20), 0);
+  assert.equal(N.primaDe10({ prima_de10: { cortes: [3, 6, 12], valores: [0, NaN, 0.6, 0.8] } }, 4), 0);
+});
+
+test("primaDe10 elige el valor del tramo de pop10", () => {
+  const modelo = { prima_de10: { cortes: [3, 6, 12], valores: [0, 0.42, 0.6, 0.79] } };
+  assert.equal(N.primaDe10(modelo, 0), 0);
+  assert.equal(N.primaDe10(modelo, 2.99), 0);
+  assert.equal(N.primaDe10(modelo, 3), 0.42);
+  assert.equal(N.primaDe10(modelo, 5.99), 0.42);
+  assert.equal(N.primaDe10(modelo, 6), 0.6);
+  assert.equal(N.primaDe10(modelo, 11.99), 0.6);
+  assert.equal(N.primaDe10(modelo, 12), 0.79);
+  assert.equal(N.primaDe10(modelo, 80), 0.79);
+  assert.equal(N.primaDe10(modelo, NaN), 0);
+});
+
+test("preciosDe10 con prima 0 es idéntico y la prima sube todos los cuantiles", () => {
+  const fila = [5, 0.9, 0, 10];
+  const qs = [0.25, 0.5, 0.8, 0.9, 0.95];
+  const sinPrima = N.preciosDe10(fila, 0.6, qs);
+  assert.deepEqual(sinPrima, N.preciosDe10(fila, 0.6, qs, 0.7, 0));
+  assert.deepEqual(sinPrima, N.preciosDe10(fila, 0.6, qs, undefined, 0));
+  const conPrima = N.preciosDe10(fila, 0.6, qs, 0.7, 0.42);
+  for (let i = 0; i < qs.length; i++) {
+    assert.ok(Math.abs(conPrima[i] / sinPrima[i] - Math.exp(0.42)) < 1e-12);
+  }
+});
+
+test("preciosDe10 con prima respeta el techo de max10", () => {
+  const fila = [5, 0.9, 200, 10];
+  const sinPrima = N.preciosDe10(fila, 0.5, [0.5], 0.7, 0);
+  assert.ok(sinPrima[0] < 200);
+  const conPrima = N.preciosDe10(fila, 0.5, [0.5], 0.7, 0.79);
+  assert.ok(Math.abs(conPrima[0] - 200) < 1e-9);
+});
+
