@@ -186,7 +186,7 @@ test("el panel se entera de que ha cambiado el inventario de reliquias", () => {
 
     const escaner = readFileSync(
         new URL("../deploy/js/scanner/live_scanner.js", import.meta.url), "utf8");
-    assert.equal(escaner.match(/globalThis\.inventarioCambiado\?\.\(\)/g)?.length, 11);
+    assert.equal(escaner.match(/globalThis\.inventarioCambiado\?\.\(\)/g)?.length, 12);
     assert.doesNotMatch(escaner, /globalThis\.render(Prime)?Inventory\b/);
     assert.match(inv, /JSON\.stringify\(state\.primeInventory\)(?!\.length)/);
     const modal = readFileSync(
