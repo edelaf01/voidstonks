@@ -14,7 +14,7 @@ import {
 import { damageMeta } from "../../utils/damage_types.js";
 import { RIVEN_STATS, TEXTS, WORKER_URL, WFM_RIVENS_HASTA, canBeNegative } from "../../config.js";
 import { getRivenTooltip, getRivenMetricName, fechaWfmRivens } from "../../utils/rivens/riven_tooltips.js";
-import { renderMetaStats, refreshCurrentRivenMetaStats } from "./ui_riven_meta_stats.js";
+import { renderMetaStats, refreshCurrentRivenMetaStats, nivelesDeStats } from "./ui_riven_meta_stats.js";
 import {
   buildAppraisalWarningsHtml,
   buildAppraisalCardHTML,
@@ -26,7 +26,7 @@ import {
 } from "./ui_riven_appraisal.js";
 import { cicloRivenHtml } from "./ui_riven_cycling.js";
 import { computeDesirabilityMultiplier, statsBuscadosDelArma } from "../../services/rivens/riven_appraisal.service.js";
-import { getLocalizedStatName, CANT_BE_NEGATIVE } from "../../utils/rivens/riven_stat_display.js";
+import { getLocalizedStatName } from "../../utils/rivens/riven_stat_display.js";
 import { extractFamilyName, VARIANT_PREFIXES, VARIANT_SUFFIXES } from "../../utils/rivens/riven_family.js";
 import { getWeaponHistory, getRivenIndex } from "../../services/rivens/riven_index.service.js";
 import {
@@ -37,7 +37,6 @@ import {
   calculateRivenPotential,
   calculateAdvancedPredictivePrice,
   calculateHybridTiers,
-  gradeWeaponStats,
   STAT_TIER_TOP,
   STAT_TIER_MID
 } from "../../utils/rivens/riven_logic.js";
@@ -52,12 +51,7 @@ import { escapeHTML, showToast } from "../ui_components.js";
 import { onTap, isTouchPointer } from "../../utils/tap.js";
 import { normalizeStatName, generateRivenName } from "../../utils/rivens/riven_naming.js";
 import { nivelVolatilidad, etiquetaVolatilidad, textoExtraPorCiclar } from "../../utils/rivens/riven_metrics.js";
-import {
-  metaConPesosDeFamilia,
-  pesosFinosDeArma,
-  statsSinDatoPropio,
-  isStatAllowedForWeaponType,
-} from "../../services/rivens/riven_weights.service.js";
+import { metaConPesosDeFamilia } from "../../services/rivens/riven_weights.service.js";
 export { normalizeStatName, stopCuriosidades };
 
 globalThis.DEFAULT_WEAPON_SVG = DEFAULT_WEAPON_SVG;
@@ -3645,58 +3639,9 @@ export function renderRivenIndexList(items, countHtml = "") {
 
     let detailsHtml = "";
     if (isExpanded) {
-      let bestPos = [];
-      let midPos = [];
-      let worstPos = [];
-      let bestNeg = [];
-      let midNeg = [];
-      let worstNeg = [];
-
-      if (Array.isArray(val.pos)) {
-        bestPos = val.pos;
-      } else if (val.pos_tier) {
-        bestPos = val.pos_tier.top || [];
-        midPos = val.pos_tier.mid || [];
-        worstPos = val.pos_tier.trash || [];
-      } else if (val.pos) {
-        bestPos = val.pos.best || [];
-        midPos = val.pos.mid || [];
-        worstPos = val.pos.worst || [];
-      }
-
-      if (Array.isArray(val.neg)) {
-        bestNeg = val.neg;
-      } else if (val.neg_tier) {
-        bestNeg = val.neg_tier.buff || [];
-        midNeg = val.neg_tier.mid || [];
-        worstNeg = val.neg_tier.curse || [];
-      } else if (val.neg) {
-        bestNeg = val.neg.best || [];
-        midNeg = val.neg.mid || [];
-        worstNeg = val.neg.worst || [];
-      }
-
-      if (bestPos.length === 0 || bestNeg.length === 0) {
-        const fallbackMeta = getMetaStats(name, state.weaponMap[name]?.t);
-        if (fallbackMeta) {
-          if (bestPos.length === 0 && fallbackMeta.pos) {
-            bestPos = Array.isArray(fallbackMeta.pos) ? fallbackMeta.pos : (fallbackMeta.pos.best || []);
-            midPos = Array.isArray(fallbackMeta.pos) ? [] : (fallbackMeta.midPos || fallbackMeta.pos.mid || []);
-            worstPos = Array.isArray(fallbackMeta.pos) ? [] : (fallbackMeta.pos_tier?.trash || fallbackMeta.pos.worst || []);
-          }
-          if (bestNeg.length === 0 && fallbackMeta.neg) {
-            bestNeg = Array.isArray(fallbackMeta.neg) ? fallbackMeta.neg : (fallbackMeta.neg.best || []);
-            midNeg = Array.isArray(fallbackMeta.neg) ? [] : (fallbackMeta.midNeg || fallbackMeta.neg.mid || []);
-            worstNeg = Array.isArray(fallbackMeta.neg) ? [] : (fallbackMeta.neg_tier?.curse || fallbackMeta.neg.worst || []);
-          }
-        }
-      }
-
-      bestNeg = bestNeg.filter(s => !CANT_BE_NEGATIVE.test(s));
-      midNeg = midNeg.filter(s => !CANT_BE_NEGATIVE.test(s));
-      const goodNegSet = new Set([...bestNeg, ...midNeg].map(x => String(x).toLowerCase()));
-      worstNeg = [...new Set([...bestPos, ...midPos, ...(worstNeg || []), ...(val.negWorst || [])])]
-        .filter(s => !goodNegSet.has(String(s).toLowerCase()) && !CANT_BE_NEGATIVE.test(s));
+      const tipo = state.weaponMap[activeRenderingName]?.t;
+      const { best: bestPos, mid: midPos, meh: worstPos, bestNeg, midNeg, worstNeg } = nivelesDeStats(
+        metaConPesosDeFamilia(getMetaStats(activeRenderingName, tipo) || { ...val }, activeRenderingName), activeRenderingName, tipo);
 
       detailsHtml = `
         <div class="index-item-details" style="background: rgba(255,255,255,0.015); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 12px; box-shadow: inset 0 0 15px rgba(0,0,0,0.2); display: block; border-top: none; margin-top: 8px;">
