@@ -68,11 +68,11 @@ test("cada métrica tiene un solo nombre por idioma, y el suyo tiene explicació
 test("rotuloBanda devuelve los rótulos correctos según fuente e idioma", () => {
   assert.deepEqual(rotuloBanda("de10", true), {
     corto: "DE 10 sem",
-    largo: "Lo que se vendió según DE en 10 semanas"
+    largo: "Nivel de DE en 10 semanas, ajustado a lo que se pide en WFM"
   });
   assert.deepEqual(rotuloBanda("de10", false), {
     corto: "DE 10 wk",
-    largo: "What sold according to DE over 10 weeks"
+    largo: "DE 10-week level, adjusted to WFM asking prices"
   });
   assert.deepEqual(rotuloBanda("curva", true), {
     corto: "IA",
