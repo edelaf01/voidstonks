@@ -1,8 +1,9 @@
 import { VisionService } from "./vision.service.js";
 import { OCRRepository } from "../../repositories/ocr.repository.js";
-import { regionLuma } from "../../utils/vision/frame_hash.js";
-import { tituloHaCambiado, FRANJA_CATEGORIA_VIDEO } from "../../utils/vision/context_latch.js";
+import { regionLuma, fraccionCambiada } from "../../utils/vision/frame_hash.js";
+import { tituloHaCambiado, FRANJA_CATEGORIA_VIDEO, FRANJA_BUSQUEDA_VIDEO } from "../../utils/vision/context_latch.js";
 import { pistasDelLog } from "../../utils/ganchos.js";
+import { analizaFranjaBusqueda } from "../../utils/inventory/busqueda_rejilla.js";
 
 export async function leeCategoriaInventario(escaner, video, worker1) {
     const hash = regionLuma(video, FRANJA_CATEGORIA_VIDEO);
@@ -34,6 +35,39 @@ export async function leeCategoriaInventario(escaner, video, worker1) {
     escaner._categoriaHash = hash;
     escaner._categoriaTexto = (data.text || "").toUpperCase();
     return escaner._categoriaTexto;
+}
+
+export async function leeBusquedaInventario(escaner, fuente, worker1) {
+    const ancho = fuente?.videoWidth || fuente?.width, alto = fuente?.videoHeight || fuente?.height;
+    if (!ancho || !alto) return "";
+    const hash = regionLuma(fuente, FRANJA_BUSQUEDA_VIDEO);
+    if (escaner._busquedaHash && fraccionCambiada(hash, escaner._busquedaHash) === 0) {
+        return escaner._busquedaTexto;
+    }
+    const lienzo = VisionService.lienzo("busqueda");
+    const factor = 2160 / alto;
+    lienzo.width = Math.round(ancho * FRANJA_BUSQUEDA_VIDEO.w * factor);
+    lienzo.height = Math.round(alto * FRANJA_BUSQUEDA_VIDEO.h * factor);
+    const ctx = lienzo.getContext("2d", { willReadFrequently: true });
+    ctx.drawImage(
+        fuente,
+        ancho * FRANJA_BUSQUEDA_VIDEO.x,
+        alto * FRANJA_BUSQUEDA_VIDEO.y,
+        ancho * FRANJA_BUSQUEDA_VIDEO.w,
+        alto * FRANJA_BUSQUEDA_VIDEO.h,
+        0, 0, lienzo.width, lienzo.height
+    );
+    const imgData = ctx.getImageData(0, 0, lienzo.width, lienzo.height);
+    const { tinta, alBorde } = analizaFranjaBusqueda(imgData.data, lienzo.width, lienzo.height);
+    let texto = "";
+    if (tinta && !alBorde) {
+        ctx.putImageData(imgData, 0, 0);
+        const { data } = await OCRRepository.recognizeWithPSM(worker1, lienzo, 7, { text: true });
+        texto = data?.text || "";
+    }
+    escaner._busquedaHash = hash;
+    escaner._busquedaTexto = texto;
+    return texto;
 }
 
 export const RESCATE_CABECERA_MS = 3000;

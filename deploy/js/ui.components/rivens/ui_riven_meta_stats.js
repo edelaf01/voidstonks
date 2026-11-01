@@ -20,25 +20,27 @@ import {
   isStatAllowedForWeaponType,
 } from "../../services/rivens/riven_weights.service.js";
 import { renderCuriosidadesArma } from "./ui_riven_curiosidades.js";
+import { tipoDeArma, claveStat, esFusionado } from "../../utils/rivens/riven_cycling.js";
 
-export function renderMetaStats(weaponName, weaponType, targetId = "meta-stats-container") {
-  const container = document.getElementById(targetId);
-  if (!container) return;
-
-  const metaRaw = getMetaStats(weaponName, weaponType);
-  const cicloFuera = targetId === "meta-stats-container" ? document.getElementById("riven-ciclo-container") : null;
-  if (!metaRaw) {
-    if (cicloFuera) cicloFuera.innerHTML = "";
-    container.style.display = "none";
-    return;
-  }
-  const meta = metaConPesosDeFamilia(metaRaw, weaponName);
-  renderCuriosidadesArma(weaponName);
-
+export function nivelesDeStats(meta, weaponName, weaponType) {
   const _typeStr = String(weaponType || meta.t || "").toLowerCase();
   const _isMeleeType = _typeStr.includes("melee") || _typeStr.includes("zaw") || _typeStr.includes("glaive");
+  const _tipoIdx = tipoDeArma(weaponType || meta.t);
+  const _vistaClave = (s) => claveStat(s, _tipoIdx) || String(s).toLowerCase();
+  const _unicos = (lista) => {
+    const vistos = new Set();
+    const res = [];
+    for (const item of lista || []) {
+      const k = _vistaClave(item);
+      if (!vistos.has(k)) {
+        vistos.add(k);
+        res.push(item);
+      }
+    }
+    return res;
+  };
   const _grado = gradeWeaponStats(meta,
-    state.rivenStatBaseline?.stat_weights ?? state.rivenStatPrior ?? null);
+    state.rivenStatBaseline?.stat_weights ?? state.rivenStatPrior ?? null, _tipoIdx);
   if (_grado && _grado.best.length) {
     meta.pos = _grado.best;
     meta.midPos = _grado.mid;
@@ -60,6 +62,76 @@ export function renderMetaStats(weaponName, weaponType, targetId = "meta-stats-c
     meta._genericRecs = true;
   }
 
+  const _sinDato = statsSinDatoPropio(weaponName);
+  const _tipoOk = (s) => isStatAllowedForWeaponType(s, weaponType);
+  const _bestConDato = (meta.pos || []).filter(s => _tipoOk(s) && !_sinDato.has(String(s).toLowerCase()));
+  const _ocultarSinDato = _bestConDato.length > 0;
+  const allow = (s) => _tipoOk(s)
+    && !(_ocultarSinDato && _sinDato.has(String(s).toLowerCase()));
+  const _sinDatoNeg = statsSinDatoPropio(weaponName, "neg");
+  const _ocultarSinDatoNeg = _sinDatoNeg.size > 0
+    && (meta.neg || []).some(s => _tipoOk(s) && !_sinDatoNeg.has(String(s).toLowerCase()));
+  const allowNeg = (s) => _tipoOk(s)
+    && !(_ocultarSinDatoNeg && _sinDatoNeg.has(String(s).toLowerCase()));
+
+  const best = _unicos((meta.pos || []).filter(allow));
+  const mid = _unicos((meta.midPos || []).filter(allow));
+
+  const _yaArriba = new Set([...(meta.pos || []), ...(meta.midPos || [])].map(_vistaClave));
+  const _trash = meta.pos_tier?.trash || meta.pos?.worst || meta.rawPos?.worst || [];
+  const worstPos = _unicos([...(_grado ? _trash.filter(s => !esFusionado(s, _tipoIdx)) : _trash),
+    ...(_grado?.meh || []).filter(s => esFusionado(s, _tipoIdx))]
+    .filter(allow)
+    .filter(s => !_yaArriba.has(_vistaClave(s))));
+
+  const HARMLESS_NEG_CANDIDATES = ["Zoom", "Recoil", "Impact Damage", "Puncture Damage",
+    "Ammo Maximum", "Magazine Capacity", "Reload Speed", "Projectile Speed", "Slash Damage",
+    "Finisher Damage", "Heavy Attack Efficiency"];
+  const _dw = meta.dynamic_weights || {};
+  const _dataWantedNames = Object.keys(_dw).filter(k => parseFloat(_dw[k]) >= 0.5);
+  const _dataWorst = Object.keys(_dw).filter(k => parseFloat(_dw[k]) >= STAT_TIER_TOP);
+  const _dataMid = Object.keys(_dw).filter(k => {
+    const v = parseFloat(_dw[k]); return v >= STAT_TIER_MID && v < STAT_TIER_TOP;
+  });
+  const _worstSet = new Set([...(meta.pos || []), ..._dataWorst].map(_vistaClave));
+  const _wantedSet = new Set([...(meta.pos || []), ...(meta.midPos || []), ..._dataWantedNames].map(_vistaClave));
+  const harmlessAll = _unicos([...(meta.neg || []), ...(meta.neg_tier?.buff || []), ...HARMLESS_NEG_CANDIDATES])
+    .filter(allowNeg)
+    .filter(s => !_wantedSet.has(_vistaClave(s)) && !CANT_BE_NEGATIVE.test(s));
+  const harmlessSet = new Set(harmlessAll.map(_vistaClave));
+
+  // faction negatives go to MID, not harmless: their measured ratio falls short
+  const FACTION_NEGS = ["Damage Vs Infested", "Damage Vs Corpus", "Damage Vs Grineer"];
+  const midNeg = _unicos([...(meta.midNeg || []), ...FACTION_NEGS, ...(meta.midPos || []), ..._dataMid])
+    .filter(allowNeg)
+    .filter(s => !_worstSet.has(_vistaClave(s)) && !harmlessSet.has(_vistaClave(s)) && !CANT_BE_NEGATIVE.test(s));
+
+  const goodNegSet = new Set([...(meta.neg || []), ...(meta.midPos || []), ...midNeg, ...harmlessAll].map(_vistaClave));
+  const worstNeg = _unicos([
+    ...(meta.pos || []), ..._dataWorst,
+    ...(meta.negWorst || []), ...(meta.neg_tier?.curse || []), ...(meta.rawNeg?.worst || [])
+  ])
+    .filter(allow)
+    .filter(s => !goodNegSet.has(_vistaClave(s)) && !harmlessSet.has(_vistaClave(s)) && !CANT_BE_NEGATIVE.test(s));
+
+  return { best, mid, meh: worstPos, bestNeg: harmlessAll, midNeg, worstNeg, allow, allowNeg };
+}
+
+export function renderMetaStats(weaponName, weaponType, targetId = "meta-stats-container") {
+  const container = document.getElementById(targetId);
+  if (!container) return;
+
+  const metaRaw = getMetaStats(weaponName, weaponType);
+  const cicloFuera = targetId === "meta-stats-container" ? document.getElementById("riven-ciclo-container") : null;
+  if (!metaRaw) {
+    if (cicloFuera) cicloFuera.innerHTML = "";
+    container.style.display = "none";
+    return;
+  }
+  const meta = metaConPesosDeFamilia(metaRaw, weaponName);
+  renderCuriosidadesArma(weaponName);
+  const niveles = nivelesDeStats(meta, weaponName, weaponType);
+
   const _finos = state.rivenStatWeights ? "f" : "nf";
   const _fam = extractFamilyName(String(weaponName || "")) || weaponName;
   const cacheKey = `${_fam}_${weaponType}_${state.currentLang}_${meta._genericRecs ? "gen" : "real"}_${_finos}`;
@@ -74,21 +146,9 @@ export function renderMetaStats(weaponName, weaponType, targetId = "meta-stats-c
     return fallbackVal !== undefined ? ` (${fallbackVal.toFixed(2)})` : "";
   };
 
-  const _sinDato = statsSinDatoPropio(weaponName);
-  const _tipoOk = (s) => isStatAllowedForWeaponType(s, weaponType);
-  const _bestConDato = (meta.pos || []).filter(s => _tipoOk(s) && !_sinDato.has(String(s).toLowerCase()));
-  const _ocultarSinDato = _bestConDato.length > 0;
-  const allow = (s) => _tipoOk(s)
-    && !(_ocultarSinDato && _sinDato.has(String(s).toLowerCase()));
-  const _sinDatoNeg = statsSinDatoPropio(weaponName, "neg");
-  const _ocultarSinDatoNeg = _sinDatoNeg.size > 0
-    && (meta.neg || []).some(s => _tipoOk(s) && !_sinDatoNeg.has(String(s).toLowerCase()));
-  const allowNeg = (s) => _tipoOk(s)
-    && !(_ocultarSinDatoNeg && _sinDatoNeg.has(String(s).toLowerCase()));
-
   const _pesosPos = pesosFinosDeArma(weaponName, "pos") || meta.dynamic_weights || {};
   const _pesosNeg = pesosFinosDeArma(weaponName, "neg") || {};
-  const _destacar = (lista, pesos, filtro = allow) => {
+  const _destacar = (lista, pesos, filtro = niveles.allow) => {
     const conPeso = (lista || []).filter(filtro)
       .map(s => [s, parseFloat(pesos[s])])
       .filter(([, v]) => Number.isFinite(v))
@@ -99,7 +159,7 @@ export function renderMetaStats(weaponName, weaponType, targetId = "meta-stats-c
     if (cerca.length > 2 || cerca.length === conPeso.length) return new Set();
     return new Set(cerca.map(([s]) => s));
   };
-  const _mejores = _destacar(meta.pos, _pesosPos);
+  const _mejores = _destacar(niveles.best, _pesosPos);
   const _tipTop = isEs
     ? "El stat con más peso de esta arma: es el que decide el precio, más que los otros del grupo."
     : "This weapon's highest-weighted stat: it drives the price more than the others in the group.";
@@ -107,43 +167,27 @@ export function renderMetaStats(weaponName, weaponType, targetId = "meta-stats-c
     ? "La maldición menos dañina de esta arma: es la que menos resta al precio de todo el grupo."
     : "This weapon's least harmful curse: it costs less value than any other in the group.";
 
-  const bestPosHtml = (meta.pos || []).filter(allow).map(s => `
+  const bestPosHtml = niveles.best.map(s => `
     <span ${_mejores.has(s) ? `data-tooltip="${_tipTop}" style="cursor:help; ` : "style=\""}background: rgba(0, 255, 120, ${_mejores.has(s) ? "0.28" : "0.15"}); border: 1px solid rgba(0, 255, 120, ${_mejores.has(s) ? "0.85" : "0.45"}); color: #00ff78; text-shadow: 0 0 6px rgba(0, 255, 120, 0.5); box-shadow: 0 0 ${_mejores.has(s) ? "12px rgba(0,255,120,0.4)" : "8px rgba(0, 255, 120, 0.15)"}; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 4px; display: inline-block; margin-bottom: 4px; font-weight: bold;">
       <span style="font-size: 9px; background: #00ff78; color: #000; padding: 1px 4px; border-radius: 3px; margin-right: 5px; font-weight: 900; text-transform: uppercase;">${_mejores.has(s) ? "TOP" : "BEST"}</span>+ ${getLocalizedStatName(s)}
     </span>
   `).join("");
 
-  const midPos = (meta.midPos || []).filter(allow);
-  const midPosHtml = midPos.length > 0 ? midPos.map(s => `
+  const midPosHtml = niveles.mid.length > 0 ? niveles.mid.map(s => `
     <span style="background: rgba(234, 179, 8, 0.08); border: 1px solid rgba(234, 179, 8, 0.18); color: #eab308; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 4px; display: inline-block; margin-bottom: 4px; font-weight: 500;">
       <span style="font-size: 9px; background: rgba(234, 179, 8, 0.18); color: #eab308; padding: 1px 4px; border-radius: 3px; margin-right: 5px; font-weight: 700; text-transform: uppercase;">MID</span>+ ${getLocalizedStatName(s)}
     </span>
   `).join("") : "";
 
-  const worstPos = (meta.pos_tier?.trash || meta.pos?.worst || meta.rawPos?.worst || []).filter(allow);
-  const worstPosHtml = worstPos.length > 0 ? worstPos.map(s => `
+  const worstPosHtml = niveles.meh.length > 0 ? niveles.meh.map(s => `
     <span style="background: rgba(148, 163, 184, 0.08); border: 1px solid rgba(148, 163, 184, 0.18); color: #94a3b8; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 4px; display: inline-block; margin-bottom: 4px; font-weight: 500;">
       + ${getLocalizedStatName(s)}
     </span>
   `).join("") : "";
 
-  const HARMLESS_NEG_CANDIDATES = ["Zoom", "Recoil", "Impact Damage", "Puncture Damage",
-    "Ammo Maximum", "Magazine Capacity", "Reload Speed", "Projectile Speed", "Slash Damage",
-    "Finisher Damage", "Heavy Attack Efficiency"];
-  const _dw = meta.dynamic_weights || {};
-  const _dataWantedNames = Object.keys(_dw).filter(k => parseFloat(_dw[k]) >= 0.5);
-  const _dataWorst = Object.keys(_dw).filter(k => parseFloat(_dw[k]) >= STAT_TIER_TOP);
-  const _dataMid = Object.keys(_dw).filter(k => {
-    const v = parseFloat(_dw[k]); return v >= STAT_TIER_MID && v < STAT_TIER_TOP;
-  });
-  const _worstSet = new Set([...(meta.pos || []), ..._dataWorst].map(x => String(x).toLowerCase()));
-  const _wantedSet = new Set([...(meta.pos || []), ...(meta.midPos || []), ..._dataWantedNames].map(x => String(x).toLowerCase()));
+  const harmlessAll = niveles.bestNeg;
   const _curatedNeg = new Set((meta.neg || []).map(x => String(x).toLowerCase()));
-  const harmlessAll = [...new Set([...(meta.neg || []), ...HARMLESS_NEG_CANDIDATES])]
-    .filter(allowNeg)
-    .filter(s => !_wantedSet.has(String(s).toLowerCase()) && !CANT_BE_NEGATIVE.test(s));
-  const harmlessSet = new Set(harmlessAll.map(x => String(x).toLowerCase()));
-  const _mejoresNeg = _destacar(harmlessAll, _pesosNeg, allowNeg);
+  const _mejoresNeg = _destacar(harmlessAll, _pesosNeg, niveles.allowNeg);
   const bestNegHtml = harmlessAll.map(s => {
     const isTop = _mejoresNeg.has(s);
     const isCurated = _curatedNeg.has(String(s).toLowerCase());
@@ -155,25 +199,13 @@ export function renderMetaStats(weaponName, weaponType, targetId = "meta-stats-c
     return `<span${tip} style="${isTop ? "cursor:help; " : ""}background: rgba(0, 229, 255, ${isTop ? "0.28" : isCurated ? "0.15" : "0.07"}); border: 1px solid rgba(0, 229, 255, ${isTop ? "0.85" : isCurated ? "0.45" : "0.22"}); color: #00e5ff; ${fuerte ? `text-shadow: 0 0 6px rgba(0,229,255,0.5); box-shadow: 0 0 ${isTop ? "12px rgba(0,229,255,0.4)" : "8px rgba(0,229,255,0.15)"}; font-weight: bold;` : "font-weight: 500;"} padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 4px; display: inline-block; margin-bottom: 4px;">${badge}- ${getLocalizedStatName(s)}</span>`;
   }).join("");
 
-  // faction negatives go to MID, not harmless: their measured ratio falls short
-  const FACTION_NEGS = ["Damage Vs Infested", "Damage Vs Corpus", "Damage Vs Grineer"];
-  const midNeg = [...new Set([...(meta.midNeg || []), ...FACTION_NEGS, ...(meta.midPos || []), ..._dataMid])]
-    .filter(allowNeg)
-    .filter(s => !_worstSet.has(String(s).toLowerCase()) && !harmlessSet.has(String(s).toLowerCase()) && !CANT_BE_NEGATIVE.test(s));
-  const midNegHtml = midNeg.length > 0 ? midNeg.map(s => `
+  const midNegHtml = niveles.midNeg.length > 0 ? niveles.midNeg.map(s => `
     <span style="background: rgba(234, 179, 8, 0.08); border: 1px solid rgba(234, 179, 8, 0.18); color: #eab308; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 4px; display: inline-block; margin-bottom: 4px; font-weight: 500;">
       <span style="font-size: 9px; background: rgba(234, 179, 8, 0.18); color: #eab308; padding: 1px 4px; border-radius: 3px; margin-right: 5px; font-weight: 700; text-transform: uppercase;">MID</span>- ${getLocalizedStatName(s)}
     </span>
   `).join("") : "";
 
-  const goodNegSet = new Set([...(meta.neg || []), ...midNeg, ...harmlessAll].map(x => String(x).toLowerCase()));
-  const worstNeg = [...new Set([
-    ...(meta.pos || []), ..._dataWorst,
-    ...(meta.negWorst || []), ...(meta.neg_tier?.curse || []), ...(meta.rawNeg?.worst || [])
-  ])]
-    .filter(allow)
-    .filter(s => !goodNegSet.has(String(s).toLowerCase()) && !harmlessSet.has(String(s).toLowerCase()) && !CANT_BE_NEGATIVE.test(s));
-  const worstNegHtml = worstNeg.length > 0 ? worstNeg.map(s => `
+  const worstNegHtml = niveles.worstNeg.length > 0 ? niveles.worstNeg.map(s => `
     <span style="background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.18); color: #ef4444; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 4px; display: inline-block; margin-bottom: 4px; font-weight: 500;">
       - ${getLocalizedStatName(s)}
     </span>
@@ -183,7 +215,7 @@ export function renderMetaStats(weaponName, weaponType, targetId = "meta-stats-c
   const hasOfficial = (meta.official_median !== undefined && meta.official_median !== null && meta.official_median > 0) ||
     (meta.official_avg_price !== undefined && meta.official_avg_price !== null && meta.official_avg_price > 0);
 
-  const cicloHtml = tablaCicloHtml({ tipo: weaponType || meta.t, buscados: (meta.pos || []).filter(allow), negOk: harmlessAll, isEs });
+  const cicloHtml = tablaCicloHtml({ tipo: weaponType || meta.t, buscados: niveles.best, negOk: harmlessAll, isEs });
   if (cicloFuera) cicloFuera.innerHTML = cicloHtml;
 
   const wfmAvgVal = meta.wfm_avg_price || meta.wfm_avg || 0;

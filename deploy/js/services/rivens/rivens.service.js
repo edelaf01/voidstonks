@@ -30,13 +30,13 @@ const MULTIPLICATIVE_CO = new Set([
 
 function normalizeRivenWeaponType(item) {
     const t = item.type || "Rifle";
-    if (t === "Zaw Component") return "Melee";
+    if (t === "Zaw Component" || item.category === "Melee") return "Melee";
     if (t === "Companion Weapon") return HOUND_WEAPONS.has(item.name.toUpperCase()) ? "Melee" : "Rifle";
     return t;
 }
 
 export async function fetchRivenWeapons() {
-    const CACHE_KEY = "voidstonkscache_weapons_v12";
+    const CACHE_KEY = "voidstonkscache_weapons_v13";
     const ONE_DAY = 24 * 60 * 60 * 1000;
     try {
         const cached = await dbHelper.get(CACHE_KEY);
@@ -128,7 +128,7 @@ export async function fetchRivenWeapons() {
 }
 
 async function fetchWeaponCombatStats() {
-    const CACHE_KEY = "voidstonkscache_combat_stats_v11";
+    const CACHE_KEY = "voidstonkscache_combat_stats_v12";
     const ONE_WEEK = 7 * 24 * 60 * 60 * 1000;
     try {
         const cached = await dbHelper.get(CACHE_KEY);
@@ -257,7 +257,7 @@ async function fetchWeaponCombatStats() {
                             fireRate: item.fireRate || 0,
                             magazine: item.magazineSize || 0,
                             reload: item.reloadTime || 0,
-                            type: item.type || cat,
+                            type: cat === "Melee" && item.type !== "Zaw Component" ? "Melee" : (item.type || cat),
                             damageTypes: damageTypes,
                             radial: radial,
                             multishot: item.multishot || 1,

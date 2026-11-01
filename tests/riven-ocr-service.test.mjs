@@ -445,3 +445,83 @@ test("el OCR lee una carta de ITEM DETAILS sin rolls (captura real)", () => {
   assert.equal(r.rolls, null, "no hay rolls en esta pantalla");
   assert.deepEqual(positivos(r), ["Electric", "Magazine Capacity"]);
 });
+
+test("un stat sin porcentaje en la primera línea de stats no se pierde", () => {
+  const antes = state.allRivenNames;
+  state.allRivenNames = [...antes, "Prova"];
+  try {
+    const r = S.parseRivenCard([
+      "Prova Igni-critanem",
+      ", +8.7s Combo Duration",
+      "+99.9% AHeat",
+      "+197.7% Critical Chance",
+      "(x2 for Heavy Attacks)",
+      "-73.8% Status Chance",
+    ].join("\n"));
+    assert.equal(r.weaponName, "Prova");
+    assert.deepEqual(nombres(r), ["Combo Duration", "Heat", "Crit Chance", "Status Chance"]);
+    assert.deepEqual(negativos(r), ["Status Chance"]);
+    const cd = r.stats.find((s) => s.name === "Combo Duration");
+    assert.equal(cd.value, 8.7);
+    assert.equal(cd.isPositive, true);
+    assert.equal(r.rivenName, "Prova Igni-critanem");
+  } finally {
+    state.allRivenNames = antes;
+  }
+});
+
+test("el ruido encima del nombre no abre el bloque de stats", () => {
+  const antes = state.allRivenNames;
+  state.allRivenNames = [...antes, "Prova"];
+  try {
+    const r = S.parseRivenCard([
+      "+4 ae",
+      "+2 Range",
+      "Prova Igni-critanem",
+      ", +8.7s Combo Duration",
+      "+99.9% AHeat",
+      "+197.7% Critical Chance",
+      "(x2 for Heavy Attacks)",
+      "-73.8% Status Chance",
+    ].join("\n"));
+    assert.equal(r.weaponName, "Prova");
+    assert.deepEqual(nombres(r), ["Combo Duration", "Heat", "Crit Chance", "Status Chance"]);
+  } finally {
+    state.allRivenNames = antes;
+  }
+});
+
+test("Atravesar en la primera línea de stats también abre el bloque", () => {
+  const r = S.parseRivenCard([
+    "Furis Visi-vexinok",
+    "+2.6 Punch Through",
+    "+89.2% Electricity",
+    "+234.4% Damage",
+    "MR 13 O15",
+  ].join("\n"));
+  assert.equal(r.weaponName, "Furis");
+  assert.deepEqual(nombres(r), ["Punch Through", "Electric", "Damage"]);
+  const pt = r.stats.find((s) => s.name === "Punch Through");
+  assert.equal(pt.value, 2.6);
+  assert.equal(pt.isPositive, true);
+  assert.equal(r.mr, 13);
+  assert.equal(r.rolls, 15);
+});
+
+test("la lectura real de la Prova en consola.log saca los cuatro stats", () => {
+  const antes = state.allRivenNames;
+  state.allRivenNames = [...antes, "Prova"];
+  try {
+    const r = S.parseRivenCard("Tg e uu\nS Y\nwo e\nProva Igni-critanem\n+8.7s Combo Duration\n0 +99.9% AHeat\n+197.7% Critical Chance\n(x2 for Heavy Attacks)\n, -73.8% Status Chance re\naR 0179 X\nBen Ar\nIA a)");
+    assert.equal(r.weaponName, "Prova");
+    assert.equal(r.rivenName, "Prova Igni-critanem");
+    assert.deepEqual(r.stats.map((s) => [s.name, s.value, s.isPositive]), [
+      ["Combo Duration", 8.7, true],
+      ["Heat", 99.9, true],
+      ["Crit Chance", 197.7, true],
+      ["Status Chance", 73.8, false],
+    ]);
+  } finally {
+    state.allRivenNames = antes;
+  }
+});

@@ -6,7 +6,7 @@ let _de10 = null;
 const PREFIJOS_FAMILIA = ["coda_", "kuva_", "tenet_", "prisma_", "dex_", "carmine_", "telos_", "synoid_", "secura_", "rakta_", "sancti_", "mara_", "vaykor_"];
 const SUFIJOS_FAMILIA = ["_prime", "_vandal", "_wraith", "_coda"];
 const ALIAS_FAMILIA = { dex_furis: "furis", dex_afuris: "afuris", pangolin: "pangolin_sword", pangolin_prime: "pangolin_sword", pangolin_sword: "pangolin_sword", dual_decurions: "dual_decurion", prisma_dual_decurions: "dual_decurion" };
-const POP_FIABLE = 3;
+export const POP_FIABLE = 3;
 const K_L = 3;
 const K_S = 5;
 const RHO = 0.7;
@@ -123,14 +123,18 @@ const NOMBRES_WFM = {
     "Damage to Grineer": "Damage Vs Grineer",
     "Damage to Corpus": "Damage Vs Corpus",
     "Damage to Infested": "Damage Vs Infested",
-    "Damage to Orokin": "Damage To Orokin"
+    "Damage to Orokin": "Damage To Orokin",
+    "Damage to Techrot": "Damage To Techrot",
+    "Damage to Scaldra": "Damage To Scaldra"
 };
 
 const MULTIPLICADORES = new Set([
     "Damage Vs Grineer",
     "Damage Vs Corpus",
     "Damage Vs Infested",
-    "Damage To Orokin"
+    "Damage To Orokin",
+    "Damage To Techrot",
+    "Damage To Scaldra"
 ]);
 
 export function atributosAWfm(atributos, tipoIdx) {
@@ -292,6 +296,37 @@ export function nivelSinWfm(modelo, nombre, fila) {
     return fila[3] >= POP_FIABLE ? fila[0] : sin.nivel[0] * fila[0] + sin.nivel[1];
 }
 
+const _desfases = new WeakMap();
+
+export function desfaseNivel(modelo, de10) {
+    if (!modelo?.armas || !de10?.familias) return NaN;
+    const previo = _desfases.get(modelo);
+    if (previo && previo.de10 === de10) return previo.valor;
+    const vistas = new Set();
+    const difs = [];
+    for (const [nombre, arma] of Object.entries(modelo.armas)) {
+        const familia = claveFamilia(nombre, de10.familias);
+        if (!familia || vistas.has(familia)) continue;
+        vistas.add(familia);
+        const fila = de10.familias[familia];
+        if (fila[3] >= POP_FIABLE && Number.isFinite(arma.nivel)) difs.push(fila[0] - arma.nivel);
+    }
+    difs.sort((a, b) => a - b);
+    const n = difs.length;
+    const valor = n === 0 ? NaN : n % 2 ? difs[(n - 1) / 2] : (difs[n / 2 - 1] + difs[n / 2]) / 2;
+    _desfases.set(modelo, { de10, valor });
+    return valor;
+}
+
+export function filaConNivelModelo(modelo, de10, nombre, fila) {
+    if (!fila || fila[3] >= POP_FIABLE) return fila;
+    const conocida = nombreArma(modelo, nombre);
+    const nivel = conocida ? modelo.armas[conocida].nivel : NaN;
+    const desfase = desfaseNivel(modelo, de10);
+    if (!Number.isFinite(nivel) || !Number.isFinite(desfase)) return fila;
+    return [nivel + desfase, ...fila.slice(1)];
+}
+
 export function poblacionTirada(modelo, nombre, tipo) {
     if (!modelo) return null;
     for (const tabla of [modelo.pob, modelo.pool]) {
@@ -334,12 +369,19 @@ export function cuantilNormal(p) {
     return polinomio(NORMAL_A, r) * q / (polinomio(NORMAL_B, r) * r + 1);
 }
 
-export function preciosDe10(fila, u, cuantiles, rho = RHO) {
+export function primaDe10(modelo, pop10) {
+    const prima = modelo?.prima_de10;
+    if (!Array.isArray(prima?.cortes) || !Array.isArray(prima?.valores)) return 0;
+    const valor = prima.valores[prima.cortes.filter(c => pop10 >= c).length];
+    return Number.isFinite(valor) ? valor : 0;
+}
+
+export function preciosDe10(fila, u, cuantiles, rho = RHO, prima = 0) {
     const [l10, s10, max10] = fila;
     const z = cuantilNormal(u);
     const resto = Math.sqrt(1 - rho * rho);
     const techo = max10 > 0 ? Math.log(max10) : Infinity;
-    return cuantiles.map(q => Math.exp(Math.min(l10 + s10 * (rho * z + resto * cuantilNormal(q)), techo)));
+    return cuantiles.map(q => Math.exp(Math.min(l10 + prima + s10 * (rho * z + resto * cuantilNormal(q)), techo)));
 }
 
 export function residuosTirada(modelo, arma, positivos, negativo, registro = null) {

@@ -3276,7 +3276,7 @@
  },
  {
   "name": "Dual Viciss",
-  "type": "Rifle",
+  "type": "Melee",
   "category": "Melee",
   "isPrime": false,
   "vaulted": null,
@@ -3456,7 +3456,7 @@
  },
  {
   "name": "Ekhein",
-  "type": "Rifle",
+  "type": "Melee",
   "category": "Melee",
   "isPrime": false,
   "vaulted": null,
@@ -7370,7 +7370,7 @@
  },
  {
   "name": "Mk1-Bo",
-  "type": "Rifle",
+  "type": "Melee",
   "category": "Melee",
   "isPrime": false,
   "vaulted": null,
@@ -7381,7 +7381,7 @@
  },
  {
   "name": "Mk1-Furax",
-  "type": "Rifle",
+  "type": "Melee",
   "category": "Melee",
   "isPrime": false,
   "vaulted": null,
@@ -8387,7 +8387,7 @@
  },
  {
   "name": "Paracesis",
-  "type": "Rifle",
+  "type": "Melee",
   "category": "Melee",
   "isPrime": false,
   "vaulted": null,
@@ -8894,7 +8894,7 @@
  },
  {
   "name": "Prisma Skana",
-  "type": "Rifle",
+  "type": "Melee",
   "category": "Melee",
   "isPrime": false,
   "vaulted": null,
@@ -8905,7 +8905,7 @@
  },
  {
   "name": "Prova",
-  "type": "Rifle",
+  "type": "Melee",
   "category": "Melee",
   "isPrime": false,
   "vaulted": null,
@@ -8952,7 +8952,7 @@
  },
  {
   "name": "Prova Vandal",
-  "type": "Rifle",
+  "type": "Melee",
   "category": "Melee",
   "isPrime": false,
   "vaulted": null,
@@ -9527,7 +9527,7 @@
  },
  {
   "name": "Ruvox",
-  "type": "Rifle",
+  "type": "Melee",
   "category": "Melee",
   "isPrime": false,
   "vaulted": null,
@@ -11766,7 +11766,7 @@
  },
  {
   "name": "Venato",
-  "type": "Rifle",
+  "type": "Melee",
   "category": "Melee",
   "isPrime": false,
   "vaulted": null,

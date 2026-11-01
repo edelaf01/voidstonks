@@ -18,11 +18,12 @@ import { showHowToPanel } from "../ui.components/ui_howto_panel.js";
 import { oneTimeNoticeSeen, markOneTimeNoticeSeen } from "../repositories/storage.repository.js";
 import { OCRRepository } from "../repositories/ocr.repository.js";
 import { WF_THEMES_VOTABLES } from "../utils/vision/wf_themes.js";
-import { mergeRelicCounts } from "../utils/inventory/relic_counts.js";
+import { mergeRelicCounts, relicKey } from "../utils/inventory/relic_counts.js";
 import { sumaReliquias, restaReliquia, applyRelicCounts } from "../utils/inventory/relic_votes.js";
 import { RelicScreenService } from "../services/scanner/relic_screen.service.js";
 import { DucatKioskService } from "../services/scanner/ducat_kiosk.service.js";
 import { TradeService } from "../services/scanner/trade.service.js";
+import { BusquedaInventarioService } from "../services/scanner/busqueda_inventario.service.js";
 import { applyDucatSale, vuelcaSesion } from "../utils/inventory/ducat_kiosk.js";
 import { piezasDeConstruccion } from "../utils/inventory/fundicion.js";
 import { exposeGlobals } from "../utils/global_registry.js";
@@ -224,6 +225,8 @@ export function stopLiveSession() {
     v.srcObject = null;
   }
   ScannerService.stop();
+  DucatKioskService.vendiendo = null;
+  DucatKioskService.enMesa.clear();
   const toggleBtn = document.getElementById("scanner-toggle");
   if (toggleBtn) {
     toggleBtn.classList.remove("active");
@@ -415,6 +418,44 @@ DucatKioskService.onSale = (venta) => {
   showToast((t.ducatSold || "Sold: {items}").replace("{items}", lista) + faltan, { duration: 8000 });
 };
 
+BusquedaInventarioService.onCero = (tipo, nombres, consulta) => {
+  const t = TEXTS[state.currentLang].scanner;
+  let lista, deshacer;
+  if (tipo === "reliquias") {
+    const previas = mergeRelicCounts(state.inventory, ScannerService.sessionRelics).filter((e) => nombres.includes(relicKey(e.name)));
+    lista = previas.map((e) => e.name);
+    state.inventory = mergeRelicCounts(state.inventory, new Map(nombres.map((k) => [k, 0])));
+    for (const k of [...ScannerService.sessionRelics.keys()]) {
+      if (nombres.includes(relicKey(k))) {
+        ScannerService.sessionRelics.delete(k);
+        ScannerService.relicQtyVotes.delete(k);
+      }
+    }
+    deshacer = () => { state.inventory = mergeRelicCounts(state.inventory, new Map(previas.map((e) => [e.name, e.count]))); };
+  } else {
+    const antes = vuelcaSesion(state.primeInventory, ScannerService.sessionInventory);
+    const previo = new Map(nombres.map((n) => [n, antes[n]]));
+    lista = nombres;
+    state.primeInventory = { ...state.primeInventory, ...Object.fromEntries(nombres.map((n) => [n, 0])) };
+    for (const n of nombres) {
+      ScannerService.sessionInventory.delete(n);
+      ScannerService.qtyVotes.delete(n);
+    }
+    deshacer = () => { state.primeInventory = undoRewardCommit(state.primeInventory, previo); };
+  }
+  saveAppState();
+  globalThis.inventarioCambiado?.();
+  ScannerHUD.updateDetectedItems(ScannerService.sessionInventory, ScannerService.sessionRelics);
+  avisaConDeshacer(t.searchZeroed.replace("{query}", consulta).replace("{items}", lista.join(", ")), "busqueda-cero", deshacer);
+};
+
+DucatKioskService.onSalida = (piezas) => {
+  for (const name of piezas) {
+    ScannerService.sessionInventory.delete(name);
+    ScannerService.qtyVotes.delete(name);
+  }
+};
+
 escucha("construido", (nombre) => {
   const piezas = piezasDeConstruccion(nombre, state.setsDatabase, getRequiredCount);
   if (!piezas || !piezas.length) return;
@@ -432,6 +473,7 @@ escucha("construido", (nombre) => {
   const faltan = ausentes.length ? (t.ducatSoldMissing || "").replace("{missing}", ausentes.join(", ")) : "";
   showToast((t.foundryBuilt || "Foundry: used {items}").replace("{items}", lista) + faltan, { duration: 8000 });
 });
+escucha("vendido", (venta) => DucatKioskService.confirmaPorLog(venta));
 
 function trackRelic(relicName) {
   const input = document.getElementById("relicInput");

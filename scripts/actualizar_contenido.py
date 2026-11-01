@@ -190,7 +190,8 @@ def sincroniza(fichero, cats, arma):
     nuevos = [w for k, w in origen.items() if k not in mio]
     for w in nuevos:
         crea_icono(w)
-        e = {"name": w["name"], "type": w.get("type"), "category": w.get("category"), "isPrime": w.get("isPrime", False),
+        tipo = "Melee" if w.get("category") == "Melee" and w.get("type") != "Zaw Component" else w.get("type")
+        e = {"name": w["name"], "type": tipo, "category": w.get("category"), "isPrime": w.get("isPrime", False),
              # newly released primes are never vaulted; WFCD leaves null until wiki updates
              "vaulted": w["vaulted"] if w.get("vaulted") is not None else (False if w.get("isPrime") else None),
              "masteryReq": w.get("masteryReq", 0), "components": componentes(w.get("components"), arma)}

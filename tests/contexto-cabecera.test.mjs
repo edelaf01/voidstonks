@@ -3,9 +3,9 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { installFakeDocument, FakeCanvas, canvasLiso } from "./_helpers/fake-canvas.mjs";
+import { installFakeDocument, FakeCanvas, canvasLiso, fakeCanvas } from "./_helpers/fake-canvas.mjs";
 import { decodePng } from "./_helpers/png.mjs";
-import { FRANJA_CATEGORIA_VIDEO } from "../deploy/js/utils/vision/context_latch.js";
+import { FRANJA_CATEGORIA_VIDEO, FRANJA_BUSQUEDA_VIDEO } from "../deploy/js/utils/vision/context_latch.js";
 
 installFakeDocument();
 const { VisionService } = await import("../deploy/js/services/scanner/vision.service.js");
@@ -86,7 +86,7 @@ test("el recorte de cabecera se redimensiona al cambiar la resolución del víde
   assert.notEqual(cvs.data, buffer);
 });
 
-const { leeCategoriaInventario } = await import("../deploy/js/services/scanner/header_read.service.js");
+const { leeCategoriaInventario, leeBusquedaInventario } = await import("../deploy/js/services/scanner/header_read.service.js");
 const { OCRRepository } = await import("../deploy/js/repositories/ocr.repository.js");
 
 test("leeCategoriaInventario lee y memoiza con la misma franja", async () => {
@@ -132,3 +132,78 @@ test("la franja de categoría cubre el rótulo ARCANES entero", () => {
   assert.equal(tinta[0], 0);
   assert.equal(tinta.at(-1), 0);
 });
+
+const MANCHA = [0.585, 0.620, 0.140, 0.158];
+const cuadroBusqueda = (rects = [], w = 960, h = 540, video = true) => {
+  const c = fakeCanvas(w, h, (x, y) => {
+    const fx = x / w, fy = y / h;
+    return rects.some(([x0, x1, y0, y1]) => fx >= x0 && fx <= x1 && fy >= y0 && fy <= y1) ? [240, 230, 180] : [20, 20, 20];
+  });
+  return video ? Object.assign(c, { videoWidth: w, videoHeight: h }) : c;
+};
+
+const conOcrDeBusqueda = async (fn) => {
+  const ocr = { llamadas: 0, psm: null };
+  const original = OCRRepository.recognizeWithPSM;
+  OCRRepository.recognizeWithPSM = async (_w, _l, psm) => {
+    ocr.llamadas++;
+    ocr.psm = psm;
+    return { data: { text: "bronco|" } };
+  };
+  try {
+    await fn(ocr);
+  } finally {
+    OCRRepository.recognizeWithPSM = original;
+  }
+};
+
+test("leeBusquedaInventario: fotograma oscuro devuelve vacío sin OCR", () => conOcrDeBusqueda(async (ocr) => {
+  assert.equal(await leeBusquedaInventario({}, cuadroBusqueda(), null), "");
+  assert.equal(ocr.llamadas, 0);
+}));
+
+test("leeBusquedaInventario: texto dentro de la franja pasa por OCR de una línea", () => conOcrDeBusqueda(async (ocr) => {
+  assert.equal(await leeBusquedaInventario({}, cuadroBusqueda([MANCHA]), null), "bronco|");
+  assert.equal(ocr.llamadas, 1);
+  assert.equal(ocr.psm, 7);
+}));
+
+test("leeBusquedaInventario: texto que llega al borde derecho no se lee", () => conOcrDeBusqueda(async (ocr) => {
+  const fin = FRANJA_BUSQUEDA_VIDEO.x + FRANJA_BUSQUEDA_VIDEO.w;
+  assert.equal(await leeBusquedaInventario({}, cuadroBusqueda([[0.585, fin, 0.140, 0.158]]), null), "");
+  assert.equal(ocr.llamadas, 0);
+}));
+
+test("leeBusquedaInventario: el aspa de borrar y la lupa quedan fuera de la franja", () => conOcrDeBusqueda(async (ocr) => {
+  assert.equal(await leeBusquedaInventario({}, cuadroBusqueda([[0.687, 0.697, 0.140, 0.158], [0.55, 0.70, 0.165, 0.168]]), null), "");
+  assert.equal(ocr.llamadas, 0);
+}));
+
+test("leeBusquedaInventario: el subrayado solo no cuenta como texto", () => conOcrDeBusqueda(async (ocr) => {
+  assert.equal(await leeBusquedaInventario({}, cuadroBusqueda([[0.55, 0.70, 0.165, 0.168]]), null), "");
+  assert.equal(ocr.llamadas, 0);
+}));
+
+test("leeBusquedaInventario: acepta un canvas sin videoWidth ni videoHeight", () => conOcrDeBusqueda(async (ocr) => {
+  assert.equal(await leeBusquedaInventario({}, cuadroBusqueda([MANCHA], 960, 540, false), null), "bronco|");
+  assert.equal(ocr.llamadas, 1);
+  assert.equal(ocr.psm, 7);
+}));
+
+test("leeBusquedaInventario: memoiza con la misma franja y relee si cambia", () => conOcrDeBusqueda(async (ocr) => {
+  const escaner = {};
+  const v1 = cuadroBusqueda([MANCHA]);
+  assert.equal(await leeBusquedaInventario(escaner, v1, null), "bronco|");
+  assert.equal(await leeBusquedaInventario(escaner, v1, null), "bronco|");
+  assert.equal(ocr.llamadas, 1);
+  const v2 = cuadroBusqueda([[0.600, 0.640, 0.140, 0.158]]);
+  assert.equal(await leeBusquedaInventario(escaner, v2, null), "bronco|");
+  assert.equal(ocr.llamadas, 2);
+}));
+
+test("leeBusquedaInventario: fuente sin tamaño devuelve vacío sin OCR", () => conOcrDeBusqueda(async (ocr) => {
+  for (const f of [{ videoWidth: 0, videoHeight: 540 }, { videoWidth: 960, videoHeight: 0 }, { width: 0, height: 540 }, { width: 960, height: 0 }]) {
+    assert.equal(await leeBusquedaInventario({}, f, null), "");
+  }
+  assert.equal(ocr.llamadas, 0);
+}));

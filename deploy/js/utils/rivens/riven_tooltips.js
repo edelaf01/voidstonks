@@ -58,10 +58,11 @@ export function fechaWfmRivens(isEs) {
 }
 
 export function rotuloBanda(fuente, isEs) {
+  if (fuente === "modelo") return isEs ? { corto: "IA + DE", largo: "Según la IA, escalada a lo vendido en DE" } : { corto: "AI + DE", largo: "Per the AI, scaled to DE sales" };
   if (fuente !== "de10") return isEs ? { corto: "IA", largo: "Según la IA" } : { corto: "AI", largo: "Per the AI" };
   return isEs
-    ? { corto: "DE 10 sem", largo: "Lo que se vendió según DE en 10 semanas" }
-    : { corto: "DE 10 wk", largo: "What sold according to DE over 10 weeks" };
+    ? { corto: "DE 10 sem", largo: "Nivel de DE en 10 semanas, ajustado a lo que se pide en WFM" }
+    : { corto: "DE 10 wk", largo: "DE 10-week level, adjusted to WFM asking prices" };
 }
 
 export function getRivenTooltip(key, isEs) {
