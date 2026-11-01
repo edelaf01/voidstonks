@@ -1,8 +1,8 @@
 import { classifyWeaponMarket } from "./riven_logic.js";
 import { state } from "../../state.js";
 import { RIVEN_DISPOSITION } from "../../config.js";
-import { tipoDeArma, esFusionado, pesoFusionado } from "./riven_cycling.js";
-import { cargarNivelTirada, cargarDe10, atributosAWfm, residuosTirada, precisionNivel, registroSinWfm, nombreArma, filaDe10, nivelSinWfm, poblacionTirada, percentilTirada, preciosDe10 } from "./riven_nivel.js";
+import { tipoDeArma, esFusionado, pesoFusionado, claveStat } from "./riven_cycling.js";
+import { cargarNivelTirada, cargarDe10, atributosAWfm, residuosTirada, precisionNivel, registroSinWfm, nombreArma, filaDe10, nivelSinWfm, poblacionTirada, percentilTirada, preciosDe10, primaDe10, filaConNivelModelo, POP_FIABLE } from "./riven_nivel.js";
 
 let _ml = null;
 let _loading = null;
@@ -78,7 +78,8 @@ export async function gradeRiven(weaponName, stats) {
     const direct = (t) => {
       if (t[name] != null) return t[name];
       const nl = name.toLowerCase();
-      const k = Object.keys(t).find(x => x.toLowerCase() === nl);
+      const clave = claveStat(name, tipo);
+      const k = Object.keys(t).find(x => x.toLowerCase() === nl) ?? (clave && Object.keys(t).find(x => claveStat(x, tipo) === clave));
       return k ? t[k] : undefined;
     };
     const v = direct(table);
@@ -302,6 +303,7 @@ export async function predictRivenMLBand(weapon, itemAttributes, weaponData = nu
   if (robustMax > deMed) deMax = deMax > deMed ? Math.min(deMax, robustMax) : robustMax;
   deMax = deMax > deMed ? Math.min(deMax, deMed * 8) : deMed * 5;
   const deFloor = Math.max(1, Math.round(Math.min(deMed, deUn.median || deMed) * 0.45));
+  const popSuelo = (deUn.median > 0 && deUn.median < deMed) || !(deRe.median > 0) ? deUn.pop : deRe.pop;
   const levelMap = (f) => {
     if (f <= 0.5) return deFloor + (deMed - deFloor) * (f / 0.5);
     const fr = (f - 0.5) / 0.5, skew = Math.max(1.3, deMax / deMed);
@@ -330,13 +332,14 @@ export async function predictRivenMLBand(weapon, itemAttributes, weaponData = nu
   const { positivos, negativo } = atributosAWfm(itemAttributes, tipoDeArma((weaponData && weaponData.t) || weapon.t));
   const tipoCrudo = state.weaponDetailsDB?.find?.(w => w.name === wname)?.type ?? null;
   const conocida = nombreArma(nt, wname);
-  const fila = filaDe10(de10, wname, deRe);
+  const filaDe = filaDe10(de10, wname, deRe);
+  const fila = filaConNivelModelo(nt, de10, wname, filaDe);
   const registro = fila && !conocida ? registroSinWfm(nt, nivelSinWfm(nt, wname, fila), RIVEN_DISPOSITION, tipoCrudo) : null;
   const residuos = fila ? residuosTirada(nt, wname, positivos, negativo, registro) : null;
   if (residuos) {
     const poblacion = poblacionTirada(nt, wname, tipoCrudo ?? nt.armas[conocida]?.tipo ?? ((weaponData && weaponData.t) || weapon.t));
-    const suelo = usaDE ? floor : 1;
-    preciosDe10(fila, percentilTirada(poblacion, residuos[1]), qs, nt.rho).forEach((v, i) => { out[qs[i]] = Math.max(suelo, Math.round(v)); });
+    const suelo = usaDE && (Number(popSuelo) || 0) >= POP_FIABLE ? floor : 1;
+    preciosDe10(fila, percentilTirada(poblacion, residuos[1]), qs, nt.rho, fila === filaDe ? primaDe10(nt, fila[3]) : 0).forEach((v, i) => { out[qs[i]] = Math.max(suelo, Math.round(v)); });
   } else {
     for (const a of qs) {
       const f = Math.max(0, Math.min(1, s + (OFF[a] != null ? OFF[a] : 0)));
@@ -354,7 +357,7 @@ export async function predictRivenMLBand(weapon, itemAttributes, weaponData = nu
   return {
     p25: p(0.25), p50: p(0.5), p80: p(0.8), p90: p(0.9), p95: p(0.95),
     price: p(0.5), floor, drift: +drift.toFixed(3),
-    fuente: residuos ? "de10" : "curva",
+    fuente: residuos ? (fila === filaDe ? "de10" : "modelo") : "curva",
     confianza: lowConf ? "baja" : "alta",
     aviso: lowConf ? (esTrash ? "trash" : "pocosDatos") : null,
     regla: esBrick ? "BRICK" : (rerolls === 0 ? "0roll" : "q"),

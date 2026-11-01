@@ -38,8 +38,18 @@ test("sin nivel_y_tirada.json la tasación usa la curva y no pide el modelo viej
 test("el modelo publicado solo lleva lo que lee el navegador", () => {
   const buf = fs.readFileSync(new URL("../deploy/assets/ml/nivel_y_tirada.json", import.meta.url));
   const modelo = JSON.parse(buf.toString());
-  const keys = Object.keys(modelo).sort();
+  const keys = Object.keys(modelo).filter(k => k !== "prima_de10").sort();
   assert.deepEqual(keys, ["armas","columnas","cuantiles","efectos","fecha_datos","mag_por_defecto","modelo","nivel_pool","pob","pool","pool_clase","precision","ref_neg","ref_pos","rho","sin_wfm","stats_neg","stats_pos","tipos"]);
+  if (modelo.prima_de10) {
+    assert.ok(Array.isArray(modelo.prima_de10.cortes));
+    assert.ok(modelo.prima_de10.cortes.every(Number.isFinite));
+    for (let i = 1; i < modelo.prima_de10.cortes.length; i++) {
+      assert.ok(modelo.prima_de10.cortes[i] > modelo.prima_de10.cortes[i - 1]);
+    }
+    assert.ok(Array.isArray(modelo.prima_de10.valores));
+    assert.ok(modelo.prima_de10.valores.every(Number.isFinite));
+    assert.equal(modelo.prima_de10.valores.length, modelo.prima_de10.cortes.length + 1);
+  }
   assert.equal(modelo.sin_wfm.nivel.length, 2);
   assert.ok(modelo.sin_wfm.nivel.every(Number.isFinite));
   assert.ok(Number.isFinite(modelo.sin_wfm.log_n));

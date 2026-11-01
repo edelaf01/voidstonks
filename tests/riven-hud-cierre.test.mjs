@@ -319,4 +319,54 @@ describe("integración en el flujo del escáner", () => {
       Object.assign(S, snapshot);
     }
   });
+
+  test("frames sin carta seguidos no borran la tasación en silencio y el HUD se cierra al pasar el umbral", async () => {
+    const base = 10000;
+    simulatedTime = base;
+    await S.processRivenCard(videoCarta, dims, "INVENTORY_MODS");
+    simulatedTime = base + 100;
+    await S.processRivenCard(videoCarta, dims, "INVENTORY_MODS");
+    assert.ok(S.lastParsedL);
+    const firmaCarta = S.lastHashL;
+    assert.ok(firmaCarta);
+
+    ocrResultText = "";
+    simulatedTime = base + 300;
+    await S.processRivenCard(videoSinCartaA, dims, "INVENTORY_MODS");
+    simulatedTime = base + 500;
+    await S.processRivenCard(videoSinCartaB, dims, "INVENTORY_MODS");
+    simulatedTime = base + 700;
+    await S.processRivenCard(videoSinCartaA, dims, "INVENTORY_MODS");
+    simulatedTime = base + 900;
+    await S.processRivenCard(videoSinCartaB, dims, "INVENTORY_MODS");
+
+    assert.equal(dismissedCount, 0);
+    assert.ok(S.lastParsedL);
+    assert.ok(S.lastHashL === firmaCarta);
+
+    simulatedTime = base + 100 + S.RIVEN_SIN_CARTA_MS + 500;
+    await S.processRivenCard(videoSinCartaA, dims, "INVENTORY_MODS");
+    assert.equal(dismissedCount, 1);
+  });
+
+  test("una pantalla sin carta quieta no pasa a ser la referencia y el HUD se cierra al pasar el umbral", async () => {
+    const base = 10000;
+    simulatedTime = base;
+    await S.processRivenCard(videoCarta, dims, "INVENTORY_MODS");
+    simulatedTime = base + 100;
+    await S.processRivenCard(videoCarta, dims, "INVENTORY_MODS");
+    const firmaCarta = S.lastHashL;
+
+    ocrResultText = "";
+    simulatedTime = base + 300;
+    await S.processRivenCard(videoSinCartaA, dims, "INVENTORY_MODS");
+    simulatedTime = base + 500;
+    await S.processRivenCard(videoSinCartaB, dims, "INVENTORY_MODS");
+    assert.ok(S.lastHashL === firmaCarta);
+    assert.equal(dismissedCount, 0);
+
+    simulatedTime = base + 100 + S.RIVEN_SIN_CARTA_MS + 500;
+    await S.processRivenCard(videoSinCartaB, dims, "INVENTORY_MODS");
+    assert.equal(dismissedCount, 1);
+  });
 });

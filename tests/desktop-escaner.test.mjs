@@ -487,3 +487,114 @@ test("sin recompensas en el estado cualquier evento vacia el grupo recompensas",
     desmontar();
   }
 });
+
+test("el inspector de EE.log muestra un evento sin texto sin fallar", async () => {
+  const { alternarInspectorEELog, cerrarInspectorEELog } = await import("../deploy/js/ui.components/ui_eelog_inspector.js");
+  const origDoc = globalThis.document;
+  const stubs = new Map();
+  const crearElemento = () => {
+    const clases = new Set();
+    return {
+      id: "",
+      innerHTML: "",
+      textContent: "",
+      dataset: {},
+      classList: {
+        add: (...c) => c.forEach((x) => clases.add(x)),
+        remove: (...c) => c.forEach((x) => clases.delete(x)),
+        contains: (c) => clases.has(c),
+        toggle: (c, force) => {
+          const poner = force !== undefined ? !!force : !clases.has(c);
+          if (poner) clases.add(c); else clases.delete(c);
+          return poner;
+        },
+      },
+      addEventListener() {},
+      removeEventListener() {},
+      querySelector(sel) {
+        if (!stubs.has(sel)) stubs.set(sel, crearElemento());
+        return stubs.get(sel);
+      },
+    };
+  };
+  const fakeDoc = {
+    createElement() {
+      return crearElemento();
+    },
+    querySelector(sel) {
+      if (!stubs.has(sel)) stubs.set(sel, crearElemento());
+      return stubs.get(sel);
+    },
+    body: {
+      appendChild() {},
+    },
+  };
+  globalThis.document = fakeDoc;
+
+  const origCortar = EELogLive._cortar;
+  const origEventos = EELogLive.eventos;
+  const origEstado = EELogLive.estado;
+  const origPantalla = EELogLive.pantalla;
+  const origLang = state.currentLang;
+  const oyentesSnapshot = new Set(EELogLive._oyentes);
+
+  EELogLive._cortar = () => {};
+  EELogLive.eventos = [
+    { tipo: "ventaKiosco", piezas: 2, ducados: 90, t: 64 },
+    { tipo: "ventaHecha", ok: true, t: 65 },
+    { tipo: "ventaHecha", ok: false, t: 66 },
+    { tipo: "otroEvento", t: 67 },
+  ];
+  EELogLive.estado = "leyendo";
+  EELogLive.pantalla = null;
+  state.currentLang = "es";
+
+  try {
+    const abierto = alternarInspectorEELog();
+    assert.equal(abierto, true);
+    let htmlEventos = stubs.get(".ds-eelog-eventos")?.innerHTML || "";
+    assert.ok(htmlEventos.includes("Venta en el kiosko: 2 piezas por 90 ducados"));
+    assert.ok(htmlEventos.includes("Venta hecha"));
+    assert.ok(htmlEventos.includes("Venta fallida"));
+    assert.ok(htmlEventos.includes("<span>otroEvento</span>"));
+    assert.ok(htmlEventos.includes("1:05"));
+    assert.ok(!htmlEventos.includes("<span>ventaHecha</span>"));
+    cerrarInspectorEELog();
+
+    state.currentLang = "en";
+    alternarInspectorEELog();
+    htmlEventos = stubs.get(".ds-eelog-eventos")?.innerHTML || "";
+    assert.ok(htmlEventos.includes("Kiosk sale: 2 items for 90 ducats"));
+    assert.ok(htmlEventos.includes("Sale done"));
+    assert.ok(htmlEventos.includes("Sale failed"));
+    cerrarInspectorEELog();
+  } finally {
+    globalThis.document = origDoc;
+    EELogLive._cortar = origCortar;
+    EELogLive.eventos = origEventos;
+    EELogLive.estado = origEstado;
+    EELogLive.pantalla = origPantalla;
+    state.currentLang = origLang;
+    for (const fn of EELogLive._oyentes) {
+      if (!oyentesSnapshot.has(fn)) EELogLive._oyentes.delete(fn);
+    }
+  }
+});
+
+test("el escritorio pasa la venta del log al kiosko y dice si el log está leyendo", () => {
+  conectaEscaner();
+  const recibidas = [];
+  const quita = escucha("vendido", (v) => recibidas.push(v));
+  const origEstado = EELogLive.estado;
+  try {
+    EELogLive.onVendido({ piezas: 2, ducados: 90, t: 5 });
+    assert.deepEqual(recibidas, [{ piezas: 2, ducados: 90, t: 5 }]);
+    EELogLive.estado = "leyendo";
+    assert.equal(pistasDelLog.logLeyendo(), true);
+    EELogLive.estado = "parado";
+    assert.equal(pistasDelLog.logLeyendo(), false);
+  } finally {
+    quita();
+    EELogLive.estado = origEstado;
+  }
+});

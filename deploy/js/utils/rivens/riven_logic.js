@@ -1,4 +1,4 @@
-import { RIVEN_BASE_STATS, WEAPON_TYPE_IDX, RIVEN_WEIGHTS, RIVEN_DISPOSITION, resolveBaseStatKey } from "../../config.js";
+import { RIVEN_BASE_STATS, WEAPON_TYPE_IDX, RIVEN_WEIGHTS, RIVEN_DISPOSITION, resolveBaseStatKey, RIVEN_SPLICED_BASE_STATS } from "../../config.js";
 import { state } from "../../state.js";
 import { statUnit } from "./riven_stat_display.js";
 import { tipoDeArma, esFusionado, pesoFusionado } from "./riven_cycling.js";
@@ -206,16 +206,23 @@ export function areWeightsDegenerate(dynWeightsRaw) {
 export const STAT_TIER_TOP = 0.7;
 export const STAT_TIER_MID = 0.4;
 
-export function gradeWeaponStats(weapon, statBaseline = null) {
+export function gradeWeaponStats(weapon, statBaseline = null, typeIdx = null) {
   const raw = (weapon && weapon.dynamic_weights) || null;
   const propios = raw && !areWeightsDegenerate(raw) ? raw : null;
   const tabla = propios || (statBaseline && typeof statBaseline === "object" ? statBaseline : null);
   if (!tabla) return null;
 
-  const orden = Object.entries(tabla)
+  let orden = Object.entries(tabla)
     .map(([k, v]) => [k, parseFloat(v)])
-    .filter(([, v]) => Number.isFinite(v))
-    .sort((a, b) => b[1] - a[1]);
+    .filter(([, v]) => Number.isFinite(v));
+  if (typeIdx !== null) {
+    orden = orden.filter(([k]) => !esFusionado(k, typeIdx));
+    for (const k of Object.keys(RIVEN_SPLICED_BASE_STATS)) {
+      const p = RIVEN_SPLICED_BASE_STATS[k][typeIdx] > 0 ? pesoFusionado(k, tabla, typeIdx) : null;
+      if (Number.isFinite(p)) orden.push([k, p]);
+    }
+  }
+  orden.sort((a, b) => b[1] - a[1]);
   if (!orden.length) return null;
 
   const best = [], mid = [], meh = [];
