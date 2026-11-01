@@ -74,14 +74,18 @@ test("las variantes de un arma usan los datos de su familia", async () => {
     ["Rakta Dark Dagger", "Dark Dagger"],
     ["Telos Boltace", "Boltace"],
     ["Pangolin Sword", "Pangolin Prime"],
-    ["Kuva Karak", "Karak"],
-    ["Dark Split-Sword", null],
-    ["Torid", null],
-    ["Kuva Sobek", null],
-    ["Dex Furis", null]
+    ["Kuva Karak", "Karak"]
   ];
-  for (const [nombre, esperado] of casos) {
-    assert.equal(N.nombreArma(modelo, nombre), esperado, nombre);
+  for (const [nombre, otra] of casos) {
+    const clave = N.nombreArma(modelo, nombre);
+    assert.ok(Object.hasOwn(modelo.armas, clave), nombre);
+    assert.equal(N.nombreArma(modelo, otra), clave, nombre);
+    assert.equal(N.baseFamilia(N.slugArma(clave)), N.baseFamilia(N.slugArma(nombre)), nombre);
+  }
+  for (const nombre of ["Dark Split-Sword", "Torid", "Kuva Sobek", "Dex Furis"]) {
+    const familia = N.baseFamilia(N.slugArma(nombre));
+    const sinFamilia = N.prepararNivelTirada({ ...modelo, armas: Object.fromEntries(Object.entries(modelo.armas).filter(([a]) => N.baseFamilia(N.slugArma(a)) !== familia)) });
+    assert.equal(N.nombreArma(sinFamilia, nombre), null, nombre);
   }
   const pos = [["Critical Chance", 150], ["Multishot", 90]];
   const neg = ["Zoom", 30];
