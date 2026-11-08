@@ -31,13 +31,15 @@ export const tonoGrado = (grado) => TONO_GRADO[(grado || "")[0]] || "blanco";
 
 const tirada = (s) => (s.grado ? `${s.grado}${Number.isFinite(s.pct) ? ` · p${Math.round(s.pct)}` : ""}` : "");
 
+const LISTA_STATS = { tipo: "lista", alinear: "izquierda", anchos: [7, 7.5] };
+
 const filasStats = (stats, rotulos = {}) => {
-  const conCampos = stats.some((s) => s.calidad || s.grado);
+  const conCampos = stats.some((s) => s.calidad || s.grado || s.tirada);
   return [
-    ...(conCampos && rotulos.atributo ? [[{ texto: "", tono: "gris" }, { texto: rotulos.atributo, tono: "gris" }, { texto: rotulos.tirada, tono: "gris" }]] : []),
+    ...(stats.some((s) => s.calidad || s.grado) && rotulos.tirada ? [[{ texto: "", tono: "gris" }, { texto: rotulos.atributo || "", tono: "gris" }, { texto: rotulos.tirada, tono: "gris" }]] : []),
     ...stats.map((s) => [
       { texto: s.texto, tono: s.positivo ? "verde" : "rojo" },
-      ...(conCampos ? [s.calidad ? { texto: s.calidad.texto, tono: s.calidad.tono } : { texto: "", tono: "gris" }, { texto: tirada(s), tono: tonoGrado(s.grado) }] : []),
+      ...(conCampos ? [s.calidad ? { texto: s.calidad.texto, tono: s.calidad.tono } : { texto: "", tono: "gris" }, s.tirada || { texto: tirada(s), tono: tonoGrado(s.grado) }] : []),
     ]),
   ];
 };
@@ -71,9 +73,11 @@ function selectorObjetivo(combinados) {
 }
 
 export function panelRiven({ arma, valor = null, min = null, max = null, grado = null, score = null, stats = [], combinar = null, rotulos }) {
-  const filas = [];
-  if (valor != null) filas.push([{ texto: rotulos.valor, tono: "gris" }, { texto: `~${valor}p`, tono: "oro" }, { texto: `${min}–${max}p`, tono: "gris" }]);
-  if (grado) filas.push([{ texto: rotulos.grado, tono: "gris" }, { texto: grado, tono: tonoGrado(grado) }, { texto: `${score}/100`, tono: "gris" }]);
+  const cabecera = [
+    ...(valor != null ? [{ texto: rotulos.valor, tono: "gris" }, { texto: `~${valor}`, tono: "oro", icono: "plat" }, { texto: `${min}–${max}`, tono: "gris", icono: "plat" }] : []),
+    ...(grado ? [...(valor != null ? [] : [{ texto: rotulos.grado, tono: "gris" }]), { texto: grado, tono: tonoGrado(grado) }, { texto: `${score}/100`, tono: "gris" }] : []),
+  ];
+  const filas = cabecera.length ? [cabecera] : [];
   const chips = chipCombinar([combinar]);
   return {
     ...POS_RIVEN,
@@ -82,7 +86,7 @@ export function panelRiven({ arma, valor = null, min = null, max = null, grado =
       { tipo: "titulo", texto: arma, tono: "cian" },
       ...(chips.length ? [{ tipo: "chips", chips }] : []),
       ...(filas.length ? [{ tipo: "lista", filas }, { tipo: "separador" }] : []),
-      { tipo: "lista", filas: filasStats(stats, rotulos) },
+      { ...LISTA_STATS, filas: filasStats(stats, rotulos) },
       ...bloquesDeCarta(combinar),
       ...selectorObjetivo([combinar]),
     ],
@@ -98,9 +102,9 @@ export function panelRivenComparacion({ arma, ganador, tiradas, rotulos }) {
   ];
   tiradas.forEach((tr, i) => {
     bloques.push({ tipo: "separador" }, {
-      tipo: "lista",
+      ...LISTA_STATS,
       filas: [
-        [{ texto: tr.rotulo, tono: i === ganador ? "verde" : "gris" }, { texto: `~${tr.precio}p`, tono: "oro" }, { texto: `${tr.score}/100`, tono: "gris" }],
+        [{ texto: tr.rotulo, tono: i === ganador ? "verde" : "gris" }, { texto: `~${tr.precio}`, tono: "oro", icono: "plat" }, { texto: `${tr.score}/100`, tono: "gris" }],
         ...filasStats(tr.stats, i === 0 ? rotulos : {}),
       ],
     }, ...bloquesDeCarta(tr.combinar));

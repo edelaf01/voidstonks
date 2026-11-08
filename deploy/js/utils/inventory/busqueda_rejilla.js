@@ -3,6 +3,7 @@ import { editDistance } from "../fuzzy_search.js";
 
 export const MIN_CONSULTA = 3;
 export const VACIA_STD = 8;
+export const TOPE_CEROS = 8;
 export const ESTADO_BUSQUEDA = Object.freeze({ clave: null, ausencias: ESTADO_AUSENCIAS });
 
 export function normalizaTexto(s) {
@@ -71,7 +72,7 @@ export function resuelveConsulta(texto, nombresVisibles) {
             if (tras) {
                 res = res + tras;
             }
-            const delante = caracterCompartido(res, visibles, true);
+            const delante = visibles.length > 1 ? caracterCompartido(res, visibles, true) : "";
             if (delante === null) {
                 return null;
             }
@@ -128,9 +129,12 @@ export function rejillaCompleta(celdas, filas, cols) {
     return n < cols || ultimaFila < filas - 1;
 }
 
-export function ausentesDeBusqueda({ texto, celdas, filas, cols, inventario, textoDe = (n) => n, excluye = () => false, repite = false } = {}) {
+export function ausentesDeBusqueda({ texto, celdas, filas, cols, inventario, textoDe = (n) => n, excluye = () => false, repite = false, filaParcial = false } = {}) {
     if (!rejillaCompleta(celdas, filas, cols)) {
         return { consulta: null, motivo: "incompleta", vistos: [], candidatos: [] };
+    }
+    if (filaParcial && celdas.every((c) => c.r !== 0 || c.tipo === "item")) {
+        return { consulta: null, motivo: "fila_llena", vistos: [], candidatos: [] };
     }
     const ordenadas = [...celdas].sort((a, b) => a.r - b.r || a.c - b.c);
     const vistos = ordenadas.filter((c) => c.tipo === "item").map((c) => c.nombre);
@@ -143,8 +147,11 @@ export function ausentesDeBusqueda({ texto, celdas, filas, cols, inventario, tex
     }
     const vistosSet = new Set(vistos);
     const candidatos = Object.keys(inventario || {})
-        .filter((k) => Number(inventario[k]) > 0 && !vistosSet.has(k) && normalizaTexto(textoDe(k)).includes(consulta) && !excluye(k) && (!repite || !vistos.some((v) => editDistance(k, v, 1) <= 1)))
+        .filter((k) => Number(inventario[k]) > 0 && !vistosSet.has(k) && (vistos.length > 1 ? normalizaTexto(textoDe(k)).includes(consulta) : ` ${normalizaTexto(textoDe(k))}`.includes(` ${consulta}`)) && !excluye(k) && (!repite || !vistos.some((v) => editDistance(k, v, 1) <= 1)))
         .sort();
+    if (candidatos.length > TOPE_CEROS) {
+        return { consulta: null, motivo: "demasiados", vistos, candidatos: [] };
+    }
     return { consulta, motivo: null, vistos, candidatos };
 }
 

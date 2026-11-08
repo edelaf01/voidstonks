@@ -131,7 +131,7 @@ function combinarDelRoll({ stats, typeIdx, pesos, buscados, negOk, isEs, ciclosH
 function pasoDelObjetivo(plan, receta, n, signo, isEs) {
     if (plan.estado === "fusionado") {
         return [plan.fusionado === receta.resultado
-            ? { texto: tx(isEs, "conseguido", "done"), tono: "verde" }
+            ? { texto: tx(isEs, `Objetivo cumplido: ya tiene ${n(plan.fusionado)}`, `Goal met: already has ${n(plan.fusionado)}`), tono: "verde" }
             : { texto: tx(isEs, `ya tiene ${n(plan.fusionado)}`, `already has ${n(plan.fusionado)}`), tono: "naranja" }];
     }
     const paso = plan.estado === "falta"

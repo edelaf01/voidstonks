@@ -19,11 +19,10 @@ import {
   buildAppraisalWarningsHtml,
   buildAppraisalCardHTML,
   buildStatsTable,
-  computeFairHigh,
-  renderMlChip,
-  renderMarketChip,
+  parchearTasacion,
   generateRollResultsDOM,
 } from "./ui_riven_appraisal.js";
+import { precioBaseDeArma, demandaDeArma, tierDeScore } from "../../utils/rivens/riven_tasacion_visual.js";
 import { cicloRivenHtml } from "./ui_riven_cycling.js";
 import { computeDesirabilityMultiplier, statsBuscadosDelArma } from "../../services/rivens/riven_appraisal.service.js";
 import { getLocalizedStatName } from "../../utils/rivens/riven_stat_display.js";
@@ -2237,13 +2236,11 @@ export function calculateModalGrade() {
       sideBySideContainer.className = "results-compare-row";
 
       const leftWrapper = generateRollResultsDOM(globalThis.activeGradingRolls.rollL, weaponData, weaponName, currentRank, scaleFactor);
-      leftWrapper.style.flex = "1";
       if (globalThis.activeGradingRolls.activeIndex !== 0) {
         leftWrapper.style.opacity = "0.65";
       }
       
       const rightWrapper = generateRollResultsDOM(globalThis.activeGradingRolls.rollR, weaponData, weaponName, currentRank, scaleFactor);
-      rightWrapper.style.flex = "1";
       if (globalThis.activeGradingRolls.activeIndex !== 1) {
         rightWrapper.style.opacity = "0.65";
       }
@@ -2265,9 +2262,10 @@ export function calculateModalGrade() {
       fragment.appendChild(nameHeader);
     }
 
+    const meta = getMetaStats(weaponData.name || weaponName, weaponData.t);
     const gridContainer = document.createElement("div");
     gridContainer.className = "results-layout-grid";
-    const statsTable = buildStatsTable(stats, weaponData, buffCount, hasNeg, state.currentLang === "es");
+    const statsTable = buildStatsTable(stats, weaponData, buffCount, hasNeg, state.currentLang === "es", { meta, weaponName, escala: scaleFactor });
     const previewBox = document.getElementById("modal-riven-preview-container");
     if (previewBox) {
       statsTable.classList.add("beside-card");
@@ -2279,25 +2277,9 @@ export function calculateModalGrade() {
       gridContainer.appendChild(statsCol);
     }
 
-    const meta = getMetaStats(weaponData.name || weaponName, weaponData.t);
     const desirabilityMultiplier = computeDesirabilityMultiplier(stats, meta, weaponData);
-
-    const avgText = document.getElementById("riven-avg-value")?.innerText;
-    let basePrice = 50;
-    if (meta) {
-      if (meta.official_median !== undefined && meta.official_median !== null && meta.official_median > 0) {
-        basePrice = meta.official_median;
-      } else if (meta.official_avg_price) {
-        basePrice = meta.official_avg_price;
-      } else {
-        basePrice = Number.parseInt(avgText) || 50;
-      }
-    } else {
-      basePrice = Number.parseInt(avgText) || 50;
-    }
-    if (basePrice < 50) basePrice = 50;
-
-    const popPct = meta && meta.popularity_pct ? (meta.popularity_pct / 10.0) : 0.5;
+    const { basePrice, precioTipico } = precioBaseDeArma(meta);
+    const demanda = demandaDeArma(meta);
 
     const tiersObj = calculateHybridTiers(meta || { name: weaponName, wfm_avg_price: basePrice, official_median: basePrice }, state.currentWeaponHistory);
 
@@ -2314,128 +2296,26 @@ export function calculateModalGrade() {
     });
 
     const appraisal = calculateAdvancedPredictivePrice(meta || { name: weaponName, wfm_avg_price: basePrice, official_median: basePrice }, itemAttributes, tiersObj, desirabilityMultiplier, weaponData, state.rivenStatBaseline?.stat_weights ?? state.rivenStatPrior ?? null);
-
-    {
-      const _w = meta || { name: weaponName, official_median: basePrice, wfm_avg: basePrice };
-      import("../../utils/rivens/riven_ml.js")
-        .then(async (M) => {
-          const bandQ = await M.predictRivenMLBand(_w, itemAttributes, weaponData, null, appraisal.adjustedScore);
-          const mk = await M.getWeaponMarket(weaponName, _w);
-          appraisal.mlEstimate = bandQ.p50;
-          appraisal.mlBand = bandQ;
-          try {
-            const sc = await M.rivenScores(weaponName, itemAttributes);
-            appraisal.statScore = sc.stat; appraisal.rollScore = sc.roll;
-            const _gBadge = (g) => `<span class="gsc-mini-badge grade-${String(g || "f").toLowerCase()}">${g}</span>`;
-            const _ss = estCard.querySelector("[data-stat-score] b");
-            const _rs = estCard.querySelector("[data-roll-score] b");
-            if (_ss) { _ss.innerHTML = `${sc.stat.score}% ${_gBadge(sc.stat.grade)}`; _ss.style.opacity = 1; }
-            if (_rs) { _rs.innerHTML = `${sc.roll.score}% ${_gBadge(sc.roll.grade)}`; _rs.style.opacity = 1; }
-          } catch (_e) {}
-          const _prec = (typeof M.weaponPrecision === "function") ? await M.weaponPrecision(weaponName) : null;
-          const _h = appraisal.estimatedValue || 0, _m = bandQ.p50 || 0;
-          let _wMl = (_prec && Number.isFinite(_prec.mape))
-            ? (_prec.mape < 30 ? 0.75 : _prec.mape < 60 ? 0.60 : _prec.mape < 100 ? 0.42 : 0.28)
-            : 0.35;
-          if (bandQ.confianza === "baja") _wMl = Math.min(_wMl, 0.30);
-          let _fair = (_h > 0 && _m > 0)
-            ? Math.round(Math.exp(_wMl * Math.log(_m) + (1 - _wMl) * Math.log(_h)))
-            : Math.round(_m || _h);
-          {
-            const _ovr = Number.isFinite(appraisal.adjustedScore) ? appraisal.adjustedScore : (appraisal?.statScore?.score || 0);
-            const _typical = basePrice || _m || _fair;
-            if (_typical > 0 && _ovr < 85) {
-              const _capMul = _ovr >= 70 ? 2.2 : _ovr >= 55 ? 1.6 : _ovr >= 40 ? 1.3 : 1.15;
-              _fair = Math.min(_fair, Math.round(_typical * _capMul));
-            }
-          }
-          const _low = Math.max(1, Math.min(bandQ.p25, appraisal.suggestedMin || bandQ.p25, _fair));
-          const _high = computeFairHigh(appraisal, bandQ, _fair);
-          appraisal.fairPrice = _fair; appraisal.fairLow = _low; appraisal.fairHigh = _high;
-          const _fp = estCard.querySelector("[data-fair-price]"), _fr = estCard.querySelector("[data-fair-range]");
-          if (_fp) _fp.textContent = `~${_fair}p`;
-          if (_fr) _fr.textContent = `${_low}p – ${_high}p`;
-          renderMlChip(estCard, _prec, bandQ, isEs);
-          renderMarketChip(estCard, mk, isEs);
-
-          // p30 of exact asks is close to the closing price, WFM buyouts are asks
-          try {
-            const _posN = itemAttributes.filter(a => a.isPositive).map(a => a.name);
-            const _negN = itemAttributes.find(a => !a.isPositive)?.name || null;
-            const { anchor } = await fetchSimilarRivens(weaponName, _posN, _negN, true);
-            if (anchor && anchor.n >= 3 && appraisal.fairPrice > 0) {
-              const _wC = Math.min(0.5, anchor.n * 0.08);
-              const _adj = Math.round(Math.exp((1 - _wC) * Math.log(appraisal.fairPrice) + _wC * Math.log(anchor.price)));
-              appraisal.fairPrice = _adj;
-              appraisal.fairLow = Math.min(appraisal.fairLow, _adj);
-              appraisal.fairHigh = Math.max(appraisal.fairHigh, anchor.median);
-              const _fp2 = estCard.querySelector("[data-fair-price]"), _fr2 = estCard.querySelector("[data-fair-range]");
-              if (_fp2) _fp2.textContent = `~${_adj}p`;
-              if (_fr2) _fr2.textContent = `${appraisal.fairLow}p – ${appraisal.fairHigh}p`;
-              const _cEl = estCard.querySelector("[data-comp-line]");
-              if (_cEl) {
-                _cEl.style.display = "inline-flex"; _cEl.style.color = "#4ade80"; _cEl.style.cursor = "pointer";
-                _cEl.title = isEs
-                  ? `Ahora mismo hay ${anchor.n} rivens a la venta con este mismo combo de stats. Los más baratos piden ~${anchor.price}p (lo habitual es ${anchor.median}p). Tu tasación se ajusta a estos precios reales del mercado. Toca para ver los listados.`
-                  : `Right now there are ${anchor.n} rivens for sale with this exact stat combo. The cheapest ask ~${anchor.price}p (typical ask is ${anchor.median}p). Your appraisal is adjusted to these real market prices. Tap to see the listings.`;
-                _cEl.innerHTML = `${isEs ? "En venta ahora" : "On sale now"}: <b>${isEs ? "desde" : "from"} ~${anchor.price}p</b> <span style="opacity:.6;">(${anchor.n} ${isEs ? "iguales" : "same"}) ${isEs ? "· toca para ver" : "· tap to view"}</span>`;
-                _cEl.onclick = () => {
-                  const _btn = document.getElementById("btn-search-similar-rivens");
-                  const _c = document.getElementById("similar-rivens-container");
-                  if (_btn) {
-                    if (!_btn.disabled) _btn.click();
-                    if (_c) setTimeout(() => _c.scrollIntoView({ behavior: "smooth", block: "nearest" }), 80);
-                  } else {
-                    window.open(`https://warframe.market/auctions/search?type=riven&weapon_url_name=${getRivenSlug(weaponName)}&sort_by=price_asc`, "_blank", "noopener");
-                  }
-                };
-              }
-              console.log(`[Comparables] ${weaponName}: fair=${_adj} ancla=${anchor.price}p n=${anchor.n} w=${_wC.toFixed(2)}`);
-            }
-          } catch (_e) {}
-        })
-        .catch(e => console.warn("[ML] error:", e));
-    }
-
-    let priceCalculated = appraisal.estimatedValue;
-    let minPrice = appraisal.suggestedMin;
-    let maxPrice = appraisal.suggestedMax;
-    const finalScore = appraisal.adjustedScore;
-
-    let tier = "F";
-    let tierColor = "grade-f";
-    if (finalScore >= 98) {
-      tier = "SSS";
-      tierColor = "grade-s";
-    } else if (finalScore >= 90) {
-      tier = "S+";
-      tierColor = "grade-s";
-    } else if (finalScore >= 80) {
-      tier = "S";
-      tierColor = "grade-s";
-    } else if (finalScore >= 60) {
-      tier = "A";
-      tierColor = "grade-a";
-    } else if (finalScore >= 40) {
-      tier = "B";
-      tierColor = "grade-b";
-    } else if (finalScore > 0) {
-      tier = "C";
-      tierColor = "grade-c";
-    }
+    const { tier, tierColor } = tierDeScore(appraisal.adjustedScore);
 
     const estCard = document.createElement("div");
     estCard.className = "grade-summary-card gsc";
 
     const isEs = state.currentLang === "es";
 
-    const warningHtml = buildAppraisalWarningsHtml({ appraisal, desirabilityMultiplier, stats, priceCalculated, isEs });
+    const warningHtml = buildAppraisalWarningsHtml({ appraisal, desirabilityMultiplier, stats, priceCalculated: appraisal.estimatedValue, isEs });
     estCard.innerHTML = buildAppraisalCardHTML({
-      tier, tierColor, priceCalculated, minPrice, maxPrice, finalScore, popPct, basePrice,
+      tier, tierColor,
+      priceCalculated: appraisal.estimatedValue,
+      minPrice: appraisal.suggestedMin,
+      maxPrice: appraisal.suggestedMax,
+      finalScore: appraisal.adjustedScore,
+      demanda, precioTipico,
       warningHtml, isEs, withSimilarButton: true,
       histLoading: !!(state.currentWeaponHistory?.weaponName === weaponName && state.currentWeaponHistory.loading)
     });
     estCard.insertAdjacentHTML("beforeend", cicloRivenHtml({ stats, meta, tipo: weaponData?.t || meta?.t, deseados: statsBuscadosDelArma(meta, weaponName), rolls: Number.parseInt(document.getElementById("g-rolls")?.value, 10), isEs }));
+    parchearTasacion({ estCard, appraisal, weaponName, weaponData, meta, basePrice, precioTipico, itemAttributes, isEs, conComparables: true });
     gridContainer.appendChild(estCard);
     fragment.appendChild(gridContainer);
 
@@ -2482,10 +2362,11 @@ export function calculateModalGrade() {
                 const _min = _simPrices[0];
                 const _med = _simPrices[Math.floor((_simPrices.length - 1) / 2)];
                 const _tag = _onlyIngame ? (_isEs ? "ingame" : "ingame") : (_isEs ? "todos" : "all");
-                simHtml += `<div style="font-size:11px; color:#00e5ff; background:rgba(0,229,255,0.07); border:1px solid rgba(0,229,255,0.28); border-radius:6px; padding:7px 9px; margin-bottom:8px; line-height:1.4;">
+                const _plat = '<span class="plat-icon-inline" aria-hidden="true"></span>';
+                simHtml += `<div style="font-size:11px; color:#00e5ff; background:rgba(0,229,255,0.07); border:1px solid rgba(0,229,255,0.28); border-radius:6px; padding:7px 9px; margin-bottom:8px; line-height:1.4; font-variant-numeric:tabular-nums;">
                   <b style="text-transform:uppercase; letter-spacing:0.5px;">${_isEs ? "Precio de mercado real" : "Real market price"}</b> <span style="opacity:.6; font-size:0.9em;">(${_tag})</span><br>
-                  <span style="color:#fff; font-weight:800; font-size:1.05em;">~${_med}p</span> ${_isEs ? "mediana" : "median"} · ${_isEs ? "desde" : "from"} <b>${_min}p</b>
-                  <span style="opacity:.65;">(${_simPrices.length} ${_isEs ? "listings" : "listings"})</span>
+                  <span style="color:#fff; font-weight:800; font-size:1.05em;">~${_med}${_plat}</span> ${_isEs ? "mediana" : "median"} · ${_isEs ? "desde" : "from"} <b>${_min}${_plat}</b>
+                  <span style="opacity:.65;">(${_simPrices.length} ${_isEs ? "anuncios" : "listings"})</span>
                 </div>`;
               }
 

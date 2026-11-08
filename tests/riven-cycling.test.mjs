@@ -317,7 +317,7 @@ test("con un objetivo elegido cada carta dice qué le falta para llegar", () => 
     const otra = combinarOverlay({ ...base, stats: [pos("Gas"), pos("Damage")] });
     assert.deepEqual(otra.paso, [{ texto: "ya tiene Gas", tono: "naranja" }]);
     const hecha = combinarOverlay({ ...base, objetivo: 0, stats: [pos("Gas"), pos("Damage")] });
-    assert.deepEqual(hecha.paso, [{ texto: "conseguido", tono: "verde" }]);
+    assert.deepEqual(hecha.paso, [{ texto: "Objetivo cumplido: ya tiene Gas", tono: "verde" }]);
 
     const lejos = combinarOverlay({ ...base, objetivo: 6, stats: [pos("Electric"), pos("Damage")] });
     assert.equal(lejos.paso[0].texto, "Cicla hasta Daño a Corpus + Daño a Grineer");
@@ -361,7 +361,7 @@ test("cada carta enseña sus combinados listos y su paso hacia el objetivo", () 
     assert.match(html, /<div class="riven-combinar-lista"><span>Corrosivo = Toxina \+ Electricidad<\/span><\/div>/);
     assert.match(html, /<div class="riven-combinar-paso"><span>Bloquea \+Electricidad hasta Calor<\/span><strong>~\d+ ciclos · ~[\d.k]+ kuva<\/strong>/);
     const hecha = combinarOverlay({ ...OBJ_FUSION, rolls: 9, tipo: "Rifle", isEs: true, objetivo: 0, stats: [pos("Gas"), pos("Damage")] });
-    assert.equal(combinarCartaHtml(hecha), '<div class="riven-combinar-carta"><div class="riven-combinar-paso"><span class="ok">conseguido</span></div></div>');
+    assert.equal(combinarCartaHtml(hecha), '<div class="riven-combinar-carta"><div class="riven-combinar-paso"><span class="ok">Objetivo cumplido: ya tiene Gas</span></div></div>');
     assert.equal(combinarCartaHtml(null), "");
     assert.equal(combinarCartaHtml(combinarOverlay({ ...OBJ_FUSION, rolls: 9, tipo: "Rifle", isEs: true, stats: [pos("Crit Damage"), pos("Damage")] })),
         '<div class="riven-combinar-carta"><div class="riven-combinar-paso"><span class="tenue">Nada listo · a un stat: Daño a Punto Débil, Daño de Estado</span></div></div>');

@@ -80,12 +80,16 @@ export function statUnit(statName) {
   return "%";
 }
 
-export function textoDelStat(stat, typeIdx) {
+export function valorDelStat(stat, typeIdx) {
   const nombre = resolveBaseStatKey(stat.name, typeIdx);
   if (/^Damage to /.test(nombre)) {
     const mult = 1 + (stat.isPositive ? stat.value : -stat.value) / 100;
-    return `x${Number(mult.toFixed(2))} ${nombre}`;
+    return `x${Number(mult.toFixed(2))}`;
   }
   const signo = stat.isPositive !== /^recoil$/i.test(nombre) ? "+" : "-";
-  return `${signo}${stat.value}${statUnit(nombre)} ${nombre}`;
+  return `${signo}${stat.value}${statUnit(nombre)}`;
+}
+
+export function textoDelStat(stat, typeIdx) {
+  return `${valorDelStat(stat, typeIdx)} ${resolveBaseStatKey(stat.name, typeIdx)}`;
 }

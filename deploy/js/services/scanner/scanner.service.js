@@ -476,7 +476,7 @@ export const ScannerService = {
                     if (timer !== this.autoScrollStableTimer) return;
                     if (sesion !== this._sesion) { this.autoScrollStableTimer = null; return; }
 
-                    if (this.enqueueInventoryPage(snapshot, dims, busqueda)) {
+                    if (this.enqueueInventoryPage(snapshot, dims, busqueda && { ...busqueda, aspecto: snapshot.width / snapshot.height })) {
                         this.fotosSinScroll++; this.autoScrollMuestra = firmaDePagina(snapshot, muestra, muestraPagina.rejilla, zona, dims.width, dims.height);
                         ScannerHUD.updateScrollStatus("captured");
                     }
@@ -1030,7 +1030,7 @@ export const ScannerService = {
 
         try {
             const calibKey = `${width}x${height}`;
-            let calibData = VisionService.detectGridAutoCalib(snapshot, width, height, anchoMax, contexto);
+            let calibData = VisionService.detectGridAutoCalib(snapshot, width, height, anchoMax, contexto, !!busqueda?.texto && !!this._frameZoneCache?.zone);
             const reciennacida = !!calibData, cachePrevio = this._autoCalibCache;
             if (calibData) {
                 this._autoCalibCache = { key: calibKey, calib: calibData };
@@ -1052,7 +1052,8 @@ export const ScannerService = {
             const rejilla = calibData?.gridZone && { gridY: calibData.gridY ?? calibData.gridZone.y, cellH: calibData.cellH, rows: calibData.rows };
             if (!rejilla || (!reciennacida && !filasEnFase(VisionService.ultimasBandas, busqueda?.texto ? { ...rejilla, rows: 1 } : rejilla))) {
                 console.warn(`[INV] Página saltada: ${rejilla ? "la rejilla no cae sobre los nombres" : "sin rejilla"} — se re-detecta.`);
-                this._autoCalibCache = this._frameZoneCache = null;
+                this._autoCalibCache = null;
+                if (!busqueda?.texto || !this._frameZoneCache?.zone) this._frameZoneCache = null;
                 this.detectionLocked = false;
                 return;
             }
@@ -1113,7 +1114,7 @@ export const ScannerService = {
                 for (const c of cellRects.filter((x) => x.r === r)) { await cedeHilo(); if (badgePlausible((await badgeDe(c)).raw)) n++; }
                 return n;
             };
-            const filaTapada = cellRects.some((c) => c.r === 1) && (await badges(0)) === 0
+            const filaTapada = !(calibData.deBusqueda && busqueda?.texto) && cellRects.some((c) => c.r === 1) && (await badges(0)) === 0
                 && (cellRects[0].sy + cellH * 0.04 < hud || (await badges(1)) >= Math.ceil(autoGrid.cols / 2));
             const activeCells = cellRects.filter((cell) => !(filaTapada && cell.r === 0)).map(cell => ({ cell }));
             if (filaTapada) this.lastRawOcrLog.push(`[r0] SKIPPED (sin badges bajo el HUD, ${cellRects.length - activeCells.length} celdas)`);
@@ -1391,7 +1392,6 @@ export const ScannerService = {
                 const motorReal = lotePreciso ? "paddle" : `tesseract x${workers.length}`;
                 reloj.fin(`${motorReal} · ${relojBadges.n} badges ${relojBadges.ms.toFixed(0)} ms`);
 
-                let vaciasEnBusqueda = 0;
                 if (esContextoArcanos(contexto)) {
                     const arcanosList = [];
                     for (const pending of pendingArcanes) {
@@ -1437,8 +1437,8 @@ export const ScannerService = {
                     ScannerHUD.updateScrollStatus("done", this.sessionInventory.size + this.sessionRelics.size);
                     ScannerHUD.updateDetectedItems(this.sessionInventory, this.sessionRelics);
                     if (DucatKioskService.enKiosco) this.onPaginaKiosco?.();
-                    vaciasEnBusqueda = BusquedaInventarioService.revisa(this, {
-                        busqueda, contexto, filaTapada, filas: autoGrid.rows, cols: autoGrid.cols, celdas: cellRects,
+                    BusquedaInventarioService.revisa(this, {
+                        busqueda, contexto, filaTapada: filaTapada || Math.min(...cellRects.map((c) => c.sy)) > cellH * 0.1, filaParcial: !!calibData.deMemoria || !reciennacida, filas: autoGrid.rows, cols: autoGrid.cols, celdas: cellRects,
                         items: new Map(relicPage ? [] : pendingItems.map((p) => [clave(p.cell), p.bestItem.originalName])),
                         reliquias: reliquiasEn, vacias, lienzo: snapshot, cellW, cellH,
                     });
@@ -1458,8 +1458,8 @@ export const ScannerService = {
                     this._nameColorCache = null;
                 }
 
-                const aciertos = scanStats.matched + scanStats.relics + vaciasEnBusqueda;
-                const revision = revisaRejillaCacheada(aciertos, activeCells.length, this._gridReintentado);
+                const aciertos = scanStats.matched + scanStats.relics;
+                const revision = busqueda?.texto ? { reDetectar: false, yaReintentado: this._gridReintentado } : revisaRejillaCacheada(aciertos, activeCells.length, this._gridReintentado);
                 this._gridReintentado = revision.yaReintentado;
                 if (revision.reDetectar) {
                     console.warn(`[INV] Solo ${aciertos}/${activeCells.length} celdas casaron — invalidando auto-grid, zona de recorte, color de nombre y tema.`);
