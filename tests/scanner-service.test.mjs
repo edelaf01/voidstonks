@@ -2911,7 +2911,7 @@ const BRONCO = Object.freeze({ tipo: "piezas", texto: "bronco" });
 test("la búsqueda leída viaja con la página a la cola", async () => {
   await capturaConBusqueda(async () => BRONCO, (encoladas) => {
     assert.equal(encoladas.length, 1);
-    assert.deepEqual(encoladas[0].busqueda, BRONCO);
+    assert.deepEqual(encoladas[0].busqueda, { ...BRONCO, aspecto: 16 / 9 });
   });
 });
 
@@ -2943,7 +2943,7 @@ test("un tick del bucle mientras se lee la búsqueda no tira la captura", async 
     suelta(BRONCO);
     await new Promise((r) => setTimeout(r, 20));
     assert.equal(encoladas.length, 1);
-    assert.deepEqual(encoladas[0].busqueda, BRONCO);
+    assert.deepEqual(encoladas[0].busqueda, { ...BRONCO, aspecto: 16 / 9 });
     assert.equal(S.autoScrollStableTimer, null);
   });
 });

@@ -25,7 +25,7 @@ export function smoothedLumaRow(data, off, width, radius) {
     return out;
 }
 
-const ASPECTO_CELDA = 1.069;
+export const ASPECTO_CELDA = 1.069;
 
 const DEFAULTS = {
     edgeDelta: 26,
