@@ -34,8 +34,7 @@ test("una carta de riven: valor, grado del arma y stats con su nota", () => {
   const p = panelRiven({ arma: "Kuva Bramma", valor: 120, min: 80, max: 160, grado: "A", score: 74, stats, rotulos: { valor: "VALOR", grado: "GRADO" } });
   assert.deepEqual(p.bloques[0], { tipo: "titulo", texto: "Kuva Bramma", tono: "cian" });
   assert.deepEqual(p.bloques[1].filas, [
-    [{ texto: "VALOR", tono: "gris" }, { texto: "~120p", tono: "oro" }, { texto: "80–160p", tono: "gris" }],
-    [{ texto: "GRADO", tono: "gris" }, { texto: "A", tono: "gradoA" }, { texto: "74/100", tono: "gris" }],
+    [{ texto: "VALOR", tono: "gris" }, { texto: "~120", tono: "oro", icono: "plat" }, { texto: "80–160", tono: "gris", icono: "plat" }, { texto: "A", tono: "gradoA" }, { texto: "74/100", tono: "gris" }],
   ]);
   assert.deepEqual(p.bloques.at(-1).filas[2], [{ texto: "-30% Zoom", tono: "rojo" }, { texto: "", tono: "gris" }, { texto: "", tono: "blanco" }]);
   assert.equal(panelRiven({ arma: "X", stats: [], rotulos: {} }).bloques.length, 2, "sin tasación solo arma y stats");

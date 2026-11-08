@@ -326,6 +326,48 @@ section.igual .precio {
   font-variant-numeric: tabular-nums;
 }
 
+.lista.izq .dato {
+  text-align: left;
+}
+
+.lista .medidor {
+  position: relative;
+  display: inline-block;
+  width: 3em;
+  height: 0.3em;
+  margin-right: 0.4em;
+  vertical-align: 0.15em;
+  border-radius: 0.15em;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.lista .medidor::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--pos);
+  border-radius: inherit;
+  background: var(--niv);
+}
+
+.lista .medidor::after {
+  content: "";
+  position: absolute;
+  top: -0.15em;
+  left: var(--pos);
+  width: 0.15em;
+  height: 0.6em;
+  background: #fff;
+  transform: translateX(-50%);
+}
+
+.medidor.nivel-alta { --niv: #4fbd4f; }
+.medidor.nivel-media { --niv: #c5a856; }
+.medidor.nivel-baja,
+.medidor.nivel-fuera { --niv: #ff4444; }
+.medidor.nivel-nula { visibility: hidden; }
+.medidor.atenuado { opacity: 0.35; }
+
 .panel:has(.rejilla) {
   max-width: 34vw;
 }

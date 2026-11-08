@@ -16,16 +16,22 @@ const icono = (nombre) => (ICONOS[nombre] ? `<img class="ico" src="${ICONOS[nomb
 const RE_IMAGEN = /^\/?assets\/[\w-]+(?:\/[\w-]+)*\.(?:webp|png|svg)$/;
 const imagen = (ruta) => (RE_IMAGEN.test(ruta || "") ? `<img class="img" src="/${ruta.replace(/^\//, "")}" alt="">` : "");
 const tono = (t, defecto) => `tono-${TONOS.has(t) ? t : defecto}`;
+const NIVELES = new Set(["alta", "media", "baja", "fuera", "nula"]);
+const porcentaje = (v) => Math.min(100, Math.max(0, Number(v) || 0));
+const medidor = (m) => (m && typeof m === "object"
+  ? `<span class="medidor nivel-${NIVELES.has(m.nivel) ? m.nivel : "nula"}${m.atenuado ? " atenuado" : ""}" style="--pos: ${porcentaje(m.pos)}%"></span>`
+  : "");
+const columna = (v) => (Number(v) > 0 && Number(v) <= 20 ? `minmax(${Number(v)}em, max-content)` : "max-content");
 
-function htmlLista(filas) {
+function htmlLista(filas, b = {}) {
   const cols = Math.max(1, ...filas.map((f) => f.length));
   const celdas = filas.flatMap((fila) => Array.from({ length: cols }, (_, i) => {
     const pt = fila[i];
     if (!pt) return `<span></span>`;
-    return `<span class="${i ? "dato" : "nombre"} ${tono(pt.tono, i ? "gris" : "blanco")}">${imagen(pt.imagen)}${esc(pt.texto)}${pt.texto ? icono(pt.icono) : ""}</span>`;
+    return `<span class="${i ? "dato" : "nombre"} ${tono(pt.tono, i ? "gris" : "blanco")}">${imagen(pt.imagen)}${medidor(pt.medidor)}${esc(pt.texto)}${pt.texto ? icono(pt.icono) : ""}</span>`;
   }));
-  const columnas = cols > 1 ? `minmax(0, 1fr) repeat(${cols - 1}, max-content)` : "minmax(0, 1fr)";
-  return `<div class="lista" style="grid-template-columns: ${columnas}">${celdas.join("")}</div>`;
+  const columnas = cols === 1 ? "minmax(0, 1fr)" : Array.isArray(b.anchos) ? `minmax(0, 1fr) ${Array.from({ length: cols - 1 }, (_, i) => columna(b.anchos[i])).join(" ")}` : `minmax(0, 1fr) repeat(${cols - 1}, max-content)`;
+  return `<div class="lista${b.alinear === "izquierda" ? " izq" : ""}" style="grid-template-columns: ${columnas}">${celdas.join("")}</div>`;
 }
 
 function htmlRejilla(b) {
@@ -54,7 +60,7 @@ export function htmlBloque(b) {
       return `<div class="precio"><span class="plat"><img src="${ICONO_PLAT}" alt="">${esc(b.plat)}</span>${duc}</div>`;
     }
     case "lista":
-      return htmlLista(Array.isArray(b.filas) ? b.filas : []);
+      return htmlLista(Array.isArray(b.filas) ? b.filas : [], b);
     case "rejilla":
       return htmlRejilla(b);
     case "botones": {

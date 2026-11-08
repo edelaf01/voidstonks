@@ -4,19 +4,11 @@ import { escapeHTML } from "../ui_components.js";
 import { consejoCicloHtml, combinarOverlay, combinarCartaHtml, objetivoDelArma, objetivoFusionHtml, NEG_INOFENSIVOS } from "./ui_riven_cycling.js";
 import { objetivoFusion, fijaObjetivoFusion } from "../../utils/rivens/riven_objetivo_fusion.js";
 import { claveStat, tipoDeArma, esFusionado, pesoFusionado } from "../../utils/rivens/riven_cycling.js";
-import { textoDelStat } from "../../utils/rivens/riven_stat_display.js";
 import { rotuloBanda } from "../../utils/rivens/riven_tooltips.js";
 import { statsBuscadosDelArma } from "../../services/rivens/riven_appraisal.service.js";
 import { avisa, escucha } from "../../utils/ganchos.js";
 
-const CALIDAD_POSITIVO = { S: ["TOP", "TOP", "oro"], A: ["BUENO", "GOOD", "naranja"], B: ["MEDIO", "MID", "cian"] };
-
-function calidadDelStat(ge, isEs) {
-    if (!ge) return null;
-    if (!ge.isPositive) return { texto: ge.label, tono: ge.badness < 0.4 ? "verde" : ge.badness < 0.7 ? "naranja" : "rojo" };
-    const [es, en, tono] = CALIDAD_POSITIVO[ge.tier] || ["FLOJO", "WEAK", "gris"];
-    return { texto: isEs ? es : en, tono };
-}
+const PLAT = '<span class="plat-icon-inline" aria-hidden="true"></span>';
 
 const AVISO_BANDA = {
     trash: {
@@ -289,13 +281,12 @@ export const RivenScannerHUD = {
         const t = TEXTS[state.currentLang]?.rivenHud || TEXTS.en.rivenHud;
         const { calculateRivenGrade } = await import("../../utils/rivens/riven_logic.js");
         const { appraiseParsedRiven } = await import("../../services/rivens/riven_appraisal.service.js");
+        const F = await import("./ui_riven_hud_filas.js");
 
         const appraisal = appraiseParsedRiven(riven.weaponName, riven.stats);
         const meta = appraisal?.meta;
-        const typeIdx = tipoDeArma(meta?.t || state.weaponMap?.[riven.weaponName]?.t);
         let heroHtml = "";
         let metricsHtml = "";
-        let gradeStats = null;
         const espejo = { arma: riven.weaponName };
 
         if (appraisal) {
@@ -303,7 +294,6 @@ export const RivenScannerHUD = {
             const prediction = appraisal.prediction;
             Object.assign(espejo, { valor: prediction.estimatedValue, min: prediction.suggestedMin, max: prediction.suggestedMax });
 
-            const platIcon = '<img src="assets/relic_contents/platinum.webp" style="width: 14px; vertical-align: middle; margin-bottom: 2px;">';
             let mlChip = "";
             let gradeHero = "";
 
@@ -322,20 +312,14 @@ export const RivenScannerHUD = {
                 mlChip = `
                     <div class="hud-chip ml" title="${_mlTitle}">
                         <span>${rotuloBanda(_bq.fuente, isEs).corto}${_warn}</span>
-                        <strong>~${_bq.p50}${platIcon}</strong>
+                        <strong>~${_bq.p50}${PLAT}</strong>
                         <em>(${_bq.p25}–${_bq.p95})</em>
                     </div>
                 `;
                 const _g = await ML.gradeRiven(riven.weaponName, riven.stats);
-                gradeStats = _g.stats;
                 Object.assign(espejo, { grado: _g.grade, score: _g.score });
                 const _gc = _g.grade === "S" ? "#ffd700" : _g.grade === "A" ? "#ff8c00" : _g.grade === "B" ? "#00e5ff" : _g.grade === "C" ? "#a879ec" : "#ff4d4d";
-                gradeHero = `
-                    <div class="hud-hero-grade" style="--gc:${_gc};" title="${isEs ? "Grado (arma)" : "Grade (weapon)"}">
-                        <span class="letter">${_g.grade}</span>
-                        <span class="sub">${_g.score}/100</span>
-                    </div>
-                `;
+                gradeHero = `<span class="hud-cab-grado" style="--gc:${_gc};" title="${isEs ? "Grado (arma)" : "Grade (weapon)"}"><b>${_g.grade}</b>${_g.score}/100</span>`;
             } catch (e) { console.warn("[ML hud] error:", e); }
 
             const histLoading = state.currentWeaponHistory?.weaponName === riven.weaponName && state.currentWeaponHistory.loading;
@@ -343,21 +327,19 @@ export const RivenScannerHUD = {
                 ? `<span title="${isEs ? "Actualizando con historial de precios…" : "Updating with price history…"}" style="cursor:help;"> ⏳</span>`
                 : "";
             heroHtml = `
-                <div class="hud-hero">
-                    <div class="hud-hero-price">
-                        <span class="lbl">${isEs ? "VALOR ESTIMADO" : "ESTIMATED VALUE"}${histHint}</span>
-                        <span class="val">${prediction.estimatedValue}${platIcon}</span>
-                        <span class="range">(${prediction.suggestedMin} - ${prediction.suggestedMax}${platIcon})</span>
-                    </div>
+                <div class="hud-cab" title="${isEs ? "Valor estimado y banda de precio" : "Estimated value and price band"}">
+                    <span class="lbl">${isEs ? "VALOR" : "VALUE"}${histHint}</span>
+                    <strong class="val">${prediction.estimatedValue}${PLAT}</strong>
+                    <span class="rango">${prediction.suggestedMin}–${prediction.suggestedMax}${PLAT}</span>
                     ${gradeHero}
                 </div>
             `;
 
             metricsHtml = `
                 <div class="hud-metrics-row">
-                    <div class="hud-chip" title="${isEs ? "Lo que vale si el roll es malo (para fusionar o revender barato)." : "What it's worth if the roll is bad (fusion fodder / cheap resale)."}"><span>TRASH</span><strong>~${tiers.trash}${platIcon}</strong></div>
-                    <div class="hud-chip" title="${isEs ? "Precio normal de un roll decente ya rerolleado en esta arma." : "Typical price of a decent rerolled roll on this weapon."}"><span>GOOD</span><strong>~${tiers.goodReroll}${platIcon}</strong></div>
-                    <div class="hud-chip" title="${isEs ? "Techo realista de esta arma con el roll perfecto (ventas reales, no asks troll)." : "Realistic ceiling for this weapon with the perfect roll (real sales, not troll asks)."}"><span>GODROLL</span><strong>~${tiers.godroll}${platIcon}</strong></div>
+                    <div class="hud-chip" title="${isEs ? "Lo que vale si el roll es malo (para fusionar o revender barato)." : "What it's worth if the roll is bad (fusion fodder / cheap resale)."}"><span>TRASH</span><strong>~${tiers.trash}${PLAT}</strong></div>
+                    <div class="hud-chip" title="${isEs ? "Precio normal de un roll decente ya rerolleado en esta arma." : "Typical price of a decent rerolled roll on this weapon."}"><span>GOOD</span><strong>~${tiers.goodReroll}${PLAT}</strong></div>
+                    <div class="hud-chip" title="${isEs ? "Techo realista de esta arma con el roll perfecto (ventas reales, no asks troll)." : "Realistic ceiling for this weapon with the perfect roll (real sales, not troll asks)."}"><span>GODROLL</span><strong>~${tiers.godroll}${PLAT}</strong></div>
                     ${mlChip}
                     <div class="hud-chip score" title="${isEs ? "Nota global de ESTE roll de 0 a 100: combina qué stats tiene y cómo de altos salieron." : "Overall score of THIS roll from 0 to 100: combines which stats it has and how high they rolled."}"><span>ROLL</span><strong>${prediction.adjustedScore}/100</strong></div>
                 </div>
@@ -365,54 +347,8 @@ export const RivenScannerHUD = {
         }
 
         const combinar = this._combinarOverlay(riven, meta, calculateRivenGrade, isEs);
-        const posCount = riven.stats.filter(x => x.isPositive).length;
-        const hasNeg = riven.stats.some(x => !x.isPositive);
-        const statsHtml = riven.stats.map((s, i) => {
-            const texto = textoDelStat(s, typeIdx);
-            const textColor = s.isPositive ? "#00ff88" : "#ff6b6b";
-
-            const des = this._statDesirability(meta, s.name, s.isPositive);
-            const desFallback = des
-                ? `<span style="font-weight:700; font-size:0.7em; letter-spacing:0.5px; padding:1px 7px; border-radius:999px; background:${des.color}22; color:${des.color}; border:1px solid ${des.color}66;">${des.label}</span>`
-                : "";
-
-            let desBadge = desFallback;
-            const ge = gradeStats && gradeStats[i];
-            if (ge) {
-                if (ge.isPositive) {
-                    const c = ge.tier === "S" ? "#ffd700" : ge.tier === "A" ? "#ff8c00" : ge.tier === "B" ? "#00e5ff" : "#888";
-                    const lbl = ge.tier === "S" ? "TOP" : ge.tier === "A" ? (isEs ? "BUENO" : "GOOD") : ge.tier === "B" ? (isEs ? "MEDIO" : "MID") : (isEs ? "FLOJO" : "WEAK");
-                    const popTitle = isEs ? `Popularidad en ${escapeHTML(riven.weaponName)}: ${ge.weight}` : `Popularity on ${escapeHTML(riven.weaponName)}: ${ge.weight}`;
-                    desBadge = `<span title="${popTitle}" style="font-weight:700; font-size:0.7em; letter-spacing:0.5px; padding:1px 7px; border-radius:999px; background:${c}22; color:${c}; border:1px solid ${c}66;">${lbl}</span>`;
-                } else {
-                    const c = ge.badness < 0.40 ? "#00ff88" : ge.badness < 0.70 ? "#ff8c00" : "#ff4d4d";
-                    const dmgTitle = isEs ? `Daño en ${escapeHTML(riven.weaponName)}: ${ge.badness}` : `Damage on ${escapeHTML(riven.weaponName)}: ${ge.badness}`;
-                    desBadge = `<span title="${dmgTitle}" style="font-weight:700; font-size:0.7em; letter-spacing:0.5px; padding:1px 7px; border-radius:999px; background:${c}22; color:${c}; border:1px solid ${c}66;">${ge.label}</span>`;
-                }
-            }
-
-            let gradeBadge = "";
-            if (meta) {
-                const gradeData = calculateRivenGrade(meta, s.name, s.value, !s.isPositive, posCount, hasNeg);
-                if (gradeData) {
-                    let color = "#fff";
-                    if (gradeData.grade.startsWith("S")) color = "#ffd700";
-                    else if (gradeData.grade.startsWith("A")) color = "#ff8c00";
-                    else if (gradeData.grade.startsWith("B")) color = "#00e5ff";
-                    else if (gradeData.grade.startsWith("C")) color = "#a879ec";
-                    else if (gradeData.grade.startsWith("F")) color = "#ff4d4d";
-                    gradeBadge = `<span style="font-weight:900; font-size:0.8em; padding:1px 7px; border-radius:999px; background:rgba(0,0,0,0.45); color:${color}; border:1px solid ${color}55;">${gradeData.grade}${Number.isFinite(gradeData.pct) ? ` · p${Math.round(gradeData.pct)}` : ""}</span>`;
-                }
-            }
-
-            const borderC = des ? des.color : "rgba(255,255,255,0.12)";
-            return `
-                <div class="riven-hud-stat" style="display:flex; align-items:center; gap:6px; background:rgba(255,255,255,0.04); border:1px solid ${borderC}55; border-radius:14px; padding:2px 8px; margin:2px 0; font-size:0.78em;">
-                    <span title="${texto}" style="color:${textColor}; font-weight:600; flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${texto}</span>
-                    <span style="display:flex; gap:6px; align-items:center; flex-shrink:0;">${desBadge}${gradeBadge}</span>
-                </div>
-            `;
-        }).join("");
+        const filas = F.filasTasacion(riven, meta, isEs);
+        const statsHtml = filas.map(F.filaStatHtml).join("");
 
         const title = riven.rivenName || (riven.weaponName ? `${riven.weaponName} Riven` : "Unknown Riven");
         const rollsInfo = riven.rolls !== null ? `<span class="rolls-badge">${riven.rolls} ROLLS</span>` : "";
@@ -452,7 +388,7 @@ export const RivenScannerHUD = {
                     ${heroHtml}
 
                     <div class="riven-weapon-row">
-                        <span class="weapon-name">${escapeHTML(title)}</span>
+                        <span class="weapon-name" title="${escapeHTML(title)}">${escapeHTML(title)}</span>
                         <span style="display:flex; gap:6px; align-items:center;">${rollsInfo}${capBtnHtml}</span>
                     </div>
 
@@ -475,24 +411,10 @@ export const RivenScannerHUD = {
             </div>
         `;
         avisa("riven", { tipo: "tirada", datos: {
-            ...espejo, stats: this._statsOverlay(riven, meta, calculateRivenGrade, gradeStats),
+            ...espejo, stats: filas.map(F.statOverlay),
             combinar,
-            rotulos: { valor: isEs ? "VALOR" : "VALUE", grado: isEs ? "GRADO" : "GRADE", atributo: TEXTS[state.currentLang].scannerHUD.rivenColStat, tirada: TEXTS[state.currentLang].scannerHUD.rivenColRoll },
+            rotulos: { valor: isEs ? "VALOR" : "VALUE", grado: isEs ? "GRADO" : "GRADE", tirada: TEXTS[state.currentLang].scannerHUD.rivenColRoll },
         } });
-    },
-
-    _statsOverlay(roll, meta, calculateRivenGrade, gradeStats = null) {
-        const posCount = roll.stats.filter((x) => x.isPositive).length;
-        const hasNeg = roll.stats.some((x) => !x.isPositive);
-        const isEs = state.currentLang === "es";
-        const typeIdx = tipoDeArma(meta?.t || state.weaponMap?.[roll.weaponName]?.t);
-        return roll.stats.map((s, i) => {
-            const g = meta ? calculateRivenGrade(meta, s.name, s.value, !s.isPositive, posCount, hasNeg) : null;
-            return {
-                texto: textoDelStat(s, typeIdx), positivo: s.isPositive, grado: g?.grade || null, pct: g?.pct,
-                calidad: calidadDelStat(gradeStats?.[i], isEs),
-            };
-        });
     },
 
     async _renderComparison(rollA, rollB) {
@@ -506,42 +428,16 @@ export const RivenScannerHUD = {
 
         const { getMetaStats } = await import("../../services/rivens/riven_market.service.js");
         const { calculateRivenGrade } = await import("../../utils/rivens/riven_logic.js");
+        const F = await import("./ui_riven_hud_filas.js");
         
         const meta = getMetaStats(rollA.weaponName) || getMetaStats(rollB.weaponName);
-
-        const formatRollStats = (roll) => {
-            const posCount = roll.stats.filter(x => x.isPositive).length;
-            const hasNeg = roll.stats.some(x => !x.isPositive);
-            const typeIdx = tipoDeArma(meta?.t || state.weaponMap?.[roll.weaponName]?.t);
-            return roll.stats.map(s => {
-                const texto = textoDelStat(s, typeIdx);
-                const textColor = s.isPositive ? "#00ff78" : "#ff6b6b";
-                const des = this._statDesirability(meta, s.name, s.isPositive);
-                const desBadge = des
-                    ? `<span style="font-weight:700; font-size:0.85em; padding:0 5px; border-radius:999px; background:${des.color}22; color:${des.color}; border:1px solid ${des.color}66;">${des.label}</span>`
-                    : "";
-                let gradeBadge = "";
-                if (meta) {
-                    const gradeData = calculateRivenGrade(meta, s.name, s.value, !s.isPositive, posCount, hasNeg);
-                    if (gradeData) {
-                        let gColor = "#fff";
-                        if (gradeData.grade.startsWith("S")) gColor = "#ffd700";
-                        else if (gradeData.grade.startsWith("A")) gColor = "#ff8c00";
-                        else if (gradeData.grade.startsWith("B")) gColor = "#00e5ff";
-                        else if (gradeData.grade.startsWith("C")) gColor = "#a879ec";
-                        else if (gradeData.grade.startsWith("F")) gColor = "#ff4d4d";
-                        gradeBadge = `<span style="font-weight:bold; color:${gColor};">[${gradeData.grade}]</span>`;
-                    }
-                }
-                const borderC = des ? des.color : "rgba(255,255,255,0.12)";
-                return `<div style="display:flex; align-items:center; gap:5px; font-size:0.68em; margin:2px 0; padding:2px 6px; border:1px solid ${borderC}55; border-radius:12px; background:rgba(255,255,255,0.04);"><span title="${texto}" style="color:${textColor}; flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${texto}</span><span style="display:flex; gap:5px; flex-shrink:0;">${desBadge}${gradeBadge}</span></div>`;
-            }).join("");
-        };
-
         const isEs = state.currentLang === "es";
+
+        const filasAB = [rollA, rollB].map((r) => F.filasTasacion(r, meta, isEs));
+        const formatRollStats = (i) => filasAB[i].map(F.filaStatHtml).join("");
+
         const combinarAB = [rollA, rollB].map((r) => this._combinarOverlay(r, meta, calculateRivenGrade, isEs));
         const t = TEXTS[state.currentLang]?.rivenHud || TEXTS.en.rivenHud;
-        const platIcon = '<img src="assets/relic_contents/platinum.webp" style="width: 14px; vertical-align: middle; margin-bottom: 2px;">';
 
         if (this.container) this.container.style.width = "min(460px, calc(100vw - 16px))";
 
@@ -580,7 +476,7 @@ export const RivenScannerHUD = {
                 </div>
                 <div class="riven-hud-body">
                     <div class="riven-weapon-row">
-                        <span class="weapon-name">${rollA.weaponName}</span>
+                        <span class="weapon-name" title="${escapeHTML(rollA.weaponName)}">${escapeHTML(rollA.weaponName)}</span>
                         <span style="display:flex; gap:6px; align-items:center;">
                             <span class="comp-verdict-chip">${winnerText} ${t.verdictBetter}</span>
                             ${capBtnHtml}
@@ -593,19 +489,19 @@ export const RivenScannerHUD = {
                         <div class="comp-col ${winIdx === 0 ? 'winner' : ''}" style="flex:1 1 0; min-width:0;">
                             <div class="col-title">${t.current}</div>
                             <div class="col-hero">
-                                <span class="col-price-big">~${comparison.priceA}${platIcon}</span>
+                                <span class="col-price-big">~${comparison.priceA}${PLAT}</span>
                                 <span class="col-score-sm">${t.score}: <strong>${comparison.scoreA}</strong></span>
                             </div>
-                            <div class="col-stats">${formatRollStats(rollA)}</div>
+                            <div class="col-stats">${formatRollStats(0)}</div>
                             ${combinarCartaHtml(combinarAB[0])}
                         </div>
                         <div class="comp-col ${winIdx === 1 ? 'winner' : ''}" style="flex:1 1 0; min-width:0;">
                             <div class="col-title">${t.new}</div>
                             <div class="col-hero">
-                                <span class="col-price-big">~${comparison.priceB}${platIcon}</span>
+                                <span class="col-price-big">~${comparison.priceB}${PLAT}</span>
                                 <span class="col-score-sm">${t.score}: <strong>${comparison.scoreB}</strong></span>
                             </div>
-                            <div class="col-stats">${formatRollStats(rollB)}</div>
+                            <div class="col-stats">${formatRollStats(1)}</div>
                             ${combinarCartaHtml(combinarAB[1])}
                         </div>
                     </div>
@@ -622,10 +518,10 @@ export const RivenScannerHUD = {
         avisa("riven", { tipo: "comparacion", datos: {
             arma: rollA.weaponName, ganador: winIdx,
             tiradas: [
-                { rotulo: t.current, precio: comparison.priceA, score: comparison.scoreA, stats: this._statsOverlay(rollA, meta, calculateRivenGrade), combinar: combinarAB[0] },
-                { rotulo: t.new, precio: comparison.priceB, score: comparison.scoreB, stats: this._statsOverlay(rollB, meta, calculateRivenGrade), combinar: combinarAB[1] },
+                { rotulo: t.current, precio: comparison.priceA, score: comparison.scoreA, stats: filasAB[0].map(F.statOverlay), combinar: combinarAB[0] },
+                { rotulo: t.new, precio: comparison.priceB, score: comparison.scoreB, stats: filasAB[1].map(F.statOverlay), combinar: combinarAB[1] },
             ],
-            rotulos: { mejor: t.verdictBetter, atributo: TEXTS[state.currentLang].scannerHUD.rivenColStat, tirada: TEXTS[state.currentLang].scannerHUD.rivenColRoll },
+            rotulos: { mejor: t.verdictBetter, tirada: TEXTS[state.currentLang].scannerHUD.rivenColRoll },
         } });
     },
 
