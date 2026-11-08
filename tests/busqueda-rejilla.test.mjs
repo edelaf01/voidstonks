@@ -634,13 +634,8 @@ test("celdaEnBlanco calcula desviacion tipica sobre luma y aplica tope", () => {
     assert.equal(celdaEnBlanco(customPix, 15), true);
 });
 
-test("resuelveConsulta extiende texto si coincide en todos los visibles", () => {
-    const VOLT = [
-        "Volt Prime Blueprint",
-        "Volt Prime Chassis Blueprint",
-        "Volt Prime Neuroptics Blueprint",
-        "Volt Prime Systems Blueprint"
-    ];
+test("resuelveConsulta completa palabras comunes presentes en todos los visibles", () => {
+    const VOLT = ["Volt Prime Blueprint", "Volt Prime Chassis Blueprint", "Volt Prime Neuroptics Blueprint", "Volt Prime Systems Blueprint"];
     assert.equal(resuelveConsulta("vol", VOLT), "volt");
     assert.equal(resuelveConsulta("voli", VOLT), "volt");
     assert.equal(resuelveConsulta("voll", VOLT), "volt");
@@ -648,36 +643,16 @@ test("resuelveConsulta extiende texto si coincide en todos los visibles", () => 
     assert.equal(resuelveConsulta("volt", VOLT), "volt");
     assert.equal(resuelveConsulta("lok", ["Loki Prime Blueprint", "Loki Prime Chassis Blueprint"]), "loki");
     assert.equal(resuelveConsulta("oma", ["Soma Prime Barrel", "Soma Prime Receiver"]), "soma");
-    assert.equal(resuelveConsulta("bronco", ["Akbronco Prime Blueprint", "Bronco Prime Barrel"]), "bronco");
-    assert.equal(resuelveConsulta("bronco", ["Akbronco Prime Blueprint"]), "kbronco");
+});
 
-    const inv = {
-        "Volt Prime Blueprint": 1,
-        "Volt Prime Chassis Blueprint": 1,
-        "Volt Prime Neuroptics Blueprint": 1,
-        "Volt Prime Systems Blueprint": 1,
-        "Volnus Prime Handle": 1,
-        "Volnus Prime Head": 1,
-        "Akbolto Prime Link": 1
-    };
+test("con cuatro Volt a la vista la consulta vol u olt no vota Volnus ni Akbolto", () => {
+    const VOLT = ["Volt Prime Blueprint", "Volt Prime Chassis Blueprint", "Volt Prime Neuroptics Blueprint", "Volt Prime Systems Blueprint"];
+    const inv = { "Volt Prime Blueprint": 1, "Volt Prime Chassis Blueprint": 1, "Volt Prime Neuroptics Blueprint": 1, "Volt Prime Systems Blueprint": 1, "Volnus Prime Handle": 1, "Volnus Prime Head": 1, "Akbolto Prime Link": 1 };
     const celdas = pagina(VOLT, 2, 6);
-    const resVol = ausentesDeBusqueda({
-        texto: "vol",
-        celdas,
-        filas: 2,
-        cols: 6,
-        inventario: inv
-    });
+    const resVol = ausentesDeBusqueda({ texto: "vol", celdas, filas: 2, cols: 6, inventario: inv });
     assert.equal(resVol.consulta, "volt");
     assert.deepEqual(resVol.candidatos, []);
-
-    const resOlt = ausentesDeBusqueda({
-        texto: "olt",
-        celdas,
-        filas: 2,
-        cols: 6,
-        inventario: inv
-    });
+    const resOlt = ausentesDeBusqueda({ texto: "olt", celdas, filas: 2, cols: 6, inventario: inv });
     assert.equal(resOlt.consulta, "volt");
     assert.deepEqual(resOlt.candidatos, []);
 });
@@ -736,4 +711,79 @@ test("ausentesDeBusqueda con repite permite duplicados y filtra por editDistance
         repite: true
     });
     assert.equal(resDup.motivo, null);
+});
+
+test("resuelveConsulta alarga prefijos y sufijos comunes segun los nombres visibles", () => {
+    assert.equal(resuelveConsulta("bronco", ["Akbronco Prime Blueprint"]), "bronco");
+    assert.equal(resuelveConsulta("col", ["Kavasa Prime Collar"]), "coll");
+    assert.equal(resuelveConsulta("olt", ["Volt Prime Blueprint"]), "olt");
+    assert.equal(resuelveConsulta("olt", [
+        "Volt Prime Blueprint",
+        "Volt Prime Chassis Blueprint",
+        "Volt Prime Neuroptics Blueprint",
+        "Volt Prime Systems Blueprint"
+    ]), "volt");
+});
+
+test("ausentesDeBusqueda discrimina candidatos por la cadena resuelta", () => {
+    const celdas = pagina(["Akbronco Prime Blueprint"], 3, 6);
+    const inv = {
+        "Bronco Prime Barrel": 8,
+        "Akbronco Prime Blueprint": 1
+    };
+    const res = ausentesDeBusqueda({
+        texto: "bronco",
+        celdas,
+        filas: 3,
+        cols: 6,
+        inventario: inv
+    });
+    assert.equal(res.motivo, null);
+    assert.equal(res.consulta, "bronco");
+    assert.deepEqual(res.candidatos, ["Bronco Prime Barrel"]);
+    assert.deepEqual(res.vistos, ["Akbronco Prime Blueprint"]);
+});
+
+test("con un solo visible la consulta exige inicio de palabra para evitar truncados falsos", () => {
+    const celdas = pagina(["Volt Prime Blueprint"], 3, 6);
+    const inv = { "Akbolto Prime Barrel": 1, "Boltor Prime Barrel": 1, "Volt Prime Blueprint": 1 };
+    const resOlt = ausentesDeBusqueda({ texto: "olt", celdas, filas: 3, cols: 6, inventario: inv });
+    assert.deepEqual(resOlt.candidatos, []);
+    const celdasBronco = pagina(["Akbronco Prime Blueprint"], 3, 6);
+    const invBronco = { "Bronco Prime Barrel": 1, "Akbronco Prime Blueprint": 1 };
+    const resBronco = ausentesDeBusqueda({ texto: "bronco", celdas: celdasBronco, filas: 3, cols: 6, inventario: invBronco });
+    assert.deepEqual(resBronco.candidatos, ["Bronco Prime Barrel"]);
+});
+
+test("tope de ceros devuelve demasiados y anula candidatos cuando se supera", () => {
+    const celdas = pagina(["Akbronco Prime Blueprint"], 3, 6);
+    const invTope = { "Akbronco Prime Blueprint": 1, ...Object.fromEntries(Array.from({ length: 8 }, (_, i) => [`Bronco Prime Parte ${i}`, 1])) };
+    const resTope = ausentesDeBusqueda({ texto: "bronco", celdas, filas: 3, cols: 6, inventario: invTope });
+    assert.equal(resTope.motivo, null);
+    assert.equal(resTope.candidatos.length, 8);
+    const invExceso = { "Akbronco Prime Blueprint": 1, ...Object.fromEntries(Array.from({ length: 9 }, (_, i) => [`Bronco Prime Parte ${i}`, 1])) };
+    const resExceso = ausentesDeBusqueda({ texto: "bronco", celdas, filas: 3, cols: 6, inventario: invExceso });
+    assert.equal(resExceso.motivo, "demasiados");
+    assert.equal(resExceso.consulta, null);
+    assert.deepEqual(resExceso.candidatos, []);
+    assert.deepEqual(resExceso.vistos, ["Akbronco Prime Blueprint"]);
+});
+
+test("fila parcial con primera fila llena devuelve fila llena y descarta candidatos", () => {
+    const items = ["Bronco Prime A", "Bronco Prime B", "Bronco Prime C", "Bronco Prime D"];
+    const celdasLlena = pagina(items, 2, 4);
+    const inv = { "Bronco Prime A": 1, "Bronco Prime B": 1, "Bronco Prime C": 1, "Bronco Prime Barrel": 1 };
+    const resLlena = ausentesDeBusqueda({ texto: "bronco", celdas: celdasLlena, filas: 2, cols: 4, inventario: inv, filaParcial: true });
+    assert.equal(resLlena.motivo, "fila_llena");
+    assert.deepEqual(resLlena.candidatos, []);
+    const celdasHueco = pagina(["Bronco Prime A", "Bronco Prime B", "Bronco Prime C"], 2, 4);
+    const resHueco = ausentesDeBusqueda({ texto: "bronco", celdas: celdasHueco, filas: 2, cols: 4, inventario: inv, filaParcial: true });
+    assert.equal(resHueco.motivo, null);
+    assert.deepEqual(resHueco.candidatos, ["Bronco Prime Barrel"]);
+    const resSinParcial = ausentesDeBusqueda({ texto: "bronco", celdas: celdasLlena, filas: 2, cols: 4, inventario: inv, filaParcial: false });
+    assert.notEqual(resSinParcial.motivo, "fila_llena");
+    const celdasRelic = pagina(["LITH A1"], 2, 4);
+    const invRelic = { "LITH A1": 1, "LITH C9": 1 };
+    const resRelic = ausentesDeBusqueda({ texto: "ith", celdas: celdasRelic, filas: 2, cols: 4, inventario: invRelic, textoDe: (k) => `${k} relic`, repite: true });
+    assert.deepEqual(resRelic.candidatos, []);
 });

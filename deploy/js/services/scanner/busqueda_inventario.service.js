@@ -22,6 +22,18 @@ const TIPOS = Object.freeze({
     },
 });
 
+const vetos = new WeakMap();
+const TOLERANCIA_16_9 = 0.01;
+
+function vetados(escaner) {
+    if (!escaner) return new Set();
+    const previo = vetos.get(escaner);
+    if (previo && previo.sesion === escaner._sesion) return previo.nombres;
+    const nuevo = { sesion: escaner._sesion, nombres: new Set() };
+    vetos.set(escaner, nuevo);
+    return nuevo.nombres;
+}
+
 export const BusquedaInventarioService = {
     estado: ESTADO_BUSQUEDA,
     id: 0,
@@ -35,7 +47,7 @@ export const BusquedaInventarioService = {
         return { tipo, texto };
     },
 
-    revisa(escaner, { busqueda, contexto, filaTapada, filas, cols, celdas, items, reliquias, vacias, lienzo, cellW, cellH }) {
+    revisa(escaner, { busqueda, contexto, filaTapada, filaParcial, filas, cols, celdas, items, reliquias, vacias, lienzo, cellW, cellH }) {
         const tipo = busqueda && TIPOS[busqueda.tipo];
         if (!tipo || contexto !== "INVENTORY" || filaTapada || /TRADE/.test(escaner?.lastHeaderText || "") || DucatKioskService.conDialogo || DucatKioskService.enMesa?.size > 0 || DucatKioskService.vendiendo) {
             this.estado = ESTADO_BUSQUEDA;
@@ -57,12 +69,17 @@ export const BusquedaInventarioService = {
             return { r: cell.r, c: cell.c, tipo: "otra" };
         });
         const inventario = tipo.inventario(escaner);
-        const resultado = ausentesDeBusqueda({ texto: busqueda.texto, celdas: tabla, filas, cols, inventario, textoDe: tipo.textoDe, excluye: tipo.excluye, repite: tipo.repite });
+        const veto = vetados(escaner);
+        const crudo = Math.abs(busqueda.aspecto / (16 / 9) - 1) <= TOLERANCIA_16_9
+            ? ausentesDeBusqueda({ texto: busqueda.texto, celdas: tabla, filas, cols, inventario, textoDe: tipo.textoDe, excluye: tipo.excluye, repite: tipo.repite, filaParcial: !!filaParcial })
+            : { consulta: null, motivo: "aspecto", vistos: [], candidatos: [] };
+        const resultado = crudo.motivo ? crudo : { ...crudo, candidatos: crudo.candidatos.filter((n) => !veto.has(`${busqueda.tipo}|${n}`)) };
         const clave = resultado.consulta ? `${busqueda.tipo}|${resultado.consulta}` : null;
         const { estado, aCero, pendientes } = pasoBusqueda(this.estado, resultado, clave, ++this.id, inventario, Date.now());
         this.estado = estado;
         console.log(`[BUSQ] ${busqueda.tipo} "${resultado.consulta ?? busqueda.texto.trim()}": ${resultado.motivo || `${resultado.vistos.length} a la vista, ${resultado.candidatos.length} sin salir`}${aCero.length ? ` · a 0: ${aCero.join(", ")}` : ""}`);
         if (aCero.length) {
+            for (const n of aCero) veto.add(`${busqueda.tipo}|${n}`);
             this.onCero?.(busqueda.tipo, aCero, resultado.consulta);
         } else if (pendientes.length && escaner) {
             Object.assign(escaner, { autoScrollMuestra: null, fotosSinScroll: Math.min(escaner.fotosSinScroll ?? 0, 2) });
