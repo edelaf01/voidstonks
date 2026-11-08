@@ -1158,7 +1158,7 @@ export const VisionService = {
         return "UNKNOWN";
     },
 
-    detectGridAutoCalib(snapshot, width, height, anchoMax = width, ambito = "") {
+    detectGridAutoCalib(snapshot, width, height, anchoMax = width, ambito = "", conBusqueda = false) {
         try {
             const cvs = this._themeCvs;
             cvs.width = anchoMax; cvs.height = height;
@@ -1167,7 +1167,7 @@ export const VisionService = {
             const img = ctx.getImageData(0, 0, anchoMax, height);
             const trace = {};
             const clave = `${ambito}|${anchoMax}x${height}`;
-            const calib = rejillaConMemoria(detectInventoryGrid(img, { trace }), trace, this._memoriasRejilla.get(clave), img);
+            const calib = rejillaConMemoria(detectInventoryGrid(img, { trace }), trace, this._memoriasRejilla.get(clave), img, conBusqueda);
             const memoria = memoriaDeRejilla(calib);
             if (memoria) this._memoriasRejilla.delete(clave), this._memoriasRejilla.set(clave, memoria);
             if (this._memoriasRejilla.size > 8) this._memoriasRejilla.delete(this._memoriasRejilla.keys().next().value);

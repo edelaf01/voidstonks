@@ -47,7 +47,7 @@ function construyePagina(filas, cols, itemNames = [], options = {}) {
   });
 
   return {
-    busqueda,
+    busqueda: busqueda && { aspecto: 16 / 9, ...busqueda },
     contexto: "INVENTORY",
     filaTapada: false,
     filas,
@@ -398,22 +398,22 @@ async function conAviso(t, lang, fn) {
   t.mock.timers.enable({ apis: ["setTimeout"] });
   const { ScannerService: S } = await import("../deploy/js/services/scanner/scanner.service.js");
   const previo = {
-    onCero: BusquedaInventarioService.onCero, cambiado: globalThis.inventarioCambiado, crear: document.createElement,
+    onCero: BusquedaInventarioService.onCero, cambiado: globalThis.inventarioCambiado, crear: globalThis.document.createElement,
     estado: { primeInventory: state.primeInventory, inventory: state.inventory, currentLang: state.currentLang },
     sesion: { sessionInventory: S.sessionInventory, qtyVotes: S.qtyVotes, sessionRelics: S.sessionRelics, relicQtyVotes: S.relicQtyVotes },
   };
   await import("../deploy/js/scanner/live_scanner.js");
   manejadorCero ||= BusquedaInventarioService.onCero;
-  document.createElement = (tag) => Object.assign(previo.crear(tag), { querySelector: () => ({}) });
-  const contenedor = document._registrar("toast-container", previo.crear("div"));
+  globalThis.document.createElement = (tag) => Object.assign(previo.crear(tag), { querySelector: () => ({}) });
+  const contenedor = globalThis.document._registrar("toast-container", previo.crear("div"));
   const avisos = { cambios: 0 };
   globalThis.inventarioCambiado = () => { avisos.cambios++; };
   state.currentLang = lang;
   try {
     await fn({ S, avisos, toast: () => contenedor.children[0] });
   } finally {
-    document.createElement = previo.crear;
-    document._registrar("toast-container", null);
+    globalThis.document.createElement = previo.crear;
+    globalThis.document._registrar("toast-container", null);
     globalThis.inventarioCambiado = previo.cambiado;
     BusquedaInventarioService.onCero = previo.onCero;
     Object.assign(state, previo.estado);
@@ -533,3 +533,259 @@ test("revisa de reliquias filtra candidatos cercanos por distancia de edicion", 
   assert.equal(llamadas.length, 1);
   assert.deepEqual(llamadas[0], ["reliquias", ["LITH C9"], "lith"]);
 });
+
+test("revisa vota con la fila 0 llena salvo cuando le piden filaParcial", () => {
+  let llamadas = prepara();
+  const escaner = creaEscaner();
+  const items = [
+    "Bronco Prime Barrel",
+    "Bronco Prime Receiver",
+    "Akbronco Prime Blueprint",
+    "Akbronco Prime Link",
+    "Bronco Prime Stock",
+    "Bronco Prime Blueprint"
+  ];
+  const fantasma = "Bronco Prime Chamber";
+  for (const n of items) state.primeInventory[n] = 1;
+  state.primeInventory[fantasma] = 1;
+
+  const busqueda = { tipo: "piezas", texto: "bronco" };
+  const pagina = construyePagina(3, 4, items, { busqueda });
+
+  BusquedaInventarioService.revisa(escaner, pagina);
+  assert.equal(llamadas.length, 0);
+  BusquedaInventarioService.revisa(escaner, pagina);
+  assert.equal(llamadas.length, 1);
+  assert.deepEqual(llamadas[0], ["piezas", [fantasma], "bronco"]);
+
+  llamadas = prepara();
+  const escanerFalse = creaEscaner();
+  for (const n of items) state.primeInventory[n] = 1;
+  state.primeInventory[fantasma] = 1;
+  const pagFalse = { ...pagina, filaParcial: false };
+  BusquedaInventarioService.revisa(escanerFalse, pagFalse);
+  assert.equal(llamadas.length, 0);
+  BusquedaInventarioService.revisa(escanerFalse, pagFalse);
+  assert.equal(llamadas.length, 1);
+  assert.deepEqual(llamadas[0], ["piezas", [fantasma], "bronco"]);
+
+  llamadas = prepara();
+  const escanerTrue = creaEscaner();
+  for (const n of items) state.primeInventory[n] = 1;
+  state.primeInventory[fantasma] = 1;
+  const pagTrue = { ...pagina, filaParcial: true };
+  const logs = [];
+  const origLog = console.log;
+  console.log = (...args) => { logs.push(args.join(" ")); };
+  try {
+    BusquedaInventarioService.revisa(escanerTrue, pagTrue);
+    assert.equal(llamadas.length, 0);
+    BusquedaInventarioService.revisa(escanerTrue, pagTrue);
+    assert.equal(llamadas.length, 0);
+  } finally {
+    console.log = origLog;
+  }
+  assert.ok(logs.some((l) => l.includes("[BUSQ]") && l.includes("fila_llena")));
+});
+
+test("revisa no vuelve a poner a cero lo ya puesto a cero en la misma sesion", () => {
+  const llamadas = prepara();
+  const escaner = { ...creaEscaner(), _sesion: 1 };
+  const items = [
+    "Bronco Prime Barrel",
+    "Bronco Prime Receiver",
+    "Akbronco Prime Blueprint",
+    "Akbronco Prime Link",
+    "Bronco Prime Stock",
+    "Bronco Prime Blueprint"
+  ];
+  const fantasma = "Bronco Prime Chamber";
+  for (const n of items) state.primeInventory[n] = 1;
+  state.primeInventory[fantasma] = 1;
+
+  const busqueda = { tipo: "piezas", texto: "bronco" };
+  const pagina = construyePagina(3, 4, items, { busqueda });
+
+  BusquedaInventarioService.revisa(escaner, pagina);
+  BusquedaInventarioService.revisa(escaner, pagina);
+  assert.equal(llamadas.length, 1);
+
+  state.primeInventory[fantasma] = 1;
+  BusquedaInventarioService.revisa(escaner, pagina);
+  BusquedaInventarioService.revisa(escaner, pagina);
+  assert.equal(llamadas.length, 1);
+
+  escaner._sesion = 2;
+  BusquedaInventarioService.revisa(escaner, pagina);
+  BusquedaInventarioService.revisa(escaner, pagina);
+  assert.equal(llamadas.length, 2);
+});
+
+test("revisa no vuelve a poner a cero una reliquia ya puesta a cero en la misma sesion", () => {
+  const llamadas = prepara();
+  const escaner = { ...creaEscaner(), _sesion: 1, _categoriaTexto: "VOID RELICS" };
+  state.inventory = [
+    { name: "Axi A1 Relic", count: 1 },
+    { name: "Axi C3 Relic", count: 2 },
+    { name: "Lith A1 Relic", count: 1 },
+  ];
+  const busqueda = { tipo: "reliquias", texto: "axi" };
+  const pagina = construyePagina(3, 6, [], { busqueda, relics: ["AXI A1"] });
+
+  BusquedaInventarioService.revisa(escaner, pagina);
+  BusquedaInventarioService.revisa(escaner, pagina);
+  assert.equal(llamadas.length, 1);
+  assert.deepEqual(llamadas[0], ["reliquias", ["AXI C3"], "axi"]);
+
+  BusquedaInventarioService.revisa(escaner, pagina);
+  BusquedaInventarioService.revisa(escaner, pagina);
+  assert.equal(llamadas.length, 1);
+
+  escaner._sesion = 2;
+  BusquedaInventarioService.revisa(escaner, pagina);
+  BusquedaInventarioService.revisa(escaner, pagina);
+  assert.equal(llamadas.length, 2);
+});
+
+test("revisa sin escaner vota sin romper", () => {
+  const llamadas = prepara();
+  const items = [
+    "Bronco Prime Barrel",
+    "Bronco Prime Receiver",
+    "Akbronco Prime Blueprint",
+    "Akbronco Prime Link",
+    "Bronco Prime Stock",
+    "Bronco Prime Blueprint"
+  ];
+  const fantasma = "Bronco Prime Chamber";
+  for (const n of items) state.primeInventory[n] = 1;
+  state.primeInventory[fantasma] = 1;
+
+  const busqueda = { tipo: "piezas", texto: "bronco" };
+  const pagina = construyePagina(3, 4, items, { busqueda });
+
+  assert.doesNotThrow(() => {
+    BusquedaInventarioService.revisa(undefined, pagina);
+    BusquedaInventarioService.revisa(undefined, pagina);
+  });
+  assert.equal(llamadas.length, 1);
+  assert.deepEqual(llamadas[0], ["piezas", [fantasma], "bronco"]);
+});
+
+test("la puerta de 16:9 deja votar dentro de la tolerancia", () => {
+  const items = ["Bronco Prime Barrel", "Bronco Prime Receiver", "Akbronco Prime Blueprint", "Akbronco Prime Link", "Bronco Prime Stock", "Bronco Prime Blueprint"];
+  const fantasma = "Bronco Prime Chamber";
+  for (const aspecto of [16 / 9, 2526 / 1408, 2517 / 1425, 2559 / 1439, (16 / 9) * 1.009, (16 / 9) * 0.991]) {
+    const llamadas = prepara();
+    const escaner = creaEscaner();
+    for (const n of items) state.primeInventory[n] = 1;
+    state.primeInventory[fantasma] = 1;
+    const busqueda = { tipo: "piezas", texto: "bronco", aspecto };
+    const pagina = construyePagina(3, 4, items, { busqueda });
+    BusquedaInventarioService.revisa(escaner, pagina);
+    BusquedaInventarioService.revisa(escaner, pagina);
+    assert.equal(llamadas.length, 1);
+    assert.deepEqual(llamadas[0], ["piezas", [fantasma], "bronco"]);
+  }
+});
+
+test("la puerta de 16:9 no vota fuera de la tolerancia ni sin proporción", () => {
+  const items = ["Bronco Prime Barrel", "Bronco Prime Receiver", "Akbronco Prime Blueprint", "Akbronco Prime Link", "Bronco Prime Stock", "Bronco Prime Blueprint"];
+  const fantasma = "Bronco Prime Chamber";
+  for (const aspecto of [1920 / 1200, 2560 / 1080, 1920 / 1110, (16 / 9) * 1.011, (16 / 9) * 0.989, undefined, NaN]) {
+    const llamadas = prepara();
+    const escaner = creaEscaner();
+    for (const n of items) state.primeInventory[n] = 1;
+    state.primeInventory[fantasma] = 1;
+    const busqueda = { tipo: "piezas", texto: "bronco", aspecto };
+    const pagina = construyePagina(3, 4, items, { busqueda });
+    const logs = [];
+    const origLog = console.log;
+    console.log = (...args) => { logs.push(args.join(" ")); };
+    try {
+      const r1 = BusquedaInventarioService.revisa(escaner, pagina);
+      const r2 = BusquedaInventarioService.revisa(escaner, pagina);
+      assert.equal(r1, 0);
+      assert.equal(r2, 0);
+      assert.equal(llamadas.length, 0);
+      assert.equal(BusquedaInventarioService.estado, ESTADO_BUSQUEDA);
+      assert.equal(state.primeInventory[fantasma], 1);
+      assert.ok(logs.some((l) => l.includes('[BUSQ] piezas "bronco": aspecto')));
+    } finally {
+      console.log = origLog;
+    }
+  }
+});
+
+test("un frame fuera de 16:9 entre dos buenos reinicia los votos", () => {
+  const llamadas = prepara();
+  const escaner = creaEscaner();
+  const items = ["Bronco Prime Barrel", "Bronco Prime Receiver", "Akbronco Prime Blueprint", "Akbronco Prime Link", "Bronco Prime Stock", "Bronco Prime Blueprint"];
+  const fantasma = "Bronco Prime Chamber";
+  for (const n of items) state.primeInventory[n] = 1;
+  state.primeInventory[fantasma] = 1;
+  const pag16_9 = construyePagina(3, 4, items, { busqueda: { tipo: "piezas", texto: "bronco", aspecto: 16 / 9 } });
+  const pag16_10 = construyePagina(3, 4, items, { busqueda: { tipo: "piezas", texto: "bronco", aspecto: 16 / 10 } });
+  BusquedaInventarioService.revisa(escaner, pag16_9);
+  BusquedaInventarioService.revisa(escaner, pag16_10);
+  BusquedaInventarioService.revisa(escaner, pag16_9);
+  assert.equal(llamadas.length, 0);
+  BusquedaInventarioService.revisa(escaner, pag16_9);
+  assert.equal(llamadas.length, 1);
+  assert.deepEqual(llamadas[0], ["piezas", [fantasma], "bronco"]);
+});
+
+test("el tope de ceros cuenta también lo vetado", () => {
+  const llamadas = prepara();
+  const escaner = { ...creaEscaner(), _sesion: 1 };
+  const items = ["Bronco Prime Barrel", "Bronco Prime Receiver", "Akbronco Prime Blueprint", "Akbronco Prime Link", "Bronco Prime Stock", "Bronco Prime Blueprint"];
+  for (const n of items) state.primeInventory[n] = 1;
+  state.primeInventory["Bronco Prime Falta A"] = 1;
+  state.primeInventory["Bronco Prime Falta B"] = 1;
+  const busqueda = { tipo: "piezas", texto: "bronco" };
+  const pagina = construyePagina(3, 4, items, { busqueda });
+  BusquedaInventarioService.revisa(escaner, pagina);
+  BusquedaInventarioService.revisa(escaner, pagina);
+  assert.equal(llamadas.length, 1);
+  assert.deepEqual(llamadas[0], ["piezas", ["Bronco Prime Falta A", "Bronco Prime Falta B"], "bronco"]);
+  state.primeInventory["Bronco Prime Falta A"] = 1;
+  state.primeInventory["Bronco Prime Falta B"] = 1;
+  for (const l of ["C", "D", "E", "F", "G", "H", "I"]) state.primeInventory[`Bronco Prime Falta ${l}`] = 1;
+  const logs = [];
+  const origLog = console.log;
+  console.log = (...args) => { logs.push(args.join(" ")); };
+  try {
+    BusquedaInventarioService.revisa(escaner, pagina);
+    BusquedaInventarioService.revisa(escaner, pagina);
+    assert.equal(llamadas.length, 1);
+    assert.ok(logs.some((l) => l.includes('[BUSQ] piezas "bronco": demasiados')));
+    assert.equal(state.primeInventory["Bronco Prime Falta C"], 1);
+  } finally {
+    console.log = origLog;
+  }
+});
+
+test("el veto filtra después del tope", () => {
+  const llamadas = prepara();
+  const escaner = { ...creaEscaner(), _sesion: 1 };
+  const items = ["Bronco Prime Barrel", "Bronco Prime Receiver", "Akbronco Prime Blueprint", "Akbronco Prime Link", "Bronco Prime Stock", "Bronco Prime Blueprint"];
+  for (const n of items) state.primeInventory[n] = 1;
+  state.primeInventory["Bronco Prime Falta A"] = 1;
+  state.primeInventory["Bronco Prime Falta B"] = 1;
+  const busqueda = { tipo: "piezas", texto: "bronco" };
+  const pagina = construyePagina(3, 4, items, { busqueda });
+  BusquedaInventarioService.revisa(escaner, pagina);
+  BusquedaInventarioService.revisa(escaner, pagina);
+  assert.equal(llamadas.length, 1);
+  assert.deepEqual(llamadas[0], ["piezas", ["Bronco Prime Falta A", "Bronco Prime Falta B"], "bronco"]);
+  state.primeInventory["Bronco Prime Falta A"] = 1;
+  state.primeInventory["Bronco Prime Falta B"] = 1;
+  for (const l of ["C", "D", "E", "F", "G", "H"]) state.primeInventory[`Bronco Prime Falta ${l}`] = 1;
+  BusquedaInventarioService.revisa(escaner, pagina);
+  BusquedaInventarioService.revisa(escaner, pagina);
+  assert.equal(llamadas.length, 2);
+  assert.deepEqual(llamadas[1], ["piezas", ["Bronco Prime Falta C", "Bronco Prime Falta D", "Bronco Prime Falta E", "Bronco Prime Falta F", "Bronco Prime Falta G", "Bronco Prime Falta H"], "bronco"]);
+  assert.equal(state.primeInventory["Bronco Prime Falta A"], 1);
+  assert.equal(state.primeInventory["Bronco Prime Falta B"], 1);
+});
+

@@ -317,8 +317,6 @@ export async function fetchRivenAverage(weaponName) {
     const webMinEl = document.getElementById("riven-web-min");
     const webOrdersEl = document.getElementById("riven-web-orders");
 
-    const valSpan = document.getElementById("riven-avg-value");
-
     const isEs = state.currentLang === "es";
 
     if (unrolledTitleEl) unrolledTitleEl.innerText = isEs ? "Sin Ciclos" : "Unrolled";
@@ -337,24 +335,12 @@ export async function fetchRivenAverage(weaponName) {
     if (webAvgEl) webAvgEl.innerText = "...";
     if (webMinEl) webMinEl.innerText = "...";
     if (webOrdersEl) webOrdersEl.innerText = "...";
-    if (valSpan) valSpan.innerText = "...";
 
     try {
         const { getMetaStats } = await import("./riven_market.service.js");
         const meta = getMetaStats(weaponName);
 
         if (meta) {
-            const popularity = meta.popularity_pct || 0;
-            const realVolume = (meta.de_unrolled?.pop || 0) + (meta.de_rerolled?.pop || 0);
-            const isUnpopular = popularity < 8.0 || realVolume < 3;
-
-            const smoothPrice = (price, threshold, dampFactor) => {
-                if (price && price > threshold) {
-                    return Math.round(threshold + (price - threshold) * dampFactor);
-                }
-                return price;
-            };
-
             const unrolledMedian = (meta.de_unrolled && meta.de_unrolled.median > 0)
                 ? meta.de_unrolled.median
                 : (meta.official_median > 0 ? meta.official_median : null);
@@ -368,11 +354,6 @@ export async function fetchRivenAverage(weaponName) {
             const wfmAvg = (meta.wfm_avg_price > 0 ? meta.wfm_avg_price : null) || (meta.wfm_avg > 0 ? meta.wfm_avg : null);
             const wfmMin = (meta.web_min !== undefined && meta.web_min !== null) ? meta.web_min : (wfmAvg ? Math.round(wfmAvg * 0.25) : null);
             const wfmOrders = meta.wfm_market_sample > 0 ? meta.wfm_market_sample : 0;
-
-            let calculationBase = unrolledMedian;
-            if (isUnpopular) {
-                calculationBase = smoothPrice(calculationBase, 150, 0.15);
-            }
 
             const updateField = (el, val) => {
                 if (el) el.innerText = (val !== null && val !== undefined) ? (typeof val === "number" ? Math.round(val) : val) : "N/A";
@@ -389,20 +370,16 @@ export async function fetchRivenAverage(weaponName) {
             updateField(webAvgEl, wfmAvg);
             updateField(webMinEl, wfmMin);
             updateField(webOrdersEl, wfmOrders);
-
-            if (valSpan) valSpan.innerText = calculationBase ? Math.round(calculationBase) : "50";
         } else {
             [unrolledMedianEl, unrolledMinEl, unrolledMaxEl, rerolledMedianEl, rerolledMinEl, rerolledMaxEl, webAvgEl, webMinEl, webOrdersEl].forEach(el => {
                 if (el) el.innerText = "N/A";
             });
-            if (valSpan) valSpan.innerText = "50";
         }
     } catch (e) {
         console.error("Error setting official DE prices in fast view:", e);
         [unrolledMedianEl, unrolledMinEl, unrolledMaxEl, rerolledMedianEl, rerolledMinEl, rerolledMaxEl, webAvgEl, webMinEl, webOrdersEl].forEach(el => {
             if (el) el.innerText = "N/A";
         });
-        if (valSpan) valSpan.innerText = "50";
     }
 }
 

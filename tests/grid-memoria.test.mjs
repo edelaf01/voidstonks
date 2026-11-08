@@ -8,7 +8,7 @@ import { installFakeDocument } from "./_helpers/fake-canvas.mjs";
 
 installFakeDocument();
 
-const { faseDesdeBandas, rejillaDesdeMemoria, rejillaConMemoria, memoriaDeRejilla } = await import("../deploy/js/utils/vision/grid_memoria.js");
+const { faseDesdeBandas, rejillaDesdeMemoria, rejillaConMemoria, memoriaDeRejilla, rejillaDeBusqueda } = await import("../deploy/js/utils/vision/grid_memoria.js");
 const { detectInventoryGrid } = await import("../deploy/js/utils/vision/grid_detect.js");
 const { VisionService } = await import("../deploy/js/services/scanner/vision.service.js");
 
@@ -120,6 +120,182 @@ test("VisionService: la memoria de rejillas no pasa de 8 entradas", () => {
     assert.equal(VisionService._memoriasRejilla.size, 8);
     assert.ok(!VisionService._memoriasRejilla.has(`ambito0|${img.width}x${img.height}`));
     assert.ok(VisionService._memoriasRejilla.has(`ambito9|${img.width}x${img.height}`));
+  } finally {
+    VisionService._memoriasRejilla.clear();
+  }
+});
+
+test("rejillaDeBusqueda con bandas devuelve geometria esperada", () => {
+  const M = { cellW: 208, cellH: 222, cols: 6, gridX: 0 };
+  const img = { width: 1248, height: 897 };
+  const r = rejillaDeBusqueda([{ y0: 58, y1: 198 }, { y0: 883, y1: 892 }], M, img);
+  assert.equal(r.gridY, -6);
+  assert.equal(r.cellH, 222);
+  assert.equal(r.cellW, 208);
+  assert.equal(r.cols, 6);
+  assert.equal(r.rows, 3);
+  assert.equal(r.deBusqueda, true);
+  assert.equal(r.deMemoria, true);
+  assert.deepEqual(r.gridZone, { x: 0, y: -6, w: 1248, h: 666 });
+});
+
+test("rejillaDeBusqueda con icono fuera de ventana devuelve null", () => {
+  const M = { cellW: 208, cellH: 222, cols: 6, gridX: 0 };
+  const img = { width: 1248, height: 897 };
+  const r = rejillaDeBusqueda([{ y0: 30, y1: 143 }], M, img);
+  assert.equal(r, null);
+});
+
+test("rejillaDeBusqueda con banda en tercera fila devuelve null", () => {
+  const M = { cellW: 208, cellH: 222, cols: 6, gridX: 0 };
+  const img = { width: 1248, height: 897 };
+  const r = rejillaDeBusqueda([{ y0: 58, y1: 198 }, { y0: 500, y1: 627 }], M, img);
+  assert.equal(r, null);
+});
+
+test("rejillaDeBusqueda con bandas vacias o null devuelve null", () => {
+  const M = { cellW: 208, cellH: 222, cols: 6, gridX: 0 };
+  const img = { width: 1248, height: 897 };
+  assert.equal(rejillaDeBusqueda([], M, img), null);
+  assert.equal(rejillaDeBusqueda(null, M, img), null);
+});
+
+test("rejillaDeBusqueda con alto insuficiente devuelve null", () => {
+  const M = { cellW: 208, cellH: 222, cols: 6, gridX: 0 };
+  const img = { width: 1248, height: 300 };
+  const r = rejillaDeBusqueda([{ y0: 58, y1: 198 }, { y0: 883, y1: 892 }], M, img);
+  assert.equal(r, null);
+});
+
+test("rejillaDeBusqueda calcula cellH a partir de cellW y no de la memoria", () => {
+  const M = { cellW: 208, cellH: 231, cols: 6, gridX: 0 };
+  const img = { width: 1248, height: 897 };
+  const r = rejillaDeBusqueda([{ y0: 58, y1: 198 }, { y0: 883, y1: 892 }], M, img);
+  assert.equal(r.cellH, 222);
+  assert.equal(r.gridY, -6);
+});
+
+test("rejillaDeBusqueda rellena trace.memoria solo cuando la rejilla es valida", () => {
+  const M = { cellW: 208, cellH: 222, cols: 6, gridX: 0 };
+  const img = { width: 1248, height: 897 };
+  const traceValido = {};
+  rejillaDeBusqueda([{ y0: 58, y1: 198 }, { y0: 883, y1: 892 }], M, img, traceValido);
+  assert.deepEqual(traceValido.memoria, { busqueda: true, gridY: -6, cellH: 222 });
+  const traceInvalido = {};
+  rejillaDeBusqueda([{ y0: 30, y1: 143 }], M, img, traceInvalido);
+  assert.equal(traceInvalido.memoria, undefined);
+});
+
+test("rejillaDeBusqueda respeta exactamente las fronteras de la ventana de gridY", () => {
+  const M = { cellW: 208, cellH: 222, cols: 6, gridX: 0 };
+  const img = { width: 1248, height: 897 };
+  const entraMenos33 = rejillaDeBusqueda([{ y0: 100, y1: 171 }], M, img);
+  assert.equal(entraMenos33?.gridY, -33);
+  const fueraMenos34 = rejillaDeBusqueda([{ y0: 100, y1: 170 }], M, img);
+  assert.equal(fueraMenos34, null);
+  const entra55 = rejillaDeBusqueda([{ y0: 100, y1: 259 }], M, img);
+  assert.equal(entra55?.gridY, 55);
+  const fuera56 = rejillaDeBusqueda([{ y0: 100, y1: 260 }], M, img);
+  assert.equal(fuera56, null);
+});
+
+test("rejillaConMemoria sin memoria devuelve calib con conBusqueda true", () => {
+  const calib = { cellW: 208, cellH: 222, cols: 6, gridX: 0 };
+  const img = { width: 1248, height: 897 };
+  const res = rejillaConMemoria(calib, { bands: [{ y0: 58, y1: 198 }, { y0: 883, y1: 892 }] }, null, img, true);
+  assert.equal(res, calib);
+});
+
+test("rejillaConMemoria devuelve deBusqueda solo cuando conBusqueda es true", () => {
+  const M = { cellW: 208, cellH: 222, cols: 6, gridX: 0 };
+  const img = { width: 1248, height: 897 };
+  const bands = [{ y0: 58, y1: 198 }, { y0: 883, y1: 892 }];
+  const rTrue = rejillaConMemoria(null, { bands }, M, img, true);
+  assert.equal(rTrue?.deBusqueda, true);
+  const rFalse = rejillaConMemoria(null, { bands }, M, img, false);
+  assert.equal(rFalse?.deBusqueda, undefined);
+});
+
+test("rejillaConMemoria con calib incompatible sustituye por deBusqueda o mantiene calib", () => {
+  const M = { cellW: 208, cellH: 222, cols: 6, gridX: 0 };
+  const img = { width: 1248, height: 897 };
+  const calib = { cellW: 174, cellH: 254, cols: 3, rows: 3, gridX: 0, gridY: 0 };
+  const bands = [{ y0: 58, y1: 198 }, { y0: 883, y1: 892 }];
+  const rTrue = rejillaConMemoria(calib, { bands }, M, img, true);
+  assert.equal(rTrue?.deBusqueda, true);
+  const rFalse = rejillaConMemoria(calib, { bands }, M, img, false);
+  assert.equal(rFalse, calib);
+});
+
+test("rejillaConMemoria con calib coincidente devuelve la misma referencia", () => {
+  const M = { cellW: 208, cellH: 222, cols: 6, gridX: 0 };
+  const img = { width: 1248, height: 897 };
+  const calib = { cellW: 208, cellH: 222, cols: 6, rows: 3, gridX: 0, gridY: 0 };
+  const bands = [{ y0: 58, y1: 198 }, { y0: 883, y1: 892 }];
+  const res = rejillaConMemoria(calib, { bands }, M, img, true);
+  assert.equal(res, calib);
+});
+
+test("rejillaConMemoria sin banda valida devuelve null con y sin busqueda", () => {
+  const M = { cellW: 208, cellH: 222, cols: 6, gridX: 0 };
+  const img = { width: 1248, height: 897 };
+  const bands = [{ y0: 30, y1: 143 }];
+  const rTrue = rejillaConMemoria(null, { bands }, M, img, true);
+  const rFalse = rejillaConMemoria(null, { bands }, M, img, false);
+  assert.equal(rTrue, null);
+  assert.equal(rFalse, null);
+});
+
+test("con tres filas de nombres la rejilla de busqueda no se usa y coincide con la deteccion sin busqueda", () => {
+  const bands = [77, 299, 521].flatMap(filaDeBandas);
+  const rTrue = rejillaConMemoria(null, { bands }, MEMORIA, IMG, true);
+  const rFalse = rejillaConMemoria(null, { bands }, MEMORIA, IMG, false);
+  assert.equal(rTrue.deMemoria, true);
+  assert.equal(rTrue.deBusqueda, undefined);
+  assert.equal(rTrue.gridY, rFalse.gridY);
+  assert.equal(rTrue.rows, rFalse.rows);
+});
+
+test("memoriaDeRejilla valida dimensiones y banderas antes de guardar memoria", () => {
+  assert.equal(memoriaDeRejilla({ cellW: 174, cellH: 254, cols: 3, gridX: 0 }), null);
+  const m1 = memoriaDeRejilla({ cellW: 207, cellH: 222, cols: 6, gridX: 1 });
+  assert.deepEqual(m1, { cellW: 207, cellH: 222, cols: 6, gridX: 1 });
+  assert.deepEqual(Object.keys(m1).sort(), ["cellH", "cellW", "cols", "gridX"]);
+  const m2 = memoriaDeRejilla({ cellW: 208, cellH: 231, cols: 6, gridX: 0 });
+  assert.deepEqual(m2, { cellW: 208, cellH: 231, cols: 6, gridX: 0 });
+  assert.deepEqual(Object.keys(m2).sort(), ["cellH", "cellW", "cols", "gridX"]);
+  const base = { cellW: 208, cellH: 222, cols: 6, gridX: 0 };
+  assert.equal(memoriaDeRejilla({ ...base, deMemoria: true }), null);
+  assert.equal(memoriaDeRejilla({ ...base, colorAnchored: true }), null);
+  assert.equal(memoriaDeRejilla({ ...base, dosFilas: true }), null);
+  assert.equal(memoriaDeRejilla(null), null);
+});
+
+test("rejillaDesdeMemoria devuelve deMemoria, gaps a cero y gridZone recortada", () => {
+  const bandas = [77, 299, 521].flatMap(filaDeBandas);
+  const r = rejillaDesdeMemoria(bandas, MEMORIA, IMG);
+  assert.equal(r.deMemoria, true);
+  assert.equal(r.gapX, 0);
+  assert.equal(r.gapY, 0);
+  assert.equal(r.gridZone.x, MEMORIA.gridX);
+  assert.equal(r.gridZone.w, Math.min(MEMORIA.cols * MEMORIA.cellW, IMG.width - MEMORIA.gridX));
+  assert.equal(r.gridZone.h, Math.min(r.rows * MEMORIA.cellH, IMG.height - r.gridY));
+});
+
+test("VisionService detectGridAutoCalib no contamina la memoria con rejilla de busqueda", async () => {
+  const { makeInventoryFrame } = await import("./_helpers/inventory-frame.mjs");
+  const M = { cellW: 208, cellH: 222, cols: 6, gridX: 0 };
+  VisionService._memoriasRejilla.clear();
+  try {
+    VisionService._memoriasRejilla.set("INVENTORY|1248x897", { ...M });
+    const frame = makeInventoryFrame({ width: 1248, height: 897, gridX: 0, gridY: -6, cellW: 208, cellH: 222, cols: 6, rows: 3, filled: [0], noise: 0 });
+    const r = VisionService.detectGridAutoCalib(frame, 1248, 897, 1248, "INVENTORY", true);
+    assert.equal(r?.deBusqueda, true);
+    const memoria = VisionService._memoriasRejilla.get("INVENTORY|1248x897");
+    assert.equal(memoria.cellW, M.cellW);
+    assert.equal(memoria.cellH, M.cellH);
+    assert.equal(memoria.cols, M.cols);
+    assert.equal(memoria.gridX, M.gridX);
   } finally {
     VisionService._memoriasRejilla.clear();
   }

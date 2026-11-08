@@ -404,6 +404,7 @@ DucatKioskService.onPanel = () => recomiendaParaBaro().catch(console.warn);
 DucatKioskService.onSale = (venta) => {
   const t = TEXTS[state.currentLang].scanner;
   const { inventario, restadas, ausentes } = applyDucatSale(state.primeInventory, venta);
+  console.log(`[KIOSKO] venta descontada: ${restadas.map((r) => `${r.qty}× ${r.name} (quedan ${r.quedan})`).join(", ") || "nada"}${ausentes.length ? ` · sin stock registrado: ${ausentes.join(", ")}` : ""}`);
   state.primeInventory = inventario;
   for (const { name } of venta) {
     ScannerService.sessionInventory.delete(name);
