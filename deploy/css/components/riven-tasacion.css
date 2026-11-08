@@ -1,0 +1,380 @@
+.gsc-hero.tas-hero {
+  grid-template-columns: minmax(0, 1fr) auto;
+  row-gap: 8px;
+}
+
+.tas-hero .gsc-price-value {
+  font-size: 2rem;
+  font-variant-numeric: tabular-nums;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.tas-hero .tas-plat {
+  width: .85em;
+  height: .85em;
+}
+
+.tas-hist {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: .65rem;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: normal;
+  color: #c9b8dc;
+  margin-left: 6px;
+}
+
+.tas-hist .gsc-hist-loading {
+  margin-left: 0;
+}
+
+.tas-banda {
+  grid-column: 1 / -1;
+  min-width: 0;
+  cursor: help;
+}
+
+.tas-banda:empty {
+  display: none;
+}
+
+.tas-banda-cifras {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  font-variant-numeric: tabular-nums;
+  min-width: 0;
+}
+
+.tas-banda-cifras > span {
+  min-width: 0;
+}
+
+.tas-banda-cifras > span:nth-child(2) {
+  position: absolute;
+  left: clamp(36%, var(--tas-pos, 50%), 64%);
+  transform: translateX(-50%);
+  text-align: center;
+}
+
+.tas-banda-cifras > span:nth-child(3) {
+  text-align: right;
+}
+
+.tas-banda-cifras small {
+  display: block;
+  font-size: .65rem;
+  text-transform: uppercase;
+  color: #9a8db0;
+}
+
+.tas-banda-cifras b {
+  font-size: .9rem;
+  color: #fff;
+  white-space: nowrap;
+}
+
+.tas-banda-pista {
+  position: relative;
+  height: 8px;
+  border-radius: 4px;
+  margin: 6px 3px 0;
+  background: linear-gradient(90deg, rgba(197, 168, 86, .15), rgba(197, 168, 86, .65));
+  border: 1px solid rgba(255, 255, 255, .08);
+}
+
+.tas-banda-marca {
+  position: absolute;
+  top: -4px;
+  width: 4px;
+  height: 16px;
+  border-radius: 2px;
+  background: #fff;
+  transform: translateX(-50%);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .85);
+}
+
+.tas-confianza {
+  grid-column: 1 / -1;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  font-size: .78rem;
+  color: #b8a8cc;
+}
+
+.tas-confianza b {
+  color: #e8ddf5;
+}
+
+.tas-pips {
+  display: inline-flex;
+  gap: 3px;
+}
+
+.tas-pip {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, .3);
+  box-sizing: border-box;
+}
+
+.tas-conf-alta .tas-pip.lleno {
+  background: var(--wf-green);
+  border-color: var(--wf-green);
+}
+
+.tas-conf-media .tas-pip.lleno {
+  background: var(--wf-gold-text);
+  border-color: var(--wf-gold-text);
+}
+
+.tas-conf-baja .tas-pip.lleno {
+  background: var(--wf-error);
+  border-color: var(--wf-error);
+}
+
+.tas-margen {
+  opacity: .7;
+  font-variant-numeric: tabular-nums;
+}
+
+.tas-confianza .tas-alerta {
+  color: var(--wf-error);
+}
+
+.tas-aviso {
+  flex-basis: 100%;
+  min-width: 0;
+  font-size: .72rem;
+  color: var(--wf-gold-text);
+}
+
+.tas-tabla {
+  padding: 2px 0;
+  min-width: 0;
+}
+
+.tas-fila {
+  padding: 8px 10px;
+  min-width: 0;
+  border-left: 3px solid var(--tas-cal);
+  border-bottom: 1px solid rgba(255, 255, 255, .06);
+}
+
+.tas-fila:has(+ .tas-leyenda),
+.tas-fila:last-child {
+  border-bottom: none;
+}
+
+.tas-cal-top { --tas-cal: var(--grade-s); }
+.tas-cal-medio { --tas-cal: var(--wf-blue); }
+.tas-cal-flojo { --tas-cal: #8a8496; }
+.tas-cal-inofensiva { --tas-cal: var(--wf-green); }
+.tas-cal-media { --tas-cal: var(--wf-gold-text); }
+.tas-cal-ruinosa { --tas-cal: var(--wf-error); }
+.tas-cal-sindato { --tas-cal: #6f6a78; }
+
+.tas-fila-cab {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  min-width: 0;
+}
+
+.tas-nombre {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: .85rem;
+  font-weight: 700;
+  color: #eee;
+}
+
+.tas-tag {
+  font-size: .62rem;
+  text-transform: uppercase;
+  border: 1px solid rgba(208, 96, 255, .5);
+  border-radius: 3px;
+  padding: 0 4px;
+  color: #dcb3ff;
+}
+
+.tas-valor {
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  font-size: .9rem;
+  color: #fff;
+  white-space: nowrap;
+}
+
+.tas-fila.tas-cal-ruinosa .tas-valor {
+  color: var(--wf-error);
+}
+
+.tas-fila.tas-cal-inofensiva .tas-valor {
+  color: var(--wf-green);
+}
+
+.tas-calidad {
+  font-size: .66rem;
+  font-weight: 800;
+  letter-spacing: .04em;
+  padding: 1px 5px;
+  border-radius: 3px;
+  border: 1px solid var(--tas-cal);
+  color: var(--tas-cal);
+  white-space: nowrap;
+}
+
+.tas-cal-top .tas-calidad,
+.tas-cal-ruinosa .tas-calidad {
+  background: var(--tas-cal);
+  color: #000;
+}
+
+.tas-cal-sindato .tas-calidad {
+  border-style: dashed;
+}
+
+.tas-nivel-alta { --tas-niv: var(--wf-green); }
+.tas-nivel-media { --tas-niv: var(--wf-gold-text); }
+.tas-nivel-baja { --tas-niv: var(--wf-error); }
+.tas-nivel-fuera { --tas-niv: var(--wf-error); }
+.tas-nivel-nula { --tas-niv: #6f6a78; }
+
+.tas-medidor {
+  position: relative;
+  height: 8px;
+  border-radius: 4px;
+  margin: 7px 3px 3px;
+  background: rgba(0, 0, 0, .55);
+  border: 1px solid rgba(255, 255, 255, .1);
+}
+
+.tas-relleno {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--pos);
+  border-radius: 4px;
+  background: var(--tas-niv);
+  opacity: .75;
+}
+
+.tas-corte {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: rgba(255, 255, 255, .45);
+}
+
+.tas-corte-1 {
+  left: var(--c1);
+}
+
+.tas-corte-2 {
+  left: var(--c2);
+}
+
+.tas-marca {
+  position: absolute;
+  top: -4px;
+  left: var(--pos);
+  width: 4px;
+  height: 16px;
+  border-radius: 2px;
+  background: #fff;
+  transform: translateX(-50%);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .85);
+}
+
+.tas-pie {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 6px;
+  align-items: baseline;
+  font-size: .68rem;
+  color: #9a8db0;
+  min-width: 0;
+}
+
+.tas-extremo {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.tas-nivel {
+  min-width: 0;
+  text-align: center;
+  color: var(--tas-niv);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.tas-pie > .tas-nivel:only-child {
+  grid-column: 1 / -1;
+  text-align: left;
+}
+
+.tas-fila.tas-atenuado .tas-medidor {
+  opacity: .35;
+}
+
+.tas-fila.tas-atenuado .tas-nivel {
+  color: #9a8db0;
+  font-weight: 500;
+}
+
+.tas-fila.tas-atenuado .tas-extremo {
+  opacity: .6;
+}
+
+.tas-leyenda {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 10px;
+  font-size: .66rem;
+  color: #8a7f9c;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.gsc-chip[data-comp-line],
+.gsc-chip[data-market-line] {
+  white-space: normal;
+  flex-wrap: wrap;
+  border-radius: 12px;
+}
+
+.gsc-chip b {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 480px) {
+  .tas-hero .gsc-price-value {
+    font-size: 1.6rem;
+  }
+
+  .tas-banda-cifras b {
+    font-size: .8rem;
+  }
+
+  .tas-fila {
+    padding: 7px 8px;
+  }
+}
+
+[data-sin-cifra] + .tas-plat {
+  display: none;
+}
