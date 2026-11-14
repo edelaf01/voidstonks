@@ -92,3 +92,20 @@ export function tieneEvidenciaPropia(searchTokens, localWords, genericos) {
     return searchTokens.some((t) => t.length >= 3 && !genericos.has(t)
         && localWords.some((w) => w.text === t));
 }
+
+export function palabrasDePieza(items) {
+    return new Set(items.flatMap((item) => item.searchWords.slice(1)).filter((w) => w.length >= 4 && w !== "BLUEPRINT"));
+}
+
+export function contradicePieza(words, usados, propias, piezas, similar, umbralPropia, umbral = 0.85) {
+    const lee = (t, p) => similar(t, p) >= umbral || (t.length < p.length && p.startsWith(t));
+    return words.some((w, k) => {
+        if (usados.has(k)) return false;
+        const t = w.replaceAll(/[^A-Z0-9]/g, "");
+        if (t.length < 4 || /^\d+$/.test(t) || propias.some((p) => similar(t, p) >= umbralPropia || lee(t, p))) return false;
+        for (const p of piezas) {
+            if (!propias.includes(p) && lee(t, p)) return true;
+        }
+        return false;
+    });
+}

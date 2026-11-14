@@ -5,7 +5,7 @@ import { splitFusedWord, catalogVocab, pareceDelVocab } from "../../utils/vision
 import { rawWords, filaPropiaDelEscuadron } from "../../utils/vision/ocr_words.js";
 import { radioDeDedup, pasoEntreTarjetas, zonasDeRotulo } from "../../utils/vision/reward_cards.js";
 import { recuperaComponente, recuperaPorSufijo } from "../../utils/inventory/component_recover.js";
-import { normalizeOCRWords, tokensSinInformacion, tieneEvidenciaPropia, confirmaPrime, palabrasDeSuTarjeta } from "../../utils/inventory/ocr_words.js";
+import { normalizeOCRWords, tokensSinInformacion, tieneEvidenciaPropia, confirmaPrime, palabrasDeSuTarjeta, palabrasDePieza, contradicePieza } from "../../utils/inventory/ocr_words.js";
 
 // the catalog is ASCII but PaddleOCR adds accents ("PRÍME")
 const sinAcentos = (texto) => texto.normalize("NFD").replaceAll(/[\u0300-\u036f]/g, "");
@@ -14,6 +14,7 @@ export const OCRService = {
     cachedDbItems: [],
     knownParts: new Set(),
     tokensGenericos: new Set(),
+    palabrasPieza: new Set(),
     dynamicRegex: null,
 
     initMatcherData() {
@@ -40,6 +41,7 @@ export const OCRService = {
 
         this.knownParts = tempParts;
         this.tokensGenericos = tokensSinInformacion(this.cachedDbItems);
+        this.palabrasPieza = palabrasDePieza(this.cachedDbItems);
         this._vocabCache = null; this._pareceConocida = null;
     },
 
@@ -550,6 +552,7 @@ export const OCRService = {
                 if (isMatch) {
                     const matched = attemptItemMatch(i + matchedIndexOffset, item, 4, textWords);
                     if (!matched) continue;
+                    if (contradicePieza(textWords, new Set([i, i + matchedIndexOffset]), item.searchWords, this.palabrasPieza, (a, b) => this.similarityOCR(a, b), COMP_THR)) continue;
                     if (esPrime(item.originalName) && !confirmaPrime(textWords, this, PRIME_THR)) continue;
                     const ocrFirst = (matchedIndexOffset
                         ? textWords[i] + textWords[i + 1]

@@ -308,7 +308,7 @@ export const ScannerService = {
                 const borde = zone.y > hudY ? hudBottom(ctx.getImageData(zone.x, hudY, zone.w, zone.y - hudY)) : null;
                 zone = { ...zone, ...(calib.colorAnchored && { x: 0, w: this.anchoRejilla(dims.width) }), y, h: dims.height - y, hud: borde == null ? null : borde + (hudY - y) };
             }
-            this._frameZoneCache = { key: calib?.colorAnchored ? null : key, zone };
+            this._frameZoneCache = calib?.colorAnchored ? { key: null, zone } : zone ? (this._zonaDeLista = { key, zone, sesion: this._sesion }) : busqueda?.texto && this._zonaDeLista?.key === key && this._zonaDeLista.sesion === this._sesion ? this._zonaDeLista : { key, zone };
         }
         const zone = this._frameZoneCache.zone;
         if (!zone) {
@@ -1465,7 +1465,7 @@ export const ScannerService = {
                     console.warn(`[INV] Solo ${aciertos}/${activeCells.length} celdas casaron — invalidando auto-grid, zona de recorte, color de nombre y tema.`);
                     this._autoCalibCache = null;
                     this._nameColorCache = null;
-                    this._frameZoneCache = null;
+                    this._zonaDeLista = this._frameZoneCache = null;
                     this._temaCache = null;
                 }
 
