@@ -13,9 +13,9 @@ export function panelKiosko(items, titulo) {
         tipo: "lista",
         filas: items.slice(0, MAX_FILAS_KIOSKO).map(({ name, qty, plat, ratio, ducats }) => [
           { texto: `${qty}× ${name}` },
-          ...(plat == null ? [] : [{ texto: `${plat}p`, tono: "cian" }]),
+          ...(plat == null ? [] : [{ texto: String(plat), tono: "cian", icono: "plat" }]),
           ...(ratio == null ? [] : [{ texto: `${ratio === Infinity ? "∞" : ratio.toFixed(1)} d/pl` }]),
-          ...(ducats == null ? [] : [{ texto: String(ducats), tono: "ducado" }]),
+          ...(ducats == null ? [] : [{ texto: String(ducats), tono: "ducado", icono: "ducado" }]),
         ]),
       },
     ],

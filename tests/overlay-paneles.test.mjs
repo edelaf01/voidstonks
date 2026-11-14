@@ -10,8 +10,8 @@ test("el kiosko enseña las piezas a echar con su platino, ratio y ducados", () 
   assert.equal(p.anclaje, "derecha");
   assert.deepEqual(p.bloques[0], { tipo: "titulo", texto: "PARA ECHAR", tono: "ducado" });
   assert.deepEqual(p.bloques[1].filas, [
-    [{ texto: "2× Venato Prime Handle" }, { texto: "3p", tono: "cian" }, { texto: "5.0 d/pl" }, { texto: "30", tono: "ducado" }],
-    [{ texto: "1× Alternox Prime Blueprint" }, { texto: "0p", tono: "cian" }, { texto: "∞ d/pl" }, { texto: "100", tono: "ducado" }],
+    [{ texto: "2× Venato Prime Handle" }, { texto: "3", tono: "cian", icono: "plat" }, { texto: "5.0 d/pl" }, { texto: "30", tono: "ducado", icono: "ducado" }],
+    [{ texto: "1× Alternox Prime Blueprint" }, { texto: "0", tono: "cian", icono: "plat" }, { texto: "∞ d/pl" }, { texto: "100", tono: "ducado", icono: "ducado" }],
   ]);
 });
 
@@ -338,4 +338,20 @@ test("panelArcanos coloca cada arcano en su celda de la página, con precios y v
 
   const filaExtra = { name: "Molt Augmented", qty: 2, maxRank: 5, rangosMax: 0, accion: "even", r: 0, c: 0, precioR0: null, precioMax: null };
   assert.equal(panelArcanos([filaExtra], t).bloques[1].celdas[0].lineas[0].texto, "Molt Augmented");
+});
+
+test("las stats del riven van en columnas fijas alineadas a la izquierda y la tirada ya hecha se usa tal cual", () => {
+  const tiradaHecha = { texto: "PENALIZACIÓN LEVE", tono: "verde", medidor: { pos: 100, nivel: "alta", atenuado: false } };
+  const sts = [{ texto: "-80% Prob. Crítica", positivo: false, calidad: { texto: "RUINOSA", tono: "gradoF" }, tirada: tiradaHecha }];
+  const p = panelRiven({ arma: "Torid", stats: sts, rotulos: { tirada: "TIRADA" } });
+  const lista = p.bloques.at(-1);
+  assert.equal(lista.tipo, "lista");
+  assert.equal(lista.alinear, "izquierda");
+  assert.deepEqual(lista.anchos, [7, 7.5]);
+  assert.deepEqual(lista.filas[0], [{ texto: "", tono: "gris" }, { texto: "", tono: "gris" }, { texto: "TIRADA", tono: "gris" }]);
+  assert.deepEqual(lista.filas[1], [{ texto: "-80% Prob. Crítica", tono: "rojo" }, { texto: "RUINOSA", tono: "gradoF" }, tiradaHecha]);
+  const c = panelRivenComparacion({ arma: "Torid", ganador: 0, rotulos: { mejor: "" }, tiradas: [{ rotulo: "A", precio: 10, score: 50, stats: sts }] });
+  const ultimaLista = c.bloques.filter((b) => b.tipo === "lista").at(-1);
+  assert.equal(ultimaLista.alinear, "izquierda");
+  assert.deepEqual(ultimaLista.anchos, [7, 7.5]);
 });

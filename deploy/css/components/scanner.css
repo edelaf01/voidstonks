@@ -801,18 +801,6 @@
     margin-bottom: 6px;
 }
 
-#kiosk-sale-panel .kiosk-line {
-    display: flex;
-    gap: 6px;
-    padding: 2px 4px;
-    font-size: 0.76em;
-}
-
-#kiosk-sale-panel .kiosk-name { flex: 1; }
-#kiosk-sale-panel .kiosk-ducats { color: #ddaa38; font-weight: 700; }
-#kiosk-sale-panel .kiosk-plat { color: #00e5ff; }
-#kiosk-sale-panel .kiosk-ratio { color: #8a93a0; }
-
 #arcane-panel .arcane-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -858,15 +846,6 @@
     margin: 4px 0;
 }
 
-#trade-panel .trade-line {
-    display: flex;
-    gap: 6px;
-    padding: 2px 4px;
-    font-size: 0.76em;
-}
-
-#trade-panel .trade-name { flex: 1; }
-#trade-panel .trade-plat { color: #ddd; font-weight: 700; white-space: nowrap; }
 #trade-panel .trade-empty { font-size: 0.72em; color: #888; padding: 2px 4px; }
 #trade-panel .trade-confirmada { font-size: 0.7em; font-weight: 800; color: #a0ff80; margin-bottom: 2px; }
 

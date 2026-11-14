@@ -7,6 +7,7 @@ import { avisaContexto } from "./ui_scanner_coach.js";
 import { avisa, escucha } from "../utils/ganchos.js";
 import { esContextoArcanos } from "../utils/inventory/arcanos_disolucion.js";
 import { panelArcanos } from "../utils/overlay_paneles.js";
+import { fmtPlat, fmtDuc } from "../utils/precio_icono.js";
 
 export const ScannerHUD = {
     updateContext(contextType) {
@@ -65,15 +66,20 @@ export const ScannerHUD = {
         titulo.textContent = rotulo;
         panel.appendChild(titulo);
         const span = (clase, texto) => Object.assign(document.createElement("span"), { className: clase, textContent: texto });
+        const rejilla = document.createElement("div");
+        rejilla.className = "kiosk-grid";
         for (const { name, qty, ducats, plat, ratio } of items) {
             const linea = document.createElement("div");
             linea.className = "kiosk-line";
-            linea.appendChild(span("kiosk-name", `${qty}× ${name}`));
-            if (plat != null) linea.appendChild(span("kiosk-plat", `${plat}p`));
-            if (ratio != null) linea.appendChild(span("kiosk-ratio", `${ratio === Infinity ? "∞" : ratio.toFixed(1)} d/pl`));
-            if (ducats != null) linea.appendChild(span("kiosk-ducats", String(ducats)));
-            panel.appendChild(linea);
+            const nombre = span("kiosk-name", `${qty}× ${name}`);
+            nombre.title = nombre.textContent;
+            linea.appendChild(nombre);
+            linea.appendChild(fmtPlat(plat, "kiosk-plat"));
+            linea.appendChild(span("kiosk-ratio", ratio == null ? "" : `${ratio === Infinity ? "∞" : ratio.toFixed(1)} d/pl`));
+            linea.appendChild(fmtDuc(ducats, "kiosk-ducats"));
+            rejilla.appendChild(linea);
         }
+        panel.appendChild(rejilla);
     },
 
     updateArcanos(filas) {
@@ -122,11 +128,7 @@ export const ScannerHUD = {
             for (const { tipo, name, qty, plat } of mesa[lado]) {
                 const linea = nodo("div", "trade-line");
                 linea.appendChild(nodo("span", "trade-name", tipo === "platino" ? `${name} ${qty}` : `${qty > 1 ? `${qty}× ` : ""}${name}`));
-                if (plat) {
-                    const precio = nodo("span", "trade-plat", String(plat * qty));
-                    precio.appendChild(nodo("span", "plat-icon-inline"));
-                    linea.appendChild(precio);
-                }
+                if (plat) linea.appendChild(fmtPlat(plat * qty, "trade-plat"));
                 panel.appendChild(linea);
             }
         }
