@@ -2516,10 +2516,12 @@ export function calculateModalGrade() {
 export function updateSelectExclusions() {
   const selects = Array.from(document.querySelectorAll(".riven-stat-select"));
   const selected = new Set(selects.map((s) => s.value).filter((v) => v !== ""));
+  const esFusionado = (v) => !!RIVEN_STATS.find((r) => r.name_en === v)?.spliced;
   selects.forEach((sel) => {
+    const otroFusionado = selects.some((o) => o !== sel && esFusionado(o.value));
     Array.from(sel.options).forEach((opt) => {
       if (opt.value !== "") {
-        const isTaken = selected.has(opt.value) && opt.value !== sel.value;
+        const isTaken = opt.value !== sel.value && (selected.has(opt.value) || (otroFusionado && esFusionado(opt.value)));
         opt.hidden = isTaken;
         opt.style.display = isTaken ? "none" : "";
       }
@@ -2589,6 +2591,7 @@ function loadRollIntoInputs(rivenData) {
       }
     }
   }
+  updateSelectExclusions();
 
   const rollsInput = document.getElementById("g-rolls");
   const mrInput = document.getElementById("g-mr");
@@ -2776,6 +2779,7 @@ export function removeGradingRow(id) {
   if (row) {
     row.remove();
   }
+  updateSelectExclusions();
   document.getElementById(
     id === "row-stat3" ? "btn-add-pos" : "btn-add-neg",
   ).style.display = "block";

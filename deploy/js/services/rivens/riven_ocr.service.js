@@ -441,6 +441,7 @@ export const RivenOCRService = {
         if (positives.length < 2 || positives.length > 3) return null;
         if (negatives.length > 1) return null;
         if (stats.length < 2 || stats.length > 4) return null;
+        if (stats.filter(s => RIVEN_STATS.find(r => r.name_en === s.name)?.spliced).length > 1) return null;
 
         if (weaponName && rivenName) {
             const statSlugs = positives.map(s => {

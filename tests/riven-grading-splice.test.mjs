@@ -40,6 +40,7 @@ const { pesoFusionado } = await import("../deploy/js/utils/rivens/riven_cycling.
 const { RIVEN_SPLICED_BASE_STATS } = await import("../deploy/js/config.js");
 const { state } = await import("../deploy/js/state.js");
 const { renderMetaStats } = await import("../deploy/js/ui.components/rivens/ui_riven_meta_stats.js");
+const { updateSelectExclusions, removeGradingRow } = await import("../deploy/js/ui.components/rivens/ui_rivens.js");
 
 test("sin typeIdx el resultado no cambia respecto al original", () => {
   const table = {
@@ -233,7 +234,7 @@ test("renderMetaStats posiciona correctamente los atributos fusionados en la gui
   };
 
   renderMetaStats("Synthrifle", "Rifle");
-  const rifleHtml = document.getElementById("meta-stats-container").innerHTML;
+  const rifleHtml = globalThis.document.getElementById("meta-stats-container").innerHTML;
   const [positivesPart] = rifleHtml.split("<!-- Negatives Section -->");
   assert.ok(positivesPart.includes("Weak Point Critical Chance"));
   assert.ok(positivesPart.includes("Viral"));
@@ -245,7 +246,82 @@ test("renderMetaStats posiciona correctamente los atributos fusionados en la gui
   assert.ok(!rifleHtml.includes("- Weak Point"));
 
   renderMetaStats("Synthblade", "Melee", "other-container");
-  const bladeHtml = document.getElementById("other-container").innerHTML;
+  const bladeHtml = globalThis.document.getElementById("other-container").innerHTML;
   assert.ok(bladeHtml.includes("Parry Angle"));
   assert.ok(!bladeHtml.includes("Weak Point"));
+});
+
+function montarTasador(t, valores) {
+  const selects = [];
+  const liveSelects = [];
+  for (let i = 1; i <= 3; i++) {
+    const sel = {
+      value: valores[i - 1],
+      options: ["", "Gas", "Corrosive", "Critical Chance", "Multishot"].map((v) => ({
+        value: v,
+        hidden: false,
+        style: {},
+      })),
+    };
+    selects.push(sel);
+    liveSelects.push(sel);
+    const fila = {
+      remove() {
+        const idx = liveSelects.indexOf(sel);
+        if (idx !== -1) liveSelects.splice(idx, 1);
+      },
+    };
+    elements.set(`row-stat${i}`, fila);
+    elements.set(`g-stat${i}`, sel);
+  }
+  elements.set("row-statNeg", { remove() {} });
+  globalThis.document.getElementById("rivenWeaponInput").value = "";
+  const originalQSA = globalThis.document.querySelectorAll;
+  globalThis.document.querySelectorAll = (selector) => (selector === ".riven-stat-select" ? liveSelects : []);
+  t.after(() => {
+    globalThis.document.querySelectorAll = originalQSA;
+    for (let i = 1; i <= 3; i++) {
+      elements.delete(`row-stat${i}`);
+      elements.delete(`g-stat${i}`);
+    }
+    elements.delete("row-statNeg");
+    globalThis.activeGradingRolls = null;
+  });
+  return selects;
+}
+
+const visibles = (sel) => sel.options.filter((o) => o.value && !o.hidden).map((o) => o.value);
+
+test("con un fusionado elegido las demás filas no pueden elegir otro pero la suya sí", (t) => {
+  const selects = montarTasador(t, ["", "", ""]);
+  selects[0].value = "Gas";
+  updateSelectExclusions();
+  assert.deepEqual(visibles(selects[1]), ["Critical Chance", "Multishot"]);
+  assert.deepEqual(visibles(selects[2]), ["Critical Chance", "Multishot"]);
+  assert.ok(visibles(selects[0]).includes("Corrosive"));
+});
+
+test("al cargar una tirada con un fusionado las demás filas dejan de ofrecerlos", (t) => {
+  const selects = montarTasador(t, ["", "", ""]);
+  globalThis.activeGradingRolls = {
+    activeIndex: 0,
+    rollL: { stats: [] },
+    rollR: {
+      stats: [
+        { name: "Gas", value: 90, isPositive: true },
+        { name: "Critical Chance", value: 80, isPositive: true },
+      ],
+    },
+  };
+  globalThis.switchGradingRoll(1);
+  assert.deepEqual(visibles(selects[1]), ["Critical Chance", "Multishot"]);
+});
+
+test("quitar la fila del fusionado devuelve los fusionados a las demás", (t) => {
+  const selects = montarTasador(t, ["", "", ""]);
+  selects[2].value = "Gas";
+  updateSelectExclusions();
+  removeGradingRow("row-stat3");
+  assert.deepEqual(visibles(selects[0]), ["Gas", "Corrosive", "Critical Chance", "Multishot"]);
+  assert.deepEqual(visibles(selects[1]), ["Gas", "Corrosive", "Critical Chance", "Multishot"]);
 });

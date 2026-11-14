@@ -30,7 +30,7 @@ export function filasTasacion(riven, meta, isEs) {
         const calidad = calidadStatEnArma({ nombre, isPositive: !isNeg, typeIdx, niveles, pesos, sinDato: isNeg ? sinDato.neg : sinDato.pos, generico });
         const largo = textoNivelTirada(pos, isNeg, calidad.nivel, fusionado, isEs);
         const atenuado = isNeg && calidad.nivel === "inofensiva" && pos !== null && !pos.fuera;
-        const corto = !pos ? "—" : pos.fuera ? (isEs ? "fuera" : "out") : atenuado ? (isEs ? "da igual" : "fine") : `${fusionado ? "~" : ""}${Math.round(pos.bondad * 100)}%`;
+        const corto = !pos ? "—" : pos.fuera ? (isEs ? "fuera" : "out") : atenuado ? (isEs ? "da igual" : "fine") : isNeg ? largo : `${fusionado ? "~" : ""}${Math.round(pos.bondad * 100)}%`;
         return {
             texto: textoDelStat(s, typeIdx),
             positivo: !isNeg,

@@ -16,18 +16,23 @@ state.weaponMap = {
   Hek: { t: "Shotgun", d: 1.0 },
 };
 
-test("una carta con Weak Point Critical Chance y Gas se lee entera y es válida", () => {
+test("una carta con Weak Point Critical Chance y Toxin se lee entera y es válida", () => {
   const card = `Braton Exitifel
 +306.3% Weak Point Critical Chance
-+111.4% Gas
++111.4% Toxin
 -29.8% Zoom
 MR 10`;
   const res = RivenOCRService.parseRivenCard(card);
   const pos = res.stats.filter(s => s.isPositive).map(s => s.name);
   const neg = res.stats.filter(s => !s.isPositive).map(s => s.name);
-  assert.deepEqual(pos, ["Weak Point Critical Chance", "Gas"]);
+  assert.deepEqual(pos, ["Weak Point Critical Chance", "Toxin"]);
   assert.deepEqual(neg, ["Zoom"]);
   assert.equal(res.validation.valid, true);
+});
+
+test("una carta con dos stats fusionados no es un riven válido", () => {
+  const card = `Braton Algo\n+120.0% Weak Point Damage\n+90.0% Gas\n+60.0% Multishot`;
+  assert.equal(RivenOCRService.parseRivenCard(card), null);
 });
 
 test("las facciones nuevas se leen como multiplicador", () => {

@@ -88,7 +88,7 @@ try {
 } catch (_) {}
 
 renderRivenIndexList([["Synthstaff", state.rivenIndexData.Synthstaff]]);
-const indexHtml = document.getElementById("index-results-container").innerHTML;
+const indexHtml = globalThis.document.getElementById("index-results-container").innerHTML;
 
 function getSectionHtml(html, marker, nextMarker) {
   const start = html.indexOf(marker);
@@ -168,7 +168,7 @@ test("ningún atributo fusionado aparece en las secciones negativas", () => {
 
 test("el panel de meta-stats desduplica Heavy Attack Efficiency en las mejores negativas", () => {
   renderMetaStats("Synthstaff", "Melee", "dedupe-container");
-  const metaHtml = document.getElementById("dedupe-container").innerHTML;
+  const metaHtml = globalThis.document.getElementById("dedupe-container").innerHTML;
   const negStart = metaHtml.indexOf("<!-- Negatives Section -->");
   assert.ok(negStart !== -1);
   const negSection = metaHtml.slice(negStart);
