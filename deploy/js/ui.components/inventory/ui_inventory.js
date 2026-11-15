@@ -318,6 +318,13 @@ export function updateInventoryPanelLabels() {
   label(".export-btn .btn-text", t.btnExport);
   label(".import-btn .btn-text", t.btnImport);
 
+  const title = (sel, text) => {
+    const el = document.querySelector(sel);
+    if (el && text) el.title = text;
+  };
+  title(".export-btn", t.exportTitle);
+  title(".import-btn", t.importTitle);
+
   const purge = document.querySelector(".orokin-clear-btn");
   const purgeTitle = isParts ? t.purgePartsTitle : t.purgeRelicsTitle;
   if (purge && purgeTitle) {

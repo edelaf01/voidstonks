@@ -15,9 +15,9 @@ export function chatLink(name) {
 }
 
 // in-game chat "3/4" is how many you already are, not how many are missing
-export function squadTag(faltan) {
-  const n = Math.max(1, Math.min(3, Math.round(Number(faltan)) || 1));
-  return `${4 - n}/4`;
+export function squadTag(faltan, tam = 4) {
+  const n = Math.max(1, Math.min(tam - 1, Math.round(Number(faltan)) || 1));
+  return `${tam - n}/${tam}`;
 }
 
 export function chatLine(name, platinum = 0) {

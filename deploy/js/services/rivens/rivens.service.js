@@ -320,9 +320,9 @@ export async function fetchRivenAverage(weaponName) {
     const isEs = state.currentLang === "es";
 
     if (unrolledTitleEl) unrolledTitleEl.innerText = isEs ? "Sin Ciclos" : "Unrolled";
-    if (unrolledSubEl) unrolledSubEl.innerText = isEs ? "(DE Real)" : "(DE Real)";
+    if (unrolledSubEl) unrolledSubEl.innerText = isEs ? "ventas reales (DE)" : "real sales (DE)";
     if (rerolledTitleEl) rerolledTitleEl.innerText = isEs ? "Con Ciclos" : "Rerolled";
-    if (rerolledSubEl) rerolledSubEl.innerText = isEs ? "(DE Real)" : "(DE Real)";
+    if (rerolledSubEl) rerolledSubEl.innerText = isEs ? "ventas reales (DE)" : "real sales (DE)";
     if (webTitleEl) webTitleEl.innerText = isEs ? "WFM Web" : "WFM Web";
     if (webSubEl) webSubEl.innerText = isEs ? "(Activo)" : "(Active)";
 

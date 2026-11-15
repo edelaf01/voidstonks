@@ -396,6 +396,7 @@ function bindAlarmPanel(container, t) {
         showToast(t.farmAlarms.dupRule, { tag: "farm-alarm-dup", duration: 4000 });
         return;
       }
+      showToast(t.farmAlarms.added);
       const prefs = getAlarmPrefs();
       if (!prefs.enabled) {
         prefs.enabled = true;

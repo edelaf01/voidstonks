@@ -91,7 +91,7 @@ export class MobileScanner {
       this.acquireWakeLock();
 
       if (!oneTimeNoticeSeen(HOWTO_KEY_MOBILE)) this.showHowTo();
-    } catch (err) { const sc = TEXTS[state.currentLang]?.scanner || {}; showToast(err.name === "NotAllowedError" ? (sc.toastCamDenied || "No camera permission.") : (sc.toastError || "Error: {msg}").replace("{msg}", err.message)); this.close(); }
+    } catch (err) { const sc = TEXTS[state.currentLang]?.scanner || {}; showToast(err.name === "NotAllowedError" ? (sc.toastCamDenied || "No camera permission.") : (sc.toastError || "The scanner could not start. Try again.")); this.close(); }
   }
 
   async acquireWakeLock() {

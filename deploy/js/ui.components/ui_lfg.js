@@ -7,8 +7,12 @@ import { squadTag } from "../utils/chat_link.js";
 
 let lfgRafId = null;
 
+const SQUAD_SIZES = { icebind: 6 };
+const squadSizeOf = (act) => SQUAD_SIZES[act] || 4;
+const currentActivity = () => document.getElementById("lfgActivity")?.value || "";
+
 export function changeLFGCount(n) {
-  state.lfgCount = Math.max(1, Math.min(3, state.lfgCount + n));
+  state.lfgCount = Math.max(1, Math.min(squadSizeOf(currentActivity()) - 1, state.lfgCount + n));
   const display = document.getElementById("lfgCountDisplay");
   if (display) display.innerText = state.lfgCount;
   generateLFGMessage();
@@ -24,6 +28,12 @@ export function updateLFGUI() {
   initLFGPresets();
   const act = document.getElementById("lfgActivity").value;
   const container = document.getElementById("lfg-dynamic-options");
+  const maxCount = squadSizeOf(act) - 1;
+  if (state.lfgCount > maxCount) {
+    state.lfgCount = maxCount;
+    const display = document.getElementById("lfgCountDisplay");
+    if (display) display.innerText = state.lfgCount;
+  }
   const t = TEXTS[state.currentLang];
   const roles = t.lfgRoles || {};
   const tips = t.tooltips || {};
@@ -34,6 +44,10 @@ export function updateLFGUI() {
     if (!text) return "";
     return `<div style="margin-bottom:10px; font-size:0.85em; color:#888; border-left:2px solid var(--active-theme-color, var(--wf-blue)); padding-left:8px;">${escapeHTML(text)}</div>`;
   };
+
+  const createSelect = (id, options) => `<div style="margin-bottom:10px;"><select id="${id}" class="wf-input" onchange="generateLFGMessage()">`
+    + options.map(([value, label]) => `<option value="${escapeHTML(value)}">${escapeHTML(label || value)}</option>`).join("")
+    + `</select></div>`;
 
   if (act === "eda") {
     container.innerHTML = `
@@ -75,10 +89,10 @@ export function updateLFGUI() {
     container.innerHTML = `
             ${createInfo(tips.profit)} 
             <div class="lfg-grid">
-                ${createCheckbox("Chroma", "Chroma")}
                 ${createCheckbox("Volt", "Volt")}
-                ${createCheckbox("Saryn", "Saryn")}
-                ${createCheckbox("Zenith", "Zenith")}
+                ${createCheckbox("Mirage", "Mirage")}
+                ${createCheckbox("Wisp", "Wisp")}
+                ${createCheckbox("Chroma", "Chroma")}
             </div>`;
   } else if (act === "arbi") {
     container.innerHTML = `
@@ -128,6 +142,62 @@ export function updateLFGUI() {
     container.innerHTML = createInfo(tips.archon);
   } else if (act === "sortie") {
     container.innerHTML = createInfo(tips.sortie);
+  } else if (act === "icebind") {
+    container.innerHTML = `
+            ${createInfo(tips.icebind)}
+            <div class="lfg-grid">
+                ${createCheckbox("Support", roles.support, tips.support)}
+                ${createCheckbox("Tank", roles.tank)}
+                ${createCheckbox("CC", roles.cc)}
+                ${createCheckbox("DPS", roles.dps, tips.dps)}
+            </div>`;
+  } else if (act === "lich") {
+    container.innerHTML = `
+            ${createInfo(tips.lich)}
+            ${createSelect("lfg-lich-type", [["Lich", roles.lich], ["Sister", roles.sister], ["Coda", roles.coda]])}
+            ${createSelect("lfg-lich-mode", [["murmur", roles.murmur], ["killconvert", roles.killconvert], ["thrallshare", roles.thrallshare]])}`;
+  } else if (act === "cascade") {
+    container.innerHTML = `
+            ${createInfo(tips.cascade)}
+            ${createSelect("lfg-cascade-mode", [["normal", roles.normal], ["SP", roles.steelpath]])}
+            ${createSelect("lfg-cascade-pace", [["levelcap", roles.levelcap], ["casual", roles.casual]])}
+            <div class="lfg-grid">
+                ${createCheckbox("Nuke", roles.nuke)}
+                ${createCheckbox("Support", roles.support, tips.support)}
+            </div>`;
+  } else if (act === "spdisruption") {
+    container.innerHTML = `
+            ${createInfo(tips.spdisruption)}
+            ${createSelect("lfg-disruption-pace", [["rounds20", roles.rounds20], ["rounds40", roles.rounds40], ["levelcap", roles.levelcap]])}
+            <div class="lfg-grid">
+                ${createCheckbox("Nuke", roles.nuke)}
+                ${createCheckbox("Speed", roles.speed)}
+            </div>`;
+  } else if (act === "isleweaver") {
+    container.innerHTML = `
+            ${createInfo(tips.isleweaver)}
+            ${createSelect("lfg-isleweaver-mode", [["normal", roles.normal], ["SP", roles.steelpath]])}`;
+  } else if (act === "perita") {
+    container.innerHTML = `
+            ${createInfo(tips.perita)}
+            ${createSelect("lfg-perita-boss", [["any", roles.bossAny], ["Dactolyst"], ["Hunhullus"], ["Prime Vanguard"]])}`;
+  } else if (act === "exploiter") {
+    container.innerHTML = `
+            ${createInfo(tips.exploiter)}
+            <div class="lfg-grid">
+                ${createCheckbox("Volt", "Volt")}
+                ${createCheckbox("Gauss", "Gauss")}
+                ${createCheckbox("Wisp", "Wisp")}
+                ${createCheckbox("Titania", "Titania")}
+            </div>`;
+  } else if (act === "railjack") {
+    container.innerHTML = `
+            ${createInfo(tips.voidstorm)}
+            ${createSelect("lfg-railjack-mode", [["normal", roles.normal], ["SP", roles.steelpath]])}
+            <div class="lfg-grid">
+                ${createCheckbox("Pilot", roles.pilot)}
+                ${createCheckbox("Gunner", roles.gunner)}
+            </div>`;
   } else if (act === "radshare") {
     container.innerHTML = `
             <div style="padding:10px; background:#1a1c20; border:1px dashed #444; color:#aaa; font-size:0.9em;">
@@ -221,11 +291,44 @@ export function generateLFGMessage() {
       const typeEl = document.getElementById("lfg-kuva-type");
       const type = typeEl ? typeEl.value : "Survival";
       msg = `H ${activityName} ${type}`;
+    } else if (act === "icebind" || act === "exploiter") {
+      const roles = getRoles();
+      if (roles.length > 0) msg += ` LF ${roles.join("/")}`;
+    } else if (act === "lich") {
+      const r = t.lfgRoles || {};
+      const type = document.getElementById("lfg-lich-type")?.value || "Lich";
+      const mode = document.getElementById("lfg-lich-mode")?.value || "murmur";
+      msg = `H ${r[type.toLowerCase()] || type} ${r[mode] || mode}`;
+    } else if (act === "cascade") {
+      const r = t.lfgRoles || {};
+      const sp = document.getElementById("lfg-cascade-mode")?.value === "SP" ? "SP " : "";
+      const pace = document.getElementById("lfg-cascade-pace")?.value || "levelcap";
+      msg = `H ${sp}${activityName} ${r[pace] || pace}`;
+      const roles = getRoles();
+      if (roles.length > 0) msg += ` LF ${roles.join("/")}`;
+    } else if (act === "spdisruption") {
+      const r = t.lfgRoles || {};
+      const pace = document.getElementById("lfg-disruption-pace")?.value || "rounds20";
+      msg = `H SP ${r.disruption || "Disruption"} ${r[pace] || pace}`;
+      const roles = getRoles();
+      if (roles.length > 0) msg += ` LF ${roles.join("/")}`;
+    } else if (act === "isleweaver") {
+      const sp = document.getElementById("lfg-isleweaver-mode")?.value === "SP" ? "SP " : "";
+      msg = `H ${sp}${activityName}`;
+    } else if (act === "perita") {
+      const boss = document.getElementById("lfg-perita-boss")?.value || "any";
+      msg = boss === "any" ? `H ${activityName}` : `H ${activityName} ${boss}`;
+    } else if (act === "railjack") {
+      const r = t.lfgRoles || {};
+      const sp = document.getElementById("lfg-railjack-mode")?.value === "SP" ? "SP " : "";
+      msg = `H ${sp}${r.voidstorm || "Void Storms"}`;
+      const roles = getRoles();
+      if (roles.length > 0) msg += ` LF ${roles.join("/")}`;
     }
 
     if (extra) msg += ` ${extra}`;
 
-    msg += ` ${squadTag(state?.lfgCount)}`;
+    msg += ` ${squadTag(state?.lfgCount, squadSizeOf(act))}`;
 
     const box = document.getElementById("finalMessage");
     if (box && box.innerText !== msg) {
@@ -322,6 +425,7 @@ const saveTradePreset = function () {
   state.tradePresets.push({ name, text });
   saveAppState();
   renderTradePresets();
+  showToast(t.saved || "Preset saved");
 };
 
 const loadTradePreset = function (index) {
@@ -406,12 +510,17 @@ const saveLFGPreset = function () {
   const eliteTemp = document.getElementById("lfg-temp-elite");
   if (eliteTemp) specificData.eliteTemp = eliteTemp.checked;
 
+  const selects = {};
+  document.querySelectorAll("#lfg-dynamic-options select").forEach((s) => { selects[s.id] = s.value; });
+  specificData.selects = selects;
+
   const newPreset = { name, activity, extra, count, roles, specificData };
 
   if (!state.lfgPresets) state.lfgPresets = [];
   state.lfgPresets.push(newPreset);
   saveAppState();
   renderLFGPresets();
+  showToast(t.saved || "Preset saved");
 };
 
 const loadLFGPreset = function (index) {
@@ -428,7 +537,7 @@ const loadLFGPreset = function (index) {
 
   document.getElementById("lfgExtra").value = p.extra || "";
 
-  state.lfgCount = p.count || 1;
+  state.lfgCount = Math.max(1, Math.min(squadSizeOf(p.activity) - 1, p.count || 1));
   document.getElementById("lfgCountDisplay").innerText = state.lfgCount;
 
   if (p.roles && p.roles.length > 0) {
@@ -439,6 +548,10 @@ const loadLFGPreset = function (index) {
   }
 
   if (p.specificData) {
+    Object.entries(p.specificData.selects || {}).forEach(([id, value]) => {
+      const el = document.getElementById(id);
+      if (el) el.value = value;
+    });
     if (p.specificData.runs) {
       const el = document.getElementById("lfg-eidolon-runs");
       if (el) el.value = p.specificData.runs;
