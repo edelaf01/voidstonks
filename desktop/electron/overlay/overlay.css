@@ -90,10 +90,16 @@ section {
 }
 
 .boton {
-  flex: 1;
-  padding: 0.12rem 0.3rem;
-  font: 700 0.78rem "Segoe UI", system-ui, sans-serif;
+  flex: 1 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 1.65rem;
+  padding: 0 0.4rem;
+  box-sizing: border-box;
+  font: 700 0.78rem/1 "Segoe UI", system-ui, sans-serif;
   letter-spacing: 0.04em;
+  white-space: nowrap;
   color: #c9d1db;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.14);

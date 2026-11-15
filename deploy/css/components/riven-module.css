@@ -226,19 +226,47 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   margin-bottom: 12px;
 }
 
 #indexSearchInput {
-  max-width: 320px;
-  padding: 10px;
+  flex: 1 1 200px;
+  max-width: none;
+  height: 36px;
+  padding: 0 12px;
+  font-size: 0.82rem;
+  border-radius: var(--radius-ctl);
   border-color: rgba(162, 53, 226, 0.3);
   background: rgba(0, 0, 0, 0.25);
+  box-sizing: border-box;
 }
 
 .index-controls .rv-index-sort {
   display: contents;
+}
+
+#indexSortTrigger {
+  height: 36px !important;
+  padding: 0 28px 0 12px !important;
+  font-size: 0.82rem !important;
+  box-sizing: border-box !important;
+}
+
+#indexSortHelpIcon {
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 2px !important;
+  box-sizing: border-box;
+}
+
+#btn-index-sort-dir {
+  width: 36px !important;
+  height: 36px !important;
+  padding: 0 !important;
+  flex-shrink: 0;
 }
 
 #index-loading-state {
@@ -252,9 +280,9 @@
   width: 100%;
   max-width: 400px;
   padding: 10px 16px;
-  background-color: #1e1e2d;
-  border: 1px solid var(--riven-border);
-  border-radius: 8px;
+  background-color: var(--wf-input-bg);
+  border: 1px solid var(--wf-border-ctl);
+  border-radius: var(--radius-ctl);
   color: white;
   outline: none;
   transition: border-color 0.2s;
@@ -357,7 +385,7 @@
 
 .pill-pos {
   background: rgba(0, 191, 255, 0.08);
-  color: #00bfff;
+  color: var(--wf-blue);
   padding: 3px 8px;
   border-radius: 4px;
   font-size: 0.78rem;
@@ -389,9 +417,9 @@
 }
 
 .index-item-card {
-  background: #0f172a;
+  background: var(--wf-panel-bg);
   border: 1px solid rgba(255, 255, 255, 0.07);
-  border-radius: 10px;
+  border-radius: var(--radius-box);
   overflow: hidden;
   transition: border-color 0.2s, box-shadow 0.2s;
   margin-bottom: 8px;
@@ -522,7 +550,7 @@
 }
 
 .price-label-small {
-  color: rgba(255, 255, 255, 0.38);
+  color: var(--label-color);
   font-size: 0.68rem;
   text-transform: uppercase;
   letter-spacing: 0.4px;
@@ -587,7 +615,7 @@
 
 .index-card-expand-indicator {
   font-size: 1.1rem;
-  color: rgba(255, 255, 255, 0.25);
+  color: rgba(255, 255, 255, 0.4);
   transition: color 0.15s, transform 0.2s;
   line-height: 1;
 }
@@ -616,7 +644,7 @@
 }
 
 .index-detail-title {
-  font-size: 0.62rem;
+  font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0.6px;
   color: rgba(255, 255, 255, 0.35);
@@ -662,7 +690,7 @@
   flex-direction: column;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.035) 0%, rgba(0, 0, 0, 0.25) 100%);
   border: 1px solid rgba(208, 96, 255, 0.18);
-  border-radius: 8px;
+  border-radius: var(--radius-box);
   overflow: hidden;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
 }
@@ -722,7 +750,7 @@
 .curio-t-pincha { background: rgba(96, 165, 250, 0.16); color: #60a5fa; border: 1px solid rgba(96, 165, 250, 0.35); }
 .curio-t-global { background: rgba(197, 154, 252, 0.16); color: #c59afc; border: 1px solid rgba(197, 154, 252, 0.35); }
 
-.curio-fecha { font-size: 11.5px; color: #6b7280; white-space: nowrap; }
+.curio-fecha { font-size: 11.5px; color: var(--label-color); white-space: nowrap; }
 
 .curio-frase { font-size: 14.5px; line-height: 1.5; color: #dbe3ee; }
 .curio-texto:hover .curio-frase { color: #e8eef7; }
@@ -804,6 +832,7 @@
 
 /* scoped to #index-filters-bar so a generic selector does not win app-wide after styles.css */
 #index-filters-bar {
+    order: 2;
     display: flex;
     flex-wrap: wrap;
     align-items: center;
@@ -812,12 +841,18 @@
 
 #index-filters-bar .riven-index-filter {
     width: auto;
-    padding: 8px 10px;
+    height: 36px;
+    padding: 0 10px;
     font-size: 0.8rem;
     background: rgba(0, 0, 0, 0.25);
     border: 1px solid rgba(162, 53, 226, 0.3);
     color: #fff;
-    border-radius: 6px;
+    border-radius: var(--radius-ctl);
+    box-sizing: border-box;
+}
+
+#index-filters-bar select.riven-index-filter {
+    padding-right: 28px;
 }
 
 #index-filters-bar .riven-index-price {
@@ -825,6 +860,7 @@
 }
 
 #index-filters-bar .riven-index-check {
+    height: 36px;
     display: inline-flex;
     align-items: center;
     gap: 6px;
@@ -840,13 +876,17 @@
 }
 
 #index-filters-bar .riven-index-reset {
-    padding: 7px 12px;
+    height: 36px;
+    padding: 0 12px;
+    display: inline-flex;
+    align-items: center;
+    box-sizing: border-box;
     font-size: 0.74rem;
     font-weight: 700;
     color: #c59afc;
     background: rgba(155, 89, 182, 0.12);
     border: 1px solid rgba(155, 89, 182, 0.35);
-    border-radius: 6px;
+    border-radius: var(--radius-ctl);
     cursor: pointer;
 }
 
@@ -874,7 +914,7 @@
     font-weight: 600;
     background: rgba(155, 89, 182, 0.05);
     border: 1px dashed rgba(155, 89, 182, 0.3);
-    border-radius: 8px;
+    border-radius: var(--radius-box);
 }
 
 #index-results-container .riven-index-empty-hint {
@@ -887,7 +927,7 @@
     margin: 10px 0 0;
     font-size: 0.75rem;
     line-height: 1.45;
-    color: #6b7280;
+    color: var(--label-color);
 }
 
 .riven-ciclo {
@@ -944,7 +984,7 @@
 }
 
 .riven-ciclo-select option.lista {
-    color: #00ff78;
+    color: var(--wf-lfg);
 }
 
 .riven-ciclo-select option.otra {
@@ -1082,7 +1122,7 @@
   text-align: center;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(162, 53, 226, 0.2);
-  border-radius: 8px;
+  border-radius: var(--radius-box);
 }
 
 #riven-avg-box .rv-avg-grid {
@@ -1166,7 +1206,8 @@
 
 #mode-riven .rv-actions {
   display: flex;
-  gap: 12px;
+  align-items: stretch;
+  gap: 10px;
   margin-top: 12px;
 }
 
@@ -1182,7 +1223,7 @@
   padding: 8px;
   background: rgba(0, 0, 0, 0.25);
   border: 1px solid rgba(155, 89, 182, 0.15);
-  border-radius: 8px;
+  border-radius: var(--radius-box);
 }
 
 #chart-hint-note {

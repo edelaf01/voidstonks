@@ -252,7 +252,7 @@ export function renderMetaStats(weaponName, weaponType, targetId = "meta-stats-c
     const liqVal = meta.liquidity_score != null ? `${meta.liquidity_score}/100` : (isEs ? "sin datos" : "no data");
 
     const plat = `<img src="assets/relic_contents/platinum.webp" style="width:11px;height:11px;object-fit:contain;vertical-align:-1px;">`;
-    const info = `<span class="info-icon" style="font-size:0.6rem;opacity:0.7;">ℹ</span>`;
+    const info = `<span class="info-icon" style="font-size:0.6rem;">ℹ</span>`;
     // kind changes color: an ask and a real sale differ ~13x (DE sale gold, WFM ask blue)
     const row = (label, value, tip, kind = "") => {
       const valStyle = kind === "ask"

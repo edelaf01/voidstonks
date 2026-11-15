@@ -255,15 +255,16 @@ export const ScannerHUD = {
         this._ultimoScroll = clave;
         const sh = TEXTS[state.currentLang]?.scannerHUD;
 
-        if (status === "detected") {
-            scrollGuide.innerHTML = `<div style="color:#f1c40f;font-weight:800;font-size:1.25em;letter-spacing:0.3px;">${sh.autoScanDetected}</div><div style="color:#607590;font-size:0.95em;margin-top:5px;">${sh.autoScanDetectedDesc}</div>`;
-        } else if (status === "scanning") {
-            scrollGuide.innerHTML = `<div style="color:#00e5ff;font-weight:800;font-size:1.25em;letter-spacing:0.3px;">${sh.autoScanScanning}</div><div style="color:#607590;font-size:0.95em;margin-top:5px;">${sh.autoScanScanningDesc}</div>`;
-        } else if (status === "done") {
-            const doneDesc = sh.autoScanDoneDesc.replace("{count}", count);
-            scrollGuide.innerHTML = `<div style="color:#00ff78;font-weight:800;font-size:1.25em;letter-spacing:0.3px;">${sh.autoScanDone}</div><div style="color:#607590;font-size:0.95em;margin-top:5px;">${doneDesc}</div>`;
-        } else if (status === "captured") {
-            scrollGuide.innerHTML = `<div style="color:#00ff78;font-weight:800;font-size:1.25em;letter-spacing:0.3px;">${sh.autoScanCaptured}</div><div style="color:#607590;font-size:0.95em;margin-top:5px;">${sh.autoScanCapturedDesc}</div>`;
+        const entrada = {
+            detected: ["#f1c40f", sh.autoScanDetected, sh.autoScanDetectedDesc],
+            scanning: ["#00e5ff", sh.autoScanScanning, sh.autoScanScanningDesc],
+            done: ["#00ff78", sh.autoScanDone, sh.autoScanDoneDesc.replace("{count}", count)],
+            captured: ["#00ff78", sh.autoScanCaptured, sh.autoScanCapturedDesc],
+        }[status];
+        if (entrada) {
+            const [color, titulo, desc] = entrada;
+            scrollGuide.title = `${titulo} · ${desc}`;
+            scrollGuide.innerHTML = `<span style="color:${color};font-weight:800">${escapeHTML(titulo)}</span> · <span>${escapeHTML(desc)}</span>`;
         }
     },
 

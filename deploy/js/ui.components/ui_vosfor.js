@@ -371,7 +371,7 @@ function arcaneDropProbBadge(slug, parentPack) {
 function liqBadge(slug) {
     const t = vosT();
     const liq = liquidityIndex(slug);
-    if (liq.level === "loading") return `<span style="font-size:0.72rem;color:#777;">…</span>`;
+    if (liq.level === "loading") return `<span style="font-size:0.72rem;color:var(--label-color);">…</span>`;
     const styles = {
         high: "color:#42f56c;border-color:rgba(66,245,108,0.4);background:rgba(66,245,108,0.1);",
         med: "color:#e0b040;border-color:rgba(224,176,64,0.4);background:rgba(224,176,64,0.1);",
@@ -1296,7 +1296,7 @@ function updateSellSimDOM() {
           </div>
           ${metricLine}
           <div style="font-size:0.74rem;color:#888;margin-top:6px;"><span data-f="liq"></span>${PLAT}</div>
-          <div style="font-size:0.72rem;color:#777;margin-top:4px;">${es ? `1 unidad R${m.maxRank} = ${m.sim.copiesMax} copias (${m.meta.vosfor} Vosfor cada una al disolver).` : `1 unit at R${m.maxRank} = ${m.sim.copiesMax} copies (${m.meta.vosfor} Vosfor each when dissolved).`}</div>`;
+          <div style="font-size:0.72rem;color:var(--label-color);margin-top:4px;">${es ? `1 unidad R${m.maxRank} = ${m.sim.copiesMax} copias (${m.meta.vosfor} Vosfor cada una al disolver).` : `1 unit at R${m.maxRank} = ${m.sim.copiesMax} copies (${m.meta.vosfor} Vosfor each when dissolved).`}</div>`;
     }
 
     if (!m || !m.st) return;
@@ -1479,7 +1479,7 @@ function arcaneRow(slug, spend, parentPack) {
     const st = ARC_STATS.get(slug);
     const v = arcaneVerdict(slug, vosData.arcanes, spend);
 
-    let priceCell = `<span style="color:#777;">…</span>`;
+    let priceCell = `<span style="color:var(--label-color);">…</span>`;
     if (st) {
         const r0 = st.pe || 0;
         const rmax = st.pem || 0;
@@ -1906,7 +1906,7 @@ export async function renderVosforTab() {
           ${packsSorted.map((p) => packCard(p, bestRate, bestBalancedRate)).join("")}
           ${othersCard}
         </div>
-        <div style="font-size:0.75rem;color:#777;margin-top:6px;">${escapeHTML(t.dataNote || "")} ${escapeHTML(vosData.updated || "")}</div>
+        <div style="font-size:0.75rem;color:var(--label-color);margin-top:6px;">${escapeHTML(t.dataNote || "")} ${escapeHTML(vosData.updated || "")}</div>
       </div>`;
 
     updateCalculatorWidgetDOM();
