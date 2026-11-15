@@ -58,6 +58,7 @@ export const ScannerService = {
     scanInterval: null,
     _gen: 0,
     _sesion: 0,
+    _aperturaInv: 0,
     currentRate: 1200,
     RIVEN_RATE_ACTIVE: 400,
     RIVEN_RATE_IDLE: 1000,
@@ -269,6 +270,7 @@ export const ScannerService = {
         if (this.latchedContext === "MISSION_COMPLETE" && this.ctxLatch.latched !== "MISSION_COMPLETE") { this.mcLedger = INITIAL_LEDGER; this._mcCache.clear(); this._mcDormido = null; this._recompensasEnMision = false; }
         if (this.latchedContext === "REWARD" && this.ctxLatch.latched !== "REWARD") this.rescataRecompensaParcial();
         if (this.ctxLatch.latched !== this.latchedContext) { this.releaseFrames(); avisa("contexto", this.ctxLatch.latched); }
+        if (this.ctxLatch.latched === "INVENTORY" && this.latchedContext !== "INVENTORY") this._aperturaInv++;
         this.latchedContext = this.ctxLatch.latched;
         if (this.latchedContext !== "REWARD") {
             this._rewardFrameCvs = releaseFrame(this._rewardFrameCvs);
