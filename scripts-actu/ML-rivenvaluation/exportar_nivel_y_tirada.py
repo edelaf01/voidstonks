@@ -1,6 +1,9 @@
+import bisect
 import json
+import math
 import os
 import sys
+import tempfile
 
 import numpy as np
 import pandas as pd
@@ -11,20 +14,22 @@ import nivel_y_tirada as nyt
 import armas_sin_wfm
 import anuncios as an
 import escala_de10
+import comparar_modelos as cm
 
 CUANTILES_APP = (0.25, 0.5, 0.8, 0.9, 0.95)
 CORTE_PRECISION = nyt.CORTE
-CORTE_FINAL = os.environ.get("VOIDSTONKS_CORTE_FINAL", "2026-10-09")
-FECHA_DATOS = "2026-10-08"
+CORTE_FINAL = os.environ.get("VOIDSTONKS_CORTE_FINAL", nyt.CORTES["final"] if nyt.RECIENTES else "2026-10-09")
+FECHA_DATOS = nyt.CORTES["fecha_datos"] if nyt.RECIENTES else "2026-10-08"
 MIN_PRECISION = 8
 UMBRAL_CORTADAS = 450
 FILAS_PARIDAD = 40
 FILAS_COMPROBACION = 300
 TOLERANCIA = 1e-4
-DESTINO = os.path.join(AQUI, "..", "..", "deploy", "assets", "ml", "nivel_y_tirada.json")
-PARIDAD = os.path.join(AQUI, "..", "..", "tests", "fixtures", "nivel_y_tirada_paridad.json")
+DESTINO = os.path.join(an.SALIDA, "nivel_y_tirada_recientes.json") if nyt.RECIENTES else os.path.join(AQUI, "..", "..", "deploy", "assets", "ml", "nivel_y_tirada.json")
+PARIDAD = os.path.join(an.SALIDA, "nivel_y_tirada_paridad_recientes.json") if nyt.RECIENTES else os.path.join(AQUI, "..", "..", "tests", "fixtures", "nivel_y_tirada_paridad.json")
 DE10 = os.path.join(AQUI, "..", "..", "deploy", "assets", "ml", "de10.json")
 RHO = 0.7
+CORTES_PRIMA = (armas_sin_wfm.POP_FIABLE, 6, 12)
 N_POBLACION = 30
 CUANTILES_POBLACION = np.linspace(0, 1, 21)
 CLASE = {"Sniper": "Rifle", "Bow": "Rifle", "Launcher": "Rifle", "Companion Weapon": "Rifle", "Dual Pistols": "Pistol", "Throwing": "Pistol", "Zaw Component": "Melee"}
@@ -41,6 +46,8 @@ def topes_por_slug():
     return tope
 
 def armas_cortadas(tabla):
+    if nyt.RECIENTES:
+        return set()
     tope = topes_por_slug()
     arma_de_id = {i: w for i, w in zip(tabla["auction_id"], tabla["weapon"]) if i}
     cortadas = set()
@@ -199,7 +206,7 @@ def poblaciones(tabla, contexto, modelo, sin):
     armas = escala_de10.armas_del_catalogo()
     slugs = {escala_de10.slug(a) for a in armas}
     miembros = escala_de10.miembros_por_familia(armas)
-    cortadas = {s for s, n in topes_por_slug().items() if n >= UMBRAL_CORTADAS}
+    cortadas = set() if nyt.RECIENTES else {s for s, n in topes_por_slug().items() if n >= UMBRAL_CORTADAS}
     tipos = nyt.tipo_por_arma()
     dispo = armas_sin_wfm.dispo_por_arma()
     columnas = list(contexto["columnas"])
@@ -246,6 +253,38 @@ def poblaciones(tabla, contexto, modelo, sin):
         nivel_pool[f] = nivel
     return {"rho": RHO, "pob": pob, "pool": pool, "nivel_pool": nivel_pool, "pool_clase": pool_clase}
 
+def filas_evaluables(tabla):
+    filas = []
+    for i, r in zip(tabla.index, tabla[CAMPOS + ["precio_primero"]].to_dict("records")):
+        pos = [[r[f"stat_pos{k}"], None if pd.isna(r[f"mag_pos{k}"]) else float(r[f"mag_pos{k}"])] for k in (1, 2, 3) if r[f"stat_pos{k}"]]
+        neg = [r["stat_neg"], None if pd.isna(r["mag_neg"]) else float(r["mag_neg"])] if r["stat_neg"] else None
+        filas.append({"id": str(i), "arma": r["weapon"], "precio": float(r["precio_primero"]), "pos": pos, "neg": neg})
+    return filas
+
+def prima_de10(filas, predicciones, cortes=CORTES_PRIMA):
+    por_id = {p.get("id"): p for p in predicciones}
+    grupos = [[] for _ in cortes]
+    for fila in filas:
+        p = por_id.get(fila["id"], {})
+        pop10 = p.get("pop10")
+        app = p.get("app")
+        if p.get("fuente") != "de10" or pop10 is None or pop10 < cortes[0] or not app or app <= 0 or not fila["precio"] > 0:
+            continue
+        grupos[bisect.bisect_right(cortes, pop10) - 1].append(math.log(fila["precio"]) - math.log(app))
+    return {"cortes": list(cortes), "valores": [0.0] + [round(float(np.median(g)), 4) if g else 0.0 for g in grupos]}
+
+def prima_modelo(salida, tabla, ruta_de):
+    filas = filas_evaluables(tabla)
+    with tempfile.TemporaryDirectory() as carpeta:
+        modelo = os.path.join(carpeta, "nivel_y_tirada.json")
+        ruta_filas = os.path.join(carpeta, "filas.json")
+        with open(modelo, "w", encoding="utf-8") as f:
+            json.dump(salida, f, ensure_ascii=False, allow_nan=False, separators=(",", ":"))
+        with open(ruta_filas, "w", encoding="utf-8") as f:
+            json.dump(filas, f, ensure_ascii=False)
+        predicciones = cm.evaluar_node(modelo, ruta_filas, ruta_de, os.path.join(carpeta, "pred.json"))
+    return prima_de10(filas, predicciones)
+
 def main():
     nyt.CUANTILES = CUANTILES_APP
     cortadas = armas_cortadas(nyt.leer_anuncios())
@@ -290,6 +329,7 @@ def main():
         with open(sys.argv[1], encoding="utf-8") as f:
             salida["sin_wfm"] = armas_sin_wfm.calcular(salida, json.load(f), armas_sin_wfm.dispo_por_arma())
         salida.update(poblaciones(tabla, contexto, modelo, salida["sin_wfm"]))
+        salida["prima_de10"] = prima_modelo(salida, tabla[mascara], os.path.abspath(sys.argv[1]))
     with open(DESTINO, "w", encoding="utf-8") as f:
         json.dump(salida, f, ensure_ascii=False, allow_nan=False, separators=(",", ":"))
     paridad = filas_paridad(tabla[mascara], contexto, modelo)
