@@ -6,9 +6,9 @@ import { escapeHTML } from "./ui_components.js";
 import { exposeGlobals } from "../utils/global_registry.js";
 import { JADE_SHADOWS_IMG } from "../assets/jade_custom_img.js";
 import { initJadeCosmicEasterEgg } from "./ui_vosfor_jade.js";
-import { sindicatosCard } from "./ui_vosfor_sindicatos.js";
+import { sindicatosCard, ordenSindicatos, setOrdenSindicatos } from "./ui_vosfor_sindicatos.js";
 import { rentaSindicatos, slugsDeSindicatos } from "../utils/vosfor_sindicatos.js";
-import { calculateR5Realism, targetSimProbabilities, copiesForMaxRank } from "../utils/vosfor_math.js";
+import { targetSimProbabilities, copiesForMaxRank } from "../utils/vosfor_math.js";
 import {
     loadVosforData,
     requestPackStats,
@@ -16,22 +16,23 @@ import {
     onArcaneStats,
     computePackEV,
     bestPackRate,
-    bestBalancedPackRate,
     arcaneVerdict,
     sellSimVerdict,
     dissolveEdge,
     vosforPerPlat,
     liquidityIndex,
     othersPack,
-    calculateVosforInvestment,
     ARC_STATS,
     pixRank,
     HEX_ARCANES,
     realizableR0,
-    realizableMax
+    realizableMax,
+    PACK_COST,
+    arcaneUnitValue
 } from "../services/vosfor.service.js?v=2.7";
 
-const PLAT = `<img src="assets/relic_contents/platinum.webp" style="width:13px;height:13px;vertical-align:middle;margin-left:2px;">`;
+const platIcon = (size = 13) => `<img src="assets/relic_contents/platinum.webp" style="width:${size}px;height:${size}px;vertical-align:middle;margin-left:2px;" alt="pl">`;
+const PLAT = platIcon();
 
 // stores loaded URLs and final failures or re-renders restart broken image cascades
 const IMG_SRC_CACHE = new Map();
@@ -98,11 +99,10 @@ let expandAllPacks = false;
 let unsubscribe = null;
 let rerenderTimer = null;
 let packSort = "balanced";
-let userVosfor = 600;
 let searchQuery = "";
 let showGuide = false;
 
-const TOOL_KEYS = ["sell", "calc", "target", "ranking", "pix"];
+const TOOL_KEYS = ["sell", "target", "ranking", "pix"];
 let openTools = new Set(["sell"]);
 
 try {
@@ -113,8 +113,6 @@ try {
 let activeRankTab = "packs";
 let activeRankSubToggle = "r0";
 let rankLimit = 5;
-
-let calcSelectedPackId = "auto";
 
 let targetPackId = "albrechts_laboratories";
 let targetArcSlug = "";
@@ -466,25 +464,20 @@ function rankingLeaderboardCard(spend) {
         const sortedPacks = [...vosData.packs]
             .map((p) => ({ pack: p, ev: computePackEV(p, vosData.arcanes) }))
             .filter((p) => p.ev.ready)
-            .sort((a, b) => b.ev.platPerVosfor - a.ev.platPerVosfor)
+            .sort((a, b) => b.ev.rate - a.ev.rate)
             .slice(0, rankLimit);
 
         rowsHtml = sortedPacks.map(({ pack, ev }, idx) => {
             const syn = PACK_SYNDICATES[pack.id] || PACK_SYNDICATES.others;
-            const _evShown = ev.evPlatNet ?? ev.evPlat;
-            const subText = state.currentLang === "es"
-                ? `Ganas ~${_evShown}${PLAT} por pack (200${vosforIcon(12)}) · ${ev.avgVolume} ventas/día`
-                : `Earn ~${_evShown}${PLAT} per pack (200${vosforIcon(12)}) · ${ev.avgVolume} sales/day`;
             return `
               <div class="vosfor-ranking-row" onclick="toggleVosforPack('${pack.id}')" style="cursor:pointer;">
                 ${rankingMedal(idx)}
                 ${syndicateIconHtml(syn.wikiIcon, syn.icon)}
                 <div class="vosfor-rank-info">
                   <div class="vosfor-rank-name">${escapeHTML(packName(pack))}</div>
-                  <div class="vosfor-rank-sub">${subText}</div>
                 </div>
                 <div class="vosfor-rank-stat">
-                  <div class="vosfor-rank-val">${fmtRate(ev.platPerVosfor)} <span style="font-size:0.75rem;font-weight:normal;color:#aaa;">${PLAT} / ${vosforIcon()}</span></div>
+                  <div class="vosfor-rank-val">${fmtRate(ev.rate)} <span style="font-size:0.75rem;font-weight:normal;color:#aaa;">${PLAT} / ${vosforIcon()}</span></div>
                 </div>
               </div>`;
         }).join("");
@@ -492,7 +485,7 @@ function rankingLeaderboardCard(spend) {
     } else {
         const es = state.currentLang === "es";
 
-        const dissolveRate = spend?.balancedRate || 0;
+        const dissolveRate = spend?.rate || 0;
 
         const loadedArcanes = Object.keys(vosData.arcanes)
             .filter((slug) => ARC_STATS.has(slug))
@@ -615,7 +608,7 @@ function rankingLeaderboardCard(spend) {
                         ? ` · ${vpp.sellers} ${vpp.sellers === 1 ? "vendedor" : "vendedores"}`
                         : ` · ${vpp.sellers} ${vpp.sellers === 1 ? "seller" : "sellers"}`;
                     subText = `R0 ${vpp.buyPrice}${PLAT}${sellersTxt} · ${liq.volume}/${es ? "día" : "day"}`
-                        + ` · 200${vosforIcon(12)} ≈ ${Math.round(vpp.platPerPack)}${PLAT}`;
+                        + ` · ${PACK_COST}${vosforIcon(12)} ≈ ${Math.round(vpp.platPerPack)}${PLAT}`;
 
                     extraNameHtml = (vpp.sellers == null ? liq.volume < 1 : vpp.sellers <= 2)
                         ? ` <span style="font-size:0.62rem;color:#ff8866;border:1px solid rgba(255,136,102,0.35);border-radius:3px;padding:0 4px;">${es ? "POCA OFERTA" : "LOW SUPPLY"}</span>`
@@ -664,188 +657,13 @@ function rankingLeaderboardCard(spend) {
     </div>`;
 }
 
-function getTradeFrictionNote(pulls, pack, t) {
-    const totalItems = pulls * 3;
-    // in Cetus more than half the arcanes rank with 10 copies, not 21
-    const metas = (pack?.items || []).map((s) => vosData?.arcanes?.[s]).filter(Boolean);
-    const copiesAvg = metas.length
-        ? metas.reduce((sum, m) => sum + copiesForMaxRank(m), 0) / metas.length
-        : 21;
-    const r5Trades = Math.max(1, Math.round(totalItems / copiesAvg));
-    const template = t.tradeFrictionNote || (state.currentLang === "es"
-        ? "Vender {items} arcanos sueltos en R0 gasta {trades} intercambios diarios. Subiéndolos al rango máximo, unos {r5Trades}."
-        : "Selling {items} loose arcanes at R0 uses {trades} daily trades. Maxing them first, about {r5Trades}.");
-    return template
-        .replace("{items}", totalItems)
-        .replace("{trades}", totalItems)
-        .replace("{r5Trades}", r5Trades);
-}
-
-function renderR5RealismHtml(pack, userVosfor, t) {
-    if (!pack || !vosData) return "";
-    const realism = calculateR5Realism(userVosfor, pack, vosData);
-    if (!realism) return "";
-
-    const pulls = realism.pulls;
-    const noteText = (t.r5RealismNote || "Copias esperadas y probabilidad de completar el rango máximo con tus {vosfor} Vosfor ({pulls} tiradas):")
-        .replace("{vosfor}", userVosfor.toLocaleString())
-        .replace("{pulls}", pulls.toLocaleString());
-
-    const isLegendaryUnlikely = realism.results.LEGENDARY && realism.results.LEGENDARY.itemCount > 0 ? realism.results.LEGENDARY.probRaw < 0.1 : false;
-    const rName = (r) => (t.rarities || {})[r] || r;
-    const probText = t.r5ProbLabel || "Prob.";
-    const copyText = t.targetSimCopies || "copias";
-
-    const renderCell = (rarity, color, bg, border) => {
-        const res = realism.results[rarity];
-        if (!res || res.itemCount === 0) {
-            return "";
-        }
-        const rankLines = res.ranks.map((rk) => `
-          <span style="color:${rk.probRaw > 0.5 ? "#42f56c" : "#ff8888"}; font-weight:700;">${escapeHTML(probText)} R${rk.maxRank} · ${rk.copies} ${escapeHTML(copyText)}: ${rk.probPct}%</span>`).join("<br/>");
-        return `
-        <div style="background:${bg};border:1px solid ${border};border-radius:4px;padding:6px;color:${color};">
-          <b>${escapeHTML(rName(rarity))}:</b> ~${res.expected} ${escapeHTML(copyText)}<br/>
-          ${rankLines}
-        </div>`;
-    };
-
-    return `
-    <details style="background:rgba(0,0,0,0.4);border:1px solid rgba(255,215,110,0.3);border-radius:6px;padding:8px 12px;margin-top:10px;">
-      <summary style="font-weight:700;color:#ffd76e;font-size:0.82rem;cursor:pointer;list-style-position:inside;">
-        ${escapeHTML(t.r5RealismTitle || "Realismo de rango máximo")}
-        ${isLegendaryUnlikely ? `<span style="font-size:0.68rem;color:#ff8888;font-weight:600;margin-left:6px;">${state.currentLang === "es" ? "(R5 legendario inviable con tu Vosfor)" : "(legendary R5 not feasible with your Vosfor)"}</span>` : ""}
-      </summary>
-      <div style="font-size:0.76rem;color:#ccc;margin:8px 0;">
-        ${escapeHTML(noteText)}
-      </div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:6px;font-size:0.75rem;">
-        ${renderCell("LEGENDARY", "#ffd76e", "rgba(255,215,110,0.08)", "rgba(255,215,110,0.25)")}
-        ${renderCell("RARE", "#e8c88a", "rgba(232,200,138,0.08)", "rgba(232,200,138,0.25)")}
-        ${renderCell("UNCOMMON", "#dcdcdc", "rgba(220,220,220,0.08)", "rgba(220,220,220,0.25)")}
-        ${renderCell("COMMON", "#b8946c", "rgba(184,148,108,0.08)", "rgba(184,148,108,0.25)")}
-      </div>
-      ${isLegendaryUnlikely ? `<div style="font-size:0.74rem;color:#ff8888;margin-top:6px;line-height:1.3;">${escapeHTML(t.r5PracticalAdvice || "Consejo: con tu Vosfor actual es muy poco probable reunir las copias de un arcano raro para el R5. Mejor vende o disuelve las copias R0 sueltas.")}</div>` : ""}
-    </details>`;
-}
-
-let lastCalcSignature = null;
-
-function calcCardHtml(kind, entry, t) {
-    const syn = PACK_SYNDICATES[entry.pack.id] || PACK_SYNDICATES.others;
-    const tags = {
-        custom: { css: "", color: "var(--vosfor-accent-text)", label: state.currentLang === "es" ? "SIMULACIÓN DE COLECCIÓN SELECCIONADA" : "SELECTED COLLECTION SIMULATION" },
-        ev: { css: "highlight", color: "#42f56c", label: t.maxPlatTitle || "MÁS PLATINO" },
-        liq: { css: "highlight-liquid", color: "#7ecbff", label: t.maxLiquidTitle || "VENTA RÁPIDA" },
-    };
-    const cfg = tags[kind];
-    const subIcon = kind === "custom"
-        ? `<span data-f="subA"></span>${creditsIcon()}<span data-f="subB"></span>${vosforIcon()}<span data-f="subC"></span>`
-        : kind === "ev"
-            ? `<span data-f="subA"></span>${vosforIcon()}<span data-f="subB"></span>`
-            : "";
-    return `
-      <div class="vosfor-calc-card ${cfg.css}" data-card="${kind}">
-        <div class="vosfor-calc-card-row">
-          ${syndicateIconHtml(syn.wikiIcon, syn.icon)}
-          <div class="vosfor-calc-card-body">
-            <div class="vosfor-calc-card-tag" style="color:${cfg.color};">${escapeHTML(cfg.label)}</div>
-            <div class="vosfor-calc-card-name">${escapeHTML(packName(entry.pack))}</div>
-          </div>
-        </div>
-        <div class="vosfor-calc-card-stat"><span class="vosfor-calc-card-stat-label">${escapeHTML(t.projectedPlat || "Platino esperado")}:</span><span data-f="est"></span>${PLAT}</div>
-        <div class="vosfor-calc-card-sub">${kind === "liq" ? `<span data-f="subA"></span>` : subIcon}</div>
-        <div class="vosfor-calc-card-trade">
-          <b>${escapeHTML(t.tradeFrictionLabel || "Intercambios diarios necesarios")}:</b> <span data-f="trade"></span>
-        </div>
-      </div>`;
-}
-
-function patchCalcCard(box, kind, entry, t) {
-    const card = box.querySelector(`[data-card="${kind}"]`);
-    if (!card || !entry) return;
-    const set = (f, txt) => {
-        const el = card.querySelector(`[data-f="${f}"]`);
-        if (el) el.textContent = txt;
-    };
-    const pulls = entry.pulls;
-    const creditsK = pulls * 50;
-    const crTxt = creditsK >= 1000 ? `${(creditsK / 1000).toFixed(1)}M` : `${creditsK}k`;
-    set("est", entry.estPlat.toLocaleString());
-    if (kind === "custom") {
-        set("subA", `${pulls.toLocaleString()} ${t.pullsUnit || "tiradas"} (${(pulls * 3).toLocaleString()} ${t.arcanes || "arcanos"}) · ${crTxt}`);
-        set("subB", ` · ${fmtRate(entry.ev.platPerVosfor)} pl/`);
-        set("subC", ` · ${entry.ev.avgVolume}/d ${salesUnit()}`);
-    } else if (kind === "ev") {
-        set("subA", `${pulls} ${t.pullsUnit || "tiradas"} (${pulls * 3} ${t.arcanes || "arcanos"}) · ${fmtRate(entry.ev.platPerVosfor)} pl/`);
-        set("subB", "");
-    } else {
-        set("subA", `${pulls} ${t.pullsUnit || "tiradas"} (${pulls * 3} ${t.arcanes || "arcanos"}) · ${entry.ev.avgVolume}/d ${salesUnit()}`);
-    }
-    set("trade", getTradeFrictionNote(pulls, entry.pack, t));
-}
-
-function updateCalculatorWidgetDOM() {
-    const box = document.getElementById("vosfor-calc-results-box");
-    const inputField = document.getElementById("vosfor-input-field");
-    const sliderField = document.getElementById("vosfor-calc-slider");
-
-    if (inputField && document.activeElement !== inputField) {
-        inputField.value = userVosfor;
-    }
-    if (sliderField) {
-        if (userVosfor > parseInt(sliderField.max, 10)) {
-            sliderField.max = Math.ceil(userVosfor * 1.5 / 200) * 200;
-        }
-        if (document.activeElement !== sliderField) sliderField.value = userVosfor;
-    }
-
-    if (!box || !vosData) return;
-
-    const t = vosT();
-    const calc = calculateVosforInvestment(userVosfor, vosData, calcSelectedPackId);
-
-    const isCustom = calc && calcSelectedPackId !== "auto" && calc.customPack;
-    const hasAuto = calc && !isCustom && (calc.bestEvPack || calc.bestLiquidPack);
-    const realismPack = isCustom ? calc.customPack.pack : hasAuto ? (calc.bestEvPack || calc.bestLiquidPack).pack : null;
-
-    const signature = [
-        isCustom ? "c:" + calc.customPack.pack.id : "",
-        hasAuto && calc.bestEvPack ? "e:" + calc.bestEvPack.pack.id : "",
-        hasAuto && calc.bestLiquidPack ? "l:" + calc.bestLiquidPack.pack.id : "",
-        state.currentLang,
-    ].join("|");
-
-    if (signature !== lastCalcSignature || !box.firstElementChild) {
-        lastCalcSignature = signature;
-        let html = "";
-        if (isCustom) {
-            html = calcCardHtml("custom", calc.customPack, t);
-        } else if (hasAuto) {
-            const dualHint = calc.bestEvPack && calc.bestLiquidPack
-                ? `<div style="font-size:0.78rem;color:#999;margin-bottom:6px;">${escapeHTML(t.calcDualHint || "")}</div>`
-                : "";
-            html = dualHint
-                + (calc.bestEvPack ? calcCardHtml("ev", calc.bestEvPack, t) : "")
-                + (calc.bestLiquidPack ? calcCardHtml("liq", calc.bestLiquidPack, t) : "");
-        } else {
-            html = `<div style="font-size:0.84rem;color:#888;padding:8px 0;">${escapeHTML(t.summaryLoading || "Cargando precios para simular…")}</div>`;
-        }
-        box.innerHTML = html + `<div data-f="realism"></div>`;
-    }
-
-    if (isCustom) patchCalcCard(box, "custom", calc.customPack, t);
-    if (hasAuto) {
-        patchCalcCard(box, "ev", calc.bestEvPack, t);
-        patchCalcCard(box, "liq", calc.bestLiquidPack, t);
-    }
-    const realismBox = box.querySelector(`[data-f="realism"]`);
-    if (realismBox) realismBox.innerHTML = realismPack ? renderR5RealismHtml(realismPack, userVosfor, t) : "";
-}
-
-export function onVosforCalcPackChange(packId) {
-    calcSelectedPackId = packId || "auto";
-    updateCalculatorWidgetDOM();
+function sortedPacksByRate() {
+    if (!vosData || !vosData.packs) return [];
+    return [...vosData.packs].sort((a, b) => {
+        const ea = computePackEV(a, vosData.arcanes);
+        const eb = computePackEV(b, vosData.arcanes);
+        return (eb.ready ? eb.rate : -1) - (ea.ready ? ea.rate : -1);
+    });
 }
 
 function targetProbHtml(packsNeeded, rollProb, sameRarityCount, t) {
@@ -883,6 +701,7 @@ function updateTargetSimDOM() {
     const curPack = vosData.packs.find((p) => p.id === targetPackId) || vosData.packs[0];
     if (!targetArcSlug || !curPack.items.includes(targetArcSlug)) {
         targetArcSlug = curPack.items[0];
+        targetCopies = copiesForMaxRank(vosData.arcanes[targetArcSlug]);
     }
 
     const targetMeta = vosData.arcanes[targetArcSlug];
@@ -895,15 +714,17 @@ function updateTargetSimDOM() {
     const defaultPacksNeeded = Math.ceil(targetCopies / Math.max(0.0001, copiesPerPack));
     const packsNeeded = targetCustomPacks !== null ? targetCustomPacks : defaultPacksNeeded;
     const pullsNeeded = packsNeeded * 3;
-    const vosforNeeded = packsNeeded * (curPack.cost?.vosfor || 200);
+    const vosforNeeded = packsNeeded * (curPack.cost?.vosfor || PACK_COST);
     const creditsNeeded = packsNeeded * (curPack.cost?.credits || 50000);
 
     const targetArcName = targetMeta ? arcName(targetMeta) : "";
     const copyUnit = targetCopies === 1 ? (t.targetSimCopy || "copia") : (t.targetSimCopies || "copias");
     const maxR = targetMeta ? (targetMeta.maxRank ?? 5) : 5;
-    const copiesMax = ((maxR + 1) * (maxR + 2)) / 2;
+    const copiesMax = copiesForMaxRank(targetMeta);
     const rankLabel = targetCopies === copiesMax ? `(${t.targetSimRank5 || "Rango " + maxR})` : targetCopies === 1 ? `(${t.targetSimRank0 || "Rango 0"})` : "";
     const rarityLabel = (t.rarities || {})[targetRarity] || targetRarity;
+    const st = ARC_STATS.get(targetArcSlug);
+    const platOut = st ? Math.round(targetCopies * arcaneUnitValue(targetMeta, st)) : null;
 
     const explainRaw = targetCustomPacks !== null
         ? (state.currentLang === "es"
@@ -939,6 +760,9 @@ function updateTargetSimDOM() {
     const valCreditsNum = document.getElementById("target-val-credits-num");
     if (valCreditsNum) valCreditsNum.textContent = `${(creditsNeeded / 1000000).toFixed(2)}M`;
 
+    const valPlatNum = document.getElementById("target-val-plat-num");
+    if (valPlatNum) valPlatNum.textContent = platOut !== null ? platOut.toLocaleString() : "…";
+
     const explainBox = document.getElementById("target-explain-box");
     if (explainBox) explainBox.innerHTML = `${explainText} ${escapeHTML(t.targetSimProbNote || "")}.`;
 
@@ -954,9 +778,8 @@ function updateTargetSimDOM() {
 
 function buildTargetDropdownItems(el) {
     if (!vosData || !vosData.packs || el.dataset.built) return;
-    const t = vosT();
     const items = [];
-    for (const p of vosData.packs) {
+    for (const p of sortedPacksByRate()) {
         for (const slug of p.items) {
             const meta = vosData.arcanes[slug];
             if (!meta) continue;
@@ -1005,6 +828,7 @@ export function filterTargetArcDropdown(val) {
 export function selectTargetArcane(slug, packId) {
     targetPackId = packId;
     targetArcSlug = slug;
+    targetCopies = copiesForMaxRank(vosData?.arcanes?.[slug]);
     targetCustomPacks = null;
     hideTargetArcDropdown();
     renderVosforTab();
@@ -1024,6 +848,7 @@ export function onTargetArcQuickSearch(val) {
             if (nameEs === q || nameEn === q || slug === q || nameEs.includes(q) || nameEn.includes(q)) {
                 targetPackId = pack.id;
                 targetArcSlug = slug;
+                targetCopies = copiesForMaxRank(meta);
                 renderVosforTab();
                 return;
             }
@@ -1038,6 +863,7 @@ function targetArcaneSimulatorCard() {
     const curPack = vosData.packs.find((p) => p.id === targetPackId) || vosData.packs[0];
     if (!targetArcSlug || !curPack.items.includes(targetArcSlug)) {
         targetArcSlug = curPack.items[0];
+        targetCopies = copiesForMaxRank(vosData.arcanes[targetArcSlug]);
     }
 
     const targetMeta = vosData.arcanes[targetArcSlug];
@@ -1050,20 +876,12 @@ function targetArcaneSimulatorCard() {
     const defaultPacksNeeded = Math.ceil(targetCopies / Math.max(0.0001, copiesPerPack));
     const packsNeeded = targetCustomPacks !== null ? targetCustomPacks : defaultPacksNeeded;
     const pullsNeeded = packsNeeded * 3;
-    const vosforNeeded = packsNeeded * (curPack.cost?.vosfor || 200);
+    const vosforNeeded = packsNeeded * (curPack.cost?.vosfor || PACK_COST);
     const creditsNeeded = packsNeeded * (curPack.cost?.credits || 50000);
 
-    const packOptions = vosData.packs.map((p) => {
+    const packOptions = sortedPacksByRate().map((p) => {
         const sel = p.id === curPack.id ? "selected" : "";
         return `<option value="${p.id}" ${sel}>${escapeHTML(packName(p))}</option>`;
-    }).join("");
-
-    const arcOptions = curPack.items.map((slug) => {
-        const meta = vosData.arcanes[slug];
-        if (!meta) return "";
-        const sel = slug === targetArcSlug ? "selected" : "";
-        const rName = (t.rarities || {})[meta.rarity] || meta.rarity;
-        return `<option value="${slug}" ${sel}>${escapeHTML(arcName(meta))} (${escapeHTML(rName)})</option>`;
     }).join("");
 
     const btnPreset = (num, lbl) => {
@@ -1072,7 +890,9 @@ function targetArcaneSimulatorCard() {
     };
 
     const maxR = targetMeta ? (targetMeta.maxRank ?? 5) : 5;
-    const copiesMax = ((maxR + 1) * (maxR + 2)) / 2;
+    const copiesMax = copiesForMaxRank(targetMeta);
+    const st = ARC_STATS.get(targetArcSlug);
+    const platOut = st ? Math.round(targetCopies * arcaneUnitValue(targetMeta, st)) : null;
 
     let presetsHtml = "";
     if (copiesMax === 10) {
@@ -1150,13 +970,17 @@ function targetArcaneSimulatorCard() {
             <span style="font-size:0.65rem;color:var(--vosfor-accent-text);">${state.currentLang === "es" ? "Modificable" : "Editable"}</span>
           </div>
           <div style="display:flex;align-items:center;justify-content:center;gap:6px;margin-top:2px;">
-            <input id="target-pulls-input" type="number" class="vosfor-calc-input" style="width:75px;font-size:1.05rem;padding:2px 4px;text-align:center;color:#ffffff;border-color:color-mix(in srgb, var(--active-theme-color) 40%, transparent);" min="1" max="999999" value="${packsNeeded}" oninput="onTargetPacksChange(this.value)" title="${state.currentLang === "es" ? "Modifica el número de tiradas/packs de Loid (200 Vosfor = 3 arcanos)" : "Modify Loid packs/pulls (200 Vosfor = 3 arcanes)"}">
+            <input id="target-pulls-input" type="number" class="vosfor-calc-input" style="width:75px;font-size:1.05rem;padding:2px 4px;text-align:center;color:#ffffff;border-color:color-mix(in srgb, var(--active-theme-color) 40%, transparent);" min="1" max="999999" value="${packsNeeded}" oninput="onTargetPacksChange(this.value)" title="${state.currentLang === "es" ? `Modifica el número de tiradas/packs de Loid (${PACK_COST} Vosfor = 3 arcanos)` : `Modify Loid packs/pulls (${PACK_COST} Vosfor = 3 arcanes)`}">
             <span style="font-size:0.8rem;color:#aaa;">(<span id="target-val-pulls">${pullsNeeded.toLocaleString()}</span> ${state.currentLang === "es" ? "arcanos" : "arcanes"})</span>
           </div>
         </div>
         <div class="vosfor-stat-card">
           <div class="vosfor-stat-card-label">${escapeHTML(t.targetSimCreditsNeed || "Créditos")}</div>
           <div id="target-val-credits" class="vosfor-stat-card-val" style="color:#ffd76e;"><span id="target-val-credits-num">${(creditsNeeded / 1000000).toFixed(2)}M</span> ${creditsIcon(15)}</div>
+        </div>
+        <div class="vosfor-stat-card">
+          <div class="vosfor-stat-card-label">${escapeHTML(t.targetSimPlatNeed || "Platino Neto")}</div>
+          <div id="target-val-plat" class="vosfor-stat-card-val" style="color:#42f56c;"><span id="target-val-plat-num">${platOut !== null ? platOut.toLocaleString() : "…"}</span>${PLAT}</div>
         </div>
       </div>
       <div id="target-explain-box" style="font-size:0.75rem;color:#888;margin-top:8px;">
@@ -1174,13 +998,13 @@ function sellRateInfo() {
         const pack = vosData.packs.find((p) => p.id === sellRatePackId);
         if (pack) {
             const ev = computePackEV(pack, vosData.arcanes);
-            if (ev.ready && ev.balancedRate > 0) {
-                return { rate: ev.balancedRate, pack, custom: true };
+            if (ev.ready && ev.rate > 0) {
+                return { rate: ev.rate, pack, custom: true };
             }
         }
     }
-    const best = bestBalancedPackRate(vosData);
-    return best ? { rate: best.balancedRate, pack: best.pack, custom: false } : null;
+    const best = bestPackRate(vosData);
+    return best ? { rate: best.rate, pack: best.pack, custom: false } : null;
 }
 
 function sellSimMath() {
@@ -1226,7 +1050,7 @@ function updateSellSimDOM() {
 
     const es = state.currentLang === "es";
     const signature = m && m.st
-        ? [sellArcSlug, sellRank, sellRatePackId, m.sim.verdict, m.bestRate ? fmtRate(m.bestRate.rate) : "-", m.unitPrice > 0 ? 1 : 0, state.currentLang].join("|")
+        ? [sellArcSlug, sellRank, sellQty, sellRatePackId, m.sim.verdict, m.bestRate ? fmtRate(m.bestRate.rate) : "-", m.unitPrice > 0 ? 1 : 0, state.currentLang].join("|")
         : m ? "loading" : "empty";
 
     if (signature !== lastSellSignature || !box.firstElementChild) {
@@ -1241,7 +1065,6 @@ function updateSellSimDOM() {
             return;
         }
 
-        const rankLbl = m.isMax ? `R${m.maxRank}` : "R0";
         const noMarket = `<span style="color:#888;font-size:0.8rem;">${escapeHTML(t.noMarket || "sin mercado")}</span>`;
 
         const ratePackName = m.bestRate ? packName(m.bestRate.pack) : "";
@@ -1251,50 +1074,47 @@ function updateSellSimDOM() {
                 : (es ? `gastándolo en el mejor pack, ${ratePackName}` : `spending it on the best pack, ${ratePackName}`))
             : (es ? "esperando precios de packs…" : "waiting for pack prices…");
 
-        let metricLine = "";
-        if (m.bestRate && m.sim.totalVosfor > 0 && m.sim.dissolveValue !== null) {
-            const sellPerVosfor = m.sim.sellValue / m.sim.totalVosfor;
-            const dissolvePerVosfor = m.sim.dissolveValue / m.sim.totalVosfor;
-            const discountPct = Math.round((1 - dissolvePerVosfor / m.bestRate.rate) * 100);
-            const cmp = es
-                ? `Vendiendo sacas <b>${sellPerVosfor.toFixed(3)} pl por Vosfor</b> sacrificado; disolviendo, <b>${dissolvePerVosfor.toFixed(3)} pl por Vosfor</b> (tasa de ${escapeHTML(ratePackName)} ajustada por liquidez, un ${discountPct}% menos por ser una apuesta).`
-                : `Selling nets <b>${sellPerVosfor.toFixed(3)} pl per Vosfor</b> sacrificed; dissolving, <b>${dissolvePerVosfor.toFixed(3)} pl per Vosfor</b> (${escapeHTML(ratePackName)} rate adjusted for liquidity, ${discountPct}% off for being a gamble).`;
-            metricLine = `<div style="font-size:0.76rem;color:#aaa;margin-top:6px;line-height:1.4;">${cmp}</div>`;
-        }
-
         const verdictMap = {
-            sell: { txt: t.verdictSell || "VENDER", css: "verdict-sell" },
+            sell_r0: { txt: t.verdictSellR0 || "VENDER R0", css: "verdict-sell" },
+            sell_max: { txt: `${t.verdictSell || "VENDER"} R${m.maxRank}`, css: "verdict-sell" },
             dissolve: { txt: t.verdictDissolve || "DISOLVER", css: "verdict-dissolve" },
             even: { txt: t.verdictEven || "PAREJO", css: "verdict-even" },
+            nodata: { txt: t.verdictNoData || "Sin datos", css: "verdict-even" },
             pending: { txt: "…", css: "verdict-even" },
         };
         const vd = verdictMap[m.sim.verdict] || verdictMap.pending;
 
+        const optMergeLabel = (t.sellSimOptMerge || "Juntar en R{rank} ({copies} copias)")
+            .replace("{rank}", m.maxRank)
+            .replace("{copies}", m.sim.copiesMax);
+
+        const fullSets = Math.floor(m.sim.totalCopies / m.sim.copiesMax);
+        const remCopies = m.sim.totalCopies % m.sim.copiesMax;
+        const mergeDetail = fullSets > 0
+            ? (remCopies > 0 ? `${fullSets}× R${m.maxRank} + ${remCopies}× R0` : `${fullSets}× R${m.maxRank}`)
+            : `${m.sim.totalCopies}/${m.sim.copiesMax} R0`;
+
         box.innerHTML = `
           <div class="vosfor-stat-cards">
             <div class="vosfor-stat-card">
-              <div class="vosfor-stat-card-label">${escapeHTML(t.sellSimUnitPrice || "Precio unidad")} (${rankLbl})</div>
-              <div class="vosfor-stat-card-val">${m.unitPrice > 0 ? `<span data-f="unit"></span>${PLAT}` : noMarket}</div>
+              <div class="vosfor-stat-card-label">${escapeHTML(t.sellSimOptR0 || "Vender sueltas (R0)")} (<span data-f="r0qty">${m.sim.totalCopies}× R0</span>)</div>
+              <div class="vosfor-stat-card-val" style="color:#42f56c;">${m.sim.sellR0Value > 0 ? `<span data-f="saler0">${Math.round(m.sim.sellR0Value)}</span>${PLAT}` : noMarket}</div>
             </div>
             <div class="vosfor-stat-card">
-              <div class="vosfor-stat-card-label">${escapeHTML(t.sellSimTotalSale || "Lo que sacas vendiendo")} (<span data-f="qty"></span>)</div>
-              <div class="vosfor-stat-card-val" style="color:#42f56c;">${m.unitPrice > 0 ? `<span data-f="sale"></span>${PLAT}` : noMarket}</div>
-              <div data-f="realnote" style="font-size:0.66rem;color:#888;"></div>
+              <div class="vosfor-stat-card-label">${escapeHTML(optMergeLabel)}</div>
+              <div class="vosfor-stat-card-val" style="color:#42f56c;">${m.sim.mergeValue !== null && m.sim.mergeValue > 0 ? `<span data-f="salemerge">${Math.round(m.sim.mergeValue)}</span>${PLAT}` : noMarket}</div>
+              <div data-f="mergedetail" style="font-size:0.66rem;color:#888;">${escapeHTML(mergeDetail)}</div>
             </div>
             <div class="vosfor-stat-card">
-              <div class="vosfor-stat-card-label">${escapeHTML(t.sellSimTotalVosfor || "Vosfor al disolver")}</div>
-              <div class="vosfor-stat-card-val" style="color:#c59afc;"><span data-f="tvos"></span>${vosforIcon()}</div>
-            </div>
-            <div class="vosfor-stat-card">
-              <div class="vosfor-stat-card-label">${escapeHTML(t.sellSimVosforEquiv || "Disolver rinde (ajustado)")}</div>
-              <div class="vosfor-stat-card-val" style="color:var(--vosfor-accent-text);"><span data-f="equiv"></span>${m.sim.dissolveValue !== null ? PLAT : ""}</div>
+              <div class="vosfor-stat-card-label">${escapeHTML(t.sellSimOptDissolve || "Disolver en Loid")}</div>
+              <div class="vosfor-stat-card-val" style="color:var(--vosfor-accent-text);"><span data-f="equiv">${m.sim.dissolveValue !== null ? m.sim.dissolveValue.toFixed(1) : "…"}</span>${m.sim.dissolveValue !== null ? PLAT : ""}</div>
+              <div style="font-size:0.66rem;color:#c59afc;"><span data-f="tvos">${m.sim.totalVosfor.toLocaleString()}</span>${vosforIcon(12)}</div>
             </div>
           </div>
           <div style="display:flex;align-items:center;gap:10px;margin-top:8px;flex-wrap:wrap;">
             <span class="verdict-tag ${vd.css}" style="font-size:0.85rem;">${escapeHTML(vd.txt)}</span>
             <span style="font-size:0.76rem;color:#999;">${escapeHTML(es ? "Vender vs disolver" : "Sell vs dissolve")} ${escapeHTML(rateNote)}</span>
           </div>
-          ${metricLine}
           <div style="font-size:0.74rem;color:#888;margin-top:6px;"><span data-f="liq"></span>${PLAT}</div>
           <div style="font-size:0.72rem;color:var(--label-color);margin-top:4px;">${es ? `1 unidad R${m.maxRank} = ${m.sim.copiesMax} copias (${m.meta.vosfor} Vosfor cada una al disolver).` : `1 unit at R${m.maxRank} = ${m.sim.copiesMax} copies (${m.meta.vosfor} Vosfor each when dissolved).`}</div>`;
     }
@@ -1306,12 +1126,9 @@ function updateSellSimDOM() {
         if (el) el.textContent = txt;
     };
     const rankLbl = m.isMax ? `R${m.maxRank}` : "R0";
-    set("unit", m.unitPrice);
-    set("qty", `x${sellQty}`);
-    set("sale", Math.round(m.sim.sellValue));
-    set("realnote", m.sim.unitRealizable < m.unitPrice
-        ? (es ? `anunciado a ${m.unitPrice} × ${sellQty}; vender tantos obliga a bajar el precio` : `listed at ${m.unitPrice} × ${sellQty}; selling that many means lowering the price`)
-        : "");
+    set("r0qty", `${m.sim.totalCopies}× R0`);
+    set("saler0", Math.round(m.sim.sellR0Value));
+    if (m.sim.mergeValue !== null) set("salemerge", Math.round(m.sim.mergeValue));
     set("tvos", m.sim.totalVosfor.toLocaleString());
     set("equiv", m.sim.dissolveValue !== null ? m.sim.dissolveValue.toFixed(1) : "…");
     set("liq", es
@@ -1361,7 +1178,7 @@ function sellSimulatorCard() {
           <label style="font-size:0.78rem;color:#aaa;display:block;margin-bottom:4px;">${escapeHTML(t.sellSimRatePackLabel || (state.currentLang === "es" ? "Gastar el Vosfor en:" : "Spend the Vosfor on:"))}</label>
           <select class="wf-input vosfor-select" onchange="globalThis.onSellRatePackChange(this.value)">
             <option value="auto" ${sellRatePackId === "auto" ? "selected" : ""}>${escapeHTML(state.currentLang === "es" ? "Auto (mejor colección)" : "Auto (best collection)")}</option>
-            ${vosData.packs.map((p) => `<option value="${p.id}" ${p.id === sellRatePackId ? "selected" : ""}>${escapeHTML(packName(p))}</option>`).join("")}
+            ${sortedPacksByRate().map((p) => `<option value="${p.id}" ${p.id === sellRatePackId ? "selected" : ""}>${escapeHTML(packName(p))}</option>`).join("")}
           </select>
         </div>
       </div>
@@ -1454,8 +1271,13 @@ function bestActionBadge(v, meta) {
         sell_max: { txt: `${t.verdictSell} R${v.maxRank}`, css: "verdict-sell" },
         dissolve: { txt: t.verdictDissolve, css: "verdict-dissolve" },
         even: { txt: t.verdictEven, css: "verdict-even" },
+        nodata: { txt: t.verdictNoData, css: "verdict-even" },
     };
     const m = map[v.bestAction] || map.even;
+    if (v.bestAction === "nodata") {
+        const ndTip = t.verdictNoDataTip || "";
+        return `<span class="verdict-tag ${m.css}" data-tooltip="${escapeHTML(ndTip)}" style="cursor:help;">${escapeHTML(m.txt)}</span>`;
+    }
     const dissolveVal = (v.netDissolveAdj ?? v.dissolvePlat21 ?? 0).toFixed(1);
     const tip = (t.verdictBatchTip || "")
         .replaceAll("{copies}", v.copiesMax)
@@ -1615,7 +1437,7 @@ function renderOthersGrouped(pack, spend) {
     return html || `<div style="padding:12px;color:#888;font-size:0.85rem;">${state.currentLang === "es" ? "No se encontraron arcanos con ese nombre." : "No arcanes found with that name."}</div>`;
 }
 
-function packCard(pack, bestRate, bestBalancedRate) {
+function packCard(pack, bestRate) {
     const t = vosT();
     const isOthers = pack.id === "others";
     const ev = computePackEV(pack, vosData.arcanes);
@@ -1627,33 +1449,49 @@ function packCard(pack, bestRate, bestBalancedRate) {
 
     const isOpen = expandAllPacks || expandedPack === pack.id || (searchQuery.trim().length > 0);
     const isBestEv = !isOthers && bestRate && bestRate.packId === pack.id;
-    const isBestBalanced = !isOthers && bestBalancedRate && bestBalancedRate.packId === pack.id;
     const syn = PACK_SYNDICATES[pack.id] || PACK_SYNDICATES.others;
+    const cost = pack.cost?.vosfor || PACK_COST;
 
     let evHtml;
+    let topHtml = "";
     if (isOthers) {
         evHtml = ev.ready
             ? ""
             : `<span style="font-size:0.78rem;color:#888;">${escapeHTML(t.loadingPrices || "Cargando precios")} ${ev.loaded}/${ev.total}</span>`;
     } else if (ev.ready) {
-        const rateColor = isBestEv ? "#42f56c" : isBestBalanced ? "#7ecbff" : "#e0e0e0";
+        const rateColor = isBestEv ? "#42f56c" : "#e0e0e0";
+        const netPlatTxt = escapeHTML((t.packNetPlat || "{pl}{platIcon} netos por {cost}{vosIcon}")
+            .replace("{pl}", Math.round(ev.evPlat))
+            .replace("{cost}", cost))
+            .replace("{platIcon}", PLAT)
+            .replace("{vosIcon}", vosforIcon());
         evHtml = `
           <div class="vosfor-rate-val" style="color:${rateColor};">
-            ≈ ${ev.evPlatNet ?? ev.evPlat}${PLAT} <span style="font-size:0.72rem;font-weight:normal;opacity:0.85;">/ pack</span>
+            ${netPlatTxt}
           </div>
           <div class="vosfor-ev-detail" style="display:flex;justify-content:flex-end;">
             ${sellSpeedChip(ev.avgVolume)}
           </div>`;
+        if (ev.top && ev.top.packsForMax !== null) {
+            const topMeta = vosData.arcanes[ev.top.slug];
+            const topName = topMeta ? arcName(topMeta) : ev.top.slug;
+            const topRank = Math.min(topMeta?.maxRank ?? 5, 5);
+            const topLine = escapeHTML((t.packTopArcane || "Mejor arcano: {name}. R{rank} cada ~{packs} packs ({vosfor}{vosIcon}) → {pl}{platIcon} netos")
+                .replace("{name}", topName)
+                .replace("{rank}", topRank)
+                .replace("{packs}", Math.round(ev.top.packsForMax).toLocaleString())
+                .replace("{vosfor}", Math.round(ev.top.vosforForMax).toLocaleString())
+                .replace("{pl}", Math.round(ev.top.netMax).toLocaleString()))
+                .replace("{platIcon}", PLAT)
+                .replace("{vosIcon}", vosforIcon(13));
+            topHtml = `<div class="vosfor-pack-sub" style="margin-top:2px;color:#ccc;">${topLine}</div>`;
+        }
     } else {
         evHtml = `<span style="font-size:0.78rem;color:#888;">${escapeHTML(t.loadingPrices || "Cargando precios")} ${ev.loaded}/${ev.total}</span>`;
     }
 
     const bestEvTag = isBestEv
         ? `<span class="badge-vosfor badge-best-spend">${escapeHTML(t.bestPack || "MEJOR GASTO")}</span>`
-        : "";
-
-    const bestLiquidTag = isBestBalanced
-        ? `<span class="badge-vosfor badge-high-liquid">${escapeHTML(t.maxLiquidTitle || "VENTA RÁPIDA")}</span>`
         : "";
 
     let body = "";
@@ -1683,10 +1521,10 @@ function packCard(pack, bestRate, bestBalancedRate) {
               <div style="margin-top:8px;">
                 ${sortBar}
                 ${header}
-                ${renderOthersGrouped(pack, bestBalancedRate)}
+                ${renderOthersGrouped(pack, bestRate)}
               </div>`;
         } else {
-            const rows = itemsMatching.map((s) => arcaneRow(s, bestBalancedRate, pack)).join("");
+            const rows = itemsMatching.map((s) => arcaneRow(s, bestRate, pack)).join("");
             body = `
               <div style="margin-top:8px;">
                 ${packHighlights(pack, bestRate)}
@@ -1707,13 +1545,13 @@ function packCard(pack, bestRate, bestBalancedRate) {
           <div class="vosfor-pack-title">
             ${isOthers ? escapeHTML(t.othersTitle || "Otros arcanos") : escapeHTML(packName(pack))}
             ${bestEvTag}
-            ${bestLiquidTag}
           </div>
           <div class="vosfor-pack-sub" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
             <span style="color:var(--vosfor-accent-text);font-weight:600;">${escapeHTML(synName)}</span>
             <span>· ${pack.items.length} ${escapeHTML(t.arcanes || "arcanos")}</span>
-            ${isOthers ? "" : `<span>· ${pack.cost.vosfor}${vosforIcon()} + ${(pack.cost.credits / 1000)}k${creditsIcon()}</span>`}
+            ${isOthers ? "" : `<span>· ${cost}${vosforIcon()} + ${(pack.cost.credits / 1000)}k${creditsIcon()}</span>`}
           </div>
+          ${topHtml}
         </div>
         <div class="vosfor-pack-ev">${evHtml}</div>
         <span style="color:var(--vosfor-accent-text);font-size:1rem;margin-left:6px;">${isOpen ? "▲" : "▼"}</span>
@@ -1733,68 +1571,30 @@ function guideBoxCard() {
         <span style="margin-left:auto;font-size:0.85rem;color:var(--vosfor-accent-text);font-weight:700;">${showGuide ? "▲" : "▼"} ${escapeHTML(toggleLabel)}</span>
       </div>
       <div style="${bodyStyle}">
+        <div style="font-size:0.8rem;color:#ccc;margin-top:8px;margin-bottom:8px;">${escapeHTML(t.guideR5Note || "")}</div>
         <div class="vosfor-guide-grid">
           <div class="vosfor-guide-item">
-            <b>${escapeHTML(t.guideStep1Title || "1. Tiradas en Loid")}</b>
-            ${escapeHTML(t.guideStep1Desc || "Cada pack cuesta 200 Vosfor + 50k cr y te otorga 3 arcanos aleatorios de la colección.")}
+            <b>${escapeHTML(t.guideStep1Title || "")}</b>
+            ${escapeHTML(t.guideStep1Desc || "")}
           </div>
           <div class="vosfor-guide-item">
-            <b>${escapeHTML(t.guideStep2Title || "2. Vender vs Disolver")}</b>
-            ${escapeHTML(t.guideStep2Desc || "El veredicto te indica si ganas más Platinum vendiéndolo o disolviéndolo de nuevo en Loid.")}
+            <b>${escapeHTML(t.guideStep2Title || "")}</b>
+            ${escapeHTML(t.guideStep2Desc || "")}
           </div>
           <div class="vosfor-guide-item">
-            <b>${escapeHTML(t.guideStep3Title || "3. Rango 0 vs Rango 5")}</b>
-            ${escapeHTML(t.guideStep3Desc || "Compara si te conviene vender la copia suelta o reunir copias para vender al rango máximo con bonus. Además, vender al máximo nivel ahorra muchos trades diarios.")}
+            <b>${escapeHTML(t.guideStep3Title || "")}</b>
+            ${escapeHTML(t.guideStep3Desc || "")}
           </div>
           <div class="vosfor-guide-item">
-            <b>${escapeHTML(t.guideStep4Title || "4. Liquidez de Mercado")}</b>
-            ${escapeHTML(t.guideStep4Desc || "El modo Balanceado evita packs inflados con arcanos raros que tardan semanas en venderse.")}
+            <b>${escapeHTML(t.guideStep4Title || "")}</b>
+            ${escapeHTML(t.guideStep4Desc || "")}
+          </div>
+          <div class="vosfor-guide-item">
+            <b>${escapeHTML(t.guideStep5Title || "")}</b>
+            ${escapeHTML(t.guideStep5Desc || "")}
           </div>
         </div>
       </div>
-    </div>`;
-}
-
-function calculatorWidgetCard(data) {
-    const t = vosT();
-    if (!data) return "";
-
-    const autoOptName = state.currentLang === "es"
-        ? "Recomendación Automática (Mejor EV & Venta Rápida)"
-        : "Auto Recommendation (Max EV & Fast Sale)";
-
-    const packOptions = [
-        `<option value="auto" ${calcSelectedPackId === "auto" ? "selected" : ""}>${escapeHTML(autoOptName)}</option>`,
-        ...data.packs.map((p) => {
-            const sel = p.id === calcSelectedPackId ? "selected" : "";
-            return `<option value="${p.id}" ${sel}>${escapeHTML(packName(p))}</option>`;
-        })
-    ].join("");
-
-    return `
-    <div class="vosfor-calc-widget">
-      <div class="vosfor-calc-header">
-        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;width:100%;max-width:280px;flex-shrink:0;">
-          <div class="vosfor-calc-input-group" style="width:100%;">
-            <label for="vosfor-input-field">${escapeHTML(t.calcLabel || "Tu Vosfor:")}</label>
-            <input id="vosfor-input-field" type="number" class="vosfor-calc-input" value="${userVosfor}" step="200" min="0" oninput="onVosforInputChange(this.value)">
-            <span style="font-size:0.85rem;color:#c59afc;font-weight:bold;margin-left:2px;">${vosforIcon()}</span>
-          </div>
-          <input id="vosfor-calc-slider" type="range" class="vosfor-slider" min="200" max="${Math.max(10000, Math.ceil(userVosfor * 1.5 / 200) * 200)}" step="200" value="${userVosfor}" style="width:100%;margin-top:4px;" oninput="onVosforInputChange(this.value)">
-          <div class="vosfor-preset-group" style="width:100%;justify-content:space-between;margin-top:2px;">
-            <button class="vosfor-preset-btn" onclick="addVosforPreset(200)">+200</button>
-            <button class="vosfor-preset-btn" onclick="addVosforPreset(600)">+600</button>
-            <button class="vosfor-preset-btn" onclick="addVosforPreset(2000)">+2000</button>
-            <button class="vosfor-preset-btn" style="background:rgba(255,100,100,0.15);color:#ff8888;border-color:rgba(255,100,100,0.3);" onclick="resetVosforInput()">Reset</button>
-          </div>
-        </div>
-      </div>
-      <div style="margin-bottom:8px;">
-        <label style="font-size:0.78rem;color:#aaa;display:block;margin-bottom:4px;">${escapeHTML(state.currentLang === "es" ? "Colección a Simular:" : "Collection to Simulate:")}</label>
-        <select class="wf-input vosfor-select" onchange="globalThis.onVosforCalcPackChange(this.value)">${packOptions}</select>
-      </div>
-      <div style="font-size:0.82rem;color:#aaa;margin-bottom:6px;">${escapeHTML(t.calcSub || "Simula cuántas tiradas puedes hacer y qué colección rinde más:")}</div>
-      <div id="vosfor-calc-results-box" class="vosfor-calc-results"></div>
     </div>`;
 }
 
@@ -1810,11 +1610,11 @@ function searchAndControlsBar() {
     </div>`;
 }
 
-function pixCard(bestBalancedRate) {
+function pixCard(bestRate) {
     if (!vosData?.hex_pix) return "";
     const t = vosT();
     const es = state.currentLang === "es";
-    const pr = pixRank(vosData, bestBalancedRate);
+    const pr = pixRank(vosData, bestRate);
 
     const rows = pr.rows.map((r, i) => {
         const name = arcName(r.meta);
@@ -1831,7 +1631,7 @@ function pixCard(bestBalancedRate) {
 
     const vosforRow = `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-top:1px solid rgba(255,255,255,0.06);opacity:.9;">
         <span style="width:22px;text-align:center;">${vosforIcon(15)}</span>
-        <span style="flex:1;font-size:0.82rem;">${escapeHTML(es ? "Gastar pix en vosfor (200 = 6 pix)" : "Spend pix on vosfor (200 = 6 pix)")}</span>
+        <span style="flex:1;font-size:0.82rem;">${escapeHTML(es ? `Gastar pix en vosfor (${PACK_COST} = 6 pix)` : `Spend pix on vosfor (${PACK_COST} = 6 pix)`)}</span>
         <span style="font-size:0.8rem;white-space:nowrap;"><b>${pr.vosforPlatPerPix}</b>${PLAT}/pix</span>
     </div>`;
 
@@ -1844,7 +1644,7 @@ function pixCard(bestBalancedRate) {
     // one root element: grid-template-rows:0fr only collapses the first grid row
     return `
       <div class="vosfor-pix-widget">
-        <div style="font-size:0.72rem;color:#bbb;margin-bottom:6px;">${escapeHTML(es ? "Cada arcano cuesta 5 pix a R0; 200 vosfor cuestan 6 pix. Precio de venta realizable (no el listing a pelo)." : "Each arcane costs 5 pix at R0; 200 vosfor cost 6 pix. Realizable sale price (not the raw listing).")}</div>
+        <div style="font-size:0.72rem;color:#bbb;margin-bottom:6px;">${escapeHTML(es ? `Cada arcano cuesta 5 pix a R0; ${PACK_COST} vosfor cuestan 6 pix. Precio de venta realizable (no el listing a pelo).` : `Each arcane costs 5 pix at R0; ${PACK_COST} vosfor cost 6 pix. Realizable sale price (not the raw listing).`)}</div>
         ${rows}
         ${vosforRow}
         <div style="font-size:0.74rem;color:#cbb3e0;margin-top:8px;">${escapeHTML(verdict)}</div>
@@ -1867,17 +1667,14 @@ export async function renderVosforTab() {
     }
 
     const bestRate = bestPackRate(vosData);
-    const bestBalancedRate = bestBalancedPackRate(vosData);
 
     const packsSorted = [...vosData.packs].sort((a, b) => {
         const ea = computePackEV(a, vosData.arcanes);
         const eb = computePackEV(b, vosData.arcanes);
-        if (packSort === "balanced") return (eb.ready ? eb.balancedRate : -1) - (ea.ready ? ea.balancedRate : -1);
-        if (packSort === "liq") return (eb.ready ? eb.avgVolume : -1) - (ea.ready ? ea.avgVolume : -1);
-        return (eb.ready ? eb.platPerVosfor : -1) - (ea.ready ? ea.platPerVosfor : -1);
+        return (eb.ready ? eb.rate : -1) - (ea.ready ? ea.rate : -1);
     });
 
-    const othersCard = vosData.others?.length ? packCard(othersPack(vosData), bestRate, bestBalancedRate) : "";
+    const othersCard = vosData.others?.length ? packCard(othersPack(vosData), bestRate) : "";
 
     box.innerHTML = `
       <div class="vosfor-container">
@@ -1885,31 +1682,28 @@ export async function renderVosforTab() {
         <div class="vos-tools">
           ${toolSection("sell", vosforIcon(20), t.toolSellTitle || "¿Vender o disolver?",
     t.toolSellSub || "", sellSimulatorCard())}
-          ${toolSection("calc", vosforIcon(20), t.toolCalcTitle || "Calculadora",
-    t.toolCalcSub || "", calculatorWidgetCard(vosData))}
           ${toolSection("target", vosforIcon(20), t.toolTargetTitle || "Arcano objetivo",
     t.toolTargetSub || "", targetArcaneSimulatorCard())}
           ${toolSection("ranking", "🏆", t.toolRankingTitle || "Ranking",
-    t.toolRankingSub || "", rankingLeaderboardCard(bestBalancedRate))}
+    t.toolRankingSub || "", rankingLeaderboardCard(bestRate))}
           ${toolSection("pix", "🪙", t.toolPixTitle || "The Hex",
-    t.toolPixSub || "", pixCard(bestBalancedRate))}
-          ${toolSection("sindicatos", vosforIcon(20), t.toolSyndTitle || "Sindicatos", t.toolSyndSub || "",
-    sindicatosCard(rentaSindicatos(vosData, { stats: ARC_STATS, precioSuelto: realizableR0, precioMax: realizableMax }), {
-        es: state.currentLang === "es", plat: PLAT,
+    t.toolPixSub || "", pixCard(bestRate))}
+          ${toolSection("sindicatos", platIcon(20), t.toolSyndTitle || "Sindicatos", t.toolSyndSub || "",
+    sindicatosCard(rentaSindicatos(vosData, { stats: ARC_STATS, precioSuelto: realizableR0, precioMax: realizableMax, tasaPl: bestRate?.rate || 0, orden: ordenSindicatos() }), {
+        es: state.currentLang === "es", plat: PLAT, vos: vosforIcon(13), t,
         nombreDe: (slug) => { const m = vosData.tradables?.[slug]; return m ? (state.currentLang === "es" ? m[1] : m[0]) : slug; },
     }))}
         </div>
         ${searchAndControlsBar()}
-        ${searchResultsCard(bestBalancedRate)}
+        ${searchResultsCard(bestRate)}
         <div class="vosfor-explain-text">${escapeHTML(t.explain || "")}</div>
         <div style="display:flex;flex-direction:column;gap:10px;">
-          ${packsSorted.map((p) => packCard(p, bestRate, bestBalancedRate)).join("")}
+          ${packsSorted.map((p) => packCard(p, bestRate)).join("")}
           ${othersCard}
         </div>
         <div style="font-size:0.75rem;color:var(--label-color);margin-top:6px;">${escapeHTML(t.dataNote || "")} ${escapeHTML(vosData.updated || "")}</div>
       </div>`;
 
-    updateCalculatorWidgetDOM();
     updateSellSimDOM();
     initJadeCosmicEasterEgg();
 }
@@ -1946,6 +1740,11 @@ export function setVosforSort(v) {
     renderVosforTab();
 }
 
+export function setVosforSindOrden(valor) {
+    setOrdenSindicatos(valor);
+    renderVosforTab();
+}
+
 export function setVosforRankTab(tab) {
     activeRankTab = tab;
     renderVosforTab();
@@ -1964,13 +1763,17 @@ export function setVosforRankLimit(limit) {
 export function onTargetPackChange(packId) {
     targetPackId = packId;
     const pack = vosData?.packs.find((p) => p.id === packId);
-    if (pack && pack.items.length) targetArcSlug = pack.items[0];
+    if (pack && pack.items.length) {
+        targetArcSlug = pack.items[0];
+        targetCopies = copiesForMaxRank(vosData?.arcanes?.[targetArcSlug]);
+    }
     targetCustomPacks = null;
     renderVosforTab();
 }
 
 export function onTargetArcChange(slug) {
     targetArcSlug = slug;
+    targetCopies = copiesForMaxRank(vosData?.arcanes?.[slug]);
     targetCustomPacks = null;
     updateTargetSimDOM();
 }
@@ -2043,33 +1846,6 @@ export function toggleVosforExpandAll() {
     renderVosforTab();
 }
 
-let calcUpdateTimer = null;
-function scheduleCalcUpdate() {
-    if (calcUpdateTimer) return;
-    calcUpdateTimer = setTimeout(() => {
-        calcUpdateTimer = null;
-        updateCalculatorWidgetDOM();
-    }, 120);
-}
-
-export function onVosforInputChange(val) {
-    const num = parseInt(val, 10);
-    if (!isNaN(num) && num >= 0) {
-        userVosfor = num;
-        scheduleCalcUpdate();
-    }
-}
-
-export function addVosforPreset(delta) {
-    userVosfor = (userVosfor || 0) + delta;
-    updateCalculatorWidgetDOM();
-}
-
-export function resetVosforInput() {
-    userVosfor = 0;
-    updateCalculatorWidgetDOM();
-}
-
 export function onVosforSearchInput(val) {
     searchQuery = val || "";
     scheduleRerender();
@@ -2099,9 +1875,7 @@ exposeGlobals({
     onTargetPacksChange,
     toggleVosforPack,
     setVosforSort,
-    onVosforInputChange,
-    addVosforPreset,
-    resetVosforInput,
+    setVosforSindOrden,
     toggleVosforGuide,
     toggleVosforExpandAll,
     onVosforSearchInput,
@@ -2110,7 +1884,6 @@ exposeGlobals({
     hideTargetArcDropdown,
     filterTargetArcDropdown,
     selectTargetArcane,
-    onVosforCalcPackChange,
     showSellArcDropdown,
     hideSellArcDropdown,
     filterSellArcDropdown,

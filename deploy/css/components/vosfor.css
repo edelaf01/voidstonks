@@ -114,7 +114,6 @@
 }
 
 /* !important and [style] beat the inline border/shadow some widgets carry */
-.vos-tool-body .vosfor-calc-widget,
 .vos-tool-body .vosfor-target-widget,
 .vos-tool-body .vosfor-pix-widget,
 .vos-tool-body .vosfor-ranking-section {
@@ -269,16 +268,6 @@
 @keyframes hunhowFadeIn {
     from { opacity: 0; transform: translateY(-4px); }
     to { opacity: 1; transform: translateY(0); }
-}
-
-.vosfor-calc-widget {
-    background: linear-gradient(135deg, color-mix(in srgb, var(--active-theme-color) 15%, transparent) 0%, rgba(20, 20, 35, 0.85) 100%);
-    border: 1px solid color-mix(in srgb, var(--active-theme-color) 40%, transparent);
-    border-radius: var(--radius-box);
-    padding: 16px;
-    margin-bottom: 12px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
-    backdrop-filter: blur(10px);
 }
 
 .vosfor-target-widget {
@@ -749,13 +738,6 @@ select.vosfor-select {
 .vosfor-calc-input::-webkit-outer-spin-button {
     -webkit-appearance: none;
     margin: 0;
-}
-
-.vosfor-calc-results {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: 10px;
-    margin-top: 10px;
 }
 
 .vosfor-calc-card {
@@ -1230,7 +1212,6 @@ select.vosfor-select {
     overflow-wrap: anywhere;
 }
 
-.vosfor-calc-widget,
 .vosfor-target-widget,
 .vosfor-ranking-section {
     position: relative;
@@ -1243,4 +1224,119 @@ select.vosfor-select {
 
 .vosfor-target-widget .custom-dropdown {
     z-index: 90;
+}
+
+.vos-sind-intro {
+    font-size: 0.72rem;
+    color: #bbb;
+    margin-bottom: 8px;
+}
+
+.vos-sind-orden {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 8px;
+    font-size: 0.72rem;
+    color: #999;
+}
+
+.vos-sind-orden .vosfor-ranking-nav-btn {
+    padding: 2px 8px;
+    font-size: 0.72rem;
+}
+
+.vos-sindicato {
+    margin-bottom: 6px;
+}
+
+.vos-sind-resumen {
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 4px 2px;
+}
+
+.vos-sind-nombre {
+    font-weight: 700;
+    color: #e8c88a;
+}
+
+.vos-sind-lineas {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-size: 0.78rem;
+    color: #ccc;
+    text-align: right;
+}
+
+.vos-sind-etiqueta {
+    color: #888;
+    margin-right: 6px;
+}
+
+.vos-sind-marca,
+.vos-sind-gana {
+    color: #00ff78;
+    font-weight: 800;
+}
+
+.vos-sind-scroll {
+    overflow-x: auto;
+}
+
+.vos-sind-tabla {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8rem;
+}
+
+.vos-sind-tabla th {
+    color: #999;
+    font-size: 0.7rem;
+    text-align: right;
+    padding: 2px 6px;
+}
+
+.vos-sind-tabla th:first-child {
+    text-align: left;
+}
+
+.vos-sind-tabla tbody tr {
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.vos-sind-arcano {
+    padding: 3px 6px;
+    color: #fff;
+}
+
+.vos-sind-num {
+    text-align: right;
+    padding: 3px 6px;
+    color: #ddd;
+}
+
+.vos-sind-num.vos-sind-gana {
+    color: #00ff78;
+}
+
+.vos-sind-detalle {
+    font-size: 0.66rem;
+    color: #888;
+    font-weight: 400;
+}
+
+@media (max-width: 600px) {
+    .vos-sind-resumen {
+        flex-direction: column;
+        gap: 2px;
+    }
+
+    .vos-sind-lineas {
+        text-align: left;
+    }
 }

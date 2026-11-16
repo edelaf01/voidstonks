@@ -77,7 +77,8 @@ export function veredictoArcano({ accion, maxRank }, t) {
     "sell_max": { texto: `${t.vosfor.verdictSell} R${maxRank}`, tono: "verde" },
     "sell_r0": { texto: t.vosfor.verdictSellR0, tono: "verde" },
     "dissolve": { texto: t.vosfor.verdictDissolve, tono: "cian" },
-    "even": { texto: t.vosfor.verdictEven, tono: "gris" }
+    "even": { texto: t.vosfor.verdictEven, tono: "gris" },
+    "nodata": { texto: t.vosfor.verdictNoData, tono: "gris" }
   };
   return mapa[accion] || { texto: "…", tono: "gris" };
 }
