@@ -13,7 +13,11 @@ import {
     ausentesEnPagina,
     registraVistos,
     acumulaNoVistos,
-    cierraEscaneo
+    cierraEscaneo,
+    ordenEsNombre,
+    avanzaTramo,
+    ausentesEnTramo,
+    vaPrimeroEnLista
 } from "../deploy/js/utils/inventory/ausencias_rejilla.js";
 
 const corpus = JSON.parse(readFileSync(new URL("./_fixtures/corpus-verdad.json", import.meta.url), "utf8"));
@@ -511,3 +515,128 @@ test("cierraEscaneo descuenta a cero con dos aperturas y aplica reglas de votos,
     cierraEscaneo(eDist, "A", { X: 1 }, T0);
     assert.deepEqual(eDist, clonPureza);
 });
+
+test("ordenEsNombre reconoce variantes de nombre y descarta otros órdenes", () => {
+    assert.equal(ordenEsNombre("NAME ▼"), true);
+    assert.equal(ordenEsNombre("NOMBRE"), true);
+    assert.equal(ordenEsNombre("OWNED"), false);
+    assert.equal(ordenEsNombre(""), false);
+});
+
+test("avanzaTramo fusiona solapados con mismo id, incrementa id sin solape y marca inicio con Odonata", () => {
+    const t1 = avanzaTramo(null, celdasDe(["Bo Prime Handle", "Bo Prime Ornament"]), 6, getSetName, vaPrimeroEnLista);
+    const t2 = avanzaTramo(t1, celdasDe(["Bo Prime Ornament", "Bo Prime Blueprint"]), 6, getSetName, vaPrimeroEnLista);
+    assert.equal(t2.id, t1.id);
+    assert.deepEqual(t2.nombres, ["Bo Prime Handle", "Bo Prime Ornament", "Bo Prime Blueprint"]);
+
+    const t3 = avanzaTramo(t1, celdasDe(["Braton Prime Barrel", "Braton Prime Stock"]), 6, getSetName, vaPrimeroEnLista);
+    assert.equal(t3.id, t1.id + 1);
+    assert.deepEqual(t3.nombres, ["Braton Prime Barrel", "Braton Prime Stock"]);
+
+    const tOdo = avanzaTramo(null, celdasDe(["Odonata Prime Blueprint", "Acceltra Prime Barrel"]), 6, getSetName, vaPrimeroEnLista);
+    assert.equal(tOdo.inicio, true);
+});
+
+test("ausentesEnTramo detecta ausentes en sets interiores, respeta bordes salvo inicio y exige cantidades crecientes", () => {
+    const tramo = {
+        nombres: ["Baruuk Prime Blueprint", "Baza Prime Blueprint", "Bo Prime Blueprint"],
+        cants: [1, 2, 3],
+        inicio: false,
+        id: 1,
+    };
+    const inv = {
+        "Baruuk Prime Chassis Blueprint": 1,
+        "Baza Prime Barrel": 1,
+        "Bo Prime Handle": 1,
+    };
+    assert.deepEqual(ausentesEnTramo(tramo, inv, getSetName, vaPrimeroEnLista), {
+        inferible: true,
+        ausentes: ["Baza Prime Barrel"],
+    });
+
+    const tramoInicio = {
+        nombres: ["Bo Prime Ornament", "Bo Prime Blueprint"],
+        cants: [1, 2],
+        inicio: true,
+        id: 1,
+    };
+    const invInicio = {
+        "Bo Prime Handle": 1,
+        "Boar Prime Blueprint": 1,
+    };
+    assert.deepEqual(ausentesEnTramo(tramoInicio, invInicio, getSetName, vaPrimeroEnLista), {
+        inferible: true,
+        ausentes: ["Bo Prime Handle"],
+    });
+    assert.deepEqual(ausentesEnTramo({ ...tramoInicio, inicio: false }, invInicio, getSetName, vaPrimeroEnLista), {
+        inferible: true,
+        ausentes: [],
+    });
+
+    const tramoFlat = {
+        nombres: ["Bo Prime Handle", "Bo Prime Ornament"],
+        cants: [2, 1],
+        inicio: false,
+        id: 1,
+    };
+    assert.deepEqual(ausentesEnTramo(tramoFlat, { "Bo Prime Blueprint": 1 }, getSetName, vaPrimeroEnLista), {
+        inferible: false,
+        motivo: "cantidades",
+        ausentes: [],
+    });
+});
+
+test("avanzaTramo: a next page whose first name sorts right after the tramo's last name, with nothing owned in between, joins the tramo (same id, names merged)", () => {
+    const t1 = avanzaTramo(null, celdasDe(["Bo Prime Handle", "Bo Prime Ornament"]), 6, getSetName, vaPrimeroEnLista);
+    const t2 = avanzaTramo(t1, celdasDe(["Braton Prime Barrel", "Braton Prime Stock"]), 6, getSetName, vaPrimeroEnLista, { "Boar Prime Barrel": 0 });
+    assert.equal(t2.id, t1.id);
+    assert.deepEqual(t2.nombres, ["Bo Prime Handle", "Bo Prime Ornament", "Braton Prime Barrel", "Braton Prime Stock"]);
+});
+
+test("avanzaTramo: same pages but an owned item (qty > 0) sorts between them, so it starts a new tramo with id + 1", () => {
+    const t1 = avanzaTramo(null, celdasDe(["Bo Prime Handle", "Bo Prime Ornament"]), 6, getSetName, vaPrimeroEnLista);
+    const t2 = avanzaTramo(t1, celdasDe(["Braton Prime Barrel", "Braton Prime Stock"]), 6, getSetName, vaPrimeroEnLista, { "Boar Prime Barrel": 1 });
+    assert.equal(t2.id, t1.id + 1);
+    assert.deepEqual(t2.nombres, ["Braton Prime Barrel", "Braton Prime Stock"]);
+});
+
+test("ausentesEnTramo: tramo contains unowned in previo Blueprint in interior set while Link is owned in previo and not in tramo", () => {
+    const tramo = {
+        nombres: ["Acceltra Prime Blueprint", "Akbolto Prime Blueprint", "Bo Prime Blueprint"],
+        cants: [1, 2, 3],
+        inicio: false,
+        id: 1,
+    };
+    const inv = { "Akbolto Prime Link": 1 };
+    const previo = { "Akbolto Prime Link": 1 };
+    assert.deepEqual(ausentesEnTramo(tramo, inv, getSetName, vaPrimeroEnLista, previo), {
+        inferible: true,
+        ausentes: [],
+    });
+});
+
+test("ausentesEnPagina: page contains unowned in previo Blueprint in interior set while Link is owned in previo and not on page", () => {
+    const celdas = celdasDe(["Acceltra Prime Blueprint", "Akbolto Prime Blueprint", "Bo Prime Blueprint"]);
+    const inv = { "Akbolto Prime Link": 1 };
+    const previo = { "Akbolto Prime Link": 1 };
+    assert.deepEqual(ausentesEnPagina(celdas, inv, getSetName, { ...PUERTA, vaPrimero: vaPrimeroEnLista, previo }), {
+        inferible: true,
+        ausentes: [],
+    });
+});
+
+test("ausentesEnTramo: all seen parts of the interior set are owned in previo so missing owned part is reported", () => {
+    const tramo = {
+        nombres: ["Acceltra Prime Blueprint", "Akbolto Prime Blueprint", "Bo Prime Blueprint"],
+        cants: [1, 2, 3],
+        inicio: false,
+        id: 1,
+    };
+    const inv = { "Akbolto Prime Link": 1 };
+    const previo = { "Akbolto Prime Blueprint": 1, "Akbolto Prime Link": 1 };
+    assert.deepEqual(ausentesEnTramo(tramo, inv, getSetName, vaPrimeroEnLista, previo), {
+        inferible: true,
+        ausentes: ["Akbolto Prime Link"],
+    });
+});
+

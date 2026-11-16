@@ -201,6 +201,20 @@ test("las listas rellenan las filas cortas y la primera columna es la que encoge
   assert.match(html, /dato tono-gradoA/);
 });
 
+test("una lista puede ir a la izquierda con anchos mínimos y descarta los anchos raros", () => {
+  const html = htmlBloque({ tipo: "lista", alinear: "izquierda", anchos: [7, "x\" onload=\"", 99], filas: [[{ texto: "a" }, { texto: "b" }, { texto: "c" }, { texto: "d" }]] });
+  assert.match(html, /^<div class="lista izq" style="grid-template-columns: minmax\(0, 1fr\) minmax\(7em, max-content\) max-content max-content">/);
+  assert.doesNotMatch(html, /onload/);
+  assert.match(htmlBloque({ tipo: "lista", filas: [[{ texto: "a" }, { texto: "b" }]] }), /^<div class="lista" style=/);
+});
+
+test("el medidor de la tirada va delante del texto, se limita a 0-100 y un nivel raro no se pinta", () => {
+  const html = htmlBloque({ tipo: "lista", filas: [[{ texto: "x" }, { texto: "MILD", medidor: { pos: 250, nivel: "rara\"", atenuado: true } }], [{ texto: "y" }, { texto: "HEAVY", medidor: { pos: 40, nivel: "baja" } }]] });
+  assert.match(html, /<span class="medidor nivel-nula atenuado" style="--pos: 100%"><\/span>MILD/);
+  assert.match(html, /<span class="medidor nivel-baja" style="--pos: 40%"><\/span>HEAVY/);
+  assert.doesNotMatch(html, /rara/);
+});
+
 test("los paneles se anclan, no se salen del juego y con mismoAncho miden igual", () => {
   const vista = { ancho: 2000, alto: 1000 };
   const [c, d, i] = coloca([{ x: 0.5, y: 0.44 }, { x: 0.985, y: 0.1, anclaje: "derecha" }, { x: 0, y: 0.2, anclaje: "izquierda" }], [200, 300, 100], vista);

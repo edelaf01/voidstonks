@@ -394,6 +394,7 @@ function buildFissurePanelShell(missionDiv) {
           showToast(tt.fissureAlarms.dupRule, { tag: "fissure-alarm-dup", duration: 4000 });
           return;
         }
+        showToast(tt.fissureAlarms.added);
         const prefs = getAlarmPrefs();
         if (!prefs.enabled) {
           prefs.enabled = true;
@@ -414,6 +415,7 @@ function buildFissurePanelShell(missionDiv) {
           showToast(tt.fissureAlarms.dupRule, { tag: "fissure-alarm-dup", duration: 4000 });
           return;
         }
+        showToast(tt.fissureAlarms.added);
         const prefs = getAlarmPrefs();
         if (!prefs.enabled) {
           prefs.enabled = true;

@@ -37,3 +37,24 @@ test("los arcanos de todos los sindicatos, sin repetir, para pedir sus precios",
   assert.deepEqual(slugsDeSindicatos(data).sort(), ["cascadia_flare", "magus_lockdown", "molt_vigor"]);
   assert.deepEqual(slugsDeSindicatos({}), []);
 });
+
+const conVosfor = { ...data, arcanes: { cascadia_flare: { vosfor: 22 }, molt_vigor: { vosfor: 22 } } };
+
+test("vosfor por cada 1.000 de reputación y su equivalente en platino", () => {
+  const [holdfasts] = rentaSindicatos(conVosfor, { ...deps, tasaPl: 0.5, orden: "vos" });
+  assert.equal(holdfasts.mejorVos.slug, "molt_vigor");
+  assert.equal(+holdfasts.mejorVos.vosPorMil.toFixed(3), 4.4);
+  assert.equal(+holdfasts.mejorVos.plEquivalente.toFixed(3), 2.2);
+  assert.deepEqual(holdfasts.filas.map((f) => f.slug), ["molt_vigor", "cascadia_flare"]);
+  assert.equal(holdfasts.mejorPl.slug, "cascadia_flare");
+  assert.equal(holdfasts.disolverRindeMas, false);
+  assert.equal(rentaSindicatos(conVosfor, { ...deps, tasaPl: 2 })[0].disolverRindeMas, true);
+});
+
+test("un arcano sin valor de vosfor queda sin dato", () => {
+  const vox = rentaSindicatos(conVosfor, deps).find((s) => s.id === "VoxSyndicate");
+  assert.equal(vox.filas[0].vosfor, null);
+  assert.equal(vox.filas[0].vosPorMil, null);
+  assert.equal(vox.mejorVos, null);
+  assert.equal(vox.disolverRindeMas, false);
+});

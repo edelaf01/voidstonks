@@ -205,7 +205,7 @@ export async function startLiveSession() {
     } else {
       showToast(e.name === "NotAllowedError"
         ? (st().toastShareDenied || "No window was shared.")
-        : (st().toastError || "Error: {msg}").replace("{msg}", e.message));
+        : (st().toastError || "The scanner could not start. Try again."));
     }
     stopLiveSession();
   } finally {

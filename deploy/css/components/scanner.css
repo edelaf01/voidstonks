@@ -77,11 +77,13 @@
     background: rgba(162, 53, 226, 0.12);
     border: 1px solid rgba(162, 53, 226, 0.35);
     color: #dcb3ff;
-    font-weight: 800;
-    font-size: 0.72rem;
-    font-family: 'Outfit', 'Inter', sans-serif;
-    padding: 7px 14px;
-    border-radius: 4px;
+    font-weight: 700;
+    font-size: 0.78rem;
+    font-family: inherit;
+    height: 34px;
+    box-sizing: border-box;
+    padding: 0 12px;
+    border-radius: var(--radius-ctl);
     cursor: pointer;
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     white-space: nowrap;
@@ -406,13 +408,14 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 8px;
-    padding: 9px 12px;
+    gap: 6px;
+    padding: 6px 8px;
     background: linear-gradient(135deg, #0a0c14 0%, #0d1322 100%);
     border: 1px solid rgba(0, 229, 255, 0.4);
     border-bottom: none;
-    border-radius: 8px 8px 0 0;
+    border-radius: var(--radius-box) var(--radius-box) 0 0;
     cursor: grab;
+    white-space: nowrap;
 }
 
 .hud-header.dragging {
@@ -423,74 +426,90 @@
 .hud-header-right {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 5px;
     min-width: 0;
+}
+
+.hud-header-left {
+    flex-shrink: 0;
 }
 
 .hud-header-right {
-    gap: 5px;
-    flex-shrink: 0;
-}
-
-.hud-header-right > * {
-    flex-shrink: 0;
-}
-
-.hud-title {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    flex: 1;
+    justify-content: flex-end;
+    gap: 4px;
 }
 
 .hud-status-dot {
     display: inline-block;
     flex-shrink: 0;
-    width: 7px;
-    height: 7px;
+    width: 6px;
+    height: 6px;
     background: #00e5ff;
     border-radius: 50%;
     box-shadow: 0 0 8px #00e5ff;
 }
 
 .hud-title {
-    font-size: 0.7em;
+    flex: 0 0 auto;
+    font-size: 0.66em;
     font-weight: 800;
-    letter-spacing: 2px;
+    letter-spacing: 1px;
     color: #00e5ff;
+    white-space: nowrap;
 }
 
 .hud-count {
-    padding: 1px 7px;
-    font-size: 0.75em;
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding: 1px 5px;
+    font-size: 0.65em;
     font-weight: 900;
+    line-height: 1.2;
     color: #f1c40f;
     background: rgba(241, 196, 15, 0.12);
     border: 1px solid rgba(241, 196, 15, 0.25);
-    border-radius: 10px;
+    border-radius: var(--radius-ctl);
 }
 
 .hud-context-badge {
-    padding: 2px 7px;
-    font-size: 0.58em;
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding: 1px 6px;
+    font-size: 0.62em;
     font-weight: 700;
-    letter-spacing: 1px;
-    color: #00e5ff;
+    line-height: 1.2;
+    letter-spacing: 0.5px;
+    color: var(--wf-blue);
     background: rgba(0, 229, 255, 0.12);
     border: 1px solid rgba(0, 229, 255, 0.3);
-    border-radius: 10px;
+    border-radius: var(--radius-ctl);
 }
 
 .hud-icon-btn {
-    padding: 2px 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    height: 20px;
+    min-width: 20px;
+    padding: 0 5px;
+    box-sizing: border-box;
     font-family: inherit;
-    font-size: 0.58em;
-    line-height: 1.2;
-    letter-spacing: 1px;
-    color: #506070;
+    font-size: 0.62em;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: 0.5px;
+    color: var(--wf-forma);
     background: rgba(255, 255, 255, 0.03);
     border: 1px solid #2a3040;
-    border-radius: 4px;
+    border-radius: var(--radius-ctl);
     cursor: pointer;
     transition: color 0.15s, border-color 0.15s, background 0.15s;
 }
@@ -502,6 +521,8 @@
 }
 
 .hud-icon-btn.is-collapse {
+    width: 20px;
+    padding: 0;
     font-size: 0.65em;
 }
 
@@ -518,7 +539,7 @@
     background: rgba(9, 11, 18, 0.96);
     border: 1px solid rgba(0, 229, 255, 0.2);
     border-top: 1px solid rgba(0, 229, 255, 0.08);
-    border-radius: 0 0 8px 8px;
+    border-radius: 0 0 var(--radius-box) var(--radius-box);
     backdrop-filter: blur(12px);
     box-shadow:
         0 8px 32px rgba(0, 0, 0, 0.7),
@@ -530,10 +551,10 @@
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-    padding: 5px 12px;
-    font-size: 0.6em;
-    letter-spacing: 1px;
-    color: #506070;
+    padding: 3px 8px;
+    font-size: 0.58em;
+    letter-spacing: 0.8px;
+    color: var(--label-color);
     border-bottom: 1px solid rgba(255, 255, 255, 0.04);
 }
 
@@ -543,30 +564,36 @@
 
 .hud-actions {
     display: flex;
-    gap: 6px;
-    padding: 9px 10px;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 8px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .hud-btn {
-    padding: 7px 4px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 28px;
+    padding: 0 6px;
+    box-sizing: border-box;
     font-family: inherit;
-    font-size: 0.68em;
+    font-size: 0.64em;
     font-weight: 700;
-    letter-spacing: 0.5px;
+    line-height: 1;
+    letter-spacing: 0.4px;
     white-space: nowrap;
     background: none;
     border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 5px;
-    color: #506070;
+    border-radius: var(--radius-ctl);
+    color: var(--label-color);
     cursor: pointer;
     transition: color 0.15s, border-color 0.15s, background 0.15s, box-shadow 0.15s;
 }
 
 .hud-btn.primary {
-    flex: 2;
+    flex: 1.5;
     font-weight: 800;
-    letter-spacing: 1px;
     color: #00e5ff;
     background: rgba(0, 229, 255, 0.1);
     border-color: rgba(0, 229, 255, 0.55);
@@ -579,10 +606,9 @@
 }
 
 .hud-btn.toggle {
-    flex: 1.2;
-    font-size: 0.62em;
+    flex: 1;
     font-weight: 800;
-    color: #4a7a5a;
+    color: var(--wf-green);
     background: rgba(0, 255, 120, 0.06);
     border-color: rgba(0, 255, 120, 0.25);
 }
@@ -593,13 +619,13 @@
 }
 
 .hud-btn.toggle[data-active="1"] {
-    color: #00ff78;
+    color: var(--wf-lfg);
     background: rgba(0, 255, 120, 0.15);
     border-color: rgba(0, 255, 120, 0.6);
 }
 
 .hud-btn.save {
-    flex: 1.5;
+    flex: 1.1;
     color: #7cada8;
     background: rgba(0, 229, 255, 0.06);
     border-color: rgba(0, 229, 255, 0.25);
@@ -610,8 +636,11 @@
     background: rgba(0, 229, 255, 0.12);
 }
 
-.hud-btn.danger {
-    padding: 7px 8px;
+.hud-btn.danger,
+.hud-btn.amber {
+    flex: 0 0 28px;
+    width: 28px;
+    padding: 0;
 }
 
 .hud-btn.danger:hover {
@@ -619,15 +648,32 @@
     border-color: rgba(224, 112, 112, 0.4);
 }
 
+.hud-btn.amber,
+.hud-btn-sm.amber {
+    color: #c8963a;
+    border: 1px solid rgba(255, 180, 50, 0.35);
+}
+
+.hud-btn.amber:hover,
+.hud-btn-sm.amber:hover {
+    color: #f0b040;
+    border-color: rgba(255, 180, 50, 0.7);
+    background: rgba(255, 180, 50, 0.1);
+}
+
 .hud-subactions {
     display: flex;
     gap: 5px;
     align-items: center;
-    padding: 0 10px 8px;
+    padding: 0 8px 6px;
+}
+
+.hud-subactions:empty {
+    display: none !important;
 }
 
 .hud-btn-sm {
-    padding: 5px 6px;
+    padding: 4px 6px;
     font-family: inherit;
     font-size: 0.6em;
     font-weight: 700;
@@ -648,18 +694,6 @@
     color: #00e5ff;
     border-color: rgba(0, 229, 255, 0.6);
     background: rgba(0, 229, 255, 0.1);
-}
-
-.hud-btn-sm.amber {
-    color: #c8963a;
-    border: 1px solid rgba(255, 180, 50, 0.35);
-    padding: 5px 8px;
-}
-
-.hud-btn-sm.amber:hover {
-    color: #f0b040;
-    border-color: rgba(255, 180, 50, 0.7);
-    background: rgba(255, 180, 50, 0.1);
 }
 
 .hud-debug {
@@ -753,36 +787,47 @@
 }
 
 .hud-list-label {
-    padding: 0 10px 4px;
-    font-size: 0.58em;
+    padding: 4px 8px 2px;
+    font-size: 0.62em;
     font-weight: 700;
     letter-spacing: 1px;
-    color: #2a3a50;
+    color: var(--wf-forma);
 }
 
 .hud-list {
     display: flex;
     flex-direction: column;
-    gap: 4px;
-    height: 300px;
-    padding: 0 10px 8px;
+    gap: 2px;
+    max-height: calc(12 * 24px);
+    padding: 0 8px 2px;
+    margin-bottom: 4px;
+    box-sizing: border-box;
     overflow-y: auto;
 }
 
 .hud-empty {
-    padding: 30px 0;
-    font-size: 0.75em;
+    padding: 16px 0;
+    font-size: 0.7em;
     letter-spacing: 1px;
     text-align: center;
-    color: #1e2a38;
+    color: #506070;
 }
 
-.hud-scroll-guide {
-    padding: 7px 12px;
-    font-size: 0.82em;
-    text-align: center;
-    color: #2a3a50;
+#inv-hud .hud-scroll-guide {
+    min-height: 0;
+    padding: 4px 8px;
+    font-size: 0.62em;
+    line-height: 1.3;
+    text-align: left;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--label-color);
     border-top: 1px solid rgba(0, 229, 255, 0.06);
+}
+
+#inv-hud .hud-scroll-guide:empty {
+    display: none;
 }
 
 #kiosk-sale-panel, #arcane-panel {
@@ -797,21 +842,9 @@
     font-size: 0.72em;
     font-weight: 800;
     letter-spacing: 1px;
-    color: #ddaa38;
+    color: var(--wf-orokin);
     margin-bottom: 6px;
 }
-
-#kiosk-sale-panel .kiosk-line {
-    display: flex;
-    gap: 6px;
-    padding: 2px 4px;
-    font-size: 0.76em;
-}
-
-#kiosk-sale-panel .kiosk-name { flex: 1; }
-#kiosk-sale-panel .kiosk-ducats { color: #ddaa38; font-weight: 700; }
-#kiosk-sale-panel .kiosk-plat { color: #00e5ff; }
-#kiosk-sale-panel .kiosk-ratio { color: #8a93a0; }
 
 #arcane-panel .arcane-grid {
     display: grid;
@@ -858,15 +891,6 @@
     margin: 4px 0;
 }
 
-#trade-panel .trade-line {
-    display: flex;
-    gap: 6px;
-    padding: 2px 4px;
-    font-size: 0.76em;
-}
-
-#trade-panel .trade-name { flex: 1; }
-#trade-panel .trade-plat { color: #ddd; font-weight: 700; white-space: nowrap; }
 #trade-panel .trade-empty { font-size: 0.72em; color: #888; padding: 2px 4px; }
 #trade-panel .trade-confirmada { font-size: 0.7em; font-weight: 800; color: #a0ff80; margin-bottom: 2px; }
 
@@ -901,7 +925,7 @@
 #squad-run-panel .squad-ev {
     font-size: 0.78em;
     font-weight: 900;
-    color: #ddaa38;
+    color: var(--wf-orokin);
 }
 
 #squad-run-panel .squad-relic,
@@ -1029,7 +1053,7 @@
     min-width: 38px;
     text-align: right;
     font-weight: 700;
-    color: #ddaa38;
+    color: var(--wf-orokin);
 }
 
 /* scoped to #scanner-section because bare selectors in this file load after styles.css */
@@ -1153,16 +1177,15 @@
 #inv-hud .hud-group {
     display: flex;
     align-items: center;
+    flex: 0 0 22px;
+    height: 22px;
     gap: 6px;
-    margin: 8px 0 4px;
-    color: #607590;
-    font-size: 0.68em;
+    margin: 0;
+    box-sizing: border-box;
+    color: var(--wf-forma);
+    font-size: 0.62em;
     font-weight: 800;
     letter-spacing: 1px;
-}
-
-#inv-hud .hud-group:first-child {
-    margin-top: 0;
 }
 
 #inv-hud .hud-group::after {
@@ -1181,13 +1204,17 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    flex: 0 0 22px;
+    height: 22px;
     gap: 6px;
-    margin-bottom: 2px;
-    padding: 5px 8px;
+    margin: 0;
+    padding: 0 6px;
+    box-sizing: border-box;
     border-left: 2px solid rgba(0, 229, 255, 0.4);
-    border-radius: 4px;
+    border-radius: 3px;
     background: rgba(0, 229, 255, 0.04);
-    font-size: 0.78em;
+    font-size: 0.72em;
+    line-height: 1;
 }
 
 #inv-hud .hud-item.is-relic {
@@ -1196,6 +1223,8 @@
 }
 
 #inv-hud .hud-item-name {
+    flex: 1;
+    min-width: 0;
     overflow: hidden;
     color: #ddd;
     font-weight: 600;
@@ -1205,8 +1234,11 @@
 
 #inv-hud .hud-item-qty {
     flex-shrink: 0;
+    margin-left: auto;
+    text-align: right;
     color: #f1c40f;
     font-weight: 900;
+    font-variant-numeric: tabular-nums;
 }
 
 #inv-hud .hud-item.is-relic .hud-item-qty {

@@ -21,6 +21,8 @@ from anuncios import (
     banda_publicada,
 )
 from armas_sin_wfm import DISPO_RIVEN, dispo_antes
+RECIENTES = os.environ.get("ANUNCIOS") == "recientes"
+ENTRADA = os.path.join(AQUI, "recientes") if RECIENTES else SALIDA
 
 VIDA_MEDIA = float(os.environ.get("VOIDSTONKS_VIDA_MEDIA", "30"))
 K_SUAVIZADO = 10
@@ -28,23 +30,28 @@ PLIEGUES = 5
 MAG_POR_DEFECTO = 0.6
 SEMILLA = 7
 PESO_PRIMERA_VISTA = 0.5
-DIAS_VALIDACION = 14
+DIAS_VALIDACION = 1 if RECIENTES else 14
 ARMAS = os.path.join(AQUI, "..", "..", "deploy", "assets", "json", "cleaned_weapons.json")
 PRINCIPAL = "nivel_y_tirada_sin_tendencia"
-FACCIONES = ["Damage Vs Corpus", "Damage Vs Grineer", "Damage Vs Infested"]
+FACCIONES = ["Damage Vs Corpus", "Damage Vs Grineer", "Damage Vs Infested", "Damage To Orokin", "Damage To Techrot", "Damage To Scaldra"]
+if RECIENTES:
+    with open(os.path.join(ENTRADA, "corte.json"), encoding="utf-8") as f:
+        CORTES = json.load(f)
+    CORTE = CORTES["corte"]
 
 def leer_anuncios():
-    tabla = pd.read_csv(os.path.join(SALIDA, "anuncios.csv"), dtype=str, keep_default_na=False)
+    tabla = pd.read_csv(os.path.join(ENTRADA, "anuncios.csv"), dtype=str, keep_default_na=False)
     for columna in ["precio_primero", "edad_al_verla", "censurado", "tiradas", "desaparecida_precio", "mag_pos1", "mag_pos2", "mag_pos3", "mag_neg"]:
         tabla[columna] = pd.to_numeric(tabla[columna], errors="coerce")
     for columna in ["stat_pos1", "stat_pos2", "stat_pos3", "stat_neg"]:
         tabla[columna] = tabla[columna].replace("None", "")
-    a_dispo_unica(tabla)
+    if not RECIENTES:
+        a_dispo_unica(tabla)
     tabla = tabla[tabla["precio_primero"] > 0].copy()
     corte_fecha = pd.to_datetime(CORTE)
     tabla["dia"] = (pd.to_datetime(tabla["primera_fecha"]) - corte_fecha).dt.days
     tabla["fresco"] = (tabla["edad_al_verla"] <= EDAD_NUEVO).fillna(False)
-    tabla["primera_vista"] = (tabla["created"] == "") & (tabla["censurado"] == 0)
+    tabla["primera_vista"] = (tabla["edad_al_verla"] > EDAD_NUEVO) if RECIENTES else (tabla["created"] == "") & (tabla["censurado"] == 0)
     tabla["entreno"] = tabla["primera_fecha"] < CORTE
     tabla["prueba"] = (tabla["inicio"] >= CORTE) & (tabla["primera_fecha"] >= CORTE)
     return tabla
@@ -58,7 +65,7 @@ def a_dispo_unica(tabla):
 def tipo_por_arma():
     with open(ARMAS, encoding="utf-8") as archivo:
         datos_armas = json.load(archivo)
-    return defaultdict(lambda: "desconocido", {dato["name"]: dato["type"] for dato in datos_armas})
+    return defaultdict(lambda: "desconocido", {dato["name"]: dato["type"] for dato in datos_armas} | {"Vinquibus (Melee)": "Melee"})
 
 def mediana_ponderada(valores, pesos):
     if len(valores) == 0:
@@ -325,7 +332,8 @@ def correr_variante(tabla_completa, mascara_entreno, con_tendencia, usar_xgboost
     contexto = contexto_caracteristicas(tabla_solo_entreno, niveles_ajustados, conteos_arma)
     matriz_entreno = matriz_caracteristicas(tabla_solo_entreno, contexto, tabla_solo_entreno["pliegue"].to_dict())
     residuos = tabla_solo_entreno["r"]
-    mascara_validacion = tabla_completa.loc[indices_entrenamiento, "dia"] >= -DIAS_VALIDACION
+    fechas = tabla_completa.loc[indices_entrenamiento, "primera_fecha"]
+    mascara_validacion = fechas >= fechas.sort_values().iloc[int(len(fechas) * 0.85)] if RECIENTES else tabla_completa.loc[indices_entrenamiento, "dia"] >= -DIAS_VALIDACION
     indices_t = indices_entrenamiento[~mascara_validacion]
     indices_v = indices_entrenamiento[mascara_validacion]
     if len(indices_v) == 0:
@@ -428,6 +436,8 @@ def main():
     resultados_evaluacion = {}
     for nombre_conjunto, (mascara_conjunto, columna_objetivo) in conjuntos_evaluacion.items():
         tabla_evaluacion = tabla_anuncios[mascara_conjunto & tabla_anuncios["evaluable"]]
+        if tabla_evaluacion.empty:
+            continue
         resultados_evaluacion[nombre_conjunto] = {}
         valores_y = tabla_evaluacion[columna_objetivo].values
         armas_eval = tabla_evaluacion["weapon"].values
@@ -515,7 +525,7 @@ def main():
         "prima_sin_rolar": datos_prima_rolar,
         "importancia": diccionario_importancia
     }
-    with open(os.path.join(SALIDA, "informe_nivel_y_tirada.json"), "w", encoding="utf-8") as archivo_json:
+    with open(os.path.join(SALIDA, "informe_nivel_y_tirada_recientes.json" if RECIENTES else "informe_nivel_y_tirada.json"), "w", encoding="utf-8") as archivo_json:
         json.dump(informe_final, archivo_json, indent=2, ensure_ascii=False)
     imprimir_informe(informe_final)
 

@@ -23,6 +23,7 @@ export function updateScannerLabels(t) {
     setText("btn-auto-scan", sh.btnAutoScan);
     setText("btn-reset-grid", sh.btnResetGrid);
     setText("lbl-rewards-diagnostics", sh.lblDiagnostics);
+    setText("rewards-dbg-toggle", sh.btnDebug);
     setText("hud-scan-counter", "");
 
     const setTitle = (id, text) => {
@@ -58,6 +59,9 @@ export function updateScannerLabels(t) {
   if (rs) {
     setText("lbl-rewards-title", rs.modalTitle);
     setText("btn-continue-scan", rs.btnContinue);
+    setText("btn-copy-scan-results", rs.btnCopy);
+    const copyHelp = document.getElementById("auto-copy-help");
+    if (copyHelp && rs.autoCopyTooltip) copyHelp.dataset.tooltip = rs.autoCopyTooltip;
   }
 
   const sc = t.scanner;

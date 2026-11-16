@@ -715,7 +715,7 @@ function renderEmptyShowcase(panel) {
         </div>
       </div>
       
-      <div style="font-size: 0.65rem; color: #555; text-transform: uppercase; letter-spacing: 0.5px;">
+      <div style="font-size: 0.65rem; color: var(--label-color); text-transform: uppercase; letter-spacing: 0.5px;">
         ${isEs ? "Armamento popular del mercado" : "Popular market weapons"}
       </div>
     </div>`;
@@ -931,7 +931,7 @@ function buildStatsHtml(weaponName) {
             <span style="color:#9b59b6; font-weight:bold;">${Math.round(radialDmg)}</span>
           </div>
         `}
-        ${falloff ? `<div style="font-size:9px; color:#777; margin-top:2px; text-align:right;">${state.currentLang === "es" ? "Caída: " : "Falloff: "}${falloff}</div>` : ""}
+        ${falloff ? `<div style="font-size:9px; color:var(--label-color); margin-top:2px; text-align:right;">${state.currentLang === "es" ? "Caída: " : "Falloff: "}${falloff}</div>` : ""}
       </div>
     `;
   }
@@ -2516,10 +2516,12 @@ export function calculateModalGrade() {
 export function updateSelectExclusions() {
   const selects = Array.from(document.querySelectorAll(".riven-stat-select"));
   const selected = new Set(selects.map((s) => s.value).filter((v) => v !== ""));
+  const esFusionado = (v) => !!RIVEN_STATS.find((r) => r.name_en === v)?.spliced;
   selects.forEach((sel) => {
+    const otroFusionado = selects.some((o) => o !== sel && esFusionado(o.value));
     Array.from(sel.options).forEach((opt) => {
       if (opt.value !== "") {
-        const isTaken = selected.has(opt.value) && opt.value !== sel.value;
+        const isTaken = opt.value !== sel.value && (selected.has(opt.value) || (otroFusionado && esFusionado(opt.value)));
         opt.hidden = isTaken;
         opt.style.display = isTaken ? "none" : "";
       }
@@ -2589,6 +2591,7 @@ function loadRollIntoInputs(rivenData) {
       }
     }
   }
+  updateSelectExclusions();
 
   const rollsInput = document.getElementById("g-rolls");
   const mrInput = document.getElementById("g-mr");
@@ -2776,6 +2779,7 @@ export function removeGradingRow(id) {
   if (row) {
     row.remove();
   }
+  updateSelectExclusions();
   document.getElementById(
     id === "row-stat3" ? "btn-add-pos" : "btn-add-neg",
   ).style.display = "block";
@@ -3371,13 +3375,13 @@ export function renderRivenIndexList(items, countHtml = "") {
     const platImgHtml = `<img src="assets/relic_contents/platinum.webp" style="width:12px; height:12px; object-fit:contain; vertical-align:middle; margin-left:2px; margin-right:2px;">`;
 
     const unrolledPriceText = unrolledMedian > 0 ? `${unrolledMedian}${platImgHtml}` : "N/A";
-    const unrolledPriceColor = unrolledMedian > 0 ? "display:inline-flex; align-items:center;" : "color: #777; font-style: italic;";
+    const unrolledPriceColor = unrolledMedian > 0 ? "display:inline-flex; align-items:center;" : "color: var(--label-color); font-style: italic;";
 
     const rerolledPriceText = rerolledMedian > 0 ? `${rerolledMedian}${platImgHtml}` : "N/A";
-    const rerolledPriceColor = rerolledMedian > 0 ? "display:inline-flex; align-items:center;" : "color: #777; font-style: italic;";
+    const rerolledPriceColor = rerolledMedian > 0 ? "display:inline-flex; align-items:center;" : "color: var(--label-color); font-style: italic;";
 
     const maxPriceText = absoluteMax > 0 ? `${absoluteMax}${platImgHtml}` : "N/A";
-    const maxPriceColor = absoluteMax > 0 ? "display:inline-flex; align-items:center;" : "color: #777; font-style: italic;";
+    const maxPriceColor = absoluteMax > 0 ? "display:inline-flex; align-items:center;" : "color: var(--label-color); font-style: italic;";
 
     const wfmPriceText = hasWfm
       ? (wfmMarketSample > 0
@@ -3545,7 +3549,7 @@ export function renderRivenIndexList(items, countHtml = "") {
                     <span style="background: rgba(0, 255, 120, 0.15); border: 1px solid rgba(0, 255, 120, 0.45); color: #00ff78; text-shadow: 0 0 6px rgba(0, 255, 120, 0.5); box-shadow: 0 0 8px rgba(0, 255, 120, 0.15); padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 4px; display: inline-block; margin-bottom: 4px; font-weight: bold;">
                       <span style="font-size: 9px; background: #00ff78; color: #000; padding: 1px 4px; border-radius: 3px; margin-right: 5px; font-weight: 900; text-transform: uppercase;">BEST</span>+ ${escapeHTML(getLocalizedStatName(s))}
                     </span>
-                  `).join("") : `<span style="font-size: 0.75rem; color: #555;">N/A</span>`}
+                  `).join("") : `<span style="font-size: 0.75rem; color: var(--label-color);">N/A</span>`}
                 </div>
               </div>
  
@@ -3599,7 +3603,7 @@ export function renderRivenIndexList(items, countHtml = "") {
                     <span style="background: rgba(0, 229, 255, 0.15); border: 1px solid rgba(0, 229, 255, 0.45); color: #00e5ff; text-shadow: 0 0 6px rgba(0, 229, 255, 0.5); box-shadow: 0 0 8px rgba(0, 229, 255, 0.15); padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 4px; display: inline-block; margin-bottom: 4px; font-weight: bold;">
                       <span style="font-size: 9px; background: #00e5ff; color: #000; padding: 1px 4px; border-radius: 3px; margin-right: 5px; font-weight: 900; text-transform: uppercase;">BEST</span>- ${escapeHTML(getLocalizedStatName(s))}
                     </span>
-                  `).join("") : `<span style="font-size: 0.75rem; color: #555;">N/A</span>`}
+                  `).join("") : `<span style="font-size: 0.75rem; color: var(--label-color);">N/A</span>`}
                 </div>
               </div>
  

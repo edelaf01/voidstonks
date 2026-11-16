@@ -303,6 +303,8 @@ function updateStaticTexts(t) {
   setText("lbl-lfg-activity", t.lblLfgActivity);
   setText("lbl-lfg-players", t.lblLfgPlayers);
   setText("btn-copy", t.btnCopy);
+  setText("lbl-lfg-extra", t.lblLfgExtra);
+  setText("lbl-riven-rank", t.lblRivenRank);
 
   setText("txt-inv-title", t.inventory?.title);
   updateInventoryPanelLabels();
@@ -324,6 +326,7 @@ function updateInputsAndContent(t) {
   setPlaceholder("relicInput", t.phRelic);
   setPlaceholder("setItemInput", t.phItem);
   setPlaceholder("rivenWeaponInput", t.phRivenW);
+  setPlaceholder("lfgExtra", t.phLfgExtra);
   setPlaceholder("inv-search-input", t.inventory?.searchPlaceholder);
   setPlaceholder("prime-inv-search", t.inventory?.primeSearchPlaceholder);
 
@@ -341,7 +344,7 @@ function updateInputsAndContent(t) {
 
   const refLabel = document.getElementById("lbl-refinement");
   if (refLabel) {
-    refLabel.innerHTML = `${t.lblRef} <span data-tooltip="${t.tooltips.refinement}" style="cursor:help; opacity:0.7"> (?)</span>`;
+    refLabel.innerHTML = `${t.lblRef} <span data-tooltip="${t.tooltips.refinement}" style="cursor:help"> (?)</span>`;
   }
 
   const imgInv = document.getElementById("img-inv-toggle");
@@ -366,6 +369,7 @@ function updateSelectDropdowns(t) {
   updateOptions("refinement", t.refs);
   updateOptions("squadSize", t.squads);
   updateOptions("prime-inv-sort", t.inventory?.primeSort);
+  updateOptions("g-rank", t.rivenRankOpts);
 
   document.querySelectorAll("#lfgDropdown .dropdown-item[data-lfg]").forEach((item) => {
     const label = t.lfgOpts?.[item.dataset.lfg];

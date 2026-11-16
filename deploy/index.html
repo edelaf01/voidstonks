@@ -83,7 +83,7 @@
   <link rel="stylesheet" href="css/components/inventory.css?v=1.6" />
   <link rel="stylesheet" href="css/components/sets.css?v=1.0" />
   <link rel="stylesheet" href="css/components/relics.css?v=1.2" />
-  <link rel="stylesheet" href="css/components/scanner.css?v=1.2" />
+  <link rel="stylesheet" href="css/components/scanner.css?v=1.3" />
   <link rel="stylesheet" href="css/components/riven-scanner.css?v=1.0" />
   <link rel="stylesheet" href="css/components/modals.css?v=1.0" />
   <link rel="stylesheet" href="css/components/header.css?v=1.2" />
@@ -95,6 +95,7 @@
   <link rel="stylesheet" href="css/components/orders.css?v=1.6" />
   <link rel="stylesheet" href="css/components/lich-weapons.css?v=1.0" />
   <link rel="stylesheet" href="css/components/ui-kit.css?v=1.0" />
+  <link rel="stylesheet" href="css/components/price-columns.css?v=1.0" />
   <link rel="stylesheet" href="css/desktop.css?v=1.0" />
   <link rel="icon" type="image/png" href="https://wiki.warframe.com/images/VoidTraces.png" />
 
@@ -142,7 +143,6 @@
               transition: all 0.2s;
               letter-spacing: 1px;
             ">RIVENS</button>
-        <button type="button" id="btn-rec-drawer" class="scanner-rec-btn" onclick="globalThis.toggleDebugRecorder()">GRABAR</button>
       </div>
       <video id="live-video" autoplay muted playsinline></video>
       <canvas id="live-canvas" class="hidden"></canvas>
@@ -211,14 +211,15 @@
           title="Vacía lo detectado en esta sesión, sin tocar tu inventario guardado">
           ✕
         </button>
-      </div>
 
-      <div class="hud-subactions" id="hud-subactions">
-        <button type="button" id="btn-reset-grid" class="hud-btn-sm amber" onclick="globalThis.resetGrid()"
-          title="Descarta la rejilla detectada; se vuelve a detectar en el próximo escaneo">
-          ↺ REHACER REJILLA
+        <button type="button" id="btn-reset-grid" class="hud-btn amber" onclick="globalThis.resetGrid()"
+          title="Descarta la rejilla detectada; se vuelve a detectar en el próximo escaneo"
+          aria-label="Descarta la rejilla detectada; se vuelve a detectar en el próximo escaneo">
+          ↻
         </button>
       </div>
+
+      <div class="hud-subactions" id="hud-subactions" style="display: none"></div>
 
       <div id="live-debug-snapshot" class="hud-debug" style="display: none">
         <div class="hud-debug-head">
@@ -291,7 +292,7 @@
         <div style="display:flex; align-items:center; gap:10px;">
           <h3 id="lbl-rewards-title">REWARDS DETECTED</h3>
           <button id="rewards-dbg-toggle" class="orokin-btn-mini" style="font-size:10px; padding:2px 5px;"
-            onclick="document.getElementById('rewards-dbg-text').classList.toggle('hidden')">DBG</button>
+            onclick="document.getElementById('rewards-dbg-text').classList.toggle('hidden')">DIAG</button>
         </div>
         <div class="reward-sync-controls"
           style="display: flex; align-items: center; gap: 8px; margin-right: auto; margin-left: 20px;">
@@ -307,9 +308,9 @@
               style="accent-color: #00e5ff;">
             <span class="copy-toggle-label">AUTO-COPY</span>
           </label>
-          <span class="help-icon" style="color: #555; cursor: help; font-size: 0.8rem;"
-            data-tooltip="SI: Copia automáticamente los resultados al portapapeles después de cada escaneo en formato chat de Warframe.">ⓘ</span>
-          <button class="orokin-btn-mini" onclick="globalThis.copyScanResultsToClipboard()"
+          <span id="auto-copy-help" class="help-icon" style="color: #555; cursor: help; font-size: 0.8rem;"
+            data-tooltip="YES: copies the results to the clipboard after each scan, in Warframe chat format (on the web it needs the AutoCopy extension). NO: copies only when you press the button.">ⓘ</span>
+          <button id="btn-copy-scan-results" class="orokin-btn-mini" onclick="globalThis.copyScanResultsToClipboard()"
             style="background: rgba(0, 229, 255, 0.1); border: 1px solid rgba(0, 229, 255, 0.4); color: #00e5ff; font-size: 10px; padding: 3px 10px; border-radius: 4px; font-weight: 800; cursor: pointer; margin-left: 10px; transition: all 0.2s; white-space: nowrap;">
             📋 COPY
           </button>
@@ -1004,6 +1005,30 @@
                 class="dropdown-item vs-plain vs-plain-block" data-lfg="follie"
                 onclick="selectLfgOption('follie', 'Follie Hunt (Vesper)')">Follie Hunt (Vesper)</button>
               <button type="button" role="menuitem"
+                class="dropdown-item vs-plain vs-plain-block" data-lfg="icebind"
+                onclick="selectLfgOption('icebind', 'Icebind')">Icebind</button>
+              <button type="button" role="menuitem"
+                class="dropdown-item vs-plain vs-plain-block" data-lfg="lich"
+                onclick="selectLfgOption('lich', 'Lich / Sister / Coda')">Lich / Sister / Coda</button>
+              <button type="button" role="menuitem"
+                class="dropdown-item vs-plain vs-plain-block" data-lfg="cascade"
+                onclick="selectLfgOption('cascade', 'Void Cascade')">Void Cascade</button>
+              <button type="button" role="menuitem"
+                class="dropdown-item vs-plain vs-plain-block" data-lfg="spdisruption"
+                onclick="selectLfgOption('spdisruption', 'Steel Path Disruption')">Steel Path Disruption</button>
+              <button type="button" role="menuitem"
+                class="dropdown-item vs-plain vs-plain-block" data-lfg="isleweaver"
+                onclick="selectLfgOption('isleweaver', 'Isleweaver')">Isleweaver</button>
+              <button type="button" role="menuitem"
+                class="dropdown-item vs-plain vs-plain-block" data-lfg="perita"
+                onclick="selectLfgOption('perita', 'Perita Rebellion')">Perita Rebellion</button>
+              <button type="button" role="menuitem"
+                class="dropdown-item vs-plain vs-plain-block" data-lfg="exploiter"
+                onclick="selectLfgOption('exploiter', 'Exploiter Orb')">Exploiter Orb</button>
+              <button type="button" role="menuitem"
+                class="dropdown-item vs-plain vs-plain-block" data-lfg="railjack"
+                onclick="selectLfgOption('railjack', 'Railjack / Void Storms')">Railjack / Void Storms</button>
+              <button type="button" role="menuitem"
                 class="dropdown-item vs-plain vs-plain-block" data-lfg="radshare"
                 onclick="selectLfgOption('radshare', 'Radshare (Relics)')">Radshare (Relics)</button>
             </div>
@@ -1026,7 +1051,7 @@
         </div>
 
         <div class="form-group">
-          <label>Extra Info</label>
+          <label id="lbl-lfg-extra">Extra Info</label>
           <input type="text" id="lfgExtra" class="wf-input" placeholder="+Info" oninput="generateLFGMessage()" />
         </div>
       </div>
@@ -1415,8 +1440,7 @@
               </div>
             </div>
             <div class="gr-rank">
-              <label class="gr-label">Riven
-                rank</label>
+              <label class="gr-label" id="lbl-riven-rank">Riven rank</label>
               <select id="g-rank" class="wf-input" onchange="calculateModalGrade()">
                 <option value="8" selected>Max (8)</option>
                 <option value="0">Min (0)</option>

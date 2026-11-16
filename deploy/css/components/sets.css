@@ -148,10 +148,10 @@
 }
 
 .total-profit-box {
-    background: #15171b;
+    background: var(--wf-panel-bg);
     padding: 15px;
-    border-radius: 6px;
-    border: 1px solid #333;
+    border-radius: var(--radius-box);
+    border: 1px solid var(--wf-border-box);
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -386,9 +386,9 @@
 
 .set-container {
     margin-bottom: 25px;
-    border: 1px solid #333;
-    border-radius: 6px;
-    background: #15171b;
+    border: 1px solid var(--wf-border-box);
+    border-radius: var(--radius-box);
+    background: var(--wf-panel-bg);
     transition: border-color 0.2s;
     overflow: visible !important;
     position: relative;

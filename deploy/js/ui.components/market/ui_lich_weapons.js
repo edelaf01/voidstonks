@@ -339,6 +339,7 @@ function bindAlarmPanel(container, vendors, t) {
         showToast(t.farmAlarms.dupRule, { tag: "lw-alarm-dup", duration: 4000 });
         return;
       }
+      showToast(t.farmAlarms.added);
       const prefs = getAlarmPrefs();
       if (!prefs.enabled) {
         prefs.enabled = true;

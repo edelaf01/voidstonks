@@ -789,3 +789,31 @@ test("el veto filtra después del tope", () => {
   assert.equal(state.primeInventory["Bronco Prime Falta B"], 1);
 });
 
+test("orden NAME pone a cero tras dos aperturas distintas y no en dos páginas de la misma", () => {
+  const llamadas = prepara();
+  BusquedaInventarioService.estadoOrden = { votos: {}, apertura: null };
+  const escaner = creaEscaner();
+  escaner._aperturaInv = 1;
+  escaner.sessionInventory.set("Baza Prime Receiver", 2);
+  state.primeInventory = {
+    "Baruuk Prime Blueprint": 1,
+    "Baza Prime Receiver": 2,
+    "Baza Prime Barrel": 1,
+    "Bo Prime Blueprint": 1,
+    "Boar Prime Barrel": 1,
+  };
+  const busqueda = { tipo: "piezas", texto: "", orden: "NAME", aspecto: 16 / 9 };
+  const pag1 = construyePagina(1, 6, ["Baruuk Prime Blueprint", "Baza Prime Receiver", "Bo Prime Blueprint"], { busqueda });
+  const pag2 = construyePagina(1, 6, ["Baza Prime Receiver", "Bo Prime Blueprint", "Boar Prime Barrel"], { busqueda });
+
+  BusquedaInventarioService.revisa(escaner, pag1);
+  BusquedaInventarioService.revisa(escaner, pag2);
+  assert.equal(llamadas.length, 0);
+
+  escaner._aperturaInv = 2;
+  BusquedaInventarioService.revisa(escaner, pag1);
+  assert.equal(llamadas.length, 1);
+  assert.deepEqual(llamadas[0], ["piezas", ["Baza Prime Barrel"], null]);
+});
+
+

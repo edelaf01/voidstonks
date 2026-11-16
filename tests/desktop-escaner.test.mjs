@@ -106,6 +106,43 @@ test("ScannerHUD en inventario borra el panel de ducados", async () => {
   svc.activaOverlay(false);
 });
 
+test("ScannerHUD actualiza el panel de venta del kiosko", () => {
+  const panel = globalThis.document.createElement("div");
+  globalThis.document._registrar("kiosk-sale-panel", panel);
+  ScannerHUD.updateKioskSale([
+    { name: "Venato Prime Handle", qty: 2, plat: 3, ducats: 30, ratio: 5 },
+    { name: "Braton Prime Stock", qty: 1, ducats: 15 },
+  ], "PARA ECHAR");
+  assert.equal(panel.children.length, 2);
+  assert.equal(panel.children[1].className, "kiosk-grid");
+  const rejilla = panel.children[1];
+  assert.equal(rejilla.children.length, 2);
+  assert.deepEqual(rejilla.children[0].children.map((n) => n.className), ["kiosk-name", "kiosk-plat", "kiosk-ratio", "kiosk-ducats"]);
+  assert.deepEqual(rejilla.children[1].children.map((n) => n.className), ["kiosk-name", "kiosk-plat", "kiosk-ratio", "kiosk-ducats"]);
+  assert.deepEqual(rejilla.children[0].children.map((n) => n.textContent), ["2× Venato Prime Handle", "3", "5.0 d/pl", "30"]);
+  assert.equal(rejilla.children[0].children[0].title, "2× Venato Prime Handle");
+  assert.equal(rejilla.children[0].children[1].children[0].className, "plat-icon-inline");
+  assert.equal(rejilla.children[0].children[3].children[0].className, "ducat-icon-inline");
+  assert.equal(rejilla.children[1].children[1].textContent, "");
+  assert.equal(rejilla.children[1].children[1].children.length, 0);
+  assert.equal(rejilla.children[1].children[2].textContent, "");
+});
+
+test("ScannerHUD actualiza el panel de intercambio", () => {
+  const panel = globalThis.document.createElement("div");
+  globalThis.document._registrar("trade-panel", panel);
+  ScannerHUD.updateTrade({
+    confirmada: false,
+    doy: [{ tipo: "pieza", name: "Venato Prime Handle", qty: 2, plat: 3 }],
+    recibo: [{ tipo: "platino", name: "Platinum", qty: 6, plat: 0 }],
+  });
+  assert.equal(panel.children[1].className, "trade-line");
+  assert.equal(panel.children[1].children[1].className, "trade-plat");
+  assert.equal(panel.children[1].children[1].textContent, "6");
+  assert.equal(panel.children[1].children[1].children[0].className, "plat-icon-inline");
+  assert.equal(panel.children[3].children.length, 1);
+});
+
 test("ScannerHUD actualiza el panel de arcanos", async () => {
   const panel = globalThis.document.createElement("div");
   panel.id = "arcane-panel";

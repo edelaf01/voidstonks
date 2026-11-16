@@ -30,7 +30,7 @@ export function emptyStateHtml(message, scannerHint = "", mobileHint = "") {
     : onScreen("mobile-scan-btn") ? mobileHint
       : "";
   const hint = texto
-    ? `<div style="margin-top:6px; font-size:0.85em; opacity:0.7;">${escapeHTML(texto)}</div>`
+    ? `<div style="margin-top:6px; font-size:0.85em;">${escapeHTML(texto)}</div>`
     : "";
   return `<div style="padding:20px 16px; text-align:center; color:#888; line-height:1.5;">${escapeHTML(message)}${hint}</div>`;
 }

@@ -9,7 +9,6 @@ export function getSlug(itemName) {
         .trim()
         .replaceAll(/\s+/g, "_");
     const manualFixes = {
-        kompressa_prime_receiver: "kompressa_prime_reciever",
         kavasa_prime_set: "kavasa_prime_kubrow_collar_set",
         kavasa_prime_blueprint: "kavasa_prime_kubrow_collar_blueprint",
         kavasa_prime_buckle: "kavasa_prime_kubrow_collar_buckle",

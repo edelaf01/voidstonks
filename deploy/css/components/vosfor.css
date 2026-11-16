@@ -4,7 +4,7 @@
     gap: 14px;
     width: 100%;
     color: #e0e0e0;
-    font-size: 0.92rem;
+    font-size: 1em;
 }
 
 .vos-tools {
@@ -114,7 +114,6 @@
 }
 
 /* !important and [style] beat the inline border/shadow some widgets carry */
-.vos-tool-body .vosfor-calc-widget,
 .vos-tool-body .vosfor-target-widget,
 .vos-tool-body .vosfor-pix-widget,
 .vos-tool-body .vosfor-ranking-section {
@@ -271,20 +270,10 @@
     to { opacity: 1; transform: translateY(0); }
 }
 
-.vosfor-calc-widget {
-    background: linear-gradient(135deg, color-mix(in srgb, var(--active-theme-color) 15%, transparent) 0%, rgba(20, 20, 35, 0.85) 100%);
-    border: 1px solid color-mix(in srgb, var(--active-theme-color) 40%, transparent);
-    border-radius: 12px;
-    padding: 16px;
-    margin-bottom: 12px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
-    backdrop-filter: blur(10px);
-}
-
 .vosfor-target-widget {
     background: linear-gradient(135deg, rgba(20, 30, 45, 0.9) 0%, rgba(12, 18, 30, 0.95) 100%);
     border: 1px solid color-mix(in srgb, var(--active-theme-color) 40%, transparent);
-    border-radius: 12px;
+    border-radius: var(--radius-box);
     padding: 16px;
     margin-bottom: 12px;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
@@ -293,26 +282,38 @@
 
 .vosfor-target-controls {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 12px;
+    grid-template-columns: repeat(auto-fit, minmax(155px, 1fr));
+    gap: 10px;
     margin-bottom: 14px;
+    align-items: end;
 }
 
-select.vosfor-select {
+.vosfor-target-controls > div > label {
+    margin-bottom: 4px !important;
+    line-height: 1.25;
+}
+
+select.vosfor-select,
+.vosfor-target-controls .vosfor-search-input {
     width: 100%;
-    padding: 10px 12px;
-    border-radius: 4px;
-    border: 1px solid #444;
+    height: 38px;
+    padding: 0 30px 0 12px;
+    border-radius: var(--radius-ctl);
+    border: 1px solid var(--wf-border-ctl);
     background-color: var(--wf-input-bg, rgba(0, 0, 0, 0.4));
     color: #eee;
-    font-size: 0.9em;
+    font-size: 0.85rem;
+    box-sizing: border-box;
+    min-width: 0;
     outline: 0;
     cursor: pointer;
     transition: all 0.2s ease;
     font-family: "Segoe UI", sans-serif;
+}
+
+select.vosfor-select {
     appearance: none;
     -webkit-appearance: none;
-    padding-right: 30px;
     background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%239B59B6%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E");
     background-repeat: no-repeat;
     background-position: right 12px top 50%;
@@ -383,22 +384,33 @@ select.vosfor-select {
 .vosfor-stat-card {
     background: rgba(0, 0, 0, 0.35);
     border: 1px solid color-mix(in srgb, var(--active-theme-color) 25%, transparent);
-    border-radius: 8px;
+    border-radius: var(--radius-box);
     padding: 10px 12px;
     text-align: center;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
 }
 
 .vosfor-stat-card-label {
     font-size: 0.74rem;
     color: #aaa;
     margin-bottom: 4px;
-    font-weight: 600;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 
 .vosfor-stat-card-val {
     font-size: 1.15rem;
     font-weight: 800;
     color: var(--vosfor-accent-text);
+    margin-top: auto;
+    justify-content: center;
+}
+
+.vosfor-stat-card [data-f="realnote"]:empty {
+    display: none;
 }
 
 .vosfor-ranking-section {
@@ -422,7 +434,7 @@ select.vosfor-select {
 .vosfor-ranking-title {
     font-size: 1.05rem;
     font-weight: 800;
-    color: #ffd76e;
+    color: var(--wf-gold-text);
     display: flex;
     align-items: center;
     gap: 8px;
@@ -433,7 +445,7 @@ select.vosfor-select {
     gap: 4px;
     background: rgba(0, 0, 0, 0.3);
     border: 1px solid rgba(255, 255, 255, 0.09);
-    border-radius: 8px;
+    border-radius: var(--radius-ctl);
     padding: 3px;
     flex-wrap: wrap;
 }
@@ -444,7 +456,7 @@ select.vosfor-select {
     font-size: 0.76rem;
     font-weight: 700;
     border: none;
-    border-radius: 6px;
+    border-radius: var(--radius-ctl);
     background: transparent;
     color: #9aa0aa;
     cursor: pointer;
@@ -537,11 +549,45 @@ select.vosfor-select {
     flex-wrap: wrap;
 }
 
+.vosfor-target-controls .vosfor-preset-group {
+    margin-top: 0;
+}
+
+.vosfor-target-controls #target-copies-slider + .vosfor-preset-group {
+    margin-top: 4px;
+}
+
+.vosfor-sell-rank-btn {
+    height: 38px;
+    flex: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 10px;
+    font-size: 0.8rem;
+    box-sizing: border-box;
+}
+
+.vosfor-target-controls div:has(> #sell-qty-slider) {
+    height: 38px;
+}
+
+#sell-qty-input {
+    height: 38px;
+    padding: 0 6px;
+    border: 1px solid var(--wf-border-ctl);
+    border-radius: var(--radius-ctl);
+    background: var(--wf-input-bg, rgba(0, 0, 0, 0.4));
+    font-size: 0.9rem;
+    text-align: center;
+    box-sizing: border-box;
+}
+
 .vosfor-preset-btn {
     background: rgba(0, 0, 0, 0.3);
     border: 1px solid rgba(255, 255, 255, 0.12);
     color: #9aa0aa;
-    border-radius: 6px;
+    border-radius: var(--radius-ctl);
     padding: 3px 9px;
     font-size: 0.76rem;
     font-weight: 700;
@@ -563,7 +609,7 @@ select.vosfor-select {
 .vosfor-guide-box {
     background: linear-gradient(135deg, rgba(30, 25, 45, 0.8) 0%, rgba(15, 15, 25, 0.9) 100%);
     border: 1px solid color-mix(in srgb, var(--active-theme-color) 30%, transparent);
-    border-radius: 10px;
+    border-radius: var(--radius-box);
     padding: 12px 16px;
     margin-bottom: 10px;
 }
@@ -614,8 +660,8 @@ select.vosfor-select {
     min-width: 180px;
     width: 100%;
     padding: 12px;
-    border-radius: 4px;
-    border: 1px solid #444;
+    border-radius: var(--radius-ctl);
+    border: 1px solid var(--wf-border-ctl);
     background-color: var(--wf-input-bg, rgba(0, 0, 0, 0.4));
     color: #eee;
     font-size: 1em;
@@ -682,7 +728,7 @@ select.vosfor-select {
     background: transparent;
     border: none;
     outline: none;
-    color: #42f56c;
+    color: var(--wf-lfg);
     font-size: 1.1rem;
     font-weight: bold;
     text-align: right;
@@ -692,13 +738,6 @@ select.vosfor-select {
 .vosfor-calc-input::-webkit-outer-spin-button {
     -webkit-appearance: none;
     margin: 0;
-}
-
-.vosfor-calc-results {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: 10px;
-    margin-top: 10px;
 }
 
 .vosfor-calc-card {
@@ -805,7 +844,7 @@ select.vosfor-select {
 .vosfor-summary-card {
     background: linear-gradient(135deg, color-mix(in srgb, var(--active-theme-color) 12%, transparent) 0%, rgba(30, 25, 45, 0.6) 100%);
     border: 1px solid color-mix(in srgb, var(--active-theme-color) 35%, transparent);
-    border-radius: 10px;
+    border-radius: var(--radius-box);
     padding: 12px 16px;
 }
 
@@ -947,7 +986,7 @@ select.vosfor-select {
     gap: 4px;
     background: rgba(0, 0, 0, 0.3);
     border: 1px solid rgba(255, 255, 255, 0.09);
-    border-radius: 8px;
+    border-radius: var(--radius-ctl);
     padding: 3px;
     flex-wrap: wrap;
 }
@@ -959,7 +998,7 @@ select.vosfor-select {
     font-weight: 700;
     cursor: pointer;
     border: none;
-    border-radius: 6px;
+    border-radius: var(--radius-ctl);
     background: transparent;
     color: #9aa0aa;
     transition: color 0.18s, background 0.18s;
@@ -1092,7 +1131,7 @@ select.vosfor-select {
 }
 
 .verdict-sell {
-    color: #42f56c;
+    color: var(--wf-lfg);
     border-color: rgba(66, 245, 108, 0.5);
     background: rgba(66, 245, 108, 0.1);
 }
@@ -1173,7 +1212,6 @@ select.vosfor-select {
     overflow-wrap: anywhere;
 }
 
-.vosfor-calc-widget,
 .vosfor-target-widget,
 .vosfor-ranking-section {
     position: relative;
@@ -1186,4 +1224,119 @@ select.vosfor-select {
 
 .vosfor-target-widget .custom-dropdown {
     z-index: 90;
+}
+
+.vos-sind-intro {
+    font-size: 0.72rem;
+    color: #bbb;
+    margin-bottom: 8px;
+}
+
+.vos-sind-orden {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 8px;
+    font-size: 0.72rem;
+    color: #999;
+}
+
+.vos-sind-orden .vosfor-ranking-nav-btn {
+    padding: 2px 8px;
+    font-size: 0.72rem;
+}
+
+.vos-sindicato {
+    margin-bottom: 6px;
+}
+
+.vos-sind-resumen {
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 4px 2px;
+}
+
+.vos-sind-nombre {
+    font-weight: 700;
+    color: #e8c88a;
+}
+
+.vos-sind-lineas {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-size: 0.78rem;
+    color: #ccc;
+    text-align: right;
+}
+
+.vos-sind-etiqueta {
+    color: #888;
+    margin-right: 6px;
+}
+
+.vos-sind-marca,
+.vos-sind-gana {
+    color: #00ff78;
+    font-weight: 800;
+}
+
+.vos-sind-scroll {
+    overflow-x: auto;
+}
+
+.vos-sind-tabla {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8rem;
+}
+
+.vos-sind-tabla th {
+    color: #999;
+    font-size: 0.7rem;
+    text-align: right;
+    padding: 2px 6px;
+}
+
+.vos-sind-tabla th:first-child {
+    text-align: left;
+}
+
+.vos-sind-tabla tbody tr {
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.vos-sind-arcano {
+    padding: 3px 6px;
+    color: #fff;
+}
+
+.vos-sind-num {
+    text-align: right;
+    padding: 3px 6px;
+    color: #ddd;
+}
+
+.vos-sind-num.vos-sind-gana {
+    color: #00ff78;
+}
+
+.vos-sind-detalle {
+    font-size: 0.66rem;
+    color: #888;
+    font-weight: 400;
+}
+
+@media (max-width: 600px) {
+    .vos-sind-resumen {
+        flex-direction: column;
+        gap: 2px;
+    }
+
+    .vos-sind-lineas {
+        text-align: left;
+    }
 }

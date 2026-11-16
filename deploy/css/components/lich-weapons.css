@@ -14,15 +14,15 @@
     gap: 9px;
     flex: 1 1 0;
     min-width: 0;
-    padding: 13px 14px;
+    padding: 10px 14px;
     font-family: inherit;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     font-weight: 800;
     letter-spacing: 0.5px;
     color: #c3c9d2;
     background: rgba(255, 255, 255, 0.04);
     border: 1px solid rgba(255, 255, 255, 0.16);
-    border-radius: 10px;
+    border-radius: var(--radius-box);
     cursor: pointer;
     transition: color 0.18s, border-color 0.18s, background 0.18s, box-shadow 0.18s;
 }

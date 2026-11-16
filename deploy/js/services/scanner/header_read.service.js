@@ -1,7 +1,7 @@
 import { VisionService } from "./vision.service.js";
 import { OCRRepository } from "../../repositories/ocr.repository.js";
 import { regionLuma, fraccionCambiada } from "../../utils/vision/frame_hash.js";
-import { tituloHaCambiado, FRANJA_CATEGORIA_VIDEO, FRANJA_BUSQUEDA_VIDEO } from "../../utils/vision/context_latch.js";
+import { tituloHaCambiado, FRANJA_CATEGORIA_VIDEO, FRANJA_BUSQUEDA_VIDEO, FRANJA_ORDEN_VIDEO } from "../../utils/vision/context_latch.js";
 import { pistasDelLog } from "../../utils/ganchos.js";
 import { analizaFranjaBusqueda } from "../../utils/inventory/busqueda_rejilla.js";
 
@@ -67,6 +67,39 @@ export async function leeBusquedaInventario(escaner, fuente, worker1) {
     }
     escaner._busquedaHash = hash;
     escaner._busquedaTexto = texto;
+    return texto;
+}
+
+export async function leeOrdenInventario(escaner, fuente, worker1) {
+    const ancho = fuente?.videoWidth || fuente?.width, alto = fuente?.videoHeight || fuente?.height;
+    if (!ancho || !alto) return "";
+    const hash = regionLuma(fuente, FRANJA_ORDEN_VIDEO);
+    if (escaner._ordenHash && fraccionCambiada(hash, escaner._ordenHash) === 0) {
+        return escaner._ordenTexto;
+    }
+    const lienzo = VisionService.lienzo("orden");
+    const factor = 2160 / alto;
+    lienzo.width = Math.round(ancho * FRANJA_ORDEN_VIDEO.w * factor);
+    lienzo.height = Math.round(alto * FRANJA_ORDEN_VIDEO.h * factor);
+    const ctx = lienzo.getContext("2d", { willReadFrequently: true });
+    ctx.drawImage(
+        fuente,
+        ancho * FRANJA_ORDEN_VIDEO.x,
+        alto * FRANJA_ORDEN_VIDEO.y,
+        ancho * FRANJA_ORDEN_VIDEO.w,
+        alto * FRANJA_ORDEN_VIDEO.h,
+        0, 0, lienzo.width, lienzo.height
+    );
+    const imgData = ctx.getImageData(0, 0, lienzo.width, lienzo.height);
+    const { tinta, alBorde } = analizaFranjaBusqueda(imgData.data, lienzo.width, lienzo.height);
+    let texto = "";
+    if (tinta && !alBorde) {
+        ctx.putImageData(imgData, 0, 0);
+        const { data } = await OCRRepository.recognizeWithPSM(worker1, lienzo, 7, { text: true });
+        texto = data?.text || "";
+    }
+    escaner._ordenHash = hash;
+    escaner._ordenTexto = texto;
     return texto;
 }
 

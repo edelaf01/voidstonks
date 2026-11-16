@@ -42,9 +42,9 @@
 }
 
 .bounty-item {
-    background-color: #16191d;
-    border: 1px solid #333;
-    border-radius: 6px;
+    background-color: var(--wf-panel-bg);
+    border: 1px solid var(--wf-border-box);
+    border-radius: var(--radius-box);
     padding: 12px 15px;
     display: flex;
     justify-content: space-between;
@@ -216,14 +216,21 @@
 
 .farm-segment {
     display: inline-flex;
+    align-items: center;
+    height: 34px;
+    box-sizing: border-box;
     padding: 3px;
     background: rgba(0, 0, 0, 0.3);
     border: 1px solid rgba(255, 255, 255, 0.09);
-    border-radius: 8px;
+    border-radius: var(--radius-ctl);
 }
 
 .farm-seg-btn {
-    padding: 6px 13px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    padding: 0 13px;
     font-family: inherit;
     font-size: 0.76rem;
     font-weight: 700;
@@ -231,7 +238,7 @@
     color: #9aa0aa;
     background: transparent;
     border: none;
-    border-radius: 6px;
+    border-radius: var(--radius-ctl);
     cursor: pointer;
     white-space: nowrap;
     transition: color 0.18s, background 0.18s;
@@ -251,14 +258,16 @@
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    padding: 8px 13px;
+    height: 34px;
+    box-sizing: border-box;
+    padding: 0 13px;
     font-family: inherit;
     font-size: 0.76rem;
     font-weight: 700;
     color: #9aa0aa;
     background: rgba(0, 0, 0, 0.3);
     border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 8px;
+    border-radius: var(--radius-ctl);
     cursor: pointer;
     white-space: nowrap;
     transition: color 0.18s, border-color 0.18s, background 0.18s;
@@ -342,7 +351,7 @@
     background: rgba(255, 255, 255, 0.03);
     border: 1px solid color-mix(in srgb, var(--chip-color) 45%, transparent);
     color: var(--chip-color);
-    border-radius: 14px;
+    border-radius: var(--radius-ctl);
     padding: 4px 10px;
     font-size: 0.72em;
     font-weight: 700;
@@ -594,9 +603,9 @@
 }
 
 .farm-alarm-panel {
-    background: #14171b;
-    border: 1px solid #2c313a;
-    border-radius: 6px;
+    background: var(--wf-panel-bg);
+    border: 1px solid var(--wf-border-box);
+    border-radius: var(--radius-box);
     padding: 14px;
     margin: 0 5px 12px 5px;
     overflow: hidden;
@@ -644,8 +653,7 @@
     color: #f66;
 }
 
-.alarm-notif-btn,
-.alarm-add-btn {
+.alarm-notif-btn {
     font-size: 0.75em;
     font-weight: 800;
     padding: 6px 12px;
@@ -656,8 +664,7 @@
     cursor: pointer;
 }
 
-.alarm-notif-btn:hover,
-.alarm-add-btn:hover {
+.alarm-notif-btn:hover {
     color: #fff;
     border-color: var(--wf-blue);
 }
@@ -680,7 +687,7 @@
     background-repeat: no-repeat;
     background-position: right 10px center;
     border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 8px;
+    border-radius: var(--radius-ctl);
     padding: 8px 30px 8px 11px;
     flex: 1 1 150px;
     min-width: 130px;
@@ -796,13 +803,18 @@
 }
 
 .optimal-star {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 30px;
+    box-sizing: border-box;
     background: transparent;
     border: 1px solid #3a3f47;
     border-radius: 4px;
     color: #666;
     font-size: 1.05em;
     line-height: 1;
-    padding: 5px 8px;
+    padding: 0 8px;
     cursor: pointer;
     transition: color 0.2s, border-color 0.2s, transform 0.1s;
 }

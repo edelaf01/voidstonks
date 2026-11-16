@@ -154,8 +154,11 @@ async function pump() {
 
 const RARITIES = ["COMMON", "UNCOMMON", "RARE", "LEGENDARY"];
 
+export const PACK_COST = 200;
+export const EFFORT_PL = 2;
+
 function meanBy(items, fn) {
-    const vals = items.map(fn).filter((v) => v > 0);
+    const vals = items.map(fn).filter((v) => v !== null && v !== undefined && !Number.isNaN(v));
     if (!vals.length) return 0;
     return vals.reduce((s, v) => s + v, 0) / vals.length;
 }
@@ -171,6 +174,20 @@ export function realizableR0(st) {
 }
 export function realizableMax(st) {
     return st ? realizablePrice(st.pem || 0, st.vm || 0, st.bbm || 0, 2) : 0;
+}
+
+export function hasR5Market(st) {
+    return !!st && st.pem > 0 && (st.vm || 0) > 0;
+}
+
+export function arcaneUnitValue(meta, st) {
+    if (!st) return 0;
+    const r0 = Math.max(0, realizableR0(st) - EFFORT_PL);
+    if (hasR5Market(st)) {
+        const r5 = Math.max(0, realizableMax(st) - EFFORT_PL) / copiesForMaxRank(meta);
+        return Math.max(r0, r5);
+    }
+    return r0;
 }
 
 export function computePackEV(pack, arcanes) {
@@ -189,43 +206,80 @@ export function computePackEV(pack, arcanes) {
     let totalVolume = 0;
     let validVolCount = 0;
 
-    for (const roll of pack.rolls || []) {
+    const rolls = pack.rolls || [];
+    for (const roll of rolls) {
         for (const r of RARITIES) {
             const w = roll[r] || 0;
             if (!w || !byRarity[r].length) continue;
-            evPlat += w * meanBy(byRarity[r], (s) => realizableR0(ARC_STATS.get(s)));
+            evPlat += w * meanBy(byRarity[r], (s) => arcaneUnitValue(arcanes[s], ARC_STATS.get(s)));
             evVosfor += w * meanBy(byRarity[r], (s) => arcanes[s]?.vosfor || 0);
         }
     }
+
+    let topR5Slug = null;
+    let topR5Val = -1;
+    let topR0Slug = null;
+    let topR0Val = -1;
 
     for (const slug of pack.items) {
         const st = ARC_STATS.get(slug);
         if (st) {
             totalVolume += (st.v || 0) + (st.vm || 0);
             validVolCount++;
+            const hasR5 = hasR5Market(st);
+            if (hasR5) {
+                const rm = realizableMax(st);
+                if (rm > topR5Val) {
+                    topR5Val = rm;
+                    topR5Slug = slug;
+                }
+            }
+            const r0 = realizableR0(st);
+            if (r0 > topR0Val) {
+                topR0Val = r0;
+                topR0Slug = slug;
+            }
         }
     }
 
     const avgVolume = validVolCount > 0 ? totalVolume / validVolCount : 0;
-    const platPerVosfor = pack.cost?.vosfor > 0 ? evPlat / pack.cost.vosfor : 0;
+    const cost = pack.cost?.vosfor || PACK_COST;
+    const rate = cost > 0 ? evPlat / cost : 0;
+    const evPlatRounded = Math.round(evPlat * 10) / 10;
 
-    const liqMultiplier = Math.min(1.25, Math.max(0.4, 0.45 + 0.35 * Math.log10(1 + avgVolume)));
-    const balancedRate = platPerVosfor * liqMultiplier;
-
-    const realizationFactor = Math.min(1, liqMultiplier);
-    const evPlatNet = evPlat * realizationFactor;
+    const topSlug = topR5Val > 0 ? topR5Slug : (topR0Val > 0 ? topR0Slug : null);
+    let top = null;
+    if (topSlug) {
+        const topMeta = arcanes[topSlug];
+        const topSt = ARC_STATS.get(topSlug);
+        const topRarity = topMeta?.rarity;
+        const rarityCount = byRarity[topRarity]?.length || 0;
+        const probPerRoll = (rolls.length > 0 && rarityCount > 0)
+            ? rolls.reduce((sum, roll) => sum + (roll[topRarity] || 0) / rarityCount, 0) / rolls.length
+            : 0;
+        const copies = copiesForMaxRank(topMeta);
+        const rollsPerPack = rolls.length || 3;
+        const packsForMax = probPerRoll > 0 ? copies / (rollsPerPack * probPerRoll) : null;
+        const vosforForMax = packsForMax !== null ? packsForMax * cost : null;
+        const hasR5 = hasR5Market(topSt);
+        const netMax = hasR5
+            ? Math.max(0, realizableMax(topSt) - EFFORT_PL)
+            : copies * Math.max(0, realizableR0(topSt) - EFFORT_PL);
+        top = { slug: topSlug, probPerRoll, copies, packsForMax, vosforForMax, netMax };
+    }
 
     return {
         ready,
         loaded: loaded.length,
         total: pack.items.length,
-        evPlat: Math.round(evPlat * 10) / 10,
-        evPlatNet: Math.round(evPlatNet * 10) / 10,
+        evPlat: evPlatRounded,
+        evPlatNet: evPlatRounded,
         evVosfor: Math.round(evVosfor),
-        platPerVosfor,
+        rate,
+        platPerVosfor: rate,
+        balancedRate: rate,
         avgVolume: Math.round(avgVolume),
-        balancedRate,
-        liqMultiplier,
+        top,
     };
 }
 
@@ -234,27 +288,16 @@ export function bestPackRate(data) {
     for (const pack of data.packs) {
         const ev = computePackEV(pack, data.arcanes);
         if (!ev.ready) continue;
-        if (!best || ev.platPerVosfor > best.rate) {
-            best = { rate: ev.platPerVosfor, packId: pack.id, pack, ev };
+        if (!best || ev.rate > best.rate) {
+            best = { rate: ev.rate, balancedRate: ev.rate, packId: pack.id, pack, ev };
         }
     }
     return best;
 }
 
 export function bestBalancedPackRate(data) {
-    let best = null;
-    for (const pack of data.packs) {
-        const ev = computePackEV(pack, data.arcanes);
-        if (!ev.ready) continue;
-        if (!best || ev.balancedRate > best.balancedRate) {
-            best = { balancedRate: ev.balancedRate, rate: ev.platPerVosfor, packId: pack.id, pack, ev };
-        }
-    }
-    return best;
+    return bestPackRate(data);
 }
-
-// dissolving goes into random packs, so its EV is worth less than sure platinum
-const CERTAINTY = 0.75;
 
 const EVEN_BAND = 0.08;
 
@@ -264,28 +307,63 @@ export function sellSimVerdict(meta, st, { isMax, qty, liqRate }) {
     if (!meta || !st) return null;
     const copiesMax = copiesForMaxRank(meta);
     const copiesPerUnit = isMax ? copiesMax : 1;
+    const totalCopies = qty * copiesPerUnit;
     const unitRealizable = isMax ? realizableMax(st) : realizableR0(st);
-    const sellValue = qty * unitRealizable;
-    const totalVosfor = qty * copiesPerUnit * (meta.vosfor || 0);
-    const dissolveValue = liqRate > 0 ? totalVosfor * liqRate * CERTAINTY : null;
+    const sellValue = qty * Math.max(0, unitRealizable - EFFORT_PL);
+    const totalVosfor = totalCopies * (meta.vosfor || 0);
+    const dissolveValue = liqRate > 0 ? totalVosfor * liqRate : null;
+
+    const unitNetR0 = Math.max(0, realizableR0(st) - EFFORT_PL);
+    const sellR0Value = totalCopies * unitNetR0;
+    const r5Market = hasR5Market(st);
+    const fullSets = Math.floor(totalCopies / copiesMax);
+    const remCopies = totalCopies % copiesMax;
+    const unitNetMax = Math.max(0, realizableMax(st) - EFFORT_PL);
+    const mergeValue = r5Market ? fullSets * unitNetMax + remCopies * unitNetR0 : null;
 
     let verdict = "pending";
-    if (dissolveValue !== null) {
-        const top = Math.max(sellValue, dissolveValue);
-        if (sellValue <= 0) verdict = "dissolve";
-        else if (Math.abs(sellValue - dissolveValue) <= top * EVEN_BAND) verdict = "even";
-        else verdict = sellValue > dissolveValue ? "sell" : "dissolve";
+    const maxSell = Math.max(sellR0Value, mergeValue ?? 0);
+    if (maxSell <= 0 && (meta.vosfor || 0) <= 0) {
+        verdict = "nodata";
+    } else if (dissolveValue !== null) {
+        const opts = [
+            ["sell_r0", sellR0Value],
+            ["dissolve", dissolveValue],
+        ];
+        if (mergeValue !== null && fullSets > 0) {
+            opts.push(["sell_max", mergeValue]);
+        }
+        opts.sort((a, b) => b[1] - a[1]);
+        const [topKey, topVal] = opts[0];
+        if (topVal <= 0) {
+            verdict = "nodata";
+        } else if (opts.length > 1 && opts[1][1] > 0 && Math.abs(topVal - opts[1][1]) <= topVal * EVEN_BAND) {
+            verdict = "even";
+        } else {
+            verdict = topKey;
+        }
     }
-    return { copiesMax, copiesPerUnit, unitRealizable, sellValue, totalVosfor, dissolveValue, verdict };
+    return {
+        copiesMax,
+        copiesPerUnit,
+        totalCopies,
+        unitRealizable,
+        sellValue,
+        sellR0Value,
+        mergeValue,
+        totalVosfor,
+        dissolveValue,
+        verdict,
+    };
 }
 
 export function dissolveEdge(meta, st, liqRate) {
     if (!meta || !st || !(liqRate > 0)) return null;
-    const dissolveValue = (meta.vosfor || 0) * liqRate * CERTAINTY;
+    const dissolveValue = (meta.vosfor || 0) * liqRate;
     if (!(dissolveValue > 0)) return null;
 
     const copiesMax = copiesForMaxRank(meta);
-    const keepValue = Math.max(realizableR0(st), realizableMax(st) / copiesMax);
+    const keepValue = arcaneUnitValue(meta, st);
 
     return {
         copiesMax,
@@ -303,7 +381,7 @@ export function vosforPerPlat(meta, st) {
         ratio: vosfor / ask,
         buyPrice: ask,
         sellers: st.s ?? null,
-        platPerPack: (200 / vosfor) * ask,
+        platPerPack: (PACK_COST / vosfor) * ask,
     };
 }
 
@@ -312,38 +390,39 @@ export function arcaneVerdict(slug, arcanes, spend) {
     const st = ARC_STATS.get(slug);
     if (!meta || !st) return {};
 
-    const rate = spend ? spend.rate : 0;
+    const rate = spend?.rate ?? 0;
     const copiesMax = copiesForMaxRank(meta);
 
     const sellR0 = realizableR0(st);
-    const dissolvePlatR0 = meta.vosfor * rate;
+    const dissolvePlatR0 = (meta.vosfor || 0) * rate;
 
     const sellR5 = realizableMax(st);
     const sell21R0 = sellR0 * copiesMax;
-    const dissolvePlat21 = (meta.vosfor * copiesMax) * rate;
+    const dissolvePlat21 = ((meta.vosfor || 0) * copiesMax) * rate;
 
     const r5RankBonus = sell21R0 > 0 && sellR5 > sell21R0
         ? Math.round(((sellR5 - sell21R0) / sell21R0) * 100)
         : 0;
 
-    const EFFORT_PL = 2;
-    const liqRate = spend?.balancedRate ?? rate;
-
     const volDay = (st.v || 0) + (st.vm || 0);
     const SELL_HORIZON_DAYS = 14;
     const sellableR0 = Math.max(1, Math.min(copiesMax, Math.ceil(volDay * SELL_HORIZON_DAYS)));
 
-    const canSellMax = st.pem > 0 && (st.rm || 0) > 0;
+    const canSellMax = hasR5Market(st);
     const netSellMax = canSellMax ? sellR5 - EFFORT_PL : -Infinity;
-    const netSellR0 = sellR0 > 0 ? sellableR0 * (sellR0 - EFFORT_PL) : -Infinity;
-    const netDissolve = meta.vosfor * copiesMax * liqRate * CERTAINTY;
+    const netSellR0 = sellR0 > 0
+        ? sellableR0 * (sellR0 - EFFORT_PL) + (copiesMax - sellableR0) * (meta.vosfor || 0) * rate
+        : -Infinity;
+    const netDissolve = (meta.vosfor || 0) * copiesMax * rate;
     const bestGuaranteed = Math.max(netSellMax, netSellR0);
 
     let bestAction = "pending";
     let gambleWarning = false;
-    if (spend) {
+    if (bestGuaranteed <= 0 && (meta.vosfor || 0) <= 0) {
+        bestAction = "nodata";
+    } else if (spend) {
         if (bestGuaranteed <= 0 && netDissolve <= 0) {
-            bestAction = "dissolve";
+            bestAction = "nodata";
         } else {
             const opts = [["sell_max", netSellMax], ["sell_r0", netSellR0], ["dissolve", netDissolve]];
             opts.sort((a, b) => b[1] - a[1]);
@@ -366,7 +445,7 @@ export function arcaneVerdict(slug, arcanes, spend) {
         r5RankBonus: r5RankBonus,
         copiesMax,
         maxRank: Math.min(meta.maxRank ?? 5, 5),
-        hasR5Market: st.pem > 0 && (st.rm || 0) > 0,
+        hasR5Market: canSellMax,
         bestPackEs: spend?.pack?.es || "",
         bestPackEn: spend?.pack?.en || "",
     };
@@ -375,8 +454,8 @@ export function arcaneVerdict(slug, arcanes, spend) {
 export const HEX_ARCANES = ["arcane_escapist", "arcane_universal_fallout", "arcane_hot_shot"];
 
 export function pixRank(data, bestRate) {
-    const cfg = data?.hex_pix || { pixCostR0: 5, vosfor: 200, vosforPix: 6 };
-    const rate = bestRate?.balancedRate ?? bestRate?.rate ?? 0;
+    const cfg = data?.hex_pix || { pixCostR0: 5, vosfor: PACK_COST, vosforPix: 6 };
+    const rate = bestRate?.rate ?? 0;
     const rows = [];
     for (const slug of HEX_ARCANES) {
         const meta = data?.arcanes?.[slug];
@@ -424,52 +503,6 @@ export function liquidityIndex(slug) {
         volumeR0: Math.round(st.v || 0),
         volumeMax: Math.round(st.vm || 0),
         maxRank: st.rm || 0,
-    };
-}
-
-export function calculateVosforInvestment(vosforAmount, data, selectedPackId = "auto") {
-    if (!vosforAmount || vosforAmount < 200 || !data?.packs) return null;
-
-    let bestEvPack = null;
-    let maxEvPlat = -1;
-
-    let bestLiquidPack = null;
-    let maxLiquidScore = -1;
-
-    let customPack = null;
-
-    for (const pack of data.packs) {
-        const ev = computePackEV(pack, data.arcanes);
-        if (!ev.ready) continue;
-
-        const pulls = Math.floor(vosforAmount / (pack.cost?.vosfor || 200));
-        if (pulls <= 0) continue;
-
-        const estPlatNet = pulls * (ev.evPlatNet ?? ev.evPlat);
-        const estPlatRaw = pulls * ev.evPlat;
-        const shown = Math.round(estPlatNet);
-        if (estPlatNet > maxEvPlat) {
-            maxEvPlat = estPlatNet;
-            bestEvPack = { pack, pulls, estPlat: shown, ev };
-        }
-
-        const liquidScore = estPlatRaw * Math.min(1.3, 0.4 + 0.6 * Math.log10(1 + ev.avgVolume));
-        if (liquidScore > maxLiquidScore) {
-            maxLiquidScore = liquidScore;
-            bestLiquidPack = { pack, pulls, estPlat: shown, ev };
-        }
-
-        if (selectedPackId && selectedPackId !== "auto" && pack.id === selectedPackId) {
-            customPack = { pack, pulls, estPlat: shown, ev };
-        }
-    }
-
-    return {
-        bestEvPack,
-        bestLiquidPack,
-        customPack,
-        vosforAmount,
-        selectedPackId,
     };
 }
 

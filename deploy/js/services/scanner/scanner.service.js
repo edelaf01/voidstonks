@@ -58,6 +58,7 @@ export const ScannerService = {
     scanInterval: null,
     _gen: 0,
     _sesion: 0,
+    _aperturaInv: 0,
     currentRate: 1200,
     RIVEN_RATE_ACTIVE: 400,
     RIVEN_RATE_IDLE: 1000,
@@ -269,6 +270,7 @@ export const ScannerService = {
         if (this.latchedContext === "MISSION_COMPLETE" && this.ctxLatch.latched !== "MISSION_COMPLETE") { this.mcLedger = INITIAL_LEDGER; this._mcCache.clear(); this._mcDormido = null; this._recompensasEnMision = false; }
         if (this.latchedContext === "REWARD" && this.ctxLatch.latched !== "REWARD") this.rescataRecompensaParcial();
         if (this.ctxLatch.latched !== this.latchedContext) { this.releaseFrames(); avisa("contexto", this.ctxLatch.latched); }
+        if (this.ctxLatch.latched === "INVENTORY" && this.latchedContext !== "INVENTORY") this._aperturaInv++;
         this.latchedContext = this.ctxLatch.latched;
         if (this.latchedContext !== "REWARD") {
             this._rewardFrameCvs = releaseFrame(this._rewardFrameCvs);
@@ -308,7 +310,7 @@ export const ScannerService = {
                 const borde = zone.y > hudY ? hudBottom(ctx.getImageData(zone.x, hudY, zone.w, zone.y - hudY)) : null;
                 zone = { ...zone, ...(calib.colorAnchored && { x: 0, w: this.anchoRejilla(dims.width) }), y, h: dims.height - y, hud: borde == null ? null : borde + (hudY - y) };
             }
-            this._frameZoneCache = { key: calib?.colorAnchored ? null : key, zone };
+            this._frameZoneCache = calib?.colorAnchored ? { key: null, zone } : zone ? (this._zonaDeLista = { key, zone, sesion: this._sesion }) : busqueda?.texto && this._zonaDeLista?.key === key && this._zonaDeLista.sesion === this._sesion ? this._zonaDeLista : { key, zone };
         }
         const zone = this._frameZoneCache.zone;
         if (!zone) {
@@ -1465,7 +1467,7 @@ export const ScannerService = {
                     console.warn(`[INV] Solo ${aciertos}/${activeCells.length} celdas casaron — invalidando auto-grid, zona de recorte, color de nombre y tema.`);
                     this._autoCalibCache = null;
                     this._nameColorCache = null;
-                    this._frameZoneCache = null;
+                    this._zonaDeLista = this._frameZoneCache = null;
                     this._temaCache = null;
                 }
 

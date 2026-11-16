@@ -320,7 +320,7 @@
     padding: 6px 5px;
     font-size: 0.8rem;
     font-style: italic;
-    color: #6e7681;
+    color: var(--label-color);
 }
 
 .lfg-empty-hint {

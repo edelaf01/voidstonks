@@ -115,7 +115,6 @@
 
 .info-icon {
   font-style: normal;
-  opacity: 0.7;
   transition: opacity 0.2s;
   cursor: help;
   font-size: 0.9em;

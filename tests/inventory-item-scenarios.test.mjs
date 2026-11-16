@@ -92,3 +92,15 @@ test("un riven o un rótulo ajeno no casan con ninguna pieza", () => {
   assert.equal(casa("RIFLE RIVEN MOD"), null);
   assert.equal(casa("VULKAR CRITACAN"), null);
 });
+
+test("una pieza leída con claridad gana al plano aunque el nombre llegue partido", () => {
+  assert.equal(casa("DETHC BE PRIME CARAPACE"), "Dethcube Prime Carapace");
+});
+
+test("una pieza truncada que no es la del candidato lo descarta: no suma al plano", () => {
+  assert.equal(casa("ZEPHYR PRIME SYST MSBLUEPRINT"), null);
+});
+
+test("una pieza propia con un error de OCR no descarta al ítem correcto", () => {
+  assert.equal(casa("NIKANA PRIME BLADES"), "Nikana Prime Blade");
+});
