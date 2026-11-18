@@ -1,6 +1,6 @@
 {
- "generado": "2026-11-17",
- "serie_hasta": "2026-11-17",
+ "generado": "2026-11-18",
+ "serie_hasta": "2026-11-18",
  "globales": [
   {
    "tipo": "global_weekly",
@@ -21,6 +21,19 @@
   }
  ],
  "eventos": [
+  {
+   "weekly": "2026-11-17",
+   "dias_tras_weekly": 0,
+   "arma": "destreza",
+   "fecha": "2026-11-17",
+   "desde": "2026-11-10",
+   "tipo": "volatil",
+   "pct": 200,
+   "de": 0.6,
+   "a": 1.8,
+   "pop_de": 4.6,
+   "fuente": "de"
+  },
   {
    "weekly": "2026-11-17",
    "dias_tras_weekly": 0,
@@ -219,58 +232,6 @@
   {
    "weekly": "2026-11-10",
    "dias_tras_weekly": 0,
-   "arma": "balla",
-   "fecha": "2026-11-10",
-   "desde": "2026-11-03",
-   "tipo": "subida_venta",
-   "pct": 33,
-   "de": 54,
-   "a": 72,
-   "pop_de": 6.1,
-   "fuente": "de"
-  },
-  {
-   "weekly": "2026-11-10",
-   "dias_tras_weekly": 0,
-   "arma": "syam",
-   "fecha": "2026-11-10",
-   "desde": "2026-11-03",
-   "tipo": "subida_venta",
-   "pct": 29,
-   "de": 41,
-   "a": 53,
-   "pop_de": 10.0,
-   "fuente": "de"
-  },
-  {
-   "weekly": "2026-11-10",
-   "dias_tras_weekly": 0,
-   "arma": "tenet envoy",
-   "fecha": "2026-11-10",
-   "desde": "2026-11-03",
-   "tipo": "subida_venta",
-   "pct": 29,
-   "de": 45,
-   "a": 58,
-   "pop_de": 7.3,
-   "fuente": "de"
-  },
-  {
-   "weekly": "2026-11-10",
-   "dias_tras_weekly": 0,
-   "arma": "mausolon",
-   "fecha": "2026-11-10",
-   "desde": "2026-11-03",
-   "tipo": "bajada_venta",
-   "pct": -31,
-   "de": 68,
-   "a": 47,
-   "pop_de": 9.0,
-   "fuente": "de"
-  },
-  {
-   "weekly": "2026-11-10",
-   "dias_tras_weekly": 0,
    "arma": "pathocyst",
    "fecha": "2026-11-10",
    "desde": "2026-11-03",
@@ -292,6 +253,58 @@
    "de": 57,
    "a": 40,
    "pop_de": 9.9,
+   "fuente": "de"
+  },
+  {
+   "weekly": "2026-11-10",
+   "dias_tras_weekly": 0,
+   "arma": "mausolon",
+   "fecha": "2026-11-10",
+   "desde": "2026-11-03",
+   "tipo": "bajada_venta",
+   "pct": -31,
+   "de": 68,
+   "a": 47,
+   "pop_de": 9.0,
+   "fuente": "de"
+  },
+  {
+   "weekly": "2026-11-10",
+   "dias_tras_weekly": 0,
+   "arma": "syam",
+   "fecha": "2026-11-10",
+   "desde": "2026-11-03",
+   "tipo": "subida_venta",
+   "pct": 29,
+   "de": 41,
+   "a": 53,
+   "pop_de": 10.0,
+   "fuente": "de"
+  },
+  {
+   "weekly": "2026-11-10",
+   "dias_tras_weekly": 0,
+   "arma": "balla",
+   "fecha": "2026-11-10",
+   "desde": "2026-11-03",
+   "tipo": "subida_venta",
+   "pct": 33,
+   "de": 54,
+   "a": 72,
+   "pop_de": 6.1,
+   "fuente": "de"
+  },
+  {
+   "weekly": "2026-11-10",
+   "dias_tras_weekly": 0,
+   "arma": "tenet envoy",
+   "fecha": "2026-11-10",
+   "desde": "2026-11-03",
+   "tipo": "subida_venta",
+   "pct": 29,
+   "de": 45,
+   "a": 58,
+   "pop_de": 7.3,
    "fuente": "de"
   },
   {
@@ -344,6 +357,19 @@
    "de": 69,
    "a": 48,
    "pop_de": 3.5,
+   "fuente": "de"
+  },
+  {
+   "weekly": "2026-11-03",
+   "dias_tras_weekly": 0,
+   "arma": "dual viciss",
+   "fecha": "2026-11-03",
+   "desde": "2026-10-27",
+   "tipo": "volatil",
+   "pct": 588,
+   "de": 0.6,
+   "a": 4.1,
+   "pop_de": 6.6,
    "fuente": "de"
   },
   {
@@ -487,6 +513,19 @@
    "de": 90,
    "a": 62,
    "pop_de": 7.0,
+   "fuente": "de"
+  },
+  {
+   "weekly": "2026-11-03",
+   "dias_tras_weekly": 0,
+   "arma": "grattler",
+   "fecha": "2026-11-03",
+   "desde": "2026-10-27",
+   "tipo": "bajada_venta",
+   "pct": -27,
+   "de": 90,
+   "a": 66,
+   "pop_de": 8.5,
    "fuente": "de"
   },
   {
