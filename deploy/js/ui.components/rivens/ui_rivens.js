@@ -3421,7 +3421,7 @@ export function renderRivenIndexList(items, countHtml = "") {
         webBadgeStyle = "color: #00e5ff; background: rgba(0, 229, 255, 0.08); border: 1px solid rgba(0, 229, 255, 0.2);";
       }
 
-      const webBadgeHtml = `<span class="index-price-diff" style="${webBadgeStyle}; cursor: help;" data-tooltip="${getRivenTooltip("potentialWeb", isEs)}">${getRivenMetricName("potentialWeb", isEs)}: ${webMult} <span class="info-icon" style="font-size: 0.65rem; margin-left: 2px;">ℹ</span></span>`;
+      const webBadgeHtml = `<span class="index-price-diff index-extra" style="${webBadgeStyle}; cursor: help;" data-tooltip="${getRivenTooltip("potentialWeb", isEs)}">${getRivenMetricName("potentialWeb", isEs)}: ${webMult} <span class="info-icon" style="font-size: 0.65rem; margin-left: 2px;">ℹ</span></span>`;
 
       potentialHtml = `<span class="potential-badges-row" style="display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; vertical-align: middle;">${realBadgeHtml}${webBadgeHtml}</span>`;
     } else {
@@ -3664,7 +3664,7 @@ export function renderRivenIndexList(items, countHtml = "") {
               ${trendHtml}
               ${potentialHtml}
               <span class="index-price-diff" style="color: #00e5ff; background: rgba(0, 229, 255, 0.08); border: 1px solid rgba(0, 229, 255, 0.2); cursor: help;" data-tooltip="${getRivenTooltip("liquidity", isEs)}">${getRivenMetricName("liquidity", isEs)}: ${val.liquidity_score != null ? `${val.liquidity_score}/100` : (isEs ? "sin datos" : "no data")}</span>
-              <span class="index-price-diff" style="color: #a855f7; background: rgba(168, 85, 247, 0.08); border: 1px solid rgba(168, 85, 247, 0.2); cursor: help;" data-tooltip="${getRivenTooltip("reroll", isEs)}">${getRivenMetricName("reroll", isEs)}: ${textoExtraPorCiclar(val.rerolled_premium_ratio, isEs)}</span>
+              <span class="index-price-diff index-extra" style="color: #a855f7; background: rgba(168, 85, 247, 0.08); border: 1px solid rgba(168, 85, 247, 0.2); cursor: help;" data-tooltip="${getRivenTooltip("reroll", isEs)}">${getRivenMetricName("reroll", isEs)}: ${textoExtraPorCiclar(val.rerolled_premium_ratio, isEs)}</span>
             </div>
             
             <div class="index-card-price-groups" style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 6px; padding-top: 6px; border-top: 1px dashed rgba(255,255,255,0.06); width: 100%;">
@@ -3693,7 +3693,7 @@ export function renderRivenIndexList(items, countHtml = "") {
               </div>
 
               <!-- Group 2: WEB DATA (WFM ACTIVE SHOWCASE) -->
-              <div class="price-group-section wfm-web">
+              <div class="price-group-section wfm-web index-extra">
                 <div style="font-size: 10px; color: var(--wf-blue); font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid rgba(0, 229, 255, 0.15); padding-bottom: 2px; margin-bottom: 2px;">
                   ${isEs ? "DATOS WEB (WFM)" : "WEB DATA (WFM)"}${WFM_RIVENS_HASTA ? ` · ${fechaWfmRivens(isEs)}` : ""}
                 </div>
@@ -3705,7 +3705,7 @@ export function renderRivenIndexList(items, countHtml = "") {
 
               <!-- Group 3: MARKET VOLATILITY / RISK -->
               ${volatilityHtml ? `
-              <div class="price-group-section market-risk">
+              <div class="price-group-section market-risk index-extra">
                 <div style="font-size: 10px; color: #a0a0a5; font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 2px; margin-bottom: 2px;">
                   ${isEs ? "RIESGO DE MERCADO" : "MARKET RISK"}
                 </div>

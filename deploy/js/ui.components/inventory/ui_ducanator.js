@@ -143,7 +143,7 @@ export function renderDucanatorView(list, opts = {}) {
 
   list.innerHTML = `
     <div class="duc-panel">
-      <div class="duc-summary">
+      <div class="duc-summary"${rows.length === 0 ? " hidden" : ""}>
         <div class="duc-stat duc-stat-gold">
           <span class="duc-stat-val">${fundableDucats.toLocaleString()}<span class="ducat-icon-inline"></span></span>
           <span class="duc-stat-label">${escapeHTML(dt.fundSection || "Trade for ducats")} · ${fundableParts}</span>

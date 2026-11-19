@@ -327,7 +327,7 @@ export function initDisclaimerSystem() {
   setTimeout(() => {
     const disclaimer = document.getElementById("txt-disclaimer");
     if (!disclaimer) return;
-    if (disclaimer.closest(".site-footer.in-scroll")) return;
+    if (getComputedStyle(disclaimer).position === "static") return;
     disclaimer.classList.add("fade-out");
     setTimeout(() => {
       disclaimer.style.display = "none";

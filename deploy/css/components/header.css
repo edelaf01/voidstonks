@@ -305,25 +305,15 @@
 }
 
 .footer-disclaimer {
-    position: fixed;
-    bottom: 20px;
-    left: 50%;
-    transform: translateX(-50%);
-    background-color: rgba(5, 5, 5, 0.95);
+    position: static;
     color: #888;
-    padding: 15px 25px;
-    border-radius: 8px;
+    margin: 14px auto 0;
+    padding: 10px 0 0;
     font-size: 0.75em;
     line-height: 1.4;
     text-align: center;
-    width: 90%;
     max-width: 600px;
-    z-index: 5000;
-    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.5);
-    opacity: 1;
-    visibility: visible;
-    transition: opacity 1.5s ease-out, visibility 1.5s;
-    pointer-events: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .footer-disclaimer.fade-out {
@@ -757,8 +747,8 @@ option {
     top: 3px;
     right: 4px;
     margin-left: 0;
-    padding: 1px 4px;
-    font-size: 0.52em;
+    padding: 2px 5px;
+    font-size: 0.68rem;
     font-weight: 800;
     line-height: 1.1;
     letter-spacing: 0.5px;

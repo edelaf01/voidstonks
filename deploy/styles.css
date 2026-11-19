@@ -975,6 +975,12 @@ body {
   flex-shrink: 0;
 }
 
+.arby-tier.special {
+  background: #4a1e5a;
+  color: #e0a8ff;
+  border-color: #b06ee0;
+}
+
 .arby-tier.big {
   font-size: 0.8em;
   padding: 2px 7px;
@@ -2272,16 +2278,19 @@ body.theme-vosfor {
 }
 
 .premium-riven-btn.btn-grade {
-  background: rgba(212, 175, 55, 0.07);
-  border: 1px solid rgba(212, 175, 55, 0.35);
-  color: var(--wf-gold-text);
-  text-shadow: 0 0 8px rgba(212, 175, 55, 0.35);
+  flex: 1.6;
+  font-size: 0.85rem;
+  background: rgba(212, 175, 55, 0.85);
+  border: 1px solid rgba(212, 175, 55, 1);
+  color: #111;
+  text-shadow: none;
+  box-shadow: 0 0 12px rgba(212, 175, 55, 0.3);
 }
 
 .premium-riven-btn.btn-grade:hover {
-  background: rgba(212, 175, 55, 0.18);
-  border-color: rgba(212, 175, 55, 0.75);
-  box-shadow: 0 0 18px rgba(212, 175, 55, 0.35);
+  background: rgba(212, 175, 55, 1);
+  border-color: rgba(212, 175, 55, 1);
+  box-shadow: 0 0 18px rgba(212, 175, 55, 0.45);
   transform: translateY(-2px);
 }
 
@@ -2411,6 +2420,25 @@ body.theme-vosfor {
 .lfg-checkbox-wrapper:has(input:checked) .lfg-label {
   color: var(--wf-lfg);
   text-shadow: 0 0 5px rgba(66, 245, 108, 0.5);
+}
+
+#mode-lfg .lfg-checkbox-wrapper {
+  position: relative;
+  gap: 8px;
+}
+
+#mode-lfg .lfg-checkbox-wrapper input[type="checkbox"] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+#mode-lfg .lfg-checkbox-wrapper:has(input:focus-visible) {
+  outline: 2px solid var(--wf-lfg);
+  outline-offset: 2px;
 }
 
 .card.theme-lfg select.wf-input {
@@ -3723,15 +3751,20 @@ body.theme-vosfor {
   }
 
   #inventory-container #inv-toggle-btn {
-    left: 4px !important;
+    left: 12px !important;
     top: 15px !important;
   }
 
   #best-missions-container .mission-toggle-btn,
   .mission-toggle-btn {
-    right: 4px !important;
+    right: 12px !important;
     top: 15px !important;
     left: auto !important;
+  }
+
+  .toggle-label {
+    font-size: 0.55rem;
+    letter-spacing: 0.2px;
   }
 
   #best-missions-container .mission-toggle-btn img,
@@ -6745,9 +6778,9 @@ body[data-lang="en"] .header-guide-cta .lang-en {
   gap: 8px;
   flex: 1 1 100%;
   min-width: 210px;
-  height: 34px;
+  min-height: 34px;
   box-sizing: border-box;
-  padding: 0 10px;
+  padding: 5px 10px;
   background: var(--wf-input-bg);
   border: 1px solid var(--wf-border-ctl);
   border-radius: var(--radius-ctl);
@@ -6774,6 +6807,9 @@ body[data-lang="en"] .header-guide-cta .lang-en {
   grid-template-columns: 1fr 1fr;
   gap: 8px;
   padding: 10px 12px;
+}
+.duc-summary[hidden] {
+  display: none;
 }
 .duc-stat {
   display: flex;
