@@ -181,14 +181,16 @@ export function getObservedMissionTypes() {
 }
 
 const ARBY_NODE_TIERS = {
-    "Tyana Pass": "S", "Alator": "S", "Callisto": "S", "Xini": "S", "Cytherean": "S",
-    "Munio": "A", "Seimeni": "A", "Cinxia": "A", "Casta": "A", "Oestrus": "A", "Hyf": "A",
-    "Larzac": "B", "Sechura": "B", "Hydron": "B", "Helene": "B", "Ose": "B", "Akkad": "B",
-    "Kala-azar": "B", "Odin": "B", "Mithra": "B", "Belenus": "B", "Taranis": "B",
-    "Coba": "C", "Spear": "C", "Kadesh": "C", "Paimon": "C", "Lith": "C",
-    "Stephano": "C", "Tessera": "C", "Outer Terminus": "C",
-    "Umbriel": "D", "Cerberus": "D", "Lares": "D", "Sangeru": "D", "Sinai": "D",
-    "Gulliver": "D", "Romula": "D", "Proteus": "D", "Io": "D", "Stöfler": "D", "Gaia": "D",
+    "Terrorem": "Special", "Ani": "Special", "Mot": "Special", "Kappa": "Special",
+    "Ur": "Special", "Laomedeia": "Special", "Apollo": "Special", "Ganymede": "Special",
+    "Tyana Pass": "S", "Alator": "S", "Callisto": "S", "Cytherean": "S", "Xini": "S", "Munio": "S",
+    "Sinai": "A", "Seimeni": "A", "Casta": "A", "Cinxia": "A",
+    "Spear": "B", "Kadesh": "B", "Akkad": "B", "Kala-azar": "B", "Coba": "B", "Lith": "B",
+    "Sechura": "B", "Larzac": "B", "Belenus": "B", "Taranis": "B", "Hyf": "B", "Oestrus": "B",
+    "Hydron": "C", "Helene": "C", "Ose": "C", "Mithra": "C", "Paimon": "C", "Tessera": "C",
+    "Odin": "C", "Io": "C", "Stephano": "C", "Gulliver": "C", "Romula": "C", "Proteus": "C",
+    "Outer Terminus": "C",
+    "Umbriel": "D", "Cerberus": "D", "Gaia": "D", "Stöfler": "D", "Lares": "D", "Sangeru": "D",
 };
 
 const arbyBaseNode = (node) => (node || "").replace(/\s*\([^)]*\)\s*$/, "").trim();

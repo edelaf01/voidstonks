@@ -185,7 +185,7 @@ function renderFissureFiltersPanel(prefs) {
             <div class="alarm-builder">
                 <select id="arby-alarm-tier" class="alarm-select" aria-label="${escapeHTML(t.arbyAlarms.minTier)}">
                     <option value="any">${escapeHTML(t.arbyAlarms.anyTier)}</option>
-                    ${[...ARBY_TIER_ORDER].reverse().map((tier) => `<option value="${tier}">${escapeHTML(t.arbyAlarms.tierAtLeast)} ${tier}</option>`).join("")}
+                    ${[...ARBY_TIER_ORDER].reverse().map((tier) => `<option value="${tier}">${escapeHTML(t.arbyAlarms.tierAtLeast)} ${escapeHTML(tier === "Special" ? `${t.arbitration.tierSpecial} (${t.arbitration.tierSpecialHint})` : tier)}</option>`).join("")}
                 </select>
                 <select id="arby-alarm-type" class="alarm-select" aria-label="${escapeHTML(t.fissureAlarms.missionType)}">
                     <option value="any">${escapeHTML(t.fissureAlarms.anyType)}</option>
@@ -213,7 +213,7 @@ function renderFissureAlarmRules(t) {
       dotColor = "#ffb86c";
       parts = [
         t.arbyAlarms.tag,
-        (r.minTier || "any") === "any" ? t.arbyAlarms.anyTier : `${t.arbyAlarms.tierAtLeast} ${r.minTier}`,
+        (r.minTier || "any") === "any" ? t.arbyAlarms.anyTier : `${t.arbyAlarms.tierAtLeast} ${r.minTier === "Special" ? `${t.arbitration.tierSpecial} (${t.arbitration.tierSpecialHint})` : r.minTier}`,
         (r.type || "any") === "any" ? t.fissureAlarms.anyType : (t.modes[r.type.toLowerCase()] || r.type),
       ];
     } else {
@@ -573,7 +573,7 @@ async function renderArbitrationBar() {
     const t = TEXTS[state.currentLang];
     const typeOf = (m) => t.modes[(m.type || "").toLowerCase()] || m.type || "";
     const tierTag = (m, big) => m.tier
-      ? `<span class="arby-tier${big ? " big" : ""}" data-tooltip="${escapeHTML(t.arbitration.tierTooltip)}">${escapeHTML(m.tier)}</span>`
+      ? `<span class="arby-tier${big ? " big" : ""}${m.tier === "Special" ? " special" : ""}" ${m.tier === "Special" ? `title="${escapeHTML(t.arbitration.tierSpecialHint)}" style="font-weight:900;font-size:1.3em;"` : `data-tooltip="${escapeHTML(t.arbitration.tierTooltip)}"`}>${escapeHTML(m.tier === "Special" ? t.arbitration.tierSpecial : m.tier)}</span>`
       : "";
 
     const relTo = (activation) => {

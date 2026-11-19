@@ -8,7 +8,7 @@ export const ALARM_KINDS = ["bounty", "fissure", "arbitration", "weapon"];
 export const VALENCE_MIN = 25;
 export const VALENCE_MAX = 60;
 
-export const ARBY_TIER_ORDER = ["F", "D", "C", "B", "A", "S"];
+export const ARBY_TIER_ORDER = ["F", "D", "C", "B", "A", "S", "Special"];
 
 export const SPECIAL_TIER_VALUE = 6;
 
@@ -194,7 +194,7 @@ const MATCHERS = {
     if ((rule.type || "any") !== "any" && norm(rule.type) !== norm(m.type)) return false;
     const minTier = rule.minTier || "any";
     if (minTier === "any") return true;
-    const val = (t) => ARBY_TIER_ORDER.indexOf((t || "").toUpperCase());
+    const val = (t) => ARBY_TIER_ORDER.findIndex((x) => x.toUpperCase() === (t || "").toUpperCase());
     return val(m.tier) >= val(minTier);
   },
 };

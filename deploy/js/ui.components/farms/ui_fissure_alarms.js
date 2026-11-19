@@ -31,7 +31,7 @@ export function handleArbitrationAlarmHits(hits) {
   if (!hits || hits.length === 0) return;
   const lines = hits.map(({ item }) => {
     const typeTxt = t.modes[(item.type || "").toLowerCase()] || item.type;
-    return `${item.tier ? `[${item.tier}] ` : ""}${typeTxt} · ${item.node}`;
+    return `${item.tier ? `[${item.tier === "Special" ? `${t.arbitration.tierSpecial} ${t.arbitration.tierSpecialHint}` : item.tier}] ` : ""}${typeTxt} · ${item.node}`;
   });
   sendBrowserNotification(t.arbyAlarms.firedTitle, lines.join("\n"));
   showToast(`<b>${escapeHTML(t.arbyAlarms.firedTitle)}</b><br>${lines.map(escapeHTML).join("<br>")}`, {
