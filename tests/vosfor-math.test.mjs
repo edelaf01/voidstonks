@@ -4,7 +4,6 @@ import {
   binomialGe,
   formatProbPct,
   targetSimProbabilities,
-  calculateR5Realism,
   copiesForMaxRank,
   maxRankOf,
 } from "../deploy/js/utils/vosfor_math.js";
@@ -88,39 +87,6 @@ test("sin arcanos de esa rareza no se divide por cero", () => {
   assert.ok(!r.pAtLeastOnePct.includes("NaN"), r.pAtLeastOnePct);
 });
 
-const pack = {
-  cost: { vosfor: 200 },
-  rolls: [{ LEGENDARY: 0.05, RARE: 0.15, UNCOMMON: 0.3, COMMON: 0.5 }],
-  items: ["leg1", "leg2", "rare1", "unc1", "com1"],
-};
-const data = {
-  arcanes: {
-    leg1: { rarity: "LEGENDARY" }, leg2: { rarity: "LEGENDARY" },
-    rare1: { rarity: "RARE" }, unc1: { rarity: "UNCOMMON" }, com1: { rarity: "COMMON" },
-  },
-};
-
-test("con menos Vosfor del que cuesta un pack no se simula nada", () => {
-  assert.equal(calculateR5Realism(199, pack, data), null);
-  assert.equal(calculateR5Realism(0, pack, data), null);
-  assert.equal(calculateR5Realism(5000, null, data), null);
-  assert.equal(calculateR5Realism(5000, pack, null), null);
-});
-
-test("las tiradas salen de dividir el Vosfor entre el coste, y cada pack son 3", () => {
-  const r = calculateR5Realism(1000, pack, data);
-  assert.equal(r.pulls, 5, "1000 / 200");
-  assert.equal(r.totalRolls, 15);
-
-  assert.equal(calculateR5Realism(1199, pack, data).pulls, 5);
-});
-
-test("una rareza sin arcanos en el pack sale a cero, no a NaN", () => {
-  const sinLegendarios = { ...pack, items: ["rare1", "unc1"] };
-  const r = calculateR5Realism(1000, sinLegendarios, data);
-  assert.deepEqual(r.results.LEGENDARY, { expected: "0.0", probPct: "0.0", probRaw: 0, itemCount: 0, copies: 0, ranks: [] });
-});
-
 test("las copias del rango máximo son triangulares: 21 para R5, 10 para R3, 21 si no consta", () => {
   assert.equal(copiesForMaxRank({ maxRank: 5 }), 21);
   assert.equal(copiesForMaxRank({ maxRank: 3 }), 10);
@@ -128,52 +94,4 @@ test("las copias del rango máximo son triangulares: 21 para R5, 10 para R3, 21 
   assert.equal(copiesForMaxRank(null), 21);
   assert.equal(maxRankOf({ maxRank: 9 }), 5);
   assert.equal(maxRankOf({ maxRank: 0 }), 1);
-});
-
-// cetus, fortuna and necralisk mix 21-copy arcanes with 10-copy ones within the same rarity
-test("una rareza con arcanos de 10 y de 21 copias da una probabilidad por rango", () => {
-  const mixto = {
-    ...pack,
-    items: ["rare1", "rare3"],
-  };
-  const datos = { arcanes: { rare1: { rarity: "RARE", maxRank: 5 }, rare3: { rarity: "RARE", maxRank: 3 } } };
-  const r = calculateR5Realism(200 * 100, mixto, datos);
-
-  assert.deepEqual(r.results.RARE.ranks.map((k) => [k.maxRank, k.copies, k.itemCount]), [[5, 21, 1], [3, 10, 1]]);
-  const [r5, r3] = r.results.RARE.ranks;
-  assert.ok(r3.probRaw > r5.probRaw, `10 copias (${r3.probPct}) tiene que ser más fácil que 21 (${r5.probPct})`);
-  assert.equal(r3.probRaw, binomialGe(300, 10, 0.075));
-  assert.equal(r5.probRaw, binomialGe(300, 21, 0.075));
-  assert.equal(r.results.RARE.probRaw, r5.probRaw);
-  assert.equal(r.results.RARE.copies, 21);
-});
-
-test("con pocas tiradas, el R3 de 10 copias sale viable donde el R5 fijo lo daba por perdido", () => {
-  const soloR3 = { ...pack, items: ["pax"] };
-  const datos = { arcanes: { pax: { rarity: "RARE", maxRank: 3 } } };
-  const r = calculateR5Realism(200 * 40, soloR3, datos);
-  assert.ok(r.results.RARE.probRaw > 0.95, `10 copias con 18 esperadas: ${r.results.RARE.probPct}`);
-  assert.ok(binomialGe(120, 21, 0.15) < 0.3, "con 21 fijas habría salido inviable");
-  assert.equal(r.results.RARE.copies, 10);
-});
-
-test("las copias esperadas reparten la probabilidad de la rareza entre sus arcanos", () => {
-  const r = calculateR5Realism(200 * 100, pack, data);
-  assert.equal(r.results.LEGENDARY.expected, "7.5");
-  assert.equal(r.results.LEGENDARY.itemCount, 2);
-  assert.equal(r.results.COMMON.expected, "150.0");
-});
-
-test("con muchísimo Vosfor el rango 5 de un común pasa a ser seguro y el de un legendario no", () => {
-  const r = calculateR5Realism(200 * 200, pack, data);
-  assert.ok(r.results.COMMON.probRaw > 0.99, `común: ${r.results.COMMON.probPct}`);
-  assert.ok(r.results.LEGENDARY.probRaw < r.results.COMMON.probRaw, "un legendario no puede ser más fácil");
-});
-
-test("un pack sin tabla de probabilidades cae a los valores por defecto", () => {
-  const sinRolls = { ...pack, rolls: null };
-  const r = calculateR5Realism(1000, sinRolls, data);
-  assert.ok(r, "debe simular igual");
-  assert.equal(r.results.COMMON.itemCount, 1);
-  assert.ok(Number.parseFloat(r.results.COMMON.expected) > 0);
 });

@@ -1678,7 +1678,6 @@ export async function renderVosforTab() {
 
     box.innerHTML = `
       <div class="vosfor-container">
-        ${guideBoxCard()}
         <div class="vos-tools">
           ${toolSection("sell", vosforIcon(20), t.toolSellTitle || "¿Vender o disolver?",
     t.toolSellSub || "", sellSimulatorCard())}
@@ -1694,6 +1693,7 @@ export async function renderVosforTab() {
         nombreDe: (slug) => { const m = vosData.tradables?.[slug]; return m ? (state.currentLang === "es" ? m[1] : m[0]) : slug; },
     }))}
         </div>
+        ${guideBoxCard()}
         ${searchAndControlsBar()}
         ${searchResultsCard(bestRate)}
         <div class="vosfor-explain-text">${escapeHTML(t.explain || "")}</div>

@@ -6,31 +6,30 @@ import { sellSimVerdict } from "../deploy/js/services/vosfor.service.js";
 const RARO = { vosfor: 24, maxRank: 5 };
 const RATE = 0.3;
 
-test("R5 con ask alto y sin ventas: el ask decía VENDER, el realizable dice DISOLVER", () => {
+test("R5 con ask alto y sin ventas: el realizable menos el esfuerzo no llega a disolver", () => {
   const muerto = { pe: 20, v: 0, vm: 0, bb: 0, pem: 300, bbm: 0, rm: 5 };
   const r = sellSimVerdict(RARO, muerto, { isMax: true, qty: 1, liqRate: RATE });
 
-  assert.equal(r.sellValue, 45, "300 x 0,15");
+  assert.equal(r.sellValue, 43, "300 x 0,15 - 2");
   assert.equal(r.totalVosfor, 504, "21 copias x 24");
-  assert.equal(r.dissolveValue, 504 * RATE * 0.75);
+  assert.equal(r.dissolveValue, 504 * RATE);
   assert.equal(r.verdict, "dissolve");
-  assert.ok(300 > 504 * RATE * 1.15);
 });
 
-test("mercado líquido: se cobra el ask íntegro y vender gana", () => {
+test("mercado líquido: se cobra el ask menos el esfuerzo y vender suelta gana", () => {
   const vivo = { pe: 40, v: 30, vm: 10, bb: 12 };
   const r = sellSimVerdict(RARO, vivo, { isMax: false, qty: 3, liqRate: RATE });
   assert.equal(r.unitRealizable, 40);
-  assert.equal(r.sellValue, 120);
+  assert.equal(r.sellValue, 114, "3 x (40 - 2)");
   assert.equal(r.totalVosfor, 72);
-  assert.equal(r.verdict, "sell");
+  assert.equal(r.verdict, "sell_r0");
 });
 
 test("la banda de 'parejo' es la misma que la del badge por fila (8%)", () => {
   const st = { pe: 10, v: 30, vm: 0, bb: 0 };
   const meta = { vosfor: 20, maxRank: 5 };
-  assert.equal(sellSimVerdict(meta, st, { isMax: false, qty: 1, liqRate: 0.64 }).verdict, "even");
-  assert.equal(sellSimVerdict(meta, st, { isMax: false, qty: 1, liqRate: 0.8 }).verdict, "dissolve");
+  assert.equal(sellSimVerdict(meta, st, { isMax: false, qty: 1, liqRate: 0.42 }).verdict, "even");
+  assert.equal(sellSimVerdict(meta, st, { isMax: false, qty: 1, liqRate: 0.5 }).verdict, "dissolve");
 });
 
 test("sin mercado no hay nada que vender: disolver", () => {

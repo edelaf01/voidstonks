@@ -705,6 +705,11 @@ select.vosfor-select {
         flex-direction: column;
         align-items: stretch;
     }
+
+    .vosfor-target-controls,
+    #sell-sim-results .vosfor-stat-cards {
+        grid-template-columns: 1fr;
+    }
 }
 
 .vosfor-calc-input-group {
