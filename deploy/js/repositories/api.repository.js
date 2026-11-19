@@ -195,3 +195,23 @@ export async function getLichWeapons(force = false) {
 export async function getServerTime() {
     return fetchLive("type=time");
 }
+
+export async function fetchTendencias() {
+    const CACHE_KEY = "voidstonks_tendencias_v1";
+    const SEIS_HORAS = 6 * 60 * 60 * 1000;
+    let cached = null;
+    try {
+        cached = await dbHelper.get(CACHE_KEY);
+        if (cached?.data && cached?.timestamp && (Date.now() - cached.timestamp < SEIS_HORAS)) return cached.data;
+
+        const res = await fetchRotating(`type=tendencias&b=${Math.floor(Date.now() / SEIS_HORAS)}`);
+        if (!res.ok) return cached?.data || null;
+        const data = await res.json();
+        if (!data?.t || !Object.keys(data.t).length) return cached?.data || null;
+        await dbHelper.set(CACHE_KEY, { timestamp: Date.now(), data });
+        return data;
+    } catch (e) {
+        console.warn("Error fetching tendencias:", e);
+        return cached?.data || null;
+    }
+}
