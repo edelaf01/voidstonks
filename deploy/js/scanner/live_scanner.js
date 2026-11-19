@@ -544,6 +544,7 @@ globalThis.selectRewardToInventory = (itemName) => {
 
 function commitMissionCompleteRewards(items, gastada = null) {
   ultimaEleccion.guarda(null);
+  avisa("recompensas-confirmadas", { items, gastada });
   if (!state.autoAddMissionRewards) { pendingManualAdds.length = 0; return; }
   const reliquias = (items || []).filter((i) => i.reliquia);
   const piezas = (items || []).filter((i) => !i.reliquia);

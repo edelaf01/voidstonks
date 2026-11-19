@@ -22,6 +22,7 @@ export const FARM_ROUTES_TEXTS = {
         runsTitle: "Runs medias para que caiga la pieza con esta reliquia, con tu refinamiento y tu escuadra. Es lo que decide cuál se recomienda.",
 
         guide: "¿Cómo se lee esto?",
+        moreFilters: "Más filtros",
         legendTitle: "El punto de cada pieza",
         legendReady: "Tienes la reliquia y hay fisura de su era abierta. Al lado, la misión más rápida y lo que le queda.",
         legendWait: "Tienes la reliquia, pero ahora no hay fisura de su era. No hay nada que hacer: volverá sola cuando roten.",
@@ -115,6 +116,11 @@ export const FARM_ROUTES_TEXTS = {
         buy: "Mejor comprarla",
         buyHelp: "Esta pieza cuesta como mucho el 15 % del set entero: sale más a cuenta comprarla que farmearla.",
         collapse: "Plegar o desplegar el panel",
+        real: "real",
+        realHelp: "Plat por hora con lo que tardan de verdad tus misiones con esas reliquias, medido en tus partidas.",
+        sessionsTitle: "Mis sesiones",
+        sessionsEmpty: "Aún no hay partidas medidas. Juega una misión con la app de escritorio abierta.",
+        sessionsAvg: "Media",
     },
     en: {
         title: "Suggested routes",
@@ -137,6 +143,7 @@ export const FARM_ROUTES_TEXTS = {
         runsTitle: "Average runs for the part to drop from this relic, with your refinement and squad. It's what decides which relic gets recommended.",
 
         guide: "How do I read this?",
+        moreFilters: "More filters",
         legendTitle: "The dot on each part",
         legendReady: "You own the relic and a fissure of its era is open. Next to it, the fastest mission and its time left.",
         legendWait: "You own the relic, but no fissure of its era is open. Nothing to do: it comes back on its own when they rotate.",
@@ -230,5 +237,10 @@ export const FARM_ROUTES_TEXTS = {
         buy: "Better to buy",
         buyHelp: "This part costs at most 15% of the whole set: buying it beats farming it.",
         collapse: "Collapse or expand the panel",
+        real: "real",
+        realHelp: "Plat per hour using how long your missions with those relics actually take, measured in your runs.",
+        sessionsTitle: "My sessions",
+        sessionsEmpty: "No measured runs yet. Play a mission with the desktop app open.",
+        sessionsAvg: "Average",
     },
 };
