@@ -5,11 +5,24 @@ import { FRANJA_TITULO_VIDEO } from "../../utils/vision/context_latch.js";
 import { muestraMaxCanal, smallCanvasHash, compareHashes } from "../../utils/vision/frame_hash.js";
 import { textura } from "../../utils/vision/title_catalog.js";
 import { getSlug } from "../../utils/slugs.utils.js";
-import { loadVosforData } from "../vosfor.service.js";
+import { loadVosforData, requestPackStats, ARC_STATS } from "../vosfor.service.js";
 import { VisionService } from "./vision.service.js";
 import { OCRService } from "./ocr.service.js";
 
-const conPrecio = (item) => ({ ...item, plat: item.tipo === "prime" ? Number(MEMORY_CACHE.get(getSlug(item.name))) || null : null });
+const pedidos = new Set();
+const precioArcano = (slug) => {
+    if (!ARC_STATS.has(slug) && !pedidos.has(slug)) {
+        pedidos.add(slug);
+        requestPackStats({ id: "tradeo", items: [slug] }, true).catch(console.warn);
+    }
+    return Number(ARC_STATS.get(slug)?.pe) || null;
+};
+const precio = (item) => {
+    if (item.tipo === "prime") return Number(MEMORY_CACHE.get(getSlug(item.name))) || null;
+    if (item.tipo === "arcano" && item.slug) return precioArcano(item.slug);
+    return null;
+};
+const conPrecio = (item) => ({ ...item, plat: precio(item) });
 const rotuloApagado = (video) => Math.max(...muestraMaxCanal(video, FRANJA_TITULO_VIDEO, 128, 8)) < BRILLO_CON_DIALOGO;
 const ESPERA_DIALOGO_MS = 120000;
 
@@ -54,7 +67,8 @@ export const TradeService = {
                     c = { ...c, leido, t: ahora };
                 }
                 this._casillas.set(clave, c);
-                if (c.item) mesa[lado].push(conPrecio(c.item));
+                if (c.item) mesa[lado].push(c.item);
+                else if (c.leido === null) mesa[lado].push({ tipo: "otro", name: "", qty: 1 });
             }
         }
         this._publica(mesa);
@@ -63,12 +77,13 @@ export const TradeService = {
     async _leeDialogo(video, worker, opciones) {
         const cvs = VisionService.prepareCropForOCR(video, dialogoTradeo(video.videoWidth, video.videoHeight), 1, "tradeoDialogo");
         const hash = smallCanvasHash(cvs);
+        if (this._confirmada) this._publica(this._confirmada);
         if (compareHashes(hash, this._dialogoHash, 6)) return;
         this._dialogoHash = hash;
         const { data } = await OCRRepository.recognize(worker, cvs, {}, { text: true });
         const lista = leeDialogoTradeo(data.text, opciones);
         if (lista) {
-            this._confirmada = { doy: lista.doy.map(conPrecio), recibo: lista.recibo.map(conPrecio), confirmada: true };
+            this._confirmada = { doy: lista.doy, recibo: lista.recibo, confirmada: true };
             this._publica(this._confirmada);
         } else if (this._confirmada && esTradeoHecho(data.text)) {
             this.onTrade?.(this._confirmada);
@@ -80,7 +95,8 @@ export const TradeService = {
         return Date.now() - this._mesaT < ESPERA_DIALOGO_MS && !!video?.videoWidth && rotuloApagado(video);
     },
 
-    _publica(mesa) {
+    _publica(crudo) {
+        const mesa = { ...crudo, doy: crudo.doy.map(conPrecio), recibo: crudo.recibo.map(conPrecio) };
         const clave = JSON.stringify(mesa);
         if (clave === this._clave) return;
         this._clave = clave;

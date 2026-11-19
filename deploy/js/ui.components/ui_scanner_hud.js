@@ -122,15 +122,35 @@ export const ScannerHUD = {
         const sh = TEXTS[state.currentLang].scannerHUD;
         const nodo = (tag, clase, texto = "") => Object.assign(document.createElement(tag), { className: clase, textContent: texto });
         if (mesa.confirmada) panel.appendChild(nodo("div", "trade-confirmada", sh.tradeConfirmed));
+        const totales = {};
+        let parcial = false;
         for (const [lado, titulo] of [["doy", sh.tradeGive], ["recibo", sh.tradeReceive]]) {
             panel.appendChild(nodo("div", "trade-title", titulo));
             if (!mesa[lado].length) panel.appendChild(nodo("div", "trade-empty", "-"));
+            totales[lado] = 0;
             for (const { tipo, name, qty, plat } of mesa[lado]) {
                 const linea = nodo("div", "trade-line");
-                linea.appendChild(nodo("span", "trade-name", tipo === "platino" ? `${name} ${qty}` : `${qty > 1 ? `${qty}× ` : ""}${name}`));
-                if (plat) linea.appendChild(fmtPlat(plat * qty, "trade-plat"));
+                linea.appendChild(nodo("span", "trade-name", tipo === "platino" ? `${name} ${qty}` : `${qty > 1 ? `${qty}× ` : ""}${name || sh.tradeUnknown}`));
+                const valor = tipo === "platino" ? qty : (plat || 0) * qty;
+                totales[lado] += valor;
+                if (tipo !== "platino" && plat) linea.appendChild(fmtPlat(valor, "trade-plat"));
+                else if (tipo !== "platino") { parcial = true; linea.appendChild(nodo("span", "trade-empty", sh.tradeNoPrice)); }
                 panel.appendChild(linea);
             }
+            if (mesa[lado].length) {
+                const total = nodo("div", "trade-line");
+                total.appendChild(nodo("span", "trade-title", sh.tradeTotal));
+                total.appendChild(fmtPlat(Math.round(totales[lado]), "trade-plat"));
+                panel.appendChild(total);
+            }
+        }
+        const { doy, recibo } = totales;
+        if (doy || recibo) {
+            const neto = Math.round(recibo - doy);
+            const banda = Math.max(doy, recibo) * 0.1;
+            const texto = neto > banda ? sh.tradeGood : neto < -banda ? sh.tradeBad : sh.tradeFair;
+            panel.appendChild(nodo("div", neto > banda ? "trade-confirmada" : "trade-title", texto.replace("{n}", neto > 0 ? `+${neto}` : String(neto))));
+            if (parcial) panel.appendChild(nodo("div", "trade-empty", sh.tradePartial));
         }
     },
 
