@@ -100,9 +100,40 @@ jobs:
           cat comparacion.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Tendencias a 7 y 30 días
+        id: tendencias
         if: ${{ !cancelled() }}
         continue-on-error: true
         run: python scripts/wfm/tendencias.py --relicsrun relicsrun --catalogo catalogo_wfm.json --arcanos deploy/assets/json/arcanes_vosfor.json --salida tendencias.json
+
+      - name: Subir tendencias al worker
+        if: ${{ !cancelled() && steps.tendencias.outcome == 'success' && hashFiles('tendencias.json') != '' }}
+        continue-on-error: true
+        env:
+          PRECIOS_SECRET: ${{ secrets.PRECIOS_SECRET }}
+        run: |
+          curl -fsS -X POST "$API/?type=precios_subir&tipo=tendencias" \
+            -H "X-Precios-Secret: $PRECIOS_SECRET" -H "Content-Type: application/json" \
+            --data-binary @tendencias.json
+
+      - name: Catálogos precalculados
+        id: catalogos
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        run: python scripts/wfm/catalogos.py --catalogo catalogo_wfm.json --carpeta catalogos
+
+      - name: Subir catálogos al worker
+        if: ${{ !cancelled() && steps.catalogos.outcome == 'success' }}
+        continue-on-error: true
+        env:
+          PRECIOS_SECRET: ${{ secrets.PRECIOS_SECRET }}
+        run: |
+          fallo=0
+          for tipo in wfm_items relics_opt prime_items_list; do
+            curl -fsS -X POST "$API/?type=precios_subir&tipo=$tipo" \
+              -H "X-Precios-Secret: $PRECIOS_SECRET" -H "Content-Type: application/json" \
+              --data-binary "@catalogos/$tipo.json" || fallo=1
+          done
+          exit $fallo
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: ${{ !cancelled() }}
