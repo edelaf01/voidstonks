@@ -1298,3 +1298,16 @@
   padding-top: 8px;
   padding-bottom: 8px;
 }
+
+.index-item-card:not(.expanded) .index-extra { display: none; }
+.index-card-top-line .index-price-diff,
+.index-card-top-line .index-badge-popularity { font-size: 0.8rem; }
+
+@media (max-width: 640px) {
+  .riven-curiosidades { flex-wrap: wrap; justify-content: space-between; row-gap: 8px; }
+  .riven-curiosidades .curio-viewport { order: -1; flex-basis: 100%; }
+  .riven-curiosidades .curio-nav { width: 44px; height: 32px; }
+  .curio-texto { flex-direction: column; gap: 6px; }
+  .curio-cuerpo { width: 100%; }
+  .curio-dots { padding-left: 0; }
+}

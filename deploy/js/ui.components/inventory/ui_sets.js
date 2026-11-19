@@ -27,7 +27,7 @@ import {
 } from "../../services/inventory/set_recommendations.service.js";
 import { buildSearchIndex, searchIndex } from "../../utils/fuzzy_search.js";
 import { setInputLoading, showLoadingIn } from "../ui_loader.js";
-import { createHelpButton, createTip } from "../ui_hints.js";
+import { createTip } from "../ui_hints.js";
 import { renderEmptySetsShowcase } from "./ui_sets_showcase.js";
 import { renderSetsBridge, bridgeTargetFrom } from "./ui_sets_bridge.js";
 import { renderSetTracker, updateMacroTracker } from "./ui_set_tracker.js";
@@ -241,12 +241,14 @@ export function initSetSearchHelp() {
   if (!slot) return;
 
   const t = TEXTS[state.currentLang]?.setTab || {};
-  slot.replaceChildren(createHelpButton({
-    title: t.helpTitle,
-    body: [t.helpIntro, t.helpResults, t.helpRelics],
-    label: t.helpAria,
-    align: "left",
-  }));
+  const icon = document.createElement("span");
+  icon.className = "info-icon";
+  icon.textContent = "ℹ";
+  icon.setAttribute("role", "button");
+  icon.setAttribute("tabindex", "0");
+  icon.setAttribute("aria-label", t.helpAria || t.helpTitle || "");
+  icon.dataset.tooltip = [t.helpTitle, t.helpIntro, t.helpResults, t.helpRelics].filter(Boolean).join("\n\n");
+  slot.replaceChildren(icon);
 }
 
 function createSetCard(title, itemNames, parent, isSingle = false) {

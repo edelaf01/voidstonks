@@ -19,6 +19,7 @@ import {
 import { TEXTS, DROP_CHANCES } from "../../config.js";
 import { escapeHTML } from "../ui_components.js";
 import { exposeGlobals } from "../../utils/global_registry.js";
+import { initSesionesFarmeo, leeSesiones, minutosDeReliquia } from "../../services/farms/sesiones_farmeo.service.js";
 
 const texts = () => FARM_ROUTES_TEXTS[state.currentLang === "es" ? "es" : "en"];
 
@@ -122,6 +123,7 @@ function routeHtml(route, t) {
     const value = route.gain > 0
         ? `<span class="fr-value" data-tooltip="${escapeHTML(t.readGain)}">${t.gain} ${route.gain}<span class="plat-icon-inline"></span>`
           + (route.platPerHour ? ` · <span data-tooltip="${escapeHTML(t.readPerHour)}">${route.platPerHour} ${t.perHour}</span>` : "")
+          + (route.platPerHourReal ? ` · <span data-tooltip="${escapeHTML(t.realHelp)}">${t.real} ${route.platPerHourReal} ${t.perHour}</span>` : "")
           + (route.minutes ? ` · <span data-tooltip="${escapeHTML(t.readMins)}">${t.approx}${route.minutes} ${t.mins}</span>` : "")
           + "</span>"
         : "";
@@ -229,6 +231,11 @@ function filtersHtml(prefs, t, ft) {
                 data-tooltip="${escapeHTML(t.eraHelp)}">
           ${optionsHtml(eras, prefs.era)}
         </select>
+      </div>
+
+      <details class="fr-guide fr-more-filters" data-fr="more-filters"${getFarmRoutesPrefs().moreFiltersOpen ? " open" : ""}>
+      <summary>${escapeHTML(t.moreFilters)}</summary>
+      <div class="set-rec-filter-row">
         <select data-fr="filter-missing" class="alarm-select"
                 aria-label="${escapeHTML(ft.maxMissing || "Máx. piezas restantes")}"
                 data-tooltip="${escapeHTML(ft.maxMissingHelp || "")}">
@@ -237,9 +244,6 @@ function filtersHtml(prefs, t, ft) {
           <option value="2" ${prefs.maxMissing === 2 ? "selected" : ""}>${escapeHTML(ft.maxMissing)}: &le; 2</option>
           <option value="3" ${prefs.maxMissing === 3 ? "selected" : ""}>${escapeHTML(ft.maxMissing)}: &le; 3</option>
         </select>
-      </div>
-
-      <div class="set-rec-filter-row">
         <select data-fr="sort" class="alarm-select" aria-label="${escapeHTML(t.sortBy)}"
                 data-tooltip="${escapeHTML(`${t.sortHelp} ${t.sortNote}`)}">
           ${optionsHtml(sorts, prefs.sortBy)}
@@ -262,6 +266,7 @@ function filtersHtml(prefs, t, ft) {
         <input type="checkbox" data-fr="filter-buy" ${prefs.buyOnly ? "checked" : ""}>
         <span class="lfg-label">${escapeHTML(ft.buyOnlyFilter || "Solo donde sale a cuenta comprar")}</span>
       </label>
+      </details>
     </div>`;
 }
 
@@ -322,7 +327,25 @@ async function applyFiltersAndRender(raiz, t) {
     pintar(prefs.buyOnly ? filterSetRecommendations(page, prefs, piezas) : page);
 }
 
+function sesionesHtml(t) {
+    const todas = leeSesiones().filter((s) => Number.isFinite(s.minutos) && s.minutos > 0);
+    const recientes = todas.slice(-8).reverse();
+    const minutos = todas.reduce((a, s) => a + s.minutos, 0);
+    const plat = todas.reduce((a, s) => a + (Number(s.plat) || 0), 0);
+    const media = minutos > 0 ? Math.round((plat / minutos) * 60) : null;
+    const filas = recientes.map((s) => {
+        const hora = Number.isFinite(s.inicio) ? new Date(s.inicio).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
+        const nombre = [s.reliquia, s.mision].filter(Boolean).join(" · ") || hora;
+        return `<div class="fr-part"><span class="fr-dim">${escapeHTML(hora)}</span> ${escapeHTML(nombre)}`
+            + ` <span class="fr-value">${Math.round(s.plat || 0)}<span class="plat-icon-inline"></span> · ${s.minutos} ${t.mins}</span></div>`;
+    }).join("");
+    return `<div class="fr-set"><div class="fr-set-head"><span class="fr-set-name">${escapeHTML(t.sessionsTitle)}</span>`
+        + (media !== null ? ` <span class="fr-value">${escapeHTML(t.sessionsAvg)} ${media} ${t.perHour}</span>` : "")
+        + `</div><div class="fr-parts">${filas || `<span class="fr-dim">${escapeHTML(t.sessionsEmpty)}</span>`}</div></div>`;
+}
+
 export async function renderFarmRoutes() {
+    initSesionesFarmeo().catch(console.error);
     const anfitriones = [...document.querySelectorAll(".farm-routes")];
     if (anfitriones.length === 0) return;
     await Promise.all(anfitriones.map((raiz) => renderRoutesInto(raiz)));
@@ -367,6 +390,7 @@ async function renderRoutesInto(raiz) {
         refinementRuns: (drop, ref) => runsForDrop(drop, ref, squadSize),
         sortBy: getSetRecsPrefs().sortBy,
         preferTier: getSetRecsPrefs().era,
+        minutosDeReliquia,
         refinementValueOf: (relicName) => refinementValue(state.relicsDatabase?.[relicName], {
             squadSize,
             valueOf: (d) => {
@@ -407,6 +431,7 @@ async function renderRoutesInto(raiz) {
         + (sinFisuras ? `<p class="fr-nofis">${escapeHTML(t.fissuresDown)}</p>` : "")
         + (esPicks ? "" : guideHtml(prefs, t))
         + (esPicks ? "" : filtersHtml(getSetRecsPrefs(), t, ft))
+        + (esPicks ? "" : sesionesHtml(t))
         + `<div data-fr="cards"></div>`
         + `</div>`;
 
@@ -442,6 +467,9 @@ function bindPanelListeners(raiz, t) {
     });
     raiz.querySelector('[data-fr="guide"]')?.addEventListener("toggle", (e) => {
         saveFarmRoutesPrefs({ guideOpen: e.target.open });
+    });
+    raiz.querySelector('[data-fr="more-filters"]')?.addEventListener("toggle", (e) => {
+        saveFarmRoutesPrefs({ moreFiltersOpen: e.target.open });
     });
 
     const query = raiz.querySelector('[data-fr="filter-query"]');

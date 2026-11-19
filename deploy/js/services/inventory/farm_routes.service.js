@@ -2,7 +2,7 @@
 
 const KEY = "vs_farm_routes_view_v1";
 
-const DEFAULTS = { collapsed: false, guideOpen: false, view: "routes" };
+const DEFAULTS = { collapsed: false, guideOpen: false, moreFiltersOpen: false, view: "routes" };
 const VIEWS = new Set(["routes", "picks"]);
 
 export function getFarmRoutesPrefs() {
@@ -11,6 +11,7 @@ export function getFarmRoutesPrefs() {
         return {
             collapsed: typeof data.collapsed === "boolean" ? data.collapsed : DEFAULTS.collapsed,
             guideOpen: typeof data.guideOpen === "boolean" ? data.guideOpen : DEFAULTS.guideOpen,
+            moreFiltersOpen: typeof data.moreFiltersOpen === "boolean" ? data.moreFiltersOpen : DEFAULTS.moreFiltersOpen,
             view: VIEWS.has(data.view) ? data.view : DEFAULTS.view,
         };
     } catch {

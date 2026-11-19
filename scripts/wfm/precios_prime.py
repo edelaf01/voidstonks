@@ -131,7 +131,7 @@ def main():
     previos = anteriores(a.previos)
     print(f"{len(slugs)} {'reliquias' if a.reliquias else 'objetos prime'}, una petición cada {PAUSA_S:.0f} s")
 
-    precios, ok, seguidos = {}, 0, 0
+    precios, vendedores_por, ok, seguidos = {}, {}, 0, 0
     for i, slug in enumerate(slugs, 1):
         time.sleep(PAUSA_S)
         top = pide(url_top.format(slug=slug))
@@ -146,6 +146,7 @@ def main():
             seguidos = 0
             ok += 1
             precio, vendedores = precio_de_top(top)
+            vendedores_por[slug] = vendedores
             precios[slug] = previos[slug] if vendedores < minimo and slug in previos else precio
         if i % 100 == 0 or i == len(slugs):
             print(f"   {i}/{len(slugs)} ({ok} con respuesta)")
@@ -161,6 +162,7 @@ def main():
         "updated": ahora.strftime("%Y-%m-%dT%H:%M:%SZ"),
         "fuente": f"warframe.market {url_top}: mediana de las 5 ventas online más baratas",
         "p": precios,
+        "s": vendedores_por,
     }
     os.makedirs(os.path.dirname(os.path.abspath(a.salida)), exist_ok=True)
     with open(a.salida, "w", encoding="utf-8") as f:

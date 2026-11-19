@@ -27,25 +27,25 @@ test("con el MISMO vosfor, el que tiene R5 caro queda muy por detrás del que no
 test("quedársela vale su parte de un R{max}, repartida entre las copias que cuesta", () => {
   const caro = dissolveEdge(RARO, R5_CARO, RATE);
   assert.equal(caro.copiesMax, 21);
-  assert.ok(caro.keepValue > 23.8 && caro.keepValue < 23.82, `salió ${caro.keepValue}`);
+  assert.ok(caro.keepValue > 23.71 && caro.keepValue < 23.72, `salió ${caro.keepValue}`);
 });
 
 test("si la copia suelta rinde más que su parte del R{max}, manda la suelta", () => {
   const r5Barato = { ...R5_CARO, pem: 200, bbm: 150 };
   const d = dissolveEdge(RARO, r5Barato, RATE);
-  assert.equal(d.keepValue, 20);
+  assert.equal(d.keepValue, 18);
 });
 
 test("el múltiplo es por copia: un arcano de 10 copias reparte su R{max} entre 10", () => {
   const fusionCorta = { vosfor: 24, maxRank: 3 };
   const d = dissolveEdge(fusionCorta, { ...R5_CARO, rm: 3 }, RATE);
   assert.equal(d.copiesMax, 10);
-  assert.ok(d.keepValue === 50, `500/10 = 50 por copia, salió ${d.keepValue}`);
+  assert.ok(d.keepValue === 49.8, `(500 - 2)/10 por copia, salió ${d.keepValue}`);
 });
 
-test("el descuento por apostar se aplica al valor de disolver", () => {
+test("disolver vale el vosfor por la tasa, sin descuento", () => {
   const d = dissolveEdge(RARO, SIN_MERCADO, RATE);
-  assert.equal(d.dissolveValue, 24 * RATE * 0.75);
+  assert.equal(d.dissolveValue, 24 * RATE);
 });
 
 test("un arcano que no se disuelve, o sin tasa de pack todavía, sale de la lista", () => {

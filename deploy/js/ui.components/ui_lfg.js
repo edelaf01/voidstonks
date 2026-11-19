@@ -360,8 +360,7 @@ export function initLFGPresets() {
   presetArea.id = "lfg-presets-area";
   presetArea.className = "lfg-presets-container";
 
-  const activityGroup = lfgContainer.querySelector(".form-group");
-  activityGroup.after(presetArea);
+  lfgContainer.append(presetArea);
 
   renderLFGPresets();
 

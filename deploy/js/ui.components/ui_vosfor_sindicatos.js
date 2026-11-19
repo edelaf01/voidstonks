@@ -23,7 +23,7 @@ function celda(valor, detalleHtml, gana) {
 }
 
 function celdaVosfor(f, { t, plat, vos }) {
-    if (!f.vosPorMil) return `<td class="vos-sind-num"><span class="vos-sind-detalle">${escapeHTML(t.syndNoData || "sin dato")}</span></td>`;
+    if (!f.vosPorMil) return `<td class="vos-sind-num"><span class="vos-sind-detalle">${escapeHTML(t.syndNoDissolve || "no se disuelve")}</span></td>`;
     const detalle = `${f.vosfor}${vos}${f.plEquivalente ? ` · ≈ ${uno(f.plEquivalente)}${plat}` : ""}`;
     return celda(f.vosPorMil, detalle, f.cargado && f.plEquivalente > f.renta);
 }

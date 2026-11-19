@@ -73,7 +73,7 @@ export function buildSetRoute(setName, deps) {
     relicCounts = {}, relicSources = {}, fissures = [],
     getRequiredCount = () => 1,
     getPrice = null, expectedRuns = null, relicRuns = null, refinementRuns = null,
-    preferTier = "", refinementValueOf = null,
+    preferTier = "", refinementValueOf = null, minutosDeReliquia = null,
   } = deps;
 
   const parts = setsDatabase[setName];
@@ -141,15 +141,23 @@ export function buildSetRoute(setName, deps) {
   }
 
   let minutes = null;
+  let minutosMedidos = null;
   if (expectedRuns || relicRuns) {
     minutes = 0;
+    let real = 0;
+    let medidas = 0;
     for (const m of missing) {
       const elegida = m.relics[0]?.runs;
       const runs = Number.isFinite(elegida) ? elegida : expectedRuns?.(m.part);
       if (!Number.isFinite(runs)) { minutes = null; break; }
-      minutes += runs * m.needed * missionMinutes(m.fissure?.type);
+      const estimado = missionMinutes(m.fissure?.type);
+      const medido = typeof minutosDeReliquia === "function" ? minutosDeReliquia(m.relics[0]?.relic) : null;
+      if (Number.isFinite(medido) && medido > 0) medidas++;
+      minutes += runs * m.needed * estimado;
+      real += runs * m.needed * (Number.isFinite(medido) && medido > 0 ? medido : estimado);
     }
     if (minutes !== null) minutes = Math.round(minutes);
+    if (minutes !== null && medidas > 0) minutosMedidos = Math.max(1, Math.round(real));
   }
 
   const refino = bestRefinementFor(missing, refinementRuns);
@@ -167,6 +175,8 @@ export function buildSetRoute(setName, deps) {
     gain,
     minutes,
     platPerHour: gain !== null && minutes ? Math.round((gain / minutes) * 60) : null,
+    minutosMedidos,
+    platPerHourReal: gain !== null && minutosMedidos ? Math.round((gain / minutosMedidos) * 60) : null,
     missing,
   };
 }

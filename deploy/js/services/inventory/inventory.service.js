@@ -1,7 +1,8 @@
 import { state } from "../../state.js";
 import { dbHelper, MEMORY_CACHE, ensurePriceSnapshot, leeHistorialSets, guardaHistorialSets } from "../../repositories/storage.repository.js";
 import { getSlug } from "../../utils/slugs.utils.js";
-import { getPricesBatch } from "../../repositories/api.repository.js";
+import { getPricesBatch, fetchTendencias } from "../../repositories/api.repository.js";
+import { veredictoVenta } from "../../utils/inventory/vender_ya.js";
 import { apuntaPrecios, diaDe, tendencias } from "../../utils/inventory/set_trend.js";
 
 function collectInventorySlugs() {
@@ -72,4 +73,44 @@ export function apuntaPreciosDeSets(snapshot, ahora = Date.now()) {
 
 export function tendenciaDeSets(dias, ahora = Date.now()) {
     return tendencias(leeHistorialSets(), diaDe(ahora), dias);
+}
+
+export async function ventaUrgente() {
+    const doc = await fetchTendencias();
+    const mapa = doc?.t;
+    if (!mapa) return [];
+    const hoy = Date.now();
+    const fuera = [];
+    for (const [name, qty] of Object.entries(state.primeInventory || {})) {
+        if (!(qty > 0)) continue;
+        const slug = getSlug(name);
+        const tendencia = mapa[slug];
+        if (!tendencia) continue;
+        const vivo = Number.parseInt(MEMORY_CACHE.get(slug), 10);
+        const precio = vivo > 0 ? vivo : tendencia.p;
+        const v = veredictoVenta({ precio, tendencia, hoy });
+        if (v.urgente) fuera.push({ name, qty, precio, motivo: v.motivo, score: v.score, p7: tendencia.p7 });
+    }
+    return fuera.sort((a, b) => b.score - a.score);
+}
+
+export async function cicloVault(ahora = Date.now()) {
+    const doc = await fetchTendencias();
+    const mapa = doc?.t;
+    if (!mapa) return [];
+    const hoy = new Date(ahora).toISOString().slice(0, 10);
+    const limiteVault = new Date(ahora - 21 * 86400000).toISOString().slice(0, 10);
+    const propios = Object.entries(state.primeInventory || {}).filter(([, qty]) => qty > 0).map(([name]) => getSlug(name));
+    const orden = { resurgence_proxima: 0, resurgence_actual: 1, vault: 2 };
+    const filas = [];
+    for (const [slug, tendencia] of Object.entries(mapa)) {
+        const vc = tendencia?.vc;
+        if (!vc?.t || !slug.endsWith("_set") || !(vc.t in orden)) continue;
+        if (vc.t === "resurgence_actual" && vc.h && vc.h < hoy) continue;
+        if (vc.t === "resurgence_proxima" && vc.d && vc.d < hoy) continue;
+        if (vc.t === "vault" && !(vc.d >= limiteVault)) continue;
+        const nombre = slug.split("_").map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join(" ");
+        filas.push({ slug, nombre, tipo: vc.t, d: vc.d, h: vc.h, precio: tendencia.p, propio: propios.some((p) => p === slug || p.startsWith(slug.slice(0, -3))) });
+    }
+    return filas.sort((a, b) => orden[a.tipo] - orden[b.tipo] || b.propio - a.propio || a.nombre.localeCompare(b.nombre));
 }

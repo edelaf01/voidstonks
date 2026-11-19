@@ -6,20 +6,20 @@ import { arcaneVerdict, ARC_STATS } from "../deploy/js/services/vosfor.service.j
 const ARCANES = { raro: { vosfor: 24, maxRank: 5, rarity: "RARE" } };
 ARC_STATS.set("raro", { pe: 6, v: 10, vm: 2, bb: 0, pem: 0, bbm: 0, rm: 0 });
 
-const GANADOR_CRUDO = { rate: 0.5, balancedRate: 0.2, packId: "a", pack: { es: "A", en: "A" } };
-const GASTO_REAL = { rate: 0.3, balancedRate: 0.3, packId: "b", pack: { es: "B", en: "B" } };
+const GANADOR_CRUDO = { rate: 0.5, packId: "a", pack: { es: "A", en: "A" } };
+const GASTO_REAL = { rate: 0.3, packId: "b", pack: { es: "B", en: "B" } };
 
-test("descuenta la disolución con la tasa ajustada del pack de gasto real", () => {
+test("disolver usa la tasa del pack de gasto, sin descuento por apostar", () => {
   const v = arcaneVerdict("raro", ARCANES, GASTO_REAL);
-  assert.equal(v.netDissolveAdj, 113.4);
-  assert.equal(v.bestAction, "dissolve", "113 disolviendo contra 84 garantizados");
+  assert.equal(v.netDissolveAdj, 151.2);
+  assert.equal(v.bestAction, "dissolve", "151 disolviendo contra 84 garantizados");
   assert.equal(v.bestPackEs, "B");
 });
 
-test("con el ganador crudo el mismo arcano cambiaba de veredicto: por eso el caller pasa el ajustado", () => {
+test("el veredicto usa la tasa del pack que recibe", () => {
   const v = arcaneVerdict("raro", ARCANES, GANADOR_CRUDO);
-  assert.equal(v.netDissolveAdj, 75.6);
-  assert.equal(v.bestAction, "sell_r0");
+  assert.equal(v.netDissolveAdj, 252);
+  assert.equal(v.bestAction, "dissolve");
 });
 
 test("el EV nominal por copia sale de la tasa cruda del pack de gasto, para el tooltip", () => {
