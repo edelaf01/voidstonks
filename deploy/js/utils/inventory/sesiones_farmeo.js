@@ -1,4 +1,4 @@
-export const ESTADO_INICIAL = Object.freeze({ actual: null, mision: null, reliquia: null, cambio: null });
+export const ESTADO_SESION_INICIAL = Object.freeze({ actual: null, mision: null, reliquia: null, cambio: null });
 
 const minutosDe = (s) => {
   if (Number.isFinite(s.inicioT) && Number.isFinite(s.finT) && s.finT >= s.inicioT) return (s.finT - s.inicioT) / 60;
@@ -14,7 +14,7 @@ const cierra = (s, ahora, t) => {
 
 const sumaPlat = (items) => items.reduce((acc, i) => acc + (Number(i.qty) || 1) * (Number(i.plat) || 0), 0);
 
-export function siguienteSesion(estado = ESTADO_INICIAL, evento = {}) {
+export function siguienteSesion(estado = ESTADO_SESION_INICIAL, evento = {}) {
   const e = { ...estado, cambio: null };
   const { tipo, ahora = null, t = null } = evento;
   if (tipo === "mision") {

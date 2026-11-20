@@ -108,6 +108,20 @@ export async function fetchPrimeManifest() {
     }
 }
 
+export async function fetchSetsCatalogo() {
+    try {
+        const res = await fetchWithTimeout(`${WORKER_URL}?type=prime_items_list`);
+        if (!res.ok) return;
+        const { sets } = await res.json();
+        if (!sets || typeof sets !== "object") return;
+        const setDePieza = {};
+        for (const [set, piezas] of Object.entries(sets)) piezas.forEach((p) => { setDePieza[p] = set; });
+        state.setDePieza = setDePieza;
+    } catch (e) {
+        console.warn("Error loading set catalogue:", e);
+    }
+}
+
 export async function initializeOCRDatabase() {
     try {
         const res = await fetchWithTimeout(`${WORKER_URL}?type=prime_items_list`);

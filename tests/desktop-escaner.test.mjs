@@ -140,7 +140,7 @@ test("ScannerHUD actualiza el panel de intercambio", () => {
   assert.equal(panel.children[1].children[1].className, "trade-plat");
   assert.equal(panel.children[1].children[1].textContent, "6");
   assert.equal(panel.children[1].children[1].children[0].className, "plat-icon-inline");
-  assert.equal(panel.children[3].children.length, 1);
+  assert.equal(panel.children[4].children.length, 1);
 });
 
 test("ScannerHUD actualiza el panel de arcanos", async () => {

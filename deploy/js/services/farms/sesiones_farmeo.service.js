@@ -2,12 +2,12 @@ import { EELogLive } from "../scanner/eelog_live.service.js";
 import { escucha } from "../../utils/ganchos.js";
 import { dbHelper, getPriceValue } from "../../repositories/storage.repository.js";
 import { getSlug } from "../../utils/slugs.utils.js";
-import { ESTADO_INICIAL, siguienteSesion } from "../../utils/inventory/sesiones_farmeo.js";
+import { ESTADO_SESION_INICIAL, siguienteSesion } from "../../utils/inventory/sesiones_farmeo.js";
 
 const CLAVE = "vs_sesiones_farmeo";
 const MAX = 500;
 
-let estado = ESTADO_INICIAL;
+let estado = ESTADO_SESION_INICIAL;
 let sesiones = [];
 let cargadas = false;
 let lista = null;

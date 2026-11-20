@@ -87,7 +87,7 @@ function getTierBadgeHtml(m, tierColor) {
   const tierLabel = m.tier;
   const special = m.tier === 6 || m.tier === "NARMER";
   const label = typeof tierLabel === "string" ? tierLabel : `TIER ${tierLabel}`;
-  return `<span class="tier-badge ${special ? "special" : ""}" style="--tier-color:${tierColor};">${escapeHTML(label)}</span>`;
+  return `<span class="tier-badge ${special ? "relic-special" : ""}" style="--tier-color:${tierColor};">${escapeHTML(label)}</span>`;
 }
 
 function getBountyMissionHtml(m, index, key, color, isOpt, t) {

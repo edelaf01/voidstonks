@@ -154,6 +154,7 @@ function processRelicDatabase(rawData, activeDropsSet) {
 
     state.setsDatabase = {};
     const getSetName = (fullName) => {
+        if (state.setDePieza?.[fullName]) return state.setDePieza[fullName];
         const match = fullName.match(/(.*?) (Prime|Vandal|Wraith)/);
         return match ? match[0].trim() : "Otros";
     };

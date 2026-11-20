@@ -8,6 +8,7 @@ const requiredCountCache = new Map();
 
 export function getSetName(fullName) {
   if (!fullName) return (state.currentLang === "es" ? "Otros" : "Others");
+  if (state.setDePieza?.[fullName]) return state.setDePieza[fullName];
   if (setNameCache.has(fullName)) return setNameCache.get(fullName);
   const match = fullName.match(/(.*?) (Prime|Vandal|Wraith)/);
   const res = match ? match[0].trim() : (state.currentLang === "es" ? "Otros" : "Others");

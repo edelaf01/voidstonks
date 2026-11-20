@@ -90,14 +90,14 @@ test("plegado y guía sobreviven al refresco automático", async () => {
     const { getFarmRoutesPrefs, saveFarmRoutesPrefs } =
         await import("../deploy/js/services/inventory/farm_routes.service.js");
 
-    assert.deepEqual(getFarmRoutesPrefs(), { collapsed: false, guideOpen: false, view: "routes" },
+    assert.deepEqual(getFarmRoutesPrefs(), { collapsed: false, guideOpen: false, moreFiltersOpen: false, view: "routes" },
         "de serie, abierto y en la vista de rutas");
     saveFarmRoutesPrefs({ guideOpen: true });
     saveFarmRoutesPrefs({ collapsed: true });
-    assert.deepEqual(getFarmRoutesPrefs(), { collapsed: true, guideOpen: true, view: "routes" });
+    assert.deepEqual(getFarmRoutesPrefs(), { collapsed: true, guideOpen: true, moreFiltersOpen: false, view: "routes" });
 
     store.set("vs_farm_routes_view_v1", "{no es json");
-    assert.deepEqual(getFarmRoutesPrefs(), { collapsed: false, guideOpen: false, view: "routes" },
+    assert.deepEqual(getFarmRoutesPrefs(), { collapsed: false, guideOpen: false, moreFiltersOpen: false, view: "routes" },
         "basura = valores de serie");
 });
 

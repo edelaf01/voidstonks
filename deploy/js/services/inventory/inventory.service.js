@@ -8,6 +8,7 @@ import { apuntaPrecios, diaDe, tendencias } from "../../utils/inventory/set_tren
 function collectInventorySlugs() {
     const itemsToCheck = new Set();
     const getSetName = (fullName) => {
+        if (state.setDePieza?.[fullName]) return state.setDePieza[fullName];
         const match = fullName.match(/(.*?) (Prime|Vandal|Wraith)/);
         return match ? match[0].trim() : null;
     };

@@ -3,7 +3,7 @@ import { initCanvas } from "./utils/canvas.js";
 import { downloadRelics } from "./services/inventory/relics.service.js";
 import { renderFarmRoutes } from "./ui.components/farms/ui_farm_routes.js";
 import { fetchRivenWeapons } from "./services/rivens/rivens.service.js";
-import { fetchPrimeManifest } from "./repositories/api.repository.js";
+import { fetchPrimeManifest, fetchSetsCatalogo } from "./repositories/api.repository.js";
 import { warmupPrices } from "./services/inventory/inventory.service.js";
 import { preloadPricesToMemory, ensurePriceSnapshot } from "./repositories/storage.repository.js";
 import { exposeGlobals } from "./utils/global_registry.js";
@@ -159,7 +159,7 @@ async function loadAsyncData() {
     preloadPricesToMemory().catch(console.error);
     ensurePriceSnapshot().catch(console.error);
     const armasDeRiven = fetchRivenWeapons();
-    await downloadRelics(fetchPrimeManifest());
+    await downloadRelics(Promise.all([fetchPrimeManifest(), fetchSetsCatalogo()]));
     if (state.selectedRelic) {
       const input = document.getElementById("relicInput");
       if (input) input.value = state.selectedRelic;

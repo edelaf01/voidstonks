@@ -1,13 +1,17 @@
 import argparse
 import json
 import os
+import re
 import sys
+import time
 import urllib.request
 
 import relicsrun
 
 RELIQUIAS = "https://raw.githubusercontent.com/WFCD/warframe-drop-data/gh-pages/data/relics.json"
 CABECERAS = {"Accept": "application/json", "User-Agent": relicsrun.AGENTE}
+SET = "https://api.warframe.market/v2/item/{slug}/set"
+PAUSA_SET_S = 0.4
 
 
 def verdad(v):
@@ -74,14 +78,44 @@ def wfm_items(catalogo):
     return {"bySlug": por_slug, "byId": por_id}
 
 
-def prime_items_list(catalogo):
+def nombre_en(it):
+    i18n = i18n_en(it)
+    nombre = i18n.get("name") if isinstance(i18n, dict) else None
+    return nombre if isinstance(nombre, str) and nombre else None
+
+
+def prime_items_list(catalogo, sets=None):
     nombres = set()
     for it in catalogo:
-        i18n = i18n_en(it)
-        nombre = i18n.get("name") if isinstance(i18n, dict) else None
-        if isinstance(nombre, str) and nombre and "Prime" in nombre and not nombre.endswith(" Set"):
+        nombre = nombre_en(it)
+        if nombre and "Prime" in nombre and not nombre.endswith(" Set"):
             nombres.add(nombre)
-    return {"items": sorted(nombres, key=lambda s: s.encode("utf-16-be"))}
+    salida = {"items": sorted(nombres, key=lambda s: s.encode("utf-16-be"))}
+    if sets:
+        salida["sets"] = sets
+    return salida
+
+
+def sets_prime(catalogo):
+    nombres = {it["id"]: nombre_en(it) for it in catalogo if isinstance(it, dict) and verdad(it.get("id"))}
+    sets = {}
+    for it in catalogo:
+        nombre = nombre_en(it) if isinstance(it, dict) else None
+        if not nombre or not nombre.endswith(" Set") or not re.search(r" (Prime|Vandal|Wraith) ", nombre) or not verdad(it.get("slug")):
+            continue
+        estado, cuerpo = relicsrun.obtiene(SET.format(slug=it["slug"]))
+        time.sleep(PAUSA_SET_S)
+        if estado != "ok":
+            continue
+        try:
+            piezas = json.loads(cuerpo)["data"]["items"]
+        except (ValueError, KeyError, TypeError):
+            continue
+        partes = {nombres.get(p.get("id")) for p in piezas if isinstance(p, dict) and not p.get("setRoot")}
+        partes.discard(None)
+        if partes:
+            sets[nombre[:-4]] = sorted(partes)
+    return sets
 
 
 def relics_opt(datos):
@@ -112,7 +146,7 @@ def main():
         sys.exit(1)
     os.makedirs(a.carpeta, exist_ok=True)
     escribe(os.path.join(a.carpeta, "wfm_items.json"), wfm_items(datos))
-    escribe(os.path.join(a.carpeta, "prime_items_list.json"), prime_items_list(datos))
+    escribe(os.path.join(a.carpeta, "prime_items_list.json"), prime_items_list(datos, sets_prime(datos)))
 
     with urllib.request.urlopen(urllib.request.Request(RELIQUIAS, headers=CABECERAS), timeout=60) as r:
         reliquias = relics_opt(json.load(r))

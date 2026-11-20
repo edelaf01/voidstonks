@@ -498,7 +498,7 @@
     border: 1px solid color-mix(in srgb, var(--tier-color, #888) 40%, transparent);
 }
 
-.tier-badge.special {
+.tier-badge.relic-special {
     background: color-mix(in srgb, var(--tier-color, #888) 12%, transparent);
 }
 
