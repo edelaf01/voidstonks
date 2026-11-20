@@ -49,9 +49,9 @@ test("la url del snapshot no depende del cliente", () => {
     assert.ok(!/[?&]q=/.test(call), "no debe enumerar slugs");
 });
 
-test("el snapshot se cachea en el edge y prices_batch no", () => {
+test("el snapshot y prices_batch se cachean en el edge", () => {
     const rule = workerSrc.match(/const skipGlobalCache = [\s\S]*?;/)[0];
-    assert.ok(rule.includes('"prices_batch"'), "el lote por usuario no es cacheable");
+    assert.ok(!rule.includes('"prices_batch"'), "prices_batch se cachea globalmente con q ordenado");
     assert.ok(!rule.includes('"prices_snapshot"'), "el snapshot SÍ debe cachearse");
 });
 
