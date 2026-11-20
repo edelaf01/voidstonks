@@ -8,7 +8,7 @@ import urllib.request
 from datetime import datetime, timedelta, timezone
 
 URL = "https://relics.run/history/price_history_{fecha}.json"
-CATALOGO = "https://api.warframe.market/v2/items"
+CATALOGO = "https://relics.run/history/item_data/items.json"
 AGENTE = "VoidStonks-Precios/1.0 (+https://voidstonks.com)"
 CABECERAS = {"Accept": "application/json", "Accept-Encoding": "gzip", "User-Agent": AGENTE}
 PAUSA_S = 2.0
@@ -164,6 +164,8 @@ def catalogo(ruta):
     if estado == "ok" and cuerpo:
         try:
             cat = json.loads(cuerpo)
+            if isinstance(cat, list):
+                cat = {"data": cat}
             if isinstance(cat, dict) and isinstance(cat.get("data"), list) and cat["data"]:
                 if ruta:
                     carpeta_padre = os.path.dirname(os.path.abspath(ruta))

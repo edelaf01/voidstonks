@@ -3,15 +3,13 @@ import json
 import os
 import re
 import sys
-import time
 import urllib.request
 
 import relicsrun
 
 RELIQUIAS = "https://raw.githubusercontent.com/WFCD/warframe-drop-data/gh-pages/data/relics.json"
 CABECERAS = {"Accept": "application/json", "User-Agent": relicsrun.AGENTE}
-SET = "https://api.warframe.market/v2/item/{slug}/set"
-PAUSA_SET_S = 0.4
+INFO = "https://relics.run/history/item_data/item_info.json"
 
 
 def verdad(v):
@@ -96,22 +94,28 @@ def prime_items_list(catalogo, sets=None):
     return salida
 
 
-def sets_prime(catalogo):
+def sets_prime(catalogo, info=None):
+    if info is None:
+        estado, cuerpo = relicsrun.obtiene(INFO)
+        if estado != "ok":
+            return {}
+        try:
+            info = json.loads(cuerpo)
+        except ValueError:
+            return {}
+    if not isinstance(info, dict):
+        return {}
     nombres = {it["id"]: nombre_en(it) for it in catalogo if isinstance(it, dict) and verdad(it.get("id"))}
     sets = {}
     for it in catalogo:
         nombre = nombre_en(it) if isinstance(it, dict) else None
         if not nombre or not nombre.endswith(" Set") or not re.search(r" (Prime|Vandal|Wraith) ", nombre) or not verdad(it.get("slug")):
             continue
-        estado, cuerpo = relicsrun.obtiene(SET.format(slug=it["slug"]))
-        time.sleep(PAUSA_SET_S)
-        if estado != "ok":
+        ficha = info.get(it["id"])
+        piezas = ficha.get("set_items") if isinstance(ficha, dict) else None
+        if not isinstance(piezas, list):
             continue
-        try:
-            piezas = json.loads(cuerpo)["data"]["items"]
-        except (ValueError, KeyError, TypeError):
-            continue
-        partes = {nombres.get(p.get("id")) for p in piezas if isinstance(p, dict) and not p.get("setRoot")}
+        partes = {nombres.get(p) for p in piezas if p != it["id"]}
         partes.discard(None)
         if partes:
             sets[nombre[:-4]] = sorted(partes)

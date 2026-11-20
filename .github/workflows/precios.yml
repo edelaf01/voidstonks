@@ -102,12 +102,10 @@ jobs:
       - name: Tendencias a 7 y 30 días
         id: tendencias
         if: ${{ !cancelled() }}
-        continue-on-error: true
         run: python scripts/wfm/tendencias.py --relicsrun relicsrun --catalogo catalogo_wfm.json --arcanos deploy/assets/json/arcanes_vosfor.json --salida tendencias.json
 
       - name: Subir tendencias al worker
         if: ${{ !cancelled() && steps.tendencias.outcome == 'success' && hashFiles('tendencias.json') != '' }}
-        continue-on-error: true
         env:
           PRECIOS_SECRET: ${{ secrets.PRECIOS_SECRET }}
         run: |
@@ -118,12 +116,10 @@ jobs:
       - name: Catálogos precalculados
         id: catalogos
         if: ${{ !cancelled() }}
-        continue-on-error: true
         run: python scripts/wfm/catalogos.py --catalogo catalogo_wfm.json --carpeta catalogos
 
       - name: Subir catálogos al worker
         if: ${{ !cancelled() && steps.catalogos.outcome == 'success' }}
-        continue-on-error: true
         env:
           PRECIOS_SECRET: ${{ secrets.PRECIOS_SECRET }}
         run: |
