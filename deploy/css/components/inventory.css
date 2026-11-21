@@ -422,6 +422,8 @@
 .set-trend-row.baja .set-trend-pct { color: var(--wf-error); }
 .set-trend-row.igual { opacity: 0.5; }
 .set-trend-row.igual .set-trend-pct { color: #888; }
+:is(.vender-ya, .ciclo-vault) .set-trend-row { flex-wrap: wrap; row-gap: 0; }
+:is(.vender-ya, .ciclo-vault) .set-trend-pct { flex-basis: 100%; text-align: left; font-weight: 600; }
 
 .set-trend-list {
     max-height: 216px;
