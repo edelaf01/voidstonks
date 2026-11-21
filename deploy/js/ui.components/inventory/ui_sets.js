@@ -31,6 +31,7 @@ import { createTip } from "../ui_hints.js";
 import { renderEmptySetsShowcase } from "./ui_sets_showcase.js";
 import { renderSetsBridge, bridgeTargetFrom } from "./ui_sets_bridge.js";
 import { renderSetTracker, updateMacroTracker } from "./ui_set_tracker.js";
+import { setHistoryBlock, marcarVarzia } from "./ui_set_history.js";
 let debounceTimer;
 globalThis.DEFAULT_WEAPON_SVG = DEFAULT_WEAPON_SVG;
 globalThis.DEFAULT_WEAPON_DATA_URL = "data:image/svg+xml;utf8," + encodeURIComponent(DEFAULT_WEAPON_SVG);
@@ -292,6 +293,8 @@ function createSetCard(title, itemNames, parent, isSingle = false) {
 
   header.appendChild(rightWrapper);
   setContainer.appendChild(header);
+  if (!isSingle) setContainer.appendChild(setHistoryBlock(title));
+  marcarVarzia(title, setContainer);
 
   const owned = getRelicCounts();
 

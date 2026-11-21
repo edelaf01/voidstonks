@@ -2,6 +2,7 @@ import { state } from "../../state.js";
 import { TEXTS } from "../../config.js";
 import { exposeGlobals } from "../../utils/global_registry.js";
 import { renderBountiesTab, stopBountyTimers } from "./ui_bounties.js";
+import { renderTradersTab, stopTradersTimers } from "./ui_traders.js";
 import {
   renderLichWeaponsTab,
   getFarmsSubview,
@@ -17,21 +18,29 @@ export function renderFarmsTab() {
   const weaponsPane = document.getElementById("lich-weapons-container");
   bountiesPane?.classList.toggle("hidden", view !== "bounties");
   weaponsPane?.classList.toggle("hidden", view !== "weapons");
+  document.getElementById("traders-container")?.classList.toggle("hidden", view !== "traders");
 
   document.querySelectorAll(".farms-sub-btn").forEach((btn) => {
     const active = btn.dataset.subview === view;
     btn.classList.toggle("active", active);
     btn.setAttribute("aria-selected", String(active));
-    const label = btn.dataset.subview === "weapons" ? t.lichWeapons.tab : t.farmsBountiesTab;
+    const sub = btn.dataset.subview;
+    const label = sub === "weapons" ? t.lichWeapons.tab : sub === "traders" ? t.traders.tab : t.farmsBountiesTab;
     const span = btn.querySelector(".farms-sub-label");
     if (span) span.textContent = label;
   });
 
   if (view === "weapons") {
     stopBountyTimers();
+    stopTradersTimers();
     renderLichWeaponsTab();
+  } else if (view === "traders") {
+    stopBountyTimers();
+    stopRotationTimers();
+    renderTradersTab();
   } else {
     stopRotationTimers();
+    stopTradersTimers();
     renderBountiesTab();
   }
 }
@@ -39,6 +48,7 @@ export function renderFarmsTab() {
 export function stopFarmsTimers() {
   stopBountyTimers();
   stopRotationTimers();
+  stopTradersTimers();
 }
 
 export function switchFarmsSubview(view) {

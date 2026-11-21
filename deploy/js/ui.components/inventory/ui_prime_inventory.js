@@ -229,7 +229,8 @@ export function renderPrimeInventory() {
 
   // showEmptyPrime is part of the hash, or toggling it repainted nothing
   const newHash = JSON.stringify(state.primeInventory) + state.currentLang + searchInput + sortMode
-    + (state.settings?.showEmptyPrime ? "|0s" : "");
+    + (state.settings?.showEmptyPrime ? "|0s" : "")
+    + "|" + Object.keys(state.setsDatabase || {}).length;
   if (newHash === lastRenderedHash && list.children.length > 0) {
     setTimeout(updatePrimeTotalValue, 10);
     return;
@@ -395,6 +396,9 @@ export function renderPrimeInventory() {
           }
           numSets = setMetrics.get(setName).numSets;
         }
+        const rowParts = setName === "Otros" ? groups[setName].map(p => p.name) : allPossibleParts;
+        const maxRequired = rowParts.reduce((m, p) => Math.max(m, getRequiredCount(setName, p)), 1);
+        const dotsPlaceholder = `<div class="inv-dots-ph" aria-hidden="true">${generateDotsHtml(0, maxRequired)}</div><div class="inv-dots-ph inv-qty-ph" aria-hidden="true">${generateDotsHtml(88, 1)}</div>`;
 
         let groupHtml = `
       <div class="inv-set-group${openSetGroups.has(safeSetId) ? "" : " collapsed"}" id="set-group-${safeSetId}">
@@ -429,7 +433,7 @@ export function renderPrimeInventory() {
           </div>
         </div>
         <div class="inv-set-content">
-          ${(setName === "Otros" ? groups[setName].map(p => p.name) : allPossibleParts)
+          ${rowParts
             .map((partName) => {
               const qty = Number.parseInt(state.primeInventory[partName], 10) || 0;
               const safeId = partName.replaceAll(/[^a-zA-Z0-9]/g, "");
@@ -448,8 +452,11 @@ export function renderPrimeInventory() {
                 })()}
                    <div class="name-column">
                      <span class="part-name">${escapeHTML(shortName)}</span>
+                     <div class="inv-dots-row">
+                     ${dotsPlaceholder}
                      <div class="live-tracker" data-part="${escapeHTML(partName)}" data-req="${requiredCount}">
                         ${dotsHtml}
+                     </div>
                      </div>
                   </div>
                 </div>

@@ -374,6 +374,35 @@
     font-weight: 800;
 }
 
+.set-trend-toggle {
+    width: 100%;
+    padding: 0;
+    font: inherit;
+    text-align: left;
+    background: none;
+    border: none;
+    cursor: pointer;
+}
+
+.set-trend-arrow {
+    flex-shrink: 0;
+    color: #888;
+    font-size: 0.8rem;
+    transition: transform 0.25s;
+}
+
+.set-trend.collapsed .set-trend-arrow {
+    transform: rotate(-90deg);
+}
+
+.set-trend.collapsed .set-trend-head {
+    margin-bottom: 0;
+}
+
+.set-trend.collapsed .set-trend-list {
+    display: none;
+}
+
 .set-trend-btn {
     background: transparent;
     border: 1px solid rgba(255, 255, 255, 0.15);
@@ -422,6 +451,19 @@
 .set-trend-row.baja .set-trend-pct { color: var(--wf-error); }
 .set-trend-row.igual { opacity: 0.5; }
 .set-trend-row.igual .set-trend-pct { color: #888; }
+:is(.vender-ya, .ciclo-vault) .set-trend-row { flex-wrap: wrap; row-gap: 0; }
+:is(.vender-ya, .ciclo-vault) .set-trend-pct { flex-basis: 100%; text-align: left; font-weight: 600; }
+.vender-ya .vender-ya-set .set-trend-name { color: #fff; font-weight: 700; }
+.vender-ya .vender-ya-pieza :is(.set-trend-name, .set-trend-pct) { padding-left: 12px; }
+.vender-ya-grupo > summary { list-style: none; align-items: center; cursor: pointer; border-radius: 3px; }
+.vender-ya-grupo > summary::-webkit-details-marker { display: none; }
+.vender-ya-grupo > summary::after { content: "\25B8"; color: #888; font-size: 0.7rem; transition: transform 0.15s; }
+.vender-ya-grupo[open] > summary::after { transform: rotate(90deg); }
+.vender-ya-grupo > summary:hover { background: rgba(255, 255, 255, 0.04); }
+.vender-ya-grupo > summary:focus-visible { outline: 1px solid var(--wf-gold-text); outline-offset: 1px; }
+.vender-ya-img { flex: 0 0 24px; width: 24px; height: 24px; border-radius: 3px; background: rgba(255, 255, 255, 0.05); overflow: hidden; }
+.vender-ya-img img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.vender-ya-cuenta { color: #888; font-size: 0.7rem; font-family: monospace; white-space: nowrap; }
 
 .set-trend-list {
     max-height: 216px;

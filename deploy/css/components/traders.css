@@ -1,0 +1,320 @@
+#traders-container {
+    --tr-accent: var(--active-theme-color, var(--wf-blue));
+    padding: 0 5px;
+}
+
+#traders-container .lw-header {
+    border-left-color: var(--tr-accent);
+}
+
+.tr-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 16px;
+}
+
+.tr-col-title {
+    margin-bottom: 8px;
+    font-size: 0.78rem;
+    font-weight: 800;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    color: var(--label-color);
+}
+
+.tr-card {
+    padding: 12px 14px;
+    background: var(--wf-card);
+    border: 1px solid var(--wf-border-ctl);
+    border-left: 3px solid var(--tr-accent);
+    border-radius: var(--radius-box);
+}
+
+.tr-card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+}
+
+.tr-name {
+    font-size: 1rem;
+    font-weight: 800;
+    color: inherit;
+}
+
+.tr-meta {
+    margin-top: 3px;
+    font-size: 0.76rem;
+    color: var(--label-color);
+    line-height: 1.45;
+}
+
+.tr-timer {
+    text-align: right;
+}
+
+.tr-timer-label {
+    font-size: 0.72rem;
+    color: var(--label-color);
+}
+
+.tr-countdown {
+    font-size: 0.95rem;
+    font-weight: 800;
+    color: var(--tr-accent);
+    font-variant-numeric: tabular-nums;
+}
+
+.tr-section-label,
+.tr-next-label {
+    margin: 8px 0 6px;
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--label-color);
+}
+
+.tr-items {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    max-height: 340px;
+    overflow-y: auto;
+}
+
+.tr-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 5px 0;
+    font-size: 0.82rem;
+    color: inherit;
+    border-bottom: 1px solid var(--wf-border-box);
+}
+
+.tr-item:last-child {
+    border-bottom: none;
+}
+
+.tr-item-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.tr-item-cost {
+    flex-shrink: 0;
+    padding: 1px 8px;
+    font-size: 0.74rem;
+    font-weight: 700;
+    color: var(--tr-accent);
+    border: 1px solid var(--wf-border-ctl);
+    border-radius: 999px;
+    font-variant-numeric: tabular-nums;
+}
+
+.tr-groups {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.tr-group .tr-section-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.tr-count {
+    padding: 0 6px;
+    font-size: 0.68rem;
+    color: var(--label-color);
+    border: 1px solid var(--wf-border-box);
+    border-radius: 999px;
+}
+
+.tr-icons {
+    display: inline-flex;
+    flex-shrink: 0;
+}
+
+.tr-icon {
+    width: 32px;
+    height: 32px;
+    object-fit: contain;
+    background: var(--wf-border-box);
+    border: 1px solid var(--wf-border-ctl);
+    border-radius: var(--radius-box);
+}
+
+.tr-icons .tr-icon + .tr-icon {
+    margin-left: -10px;
+}
+
+.tr-items--tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 8px;
+    max-height: none;
+}
+
+.tr-items--tiles .tr-item {
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px 8px;
+    text-align: center;
+    border: 1px solid var(--wf-border-box);
+    border-radius: var(--radius-box);
+}
+
+.tr-items--tiles .tr-item:last-child {
+    border-bottom: 1px solid var(--wf-border-box);
+}
+
+.tr-items--tiles .tr-icon {
+    width: 48px;
+    height: 48px;
+}
+
+.tr-items--tiles .tr-item-name {
+    width: 100%;
+    font-weight: 700;
+}
+
+.tr-next-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.tr-next {
+    margin-top: 12px;
+    padding-top: 6px;
+    border-top: 1px solid var(--wf-border-box);
+}
+
+.tr-next-name {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: inherit;
+}
+
+.tr-empty,
+.tr-loading,
+.tr-error {
+    padding: 14px;
+    text-align: center;
+    font-size: 0.82rem;
+    color: var(--label-color);
+}
+
+.tr-loading .spinner {
+    margin: 0 auto 10px auto;
+}
+
+.tr-retry {
+    margin-top: 10px;
+    padding: 7px 16px;
+    font-family: inherit;
+    font-weight: 800;
+    color: #17110a;
+    background: var(--tr-accent);
+    border: 1px solid var(--tr-accent);
+    border-radius: var(--radius-box);
+    cursor: pointer;
+}
+
+@media (max-width: 520px) {
+    .tr-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .tr-timer {
+        text-align: left;
+    }
+}
+
+.tr-items--tiles {
+    align-items: start;
+}
+
+.tr-item.tr-set {
+    display: block;
+}
+
+.tr-set > details > summary {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    list-style: none;
+    cursor: pointer;
+    border-radius: var(--radius-box);
+}
+
+.tr-set > details > summary::-webkit-details-marker {
+    display: none;
+}
+
+.tr-set > details > summary::after {
+    content: "\25B8";
+    color: var(--label-color);
+    font-size: 0.7rem;
+    transition: transform 0.15s;
+}
+
+.tr-set > details[open] > summary::after {
+    transform: rotate(90deg);
+}
+
+.tr-set > details > summary:focus-visible {
+    outline: 1px solid var(--tr-accent);
+    outline-offset: 2px;
+}
+
+.tr-set .tr-item-name {
+    flex: 1;
+    min-width: 0;
+}
+
+.tr-set-count {
+    color: var(--label-color);
+    font-size: 0.75rem;
+    white-space: nowrap;
+}
+
+.tr-items--tiles .tr-set > details > summary {
+    flex-direction: column;
+    gap: 6px;
+}
+
+.tr-set-parts {
+    list-style: none;
+    margin: 6px 0 0;
+    padding: 0;
+    text-align: left;
+    font-size: 0.8rem;
+}
+
+.tr-set-parts li {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 2px 0;
+    color: var(--label-color);
+}
+
+.tr-set-parts .tr-set-sub {
+    margin-top: 4px;
+    font-weight: 700;
+}
+
+.tr-set-parts .tr-set-part.ok {
+    color: var(--tr-accent);
+}
