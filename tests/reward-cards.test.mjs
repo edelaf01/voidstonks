@@ -28,7 +28,7 @@ test("detecta una fila de 3 tarjetas brillantes sobre fondo oscuro", () => {
 
   const res = detectCardRow(img);
   assert.deepEqual({ x: res.x, w: res.w, y: res.y, h: res.h, cardCount: res.cardCount }, {
-    x: 0, w: 1000, y: 190, h: 126, cardCount: 3,
+    x: 0, w: 1000, y: 145, h: 171, cardCount: 3,
   });
   assert.deepEqual(res.columnas, [{ x0: 0.08, x1: 0.38 }, { x0: 0.38, x1: 0.68 }, { x0: 0.68, x1: 0.98 }]);
 });
@@ -42,8 +42,8 @@ test("colaRotulo extiende la banda por debajo del borde inferior del arte", () =
   drawRect(img, 800, y0, 60, altoArte, 240);
 
   const res = detectCardRow(img, { colaRotulo: 0.6 });
-  assert.equal(res.y, 190);
-  assert.equal(res.h, 54);
+  assert.equal(res.y, 145);
+  assert.equal(res.h, 99);
   assert.equal(res.y + res.h > y0 + altoArte, true);
   assert.equal(res.y + res.h, 244);
 });
@@ -75,7 +75,7 @@ test("dos tarjetas del mismo ancho sí forman fila aunque el fondo tenga manchas
 
   const res = detectCardRow(img);
   assert.equal(res.cardCount, 2);
-  assert.equal(res.y, 100);
+  assert.equal(res.y, 80);
 });
 
 test("un fondo liso sin contraste devuelve null", () => {
@@ -101,7 +101,7 @@ test("el umbral relativo por percentil produce la misma banda con brillo escalad
 
   assert.deepEqual(resOscura, resOriginal);
   assert.deepEqual({ x: resOscura.x, y: resOscura.y, h: resOscura.h, cardCount: resOscura.cardCount },
-    { x: 0, y: 190, h: 126, cardCount: 3 });
+    { x: 0, y: 145, h: 171, cardCount: 3 });
 });
 
 test("la banda respeta el limite inferior del frame si colaRotulo sobrepasa H", () => {
@@ -112,7 +112,7 @@ test("la banda respeta el limite inferior del frame si colaRotulo sobrepasa H", 
 
   const res = detectCardRow(img, { colaRotulo: 0.6 });
   assert.deepEqual({ x: res.x, w: res.w, y: res.y, h: res.h, cardCount: res.cardCount }, {
-    x: 0, w: 1000, y: 480, h: 20, cardCount: 3,
+    x: 0, w: 1000, y: 435, h: 65, cardCount: 3,
   });
 });
 

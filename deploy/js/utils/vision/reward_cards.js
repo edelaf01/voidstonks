@@ -2,7 +2,7 @@
 
 import { connectedComponents } from "./mission_complete_grid.js";
 
-export function detectCardRow(img, { percentil = 0.97, minLado = 0.03, colaRotulo = 1.4, tolAncho = 0.25 } = {}) {
+export function detectCardRow(img, { percentil = 0.97, minLado = 0.03, colaRotulo = 1.4, subeRotulo = 0.5, tolAncho = 0.25 } = {}) {
   const { data, width: W, height: H } = img;
   const lum = new Float32Array(W * H);
   for (let i = 0, p = 0; p < W * H; p++, i += 4) lum[p] = 0.299*data[i] + 0.587*data[i+1] + 0.114*data[i+2];
@@ -30,13 +30,16 @@ export function detectCardRow(img, { percentil = 0.97, minLado = 0.03, colaRotul
   const y0 = Math.min(...g.map((c) => c.y)), y1 = Math.max(...g.map((c) => c.y + c.h));
   const alto = y1 - y0;
   const centros = g.map((c) => c.x + c.w / 2);
+  const anchoMax = Math.max(...g.map((c) => c.w));
+  const y = Math.max(0, Math.round(y1 - alto * subeRotulo));
+  const h = Math.round(Math.min(H - y, y1 - y + alto * colaRotulo));
   const fila = filaCentrada(centros, W);
   if (fila) {
     const columnas = fila.centros.map((cx) => ({ x0: (cx - fila.paso / 2) / W, x1: (cx + fila.paso / 2) / W }));
-    return { x: 0, w: W, y: y1, h: Math.round(Math.min(H - y1, alto * colaRotulo)), cardCount: fila.n, columnas };
+    return { x: 0, w: W, y, h, cardCount: fila.n, columnas };
   }
-  const columnas = columnasDesdeCentros(centros, W, Math.max(...g.map((c) => c.w)) * 2);
-  return { x: 0, w: W, y: y1, h: Math.round(Math.min(H - y1, alto * colaRotulo)), cardCount: g.length, columnas };
+  const columnas = columnasDesdeCentros(centros, W, anchoMax * 2);
+  return { x: 0, w: W, y, h, cardCount: g.length, columnas };
 }
 
 const PASO_CARTA_MAX = 0.18;
