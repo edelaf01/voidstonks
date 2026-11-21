@@ -468,12 +468,15 @@ function startRotationTimers(vendors, t) {
 
 const SUBVIEW_KEY = "vs_farms_subview_v1";
 
+const FARMS_SUBVIEWS = ["bounties", "weapons", "traders"];
+
 export function getFarmsSubview() {
-  return localStorage.getItem(SUBVIEW_KEY) === "weapons" ? "weapons" : "bounties";
+  const v = localStorage.getItem(SUBVIEW_KEY);
+  return FARMS_SUBVIEWS.includes(v) ? v : "bounties";
 }
 
 export function setFarmsSubview(view) {
-  localStorage.setItem(SUBVIEW_KEY, view === "weapons" ? "weapons" : "bounties");
+  localStorage.setItem(SUBVIEW_KEY, FARMS_SUBVIEWS.includes(view) ? view : "bounties");
 }
 
 export function stopRotationTimers() {
