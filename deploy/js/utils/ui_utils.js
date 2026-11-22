@@ -43,7 +43,8 @@ export function getRequiredCount(setName, partName) {
   };
 
   const res = resolveCount();
-  requiredCountCache.set(cacheKey, res);
+  if (state.primeManifest?.length || state.weaponDetailsDB?.length)
+    requiredCountCache.set(cacheKey, res);
   return res;
 }
 
