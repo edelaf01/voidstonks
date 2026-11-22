@@ -604,5 +604,15 @@ export function copyText() {
     showToast(via === "queued"
       ? (t?.queued || "It will be copied when you come back to the tab")
       : (t?.copied || "Message copied!"));
+    const btn = document.getElementById("btn-copy");
+    if (btn && !btn.classList.contains("is-copied")) {
+      const label = btn.textContent;
+      btn.textContent = TEXTS[state.currentLang]?.btnCopied || "Copied";
+      btn.classList.add("is-copied");
+      setTimeout(() => {
+        btn.textContent = label;
+        btn.classList.remove("is-copied");
+      }, 1500);
+    }
   }).catch(console.warn);
 }

@@ -171,17 +171,10 @@ export function switchTab(mode) {
 
   if (footer) {
     document.getElementById("relic-missing")?.classList.toggle("hidden", mode !== "relic");
-    if (mode === "lfg") {
-      footer.style.display = "block";
-      footer.style.borderTopColor = "#42f56c";
-      if (msgText) msgText.style.color = "#42f56c";
-    } else if (mode === "relic") {
-      footer.style.display = "block";
-      footer.style.borderTopColor = "#333";
-      if (msgText) msgText.style.color = "#00e5ff";
-    } else {
-      footer.style.display = "none";
-    }
+    footer.style.display = mode === "lfg" || mode === "relic" ? "block" : "none";
+    footer.classList.toggle("footer-lfg", mode === "lfg");
+    footer.classList.toggle("footer-relic-mode", mode === "relic");
+    if (msgText) msgText.style.color = "";
   }
   syncInvToggle(mode);
   updateTabSubtitle(mode);

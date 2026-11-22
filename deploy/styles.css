@@ -2072,7 +2072,8 @@ body.theme-vosfor {
   border: 0;
   color: var(--wf-blue);
   font-size: 1.5em;
-  width: 40px;
+  width: 44px;
+  min-width: 44px;
   height: 100%;
   cursor: pointer;
   display: flex;
@@ -2088,12 +2089,12 @@ body.theme-vosfor {
 @media (max-width: 768px) {
   #footer-relic .counter-inline {
     gap: 2px;
-    height: 38px;
+    height: 50px;
     padding: 2px;
   }
 
   #footer-relic .c-btn {
-    width: 30px;
+    width: 44px;
   }
 }
 
