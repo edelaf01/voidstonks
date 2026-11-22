@@ -9,12 +9,28 @@ function normalizeVendors(payload) {
     return vendors.filter((v) => v?.key && Array.isArray(v.weapons) && v.weapons.length > 0);
 }
 
-async function lastKnownGood() {
+export const lichWeaponsMeta = { fromCache: false, ts: null, failed: false };
+
+function withMeta(vendors, fromCache, ts, failed) {
+    lichWeaponsMeta.fromCache = fromCache;
+    lichWeaponsMeta.ts = ts;
+    lichWeaponsMeta.failed = failed;
+    Object.defineProperties(vendors, {
+        fromCache: { value: fromCache, configurable: true },
+        ts: { value: ts, configurable: true },
+        failed: { value: failed, configurable: true },
+    });
+    return vendors;
+}
+
+async function lastKnownGood(networkFailed = true) {
     const cached = await dbHelper.get(CACHE_KEY);
     const vendors = Array.isArray(cached?.data) ? cached.data : [];
-    if (vendors.length === 0) return [];
+    if (vendors.length === 0) return withMeta([], false, null, networkFailed);
     const soonestEnd = Math.min(...vendors.map((v) => Number(v.end) || 0));
-    return soonestEnd > serverNow() ? vendors : [];
+    return soonestEnd > serverNow()
+        ? withMeta(vendors, true, cached?.ts || null, false)
+        : withMeta([], false, null, networkFailed);
 }
 
 export async function fetchLichWeapons(force = false) {
@@ -26,13 +42,15 @@ export async function fetchLichWeapons(force = false) {
         if (res.ok) {
             const vendors = normalizeVendors(await res.json());
             if (vendors.length > 0) {
-                await dbHelper.set(CACHE_KEY, { data: vendors });
-                return vendors;
+                const ts = Date.now();
+                await dbHelper.set(CACHE_KEY, { data: vendors, ts });
+                return withMeta(vendors, false, ts, false);
             }
+            return await lastKnownGood(false);
         }
-        return lastKnownGood();
+        return await lastKnownGood(true);
     } catch (e) {
         console.error("Lich weapons error:", e);
-        return lastKnownGood().catch(() => []);
+        return lastKnownGood(true).catch(() => withMeta([], false, null, true));
     }
 }

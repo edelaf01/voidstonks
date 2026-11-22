@@ -230,6 +230,43 @@
     margin: 0;
 }
 
+#footer-relic.footer-relic-mode {
+    border-top-color: #333;
+}
+
+#footer-relic.footer-relic-mode .message-display {
+    color: #00e5ff;
+}
+
+#footer-relic.footer-lfg {
+    border-top-color: #42f56c;
+}
+
+#footer-relic.footer-lfg .message-display {
+    color: #42f56c;
+}
+
+#footer-relic .copy-btn.is-copied {
+    filter: brightness(1.2);
+}
+
+.tab-subtitle {
+    margin: 0;
+    padding: 6px 16px 0;
+    color: #9aa;
+    font-size: 0.85em;
+    text-align: center;
+}
+
+.tab-subtitle:empty {
+    display: none;
+}
+
+#inv-toggle-btn.is-not-here {
+    opacity: 0.4;
+    filter: grayscale(1);
+}
+
 @media (max-width: 768px) {
     #footer-relic .footer-actions {
         gap: 8px 10px;
@@ -428,6 +465,22 @@
 .tab-more-btn.is-open {
     color: #fff;
     background: #222;
+}
+
+.tab-more-btn.has-active {
+    position: relative;
+    color: var(--active-theme-color);
+}
+
+.tab-more-btn.has-active::after {
+    content: "";
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--active-theme-color);
 }
 
 .tab-more-btn .tab-more-chevron {
@@ -758,8 +811,19 @@ option {
     pointer-events: none;
 }
 
-.tab-btn.is-wip:not(.active) .tab-icon-img {
-    opacity: 0.72;
+.tab-btn.is-wip:not(.active) {
+    opacity: 0.6;
+}
+
+.tab-btn.is-wip:not(.active):hover {
+    opacity: 0.85;
+}
+
+.tab-wip-lock {
+    width: 0.8em;
+    height: 0.8em;
+    margin-right: 2px;
+    vertical-align: -1px;
 }
 
 @media (max-width: 768px) {
@@ -794,4 +858,22 @@ option {
     box-shadow: 0 0 0 1000px var(--wf-input-bg, #0a0b0d) inset;
     caret-color: #eee;
     transition: background-color 9999s ease-out 0s;
+}
+
+@media (max-width: 768px) {
+    .tab-subtitle {
+        display: none;
+    }
+}
+
+@media (min-width: 1600px) {
+    .card {
+        max-width: min(92vw, 1800px);
+    }
+
+    #mode-relic,
+    #mode-set,
+    #mode-lfg {
+        max-width: 1200px;
+    }
 }

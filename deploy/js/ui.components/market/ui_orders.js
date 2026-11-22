@@ -356,7 +356,11 @@ async function fillInventorySection(body, orders) {
         frag.appendChild(el("p", "orders-inv-stale-head", t.invStale));
         frag.appendChild(el("p", "orders-inv-hint", t.invStaleHint));
         for (const s of res.stale) frag.appendChild(syncRow(s.name || s.slug, null, [registra(s.slug, s.order.quantity || 1),
-            [t.remove, "danger", () => (confirm(t.confirmDelete) ? editOrder(s.order.id, "delete") : null)]]));
+            [t.remove, "danger", () => new Promise((resolve) => {
+                globalThis.showCustomConfirm(t.confirmDelete, () => resolve(editOrder(s.order.id, "delete")));
+                document.getElementById("orokin-btn-cancel")?.addEventListener("click", () => resolve(null), { once: true });
+                document.querySelector("#orokin-confirm-modal .modal-backdrop")?.addEventListener("click", () => resolve(null), { once: true });
+            })]]));
     }
     if (res.mismatched?.length) frag.appendChild(el("p", "orders-inv-stale-head", t.invQtyOff));
     for (const m of res.mismatched || []) frag.appendChild(syncRow(m.name, `${t.invOwned} ×${m.qty} · ${t.invListed} ×${m.order.quantity}`, [
@@ -852,21 +856,19 @@ function orderActions(card, order) {
             isVisible ? t.hiddenToast : t.shownToast);
     }));
 
-    actions.appendChild(mk(t.sell1, "ok", async () => {
-        if (!confirm(t.confirmSell1)) return;
-        await applyChange(card, order.id, "close", { quantity: 1 });
+    actions.appendChild(mk(t.sell1, "ok", () => {
+        globalThis.showCustomConfirm(t.confirmSell1, () => applyChange(card, order.id, "close", { quantity: 1 }));
     }));
 
     if (total > 1) {
-        actions.appendChild(mk(t.sellAll, "ok", async () => {
-            if (!confirm(t.confirmSellAll.replace("{n}", total))) return;
-            await applyChange(card, order.id, "close", { quantity: total });
+        actions.appendChild(mk(t.sellAll, "ok", () => {
+            globalThis.showCustomConfirm(t.confirmSellAll.replace("{n}", total),
+                () => applyChange(card, order.id, "close", { quantity: total }));
         }));
     }
 
-    actions.appendChild(mk(t.remove, "danger", async () => {
-        if (!confirm(t.confirmDelete)) return;
-        await applyChange(card, order.id, "delete");
+    actions.appendChild(mk(t.remove, "danger", () => {
+        globalThis.showCustomConfirm(t.confirmDelete, () => applyChange(card, order.id, "delete"));
     }));
 
     return actions;

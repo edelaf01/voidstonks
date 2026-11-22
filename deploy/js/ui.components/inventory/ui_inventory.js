@@ -331,6 +331,8 @@ export function updateInventoryPanelLabels() {
     purge.title = purgeTitle;
     purge.setAttribute("aria-label", purgeTitle);
   }
+  const purgeLbl = purge?.querySelector(".orokin-clear-label");
+  if (purgeLbl && t.purgeLabel) purgeLbl.textContent = t.purgeLabel;
 
   const showEmpty = document.getElementById("prime-show-empty");
   if (showEmpty) showEmpty.checked = !!state.settings?.showEmptyPrime;
@@ -342,7 +344,7 @@ export function updateInventoryPanelLabels() {
 
   const toggle = document.getElementById("inv-toggle-btn");
   const toggleTitle = isParts ? t.togglePartsTitle : t.toggleRelicsTitle;
-  if (toggle && toggleTitle) {
+  if (toggle && toggleTitle && !toggle.classList.contains("is-not-here")) {
     toggle.title = toggleTitle;
     toggle.setAttribute("aria-label", toggleTitle);
   }

@@ -1,6 +1,6 @@
 import { state, saveAppState } from "../state.js";
 import { TEXTS } from "../config.js";
-import { showToast, escapeHTML } from "./ui_components.js";
+import { showToast, escapeHTML, showCustomConfirm } from "./ui_components.js";
 import { ClipboardService } from "../services/clipboard.service.js";
 import { exposeGlobals } from "../utils/global_registry.js";
 import { squadTag } from "../utils/chat_link.js";
@@ -440,11 +440,11 @@ const loadTradePreset = function (index) {
 
 const deleteTradePreset = function (index) {
   const t = TEXTS[state.currentLang].tradePresets || {};
-  if (confirm(t.deleteConfirm || "Delete this preset?")) {
+  showCustomConfirm(t.deleteConfirm || "Delete this preset?", () => {
     state.tradePresets.splice(index, 1);
     saveAppState();
     renderTradePresets();
-  }
+  });
 };
 
 export function renderLFGPresets() {
@@ -575,11 +575,11 @@ const loadLFGPreset = function (index) {
 };
 
 const deleteLFGPreset = function (index) {
-  if (confirm(TEXTS[state.currentLang].lfgPresets.deleteConfirm)) {
+  showCustomConfirm(TEXTS[state.currentLang].lfgPresets.deleteConfirm, () => {
     state.lfgPresets.splice(index, 1);
     saveAppState();
     renderLFGPresets();
-  }
+  });
 };
 
 exposeGlobals({
@@ -604,5 +604,15 @@ export function copyText() {
     showToast(via === "queued"
       ? (t?.queued || "It will be copied when you come back to the tab")
       : (t?.copied || "Message copied!"));
+    const btn = document.getElementById("btn-copy");
+    if (btn && !btn.classList.contains("is-copied")) {
+      const label = btn.textContent;
+      btn.textContent = TEXTS[state.currentLang]?.btnCopied || "Copied";
+      btn.classList.add("is-copied");
+      setTimeout(() => {
+        btn.textContent = label;
+        btn.classList.remove("is-copied");
+      }, 1500);
+    }
   }).catch(console.warn);
 }

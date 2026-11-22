@@ -2072,7 +2072,8 @@ body.theme-vosfor {
   border: 0;
   color: var(--wf-blue);
   font-size: 1.5em;
-  width: 40px;
+  width: 44px;
+  min-width: 44px;
   height: 100%;
   cursor: pointer;
   display: flex;
@@ -2088,12 +2089,12 @@ body.theme-vosfor {
 @media (max-width: 768px) {
   #footer-relic .counter-inline {
     gap: 2px;
-    height: 38px;
+    height: 50px;
     padding: 2px;
   }
 
   #footer-relic .c-btn {
-    width: 30px;
+    width: 44px;
   }
 }
 
@@ -3831,11 +3832,16 @@ body.theme-vosfor {
   }
 
   .tab-btn span {
-    display: block !important;
+    display: -webkit-box !important;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
     max-width: 100% !important;
     overflow: hidden !important;
-    text-overflow: ellipsis !important;
-    white-space: nowrap !important;
+    white-space: normal !important;
+    overflow-wrap: break-word;
+    hyphens: auto;
+    text-align: center;
   }
 
   .tab-btn .tab-icon-img {
@@ -8670,4 +8676,64 @@ body[data-lang="en"] .header-guide-cta .lang-en {
 
 .farm-routes .fr-pick.ready .fr-pick-where {
   border-left-color: var(--wf-green, #42f56c);
+}
+
+.state-error {
+  padding: 12px 10px;
+  background: var(--wf-panel-bg);
+  color: var(--label-color);
+  border: 1px solid var(--wf-border-box);
+  font-size: 0.82em;
+  text-align: center;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: 4px;
+  border-radius: var(--radius-box);
+}
+
+.state-retry {
+  min-height: 44px;
+  padding: 8px 16px;
+  background: var(--wf-card);
+  color: currentColor;
+  border: 1px solid var(--wf-border-ctl);
+  border-radius: var(--radius-ctl);
+  font-size: 0.9em;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.state-retry:hover {
+  border-color: currentColor;
+}
+
+.state-retry:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+:where(button, a, summary, select, [role="button"], [role="tab"], [tabindex]):focus-visible {
+  outline: 2px solid var(--active-theme-color);
+  outline-offset: 2px;
+}
+
+#inventory-container select:focus-visible {
+  outline: 2px solid var(--active-theme-color);
+  outline-offset: 1px;
+}
+
+.state-stale {
+  display: inline-block;
+  padding: 2px 8px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: none;
+  color: var(--label-color);
+  background: var(--wf-panel-bg);
+  border: 1px solid var(--wf-border-box);
+  border-radius: var(--radius-ctl);
+  vertical-align: middle;
 }

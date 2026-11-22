@@ -135,7 +135,7 @@
         <button id="btn-mode-mods" onclick="globalThis.setScannerMode('mods')" style="
               background: none;
               border: none;
-              color: #888;
+              color: #9aa;
               font-size: 0.65em;
               font-weight: 800;
               padding: 5px 15px;
@@ -298,18 +298,18 @@
         <div class="reward-sync-controls"
           style="display: flex; align-items: center; gap: 8px; margin-right: auto; margin-left: 20px;">
           <label class="orokin-toggle"
-            style="display: flex; align-items: center; gap: 5px; cursor: pointer; font-size: 0.75rem; color: #888;">
+            style="display: flex; align-items: center; gap: 5px; cursor: pointer; font-size: 0.75rem; color: #9aa;">
             <input type="checkbox" id="sync-rewards-toggle" checked
               onchange="globalThis.toggleRewardsAutoSync(this.checked)" style="accent-color: #00e5ff;">
             <span class="sync-toggle-label">AUTO-SYNC</span>
           </label>
           <label class="orokin-toggle"
-            style="display: flex; align-items: center; gap: 5px; cursor: pointer; font-size: 0.75rem; color: #888; margin-left: 10px;">
+            style="display: flex; align-items: center; gap: 5px; cursor: pointer; font-size: 0.75rem; color: #9aa; margin-left: 10px;">
             <input type="checkbox" id="auto-copy-toggle" onchange="globalThis.toggleAutoCopyScanResults(this.checked)"
               style="accent-color: #00e5ff;">
             <span class="copy-toggle-label">AUTO-COPY</span>
           </label>
-          <span id="auto-copy-help" class="help-icon" style="color: #555; cursor: help; font-size: 0.8rem;"
+          <span id="auto-copy-help" class="help-icon" tabindex="0" style="color: #9aa; cursor: help; font-size: 0.8rem;"
             data-tooltip="YES: copies the results to the clipboard after each scan, in Warframe chat format (on the web it needs the AutoCopy extension). NO: copies only when you press the button.">ⓘ</span>
           <button id="btn-copy-scan-results" class="orokin-btn-mini" onclick="globalThis.copyScanResultsToClipboard()"
             style="background: rgba(0, 229, 255, 0.1); border: 1px solid rgba(0, 229, 255, 0.4); color: #00e5ff; font-size: 10px; padding: 3px 10px; border-radius: 4px; font-weight: 800; cursor: pointer; margin-left: 10px; transition: all 0.2s; white-space: nowrap;">
@@ -322,7 +322,7 @@
       <div id="rewards-dbg-text" class="hidden"
         style="background:#000; color:#ff9800; font-family:monospace; font-size:11px; padding:10px; margin:0 20px 10px; border:1px solid #333; max-height:160px; overflow-y:auto; border-radius:4px; line-height:1.4;">
         <div id="lbl-rewards-diagnostics"
-          style="color: #555; border-bottom: 1px solid #222; margin-bottom: 5px; padding-bottom: 2px;">DIAGNÓSTICO</div>
+          style="color: #9aa; border-bottom: 1px solid #222; margin-bottom: 5px; padding-bottom: 2px;">DIAGNÓSTICO</div>
         <div id="rewards-raw-ocr-content"
           style="white-space: pre-wrap; word-break: break-all; display: flex; flex-direction: column; gap: 2px;">
           ...
@@ -368,7 +368,7 @@
       </button>
 
       <div class="header-center">
-        <span id="txt-inv-title">MY INVENTORY</span>
+        <span id="txt-inv-title">Inventario</span>
         <button type="button" class="orokin-clear-btn vs-plain" onclick="globalThis.clearInventory()"
           title="Borrar todas las reliquias guardadas">
           <svg class="orokin-trash-svg" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -378,6 +378,7 @@
             <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="0.5" stroke-dasharray="2 2"
               class="orokin-ring" />
           </svg>
+          <span class="orokin-clear-label">Vaciar</span>
         </button>
       </div>
 
@@ -476,7 +477,7 @@
       <span id="txt-fissure-title">Fisuras Activas</span>
     </div>
     <div class="fissures-scroll-area" id="fissures-list-area">
-      <div style="padding: 10px; text-align: center; color: #666">
+      <div style="padding: 10px; text-align: center; color: #9aa">
         Cargando...
       </div>
     </div>
@@ -527,7 +528,7 @@
           </div>
         </div>
 
-        <div id="scanner-toggle" class="scanner-toggle-btn">
+        <div id="scanner-toggle" class="scanner-toggle-btn" role="button" tabindex="0" aria-expanded="false" aria-controls="scanner-drawer">
           <div class="toggle-content">
             <span class="icon-pulse">◉</span>
             <span class="label">ESCÁNER EN VIVO</span>
@@ -594,34 +595,34 @@
 
   <div class="card" id="main-card">
     <div class="card-top-bar">
-      <div class="tabs">
-        <button id="btn-relic" class="tab-btn active" onclick="switchTab('relic')">
+      <div class="tabs" role="tablist">
+        <button id="btn-relic" class="tab-btn active" role="tab" aria-selected="true" onclick="switchTab('relic')">
           <img src="assets/remolino.webp" class="tab-icon-img" alt="Relic Icon" />
           <span id="tab-relic-text">Reliquia</span>
         </button>
 
-        <button id="btn-set" class="tab-btn orokin" onclick="switchTab('set')">
+        <button id="btn-set" class="tab-btn orokin" role="tab" aria-selected="false" onclick="switchTab('set')">
           <img src="assets/primeparts.webp" class="tab-icon-img" alt="Set Icon" />
           <span id="tab-set-text">Set</span>
         </button>
 
-        <button id="btn-riven" class="tab-btn riven" onclick="switchTab('riven')">
+        <button id="btn-riven" class="tab-btn riven" role="tab" aria-selected="false" onclick="switchTab('riven')">
           <img src="assets/riven.webp" class="tab-icon-img" alt="Riven Icon" />
           <span id="tab-riven-text">Riven</span>
         </button>
-        <button id="btn-bounties" class="tab-btn bounties" onclick="switchTab('bounties')">
+        <button id="btn-bounties" class="tab-btn bounties" role="tab" aria-selected="false" onclick="switchTab('bounties')">
           <img src="assets/farm.webp" class="tab-icon-img" alt="Farms Icon" />
           <span id="tab-bounties-text">Farms</span>
         </button>
-        <button id="btn-lfg" class="tab-btn lfg" onclick="switchTab('lfg')">
+        <button id="btn-lfg" class="tab-btn lfg" role="tab" aria-selected="false" onclick="switchTab('lfg')">
           <img src="assets/lfg.webp" class="tab-icon-img" alt="LFG Icon" />
           <span id="tab-lfg-text">LFG</span>
         </button>
-        <button id="btn-vosfor" class="tab-btn vosfor" onclick="switchTab('vosfor')">
+        <button id="btn-vosfor" class="tab-btn vosfor" role="tab" aria-selected="false" onclick="switchTab('vosfor')">
           <img src="https://wiki.warframe.com/w/Special:FilePath/Vosfor.png" onerror="this.onerror=null; this.src='https://raw.githubusercontent.com/WFCD/warframe-items/master/data/img/vosfor.png';" class="tab-icon-img" alt="Vosfor Icon" />
           <span id="tab-vosfor-text">Vosfor</span>
         </button>
-        <button id="btn-orders" class="tab-btn orders is-wip" onclick="switchTab('orders')"
+        <button id="btn-orders" class="tab-btn orders is-wip" role="tab" aria-selected="false" onclick="switchTab('orders')"
           data-tooltip="Esperando a que warframe.market habilite un inicio de sesión seguro (OAuth) para apps externas.">
           <svg class="tab-icon-img tab-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -629,9 +630,9 @@
             <path d="M9 4V3h6v1M9 10h6M9 14h6M9 18h3" />
           </svg>
           <span id="tab-orders-text">Mis órdenes</span>
-          <span class="tab-wip-badge" aria-hidden="true">WIP</span>
+          <span class="tab-wip-badge" aria-hidden="true"><svg class="tab-wip-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg>WIP</span>
         </button>
-        <button id="btn-ducat" class="tab-btn ducat" onclick="switchTab('ducat')">
+        <button id="btn-ducat" class="tab-btn ducat" role="tab" aria-selected="false" onclick="switchTab('ducat')">
           <img src="assets/Ducats.webp" class="tab-icon-img" alt="Ducanator Icon" />
           <span id="tab-ducat-text">Ducados</span>
         </button>
@@ -650,6 +651,7 @@
     </div>
 
     <div class="content-area">
+    <p id="tab-subtitle" class="tab-subtitle"></p>
       <div id="loading">
         <div id="loadingText">Loading...</div>
         <small id="loadingSub"></small>
@@ -659,7 +661,7 @@
         <div class="form-group">
           <label>
             <span id="lbl-relic-name">Nombre de Reliquia</span>
-            <span id="relic-guide-icon" class="info-icon" style="cursor: help; margin-left: 5px">ℹ</span>
+            <span id="relic-guide-icon" class="info-icon" tabindex="0" style="cursor: help; margin-left: 5px">ℹ</span>
           </label>
 
           <div class="relic-input-wrapper">
@@ -758,39 +760,42 @@
                 <div class="rv-avg-grid">
                   <div class="rv-avg-col">
                     <div>
-                      <span id="riven-unrolled-title" class="rv-avg-title">Base Real</span>
-                      <span id="riven-unrolled-subtitle" class="rv-avg-sub">(Sin Ciclos)</span>
+                      <span id="riven-unrolled-title" class="rv-avg-title">Vendido sin rolar</span>
+                      <span id="riven-unrolled-info" class="info-icon" tabindex="0" data-tooltip="">ℹ</span>
+                      <span id="riven-unrolled-subtitle" class="rv-avg-sub">ventas reales (DE)</span>
                     </div>
                     <div>
                       <div class="rv-avg-main"><span id="riven-unrolled-median">...</span><img src="assets/relic_contents/platinum.webp" alt=""></div>
                       <div class="rv-avg-range">
-                        <span>Min: <span id="riven-unrolled-min" class="rv-min">...</span><img src="assets/relic_contents/platinum.webp" alt=""></span>
-                        <span>Max: <span id="riven-unrolled-max" class="rv-max">...</span><img src="assets/relic_contents/platinum.webp" alt=""></span>
+                        <span><span class="rv-lbl-min">Mín:</span> <span id="riven-unrolled-min" class="rv-min">...</span><img src="assets/relic_contents/platinum.webp" alt=""></span>
+                        <span><span class="rv-lbl-max">Máx:</span> <span id="riven-unrolled-max" class="rv-max">...</span><img src="assets/relic_contents/platinum.webp" alt=""></span>
                       </div>
                     </div>
                   </div>
                   <div class="rv-avg-col">
                     <div>
-                      <span id="riven-rerolled-title" class="rv-avg-title">Rerolled Real</span>
-                      <span id="riven-rerolled-subtitle" class="rv-avg-sub">(Con Ciclos)</span>
+                      <span id="riven-rerolled-title" class="rv-avg-title">Vendido rolado</span>
+                      <span id="riven-rerolled-info" class="info-icon" tabindex="0" data-tooltip="">ℹ</span>
+                      <span id="riven-rerolled-subtitle" class="rv-avg-sub">ventas reales (DE)</span>
                     </div>
                     <div>
                       <div class="rv-avg-main"><span id="riven-rerolled-median">...</span><img src="assets/relic_contents/platinum.webp" alt=""></div>
                       <div class="rv-avg-range">
-                        <span>Min: <span id="riven-rerolled-min" class="rv-min">...</span><img src="assets/relic_contents/platinum.webp" alt=""></span>
-                        <span>Max: <span id="riven-rerolled-max" class="rv-max">...</span><img src="assets/relic_contents/platinum.webp" alt=""></span>
+                        <span><span class="rv-lbl-min">Mín:</span> <span id="riven-rerolled-min" class="rv-min">...</span><img src="assets/relic_contents/platinum.webp" alt=""></span>
+                        <span><span class="rv-lbl-max">Máx:</span> <span id="riven-rerolled-max" class="rv-max">...</span><img src="assets/relic_contents/platinum.webp" alt=""></span>
                       </div>
                     </div>
                   </div>
                   <div class="rv-avg-col">
                     <div>
-                      <span id="riven-web-title" class="rv-avg-title">WFM Web</span>
-                      <span id="riven-web-subtitle" class="rv-avg-sub">(Active)</span>
+                      <span id="riven-web-title" class="rv-avg-title">Pedido en WFM</span>
+                      <span id="riven-web-info" class="info-icon" tabindex="0" data-tooltip="">ℹ</span>
+                      <span id="riven-web-subtitle" class="rv-avg-sub">(activo)</span>
                     </div>
                     <div>
                       <div class="rv-avg-main"><span id="riven-web-avg">...</span><img src="assets/relic_contents/platinum.webp" alt=""></div>
                       <div class="rv-avg-range">
-                        <span>Min: <span id="riven-web-min" class="rv-min">...</span><img src="assets/relic_contents/platinum.webp" alt=""></span>
+                        <span><span class="rv-lbl-min">Mín:</span> <span id="riven-web-min" class="rv-min">...</span><img src="assets/relic_contents/platinum.webp" alt=""></span>
                         <span><span id="riven-web-orders-label">Orders</span>: <span id="riven-web-orders" class="rv-orders">...</span></span>
                       </div>
                     </div>
@@ -808,11 +813,14 @@
                 </button>
               </div>
 
-              <p id="riven-disclaimer" class="riven-disclaimer">
-                Los precios de riven son orientativos: un mismo riven puede costar cualquier cosa.
-                Tómalos como referencia del volumen real de venta, con datos de Digital Extremes
-                y de warframe.market.
-              </p>
+              <details id="riven-disclaimer-box" class="riven-disclaimer-box">
+                <summary id="riven-disclaimer-toggle">Sobre estos precios</summary>
+                <p id="riven-disclaimer" class="riven-disclaimer">
+                  Los precios de riven son orientativos: un mismo riven puede costar cualquier cosa.
+                  Tómalos como referencia del volumen real de venta, con datos de Digital Extremes
+                  y de warframe.market.
+                </p>
+              </details>
 
               <div id="meta-stats-container" class="recommended-god-roll-card" style="display:none;"></div>
 
@@ -824,14 +832,12 @@
             </div>
 
             <div id="riven-history-chart-container">
-              <div id="chart-hint-note">
-                Pulsa 'WFM' en la leyenda para ocultarlo y ajustar la escala a los precios reales de DE
-              </div>
               <div class="history-range-selector">
                 <button class="history-range-btn active" data-days="7" onclick="globalThis.changeHistoryRange(7)">7D</button>
                 <button class="history-range-btn" data-days="15" onclick="globalThis.changeHistoryRange(15)">15D</button>
                 <button class="history-range-btn" data-days="30" onclick="globalThis.changeHistoryRange(30)">30D</button>
                 <button class="history-range-btn" data-days="all" onclick="globalThis.changeHistoryRange('all')">Todo</button>
+                <button type="button" id="btn-toggle-wfm" class="history-wfm-btn" aria-pressed="false" data-tooltip="Oculta la línea de WFM para ajustar la escala a los precios reales de DE." onclick="globalThis.toggleWfmChart()">Ocultar WFM</button>
               </div>
               <div class="rv-chart-box">
                 <canvas id="rivenHistoryChart"></canvas>
@@ -884,41 +890,41 @@
               </select>
 
               <div class="custom-select-container" style="position: relative; max-width: 240px; width: 190px;">
-                <div id="indexSortTrigger" class="wf-input riven-input"
+                <div id="indexSortTrigger" class="wf-input riven-input" role="button" tabindex="0" aria-haspopup="listbox" aria-expanded="false"
                   style="padding: 10px 30px 10px 12px; font-weight: bold; background: rgba(0, 0, 0, 0.25); border: 1px solid rgba(162, 53, 226, 0.3); color: #fff; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: space-between; position: relative; user-select: none; transition: all 0.2s ease;">
                   <span id="indexSortTriggerText">Popularidad</span>
                   <span id="indexSortTriggerArrow"
                     style="font-size: 0.6rem; color: var(--wf-blue); pointer-events: none; transition: transform 0.2s ease; position: absolute; right: 12px; top: 50%; transform: translateY(-50%);">▼</span>
                 </div>
 
-                <div id="indexSortOptions" class="custom-dropdown hidden"
+                <div id="indexSortOptions" class="custom-dropdown hidden" role="listbox"
                   style="position: absolute; top: 100%; left: 0; right: 0; background: #111; border: 1px solid rgba(162, 53, 226, 0.5) !important; border-radius: 0 0 6px 6px; overflow-y: auto; max-height: 250px; overscroll-behavior: contain; z-index: var(--z-dropdown); box-shadow: 0 8px 24px rgba(0,0,0,0.6);">
-                  <div class="dropdown-item active-sort-item" data-value="popularity"
+                  <div class="dropdown-item active-sort-item" role="option" tabindex="0" data-value="popularity"
                     style="padding: 10px 12px; cursor: pointer; transition: all 0.2s; border-bottom: 1px solid #222;"
                     id="opt-custom-pop">Popularidad</div>
-                  <div class="dropdown-item" data-value="price-official"
+                  <div class="dropdown-item" role="option" tabindex="0" data-value="price-official"
                     style="padding: 10px 12px; cursor: pointer; transition: all 0.2s; border-bottom: 1px solid #222;"
                     id="opt-custom-official">Precio de venta real</div>
-                  <div class="dropdown-item" data-value="price-wfm"
+                  <div class="dropdown-item" role="option" tabindex="0" data-value="price-wfm"
                     style="padding: 10px 12px; cursor: pointer; transition: all 0.2s; border-bottom: 1px solid #222;"
                     id="opt-custom-wfm">Lo que piden en WFM</div>
-                  <div class="dropdown-item" data-value="potential-real"
+                  <div class="dropdown-item" role="option" tabindex="0" data-value="potential-real"
                     style="padding: 10px 12px; cursor: pointer; transition: all 0.2s; border-bottom: 1px solid #222;"
                     id="opt-custom-potential-real">Potencial real</div>
-                  <div class="dropdown-item" data-value="potential-web"
+                  <div class="dropdown-item" role="option" tabindex="0" data-value="potential-web"
                     style="padding: 10px 12px; cursor: pointer; transition: all 0.2s; border-bottom: 1px solid #222;"
                     id="opt-custom-potential-web">Potencial en WFM</div>
-                  <div class="dropdown-item" data-value="arbitrage"
+                  <div class="dropdown-item" role="option" tabindex="0" data-value="arbitrage"
                     style="padding: 10px 12px; cursor: pointer; transition: all 0.2s; border-bottom: 1px solid #222;"
                     id="opt-custom-arbitrage">Diferencia pedido vs real</div>
-                  <div class="dropdown-item" data-value="kuva"
+                  <div class="dropdown-item" role="option" tabindex="0" data-value="kuva"
                     style="padding: 10px 12px; cursor: pointer; transition: all 0.2s;" id="opt-custom-kuva">Rentabilidad al rolar</div>
                 </div>
               </div>
 
               <div id="index-filters-bar" class="riven-index-filters"></div>
 
-            <span id="indexSortHelpIcon" class="info-icon"
+            <span id="indexSortHelpIcon" class="info-icon" tabindex="0"
                 style="cursor: help; font-size: 0.9rem; opacity: 0.8; padding: 6px;" data-tooltip="">ℹ</span>
             </div>
 
@@ -1080,7 +1086,7 @@
           </button>
         </div>
         <div id="bounties-list-container" class="fissures-scroll-area" style="overflow: visible">
-          <div style="text-align: center; padding: 20px; color: #666">
+          <div style="text-align: center; padding: 20px; color: #9aa">
             <div class="spinner" style="margin: 0 auto 10px auto"></div>
             Cargando Worldstate...
           </div>
@@ -1129,7 +1135,7 @@
       <div id="finalMessage" class="message-display">...</div>
       <div class="footer-actions">
         <div id="relic-missing" class="footer-missing">
-          <label id="lbl-missing">Faltan</label>
+          <label id="lbl-missing">Jugadores que faltan</label>
           <div class="counter-inline">
             <button class="c-btn" onclick="changeCount(-1)">-</button>
             <span class="c-val" id="countDisplay">1</span>

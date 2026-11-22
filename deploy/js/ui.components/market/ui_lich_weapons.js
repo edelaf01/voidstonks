@@ -384,6 +384,18 @@ export async function renderLichWeaponsTab(force = false) {
   const vendors = await fetchLichWeapons(force);
 
   if (vendors.length === 0) {
+    if (vendors.failed) {
+      container.innerHTML = `
+        <div class="no-fissures-msg state-error">
+          <span class="warning-icon">⚠</span>
+          <div>
+            <strong>${escapeHTML(L.errorTitle)}</strong>
+          </div>
+          <button type="button" class="state-retry">${escapeHTML(L.retry)}</button>
+        </div>`;
+      container.querySelector(".state-retry")?.addEventListener("click", () => renderLichWeaponsTab(true));
+      return;
+    }
     container.innerHTML = `
         <div class="no-fissures-msg">
           <span class="warning-icon">⚠</span>
@@ -395,6 +407,15 @@ export async function renderLichWeaponsTab(force = false) {
     return;
   }
 
+  let staleBadgeHtml = "";
+  if (vendors.fromCache && vendors.ts) {
+    const elapsedMs = Math.max(0, Date.now() - vendors.ts);
+    const staleText = elapsedMs < 3600000
+      ? L.staleMinutes.replace("{n}", String(Math.max(1, Math.floor(elapsedMs / 60000))))
+      : L.staleHours.replace("{n}", String(Math.floor(elapsedMs / 3600000)));
+    staleBadgeHtml = ` <span class="state-stale">${escapeHTML(staleText)}</span>`;
+  }
+
   const alarmPrefs = getAlarmPrefs();
   const nRules = alarmPrefs.rules.filter((r) => r.kind === "weapon").length;
 
@@ -402,7 +423,7 @@ export async function renderLichWeaponsTab(force = false) {
       <div class="lw-header">
           <div class="lw-head-row">
             <div>
-              <div class="lw-title">${escapeHTML(L.title)}</div>
+              <div class="lw-title">${escapeHTML(L.title)}${staleBadgeHtml}</div>
               <div class="lw-subtitle">${escapeHTML(L.subtitle)}</div>
             </div>
             <button type="button" id="lw-alarms-btn" class="farm-action-btn ${alarmPrefs.enabled && nRules > 0 ? "active-filter" : ""}"

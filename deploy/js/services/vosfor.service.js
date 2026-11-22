@@ -11,6 +11,7 @@ let vosforData = null;
 let vosforDataPromise = null;
 
 export const ARC_STATS = new Map();
+export const FAILED_STATS = new Set();
 
 const chunkQueue = [];
 const queuedChunkKeys = new Set();
@@ -125,6 +126,7 @@ async function pump() {
                 for (const [slug, stats] of Object.entries(data)) {
                     if (!stats || (!force && ARC_STATS.has(slug))) continue;
                     ARC_STATS.set(slug, stats);
+                    FAILED_STATS.delete(slug);
                     dbHelper.set(`arcstat_${slug}`, { val: stats, time: Date.now() });
                 }
                 notify();
@@ -140,6 +142,12 @@ async function pump() {
                 retryCounts.set(key, tries);
                 queuedChunkKeys.add(key);
                 chunkQueue.push({ chunk, force });
+            } else {
+                retryCounts.delete(key);
+                for (const s of chunk) {
+                    if (!ARC_STATS.has(s)) FAILED_STATS.add(s);
+                }
+                notify();
             }
         } else {
             retryCounts.delete(key);
@@ -150,6 +158,20 @@ async function pump() {
         }
     }
     pumping = false;
+}
+
+export function retryArcaneStats(slug) {
+    if (!slug) return;
+    FAILED_STATS.delete(slug);
+    for (const k of retryCounts.keys()) {
+        if (k.split(",").includes(slug)) retryCounts.delete(k);
+    }
+    if (!queuedChunkKeys.has(slug)) {
+        queuedChunkKeys.add(slug);
+        chunkQueue.unshift({ chunk: [slug], force: true });
+    }
+    notify();
+    pump();
 }
 
 const RARITIES = ["COMMON", "UNCOMMON", "RARE", "LEGENDARY"];

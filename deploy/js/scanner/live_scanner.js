@@ -716,12 +716,12 @@ globalThis.syncScannerModeUI = () => {
       primeBtn.style.background = "rgba(0, 229, 255, 0.2)";
       primeBtn.style.color = "#00e5ff";
       modsBtn.style.background = "none";
-      modsBtn.style.color = "#888";
+      modsBtn.style.color = "#9aa";
     } else {
       modsBtn.style.background = "rgba(208, 96, 255, 0.2)";
       modsBtn.style.color = "#d060ff";
       primeBtn.style.background = "none";
-      primeBtn.style.color = "#888";
+      primeBtn.style.color = "#9aa";
     }
   }
 };

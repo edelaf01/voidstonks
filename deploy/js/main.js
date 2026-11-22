@@ -104,6 +104,16 @@ function setupScannerDrawer() {
 
   if (!toggleBtn || !drawer) return;
 
+  toggleBtn.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      toggleBtn.click();
+    }
+  });
+  new MutationObserver(() => {
+    toggleBtn.setAttribute("aria-expanded", String(toggleBtn.classList.contains("active")));
+  }).observe(toggleBtn, { attributes: true, attributeFilter: ["class"] });
+
   toggleBtn.addEventListener("click", () => {
     const isActive = toggleBtn.classList.contains("active");
     const isNoticeVisible = !noticePanel.classList.contains("hidden");

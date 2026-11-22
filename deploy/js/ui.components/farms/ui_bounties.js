@@ -432,7 +432,7 @@ function buildHeaderHtml(t) {
       <div class="farms-header">
           <div class="farms-title">
             <span id="lbl-fast-farms-title">${escapeHTML(t.lblFastFarms || "Active Farms")}</span>
-            <span class="info-icon" id="bounties-guide-icon" data-tooltip="${escapeHTML(t.fastFarmGuide || "")}">ℹ️</span>
+            <span class="info-icon" id="bounties-guide-icon" tabindex="0" data-tooltip="${escapeHTML(t.fastFarmGuide || "")}">ℹ️</span>
           </div>
           <div class="farms-actions">
               <div class="farm-segment" role="group">
@@ -493,7 +493,24 @@ export async function renderBountiesTab(force = false) {
       </div>`;
   bindAlarmPanel(container, t);
 
-  const allBounties = await fetchActiveBounties(force);
+  let allBounties;
+  try {
+    allBounties = await fetchActiveBounties(force);
+  } catch (err) {
+    if (myTurn !== renderToken) return;
+    container.innerHTML = `${headerHTML}
+      <div class="no-fissures-msg state-error">
+        <span class="warning-icon">⚠</span>
+        <div>
+          <strong>${escapeHTML(t.msgBountiesError)}</strong>
+        </div>
+        <button type="button" class="state-retry">${escapeHTML(t.btnRetry)}</button>
+      </div>`;
+    bindAlarmPanel(container, t);
+    bindHeaderButtons(container);
+    container.querySelector(".state-retry")?.addEventListener("click", () => renderBountiesTab(true));
+    return;
+  }
   if (myTurn !== renderToken) return;
 
   handleAlarmHits(evaluateAlarms("bounty", allBounties));
@@ -514,10 +531,10 @@ export async function renderBountiesTab(force = false) {
           </div>`
       : `
           <div class="no-fissures-msg">
-            <span class="warning-icon">⚠</span>
+            <span class="warning-icon">ℹ</span>
             <div>
               <strong>${t.msgNoBountiesTitle || "No optimal missions active."}</strong><br>
-              <small>No data found.</small>
+              <small>${escapeHTML(t.msgNoBountiesEmpty)}</small>
             </div>
           </div>`;
 

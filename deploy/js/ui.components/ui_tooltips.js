@@ -59,8 +59,8 @@ export function generateSetProgressTooltip(setName) {
 
     html += `
       <div style="display:flex; align-items:center; gap:8px; margin-bottom:5px;">
-         ${icon ? `<img src="${icon}" style="width:24px; height:24px; object-fit:contain;">` : ""}
-         <div style="display:flex; flex-direction:column; flex:1;">
+         ${icon ? `<img src="${icon}" style="width:24px; height:24px; object-fit:contain; flex-shrink:0;" onerror="this.style.visibility='hidden'">` : `<span style="width:24px; height:24px; flex-shrink:0;" aria-hidden="true"></span>`}
+         <div style="display:flex; flex-direction:column; flex:1; min-width:0;">
             <span style="font-size:0.85em; color:#ddd;">${escapeHTML(shortName)}${req > 1 ? ` <span style="color:#aaa;">x${req}</span>` : ""}</span>
             <div class="live-tracker" data-part="${escapeHTML(itemName)}" data-req="${req}" style="margin-left:-8px;">
                ${generateDotsHtml(owned, req)}

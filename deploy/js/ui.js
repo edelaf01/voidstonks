@@ -113,6 +113,19 @@ export function initTabRouting() {
       navegandoPorHistorial = false;
     }
   });
+  document.addEventListener("keydown", (e) => {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) return;
+    const tab = e.target.closest?.('[role="tab"]');
+    const lista = tab?.closest('[role="tablist"]');
+    if (!lista) return;
+    const tabs = Array.from(lista.querySelectorAll('[role="tab"]')).filter((t) => t.offsetParent !== null && !t.hidden);
+    const i = tabs.indexOf(tab);
+    if (i < 0) return;
+    e.preventDefault();
+    const n = tabs.length;
+    const destino = e.key === "Home" ? 0 : e.key === "End" ? n - 1 : (i + (e.key === "ArrowRight" ? 1 : -1) + n) % n;
+    tabs[destino].focus();
+  });
 }
 
 export function switchTab(mode) {
@@ -124,9 +137,15 @@ export function switchTab(mode) {
   updateGuideLink(mode, state.currentLang);
   document
     .querySelectorAll(".tab-btn")
-    .forEach((b) => b.classList.remove("active"));
+    .forEach((b) => {
+      b.classList.remove("active");
+      if (b.getAttribute("role") === "tab") b.setAttribute("aria-selected", "false");
+    });
   const btn = document.getElementById("btn-" + mode);
-  if (btn) btn.classList.add("active");
+  if (btn) {
+    btn.classList.add("active");
+    btn.setAttribute("aria-selected", "true");
+  }
 
   const mainCard = document.getElementById("main-card");
   if (mainCard) {
@@ -152,29 +171,13 @@ export function switchTab(mode) {
 
   if (footer) {
     document.getElementById("relic-missing")?.classList.toggle("hidden", mode !== "relic");
-    if (mode === "lfg") {
-      footer.style.display = "block";
-      footer.style.borderTopColor = "#42f56c";
-      if (msgText) msgText.style.color = "#42f56c";
-    } else if (mode === "relic") {
-      footer.style.display = "block";
-      footer.style.borderTopColor = "#333";
-      if (msgText) msgText.style.color = "#00e5ff";
-    } else {
-      footer.style.display = "none";
-    }
+    footer.style.display = mode === "lfg" || mode === "relic" ? "block" : "none";
+    footer.classList.toggle("footer-lfg", mode === "lfg");
+    footer.classList.toggle("footer-relic-mode", mode === "relic");
+    if (msgText) msgText.style.color = "";
   }
-  const invBtn = document.getElementById("inv-toggle-btn");
-  if (invBtn) {
-    const tabsWithInventory = ["relic", "set", "bounties"];
-    if (tabsWithInventory.includes(mode)) {
-      invBtn.classList.remove("hidden");
-      invBtn.style.display = "flex";
-    } else {
-      invBtn.classList.add("hidden");
-      invBtn.style.display = "none";
-    }
-  }
+  syncInvToggle(mode);
+  updateTabSubtitle(mode);
   if (mode === "bounties") {
     document.querySelector(".card")?.classList.add("theme-bounties");
   } else {
@@ -221,6 +224,33 @@ const setPlaceholder = (id, text) => {
   if (el && text) el.placeholder = text;
 };
 
+function syncInvToggle(mode) {
+  const invBtn = document.getElementById("inv-toggle-btn");
+  if (!invBtn) return;
+  const applies = ["relic", "set", "bounties"].includes(mode);
+  invBtn.classList.remove("hidden");
+  invBtn.style.display = "flex";
+  invBtn.classList.toggle("is-not-here", !applies);
+  invBtn.setAttribute("aria-disabled", String(!applies));
+  const t = TEXTS[state.currentLang] || TEXTS.es;
+  if (!applies) {
+    invBtn.title = t.invNotHere;
+    invBtn.dataset.tooltip = t.invNotHere;
+  } else {
+    delete invBtn.dataset.tooltip;
+    const inv = t.inventory || {};
+    const title = state.currentInvView === "parts" ? inv.togglePartsTitle : inv.toggleRelicsTitle;
+    if (title) invBtn.title = title;
+  }
+}
+
+function updateTabSubtitle(mode) {
+  const el = document.getElementById("tab-subtitle");
+  if (!el) return;
+  const t = TEXTS[state.currentLang] || TEXTS.es;
+  el.textContent = t.tabSubtitles?.[mode || state.activeTab] || "";
+}
+
 function updateNavTabs(t) {
   setTab("btn-relic", t.menuRelic || "Reliquia", t.tooltips.tabRelic);
   setTab("btn-set", t.menuSet || "Set", t.tooltips.tabSet);
@@ -231,6 +261,7 @@ function updateNavTabs(t) {
   setTab("btn-ducat", t.ducanator?.tabTitle || "Ducanator", t.ducanator?.desc);
   setText("tab-orders-text", t.menuOrders || "Órdenes");
   setText("tab-more-text", t.menuMore || "Más");
+  updateTabSubtitle(state.activeTab);
   updateDucatFilterLabels(t);
 }
 
@@ -291,6 +322,7 @@ function updateStaticTexts(t) {
   setText("btn-riven-grade", t.rivenGradeBtn);
   setText("grading-modal-title", t.rivenGradeTitle);
   setText("riven-disclaimer", t.rivenDisclaimer);
+  setText("riven-disclaimer-toggle", t.rivenDisclaimerToggle);
   setText("btn-add-pos", t.rivenAddPos);
   setText("btn-add-neg", t.rivenAddNeg);
   setText("lbl-grading-variants", t.rivenGradeVariants);

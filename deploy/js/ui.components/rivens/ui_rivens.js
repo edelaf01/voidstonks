@@ -281,6 +281,7 @@ const cargaChart = () => (globalThis.Chart ? Promise.resolve() : cargaScript(CHA
 
 let historial = null;
 let rangoHistorial = 7;
+let wfmOculto = false;
 
 function ocultaHistorial(container) {
   container.style.display = "none";
@@ -367,6 +368,26 @@ function changeHistoryRange(days) {
   rangoHistorial = days;
   renderHistoryWithRange();
 };
+
+function syncWfmToggleBtn() {
+  const btn = document.getElementById("btn-toggle-wfm");
+  if (!btn) return;
+  const t = TEXTS[state.currentLang] || TEXTS.es;
+  btn.textContent = wfmOculto ? t.rivenChartShowWfm : t.rivenChartHideWfm;
+  btn.dataset.tooltip = t.rivenChartWfmTip;
+  btn.setAttribute("aria-pressed", String(wfmOculto));
+  btn.classList.toggle("active", wfmOculto);
+}
+
+function toggleWfmChart() {
+  wfmOculto = !wfmOculto;
+  const chart = rivenHistoryChartInstance;
+  if (chart?.data?.datasets?.[0]) {
+    chart.setDatasetVisibility(0, !wfmOculto);
+    chart.update();
+  }
+  syncWfmToggleBtn();
+}
 
 export function renderHistoryWithRange() {
   const { historyData, meta, weaponName } = historial || {};
@@ -498,12 +519,7 @@ export function renderHistoryWithRange() {
     rivenHistoryChartInstance = null;
   }
 
-  const hintEl = document.getElementById("chart-hint-note");
-  if (hintEl) {
-    hintEl.innerText = isEs
-      ? "Pulsa 'WFM' en la leyenda para ocultarlo y ajustar la escala a los precios reales de DE"
-      : "Click 'WFM' in the legend to hide it and fit the scale to DE's real prices";
-  }
+  syncWfmToggleBtn();
 
   container.style.display = "block";
 
@@ -515,6 +531,7 @@ export function renderHistoryWithRange() {
           type: "line",
           label: WFM_RIVENS_HASTA ? `WFM (${isEs ? "hasta el" : "until"} ${fechaWfmRivens(isEs)})` : (isEs ? "WFM (Precio Base)" : "WFM (Base Price)"),
           data: wfmPrices,
+          hidden: wfmOculto,
           borderColor: "#00e5ff",
           backgroundColor: "rgba(0, 229, 255, 0.08)",
           borderWidth: 2,
@@ -567,6 +584,13 @@ export function renderHistoryWithRange() {
         legend: {
           display: true,
           position: "top",
+          onClick: (e, item, legend) => {
+            globalThis.Chart.defaults.plugins.legend.onClick.call(legend, e, item, legend);
+            if (item.datasetIndex === 0) {
+              wfmOculto = !legend.chart.isDatasetVisible(0);
+              syncWfmToggleBtn();
+            }
+          },
           labels: {
             color: "#e2e8f0",
             font: {
@@ -2929,9 +2953,52 @@ export async function initRivenMarketIndex() {
         sortOptions.classList.add("hidden");
         if (sortArrow) sortArrow.style.transform = "translateY(-50%)";
       }
+      sortTrigger.setAttribute("aria-expanded", String(isHidden));
     });
 
+    const clickOnKey = (el) => el.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        el.click();
+      }
+    });
+    clickOnKey(sortTrigger);
+
     const optItems = sortOptions.querySelectorAll(".dropdown-item");
+    const optList = Array.from(optItems);
+    const focoActivo = () => (sortOptions.querySelector(".active-sort-item") || optList[0])?.focus();
+    const cerrarSort = () => {
+      sortOptions.classList.add("hidden");
+      if (sortArrow) sortArrow.style.transform = "translateY(-50%)";
+      sortTrigger.setAttribute("aria-expanded", "false");
+      sortTrigger.focus();
+    };
+    optList.forEach(opt => opt.setAttribute("aria-selected", String(opt.classList.contains("active-sort-item"))));
+
+    sortTrigger.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        requestAnimationFrame(() => { if (!sortOptions.classList.contains("hidden")) focoActivo(); });
+      } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        if (sortOptions.classList.contains("hidden")) sortTrigger.click();
+        focoActivo();
+      } else if (e.key === "Escape" && !sortOptions.classList.contains("hidden")) {
+        e.preventDefault();
+        cerrarSort();
+      }
+    });
+
+    sortOptions.addEventListener("keydown", (e) => {
+      const i = optList.indexOf(document.activeElement);
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        const paso = e.key === "ArrowDown" ? 1 : -1;
+        optList[(i + paso + optList.length) % optList.length]?.focus();
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        cerrarSort();
+      }
+    });
     optItems.forEach(item => {
       item.addEventListener("click", (e) => {
         e.stopPropagation();
@@ -2945,17 +3012,25 @@ export async function initRivenMarketIndex() {
         const triggerText = document.getElementById("indexSortTriggerText");
         if (triggerText) triggerText.innerText = item.innerText;
 
-        optItems.forEach(opt => opt.classList.remove("active-sort-item"));
+        optItems.forEach(opt => {
+          opt.classList.remove("active-sort-item");
+          opt.setAttribute("aria-selected", "false");
+        });
         item.classList.add("active-sort-item");
+        item.setAttribute("aria-selected", "true");
 
         sortOptions.classList.add("hidden");
         if (sortArrow) sortArrow.style.transform = "translateY(-50%)";
+        sortTrigger.setAttribute("aria-expanded", "false");
+        sortTrigger.focus();
       });
+      clickOnKey(item);
     });
 
     document.addEventListener("click", () => {
       sortOptions.classList.add("hidden");
       if (sortArrow) sortArrow.style.transform = "translateY(-50%)";
+      sortTrigger.setAttribute("aria-expanded", "false");
     });
 
     sortTrigger._wired = true;
@@ -3018,6 +3093,7 @@ export async function initRivenMarketIndex() {
   }
 
   try {
+    state.rivenIndexError = false;
     const hasPremiumData = globalThis.dynamicMetaStats && Object.keys(globalThis.dynamicMetaStats).some(k => globalThis.dynamicMetaStats[k]?.liquidity_score > 0);
     if (hasPremiumData) {
       state.rivenIndexData = globalThis.dynamicMetaStats;
@@ -3062,6 +3138,7 @@ export async function initRivenMarketIndex() {
             state.rivenIndexData = globalThis.dynamicMetaStats;
           } else {
             state.rivenIndexData = {};
+            state.rivenIndexError = true;
             console.warn("No riven index available; using empty fallback.");
           }
         }
@@ -3097,6 +3174,20 @@ export function filterRivenIndex(resetPagination = true) {
   }
 
   const rawData = state.rivenIndexData || {};
+  if (state.rivenIndexError && Object.keys(rawData).length === 0) {
+    const cont = document.getElementById("index-results-container");
+    if (cont) {
+      const ri = TEXTS[state.currentLang]?.rivenIndex || {};
+      cont.innerHTML = `<div class="state-error"><span>⚠ ${escapeHTML(ri.loadError || "No se pudieron cargar las tendencias.")}</span><button type="button" class="state-retry">${escapeHTML(ri.retry || "Reintentar")}</button></div>`;
+      cont.classList.remove("hidden");
+      cont.querySelector(".state-retry")?.addEventListener("click", () => {
+        state.rivenIndexError = false;
+        state.rivenIndexData = null;
+        initRivenMarketIndex();
+      });
+    }
+    return;
+  }
   const data = {};
   if (state.allRivenNames && state.allRivenNames.length > 0) {
     const porMinusculas = new Map(Object.keys(rawData).map(k => [k.toLowerCase(), k]));
@@ -3791,6 +3882,7 @@ Object.assign(globalThis, {
 
 exposeGlobals({
   changeHistoryRange,
+  toggleWfmChart,
   switchGradingRoll,
   loadMoreRivenIndex,
 }, "ui.components/rivens/ui_rivens.js");

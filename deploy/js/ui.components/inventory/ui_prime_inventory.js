@@ -6,7 +6,7 @@ import { setTrendHtml, wireSetTrend } from "./ui_set_trend.js";
 import { venderYaHtml, wireVenderYa, cicloVaultHtml, wireCicloVault } from "./ui_vender_ya.js";
 import { getSlug } from "../../utils/slugs.utils.js";
 import { escapeHTML } from "../../utils/escape_html.js";
-import { emptyStateHtml } from "../ui_components.js";
+import { emptyStateHtml, showCustomConfirm } from "../ui_components.js";
 import {
   getItemIcon,
   getSetName,
@@ -135,17 +135,16 @@ export function modifyPrimePart(name, amount) {
 
 export function deletePrimeSet(setName) {
   const t = TEXTS[state.currentLang].inventory;
-  if (!confirm(`${t.confirmDeleteSet || "Delete entire set?"} (${setName})`))
-    return;
+  showCustomConfirm(`${t.confirmDeleteSet || "Delete entire set?"} (${setName})`, () => {
+    Object.keys(state.primeInventory).forEach((name) => {
+      if (getSetName(name) === setName) {
+        delete state.primeInventory[name];
+      }
+    });
 
-  Object.keys(state.primeInventory).forEach((name) => {
-    if (getSetName(name) === setName) {
-      delete state.primeInventory[name];
-    }
+    saveAppState();
+    renderPrimeInventory();
   });
-
-  saveAppState();
-  renderPrimeInventory();
 }
 
 export function decrementPrimeSet(setName) {
@@ -447,8 +446,8 @@ export function renderPrimeInventory() {
                   ${(() => {
                   const partIcon = getItemIcon(partName);
                   return partIcon
-                    ? `<img src="${partIcon}" class="item-icon-mini" loading="lazy" onerror="this.style.display='none'">`
-                    : "";
+                    ? `<img src="${partIcon}" class="item-icon-mini" loading="lazy" onerror="this.style.visibility='hidden'">`
+                    : `<span class="item-icon-mini" style="visibility:hidden;" aria-hidden="true"></span>`;
                 })()}
                    <div class="name-column">
                      <span class="part-name">${escapeHTML(shortName)}</span>
