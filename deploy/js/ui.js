@@ -175,6 +175,7 @@ export function switchTab(mode) {
       invBtn.style.display = "none";
     }
   }
+  updateTabSubtitle(mode);
   if (mode === "bounties") {
     document.querySelector(".card")?.classList.add("theme-bounties");
   } else {
@@ -221,6 +222,13 @@ const setPlaceholder = (id, text) => {
   if (el && text) el.placeholder = text;
 };
 
+function updateTabSubtitle(mode) {
+  const el = document.getElementById("tab-subtitle");
+  if (!el) return;
+  const t = TEXTS[state.currentLang] || TEXTS.es;
+  el.textContent = t.tabSubtitles?.[mode || state.activeTab] || "";
+}
+
 function updateNavTabs(t) {
   setTab("btn-relic", t.menuRelic || "Reliquia", t.tooltips.tabRelic);
   setTab("btn-set", t.menuSet || "Set", t.tooltips.tabSet);
@@ -231,6 +239,7 @@ function updateNavTabs(t) {
   setTab("btn-ducat", t.ducanator?.tabTitle || "Ducanator", t.ducanator?.desc);
   setText("tab-orders-text", t.menuOrders || "Órdenes");
   setText("tab-more-text", t.menuMore || "Más");
+  updateTabSubtitle(state.activeTab);
   updateDucatFilterLabels(t);
 }
 

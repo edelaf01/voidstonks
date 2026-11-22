@@ -800,6 +800,16 @@ export const TEXTS = {
     rivenAddNeg: "− Añadir negativo",
     rivenGradeVariants: "Variantes",
     rivenWebOrders: "Órdenes",
+    tabSubtitles: {
+      relic: "Contenido y precio de cada reliquia",
+      set: "Precio de sets prime y sus piezas",
+      riven: "Precio y tasación de rivens",
+      bounties: "Contratos y farmeos activos",
+      lfg: "Mensajes para buscar grupo",
+      vosfor: "Qué hacer con tu Vosfor",
+      orders: "Tus órdenes de warframe.market",
+      ducat: "Qué piezas vender por ducados",
+    },
     refs: {
       rad: "Radiante",
       intact: "Intacta",
@@ -1873,6 +1883,16 @@ export const TEXTS = {
     rivenAddNeg: "- Add Negative",
     rivenGradeVariants: "Variants",
     rivenWebOrders: "Orders",
+    tabSubtitles: {
+      relic: "Contents and price of each relic",
+      set: "Prime set and part prices",
+      riven: "Riven prices and appraisal",
+      bounties: "Active bounties and farms",
+      lfg: "Messages to find a squad",
+      vosfor: "What to do with your Vosfor",
+      orders: "Your warframe.market orders",
+      ducat: "Which parts to sell for ducats",
+    },
     refs: {
       rad: "Radiant",
       intact: "Intact",

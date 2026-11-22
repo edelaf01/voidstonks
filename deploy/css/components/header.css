@@ -230,6 +230,18 @@
     margin: 0;
 }
 
+.tab-subtitle {
+    margin: 0;
+    padding: 6px 16px 0;
+    color: #9aa;
+    font-size: 0.85em;
+    text-align: center;
+}
+
+.tab-subtitle:empty {
+    display: none;
+}
+
 @media (max-width: 768px) {
     #footer-relic .footer-actions {
         gap: 8px 10px;
@@ -794,4 +806,10 @@ option {
     box-shadow: 0 0 0 1000px var(--wf-input-bg, #0a0b0d) inset;
     caret-color: #eee;
     transition: background-color 9999s ease-out 0s;
+}
+
+@media (max-width: 768px) {
+    .tab-subtitle {
+        display: none;
+    }
 }
