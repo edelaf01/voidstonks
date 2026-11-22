@@ -1,6 +1,6 @@
 import { state, saveAppState } from "../state.js";
 import { TEXTS } from "../config.js";
-import { showToast, escapeHTML } from "./ui_components.js";
+import { showToast, escapeHTML, showCustomConfirm } from "./ui_components.js";
 import { ClipboardService } from "../services/clipboard.service.js";
 import { exposeGlobals } from "../utils/global_registry.js";
 import { squadTag } from "../utils/chat_link.js";
@@ -440,11 +440,11 @@ const loadTradePreset = function (index) {
 
 const deleteTradePreset = function (index) {
   const t = TEXTS[state.currentLang].tradePresets || {};
-  if (confirm(t.deleteConfirm || "Delete this preset?")) {
+  showCustomConfirm(t.deleteConfirm || "Delete this preset?", () => {
     state.tradePresets.splice(index, 1);
     saveAppState();
     renderTradePresets();
-  }
+  });
 };
 
 export function renderLFGPresets() {
@@ -575,11 +575,11 @@ const loadLFGPreset = function (index) {
 };
 
 const deleteLFGPreset = function (index) {
-  if (confirm(TEXTS[state.currentLang].lfgPresets.deleteConfirm)) {
+  showCustomConfirm(TEXTS[state.currentLang].lfgPresets.deleteConfirm, () => {
     state.lfgPresets.splice(index, 1);
     saveAppState();
     renderLFGPresets();
-  }
+  });
 };
 
 exposeGlobals({

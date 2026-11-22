@@ -410,6 +410,7 @@ export const TEXTS = {
       btnAdded: "AGREGADO",
       btnClearTooltip: "Limpiar historial",
       toastCleared: "Historial borrado",
+      confirmClear: "¿Borrar todo el historial de detecciones?",
       btnLabel: "HISTORIAL"
     },
     //TODO delete dis
@@ -2210,6 +2211,7 @@ export const TEXTS = {
       btnAdded: "ADDED",
       btnClearTooltip: "Clear history",
       toastCleared: "History cleared",
+      confirmClear: "Clear the whole detection history?",
       btnLabel: "HISTORY"
     },
     recipe: "Recipe",

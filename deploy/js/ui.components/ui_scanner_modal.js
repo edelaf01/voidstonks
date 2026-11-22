@@ -456,10 +456,12 @@ globalThis.toggleScanHistoryDropdown = (event) => {
 
 globalThis.clearScanHistory = (event) => {
     if (event) event.stopPropagation();
-    state.scanHistory = [];
-    renderScanHistory();
     const t = TEXTS[state.currentLang].history || {};
-    showToast(t.toastCleared || "History cleared");
+    globalThis.showCustomConfirm(t.confirmClear || "Clear history?", () => {
+        state.scanHistory = [];
+        renderScanHistory();
+        showToast(t.toastCleared || "History cleared");
+    });
 };
 
 document.addEventListener("click", (e) => {

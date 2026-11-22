@@ -6,7 +6,7 @@ import { setTrendHtml, wireSetTrend } from "./ui_set_trend.js";
 import { venderYaHtml, wireVenderYa, cicloVaultHtml, wireCicloVault } from "./ui_vender_ya.js";
 import { getSlug } from "../../utils/slugs.utils.js";
 import { escapeHTML } from "../../utils/escape_html.js";
-import { emptyStateHtml } from "../ui_components.js";
+import { emptyStateHtml, showCustomConfirm } from "../ui_components.js";
 import {
   getItemIcon,
   getSetName,
@@ -135,17 +135,16 @@ export function modifyPrimePart(name, amount) {
 
 export function deletePrimeSet(setName) {
   const t = TEXTS[state.currentLang].inventory;
-  if (!confirm(`${t.confirmDeleteSet || "Delete entire set?"} (${setName})`))
-    return;
+  showCustomConfirm(`${t.confirmDeleteSet || "Delete entire set?"} (${setName})`, () => {
+    Object.keys(state.primeInventory).forEach((name) => {
+      if (getSetName(name) === setName) {
+        delete state.primeInventory[name];
+      }
+    });
 
-  Object.keys(state.primeInventory).forEach((name) => {
-    if (getSetName(name) === setName) {
-      delete state.primeInventory[name];
-    }
+    saveAppState();
+    renderPrimeInventory();
   });
-
-  saveAppState();
-  renderPrimeInventory();
 }
 
 export function decrementPrimeSet(setName) {

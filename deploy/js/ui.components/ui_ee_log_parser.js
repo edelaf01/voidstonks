@@ -527,12 +527,13 @@ export class EELogParserUI {
 
   clearSaved() {
     if (!this.saved.length) return;
-    if (!globalThis.confirm(this.t.savedConfirmClear)) return;
-    this.saved = [];
-    persistSavedKubrows(this.saved);
-    this.renderSaved();
-    const clearBtn = document.getElementById('kubrowClearBtn');
-    if (clearBtn) clearBtn.style.display = 'none';
+    globalThis.showCustomConfirm(this.t.savedConfirmClear, () => {
+      this.saved = [];
+      persistSavedKubrows(this.saved);
+      this.renderSaved();
+      const clearBtn = document.getElementById('kubrowClearBtn');
+      if (clearBtn) clearBtn.style.display = 'none';
+    });
   }
 
   renderSaved() {
