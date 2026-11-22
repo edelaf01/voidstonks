@@ -69,10 +69,27 @@
     display: flex !important;
     align-items: center;
     justify-content: center;
-    width: 28px;
+    gap: 4px;
     height: 28px;
-    color: #c9a050;
+    margin-left: 12px;
+    padding: 0 8px;
+    border: 1px solid rgba(255, 68, 68, 0.55) !important;
+    border-radius: 4px;
+    color: #ff6b6b;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.orokin-clear-btn:hover {
+    background: rgba(255, 68, 68, 0.12);
+    border-color: #ff4444 !important;
+}
+
+.orokin-clear-btn .orokin-trash-svg {
+    width: 16px;
+    height: 16px;
 }
 
 .inventory-total-header {

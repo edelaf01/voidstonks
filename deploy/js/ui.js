@@ -183,17 +183,7 @@ export function switchTab(mode) {
       footer.style.display = "none";
     }
   }
-  const invBtn = document.getElementById("inv-toggle-btn");
-  if (invBtn) {
-    const tabsWithInventory = ["relic", "set", "bounties"];
-    if (tabsWithInventory.includes(mode)) {
-      invBtn.classList.remove("hidden");
-      invBtn.style.display = "flex";
-    } else {
-      invBtn.classList.add("hidden");
-      invBtn.style.display = "none";
-    }
-  }
+  syncInvToggle(mode);
   updateTabSubtitle(mode);
   if (mode === "bounties") {
     document.querySelector(".card")?.classList.add("theme-bounties");
@@ -240,6 +230,26 @@ const setPlaceholder = (id, text) => {
   const el = document.getElementById(id);
   if (el && text) el.placeholder = text;
 };
+
+function syncInvToggle(mode) {
+  const invBtn = document.getElementById("inv-toggle-btn");
+  if (!invBtn) return;
+  const applies = ["relic", "set", "bounties"].includes(mode);
+  invBtn.classList.remove("hidden");
+  invBtn.style.display = "flex";
+  invBtn.classList.toggle("is-not-here", !applies);
+  invBtn.setAttribute("aria-disabled", String(!applies));
+  const t = TEXTS[state.currentLang] || TEXTS.es;
+  if (!applies) {
+    invBtn.title = t.invNotHere;
+    invBtn.dataset.tooltip = t.invNotHere;
+  } else {
+    delete invBtn.dataset.tooltip;
+    const inv = t.inventory || {};
+    const title = state.currentInvView === "parts" ? inv.togglePartsTitle : inv.toggleRelicsTitle;
+    if (title) invBtn.title = title;
+  }
+}
 
 function updateTabSubtitle(mode) {
   const el = document.getElementById("tab-subtitle");

@@ -64,6 +64,7 @@ export const TEXTS = {
       importTitle: "Importar inventario desde JSON",
       purgeRelicsTitle: "Borrar todas las reliquias guardadas",
       purgePartsTitle: "Borrar todo el inventario Prime",
+      purgeLabel: "Vaciar",
       showEmpty: "Mostrar también las piezas a 0",
       showEmptyHelp: "Enseña las piezas que llegaste a tener y ya has gastado o vendido, en vez de esconderlas. No añade el catálogo entero: solo lo que ha pasado por tu inventario.",
       toggleRelicsTitle: "Mi inventario de reliquias",
@@ -835,6 +836,7 @@ export const TEXTS = {
       orders: "Tus órdenes de warframe.market",
       ducat: "Qué piezas vender por ducados",
     },
+    invNotHere: "El inventario no aplica en esta pestaña",
     refs: {
       rad: "Radiante",
       intact: "Intacta",
@@ -1290,6 +1292,7 @@ export const TEXTS = {
       importTitle: "Import inventory from JSON",
       purgeRelicsTitle: "Delete every saved relic",
       purgePartsTitle: "Delete the whole Prime inventory",
+      purgeLabel: "Clear",
       showEmpty: "Also show parts at 0",
       showEmptyHelp: "Shows the parts you once owned and have since spent or sold, instead of hiding them. It does not pull in the whole catalogue: only what has been through your inventory.",
       toggleRelicsTitle: "My relic inventory",
@@ -1949,6 +1952,7 @@ export const TEXTS = {
       orders: "Your warframe.market orders",
       ducat: "Which parts to sell for ducats",
     },
+    invNotHere: "Inventory does not apply on this tab",
     refs: {
       rad: "Radiant",
       intact: "Intact",

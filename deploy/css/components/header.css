@@ -242,6 +242,11 @@
     display: none;
 }
 
+#inv-toggle-btn.is-not-here {
+    opacity: 0.4;
+    filter: grayscale(1);
+}
+
 @media (max-width: 768px) {
     #footer-relic .footer-actions {
         gap: 8px 10px;
