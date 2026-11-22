@@ -1,4 +1,4 @@
-export const HOSTS_PROPIOS = ["https://api.voidstonks.com/*", "https://*.edelamf0.workers.dev/*"];
+export const HOSTS_PROPIOS = ["https://api.voidstonks.com/*", "https://*.voidstonks.com/*", "https://*.edelamf0.workers.dev/*"];
 
 const QUITAR = new Set(["access-control-allow-origin", "access-control-allow-credentials"]);
 
