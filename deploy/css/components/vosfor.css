@@ -1231,10 +1231,32 @@ select.vosfor-select {
     z-index: 90;
 }
 
+.vosfor-sindicatos-widget {
+    max-width: 900px;
+    margin: 0 auto;
+}
+
 .vos-sind-intro {
     font-size: 0.72rem;
     color: #bbb;
     margin-bottom: 8px;
+}
+
+.vos-sind-intro summary {
+    cursor: pointer;
+    color: #999;
+    width: fit-content;
+}
+
+.vos-sind-intro p {
+    margin: 6px 0 0;
+    line-height: 1.45;
+}
+
+.vos-sind-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 10px;
 }
 
 .vos-sind-orden {
@@ -1252,7 +1274,23 @@ select.vosfor-select {
 }
 
 .vos-sindicato {
-    margin-bottom: 6px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    padding: 8px 10px;
+}
+
+.vos-sindicato[open] {
+    grid-column: 1 / -1;
+}
+
+.vos-sindicato:not(.vos-sind-completo) .vos-sind-tabla tbody tr:nth-child(n + 11) {
+    display: none;
+}
+
+.vos-sind-mas {
+    display: block;
+    margin: 8px auto 0;
 }
 
 .vos-sind-resumen {
@@ -1314,14 +1352,18 @@ select.vosfor-select {
     border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
 
+.vos-sind-tabla tbody tr:nth-child(even) {
+    background: rgba(255, 255, 255, 0.025);
+}
+
 .vos-sind-arcano {
-    padding: 3px 6px;
+    padding: 8px 8px;
     color: #fff;
 }
 
 .vos-sind-num {
     text-align: right;
-    padding: 3px 6px;
+    padding: 8px 8px;
     color: #ddd;
 }
 
@@ -1333,6 +1375,12 @@ select.vosfor-select {
     font-size: 0.66rem;
     color: #888;
     font-weight: 400;
+    opacity: 0.55;
+    transition: opacity 0.15s;
+}
+
+.vos-sind-tabla tbody tr:hover .vos-sind-detalle {
+    opacity: 1;
 }
 
 @media (max-width: 600px) {
@@ -1344,4 +1392,14 @@ select.vosfor-select {
     .vos-sind-lineas {
         text-align: left;
     }
+}
+
+.vos-sind-grid .vos-sind-resumen {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+}
+
+.vos-sind-grid .vos-sind-lineas {
+    text-align: left;
 }

@@ -2,6 +2,7 @@ import { escapeHTML } from "./ui_components.js";
 import { exposeGlobals } from "../utils/global_registry.js";
 
 const abiertos = new Set();
+const completos = new Set();
 let orden = "pl";
 
 function toggleVosforSindicato(id, abierto) {
@@ -48,8 +49,25 @@ function lineaVosfor(s, { t, nombreDe, plat, vos }) {
     return `<div class="vos-sind-linea"><span class="vos-sind-etiqueta">${escapeHTML(t.syndBestVos || "Mejor para Vosfor")}</span><span>${valor}</span></div>`;
 }
 
+const LIMITE_FILAS = 10;
+
+function toggleVosforSindCompleto(id, boton) {
+    const caja = boton.closest(".vos-sindicato");
+    const completo = caja.classList.toggle("vos-sind-completo");
+    if (completo) completos.add(id);
+    else completos.delete(id);
+    boton.textContent = completo ? boton.dataset.menos : boton.dataset.mas;
+}
+
 function bloqueSindicato(s, ctx) {
     const { es, t, nombreDe, plat, vos } = ctx;
+    const completo = completos.has(s.id);
+    const ocultas = s.filas.length - LIMITE_FILAS;
+    const mas = (t.syndShowMore || "Ver más ({n})").replace("{n}", ocultas);
+    const menos = t.syndShowLess || "Ver menos";
+    const botonMas = ocultas > 0
+        ? `<button type="button" class="vosfor-ranking-nav-btn vos-sind-mas" data-mas="${escapeHTML(mas)}" data-menos="${escapeHTML(menos)}" onclick="toggleVosforSindCompleto('${escapeHTML(s.id)}', this)">${escapeHTML(completo ? menos : mas)}</button>`
+        : "";
     const filas = s.filas.map((f) => `
         <tr>
           <td class="vos-sind-arcano">${escapeHTML(nombreDe(f.slug))}<div class="vos-sind-detalle">${miles(f.standing)} ${escapeHTML(t.syndStanding || "rep.")}${f.rango ? ` · ${escapeHTML(t.syndRank || "rango")} ${f.rango}` : ""}</div></td>
@@ -58,7 +76,7 @@ function bloqueSindicato(s, ctx) {
           ${celdaVosfor(f, ctx)}
         </tr>`).join("");
     return `
-      <details class="vos-sindicato" ${abiertos.has(s.id) ? "open" : ""} ontoggle="toggleVosforSindicato('${escapeHTML(s.id)}', this.open)">
+      <details class="vos-sindicato${completo ? " vos-sind-completo" : ""}" ${abiertos.has(s.id) ? "open" : ""} ontoggle="toggleVosforSindicato('${escapeHTML(s.id)}', this.open)">
         <summary class="vos-sind-resumen">
           <span class="vos-sind-nombre">${escapeHTML(es ? s.es : s.en)}</span>
           <div class="vos-sind-lineas">${lineaPlatino(s, ctx)}${lineaVosfor(s, ctx)}</div>
@@ -74,6 +92,7 @@ function bloqueSindicato(s, ctx) {
           <tbody>${filas}</tbody>
         </table>
         </div>
+        ${botonMas}
       </details>`;
 }
 
@@ -83,13 +102,13 @@ export function sindicatosCard(sindicatos, ctx) {
     const boton = (id, etiqueta) => `<button class="vosfor-ranking-nav-btn ${orden === id ? "active" : ""}" onclick="setVosforSindOrden('${id}')">${escapeHTML(etiqueta)}</button>`;
     return `
       <div class="vosfor-sindicatos-widget">
-        <div class="vos-sind-intro">${escapeHTML(t.syndIntro || "")}</div>
+        <details class="vos-sind-intro"><summary>ⓘ ${escapeHTML(t.syndMoreInfo || "Más info")}</summary><p>${escapeHTML(t.syndIntro || "")}</p></details>
         <div class="vos-sind-orden">
           <span>${escapeHTML(t.syndSortBy || "Ordenar por")}</span>
           ${boton("pl", t.syndSortPl || "Platino")}${boton("vos", t.syndSortVos || "Vosfor")}
         </div>
-        ${sindicatos.map((s) => bloqueSindicato(s, ctx)).join("")}
+        <div class="vos-sind-grid">${sindicatos.map((s) => bloqueSindicato(s, ctx)).join("")}</div>
       </div>`;
 }
 
-exposeGlobals({ toggleVosforSindicato }, "ui.components/ui_vosfor_sindicatos.js");
+exposeGlobals({ toggleVosforSindicato, toggleVosforSindCompleto }, "ui.components/ui_vosfor_sindicatos.js");
