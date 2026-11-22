@@ -113,6 +113,19 @@ export function initTabRouting() {
       navegandoPorHistorial = false;
     }
   });
+  document.addEventListener("keydown", (e) => {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) return;
+    const tab = e.target.closest?.('[role="tab"]');
+    const lista = tab?.closest('[role="tablist"]');
+    if (!lista) return;
+    const tabs = Array.from(lista.querySelectorAll('[role="tab"]')).filter((t) => t.offsetParent !== null && !t.hidden);
+    const i = tabs.indexOf(tab);
+    if (i < 0) return;
+    e.preventDefault();
+    const n = tabs.length;
+    const destino = e.key === "Home" ? 0 : e.key === "End" ? n - 1 : (i + (e.key === "ArrowRight" ? 1 : -1) + n) % n;
+    tabs[destino].focus();
+  });
 }
 
 export function switchTab(mode) {
@@ -124,9 +137,15 @@ export function switchTab(mode) {
   updateGuideLink(mode, state.currentLang);
   document
     .querySelectorAll(".tab-btn")
-    .forEach((b) => b.classList.remove("active"));
+    .forEach((b) => {
+      b.classList.remove("active");
+      if (b.getAttribute("role") === "tab") b.setAttribute("aria-selected", "false");
+    });
   const btn = document.getElementById("btn-" + mode);
-  if (btn) btn.classList.add("active");
+  if (btn) {
+    btn.classList.add("active");
+    btn.setAttribute("aria-selected", "true");
+  }
 
   const mainCard = document.getElementById("main-card");
   if (mainCard) {

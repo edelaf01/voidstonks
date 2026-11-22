@@ -432,7 +432,7 @@ function buildHeaderHtml(t) {
       <div class="farms-header">
           <div class="farms-title">
             <span id="lbl-fast-farms-title">${escapeHTML(t.lblFastFarms || "Active Farms")}</span>
-            <span class="info-icon" id="bounties-guide-icon" data-tooltip="${escapeHTML(t.fastFarmGuide || "")}">ℹ️</span>
+            <span class="info-icon" id="bounties-guide-icon" tabindex="0" data-tooltip="${escapeHTML(t.fastFarmGuide || "")}">ℹ️</span>
           </div>
           <div class="farms-actions">
               <div class="farm-segment" role="group">

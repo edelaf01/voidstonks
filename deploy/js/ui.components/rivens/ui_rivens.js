@@ -2929,9 +2929,52 @@ export async function initRivenMarketIndex() {
         sortOptions.classList.add("hidden");
         if (sortArrow) sortArrow.style.transform = "translateY(-50%)";
       }
+      sortTrigger.setAttribute("aria-expanded", String(isHidden));
     });
 
+    const clickOnKey = (el) => el.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        el.click();
+      }
+    });
+    clickOnKey(sortTrigger);
+
     const optItems = sortOptions.querySelectorAll(".dropdown-item");
+    const optList = Array.from(optItems);
+    const focoActivo = () => (sortOptions.querySelector(".active-sort-item") || optList[0])?.focus();
+    const cerrarSort = () => {
+      sortOptions.classList.add("hidden");
+      if (sortArrow) sortArrow.style.transform = "translateY(-50%)";
+      sortTrigger.setAttribute("aria-expanded", "false");
+      sortTrigger.focus();
+    };
+    optList.forEach(opt => opt.setAttribute("aria-selected", String(opt.classList.contains("active-sort-item"))));
+
+    sortTrigger.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        requestAnimationFrame(() => { if (!sortOptions.classList.contains("hidden")) focoActivo(); });
+      } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        if (sortOptions.classList.contains("hidden")) sortTrigger.click();
+        focoActivo();
+      } else if (e.key === "Escape" && !sortOptions.classList.contains("hidden")) {
+        e.preventDefault();
+        cerrarSort();
+      }
+    });
+
+    sortOptions.addEventListener("keydown", (e) => {
+      const i = optList.indexOf(document.activeElement);
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        const paso = e.key === "ArrowDown" ? 1 : -1;
+        optList[(i + paso + optList.length) % optList.length]?.focus();
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        cerrarSort();
+      }
+    });
     optItems.forEach(item => {
       item.addEventListener("click", (e) => {
         e.stopPropagation();
@@ -2945,17 +2988,25 @@ export async function initRivenMarketIndex() {
         const triggerText = document.getElementById("indexSortTriggerText");
         if (triggerText) triggerText.innerText = item.innerText;
 
-        optItems.forEach(opt => opt.classList.remove("active-sort-item"));
+        optItems.forEach(opt => {
+          opt.classList.remove("active-sort-item");
+          opt.setAttribute("aria-selected", "false");
+        });
         item.classList.add("active-sort-item");
+        item.setAttribute("aria-selected", "true");
 
         sortOptions.classList.add("hidden");
         if (sortArrow) sortArrow.style.transform = "translateY(-50%)";
+        sortTrigger.setAttribute("aria-expanded", "false");
+        sortTrigger.focus();
       });
+      clickOnKey(item);
     });
 
     document.addEventListener("click", () => {
       sortOptions.classList.add("hidden");
       if (sortArrow) sortArrow.style.transform = "translateY(-50%)";
+      sortTrigger.setAttribute("aria-expanded", "false");
     });
 
     sortTrigger._wired = true;

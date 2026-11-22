@@ -8671,3 +8671,13 @@ body[data-lang="en"] .header-guide-cta .lang-en {
 .farm-routes .fr-pick.ready .fr-pick-where {
   border-left-color: var(--wf-green, #42f56c);
 }
+
+:where(button, a, summary, select, [role="button"], [role="tab"], [tabindex]):focus-visible {
+  outline: 2px solid var(--active-theme-color);
+  outline-offset: 2px;
+}
+
+#inventory-container select:focus-visible {
+  outline: 2px solid var(--active-theme-color);
+  outline-offset: 1px;
+}

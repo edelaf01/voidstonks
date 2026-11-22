@@ -309,7 +309,7 @@
               style="accent-color: #00e5ff;">
             <span class="copy-toggle-label">AUTO-COPY</span>
           </label>
-          <span id="auto-copy-help" class="help-icon" style="color: #555; cursor: help; font-size: 0.8rem;"
+          <span id="auto-copy-help" class="help-icon" tabindex="0" style="color: #9aa; cursor: help; font-size: 0.8rem;"
             data-tooltip="YES: copies the results to the clipboard after each scan, in Warframe chat format (on the web it needs the AutoCopy extension). NO: copies only when you press the button.">ⓘ</span>
           <button id="btn-copy-scan-results" class="orokin-btn-mini" onclick="globalThis.copyScanResultsToClipboard()"
             style="background: rgba(0, 229, 255, 0.1); border: 1px solid rgba(0, 229, 255, 0.4); color: #00e5ff; font-size: 10px; padding: 3px 10px; border-radius: 4px; font-weight: 800; cursor: pointer; margin-left: 10px; transition: all 0.2s; white-space: nowrap;">
@@ -527,7 +527,7 @@
           </div>
         </div>
 
-        <div id="scanner-toggle" class="scanner-toggle-btn">
+        <div id="scanner-toggle" class="scanner-toggle-btn" role="button" tabindex="0" aria-expanded="false" aria-controls="scanner-drawer">
           <div class="toggle-content">
             <span class="icon-pulse">◉</span>
             <span class="label">ESCÁNER EN VIVO</span>
@@ -594,34 +594,34 @@
 
   <div class="card" id="main-card">
     <div class="card-top-bar">
-      <div class="tabs">
-        <button id="btn-relic" class="tab-btn active" onclick="switchTab('relic')">
+      <div class="tabs" role="tablist">
+        <button id="btn-relic" class="tab-btn active" role="tab" aria-selected="true" onclick="switchTab('relic')">
           <img src="assets/remolino.webp" class="tab-icon-img" alt="Relic Icon" />
           <span id="tab-relic-text">Reliquia</span>
         </button>
 
-        <button id="btn-set" class="tab-btn orokin" onclick="switchTab('set')">
+        <button id="btn-set" class="tab-btn orokin" role="tab" aria-selected="false" onclick="switchTab('set')">
           <img src="assets/primeparts.webp" class="tab-icon-img" alt="Set Icon" />
           <span id="tab-set-text">Set</span>
         </button>
 
-        <button id="btn-riven" class="tab-btn riven" onclick="switchTab('riven')">
+        <button id="btn-riven" class="tab-btn riven" role="tab" aria-selected="false" onclick="switchTab('riven')">
           <img src="assets/riven.webp" class="tab-icon-img" alt="Riven Icon" />
           <span id="tab-riven-text">Riven</span>
         </button>
-        <button id="btn-bounties" class="tab-btn bounties" onclick="switchTab('bounties')">
+        <button id="btn-bounties" class="tab-btn bounties" role="tab" aria-selected="false" onclick="switchTab('bounties')">
           <img src="assets/farm.webp" class="tab-icon-img" alt="Farms Icon" />
           <span id="tab-bounties-text">Farms</span>
         </button>
-        <button id="btn-lfg" class="tab-btn lfg" onclick="switchTab('lfg')">
+        <button id="btn-lfg" class="tab-btn lfg" role="tab" aria-selected="false" onclick="switchTab('lfg')">
           <img src="assets/lfg.webp" class="tab-icon-img" alt="LFG Icon" />
           <span id="tab-lfg-text">LFG</span>
         </button>
-        <button id="btn-vosfor" class="tab-btn vosfor" onclick="switchTab('vosfor')">
+        <button id="btn-vosfor" class="tab-btn vosfor" role="tab" aria-selected="false" onclick="switchTab('vosfor')">
           <img src="https://wiki.warframe.com/w/Special:FilePath/Vosfor.png" onerror="this.onerror=null; this.src='https://raw.githubusercontent.com/WFCD/warframe-items/master/data/img/vosfor.png';" class="tab-icon-img" alt="Vosfor Icon" />
           <span id="tab-vosfor-text">Vosfor</span>
         </button>
-        <button id="btn-orders" class="tab-btn orders is-wip" onclick="switchTab('orders')"
+        <button id="btn-orders" class="tab-btn orders is-wip" role="tab" aria-selected="false" onclick="switchTab('orders')"
           data-tooltip="Esperando a que warframe.market habilite un inicio de sesión seguro (OAuth) para apps externas.">
           <svg class="tab-icon-img tab-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -631,7 +631,7 @@
           <span id="tab-orders-text">Mis órdenes</span>
           <span class="tab-wip-badge" aria-hidden="true">WIP</span>
         </button>
-        <button id="btn-ducat" class="tab-btn ducat" onclick="switchTab('ducat')">
+        <button id="btn-ducat" class="tab-btn ducat" role="tab" aria-selected="false" onclick="switchTab('ducat')">
           <img src="assets/Ducats.webp" class="tab-icon-img" alt="Ducanator Icon" />
           <span id="tab-ducat-text">Ducados</span>
         </button>
@@ -660,7 +660,7 @@
         <div class="form-group">
           <label>
             <span id="lbl-relic-name">Nombre de Reliquia</span>
-            <span id="relic-guide-icon" class="info-icon" style="cursor: help; margin-left: 5px">ℹ</span>
+            <span id="relic-guide-icon" class="info-icon" tabindex="0" style="cursor: help; margin-left: 5px">ℹ</span>
           </label>
 
           <div class="relic-input-wrapper">
@@ -885,41 +885,41 @@
               </select>
 
               <div class="custom-select-container" style="position: relative; max-width: 240px; width: 190px;">
-                <div id="indexSortTrigger" class="wf-input riven-input"
+                <div id="indexSortTrigger" class="wf-input riven-input" role="button" tabindex="0" aria-haspopup="listbox" aria-expanded="false"
                   style="padding: 10px 30px 10px 12px; font-weight: bold; background: rgba(0, 0, 0, 0.25); border: 1px solid rgba(162, 53, 226, 0.3); color: #fff; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: space-between; position: relative; user-select: none; transition: all 0.2s ease;">
                   <span id="indexSortTriggerText">Popularidad</span>
                   <span id="indexSortTriggerArrow"
                     style="font-size: 0.6rem; color: var(--wf-blue); pointer-events: none; transition: transform 0.2s ease; position: absolute; right: 12px; top: 50%; transform: translateY(-50%);">▼</span>
                 </div>
 
-                <div id="indexSortOptions" class="custom-dropdown hidden"
+                <div id="indexSortOptions" class="custom-dropdown hidden" role="listbox"
                   style="position: absolute; top: 100%; left: 0; right: 0; background: #111; border: 1px solid rgba(162, 53, 226, 0.5) !important; border-radius: 0 0 6px 6px; overflow-y: auto; max-height: 250px; overscroll-behavior: contain; z-index: var(--z-dropdown); box-shadow: 0 8px 24px rgba(0,0,0,0.6);">
-                  <div class="dropdown-item active-sort-item" data-value="popularity"
+                  <div class="dropdown-item active-sort-item" role="option" tabindex="0" data-value="popularity"
                     style="padding: 10px 12px; cursor: pointer; transition: all 0.2s; border-bottom: 1px solid #222;"
                     id="opt-custom-pop">Popularidad</div>
-                  <div class="dropdown-item" data-value="price-official"
+                  <div class="dropdown-item" role="option" tabindex="0" data-value="price-official"
                     style="padding: 10px 12px; cursor: pointer; transition: all 0.2s; border-bottom: 1px solid #222;"
                     id="opt-custom-official">Precio de venta real</div>
-                  <div class="dropdown-item" data-value="price-wfm"
+                  <div class="dropdown-item" role="option" tabindex="0" data-value="price-wfm"
                     style="padding: 10px 12px; cursor: pointer; transition: all 0.2s; border-bottom: 1px solid #222;"
                     id="opt-custom-wfm">Lo que piden en WFM</div>
-                  <div class="dropdown-item" data-value="potential-real"
+                  <div class="dropdown-item" role="option" tabindex="0" data-value="potential-real"
                     style="padding: 10px 12px; cursor: pointer; transition: all 0.2s; border-bottom: 1px solid #222;"
                     id="opt-custom-potential-real">Potencial real</div>
-                  <div class="dropdown-item" data-value="potential-web"
+                  <div class="dropdown-item" role="option" tabindex="0" data-value="potential-web"
                     style="padding: 10px 12px; cursor: pointer; transition: all 0.2s; border-bottom: 1px solid #222;"
                     id="opt-custom-potential-web">Potencial en WFM</div>
-                  <div class="dropdown-item" data-value="arbitrage"
+                  <div class="dropdown-item" role="option" tabindex="0" data-value="arbitrage"
                     style="padding: 10px 12px; cursor: pointer; transition: all 0.2s; border-bottom: 1px solid #222;"
                     id="opt-custom-arbitrage">Diferencia pedido vs real</div>
-                  <div class="dropdown-item" data-value="kuva"
+                  <div class="dropdown-item" role="option" tabindex="0" data-value="kuva"
                     style="padding: 10px 12px; cursor: pointer; transition: all 0.2s;" id="opt-custom-kuva">Rentabilidad al rolar</div>
                 </div>
               </div>
 
               <div id="index-filters-bar" class="riven-index-filters"></div>
 
-            <span id="indexSortHelpIcon" class="info-icon"
+            <span id="indexSortHelpIcon" class="info-icon" tabindex="0"
                 style="cursor: help; font-size: 0.9rem; opacity: 0.8; padding: 6px;" data-tooltip="">ℹ</span>
             </div>
 

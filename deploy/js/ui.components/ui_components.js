@@ -321,6 +321,31 @@ export function initGlobalTooltipSystem() {
       tooltipEl.classList.remove("mega-mode");
     }
   });
+
+  document.addEventListener("focusin", (e) => {
+    const target = e.target.closest?.("[data-tooltip], [data-tooltip-html], [data-tooltip-relic]");
+    if (!target || target !== e.target || !target.matches(":focus-visible")) return;
+    if (openTimer) clearTimeout(openTimer);
+    currentHoverTarget = target;
+    showTooltip(e, target);
+  });
+
+  document.addEventListener("focusout", (e) => {
+    const target = e.target.closest?.("[data-tooltip], [data-tooltip-html], [data-tooltip-relic]");
+    if (!target || target !== currentHoverTarget) return;
+    if (e.relatedTarget?.closest?.("#global-tooltip")) return;
+    currentHoverTarget = null;
+    hideTooltip();
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape" || tooltipEl.classList.contains("hidden")) return;
+    if (openTimer) clearTimeout(openTimer);
+    if (closeTimer) clearTimeout(closeTimer);
+    currentHoverTarget = null;
+    tooltipEl.classList.add("hidden");
+    tooltipEl.classList.remove("mega-mode");
+  });
 }
 
 export function initDisclaimerSystem() {
