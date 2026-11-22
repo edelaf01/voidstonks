@@ -199,6 +199,7 @@ export function buildAppraisalCardHTML({ tier, tierColor, priceCalculated, minPr
       <span class="gsc-chip" data-tooltip="${isEs ? "Lo que se paga de verdad por un riven cualquiera de esta arma: la mediana de las ventas reales del juego, sin timos ni gangas. Es el punto de partida antes de valorar tus stats." : "What people actually pay for any riven of this weapon: the median of real in-game sales, excluding scams and fire sales. The starting point before your stats are valued."}" style="cursor: help;">${isEs ? "Precio típico" : "Typical price"}: <b>${precioTipico == null ? (isEs ? "sin datos" : "no data") : `${precioTipico}${PLAT}`}</b> <span class="gsc-info">i</span></span>
       <span class="gsc-chip" data-market-line style="display:none;"></span>
       <span class="gsc-chip" data-comp-line style="display:none;"></span>
+      <span class="gsc-chip" data-wfm-line style="display:none;"></span>
     </div>
 
     <div class="gsc-flags">${warningHtml}</div>
@@ -341,7 +342,7 @@ export function renderMarketChip(estCard, mk, isEs) {
   el.innerHTML = `<span class="gsc-dot" style="background:${col}; box-shadow:0 0 6px ${col};"></span> <b>${mk.label}</b>${extras ? ` <span style="opacity:.85;">· ${extras}</span>` : ""}`;
 }
 
-export function parchearTasacion({ estCard, appraisal, weaponName, weaponData, meta, basePrice, precioTipico, itemAttributes, isEs, conComparables }) {
+export function parchearTasacion({ estCard, appraisal, weaponName, weaponData, meta, basePrice, precioTipico, itemAttributes, isEs, conComparables, rolls }) {
   const _w = meta || { name: weaponName, official_median: basePrice, wfm_avg: basePrice };
   return import("../../utils/rivens/riven_ml.js")
     .then(async (M) => {
@@ -381,6 +382,20 @@ export function parchearTasacion({ estCard, appraisal, weaponName, weaponData, m
         renderMarketChip(estCard, mk, isEs);
       } catch (e) {
         console.warn("[ML] mercado:", e);
+      }
+      try {
+        const NT = await import("../../utils/rivens/riven_nivel.js");
+        const wfm = await NT.cargarWfmMercado();
+        const w = wfm?.armas?.[NT.slugArma(weaponName)];
+        const g = w && (rolls > 0 ? (w.tirado || w.sin_tirar) : (w.sin_tirar || w.tirado));
+        const wEl = estCard.querySelector("[data-wfm-line]");
+        if (g && wEl) {
+          wEl.innerHTML = `WFM: <b>~${g[2]}${PLAT}</b> <span style="opacity:.6;">(${g[1]}-${g[3]} · ${g[0]} ${isEs ? "contratos" : "listings"} · ${escapeHTML(wfm.fecha)})</span>`;
+          wEl.title = isEs ? "Mediana de los precios pedidos en warframe.market en los últimos 14 días" : "Median asking price on warframe.market over the last 14 days";
+          wEl.style.display = "inline-flex";
+        }
+      } catch (e) {
+        console.warn("[ML] wfm:", e);
       }
 
       if (conComparables) {
@@ -485,7 +500,7 @@ export function generateRollResultsDOM(roll, weaponData, weaponName, currentRank
     histLoading: !!(state.currentWeaponHistory?.weaponName === weaponName && state.currentWeaponHistory.loading)
   });
   estCard.insertAdjacentHTML("beforeend", cicloRivenHtml({ stats, meta, tipo: weaponData?.t || meta?.t, deseados: statsBuscadosDelArma(meta, weaponName), rolls: roll.rolls, isEs }));
-  parchearTasacion({ estCard, appraisal, weaponName, weaponData, meta, basePrice, precioTipico, itemAttributes, isEs, conComparables: false });
+  parchearTasacion({ estCard, appraisal, weaponName, weaponData, meta, basePrice, precioTipico, itemAttributes, isEs, conComparables: false, rolls: roll.rolls });
 
   const wrapper = document.createElement("div");
   wrapper.style = "display: flex; flex-direction: column; gap: 12px; width: 100%;";

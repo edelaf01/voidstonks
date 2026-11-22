@@ -78,6 +78,27 @@ export function cargarDe10() {
     return _de10;
 }
 
+let _wfm = null;
+
+export function cargarWfmMercado() {
+    if (_wfm === null) {
+        _wfm = fetch("assets/ml/wfm_mercado.json")
+            .then(r => {
+                if (!r.ok) throw new Error(String(r.status));
+                return r.json();
+            })
+            .then(d => {
+                if (!d || !d.armas) throw new Error("wfm");
+                return d;
+            })
+            .catch(() => {
+                _wfm = null;
+                return null;
+            });
+    }
+    return _wfm;
+}
+
 export function prepararNivelTirada(datos) {
     if (!datos || !datos.armas || !datos.modelo || !datos.efectos) return null;
     const familias = new Map();

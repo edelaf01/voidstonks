@@ -2315,7 +2315,7 @@ export function calculateModalGrade() {
       histLoading: !!(state.currentWeaponHistory?.weaponName === weaponName && state.currentWeaponHistory.loading)
     });
     estCard.insertAdjacentHTML("beforeend", cicloRivenHtml({ stats, meta, tipo: weaponData?.t || meta?.t, deseados: statsBuscadosDelArma(meta, weaponName), rolls: Number.parseInt(document.getElementById("g-rolls")?.value, 10), isEs }));
-    parchearTasacion({ estCard, appraisal, weaponName, weaponData, meta, basePrice, precioTipico, itemAttributes, isEs, conComparables: true });
+    parchearTasacion({ estCard, appraisal, weaponName, weaponData, meta, basePrice, precioTipico, itemAttributes, isEs, conComparables: true, rolls: Number.parseInt(document.getElementById("g-rolls")?.value, 10) });
     gridContainer.appendChild(estCard);
     fragment.appendChild(gridContainer);
 
