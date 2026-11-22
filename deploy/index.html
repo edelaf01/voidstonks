@@ -759,39 +759,42 @@
                 <div class="rv-avg-grid">
                   <div class="rv-avg-col">
                     <div>
-                      <span id="riven-unrolled-title" class="rv-avg-title">Base Real</span>
-                      <span id="riven-unrolled-subtitle" class="rv-avg-sub">(Sin Ciclos)</span>
+                      <span id="riven-unrolled-title" class="rv-avg-title">Vendido sin rolar</span>
+                      <span id="riven-unrolled-info" class="info-icon" tabindex="0" data-tooltip="">ℹ</span>
+                      <span id="riven-unrolled-subtitle" class="rv-avg-sub">ventas reales (DE)</span>
                     </div>
                     <div>
                       <div class="rv-avg-main"><span id="riven-unrolled-median">...</span><img src="assets/relic_contents/platinum.webp" alt=""></div>
                       <div class="rv-avg-range">
-                        <span>Min: <span id="riven-unrolled-min" class="rv-min">...</span><img src="assets/relic_contents/platinum.webp" alt=""></span>
-                        <span>Max: <span id="riven-unrolled-max" class="rv-max">...</span><img src="assets/relic_contents/platinum.webp" alt=""></span>
+                        <span><span class="rv-lbl-min">Mín:</span> <span id="riven-unrolled-min" class="rv-min">...</span><img src="assets/relic_contents/platinum.webp" alt=""></span>
+                        <span><span class="rv-lbl-max">Máx:</span> <span id="riven-unrolled-max" class="rv-max">...</span><img src="assets/relic_contents/platinum.webp" alt=""></span>
                       </div>
                     </div>
                   </div>
                   <div class="rv-avg-col">
                     <div>
-                      <span id="riven-rerolled-title" class="rv-avg-title">Rerolled Real</span>
-                      <span id="riven-rerolled-subtitle" class="rv-avg-sub">(Con Ciclos)</span>
+                      <span id="riven-rerolled-title" class="rv-avg-title">Vendido rolado</span>
+                      <span id="riven-rerolled-info" class="info-icon" tabindex="0" data-tooltip="">ℹ</span>
+                      <span id="riven-rerolled-subtitle" class="rv-avg-sub">ventas reales (DE)</span>
                     </div>
                     <div>
                       <div class="rv-avg-main"><span id="riven-rerolled-median">...</span><img src="assets/relic_contents/platinum.webp" alt=""></div>
                       <div class="rv-avg-range">
-                        <span>Min: <span id="riven-rerolled-min" class="rv-min">...</span><img src="assets/relic_contents/platinum.webp" alt=""></span>
-                        <span>Max: <span id="riven-rerolled-max" class="rv-max">...</span><img src="assets/relic_contents/platinum.webp" alt=""></span>
+                        <span><span class="rv-lbl-min">Mín:</span> <span id="riven-rerolled-min" class="rv-min">...</span><img src="assets/relic_contents/platinum.webp" alt=""></span>
+                        <span><span class="rv-lbl-max">Máx:</span> <span id="riven-rerolled-max" class="rv-max">...</span><img src="assets/relic_contents/platinum.webp" alt=""></span>
                       </div>
                     </div>
                   </div>
                   <div class="rv-avg-col">
                     <div>
-                      <span id="riven-web-title" class="rv-avg-title">WFM Web</span>
-                      <span id="riven-web-subtitle" class="rv-avg-sub">(Active)</span>
+                      <span id="riven-web-title" class="rv-avg-title">Pedido en WFM</span>
+                      <span id="riven-web-info" class="info-icon" tabindex="0" data-tooltip="">ℹ</span>
+                      <span id="riven-web-subtitle" class="rv-avg-sub">(activo)</span>
                     </div>
                     <div>
                       <div class="rv-avg-main"><span id="riven-web-avg">...</span><img src="assets/relic_contents/platinum.webp" alt=""></div>
                       <div class="rv-avg-range">
-                        <span>Min: <span id="riven-web-min" class="rv-min">...</span><img src="assets/relic_contents/platinum.webp" alt=""></span>
+                        <span><span class="rv-lbl-min">Mín:</span> <span id="riven-web-min" class="rv-min">...</span><img src="assets/relic_contents/platinum.webp" alt=""></span>
                         <span><span id="riven-web-orders-label">Orders</span>: <span id="riven-web-orders" class="rv-orders">...</span></span>
                       </div>
                     </div>
@@ -809,11 +812,14 @@
                 </button>
               </div>
 
-              <p id="riven-disclaimer" class="riven-disclaimer">
-                Los precios de riven son orientativos: un mismo riven puede costar cualquier cosa.
-                Tómalos como referencia del volumen real de venta, con datos de Digital Extremes
-                y de warframe.market.
-              </p>
+              <details id="riven-disclaimer-box" class="riven-disclaimer-box">
+                <summary id="riven-disclaimer-toggle">Sobre estos precios</summary>
+                <p id="riven-disclaimer" class="riven-disclaimer">
+                  Los precios de riven son orientativos: un mismo riven puede costar cualquier cosa.
+                  Tómalos como referencia del volumen real de venta, con datos de Digital Extremes
+                  y de warframe.market.
+                </p>
+              </details>
 
               <div id="meta-stats-container" class="recommended-god-roll-card" style="display:none;"></div>
 
@@ -825,14 +831,12 @@
             </div>
 
             <div id="riven-history-chart-container">
-              <div id="chart-hint-note">
-                Pulsa 'WFM' en la leyenda para ocultarlo y ajustar la escala a los precios reales de DE
-              </div>
               <div class="history-range-selector">
                 <button class="history-range-btn active" data-days="7" onclick="globalThis.changeHistoryRange(7)">7D</button>
                 <button class="history-range-btn" data-days="15" onclick="globalThis.changeHistoryRange(15)">15D</button>
                 <button class="history-range-btn" data-days="30" onclick="globalThis.changeHistoryRange(30)">30D</button>
                 <button class="history-range-btn" data-days="all" onclick="globalThis.changeHistoryRange('all')">Todo</button>
+                <button type="button" id="btn-toggle-wfm" class="history-wfm-btn" aria-pressed="false" data-tooltip="Oculta la línea de WFM para ajustar la escala a los precios reales de DE." onclick="globalThis.toggleWfmChart()">Ocultar WFM</button>
               </div>
               <div class="rv-chart-box">
                 <canvas id="rivenHistoryChart"></canvas>

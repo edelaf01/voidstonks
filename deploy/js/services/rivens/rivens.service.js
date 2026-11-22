@@ -1,4 +1,4 @@
-import { WORKER_URL } from "../../config.js";
+import { WORKER_URL, TEXTS } from "../../config.js";
 import { state } from "../../state.js";
 import { dbHelper } from "../../repositories/storage.repository.js";
 import { getRivenSlug } from "../../utils/slugs.utils.js";
@@ -317,14 +317,22 @@ export async function fetchRivenAverage(weaponName) {
     const webMinEl = document.getElementById("riven-web-min");
     const webOrdersEl = document.getElementById("riven-web-orders");
 
-    const isEs = state.currentLang === "es";
 
-    if (unrolledTitleEl) unrolledTitleEl.innerText = isEs ? "Sin Ciclos" : "Unrolled";
-    if (unrolledSubEl) unrolledSubEl.innerText = isEs ? "ventas reales (DE)" : "real sales (DE)";
-    if (rerolledTitleEl) rerolledTitleEl.innerText = isEs ? "Con Ciclos" : "Rerolled";
-    if (rerolledSubEl) rerolledSubEl.innerText = isEs ? "ventas reales (DE)" : "real sales (DE)";
-    if (webTitleEl) webTitleEl.innerText = isEs ? "WFM Web" : "WFM Web";
-    if (webSubEl) webSubEl.innerText = isEs ? "(Activo)" : "(Active)";
+    const cols = (TEXTS[state.currentLang] || TEXTS.es).rivenCols;
+    if (unrolledTitleEl) unrolledTitleEl.innerText = cols.unrolledTitle;
+    if (unrolledSubEl) unrolledSubEl.innerText = cols.unrolledSub;
+    if (rerolledTitleEl) rerolledTitleEl.innerText = cols.rerolledTitle;
+    if (rerolledSubEl) rerolledSubEl.innerText = cols.rerolledSub;
+    if (webTitleEl) webTitleEl.innerText = cols.webTitle;
+    if (webSubEl) webSubEl.innerText = cols.webSub;
+    [["riven-unrolled-info", cols.unrolledInfo], ["riven-rerolled-info", cols.rerolledInfo], ["riven-web-info", cols.webInfo]].forEach(([id, tip]) => {
+      const el = document.getElementById(id);
+      if (el) el.dataset.tooltip = tip;
+    });
+    if (box) {
+      box.querySelectorAll(".rv-lbl-min").forEach((el) => { el.innerText = cols.min; });
+      box.querySelectorAll(".rv-lbl-max").forEach((el) => { el.innerText = cols.max; });
+    }
 
     if (unrolledMedianEl) unrolledMedianEl.innerText = "...";
     if (unrolledMinEl) unrolledMinEl.innerText = "...";

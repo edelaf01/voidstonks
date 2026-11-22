@@ -923,8 +923,19 @@
     color: #8b8397;
 }
 
-#mode-riven .riven-disclaimer {
+#mode-riven .riven-disclaimer-box {
     margin: 10px 0 0;
+    font-size: 0.75rem;
+    color: var(--label-color);
+}
+
+#mode-riven .riven-disclaimer-box summary {
+    cursor: pointer;
+    width: fit-content;
+}
+
+#mode-riven .riven-disclaimer {
+    margin: 6px 0 0;
     font-size: 0.75rem;
     line-height: 1.45;
     color: var(--label-color);
@@ -1226,14 +1237,6 @@
   border-radius: var(--radius-box);
 }
 
-#chart-hint-note {
-  margin-bottom: 4px;
-  font-size: 0.72rem;
-  line-height: 1.3;
-  font-weight: bold;
-  color: #888;
-  text-align: center;
-}
 
 #riven-history-chart-container .history-range-selector {
   display: flex;
@@ -1242,7 +1245,7 @@
   margin: 4px 0 6px;
 }
 
-#riven-history-chart-container .history-range-btn {
+#riven-history-chart-container :is(.history-range-btn, .history-wfm-btn) {
   padding: 3px 10px;
   font-size: 0.75rem;
   font-weight: bold;
@@ -1254,7 +1257,7 @@
   transition: all 0.2s;
 }
 
-#riven-history-chart-container .history-range-btn.active {
+#riven-history-chart-container :is(.history-range-btn, .history-wfm-btn).active {
   color: #fff;
   background: rgba(162, 53, 226, 0.25);
   border-color: rgba(162, 53, 226, 0.6);

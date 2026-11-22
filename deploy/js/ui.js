@@ -319,6 +319,7 @@ function updateStaticTexts(t) {
   setText("btn-riven-grade", t.rivenGradeBtn);
   setText("grading-modal-title", t.rivenGradeTitle);
   setText("riven-disclaimer", t.rivenDisclaimer);
+  setText("riven-disclaimer-toggle", t.rivenDisclaimerToggle);
   setText("btn-add-pos", t.rivenAddPos);
   setText("btn-add-neg", t.rivenAddNeg);
   setText("lbl-grading-variants", t.rivenGradeVariants);

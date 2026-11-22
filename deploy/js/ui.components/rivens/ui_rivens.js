@@ -281,6 +281,7 @@ const cargaChart = () => (globalThis.Chart ? Promise.resolve() : cargaScript(CHA
 
 let historial = null;
 let rangoHistorial = 7;
+let wfmOculto = false;
 
 function ocultaHistorial(container) {
   container.style.display = "none";
@@ -367,6 +368,26 @@ function changeHistoryRange(days) {
   rangoHistorial = days;
   renderHistoryWithRange();
 };
+
+function syncWfmToggleBtn() {
+  const btn = document.getElementById("btn-toggle-wfm");
+  if (!btn) return;
+  const t = TEXTS[state.currentLang] || TEXTS.es;
+  btn.textContent = wfmOculto ? t.rivenChartShowWfm : t.rivenChartHideWfm;
+  btn.dataset.tooltip = t.rivenChartWfmTip;
+  btn.setAttribute("aria-pressed", String(wfmOculto));
+  btn.classList.toggle("active", wfmOculto);
+}
+
+function toggleWfmChart() {
+  wfmOculto = !wfmOculto;
+  const chart = rivenHistoryChartInstance;
+  if (chart?.data?.datasets?.[0]) {
+    chart.setDatasetVisibility(0, !wfmOculto);
+    chart.update();
+  }
+  syncWfmToggleBtn();
+}
 
 export function renderHistoryWithRange() {
   const { historyData, meta, weaponName } = historial || {};
@@ -498,12 +519,7 @@ export function renderHistoryWithRange() {
     rivenHistoryChartInstance = null;
   }
 
-  const hintEl = document.getElementById("chart-hint-note");
-  if (hintEl) {
-    hintEl.innerText = isEs
-      ? "Pulsa 'WFM' en la leyenda para ocultarlo y ajustar la escala a los precios reales de DE"
-      : "Click 'WFM' in the legend to hide it and fit the scale to DE's real prices";
-  }
+  syncWfmToggleBtn();
 
   container.style.display = "block";
 
@@ -515,6 +531,7 @@ export function renderHistoryWithRange() {
           type: "line",
           label: WFM_RIVENS_HASTA ? `WFM (${isEs ? "hasta el" : "until"} ${fechaWfmRivens(isEs)})` : (isEs ? "WFM (Precio Base)" : "WFM (Base Price)"),
           data: wfmPrices,
+          hidden: wfmOculto,
           borderColor: "#00e5ff",
           backgroundColor: "rgba(0, 229, 255, 0.08)",
           borderWidth: 2,
@@ -567,6 +584,13 @@ export function renderHistoryWithRange() {
         legend: {
           display: true,
           position: "top",
+          onClick: (e, item, legend) => {
+            globalThis.Chart.defaults.plugins.legend.onClick.call(legend, e, item, legend);
+            if (item.datasetIndex === 0) {
+              wfmOculto = !legend.chart.isDatasetVisible(0);
+              syncWfmToggleBtn();
+            }
+          },
           labels: {
             color: "#e2e8f0",
             font: {
@@ -3858,6 +3882,7 @@ Object.assign(globalThis, {
 
 exposeGlobals({
   changeHistoryRange,
+  toggleWfmChart,
   switchGradingRoll,
   loadMoreRivenIndex,
 }, "ui.components/rivens/ui_rivens.js");
