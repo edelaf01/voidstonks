@@ -813,3 +813,15 @@ option {
         display: none;
     }
 }
+
+@media (min-width: 1600px) {
+    .card {
+        max-width: min(92vw, 1800px);
+    }
+
+    #mode-relic,
+    #mode-set,
+    #mode-lfg {
+        max-width: 1200px;
+    }
+}
